@@ -1,0 +1,87 @@
+{
+  "project": "GIGAH|RUSH",
+  "public_url": "https://tenevik.itch.io/gigahrush",
+  "editor_url": "https://itch.io/game/edit/4587160",
+  "default_description": "description_ru_overkill.html",
+  "fallback_description": "description_ru_overkill.md",
+  "core_fields": {
+    "title": "GIGAH|RUSH",
+    "short_description": "Вылазки, патроны и самосбор внутри хрущёвки размером с город.",
+    "genre": "Shooter",
+    "tags": [
+      "Survival Horror",
+      "Procedural Generation",
+      "Life Simulation",
+      "Dungeon Crawler",
+      "Roguelike",
+      "Doom",
+      "Maze",
+      "Russian",
+      "Pixel Art",
+      "Browser",
+      "Singleplayer",
+      "Atmospheric",
+      "Horror"
+    ]
+  },
+  "theme": {
+    "background": "#08090A",
+    "secondary_background": "#12110F",
+    "text": "#D8D0B8",
+    "link": "#E6BC57",
+    "button": "#B73A2F",
+    "button_text": "#FFF1D0",
+    "border": "#4D4034"
+  },
+  "uploads": [
+    {
+      "role": "cover",
+      "path": "assets/gigahrush_cover_630x500.png",
+      "dimensions": "630x500",
+      "priority": 1
+    },
+    {
+      "role": "page_background",
+      "path": "assets/gigahrush_background_1920x1080.png",
+      "dimensions": "1920x1080",
+      "priority": 1
+    },
+    {
+      "role": "header_clean",
+      "path": "visual_variants/gigahrush_header_clean_no_title_1920x620.png",
+      "dimensions": "1920x620",
+      "priority": 1
+    },
+    {
+      "role": "social_card",
+      "path": "assets/gigahrush_social_1200x630.png",
+      "dimensions": "1200x630",
+      "priority": 2
+    },
+    {
+      "role": "animated_media",
+      "path": "animated/gigahrush_samosbor_loop_640x360.gif",
+      "dimensions": "640x360",
+      "priority": 2
+    },
+    {
+      "role": "media_wall",
+      "path": "assets/gigahrush_media_wall_1920x1080.png",
+      "dimensions": "1920x1080",
+      "priority": 3
+    }
+  ],
+  "screenshots": [
+    "enhanced_screenshots/gigahrush_screen_01_combat.png",
+    "enhanced_screenshots/gigahrush_screen_02_contract.png",
+    "enhanced_screenshots/gigahrush_screen_03_inventory.png",
+    "enhanced_screenshots/gigahrush_screen_04_act_hall.png"
+  ],
+  "cover_alternatives": [
+    "visual_variants/gigahrush_cover_variant_red_alarm_630x500.png",
+    "visual_variants/gigahrush_cover_variant_green_maronary_630x500.png",
+    "visual_variants/gigahrush_cover_variant_white_veretar_630x500.png"
+  ],
+  "css": "custom_css.css",
+  "verification_rule": "Live page is not considered updated until a logged-out public check passes."
+}

@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GIGAH|RUSH itch preview</title>
+  <style>
+    :root {
+      --void: #08090a;
+      --panel: #12110f;
+      --paper: #d8d0b8;
+      --muted: #9e927d;
+      --red: #b73a2f;
+      --amber: #e6bc57;
+      --green: #68c878;
+      --line: #4d4034;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background:
+        linear-gradient(rgba(8,9,10,.76), rgba(8,9,10,.86)),
+        url("assets/gigahrush_background_1920x1080.png") center / cover fixed;
+      color: var(--paper);
+      font: 18px/1.6 Arial, sans-serif;
+    }
+    .page {
+      width: min(1180px, calc(100% - 32px));
+      margin: 0 auto;
+      background: rgba(18,17,15,.98);
+      box-shadow: 0 0 70px rgba(0,0,0,.85);
+      border-left: 1px solid rgba(230,188,87,.18);
+      border-right: 1px solid rgba(230,188,87,.18);
+    }
+    header {
+      min-height: 350px;
+      padding: 36px 40px;
+      display: flex;
+      align-items: end;
+      background:
+        linear-gradient(180deg, rgba(8,9,10,.05), rgba(8,9,10,.90)),
+        url("assets/gigahrush_header_bg_1920x620.png") center / cover;
+      border-bottom: 1px solid rgba(230,188,87,.25);
+    }
+    h1 {
+      margin: 0;
+      font-size: clamp(46px, 9vw, 106px);
+      line-height: .9;
+      letter-spacing: 0;
+      color: #fff1d0;
+      text-shadow: 0 0 18px rgba(183,58,47,.7), 4px 4px 0 rgba(0,0,0,.72);
+    }
+    .embed {
+      aspect-ratio: 16 / 9;
+      margin: 28px 40px;
+      display: grid;
+      place-items: center;
+      background: #050505;
+      border: 1px solid rgba(230,188,87,.22);
+      box-shadow: 0 0 40px rgba(183,58,47,.22);
+      color: var(--muted);
+      font-family: Consolas, monospace;
+    }
+    main {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 280px;
+      gap: 30px;
+      padding: 0 40px 42px;
+    }
+    h2 {
+      margin-top: 34px;
+      padding-top: 18px;
+      border-top: 1px solid rgba(230,188,87,.22);
+      color: #fff1d0;
+      text-transform: uppercase;
+      font-size: 25px;
+      letter-spacing: 0;
+    }
+    strong { color: #fff1d0; }
+    p, li { overflow-wrap: anywhere; }
+    a { color: var(--amber); }
+    li { margin: .42em 0; }
+    li::marker { color: var(--red); }
+    aside img {
+      width: 100%;
+      display: block;
+      margin-bottom: 14px;
+      border: 1px solid rgba(230,188,87,.28);
+      box-shadow: 0 0 22px rgba(0,0,0,.65);
+    }
+    @media (max-width: 820px) {
+      .page { width: 100%; }
+      header { min-height: 260px; padding: 24px; }
+      .embed { margin: 18px; }
+      main { grid-template-columns: 1fr; padding: 0 20px 30px; }
+      aside { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+      aside img { margin: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header><h1>GIGAH|RUSH</h1></header>
+    <div class="embed">ITCH HTML5 EMBED 1280x720</div>
+    <main>
+      <section>
+        <p><strong>ГИГАХРУЩ</strong> - это вылазки по хрущёвке, которая давно перестала быть домом, но всё ещё требует оплату, документы и тишину после отбоя.</p>
+        <p>Вы не герой. Вы жилец, которого вытолкнули из безопасной комнаты за водой, патронами, бинтами, слухом или чужой просьбой. За дверью не “уровень”. За дверью подъезд, который врёт. Лифт может привезти в министерский морг, на чёрный рынок, в коллектор, на белый Веретар или обратно в тот же коридор, только уже не ваш.</p>
+        <p><strong>Самосбор</strong> здесь работает как местный выброс. Сначала сирена. Потом гермодвери, туман, чужие шаги, новые проходы, мёртвые комнаты и люди, которые после отбоя будут спрашивать, почему вы закрыли дверь только за собой.</p>
+        <h2>Одна нормальная вылазка</h2>
+        <ul>
+          <li>услышать слух или взять заказ;</li>
+          <li>купить патроны, воду, бинт, документ или соврать, что всё это уже есть;</li>
+          <li>пройти через чужую зону, где у каждого шкафа может быть хозяин;</li>
+          <li>решить: стрелять, красть, чинить, вести NPC, сдавать человека или делать вид, что ничего не видел;</li>
+          <li>пережить самосбор и вернуться не победителем, а человеком, который теперь должен объяснить последствия.</li>
+        </ul>
+        <h2>Онлайн-версия</h2>
+        <p><a href="https://gigahrush.bileter.workers.dev">https://gigahrush.bileter.workers.dev</a></p>
+      </section>
+      <aside>
+        <img src="enhanced_screenshots/gigahrush_screen_01_combat.png" alt="">
+        <img src="enhanced_screenshots/gigahrush_screen_02_contract.png" alt="">
+        <img src="enhanced_screenshots/gigahrush_screen_03_inventory.png" alt="">
+        <img src="enhanced_screenshots/gigahrush_screen_04_act_hall.png" alt="">
+      </aside>
+    </main>
+  </div>
+</body>
+</html>

@@ -1,0 +1,136 @@
+/* GIGAH|RUSH itch page CSS. Use only if custom CSS is enabled on the project. */
+:root {
+  --giga-void: #08090a;
+  --giga-panel: #12110f;
+  --giga-paper: #d8d0b8;
+  --giga-muted: #9e927d;
+  --giga-red: #b73a2f;
+  --giga-amber: #e6bc57;
+  --giga-green: #68c878;
+  --giga-line: #4d4034;
+}
+
+body {
+  background:
+    radial-gradient(circle at 20% 0%, rgba(104, 200, 120, 0.12), transparent 32rem),
+    radial-gradient(circle at 85% 12%, rgba(183, 58, 47, 0.18), transparent 28rem),
+    linear-gradient(180deg, #08090a 0%, #11100e 46%, #070707 100%) !important;
+}
+
+.wrapper {
+  background-color: var(--giga-void) !important;
+}
+
+.inner_column {
+  background:
+    linear-gradient(180deg, rgba(18, 17, 15, 0.98), rgba(10, 10, 9, 0.98)) !important;
+  color: var(--giga-paper) !important;
+  border-left: 1px solid rgba(230, 188, 87, 0.18);
+  border-right: 1px solid rgba(230, 188, 87, 0.18);
+  box-shadow: 0 0 60px rgba(0, 0, 0, 0.75);
+}
+
+.header {
+  min-height: 220px;
+  display: flex;
+  align-items: flex-end;
+  padding: 32px 36px;
+  background:
+    radial-gradient(circle at 70% 16%, rgba(104, 200, 120, 0.12), transparent 25rem),
+    radial-gradient(circle at 20% 12%, rgba(183, 58, 47, 0.14), transparent 25rem),
+    linear-gradient(180deg, rgba(8, 9, 10, 0.2), rgba(8, 9, 10, 0.95));
+  border-bottom: 1px solid rgba(230, 188, 87, 0.25);
+}
+
+.game_title {
+  color: #fff1d0 !important;
+  font-size: clamp(44px, 8vw, 96px) !important;
+  line-height: 0.9 !important;
+  letter-spacing: 0 !important;
+  text-shadow:
+    0 0 12px rgba(183, 58, 47, 0.72),
+    0 0 32px rgba(104, 200, 120, 0.24),
+    4px 4px 0 rgba(0, 0, 0, 0.72);
+}
+
+.formatted_description {
+  font-size: 18px;
+  line-height: 1.62;
+  overflow-wrap: anywhere;
+}
+
+.formatted_description h2 {
+  margin-top: 34px;
+  color: #fff1d0 !important;
+  border-top: 1px solid rgba(230, 188, 87, 0.22);
+  padding-top: 18px;
+  text-transform: uppercase;
+  letter-spacing: 0 !important;
+}
+
+.formatted_description p:first-child {
+  font-size: 23px;
+  line-height: 1.38;
+  color: #fff1d0;
+}
+
+.formatted_description strong {
+  color: #fff1d0;
+}
+
+.formatted_description a,
+.inner_column a {
+  color: var(--giga-amber) !important;
+}
+
+.formatted_description ul {
+  padding-left: 1.2em;
+}
+
+.formatted_description li {
+  margin: 0.42em 0;
+}
+
+.formatted_description li::marker {
+  color: var(--giga-red);
+}
+
+.button, .button:hover, .button:active {
+  background: linear-gradient(180deg, #d6503e, #8f271f) !important;
+  color: #fff1d0 !important;
+  text-shadow: 0 1px 0 #3f1010 !important;
+  border: 1px solid rgba(255, 241, 208, 0.18);
+}
+
+.game_frame {
+  background: #050505 !important;
+  border: 1px solid rgba(230, 188, 87, 0.22);
+  box-shadow: 0 0 40px rgba(183, 58, 47, 0.25);
+}
+
+.more_information_toggle,
+.game_info_panel_widget {
+  color: var(--giga-paper) !important;
+}
+
+.game_info_panel_widget {
+  background: rgba(27, 24, 20, 0.98) !important;
+  border: 1px solid rgba(230, 188, 87, 0.18);
+}
+
+.right_col {
+  display: block !important;
+}
+
+.screenshot {
+  border: 1px solid rgba(230, 188, 87, 0.28);
+  box-shadow: 0 0 22px rgba(0, 0, 0, 0.65);
+}
+
+hr {
+  background-color: rgba(230, 188, 87, 0.2) !important;
+}
+
+.footer {
+  color: var(--giga-muted) !important;
+}
