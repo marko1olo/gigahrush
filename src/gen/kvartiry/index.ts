@@ -24,6 +24,7 @@ import {
   spawnKvartiryNamedNpcs,
   tryKvartiryContentUprising,
 } from './content_manifest';
+import { applyKvartiryGeometry, decorateKvartiryGeometry } from './geometry';
 
 /* ── Constants ────────────────────────────────────────────────── */
 const WALL_L = 4;  // grid spacing for wall sources
@@ -368,6 +369,9 @@ export function generateKvartiry(): { world: World; entities: Entity[]; spawnX: 
     }
   }
 
+  // ── Phase 4b: Macro residential blocks and social shortcuts ──
+  const geometryPlan = applyKvartiryGeometry(world);
+
   // Register all doors in world.doors map
   for (let i = 0; i < W * W; i++) {
     if (world.cells[i] === Cell.DOOR) {
@@ -458,6 +462,8 @@ export function generateKvartiry(): { world: World; entities: Entity[]; spawnX: 
 
     roomN++;
   }
+
+  decorateKvartiryGeometry(world, geometryPlan);
 
   // ── Phase 6: Zones (64 macro-regions) ─────────────────────────
   generateZones(world);

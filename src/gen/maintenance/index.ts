@@ -14,6 +14,7 @@ import { randomName, freshNeeds } from '../../data/catalog';
 import { calcZoneLevel, randomRPG, scaleMonsterHp, scaleMonsterSpeed, gaussianLevel, getMaxHp } from '../../systems/rpg';
 import { runMaintenanceContent } from './content_manifest';
 import { Spr, monsterSpr } from '../../render/sprite_index';
+import { applyCollectorMacroGeometry } from './geometry';
 
 /* ── Coarse grid parameters ───────────────────────────────────── */
 const CELL = 6;                   // world-tiles per maze cell (walls between = 1-wide passage)
@@ -134,6 +135,8 @@ export function generateMaintenance(): { world: World; entities: Entity[]; spawn
      Between connected cells we carve a 1-wide corridor.
      ══════════════════════════════════════════════════════════════ */
   const half = Math.floor(CELL / 2); // 3
+  const centerX = Math.floor(GRID / 2) * CELL + half;
+  const centerY = Math.floor(GRID / 2) * CELL + half;
 
   // Helper: carve one world-tile
   function carve(x: number, y: number): void {
@@ -314,11 +317,11 @@ export function generateMaintenance(): { world: World; entities: Entity[]; spawn
     }
   }
 
+  nextRoomId = applyCollectorMacroGeometry(world, rooms, nextRoomId, centerX, centerY);
+
   /* ══════════════════════════════════════════════════════════════
      Phase 6: Spawn point (center of the maze)
      ══════════════════════════════════════════════════════════════ */
-  const centerX = Math.floor(GRID / 2) * CELL + half;
-  const centerY = Math.floor(GRID / 2) * CELL + half;
   // Ensure spawn cell is floor
   carve(world.wrap(centerX), world.wrap(centerY));
   const spawnX = world.wrap(centerX) + 0.5;

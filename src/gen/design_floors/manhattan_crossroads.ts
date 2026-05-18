@@ -50,11 +50,15 @@ const ROAD_TEX = Tex.DARK;
 const SIDEWALK_TEX = Tex.F_CONCRETE;
 const MARK_TEX = Tex.F_TILE;
 const ROAD_WALL_TEX = Tex.CONCRETE;
+const OVERPASS_TEX = Tex.F_TILE;
+const UNDERPASS_TEX = Tex.F_CONCRETE;
 const CROSSWALK_ROOM_NAME = 'Белая дорожная разметка';
 const CONTROL_ROOM_NAME = 'Пост управления перекрестком';
 const CARGO_ROOM_NAME = 'Гараж украденного груза';
 const WRONG_TURN_ROOM_NAME = 'Съезд Неправильный поворот';
 const SAFE_CURB_ROOM_NAME = 'Безопасный бордюр у зебры';
+const AVENUE_CENTERS = [232, 344, 512, 680, 792] as const;
+const STREET_CENTERS = [232, 344, 512, 680, 792] as const;
 
 type Axis = 'vertical' | 'horizontal';
 
@@ -101,22 +105,28 @@ export const MANHATTAN_CROSSROADS_DEBUG: ManhattanCrossroadsDebugInfo = {
     'T-junction: Central Ave / Wrong-Turn Spur at 512,600',
     '4-way: West Ave / Main Cross at 344,512',
     '4-way: East Ave / Main Cross at 680,512',
+    'outer grid: five avenues and five cross streets between 232..792',
   ],
   blockers: [
     'Wrong-turn spur has no western approach, so the 512,600 node reads as a three-approach junction.',
     'Cargo garage is locked/faction-owned and can be looted, fought over, or handled through Dima.',
+    'Three barricaded intersections force alley, storefront and overpass detours instead of a single straight road.',
   ],
   questRooms: [CONTROL_ROOM_NAME, CARGO_ROOM_NAME, WRONG_TURN_ROOM_NAME, SAFE_CURB_ROOM_NAME],
-  smokePath: 'Spawn on the south curb, follow the central divider north to 512,512, cross two zebra markings, then reach the wrong-turn spur at 512,600.',
+  smokePath: 'Spawn on the south curb, choose central avenue or the east overpass bypass, cross two zebra markings, then reach the wrong-turn spur at 512,600.',
 };
 
 const ROAD_SPANS: readonly RoadSpan[] = [
+  { axis: 'vertical', center: 232, from: DISTRICT_MIN, to: DISTRICT_MAX, width: AVENUE_WIDTH, name: 'Западная окраинная авеню' },
   { axis: 'vertical', center: 344, from: DISTRICT_MIN, to: DISTRICT_MAX, width: AVENUE_WIDTH, name: 'Западная авеню' },
   { axis: 'vertical', center: 512, from: DISTRICT_MIN, to: DISTRICT_MAX, width: AVENUE_WIDTH, name: 'Центральная авеню' },
   { axis: 'vertical', center: 680, from: DISTRICT_MIN, to: DISTRICT_MAX, width: AVENUE_WIDTH, name: 'Восточная авеню' },
+  { axis: 'vertical', center: 792, from: DISTRICT_MIN, to: DISTRICT_MAX, width: AVENUE_WIDTH, name: 'Крайняя восточная авеню' },
+  { axis: 'horizontal', center: 232, from: DISTRICT_MIN, to: DISTRICT_MAX, width: STREET_WIDTH, name: 'Северный въезд' },
   { axis: 'horizontal', center: 344, from: DISTRICT_MIN, to: DISTRICT_MAX, width: STREET_WIDTH, name: 'Северная улица' },
   { axis: 'horizontal', center: 512, from: DISTRICT_MIN, to: DISTRICT_MAX, width: STREET_WIDTH, name: 'Главный кросс' },
   { axis: 'horizontal', center: 680, from: DISTRICT_MIN, to: DISTRICT_MAX, width: STREET_WIDTH, name: 'Южная улица' },
+  { axis: 'horizontal', center: 792, from: DISTRICT_MIN, to: DISTRICT_MAX, width: STREET_WIDTH, name: 'Южный объезд' },
   { axis: 'horizontal', center: 600, from: 512, to: DISTRICT_MAX, width: STREET_WIDTH, name: 'Съезд Неправильный поворот' },
 ];
 
@@ -342,6 +352,110 @@ function carveRoadSpan(world: World, span: RoadSpan, roadRoomId: number, sidewal
   }
 }
 
+function isRoadLikeRoom(world: World, roomId: number): boolean {
+  const room = world.rooms[roomId];
+  return room?.name === 'Асфальтовая сетка авеню'
+    || room?.name === 'Бордюры и служебные края'
+    || room?.name === CROSSWALK_ROOM_NAME;
+}
+
+function canRetuneStreetCell(world: World, ci: number): boolean {
+  if (world.cells[ci] === Cell.LIFT || world.cells[ci] === Cell.DOOR) return false;
+  if (world.containerMap.has(ci)) return false;
+  const roomId = world.roomMap[ci];
+  return roomId < 0 || isRoadLikeRoom(world, roomId);
+}
+
+function setOpenCellSafe(world: World, x: number, y: number, floorTex: Tex, roomId: number): void {
+  const ci = world.idx(x, y);
+  if (!canRetuneStreetCell(world, ci)) return;
+  const wasFloor = world.cells[ci] === Cell.FLOOR || world.cells[ci] === Cell.WATER;
+  world.cells[ci] = Cell.FLOOR;
+  world.floorTex[ci] = floorTex;
+  world.wallTex[ci] = ROAD_WALL_TEX;
+  world.roomMap[ci] = roomId;
+  if (!wasFloor) world.features[ci] = Feature.NONE;
+}
+
+function carveRoadSpanSafe(world: World, span: RoadSpan, roadRoomId: number, sidewalkRoomId: number): void {
+  const half = Math.floor(span.width / 2);
+  const start = Math.min(span.from, span.to);
+  const end = Math.max(span.from, span.to);
+  for (let n = start; n <= end; n++) {
+    for (let o = -half - SIDEWALK; o <= half + SIDEWALK; o++) {
+      const road = Math.abs(o) <= half;
+      const x = span.axis === 'vertical' ? span.center + o : n;
+      const y = span.axis === 'vertical' ? n : span.center + o;
+      setOpenCellSafe(world, x, y, road ? ROAD_TEX : SIDEWALK_TEX, road ? roadRoomId : sidewalkRoomId);
+    }
+  }
+}
+
+function carveOpenRect(
+  world: World,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  floorTex: Tex,
+  roomId: number,
+  safe = false,
+): void {
+  for (let dy = 0; dy < h; dy++) {
+    for (let dx = 0; dx < w; dx++) {
+      if (safe) setOpenCellSafe(world, x + dx, y + dy, floorTex, roomId);
+      else setOpenCell(world, x + dx, y + dy, floorTex, roomId);
+    }
+  }
+}
+
+function carveDiagonalPath(
+  world: World,
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+  width: number,
+  floorTex: Tex,
+  roomId: number,
+  safe = false,
+): void {
+  const steps = Math.max(Math.abs(bx - ax), Math.abs(by - ay));
+  for (let i = 0; i <= steps; i++) {
+    const t = steps === 0 ? 0 : i / steps;
+    const x = Math.round(ax + (bx - ax) * t);
+    const y = Math.round(ay + (by - ay) * t);
+    for (let dy = -width; dy <= width; dy++) {
+      for (let dx = -width; dx <= width; dx++) {
+        if (dx * dx + dy * dy > width * width) continue;
+        if (safe) setOpenCellSafe(world, x + dx, y + dy, floorTex, roomId);
+        else setOpenCell(world, x + dx, y + dy, floorTex, roomId);
+      }
+    }
+  }
+}
+
+function placeBarrierRect(world: World, x: number, y: number, w: number, h: number): void {
+  for (let dy = 0; dy < h; dy++) {
+    for (let dx = 0; dx < w; dx++) {
+      const ci = world.idx(x + dx, y + dy);
+      if (!canRetuneStreetCell(world, ci)) continue;
+      if (world.cells[ci] !== Cell.FLOOR) continue;
+      world.cells[ci] = Cell.WALL;
+      world.wallTex[ci] = Tex.METAL;
+      world.roomMap[ci] = -1;
+      world.features[ci] = Feature.NONE;
+    }
+  }
+}
+
+function nearAnyCenter(v: number, centers: readonly number[], radius: number): boolean {
+  for (const center of centers) {
+    if (Math.abs(v - center) <= radius) return true;
+  }
+  return false;
+}
+
 function paintSurfaceRect(
   world: World,
   x: number,
@@ -535,9 +649,197 @@ function connectRoomToStreet(world: World, room: Room, sidewalkRoomId: number): 
   }
 }
 
+function connectRoomExit(
+  world: World,
+  room: Room,
+  doorX: number,
+  doorY: number,
+  dx: number,
+  dy: number,
+  sidewalkRoomId: number,
+): void {
+  placeDoor(world, room, doorX, doorY);
+  let x = doorX + dx;
+  let y = doorY + dy;
+  for (let step = 0; step < 46; step++) {
+    const ci = world.idx(x, y);
+    if (world.cells[ci] === Cell.FLOOR && world.roomMap[ci] !== room.id) break;
+    if (world.cells[ci] === Cell.LIFT || world.cells[ci] === Cell.DOOR) break;
+    world.cells[ci] = Cell.FLOOR;
+    world.floorTex[ci] = SIDEWALK_TEX;
+    world.roomMap[ci] = sidewalkRoomId;
+    x += dx;
+    y += dy;
+  }
+}
+
 function setFeatureIfFloor(world: World, x: number, y: number, feature: Feature): void {
   const ci = world.idx(x, y);
   if (world.cells[ci] === Cell.FLOOR || world.cells[ci] === Cell.WATER) world.features[ci] = feature;
+}
+
+function paintCrosswalkPlaza(world: World, markRoomId: number): void {
+  for (let x = 480; x <= 544; x += 4) {
+    for (let y = 492; y <= 532; y++) markCrosswalkCell(world, x, y, markRoomId);
+  }
+  for (let y = 480; y <= 544; y += 4) {
+    for (let x = 492; x <= 532; x++) markCrosswalkCell(world, x, y, markRoomId);
+  }
+}
+
+function carveServiceAlleys(world: World, sidewalkRoomId: number): void {
+  carveDiagonalPath(world, 272, 658, 442, 542, 2, SIDEWALK_TEX, sidewalkRoomId);
+  carveDiagonalPath(world, 586, 468, 748, 326, 2, SIDEWALK_TEX, sidewalkRoomId);
+  carveDiagonalPath(world, 632, 620, 746, 704, 2, SIDEWALK_TEX, sidewalkRoomId);
+  carveDiagonalPath(world, 304, 360, 454, 470, 1, SIDEWALK_TEX, sidewalkRoomId);
+  for (const [x, y] of [[272, 658], [442, 542], [586, 468], [748, 326], [632, 620], [746, 704]] as const) {
+    setFeatureIfFloor(world, x, y, Feature.LAMP);
+  }
+}
+
+function carveOverpassBypass(world: World, sidewalkRoomId: number): void {
+  carveOpenRect(world, 548, 438, 8, 158, OVERPASS_TEX, sidewalkRoomId);
+  carveOpenRect(world, 506, 438, 50, 8, OVERPASS_TEX, sidewalkRoomId);
+  carveOpenRect(world, 548, 586, 92, 8, OVERPASS_TEX, sidewalkRoomId);
+  carveOpenRect(world, 632, 586, 8, 38, OVERPASS_TEX, sidewalkRoomId);
+  for (let y = 444; y <= 588; y += 18) {
+    setFeatureIfFloor(world, 546, y, Feature.LAMP);
+    setFeatureIfFloor(world, 557, y, Feature.LAMP);
+  }
+  for (let x = 512; x <= 636; x += 18) setFeatureIfFloor(world, x, 586, Feature.LAMP);
+}
+
+function carveUnderpassTunnels(world: World, sidewalkRoomId: number): void {
+  carveOpenRect(world, 292, 620, 212, 7, UNDERPASS_TEX, sidewalkRoomId);
+  carveOpenRect(world, 494, 600, 7, 86, UNDERPASS_TEX, sidewalkRoomId);
+  carveDiagonalPath(world, 500, 624, 650, 628, 2, UNDERPASS_TEX, sidewalkRoomId);
+  carveOpenRect(world, 650, 626, 136, 7, UNDERPASS_TEX, sidewalkRoomId);
+  for (const [x, y] of [[292, 623], [498, 604], [650, 628], [782, 628]] as const) {
+    setFeatureIfFloor(world, x, y, Feature.SCREEN);
+  }
+}
+
+function placeTrafficBarriers(world: World): void {
+  placeBarrierRect(world, 356, 340, 42, 7);
+  placeBarrierRect(world, 676, 286, 8, 42);
+  placeBarrierRect(world, 220, 690, 42, 7);
+  placeBarrierRect(world, 498, 502, 8, 20);
+  placeBarrierRect(world, 518, 502, 8, 20);
+}
+
+function placeRoadDividerCover(world: World): void {
+  for (const span of ROAD_SPANS) {
+    const start = Math.min(span.from, span.to) + 18;
+    const end = Math.max(span.from, span.to) - 18;
+    for (let n = start; n <= end; n += 44) {
+      if (span.axis === 'vertical' && nearAnyCenter(n, STREET_CENTERS, 18)) continue;
+      if (span.axis === 'horizontal' && nearAnyCenter(n, AVENUE_CENTERS, 18)) continue;
+      const x = span.axis === 'vertical' ? span.center - 3 : n;
+      const y = span.axis === 'vertical' ? n : span.center - 3;
+      setFeatureIfFloor(world, x, y, Feature.APPARATUS);
+      if (n % 88 === 0) setFeatureIfFloor(world, span.axis === 'vertical' ? span.center + 3 : n, span.axis === 'vertical' ? n : span.center + 3, Feature.LAMP);
+    }
+  }
+}
+
+function paintRoadDividersForSpans(world: World, spans: readonly RoadSpan[], markRoomId: number): void {
+  for (const span of spans) {
+    const start = Math.min(span.from, span.to);
+    const end = Math.max(span.from, span.to);
+    for (let n = start; n <= end; n++) {
+      if (((n - start) % 8) > 4) continue;
+      const x = span.axis === 'vertical' ? span.center : n;
+      const y = span.axis === 'vertical' ? n : span.center;
+      markLineCell(world, x, y, span.axis, markRoomId);
+    }
+  }
+}
+
+function dressStreetMotifs(world: World, sidewalkRoomId: number, markRoomId: number): void {
+  paintCrosswalkPlaza(world, markRoomId);
+  carveServiceAlleys(world, sidewalkRoomId);
+  carveOverpassBypass(world, sidewalkRoomId);
+  carveUnderpassTunnels(world, sidewalkRoomId);
+  placeTrafficBarriers(world);
+  placeRoadDividerCover(world);
+}
+
+function logicalRoomByName(world: World, name: string, type: RoomType, floorTex: Tex, wallTex = ROAD_WALL_TEX): Room {
+  const existing = world.rooms.find(room => room?.name === name);
+  return existing ?? addLogicalRoom(world, name, type, 0, 0, W, W, floorTex, wallTex);
+}
+
+function canStampShellRoom(world: World, x: number, y: number, w: number, h: number): boolean {
+  for (let dy = -1; dy <= h; dy++) {
+    for (let dx = -1; dx <= w; dx++) {
+      const ci = world.idx(x + dx, y + dy);
+      if (world.cells[ci] === Cell.LIFT || world.cells[ci] === Cell.DOOR || world.containerMap.has(ci)) return false;
+      const roomId = world.roomMap[ci];
+      if (roomId >= 0 && !isRoadLikeRoom(world, roomId)) return false;
+    }
+  }
+  return true;
+}
+
+function stampShellStorefronts(world: World, sidewalkRoomId: number, rng: () => number): void {
+  const specs: readonly { name: string; type: RoomType; x: number; y: number; w: number; h: number; wall: Tex; floor: Tex }[] = [
+    { name: 'Северная закрытая витрина', type: RoomType.STORAGE, x: 92, y: 118, w: 50, h: 28, wall: Tex.PANEL, floor: Tex.F_TILE },
+    { name: 'Двор над западным тоннелем', type: RoomType.COMMON, x: 92, y: 404, w: 64, h: 42, wall: Tex.BRICK, floor: Tex.F_CONCRETE },
+    { name: 'Лавка дорожных знаков', type: RoomType.STORAGE, x: 874, y: 302, w: 54, h: 30, wall: Tex.METAL, floor: Tex.F_TILE },
+    { name: 'Пустая касса восточного блока', type: RoomType.OFFICE, x: 878, y: 548, w: 46, h: 26, wall: Tex.PANEL, floor: Tex.F_LINO },
+    { name: 'Ночной продуктовый на объезде', type: RoomType.STORAGE, x: 718, y: 878, w: 62, h: 34, wall: Tex.PANEL, floor: Tex.F_TILE },
+    { name: 'Южный гаражный карман', type: RoomType.STORAGE, x: 394, y: 884, w: 70, h: 36, wall: Tex.METAL, floor: Tex.F_CONCRETE },
+    { name: 'Подсобка под ложной авеню', type: RoomType.PRODUCTION, x: 108, y: 748, w: 50, h: 30, wall: Tex.PIPE, floor: Tex.F_CONCRETE },
+    { name: 'Офис дорожного старшего', type: RoomType.OFFICE, x: 846, y: 126, w: 52, h: 30, wall: Tex.CONCRETE, floor: Tex.F_LINO },
+  ];
+
+  for (const spec of specs) {
+    if (!canStampShellRoom(world, spec.x, spec.y, spec.w, spec.h)) continue;
+    const room = stampNamedRoom(world, spec.name, spec.type, spec.x, spec.y, spec.w, spec.h, spec.wall, spec.floor);
+    connectRoomToStreet(world, room, sidewalkRoomId);
+    const featureCount = 2 + Math.floor(rng() * 4);
+    for (let i = 0; i < featureCount; i++) {
+      const fx = room.x + 3 + Math.floor(rng() * Math.max(1, room.w - 6));
+      const fy = room.y + 3 + Math.floor(rng() * Math.max(1, room.h - 6));
+      setFeatureIfFloor(world, fx, fy, rng() < 0.45 ? Feature.SHELF : rng() < 0.75 ? Feature.TABLE : Feature.LAMP);
+    }
+  }
+}
+
+export function expandManhattanCrossroadsRouteShell(world: World, rng: () => number): void {
+  const roadRoom = logicalRoomByName(world, 'Асфальтовая сетка авеню', RoomType.CORRIDOR, ROAD_TEX);
+  const sidewalkRoom = logicalRoomByName(world, 'Бордюры и служебные края', RoomType.COMMON, SIDEWALK_TEX);
+  const markRoom = logicalRoomByName(world, CROSSWALK_ROOM_NAME, RoomType.MEDICAL, MARK_TEX);
+  const shellSpans: readonly RoadSpan[] = [
+    { axis: 'vertical', center: 104, from: 32, to: W - 36, width: 9, name: 'Ложная западная авеню' },
+    { axis: 'vertical', center: 232, from: 32, to: W - 36, width: 9, name: 'Западная окраинная авеню' },
+    { axis: 'vertical', center: 344, from: 32, to: W - 36, width: AVENUE_WIDTH, name: 'Западная авеню' },
+    { axis: 'vertical', center: 512, from: 32, to: W - 36, width: AVENUE_WIDTH, name: 'Центральная авеню' },
+    { axis: 'vertical', center: 680, from: 32, to: W - 36, width: AVENUE_WIDTH, name: 'Восточная авеню' },
+    { axis: 'vertical', center: 792, from: 32, to: W - 36, width: 9, name: 'Крайняя восточная авеню' },
+    { axis: 'vertical', center: 920, from: 32, to: W - 36, width: 9, name: 'Ложная восточная авеню' },
+    { axis: 'horizontal', center: 104, from: 32, to: W - 36, width: 7, name: 'Северный фальшобъезд' },
+    { axis: 'horizontal', center: 232, from: 32, to: W - 36, width: STREET_WIDTH, name: 'Северный въезд' },
+    { axis: 'horizontal', center: 344, from: 32, to: W - 36, width: STREET_WIDTH, name: 'Северная улица' },
+    { axis: 'horizontal', center: 512, from: 32, to: W - 36, width: STREET_WIDTH, name: 'Главный кросс' },
+    { axis: 'horizontal', center: 680, from: 32, to: W - 36, width: STREET_WIDTH, name: 'Южная улица' },
+    { axis: 'horizontal', center: 792, from: 32, to: W - 36, width: STREET_WIDTH, name: 'Южный объезд' },
+    { axis: 'horizontal', center: 920, from: 32, to: W - 36, width: 7, name: 'Нижний фальшобъезд' },
+  ];
+
+  for (const span of shellSpans) carveRoadSpanSafe(world, span, roadRoom.id, sidewalkRoom.id);
+  paintRoadDividersForSpans(world, shellSpans, markRoom.id);
+  for (const x of [104, 232, 512, 792, 920] as const) {
+    for (const y of [104, 344, 680, 920] as const) paintIntersectionCrosswalks(world, x, y, AVENUE_WIDTH, STREET_WIDTH, markRoom.id);
+  }
+  carveDiagonalPath(world, 118, 768, 280, 634, 2, SIDEWALK_TEX, sidewalkRoom.id, true);
+  carveDiagonalPath(world, 792, 256, 928, 418, 2, SIDEWALK_TEX, sidewalkRoom.id, true);
+  placeBarrierRect(world, 910, 512, 46, 7);
+  placeBarrierRect(world, 98, 676, 7, 46);
+  stampShellStorefronts(world, sidewalkRoom.id, rng);
+  for (const [x, y] of [[104, 104], [920, 104], [104, 920], [920, 920], [512, 920], [920, 512]] as const) {
+    placeSignalCluster(world, x, y);
+  }
 }
 
 function stampDistrictRooms(world: World, sidewalkRoomId: number): KeyRooms {
@@ -545,13 +847,17 @@ function stampDistrictRooms(world: World, sidewalkRoomId: number): KeyRooms {
     stampNamedRoom(world, 'Квартальный блок у Западной авеню', RoomType.LIVING, 218, 224, 86, 72, Tex.PANEL, Tex.F_LINO),
     stampNamedRoom(world, 'Гаражи под северной улицей', RoomType.STORAGE, 382, 222, 74, 48, Tex.METAL, Tex.F_CONCRETE),
     stampNamedRoom(world, 'Лифтовой павильон северного квартала', RoomType.COMMON, 496, 224, 34, 22, Tex.CONCRETE, Tex.F_TILE),
+    stampNamedRoom(world, 'Витринный блок западного квартала', RoomType.STORAGE, 250, 402, 58, 28, Tex.PANEL, Tex.F_TILE),
+    stampNamedRoom(world, 'Аптека у северной зебры', RoomType.MEDICAL, 548, 390, 44, 24, Tex.PANEL, Tex.F_TILE),
     stampNamedRoom(world, 'Киоск у белой зебры', RoomType.STORAGE, 384, 540, 42, 22, Tex.METAL, Tex.F_TILE),
     stampNamedRoom(world, CONTROL_ROOM_NAME, RoomType.OFFICE, 474, 462, 28, 18, Tex.METAL, Tex.F_CONCRETE),
     stampNamedRoom(world, SAFE_CURB_ROOM_NAME, RoomType.COMMON, 604, 464, 38, 20, Tex.PANEL, Tex.F_TILE),
     stampNamedRoom(world, CARGO_ROOM_NAME, RoomType.STORAGE, 548, 548, 50, 32, Tex.METAL, Tex.F_CONCRETE),
     stampNamedRoom(world, 'Сервисная светофора', RoomType.PRODUCTION, 622, 548, 34, 28, Tex.PIPE, Tex.F_CONCRETE),
+    stampNamedRoom(world, 'Низкий тоннель под Восточной авеню', RoomType.CORRIDOR, 650, 626, 84, 14, Tex.PIPE, Tex.F_CONCRETE),
     stampNamedRoom(world, WRONG_TURN_ROOM_NAME, RoomType.CORRIDOR, 744, 614, 82, 16, Tex.CONCRETE, Tex.F_CONCRETE),
     stampNamedRoom(world, 'Дворовая кладовая дорожников', RoomType.STORAGE, 724, 708, 48, 36, Tex.PANEL, Tex.F_CONCRETE),
+    stampNamedRoom(world, 'Магазин под эстакадой', RoomType.STORAGE, 676, 452, 48, 26, Tex.METAL, Tex.F_TILE),
     stampNamedRoom(world, 'Южный лифтовой вестибюль', RoomType.COMMON, 498, 782, 36, 24, Tex.CONCRETE, Tex.F_TILE),
     stampNamedRoom(world, 'Квартиры над Южной улицей', RoomType.LIVING, 222, 724, 86, 70, Tex.PANEL, Tex.F_LINO),
   ];
@@ -563,6 +869,9 @@ function stampDistrictRooms(world: World, sidewalkRoomId: number): KeyRooms {
   const wrongTurn = rooms.find(r => r.name === WRONG_TURN_ROOM_NAME)!;
   const safeCurb = rooms.find(r => r.name === SAFE_CURB_ROOM_NAME)!;
   const kiosk = rooms.find(r => r.name === 'Киоск у белой зебры')!;
+  const underpass = rooms.find(r => r.name === 'Низкий тоннель под Восточной авеню')!;
+  connectRoomExit(world, underpass, underpass.x - 1, underpass.y + Math.floor(underpass.h / 2), -1, 0, sidewalkRoomId);
+  connectRoomExit(world, underpass, underpass.x + underpass.w, underpass.y + Math.floor(underpass.h / 2), 1, 0, sidewalkRoomId);
 
   for (let dx = 3; dx < control.w - 3; dx += 5) setFeatureIfFloor(world, control.x + dx, control.y + 4, Feature.SCREEN);
   setFeatureIfFloor(world, control.x + 4, control.y + control.h - 3, Feature.DESK);
@@ -581,6 +890,7 @@ function stampDistrictRooms(world: World, sidewalkRoomId: number): KeyRooms {
   setFeatureIfFloor(world, safeCurb.x + 8, safeCurb.y + 4, Feature.CHAIR);
   setFeatureIfFloor(world, kiosk.x + 4, kiosk.y + 4, Feature.SHELF);
   setFeatureIfFloor(world, kiosk.x + kiosk.w - 5, kiosk.y + 4, Feature.LAMP);
+  for (let dx = 6; dx < underpass.w - 4; dx += 12) setFeatureIfFloor(world, underpass.x + dx, underpass.y + 4, Feature.LAMP);
 
   return { control, cargo, wrongTurn, safeCurb, kiosk };
 }
@@ -920,13 +1230,16 @@ function seedContainersAndDrops(
 function carveStreetGrid(world: World, roadRoomId: number, sidewalkRoomId: number, markRoomId: number): void {
   for (const span of ROAD_SPANS) carveRoadSpan(world, span, roadRoomId, sidewalkRoomId);
   paintRoadDividers(world, markRoomId);
-  for (const x of [344, 512, 680]) {
-    for (const y of [344, 512, 680]) paintIntersectionCrosswalks(world, x, y, AVENUE_WIDTH, STREET_WIDTH, markRoomId);
+  for (const x of AVENUE_CENTERS) {
+    for (const y of STREET_CENTERS) paintIntersectionCrosswalks(world, x, y, AVENUE_WIDTH, STREET_WIDTH, markRoomId);
   }
   paintIntersectionCrosswalks(world, 512, 600, AVENUE_WIDTH, STREET_WIDTH, markRoomId);
   placeSignalCluster(world, 512, 512);
   placeSignalCluster(world, 512, 600);
   placeSignalCluster(world, 680, 512);
+  placeSignalCluster(world, 344, 344);
+  placeSignalCluster(world, 232, 680);
+  dressStreetMotifs(world, sidewalkRoomId, markRoomId);
 }
 
 export function getManhattanCrossroadsDebugLines(): string[] {

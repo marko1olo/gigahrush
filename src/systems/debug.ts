@@ -44,10 +44,12 @@ import { debugCreateWrongDoorRemap } from './wrong_door';
 import { debugForceHermodoorBorer } from './hermodoor_borer';
 import { DESIGN_FLOOR_ROUTES, type DesignFloorId } from '../data/design_floors';
 import { type FloorAnomalyId } from '../data/procedural_floors';
+import { isDebugOnePunchManEnabled, keepDebugOnePunchManAlive, toggleDebugOnePunchMan } from './debug_cheats';
 
 /* ── Command execution ───────────────────────────────────────── */
 
 const CATALOG_DEBUG_SEARCHES = ['', 'numbered', '404', 'school', 'hospital', 'market'];
+const DEBUG_FORCED_VERETAR_LEAD_SECONDS = 30;
 let catalogDebugSearchIndex = 0;
 
 export type DebugCommandAction =
@@ -79,10 +81,12 @@ function movePlayerToSmokeLift(world: World, player: Entity, entities: Entity[])
         angle: Math.atan2((ly + 0.5) - (py + 0.5), (lx + 0.5) - (px + 0.5)),
       };
       fallback ??= spot;
-      const npcTooClose = entities.some(e => (
-        e.type === EntityType.NPC && e.alive && world.dist2(spot.x, spot.y, e.x, e.y) < 9
+      const actorTooClose = entities.some(e => (
+        (e.type === EntityType.NPC || e.type === EntityType.MONSTER)
+        && e.alive
+        && world.dist2(spot.x, spot.y, e.x, e.y) < 9
       ));
-      if (!npcTooClose) {
+      if (!actorTooClose) {
         player.x = spot.x;
         player.y = spot.y;
         player.angle = spot.angle;
@@ -97,6 +101,17 @@ function movePlayerToSmokeLift(world: World, player: Entity, entities: Entity[])
   player.angle = fallback.angle;
   player.pitch = 0;
   return true;
+}
+
+function isSmokeDebugRun(): boolean {
+  return typeof window !== 'undefined' && window.location.search.includes('smoke');
+}
+
+function stabilizeSmokeRecovery(world: World, player: Entity, entities: Entity[]): void {
+  movePlayerToSmokeLift(world, player, entities);
+  player.alive = true;
+  player.maxHp = Math.max(100, player.maxHp ?? 100);
+  player.hp = player.maxHp;
 }
 
 function spawnSmokeTarget(world: World, player: Entity, entities: Entity[], state: GameState, nextEntityId: { v: number }): boolean {
@@ -406,8 +421,15 @@ export function execDebugCommand(
     }
     case 30: { // Force Veretar variant + start
       forceNextSamosborVariant('veretar');
-      state.samosborTimer = 0;
-      state.msgs.push(msg('[DEBUG] Следующий самосбор: Веретар', state.time, '#f4f1df'));
+      if (!state.samosborActive) state.samosborTimer = DEBUG_FORCED_VERETAR_LEAD_SECONDS;
+      if (isSmokeDebugRun()) stabilizeSmokeRecovery(world, player, entities);
+      state.msgs.push(msg(
+        state.samosborActive
+          ? '[DEBUG] Следующий самосбор: Веретар после текущего'
+          : `[DEBUG] Следующий самосбор: Веретар через ${DEBUG_FORCED_VERETAR_LEAD_SECONDS}с`,
+        state.time,
+        '#f4f1df',
+      ));
       break;
     }
     case 31: { // Force Maronary variant + start
@@ -469,6 +491,16 @@ export function execDebugCommand(
       state.msgs.push(msg(forceFactionEvent(state, world, player, entities, nextEntityId, 'cult_liquidator_clash'), state.time, '#ff0'));
       break;
     }
+    case 43: { // Toggle Onepunchman cheat
+      const enabled = toggleDebugOnePunchMan();
+      if (enabled) keepDebugOnePunchManAlive(player);
+      state.msgs.push(msg(
+        `[DEBUG] ONEPUNCHMAN ${enabled ? 'включён' : 'выключен'}`,
+        state.time,
+        enabled ? '#ff0' : '#888',
+      ));
+      break;
+    }
   }
   return null;
 }
@@ -527,6 +559,7 @@ const BASE_CMD_LABELS = [
   'ПНЕВМОПОЧТА: капсула',
   'ГЕРМО: точильщик QA',
   'Форсировать стычку ликвидаторов и культа',
+  'ONEPUNCHMAN',
 ];
 
 const DESIGN_FLOOR_COMMAND_START = BASE_CMD_LABELS.length;
@@ -618,6 +651,7 @@ export function drawDebugOverlay(
   row(`Существа: ${totalAlive}  Предметы: ${totalItems}`, '#aaa');
   row(`Комнаты: ${funcRooms}  Лифты: ${lifts} (↑${liftsUp} ↓${liftsDown})`, '#aaa');
   row(`Noclip: ${isDebugNoClipEnabled() ? 'ON' : 'OFF'}`, isDebugNoClipEnabled() ? '#ff0' : '#666');
+  row(`ONEPUNCHMAN: ${isDebugOnePunchManEnabled() ? 'ON' : 'OFF'}`, isDebugOnePunchManEnabled() ? '#ff0' : '#666');
   for (const line of summarizeFloorRun(state).slice(0, 2)) row(`Этажи: ${line}`, '#8cf');
   for (const line of summarizeProceduralSmog(world, state).slice(0, 2)) row(`Смог: ${line}`, '#b98');
   for (const line of summarizeFloorInstances(state).slice(0, 2)) row(`Лифт: ${line}`, '#f4a');

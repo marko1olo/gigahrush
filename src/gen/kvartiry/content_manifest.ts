@@ -12,6 +12,7 @@ import { spawnSeryGopnik } from './sery_gopnik';
 import { spawnPahomBratishka } from './pakhom';
 import { generateRedCorner } from './red_corner';
 import { generateRationQueue } from './ration_queue';
+import { generateOcherednik } from './ocherednik';
 import { generateWaterRiot } from './water_riot';
 import { generatePrintRoom } from './print_room';
 import { generateBarricade } from './barricade';
@@ -20,7 +21,9 @@ import { generateLostChildCorner } from './lost_child_corner';
 import { generateMedicineSwap } from './medicine_swap';
 import { generateAmmoSmelter } from './ammo_smelter';
 import { generateCultSupplyKitchen } from './cult_supply_kitchen';
+import { generateChernobozhiySvod } from './chernobozhiy_svod';
 import { generateFalseNeighborRoom } from './false_neighbor';
+import { generatePustoySosedRoom } from './pustoy_sosed';
 import { generateKv08RouteAssembly } from './kv08_route_assembly';
 import { resetKvSocialPressurePois, tryKvSocialPressureUprising } from './social_pressure';
 
@@ -65,6 +68,7 @@ export function runKvartiryPermanentContent(
   const redCorner = generateRedCorner(world, socialRoomId, entities, socialNext, spawnX, spawnY);
   socialRoomId = Math.max(socialRoomId + 1, redCorner.nextRoomId);
   socialRoomId = generateRationQueue(world, socialRoomId, entities, socialNext, spawnX, spawnY);
+  socialRoomId = generateOcherednik(world, socialRoomId, entities, socialNext, spawnX, spawnY);
   socialRoomId = generateWaterRiot(world, socialRoomId, entities, socialNext, spawnX, spawnY);
   socialRoomId = generatePrintRoom(world, socialRoomId, entities, socialNext, spawnX, spawnY);
   socialRoomId = generateBarricade(world, socialRoomId, entities, socialNext, spawnX, spawnY);
@@ -73,7 +77,10 @@ export function runKvartiryPermanentContent(
   socialRoomId = generateMedicineSwap(world, socialRoomId, entities, socialNext, spawnX, spawnY);
   socialRoomId = generateAmmoSmelter(world, socialRoomId, entities, socialNext, spawnX, spawnY);
   socialRoomId = generateCultSupplyKitchen(world, socialRoomId, entities, socialNext, spawnX, spawnY);
+  socialRoomId = generateChernobozhiySvod(world, socialRoomId, entities, socialNext, spawnX, spawnY);
   socialRoomId = generateKv08RouteAssembly(world, socialRoomId, entities, socialNext, spawnX, spawnY);
   generateFalseNeighborRoom(world, socialRoomId, entities, socialNext, spawnX, spawnY);
+  socialRoomId = Math.max(socialRoomId + 1, world.rooms.length);
+  generatePustoySosedRoom(world, socialRoomId, entities, socialNext, spawnX, spawnY);
   return socialNext.v;
 }

@@ -2,7 +2,7 @@
 /*   Pure white radiant figure. Supreme entity of the hrush.     */
 /*   Ranged AoE splash attacks, extremely powerful.              */
 
-import { MonsterKind } from '../core/types';
+import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
 import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
@@ -17,6 +17,9 @@ export const DEF: MonsterDef = {
   isRanged: true,
   projSpeed: 9,
   projSprite: 0,
+  floors: [FloorLevel.VOID],
+  counterplay: 'Входите только с полным запасом: держите укрытие между залпами и не тратьте рывок без видимого выхода.',
+  lootHint: 'пустотные шипы и финальный след аварийного мастера без лица',
 };
 
 export function generateSprite(): Uint32Array {

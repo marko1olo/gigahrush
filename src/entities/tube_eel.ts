@@ -7,15 +7,15 @@ import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 export const DEF: MonsterDef = {
   kind: MonsterKind.TUBE_EEL,
   name: 'Трубный угорь',
-  hp: 70,
-  speed: 1.6,
-  dmg: 16,
-  attackRate: 1.2,
+  hp: 60,
+  speed: 1.45,
+  dmg: 14,
+  attackRate: 1.35,
   sprite: 0,
   aiFlags: ['waterStrider'],
   floors: [FloorLevel.MAINTENANCE],
-  counterplay: 'Выходите из воды: в сухом проходе угорь теряет скорость.',
-  lootHint: 'слизь, редкий кусок трубы',
+  counterplay: 'Не стойте в лотке: выходите на сухую кромку или мост и бейте с края, пока в воде угорь быстрее.',
+  lootHint: 'ржавая слизь, манометр и обломки трубы из затопленного лотка',
 };
 
 export function generateSprite(): Uint32Array {

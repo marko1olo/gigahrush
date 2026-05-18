@@ -21,10 +21,15 @@ import { generateOverflowSluice } from './overflow_sluice';
 import { generateHeatlineZero } from './heatline_zero';
 import { generateMetroErrorLine } from './metro_error_line';
 import { generateConcentratePress } from './concentrate_press';
+import { generatePressovik } from './pressovik';
 import { generateWaterBridge } from './water_bridge';
+import { generateNasosnayaMatka } from './nasosnaya_matka';
 import { generateLiftRepairShaft } from './lift_repair_shaft';
+import { generateRemontnikBezSmeny } from './remontnik_bez_smeny';
 import { generateChargeCage } from './charge_cage';
 import { generateAutomationCage } from './automation_cage';
+import { generateHladonets } from './hladonets';
+import { generateKabelnik } from './kabelnik';
 import { generateCollectorsPressureReroute } from './collectors_pressure_reroute';
 import { generateDefectorLiquidator } from './defector_liquidator';
 import { generateParitelSteamBridge } from './paritel_steam_bridge';
@@ -35,12 +40,16 @@ import { generateGreenAcidRoom } from './green_acid_room';
 import { generateBrownSlimeCleanup } from './brown_slime_cleanup';
 import { generateSlimeDeactivationFurnace } from './slime_deactivation_furnace';
 import { generateSlimeSingingVents } from './slime_singing_vents';
+import { generateVentshun } from './ventshun';
 import { generateRedAdhesiveTrap } from './red_adhesive_trap';
 import { generateBlackSlimeEyes } from './black_slime_eyes';
+import { generateChernayaLichinka } from './chernaya_lichinka';
 import { generateSeroburmalineNoLook } from './seroburmaline_no_look';
 import { generatePneumomailStation } from './pneumomail_station';
 import { generateBetonoedShortcut } from './betonoed_shortcut';
 import { generateKostorezLocker } from './kostorez_locker';
+import { generateOstavshiysyaLikvidator } from './ostavshiysya_likvidator';
+import { generateFiltronos } from './filtronos';
 
 export function runMaintenanceContent(
   world: World,
@@ -91,6 +100,9 @@ export function runMaintenanceContent(
   generateWaterBridge({ world, entities, nextId: { v: nextId }, spawnX, spawnY });
   nextId = syncNextEntityId(entities, nextId);
 
+  generateNasosnayaMatka({ world, entities, nextId: { v: nextId }, spawnX, spawnY });
+  nextId = syncNextEntityId(entities, nextId);
+
   generateParitelSteamBridge({ world, entities, nextId: { v: nextId }, spawnX, spawnY });
   nextId = syncNextEntityId(entities, nextId);
 
@@ -103,7 +115,13 @@ export function runMaintenanceContent(
   generateConcentratePress({ world, entities, nextId: { v: nextId }, spawnX, spawnY });
   nextId = syncNextEntityId(entities, nextId);
 
+  generatePressovik({ world, entities, nextId: { v: nextId }, spawnX, spawnY });
+  nextId = syncNextEntityId(entities, nextId);
+
   generateLiftRepairShaft({ world, entities, nextId: { v: nextId }, spawnX, spawnY });
+  nextId = syncNextEntityId(entities, nextId);
+
+  generateRemontnikBezSmeny({ world, entities, nextId: { v: nextId }, spawnX, spawnY });
   nextId = syncNextEntityId(entities, nextId);
 
   generateChargeCage({ world, entities, nextId: { v: nextId }, spawnX, spawnY });
@@ -112,7 +130,13 @@ export function runMaintenanceContent(
   generateBlueGlowSample({ world, entities, nextId: { v: nextId }, spawnX, spawnY });
   nextId = syncNextEntityId(entities, nextId);
 
+  generateHladonets({ world, entities, nextId: { v: nextId }, spawnX, spawnY });
+  nextId = syncNextEntityId(entities, nextId);
+
   generateAutomationCage({ world, entities, nextId: { v: nextId }, spawnX, spawnY });
+  nextId = syncNextEntityId(entities, nextId);
+
+  generateKabelnik({ world, entities, nextId: { v: nextId }, spawnX, spawnY });
   nextId = syncNextEntityId(entities, nextId);
 
   generateCollectorsPressureReroute({ world, entities, nextId: { v: nextId }, spawnX, spawnY });
@@ -121,10 +145,16 @@ export function runMaintenanceContent(
   generateDefectorLiquidator({ world, entities, nextId: { v: nextId }, spawnX, spawnY });
   nextId = syncNextEntityId(entities, nextId);
 
+  generateOstavshiysyaLikvidator({ world, entities, nextId: { v: nextId }, spawnX, spawnY });
+  nextId = syncNextEntityId(entities, nextId);
+
   generateSlimeSamplePost({ world, entities, nextId: { v: nextId }, spawnX, spawnY });
   nextId = syncNextEntityId(entities, nextId);
 
   generateSlimeSingingVents({ world, entities, nextId: { v: nextId }, spawnX, spawnY });
+  nextId = syncNextEntityId(entities, nextId);
+
+  generateVentshun({ world, entities, nextId: { v: nextId }, spawnX, spawnY });
   nextId = syncNextEntityId(entities, nextId);
 
   generateBrownSlimeCleanup({ world, entities, nextId: { v: nextId }, spawnX, spawnY });
@@ -151,9 +181,15 @@ export function runMaintenanceContent(
   generateBlackSlimeEyes({ world, entities, nextId: { v: nextId }, spawnX, spawnY });
   nextId = syncNextEntityId(entities, nextId);
 
+  generateChernayaLichinka({ world, entities, nextId: { v: nextId }, spawnX, spawnY });
+  nextId = syncNextEntityId(entities, nextId);
+
   generateBetonoedShortcut({ world, entities, nextId: { v: nextId }, spawnX, spawnY });
   nextId = syncNextEntityId(entities, nextId);
 
   generateKostorezLocker({ world, entities, nextId: { v: nextId }, spawnX, spawnY });
+  nextId = syncNextEntityId(entities, nextId);
+
+  generateFiltronos({ world, entities, nextId: { v: nextId }, spawnX, spawnY });
   return syncNextEntityId(entities, nextId);
 }

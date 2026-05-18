@@ -18,6 +18,7 @@ The ceiling texture is dynamic sky:
 - procedural clouds via cheap diffusion/blur cellular simulation over local `16x16` chunks, updated at a low rate, not per ray;
 - time-of-day lighting tint affects floor ambient light, fog and distant cloud color;
 - clouds must be readable as pixel clouds, not smooth gradient or static blue fill;
+- the whole ceiling acts as an even sky light source; do not solve roof visibility by placing lamps;
 - no network assets.
 
 Implementation exposes `RoofSkyTextureProvider`. The raycaster only knows about a generic dynamic ceiling texture hook.

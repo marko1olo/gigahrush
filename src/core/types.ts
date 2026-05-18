@@ -819,4 +819,5 @@ export interface InputState {
   logMenu: boolean;             // L key — message log
   sleep: boolean;               // Z key — hold to sleep
   mouse: { dx: number; dy: number; locked: boolean; };
+  touch: { moveX: number; moveY: number; lookX: number; lookY: number; active: boolean; };
 }

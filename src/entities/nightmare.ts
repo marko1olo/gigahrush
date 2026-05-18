@@ -3,18 +3,21 @@
 /*   organic growths. Every nightmare is unique — the seed        */
 /*   controls stalk count/placement, mouth positions, body shape. */
 
-import { MonsterKind } from '../core/types';
+import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
 import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
 export const DEF: MonsterDef = {
   kind: MonsterKind.NIGHTMARE,
   name: 'Кошмарище',
-  hp: 500,
-  speed: 1.0,
-  dmg: 25,
-  attackRate: 2.2,
+  hp: 260,
+  speed: 1.35,
+  dmg: 32,
+  attackRate: 1.15,
   sprite: 0,   // auto-assigned by generateSprites()
+  floors: [FloorLevel.MINISTRY, FloorLevel.LIVING, FloorLevel.MAINTENANCE, FloorLevel.HELL, FloorLevel.VOID],
+  counterplay: 'Не проверяйте его терпением: быстро влейте тяжелый урон или сразу уходите из комнаты.',
+  lootHint: 'психический след, ПСИ-пыль или антидепрессант после редкой удачной зачистки',
 };
 
 /* ── Static fallback sprite (used in sprite sheet) ────────────── */
@@ -168,5 +171,4 @@ export function generateNightmareSprite(seed: number): Uint32Array {
 
   return t;
 }
-
 

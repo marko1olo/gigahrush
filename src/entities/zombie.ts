@@ -1,6 +1,6 @@
 /* ── Zombie — humanoid undead (мертвяк) ───────────────────────── */
 
-import { MonsterKind } from '../core/types';
+import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
 import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
@@ -12,6 +12,9 @@ export const DEF: MonsterDef = {
   dmg: 8,
   attackRate: 1.5,
   sprite: 0,   // auto-assigned by generateSprites()
+  floors: [FloorLevel.MINISTRY, FloorLevel.KVARTIRY, FloorLevel.LIVING, FloorLevel.MAINTENANCE, FloorLevel.HELL],
+  counterplay: 'Вытягивайте мертвяка из кухни, очереди или палаты в пустой проход и добивайте до контакта.',
+  lootHint: 'бытовой хлам прежнего жильца, редко записка или сигареты',
 };
 
 export function generateSprite(): Uint32Array {
@@ -36,7 +39,7 @@ export function generateSprite(): Uint32Array {
     t[14 * S + x] = rgba(40, 15, 15);
     if (noise(x, 14, 902) > 0.5) t[15 * S + x] = rgba(50, 20, 20);
   }
-  // Torso — tattered clothing over rotting skin
+  // Torso — tattered domestic clothes over rotting skin
   for (let y = 18; y < 44; y++) {
     const halfW = 7 + Math.sin(y * 0.2) * 1.5;
     for (let x = Math.floor(cx - halfW); x < Math.floor(cx + halfW); x++) {
@@ -44,11 +47,22 @@ export function generateSprite(): Uint32Array {
       const n = noise(x, y, 903) * 25;
       const cloth = noise(x * 2, y * 2, 904) > 0.6;
       if (cloth) {
-        t[y * S + x] = rgba(clamp(50 + n), clamp(45 + n), clamp(40 + n));
+        t[y * S + x] = rgba(clamp(46 + n), clamp(58 + n), clamp(78 + n));
       } else {
         t[y * S + x] = rgba(clamp(75 + n), clamp(90 + n), clamp(65 + n));
       }
     }
+  }
+  // Faded undershirt and apartment key on a string
+  for (let y = 20; y < 35; y++) {
+    const wobble = Math.floor(Math.sin(y * 0.7) * 1.5);
+    t[y * S + cx + wobble] = rgba(122, 116, 92);
+    if (y > 25 && y < 32) t[y * S + cx + wobble + 1] = rgba(70, 64, 42);
+  }
+  for (let y = 21; y < 37; y++) {
+    if ((y & 3) === 0) continue;
+    t[y * S + (cx - 4)] = rgba(135, 128, 112);
+    t[y * S + (cx + 4)] = rgba(135, 128, 112);
   }
   // Arms — dangling, one shorter (torn)
   for (let y = 20; y < 40; y++) {
@@ -71,6 +85,10 @@ export function generateSprite(): Uint32Array {
     t[y * S + (cx + 2)] = rgba(clamp(55 + n), clamp(50 + n), clamp(45 + n));
     t[y * S + (cx + 3)] = rgba(clamp(55 + n), clamp(50 + n), clamp(45 + n));
   }
+  t[60 * S + (cx - 4)] = rgba(85, 45, 35);
+  t[60 * S + (cx - 3)] = rgba(85, 45, 35);
+  t[60 * S + (cx + 2)] = rgba(38, 38, 42);
+  t[60 * S + (cx + 3)] = rgba(38, 38, 42);
   // Blood splatters
   for (let i = 0; i < 12; i++) {
     const bx = Math.floor(cx - 6 + noise(i, 0, 908) * 12);

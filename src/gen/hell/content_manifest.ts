@@ -9,6 +9,7 @@ import { spawnMedukaMeguku } from './madoka';
 import { generateThinWallChapel } from './thin_wall_chapel';
 import { spawnHellAltarArena } from './altar_arena';
 import { generateHell18ChoirTax } from './choir_tax';
+import { generateMyasomer } from './myasomer';
 
 export function runHellContent(world: World, entities: Entity[], nextId: number): number {
   generateHellPlotChain(world, entities, { v: nextId });
@@ -27,5 +28,8 @@ export function runHellContent(world: World, entities: Entity[], nextId: number)
   nextId = syncNextEntityId(entities, nextId);
 
   generateHell18ChoirTax(world, entities, { v: nextId });
+  nextId = syncNextEntityId(entities, nextId);
+
+  generateMyasomer(world, entities, { v: nextId });
   return syncNextEntityId(entities, nextId);
 }

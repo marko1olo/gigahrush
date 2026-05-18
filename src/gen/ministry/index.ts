@@ -15,6 +15,7 @@ import { calcZoneLevel, randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../
 import { Spr, monsterSpr } from '../../render/sprite_index';
 import { MonsterKind } from '../../core/types';
 import { runMinistryContent } from './content_manifest';
+import { applyMinistryMacroGeometry } from './geometry';
 
 /* ── Portrait picker — coordinate-hash like posters ───────────── */
 const PORTRAIT_COUNT = 64;
@@ -231,6 +232,17 @@ export function generateMinistry(): { world: World; entities: Entity[]; spawnX: 
   }
 
   /* ══════════════════════════════════════════════════════════════
+     Phase 1b: Ministry macro graph — axes, rings, queues, service
+     backroutes and locked authority shortcuts over the organic maze.
+     ══════════════════════════════════════════════════════════════ */
+  {
+    const macro = applyMinistryMacroGeometry(world, nextRoomId);
+    nextRoomId = macro.nextRoomId;
+    for (const room of macro.rooms) rooms.push(room);
+    for (const ci of macro.carpetCells) carpetCells.add(ci);
+  }
+
+  /* ══════════════════════════════════════════════════════════════
      Phase 2: Room placement — scan corridor walls and grow rooms
      Room extends AWAY from corridor, door at the boundary wall.
      Three scales: large halls, medium offices, small closets.
@@ -403,7 +415,7 @@ export function generateMinistry(): { world: World; entities: Entity[]; spawnX: 
   // Pass 1: Large halls (8-14 wide)
   let roomsPlaced = 0;
   for (const cand of wallCandidates) {
-    if (roomsPlaced >= 120) break;
+    if (roomsPlaced >= 80) break;
     if (Math.random() > 0.015) continue;
     const rt = pickRoomType(true);
     const rw = rng(8, 14), rh = rng(7, 12);
@@ -413,7 +425,7 @@ export function generateMinistry(): { world: World; entities: Entity[]; spawnX: 
   // Pass 2: Medium offices/rooms (4-9 wide)
   roomsPlaced = 0;
   for (const cand of wallCandidates) {
-    if (roomsPlaced >= 500) break;
+    if (roomsPlaced >= 320) break;
     if (Math.random() > 0.04) continue;
     const rt = pickRoomType();
     const rw = rng(4, 9), rh = rng(3, 7);
@@ -424,7 +436,7 @@ export function generateMinistry(): { world: World; entities: Entity[]; spawnX: 
   const smallTypes = MINISTRY_ROOM_TYPES.filter(r => r.type === RoomType.SMOKING || r.type === RoomType.STORAGE || r.type === RoomType.MEDICAL || r.type === RoomType.BATHROOM);
   roomsPlaced = 0;
   for (const cand of wallCandidates) {
-    if (roomsPlaced >= 300) break;
+    if (roomsPlaced >= 180) break;
     if (Math.random() > 0.03) continue;
     const rt = smallTypes[Math.floor(Math.random() * smallTypes.length)];
     const rw = rng(3, 5), rh = rng(3, 5);

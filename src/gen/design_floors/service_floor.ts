@@ -83,6 +83,11 @@ export interface ServiceFloorGeneration extends FloorGeneration {
   serviceState: ServiceFloorState;
 }
 
+export interface ServiceFloorExpansionStyle {
+  wallTex: Tex;
+  floorTex: Tex;
+}
+
 export const SERVICE_FLOOR_MASTER_SCOPE = {
   tag: MASTER_SCOPE_TAG,
   rooms: [JANITOR_DEPOT, CLERK_OFFICE],
@@ -478,6 +483,76 @@ export function generateServiceFloorDesignFloor(): ServiceFloorGeneration {
   };
 }
 
+export function expandServiceFloorMachineMaze(
+  world: World,
+  rng: () => number,
+  style: ServiceFloorExpansionStyle,
+): void {
+  const staffTex = style.floorTex;
+  const ductTex = Tex.F_ABYSS;
+  const staffWall = style.wallTex;
+
+  carveServiceRun(world, 244, 188, 780, 188, 5, staffTex, staffWall);
+  carveServiceRun(world, 244, 836, 780, 836, 5, staffTex, staffWall);
+  carveServiceRun(world, 244, 188, 244, 836, 5, staffTex, staffWall);
+  carveServiceRun(world, 780, 188, 780, 836, 5, staffTex, staffWall);
+  carveServiceRun(world, 244, 514, 408, 514, 5, staffTex, staffWall);
+  carveServiceRun(world, 641, 514, 780, 514, 5, staffTex, staffWall);
+  carveServiceRun(world, 520, 188, 520, 836, 5, staffTex, staffWall);
+  carveServiceRun(world, 244, 324, 780, 324, 3, staffTex, staffWall);
+  carveServiceRun(world, 244, 700, 780, 700, 3, staffTex, staffWall);
+
+  const westLift = findServiceRoom(world, 'Западный служебный лифт С-15');
+  if (westLift) connectRoomLeft(world, westLift, 244, 514, DoorState.CLOSED);
+  const eastLift = findServiceRoom(world, 'Восточный служебный лифт С-15');
+  if (eastLift) connectRoomRight(world, eastLift, 780, 514, DoorState.CLOSED);
+
+  const cores = [
+    stampMachineCore(world, 160, 170, 58, 36, 'Северо-западное лифтовое ядро С-15', 244, 'right'),
+    stampMachineCore(world, 806, 170, 58, 36, 'Северо-восточное лифтовое ядро С-15', 780, 'left'),
+    stampMachineCore(world, 160, 818, 60, 38, 'Юго-западное лифтовое ядро С-15', 244, 'right'),
+    stampMachineCore(world, 804, 818, 60, 38, 'Юго-восточное лифтовое ядро С-15', 780, 'left'),
+    stampMachineCore(world, 456, 140, 128, 34, 'Верхняя лебедочная галерея С-15', 188, 'down'),
+    stampMachineCore(world, 448, 860, 128, 34, 'Нижняя лебедочная галерея С-15', 836, 'up'),
+  ];
+
+  for (let i = 0; i < cores.length; i++) {
+    dressMachineCore(world, cores[i], i);
+  }
+
+  const booths = [
+    stampControlBooth(world, 235, 142, 'Пульт северо-западного обхода С-15', 244, 188, 'down'),
+    stampControlBooth(world, 758, 142, 'Пульт северо-восточного обхода С-15', 780, 188, 'down'),
+    stampControlBooth(world, 235, 810, 'Пульт нижнего западного обхода С-15', 244, 836, 'down'),
+    stampControlBooth(world, 758, 810, 'Пульт нижнего восточного обхода С-15', 780, 836, 'down'),
+    stampControlBooth(world, 496, 226, 'Пост наблюдения над шахтами С-15', 520, 226, 'right'),
+    stampControlBooth(world, 496, 762, 'Пост учета кабельных потерь С-15', 520, 762, 'right'),
+  ];
+  for (const booth of booths) dressControlBooth(world, booth);
+
+  const pumps = [
+    stampPumpAlcove(world, 304, 666, 46, 28, 'Насосная ниша западного стояка С-15', 700, 'down'),
+    stampPumpAlcove(world, 674, 666, 46, 28, 'Насосная ниша восточного стояка С-15', 700, 'down'),
+    stampPumpAlcove(world, 302, 274, 46, 28, 'Компрессорный карман западной шахты С-15', 324, 'down'),
+    stampPumpAlcove(world, 676, 274, 46, 28, 'Компрессорный карман восточной шахты С-15', 324, 'down'),
+  ];
+  for (const pump of pumps) dressPumpAlcove(world, pump);
+
+  carveDuctBypass(world, 244, 188, 430, 486, ductTex);
+  carveDuctBypass(world, 780, 188, 560, 486, ductTex);
+  carveDuctBypass(world, 244, 836, 430, 538, ductTex);
+  carveDuctBypass(world, 780, 836, 562, 538, ductTex);
+  carveDuctBypass(world, 244, 324, 520, 514, ductTex);
+  carveDuctBypass(world, 780, 700, 520, 514, ductTex);
+
+  carveCableTrench(world, 332, 188, 332, 836, rng);
+  carveCableTrench(world, 704, 188, 704, 836, rng);
+  carveCableTrench(world, 244, 438, 780, 438, rng);
+  carveCableTrench(world, 244, 590, 780, 590, rng);
+
+  dressServiceRoutes(world, rng);
+}
+
 function stampServiceRoom(
   world: World,
   type: RoomType,
@@ -503,6 +578,10 @@ function stampServiceRoom(
   return room;
 }
 
+function findServiceRoom(world: World, name: string): Room | undefined {
+  return world.rooms.find(room => room.name === name);
+}
+
 function carveStaffRoute(world: World, x: number, y: number, w: number, h: number): void {
   for (let dy = -1; dy <= h; dy++) {
     for (let dx = -1; dx <= w; dx++) {
@@ -518,6 +597,57 @@ function carveStaffRoute(world: World, x: number, y: number, w: number, h: numbe
   }
 }
 
+function carveServiceRun(
+  world: World,
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+  width: number,
+  floorTex: Tex,
+  wallTex: Tex,
+): void {
+  const half = width >> 1;
+  if (ay === by) {
+    const x = Math.min(ax, bx);
+    carveExpansionRect(world, x, ay - half, Math.abs(bx - ax) + 1, width, floorTex, wallTex);
+    return;
+  }
+  const y = Math.min(ay, by);
+  carveExpansionRect(world, ax - half, y, width, Math.abs(by - ay) + 1, floorTex, wallTex);
+}
+
+function carveExpansionRect(
+  world: World,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  floorTex: Tex,
+  wallTex: Tex,
+): void {
+  for (let dy = -1; dy <= h; dy++) {
+    for (let dx = -1; dx <= w; dx++) {
+      const ci = world.idx(x + dx, y + dy);
+      if (dx < 0 || dx >= w || dy < 0 || dy >= h) {
+        if (world.cells[ci] === Cell.WALL) world.wallTex[ci] = wallTex;
+      } else {
+        openExpansionTile(world, x + dx, y + dy, floorTex);
+      }
+    }
+  }
+}
+
+function openExpansionTile(world: World, x: number, y: number, floorTex: Tex): void {
+  const ci = world.idx(x, y);
+  if (world.cells[ci] === Cell.LIFT || world.cells[ci] === Cell.DOOR) return;
+  if (world.roomMap[ci] >= 0 && world.cells[ci] !== Cell.WALL) return;
+  world.cells[ci] = Cell.FLOOR;
+  world.roomMap[ci] = -1;
+  world.floorTex[ci] = floorTex;
+  if (world.features[ci] !== Feature.NONE) world.features[ci] = Feature.NONE;
+}
+
 function openRouteTile(world: World, x: number, y: number, floorTex = Tex.F_CONCRETE): void {
   const ci = world.idx(x, y);
   if (world.cells[ci] === Cell.LIFT) return;
@@ -526,45 +656,99 @@ function openRouteTile(world: World, x: number, y: number, floorTex = Tex.F_CONC
   world.floorTex[ci] = floorTex;
 }
 
+function stampMachineCore(
+  world: World,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  name: string,
+  route: number,
+  side: 'left' | 'right' | 'up' | 'down',
+): Room {
+  const room = stampServiceRoom(world, RoomType.PRODUCTION, x, y, w, h, name, Tex.PIPE, Tex.F_CONCRETE);
+  const midX = room.x + (room.w >> 1);
+  const midY = room.y + (room.h >> 1);
+  if (side === 'left') connectRoomLeft(world, room, route, midY, DoorState.CLOSED);
+  else if (side === 'right') connectRoomRight(world, room, route, midY, DoorState.CLOSED);
+  else if (side === 'up') connectRoomUp(world, room, midX, route, DoorState.CLOSED);
+  else connectRoomDown(world, room, midX, route, DoorState.CLOSED);
+  return room;
+}
+
+function stampControlBooth(
+  world: World,
+  x: number,
+  y: number,
+  name: string,
+  routeX: number,
+  routeY: number,
+  side: 'left' | 'right' | 'up' | 'down',
+): Room {
+  const room = stampServiceRoom(world, RoomType.OFFICE, x, y, 18, 12, name, Tex.METAL, Tex.F_TILE);
+  if (side === 'left') connectRoomLeft(world, room, routeX, routeY, DoorState.LOCKED, 'key');
+  else if (side === 'right') connectRoomRight(world, room, routeX, routeY, DoorState.LOCKED, 'key');
+  else if (side === 'up') connectRoomUp(world, room, room.x + (room.w >> 1), routeY, DoorState.LOCKED, 'key');
+  else connectRoomDown(world, room, room.x + (room.w >> 1), routeY, DoorState.LOCKED, 'key');
+  return room;
+}
+
+function stampPumpAlcove(
+  world: World,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  name: string,
+  routeY: number,
+  side: 'up' | 'down',
+): Room {
+  const room = stampServiceRoom(world, RoomType.PRODUCTION, x, y, w, h, name, Tex.PIPE, Tex.F_WATER);
+  const midX = room.x + (room.w >> 1);
+  if (side === 'up') connectRoomUp(world, room, midX, routeY, DoorState.CLOSED);
+  else connectRoomDown(world, room, midX, routeY, DoorState.CLOSED);
+  return room;
+}
+
 function setFeature(world: World, x: number, y: number, feature: Feature): void {
   const ci = world.idx(x, y);
   if (world.cells[ci] === Cell.WALL || world.cells[ci] === Cell.LIFT) return;
   world.features[ci] = feature;
 }
 
-function addDoor(world: World, room: Room, x: number, y: number, state: DoorState): number {
+function addDoor(world: World, room: Room, x: number, y: number, state: DoorState, keyId = ''): number {
   const ci = world.idx(x, y);
   world.cells[ci] = Cell.DOOR;
   world.wallTex[ci] = room.wallTex;
-  world.doors.set(ci, { idx: ci, state, roomA: room.id, roomB: -1, keyId: '', timer: 0 });
+  world.doors.set(ci, { idx: ci, state, roomA: room.id, roomB: -1, keyId, timer: 0 });
   room.doors.push(ci);
   return ci;
 }
 
-function connectRoomDown(world: World, room: Room, x: number, targetY: number, state: DoorState): number {
+function connectRoomDown(world: World, room: Room, x: number, targetY: number, state: DoorState, keyId = ''): number {
   const doorY = room.y + room.h;
-  const doorId = addDoor(world, room, x, doorY, state);
+  const doorId = addDoor(world, room, x, doorY, state, keyId);
   for (let y = doorY + 1; y <= targetY; y++) openRouteTile(world, x, y, room.floorTex);
   return doorId;
 }
 
-function connectRoomUp(world: World, room: Room, x: number, targetY: number, state: DoorState): number {
+function connectRoomUp(world: World, room: Room, x: number, targetY: number, state: DoorState, keyId = ''): number {
   const doorY = room.y - 1;
-  const doorId = addDoor(world, room, x, doorY, state);
+  const doorId = addDoor(world, room, x, doorY, state, keyId);
   for (let y = doorY - 1; y >= targetY; y--) openRouteTile(world, x, y, room.floorTex);
   return doorId;
 }
 
-function connectRoomLeft(world: World, room: Room, targetX: number, y: number, state: DoorState): number {
+function connectRoomLeft(world: World, room: Room, targetX: number, y: number, state: DoorState, keyId = ''): number {
   const doorX = room.x - 1;
-  const doorId = addDoor(world, room, doorX, y, state);
+  const doorId = addDoor(world, room, doorX, y, state, keyId);
   for (let x = doorX - 1; x >= targetX; x--) openRouteTile(world, x, y, room.floorTex);
   return doorId;
 }
 
-function connectRoomRight(world: World, room: Room, targetX: number, y: number, state: DoorState): number {
+function connectRoomRight(world: World, room: Room, targetX: number, y: number, state: DoorState, keyId = ''): number {
   const doorX = room.x + room.w;
-  const doorId = addDoor(world, room, doorX, y, state);
+  const doorId = addDoor(world, room, doorX, y, state, keyId);
   for (let x = doorX + 1; x <= targetX; x++) openRouteTile(world, x, y, room.floorTex);
   return doorId;
 }
@@ -593,6 +777,24 @@ function dressCorridors(world: World): void {
   }
 }
 
+function dressServiceRoutes(world: World, rng: () => number): void {
+  for (let x = 268; x <= 756; x += 28) {
+    setFeature(world, x, 188, x % 84 === 0 ? Feature.SCREEN : Feature.LAMP);
+    setFeature(world, x, 836, x % 84 === 0 ? Feature.APPARATUS : Feature.LAMP);
+  }
+  for (let y = 224; y <= 804; y += 30) {
+    setFeature(world, 244, y, y % 90 === 0 ? Feature.SCREEN : Feature.APPARATUS);
+    setFeature(world, 780, y, y % 90 === 0 ? Feature.SCREEN : Feature.APPARATUS);
+  }
+  for (let x = 280; x <= 748; x += 36) {
+    setFeature(world, x, 324, Feature.APPARATUS);
+    setFeature(world, x, 700, Feature.SHELF);
+  }
+  for (let y = 216; y <= 808; y += 44) {
+    setFeature(world, 520, y, rng() < 0.55 ? Feature.LAMP : Feature.SCREEN);
+  }
+}
+
 function dressLiftMachine(world: World, room: Room): void {
   for (let y = room.y + 2; y < room.y + room.h - 2; y += 3) {
     setFeature(world, room.x + 2, y, Feature.MACHINE);
@@ -604,6 +806,52 @@ function dressLiftMachine(world: World, room: Room): void {
     world.stamp(x, room.y + 9, 0.5, 0.5, 0.18, 70, room.id * 53 + x, 30, 30, 35);
   }
   setFeature(world, room.x + 5, room.y + 5, Feature.LIFT_BUTTON);
+}
+
+function dressMachineCore(world: World, room: Room, seedOffset: number): void {
+  const shaftX = room.x + (room.w >> 1) - 2;
+  for (let y = room.y + 5; y < room.y + room.h - 5; y++) {
+    for (let x = shaftX; x < shaftX + 4; x++) {
+      const ci = world.idx(x, y);
+      if (world.roomMap[ci] !== room.id || world.cells[ci] !== Cell.FLOOR) continue;
+      world.cells[ci] = Cell.ABYSS;
+      world.floorTex[ci] = Tex.F_ABYSS;
+      world.features[ci] = Feature.NONE;
+    }
+  }
+  for (let y = room.y + 3; y < room.y + room.h - 3; y += 4) {
+    setFeature(world, room.x + 3, y, Feature.MACHINE);
+    setFeature(world, room.x + room.w - 4, y, Feature.APPARATUS);
+  }
+  for (let x = room.x + 8; x < room.x + room.w - 8; x += 8) {
+    setFeature(world, x, room.y + 3, Feature.SCREEN);
+    setFeature(world, x, room.y + room.h - 4, Feature.LAMP);
+    world.stamp(x, room.y + (room.h >> 1), 0.5, 0.5, 2.4, 0.18, room.id * 311 + seedOffset * 17 + x, 22, 24, 28);
+  }
+  setFeature(world, room.x + 5, room.y + 5, Feature.LIFT_BUTTON);
+}
+
+function dressControlBooth(world: World, room: Room): void {
+  setFeature(world, room.x + 3, room.y + 3, Feature.DESK);
+  setFeature(world, room.x + 4, room.y + 3, Feature.SCREEN);
+  setFeature(world, room.x + room.w - 4, room.y + 3, Feature.SCREEN);
+  setFeature(world, room.x + 4, room.y + room.h - 4, Feature.SHELF);
+  setFeature(world, room.x + room.w - 5, room.y + room.h - 4, Feature.LAMP);
+}
+
+function dressPumpAlcove(world: World, room: Room): void {
+  for (let x = room.x + 4; x < room.x + room.w - 4; x++) {
+    const ci = world.idx(x, room.y + (room.h >> 1));
+    if (world.roomMap[ci] === room.id && world.cells[ci] === Cell.FLOOR) {
+      world.cells[ci] = Cell.WATER;
+      world.floorTex[ci] = Tex.F_WATER;
+    }
+  }
+  for (let y = room.y + 3; y < room.y + room.h - 3; y += 5) {
+    setFeature(world, room.x + 3, y, Feature.MACHINE);
+    setFeature(world, room.x + room.w - 4, y, Feature.APPARATUS);
+  }
+  setFeature(world, room.x + (room.w >> 1), room.y + 3, Feature.SCREEN);
 }
 
 function dressBreakerRoom(world: World, room: Room): void {
@@ -653,6 +901,38 @@ function dressClerkOffice(world: World, room: Room): void {
   setFeature(world, room.x + 7, room.y + 6, Feature.DESK);
   setFeature(world, room.x + 9, room.y + 6, Feature.CHAIR);
   setFeature(world, room.x + 4, room.y + 2, Feature.LAMP);
+}
+
+function carveDuctBypass(world: World, ax: number, ay: number, bx: number, by: number, floorTex: Tex): void {
+  const elbowX = ax;
+  const elbowY = by;
+  carveServiceRun(world, ax, ay, elbowX, elbowY, 1, floorTex, Tex.DARK);
+  carveServiceRun(world, elbowX, elbowY, bx, by, 1, floorTex, Tex.DARK);
+  const minX = Math.min(elbowX, bx);
+  const maxX = Math.max(elbowX, bx);
+  for (let x = minX; x <= maxX; x += 12) setFeature(world, x, by, Feature.APPARATUS);
+  const minY = Math.min(ay, elbowY);
+  const maxY = Math.max(ay, elbowY);
+  for (let y = minY; y <= maxY; y += 14) setFeature(world, ax, y, Feature.SHELF);
+}
+
+function carveCableTrench(world: World, ax: number, ay: number, bx: number, by: number, rng: () => number): void {
+  carveServiceRun(world, ax, ay, bx, by, 2, Tex.F_ABYSS, Tex.PIPE);
+  if (ax === bx) {
+    const minY = Math.min(ay, by);
+    const maxY = Math.max(ay, by);
+    for (let y = minY; y <= maxY; y += 22) {
+      setFeature(world, ax - 1, y, rng() < 0.5 ? Feature.APPARATUS : Feature.SCREEN);
+      world.stamp(ax, y, 0.5, 0.5, 1.8, 0.14, ax * 997 + y, 18, 20, 24);
+    }
+  } else {
+    const minX = Math.min(ax, bx);
+    const maxX = Math.max(ax, bx);
+    for (let x = minX; x <= maxX; x += 24) {
+      setFeature(world, x, ay - 1, rng() < 0.5 ? Feature.APPARATUS : Feature.SCREEN);
+      world.stamp(x, ay, 0.5, 0.5, 1.8, 0.14, ay * 991 + x, 18, 20, 24);
+    }
+  }
 }
 
 function generateServiceZones(world: World, rooms: Room[]): void {

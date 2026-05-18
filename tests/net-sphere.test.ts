@@ -295,6 +295,7 @@ test('Net Sphere sanitizers remove unsafe text and truncate bounded fields', () 
   assert.equal(cleanMessage('  hi\u0000 <b>`x`\\ ok  '), 'hi bx ok');
   assert.equal(cleanMessage('x'.repeat(200)).length, 160);
   assert.equal(cleanNickname('  Вася\u0000 <tag>`\\  '), 'Вася tag');
+  assert.equal(cleanNickname('NET-ABCD-1234'), '');
   assert.equal(cleanNickname('я'.repeat(40)).length, 24);
 });
 
@@ -344,4 +345,44 @@ test('Net Sphere chat stores sanitized body and rate-limits same NET-GEN', async
   } finally {
     Date.now = realNow;
   }
+});
+
+test('Net Sphere does not expose NET-GEN-shaped legacy nicknames as public names', async () => {
+  const db = new FakeD1();
+  const now = Date.UTC(2026, 4, 18, 2, 42);
+  db.players.set('NET-LEAK-1234', {
+    net_gen: 'NET-LEAK-1234',
+    nickname: 'NET-LEAK-1234',
+    created_at: now,
+    last_seen_at: now,
+    runs: 1,
+    total_samosbors: 0,
+    deaths: 1,
+    best_level: 1,
+    best_samosbor_count: 0,
+    last_floor: 'Жилая зона',
+    progress_json: '{}',
+  });
+  db.chat.push({ id: 1, net_gen: 'NET-LEAK-1234', body: 'эхо', created_at: now });
+  db.events.push({
+    nickname: 'NET-LEAK-1234',
+    type: 'death',
+    summary: '[NET-LEAK-1234] умер старой строкой',
+    created_at: now,
+  });
+
+  const response = await getStats({
+    request: new Request('https://game.test/api/net/stats?netGen=NET-LEAK-1234'),
+    env: { GIGA_NET: db },
+  });
+  const data = await responseJson(response);
+  const profile = data.profile as Record<string, unknown>;
+  const chat = data.chat as Record<string, unknown>[];
+  const events = data.events as Record<string, unknown>[];
+
+  assert.equal(response.status, 200);
+  assert.equal(profile.nickname, 'Жилец');
+  assert.equal(chat[0].nickname, 'Жилец');
+  assert.equal(events[0].nickname, 'Жилец');
+  assert.equal(events[0].summary, '[Жилец] умер 2026-05-18 02:42 UTC');
 });

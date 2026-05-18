@@ -12,6 +12,8 @@ export const DEF: MonsterDef = {
   dmg: 12,
   attackRate: 3.5,
   sprite: 0,   // auto-assigned by generateSprites() // will shift others
+  counterplay: 'Решите сразу: быстро убить матку до нового приплода или сначала расчистить детей; медленное смешивание планов затапливает комнату.',
+  lootHint: 'маточный узел, тёплая слизь и шанс на мясную руну после зачистки приплода',
 };
 
 export function generateSprite(): Uint32Array {

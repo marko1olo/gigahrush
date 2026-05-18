@@ -438,6 +438,8 @@ System telemetry entry:
 
 Store the last 300 relevant samples, not infinite history. In browser runtime, dumps should go to debug UI, console, downloadable blob, or save data. In Node-side tooling, dumps may write under `Docs/AgentLogs/`.
 
+Historical `Docs/AgentLogs`, task statuses and prompts were consolidated into `appendix.md` and archived under `gatbage/`. Recreate those directories only for an explicit orchestration/debug-dump task; routine patches should keep their durable notes compact and update `appendix.md` only when the context will be useful later.
+
 ## 16. Verification Checklist
 
 Every agent patch must answer:

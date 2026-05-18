@@ -1,7 +1,7 @@
-/* ── Shadow — dark silhouette (теневик) ───────────────────────── */
-/*   Completely black humanoid figure with faint glowing eyes.   */
+/* ── Shadow — dark ambush silhouette (теневик) ────────────────── */
+/*   Black humanoid figure with readable violet rim and eye cues. */
 
-import { MonsterKind } from '../core/types';
+import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
 import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
@@ -13,12 +13,27 @@ export const DEF: MonsterDef = {
   dmg: 12,
   attackRate: 1.0,
   sprite: 0,   // auto-assigned by generateSprites()
+  floors: [FloorLevel.MINISTRY, FloorLevel.KVARTIRY, FloorLevel.LIVING, FloorLevel.HELL, FloorLevel.VOID],
+  counterplay: 'Не стойте после первого удара: отступайте в освещенный или широкий проход и держите дистанцию.',
+  lootHint: 'темный след, холодная пыль, редкий странный сгусток',
 };
 
 export function generateSprite(): Uint32Array {
   const t = new Uint32Array(S * S).fill(CLEAR);
   const cx = S / 2;
-  // Head — slightly oval, pure black with noise
+  // Faint afterimage makes the ambush readable even against dark walls.
+  for (let y = 6; y < 60; y++) {
+    const fade = y < 18 ? 0.6 : y > 48 ? (60 - y) / 12 : 1;
+    const halfW = y < 18 ? 8 : y < 42 ? 11 : 8;
+    for (let side = -1; side <= 1; side += 2) {
+      const edgeX = Math.floor(cx + side * (halfW + 1 + noise(y, side, 1098) * 2));
+      if (edgeX < 0 || edgeX >= S) continue;
+      const a = Math.floor((38 + noise(edgeX, y, 1099) * 46) * fade);
+      if (a > 8) t[y * S + edgeX] = rgba(70, 38, 92, a);
+    }
+  }
+
+  // Head — slightly oval, very dark with noise
   for (let y = 4; y < 18; y++) for (let x = cx - 6; x < cx + 6; x++) {
     if (x < 0 || x >= S) continue;
     const dx = (x - cx) / 6, dy = (y - 11) / 7;
@@ -27,13 +42,15 @@ export function generateSprite(): Uint32Array {
       t[y * S + x] = rgba(clamp(8 + n), clamp(8 + n), clamp(10 + n));
     }
   }
-  // Eyes — faint dim glow
-  t[10 * S + (cx - 3)] = rgba(60, 40, 80);
-  t[10 * S + (cx + 3)] = rgba(60, 40, 80);
-  t[11 * S + (cx - 3)] = rgba(80, 50, 110);
-  t[11 * S + (cx + 3)] = rgba(80, 50, 110);
-  t[11 * S + (cx - 2)] = rgba(50, 30, 70);
-  t[11 * S + (cx + 2)] = rgba(50, 30, 70);
+  // Eyes — small but bright enough to warn before contact
+  for (const ex of [cx - 3, cx + 3]) {
+    t[9 * S + ex] = rgba(88, 48, 118, 180);
+    t[10 * S + ex] = rgba(184, 78, 232);
+    t[11 * S + ex] = rgba(116, 54, 168);
+    if (ex > 0) t[10 * S + ex - 1] = rgba(74, 34, 104, 190);
+    if (ex + 1 < S) t[10 * S + ex + 1] = rgba(74, 34, 104, 190);
+  }
+
   // Torso — tall slender black form with wispy edges
   for (let y = 18; y < 50; y++) {
     const taper = y < 25 ? 8 : y < 40 ? 7 : 5;
@@ -45,16 +62,27 @@ export function generateSprite(): Uint32Array {
       const n = noise(x, y, 1104) * 6;
       // Edges are semi-transparent (wispy shadow)
       const alpha = edgeDist < 2 ? 120 + Math.floor(noise(x, y, 1105) * 80) : 255;
-      t[y * S + x] = rgba(clamp(6 + n), clamp(6 + n), clamp(8 + n), alpha);
+      const edgeGlow = edgeDist < 1.2 ? 14 : 0;
+      t[y * S + x] = rgba(clamp(6 + n + edgeGlow), clamp(6 + n), clamp(8 + n + edgeGlow), alpha);
     }
   }
+
+  // Shoulder breaks: a player should read a body, not a black column.
+  for (let y = 19; y < 28; y++) {
+    const hw = 9 - Math.floor((y - 19) / 3);
+    for (const x of [Math.floor(cx - hw), Math.floor(cx + hw)]) {
+      if (x < 0 || x >= S) continue;
+      t[y * S + x] = rgba(92, 46, 112, 135);
+    }
+  }
+
   // Arms — thin trailing wisps
   for (let y = 22; y < 44; y++) {
     const spread = (y - 22) * 0.3;
     const lx = Math.floor(cx - 9 - spread + noise(y, 1, 1106) * 2);
     const rx = Math.floor(cx + 9 + spread - noise(1, y, 1107) * 2);
-    if (lx >= 0) t[y * S + lx] = rgba(5, 5, 7, 150);
-    if (rx < S)  t[y * S + rx] = rgba(5, 5, 7, 150);
+    if (lx >= 0) t[y * S + lx] = rgba(48, 26, 62, 165);
+    if (rx < S)  t[y * S + rx] = rgba(48, 26, 62, 165);
     if (lx + 1 < S) t[y * S + lx + 1] = rgba(6, 6, 8, 180);
     if (rx - 1 >= 0) t[y * S + rx - 1] = rgba(6, 6, 8, 180);
   }

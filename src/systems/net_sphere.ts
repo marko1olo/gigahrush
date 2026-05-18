@@ -43,6 +43,7 @@ export interface NetSphereSnapshot {
   open: boolean;
   netGen: string;
   sessionId: string;
+  nickname: string;
   status: NetSphereStatus;
   statusText: string;
   error: string;
@@ -104,6 +105,7 @@ class NetSphereApiError extends Error {
 const API_ROOT = '/api/net';
 const NET_GEN_KEY = 'gigahrush_net_gen';
 const SESSION_KEY = 'gigahrush_net_session';
+const NET_GEN_NICK_RE = /^NET-[A-Z0-9-]{4,28}$/;
 const HEARTBEAT_MS = 30_000;
 const OPEN_POLL_MS = 5_000;
 const CHAT_LIMIT = 60;
@@ -192,12 +194,18 @@ function cleanOutgoingText(value: string): string {
     .slice(0, DRAFT_LIMIT);
 }
 
+function looksLikeNetGen(value: string): boolean {
+  const clean = value.trim().toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 32);
+  return NET_GEN_NICK_RE.test(clean);
+}
+
 function cleanNickname(value: string): string {
-  return value
+  const clean = value
     .replace(/[\u0000-\u001f\u007f<>`\\]/g, '')
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, 24);
+  return looksLikeNetGen(clean) ? '' : clean;
 }
 
 function printableKey(key: string): string {
@@ -242,14 +250,18 @@ function applyServerPayload(payload: unknown): void {
     events?: NetSphereEventLine[];
   };
   if (data.stats) runtime.stats = data.stats;
-  if (data.profile !== undefined) runtime.profile = data.profile;
+  if (data.profile !== undefined) {
+    runtime.profile = data.profile
+      ? { ...data.profile, nickname: cleanNickname(data.profile.nickname) || 'Жилец' }
+      : data.profile;
+  }
   if (Array.isArray(data.chat)) {
     for (const line of data.chat) {
       if (!line || typeof line.id !== 'number' || typeof line.body !== 'string') continue;
       if (runtime.chat.some(existing => existing.id === line.id)) continue;
       runtime.chat.push({
         id: line.id,
-        nickname: typeof line.nickname === 'string' && line.nickname.trim() ? line.nickname : 'Жилец',
+        nickname: typeof line.nickname === 'string' ? cleanNickname(line.nickname) || 'Жилец' : 'Жилец',
         body: line.body,
         createdAt: typeof line.createdAt === 'number' ? line.createdAt : 0,
       });
@@ -260,6 +272,7 @@ function applyServerPayload(payload: unknown): void {
   if (Array.isArray(data.events)) {
     runtime.events = data.events
       .filter(line => line && typeof line.eventKey === 'string' && typeof line.summary === 'string')
+      .map(line => ({ ...line, nickname: cleanNickname(line.nickname) || 'Жилец' }))
       .slice(0, 20);
   }
 }
@@ -419,10 +432,7 @@ export function bindNetSphereInput(): () => void {
   const onDown = (e: KeyboardEvent) => {
     if (!runtime.open) {
       if (!e.ctrlKey && !e.metaKey && !e.altKey && e.code === 'KeyN') {
-        runtime.open = true;
-        runtime.nextPollAt = 0;
-        runtime.error = '';
-        if (document.pointerLockElement) document.exitPointerLock();
+        openNetSphere();
         e.preventDefault();
       }
       return;
@@ -470,6 +480,14 @@ export function bindNetSphereInput(): () => void {
 
 export function isNetSphereOpen(): boolean {
   return runtime.open;
+}
+
+export function openNetSphere(): void {
+  ensureIdentity();
+  runtime.open = true;
+  runtime.nextPollAt = 0;
+  runtime.error = '';
+  if (document.pointerLockElement) document.exitPointerLock();
 }
 
 export function closeNetSphere(): void {
@@ -520,10 +538,12 @@ export function reportNetSphereEvent(
 
 export function getNetSphereSnapshot(): NetSphereSnapshot {
   ensureIdentity();
+  const nickname = cleanNickname(runtime.profile?.nickname ?? '') || cleanNickname(runtime.lastProgress?.nickname ?? '') || 'Жилец';
   return {
     open: runtime.open,
     netGen: runtime.netGen,
     sessionId: runtime.sessionId,
+    nickname,
     status: runtime.status,
     statusText: statusText(runtime.status),
     error: runtime.error,

@@ -3,7 +3,7 @@
 /*   of armored blocks, sensor clusters, welded plates, treads.   */
 /*   Shoots plasma bolts. Each robot is procedurally unique.      */
 
-import { MonsterKind } from '../core/types';
+import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
 import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
@@ -13,11 +13,14 @@ export const DEF: MonsterDef = {
   hp: 65,
   speed: 1.8,
   dmg: 18,
-  attackRate: 1.4,
+  attackRate: 1.8,
   sprite: 0,   // auto-assigned by generateSprites()
   isRanged: true,
-  projSpeed: 10,
+  projSpeed: 9,
   projSprite: 0,        // auto-assigned
+  floors: [FloorLevel.MINISTRY, FloorLevel.MAINTENANCE],
+  counterplay: 'Сойдите с прямой линии плазмы, дождитесь залпа и заходите в паузу перезарядки: робот крепкий, но честно платит временем после выстрела.',
+  lootHint: 'электронный лом, платы, проводка и редкая энергоячейка',
 };
 
 /* ── Static fallback sprite (used in sprite sheet) ────────────── */
@@ -143,6 +146,10 @@ export function generateRobotSprite(seed: number): Uint32Array {
   const headY = chY - headH + 1;
   rect(t, headX, headY, headW, headH, pr + 5, pg + 5, pb + 5, seed + 50);
   rectOutline(t, headX, headY, headW, headH, ar, ag, ab);
+  const opticY = headY + Math.floor(headH / 2);
+  for (let x = headX + 2; x < headX + headW - 2; x++) {
+    if (x >= 0 && x < S && opticY >= 0 && opticY < S) t[opticY * S + x] = rgba(50, 220, 255);
+  }
 
   // ── Sensor lights / eyes — glowing dots on head or chassis ──
   for (let i = 0; i < numSensors; i++) {
@@ -179,6 +186,14 @@ export function generateRobotSprite(seed: number): Uint32Array {
   const gunLen = 6 + Math.floor(noise(7, 0, seed + 71) * 6);
   const gunX = gunSide > 0 ? chX + chW : chX - gunLen;
   rect(t, gunX, gunY, gunLen, 3, ar - 10, ag - 10, ab - 10, seed + 72);
+  const coilX = gunSide > 0 ? chX + chW - 2 : chX + 1;
+  for (let i = 0; i < 3; i++) {
+    const coilY = gunY - 2 + i * 2;
+    if (coilX >= 0 && coilX < S && coilY >= 0 && coilY < S) {
+      t[coilY * S + coilX] = rgba(60, 210, 245);
+      if (coilX + gunSide >= 0 && coilX + gunSide < S) t[coilY * S + coilX + gunSide] = rgba(25, 105, 135);
+    }
+  }
   // Muzzle glow
   const muzzX = gunSide > 0 ? gunX + gunLen - 1 : gunX;
   if (muzzX >= 0 && muzzX < S) {

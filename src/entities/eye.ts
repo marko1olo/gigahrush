@@ -1,7 +1,7 @@
 /* ── Eye — flying demonic eye (глаз) ──────────────────────────── */
 /*   Ranged monster: shoots projectiles like a cacodemon.        */
 
-import { MonsterKind } from '../core/types';
+import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
 import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
@@ -16,6 +16,9 @@ export const DEF: MonsterDef = {
   isRanged: true,
   projSpeed: 8,
   projSprite: 0,        // auto-assigned to Spr.EYE_BOLT
+  floors: [FloorLevel.MINISTRY, FloorLevel.LIVING, FloorLevel.MAINTENANCE, FloorLevel.HELL, FloorLevel.VOID],
+  counterplay: 'Ломайте линию огня и сближайтесь после выстрела: Глаз держит прямой коридор, но платит длинной паузой.',
+  lootHint: 'перегоревшие нити, стеклянная пыль, редкая лампа или ПСИ-пыль',
 };
 
 export function generateSprite(): Uint32Array {
@@ -85,18 +88,29 @@ export function generateSprite(): Uint32Array {
 export function generateBoltSprite(): Uint32Array {
   const t = new Uint32Array(S * S).fill(CLEAR);
   const cx = S / 2, cy = S / 2;
-  // Green-yellow energy bolt
-  for (let y = cy - 4; y < cy + 4; y++) for (let x = cx - 4; x < cx + 4; x++) {
-    const dx = (x - cx) / 4, dy = (y - cy) / 4;
-    const d2 = dx * dx + dy * dy;
-    if (d2 < 1) {
-      const bright = 1 - Math.sqrt(d2);
-      t[y * S + x] = rgba(
-        clamp(Math.floor(100 + bright * 155)),
-        clamp(Math.floor(200 + bright * 55)),
-        clamp(Math.floor(30 + bright * 50)),
-      );
-    }
+  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+    const dx = x - cx;
+    const dy = y - cy;
+    const d = Math.sqrt(dx * dx + dy * dy);
+    const ring = Math.abs(d - 9);
+    const core = d < 5;
+    const halo = d < 16;
+    const ray = (Math.abs(dx) < 1.4 && Math.abs(dy) < 17) || (Math.abs(dy) < 1.4 && Math.abs(dx) < 17);
+    const spark = noise(x * 2, y * 2, 1301) > 0.88 && d < 18;
+    if (!core && !halo && !ray && !spark) continue;
+
+    const f = Math.max(0, 1 - d / 16);
+    const ringGlow = Math.max(0, 1 - ring / 2.5);
+    const rayGlow = ray ? Math.max(0, 1 - d / 18) : 0;
+    const sparkGlow = spark ? 0.45 + noise(x, y, 1302) * 0.35 : 0;
+    const bright = Math.max(f, ringGlow * 0.8, rayGlow * 0.65, sparkGlow);
+    const a = clamp(Math.floor(45 + bright * 210));
+    t[y * S + x] = rgba(
+      clamp(Math.floor(90 + bright * 165)),
+      clamp(Math.floor(190 + bright * 65)),
+      clamp(Math.floor(35 + bright * 70)),
+      a,
+    );
   }
   return t;
 }

@@ -18,6 +18,8 @@ import { generateRaionsovetArchive } from './raionsovet_archive';
 import { generateRefusalClauseOffice } from './refusal_clause';
 import { generateDocumentGate } from './document_gate';
 import { generateNiiContrabandAudit } from './nii_contraband_audit';
+import { generateKartotechnikArchive } from './kartotechnik';
+import { generateMatkaDokumentovRoom } from './matka_dokumentov';
 import { runMinistryDesignFloorContent } from '../design_floors/ministry';
 
 export function runMinistryContent(
@@ -45,6 +47,8 @@ export function runMinistryContent(
     generateRefusalClauseOffice,
     generateDocumentGate,
     generateNiiContrabandAudit,
+    generateKartotechnikArchive,
+    generateMatkaDokumentovRoom,
   ]) {
     const r = generate(world, nextRoomId, entities, idRef, spawnX, spawnY);
     nextRoomId = r.nextRoomId;

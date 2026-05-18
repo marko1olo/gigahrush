@@ -2,97 +2,126 @@
 /*   Constructed from twisted construction rebar and concrete.   */
 /*   Looks like animated building materials — rods, wires, rust. */
 
-import { MonsterKind } from '../core/types';
+import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
 import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
 export const DEF: MonsterDef = {
   kind: MonsterKind.REBAR,
   name: 'Арматура',
-  hp: 200,
-  speed: 0.9,
-  dmg: 22,
-  attackRate: 2.2,
+  hp: 210,
+  speed: 0.82,
+  dmg: 24,
+  attackRate: 2.4,
   sprite: 0,   // auto-assigned by generateSprites()
+  floors: [FloorLevel.LIVING, FloorLevel.MAINTENANCE, FloorLevel.HELL, FloorLevel.VOID],
+  counterplay: 'Не наступайте на ровное железо у стеллажей: отходите в широкий проход, бейте с дистанции и не деритесь голыми руками.',
+  lootHint: 'тяжелый металл, витая проволока и редкая годная арматура',
 };
 
 export function generateSprite(): Uint32Array {
   const t = new Uint32Array(S * S).fill(CLEAR);
-  const cx = S / 2;
+  const cx = Math.floor(S / 2);
 
-  // Main vertical rebar rods (the skeleton of the creature)
-  const rods = [cx - 6, cx - 2, cx + 2, cx + 6];
+  const put = (x: number, y: number, color: number): void => {
+    const px = Math.floor(x);
+    const py = Math.floor(y);
+    if (px < 0 || px >= S || py < 0 || py >= S) return;
+    t[py * S + px] = color;
+  };
+
+  const metal = (x: number, y: number, bright = 0): number => {
+    const n = noise(x * 3, y * 2, 1201) * 28;
+    const rust = noise(x * 5, y * 3, 1202) > 0.66 ? 48 : 0;
+    return rgba(
+      clamp(62 + n + bright + rust),
+      clamp(58 + n + bright * 0.5 - rust * 0.18),
+      clamp(55 + n + bright * 0.35 - rust * 0.45),
+    );
+  };
+
+  // Broad dark scrap base keeps the threat from reading as a thin harmless line.
+  for (let y = 47; y < 61; y++) {
+    for (let x = cx - 17; x <= cx + 18; x++) {
+      const dx = (x - cx) / 18;
+      const dy = (y - 54) / 8;
+      if (dx * dx + dy * dy > 1.05 || noise(x, y, 1211) < 0.18) continue;
+      put(x, y, rgba(36, 32, 29));
+    }
+  }
+
+  // Concrete knots on the frame: readable storage/production debris, not corpse loot.
+  const chunks = [
+    { x: cx - 9, y: 15, r: 4 },
+    { x: cx + 8, y: 22, r: 5 },
+    { x: cx - 6, y: 38, r: 5 },
+    { x: cx + 7, y: 45, r: 4 },
+  ];
+  for (const chunk of chunks) {
+    for (let dy = -chunk.r; dy <= chunk.r; dy++) for (let dx = -chunk.r; dx <= chunk.r; dx++) {
+      if (dx * dx + dy * dy > chunk.r * chunk.r || noise(dx, dy, 1207) < 0.08) continue;
+      const px = chunk.x + dx;
+      const py = chunk.y + dy;
+      const n = noise(px, py, 1208) * 26;
+      const crack = noise(px * 3, py * 3, 1209) > 0.78 ? -34 : 0;
+      put(px, py, rgba(clamp(106 + n + crack), clamp(101 + n + crack), clamp(95 + n + crack)));
+    }
+  }
+
+  // Main vertical rods: four jagged bars with exposed bright edges.
+  const rods = [cx - 9, cx - 3, cx + 3, cx + 9];
   for (const rx of rods) {
-    for (let y = 4; y < 58; y++) {
-      if (rx < 0 || rx >= S) continue;
-      const n = noise(rx, y, 1201) * 20;
-      const rust = noise(rx * 3, y * 2, 1202) > 0.7 ? 30 : 0;
-      // Rebar color: dark grey iron with rust patches
-      t[y * S + rx] = rgba(
-        clamp(70 + n + rust),
-        clamp(60 + n),
-        clamp(55 + n - rust * 0.5),
-      );
-      // Rod is 2px wide
-      if (rx + 1 < S) {
-        t[y * S + rx + 1] = rgba(
-          clamp(65 + n + rust),
-          clamp(55 + n),
-          clamp(50 + n - rust * 0.5),
-        );
-      }
+    for (let y = 3; y < 59; y++) {
+      const jitter = noise(rx, y, 1212) > 0.82 ? (rx < cx ? -1 : 1) : 0;
+      const x = rx + jitter;
+      put(x, y, metal(x, y, 8));
+      put(x + 1, y, metal(x + 1, y));
+      if (noise(x, y, 1213) > 0.72) put(x - 1, y, rgba(31, 28, 25));
     }
   }
 
-  // Cross-bars (horizontal rebar ties)
-  for (let y = 10; y < 55; y += 6 + Math.floor(noise(0, y, 1203) * 4)) {
-    const startX = cx - 7, endX = cx + 8;
-    for (let x = startX; x < endX; x++) {
-      if (x < 0 || x >= S) continue;
-      const n = noise(x, y, 1204) * 15;
-      t[y * S + x] = rgba(clamp(60 + n), clamp(55 + n), clamp(50 + n));
+  // Cross-braces and shelf-flat bars sell the "do not step on/punch iron" cue.
+  for (let y = 11; y < 55; y += 7) {
+    const lean = y % 14 === 0 ? -1 : 1;
+    for (let x = cx - 14; x <= cx + 15; x++) {
+      const py = y + Math.floor((x - cx) * 0.08 * lean);
+      put(x, py, metal(x, py, 4));
+      if (noise(x, py, 1214) > 0.6) put(x, py + 1, rgba(44, 39, 34));
+    }
+  }
+  for (let y = 49; y <= 57; y += 4) {
+    for (let x = cx - 18; x <= cx + 18; x++) {
+      if (noise(x, y, 1215) < 0.12) continue;
+      put(x, y, metal(x, y, x % 7 === 0 ? 18 : 0));
     }
   }
 
-  // Concrete chunks clinging to rebar
-  for (let i = 0; i < 8; i++) {
-    const chunkX = Math.floor(cx - 5 + noise(i, 0, 1205) * 10);
-    const chunkY = Math.floor(10 + noise(0, i, 1206) * 40);
-    const chunkR = 2 + Math.floor(noise(i, i, 1207) * 3);
-    for (let dy = -chunkR; dy <= chunkR; dy++) for (let dx = -chunkR; dx <= chunkR; dx++) {
-      if (dx * dx + dy * dy > chunkR * chunkR) continue;
-      const px = chunkX + dx, py = chunkY + dy;
-      if (px < 0 || px >= S || py < 0 || py >= S) continue;
-      const n = noise(px, py, 1208) * 25;
-      const crack = noise(px * 3, py * 3, 1209) > 0.85 ? -25 : 0;
-      t[py * S + px] = rgba(
-        clamp(105 + n + crack),
-        clamp(100 + n + crack),
-        clamp(95 + n + crack),
-      );
-    }
+  // Twisted wire wrapping and loose hooks.
+  for (let y = 7; y < 57; y++) {
+    const waveX = cx + Math.sin(y * 0.48) * 11;
+    put(waveX, y, rgba(49, 44, 39));
+    if (y % 9 === 0) put(waveX + 1, y, rgba(112, 75, 54));
+  }
+  for (let y = 5; y < 38; y++) {
+    put(cx - 18 + y * 0.22, y, metal(cx - 18 + y * 0.22, y, 12));
+    put(cx + 18 - y * 0.18, y + 4, metal(cx + 18 - y * 0.18, y + 4, 12));
   }
 
-  // Twisted wire wrapping
-  for (let y = 8; y < 55; y++) {
-    const waveX = Math.floor(cx + Math.sin(y * 0.5) * 8);
-    if (waveX >= 0 && waveX < S && t[y * S + waveX] === CLEAR) {
-      t[y * S + waveX] = rgba(50, 45, 40);
-    }
+  // Sparking eyes/glints in the top gaps, small but hot against cold metal.
+  const eyeY = 9;
+  for (const ex of [cx - 4, cx + 4]) {
+    put(ex, eyeY, rgba(255, 68, 28));
+    put(ex + 1, eyeY, rgba(255, 126, 38));
+    put(ex, eyeY + 1, rgba(178, 34, 22));
   }
+  put(cx - 12, 27, rgba(242, 92, 36));
+  put(cx + 12, 35, rgba(246, 128, 42));
 
-  // Eyes — sparking red glow in gaps between rebar (at head height)
-  const eyeY = 8;
-  t[eyeY * S + (cx - 3)] = rgba(255, 60, 30);
-  t[eyeY * S + (cx + 3)] = rgba(255, 60, 30);
-  t[(eyeY + 1) * S + (cx - 3)] = rgba(200, 40, 20);
-  t[(eyeY + 1) * S + (cx + 3)] = rgba(200, 40, 20);
-
-  // Protruding sharp rebar tips at top (like horns)
-  for (let y = 0; y < 5; y++) {
-    const n = noise(cx - 4, y, 1210) * 10;
-    t[y * S + (cx - 4)] = rgba(clamp(75 + n), clamp(65 + n), clamp(60 + n));
-    t[y * S + (cx + 5)] = rgba(clamp(75 + n), clamp(65 + n), clamp(60 + n));
+  // Protruding rebar tips at head height.
+  for (let y = 0; y < 7; y++) {
+    put(cx - 7, y, metal(cx - 7, y, 16));
+    put(cx + 8, y, metal(cx + 8, y, 16));
+    if (y > 2) put(cx, y - 1, metal(cx, y - 1, 10));
   }
 
   return t;

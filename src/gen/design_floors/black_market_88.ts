@@ -17,6 +17,7 @@ import {
   QuestType,
   RoomType,
   Tex,
+  W,
   ZoneFaction,
   type ContainerAccess,
   type Entity,
@@ -681,6 +682,394 @@ export function generateBlackMarket88DesignFloor(): FloorGeneration {
 
 export function generateBlackMarket88DebugFloor(): FloorGeneration {
   return generateBlackMarket88DesignFloor();
+}
+
+type Market88RoomSide = 'north' | 'south' | 'west' | 'east';
+
+interface Market88StallPlacement {
+  room: Room;
+  laneY: number;
+  side: -1 | 1;
+}
+
+interface Market88BazaarRooms {
+  auction: Room | null;
+  guardWest: Room | null;
+  guardEast: Room | null;
+  debtCourt: Room | null;
+  documentCheckpoint: Room | null;
+  tunnelCacheWest: Room | null;
+  tunnelCacheEast: Room | null;
+  coldStorage: Room | null;
+}
+
+const MARKET88_WEST = 136;
+const MARKET88_EAST = W - 136;
+const MARKET88_NORTH = 344;
+const MARKET88_SOUTH = 680;
+const MARKET88_LANE_Y = [376, 424, 472, 500, 548, 596, 644] as const;
+const MARKET88_LANE_X = [184, 280, 376, 472, 568, 664, 760, 856] as const;
+const MARKET88_STALL_NAMES = [
+  'Прилавок сухпайка 88',
+  'Лоток тихих патронов 88',
+  'Палатка фильтров 88',
+  'Стол чужих документов 88',
+  'Занавес обмена 88',
+  'Склад без вывески 88',
+] as const;
+
+export function expandBlackMarket88Bazaar(world: World, rng: () => number): void {
+  const rooms = addBazaarLandmarks(world);
+  const stalls = addBazaarStallRooms(world, rng);
+
+  carveBazaarAlleys(world);
+  connectBazaarLandmarks(world, rooms);
+  connectStallsToAlleys(world, stalls);
+  addRaidShutters(world);
+  decorateBazaarLandmarks(world, rooms);
+  decorateSmugglingTunnels(world);
+  seedBazaarCaches(world, rooms);
+}
+
+function addBazaarLandmarks(world: World): Market88BazaarRooms {
+  return {
+    auction: tryBazaarRoom(world, RoomType.COMMON, 494, 526, 40, 28, 'Аукционная яма 88', Tex.METAL, Tex.F_CONCRETE),
+    guardWest: tryBazaarRoom(world, RoomType.HQ, 438, 486, 12, 9, 'Будка западной задвижки 88', Tex.METAL, Tex.F_CONCRETE),
+    guardEast: tryBazaarRoom(world, RoomType.HQ, 574, 538, 12, 9, 'Будка рейдовой задвижки 88', Tex.METAL, Tex.F_CONCRETE),
+    debtCourt: tryBazaarRoom(world, RoomType.OFFICE, 462, 568, 24, 14, 'Долговой суд 88', Tex.MARBLE, Tex.F_GREEN_CARPET),
+    documentCheckpoint: tryBazaarRoom(world, RoomType.OFFICE, 604, 438, 26, 12, 'Документальный кордон 88', Tex.MARBLE, Tex.F_MARBLE_TILE),
+    tunnelCacheWest: tryBazaarRoom(world, RoomType.STORAGE, 168, 626, 18, 10, 'Западный тайник контрабанды 88', Tex.BRICK, Tex.F_LINO),
+    tunnelCacheEast: tryBazaarRoom(world, RoomType.STORAGE, 858, 622, 18, 10, 'Восточный тайник контрабанды 88', Tex.PIPE, Tex.F_CONCRETE),
+    coldStorage: tryBazaarRoom(world, RoomType.STORAGE, 684, 364, 20, 12, 'Холодный склад без накладной 88', Tex.TILE_W, Tex.F_TILE),
+  };
+}
+
+function addBazaarStallRooms(world: World, rng: () => number): Market88StallPlacement[] {
+  const placements: Market88StallPlacement[] = [];
+  for (let row = 0; row < MARKET88_LANE_Y.length; row++) {
+    const laneY = MARKET88_LANE_Y[row];
+    for (let col = 0, x = 154; x <= 840; col++, x += 42) {
+      const side: -1 | 1 = ((row + col) & 1) === 0 ? -1 : 1;
+      const w = 12 + ((row + col) % 4) * 2 + Math.floor(rng() * 2);
+      const h = 6 + Math.floor(rng() * 3);
+      const rx = x + Math.floor(rng() * 7);
+      const ry = side < 0 ? laneY - h - 6 : laneY + 6;
+      if (inMarket88CoreKeepout(world, rx, ry, w, h)) continue;
+      const name = MARKET88_STALL_NAMES[(row + col) % MARKET88_STALL_NAMES.length];
+      const type = col % 5 === 0 ? RoomType.STORAGE : RoomType.COMMON;
+      const room = tryBazaarRoom(world, type, rx, ry, w, h, name, Tex.METAL, col % 3 === 0 ? Tex.F_LINO : Tex.F_CONCRETE);
+      if (!room) continue;
+      decorateStallRoom(world, room, rng, col % 5 === 0);
+      placements.push({ room, laneY, side });
+    }
+  }
+  return placements;
+}
+
+function carveBazaarAlleys(world: World): void {
+  carveMarketLine(world, MARKET88_WEST, MARKET88_NORTH, MARKET88_EAST, MARKET88_NORTH, 2, Tex.F_CONCRETE);
+  carveMarketLine(world, MARKET88_WEST, MARKET88_SOUTH, MARKET88_EAST, MARKET88_SOUTH, 2, Tex.F_CONCRETE);
+  carveMarketLine(world, MARKET88_WEST, MARKET88_NORTH, MARKET88_WEST, MARKET88_SOUTH, 2, Tex.F_CONCRETE);
+  carveMarketLine(world, MARKET88_EAST, MARKET88_NORTH, MARKET88_EAST, MARKET88_SOUTH, 2, Tex.F_CONCRETE);
+
+  for (const y of MARKET88_LANE_Y) carveMarketLine(world, MARKET88_WEST, y, MARKET88_EAST, y, 2, Tex.F_CONCRETE);
+  for (const x of MARKET88_LANE_X) carveMarketLine(world, x, MARKET88_NORTH, x, MARKET88_SOUTH, 2, Tex.F_CONCRETE);
+
+  carveMarketLine(world, 484, 500, MARKET88_WEST, 500, 2, Tex.F_CONCRETE);
+  carveMarketLine(world, 536, 500, MARKET88_EAST, 500, 2, Tex.F_CONCRETE);
+  carveMarketLine(world, 514, 508, 514, 526, 2, Tex.F_CONCRETE);
+
+  carveMarketLine(world, 518, 474, 518, MARKET88_NORTH, 1, Tex.F_LINO);
+  carveMarketLine(world, 535, 508, MARKET88_EAST, 628, 1, Tex.F_LINO);
+  carveMarketLine(world, 484, 504, MARKET88_WEST + 28, 632, 1, Tex.F_LINO);
+  carveMarketLine(world, 620, 444, 724, MARKET88_NORTH, 1, Tex.F_LINO);
+}
+
+function connectBazaarLandmarks(world: World, rooms: Market88BazaarRooms): void {
+  if (rooms.auction) {
+    connectRoomToPoint(world, rooms.auction, 'north', rooms.auction.x + (rooms.auction.w >> 1), 500, DoorState.CLOSED, '');
+    connectRoomToPoint(world, rooms.auction, 'west', 472, rooms.auction.y + (rooms.auction.h >> 1), DoorState.CLOSED, '');
+    connectRoomToPoint(world, rooms.auction, 'east', 568, rooms.auction.y + (rooms.auction.h >> 1), DoorState.CLOSED, '');
+    connectRoomToPoint(world, rooms.auction, 'south', rooms.auction.x + (rooms.auction.w >> 1), 596, DoorState.CLOSED, '');
+  }
+  if (rooms.guardWest) connectRoomToPoint(world, rooms.guardWest, 'east', 472, 500, DoorState.CLOSED, '');
+  if (rooms.guardEast) connectRoomToPoint(world, rooms.guardEast, 'west', 568, 548, DoorState.CLOSED, '');
+  if (rooms.debtCourt) connectRoomToPoint(world, rooms.debtCourt, 'north', 472, 548, DoorState.LOCKED, 'key');
+  if (rooms.documentCheckpoint) connectRoomToPoint(world, rooms.documentCheckpoint, 'south', 608, 472, DoorState.LOCKED, 'key');
+  if (rooms.tunnelCacheWest) connectRoomToPoint(world, rooms.tunnelCacheWest, 'north', MARKET88_WEST + 28, 632, DoorState.HERMETIC_CLOSED, '');
+  if (rooms.tunnelCacheEast) connectRoomToPoint(world, rooms.tunnelCacheEast, 'west', MARKET88_EAST, 628, DoorState.HERMETIC_CLOSED, '');
+  if (rooms.coldStorage) connectRoomToPoint(world, rooms.coldStorage, 'south', 704, 376, DoorState.LOCKED, 'key');
+}
+
+function connectStallsToAlleys(world: World, placements: Market88StallPlacement[]): void {
+  for (const placement of placements) {
+    const side: Market88RoomSide = placement.side < 0 ? 'south' : 'north';
+    connectRoomToPoint(
+      world,
+      placement.room,
+      side,
+      placement.room.x + (placement.room.w >> 1),
+      placement.laneY,
+      placement.room.type === RoomType.STORAGE ? DoorState.CLOSED : DoorState.OPEN,
+      '',
+    );
+  }
+}
+
+function addRaidShutters(world: World): void {
+  addShutterGate(world, 392, 500, 'east_west');
+  addShutterBypass(world, 382, 488, 404, 512);
+  addShutterGate(world, 622, 548, 'east_west');
+  addShutterBypass(world, 610, 536, 638, 564);
+  addShutterGate(world, 568, 424, 'north_south');
+  addShutterBypass(world, 552, 414, 584, 438);
+}
+
+function addShutterBypass(world: World, ax: number, ay: number, bx: number, by: number): void {
+  carveMarketLine(world, ax, ay, bx, ay, 1, Tex.F_LINO);
+  carveMarketLine(world, bx, ay, bx, by, 1, Tex.F_LINO);
+  setMarketFeature(world, ax, ay, Feature.CANDLE);
+  setMarketFeature(world, bx, by, Feature.SHELF);
+}
+
+function decorateBazaarLandmarks(world: World, rooms: Market88BazaarRooms): void {
+  if (rooms.auction) {
+    const room = rooms.auction;
+    const cx = room.x + (room.w >> 1);
+    const cy = room.y + (room.h >> 1);
+    world.stamp(cx, cy, 0.5, 0.5, 12, 0.18, 88013, 74, 58, 30, false);
+    for (let dx = 6; dx < room.w - 5; dx += 5) {
+      setMarketFeature(world, room.x + dx, room.y + 4, Feature.TABLE);
+      setMarketFeature(world, room.x + dx, room.y + room.h - 5, Feature.DESK);
+    }
+    for (let dy = 6; dy < room.h - 5; dy += 5) {
+      setMarketFeature(world, room.x + 4, room.y + dy, Feature.CHAIR);
+      setMarketFeature(world, room.x + room.w - 5, room.y + dy, Feature.SHELF);
+    }
+    setMarketFeature(world, cx, cy, Feature.SCREEN);
+    setMarketFeature(world, cx - 6, cy, Feature.LAMP);
+    setMarketFeature(world, cx + 6, cy, Feature.LAMP);
+  }
+
+  for (const room of [rooms.guardWest, rooms.guardEast]) {
+    if (!room) continue;
+    setMarketFeature(world, room.x + 2, room.y + 2, Feature.DESK);
+    setMarketFeature(world, room.x + room.w - 3, room.y + 2, Feature.SCREEN);
+    setMarketFeature(world, room.x + 2, room.y + room.h - 3, Feature.SHELF);
+    setMarketFeature(world, room.x + room.w - 3, room.y + room.h - 3, Feature.LAMP);
+  }
+
+  for (const room of [rooms.debtCourt, rooms.documentCheckpoint]) {
+    if (!room) continue;
+    for (let dx = 3; dx < room.w - 2; dx += 5) setMarketFeature(world, room.x + dx, room.y + 2, Feature.DESK);
+    setMarketFeature(world, room.x + room.w - 4, room.y + room.h - 3, Feature.SHELF);
+    setMarketFeature(world, room.x + 3, room.y + room.h - 3, Feature.LAMP);
+  }
+
+  for (const room of [rooms.tunnelCacheWest, rooms.tunnelCacheEast, rooms.coldStorage]) {
+    if (!room) continue;
+    decorateStallRoom(world, room, () => 0.35, true);
+  }
+}
+
+function decorateSmugglingTunnels(world: World): void {
+  for (let x = MARKET88_WEST + 28; x < 484; x += 34) {
+    setMarketFeature(world, x, 632, x % 68 === 0 ? Feature.CANDLE : Feature.SHELF);
+  }
+  for (let x = 552; x < MARKET88_EAST; x += 38) {
+    setMarketFeature(world, x, 628, x % 76 === 0 ? Feature.CANDLE : Feature.MACHINE);
+  }
+  for (let y = MARKET88_NORTH + 12; y < 472; y += 28) {
+    setMarketFeature(world, 518, y, y % 56 === 0 ? Feature.CANDLE : Feature.SHELF);
+  }
+}
+
+function seedBazaarCaches(world: World, rooms: Market88BazaarRooms): void {
+  if (rooms.tunnelCacheWest) {
+    addContainer(world, rooms.tunnelCacheWest, 9, 5, ContainerKind.SECRET_STASH, 'Тайник западного обхода 88', 'secret', 5, [
+      { defId: 'fake_pass', count: 1 },
+      { defId: 'blank_form', count: 1 },
+      { defId: 'cigs', count: 3 },
+    ], ['market88', 'contraband_cache', 'smuggling_tunnel'], undefined, Faction.WILD, 4, false);
+  }
+  if (rooms.tunnelCacheEast) {
+    addContainer(world, rooms.tunnelCacheEast, 8, 5, ContainerKind.SECRET_STASH, 'Тайник восточного обхода 88', 'secret', 6, [
+      { defId: 'ammo_9mm', count: 10 },
+      { defId: 'gasmask_filter', count: 1 },
+      { defId: 'voluntary_receipt', count: 1 },
+    ], ['market88', 'contraband_cache', 'raid_bypass'], undefined, Faction.WILD, 5, false);
+  }
+  if (rooms.coldStorage) {
+    addContainer(world, rooms.coldStorage, 11, 6, ContainerKind.METAL_CABINET, 'Холодный шкаф без накладной 88', 'locked', 7, [
+      { defId: 'pills', count: 2 },
+      { defId: 'water', count: 2 },
+      { defId: 'door_kit', count: 1 },
+    ], ['market88', 'contraband_cache', 'cold_storage'], undefined, Faction.CITIZEN, 4);
+  }
+}
+
+function tryBazaarRoom(
+  world: World,
+  type: RoomType,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  name: string,
+  wallTex: Tex,
+  floorTex: Tex,
+): Room | null {
+  if (!canFitBazaarRoom(world, x, y, w, h)) return null;
+  return makeRoom(world, world.rooms.length, type, x, y, w, h, name, wallTex, floorTex);
+}
+
+function canFitBazaarRoom(world: World, x: number, y: number, w: number, h: number): boolean {
+  for (const room of world.rooms) {
+    if (rectsOverlap(x - 1, y - 1, w + 2, h + 2, room.x - 1, room.y - 1, room.w + 2, room.h + 2)) return false;
+  }
+  for (let dy = -1; dy <= h; dy++) {
+    for (let dx = -1; dx <= w; dx++) {
+      const i = world.idx(x + dx, y + dy);
+      if (world.cells[i] !== Cell.WALL || world.doors.has(i)) return false;
+    }
+  }
+  return true;
+}
+
+function rectsOverlap(ax: number, ay: number, aw: number, ah: number, bx: number, by: number, bw: number, bh: number): boolean {
+  return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
+}
+
+function inMarket88CoreKeepout(world: World, x: number, y: number, w: number, h: number): boolean {
+  const cx = x + (w >> 1);
+  const cy = y + (h >> 1);
+  return Math.abs(world.delta(cx, 512)) < 92 && Math.abs(world.delta(cy, 512)) < 96;
+}
+
+function connectRoomToPoint(
+  world: World,
+  room: Room,
+  side: Market88RoomSide,
+  targetX: number,
+  targetY: number,
+  state: DoorState,
+  keyId: string,
+): void {
+  const offset = side === 'north' || side === 'south'
+    ? Math.max(2, Math.min(room.w - 3, room.w >> 1))
+    : Math.max(2, Math.min(room.h - 3, room.h >> 1));
+  const door = addRoomDoor(world, room, side, offset, state, keyId);
+  if (!door) return;
+  const sx = side === 'west' ? door.x - 1 : side === 'east' ? door.x + 1 : door.x;
+  const sy = side === 'north' ? door.y - 1 : side === 'south' ? door.y + 1 : door.y;
+  carveMarketLine(world, sx, sy, targetX, targetY, 1, Tex.F_CONCRETE);
+}
+
+function addRoomDoor(
+  world: World,
+  room: Room,
+  side: Market88RoomSide,
+  offset: number,
+  state: DoorState,
+  keyId: string,
+): { x: number; y: number } | null {
+  const x = side === 'west' ? room.x - 1 : side === 'east' ? room.x + room.w : room.x + offset;
+  const y = side === 'north' ? room.y - 1 : side === 'south' ? room.y + room.h : room.y + offset;
+  addDoorCell(world, x, y, state, room.id, -1, keyId);
+  return { x, y };
+}
+
+function addShutterGate(world: World, x: number, y: number, axis: 'east_west' | 'north_south'): void {
+  if (axis === 'east_west') {
+    carveMarketCell(world, x - 1, y, Tex.F_CONCRETE);
+    carveMarketCell(world, x + 1, y, Tex.F_CONCRETE);
+    setMarketWall(world, x, y - 1, Tex.METAL);
+    setMarketWall(world, x, y + 1, Tex.METAL);
+  } else {
+    carveMarketCell(world, x, y - 1, Tex.F_CONCRETE);
+    carveMarketCell(world, x, y + 1, Tex.F_CONCRETE);
+    setMarketWall(world, x - 1, y, Tex.METAL);
+    setMarketWall(world, x + 1, y, Tex.METAL);
+  }
+  addDoorCell(world, x, y, DoorState.HERMETIC_CLOSED, -1, -1, '');
+  world.stamp(x, y, 0.5, 0.5, 2, 0.35, 88100 + x + y, 112, 88, 38, true);
+}
+
+function addDoorCell(world: World, x: number, y: number, state: DoorState, roomA: number, roomB: number, keyId: string): void {
+  const i = world.idx(x, y);
+  if (world.cells[i] === Cell.LIFT) return;
+  world.cells[i] = Cell.DOOR;
+  world.roomMap[i] = -1;
+  world.wallTex[i] = Tex.DOOR_METAL;
+  world.floorTex[i] = Tex.F_CONCRETE;
+  world.doors.set(i, { idx: i, state, roomA, roomB, keyId, timer: 0 });
+  const a = world.rooms[roomA];
+  if (a && !a.doors.includes(i)) a.doors.push(i);
+  const b = world.rooms[roomB];
+  if (b && !b.doors.includes(i)) b.doors.push(i);
+}
+
+function carveMarketLine(world: World, ax: number, ay: number, bx: number, by: number, width: number, floorTex: Tex): void {
+  let x = world.wrap(ax);
+  let y = world.wrap(ay);
+  const tx = world.wrap(bx);
+  const ty = world.wrap(by);
+  const sx = tx === x ? 0 : world.delta(x, tx) > 0 ? 1 : -1;
+  const sy = ty === y ? 0 : world.delta(y, ty) > 0 ? 1 : -1;
+  let guard = 0;
+  while (x !== tx && guard++ < W) {
+    carveMarketDisc(world, x, y, width, floorTex);
+    x = world.wrap(x + sx);
+  }
+  guard = 0;
+  while (y !== ty && guard++ < W) {
+    carveMarketDisc(world, x, y, width, floorTex);
+    y = world.wrap(y + sy);
+  }
+  carveMarketDisc(world, x, y, width, floorTex);
+}
+
+function carveMarketDisc(world: World, cx: number, cy: number, r: number, floorTex: Tex): void {
+  const r2 = r * r;
+  for (let dy = -r; dy <= r; dy++) {
+    for (let dx = -r; dx <= r; dx++) {
+      if (dx * dx + dy * dy > r2) continue;
+      carveMarketCell(world, cx + dx, cy + dy, floorTex);
+    }
+  }
+}
+
+function carveMarketCell(world: World, x: number, y: number, floorTex: Tex): void {
+  const i = world.idx(x, y);
+  if (world.cells[i] === Cell.LIFT || world.cells[i] === Cell.DOOR) return;
+  world.cells[i] = Cell.FLOOR;
+  if (world.roomMap[i] < 0) world.roomMap[i] = -1;
+  world.floorTex[i] = floorTex;
+}
+
+function setMarketWall(world: World, x: number, y: number, wallTex: Tex): void {
+  const i = world.idx(x, y);
+  if (world.cells[i] === Cell.LIFT || world.roomMap[i] >= 0 || world.containerMap.has(i)) return;
+  world.cells[i] = Cell.WALL;
+  world.roomMap[i] = -1;
+  world.features[i] = Feature.NONE;
+  world.wallTex[i] = wallTex;
+}
+
+function setMarketFeature(world: World, x: number, y: number, feature: Feature): void {
+  const i = world.idx(x, y);
+  if (world.cells[i] !== Cell.FLOOR || world.features[i] !== Feature.NONE || world.containerMap.has(i)) return;
+  world.features[i] = feature;
+}
+
+function decorateStallRoom(world: World, room: Room, rng: () => number, storage: boolean): void {
+  for (let dx = 2; dx < room.w - 2; dx += 4) {
+    setMarketFeature(world, room.x + dx, room.y + 2, storage ? Feature.SHELF : Feature.DESK);
+  }
+  if (room.h > 6) {
+    setMarketFeature(world, room.x + 2, room.y + room.h - 3, storage ? Feature.MACHINE : Feature.TABLE);
+    setMarketFeature(world, room.x + room.w - 3, room.y + room.h - 3, rng() < 0.5 ? Feature.CANDLE : Feature.LAMP);
+  }
 }
 
 function buildMarketRooms(world: World): MarketRooms {

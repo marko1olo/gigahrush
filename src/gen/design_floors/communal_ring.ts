@@ -186,6 +186,10 @@ interface RingLayout {
   right: number;
   top: number;
   bottom: number;
+  innerLeft: number;
+  innerRight: number;
+  innerTop: number;
+  innerBottom: number;
   width: number;
   spawnX: number;
   spawnY: number;
@@ -197,6 +201,7 @@ interface CommunalRooms {
   shower: Room;
   pantry: Room;
   notice: Room;
+  core: Room;
 }
 
 type OwnerKey = keyof typeof NPC_IDS;
@@ -232,40 +237,109 @@ function carveRing(world: World): RingLayout {
   const cx = W / 2;
   const cy = W / 2;
   const width = 4;
-  const left = cx - 60;
-  const right = cx + 56;
-  const top = cy - 44;
-  const bottom = cy + 40;
+  const left = cx - 70;
+  const right = cx + 66;
+  const top = cy - 52;
+  const bottom = cy + 48;
+  const innerLeft = cx - 38;
+  const innerRight = cx + 35;
+  const innerTop = cy - 26;
+  const innerBottom = cy + 23;
 
-  for (let x = left; x <= right + width - 1; x++) {
-    carveCorridorCell(world, x, top, width);
-    carveCorridorCell(world, x, bottom, width);
-  }
-  for (let y = top; y <= bottom + width - 1; y++) {
-    carveCorridorCell(world, left, y, width, true);
-    carveCorridorCell(world, right, y, width, true);
-  }
+  carveCorridorLoop(world, left, right, top, bottom, width, Tex.F_LINO);
+  carveCorridorLoop(world, innerLeft, innerRight, innerTop, innerBottom, 3, Tex.F_LINO);
+
+  carveLineWidth(world, cx, top + width, cx, innerTop - 1, 3, Tex.F_LINO);
+  carveLineWidth(world, cx + 12, innerBottom + 3, cx + 12, bottom - 1, 3, Tex.F_LINO);
+  carveLineWidth(world, left + width, cy - 2, innerLeft - 1, cy - 2, 3, Tex.F_LINO);
+  carveLineWidth(world, innerRight + 3, cy + 6, right - 1, cy + 6, 3, Tex.F_LINO);
+  carveLineWidth(world, innerLeft + 4, innerTop + 6, innerRight - 4, innerTop + 6, 1, Tex.F_CONCRETE);
+  carveLineWidth(world, innerLeft + 8, innerBottom - 7, innerRight - 2, innerBottom - 7, 1, Tex.F_CONCRETE);
+  carveCourtyardVoid(world, cx - 13, cy - 7, 27, 14);
+  placeCorridorPinch(world, left + 34, bottom, width, 2);
+  placeCorridorPinch(world, right - 30, top, width, 1);
 
   return {
     left,
     right,
     top,
     bottom,
+    innerLeft,
+    innerRight,
+    innerTop,
+    innerBottom,
     width,
-    spawnX: left + 9.5,
+    spawnX: left + 8.5,
     spawnY: top + 1.5,
   };
 }
 
-function carveCorridorCell(world: World, x: number, y: number, width: number, vertical = false): void {
+function carveCorridorLoop(world: World, left: number, right: number, top: number, bottom: number, width: number, floorTex: Tex): void {
+  for (let x = left; x <= right + width - 1; x++) {
+    carveCorridorCell(world, x, top, width, false, floorTex);
+    carveCorridorCell(world, x, bottom, width, false, floorTex);
+  }
+  for (let y = top; y <= bottom + width - 1; y++) {
+    carveCorridorCell(world, left, y, width, true, floorTex);
+    carveCorridorCell(world, right, y, width, true, floorTex);
+  }
+}
+
+function carveCorridorCell(world: World, x: number, y: number, width: number, vertical = false, floorTex = Tex.F_LINO): void {
   for (let n = 0; n < width; n++) {
     const wx = vertical ? x + n : x;
     const wy = vertical ? y : y + n;
-    const i = world.idx(wx, wy);
-    world.cells[i] = Cell.FLOOR;
+    carveFloorCell(world, wx, wy, floorTex);
+  }
+}
+
+function carveLineWidth(world: World, ax: number, ay: number, bx: number, by: number, width: number, floorTex: Tex): void {
+  if (ax !== bx && ay !== by) {
+    carveLineWidth(world, ax, ay, bx, ay, width, floorTex);
+    carveLineWidth(world, bx, ay, bx, by, width, floorTex);
+    return;
+  }
+  const half = Math.floor(width / 2);
+  const from = ax === bx ? Math.min(ay, by) : Math.min(ax, bx);
+  const to = ax === bx ? Math.max(ay, by) : Math.max(ax, bx);
+  for (let p = from; p <= to; p++) {
+    for (let n = 0; n < width; n++) {
+      const o = n - half;
+      carveFloorCell(world, ax === bx ? ax + o : p, ax === bx ? p : ay + o, floorTex);
+    }
+  }
+}
+
+function carveFloorCell(world: World, x: number, y: number, floorTex: Tex): void {
+  const i = world.idx(x, y);
+  world.cells[i] = Cell.FLOOR;
+  world.roomMap[i] = -1;
+  world.floorTex[i] = floorTex;
+  world.factionControl[i] = ZoneFaction.CITIZEN;
+}
+
+function carveCourtyardVoid(world: World, x: number, y: number, w: number, h: number): void {
+  for (let dy = 0; dy < h; dy++) {
+    for (let dx = 0; dx < w; dx++) {
+      const i = world.idx(x + dx, y + dy);
+      world.cells[i] = Cell.ABYSS;
+      world.roomMap[i] = -1;
+      world.wallTex[i] = Tex.DARK;
+      world.floorTex[i] = Tex.F_ABYSS;
+      world.features[i] = Feature.NONE;
+    }
+  }
+}
+
+function placeCorridorPinch(world: World, x: number, y: number, width: number, gapOffset: number): void {
+  for (let dy = 0; dy < width; dy++) {
+    if (dy === gapOffset) continue;
+    const i = world.idx(x, y + dy);
+    if (world.cells[i] !== Cell.FLOOR) continue;
+    world.cells[i] = Cell.WALL;
     world.roomMap[i] = -1;
-    world.floorTex[i] = Tex.F_LINO;
-    world.factionControl[i] = ZoneFaction.CITIZEN;
+    world.wallTex[i] = Tex.BRICK;
+    world.features[i] = Feature.NONE;
   }
 }
 
@@ -287,7 +361,11 @@ function buildServiceRooms(world: World, ring: RingLayout): CommunalRooms {
   carveShortCorridor(world, notice.x + 9, ring.top + ring.width, notice.x + 9, notice.y - 2);
   connectRoomToCorridor(world, notice, notice.x + 9, notice.y - 1, DoorState.CLOSED);
 
-  return { laundry, kitchen, shower, pantry, notice };
+  const core = createRoom(world, id++, RoomType.PRODUCTION, W / 2 - 10, ring.innerBottom + 8, 20, 10, 'Сервисное ядро двора', Tex.PIPE, Tex.F_CONCRETE);
+  carveLineWidth(world, core.x + 10, ring.innerBottom + 3, core.x + 10, core.y - 2, 2, Tex.F_CONCRETE);
+  connectRoomToCorridor(world, core, core.x + 10, core.y - 1, DoorState.CLOSED);
+
+  return { laundry, kitchen, shower, pantry, notice, core };
 }
 
 function createRoom(
@@ -384,6 +462,10 @@ function decorateRing(world: World, ring: RingLayout, rooms: CommunalRooms): voi
   placeFeature(world, ring.right - 4, ring.top + 1, Feature.LAMP);
   placeFeature(world, ring.left + 1, ring.bottom + 1, Feature.TABLE);
   placeFeature(world, ring.right + 2, ring.bottom + 2, Feature.SHELF);
+  placeFeature(world, ring.innerLeft + 5, ring.innerTop + 1, Feature.CANDLE);
+  placeFeature(world, ring.innerRight - 4, ring.innerBottom + 1, Feature.LAMP);
+  placeFeature(world, ring.left + 33, ring.bottom + 2, Feature.SHELF);
+  placeFeature(world, ring.right - 29, ring.top + 2, Feature.TABLE);
 
   for (let x = rooms.kitchen.x + 2; x < rooms.kitchen.x + rooms.kitchen.w - 2; x += 4) placeFeature(world, x, rooms.kitchen.y + 2, Feature.STOVE);
   for (let x = rooms.kitchen.x + 3; x < rooms.kitchen.x + rooms.kitchen.w - 2; x += 5) placeFeature(world, x, rooms.kitchen.y + 6, Feature.TABLE);
@@ -403,9 +485,15 @@ function decorateRing(world: World, ring: RingLayout, rooms: CommunalRooms): voi
   placeFeature(world, rooms.notice.x + 9, rooms.notice.y + 2, Feature.SCREEN);
   placeFeature(world, rooms.notice.x + 14, rooms.notice.y + 5, Feature.SHELF);
 
+  placeFeature(world, rooms.core.x + 3, rooms.core.y + 2, Feature.MACHINE);
+  placeFeature(world, rooms.core.x + 8, rooms.core.y + 5, Feature.APPARATUS);
+  placeFeature(world, rooms.core.x + 13, rooms.core.y + 3, Feature.SCREEN);
+  placeFeature(world, rooms.core.x + 17, rooms.core.y + 7, Feature.SHELF);
+
   markPosterWall(world, rooms.notice.x + 7, rooms.notice.y - 1, 8);
   markPosterWall(world, rooms.kitchen.x + 8, rooms.kitchen.y + rooms.kitchen.h, 12);
   markPosterWall(world, rooms.pantry.x + 9, rooms.pantry.y - 1, 17);
+  markPosterWall(world, rooms.core.x + 4, rooms.core.y - 1, 23);
 }
 
 function placeFeature(world: World, x: number, y: number, feature: Feature): void {

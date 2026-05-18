@@ -1,0 +1,9 @@
+Required itch.io HTML5 settings:
+- Kind of game: HTML
+- Upload: itch/gigahrush-itch.zip
+- File setting: This file will be played in the browser
+- Embed option for mobile: Mobile Friendly enabled
+- Launch mode: Click to launch in fullscreen
+- Scrollbars: disabled
+
+Why: itch.io runs HTML5 games inside an iframe. On mobile, Mobile Friendly makes itch.io launch the game into a fullscreen/fill-window viewport. The game canvas is built to resize to that viewport.

@@ -2,6 +2,7 @@
 
 import { type Entity, type Msg, EntityType, msg } from '../core/types';
 import { Spr } from '../render/sprite_index';
+import { isDebugOnePunchManEnabled, keepDebugOnePunchManAlive } from './debug_cheats';
 
 // Rates per second
 const FOOD_RATE  = 0.08;
@@ -41,6 +42,10 @@ export function updateNeeds(entities: Entity[], dt: number, time: number, msgs: 
 
     // Consequences
     if (e.hp === undefined) continue;
+    if (e.id === playerId && isDebugOnePunchManEnabled()) {
+      keepDebugOnePunchManAlive(e);
+      continue;
+    }
 
     if (n.food <= 0)  e.hp -= 0.3 * dt;
     if (n.water <= 0) e.hp -= 0.5 * dt;
