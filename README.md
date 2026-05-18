@@ -14,15 +14,18 @@ npm run dev
 npm run typecheck
 npm run test:unit
 npm run build
+npm run itch:build
 npm run smoke
 npm run check
 ```
 
 Stack: TypeScript, Vite, `vite-plugin-singlefile`, WebGL/canvas, browser APIs. `npm run build` emits the playable single-file build under `dist/`.
 
+`npm run itch:build` emits an itch.io HTML5 upload under `itch/`: `index.html` for direct single-file upload and `gigahrush-itch.zip` with `index.html` at the archive root.
+
 ## Cloudflare Net Sphere
 
-When deployed as a Cloudflare Worker with Assets and the D1 binding described in [cloudflare.md](cloudflare.md), the game exposes an optional in-game `НЕТ-СФЕРА` terminal on `N`. The title screen asks for a persistent `НЕТ-ИМЯ`; each browser also gets a persistent `НЕТ-ГЕН` id in `localStorage`; `/netgen NET-...` switches back to an existing cloud profile. The API handlers under `functions/api/net/` record heartbeats, active sessions, samosbor events, deaths, compact progress, recent event summaries such as `[nickname] умер <date>`, and short sanitized chat messages. If the binding is missing or the API is offline, the game continues as a local single-file build.
+When deployed as a Cloudflare Worker with Assets and the D1 binding described in [cloudflare.md](cloudflare.md), the game exposes an optional in-game `НЕТ-СФЕРА` terminal on `N`. The title screen asks for a persistent `НЕТ-ИМЯ`; each browser also gets a persistent private `НЕТ-ГЕН` id in `localStorage`; `/netgen NET-...` switches back to an existing cloud profile. The API handlers under `functions/api/net/` record heartbeats, active sessions, samosbor events, deaths, compact progress, recent event summaries such as `[nickname] умер <date>`, and short sanitized chat messages labeled by nickname. If the binding is missing or the API is offline, the game continues as a local single-file build.
 
 ## Concept
 

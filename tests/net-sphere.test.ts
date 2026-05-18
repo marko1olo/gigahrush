@@ -106,7 +106,11 @@ class FakeD1 implements D1Database {
       return this.chat
         .filter(row => row.id > since)
         .sort((a, b) => b.id - a.id)
-        .slice(0, limit);
+        .slice(0, limit)
+        .map(row => ({
+          ...row,
+          nickname: this.players.get(row.net_gen)?.nickname ?? '',
+        }));
     }
     if (query.includes('FROM net_events')) {
       return this.events.slice(0, 20);
@@ -326,6 +330,8 @@ test('Net Sphere chat stores sanitized body and rate-limits same NET-GEN', async
 
     assert.equal(first.status, 200);
     assert.equal(chat.at(-1)?.body, 'привет script');
+    assert.equal(chat.at(-1)?.nickname, 'Жилец');
+    assert.equal(chat.at(-1)?.netGen, undefined);
 
     Date.now = () => 11_000;
     const second = await postChat({

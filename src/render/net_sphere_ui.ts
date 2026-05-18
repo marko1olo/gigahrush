@@ -158,7 +158,10 @@ export function drawNetSphereMenu(
   ctx.font = `${7 * s}px monospace`;
   for (let i = net.chat.length - 1; i >= 0 && cy >= msgTop; i--) {
     const line = net.chat[i];
-    const label = `[${timeLabel(line.createdAt)} ${line.netGen.slice(0, 12)}]`;
+    const stamp = timeLabel(line.createdAt);
+    const name = line.nickname || 'Жилец';
+    const nameW = Math.max(24 * s, Math.min(96 * s, chatW * 0.3));
+    const label = `[${stamp} ${fitText(ctx, name, nameW)}]`;
     const bodyW = Math.max(20 * s, chatW - 16 * s - ctx.measureText(label).width);
     const wrapped = wrapText(ctx, line.body, bodyW, 3);
     for (let j = wrapped.length - 1; j >= 0 && cy >= msgTop; j--) {

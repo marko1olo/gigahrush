@@ -26,14 +26,13 @@ export interface NetSphereProfile {
 
 export interface NetSphereChatLine {
   id: number;
-  netGen: string;
+  nickname: string;
   body: string;
   createdAt: number;
 }
 
 export interface NetSphereEventLine {
   eventKey: string;
-  netGen: string;
   nickname: string;
   type: NetSphereEventType;
   summary: string;
@@ -239,7 +238,7 @@ function applyServerPayload(payload: unknown): void {
   const data = payload as {
     stats?: NetSphereStats;
     profile?: NetSphereProfile | null;
-    chat?: NetSphereChatLine[];
+    chat?: Partial<NetSphereChatLine>[];
     events?: NetSphereEventLine[];
   };
   if (data.stats) runtime.stats = data.stats;
@@ -248,7 +247,12 @@ function applyServerPayload(payload: unknown): void {
     for (const line of data.chat) {
       if (!line || typeof line.id !== 'number' || typeof line.body !== 'string') continue;
       if (runtime.chat.some(existing => existing.id === line.id)) continue;
-      runtime.chat.push(line);
+      runtime.chat.push({
+        id: line.id,
+        nickname: typeof line.nickname === 'string' && line.nickname.trim() ? line.nickname : 'Жилец',
+        body: line.body,
+        createdAt: typeof line.createdAt === 'number' ? line.createdAt : 0,
+      });
       runtime.lastChatId = Math.max(runtime.lastChatId, line.id);
     }
     if (runtime.chat.length > CHAT_LIMIT) runtime.chat.splice(0, runtime.chat.length - CHAT_LIMIT);

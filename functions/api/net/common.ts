@@ -230,14 +230,13 @@ export async function readProfile(db: D1Database, netGen: string): Promise<Recor
 
 export async function readEvents(db: D1Database): Promise<Record<string, unknown>[]> {
   const result = await db.prepare(`
-    SELECT event_key, net_gen, nickname, type, summary, created_at
+    SELECT nickname, type, summary, created_at
     FROM net_events
     ORDER BY created_at DESC
     LIMIT 20
   `).all<Record<string, unknown>>();
   return (result.results ?? []).map(row => ({
-    eventKey: row.event_key,
-    netGen: row.net_gen,
+    eventKey: `${row.created_at}:${row.type}`,
     nickname: row.nickname,
     type: row.type,
     summary: row.summary,
@@ -248,15 +247,16 @@ export async function readEvents(db: D1Database): Promise<Record<string, unknown
 export async function readChat(db: D1Database, sinceChatId: number): Promise<Record<string, unknown>[]> {
   const since = Number.isFinite(sinceChatId) ? Math.max(0, Math.floor(sinceChatId)) : 0;
   const result = await db.prepare(`
-    SELECT id, net_gen, body, created_at
-    FROM net_chat
-    WHERE id > ?
-    ORDER BY id DESC
+    SELECT c.id, COALESCE(NULLIF(p.nickname, ''), 'Жилец') AS nickname, c.body, c.created_at
+    FROM net_chat c
+    LEFT JOIN net_players p ON p.net_gen = c.net_gen
+    WHERE c.id > ?
+    ORDER BY c.id DESC
     LIMIT ?
   `).bind(since, CHAT_LIMIT).all<Record<string, unknown>>();
   return (result.results ?? []).reverse().map(row => ({
     id: row.id,
-    netGen: row.net_gen,
+    nickname: row.nickname,
     body: row.body,
     createdAt: row.created_at,
   }));

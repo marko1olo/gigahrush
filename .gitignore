@@ -3,6 +3,7 @@
 
 node_modules/
 dist/
+itch/
 .test-build/
 .wrangler/
 coverage/

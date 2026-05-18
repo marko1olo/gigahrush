@@ -8,6 +8,7 @@
     "typecheck": "tsc --noEmit",
     "test:unit": "tsx --test tests/*.test.ts",
     "build": "vite build",
+    "itch:build": "node scripts/build-itch.mjs",
     "preview": "vite preview",
     "smoke": "node scripts/smoke-playability.mjs",
     "cf:setup": "node scripts/cloudflare-net-setup.mjs",
