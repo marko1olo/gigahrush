@@ -32,6 +32,7 @@ import { monsterSpr, Spr } from '../../render/sprite_index';
 import {
   generateZones,
   placeDoor,
+  placeDoorAt,
   sanitizeDoors,
   stampRoom,
 } from '../shared';
@@ -44,6 +45,7 @@ export const REGISTRY_MORGUE_BASE_FLOOR = FloorLevel.MINISTRY;
 export const REGISTRY_MORGUE_DEBUG_ENTRY = 'design_floor.registry_morgue' as const;
 
 type NextId = { v: number };
+type MorgueDoorSide = 'north' | 'south' | 'west' | 'east';
 
 const NPC_DEFS: Record<string, PlotNpcDef> = {
   morgue_registrar_faina: {
@@ -252,6 +254,289 @@ function linkRooms(world: World, a: Room, b: Room, state: DoorState): void {
   const door = world.doors.get(doorIdx);
   if (!door) return;
   door.state = state;
+}
+
+function carveMorgueCell(world: World, x: number, y: number, floorTex: Tex, wallTex: Tex, roomId = -1): void {
+  const ci = world.idx(x, y);
+  const prev = world.cells[ci];
+  if (prev !== Cell.LIFT && prev !== Cell.DOOR) world.cells[ci] = Cell.FLOOR;
+  if (roomId >= 0 || world.roomMap[ci] < 0) world.roomMap[ci] = roomId;
+  world.floorTex[ci] = floorTex;
+  if (prev === Cell.WALL || prev === Cell.ABYSS) world.features[ci] = Feature.NONE;
+
+  for (let dy = -1; dy <= 1; dy++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      const wi = world.idx(x + dx, y + dy);
+      if (world.cells[wi] === Cell.WALL) world.wallTex[wi] = wallTex;
+    }
+  }
+}
+
+function carveMorgueLine(
+  world: World,
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+  width: number,
+  floorTex: Tex,
+  wallTex: Tex,
+): void {
+  let x = ax;
+  let y = ay;
+  const sx = bx === ax ? 0 : bx > ax ? 1 : -1;
+  const sy = by === ay ? 0 : by > ay ? 1 : -1;
+  while (x !== bx) {
+    carveMorgueBand(world, x, y, width, floorTex, wallTex);
+    x += sx;
+  }
+  while (y !== by) {
+    carveMorgueBand(world, x, y, width, floorTex, wallTex);
+    y += sy;
+  }
+  carveMorgueBand(world, x, y, width, floorTex, wallTex);
+}
+
+function carveMorgueBand(world: World, x: number, y: number, width: number, floorTex: Tex, wallTex: Tex): void {
+  for (let dy = -width; dy <= width; dy++) {
+    for (let dx = -width; dx <= width; dx++) carveMorgueCell(world, x + dx, y + dy, floorTex, wallTex);
+  }
+}
+
+function carveMorgueFrame(
+  world: World,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  width: number,
+  floorTex: Tex,
+  wallTex: Tex,
+): void {
+  carveMorgueLine(world, x, y, x + w, y, width, floorTex, wallTex);
+  carveMorgueLine(world, x, y + h, x + w, y + h, width, floorTex, wallTex);
+  carveMorgueLine(world, x, y, x, y + h, width, floorTex, wallTex);
+  carveMorgueLine(world, x + w, y, x + w, y + h, width, floorTex, wallTex);
+}
+
+function addMorgueGeometryRoom(
+  world: World,
+  type: RoomType,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  name: string,
+  wallTex: Tex,
+  floorTex: Tex,
+  sealed = false,
+): Room {
+  return createDesignRoom(world, world.rooms.length, type, x, y, w, h, name, wallTex, floorTex, sealed);
+}
+
+function openMorgueDoor(
+  world: World,
+  room: Room,
+  side: MorgueDoorSide,
+  offset: number,
+  state: DoorState,
+  targetX?: number,
+  targetY?: number,
+): void {
+  const ox = Math.max(1, Math.min(room.w - 2, offset));
+  const oy = Math.max(1, Math.min(room.h - 2, offset));
+  let wx = room.x;
+  let wy = room.y;
+  let cx = room.x;
+  let cy = room.y;
+
+  switch (side) {
+    case 'north':
+      wx = room.x + ox;
+      wy = room.y - 1;
+      cx = wx;
+      cy = wy - 1;
+      break;
+    case 'south':
+      wx = room.x + ox;
+      wy = room.y + room.h;
+      cx = wx;
+      cy = wy + 1;
+      break;
+    case 'west':
+      wx = room.x - 1;
+      wy = room.y + oy;
+      cx = wx - 1;
+      cy = wy;
+      break;
+    case 'east':
+      wx = room.x + room.w;
+      wy = room.y + oy;
+      cx = wx + 1;
+      cy = wy;
+      break;
+  }
+
+  carveMorgueCell(world, cx, cy, Tex.F_TILE, room.wallTex);
+  placeDoorAt(world, wx, wy, room.id);
+  const door = world.doors.get(world.idx(wx, wy));
+  if (door) door.state = state;
+  if (targetX !== undefined && targetY !== undefined) {
+    carveMorgueLine(world, cx, cy, targetX, targetY, 0, Tex.F_TILE, room.wallTex);
+  }
+}
+
+function dressDrawerCorridor(world: World, y: number, fromX: number, toX: number): void {
+  for (let x = fromX; x <= toX; x += 6) {
+    setCellFeature(world, x, y - 1, Feature.SHELF);
+    setCellFeature(world, x + 3, y + 1, Feature.SHELF);
+    if (x % 24 === 0) setCellFeature(world, x, y, Feature.LAMP);
+  }
+}
+
+function dressConveyorSpine(world: World): void {
+  for (let x = 92; x <= 932; x += 12) {
+    setCellFeature(world, x, 516, Feature.MACHINE);
+    if (x % 48 === 8) setCellFeature(world, x + 4, 514, Feature.DESK);
+  }
+  for (let y = 304; y <= 720; y += 32) {
+    setCellFeature(world, 512, y, Feature.SCREEN);
+  }
+}
+
+function dressDrawerRoom(world: World, room: Room, seed: number): void {
+  for (let dx = 2; dx < room.w - 2; dx += 4) {
+    setCellFeature(world, room.x + dx, room.y + 1, Feature.SHELF);
+    setCellFeature(world, room.x + dx, room.y + room.h - 2, Feature.SHELF);
+  }
+  setCellFeature(world, room.x + Math.floor(room.w / 2), room.y + Math.floor(room.h / 2), Feature.BED);
+  if (seed % 3 === 0) setCellFeature(world, room.x + room.w - 3, room.y + 2, Feature.LAMP);
+}
+
+function dressAutopsyBay(world: World, room: Room): void {
+  for (let dx = 5; dx < room.w - 4; dx += 12) {
+    setCellFeature(world, room.x + dx, room.y + Math.floor(room.h / 2), Feature.BED);
+    setCellFeature(world, room.x + dx + 3, room.y + Math.floor(room.h / 2), Feature.APPARATUS);
+  }
+  for (let dx = 3; dx < room.w - 2; dx += 10) setCellFeature(world, room.x + dx, room.y + 2, Feature.SINK);
+  setCellFeature(world, room.x + room.w - 3, room.y + room.h - 3, Feature.LAMP);
+}
+
+function dressRegistryCounter(world: World, room: Room): void {
+  for (let dx = 2; dx < room.w - 2; dx++) setCellFeature(world, room.x + dx, room.y + 3, Feature.DESK);
+  for (let dx = 3; dx < room.w - 3; dx += 4) setCellFeature(world, room.x + dx, room.y + 5, Feature.CHAIR);
+  for (let dy = 2; dy < room.h - 2; dy += 3) setCellFeature(world, room.x + room.w - 2, room.y + dy, Feature.SHELF);
+  setCellFeature(world, room.x + 2, room.y + room.h - 3, Feature.SCREEN);
+}
+
+function dressFrostVault(world: World, room: Room): void {
+  for (let dy = 2; dy < room.h - 2; dy += 3) {
+    setCellFeature(world, room.x + 2, room.y + dy, Feature.SHELF);
+    setCellFeature(world, room.x + room.w - 3, room.y + dy, Feature.SHELF);
+  }
+  for (let dx = 7; dx < room.w - 5; dx += 10) setCellFeature(world, room.x + dx, room.y + Math.floor(room.h / 2), Feature.BED);
+  setCellFeature(world, room.x + Math.floor(room.w / 2), room.y + 2, Feature.LAMP);
+}
+
+function buildDrawerCanyon(world: World, rng: () => number): void {
+  const rows = [
+    { roomY: 282, corridorY: 298, door: 'south' as MorgueDoorSide },
+    { roomY: 334, corridorY: 350, door: 'south' as MorgueDoorSide },
+    { roomY: 386, corridorY: 402, door: 'south' as MorgueDoorSide },
+    { roomY: 620, corridorY: 616, door: 'north' as MorgueDoorSide },
+    { roomY: 672, corridorY: 668, door: 'north' as MorgueDoorSide },
+    { roomY: 724, corridorY: 720, door: 'north' as MorgueDoorSide },
+  ];
+
+  for (const row of rows) {
+    carveMorgueLine(world, 76, row.corridorY, 948, row.corridorY, 1, Tex.F_TILE, Tex.HERMO_WALL);
+    dressDrawerCorridor(world, row.corridorY, 84, 940);
+    for (let x = 96; x <= 872; x += 112) {
+      const room = addMorgueGeometryRoom(
+        world,
+        RoomType.STORAGE,
+        x + Math.floor(rng() * 5),
+        row.roomY,
+        30 + Math.floor(rng() * 5),
+        12,
+        row.roomY < 512 ? 'Северная стена ящиков' : 'Южная стена ящиков',
+        Tex.HERMO_WALL,
+        Tex.F_TILE,
+        true,
+      );
+      dressDrawerRoom(world, room, room.id);
+      openMorgueDoor(world, room, row.door, Math.floor(room.w / 2), DoorState.CLOSED, room.x + Math.floor(room.w / 2), row.corridorY);
+    }
+  }
+}
+
+function buildAutopsyBays(world: World): void {
+  const specs = [
+    { x: 128, y: 454, side: 'south' as MorgueDoorSide },
+    { x: 256, y: 454, side: 'south' as MorgueDoorSide },
+    { x: 704, y: 454, side: 'south' as MorgueDoorSide },
+    { x: 832, y: 454, side: 'south' as MorgueDoorSide },
+    { x: 128, y: 548, side: 'north' as MorgueDoorSide },
+    { x: 256, y: 548, side: 'north' as MorgueDoorSide },
+    { x: 704, y: 548, side: 'north' as MorgueDoorSide },
+    { x: 832, y: 548, side: 'north' as MorgueDoorSide },
+  ];
+  for (const spec of specs) {
+    const room = addMorgueGeometryRoom(world, RoomType.MEDICAL, spec.x, spec.y, 48, 22, 'Аутопсийная бухта', Tex.TILE_W, Tex.F_TILE);
+    dressAutopsyBay(world, room);
+    openMorgueDoor(world, room, spec.side, Math.floor(room.w / 2), DoorState.CLOSED, room.x + Math.floor(room.w / 2), 516);
+  }
+}
+
+function buildRegistryCounters(world: World): void {
+  const upper = addMorgueGeometryRoom(world, RoomType.OFFICE, 610, 486, 68, 22, 'Стойка юридической смерти', Tex.MARBLE, Tex.F_PARQUET);
+  const lower = addMorgueGeometryRoom(world, RoomType.OFFICE, 346, 526, 66, 22, 'Стол сверки живых фамилий', Tex.MARBLE, Tex.F_PARQUET);
+  dressRegistryCounter(world, upper);
+  dressRegistryCounter(world, lower);
+  openMorgueDoor(world, upper, 'south', Math.floor(upper.w / 2), DoorState.CLOSED, upper.x + Math.floor(upper.w / 2), 516);
+  openMorgueDoor(world, lower, 'north', Math.floor(lower.w / 2), DoorState.CLOSED, lower.x + Math.floor(lower.w / 2), 516);
+}
+
+function buildFrostVaults(world: World): void {
+  const west = addMorgueGeometryRoom(world, RoomType.STORAGE, 184, 506, 44, 30, 'Фрост-капсула повторной смерти', Tex.HERMO_WALL, Tex.F_TILE, true);
+  const east = addMorgueGeometryRoom(world, RoomType.STORAGE, 796, 506, 46, 30, 'Фрост-архив безымянных', Tex.HERMO_WALL, Tex.F_TILE, true);
+  dressFrostVault(world, west);
+  dressFrostVault(world, east);
+  openMorgueDoor(world, west, 'east', Math.floor(west.h / 2), DoorState.HERMETIC_CLOSED, 240, 516);
+  openMorgueDoor(world, east, 'west', Math.floor(east.h / 2), DoorState.HERMETIC_CLOSED, 784, 516);
+}
+
+function carveTagSwitchbacks(world: World): void {
+  const north = [
+    [564, 516], [564, 460], [612, 460], [612, 424], [564, 424], [564, 388], [612, 388], [612, 350], [564, 350], [564, 298],
+  ];
+  const south = [
+    [460, 516], [460, 574], [412, 574], [412, 616], [460, 616], [460, 668], [412, 668], [412, 720],
+  ];
+  for (let i = 1; i < north.length; i++) carveMorgueLine(world, north[i - 1][0], north[i - 1][1], north[i][0], north[i][1], 1, Tex.F_TILE, Tex.HERMO_WALL);
+  for (let i = 1; i < south.length; i++) carveMorgueLine(world, south[i - 1][0], south[i - 1][1], south[i][0], south[i][1], 1, Tex.F_TILE, Tex.HERMO_WALL);
+}
+
+export function expandRegistryMorgueGeometry(world: World, rng: () => number): void {
+  buildDrawerCanyon(world, rng);
+  buildAutopsyBays(world);
+  buildRegistryCounters(world);
+  buildFrostVaults(world);
+
+  carveMorgueLine(world, 72, 516, 952, 516, 2, Tex.F_TILE, Tex.METAL);
+  carveMorgueLine(world, 116, 476, 908, 476, 1, Tex.F_TILE, Tex.TILE_W);
+  carveMorgueLine(world, 116, 556, 908, 556, 1, Tex.F_TILE, Tex.TILE_W);
+  carveMorgueLine(world, 116, 476, 116, 556, 1, Tex.F_TILE, Tex.TILE_W);
+  carveMorgueLine(world, 908, 476, 908, 556, 1, Tex.F_TILE, Tex.TILE_W);
+  carveMorgueLine(world, 512, 260, 512, 780, 1, Tex.F_TILE, Tex.HERMO_WALL);
+  carveMorgueFrame(world, 64, 260, 896, 194, 2, Tex.F_TILE, Tex.HERMO_WALL);
+  carveMorgueFrame(world, 64, 588, 896, 194, 2, Tex.F_TILE, Tex.HERMO_WALL);
+  carveMorgueLine(world, 64, 358, 960, 358, 1, Tex.F_TILE, Tex.HERMO_WALL);
+  carveMorgueLine(world, 64, 674, 960, 674, 1, Tex.F_TILE, Tex.HERMO_WALL);
+  carveMorgueLine(world, 240, 260, 240, 782, 1, Tex.F_TILE, Tex.TILE_W);
+  carveMorgueLine(world, 784, 260, 784, 782, 1, Tex.F_TILE, Tex.TILE_W);
+  carveTagSwitchbacks(world);
+  dressConveyorSpine(world);
 }
 
 function placeDesignLift(world: World, x: number, y: number, direction: LiftDirection): void {

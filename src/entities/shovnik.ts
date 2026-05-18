@@ -14,8 +14,8 @@ export const DEF: MonsterDef = {
   sprite: 0,
   aiFlags: ['wallBias'],
   floors: [FloorLevel.LIVING, FloorLevel.KVARTIRY, FloorLevel.MINISTRY],
-  counterplay: 'Выводите в центр комнаты: у стен шовник быстрее и больнее бьет.',
-  lootHint: 'бетонная крошка, редкий ремонтный хлам',
+  counterplay: 'Тяните в центр комнаты: у стены шовник быстрее и бьет сильнее, а без шва заметно теряет ход.',
+  lootHint: 'герметичный мусор, резиновая крошка, редкие уплотнители',
 };
 
 export function generateSprite(): Uint32Array {

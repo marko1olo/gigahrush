@@ -1,8 +1,8 @@
-/* ── Herald (Вестник) — thin tree-like watcher ────────────────── */
-/*   Tall, skeletal structure like a dead tree with dangling      */
-/*   eyes on thin stalks/tendrils. Otherworldly and eerie.       */
+/* ── Herald (Вестник) — Hell siren watcher ───────────────────── */
+/*   Tall listening mast with voice horns, dangling eyes and      */
+/*   a meat-root base. It reads as a watcher, not a tree.         */
 
-import { MonsterKind } from '../core/types';
+import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
 import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
@@ -17,45 +17,74 @@ export const DEF: MonsterDef = {
   isRanged: true,
   projSpeed: 7,
   projSprite: 0,
+  floors: [FloorLevel.HELL],
+  counterplay: 'Стреляйте из-за угла или колонны и не задерживайтесь в прямой линии/голосе: Вестник карает открытый коридор.',
+  lootHint: 'осколок сирены, запечатанный голос',
 };
 
 export function generateSprite(): Uint32Array {
   const t = new Uint32Array(S * S).fill(CLEAR);
   const cx = S / 2;
 
-  // Thin skeletal trunk — like a dead tree
-  for (let y = 8; y < 60; y++) {
-    const sway = Math.sin(y * 0.15) * 1.5;
-    const halfW = y < 15 ? 2 :   // thin top
-                  y < 45 ? 3 :   // main trunk
-                  2;              // thin base
+  // Thin bone-and-speaker mast.
+  for (let y = 7; y < 60; y++) {
+    const sway = Math.sin(y * 0.14) * 1.1;
+    const halfW = y < 17 ? 2 :
+                  y < 46 ? 3 :
+                  2;
     for (let x = Math.floor(cx - halfW + sway); x <= Math.ceil(cx + halfW + sway); x++) {
       if (x < 0 || x >= S) continue;
       const n = noise(x, y, 800) * 20;
-      // Dark brownish-grey bark
       const bark = noise(x * 7, y * 2, 801) > 0.85 ? -20 : 0;
       t[y * S + x] = rgba(
-        clamp(55 + n + bark),
-        clamp(45 + n + bark),
-        clamp(40 + n + bark),
+        clamp(68 + n + bark),
+        clamp(58 + n + bark),
+        clamp(54 + n + bark),
       );
     }
   }
 
-  // Branching stalks with dangling eyes
+  // Siren horns on the crown: visible listening/voice silhouette.
+  for (const dir of [-1, 1]) {
+    const baseX = cx + dir * 3;
+    const baseY = 14;
+    for (let y = -5; y <= 5; y++) {
+      const spread = 2 + Math.abs(y) * 0.55;
+      for (let x = 0; x <= 8; x++) {
+        const px = Math.floor(baseX + dir * x);
+        const py = baseY + y;
+        if (px < 0 || px >= S || py < 0 || py >= S) continue;
+        if (x < spread || x > 7) continue;
+        const rim = x >= 6 || Math.abs(y) > 3;
+        t[py * S + px] = rim ? rgba(105, 72, 62) : rgba(18, 12, 16);
+      }
+    }
+  }
+
+  // Ribbed vocal slits in the chest.
+  for (let y = 22; y < 42; y += 4) {
+    const w = 5 + Math.floor(noise(y, 0, 804) * 3);
+    for (let x = Math.floor(cx - w); x <= Math.ceil(cx + w); x++) {
+      if (x < 0 || x >= S) continue;
+      const dy = Math.abs(y - 32);
+      const glow = 105 - dy * 4;
+      t[y * S + x] = rgba(35, clamp(glow), 55);
+    }
+  }
+
+  // Dangling eye-cables, not branches.
   const eyeStalks: [number, number, number, number][] = [
-    [-12, 12, -1, 0.3],  // left high
-    [10, 14, 1, 0.25],   // right high
-    [-15, 20, -1, 0.35], // left mid
-    [13, 22, 1, 0.3],    // right mid
-    [-8, 28, -1, 0.2],   // left low
-    [11, 30, 1, 0.28],   // right low
-    [-5, 8, -1, 0.15],   // left top
-    [7, 10, 1, 0.18],    // right top
+    [-13, 16, -1, 0.25],
+    [12, 17, 1, 0.22],
+    [-15, 24, -1, 0.33],
+    [14, 25, 1, 0.28],
+    [-9, 32, -1, 0.18],
+    [10, 34, 1, 0.24],
+    [-6, 10, -1, 0.12],
+    [7, 11, 1, 0.15],
   ];
 
   for (const [ex, ey, dir, curve] of eyeStalks) {
-    // Draw thin stalk from trunk to eye position
     const startX = cx;
     const startY = ey;
     const endX = cx + ex;
@@ -67,13 +96,11 @@ export function generateSprite(): Uint32Array {
       const sx = Math.floor(startX + (endX - startX) * frac);
       const sy = Math.floor(startY + (endY - startY) * frac + Math.sin(frac * Math.PI) * curve * dir * 8);
       if (sx >= 0 && sx < S && sy >= 0 && sy < S) {
-        t[sy * S + sx] = rgba(50, 40, 35);
-        // Slightly thicker near trunk
-        if (frac < 0.3 && sx + 1 < S) t[sy * S + sx + 1] = rgba(50, 40, 35);
+        t[sy * S + sx] = rgba(58, 42, 46);
+        if (frac < 0.25 && sx + 1 < S) t[sy * S + sx + 1] = rgba(58, 42, 46);
       }
     }
 
-    // Eye at the end of stalk
     const eyeX = endX;
     const eyeY = Math.floor(ey + Math.abs(ex) * 0.4 + noise(ex, ey, 802) * 4);
     for (let dy = -2; dy <= 2; dy++) {
@@ -81,39 +108,36 @@ export function generateSprite(): Uint32Array {
         if (dx * dx + dy * dy > 5) continue;
         const px = Math.floor(eyeX + dx), py = Math.floor(eyeY + dy);
         if (px >= 0 && px < S && py >= 0 && py < S) {
-          // White sclera
-          t[py * S + px] = rgba(220, 215, 200);
+          t[py * S + px] = rgba(225, 218, 188);
         }
       }
     }
-    // Pupil — sickly green
     const px = Math.floor(eyeX), py = Math.floor(eyeY);
     if (px >= 0 && px < S && py >= 0 && py < S) {
       t[py * S + px] = rgba(30, 180, 60);
-      // Glowing effect
       if (px + 1 < S) t[py * S + px + 1] = rgba(60, 200, 80);
       if (py + 1 < S) t[(py + 1) * S + px] = rgba(60, 200, 80);
     }
   }
 
-  // Root-like base spreading on ground
-  for (let i = 0; i < 6; i++) {
-    const rootDir = (i / 6) * Math.PI * 2;
-    for (let r = 0; r < 8; r++) {
-      const rx = Math.floor(cx + Math.cos(rootDir) * r);
-      const ry = Math.floor(58 + Math.sin(rootDir) * r * 0.3);
+  // Meat-root tripod base.
+  for (let i = 0; i < 5; i++) {
+    const rootDir = Math.PI * (0.12 + i * 0.19);
+    for (let r = 0; r < 10; r++) {
+      const rx = Math.floor(cx + Math.cos(rootDir) * r * 1.3);
+      const ry = Math.floor(57 + Math.sin(rootDir) * r * 0.35);
       if (rx >= 0 && rx < S && ry >= 0 && ry < S) {
-        t[ry * S + rx] = rgba(45, 35, 30);
+        t[ry * S + rx] = rgba(74, 38, 34);
       }
     }
   }
 
-  // Faint inner glow in trunk — pulsing green
-  for (let y = 15; y < 40; y++) {
+  // Faint throat glow.
+  for (let y = 15; y < 45; y++) {
     const n = noise(cx, y, 803);
     if (n > 0.6) {
       if (cx >= 0 && cx < S) {
-        t[y * S + cx] = rgba(40, 100 + Math.floor(n * 60), 50);
+        t[y * S + cx] = rgba(40, 100 + Math.floor(n * 60), 64);
       }
     }
   }

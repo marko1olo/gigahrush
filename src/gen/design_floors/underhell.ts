@@ -120,10 +120,14 @@ export const UNDERHELL_DEBUG_ENTRY = {
   smokePath: [
     'spawn',
     'Корневой вход',
+    'Обратный уступ',
+    'Корневая лестница',
     'Порог трех плат',
+    'Культовая пошлинная палата',
     'Свидетельские клетки',
     'Печь долга',
     'Перевернутая часовня',
+    'Жертвенные ворота',
     'Разрез в Пустоту',
   ],
 } as const;
@@ -501,37 +505,62 @@ function generateUnderhellDesignFloorSeeded(seed: number, forceOpenVoidGate: boo
   paintBaseUnderhell(world);
 
   const entry = createUnderhellRoom(world, SPAWN_X - 8, SPAWN_Y - 6, 17, 13, RoomType.COMMON, 'Корневой вход', Tex.GUT, Tex.F_MEAT);
-  const threshold = createUnderhellRoom(world, SPAWN_X - 10, SPAWN_Y + 34, 21, 13, RoomType.HQ, 'Порог трех плат', Tex.GUT, Tex.F_GUT);
-  const witnessA = createUnderhellRoom(world, SPAWN_X - 45, SPAWN_Y + 35, 9, 9, RoomType.STORAGE, 'Свидетельская клетка А', Tex.MEAT, Tex.F_MEAT);
-  const witnessB = createUnderhellRoom(world, SPAWN_X + 37, SPAWN_Y + 35, 9, 9, RoomType.STORAGE, 'Свидетельская клетка Б', Tex.MEAT, Tex.F_MEAT);
-  const debt = createUnderhellRoom(world, SPAWN_X - 68, SPAWN_Y + 76, 17, 13, RoomType.PRODUCTION, 'Печь сожженного долга', Tex.GUT, Tex.F_GUT);
-  const chapel = createUnderhellRoom(world, SPAWN_X + 28, SPAWN_Y + 82, 25, 19, RoomType.HQ, 'Перевернутая часовня', Tex.MEAT, Tex.F_GUT);
-  const gate = createUnderhellRoom(world, SPAWN_X - 9, SPAWN_Y + 140, 19, 13, RoomType.CORRIDOR, 'Разрез в Пустоту', Tex.VOID_WALL, Tex.F_VOID);
+  const fallback = createUnderhellRoom(world, SPAWN_X - 64, SPAWN_Y + 8, 17, 11, RoomType.CORRIDOR, 'Обратный уступ', Tex.MEAT, Tex.F_MEAT);
+  const rootStair = createUnderhellRoom(world, SPAWN_X + 48, SPAWN_Y + 8, 17, 11, RoomType.CORRIDOR, 'Корневая лестница', Tex.GUT, Tex.F_GUT);
+  const threshold = createUnderhellRoom(world, SPAWN_X - 15, SPAWN_Y + 46, 31, 15, RoomType.HQ, 'Порог трех плат', Tex.GUT, Tex.F_GUT);
+  const witnessA = createUnderhellRoom(world, SPAWN_X - 57, SPAWN_Y + 49, 11, 9, RoomType.STORAGE, 'Свидетельская клетка А', Tex.MEAT, Tex.F_MEAT);
+  const witnessB = createUnderhellRoom(world, SPAWN_X + 46, SPAWN_Y + 49, 11, 9, RoomType.STORAGE, 'Свидетельская клетка Б', Tex.MEAT, Tex.F_MEAT);
+  const toll = createUnderhellRoom(world, SPAWN_X - 15, SPAWN_Y + 103, 31, 13, RoomType.HQ, 'Культовая пошлинная палата', Tex.MEAT, Tex.F_GUT);
+  const debt = createUnderhellRoom(world, SPAWN_X - 80, SPAWN_Y + 132, 21, 15, RoomType.PRODUCTION, 'Печь сожженного долга', Tex.GUT, Tex.F_GUT);
+  const chapel = createUnderhellRoom(world, SPAWN_X + 59, SPAWN_Y + 132, 27, 19, RoomType.HQ, 'Перевернутая часовня', Tex.MEAT, Tex.F_GUT);
+  const sacrifice = createUnderhellRoom(world, SPAWN_X - 14, SPAWN_Y + 188, 29, 17, RoomType.CORRIDOR, 'Жертвенные ворота', Tex.GUT, Tex.F_MEAT);
+  const lowerFallback = createUnderhellRoom(world, SPAWN_X - 69, SPAWN_Y + 195, 19, 11, RoomType.CORRIDOR, 'Нижний обратный уступ', Tex.MEAT, Tex.F_MEAT);
+  const gate = createUnderhellRoom(world, SPAWN_X - 11, SPAWN_Y + 252, 23, 15, RoomType.CORRIDOR, 'Разрез в Пустоту', Tex.VOID_WALL, Tex.F_VOID);
 
-  connectRooms(world, entry, threshold, 2, DoorState.HERMETIC_OPEN);
-  const witnessDoorA = connectRooms(world, threshold, witnessA, 1, DoorState.HERMETIC_CLOSED);
-  const witnessDoorB = connectRooms(world, threshold, witnessB, 1, DoorState.HERMETIC_CLOSED);
-  connectRooms(world, threshold, debt, 2, DoorState.CLOSED);
-  connectRooms(world, threshold, chapel, 2, DoorState.CLOSED);
-  connectRooms(world, chapel, gate, 2, DoorState.HERMETIC_OPEN);
+  connectRooms(world, entry, threshold, 2, DoorState.HERMETIC_OPEN, Tex.F_GUT);
+  connectRooms(world, entry, fallback, 1, DoorState.HERMETIC_OPEN, Tex.F_CONCRETE);
+  connectRooms(world, fallback, threshold, 1, DoorState.HERMETIC_OPEN, Tex.F_CONCRETE);
+  connectRooms(world, entry, rootStair, 2, DoorState.HERMETIC_OPEN, Tex.F_GUT);
+  connectRooms(world, rootStair, threshold, 1, DoorState.HERMETIC_OPEN, Tex.F_GUT);
+  const witnessDoorA = connectRooms(world, threshold, witnessA, 1, DoorState.HERMETIC_CLOSED, Tex.F_CONCRETE);
+  const witnessDoorB = connectRooms(world, threshold, witnessB, 1, DoorState.HERMETIC_CLOSED, Tex.F_CONCRETE);
+  connectRooms(world, threshold, toll, 2, DoorState.CLOSED, Tex.F_GUT);
+  connectRooms(world, toll, debt, 2, DoorState.CLOSED, Tex.F_CONCRETE);
+  connectRooms(world, toll, chapel, 2, DoorState.CLOSED, Tex.F_CONCRETE);
+  connectRooms(world, debt, lowerFallback, 1, DoorState.HERMETIC_OPEN, Tex.F_CONCRETE);
+  connectRooms(world, lowerFallback, sacrifice, 1, DoorState.HERMETIC_OPEN, Tex.F_CONCRETE);
+  connectRooms(world, chapel, sacrifice, 2, DoorState.HERMETIC_OPEN, Tex.F_GUT);
+  connectRooms(world, sacrifice, gate, 2, DoorState.HERMETIC_OPEN, Tex.F_GUT);
+  connectRooms(world, lowerFallback, gate, 1, DoorState.HERMETIC_OPEN, Tex.F_CONCRETE);
   carveRootTunnel(world, entry.x + (entry.w >> 1), entry.y - 16, entry.x + (entry.w >> 1), entry.y + (entry.h >> 1), 2, Tex.F_MEAT);
+  sinkUnderhellAbyss(world);
+  markBridgeCandles(world, entry, fallback, 8);
+  markBridgeCandles(world, entry, rootStair, 8);
+  markBridgeCandles(world, toll, debt, 7);
+  markBridgeCandles(world, toll, chapel, 7);
+  markBridgeCandles(world, lowerFallback, gate, 9);
 
   decorateEntry(world, entry);
+  decorateFallbackLedge(world, fallback);
+  decorateRootStair(world, rootStair);
   decorateThreshold(world, threshold);
   decorateWitnessCell(world, witnessA, true);
   decorateWitnessCell(world, witnessB, false);
+  decorateTollChamber(world, toll);
   const debtWellCell = decorateDebtWell(world, debt);
   decorateInvertedChapel(world, chapel);
+  decorateSacrificeGate(world, sacrifice);
+  decorateFallbackLedge(world, lowerFallback);
   const voidGateCell = decorateVoidGate(world, gate);
 
   ensureConnectivity(world, SPAWN_X + 0.5, SPAWN_Y + 0.5);
   generateZones(world);
   retuneUnderhellZones(world);
 
-  const marfushaId = spawnUnderhellNpc(world, entities, nextId, threshold, THRESHOLD_MARFUSHA_DEF, 'underhell_threshold_marfusha', 10, 6, Math.PI);
-  const debtCultistId = spawnUnderhellNpc(world, entities, nextId, debt, DEBT_CULTIST_DEF, 'underhell_debt_cultist', 4, 6, 0);
+  const marfushaId = spawnUnderhellNpc(world, entities, nextId, threshold, THRESHOLD_MARFUSHA_DEF, 'underhell_threshold_marfusha', 15, 7, Math.PI);
+  const debtCultistId = spawnUnderhellNpc(world, entities, nextId, debt, DEBT_CULTIST_DEF, 'underhell_debt_cultist', 5, 7, 0);
   const liquidatorId = spawnUnderhellNpc(world, entities, nextId, witnessA, WORDLESS_LIQUIDATOR_DEF, 'underhell_wordless_liquidator', 4, 4, Math.PI / 2);
-  const echoId = spawnUnderhellNpc(world, entities, nextId, chapel, FALSE_YAKOV_DEF, 'underhell_false_yakov_echo', 12, 4, Math.PI);
+  const echoId = spawnUnderhellNpc(world, entities, nextId, chapel, FALSE_YAKOV_DEF, 'underhell_false_yakov_echo', 13, 4, Math.PI);
   void marfushaId;
   void debtCultistId;
   void liquidatorId;
@@ -550,9 +579,11 @@ function generateUnderhellDesignFloorSeeded(seed: number, forceOpenVoidGate: boo
   addNote(entities, nextId, witnessB.x + 4, witnessB.y + 4, 'Свидетель Б молчит. Клетку можно открыть, но можно и заставить ее не помнить.');
 
   spawnUnderhellMonster(world, entities, nextId, MonsterKind.SHADOW, threshold.x + 5, threshold.y + 3, 'Тень у платы', 4);
+  spawnUnderhellMonster(world, entities, nextId, MonsterKind.KOSTOREZ, toll.x + toll.w - 5, toll.y + 6, 'Косторез пошлины', 5);
   spawnUnderhellMonster(world, entities, nextId, MonsterKind.SPIRIT, debt.x + 4, debt.y + 6, 'Дым сожженного долга', 5);
+  spawnUnderhellMonster(world, entities, nextId, MonsterKind.REBAR, sacrifice.x + 6, sacrifice.y + 8, 'Костяная арматура ворот', 5);
   spawnUnderhellMonster(world, entities, nextId, MonsterKind.EYE, gate.x + gate.w - 4, gate.y + 4, 'Глаз разреза', 5);
-  const anchorEntityId = spawnUnderhellMonster(world, entities, nextId, MonsterKind.IDOL, chapel.x + 12, chapel.y + 11, 'Идол-якорь Нижнего ада', 7);
+  const anchorEntityId = spawnUnderhellMonster(world, entities, nextId, MonsterKind.IDOL, chapel.x + 13, chapel.y + 11, 'Идол-якорь Нижнего ада', 7);
 
   const ritualState: UnderhellRitualState = {
     routeId: UNDERHELL_ROUTE_ID,
@@ -653,7 +684,7 @@ function paintRoomSkin(world: World, room: Room, wallTex: Tex, floorTex: Tex): v
   }
 }
 
-function connectRooms(world: World, a: Room, b: Room, width: number, state: DoorState): number[] {
+function connectRooms(world: World, a: Room, b: Room, width: number, state: DoorState, floorTex: Tex = Tex.F_GUT): number[] {
   const ac = roomCenter(a);
   const bc = roomCenter(b);
   const ae = roomExitToward(world, a, bc.x, bc.y);
@@ -662,7 +693,7 @@ function connectRooms(world: World, a: Room, b: Room, width: number, state: Door
   placeDoorAt(world, be.doorX, be.doorY, b.id);
   configureDoor(world, a, ae.doorX, ae.doorY, state);
   configureDoor(world, b, be.doorX, be.doorY, state);
-  carveRootTunnel(world, ae.outX, ae.outY, be.outX, be.outY, width, Tex.F_GUT);
+  carveRootTunnel(world, ae.outX, ae.outY, be.outX, be.outY, width, floorTex);
   return [world.idx(ae.doorX, ae.doorY), world.idx(be.doorX, be.doorY)];
 }
 
@@ -740,6 +771,52 @@ function carveDisc(world: World, cx: number, cy: number, radius: number, floorTe
   }
 }
 
+function sinkUnderhellAbyss(world: World): void {
+  const cy = SPAWN_Y + 126;
+  for (let y = SPAWN_Y - 46; y <= SPAWN_Y + 284; y++) {
+    for (let x = SPAWN_X - 122; x <= SPAWN_X + 122; x++) {
+      const dx = world.delta(SPAWN_X, x);
+      const dy = world.delta(cy, y);
+      const mainBasin = (dx * dx) / (120 * 120) + (dy * dy) / (205 * 205) <= 1;
+      const leftBasin = (world.delta(SPAWN_X - 58, x) ** 2) / (74 * 74) + (world.delta(SPAWN_Y + 116, y) ** 2) / (132 * 132) <= 1;
+      const rightBasin = (world.delta(SPAWN_X + 58, x) ** 2) / (74 * 74) + (world.delta(SPAWN_Y + 116, y) ** 2) / (132 * 132) <= 1;
+      if (!mainBasin && !leftBasin && !rightBasin) continue;
+      const ci = world.idx(x, y);
+      if (world.cells[ci] !== Cell.WALL || touchesRoomInterior(world, x, y)) continue;
+      world.cells[ci] = Cell.ABYSS;
+      world.roomMap[ci] = -1;
+      world.wallTex[ci] = Tex.DARK;
+      world.floorTex[ci] = Tex.F_ABYSS;
+      world.features[ci] = Feature.NONE;
+    }
+  }
+}
+
+function touchesRoomInterior(world: World, x: number, y: number): boolean {
+  for (let dy = -1; dy <= 1; dy++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      if (world.roomMap[world.idx(x + dx, y + dy)] >= 0) return true;
+    }
+  }
+  return false;
+}
+
+function markBridgeCandles(world: World, a: Room, b: Room, interval: number): void {
+  const ac = roomCenter(a);
+  const bc = roomCenter(b);
+  const ddx = world.delta(ac.x, bc.x);
+  const ddy = world.delta(ac.y, bc.y);
+  const steps = Math.max(1, Math.ceil(Math.max(Math.abs(ddx), Math.abs(ddy))));
+  for (let step = interval; step < steps; step += interval) {
+    const x = world.wrap(Math.round(ac.x + ddx * (step / steps)));
+    const y = world.wrap(Math.round(ac.y + ddy * (step / steps)));
+    const ci = world.idx(x, y);
+    if (world.cells[ci] === Cell.FLOOR && world.roomMap[ci] < 0 && world.features[ci] === Feature.NONE) {
+      world.features[ci] = Feature.CANDLE;
+    }
+  }
+}
+
 function decorateEntry(world: World, room: Room): void {
   setFeature(world, room.x + 2, room.y + 2, Feature.LAMP);
   setFeature(world, room.x + room.w - 3, room.y + 2, Feature.CANDLE);
@@ -750,6 +827,21 @@ function decorateEntry(world: World, room: Room): void {
   world.liftDir[liftCell] = LiftDirection.UP;
   world.features[world.idx(room.x + room.w - 4, room.y + room.h - 3)] = Feature.LIFT_BUTTON;
   world.stamp(room.x + (room.w >> 1), room.y + (room.h >> 1), 0.5, 0.5, 5, 130, 19032, 75, 18, 40, false);
+}
+
+function decorateFallbackLedge(world: World, room: Room): void {
+  setFeature(world, room.x + 2, room.y + 2, Feature.CANDLE);
+  setFeature(world, room.x + room.w - 3, room.y + 2, Feature.SHELF);
+  setFeature(world, room.x + 2, room.y + room.h - 3, Feature.TABLE);
+  world.stamp(room.x + (room.w >> 1), room.y + (room.h >> 1), 0.5, 0.5, 4, 110, room.id * 19039, 92, 78, 64, false);
+}
+
+function decorateRootStair(world: World, room: Room): void {
+  for (let i = 2; i < room.w - 2; i += 4) {
+    setFeature(world, room.x + i, room.y + 2 + (i & 3), Feature.CANDLE);
+  }
+  setFeature(world, room.x + room.w - 4, room.y + room.h - 3, Feature.APPARATUS);
+  world.stamp(room.x + (room.w >> 1), room.y + (room.h >> 1), 0.5, 0.5, 4, 130, 19040, 54, 24, 18, false);
 }
 
 function decorateThreshold(world: World, room: Room): void {
@@ -769,6 +861,18 @@ function decorateWitnessCell(world: World, room: Room, lit: boolean): void {
   setFeature(world, room.x + room.w - 3, room.y + room.h - 3, Feature.BED);
   setFeature(world, room.x + 2, room.y + room.h - 3, Feature.TABLE);
   world.stamp(room.x + (room.w >> 1), room.y + (room.h >> 1), 0.5, 0.5, 3, 110, lit ? 19034 : 19035, 40, 35, 35, false);
+}
+
+function decorateTollChamber(world: World, room: Room): void {
+  const cx = room.x + (room.w >> 1);
+  const cy = room.y + (room.h >> 1);
+  setFeature(world, cx, cy, Feature.DESK);
+  setFeature(world, room.x + 4, cy, Feature.SHELF);
+  setFeature(world, room.x + room.w - 5, cy, Feature.APPARATUS);
+  for (const [dx, dy] of [[-9, -4], [-3, 4], [3, 4], [9, -4]] as const) {
+    setFeature(world, cx + dx, cy + dy, Feature.CANDLE);
+  }
+  world.stamp(cx, cy, 0.5, 0.5, 5, 130, 19041, 86, 16, 18, false);
 }
 
 function decorateDebtWell(world: World, room: Room): number {
@@ -791,6 +895,19 @@ function decorateInvertedChapel(world: World, room: Room): void {
   setFeature(world, cx, cy - 5, Feature.SCREEN);
   world.wallTex[world.idx(cx, room.y - 1)] = Tex.ICON;
   world.stamp(cx, cy + 4, 0.5, 0.5, 7, 140, 19036, 110, 18, 45, false);
+}
+
+function decorateSacrificeGate(world: World, room: Room): void {
+  const cx = room.x + (room.w >> 1);
+  const cy = room.y + (room.h >> 1);
+  setFeature(world, cx - 8, cy - 4, Feature.SINK);
+  setFeature(world, cx, cy - 5, Feature.DESK);
+  setFeature(world, cx + 8, cy - 4, Feature.APPARATUS);
+  setFeature(world, cx - 8, cy + 5, Feature.CANDLE);
+  setFeature(world, cx, cy + 5, Feature.CANDLE);
+  setFeature(world, cx + 8, cy + 5, Feature.CANDLE);
+  addBlackWell(world, cx, cy, 1);
+  world.stamp(cx, cy, 0.5, 0.5, 6, 150, 19042, 120, 28, 24, false);
 }
 
 function decorateVoidGate(world: World, room: Room): number {

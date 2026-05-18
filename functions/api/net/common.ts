@@ -44,6 +44,7 @@ export interface ProgressPayload {
 
 const ONLINE_WINDOW_MS = 90_000;
 const CHAT_LIMIT = 60;
+const NET_GEN_NICK_RE = /^NET-[A-Z0-9-]{4,28}$/;
 
 export function json(data: unknown, status = 200): Response {
   return Response.json(data, {
@@ -90,13 +91,19 @@ export function cleanMessage(value: unknown): string {
     .slice(0, 160);
 }
 
+function looksLikeNetGen(value: string): boolean {
+  const clean = value.trim().toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 32);
+  return NET_GEN_NICK_RE.test(clean);
+}
+
 export function cleanNickname(value: unknown): string {
   if (typeof value !== 'string') return '';
-  return value
+  const clean = value
     .replace(/[\u0000-\u001f\u007f<>`\\]/g, '')
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, 24);
+  return looksLikeNetGen(clean) ? '' : clean;
 }
 
 export function cleanEventType(value: unknown): 'samosbor' | 'death' | '' {
@@ -111,6 +118,20 @@ export function cleanEventKey(value: unknown): string {
 function num(value: unknown, fallback: number, min: number, max: number): number {
   const n = typeof value === 'number' && Number.isFinite(value) ? value : fallback;
   return Math.max(min, Math.min(max, Math.floor(n)));
+}
+
+function publicNickname(value: unknown): string {
+  return cleanNickname(value) || 'Жилец';
+}
+
+function eventDate(now: number): string {
+  return new Date(now).toISOString().replace('T', ' ').slice(0, 16) + ' UTC';
+}
+
+function eventSummary(type: unknown, nickname: string, createdAt: unknown): string {
+  const at = typeof createdAt === 'number' ? createdAt : 0;
+  if (type === 'death') return `[${nickname}] умер ${eventDate(at)}`;
+  return `[${nickname}] встретил самосбор ${eventDate(at)}`;
 }
 
 export function normalizeProgress(value: unknown): ProgressPayload {
@@ -216,7 +237,7 @@ export async function readProfile(db: D1Database, netGen: string): Promise<Recor
   if (!row) return null;
   return {
     netGen: row.net_gen,
-    nickname: row.nickname,
+    nickname: publicNickname(row.nickname),
     createdAt: row.created_at,
     lastSeenAt: row.last_seen_at,
     runs: row.runs,
@@ -237,9 +258,9 @@ export async function readEvents(db: D1Database): Promise<Record<string, unknown
   `).all<Record<string, unknown>>();
   return (result.results ?? []).map(row => ({
     eventKey: `${row.created_at}:${row.type}`,
-    nickname: row.nickname,
+    nickname: publicNickname(row.nickname),
     type: row.type,
-    summary: row.summary,
+    summary: eventSummary(row.type, publicNickname(row.nickname), row.created_at),
     createdAt: row.created_at,
   }));
 }
@@ -256,7 +277,7 @@ export async function readChat(db: D1Database, sinceChatId: number): Promise<Rec
   `).bind(since, CHAT_LIMIT).all<Record<string, unknown>>();
   return (result.results ?? []).reverse().map(row => ({
     id: row.id,
-    nickname: row.nickname,
+    nickname: publicNickname(row.nickname),
     body: row.body,
     createdAt: row.created_at,
   }));

@@ -12,6 +12,7 @@ import {
   QuestType,
   RoomType,
   Tex,
+  W,
   ZoneFaction,
   type Entity,
   type Room,
@@ -353,6 +354,310 @@ function setHazardWater(world: World, x: number, y: number, fog = 120): void {
   world.cells[i] = Cell.WATER;
   world.floorTex[i] = Tex.F_WATER;
   world.fog[i] = fog;
+}
+
+function productionProtectedMask(world: World): Uint8Array {
+  const mask = new Uint8Array(W * W);
+  for (const room of world.rooms) {
+    for (let dy = 0; dy < room.h; dy++) {
+      for (let dx = 0; dx < room.w; dx++) {
+        mask[world.idx(room.x + dx, room.y + dy)] = 1;
+      }
+    }
+  }
+  for (const container of world.containers) mask[world.idx(container.x, container.y)] = 1;
+  for (let i = 0; i < W * W; i++) {
+    if (world.cells[i] === Cell.LIFT || world.features[i] === Feature.LIFT_BUTTON) mask[i] = 1;
+  }
+  return mask;
+}
+
+function rectTouchesMask(world: World, mask: Uint8Array, x: number, y: number, w: number, h: number, margin: number): boolean {
+  for (let dy = -margin; dy < h + margin; dy++) {
+    for (let dx = -margin; dx < w + margin; dx++) {
+      if (mask[world.idx(x + dx, y + dy)]) return true;
+    }
+  }
+  return false;
+}
+
+function carveRectMasked(
+  world: World,
+  mask: Uint8Array,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  roomId: number,
+  floorTex: Tex,
+): void {
+  for (let dy = 0; dy < h; dy++) {
+    for (let dx = 0; dx < w; dx++) {
+      const i = world.idx(x + dx, y + dy);
+      if (mask[i]) continue;
+      world.cells[i] = Cell.FLOOR;
+      world.roomMap[i] = roomId;
+      world.floorTex[i] = floorTex;
+    }
+  }
+}
+
+function wallRingMasked(world: World, mask: Uint8Array, x: number, y: number, w: number, h: number, wallTex: Tex): void {
+  for (let dy = -1; dy <= h; dy++) {
+    for (let dx = -1; dx <= w; dx++) {
+      if (dx >= 0 && dx < w && dy >= 0 && dy < h) continue;
+      const i = world.idx(x + dx, y + dy);
+      if (mask[i]) continue;
+      if (world.cells[i] === Cell.WALL || world.cells[i] === Cell.ABYSS) {
+        world.cells[i] = Cell.WALL;
+        world.wallTex[i] = wallTex;
+        world.features[i] = Feature.NONE;
+      }
+    }
+  }
+}
+
+function macroRoom(
+  world: World,
+  mask: Uint8Array,
+  type: RoomType,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  name: string,
+  wallTex: Tex,
+  floorTex: Tex,
+  margin = 2,
+): Room | null {
+  if (rectTouchesMask(world, mask, x, y, w, h, margin)) return null;
+  const room: Room = {
+    id: world.rooms.length,
+    type,
+    x: world.wrap(x),
+    y: world.wrap(y),
+    w,
+    h,
+    doors: [],
+    sealed: false,
+    name,
+    apartmentId: -1,
+    wallTex,
+    floorTex,
+  };
+  world.rooms.push(room);
+  carveRectMasked(world, mask, room.x, room.y, w, h, room.id, floorTex);
+  wallRingMasked(world, mask, room.x, room.y, w, h, wallTex);
+  for (let dy = 0; dy < h; dy++) {
+    for (let dx = 0; dx < w; dx++) {
+      mask[world.idx(room.x + dx, room.y + dy)] = 1;
+    }
+  }
+  return room;
+}
+
+function macroCorridor(
+  world: World,
+  mask: Uint8Array,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  name: string,
+  floorTex: Tex,
+): Room {
+  const room: Room = {
+    id: world.rooms.length,
+    type: RoomType.CORRIDOR,
+    x: world.wrap(x),
+    y: world.wrap(y),
+    w,
+    h,
+    doors: [],
+    sealed: false,
+    name,
+    apartmentId: -1,
+    wallTex: Tex.METAL,
+    floorTex,
+  };
+  world.rooms.push(room);
+  carveRectMasked(world, mask, room.x, room.y, w, h, room.id, floorTex);
+  wallRingMasked(world, mask, room.x, room.y, w, h, Tex.METAL);
+  return room;
+}
+
+function connectRoomToLane(world: World, mask: Uint8Array, room: Room, laneY: number, floorTex: Tex): void {
+  const cx = room.x + (room.w >> 1);
+  if (room.y > laneY) {
+    const y = laneY + 5;
+    carveRectMasked(world, mask, cx - 1, y, 3, Math.max(1, room.y - y), -1, floorTex);
+  } else {
+    const y = room.y + room.h;
+    carveRectMasked(world, mask, cx - 1, y, 3, Math.max(1, laneY - 4 - y), -1, floorTex);
+  }
+}
+
+function placeWallBlock(world: World, mask: Uint8Array, x: number, y: number, w: number, h: number, wallTex: Tex): void {
+  for (let dy = 0; dy < h; dy++) {
+    for (let dx = 0; dx < w; dx++) {
+      const i = world.idx(x + dx, y + dy);
+      if (mask[i] || world.cells[i] !== Cell.FLOOR) continue;
+      world.cells[i] = Cell.WALL;
+      world.roomMap[i] = -1;
+      world.wallTex[i] = wallTex;
+      world.features[i] = Feature.NONE;
+    }
+  }
+}
+
+function dressMachineIsland(world: World, room: Room, rng: () => number): void {
+  for (let x = room.x + 3; x < room.x + room.w - 3; x += 5) {
+    setFeature(world, x, room.y + 4, Feature.MACHINE);
+    setFeature(world, x + 1, room.y + room.h - 5, Feature.APPARATUS);
+  }
+  setFeature(world, room.x + 3, room.y + room.h - 3, Feature.LAMP);
+  setFeature(world, room.x + room.w - 4, room.y + 3, Feature.LAMP);
+  if (rng() < 0.55) {
+    world.stamp(room.x + (room.w >> 1), room.y + (room.h >> 1), 0.5, 0.5, 4 + rng() * 4, 0.16, room.id * 8191, 42, 46, 42, false);
+  }
+}
+
+function dressStorageBay(world: World, room: Room, rng: () => number): void {
+  for (let x = room.x + 2; x < room.x + room.w - 2; x += 4) setFeature(world, x, room.y + 2, Feature.SHELF);
+  for (let y = room.y + 5; y < room.y + room.h - 2; y += 4) setFeature(world, room.x + room.w - 3, y, Feature.SHELF);
+  setFeature(world, room.x + 3, room.y + room.h - 3, Feature.LAMP);
+  if (rng() < 0.35) setFeature(world, room.x + (room.w >> 1), room.y + (room.h >> 1), Feature.TABLE);
+}
+
+function dressLoadingDock(world: World, room: Room): void {
+  for (let x = room.x + 3; x < room.x + room.w - 3; x += 5) setFeature(world, x, room.y + room.h - 4, Feature.SHELF);
+  setFeature(world, room.x + 4, room.y + 4, Feature.DESK);
+  setFeature(world, room.x + room.w - 5, room.y + 4, Feature.LAMP);
+}
+
+function dressShiftGate(world: World, room: Room): void {
+  setFeature(world, room.x + 2, room.y + 2, Feature.SCREEN);
+  setFeature(world, room.x + room.w - 3, room.y + 2, Feature.DESK);
+  setFeature(world, room.x + 2, room.y + room.h - 3, Feature.LAMP);
+}
+
+function dressScrapPocket(world: World, room: Room, rng: () => number): void {
+  setFeature(world, room.x + 3, room.y + 3, Feature.SHELF);
+  setFeature(world, room.x + room.w - 4, room.y + 3, Feature.MACHINE);
+  for (let i = 0; i < 3; i++) {
+    setHazardWater(world, room.x + 4 + Math.floor(rng() * Math.max(1, room.w - 8)), room.y + 5 + Math.floor(rng() * Math.max(1, room.h - 8)), 135);
+  }
+}
+
+function addDockLoop(world: World, mask: Uint8Array, x: number, y: number, w: number, h: number, name: string): void {
+  macroCorridor(world, mask, x, y, w, 5, `${name}: верхняя рампа`, Tex.F_CONCRETE);
+  macroCorridor(world, mask, x, y + h - 5, w, 5, `${name}: нижняя рампа`, Tex.F_CONCRETE);
+  macroCorridor(world, mask, x, y, 5, h, `${name}: левый разворот`, Tex.F_CONCRETE);
+  macroCorridor(world, mask, x + w - 5, y, 5, h, `${name}: правый разворот`, Tex.F_CONCRETE);
+}
+
+function addLaneBlockages(world: World, mask: Uint8Array, laneY: number, xStart: number, xEnd: number, rng: () => number): void {
+  for (let x = xStart + 46; x < xEnd - 24; x += 82) {
+    if (x > 368 && x < 642 && laneY > 470 && laneY < 552) continue;
+    if (rng() < 0.55) placeWallBlock(world, mask, x, laneY - 1, 4, 3, Tex.METAL);
+    setFeature(world, x + 7, laneY - 3, Feature.MACHINE);
+    setFeature(world, x + 9, laneY + 3, Feature.APPARATUS);
+  }
+}
+
+function addSideRoomsForLane(world: World, mask: Uint8Array, laneY: number, row: number, rng: () => number): void {
+  const xs = [108, 210, 312, 608, 710, 812];
+  for (let n = 0; n < xs.length; n++) {
+    const top = (row + n) % 2 === 0;
+    const w = 22 + Math.floor(rng() * 12);
+    const h = 13 + Math.floor(rng() * 8);
+    const x = xs[n] + Math.floor(rng() * 18);
+    const y = top ? laneY - h - 15 : laneY + 14;
+    const motif = (row + n) % 4;
+    const room = macroRoom(
+      world,
+      mask,
+      motif === 0 ? RoomType.COMMON : motif === 1 ? RoomType.STORAGE : motif === 2 ? RoomType.OFFICE : RoomType.STORAGE,
+      x,
+      y,
+      w,
+      h,
+      motif === 0 ? 'Машинный остров ленты 14' : motif === 1 ? 'Складская ячейка ленты 14' : motif === 2 ? 'Сменная будка контроля' : 'Карман лома у ленты',
+      motif === 2 ? Tex.PANEL : Tex.METAL,
+      motif === 2 ? Tex.F_LINO : Tex.F_CONCRETE,
+    );
+    if (!room) continue;
+    connectRoomToLane(world, mask, room, laneY, Tex.F_CONCRETE);
+    if (motif === 0) dressMachineIsland(world, room, rng);
+    else if (motif === 1) dressStorageBay(world, room, rng);
+    else if (motif === 2) dressShiftGate(world, room);
+    else dressScrapPocket(world, room, rng);
+  }
+}
+
+function addShiftGate(world: World, mask: Uint8Array, x: number, y: number): void {
+  const room = macroRoom(world, mask, RoomType.COMMON, x - 7, y - 5, 14, 10, 'Сменный турникет ленты 14', Tex.PANEL, Tex.F_LINO, 1);
+  if (room) dressShiftGate(world, room);
+}
+
+function addCatwalkBypass(world: World, mask: Uint8Array, x: number, y0: number, y1: number, name: string): void {
+  macroCorridor(world, mask, x - 1, y0, 3, y1 - y0, name, Tex.F_TILE);
+  macroCorridor(world, mask, x - 58, y0 + 124, 58, 3, `${name}: перемычка`, Tex.F_TILE);
+  macroCorridor(world, mask, x, y0 + 352, 58, 3, `${name}: дальняя перемычка`, Tex.F_TILE);
+  for (let y = y0 + 42; y < y1 - 28; y += 96) {
+    setFeature(world, x, y, Feature.LAMP);
+    if (y % 192 === 0) setFeature(world, x, y + 3, Feature.APPARATUS);
+  }
+}
+
+export function expandProductionBeltGeometry(world: World, rng: () => number): void {
+  const mask = productionProtectedMask(world);
+  const laneYs = [150, 274, 398, 626, 750, 874];
+
+  macroCorridor(world, mask, 72, 508, 342, 7, 'Левая подача проходной 14', Tex.F_CONCRETE);
+  macroCorridor(world, mask, 586, 508, 366, 7, 'Правая выдача проходной 14', Tex.F_CONCRETE);
+
+  for (let i = 0; i < laneYs.length; i++) {
+    const y = laneYs[i];
+    macroCorridor(world, mask, 56, y - 4, 912, 9, i % 2 === 0 ? 'Главный конвейерный пролет' : 'Обратная линия погрузки', Tex.F_CONCRETE);
+  }
+
+  for (const x of [128, 320, 704, 896]) {
+    macroCorridor(world, mask, x - 2, 146, 5, 732, 'Вертикальный подъемник тары', Tex.F_CONCRETE);
+  }
+
+  addDockLoop(world, mask, 82, 204, 204, 214, 'Западная погрузочная петля');
+  addDockLoop(world, mask, 738, 204, 204, 214, 'Восточная погрузочная петля');
+  addDockLoop(world, mask, 82, 584, 204, 214, 'Нижняя петля грязной тары');
+  addDockLoop(world, mask, 738, 584, 204, 214, 'Нижняя петля выдачи');
+
+  addCatwalkBypass(world, mask, 382, 150, 876, 'Левый ремонтный мостик');
+  addCatwalkBypass(world, mask, 642, 150, 876, 'Правый ремонтный мостик');
+
+  for (let i = 0; i < laneYs.length; i++) {
+    addLaneBlockages(world, mask, laneYs[i], 56, 968, rng);
+    addSideRoomsForLane(world, mask, laneYs[i], i, rng);
+  }
+  for (const x of [128, 320, 704, 896]) {
+    for (const y of [274, 398, 626, 750]) addShiftGate(world, mask, x, y);
+  }
+
+  const loadingRooms = [
+    macroRoom(world, mask, RoomType.STORAGE, 116, 226, 58, 28, 'Док ручной приемки', Tex.METAL, Tex.F_CONCRETE),
+    macroRoom(world, mask, RoomType.STORAGE, 850, 226, 58, 28, 'Док опломбированной выдачи', Tex.METAL, Tex.F_CONCRETE),
+    macroRoom(world, mask, RoomType.STORAGE, 116, 698, 58, 28, 'Док возврата брака', Tex.METAL, Tex.F_CONCRETE),
+    macroRoom(world, mask, RoomType.STORAGE, 850, 698, 58, 28, 'Док ночной погрузки', Tex.METAL, Tex.F_CONCRETE),
+  ];
+  for (const room of loadingRooms) if (room) dressLoadingDock(world, room);
+
+  for (const spec of [
+    { x: 344, y: 206 }, { x: 654, y: 326 }, { x: 344, y: 682 }, { x: 654, y: 806 },
+  ]) {
+    const room = macroRoom(world, mask, RoomType.STORAGE, spec.x, spec.y, 24, 16, 'Опасный карман ремонта', Tex.ROTTEN, Tex.F_CONCRETE);
+    if (room) dressScrapPocket(world, room, rng);
+  }
+
+  world.markFogDirty();
 }
 
 function decorateLineRooms(world: World, rooms: ProductionBeltRooms): void {

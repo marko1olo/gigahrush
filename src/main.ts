@@ -51,6 +51,7 @@ import {
 } from './systems/inventory';
 import { tryHandleMaronaryShavingHandoff } from './systems/maronary_shaving';
 import { createInput, bindInput } from './input';
+import { createMobileControls, type MobileControls, type MobileMenuId } from './mobile';
 import { freshNeeds, ITEMS } from './data/catalog';
 import { entityDisplayName } from './entities/monster';
 import { ensureProceduralSpriteSeeds } from './entities/procedural_visuals';
@@ -77,6 +78,7 @@ import {
   zhelemishMoveMult,
 } from './systems/status';
 import { DEBUG_COMMAND_COUNT, execDebugCommand, type DebugCommandAction } from './systems/debug';
+import { debugOnePunchMeleeDamage, isDebugOnePunchManEnabled, keepDebugOnePunchManAlive } from './systems/debug_cheats';
 import { createWorldEventState, normalizeWorldEventState, publishEvent, trimEventHistoryForSave } from './systems/events';
 import { UV_SPOTLIGHT_ID, useUvSpotlight } from './systems/uv_spotlight';
 import { tryUseMetroRoute } from './systems/metro';
@@ -85,14 +87,17 @@ import { tryUseCarnivorousFungus, updateCarnivorousFungus } from './systems/carn
 import { tryRepairHermodoorBorerDamage } from './systems/hermodoor_borer';
 import { tryUsePneumomailTube } from './systems/pneumomail';
 import { hladonColdMoveMultiplier, tryUseHladonColdPocketCounter, updateHladonColdPocket } from './systems/hladon';
+import { hladonInteractionTargetId } from './systems/hladon';
 import { tryCoverSeroburmalineSource, updateSeroburmalineExposure } from './systems/seroburmaline';
 import { tryUseRouteCue, updateRouteCues } from './systems/route_cues';
-import { tryUseParitelSteamBridge, updateParitelSteamBridge } from './gen/maintenance/paritel_steam_bridge';
+import { isRouteCueTarget } from './systems/route_cues';
+import { isParitelSteamValveTarget, tryUseParitelSteamBridge, updateParitelSteamBridge } from './gen/maintenance/paritel_steam_bridge';
 import { tryUseBetonoedShortcut, updateBetonoedShortcut } from './gen/maintenance/betonoed_shortcut';
 import {
   proceduralSmogFogDensityBonus,
   proceduralAnomalyEventData,
   proceduralAnomalyEventTags,
+  proceduralAnomalyInteractionTargetId,
   tryUseProceduralFloorAnomaly,
   updateProceduralAnomalies,
 } from './systems/procedural_anomalies';
@@ -158,12 +163,14 @@ import {
   recordFactionClashPlayerHit,
   recordFactionEventLootTaken,
   tryReportLiquidatorCultClashAftermath,
+  getCultProcessionPrompt,
   tryInteractCultProcession,
 } from './systems/faction_events';
 import {
   bindNetSphereInput,
   closeNetSphere,
   isNetSphereOpen,
+  openNetSphere,
   reportNetSphereEvent,
   tickNetSphere,
 } from './systems/net_sphere';
@@ -179,15 +186,23 @@ const canvas = document.getElementById('game') as HTMLCanvasElement;
 const hudCanvas = document.getElementById('hud') as HTMLCanvasElement;
 const ctx = hudCanvas.getContext('2d')!;
 const PLAYER_NAME_KEY = 'gigahrush_player_name';
+const NET_GEN_NAME_RE = /^NET-[A-Z0-9-]{4,28}$/;
 let started = false;
 let playerNickname = loadPlayerNickname();
+let mobileControls: MobileControls | null = null;
+
+function looksLikeNetGenName(value: string): boolean {
+  const clean = value.trim().toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 32);
+  return NET_GEN_NAME_RE.test(clean);
+}
 
 function cleanPlayerNickname(value: string): string {
-  return value
+  const clean = value
     .replace(/[\u0000-\u001f\u007f<>`\\]/g, '')
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, 24);
+  return looksLikeNetGenName(clean) ? '' : clean;
 }
 
 function loadPlayerNickname(): string {
@@ -214,13 +229,50 @@ function playerDisplayName(): string {
 }
 
 function resize() {
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
-  hudCanvas.width = window.innerWidth;
-  hudCanvas.height = window.innerHeight;
+  const viewport = window.visualViewport;
+  const width = Math.max(1, Math.round(
+    canvas.clientWidth ||
+    document.documentElement.clientWidth ||
+    viewport?.width ||
+    window.innerWidth,
+  ));
+  const height = Math.max(1, Math.round(
+    canvas.clientHeight ||
+    document.documentElement.clientHeight ||
+    viewport?.height ||
+    window.innerHeight,
+  ));
+  if (canvas.width !== width) canvas.width = width;
+  if (canvas.height !== height) canvas.height = height;
+  if (hudCanvas.width !== width) hudCanvas.width = width;
+  if (hudCanvas.height !== height) hudCanvas.height = height;
+  mobileControls?.refresh();
 }
-window.addEventListener('resize', resize);
-resize();
+
+function scheduleResize(): void {
+  resize();
+  requestAnimationFrame(resize);
+  window.setTimeout(resize, 80);
+  window.setTimeout(resize, 250);
+}
+
+window.addEventListener('resize', scheduleResize);
+window.addEventListener('orientationchange', scheduleResize);
+window.addEventListener('focus', scheduleResize);
+window.addEventListener('pageshow', scheduleResize);
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) scheduleResize();
+});
+window.visualViewport?.addEventListener('resize', scheduleResize);
+window.visualViewport?.addEventListener('scroll', scheduleResize);
+document.addEventListener('fullscreenchange', scheduleResize);
+document.addEventListener('webkitfullscreenchange', scheduleResize);
+if (typeof ResizeObserver === 'function') {
+  const viewportObserver = new ResizeObserver(scheduleResize);
+  viewportObserver.observe(document.documentElement);
+  viewportObserver.observe(document.body);
+}
+scheduleResize();
 
 /* ── Generate assets ──────────────────────────────────────────── */
 const textures = generateTextures();
@@ -442,6 +494,12 @@ setTimeout(() => {
 /* ── Input ────────────────────────────────────────────────────── */
 const input = createInput();
 bindInput(input, canvas);
+mobileControls = createMobileControls(input, {
+  onGesture: mobileGestureUnlock,
+  onMenu: openMobileMenu,
+  onConfirm: confirmActiveMobileSelection,
+  onClose: closeActiveMobileMenu,
+});
 installSmokeDebugHook();
 
 /* ── Toggles (edge-detect) ────────────────────────────────────── */
@@ -517,15 +575,16 @@ function movePlayer(dt: number): void {
   // Keyboard turn
   if (input.left)  player.angle -= 2.5 * dt;
   if (input.right) player.angle += 2.5 * dt;
+  if (input.touch.lookX !== 0) player.angle += input.touch.lookX * 3.0 * dt;
+  if (input.touch.lookY !== 0) player.pitch = Math.max(-1, Math.min(1, player.pitch - input.touch.lookY * 1.6 * dt));
 
   // Movement
   const cos = Math.cos(player.angle);
   const sin = Math.sin(player.angle);
-  let mx = 0, my = 0;
-  if (input.fwd)    { mx += cos; my += sin; }
-  if (input.back)   { mx -= cos; my -= sin; }
-  if (input.strafeL) { mx += sin; my -= cos; }
-  if (input.strafeR) { mx -= sin; my += cos; }
+  const fwdAxis = Math.max(-1, Math.min(1, (input.fwd ? 1 : 0) - (input.back ? 1 : 0) + input.touch.moveY));
+  const strafeAxis = Math.max(-1, Math.min(1, (input.strafeR ? 1 : 0) - (input.strafeL ? 1 : 0) + input.touch.moveX));
+  let mx = cos * fwdAxis - sin * strafeAxis;
+  let my = sin * fwdAxis + cos * strafeAxis;
 
   // Normalize
   const len = Math.sqrt(mx * mx + my * my);
@@ -988,7 +1047,7 @@ function playerActions(_dt: number): void {
       const baseDmg = (!player.weapon && player.rpg) ? player.rpg.level : ws.dmg;
       // STR bonus to melee damage
       const strMult = player.rpg ? strMeleeDmgMult(player.rpg) : 1;
-      const dmg = Math.round(baseDmg * strMult);
+      const normalDmg = Math.round(baseDmg * strMult);
       const range = ws.range;
       const ax = player.x + Math.cos(player.angle) * range;
       const ay = player.y + Math.sin(player.angle) * range;
@@ -999,6 +1058,7 @@ function playerActions(_dt: number): void {
         if (e.id === player.id) continue;
         if (world.dist(ax, ay, e.x, e.y) < 1.2) {
           if (e.hp !== undefined) {
+            const dmg = debugOnePunchMeleeDamage(e, normalDmg);
             e.hp -= dmg;
             // Relation penalty for hitting non-hostile NPCs
             if (e.type === EntityType.NPC) {
@@ -1233,6 +1293,10 @@ function applyFlameBackdraft(x: number, y: number, actor: Entity | undefined): v
   state.dmgFlash = Math.max(state.dmgFlash, 0.12);
   state.dmgSeed = 3;
   if (actor?.id !== player.id || world.dist2(player.x, player.y, x, y) > 1.6 * 1.6) return;
+  if (isDebugOnePunchManEnabled()) {
+    keepDebugOnePunchManAlive(player);
+    return;
+  }
   player.hp = Math.max(1, (player.hp ?? 1) - 1);
   state.msgs.push(msg('Обратная тяга: дым и жар в лицо', state.time, '#f84'));
 }
@@ -1408,23 +1472,28 @@ function updateProjectiles(dt: number): void {
       if (e.type !== EntityType.MONSTER && e.type !== EntityType.NPC && e.type !== EntityType.PLAYER) continue;
       const hitRadius = pt === ProjType.FLAME ? 0.8 : 0.6;
       if (world.dist(p.x, p.y, e.x, e.y) < hitRadius) {
-          if (e.hp !== undefined) {
+        if (e.hp !== undefined) {
+          const debugImmortalPlayerHit = e.id === player.id && isDebugOnePunchManEnabled();
+          if (debugImmortalPlayerHit) {
+            keepDebugOnePunchManAlive(player);
+          } else {
             e.hp -= dmg;
             tryMonsterProjectileStagger(world, state, e, p, player.id);
             if (e.type === EntityType.NPC && p.ownerId === player.id) {
               applyDamageRelationPenalty(player.faction, e.faction, dmg);
               recordFactionClashPlayerHit(state, world, player, e, dmg);
             }
-          const hitAngle = Math.atan2(p.vy ?? 0, p.vx ?? 0);
-          // Use projectile position as blood origin — blood at impact point, not feet
-          const bloodX = (p.x + e.x) * 0.5;  // midpoint between projectile and entity
-          const bloodY = (p.y + e.y) * 0.5;
-          const hitZ = p.spriteZ ?? 0.5;
-          spawnBloodHit(world, bloodX, bloodY, hitAngle, dmg, e.type === EntityType.MONSTER, p.vx ?? 0, p.vy ?? 0, hitZ);
+            const hitAngle = Math.atan2(p.vy ?? 0, p.vx ?? 0);
+            // Use projectile position as blood origin — blood at impact point, not feet
+            const bloodX = (p.x + e.x) * 0.5;  // midpoint between projectile and entity
+            const bloodY = (p.y + e.y) * 0.5;
+            const hitZ = p.spriteZ ?? 0.5;
+            spawnBloodHit(world, bloodX, bloodY, hitAngle, dmg, e.type === EntityType.MONSTER, p.vx ?? 0, p.vy ?? 0, hitZ);
+          }
           const playerHit = e.id === player.id;
-          if (playerHit) reportPlayerProjectileHit(p, dmg);
+          if (playerHit && !debugImmortalPlayerHit) reportPlayerProjectileHit(p, dmg);
           playProjectileBodyHitCue(p, e.x, e.y, playerHit);
-          if (e.hp <= 0) {
+          if (!debugImmortalPlayerHit && e.hp <= 0) {
             e.alive = false;
             e.hp = 0;
             handleKill(e, p.ownerId === player.id, p.vx ?? 0, p.vy ?? 0, p.projGore ?? 1);
@@ -1463,6 +1532,11 @@ function triggerExplosion(p: Entity, pt: ProjType): void {
     if (e.hp !== undefined) {
       const falloff = 1 - (dist / radius) * 0.6;
       const finalDmg = Math.round(dmg * falloff);
+      if (e.id === player.id && isDebugOnePunchManEnabled()) {
+        keepDebugOnePunchManAlive(player);
+        hits++;
+        continue;
+      }
       e.hp -= finalDmg;
       // Explosion blast pushes blood outward from epicenter
       const blastVx = dist > 0.1 ? (dx / dist) * 12 : 0;
@@ -2506,6 +2580,521 @@ let prevMenuInteract = false, prevDrop = false;
 let prevFactionMenu = false;
 let prevLogMenu = false;
 
+function tryLockLandscape(): void {
+  const orientation = screen.orientation as ScreenOrientation & { lock?: (orientation: 'landscape') => Promise<void> };
+  if (!orientation.lock) return;
+  void orientation.lock('landscape').catch(() => {});
+}
+
+function requestPointerLockIfDesktop(): void {
+  if (mobileControls?.isEnabled()) return;
+  try {
+    const result = canvas.requestPointerLock();
+    if (result instanceof Promise) void result.catch(() => {});
+  } catch {
+    // Some embedded browsers reject pointer lock; desktop mouse still works without crashing.
+  }
+}
+
+function mobileGestureUnlock(): void {
+  if (!mobileControls?.isEnabled()) return;
+  tryLockLandscape();
+  if (started) startAmbientDrone();
+}
+
+function syncPauseState(): void {
+  if (typeof state === 'undefined') return;
+  state.paused = state.showMenu || state.showInventory || state.showNpcMenu || state.showContainerMenu ||
+    state.showQuests || state.showDebug || state.showFactions || state.showLog || isNetSphereOpen();
+}
+
+function isMobileMenuOpen(): boolean {
+  if (typeof state === 'undefined') return false;
+  return state.showMenu || state.showInventory || state.showNpcMenu || state.showContainerMenu ||
+    state.showQuests || state.showDebug || state.showFactions || state.showLog ||
+    state.mapMode === 2 || isNetSphereOpen();
+}
+
+function closeMobilePanels(includeMap = true): void {
+  if (typeof state === 'undefined') return;
+  state.showMenu = false;
+  state.showInventory = false;
+  state.showQuests = false;
+  state.showNpcMenu = false;
+  closeContainerMenu();
+  state.showDebug = false;
+  state.showFactions = false;
+  state.showLog = false;
+  if (includeMap) state.mapMode = 0;
+  closeNetSphere();
+  syncPauseState();
+  updateMobileContext();
+}
+
+function closeActiveMobileMenu(): void {
+  closeMobilePanels(true);
+}
+
+function openMobileMenu(menu: MobileMenuId): void {
+  if (!started || typeof state === 'undefined' || state.gameOver) return;
+  if (menu !== 'map') closeMobilePanels(true);
+  switch (menu) {
+    case 'inventory':
+      state.showInventory = true;
+      state.invSel = 0;
+      break;
+    case 'map':
+      closeMobilePanels(false);
+      state.mapMode = (state.mapMode + 1) % 3;
+      break;
+    case 'quests':
+      state.showQuests = true;
+      break;
+    case 'log':
+      state.showLog = true;
+      state.logScroll = 0;
+      break;
+    case 'factions':
+      state.showFactions = true;
+      break;
+    case 'net':
+      openNetSphere();
+      break;
+    case 'menu':
+      state.showMenu = true;
+      state.menuSel = 0;
+      break;
+    case 'debug':
+      state.showDebug = true;
+      state.debugSel = 0;
+      break;
+  }
+  syncPauseState();
+  updateMobileContext();
+}
+
+function confirmActiveMobileSelection(): void {
+  if (!started || typeof state === 'undefined' || state.gameOver || isNetSphereOpen()) return;
+  if (state.showMenu) {
+    runGameMenuSelection(state.menuSel);
+  } else if (state.showInventory) {
+    useInventorySelection();
+  } else if (state.showContainerMenu) {
+    const container = world.containerById.get(state.containerMenuTarget);
+    if (container) activateContainerSelection(container);
+    else closeContainerMenu();
+  } else if (state.showNpcMenu) {
+    const npc = entities.find(e => e.id === state.npcMenuTarget);
+    if (state.npcMenuTab === 'main') {
+      activateNpcMainSelection(npc);
+    } else if (state.npcMenuTab === 'talk' || state.npcMenuTab === 'quest') {
+      state.npcMenuTab = 'main';
+    } else if (state.npcMenuTab === 'trade' && npc) {
+      activateTradeSelection(npc);
+    }
+  } else if (state.showDebug) {
+    const action = execDebugCommand(state.debugSel, world, player, entities, state, nextEntityId);
+    if (action) handleDebugCommandAction(action);
+  }
+  syncPauseState();
+  updateMobileContext();
+}
+
+function canInteractAhead(): boolean {
+  if (!started || typeof state === 'undefined' || typeof world === 'undefined' || typeof player === 'undefined') return false;
+  if (state.gameOver || state.sleeping || isMobileMenuOpen()) return false;
+  const lookX = player.x + Math.cos(player.angle) * 1.5;
+  const lookY = player.y + Math.sin(player.angle) * 1.5;
+  const lci = world.idx(Math.floor(lookX), Math.floor(lookY));
+  const cell = world.cells[lci];
+
+  if (getCultProcessionPrompt(world, state, player)) return true;
+  if (cell === Cell.DOOR && world.doors.has(lci)) return true;
+  if (cell === Cell.LIFT || world.features[lci] === Feature.LIFT_BUTTON) return true;
+  if (isParitelSteamValveTarget(world, lookX, lookY)) return true;
+  if (isRouteCueTarget(world, player, lookX, lookY)) return true;
+  if (hladonInteractionTargetId(world, lookX, lookY) !== null) return true;
+  if (proceduralAnomalyInteractionTargetId(world, state, lookX, lookY) !== null) return true;
+
+  for (const e of entities) {
+    if (!e.alive || e.type !== EntityType.NPC) continue;
+    if (isHostile(e, player) || isHostile(player, e)) continue;
+    if (world.dist2(lookX, lookY, e.x, e.y) < 4.0) return true;
+  }
+
+  return world.containersAt(Math.floor(lookX), Math.floor(lookY))
+    .some(c => c.discovered || c.access !== 'secret');
+}
+
+function updateMobileContext(): void {
+  mobileControls?.updateContext({
+    started,
+    menuOpen: isMobileMenuOpen(),
+    canInteract: canInteractAhead(),
+    gameOver: typeof state !== 'undefined' && state.gameOver,
+  });
+}
+
+function runGameMenuSelection(sel: number): void {
+  switch (sel) {
+    case 0:
+      state.showMenu = false;
+      break;
+    case 1:
+      state.showMenu = false;
+      pendingLoad = () => { initGame(); };
+      break;
+    case 2:
+      saveGame();
+      state.showMenu = false;
+      break;
+    case 3:
+      loadGame();
+      break;
+  }
+  syncPauseState();
+}
+
+function useInventorySelection(): void {
+  const zoneId = world.zoneMap[world.idx(Math.floor(player.x), Math.floor(player.y))];
+  useItem(player, state.invSel, state.msgs, state.time, state, zoneId, world);
+}
+
+function dropInventorySelection(): void {
+  dropItem(player, state.invSel, entities, state.msgs, state.time, nextEntityId, state, world);
+}
+
+function spendMobileAttr(attr: 'str' | 'agi' | 'int'): void {
+  if (!player.rpg || player.rpg.attrPoints <= 0) return;
+  if (!spendAttrPoint(player, attr)) return;
+  if (attr === 'str') state.msgs.push(msg(`Сила +1 (${player.rpg.str})`, state.time, '#f84'));
+  else if (attr === 'agi') state.msgs.push(msg(`Ловкость +1 (${player.rpg.agi})`, state.time, '#4af'));
+  else state.msgs.push(msg(`Интеллект +1 (${player.rpg.int})`, state.time, '#a4f'));
+}
+
+function activateContainerSelection(container: WorldContainer): void {
+  const GRID = 5;
+  const idx = state.containerCursorY * GRID + state.containerCursorX;
+  const access = containerAccessInfo(container, player);
+  if (state.containerSide === 'container') {
+    const slot = container.inventory[idx];
+    const itemName = slot ? ITEMS[slot.defId]?.name ?? slot.defId : '';
+    if (!access.canTake) {
+      state.msgs.push(msg(access.label === 'ЗАПЕРТО' ? 'Заперто.' : 'Нет доступа.', state.time, '#f84'));
+    } else if (slot && takeFromContainer(container, player, idx, 1, { state, world, entities })) {
+      state.msgs.push(msg(`${access.theft ? 'Украдено' : 'Взято'}: ${itemName}`, state.time, access.theft ? '#f84' : '#8f8'));
+    } else {
+      state.msgs.push(msg(slot ? 'Нет места.' : 'Пустой слот.', state.time, '#888'));
+    }
+  } else {
+    const slot = player.inventory?.[idx];
+    if (!access.canPut) {
+      state.msgs.push(msg('Нет доступа.', state.time, '#f84'));
+    } else if (slot && putIntoContainer(container, player, idx, 1, { state, world, entities })) {
+      state.msgs.push(msg(`Положено: ${ITEMS[slot.defId]?.name ?? slot.defId}`, state.time, '#8cf'));
+    } else {
+      state.msgs.push(msg(slot ? 'Контейнер полон.' : 'Пустой слот.', state.time, '#888'));
+    }
+  }
+}
+
+function activateNpcMainSelection(npc: Entity | undefined): void {
+  switch (state.npcMenuSel) {
+    case 0:
+      state.npcMenuTab = 'talk';
+      state.npcTalkText = npc ? generateTalkText(npc, { world, state, player, time: state.time }) : '...';
+      break;
+    case 1:
+      if (npc) {
+        checkTalkQuest(npc, player, entities, state, state.msgs);
+        offerQuest(npc, player, world, entities, state, state.msgs, nextEntityId);
+        const active = state.quests.filter(q => !q.done);
+        const npcQIdx = active.findIndex(q => q.giverId === npc.id);
+        if (npcQIdx >= 0) {
+          state.npcMenuTab = 'quest';
+          state.questPage = npcQIdx;
+        }
+      }
+      break;
+    case 2:
+      state.npcMenuTab = 'trade';
+      state.tradeCursorX = 0;
+      state.tradeCursorY = 0;
+      state.tradeSide = 'npc';
+      if (npc) primeTradePriceCache(state, [npc.inventory, player.inventory]);
+      break;
+  }
+}
+
+function activateTradeSelection(npc: Entity): void {
+  const GRID = 5;
+  const idx = state.tradeCursorY * GRID + state.tradeCursorX;
+  const npcInv = npc.inventory ?? [];
+  const plrInv = player.inventory ?? [];
+  if (state.tradeSide === 'npc' && idx < npcInv.length) {
+    const slot = npcInv[idx];
+    const def = ITEMS[slot.defId];
+    const price = getAdjustedItemPrice(state, slot.defId);
+    if ((player.money ?? 0) >= price) {
+      if (addItem(player, slot.defId, 1)) {
+        player.money = (player.money ?? 0) - price;
+        npc.money = (npc.money ?? 0) + price;
+        slot.count--;
+        if (slot.count <= 0) npcInv.splice(idx, 1);
+        primeTradePriceCache(state, [npcInv, player.inventory]);
+        state.msgs.push(msg(`Куплено: ${def?.name ?? slot.defId} (−${price}₽)`, state.time, '#4f4'));
+        publishItemTradeEvent(state, npc, player, slot.defId, price, 1);
+      } else {
+        state.msgs.push(msg('Нет места в инвентаре', state.time, '#f84'));
+      }
+    } else {
+      state.msgs.push(msg('Не хватает денег', state.time, '#f84'));
+    }
+  } else if (state.tradeSide === 'player' && idx < plrInv.length) {
+    const slot = plrInv[idx];
+    if (tryHandleMaronaryShavingHandoff(player, npc, idx, state)) {
+      primeTradePriceCache(state, [npc.inventory, plrInv]);
+    } else {
+      const def = ITEMS[slot.defId];
+      const soldDefId = slot.defId;
+      const price = getAdjustedItemPrice(state, soldDefId);
+      if ((npc.money ?? 0) >= price) {
+        if (addItem(npc, soldDefId, 1)) {
+          npc.money = (npc.money ?? 0) - price;
+          player.money = (player.money ?? 0) + price;
+          slot.count--;
+          if (slot.count <= 0) plrInv.splice(idx, 1);
+          primeTradePriceCache(state, [npc.inventory, plrInv]);
+          state.msgs.push(msg(`Продано: ${def?.name ?? soldDefId} (+${price}₽)`, state.time, '#4f4'));
+          const zoneId = world.zoneMap[world.idx(Math.floor(player.x), Math.floor(player.y))];
+          recordPlayerItemSale(state, player, npc, soldDefId, 1, price, zoneId);
+          if (isShelterTallyItem(soldDefId) && (npc.faction === Faction.CULTIST || npc.faction === Faction.LIQUIDATOR)) {
+            publishShelterTallyEvent(
+              state,
+              player,
+              soldDefId,
+              npc.faction === Faction.CULTIST ? 'sell_cult' : 'sell_liquidator',
+              { targetId: npc.id, targetName: npc.name, targetFaction: npc.faction, itemValue: price },
+            );
+          }
+        } else {
+          state.msgs.push(msg('У торговца нет места', state.time, '#f84'));
+        }
+      } else {
+        state.msgs.push(msg('У торговца нет денег', state.time, '#f84'));
+      }
+    }
+  }
+}
+
+function menuScale(): { sx: number; sy: number } {
+  const sx = hudCanvas.width / SCR_W;
+  const sy = hudCanvas.height / SCR_H;
+  const s = Math.max(0.8, Math.min(2, Math.min(sx, sy)));
+  return { sx: s, sy: s };
+}
+
+function pointInRect(x: number, y: number, rx: number, ry: number, rw: number, rh: number): boolean {
+  return x >= rx && x <= rx + rw && y >= ry && y <= ry + rh;
+}
+
+function handleMobileHudTap(x: number, y: number): void {
+  if (typeof state === 'undefined' || typeof player === 'undefined') return;
+  const w = hudCanvas.width;
+  const h = hudCanvas.height;
+  const baseSx = w / SCR_W;
+  const baseSy = h / SCR_H;
+  const { sx, sy } = menuScale();
+
+  if (state.mapMode === 2 && !state.showInventory && !state.showQuests && !state.showLog && !state.showFactions && !state.showMenu && !state.showNpcMenu && !state.showContainerMenu) {
+    state.mapMode = 0;
+    return;
+  }
+
+  if (state.showMenu) {
+    for (let i = 0; i < 4; i++) {
+      const yy = h / 2 - 20 * sy + i * 20 * sy;
+      if (pointInRect(x, y, w / 2 - 90 * sx, yy - 6 * sy, 180 * sx, 16 * sy)) {
+        state.menuSel = i;
+        runGameMenuSelection(i);
+        return;
+      }
+    }
+  } else if (state.showInventory) {
+    const GRID = 5;
+    const cellSz = 22 * baseSx;
+    const gridX = 8 * baseSx;
+    const gridY = 18 * baseSy;
+    const gridW = GRID * cellSz;
+    if (pointInRect(x, y, w - 88 * baseSx, 0, 88 * baseSx, 18 * baseSy)) {
+      state.showInventory = false;
+      syncPauseState();
+      return;
+    }
+    for (let row = 0; row < GRID; row++) {
+      for (let col = 0; col < GRID; col++) {
+        const cx = gridX + col * cellSz;
+        const cy = gridY + row * cellSz;
+        if (pointInRect(x, y, cx, cy, cellSz, cellSz)) {
+          state.invSel = row * GRID + col;
+          return;
+        }
+      }
+    }
+    const descY = gridY + gridW + 4 * baseSy;
+    const descX = gridX + gridW / 2;
+    if (pointInRect(x, y, descX - 70 * baseSx, descY + 26 * baseSy, 140 * baseSx, 12 * baseSy)) {
+      useInventorySelection();
+      return;
+    }
+    if (pointInRect(x, y, descX - 70 * baseSx, descY + 38 * baseSy, 140 * baseSx, 12 * baseSy)) {
+      dropInventorySelection();
+      return;
+    }
+    const stX = gridX + gridW + 16 * baseSx;
+    if (player.rpg && player.rpg.attrPoints > 0 && pointInRect(x, y, stX, gridY - 4 * baseSy, w - stX - 8 * baseSx, 18 * baseSy)) {
+      const rel = (x - stX) / Math.max(1, w - stX - 8 * baseSx);
+      spendMobileAttr(rel < 0.34 ? 'str' : rel < 0.67 ? 'agi' : 'int');
+      return;
+    }
+  } else if (state.showQuests) {
+    const pw = Math.min(400 * sx, w - 24 * sx);
+    const ph = Math.min(280 * sy, h - 24 * sy);
+    const px = (w - pw) / 2;
+    const py = (h - ph) / 2;
+    const total = state.quests.length;
+    if (pointInRect(x, y, px, py + ph - 22 * sy, pw, 22 * sy)) {
+      state.showQuests = false;
+      syncPauseState();
+      return;
+    }
+    if (total > 1) {
+      state.questPage = x < w / 2
+        ? Math.max(0, state.questPage - 1)
+        : Math.min(total - 1, state.questPage + 1);
+    }
+  } else if (state.showLog) {
+    if (y > h - 24 * sy || y < 28 * sy) {
+      state.showLog = false;
+      syncPauseState();
+      return;
+    }
+    const maxScroll = Math.max(0, state.msgLog.length * 3);
+    state.logScroll = y < h / 2
+      ? Math.min(maxScroll, state.logScroll + 3)
+      : Math.max(0, state.logScroll - 3);
+  } else if (state.showFactions) {
+    state.showFactions = false;
+    syncPauseState();
+  } else if (state.showContainerMenu) {
+    const container = world.containerById.get(state.containerMenuTarget);
+    if (!container) {
+      closeContainerMenu();
+      return;
+    }
+    const GRID = 5;
+    const cellSz = 22 * sx;
+    const gap = 24 * sx;
+    const gridTotal = GRID * cellSz;
+    const totalW = gridTotal * 2 + gap;
+    const startX = (w - totalW) / 2;
+    const startY = 30 * sy;
+    const containerX = startX + gridTotal + gap;
+    for (const side of ['player', 'container'] as const) {
+      const gx = side === 'player' ? startX : containerX;
+      for (let row = 0; row < GRID; row++) {
+        for (let col = 0; col < GRID; col++) {
+          if (pointInRect(x, y, gx + col * cellSz, startY + row * cellSz, cellSz, cellSz)) {
+            state.containerSide = side;
+            state.containerCursorX = col;
+            state.containerCursorY = row;
+            activateContainerSelection(container);
+            return;
+          }
+        }
+      }
+    }
+    if (y > h - 30 * sy) {
+      closeContainerMenu();
+      syncPauseState();
+    }
+  } else if (state.showNpcMenu) {
+    const npc = entities.find(e => e.id === state.npcMenuTarget);
+    if (!npc) return;
+    if (state.npcMenuTab === 'main') {
+      const pw = Math.min(440 * sx, w - 24 * sx);
+      const ph = Math.min(320 * sy, h - 24 * sy);
+      const px = (w - pw) / 2;
+      const py = (h - ph) / 2;
+      for (let i = 0; i < 3; i++) {
+        const yy = py + 40 * sy + i * 16 * sy;
+        if (pointInRect(x, y, px + 8 * sx, yy - 5 * sy, 160 * sx, 14 * sy)) {
+          state.npcMenuSel = i;
+          activateNpcMainSelection(npc);
+          return;
+        }
+      }
+      if (pointInRect(x, y, px, py + ph - 22 * sy, pw, 22 * sy)) {
+        state.showNpcMenu = false;
+        syncPauseState();
+      }
+    } else if (state.npcMenuTab === 'trade') {
+      const GRID = 5;
+      const cellSz = 22 * sx;
+      const gap = 24 * sx;
+      const gridTotal = GRID * cellSz;
+      const totalW = gridTotal * 2 + gap;
+      const startX = (w - totalW) / 2;
+      const startY = 28 * sy;
+      const npcX = startX + gridTotal + gap;
+      for (const side of ['player', 'npc'] as const) {
+        const gx = side === 'player' ? startX : npcX;
+        for (let row = 0; row < GRID; row++) {
+          for (let col = 0; col < GRID; col++) {
+            if (pointInRect(x, y, gx + col * cellSz, startY + row * cellSz, cellSz, cellSz)) {
+              state.tradeSide = side;
+              state.tradeCursorX = col;
+              state.tradeCursorY = row;
+              activateTradeSelection(npc);
+              return;
+            }
+          }
+        }
+      }
+      if (y > h - 32 * sy) state.npcMenuTab = 'main';
+    } else if (state.npcMenuTab === 'quest') {
+      const total = state.quests.filter(q => !q.done).length;
+      if (y > h - 40 * sy) {
+        state.npcMenuTab = 'main';
+      } else if (total > 1) {
+        state.questPage = x < w / 2
+          ? Math.max(0, state.questPage - 1)
+          : Math.min(total - 1, state.questPage + 1);
+      }
+    } else {
+      state.npcMenuTab = 'main';
+    }
+  }
+}
+
+function handleHudPointerUp(e: PointerEvent): void {
+  if (!mobileControls?.isEnabled()) return;
+  e.preventDefault();
+  e.stopPropagation();
+  mobileGestureUnlock();
+  if (!started) {
+    startGameFromTitle();
+    return;
+  }
+  if (pendingLoad) return;
+  const rect = hudCanvas.getBoundingClientRect();
+  const x = (e.clientX - rect.left) * (hudCanvas.width / Math.max(1, rect.width));
+  const y = (e.clientY - rect.top) * (hudCanvas.height / Math.max(1, rect.height));
+  handleMobileHudTap(x, y);
+}
+
+hudCanvas.addEventListener('pointerup', handleHudPointerUp);
+
 function handleMenuInput(): void {
   // ── On death: lock out all menus / inventory / interactions ──
   // Only the restart prompt (checkRestart) responds to input.
@@ -2993,7 +3582,7 @@ function gameLoop(now: number): void {
     updateAI(world, entities, dt, state.time, state.msgs, player.id, state.clock, state.samosborActive, nextEntityId, state.currentFloor, state);
     updateParitelSteamBridge(world, entities, player, state, dt);
     updateCarnivorousFungus(world, entities, player, state, dt, nextEntityId);
-    tickCellHazards(world, entities, state, dt, player, input.fwd || input.back || input.strafeL || input.strafeR);
+    tickCellHazards(world, entities, state, dt, player, input.fwd || input.back || input.strafeL || input.strafeR || input.touch.moveX !== 0 || input.touch.moveY !== 0);
     updateProceduralAnomalies(world, player, state, dt);
     if (updateSamosbor(world, entities, state, dt, nextEntityId)) {
       reportNetSphereProgressEvents();
@@ -3104,6 +3693,8 @@ function gameLoop(now: number): void {
       tickProduction(state, world, false, player);
     }
 
+    keepDebugOnePunchManAlive(player);
+
     // Detect player damage for vignette flash
     const curHp = player.hp ?? 100;
     if (curHp < prevPlayerHp) {
@@ -3212,6 +3803,7 @@ function gameLoop(now: number): void {
 
   checkRestart();
   if (pendingLoad) { requestAnimationFrame(gameLoop); return; }
+  updateMobileContext();
 
   // ── Render ───────────────────────────────────────────────
   // Fog density varies by floor level
@@ -3276,20 +3868,29 @@ function showTitle(): void {
   ctx.fillText('Введите имя и нажмите ENTER', w / 2, h / 2 + 56);
   ctx.fillStyle = '#555';
   ctx.font = '12px monospace';
-  ctx.fillText('WASD — движение  |  Мышь — обзор  |  E — действие  |  N — НЕТ-СФЕРА  |  I — инвентарь  |  M — карта', w / 2, h / 2 + 96);
+  ctx.fillText(
+    mobileControls?.isEnabled()
+      ? 'Тап — начать  |  левый джойстик — ходьба  |  правый — камера  |  центр — атака'
+      : 'WASD — движение  |  Мышь — обзор  |  E — действие  |  N — НЕТ-СФЕРА  |  I — инвентарь  |  M — карта',
+    w / 2,
+    h / 2 + 96,
+  );
   ctx.textAlign = 'left';
+  updateMobileContext();
 }
 
 function startGameFromTitle(): void {
   if (started) return;
+  mobileGestureUnlock();
   savePlayerNickname(playerNickname);
   player.name = playerDisplayName();
   started = true;
   input.escape = false;
   document.removeEventListener('keydown', startHandler);
   bindNetSphereInput();
-  canvas.requestPointerLock();
+  requestPointerLockIfDesktop();
   startAmbientDrone();
+  updateMobileContext();
   requestAnimationFrame(gameLoop);
 }
 

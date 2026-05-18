@@ -11,6 +11,17 @@ const outDir = path.resolve(root, 'itch');
 const distHtml = path.resolve(root, 'dist', 'index.html');
 const itchHtml = path.resolve(outDir, 'index.html');
 const itchZip = path.resolve(outDir, 'gigahrush-itch.zip');
+const itchNotes = path.resolve(outDir, 'ITCH_UPLOAD_NOTES.txt');
+const uploadNotes = `Required itch.io HTML5 settings:
+- Kind of game: HTML
+- Upload: itch/gigahrush-itch.zip
+- File setting: This file will be played in the browser
+- Embed option for mobile: Mobile Friendly enabled
+- Launch mode: Click to launch in fullscreen
+- Scrollbars: disabled
+
+Why: itch.io runs HTML5 games inside an iframe. On mobile, Mobile Friendly makes itch.io launch the game into a fullscreen/fill-window viewport. The game canvas is built to resize to that viewport.
+`;
 
 function run(command, args) {
   return new Promise((resolve, reject) => {
@@ -113,6 +124,7 @@ await run(npm, ['run', 'build']);
 await rm(outDir, { recursive: true, force: true });
 await mkdir(outDir, { recursive: true });
 await copyFile(distHtml, itchHtml);
+await writeFile(itchNotes, uploadNotes);
 await zipSingleFile(itchHtml, 'index.html', itchZip);
 
 const htmlSize = (await stat(itchHtml)).size;
@@ -120,3 +132,4 @@ const zipSize = (await stat(itchZip)).size;
 console.log(`Itch.io build ready:`);
 console.log(`- ${path.relative(root, itchHtml)} (${htmlSize} bytes)`);
 console.log(`- ${path.relative(root, itchZip)} (${zipSize} bytes, upload this ZIP)`);
+console.log(`- ${path.relative(root, itchNotes)} (required project settings)`);

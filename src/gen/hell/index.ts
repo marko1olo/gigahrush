@@ -13,24 +13,32 @@ import { MONSTERS } from '../../entities/monster';
 import { calcZoneLevel, randomRPG, scaleMonsterHp, scaleMonsterSpeed, gaussianLevel, getMaxHp } from '../../systems/rpg';
 import { Spr, monsterSpr } from '../../render/sprite_index';
 import { runHellContent } from './content_manifest';
+import { buildHellGeometry, type HellGeometry } from './geometry';
 
 const PSI_IDS = ['psi_strike', 'psi_rupture', 'psi_madness', 'psi_storm', 'psi_brainburn'];
 
-export const HELL_MONSTER_SOFT_CAP = 10_000;
-export const HELL_CULTIST_SOFT_CAP = 1_000;
-export const HELL_LIQUIDATOR_SOFT_CAP = 100;
+export const HELL_MONSTER_SOFT_CAP = 520;
+export const HELL_CULTIST_SOFT_CAP = 150;
+export const HELL_LIQUIDATOR_SOFT_CAP = 36;
 
-const INITIAL_MONSTER_COUNT = 240;
-const INITIAL_CULTIST_COUNT = 180;
+const INITIAL_MONSTER_COUNT = 220;
+const INITIAL_CULTIST_COUNT = 110;
 const INITIAL_LIQUIDATOR_COUNT = 18;
 
-const HELL_MONSTER_INTERVAL = 0.4;
-const HELL_CULTIST_INTERVAL = 1.5;
-const HELL_LIQUIDATOR_INTERVAL = 4.5;
+const HELL_MONSTER_INTERVAL = 1.2;
+const HELL_CULTIST_INTERVAL = 3.5;
+const HELL_LIQUIDATOR_INTERVAL = 7.5;
+const HELL_MONSTER_REINFORCEMENT_BUDGET = 780;
+const HELL_CULTIST_REINFORCEMENT_BUDGET = 180;
+const HELL_LIQUIDATOR_REINFORCEMENT_BUDGET = 54;
 
 let hellMonsterAccum = 0;
 let hellCultistAccum = 0;
 let hellLiquidatorAccum = 0;
+let hellMonsterReinforcementBudget = HELL_MONSTER_REINFORCEMENT_BUDGET;
+let hellCultistReinforcementBudget = HELL_CULTIST_REINFORCEMENT_BUDGET;
+let hellLiquidatorReinforcementBudget = HELL_LIQUIDATOR_REINFORCEMENT_BUDGET;
+let hellGeometry: HellGeometry = { monsterCells: [], cultistCells: [], liquidatorCells: [], safeCells: [] };
 
 type SpawnFaction = Faction.CULTIST | Faction.LIQUIDATOR;
 
@@ -53,24 +61,32 @@ export function resetHellPopulationState(): void {
   hellMonsterAccum = 0;
   hellCultistAccum = 0;
   hellLiquidatorAccum = 0;
+  hellMonsterReinforcementBudget = HELL_MONSTER_REINFORCEMENT_BUDGET;
+  hellCultistReinforcementBudget = HELL_CULTIST_REINFORCEMENT_BUDGET;
+  hellLiquidatorReinforcementBudget = HELL_LIQUIDATOR_REINFORCEMENT_BUDGET;
+  hellGeometry = { monsterCells: [], cultistCells: [], liquidatorCells: [], safeCells: [] };
 }
 
 export function generateHell(): { world: World; entities: Entity[]; spawnX: number; spawnY: number } {
+  resetHellPopulationState();
   const world = new World();
   const entities: Entity[] = [];
   let nextId = 1;
 
   const field = buildIsingCaveField();
   paintHellTerrain(world, field);
+  hellGeometry = buildHellGeometry(world);
 
   const spawnCell = findNearestFloor(world, W >> 1, W >> 1) ?? world.idx(W >> 1, W >> 1);
   const spawnX = (spawnCell % W) + 0.5;
   const spawnY = ((spawnCell / W) | 0) + 0.5;
 
   ensureConnectivity(world, spawnX, spawnY);
-  paintOrganicTextures(world);
+  paintMissingOrganicTextures(world);
 
   placeLifts(world, 12, LiftDirection.UP);
+  ensureConnectivity(world, spawnX, spawnY);
+  paintMissingOrganicTextures(world);
   generateZones(world);
   retuneHellZones(world);
   for (const z of world.zones) z.level = calcZoneLevel(z.cx, z.cy, FloorLevel.HELL) + 2;
@@ -110,10 +126,11 @@ export function updateHellPopulation(
   if (hellMonsterAccum >= HELL_MONSTER_INTERVAL) {
     hellMonsterAccum -= HELL_MONSTER_INTERVAL;
     const deficit = HELL_MONSTER_SOFT_CAP - countLivingMonsters(entities);
-    if (deficit > 0) {
-      const batch = Math.min(16, Math.max(2, Math.ceil(deficit / 900)));
+    if (deficit > 0 && hellMonsterReinforcementBudget > 0) {
+      const batch = Math.min(8, hellMonsterReinforcementBudget, Math.max(2, Math.ceil(deficit / 120)));
       for (let i = 0; i < batch; i++) {
         if (!spawnHellMonster(world, entities, nextId, samosborCount)) break;
+        hellMonsterReinforcementBudget--;
       }
     }
   }
@@ -121,10 +138,11 @@ export function updateHellPopulation(
   if (hellCultistAccum >= HELL_CULTIST_INTERVAL) {
     hellCultistAccum -= HELL_CULTIST_INTERVAL;
     const deficit = HELL_CULTIST_SOFT_CAP - countFactionNPCs(entities, Faction.CULTIST);
-    if (deficit > 0) {
-      const batch = Math.min(6, Math.max(1, Math.ceil(deficit / 180)));
+    if (deficit > 0 && hellCultistReinforcementBudget > 0) {
+      const batch = Math.min(4, hellCultistReinforcementBudget, Math.max(1, Math.ceil(deficit / 50)));
       for (let i = 0; i < batch; i++) {
         if (!spawnFactionAgent(world, entities, nextId, Faction.CULTIST)) break;
+        hellCultistReinforcementBudget--;
       }
     }
   }
@@ -132,10 +150,11 @@ export function updateHellPopulation(
   if (hellLiquidatorAccum >= HELL_LIQUIDATOR_INTERVAL) {
     hellLiquidatorAccum -= HELL_LIQUIDATOR_INTERVAL;
     const deficit = HELL_LIQUIDATOR_SOFT_CAP - countFactionNPCs(entities, Faction.LIQUIDATOR);
-    if (deficit > 0) {
-      const squad = Math.min(4, Math.max(2, Math.ceil(deficit / 25)));
+    if (deficit > 0 && hellLiquidatorReinforcementBudget > 0) {
+      const squad = Math.min(3, hellLiquidatorReinforcementBudget, Math.max(1, Math.ceil(deficit / 12)));
       for (let i = 0; i < squad; i++) {
         if (!spawnFactionAgent(world, entities, nextId, Faction.LIQUIDATOR)) break;
+        hellLiquidatorReinforcementBudget--;
       }
     }
   }
@@ -315,6 +334,24 @@ function paintOrganicTextures(world: World): void {
   }
 }
 
+function paintMissingOrganicTextures(world: World): void {
+  for (let y = 0; y < W; y++) {
+    for (let x = 0; x < W; x++) {
+      const i = y * W + x;
+      if (world.cells[i] === Cell.FLOOR && world.floorTex[i] === 0) {
+        world.floorTex[i] = pickHellFloorTex(x, y);
+        world.wallTex[i] = 0;
+      } else if (world.cells[i] === Cell.WALL && world.wallTex[i] === 0) {
+        world.wallTex[i] = pickHellWallTex(x, y);
+        world.floorTex[i] = 0;
+      } else if (world.cells[i] === Cell.ABYSS) {
+        world.floorTex[i] = Tex.F_ABYSS;
+        world.wallTex[i] = 0;
+      }
+    }
+  }
+}
+
 function pickHellWallTex(x: number, y: number): Tex {
   const gut = hash2(x >> 2, y >> 2, 130) * 0.65 + hash2(x >> 4, y >> 4, 131) * 0.35;
   return gut > 0.6 ? Tex.GUT : Tex.MEAT;
@@ -385,7 +422,7 @@ function seedLoot(world: World, entities: Entity[], nextId: { v: number }): void
 }
 
 function spawnHellMonster(world: World, entities: Entity[], nextId: { v: number }, samosborCount: number): boolean {
-  const cell = randomFloorCell(world);
+  const cell = randomFloorCell(world, hellGeometry.monsterCells);
   if (cell < 0) return false;
   const x = (cell % W) + 0.5;
   const y = ((cell / W) | 0) + 0.5;
@@ -557,22 +594,49 @@ function countFactionNPCs(entities: Entity[], faction: Faction): number {
   return count;
 }
 
-function randomFloorCell(world: World): number {
-  for (let attempt = 0; attempt < 2048; attempt++) {
-    const cell = rng(0, W * W - 1);
-    if (world.cells[cell] === Cell.FLOOR) return cell;
+function randomFloorCell(world: World, preferred?: readonly number[]): number {
+  return preferred ? pickSpawnCell(world, preferred) : pickAnySpawnCell(world);
+}
+
+function pickSpawnCell(world: World, preferred: readonly number[] | undefined): number {
+  const cell = pickPreferredSpawnCell(world, preferred);
+  return cell >= 0 ? cell : pickAnySpawnCell(world);
+}
+
+function pickPreferredSpawnCell(world: World, preferred: readonly number[] | undefined): number {
+  if (preferred && preferred.length > 0) {
+    for (let attempt = 0; attempt < 256; attempt++) {
+      const cell = preferred[rng(0, preferred.length - 1)];
+      if (isSpawnableFloor(world, cell)) return cell;
+    }
   }
   return -1;
 }
 
+function pickAnySpawnCell(world: World): number {
+  for (let attempt = 0; attempt < 2048; attempt++) {
+    const cell = rng(0, W * W - 1);
+    if (isSpawnableFloor(world, cell)) return cell;
+  }
+  return -1;
+}
+
+function isSpawnableFloor(world: World, cell: number): boolean {
+  return world.cells[cell] === Cell.FLOOR && !world.aptMask[cell] && world.roomMap[cell] < 0;
+}
+
 function pickFactionSpawnCell(world: World, faction: SpawnFaction): number {
+  const geometryCells = faction === Faction.CULTIST ? hellGeometry.cultistCells : hellGeometry.liquidatorCells;
+  const geometryCell = pickPreferredSpawnCell(world, geometryCells);
+  if (geometryCell >= 0) return geometryCell;
+
   const target = faction === Faction.CULTIST ? ZoneFaction.CULTIST : ZoneFaction.LIQUIDATOR;
   for (let attempt = 0; attempt < 768; attempt++) {
     const zone = world.zones[rng(0, world.zones.length - 1)];
     if (!zone || zone.faction !== target) continue;
     for (let inner = 0; inner < 48; inner++) {
       const cell = world.idx(zone.cx + rng(-44, 44), zone.cy + rng(-44, 44));
-      if (world.cells[cell] === Cell.FLOOR) return cell;
+      if (isSpawnableFloor(world, cell)) return cell;
     }
   }
   return randomFloorCell(world);

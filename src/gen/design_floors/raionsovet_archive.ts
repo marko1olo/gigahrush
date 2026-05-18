@@ -4,7 +4,7 @@
  */
 
 import {
-  W, Cell, Tex, Feature, RoomType, LiftDirection, ContainerKind,
+  W, Cell, Tex, Feature, RoomType, LiftDirection, ContainerKind, DoorState,
   EntityType, AIGoal, Faction, Occupation, FloorLevel, QuestType, MonsterKind, ZoneFaction,
   type Entity, type GameState, type Room, type WorldContainer, type WorldEvent,
 } from '../../core/types';
@@ -389,6 +389,11 @@ interface ArchiveRooms {
   checker: Room;
 }
 
+interface ArchivePoint {
+  x: number;
+  y: number;
+}
+
 function createArchiveRoom(
   world: World,
   id: number,
@@ -430,6 +435,351 @@ function setShelfWall(world: World, x: number, y: number): void {
   world.cells[ci] = Cell.WALL;
   world.wallTex[ci] = Tex.PANEL;
   world.features[ci] = Feature.NONE;
+}
+
+function isArchiveReserved(world: World, x: number, y: number): boolean {
+  const ci = world.idx(x, y);
+  return world.aptMask[ci] !== 0
+    || world.cells[ci] === Cell.LIFT
+    || world.containerMap.has(ci);
+}
+
+function carveArchiveCell(world: World, x: number, y: number, floorTex = Tex.F_MARBLE_TILE, roomId = -1): void {
+  const ci = world.idx(x, y);
+  if (isArchiveReserved(world, x, y) || world.cells[ci] === Cell.DOOR) return;
+  world.cells[ci] = Cell.FLOOR;
+  world.roomMap[ci] = roomId;
+  world.floorTex[ci] = floorTex;
+  world.features[ci] = Feature.NONE;
+}
+
+function carveArchiveBlock(world: World, x: number, y: number, w: number, h: number, floorTex = Tex.F_MARBLE_TILE): void {
+  for (let dy = 0; dy < h; dy++) {
+    for (let dx = 0; dx < w; dx++) carveArchiveCell(world, x + dx, y + dy, floorTex);
+  }
+}
+
+function carveArchiveDisc(world: World, cx: number, cy: number, r: number, floorTex = Tex.F_MARBLE_TILE): void {
+  const r2 = r * r;
+  for (let dy = -r; dy <= r; dy++) {
+    for (let dx = -r; dx <= r; dx++) {
+      if (dx * dx + dy * dy <= r2) carveArchiveCell(world, cx + dx, cy + dy, floorTex);
+    }
+  }
+}
+
+function carveArchiveLine(
+  world: World,
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+  width = 1,
+  floorTex = Tex.F_MARBLE_TILE,
+): void {
+  const sx = bx === ax ? 0 : bx > ax ? 1 : -1;
+  const sy = by === ay ? 0 : by > ay ? 1 : -1;
+  let x = ax;
+  let y = ay;
+  while (x !== bx) {
+    carveArchiveDisc(world, x, y, width, floorTex);
+    x += sx;
+  }
+  while (y !== by) {
+    carveArchiveDisc(world, x, y, width, floorTex);
+    y += sy;
+  }
+  carveArchiveDisc(world, x, y, width, floorTex);
+}
+
+function setArchiveWall(world: World, x: number, y: number, wallTex = Tex.PANEL): void {
+  const ci = world.idx(x, y);
+  if (isArchiveReserved(world, x, y) || world.cells[ci] === Cell.DOOR) return;
+  world.cells[ci] = Cell.WALL;
+  world.roomMap[ci] = -1;
+  world.wallTex[ci] = wallTex;
+  world.features[ci] = Feature.NONE;
+}
+
+function frameArchiveArea(world: World, x: number, y: number, w: number, h: number, wallTex = Tex.MARBLE): void {
+  for (let dx = -1; dx <= w; dx++) {
+    setArchiveWall(world, x + dx, y - 1, wallTex);
+    setArchiveWall(world, x + dx, y + h, wallTex);
+  }
+  for (let dy = 0; dy < h; dy++) {
+    setArchiveWall(world, x - 1, y + dy, wallTex);
+    setArchiveWall(world, x + w, y + dy, wallTex);
+  }
+}
+
+function addArchiveGate(world: World, x: number, y: number, keyId = ''): void {
+  const ci = world.idx(x, y);
+  if (isArchiveReserved(world, x, y) || world.cells[ci] !== Cell.WALL) return;
+
+  const l = world.cells[world.idx(x - 1, y)];
+  const r = world.cells[world.idx(x + 1, y)];
+  const u = world.cells[world.idx(x, y - 1)];
+  const d = world.cells[world.idx(x, y + 1)];
+  const floorH = (l === Cell.FLOOR || l === Cell.DOOR) && (r === Cell.FLOOR || r === Cell.DOOR);
+  const floorV = (u === Cell.FLOOR || u === Cell.DOOR) && (d === Cell.FLOOR || d === Cell.DOOR);
+  const wallH = l === Cell.WALL && r === Cell.WALL;
+  const wallV = u === Cell.WALL && d === Cell.WALL;
+  if ((!floorH || !wallV) && (!floorV || !wallH)) return;
+
+  world.cells[ci] = Cell.DOOR;
+  world.doors.set(ci, {
+    idx: ci,
+    state: keyId ? DoorState.LOCKED : DoorState.CLOSED,
+    roomA: -1,
+    roomB: -1,
+    keyId,
+    timer: 0,
+  });
+}
+
+function connectArchiveRoomToPoint(world: World, room: Room, tx: number, ty: number, floorTex = Tex.F_MARBLE_TILE): void {
+  const cx = room.x + Math.floor(room.w / 2);
+  const cy = room.y + Math.floor(room.h / 2);
+  const dx = world.delta(cx, tx);
+  const dy = world.delta(cy, ty);
+  let wx = cx;
+  let wy = cy;
+  let ox = cx;
+  let oy = cy;
+
+  if (Math.abs(dx) >= Math.abs(dy)) {
+    wy = cy;
+    if (dx >= 0) {
+      wx = room.x + room.w;
+      ox = wx + 1;
+    } else {
+      wx = room.x - 1;
+      ox = wx - 1;
+    }
+    oy = wy;
+  } else {
+    wx = cx;
+    if (dy >= 0) {
+      wy = room.y + room.h;
+      oy = wy + 1;
+    } else {
+      wy = room.y - 1;
+      oy = wy - 1;
+    }
+    ox = wx;
+  }
+
+  placeDoorAt(world, wx, wy, room.id);
+  carveArchiveLine(world, ox, oy, tx, ty, 1, floorTex);
+}
+
+function decorateClerkBridge(world: World, x: number, y: number, len: number, horizontal: boolean): void {
+  for (let i = 0; i < len; i += 6) {
+    const px = horizontal ? x + i : x;
+    const py = horizontal ? y : y + i;
+    setFeatureIfFloor(world, px, py, Feature.DESK);
+    setFeatureIfFloor(world, horizontal ? px : px + 1, horizontal ? py + 1 : py, Feature.SCREEN);
+  }
+}
+
+function buildStackCanyon(
+  world: World,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  vertical: boolean,
+  rng: () => number,
+): ArchivePoint[] {
+  const bridges: ArchivePoint[] = [];
+  carveArchiveBlock(world, x, y, w, h, Tex.F_PARQUET);
+  frameArchiveArea(world, x, y, w, h, Tex.MARBLE);
+
+  if (vertical) {
+    const bridgeYs = [y + 32, y + Math.floor(h / 2), y + h - 34];
+    for (let sx = x + 9; sx < x + w - 8; sx += 13) {
+      for (let sy = y + 4; sy < y + h - 4; sy++) {
+        const bridge = bridgeYs.some(by => Math.abs(sy - by) <= 2);
+        if (!bridge && (sy + sx) % 47 > 2) setArchiveWall(world, sx, sy, Tex.PANEL);
+      }
+      if (rng() < 0.6) addArchiveGate(world, sx, y + 16 + Math.floor(rng() * Math.max(1, h - 32)), rng() < 0.25 ? 'archive_access_permit' : '');
+    }
+    for (const by of bridgeYs) {
+      carveArchiveLine(world, x + 3, by, x + w - 4, by, 2, Tex.F_MARBLE_TILE);
+      decorateClerkBridge(world, x + 8, by - 1, w - 16, true);
+      bridges.push({ x: x + Math.floor(w / 2), y: by });
+    }
+  } else {
+    const bridgeXs = [x + 42, x + Math.floor(w / 2), x + w - 44];
+    for (let sy = y + 8; sy < y + h - 8; sy += 12) {
+      for (let sx = x + 4; sx < x + w - 4; sx++) {
+        const bridge = bridgeXs.some(bx => Math.abs(sx - bx) <= 2);
+        if (!bridge && (sx + sy) % 53 > 2) setArchiveWall(world, sx, sy, Tex.PANEL);
+      }
+      if (rng() < 0.55) addArchiveGate(world, x + 20 + Math.floor(rng() * Math.max(1, w - 40)), sy, rng() < 0.2 ? 'forged_stamp_sheet' : '');
+    }
+    for (const bx of bridgeXs) {
+      carveArchiveLine(world, bx, y + 3, bx, y + h - 4, 2, Tex.F_MARBLE_TILE);
+      decorateClerkBridge(world, bx - 1, y + 8, h - 16, false);
+      bridges.push({ x: bx, y: y + Math.floor(h / 2) });
+    }
+  }
+
+  return bridges;
+}
+
+function buildArchiveLoop(world: World): ArchivePoint[] {
+  const nodes: ArchivePoint[] = [
+    { x: 142, y: 154 }, { x: 512, y: 154 }, { x: 884, y: 154 },
+    { x: 884, y: 512 }, { x: 884, y: 864 }, { x: 512, y: 864 },
+    { x: 142, y: 864 }, { x: 142, y: 512 },
+  ];
+  for (let i = 1; i < nodes.length; i++) {
+    carveArchiveLine(world, nodes[i - 1].x, nodes[i - 1].y, nodes[i].x, nodes[i].y, 2, Tex.F_MARBLE_TILE);
+  }
+  carveArchiveLine(world, nodes[nodes.length - 1].x, nodes[nodes.length - 1].y, nodes[0].x, nodes[0].y, 2, Tex.F_MARBLE_TILE);
+
+  carveArchiveLine(world, 256, 154, 256, 864, 2, Tex.F_MARBLE_TILE);
+  carveArchiveLine(world, 512, 154, 512, 864, 2, Tex.F_MARBLE_TILE);
+  carveArchiveLine(world, 768, 154, 768, 864, 2, Tex.F_MARBLE_TILE);
+  carveArchiveLine(world, 142, 256, 884, 256, 2, Tex.F_MARBLE_TILE);
+  carveArchiveLine(world, 142, 512, 884, 512, 2, Tex.F_MARBLE_TILE);
+  carveArchiveLine(world, 142, 768, 884, 768, 2, Tex.F_MARBLE_TILE);
+
+  carveArchiveLine(world, 530, 464, 530, 154, 2, Tex.F_MARBLE_TILE);
+  carveArchiveLine(world, 530, 552, 530, 864, 2, Tex.F_MARBLE_TILE);
+  carveArchiveLine(world, 512, 464, 142, 464, 1, Tex.F_MARBLE_TILE);
+  carveArchiveLine(world, 568, 507, 884, 507, 1, Tex.F_MARBLE_TILE);
+  return nodes;
+}
+
+function carveReadingPit(world: World, room: Room): void {
+  const cx = room.x + Math.floor(room.w / 2);
+  const cy = room.y + Math.floor(room.h / 2);
+  const rx = Math.floor(room.w / 3);
+  const ry = Math.floor(room.h / 3);
+  for (let y = room.y + 5; y < room.y + room.h - 5; y++) {
+    for (let x = room.x + 6; x < room.x + room.w - 6; x++) {
+      const nx = (x - cx) / rx;
+      const ny = (y - cy) / ry;
+      if (nx * nx + ny * ny > 1) continue;
+      const bridge = Math.abs(x - cx) <= 2 || Math.abs(y - cy) <= 2;
+      const ci = world.idx(x, y);
+      if (world.roomMap[ci] !== room.id || bridge) continue;
+      world.cells[ci] = Cell.ABYSS;
+      world.floorTex[ci] = Tex.F_ABYSS;
+      world.features[ci] = Feature.NONE;
+    }
+  }
+  for (let x = room.x + 8; x < room.x + room.w - 8; x += 12) {
+    setFeatureIfFloor(world, x, room.y + 5, Feature.CHAIR);
+    setFeatureIfFloor(world, x, room.y + room.h - 6, Feature.SHELF);
+  }
+  setFeatureIfFloor(world, cx - 3, cy, Feature.DESK);
+  setFeatureIfFloor(world, cx + 3, cy, Feature.SCREEN);
+  setFeatureIfFloor(world, room.x + 4, room.y + 4, Feature.CANDLE);
+  setFeatureIfFloor(world, room.x + room.w - 5, room.y + room.h - 5, Feature.CANDLE);
+}
+
+function decorateVaultRoom(world: World, room: Room): void {
+  for (let y = room.y + 4; y < room.y + room.h - 4; y += 5) {
+    for (let x = room.x + 5; x < room.x + room.w - 5; x += 7) {
+      setShelfWall(world, x, y);
+      setFeatureIfFloor(world, x + 1, y, Feature.SHELF);
+    }
+  }
+  setFeatureIfFloor(world, room.x + 3, room.y + 3, Feature.LAMP);
+  setFeatureIfFloor(world, room.x + room.w - 4, room.y + room.h - 4, Feature.APPARATUS);
+}
+
+function decorateServiceLiftRoom(world: World, room: Room): void {
+  const cx = room.x + Math.floor(room.w / 2);
+  const cy = room.y + Math.floor(room.h / 2);
+  placeFixedLift(world, cx, cy, LiftDirection.DOWN);
+  for (let y = room.y + 5; y < room.y + room.h - 5; y += 7) {
+    setFeatureIfFloor(world, room.x + 5, y, Feature.APPARATUS);
+    setFeatureIfFloor(world, room.x + room.w - 6, y, Feature.MACHINE);
+  }
+  setFeatureIfFloor(world, cx - 5, cy, Feature.SCREEN);
+  setFeatureIfFloor(world, cx + 5, cy, Feature.DESK);
+}
+
+function nextArchiveContainerId(world: World): { v: number } {
+  return { v: world.containers.reduce((max, container) => Math.max(max, container.id), 0) + 1 };
+}
+
+export function expandRaionsovetArchiveGeometry(world: World, rng: () => number): void {
+  paintNonRoomCells(world);
+  const bridges = [
+    ...buildStackCanyon(world, 78, 184, 286, 296, true, rng),
+    ...buildStackCanyon(world, 660, 176, 286, 318, true, rng),
+    ...buildStackCanyon(world, 158, 690, 410, 198, false, rng),
+    ...buildStackCanyon(world, 182, 62, 658, 104, false, rng),
+  ];
+  const loopNodes = buildArchiveLoop(world);
+
+  for (let i = 1; i < bridges.length; i++) {
+    if (i % 2 === 0) carveArchiveLine(world, bridges[i - 1].x, bridges[i - 1].y, bridges[i].x, bridges[i].y, 1, Tex.F_MARBLE_TILE);
+  }
+  for (const node of loopNodes) setFeatureIfFloor(world, node.x, node.y, Feature.LAMP);
+
+  const counterHall = createArchiveRoom(world, world.rooms.length, RoomType.OFFICE, 392, 418, 242, 36, 'Мост счетных окон', Tex.MARBLE, Tex.F_RED_CARPET);
+  const westVault = createArchiveRoom(world, world.rooms.length, RoomType.STORAGE, 174, 288, 76, 56, 'Запечатанный ряд квартирных прав', Tex.METAL, Tex.F_CONCRETE);
+  const eastVault = createArchiveRoom(world, world.rooms.length, RoomType.STORAGE, 778, 308, 72, 58, 'Восточный сейф личных дел', Tex.METAL, Tex.F_CONCRETE);
+  const readingPit = createArchiveRoom(world, world.rooms.length, RoomType.COMMON, 372, 594, 278, 104, 'Читальный провал живых дел', Tex.MARBLE, Tex.F_PARQUET);
+  const serviceLift = createArchiveRoom(world, world.rooms.length, RoomType.PRODUCTION, 706, 548, 88, 62, 'Служебный лифт документов', Tex.METAL, Tex.F_CONCRETE);
+
+  connectArchiveRoomToPoint(world, counterHall, 530, 464, Tex.F_MARBLE_TILE);
+  connectArchiveRoomToPoint(world, westVault, 256, 256, Tex.F_MARBLE_TILE);
+  connectArchiveRoomToPoint(world, eastVault, 768, 256, Tex.F_MARBLE_TILE);
+  connectArchiveRoomToPoint(world, readingPit, 530, 552, Tex.F_MARBLE_TILE);
+  connectArchiveRoomToPoint(world, readingPit, 512, 768, Tex.F_MARBLE_TILE);
+  connectArchiveRoomToPoint(world, serviceLift, 768, 512, Tex.F_MARBLE_TILE);
+
+  for (const room of [counterHall, westVault, eastVault, readingPit, serviceLift]) paintRoom(world, room);
+  for (let x = counterHall.x + 8; x < counterHall.x + counterHall.w - 8; x += 8) {
+    setFeatureIfFloor(world, x, counterHall.y + 8, Feature.DESK);
+    setFeatureIfFloor(world, x, counterHall.y + counterHall.h - 8, Feature.CHAIR);
+  }
+  setFeatureIfFloor(world, counterHall.x + 5, counterHall.y + 5, Feature.SCREEN);
+  setFeatureIfFloor(world, counterHall.x + counterHall.w - 6, counterHall.y + 5, Feature.LAMP);
+
+  decorateVaultRoom(world, westVault);
+  decorateVaultRoom(world, eastVault);
+  carveReadingPit(world, readingPit);
+  decorateServiceLiftRoom(world, serviceLift);
+
+  const nextContainerId = nextArchiveContainerId(world);
+  addArchiveContainer(
+    world, nextContainerId, westVault, westVault.x + westVault.w - 6, westVault.y + westVault.h - 6,
+    ContainerKind.SAFE,
+    'Пломбированный шкаф квартирного ряда',
+    'locked',
+    [
+      { defId: 'personal_file_copy', count: 1 },
+      { defId: 'stolen_archive_card', count: 1 },
+      { defId: 'passport_stub', count: 1 },
+    ],
+    ['vault', 'apartment_rights', 'force_or_permit'],
+    Faction.CITIZEN,
+  );
+  addArchiveContainer(
+    world, nextContainerId, eastVault, eastVault.x + eastVault.w - 6, eastVault.y + 5,
+    ContainerKind.FILING_CABINET,
+    'Индекс вскрытых наследств',
+    'faction',
+    [
+      { defId: 'missing_record_file', count: 1 },
+      { defId: 'record_exposure_notice', count: 1 },
+      { defId: 'ration_registry_extract', count: 1 },
+    ],
+    ['vault', 'expose_record', 'personal_file'],
+    Faction.CITIZEN,
+  );
+
+  world.stamp(236, 318, 0.5, 0.5, 5, 0.45, 6021, 0.55, 0.09, 0.04, false);
+  world.stamp(812, 338, 0.5, 0.5, 5, 0.35, 6022, 0.08, 0.12, 0.18, false);
+  world.stamp(512, 646, 0.5, 0.5, 8, 0.22, 6023, 0.7, 0.68, 0.55, true);
 }
 
 function connectRoomToPoint(world: World, room: Room, tx: number, ty: number): void {

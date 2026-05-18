@@ -15,6 +15,7 @@
 /*     npcs.ts        — NPC & item spawning                      */
 /*     side_quests.ts — side quest NPC registry & spawning       */
 /*     zone_content.ts — zone content module registry            */
+/*     geometry.ts    — readable hub districts and routes        */
 /*     temple.ts      — Orthodox temple (zone 3 content module)  */
 /*     soviet_housing_pack.ts — concierge/radio/kitchen POIs      */
 /*                                                               */
@@ -34,6 +35,7 @@ import { generateYakovLab } from './yakov_lab';
 import { generateVankaDen, spawnVankaShadows } from './vanka_den';
 import './content_manifest';
 import { runZoneContentModules } from './zone_content';
+import { buildLivingHubGeometry } from './geometry';
 import { spawnRoomItems, spawnFamilies, spawnTravelers } from './npcs';
 import { spawnSideQuestNpcs } from './side_quests';
 
@@ -84,15 +86,18 @@ export function generateWorld(): { world: World; entities: Entity[]; spawnX: num
     nextId = nid.v;
   }
 
-  /* ── B1: Shadows near Vanka (needs corridors to exist) */
+  /* ── B1: Readable hub routes and district motifs ─────────────── */
+  buildLivingHubGeometry(world);
+
+  /* ── B2: Shadows near Vanka (needs corridors to exist) */
   spawnVankaShadows(world, entities, { v: nextId });
   nextId = entities.reduce((mx, e) => Math.max(mx, e.id), nextId) + 1;
 
-  /* ── B2: Side quest NPCs (random encounters, need FLOOR cells) */
+  /* ── B3: Side quest NPCs (random encounters, need FLOOR cells) */
   spawnSideQuestNpcs(world, entities, { v: nextId });
   nextId = entities.reduce((mx, e) => Math.max(mx, e.id), nextId) + 1;
 
-  /* ── B3: Rare procedural TV/monitor walls in suitable rooms ─── */
+  /* ── B4: Rare procedural TV/monitor walls in suitable rooms ─── */
   placeProceduralScreens(world, FloorLevel.LIVING);
 
   /* ── C: Items in all rooms ─────────────────────────── */
@@ -116,4 +121,5 @@ export function regrowMaze(world: World): void {
   wipeVolatile(world);
   generateVolatileMaze(world);
   placeProceduralScreens(world, FloorLevel.LIVING);
+  buildLivingHubGeometry(world);
 }

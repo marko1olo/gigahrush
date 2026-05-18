@@ -88,6 +88,133 @@ const MAIN_Y = ATTIC_BASE_Y + 58;
 
 const DIRS: readonly [number, number][] = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 
+interface AtticPoint {
+  x: number;
+  y: number;
+}
+
+interface AtticChamberPlan {
+  cx: number;
+  cy: number;
+  rx: number;
+  ry: number;
+  anchor: AtticPoint;
+  type: RoomType;
+  name: string;
+  wallTex: Tex;
+  floorTex: Tex;
+  feature: Feature;
+}
+
+const ATTIC_SPINE: readonly AtticPoint[] = [
+  { x: ATTIC_BASE_X + 18, y: MAIN_Y },
+  { x: ATTIC_BASE_X + 78, y: MAIN_Y - 22 },
+  { x: ATTIC_BASE_X + 144, y: MAIN_Y + 6 },
+  { x: ATTIC_BASE_X + 212, y: MAIN_Y - 10 },
+  { x: 700, y: 536 },
+  { x: 780, y: 516 },
+  { x: 866, y: 466 },
+  { x: 948, y: 492 },
+  { x: 34, y: 490 },
+  { x: 112, y: 530 },
+  { x: 194, y: 508 },
+  { x: 286, y: 548 },
+  { x: ATTIC_BASE_X + 18, y: MAIN_Y },
+];
+
+const ATTIC_CHAMBERS: readonly AtticChamberPlan[] = [
+  {
+    cx: 314, cy: 548, rx: 20, ry: 10,
+    anchor: { x: 286, y: 548 },
+    type: RoomType.CORRIDOR,
+    name: 'Корневое горло западной плиты',
+    wallTex: Tex.GUT,
+    floorTex: Tex.F_GUT,
+    feature: Feature.CANDLE,
+  },
+  {
+    cx: 848, cy: 466, rx: 24, ry: 9,
+    anchor: { x: 866, y: 466 },
+    type: RoomType.CORRIDOR,
+    name: 'Корневое горло восточного обхода',
+    wallTex: Tex.GUT,
+    floorTex: Tex.F_GUT,
+    feature: Feature.CANDLE,
+  },
+  {
+    cx: 704, cy: 574, rx: 25, ry: 17,
+    anchor: { x: 700, y: 536 },
+    type: RoomType.COMMON,
+    name: 'Бетонное гнездо с пустым центром',
+    wallTex: Tex.CONCRETE,
+    floorTex: Tex.F_CONCRETE,
+    feature: Feature.LAMP,
+  },
+  {
+    cx: 190, cy: 590, rx: 22, ry: 15,
+    anchor: { x: 194, y: 508 },
+    type: RoomType.COMMON,
+    name: 'Бетонное гнездо несущей жилы',
+    wallTex: Tex.CONCRETE,
+    floorTex: Tex.F_GUT,
+    feature: Feature.CANDLE,
+  },
+  {
+    cx: 540, cy: 356, rx: 18, ry: 8,
+    anchor: { x: ATTIC_BASE_X + 144, y: MAIN_Y + 6 },
+    type: RoomType.CORRIDOR,
+    name: 'Низкий сервисный лаз над актом',
+    wallTex: Tex.PANEL,
+    floorTex: Tex.F_CONCRETE,
+    feature: Feature.APPARATUS,
+  },
+  {
+    cx: 984, cy: 492, rx: 18, ry: 7,
+    anchor: { x: 948, y: 492 },
+    type: RoomType.CORRIDOR,
+    name: 'Сервисный лаз через край чердака',
+    wallTex: Tex.PANEL,
+    floorTex: Tex.F_CONCRETE,
+    feature: Feature.APPARATUS,
+  },
+  {
+    cx: 766, cy: 394, rx: 18, ry: 14,
+    anchor: { x: 780, y: 516 },
+    type: RoomType.STORAGE,
+    name: 'Ритуальная кладовая сухих корешков',
+    wallTex: Tex.DARK,
+    floorTex: Tex.F_GUT,
+    feature: Feature.SHELF,
+  },
+  {
+    cx: 72, cy: 430, rx: 16, ry: 12,
+    anchor: { x: 34, y: 490 },
+    type: RoomType.STORAGE,
+    name: 'Ритуальная кладовая черной ладони',
+    wallTex: Tex.DARK,
+    floorTex: Tex.F_CONCRETE,
+    feature: Feature.SHELF,
+  },
+  {
+    cx: 514, cy: 82, rx: 23, ry: 16,
+    anchor: { x: 540, y: 356 },
+    type: RoomType.CORRIDOR,
+    name: 'Сломанный лестничный оголовок вверх',
+    wallTex: Tex.METAL,
+    floorTex: Tex.F_CONCRETE,
+    feature: Feature.LAMP,
+  },
+  {
+    cx: 902, cy: 650, rx: 20, ry: 12,
+    anchor: { x: 866, y: 466 },
+    type: RoomType.PRODUCTION,
+    name: 'Ложная сервисная комната',
+    wallTex: Tex.METAL,
+    floorTex: Tex.F_CONCRETE,
+    feature: Feature.MACHINE,
+  },
+];
+
 const ATTIC_NPCS: Record<string, PlotNpcDef> = {
   attic_agrafena_rootkeeper: {
     name: 'Аграфена Корневая',
@@ -476,6 +603,313 @@ export function traceChthonicAtticExitPaths(
       distance,
     };
   });
+}
+
+export function expandChthonicAtticRootNetwork(
+  world: World,
+  entities: Entity[],
+  rng: () => number,
+): void {
+  const protectedMask = buildAtticProtectedMask(world);
+
+  carveAtticPathChain(world, ATTIC_SPINE, 3, Tex.F_GUT, protectedMask);
+  carveAtticRootPath(world, { x: 514, y: 82 }, { x: 514, y: 986 }, 1, Tex.F_CONCRETE, protectedMask);
+  carveAtticRootPath(world, { x: 410, y: 918 }, { x: 286, y: 548 }, 1, Tex.F_GUT, protectedMask);
+
+  stampAtticVoidKnot(world, 638, 482, 19, protectedMask);
+  stampAtticVoidKnot(world, 52, 538, 15, protectedMask);
+  stampAtticVoidKnot(world, 524, 930, 17, protectedMask);
+
+  const chambers = ATTIC_CHAMBERS.map(plan => stampAtticBulbRoom(world, plan));
+  for (let i = 0; i < ATTIC_CHAMBERS.length; i++) {
+    const plan = ATTIC_CHAMBERS[i];
+    const room = chambers[i];
+    carveAtticRootPath(world, plan.anchor, { x: plan.cx, y: plan.cy }, plan.type === RoomType.CORRIDOR ? 1 : 2, plan.floorTex, protectedMask);
+    dressAtticBulbRoom(world, room, plan, rng);
+  }
+
+  carveAtticCrawlBypasses(world, protectedMask);
+  stampAtticRootStubs(world, protectedMask);
+  stampAtticChokepoints(world, protectedMask);
+  stampAtticExitCues(world);
+  spawnAtticAmbientMonsters(world, entities, rng, 28);
+
+  world.markWallTexDirty();
+  world.markFloorTexDirty();
+}
+
+function buildAtticProtectedMask(world: World): Uint8Array {
+  const mask = new Uint8Array(W * W);
+  for (const room of world.rooms) {
+    for (let y = room.y - 1; y <= room.y + room.h; y++) {
+      for (let x = room.x - 1; x <= room.x + room.w; x++) {
+        mask[world.idx(x, y)] = 1;
+      }
+    }
+  }
+  for (const idx of world.doors.keys()) mask[idx] = 1;
+  for (const container of world.containers) mask[world.idx(container.x, container.y)] = 1;
+  for (let i = 0; i < W * W; i++) {
+    if (world.cells[i] === Cell.LIFT) mask[i] = 1;
+  }
+  return mask;
+}
+
+function carveAtticPathChain(
+  world: World,
+  points: readonly AtticPoint[],
+  radius: number,
+  floorTex: Tex,
+  protectedMask: Uint8Array,
+): void {
+  for (let i = 1; i < points.length; i++) {
+    carveAtticRootPath(world, points[i - 1], points[i], radius, floorTex, protectedMask);
+  }
+}
+
+function carveAtticRootPath(
+  world: World,
+  from: AtticPoint,
+  to: AtticPoint,
+  radius: number,
+  floorTex: Tex,
+  protectedMask: Uint8Array,
+): void {
+  const dx = world.delta(from.x, to.x);
+  const dy = world.delta(from.y, to.y);
+  const steps = Math.max(1, Math.abs(dx), Math.abs(dy));
+  for (let step = 0; step <= steps; step++) {
+    const x = from.x + Math.round((dx * step) / steps);
+    const y = from.y + Math.round((dy * step) / steps);
+    carveAtticDisc(world, x, y, radius, floorTex, protectedMask);
+    if (step % 11 === 0) {
+      world.stamp(x, y, 0.5, 0.5, radius + 0.85, 0.18, x * 73856093 ^ y * 19349663, 58, 35, 28, true);
+    }
+  }
+}
+
+function carveAtticDisc(
+  world: World,
+  cx: number,
+  cy: number,
+  radius: number,
+  floorTex: Tex,
+  protectedMask: Uint8Array,
+): void {
+  const floorR2 = radius * radius;
+  const shoulder = radius + 2;
+  const shoulderR2 = shoulder * shoulder;
+  for (let dy = -shoulder; dy <= shoulder; dy++) {
+    for (let dx = -shoulder; dx <= shoulder; dx++) {
+      const d2 = dx * dx + dy * dy;
+      if (d2 > shoulderR2) continue;
+      const idx = world.idx(cx + dx, cy + dy);
+      if (protectedMask[idx] || world.cells[idx] === Cell.DOOR || world.cells[idx] === Cell.LIFT) continue;
+      if (d2 <= floorR2) {
+        world.cells[idx] = Cell.FLOOR;
+        world.roomMap[idx] = -1;
+        world.floorTex[idx] = floorTex;
+        world.features[idx] = Feature.NONE;
+      } else if (world.cells[idx] === Cell.WALL || world.cells[idx] === Cell.ABYSS) {
+        world.cells[idx] = Cell.WALL;
+        world.roomMap[idx] = -1;
+        world.wallTex[idx] = (dx + dy + cx + cy) % 5 === 0 ? Tex.GUT : Tex.CONCRETE;
+      }
+    }
+  }
+}
+
+function stampAtticVoidKnot(world: World, cx: number, cy: number, radius: number, protectedMask: Uint8Array): void {
+  const loop: readonly AtticPoint[] = [
+    { x: cx - radius - 7, y: cy },
+    { x: cx - 4, y: cy - radius - 6 },
+    { x: cx + radius + 7, y: cy - 2 },
+    { x: cx + 3, y: cy + radius + 6 },
+    { x: cx - radius - 7, y: cy },
+  ];
+  carveAtticPathChain(world, loop, 1, Tex.F_GUT, protectedMask);
+
+  const r2 = radius * radius;
+  const rim2 = (radius + 2) * (radius + 2);
+  for (let dy = -radius - 2; dy <= radius + 2; dy++) {
+    for (let dx = -radius - 2; dx <= radius + 2; dx++) {
+      const d2 = dx * dx + dy * dy;
+      if (d2 > rim2) continue;
+      const idx = world.idx(cx + dx, cy + dy);
+      if (protectedMask[idx] || world.cells[idx] === Cell.DOOR || world.cells[idx] === Cell.LIFT) continue;
+      if (d2 <= r2) {
+        world.cells[idx] = Cell.ABYSS;
+        world.roomMap[idx] = -1;
+        world.floorTex[idx] = Tex.F_ABYSS;
+        world.features[idx] = Feature.NONE;
+      } else {
+        world.cells[idx] = Cell.WALL;
+        world.roomMap[idx] = -1;
+        world.wallTex[idx] = Tex.GUT;
+      }
+    }
+  }
+}
+
+function stampAtticBulbRoom(world: World, plan: AtticChamberPlan): Room {
+  const room: Room = {
+    id: world.rooms.length,
+    type: plan.type,
+    x: world.wrap(plan.cx - plan.rx),
+    y: world.wrap(plan.cy - plan.ry),
+    w: plan.rx * 2 + 1,
+    h: plan.ry * 2 + 1,
+    doors: [],
+    sealed: false,
+    name: plan.name,
+    apartmentId: -1,
+    wallTex: plan.wallTex,
+    floorTex: plan.floorTex,
+  };
+  world.rooms.push(room);
+
+  const outerRx = plan.rx + 2;
+  const outerRy = plan.ry + 2;
+  for (let dy = -outerRy; dy <= outerRy; dy++) {
+    for (let dx = -outerRx; dx <= outerRx; dx++) {
+      const nx = dx / Math.max(1, plan.rx);
+      const ny = dy / Math.max(1, plan.ry);
+      const outerNx = dx / Math.max(1, outerRx);
+      const outerNy = dy / Math.max(1, outerRy);
+      const idx = world.idx(plan.cx + dx, plan.cy + dy);
+      if (nx * nx + ny * ny <= 1) {
+        world.cells[idx] = Cell.FLOOR;
+        world.roomMap[idx] = room.id;
+        world.floorTex[idx] = plan.floorTex;
+        world.features[idx] = Feature.NONE;
+      } else if (outerNx * outerNx + outerNy * outerNy <= 1.05) {
+        world.cells[idx] = Cell.WALL;
+        world.roomMap[idx] = -1;
+        world.wallTex[idx] = plan.wallTex;
+      }
+    }
+  }
+
+  return room;
+}
+
+function dressAtticBulbRoom(world: World, room: Room, plan: AtticChamberPlan, rng: () => number): void {
+  const featureCount = Math.max(2, Math.floor((room.w * room.h) / 110));
+  for (let i = 0; i < featureCount; i++) {
+    const x = room.x + 2 + Math.floor(rng() * Math.max(1, room.w - 4));
+    const y = room.y + 2 + Math.floor(rng() * Math.max(1, room.h - 4));
+    const idx = world.idx(x, y);
+    if (world.cells[idx] !== Cell.FLOOR || world.roomMap[idx] !== room.id) continue;
+    world.features[idx] = i % 3 === 0 ? plan.feature : plan.type === RoomType.STORAGE ? Feature.SHELF : Feature.CANDLE;
+  }
+  if (plan.type === RoomType.PRODUCTION) {
+    setAtticFeature(world, plan.cx, plan.cy, Feature.MACHINE);
+    setAtticFeature(world, plan.cx + 2, plan.cy - 1, Feature.APPARATUS);
+  }
+  if (plan.type === RoomType.CORRIDOR) {
+    world.stamp(plan.cx, plan.cy, 0.5, 0.5, 2.6, 0.22, room.id * 911, 64, 42, 34, true);
+  }
+}
+
+function carveAtticCrawlBypasses(world: World, protectedMask: Uint8Array): void {
+  carveAtticPathChain(world, [
+    { x: ATTIC_BASE_X + 112, y: MAIN_Y - 18 },
+    { x: 545, y: 458 },
+    { x: 590, y: 476 },
+    { x: ATTIC_BASE_X + 212, y: MAIN_Y - 10 },
+  ], 0, Tex.F_CONCRETE, protectedMask);
+  carveAtticPathChain(world, [
+    { x: 746, y: 500 },
+    { x: 784, y: 452 },
+    { x: 832, y: 454 },
+    { x: 866, y: 466 },
+  ], 0, Tex.F_CONCRETE, protectedMask);
+  carveAtticPathChain(world, [
+    { x: 920, y: 522 },
+    { x: 984, y: 555 },
+    { x: 42, y: 548 },
+    { x: 112, y: 530 },
+  ], 0, Tex.F_CONCRETE, protectedMask);
+  setAtticFeature(world, 545, 458, Feature.APPARATUS);
+  setAtticFeature(world, 784, 452, Feature.SHELF);
+  setAtticFeature(world, 42, 548, Feature.CANDLE);
+}
+
+function stampAtticRootStubs(world: World, protectedMask: Uint8Array): void {
+  const stubs: readonly [AtticPoint, AtticPoint][] = [
+    [{ x: 700, y: 536 }, { x: 742, y: 600 }],
+    [{ x: 780, y: 516 }, { x: 816, y: 574 }],
+    [{ x: 112, y: 530 }, { x: 82, y: 604 }],
+    [{ x: ATTIC_BASE_X + 78, y: MAIN_Y - 22 }, { x: 452, y: 388 }],
+    [{ x: 410, y: 918 }, { x: 354, y: 884 }],
+  ];
+  for (const [from, to] of stubs) {
+    carveAtticRootPath(world, from, to, 1, Tex.F_GUT, protectedMask);
+    placeAtticRootPillar(world, to.x, to.y, 3, protectedMask);
+  }
+}
+
+function stampAtticChokepoints(world: World, protectedMask: Uint8Array): void {
+  placeAtticRootPillar(world, ATTIC_BASE_X + 142, MAIN_Y - 5, 3, protectedMask);
+  placeAtticRootPillar(world, ATTIC_BASE_X + 148, MAIN_Y + 8, 3, protectedMask);
+  placeAtticRootPillar(world, 780, 510, 3, protectedMask);
+  placeAtticRootPillar(world, 786, 524, 3, protectedMask);
+  placeAtticRootPillar(world, 948, 486, 3, protectedMask);
+  placeAtticRootPillar(world, 34, 496, 3, protectedMask);
+  setAtticFeature(world, ATTIC_BASE_X + 150, MAIN_Y + 1, Feature.CANDLE);
+  setAtticFeature(world, 783, 517, Feature.LAMP);
+  setAtticFeature(world, 1004, 494, Feature.APPARATUS);
+}
+
+function placeAtticRootPillar(world: World, cx: number, cy: number, radius: number, protectedMask: Uint8Array): void {
+  const r2 = radius * radius;
+  for (let dy = -radius; dy <= radius; dy++) {
+    for (let dx = -radius; dx <= radius; dx++) {
+      if (dx * dx + dy * dy > r2) continue;
+      const idx = world.idx(cx + dx, cy + dy);
+      if (protectedMask[idx] || world.cells[idx] === Cell.DOOR || world.cells[idx] === Cell.LIFT) continue;
+      world.cells[idx] = Cell.WALL;
+      world.roomMap[idx] = -1;
+      world.wallTex[idx] = (dx + dy) & 1 ? Tex.GUT : Tex.MEAT;
+      world.features[idx] = Feature.NONE;
+    }
+  }
+}
+
+function stampAtticExitCues(world: World): void {
+  world.stamp(ATTIC_BASE_X + 7, ATTIC_BASE_Y + 57, 0.5, 0.5, 4.2, 0.2, 3602, 80, 78, 70, true);
+  world.stamp(ATTIC_BASE_X + 216, ATTIC_BASE_Y + 58, 0.5, 0.5, 4.6, 0.22, 3603, 38, 54, 64, true);
+  setAtticFeature(world, ATTIC_BASE_X + 5, ATTIC_BASE_Y + 57, Feature.LAMP);
+  setAtticFeature(world, ATTIC_BASE_X + 214, ATTIC_BASE_Y + 58, Feature.LAMP);
+  setAtticFeature(world, ATTIC_BASE_X + 153, ATTIC_BASE_Y + 15, Feature.LIFT_BUTTON);
+}
+
+function setAtticFeature(world: World, x: number, y: number, feature: Feature): void {
+  const idx = world.idx(x, y);
+  if (world.cells[idx] === Cell.FLOOR) world.features[idx] = feature;
+}
+
+function spawnAtticAmbientMonsters(world: World, entities: Entity[], rng: () => number, count: number): void {
+  let nextId = entities.reduce((max, entity) => Math.max(max, entity.id), 0) + 1;
+  const kinds: readonly MonsterKind[] = [MonsterKind.SHADOW, MonsterKind.POLZUN, MonsterKind.SPIRIT, MonsterKind.REBAR];
+  for (let i = 0; i < count; i++) {
+    const point = randomAtticRootCell(world, rng);
+    if (!point) break;
+    const kind = kinds[Math.floor(rng() * kinds.length)];
+    nextId = spawnMonster(entities, nextId, kind, point.x + 0.5, point.y + 0.5);
+  }
+}
+
+function randomAtticRootCell(world: World, rng: () => number): AtticPoint | null {
+  for (let attempt = 0; attempt < 2000; attempt++) {
+    const x = Math.floor(rng() * W);
+    const y = Math.floor(rng() * W);
+    const idx = world.idx(x, y);
+    if (world.cells[idx] !== Cell.FLOOR) continue;
+    if (world.dist2(x + 0.5, y + 0.5, ATTIC_BASE_X + 11.5, ATTIC_BASE_Y + 57.5) < 48 * 48) continue;
+    return { x, y };
+  }
+  return null;
 }
 
 function fillBaseTextures(world: World): void {

@@ -382,6 +382,13 @@ interface BuildCtx {
   packedState: DarkMetroPackedState;
 }
 
+interface DarkMetroFullFloorStyle {
+  wallTex: Tex;
+  floorTex: Tex;
+}
+
+const DARK_METRO_FULL_LINE_YS = [118, 260, 402, 642, 786, 920] as const;
+
 export function generateDarkMetroDesignFloor(seed = DARK_METRO_DEFAULT_SEED): FloorGeneration {
   return withSeededRandom(seed, () => {
     const world = new World();
@@ -412,6 +419,292 @@ export function generateDarkMetroDesignFloor(seed = DARK_METRO_DEFAULT_SEED): Fl
 
     return { world, entities, spawnX, spawnY };
   });
+}
+
+export function expandDarkMetroFullFloorGeometry(
+  world: World,
+  rng: () => number,
+  style: DarkMetroFullFloorStyle,
+): void {
+  const protectedCells = darkMetroProtectedMask(world);
+  for (let i = 0; i < DARK_METRO_FULL_LINE_YS.length; i++) {
+    carveDarkMetroStationLine(world, protectedCells, DARK_METRO_FULL_LINE_YS[i], i, style, rng);
+  }
+
+  addDarkMetroTicketHalls(world, protectedCells, style);
+  addDarkMetroServiceRoutes(world, protectedCells, style, rng);
+  addDarkMetroTransferWeb(world, protectedCells, style);
+  linkDarkMetroCoreToInterchange(world, style);
+  world.markFogDirty();
+}
+
+function darkMetroProtectedMask(world: World): Uint8Array {
+  const mask = new Uint8Array(W * W);
+  for (const room of world.rooms) {
+    if (!room) continue;
+    for (let y = room.y - 1; y <= room.y + room.h; y++) {
+      for (let x = room.x - 1; x <= room.x + room.w; x++) {
+        mask[world.idx(x, y)] = 1;
+      }
+    }
+  }
+  for (const idx of world.doors.keys()) mask[idx] = 1;
+  for (const container of world.containers) mask[world.idx(container.x, container.y)] = 1;
+  return mask;
+}
+
+function carveDarkMetroStationLine(
+  world: World,
+  mask: Uint8Array,
+  y: number,
+  line: number,
+  style: DarkMetroFullFloorStyle,
+  rng: () => number,
+): void {
+  const x0 = 44;
+  const w = W - 88;
+  const lampOffset = Math.floor(rng() * 18);
+
+  carveMetroRect(world, mask, x0, y - 13, w, 5, style.floorTex);
+  carveMetroTrack(world, mask, x0, y - 7, w, 5);
+  carveMetroRect(world, mask, x0, y - 1, w, 4, style.floorTex);
+  carveMetroTrack(world, mask, x0, y + 4, w, 5);
+  carveMetroRect(world, mask, x0, y + 10, w, 5, style.floorTex);
+
+  for (let x = 90 + (line % 2) * 46; x < W - 90; x += 174) {
+    carveMetroRect(world, mask, x, y - 13, 5, 28, style.floorTex);
+    setFeature(world, x + 2, y - 10, line % 3 === 0 ? Feature.SCREEN : Feature.LAMP);
+    setFeature(world, x + 2, y + 12, line % 2 === 0 ? Feature.LAMP : Feature.CANDLE);
+  }
+
+  for (let x = 72 + lampOffset; x < W - 72; x += 64) {
+    setFeature(world, x, y - 11, Feature.LAMP);
+    if ((x + line) % 3 === 0) setFeature(world, x + 8, y + 12, Feature.CANDLE);
+    if ((x + line) % 5 === 0) setFeature(world, x + 17, y + 1, Feature.SCREEN);
+  }
+
+  const trainX = 158 + ((line * 149) % 640);
+  const trainY = y + (line % 2 === 0 ? -7 : 4);
+  addDeadTrainShell(world, mask, trainX, trainY, line, style);
+}
+
+function addDeadTrainShell(
+  world: World,
+  mask: Uint8Array,
+  x: number,
+  y: number,
+  line: number,
+  style: DarkMetroFullFloorStyle,
+): void {
+  if (!canPlaceMetroRoom(world, mask, x, y, 92, 5)) return;
+  const train = styledRoom(world, RoomType.CORRIDOR, x, y, 92, 5, `Мертвый вагон линии ${line + 1}`, Tex.METAL, Tex.F_CONCRETE);
+  carveMetroRect(world, null, train.x - 2, train.y + 2, 4, 1, style.floorTex);
+  carveMetroRect(world, null, train.x + train.w - 2, train.y + 2, 4, 1, style.floorTex);
+  for (let i = 8; i < train.w - 8; i += 14) {
+    setFeature(world, train.x + i, train.y + 1, Feature.CHAIR);
+    if (i % 28 === 0) setFeature(world, train.x + i + 5, train.y + 3, Feature.CANDLE);
+    world.stamp(train.x + i, train.y + 2, 0.5, 0.5, 1.7, 0.18, hashSeed(`dark_metro_train.${line}.${i}`), 42, 38, 44, false);
+  }
+}
+
+function addDarkMetroTicketHalls(world: World, mask: Uint8Array, style: DarkMetroFullFloorStyle): void {
+  const halls = [
+    { x: 74, y: 66, w: 86, h: 30, name: 'Северный билетный зал', tx: 118, ty: DARK_METRO_FULL_LINE_YS[0] - 13 },
+    { x: 770, y: 210, w: 102, h: 32, name: 'Зал погашенных жетонов', tx: 820, ty: DARK_METRO_FULL_LINE_YS[1] - 13 },
+    { x: 116, y: 734, w: 92, h: 34, name: 'Кассовая развязка без касс', tx: 160, ty: DARK_METRO_FULL_LINE_YS[4] - 13 },
+    { x: 702, y: 872, w: 112, h: 34, name: 'Южный зал неверных объявлений', tx: 760, ty: DARK_METRO_FULL_LINE_YS[5] - 13 },
+  ];
+
+  for (const h of halls) {
+    const room = addDarkMetroLandmarkRoom(world, mask, RoomType.COMMON, h.x, h.y, h.w, h.h, h.name, style.wallTex, Tex.F_TILE);
+    if (!room) continue;
+    carveMetroLine(world, null, room.x + (room.w >> 1), room.y + room.h - 1, h.tx, h.ty, 2, Tex.F_TILE);
+    setFeature(world, room.x + 5, room.y + 5, Feature.SCREEN);
+    setFeature(world, room.x + room.w - 6, room.y + 5, Feature.LAMP);
+    setFeature(world, room.x + (room.w >> 1), room.y + (room.h >> 1), Feature.TABLE);
+    setFeature(world, room.x + (room.w >> 1) + 4, room.y + (room.h >> 1), Feature.SHELF);
+  }
+}
+
+function addDarkMetroServiceRoutes(
+  world: World,
+  mask: Uint8Array,
+  style: DarkMetroFullFloorStyle,
+  rng: () => number,
+): void {
+  const tunnels = [
+    { x: 176, side: 1 },
+    { x: 842, side: -1 },
+  ];
+
+  for (const tunnel of tunnels) {
+    carveMetroLine(world, mask, tunnel.x, 82, tunnel.x, 950, 2, Tex.F_CONCRETE);
+    for (let y = 98; y < 950; y += 34) {
+      setDarkMetroFog(world, tunnel.x, y, 34);
+      if (y % 102 === 0) setFeature(world, tunnel.x + tunnel.side, y, Feature.CANDLE);
+    }
+    for (let i = 0; i < DARK_METRO_FULL_LINE_YS.length; i++) {
+      const y = DARK_METRO_FULL_LINE_YS[i];
+      setFeature(world, tunnel.x + tunnel.side * 2, y, Feature.APPARATUS);
+      if (i % 2 === 0) {
+        const rx = tunnel.x + tunnel.side * (10 + Math.floor(rng() * 8));
+        const room = addDarkMetroLandmarkRoom(world, mask, RoomType.PRODUCTION, rx, y - 14, 20, 12, `Стрелочная будка ${i + 1}`, Tex.PIPE, style.floorTex);
+        if (room) {
+          carveMetroLine(world, null, room.x + (tunnel.side > 0 ? 0 : room.w - 1), room.y + (room.h >> 1), tunnel.x, y, 1, style.floorTex);
+          setFeature(world, room.x + 4, room.y + 3, Feature.MACHINE);
+          setFeature(world, room.x + room.w - 5, room.y + 4, Feature.SCREEN);
+        }
+      }
+    }
+  }
+
+  const stair = addDarkMetroLandmarkRoom(world, mask, RoomType.CORRIDOR, 700, 504, 18, 70, 'Служебная лестница между линиями', Tex.DARK, style.floorTex);
+  if (stair) {
+    carveMetroLine(world, null, stair.x + 9, DARK_METRO_FULL_LINE_YS[2] + 14, stair.x + 9, DARK_METRO_FULL_LINE_YS[3] - 13, 2, style.floorTex);
+    for (let y = stair.y + 5; y < stair.y + stair.h - 4; y += 10) {
+      setFeature(world, stair.x + 4, y, Feature.CANDLE);
+      setDarkMetroFog(world, stair.x + 9, y, 26);
+    }
+  }
+}
+
+function addDarkMetroTransferWeb(world: World, mask: Uint8Array, style: DarkMetroFullFloorStyle): void {
+  for (let i = 1; i < DARK_METRO_FULL_LINE_YS.length; i++) {
+    const prevY = DARK_METRO_FULL_LINE_YS[i - 1];
+    const y = DARK_METRO_FULL_LINE_YS[i];
+    const x0 = i % 2 === 0 ? 304 : 580;
+    const x1 = x0 + (i % 2 === 0 ? 86 : -96);
+    carveMetroLine(world, mask, x0, prevY + 15, x1, y - 14, 2, style.floorTex);
+    setFeature(world, x0, prevY + 18, Feature.LAMP);
+    setFeature(world, x1, y - 17, i % 2 === 0 ? Feature.SCREEN : Feature.CANDLE);
+  }
+
+  for (const x of [340, 512, 684]) {
+    carveMetroLine(world, mask, x, DARK_METRO_FULL_LINE_YS[1] + 14, x, DARK_METRO_FULL_LINE_YS[4] - 13, 1, Tex.F_CONCRETE);
+    for (let y = DARK_METRO_FULL_LINE_YS[1] + 34; y < DARK_METRO_FULL_LINE_YS[4] - 20; y += 78) {
+      setFeature(world, x, y, x === 512 ? Feature.CANDLE : Feature.LAMP);
+      setDarkMetroFog(world, x, y, x === 512 ? 42 : 22);
+    }
+  }
+}
+
+function linkDarkMetroCoreToInterchange(world: World, style: DarkMetroFullFloorStyle): void {
+  const platform = world.rooms.find(r => r?.name === 'Платформа без расписания');
+  const exit = world.rooms.find(r => r?.name === 'Служебный выход к лифтам');
+  if (platform) {
+    carveMetroLine(world, null, platform.x + platform.w - 3, platform.y + platform.h - 1, 700, 540, 2, style.floorTex);
+    setFeature(world, platform.x + platform.w - 5, platform.y + 2, Feature.SCREEN);
+  }
+  if (exit) {
+    carveMetroLine(world, null, exit.x + 2, exit.y + 3, 700, 540, 1, Tex.F_CONCRETE);
+    setFeature(world, exit.x + 3, exit.y + 5, Feature.LAMP);
+  }
+}
+
+function addDarkMetroLandmarkRoom(
+  world: World,
+  mask: Uint8Array,
+  type: RoomType,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  name: string,
+  wallTex: Tex,
+  floorTex: Tex,
+): Room | null {
+  if (!canPlaceMetroRoom(world, mask, x, y, w, h)) return null;
+  return styledRoom(world, type, x, y, w, h, name, wallTex, floorTex);
+}
+
+function canPlaceMetroRoom(world: World, mask: Uint8Array, x: number, y: number, w: number, h: number): boolean {
+  for (let dy = -1; dy <= h; dy++) {
+    for (let dx = -1; dx <= w; dx++) {
+      if (mask[world.idx(x + dx, y + dy)]) return false;
+    }
+  }
+  return true;
+}
+
+function carveMetroLine(
+  world: World,
+  mask: Uint8Array | null,
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+  width: number,
+  floorTex: Tex,
+): void {
+  let x = world.wrap(ax);
+  let y = world.wrap(ay);
+  const tx = world.wrap(bx);
+  const ty = world.wrap(by);
+  const sx = world.delta(x, tx) >= 0 ? 1 : -1;
+  const sy = world.delta(y, ty) >= 0 ? 1 : -1;
+  while (x !== tx) {
+    carveMetroDisc(world, mask, x, y, width, floorTex);
+    x = world.wrap(x + sx);
+  }
+  while (y !== ty) {
+    carveMetroDisc(world, mask, x, y, width, floorTex);
+    y = world.wrap(y + sy);
+  }
+  carveMetroDisc(world, mask, x, y, width, floorTex);
+}
+
+function carveMetroDisc(world: World, mask: Uint8Array | null, cx: number, cy: number, r: number, floorTex: Tex): void {
+  const r2 = r * r;
+  for (let dy = -r; dy <= r; dy++) {
+    for (let dx = -r; dx <= r; dx++) {
+      if (dx * dx + dy * dy > r2) continue;
+      openMetroTile(world, mask, cx + dx, cy + dy, floorTex);
+    }
+  }
+}
+
+function carveMetroRect(
+  world: World,
+  mask: Uint8Array | null,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  floorTex: Tex,
+): void {
+  for (let dy = 0; dy < h; dy++) {
+    for (let dx = 0; dx < w; dx++) {
+      openMetroTile(world, mask, x + dx, y + dy, floorTex);
+    }
+  }
+}
+
+function carveMetroTrack(world: World, mask: Uint8Array, x: number, y: number, w: number, h: number): void {
+  for (let dy = 0; dy < h; dy++) {
+    for (let dx = 0; dx < w; dx++) {
+      const ci = world.idx(x + dx, y + dy);
+      if (mask[ci] || world.cells[ci] === Cell.LIFT) continue;
+      world.cells[ci] = Cell.WATER;
+      world.floorTex[ci] = Tex.F_WATER;
+      world.features[ci] = Feature.NONE;
+      world.roomMap[ci] = -1;
+      if ((dx + dy) % 17 === 0) world.fog[ci] = Math.max(world.fog[ci], 20);
+    }
+  }
+}
+
+function openMetroTile(world: World, mask: Uint8Array | null, x: number, y: number, floorTex: Tex): void {
+  const ci = world.idx(x, y);
+  if ((mask && mask[ci]) || world.cells[ci] === Cell.LIFT) return;
+  world.cells[ci] = Cell.FLOOR;
+  world.roomMap[ci] = -1;
+  world.floorTex[ci] = floorTex;
+}
+
+function setDarkMetroFog(world: World, x: number, y: number, fog: number): void {
+  const ci = world.idx(x, y);
+  if (world.cells[ci] === Cell.WALL || world.cells[ci] === Cell.LIFT) return;
+  world.fog[ci] = Math.max(world.fog[ci], fog);
 }
 
 function stampDarkMetroLayout(ctx: BuildCtx): DarkMetroLayout {

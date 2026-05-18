@@ -2,7 +2,7 @@
 
 import {
   AIGoal, Cell, ContainerKind, DoorState, EntityType, Faction, Feature,
-  FloorLevel, LiftDirection, Occupation, QuestType, RoomType, Tex, ZoneFaction,
+  FloorLevel, LiftDirection, Occupation, QuestType, RoomType, Tex, W, ZoneFaction,
   type ContainerAccess, type Entity, type Room, type WorldContainer,
 } from '../../core/types';
 import { World } from '../../core/world';
@@ -31,6 +31,16 @@ export const FLOOR_69_DEFAULT_SEED = 690004;
 // adapt this string-route floor instead of adding a casual enum here.
 const FLOOR_69_BASE_FLOOR = FloorLevel.MAINTENANCE;
 const FLOOR_69_MAX_FLAGS = 8;
+const FLOOR_69_FULL_POP_COUNT = 180;
+
+const FLOOR_69_NAMES_F = [
+  'Алина Сцена', 'Вера Красная', 'Дина Бархат', 'Лада Лента', 'Мира Пайетка',
+  'Ника Кулиса', 'Рита Свет', 'Соня Тихая', 'Тая Занавес', 'Эля Ночной Чай',
+];
+const FLOOR_69_NAMES_M = [
+  'Гена Сторож', 'Денис Гость', 'Жора Бармен', 'Клим Курьер', 'Левон Световой',
+  'Марк Счетчик', 'Паша Дверной', 'Рома Патруль', 'Савва Чистый', 'Федя Номерной',
+];
 
 export interface Floor69State {
   heat: number;
@@ -382,6 +392,346 @@ function addLift(world: World, x: number, y: number, buttonX: number, buttonY: n
   }
 }
 
+interface Floor69MacroCounts {
+  hotelRooms: number;
+  dressingRooms: number;
+  debtRooms: number;
+  refugeRooms: number;
+  securityGates: number;
+  loops: number;
+}
+
+function canCarveFloor69Route(world: World, idx: number): boolean {
+  if (world.cells[idx] === Cell.LIFT || world.cells[idx] === Cell.DOOR) return false;
+  const roomId = world.roomMap[idx];
+  if (roomId >= 0) return world.rooms[roomId]?.type === RoomType.CORRIDOR;
+  return world.aptMask[idx] === 0 || world.cells[idx] === Cell.FLOOR;
+}
+
+function carveRouteCell(world: World, x: number, y: number, floorTex: Tex, wallTex: Tex): void {
+  const ci = world.idx(x, y);
+  if (!canCarveFloor69Route(world, ci)) return;
+  const roomId = world.roomMap[ci];
+  world.cells[ci] = Cell.FLOOR;
+  world.roomMap[ci] = roomId >= 0 ? roomId : -1;
+  world.floorTex[ci] = floorTex;
+  if (world.features[ci] !== Feature.LIFT_BUTTON) world.features[ci] = Feature.NONE;
+  for (const [ox, oy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+    const ni = world.idx(x + ox, y + oy);
+    if (world.cells[ni] === Cell.WALL && world.aptMask[ni] === 0) world.wallTex[ni] = wallTex;
+  }
+}
+
+function carveRouteDisc(world: World, cx: number, cy: number, r: number, floorTex: Tex, wallTex: Tex): void {
+  const r2 = r * r;
+  for (let dy = -r; dy <= r; dy++) {
+    for (let dx = -r; dx <= r; dx++) {
+      if (dx * dx + dy * dy > r2) continue;
+      carveRouteCell(world, cx + dx, cy + dy, floorTex, wallTex);
+    }
+  }
+}
+
+function carveRouteLine(
+  world: World,
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+  width: number,
+  floorTex: Tex,
+  wallTex: Tex,
+): void {
+  let x = world.wrap(ax);
+  let y = world.wrap(ay);
+  const dx = world.delta(x, bx);
+  const dy = world.delta(y, by);
+  const sx = dx === 0 ? 0 : dx > 0 ? 1 : -1;
+  const sy = dy === 0 ? 0 : dy > 0 ? 1 : -1;
+
+  for (let i = 0; i <= Math.abs(dx); i++) {
+    carveRouteDisc(world, x, y, width, floorTex, wallTex);
+    if (i < Math.abs(dx)) x = world.wrap(x + sx);
+  }
+  for (let i = 0; i <= Math.abs(dy); i++) {
+    carveRouteDisc(world, x, y, width, floorTex, wallTex);
+    if (i < Math.abs(dy)) y = world.wrap(y + sy);
+  }
+}
+
+function doorWalkable(cell: number): boolean {
+  return cell === Cell.FLOOR || cell === Cell.DOOR || cell === Cell.LIFT;
+}
+
+function placeRoomDoor(world: World, room: Room, wx: number, wy: number, state: DoorState, keyId = ''): void {
+  const idx = world.idx(wx, wy);
+  if (world.cells[idx] !== Cell.WALL && world.cells[idx] !== Cell.DOOR) return;
+  let roomB = -1;
+  for (const [ox, oy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+    const otherRoomId = world.roomMap[world.idx(wx + ox, wy + oy)];
+    if (otherRoomId >= 0 && otherRoomId !== room.id) {
+      roomB = otherRoomId;
+      break;
+    }
+  }
+  world.cells[idx] = Cell.DOOR;
+  world.aptMask[idx] = 0;
+  world.wallTex[idx] = state === DoorState.LOCKED ? Tex.DOOR_METAL : Tex.DOOR_WOOD;
+  world.doors.set(idx, { idx, state, roomA: room.id, roomB, keyId, timer: 0 });
+  if (!room.doors.includes(idx)) room.doors.push(idx);
+  if (roomB >= 0) {
+    const other = world.rooms[roomB];
+    if (other && !other.doors.includes(idx)) other.doors.push(idx);
+  }
+}
+
+function openRoomToNearestRoute(world: World, room: Room, tx: number, ty: number, state = DoorState.CLOSED, keyId = ''): void {
+  let bestX = 0;
+  let bestY = 0;
+  let bestD = Infinity;
+  for (let dy = -1; dy <= room.h; dy++) {
+    for (let dx = -1; dx <= room.w; dx++) {
+      if (dx >= 0 && dx < room.w && dy >= 0 && dy < room.h) continue;
+      const wx = world.wrap(room.x + dx);
+      const wy = world.wrap(room.y + dy);
+      const ci = world.idx(wx, wy);
+      if (world.cells[ci] !== Cell.WALL) continue;
+      for (const [ox, oy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+        const inside = world.idx(wx + ox, wy + oy);
+        const outside = world.idx(wx - ox, wy - oy);
+        if (world.roomMap[inside] !== room.id || !doorWalkable(world.cells[outside])) continue;
+        const d = world.dist2(wx, wy, tx, ty);
+        if (d < bestD) {
+          bestD = d;
+          bestX = wx;
+          bestY = wy;
+        }
+      }
+    }
+  }
+  if (bestD < Infinity) placeRoomDoor(world, room, bestX, bestY, state, keyId);
+}
+
+function addRouteGate(
+  world: World,
+  x: number,
+  y1: number,
+  y2: number,
+  doorY: number,
+  state: DoorState,
+  keyId = '',
+): void {
+  for (let y = y1; y <= y2; y++) {
+    const ci = world.idx(x, y);
+    const roomId = world.roomMap[ci];
+    if (roomId >= 0 && world.rooms[roomId]?.type !== RoomType.CORRIDOR) continue;
+    if (world.cells[ci] === Cell.LIFT) continue;
+    world.cells[ci] = Cell.WALL;
+    world.aptMask[ci] = 0;
+    world.roomMap[ci] = -1;
+    world.wallTex[ci] = Tex.METAL;
+    world.features[ci] = Feature.NONE;
+  }
+
+  const doorIdx = world.idx(x, doorY);
+  world.cells[doorIdx] = Cell.DOOR;
+  world.wallTex[doorIdx] = state === DoorState.LOCKED ? Tex.DOOR_METAL : Tex.DOOR_WOOD;
+  world.doors.set(doorIdx, { idx: doorIdx, state, roomA: -1, roomB: -1, keyId, timer: 0 });
+}
+
+function pickRouteRoomType(rng: () => number, motif: 'hotel' | 'dressing' | 'debt' | 'security' | 'refuge'): RoomType {
+  if (motif === 'debt') return rng() < 0.72 ? RoomType.OFFICE : RoomType.STORAGE;
+  if (motif === 'dressing') return rng() < 0.55 ? RoomType.COMMON : RoomType.STORAGE;
+  if (motif === 'security') return RoomType.HQ;
+  if (motif === 'refuge') return rng() < 0.7 ? RoomType.LIVING : RoomType.STORAGE;
+  return rng() < 0.65 ? RoomType.LIVING : rng() < 0.82 ? RoomType.SMOKING : RoomType.COMMON;
+}
+
+function decorateRouteRoom(world: World, room: Room, motif: 'hotel' | 'dressing' | 'debt' | 'security' | 'refuge', rng: () => number): void {
+  const count = Math.max(2, Math.floor(room.w * room.h / 62));
+  const pool = motif === 'debt'
+    ? [Feature.SHELF, Feature.DESK, Feature.TABLE, Feature.LAMP]
+    : motif === 'security'
+      ? [Feature.DESK, Feature.CHAIR, Feature.LAMP, Feature.SHELF]
+      : motif === 'dressing'
+        ? [Feature.CHAIR, Feature.SHELF, Feature.TABLE, Feature.LAMP]
+        : motif === 'refuge'
+          ? [Feature.BED, Feature.CHAIR, Feature.LAMP, Feature.SHELF]
+          : [Feature.BED, Feature.TABLE, Feature.CHAIR, Feature.LAMP];
+
+  for (let i = 0; i < count; i++) {
+    setFeature(
+      world,
+      room.x + 2 + Math.floor(rng() * Math.max(1, room.w - 4)),
+      room.y + 2 + Math.floor(rng() * Math.max(1, room.h - 4)),
+      pool[Math.floor(rng() * pool.length)],
+    );
+  }
+
+  if (motif === 'debt') {
+    addScreenWall(world, room.x + Math.floor(room.w / 2), room.y - 1, room.id + 17);
+  } else if (motif === 'hotel' || motif === 'dressing') {
+    addPosterWall(world, room.x + Math.floor(room.w / 2), room.y - 1, room.id * 3);
+    if (rng() < 0.24) {
+      world.stamp(room.x + Math.floor(room.w / 2), room.y + Math.floor(room.h / 2), 0.5, 0.5, 2.8, 0.16, room.id * 983, 200, 42, 112, true);
+    }
+  }
+}
+
+function addRouteRoom(
+  world: World,
+  rng: () => number,
+  motif: 'hotel' | 'dressing' | 'debt' | 'security' | 'refuge',
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  name: string,
+  doorTargetX: number,
+  doorTargetY: number,
+  state = DoorState.CLOSED,
+  keyId = '',
+): Room {
+  const wallTex = motif === 'security'
+    ? Tex.METAL
+    : motif === 'debt'
+      ? Tex.MARBLE
+      : motif === 'dressing'
+        ? Tex.CURTAIN
+        : motif === 'refuge'
+          ? Tex.PANEL
+          : Tex.CURTAIN;
+  const floorTex = motif === 'security'
+    ? Tex.F_CONCRETE
+    : motif === 'debt'
+      ? Tex.F_PARQUET
+      : motif === 'refuge'
+        ? Tex.F_LINO
+        : Tex.F_CARPET;
+  const room = addRoom(world, pickRouteRoomType(rng, motif), x, y, w, h, name, wallTex, floorTex);
+  openRoomToNearestRoute(world, room, doorTargetX, doorTargetY, state, keyId);
+  decorateRouteRoom(world, room, motif, rng);
+  return room;
+}
+
+function addHorizontalRooms(
+  world: World,
+  rng: () => number,
+  counts: Floor69MacroCounts,
+  corridorY: number,
+  x1: number,
+  x2: number,
+  side: -1 | 1,
+  motif: 'hotel' | 'dressing' | 'debt' | 'refuge',
+  label: string,
+  step: number,
+): void {
+  for (let x = x1; x <= x2; x += step) {
+    const w = 18 + Math.floor(rng() * (motif === 'debt' ? 18 : 12));
+    const h = 10 + Math.floor(rng() * (motif === 'refuge' ? 5 : 8));
+    const y = side < 0 ? corridorY - h - 3 : corridorY + 4;
+    const locked = motif === 'debt' && rng() < 0.45;
+    addRouteRoom(
+      world,
+      rng,
+      motif,
+      x,
+      y,
+      w,
+      h,
+      `${label} ${Math.floor(x / step)}`,
+      x + Math.floor(w / 2),
+      corridorY,
+      motif === 'refuge' ? DoorState.HERMETIC_OPEN : locked ? DoorState.LOCKED : DoorState.CLOSED,
+      locked ? 'key' : '',
+    );
+    if (motif === 'hotel') counts.hotelRooms++;
+    else if (motif === 'dressing') counts.dressingRooms++;
+    else if (motif === 'debt') counts.debtRooms++;
+    else counts.refugeRooms++;
+  }
+}
+
+function decorateRouteLine(world: World, y: number, x1: number, x2: number, seedOffset: number): void {
+  for (let x = x1; x <= x2; x += 46) {
+    setFeature(world, x, y, Feature.LAMP);
+    if ((x + seedOffset) % 3 === 0) addPosterWall(world, x, y - 3, x + seedOffset);
+  }
+}
+
+function buildFloor69PublicRoutes(world: World, counts: Floor69MacroCounts): void {
+  carveRouteLine(world, 64, 512, 948, 512, 3, Tex.F_CARPET, Tex.CURTAIN);
+  carveRouteLine(world, 112, 384, 912, 384, 2, Tex.F_CARPET, Tex.CURTAIN);
+  carveRouteLine(world, 112, 640, 912, 640, 2, Tex.F_CARPET, Tex.CURTAIN);
+  carveRouteLine(world, 176, 320, 176, 704, 2, Tex.F_CARPET, Tex.CURTAIN);
+  carveRouteLine(world, 392, 300, 392, 704, 2, Tex.F_CARPET, Tex.CURTAIN);
+  carveRouteLine(world, 656, 300, 656, 704, 2, Tex.F_CARPET, Tex.CURTAIN);
+
+  carveRouteLine(world, 300, 256, 736, 256, 2, Tex.F_CONCRETE, Tex.DARK);
+  carveRouteLine(world, 164, 448, 736, 448, 2, Tex.F_CONCRETE, Tex.DARK);
+  carveRouteLine(world, 164, 640, 736, 640, 2, Tex.F_CONCRETE, Tex.DARK);
+  carveRouteLine(world, 300, 812, 736, 812, 2, Tex.F_CONCRETE, Tex.DARK);
+  carveRouteLine(world, 736, 160, 736, 880, 2, Tex.F_CONCRETE, Tex.DARK);
+  carveRouteLine(world, 554, 554, 736, 554, 2, Tex.F_CONCRETE, Tex.DARK);
+
+  decorateRouteLine(world, 512, 96, 920, 11);
+  decorateRouteLine(world, 384, 136, 884, 23);
+  decorateRouteLine(world, 640, 136, 884, 37);
+  counts.loops += 4;
+}
+
+function buildFloor69HotelWings(world: World, rng: () => number, counts: Floor69MacroCounts): void {
+  addHorizontalRooms(world, rng, counts, 384, 118, 350, -1, 'hotel', 'Гостиничный номер север', 46);
+  addHorizontalRooms(world, rng, counts, 384, 118, 350, 1, 'hotel', 'Гостиничный номер юг', 46);
+  addHorizontalRooms(world, rng, counts, 384, 690, 874, -1, 'hotel', 'Красный номер восток', 46);
+  addHorizontalRooms(world, rng, counts, 640, 118, 350, -1, 'hotel', 'Тихий номер запад', 46);
+  addHorizontalRooms(world, rng, counts, 640, 118, 350, 1, 'hotel', 'Часовой номер запад', 46);
+  addHorizontalRooms(world, rng, counts, 640, 690, 874, 1, 'hotel', 'Поздний номер восток', 46);
+}
+
+function buildFloor69BackstageLoop(world: World, rng: () => number, counts: Floor69MacroCounts): void {
+  carveRouteLine(world, 432, 456, 604, 456, 2, Tex.F_CONCRETE, Tex.DARK);
+  carveRouteLine(world, 604, 456, 604, 612, 2, Tex.F_CONCRETE, Tex.DARK);
+  carveRouteLine(world, 604, 612, 432, 612, 2, Tex.F_CONCRETE, Tex.DARK);
+  carveRouteLine(world, 432, 612, 432, 456, 2, Tex.F_CONCRETE, Tex.DARK);
+  carveRouteLine(world, 512, 456, 512, 612, 2, Tex.F_CONCRETE, Tex.DARK);
+  counts.loops += 2;
+
+  addHorizontalRooms(world, rng, counts, 456, 438, 574, -1, 'dressing', 'Гримерная кулис', 44);
+  addHorizontalRooms(world, rng, counts, 612, 438, 574, 1, 'dressing', 'Костюмерная петля', 44);
+  addHorizontalRooms(world, rng, counts, 612, 438, 530, -1, 'refuge', 'Тихий шкаф за сценой', 46);
+  setFeature(world, 512, 456, Feature.SCREEN);
+  setFeature(world, 604, 512, Feature.LAMP);
+}
+
+function buildFloor69DebtBlock(world: World, rng: () => number, counts: Floor69MacroCounts): void {
+  carveRouteLine(world, 604, 512, 904, 512, 2, Tex.F_PARQUET, Tex.PANEL);
+  carveRouteLine(world, 604, 552, 904, 552, 2, Tex.F_CONCRETE, Tex.DARK);
+  carveRouteLine(world, 604, 608, 904, 608, 2, Tex.F_CONCRETE, Tex.DARK);
+  carveRouteLine(world, 904, 512, 904, 608, 2, Tex.F_CONCRETE, Tex.DARK);
+  counts.loops++;
+
+  addRouteRoom(world, rng, 'security', 630, 494, 18, 14, 'Второй пост досмотра 69', 620, 512);
+  addRouteRoom(world, rng, 'security', 720, 532, 18, 14, 'Пост служебного обхода 69', 736, 552);
+  addHorizontalRooms(world, rng, counts, 552, 626, 850, -1, 'debt', 'Долговой кабинет', 48);
+  addHorizontalRooms(world, rng, counts, 608, 626, 850, 1, 'debt', 'Архив расписок', 48);
+}
+
+function buildFloor69RefugeClosets(world: World, rng: () => number, counts: Floor69MacroCounts): void {
+  addHorizontalRooms(world, rng, counts, 256, 320, 444, -1, 'refuge', 'Верхний тихий шкаф', 42);
+  addHorizontalRooms(world, rng, counts, 448, 248, 344, 1, 'refuge', 'Служебное укрытие', 42);
+  addHorizontalRooms(world, rng, counts, 812, 320, 444, 1, 'refuge', 'Нижний тихий шкаф', 42);
+  addRouteRoom(world, rng, 'refuge', 790, 624, 16, 11, 'Скрытая комната свидетеля 69', 790, 640, DoorState.HERMETIC_OPEN);
+}
+
+function buildFloor69SecurityChokes(world: World, counts: Floor69MacroCounts): void {
+  addRouteGate(world, 620, 505, 519, 512, DoorState.CLOSED);
+  addRouteGate(world, 760, 505, 519, 512, DoorState.CLOSED);
+  counts.securityGates += 2;
+  setFeature(world, 624, 511, Feature.DESK);
+  setFeature(world, 756, 511, Feature.DESK);
+}
+
 function buildLayout(world: World): Floor69Rooms {
   const publicLift = addRoom(world, RoomType.CORRIDOR, 456, 503, 7, 16, 'Лифт 69: публичная площадка', Tex.METAL, Tex.F_CONCRETE);
   const publicCorridor = addRoom(world, RoomType.CORRIDOR, 464, 508, 88, 6, 'Красный коридор 69', Tex.CURTAIN, Tex.F_CARPET);
@@ -459,6 +809,86 @@ function decorateRooms(world: World, rooms: Floor69Rooms, seed: number): void {
   for (let y = rooms.staffRoute.y + 3; y < rooms.staffRoute.y + rooms.staffRoute.h - 3; y += 7) {
     setFeature(world, rooms.staffRoute.x + 2, y, Feature.LAMP);
   }
+}
+
+export function expandFloor69FullFloor(generation: FloorGeneration, rng: () => number): void {
+  const counts: Floor69MacroCounts = {
+    hotelRooms: 0,
+    dressingRooms: 0,
+    debtRooms: 0,
+    refugeRooms: 0,
+    securityGates: 0,
+    loops: 0,
+  };
+
+  buildFloor69PublicRoutes(generation.world, counts);
+  buildFloor69HotelWings(generation.world, rng, counts);
+  buildFloor69BackstageLoop(generation.world, rng, counts);
+  buildFloor69DebtBlock(generation.world, rng, counts);
+  buildFloor69RefugeClosets(generation.world, rng, counts);
+  buildFloor69SecurityChokes(generation.world, counts);
+  spawnFloor69Population(generation, rng);
+
+  genLog(
+    `[F69] full geometry rooms=${counts.hotelRooms + counts.dressingRooms + counts.debtRooms + counts.refugeRooms}`
+    + ` hotel=${counts.hotelRooms} backstage=${counts.dressingRooms} debt=${counts.debtRooms}`
+    + ` refuge=${counts.refugeRooms} gates=${counts.securityGates} loops=${counts.loops}`
+    + ` pop=${FLOOR_69_FULL_POP_COUNT}`,
+  );
+}
+
+function randomFloor69FloorCell(world: World, rng: () => number): { x: number; y: number } | null {
+  for (let attempt = 0; attempt < 2000; attempt++) {
+    const x = Math.floor(rng() * W);
+    const y = Math.floor(rng() * W);
+    const ci = world.idx(x, y);
+    if (world.cells[ci] === Cell.FLOOR && world.features[ci] !== Feature.LIFT_BUTTON) return { x, y };
+  }
+  return null;
+}
+
+function spawnFloor69Population(generation: FloorGeneration, rng: () => number): void {
+  let nextId = generation.entities.reduce((mx, e) => Math.max(mx, e.id), 0) + 1;
+  const target = FLOOR_69_FULL_POP_COUNT;
+  for (let i = 0; i < target; i++) {
+    const p = randomFloor69FloorCell(generation.world, rng);
+    if (!p) break;
+    const female = i < Math.ceil(target * 0.56);
+    generation.entities.push(makeFloor69Npc(nextId++, p.x + 0.5, p.y + 0.5, female, i, rng));
+  }
+}
+
+function makeFloor69Npc(id: number, x: number, y: number, female: boolean, i: number, rng: () => number): Entity {
+  const faction = rng() < 0.12 ? Faction.LIQUIDATOR : Faction.CITIZEN;
+  return {
+    id,
+    type: EntityType.NPC,
+    x,
+    y,
+    angle: rng() * Math.PI * 2,
+    pitch: 0,
+    alive: true,
+    speed: 0.72 + rng() * 0.36,
+    sprite: female ? Spr.F69_FEMALE_NPC_BASE + (i % 8) : pickOccupationSprite(rng),
+    name: female ? FLOOR_69_NAMES_F[i % FLOOR_69_NAMES_F.length] : FLOOR_69_NAMES_M[i % FLOOR_69_NAMES_M.length],
+    isFemale: female,
+    needs: freshNeeds(),
+    hp: 70 + Math.floor(rng() * 60),
+    maxHp: 100,
+    money: Math.floor(8 + rng() * 110),
+    inventory: rng() < 0.5 ? [{ defId: 'cigs', count: 1 }] : [{ defId: 'tea', count: 1 }],
+    faction,
+    occupation: female ? Occupation.TRAVELER : rng() < 0.4 ? Occupation.HUNTER : Occupation.TRAVELER,
+    ai: { goal: AIGoal.WANDER, tx: x, ty: y, path: [], pi: 0, stuck: 0, timer: 0 },
+    canGiveQuest: false,
+    questId: -1,
+    weapon: faction === Faction.LIQUIDATOR ? 'makarov' : '',
+  };
+}
+
+function pickOccupationSprite(rng: () => number): number {
+  const pool = [Occupation.TRAVELER, Occupation.HUNTER, Occupation.STOREKEEPER, Occupation.SECRETARY, Occupation.DOCTOR];
+  return pool[Math.floor(rng() * pool.length)];
 }
 
 function addItemDrop(entities: Entity[], nextId: { v: number }, x: number, y: number, defId: string, count = 1): void {

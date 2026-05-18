@@ -100,8 +100,9 @@ export function drawNetSphereMenu(
   const leftX = x + pad;
   let ly = headerY + 34 * s;
   ctx.font = `${8 * s}px monospace`;
-  statLine(ctx, 'НЕТ-ГЕН', net.netGen, leftX, ly, leftW, valueOffset, '#d8f6ff'); ly += 12 * s;
-  statLine(ctx, 'СЕССИЯ', net.sessionId, leftX, ly, leftW, valueOffset, '#9ac'); ly += 16 * s;
+  statLine(ctx, 'НЕТ-ИМЯ', net.nickname, leftX, ly, leftW, valueOffset, '#d8f6ff'); ly += 12 * s;
+  statLine(ctx, 'НЕТ-ГЕН', net.netGen, leftX, ly, leftW, valueOffset, '#7da3ad'); ly += 10 * s;
+  statLine(ctx, 'СЕССИЯ', net.sessionId, leftX, ly, leftW, valueOffset, '#6f8792'); ly += 14 * s;
 
   const stats = net.stats;
   statLine(ctx, 'онлайн', String(stats?.onlineUsers ?? '-'), leftX, ly, leftW, valueOffset, '#7f8'); ly += 10 * s;
@@ -110,7 +111,6 @@ export function drawNetSphereMenu(
   statLine(ctx, 'смертей', String(stats?.totalDeaths ?? '-'), leftX, ly, leftW, valueOffset, '#f86'); ly += 16 * s;
 
   const profile = net.profile;
-  statLine(ctx, 'ник', profile?.nickname || '-', leftX, ly, leftW, valueOffset, '#d8f6ff'); ly += 10 * s;
   statLine(ctx, 'запусков', String(profile?.runs ?? '-'), leftX, ly, leftW, valueOffset, '#8cf'); ly += 10 * s;
   statLine(ctx, 'мой пик', profile ? `ур.${profile.bestLevel} / ${profile.bestSamosborCount} сбор.` : '-', leftX, ly, leftW, valueOffset, '#fd8'); ly += 10 * s;
   statLine(ctx, 'мой этаж', profile?.lastFloor || '-', leftX, ly, leftW, valueOffset, '#9df'); ly += 10 * s;

@@ -20,6 +20,44 @@ export interface SocialPoiRoom {
   h: number;
 }
 
+function hasClearWallArea(world: World, x: number, y: number, w: number, h: number): boolean {
+  for (let dy = -1; dy <= h; dy++) {
+    for (let dx = -1; dx <= w; dx++) {
+      const ci = world.idx(x + dx, y + dy);
+      if (world.cells[ci] !== Cell.WALL || world.aptMask[ci]) return false;
+    }
+  }
+  return true;
+}
+
+function findSocialPoiArea(
+  world: World,
+  cx: number,
+  cy: number,
+  w: number,
+  h: number,
+  minDist: number,
+  maxDist: number,
+): { x: number; y: number } | null {
+  const minD2 = minDist * minDist;
+  const maxD2 = maxDist * maxDist;
+  const baseX = Math.floor(cx);
+  const baseY = Math.floor(cy);
+
+  for (let radius = minDist; radius <= maxDist; radius += 8) {
+    const samples = Math.max(32, Math.floor(radius / 3));
+    for (let s = 0; s < samples; s++) {
+      const angle = (s / samples) * Math.PI * 2 + radius * 0.017;
+      const tx = world.wrap(baseX + Math.round(Math.cos(angle) * radius) - (w >> 1));
+      const ty = world.wrap(baseY + Math.round(Math.sin(angle) * radius) - (h >> 1));
+      const d2 = world.dist2(baseX, baseY, tx + w / 2, ty + h / 2);
+      if (d2 < minD2 || d2 > maxD2) continue;
+      if (hasClearWallArea(world, tx, ty, w, h)) return { x: tx, y: ty };
+    }
+  }
+  return null;
+}
+
 export function createSocialPoiRoom(
   world: World,
   nextRoomId: number,
@@ -35,7 +73,8 @@ export function createSocialPoiRoom(
   maxDist: number,
   pressure = 1,
 ): SocialPoiRoom | null {
-  const pos = findClearArea(world, Math.floor(nearX), Math.floor(nearY), w, h, minDist, maxDist);
+  const pos = findClearArea(world, Math.floor(nearX), Math.floor(nearY), w, h, minDist, maxDist)
+    ?? findSocialPoiArea(world, nearX, nearY, w, h, minDist, maxDist);
   if (!pos) return null;
 
   const room = stampRoom(world, nextRoomId, type, pos.x, pos.y, w, h, -1);

@@ -14,6 +14,7 @@ import { strMeleeDmgMult, agiAttackSpeedMult } from '../rpg';
 import { zhelemishIncomingMeleeDamage } from '../status';
 import { spawnBloodHit, spawnDeathPool } from '../../render/blood';
 import { consumeAmmo, consumeDurability } from '../inventory';
+import { isDebugOnePunchManEnabled, keepDebugOnePunchManAlive } from '../debug_cheats';
 import { entityDisplayName } from '../../entities/monster';
 import { bfsPath, followPath } from './pathfinding';
 import { Spr, hostileProjectileSprite } from '../../render/sprite_index';
@@ -207,23 +208,28 @@ export function tryFactionCombat(
     const rawDmg = Math.round(baseDmg * strMult);
     const dmg = zhelemishIncomingMeleeDamage(target, _time, rawDmg);
     if (target.hp !== undefined) {
-      target.hp -= dmg;
-      if (target.type === EntityType.NPC) {
-        applyDamageRelationPenalty(e.faction, target.faction, dmg);
-        if (target.hp > 0 && target.hp < (target.maxHp ?? 100) * 0.5) {
-          bark(target, msgs, _time, BARK_WOUNDED, BARK_WOUNDED_F, BARK_CHANCE_WOUNDED, '#f88');
+      const debugImmortalPlayerHit = target.type === EntityType.PLAYER && isDebugOnePunchManEnabled();
+      if (debugImmortalPlayerHit) {
+        keepDebugOnePunchManAlive(target);
+      } else {
+        target.hp -= dmg;
+        if (target.type === EntityType.NPC) {
+          applyDamageRelationPenalty(e.faction, target.faction, dmg);
+          if (target.hp > 0 && target.hp < (target.maxHp ?? 100) * 0.5) {
+            bark(target, msgs, _time, BARK_WOUNDED, BARK_WOUNDED_F, BARK_CHANCE_WOUNDED, '#f88');
+          }
         }
-      }
-      const hitAng = Math.atan2(target.y - e.y, target.x - e.x);
-      spawnBloodHit(world, target.x, target.y, hitAng, dmg, target.type === EntityType.MONSTER);
-      if (target.hp <= 0) {
-        target.alive = false;
-        spawnDeathPool(world, target.x, target.y, target.type === EntityType.MONSTER);
-        if (target.type === EntityType.NPC) dropNpcInventory(target, entities, nextId);
-        msgs.push(msg(`${e.name ?? 'NPC'} ${e.isFemale ? 'убила' : 'убил'} ${entityDisplayName(target)}`, _time, '#fa4'));
-        bark(e, msgs, _time, BARK_KILL, BARK_KILL_F, BARK_CHANCE_KILL, '#da4');
-        if (target.isFogBoss && target.fogBossZone !== undefined) {
-          clearFogInZone(world, target.fogBossZone, msgs, _time);
+        const hitAng = Math.atan2(target.y - e.y, target.x - e.x);
+        spawnBloodHit(world, target.x, target.y, hitAng, dmg, target.type === EntityType.MONSTER);
+        if (target.hp <= 0) {
+          target.alive = false;
+          spawnDeathPool(world, target.x, target.y, target.type === EntityType.MONSTER);
+          if (target.type === EntityType.NPC) dropNpcInventory(target, entities, nextId);
+          msgs.push(msg(`${e.name ?? 'NPC'} ${e.isFemale ? 'убила' : 'убил'} ${entityDisplayName(target)}`, _time, '#fa4'));
+          bark(e, msgs, _time, BARK_KILL, BARK_KILL_F, BARK_CHANCE_KILL, '#da4');
+          if (target.isFogBoss && target.fogBossZone !== undefined) {
+            clearFogInZone(world, target.fogBossZone, msgs, _time);
+          }
         }
       }
     }

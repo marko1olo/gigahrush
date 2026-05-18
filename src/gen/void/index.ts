@@ -1,10 +1,10 @@
-/* ── Void level generator (Floor 3) — abstract fractal geometry ─ */
-/*   Green/black abstract space with fractal structures.          */
+/* ── Void level generator — island graph and folded geometry ─── */
+/*   Green/black abstract space with honest impossible routes.    */
 /*   Final boss: Creator (Творец) — white glowing silhouette.     */
 /*   Reached via portal in Hell after killing 3 Heralds.          */
 
 import {
-  W, Cell, Tex, Feature,
+  W, Cell, Feature,
   type Entity,
   EntityType, AIGoal, MonsterKind, FloorLevel,
 } from '../../core/types';
@@ -15,143 +15,34 @@ import { calcZoneLevel, randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../
 import { MONSTERS } from '../../entities/monster';
 import { Spr, monsterSpr } from '../../render/sprite_index';
 import { runVoidContent } from './content_manifest';
-
-/* ── Hash utility ─────────────────────────────────────────────── */
-function hash2(x: number, y: number, seed: number): number {
-  let n = (Math.imul(x, 374761393) + Math.imul(y, 668265263) + Math.imul(seed, 1274126177)) | 0;
-  n = Math.imul(n ^ (n >> 13), 1103515245);
-  n ^= n >> 16;
-  return (n & 0x7fffffff) / 0x7fffffff;
-}
-
-function wrapCoord(v: number): number {
-  return ((v % W) + W) % W;
-}
+import { buildVoidGeometry, paintVoidDefaults } from './geometry';
 
 export function generateVoid(): { world: World; entities: Entity[]; spawnX: number; spawnY: number } {
   const world = new World();
   const entities: Entity[] = [];
   let nextId = 1;
 
-  // Default wall texture = void
-  for (let i = 0; i < W * W; i++) world.wallTex[i] = Tex.VOID_WALL;
-
   /* ══════════════════════════════════════════════════════════════
-     Phase 1: Fractal cave field — vast open spaces
+     Phase 1: Impossible-but-honest macro graph
      ══════════════════════════════════════════════════════════════ */
-  const field = new Uint8Array(W * W);
-
-  // Multi-octave fractal noise — creates huge open areas with strange geometry
-  for (let y = 0; y < W; y++) {
-    for (let x = 0; x < W; x++) {
-      const coarse = hash2(x >> 6, y >> 6, 500) * 0.35;
-      const medium = hash2(x >> 4, y >> 4, 501) * 0.25;
-      const fine = hash2(x >> 2, y >> 2, 502) * 0.2;
-      const micro = hash2(x >> 1, y >> 1, 503) * 0.2;
-      const val = coarse + medium + fine + micro;
-
-      // More open than other floors — large connected spaces
-      field[y * W + x] = val > 0.42 ? 1 : 0;
-    }
-  }
-
-  // Fractal structures: strange geometric pillars
-  for (let i = 0; i < 300; i++) {
-    const px = rng(0, W - 1);
-    const py = rng(0, W - 1);
-    const shape = rng(0, 4);
-
-    if (shape === 0) {
-      // Cross shape
-      const size = rng(3, 8);
-      for (let d = -size; d <= size; d++) {
-        field[wrapCoord(py) * W + wrapCoord(px + d)] = 0;
-        field[wrapCoord(py + d) * W + wrapCoord(px)] = 0;
-      }
-    } else if (shape === 1) {
-      // Ring
-      const radius = rng(5, 15);
-      for (let a = 0; a < 64; a++) {
-        const angle = (a / 64) * Math.PI * 2;
-        const wx = wrapCoord(px + Math.round(Math.cos(angle) * radius));
-        const wy = wrapCoord(py + Math.round(Math.sin(angle) * radius));
-        field[wy * W + wx] = 0;
-      }
-    } else if (shape === 2) {
-      // Spiral
-      for (let step = 0; step < 80; step++) {
-        const angle = step * 0.15;
-        const r = step * 0.3;
-        const wx = wrapCoord(px + Math.round(Math.cos(angle) * r));
-        const wy = wrapCoord(py + Math.round(Math.sin(angle) * r));
-        field[wy * W + wx] = 0;
-        // Widen
-        field[wy * W + wrapCoord(wx + 1)] = 0;
-        field[wrapCoord(wy + 1) * W + wx] = 0;
-      }
-    } else if (shape === 3) {
-      // Line fractal
-      const len = rng(20, 60);
-      const angle = hash2(px, py, 510) * Math.PI * 2;
-      for (let s = 0; s < len; s++) {
-        const wx = wrapCoord(px + Math.round(Math.cos(angle) * s));
-        const wy = wrapCoord(py + Math.round(Math.sin(angle) * s));
-        field[wy * W + wx] = 0;
-      }
-    } else {
-      // Diamond
-      const size = rng(4, 10);
-      for (let dy = -size; dy <= size; dy++) {
-        for (let dx = -size; dx <= size; dx++) {
-          if (Math.abs(dx) + Math.abs(dy) <= size) {
-            field[wrapCoord(py + dy) * W + wrapCoord(px + dx)] = 0;
-          }
-        }
-      }
-    }
-  }
-
-  // Clear spawn area
-  const spawnCx = W >> 1;
-  const spawnCy = W >> 1;
-  for (let dy = -8; dy <= 8; dy++) {
-    for (let dx = -8; dx <= 8; dx++) {
-      if (dx * dx + dy * dy <= 64) {
-        field[wrapCoord(spawnCy + dy) * W + wrapCoord(spawnCx + dx)] = 1;
-      }
-    }
-  }
-
-  /* ══════════════════════════════════════════════════════════════
-     Phase 2: Paint terrain
-     ══════════════════════════════════════════════════════════════ */
-  for (let i = 0; i < W * W; i++) {
-    if (field[i]) {
-      world.cells[i] = Cell.FLOOR;
-      world.floorTex[i] = Tex.F_VOID;
-      world.wallTex[i] = 0;
-    } else {
-      world.cells[i] = Cell.WALL;
-      world.wallTex[i] = Tex.VOID_WALL;
-      world.floorTex[i] = 0;
-    }
-  }
-
-  const spawnX = spawnCx + 0.5;
-  const spawnY = spawnCy + 0.5;
+  const layout = buildVoidGeometry(world);
+  const spawnX = layout.spawnX;
+  const spawnY = layout.spawnY;
 
   ensureConnectivity(world, spawnX, spawnY);
+  paintVoidDefaults(world);
 
   /* ══════════════════════════════════════════════════════════════
-     Phase 3: Zones
+     Phase 2: Zones
      ══════════════════════════════════════════════════════════════ */
   generateZones(world);
   for (const z of world.zones) z.level = calcZoneLevel(z.cx, z.cy, FloorLevel.VOID) + 5;
 
   nextId = runVoidContent(world, entities, nextId, spawnX, spawnY);
+  paintVoidDefaults(world);
 
   /* ══════════════════════════════════════════════════════════════
-     Phase 4: Sparse eerie lighting
+     Phase 3: Sparse eerie lighting
      ══════════════════════════════════════════════════════════════ */
   for (let i = 0; i < W * W; i++) {
     if (world.cells[i] === Cell.FLOOR && Math.random() < 0.0015) {
@@ -161,21 +52,10 @@ export function generateVoid(): { world: World; entities: Entity[]; spawnX: numb
   world.bakeLights();
 
   /* ══════════════════════════════════════════════════════════════
-     Phase 5: Creator boss — center of the void
+     Phase 4: Creator boss — return frame
      ══════════════════════════════════════════════════════════════ */
-  // Place Creator at ~100-200 cells from spawn
-  let bossX = spawnCx, bossY = spawnCy;
-  for (let attempt = 0; attempt < 5000; attempt++) {
-    const ax = rng(0, W - 1);
-    const ay = rng(0, W - 1);
-    if (world.cells[ay * W + ax] !== Cell.FLOOR) continue;
-    const dist = world.dist(spawnCx, spawnCy, ax, ay);
-    if (dist >= 100 && dist <= 250) {
-      bossX = ax;
-      bossY = ay;
-      break;
-    }
-  }
+  const bossX = layout.bossX;
+  const bossY = layout.bossY;
 
   const creatorDef = MONSTERS[MonsterKind.CREATOR];
   const bossLevel = 20;
@@ -209,14 +89,14 @@ export function generateVoid(): { world: World; entities: Entity[]; spawnX: numb
   world.bakeLights();
 
   /* ══════════════════════════════════════════════════════════════
-     Phase 6: Guardian monsters scattered
+     Phase 5: Guardian monsters scattered
      ══════════════════════════════════════════════════════════════ */
   const voidKinds = [
     MonsterKind.SHADOW, MonsterKind.NIGHTMARE, MonsterKind.EYE,
     MonsterKind.REBAR, MonsterKind.BETONNIK, MonsterKind.SPIRIT,
   ];
   for (let i = 0; i < 120; i++) {
-    const cell = randomFloorCell(world);
+    const cell = randomFloorCell(world, spawnX, spawnY, 26);
     if (cell < 0) continue;
     const kind = voidKinds[rng(0, voidKinds.length - 1)];
     const mdef = MONSTERS[kind];
@@ -243,11 +123,11 @@ export function generateVoid(): { world: World; entities: Entity[]; spawnX: numb
   }
 
   /* ══════════════════════════════════════════════════════════════
-     Phase 7: Loot
+     Phase 6: Loot
      ══════════════════════════════════════════════════════════════ */
   const drops = ['canned', 'bandage', 'pills', 'antidep', 'ammo_energy', 'ammo_762', 'grenade'];
   for (let i = 0; i < 80; i++) {
-    const cell = randomFloorCell(world);
+    const cell = randomFloorCell(world, spawnX, spawnY, 8);
     if (cell < 0) continue;
     entities.push({
       id: nextId++, type: EntityType.ITEM_DROP,
@@ -260,10 +140,13 @@ export function generateVoid(): { world: World; entities: Entity[]; spawnX: numb
   return { world, entities, spawnX, spawnY };
 }
 
-function randomFloorCell(world: World): number {
+function randomFloorCell(world: World, avoidX = -1000, avoidY = -1000, minDist = 0): number {
+  const minDist2 = minDist * minDist;
   for (let attempt = 0; attempt < 2048; attempt++) {
     const cell = rng(0, W * W - 1);
-    if (world.cells[cell] === Cell.FLOOR) return cell;
+    if (world.cells[cell] !== Cell.FLOOR) continue;
+    if (minDist > 0 && world.dist2(avoidX, avoidY, cell % W, (cell / W) | 0) < minDist2) continue;
+    return cell;
   }
   return -1;
 }

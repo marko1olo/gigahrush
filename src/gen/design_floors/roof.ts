@@ -56,7 +56,7 @@ export const ROOF_DEBUG_ENTRY = {
   baseFloor: ROOF_BASE_FLOOR,
   generator: 'generateRoofDesignFloor',
   skyProvider: 'createRoofSkyTextureProvider',
-  smokePath: 'spawn -> main slab antenna landmark -> ventilation shelter -> rigger mast -> hatch/lift exit',
+  smokePath: 'spawn -> vent shelter -> central slab -> antenna field/sniper lane -> lower bridge loop -> hatch/lift exit',
 } as const;
 
 const CX = W >> 1;
@@ -120,6 +120,12 @@ export interface RoofGeneration extends FloorGeneration {
   weatherState: RoofWeatherState;
   skyProvider: RoofSkyTextureProvider;
   debug: string[];
+}
+
+interface RoofIsland {
+  room: Room;
+  cx: number;
+  cy: number;
 }
 
 const NPC_DEFS: Record<string, PlotNpcDef> = {
@@ -514,7 +520,7 @@ export function generateRoofDesignFloor(seed = 0): RoofGeneration {
   const spawnX = rooms.entry.x + 5.5;
   const spawnY = rooms.entry.y + 5.5;
   ensureConnectivity(world, spawnX, spawnY);
-  world.bakeLights();
+  applyUniformSkyLight(world);
 
   const weatherState = createRoofWeatherState(seed);
   const skyProvider = createRoofSkyTextureProvider(seed, weatherState.skyTimeOfDay);
@@ -530,6 +536,60 @@ export function generateRoofDesignFloor(seed = 0): RoofGeneration {
     skyProvider,
     debug: roofDebugLines(weatherState),
   };
+}
+
+export function expandRoofArchipelago(world: World, rng: () => number): void {
+  const keep = buildRoofKeepMask(world);
+  clearRoofVoid(world, keep);
+
+  const entryDeck = addRoofIsland(world, keep, RoomType.CORRIDOR, CX - 22, CY + 20, 54, 54, 'Крыша: лифтовая палуба', Tex.CONCRETE, Tex.F_CONCRETE);
+  const centralSlab = addRoofIsland(world, keep, RoomType.COMMON, CX - 63, CY - 39, 92, 68, 'Крыша: центральная плита', Tex.CONCRETE, Tex.F_CONCRETE);
+  const westHatch = addRoofIsland(world, keep, RoomType.CORRIDOR, CX - 72, CY + 8, 48, 55, 'Крыша: сервисный карниз', Tex.CONCRETE, Tex.F_CONCRETE);
+  const eastMasts = addRoofIsland(world, keep, RoomType.PRODUCTION, CX + 25, CY - 33, 58, 64, 'Крыша: мачтовая плита', Tex.METAL, Tex.F_CONCRETE);
+  const northField = addRoofIsland(world, keep, RoomType.PRODUCTION, CX - 28, CY - 128, 96, 54, 'Крыша: антенное поле', Tex.METAL, Tex.F_CONCRETE);
+  const northWestPits = addRoofIsland(world, keep, RoomType.COMMON, CX - 188, CY - 82, 92, 52, 'Крыша: стекольные провалы', Tex.CONCRETE, Tex.F_CONCRETE);
+  const eastLane = addRoofIsland(world, keep, RoomType.HQ, CX + 120, CY - 54, 118, 36, 'Крыша: снайперская полоса', Tex.METAL, Tex.F_CONCRETE);
+  const signalOutpost = addRoofIsland(world, keep, RoomType.PRODUCTION, CX + 238, CY + 12, 82, 44, 'Крыша: дальний репитер', Tex.METAL, Tex.F_CONCRETE);
+  const southShelters = addRoofIsland(world, keep, RoomType.STORAGE, CX - 64, CY + 122, 92, 50, 'Крыша: ряд вентиляций', Tex.PIPE, Tex.F_CONCRETE);
+  const waterDeck = addRoofIsland(world, keep, RoomType.STORAGE, CX + 88, CY + 104, 78, 58, 'Крыша: баки дождевой воды', Tex.PIPE, Tex.F_WATER);
+  const tarPocket = addRoofIsland(world, keep, RoomType.COMMON, CX - 210, CY + 86, 78, 42, 'Крыша: смоляной карман', Tex.CONCRETE, Tex.F_CONCRETE);
+
+  connectRoofWalk(world, keep, entryDeck, centralSlab, 3, false);
+  connectRoofWalk(world, keep, entryDeck, westHatch, 2, true);
+  connectRoofWalk(world, keep, centralSlab, westHatch, 2, false);
+  connectRoofWalk(world, keep, centralSlab, eastMasts, 3, true);
+  connectRoofWalk(world, keep, centralSlab, northField, 2, false);
+  connectRoofWalk(world, keep, centralSlab, northWestPits, 2, true);
+  connectRoofWalk(world, keep, northWestPits, tarPocket, 2, false);
+  connectRoofWalk(world, keep, tarPocket, westHatch, 2, true);
+  connectRoofWalk(world, keep, entryDeck, southShelters, 2, false);
+  connectRoofWalk(world, keep, southShelters, waterDeck, 2, true);
+  connectRoofWalk(world, keep, waterDeck, eastMasts, 2, false);
+  connectRoofWalk(world, keep, eastMasts, eastLane, 2, true);
+  connectRoofWalk(world, keep, eastLane, signalOutpost, 2, false);
+  connectRoofWalk(world, keep, signalOutpost, waterDeck, 2, true);
+
+  placeRoofSniperLane(world, keep, entryDeck.cx + 12, entryDeck.cy - 3, eastLane.cx - 8, eastLane.cy + 2);
+  placeLargeAntennaCluster(world, northField.cx, northField.cy);
+  placeLargeAntennaCluster(world, eastMasts.cx + 8, eastMasts.cy - 6);
+  placeRoofShedBlock(world, keep, entryDeck.cx - 12, entryDeck.cy - 12, 12, 8, Tex.PIPE);
+  placeRoofShedBlock(world, keep, southShelters.cx - 20, southShelters.cy - 5, 17, 10, Tex.HERMO_WALL);
+  placeRoofShedBlock(world, keep, southShelters.cx + 10, southShelters.cy - 2, 18, 9, Tex.PIPE);
+  placeRoofShedBlock(world, keep, signalOutpost.cx - 18, signalOutpost.cy - 7, 15, 8, Tex.METAL);
+
+  placeRoofSkylightPit(world, keep, centralSlab.cx - 28, centralSlab.cy + 8, 8, 5);
+  placeRoofSkylightPit(world, keep, northWestPits.cx - 22, northWestPits.cy - 6, 12, 6);
+  placeRoofSkylightPit(world, keep, northWestPits.cx + 18, northWestPits.cy + 7, 10, 7);
+  placeRoofSkylightPit(world, keep, eastLane.cx - 34, eastLane.cy - 4, 7, 5);
+  placeRoofSkylightPit(world, keep, tarPocket.cx + 18, tarPocket.cy - 5, 9, 5);
+
+  placeWaterTankCluster(world, keep, waterDeck.cx - 18, waterDeck.cy - 4);
+  placeWaterTankCluster(world, keep, waterDeck.cx + 14, waterDeck.cy + 8);
+  scatterRoofMachinery(world, keep, rng, [
+    entryDeck, centralSlab, westHatch, eastMasts, northField, northWestPits,
+    eastLane, signalOutpost, southShelters, waterDeck, tarPocket,
+  ]);
+  applyUniformSkyLight(world);
 }
 
 function clampSignalQuality(value: number): number {
@@ -557,6 +617,250 @@ function hash01(x: number, y: number, seed: number): number {
   n = (n ^ (n >> 13)) * 1103515245;
   n ^= n >> 16;
   return (n & 0x7fff) / 0x7fff;
+}
+
+function buildRoofKeepMask(world: World): Uint8Array {
+  const keep = new Uint8Array(W * W);
+  for (const room of world.rooms) {
+    for (let y = room.y - 1; y <= room.y + room.h; y++) {
+      for (let x = room.x - 1; x <= room.x + room.w; x++) {
+        keep[world.idx(x, y)] = 1;
+      }
+    }
+  }
+  for (const idx of world.doors.keys()) keep[idx] = 1;
+  for (const container of world.containers) keep[world.idx(container.x, container.y)] = 1;
+  for (let i = 0; i < W * W; i++) {
+    if (world.cells[i] === Cell.LIFT || world.features[i] === Feature.LIFT_BUTTON) keep[i] = 1;
+  }
+  return keep;
+}
+
+function clearRoofVoid(world: World, keep: Uint8Array): void {
+  for (let i = 0; i < W * W; i++) {
+    if (keep[i]) continue;
+    world.cells[i] = Cell.ABYSS;
+    world.roomMap[i] = -1;
+    world.wallTex[i] = Tex.DARK;
+    world.floorTex[i] = Tex.F_ABYSS;
+    world.features[i] = Feature.NONE;
+    world.hermoWall[i] = 0;
+  }
+}
+
+function addRoofIsland(
+  world: World,
+  keep: Uint8Array,
+  type: RoomType,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  name: string,
+  wallTex: Tex,
+  floorTex: Tex,
+): RoofIsland {
+  const room: Room = {
+    id: world.rooms.length,
+    type,
+    x: world.wrap(x),
+    y: world.wrap(y),
+    w,
+    h,
+    doors: [],
+    sealed: false,
+    name,
+    apartmentId: -1,
+    wallTex,
+    floorTex,
+  };
+  world.rooms.push(room);
+
+  for (let dy = 0; dy < h; dy++) {
+    for (let dx = 0; dx < w; dx++) {
+      const ci = world.idx(room.x + dx, room.y + dy);
+      if (keep[ci]) continue;
+      world.cells[ci] = Cell.FLOOR;
+      world.roomMap[ci] = room.id;
+      world.floorTex[ci] = floorTex;
+      world.wallTex[ci] = wallTex;
+      world.features[ci] = Feature.NONE;
+    }
+  }
+
+  for (let dy = -1; dy <= h; dy++) {
+    for (let dx = -1; dx <= w; dx++) {
+      if (dx >= 0 && dx < w && dy >= 0 && dy < h) continue;
+      const ci = world.idx(room.x + dx, room.y + dy);
+      if (keep[ci] || world.cells[ci] === Cell.FLOOR || world.cells[ci] === Cell.WATER) continue;
+      world.cells[ci] = Cell.WALL;
+      world.roomMap[ci] = -1;
+      world.wallTex[ci] = wallTex;
+      world.floorTex[ci] = floorTex;
+      world.features[ci] = Feature.NONE;
+    }
+  }
+
+  return { room, cx: room.x + (room.w >> 1), cy: room.y + (room.h >> 1) };
+}
+
+function connectRoofWalk(
+  world: World,
+  keep: Uint8Array,
+  a: RoofIsland,
+  b: RoofIsland,
+  width: number,
+  horizontalFirst: boolean,
+): void {
+  carveRoofWalk(world, keep, a.cx, a.cy, b.cx, b.cy, width, horizontalFirst);
+}
+
+function carveRoofWalk(
+  world: World,
+  keep: Uint8Array,
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+  width: number,
+  horizontalFirst: boolean,
+): void {
+  const ddx = Math.round(world.delta(ax, bx));
+  const ddy = Math.round(world.delta(ay, by));
+  const tx = ax + ddx;
+  const ty = ay + ddy;
+  let x = ax;
+  let y = ay;
+  const stepX = ddx === 0 ? 0 : ddx > 0 ? 1 : -1;
+  const stepY = ddy === 0 ? 0 : ddy > 0 ? 1 : -1;
+
+  const carveX = (): void => {
+    while (x !== tx) {
+      carveRoofWalkDisc(world, keep, x, y, width);
+      x += stepX;
+    }
+    carveRoofWalkDisc(world, keep, x, y, width);
+  };
+  const carveY = (): void => {
+    while (y !== ty) {
+      carveRoofWalkDisc(world, keep, x, y, width);
+      y += stepY;
+    }
+    carveRoofWalkDisc(world, keep, x, y, width);
+  };
+
+  if (horizontalFirst) {
+    carveX();
+    carveY();
+  } else {
+    carveY();
+    carveX();
+  }
+}
+
+function carveRoofWalkDisc(world: World, keep: Uint8Array, cx: number, cy: number, r: number): void {
+  const r2 = r * r;
+  for (let dy = -r; dy <= r; dy++) {
+    for (let dx = -r; dx <= r; dx++) {
+      if (dx * dx + dy * dy > r2) continue;
+      const ci = world.idx(cx + dx, cy + dy);
+      if (keep[ci]) continue;
+      world.cells[ci] = Cell.FLOOR;
+      world.roomMap[ci] = -1;
+      world.floorTex[ci] = Tex.F_CONCRETE;
+      world.wallTex[ci] = Tex.CONCRETE;
+      world.features[ci] = Feature.NONE;
+      world.hermoWall[ci] = 0;
+    }
+  }
+}
+
+function placeRoofSniperLane(world: World, keep: Uint8Array, ax: number, ay: number, bx: number, by: number): void {
+  carveRoofWalk(world, keep, ax, ay, bx, by, 3, true);
+  const ddx = Math.round(world.delta(ax, bx));
+  const ddy = Math.round(world.delta(ay, by));
+  const steps = Math.max(Math.abs(ddx), Math.abs(ddy), 1);
+  for (let step = 10; step < steps; step += 16) {
+    const x = ax + Math.round((ddx * step) / steps);
+    const y = ay + Math.round((ddy * step) / steps);
+    const ci = world.idx(x, y);
+    if (keep[ci] || world.cells[ci] !== Cell.FLOOR) continue;
+    world.stamp(x, y, 0.5, 0.5, 3.5, 0.18, x * 97 + y * 131, 30, 34, 38, false);
+    if (((step / 16) | 0) % 2 === 0) placeRoofShedBlock(world, keep, x - 1, y - 2, 3, 2, Tex.METAL);
+    else setFeatureIfFloor(world, x, y, Feature.APPARATUS);
+  }
+}
+
+function placeLargeAntennaCluster(world: World, x: number, y: number): void {
+  for (const [dx, dy] of [[0, 0], [3, 0], [-3, 0], [0, 3], [0, -3], [5, 4], [-5, -4]] as const) {
+    placeAntennaMast(world, x + dx, y + dy);
+  }
+  for (const [dx, dy] of [[2, 2], [-2, 2], [2, -2], [-2, -2], [7, 0], [-7, 0]] as const) {
+    setFeatureIfFloor(world, x + dx, y + dy, Feature.APPARATUS);
+  }
+  world.stamp(x, y, 0.5, 0.5, 8, 0.16, x * 19 + y * 23, 84, 92, 96, false);
+}
+
+function placeRoofShedBlock(world: World, keep: Uint8Array, x: number, y: number, w: number, h: number, tex: Tex): void {
+  for (let dy = 0; dy < h; dy++) {
+    for (let dx = 0; dx < w; dx++) {
+      const ci = world.idx(x + dx, y + dy);
+      if (keep[ci] || world.cells[ci] !== Cell.FLOOR) continue;
+      world.cells[ci] = Cell.WALL;
+      world.roomMap[ci] = -1;
+      world.wallTex[ci] = tex;
+      world.features[ci] = Feature.NONE;
+    }
+  }
+  setRoofFeatureIfFree(world, keep, x - 1, y + (h >> 1), Feature.MACHINE);
+  setRoofFeatureIfFree(world, keep, x + w, y + (h >> 1), Feature.SHELF);
+}
+
+function placeRoofSkylightPit(world: World, keep: Uint8Array, x: number, y: number, w: number, h: number): void {
+  for (let dy = 0; dy < h; dy++) {
+    for (let dx = 0; dx < w; dx++) {
+      const ci = world.idx(x + dx, y + dy);
+      if (keep[ci] || world.cells[ci] !== Cell.FLOOR) continue;
+      world.cells[ci] = Cell.ABYSS;
+      world.roomMap[ci] = -1;
+      world.floorTex[ci] = Tex.F_ABYSS;
+      world.wallTex[ci] = Tex.DARK;
+      world.features[ci] = Feature.NONE;
+    }
+  }
+  world.stamp(x + (w >> 1), y + (h >> 1), 0.5, 0.5, Math.max(w, h) + 1, 0.22, x * 53 + y * 61, 118, 126, 132, false);
+}
+
+function placeWaterTankCluster(world: World, keep: Uint8Array, x: number, y: number): void {
+  for (let dy = 0; dy < 12; dy += 4) {
+    for (let dx = 0; dx < 18; dx += 5) {
+      const ci = world.idx(x + dx, y + dy);
+      if (keep[ci]) continue;
+      setWaterTank(world, x + dx, y + dy);
+    }
+  }
+}
+
+function scatterRoofMachinery(world: World, keep: Uint8Array, rng: () => number, islands: readonly RoofIsland[]): void {
+  for (const island of islands) {
+    const room = island.room;
+    const count = Math.max(3, Math.floor((room.w * room.h) / 820));
+    for (let i = 0; i < count; i++) {
+      const x = room.x + 3 + Math.floor(rng() * Math.max(1, room.w - 6));
+      const y = room.y + 3 + Math.floor(rng() * Math.max(1, room.h - 6));
+      const ci = world.idx(x, y);
+      if (keep[ci] || world.cells[ci] !== Cell.FLOOR || world.features[ci] !== Feature.NONE) continue;
+      const roll = rng();
+      world.features[ci] = roll < 0.42 ? Feature.APPARATUS : roll < 0.72 ? Feature.MACHINE : Feature.SHELF;
+      if (rng() < 0.28) world.stamp(x, y, 0.5, 0.5, 2.2 + rng() * 3.4, 0.14, Math.floor(rng() * 100000), 58, 64, 68, false);
+    }
+  }
+}
+
+function setRoofFeatureIfFree(world: World, keep: Uint8Array, x: number, y: number, feature: Feature): void {
+  const ci = world.idx(x, y);
+  if (keep[ci]) return;
+  if (world.cells[ci] === Cell.FLOOR || world.cells[ci] === Cell.WATER) world.features[ci] = feature;
 }
 
 function skyAmbientTint(timeOfDay: number): RoofSkyTint {
@@ -719,16 +1023,16 @@ function decorateRoof(world: World, rooms: Record<string, Room>): void {
   decorateSniperNest(world, rooms.sniperNest);
   decorateCloudCamp(world, rooms.cloudCamp);
 
-  setFeatureIfFloor(world, rooms.entry.x + 5, rooms.entry.y + 2, Feature.LAMP);
+  setFeatureIfFloor(world, rooms.entry.x + 5, rooms.entry.y + 2, Feature.SHELF);
   setFeatureIfFloor(world, rooms.entry.x + 8, rooms.entry.y + 2, Feature.SCREEN);
-  setFeatureIfFloor(world, rooms.maintenanceHatch.x + 3, rooms.maintenanceHatch.y + 2, Feature.LAMP);
+  setFeatureIfFloor(world, rooms.maintenanceHatch.x + 3, rooms.maintenanceHatch.y + 2, Feature.APPARATUS);
 }
 
 function placeSlabLandmarks(world: World, room: Room): void {
   for (let dx = 5; dx < room.w - 4; dx += 9) placeAntennaMast(world, room.x + dx, room.y + 5);
   for (let dx = 7; dx < room.w - 4; dx += 11) placeVentBlock(world, room.x + dx, room.y + room.h - 8);
   for (let dx = 4; dx < room.w - 4; dx += 8) setFeatureIfFloor(world, room.x + dx, room.y + 2, Feature.APPARATUS);
-  for (let dx = 8; dx < room.w - 7; dx += 13) setFeatureIfFloor(world, room.x + dx, room.y + room.h - 3, Feature.LAMP);
+  for (let dx = 8; dx < room.w - 7; dx += 13) setFeatureIfFloor(world, room.x + dx, room.y + room.h - 3, Feature.MACHINE);
   placeBrokenSkylight(world, room.x + 18, room.y + 16, 4, 3);
   placeBrokenSkylight(world, room.x + 41, room.y + 20, 3, 3);
   world.stamp(room.x + 12, room.y + 9, 0.5, 0.5, 5, 0.18, 4099, 55, 62, 66, false);
@@ -738,7 +1042,7 @@ function placeSlabLandmarks(world: World, room: Room): void {
 function decorateMeteorology(world: World, room: Room): void {
   for (let dx = 2; dx < room.w - 2; dx += 3) setFeatureIfFloor(world, room.x + dx, room.y + 2, Feature.DESK);
   setFeatureIfFloor(world, room.x + 2, room.y + room.h - 3, Feature.SCREEN);
-  setFeatureIfFloor(world, room.x + room.w - 3, room.y + 2, Feature.LAMP);
+  setFeatureIfFloor(world, room.x + room.w - 3, room.y + 2, Feature.SHELF);
   setFeatureIfFloor(world, room.x + room.w - 4, room.y + room.h - 3, Feature.APPARATUS);
   world.wallTex[world.idx(room.x + 8, room.y - 1)] = Tex.SCREEN_BASE + 7;
   if (!world.screenCells.includes(world.idx(room.x + 8, room.y - 1))) world.screenCells.push(world.idx(room.x + 8, room.y - 1));
@@ -747,7 +1051,7 @@ function decorateMeteorology(world: World, room: Room): void {
 function decorateRiggerMast(world: World, room: Room): void {
   for (let dy = 3; dy < room.h - 2; dy += 4) placeAntennaMast(world, room.x + 9, room.y + dy);
   for (let dx = 2; dx < room.w - 2; dx += 4) setFeatureIfFloor(world, room.x + dx, room.y + room.h - 2, Feature.MACHINE);
-  setFeatureIfFloor(world, room.x + 2, room.y + 2, Feature.LAMP);
+  setFeatureIfFloor(world, room.x + 2, room.y + 2, Feature.SHELF);
   setFeatureIfFloor(world, room.x + room.w - 3, room.y + 2, Feature.APPARATUS);
 }
 
@@ -756,8 +1060,8 @@ function decorateVentShelter(world: World, room: Room): void {
     setFeatureIfFloor(world, room.x + dx, room.y + 2, Feature.MACHINE);
     setFeatureIfFloor(world, room.x + dx, room.y + room.h - 3, Feature.SHELF);
   }
-  setFeatureIfFloor(world, room.x + 2, room.y + room.h - 2, Feature.LAMP);
-  setFeatureIfFloor(world, room.x + room.w - 3, room.y + 2, Feature.LAMP);
+  setFeatureIfFloor(world, room.x + 2, room.y + room.h - 2, Feature.SHELF);
+  setFeatureIfFloor(world, room.x + room.w - 3, room.y + 2, Feature.MACHINE);
 }
 
 function decorateWaterTanks(world: World, room: Room): void {
@@ -767,13 +1071,13 @@ function decorateWaterTanks(world: World, room: Room): void {
     }
   }
   setFeatureIfFloor(world, room.x + room.w - 3, room.y + room.h - 3, Feature.SINK);
-  setFeatureIfFloor(world, room.x + 2, room.y + 2, Feature.LAMP);
+  setFeatureIfFloor(world, room.x + 2, room.y + 2, Feature.SHELF);
 }
 
 function decorateSniperNest(world: World, room: Room): void {
   for (let dx = 2; dx < room.w - 2; dx++) setFeatureIfFloor(world, room.x + dx, room.y + 2, Feature.TABLE);
   setFeatureIfFloor(world, room.x + 2, room.y + room.h - 3, Feature.SHELF);
-  setFeatureIfFloor(world, room.x + room.w - 3, room.y + 2, Feature.LAMP);
+  setFeatureIfFloor(world, room.x + room.w - 3, room.y + 2, Feature.APPARATUS);
   setFeatureIfFloor(world, room.x + room.w - 4, room.y + room.h - 3, Feature.CHAIR);
   world.stamp(room.x + 6, room.y + 4, 0.5, 0.5, 3, 0.24, 4112, 30, 30, 32, false);
 }
@@ -781,8 +1085,17 @@ function decorateSniperNest(world: World, room: Room): void {
 function decorateCloudCamp(world: World, room: Room): void {
   setFeatureIfFloor(world, room.x + 2, room.y + 2, Feature.BED);
   setFeatureIfFloor(world, room.x + 5, room.y + 3, Feature.TABLE);
-  setFeatureIfFloor(world, room.x + 8, room.y + 2, Feature.LAMP);
+  setFeatureIfFloor(world, room.x + 8, room.y + 2, Feature.SHELF);
   setFeatureIfFloor(world, room.x + room.w - 3, room.y + room.h - 3, Feature.SHELF);
+}
+
+function applyUniformSkyLight(world: World): void {
+  for (let i = 0; i < W * W; i++) {
+    if (world.features[i] === Feature.LAMP || world.features[i] === Feature.CANDLE) {
+      world.features[i] = Feature.NONE;
+    }
+  }
+  world.light.fill(0.94);
 }
 
 function placeAntennaMast(world: World, x: number, y: number): void {
@@ -908,7 +1221,7 @@ function spawnRoofMonsters(
   nextId: { v: number },
   rooms: Record<string, Room>,
 ): void {
-  spawnRoofMonster(world, entities, nextId, MonsterKind.EYE, rooms.mainSlab.x + 28, rooms.mainSlab.y + 8, 'Глаз верхнего ветра');
+  spawnRoofMonster(world, entities, nextId, MonsterKind.EYE, rooms.mainSlab.x + 30, rooms.mainSlab.y + 32, 'Глаз снайперской линии');
   spawnRoofMonster(world, entities, nextId, MonsterKind.EYE, rooms.mainSlab.x + 43, rooms.mainSlab.y + 25, 'Глаз повторного облака');
   spawnRoofMonster(world, entities, nextId, MonsterKind.REBAR, rooms.riggerMast.x + 12, rooms.riggerMast.y + 8, 'Арматура мачтовая');
   spawnRoofMonster(world, entities, nextId, MonsterKind.SHADOW, rooms.cloudCamp.x + 9, rooms.cloudCamp.y + 5, 'Тень под облаком');

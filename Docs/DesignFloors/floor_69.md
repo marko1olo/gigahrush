@@ -2,7 +2,7 @@
 
 Status: planning artifact. Future route id: `floor_69`. Future anchor: `z=4`.
 
-Planned owned file: `src/gen/design_floors/floor_69.ts`. Existing reference: F69 sprite-bank notes in `Docs/Tasks/Status_UNASSIGNED.md` and `Docs/AgentLogs/Rationale_UNASSIGNED.md`.
+Planned owned file: `src/gen/design_floors/floor_69.ts`. Existing reference: F69 sprite-bank notes are preserved in `../../appendix.md` and archived original files under `../../gatbage/Docs/Tasks/Status_UNASSIGNED.md` and `../../gatbage/Docs/AgentLogs/Rationale_UNASSIGNED.md`.
 
 ## Tone And Safety
 
@@ -69,4 +69,3 @@ Samosbor turns vice into shelter economics. Some locked private rooms are safe, 
 - Adult-only constraints are explicit in code comments/docs where relevant.
 - No explicit player-facing sexual descriptions.
 - Heat/trust/debt are visible in debug and bounded.
-

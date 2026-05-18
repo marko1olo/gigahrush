@@ -56,6 +56,6 @@ Each agent touching shipped floor code should read:
 4. its own floor doc
 5. nearest existing source reference under `src/gen/`
 
-Parallel implementation prompts live in [AgentPrompts/INDEX.md](AgentPrompts/INDEX.md). Use one `floorNN_name.md` prompt per GPT-5.5 extra-high agent.
+Parallel implementation prompts from the completed floor waves are now historical context in `../../appendix.md`; original prompt files are archived under `../../gatbage/Docs/DesignFloors/AgentPrompts/`. Do not recreate this prompt folder unless a new explicit orchestration batch needs it. New floor work should start from this index, the relevant floor doc, `floor_contract.md`, README, architecture and current source.
 
 Do not update `README.md` until a floor is actually implemented and validated.

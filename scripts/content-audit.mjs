@@ -47,16 +47,31 @@ function propName(name, constants = new Map()) {
 }
 
 function stringValue(expr) {
+  expr = unwrapConstExpression(expr);
   if (!expr) return undefined;
   if (ts.isStringLiteral(expr) || ts.isNoSubstitutionTemplateLiteral(expr)) return expr.text;
   return undefined;
 }
 
 function numberValue(expr, constants = new Map()) {
+  expr = unwrapConstExpression(expr);
   if (!expr) return undefined;
   if (ts.isNumericLiteral(expr)) return Number(expr.text);
   if (ts.isIdentifier(expr)) return constants.get(expr.text);
   return undefined;
+}
+
+function unwrapConstExpression(expr) {
+  while (
+    expr
+    && (ts.isAsExpression(expr)
+      || ts.isSatisfiesExpression(expr)
+      || ts.isParenthesizedExpression(expr)
+      || ts.isTypeAssertionExpression(expr))
+  ) {
+    expr = expr.expression;
+  }
+  return expr;
 }
 
 function forEachNode(sf, cb) {

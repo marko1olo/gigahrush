@@ -25,6 +25,7 @@ import {
   consumeMonsterBait,
   findMonsterBaitTarget,
 } from '../monster_bait';
+import { isDebugOnePunchManEnabled, keepDebugOnePunchManAlive } from '../debug_cheats';
 
 /* ── Shared combat target finder ──────────────────────────────── */
 const MONSTER_DETECT = 20;
@@ -365,31 +366,36 @@ function finishKostorezWindup(
   if (armorCut) dmg = Math.max(7, Math.round(dmg * 0.55));
 
   if (target.hp !== undefined) {
-    target.hp -= dmg;
-    if (target.hp <= 0) {
-      target.alive = false;
-      target.hp = 0;
-    }
-    const hitAng = Math.atan2(target.y - e.y, target.x - e.x);
-    spawnBloodHit(world, target.x, target.y, hitAng, dmg, target.type === EntityType.MONSTER);
-    const targetLabel = target.type === EntityType.PLAYER ? 'тебя' : entityDisplayName(target);
-    msgs.push(msg(
-      armorCut
-        ? `Косторез срезал бронелист и задел ${targetLabel}: -${dmg}`
-        : `Косторез режет ${targetLabel}: -${dmg}`,
-      time,
-      armorCut ? '#fc4' : '#f44',
-    ));
-    publishKostorezEvent(state, world, e, target, 'monster_armor_cut', armorCut ? 5 : 4, ['hit', armorCut ? 'armor_cut' : 'burst'], {
-      damage: dmg,
-      armorCut,
-      itemId: armorCut ? 'metal_sheet' : undefined,
-      itemName: armorCut ? ITEMS.metal_sheet?.name : undefined,
-    });
-    if (target.hp <= 0) {
-      spawnDeathPool(world, target.x, target.y, target.type === EntityType.MONSTER);
-      if (target.type === EntityType.NPC) dropNpcInventory(target, entities, nextId);
-      msgs.push(msg(`${entityDisplayName(e)} убил ${entityDisplayName(target)}`, time, '#f44'));
+    const debugImmortalPlayerHit = target.id === playerId && isDebugOnePunchManEnabled();
+    if (debugImmortalPlayerHit) {
+      keepDebugOnePunchManAlive(target);
+    } else {
+      target.hp -= dmg;
+      if (target.hp <= 0) {
+        target.alive = false;
+        target.hp = 0;
+      }
+      const hitAng = Math.atan2(target.y - e.y, target.x - e.x);
+      spawnBloodHit(world, target.x, target.y, hitAng, dmg, target.type === EntityType.MONSTER);
+      const targetLabel = target.type === EntityType.PLAYER ? 'тебя' : entityDisplayName(target);
+      msgs.push(msg(
+        armorCut
+          ? `Косторез срезал бронелист и задел ${targetLabel}: -${dmg}`
+          : `Косторез режет ${targetLabel}: -${dmg}`,
+        time,
+        armorCut ? '#fc4' : '#f44',
+      ));
+      publishKostorezEvent(state, world, e, target, 'monster_armor_cut', armorCut ? 5 : 4, ['hit', armorCut ? 'armor_cut' : 'burst'], {
+        damage: dmg,
+        armorCut,
+        itemId: armorCut ? 'metal_sheet' : undefined,
+        itemName: armorCut ? ITEMS.metal_sheet?.name : undefined,
+      });
+      if (target.hp <= 0) {
+        spawnDeathPool(world, target.x, target.y, target.type === EntityType.MONSTER);
+        if (target.type === EntityType.NPC) dropNpcInventory(target, entities, nextId);
+        msgs.push(msg(`${entityDisplayName(e)} убил ${entityDisplayName(target)}`, time, '#f44'));
+      }
     }
   }
 
@@ -695,14 +701,19 @@ export function updateMonster(world: World, entities: Entity[], e: Entity, dt: n
       const rawDmg = Math.round(scaleMonsterDmg(baseDmg, level) * strMult * monsterDmgMult(world, e) * (e.monsterDmgMult ?? 1));
       const dmg = zhelemishIncomingMeleeDamage(target, time, rawDmg);
       if (target.hp !== undefined) {
-        target.hp -= dmg;
-        if (target.hp <= 0) { target.alive = false; target.hp = 0; }
-        const hitAng = Math.atan2(target.y - e.y, target.x - e.x);
-        spawnBloodHit(world, target.x, target.y, hitAng, dmg, target.type === EntityType.MONSTER);
-        if (target.hp <= 0) {
-          spawnDeathPool(world, target.x, target.y, target.type === EntityType.MONSTER);
-          if (target.type === EntityType.NPC) dropNpcInventory(target, entities, nextId);
-          msgs.push(msg(`${entityDisplayName(e)} убил ${entityDisplayName(target)}`, time, '#f44'));
+        const debugImmortalPlayerHit = target.id === playerId && isDebugOnePunchManEnabled();
+        if (debugImmortalPlayerHit) {
+          keepDebugOnePunchManAlive(target);
+        } else {
+          target.hp -= dmg;
+          if (target.hp <= 0) { target.alive = false; target.hp = 0; }
+          const hitAng = Math.atan2(target.y - e.y, target.x - e.x);
+          spawnBloodHit(world, target.x, target.y, hitAng, dmg, target.type === EntityType.MONSTER);
+          if (target.hp <= 0) {
+            spawnDeathPool(world, target.x, target.y, target.type === EntityType.MONSTER);
+            if (target.type === EntityType.NPC) dropNpcInventory(target, entities, nextId);
+            msgs.push(msg(`${entityDisplayName(e)} убил ${entityDisplayName(target)}`, time, '#f44'));
+          }
         }
       }
       playSoundAt(playGrowl, e.x, e.y);

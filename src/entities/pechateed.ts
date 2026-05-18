@@ -7,15 +7,15 @@ import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 export const DEF: MonsterDef = {
   kind: MonsterKind.PECHATEED,
   name: 'Печатеед',
-  hp: 55,
-  speed: 1.7,
-  dmg: 9,
-  attackRate: 1.35,
+  hp: 58,
+  speed: 1.62,
+  dmg: 10,
+  attackRate: 1.45,
   sprite: 0,
   aiFlags: ['documentHunter'],
-  floors: [FloorLevel.MINISTRY, FloorLevel.LIVING, FloorLevel.KVARTIRY],
-  counterplay: 'Сбросьте лишние записки/ключи или держите дистанцию: он выбирает носителей бумаг.',
-  lootHint: 'испорченные бумаги, чернила',
+  floors: [FloorLevel.MINISTRY, FloorLevel.KVARTIRY, FloorLevel.LIVING],
+  counterplay: 'Сбросьте лишние бумаги, бланки и ключи перед боем: с документами он чует издалека, без них держится короткой дистанции. Кайтите через углы.',
+  lootHint: 'обглоданные бланки, чернила и редкий пустой формуляр',
 };
 
 export function generateSprite(): Uint32Array {
@@ -32,14 +32,39 @@ export function generateSprite(): Uint32Array {
     }
   }
 
-  for (let y = 18; y < 45; y += 4) {
-    for (let x = cx - 9; x < cx + 9; x++) {
-      if ((x + y) % 5 === 0) t[y * S + x] = rgba(40, 25, 20);
+  for (let y = 14; y < 49; y += 5) {
+    const len = 7 + Math.floor(noise(y, 0, 8302) * 12);
+    for (let x = cx - 10; x < cx - 10 + len; x++) {
+      if (x >= 0 && x < S) t[y * S + x] = rgba(42, 27, 22);
     }
   }
 
-  for (let x = cx - 8; x <= cx + 8; x++) t[31 * S + x] = rgba(80, 10, 10);
-  t[21 * S + (cx - 4)] = rgba(20, 10, 8);
-  t[21 * S + (cx + 4)] = rgba(20, 10, 8);
+  for (let y = 12; y < 50; y += 9) {
+    for (let dx = -9; dx <= 9; dx++) {
+      const x = Math.floor(cx + dx);
+      const yy = y + Math.floor(dx * 0.18);
+      if (x >= 0 && x < S && yy >= 0 && yy < S) t[yy * S + x] = rgba(115, 18, 26);
+    }
+  }
+
+  for (let dx = -10; dx <= 10; dx++) {
+    const x = Math.floor(cx + dx);
+    if (x >= 0 && x < S) t[31 * S + x] = rgba(78, 8, 9);
+  }
+  for (let dx = -8; dx <= 8; dx += 4) {
+    const x = Math.floor(cx + dx);
+    if (x >= 0 && x < S) t[32 * S + x] = rgba(224, 210, 168);
+  }
+
+  for (let y = 18; y < 52; y++) {
+    const leftX = Math.floor(cx - 13 - noise(y, 0, 8303) * 2);
+    const rightX = Math.floor(cx + 13 + noise(y, 1, 8303) * 2);
+    const ink = y % 3 === 0;
+    if (leftX >= 0) t[y * S + leftX] = ink ? rgba(30, 18, 28) : rgba(168, 155, 124);
+    if (rightX < S) t[y * S + rightX] = ink ? rgba(30, 18, 28) : rgba(168, 155, 124);
+  }
+
+  t[21 * S + (cx - 4)] = rgba(18, 8, 7);
+  t[21 * S + (cx + 4)] = rgba(18, 8, 7);
   return t;
 }

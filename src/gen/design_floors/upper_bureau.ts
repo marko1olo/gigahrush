@@ -540,6 +540,254 @@ function decorateCleanerRoom(world: World, room: Room): void {
   setFeature(world, room.x + room.w - 3, room.y + room.h - 3, Feature.LAMP);
 }
 
+function carveBureauCell(world: World, x: number, y: number, floorTex: Tex, roomId = -1): void {
+  const ci = world.idx(x, y);
+  if (world.cells[ci] === Cell.LIFT) return;
+  if (world.cells[ci] !== Cell.DOOR) world.cells[ci] = Cell.FLOOR;
+  if (roomId >= 0 || world.roomMap[ci] < 0) world.roomMap[ci] = roomId;
+  world.floorTex[ci] = floorTex;
+  if (world.roomMap[ci] < 0 && world.features[ci] !== Feature.LIFT_BUTTON) world.features[ci] = Feature.NONE;
+}
+
+function carveBureauRect(world: World, x: number, y: number, w: number, h: number, floorTex: Tex, roomId = -1): void {
+  for (let dy = 0; dy < h; dy++) {
+    for (let dx = 0; dx < w; dx++) carveBureauCell(world, x + dx, y + dy, floorTex, roomId);
+  }
+}
+
+function carveBureauLine(world: World, ax: number, ay: number, bx: number, by: number, width: number, floorTex: Tex): void {
+  const half = Math.floor(width / 2);
+  if (ay === by) {
+    const minX = Math.min(ax, bx);
+    const maxX = Math.max(ax, bx);
+    carveBureauRect(world, minX, ay - half, maxX - minX + 1, width, floorTex);
+    return;
+  }
+  if (ax === bx) {
+    const minY = Math.min(ay, by);
+    const maxY = Math.max(ay, by);
+    carveBureauRect(world, ax - half, minY, width, maxY - minY + 1, floorTex);
+    return;
+  }
+  carveBureauLine(world, ax, ay, bx, ay, width, floorTex);
+  carveBureauLine(world, bx, ay, bx, by, width, floorTex);
+}
+
+function carveRibbonLine(world: World, ax: number, ay: number, bx: number, by: number, width: number, fieldTex: Tex, ribbonTex: Tex): void {
+  carveBureauLine(world, ax, ay, bx, by, width, fieldTex);
+  carveBureauLine(world, ax, ay, bx, by, Math.max(1, width - 3), ribbonTex);
+}
+
+function stampExpansionRoom(
+  world: World,
+  type: RoomType,
+  name: string,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  floorTex: Tex,
+  wallTex = Tex.MARBLE,
+): Room {
+  const room = stampBureauRoom(world, world.rooms.length, type, name, x, y, w, h, floorTex);
+  room.wallTex = wallTex;
+  for (let dy = -1; dy <= h; dy++) {
+    for (let dx = -1; dx <= w; dx++) {
+      if (dx >= 0 && dx < w && dy >= 0 && dy < h) continue;
+      const ci = world.idx(x + dx, y + dy);
+      if (world.cells[ci] === Cell.WALL) world.wallTex[ci] = wallTex;
+    }
+  }
+  return room;
+}
+
+function addHorizontalGatePartition(
+  world: World,
+  y: number,
+  x0: number,
+  x1: number,
+  doorX: number,
+  keyId: string,
+): void {
+  for (let x = x0; x <= x1; x++) {
+    const ci = world.idx(x, y);
+    world.cells[ci] = Cell.WALL;
+    world.roomMap[ci] = -1;
+    world.wallTex[ci] = Tex.MARBLE;
+    world.features[ci] = Feature.NONE;
+  }
+  addDoor(world, null, doorX, y, DoorState.LOCKED, keyId, Tex.DOOR_METAL);
+}
+
+function placeFeatureRow(world: World, ax: number, ay: number, bx: number, by: number, step: number, feature: Feature): void {
+  const dx = bx === ax ? 0 : bx > ax ? 1 : -1;
+  const dy = by === ay ? 0 : by > ay ? 1 : -1;
+  let x = ax;
+  let y = ay;
+  let n = 0;
+  while (x !== bx || y !== by) {
+    if (n % step === 0) setFeature(world, x, y, feature);
+    x += dx;
+    y += dy;
+    n++;
+  }
+  setFeature(world, bx, by, feature);
+}
+
+function decorateClerkCage(world: World, room: Room): void {
+  for (let dx = 2; dx < room.w - 2; dx++) {
+    if (dx % 2 === 0) setFeature(world, room.x + dx, room.y + 3, Feature.DESK);
+  }
+  for (let dx = 3; dx < room.w - 3; dx += 4) {
+    setFeature(world, room.x + dx, room.y + 5, Feature.CHAIR);
+    setFeature(world, room.x + dx, room.y + room.h - 3, Feature.SCREEN);
+  }
+  setFeature(world, room.x + 2, room.y + 2, Feature.LAMP);
+  setFeature(world, room.x + room.w - 3, room.y + 2, Feature.LAMP);
+}
+
+function decorateArchiveBalcony(world: World, x0: number, y0: number, x1: number, y1: number): void {
+  placeFeatureRow(world, x0, y0 - 3, x1, y0 - 3, 4, Feature.SHELF);
+  placeFeatureRow(world, x0, y1 + 3, x1, y1 + 3, 4, Feature.SHELF);
+  placeFeatureRow(world, x1 + 3, y0, x1 + 3, y1, 4, Feature.SHELF);
+  placeFeatureRow(world, x0 - 3, y0, x0 - 3, y1, 5, Feature.LAMP);
+}
+
+function addPublicQueueTier(world: World, rng: () => number): void {
+  carveRibbonLine(world, 128, 508, 486, 508, 7, Tex.F_MARBLE_TILE, Tex.F_RED_CARPET);
+  carveRibbonLine(world, 154, 452, 422, 452, 7, Tex.F_MARBLE_TILE, Tex.F_RED_CARPET);
+  carveRibbonLine(world, 422, 452, 422, 484, 7, Tex.F_MARBLE_TILE, Tex.F_RED_CARPET);
+  carveRibbonLine(world, 194, 484, 422, 484, 7, Tex.F_MARBLE_TILE, Tex.F_RED_CARPET);
+  carveRibbonLine(world, 194, 484, 194, 532, 7, Tex.F_MARBLE_TILE, Tex.F_RED_CARPET);
+  carveRibbonLine(world, 194, 532, 454, 532, 7, Tex.F_MARBLE_TILE, Tex.F_RED_CARPET);
+  carveRibbonLine(world, 454, 508, 454, 532, 7, Tex.F_MARBLE_TILE, Tex.F_RED_CARPET);
+  carveBureauLine(world, 300, 484, 300, 532, 3, Tex.F_MARBLE_TILE);
+  carveBureauLine(world, 194, 508, 422, 508, 3, Tex.F_MARBLE_TILE);
+
+  const firstSalon = stampExpansionRoom(world, RoomType.COMMON, 'Передний зал живой очереди', 168, 418, 104, 30, Tex.F_RED_CARPET);
+  const complaintSalon = stampExpansionRoom(world, RoomType.COMMON, 'Салон жалоб без номера', 282, 536, 126, 30, Tex.F_GREEN_CARPET);
+  const cage = stampExpansionRoom(world, RoomType.OFFICE, 'Стеклянная клетка младших клерков', 318, 462, 78, 22, Tex.F_MARBLE_TILE, Tex.TILE_W);
+  const permitNiche = stampExpansionRoom(world, RoomType.OFFICE, 'Ниша проверки пропусков', 426, 462, 28, 28, Tex.F_MARBLE_TILE);
+  const refusalRoom = stampExpansionRoom(world, RoomType.OFFICE, 'Тупик личного отказа', 116, 477, 44, 28, Tex.F_PARQUET);
+
+  addDoor(world, firstSalon, 220, 448);
+  addDoor(world, complaintSalon, 344, 535);
+  addDoor(world, cage, 356, 484, DoorState.CLOSED, '', Tex.DOOR_METAL);
+  addDoor(world, permitNiche, 425, 476, DoorState.LOCKED, UPPER_BUREAU_DOCUMENTS.appointmentToken, Tex.DOOR_METAL);
+  addDoor(world, refusalRoom, 138, 505);
+
+  decorateSalon(world, firstSalon);
+  decorateSalon(world, complaintSalon);
+  decorateClerkCage(world, cage);
+  decorateOffice(world, permitNiche);
+  decorateOffice(world, refusalRoom);
+
+  addGatePartition(world, 444, 492, 524, 508, UPPER_BUREAU_DOCUMENTS.appointmentToken);
+  addGatePartition(world, 468, 494, 522, 508, rng() < 0.5 ? UPPER_BUREAU_DOCUMENTS.forgedAppointment : UPPER_BUREAU_DOCUMENTS.appointmentToken);
+
+  placeFeatureRow(world, 160, 447, 410, 447, 5, Feature.CHAIR);
+  placeFeatureRow(world, 206, 489, 410, 489, 5, Feature.CHAIR);
+  placeFeatureRow(world, 206, 527, 444, 527, 5, Feature.CHAIR);
+  placeFeatureRow(world, 306, 512, 438, 512, 6, Feature.SHELF);
+}
+
+function addPrivateOfficeTier(world: World, rng: () => number): void {
+  carveRibbonLine(world, 372, 378, 708, 378, 7, Tex.F_MARBLE_TILE, Tex.F_GREEN_CARPET);
+  carveRibbonLine(world, 512, 378, 512, 497, 7, Tex.F_MARBLE_TILE, Tex.F_GREEN_CARPET);
+  carveRibbonLine(world, 586, 430, 708, 430, 5, Tex.F_PARQUET, Tex.F_GREEN_CARPET);
+  carveRibbonLine(world, 708, 378, 708, 430, 5, Tex.F_PARQUET, Tex.F_GREEN_CARPET);
+
+  const offices = [
+    stampExpansionRoom(world, RoomType.OFFICE, 'Личный кабинет тишины', 400, 346, 40, 28, Tex.F_PARQUET),
+    stampExpansionRoom(world, RoomType.OFFICE, 'Кабинет утвержденного родства', 452, 346, 40, 28, Tex.F_PARQUET),
+    stampExpansionRoom(world, RoomType.OFFICE, 'Комната предварительной подписи', 540, 346, 44, 28, Tex.F_PARQUET),
+    stampExpansionRoom(world, RoomType.OFFICE, 'Малый кабинет аудиторской тени', 596, 346, 44, 28, Tex.F_GREEN_CARPET),
+    stampExpansionRoom(world, RoomType.HQ, 'Привилегированная приемная', 650, 399, 42, 28, Tex.F_RED_CARPET),
+    stampExpansionRoom(world, RoomType.OFFICE, 'Тупик особого ходатайства', 711, 392, 48, 26, Tex.F_PARQUET),
+  ];
+
+  addDoor(world, offices[0], offices[0].x + 20, offices[0].y + offices[0].h);
+  addDoor(world, offices[1], offices[1].x + 20, offices[1].y + offices[1].h);
+  addDoor(world, offices[2], offices[2].x + 22, offices[2].y + offices[2].h);
+  addDoor(world, offices[3], offices[3].x + 22, offices[3].y + offices[3].h);
+  addDoor(world, offices[4], offices[4].x + 21, offices[4].y + offices[4].h, DoorState.LOCKED, UPPER_BUREAU_DOCUMENTS.appointmentToken, Tex.DOOR_METAL);
+  addDoor(world, offices[5], offices[5].x - 1, offices[5].y + 13, DoorState.LOCKED, UPPER_BUREAU_DOCUMENTS.staffRoute, Tex.DOOR_METAL);
+
+  for (const office of offices) decorateOffice(world, office);
+  addHorizontalGatePartition(world, 444, 492, 536, 512, UPPER_BUREAU_DOCUMENTS.appointmentToken);
+  addGatePartition(world, 628, 374, 434, 430, rng() < 0.45 ? UPPER_BUREAU_DOCUMENTS.auditPacket : UPPER_BUREAU_DOCUMENTS.appointmentToken);
+}
+
+function addArchiveBalconyTier(world: World): void {
+  carveBureauLine(world, 586, 508, 620, 508, 5, Tex.F_MARBLE_TILE);
+  carveBureauLine(world, 620, 458, 620, 616, 5, Tex.F_MARBLE_TILE);
+  carveBureauLine(world, 620, 458, 890, 458, 5, Tex.F_MARBLE_TILE);
+  carveBureauLine(world, 890, 458, 890, 616, 5, Tex.F_MARBLE_TILE);
+  carveBureauLine(world, 620, 616, 890, 616, 5, Tex.F_MARBLE_TILE);
+  carveRibbonLine(world, 704, 508, 890, 508, 5, Tex.F_MARBLE_TILE, Tex.F_GREEN_CARPET);
+
+  const archiveRooms = [
+    stampExpansionRoom(world, RoomType.STORAGE, 'Архивный балкон пропусков', 646, 425, 54, 30, Tex.F_MARBLE_TILE),
+    stampExpansionRoom(world, RoomType.STORAGE, 'Балкон чужих назначений', 720, 425, 54, 30, Tex.F_MARBLE_TILE),
+    stampExpansionRoom(world, RoomType.STORAGE, 'Закрытая опись родственников', 794, 425, 54, 30, Tex.F_MARBLE_TILE),
+    stampExpansionRoom(world, RoomType.STORAGE, 'Картотека обходных подписей', 646, 619, 58, 32, Tex.F_MARBLE_TILE),
+    stampExpansionRoom(world, RoomType.STORAGE, 'Полка стертых фамилий', 724, 619, 58, 32, Tex.F_MARBLE_TILE),
+    stampExpansionRoom(world, RoomType.STORAGE, 'Тупиковый сейф привилегий', 806, 619, 50, 32, Tex.F_GREEN_CARPET),
+  ];
+
+  for (let i = 0; i < archiveRooms.length; i++) {
+    const room = archiveRooms[i];
+    const doorY = i < 3 ? room.y + room.h : room.y - 1;
+    addDoor(world, room, room.x + Math.floor(room.w / 2), doorY, i === 5 ? DoorState.LOCKED : DoorState.CLOSED, i === 5 ? UPPER_BUREAU_DOCUMENTS.cleanerKey : '', Tex.DOOR_METAL);
+    decorateFileRoom(world, room);
+  }
+
+  addGatePartition(world, 704, 492, 526, 508, UPPER_BUREAU_DOCUMENTS.appointmentToken);
+  addGatePartition(world, 866, 470, 614, 508, UPPER_BUREAU_DOCUMENTS.staffRoute);
+  decorateArchiveBalcony(world, 620, 458, 890, 616);
+}
+
+function addServiceTier(world: World, rng: () => number): void {
+  carveBureauLine(world, 502, 540, 884, 540, 5, Tex.F_TILE);
+  carveBureauLine(world, 584, 540, 584, 742, 5, Tex.F_TILE);
+  carveBureauLine(world, 220, 742, 884, 742, 5, Tex.F_TILE);
+  carveBureauLine(world, 884, 616, 884, 742, 5, Tex.F_TILE);
+  carveBureauLine(world, 220, 508, 220, 742, 3, Tex.F_MARBLE_TILE);
+  carveBureauLine(world, 220, 620, 584, 620, 3, Tex.F_TILE);
+
+  const serviceRooms = [
+    stampExpansionRoom(world, RoomType.STORAGE, 'Служебная лестница к верхним печатям', 836, 711, 36, 28, Tex.F_CONCRETE, Tex.METAL),
+    stampExpansionRoom(world, RoomType.STORAGE, 'Кладовая тележек и чужих пальто', 250, 711, 48, 28, Tex.F_TILE),
+    stampExpansionRoom(world, RoomType.SMOKING, 'Обходная курилка без протокола', 326, 711, 44, 28, Tex.F_TILE),
+    stampExpansionRoom(world, RoomType.OFFICE, 'Черный ход печатей', 678, 711, 52, 28, Tex.F_MARBLE_TILE),
+    stampExpansionRoom(world, RoomType.STORAGE, 'Сервисный карман мимо охраны', 520, 623, 42, 28, Tex.F_TILE),
+  ];
+
+  addDoor(world, serviceRooms[0], serviceRooms[0].x + 18, serviceRooms[0].y + serviceRooms[0].h);
+  addDoor(world, serviceRooms[1], serviceRooms[1].x + 24, serviceRooms[1].y + serviceRooms[1].h);
+  addDoor(world, serviceRooms[2], serviceRooms[2].x + 22, serviceRooms[2].y + serviceRooms[2].h);
+  addDoor(world, serviceRooms[3], serviceRooms[3].x + 26, serviceRooms[3].y + serviceRooms[3].h, DoorState.LOCKED, UPPER_BUREAU_DOCUMENTS.staffRoute, Tex.DOOR_METAL);
+  addDoor(world, serviceRooms[4], serviceRooms[4].x + 21, serviceRooms[4].y - 1, DoorState.LOCKED, UPPER_BUREAU_DOCUMENTS.cleanerKey, Tex.DOOR_METAL);
+
+  decorateCleanerRoom(world, serviceRooms[0]);
+  decorateCleanerRoom(world, serviceRooms[1]);
+  decorateSalon(world, serviceRooms[2]);
+  decorateOffice(world, serviceRooms[3]);
+  decorateCleanerRoom(world, serviceRooms[4]);
+
+  addHorizontalGatePartition(world, 640, 568, 604, 584, UPPER_BUREAU_DOCUMENTS.cleanerKey);
+  addGatePartition(world, 760, 724, 746, 742, rng() < 0.5 ? UPPER_BUREAU_DOCUMENTS.staffRoute : UPPER_BUREAU_DOCUMENTS.cleanerKey);
+  placeFeatureRow(world, 238, 738, 852, 738, 12, Feature.SHELF);
+  placeFeatureRow(world, 590, 552, 590, 724, 10, Feature.LAMP);
+}
+
+export function expandUpperBureauGeometry(world: World, rng: () => number): void {
+  addPublicQueueTier(world, rng);
+  addPrivateOfficeTier(world, rng);
+  addArchiveBalconyTier(world);
+  addServiceTier(world, rng);
+}
+
 function setAdministrativeZones(world: World): void {
   generateZones(world);
   for (const zone of world.zones) {

@@ -23,6 +23,7 @@ export function createInput(): InputState {
     logMenu: false,
     sleep: false,
     mouse: { dx: 0, dy: 0, locked: false },
+    touch: { moveX: 0, moveY: 0, lookX: 0, lookY: 0, active: false },
   };
 }
 

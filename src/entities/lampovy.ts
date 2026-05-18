@@ -8,14 +8,14 @@ export const DEF: MonsterDef = {
   kind: MonsterKind.LAMPOVY,
   name: 'Ламповый',
   hp: 38,
-  speed: 2.0,
-  dmg: 10,
+  speed: 1.75,
+  dmg: 11,
   attackRate: 1.0,
   sprite: 0,
   aiFlags: ['lampPowered'],
   floors: [FloorLevel.LIVING, FloorLevel.KVARTIRY, FloorLevel.MINISTRY, FloorLevel.MAINTENANCE],
-  counterplay: 'Не деритесь под лампой: отведите его в темный коридор или за угол.',
-  lootHint: 'перегоревшая нить, шанс энергоячейки',
+  counterplay: 'Не держите его в световом пятне: уводите на три клетки от лампы или за угол; тушите свет только там, где сцена дает доступ.',
+  lootHint: 'перегоревшая нить, стекло и запах озона; редко лампа или предохранитель',
 };
 
 export function generateSprite(): Uint32Array {

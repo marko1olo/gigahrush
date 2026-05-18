@@ -2,7 +2,7 @@
 /*   Whitish distorted face with hollow eye sockets.             */
 /*   Floats through walls.                                       */
 
-import { MonsterKind } from '../core/types';
+import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
 import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
@@ -14,12 +14,29 @@ export const DEF: MonsterDef = {
   dmg: 15,
   attackRate: 1.5,
   sprite: 0,   // auto-assigned by generateSprites()
+  floors: [FloorLevel.MINISTRY, FloorLevel.HELL, FloorLevel.VOID],
+  counterplay: 'Меняйте позицию до контакта: двери и стены дух проходит, помогает только запас дистанции и сбитый темп.',
+  lootHint: 'пустая память, холодный сквозняк; редко ПСИ-пыль',
 };
 
 export function generateSprite(): Uint32Array {
   const t = new Uint32Array(S * S).fill(CLEAR);
   const cx = S / 2;
   const cy = S / 2 - 4;
+
+  // Pale phase veil keeps the wall-passing threat visible without making it solid.
+  for (let y = 0; y < S - 2; y++) {
+    for (let x = 0; x < S; x++) {
+      const dx = (x - cx) / 16;
+      const dy = (y - cy) / 21;
+      const r2 = dx * dx + dy * dy + noise(x * 2, y * 2, 6659) * 0.14;
+      if (r2 < 0.78 || r2 > 1.24) continue;
+      const fade = 1 - Math.abs(r2 - 1.01) / 0.23;
+      const pulse = noise(x * 5, y, 6660);
+      const alpha = clamp(Math.floor(34 + fade * 58 + pulse * 22));
+      t[y * S + x] = rgba(118, 194, 226, alpha);
+    }
+  }
 
   // Skull shape — elongated oval, whitish with noise distortion
   for (let y = 2; y < S - 6; y++) {
@@ -40,7 +57,7 @@ export function generateSprite(): Uint32Array {
       let cg = clamp(bright - 8 + n2);
       let cb = clamp(bright - 15 + n1 * 0.7);
       // Fade alpha at edges for ghostly look
-      const alpha = clamp(Math.floor(255 * Math.min(1, edge * 3)));
+      const alpha = clamp(Math.floor(120 + 135 * Math.min(1, edge * 2.8)));
 
       // Eye sockets — two large dark voids
       const eyeY = cy - 2;

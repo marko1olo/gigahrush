@@ -1,7 +1,7 @@
 /* ── Design floor: antenna_court / Антенный двор ─────────────── */
 
 import {
-  W, Cell, ContainerKind, Feature, FloorLevel, LiftDirection,
+  W, Cell, ContainerKind, DoorState, Feature, FloorLevel, LiftDirection,
   RoomType, Tex, ZoneFaction,
   type Entity, EntityType, AIGoal, Faction, Occupation, QuestType, MonsterKind,
   type GameState, type Room, type WorldContainer, type WorldEvent,
@@ -73,6 +73,21 @@ interface SignalClueDef {
   clue: string;
   faintClue: string;
   tags: string[];
+}
+
+interface AntennaHub {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  name: string;
+  cabinName: string;
+}
+
+interface AntennaGate {
+  x: number;
+  y: number;
+  r: number;
 }
 
 const SIGNAL_CLUES: Record<AntennaRouteId, SignalClueDef> = {
@@ -376,6 +391,41 @@ export function antennaCourtDebugLines(signalState: AntennaCourtSignalState): st
   ];
 }
 
+export function expandAntennaCourtRouteGeometry(world: World, rng: () => number): void {
+  const protectedCells = buildAntennaRouteProtectedMask(world);
+  const court = findAntennaRoom(world, 'Антенный двор');
+  const hubX = court ? court.x + (court.w >> 1) : CX;
+  const hubY = court ? court.y + (court.h >> 1) : CY;
+
+  carveSignalYard(world, hubX - 104, hubY - 92, 208, 184, protectedCells, [
+    { x: hubX, y: hubY - 92, r: 4 },
+    { x: hubX + 104, y: hubY, r: 4 },
+    { x: hubX, y: hubY + 92, r: 4 },
+    { x: hubX - 104, y: hubY, r: 4 },
+  ]);
+  if (court) openCentralSignalGates(world, court, protectedCells);
+
+  const hubs = antennaRouteHubs();
+  for (const hub of hubs) {
+    carveSignalYard(world, hub.x - (hub.w >> 1), hub.y - (hub.h >> 1), hub.w, hub.h, protectedCells, yardGates(hub));
+  }
+
+  for (const hub of hubs) {
+    carveCableLine(world, hubX, hubY, hub.x, hub.y, hub.name.includes('диагонал') ? 2 : 3, protectedCells);
+  }
+  carveHubRing(world, hubs, protectedCells);
+  carveBypassRings(world, protectedCells);
+  drawSectorFences(world, protectedCells);
+
+  for (const hub of hubs) {
+    placeRepeaterTower(world, hub.x, hub.y, protectedCells);
+    scatterCableReels(world, rng, hubX, hubY, hub.x, hub.y, protectedCells);
+  }
+  placeCentralMastCluster(world, hubX, hubY, protectedCells);
+  placeMaintenanceCabins(world, rng, hubs, protectedCells);
+  placeWeatherScreenWalls(world, hubs, protectedCells);
+}
+
 export function generateAntennaCourtDesignFloor(seed = 0): AntennaCourtGeneration {
   const world = new World();
   const entities: Entity[] = [];
@@ -462,6 +512,405 @@ export function generateAntennaCourtDesignFloor(seed = 0): AntennaCourtGeneratio
     signalState,
     debug: antennaCourtDebugLines(signalState),
   };
+}
+
+function antennaRouteHubs(): AntennaHub[] {
+  return [
+    { x: CX, y: 154, w: 128, h: 150, name: 'Северный мачтовый сектор', cabinName: 'Северная релейная кабина' },
+    { x: 770, y: 254, w: 148, h: 118, name: 'Северо-восточная диагональная ферма', cabinName: 'Кабина погодного экрана' },
+    { x: 870, y: CY, w: 150, h: 128, name: 'Восточный репитерный сектор', cabinName: 'Восточная ремонтная будка' },
+    { x: 770, y: 770, w: 148, h: 118, name: 'Юго-восточная диагональная ферма', cabinName: 'Будка кабельного обхода' },
+    { x: CX, y: 870, w: 128, h: 150, name: 'Южный мачтовый сектор', cabinName: 'Южная аккумуляторная кабина' },
+    { x: 254, y: 770, w: 148, h: 118, name: 'Юго-западная диагональная ферма', cabinName: 'Будка мокрых кабелей' },
+    { x: 154, y: CY, w: 150, h: 128, name: 'Западный репитерный сектор', cabinName: 'Западная релейная кабина' },
+    { x: 254, y: 254, w: 148, h: 118, name: 'Северо-западная диагональная ферма', cabinName: 'Кабина глухого приема' },
+  ];
+}
+
+function buildAntennaRouteProtectedMask(world: World): Uint8Array {
+  const mask = new Uint8Array(W * W);
+  for (const room of world.rooms) {
+    if (!room) continue;
+    for (let y = room.y - 1; y <= room.y + room.h; y++) {
+      for (let x = room.x - 1; x <= room.x + room.w; x++) {
+        mask[world.idx(x, y)] = 1;
+      }
+    }
+  }
+  for (let i = 0; i < W * W; i++) {
+    if (world.cells[i] === Cell.LIFT || world.features[i] === Feature.LIFT_BUTTON || world.aptMask[i] || world.hermoWall[i]) {
+      mask[i] = 1;
+    }
+  }
+  for (const idx of world.doors.keys()) mask[idx] = 1;
+  for (const container of world.containers) mask[world.idx(container.x, container.y)] = 1;
+  return mask;
+}
+
+function findAntennaRoom(world: World, name: string): Room | undefined {
+  return world.rooms.find(room => room?.name === name);
+}
+
+function carveSignalYard(
+  world: World,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  protectedCells: Uint8Array,
+  gates: AntennaGate[],
+): void {
+  for (let dy = 1; dy < h - 1; dy++) {
+    for (let dx = 1; dx < w - 1; dx++) {
+      setRouteFloor(world, x + dx, y + dy, Tex.F_CONCRETE, protectedCells);
+    }
+  }
+  for (let dx = 0; dx < w; dx++) {
+    setFenceOrGate(world, x + dx, y, protectedCells, gates);
+    setFenceOrGate(world, x + dx, y + h - 1, protectedCells, gates);
+  }
+  for (let dy = 1; dy < h - 1; dy++) {
+    setFenceOrGate(world, x, y + dy, protectedCells, gates);
+    setFenceOrGate(world, x + w - 1, y + dy, protectedCells, gates);
+  }
+}
+
+function yardGates(hub: AntennaHub): AntennaGate[] {
+  const halfW = hub.w >> 1;
+  const halfH = hub.h >> 1;
+  return [
+    { x: hub.x, y: hub.y - halfH, r: 5 },
+    { x: hub.x + halfW, y: hub.y, r: 5 },
+    { x: hub.x, y: hub.y + halfH, r: 5 },
+    { x: hub.x - halfW, y: hub.y, r: 5 },
+  ];
+}
+
+function setFenceOrGate(world: World, x: number, y: number, protectedCells: Uint8Array, gates: AntennaGate[]): void {
+  if (isGateCell(world, x, y, gates)) setRouteFloor(world, x, y, Tex.F_CONCRETE, protectedCells);
+  else setFenceWall(world, x, y, protectedCells);
+}
+
+function isGateCell(world: World, x: number, y: number, gates: AntennaGate[]): boolean {
+  for (const gate of gates) {
+    if (world.dist2(x, y, gate.x, gate.y) <= gate.r * gate.r) return true;
+  }
+  return false;
+}
+
+function openCentralSignalGates(world: World, court: Room, protectedCells: Uint8Array): void {
+  openRoomSideGate(world, court, 0, -1, protectedCells);
+  openRoomSideGate(world, court, 1, 0, protectedCells);
+  openRoomSideGate(world, court, 0, 1, protectedCells);
+  openRoomSideGate(world, court, -1, 0, protectedCells);
+}
+
+function openRoomSideGate(world: World, room: Room, dx: number, dy: number, protectedCells: Uint8Array): void {
+  const horizontal = dy !== 0;
+  const span = horizontal ? room.w : room.h;
+  const mid = Math.floor(span / 2);
+  for (let offset = 0; offset <= mid; offset++) {
+    for (const signed of offset === 0 ? [0] : [-offset, offset]) {
+      const sx = horizontal ? room.x + mid + signed : room.x + (dx > 0 ? room.w : -1);
+      const sy = horizontal ? room.y + (dy > 0 ? room.h : -1) : room.y + mid + signed;
+      const insideX = sx - dx;
+      const insideY = sy - dy;
+      const outsideX = sx + dx;
+      const outsideY = sy + dy;
+      const insideIdx = world.idx(insideX, insideY);
+      const outsideIdx = world.idx(outsideX, outsideY);
+      if (world.roomMap[insideIdx] !== room.id) continue;
+      if (protectedCells[outsideIdx] || world.roomMap[outsideIdx] >= 0 || world.cells[outsideIdx] === Cell.LIFT) continue;
+      placeAntennaGate(world, sx, sy, room.id, -1, '');
+      carveCableDisc(world, outsideX, outsideY, 2, Tex.F_CONCRETE, protectedCells);
+      return;
+    }
+  }
+}
+
+function carveHubRing(world: World, hubs: AntennaHub[], protectedCells: Uint8Array): void {
+  for (let i = 0; i < hubs.length; i++) {
+    const a = hubs[i];
+    const b = hubs[(i + 1) % hubs.length];
+    carveCableLine(world, a.x, a.y, b.x, b.y, 2, protectedCells);
+  }
+}
+
+function carveBypassRings(world: World, protectedCells: Uint8Array): void {
+  carveRectCable(world, CX - 174, CY - 174, 348, 348, 2, protectedCells);
+  carveRectCable(world, CX - 304, CY - 304, 608, 608, 1, protectedCells);
+  carveCableLine(world, CX - 304, CY, CX + 304, CY, 1, protectedCells);
+  carveCableLine(world, CX, CY - 304, CX, CY + 304, 1, protectedCells);
+}
+
+function carveRectCable(world: World, x: number, y: number, w: number, h: number, width: number, protectedCells: Uint8Array): void {
+  carveCableLine(world, x, y, x + w, y, width, protectedCells);
+  carveCableLine(world, x + w, y, x + w, y + h, width, protectedCells);
+  carveCableLine(world, x + w, y + h, x, y + h, width, protectedCells);
+  carveCableLine(world, x, y + h, x, y, width, protectedCells);
+}
+
+function drawSectorFences(world: World, protectedCells: Uint8Array): void {
+  const gateYs = [154, 254, CY - 174, CY, CY + 174, 770, 870];
+  const gateXs = [154, 254, CX - 174, CX, CX + 174, 770, 870];
+  drawFenceLine(world, CX - 156, 92, CX - 156, W - 92, protectedCells, gateYs.map(y => ({ x: CX - 156, y, r: 10 })));
+  drawFenceLine(world, CX + 156, 92, CX + 156, W - 92, protectedCells, gateYs.map(y => ({ x: CX + 156, y, r: 10 })));
+  drawFenceLine(world, 92, CY - 156, W - 92, CY - 156, protectedCells, gateXs.map(x => ({ x, y: CY - 156, r: 10 })));
+  drawFenceLine(world, 92, CY + 156, W - 92, CY + 156, protectedCells, gateXs.map(x => ({ x, y: CY + 156, r: 10 })));
+}
+
+function drawFenceLine(
+  world: World,
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+  protectedCells: Uint8Array,
+  gates: AntennaGate[],
+): void {
+  const steps = Math.max(Math.abs(bx - ax), Math.abs(by - ay));
+  for (let i = 0; i <= steps; i++) {
+    const t = steps === 0 ? 0 : i / steps;
+    const x = Math.round(ax + (bx - ax) * t);
+    const y = Math.round(ay + (by - ay) * t);
+    setFenceOrGate(world, x, y, protectedCells, gates);
+  }
+}
+
+function carveCableLine(
+  world: World,
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+  width: number,
+  protectedCells?: Uint8Array,
+): void {
+  const dx = world.delta(ax, bx);
+  const dy = world.delta(ay, by);
+  const steps = Math.max(Math.abs(dx), Math.abs(dy), 1);
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const x = world.wrap(Math.round(ax + dx * t));
+    const y = world.wrap(Math.round(ay + dy * t));
+    carveCableDisc(world, x, y, width, Tex.F_CONCRETE, protectedCells);
+  }
+}
+
+function carveCableDisc(
+  world: World,
+  cx: number,
+  cy: number,
+  r: number,
+  floorTex: Tex,
+  protectedCells?: Uint8Array,
+): void {
+  const r2 = r * r;
+  for (let dy = -r; dy <= r; dy++) {
+    for (let dx = -r; dx <= r; dx++) {
+      if (dx * dx + dy * dy > r2) continue;
+      setRouteFloor(world, cx + dx, cy + dy, floorTex, protectedCells);
+    }
+  }
+}
+
+function setRouteFloor(world: World, x: number, y: number, floorTex: Tex, protectedCells?: Uint8Array): void {
+  const ci = world.idx(x, y);
+  if (protectedCells?.[ci] || world.cells[ci] === Cell.LIFT) return;
+  world.cells[ci] = Cell.FLOOR;
+  world.roomMap[ci] = -1;
+  world.floorTex[ci] = floorTex;
+  if (world.features[ci] !== Feature.SCREEN) world.features[ci] = Feature.NONE;
+}
+
+function setFenceWall(world: World, x: number, y: number, protectedCells: Uint8Array): void {
+  const ci = world.idx(x, y);
+  if (protectedCells[ci] || world.cells[ci] === Cell.LIFT) return;
+  world.cells[ci] = Cell.WALL;
+  world.roomMap[ci] = -1;
+  world.wallTex[ci] = Tex.METAL;
+  world.features[ci] = Feature.NONE;
+}
+
+function placeRepeaterTower(world: World, x: number, y: number, protectedCells: Uint8Array): void {
+  for (const [dx, dy] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+    setFenceWall(world, x + dx, y + dy, protectedCells);
+  }
+  for (let a = 0; a < 8; a++) {
+    const px = x + Math.round(Math.cos(a * Math.PI / 4) * 5);
+    const py = y + Math.round(Math.sin(a * Math.PI / 4) * 5);
+    setFeatureIfUnprotectedFloor(world, px, py, protectedCells, a % 3 === 0 ? Feature.LAMP : Feature.APPARATUS);
+  }
+}
+
+function placeCentralMastCluster(world: World, x: number, y: number, protectedCells: Uint8Array): void {
+  const offsets = [
+    [-74, -50], [70, -48], [-84, 44], [82, 48],
+    [-46, -74], [46, 74],
+  ] as const;
+  for (const [dx, dy] of offsets) {
+    placeRepeaterTower(world, x + dx, y + dy, protectedCells);
+  }
+}
+
+function scatterCableReels(
+  world: World,
+  rng: () => number,
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+  protectedCells: Uint8Array,
+): void {
+  const dx = world.delta(ax, bx);
+  const dy = world.delta(ay, by);
+  const len = Math.max(1, Math.hypot(dx, dy));
+  const px = -dy / len;
+  const py = dx / len;
+  const count = Math.max(2, Math.floor(len / 86));
+  for (let i = 1; i <= count; i++) {
+    const t = i / (count + 1);
+    const side = rng() < 0.5 ? -1 : 1;
+    const offset = side * (5 + Math.floor(rng() * 6));
+    const x = world.wrap(Math.round(ax + dx * t + px * offset));
+    const y = world.wrap(Math.round(ay + dy * t + py * offset));
+    setFeatureIfUnprotectedFloor(world, x, y, protectedCells, rng() < 0.55 ? Feature.MACHINE : Feature.APPARATUS);
+  }
+}
+
+function placeMaintenanceCabins(
+  world: World,
+  rng: () => number,
+  hubs: AntennaHub[],
+  protectedCells: Uint8Array,
+): void {
+  for (let i = 0; i < hubs.length; i++) {
+    const hub = hubs[i];
+    const w = 18 + Math.floor(rng() * 7);
+    const h = 12 + Math.floor(rng() * 5);
+    const sideX = hub.x < CX ? -1 : hub.x > CX ? 1 : (i % 2 === 0 ? -1 : 1);
+    const sideY = hub.y < CY ? -1 : hub.y > CY ? 1 : (i % 2 === 0 ? 1 : -1);
+    const options = [
+      { x: hub.x + sideX * ((hub.w >> 1) - w - 10), y: hub.y + sideY * 18 },
+      { x: hub.x - sideX * 18, y: hub.y + sideY * ((hub.h >> 1) - h - 8) },
+      { x: hub.x + sideX * 28, y: hub.y - sideY * 24 },
+    ];
+    for (const option of options) {
+      const rx = clampInt(option.x, 28, W - w - 28);
+      const ry = clampInt(option.y, 28, W - h - 28);
+      if (!canBuildRouteRoom(world, rx, ry, w, h, protectedCells)) continue;
+      const room = stampNamedRoom(
+        world,
+        i % 3 === 0 ? RoomType.STORAGE : RoomType.PRODUCTION,
+        rx,
+        ry,
+        w,
+        h,
+        hub.cabinName,
+        i % 2 === 0 ? Tex.METAL : Tex.PIPE,
+        Tex.F_CONCRETE,
+      );
+      decorateRouteCabin(world, room, rng);
+      openRouteRoomToPoint(world, room, hub.x, hub.y, protectedCells);
+      break;
+    }
+  }
+}
+
+function canBuildRouteRoom(world: World, x: number, y: number, w: number, h: number, protectedCells: Uint8Array): boolean {
+  for (let dy = -1; dy <= h; dy++) {
+    for (let dx = -1; dx <= w; dx++) {
+      const ci = world.idx(x + dx, y + dy);
+      if (protectedCells[ci] || world.cells[ci] === Cell.LIFT || world.doors.has(ci)) return false;
+    }
+  }
+  return true;
+}
+
+function decorateRouteCabin(world: World, room: Room, rng: () => number): void {
+  const featureCount = Math.max(3, Math.floor(room.w * room.h / 55));
+  for (let i = 0; i < featureCount; i++) {
+    const x = room.x + 2 + Math.floor(rng() * Math.max(1, room.w - 4));
+    const y = room.y + 2 + Math.floor(rng() * Math.max(1, room.h - 4));
+    setFeatureIfFloor(world, x, y, i % 5 === 0 ? Feature.LAMP : i % 2 === 0 ? Feature.APPARATUS : Feature.MACHINE);
+  }
+}
+
+function openRouteRoomToPoint(world: World, room: Room, tx: number, ty: number, protectedCells: Uint8Array): void {
+  const cx = room.x + (room.w >> 1);
+  const cy = room.y + (room.h >> 1);
+  const dx = world.delta(cx, tx);
+  const dy = world.delta(cy, ty);
+  let doorX = cx;
+  let doorY = cy;
+  let outsideX = cx;
+  let outsideY = cy;
+  if (Math.abs(dx) > Math.abs(dy)) {
+    const sx = dx > 0 ? 1 : -1;
+    doorX = room.x + (sx > 0 ? room.w : -1);
+    doorY = cy;
+    outsideX = doorX + sx;
+    outsideY = doorY;
+  } else {
+    const sy = dy > 0 ? 1 : -1;
+    doorX = cx;
+    doorY = room.y + (sy > 0 ? room.h : -1);
+    outsideX = doorX;
+    outsideY = doorY + sy;
+  }
+  placeAntennaGate(world, doorX, doorY, room.id, -1, '');
+  carveCableLine(world, outsideX, outsideY, tx, ty, 1, protectedCells);
+}
+
+function placeWeatherScreenWalls(world: World, hubs: AntennaHub[], protectedCells: Uint8Array): void {
+  for (let x = CX - 84; x <= CX + 84; x += 12) {
+    if (!protectedCells[world.idx(x, CY - 92)]) setWallScreen(world, x, CY - 92, (x >> 2) & 7);
+  }
+  for (let i = 0; i < hubs.length; i++) {
+    const hub = hubs[i];
+    const y = hub.y - (hub.h >> 1);
+    for (let dx = -18; dx <= 18; dx += 12) {
+      const x = hub.x + dx;
+      if (!protectedCells[world.idx(x, y)]) setWallScreen(world, x, y, (i + dx + 64) & 7);
+    }
+  }
+}
+
+function setFeatureIfUnprotectedFloor(
+  world: World,
+  x: number,
+  y: number,
+  protectedCells: Uint8Array,
+  feature: Feature,
+): void {
+  const ci = world.idx(x, y);
+  if (protectedCells[ci] || world.cells[ci] !== Cell.FLOOR) return;
+  world.features[ci] = feature;
+}
+
+function placeAntennaGate(world: World, x: number, y: number, roomA: number, roomB: number, keyId: string): void {
+  const ci = world.idx(x, y);
+  if (world.cells[ci] === Cell.LIFT) return;
+  world.cells[ci] = Cell.DOOR;
+  world.roomMap[ci] = -1;
+  world.wallTex[ci] = Tex.DOOR_METAL;
+  world.features[ci] = Feature.NONE;
+  world.doors.set(ci, {
+    idx: ci,
+    state: keyId ? DoorState.LOCKED : DoorState.CLOSED,
+    roomA,
+    roomB,
+    keyId,
+    timer: 0,
+  });
+  const a = world.rooms[roomA];
+  const b = world.rooms[roomB];
+  if (a && !a.doors.includes(ci)) a.doors.push(ci);
+  if (b && !b.doors.includes(ci)) b.doors.push(ci);
+}
+
+function clampInt(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value | 0));
 }
 
 function clampQuality(value: number): number {
