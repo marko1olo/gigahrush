@@ -58,7 +58,8 @@ import {
   drawSeroburmalineNoLookFx, drawSignalRows,
 } from './hud_fx';
 
-const BAR_W = 50, BAR_H = 5;
+const BAR_W = 50, BAR_H = 4;
+const NEEDS_PANEL_H = 20;
 const COMBAT_TARGET_SCAN_CAP = 160;
 const COMBAT_TARGET_MAX_D2 = 18 * 18;
 const COMBAT_TARGET_BODY_RADIUS = 0.3;
@@ -336,11 +337,11 @@ function hudWeaponName(name: string): string {
   return name.replace(/^Сгусток:\s*/, '');
 }
 
-function compactHudBottomReserve(w: number, h: number, sy: number): number {
+function compactHudBottomReserve(w: number, h: number, panelH: number, sy: number): number {
   if (w <= h || h >= 560) return 0;
   const controlReserve = Math.min(150, Math.max(96, h * 0.32));
   const minReadableTop = 90 * sy;
-  return Math.min(controlReserve, Math.max(0, h - minReadableTop - 32 * sy));
+  return Math.min(controlReserve, Math.max(0, h - minReadableTop - panelH));
 }
 
 interface CombatTargetHud {
@@ -534,11 +535,12 @@ function drawCombatWeaponPanel(
   sx: number,
   sy: number,
   time: number,
-): { y: number; w: number } {
-  const panelW = Math.min(w - 8 * sx, 170 * sx);
-  const panelH = 40 * sy;
-  const panelX = w - panelW - 4 * sx;
-  const panelY = barY - panelH - 4 * sy;
+): { x: number; y: number; w: number } {
+  const s = Math.max(1, Math.min(sx, sy));
+  const panelW = Math.min(w - 8 * s, 96 * s);
+  const panelH = 25 * s;
+  const panelX = w - panelW - 4 * s;
+  const panelY = barY - panelH - 3 * s;
   const statusColor = weapon.cannotFireReason ? '#f84' : weapon.lowResource ? '#fc4' : weapon.cooldown > 0.05 ? '#8cf' : '#9d9';
   drawNeuroPanel(ctx, panelX, panelY, panelW, panelH, time, 190);
   if (weapon.cannotFireReason || weapon.lowResource) {
@@ -549,28 +551,28 @@ function drawCombatWeaponPanel(
 
   const wj = textJitter(time, 200);
   ctx.textAlign = 'left';
-  ctx.font = `${8 * sy}px monospace`;
+  ctx.font = `${6.2 * s}px monospace`;
   ctx.fillStyle = `rgba(220,240,255,${flicker(time, 201)})`;
-  ctx.fillText(fitHudText(ctx, hudWeaponName(weapon.name), panelW - 12 * sx), panelX + 6 * sx + wj.dx, panelY + 4 * sy + wj.dy);
+  ctx.fillText(fitHudText(ctx, hudWeaponName(weapon.name), panelW - 9 * s), panelX + 4.5 * s + wj.dx, panelY + 2 * s + wj.dy);
 
-  ctx.font = `${7 * sy}px monospace`;
+  ctx.font = `${5.2 * s}px monospace`;
   ctx.fillStyle = '#8cf';
   const control = weapon.controlLabel ? ` ${weapon.controlLabel}` : '';
   const reach = weapon.reachLabel ? ` ${weapon.reachLabel}` : '';
   const factLine = `${weapon.role} УРН ${weapon.damageLabel}${weapon.pellets > 1 ? `/${weapon.pellets}` : ''}${reach}${control}`;
-  ctx.fillText(fitHudText(ctx, factLine, panelW - 12 * sx), panelX + 6 * sx, panelY + 14 * sy);
+  ctx.fillText(fitHudText(ctx, factLine, panelW - 9 * s), panelX + 4.5 * s, panelY + 9.5 * s);
 
-  ctx.font = `${9 * sy}px monospace`;
+  ctx.font = `${6.4 * s}px monospace`;
   ctx.fillStyle = statusColor;
   const stateLine = weapon.cannotFireReason ? weapon.cannotFireReason.toUpperCase() : weapon.cooldownLabel;
-  ctx.fillText(fitHudText(ctx, stateLine, 54 * sx), panelX + 6 * sx, panelY + 24 * sy);
+  ctx.fillText(fitHudText(ctx, stateLine, 42 * s), panelX + 4.5 * s, panelY + 16 * s);
   ctx.textAlign = 'right';
   ctx.fillStyle = weapon.cannotFireReason ? '#f84' : weapon.lowResource ? '#fc4' : '#d7ffd7';
-  ctx.fillText(fitHudText(ctx, weapon.resourceLabel, panelW - 68 * sx), panelX + panelW - 6 * sx, panelY + 24 * sy);
+  ctx.fillText(fitHudText(ctx, weapon.resourceLabel, panelW - 51 * s), panelX + panelW - 4.5 * s, panelY + 16 * s);
   ctx.textAlign = 'left';
 
-  drawHoloBar(ctx, panelX + 6 * sx, panelY + panelH - 6 * sy, panelW - 12 * sx, 3 * sy, weapon.cannotFireReason ? 0 : weapon.readyPct * 100, statusColor, time, 193);
-  return { y: panelY, w: panelW };
+  drawHoloBar(ctx, panelX + 4.5 * s, panelY + panelH - 3.2 * s, panelW - 9 * s, 1.8 * s, weapon.cannotFireReason ? 0 : weapon.readyPct * 100, statusColor, time, 193);
+  return { x: panelX, y: panelY, w: panelW };
 }
 
 function drawCombatSightFeedback(
@@ -650,9 +652,10 @@ export function drawHUD(
   if (smogStatus.inside) drawSmogVeil(ctx, w, h, time, smogStatus.intensity);
 
   // ── Bottom status bar (neuro-interface) ─────────────────
-  const bottomReserve = compactHudBottomReserve(w, h, sy);
-  const barY = h - 32 * sy - bottomReserve;
-  drawNeuroPanel(ctx, 0, barY, w, 32 * sy, time, 1);
+  const needsPanelH = NEEDS_PANEL_H * sy;
+  const bottomReserve = compactHudBottomReserve(w, h, needsPanelH, sy);
+  const barY = h - needsPanelH - bottomReserve;
+  drawNeuroPanel(ctx, 0, barY, w, needsPanelH, time, 1);
 
   if (player.needs) {
     const bars: [string, number, number, string][] = [
@@ -674,7 +677,7 @@ export function drawHUD(
       const barSpacing = bars.length > 5 ? 44 : 62;
       const barW = bars.length > 5 ? 36 : BAR_W;
       const bx = 8 * sx + i * barSpacing * sx;
-      const by = barY + 4 * sy;
+      const by = barY + 3 * sy;
       const pct = toPercent(current, max);
       // Label with jitter
       drawGlitchText(ctx, label, bx, by, time, i * 13 + 7, '#8cc', 7 * sy);
@@ -723,7 +726,8 @@ export function drawHUD(
       ctx.textAlign = 'right';
       ctx.fillStyle = `rgba(136,200,255,${flicker(time, 211)})`;
       if (weaponPanel.y > 14 * sy) {
-        ctx.fillText(fitHudText(ctx, toolLabel, weaponPanel.w), w - 8 * sx + tj.dx, weaponPanel.y - 10 * sy + tj.dy);
+        const s = Math.max(1, Math.min(sx, sy));
+        ctx.fillText(fitHudText(ctx, toolLabel, weaponPanel.w), weaponPanel.x + weaponPanel.w - 2 * s + tj.dx, weaponPanel.y - 8 * s + tj.dy);
       }
       ctx.fillStyle = '#ccc';
     }

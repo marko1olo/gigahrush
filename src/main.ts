@@ -1558,10 +1558,41 @@ function updateDefenseQuestSpawn(dt: number): void {
 }
 
 /* ── Shared kill handling (melee + projectile) ────────────────── */
+function isBossKillTarget(e: Entity): boolean {
+  if (e.type !== EntityType.MONSTER) return false;
+  if (e.isFogBoss) return true;
+  return e.monsterKind === MonsterKind.MANCOBUS ||
+    e.monsterKind === MonsterKind.HERALD ||
+    e.monsterKind === MonsterKind.CREATOR;
+}
+
+function isActiveKillQuestTarget(e: Entity): boolean {
+  for (const q of state.quests) {
+    if (q.done || q.type !== QuestType.KILL) continue;
+    if (e.type === EntityType.MONSTER) {
+      if (q.targetMonsterKind === e.monsterKind) return true;
+      if (q.targetMonsterKind === undefined && q.targetNpcId === undefined && q.targetPlotNpcId === undefined) return true;
+    } else if (e.type === EntityType.NPC) {
+      if (q.targetNpcId === e.id) return true;
+      if (q.targetPlotNpcId && e.plotNpcId === q.targetPlotNpcId) return true;
+    }
+  }
+  return false;
+}
+
+function playerKillMessage(e: Entity): string {
+  const name = entityDisplayName(e);
+  return (isBossKillTarget(e) || isActiveKillQuestTarget(e))
+    ? `${name} ${e.isFemale ? 'повержена' : 'повержен'}!`
+    : `Убито: ${name}`;
+}
+
 function handleKill(e: Entity, killerIsPlayer: boolean, pvx = 0, pvy = 0, goreLevel = 1): void {
   // Death blood pool — directional + gore-scaled
   spawnDeathPool(world, e.x, e.y, e.type === EntityType.MONSTER, goreLevel, pvx, pvy);
-  state.msgs.push(msg(`${entityDisplayName(e)} ${e.isFemale ? 'повержена' : 'повержен'}!`, state.time, '#4f4'));
+  if (killerIsPlayer) {
+    state.msgs.push(msg(playerKillMessage(e), state.time, '#4f4'));
+  }
   if (killerIsPlayer && (e.type === EntityType.MONSTER || e.type === EntityType.NPC)) {
     const zoneId = world.zoneMap[world.idx(Math.floor(e.x), Math.floor(e.y))];
     publishEvent(state, {

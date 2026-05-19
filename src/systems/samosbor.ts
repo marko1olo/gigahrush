@@ -182,6 +182,27 @@ function clearSamosborWarning(clearVariant: boolean): void {
   }
 }
 
+export function resetSamosborRuntimeForTests(): void {
+  samosborSealed = false;
+  activeSamosborZoneId = -1;
+  knownSamosborTime = 0;
+  samosborDirectorAccum = 0;
+  maronaryPingAccum = 0;
+  samosborPlayerShelterRoomId = -1;
+  pendingAftermath = null;
+  lastAftermathAt = -Infinity;
+  lastAftermathBeatIds = [];
+  lastAftermathFloor = FloorLevel.LIVING;
+  lastVeretarAreaLeaks = 0;
+  lastVeretarAreaLeakAt = -Infinity;
+  fogSpawnAccum = 0;
+  aftermathRuntime.clear();
+  clearSamosborWarning(true);
+  istotitDecisionCycle = -1;
+  istotitDecision = '';
+  for (const shelter of getSamosborLocalShelters()) shelter.clear?.();
+}
+
 function isIstotit(variant: ActiveSamosborVariant): boolean {
   return variant.def.id === 'istotit';
 }
@@ -354,6 +375,15 @@ function resolvePlayerShelterAtSeal(
       variantId: variant.def.id,
     },
   });
+}
+
+export function resolvePlayerShelterAtSealForTests(
+  world: World,
+  entities: Entity[],
+  state: GameState,
+  variant: ActiveSamosborVariant,
+): void {
+  resolvePlayerShelterAtSeal(world, entities, state, variant);
 }
 
 function samosborEventTags(

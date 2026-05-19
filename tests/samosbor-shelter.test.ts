@@ -1,4 +1,4 @@
-import { test } from 'node:test';
+import { beforeEach, test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
 import {
@@ -13,10 +13,32 @@ import {
   type Entity,
 } from '../src/core/types';
 import { World } from '../src/core/world';
-import { clearActiveSamosborVariant, forceNextSamosborVariant } from '../src/data/samosbor_variants';
+import { SAMOSBOR_VARIANTS, type ActiveSamosborVariant } from '../src/data/samosbor_variants';
 import { createWorldEventState, getRecentEvents } from '../src/systems/events';
-import { updateSamosbor } from '../src/systems/samosbor';
+import { resetSamosborRuntimeForTests, resolvePlayerShelterAtSealForTests } from '../src/systems/samosbor';
 import { makeGameState } from './helpers';
+
+const TEST_SHELTER_ROOM_ID = 777;
+const QUIET_VARIANT_DEF = SAMOSBOR_VARIANTS.find(variant => variant.id === 'quiet');
+if (!QUIET_VARIANT_DEF) throw new Error('quiet samosbor variant missing');
+
+const QUIET_TEST_VARIANT: ActiveSamosborVariant = {
+  def: QUIET_VARIANT_DEF,
+  modifiers: [],
+  durationMult: QUIET_VARIANT_DEF.durationMult,
+  spawnMult: QUIET_VARIANT_DEF.spawnMult,
+  fogSeedMult: 1,
+  fogSpawnIntervalMult: 1,
+  sealTimingDelta: QUIET_VARIANT_DEF.sealTimingDelta,
+  noSiren: false,
+  extraEyes: 0,
+  shelterRoomCount: 0,
+  fogColor: QUIET_VARIANT_DEF.fogColor,
+};
+
+beforeEach(() => {
+  resetSamosborRuntimeForTests();
+});
 
 function makeShelterWorld(doorState: DoorState): {
   world: World;
@@ -26,18 +48,18 @@ function makeShelterWorld(doorState: DoorState): {
 } {
   const world = new World();
   const room = {
-    id: 0,
+    id: TEST_SHELTER_ROOM_ID,
     type: RoomType.LIVING,
     x: 10, y: 10, w: 6, h: 6,
     doors: [] as number[],
     sealed: false,
     name: 'Тестовая гермокомната',
-    apartmentId: 0,
+    apartmentId: -1,
     wallTex: Tex.CONCRETE,
     floorTex: Tex.F_CONCRETE,
   };
-  world.rooms[0] = room;
-  world.apartmentRoomCount = 1;
+  world.rooms[TEST_SHELTER_ROOM_ID] = room;
+  world.apartmentRoomCount = 0;
   world.zones[0] = { id: 0, cx: 14, cy: 14, faction: ZoneFaction.CITIZEN, hasLift: false, fogged: false, level: 1, hqRoomId: -1 };
 
   for (let y = room.y; y < room.y + room.h; y++) {
@@ -82,42 +104,33 @@ function makeShelterWorld(doorState: DoorState): {
   return { world, entities: [player], player, nextId: { v: 2 } };
 }
 
-function runQuietSamosborToSeal(ctx: ReturnType<typeof makeShelterWorld>): ReturnType<typeof makeGameState> {
-  clearActiveSamosborVariant();
-  forceNextSamosborVariant('quiet');
+function resolveQuietSeal(ctx: ReturnType<typeof makeShelterWorld>): ReturnType<typeof makeGameState> {
   const state = makeGameState({
     currentFloor: FloorLevel.LIVING,
-    samosborTimer: 0,
+    samosborActive: true,
+    samosborCount: 1,
     worldEvents: createWorldEventState(),
   });
-  updateSamosbor(ctx.world, ctx.entities, state, 0.1, ctx.nextId);
-  assert.equal(state.samosborActive, true);
-
-  state.samosborTimer = 0.9;
-  updateSamosbor(ctx.world, ctx.entities, state, 0.1, ctx.nextId);
-  clearActiveSamosborVariant();
+  resolvePlayerShelterAtSealForTests(ctx.world, ctx.entities, state, QUIET_TEST_VARIANT);
   return state;
 }
 
 test('prepared hermodoor room shelters player and publishes success event', () => {
   const ctx = makeShelterWorld(DoorState.HERMETIC_CLOSED);
-  const state = runQuietSamosborToSeal(ctx);
+  const state = resolveQuietSeal(ctx);
 
-  assert.equal(ctx.world.rooms[0].sealed, true);
+  assert.equal(ctx.world.rooms[TEST_SHELTER_ROOM_ID].sealed, true);
   const events = getRecentEvents(state, { tags: ['shelter', 'success'], limit: 4 });
   assert.equal(events.length, 1);
   assert.equal(events[0].type, 'door_sealed');
-  assert.equal(events[0].roomId, 0);
-
-  state.samosborTimer = 0;
-  updateSamosbor(ctx.world, ctx.entities, state, 1, ctx.nextId);
+  assert.equal(events[0].roomId, TEST_SHELTER_ROOM_ID);
 });
 
 test('unprepared shelter fails locally and publishes failure event', () => {
   const ctx = makeShelterWorld(DoorState.HERMETIC_OPEN);
-  const state = runQuietSamosborToSeal(ctx);
+  const state = resolveQuietSeal(ctx);
 
-  assert.equal(ctx.world.rooms[0].sealed, false);
+  assert.equal(ctx.world.rooms[TEST_SHELTER_ROOM_ID].sealed, false);
   assert.ok((ctx.player.hp ?? 50) < 50);
   assert.ok(ctx.world.fog.some(v => v >= 155));
   const events = getRecentEvents(state, { tags: ['shelter', 'failure'], limit: 4 });
