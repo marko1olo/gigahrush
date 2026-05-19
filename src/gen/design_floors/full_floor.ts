@@ -26,9 +26,11 @@ import { expandServiceFloorMachineMaze } from './service_floor';
 import { expandChthonicAtticRootNetwork } from './chthonic_attic';
 import { expandUpperBureauGeometry } from './upper_bureau';
 import { expandAntennaCourtRouteGeometry } from './antenna_court';
+import { expandBankFloorRouteGeometry } from './bank_floor';
 import { expandRoofArchipelago } from './roof';
 import { expandBlackMarket88Bazaar } from './black_market_88';
 import { expandDarkMetroFullFloorGeometry } from './dark_metro';
+import { expandPioneerCampFullFloor } from './pioneer_camp';
 import { expandProductionBeltGeometry } from './production_belt';
 import { expandRaionsovetArchiveGeometry } from './raionsovet_archive';
 import { expandRegistryMorgueGeometry } from './registry_morgue';
@@ -65,8 +67,11 @@ export function expandDesignFloorGeneration<T extends FloorGeneration>(
     case 'communal_ring':
       expandCommunalRing(generation.world, rng, style(route));
       break;
+    case 'pioneer_camp':
+      expandPioneerCampFullFloor(generation.world, rng);
+      break;
     case 'dark_metro':
-      expandDarkMetroFullFloorGeometry(generation.world, rng, style(route));
+      expandDarkMetroFullFloorGeometry(generation.world, rng, style(route), generation.entities);
       break;
     case 'production_belt':
       expandProductionBeltGeometry(generation.world, rng);
@@ -97,6 +102,9 @@ export function expandDesignFloorGeneration<T extends FloorGeneration>(
       break;
     case 'upper_bureau':
       expandUpperBureauGeometry(generation.world, rng);
+      break;
+    case 'bank_floor':
+      expandBankFloorRouteGeometry(generation.world, rng);
       break;
   }
   finalizeExpandedFloor(generation, route, rng);

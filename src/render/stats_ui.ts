@@ -6,14 +6,8 @@ import { getEquippedToolDurability, getWeaponReadiness } from '../systems/invent
 import { xpForLevel } from '../systems/rpg';
 import { zhelemishStatsLine } from '../systems/status';
 import { drawNeuroPanel, drawGlitchText, textJitter, flicker } from './hud_fx';
-
-function fitStatText(ctx: CanvasRenderingContext2D, text: string, maxW: number): string {
-  if (maxW <= 0) return '';
-  if (ctx.measureText(text).width <= maxW) return text;
-  let end = text.length - 3;
-  while (end > 1 && ctx.measureText(text.slice(0, end) + '...').width > maxW) end--;
-  return text.slice(0, Math.max(1, end)) + '...';
-}
+import { drawCenteredWrappedText, fitText as fitStatText } from './ui_text';
+import { drawInventoryFinanceBlock, readFinanceSnapshot } from './economy_ui';
 
 export function drawInventory(
   ctx: CanvasRenderingContext2D,
@@ -26,16 +20,25 @@ export function drawInventory(
   const cw = ctx.canvas.width;
   const ch = ctx.canvas.height;
   const time = uiTime;
+  const uiScale = Math.max(0.9, Math.min(4.2, Math.min(sx, sy)));
+  sx = uiScale;
+  sy = uiScale;
 
   // Fullscreen neuro-panel background
+  ctx.fillStyle = '#00040a';
+  ctx.fillRect(0, 0, cw, ch);
   drawNeuroPanel(ctx, 0, 0, cw, ch, time, 80);
 
   // Title + money + close hint
   drawGlitchText(ctx, 'ИНВЕНТАРЬ', 8 * sx, 6 * sy, time, 800, '#6cf', 9 * sy);
   ctx.font = `${9 * sy}px monospace`;
+  const finance = readFinanceSnapshot(player, state);
   const mj = textJitter(time, 801);
   ctx.fillStyle = `rgba(238,238,68,${flicker(time, 802)})`;
-  ctx.fillText(`₽${player.money ?? 0}`, 88 * sx + mj.dx, 6 * sy + mj.dy);
+  const titleMoney = finance.hasBanking
+    ? `₽${Math.round(finance.cash)} сч ${Math.round(finance.accountRubles)}`
+    : `₽${Math.round(finance.cash)}`;
+  ctx.fillText(fitStatText(ctx, titleMoney, 90 * sx), 88 * sx + mj.dx, 6 * sy + mj.dy);
   ctx.fillStyle = '#456';
   ctx.font = `${7 * sy}px monospace`;
   ctx.textAlign = 'right';
@@ -66,7 +69,7 @@ export function drawInventory(
         const def = ITEMS[item.defId];
         ctx.fillStyle = selected ? '#0fa' : '#8aa';
         ctx.font = `${6 * sy}px monospace`;
-        const name = (def?.name ?? item.defId).slice(0, 6);
+        const name = fitStatText(ctx, def?.name ?? item.defId, cellSz - 4 * sx);
         ctx.fillText(name, cx + 2 * sx, cy + 10 * sy);
         if (item.count > 1) {
           ctx.fillStyle = '#6a8';
@@ -87,18 +90,20 @@ export function drawInventory(
     if (def) {
       ctx.fillStyle = '#ccc';
       ctx.font = `${8 * sy}px monospace`;
-      ctx.fillText(`${def.name} ×${item.count}`, descX, descY);
+      ctx.fillText(fitStatText(ctx, `${def.name} ×${item.count}`, gridW + 8 * sx), descX, descY);
       ctx.fillStyle = '#888';
       ctx.font = `${7 * sy}px monospace`;
-      ctx.fillText(def.desc, descX, descY + 10 * sy);
+      let infoY = descY + 10 * sy;
+      infoY = drawCenteredWrappedText(ctx, def.desc, descX, infoY, gridW + 8 * sx, 8 * sy, 2);
+      const actionBaseY = Math.min(infoY + 2 * sy, ch - 42 * sy);
       ctx.fillStyle = '#da4';
-      ctx.fillText(`Цена: ${def.value ?? 0}₽`, descX, descY + 20 * sy);
+      ctx.fillText(`Цена: ${def.value ?? 0}₽`, descX, actionBaseY);
       if (def.use || def.type === ItemType.WEAPON || def.type === ItemType.TOOL) {
         ctx.fillStyle = '#6a6';
-        ctx.fillText('[E] использовать', descX, descY + 30 * sy);
+        ctx.fillText('[E] использовать', descX, actionBaseY + 10 * sy);
       }
       ctx.fillStyle = '#a86';
-      ctx.fillText('[D] выкинуть', descX, descY + 40 * sy);
+      ctx.fillText('[D] выкинуть', descX, actionBaseY + 20 * sy);
     }
   } else {
     ctx.fillStyle = '#555';
@@ -116,8 +121,9 @@ export function drawInventory(
   ctx.fillStyle = '#ee4';
   ctx.font = `${10 * sy}px monospace`;
   const nameStr = player.name ?? 'Вы';
-  ctx.fillText(nameStr, stX, stY);
-  let nameEndX = stX + ctx.measureText(nameStr + '  ').width;
+  const nameMaxW = player.rpg ? barW * 0.45 : barW;
+  ctx.fillText(fitStatText(ctx, nameStr, nameMaxW), stX, stY);
+  let nameEndX = stX + Math.min(ctx.measureText(nameStr + '  ').width, nameMaxW);
   if (player.rpg) {
     ctx.fillStyle = '#af4';
     ctx.font = `${10 * sy}px monospace`;
@@ -129,19 +135,30 @@ export function drawInventory(
   if (player.rpg) {
     const rpg = player.rpg;
     const apLabel = rpg.attrPoints > 0 ? `  +${rpg.attrPoints}` : '';
+    const attrLine = `[1]СИЛ:${rpg.str}  [2]ЛОВ:${rpg.agi}  [3]ИНТ:${rpg.int}${apLabel}`;
     ctx.font = `${8 * sy}px monospace`;
-    ctx.fillStyle = '#e84';
-    ctx.fillText(`[1]СИЛ:${rpg.str}`, nameEndX, stY);
-    const s1w = ctx.measureText(`[1]СИЛ:${rpg.str}  `).width;
-    ctx.fillStyle = '#4e8';
-    ctx.fillText(`[2]ЛОВ:${rpg.agi}`, nameEndX + s1w, stY);
-    const s2w = ctx.measureText(`[2]ЛОВ:${rpg.agi}  `).width;
-    ctx.fillStyle = '#48f';
-    ctx.fillText(`[3]ИНТ:${rpg.int}`, nameEndX + s1w + s2w, stY);
-    if (apLabel) {
-      const s3w = ctx.measureText(`[3]ИНТ:${rpg.int} `).width;
-      ctx.fillStyle = '#ee4';
-      ctx.fillText(apLabel, nameEndX + s1w + s2w + s3w, stY);
+    if (nameEndX + ctx.measureText(attrLine).width > stX + barW) {
+      stY += 11 * sy;
+      nameEndX = stX;
+    }
+    const attrMaxW = Math.max(0, stX + barW - nameEndX);
+    if (ctx.measureText(attrLine).width > attrMaxW) {
+      ctx.fillStyle = '#e84';
+      ctx.fillText(fitStatText(ctx, attrLine, attrMaxW), nameEndX, stY);
+    } else {
+      ctx.fillStyle = '#e84';
+      ctx.fillText(`[1]СИЛ:${rpg.str}`, nameEndX, stY);
+      const s1w = ctx.measureText(`[1]СИЛ:${rpg.str}  `).width;
+      ctx.fillStyle = '#4e8';
+      ctx.fillText(`[2]ЛОВ:${rpg.agi}`, nameEndX + s1w, stY);
+      const s2w = ctx.measureText(`[2]ЛОВ:${rpg.agi}  `).width;
+      ctx.fillStyle = '#48f';
+      ctx.fillText(`[3]ИНТ:${rpg.int}`, nameEndX + s1w + s2w, stY);
+      if (apLabel) {
+        const s3w = ctx.measureText(`[3]ИНТ:${rpg.int} `).width;
+        ctx.fillStyle = '#ee4';
+        ctx.fillText(apLabel, nameEndX + s1w + s2w + s3w, stY);
+      }
     }
   }
   stY += 14 * sy;
@@ -201,6 +218,9 @@ export function drawInventory(
     }
   }
 
+  stY += 4 * sy;
+  stY = drawInventoryFinanceBlock(ctx, player, state, stX, stY, barW, sy, time, ch - 14 * sy);
+
   const zhelemishLine = zhelemishStatsLine(player, time);
   if (zhelemishLine) {
     stY += 3 * sy;
@@ -231,7 +251,7 @@ export function drawInventory(
   const toolDur = getEquippedToolDurability(player);
   const toolDurLabel = toolDur ? `${Math.max(0, Math.ceil(toolDur.cur))}/${toolDur.max}` : '--';
   ctx.fillStyle = '#8cf';
-  ctx.fillText(`Инструмент: ${toolName}  Износ:${toolDurLabel}`, stX, stY);
+  ctx.fillText(fitStatText(ctx, `Инструмент: ${toolName}  Износ:${toolDurLabel}`, barW), stX, stY);
   stY += 12 * sy;
 
   // Stats

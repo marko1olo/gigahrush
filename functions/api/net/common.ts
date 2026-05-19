@@ -42,9 +42,32 @@ export interface ProgressPayload {
   minute: number;
 }
 
+export interface MarketImpulsePayload {
+  eventKey: string;
+  corpId: string;
+  kind: string;
+  magnitude: number;
+}
+
+export interface MarketSnapshotRow {
+  corpId: string;
+  price: number;
+  lastDelta: number;
+  volume: number;
+  updatedAt: number;
+}
+
+export interface MarketSnapshotPayload {
+  rows: MarketSnapshotRow[];
+  updatedAt: number;
+}
+
 const ONLINE_WINDOW_MS = 90_000;
 const CHAT_LIMIT = 60;
 const NET_GEN_NICK_RE = /^NET-[A-Z0-9-]{4,28}$/;
+const MARKET_MAX_IMPULSES = 16;
+const MARKET_MAX_ROWS = 64;
+const MARKET_MAX_MAGNITUDE = 100;
 
 export function json(data: unknown, status = 200): Response {
   return Response.json(data, {
@@ -115,9 +138,49 @@ export function cleanEventKey(value: unknown): string {
   return value.trim().replace(/[^A-Za-z0-9:_-]/g, '').slice(0, 96);
 }
 
+export function cleanMarketCorpId(value: unknown): string {
+  if (typeof value !== 'string') return '';
+  const clean = value.trim().toLowerCase().replace(/[^a-z0-9:_-]/g, '').slice(0, 64);
+  return /^[a-z0-9][a-z0-9:_-]{0,63}$/.test(clean) ? clean : '';
+}
+
+export function cleanMarketKind(value: unknown): string {
+  if (typeof value !== 'string') return '';
+  const clean = value.trim().toLowerCase().replace(/[^a-z0-9:_-]/g, '').slice(0, 32);
+  return /^[a-z][a-z0-9:_-]{0,31}$/.test(clean) ? clean : '';
+}
+
+function cleanMarketMagnitude(value: unknown): number | null {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+  const bounded = Math.max(-MARKET_MAX_MAGNITUDE, Math.min(MARKET_MAX_MAGNITUDE, value));
+  return Math.round(bounded * 100) / 100;
+}
+
+export function normalizeMarketImpulses(value: unknown): MarketImpulsePayload[] {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value)) throw new Error('bad market impulses');
+  if (value.length > MARKET_MAX_IMPULSES) throw new Error('too many market impulses');
+  const impulses: MarketImpulsePayload[] = [];
+  for (const item of value) {
+    const input = item && typeof item === 'object' ? item as Record<string, unknown> : {};
+    const eventKey = cleanEventKey(input.eventKey);
+    const corpId = cleanMarketCorpId(input.corpId);
+    const kind = cleanMarketKind(input.kind);
+    const magnitude = cleanMarketMagnitude(input.magnitude);
+    if (!eventKey || !corpId || !kind || magnitude === null) throw new Error('bad market impulse');
+    impulses.push({ eventKey, corpId, kind, magnitude });
+  }
+  return impulses;
+}
+
 function num(value: unknown, fallback: number, min: number, max: number): number {
   const n = typeof value === 'number' && Number.isFinite(value) ? value : fallback;
   return Math.max(min, Math.min(max, Math.floor(n)));
+}
+
+function boundedFloat(value: unknown, fallback: number, min: number, max: number): number {
+  const n = typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+  return Math.max(min, Math.min(max, Math.round(n * 100) / 100));
 }
 
 function publicNickname(value: unknown): string {
@@ -287,4 +350,31 @@ export function sinceChatIdFromUrl(request: Request): number {
   const raw = new URL(request.url).searchParams.get('sinceChatId') ?? '0';
   const id = Number(raw);
   return Number.isFinite(id) ? Math.max(0, Math.floor(id)) : 0;
+}
+
+export async function readMarketSnapshot(db: D1Database, limit = MARKET_MAX_ROWS): Promise<MarketSnapshotPayload> {
+  const boundedLimit = Math.max(1, Math.min(MARKET_MAX_ROWS, Math.floor(limit)));
+  const result = await db.prepare(`
+    SELECT corp_id, price, last_delta, volume, updated_at
+    FROM net_market_snapshots
+    ORDER BY updated_at DESC, corp_id ASC
+    LIMIT ?
+  `).bind(boundedLimit).all<Record<string, unknown>>();
+  const rows = (result.results ?? [])
+    .map(row => {
+      const corpId = cleanMarketCorpId(row.corp_id);
+      if (!corpId) return null;
+      return {
+        corpId,
+        price: boundedFloat(row.price, 100, 1, 99999),
+        lastDelta: boundedFloat(row.last_delta, 0, -99999, 99999),
+        volume: boundedFloat(row.volume, 0, 0, 1_000_000_000),
+        updatedAt: num(row.updated_at, 0, 0, 9_999_999_999_999),
+      };
+    })
+    .filter((row): row is MarketSnapshotRow => row !== null);
+  return {
+    rows,
+    updatedAt: rows.reduce((best, row) => Math.max(best, row.updatedAt), 0),
+  };
 }

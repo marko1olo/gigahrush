@@ -4,6 +4,7 @@ import { FloorLevel, RoomType, type GameState, type Quest, QuestType } from '../
 import { getRecentRumorLead } from '../systems/npc_memory';
 import { formatQuestMinutes, questRemainingMinutes } from '../systems/quest_deadlines';
 import { drawNeuroPanel, drawGlitchText } from './hud_fx';
+import { drawWrappedText, fitText } from './ui_text';
 
 const FLOOR_NAMES: Record<FloorLevel, string> = {
   [FloorLevel.MINISTRY]: 'Министерство',
@@ -58,32 +59,6 @@ function questRouteHint(q: Quest, state: GameState): string {
   return detail;
 }
 
-function drawWrappedText(
-  ctx: CanvasRenderingContext2D,
-  text: string,
-  x: number, y: number,
-  maxW: number, lineH: number,
-): number {
-  const words = text.split(' ');
-  let line = '';
-  let ly = y;
-  for (const word of words) {
-    const test = line ? line + ' ' + word : word;
-    if (line && ctx.measureText(test).width > maxW) {
-      ctx.fillText(line, x, ly);
-      line = word;
-      ly += lineH;
-    } else {
-      line = test;
-    }
-  }
-  if (line) {
-    ctx.fillText(line, x, ly);
-    ly += lineH;
-  }
-  return ly;
-}
-
 export function drawQuestLog(
   ctx: CanvasRenderingContext2D,
   state: GameState,
@@ -96,6 +71,8 @@ export function drawQuestLog(
   const py = (ctx.canvas.height - ph) / 2;
   const time = uiTime;
 
+  ctx.fillStyle = '#00040a';
+  ctx.fillRect(px, py, pw, ph);
   drawNeuroPanel(ctx, px, py, pw, ph, time, 50);
 
   drawGlitchText(ctx, 'ЗАДАНИЯ [Q]', px + 8 * sx, py + 6 * sy, time, 500, '#6cf', 9 * sy);
@@ -115,6 +92,7 @@ export function drawQuestLog(
   const page = Math.min(state.questPage, all.length - 1);
   const q = all[page];
   const maxW = pw - 16 * sx;
+  const contentBottom = py + ph - 22 * sy;
 
   // Page indicator
   ctx.fillStyle = '#888';
@@ -124,7 +102,7 @@ export function drawQuestLog(
   // Quest giver
   ctx.fillStyle = '#8af';
   ctx.font = `${8 * sy}px monospace`;
-  ctx.fillText(`От: ${q.giverName ?? '???'}`, px + 8 * sx, py + 24 * sy);
+  ctx.fillText(fitText(ctx, `От: ${q.giverName ?? '???'}`, maxW), px + 8 * sx, py + 24 * sy);
 
   // Status badge
   const isFailed = q.failed === true;
@@ -135,22 +113,30 @@ export function drawQuestLog(
   // Word-wrapped description
   const prefix = isFailed ? '× ' : isDone ? '✓ ' : '• ';
   let ly = py + 40 * sy;
-  ly = drawWrappedText(ctx, prefix + q.desc, px + 8 * sx, ly, maxW, 12 * sy);
+  ly = drawWrappedText(
+    ctx,
+    prefix + q.desc,
+    px + 8 * sx,
+    ly,
+    maxW,
+    12 * sy,
+    Math.max(1, Math.floor((contentBottom - ly) / (12 * sy))),
+  );
 
   // Progress for KILL quests
-  if (!q.done && q.killNeeded !== undefined) {
+  if (!q.done && q.killNeeded !== undefined && ly < contentBottom) {
     ly += 4 * sy;
     ctx.fillStyle = '#aaa';
     ctx.fillText(`Прогресс: ${q.killCount ?? 0}/${q.killNeeded}`, px + 8 * sx, ly);
   }
 
   const remaining = questRemainingMinutes(q, state.clock.totalMinutes);
-  if (!q.done && remaining !== undefined) {
+  if (!q.done && remaining !== undefined && ly < contentBottom) {
     ly += 12 * sy;
     ctx.fillStyle = remaining <= 120 ? '#f66' : remaining <= 360 ? '#fa6' : '#8cf';
     ctx.font = `${7 * sy}px monospace`;
     ctx.fillText(`Срок: ${formatQuestMinutes(remaining)}`, px + 8 * sx, ly);
-  } else if (isFailed) {
+  } else if (isFailed && ly < contentBottom) {
     ly += 12 * sy;
     ctx.fillStyle = '#f66';
     ctx.font = `${7 * sy}px monospace`;
@@ -158,11 +144,19 @@ export function drawQuestLog(
   }
 
   const routeHint = questRouteHint(q, state);
-  if (routeHint) {
+  if (routeHint && ly < contentBottom) {
     ly += 12 * sy;
     ctx.fillStyle = '#8cf';
     ctx.font = `${7 * sy}px monospace`;
-    ly = drawWrappedText(ctx, routeHint, px + 8 * sx, ly, maxW, 9 * sy);
+    ly = drawWrappedText(
+      ctx,
+      routeHint,
+      px + 8 * sx,
+      ly,
+      maxW,
+      9 * sy,
+      Math.max(1, Math.floor((contentBottom - ly) / (9 * sy))),
+    );
   }
 
   const rumorLead = getRecentRumorLead(state.time);
@@ -170,7 +164,7 @@ export function drawQuestLog(
     ly += 8 * sy;
     ctx.fillStyle = '#d9a';
     ctx.font = `${7 * sy}px monospace`;
-    drawWrappedText(ctx, `Слух: ${rumorLead.text}`, px + 8 * sx, ly, maxW, 9 * sy);
+    drawWrappedText(ctx, `Слух: ${rumorLead.text}`, px + 8 * sx, ly, maxW, 9 * sy, Math.max(1, Math.floor((contentBottom - ly) / (9 * sy))));
   }
 
   // Bottom hint

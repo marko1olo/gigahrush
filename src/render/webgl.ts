@@ -6,7 +6,7 @@
  * ────────────────────────────────────────────────────────────── */
 
 import {
-  W, Cell, TEX, Tex, MAX_DRAW, Feature,
+  W, Cell, TEX, Tex, MAX_DRAW, Feature, ContainerKind,
   type Entity, EntityType, ProjType,
 } from '../core/types';
 import { World } from '../core/world';
@@ -15,6 +15,7 @@ import { entityUsesProceduralSprite, generateProceduralEntitySprite, proceduralE
 import type { TexData } from './textures';
 import type { SpriteData } from './sprites';
 import type { BloodParticle } from './blood';
+import { containerSpr, featureSpr } from './sprite_index';
 
 export interface DynamicSkyTexture {
   readonly width: number;
@@ -40,6 +41,8 @@ const ATLAS_TEX_SIZE = TEX;       // 64px each texture
 const PARTICLE_INSTANCE_CAP = 256;
 const PROCEDURAL_SPRITE_CACHE_MAX = 384;
 const PROCEDURAL_SPRITE_CACHE_TARGET = 288;
+const VISIBLE_SPRITE_CAP = 1024;
+const STATIC_OBJECT_RADIUS = MAX_DRAW;
 
 /* ── GLSL Shaders ─────────────────────────────────────────────── */
 
@@ -381,6 +384,7 @@ void main() {
       float depthF = (row - edgeEnd) / (uResolution.y - edgeEnd);
       float v = max(0.0, 4.0 * (1.0 - depthF)) / 255.0;
       pixel = vec3(v, v, v);
+      pixelDepth = min(1.0, dist / MAX_DIST);
     } else {
       float upF = (edgeStart - row) / max(1.0, edgeStart);
       if (uUseDynamicSky == 1) {
@@ -392,6 +396,7 @@ void main() {
         float v = max(0.0, 3.0 * (1.0 - upF)) / 255.0;
         pixel = vec3(v, v + 2.0/255.0, v);
       }
+      pixelDepth = min(1.0, dist / MAX_DIST);
     }
   } else {
     if (hit && row >= drawStart && row <= drawEnd) {
@@ -431,6 +436,7 @@ void main() {
             float voidF = min(1.0, currentDist * 0.12);
             float v = 3.0 * (1.0 - voidF) / 255.0;
             pixel = vec3(v, v, v);
+            pixelDepth = min(1.0, currentDist / MAX_DIST);
           } else {
             uint floorTexId = fCellType == ${Cell.WATER}u
               ? ${Tex.F_WATER}u
@@ -465,6 +471,7 @@ void main() {
             float voidF = min(1.0, currentDist * 0.12);
             float v = 4.0 * (1.0 - voidF) / 255.0;
             pixel = vec3(v, v + 1.0/255.0, v);
+            pixelDepth = min(1.0, currentDist / MAX_DIST);
           } else {
             uint feat = texelFetch(uFeatures, cCell, 0).r;
             if (feat == ${Feature.LAMP}u) {
@@ -687,8 +694,8 @@ void main() {
     }
   }
 
-  /* ── Random sporadic glitch bars (always-on, very rare) ─────── */
-  {
+  /* ── Random sporadic glitch bars ────────────────────────────── */
+  if (uGlitch > 0.02) {
     float barSeed = floor(t * 2.5);
     float barY = floor(uv.y * 200.0);
     float barH = hash21(vec2(barY * 0.37, barSeed));
@@ -704,9 +711,10 @@ void main() {
   float caPulse = sin(t * 1.3) * 0.0002;
   float ca = caBase + caGlitch + caPulse;
   vec2 caOff = vec2(ca, ca * 0.3);
-  vec4 cL = texture(uTex, uv + caOff);
-  vec4 cC = texture(uTex, uv);
-  vec4 cR = texture(uTex, uv - caOff);
+  vec2 sampleUv = clamp(uv, vec2(0.001), vec2(0.999));
+  vec4 cL = texture(uTex, clamp(sampleUv + caOff, vec2(0.001), vec2(0.999)));
+  vec4 cC = texture(uTex, sampleUv);
+  vec4 cR = texture(uTex, clamp(sampleUv - caOff, vec2(0.001), vec2(0.999)));
   vec3 color = vec3(cL.r, cC.g, cR.b);
 
   /* VHS color bleed: approximate horizontal chroma smear using same 3 samples */
@@ -734,7 +742,7 @@ void main() {
   color += grain;
 
   /* ── Procedural glitch bursts (rare pixel displacement) ─────── */
-  {
+  if (uGlitch > 0.02) {
     // Spawn rare glitch events — each has a random position and short lifetime
     float glitchTick = floor(t * 1.8);
     for (int i = 0; i < 3; i++) {
@@ -761,12 +769,12 @@ void main() {
         float intensity = (1.0 - dy / gh) * (1.0 - dx / (gw * 0.5));
         intensity *= intensity;
         float shift = (hash11(seed + 6.0 + floor(uv.y * 200.0)) - 0.5) * 0.04 * intensity;
-        vec2 displaced = uv + vec2(shift, (hash11(seed + 7.0) - 0.5) * 0.006 * intensity);
+        vec2 displaced = clamp(uv + vec2(shift, (hash11(seed + 7.0) - 0.5) * 0.006 * intensity), vec2(0.001), vec2(0.999));
         vec3 glitchCol = texture(uTex, displaced).rgb;
         // Chromatic split in glitch region
         float csplit = 0.003 * intensity;
-        glitchCol.r = texture(uTex, displaced + vec2(csplit, 0.0)).r;
-        glitchCol.b = texture(uTex, displaced - vec2(csplit, 0.0)).b;
+        glitchCol.r = texture(uTex, clamp(displaced + vec2(csplit, 0.0), vec2(0.001), vec2(0.999))).r;
+        glitchCol.b = texture(uTex, clamp(displaced - vec2(csplit, 0.0), vec2(0.001), vec2(0.999))).b;
         color = mix(color, glitchCol, intensity * 0.85);
       }
     }
@@ -883,6 +891,7 @@ interface GLState {
   surfaceVersion: number;
   surfaceCamTileX: number;
   surfaceCamTileY: number;
+  cellVersion: number;
   wallTexVersion: number;
   floorTexVersion: number;
   fogVersion: number;
@@ -900,11 +909,16 @@ interface ProceduralSpriteCacheEntry {
 
 let glState: GLState | null = null;
 let activeDynamicSky: DynamicSkyTexture | null = null;
-const visibleEntities: Entity[] = [];
+const visibleEntities: (Entity | null)[] = [];
 const visibleDx: number[] = [];
 const visibleDy: number[] = [];
 const visibleDist: number[] = [];
 const visibleOrder: number[] = [];
+const visibleSpriteIdx: number[] = [];
+const visibleSpriteScale: number[] = [];
+const visibleSpriteZ: number[] = [];
+const visibleProjectile: number[] = [];
+const visibleSeed: number[] = [];
 
 /* ── Shader compilation helpers ───────────────────────────────── */
 function compileShader(gl: WebGL2RenderingContext, type: number, src: string): WebGLShader {
@@ -1328,6 +1342,8 @@ export function initWebGL(
   gl.bindTexture(gl.TEXTURE_2D, rayColorTex);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, SCR_W, SCR_H, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
 
   const rayDepthBuf = gl.createRenderbuffer()!;
@@ -1394,6 +1410,7 @@ export function initWebGL(
     surfaceVersion: world.surfaceVersion,
     surfaceCamTileX: 0,
     surfaceCamTileY: 0,
+    cellVersion: world.cellVersion,
     wallTexVersion: world.wallTexVersion,
     floorTexVersion: world.floorTexVersion,
     fogVersion: world.fogVersion,
@@ -1440,6 +1457,7 @@ export function updateWorldData(world: World): void {
 
   gl.bindTexture(gl.TEXTURE_2D, glState.cellsTex);
   gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, W, W, gl.RED_INTEGER, gl.UNSIGNED_BYTE, world.cells);
+  glState.cellVersion = world.cellVersion;
 
   gl.bindTexture(gl.TEXTURE_2D, glState.wallTexTex);
   gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, W, W, gl.RED_INTEGER, gl.UNSIGNED_BYTE, world.wallTex);
@@ -1474,6 +1492,12 @@ export function updateWorldData(world: World): void {
 export function updateDynamicData(world: World, camX = 0, camY = 0): void {
   if (!glState) return;
   const { gl } = glState;
+
+  if (world.cellVersion !== glState.cellVersion) {
+    gl.bindTexture(gl.TEXTURE_2D, glState.cellsTex);
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, W, W, gl.RED_INTEGER, gl.UNSIGNED_BYTE, world.cells);
+    glState.cellVersion = world.cellVersion;
+  }
 
   if (world.wallTexVersion !== glState.wallTexVersion) {
     gl.bindTexture(gl.TEXTURE_2D, glState.wallTexTex);
@@ -1622,9 +1646,160 @@ export function renderSceneGL(
   gl.drawArrays(gl.TRIANGLES, 0, 6);
 }
 
+function toroidalDelta(a: number, b: number): number {
+  let d = a - b;
+  if (d > W / 2) d -= W;
+  if (d < -W / 2) d += W;
+  return d;
+}
+
+function pushVisibleSprite(
+  count: number,
+  entity: Entity | null,
+  dx: number,
+  dy: number,
+  dist: number,
+  spriteIdx: number,
+  scale: number,
+  spriteZ: number,
+  projectile: number,
+  seed: number,
+): number {
+  if (count >= VISIBLE_SPRITE_CAP || spriteIdx < 0) return count;
+  visibleEntities[count] = entity;
+  visibleDx[count] = dx;
+  visibleDy[count] = dy;
+  visibleDist[count] = dist;
+  visibleSpriteIdx[count] = spriteIdx;
+  visibleSpriteScale[count] = scale;
+  visibleSpriteZ[count] = spriteZ;
+  visibleProjectile[count] = projectile;
+  visibleSeed[count] = seed;
+  visibleOrder[count] = count;
+  return count + 1;
+}
+
+function featureSpriteScale(feature: Feature): number {
+  switch (feature) {
+    case Feature.CANDLE: return 0.34;
+    case Feature.LAMP: return 0.48;
+    case Feature.CHAIR: return 0.42;
+    case Feature.TABLE:
+    case Feature.DESK: return 0.55;
+    case Feature.BED: return 0.75;
+    case Feature.STOVE:
+    case Feature.SINK:
+    case Feature.TOILET: return 0.58;
+    case Feature.SHELF:
+    case Feature.MACHINE:
+    case Feature.APPARATUS: return 0.7;
+    case Feature.LIFT_BUTTON:
+    case Feature.SCREEN:
+    case Feature.SLIDE: return 0.52;
+    default: return 0.5;
+  }
+}
+
+function featureSpriteZ(feature: Feature): number {
+  switch (feature) {
+    case Feature.LIFT_BUTTON:
+    case Feature.SCREEN:
+    case Feature.SLIDE: return 0.22;
+    case Feature.LAMP: return 0.12;
+    default: return 0;
+  }
+}
+
+function featureOffset(feature: Feature, x: number, y: number): { ox: number; oy: number } {
+  const h = ((x * 73856093) ^ (y * 19349663) ^ (feature * 83492791)) >>> 0;
+  return {
+    ox: (((h & 3) - 1.5) * 0.035),
+    oy: ((((h >>> 2) & 3) - 1.5) * 0.035),
+  };
+}
+
+function containerSpriteScale(kind: ContainerKind): number {
+  switch (kind) {
+    case ContainerKind.CASHBOX: return 0.42;
+    case ContainerKind.SECRET_STASH: return 0.45;
+    case ContainerKind.TRASH_BIN: return 0.52;
+    case ContainerKind.WOODEN_CHEST:
+    case ContainerKind.WEAPON_CRATE:
+    case ContainerKind.EMERGENCY_BOX: return 0.58;
+    case ContainerKind.MEDICAL_CABINET:
+    case ContainerKind.METAL_CABINET:
+    case ContainerKind.FILING_CABINET:
+    case ContainerKind.TOOL_LOCKER:
+    case ContainerKind.FRIDGE:
+    case ContainerKind.SAFE: return 0.68;
+    default: return 0.58;
+  }
+}
+
+function collectStaticObjectSprites(world: World, px: number, py: number, count: number): number {
+  const maxDist2 = MAX_DRAW * MAX_DRAW;
+  for (const container of world.containers) {
+    if (container.access === 'secret' && !container.discovered) continue;
+    const ox = container.x + 0.55;
+    const oy = container.y + 0.5;
+    const dx = toroidalDelta(ox, px);
+    const dy = toroidalDelta(oy, py);
+    const dist = dx * dx + dy * dy;
+    if (dist >= maxDist2) continue;
+    count = pushVisibleSprite(
+      count,
+      null,
+      dx,
+      dy,
+      dist,
+      containerSpr(container.kind),
+      containerSpriteScale(container.kind),
+      0,
+      0,
+      container.id,
+    );
+    if (count >= VISIBLE_SPRITE_CAP) return count;
+  }
+
+  const cx = Math.floor(px);
+  const cy = Math.floor(py);
+  for (let oy = -STATIC_OBJECT_RADIUS; oy <= STATIC_OBJECT_RADIUS; oy++) {
+    const y = world.wrap(cy + oy);
+    for (let ox = -STATIC_OBJECT_RADIUS; ox <= STATIC_OBJECT_RADIUS; ox++) {
+      const x = world.wrap(cx + ox);
+      const idx = world.idx(x, y);
+      const feature = world.features[idx] as Feature;
+      if (feature === Feature.NONE || feature === Feature.LAMP) continue;
+      const cell = world.cells[idx];
+      if (cell !== Cell.FLOOR && cell !== Cell.WATER) continue;
+      const off = featureOffset(feature, x, y);
+      const sx = x + 0.5 + off.ox;
+      const sy = y + 0.5 + off.oy;
+      const dx = toroidalDelta(sx, px);
+      const dy = toroidalDelta(sy, py);
+      const dist = dx * dx + dy * dy;
+      if (dist >= maxDist2) continue;
+      count = pushVisibleSprite(
+        count,
+        null,
+        dx,
+        dy,
+        dist,
+        featureSpr(feature),
+        featureSpriteScale(feature),
+        featureSpriteZ(feature),
+        0,
+        idx,
+      );
+      if (count >= VISIBLE_SPRITE_CAP) return count;
+    }
+  }
+  return count;
+}
+
 /* ── Sprite rendering (GL) ────────────────────────────────────── */
 function renderSpritesGL(
-  _world: World,
+  world: World,
   _sprites: SpriteData[],
   entities: Entity[],
   px: number, py: number, pAngle: number, pPitch: number,
@@ -1654,27 +1829,39 @@ function renderSpritesGL(
   let visibleCount = 0;
   for (const e of entities) {
     if (!e.alive || e.type === EntityType.PLAYER) continue;
-    let dx = e.x - px;
-    let dy = e.y - py;
-    if (dx > W / 2) dx -= W;
-    if (dx < -W / 2) dx += W;
-    if (dy > W / 2) dy -= W;
-    if (dy < -W / 2) dy += W;
+    const dx = toroidalDelta(e.x, px);
+    const dy = toroidalDelta(e.y, py);
     const dist = dx * dx + dy * dy;
     if (dist < MAX_DRAW * MAX_DRAW) {
-      visibleEntities[visibleCount] = e;
-      visibleDx[visibleCount] = dx;
-      visibleDy[visibleCount] = dy;
-      visibleDist[visibleCount] = dist;
-      visibleOrder[visibleCount] = visibleCount;
-      visibleCount++;
+      const isProjectile = e.type === EntityType.PROJECTILE
+        ? (e.projType === ProjType.FLAME ? 2 : 1)
+        : 0;
+      visibleCount = pushVisibleSprite(
+        visibleCount,
+        e,
+        dx,
+        dy,
+        dist,
+        e.sprite ?? 0,
+        e.spriteScale ?? 1.0,
+        e.spriteZ ?? 0,
+        isProjectile,
+        (e.id % 997) * 0.137,
+      );
+      if (visibleCount >= VISIBLE_SPRITE_CAP) break;
     }
   }
+  visibleCount = collectStaticObjectSprites(world, px, py, visibleCount);
   visibleEntities.length = visibleCount;
   visibleDx.length = visibleCount;
   visibleDy.length = visibleCount;
   visibleDist.length = visibleCount;
   visibleOrder.length = visibleCount;
+  visibleSpriteIdx.length = visibleCount;
+  visibleSpriteScale.length = visibleCount;
+  visibleSpriteZ.length = visibleCount;
+  visibleProjectile.length = visibleCount;
+  visibleSeed.length = visibleCount;
   // Sort far to near
   visibleOrder.sort((a, b) => visibleDist[b] - visibleDist[a]);
 
@@ -1702,18 +1889,16 @@ function renderSpritesGL(
 
     const spriteScreenX = Math.floor((SCR_W / 2) * (1 + txf / tyf));
     const rawH = Math.abs(Math.floor(SCR_H / tyf));
-    const scale = e.spriteScale ?? 1.0;
+    const scale = visibleSpriteScale[vi];
     const spriteH = Math.floor(rawH * scale);
     const spriteW = spriteH;
 
-    const spriteZ = e.spriteZ ?? 0;
+    const spriteZ = visibleSpriteZ[vi];
     const footY = halfH + Math.floor(rawH * camHeight) - Math.floor(rawH * spriteZ);
     const startY = footY - spriteH;
 
     const ff = Math.min(1, Math.sqrt(dist) * fogDensity);
-    const isProjectile = e.type === EntityType.PROJECTILE
-      ? (e.projType === ProjType.FLAME ? 2 : 1)
-      : 0;
+    const isProjectile = visibleProjectile[vi];
     const normDepth = Math.min(1.0, tyf / MAX_DRAW);
 
     // Set uniforms
@@ -1725,7 +1910,7 @@ function renderSpritesGL(
     gl.uniform1f(su['uFogF']!, ff);
     gl.uniform1i(su['uIsProjectile']!, isProjectile);
     if (isProjectile === 2) {
-      gl.uniform1f(su['uSeed']!, (e.id % 997) * 0.137);
+      gl.uniform1f(su['uSeed']!, visibleSeed[vi]);
     }
 
     // Switch blend mode: additive for projectiles (incl. flame), alpha for everything else
@@ -1739,8 +1924,8 @@ function renderSpritesGL(
 
     // Bind sprite texture. NPCs and monsters use per-entity procedural
     // textures keyed by their seed; atlas sprites remain for drops/projectiles.
-    let spriteTex = proceduralEntityTexture(e);
-    const sprIdx = e.sprite ?? 0;
+    let spriteTex = e ? proceduralEntityTexture(e) : null;
+    const sprIdx = visibleSpriteIdx[vi];
     if (!spriteTex && sprIdx >= 0 && sprIdx < glState.spriteTextures.length) {
       spriteTex = glState.spriteTextures[sprIdx];
     }

@@ -23,7 +23,7 @@ import { placeProceduralScreens, SCREEN_FRAMES } from '../procedural_screens';
 import type { FloorGeneration } from '../floor_manifest';
 
 export const DESIGN_FLOOR_ID = 'antenna_court' as const;
-export const ANTENNA_COURT_ROUTE_Z = -32 as const;
+export const ANTENNA_COURT_ROUTE_Z = -36 as const;
 export const ANTENNA_COURT_BASE_FLOOR = FloorLevel.MINISTRY;
 
 const SIGNAL_FLAG_TUNED = 1 << 0;

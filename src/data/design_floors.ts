@@ -5,10 +5,12 @@ export type DesignFloorId =
   | 'chthonic_attic'
   | 'antenna_court'
   | 'upper_bureau'
+  | 'bank_floor'
   | 'raionsovet_archive'
   | 'registry_morgue'
   | 'manhattan_crossroads'
   | 'communal_ring'
+  | 'pioneer_camp'
   | 'floor_69'
   | 'black_market_88'
   | 'production_belt'
@@ -26,10 +28,12 @@ export interface DesignFloorRouteDef {
 }
 
 export const DESIGN_FLOOR_ROUTES: readonly DesignFloorRouteDef[] = [
-  { id: 'roof', z: -40, displayName: 'Крыша', baseFloor: FloorLevel.MINISTRY, color: '#9cf' },
-  { id: 'chthonic_attic', z: -36, displayName: 'Хтонический чердак', baseFloor: FloorLevel.MINISTRY, color: '#c8f' },
-  { id: 'antenna_court', z: -32, displayName: 'Антенный двор', baseFloor: FloorLevel.MINISTRY, color: '#8ff' },
+  { id: 'roof', z: -44, displayName: 'Крыша', baseFloor: FloorLevel.MINISTRY, color: '#9cf' },
+  { id: 'chthonic_attic', z: -40, displayName: 'Хтонический чердак', baseFloor: FloorLevel.MINISTRY, color: '#c8f' },
+  { id: 'antenna_court', z: -36, displayName: 'Антенный двор', baseFloor: FloorLevel.MINISTRY, color: '#8ff' },
+  { id: 'pioneer_camp', z: -32, displayName: 'Пионерлагерь', baseFloor: FloorLevel.LIVING, color: '#6d8' },
   { id: 'upper_bureau', z: -28, displayName: 'Верхнее бюро', baseFloor: FloorLevel.MINISTRY, color: '#fc4' },
+  { id: 'bank_floor', z: -22, displayName: 'Банковский этаж', baseFloor: FloorLevel.MINISTRY, color: '#fd6' },
   { id: 'raionsovet_archive', z: -20, displayName: 'Райсовет и Живой архив', baseFloor: FloorLevel.MINISTRY, color: '#fc4' },
   { id: 'registry_morgue', z: -16, displayName: 'Морг регистраций', baseFloor: FloorLevel.MINISTRY, color: '#ccc' },
   { id: 'manhattan_crossroads', z: -8, displayName: 'Перекрестки', baseFloor: FloorLevel.KVARTIRY, color: '#fa4' },

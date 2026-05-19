@@ -7,6 +7,8 @@ itch/
 .test-build/
 .wrangler/
 coverage/
+tmp/
+bad_apple/
 
 .env
 .env.*

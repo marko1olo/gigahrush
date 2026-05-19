@@ -1,11 +1,11 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { Cell, EntityType, FloorLevel, Occupation, type Entity } from '../src/core/types';
+import { Cell, ContainerKind, EntityType, Feature, FloorLevel, Occupation, type Entity } from '../src/core/types';
 import { entityUsesProceduralSprite, generateProceduralEntitySprite, isFloor69FemaleSprite } from '../src/entities/procedural_visuals';
 import { generateFloor, isFloorLevel } from '../src/gen/floor_manifest';
 import { S } from '../src/render/pixutil';
-import { Spr } from '../src/render/sprite_index';
+import { containerSpr, featureSpr, Spr } from '../src/render/sprite_index';
 import { generateSprites } from '../src/render/sprites';
 import { rebuildWorld } from '../src/systems/samosbor';
 
@@ -50,6 +50,25 @@ test('sprite registry and generated sheet stay aligned', () => {
     let opaque = 0;
     for (const px of sprites[i]) if (px !== 0) opaque++;
     assert.ok(opaque > 20, `projectile sprite ${i} should not be blank`);
+  }
+
+  const worldObjectSprites = [
+    featureSpr(Feature.TABLE),
+    featureSpr(Feature.CHAIR),
+    featureSpr(Feature.BED),
+    featureSpr(Feature.SHELF),
+    featureSpr(Feature.MACHINE),
+    featureSpr(Feature.SCREEN),
+    containerSpr(ContainerKind.WOODEN_CHEST),
+    containerSpr(ContainerKind.METAL_CABINET),
+    containerSpr(ContainerKind.SAFE),
+    containerSpr(ContainerKind.TRASH_BIN),
+  ];
+  for (const i of worldObjectSprites) {
+    assert.ok(i >= 0 && i < Spr.TOTAL, `world object sprite ${i} should be in the atlas`);
+    let opaque = 0;
+    for (const px of sprites[i]) if (px !== 0) opaque++;
+    assert.ok(opaque > 80, `world object sprite ${i} should not be blank`);
   }
 
   for (let i = Spr.ART_NUDE_BASE; i <= Spr.ART_NUDE_3; i++) {

@@ -69,10 +69,10 @@ export function bindInput(input: InputState, canvas: HTMLCanvasElement): () => v
   const onUp = (e: KeyboardEvent) => {
     const k = keyMap[e.code];
     if (k) input[k] = false;
-    input.invUp = false;
-    input.invDn = false;
-    input.invLeft = false;
-    input.invRight = false;
+    if (e.code === 'ArrowUp' || e.code === 'KeyW') input.invUp = false;
+    if (e.code === 'ArrowDown' || e.code === 'KeyS') input.invDn = false;
+    if (e.code === 'ArrowLeft' || e.code === 'KeyA') input.invLeft = false;
+    if (e.code === 'ArrowRight') input.invRight = false;
     if (e.code === 'KeyR' || e.code === 'KeyG') input.use = false;
     if (e.code === 'KeyD') input.drop = false;
     if (e.code === 'Enter') input.escape = false;

@@ -29,10 +29,13 @@ import { spawnContract } from '../src/systems/contracts';
 import { putIntoContainer, restoreValidContainers, takeFromContainer } from '../src/systems/containers';
 import {
   changeResourceStock,
+  economyForSave,
   ensureEconomyState,
   getAdjustedItemPrice,
   getResourceScarcity,
+  normalizeGameEconomy,
   spendResources,
+  summarizeEconomy,
 } from '../src/systems/economy';
 import {
   createWorldEventState,
@@ -170,6 +173,34 @@ test('economy state normalizes invalid resources and preserves valid saved value
   assert.equal(floor.lastTickAt, 42);
 });
 
+test('economy save normalization fills missing floors and drops unknown resources', () => {
+  const state = makeGameState({ currentFloor: FloorLevel.KVARTIRY });
+
+  normalizeGameEconomy(state, {
+    priceVersion: 9,
+    floors: {
+      [FloorLevel.LIVING]: {
+        floor: FloorLevel.LIVING,
+        resources: {
+          unknown_resource: { stock: 999, target: 999, lastDelta: 0 },
+          food: { stock: 20, target: 140, lastDelta: -4 },
+        },
+        lastTickAt: 77,
+      },
+    },
+  });
+
+  const saved = economyForSave(state);
+  const living = saved.floors[FloorLevel.LIVING]!;
+  const current = saved.floors[FloorLevel.KVARTIRY]!;
+  assert.equal(saved.priceVersion, 9);
+  assert.ok(living, 'saved living economy should exist');
+  assert.ok(current, 'current floor economy should be created lazily');
+  assert.equal('unknown_resource' in living.resources, false);
+  assert.equal(living.resources.food.stock, 20);
+  assert.equal(current.floor, FloorLevel.KVARTIRY);
+});
+
 test('economy resource spending clamps stock and affects item prices', () => {
   const state = makeGameState({ time: 100, currentFloor: FloorLevel.LIVING });
   const economy = ensureEconomyState(state);
@@ -181,6 +212,21 @@ test('economy resource spending clamps stock and affects item prices', () => {
   assert.equal(spendResources(state, [{ id: 'drink_water', count: 2 }]), false);
   assert.equal(spendResources(state, [{ id: 'drink_water', count: 1 }]), true);
   assert.equal(getResourceScarcity(state, 'drink_water'), 4);
+});
+
+test('economy price cache invalidates when stock changes and debug summary stays bounded', () => {
+  const state = makeGameState({ time: 200, currentFloor: FloorLevel.LIVING });
+  const economy = ensureEconomyState(state);
+  economy.floors[FloorLevel.LIVING] = createEconomyFloorState(FloorLevel.LIVING);
+
+  const baseWaterPrice = getAdjustedItemPrice(state, 'water');
+  assert.equal(changeResourceStock(state, 'drink_water', -60), true);
+  assert.ok(getAdjustedItemPrice(state, 'water') > baseWaterPrice);
+
+  const lines = summarizeEconomy(state, 3);
+  assert.equal(lines.length, 3);
+  assert.ok(lines[0].includes('Питьевая вода'));
+  assert.ok(lines.every(line => line.includes(' x')));
 });
 
 function testActor(overrides: Partial<Entity> = {}): Entity {

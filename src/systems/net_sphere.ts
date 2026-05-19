@@ -2,6 +2,27 @@ import { FloorLevel, type Entity, type GameState } from '../core/types';
 
 type NetSphereStatus = 'idle' | 'syncing' | 'online' | 'offline';
 export type NetSphereEventType = 'samosbor' | 'death';
+export type NetMarketImpulseKind = string;
+
+export interface NetMarketImpulse {
+  eventKey: string;
+  corpId: string;
+  kind: NetMarketImpulseKind;
+  magnitude: number;
+}
+
+export interface NetMarketQuote {
+  corpId: string;
+  price: number;
+  lastDelta: number;
+  volume: number;
+  updatedAt: number;
+}
+
+export interface NetMarketSnapshot {
+  rows: readonly NetMarketQuote[];
+  updatedAt: number;
+}
 
 export interface NetSphereStats {
   onlineUsers: number;
@@ -49,6 +70,7 @@ export interface NetSphereSnapshot {
   error: string;
   stats: NetSphereStats | null;
   profile: NetSphereProfile | null;
+  market: NetMarketSnapshot | null;
   chat: readonly NetSphereChatLine[];
   events: readonly NetSphereEventLine[];
   draft: string;
@@ -80,13 +102,16 @@ interface NetSphereRuntime {
   error: string;
   stats: NetSphereStats | null;
   profile: NetSphereProfile | null;
+  market: NetMarketSnapshot | null;
   chat: NetSphereChatLine[];
   events: NetSphereEventLine[];
   draft: string;
   busy: boolean;
   chatBusy: boolean;
+  marketBusy: boolean;
   nextHeartbeatAt: number;
   nextPollAt: number;
+  nextMarketPollAt: number;
   lastChatId: number;
   lastProgress: NetSphereProgress | null;
   bound: boolean;
@@ -108,8 +133,10 @@ const SESSION_KEY = 'gigahrush_net_session';
 const NET_GEN_NICK_RE = /^NET-[A-Z0-9-]{4,28}$/;
 const HEARTBEAT_MS = 30_000;
 const OPEN_POLL_MS = 5_000;
+const MARKET_POLL_MS = 30_000;
 const CHAT_LIMIT = 60;
 const DRAFT_LIMIT = 160;
+const MARKET_IMPULSE_LIMIT = 16;
 const FLOOR_NAMES: Record<FloorLevel, string> = {
   [FloorLevel.MINISTRY]: 'Министерство',
   [FloorLevel.KVARTIRY]: 'Квартиры',
@@ -127,13 +154,16 @@ const runtime: NetSphereRuntime = {
   error: '',
   stats: null,
   profile: null,
+  market: null,
   chat: [],
   events: [],
   draft: '',
   busy: false,
   chatBusy: false,
+  marketBusy: false,
   nextHeartbeatAt: 0,
   nextPollAt: 0,
+  nextMarketPollAt: 0,
   lastChatId: 0,
   lastProgress: null,
   bound: false,
@@ -208,6 +238,85 @@ function cleanNickname(value: string): string {
   return looksLikeNetGen(clean) ? '' : clean;
 }
 
+function cleanMarketEventKey(value: string): string {
+  return value.trim().replace(/[^A-Za-z0-9:_-]/g, '').slice(0, 96);
+}
+
+function cleanMarketCorpId(value: string): string {
+  const clean = value.trim().toLowerCase().replace(/[^a-z0-9:_-]/g, '').slice(0, 64);
+  return /^[a-z0-9][a-z0-9:_-]{0,63}$/.test(clean) ? clean : '';
+}
+
+function cleanMarketKind(value: string): string {
+  const clean = value.trim().toLowerCase().replace(/[^a-z0-9:_-]/g, '').slice(0, 32);
+  return /^[a-z][a-z0-9:_-]{0,31}$/.test(clean) ? clean : '';
+}
+
+function cleanMarketMagnitude(value: number): number | null {
+  if (!Number.isFinite(value)) return null;
+  const bounded = Math.max(-100, Math.min(100, value));
+  return Math.round(bounded * 100) / 100;
+}
+
+function normalizeMarketImpulse(impulse: NetMarketImpulse): NetMarketImpulse | null {
+  const eventKey = cleanMarketEventKey(impulse.eventKey);
+  const corpId = cleanMarketCorpId(impulse.corpId);
+  const kind = cleanMarketKind(impulse.kind);
+  const magnitude = cleanMarketMagnitude(impulse.magnitude);
+  if (!eventKey || !corpId || !kind || magnitude === null) return null;
+  return { eventKey, corpId, kind, magnitude };
+}
+
+function normalizeMarketImpulses(impulses: readonly NetMarketImpulse[]): NetMarketImpulse[] {
+  const clean: NetMarketImpulse[] = [];
+  for (const impulse of impulses) {
+    const normalized = normalizeMarketImpulse(impulse);
+    if (!normalized) continue;
+    const prefix = `${runtime.netGen}:`;
+    clean.push({
+      ...normalized,
+      eventKey: normalized.eventKey.startsWith(prefix) ? normalized.eventKey : `${prefix}${normalized.eventKey}`,
+    });
+    if (clean.length >= MARKET_IMPULSE_LIMIT) break;
+  }
+  return clean;
+}
+
+function normalizeMarketSnapshot(value: unknown): NetMarketSnapshot | null {
+  if (!value || typeof value !== 'object') return null;
+  const input = value as { rows?: unknown; updatedAt?: unknown };
+  if (!Array.isArray(input.rows)) return null;
+  const rows: NetMarketQuote[] = [];
+  for (const row of input.rows) {
+    if (!row || typeof row !== 'object') continue;
+    const data = row as Partial<NetMarketQuote>;
+    if (
+      typeof data.corpId !== 'string' ||
+      typeof data.price !== 'number' ||
+      typeof data.lastDelta !== 'number' ||
+      typeof data.volume !== 'number' ||
+      typeof data.updatedAt !== 'number'
+    ) {
+      continue;
+    }
+    const corpId = cleanMarketCorpId(data.corpId);
+    if (!corpId) continue;
+    rows.push({
+      corpId,
+      price: Math.max(1, Math.min(99999, data.price)),
+      lastDelta: Math.max(-99999, Math.min(99999, data.lastDelta)),
+      volume: Math.max(0, Math.min(1_000_000_000, data.volume)),
+      updatedAt: Math.max(0, Math.floor(data.updatedAt)),
+    });
+  }
+  return {
+    rows,
+    updatedAt: typeof input.updatedAt === 'number'
+      ? Math.max(0, Math.floor(input.updatedAt))
+      : rows.reduce((best, row) => Math.max(best, row.updatedAt), 0),
+  };
+}
+
 function printableKey(key: string): string {
   if (key.length !== 1) return '';
   if (/[\u0000-\u001f\u007f<>`\\]/.test(key)) return '';
@@ -246,6 +355,7 @@ function applyServerPayload(payload: unknown): void {
   const data = payload as {
     stats?: NetSphereStats;
     profile?: NetSphereProfile | null;
+    market?: NetMarketSnapshot | null;
     chat?: Partial<NetSphereChatLine>[];
     events?: NetSphereEventLine[];
   };
@@ -254,6 +364,9 @@ function applyServerPayload(payload: unknown): void {
     runtime.profile = data.profile
       ? { ...data.profile, nickname: cleanNickname(data.profile.nickname) || 'Жилец' }
       : data.profile;
+  }
+  if (data.market !== undefined) {
+    runtime.market = normalizeMarketSnapshot(data.market);
   }
   if (Array.isArray(data.chat)) {
     for (const line of data.chat) {
@@ -352,6 +465,53 @@ async function pollOpenStats(): Promise<void> {
     runtime.nextPollAt = performance.now() + 10_000;
   } finally {
     runtime.busy = false;
+  }
+}
+
+async function pollMarketSnapshot(): Promise<void> {
+  if (runtime.marketBusy) return;
+  runtime.marketBusy = true;
+  runtime.error = '';
+  try {
+    const res = await fetch(`${API_ROOT}/market`);
+    const data = await res.json().catch(() => null);
+    if (!res.ok) {
+      throw new NetSphereApiError(serverErrorMessage(data, `HTTP ${res.status}`), res.status);
+    }
+    if (!isServerPayload(data)) throw new NetSphereApiError('Cloudflare API недоступен', 502);
+    applyServerPayload(data);
+    runtime.status = 'online';
+    runtime.nextMarketPollAt = performance.now() + MARKET_POLL_MS;
+  } catch (err) {
+    runtime.status = 'offline';
+    runtime.error = err instanceof Error ? err.message : 'cloudflare недоступен';
+    runtime.nextMarketPollAt = performance.now() + 10_000;
+  } finally {
+    runtime.marketBusy = false;
+  }
+}
+
+async function postMarketImpulses(impulses: readonly NetMarketImpulse[], progress: NetSphereProgress): Promise<void> {
+  if (runtime.marketBusy) return;
+  const cleanImpulses = normalizeMarketImpulses(impulses);
+  if (cleanImpulses.length === 0) return;
+  runtime.marketBusy = true;
+  runtime.error = '';
+  try {
+    const data = await postJson('/market', {
+      netGen: runtime.netGen,
+      sessionId: runtime.sessionId,
+      progress,
+      impulses: cleanImpulses,
+    });
+    applyServerPayload(data);
+    runtime.status = 'online';
+    runtime.nextMarketPollAt = performance.now() + MARKET_POLL_MS;
+  } catch (err) {
+    runtime.status = 'offline';
+    runtime.error = err instanceof Error ? err.message : 'market sync failed';
+  } finally {
+    runtime.marketBusy = false;
   }
 }
 
@@ -500,6 +660,25 @@ export function tickNetSphere(state: GameState, player: Entity): void {
   const now = performance.now();
   if (now >= runtime.nextHeartbeatAt) void heartbeat(state, player);
   if (runtime.open && now >= runtime.nextPollAt) void pollOpenStats();
+  if (runtime.open && now >= runtime.nextMarketPollAt) void pollMarketSnapshot();
+}
+
+export function pollNetMarketSnapshot(): void {
+  ensureIdentity();
+  void pollMarketSnapshot();
+}
+
+export function getNetMarketSnapshot(): NetMarketSnapshot | null {
+  return runtime.market;
+}
+
+export function sendNetMarketImpulses(
+  impulses: readonly NetMarketImpulse[],
+  state: GameState,
+  player: Entity,
+): void {
+  ensureIdentity();
+  void postMarketImpulses(impulses, progressFromState(state, player));
 }
 
 export function reportNetSphereEvent(
@@ -549,9 +728,10 @@ export function getNetSphereSnapshot(): NetSphereSnapshot {
     error: runtime.error,
     stats: runtime.stats,
     profile: runtime.profile,
+    market: runtime.market,
     chat: runtime.chat,
     events: runtime.events,
     draft: runtime.draft,
-    busy: runtime.busy || runtime.chatBusy,
+    busy: runtime.busy || runtime.chatBusy || runtime.marketBusy,
   };
 }

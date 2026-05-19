@@ -16,6 +16,7 @@ import {
   ZoneFaction,
   type Entity,
   type ItemDef,
+  type RailTrainTrack,
   type Room,
 } from '../core/types';
 import { World } from '../core/world';
@@ -25,6 +26,7 @@ import { spawnCount } from '../data/items';
 import {
   FALSE_SAFE_BLOCK_ROOM_PREFIX,
   FALSE_SAFE_BLOCK_TAG,
+  floorRunZAllowsNpcs,
   geometryById,
   majorityById,
   type ProceduralFloorSpec,
@@ -32,6 +34,8 @@ import {
 import { MONSTERS, applyMonsterVariant } from '../entities/monster';
 import { monsterSpr, Spr } from '../render/sprite_index';
 import { gaussianLevel, getMaxHp, randomRPG } from '../systems/rpg';
+import { addRailTrainRoute } from '../systems/rail_trains';
+import { relightBadAppleWorld } from '../systems/procedural_anomalies/bad_apple_world';
 import {
   canPlaceRoom,
   connectRoomsMST,
@@ -45,6 +49,8 @@ import {
 } from './shared';
 import type { FloorGeneration } from './floor_manifest';
 import { decorateCarnivorousFungusRoom } from './carnivorous_fungus_room';
+import { applyProceduralAnomalyProfile } from './procedural_anomalies';
+import { removeNpcEntities } from './entity_filters';
 
 function irng(lo: number, hi: number): number {
   return lo + Math.floor(Math.random() * (hi - lo + 1));
@@ -523,7 +529,14 @@ function applyWaterAndMachines(world: World, spec: ProceduralFloorSpec): void {
   }
 }
 
-function applySmog(world: World, rooms: Room[], entities: Entity[], nextId: { v: number }, spec: ProceduralFloorSpec): void {
+function applySmog(
+  world: World,
+  rooms: Room[],
+  entities: Entity[],
+  nextId: { v: number },
+  spec: ProceduralFloorSpec,
+  allowNpcs: boolean,
+): void {
   if (spec.anomalyId === 'smog') {
     const source = chooseSmogSourceRoom(rooms);
     if (!source) return;
@@ -541,7 +554,9 @@ function applySmog(world: World, rooms: Room[], entities: Entity[], nextId: { v:
     dropItem(entities, nextId, sourcePos.x + 1, sourcePos.y, 'valve_tag', 1);
     dropItem(entities, nextId, sourcePos.x - 1, sourcePos.y, chance(0.5) ? 'filter_receipt' : 'gasmask_filter', 1);
     const pressureRooms = affectedRooms.length > 0 ? affectedRooms : [source];
-    for (let i = 0; i < Math.min(5, 2 + spec.danger); i++) spawnSmogLooter(world, pick(pressureRooms), entities, nextId, spec);
+    if (allowNpcs) {
+      for (let i = 0; i < Math.min(5, 2 + spec.danger); i++) spawnSmogLooter(world, pick(pressureRooms), entities, nextId, spec);
+    }
     for (let i = 0; i < 3 + spec.danger * 2; i++) spawnSmogMonster(world, pick(pressureRooms), entities, nextId, spec);
     world.anomalySmogCells = [...set];
     world.markFogDirty();
@@ -742,6 +757,160 @@ function applyTeleports(world: World, spec: ProceduralFloorSpec): void {
   }
 }
 
+function carveRailCenter(world: World, x: number, y: number): boolean {
+  const ci = world.idx(x, y);
+  if (world.cells[ci] === Cell.LIFT || world.hermoWall[ci] || world.aptMask[ci]) return false;
+  world.cells[ci] = Cell.WATER;
+  world.floorTex[ci] = Tex.F_WATER;
+  world.features[ci] = Feature.NONE;
+  world.roomMap[ci] = -1;
+  return true;
+}
+
+function carveRailBed(world: World, x: number, y: number, horizontal: boolean, spec: ProceduralFloorSpec): boolean {
+  let centerOpen = false;
+  for (let side = -1; side <= 1; side++) {
+    const rx = horizontal ? x : x + side;
+    const ry = horizontal ? y + side : y;
+    const opened = carveRailCenter(world, rx, ry);
+    if (side === 0) centerOpen = opened;
+  }
+  if (centerOpen && ((x * 17 + y * 31 + spec.seed) & 15) === 0) {
+    world.stamp(x, y, 0.5, 0.5, 0.32, 0.5, spec.seed ^ (x * 13 + y * 29), 92, 92, 84, false);
+  }
+  return centerOpen;
+}
+
+function carveRailPlatform(
+  world: World,
+  platformCells: number[],
+  x: number,
+  y: number,
+  horizontal: boolean,
+  side: number,
+  spec: ProceduralFloorSpec,
+): void {
+  for (let along = -12; along <= 12; along++) {
+    for (let depth = 2; depth <= 5; depth++) {
+      const px = horizontal ? x + along : x + side * depth;
+      const py = horizontal ? y + side * depth : y + along;
+      const ci = world.idx(px, py);
+      if (world.cells[ci] === Cell.LIFT || world.hermoWall[ci] || world.aptMask[ci]) continue;
+      world.cells[ci] = Cell.FLOOR;
+      world.floorTex[ci] = spec.geometryId === 'admin_pockets' ? Tex.F_MARBLE_TILE : Tex.F_CONCRETE;
+      world.roomMap[ci] = -1;
+      platformCells.push(ci);
+    }
+  }
+
+  const screenX = horizontal ? x : x + side * 4;
+  const screenY = horizontal ? y + side * 4 : y;
+  const screen = world.idx(screenX, screenY);
+  if (world.cells[screen] !== Cell.LIFT) world.features[screen] = Feature.SCREEN;
+  const lampX = horizontal ? x - 7 : x + side * 4;
+  const lampY = horizontal ? y + side * 4 : y - 7;
+  const lamp = world.idx(lampX, lampY);
+  if (world.cells[lamp] !== Cell.LIFT) world.features[lamp] = Feature.LAMP;
+
+  for (let depth = 5; depth <= 18; depth++) {
+    const ax = horizontal ? x : x + side * depth;
+    const ay = horizontal ? y + side * depth : y;
+    const ci = world.idx(ax, ay);
+    if (world.cells[ci] === Cell.LIFT || world.hermoWall[ci] || world.aptMask[ci]) continue;
+    world.cells[ci] = Cell.FLOOR;
+    world.floorTex[ci] = Tex.F_CONCRETE;
+    world.roomMap[ci] = -1;
+  }
+}
+
+function nearestTrackOffsetByCell(track: RailTrainTrack, ci: number): number {
+  const direct = track.cells.indexOf(ci);
+  return direct >= 0 ? direct : Math.floor(track.cells.length / 2);
+}
+
+function carveProceduralRailLine(
+  world: World,
+  spec: ProceduralFloorSpec,
+  line: number,
+  horizontal: boolean,
+  coord: number,
+): RailTrainTrack | null {
+  const cells: number[] = [];
+  const platformCells: number[] = [];
+  const stationOffsets: number[] = [];
+  const start = 70 + line * 11;
+  const end = W - 72 - line * 13;
+  for (let p = start; p <= end; p++) {
+    const x = horizontal ? p : coord;
+    const y = horizontal ? coord : p;
+    if (carveRailBed(world, x, y, horizontal, spec)) cells.push(world.idx(x, y));
+  }
+  if (cells.length < 64) return null;
+
+  const stations = [start + 96, Math.floor((start + end) / 2), end - 96];
+  for (let i = 0; i < stations.length; i++) {
+    const p = Math.max(start + 12, Math.min(end - 12, stations[i]));
+    const x = horizontal ? p : coord;
+    const y = horizontal ? coord : p;
+    const side = ((line + i) & 1) === 0 ? -1 : 1;
+    carveRailPlatform(world, platformCells, x, y, horizontal, side, spec);
+    stationOffsets.push(nearestTrackOffsetByCell({ id: '', label: '', cells, stationOffsets: [], platformCells: [], loop: true }, world.idx(x, y)));
+  }
+
+  return {
+    id: `procedural_${spec.key}_rail_${line}`,
+    label: line === 0 ? 'Серая линия' : line === 1 ? 'Ржавая линия' : 'Обратная линия',
+    cells,
+    stationOffsets,
+    platformCells,
+    loop: true,
+  };
+}
+
+function chooseRailAnchorRooms(world: World, rooms: Room[], sx: number, sy: number): Room[] {
+  const candidates = rooms
+    .filter(room => room.type === RoomType.CORRIDOR || room.type === RoomType.PRODUCTION || room.type === RoomType.COMMON)
+    .filter(room => {
+      const c = roomCenter(room);
+      return world.dist2(sx, sy, c.x, c.y) > 42 * 42;
+    });
+  return candidates.length > 0 ? candidates : rooms;
+}
+
+function applyRailTrains(
+  world: World,
+  rooms: Room[],
+  entities: Entity[],
+  nextId: { v: number },
+  spec: ProceduralFloorSpec,
+  sx: number,
+  sy: number,
+): void {
+  if (spec.anomalyId !== 'rail_trains') return;
+  const anchors = chooseRailAnchorRooms(world, rooms, sx, sy);
+  if (anchors.length === 0) return;
+  const lineCount = spec.geometryId === 'collectors' || spec.geometryId === 'workshops'
+    ? Math.min(3, 1 + Math.floor(spec.danger / 2))
+    : 1;
+  for (let i = 0; i < lineCount; i++) {
+    const room = anchors[(spec.seed + i * 7) % anchors.length];
+    const center = roomCenter(room);
+    const horizontal = i % 2 === 0;
+    const coord = world.wrap(horizontal ? center.y + (i - 1) * 18 : center.x + (i - 1) * 18);
+    const track = carveProceduralRailLine(world, spec, i, horizontal, coord);
+    if (!track) continue;
+    addRailTrainRoute(world, entities, nextId, track, {
+      id: `${track.id}_train`,
+      label: `${track.label} ${spec.ordinal}`,
+      speed: 3.3 + spec.danger * 0.45 + i * 0.35,
+      length: Math.min(16, 8 + spec.danger + i * 2),
+      initialOffset: track.stationOffsets[0],
+      stopSeconds: 3.5,
+      direction: i % 2 === 0 ? 1 : -1,
+    });
+  }
+}
+
 function roomCell(world: World, room: Room, dx: number, dy: number): { x: number; y: number } | null {
   const x = world.wrap(room.x + Math.max(1, Math.min(room.w - 2, dx)));
   const y = world.wrap(room.y + Math.max(1, Math.min(room.h - 2, dy)));
@@ -898,6 +1067,7 @@ function applyFalseSafeBlock(
   entities: Entity[],
   nextId: { v: number },
   spec: ProceduralFloorSpec,
+  allowNpcs: boolean,
 ): void {
   if (spec.anomalyId !== 'false_safe_block') return;
   const shelter = chooseFalseSafeShelter(world, rooms);
@@ -963,8 +1133,33 @@ function applyFalseSafeBlock(
     true,
   );
 
-  const caretakers = Math.min(4, 2 + Math.floor(spec.danger / 2));
-  for (let i = 0; i < caretakers; i++) spawnFalseSafeCaretaker(world, entities, nextId, shelter, spec);
+  if (allowNpcs) {
+    const caretakers = Math.min(4, 2 + Math.floor(spec.danger / 2));
+    for (let i = 0; i < caretakers; i++) spawnFalseSafeCaretaker(world, entities, nextId, shelter, spec);
+  }
+}
+
+function resolveProceduralSpawn(world: World, spawnX: number, spawnY: number): { spawnX: number; spawnY: number } {
+  const sx = Math.floor(spawnX);
+  const sy = Math.floor(spawnY);
+  if (world.cells[world.idx(sx, sy)] === Cell.FLOOR) return { spawnX, spawnY };
+
+  for (let r = 1; r <= 48; r++) {
+    for (let dy = -r; dy <= r; dy++) {
+      for (let dx = -r; dx <= r; dx++) {
+        if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue;
+        const x = sx + dx;
+        const y = sy + dy;
+        if (world.cells[world.idx(x, y)] === Cell.FLOOR) return { spawnX: x + 0.5, spawnY: y + 0.5 };
+      }
+    }
+  }
+
+  for (let i = 0; i < W * W; i++) {
+    if (world.cells[i] !== Cell.FLOOR) continue;
+    return { spawnX: (i % W) + 0.5, spawnY: ((i / W) | 0) + 0.5 };
+  }
+  return { spawnX, spawnY };
 }
 
 export function generateProceduralFloor(spec: ProceduralFloorSpec): FloorGeneration {
@@ -972,6 +1167,7 @@ export function generateProceduralFloor(spec: ProceduralFloorSpec): FloorGenerat
     const world = new World();
     const entities: Entity[] = [];
     const nextId = { v: 1 };
+    const allowNpcs = floorRunZAllowsNpcs(spec.z);
     const { rooms, spawnX, spawnY } = buildRooms(world, spec);
 
     generateZones(world);
@@ -981,18 +1177,23 @@ export function generateProceduralFloor(spec: ProceduralFloorSpec): FloorGenerat
     placeLifts(world, 8, LiftDirection.DOWN);
 
     spawnLoot(world, rooms, entities, nextId, spec);
-    spawnNpcs(world, rooms, entities, nextId, spec);
+    if (allowNpcs) spawnNpcs(world, rooms, entities, nextId, spec);
     spawnMonsters(world, entities, nextId, spec, spawnX, spawnY);
 
-    applySmog(world, rooms, entities, nextId, spec);
+    applySmog(world, rooms, entities, nextId, spec, allowNpcs);
     applySamosborSeed(world, spec);
     applyMushrooms(world, rooms, entities, nextId, spec);
     applyCarnivorousFungusRooms(world, rooms, entities, nextId, spec);
     applyHladon(world, rooms, entities, nextId, spec, spawnX, spawnY);
     applyTeleports(world, spec);
-    applyFalseSafeBlock(world, rooms, entities, nextId, spec);
+    applyRailTrains(world, rooms, entities, nextId, spec, spawnX, spawnY);
+    applyFalseSafeBlock(world, rooms, entities, nextId, spec, allowNpcs);
+    applyProceduralAnomalyProfile({ world, rooms, entities, nextId, spec, spawnX, spawnY });
+    if (!allowNpcs) removeNpcEntities(entities);
 
+    const spawn = resolveProceduralSpawn(world, spawnX, spawnY);
     world.bakeLights();
-    return { world, entities, spawnX, spawnY };
+    relightBadAppleWorld(world);
+    return { world, entities, spawnX: spawn.spawnX, spawnY: spawn.spawnY };
   });
 }

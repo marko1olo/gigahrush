@@ -12,6 +12,7 @@ import {
   PROCEDURAL_FLOOR_COUNT,
   PROCEDURAL_FLOOR_ZS,
   anomalyById,
+  floorRunZAllowsNpcs,
   type FloorAnomalyId,
   type ProceduralFloorSpec,
   isProceduralFloorZ,
@@ -233,6 +234,14 @@ export function currentFloorRunLabel(state: GameState): string | undefined {
   return `Z${formatFloorZ(entry.z)} №${spec.ordinal}/${PROCEDURAL_FLOOR_COUNT} ур.${spec.danger} ${spec.title}`;
 }
 
+export function floorRunEntryAllowsNpcs(entry: FloorRunEntry): boolean {
+  return floorRunZAllowsNpcs(entry.z);
+}
+
+export function currentFloorRunAllowsNpcs(state: GameState): boolean {
+  return floorRunEntryAllowsNpcs(currentFloorRunEntry(state));
+}
+
 export function adjustFloorRunSamosborTimer(state: GameState, baseTimer: number): number {
   const spec = currentProceduralFloorSpec(state);
   if (!spec) return baseTimer;
@@ -244,6 +253,12 @@ export function adjustFloorRunSamosborTimer(state: GameState, baseTimer: number)
         ? -0.12
         : spec.anomalyId === 'hladon'
           ? 0.12
+          : spec.anomalyId === 'wall_snake' || spec.anomalyId === 'section_shift' || spec.anomalyId === 'conway_life' || spec.anomalyId === 'bad_apple_world'
+            ? 0.2
+            : spec.anomalyId === 'cement_memory'
+              ? 0.14
+              : spec.anomalyId === 'radio_chess' || spec.anomalyId === 'conveyor_sorter' || spec.anomalyId === 'fractal_floor' || spec.anomalyId === 'mirror_run' || spec.anomalyId === 'rail_trains'
+                ? 0.08
           : 0;
   const dangerPressure = (spec.danger - 1) * 0.08;
   return Math.max(45, baseTimer * (1 - anomalyPressure - dangerPressure));

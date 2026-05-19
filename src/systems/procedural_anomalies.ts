@@ -17,6 +17,17 @@ import {
 import { consumeToolDurability, hasItem, removeItem } from './inventory';
 import { publishEvent } from './events';
 import { currentProceduralFloorSpec } from './procedural_floors';
+import { updateCementMemoryAnomaly, tryUseCementMemoryAnomaly } from './procedural_anomalies/cement_memory';
+import { updateConveyorSorterAnomaly, tryUseConveyorSorterAnomaly } from './procedural_anomalies/conveyor_sorter';
+import { updateConwayLifeAnomaly, tryUseConwayLifeAnomaly } from './procedural_anomalies/conway_life';
+import {
+  badAppleWorldInteractionTargetId,
+  tryUseBadAppleWorldAnomaly,
+  updateBadAppleWorldAnomaly,
+} from './procedural_anomalies/bad_apple_world';
+import { updateRadioChessAnomaly, tryUseRadioChessAnomaly } from './procedural_anomalies/radio_chess';
+import { updateSectionShiftAnomaly, tryUseSectionShiftAnomaly } from './procedural_anomalies/section_shift';
+import { updateWallSnakeAnomaly, tryUseWallSnakeAnomaly } from './procedural_anomalies/wall_snake';
 
 type SmogProtection = 'filter' | 'wet_cloth' | 'cloth_ready' | 'none';
 
@@ -55,6 +66,16 @@ function anomalyTags(spec: ProceduralFloorSpec): string[] {
   if (spec.anomalyId === 'teleport_cells') tags.push('topology');
   if (spec.anomalyId === 'mushroom_mycelium') tags.push('mushroom');
   if (spec.anomalyId === 'hladon') tags.push('cold', 'hladon', 'heat_counter');
+  if (spec.anomalyId === 'fractal_floor') tags.push('fractal', 'maze', 'topology', 'documents');
+  if (spec.anomalyId === 'mirror_run') tags.push('mirror', 'duality', 'teleport', 'loot');
+  if (spec.anomalyId === 'radio_chess') tags.push('pattern', 'radio', 'timing', 'movement');
+  if (spec.anomalyId === 'cement_memory') tags.push('trail', 'pressure', 'no_backtracking', 'samosbor');
+  if (spec.anomalyId === 'conveyor_sorter') tags.push('conveyor', 'items', 'industrial', 'movement');
+  if (spec.anomalyId === 'wall_snake') tags.push('moving_walls', 'predator', 'crush', 'loot_sink');
+  if (spec.anomalyId === 'section_shift') tags.push('topology', 'moving_rooms', 'crush', 'toroid');
+  if (spec.anomalyId === 'conway_life') tags.push('cellular', 'topology', 'moving_walls', 'math');
+  if (spec.anomalyId === 'rail_trains') tags.push('rail', 'transit', 'crush', 'industrial');
+  if (spec.anomalyId === 'bad_apple_world') tags.push('video', 'screen', 'topology', 'cult_media');
   return tags;
 }
 
@@ -213,7 +234,21 @@ export function proceduralSmogFogDensityBonus(world: World, player: Entity, stat
 }
 
 export function updateProceduralAnomalies(world: World, player: Entity, state: GameState, dt: number): void {
-  if (!isCurrentSmogFloor(state) || world.anomalySmogSource < 0 || world.anomalySmogHandled || player.type !== EntityType.PLAYER) {
+  updateBadAppleWorldAnomaly(world, player, state, dt);
+  const spec = currentProceduralFloorSpec(state);
+  if (spec?.anomalyId !== 'smog') {
+    if (world.anomalySmogSource >= 0) runtimeFor(state, world).wasInside = false;
+    if (!spec || spec.anomalyId === 'none') return;
+    if (spec.anomalyId === 'radio_chess') updateRadioChessAnomaly(world, player, state, dt);
+    else if (spec.anomalyId === 'cement_memory') updateCementMemoryAnomaly(world, player, state, dt);
+    else if (spec.anomalyId === 'conveyor_sorter') updateConveyorSorterAnomaly(world, player, state, dt);
+    else if (spec.anomalyId === 'wall_snake') updateWallSnakeAnomaly(world, player, state, dt);
+    else if (spec.anomalyId === 'section_shift') updateSectionShiftAnomaly(world, player, state, dt);
+    else if (spec.anomalyId === 'conway_life') updateConwayLifeAnomaly(world, player, state, dt);
+    return;
+  }
+
+  if (world.anomalySmogSource < 0 || world.anomalySmogHandled || player.type !== EntityType.PLAYER) {
     if (world.anomalySmogSource >= 0) runtimeFor(state, world).wasInside = false;
     return;
   }
@@ -512,13 +547,24 @@ export function proceduralAnomalyInteractionTargetId(
   }
 
   const spec = currentProceduralFloorSpec(state);
-  if (!spec || spec.anomalyId !== 'false_safe_block') return null;
+  if (!spec) return null;
   const x = world.wrap(Math.floor(lookX));
   const y = world.wrap(Math.floor(lookY));
   const ci = world.idx(x, y);
   const feature = world.features[ci] as Feature;
+  const badAppleTarget = badAppleWorldInteractionTargetId(world, lookX, lookY);
+  if (badAppleTarget !== null) return badAppleTarget;
   if (feature !== Feature.SCREEN && feature !== Feature.APPARATUS) return null;
-  return falseSafeRoom(falseSafeRoomAt(world, x, y)) ? ci + 400000 : null;
+  if (spec.anomalyId === 'false_safe_block') return falseSafeRoom(falseSafeRoomAt(world, x, y)) ? ci + 400000 : null;
+  if (
+    spec.anomalyId === 'radio_chess' ||
+    spec.anomalyId === 'cement_memory' ||
+    spec.anomalyId === 'conveyor_sorter' ||
+    spec.anomalyId === 'wall_snake' ||
+    spec.anomalyId === 'section_shift' ||
+    spec.anomalyId === 'conway_life'
+  ) return ci + 530000;
+  return null;
 }
 
 export function tryUseProceduralFloorAnomaly(
@@ -529,8 +575,15 @@ export function tryUseProceduralFloorAnomaly(
   lookY: number,
 ): boolean {
   if (tryHandleSmogSource(world, player, state, lookX, lookY)) return true;
+  if (tryUseBadAppleWorldAnomaly(world, player, state, lookX, lookY)) return true;
   const spec = currentProceduralFloorSpec(state);
   if (!spec) return false;
   if (spec.anomalyId === 'false_safe_block') return tryUseFalseSafeBlock(world, player, state, spec, lookX, lookY);
+  if (spec.anomalyId === 'radio_chess') return tryUseRadioChessAnomaly(world, player, state, lookX, lookY);
+  if (spec.anomalyId === 'cement_memory') return tryUseCementMemoryAnomaly(world, player, state, lookX, lookY);
+  if (spec.anomalyId === 'conveyor_sorter') return tryUseConveyorSorterAnomaly(world, player, state, lookX, lookY);
+  if (spec.anomalyId === 'wall_snake') return tryUseWallSnakeAnomaly(world, player, state, lookX, lookY);
+  if (spec.anomalyId === 'section_shift') return tryUseSectionShiftAnomaly(world, player, state, lookX, lookY);
+  if (spec.anomalyId === 'conway_life') return tryUseConwayLifeAnomaly(world, player, state, lookX, lookY);
   return false;
 }

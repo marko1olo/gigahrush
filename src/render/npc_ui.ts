@@ -3,9 +3,11 @@
 import { type Entity, type GameState, Faction } from '../core/types';
 import { ITEMS } from '../data/catalog';
 import { FACTION_NAMES, OCCUPATION_NAMES } from '../data/relations';
-import { getAdjustedItemPrice } from '../systems/economy';
 import { formatQuestMinutes, questRemainingMinutes } from '../systems/quest_deadlines';
 import { drawNeuroPanel, drawGlitchText, textJitter, flicker } from './hud_fx';
+import { dialogMenuScale, tradeGridScale } from './ui_layout';
+import { drawCenteredWrappedText, drawWrappedText, fitText } from './ui_text';
+import { tradePriceDisplay } from './economy_ui';
 
 export function drawNpcMenu(
   ctx: CanvasRenderingContext2D,
@@ -20,6 +22,9 @@ export function drawNpcMenu(
 
   const w = ctx.canvas.width;
   const h = ctx.canvas.height;
+  const ds = dialogMenuScale(w, h, sx, sy);
+  sx = ds;
+  sy = ds;
   const pw = Math.min(440 * sx, w - 24 * sx);
   const ph = Math.min(320 * sy, h - 24 * sy);
   const px = (w - pw) / 2;
@@ -27,63 +32,52 @@ export function drawNpcMenu(
   const time = uiTime;
 
   // Background — neuro-panel
+  ctx.fillStyle = '#00040a';
+  ctx.fillRect(px, py, pw, ph);
   drawNeuroPanel(ctx, px, py, pw, ph, time, 90);
 
   // NPC name header
   const fName = npc.faction !== undefined ? FACTION_NAMES[npc.faction as Faction] : '';
   const oName = npc.occupation !== undefined ? OCCUPATION_NAMES[npc.occupation] : '';
-  drawGlitchText(ctx, npc.name ?? '???', px + 8 * sx, py + 10 * sy, time, 900, '#0fa', 10 * sy);
   ctx.font = `${10 * sy}px monospace`;
+  drawGlitchText(ctx, fitText(ctx, npc.name ?? '???', pw - 16 * sx), px + 8 * sx, py + 10 * sy, time, 900, '#0fa', 10 * sy);
   ctx.fillStyle = '#688';
   ctx.font = `${7 * sy}px monospace`;
   const fj = textJitter(time, 901);
-  ctx.fillText(`${fName} · ${oName}`, px + 8 * sx + fj.dx, py + 22 * sy + fj.dy);
+  ctx.fillText(fitText(ctx, `${fName} · ${oName}`, pw - 16 * sx), px + 8 * sx + fj.dx, py + 22 * sy + fj.dy);
 
   if (state.npcMenuTab === 'main') {
     // Main menu: Talk, Quest, Trade
     const items = ['Разговор', 'Задание', 'Торговля'];
-    ctx.font = `${9 * sy}px monospace`;
+    ctx.font = `${10 * sy}px monospace`;
     for (let i = 0; i < items.length; i++) {
       const selected = i === state.npcMenuSel;
-      const yy = py + 40 * sy + i * 16 * sy;
+      const yy = py + 44 * sy + i * 20 * sy;
       const mj = textJitter(time, 910 + i);
       ctx.fillStyle = selected ? `rgba(0,255,170,${flicker(time, 920 + i)})` : '#688';
       ctx.fillText(`${selected ? '▶ ' : '  '}${items[i]}`, px + 16 * sx + mj.dx, yy + mj.dy);
     }
     ctx.fillStyle = '#456';
-    ctx.font = `${7 * sy}px monospace`;
-    ctx.fillText('W/S — выбор  |  [E] выбрать  |  ENTER — закрыть', px + 8 * sx, py + ph - 8 * sy);
+    ctx.font = `${8 * sy}px monospace`;
+    ctx.fillText(fitText(ctx, 'W/S — выбор  |  [E] выбрать  |  ENTER — закрыть', pw - 16 * sx), px + 8 * sx, py + ph - 11 * sy);
 
   } else if (state.npcMenuTab === 'talk') {
     // Talk: show procedural text
     ctx.fillStyle = '#ccc';
-    ctx.font = `${8 * sy}px monospace`;
-    // Word wrap the talk text
+    ctx.font = `${9 * sy}px monospace`;
     const maxW = pw - 16 * sx;
-    const words = state.npcTalkText.split(' ');
-    let line = '';
-    let ly = py + 38 * sy;
-    for (const word of words) {
-      const test = line ? line + ' ' + word : word;
-      if (ctx.measureText(test).width > maxW) {
-        ctx.fillText(line, px + 8 * sx, ly);
-        line = word;
-        ly += 12 * sy;
-      } else {
-        line = test;
-      }
-    }
-    if (line) ctx.fillText(line, px + 8 * sx, ly);
+    const maxLines = Math.max(1, Math.floor((py + ph - 26 * sy - (py + 40 * sy)) / (13 * sy)));
+    drawWrappedText(ctx, state.npcTalkText, px + 8 * sx, py + 40 * sy, maxW, 13 * sy, maxLines);
 
     ctx.fillStyle = '#555';
-    ctx.font = `${7 * sy}px monospace`;
-    ctx.fillText('[E/ENTER] назад', px + 8 * sx, py + ph - 8 * sy);
+    ctx.font = `${8 * sy}px monospace`;
+    ctx.fillText('[E/ENTER] назад', px + 8 * sx, py + ph - 11 * sy);
 
   } else if (state.npcMenuTab === 'quest') {
     // Quest tab: paginated, one quest per page with word wrap
     const active = state.quests.filter(q => !q.done);
     const total = active.length;
-    ctx.font = `${8 * sy}px monospace`;
+    ctx.font = `${9 * sy}px monospace`;
     if (total === 0) {
       ctx.fillStyle = '#888';
       ctx.fillText('Нет активных заданий.', px + 8 * sx, py + 40 * sy);
@@ -92,29 +86,18 @@ export function drawNpcMenu(
       const q = active[page];
       // Header: page indicator
       ctx.fillStyle = '#888';
-      ctx.font = `${7 * sy}px monospace`;
+      ctx.font = `${8 * sy}px monospace`;
       ctx.fillText(`${page + 1} / ${total}`, px + pw - 40 * sx, py + 10 * sy);
       // Quest giver
       ctx.fillStyle = '#8af';
-      ctx.font = `${8 * sy}px monospace`;
-      ctx.fillText(`От: ${q.giverName ?? '???'}`, px + 8 * sx, py + 38 * sy);
+      ctx.font = `${9 * sy}px monospace`;
+      ctx.fillText(fitText(ctx, `От: ${q.giverName ?? '???'}`, pw - 16 * sx), px + 8 * sx, py + 38 * sy);
       // Quest description — word-wrapped
       ctx.fillStyle = '#dda';
       const maxW = pw - 16 * sx;
-      const words = q.desc.split(' ');
-      let line = '';
       let ly = py + 54 * sy;
-      for (const word of words) {
-        const test = line ? line + ' ' + word : word;
-        if (ctx.measureText(test).width > maxW) {
-          ctx.fillText(line, px + 8 * sx, ly);
-          line = word;
-          ly += 12 * sy;
-        } else {
-          line = test;
-        }
-      }
-      if (line) { ctx.fillText(line, px + 8 * sx, ly); ly += 12 * sy; }
+      const maxLines = Math.max(1, Math.floor((py + ph - 42 * sy - ly) / (13 * sy)));
+      ly = drawWrappedText(ctx, q.desc, px + 8 * sx, ly, maxW, 13 * sy, maxLines);
       // Progress for KILL quests
       if (q.killNeeded !== undefined) {
         ly += 4 * sy;
@@ -125,21 +108,24 @@ export function drawNpcMenu(
       if (remaining !== undefined) {
         ly += 12 * sy;
         ctx.fillStyle = remaining <= 120 ? '#f66' : remaining <= 360 ? '#fa6' : '#8cf';
-        ctx.font = `${7 * sy}px monospace`;
+        ctx.font = `${8 * sy}px monospace`;
         ctx.fillText(`Срок: ${formatQuestMinutes(remaining)}`, px + 8 * sx, ly);
       }
     }
     ctx.fillStyle = '#555';
-    ctx.font = `${7 * sy}px monospace`;
+    ctx.font = `${8 * sy}px monospace`;
     const hint = total > 1 ? '[W/S] листать  |  [E/ENTER] назад' : '[E/ENTER] назад';
-    ctx.fillText(hint, px + 8 * sx, py + ph - 8 * sy);
+    ctx.fillText(fitText(ctx, hint, pw - 16 * sx), px + 8 * sx, py + ph - 11 * sy);
 
   } else if (state.npcMenuTab === 'trade') {
     // ── Fullscreen trade: two 5×5 grids ──
     const cw = ctx.canvas.width;
     const ch = ctx.canvas.height;
+    const gs = tradeGridScale(cw, ch);
+    sx = gs;
+    sy = gs;
     // Overdraw fullscreen background
-    ctx.fillStyle = 'rgba(0,0,0,0.92)';
+    ctx.fillStyle = 'rgba(0,0,0,0.98)';
     ctx.fillRect(0, 0, cw, ch);
 
     const GRID = 5;
@@ -155,17 +141,20 @@ export function drawNpcMenu(
 
     // ── Title (centered) ──
     ctx.fillStyle = '#aaa';
-    ctx.font = `${9 * sy}px monospace`;
+    ctx.font = `${9.5 * sy}px monospace`;
     ctx.textAlign = 'center';
     ctx.fillText('ТОРГОВЛЯ', cw / 2, 10 * sy);
     ctx.textAlign = 'left';
 
     // ── Headers with money ──
-    ctx.font = `${8 * sy}px monospace`;
+    ctx.font = `${8.5 * sy}px monospace`;
     ctx.fillStyle = '#ee4';
     ctx.fillText(`Вы: ₽${player.money ?? 0}`, startX, startY - 8 * sy);
     ctx.fillStyle = '#8cf';
-    ctx.fillText(`${npc.name?.split(' ')[0] ?? 'NPC'}: ₽${npc.money ?? 0}`, startX + gridTotal + gap, startY - 8 * sy);
+    ctx.fillText(
+      fitText(ctx, `${npc.name?.split(' ')[0] ?? 'NPC'}: ₽${npc.money ?? 0}`, gridTotal),
+      startX + gridTotal + gap, startY - 8 * sy,
+    );
 
     // ── Draw grid helper ──
     const drawGrid = (inv: { defId: string; count: number }[], gx: number, side: string) => {
@@ -185,12 +174,12 @@ export function drawNpcMenu(
             const item = inv[idx];
             const def = ITEMS[item.defId];
             ctx.fillStyle = selected ? '#ee4' : '#ccc';
-            ctx.font = `${6 * sy}px monospace`;
-            const name = (def?.name ?? item.defId).slice(0, 6);
+            ctx.font = `${5.6 * sy}px monospace`;
+            const name = fitText(ctx, def?.name ?? item.defId, cellSz - 4 * sx);
             ctx.fillText(name, cx + 2 * sx, cy + 10 * sy);
             if (item.count > 1) {
               ctx.fillStyle = '#8a8';
-              ctx.font = `${5 * sy}px monospace`;
+              ctx.font = `${4.8 * sy}px monospace`;
               ctx.fillText(`×${item.count}`, cx + cellSz - 16 * sx, cy + cellSz - 5 * sy);
             }
           }
@@ -212,15 +201,18 @@ export function drawNpcMenu(
       const def = ITEMS[item.defId];
       if (def) {
         ctx.fillStyle = '#ccc';
-        ctx.font = `${8 * sy}px monospace`;
-        ctx.fillText(`${def.name} ×${item.count}`, cw / 2, descY);
+        ctx.font = `${8.5 * sy}px monospace`;
+        const descW = Math.min(cw - 16 * sx, totalW + 24 * sx);
+        ctx.fillText(fitText(ctx, `${def.name} ×${item.count}`, descW), cw / 2, descY);
         ctx.fillStyle = '#888';
-        ctx.font = `${7 * sy}px monospace`;
-        ctx.fillText(def.desc, cw / 2, descY + 10 * sy);
-        ctx.fillStyle = '#da4';
-        ctx.fillText(`Цена: ${getAdjustedItemPrice(state, item.defId)}₽`, cw / 2, descY + 20 * sy);
-        ctx.fillStyle = '#6a6';
-        ctx.fillText(state.tradeSide === 'npc' ? '[E] купить' : '[E] продать', cw / 2, descY + 30 * sy);
+        ctx.font = `${7.4 * sy}px monospace`;
+        let actionY = drawCenteredWrappedText(ctx, def.desc, cw / 2, descY + 10 * sy, descW, 9 * sy, 2);
+        const price = tradePriceDisplay(state, player, npc, item.defId, state.tradeSide === 'npc' ? 'buy' : 'sell');
+        ctx.fillStyle = price.color;
+        actionY = Math.min(actionY + 2 * sy, ch - 42 * sy);
+        ctx.fillText(fitText(ctx, price.line, descW), cw / 2, actionY);
+        ctx.fillStyle = price.ok ? '#6a6' : '#f84';
+        ctx.fillText(fitText(ctx, price.status, descW), cw / 2, Math.min(actionY + 10 * sy, ch - 32 * sy));
       }
     } else {
       ctx.fillStyle = '#555';
@@ -231,7 +223,7 @@ export function drawNpcMenu(
 
     // ── Hint (bottom-right, stacked) ──
     ctx.fillStyle = '#555';
-    ctx.font = `${6 * sy}px monospace`;
+    ctx.font = `${6.5 * sy}px monospace`;
     ctx.textAlign = 'right';
     ctx.fillText('WASD — курсор', cw - 8 * sx, ch - 24 * sy);
     ctx.fillText('E — купить/продать', cw - 8 * sx, ch - 16 * sy);

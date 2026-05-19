@@ -1,5 +1,6 @@
 /* ── ГИГАХРУЩ — main entry point ──────────────────────────────── */
 import './index.css';
+import { registerPwaServiceWorker } from './pwa';
 
 import {
   W, Cell, DoorState, FloorLevel, Feature, Tex, RoomType, LiftDirection,
@@ -45,9 +46,9 @@ import { generateTalkText, generateNpcTradeItems } from './data/dialogue';
 import { updateSamosbor, rebuildWorld, clearFogInZone, tryUseSamosborVariantInteraction } from './systems/samosbor';
 import { cleanCellHazardsNear, getCellHazardMoveMultiplier, tickCellHazards } from './systems/cell_hazards';
 import {
-  pickupNearby, useItem, dropItem, getWeaponStats, addItem,
+  pickupNearby, useItem, dropItem, getWeaponStats,
   consumeDurability, consumeAmmo, consumeToolDurability, getEquippedToolDurability,
-  publishItemTradeEvent, updateInventoryConditions,
+  updateInventoryConditions,
 } from './systems/inventory';
 import { tryHandleMaronaryShavingHandoff } from './systems/maronary_shaving';
 import { createInput, bindInput } from './input';
@@ -82,6 +83,7 @@ import { debugOnePunchMeleeDamage, isDebugOnePunchManEnabled, keepDebugOnePunchM
 import { createWorldEventState, normalizeWorldEventState, publishEvent, trimEventHistoryForSave } from './systems/events';
 import { UV_SPOTLIGHT_ID, useUvSpotlight } from './systems/uv_spotlight';
 import { tryUseMetroRoute } from './systems/metro';
+import { isRidingRailTrain, tryUseRailTrain, updateRailTrains } from './systems/rail_trains';
 import { tryUseHeatlinePressure } from './systems/heatline';
 import { tryUseCarnivorousFungus, updateCarnivorousFungus } from './systems/carnivorous_fungus';
 import { tryRepairHermodoorBorerDamage } from './systems/hermodoor_borer';
@@ -115,6 +117,7 @@ import {
   commitFloorRunEntry,
   currentFloorRunEntry,
   ensureFloorRunState,
+  floorRunEntryAllowsNpcs,
   floorRunStateForSave,
   forceFloorRunStory,
   forceProceduralFloorAnomaly,
@@ -143,11 +146,23 @@ import {
 import { isShelterTallyItem, publishShelterTallyEvent } from './systems/shelter_tally';
 import {
   economyForSave,
-  getAdjustedItemPrice,
   normalizeGameEconomy,
   primeTradePriceCache,
-  recordPlayerItemSale,
 } from './systems/economy';
+import { buyFromNpc, sellToNpc, type TradeResult } from './systems/trade';
+import {
+  bankingForSave,
+  ensureBankingState,
+  normalizeBankingState,
+  tickBankingInterest,
+  type BankingState,
+} from './systems/banking';
+import {
+  ensureStockMarketState,
+  normalizeGameStockMarket,
+  stockMarketForSave,
+  tickStockMarket,
+} from './systems/stock_market';
 import { ensureProductionRooms, tickProduction, type ProductionState } from './systems/production';
 import {
   castInstantSpell, updatePsiEffects, psiAoeExplosion,
@@ -174,6 +189,36 @@ import {
   reportNetSphereEvent,
   tickNetSphere,
 } from './systems/net_sphere';
+import {
+  activateNetTerminalBank,
+  claimNetTerminalGenFleshDrop,
+  closeNetTerminalGen,
+  ensureNetTerminalGenFleshDrop,
+  ensureNetTerminalGenState,
+  isNetTerminalBankOpen,
+  isNetTerminalGenOpen,
+  isNetTerminalGenTarget,
+  moveNetTerminalBankAction,
+  moveNetTerminalBankPreset,
+  netTerminalGenStateForSave,
+  placeNetTerminalGenTerminalsForCurrentFloor,
+  setNetTerminalGenState,
+  tryUseNetTerminalGen,
+} from './systems/net_terminal_gen';
+import {
+  adjustMapEditorZoom,
+  applyCurrentMapEditorBrush,
+  activateMapEditorMode,
+  backMapEditorMode,
+  closeMapEditor,
+  ensureMapEditorPatchState,
+  isMapEditorOpen,
+  mapEditorPatchStateForSave,
+  moveMapEditorMode,
+  openMapEditor,
+  replayMapEditorPatchForCurrentFloor,
+  setMapEditorPatchState,
+} from './systems/map_editor';
 import { addFactionRel, addFactionRelMutual, initFactionRelations } from './data/relations';
 import { type DeathCam, initDeathCam, updateDeathCam, getDeathCamAngle, getDeathCamPitch } from './systems/death';
 import { onHeraldKilled, onCreatorKilled, onHellArrival, tryCreateVoiceQuest, onVoidEntry } from './data/plot_events';
@@ -185,6 +230,7 @@ import { type DesignFloorId } from './data/design_floors';
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const hudCanvas = document.getElementById('hud') as HTMLCanvasElement;
 const ctx = hudCanvas.getContext('2d')!;
+registerPwaServiceWorker();
 const PLAYER_NAME_KEY = 'gigahrush_player_name';
 const NET_GEN_NAME_RE = /^NET-[A-Z0-9-]{4,28}$/;
 let started = false;
@@ -345,6 +391,22 @@ function updateGeneratedDynamicSky(dt: number): void {
   if (activeSkyProvider.update(dt) || activeSkyProvider.dirty) setDynamicSkyTexture(activeSkyProvider);
 }
 
+function replayMapEditorForCurrentFloor(): number {
+  ensureMapEditorPatchState(state);
+  return replayMapEditorPatchForCurrentFloor(world, entities, player, state, nextEntityId);
+}
+
+function placeNetTerminalGenContentForCurrentFloor(): void {
+  ensureNetTerminalGenState(state);
+  placeNetTerminalGenTerminalsForCurrentFloor(world, state);
+  ensureNetTerminalGenFleshDrop(world, entities, nextEntityId, state);
+}
+
+function prepareEditableFloor(): void {
+  replayMapEditorForCurrentFloor();
+  placeNetTerminalGenContentForCurrentFloor();
+}
+
 function drawLoading(): void {
   currentTip = randomTip();
   ctx.fillStyle = '#000';
@@ -470,12 +532,20 @@ function initGame(): void {
   };
   netReportedSamosborCount = state.samosborCount;
   netDeathReported = false;
+  ensureBankingState(state);
+  ensureStockMarketState(state);
   closeNetSphere();
+  closeNetTerminalGen();
+  closeMapEditor();
   ensureFloorRunState(state, FloorLevel.LIVING);
   ensureFloorInstanceState(state, FloorLevel.LIVING);
   ensureLiftArachnaState(state);
+  ensureNetTerminalGenState(state);
+  ensureMapEditorPatchState(state);
   ensureRoomContainers(world, state.currentFloor);
   ensureProductionRooms(state, world);
+  prepareEditableFloor();
+  ensureProceduralSpriteSeeds(entities);
   resetPsiState();
 
   // Initialize / reinitialize WebGL with current world data
@@ -577,6 +647,7 @@ function movePlayer(dt: number): void {
   if (input.right) player.angle += 2.5 * dt;
   if (input.touch.lookX !== 0) player.angle += input.touch.lookX * 3.0 * dt;
   if (input.touch.lookY !== 0) player.pitch = Math.max(-1, Math.min(1, player.pitch - input.touch.lookY * 1.6 * dt));
+  if (isRidingRailTrain(world, player)) return;
 
   // Movement
   const cos = Math.cos(player.angle);
@@ -733,9 +804,21 @@ function playerActions(_dt: number): void {
       return;
     }
 
+    const netTerminal = tryUseNetTerminalGen(world, player, state, lookX, lookY);
+    if (netTerminal.handled) {
+      if (netTerminal.access) openMapEditor(world, player, state, netTerminal.terminal);
+      syncPauseState();
+      input.interact = false;
+      return;
+    }
+
     // Check for NPC nearby → open NPC interaction menu
     let interactedNpc = false;
     let handledWorldInteraction = false;
+    if (tryUseRailTrain(world, player, state, lookX, lookY)) {
+      input.interact = false;
+      return;
+    }
     for (const e of entities) {
       if (e.type !== EntityType.NPC || !e.alive) continue;
       if (world.dist(player.x, player.y, e.x, e.y) < 2.0) {
@@ -1662,6 +1745,14 @@ function currentRouteRebuildGeneration(): FloorGeneration | undefined {
   return undefined;
 }
 
+function floorTargetAllowsNpcPopulation(entry: ReturnType<typeof currentFloorRunEntry> | null | undefined, floor: FloorLevel): boolean {
+  return floor !== FloorLevel.VOID && (!entry || floorRunEntryAllowsNpcs(entry));
+}
+
+function currentFloorAllowsNpcPopulation(): boolean {
+  return floorTargetAllowsNpcPopulation(currentFloorRunEntry(state), state.currentFloor);
+}
+
 function switchFloor(
   direction: LiftDirection,
   overrideArrivalText?: string,
@@ -1763,7 +1854,7 @@ function switchFloor(
     initFactionRelations();
     initFactionControl(world);
     const fStats = countFactionTerritory(world);
-    if (allowsFactionEntryReinforcements(nextFloor)) {
+    if (floorTargetAllowsNpcPopulation(generatedRunEntry, nextFloor) && allowsFactionEntryReinforcements(nextFloor)) {
       spawnPatrolSquads(world, entities, nextEntityId, fStats);
       spawnTerritoryReinforcements(world, entities, nextEntityId, fStats);
     }
@@ -1832,6 +1923,8 @@ function switchFloor(
     }
     ensureRoomContainers(world, state.currentFloor);
     ensureProductionRooms(state, world);
+    prepareEditableFloor();
+    ensureProceduralSpriteSeeds(entities);
     if (allowElevatorAnomaly) {
       tryStartLiftArachnaEncounter(world, player, state, {
         direction,
@@ -1925,6 +2018,8 @@ function enterVoidFloor(): void {
     onVoidEntry(state);
     ensureRoomContainers(world, state.currentFloor);
     ensureProductionRooms(state, world);
+    prepareEditableFloor();
+    ensureProceduralSpriteSeeds(entities);
 
     setGeneratedDynamicSky(gen);
     updateWorldData(world);
@@ -2014,7 +2109,8 @@ function debugTeleportTo(target: DebugTeleportTarget): void {
     initFactionRelations();
     initFactionControl(world);
     const fStats = countFactionTerritory(world);
-    if (allowsFactionEntryReinforcements(target.floor)) {
+    const targetRunEntry = target.spec || target.designFloorId ? currentFloorRunEntry(state) : undefined;
+    if (floorTargetAllowsNpcPopulation(targetRunEntry, target.floor) && allowsFactionEntryReinforcements(target.floor)) {
       spawnPatrolSquads(world, entities, nextEntityId, fStats);
       spawnTerritoryReinforcements(world, entities, nextEntityId, fStats);
     }
@@ -2065,6 +2161,8 @@ function debugTeleportTo(target: DebugTeleportTarget): void {
 
     ensureRoomContainers(world, state.currentFloor);
     ensureProductionRooms(state, world);
+    prepareEditableFloor();
+    ensureProceduralSpriteSeeds(entities);
     setGeneratedDynamicSky(gen);
     updateWorldData(world);
   };
@@ -2119,6 +2217,9 @@ function handleDebugCommandAction(action: DebugCommandAction): void {
         z: action.z,
         designFloorId: action.id,
       });
+      break;
+    case 'refresh_world_data':
+      updateWorldData(world);
       break;
   }
 }
@@ -2210,8 +2311,12 @@ function saveGame(): void {
         floorRun: floorRunStateForSave(state),
         floorInstances: floorInstanceStateForSave(state),
         liftArachna: liftArachnaStateForSave(state),
+        netTerminalGen: netTerminalGenStateForSave(state),
+        mapEditorPatches: mapEditorPatchStateForSave(state),
         worldEvents: trimEventHistoryForSave(state),
         economy: economyForSave(state),
+        banking: bankingForSave(state),
+        stockMarket: stockMarketForSave(state),
         production: (state as GameState & { production?: ProductionState[] }).production ?? [],
         containers: world.containers,
       },
@@ -2235,11 +2340,15 @@ function loadGame(): boolean {
     setFloorRunState(state, data.state.floorRun, savedFloor);
     const loadedFloorInstances = setFloorInstanceState(state, data.state.floorInstances, savedFloor);
     setLiftArachnaState(state, data.state.liftArachna);
+    setNetTerminalGenState(state, data.state.netTerminalGen);
+    setMapEditorPatchState(state, data.state.mapEditorPatches);
     const loadedRunEntry = currentFloorRunEntry(state);
     const floor = loadedFloorInstances.current?.baseFloor ?? loadedRunEntry.baseFloor ?? savedFloor;
     const generatedRunEntry = loadedFloorInstances.current ? null : loadedRunEntry;
 
     state.showMenu = false;
+    closeNetTerminalGen();
+    closeMapEditor();
     pendingLoad = () => {
       resetGeneratedFloorPopulationState();
       const gen: FloorGeneration = generatedRunEntry?.spec
@@ -2282,7 +2391,7 @@ function loadGame(): boolean {
       initFactionRelations();
       initFactionControl(world);
       const fStats = countFactionTerritory(world);
-      if (allowsFactionEntryReinforcements(floor)) {
+      if (floorTargetAllowsNpcPopulation(generatedRunEntry, floor) && allowsFactionEntryReinforcements(floor)) {
         spawnPatrolSquads(world, entities, nextEntityId, fStats);
         spawnTerritoryReinforcements(world, entities, nextEntityId, fStats);
       }
@@ -2303,6 +2412,8 @@ function loadGame(): boolean {
       setLiftArachnaState(state, data.state.liftArachna);
       state.worldEvents = normalizeWorldEventState(data.state.worldEvents);
       normalizeGameEconomy(state, data.state.economy);
+      (state as GameState & { banking?: BankingState }).banking = normalizeBankingState(data.state.banking);
+      normalizeGameStockMarket(state, data.state.stockMarket);
       (state as GameState & { production?: ProductionState[] }).production = data.state.production ?? [];
       state.samosborActive = false;
       state.uvBeamFx = 0;
@@ -2312,9 +2423,12 @@ function loadGame(): boolean {
       state.showMenu = false;
       state.showContainerMenu = false;
       state.containerMenuTarget = -1;
+      replayMapEditorForCurrentFloor();
       if (Array.isArray(data.state.containers)) restoreValidContainers(world, state.currentFloor, data.state.containers);
       ensureRoomContainers(world, state.currentFloor);
       ensureProductionRooms(state, world);
+      placeNetTerminalGenContentForCurrentFloor();
+      ensureProceduralSpriteSeeds(entities);
 
       state.msgs.push(msg('Игра загружена', state.time, '#4af'));
 
@@ -2579,10 +2693,41 @@ let prevMenuUp = false, prevMenuDn = false, prevMenuLeft = false, prevMenuRight 
 let prevMenuInteract = false, prevDrop = false;
 let prevFactionMenu = false;
 let prevLogMenu = false;
+type MenuRepeatKey = 'up' | 'down' | 'left' | 'right';
+const MENU_REPEAT_DELAY = 0.30;
+const MENU_REPEAT_INTERVAL = 0.085;
+const menuRepeatNext: Record<MenuRepeatKey, number> = { up: 0, down: 0, left: 0, right: 0 };
+
+function resetMenuRepeats(): void {
+  menuRepeatNext.up = 0;
+  menuRepeatNext.down = 0;
+  menuRepeatNext.left = 0;
+  menuRepeatNext.right = 0;
+}
+
+function menuRepeatStep(key: MenuRepeatKey, held: boolean, edge: boolean): boolean {
+  if (!held) {
+    menuRepeatNext[key] = 0;
+    return false;
+  }
+  if (edge) {
+    menuRepeatNext[key] = uiTime + MENU_REPEAT_DELAY;
+    return true;
+  }
+  if (menuRepeatNext[key] === 0) {
+    menuRepeatNext[key] = uiTime + MENU_REPEAT_DELAY;
+    return false;
+  }
+  if (uiTime >= menuRepeatNext[key]) {
+    menuRepeatNext[key] = uiTime + MENU_REPEAT_INTERVAL;
+    return true;
+  }
+  return false;
+}
 
 function tryLockLandscape(): void {
-  const orientation = screen.orientation as ScreenOrientation & { lock?: (orientation: 'landscape') => Promise<void> };
-  if (!orientation.lock) return;
+  const orientation = screen.orientation as (ScreenOrientation & { lock?: (orientation: 'landscape') => Promise<void> }) | undefined;
+  if (!orientation?.lock) return;
   void orientation.lock('landscape').catch(() => {});
 }
 
@@ -2605,14 +2750,15 @@ function mobileGestureUnlock(): void {
 function syncPauseState(): void {
   if (typeof state === 'undefined') return;
   state.paused = state.showMenu || state.showInventory || state.showNpcMenu || state.showContainerMenu ||
-    state.showQuests || state.showDebug || state.showFactions || state.showLog || isNetSphereOpen();
+    state.showQuests || state.showDebug || state.showFactions || state.showLog ||
+    isNetSphereOpen() || isNetTerminalGenOpen() || isMapEditorOpen();
 }
 
 function isMobileMenuOpen(): boolean {
   if (typeof state === 'undefined') return false;
   return state.showMenu || state.showInventory || state.showNpcMenu || state.showContainerMenu ||
     state.showQuests || state.showDebug || state.showFactions || state.showLog ||
-    state.mapMode === 2 || isNetSphereOpen();
+    state.mapMode === 2 || isNetSphereOpen() || isNetTerminalGenOpen() || isMapEditorOpen();
 }
 
 function closeMobilePanels(includeMap = true): void {
@@ -2627,6 +2773,8 @@ function closeMobilePanels(includeMap = true): void {
   state.showLog = false;
   if (includeMap) state.mapMode = 0;
   closeNetSphere();
+  closeNetTerminalGen();
+  closeMapEditor();
   syncPauseState();
   updateMobileContext();
 }
@@ -2674,7 +2822,7 @@ function openMobileMenu(menu: MobileMenuId): void {
 }
 
 function confirmActiveMobileSelection(): void {
-  if (!started || typeof state === 'undefined' || state.gameOver || isNetSphereOpen()) return;
+  if (!started || typeof state === 'undefined' || state.gameOver || isNetSphereOpen() || isNetTerminalGenOpen() || isMapEditorOpen()) return;
   if (state.showMenu) {
     runGameMenuSelection(state.menuSel);
   } else if (state.showInventory) {
@@ -2709,6 +2857,7 @@ function canInteractAhead(): boolean {
   const cell = world.cells[lci];
 
   if (getCultProcessionPrompt(world, state, player)) return true;
+  if (isNetTerminalGenTarget(world, state, lookX, lookY)) return true;
   if (cell === Cell.DOOR && world.doors.has(lci)) return true;
   if (cell === Cell.LIFT || world.features[lci] === Feature.LIFT_BUTTON) return true;
   if (isParitelSteamValveTarget(world, lookX, lookY)) return true;
@@ -2826,65 +2975,51 @@ function activateNpcMainSelection(npc: Entity | undefined): void {
   }
 }
 
+function currentPlayerZoneId(): number {
+  return world.zoneMap[world.idx(Math.floor(player.x), Math.floor(player.y))];
+}
+
+function reportTradeResult(npc: Entity, result: TradeResult): void {
+  if (result.ok) {
+    primeTradePriceCache(state, [npc.inventory, player.inventory]);
+    if (result.code === 'bought' && result.defId && result.price !== undefined) {
+      const def = ITEMS[result.defId];
+      state.msgs.push(msg(`Куплено: ${def?.name ?? result.defId} (−${result.price}₽)`, state.time, '#4f4'));
+    } else if (result.code === 'sold' && result.defId && result.price !== undefined) {
+      const def = ITEMS[result.defId];
+      state.msgs.push(msg(`Продано: ${def?.name ?? result.defId} (+${result.price}₽)`, state.time, '#4f4'));
+    }
+    return;
+  }
+
+  if (result.code === 'player_no_money') state.msgs.push(msg('Не хватает денег', state.time, '#f84'));
+  else if (result.code === 'player_no_space') state.msgs.push(msg('Нет места в инвентаре', state.time, '#f84'));
+  else if (result.code === 'npc_no_money') state.msgs.push(msg('У торговца нет денег', state.time, '#f84'));
+  else if (result.code === 'npc_no_space') state.msgs.push(msg('У торговца нет места', state.time, '#f84'));
+}
+
 function activateTradeSelection(npc: Entity): void {
   const GRID = 5;
   const idx = state.tradeCursorY * GRID + state.tradeCursorX;
-  const npcInv = npc.inventory ?? [];
-  const plrInv = player.inventory ?? [];
-  if (state.tradeSide === 'npc' && idx < npcInv.length) {
-    const slot = npcInv[idx];
-    const def = ITEMS[slot.defId];
-    const price = getAdjustedItemPrice(state, slot.defId);
-    if ((player.money ?? 0) >= price) {
-      if (addItem(player, slot.defId, 1)) {
-        player.money = (player.money ?? 0) - price;
-        npc.money = (npc.money ?? 0) + price;
-        slot.count--;
-        if (slot.count <= 0) npcInv.splice(idx, 1);
-        primeTradePriceCache(state, [npcInv, player.inventory]);
-        state.msgs.push(msg(`Куплено: ${def?.name ?? slot.defId} (−${price}₽)`, state.time, '#4f4'));
-        publishItemTradeEvent(state, npc, player, slot.defId, price, 1);
-      } else {
-        state.msgs.push(msg('Нет места в инвентаре', state.time, '#f84'));
-      }
-    } else {
-      state.msgs.push(msg('Не хватает денег', state.time, '#f84'));
-    }
-  } else if (state.tradeSide === 'player' && idx < plrInv.length) {
-    const slot = plrInv[idx];
-    if (tryHandleMaronaryShavingHandoff(player, npc, idx, state)) {
-      primeTradePriceCache(state, [npc.inventory, plrInv]);
-    } else {
-      const def = ITEMS[slot.defId];
-      const soldDefId = slot.defId;
-      const price = getAdjustedItemPrice(state, soldDefId);
-      if ((npc.money ?? 0) >= price) {
-        if (addItem(npc, soldDefId, 1)) {
-          npc.money = (npc.money ?? 0) - price;
-          player.money = (player.money ?? 0) + price;
-          slot.count--;
-          if (slot.count <= 0) plrInv.splice(idx, 1);
-          primeTradePriceCache(state, [npc.inventory, plrInv]);
-          state.msgs.push(msg(`Продано: ${def?.name ?? soldDefId} (+${price}₽)`, state.time, '#4f4'));
-          const zoneId = world.zoneMap[world.idx(Math.floor(player.x), Math.floor(player.y))];
-          recordPlayerItemSale(state, player, npc, soldDefId, 1, price, zoneId);
-          if (isShelterTallyItem(soldDefId) && (npc.faction === Faction.CULTIST || npc.faction === Faction.LIQUIDATOR)) {
-            publishShelterTallyEvent(
-              state,
-              player,
-              soldDefId,
-              npc.faction === Faction.CULTIST ? 'sell_cult' : 'sell_liquidator',
-              { targetId: npc.id, targetName: npc.name, targetFaction: npc.faction, itemValue: price },
-            );
-          }
-        } else {
-          state.msgs.push(msg('У торговца нет места', state.time, '#f84'));
+  const zoneId = currentPlayerZoneId();
+  const result = state.tradeSide === 'npc'
+    ? buyFromNpc(state, player, npc, idx, { zoneId })
+    : sellToNpc(state, player, npc, idx, {
+      zoneId,
+      beforeSell: ({ slotIndex }) => tryHandleMaronaryShavingHandoff(player, npc, slotIndex, state),
+      afterSell: ({ defId, price }) => {
+        if (isShelterTallyItem(defId) && (npc.faction === Faction.CULTIST || npc.faction === Faction.LIQUIDATOR)) {
+          publishShelterTallyEvent(
+            state,
+            player,
+            defId,
+            npc.faction === Faction.CULTIST ? 'sell_cult' : 'sell_liquidator',
+            { targetId: npc.id, targetName: npc.name, targetFaction: npc.faction, itemValue: price },
+          );
         }
-      } else {
-        state.msgs.push(msg('У торговца нет денег', state.time, '#f84'));
-      }
-    }
-  }
+      },
+    });
+  reportTradeResult(npc, result);
 }
 
 function menuScale(): { sx: number; sy: number } {
@@ -3107,6 +3242,9 @@ function handleMenuInput(): void {
     state.showFactions = false;
     state.showLog = false;
     closeNetSphere();
+    closeNetTerminalGen();
+    closeMapEditor();
+    resetMenuRepeats();
     // Keep edge-detection prev states in sync so first frame after
     // respawn doesn't fire a stale edge.
     prevEsc = input.escape;
@@ -3123,6 +3261,163 @@ function handleMenuInput(): void {
     return;
   }
 
+  if (isMapEditorOpen()) {
+    state.showMenu = false;
+    state.showInventory = false;
+    state.showQuests = false;
+    state.showNpcMenu = false;
+    closeContainerMenu();
+    state.showFactions = false;
+    state.showLog = false;
+    state.showDebug = false;
+    closeNetSphere();
+    state.paused = true;
+
+    const escEdge = input.escape && !prevEsc;
+    const upEdge = input.invUp && !prevMenuUp;
+    const dnEdge = input.invDn && !prevMenuDn;
+    const leftEdge = input.invLeft && !prevMenuLeft;
+    const rightEdge = (input.invRight && !prevMenuRight) || (input.drop && !prevDrop);
+    const interactEdge = input.interact && !prevMenuInteract;
+    const mapEdge = input.map && !prevMap;
+    const upNav = menuRepeatStep('up', input.invUp, upEdge);
+    const dnNav = menuRepeatStep('down', input.invDn, dnEdge);
+    const leftNav = menuRepeatStep('left', input.invLeft, leftEdge);
+    const rightNav = menuRepeatStep('right', input.invRight || input.drop, rightEdge);
+
+    const closeEditor = () => {
+      closeMapEditor();
+      closeNetTerminalGen();
+      syncPauseState();
+    };
+
+    if (escEdge) {
+      const action = backMapEditorMode();
+      if (action === 'close') closeEditor();
+    } else {
+      if (upNav) moveMapEditorMode(world, 0, -1);
+      if (dnNav) moveMapEditorMode(world, 0, 1);
+      if (leftNav) moveMapEditorMode(world, -1, 0);
+      if (rightNav) moveMapEditorMode(world, 1, 0);
+      if (mapEdge) adjustMapEditorZoom(1);
+      if (interactEdge) {
+        const action = activateMapEditorMode();
+        if (action === 'apply') {
+          const result = applyCurrentMapEditorBrush(world, entities, player, state, nextEntityId);
+          if (result.ok) updateWorldData(world);
+        } else if (action === 'close') {
+          input.interact = false;
+          closeEditor();
+        }
+      }
+    }
+
+    prevEsc = input.escape;
+    prevMenuUp = input.invUp;
+    prevMenuDn = input.invDn;
+    prevMenuLeft = input.invLeft;
+    prevMenuRight = input.invRight;
+    prevMenuInteract = input.interact;
+    prevDrop = input.drop;
+    prevInvMenu = input.inv;
+    prevQuestMenu = input.questLog;
+    prevDebug = input.debugScreen;
+    prevFactionMenu = input.factionMenu;
+    prevLogMenu = input.logMenu;
+    prevMap = input.map;
+    return;
+  }
+
+  if (isNetTerminalBankOpen()) {
+    state.showMenu = false;
+    state.showInventory = false;
+    state.showQuests = false;
+    state.showNpcMenu = false;
+    closeContainerMenu();
+    state.showFactions = false;
+    state.showLog = false;
+    state.showDebug = false;
+    closeNetSphere();
+    state.paused = true;
+
+    const escEdge = input.escape && !prevEsc;
+    const upEdge = input.invUp && !prevMenuUp;
+    const dnEdge = input.invDn && !prevMenuDn;
+    const leftEdge = input.invLeft && !prevMenuLeft;
+    const rightEdge = (input.invRight && !prevMenuRight) || (input.drop && !prevDrop);
+    const interactEdge = input.interact && !prevMenuInteract;
+    const upNav = menuRepeatStep('up', input.invUp, upEdge);
+    const dnNav = menuRepeatStep('down', input.invDn, dnEdge);
+    const leftNav = menuRepeatStep('left', input.invLeft, leftEdge);
+    const rightNav = menuRepeatStep('right', input.invRight || input.drop, rightEdge);
+
+    if (escEdge) {
+      closeNetTerminalGen();
+      syncPauseState();
+    } else {
+      if (upNav) moveNetTerminalBankAction(-1);
+      if (dnNav) moveNetTerminalBankAction(1);
+      if (leftNav) moveNetTerminalBankPreset(-1);
+      if (rightNav) moveNetTerminalBankPreset(1);
+      if (interactEdge) {
+        activateNetTerminalBank(state, player);
+        input.interact = false;
+      }
+    }
+
+    prevEsc = input.escape;
+    prevMenuUp = input.invUp;
+    prevMenuDn = input.invDn;
+    prevMenuLeft = input.invLeft;
+    prevMenuRight = input.invRight;
+    prevMenuInteract = input.interact;
+    prevDrop = input.drop;
+    prevInvMenu = input.inv;
+    prevQuestMenu = input.questLog;
+    prevDebug = input.debugScreen;
+    prevFactionMenu = input.factionMenu;
+    prevLogMenu = input.logMenu;
+    prevMap = input.map;
+    return;
+  }
+
+  if (isNetTerminalGenOpen()) {
+    state.showMenu = false;
+    state.showInventory = false;
+    state.showQuests = false;
+    state.showNpcMenu = false;
+    closeContainerMenu();
+    state.showFactions = false;
+    state.showLog = false;
+    state.showDebug = false;
+    closeNetSphere();
+    state.paused = true;
+
+    const escEdge = input.escape && !prevEsc;
+    const interactEdge = input.interact && !prevMenuInteract;
+    resetMenuRepeats();
+    if (escEdge || interactEdge) {
+      closeNetTerminalGen();
+      if (interactEdge) input.interact = false;
+      syncPauseState();
+    }
+
+    prevEsc = input.escape;
+    prevMenuUp = input.invUp;
+    prevMenuDn = input.invDn;
+    prevMenuLeft = input.invLeft;
+    prevMenuRight = input.invRight;
+    prevMenuInteract = input.interact;
+    prevDrop = input.drop;
+    prevInvMenu = input.inv;
+    prevQuestMenu = input.questLog;
+    prevDebug = input.debugScreen;
+    prevFactionMenu = input.factionMenu;
+    prevLogMenu = input.logMenu;
+    prevMap = input.map;
+    return;
+  }
+
   if (isNetSphereOpen()) {
     state.showMenu = false;
     state.showInventory = false;
@@ -3133,6 +3428,7 @@ function handleMenuInput(): void {
     state.showLog = false;
     state.showDebug = false;
     state.paused = true;
+    resetMenuRepeats();
     prevEsc = input.escape;
     prevMenuUp = input.invUp;
     prevMenuDn = input.invDn;
@@ -3159,6 +3455,9 @@ function handleMenuInput(): void {
   const questEdge = input.questLog && !prevQuestMenu;
   const factionEdge = input.factionMenu && !prevFactionMenu;
   const logEdge = input.logMenu && !prevLogMenu;
+  const anyRepeatMenuOpen = state.showMenu || state.showInventory || state.showQuests ||
+    state.showContainerMenu || state.showNpcMenu || state.showDebug || state.showLog;
+  if (!anyRepeatMenuOpen) resetMenuRepeats();
 
   // ── Enter: toggle game menu (or close any open menu) ─────
   if (escEdge) {
@@ -3173,8 +3472,10 @@ function handleMenuInput(): void {
 
   // ── Game menu navigation ─────────────────────────────────
   if (state.showMenu) {
-    if (upEdge) state.menuSel = Math.max(0, state.menuSel - 1);
-    if (dnEdge) state.menuSel = Math.min(3, state.menuSel + 1);
+    const upNav = menuRepeatStep('up', input.invUp, upEdge);
+    const dnNav = menuRepeatStep('down', input.invDn, dnEdge);
+    if (upNav) state.menuSel = Math.max(0, state.menuSel - 1);
+    if (dnNav) state.menuSel = Math.min(3, state.menuSel + 1);
     if (interactEdge) {
       switch (state.menuSel) {
         case 0: state.showMenu = false; break;                // Continue
@@ -3189,10 +3490,14 @@ function handleMenuInput(): void {
     if (invEdge) { state.showInventory = false; }
     else {
       const GRID_W = 5;
-      if (upEdge) state.invSel = Math.max(0, state.invSel - GRID_W);
-      if (dnEdge) state.invSel = Math.min(24, state.invSel + GRID_W);
-      if (leftEdge && state.invSel % GRID_W > 0) state.invSel--;
-      if (rightEdge && state.invSel % GRID_W < GRID_W - 1) state.invSel++;
+      const upNav = menuRepeatStep('up', input.invUp, upEdge);
+      const dnNav = menuRepeatStep('down', input.invDn, dnEdge);
+      const leftNav = menuRepeatStep('left', input.invLeft, leftEdge);
+      const rightNav = menuRepeatStep('right', input.invRight, rightEdge);
+      if (upNav) state.invSel = Math.max(0, state.invSel - GRID_W);
+      if (dnNav) state.invSel = Math.min(24, state.invSel + GRID_W);
+      if (leftNav && state.invSel % GRID_W > 0) state.invSel--;
+      if (rightNav && state.invSel % GRID_W < GRID_W - 1) state.invSel++;
       if (interactEdge) {
         const zoneId = world.zoneMap[world.idx(Math.floor(player.x), Math.floor(player.y))];
         useItem(player, state.invSel, state.msgs, state.time, state, zoneId, world);
@@ -3220,8 +3525,10 @@ function handleMenuInput(): void {
   else if (state.showQuests) {
     if (questEdge) { state.showQuests = false; }
     const totalQ = state.quests.length;
-    if (upEdge) state.questPage = Math.max(0, state.questPage - 1);
-    if (dnEdge) state.questPage = Math.min(Math.max(0, totalQ - 1), state.questPage + 1);
+    const upNav = menuRepeatStep('up', input.invUp, upEdge);
+    const dnNav = menuRepeatStep('down', input.invDn, dnEdge);
+    if (upNav) state.questPage = Math.max(0, state.questPage - 1);
+    if (dnNav) state.questPage = Math.min(Math.max(0, totalQ - 1), state.questPage + 1);
   }
   // ── Container menu navigation ────────────────────────────
   else if (state.showContainerMenu) {
@@ -3230,9 +3537,13 @@ function handleMenuInput(): void {
       closeContainerMenu();
     } else {
       const GRID = 5;
-      if (upEdge) state.containerCursorY = Math.max(0, state.containerCursorY - 1);
-      if (dnEdge) state.containerCursorY = Math.min(GRID - 1, state.containerCursorY + 1);
-      if (leftEdge) {
+      const upNav = menuRepeatStep('up', input.invUp, upEdge);
+      const dnNav = menuRepeatStep('down', input.invDn, dnEdge);
+      const leftNav = menuRepeatStep('left', input.invLeft, leftEdge);
+      const rightNav = menuRepeatStep('right', input.invRight || input.drop, rightEdge || dropEdge);
+      if (upNav) state.containerCursorY = Math.max(0, state.containerCursorY - 1);
+      if (dnNav) state.containerCursorY = Math.min(GRID - 1, state.containerCursorY + 1);
+      if (leftNav) {
         if (state.containerCursorX > 0) {
           state.containerCursorX--;
         } else if (state.containerSide === 'container') {
@@ -3240,7 +3551,7 @@ function handleMenuInput(): void {
           state.containerCursorX = GRID - 1;
         }
       }
-      if (rightEdge) {
+      if (rightNav) {
         if (state.containerCursorX < GRID - 1) {
           state.containerCursorX++;
         } else if (state.containerSide === 'player') {
@@ -3278,8 +3589,10 @@ function handleMenuInput(): void {
   else if (state.showNpcMenu) {
     const npc = entities.find(e => e.id === state.npcMenuTarget);
     if (state.npcMenuTab === 'main') {
-      if (upEdge) state.npcMenuSel = Math.max(0, state.npcMenuSel - 1);
-      if (dnEdge) state.npcMenuSel = Math.min(2, state.npcMenuSel + 1);
+      const upNav = menuRepeatStep('up', input.invUp, upEdge);
+      const dnNav = menuRepeatStep('down', input.invDn, dnEdge);
+      if (upNav) state.npcMenuSel = Math.max(0, state.npcMenuSel - 1);
+      if (dnNav) state.npcMenuSel = Math.min(2, state.npcMenuSel + 1);
       if (interactEdge) {
         switch (state.npcMenuSel) {
           case 0: // Talk
@@ -3313,17 +3626,25 @@ function handleMenuInput(): void {
       if (interactEdge || escEdge) state.npcMenuTab = 'main';
     } else if (state.npcMenuTab === 'quest') {
       const totalQ = state.quests.filter(q => !q.done).length;
-      if (upEdge || leftEdge) state.questPage = Math.max(0, state.questPage - 1);
-      if (dnEdge || rightEdge) state.questPage = Math.min(Math.max(0, totalQ - 1), state.questPage + 1);
+      const upNav = menuRepeatStep('up', input.invUp, upEdge);
+      const dnNav = menuRepeatStep('down', input.invDn, dnEdge);
+      const leftNav = menuRepeatStep('left', input.invLeft, leftEdge);
+      const rightNav = menuRepeatStep('right', input.invRight || input.drop, rightEdge || dropEdge);
+      if (upNav || leftNav) state.questPage = Math.max(0, state.questPage - 1);
+      if (dnNav || rightNav) state.questPage = Math.min(Math.max(0, totalQ - 1), state.questPage + 1);
       if (interactEdge || escEdge) state.npcMenuTab = 'main';
     } else if (state.npcMenuTab === 'trade') {
       if (npc) {
         const GRID = 5;
+        const upNav = menuRepeatStep('up', input.invUp, upEdge);
+        const dnNav = menuRepeatStep('down', input.invDn, dnEdge);
+        const leftNav = menuRepeatStep('left', input.invLeft, leftEdge);
+        const rightNav = menuRepeatStep('right', input.invRight || input.drop, rightEdge || dropEdge);
         // W/S — move cursor up/down
-        if (upEdge) state.tradeCursorY = Math.max(0, state.tradeCursorY - 1);
-        if (dnEdge) state.tradeCursorY = Math.min(GRID - 1, state.tradeCursorY + 1);
+        if (upNav) state.tradeCursorY = Math.max(0, state.tradeCursorY - 1);
+        if (dnNav) state.tradeCursorY = Math.min(GRID - 1, state.tradeCursorY + 1);
         // A/D — move cursor left/right, crossing between panels
-        if (leftEdge) {
+        if (leftNav) {
           if (state.tradeCursorX > 0) {
             state.tradeCursorX--;
           } else if (state.tradeSide === 'npc') {
@@ -3331,7 +3652,7 @@ function handleMenuInput(): void {
             state.tradeCursorX = GRID - 1;
           }
         }
-        if (rightEdge) {
+        if (rightNav) {
           if (state.tradeCursorX < GRID - 1) {
             state.tradeCursorX++;
           } else if (state.tradeSide === 'player') {
@@ -3341,65 +3662,7 @@ function handleMenuInput(): void {
         }
         // E — buy or sell
         if (interactEdge) {
-          const idx = state.tradeCursorY * GRID + state.tradeCursorX;
-          const npcInv = npc.inventory ?? [];
-          const plrInv = player.inventory ?? [];
-          if (state.tradeSide === 'npc' && idx < npcInv.length) {
-            // Buy from NPC
-            const slot = npcInv[idx];
-            const def = ITEMS[slot.defId];
-            const price = getAdjustedItemPrice(state, slot.defId);
-            if ((player.money ?? 0) >= price) {
-              if (addItem(player, slot.defId, 1)) {
-                player.money = (player.money ?? 0) - price;
-                npc.money = (npc.money ?? 0) + price;
-                slot.count--;
-                if (slot.count <= 0) npcInv.splice(idx, 1);
-                primeTradePriceCache(state, [npcInv, player.inventory]);
-                state.msgs.push(msg(`Куплено: ${def?.name ?? slot.defId} (−${price}₽)`, state.time, '#4f4'));
-                publishItemTradeEvent(state, npc, player, slot.defId, price, 1);
-              } else {
-                state.msgs.push(msg('Нет места в инвентаре', state.time, '#f84'));
-              }
-            } else {
-              state.msgs.push(msg('Не хватает денег', state.time, '#f84'));
-            }
-          } else if (state.tradeSide === 'player' && idx < plrInv.length) {
-            // Sell to NPC
-            const slot = plrInv[idx];
-            if (tryHandleMaronaryShavingHandoff(player, npc, idx, state)) {
-              primeTradePriceCache(state, [npc.inventory, plrInv]);
-            } else {
-              const def = ITEMS[slot.defId];
-              const soldDefId = slot.defId;
-              const price = getAdjustedItemPrice(state, soldDefId);
-              if ((npc.money ?? 0) >= price) {
-                if (addItem(npc, soldDefId, 1)) {
-                  npc.money = (npc.money ?? 0) - price;
-                  player.money = (player.money ?? 0) + price;
-                  slot.count--;
-                  if (slot.count <= 0) plrInv.splice(idx, 1);
-                  primeTradePriceCache(state, [npc.inventory, plrInv]);
-                  state.msgs.push(msg(`Продано: ${def?.name ?? soldDefId} (+${price}₽)`, state.time, '#4f4'));
-                  const zoneId = world.zoneMap[world.idx(Math.floor(player.x), Math.floor(player.y))];
-                  recordPlayerItemSale(state, player, npc, soldDefId, 1, price, zoneId);
-                  if (isShelterTallyItem(soldDefId) && (npc.faction === Faction.CULTIST || npc.faction === Faction.LIQUIDATOR)) {
-                    publishShelterTallyEvent(
-                      state,
-                      player,
-                      soldDefId,
-                      npc.faction === Faction.CULTIST ? 'sell_cult' : 'sell_liquidator',
-                      { targetId: npc.id, targetName: npc.name, targetFaction: npc.faction, itemValue: price },
-                    );
-                  }
-                } else {
-                  state.msgs.push(msg('У торговца нет места', state.time, '#f84'));
-                }
-              } else {
-                state.msgs.push(msg('У торговца нет денег', state.time, '#f84'));
-              }
-            }
-          }
+          activateTradeSelection(npc);
         }
       }
       if (escEdge) state.npcMenuTab = 'main';
@@ -3410,8 +3673,10 @@ function handleMenuInput(): void {
     const dbgEdge = input.debugScreen && !prevDebug;
     if (escEdge || dbgEdge) { state.showDebug = false; }
     else {
-      if (upEdge) state.debugSel = Math.max(0, state.debugSel - 1);
-      if (dnEdge) state.debugSel = Math.min(DEBUG_COMMAND_COUNT - 1, state.debugSel + 1);
+      const upNav = menuRepeatStep('up', input.invUp, upEdge);
+      const dnNav = menuRepeatStep('down', input.invDn, dnEdge);
+      if (upNav) state.debugSel = Math.max(0, state.debugSel - 1);
+      if (dnNav) state.debugSel = Math.min(DEBUG_COMMAND_COUNT - 1, state.debugSel + 1);
       if (interactEdge) {
         const action = execDebugCommand(state.debugSel, world, player, entities, state, nextEntityId);
         if (action) handleDebugCommandAction(action);
@@ -3426,8 +3691,10 @@ function handleMenuInput(): void {
   else if (state.showLog) {
     if (logEdge || escEdge) { state.showLog = false; }
     const maxScroll = Math.max(0, state.msgLog.length * 3); // generous; draw clamps
-    if (upEdge) state.logScroll = Math.min(maxScroll, state.logScroll + 3);
-    if (dnEdge) state.logScroll = Math.max(0, state.logScroll - 3);
+    const upNav = menuRepeatStep('up', input.invUp, upEdge);
+    const dnNav = menuRepeatStep('down', input.invDn, dnEdge);
+    if (upNav) state.logScroll = Math.min(maxScroll, state.logScroll + 3);
+    if (dnNav) state.logScroll = Math.max(0, state.logScroll - 3);
   }
   // ── Normal gameplay toggles ──────────────────────────────
   else {
@@ -3454,7 +3721,7 @@ function handleMenuInput(): void {
   prevLogMenu = input.logMenu;
 
   // Auto-pause when any menu is open
-  state.paused = state.showMenu || state.showInventory || state.showNpcMenu || state.showContainerMenu || state.showQuests || state.showDebug || state.showFactions || state.showLog || isNetSphereOpen();
+  syncPauseState();
 }
 
 /* ── Game loop ────────────────────────────────────────────────── */
@@ -3580,6 +3847,7 @@ function gameLoop(now: number): void {
     setListenerPos(player.x, player.y, (ax, ay, bx, by) => world.dist2(ax, ay, bx, by));
     updateRouteCues(world, player, state);
     updateAI(world, entities, dt, state.time, state.msgs, player.id, state.clock, state.samosborActive, nextEntityId, state.currentFloor, state);
+    updateRailTrains(world, entities, player, state, dt);
     updateParitelSteamBridge(world, entities, player, state, dt);
     updateCarnivorousFungus(world, entities, player, state, dt, nextEntityId);
     tickCellHazards(world, entities, state, dt, player, input.fwd || input.back || input.strafeL || input.strafeR || input.touch.moveX !== 0 || input.touch.moveY !== 0);
@@ -3599,6 +3867,8 @@ function gameLoop(now: number): void {
         ensureProceduralSpriteSeeds(entities);
         ensureRoomContainers(world, state.currentFloor);
         ensureProductionRooms(state, world);
+        prepareEditableFloor();
+        ensureProceduralSpriteSeeds(entities);
         clearLiftArachnaActive(state);
         setGeneratedDynamicSky(replacement);
         updateWorldData(world);
@@ -3608,15 +3878,15 @@ function gameLoop(now: number): void {
     }
     // Faction zone capture (cell-based territory control)
     updateFactionCapture(world, entities, dt);
-    updateFactionActivity(world, entities, player, state, nextEntityId, dt);
+    updateFactionActivity(world, entities, player, state, nextEntityId, dt, currentFloorAllowsNpcPopulation());
     if (state.currentFloor === FloorLevel.HELL) {
       updateHellPopulation(world, entities, nextEntityId, dt, state.samosborCount);
     }
     if (state.currentFloor === FloorLevel.KVARTIRY) {
       updateKvPopulation(world, entities, nextEntityId, dt);
     }
-    // Periodic NPC reinforcement for non-hell floors (every ~30 seconds)
-    if (allowsAmbientFactionReinforcements(state.currentFloor)) {
+    // Periodic NPC reinforcement for floors with ambient population.
+    if (currentFloorAllowsNpcPopulation() && allowsAmbientFactionReinforcements(state.currentFloor)) {
       _npcReinforcementAccum += dt;
       if (_npcReinforcementAccum >= 30) {
         _npcReinforcementAccum -= 30;
@@ -3686,11 +3956,14 @@ function gameLoop(now: number): void {
     // Auto-pickup when walking
     if (state.tick % 15 === 0) {
       pickupNearby(world, entities, player, state.msgs, state.time, state, drop => {
+        claimNetTerminalGenFleshDrop(state, drop, player, world);
         recordFactionEventLootTaken(state, world, player, drop);
       });
     }
     if (state.tick % 60 === 0) {
       tickProduction(state, world, false, player);
+      tickBankingInterest(state);
+      tickStockMarket(state);
     }
 
     keepDebugOnePunchManAlive(player);
@@ -3761,6 +4034,8 @@ function gameLoop(now: number): void {
         ensureProceduralSpriteSeeds(entities);
         ensureRoomContainers(world, state.currentFloor);
         ensureProductionRooms(state, world);
+        prepareEditableFloor();
+        ensureProceduralSpriteSeeds(entities);
         clearLiftArachnaActive(state);
         setGeneratedDynamicSky(replacement);
         updateWorldData(world);
@@ -3769,15 +4044,15 @@ function gameLoop(now: number): void {
       return;
     }
     updateFactionCapture(world, entities, dt);
-    updateFactionActivity(world, entities, player, state, nextEntityId, dt);
+    updateFactionActivity(world, entities, player, state, nextEntityId, dt, currentFloorAllowsNpcPopulation());
     if (state.currentFloor === FloorLevel.HELL) {
       updateHellPopulation(world, entities, nextEntityId, dt, state.samosborCount);
     }
     if (state.currentFloor === FloorLevel.KVARTIRY) {
       updateKvPopulation(world, entities, nextEntityId, dt);
     }
-    // Periodic NPC reinforcement for non-hell floors (death loop)
-    if (allowsAmbientFactionReinforcements(state.currentFloor)) {
+    // Periodic NPC reinforcement for floors with ambient population.
+    if (currentFloorAllowsNpcPopulation() && allowsAmbientFactionReinforcements(state.currentFloor)) {
       _npcReinforcementAccum += dt;
       if (_npcReinforcementAccum >= 30) {
         _npcReinforcementAccum -= 30;

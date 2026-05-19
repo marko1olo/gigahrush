@@ -7,3 +7,4 @@ Required itch.io HTML5 settings:
 - Scrollbars: disabled
 
 Why: itch.io runs HTML5 games inside an iframe. On mobile, Mobile Friendly makes itch.io launch the game into a fullscreen/fill-window viewport. The game canvas is built to resize to that viewport.
+The in-game FULL control requests browser fullscreen only where it is safe; from embedded mobile hosts it opens the direct game page. iPhone/WebKit forced fullscreen is disabled because it can reload the web view. The ZIP includes PWA manifest, icons, and service worker metadata for standalone launch.

@@ -4,6 +4,8 @@ import { type Entity, type GameState } from '../core/types';
 import { World } from '../core/world';
 import { ITEMS } from '../data/catalog';
 import { containerAccessInfo, containerTheftStatus } from '../systems/containers';
+import { containerGridScale } from './ui_layout';
+import { drawCenteredWrappedText, fitText } from './ui_text';
 
 export function drawContainerMenu(
   ctx: CanvasRenderingContext2D,
@@ -18,7 +20,10 @@ export function drawContainerMenu(
 
   const cw = ctx.canvas.width;
   const ch = ctx.canvas.height;
-  ctx.fillStyle = 'rgba(0,0,0,0.92)';
+  const gs = containerGridScale(cw, ch);
+  sx = gs;
+  sy = gs;
+  ctx.fillStyle = 'rgba(0,0,0,0.98)';
   ctx.fillRect(0, 0, cw, ch);
 
   const GRID = 5;
@@ -34,28 +39,29 @@ export function drawContainerMenu(
   const access = containerAccessInfo(container, player);
 
   ctx.fillStyle = '#aaa';
-  ctx.font = `${9 * sy}px monospace`;
+  ctx.font = `${9.5 * sy}px monospace`;
   ctx.textAlign = 'center';
   ctx.fillText('КОНТЕЙНЕР', cw / 2, 10 * sy);
   ctx.textAlign = 'left';
 
-  ctx.font = `${8 * sy}px monospace`;
+  ctx.font = `${8.5 * sy}px monospace`;
   ctx.fillStyle = '#ee4';
   ctx.fillText(`Вы: ${playerInv.length}/25`, startX, startY - 9 * sy);
-  const containerName = container.name.length > 28 ? `${container.name.slice(0, 25)}...` : container.name;
+  const columnW = gridTotal;
+  const containerName = fitText(ctx, container.name, columnW * 0.85);
   ctx.fillStyle = access.color;
   ctx.fillText(`${containerName}: ${containerInv.length}/${container.capacitySlots}`, containerX, startY - 9 * sy);
   ctx.fillStyle = access.color;
-  ctx.font = `${7 * sy}px monospace`;
-  ctx.fillText(access.label, containerX, startY - 18 * sy);
+  ctx.font = `${7.4 * sy}px monospace`;
+  ctx.fillText(fitText(ctx, access.label, columnW), containerX, startY - 18 * sy);
   ctx.fillStyle = '#888';
   let infoY = startY + GRID * cellSz + 36 * sy;
-  ctx.fillText(access.detail.slice(0, 56), startX, infoY);
+  ctx.fillText(fitText(ctx, access.detail, totalW), startX, infoY);
   const theftStatus = containerTheftStatus(container);
   if (theftStatus) {
     infoY += 9 * sy;
     ctx.fillStyle = theftStatus.color;
-    ctx.fillText(`${theftStatus.label}: ${theftStatus.detail}`.slice(0, 56), startX, infoY);
+    ctx.fillText(fitText(ctx, `${theftStatus.label}: ${theftStatus.detail}`, totalW), startX, infoY);
   }
   if (container.tags.includes('production_output')) {
     const produced = container.lastProducedItemId ? ITEMS[container.lastProducedItemId]?.name ?? container.lastProducedItemId : '';
@@ -70,7 +76,7 @@ export function drawContainerMenu(
         ? `Цех: ${produced} x${container.lastProducedCount ?? 1}`
         : `Цех: ${container.factoryId ?? 'ожидает сырьё'}`;
     ctx.fillStyle = container.productionBlockedReason ? '#fa4' : '#8cf';
-    ctx.fillText(status.slice(0, 56), startX, infoY + 9 * sy);
+    ctx.fillText(fitText(ctx, status, totalW), startX, infoY + 9 * sy);
   }
 
   const drawGrid = (inv: { defId: string; count: number }[], gx: number, side: string) => {
@@ -90,11 +96,11 @@ export function drawContainerMenu(
           const item = inv[idx];
           const def = ITEMS[item.defId];
           ctx.fillStyle = selected ? '#0fa' : '#ccc';
-          ctx.font = `${6 * sy}px monospace`;
-          ctx.fillText((def?.name ?? item.defId).slice(0, 6), cx + 2 * sx, cy + 10 * sy);
+          ctx.font = `${5.6 * sy}px monospace`;
+          ctx.fillText(fitText(ctx, def?.name ?? item.defId, cellSz - 4 * sx), cx + 2 * sx, cy + 10 * sy);
           if (item.count > 1) {
             ctx.fillStyle = '#8a8';
-            ctx.font = `${5 * sy}px monospace`;
+            ctx.font = `${4.8 * sy}px monospace`;
             ctx.fillText(`x${item.count}`, cx + cellSz - 16 * sx, cy + cellSz - 5 * sy);
           }
         }
@@ -113,25 +119,27 @@ export function drawContainerMenu(
     const item = curInv[curIdx];
     const def = ITEMS[item.defId];
     ctx.fillStyle = '#ccc';
-    ctx.font = `${8 * sy}px monospace`;
-    ctx.fillText(`${def?.name ?? item.defId} x${item.count}`, cw / 2, descY);
+    ctx.font = `${8.5 * sy}px monospace`;
+    const descW = Math.min(cw - 16 * sx, totalW + 24 * sx);
+    ctx.fillText(fitText(ctx, `${def?.name ?? item.defId} x${item.count}`, descW), cw / 2, descY);
     ctx.fillStyle = '#888';
-    ctx.font = `${7 * sy}px monospace`;
-    ctx.fillText(def?.desc ?? '', cw / 2, descY + 10 * sy);
+    ctx.font = `${7.4 * sy}px monospace`;
+    let actionY = drawCenteredWrappedText(ctx, def?.desc ?? '', cw / 2, descY + 10 * sy, descW, 9 * sy, 2);
     const action = state.containerSide === 'container'
       ? access.canTake ? access.theft ? '[E] украсть' : '[E] взять' : 'нет доступа'
       : access.canPut ? '[E] положить' : 'нет доступа';
     ctx.fillStyle = state.containerSide === 'container' && access.theft ? '#f84' : access.color;
-    ctx.fillText(action, cw / 2, descY + 22 * sy);
+    actionY = Math.min(actionY + 3 * sy, ch - 34 * sy);
+    ctx.fillText(action, cw / 2, actionY);
   } else {
     ctx.fillStyle = '#555';
-    ctx.font = `${7 * sy}px monospace`;
+    ctx.font = `${7.4 * sy}px monospace`;
     ctx.fillText('Пустой слот', cw / 2, descY + 6 * sy);
   }
   ctx.textAlign = 'left';
 
   ctx.fillStyle = '#555';
-  ctx.font = `${6 * sy}px monospace`;
+  ctx.font = `${6.5 * sy}px monospace`;
   ctx.textAlign = 'right';
   ctx.fillText('W/S/стрелки - курсор', cw - 8 * sx, ch - 24 * sy);
   ctx.fillText('E - перенести 1 предмет', cw - 8 * sx, ch - 16 * sy);

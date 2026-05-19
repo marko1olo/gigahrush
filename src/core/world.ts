@@ -1,6 +1,14 @@
 /* ── Toroidal world grid ──────────────────────────────────────── */
 
-import { W, Cell, DoorState, Feature, type Room, type Door, type Zone, type WorldContainer } from './types';
+import {
+  W, Cell, DoorState, Feature,
+  type RailTrain,
+  type RailTrainTrack,
+  type Room,
+  type Door,
+  type Zone,
+  type WorldContainer,
+} from './types';
 import { stampMark, MarkType } from '../render/marks';
 
 export class World {
@@ -26,6 +34,10 @@ export class World {
   anomalySmogSource = -1;       // procedural smog source cell, -1 = none
   anomalySmogCells: number[] = []; // bounded cells affected by procedural smog
   anomalySmogHandled = false;
+  railTracks: RailTrainTrack[] = [];
+  railTrains: RailTrain[] = [];
+  railTrainCells: Map<number, number> = new Map(); // cell idx -> train index
+  cellVersion = 0;                 // bumped when runtime cell solidity changes
   surfaceVersion = 0;              // bumped when surfaceMap pixels change
   wallTexVersion = 0;              // bumped when runtime wall texture data changes
   floorTexVersion = 0;             // bumped when runtime floor texture data changes
@@ -121,6 +133,8 @@ export class World {
   }
 
   markWallTexDirty(): void { this.wallTexVersion = (this.wallTexVersion + 1) | 0; }
+
+  markCellsDirty(): void { this.cellVersion = (this.cellVersion + 1) | 0; }
 
   markFloorTexDirty(): void { this.floorTexVersion = (this.floorTexVersion + 1) | 0; }
 

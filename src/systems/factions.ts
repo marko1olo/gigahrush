@@ -13,6 +13,7 @@ import { gaussianLevel, randomRPG, getMaxHp } from './rpg';
 import { getFactionRel, addFactionRelMutual } from '../data/relations';
 import { isPsiMad, isPsiAlly } from './psi';
 import { updateFactionEvents } from './faction_events';
+import { tickCaravans } from './caravans';
 
 const _PSI_IDS = ['psi_strike','psi_rupture','psi_madness','psi_storm','psi_brainburn'];
 function _pickPsi(): string { return _PSI_IDS[Math.floor(Math.random() * _PSI_IDS.length)]; }
@@ -186,12 +187,14 @@ export function updateFactionActivity(
   state: GameState,
   nextId: { v: number },
   dt: number,
+  allowSpawns = true,
 ): void {
   activityAccum += dt;
   if (activityAccum < 1) return;
   const elapsed = activityAccum;
   activityAccum = 0;
-  updateFactionEvents(state, world, player, entities, nextId, elapsed);
+  updateFactionEvents(state, world, player, entities, nextId, elapsed, allowSpawns);
+  tickCaravans(state, elapsed);
 }
 
 /** Recalculate which faction owns each zone based on cell majority.

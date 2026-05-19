@@ -21,6 +21,10 @@ import { drawGameMenu } from './menu_ui';
 import { drawNpcMenu } from './npc_ui';
 import { drawContainerMenu } from './container_ui';
 import { drawNetSphereMenu } from './net_sphere_ui';
+import { drawHudFinanceCompact } from './economy_ui';
+import { drawNetTerminalBank } from './net_terminal_bank_ui';
+import { drawNetTerminalGenDenied } from './net_terminal_gen_ui';
+import { drawMapEditor } from './map_editor_ui';
 import { getActiveSamosborVariant } from '../data/samosbor_variants';
 import { getSamosborShelterRoomIds, getSamosborWarningSnapshot, type SamosborWarningSnapshot } from '../systems/samosbor';
 import { currentFloorInstanceLabel } from '../systems/floor_instances';
@@ -32,10 +36,21 @@ import {
   type ProceduralSmogStatus,
 } from '../systems/procedural_anomalies';
 import { hladonInteractionTargetId } from '../systems/hladon';
+import { railTrainInteractionTargetId } from '../systems/rail_trains';
 import { getActiveRouteCueHud, isRouteCueTarget, type RouteCueHud } from '../systems/route_cues';
 import { getCultProcessionPrompt } from '../systems/faction_events';
 import { getSeroburmalineHudFx } from '../systems/seroburmaline';
 import { getNetSphereSnapshot, isNetSphereOpen } from '../systems/net_sphere';
+import {
+  getNetTerminalBankSnapshot,
+  getNetTerminalGenRuntimeSnapshot,
+  getNetTerminalGenTerminals,
+  isNetTerminalBankOpen,
+  isNetTerminalGenDeniedOpen,
+  isNetTerminalGenOpen,
+  isNetTerminalGenTarget,
+} from '../systems/net_terminal_gen';
+import { getMapEditorSnapshot, isMapEditorOpen } from '../systems/map_editor';
 import { isParitelSteamValveTarget } from '../gen/maintenance/paritel_steam_bridge';
 import {
   textJitter, flicker, drawHoloBar, drawGlitchText,
@@ -318,10 +333,12 @@ export function drawHUD(
   }
 
   const netSphereOpen = isNetSphereOpen();
+  const netTerminalGenOpen = isNetTerminalGenOpen();
+  const mapEditorOpen = isMapEditorOpen();
   const showCompactPanels = state.mapMode !== 2 &&
     !state.showInventory && !state.showQuests && !state.showLog &&
     !state.showFactions && !state.showMenu && !state.showNpcMenu && !state.showContainerMenu &&
-    !netSphereOpen;
+    !netSphereOpen && !netTerminalGenOpen && !mapEditorOpen;
 
   const zhelemishLine = showCompactPanels ? zhelemishHudLine(player, time) : null;
   if (zhelemishLine) {
@@ -333,6 +350,16 @@ export function drawHUD(
     ctx.font = `${7 * sy}px monospace`;
     ctx.fillStyle = '#9c6';
     ctx.fillText(fitHudText(ctx, zhelemishLine, panelW - 10 * sx), panelX + 5 * sx, panelY + 4 * sy);
+  }
+
+  const routeCue = getActiveRouteCueHud(state.time, state.currentFloor);
+  const routeCueVisible = !!routeCue && showCompactPanels && !state.samosborActive;
+  const smogIndicatorVisible = smogStatus.active && (smogStatus.inside || smogStatus.sourceFound || smogStatus.handled);
+
+  if (showCompactPanels) {
+    let financeY = routeCueVisible ? 45 * sy : 6 * sy;
+    if (smogIndicatorVisible && financeY < 84 * sy) financeY = 84 * sy;
+    if (financeY < barY - 28 * sy) drawHudFinanceCompact(ctx, player, state, sx, sy, time, financeY);
   }
 
   // Weapon state — compact bottom-right panel, hidden under fullscreen overlays.
@@ -376,8 +403,7 @@ export function drawHUD(
     ctx.textAlign = 'left';
   }
 
-  const routeCue = getActiveRouteCueHud(state.time, state.currentFloor);
-  if (routeCue && showCompactPanels && !state.samosborActive) {
+  if (routeCueVisible) {
     drawRouteCueHint(ctx, w, sx, sy, time, player, world, routeCue);
   }
 
@@ -394,6 +420,9 @@ export function drawHUD(
     if (processionHint) {
       canInteract = true;
       targetId = 850000 + processionHint.length;
+    } else if (isNetTerminalGenTarget(world, state, lookX, lookY)) {
+      canInteract = true;
+      targetId = lci + 910000;
     } else if (cell === Cell.DOOR && world.doors.has(lci)) { canInteract = true; targetId = lci + 100000; }
     else if (cell === Cell.LIFT || world.features[lci] === Feature.LIFT_BUTTON) {
       canInteract = true; targetId = lci + 200000;
@@ -403,7 +432,9 @@ export function drawHUD(
     else if (isParitelSteamValveTarget(world, lookX, lookY)) { canInteract = true; targetId = lci + 450000; }
     else if (isRouteCueTarget(world, player, lookX, lookY)) { canInteract = true; targetId = lci + 470000; }
     else {
-      const anomalyTargetId = hladonInteractionTargetId(world, lookX, lookY) ?? proceduralAnomalyInteractionTargetId(world, state, lookX, lookY);
+      const anomalyTargetId = railTrainInteractionTargetId(world, player, state, lookX, lookY)
+        ?? hladonInteractionTargetId(world, lookX, lookY)
+        ?? proceduralAnomalyInteractionTargetId(world, state, lookX, lookY);
       if (anomalyTargetId !== null) { canInteract = true; targetId = anomalyTargetId; }
     }
     if (!canInteract) {
@@ -443,7 +474,7 @@ export function drawHUD(
   }
 
   const hazardWarning = getPlayerHazardWarning(world, player);
-  if (hazardWarning && state.mapMode !== 2 && !state.showInventory && !state.showQuests && !state.showLog && !netSphereOpen) {
+  if (hazardWarning && state.mapMode !== 2 && !state.showInventory && !state.showQuests && !state.showLog && !netSphereOpen && !netTerminalGenOpen && !mapEditorOpen) {
     const panelW = Math.min(w - 16 * sx, 230 * sx);
     const panelH = 28 * sy;
     const panelX = (w - panelW) * 0.5;
@@ -632,7 +663,7 @@ export function drawHUD(
     if (activeVariant?.def.id === 'veretar') drawVeretarVeil(ctx, w, h, time, 0.85);
   }
 
-  if (smogStatus.active && (smogStatus.inside || smogStatus.sourceFound || smogStatus.handled)) {
+  if (smogIndicatorVisible) {
     drawSmogIndicator(ctx, w, sx, sy, time, smogStatus);
   }
 
@@ -716,6 +747,30 @@ export function drawHUD(
   // ── NET Sphere terminal (N) ──────────────────────────────
   if (netSphereOpen) {
     drawNetSphereMenu(ctx, msx, msy, time, getNetSphereSnapshot());
+  }
+
+  if (isNetTerminalGenDeniedOpen()) {
+    const terminal = getNetTerminalGenRuntimeSnapshot();
+    drawNetTerminalGenDenied(ctx, msx, msy, time, {
+      status: 'locked',
+      code: terminal.terminalIdx >= 0 ? `IDX ${terminal.terminalIdx}` : undefined,
+      lines: [
+        'Счет доступен через банковский режим терминала.',
+        'Редактор карты требует НЕТ-ТЕРМИНАЛ ГЕН.',
+      ],
+      footer: '[Enter] закрыть  |  счет доступен без ГЕН',
+    });
+  }
+
+  if (isNetTerminalBankOpen()) {
+    drawNetTerminalBank(ctx, msx, msy, time, getNetTerminalBankSnapshot(state, player));
+  }
+
+  if (mapEditorOpen) {
+    drawMapEditor(ctx, msx, msy, time, world, entities, player, {
+      ...getMapEditorSnapshot(state),
+      terminals: getNetTerminalGenTerminals(),
+    });
   }
 
   // ── Sleep overlay (Z held) ───────────────────────────────

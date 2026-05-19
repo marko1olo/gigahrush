@@ -1,0 +1,999 @@
+/* ── НЕТ-ТЕРМИНАЛ ГЕН map editor runtime ─────────────────────── */
+
+import {
+  AIGoal,
+  Cell,
+  ContainerKind,
+  DoorState,
+  EntityType,
+  Faction,
+  Feature,
+  FloorLevel,
+  LiftDirection,
+  MonsterKind,
+  Tex,
+  type Entity,
+  type GameState,
+  type WorldContainer,
+} from '../core/types';
+import { type World } from '../core/world';
+import { ITEMS, freshNeeds, randomName } from '../data/catalog';
+import { CONTAINER_DEFS } from '../data/container_defs';
+import { randomOccupation } from '../data/relations';
+import { MONSTERS, applyMonsterVariant } from '../entities/monster';
+import { Spr } from '../render/sprite_index';
+import { getMaxHp, randomRPG } from './rpg';
+import { currentFloorRunEntry } from './procedural_floors';
+import { mapEditorContainerBrushes, mapEditorEntityBrushes } from './map_editor_catalog';
+
+export type MapEditorToolId = 'cell' | 'door' | 'texture' | 'feature' | 'entity' | 'container' | 'inspect';
+export type MapEditorMode = 'map' | 'menu' | 'brush' | 'details' | 'objects';
+export type MapEditorAction = 'apply' | 'close';
+
+export interface MapEditorMenuEntry {
+  id: string | number;
+  label: string;
+  color?: string;
+  active?: boolean;
+}
+
+export interface MapEditorEntityDef {
+  kind: 'npc' | 'monster' | 'item';
+  monsterKind?: MonsterKind;
+  itemId?: string;
+  count?: number;
+  faction?: Faction;
+}
+
+export interface MapEditorContainerDef {
+  kind?: ContainerKind;
+  itemId?: string;
+  count?: number;
+  name?: string;
+}
+
+export type MapEditorOp =
+  | { kind: 'set_cell'; x: number; y: number; cell: Cell }
+  | { kind: 'set_wall_tex'; x: number; y: number; tex: Tex }
+  | { kind: 'set_floor_tex'; x: number; y: number; tex: Tex }
+  | { kind: 'set_feature'; x: number; y: number; feature: Feature }
+  | { kind: 'set_door'; x: number; y: number; state: DoorState; keyId: string }
+  | { kind: 'delete_door'; x: number; y: number }
+  | { kind: 'spawn_entity'; x: number; y: number; entityDef: MapEditorEntityDef }
+  | { kind: 'delete_entity'; entityId: number }
+  | { kind: 'spawn_container'; x: number; y: number; def: MapEditorContainerDef }
+  | { kind: 'delete_container'; containerId: number };
+
+export interface MapEditorPatch {
+  floorKey: string;
+  baseFloor: FloorLevel;
+  z?: number;
+  createdAt: number;
+  opCount: number;
+  ops: MapEditorOp[];
+}
+
+export interface MapEditorPatchState {
+  patches: Record<string, MapEditorPatch>;
+  skipped: string[];
+}
+
+export interface MapEditorApplyResult {
+  ok: boolean;
+  reason: string;
+  dirtyCells?: number[];
+}
+
+export interface MapEditorSnapshot {
+  floorKey: string;
+  floorLabel: string;
+  z?: number;
+  tool: MapEditorToolId;
+  brush: string | number;
+  brushLabel: string;
+  status: string;
+  error: string;
+  dirtyOps: number;
+  patchOps: number;
+  maxPatchOps: number;
+  cursorX: number;
+  cursorY: number;
+  cameraX: number;
+  cameraY: number;
+  zoom: number;
+  revision: number;
+  dirtyCells: readonly number[];
+  tools: readonly MapEditorToolId[];
+  palette: readonly { id: string | number; label: string; color?: string; active?: boolean }[];
+  mode: MapEditorMode;
+  menuTitle: string;
+  menuIndex: number;
+  menuEntries: readonly MapEditorMenuEntry[];
+  hints: readonly string[];
+  activeTerminalX?: number;
+  activeTerminalY?: number;
+}
+
+interface MapEditorRuntime {
+  open: boolean;
+  floorKey: string;
+  cursorX: number;
+  cursorY: number;
+  cameraX: number;
+  cameraY: number;
+  zoom: number;
+  mode: MapEditorMode;
+  menuIndex: number;
+  tool: MapEditorToolId;
+  brushIndex: Record<MapEditorToolId, number>;
+  status: string;
+  error: string;
+  revision: number;
+  dirtyCells: number[];
+  activeTerminalX?: number;
+  activeTerminalY?: number;
+}
+
+type MapEditorHost = GameState & { mapEditorPatches?: Partial<MapEditorPatchState> };
+
+const PATCH_OP_CAP = 4096;
+const DIRS: readonly [number, number][] = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+const TOOLS: readonly MapEditorToolId[] = ['cell', 'door', 'texture', 'feature', 'entity', 'container', 'inspect'];
+const PAINT_TOOLS: readonly MapEditorToolId[] = ['cell', 'door', 'texture', 'feature'];
+const OBJECT_TOOLS: readonly MapEditorToolId[] = ['entity', 'container'];
+const MAIN_MENU: readonly MapEditorMenuEntry[] = [
+  { id: 'map', label: 'КАРТА', color: '#63f6ff' },
+  { id: 'brush', label: 'КИСТЬ', color: '#9fdbc6' },
+  { id: 'details', label: 'ДЕТАЛИ КАРТЫ', color: '#9df' },
+  { id: 'objects', label: 'ОБЪЕКТЫ', color: '#db6' },
+  { id: 'close', label: 'ВЫЙТИ ИЗ ТЕРМИНАЛА', color: '#ff5868' },
+];
+const CELL_BRUSHES = [Cell.FLOOR, Cell.WALL, Cell.DOOR, Cell.WATER, Cell.LIFT, Cell.ABYSS] as const;
+const DOOR_BRUSHES = [DoorState.CLOSED, DoorState.OPEN, DoorState.LOCKED, DoorState.HERMETIC_CLOSED, DoorState.HERMETIC_OPEN] as const;
+const FEATURE_BRUSHES = [Feature.NONE, Feature.LAMP, Feature.CANDLE, Feature.TABLE, Feature.CHAIR, Feature.BED, Feature.SHELF, Feature.MACHINE, Feature.APPARATUS, Feature.SCREEN] as const;
+const TEXTURE_BRUSHES = [
+  { kind: 'wall' as const, tex: Tex.CONCRETE, label: 'W CONCRETE' },
+  { kind: 'wall' as const, tex: Tex.BRICK, label: 'W BRICK' },
+  { kind: 'wall' as const, tex: Tex.METAL, label: 'W METAL' },
+  { kind: 'floor' as const, tex: Tex.F_CONCRETE, label: 'F CONCRETE' },
+  { kind: 'floor' as const, tex: Tex.F_LINO, label: 'F LINO' },
+  { kind: 'floor' as const, tex: Tex.F_TILE, label: 'F TILE' },
+  { kind: 'floor' as const, tex: Tex.F_WOOD, label: 'F WOOD' },
+] as const;
+
+const runtime: MapEditorRuntime = {
+  open: false,
+  floorKey: '',
+  cursorX: 0,
+  cursorY: 0,
+  cameraX: 0,
+  cameraY: 0,
+  zoom: 8,
+  mode: 'map',
+  menuIndex: 0,
+  tool: 'cell',
+  brushIndex: { cell: 0, door: 0, texture: 0, feature: 0, entity: 0, container: 0, inspect: 0 },
+  status: '',
+  error: '',
+  revision: 0,
+  dirtyCells: [],
+};
+
+function normalizePatchState(input: Partial<MapEditorPatchState> | null | undefined): MapEditorPatchState {
+  const patches: Record<string, MapEditorPatch> = {};
+  const srcPatches = input?.patches;
+  if (srcPatches && typeof srcPatches === 'object') {
+    for (const [key, raw] of Object.entries(srcPatches)) {
+      if (!raw || typeof raw !== 'object') continue;
+      const src = raw as Partial<MapEditorPatch>;
+      if (typeof src.floorKey !== 'string' || src.floorKey !== key || !Array.isArray(src.ops)) continue;
+      patches[key] = {
+        floorKey: key,
+        baseFloor: typeof src.baseFloor === 'number' ? src.baseFloor : FloorLevel.LIVING,
+        z: typeof src.z === 'number' ? src.z : undefined,
+        createdAt: typeof src.createdAt === 'number' ? src.createdAt : 0,
+        opCount: Math.max(0, Math.floor(src.opCount ?? src.ops.length)),
+        ops: src.ops.slice(0, PATCH_OP_CAP).filter(isMapEditorOp),
+      };
+    }
+  }
+  const skipped = Array.isArray(input?.skipped)
+    ? input.skipped.filter((line): line is string => typeof line === 'string').slice(-12)
+    : [];
+  return { patches, skipped };
+}
+
+function isMapEditorOp(value: unknown): value is MapEditorOp {
+  if (!value || typeof value !== 'object') return false;
+  const op = value as Partial<MapEditorOp>;
+  if (typeof op.kind !== 'string') return false;
+  if (op.kind === 'delete_entity') return typeof op.entityId === 'number';
+  if (op.kind === 'delete_container') return typeof op.containerId === 'number';
+  return typeof (op as { x?: unknown }).x === 'number' && typeof (op as { y?: unknown }).y === 'number';
+}
+
+export function ensureMapEditorPatchState(state: GameState): MapEditorPatchState {
+  const host = state as MapEditorHost;
+  host.mapEditorPatches = normalizePatchState(host.mapEditorPatches);
+  return host.mapEditorPatches as MapEditorPatchState;
+}
+
+export function setMapEditorPatchState(
+  state: GameState,
+  input: Partial<MapEditorPatchState> | null | undefined,
+): MapEditorPatchState {
+  const normalized = normalizePatchState(input);
+  (state as MapEditorHost).mapEditorPatches = normalized;
+  return normalized;
+}
+
+export function mapEditorPatchStateForSave(state: GameState): MapEditorPatchState {
+  return ensureMapEditorPatchState(state);
+}
+
+export function currentMapEditorFloorKey(state: GameState): string {
+  const entry = currentFloorRunEntry(state);
+  if (entry.storyFloor !== undefined) return `story:${FloorLevel[entry.storyFloor]}`;
+  if (entry.designFloorId) return `design:${entry.designFloorId}`;
+  if (entry.spec) return `procedural:${entry.spec.key}`;
+  return `floor:${FloorLevel[state.currentFloor]}`;
+}
+
+function currentFloorLabel(state: GameState): string {
+  const entry = currentFloorRunEntry(state);
+  return entry.label;
+}
+
+function currentFloorZ(state: GameState): number | undefined {
+  return currentFloorRunEntry(state).z;
+}
+
+export function openMapEditor(world: World, player: Entity, state: GameState, terminal?: { x: number; y: number }): void {
+  const key = currentMapEditorFloorKey(state);
+  runtime.open = true;
+  runtime.floorKey = key;
+  runtime.cursorX = world.wrap(Math.floor(player.x));
+  runtime.cursorY = world.wrap(Math.floor(player.y));
+  runtime.cameraX = runtime.cursorX + 0.5;
+  runtime.cameraY = runtime.cursorY + 0.5;
+  runtime.mode = 'map';
+  runtime.menuIndex = 0;
+  runtime.status = 'live world edit';
+  runtime.error = '';
+  runtime.activeTerminalX = terminal?.x;
+  runtime.activeTerminalY = terminal?.y;
+  state.paused = true;
+  if (typeof document !== 'undefined' && document.pointerLockElement) document.exitPointerLock();
+}
+
+export function closeMapEditor(): void {
+  runtime.open = false;
+  runtime.error = '';
+}
+
+export function isMapEditorOpen(): boolean {
+  return runtime.open;
+}
+
+function cycleIndex(value: number, delta: number, length: number): number {
+  if (length <= 0) return 0;
+  return (value + delta + length) % length;
+}
+
+function ensurePaintTool(): void {
+  if (!PAINT_TOOLS.includes(runtime.tool)) runtime.tool = 'cell';
+}
+
+function ensureObjectTool(): void {
+  if (!OBJECT_TOOLS.includes(runtime.tool)) runtime.tool = 'entity';
+}
+
+export function backMapEditorMode(): MapEditorAction | null {
+  runtime.error = '';
+  if (runtime.mode === 'map') {
+    runtime.mode = 'menu';
+    runtime.menuIndex = 0;
+    runtime.status = 'terminal menu';
+    return null;
+  }
+  if (runtime.mode === 'menu') {
+    runtime.mode = 'map';
+    runtime.status = 'map';
+    return null;
+  }
+  runtime.mode = 'menu';
+  runtime.status = 'terminal menu';
+  return null;
+}
+
+export function moveMapEditorMode(world: World, dx: number, dy: number): void {
+  runtime.error = '';
+  if (runtime.mode === 'map' || runtime.mode === 'details') {
+    if (dx !== 0 || dy !== 0) moveMapEditorCursor(world, dx, dy);
+    return;
+  }
+
+  if (runtime.mode === 'menu') {
+    if (dy !== 0) runtime.menuIndex = cycleIndex(runtime.menuIndex, dy, MAIN_MENU.length);
+    return;
+  }
+
+  if (runtime.mode === 'brush') {
+    ensurePaintTool();
+    if (dx !== 0) {
+      const idx = PAINT_TOOLS.indexOf(runtime.tool);
+      runtime.tool = PAINT_TOOLS[cycleIndex(idx, dx, PAINT_TOOLS.length)];
+    }
+    if (dy !== 0) cycleMapEditorBrush(dy);
+    return;
+  }
+
+  ensureObjectTool();
+  if (dx !== 0) {
+    const idx = OBJECT_TOOLS.indexOf(runtime.tool);
+    runtime.tool = OBJECT_TOOLS[cycleIndex(idx, dx, OBJECT_TOOLS.length)];
+  }
+  if (dy !== 0) cycleMapEditorBrush(dy);
+}
+
+export function activateMapEditorMode(): MapEditorAction | null {
+  runtime.error = '';
+  if (runtime.mode === 'map') return 'apply';
+  if (runtime.mode === 'menu') {
+    const id = MAIN_MENU[runtime.menuIndex]?.id;
+    if (id === 'map') {
+      runtime.mode = 'map';
+      runtime.status = 'map';
+    } else if (id === 'brush') {
+      runtime.mode = 'brush';
+      ensurePaintTool();
+      runtime.status = 'brush';
+    } else if (id === 'details') {
+      runtime.mode = 'details';
+      runtime.status = 'details';
+    } else if (id === 'objects') {
+      runtime.mode = 'objects';
+      ensureObjectTool();
+      runtime.status = 'objects';
+    } else if (id === 'close') {
+      return 'close';
+    }
+    return null;
+  }
+  if (runtime.mode === 'brush' || runtime.mode === 'objects') {
+    runtime.status = `${runtime.mode === 'brush' ? 'brush' : 'object'} selected: ${brushLabel()}`;
+    runtime.mode = 'map';
+    return null;
+  }
+  runtime.mode = 'map';
+  runtime.status = 'map';
+  return null;
+}
+
+export function moveMapEditorCursor(world: World, dx: number, dy: number): void {
+  runtime.cursorX = world.wrap(runtime.cursorX + dx);
+  runtime.cursorY = world.wrap(runtime.cursorY + dy);
+  runtime.cameraX = runtime.cursorX + 0.5;
+  runtime.cameraY = runtime.cursorY + 0.5;
+}
+
+export function adjustMapEditorZoom(delta: number): void {
+  runtime.zoom = Math.max(1, Math.min(64, runtime.zoom + delta));
+}
+
+export function cycleMapEditorTool(delta = 1): void {
+  const idx = TOOLS.indexOf(runtime.tool);
+  runtime.tool = TOOLS[(idx + delta + TOOLS.length) % TOOLS.length];
+  runtime.error = '';
+}
+
+export function cycleMapEditorBrush(delta = 1): void {
+  const max = brushCount(runtime.tool);
+  runtime.brushIndex[runtime.tool] = (runtime.brushIndex[runtime.tool] + delta + max) % max;
+  runtime.error = '';
+}
+
+function brushCount(tool: MapEditorToolId): number {
+  if (tool === 'door') return DOOR_BRUSHES.length;
+  if (tool === 'texture') return TEXTURE_BRUSHES.length;
+  if (tool === 'feature') return FEATURE_BRUSHES.length;
+  if (tool === 'entity') return mapEditorEntityBrushes().length;
+  if (tool === 'container') return mapEditorContainerBrushes().length;
+  return CELL_BRUSHES.length;
+}
+
+function pushDirty(idx: number): void {
+  runtime.revision++;
+  runtime.dirtyCells.push(idx);
+  if (runtime.dirtyCells.length > 256) runtime.dirtyCells.splice(0, runtime.dirtyCells.length - 256);
+}
+
+function setError(reason: string): MapEditorApplyResult {
+  runtime.error = reason;
+  return { ok: false, reason };
+}
+
+function passable(cell: number): boolean {
+  return cell === Cell.FLOOR || cell === Cell.WATER;
+}
+
+function cellProtected(world: World, idx: number): boolean {
+  return world.aptMask[idx] !== 0 || world.hermoWall[idx] !== 0;
+}
+
+function activeTerminalProtected(world: World, idx: number): boolean {
+  if (runtime.activeTerminalX === undefined || runtime.activeTerminalY === undefined) return false;
+  return world.idx(runtime.activeTerminalX, runtime.activeTerminalY) === idx;
+}
+
+function removeContainersAt(world: World, idx: number): void {
+  world.containers = world.containers.filter(c => world.idx(c.x, c.y) !== idx);
+  world.rebuildContainerMap();
+}
+
+function removeLooseEntitiesAt(entities: Entity[], idx: number, world: World): void {
+  for (const entity of entities) {
+    if (entity.type === EntityType.PLAYER) continue;
+    if (world.idx(Math.floor(entity.x), Math.floor(entity.y)) === idx) entity.alive = false;
+  }
+}
+
+function adjacentRoomIds(world: World, x: number, y: number): { roomA: number; roomB: number } {
+  let roomA = -1;
+  let roomB = -1;
+  for (const [dx, dy] of DIRS) {
+    const id = world.roomMap[world.idx(x + dx, y + dy)];
+    if (id < 0) continue;
+    if (roomA < 0) roomA = id;
+    else if (id !== roomA) { roomB = id; break; }
+  }
+  return { roomA, roomB };
+}
+
+function inferRoom(world: World, x: number, y: number): number {
+  for (const [dx, dy] of DIRS) {
+    const id = world.roomMap[world.idx(x + dx, y + dy)];
+    if (id >= 0) return id;
+  }
+  return -1;
+}
+
+function nextContainerId(world: World): number {
+  let id = 1;
+  for (const container of world.containers) id = Math.max(id, container.id + 1);
+  return id;
+}
+
+function containerName(kind: ContainerKind): string {
+  switch (kind) {
+    case ContainerKind.METAL_CABINET: return 'Редактор: металлический шкаф';
+    case ContainerKind.SAFE: return 'Редактор: сейф';
+    default: return 'Редактор: ящик';
+  }
+}
+
+function recordOp(state: GameState, op: MapEditorOp): boolean {
+  const patches = ensureMapEditorPatchState(state);
+  const key = currentMapEditorFloorKey(state);
+  let patch = patches.patches[key];
+  if (!patch) {
+    patch = {
+      floorKey: key,
+      baseFloor: state.currentFloor,
+      z: currentFloorZ(state),
+      createdAt: state.time,
+      opCount: 0,
+      ops: [],
+    };
+    patches.patches[key] = patch;
+  }
+  if (patch.ops.length >= PATCH_OP_CAP) {
+    runtime.error = 'ПАМЯТЬ ТЕРМИНАЛА ПЕРЕПОЛНЕНА';
+    return false;
+  }
+  patch.ops.push(op);
+  patch.opCount = patch.ops.length;
+  return true;
+}
+
+function applyCellOp(world: World, entities: Entity[], player: Entity, op: { x: number; y: number; cell: Cell }): MapEditorApplyResult {
+  const x = world.wrap(Math.floor(op.x));
+  const y = world.wrap(Math.floor(op.y));
+  const idx = world.idx(x, y);
+  if (cellProtected(world, idx)) return setError('ЗАЩИЩЕНО');
+  if (activeTerminalProtected(world, idx)) return setError('ТЕРМИНАЛ АКТИВЕН');
+  if (world.idx(Math.floor(player.x), Math.floor(player.y)) === idx && !passable(op.cell)) return setError('Нельзя замуровать себя');
+  if (op.cell !== Cell.DOOR) world.doors.delete(idx);
+  if (op.cell === Cell.WALL || op.cell === Cell.ABYSS) {
+    world.features[idx] = Feature.NONE;
+    removeContainersAt(world, idx);
+    removeLooseEntitiesAt(entities, idx, world);
+  }
+  world.cells[idx] = op.cell;
+  if (op.cell === Cell.DOOR) {
+    const rooms = adjacentRoomIds(world, x, y);
+    world.doors.set(idx, { idx, state: DoorState.CLOSED, roomA: rooms.roomA, roomB: rooms.roomB, keyId: '', timer: 0 });
+    world.wallTex[idx] = Tex.DOOR_WOOD;
+    world.markWallTexDirty();
+  } else if (op.cell === Cell.FLOOR || op.cell === Cell.WATER) {
+    world.roomMap[idx] = inferRoom(world, x, y);
+    if (!world.floorTex[idx]) world.floorTex[idx] = op.cell === Cell.WATER ? Tex.F_WATER : Tex.F_CONCRETE;
+    world.markFloorTexDirty();
+  } else if (op.cell === Cell.LIFT) {
+    world.liftDir[idx] = LiftDirection.UP;
+    world.wallTex[idx] = Tex.LIFT_DOOR;
+    world.markWallTexDirty();
+  } else {
+    world.wallTex[idx] ||= Tex.CONCRETE;
+    world.markWallTexDirty();
+  }
+  pushDirty(idx);
+  runtime.status = `cell ${x},${y}`;
+  return { ok: true, reason: 'ok', dirtyCells: [idx] };
+}
+
+function spawnEditorEntity(world: World, entities: Entity[], state: GameState, nextEntityId: { v: number }, op: Extract<MapEditorOp, { kind: 'spawn_entity' }>): MapEditorApplyResult {
+  const x = world.wrap(Math.floor(op.x));
+  const y = world.wrap(Math.floor(op.y));
+  const idx = world.idx(x, y);
+  if (!passable(world.cells[idx])) return setError('Нужен проход');
+  const def = op.entityDef;
+  if (def.kind === 'item') {
+    const itemId = def.itemId ?? 'water';
+    if (!ITEMS[itemId]) return setError(`Нет предмета ${itemId}`);
+    entities.push({
+      id: nextEntityId.v++,
+      type: EntityType.ITEM_DROP,
+      x: x + 0.5,
+      y: y + 0.5,
+      angle: 0,
+      pitch: 0,
+      alive: true,
+      speed: 0,
+      sprite: Spr.ITEM_DROP,
+      inventory: [{ defId: itemId, count: Math.max(1, Math.floor(def.count ?? 1)) }],
+    });
+  } else if (def.kind === 'monster') {
+    const kind = def.monsterKind ?? MonsterKind.SBORKA;
+    const monsterDef = MONSTERS[kind];
+    if (!monsterDef) return setError(`Нет монстра ${kind}`);
+    const rpg = randomRPG(1);
+    const hp = Math.max(1, monsterDef.hp);
+    const monster: Entity = {
+      id: nextEntityId.v++,
+      type: EntityType.MONSTER,
+      x: x + 0.5,
+      y: y + 0.5,
+      angle: 0,
+      pitch: 0,
+      alive: true,
+      speed: monsterDef.speed,
+      sprite: monsterDef.sprite,
+      hp,
+      maxHp: hp,
+      monsterKind: kind,
+      attackCd: 0,
+      ai: { goal: AIGoal.IDLE, tx: 0, ty: 0, path: [], pi: 0, stuck: 0, timer: 0 },
+      rpg,
+    };
+    applyMonsterVariant(monster, state.currentFloor, true);
+    entities.push(monster);
+  } else {
+    const faction = def.faction ?? Faction.CITIZEN;
+    const occupation = randomOccupation(faction);
+    const name = randomName(faction);
+    const rpg = randomRPG(1);
+    const maxHp = getMaxHp(rpg);
+    entities.push({
+      id: nextEntityId.v++,
+      type: EntityType.NPC,
+      x: x + 0.5,
+      y: y + 0.5,
+      angle: 0,
+      pitch: 0,
+      alive: true,
+      speed: 1.2,
+      sprite: occupation,
+      name: name.name,
+      isFemale: name.female,
+      needs: freshNeeds(),
+      hp: maxHp,
+      maxHp,
+      ai: { goal: AIGoal.IDLE, tx: 0, ty: 0, path: [], pi: 0, stuck: 0, timer: 0 },
+      inventory: [],
+      faction,
+      occupation,
+      isTraveler: true,
+      questId: -1,
+      money: 20,
+      rpg,
+    });
+  }
+  pushDirty(idx);
+  return { ok: true, reason: 'ok', dirtyCells: [idx] };
+}
+
+function spawnEditorContainer(world: World, state: GameState, op: Extract<MapEditorOp, { kind: 'spawn_container' }>): MapEditorApplyResult {
+  const x = world.wrap(Math.floor(op.x));
+  const y = world.wrap(Math.floor(op.y));
+  const idx = world.idx(x, y);
+  if (!passable(world.cells[idx])) return setError('Нужен проход');
+  const roomId = world.roomMap[idx];
+  if (roomId < 0 || !world.rooms[roomId]) return setError('Нужна клетка комнаты');
+  const kind = op.def.kind ?? ContainerKind.WOODEN_CHEST;
+  const containerDef = CONTAINER_DEFS[kind];
+  const itemId = op.def.itemId ?? 'water';
+  const inventory = ITEMS[itemId] ? [{ defId: itemId, count: Math.max(1, Math.floor(op.def.count ?? 1)) }] : [];
+  const container: WorldContainer = {
+    id: nextContainerId(world),
+    x,
+    y,
+    floor: state.currentFloor,
+    roomId,
+    zoneId: world.zoneMap[idx],
+    kind,
+    name: op.def.name ?? containerDef?.name ?? containerName(kind),
+    inventory,
+    capacitySlots: containerDef?.capacitySlots ?? 5,
+    access: containerDef?.defaultAccess ?? 'public',
+    discovered: true,
+    tags: ['map_editor', 'net_terminal_gen', ...(containerDef?.tags ?? [])],
+  };
+  world.addContainer(container);
+  pushDirty(idx);
+  return { ok: true, reason: 'ok', dirtyCells: [idx] };
+}
+
+export function applyMapEditorOp(
+  world: World,
+  entities: Entity[],
+  player: Entity,
+  state: GameState,
+  nextEntityId: { v: number },
+  op: MapEditorOp,
+  record = true,
+): MapEditorApplyResult {
+  runtime.error = '';
+  let result: MapEditorApplyResult;
+  if (op.kind === 'set_cell') {
+    result = applyCellOp(world, entities, player, op);
+  } else if (op.kind === 'set_wall_tex') {
+    const idx = world.idx(op.x, op.y);
+    if (cellProtected(world, idx)) return setError('ЗАЩИЩЕНО');
+    if (activeTerminalProtected(world, idx)) return setError('ТЕРМИНАЛ АКТИВЕН');
+    world.wallTex[idx] = op.tex;
+    world.markWallTexDirty();
+    pushDirty(idx);
+    result = { ok: true, reason: 'ok', dirtyCells: [idx] };
+  } else if (op.kind === 'set_floor_tex') {
+    const idx = world.idx(op.x, op.y);
+    if (cellProtected(world, idx)) return setError('ЗАЩИЩЕНО');
+    if (activeTerminalProtected(world, idx)) return setError('ТЕРМИНАЛ АКТИВЕН');
+    world.floorTex[idx] = op.tex;
+    world.markFloorTexDirty();
+    pushDirty(idx);
+    result = { ok: true, reason: 'ok', dirtyCells: [idx] };
+  } else if (op.kind === 'set_feature') {
+    const idx = world.idx(op.x, op.y);
+    if (cellProtected(world, idx)) return setError('ЗАЩИЩЕНО');
+    if (activeTerminalProtected(world, idx)) return setError('ТЕРМИНАЛ АКТИВЕН');
+    world.features[idx] = op.feature;
+    if (op.feature === Feature.LAMP || op.feature === Feature.CANDLE) world.bakeLights();
+    pushDirty(idx);
+    result = { ok: true, reason: 'ok', dirtyCells: [idx] };
+  } else if (op.kind === 'set_door') {
+    const x = world.wrap(Math.floor(op.x));
+    const y = world.wrap(Math.floor(op.y));
+    const idx = world.idx(x, y);
+    if (cellProtected(world, idx)) return setError('ЗАЩИЩЕНО');
+    if (activeTerminalProtected(world, idx)) return setError('ТЕРМИНАЛ АКТИВЕН');
+    world.cells[idx] = Cell.DOOR;
+    const rooms = adjacentRoomIds(world, x, y);
+    world.doors.set(idx, { idx, state: op.state, roomA: rooms.roomA, roomB: rooms.roomB, keyId: op.keyId, timer: 0 });
+    world.wallTex[idx] = Tex.DOOR_WOOD;
+    world.markWallTexDirty();
+    pushDirty(idx);
+    result = { ok: true, reason: 'ok', dirtyCells: [idx] };
+  } else if (op.kind === 'delete_door') {
+    const idx = world.idx(op.x, op.y);
+    if (activeTerminalProtected(world, idx)) return setError('ТЕРМИНАЛ АКТИВЕН');
+    world.doors.delete(idx);
+    if (world.cells[idx] === Cell.DOOR) world.cells[idx] = Cell.FLOOR;
+    pushDirty(idx);
+    result = { ok: true, reason: 'ok', dirtyCells: [idx] };
+  } else if (op.kind === 'spawn_entity') {
+    result = spawnEditorEntity(world, entities, state, nextEntityId, op);
+  } else if (op.kind === 'delete_entity') {
+    const entity = entities.find(e => e.id === op.entityId && e.type !== EntityType.PLAYER);
+    if (!entity) return setError('Нет entity');
+    entity.alive = false;
+    const idx = world.idx(Math.floor(entity.x), Math.floor(entity.y));
+    pushDirty(idx);
+    result = { ok: true, reason: 'ok', dirtyCells: [idx] };
+  } else if (op.kind === 'spawn_container') {
+    result = spawnEditorContainer(world, state, op);
+  } else {
+    const before = world.containers.length;
+    const removed = world.containers.find(c => c.id === op.containerId);
+    world.containers = world.containers.filter(c => c.id !== op.containerId);
+    world.rebuildContainerMap();
+    if (world.containers.length === before || !removed) return setError('Нет контейнера');
+    const idx = world.idx(removed.x, removed.y);
+    pushDirty(idx);
+    result = { ok: true, reason: 'ok', dirtyCells: [idx] };
+  }
+
+  if (result.ok && record) recordOp(state, op);
+  runtime.status = result.ok ? result.reason : runtime.status;
+  return result;
+}
+
+function nearestEntityId(world: World, entities: readonly Entity[], x: number, y: number): number | null {
+  const idx = world.idx(x, y);
+  for (const entity of entities) {
+    if (entity.type === EntityType.PLAYER || !entity.alive) continue;
+    if (world.idx(Math.floor(entity.x), Math.floor(entity.y)) === idx) return entity.id;
+  }
+  return null;
+}
+
+function nearestContainerId(world: World, x: number, y: number): number | null {
+  const ids = world.containerMap.get(world.idx(x, y));
+  return ids?.[0] ?? null;
+}
+
+export function createCurrentMapEditorOp(world: World, entities: Entity[]): MapEditorOp | null {
+  const x = runtime.cursorX;
+  const y = runtime.cursorY;
+  const brushIdx = runtime.brushIndex[runtime.tool] % brushCount(runtime.tool);
+  if (runtime.tool === 'cell') return { kind: 'set_cell', x, y, cell: CELL_BRUSHES[brushIdx] };
+  if (runtime.tool === 'door') return { kind: 'set_door', x, y, state: DOOR_BRUSHES[brushIdx], keyId: '' };
+  if (runtime.tool === 'feature') return { kind: 'set_feature', x, y, feature: FEATURE_BRUSHES[brushIdx] };
+  if (runtime.tool === 'texture') {
+    const brush = TEXTURE_BRUSHES[brushIdx];
+    return brush.kind === 'wall'
+      ? { kind: 'set_wall_tex', x, y, tex: brush.tex }
+      : { kind: 'set_floor_tex', x, y, tex: brush.tex };
+  }
+  if (runtime.tool === 'entity') {
+    const brushes = mapEditorEntityBrushes();
+    const brush = brushes[brushIdx % brushes.length];
+    if (brush.kind === 'delete') {
+      const entityId = nearestEntityId(world, entities, x, y);
+      return entityId === null ? null : { kind: 'delete_entity', entityId };
+    }
+    if (brush.kind === 'item') return { kind: 'spawn_entity', x, y, entityDef: { kind: 'item', itemId: brush.itemId, count: 1 } };
+    if (brush.kind === 'monster') return { kind: 'spawn_entity', x, y, entityDef: { kind: 'monster', monsterKind: brush.monsterKind } };
+    return { kind: 'spawn_entity', x, y, entityDef: { kind: 'npc', faction: brush.faction } };
+  }
+  if (runtime.tool === 'container') {
+    const brushes = mapEditorContainerBrushes();
+    const brush = brushes[brushIdx % brushes.length];
+    if (brush.kind === 'delete') {
+      const containerId = nearestContainerId(world, x, y);
+      return containerId === null ? null : { kind: 'delete_container', containerId };
+    }
+    const seedItem = CONTAINER_DEFS[brush.kind]?.itemPool.find(item => ITEMS[item.defId])?.defId ?? 'water';
+    return { kind: 'spawn_container', x, y, def: { kind: brush.kind, itemId: seedItem, count: 1 } };
+  }
+  return null;
+}
+
+export function applyCurrentMapEditorBrush(
+  world: World,
+  entities: Entity[],
+  player: Entity,
+  state: GameState,
+  nextEntityId: { v: number },
+): MapEditorApplyResult {
+  const op = createCurrentMapEditorOp(world, entities);
+  if (!op) return setError('Нечего применить');
+  return applyMapEditorOp(world, entities, player, state, nextEntityId, op, true);
+}
+
+export function replayMapEditorPatchForCurrentFloor(
+  world: World,
+  entities: Entity[],
+  player: Entity,
+  state: GameState,
+  nextEntityId: { v: number },
+): number {
+  const patches = ensureMapEditorPatchState(state);
+  const key = currentMapEditorFloorKey(state);
+  const patch = patches.patches[key];
+  if (!patch) return 0;
+  let applied = 0;
+  for (const op of patch.ops) {
+    const result = applyMapEditorOp(world, entities, player, state, nextEntityId, op, false);
+    if (result.ok) applied++;
+    else patches.skipped.push(`${key}:${op.kind}:${result.reason}`);
+  }
+  if (patches.skipped.length > 12) patches.skipped.splice(0, patches.skipped.length - 12);
+  runtime.status = applied > 0 ? `replayed ${applied}/${patch.ops.length}` : runtime.status;
+  return applied;
+}
+
+export function clearCurrentMapEditorPatch(state: GameState): boolean {
+  const patches = ensureMapEditorPatchState(state);
+  const key = currentMapEditorFloorKey(state);
+  const existed = !!patches.patches[key];
+  delete patches.patches[key];
+  runtime.status = existed ? 'patch cleared' : 'no patch';
+  return existed;
+}
+
+function cellName(cell: Cell): string {
+  switch (cell) {
+    case Cell.FLOOR: return 'FLOOR';
+    case Cell.WALL: return 'WALL';
+    case Cell.DOOR: return 'DOOR';
+    case Cell.WATER: return 'WATER';
+    case Cell.LIFT: return 'LIFT';
+    case Cell.ABYSS: return 'ABYSS';
+    default: return String(cell);
+  }
+}
+
+function featureName(feature: Feature): string {
+  switch (feature) {
+    case Feature.NONE: return 'NONE';
+    case Feature.LAMP: return 'LAMP';
+    case Feature.CANDLE: return 'CANDLE';
+    case Feature.TABLE: return 'TABLE';
+    case Feature.CHAIR: return 'CHAIR';
+    case Feature.BED: return 'BED';
+    case Feature.SHELF: return 'SHELF';
+    case Feature.MACHINE: return 'MACHINE';
+    case Feature.APPARATUS: return 'APPARATUS';
+    case Feature.SCREEN: return 'SCREEN';
+    default: return String(feature);
+  }
+}
+
+function cellBrushLabel(): string {
+  return cellName(CELL_BRUSHES[runtime.brushIndex.cell % CELL_BRUSHES.length]);
+}
+
+function doorBrushLabel(): string {
+  return DoorState[DOOR_BRUSHES[runtime.brushIndex.door % DOOR_BRUSHES.length]];
+}
+
+function featureBrushLabel(): string {
+  return featureName(FEATURE_BRUSHES[runtime.brushIndex.feature % FEATURE_BRUSHES.length]);
+}
+
+function brushLabel(): string {
+  if (runtime.tool === 'cell') return cellBrushLabel();
+  if (runtime.tool === 'door') return doorBrushLabel();
+  if (runtime.tool === 'feature') return featureBrushLabel();
+  if (runtime.tool === 'texture') return TEXTURE_BRUSHES[runtime.brushIndex.texture % TEXTURE_BRUSHES.length].label;
+  if (runtime.tool === 'entity') {
+    const brushes = mapEditorEntityBrushes();
+    return brushes[runtime.brushIndex.entity % brushes.length]?.label ?? '-';
+  }
+  if (runtime.tool === 'container') {
+    const brushes = mapEditorContainerBrushes();
+    return brushes[runtime.brushIndex.container % brushes.length]?.label ?? '-';
+  }
+  return '-';
+}
+
+function brushValue(): string | number {
+  if (runtime.tool === 'cell') return CELL_BRUSHES[runtime.brushIndex.cell % CELL_BRUSHES.length];
+  if (runtime.tool === 'door') return DOOR_BRUSHES[runtime.brushIndex.door % DOOR_BRUSHES.length];
+  if (runtime.tool === 'feature') return FEATURE_BRUSHES[runtime.brushIndex.feature % FEATURE_BRUSHES.length];
+  if (runtime.tool === 'texture') return TEXTURE_BRUSHES[runtime.brushIndex.texture % TEXTURE_BRUSHES.length].label;
+  if (runtime.tool === 'entity') {
+    const brushes = mapEditorEntityBrushes();
+    return brushes[runtime.brushIndex.entity % brushes.length]?.label ?? 'entity';
+  }
+  if (runtime.tool === 'container') {
+    const brushes = mapEditorContainerBrushes();
+    return brushes[runtime.brushIndex.container % brushes.length]?.label ?? 'container';
+  }
+  return 'inspect';
+}
+
+function palette(): MapEditorSnapshot['palette'] {
+  if (runtime.tool === 'cell') return CELL_BRUSHES.map((cell, i) => ({ id: cell, label: cellName(cell), active: i === runtime.brushIndex.cell }));
+  if (runtime.tool === 'door') return DOOR_BRUSHES.map((state, i) => ({ id: state, label: DoorState[state], active: i === runtime.brushIndex.door }));
+  if (runtime.tool === 'feature') return FEATURE_BRUSHES.map((feature, i) => ({ id: feature, label: featureName(feature), active: i === runtime.brushIndex.feature }));
+  if (runtime.tool === 'texture') return TEXTURE_BRUSHES.map((brush, i) => ({ id: brush.label, label: brush.label, active: i === runtime.brushIndex.texture }));
+  if (runtime.tool === 'entity') {
+    const brushes = mapEditorEntityBrushes();
+    const active = runtime.brushIndex.entity % brushes.length;
+    return brushes.map((brush, i) => ({ id: brush.label, label: brush.label, color: brush.color, active: i === active }));
+  }
+  if (runtime.tool === 'container') {
+    const brushes = mapEditorContainerBrushes();
+    const active = runtime.brushIndex.container % brushes.length;
+    return brushes.map((brush, i) => ({ id: brush.label, label: brush.label, color: brush.color, active: i === active }));
+  }
+  return [];
+}
+
+function menuTitle(): string {
+  if (runtime.mode === 'menu') return 'МЕНЮ ТЕРМИНАЛА';
+  if (runtime.mode === 'brush') return `КИСТЬ: ${runtime.tool.toUpperCase()}`;
+  if (runtime.mode === 'details') return 'ДЕТАЛИ КАРТЫ';
+  if (runtime.mode === 'objects') return `ОБЪЕКТЫ: ${runtime.tool.toUpperCase()}`;
+  return 'КАРТА';
+}
+
+function menuEntries(): readonly MapEditorMenuEntry[] {
+  if (runtime.mode === 'menu') {
+    return MAIN_MENU.map((entry, i) => ({ ...entry, active: i === runtime.menuIndex }));
+  }
+  if (runtime.mode === 'brush') {
+    return palette().map(entry => ({
+      id: entry.id ?? entry.label,
+      label: entry.label,
+      color: entry.color,
+      active: entry.active,
+    }));
+  }
+  if (runtime.mode === 'objects') {
+    return palette().map(entry => ({
+      id: entry.id ?? entry.label,
+      label: entry.label,
+      color: entry.color,
+      active: entry.active,
+    }));
+  }
+  return [];
+}
+
+function modeHints(): readonly string[] {
+  if (runtime.mode === 'map') return ['WASD/стрелки курсор', 'E поставить', 'Enter меню', 'M zoom'];
+  if (runtime.mode === 'menu') return ['W/S пункт', 'E выбрать', 'Enter карта'];
+  if (runtime.mode === 'brush') return ['A/D тип кисти', 'W/S значение', 'E выбрать', 'Enter назад'];
+  if (runtime.mode === 'objects') return ['A/D группа', 'W/S объект', 'E выбрать', 'Enter назад'];
+  return ['WASD/стрелки инспектор', 'E карта', 'Enter назад'];
+}
+
+export function getMapEditorSnapshot(state: GameState): MapEditorSnapshot {
+  const key = currentMapEditorFloorKey(state);
+  const patches = ensureMapEditorPatchState(state);
+  const patch = patches.patches[key];
+  return {
+    floorKey: key,
+    floorLabel: currentFloorLabel(state),
+    z: currentFloorZ(state),
+    tool: runtime.tool,
+    brush: brushValue(),
+    brushLabel: brushLabel(),
+    status: runtime.status,
+    error: runtime.error,
+    dirtyOps: patch?.ops.length ?? 0,
+    patchOps: patch?.ops.length ?? 0,
+    maxPatchOps: PATCH_OP_CAP,
+    cursorX: runtime.cursorX,
+    cursorY: runtime.cursorY,
+    cameraX: runtime.cameraX,
+    cameraY: runtime.cameraY,
+    zoom: runtime.zoom,
+    revision: runtime.revision,
+    dirtyCells: runtime.dirtyCells,
+    tools: TOOLS,
+    palette: palette(),
+    mode: runtime.mode,
+    menuTitle: menuTitle(),
+    menuIndex: runtime.menuIndex,
+    menuEntries: menuEntries(),
+    hints: modeHints(),
+    activeTerminalX: runtime.activeTerminalX,
+    activeTerminalY: runtime.activeTerminalY,
+  };
+}
+
+export function summarizeMapEditor(state: GameState): string[] {
+  const patches = ensureMapEditorPatchState(state);
+  const key = currentMapEditorFloorKey(state);
+  const current = patches.patches[key];
+  const totalOps = Object.values(patches.patches).reduce((sum, patch) => sum + patch.ops.length, 0);
+  return [
+    `open=${runtime.open ? 'yes' : 'no'} floor=${key} tool=${runtime.tool} brush=${brushLabel()} cursor=${runtime.cursorX},${runtime.cursorY}`,
+    `currentOps=${current?.ops.length ?? 0}/${PATCH_OP_CAP} floors=${Object.keys(patches.patches).length} totalOps=${totalOps}`,
+    ...patches.skipped.slice(-4).map(line => `skip=${line}`),
+  ];
+}

@@ -1,5 +1,5 @@
 /* -- Design floor: Крыша ---------------------------------------
- * Route id roof, z=-40. Self-contained authored generator with a
+ * Route id roof, z=-44. Self-contained authored generator with a
  * dynamic sky provider consumed through the generic WebGL ceiling slot.
  */
 
@@ -45,7 +45,7 @@ import type { FloorGeneration } from '../floor_manifest';
 
 export const DESIGN_FLOOR_ID = 'roof' as const;
 export const ROOF_ROUTE_ID = DESIGN_FLOOR_ID;
-export const ROOF_FUTURE_Z = -40 as const;
+export const ROOF_FUTURE_Z = -44 as const;
 export const ROOF_BASE_FLOOR = FloorLevel.MINISTRY;
 export const ROOF_SKY_WIDTH = 1024 as const;
 export const ROOF_SKY_HEIGHT = 1024 as const;

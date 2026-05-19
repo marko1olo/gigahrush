@@ -160,10 +160,15 @@ export function updateFactionEvents(
   entities: Entity[],
   nextId: { v: number },
   dt: number,
+  allowSpawns = true,
 ): void {
   resetFactionClashRuntimeIfNeeded(state);
   updateActiveCultProcessions(state, world, player, entities, dt);
   updateActiveFactionClashes(state, world, player, entities, nextId);
+  if (!allowSpawns) {
+    schedulerAccum = 0;
+    return;
+  }
   schedulerAccum += dt;
   if (schedulerAccum < SCHEDULER_TICK_SEC) return;
   schedulerAccum -= SCHEDULER_TICK_SEC;

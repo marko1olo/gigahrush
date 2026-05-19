@@ -2,6 +2,7 @@
 
 import { type GameState } from '../core/types';
 import { drawNeuroPanel, textJitter, flicker } from './hud_fx';
+import { fitText } from './ui_text';
 
 export function drawGameMenu(
   ctx: CanvasRenderingContext2D,
@@ -18,8 +19,10 @@ export function drawGameMenu(
   ctx.fillRect(0, 0, w, h);
 
   // Panel
-  const pw = 200 * (w / 320), ph = 160 * sy;
-  drawNeuroPanel(ctx, (w - pw) / 2, h / 2 - 80 * sy, pw, ph, time, 70);
+  const pw = Math.min(w - 16 * _sx, 240 * _sx), ph = Math.min(h - 16 * sy, 160 * sy);
+  const px = (w - pw) / 2;
+  const py = (h - ph) / 2;
+  drawNeuroPanel(ctx, px, py, pw, ph, time, 70);
 
   // Title
   ctx.save();
@@ -29,7 +32,7 @@ export function drawGameMenu(
   ctx.fillStyle = `rgba(200,0,0,${flicker(time, 701)})`;
   ctx.font = `bold ${20 * sy}px monospace`;
   ctx.textAlign = 'center';
-  ctx.fillText('ГИГАХРУЩ', w / 2 + tj.dx, h / 2 - 60 * sy + tj.dy);
+  ctx.fillText('ГИГАХРУЩ', w / 2 + tj.dx, py + 20 * sy + tj.dy);
   ctx.shadowBlur = 0;
   ctx.restore();
 
@@ -39,7 +42,7 @@ export function drawGameMenu(
   ctx.textAlign = 'center';
   for (let i = 0; i < items.length; i++) {
     const selected = i === state.menuSel;
-    const yy = h / 2 - 20 * sy + i * 20 * sy;
+    const yy = py + 60 * sy + i * 20 * sy;
     const mj = textJitter(time, 710 + i);
     const alpha = flicker(time, 720 + i);
     ctx.fillStyle = selected ? `rgba(0,255,170,${alpha})` : `rgba(100,136,136,${alpha})`;
@@ -48,7 +51,7 @@ export function drawGameMenu(
 
   ctx.fillStyle = '#456';
   ctx.font = `${7 * sy}px monospace`;
-  ctx.fillText('W/S — выбор  |  E — подтвердить  |  ENTER — закрыть', w / 2, h / 2 + 70 * sy);
+  ctx.fillText(fitText(ctx, 'W/S — выбор  |  E — подтвердить  |  ENTER — закрыть', pw - 12 * _sx), w / 2, py + ph - 10 * sy);
 
   ctx.textAlign = 'left';
 }

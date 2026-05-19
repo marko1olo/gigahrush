@@ -5,7 +5,7 @@
 
 ## Назначение
 
-Этот каталог содержит 10 самостоятельных technical design documents и один mandatory foundation-layer. Каждый `expansion.md` должен читаться как будущий dev-epic: что добавляем, зачем это нужно игре, какие системы трогаем, как не ломаем производительность и как проверяем минимальный playable slice.
+Этот каталог содержит 11 самостоятельных technical design documents и один mandatory foundation-layer. Каждый `expansion.md` должен читаться как будущий dev-epic: что добавляем, зачем это нужно игре, какие системы трогаем, как не ломаем производительность и как проверяем минимальный playable slice.
 
 ## Документы
 
@@ -22,6 +22,7 @@
 | `08_concentrate_industry` | Промзона концентрата | factory lines, abstract supply | да |
 | `09_elevator_loop_404` | Лифтовая петля 404 | numbered floor instances | да |
 | `10_void_afterprotocol` | Пустотный протокол | late-game local protocols with backlash | да |
+| `11_net_terminal_gen_map_editor` | НЕТ-ТЕРМИНАЛ ГЕН: редактор карты | debug/diegetic current-floor map editor | да |
 
 ## Dependency Map
 
@@ -38,6 +39,8 @@
 `02_metro_error_line` and `09_elevator_loop_404` are route/anomaly expansions. They should wait until enough destinations exist.
 
 `10_void_afterprotocol` should remain late. It needs older systems as protocol targets; otherwise it becomes abstract lore.
+
+`11_net_terminal_gen_map_editor` is optional/debug-adjacent. It should be implemented after one integrator has added the small `main.ts`/HUD/save hooks, because the rest can live in additive system/render/data modules.
 
 `00_samosbor_director` remains active across all phases. It must not own gameplay systems directly; it only schedules small legal beats through adapters.
 

@@ -14,7 +14,7 @@ import { generateZones } from '../shared';
 import { genLog } from '../log';
 
 export const DESIGN_FLOOR_ID = 'chthonic_attic' as const;
-export const DESIGN_FLOOR_Z = -36;
+export const DESIGN_FLOOR_Z = -40;
 
 export type ChthonicAtticRootChoice = 'cut' | 'feed' | 'burn';
 

@@ -2,7 +2,7 @@
 
 import { NPC_SPRITE_GENERATORS, generateTravelerSprite, generatePilgrimSprite, generateHunterSprite, generatePriestSprite, generateVeteranSprite, generateGordonSprite, generateMadokaSprite, generatePakhomSprite } from '../entities/npc';
 import { MONSTERS, MONSTER_SPRITES, EYE_BOLT_SPRITE } from '../entities/monster';
-import { MonsterKind } from '../core/types';
+import { ContainerKind, Feature, MonsterKind } from '../core/types';
 import { S, rgba, noise, clamp, CLEAR } from './pixutil';
 import { Spr, monsterSpr } from './sprite_index';
 import { ART_NUDE_VARIANTS, F69_FEMALE_NPC_VARIANTS, generateArtNudeSprite, generateFloor69FemaleNpcSprite } from './art_sprites';
@@ -53,6 +53,16 @@ export function generateSprites(): SpriteData[] {
   sprites.push(EYE_BOLT_SPRITE());
   // Desk
   sprites.push(gen_deskSprite());
+  const featureSprites = [
+    Feature.LAMP, Feature.TABLE, Feature.CHAIR, Feature.BED, Feature.STOVE,
+    Feature.SINK, Feature.TOILET, Feature.SHELF, Feature.MACHINE, Feature.APPARATUS,
+    Feature.LIFT_BUTTON, Feature.DESK, Feature.SLIDE, Feature.CANDLE, Feature.SCREEN,
+  ];
+  for (const feature of featureSprites) sprites.push(gen_featureSprite(feature));
+  const containerSprites = Object.values(ContainerKind)
+    .filter((value): value is ContainerKind => typeof value === 'number')
+    .sort((a, b) => a - b);
+  for (const kind of containerSprites) sprites.push(gen_containerSprite(kind));
   // Projectiles
   sprites.push(gen_bulletSprite());
   sprites.push(gen_pelletSprite());
@@ -72,6 +82,7 @@ export function generateSprites(): SpriteData[] {
   sprites.push(gen_bfgBoltSprite());
   sprites.push(gen_flameBoltSprite());
   sprites.push(gen_grenadeSprite());
+  sprites.push(gen_trainCarSprite());
   for (let i = 0; i < ART_NUDE_VARIANTS; i++) {
     sprites.push(generateArtNudeSprite(i));
   }
@@ -117,6 +128,200 @@ function gen_deskSprite(): SpriteData {
   return t;
 }
 
+function rect(t: Uint32Array, x0: number, y0: number, x1: number, y1: number, r: number, g: number, b: number, seed = 0, a = 255): void {
+  const lx = Math.max(0, Math.floor(x0));
+  const rx = Math.min(S - 1, Math.floor(x1));
+  const ty = Math.max(0, Math.floor(y0));
+  const by = Math.min(S - 1, Math.floor(y1));
+  for (let y = ty; y <= by; y++) for (let x = lx; x <= rx; x++) {
+    const n = seed === 0 ? 0 : noise(x, y, seed) * 16 - 8;
+    t[y * S + x] = rgba(clamp(r + n), clamp(g + n), clamp(b + n), a);
+  }
+}
+
+function ellipse(t: Uint32Array, cx: number, cy: number, rx: number, ry: number, r: number, g: number, b: number, seed = 0, a = 255): void {
+  const x0 = Math.max(0, Math.floor(cx - rx));
+  const x1 = Math.min(S - 1, Math.ceil(cx + rx));
+  const y0 = Math.max(0, Math.floor(cy - ry));
+  const y1 = Math.min(S - 1, Math.ceil(cy + ry));
+  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+    const dx = (x - cx) / rx;
+    const dy = (y - cy) / ry;
+    if (dx * dx + dy * dy > 1) continue;
+    const n = seed === 0 ? 0 : noise(x, y, seed) * 14 - 7;
+    t[y * S + x] = rgba(clamp(r + n), clamp(g + n), clamp(b + n), a);
+  }
+}
+
+function outlineBox(t: Uint32Array, x0: number, y0: number, x1: number, y1: number, r: number, g: number, b: number): void {
+  rect(t, x0, y0, x1, y0 + 1, r, g, b);
+  rect(t, x0, y1 - 1, x1, y1, r, g, b);
+  rect(t, x0, y0, x0 + 1, y1, r, g, b);
+  rect(t, x1 - 1, y0, x1, y1, r, g, b);
+}
+
+function gen_featureSprite(feature: Feature): SpriteData {
+  if (feature === Feature.DESK) return gen_deskSprite();
+  const t = new Uint32Array(S * S).fill(CLEAR);
+  switch (feature) {
+    case Feature.LAMP:
+      rect(t, 30, 17, 34, 50, 76, 78, 70, 101);
+      ellipse(t, 32, 17, 12, 7, 220, 176, 86, 102, 230);
+      ellipse(t, 32, 16, 5, 3, 255, 230, 130, 103, 255);
+      rect(t, 24, 50, 40, 54, 60, 62, 58, 104);
+      break;
+    case Feature.CANDLE:
+      rect(t, 28, 28, 36, 53, 214, 204, 162, 111);
+      ellipse(t, 32, 25, 7, 10, 255, 170, 45, 112, 235);
+      ellipse(t, 32, 23, 3, 5, 255, 246, 160, 113, 255);
+      break;
+    case Feature.TABLE:
+      rect(t, 8, 24, 56, 31, 112, 76, 42, 121);
+      rect(t, 10, 31, 54, 35, 72, 48, 30, 122);
+      rect(t, 13, 35, 17, 52, 70, 52, 36, 123);
+      rect(t, 47, 35, 51, 52, 70, 52, 36, 124);
+      break;
+    case Feature.CHAIR:
+      rect(t, 18, 18, 24, 48, 86, 62, 42, 131);
+      rect(t, 24, 31, 47, 38, 108, 76, 48, 132);
+      rect(t, 28, 38, 32, 52, 74, 58, 44, 133);
+      rect(t, 43, 38, 47, 52, 74, 58, 44, 134);
+      break;
+    case Feature.BED:
+      rect(t, 7, 26, 57, 47, 72, 78, 92, 141);
+      rect(t, 10, 21, 26, 32, 182, 188, 174, 142);
+      rect(t, 7, 44, 57, 53, 55, 42, 34, 143);
+      break;
+    case Feature.STOVE:
+      rect(t, 17, 18, 47, 53, 64, 66, 65, 151);
+      rect(t, 20, 21, 44, 31, 34, 36, 35, 152);
+      ellipse(t, 26, 26, 5, 3, 16, 17, 18);
+      ellipse(t, 38, 26, 5, 3, 16, 17, 18);
+      rect(t, 21, 36, 43, 48, 38, 40, 39, 153);
+      break;
+    case Feature.SINK:
+      rect(t, 14, 27, 50, 36, 170, 181, 182, 161);
+      ellipse(t, 32, 35, 16, 8, 122, 142, 145, 162);
+      rect(t, 30, 17, 34, 28, 95, 100, 102);
+      rect(t, 34, 17, 44, 20, 95, 100, 102);
+      break;
+    case Feature.TOILET:
+      rect(t, 23, 17, 41, 29, 182, 188, 184, 171);
+      ellipse(t, 32, 39, 14, 11, 172, 181, 179, 172);
+      rect(t, 25, 48, 39, 54, 130, 137, 136, 173);
+      break;
+    case Feature.SHELF:
+      rect(t, 14, 12, 50, 54, 88, 64, 42, 181);
+      for (let y = 20; y <= 44; y += 12) rect(t, 16, y, 48, y + 2, 130, 94, 56, 182);
+      rect(t, 18, 15, 24, 19, 60, 80, 86, 183);
+      rect(t, 28, 27, 42, 31, 82, 68, 50, 184);
+      rect(t, 20, 39, 32, 43, 86, 74, 46, 185);
+      break;
+    case Feature.MACHINE:
+      rect(t, 12, 18, 52, 53, 58, 68, 70, 191);
+      outlineBox(t, 16, 23, 48, 39, 24, 30, 32);
+      ellipse(t, 26, 31, 5, 5, 78, 126, 118, 192);
+      rect(t, 36, 25, 45, 29, 150, 48, 40, 193);
+      rect(t, 17, 43, 47, 47, 34, 40, 42, 194);
+      break;
+    case Feature.APPARATUS:
+      rect(t, 18, 16, 46, 53, 48, 56, 58, 201);
+      rect(t, 22, 20, 42, 31, 66, 104, 92, 202);
+      rect(t, 13, 35, 51, 39, 86, 76, 46, 203);
+      rect(t, 26, 39, 30, 55, 50, 52, 52, 204);
+      rect(t, 37, 39, 41, 55, 50, 52, 52, 205);
+      break;
+    case Feature.LIFT_BUTTON:
+      rect(t, 24, 18, 40, 48, 52, 56, 58, 211);
+      ellipse(t, 32, 28, 5, 5, 90, 230, 190, 212);
+      ellipse(t, 32, 39, 4, 4, 190, 80, 70, 213);
+      break;
+    case Feature.SLIDE:
+      rect(t, 14, 12, 50, 50, 170, 170, 152, 221);
+      rect(t, 18, 16, 46, 46, 30, 42, 54, 222);
+      rect(t, 21, 21, 43, 25, 150, 206, 220, 223);
+      rect(t, 21, 31, 39, 35, 190, 190, 120, 224);
+      break;
+    case Feature.SCREEN:
+      rect(t, 12, 14, 52, 44, 24, 30, 34, 231);
+      rect(t, 16, 18, 48, 39, 32, 132, 142, 232);
+      for (let y = 21; y <= 36; y += 5) rect(t, 19, y, 45, y + 1, 90, 220, 204, 233);
+      rect(t, 29, 44, 35, 53, 58, 60, 62);
+      break;
+  }
+  return t;
+}
+
+function gen_containerSprite(kind: ContainerKind): SpriteData {
+  const t = new Uint32Array(S * S).fill(CLEAR);
+  switch (kind) {
+    case ContainerKind.WOODEN_CHEST:
+      rect(t, 10, 29, 54, 53, 104, 62, 34, 301);
+      rect(t, 12, 22, 52, 31, 124, 78, 40, 302);
+      rect(t, 30, 31, 34, 45, 182, 138, 58, 303);
+      outlineBox(t, 10, 24, 54, 53, 52, 32, 20);
+      break;
+    case ContainerKind.METAL_CABINET:
+    case ContainerKind.TOOL_LOCKER:
+      rect(t, 16, 10, 48, 55, kind === ContainerKind.TOOL_LOCKER ? 64 : 72, kind === ContainerKind.TOOL_LOCKER ? 82 : 80, kind === ContainerKind.TOOL_LOCKER ? 76 : 86, 311);
+      rect(t, 31, 12, 33, 54, 36, 40, 42);
+      rect(t, 22, 28, 26, 32, 170, 178, 164, 312);
+      rect(t, 38, 28, 42, 32, 170, 178, 164, 313);
+      break;
+    case ContainerKind.MEDICAL_CABINET:
+      rect(t, 17, 12, 47, 54, 176, 186, 178, 321);
+      rect(t, 29, 23, 35, 42, 172, 42, 48);
+      rect(t, 23, 29, 41, 36, 172, 42, 48);
+      break;
+    case ContainerKind.WEAPON_CRATE:
+      rect(t, 9, 30, 55, 53, 54, 72, 46, 331);
+      rect(t, 12, 25, 52, 31, 66, 86, 52, 332);
+      rect(t, 18, 35, 46, 39, 26, 30, 24, 333);
+      rect(t, 21, 41, 43, 44, 26, 30, 24, 334);
+      break;
+    case ContainerKind.FRIDGE:
+      rect(t, 18, 8, 46, 56, 166, 184, 186, 341);
+      rect(t, 20, 31, 44, 33, 118, 134, 136);
+      rect(t, 40, 16, 43, 28, 70, 88, 92);
+      rect(t, 40, 38, 43, 50, 70, 88, 92);
+      break;
+    case ContainerKind.SAFE:
+      rect(t, 15, 18, 49, 53, 48, 50, 54, 351);
+      outlineBox(t, 20, 23, 44, 48, 88, 90, 92);
+      ellipse(t, 32, 35, 7, 7, 120, 122, 124, 352);
+      rect(t, 31, 26, 33, 44, 42, 44, 46);
+      break;
+    case ContainerKind.FILING_CABINET:
+      rect(t, 17, 13, 47, 55, 82, 92, 96, 361);
+      for (let y = 18; y <= 42; y += 12) {
+        rect(t, 20, y, 44, y + 8, 96, 106, 108, 362 + y);
+        rect(t, 28, y + 3, 36, y + 4, 170, 174, 160);
+      }
+      break;
+    case ContainerKind.CASHBOX:
+      rect(t, 17, 31, 47, 52, 72, 76, 72, 371);
+      rect(t, 20, 25, 44, 32, 94, 98, 92, 372);
+      rect(t, 29, 35, 35, 40, 214, 168, 52, 373);
+      break;
+    case ContainerKind.SECRET_STASH:
+      rect(t, 18, 37, 46, 50, 48, 35, 28, 381, 210);
+      ellipse(t, 32, 34, 15, 5, 38, 30, 28, 382, 190);
+      rect(t, 24, 31, 40, 36, 88, 68, 44, 383, 220);
+      break;
+    case ContainerKind.EMERGENCY_BOX:
+      rect(t, 15, 19, 49, 52, 154, 42, 38, 391);
+      rect(t, 29, 27, 35, 44, 230, 220, 188);
+      rect(t, 22, 33, 42, 38, 230, 220, 188);
+      break;
+    case ContainerKind.TRASH_BIN:
+      rect(t, 19, 25, 45, 54, 58, 70, 62, 401);
+      rect(t, 16, 21, 48, 26, 68, 78, 70, 402);
+      for (let x = 24; x <= 40; x += 8) rect(t, x, 28, x + 2, 51, 35, 44, 38);
+      break;
+  }
+  return t;
+}
+
 /* ── Item drop: small glowing bag ─────────────────────────────── */
 function gen_itemDrop(): SpriteData {
   const t = new Uint32Array(S * S).fill(CLEAR);
@@ -128,6 +333,53 @@ function gen_itemDrop(): SpriteData {
       const glow = Math.sin((x + y) * 0.5) * 15;
       t[y * S + x] = rgba(clamp(200 + n + glow), clamp(180 + n), clamp(100 + n));
     }
+  }
+  return t;
+}
+
+/* ── Metro train car: dark steel face with lit windows ────────── */
+function gen_trainCarSprite(): SpriteData {
+  const t = new Uint32Array(S * S).fill(CLEAR);
+  const left = 6;
+  const right = S - 7;
+  const top = 7;
+  const bottom = S - 4;
+  for (let y = top; y <= bottom; y++) for (let x = left; x <= right; x++) {
+    const n = noise(x, y, 1979) * 11;
+    const rounded = (x < left + 3 && y < top + 4) || (x > right - 3 && y < top + 4);
+    if (rounded && (x - (x < S / 2 ? left + 3 : right - 3)) ** 2 + (y - (top + 4)) ** 2 > 18) continue;
+    const edge = x <= left + 1 || x >= right - 1 || y <= top + 1 || y >= bottom - 1;
+    const seam = y === top + 10 || y === bottom - 10 || x === S / 2;
+    if (edge || seam) {
+      t[y * S + x] = rgba(clamp(30 + n), clamp(34 + n), clamp(40 + n));
+    } else {
+      t[y * S + x] = rgba(clamp(52 + n), clamp(56 + n), clamp(64 + n));
+    }
+  }
+
+  for (let y = 15; y <= 25; y++) for (let x = 11; x <= S - 12; x++) {
+    const panel = Math.floor((x - 11) / 11);
+    if ((x - 11) % 11 > 7) continue;
+    const n = noise(x, y, 331) * 7;
+    const warm = panel % 2 === 0;
+    t[y * S + x] = rgba(clamp((warm ? 142 : 86) + n), clamp(155 + n), clamp((warm ? 118 : 165) + n), 230);
+  }
+
+  for (let y = 34; y <= 52; y++) {
+    for (const cx of [22, 42]) {
+      for (let x = cx - 5; x <= cx + 5; x++) {
+        const d = Math.abs(x - cx) + Math.abs(y - 43);
+        if (d > 10) continue;
+        const glow = Math.max(0, 10 - d) * 12;
+        t[y * S + x] = rgba(clamp(70 + glow), clamp(84 + glow), clamp(96 + glow));
+      }
+    }
+  }
+
+  for (let x = 10; x <= S - 11; x += 7) {
+    const y = bottom - 4;
+    t[y * S + x] = rgba(12, 10, 9);
+    t[(y + 1) * S + x] = rgba(8, 7, 7);
   }
   return t;
 }

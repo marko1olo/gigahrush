@@ -11,6 +11,7 @@ import '../src/gen/hell/content_manifest';
 import { FloorLevel, MonsterKind, RoomType } from '../src/core/types';
 import { ITEMS } from '../src/data/catalog';
 import { CONTRACTS } from '../src/data/contracts';
+import { FACTORIES } from '../src/data/factories';
 import { MONSTER_ECOLOGY } from '../src/data/monster_ecology';
 import { MONSTER_VARIANTS } from '../src/data/monster_variants';
 import { PLOT_NPCS, PLOT_CHAIN, SIDE_QUESTS, type PlotStep } from '../src/data/plot';
@@ -80,6 +81,8 @@ function assertPlotStep(step: PlotStep, scope: string): void {
 test('registered content ids are unique', () => {
   assertUnique(Object.keys(ITEMS), 'ITEMS');
   assertUnique(CONTRACTS.map(c => c.id), 'CONTRACTS');
+  assertUnique(RESOURCES.map(r => r.id), 'RESOURCES');
+  assertUnique(FACTORIES.map(f => f.id), 'FACTORIES');
   assertUnique(RUMORS.map(r => r.id), 'RUMORS');
   assertUnique(MONSTER_VARIANTS.map(v => v.id), 'MONSTER_VARIANTS');
   assertUnique(SIDE_QUESTS.map(q => q.id), 'SIDE_QUESTS');

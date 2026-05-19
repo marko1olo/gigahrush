@@ -5,7 +5,10 @@ import { resolve } from 'node:path';
 const databaseName = 'gigahrush-net';
 const binding = 'GIGA_NET';
 const configPath = resolve('wrangler.jsonc');
-const schemaPath = 'cloudflare/d1/net_sphere.sql';
+const schemaPaths = [
+  'cloudflare/d1/net_sphere.sql',
+  'cloudflare/d1/net_sphere_market.sql',
+];
 const schemaOnly = process.argv.includes('--schema-only');
 
 function run(args, options = {}) {
@@ -85,8 +88,10 @@ function ensureBinding(id) {
 }
 
 function applySchema() {
-  console.log(`Applying ${schemaPath} to ${databaseName}...`);
-  run(['d1', 'execute', databaseName, '--remote', '--file', schemaPath, '--yes'], { stdio: 'inherit' });
+  for (const schemaPath of schemaPaths) {
+    console.log(`Applying ${schemaPath} to ${databaseName}...`);
+    run(['d1', 'execute', databaseName, '--remote', '--file', schemaPath, '--yes'], { stdio: 'inherit' });
+  }
 }
 
 function tableColumns(table) {

@@ -2,6 +2,7 @@
 
 import { type GameState } from '../core/types';
 import { drawNeuroPanel, drawGlitchText } from './hud_fx';
+import { wrapTextLines } from './ui_text';
 
 export function drawLogMenu(
   ctx: CanvasRenderingContext2D,
@@ -14,6 +15,8 @@ export function drawLogMenu(
   const time = uiTime;
 
   // Fullscreen neuro-panel background
+  ctx.fillStyle = '#00040a';
+  ctx.fillRect(0, 0, w, h);
   drawNeuroPanel(ctx, 4 * sx, 4 * sy, w - 8 * sx, h - 8 * sy, time, 60);
 
   // Title
@@ -55,21 +58,10 @@ export function drawLogMenu(
     const lhh = String(entry.hour).padStart(2, '0');
     const lmm = String(entry.minute).padStart(2, '0');
     const stamp = `[Д${dd} ${lhh}:${lmm}]`;
-    // Word-wrap the message text
-    const words = entry.text.split(' ');
-    let line = '';
-    let first = true;
-    for (const word of words) {
-      const test = line ? line + ' ' + word : word;
-      if (line && ctx.measureText(test).width > textAvailW) {
-        vlines.push({ stamp: first ? stamp : '', text: line, color: entry.color, isWrap: !first });
-        line = word;
-        first = false;
-      } else {
-        line = test;
-      }
+    const lines = wrapTextLines(ctx, entry.text, textAvailW, 8);
+    for (let j = 0; j < lines.length; j++) {
+      vlines.push({ stamp: j === 0 ? stamp : '', text: lines[j], color: entry.color, isWrap: j > 0 });
     }
-    if (line) vlines.push({ stamp: first ? stamp : '', text: line, color: entry.color, isWrap: !first });
   }
 
   const visibleLines = Math.floor((bottomY - topY) / lineH);

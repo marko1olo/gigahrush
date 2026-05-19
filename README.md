@@ -40,7 +40,7 @@ npm run check:full
 
 Stack: TypeScript, Vite, `vite-plugin-singlefile`, WebGL/canvas, browser APIs. `npm run build` emits the playable single-file build under `dist/`.
 
-`npm run itch:build` emits an itch.io HTML5 upload under `itch/`: `index.html` for direct single-file upload and `gigahrush-itch.zip` with `index.html` at the archive root.
+`npm run itch:build` emits an itch.io HTML5 upload under `itch/`: `index.html` for direct single-file upload and `gigahrush-itch.zip` with `index.html` at the archive root plus PWA manifest, icons and service worker metadata for direct mobile launch.
 
 `npm run check` runs typecheck, unit tests, content audit and production build. `npm run check:full` adds the slower browser smoke pass.
 
@@ -48,7 +48,9 @@ Cloudflare scripts are optional and only matter for Net Sphere deployment: `cf:s
 
 ## Cloudflare Net Sphere
 
-When deployed as a Cloudflare Worker with Assets and the D1 binding described in [cloudflare.md](cloudflare.md), the game exposes an optional in-game `НЕТ-СФЕРА` terminal on `N`. The title screen asks for a persistent `НЕТ-ИМЯ`; each browser also gets a persistent private `НЕТ-ГЕН` id in `localStorage` and a session id in `sessionStorage`. `/netgen NET-...` switches back to an existing cloud profile, `/new` creates a new `НЕТ-ГЕН`, and `/clear` clears local chat history. The terminal polls while open, sends a 30-second heartbeat, records active sessions, samosbor events, deaths, compact progress, recent event summaries such as `[nickname] умер <date>`, and short sanitized chat messages labeled by nickname. If the binding is missing or the API is offline, the game continues as a local single-file build.
+When deployed as a Cloudflare Worker with Assets and the D1 binding described in [cloudflare.md](cloudflare.md), the game exposes an optional in-game `НЕТ-СФЕРА` terminal on `N`. The title screen asks for a persistent `НЕТ-ИМЯ`; each browser also gets a persistent private `НЕТ-ГЕН` id in `localStorage` and a session id in `sessionStorage`. `/netgen NET-...` switches back to an existing cloud profile, `/new` creates a new `НЕТ-ГЕН`, and `/clear` clears local chat history. The terminal polls while open, sends a 30-second heartbeat, records active sessions, samosbor events, deaths, compact progress, recent event summaries such as `[nickname] умер <date>`, and short sanitized chat messages labeled by nickname. The Worker also exposes an optional `/api/net/market` endpoint for compact global market impulses and bounded aggregate quote snapshots. If the binding is missing or the API is offline, the game continues as a local single-file build.
+
+Direct HTTPS builds also expose PWA metadata. The mobile `FULL` control requests browser fullscreen only on compatible non-iOS browsers. Embedded mobile hosts show a direct-page launcher instead. iPhone/WebKit does not get the forced fullscreen path because it can reload the web view; iOS standalone Home Screen launch remains supported through the manifest and Apple web-app meta tags.
 
 ## Implementation Snapshot
 
@@ -57,12 +59,13 @@ Current shipped-data scale, counted from source registries:
 | Domain | Current count |
 | --- | ---: |
 | Story `FloorLevel` values | 6 |
-| Authored routed design floors | 15 |
-| Seeded procedural interstitial floors per run | 60 |
+| Authored routed design floors | 17 |
+| Seeded procedural interstitial floors per run | 62 |
+| Procedural floor anomaly profiles | 17 |
 | Numbered lift anomalies | 8 |
 | Main plot steps | 16 |
-| Plot/side NPC ids after manifests load | 207 |
-| Side quest steps after manifests load | 251 |
+| Plot/side NPC ids after manifests load | 212 |
+| Side quest steps after manifests load | 263 |
 | System assignment templates | 67 |
 | Item ids | 240 |
 | Physical weapon stat entries | 31 |
@@ -74,8 +77,15 @@ Current shipped-data scale, counted from source registries:
 | Samosbor variants / modifiers / aftermath beats | 8 / 21 / 36 |
 | Samosbor director beats | 16 |
 | Economy resources | 17 |
+| Caravan supply lanes | 6 |
 | Factory definitions / recipes | 10 / 17 |
-| Debug commands, including routed teleports | 59 |
+| Debug commands, including routed teleports | 78 |
+
+## НЕТ-ТЕРМИНАЛ ГЕН
+
+The current build includes an optional debug/diegetic current-floor map editor. Rare in-world `НЕТ-ТЕРМИНАЛЫ` can be used with `E`; without access they show `НЕТ-ТЕРМИНАЛ ГЕН НЕ ОБНАРУЖЕН`. A seed-fixed `Странный кусок плоти` appears once per run on one route floor, survives floor rebuild logic through run state, and unlocks terminal access when picked up. The debug menu can also grant access, place terminals, open the editor, replay the current floor patch, and clear the current patch.
+
+The editor is a canvas HUD overlay over the live `World`: it can paint cells, doors, textures and features, spawn/delete entities and containers from live game registries, choose NPC faction variants, and replay compact current-floor patches after floor transitions, save/load and samosbor rebuilds.
 
 ## Concept
 
@@ -108,6 +118,7 @@ src/
     plot_rooms.ts   story room specs
     contracts.ts    system assignment templates
     resources.ts    economy resources
+    caravans.ts     caravan lane definitions
     factories.ts    production definitions and recipes
     rumors.ts       static rumor definitions
     relations.ts    faction and occupation text/relations
@@ -141,6 +152,7 @@ src/
     inventory.ts   inventory, trade, item use, weapons
     factions.ts    zone capture, patrols, reinforcements
     economy.ts     resource stocks and scarcity prices
+    caravans.ts    supply lane slow ticks and tariff state
     production.ts  factory ticks into containers
     containers.ts  world containers and theft/access rules
     procedural_floors.ts per-run vertical route and floor specs
@@ -178,19 +190,23 @@ The authoritative floor map is `FloorLevel` in `src/core/types.ts`, story-floor 
 | `HELL = 4` | Преисподняя | `src/gen/hell/` | high-threat meat/cult floor | story anchor `z=28` |
 | `VOID = 5` | Пустота | `src/gen/void/` | final anomaly/boss floor | story anchor `z=36`, portal from Hell/Underhell |
 
-Normal lifts move through a per-run vertical `FloorRun` route rather than directly through adjacent enum values. The player starts on `LIVING` at `z=0`. Authored route stops are spaced every four z-levels, and the three levels between each authored stop are seeded procedural floors. The current normal lift span is `z=-40..40` with 21 authored/story stops and 60 procedural floors:
+Normal lifts move through a per-run vertical `FloorRun` route rather than directly through adjacent enum values. The player starts on `LIVING` at `z=0`. Authored/story route stops are spaced every four z-levels by default, and the three levels between each authored/story stop are seeded procedural floors unless an authored stop explicitly occupies a gap. `pioneer_camp` sits above Ministry after the upper office stop: `MINISTRY` at `z=-24`, `upper_bureau` at `z=-28`, `pioneer_camp` at `z=-32`. `bank_floor` occupies the Ministry-to-Raionsovet procedural gap at `z=-22`. The current normal lift span is `z=-44..40` with 23 authored/story stops and 62 procedural floors:
 
 ```txt
-z=-40 roof
+z=-44 roof
+z=-43..-41 procedural
+z=-40 chthonic_attic
 z=-39..-37 procedural
-z=-36 chthonic_attic
+z=-36 antenna_court
 z=-35..-33 procedural
-z=-32 antenna_court
+z=-32 pioneer_camp
 z=-31..-29 procedural
 z=-28 upper_bureau
 z=-27..-25 procedural
 z=-24 MINISTRY
-z=-23..-21 procedural
+z=-23 procedural
+z=-22 bank_floor
+z=-21 procedural
 z=-20 raionsovet_archive
 z=-19..-17 procedural
 z=-16 registry_morgue
@@ -226,20 +242,24 @@ z= 40 darkness
 
 `VOID` is reachable by the normal route at `z=36` and by portal from Hell/Underhell. The return portal in `VOID` currently ends the game in victory state.
 
+Route floors at `z>=36` are NPC-free endgame spaces: `VOID`, the deeper procedural floors and `darkness` still generate monsters, loot, protocols and hazards, but no NPCs or faction reinforcements.
+
 When switching floors, the floor is regenerated and the player preserves HP, needs, inventory, equipped weapon/tool, money and RPG stats.
 
 ### Authored Design Floors
 
 These are routed string-id floors, not new `FloorLevel` enum values. Each one is generated by `src/gen/design_floors/<id>.ts`; runtime systems use its `baseFloor` for mood, economy, monsters and faction defaults.
 
-`src/gen/design_floors/full_floor.ts` expands these authored modules into full 1024x1024 route floors with route-specific secondary layout algorithms, zone retuning, lights, doors and connectivity. The small authored rooms remain as named POIs inside the larger floor. `roof` also exposes a 1024x1024 dynamic sky provider backed by 16x16 cloud chunks; `render/webgl.ts` consumes it through a generic dynamic ceiling texture slot, and roof light comes from a uniform sky lightmap instead of placed lamps. `floor_69` seeds an ambient adult population using the F69 procedural sprite bank, with female NPC variants forming a majority of that floor's added crowd.
+`src/gen/design_floors/full_floor.ts` expands these authored modules into full 1024x1024 route floors with route-specific secondary layout algorithms, zone retuning, lights, doors and connectivity. The small authored rooms remain as named POIs inside the larger floor. `roof` also exposes a 1024x1024 dynamic sky provider backed by 16x16 cloud chunks; `render/webgl.ts` consumes it through a generic dynamic ceiling texture slot, and roof light comes from a uniform sky lightmap instead of placed lamps. `bank_floor` adds cash desks, a deposit row, credit window, debtor queue, staffed vault and a service bypass; banking choices currently use existing NPC quest and container systems with `banking` tags for deposits, loans, repayments, forged debt paper and vault theft. `floor_69` seeds an ambient adult population using the F69 procedural sprite bank, with female NPC variants forming a majority of that floor's added crowd. `dark_metro` has fixed-route moving trains: they stop at platforms, allow `E` boarding/exit, carry the player between stops and crush living entities on active rails.
 
 | z | Route id | HUD name | Base floor |
 | ---: | --- | --- | --- |
-| -40 | `roof` | Крыша | `MINISTRY` |
-| -36 | `chthonic_attic` | Хтонический чердак | `MINISTRY` |
-| -32 | `antenna_court` | Антенный двор | `MINISTRY` |
+| -44 | `roof` | Крыша | `MINISTRY` |
+| -40 | `chthonic_attic` | Хтонический чердак | `MINISTRY` |
+| -36 | `antenna_court` | Антенный двор | `MINISTRY` |
+| -32 | `pioneer_camp` | Пионерлагерь | `LIVING` |
 | -28 | `upper_bureau` | Верхнее бюро | `MINISTRY` |
+| -22 | `bank_floor` | Банковский этаж | `MINISTRY` |
 | -20 | `raionsovet_archive` | Райсовет и Живой архив | `MINISTRY` |
 | -16 | `registry_morgue` | Морг регистраций | `MINISTRY` |
 | -8 | `manhattan_crossroads` | Перекрестки | `KVARTIRY` |
@@ -258,13 +278,13 @@ These are routed string-id floors, not new `FloorLevel` enum values. Each one is
 
 - geometry type: `living_blocks`, `apartment_pressure`, `collectors`, `workshops`, `admin_pockets`;
 - main faction: citizens, liquidators, cultists, wild or scientists, with citizens weighted highest and cultists lowest;
-- anomaly: none, teleport cells, smog, samosbor seed, mushroom mycelium, false safe block or Hladon cold pocket;
+- anomaly: none, teleport cells, smog, samosbor seed, mushroom mycelium, false safe block, Hladon cold pocket, rail trains, Bad Apple world and topology/route anomalies;
 - danger level: `1..5`, derived from vertical depth, direction and random seed;
 - per-floor loot and monster bias ids derived from the same seed.
 
 `src/systems/procedural_floors.ts` owns save/load state for the run seed, current `z`, visited procedural specs, authored route entry resolution and lift route resolution. `src/gen/procedural_floor.ts` builds procedural floors without spawning authored story NPCs: rooms/corridors, both lift directions, zone danger, faction majority, seed-biased loot, seed-biased monsters and anomaly effects.
 
-Teleport-cell anomaly pairs are stored sparsely in `world.anomalyTeleports`. Stepping on one paired cell moves the player to the paired cell after a short cooldown. Mushroom-mycelium floors also seed bounded carnivorous fungus rooms with corpse/bait feeding, salt neutralization, fire burn-off and risky zhelemish harvests. False safe blocks stamp quiet corridors, a too-clean shelter, black-hand marks, a missing-siren panel and cult-owned supplies; investigating, reporting, looting or breaking the marker publish events, while samosbor pressure is only partially delayed. Hladon cold pockets are bounded procedural rooms with pale frost marks; they slow and drain needs only inside/near the marked cells, and heat items, valve/steam tools or alternate routing counter them.
+Teleport-cell anomaly pairs are stored sparsely in `world.anomalyTeleports`. Stepping on one paired cell moves the player to the paired cell after a short cooldown. Mushroom-mycelium floors also seed bounded carnivorous fungus rooms with corpse/bait feeding, salt neutralization, fire burn-off and risky zhelemish harvests. False safe blocks stamp quiet corridors, a too-clean shelter, black-hand marks, a missing-siren panel and cult-owned supplies; investigating, reporting, looting or breaking the marker publish events, while samosbor pressure is only partially delayed. Hladon cold pockets are bounded procedural rooms with pale frost marks; they slow and drain needs only inside/near the marked cells, and heat items, valve/steam tools or alternate routing counter them. Rail-train anomalies cut fixed rail routes through the floor, add platforms with schedule screens, spawn moving train segments, allow `E` boarding/exit while stopped and publish rail events when trains crush NPCs, monsters or the player. Bad Apple world stamps a 144x108 map rectangle from packed black/white RLE frames; black pixels become dark walls, white pixels become pale floor, and the projector can be paused/resumed with `E`.
 
 Floor VISIT quests only complete on story anchors, not on procedural or design floors that happen to use the same base `FloorLevel` for system mood.
 
@@ -407,7 +427,7 @@ The pneumomail station is a static Maintenance POI with intake, intercept, jam a
 
 ### Void
 
-`generateVoid()` builds folded green/black island geometry, void zones, Jean's content, protocol rooms, sparse guardians, loot and the Creator boss. It is reachable on the normal `FloorRun` route at `z=36`, by debug teleport, and by the Hell/Underhell portal after the Herald path opens.
+`generateVoid()` builds folded green/black island geometry, void zones, Jean's warning cell without an NPC, protocol rooms, sparse guardians, loot and the Creator boss. It is reachable on the normal `FloorRun` route at `z=36`, by debug teleport, and by the Hell/Underhell portal after the Herald path opens.
 
 ### Procedural Floors
 
@@ -417,7 +437,7 @@ The pneumomail station is a static Maintenance POI with intake, intercept, jam a
 2. Connect rooms with toroidal corridors and ensure connectivity.
 3. Generate 64 zones, danger levels and main faction control.
 4. Place up/down lifts.
-5. Spawn NPCs from the main faction mix.
+5. Spawn NPCs from the main faction mix, except on NPC-free endgame route floors at `z>=36`.
 6. Spawn loot and monsters with seed-biased weights.
 7. Apply the anomaly: fog, teleport pairs, samosbor-tainted zones/marks, mushroom growth with carnivorous fungus rooms, cold pockets or false safe blocks.
 
@@ -565,7 +585,12 @@ Economy:
 
 - `src/data/resources.ts`: 17 resources.
 - `src/systems/economy.ts`: per-floor stock, scarcity multiplier, adjusted price cache.
+- `src/data/caravans.ts` and `src/systems/caravans.ts`: 6 supply lanes, bounded slow ticks, tariff pressure and route actions.
 - Scarcity affects item prices and some contract rewards.
+- Money is currently carried as entity cash (`Entity.money`) and used by NPC trade.
+- NPC trade moves one stack unit at the current scarcity-adjusted item price, transfers cash between buyer/seller and publishes trade or item-sale events.
+- Economy save data is normalized on load, including old saves with missing floor/resource rows.
+- The debug menu has an economy prices summary for current stock and adjusted prices.
 
 Containers:
 
@@ -629,9 +654,9 @@ Screens show active floor/zone context, quest markers, fog overlay, NPC/monster/
 | `Enter` | save/load menu or close menu |
 | `~` | debug menu |
 
-On touch devices the game shows a landscape mobile overlay: left virtual joystick for movement, right virtual joystick for camera rotation, center tap zone for attack/shoot, left `[E]` popup for nearby interaction targets, and a right-side menu rail. The rail's up/down buttons choose inventory, map, quests, log, factions, Net Sphere, save/load menu or debug menu; the center button opens the selected panel or closes the current panel. The canvas resizes to the host viewport/fullscreen iframe, including itch.io mobile launch/fullscreen resizing. Canvas UI panels accept taps for selection, transfer, buy/sell, use/drop and close actions.
+On touch devices the game shows a landscape mobile overlay: left virtual joystick for movement, right virtual joystick for camera rotation, center tap zone for attack/shoot, left `[E]` popup for nearby interaction targets, a top-left `FULL`/direct-page control when the browser can use it safely, and a right-side menu rail. The rail's up/down buttons choose inventory, map, quests, log, factions, Net Sphere, save/load menu or debug menu; the center button opens the selected panel or closes the current panel. The canvas resizes to the host viewport/fullscreen iframe, including itch.io mobile launch/fullscreen resizing. Canvas UI panels accept taps for selection, transfer, buy/sell, use/drop and close actions.
 
-Debug menu currently has 44 base commands plus 15 routed design-floor teleports: weapons/PSI, spawn monsters/NPC/items, XP, samosbor variant cycle, noclip, event log, economy prices, containers, production tick, system assignments, balance/catalog, lift instances, VOID protocols, faction events, route cues, samosbor director controls, story/design/procedural/anomaly teleports, Maronary/Istotit/Veretar forcing, govnyak courier, pneumomail, hermodoor borer QA, liquidator-cult clash, `ONEPUNCHMAN` and smoke expedition setup.
+Debug menu currently has 61 base commands plus 17 routed design-floor teleports: weapons/PSI, spawn monsters/NPC/items, XP, samosbor variant cycle, noclip, event log, economy prices, containers, production tick, system assignments, balance/catalog, lift instances, VOID protocols, faction events, route cues, samosbor director controls, story/design/procedural/anomaly teleports, Maronary/Istotit/Veretar forcing, govnyak courier, pneumomail, hermodoor borer QA, liquidator-cult clash, `ONEPUNCHMAN`, Net Terminal Gen/map editor commands, rail-train anomaly teleport, Bad Apple screen spawn near the player and smoke expedition setup.
 
 ## Save And Load
 

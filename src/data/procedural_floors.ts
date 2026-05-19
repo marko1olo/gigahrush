@@ -32,7 +32,17 @@ export type FloorAnomalyId =
   | 'samosbor_seed'
   | 'mushroom_mycelium'
   | 'hladon'
-  | 'false_safe_block';
+  | 'false_safe_block'
+  | 'fractal_floor'
+  | 'mirror_run'
+  | 'radio_chess'
+  | 'cement_memory'
+  | 'conveyor_sorter'
+  | 'wall_snake'
+  | 'section_shift'
+  | 'conway_life'
+  | 'rail_trains'
+  | 'bad_apple_world';
 
 export const FALSE_SAFE_BLOCK_TAG = 'false_safe_block';
 export const FALSE_SAFE_BLOCK_ROOM_PREFIX = 'Тихий блок';
@@ -89,7 +99,7 @@ export interface ProceduralFloorSpec {
   monsterBiasKinds: MonsterKind[];
 }
 
-export const FLOOR_RUN_MIN_Z = -40;
+export const FLOOR_RUN_MIN_Z = -44;
 export const FLOOR_RUN_MAX_Z = 40;
 export const FLOOR_RUN_VOID_Z = 36;
 
@@ -234,6 +244,16 @@ export const FLOOR_ANOMALIES: readonly FloorAnomalyDef[] = [
   { id: 'mushroom_mycelium', title: 'грибница', weight: 14, minDanger: 2, dangerBias: 0, tags: ['mushroom', 'food'] },
   { id: 'hladon', title: 'хладон', weight: 11, minDanger: 2, dangerBias: 1, tags: ['cold', 'heat_counter', 'route_pressure'] },
   { id: 'false_safe_block', title: 'тихий блок', weight: 5, minDanger: 2, dangerBias: 1, tags: ['cult', 'shelter', FALSE_SAFE_BLOCK_TAG] },
+  { id: 'mirror_run', title: 'зеркальная проводка', weight: 8, minDanger: 2, dangerBias: 1, tags: ['mirror', 'duality', 'teleport', 'loot'] },
+  { id: 'radio_chess', title: 'радио-шахматы', weight: 8, minDanger: 2, dangerBias: 1, tags: ['pattern', 'radio', 'timing', 'movement'] },
+  { id: 'conveyor_sorter', title: 'сортировочный конвейер', weight: 7, minDanger: 2, dangerBias: 1, tags: ['conveyor', 'items', 'industrial', 'movement'] },
+  { id: 'fractal_floor', title: 'фрактал', weight: 6, minDanger: 3, dangerBias: 1, tags: ['fractal', 'maze', 'topology', 'documents'] },
+  { id: 'cement_memory', title: 'цементная память', weight: 6, minDanger: 3, dangerBias: 1, tags: ['trail', 'pressure', 'no_backtracking', 'samosbor'] },
+  { id: 'wall_snake', title: 'змейка', weight: 4, minDanger: 2, dangerBias: 2, tags: ['moving_walls', 'predator', 'crush', 'loot_sink'] },
+  { id: 'rail_trains', title: 'поезда', weight: 8, minDanger: 2, dangerBias: 1, tags: ['rail', 'transit', 'crush', 'industrial'] },
+  { id: 'bad_apple_world', title: 'bad apple!', weight: 3, minDanger: 3, dangerBias: 1, tags: ['video', 'screen', 'topology', 'cult_media'] },
+  { id: 'section_shift', title: 'секционный сдвиг', weight: 4, minDanger: 3, dangerBias: 2, tags: ['topology', 'moving_rooms', 'crush', 'toroid'] },
+  { id: 'conway_life', title: 'игра жизнь', weight: 3, minDanger: 3, dangerBias: 2, tags: ['cellular', 'topology', 'moving_walls', 'math'] },
   { id: 'samosbor_seed', title: 'поражение самосбором', weight: 9, minDanger: 3, dangerBias: 2, tags: ['samosbor', 'meat'] },
 ];
 
@@ -254,6 +274,28 @@ const LOOT_BY_TAG: Record<string, readonly string[]> = {
   smog: ['gasmask_filter', 'cloth_roll', 'filter_layer', 'valve_tag', 'filter_receipt', 'forged_quarantine_clearance'],
   govnyak: ['cigs', 'grey_briquette', 'green_briquette', 'concentrate_coupon'],
   contraband: ['forged_quarantine_clearance', 'filter_receipt', 'fake_pass'],
+  mirror: ['inspection_mirror', 'glass_shard', 'container_key_label', 'fake_pass', 'note'],
+  duality: ['holy_water', 'psi_dust', 'blank_form'],
+  teleport: ['lift_scheme', 'elevator_access_order', 'missing_record_file'],
+  pattern: ['relay_diagram', 'circuit_board', 'lamp_bulb', 'note'],
+  radio: ['relay_diagram', 'circuit_board', 'lamp_bulb'],
+  timing: ['relay_diagram', 'siren_energy', 'flashlight'],
+  movement: ['spring', 'rubber_strip', 'gear'],
+  conveyor: ['gear', 'spring', 'metal_sheet', 'rubber_strip', 'ammo_nails'],
+  fractal: ['lift_scheme', 'elevator_override_form', 'missing_record_file', 'note'],
+  maze: ['lift_scheme', 'istotit_candle', 'ink_bottle'],
+  trail: ['ink_bottle', 'alcohol_bottle', 'lift_scheme', 'cloth_roll'],
+  pressure: ['pressure_logbook', 'valve_tag', 'sealant_tube'],
+  moving_walls: ['wrench', 'gear', 'spring', 'metal_sheet'],
+  predator: ['meat_rune', 'ammo_nails', 'harpoon_gun'],
+  crush: ['bandage', 'tourniquet', 'wrench'],
+  rail: ['metro_ticket', 'wrench', 'fuse', 'relay_diagram', 'valve_tag'],
+  transit: ['metro_ticket', 'caravan_route', 'lift_scheme', 'pressure_logbook'],
+  cellular: ['circuit_board', 'ink_bottle', 'note'],
+  math: ['book', 'lift_scheme', 'blank_form'],
+  video: ['circuit_board', 'relay_diagram', 'overexposed_photo', 'lamp_bulb'],
+  screen: ['circuit_board', 'relay_diagram', 'filter_receipt', 'note'],
+  cult_media: ['psi_dust', 'holy_water', 'meat_rune', 'blank_form'],
 };
 
 const MONSTERS_BY_TAG: Record<string, readonly MonsterKind[]> = {
@@ -272,6 +314,27 @@ const MONSTERS_BY_TAG: Record<string, readonly MonsterKind[]> = {
   cult: [MonsterKind.SHADOW, MonsterKind.IDOL, MonsterKind.SPIRIT],
   shelter: [MonsterKind.ZOMBIE, MonsterKind.SHADOW],
   [FALSE_SAFE_BLOCK_TAG]: [MonsterKind.IDOL, MonsterKind.SHADOW, MonsterKind.SPIRIT],
+  mirror: [MonsterKind.SHADOW, MonsterKind.SPIRIT, MonsterKind.EYE],
+  duality: [MonsterKind.SHADOW, MonsterKind.NELYUD],
+  teleport: [MonsterKind.SPIRIT, MonsterKind.PARAGRAPH],
+  pattern: [MonsterKind.ROBOT, MonsterKind.EYE, MonsterKind.LAMPOVY],
+  radio: [MonsterKind.LAMPOVY, MonsterKind.ROBOT],
+  conveyor: [MonsterKind.REBAR, MonsterKind.ROBOT, MonsterKind.POLZUN],
+  movement: [MonsterKind.POLZUN, MonsterKind.REBAR],
+  fractal: [MonsterKind.PARAGRAPH, MonsterKind.SHOVNIK, MonsterKind.EYE],
+  maze: [MonsterKind.POLZUN, MonsterKind.SHADOW],
+  trail: [MonsterKind.NELYUD, MonsterKind.SHADOW, MonsterKind.ZOMBIE],
+  pressure: [MonsterKind.REBAR, MonsterKind.POLZUN],
+  moving_walls: [MonsterKind.REBAR, MonsterKind.SBORKA],
+  predator: [MonsterKind.TVAR, MonsterKind.KOSTOREZ, MonsterKind.POLZUN],
+  crush: [MonsterKind.REBAR, MonsterKind.KOSTOREZ],
+  rail: [MonsterKind.REBAR, MonsterKind.ROBOT, MonsterKind.TUBE_EEL],
+  transit: [MonsterKind.NELYUD, MonsterKind.POLZUN],
+  cellular: [MonsterKind.SBORKA, MonsterKind.PARAGRAPH, MonsterKind.EYE],
+  math: [MonsterKind.PARAGRAPH, MonsterKind.PECHATEED],
+  video: [MonsterKind.EYE, MonsterKind.LAMPOVY, MonsterKind.PARAGRAPH],
+  screen: [MonsterKind.EYE, MonsterKind.ROBOT, MonsterKind.LAMPOVY],
+  cult_media: [MonsterKind.SHADOW, MonsterKind.SPIRIT, MonsterKind.IDOL],
 };
 
 function clampDanger(v: number): 1 | 2 | 3 | 4 | 5 {
@@ -331,6 +394,10 @@ export function zForStoryFloor(floor: FloorLevel): number {
 
 export function isProceduralFloorZ(z: number): boolean {
   return z >= FLOOR_RUN_MIN_Z && z <= FLOOR_RUN_MAX_Z && storyFloorAtZ(z) === undefined && designFloorAtZ(z) === undefined;
+}
+
+export function floorRunZAllowsNpcs(z: number): boolean {
+  return z < FLOOR_RUN_VOID_Z;
 }
 
 export function proceduralFloorKey(z: number): string {

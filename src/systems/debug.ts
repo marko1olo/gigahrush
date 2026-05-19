@@ -37,6 +37,7 @@ import { summarizeHladonColdPockets } from './hladon';
 import { summarizeFloorInstances } from './floor_instances';
 import { summarizeFloorRun } from './procedural_floors';
 import { summarizeProceduralSmog } from './procedural_anomalies';
+import { debugSpawnBadAppleWorld, summarizeBadAppleWorld } from './procedural_anomalies/bad_apple_world';
 import { debugForceVoidProtocol } from './void_protocols';
 import { forceFactionEvent, summarizeFactionEvents } from './faction_events';
 import { debugTriggerRouteCue, routeCueCount } from './route_cues';
@@ -45,6 +46,19 @@ import { debugForceHermodoorBorer } from './hermodoor_borer';
 import { DESIGN_FLOOR_ROUTES, type DesignFloorId } from '../data/design_floors';
 import { type FloorAnomalyId } from '../data/procedural_floors';
 import { isDebugOnePunchManEnabled, keepDebugOnePunchManAlive, toggleDebugOnePunchMan } from './debug_cheats';
+import { fitText } from '../render/ui_text';
+import {
+  grantNetTerminalGenAccess,
+  placeNetTerminalGenTerminal,
+  placeNetTerminalGenTerminalsForCurrentFloor,
+  summarizeNetTerminalGen,
+} from './net_terminal_gen';
+import {
+  clearCurrentMapEditorPatch,
+  openMapEditor,
+  replayMapEditorPatchForCurrentFloor,
+  summarizeMapEditor,
+} from './map_editor';
 
 /* ── Command execution ───────────────────────────────────────── */
 
@@ -56,7 +70,8 @@ export type DebugCommandAction =
   | { type: 'teleport_story_floor'; floor: FloorLevel }
   | { type: 'teleport_random_procedural_floor' }
   | { type: 'teleport_procedural_anomaly'; anomalyId: FloorAnomalyId }
-  | { type: 'teleport_design_floor'; id: DesignFloorId; floor: FloorLevel; z: number; label: string; color: string };
+  | { type: 'teleport_design_floor'; id: DesignFloorId; floor: FloorLevel; z: number; label: string; color: string }
+  | { type: 'refresh_world_data' };
 
 function movePlayerToSmokeLift(world: World, player: Entity, entities: Entity[]): boolean {
   let fallback: { x: number; y: number; angle: number } | null = null;
@@ -501,6 +516,56 @@ export function execDebugCommand(
       ));
       break;
     }
+    case 44: { // Grant Net Terminal Gen access
+      grantNetTerminalGenAccess(state);
+      state.msgs.push(msg('[НЕТ-ГЕН] доступ выдан', state.time, '#63f6ff'));
+      break;
+    }
+    case 45: { // Place generated terminals on current floor
+      const count = placeNetTerminalGenTerminalsForCurrentFloor(world, state, { debug: true, max: 4, clearExisting: true, source: 'debug' });
+      state.msgs.push(msg(`[НЕТ-ГЕН] терминалов: ${count}`, state.time, count > 0 ? '#63f6ff' : '#f84'));
+      return { type: 'refresh_world_data' };
+    }
+    case 46: { // Place terminal in front of player
+      const x = Math.floor(player.x + Math.cos(player.angle) * 1.5);
+      const y = Math.floor(player.y + Math.sin(player.angle) * 1.5);
+      const terminal = placeNetTerminalGenTerminal(world, x, y, undefined, 'debug');
+      state.msgs.push(msg(terminal ? `[НЕТ-ГЕН] терминал ${terminal.x},${terminal.y}` : '[НЕТ-ГЕН] нет подходящей клетки', state.time, terminal ? '#63f6ff' : '#f84'));
+      return { type: 'refresh_world_data' };
+    }
+    case 47: { // Open map editor
+      state.showDebug = false;
+      openMapEditor(world, player, state);
+      break;
+    }
+    case 48: { // Net Terminal Gen and map editor status
+      for (const line of summarizeNetTerminalGen(state, player)) state.msgs.push(msg(`[НЕТ-ГЕН] ${line}`, state.time, '#63f6ff'));
+      for (const line of summarizeMapEditor(state)) state.msgs.push(msg(`[MAPEDIT] ${line}`, state.time, '#9fdbc6'));
+      break;
+    }
+    case 49: { // Replay current map patch
+      const applied = replayMapEditorPatchForCurrentFloor(world, entities, player, state, nextEntityId);
+      state.msgs.push(msg(`[MAPEDIT] replay ${applied}`, state.time, applied > 0 ? '#9fdbc6' : '#888'));
+      return { type: 'refresh_world_data' };
+    }
+    case 50: { // Clear current map patch
+      const cleared = clearCurrentMapEditorPatch(state);
+      state.msgs.push(msg(cleared ? '[MAPEDIT] patch cleared' : '[MAPEDIT] patch empty', state.time, cleared ? '#9fdbc6' : '#888'));
+      break;
+    }
+    case 51: return { type: 'teleport_procedural_anomaly', anomalyId: 'fractal_floor' };
+    case 52: return { type: 'teleport_procedural_anomaly', anomalyId: 'mirror_run' };
+    case 53: return { type: 'teleport_procedural_anomaly', anomalyId: 'radio_chess' };
+    case 54: return { type: 'teleport_procedural_anomaly', anomalyId: 'cement_memory' };
+    case 55: return { type: 'teleport_procedural_anomaly', anomalyId: 'conveyor_sorter' };
+    case 56: return { type: 'teleport_procedural_anomaly', anomalyId: 'wall_snake' };
+    case 57: return { type: 'teleport_procedural_anomaly', anomalyId: 'section_shift' };
+    case 58: return { type: 'teleport_procedural_anomaly', anomalyId: 'conway_life' };
+    case 59: return { type: 'teleport_procedural_anomaly', anomalyId: 'rail_trains' };
+    case 60: {
+      for (const line of debugSpawnBadAppleWorld(world, player, state)) state.msgs.push(msg(`[BADAPPLE] ${line}`, state.time, '#fff'));
+      return { type: 'refresh_world_data' };
+    }
   }
   return null;
 }
@@ -560,6 +625,23 @@ const BASE_CMD_LABELS = [
   'ГЕРМО: точильщик QA',
   'Форсировать стычку ликвидаторов и культа',
   'ONEPUNCHMAN',
+  'НЕТ-ГЕН: выдать доступ',
+  'НЕТ-ГЕН: расставить терминалы',
+  'НЕТ-ГЕН: терминал перед игроком',
+  'НЕТ-ГЕН: открыть редактор карты',
+  'НЕТ-ГЕН: статус',
+  'MAPEDIT: replay current patch',
+  'MAPEDIT: clear current patch',
+  'ТП: фрактал',
+  'ТП: зеркало',
+  'ТП: радио-шахматы',
+  'ТП: цементная память',
+  'ТП: конвейер',
+  'ТП: змейка',
+  'ТП: секционный сдвиг',
+  'ТП: игра жизнь',
+  'ТП: поезда',
+  'BAD APPLE: экран рядом',
 ];
 
 const DESIGN_FLOOR_COMMAND_START = BASE_CMD_LABELS.length;
@@ -579,6 +661,10 @@ export function drawDebugOverlay(
   state: GameState,
   debugSel: number,
 ): void {
+  const uiScale = Math.max(0.8, Math.min(4.2, Math.min(sx, sy)));
+  sx = uiScale;
+  sy = uiScale;
+
   /* ── Gather stats ─────────────────────────────────────────── */
   let totalAlive = 0;
   let totalItems = 0;
@@ -625,7 +711,7 @@ export function drawDebugOverlay(
   const margin = 6 * sx;
 
   // Background
-  ctx.fillStyle = 'rgba(0,0,0,0.93)';
+  ctx.fillStyle = 'rgba(0,0,0,0.98)';
   ctx.fillRect(0, 0, w, h);
   ctx.strokeStyle = '#ff0';
   ctx.lineWidth = 1 * sx;
@@ -645,8 +731,18 @@ export function drawDebugOverlay(
   /* ── Left column ──────────────────────────────────────────── */
   const lx = margin + pad;
   let y = margin + pad;
-  const row = (t: string, c: string) => { ctx.fillStyle = c; ctx.fillText(t, lx, y); y += lh; };
+  const leftMaxW = Math.max(20 * sx, divX - lx - pad);
+  const row = (t: string, c: string) => {
+    ctx.fillStyle = c;
+    ctx.fillText(fitText(ctx, t, leftMaxW), lx, y);
+    y += lh;
+  };
   const gap = () => { y += lh * 0.4; };
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(margin + 1 * sx, margin + 1 * sy, Math.max(1, divX - margin - 2 * sx), Math.max(lh, h - margin * 2 - 2 * sy));
+  ctx.clip();
 
   row(`Существа: ${totalAlive}  Предметы: ${totalItems}`, '#aaa');
   row(`Комнаты: ${funcRooms}  Лифты: ${lifts} (↑${liftsUp} ↓${liftsDown})`, '#aaa');
@@ -654,6 +750,7 @@ export function drawDebugOverlay(
   row(`ONEPUNCHMAN: ${isDebugOnePunchManEnabled() ? 'ON' : 'OFF'}`, isDebugOnePunchManEnabled() ? '#ff0' : '#666');
   for (const line of summarizeFloorRun(state).slice(0, 2)) row(`Этажи: ${line}`, '#8cf');
   for (const line of summarizeProceduralSmog(world, state).slice(0, 2)) row(`Смог: ${line}`, '#b98');
+  for (const line of summarizeBadAppleWorld(world).slice(0, 2)) row(`BadApple: ${line}`, '#eee');
   for (const line of summarizeFloorInstances(state).slice(0, 2)) row(`Лифт: ${line}`, '#f4a');
   for (const line of getSamosborDebugLines()) row(line, '#9cf');
   gap();
@@ -673,6 +770,7 @@ export function drawDebugOverlay(
   for (const zf of zfOrder) {
     row(`  ${ZONE_FACTION_NAMES[zf]}: ${zoneFactionCells[zf] || 0}`, '#bbb');
   }
+  ctx.restore();
 
   /* ── Right column: commands ───────────────────────────────── */
   const rx = divX + pad;
@@ -691,14 +789,15 @@ export function drawDebugOverlay(
 
   for (let i = scrollStart; i < scrollEnd; i++) {
     const sel = i === debugSel;
+    const label = fitText(ctx, `${sel ? '▸' : ' '} ${i + 1}. ${CMD_LABELS[i]}`, w - rx - margin - 12 * sx);
     if (sel) {
       ctx.fillStyle = 'rgba(255,255,0,0.12)';
       ctx.fillRect(divX + 2 * sx, ry - 1 * sy, w - divX - margin - 4 * sx, lh);
       ctx.fillStyle = '#ff0';
-      ctx.fillText(`▸ ${i + 1}. ${CMD_LABELS[i]}`, rx, ry);
+      ctx.fillText(label, rx, ry);
     } else {
       ctx.fillStyle = '#ccc';
-      ctx.fillText(`  ${i + 1}. ${CMD_LABELS[i]}`, rx, ry);
+      ctx.fillText(label, rx, ry);
     }
     ry += lh;
   }
@@ -720,5 +819,5 @@ export function drawDebugOverlay(
   ry = hintY + lh * 0.6;
   ctx.fillStyle = '#555';
   const range = CMD_LABELS.length > visibleRows ? ` ${scrollStart + 1}-${scrollEnd}/${CMD_LABELS.length}` : '';
-  ctx.fillText(`↑↓/W/S${range}  E выбрать  ~ закрыть`, rx, ry);
+  ctx.fillText(fitText(ctx, `↑↓/W/S${range}  E выбрать  ~ закрыть`, w - rx - margin), rx, ry);
 }

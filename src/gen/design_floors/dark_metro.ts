@@ -19,6 +19,7 @@ import {
   ZoneFaction,
   type Entity,
   type GameState,
+  type RailTrainTrack,
   type Room,
   type WorldContainer,
 } from '../../core/types';
@@ -29,6 +30,7 @@ import { type PlotNpcDef, registerSideQuest } from '../../data/plot';
 import { MONSTERS, applyMonsterVariant } from '../../entities/monster';
 import { Spr } from '../../render/sprite_index';
 import { publishEvent } from '../../systems/events';
+import { addRailTrainRoute } from '../../systems/rail_trains';
 import { randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg';
 import { ensureConnectivity, generateZones, sanitizeDoors, stampRoom } from '../shared';
 import type { FloorGeneration } from '../floor_manifest';
@@ -405,6 +407,7 @@ export function generateDarkMetroDesignFloor(seed = DARK_METRO_DEFAULT_SEED): Fl
     generateZones(world);
     tuneDarkMetroZones(world);
     dressDarkMetro(ctx, layout);
+    seedCoreMetroTrain(ctx, layout);
     spawnDarkMetroNpcs(ctx, layout);
     spawnDarkMetroLoot(ctx, layout);
     spawnDarkMetroThreats(ctx, layout);
@@ -425,6 +428,7 @@ export function expandDarkMetroFullFloorGeometry(
   world: World,
   rng: () => number,
   style: DarkMetroFullFloorStyle,
+  entities?: Entity[],
 ): void {
   const protectedCells = darkMetroProtectedMask(world);
   for (let i = 0; i < DARK_METRO_FULL_LINE_YS.length; i++) {
@@ -435,6 +439,7 @@ export function expandDarkMetroFullFloorGeometry(
   addDarkMetroServiceRoutes(world, protectedCells, style, rng);
   addDarkMetroTransferWeb(world, protectedCells, style);
   linkDarkMetroCoreToInterchange(world, style);
+  if (entities) seedFullFloorMetroTrains(world, entities);
   world.markFogDirty();
 }
 
@@ -875,6 +880,112 @@ function dressDarkMetro(ctx: BuildCtx, layout: DarkMetroLayout): void {
   for (let i = 0; i < 9; i++) {
     const x = layout.blindTunnel.x + 4 + i * 3;
     world.stamp(x, layout.blindTunnel.y + 2, 0.5, 0.5, 2.5, 0.24, hashSeed(`dark_metro_mark.${i}`), 55, 45, 70, false);
+  }
+}
+
+function nextTrainEntityId(entities: Entity[]): { v: number } {
+  return { v: entities.reduce((mx, e) => Math.max(mx, e.id), 0) + 1 };
+}
+
+function addPlatformCells(world: World, out: number[], x0: number, x1: number, y: number): void {
+  for (let x = x0; x <= x1; x++) {
+    const ci = world.idx(x, y);
+    if (world.cells[ci] !== Cell.LIFT && world.cells[ci] !== Cell.WALL) out.push(ci);
+  }
+}
+
+function seedCoreMetroTrain(ctx: BuildCtx, layout: DarkMetroLayout): void {
+  const y = layout.platform.y + layout.platform.h - 2;
+  const cells: number[] = [];
+  for (let x = layout.platform.x + 2; x < layout.platform.x + layout.platform.w - 2; x++) {
+    const ci = ctx.world.idx(x, y);
+    if (ctx.world.cells[ci] === Cell.WATER) cells.push(ci);
+  }
+  const platformCells: number[] = [];
+  addPlatformCells(ctx.world, platformCells, layout.platform.x + 3, layout.platform.x + layout.platform.w - 4, y - 3);
+  const track: RailTrainTrack = {
+    id: 'dark_metro_platform_loop',
+    label: 'Петля платформы',
+    cells,
+    stationOffsets: [Math.floor(cells.length / 2)],
+    platformCells,
+    loop: true,
+  };
+  addRailTrainRoute(ctx.world, ctx.entities, ctx.nextId, track, {
+    id: 'dark_metro_platform_train',
+    label: 'Короткий состав платформы',
+    speed: 2.9,
+    length: 7,
+    initialOffset: track.stationOffsets[0],
+    stopSeconds: 5,
+  });
+}
+
+function buildFullFloorMetroTrack(world: World, lineY: number, line: number): RailTrainTrack | null {
+  const trackY = lineY + (line % 2 === 0 ? 6 : -5);
+  const platformY = lineY + (line % 2 === 0 ? 12 : -11);
+  const cells: number[] = [];
+  for (let x = 48; x < W - 48; x++) {
+    const ci = world.idx(x, trackY);
+    if (world.cells[ci] === Cell.WATER) cells.push(ci);
+  }
+  if (cells.length < 180) return null;
+
+  const platformCells: number[] = [];
+  const stationOffsets: number[] = [];
+  const stations = [
+    132 + line * 11,
+    398 + (line % 2) * 54,
+    690 - (line % 3) * 23,
+    884 - line * 7,
+  ];
+  for (const sx of stations) {
+    const x = Math.max(72, Math.min(W - 72, sx));
+    let bestOffset = 0;
+    let bestD = Infinity;
+    for (let i = 0; i < cells.length; i++) {
+      const cx = cells[i] % W;
+      const d = Math.abs(world.delta(cx, x));
+      if (d < bestD) {
+        bestD = d;
+        bestOffset = i;
+      }
+    }
+    stationOffsets.push(bestOffset);
+    for (let dx = -13; dx <= 13; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        const ci = world.idx(x + dx, platformY + dy);
+        if (world.cells[ci] !== Cell.LIFT && world.cells[ci] !== Cell.WALL) platformCells.push(ci);
+      }
+    }
+    setFeature(world, x, platformY, Feature.SCREEN);
+    setFeature(world, x + 8, platformY, Feature.LAMP);
+  }
+
+  return {
+    id: `dark_metro_line_${line + 1}`,
+    label: `Линия ${line + 1}`,
+    cells,
+    stationOffsets,
+    platformCells,
+    loop: true,
+  };
+}
+
+function seedFullFloorMetroTrains(world: World, entities: Entity[]): void {
+  const nextId = nextTrainEntityId(entities);
+  for (let i = 0; i < DARK_METRO_FULL_LINE_YS.length; i++) {
+    const track = buildFullFloorMetroTrack(world, DARK_METRO_FULL_LINE_YS[i], i);
+    if (!track) continue;
+    addRailTrainRoute(world, entities, nextId, track, {
+      id: `${track.id}_train`,
+      label: i % 3 === 0 ? `Состав ${i + 1} без машиниста` : `Состав ${i + 1}`,
+      speed: 4.2 + i * 0.35,
+      length: 11 + (i % 3),
+      direction: i % 2 === 0 ? 1 : -1,
+      initialOffset: track.stationOffsets[0],
+      stopSeconds: 4.5,
+    });
   }
 }
 

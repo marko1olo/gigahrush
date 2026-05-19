@@ -1,0 +1,123 @@
+import { Cell, Feature, RoomType, Tex } from '../../core/types';
+import type { Room } from '../../core/types';
+import {
+  chance,
+  isProtectedCell,
+  pick,
+  roomCell,
+  roomCenter,
+  type ProceduralAnomalyGenContext,
+} from './common';
+
+export const CONWAY_LIFE_ROOM_PREFIX = 'Игра жизнь:';
+
+function isMutableLifeCell(ctx: ProceduralAnomalyGenContext, room: Room, x: number, y: number): boolean {
+  const ci = ctx.world.idx(x, y);
+  if (ctx.world.roomMap[ci] !== room.id) return false;
+  if (ctx.world.cells[ci] !== Cell.FLOOR && ctx.world.cells[ci] !== Cell.WALL) return false;
+  if (isProtectedCell(ctx.world, ci)) return false;
+  if (ctx.world.features[ci] !== Feature.NONE && ctx.world.features[ci] !== Feature.LAMP) return false;
+  if (ctx.world.dist2(ctx.spawnX, ctx.spawnY, x + 0.5, y + 0.5) < 12 * 12) return false;
+  for (const e of ctx.entities) {
+    if (!e.alive) continue;
+    if (ctx.world.dist2(e.x, e.y, x + 0.5, y + 0.5) < 2.25) return false;
+  }
+  return true;
+}
+
+function seedAlive(dx: number, dy: number, room: Room, seed: number): boolean {
+  const edge = dx <= 2 || dy <= 2 || dx >= room.w - 3 || dy >= room.h - 3;
+  const h = ((dx * 73856093) ^ (dy * 19349663) ^ (room.id * 83492791) ^ seed) >>> 0;
+  if (edge) return (h & 15) === 0;
+  if ((dx + seed) % 11 === 0 && dy > 3 && dy < room.h - 4) return chance(0.38);
+  if ((dy + room.id) % 13 === 0 && dx > 3 && dx < room.w - 4) return chance(0.34);
+  return (h % 100) < 24;
+}
+
+function addLifeGlider(ctx: ProceduralAnomalyGenContext, room: Room, ox: number, oy: number): void {
+  const pts = [
+    [1, 0], [2, 1], [0, 2], [1, 2], [2, 2],
+  ];
+  for (const [dx, dy] of pts) {
+    const x = ctx.world.wrap(room.x + ox + dx);
+    const y = ctx.world.wrap(room.y + oy + dy);
+    if (!isMutableLifeCell(ctx, room, x, y)) continue;
+    const ci = ctx.world.idx(x, y);
+    ctx.world.cells[ci] = Cell.WALL;
+    ctx.world.wallTex[ci] = Tex.DARK;
+    ctx.world.fog[ci] = Math.max(ctx.world.fog[ci], 34);
+  }
+}
+
+function applyArena(ctx: ProceduralAnomalyGenContext, room: Room, arenaIndex: number): void {
+  room.name = `${CONWAY_LIFE_ROOM_PREFIX} арена ${arenaIndex}; комната ${room.id}`;
+  room.wallTex = Tex.DARK;
+  room.floorTex = Tex.F_CONCRETE;
+
+  let alive = 0;
+  for (let dy = 1; dy < room.h - 1; dy++) {
+    for (let dx = 1; dx < room.w - 1; dx++) {
+      const x = ctx.world.wrap(room.x + dx);
+      const y = ctx.world.wrap(room.y + dy);
+      const ci = ctx.world.idx(x, y);
+      if (!isMutableLifeCell(ctx, room, x, y)) continue;
+      ctx.world.floorTex[ci] = Tex.F_CONCRETE;
+      if (seedAlive(dx, dy, room, ctx.spec.seed + arenaIndex * 101)) {
+        ctx.world.cells[ci] = Cell.WALL;
+        ctx.world.wallTex[ci] = Tex.DARK;
+        alive++;
+      } else {
+        ctx.world.cells[ci] = Cell.FLOOR;
+      }
+      if ((dx + dy + arenaIndex) % 7 === 0) {
+        ctx.world.stamp(x, y, 0.5, 0.5, 0.16, 0.34, ctx.spec.seed + room.id * 97 + dx * 13 + dy, 38, 35, 42, false);
+      }
+      ctx.world.fog[ci] = Math.max(ctx.world.fog[ci], 12);
+    }
+  }
+
+  if (room.w >= 12 && room.h >= 12) {
+    addLifeGlider(ctx, room, 3, 3);
+    addLifeGlider(ctx, room, Math.max(3, room.w - 7), Math.max(3, room.h - 7));
+  }
+
+  const control = roomCell(ctx.world, room, Math.floor(room.w / 2), Math.floor(room.h / 2), true)
+    ?? roomCell(ctx.world, room, 2, 2, true);
+  if (control) {
+    const ci = ctx.world.idx(control.x, control.y);
+    ctx.world.cells[ci] = Cell.FLOOR;
+    ctx.world.features[ci] = Feature.APPARATUS;
+    ctx.world.floorTex[ci] = Tex.F_VOID;
+    ctx.world.fog[ci] = 0;
+    ctx.world.stamp(control.x, control.y, 0.5, 0.5, 0.72, 0.6, ctx.spec.seed + room.id * 331, 30, 210, 160, false);
+  }
+
+  ctx.world.markWallTexDirty();
+  ctx.world.markFloorTexDirty();
+  ctx.world.markFogDirty();
+}
+
+function candidateRooms(ctx: ProceduralAnomalyGenContext): Room[] {
+  return ctx.rooms.filter(room => {
+    if (room.type === RoomType.CORRIDOR) return false;
+    if (room.w < 10 || room.h < 10 || room.w > 42 || room.h > 42) return false;
+    const c = roomCenter(room);
+    if (ctx.world.dist2(ctx.spawnX, ctx.spawnY, c.x, c.y) < 42 * 42) return false;
+    return true;
+  });
+}
+
+export function applyConwayLife(ctx: ProceduralAnomalyGenContext): void {
+  const candidates = candidateRooms(ctx);
+  if (candidates.length === 0) return;
+
+  const arenas = Math.min(candidates.length, ctx.spec.danger >= 4 ? 2 : 1);
+  const used = new Set<number>();
+  for (let i = 0; i < arenas; i++) {
+    let room = pick(candidates);
+    for (let guard = 0; guard < 16 && used.has(room.id); guard++) room = pick(candidates);
+    if (used.has(room.id)) continue;
+    used.add(room.id);
+    applyArena(ctx, room, i + 1);
+  }
+}

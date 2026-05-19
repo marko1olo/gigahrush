@@ -467,6 +467,35 @@ export interface WorldContainer {
   tags: string[];
 }
 
+// ── Rail trains ─────────────────────────────────────────────────
+export interface RailTrainTrack {
+  id: string;
+  label: string;
+  cells: number[];
+  stationOffsets: number[];
+  platformCells: number[];
+  loop: boolean;
+}
+
+export interface RailTrain {
+  id: string;
+  label: string;
+  trackId: string;
+  offset: number;
+  speed: number;
+  length: number;
+  direction: 1 | -1;
+  stopSeconds: number;
+  stopUntil: number;
+  passengerId: number;
+  passengerSeat: number;
+  entityIds: number[];
+  lastStopOffset: number;
+  nextWarnAt: number;
+  nextCrushAt: number;
+  nextDoorMsgAt: number;
+}
+
 // ── Quests ────────────────────────────────────────────────────────
 export enum QuestType { FETCH, VISIT, KILL, TALK }
 
@@ -584,8 +613,13 @@ export type WorldEventType =
   | 'smog_entered'
   | 'smog_source_found'
   | 'smog_source_handled'
+  | 'bad_apple_spawned'
+  | 'bad_apple_toggled'
   | 'metro_route_taken'
   | 'metro_wrong_stop'
+  | 'rail_train_boarded'
+  | 'rail_train_exited'
+  | 'rail_train_crush'
   | 'quest_created'
   | 'quest_completed'
   | 'quest_failed'

@@ -24,6 +24,7 @@ import './emergency_medpost';
 import './fake_medpost_zhelemish';
 import './hermoseam_station';
 import './expedition_prep';
+import './caravan_exchange';
 import './external_cell_neighbor';
 import './golos_za_dveryu';
 import './govnyak_smoke_den';

@@ -10,6 +10,7 @@ import { generateWorld } from './living';
 import { generateMaintenance } from './maintenance';
 import { generateHell, resetHellPopulationState } from './hell';
 import { generateVoid } from './void';
+import { withoutNpcEntities } from './entity_filters';
 
 export interface FloorGeneration {
   world: World;
@@ -65,11 +66,11 @@ export function nextPostSamosborTimer(floor: FloorLevel): number {
 }
 
 export function allowsFactionEntryReinforcements(floor: FloorLevel): boolean {
-  return floor !== FloorLevel.HELL;
+  return floor !== FloorLevel.HELL && floor !== FloorLevel.VOID;
 }
 
 export function allowsAmbientFactionReinforcements(floor: FloorLevel): boolean {
-  return floor !== FloorLevel.HELL && floor !== FloorLevel.KVARTIRY;
+  return floor !== FloorLevel.HELL && floor !== FloorLevel.KVARTIRY && floor !== FloorLevel.VOID;
 }
 
 export function resetGeneratedFloorPopulationState(): void {
@@ -91,5 +92,6 @@ export function isFloorLevel(value: unknown): value is FloorLevel {
 }
 
 export function generateFloor(floor: FloorLevel): FloorGeneration {
-  return FLOOR_GENERATORS[floor]();
+  const generation = FLOOR_GENERATORS[floor]();
+  return floor === FloorLevel.VOID ? withoutNpcEntities(generation) : generation;
 }

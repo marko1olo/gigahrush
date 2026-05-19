@@ -96,6 +96,14 @@ test('contract, resource, factory, and container ids stay coherent', () => {
   const roomTypeIds = new Set(Object.values(RoomType).filter(v => typeof v === 'number'));
   const missing: string[] = [];
 
+  for (const r of RESOURCES) {
+    if (!/^[a-z][a-z0-9_]*$/.test(r.id)) missing.push(`resource:${r.id}:idFormat`);
+    if (r.baseStock <= 0) missing.push(`resource:${r.id}:baseStock:${r.baseStock}`);
+    if (r.lowStock < 0 || r.lowStock >= r.baseStock) missing.push(`resource:${r.id}:lowStock:${r.lowStock}`);
+    if (r.roomTypes.length === 0) missing.push(`resource:${r.id}:roomTypes`);
+    for (const roomType of r.roomTypes) if (!roomTypeIds.has(roomType)) missing.push(`resource:${r.id}:roomType:${roomType}`);
+  }
+
   for (const c of CONTRACTS) {
     missing.push(...missingItems(
       `contract:${c.id}`,
@@ -111,11 +119,22 @@ test('contract, resource, factory, and container ids stay coherent', () => {
   for (const r of RESOURCES) missing.push(...missingItems(`resource:${r.id}`, r.itemIds));
 
   for (const f of FACTORIES) {
+    if (!/^[a-z][a-z0-9_]*$/.test(f.id)) missing.push(`factory:${f.id}:idFormat`);
+    if (f.roomTypes.length === 0) missing.push(`factory:${f.id}:roomTypes`);
+    if (f.workerOccupations.length === 0) missing.push(`factory:${f.id}:workerOccupations`);
+    for (const roomType of f.roomTypes) if (!roomTypeIds.has(roomType)) missing.push(`factory:${f.id}:roomType:${roomType}`);
     assertUnique(`factory ${f.id} recipe`, f.recipes.map(r => r.id));
     for (const recipe of f.recipes) {
+      if (!/^[a-z][a-z0-9_]*$/.test(recipe.id)) missing.push(`factory:${f.id}:${recipe.id}:idFormat`);
+      if (recipe.cycleSec <= 0) missing.push(`factory:${f.id}:${recipe.id}:cycleSec:${recipe.cycleSec}`);
+      if (recipe.inputs.length === 0 && (recipe.inputItems ?? []).length === 0) missing.push(`factory:${f.id}:${recipe.id}:inputs`);
+      if (recipe.outputs.length === 0) missing.push(`factory:${f.id}:${recipe.id}:outputs`);
       for (const input of recipe.inputs) {
         if (!resourceIds.has(input.id)) missing.push(`factory:${f.id}:${recipe.id}:resource:${input.id}`);
+        if (input.count <= 0) missing.push(`factory:${f.id}:${recipe.id}:resourceCount:${input.id}:${input.count}`);
       }
+      for (const item of recipe.inputItems ?? []) if (item.count <= 0) missing.push(`factory:${f.id}:${recipe.id}:inputCount:${item.defId}:${item.count}`);
+      for (const output of recipe.outputs) if (output.count <= 0) missing.push(`factory:${f.id}:${recipe.id}:outputCount:${output.defId}:${output.count}`);
       missing.push(...missingItems(`factory:${f.id}:${recipe.id}:input`, (recipe.inputItems ?? []).map(i => i.defId)));
       missing.push(...missingItems(`factory:${f.id}:${recipe.id}`, recipe.outputs.map(o => o.defId)));
     }

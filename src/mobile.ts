@@ -1,4 +1,13 @@
 import { type InputState } from './core/types';
+import {
+  canUseMobileFullscreen,
+  enterMobileFullscreen,
+  exitMobileFullscreen,
+  isEmbeddedViewport,
+  isMobileFullscreenActive,
+  openStandalonePage,
+} from './fullscreen';
+import { isStandaloneDisplay } from './pwa';
 
 export type MobileMenuId = 'inventory' | 'map' | 'quests' | 'log' | 'factions' | 'net' | 'menu' | 'debug';
 
@@ -94,6 +103,7 @@ export function createMobileControls(input: InputState, options: MobileControlsO
 
   const interact = makeButton('mobile-interact', 'E', 'Взаимодействие');
   const fire = makeButton('mobile-fire-zone', '', 'Атака');
+  const fullscreen = makeButton('mobile-fullscreen', 'FULL', 'Полный экран');
 
   const menuRail = document.createElement('div');
   menuRail.className = 'mobile-menu-rail';
@@ -102,7 +112,7 @@ export function createMobileControls(input: InputState, options: MobileControlsO
   const menuDown = makeButton('mobile-menu-btn', '▼', 'Меню ниже');
   menuRail.append(menuUp, menuSelect, menuDown);
 
-  root.append(rotate, fire, movePad, lookPad, interact, menuRail);
+  root.append(rotate, fire, fullscreen, movePad, lookPad, interact, menuRail);
   document.body.append(root);
 
   let enabled = false;
@@ -164,12 +174,25 @@ export function createMobileControls(input: InputState, options: MobileControlsO
     );
   };
 
+  const updateFullscreenUi = (): void => {
+    const standalone = isStandaloneDisplay();
+    const embedded = isEmbeddedViewport();
+    const nativeFullscreen = canUseMobileFullscreen();
+    fullscreen.hidden = standalone || (!embedded && !nativeFullscreen);
+    fullscreen.textContent = embedded ? '↗' : (isMobileFullscreenActive() ? 'EXIT' : 'FULL');
+    fullscreen.setAttribute(
+      'aria-label',
+      embedded ? 'Открыть игру отдельной страницей' : (isMobileFullscreenActive() ? 'Выйти из полного экрана' : 'Полный экран'),
+    );
+  };
+
   const setEnabled = (next: boolean): void => {
     enabled = next;
     root.toggleAttribute('hidden', !enabled);
     document.body.classList.toggle('mobile-controls-on', enabled);
     if (!enabled) clearTouchInput();
     updateSelectedLabel();
+    updateFullscreenUi();
   };
 
   const refreshClasses = (): void => {
@@ -180,6 +203,7 @@ export function createMobileControls(input: InputState, options: MobileControlsO
     root.classList.toggle('is-game-over', context.gameOver);
     root.classList.toggle('is-portrait', portrait);
     updateSelectedLabel();
+    updateFullscreenUi();
   };
 
   const refresh = (): void => {
@@ -294,6 +318,26 @@ export function createMobileControls(input: InputState, options: MobileControlsO
   bindPad(lookPad, lookThumb, 'look');
   pulseButton(interact, 'interact');
 
+  fullscreen.addEventListener('pointerdown', e => {
+    if (!enabled || isStandaloneDisplay()) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (isEmbeddedViewport()) {
+      options.onGesture();
+      openStandalonePage();
+      return;
+    }
+    if (!canUseMobileFullscreen()) return;
+    if (isMobileFullscreenActive()) {
+      options.onGesture();
+      void exitMobileFullscreen().finally(updateFullscreenUi);
+    } else {
+      const pending = enterMobileFullscreen();
+      options.onGesture();
+      void pending.finally(updateFullscreenUi);
+    }
+  });
+
   fire.addEventListener('pointerdown', e => {
     if (!enabled || !context.started || context.menuOpen || context.gameOver) return;
     e.preventDefault();
@@ -337,6 +381,8 @@ export function createMobileControls(input: InputState, options: MobileControlsO
   window.addEventListener('resize', onResize);
   window.visualViewport?.addEventListener('resize', onResize);
   window.visualViewport?.addEventListener('scroll', onResize);
+  document.addEventListener('fullscreenchange', onResize);
+  document.addEventListener('webkitfullscreenchange', onResize);
   refresh();
 
   return {
@@ -351,6 +397,8 @@ export function createMobileControls(input: InputState, options: MobileControlsO
       window.removeEventListener('resize', onResize);
       window.visualViewport?.removeEventListener('resize', onResize);
       window.visualViewport?.removeEventListener('scroll', onResize);
+      document.removeEventListener('fullscreenchange', onResize);
+      document.removeEventListener('webkitfullscreenchange', onResize);
       document.body.classList.remove('mobile-controls-on');
       root.remove();
     },

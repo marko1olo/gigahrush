@@ -157,6 +157,12 @@ function eventText(e: WorldEvent): string {
       return `Метро: ${String(e.data?.routeLabel ?? 'маршрут')} -> ${String(e.data?.destinationLabel ?? 'остановка')}.`;
     case 'metro_wrong_stop':
       return `Метро ошиблось: ${String(e.data?.routeLabel ?? 'маршрут')} -> ${String(e.data?.destinationLabel ?? 'чужая остановка')}.`;
+    case 'rail_train_boarded':
+      return `Поезд: посадка в ${String(e.data?.trainLabel ?? 'состав')}.`;
+    case 'rail_train_exited':
+      return `Поезд: выход из ${String(e.data?.trainLabel ?? 'состава')}.`;
+    case 'rail_train_crush':
+      return `Поезд задавил: ${e.actorName ?? 'цель'}.`;
     case 'rumor_observed':
       if (e.tags.includes('false_safe_block')) return 'Тихий блок раскрыт: отсутствие сирены оказалось культовой меткой.';
       return `${e.actorName ?? 'Кто-то'} заметил слух.`;
@@ -312,13 +318,13 @@ function shouldLog(e: WorldEvent): boolean {
   if (e.privacy === 'secret' || e.privacy === 'private') {
     return e.severity >= 2 && (e.actorName === 'Вы' || e.actorId === 0);
   }
-  return e.severity >= 3 || e.type.startsWith('quest_') || e.type.startsWith('contract_') || e.type.startsWith('samosbor_') || e.type.startsWith('fog_boss_') || e.type.startsWith('smog_') || e.type.startsWith('monster_') || e.type.startsWith('metro_') || e.type.startsWith('hazard_') || e.type.startsWith('paritel_');
+  return e.severity >= 3 || e.type.startsWith('quest_') || e.type.startsWith('contract_') || e.type.startsWith('samosbor_') || e.type.startsWith('fog_boss_') || e.type.startsWith('smog_') || e.type.startsWith('monster_') || e.type.startsWith('metro_') || e.type.startsWith('rail_train_') || e.type.startsWith('hazard_') || e.type.startsWith('paritel_');
 }
 
 function shouldHud(e: WorldEvent): boolean {
   if (!shouldLog(e)) return false;
   if (e.type === 'ammo_consumed') return false;
-  return e.severity >= 3 || e.tags.includes('pneumomail') || e.type.startsWith('quest_') || e.type.startsWith('samosbor_') || e.type.startsWith('fog_boss_') || e.type.startsWith('smog_') || e.type.startsWith('monster_') || e.type.startsWith('metro_') || e.type.startsWith('hazard_') || e.type.startsWith('paritel_');
+  return e.severity >= 3 || e.tags.includes('pneumomail') || e.type.startsWith('quest_') || e.type.startsWith('samosbor_') || e.type.startsWith('fog_boss_') || e.type.startsWith('smog_') || e.type.startsWith('monster_') || e.type.startsWith('metro_') || e.type.startsWith('rail_train_') || e.type.startsWith('hazard_') || e.type.startsWith('paritel_');
 }
 
 function pushLog(state: GameState, entry: LogEntry): void {

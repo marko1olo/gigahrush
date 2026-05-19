@@ -21,6 +21,7 @@ export interface PlotNpcDef {
   maxHp: number;
   money: number;
   speed: number;
+  weapon?: string;
   inventory: { defId: string; count: number }[];
   /** Sequential talk lines (cycled via _plotTalkIdx) */
   talkLines: string[];

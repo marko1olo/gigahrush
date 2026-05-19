@@ -3,6 +3,7 @@
 import { type Entity, Faction } from '../core/types';
 import { getFactionRel } from '../data/relations';
 import { drawNeuroPanel, drawGlitchText } from './hud_fx';
+import { fitText } from './ui_text';
 
 const MATRIX_LABELS = ['Игрок', 'Граждане', 'Ликвид.', 'Культ.', 'Учёные', 'Дикие'];
 const MATRIX_FACTIONS = [Faction.PLAYER, Faction.CITIZEN, Faction.LIQUIDATOR, Faction.CULTIST, Faction.SCIENTIST, Faction.WILD];
@@ -19,6 +20,8 @@ export function drawFactionMenu(
   const cols = MATRIX_LABELS.length; // 6
 
   // Fullscreen neuro-panel background
+  ctx.fillStyle = '#00040a';
+  ctx.fillRect(0, 0, w, h);
   drawNeuroPanel(ctx, 0, 0, w, h, time, 95);
 
   // Title
@@ -55,7 +58,7 @@ export function drawFactionMenu(
     ctx.fillStyle = c === 0 ? '#fff' : '#ccc';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(MATRIX_LABELS[c], cx, cy);
+    ctx.fillText(fitText(ctx, MATRIX_LABELS[c], cellW * 0.95), cx, cy);
   }
 
   // Row headers + values
@@ -67,7 +70,7 @@ export function drawFactionMenu(
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.font = `bold ${labelFontSize}px monospace`;
-    ctx.fillText(MATRIX_LABELS[r], leftX + cellW / 2, ry);
+    ctx.fillText(fitText(ctx, MATRIX_LABELS[r], cellW * 0.95), leftX + cellW / 2, ry);
 
     // Values
     ctx.font = `${fontSize}px monospace`;
