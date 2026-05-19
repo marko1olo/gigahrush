@@ -3,6 +3,7 @@
 import {
   W, Cell, ContainerKind, DoorState, EntityType, AIGoal, Faction, Feature,
   FloorLevel, MonsterKind, Occupation, QuestType, RoomType, Tex,
+  msg,
   type Entity, type GameState, type Room, type WorldContainer, type WorldEvent,
 } from '../../core/types';
 import { World } from '../../core/world';
@@ -25,10 +26,83 @@ const GUIDE_ID = 'hell18_burned_guide_arseny';
 const TAXMAN_ID = 'hell18_cult_taxman';
 const LIQUIDATOR_ID = 'hell18_last_liquidator';
 const OUTCOME_EVENT_TAG = 'hell18_outcome';
+const BRANCH_EVENT_TAG = 'hell18_bargain';
+const BRANCH_RADIUS = 18;
+const BRANCH_RADIUS2 = BRANCH_RADIUS * BRANCH_RADIUS;
 
 export const HELL18_CHOIR_MONSTER_CAP = 8;
 export const HELL18_CHOIR_CULTIST_CAP = 3;
 export const HELL18_CHOIR_REWARD_CLAIM_CAP = 5;
+export const HELL18_CHOIR_BACKLASH_CAP = 4;
+
+type ChoirBranch = 'pay' | 'refuse' | 'fight' | 'steal';
+
+interface ChoirBranchSpec {
+  label: string;
+  message: string;
+  color: string;
+  psiLoss: number;
+  hpPerMissingPsi: number;
+  severity: 3 | 4 | 5;
+  threats: readonly MonsterKind[];
+}
+
+interface ChoirSite {
+  floor: FloorLevel;
+  roomId: number;
+  zoneId: number;
+  x: number;
+  y: number;
+  taxmanId: number;
+  cashboxId: number;
+  refusalContainerId: number;
+  branches: Record<ChoirBranch, boolean>;
+  backlashSpawned: number;
+  backlashIds: number[];
+}
+
+const BRANCH_SPECS: Record<ChoirBranch, ChoirBranchSpec> = {
+  pay: {
+    label: 'налог уплачен',
+    message: 'Хор принял мясо и записал ваш голос в кассу. ПСИ стало тише, но культ запомнил плательщика.',
+    color: '#dca',
+    psiLoss: 2,
+    hpPerMissingPsi: 0,
+    severity: 3,
+    threats: [],
+  },
+  refuse: {
+    label: 'налог отвергнут',
+    message: 'Отказная плита щёлкнула зубами. Мясо осталось при вас, внимание хора - тоже.',
+    color: '#fa8',
+    psiLoss: 4,
+    hpPerMissingPsi: 1,
+    severity: 4,
+    threats: [MonsterKind.SHADOW],
+  },
+  fight: {
+    label: 'сигнал сбит силой',
+    message: 'Идол потерял ноту. Хор ответил коротким ПСИ-ударом и зовом из стен.',
+    color: '#f66',
+    psiLoss: 6,
+    hpPerMissingPsi: 1,
+    severity: 5,
+    threats: [MonsterKind.EYE, MonsterKind.SHADOW],
+  },
+  steal: {
+    label: 'касса вскрыта',
+    message: 'Касса мясного хора запомнила ладонь. Содержимое ваше, но недоимка пошла по полу.',
+    color: '#f84',
+    psiLoss: 8,
+    hpPerMissingPsi: 1,
+    severity: 5,
+    threats: [MonsterKind.SHADOW, MonsterKind.TVAR, MonsterKind.EYE],
+  },
+};
+
+let activeWorld: World | null = null;
+let activeEntities: Entity[] | null = null;
+let activeSite: ChoirSite | null = null;
 
 const GUIDE_DEF: PlotNpcDef = {
   name: 'Арсений Обгорелый',
@@ -189,6 +263,10 @@ const OUTCOME_BY_QUEST: Record<string, { name: string; tags: string[]; severity:
 registerWorldEventObserver(handleHell18QuestOutcome);
 
 export function generateHell18ChoirTax(world: World, entities: Entity[], nextId: { v: number }): void {
+  activeWorld = world;
+  activeEntities = entities;
+  activeSite = null;
+
   const site = findChoirSite(world);
   const room = stampRoom(world, world.rooms.length, RoomType.HQ, site.x, site.y, ROOM_W, ROOM_H, -1);
   room.name = 'Налоговый хор мясного порога';
@@ -207,37 +285,258 @@ export function generateHell18ChoirTax(world: World, entities: Entity[], nextId:
 
   spawnChoirCultists(world, room, entities, nextId);
   spawnChoirMonsters(world, room, entities, nextId);
-  addChoirCache(world, room, taxmanId);
+  const cashboxId = addChoirCache(world, room, taxmanId);
+  const refusalContainerId = addChoirRefusalLedger(world, room);
   dropChoirTraces(world, room, entities, nextId);
+
+  const cx = world.wrap(room.x + (room.w >> 1));
+  const cy = world.wrap(room.y + (room.h >> 1));
+  activeSite = {
+    floor: FloorLevel.HELL,
+    roomId: room.id,
+    zoneId: world.zoneMap[world.idx(cx, cy)],
+    x: cx + 0.5,
+    y: cy + 0.5,
+    taxmanId,
+    cashboxId,
+    refusalContainerId,
+    branches: { pay: false, refuse: false, fight: false, steal: false },
+    backlashSpawned: 0,
+    backlashIds: [],
+  };
 
   genLog(`[FLOOR18_HELL] ${room.name} at (${room.x}, ${room.y}) room #${room.id}; enemies ${HELL18_CHOIR_MONSTER_CAP + HELL18_CHOIR_CULTIST_CAP}, reward claims ${HELL18_CHOIR_REWARD_CLAIM_CAP}`);
 }
 
+export function getHell18ChoirTaxDebugSite(): ChoirSite | null {
+  return activeSite ? {
+    ...activeSite,
+    branches: { ...activeSite.branches },
+    backlashIds: [...activeSite.backlashIds],
+  } : null;
+}
+
+export function resetHell18ChoirTaxForTests(): void {
+  activeWorld = null;
+  activeEntities = null;
+  activeSite = null;
+}
+
 function handleHell18QuestOutcome(state: GameState, event: WorldEvent): void {
-  if (event.type !== 'quest_completed' || event.tags.includes(OUTCOME_EVENT_TAG)) return;
-  const sideQuestId = event.data?.sideQuestId;
-  if (typeof sideQuestId !== 'string') return;
-  const outcome = OUTCOME_BY_QUEST[sideQuestId];
-  if (!outcome) return;
+  if (event.tags.includes(BRANCH_EVENT_TAG)) return;
+  if (event.type === 'quest_completed' && !event.tags.includes(OUTCOME_EVENT_TAG)) {
+    const sideQuestId = event.data?.sideQuestId;
+    if (typeof sideQuestId === 'string') {
+      const outcome = OUTCOME_BY_QUEST[sideQuestId];
+      if (outcome) {
+        publishEvent(state, {
+          type: 'quest_completed',
+          floor: event.floor,
+          actorId: event.actorId,
+          actorName: event.actorName,
+          actorFaction: event.actorFaction,
+          targetName: outcome.name,
+          severity: outcome.severity,
+          privacy: 'local',
+          tags: [OUTCOME_EVENT_TAG, ...outcome.tags],
+          data: {
+            sideQuestId,
+            sourceEventId: event.id,
+            cappedMonsters: HELL18_CHOIR_MONSTER_CAP,
+            cappedCultists: HELL18_CHOIR_CULTIST_CAP,
+            cappedRewardClaims: HELL18_CHOIR_REWARD_CLAIM_CAP,
+          },
+        });
+      }
+      const branch = branchForHell18Quest(sideQuestId);
+      if (branch) applyHell18Branch(state, event, branch);
+    }
+  }
+  handleHell18BranchEvent(state, event);
+}
+
+function branchForHell18Quest(sideQuestId: string): ChoirBranch | null {
+  if (sideQuestId === 'hell18_pay_cult_tax') return 'pay';
+  if (sideQuestId === 'hell18_break_altar_signal') return 'fight';
+  if (sideQuestId === 'hell18_take_psi_cache') return 'steal';
+  return null;
+}
+
+function handleHell18BranchEvent(state: GameState, event: WorldEvent): void {
+  const site = activeSite;
+  const world = activeWorld;
+  if (!site || !world || state.currentFloor !== site.floor || event.floor !== site.floor) return;
+
+  if (event.type === 'item_deposited' && event.containerId === site.cashboxId && event.itemId === 'rawmeat') {
+    applyHell18Branch(state, event, 'pay');
+    return;
+  }
+  if (event.type === 'item_stolen' && event.containerId === site.cashboxId) {
+    applyHell18Branch(state, event, 'steal');
+    return;
+  }
+  if (event.type === 'container_opened' && event.containerId === site.refusalContainerId) {
+    applyHell18Branch(state, event, 'refuse');
+    return;
+  }
+  if ((event.type === 'player_kill_monster' || event.type === 'npc_kill_monster')
+    && event.monsterKind === MonsterKind.IDOL && eventInsideChoirSite(world, site, event)) {
+    applyHell18Branch(state, event, 'fight');
+    return;
+  }
+  if ((event.type === 'player_hurt_npc' || event.type === 'player_kill_npc')
+    && (event.targetId === site.taxmanId || event.targetFaction === Faction.CULTIST)
+    && eventInsideChoirSite(world, site, event)) {
+    applyHell18Branch(state, event, 'fight');
+  }
+}
+
+function eventInsideChoirSite(world: World, site: ChoirSite, event: WorldEvent): boolean {
+  if (event.roomId === site.roomId) return true;
+  if (event.x === undefined || event.y === undefined) return false;
+  return world.dist2(event.x, event.y, site.x, site.y) <= BRANCH_RADIUS2;
+}
+
+function applyHell18Branch(state: GameState, source: WorldEvent, branch: ChoirBranch): void {
+  const site = activeSite;
+  const world = activeWorld;
+  const entities = activeEntities;
+  if (!site || !world || !entities || site.branches[branch]) return;
+
+  site.branches[branch] = true;
+  const spec = BRANCH_SPECS[branch];
+  const drain = drainPlayerForChoir(entities, spec.psiLoss, spec.hpPerMissingPsi);
+  const spawned = spawnChoirBranchBacklash(world, entities, site, spec.threats);
+  state.msgs.push(msg(spec.message, state.time, spec.color));
 
   publishEvent(state, {
-    type: 'quest_completed',
-    floor: event.floor,
-    actorId: event.actorId,
-    actorName: event.actorName,
-    actorFaction: event.actorFaction,
-    targetName: outcome.name,
-    severity: outcome.severity,
+    type: 'samosbor_warning',
+    zoneId: site.zoneId,
+    roomId: site.roomId,
+    x: site.x,
+    y: site.y,
+    actorId: source.actorId,
+    actorName: source.actorName,
+    actorFaction: source.actorFaction,
+    targetName: `Мясной хор: ${spec.label}`,
+    itemId: source.itemId,
+    itemName: source.itemName,
+    itemCount: source.itemCount,
+    containerId: source.containerId,
+    severity: spec.severity,
     privacy: 'local',
-    tags: [OUTCOME_EVENT_TAG, ...outcome.tags],
+    tags: [BRANCH_EVENT_TAG, 'hell18', `choir_${branch}`, 'cult_attention', branch, 'psi', 'medicine', 'backlash'],
     data: {
-      sideQuestId,
-      sourceEventId: event.id,
-      cappedMonsters: HELL18_CHOIR_MONSTER_CAP,
-      cappedCultists: HELL18_CHOIR_CULTIST_CAP,
-      cappedRewardClaims: HELL18_CHOIR_REWARD_CLAIM_CAP,
+      sourceEventId: source.id,
+      branch,
+      psiLost: drain.psiLost,
+      hpLost: drain.hpLost,
+      spawned,
+      backlashCap: HELL18_CHOIR_BACKLASH_CAP,
     },
   });
+}
+
+function drainPlayerForChoir(
+  entities: readonly Entity[],
+  psiLoss: number,
+  hpPerMissingPsi: number,
+): { psiLost: number; hpLost: number } {
+  const player = entities.find(entity => entity.type === EntityType.PLAYER && entity.alive);
+  if (!player) return { psiLost: 0, hpLost: 0 };
+
+  let psiLost = 0;
+  if (player.rpg && psiLoss > 0) {
+    const before = player.rpg.psi;
+    player.rpg.psi = Math.max(0, player.rpg.psi - psiLoss);
+    psiLost = Math.round((before - player.rpg.psi) * 10) / 10;
+  }
+
+  let hpLost = 0;
+  const missingPsi = Math.max(0, psiLoss - psiLost);
+  if (missingPsi > 0 && hpPerMissingPsi > 0 && player.hp !== undefined) {
+    hpLost = Math.min(Math.max(0, player.hp - 1), Math.ceil(missingPsi * hpPerMissingPsi));
+    player.hp = Math.max(1, player.hp - hpLost);
+  }
+  return { psiLost, hpLost };
+}
+
+function spawnChoirBranchBacklash(
+  world: World,
+  entities: Entity[],
+  site: ChoirSite,
+  kinds: readonly MonsterKind[],
+): number {
+  let spawned = 0;
+  for (const kind of kinds) {
+    if (site.backlashSpawned >= HELL18_CHOIR_BACKLASH_CAP) break;
+    const pos = findChoirBranchSpawn(world, site, site.backlashSpawned + spawned);
+    if (!pos) break;
+    const id = nextEntityId(entities);
+    const def = MONSTERS[kind];
+    const zoneLevel = world.zones[site.zoneId]?.level ?? 12;
+    const level = zoneLevel + (kind === MonsterKind.EYE ? 3 : 2);
+    const hp = Math.max(1, Math.round(scaleMonsterHp(def.hp, level)));
+    const player = entities.find(entity => entity.type === EntityType.PLAYER && entity.alive);
+    const monster: Entity = {
+      id,
+      type: EntityType.MONSTER,
+      x: pos.x + 0.5,
+      y: pos.y + 0.5,
+      angle: Math.atan2(site.y - pos.y - 0.5, site.x - pos.x - 0.5),
+      pitch: 0,
+      alive: true,
+      speed: scaleMonsterSpeed(def.speed, level),
+      sprite: monsterSpr(kind),
+      name: kind === MonsterKind.EYE ? 'Глаз недоимки' : kind === MonsterKind.SHADOW ? 'Тень налоговой паузы' : 'Тварь мясной недоимки',
+      hp,
+      maxHp: hp,
+      monsterKind: kind,
+      attackCd: def.attackRate,
+      ai: { goal: player ? AIGoal.HUNT : AIGoal.WANDER, tx: player?.x ?? site.x, ty: player?.y ?? site.y, path: [], pi: 0, stuck: 0, timer: 0 },
+      rpg: randomRPG(level),
+    };
+    applyMonsterVariant(monster, FloorLevel.HELL);
+    entities.push(monster);
+    site.backlashSpawned++;
+    site.backlashIds.push(id);
+    spawned++;
+  }
+  return spawned;
+}
+
+function nextEntityId(entities: readonly Entity[]): number {
+  let id = 1;
+  for (const entity of entities) id = Math.max(id, entity.id + 1);
+  return id;
+}
+
+function findChoirBranchSpawn(world: World, site: ChoirSite, order: number): { x: number; y: number } | null {
+  const room = world.rooms[site.roomId];
+  if (!room) return null;
+  const ring = [
+    [-8, -5], [8, -5], [-8, 5], [8, 5], [0, -7], [0, 7], [-11, 0], [11, 0],
+  ] as const;
+  const cx = room.x + (room.w >> 1);
+  const cy = room.y + (room.h >> 1);
+  for (let pass = 0; pass < 2; pass++) {
+    for (let i = 0; i < ring.length; i++) {
+      const [dx, dy] = ring[(i + order + pass * 3) % ring.length];
+      const x = world.wrap(cx + dx);
+      const y = world.wrap(cy + dy);
+      const ci = world.idx(x, y);
+      if (world.roomMap[ci] === room.id && world.cells[ci] === Cell.FLOOR) return { x, y };
+    }
+  }
+  for (let dy = 2; dy < room.h - 2; dy++) {
+    for (let dx = 2; dx < room.w - 2; dx++) {
+      const x = world.wrap(room.x + dx);
+      const y = world.wrap(room.y + dy);
+      const ci = world.idx(x, y);
+      if (world.roomMap[ci] === room.id && world.cells[ci] === Cell.FLOOR) return { x, y };
+    }
+  }
+  return null;
 }
 
 function findChoirSite(world: World): { x: number; y: number } {
@@ -566,7 +865,7 @@ function spawnChoirMonster(
   entities.push(monster);
 }
 
-function addChoirCache(world: World, room: Room, ownerNpcId: number): void {
+function addChoirCache(world: World, room: Room, ownerNpcId: number): number {
   const x = world.wrap(room.x + 4);
   const y = world.wrap(room.y + 4);
   const inventory: WorldContainer['inventory'] = [
@@ -577,8 +876,9 @@ function addChoirCache(world: World, room: Room, ownerNpcId: number): void {
     { defId: 'meat_rune', count: 1 },
     { defId: 'bandage', count: 1 },
   ];
+  const id = nextContainerId(world);
   world.addContainer({
-    id: nextContainerId(world),
+    id,
     x,
     y,
     floor: FloorLevel.HELL,
@@ -594,8 +894,40 @@ function addChoirCache(world: World, room: Room, ownerNpcId: number): void {
     access: 'owner',
     lockDifficulty: 5,
     discovered: true,
-    tags: ['hell18', 'choir_tax', 'psi_cache', 'owner', 'one_shot'],
+    tags: ['hell18', 'choir_tax', 'psi_cache', 'owner', 'one_shot', 'pay_or_steal'],
   });
+  return id;
+}
+
+function addChoirRefusalLedger(world: World, room: Room): number {
+  const x = world.wrap(room.x + room.w - 7);
+  const y = world.wrap(room.y + 6);
+  const id = nextContainerId(world);
+  world.addContainer({
+    id,
+    x,
+    y,
+    floor: FloorLevel.HELL,
+    roomId: room.id,
+    zoneId: world.zoneMap[world.idx(x, y)],
+    kind: ContainerKind.FILING_CABINET,
+    name: 'Плита отказа от мясного налога',
+    inventory: [
+      {
+        defId: 'note',
+        count: 1,
+        data: 'Отказная плита: не платишь мясом - платишь вниманием. Подпись не нужна, пол уже свидетель.',
+      },
+      { defId: 'bandage', count: 1 },
+    ],
+    capacitySlots: 4,
+    ownerName: TAXMAN_DEF.name,
+    faction: Faction.CULTIST,
+    access: 'public',
+    discovered: true,
+    tags: ['hell18', 'choir_tax', 'refuse', 'cult_attention', 'medicine'],
+  });
+  return id;
 }
 
 function nextContainerId(world: World): number {

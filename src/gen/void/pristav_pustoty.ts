@@ -11,6 +11,7 @@ import { MONSTERS } from '../../entities/monster';
 import { monsterSpr } from '../../render/sprite_index';
 import { publishEvent, registerWorldEventObserver as observeWorldEvents } from '../../systems/events';
 import { addItem } from '../../systems/inventory';
+import { registerRouteCue } from '../../systems/route_cues';
 import { randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg';
 import { carveCorridor, findClearArea, placeDoorAt, stampRoom } from '../shared';
 
@@ -549,6 +550,30 @@ export function generatePristavPustoty(
     }],
     [...baseTags, TAG_ANCHOR],
   );
+
+  registerRouteCue(world, {
+    id: 'void_pristav_pustoty_rule',
+    x: room.x + 1.5,
+    y: entranceY + 0.5,
+    targetX: room.x + (room.w >> 1) + 0.5,
+    targetY: room.y + 1.5,
+    floor: FloorLevel.VOID,
+    roomId: room.id,
+    targetRoomId: room.id,
+    zoneId: world.zoneMap[world.idx(room.x + 1, entranceY)],
+    label: 'линия Пристава',
+    hint: 'сначала правило: обход, пошлина или якорь',
+    targetName: 'табличка правила Пристава',
+    color: '#8ff',
+    tags: [PROTOCOL_ID, 'void', 'rule', 'bypass', 'late_hazard'],
+    toneSeed: room.id * 997 + 46019,
+    radius: 9,
+    targetRadius: 2.4,
+    cooldownSec: 30,
+    heardText: 'Пустотная линия гудит как канцелярский звонок: сначала правило, потом выход.',
+    followedText: 'Вы дошли до таблички Пристава. Теперь выбор явный: обойти, заплатить, нарушить или ломать якорь.',
+    ignoredText: 'Линия Пристава осталась без отметки. Прямой порог будет считать это нарушением.',
+  });
 
   registerPristavContext({
     world,

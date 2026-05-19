@@ -3,12 +3,17 @@
 import {
   W, Cell, ContainerKind, DoorState, EntityType, Faction, Feature, FloorLevel,
   MonsterKind, Occupation, QuestType, RoomType, Tex, AIGoal,
-  type Entity, type Room, type WorldContainer,
+  msg,
+  type Door, type Entity, type GameState, type ItemDef, type Room, type WorldContainer, type WorldEvent,
+  type WorldEventType,
 } from '../../core/types';
 import { World } from '../../core/world';
 import { type PlotNpcDef, registerSideQuest } from '../../data/plot';
-import { freshNeeds } from '../../data/catalog';
+import { ITEMS, freshNeeds } from '../../data/catalog';
+import { ITEM_TAGS } from '../../data/items';
 import { chernobogDocketGateItems } from '../../data/chernobog_docket';
+import { publishEvent, registerWorldEventObserver } from '../../systems/events';
+import { registerInventoryUseHandler, type InventoryUseHandlerContext } from '../../systems/inventory';
 import {
   type NextId, addItemDrop, setFeature, spawnAdminMonster, spawnAdminNpc, spawnNamedCivilian,
 } from './admin_common';
@@ -19,6 +24,98 @@ import { spawnChernobogDocketHandlers } from './chernobog_archive_docket';
 const GATE_ROOM_NAME = 'Проверочный коридор N3';
 const GATE_W = 19;
 const GATE_H = 9;
+const CONTENT_TAG = 'document_gate';
+const ACCESS_SCAN_RADIUS = 10;
+const ACCESS_SCAN_RADIUS2 = ACCESS_SCAN_RADIUS * ACCESS_SCAN_RADIUS;
+const MAX_CONTEXTS = 4;
+
+type DocumentGateAccessMethod = 'legal' | 'forged' | 'stolen' | 'key' | 'violent';
+type DocumentGateAccessOutcome = 'success' | 'failure' | 'theft';
+
+interface DocumentGateAccessDef {
+  itemId: string;
+  method: DocumentGateAccessMethod;
+  legal: boolean;
+  severity: 3 | 4 | 5;
+  privacy: 'private' | 'local' | 'witnessed';
+  line: string;
+}
+
+interface DocumentGateTarget {
+  world: World;
+  room: Room;
+  door: Door;
+  doorIdx: number;
+  ctx?: DocumentGateContext;
+}
+
+interface DocumentGateContext {
+  world: World;
+  roomId: number;
+  gateDoorIdx: number;
+  guardId: number;
+  containerId: number;
+  violentHandled: boolean;
+  theftEventIds: number[];
+}
+
+export const DOCUMENT_GATE_ACCESS_ITEMS: readonly DocumentGateAccessDef[] = [
+  {
+    itemId: 'official_permit_slip',
+    method: 'legal',
+    legal: true,
+    severity: 3,
+    privacy: 'private',
+    line: 'Окно N3 приняло официальный корешок. Дверь открылась без лишней записи.',
+  },
+  {
+    itemId: 'archive_access_permit',
+    method: 'legal',
+    legal: true,
+    severity: 3,
+    privacy: 'private',
+    line: 'Архивный допуск прошел как старший документ. Коридор уступил.',
+  },
+  {
+    itemId: 'forged_permit_slip',
+    method: 'forged',
+    legal: false,
+    severity: 4,
+    privacy: 'local',
+    line: 'Кованый корешок дрогнул под печатью, но N3 открылся. Журнал записал слишком ровную строку.',
+  },
+  {
+    itemId: 'fake_pass',
+    method: 'forged',
+    legal: false,
+    severity: 4,
+    privacy: 'local',
+    line: 'Фальшивый пропуск совпал цветом с чужой ошибкой. Дверь открылась шумнее бумаги.',
+  },
+  {
+    itemId: 'stolen_archive_card',
+    method: 'stolen',
+    legal: false,
+    severity: 4,
+    privacy: 'witnessed',
+    line: 'Краденая карточка открыла N3 чужим делом. Пальцы попали в журнал.',
+  },
+  {
+    itemId: 'key',
+    method: 'key',
+    legal: false,
+    severity: 4,
+    privacy: 'local',
+    line: 'Контрольный ключ обошел бумагу. Для двери это проход, для очереди - шум.',
+  },
+];
+
+const DOCUMENT_GATE_ACCESS_BY_ITEM = new Map(DOCUMENT_GATE_ACCESS_ITEMS.map(def => [def.itemId, def]));
+const DOCUMENT_GATE_REJECT_HINT_TAGS = new Set([
+  'document', 'documents', 'permit', 'pass', 'access', 'archive', 'ministry', 'ministry_access',
+  'document_gate', 'quarantine', 'weapon_permit',
+]);
+const documentGateContexts: DocumentGateContext[] = [];
 
 const GALINA_DEF: PlotNpcDef = {
   name: 'Галина Окошечная',
@@ -128,6 +225,261 @@ registerSideQuest('boris_bezchekovy', BORIS_DEF, [
   },
 ]);
 
+function registerDocumentGateContext(ctx: DocumentGateContext): void {
+  const existing = documentGateContexts.find(item => item.world === ctx.world && item.roomId === ctx.roomId);
+  if (existing) {
+    existing.gateDoorIdx = ctx.gateDoorIdx;
+    existing.guardId = ctx.guardId;
+    existing.containerId = ctx.containerId;
+    existing.violentHandled = false;
+    existing.theftEventIds = [];
+    return;
+  }
+  documentGateContexts.push(ctx);
+  if (documentGateContexts.length > MAX_CONTEXTS) documentGateContexts.splice(0, documentGateContexts.length - MAX_CONTEXTS);
+}
+
+function doorX(idx: number): number {
+  return idx % W;
+}
+
+function doorY(idx: number): number {
+  return (idx / W) | 0;
+}
+
+function contextByDoor(world: World, doorIdx: number): DocumentGateContext | undefined {
+  return documentGateContexts.find(ctx => ctx.world === world && ctx.gateDoorIdx === doorIdx);
+}
+
+function contextByContainer(containerId: number | undefined): DocumentGateContext | undefined {
+  if (containerId === undefined) return undefined;
+  return documentGateContexts.find(ctx => ctx.containerId === containerId);
+}
+
+function contextByGuard(targetId: number | undefined, targetName: string | undefined): DocumentGateContext | undefined {
+  return documentGateContexts.find(ctx => ctx.guardId === targetId || targetName === 'Инспектор Сухарь');
+}
+
+function isGateRoom(room: Room | null | undefined): room is Room {
+  return !!room && room.name === GATE_ROOM_NAME;
+}
+
+function gateRoomForDoor(world: World, door: Door): Room | null {
+  const roomA = door.roomA >= 0 ? world.rooms[door.roomA] : undefined;
+  if (isGateRoom(roomA)) return roomA;
+  const roomB = door.roomB >= 0 ? world.rooms[door.roomB] : undefined;
+  return isGateRoom(roomB) ? roomB : null;
+}
+
+function isDocumentGateDoor(world: World, idx: number, door: Door): boolean {
+  if (world.cells[idx] !== Cell.DOOR) return false;
+  if (door.roomA !== door.roomB) return false;
+  return isGateRoom(gateRoomForDoor(world, door));
+}
+
+function targetFromDoor(world: World, doorIdx: number, door: Door): DocumentGateTarget | null {
+  if (!isDocumentGateDoor(world, doorIdx, door)) return null;
+  const room = gateRoomForDoor(world, door);
+  if (!room) return null;
+  return { world, room, door, doorIdx, ctx: contextByDoor(world, doorIdx) };
+}
+
+function findDocumentGateTarget(world: World, actor: Entity): DocumentGateTarget | null {
+  const actorRoom = world.roomAt(actor.x, actor.y);
+  if (isGateRoom(actorRoom)) {
+    for (const doorIdx of actorRoom.doors) {
+      const door = world.doors.get(doorIdx);
+      if (!door) continue;
+      const target = targetFromDoor(world, doorIdx, door);
+      if (target) return target;
+    }
+  }
+
+  const px = Math.floor(actor.x);
+  const py = Math.floor(actor.y);
+  let best: DocumentGateTarget | null = null;
+  let bestD2 = Infinity;
+  for (let dy = -ACCESS_SCAN_RADIUS; dy <= ACCESS_SCAN_RADIUS; dy++) {
+    for (let dx = -ACCESS_SCAN_RADIUS; dx <= ACCESS_SCAN_RADIUS; dx++) {
+      const x = world.wrap(px + dx);
+      const y = world.wrap(py + dy);
+      const d2 = world.dist2(actor.x, actor.y, x + 0.5, y + 0.5);
+      if (d2 > ACCESS_SCAN_RADIUS2 || d2 >= bestD2) continue;
+      const door = world.doors.get(world.idx(x, y));
+      if (!door) continue;
+      const target = targetFromDoor(world, door.idx, door);
+      if (!target) continue;
+      best = target;
+      bestD2 = d2;
+    }
+  }
+  return best;
+}
+
+function openDocumentGateDoor(target: DocumentGateTarget): boolean {
+  if (target.door.state === DoorState.OPEN) return false;
+  target.door.state = DoorState.OPEN;
+  target.door.timer = 0;
+  return true;
+}
+
+function itemTags(defId: string, def?: ItemDef): string[] {
+  const tags: string[] = [];
+  for (const tag of ITEM_TAGS[defId] ?? []) if (!tags.includes(tag)) tags.push(tag);
+  for (const tag of def?.tags ?? []) if (!tags.includes(tag)) tags.push(tag);
+  return tags;
+}
+
+function isRelevantRejectedDocument(defId: string, def: ItemDef): boolean {
+  if (DOCUMENT_GATE_ACCESS_BY_ITEM.has(defId)) return true;
+  if (defId.includes('pass') || defId.includes('permit') || defId.includes('clearance') || defId.includes('order')) return true;
+  return itemTags(defId, def).some(tag => DOCUMENT_GATE_REJECT_HINT_TAGS.has(tag));
+}
+
+function publishDocumentGateAccessEvent(
+  state: GameState,
+  target: DocumentGateTarget,
+  outcome: DocumentGateAccessOutcome,
+  method: DocumentGateAccessMethod,
+  severity: 2 | 3 | 4 | 5,
+  privacy: 'private' | 'local' | 'witnessed',
+  data: Record<string, unknown> = {},
+  actor?: Entity,
+  sourceEvent?: WorldEvent,
+  itemId?: string,
+): void {
+  const itemName = itemId ? ITEMS[itemId]?.name ?? itemId : undefined;
+  publishEvent(state, {
+    type: `document_gate_access_${outcome}` as WorldEventType,
+    floor: FloorLevel.MINISTRY,
+    zoneId: target.world.zoneMap[target.doorIdx],
+    roomId: target.room.id,
+    x: doorX(target.doorIdx) + 0.5,
+    y: doorY(target.doorIdx) + 0.5,
+    actorId: actor?.id ?? sourceEvent?.actorId,
+    actorName: actor?.name ?? sourceEvent?.actorName,
+    actorFaction: actor?.faction ?? sourceEvent?.actorFaction,
+    targetId: sourceEvent?.targetId ?? target.ctx?.guardId,
+    targetName: sourceEvent?.targetName ?? 'проверочный коридор N3',
+    targetFaction: sourceEvent?.targetFaction ?? Faction.CITIZEN,
+    itemId,
+    itemName,
+    severity,
+    privacy,
+    tags: [
+      'ministry',
+      CONTENT_TAG,
+      'access',
+      outcome === 'success' ? 'access_granted' : outcome === 'failure' ? 'access_denied' : 'theft',
+      method,
+      ...(method === 'forged' ? ['forgery'] : []),
+      ...(method === 'stolen' ? ['stolen'] : []),
+      ...(method === 'violent' ? ['violent'] : []),
+    ],
+    data: {
+      roomName: GATE_ROOM_NAME,
+      gateDoorIdx: target.doorIdx,
+      method,
+      legal: method === 'legal',
+      sourceEventId: sourceEvent?.id,
+      requiredItems: DOCUMENT_GATE_ACCESS_ITEMS.map(def => def.itemId),
+      rumorIds: method === 'stolen'
+        ? ['player_stole_archive_card', 'ministry_document_gate_n3']
+        : ['ministry_document_gate_n3'],
+      ...data,
+    },
+  });
+}
+
+function handleDocumentGateUse(ctx: InventoryUseHandlerContext): boolean {
+  if (!ctx.state || !ctx.world || ctx.actor.type !== EntityType.PLAYER) return false;
+  if (ctx.state.currentFloor !== FloorLevel.MINISTRY) return false;
+  const target = findDocumentGateTarget(ctx.world, ctx.actor);
+  if (!target) return false;
+
+  const access = DOCUMENT_GATE_ACCESS_BY_ITEM.get(ctx.def.id);
+  if (!access) {
+    if (!isRelevantRejectedDocument(ctx.def.id, ctx.def)) return false;
+    ctx.msgs.push(msg(
+      `${GATE_ROOM_NAME} отверг ${ctx.def.name}: нужен официальный корешок, допуск архива, подделка, краденая карточка или ключ инспектора.`,
+      ctx.time,
+      '#f84',
+    ));
+    publishDocumentGateAccessEvent(ctx.state, target, 'failure', 'legal', 3, 'local', {
+      rejectedItemId: ctx.def.id,
+      rejectedItemName: ctx.def.name,
+      reason: 'wrong_document',
+    }, ctx.actor, undefined, ctx.def.id);
+    return true;
+  }
+
+  if (target.door.state === DoorState.OPEN) {
+    ctx.msgs.push(msg(`${GATE_ROOM_NAME} уже пропустил вас. Бумага может отдохнуть.`, ctx.time, '#aaa'));
+    return true;
+  }
+
+  openDocumentGateDoor(target);
+  ctx.msgs.push(msg(access.line, ctx.time, access.method === 'legal' ? '#8f8' : access.method === 'stolen' ? '#fa8' : '#fc8'));
+  publishDocumentGateAccessEvent(
+    ctx.state,
+    target,
+    access.method === 'stolen' ? 'theft' : 'success',
+    access.method,
+    access.severity,
+    access.privacy,
+    { itemTags: itemTags(access.itemId, ctx.def) },
+    ctx.actor,
+    undefined,
+    access.itemId,
+  );
+  return true;
+}
+
+function handleDocumentGateTheftEvent(state: GameState, event: WorldEvent): void {
+  if (event.type !== 'item_stolen' || state.currentFloor !== FloorLevel.MINISTRY) return;
+  if (!event.itemId || !DOCUMENT_GATE_ACCESS_BY_ITEM.has(event.itemId)) return;
+  const ctx = contextByContainer(event.containerId);
+  if (!ctx || ctx.theftEventIds.includes(event.id)) return;
+  ctx.theftEventIds.push(event.id);
+  if (ctx.theftEventIds.length > 8) ctx.theftEventIds.splice(0, ctx.theftEventIds.length - 8);
+  const door = ctx.world.doors.get(ctx.gateDoorIdx);
+  if (!door) return;
+  const target = targetFromDoor(ctx.world, ctx.gateDoorIdx, door);
+  if (!target) return;
+  state.msgs.push(msg('В N3 пропал документ доступа. Очередь делает вид, что не знает, чьи это пальцы.', state.time, '#fa8'));
+  publishDocumentGateAccessEvent(state, target, 'theft', DOCUMENT_GATE_ACCESS_BY_ITEM.get(event.itemId)?.method ?? 'stolen', 4, 'witnessed', {
+    preparedByTheft: true,
+    containerId: event.containerId,
+    sourceEventId: event.id,
+  }, undefined, event, event.itemId);
+}
+
+function handleDocumentGateGuardKill(state: GameState, event: WorldEvent): void {
+  if (event.type !== 'player_kill_npc' || state.currentFloor !== FloorLevel.MINISTRY) return;
+  const ctx = contextByGuard(event.targetId, event.targetName);
+  if (!ctx || ctx.violentHandled) return;
+  const door = ctx.world.doors.get(ctx.gateDoorIdx);
+  if (!door) return;
+  const target = targetFromDoor(ctx.world, ctx.gateDoorIdx, door);
+  if (!target) return;
+  ctx.violentHandled = true;
+  openDocumentGateDoor(target);
+  state.msgs.push(msg('Инспектор Сухарь упал. N3 открылся без документа и запомнил это как силовой проход.', state.time, '#f84'));
+  publishDocumentGateAccessEvent(state, target, 'success', 'violent', 5, 'witnessed', {
+    sourceEventId: event.id,
+    guardId: ctx.guardId,
+    reason: 'guard_killed',
+  }, undefined, event);
+}
+
+function handleDocumentGateEvents(state: GameState, event: WorldEvent): void {
+  handleDocumentGateTheftEvent(state, event);
+  handleDocumentGateGuardKill(state, event);
+}
+
+registerInventoryUseHandler(handleDocumentGateUse);
+registerWorldEventObserver(handleDocumentGateEvents);
+
 function createGateRoom(world: World, nextRoomId: number, spawnX: number, spawnY: number): Room | null {
   const cx = Math.floor(spawnX);
   const cy = Math.floor(spawnY);
@@ -206,7 +558,7 @@ function addExteriorDoor(world: World, room: Room, side: 'west' | 'east', y: num
   if (target) carveCorridor(world, outsideX, y, target.x, target.y);
 }
 
-function addLockedCheckGate(world: World, room: Room, gateX: number, doorY: number): void {
+function addLockedCheckGate(world: World, room: Room, gateX: number, doorY: number): number {
   for (let y = room.y + 1; y < room.y + room.h - 1; y++) {
     const ci = world.idx(gateX, y);
     world.features[ci] = Feature.NONE;
@@ -226,6 +578,7 @@ function addLockedCheckGate(world: World, room: Room, gateX: number, doorY: numb
     timer: 0,
   });
   if (!room.doors.includes(doorIdx)) room.doors.push(doorIdx);
+  return doorIdx;
 }
 
 function addGateContainer(
@@ -235,7 +588,7 @@ function addGateContainer(
   y: number,
   ownerNpcId: number,
   ownerName: string,
-): void {
+): number {
   const id = world.containers.reduce((mx, c) => Math.max(mx, c.id), 0) + 1;
   const container: WorldContainer = {
     id,
@@ -261,6 +614,7 @@ function addGateContainer(
     tags: ['evidence', 'cult', 'archive', 'chernobog', 'witness', 'ministry', 'document_gate', 'theft'],
   };
   world.addContainer(container);
+  return id;
 }
 
 function spawnGateGuard(entities: Entity[], nextId: NextId, x: number, y: number): number {
@@ -304,7 +658,7 @@ export function generateDocumentGate(
   const gateX = room.x + 10;
   addExteriorDoor(world, room, 'west', cy);
   addExteriorDoor(world, room, 'east', cy);
-  addLockedCheckGate(world, room, gateX, cy);
+  const gateDoorIdx = addLockedCheckGate(world, room, gateX, cy);
 
   for (let dx = 2; dx < gateX - room.x - 2; dx++) {
     setFeature(world, room.x + dx, room.y + 2, Feature.DESK);
@@ -334,7 +688,16 @@ export function generateDocumentGate(
   const guardId = spawnGateGuard(entities, nextId, gateX - 1, cy + 2);
   spawnQueueWitness(entities, nextId, room.x + 2, cy + 2);
 
-  addGateContainer(world, room, gateX - 2, cy + 2, guardId, 'Инспектор Сухарь');
+  const containerId = addGateContainer(world, room, gateX - 2, cy + 2, guardId, 'Инспектор Сухарь');
+  registerDocumentGateContext({
+    world,
+    roomId: room.id,
+    gateDoorIdx,
+    guardId,
+    containerId,
+    violentHandled: false,
+    theftEventIds: [],
+  });
   spawnAdminMonster(world, entities, nextId, gateX + 4, cy + 2, MonsterKind.PARAGRAPH);
 
   genLog(`[DOCUMENT_GATE] ${room.name} at (${room.x}, ${room.y}) room #${room.id}`);

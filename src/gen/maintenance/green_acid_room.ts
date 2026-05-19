@@ -17,6 +17,7 @@ interface GreenAcidDropData {
 
 const ROOM_W = 22;
 const ROOM_H = 11;
+const GREEN_SAMPLE_ITEM = 'slime_sample_green';
 
 function acidRisk(): GreenAcidDropData {
   return { ag64GreenAcid: true, organicRisk: true };
@@ -90,6 +91,7 @@ export function generateGreenAcidRoom(ctx: MaintContentCtx): void {
   dropAt(ctx, room.x + 5, room.y + 2, 'filter_layer');
   dropAt(ctx, room.x + 6, room.y + 2, 'rubber_strip');
   dropAt(ctx, room.x + 16, room.y + 5, 'acid_bottle', acidSample());
+  dropAt(ctx, room.x + 17, room.y + 5, GREEN_SAMPLE_ITEM, acidSample());
 
   dropAt(ctx, room.x + 8, room.y + 5, 'rawmeat', acidRisk());
   dropAt(ctx, room.x + 10, room.y + 6, 'mushroom_mass', acidRisk());

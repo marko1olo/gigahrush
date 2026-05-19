@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
 import { FloorLevel, MonsterKind } from '../src/core/types';
+import { isBaitAttractedMonster } from '../src/data/monster_ecology';
 import { DEF } from '../src/entities/tube_eel';
 
 test('tube eel remains a water ambusher with dry-edge counterplay', () => {
@@ -16,5 +17,7 @@ test('tube eel remains a water ambusher with dry-edge counterplay', () => {
   assert.ok(DEF.hp <= 65, 'dry-edge shooting should not feel like fighting a tank');
 
   assert.match(DEF.counterplay ?? '', /сух|кромк|мост|вод/);
+  assert.match(DEF.counterplay ?? '', /гарпун|приманк/);
   assert.match(DEF.lootHint ?? '', /слиз|манометр|труб/);
+  assert.equal(isBaitAttractedMonster(MonsterKind.TUBE_EEL), true);
 });

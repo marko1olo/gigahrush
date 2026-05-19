@@ -14,10 +14,12 @@ export interface HellGeometry {
   safeCells: number[];
 }
 
-interface Pos {
+export interface HellPos {
   x: number;
   y: number;
 }
+
+type Pos = HellPos;
 
 interface ChainSpec {
   id: string;
@@ -111,6 +113,26 @@ export function buildHellGeometry(world: World): HellGeometry {
   }
 
   return geometry;
+}
+
+export function carveHellSafeShortcut(world: World, a: HellPos, b: HellPos, radius = 1): number[] {
+  const cells: number[] = [];
+  const seen = new Set<number>();
+  const dx = world.delta(a.x, b.x);
+  const dy = world.delta(a.y, b.y);
+  const steps = Math.max(1, Math.ceil(Math.max(Math.abs(dx), Math.abs(dy))));
+  const nx = dy === 0 ? 0 : -Math.sign(dy);
+  const ny = dx === 0 ? 0 : Math.sign(dx);
+  for (let step = 0; step <= steps; step++) {
+    const t = step / steps;
+    const wobble = Math.sin(t * Math.PI * 2 + (a.y - b.x) * 0.11) * 0.8;
+    const x = world.wrap(Math.round(a.x + dx * t + nx * wobble));
+    const y = world.wrap(Math.round(a.y + dy * t + ny * wobble));
+    carveShortcutDisc(world, x, y, radius, cells, seen);
+    if ((step % 11) === 0) setFeature(world, x, y, Feature.LAMP);
+    if ((step % 13) === 0) paintWallRing(world, { x, y }, radius + 1, radius + 1, Tex.CONCRETE);
+  }
+  return cells;
 }
 
 function buildArenaChain(world: World, origin: Pos, spec: ChainSpec, geometry: HellGeometry): void {
@@ -375,6 +397,29 @@ function carveDisc(world: World, x: number, y: number, radius: number, floorTex:
     for (let dx = -radius; dx <= radius; dx++) {
       if (dx * dx + dy * dy > radius * radius + 1) continue;
       carveFloor(world, x + dx, y + dy, floorTex);
+    }
+  }
+}
+
+function carveShortcutDisc(
+  world: World,
+  x: number,
+  y: number,
+  radius: number,
+  out: number[],
+  seen: Set<number>,
+): void {
+  for (let dy = -radius; dy <= radius; dy++) {
+    for (let dx = -radius; dx <= radius; dx++) {
+      if (dx * dx + dy * dy > radius * radius + 1) continue;
+      const cx = world.wrap(x + dx);
+      const cy = world.wrap(y + dy);
+      const ci = world.idx(cx, cy);
+      carveFloor(world, cx, cy, Tex.F_CONCRETE);
+      if (!seen.has(ci) && world.cells[ci] === Cell.FLOOR) {
+        seen.add(ci);
+        out.push(ci);
+      }
     }
   }
 }

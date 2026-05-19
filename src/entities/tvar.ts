@@ -7,14 +7,14 @@ import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 export const DEF: MonsterDef = {
   kind: MonsterKind.TVAR,
   name: 'Тварь',
-  hp: 60,
-  speed: 1.8,
-  dmg: 12,
-  attackRate: 1.2,
+  hp: 54,
+  speed: 1.65,
+  dmg: 13,
+  attackRate: 1.15,
   sprite: 0,   // auto-assigned by generateSprites()
-  aiFlags: ['foodBait'],
+  aiFlags: ['foodBait', 'wallBias'],
   floors: [FloorLevel.KVARTIRY, FloorLevel.LIVING, FloorLevel.MAINTENANCE, FloorLevel.HELL],
-  counterplay: 'Держите среднюю дистанцию: не прижимайтесь к стенам и бросайте еду/говняк, если нужно разорвать контакт.',
+  counterplay: 'Держите полторы клетки и центр комнаты: у стены тварь бьет больнее, а еда/говняк разрывают контакт.',
   lootHint: 'сырой органический хлам, бетонная крошка, редко сырое мясо',
 };
 

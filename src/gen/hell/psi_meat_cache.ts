@@ -3,19 +3,95 @@
 import {
   W, Cell, ContainerKind, Feature, FloorLevel, RoomType, Tex,
   type Entity, EntityType, AIGoal, Faction, Occupation, MonsterKind, QuestType,
-  type Room, type WorldContainer,
+  msg,
+  type GameState, type Room, type WorldContainer, type WorldEvent,
 } from '../../core/types';
 import { World } from '../../core/world';
 import { freshNeeds } from '../../data/catalog';
 import { type PlotNpcDef, registerSideQuest } from '../../data/plot';
-import { MONSTERS } from '../../entities/monster';
-import { Spr } from '../../render/sprite_index';
+import { MONSTERS, applyMonsterVariant } from '../../entities/monster';
+import { monsterSpr, Spr } from '../../render/sprite_index';
+import { publishEvent, registerWorldEventObserver } from '../../systems/events';
 import { randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg';
 import { connectProtectedRoom, findClearArea, protectRoom, rng, stampRoom } from '../shared';
 
 const ROOM_W = 15;
 const ROOM_H = 11;
 const KEEPER_ID = 'ag54_psi_cache_keeper';
+const CACHE_EVENT_TAG = 'ag54_psi_cache_bargain';
+const CACHE_RADIUS = 14;
+const CACHE_RADIUS2 = CACHE_RADIUS * CACHE_RADIUS;
+
+export const AG54_PSI_CACHE_BACKLASH_CAP = 4;
+
+type PsiCacheBranch = 'pay' | 'refuse' | 'fight' | 'steal';
+
+interface PsiCacheBranchSpec {
+  label: string;
+  message: string;
+  color: string;
+  psiLoss: number;
+  hpPerMissingPsi: number;
+  severity: 3 | 4 | 5;
+  threats: readonly MonsterKind[];
+}
+
+interface PsiCacheSite {
+  floor: FloorLevel;
+  roomId: number;
+  zoneId: number;
+  x: number;
+  y: number;
+  keeperId: number;
+  safeId: number;
+  refusalContainerId: number;
+  branches: Record<PsiCacheBranch, boolean>;
+  backlashSpawned: number;
+  backlashIds: number[];
+}
+
+const BRANCH_SPECS: Record<PsiCacheBranch, PsiCacheBranchSpec> = {
+  pay: {
+    label: 'десятина принята',
+    message: 'Мясной ПСИ-склад принял мясо. Стабилизатор честный, но склад отметил ваш ПСИ-запах.',
+    color: '#dca',
+    psiLoss: 2,
+    hpPerMissingPsi: 0,
+    severity: 3,
+    threats: [],
+  },
+  refuse: {
+    label: 'торг отвергнут',
+    message: 'Отказной лоток выдал медицину без благословения. Культ услышал пустое место в кассе.',
+    color: '#fa8',
+    psiLoss: 4,
+    hpPerMissingPsi: 1,
+    severity: 4,
+    threats: [MonsterKind.SHADOW],
+  },
+  fight: {
+    label: 'склад взят силой',
+    message: 'Сухожилия на потолке дрогнули. Склад отвечает за сторожа коротким ПСИ-рыком.',
+    color: '#f66',
+    psiLoss: 6,
+    hpPerMissingPsi: 1,
+    severity: 5,
+    threats: [MonsterKind.TVAR, MonsterKind.SHADOW],
+  },
+  steal: {
+    label: 'сейф вскрыт',
+    message: 'Влажный сейф отдал запас, но голос в банке позвал мясо обратно.',
+    color: '#f84',
+    psiLoss: 8,
+    hpPerMissingPsi: 1,
+    severity: 5,
+    threats: [MonsterKind.SHADOW, MonsterKind.POLZUN, MonsterKind.SPIRIT],
+  },
+};
+
+let activeWorld: World | null = null;
+let activeEntities: Entity[] | null = null;
+let activeSite: PsiCacheSite | null = null;
 
 const KEEPER_DEF: PlotNpcDef = {
   name: 'Федот Мясопев',
@@ -55,11 +131,17 @@ registerSideQuest(KEEPER_ID, KEEPER_DEF, [
   },
 ]);
 
+registerWorldEventObserver(handlePsiMeatCacheEvent);
+
 export function generatePsiMeatCache(
   world: World,
   entities: Entity[],
   nextId: { v: number },
 ): void {
+  activeWorld = world;
+  activeEntities = entities;
+  activeSite = null;
+
   const origin = findCacheOrigin(world);
   const room = stampCacheRoom(world, origin.x, origin.y);
   decorateCacheRoom(world, room);
@@ -68,9 +150,218 @@ export function generatePsiMeatCache(
   spawnGuard(world, entities, nextId, room, 3, ROOM_H - 3, 'Сторож Жил', 'rebar');
   spawnGuard(world, entities, nextId, room, ROOM_W - 4, ROOM_H - 3, 'Сторож Сухожил', 'psi_strike');
 
-  addCacheContainer(world, room, keeperId);
+  const safeId = addCacheContainer(world, room, keeperId);
+  const refusalContainerId = addRefusalTray(world, room);
   dropCacheFloorItems(world, entities, nextId, room);
   spawnMonsterPressure(world, entities, nextId, room);
+
+  const cx = world.wrap(room.x + (room.w >> 1));
+  const cy = world.wrap(room.y + (room.h >> 1));
+  activeSite = {
+    floor: FloorLevel.HELL,
+    roomId: room.id,
+    zoneId: world.zoneMap[world.idx(cx, cy)],
+    x: cx + 0.5,
+    y: cy + 0.5,
+    keeperId,
+    safeId,
+    refusalContainerId,
+    branches: { pay: false, refuse: false, fight: false, steal: false },
+    backlashSpawned: 0,
+    backlashIds: [],
+  };
+}
+
+export function getPsiMeatCacheDebugSite(): PsiCacheSite | null {
+  return activeSite ? {
+    ...activeSite,
+    branches: { ...activeSite.branches },
+    backlashIds: [...activeSite.backlashIds],
+  } : null;
+}
+
+export function resetPsiMeatCacheForTests(): void {
+  activeWorld = null;
+  activeEntities = null;
+  activeSite = null;
+}
+
+function handlePsiMeatCacheEvent(state: GameState, event: WorldEvent): void {
+  if (event.tags.includes(CACHE_EVENT_TAG)) return;
+  const site = activeSite;
+  const world = activeWorld;
+  if (!site || !world || state.currentFloor !== site.floor || event.floor !== site.floor) return;
+
+  if (event.type === 'quest_completed' && event.data?.sideQuestId === 'ag54_keeper_raw_meat_tithe') {
+    applyPsiCacheBranch(state, event, 'pay');
+    return;
+  }
+  if (event.type === 'item_deposited' && event.containerId === site.safeId && event.itemId === 'rawmeat') {
+    applyPsiCacheBranch(state, event, 'pay');
+    return;
+  }
+  if (event.type === 'item_stolen' && event.containerId === site.safeId) {
+    applyPsiCacheBranch(state, event, 'steal');
+    return;
+  }
+  if (event.type === 'container_opened' && event.containerId === site.refusalContainerId) {
+    applyPsiCacheBranch(state, event, 'refuse');
+    return;
+  }
+  if ((event.type === 'player_hurt_npc' || event.type === 'player_kill_npc')
+    && (event.targetId === site.keeperId || event.targetFaction === Faction.CULTIST)
+    && eventInsideCacheSite(world, site, event)) {
+    applyPsiCacheBranch(state, event, 'fight');
+  }
+}
+
+function eventInsideCacheSite(world: World, site: PsiCacheSite, event: WorldEvent): boolean {
+  if (event.roomId === site.roomId) return true;
+  if (event.x === undefined || event.y === undefined) return false;
+  return world.dist2(event.x, event.y, site.x, site.y) <= CACHE_RADIUS2;
+}
+
+function applyPsiCacheBranch(state: GameState, source: WorldEvent, branch: PsiCacheBranch): void {
+  const site = activeSite;
+  const world = activeWorld;
+  const entities = activeEntities;
+  if (!site || !world || !entities || site.branches[branch]) return;
+
+  site.branches[branch] = true;
+  const spec = BRANCH_SPECS[branch];
+  const drain = drainPlayerForCache(entities, spec.psiLoss, spec.hpPerMissingPsi);
+  const spawned = spawnCacheBranchBacklash(world, entities, site, spec.threats);
+  state.msgs.push(msg(spec.message, state.time, spec.color));
+
+  publishEvent(state, {
+    type: 'samosbor_warning',
+    zoneId: site.zoneId,
+    roomId: site.roomId,
+    x: site.x,
+    y: site.y,
+    actorId: source.actorId,
+    actorName: source.actorName,
+    actorFaction: source.actorFaction,
+    targetName: `Мясной ПСИ-склад: ${spec.label}`,
+    itemId: source.itemId,
+    itemName: source.itemName,
+    itemCount: source.itemCount,
+    containerId: source.containerId,
+    severity: spec.severity,
+    privacy: 'local',
+    tags: [CACHE_EVENT_TAG, 'hell_psi_cache', `cache_${branch}`, 'cult_attention', branch, 'psi', 'medicine', 'backlash'],
+    data: {
+      sourceEventId: source.id,
+      branch,
+      psiLost: drain.psiLost,
+      hpLost: drain.hpLost,
+      spawned,
+      backlashCap: AG54_PSI_CACHE_BACKLASH_CAP,
+    },
+  });
+}
+
+function drainPlayerForCache(
+  entities: readonly Entity[],
+  psiLoss: number,
+  hpPerMissingPsi: number,
+): { psiLost: number; hpLost: number } {
+  const player = entities.find(entity => entity.type === EntityType.PLAYER && entity.alive);
+  if (!player) return { psiLost: 0, hpLost: 0 };
+
+  let psiLost = 0;
+  if (player.rpg && psiLoss > 0) {
+    const before = player.rpg.psi;
+    player.rpg.psi = Math.max(0, player.rpg.psi - psiLoss);
+    psiLost = Math.round((before - player.rpg.psi) * 10) / 10;
+  }
+
+  let hpLost = 0;
+  const missingPsi = Math.max(0, psiLoss - psiLost);
+  if (missingPsi > 0 && hpPerMissingPsi > 0 && player.hp !== undefined) {
+    hpLost = Math.min(Math.max(0, player.hp - 1), Math.ceil(missingPsi * hpPerMissingPsi));
+    player.hp = Math.max(1, player.hp - hpLost);
+  }
+  return { psiLost, hpLost };
+}
+
+function spawnCacheBranchBacklash(
+  world: World,
+  entities: Entity[],
+  site: PsiCacheSite,
+  kinds: readonly MonsterKind[],
+): number {
+  let spawned = 0;
+  for (const kind of kinds) {
+    if (site.backlashSpawned >= AG54_PSI_CACHE_BACKLASH_CAP) break;
+    const pos = findCacheBranchSpawn(world, site, site.backlashSpawned + spawned);
+    if (!pos) break;
+    const id = nextEntityId(entities);
+    const def = MONSTERS[kind];
+    const zoneLevel = world.zones[site.zoneId]?.level ?? 10;
+    const level = zoneLevel + (kind === MonsterKind.POLZUN ? 3 : 2);
+    const hp = Math.max(1, Math.round(scaleMonsterHp(def.hp, level)));
+    const player = entities.find(entity => entity.type === EntityType.PLAYER && entity.alive);
+    const monster: Entity = {
+      id,
+      type: EntityType.MONSTER,
+      x: pos.x + 0.5,
+      y: pos.y + 0.5,
+      angle: Math.atan2(site.y - pos.y - 0.5, site.x - pos.x - 0.5),
+      pitch: 0,
+      alive: true,
+      speed: scaleMonsterSpeed(def.speed, level),
+      sprite: monsterSpr(kind),
+      name: kind === MonsterKind.SPIRIT ? 'Дух вскрытого голоса' : kind === MonsterKind.POLZUN ? 'Ползун складской недостачи' : 'Тень мясного склада',
+      hp,
+      maxHp: hp,
+      monsterKind: kind,
+      attackCd: def.attackRate,
+      ai: { goal: player ? AIGoal.HUNT : AIGoal.WANDER, tx: player?.x ?? site.x, ty: player?.y ?? site.y, path: [], pi: 0, stuck: 0, timer: 0 },
+      rpg: randomRPG(level),
+      phasing: kind === MonsterKind.SPIRIT,
+    };
+    applyMonsterVariant(monster, FloorLevel.HELL);
+    entities.push(monster);
+    site.backlashSpawned++;
+    site.backlashIds.push(id);
+    spawned++;
+  }
+  return spawned;
+}
+
+function nextEntityId(entities: readonly Entity[]): number {
+  let id = 1;
+  for (const entity of entities) id = Math.max(id, entity.id + 1);
+  return id;
+}
+
+function findCacheBranchSpawn(world: World, site: PsiCacheSite, order: number): { x: number; y: number } | null {
+  const room = world.rooms[site.roomId];
+  if (!room) return null;
+  const ring = [
+    [-5, -3], [5, -3], [-5, 3], [5, 3], [0, -4], [0, 4],
+  ] as const;
+  const cx = room.x + (room.w >> 1);
+  const cy = room.y + (room.h >> 1);
+  for (let pass = 0; pass < 2; pass++) {
+    for (let i = 0; i < ring.length; i++) {
+      const [dx, dy] = ring[(i + order + pass * 2) % ring.length];
+      const x = world.wrap(cx + dx);
+      const y = world.wrap(cy + dy);
+      const ci = world.idx(x, y);
+      if (world.roomMap[ci] === room.id && world.cells[ci] === Cell.FLOOR) return { x, y };
+    }
+  }
+  for (let dy = 1; dy < room.h - 1; dy++) {
+    for (let dx = 1; dx < room.w - 1; dx++) {
+      const x = world.wrap(room.x + dx);
+      const y = world.wrap(room.y + dy);
+      const ci = world.idx(x, y);
+      if (world.roomMap[ci] === room.id && world.cells[ci] === Cell.FLOOR) return { x, y };
+    }
+  }
+  return null;
 }
 
 function findCacheOrigin(world: World): { x: number; y: number } {
@@ -276,7 +567,7 @@ function nextContainerId(world: World): number {
   return id;
 }
 
-function addCacheContainer(world: World, room: Room, ownerNpcId: number): void {
+function addCacheContainer(world: World, room: Room, ownerNpcId: number): number {
   const x = world.wrap(room.x + Math.floor(room.w / 2));
   const y = world.wrap(room.y + 5);
   const inventory: WorldContainer['inventory'] = [
@@ -286,8 +577,9 @@ function addCacheContainer(world: World, room: Room, ownerNpcId: number): void {
     { defId: 'antidep', count: 1 },
     { defId: 'holy_water', count: 1 },
   ];
+  const id = nextContainerId(world);
   world.addContainer({
-    id: nextContainerId(world),
+    id,
     x,
     y,
     floor: FloorLevel.HELL,
@@ -303,8 +595,40 @@ function addCacheContainer(world: World, room: Room, ownerNpcId: number): void {
     access: 'owner',
     lockDifficulty: 4,
     discovered: true,
-    tags: ['hell_psi_cache', 'psi', 'meat', 'voice', 'owner'],
+    tags: ['hell_psi_cache', 'psi', 'meat', 'voice', 'owner', 'pay_or_steal'],
   });
+  return id;
+}
+
+function addRefusalTray(world: World, room: Room): number {
+  const x = world.wrap(room.x + 2);
+  const y = world.wrap(room.y + 5);
+  const id = nextContainerId(world);
+  world.addContainer({
+    id,
+    x,
+    y,
+    floor: FloorLevel.HELL,
+    roomId: room.id,
+    zoneId: world.zoneMap[world.idx(x, y)],
+    kind: ContainerKind.MEDICAL_CABINET,
+    name: 'Отказной лоток ПСИ-склада',
+    inventory: [
+      {
+        defId: 'note',
+        count: 1,
+        data: 'Отказной лоток: берёшь медицину без десятины - склад слышит пустую кассу и считает ПСИ.',
+      },
+      { defId: 'bandage', count: 1 },
+    ],
+    capacitySlots: 4,
+    ownerName: KEEPER_DEF.name,
+    faction: Faction.CULTIST,
+    access: 'public',
+    discovered: true,
+    tags: ['hell_psi_cache', 'refuse', 'medicine', 'cult_attention'],
+  });
+  return id;
 }
 
 function dropCacheFloorItems(

@@ -2,6 +2,14 @@
 
 import { FloorLevel } from '../core/types';
 
+export interface FloorInstanceFollowupDef {
+  id: string;
+  title: string;
+  message: string;
+  suppressSeconds: number;
+  tags: readonly string[];
+}
+
 export interface FloorInstanceDef {
   id: string;
   displayNumber: string;
@@ -12,6 +20,7 @@ export interface FloorInstanceDef {
   weight: number;
   discovered: boolean;
   rumorId: string;
+  followup?: FloorInstanceFollowupDef;
 }
 
 export const FLOOR_INSTANCES: readonly FloorInstanceDef[] = [
@@ -80,6 +89,13 @@ export const FLOOR_INSTANCES: readonly FloorInstanceDef[] = [
     weight: 7,
     discovered: false,
     rumorId: 'floor_lift_smell',
+    followup: {
+      id: 'warm_shaft_stabilized',
+      title: 'Теплая шахта стабилизирована',
+      message: 'Бирка N-089 согрела шахту: следующий лифтовый рывок держит обычный маршрут.',
+      suppressSeconds: 180,
+      tags: ['warm_shaft', 'route_guard', 'lift_repair_shaft'],
+    },
   },
   {
     id: 'loop_000',

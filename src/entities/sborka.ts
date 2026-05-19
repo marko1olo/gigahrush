@@ -7,14 +7,14 @@ import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 export const DEF: MonsterDef = {
   kind: MonsterKind.SBORKA,
   name: 'Сборка',
-  hp: 10,
-  speed: 2.8,
-  dmg: 4,
-  attackRate: 0.8,
+  hp: 8,
+  speed: 3.15,
+  dmg: 3,
+  attackRate: 0.65,
   sprite: 0,   // auto-assigned by generateSprites()
   aiFlags: ['foodBait'],
   floors: [FloorLevel.MINISTRY, FloorLevel.KVARTIRY, FloorLevel.LIVING, FloorLevel.MAINTENANCE, FloorLevel.HELL],
-  counterplay: 'Пятитесь в широкий проход: у сборки мало здоровья, еда/говняк уводят ее с линии, дробь или дешевые выстрелы гасят рывок.',
+  counterplay: 'Пятитесь в широкий проход: у сборки почти нет здоровья, еда/говняк уводят ее с линии, дробь или дешевые выстрелы гасят рывок.',
   lootHint: 'кладовой мусор, проволока и редкая изолента',
 };
 

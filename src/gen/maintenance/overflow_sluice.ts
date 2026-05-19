@@ -1,11 +1,20 @@
 /* ── Аварийный сброс — repair/steal/flee pressure loop ───────── */
 
-import { Tex, Feature, RoomType, Faction, Occupation, QuestType, MonsterKind } from '../../core/types';
+import {
+  AIGoal, Cell, EntityType, Tex, Feature, RoomType, Faction, Occupation, QuestType,
+  MonsterKind, FloorLevel,
+  type Entity,
+} from '../../core/types';
 import { type PlotNpcDef, registerSideQuest } from '../../data/plot';
+import { MONSTERS, applyMonsterVariant } from '../../entities/monster';
+import { registerCellHazardSite } from '../../systems/cell_hazards';
+import { randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg';
 import {
   type MaintContentCtx, dropItems, findMaintArea, openTile, setFeature,
   setWater, spawnMonstersNear, spawnPlotNpc, stampMaintRoom,
 } from './content_helpers';
+
+const WET_ROUTE_HAZARD_ID = 'overflow_sluice_wet_route';
 
 const MARFA_DEF: PlotNpcDef = {
   name: 'Марфа Помпова',
@@ -39,12 +48,15 @@ const EGOR_DEF: PlotNpcDef = {
   hp: 120, maxHp: 120, money: 95, speed: 1.0,
   inventory: [
     { defId: 'ammo_9mm', count: 10 },
+    { defId: 'harpoon_gun', count: 1 },
+    { defId: 'ammo_harpoon', count: 4 },
+    { defId: 'govnyak_roll', count: 1 },
     { defId: 'flashlight', count: 1 },
     { defId: 'note', count: 1 },
   ],
   talkLines: [
     'Егор Шунтов, аварийный склад. Что взял без акта — то уже спасательное имущество.',
-    'В обводном лазе есть ящик. За ящиком вода. В воде угри. Вот и вся экономика.',
+    'В обводном лазе есть ящик. За ящиком вода. В воде угри. Гарпун дорогой, хлеб дешевле, сухой край бесплатный.',
     'Нужны два ключа. Сорвать шкаф легко, закрыть его обратно труднее.',
   ],
   talkLinesPost: [
@@ -136,10 +148,43 @@ registerSideQuest('ag04_sluice_toma', TOMA_DEF, [
   },
 ]);
 
+function addWetRouteCell(ctx: MaintContentCtx, wetCells: number[], x: number, y: number): void {
+  setWater(ctx.world, x, y);
+  const ci = ctx.world.idx(x, y);
+  if (ctx.world.cells[ci] === Cell.WATER && !wetCells.includes(ci)) wetCells.push(ci);
+}
+
+function spawnWaterEel(ctx: MaintContentCtx, x: number, y: number, targetX: number, targetY: number): void {
+  const ci = ctx.world.idx(x, y);
+  if (ctx.world.cells[ci] !== Cell.WATER) return;
+
+  const def = MONSTERS[MonsterKind.TUBE_EEL];
+  if (!def) return;
+  const zid = ctx.world.zoneMap[ci];
+  const zoneLevel = (zid >= 0 && ctx.world.zones[zid]) ? (ctx.world.zones[zid].level ?? 5) : 5;
+  const hp = scaleMonsterHp(def.hp, zoneLevel);
+
+  const monster: Entity = {
+    id: ctx.nextId.v++, type: EntityType.MONSTER,
+    x: x + 0.5, y: y + 0.5,
+    angle: Math.atan2(targetY - y, targetX - x), pitch: 0,
+    alive: true,
+    speed: scaleMonsterSpeed(def.speed, zoneLevel),
+    sprite: def.sprite,
+    hp, maxHp: hp,
+    monsterKind: MonsterKind.TUBE_EEL, attackCd: 0,
+    ai: { goal: AIGoal.WANDER, tx: targetX, ty: targetY, path: [], pi: 0, stuck: 0, timer: 0 },
+    rpg: randomRPG(zoneLevel),
+  };
+  applyMonsterVariant(monster, FloorLevel.MAINTENANCE, true);
+  ctx.entities.push(monster);
+}
+
 export function generateOverflowSluice(ctx: MaintContentCtx): void {
   const cx = Math.floor(ctx.spawnX);
   const cy = Math.floor(ctx.spawnY);
   const pos = findMaintArea(ctx.world, cx, cy, 29, 13, 105, 220);
+  const wetCells: number[] = [];
 
   const pump = stampMaintRoom(
     ctx.world, ctx.world.rooms.length, RoomType.PRODUCTION,
@@ -158,7 +203,7 @@ export function generateOverflowSluice(ctx: MaintContentCtx): void {
   const wetY = pump.y + 5;
   for (let x = pump.x + pump.w; x < bypass.x; x++) {
     openTile(ctx.world, x, dryY, Tex.F_CONCRETE);
-    setWater(ctx.world, x, wetY);
+    addWetRouteCell(ctx, wetCells, x, wetY);
   }
 
   for (let dx = 2; dx < pump.w - 1; dx += 3) {
@@ -168,14 +213,14 @@ export function generateOverflowSluice(ctx: MaintContentCtx): void {
   setFeature(ctx.world, pump.x + 1, pump.y + 1, Feature.LAMP);
   setFeature(ctx.world, pump.x + 6, pump.y + 1, Feature.LAMP);
   setFeature(ctx.world, pump.x + 10, pump.y + 6, Feature.SHELF);
-  setWater(ctx.world, pump.x + 1, pump.y + 6);
-  setWater(ctx.world, pump.x + 2, pump.y + 6);
-  setWater(ctx.world, pump.x + 3, pump.y + 6);
+  addWetRouteCell(ctx, wetCells, pump.x + 1, pump.y + 6);
+  addWetRouteCell(ctx, wetCells, pump.x + 2, pump.y + 6);
+  addWetRouteCell(ctx, wetCells, pump.x + 3, pump.y + 6);
 
   for (let dy = 1; dy < bypass.h - 1; dy++) {
     for (let dx = 1; dx < bypass.w - 1; dx++) {
       if (dy === 2 || (dx === 5 && dy < bypass.h - 2)) continue;
-      setWater(ctx.world, bypass.x + dx, bypass.y + dy);
+      addWetRouteCell(ctx, wetCells, bypass.x + dx, bypass.y + dy);
     }
   }
   setFeature(ctx.world, bypass.x + 2, bypass.y + 2, Feature.SHELF);
@@ -192,11 +237,31 @@ export function generateOverflowSluice(ctx: MaintContentCtx): void {
   dropItems(ctx, pump, ['pipe', 'wrench', 'metal_water', 'bandage', 'note']);
   dropItems(ctx, bypass, [
     'door_kit', 'wrench', 'wrench', 'ammo_energy', 'filtered_water',
-    'metal_water', 'pipe', 'flashlight', 'ammo_9mm',
+    'metal_water', 'pipe', 'flashlight', 'ammo_9mm', 'ammo_harpoon',
+    'bread', 'govnyak_roll',
   ]);
 
+  registerCellHazardSite(ctx.world, {
+    id: `${WET_ROUTE_HAZARD_ID}_${bypass.id}`,
+    kind: 'eel_water',
+    displayName: 'Угревый мокрый ход',
+    cells: wetCells,
+    tags: ['maintenance', 'water', 'wet_route', 'tube_eel', 'overflow_sluice', 'harpoon', 'bait'],
+    sticky: false,
+    cleanable: false,
+    slowMult: 0.68,
+    trappedMult: 0.68,
+    roomId: bypass.id,
+    zoneId: ctx.world.zoneMap[ctx.world.idx(bypass.x + 5, bypass.y + 5)],
+    centerX: bypass.x + 5.5,
+    centerY: bypass.y + 5.5,
+    warning: 'Вода режет шаг, угорь ускоряется. Сухая кромка, гарпун или приманка.',
+    warningColor: '#57d7df',
+  });
+
+  spawnWaterEel(ctx, bypass.x + 3, bypass.y + 5, bypass.x + 5, bypass.y + 2);
+  spawnWaterEel(ctx, bypass.x + 7, bypass.y + 6, bypass.x + 5, bypass.y + 2);
   spawnMonstersNear(ctx, bypass.x + 6, bypass.y + 5, [
-    MonsterKind.TUBE_EEL, MonsterKind.TUBE_EEL, MonsterKind.LAMPOVY,
-    MonsterKind.POLZUN, MonsterKind.SBORKA,
+    MonsterKind.LAMPOVY, MonsterKind.POLZUN, MonsterKind.SBORKA,
   ], 3, 9);
 }

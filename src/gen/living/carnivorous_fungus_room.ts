@@ -1,6 +1,9 @@
 /* ── AG113 carnivorous fungus room: avoid, salt, burn, feed ───── */
 
-import { Cell, RoomType, Tex, type Entity, type Room } from '../../core/types';
+import {
+  Cell, ContainerKind, Feature, FloorLevel, RoomType, Tex,
+  type Entity, type Room, type WorldContainer,
+} from '../../core/types';
 import { World } from '../../core/world';
 import { decorateCarnivorousFungusRoom } from '../carnivorous_fungus_room';
 import { connectProtectedRoom, protectRoom } from '../shared';
@@ -77,6 +80,57 @@ function carveFungusRoom(world: World, roomId: number, rx: number, ry: number): 
   return room;
 }
 
+function nextContainerId(world: World): number {
+  let id = world.containers.reduce((mx, c) => Math.max(mx, c.id), 0) + 1;
+  while (world.containerById.has(id)) id++;
+  return id;
+}
+
+function addFungusContainer(
+  world: World,
+  room: Room,
+  dx: number,
+  dy: number,
+  name: string,
+  inventory: WorldContainer['inventory'],
+): void {
+  const x = world.wrap(room.x + dx);
+  const y = world.wrap(room.y + dy);
+  const ci = world.idx(x, y);
+  if (world.cells[ci] !== Cell.FLOOR && world.cells[ci] !== Cell.WATER) return;
+  world.features[ci] = Feature.SHELF;
+  world.addContainer({
+    id: nextContainerId(world),
+    x,
+    y,
+    floor: FloorLevel.LIVING,
+    roomId: room.id,
+    zoneId: world.zoneMap[ci],
+    kind: ContainerKind.SECRET_STASH,
+    name,
+    inventory: inventory.map(item => ({ ...item })),
+    capacitySlots: Math.max(6, inventory.length + 3),
+    access: 'secret',
+    discovered: true,
+    tags: ['ag113_carnivorous_fungus', 'living_fungal_loop', 'carnivorous_fungus', 'zhelemish', 'salt', 'fire', 'medicine', 'harvest'],
+  });
+}
+
+function seedFungusRouteCache(world: World, room: Room): void {
+  addFungusContainer(
+    world,
+    room,
+    2,
+    ROOM_H - 4,
+    'Сухой ящик костяной сушилки',
+    [
+      { defId: 'zhelemish_dried', count: 1 },
+      { defId: 'mushroom_mass', count: 1 },
+      { defId: 'antifungal_ointment', count: 1 },
+    ],
+  );
+}
+
 function generateCarnivorousFungusRoom(
   world: World,
   nextRoomId: number,
@@ -92,6 +146,7 @@ function generateCarnivorousFungusRoom(
     withCounterplayDrops: true,
     withGuardMonster: true,
   });
+  seedFungusRouteCache(world, room);
   genLog(`[AG113] Плотоядная грибница at (${room.x}, ${room.y}) room #${room.id}`);
   return { nextRoomId };
 }

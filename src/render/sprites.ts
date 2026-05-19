@@ -4,7 +4,7 @@ import { NPC_SPRITE_GENERATORS, generateTravelerSprite, generatePilgrimSprite, g
 import { MONSTERS, MONSTER_SPRITES, EYE_BOLT_SPRITE } from '../entities/monster';
 import { ContainerKind, Feature, MonsterKind } from '../core/types';
 import { S, rgba, noise, clamp, CLEAR } from './pixutil';
-import { Spr, monsterSpr } from './sprite_index';
+import { Spr, monsterSpr, SPRITE_CONTAINER_KINDS, SPRITE_FEATURES, SPRITE_MONSTER_KINDS } from './sprite_index';
 import { ART_NUDE_VARIANTS, F69_FEMALE_NPC_VARIANTS, generateArtNudeSprite, generateFloor69FemaleNpcSprite } from './art_sprites';
 
 export type SpriteData = Uint32Array; // S*S RGBA with alpha
@@ -33,19 +33,18 @@ export function generateSprites(): SpriteData[] {
   // Item drop
   sprites.push(gen_itemDrop());
   // Monsters (keyed by MonsterKind — auto-indexed)
-  const monsterCount = Object.values(MonsterKind).filter(v => typeof v === 'number').length;
-  for (let k = 0; k < monsterCount; k++) {
-    sprites.push(MONSTER_SPRITES[k as MonsterKind]());
+  for (const kind of SPRITE_MONSTER_KINDS) {
+    sprites.push(MONSTER_SPRITES[kind]());
   }
   // Auto-assign sprite indices on MonsterDefs so spawn code stays simple
-  for (let k = 0; k < monsterCount; k++) {
-    const def = MONSTERS[k as MonsterKind];
-    def.sprite = monsterSpr(k as MonsterKind);
+  for (const kind of SPRITE_MONSTER_KINDS) {
+    const def = MONSTERS[kind];
+    def.sprite = monsterSpr(kind);
     // Auto-assign projSprite for ranged monsters
     if (def.isRanged && (def.projSprite === undefined || def.projSprite === 0)) {
-      def.projSprite = k === MonsterKind.EYE ? Spr.EYE_BOLT
-                     : k === MonsterKind.ROBOT ? Spr.HOSTILE_PLASMA_BOLT
-                     : k === MonsterKind.MANCOBUS ? Spr.HOSTILE_FLAME_BOLT
+      def.projSprite = kind === MonsterKind.EYE ? Spr.EYE_BOLT
+                     : kind === MonsterKind.ROBOT ? Spr.HOSTILE_PLASMA_BOLT
+                     : kind === MonsterKind.MANCOBUS ? Spr.HOSTILE_FLAME_BOLT
                      : Spr.HOSTILE_PSI_BOLT;
     }
   }
@@ -53,16 +52,8 @@ export function generateSprites(): SpriteData[] {
   sprites.push(EYE_BOLT_SPRITE());
   // Desk
   sprites.push(gen_deskSprite());
-  const featureSprites = [
-    Feature.LAMP, Feature.TABLE, Feature.CHAIR, Feature.BED, Feature.STOVE,
-    Feature.SINK, Feature.TOILET, Feature.SHELF, Feature.MACHINE, Feature.APPARATUS,
-    Feature.LIFT_BUTTON, Feature.DESK, Feature.SLIDE, Feature.CANDLE, Feature.SCREEN,
-  ];
-  for (const feature of featureSprites) sprites.push(gen_featureSprite(feature));
-  const containerSprites = Object.values(ContainerKind)
-    .filter((value): value is ContainerKind => typeof value === 'number')
-    .sort((a, b) => a - b);
-  for (const kind of containerSprites) sprites.push(gen_containerSprite(kind));
+  for (const feature of SPRITE_FEATURES) sprites.push(gen_featureSprite(feature));
+  for (const kind of SPRITE_CONTAINER_KINDS) sprites.push(gen_containerSprite(kind));
   // Projectiles
   sprites.push(gen_bulletSprite());
   sprites.push(gen_pelletSprite());
@@ -390,18 +381,20 @@ function gen_bulletSprite(): SpriteData {
   const cx = S / 2, cy = S / 2;
   const R = 7;
   for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
-    const dx = x - cx, dy = y - cy;
+    const dx = (x - cx) * 1.65, dy = (y - cy) * 0.74;
     const d = Math.sqrt(dx * dx + dy * dy);
-    if (d < R * 2.5) {
-      const f = 1 - d / (R * 2.5);
+    const tracer = Math.abs(y - cy) < 1.5 && x < cx && x > cx - 19;
+    if (d < R * 2.6 || tracer) {
+      const f = tracer ? 1 - (cx - x) / 19 : 1 - d / (R * 2.6);
       const core = d < R ? 1 : 0;
-      const r = clamp(Math.floor(255 * core + 255 * f * 0.8));
-      const g = clamp(Math.floor(220 * core + 180 * f * 0.6));
-      const b = clamp(Math.floor(80 * core + 60 * f * 0.3));
-      const a = clamp(Math.floor(255 * f * f + 200 * core));
+      const r = clamp(Math.floor(255 * core + 245 * f * 0.82));
+      const g = clamp(Math.floor(238 * core + 190 * f * 0.64));
+      const b = clamp(Math.floor(118 * core + 55 * f * 0.32));
+      const a = clamp(Math.floor((tracer ? 150 : 255) * f * f + 210 * core));
       t[y * S + x] = rgba(r, g, b, a);
     }
   }
+  rect(t, cx - 2, cy - 1, cx + 5, cy + 1, 255, 250, 210, 0, 240);
   return t;
 }
 
@@ -454,14 +447,17 @@ function gen_psiBoltSprite(): SpriteData {
   for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
     const dx = x - cx, dy = y - cy;
     const d = Math.sqrt(dx * dx + dy * dy);
-    if (d < R * 3) {
-      const f = 1 - d / (R * 3);
+    const ang = Math.atan2(dy, dx);
+    const ring = Math.abs(d - R * 1.55) < 1.8;
+    const spoke = Math.abs(Math.sin(ang * 3 + d * 0.2)) < 0.13 && d < R * 2.7;
+    if (d < R * 3 || ring || spoke) {
+      const f = ring ? 0.78 : spoke ? 0.55 : 1 - d / (R * 3);
       const core = d < R ? 1 : 0;
       const n = noise(x, y, 77) * 0.3;
-      const r = clamp(Math.floor(220 * core + 180 * f * 0.7 + n * 50));
-      const g = clamp(Math.floor(100 * core + 60 * f * 0.4));
-      const b = clamp(Math.floor(255 * core + 240 * f * 0.9 + n * 30));
-      const a = clamp(Math.floor(255 * f * f + 240 * core));
+      const r = clamp(Math.floor(235 * core + 168 * f * 0.72 + n * 45));
+      const g = clamp(Math.floor(142 * core + 78 * f * 0.48 + (spoke ? 42 : 0)));
+      const b = clamp(Math.floor(255 * core + 248 * f * 0.92 + n * 28));
+      const a = clamp(Math.floor(255 * f * f + 240 * core + (ring ? 80 : 0)));
       t[y * S + x] = rgba(r, g, b, a);
     }
   }
@@ -498,13 +494,14 @@ function gen_hostileBulletSprite(): SpriteData {
   for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
     const dx = (x - cx) * 1.35, dy = (y - cy) * 0.75;
     const d = Math.sqrt(dx * dx + dy * dy);
-    if (d < R * 2.4) {
-      const f = 1 - d / (R * 2.4);
+    const warningCross = (Math.abs(x - cx) < 1.2 || Math.abs(y - cy) < 1.2) && d < R * 2.7;
+    if (d < R * 2.4 || warningCross) {
+      const f = warningCross ? 0.7 : 1 - d / (R * 2.4);
       const core = d < R ? 1 : 0;
-      const a = clamp(Math.floor(255 * f * f + 210 * core));
+      const a = clamp(Math.floor((warningCross ? 180 : 255) * f * f + 210 * core));
       t[y * S + x] = rgba(
         clamp(Math.floor(255 * core + 250 * f * 0.85)),
-        clamp(Math.floor(90 * core + 60 * f * 0.45)),
+        clamp(Math.floor(84 * core + 48 * f * 0.42)),
         clamp(Math.floor(55 * core + 35 * f * 0.3)),
         a,
       );
@@ -568,12 +565,14 @@ function gen_hostilePsiBoltSprite(): SpriteData {
   for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
     const dx = x - cx, dy = y - cy;
     const d = Math.sqrt(dx * dx + dy * dy);
-    if (d < R * 3) {
-      const f = 1 - d / (R * 3);
+    const ang = Math.atan2(dy, dx);
+    const fracture = Math.abs(Math.sin(ang * 5 - d * 0.33)) < 0.16 && d < R * 3.2;
+    if (d < R * 3 || fracture) {
+      const f = fracture ? 0.7 : 1 - d / (R * 3);
       const core = d < R ? 1 : 0;
       const n = noise(x * 3, y * 3, 911) * 0.45;
       const ring = Math.sin(d * 1.6 + n * 6) > 0.15 ? 1 : 0.65;
-      const a = clamp(Math.floor(255 * f * f * ring + 230 * core));
+      const a = clamp(Math.floor(255 * f * f * ring + 230 * core + (fracture ? 65 : 0)));
       t[y * S + x] = rgba(
         clamp(Math.floor(255 * core + 220 * f * 0.75 + n * 40)),
         clamp(Math.floor(45 * core + 35 * f * 0.3)),

@@ -1,30 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { EntityType, Faction, FloorLevel, type Entity, type GameState } from '../src/core/types';
+import { FloorLevel, type GameState } from '../src/core/types';
 import { createEconomyFloorState } from '../src/data/economy';
 import { ensureEconomyState, getEconomyQuote } from '../src/systems/economy';
 import { buyFromNpc, sellToNpc } from '../src/systems/trade';
 import { getRecentEvents } from '../src/systems/events';
-import { makeGameState } from './helpers';
-
-function actor(overrides: Partial<Entity> = {}): Entity {
-  return {
-    id: 1,
-    type: EntityType.NPC,
-    x: 0,
-    y: 0,
-    angle: 0,
-    pitch: 0,
-    alive: true,
-    speed: 0,
-    sprite: 0,
-    name: 'Торговец',
-    faction: Faction.CITIZEN,
-    inventory: [],
-    money: 100,
-    ...overrides,
-  };
-}
+import { makeGameState, makeTestNpc, makeTestPlayer } from './helpers';
 
 function resetFloor(state: GameState, floor: FloorLevel): void {
   const economy = ensureEconomyState(state);
@@ -62,8 +43,8 @@ test('maintenance local tariffs keep metal and tools no dearer than LIVING at no
 test('buying water from an NPC moves one item, money, event data and floor supply', () => {
   const state = makeGameState({ currentFloor: FloorLevel.LIVING });
   resetFloor(state, FloorLevel.LIVING);
-  const player = actor({ id: 1, type: EntityType.PLAYER, name: 'Вы', faction: Faction.PLAYER, inventory: [], money: 10 });
-  const npc = actor({ id: 2, inventory: [{ defId: 'water', count: 2 }], money: 5 });
+  const player = makeTestPlayer({ id: 1, money: 10 });
+  const npc = makeTestNpc({ id: 2, name: 'Торговец', inventory: [{ defId: 'water', count: 2 }], money: 5 });
   const beforeStock = resourceStock(state, FloorLevel.LIVING, 'drink_water');
   const quote = getEconomyQuote(state, 'water', { trader: npc });
 
@@ -88,8 +69,8 @@ test('buying water from an NPC moves one item, money, event data and floor suppl
 test('selling water to an NPC moves one item, money, event data and floor supply', () => {
   const state = makeGameState({ currentFloor: FloorLevel.LIVING });
   resetFloor(state, FloorLevel.LIVING);
-  const player = actor({ id: 1, type: EntityType.PLAYER, name: 'Вы', faction: Faction.PLAYER, inventory: [{ defId: 'water', count: 2 }], money: 1 });
-  const npc = actor({ id: 2, inventory: [], money: 20 });
+  const player = makeTestPlayer({ id: 1, inventory: [{ defId: 'water', count: 2 }], money: 1 });
+  const npc = makeTestNpc({ id: 2, name: 'Торговец', money: 20 });
   const beforeStock = resourceStock(state, FloorLevel.LIVING, 'drink_water');
   const quote = getEconomyQuote(state, 'water', { trader: npc });
 
@@ -114,8 +95,8 @@ test('selling water to an NPC moves one item, money, event data and floor supply
 test('failed trades do not mutate money, inventories or resource stock', () => {
   const noMoneyState = makeGameState({ currentFloor: FloorLevel.LIVING });
   resetFloor(noMoneyState, FloorLevel.LIVING);
-  const poorPlayer = actor({ id: 1, type: EntityType.PLAYER, faction: Faction.PLAYER, inventory: [], money: 0 });
-  const waterSeller = actor({ id: 2, inventory: [{ defId: 'water', count: 1 }], money: 7 });
+  const poorPlayer = makeTestPlayer({ id: 1, money: 0 });
+  const waterSeller = makeTestNpc({ id: 2, name: 'Торговец', inventory: [{ defId: 'water', count: 1 }], money: 7 });
   const stockBeforeBuy = resourceStock(noMoneyState, FloorLevel.LIVING, 'drink_water');
 
   const buyResult = buyFromNpc(noMoneyState, poorPlayer, waterSeller, 0);
@@ -130,9 +111,10 @@ test('failed trades do not mutate money, inventories or resource stock', () => {
 
   const noSpaceState = makeGameState({ currentFloor: FloorLevel.LIVING });
   resetFloor(noSpaceState, FloorLevel.LIVING);
-  const seller = actor({ id: 3, type: EntityType.PLAYER, faction: Faction.PLAYER, inventory: [{ defId: 'water', count: 1 }], money: 2 });
-  const fullNpc = actor({
+  const seller = makeTestPlayer({ id: 3, inventory: [{ defId: 'water', count: 1 }], money: 2 });
+  const fullNpc = makeTestNpc({
     id: 4,
+    name: 'Торговец',
     inventory: Array.from({ length: 25 }, () => ({ defId: 'water', count: 999 })),
     money: 20,
   });

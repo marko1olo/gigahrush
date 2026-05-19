@@ -30,6 +30,7 @@ const MAX_EVENT_NPCS = 32;
 const MAX_EVENT_DROPS = 24;
 const MAX_EVENT_MARKS = 10;
 const MAX_PRESSURE_CELLS = 96;
+export const MAX_PROCESSION_PILGRIMS = 4;
 const FACTION_EVENT_QUEST_ID = -25025;
 const RECENT_LIMIT = 12;
 const MAX_ACTIVE_PROCESSIONS = 3;
@@ -69,7 +70,7 @@ interface ConsequenceResult {
   economyDeltas: number;
 }
 
-type CultProcessionAction = 'avoid' | 'follow' | 'report' | 'cover' | 'disrupt' | 'aftermath';
+type CultProcessionAction = 'avoid' | 'follow' | 'report' | 'disguise' | 'disrupt' | 'aftermath';
 
 interface TempControlCell {
   idx: number;
@@ -79,6 +80,7 @@ interface TempControlCell {
 interface ActiveCultProcession {
   id: number;
   floor: number;
+  samosborCount: number;
   zoneId: number;
   x: number;
   y: number;
@@ -92,9 +94,10 @@ interface ActiveCultProcession {
   avoided: boolean;
   followed: boolean;
   reported: boolean;
-  covered: boolean;
+  disguised: boolean;
   disrupted: boolean;
   warned: boolean;
+  playerDamage: number;
 }
 
 type ClashChoice = 'help_liquidators' | 'help_cultists' | 'loot_during_fight' | 'avoid' | 'report_aftermath';
@@ -135,9 +138,11 @@ export interface CultProcessionMapSnapshot {
   fearRadius: number;
   actionRadius: number;
   expiresIn: number;
+  avoided: boolean;
+  followed: boolean;
   reported: boolean;
   disrupted: boolean;
-  covered: boolean;
+  disguised: boolean;
 }
 
 let schedulerAccum = 0;
@@ -162,7 +167,7 @@ export function updateFactionEvents(
   dt: number,
   allowSpawns = true,
 ): void {
-  resetFactionClashRuntimeIfNeeded(state);
+  resetFactionEventRuntimeIfNeeded(state);
   updateActiveCultProcessions(state, world, player, entities, dt);
   updateActiveFactionClashes(state, world, player, entities, nextId);
   if (!allowSpawns) {
@@ -193,7 +198,7 @@ export function forceFactionEvent(
   nextId: { v: number },
   forcedId?: FactionEventKind,
 ): string {
-  resetFactionClashRuntimeIfNeeded(state);
+  resetFactionEventRuntimeIfNeeded(state);
   const zoneId = currentZoneId(world, player);
   if (forcedId) {
     const def = FACTION_EVENT_DEFS.find(d => d.id === forcedId);
@@ -240,7 +245,7 @@ export function summarizeFactionEvents(
       p.avoided ? 'avoid' : '',
       p.followed ? 'follow' : '',
       p.reported ? 'report' : '',
-      p.covered ? 'cover' : '',
+      p.disguised ? 'disguise' : '',
       p.disrupted ? 'disrupt' : '',
     ].filter(Boolean).join(',');
     lines.push(`procession#${p.id} z${p.zoneId + 1} ${Math.max(0, Math.round(p.expiresAt - state.time))}s npc${aliveProcessionNpcs(p, entities)}/${p.npcIds.length} ${flags || 'open'}`);
@@ -269,9 +274,11 @@ export function getActiveCultProcessionSnapshots(state: GameState): readonly Cul
       fearRadius: def.procession.fearRadius,
       actionRadius: def.procession.actionRadius,
       expiresIn: Math.max(0, p.expiresAt - state.time),
+      avoided: p.avoided,
+      followed: p.followed,
       reported: p.reported,
       disrupted: p.disrupted,
-      covered: p.coverUntil > state.time,
+      disguised: p.coverUntil > state.time || p.disguised,
     });
   }
   return cultProcessionSnapshots;
@@ -283,8 +290,8 @@ export function getCultProcessionPrompt(world: World, state: GameState, player: 
   const def = cultProcessionDef();
   if (!def?.procession) return '';
   const dist = world.dist(player.x, player.y, p.x, p.y);
-  if (dist > def.procession.actionRadius) return ' скрыться';
   if (player.tool === 'radio') return ' доложить';
+  if (dist > def.procession.actionRadius) return ' скрыться';
   if (hasItem(player, 'meat_rune')) return ' пройти под знаком';
   return ' идти в хвосте';
 }
@@ -301,20 +308,6 @@ export function tryInteractCultProcession(
   if (!def?.procession) return false;
 
   const dist = world.dist(player.x, player.y, p.x, p.y);
-  if (dist > def.procession.actionRadius) {
-    if (!p.avoided) {
-      p.avoided = true;
-      p.nextFearAt = state.time + PROCESSION_FEAR_TICK_SEC * 2;
-      publishProcessionAction(state, p, player, 'avoid', 3, {
-        actionText: 'Игрок переждал процессию у края коридора.',
-      });
-      state.msgs.push(msg('Вы переждали процессию у стены. Псалом проходит мимо.', state.time, '#ccf'));
-    } else {
-      state.msgs.push(msg('Вы уже держитесь вне хода процессии.', state.time, '#888'));
-    }
-    return true;
-  }
-
   if (player.tool === 'radio') {
     if (!p.reported) {
       p.reported = true;
@@ -331,13 +324,27 @@ export function tryInteractCultProcession(
     return true;
   }
 
+  if (dist > def.procession.actionRadius) {
+    if (!p.avoided) {
+      p.avoided = true;
+      p.nextFearAt = state.time + PROCESSION_FEAR_TICK_SEC * 2;
+      publishProcessionAction(state, p, player, 'avoid', 3, {
+        actionText: 'Игрок переждал процессию у края коридора.',
+      });
+      state.msgs.push(msg('Вы переждали процессию у стены. Псалом проходит мимо.', state.time, '#ccf'));
+    } else {
+      state.msgs.push(msg('Вы уже держитесь вне хода процессии.', state.time, '#888'));
+    }
+    return true;
+  }
+
   if (hasItem(player, 'meat_rune')) {
-    p.covered = true;
+    p.disguised = true;
     p.coverUntil = Math.max(p.coverUntil, state.time + def.procession.coverSec);
     addFactionRelMutual(Faction.PLAYER, Faction.CULTIST, 1);
-    publishProcessionAction(state, p, player, 'cover', 3, {
-      actionText: 'Игрок использовал мясную руну как пропуск и прикрытие.',
-      coverSec: def.procession.coverSec,
+    publishProcessionAction(state, p, player, 'disguise', 3, {
+      actionText: 'Игрок использовал мясную руну как пропуск и маскировку.',
+      disguiseSec: def.procession.coverSec,
     });
     state.msgs.push(msg('Мясная руна теплеет. Процессия принимает вас за тень в хвосте.', state.time, '#c8f'));
     return true;
@@ -380,6 +387,7 @@ export function recordFactionClashPlayerHit(
   damage: number,
 ): void {
   if (target.type !== EntityType.NPC || target.faction === undefined || damage <= 0) return;
+  recordCultProcessionPlayerHit(state, target, damage);
   const clash = activeFactionClashes.find(c =>
     c.floor === state.currentFloor
     && !c.aftermathDone
@@ -836,14 +844,40 @@ function countAliveIds(entities: Entity[], ids: readonly number[]): number {
 }
 
 function resetFactionClashRuntimeIfNeeded(state: GameState): void {
+  resetFactionEventRuntimeIfNeeded(state);
+}
+
+function resetFactionEventRuntimeIfNeeded(state: GameState): void {
   if (state.time + 1 >= lastFactionEventTime) {
     lastFactionEventTime = state.time;
     return;
   }
+  schedulerAccum = 0;
+  nextEventAt = state.time + 25 + Math.random() * 25;
+  forceCursor = 0;
+  activeCultProcessions.length = 0;
+  cultProcessionSnapshots.length = 0;
   activeFactionClashes.length = 0;
   factionClashAftermaths.length = 0;
   spawnedFactionClashKeys.clear();
+  zoneCooldownUntil.clear();
+  recentEvents.length = 0;
   lastFactionEventTime = state.time;
+}
+
+export function resetFactionEventsForTests(): void {
+  schedulerAccum = 0;
+  nextEventAt = 25;
+  forceCursor = 0;
+  nextProcessionId = 1;
+  zoneCooldownUntil.clear();
+  recentEvents.length = 0;
+  activeCultProcessions.length = 0;
+  cultProcessionSnapshots.length = 0;
+  activeFactionClashes.length = 0;
+  spawnedFactionClashKeys.clear();
+  factionClashAftermaths.length = 0;
+  lastFactionEventTime = 0;
 }
 
 function factionClashDef(): FactionEventDef | undefined {
@@ -888,7 +922,8 @@ function triggerFactionEvent(
   const faction = def.actorFaction ?? zoneFactionToFaction(zone.faction);
   if (faction === null) return blocked('нет фракции-исполнителя');
 
-  const groupCap = Math.min(def.maxGroup, MAX_EVENT_NPCS - taggedNpcs);
+  const eventNpcCap = def.procession ? Math.min(MAX_PROCESSION_PILGRIMS, def.maxGroup) : def.maxGroup;
+  const groupCap = Math.min(eventNpcCap, MAX_EVENT_NPCS - taggedNpcs);
   const groupSize = Math.max(0, Math.min(groupCap, def.minGroup + Math.floor(Math.random() * (def.maxGroup - def.minGroup + 1))));
   const center = spawnCenter(world, player, zoneId);
   let spawnedNpcs = 0;
@@ -1058,6 +1093,7 @@ function startCultProcession(
   const p: ActiveCultProcession = {
     id: nextProcessionId++,
     floor: state.currentFloor,
+    samosborCount: state.samosborCount,
     zoneId,
     x,
     y,
@@ -1066,14 +1102,15 @@ function startCultProcession(
     nextFearAt: state.time + PROCESSION_FEAR_TICK_SEC,
     coverUntil: 0,
     eventId: 0,
-    npcIds: npcIds.slice(0, def.maxGroup),
+    npcIds: npcIds.slice(0, MAX_PROCESSION_PILGRIMS),
     tempCells: [],
     avoided: false,
     followed: false,
     reported: false,
-    covered: false,
+    disguised: false,
     disrupted: false,
     warned: false,
+    playerDamage: 0,
   };
   applyTemporaryControl(world, p, zf, def);
   activeCultProcessions.unshift(p);
@@ -1157,6 +1194,10 @@ function updateActiveCultProcessions(
       dropCultProcession(p);
       continue;
     }
+    if (p.samosborCount !== state.samosborCount) {
+      finishCultProcession(state, world, p, 'смыта самосбором');
+      continue;
+    }
     if (!p.disrupted && processionDisrupted(p, entities)) {
       p.disrupted = true;
       addFactionRelMutual(Faction.PLAYER, Faction.CULTIST, -6);
@@ -1177,9 +1218,18 @@ function updateActiveCultProcessions(
 }
 
 function processionDisrupted(p: ActiveCultProcession, entities: Entity[]): boolean {
-  if (p.npcIds.length === 0) return false;
+  if (p.npcIds.length === 0 || p.playerDamage <= 0) return false;
   const alive = aliveProcessionNpcs(p, entities);
   return alive <= Math.floor(p.npcIds.length / 2);
+}
+
+function recordCultProcessionPlayerHit(state: GameState, target: Entity, damage: number): void {
+  for (const p of activeCultProcessions) {
+    if (p.floor !== state.currentFloor || p.disrupted || p.expiresAt <= state.time) continue;
+    if (!p.npcIds.includes(target.id)) continue;
+    p.playerDamage += damage;
+    return;
+  }
 }
 
 function aliveProcessionNpcs(p: ActiveCultProcession, entities: Entity[]): number {
@@ -1225,10 +1275,11 @@ function finishCultProcession(state: GameState, world: World, p: ActiveCultProce
   restoreTemporaryControl(world, p);
   publishProcessionAction(state, p, undefined, 'aftermath', p.disrupted ? 5 : 4, {
     actionText: `Процессия ${outcome}; временное давление коридора спало.`,
+    processionOutcome: outcome,
     avoided: p.avoided,
     followed: p.followed,
     reported: p.reported,
-    covered: p.covered,
+    disguised: p.disguised,
   });
   const idx = activeCultProcessions.indexOf(p);
   if (idx >= 0) activeCultProcessions.splice(idx, 1);
@@ -1251,8 +1302,8 @@ function publishProcessionAction(
     actorName: player?.name,
     actorFaction: player?.faction,
     targetFaction: Faction.CULTIST,
-    itemId: action === 'cover' || action === 'follow' ? 'meat_rune' : undefined,
-    itemName: action === 'cover' || action === 'follow' ? ITEMS.meat_rune?.name : undefined,
+    itemId: action === 'disguise' || action === 'follow' ? 'meat_rune' : undefined,
+    itemName: action === 'disguise' || action === 'follow' ? ITEMS.meat_rune?.name : undefined,
     severity,
     privacy: 'local',
     tags: ['faction_event', 'cult_procession', 'procession_action', action],

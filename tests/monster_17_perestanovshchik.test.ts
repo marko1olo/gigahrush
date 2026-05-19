@@ -17,6 +17,7 @@ import {
   getRecentEvents,
   publishEvent,
 } from '../src/systems/events';
+import { routeCueCount } from '../src/systems/route_cues';
 import { makeGameState } from './helpers';
 
 function generate(): { world: World; entities: Entity[] } {
@@ -31,6 +32,7 @@ test('Перестановщик generates local paired cells, anchor reward, an
   const { world, entities } = generate();
 
   assert.equal(world.anomalyTeleports.size, 4);
+  assert.equal(routeCueCount(world), 2);
   assert.ok(world.rooms.some(room => room.name.includes('Перестановщик')));
   assert.ok(entities.some(entity => entity.type === EntityType.MONSTER && entity.name === 'Переставленный жилец'));
 

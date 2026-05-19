@@ -3,8 +3,9 @@
 /* Self-contained: NPC + FETCH quest + room generator.             */
 
 import {
-  Cell, Tex, Feature, RoomType,
+  Cell, Tex, Feature, RoomType, ContainerKind, FloorLevel,
   type Room, type Entity, EntityType, AIGoal, Faction, Occupation, QuestType,
+  type Item, type WorldContainer,
 } from '../../core/types';
 import { World } from '../../core/world';
 import { freshNeeds } from '../../data/catalog';
@@ -22,18 +23,17 @@ const NPC_DEF: PlotNpcDef = {
   hp: 90, maxHp: 90, money: 40, speed: 0.6,
   inventory: [
     { defId: 'book', count: 8 },
-    { defId: 'note', count: 4 },
     { defId: 'tea', count: 2 },
   ],
   talkLines: [
     'Тс-с-с… В Информатории не шумят. Здесь ещё хранится разум хруща.',
     'Я — Маргарита Павловна. Тридцать лет каталогизирую то, что бетон не успел сожрать.',
     'Книги пропадают. Полки пустеют каждый самосбор. Если бы вы могли вернуть хотя бы пять томов…',
-    'Взамен я отдам вам одну из моих записей. Они… бывают полезны. Особенно про пси.',
+    'Взамен я отдам вам одну из моих записей. А ходовой указатель маршрутов можно купить. Или украсть, если любите свидетелей.',
   ],
   talkLinesPost: [
     'Спасибо, читатель. Полки снова дышат.',
-    'Если найдёте редкое издание — несите. Я узнаю.',
+    'Если найдёте редкое издание — несите. За хорошие книги я сверяю маршрутные карточки быстрее.',
     'Тише. Бетон слышит шёпот.',
   ],
 };
@@ -52,12 +52,56 @@ registerSideQuest('margarita_librarian', NPC_DEF, [
       { defId: 'tea', count: 2 },
     ],
     relationDelta: 20, xpReward: 50, moneyReward: 80,
+    eventTags: ['living_library', 'rumor_index', 'favor'],
+    eventData: { rumorIds: ['library_index_quarantine_medcard'] },
   },
 ]);
 
 /* Library: large reading hall (15 wide × 11 tall). */
 const LIB_W = 15;
 const LIB_H = 11;
+const LIBRARY_INDEX_TAG = 'living_library_rumor_index';
+
+const LIBRARY_INDEX_NOTES: readonly string[] = [
+  'Указатель Информатория / Карантин: Жилая зона -> Больничный блок карантина. Цель: карантинная медкарта. Риск: мертвяк у медкоридора. Входи с бинтом, выходи до ревизии.',
+  'Указатель Информатория / Ноль: Коллекторы -> Теплотрасса Ноль, вентильная. Цель: бирка вентиля. Проверь манометр, иди через душевой обход, не спорь с паром.',
+  'Указатель Информатория / Л-47: Министерство -> Архив ликвидаторских дел. Цель: жетон или запечатанный рапорт. Риск: параграф и запертая картотека.',
+  'Указатель Информатория / Пепел: Ад -> Пепельный алтарь готовности. Контракт: зачистить кошмарище. Нужны патроны или ПСИ, выход тем же коридором.',
+];
+
+function libraryIndexInventory(): Item[] {
+  return LIBRARY_INDEX_NOTES.map(data => ({ defId: 'note', count: 1, data }));
+}
+
+function nextContainerId(world: World): number {
+  let id = world.containers.length + 1;
+  while (world.containerById.has(id) || world.containers.some(c => c.id === id)) id++;
+  return id;
+}
+
+function addRumorIndexContainer(world: World, room: Room, owner: Entity): void {
+  const x = world.wrap(room.x + room.w - 2);
+  const y = world.wrap(room.y + Math.floor(room.h / 2));
+  const container: WorldContainer = {
+    id: nextContainerId(world),
+    x,
+    y,
+    floor: FloorLevel.LIVING,
+    roomId: room.id,
+    zoneId: world.zoneMap[world.idx(x, y)],
+    kind: ContainerKind.FILING_CABINET,
+    name: 'Картотека ходовых слухов',
+    inventory: libraryIndexInventory(),
+    capacitySlots: LIBRARY_INDEX_NOTES.length,
+    ownerNpcId: owner.id,
+    ownerName: owner.name,
+    faction: Faction.SCIENTIST,
+    access: 'owner',
+    discovered: true,
+    tags: [LIBRARY_INDEX_TAG, 'route_lead', 'rumor', 'paper', 'theft'],
+  };
+  world.addContainer(container);
+}
 
 function generateLibrary(
   world: World, nextRoomId: number, entities: Entity[], nextId: { v: number },
@@ -165,7 +209,7 @@ function generateLibrary(
   // Phase 8: NPC — librarian behind central reading row
   const npcX = rx + Math.floor(LIB_W / 2) + 0.5;
   const npcY = ry + 1 + 0.5;
-  entities.push({
+  const librarian: Entity = {
     id: nextId.v++, type: EntityType.NPC,
     x: npcX, y: npcY,
     angle: Math.PI / 2, pitch: 0,
@@ -173,10 +217,12 @@ function generateLibrary(
     name: NPC_DEF.name, isFemale: NPC_DEF.isFemale,
     needs: freshNeeds(), hp: NPC_DEF.hp, maxHp: NPC_DEF.maxHp, money: NPC_DEF.money,
     ai: { goal: AIGoal.IDLE, tx: 0, ty: 0, path: [], pi: 0, stuck: 0, timer: 0 },
-    inventory: NPC_DEF.inventory.map(i => ({ ...i })),
+    inventory: [...NPC_DEF.inventory.map(i => ({ ...i })), ...libraryIndexInventory()],
     faction: NPC_DEF.faction, occupation: NPC_DEF.occupation,
     plotNpcId: 'margarita_librarian', canGiveQuest: true, questId: -1,
-  });
+  };
+  entities.push(librarian);
+  addRumorIndexContainer(world, room, librarian);
 
   genLog(`[LIBRARY] Информаторий at (${rx}, ${ry}) room #${roomId}`);
   return { nextRoomId };

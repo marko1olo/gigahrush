@@ -2,7 +2,6 @@ import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
 import {
-  Cell,
   ContainerKind,
   EntityType,
   Faction,
@@ -11,12 +10,13 @@ import {
   QuestType,
   RoomType,
   Tex,
-  type Entity,
-  type WorldContainer,
+  WORLD_EVENT_TYPES,
   WORLD_EVENT_IMPORTANT_CAPACITY,
   WORLD_EVENT_RECENT_CAPACITY,
   WORLD_EVENT_ZONE_CAPACITY,
   ZoneFaction,
+  type WorldEvent,
+  type WorldEventSeverity,
 } from '../src/core/types';
 import { World } from '../src/core/world';
 import { ITEMS } from '../src/data/catalog';
@@ -25,6 +25,8 @@ import { getStack } from '../src/data/items';
 import { SIDE_QUESTS } from '../src/data/plot';
 import { getFactionRel, initFactionRelations } from '../src/data/relations';
 import { RESOURCES } from '../src/data/resources';
+import { getSamosborBeatDefs, registerSamosborBeat } from '../src/data/samosbor_director';
+import { SAMOSBOR_VARIANTS, type ActiveSamosborVariant } from '../src/data/samosbor_variants';
 import { spawnContract } from '../src/systems/contracts';
 import { putIntoContainer, restoreValidContainers, takeFromContainer } from '../src/systems/containers';
 import {
@@ -32,7 +34,9 @@ import {
   economyForSave,
   ensureEconomyState,
   getAdjustedItemPrice,
+  getEconomyQuote,
   getResourceScarcity,
+  getScarcityAdjustedReward,
   normalizeGameEconomy,
   spendResources,
   summarizeEconomy,
@@ -42,13 +46,28 @@ import {
   getImportantEvents,
   getRecentEvents,
   getZoneEvents,
+  normalizeWorldEventState,
   publishEvent,
+  registerWorldEventObserver,
   trimEventHistoryForSave,
+  unregisterWorldEventObserver,
 } from '../src/systems/events';
+import '../src/systems/caravans';
 import { getNpcMemory } from '../src/systems/npc_memory';
 import { ensureProductionRooms, tickProduction, type ProductionState } from '../src/systems/production';
+import { questRemainingMinutes } from '../src/systems/quest_deadlines';
 import { checkQuests, offerQuest } from '../src/systems/quests';
-import { makeGameState } from './helpers';
+import { getSamosborDirectorTrace, tickSamosborDirector } from '../src/systems/samosbor_director';
+import { addTestRoom, makeGameState, makeTestContainer, makeTestEntity } from './helpers';
+
+test('world event taxonomy is runtime-auditable and keeps generic faction events typed', () => {
+  const unique = new Set(WORLD_EVENT_TYPES);
+  assert.equal(unique.size, WORLD_EVENT_TYPES.length);
+  assert.ok(unique.has('faction_event'));
+  assert.ok(unique.has('faction_patrol_clash'));
+  assert.ok(unique.has('faction_relation_changed'));
+  assert.ok(WORLD_EVENT_TYPES.every(t => t === t.toLowerCase() && !t.includes(' ')));
+});
 
 test('world event buffers cap, order newest first, and filter by zone/severity', () => {
   const state = makeGameState({ worldEvents: createWorldEventState() });
@@ -99,6 +118,99 @@ test('world event normalization trims old save payloads to fixed capacities', ()
   assert.equal(saved.zoneEvents[3].count, WORLD_EVENT_ZONE_CAPACITY);
 });
 
+test('world event normalization preserves order and advances next id beyond restored events', () => {
+  const state = makeGameState({ worldEvents: createWorldEventState() });
+
+  for (let i = 0; i < 4; i++) {
+    publishEvent(state, {
+      type: 'samosbor_warning',
+      zoneId: 2,
+      severity: 3,
+      privacy: 'public',
+      tags: ['order_test', `step_${i}`],
+    });
+  }
+
+  const saved = normalizeWorldEventState({
+    nextId: 1,
+    recentEvents: state.worldEvents?.recentEvents,
+    importantEvents: state.worldEvents?.importantEvents,
+    zoneEvents: state.worldEvents?.zoneEvents,
+  });
+  const restored = makeGameState({ worldEvents: saved });
+  const recent = getRecentEvents(restored, { limit: 4 });
+
+  assert.deepEqual(recent.map(e => e.id), [4, 3, 2, 1]);
+  assert.equal(saved.nextId, 5);
+  assert.equal(publishEvent(restored, {
+    type: 'samosbor_warning',
+    severity: 3,
+    privacy: 'public',
+    tags: ['order_test'],
+  }).id, 5);
+});
+
+test('world event publication clamps payloads before notifying observers', () => {
+  const state = makeGameState({ worldEvents: createWorldEventState() });
+  const longTag = `tag_${'x'.repeat(48)}`;
+  const longKey = 'k'.repeat(48);
+  let observed: WorldEvent | undefined;
+  let observedState = false;
+  let observedCount = 0;
+  const observer = (game: typeof state, event: WorldEvent): void => {
+    if (event.type !== 'faction_event') return;
+    observed = event;
+    observedState = game === state;
+    observedCount++;
+  };
+
+  registerWorldEventObserver(observer);
+  const event = publishEvent(state, {
+    type: 'faction_event',
+    zoneId: 1,
+    severity: 99 as WorldEventSeverity,
+    privacy: 'public',
+    tags: ['alpha', 'alpha', '', longTag, 'b', 'c', 'd', 'e', 'f', 'g', 'h'],
+    data: {
+      [longKey]: 'v'.repeat(140),
+      nested: { child: { tooDeep: true } },
+      arr: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+      bad: Number.POSITIVE_INFINITY,
+      keep: true,
+      undef: undefined,
+      k6: 6,
+      k7: 7,
+      k8: 8,
+      k9: 9,
+      k10: 10,
+      k11: 11,
+      k12: 12,
+      k13: 13,
+    },
+  });
+  assert.equal(unregisterWorldEventObserver(observer), true);
+
+  publishEvent(state, {
+    type: 'faction_event',
+    severity: 3,
+    privacy: 'public',
+    tags: ['after_unregister'],
+  });
+
+  assert.equal(observed, event);
+  assert.equal(observedState, true);
+  assert.equal(observedCount, 1);
+  assert.equal(unregisterWorldEventObserver(observer), false);
+  assert.equal(event.severity, 5);
+  assert.deepEqual(event.tags, ['alpha', longTag.slice(0, 32), 'b', 'c', 'd', 'e', 'f', 'g']);
+  assert.equal(Object.keys(event.data ?? {}).length, 12);
+  assert.equal(event.data?.[longKey.slice(0, 32)], 'v'.repeat(96));
+  assert.deepEqual(event.data?.nested, { child: '[object]' });
+  assert.deepEqual(event.data?.arr, [0, 1, 2, 3, 4, 5, 6, 7]);
+  assert.equal(event.data?.bad, 0);
+  assert.equal(event.data?.undef, undefined);
+});
+
 test('AG82 idol branch completion returns the idol and publishes branch context', () => {
   initFactionRelations();
   const branch = SIDE_QUESTS.find(q => q.id === 'idol_ministry_registration');
@@ -108,8 +220,8 @@ test('AG82 idol branch completion returns the idol and publishes branch context'
     currentFloor: FloorLevel.MINISTRY,
     worldEvents: createWorldEventState(),
   });
-  const player = testActor({ inventory: [{ defId: 'idol_chernobog', count: 1 }] });
-  const giver = testActor({
+  const player = makeTestEntity({ inventory: [{ defId: 'idol_chernobog', count: 1 }] });
+  const giver = makeTestEntity({
     id: 2,
     type: EntityType.NPC,
     name: 'Вера Пропускова',
@@ -166,9 +278,10 @@ test('economy state normalizes invalid resources and preserves valid saved value
 
   const floor = normalized.floors[FloorLevel.LIVING]!;
   const base = RESOURCES.find(r => r.id === 'drink_water')!.baseStock;
+  const target = 50;
   assert.equal(normalized.priceVersion, 3);
-  assert.equal(floor.resources.drink_water.stock, base);
-  assert.equal(floor.resources.drink_water.target, 50);
+  assert.equal(floor.resources.drink_water.stock, Math.min(base, target * 2));
+  assert.equal(floor.resources.drink_water.target, target);
   assert.equal(floor.resources.drink_water.lastDelta, 0);
   assert.equal(floor.lastTickAt, 42);
 });
@@ -207,11 +320,33 @@ test('economy resource spending clamps stock and affects item prices', () => {
   economy.floors[FloorLevel.LIVING] = createEconomyFloorState(FloorLevel.LIVING);
 
   assert.equal(changeResourceStock(state, 'drink_water', -119), true);
-  assert.equal(getResourceScarcity(state, 'drink_water'), 4);
-  assert.equal(getAdjustedItemPrice(state, 'water'), 8);
+  assert.equal(getResourceScarcity(state, 'drink_water'), 2.7);
+  assert.equal(getAdjustedItemPrice(state, 'water'), 6);
   assert.equal(spendResources(state, [{ id: 'drink_water', count: 2 }]), false);
   assert.equal(spendResources(state, [{ id: 'drink_water', count: 1 }]), true);
-  assert.equal(getResourceScarcity(state, 'drink_water'), 4);
+  assert.equal(getResourceScarcity(state, 'drink_water'), 2.7);
+});
+
+test('critical survival scarcity caps price pressure and contract rewards', () => {
+  const state = makeGameState({ time: 300, currentFloor: FloorLevel.KVARTIRY });
+  const economy = ensureEconomyState(state);
+  economy.floors[FloorLevel.KVARTIRY] = createEconomyFloorState(FloorLevel.KVARTIRY);
+
+  assert.equal(changeResourceStock(state, 'drink_water', -119), true);
+  const quote = getEconomyQuote(state, 'water', { tariffMultiplier: 6, reason: 'test_tariff_spike' });
+
+  assert.equal(quote.scarcityMultiplier, 2.7);
+  assert.equal(quote.buyPrice, 7);
+  assert.equal(quote.tags.includes('price_cap'), true);
+  assert.equal(quote.reason.includes('price_pressure_cap'), true);
+  assert.equal(getScarcityAdjustedReward(
+    state,
+    'drink_water',
+    100,
+    FloorLevel.KVARTIRY,
+    3,
+    { level: 1, xp: 0, attrPoints: 0, str: 0, agi: 0, int: 99, psi: 0, maxPsi: 0 },
+  ), 265);
 });
 
 test('economy price cache invalidates when stock changes and debug summary stays bounded', () => {
@@ -229,56 +364,85 @@ test('economy price cache invalidates when stock changes and debug summary stays
   assert.ok(lines.every(line => line.includes(' x')));
 });
 
-function testActor(overrides: Partial<Entity> = {}): Entity {
-  return {
-    id: 1,
-    type: EntityType.PLAYER,
-    x: 0,
-    y: 0,
-    angle: 0,
-    pitch: 0,
-    alive: true,
-    speed: 0,
-    sprite: 0,
-    name: 'Вы',
-    faction: Faction.PLAYER,
-    inventory: [],
-    ...overrides,
-  };
-}
+test('samosbor director registry ignores duplicate beat ids', () => {
+  const before = getSamosborBeatDefs().length;
+  const duplicate = getSamosborBeatDefs()[0];
+  assert.ok(duplicate);
+  const originalWarn = console.warn;
+  let warning = '';
 
-function testContainer(overrides: Partial<WorldContainer> = {}): WorldContainer {
-  return {
-    id: 1,
-    x: 0,
-    y: 0,
-    floor: FloorLevel.LIVING,
-    roomId: 1,
-    zoneId: 1,
-    kind: ContainerKind.EMERGENCY_BOX,
-    name: 'Тестовый ящик',
-    inventory: [],
-    capacitySlots: 1,
-    access: 'public',
-    discovered: true,
-    tags: [],
-    ...overrides,
-  };
-}
+  try {
+    console.warn = (message?: unknown): void => { warning = String(message); };
+    registerSamosborBeat({ ...duplicate });
+  } finally {
+    console.warn = originalWarn;
+  }
+
+  assert.equal(getSamosborBeatDefs().length, before);
+  assert.ok(warning.includes('duplicate beat id'));
+});
+
+test('samosbor director cadence, beat cooldowns, and events stay bounded', () => {
+  const state = makeGameState({
+    time: 100,
+    currentFloor: FloorLevel.LIVING,
+    samosborActive: true,
+    samosborCount: 2,
+    worldEvents: createWorldEventState(),
+  });
+  const world = testDirectorWorld();
+  const player = makeTestEntity({ id: 0, x: 10.5, y: 10.5 });
+  const entities = [player];
+  const nextId = { v: 100 };
+  const variant = testClassicSamosborVariant();
+  const originalRandom = Math.random;
+
+  try {
+    Math.random = () => 0;
+    const first = tickSamosborDirector(world, entities, state, nextId, variant, 'active_cadence');
+    assert.equal(first.fired, true);
+    assert.equal(first.beatId, 'active_floor_fog_residue');
+
+    const firstEvent = getRecentEvents(state, { tags: ['samosbor', 'director'], limit: 1 })[0];
+    assert.ok(firstEvent);
+    assert.equal(firstEvent.data?.beatId, 'active_floor_fog_residue');
+    assert.equal(firstEvent.data?.phase, 'active');
+    assert.equal(firstEvent.data?.cycle, 2);
+    assert.equal(firstEvent.data?.dangerBudget, 2);
+
+    const duplicate = tickSamosborDirector(world, entities, state, nextId, variant, 'active_cadence');
+    assert.equal(duplicate.fired, false);
+    assert.equal(duplicate.reasonCode, 'cadence_cooldown');
+    assert.equal(getRecentEvents(state, { tags: ['samosbor', 'director'] }).length, 1);
+
+    state.time = 112;
+    const second = tickSamosborDirector(world, entities, state, nextId, variant, 'active_cadence');
+    assert.equal(second.fired, true);
+    assert.equal(second.beatId, 'active_liquidator_patrol');
+
+    const trace = getSamosborDirectorTrace(state, 1)[0];
+    assert.equal(trace.chosenBeatId, 'active_liquidator_patrol');
+    assert.equal(trace.rejectedTopBeatId, 'active_floor_fog_residue');
+    assert.equal(trace.rejectedReason, 'cooldown');
+    assert.ok(trace.legalCount >= 1);
+  } finally {
+    Math.random = originalRandom;
+  }
+});
 
 test('container take/put refuses full targets without changing source counts', () => {
   const state = makeGameState({ worldEvents: createWorldEventState() });
-  const fullPlayer = testActor({
+  const fullPlayer = makeTestEntity({
     inventory: Array.from({ length: 25 }, () => ({ defId: 'bread', count: getStack(ITEMS.bread) })),
   });
-  const waterBox = testContainer({ inventory: [{ defId: 'water', count: 1 }] });
+  const waterBox = makeTestContainer({ inventory: [{ defId: 'water', count: 1 }] });
 
   assert.equal(takeFromContainer(waterBox, fullPlayer, 0, 1, state), false);
   assert.equal(waterBox.inventory[0].count, 1);
   assert.equal(fullPlayer.inventory?.length, 25);
 
-  const donor = testActor({ inventory: [{ defId: 'water', count: 1 }] });
-  const fullBox = testContainer({ inventory: [{ defId: 'bread', count: getStack(ITEMS.bread) }] });
+  const donor = makeTestEntity({ inventory: [{ defId: 'water', count: 1 }] });
+  const fullBox = makeTestContainer({ inventory: [{ defId: 'bread', count: getStack(ITEMS.bread) }] });
 
   assert.equal(putIntoContainer(fullBox, donor, 0, 1), false);
   assert.deepEqual(donor.inventory, [{ defId: 'water', count: 1 }]);
@@ -286,8 +450,8 @@ test('container take/put refuses full targets without changing source counts', (
 });
 
 test('container put moves exactly one selected stack unit', () => {
-  const actor = testActor({ inventory: [{ defId: 'water', count: 2 }] });
-  const box = testContainer({ inventory: [{ defId: 'water', count: 1 }] });
+  const actor = makeTestEntity({ inventory: [{ defId: 'water', count: 2 }] });
+  const box = makeTestContainer({ inventory: [{ defId: 'water', count: 1 }] });
 
   assert.equal(putIntoContainer(box, actor, 0, 1), true);
   assert.deepEqual(actor.inventory, [{ defId: 'water', count: 1 }]);
@@ -302,28 +466,14 @@ test('witnessed container theft marks audit, memory, event context, and faction 
     worldEvents: createWorldEventState(),
   });
   const world = new World();
-  world.rooms[0] = {
-    id: 0,
+  addTestRoom(world, {
     type: RoomType.STORAGE,
     x: 10, y: 10, w: 6, h: 6,
-    doors: [],
-    sealed: false,
     name: 'Тестовый склад',
-    apartmentId: -1,
-    wallTex: Tex.CONCRETE,
-    floorTex: Tex.F_CONCRETE,
-  };
-  world.zones[0] = { id: 0, cx: 12, cy: 12, faction: ZoneFaction.CITIZEN, hasLift: false, fogged: false, level: 1, hqRoomId: -1 };
-  for (let y = 10; y < 16; y++) {
-    for (let x = 10; x < 16; x++) {
-      world.set(x, y, Cell.FLOOR);
-      world.roomMap[world.idx(x, y)] = 0;
-      world.zoneMap[world.idx(x, y)] = 0;
-    }
-  }
+  });
 
-  const player = testActor({ id: 0, x: 11, y: 11, faction: Faction.PLAYER });
-  const witness = testActor({
+  const player = makeTestEntity({ id: 0, x: 11, y: 11, faction: Faction.PLAYER });
+  const witness = makeTestEntity({
     id: 77,
     type: EntityType.NPC,
     x: 12.5,
@@ -332,7 +482,7 @@ test('witnessed container theft marks audit, memory, event context, and faction 
     faction: Faction.CITIZEN,
     inventory: [],
   });
-  const box = testContainer({
+  const box = makeTestContainer({
     id: 22,
     x: 12,
     y: 12,
@@ -360,34 +510,90 @@ test('witnessed container theft marks audit, memory, event context, and faction 
   assert.equal(getFactionRel(Faction.CITIZEN, Faction.PLAYER), 46);
 });
 
+test('unseen container theft stays private until a nearby owner faction audit', () => {
+  initFactionRelations();
+  const state = makeGameState({
+    time: 10,
+    currentFloor: FloorLevel.LIVING,
+    worldEvents: createWorldEventState(),
+  });
+  const world = new World();
+  addTestRoom(world, {
+    type: RoomType.STORAGE,
+    x: 10, y: 10, w: 6, h: 6,
+    name: 'Тестовый склад',
+  });
+
+  const player = makeTestEntity({
+    id: 0,
+    x: 11,
+    y: 11,
+    faction: Faction.PLAYER,
+    inventory: [{ defId: 'bread', count: 1 }],
+  });
+  const auditor = makeTestEntity({
+    id: 88,
+    type: EntityType.NPC,
+    x: 13.5,
+    y: 12.5,
+    name: 'Ревизор',
+    faction: Faction.CITIZEN,
+    inventory: [],
+  });
+  const box = makeTestContainer({
+    id: 23,
+    x: 12,
+    y: 12,
+    roomId: 0,
+    zoneId: 0,
+    access: 'faction',
+    faction: Faction.CITIZEN,
+    inventory: [{ defId: 'water', count: 2 }],
+    capacitySlots: 4,
+    tags: ['food'],
+  });
+  world.addContainer(box);
+
+  assert.equal(takeFromContainer(box, player, 0, 1, { state, world, entities: [player] }), true);
+
+  const unseen = getRecentEvents(state, { type: 'item_stolen', limit: 1 })[0];
+  assert.equal(unseen.privacy, 'private');
+  assert.equal(unseen.severity, 2);
+  assert.equal(unseen.data?.theftOutcome, 'unseen');
+  assert.equal(box.lastAuditAt, undefined);
+  assert.deepEqual(box.stolenItemIds, ['water']);
+  assert.equal(getFactionRel(Faction.CITIZEN, Faction.PLAYER), 50);
+
+  state.time += 121;
+  assert.equal(putIntoContainer(box, player, 0, 1, { state, world, entities: [player, auditor] }), true);
+
+  const audit = getRecentEvents(state, { type: 'item_stolen', tags: ['audit'], limit: 1 })[0];
+  assert.ok(audit);
+  assert.equal(audit.privacy, 'local');
+  assert.equal(audit.severity, 4);
+  assert.equal(audit.data?.auditOnly, true);
+  assert.equal(audit.data?.auditorCount, 1);
+  assert.deepEqual(audit.data?.auditorIds, [88]);
+  assert.equal(box.lastAuditAt, 131);
+  assert.equal(getNpcMemory(auditor, state.time).hurtByPlayer, 1);
+  assert.equal(getNpcMemory(auditor, state.time).trustPlayer, -8);
+  assert.equal(getFactionRel(Faction.CITIZEN, Faction.PLAYER), 48);
+});
+
 test('saved containers outside regenerated topology are dropped on restore', () => {
   const world = new World();
-  world.rooms[0] = {
-    id: 0,
+  addTestRoom(world, {
     type: RoomType.STORAGE,
     x: 10, y: 10, w: 5, h: 5,
-    doors: [],
-    sealed: false,
     name: 'Тестовый склад',
-    apartmentId: -1,
-    wallTex: Tex.CONCRETE,
-    floorTex: Tex.F_CONCRETE,
-  };
-  world.zones[0] = { id: 0, cx: 12, cy: 12, faction: ZoneFaction.CITIZEN, hasLift: false, fogged: false, level: 1, hqRoomId: -1 };
-  for (let y = 10; y < 15; y++) {
-    for (let x = 10; x < 15; x++) {
-      world.set(x, y, Cell.FLOOR);
-      world.roomMap[world.idx(x, y)] = 0;
-      world.zoneMap[world.idx(x, y)] = 0;
-    }
-  }
+  });
 
   const restored = restoreValidContainers(world, FloorLevel.LIVING, [
     {
-      ...testContainer({ id: 11, x: 11, y: 11, roomId: 0, zoneId: 0, capacitySlots: 0, inventory: [{ defId: 'water', count: 2 }] }),
+      ...makeTestContainer({ id: 11, x: 11, y: 11, roomId: 0, zoneId: 0, capacitySlots: 0, inventory: [{ defId: 'water', count: 2 }] }),
       access: 'invalid',
     },
-    testContainer({ id: 12, x: 50, y: 50, roomId: 0, zoneId: 0, capacitySlots: 4, inventory: [{ defId: 'bread', count: 1 }] }),
+    makeTestContainer({ id: 12, x: 50, y: 50, roomId: 0, zoneId: 0, capacitySlots: 4, inventory: [{ defId: 'bread', count: 1 }] }),
   ]);
 
   assert.equal(restored, 1);
@@ -416,19 +622,13 @@ test('production state cannot write output into another floor container id', () 
   }];
 
   const world = new World();
-  world.rooms[7] = {
+  addTestRoom(world, {
     id: 7,
     type: RoomType.COMMON,
     x: 8, y: 8, w: 6, h: 6,
-    doors: [],
-    sealed: false,
     name: 'Тестовая комната другого этажа',
-    apartmentId: -1,
-    wallTex: Tex.CONCRETE,
-    floorTex: Tex.F_CONCRETE,
-  };
-  world.zones[0] = { id: 0, cx: 10, cy: 10, faction: ZoneFaction.CITIZEN, hasLift: false, fogged: false, level: 1, hqRoomId: -1 };
-  const box = testContainer({
+  });
+  const box = makeTestContainer({
     id: 1,
     floor: FloorLevel.KVARTIRY,
     roomId: 7,
@@ -460,25 +660,12 @@ test('production room registration replaces stale current-floor output container
   }];
 
   const world = new World();
-  world.rooms[0] = {
-    id: 0,
+  addTestRoom(world, {
     type: RoomType.PRODUCTION,
     x: 10, y: 10, w: 7, h: 7,
-    doors: [],
-    sealed: false,
     name: 'Цех металла',
-    apartmentId: -1,
     wallTex: Tex.METAL,
-    floorTex: Tex.F_CONCRETE,
-  };
-  world.zones[0] = { id: 0, cx: 13, cy: 13, faction: ZoneFaction.CITIZEN, hasLift: false, fogged: false, level: 1, hqRoomId: -1 };
-  for (let y = 10; y < 17; y++) {
-    for (let x = 10; x < 17; x++) {
-      world.set(x, y, Cell.FLOOR);
-      world.roomMap[world.idx(x, y)] = 0;
-      world.zoneMap[world.idx(x, y)] = 0;
-    }
-  }
+  });
 
   ensureProductionRooms(state, world);
 
@@ -496,25 +683,13 @@ test('nearby production output marks container and reaches world log', () => {
     worldEvents: createWorldEventState(),
   });
   const world = new World();
-  world.rooms[0] = {
-    id: 0,
+  addTestRoom(world, {
     type: RoomType.PRODUCTION,
     x: 10, y: 10, w: 7, h: 7,
-    doors: [],
-    sealed: false,
     name: 'Цех металла',
-    apartmentId: -1,
     wallTex: Tex.METAL,
-    floorTex: Tex.F_CONCRETE,
-  };
-  for (let y = 10; y < 17; y++) {
-    for (let x = 10; x < 17; x++) {
-      world.set(x, y, Cell.FLOOR);
-      world.roomMap[world.idx(x, y)] = 0;
-    }
-  }
-  world.zones[0] = { id: 0, cx: 13, cy: 13, faction: ZoneFaction.CITIZEN, hasLift: false, fogged: false, level: 1, hqRoomId: -1 };
-  const player = testActor({ id: 0, x: 13, y: 13 });
+  });
+  const player = makeTestEntity({ id: 0, x: 13, y: 13 });
 
   assert.equal(tickProduction(state, world, true, player), 1);
   const output = world.containers.find(c => c.tags.includes('production_output'));
@@ -532,25 +707,14 @@ test('slime furnace consumes a sample item before producing cleanup output', () 
     worldEvents: createWorldEventState(),
   });
   const world = new World();
-  world.rooms[0] = {
-    id: 0,
+  addTestRoom(world, {
     type: RoomType.PRODUCTION,
     x: 10, y: 10, w: 7, h: 7,
-    doors: [],
-    sealed: false,
     name: 'Печь деактивации слизи',
-    apartmentId: -1,
     wallTex: Tex.PIPE,
-    floorTex: Tex.F_CONCRETE,
-  };
-  for (let y = 10; y < 17; y++) {
-    for (let x = 10; x < 17; x++) {
-      world.set(x, y, Cell.FLOOR);
-      world.roomMap[world.idx(x, y)] = 0;
-    }
-  }
-  world.zones[0] = { id: 0, cx: 13, cy: 13, faction: ZoneFaction.LIQUIDATOR, hasLift: false, fogged: false, level: 1, hqRoomId: -1 };
-  world.addContainer(testContainer({
+    zoneFaction: ZoneFaction.LIQUIDATOR,
+  });
+  world.addContainer(makeTestContainer({
     id: 1,
     x: 12,
     y: 12,
@@ -573,6 +737,57 @@ test('slime furnace consumes a sample item before producing cleanup output', () 
   assert.ok(event.tags.includes('deactivation_completed'));
 });
 
+test('illegal ammo smelter consumes contested metal input before producing 9mm', () => {
+  const state = makeGameState({
+    currentFloor: FloorLevel.KVARTIRY,
+    time: 1000,
+    worldEvents: createWorldEventState(),
+  });
+  const world = new World();
+  addTestRoom(world, {
+    type: RoomType.PRODUCTION,
+    x: 10, y: 10, w: 7, h: 7,
+    name: 'Гильзоплавка тестовая',
+    wallTex: Tex.METAL,
+    zoneFaction: ZoneFaction.WILD,
+  });
+  world.addContainer(makeTestContainer({
+    id: 1,
+    x: 12,
+    y: 12,
+    floor: FloorLevel.KVARTIRY,
+    roomId: 0,
+    zoneId: 0,
+    kind: ContainerKind.WEAPON_CRATE,
+    name: 'Горячий ящик гильзоплавки',
+    inventory: [{ defId: 'ammo_9mm', count: 4 }],
+    capacitySlots: 5,
+    access: 'owner',
+    faction: Faction.WILD,
+    tags: ['kv_ammo_smelter', 'ammo', 'weapon', 'illegal', 'production_output', 'contested_output', 'repair_input'],
+  }));
+
+  assert.equal(tickProduction(state, world, true), 0);
+  const shortage = getRecentEvents(state, { type: 'room_lacked_resources', limit: 1 })[0];
+  assert.ok(shortage);
+  assert.ok(shortage.tags.includes('metal_sheet_missing'));
+  assert.ok(shortage.tags.includes('repair_input'));
+  assert.deepEqual(shortage.data?.missingItems, ['metal_sheet']);
+
+  const hotBox = world.containerById.get(1);
+  assert.ok(hotBox);
+  hotBox.inventory.push({ defId: 'metal_sheet', count: 1 });
+
+  assert.equal(tickProduction(state, world, true), 1);
+  assert.equal(hotBox.inventory.some(item => item.defId === 'metal_sheet'), false);
+  assert.equal(hotBox.inventory.find(item => item.defId === 'ammo_9mm')?.count, 10);
+  const output = getRecentEvents(state, { type: 'room_produced_items', limit: 1 })[0];
+  assert.ok(output);
+  assert.ok(output.tags.includes('illegal_ammo_smelter'));
+  assert.ok(output.tags.includes('contested_output'));
+  assert.deepEqual(output.data?.inputItemIds, ['metal_sheet']);
+});
+
 test('contract spawn creates a normal quest and contract event', () => {
   const state = makeGameState({ clock: { hour: 10, minute: 0, totalMinutes: 120 }, worldEvents: createWorldEventState() });
 
@@ -587,21 +802,12 @@ test('contract spawn creates a normal quest and contract event', () => {
 test('NPC assignment offer can use contract templates as timed contract quests', () => {
   const state = makeGameState({ worldEvents: createWorldEventState() });
   const world = new World();
-  world.set(10, 10, Cell.FLOOR);
-  world.rooms = [{
-    id: 0,
+  addTestRoom(world, {
     type: RoomType.OFFICE,
     x: 8, y: 8, w: 6, h: 6,
-    doors: [],
-    sealed: false,
     name: 'Тестовая контора',
-    apartmentId: -1,
-    wallTex: Tex.CONCRETE,
-    floorTex: Tex.F_CONCRETE,
-  }];
-  world.roomMap[world.idx(10, 10)] = 0;
-  world.zones[0] = { id: 0, cx: 10, cy: 10, faction: ZoneFaction.CITIZEN, hasLift: false, fogged: false, level: 1, hqRoomId: -1 };
-  const npc = testActor({
+  });
+  const npc = makeTestEntity({
     id: 42,
     type: EntityType.NPC,
     x: 10,
@@ -611,7 +817,7 @@ test('NPC assignment offer can use contract templates as timed contract quests',
     occupation: Occupation.STOREKEEPER,
     canGiveQuest: true,
   });
-  const player = testActor({ id: 0, x: 11, y: 10 });
+  const player = makeTestEntity({ id: 0, x: 11, y: 10 });
   const originalRandom = Math.random;
 
   try {
@@ -642,21 +848,12 @@ test('procedural quest offers have no global active quest cap', () => {
     done: false,
   }));
   const world = new World();
-  world.set(10, 10, Cell.FLOOR);
-  world.rooms = [{
-    id: 0,
+  addTestRoom(world, {
     type: RoomType.OFFICE,
     x: 8, y: 8, w: 6, h: 6,
-    doors: [],
-    sealed: false,
     name: 'Тестовая контора',
-    apartmentId: -1,
-    wallTex: Tex.CONCRETE,
-    floorTex: Tex.F_CONCRETE,
-  }];
-  world.roomMap[world.idx(10, 10)] = 0;
-  world.zones[0] = { id: 0, cx: 10, cy: 10, faction: ZoneFaction.CITIZEN, hasLift: false, fogged: false, level: 1, hqRoomId: -1 };
-  const npc = testActor({
+  });
+  const npc = makeTestEntity({
     id: 42,
     type: EntityType.NPC,
     x: 10,
@@ -666,7 +863,7 @@ test('procedural quest offers have no global active quest cap', () => {
     occupation: Occupation.STOREKEEPER,
     canGiveQuest: true,
   });
-  const player = testActor({ id: 0, x: 11, y: 10 });
+  const player = makeTestEntity({ id: 0, x: 11, y: 10 });
   const originalRandom = Math.random;
 
   try {
@@ -682,7 +879,7 @@ test('procedural quest offers have no global active quest cap', () => {
 
 test('timed procedural quests fail when their deadline passes', () => {
   const state = makeGameState({ clock: { hour: 8, minute: 0, totalMinutes: 0 }, worldEvents: createWorldEventState() });
-  const player = testActor({ id: 0 });
+  const player = makeTestEntity({ id: 0 });
   const world = new World();
 
   assert.equal(spawnContract(state), true);
@@ -696,3 +893,113 @@ test('timed procedural quests fail when their deadline passes', () => {
   assert.equal(q.failed, true);
   assert.equal(getRecentEvents(state, { type: 'contract_failed', limit: 1 })[0]?.data?.reason, 'deadline');
 });
+
+test('hand-authored quests without explicit deadlines ignore stale expiry payloads', () => {
+  const state = makeGameState({ clock: { hour: 8, minute: 0, totalMinutes: 120 }, worldEvents: createWorldEventState() });
+  const player = makeTestEntity({ id: 0 });
+  const world = new World();
+  state.quests.push({
+    id: 77,
+    type: QuestType.FETCH,
+    giverId: 10,
+    giverName: 'Сюжетный тест',
+    desc: 'Старый сюжетный срок из save не должен провалить квест',
+    targetItem: 'unobtainium_test_item',
+    targetCount: 1,
+    plotStepIndex: 0,
+    expiresAtMinutes: 1,
+    done: false,
+  });
+
+  checkQuests(player, world, [player], state, state.msgs);
+
+  assert.equal(state.quests[0].done, false);
+  assert.equal(state.quests[0].expiresAtMinutes, undefined);
+  assert.equal(getRecentEvents(state, { type: 'quest_failed', limit: 1 }).length, 0);
+});
+
+test('timed authored quests missing absolute expiry are repaired and can expire later', () => {
+  const state = makeGameState({ clock: { hour: 9, minute: 0, totalMinutes: 100 }, worldEvents: createWorldEventState() });
+  const player = makeTestEntity({ id: 0 });
+  const world = new World();
+  state.quests.push({
+    id: 78,
+    type: QuestType.FETCH,
+    giverId: 11,
+    giverName: 'Срочный тест',
+    desc: 'Явно срочный side quest из старого save получает абсолютный срок',
+    targetItem: 'unobtainium_test_item',
+    targetCount: 1,
+    sideQuestId: 'timed_authored_test',
+    timeLimitMinutes: 30,
+    done: false,
+  });
+
+  checkQuests(player, world, [player], state, state.msgs);
+
+  const q = state.quests[0];
+  assert.equal(q.done, false);
+  assert.equal(q.expiresAtMinutes, 130);
+  assert.equal(questRemainingMinutes(q, state.clock.totalMinutes), 30);
+
+  state.clock.totalMinutes = 131;
+  checkQuests(player, world, [player], state, state.msgs);
+
+  assert.equal(q.done, true);
+  assert.equal(q.failed, true);
+  assert.equal(getRecentEvents(state, { type: 'quest_failed', limit: 1 })[0]?.data?.reason, 'deadline');
+});
+
+test('saved procedural quests without deadlines get a fair visible deadline on quest tick', () => {
+  const state = makeGameState({ clock: { hour: 12, minute: 0, totalMinutes: 500 }, worldEvents: createWorldEventState() });
+  const player = makeTestEntity({ id: 0 });
+  const world = new World();
+  state.quests.push({
+    id: 79,
+    type: QuestType.FETCH,
+    giverId: 12,
+    giverName: 'Процедурный тест',
+    desc: 'Старое процедурное поручение без срока',
+    targetItem: 'unobtainium_test_item',
+    targetCount: 1,
+    done: false,
+  });
+
+  checkQuests(player, world, [player], state, state.msgs);
+
+  const q = state.quests[0];
+  assert.equal(q.done, false);
+  assert.ok((q.timeLimitMinutes ?? 0) >= 60);
+  assert.ok((q.expiresAtMinutes ?? 0) > state.clock.totalMinutes);
+  assert.equal(getRecentEvents(state, { type: 'quest_failed', limit: 1 }).length, 0);
+});
+
+function testDirectorWorld(): World {
+  const world = new World();
+  addTestRoom(world, {
+    type: RoomType.COMMON,
+    x: 0, y: 0, w: 32, h: 32,
+    name: 'Тестовый коридор директора',
+  });
+  world.zones[0].cx = 10;
+  world.zones[0].cy = 10;
+  return world;
+}
+
+function testClassicSamosborVariant(): ActiveSamosborVariant {
+  const def = SAMOSBOR_VARIANTS.find(v => v.id === 'classic');
+  assert.ok(def);
+  return {
+    def,
+    modifiers: [],
+    durationMult: def.durationMult,
+    spawnMult: def.spawnMult,
+    fogSeedMult: 1,
+    fogSpawnIntervalMult: 1,
+    sealTimingDelta: def.sealTimingDelta,
+    noSiren: false,
+    extraEyes: 0,
+    shelterRoomCount: 0,
+    fogColor: def.fogColor,
+  };
+}

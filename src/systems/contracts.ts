@@ -5,6 +5,7 @@ import {
   Faction,
   Feature,
   FloorLevel,
+  LiftDirection,
   MonsterKind,
   RoomType,
   type Entity,
@@ -13,6 +14,7 @@ import {
   type Msg,
   type Quest,
   type Room,
+  type WorldContainer,
   msg,
   QuestType,
 } from '../core/types';
@@ -31,7 +33,8 @@ import { monsterSpr, Spr } from '../render/sprite_index';
 import { getItemPriceMultiplier, getScarcityAdjustedReward } from './economy';
 import { publishEvent } from './events';
 import { addItem, removeItem } from './inventory';
-import { currentFloorRunEntry, ensureFloorRunState } from './procedural_floors';
+import { currentFloorRunEntry, ensureFloorRunState, isCurrentStoryFloor } from './procedural_floors';
+import { zForStoryFloor } from '../data/procedural_floors';
 import { assignProceduralQuestDeadline } from './quest_deadlines';
 
 const CLEANUP_SURFACE_THRESHOLD = 480;
@@ -61,6 +64,12 @@ interface ZhelemishSampleData {
 }
 
 type ContractStateHost = GameState & { zhelemishNiiTarget?: ZhelemishNiiTarget };
+
+export interface QuestTargetRoomResolution {
+  room: Room;
+  container?: WorldContainer;
+  source: 'quest_room' | 'tagged_container' | 'room_type';
+}
 
 const CONTRACT_FLOOR_NAMES: Record<FloorLevel, string> = {
   [FloorLevel.MINISTRY]: 'Министерство',
@@ -206,6 +215,109 @@ function adjustedContractMoney(state: GameState, def: ContractDef): number {
   const scarcity = getItemPriceMultiplier(state, itemId);
   const rewardMul = Math.max(0.75, Math.min(1.5, 0.75 + scarcity * 0.25));
   return Math.max(1, Math.round(def.moneyReward * rewardMul));
+}
+
+export function questRouteFloor(q: Quest): FloorLevel | undefined {
+  return q.targetFloor ?? q.visitFloor;
+}
+
+export function isQuestTargetOnCurrentFloor(q: Quest, state: GameState): boolean {
+  const floor = questRouteFloor(q);
+  if (floor === undefined) return true;
+  return isCurrentStoryFloor(state, floor);
+}
+
+export function questTargetLiftDirection(q: Quest, state: GameState): LiftDirection | undefined {
+  const floor = questRouteFloor(q);
+  if (floor === undefined || isQuestTargetOnCurrentFloor(q, state)) return undefined;
+  const currentZ = currentFloorRunEntry(state).z;
+  const targetZ = zForStoryFloor(floor);
+  if (currentZ === targetZ) return undefined;
+  return targetZ > currentZ ? LiftDirection.DOWN : LiftDirection.UP;
+}
+
+function roomMatchesQuestType(q: Quest, room: Room): boolean {
+  return q.targetRoomType === undefined || room.type === q.targetRoomType;
+}
+
+function roomHasTaggedContainer(world: World, roomId: number, tag: string): boolean {
+  for (const c of world.containers) {
+    if (c.roomId === roomId && c.tags.includes(tag)) return true;
+  }
+  return false;
+}
+
+function worldHasTaggedContainer(world: World, tag: string): boolean {
+  for (const c of world.containers) if (c.tags.includes(tag)) return true;
+  return false;
+}
+
+function roomStillMatchesQuest(world: World, q: Quest, room: Room): boolean {
+  if (!roomMatchesQuestType(q, room)) return false;
+  return !q.targetZoneTag
+    || !worldHasTaggedContainer(world, q.targetZoneTag)
+    || roomHasTaggedContainer(world, room.id, q.targetZoneTag);
+}
+
+function roomDistanceScore(world: World, room: Room, origin?: Pick<Entity, 'x' | 'y'>): number {
+  const area = room.w * room.h;
+  if (!origin) return area;
+  const cx = room.x + room.w / 2;
+  const cy = room.y + room.h / 2;
+  return area * 0.01 - world.dist2(origin.x, origin.y, cx, cy);
+}
+
+function resolveByTaggedContainer(
+  world: World,
+  q: Quest,
+  origin?: Pick<Entity, 'x' | 'y'>,
+): QuestTargetRoomResolution | undefined {
+  const tag = q.targetZoneTag;
+  if (!tag) return undefined;
+  let best: QuestTargetRoomResolution | undefined;
+  let bestScore = -Infinity;
+  for (const c of world.containers) {
+    if (!c.tags.includes(tag)) continue;
+    const room = world.rooms[c.roomId] ?? world.roomAt(c.x, c.y);
+    if (!room || !roomMatchesQuestType(q, room)) continue;
+    const score = roomDistanceScore(world, room, origin);
+    if (score > bestScore) {
+      best = { room, container: c, source: 'tagged_container' };
+      bestScore = score;
+    }
+  }
+  return best;
+}
+
+function resolveByRoomType(
+  world: World,
+  q: Quest,
+  origin?: Pick<Entity, 'x' | 'y'>,
+): QuestTargetRoomResolution | undefined {
+  if (q.targetRoomType === undefined) return undefined;
+  let best: Room | undefined;
+  let bestScore = -Infinity;
+  for (const room of world.rooms) {
+    if (!room || room.type !== q.targetRoomType) continue;
+    const score = roomDistanceScore(world, room, origin);
+    if (score > bestScore) {
+      best = room;
+      bestScore = score;
+    }
+  }
+  return best ? { room: best, source: 'room_type' } : undefined;
+}
+
+export function resolveQuestTargetRoom(
+  world: World,
+  q: Quest,
+  origin?: Pick<Entity, 'x' | 'y'>,
+): QuestTargetRoomResolution | undefined {
+  if (q.targetRoom !== undefined) {
+    const room = world.rooms[q.targetRoom];
+    if (room && roomStillMatchesQuest(world, q, room)) return { room, source: 'quest_room' };
+  }
+  return resolveByTaggedContainer(world, q, origin) ?? resolveByRoomType(world, q, origin);
 }
 
 function createContractQuest(def: ContractDef, state: GameState, giver?: { id: number; name?: string }) {
@@ -569,15 +681,28 @@ export function canCompleteGovnyakCourierEndpoint(
   world: World,
   state: GameState,
 ): boolean | undefined {
-  if (!isGovnyakCourierContractId(q.contractId)) return undefined;
-  if (q.targetFloor !== undefined && q.targetFloor !== state.currentFloor) return false;
-  if (inventoryCount(player, GOVNYAK_COURIER_PACKAGE_ITEM) < 1) return false;
+  if (isGovnyakCourierContractId(q.contractId)) {
+    if (q.targetFloor !== undefined && q.targetFloor !== state.currentFloor) return false;
+    if (inventoryCount(player, GOVNYAK_COURIER_PACKAGE_ITEM) < 1) return false;
 
-  if (q.targetRoomType !== undefined) {
-    const room = world.roomAt(player.x, player.y);
-    if (!room || room.type !== q.targetRoomType) return false;
+    if (q.targetRoomType !== undefined) {
+      const room = world.roomAt(player.x, player.y);
+      if (!room || room.type !== q.targetRoomType) return false;
+    }
+
+    return true;
   }
 
+  if (!q.contractId || q.type !== QuestType.VISIT) return undefined;
+  const def = CONTRACTS.find(c => c.id === q.contractId);
+  if (!def || def.type !== QuestType.VISIT) return undefined;
+  if (q.targetRoomType === undefined && !def.target.roomName) return undefined;
+  if (q.targetFloor !== undefined && q.targetFloor !== state.currentFloor) return false;
+
+  const room = world.roomAt(player.x, player.y);
+  if (!room) return false;
+  if (q.targetRoomType !== undefined && room.type !== q.targetRoomType) return false;
+  if (def.target.roomName && room.name !== def.target.roomName) return false;
   return true;
 }
 

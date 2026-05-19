@@ -1,6 +1,30 @@
 /* ── Bounded module-level NPC memory store ────────────────────── */
 
-import { type Entity, type FloorLevel, type MonsterKind } from '../core/types';
+import { Faction, type Entity, type FloorLevel, type MonsterKind } from '../core/types';
+
+export type NpcObservedFactKind = 'theft' | 'samosbor' | 'monster_kill' | 'contract' | 'faction_event';
+
+export interface NpcObservedFact {
+  eventId: number;
+  kind: NpcObservedFactKind;
+  observedAt: number;
+  expiresAt: number;
+  score: number;
+  tags: string[];
+}
+
+export interface NpcMemoryEventLike {
+  id?: number;
+  type?: string;
+  time?: number;
+  severity?: number;
+  privacy?: string;
+  tags?: readonly string[];
+  actorId?: number;
+  actorFaction?: Faction;
+  targetId?: number;
+  data?: Record<string, unknown>;
+}
 
 export interface NpcMemory {
   entityId: number;
@@ -19,6 +43,7 @@ export interface NpcMemory {
   lastEventRumorId: string;
   lastEventRumorAt: number;
   lastTouchedAt: number;
+  observedFacts: NpcObservedFact[];
 }
 
 export interface RecentRumorLead {
@@ -34,6 +59,7 @@ export interface RecentRumorLead {
 
 const MAX_NPC_MEMORIES = 1536;
 const MAX_RUMORS_PER_NPC = 12;
+const MAX_OBSERVED_FACTS_PER_NPC = 8;
 const MEMORY_TICK_MINUTES = 4;
 const RECENT_RUMOR_LEAD_TTL_S = 360;
 
@@ -76,6 +102,7 @@ export function getNpcMemory(npc: Entity, now = 0): NpcMemory {
       lastEventRumorId: '',
       lastEventRumorAt: -Infinity,
       lastTouchedAt: now,
+      observedFacts: [],
     };
     memories.set(npc.id, memory);
     pruneMemoryStore();
@@ -93,24 +120,45 @@ export function markNpcSpokenTo(npc: Entity, now: number): NpcMemory {
 
 export function notePlayerHelped(npc: Entity, now: number, amount = 1): void {
   const memory = getNpcMemory(npc, now);
-  memory.helpedByPlayer = Math.min(999, memory.helpedByPlayer + amount);
-  memory.trustPlayer = clamp(memory.trustPlayer + 8 * amount, -100, 100);
-  memory.fear = Math.max(0, memory.fear - 3 * amount);
+  applyPlayerHelped(memory, amount);
 }
 
 export function notePlayerHurt(npc: Entity, now: number, amount = 1): void {
   const memory = getNpcMemory(npc, now);
-  memory.hurtByPlayer = Math.min(999, memory.hurtByPlayer + amount);
-  memory.trustPlayer = clamp(memory.trustPlayer - 18 * amount, -100, 100);
-  memory.fear = clamp(memory.fear + 15 * amount, 0, 100);
+  applyPlayerHurt(memory, amount);
 }
 
 export function notePlayerTheftWitnessed(npc: Entity, now: number, amount = 1): void {
   const memory = getNpcMemory(npc, now);
-  memory.hurtByPlayer = Math.min(999, memory.hurtByPlayer + amount);
-  memory.trustPlayer = clamp(memory.trustPlayer - 14 * amount, -100, 100);
-  memory.fear = clamp(memory.fear + 10 * amount, 0, 100);
+  applyPlayerTheftWitnessed(memory, amount);
   memory.lastSeenPlayerAt = now;
+}
+
+export function notePlayerTheftAudited(npc: Entity, now: number, amount = 1): void {
+  const memory = getNpcMemory(npc, now);
+  applyPlayerTheftAudited(memory, amount);
+}
+
+export function noteObservedEventFact(npc: Entity, event: NpcMemoryEventLike, now: number): boolean {
+  const kind = observedFactKind(event);
+  if (!kind) return false;
+  const memory = getNpcMemory(npc, now);
+  trimObservedFacts(memory, now);
+  const eventId = typeof event.id === 'number' ? event.id : syntheticObservedEventId(event, now);
+  if (memory.observedFacts.some(fact => fact.eventId === eventId)) return true;
+  memory.observedFacts.push({
+    eventId,
+    kind,
+    observedAt: now,
+    expiresAt: now + observedFactTtl(kind),
+    score: observedFactScore(event),
+    tags: observedFactTags(event, kind),
+  });
+  if (memory.observedFacts.length > MAX_OBSERVED_FACTS_PER_NPC) {
+    memory.observedFacts.splice(0, memory.observedFacts.length - MAX_OBSERVED_FACTS_PER_NPC);
+  }
+  applyObservedFactReaction(memory, event, kind, now);
+  return true;
 }
 
 export function rememberRumor(npc: Entity, rumorId: string, now: number): boolean {
@@ -146,6 +194,7 @@ export function trimNpcMemory(npc: Entity, now: number): void {
   if (memory.knownRumorIds.length > MAX_RUMORS_PER_NPC) {
     memory.knownRumorIds.splice(0, memory.knownRumorIds.length - MAX_RUMORS_PER_NPC);
   }
+  trimObservedFacts(memory, now);
   memory.fear = clamp(memory.fear - 1, 0, 100);
   if (memory.trustPlayer > 0) memory.trustPlayer--;
   else if (memory.trustPlayer < 0) memory.trustPlayer++;
@@ -181,6 +230,118 @@ function pruneMemoryStore(): void {
     }
   }
   if (oldestId >= 0) memories.delete(oldestId);
+}
+
+function applyPlayerHelped(memory: NpcMemory, amount: number): void {
+  memory.helpedByPlayer = Math.min(999, memory.helpedByPlayer + amount);
+  memory.trustPlayer = clamp(memory.trustPlayer + 8 * amount, -100, 100);
+  memory.fear = Math.max(0, memory.fear - 3 * amount);
+}
+
+function applyPlayerHurt(memory: NpcMemory, amount: number): void {
+  memory.hurtByPlayer = Math.min(999, memory.hurtByPlayer + amount);
+  memory.trustPlayer = clamp(memory.trustPlayer - 18 * amount, -100, 100);
+  memory.fear = clamp(memory.fear + 15 * amount, 0, 100);
+}
+
+function applyPlayerTheftWitnessed(memory: NpcMemory, amount: number): void {
+  memory.hurtByPlayer = Math.min(999, memory.hurtByPlayer + amount);
+  memory.trustPlayer = clamp(memory.trustPlayer - 14 * amount, -100, 100);
+  memory.fear = clamp(memory.fear + 10 * amount, 0, 100);
+}
+
+function applyPlayerTheftAudited(memory: NpcMemory, amount: number): void {
+  memory.hurtByPlayer = Math.min(999, memory.hurtByPlayer + amount);
+  memory.trustPlayer = clamp(memory.trustPlayer - 8 * amount, -100, 100);
+  memory.fear = clamp(memory.fear + 5 * amount, 0, 100);
+}
+
+function observedFactKind(event: NpcMemoryEventLike): NpcObservedFactKind | undefined {
+  const type = event.type ?? '';
+  const tags = event.tags ?? [];
+  if (type === 'item_stolen' || tags.includes('theft')) return 'theft';
+  if (type === 'contract_created' || type === 'contract_completed' || type === 'contract_failed') return 'contract';
+  if (type === 'player_kill_monster' || type === 'npc_kill_monster' || type === 'fog_boss_killed') return 'monster_kill';
+  if (type.includes('samosbor') || tags.includes('samosbor')) return 'samosbor';
+  if (type === 'faction_event' || type === 'faction_patrol_clash' || type === 'faction_relation_changed' || tags.includes('faction_event')) return 'faction_event';
+  return undefined;
+}
+
+function observedFactTtl(kind: NpcObservedFactKind): number {
+  switch (kind) {
+    case 'theft': return 720;
+    case 'contract': return 900;
+    case 'monster_kill': return 600;
+    case 'samosbor': return 900;
+    case 'faction_event': return 720;
+  }
+}
+
+function observedFactScore(event: NpcMemoryEventLike): number {
+  return clamp((event.severity ?? 0) * 20, 1, 100);
+}
+
+function observedFactTags(event: NpcMemoryEventLike, kind: NpcObservedFactKind): string[] {
+  const out: string[] = [kind];
+  for (const tag of event.tags ?? []) {
+    const clean = String(tag).slice(0, 32);
+    if (clean && !out.includes(clean)) out.push(clean);
+    if (out.length >= 8) break;
+  }
+  return out;
+}
+
+function syntheticObservedEventId(event: NpcMemoryEventLike, now: number): number {
+  const typeHash = event.type ? hashString(event.type) : 0;
+  return -Math.abs(((Math.floor(now * 10) & 0xfffff) << 8) ^ typeHash ^ ((event.targetId ?? 0) << 3));
+}
+
+function hashString(input: string): number {
+  let h = 0;
+  for (let i = 0; i < input.length; i++) h = ((h << 5) - h + input.charCodeAt(i)) | 0;
+  return h;
+}
+
+function applyObservedFactReaction(memory: NpcMemory, event: NpcMemoryEventLike, kind: NpcObservedFactKind, now: number): void {
+  const type = event.type ?? '';
+  switch (kind) {
+    case 'theft':
+      if (event.privacy === 'witnessed' || event.tags?.includes('witnessed')) {
+        applyPlayerTheftWitnessed(memory, 1);
+        memory.lastSeenPlayerAt = now;
+      } else {
+        applyPlayerTheftAudited(memory, 1);
+      }
+      return;
+    case 'contract':
+      if (type === 'contract_completed') applyPlayerHelped(memory, 1);
+      else if (type === 'contract_failed') applyPlayerHurt(memory, 1);
+      else memory.fear = clamp(memory.fear + 1, 0, 100);
+      return;
+    case 'monster_kill':
+      if (type === 'player_kill_monster' || type === 'fog_boss_killed' || event.actorFaction === Faction.PLAYER || event.actorId === 0) {
+        applyPlayerHelped(memory, 1);
+        memory.fear = clamp(memory.fear + 3, 0, 100);
+      } else {
+        memory.fear = clamp(memory.fear + 5, 0, 100);
+      }
+      return;
+    case 'samosbor':
+      memory.fear = clamp(memory.fear + (type === 'samosbor_ended' ? 8 : 12), 0, 100);
+      return;
+    case 'faction_event':
+      memory.fear = clamp(memory.fear + ((event.severity ?? 0) >= 4 ? 8 : 5), 0, 100);
+      return;
+  }
+}
+
+function trimObservedFacts(memory: NpcMemory, now: number): void {
+  for (let i = memory.observedFacts.length - 1; i >= 0; i--) {
+    if (now > memory.observedFacts[i].expiresAt) memory.observedFacts.splice(i, 1);
+  }
+  if (memory.observedFacts.length > MAX_OBSERVED_FACTS_PER_NPC) {
+    memory.observedFacts.splice(0, memory.observedFacts.length - MAX_OBSERVED_FACTS_PER_NPC);
+  }
 }
 
 function clamp(v: number, lo: number, hi: number): number {

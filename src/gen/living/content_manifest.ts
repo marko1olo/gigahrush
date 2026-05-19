@@ -32,4 +32,5 @@ import './white_compulsion_room';
 import './belaya_prislushka';
 import './veretar_window_rescue';
 import './scientist_escort_sample';
+import './apartment_raid';
 import './plombirovshchik';

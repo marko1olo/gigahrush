@@ -25,14 +25,33 @@ import { generateChernobozhiySvod } from './chernobozhiy_svod';
 import { generateFalseNeighborRoom } from './false_neighbor';
 import { generatePustoySosedRoom } from './pustoy_sosed';
 import { generateKv08RouteAssembly } from './kv08_route_assembly';
-import { resetKvSocialPressurePois, tryKvSocialPressureUprising } from './social_pressure';
+import {
+  kvSocialPressurePoiCount,
+  publishKvSocialPressureUprising,
+  resetKvSocialPressurePois,
+  tagKvSocialPressurePoisSince,
+  tryKvSocialPressureUprising,
+  type KvSocialPressurePoiId,
+  type KvSocialPressureUprisingResult,
+} from './social_pressure';
 
 export function resetKvartiryContentState(): void {
   resetKvSocialPressurePois();
 }
 
-export function tryKvartiryContentUprising(world: World, entities: Entity[]): boolean {
-  return tryKvSocialPressureUprising(world, entities);
+export function tryKvartiryContentUprising(
+  world: World,
+  entities: Entity[],
+  elapsedSeconds: number,
+): KvSocialPressureUprisingResult | null {
+  return tryKvSocialPressureUprising(world, entities, elapsedSeconds);
+}
+
+export function publishKvartiryContentUprising(
+  state: Parameters<typeof publishKvSocialPressureUprising>[0],
+  result: KvSocialPressureUprisingResult,
+): void {
+  publishKvSocialPressureUprising(state, result);
 }
 
 export function spawnKvartiryNamedNpcs(
@@ -67,12 +86,12 @@ export function runKvartiryPermanentContent(
   let socialRoomId = world.rooms.length;
   const redCorner = generateRedCorner(world, socialRoomId, entities, socialNext, spawnX, spawnY);
   socialRoomId = Math.max(socialRoomId + 1, redCorner.nextRoomId);
-  socialRoomId = generateRationQueue(world, socialRoomId, entities, socialNext, spawnX, spawnY);
+  socialRoomId = runTaggedPressurePoi('ration_queue', () => generateRationQueue(world, socialRoomId, entities, socialNext, spawnX, spawnY));
   socialRoomId = generateOcherednik(world, socialRoomId, entities, socialNext, spawnX, spawnY);
-  socialRoomId = generateWaterRiot(world, socialRoomId, entities, socialNext, spawnX, spawnY);
-  socialRoomId = generatePrintRoom(world, socialRoomId, entities, socialNext, spawnX, spawnY);
-  socialRoomId = generateBarricade(world, socialRoomId, entities, socialNext, spawnX, spawnY);
-  socialRoomId = generateCommunalKitchenFeud(world, socialRoomId, entities, socialNext, spawnX, spawnY);
+  socialRoomId = runTaggedPressurePoi('water_riot', () => generateWaterRiot(world, socialRoomId, entities, socialNext, spawnX, spawnY));
+  socialRoomId = runTaggedPressurePoi('print_room', () => generatePrintRoom(world, socialRoomId, entities, socialNext, spawnX, spawnY));
+  socialRoomId = runTaggedPressurePoi('barricade', () => generateBarricade(world, socialRoomId, entities, socialNext, spawnX, spawnY));
+  socialRoomId = runTaggedPressurePoi('communal_kitchen', () => generateCommunalKitchenFeud(world, socialRoomId, entities, socialNext, spawnX, spawnY));
   socialRoomId = generateLostChildCorner(world, socialRoomId, entities, socialNext, spawnX, spawnY);
   socialRoomId = generateMedicineSwap(world, socialRoomId, entities, socialNext, spawnX, spawnY);
   socialRoomId = generateAmmoSmelter(world, socialRoomId, entities, socialNext, spawnX, spawnY);
@@ -83,4 +102,11 @@ export function runKvartiryPermanentContent(
   socialRoomId = Math.max(socialRoomId + 1, world.rooms.length);
   generatePustoySosedRoom(world, socialRoomId, entities, socialNext, spawnX, spawnY);
   return socialNext.v;
+}
+
+function runTaggedPressurePoi(id: KvSocialPressurePoiId, run: () => number): number {
+  const before = kvSocialPressurePoiCount();
+  const nextRoomId = run();
+  tagKvSocialPressurePoisSince(before, id);
+  return nextRoomId;
 }

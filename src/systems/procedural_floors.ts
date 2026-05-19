@@ -3,9 +3,13 @@
 import {
   FloorLevel,
   LiftDirection,
+  MonsterKind,
   type GameState,
 } from '../core/types';
 import {
+  FLOOR_ANOMALIES,
+  FLOOR_GEOMETRIES,
+  FLOOR_MAJORITY_FACTIONS,
   FLOOR_RUN_MAX_Z,
   FLOOR_RUN_MIN_Z,
   FLOOR_RUN_VOID_Z,
@@ -14,6 +18,8 @@ import {
   anomalyById,
   floorRunZAllowsNpcs,
   type FloorAnomalyId,
+  type FloorGeometryId,
+  type FloorMajorityId,
   type ProceduralFloorSpec,
   isProceduralFloorZ,
   makeProceduralFloorSpec,
@@ -55,8 +61,63 @@ const STORY_NAMES: Record<FloorLevel, string> = {
   [FloorLevel.VOID]: 'Пустота',
 };
 
+const MAX_RUN_SEED = 0x7fffffff;
+const MAX_SAVED_TITLE = 96;
+const MAX_SAVED_ID = 64;
+const VALID_GEOMETRY_IDS = new Set<FloorGeometryId>(FLOOR_GEOMETRIES.map(def => def.id));
+const VALID_MAJORITY_IDS = new Set<FloorMajorityId>(FLOOR_MAJORITY_FACTIONS.map(def => def.id));
+const VALID_ANOMALY_IDS = new Set<FloorAnomalyId>(FLOOR_ANOMALIES.map(def => def.id));
+
 function randomRunSeed(): number {
   return Math.floor(Math.random() * 0x7fffffff);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function normalizeRunSeed(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return randomRunSeed();
+  const seed = Math.abs(Math.trunc(value)) % MAX_RUN_SEED;
+  return seed;
+}
+
+function isFloorGeometryId(value: unknown): value is FloorGeometryId {
+  return typeof value === 'string' && VALID_GEOMETRY_IDS.has(value as FloorGeometryId);
+}
+
+function isFloorMajorityId(value: unknown): value is FloorMajorityId {
+  return typeof value === 'string' && VALID_MAJORITY_IDS.has(value as FloorMajorityId);
+}
+
+function isFloorAnomalyId(value: unknown): value is FloorAnomalyId {
+  return typeof value === 'string' && VALID_ANOMALY_IDS.has(value as FloorAnomalyId);
+}
+
+function isMonsterKind(value: unknown): value is MonsterKind {
+  return typeof value === 'number' && Number.isInteger(value) && MonsterKind[value] !== undefined;
+}
+
+function cleanStringArray(value: unknown, maxItems: number): string[] {
+  if (!Array.isArray(value)) return [];
+  const out: string[] = [];
+  for (const item of value) {
+    if (out.length >= maxItems) break;
+    if (typeof item !== 'string') continue;
+    const clean = item.slice(0, MAX_SAVED_ID);
+    if (clean && !out.includes(clean)) out.push(clean);
+  }
+  return out;
+}
+
+function cleanMonsterKinds(value: unknown, fallback: MonsterKind[]): MonsterKind[] {
+  if (!Array.isArray(value)) return fallback;
+  const out: MonsterKind[] = [];
+  for (const item of value) {
+    if (out.length >= 4) break;
+    if (isMonsterKind(item) && !out.includes(item)) out.push(item);
+  }
+  return out.length > 0 ? out : fallback;
 }
 
 function createSpecDeck(runSeed: number): Record<string, ProceduralFloorSpec> {
@@ -77,19 +138,30 @@ function normalizeZ(value: unknown, fallbackFloor: FloorLevel): number {
 
 function normalizeSpec(input: unknown, runSeed: number, z: number): ProceduralFloorSpec {
   const fallback = makeProceduralFloorSpec(runSeed, z);
-  if (!input || typeof input !== 'object') return fallback;
+  if (!isRecord(input)) return fallback;
   const src = input as Partial<ProceduralFloorSpec>;
-  if (src.z !== z || typeof src.seed !== 'number' || typeof src.geometryId !== 'string') return fallback;
+  if (src.z !== z) return fallback;
+  const geometryId = isFloorGeometryId(src.geometryId) ? src.geometryId : fallback.geometryId;
+  const majorityId = isFloorMajorityId(src.majorityId) ? src.majorityId : fallback.majorityId;
+  const anomalyId = isFloorAnomalyId(src.anomalyId) ? src.anomalyId : fallback.anomalyId;
+  const geometry = FLOOR_GEOMETRIES.find(def => def.id === geometryId);
+  const title = typeof src.title === 'string' && src.title.trim()
+    ? src.title.trim().slice(0, MAX_SAVED_TITLE)
+    : fallback.title;
   return {
-    ...fallback,
-    ...src,
     key: proceduralFloorKey(z),
     z,
+    seed: normalizeRunSeed(src.seed ?? fallback.seed),
     ordinal: fallback.ordinal,
     depth: fallback.depth,
     danger: Math.max(1, Math.min(5, Math.round(src.danger ?? fallback.danger))) as 1 | 2 | 3 | 4 | 5,
-    lootBiasIds: Array.isArray(src.lootBiasIds) ? src.lootBiasIds.filter(v => typeof v === 'string') : fallback.lootBiasIds,
-    monsterBiasKinds: Array.isArray(src.monsterBiasKinds) ? src.monsterBiasKinds : fallback.monsterBiasKinds,
+    geometryId,
+    baseFloor: geometry?.baseFloor ?? fallback.baseFloor,
+    majorityId,
+    anomalyId,
+    title,
+    lootBiasIds: cleanStringArray(src.lootBiasIds, 5),
+    monsterBiasKinds: cleanMonsterKinds(src.monsterBiasKinds, fallback.monsterBiasKinds),
   };
 }
 
@@ -107,7 +179,7 @@ export function normalizeFloorRunState(
   input: Partial<FloorRunState> | null | undefined,
   currentFloor = FloorLevel.LIVING,
 ): FloorRunState {
-  const runSeed = typeof input?.runSeed === 'number' ? input.runSeed : randomRunSeed();
+  const runSeed = normalizeRunSeed(input?.runSeed);
   const out: FloorRunState = {
     runSeed,
     currentZ: normalizeZ(input?.currentZ, currentFloor),
@@ -120,8 +192,17 @@ export function normalizeFloorRunState(
     out.specs[key] = normalizeSpec(savedSpecs[key], runSeed, z);
   }
   const visited = input?.visited ?? {};
-  for (const key of Object.keys(visited)) if (visited[key]) out.visited[key] = true;
+  for (const z of PROCEDURAL_FLOOR_ZS) {
+    const key = proceduralFloorKey(z);
+    if (visited[key]) out.visited[key] = true;
+  }
   return out;
+}
+
+export function floorRunSaveHasRestorableRoute(input: unknown): boolean {
+  if (!isRecord(input)) return false;
+  const z = input.currentZ;
+  return typeof z === 'number' && Number.isFinite(z) && z >= FLOOR_RUN_MIN_Z && z <= FLOOR_RUN_MAX_Z;
 }
 
 export function ensureFloorRunState(state: GameState, currentFloor = state.currentFloor): FloorRunState {
@@ -253,7 +334,7 @@ export function adjustFloorRunSamosborTimer(state: GameState, baseTimer: number)
         ? -0.12
         : spec.anomalyId === 'hladon'
           ? 0.12
-          : spec.anomalyId === 'wall_snake' || spec.anomalyId === 'section_shift' || spec.anomalyId === 'conway_life' || spec.anomalyId === 'bad_apple_world'
+          : spec.anomalyId === 'wall_snake' || spec.anomalyId === 'section_shift' || spec.anomalyId === 'conway_life' || spec.anomalyId === 'bad_apple_world' || spec.anomalyId === 'zombie_apocalypse'
             ? 0.2
             : spec.anomalyId === 'cement_memory'
               ? 0.14

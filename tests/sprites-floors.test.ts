@@ -1,31 +1,90 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { Cell, ContainerKind, EntityType, Feature, FloorLevel, Occupation, type Entity } from '../src/core/types';
+import { Cell, ContainerKind, EntityType, Feature, FloorLevel, MonsterKind, Occupation, Tex, type Entity } from '../src/core/types';
 import { entityUsesProceduralSprite, generateProceduralEntitySprite, isFloor69FemaleSprite } from '../src/entities/procedural_visuals';
 import { generateFloor, isFloorLevel } from '../src/gen/floor_manifest';
 import { S } from '../src/render/pixutil';
-import { containerSpr, featureSpr, Spr } from '../src/render/sprite_index';
+import {
+  containerSpr,
+  featureSpr,
+  monsterSpr,
+  Spr,
+  SPRITE_CONTAINER_KINDS,
+  SPRITE_FEATURES,
+  SPRITE_MONSTER_KINDS,
+} from '../src/render/sprite_index';
 import { generateSprites } from '../src/render/sprites';
+import { generateTextures } from '../src/render/textures';
 import { rebuildWorld } from '../src/systems/samosbor';
 
 function spriteHash(sprite: Uint32Array): number {
   let h = 2166136261;
-  for (let i = 0; i < sprite.length; i += 17) {
+  for (let i = 0; i < sprite.length; i++) {
     h ^= sprite[i];
     h = Math.imul(h, 16777619) >>> 0;
   }
   return h >>> 0;
 }
 
+function opaquePixels(sprite: Uint32Array): number {
+  let opaque = 0;
+  for (const px of sprite) if ((px >>> 24) !== 0) opaque++;
+  return opaque;
+}
+
 test('sprite registry and generated sheet stay aligned', () => {
   const sprites = generateSprites();
 
   assert.equal(sprites.length, Spr.TOTAL);
+  assert.equal(featureSpr(Feature.DESK), Spr.DESK);
+  assert.equal(Spr.FEATURE_BASE, Spr.DESK + 1);
   assert.equal(Spr.ART_NUDE_3, Spr.ART_NUDE_BASE + 3);
   assert.equal(Spr.F69_FEMALE_NPC_BASE, Spr.ART_NUDE_3 + 1);
   assert.equal(Spr.F69_FEMALE_NPC_7 + 1, Spr.TOTAL);
-  for (const sprite of sprites) assert.equal(sprite.length, S * S);
+  for (let i = 0; i < sprites.length; i++) {
+    assert.equal(sprites[i].length, S * S);
+    assert.ok(opaquePixels(sprites[i]) > 0, `sprite ${i} should not be blank`);
+  }
+
+  const seenHashes = new Map<number, number>();
+  for (let i = 0; i < sprites.length; i++) {
+    const hash = spriteHash(sprites[i]);
+    const prev = seenHashes.get(hash);
+    assert.equal(prev, undefined, `sprite ${i} duplicates sprite ${prev}`);
+    seenHashes.set(hash, i);
+  }
+
+  const monsterKinds = Object.values(MonsterKind)
+    .filter((value): value is MonsterKind => typeof value === 'number')
+    .sort((a, b) => a - b);
+  assert.deepEqual(SPRITE_MONSTER_KINDS, monsterKinds);
+  const monsterSlots = SPRITE_MONSTER_KINDS.map(monsterSpr);
+  assert.equal(new Set(monsterSlots).size, SPRITE_MONSTER_KINDS.length);
+  for (const i of monsterSlots) {
+    assert.ok(i >= 0 && i < Spr.TOTAL, `monster sprite ${i} should be in the atlas`);
+    assert.ok(opaquePixels(sprites[i]) > 80, `monster sprite ${i} should not be blank`);
+  }
+
+  const featureIds = [Feature.DESK, ...SPRITE_FEATURES];
+  assert.equal((SPRITE_FEATURES as readonly Feature[]).includes(Feature.DESK), false);
+  const featureSlots = featureIds.map(featureSpr);
+  assert.equal(new Set(featureSlots).size, featureIds.length);
+  for (const i of featureSlots) {
+    assert.ok(i >= 0 && i < Spr.TOTAL, `feature sprite ${i} should be in the atlas`);
+    assert.ok(opaquePixels(sprites[i]) > 80, `feature sprite ${i} should not be blank`);
+  }
+
+  const containerKinds = Object.values(ContainerKind)
+    .filter((value): value is ContainerKind => typeof value === 'number')
+    .sort((a, b) => a - b);
+  assert.deepEqual(SPRITE_CONTAINER_KINDS, containerKinds);
+  const containerSlots = SPRITE_CONTAINER_KINDS.map(containerSpr);
+  assert.equal(new Set(containerSlots).size, SPRITE_CONTAINER_KINDS.length);
+  for (const i of containerSlots) {
+    assert.ok(i >= 0 && i < Spr.TOTAL, `container sprite ${i} should be in the atlas`);
+    assert.ok(opaquePixels(sprites[i]) > 80, `container sprite ${i} should not be blank`);
+  }
 
   const projectileSprites = [
     Spr.EYE_BOLT,
@@ -47,9 +106,7 @@ test('sprite registry and generated sheet stay aligned', () => {
   ];
   for (const i of projectileSprites) {
     assert.ok(i >= 0 && i < Spr.TOTAL, `projectile sprite ${i} should be in the atlas`);
-    let opaque = 0;
-    for (const px of sprites[i]) if (px !== 0) opaque++;
-    assert.ok(opaque > 20, `projectile sprite ${i} should not be blank`);
+    assert.ok(opaquePixels(sprites[i]) > 20, `projectile sprite ${i} should not be blank`);
   }
 
   const worldObjectSprites = [
@@ -66,20 +123,46 @@ test('sprite registry and generated sheet stay aligned', () => {
   ];
   for (const i of worldObjectSprites) {
     assert.ok(i >= 0 && i < Spr.TOTAL, `world object sprite ${i} should be in the atlas`);
-    let opaque = 0;
-    for (const px of sprites[i]) if (px !== 0) opaque++;
-    assert.ok(opaque > 80, `world object sprite ${i} should not be blank`);
+    assert.ok(opaquePixels(sprites[i]) > 80, `world object sprite ${i} should not be blank`);
   }
 
   for (let i = Spr.ART_NUDE_BASE; i <= Spr.ART_NUDE_3; i++) {
-    let opaque = 0;
-    for (const px of sprites[i]) if (px !== 0) opaque++;
-    assert.ok(opaque > 200, `art sprite ${i} should not be blank`);
+    assert.ok(opaquePixels(sprites[i]) > 200, `art sprite ${i} should not be blank`);
   }
   for (let i = Spr.F69_FEMALE_NPC_BASE; i <= Spr.F69_FEMALE_NPC_7; i++) {
-    let opaque = 0;
-    for (const px of sprites[i]) if (px !== 0) opaque++;
-    assert.ok(opaque > 200, `F69 fallback sprite ${i} should not be blank`);
+    assert.ok(opaquePixels(sprites[i]) > 200, `F69 fallback sprite ${i} should not be blank`);
+  }
+});
+
+test('texture atlas procedural ranges stay allocated and filled', () => {
+  const textures = generateTextures();
+
+  assert.equal(textures.length, Tex.COUNT);
+  assert.equal(Tex.PORTRAIT_BASE + 64, Tex.POSTER_BASE);
+  assert.equal(Tex.POSTER_BASE + 64, Tex.F_PARQUET);
+  assert.equal(Tex.F_CARPET_EDGE_BASE + 16, Tex.SCREEN_BASE);
+  assert.equal(Tex.SCREEN_BASE + 32, Tex.COUNT);
+
+  const ranges: readonly [string, number, number][] = [
+    ['slides', Tex.SLIDE_1, Tex.SLIDE_8],
+    ['hints', Tex.HINT_1, Tex.HINT_LORE],
+    ['portraits', Tex.PORTRAIT_BASE, Tex.PORTRAIT_BASE + 63],
+    ['posters', Tex.POSTER_BASE, Tex.POSTER_BASE + 63],
+    ['carpet edges', Tex.F_CARPET_EDGE_BASE, Tex.F_CARPET_EDGE_BASE + 15],
+    ['screens', Tex.SCREEN_BASE, Tex.SCREEN_BASE + 31],
+  ];
+
+  for (const [name, first, last] of ranges) {
+    assert.ok(first >= 0 && last < Tex.COUNT && first <= last, `${name} range should fit the atlas`);
+    for (let i = first; i <= last; i++) {
+      assert.equal(textures[i].length, S * S, `${name} texture ${i} should have atlas-sized pixels`);
+      assert.ok(opaquePixels(textures[i]) > S * S / 2, `${name} texture ${i} should not be blank`);
+    }
+  }
+
+  for (let i = 0; i < textures.length; i++) {
+    assert.equal(textures[i].length, S * S);
+    assert.ok(opaquePixels(textures[i]) > 0, `texture ${i} should not be blank`);
   }
 });
 

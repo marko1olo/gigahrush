@@ -2,7 +2,7 @@
 /* Дикий ныряльщик из водяных каналов. Жрёт сырое мясо.           */
 
 import {
-  W, Cell,
+  W, Cell, FloorLevel, RoomType,
   type Entity, EntityType, AIGoal, Faction, Occupation, QuestType,
 } from '../../core/types';
 import { World } from '../../core/world';
@@ -29,7 +29,7 @@ const NPC_DEF: PlotNpcDef = {
   ],
   talkLinesPost: [
     'Хы-хы! Сытно. Твари сегодня меня не тронут.',
-    'Если плыть надо — позови. Я знаю где сухие проходы под каналами.',
+    'Если плыть надо — иди от водолазного тайника к сухому мосту. В ящике на дальнем краю должна быть маршрутная бирка.',
     'Хороший ты. Кот таких не ест.',
   ],
 };
@@ -47,6 +47,33 @@ registerSideQuest('diver_kot', NPC_DEF, [
       { defId: 'ammo_shells', count: 4 },
     ],
     relationDelta: 12, xpReward: 60, moneyReward: 30,
+  },
+  {
+    id: 'kot_water_bridge_tag',
+    giverNpcId: 'diver_kot',
+    type: QuestType.FETCH,
+    desc: 'Кот: «На сухом мосту есть бирка водолазного маршрута. Принесёшь — скажу, где угорь воздух не любит.»',
+    targetItem: 'diver_route_tag', targetCount: 1,
+    targetFloor: FloorLevel.MAINTENANCE,
+    targetRoomType: RoomType.CORRIDOR,
+    targetZoneTag: 'water_bridge',
+    targetHint: 'Коллекторы: сухой мост над угревым лотком; дальний маршрутный ящик стоит на сухой кромке за водой.',
+    rewardItem: 'ammo_harpoon', rewardCount: 3,
+    extraRewards: [
+      { defId: 'filtered_water', count: 1 },
+      { defId: 'rawmeat', count: 2 },
+    ],
+    relationDelta: 10, xpReward: 55, moneyReward: 20,
+    requiresSideQuestDone: 'kot_meat',
+    eventTargetName: 'Коту вернули бирку водолазного маршрута с сухого моста.',
+    eventSeverity: 4,
+    eventPrivacy: 'local',
+    eventTags: ['maintenance', 'diver', 'water_bridge', 'route_tag', 'eel_counterplay'],
+    eventData: {
+      routeItem: 'diver_route_tag',
+      shortcut: 'dry_bridge_ledge',
+      rumorIds: ['maint_water_bridge_dry_path', 'lead_maintenance_diver_cache_flashlight'],
+    },
   },
 ]);
 

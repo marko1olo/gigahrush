@@ -1,8 +1,9 @@
 /* ── Инспекционный архив — Ministry access-control POI ───────── */
 
 import {
-  Cell, DoorState, Tex, Feature, RoomType, Faction, Occupation, QuestType, MonsterKind,
-  type Entity,
+  Cell, ContainerKind, DoorState, Tex, Feature, FloorLevel, RoomType, Faction, Occupation,
+  QuestType, MonsterKind,
+  type Entity, type WorldContainer,
 } from '../../core/types';
 import { World } from '../../core/world';
 import { type PlotNpcDef, registerSideQuest } from '../../data/plot';
@@ -10,6 +11,19 @@ import {
   type NextId, createAdminRoom, setFeature, addItemDrop, spawnAdminNpc, spawnAdminMonster,
 } from './admin_common';
 import { genLog } from '../log';
+
+const INSPECTION_ARCHIVE_ROUTE_TAGS = [
+  'archive',
+  'inspection_archive',
+  'archive_route',
+  'raionsovet_archive',
+  'liquidator_archive',
+  'evidence',
+  'evidence_drop',
+  'audit',
+  'patrol',
+  'theft',
+];
 
 const NINA_DEF: PlotNpcDef = {
   name: 'Нина Досмотрова',
@@ -27,6 +41,7 @@ const NINA_DEF: PlotNpcDef = {
     'Инспекционный архив. Руки на стол, документы на край, страх отдельно.',
     'Я Нина Досмотрова. Проверяю не людей, а совпадение людей с бумагой.',
     'Временный пропуск лежит за решёткой картотеки. Формально он ваш, если вы сумеете выйти с ним.',
+    'Маршрутный ящик у задней решётки ведёт дальше: карточка райсовета, акт пропажи, дело Л-47.',
     'Законный путь: ключ, подпись, ожидание. Быстрый путь: тише дышать у шкафов.',
     'Пустые бланки опаснее оружия. На них ещё ничего не запрещено.',
     'Если печатеед сожрёт дело, виноват будет последний, кто видел папку целой.',
@@ -106,6 +121,7 @@ const YURI_DEF: PlotNpcDef = {
     'К двери не прислоняться. Она открывается в сторону подозреваемого.',
     'Юрий Дверцов, ликвидатор при архиве. Мой приказ простой: никто не выносит проход без отметки.',
     'В задней картотеке завёлся печатеед. Жрёт пропуска, потом смотрит как проверяющий.',
+    'Патруль сверяет маршрутные ящики после отбоя. Украли сейчас — ревизия вспомнит потом.',
     'Убейте его, пока он не научился расписываться за начальство.',
     'Фальшивый пропуск лучше сразу сдать мне. Так дешевле, чем объяснять стене.',
   ],
@@ -201,6 +217,39 @@ function addLockedArchiveGate(world: World, roomId: number, gateX: number, topY:
   if (room && !room.doors.includes(doorIdx)) room.doors.push(doorIdx);
 }
 
+function nextContainerId(world: World): number {
+  let id = world.containers.length + 1;
+  while (world.containerById.has(id) || world.containers.some(container => container.id === id)) id++;
+  return id;
+}
+
+function addInspectionEvidenceContainer(
+  world: World,
+  roomId: number,
+  x: number,
+  y: number,
+  inventory: WorldContainer['inventory'],
+): void {
+  const ci = world.idx(x, y);
+  world.addContainer({
+    id: nextContainerId(world),
+    x,
+    y,
+    floor: FloorLevel.MINISTRY,
+    roomId,
+    zoneId: world.zoneMap[ci],
+    kind: ContainerKind.FILING_CABINET,
+    name: 'Маршрутный ящик ревизии: досмотр, райсовет, Л-47',
+    inventory,
+    capacitySlots: 10,
+    faction: Faction.LIQUIDATOR,
+    ownerName: 'Инспекционный архив',
+    access: 'faction',
+    discovered: true,
+    tags: [...INSPECTION_ARCHIVE_ROUTE_TAGS],
+  });
+}
+
 export function generateInspectionArchive(
   world: World, nextRoomId: number, entities: Entity[], nextId: NextId, spawnX: number, spawnY: number,
 ): { nextRoomId: number } {
@@ -237,6 +286,20 @@ export function generateInspectionArchive(
   addItemDrop(entities, nextId, gateX + 2, room.y + 3, 'blank_form', 2);
   addItemDrop(entities, nextId, gateX + 1, room.y + room.h - 3, 'unsigned_order', 1);
   addItemDrop(entities, nextId, gateX + 2, room.y + room.h - 2, 'fake_pass', 1);
+
+  addInspectionEvidenceContainer(
+    world,
+    room.id,
+    gateX + 1,
+    serviceY + 2,
+    [
+      { defId: 'stolen_archive_card', count: 1 },
+      { defId: 'record_exposure_notice', count: 1 },
+      { defId: 'archive_access_permit', count: 1 },
+      { defId: 'denunciation', count: 2 },
+      { defId: 'temp_pass', count: 1 },
+    ],
+  );
 
   spawnAdminNpc(entities, nextId, NINA_DEF, 'nina_dosmotrova', cx - 1, serviceY - 1);
   spawnAdminNpc(entities, nextId, EVSEY_DEF, 'evsey_zasov', room.x + 2, room.y + 2);

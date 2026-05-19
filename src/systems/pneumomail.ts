@@ -9,16 +9,26 @@ import { type World } from '../core/world';
 import { ITEMS } from '../data/items';
 import {
   PNEUMOMAIL_CAPSULES,
+  PNEUMOMAIL_HISTORY_CAPACITY,
   PNEUMOMAIL_CAPSULE_ITEM_ID,
   PNEUMOMAIL_CONTRACT_ID,
+  PNEUMOMAIL_REQUIRED_KINDS,
   PNEUMOMAIL_ROOM_PREFIX,
   type PneumomailCapsuleDef,
+  type PneumomailCapsuleKind,
 } from '../data/pneumomail';
 import { addItem, hasItem, removeItem } from './inventory';
 import { spawnContractById } from './contracts';
 import { publishEvent } from './events';
 
 type PneumomailRole = 'intake' | 'intercept' | 'jam' | 'report';
+type PneumomailEventType = 'received' | 'sent' | 'jammed' | 'intercepted' | 'reported' | 'contraband';
+
+interface PneumomailHistoryEntry {
+  id: string;
+  kind: PneumomailCapsuleKind;
+  time: number;
+}
 
 interface PneumomailTarget {
   room: Room;
@@ -32,6 +42,7 @@ interface PneumomailRuntime {
   nextInterceptAt: number;
   jammedUntil: number;
   uses: number;
+  history: PneumomailHistoryEntry[];
 }
 
 const RECEIVE_COOLDOWN_S = 180;
@@ -45,7 +56,7 @@ let forcedCapsuleId = '';
 function runtimeFor(state: GameState): PneumomailRuntime {
   let runtime = runtimeByState.get(state);
   if (!runtime) {
-    runtime = { nextReceiveAt: 0, nextInterceptAt: 0, jammedUntil: 0, uses: 0 };
+    runtime = { nextReceiveAt: 0, nextInterceptAt: 0, jammedUntil: 0, uses: 0, history: [] };
     runtimeByState.set(state, runtime);
   }
   return runtime;
@@ -92,7 +103,7 @@ function publishPneumomail(
   player: Entity,
   state: GameState,
   target: PneumomailTarget | undefined,
-  eventType: 'received' | 'sent' | 'jammed' | 'intercepted' | 'reported',
+  eventType: PneumomailEventType,
   severity: 1 | 2 | 3 | 4,
   itemId?: string,
   rumorId?: string,
@@ -105,6 +116,15 @@ function publishPneumomail(
       : eventType === 'intercepted'
         ? 'item_stolen'
         : 'rumor_observed';
+  const actionTag = eventType === 'intercepted'
+    ? 'pneumomail_intercept'
+    : eventType === 'jammed'
+      ? 'pneumomail_jam'
+      : eventType === 'reported'
+        ? 'pneumomail_report'
+        : eventType === 'contraband'
+          ? 'pneumomail_contraband'
+          : `pneumomail_${eventType}`;
   publishEvent(state, {
     type,
     zoneId: zoneAt(world, player),
@@ -120,7 +140,7 @@ function publishPneumomail(
     itemValue: itemId ? ITEMS[itemId]?.value ?? 0 : undefined,
     severity,
     privacy: eventType === 'intercepted' ? 'witnessed' : 'local',
-    tags: ['pneumomail', `capsule_${eventType}`, itemId ? 'item' : 'rumor'],
+    tags: ['pneumomail', actionTag, `capsule_${eventType}`, itemId ? 'item' : 'rumor'],
     data: {
       system: 'pneumomail',
       capsuleEvent: `capsule_${eventType}`,
@@ -144,21 +164,56 @@ function grantCapsuleItems(player: Entity, capsule: PneumomailCapsuleDef): strin
   return granted;
 }
 
-function pickCapsule(runtime: PneumomailRuntime): PneumomailCapsuleDef {
-  if (forcedCapsuleId) {
-    const forced = PNEUMOMAIL_CAPSULES.find(c => c.id === forcedCapsuleId);
-    forcedCapsuleId = '';
-    if (forced) return forced;
-  }
+function contractAlreadyIssued(state: GameState, capsule: PneumomailCapsuleDef): boolean {
+  if (capsule.kind !== 'contract') return false;
+  const contractId = capsule.contractId ?? PNEUMOMAIL_CONTRACT_ID;
+  return state.quests.some(q => q.contractId === contractId);
+}
 
+function rememberCapsule(runtime: PneumomailRuntime, capsule: PneumomailCapsuleDef, time: number): void {
+  runtime.history.push({ id: capsule.id, kind: capsule.kind, time });
+  if (runtime.history.length > PNEUMOMAIL_HISTORY_CAPACITY) {
+    runtime.history.splice(0, runtime.history.length - PNEUMOMAIL_HISTORY_CAPACITY);
+  }
+}
+
+function weightedCapsule(capsules: readonly PneumomailCapsuleDef[], fallbackIndex: number): PneumomailCapsuleDef {
   let total = 0;
-  for (const capsule of PNEUMOMAIL_CAPSULES) total += Math.max(0, capsule.weight);
+  for (const capsule of capsules) total += Math.max(0, capsule.weight);
+  if (total <= 0) return capsules[Math.max(0, fallbackIndex) % capsules.length];
+
   let roll = Math.random() * total;
-  for (const capsule of PNEUMOMAIL_CAPSULES) {
+  for (const capsule of capsules) {
     roll -= Math.max(0, capsule.weight);
     if (roll <= 0) return capsule;
   }
-  return PNEUMOMAIL_CAPSULES[(runtime.uses + PNEUMOMAIL_CAPSULES.length - 1) % PNEUMOMAIL_CAPSULES.length];
+  return capsules[Math.max(0, fallbackIndex) % capsules.length];
+}
+
+function missingRequiredKind(runtime: PneumomailRuntime, state: GameState): PneumomailCapsuleKind | undefined {
+  const seen = new Set(runtime.history.map(entry => entry.kind));
+  for (const kind of PNEUMOMAIL_REQUIRED_KINDS) {
+    if (seen.has(kind)) continue;
+    if (kind === 'contract' && state.quests.some(q => q.contractId === PNEUMOMAIL_CONTRACT_ID)) continue;
+    return kind;
+  }
+  return undefined;
+}
+
+function pickCapsule(runtime: PneumomailRuntime, state: GameState): PneumomailCapsuleDef {
+  if (forcedCapsuleId) {
+    const forced = PNEUMOMAIL_CAPSULES.find(c => c.id === forcedCapsuleId);
+    forcedCapsuleId = '';
+    if (forced && !contractAlreadyIssued(state, forced)) return forced;
+  }
+
+  const available = PNEUMOMAIL_CAPSULES.filter(c => !contractAlreadyIssued(state, c));
+  const requiredKind = missingRequiredKind(runtime, state);
+  if (requiredKind) {
+    const required = available.filter(c => c.kind === requiredKind);
+    if (required.length > 0) return weightedCapsule(required, runtime.uses);
+  }
+  return weightedCapsule(available.length > 0 ? available : PNEUMOMAIL_CAPSULES, runtime.uses);
 }
 
 function receiveCapsule(
@@ -180,8 +235,9 @@ function receiveCapsule(
     return true;
   }
 
-  const capsule = pickCapsule(runtime);
+  const capsule = pickCapsule(runtime, state);
   runtime.uses++;
+  rememberCapsule(runtime, capsule, state.time);
   runtime.nextReceiveAt = state.time + RECEIVE_COOLDOWN_S + (capsule.kind === 'contract' ? 120 : 0);
 
   if (capsule.kind === 'contract') {
@@ -196,6 +252,7 @@ function receiveCapsule(
       capsuleId: capsule.id,
       capsuleKind: capsule.kind,
       contractCreated: created,
+      historyCount: runtime.history.length,
     });
     return true;
   }
@@ -203,12 +260,23 @@ function receiveCapsule(
   const granted = grantCapsuleItems(player, capsule);
   const suffix = granted.length > 0 ? ` Получено: ${granted.join(', ')}.` : '';
   state.msgs.push(msg(`${capsule.text}${suffix}`, state.time, capsule.kind === 'false_lead' ? '#fa4' : '#8cf'));
-  publishPneumomail(world, player, state, target, 'received', capsule.severity, capsule.items?.[0]?.defId, capsule.rumorId, {
-    capsuleId: capsule.id,
-    capsuleKind: capsule.kind,
-    falseLead: capsule.kind === 'false_lead',
-    grantedItems: granted,
-  });
+  publishPneumomail(
+    world,
+    player,
+    state,
+    target,
+    capsule.kind === 'contraband' ? 'contraband' : 'received',
+    capsule.severity,
+    capsule.items?.[0]?.defId,
+    capsule.rumorId,
+    {
+      capsuleId: capsule.id,
+      capsuleKind: capsule.kind,
+      falseLead: capsule.kind === 'false_lead',
+      grantedItems: granted,
+      historyCount: runtime.history.length,
+    },
+  );
   return true;
 }
 
@@ -323,5 +391,11 @@ export function debugForcePneumomailCapsule(world: World, player: Entity, state:
   const capsule = PNEUMOMAIL_CAPSULES[runtime.uses % PNEUMOMAIL_CAPSULES.length];
   forcedCapsuleId = capsule.id;
   receiveCapsule(world, player, state, undefined, true);
-  return [`forced=${capsule.id}`, `cooldown=${Math.max(0, Math.ceil(runtime.nextReceiveAt - state.time))}s`];
+  const actual = runtime.history[runtime.history.length - 1]?.id ?? capsule.id;
+  return [
+    `forced=${capsule.id}`,
+    `actual=${actual}`,
+    `history=${runtime.history.length}/${PNEUMOMAIL_HISTORY_CAPACITY}`,
+    `cooldown=${Math.max(0, Math.ceil(runtime.nextReceiveAt - state.time))}s`,
+  ];
 }

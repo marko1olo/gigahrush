@@ -8,6 +8,7 @@ import { applyMirrorRun } from './mirror_run';
 import { applyRadioChess } from './radio_chess';
 import { applySectionShift } from './section_shift';
 import { applyWallSnake } from './wall_snake';
+import { applyZombieApocalypse } from './zombie_apocalypse';
 
 export function applyProceduralAnomalyProfile(ctx: ProceduralAnomalyGenContext): void {
   switch (ctx.spec.anomalyId) {
@@ -37,6 +38,9 @@ export function applyProceduralAnomalyProfile(ctx: ProceduralAnomalyGenContext):
       break;
     case 'bad_apple_world':
       applyBadAppleWorld(ctx);
+      break;
+    case 'zombie_apocalypse':
+      applyZombieApocalypse(ctx);
       break;
   }
 }

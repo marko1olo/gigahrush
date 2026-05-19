@@ -67,6 +67,7 @@ const WITNESS_DEF: PlotNpcDef = {
     'Я не против еды. Я против еды, которая прячется в чужом шкафу и растит слухи.',
     'Сырой образец в санитарный ящик. Бензин в жаровню. Герметик к двери. Выбирай, пока запах не выбрал тебя.',
     'Мавра владелица, но стены тут общие. Кража из ее ящика станет разговором быстрее, чем ужином.',
+    'Ольга из грибной прачечной ищет коричневый соскоб с живой петли. Здесь берут долю, в сыром погребе - пробу, у костяной сушилки - соль и огонь.',
   ],
   talkLinesPost: [
     'Если погреб закрыт по акту, это не победа. Это пауза для легких.',
@@ -276,7 +277,7 @@ function addCellarContainer(
     access,
     lockDifficulty: access === 'locked' ? 3 : undefined,
     discovered: true,
-    tags: [CONTENT_TAG, 'zhelemish', 'local_contamination', ...tags],
+    tags: [CONTENT_TAG, 'living_fungal_loop', 'zhelemish', 'local_contamination', ...tags],
   });
 }
 
@@ -404,7 +405,11 @@ function seedContainers(world: World, room: Room, ownerId: number, witnessId: nu
     ContainerKind.MEDICAL_CABINET,
     'Санитарный ящик сдачи',
     'faction',
-    [],
+    [
+      { defId: 'cleaning_kit', count: 1 },
+      { defId: 'rock_salt', count: 1 },
+      { defId: 'antifungal_ointment', count: 1 },
+    ],
     ['report', 'surrender', 'evidence_drop', 'quarantine'],
     Faction.LIQUIDATOR,
     witnessId,
@@ -418,7 +423,7 @@ function seedContainers(world: World, room: Room, ownerId: number, witnessId: nu
     ContainerKind.TRASH_BIN,
     'Жаровня мокрой партии',
     'public',
-    [],
+    [{ defId: 'ammo_fuel', count: 1 }],
     ['burn', 'fire', 'sabotage_drop'],
   );
 }

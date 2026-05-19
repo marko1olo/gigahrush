@@ -7,7 +7,12 @@ import { formatQuestMinutes, questRemainingMinutes } from '../systems/quest_dead
 import { drawNeuroPanel, drawGlitchText, textJitter, flicker } from './hud_fx';
 import { dialogMenuScale, tradeGridScale } from './ui_layout';
 import { drawCenteredWrappedText, drawWrappedText, fitText } from './ui_text';
-import { tradePriceDisplay } from './economy_ui';
+import {
+  questItemStateColor,
+  questItemStateLabel,
+  tradeCellPriceDisplay,
+  tradePriceDisplay,
+} from './economy_ui';
 
 export function drawNpcMenu(
   ctx: CanvasRenderingContext2D,
@@ -157,7 +162,7 @@ export function drawNpcMenu(
     );
 
     // ── Draw grid helper ──
-    const drawGrid = (inv: { defId: string; count: number }[], gx: number, side: string) => {
+    const drawGrid = (inv: { defId: string; count: number }[], gx: number, side: 'player' | 'npc') => {
       for (let row = 0; row < GRID; row++) {
         for (let col = 0; col < GRID; col++) {
           const idx = row * GRID + col;
@@ -173,10 +178,30 @@ export function drawNpcMenu(
           if (idx < inv.length) {
             const item = inv[idx];
             const def = ITEMS[item.defId];
+            const price = tradeCellPriceDisplay(state, npc, item.defId, side === 'npc' ? 'buy' : 'sell');
+            const questLabel = questItemStateLabel(price.questState);
+            ctx.fillStyle = price.scarcityColor;
+            ctx.fillRect(cx + 1 * sx, cy + 1 * sy, Math.max(1, 2 * sx), cellSz - 4 * sy);
+            ctx.font = `${4.5 * sy}px monospace`;
+            ctx.fillStyle = side === 'npc' ? '#8cf' : '#ee4';
+            ctx.fillText(side === 'npc' ? 'ТОРГ' : 'ВАШ', cx + 4 * sx, cy + 3 * sy);
+            if (questLabel) {
+              ctx.fillStyle = questItemStateColor(price.questState);
+              ctx.textAlign = 'right';
+              ctx.fillText(questLabel, cx + cellSz - 4 * sx, cy + 3 * sy);
+              ctx.textAlign = 'left';
+            }
             ctx.fillStyle = selected ? '#ee4' : '#ccc';
             ctx.font = `${5.6 * sy}px monospace`;
             const name = fitText(ctx, def?.name ?? item.defId, cellSz - 4 * sx);
             ctx.fillText(name, cx + 2 * sx, cy + 10 * sy);
+            ctx.fillStyle = price.color;
+            ctx.font = `${4.8 * sy}px monospace`;
+            ctx.fillText(
+              fitText(ctx, price.text, item.count > 1 ? cellSz - 18 * sx : cellSz - 6 * sx),
+              cx + 4 * sx,
+              cy + cellSz - 5 * sy,
+            );
             if (item.count > 1) {
               ctx.fillStyle = '#8a8';
               ctx.font = `${4.8 * sy}px monospace`;
@@ -209,10 +234,12 @@ export function drawNpcMenu(
         let actionY = drawCenteredWrappedText(ctx, def.desc, cw / 2, descY + 10 * sy, descW, 9 * sy, 2);
         const price = tradePriceDisplay(state, player, npc, item.defId, state.tradeSide === 'npc' ? 'buy' : 'sell');
         ctx.fillStyle = price.color;
-        actionY = Math.min(actionY + 2 * sy, ch - 42 * sy);
+        actionY = Math.min(actionY + 2 * sy, ch - 50 * sy);
         ctx.fillText(fitText(ctx, price.line, descW), cw / 2, actionY);
+        ctx.fillStyle = price.scarcityColor;
+        ctx.fillText(fitText(ctx, price.detail, descW), cw / 2, actionY + 9 * sy);
         ctx.fillStyle = price.ok ? '#6a6' : '#f84';
-        ctx.fillText(fitText(ctx, price.status, descW), cw / 2, Math.min(actionY + 10 * sy, ch - 32 * sy));
+        ctx.fillText(fitText(ctx, price.status, descW), cw / 2, Math.min(actionY + 18 * sy, ch - 32 * sy));
       }
     } else {
       ctx.fillStyle = '#555';
@@ -225,9 +252,10 @@ export function drawNpcMenu(
     ctx.fillStyle = '#555';
     ctx.font = `${6.5 * sy}px monospace`;
     ctx.textAlign = 'right';
-    ctx.fillText('WASD — курсор', cw - 8 * sx, ch - 24 * sy);
-    ctx.fillText('E — купить/продать', cw - 8 * sx, ch - 16 * sy);
-    ctx.fillText('ENTER — назад', cw - 8 * sx, ch - 8 * sy);
+    const hintW = Math.max(60 * sx, cw - 16 * sx);
+    ctx.fillText(fitText(ctx, 'WASD — курсор', hintW), cw - 8 * sx, ch - 24 * sy);
+    ctx.fillText(fitText(ctx, 'E — купить/продать', hintW), cw - 8 * sx, ch - 16 * sy);
+    ctx.fillText(fitText(ctx, 'ENTER — назад', hintW), cw - 8 * sx, ch - 8 * sy);
     ctx.textAlign = 'left';
   }
 }

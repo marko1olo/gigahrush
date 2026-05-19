@@ -91,6 +91,10 @@ canvas {
   box-shadow: 0 0 14px rgba(0, 255, 200, 0.1), inset 0 0 16px rgba(0, 255, 200, 0.08);
   font: 700 14px 'Courier New', monospace;
   text-align: center;
+  line-height: 1;
+  letter-spacing: 0;
+  white-space: nowrap;
+  overflow: hidden;
   pointer-events: auto;
   touch-action: none;
   -webkit-tap-highlight-color: transparent;
@@ -226,10 +230,14 @@ canvas {
   width: 62px;
   height: 100%;
   border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
 }
 
 .mobile-menu-select {
-  font-size: 12px;
+  font-size: clamp(10px, 2.8dvh, 12px);
   color: #fe8;
 }
 
@@ -241,7 +249,10 @@ canvas {
   height: 42px;
   border-radius: 8px;
   font-size: 12px;
-  letter-spacing: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
   pointer-events: auto;
 }
 

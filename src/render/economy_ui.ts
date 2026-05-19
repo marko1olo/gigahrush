@@ -1,8 +1,9 @@
 import { type Entity, type GameState } from '../core/types';
 import { ITEMS } from '../data/catalog';
 import { getStack } from '../data/items';
+import { RESOURCES, RESOURCE_BY_ID } from '../data/resources';
 import { bankingSummary } from '../systems/banking';
-import { getAdjustedItemPrice, getEconomyQuote, getItemPriceMultiplier } from '../systems/economy';
+import { getAdjustedItemPrice, getEconomyQuote, getItemPriceMultiplier, getResourceScarcity } from '../systems/economy';
 import { stockMarketSnapshot } from '../systems/stock_market';
 import { drawGlitchText, drawNeuroPanel } from './hud_fx';
 import { fitText } from './ui_text';
@@ -32,9 +33,36 @@ export interface FinanceLine {
 export interface TradePriceDisplay {
   price: number;
   line: string;
+  detail: string;
+  scarcity: string;
+  scarcityColor: string;
   status: string;
   color: string;
   ok: boolean;
+}
+
+export type QuestItemState = '' | 'target' | 'reward';
+
+export interface ScarcityBand {
+  label: string;
+  short: string;
+  color: string;
+}
+
+export interface TradeCellPriceDisplay {
+  text: string;
+  color: string;
+  scarcityColor: string;
+  scarcityLabel: string;
+  questState: QuestItemState;
+}
+
+export interface ItemValueDisplay {
+  priceText: string;
+  line: string;
+  detail: string;
+  scarcityColor: string;
+  questState: QuestItemState;
 }
 
 function asRecord(value: unknown): LooseRecord | null {
@@ -50,9 +78,88 @@ function compactRubles(value: number): string {
   return `${rounded}₽`;
 }
 
+function formatMult(value: number): string {
+  return `x${value.toFixed(1)}`;
+}
+
+function shortResourceName(resourceId: string | undefined): string {
+  if (!resourceId) return '';
+  const name = RESOURCE_BY_ID[resourceId]?.name ?? resourceId;
+  return name
+    .replace('Питьевая вода', 'Вода')
+    .replace('Промышленная масса', 'Проммасса')
+    .replace('Грибной субстрат', 'Грибсырьё');
+}
+
+export function scarcityBand(multiplier: number): ScarcityBand {
+  const m = Number.isFinite(multiplier) ? multiplier : 1;
+  if (m >= 2.05) return { label: 'КРИЗИС', short: 'КРЗ', color: '#f55' };
+  if (m >= 1.35) return { label: 'ДЕФИЦИТ', short: 'ДФЦ', color: '#fa4' };
+  if (m >= 1.12) return { label: 'НАПРЯЖ.', short: 'НАП', color: '#dda64a' };
+  if (m <= 0.72) return { label: 'ИЗБЫТОК', short: 'ИЗБ', color: '#6cf' };
+  if (m <= 0.88) return { label: 'ЗАПАС', short: 'ЗАП', color: '#8cf' };
+  return { label: 'НОРМА', short: 'НОР', color: '#8a8' };
+}
+
+export function questItemState(state: GameState, defId: string): QuestItemState {
+  let reward = false;
+  for (const q of state.quests) {
+    if (q.done || q.failed) continue;
+    if (q.targetItem === defId) return 'target';
+    if (q.rewardItem === defId) reward = true;
+    if (q.extraRewards?.some(r => r.defId === defId)) reward = true;
+  }
+  return reward ? 'reward' : '';
+}
+
+export function questItemStateLabel(state: QuestItemState): string {
+  if (state === 'target') return 'ЦЕЛЬ';
+  if (state === 'reward') return 'НАГР';
+  return '';
+}
+
+export function questItemStateColor(state: QuestItemState): string {
+  if (state === 'target') return '#6cf';
+  if (state === 'reward') return '#8f8';
+  return '#888';
+}
+
 function formatSignedRubles(value: number): string {
   const rounded = Math.round(value);
   return `${rounded >= 0 ? '+' : ''}${rounded}₽`;
+}
+
+function economyPressureLine(state: GameState): FinanceLine | null {
+  let scarceId = '';
+  let scarceMult = 1;
+  let surplusId = '';
+  let surplusMult = 1;
+  for (const res of RESOURCES) {
+    const mult = getResourceScarcity(state, res.id);
+    if (mult > scarceMult) {
+      scarceMult = mult;
+      scarceId = res.id;
+    }
+    if (mult < surplusMult) {
+      surplusMult = mult;
+      surplusId = res.id;
+    }
+  }
+  if (scarceMult >= 1.18) {
+    const band = scarcityBand(scarceMult);
+    return {
+      text: `${band.label.toLowerCase()}: ${shortResourceName(scarceId)} ${formatMult(scarceMult)}`,
+      color: band.color,
+    };
+  }
+  if (surplusMult <= 0.82) {
+    const band = scarcityBand(surplusMult);
+    return {
+      text: `${band.label.toLowerCase()}: ${shortResourceName(surplusId)} ${formatMult(surplusMult)}`,
+      color: band.color,
+    };
+  }
+  return null;
 }
 
 function readBanking(state: GameState): Pick<
@@ -179,12 +286,16 @@ export function financeDetailLines(snapshot: FinanceSnapshot): FinanceLine[] {
   return lines;
 }
 
-export function hudFinanceLines(snapshot: FinanceSnapshot): FinanceLine[] {
+export function hudFinanceLines(snapshot: FinanceSnapshot, state?: GameState): FinanceLine[] {
   const top = snapshot.hasBanking
     ? `₽${Math.round(snapshot.cash)} сч ${Math.round(snapshot.accountRubles)}`
     : `₽${Math.round(snapshot.cash)}`;
   const lines: FinanceLine[] = [{ text: top, color: '#ee4' }];
   if (snapshot.debtRubles > 0) lines.push({ text: `долг ${compactRubles(snapshot.debtRubles)}`, color: '#f86' });
+  if (state) {
+    const pressure = economyPressureLine(state);
+    if (pressure) lines.push(pressure);
+  }
   return lines;
 }
 
@@ -228,7 +339,7 @@ export function drawHudFinanceCompact(
   time: number,
   y: number,
 ): void {
-  const lines = hudFinanceLines(readFinanceSnapshot(player, state));
+  const lines = hudFinanceLines(readFinanceSnapshot(player, state), state);
   const w = ctx.canvas.width;
   const panelW = Math.min(116 * sx, w - 12 * sx);
   const lineH = 9 * sy;
@@ -286,6 +397,55 @@ export function hasInventoryRoom(inv: readonly { defId: string; count: number; d
   return slots.length < INVENTORY_SLOTS;
 }
 
+export function tradeCellPriceDisplay(
+  state: GameState,
+  npc: Entity,
+  defId: string,
+  side: 'buy' | 'sell',
+): TradeCellPriceDisplay {
+  let price = getAdjustedItemPrice(state, defId);
+  let scarcity = getItemPriceMultiplier(state, defId);
+  try {
+    const quote = getEconomyQuote(state, defId, { trader: npc });
+    price = side === 'buy' ? quote.buyPrice : quote.sellPrice;
+    scarcity = quote.scarcityMultiplier;
+  } catch {
+    // Partially merged economy data must not break menu rendering.
+  }
+  const band = scarcityBand(scarcity);
+  const questState = questItemState(state, defId);
+  return {
+    text: compactRubles(price),
+    color: price > 0 ? '#da4' : '#777',
+    scarcityColor: band.color,
+    scarcityLabel: band.short,
+    questState,
+  };
+}
+
+export function itemValueDisplay(state: GameState, defId: string): ItemValueDisplay {
+  let price = getAdjustedItemPrice(state, defId);
+  let scarcity = getItemPriceMultiplier(state, defId);
+  let resourceId: string | undefined;
+  try {
+    const quote = getEconomyQuote(state, defId);
+    resourceId = quote.resourceId;
+    scarcity = quote.scarcityMultiplier;
+    price = getAdjustedItemPrice(state, defId);
+  } catch {
+    // Keep loot/container UI readable even while economy definitions are incomplete.
+  }
+  const band = scarcityBand(scarcity);
+  const resource = shortResourceName(resourceId);
+  return {
+    priceText: compactRubles(price),
+    line: `Оценка: ${compactRubles(price)} | ${band.label} ${formatMult(scarcity)}`,
+    detail: resource ? `Ресурс: ${resource}` : 'Ресурс: вне складского дефицита',
+    scarcityColor: band.color,
+    questState: questItemState(state, defId),
+  };
+}
+
 export function tradePriceDisplay(
   state: GameState,
   player: Entity,
@@ -297,17 +457,22 @@ export function tradePriceDisplay(
   let demand = 1;
   let scarcity = getItemPriceMultiplier(state, defId);
   let tariff = 1;
+  let resourceId: string | undefined;
+  let basePrice = ITEMS[defId]?.value ?? 0;
   try {
     const quote = getEconomyQuote(state, defId, { trader: npc });
     price = side === 'buy' ? quote.buyPrice : quote.sellPrice;
     demand = quote.demandMultiplier;
     scarcity = quote.scarcityMultiplier;
     tariff = quote.tariffMultiplier;
+    resourceId = quote.resourceId;
+    basePrice = quote.basePrice;
   } catch {
     // Rendering must stay graceful if a partially merged economy system cannot quote yet.
   }
-  const reasons = [`спрос x${demand.toFixed(1)}`, `дефицит x${scarcity.toFixed(1)}`];
-  if (Math.abs(tariff - 1) > 0.04) reasons.push(`тариф x${tariff.toFixed(1)}`);
+  const band = scarcityBand(scarcity);
+  const reasons = [`спрос ${formatMult(demand)}`, `дефицит ${formatMult(scarcity)}`];
+  if (Math.abs(tariff - 1) > 0.04) reasons.push(`тариф ${formatMult(tariff)}`);
   const label = side === 'buy' ? 'Цена' : 'Скупка';
   const payer = side === 'buy' ? player : npc;
   const receiver = side === 'buy' ? player : npc;
@@ -323,6 +488,9 @@ export function tradePriceDisplay(
   return {
     price,
     line: `${label}: ${price}₽ ${reasons.join(' ')}`,
+    detail: `База ${compactRubles(basePrice)}${resourceId ? ` | ${shortResourceName(resourceId)}` : ''}`,
+    scarcity: `${band.label} ${formatMult(scarcity)}`,
+    scarcityColor: band.color,
     status,
     color: ok ? '#da4' : '#f84',
     ok,

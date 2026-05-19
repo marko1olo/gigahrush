@@ -20,6 +20,35 @@ export interface SocialPoiRoom {
   h: number;
 }
 
+export type KvSocialMapCueKind = 'repair' | 'bribe' | 'fight' | 'detour';
+
+export interface KvSocialMapCue {
+  id: string;
+  kind: KvSocialMapCueKind;
+  x: number;
+  y: number;
+  targetX: number;
+  targetY: number;
+  label: string;
+  shortLabel: string;
+  color: string;
+  doorIdx?: number;
+}
+
+const socialMapCues = new WeakMap<World, KvSocialMapCue[]>();
+
+export function registerKvSocialMapCue(world: World, cue: KvSocialMapCue): void {
+  const cues = socialMapCues.get(world) ?? [];
+  const existing = cues.findIndex(c => c.id === cue.id);
+  if (existing >= 0) cues[existing] = cue;
+  else cues.push(cue);
+  socialMapCues.set(world, cues);
+}
+
+export function getKvSocialMapCues(world: World): readonly KvSocialMapCue[] {
+  return socialMapCues.get(world) ?? [];
+}
+
 function hasClearWallArea(world: World, x: number, y: number, w: number, h: number): boolean {
   for (let dy = -1; dy <= h; dy++) {
     for (let dx = -1; dx <= w; dx++) {

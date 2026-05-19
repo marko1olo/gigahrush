@@ -1,24 +1,43 @@
 /* ── Больничный блок карантина (AG17) ─────────────────────────── */
 /* Finite quarantine slice: triage desk, sealed ward, med archive, */
-/* locked/secret medical containers, four readable side quests.    */
+/* locked/secret medical containers, triage choices and outcomes.  */
 
 import {
   AIGoal, Cell, ContainerKind, DoorState, EntityType, Faction, Feature,
   FloorLevel, MonsterKind, Occupation, QuestType, RoomType, Tex,
-  type Entity, type Room, type WorldContainer,
+  type Entity, type Room, type WorldContainer, type WorldEvent,
 } from '../../core/types';
 import { World } from '../../core/world';
 import { freshNeeds } from '../../data/catalog';
 import { type PlotNpcDef, registerSideQuest } from '../../data/plot';
 import { MONSTERS } from '../../entities/monster';
 import { monsterSpr, Spr } from '../../render/sprite_index';
+import { publishEvent, registerWorldEventObserver } from '../../systems/events';
 import { genLog } from '../log';
 import { registerZoneContent } from './zone_content';
 
 const HOSPITAL_W = 19;
 const HOSPITAL_H = 15;
 const QUARANTINE_WALL_DX = 12;
-const CONTENT_TAG = 'content';
+const CONTENT_TAG = 'hospital_quarantine';
+const OUTCOME_TAG = 'ag17_triage_outcome';
+
+const QUEST_MIRA_MESSAGE = 'ag17_mira_message_olga';
+const QUEST_MIRA_SANITARY = 'ag17_mira_spend_sanitary_kit';
+const QUEST_LIDA_ANTIBIOTIC = 'ag17_lida_antibiotic';
+const QUEST_YURA_ANTIBIOTIC = 'ag17_yura_antibiotic';
+const QUEST_TARAS_OUTBREAK = 'ag17_taras_outbreak';
+const QUEST_TARAS_SEAL_WARD = 'ag17_taras_seal_ward';
+
+const TRIAGE_MEDICINE = new Set([
+  'antibiotic',
+  'bandage',
+  'iodine',
+  'morphine_ampoule',
+  'pills',
+  'sanitary_kit',
+  'tourniquet',
+]);
 
 const NPC_DEFS: Record<string, PlotNpcDef> = {
   ag17_mira_triage: {
@@ -37,6 +56,7 @@ const NPC_DEFS: Record<string, PlotNpcDef> = {
       'Приемный покой работает по видимым признакам: кровь, кашель, печать.',
       'За гермодверью двое. Антибиотик один. Решать придется руками, не инструкцией.',
       'Карантин не лечит. Он делает риск понятным для журнала.',
+      'Можно потратить санитарный набор, украсть лекарство, закрыть палату или донести Ольге. Все варианты останутся в журнале.',
       'Если полезете в шкафы без допуска, журнал назовет это нарушением режима.',
     ],
     talkLinesPost: [
@@ -137,35 +157,88 @@ const NPC_DEFS: Record<string, PlotNpcDef> = {
   },
 };
 
-registerSideQuest('ag17_mira_triage', NPC_DEFS.ag17_mira_triage, []);
+registerSideQuest('ag17_mira_triage', NPC_DEFS.ag17_mira_triage, [
+  {
+    id: QUEST_MIRA_MESSAGE,
+    giverNpcId: 'ag17_mira_triage',
+    type: QuestType.TALK,
+    desc: 'Мира Сортировочная: «Передайте Ольге: карантинный стол выбирает между справкой, дозой и гермодверью. Пусть решит, что важнее для блока.»',
+    targetNpcId: 'olga',
+    rewardItem: 'clean_health_cert', rewardCount: 1,
+    relationDelta: 10, xpReward: 35, moneyReward: 20,
+    targetFloor: FloorLevel.LIVING,
+    targetRoomType: RoomType.MEDICAL,
+    targetZoneTag: CONTENT_TAG,
+    targetHint: 'Жилая зона: от карантинного блока вернитесь в актовый зал к Ольге Дмитриевне.',
+    eventTargetName: 'Ольге передано карантинное сообщение о нехватке дозы и гермодвери.',
+    eventTags: [CONTENT_TAG, 'triage', 'message', 'olga', 'social'],
+    eventData: { outcome: 'message_olga', rumorIds: ['room_quarantine_medcard'] },
+  },
+  {
+    id: QUEST_MIRA_SANITARY,
+    giverNpcId: 'ag17_mira_triage',
+    type: QuestType.FETCH,
+    desc: 'Мира Сортировочная: «Потратьте санитарный набор на сортировку: обработаем ширму, койку и руки. Себе он уже не вернется.»',
+    targetItem: 'sanitary_kit', targetCount: 1,
+    rewardItem: 'official_quarantine_clearance', rewardCount: 1,
+    extraRewards: [{ defId: 'bandage', count: 1 }],
+    relationDelta: 16, xpReward: 55, moneyReward: 35,
+    requiresSideQuestDone: QUEST_MIRA_MESSAGE,
+    targetFloor: FloorLevel.LIVING,
+    targetRoomType: RoomType.MEDICAL,
+    targetZoneTag: CONTENT_TAG,
+    targetHint: 'Жилая зона: приемный стол больничного карантина.',
+    eventTargetName: 'Санитарный набор потрачен на сортировку карантинного блока.',
+    eventTags: [CONTENT_TAG, 'triage', 'supply_spent', 'medicine', 'quarantine'],
+    eventData: { outcome: 'sanitary_kit_spent', supplyItem: 'sanitary_kit', rumorIds: ['rare_quarantine_clearance'] },
+  },
+]);
 
 registerSideQuest('ag17_lida_patient', NPC_DEFS.ag17_lida_patient, [
   {
-    id: 'ag17_lida_antibiotic',
+    id: QUEST_LIDA_ANTIBIOTIC,
     giverNpcId: 'ag17_lida_patient',
     type: QuestType.FETCH,
     desc: 'Лида Температурная: «Принесите антибиотик. Если я первая получу дозу, отдам направление к психиатру.»',
     targetItem: 'antibiotic', targetCount: 1,
     rewardItem: 'psychiatrist_referral', rewardCount: 1,
     relationDelta: 14, xpReward: 45, moneyReward: 20,
+    blockedBySideQuestIds: [QUEST_YURA_ANTIBIOTIC],
+    abandonsSideQuestIds: [QUEST_YURA_ANTIBIOTIC],
+    targetFloor: FloorLevel.LIVING,
+    targetRoomType: RoomType.MEDICAL,
+    targetZoneTag: CONTENT_TAG,
+    targetHint: 'Жилая зона: правая карантинная койка больничного блока.',
+    eventTargetName: 'Единственную дозу антибиотика отдали Лиде Температурной.',
+    eventTags: [CONTENT_TAG, 'triage', 'antibiotic', 'patient_choice', 'lida'],
+    eventData: { outcome: 'lida_treated', skippedPatient: 'ag17_yura_patient', rumorIds: ['room_quarantine_medcard'] },
   },
 ]);
 
 registerSideQuest('ag17_yura_patient', NPC_DEFS.ag17_yura_patient, [
   {
-    id: 'ag17_yura_antibiotic',
+    id: QUEST_YURA_ANTIBIOTIC,
     giverNpcId: 'ag17_yura_patient',
     type: QuestType.FETCH,
     desc: 'Юра Плесневой: «Принеси антибиотик. Медкарту отдам тебе - мне она уже хуже бинта.»',
     targetItem: 'antibiotic', targetCount: 1,
     rewardItem: 'quarantine_medcard', rewardCount: 1,
     relationDelta: 14, xpReward: 45, moneyReward: 20,
+    blockedBySideQuestIds: [QUEST_LIDA_ANTIBIOTIC],
+    abandonsSideQuestIds: [QUEST_LIDA_ANTIBIOTIC],
+    targetFloor: FloorLevel.LIVING,
+    targetRoomType: RoomType.MEDICAL,
+    targetZoneTag: CONTENT_TAG,
+    targetHint: 'Жилая зона: дальняя карантинная койка больничного блока.',
+    eventTargetName: 'Единственную дозу антибиотика отдали Юре Плесневому.',
+    eventTags: [CONTENT_TAG, 'triage', 'antibiotic', 'patient_choice', 'yura'],
+    eventData: { outcome: 'yura_treated', skippedPatient: 'ag17_lida_patient', rumorIds: ['lead_living_quarantine_medcard'] },
   },
 ]);
 
 registerSideQuest('ag17_taras_sanitar', NPC_DEFS.ag17_taras_sanitar, [
   {
-    id: 'ag17_taras_outbreak',
+    id: QUEST_TARAS_OUTBREAK,
     giverNpcId: 'ag17_taras_sanitar',
     type: QuestType.KILL,
     desc: 'Тарас Санпропуск: «В карантинной палате ходит мертвяк. Уберите его, пока он не дошел до журнала.»',
@@ -174,6 +247,31 @@ registerSideQuest('ag17_taras_sanitar', NPC_DEFS.ag17_taras_sanitar, [
     rewardItem: 'sanitary_kit', rewardCount: 1,
     extraRewards: [{ defId: 'bandage', count: 2 }],
     relationDelta: 18, xpReward: 65, moneyReward: 50,
+    targetFloor: FloorLevel.LIVING,
+    targetRoomType: RoomType.MEDICAL,
+    targetZoneTag: CONTENT_TAG,
+    targetHint: 'Жилая зона: палата за гермодверью больничного карантина.',
+    eventTargetName: 'Карантинный мертвяк зачищен до выхода из палаты.',
+    eventTags: [CONTENT_TAG, 'triage', 'outbreak', 'monster', 'hazard_cleaned'],
+    eventData: { outcome: 'outbreak_cleaned', rumorIds: ['room_quarantine_medcard'] },
+  },
+  {
+    id: QUEST_TARAS_SEAL_WARD,
+    giverNpcId: 'ag17_taras_sanitar',
+    type: QuestType.FETCH,
+    desc: 'Тарас Санпропуск: «Есть тюбик герметика? Закроем палату как карантин, а не как просьбу. Потом туда только по журналу.»',
+    targetItem: 'sealant_tube', targetCount: 1,
+    rewardItem: 'official_quarantine_clearance', rewardCount: 1,
+    extraRewards: [{ defId: 'iodine', count: 1 }],
+    relationDelta: 12, xpReward: 50, moneyReward: 35,
+    requiresSideQuestDone: QUEST_TARAS_OUTBREAK,
+    targetFloor: FloorLevel.LIVING,
+    targetRoomType: RoomType.MEDICAL,
+    targetZoneTag: CONTENT_TAG,
+    targetHint: 'Жилая зона: гермодверь карантинной палаты после зачистки.',
+    eventTargetName: 'Карантинная палата запечатана герметиком после зачистки.',
+    eventTags: [CONTENT_TAG, 'triage', 'quarantine_room', 'door_sealed', 'anomaly_risk'],
+    eventData: { outcome: 'ward_sealed', sealItem: 'sealant_tube', rumorIds: ['room_quarantine_medcard'] },
   },
 ]);
 
@@ -189,6 +287,166 @@ registerSideQuest('ag17_varvara_morgue', NPC_DEFS.ag17_varvara_morgue, [
     relationDelta: 16, xpReward: 55, moneyReward: 45,
   },
 ]);
+
+function sourceSideQuestId(event: WorldEvent): string {
+  const id = event.data?.sideQuestId;
+  return typeof id === 'string' ? id : '';
+}
+
+function sourceOutcome(event: WorldEvent): string {
+  const outcome = event.data?.outcome;
+  return typeof outcome === 'string' ? outcome : '';
+}
+
+function isTriageMedicine(itemId: string | undefined): boolean {
+  return itemId !== undefined && TRIAGE_MEDICINE.has(itemId);
+}
+
+registerWorldEventObserver((state, event) => {
+  if (event.tags.includes(OUTCOME_TAG)) return;
+
+  if (event.type === 'quest_completed') {
+    const sideQuestId = sourceSideQuestId(event);
+    if (sideQuestId === QUEST_MIRA_MESSAGE) {
+      publishEvent(state, {
+        type: 'faction_relation_changed',
+        floor: FloorLevel.LIVING,
+        zoneId: event.zoneId,
+        roomId: event.roomId,
+        actorId: event.actorId,
+        actorName: event.actorName,
+        actorFaction: event.actorFaction,
+        targetName: 'Ольга получила карантинное сообщение; решение стало общим, а не шкафным.',
+        severity: 4,
+        privacy: 'local',
+        tags: [CONTENT_TAG, OUTCOME_TAG, 'triage', 'message', 'olga', 'social'],
+        data: { sourceEventId: event.id, sideQuestId, outcome: 'message_olga', rumorIds: ['room_quarantine_medcard'] },
+      });
+      return;
+    }
+
+    if (sideQuestId === QUEST_MIRA_SANITARY) {
+      publishEvent(state, {
+        type: 'hazard_cleaned',
+        floor: FloorLevel.LIVING,
+        zoneId: event.zoneId,
+        roomId: event.roomId,
+        actorId: event.actorId,
+        actorName: event.actorName,
+        actorFaction: event.actorFaction,
+        itemId: 'sanitary_kit',
+        itemName: 'Санитарный набор',
+        itemCount: 1,
+        severity: 4,
+        privacy: 'local',
+        tags: [CONTENT_TAG, OUTCOME_TAG, 'triage', 'supply_spent', 'quarantine', 'medicine'],
+        data: { sourceEventId: event.id, sideQuestId, outcome: 'sanitary_kit_spent', rumorIds: ['rare_quarantine_clearance'] },
+      });
+      return;
+    }
+
+    if (sideQuestId === QUEST_LIDA_ANTIBIOTIC || sideQuestId === QUEST_YURA_ANTIBIOTIC) {
+      const lida = sideQuestId === QUEST_LIDA_ANTIBIOTIC;
+      publishEvent(state, {
+        type: 'faction_relation_changed',
+        floor: FloorLevel.LIVING,
+        zoneId: event.zoneId,
+        roomId: event.roomId,
+        actorId: event.actorId,
+        actorName: event.actorName,
+        actorFaction: event.actorFaction,
+        itemId: 'antibiotic',
+        itemName: 'Антибиотик',
+        itemCount: 1,
+        targetName: lida
+          ? 'Доза ушла Лиде; Юра остался в карантинной очереди.'
+          : 'Доза ушла Юре; Лида осталась в карантинной очереди.',
+        severity: 4,
+        privacy: 'local',
+        tags: [CONTENT_TAG, OUTCOME_TAG, 'triage', 'patient_choice', 'antibiotic', lida ? 'lida' : 'yura'],
+        data: {
+          sourceEventId: event.id,
+          sideQuestId,
+          outcome: lida ? 'lida_treated' : 'yura_treated',
+          skippedPatient: lida ? 'ag17_yura_patient' : 'ag17_lida_patient',
+          rumorIds: [lida ? 'room_quarantine_medcard' : 'lead_living_quarantine_medcard'],
+        },
+      });
+      return;
+    }
+
+    if (sideQuestId === QUEST_TARAS_SEAL_WARD) {
+      publishEvent(state, {
+        type: 'door_sealed',
+        floor: FloorLevel.LIVING,
+        zoneId: event.zoneId,
+        roomId: event.roomId,
+        actorId: event.actorId,
+        actorName: event.actorName,
+        actorFaction: event.actorFaction,
+        targetName: 'Карантинная палата',
+        itemId: 'sealant_tube',
+        itemName: 'Герметик',
+        itemCount: 1,
+        severity: 4,
+        privacy: 'local',
+        tags: [CONTENT_TAG, OUTCOME_TAG, 'triage', 'quarantine_room', 'door_sealed', 'anomaly_risk'],
+        data: { sourceEventId: event.id, sideQuestId, outcome: 'ward_sealed', rumorIds: ['room_quarantine_medcard'] },
+      });
+      return;
+    }
+
+    if (event.tags.includes('medical_fraud') && sourceOutcome(event) === 'fraud_exposed') {
+      publishEvent(state, {
+        type: 'faction_relation_changed',
+        floor: FloorLevel.LIVING,
+        zoneId: event.zoneId,
+        roomId: event.roomId,
+        actorId: event.actorId,
+        actorName: event.actorName,
+        actorFaction: event.actorFaction,
+        targetName: 'Карантинный стол вычеркнул липовый медугол из очереди лечения.',
+        severity: 4,
+        privacy: 'public',
+        tags: [CONTENT_TAG, OUTCOME_TAG, 'triage', 'medical_fraud', 'fraud_exposed', 'social'],
+        data: { sourceEventId: event.id, outcome: 'fake_medpost_exposed', rumorIds: ['economy_zhelemish_bad_medicine'] },
+      });
+    }
+    return;
+  }
+
+  if (
+    event.type === 'item_stolen'
+    && isTriageMedicine(event.itemId)
+    && (event.tags.includes(CONTENT_TAG) || event.tags.includes('quarantine'))
+  ) {
+    publishEvent(state, {
+      type: 'faction_relation_changed',
+      floor: FloorLevel.LIVING,
+      zoneId: event.zoneId,
+      roomId: event.roomId,
+      actorId: event.actorId,
+      actorName: event.actorName,
+      actorFaction: event.actorFaction,
+      targetId: event.targetId,
+      targetName: event.targetName ?? 'карантинная очередь',
+      targetFaction: event.targetFaction,
+      itemId: event.itemId,
+      itemName: event.itemName,
+      itemCount: event.itemCount,
+      containerId: event.containerId,
+      severity: 5,
+      privacy: event.privacy === 'private' ? 'local' : event.privacy,
+      tags: [CONTENT_TAG, OUTCOME_TAG, 'triage', 'medicine_stolen', 'quarantine', 'social'],
+      data: {
+        sourceEventId: event.id,
+        outcome: 'medicine_stolen',
+        anomalyRisk: event.tags.includes('quarantine'),
+        rumorIds: ['room_quarantine_medcard'],
+      },
+    });
+  }
+});
 
 function addDoor(world: World, room: Room, x: number, y: number, state: DoorState): void {
   const ci = world.idx(x, y);
@@ -411,7 +669,7 @@ function generateHospitalQuarantine(
     ['medical', 'supplies', 'secret', 'opened'],
   );
 
-  pushNpc(entities, nextId, NPC_DEFS.ag17_mira_triage, 'ag17_mira_triage', rx + 4, ry + 2, false);
+  pushNpc(entities, nextId, NPC_DEFS.ag17_mira_triage, 'ag17_mira_triage', rx + 4, ry + 2, true);
   pushNpc(entities, nextId, NPC_DEFS.ag17_taras_sanitar, 'ag17_taras_sanitar', rx + 10, wardDoorY, true, 'pipe');
   pushNpc(entities, nextId, NPC_DEFS.ag17_lida_patient, 'ag17_lida_patient', rx + 14, ry + 4, true);
   pushNpc(entities, nextId, NPC_DEFS.ag17_yura_patient, 'ag17_yura_patient', rx + 16, ry + 9, true);

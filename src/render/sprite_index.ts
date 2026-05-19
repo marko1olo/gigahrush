@@ -2,8 +2,9 @@
 /*   Adding a new monster? Just add to MonsterKind enum and       */
 /*   monster.ts registry. All sprite indices adjust automatically.*/
 /*                                                                 */
-/*   Layout: [NPCs | Travelers | ItemDrop | Monsters | EyeBolt | */
-/*            Desk | Feature objects | Container objects |        */
+/*   Layout: [NPCs | Travelers | Priest | named NPCs | ItemDrop | */
+/*            Monsters | EyeBolt | Desk | Feature objects |       */
+/*            Container objects |                                 */
 /*            Bullet | Pellet | Nail | PsiBolt | PlasmaBolt |     */
 /*            Hostile projectile variants | GaussBolt | BfgBolt | */
 /*            FlameBolt | Grenade | TrainCar |                    */
@@ -11,14 +12,28 @@
 
 import { ContainerKind, Feature, MonsterKind } from '../core/types';
 import { NPC_SPRITE_GENERATORS } from '../entities/npc';
+import { ART_NUDE_VARIANTS, F69_FEMALE_NPC_VARIANTS } from './art_sprites';
+
+export const SPRITE_MONSTER_KINDS = Object.values(MonsterKind)
+  .filter((value): value is MonsterKind => typeof value === 'number')
+  .sort((a, b) => a - b);
+
+export const SPRITE_FEATURES = [
+  Feature.LAMP, Feature.TABLE, Feature.CHAIR, Feature.BED, Feature.STOVE,
+  Feature.SINK, Feature.TOILET, Feature.SHELF, Feature.MACHINE, Feature.APPARATUS,
+  Feature.LIFT_BUTTON, Feature.SLIDE, Feature.CANDLE, Feature.SCREEN,
+] as const satisfies readonly Feature[];
+
+export const SPRITE_CONTAINER_KINDS = Object.values(ContainerKind)
+  .filter((value): value is ContainerKind => typeof value === 'number')
+  .sort((a, b) => a - b);
 
 const NPC_COUNT     = NPC_SPRITE_GENERATORS.length;
 const TRAVELER_COUNT = 3;
 const PRIEST_COUNT   = 1;
-// MonsterKind is a regular enum — Object.values has both string keys and numeric values
-const MONSTER_COUNT  = Object.values(MonsterKind).filter(v => typeof v === 'number').length;
-const FEATURE_SPRITE_COUNT = 15; // Feature.LAMP..Feature.SCREEN
-const CONTAINER_SPRITE_COUNT = Object.values(ContainerKind).filter(v => typeof v === 'number').length;
+const MONSTER_COUNT  = SPRITE_MONSTER_KINDS.length;
+const FEATURE_SPRITE_COUNT = SPRITE_FEATURES.length; // Feature.DESK reuses the standalone Desk slot.
+const CONTAINER_SPRITE_COUNT = SPRITE_CONTAINER_KINDS.length;
 
 let _i = 0;
 _i += NPC_COUNT;          // occupation NPC sprites
@@ -50,8 +65,8 @@ const _BFG_BOLT    = _i++;
 const _FLAME_BOLT  = _i++;
 const _GRENADE     = _i++;
 const _TRAIN_CAR   = _i++;
-const _ART_NUDE_BASE = _i; _i += 4;
-const _F69_FEMALE_NPC_BASE = _i; _i += 8;
+const _ART_NUDE_BASE = _i; _i += ART_NUDE_VARIANTS;
+const _F69_FEMALE_NPC_BASE = _i; _i += F69_FEMALE_NPC_VARIANTS;
 
 /** Named sprite indices — import these instead of magic numbers */
 export const Spr = {
@@ -97,17 +112,34 @@ export const Spr = {
   TOTAL:     _i,
 };
 
+const MONSTER_SPRITE_INDEX: Partial<Record<MonsterKind, number>> = {};
+for (let i = 0; i < SPRITE_MONSTER_KINDS.length; i++) {
+  MONSTER_SPRITE_INDEX[SPRITE_MONSTER_KINDS[i]] = _MON_BASE + i;
+}
+
+const FEATURE_SPRITE_INDEX: Partial<Record<Feature, number>> = {
+  [Feature.DESK]: _DESK,
+};
+for (let i = 0; i < SPRITE_FEATURES.length; i++) {
+  FEATURE_SPRITE_INDEX[SPRITE_FEATURES[i]] = _FEATURE_BASE + i;
+}
+
+const CONTAINER_SPRITE_INDEX: Partial<Record<ContainerKind, number>> = {};
+for (let i = 0; i < SPRITE_CONTAINER_KINDS.length; i++) {
+  CONTAINER_SPRITE_INDEX[SPRITE_CONTAINER_KINDS[i]] = _CONTAINER_BASE + i;
+}
+
 /** Compute sprite index for a monster kind — always correct regardless of monster count */
 export function monsterSpr(kind: MonsterKind): number {
-  return _MON_BASE + kind;
+  return MONSTER_SPRITE_INDEX[kind] ?? -1;
 }
 
 export function featureSpr(feature: Feature): number {
-  return _FEATURE_BASE + feature - Feature.LAMP;
+  return FEATURE_SPRITE_INDEX[feature] ?? -1;
 }
 
 export function containerSpr(kind: ContainerKind): number {
-  return _CONTAINER_BASE + kind;
+  return CONTAINER_SPRITE_INDEX[kind] ?? -1;
 }
 
 /** Runtime sprite swap for non-player shooters using player weapon data */

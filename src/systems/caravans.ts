@@ -4,7 +4,8 @@ import {
   type WorldEvent,
 } from '../core/types';
 import { CARAVAN_LANE_BY_ID, CARAVAN_LANES, type CaravanLaneDef } from '../data/caravans';
-import { changeResourceStock } from './economy';
+import type { EconomyFloorRef } from '../data/economy_rules';
+import { changeResourceStock, invalidateEconomyPrices, registerEconomyTariffProvider } from './economy';
 import { publishEvent, registerWorldEventObserver } from './events';
 
 export const CARAVAN_TICK_SECONDS = 30;
@@ -33,6 +34,7 @@ export interface CaravanState {
 }
 
 type CaravanGameState = GameState & { caravans?: CaravanState };
+const normalizedStates = new WeakMap<GameState, CaravanState>();
 
 function clamp(value: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, value));
@@ -81,6 +83,7 @@ function normalizeLaneState(def: CaravanLaneDef, raw: Partial<CaravanLaneState> 
 export function ensureCaravanState(state: GameState): CaravanState {
   const s = state as CaravanGameState;
   const raw = s.caravans;
+  if (raw && normalizedStates.get(state) === raw) return raw;
   const next: CaravanState = {
     tickAccum: clamp(saneNumber(raw?.tickAccum, 0), 0, CARAVAN_TICK_SECONDS),
     cursor: Math.max(0, Math.floor(saneNumber(raw?.cursor, 0))),
@@ -90,6 +93,7 @@ export function ensureCaravanState(state: GameState): CaravanState {
     next.lanes[def.id] = normalizeLaneState(def, raw?.lanes?.[def.id], state.time);
   }
   s.caravans = next;
+  normalizedStates.set(state, next);
   return next;
 }
 
@@ -190,6 +194,7 @@ function processLane(state: GameState, def: CaravanLaneDef, lane: CaravanLaneSta
     lane.tariffPressure = clamp(lane.tariffPressure + 0.025 + (1 - lane.stability) * 0.015, 0, 1.75);
   }
 
+  invalidateEconomyPrices(state);
   publishCaravanEvent(state, def, lane, 'tick', 3, paid ? ['paid'] : ['unpaid'], counts);
   return true;
 }
@@ -245,6 +250,7 @@ export function payCaravanTariff(state: GameState, laneId: string, source?: Worl
   lane.tariffPaidUntil = Math.max(lane.tariffPaidUntil, state.time) + TARIFF_DURATION_SECONDS;
   lane.stability = clamp(lane.stability + 0.18, MIN_STABILITY, MAX_STABILITY);
   lane.tariffPressure = clamp(lane.tariffPressure - 0.22, 0, 1.75);
+  invalidateEconomyPrices(state);
   publishCaravanEvent(state, def, lane, 'paid_tariff', 4, ['paid', 'stabilized'], undefined, source);
   return true;
 }
@@ -257,6 +263,7 @@ export function openCaravanLane(state: GameState, laneId: string, source?: World
   lane.stability = clamp(Math.max(lane.stability, 0.82) + 0.08, MIN_STABILITY, MAX_STABILITY);
   lane.tariffPressure = clamp(lane.tariffPressure - 0.12, 0, 1.75);
   lane.nextTickAt = Math.min(lane.nextTickAt, state.time + 20);
+  invalidateEconomyPrices(state);
   publishCaravanEvent(state, def, lane, 'opened_lane', 4, ['opened'], undefined, source);
   return true;
 }
@@ -268,6 +275,7 @@ export function closeCaravanLane(state: GameState, laneId: string, source?: Worl
   lane.open = false;
   lane.stability = clamp(lane.stability - 0.18, MIN_STABILITY, MAX_STABILITY);
   lane.tariffPressure = clamp(lane.tariffPressure + 0.3, 0, 1.75);
+  invalidateEconomyPrices(state);
   publishCaravanEvent(state, def, lane, 'closed_lane', 4, ['closed'], undefined, source);
   return true;
 }
@@ -283,6 +291,7 @@ export function robCaravanCargo(state: GameState, laneId: string, source?: World
   lane.raids++;
   lane.stability = clamp(lane.stability - 0.24, MIN_STABILITY, MAX_STABILITY);
   lane.tariffPressure = clamp(lane.tariffPressure + 0.28, 0, 1.75);
+  invalidateEconomyPrices(state);
   publishCaravanEvent(state, def, lane, 'robbed_cargo', 5, ['robbed', 'theft'], counts, source);
   return true;
 }
@@ -306,10 +315,22 @@ export function getCaravanResourceTariffMultiplier(
     if (def.fromFloor !== floor && def.toFloor !== floor) continue;
     multiplier *= getCaravanLaneTariffMultiplier(state, def.id);
   }
-  // TODO(economics_1): multiply getEconomyQuote().tariffMultiplier by this
-  // dynamic lane value when the quote API exposes a tariff provider hook.
   return Number(clamp(multiplier, 0.5, 3).toFixed(3));
 }
+
+registerEconomyTariffProvider({
+  id: 'caravan_supply_lanes',
+  quote(state: GameState, resourceId: string | undefined, floor: EconomyFloorRef) {
+    if (!resourceId || typeof floor !== 'number') return undefined;
+    const multiplier = getCaravanResourceTariffMultiplier(state, resourceId, floor);
+    if (multiplier === 1) return undefined;
+    return {
+      multiplier,
+      tags: ['tariff', 'caravan_tariff'],
+      reason: 'caravan_supply_lane_tariff',
+    };
+  },
+});
 
 export function summarizeCaravans(state: GameState, limit = 6): string[] {
   const caravans = ensureCaravanState(state);

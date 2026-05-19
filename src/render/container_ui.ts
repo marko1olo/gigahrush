@@ -4,6 +4,11 @@ import { type Entity, type GameState } from '../core/types';
 import { World } from '../core/world';
 import { ITEMS } from '../data/catalog';
 import { containerAccessInfo, containerTheftStatus } from '../systems/containers';
+import {
+  itemValueDisplay,
+  questItemStateColor,
+  questItemStateLabel,
+} from './economy_ui';
 import { containerGridScale } from './ui_layout';
 import { drawCenteredWrappedText, fitText } from './ui_text';
 
@@ -79,7 +84,7 @@ export function drawContainerMenu(
     ctx.fillText(fitText(ctx, status, totalW), startX, infoY + 9 * sy);
   }
 
-  const drawGrid = (inv: { defId: string; count: number }[], gx: number, side: string) => {
+  const drawGrid = (inv: { defId: string; count: number }[], gx: number, side: 'player' | 'container') => {
     for (let row = 0; row < GRID; row++) {
       for (let col = 0; col < GRID; col++) {
         const idx = row * GRID + col;
@@ -95,9 +100,33 @@ export function drawContainerMenu(
         if (idx < inv.length) {
           const item = inv[idx];
           const def = ITEMS[item.defId];
+          const value = itemValueDisplay(state, item.defId);
+          const questLabel = questItemStateLabel(value.questState);
+          const stolenHere = container.stolenItemIds?.includes(item.defId) === true;
+          const ownerLabel = side === 'container'
+            ? access.theft ? 'ЧУЖ' : access.canTake ? access.label.slice(0, 3) : 'ЗАМ'
+            : stolenHere ? 'КРАД' : 'ВАШ';
+          ctx.fillStyle = value.scarcityColor;
+          ctx.fillRect(cx + 1 * sx, cy + 1 * sy, Math.max(1, 2 * sx), cellSz - 4 * sy);
+          ctx.font = `${4.5 * sy}px monospace`;
+          ctx.fillStyle = side === 'player' && stolenHere ? '#f84' : side === 'container' ? access.color : '#ee4';
+          ctx.fillText(ownerLabel, cx + 4 * sx, cy + 3 * sy);
+          if (questLabel) {
+            ctx.fillStyle = questItemStateColor(value.questState);
+            ctx.textAlign = 'right';
+            ctx.fillText(questLabel, cx + cellSz - 4 * sx, cy + 3 * sy);
+            ctx.textAlign = 'left';
+          }
           ctx.fillStyle = selected ? '#0fa' : '#ccc';
           ctx.font = `${5.6 * sy}px monospace`;
           ctx.fillText(fitText(ctx, def?.name ?? item.defId, cellSz - 4 * sx), cx + 2 * sx, cy + 10 * sy);
+          ctx.fillStyle = value.scarcityColor;
+          ctx.font = `${4.8 * sy}px monospace`;
+          ctx.fillText(
+            fitText(ctx, value.priceText, item.count > 1 ? cellSz - 18 * sx : cellSz - 6 * sx),
+            cx + 4 * sx,
+            cy + cellSz - 5 * sy,
+          );
           if (item.count > 1) {
             ctx.fillStyle = '#8a8';
             ctx.font = `${4.8 * sy}px monospace`;
@@ -129,8 +158,22 @@ export function drawContainerMenu(
       ? access.canTake ? access.theft ? '[E] украсть' : '[E] взять' : 'нет доступа'
       : access.canPut ? '[E] положить' : 'нет доступа';
     ctx.fillStyle = state.containerSide === 'container' && access.theft ? '#f84' : access.color;
-    actionY = Math.min(actionY + 3 * sy, ch - 34 * sy);
-    ctx.fillText(action, cw / 2, actionY);
+    actionY = Math.min(actionY + 3 * sy, ch - 52 * sy);
+    const value = itemValueDisplay(state, item.defId);
+    ctx.fillStyle = value.scarcityColor;
+    ctx.fillText(fitText(ctx, value.line, descW), cw / 2, actionY);
+    ctx.fillStyle = '#888';
+    ctx.fillText(fitText(ctx, value.detail, descW), cw / 2, actionY + 9 * sy);
+    ctx.fillStyle = state.containerSide === 'container' && access.theft ? '#f84' : access.color;
+    if (value.questState) {
+      const questLabel = value.questState === 'target' ? 'Квестовая цель' : 'Квестовая награда';
+      ctx.fillStyle = questItemStateColor(value.questState);
+      ctx.fillText(fitText(ctx, questLabel, descW), cw / 2, actionY + 18 * sy);
+      ctx.fillStyle = state.containerSide === 'container' && access.theft ? '#f84' : access.color;
+      ctx.fillText(action, cw / 2, Math.min(actionY + 27 * sy, ch - 34 * sy));
+    } else {
+      ctx.fillText(action, cw / 2, Math.min(actionY + 18 * sy, ch - 34 * sy));
+    }
   } else {
     ctx.fillStyle = '#555';
     ctx.font = `${7.4 * sy}px monospace`;
@@ -141,8 +184,9 @@ export function drawContainerMenu(
   ctx.fillStyle = '#555';
   ctx.font = `${6.5 * sy}px monospace`;
   ctx.textAlign = 'right';
-  ctx.fillText('W/S/стрелки - курсор', cw - 8 * sx, ch - 24 * sy);
-  ctx.fillText('E - перенести 1 предмет', cw - 8 * sx, ch - 16 * sy);
-  ctx.fillText('ENTER - закрыть', cw - 8 * sx, ch - 8 * sy);
+  const hintW = Math.max(60 * sx, cw - 16 * sx);
+  ctx.fillText(fitText(ctx, 'W/S/стрелки - курсор', hintW), cw - 8 * sx, ch - 24 * sy);
+  ctx.fillText(fitText(ctx, 'E - перенести 1 предмет', hintW), cw - 8 * sx, ch - 16 * sy);
+  ctx.fillText(fitText(ctx, 'ENTER - закрыть', hintW), cw - 8 * sx, ch - 8 * sy);
   ctx.textAlign = 'left';
 }

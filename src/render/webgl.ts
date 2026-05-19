@@ -22,6 +22,7 @@ export interface DynamicSkyTexture {
   readonly height: number;
   readonly pixels: Uint32Array;
   readonly ambientTint?: { r: number; g: number; b: number };
+  readonly fogTint?: { r: number; g: number; b: number };
   dirty: boolean;
 }
 
@@ -89,6 +90,7 @@ uniform vec2  uAtlasSize;             // atlas dimensions in pixels
 uniform int   uUseDynamicSky;         // roof/open-air ceiling override
 uniform sampler2D uDynamicSky;        // 1024×1024 dynamic sky/cloud texture
 uniform vec3  uDynamicSkyTint;
+uniform vec3  uBaseFogColor;
 
 /* ── Surface marks overlay (blood, bullet holes, etc.) ────────── */
 uniform sampler2D uSurfaceAtlas;      // 512×512 RGBA atlas of 16×16 cell overlays
@@ -176,7 +178,7 @@ vec3 blendSurface(vec3 base, ivec2 cell, int subX, int subY) {
 
 vec3 fogColor() {
   return uPurpleFog == 1 ? uFogColor
-                         : vec3(5.0/255.0, 5.0/255.0, 8.0/255.0);
+                         : uBaseFogColor;
 }
 
 vec3 applyFogV(vec3 c, float f) {
@@ -1316,7 +1318,7 @@ export function initWebGL(
     'uGlitch', 'uCamHeight', 'uFlashlight', 'uTime', 'uPurpleFog', 'uFogColor',
     'uCells', 'uWallTex', 'uFloorTex', 'uFeatures', 'uLight', 'uFog',
     'uDoorStates', 'uAtlas', 'uAtlasSize', 'uUseDynamicSky', 'uDynamicSky',
-    'uDynamicSkyTint', 'uSurfaceAtlas', 'uSurfaceIdx',
+    'uDynamicSkyTint', 'uBaseFogColor', 'uSurfaceAtlas', 'uSurfaceIdx',
   ]);
 
   // ── Blit program ──
@@ -1592,8 +1594,15 @@ export function renderSceneGL(
   const skyR = skyTint ? Math.max(0.65, Math.min(1.25, skyTint.r / 112)) : 1;
   const skyG = skyTint ? Math.max(0.65, Math.min(1.25, skyTint.g / 120)) : 1;
   const skyB = skyTint ? Math.max(0.65, Math.min(1.25, skyTint.b / 136)) : 1;
+  const skyFog = activeDynamicSky?.fogTint;
   gl.uniform1i(ru['uUseDynamicSky']!, activeDynamicSky ? 1 : 0);
   gl.uniform3f(ru['uDynamicSkyTint']!, skyR, skyG, skyB);
+  gl.uniform3f(
+    ru['uBaseFogColor']!,
+    skyFog ? skyFog.r / 255 : 5 / 255,
+    skyFog ? skyFog.g / 255 : 5 / 255,
+    skyFog ? skyFog.b / 255 : 8 / 255,
+  );
 
   // Bind data textures to texture units.
   bindTextureUnit(gl, glState.cellsTex, ru['uCells']!, 0);
@@ -1821,9 +1830,10 @@ function renderSpritesGL(
   const invDet = 1.0 / (planeX * dirY - dirX * planeY);
 
   // Fog color
-  const fogR = purpleFog ? activeFogRgb[0] / 255 : 5 / 255;
-  const fogG = purpleFog ? activeFogRgb[1] / 255 : 5 / 255;
-  const fogB = purpleFog ? activeFogRgb[2] / 255 : 8 / 255;
+  const skyFog = activeDynamicSky?.fogTint;
+  const fogR = purpleFog ? activeFogRgb[0] / 255 : skyFog ? skyFog.r / 255 : 5 / 255;
+  const fogG = purpleFog ? activeFogRgb[1] / 255 : skyFog ? skyFog.g / 255 : 5 / 255;
+  const fogB = purpleFog ? activeFogRgb[2] / 255 : skyFog ? skyFog.b / 255 : 8 / 255;
 
   // Collect visible entities without per-frame record allocation.
   let visibleCount = 0;

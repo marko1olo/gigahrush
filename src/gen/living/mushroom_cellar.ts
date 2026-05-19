@@ -1,7 +1,7 @@
 /* -- AG12 Mushroom Shift: first playable cellar slice ----------- */
 
 import {
-  AIGoal, Cell, EntityType, Faction, Feature, Occupation, QuestType, RoomType, Tex,
+  AIGoal, Cell, EntityType, Faction, Feature, FloorLevel, Occupation, QuestType, RoomType, Tex,
   type Entity, type Room,
 } from '../../core/types';
 import { World } from '../../core/world';
@@ -125,6 +125,33 @@ registerSideQuest('ag12_olga_sanpropusk', NPC_DEFS.ag12_olga_sanpropusk, [
     extraRewards: [{ defId: 'mushroom_mass', count: 1 }, { defId: 'clean_health_cert', count: 1 }],
     relationDelta: 12, xpReward: 35, moneyReward: 25,
   },
+  {
+    id: 'ag12_trace_brown_spore_route',
+    giverNpcId: 'ag12_olga_sanpropusk',
+    type: QuestType.FETCH,
+    desc: 'Ольга Санпропуск: «После чистки нужен коричневый соскоб с живой петли: Маврин поддон, сырой погреб Желемышника, костяная сушилка. Соль к краю, огонь к плотоядной, пробу - мне.»',
+    targetItem: 'slime_sample_brown', targetCount: 1,
+    targetFloor: FloorLevel.LIVING,
+    targetRoomType: RoomType.STORAGE,
+    targetZoneTag: 'living_fungal_loop',
+    targetHint: 'Жилая зона: начните в грибной прачечной, проверьте желемышный погреб, затем берите коричневую пробу из сырого ядра Погреба Желемышника; плотоядную сушилку проходите с солью или топливом.',
+    rewardItem: 'cleaning_kit', rewardCount: 1,
+    extraRewards: [
+      { defId: 'rock_salt', count: 2 },
+      { defId: 'antifungal_ointment', count: 1 },
+      { defId: 'ammo_fuel', count: 2 },
+    ],
+    relationDelta: 15, xpReward: 70, moneyReward: 42,
+    requiresSideQuestDone: 'ag12_fetch_disinfectant',
+    eventTargetName: 'Ольга связала грибную прачечную, желемышные погреба и плотоядную сушилку в один санитарный маршрут.',
+    eventTags: ['living_fungal_loop', 'mushroom', 'zhelemish', 'slime', 'cleaning', 'salt', 'fire', 'medicine'],
+    eventData: {
+      outcome: 'brown_spore_route_checked',
+      routeRooms: ['Грибная прачечная первой смены', 'Желемышный погреб Мавры', 'Погреб Желемышника', 'Плотоядная грибница: костяная сушилка'],
+      counterplayItems: ['rock_salt', 'ammo_fuel', 'cleaning_kit', 'antifungal_ointment'],
+      rumorIds: ['lead_living_mushroom_cellar_spores', 'lead_living_zhelemish_cellar', 'slime_brown_cleanup'],
+    },
+  },
 ]);
 
 registerSideQuest('ag12_valera_meshkov', NPC_DEFS.ag12_valera_meshkov, [
@@ -209,7 +236,15 @@ function setFeature(world: World, x: number, y: number, feature: Feature): void 
   if (world.cells[ci] === Cell.FLOOR || world.cells[ci] === Cell.WATER) world.features[ci] = feature;
 }
 
-function dropItem(entities: Entity[], nextId: { v: number }, x: number, y: number, defId: string, count = 1): void {
+function dropItem(
+  entities: Entity[],
+  nextId: { v: number },
+  x: number,
+  y: number,
+  defId: string,
+  count = 1,
+  data?: unknown,
+): void {
   entities.push({
     id: nextId.v++,
     type: EntityType.ITEM_DROP,
@@ -220,7 +255,7 @@ function dropItem(entities: Entity[], nextId: { v: number }, x: number, y: numbe
     alive: true,
     speed: 0,
     sprite: Spr.ITEM_DROP,
-    inventory: [{ defId, count }],
+    inventory: [{ defId, count, data }],
   });
 }
 
@@ -298,6 +333,16 @@ function decorateCellar(world: World, entities: Entity[], nextId: { v: number },
   dropItem(entities, nextId, rx + 8, ry + 4, 'mushroom_mass', 3);
   dropItem(entities, nextId, rx + 10, ry + 7, 'infected_mushroom', 1);
   dropItem(entities, nextId, rx + 2, ry + 7, 'duct_tape', 1);
+  dropItem(entities, nextId, rx + 1, ry + 3, 'rock_salt', 1);
+  dropItem(
+    entities,
+    nextId,
+    rx + 11,
+    ry + 3,
+    'note',
+    1,
+    'Санмаршрут Ольги: сначала чистая прачечная и соль, потом желемышный поддон Мавры, затем сырой погреб Желемышника. Коричневую пробу не есть. Плотоядную сушилку проходить с огнем или обходом.',
+  );
 
   spawnNpc(entities, nextId, 'ag12_egor_plesen', rx + 6, ry + 4, Math.PI);
   spawnNpc(entities, nextId, 'ag12_olga_sanpropusk', rx + 2, ry + 2, Math.PI / 2, 'makarov');

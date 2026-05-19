@@ -154,7 +154,18 @@ export function generateLiquidatorArchive(
       { defId: 'denunciation', count: 2 },
       { defId: 'samosbor_tally', count: 1 },
     ],
-    ['evidence', 'cult', 'archive', 'chernobog', 'witness', 'liquidator', 'liquidator_archive', 'theft'],
+    [
+      'evidence',
+      'evidence_drop',
+      'cult',
+      'archive',
+      'archive_route',
+      'inspection_archive',
+      'raionsovet_archive',
+      'chernobog',
+      'liquidator_archive',
+      'audit',
+    ],
   );
   addLiquidatorContainer(
     world, room.id, gateX + 3, ry + room.h - 3,
@@ -167,7 +178,18 @@ export function generateLiquidatorArchive(
       { defId: 'chernobog_confiscation_act', count: 1 },
       { defId: 'void_archive_warrant', count: 1 },
     ],
-    ['evidence', 'cult', 'archive', 'chernobog', 'witness', 'liquidator', 'sealed', 'theft'],
+    [
+      'evidence',
+      'evidence_drop',
+      'cult',
+      'archive',
+      'archive_route',
+      'inspection_archive',
+      'raionsovet_archive',
+      'chernobog',
+      'sealed',
+      'audit',
+    ],
   );
   addLiquidatorContainer(
     world, room.id, rx + 2, ry + 2,
@@ -181,7 +203,7 @@ export function generateLiquidatorArchive(
       { defId: 'bandage', count: 2 },
       { defId: 'liquidator_ration', count: 1 },
     ],
-    ['liquidator', 'liquidator_archive', 'combat', 'ammo'],
+    ['liquidator', 'liquidator_archive', 'archive_route', 'patrol', 'combat', 'ammo'],
   );
 
   spawnNamedThreat(world, entities, nextId, gateX + 3, cy, MonsterKind.PARAGRAPH, 'Параграф Л-47');

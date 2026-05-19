@@ -87,7 +87,7 @@ export function strHeavyWeaponSpeedMult(rpg: RPGStats, baseCooldown: number): nu
   return baseCooldown >= 0.65 ? 1 / (1 + 0.05 * rpg.str) : 1;
 }
 export function agiRangedSpreadMult(rpg: RPGStats): number { return 1 / (1 + 0.12 * rpg.agi); }
-export function intPsiCostMult(rpg: RPGStats): number { return 1 / (1 + 0.08 * rpg.int); }
+export function intPsiCostMult(rpg: RPGStats): number { return Math.max(0.75, 1 - 0.035 * rpg.int); }
 export function intContractRewardMult(rpg: RPGStats): number {
   return 1 + Math.min(0.35, 0.05 * rpg.int);
 }
@@ -232,14 +232,8 @@ export function gaussianLevel(center: number, sigma = 2): number {
   return Math.max(1, Math.round(center + z * sigma));
 }
 
-// ── PSI regeneration (per second) ────────────────────────────────
-const PSI_REGEN_RATE = 0.5; // PSI per second base
-
-export function regenPsi(e: Entity, dt: number): void {
-  if (!e.rpg) return;
-  if (e.rpg.psi < e.rpg.maxPsi) {
-    e.rpg.psi = Math.min(e.rpg.maxPsi, e.rpg.psi + PSI_REGEN_RATE * dt);
-  }
+// ── PSI recovery is explicit: items, rewards, drains and level-ups only ──
+export function regenPsi(_e: Entity, _dt: number): void {
 }
 
 // ── Quest difficulty based on item value and distance ────────────

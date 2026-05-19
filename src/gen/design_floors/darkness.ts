@@ -12,6 +12,7 @@ import { freshNeeds } from '../../data/catalog';
 import { MONSTERS } from '../../entities/monster';
 import { monsterSpr, Spr } from '../../render/sprite_index';
 import { publishEvent } from '../../systems/events';
+import { registerRouteCue } from '../../systems/route_cues';
 import { randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg';
 import {
   carveCorridor,
@@ -34,6 +35,9 @@ export const DARKNESS_DEBUG_ENTRY = {
 } as const;
 
 type DarknessTollState = 'unpaid' | 'paid_light' | 'fought' | 'bypassed';
+export type DarknessLateWarningId =
+  | 'darkness_light_debt_warning'
+  | 'darkness_return_trace_warning';
 type DarknessQuestChoice =
   | 'spend_light'
   | 'save_light'
@@ -62,6 +66,15 @@ export interface DarknessQuestDef {
   rewardHint: string;
 }
 
+export interface DarknessLateWarning {
+  id: DarknessLateWarningId;
+  label: string;
+  sourceKey: string;
+  targetKey: string;
+  warning: string;
+  tags: readonly string[];
+}
+
 export interface DarknessFloorState {
   routeId: typeof DARKNESS_DESIGN_FLOOR_ID;
   z: typeof DARKNESS_FUTURE_Z;
@@ -71,7 +84,13 @@ export interface DarknessFloorState {
   shadowTollState: DarknessTollState;
   roomLabels: DarknessRoomLabel[];
   quests: DarknessQuestDef[];
+  lateWarnings: DarknessLateWarning[];
+  shortcutCueIds: string[];
   returnTracePublished: boolean;
+}
+
+export interface DarknessDesignGeneration extends FloorGeneration {
+  darknessState: DarknessFloorState;
 }
 
 export interface DarknessReturnTraceOptions {
@@ -294,6 +313,25 @@ const QUESTS: readonly DarknessQuestDef[] = [
     objective: 'Забрать засвеченный кадр и вынести его будущим адресатам: Жилой зоне, Министерству или Якову.',
     choices: ['carry_trace'],
     rewardHint: 'структурированное событие darkness_return_trace для поздних хуков',
+  },
+];
+
+export const DARKNESS_LATE_WARNINGS: readonly DarknessLateWarning[] = [
+  {
+    id: 'darkness_light_debt_warning',
+    label: 'Световой долг у пошлины',
+    sourceKey: 'toll',
+    targetKey: 'toll_gate',
+    warning: 'Короткий путь через сборщика экономит время, но съедает свет, который нужен для подписи и возврата.',
+    tags: ['darkness', 'light_budget', 'shadow_toll', 'warning'],
+  },
+  {
+    id: 'darkness_return_trace_warning',
+    label: 'Возвратный след выйдет наружу',
+    sourceKey: 'control',
+    targetKey: 'trace',
+    warning: 'След возврата можно вынести, но он станет фактом для Жилой зоны, Министерства или Якова.',
+    tags: ['darkness', 'return_trace', 'late_warning', 'warning'],
   },
 ];
 
@@ -950,6 +988,8 @@ function initialState(labels: DarknessRoomLabel[]): DarknessFloorState {
     shadowTollState: 'unpaid',
     roomLabels: labels,
     quests: QUESTS.map(q => ({ ...q, choices: [...q.choices] })),
+    lateWarnings: DARKNESS_LATE_WARNINGS.map(warning => ({ ...warning, tags: [...warning.tags] })),
+    shortcutCueIds: ['darkness_shadow_toll_shortcut', 'darkness_return_trace_warning'],
     returnTracePublished: false,
   };
 }
@@ -1020,6 +1060,33 @@ export function getDarknessState(world: World): DarknessFloorState | null {
   return darknessStateByWorld.get(world) ?? null;
 }
 
+export function publishDarknessLateWarning(
+  state: GameState,
+  warningId: DarknessLateWarningId,
+  options: DarknessReturnTraceOptions = {},
+): WorldEvent {
+  const warning = DARKNESS_LATE_WARNINGS.find(item => item.id === warningId);
+  return publishEvent(state, {
+    type: 'samosbor_warning',
+    floor: state.currentFloor,
+    zoneId: options.sourceZoneId,
+    roomId: options.sourceRoomId,
+    x: options.x,
+    y: options.y,
+    actorName: 'Тьма',
+    targetName: warning?.label,
+    severity: 4,
+    privacy: 'secret',
+    tags: ['darkness', 'late_warning', warningId, ...(warning?.tags ?? [])],
+    data: {
+      routeId: DARKNESS_DESIGN_FLOOR_ID,
+      z: DARKNESS_FUTURE_Z,
+      warningId,
+      warning: warning?.warning,
+    },
+  });
+}
+
 export function publishDarknessReturnTrace(
   state: GameState,
   options: DarknessReturnTraceOptions = {},
@@ -1045,7 +1112,75 @@ export function publishDarknessReturnTrace(
   });
 }
 
-export function generateDarknessDesignFloor(): FloorGeneration {
+function registerDarknessRouteCues(world: World, roomsByKey: Map<string, Room>): void {
+  const toll = roomsByKey.get('toll');
+  const tollGate = roomsByKey.get('toll_gate');
+  const control = roomsByKey.get('control');
+  const trace = roomsByKey.get('trace');
+  if (toll && tollGate) {
+    const markerX = toll.x + 2.5;
+    const markerY = toll.y + 8.5;
+    const targetX = tollGate.x + 6.5;
+    const targetY = tollGate.y + 3.5;
+    const markerCell = world.idx(Math.floor(markerX), Math.floor(markerY));
+    registerRouteCue(world, {
+      id: 'darkness_shadow_toll_shortcut',
+      x: markerX,
+      y: markerY,
+      targetX,
+      targetY,
+      floor: FloorLevel.VOID,
+      roomId: toll.id,
+      targetRoomId: tollGate.id,
+      zoneId: world.zoneMap[markerCell],
+      label: 'теневая пошлина',
+      hint: 'короткий путь просит свет',
+      targetName: 'шлюз теневой пошлины',
+      color: '#88f',
+      tags: ['darkness', 'shadow_toll', 'shortcut', 'light_budget'],
+      toneSeed: toll.id * 2003 + tollGate.id,
+      radius: 8,
+      targetRadius: 3,
+      cooldownSec: 42,
+      heardText: 'Сборщик тени показывает короткий путь: заплатить светом, драться или идти обходом.',
+      followedText: 'Шлюз пошлины найден. Быстро пройти можно, но свет больше не вернется.',
+      ignoredText: 'Теневая пошлина осталась позади. Длинный обход сохранит свет, но съест время.',
+    });
+  }
+
+  if (control && trace) {
+    const markerX = control.x + 11.5;
+    const markerY = control.y + 3.5;
+    const targetX = trace.x + 6.5;
+    const targetY = trace.y + 4.5;
+    const markerCell = world.idx(Math.floor(markerX), Math.floor(markerY));
+    registerRouteCue(world, {
+      id: 'darkness_return_trace_warning',
+      x: markerX,
+      y: markerY,
+      targetX,
+      targetY,
+      floor: FloorLevel.VOID,
+      roomId: control.id,
+      targetRoomId: trace.id,
+      zoneId: world.zoneMap[markerCell],
+      label: 'возвратный след',
+      hint: 'поздний факт выйдет наружу',
+      targetName: 'комната возвратного следа',
+      color: '#bbf',
+      tags: ['darkness', 'return_trace', 'late_warning', 'living_hook'],
+      toneSeed: control.id * 2011 + trace.id,
+      radius: 8,
+      targetRadius: 3,
+      cooldownSec: 44,
+      heardText: 'Пульт аварийного света предупреждает: возвратный след станет фактом для верхних этажей.',
+      followedText: 'Комната следа найдена. Забрать кадр значит вынести Тьму в другой маршрут.',
+      ignoredText: 'Возвратный след остался в темноте. Верхние этажи пока не знают это имя.',
+    });
+  }
+}
+
+export function generateDarknessDesignFloor(): DarknessDesignGeneration {
   const world = new World();
   const entities: Entity[] = [];
   const nextId = { v: 1 };
@@ -1060,10 +1195,12 @@ export function generateDarknessDesignFloor(): FloorGeneration {
 
   applyDarknessZones(world);
   placeContent(world, entities, nextId, roomsByKey);
+  registerDarknessRouteCues(world, roomsByKey);
   ensureConnectivity(world, spawnX, spawnY);
   world.bakeLights();
 
-  darknessStateByWorld.set(world, initialState(labels));
+  const darknessState = initialState(labels);
+  darknessStateByWorld.set(world, darknessState);
 
-  return { world, entities, spawnX, spawnY };
+  return { world, entities, spawnX, spawnY, darknessState };
 }

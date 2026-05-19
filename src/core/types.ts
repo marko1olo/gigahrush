@@ -556,112 +556,116 @@ export const WORLD_EVENT_IMPORTANT_CAPACITY = 128;
 export const WORLD_EVENT_ZONE_CAPACITY = 32;
 export const WORLD_EVENT_ZONE_COUNT = 64;
 
-export type WorldEventType =
-  | 'npc_enter_zone'
-  | 'npc_leave_zone'
-  | 'npc_enter_room'
-  | 'npc_need_low'
-  | 'npc_pick_item'
-  | 'npc_drop_item'
-  | 'npc_store_item'
-  | 'npc_take_from_container'
-  | 'container_looted'
-  | 'container_opened'
-  | 'item_stolen'
-  | 'item_deposited'
-  | 'room_produced_items'
-  | 'room_lacked_resources'
-  | 'room_blocked_production'
-  | 'npc_kill_monster'
-  | 'npc_kill_npc'
-  | 'player_kill_monster'
-  | 'player_kill_npc'
-  | 'player_hurt_npc'
-  | 'player_pick_item'
-  | 'player_drop_item'
-  | 'player_use_item'
-  | 'player_sell_item'
-  | 'player_handoff_item'
-  | 'player_destroy_item'
-  | 'player_status_applied'
-  | 'player_status_expired'
-  | 'player_status_cured'
-  | 'player_status_bad_reaction'
-  | 'tool_broke'
-  | 'ammo_consumed'
-  | 'uv_spotlight_used'
-  | 'uv_spotlight_target_affected'
-  | 'uv_spotlight_depleted'
-  | 'monster_bait_placed'
-  | 'monster_bait_attracted'
-  | 'monster_bait_consumed'
-  | 'monster_bait_expired'
-  | 'samosbor_warning'
-  | 'samosbor_started'
-  | 'samosbor_zone_captured'
-  | 'samosbor_ended'
-  | 'hermodoor_borer_detected'
-  | 'hermodoor_borer_damage'
-  | 'hermodoor_borer_repaired'
-  | 'hermodoor_borer_compromised'
-  | 'fog_boss_spawned'
-  | 'fog_boss_killed'
-  | 'monster_sighted'
-  | 'monster_windup_interrupted'
-  | 'monster_armor_cut'
-  | 'monster_escaped'
-  | 'smog_entered'
-  | 'smog_source_found'
-  | 'smog_source_handled'
-  | 'bad_apple_spawned'
-  | 'bad_apple_toggled'
-  | 'metro_route_taken'
-  | 'metro_wrong_stop'
-  | 'rail_train_boarded'
-  | 'rail_train_exited'
-  | 'rail_train_crush'
-  | 'quest_created'
-  | 'quest_completed'
-  | 'quest_failed'
-  | 'contract_created'
-  | 'contract_completed'
-  | 'contract_failed'
-  | 'ration_coupon_spent'
-  | 'ration_coupon_stolen'
-  | 'ration_coupon_forged'
-  | 'ration_coupon_reported'
-  | 'ration_audit_resolved'
-  | 'shelter_tally_handled'
-  | 'rumor_observed'
-  | 'rumor_spread'
-  | 'faction_patrol_clash'
-  | 'floor_transition'
-  | 'elevator_anomaly'
-  | 'elevator_loop_exit'
-  | 'lift_arachna_warned'
-  | 'lift_arachna_sprung'
-  | 'lift_arachna_avoided'
-  | 'lift_arachna_cleared'
-  | 'paritel_valve_changed'
-  | 'paritel_bridge_crossed'
-  | 'paritel_threat_neutralized'
-  | 'paritel_steam_injury'
-  | 'paritel_steam_avoided'
-  | 'faction_relation_changed'
-  | 'door_opened'
-  | 'door_sealed'
-  | 'room_regrown'
-  | 'hazard_trapped'
-  | 'hazard_escaped'
-  | 'hazard_cleaned'
-  | 'burn_cleanup'
-  | 'fuel_empty'
-  | 'collateral_damage'
-  | 'krysnozhka_swarm_triggered'
-  | 'krysnozhka_baited'
-  | 'krysnozhka_dispersed'
-  | 'krysnozhka_nest_cleared'
-  | 'death_seen';
+export const WORLD_EVENT_TYPES = [
+  'npc_enter_zone',
+  'npc_leave_zone',
+  'npc_enter_room',
+  'npc_need_low',
+  'npc_pick_item',
+  'npc_drop_item',
+  'npc_store_item',
+  'npc_take_from_container',
+  'container_looted',
+  'container_opened',
+  'item_stolen',
+  'item_deposited',
+  'room_produced_items',
+  'room_lacked_resources',
+  'room_blocked_production',
+  'npc_kill_monster',
+  'npc_kill_npc',
+  'player_kill_monster',
+  'player_kill_npc',
+  'player_hurt_npc',
+  'player_pick_item',
+  'player_drop_item',
+  'player_use_item',
+  'player_sell_item',
+  'player_handoff_item',
+  'player_destroy_item',
+  'player_status_applied',
+  'player_status_expired',
+  'player_status_cured',
+  'player_status_bad_reaction',
+  'tool_broke',
+  'ammo_consumed',
+  'uv_spotlight_used',
+  'uv_spotlight_target_affected',
+  'uv_spotlight_depleted',
+  'monster_bait_placed',
+  'monster_bait_attracted',
+  'monster_bait_consumed',
+  'monster_bait_expired',
+  'samosbor_warning',
+  'samosbor_started',
+  'samosbor_zone_captured',
+  'samosbor_ended',
+  'hermodoor_borer_detected',
+  'hermodoor_borer_damage',
+  'hermodoor_borer_repaired',
+  'hermodoor_borer_compromised',
+  'fog_boss_spawned',
+  'fog_boss_killed',
+  'monster_sighted',
+  'monster_windup_interrupted',
+  'monster_armor_cut',
+  'monster_escaped',
+  'smog_entered',
+  'smog_source_found',
+  'smog_source_handled',
+  'bad_apple_spawned',
+  'bad_apple_toggled',
+  'metro_route_taken',
+  'metro_wrong_stop',
+  'rail_train_boarded',
+  'rail_train_exited',
+  'rail_train_crush',
+  'quest_created',
+  'quest_completed',
+  'quest_failed',
+  'contract_created',
+  'contract_completed',
+  'contract_failed',
+  'ration_coupon_spent',
+  'ration_coupon_stolen',
+  'ration_coupon_forged',
+  'ration_coupon_reported',
+  'ration_audit_resolved',
+  'shelter_tally_handled',
+  'rumor_observed',
+  'rumor_spread',
+  'faction_event',
+  'faction_patrol_clash',
+  'floor_transition',
+  'elevator_anomaly',
+  'elevator_loop_exit',
+  'lift_arachna_warned',
+  'lift_arachna_sprung',
+  'lift_arachna_avoided',
+  'lift_arachna_cleared',
+  'paritel_valve_changed',
+  'paritel_bridge_crossed',
+  'paritel_threat_neutralized',
+  'paritel_steam_injury',
+  'paritel_steam_avoided',
+  'faction_relation_changed',
+  'door_opened',
+  'door_sealed',
+  'room_regrown',
+  'hazard_trapped',
+  'hazard_escaped',
+  'hazard_cleaned',
+  'burn_cleanup',
+  'fuel_empty',
+  'collateral_damage',
+  'krysnozhka_swarm_triggered',
+  'krysnozhka_baited',
+  'krysnozhka_dispersed',
+  'krysnozhka_nest_cleared',
+  'death_seen',
+] as const;
+
+export type WorldEventType = typeof WORLD_EVENT_TYPES[number];
 
 export type WorldEventSeverity = 0 | 1 | 2 | 3 | 4 | 5;
 export type WorldEventPrivacy = 'public' | 'local' | 'witnessed' | 'private' | 'secret';

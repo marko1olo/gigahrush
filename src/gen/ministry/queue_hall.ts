@@ -11,6 +11,18 @@ import {
 } from './admin_common';
 import { genLog } from '../log';
 
+const PERMIT_CHOICE_IDS = [
+  'permit_wait_queue',
+  'permit_pay_accelerator',
+  'permit_forge_slip',
+  'permit_threaten_window',
+  'queue_water',
+] as const;
+
+function otherPermitChoices(id: string): string[] {
+  return PERMIT_CHOICE_IDS.filter(choiceId => choiceId !== id);
+}
+
 const OSIP_DEF: PlotNpcDef = {
   name: 'Осип Карточный',
   isFemale: false,
@@ -98,11 +110,16 @@ registerSideQuest('klavdiya_ocherednaya', KLAVDIYA_DEF, [
     id: 'queue_water',
     giverNpcId: 'klavdiya_ocherednaya',
     type: QuestType.FETCH,
-    desc: 'Клавдия Очередная: «Две бутылки воды. Очередь сушит горло быстрее сирены.»',
+    desc: 'Клавдия Очередная: «Две бутылки воды. Я уступлю место у пропускного окна, пока очередь не заметила милосердие.»',
     targetItem: 'water', targetCount: 2,
-    rewardItem: 'toiletpaper', rewardCount: 2,
-    extraRewards: [{ defId: 'bread', count: 2 }],
-    relationDelta: 12, xpReward: 55, moneyReward: 45,
+    rewardItem: 'official_permit_slip', rewardCount: 1,
+    extraRewards: [{ defId: 'toiletpaper', count: 2 }, { defId: 'bread', count: 2 }],
+    relationDelta: 14, xpReward: 55, moneyReward: 20,
+    eventTargetName: 'Место у пропускного окна получено через помощь человеку в очереди.',
+    eventTags: ['ministry', 'permit_office', 'queue', 'help', 'relief'],
+    eventData: { permitOutcome: 'help', permitDocument: 'official_permit_slip', helpedNpc: 'klavdiya_ocherednaya' },
+    abandonsSideQuestIds: otherPermitChoices('queue_water'),
+    blockedBySideQuestIds: otherPermitChoices('queue_water'),
   },
 ]);
 

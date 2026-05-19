@@ -6,8 +6,11 @@ import {
   msg,
 } from '../../core/types';
 import { World } from '../../core/world';
-import { WEAPON_STATS } from '../../data/catalog';
-import { playGunshot, playShotgun, playNailgun, playAttack, playFlame, playSoundAt } from '../audio';
+import { WEAPON_STATS, type WeaponStats } from '../../data/catalog';
+import {
+  playAttack, playHostileEnergyShot, playHostileFlame, playHostileGunshot, playHostileNailgun,
+  playHostilePsiCast, playHostileShotgun, playSoundAt,
+} from '../audio';
 import { applyDamageRelationPenalty } from '../factions';
 import { clearFogInZone } from '../samosbor';
 import { strMeleeDmgMult, agiAttackSpeedMult } from '../rpg';
@@ -121,6 +124,8 @@ const NPC_COMBAT_RANGE = 8;
 const NPC_ATTACK_RANGE = 1.3;
 const NPC_COMBAT_CD = 1.2;
 const NPC_RANGED_MAX = 12;
+const MELEE_KNOCKBACK_CAP = 0.65;
+const MELEE_STAGGER_CAP = 0.35;
 
 export function tryFactionCombat(
   world: World, entities: Entity[], e: Entity, dt: number, _time: number, msgs: Msg[], nextId: { v: number },
@@ -140,6 +145,11 @@ export function tryFactionCombat(
 
   const detectRange = ws.isRanged ? NPC_RANGED_MAX : NPC_COMBAT_RANGE;
   const ai = e.ai!;
+  if ((ai.staggerTimer ?? 0) > 0) {
+    ai.staggerTimer = Math.max(0, (ai.staggerTimer ?? 0) - dt);
+    e.attackCd = Math.max(e.attackCd ?? 0, 0.12);
+    return true;
+  }
   const prevTarget = ai.combatTargetId;
   const target = findCombatTarget(
     world, entities, e, dt,
@@ -167,16 +177,14 @@ export function tryFactionCombat(
         } else {
           e.rpg.psi -= ws.psiCost;
           npcFireProjectile(e, target, ws, entities, nextId);
+          playSoundAt(playHostilePsiCast, e.x, e.y);
           e.attackCd = ws.speed * atkSpeedMod;
           return true;
         }
       } else if (ws.ammoType) {
         if (consumeAmmo(e)) {
           npcFireProjectile(e, target, ws, entities, nextId);
-          if (e.weapon === 'shotgun') playSoundAt(playShotgun, e.x, e.y);
-          else if (e.weapon === 'nailgun') playSoundAt(playNailgun, e.x, e.y);
-          else if (e.weapon === 'flamethrower') playSoundAt(playFlame, e.x, e.y);
-          else playSoundAt(playGunshot, e.x, e.y);
+          playSoundAt(hostileWeaponSound(e.weapon ?? ''), e.x, e.y);
           e.attackCd = ws.speed * atkSpeedMod;
           return true;
         }
@@ -221,6 +229,7 @@ export function tryFactionCombat(
         }
         const hitAng = Math.atan2(target.y - e.y, target.x - e.x);
         spawnBloodHit(world, target.x, target.y, hitAng, dmg, target.type === EntityType.MONSTER);
+        applyMeleeKnockback(world, e, target, meleeWs);
         if (target.hp <= 0) {
           target.alive = false;
           spawnDeathPool(world, target.x, target.y, target.type === EntityType.MONSTER);
@@ -241,6 +250,48 @@ export function tryFactionCombat(
     e.attackCd = (meleeWs.speed || NPC_COMBAT_CD) * atkSpeedMod;
   }
   return true;
+}
+
+function applyMeleeKnockback(world: World, source: Entity, target: Entity, ws: WeaponStats): void {
+  const force = Math.min(MELEE_KNOCKBACK_CAP, Math.max(0, ws.knockback ?? 0));
+  if (force <= 0) return;
+
+  let dx = world.delta(source.x, target.x);
+  let dy = world.delta(source.y, target.y);
+  let len = Math.sqrt(dx * dx + dy * dy);
+  if (len < 0.001) {
+    dx = Math.cos(source.angle);
+    dy = Math.sin(source.angle);
+    len = 1;
+  }
+
+  const nx = world.wrap(target.x + dx / len * force);
+  if (!world.solid(Math.floor(nx), Math.floor(target.y))) target.x = nx;
+  const ny = world.wrap(target.y + dy / len * force);
+  if (!world.solid(Math.floor(target.x), Math.floor(ny))) target.y = ny;
+
+  const stagger = Math.min(MELEE_STAGGER_CAP, 0.08 + force * 0.35);
+  if (target.ai) target.ai.staggerTimer = Math.max(target.ai.staggerTimer ?? 0, stagger);
+  if (target.type !== EntityType.PLAYER) target.attackCd = Math.max(target.attackCd ?? 0, stagger);
+}
+
+function hostileWeaponSound(weaponId: string): () => void {
+  switch (weaponId) {
+    case 'shotgun':
+    case 'toz_shotgun':
+      return playHostileShotgun;
+    case 'nailgun':
+    case 'harpoon_gun':
+      return playHostileNailgun;
+    case 'flamethrower':
+      return playHostileFlame;
+    case 'gauss':
+    case 'plasma':
+    case 'bfg':
+      return playHostileEnergyShot;
+    default:
+      return playHostileGunshot;
+  }
 }
 
 /* ── NPC: fire ranged projectile ──────────────────────────────── */

@@ -12,6 +12,7 @@ import {
 
 const VENT_ROOM_NAME = 'Поющий вентканал НИИ: слизь в решетке';
 const SAMPLE_ROOM_NAME = 'Слизистый пробоотборник: аварийная ниша';
+const BROWN_SAMPLE_ITEM = 'slime_sample_brown';
 
 function nextContainerId(ctx: MaintContentCtx): number {
   let id = ctx.world.containers.length + 1;
@@ -34,8 +35,9 @@ function addSampleJar(ctx: MaintContentCtx, room: Room, x: number, y: number): v
     name: 'Запаянная банка под поющим вентилем',
     inventory: [
       { defId: 'strange_clot', count: 1, data: 'Слизистый образец с поющего вентканала.' },
+      { defId: BROWN_SAMPLE_ITEM, count: 1, data: 'Запаянная проба с вентканала. Пост НИИ примет как коричневую, печь — как опасную.' },
       { defId: 'gasmask_filter', count: 1 },
-      { defId: 'note', count: 1, data: 'Не брать, если песня идет в обе стороны. В акте писать: давление, не голос.' },
+      { defId: 'note', count: 1, data: 'Не брать, если песня идет в обе стороны. В акте писать: давление, не голос. Пломбу не вскрывать: Бокова запишет, Вера прожжет, Сеня купит.' },
     ],
     capacitySlots: 6,
     faction: Faction.SCIENTIST,

@@ -13,6 +13,12 @@ import { publishEvent } from './events';
 
 const HEATLINE_PREFIX = 'Теплотрасса Ноль';
 const HEATLINE_RESOLVED = 'сброс открыт';
+const HEATLINE_PARTIAL_CORD = 'частичный шнур';
+const HEATLINE_PARTIAL_SEALANT = 'частичный герметик';
+const HEATLINE_VENTED = 'аварийный выброс';
+
+type HeatlineOutcome = 'full_repair' | 'partial_repair' | 'shortcut' | 'vent_failure' | 'blocked';
+type HeatlinePart = 'cord' | 'sealant';
 
 let nextPressureUseAt = 0;
 let pressureCooldownState: GameState | null = null;
@@ -22,10 +28,10 @@ function isHeatlineRoom(room: Room): boolean {
 }
 
 function heatTag(room: Room): string {
-  if (room.name.includes('обваренный')) return 'hazard';
-  if (room.name.includes('обход')) return 'safe';
   if (room.name.includes('ремонт')) return 'repair';
-  if (room.name.includes('вентиль')) return 'valve';
+  if (room.name.includes('обход')) return 'safe';
+  if (room.name.includes('обваренный') || room.name.includes('короткий ход')) return 'hazard';
+  if (room.name.includes('вентиль') || room.name.includes('сброс') || room.name.includes('частичный')) return 'valve';
   return 'static';
 }
 
@@ -45,6 +51,16 @@ function heatlineRooms(world: World): Room[] {
 
 function heatlineResolved(world: World): boolean {
   return heatlineRooms(world).some(room => room.name.includes(HEATLINE_RESOLVED));
+}
+
+function heatlinePartialPart(world: World): HeatlinePart | null {
+  if (heatlineRooms(world).some(room => room.name.includes(HEATLINE_PARTIAL_CORD))) return 'cord';
+  if (heatlineRooms(world).some(room => room.name.includes(HEATLINE_PARTIAL_SEALANT))) return 'sealant';
+  return null;
+}
+
+function heatlineVented(world: World): boolean {
+  return heatlineRooms(world).some(room => room.name.includes(HEATLINE_VENTED));
 }
 
 function findHeatlineRoom(world: World, tag: string): Room | undefined {
@@ -123,8 +139,10 @@ function publishHeatlineEvent(
   player: Entity,
   state: GameState,
   room: Room,
-  outcome: 'repair' | 'shortcut' | 'failure' | 'blocked',
+  outcome: HeatlineOutcome,
   severity: 2 | 3 | 4,
+  itemId: string,
+  itemName: string,
   data: Record<string, unknown>,
 ): void {
   const px = Math.floor(player.x);
@@ -139,8 +157,8 @@ function publishHeatlineEvent(
     actorId: player.id,
     actorName: player.name ?? 'Вы',
     actorFaction: player.faction,
-    itemId: outcome === 'failure' ? 'manometer' : 'sealant_tube',
-    itemName: outcome === 'failure' ? 'Манометр' : 'Герметик',
+    itemId,
+    itemName,
     severity,
     privacy: player.type === EntityType.PLAYER ? 'local' : 'private',
     tags: ['player', 'maintenance', 'heatline', 'pressure', outcome],
@@ -148,12 +166,36 @@ function publishHeatlineEvent(
       system: 'heatline_zero',
       outcome,
       roomName: room.name,
+      rumorIds: ['maint_heatline_manual_reroute'],
       ...data,
     },
   });
 }
 
-function applyPressureResolution(world: World, clean: boolean): void {
+function consumeHeatlineParts(player: Entity, needCord: boolean, needSealant: boolean): string[] {
+  const consumed: string[] = [];
+  if (needCord && removeItem(player, 'asbestos_cord', 1)) consumed.push('asbestos_cord');
+  if (needSealant && removeItem(player, 'sealant_tube', 1)) consumed.push('sealant_tube');
+  return consumed;
+}
+
+function consumeFailedPart(player: Entity, hasCord: boolean, hasSealant: boolean): string[] {
+  if (hasSealant && removeItem(player, 'sealant_tube', 1)) return ['sealant_tube'];
+  if (hasCord && removeItem(player, 'asbestos_cord', 1)) return ['asbestos_cord'];
+  return [];
+}
+
+function eventItem(consumed: readonly string[], fallback: string): { id: string; name: string } {
+  const id = consumed[0] ?? fallback;
+  switch (id) {
+    case 'asbestos_cord': return { id, name: 'Асбестовый шнур' };
+    case 'sealant_tube': return { id, name: 'Герметик' };
+    case 'valve_tag': return { id, name: 'Бирка вентиля' };
+    default: return { id: 'manometer', name: 'Манометр' };
+  }
+}
+
+function applyPressureResolution(world: World, clean: boolean, recoveredFrom: HeatlinePart | 'vented' | null): void {
   const valve = findHeatlineRoom(world, 'valve');
   const hazard = findHeatlineRoom(world, 'hazard');
   const safe = findHeatlineRoom(world, 'safe');
@@ -161,7 +203,7 @@ function applyPressureResolution(world: World, clean: boolean): void {
   const hazardId = hazard?.id ?? -1;
 
   if (valve) valve.name = clean
-    ? 'Теплотрасса Ноль: ручной сброс открыт давление 0'
+    ? `Теплотрасса Ноль: ручной сброс открыт давление 0${recoveredFrom ? ' после доводки' : ''}`
     : 'Теплотрасса Ноль: ручной сброс открыт без стрелки';
   if (hazard) hazard.name = clean
     ? 'Теплотрасса Ноль: остывший короткий ход жар 0 давление 0'
@@ -182,7 +224,36 @@ function applyPressureResolution(world: World, clean: boolean): void {
   world.markFogDirty();
 }
 
+function applyPartialRepair(world: World, part: HeatlinePart): void {
+  const valve = findHeatlineRoom(world, 'valve');
+  const hazard = findHeatlineRoom(world, 'hazard');
+  const safe = findHeatlineRoom(world, 'safe');
+  const repair = findHeatlineRoom(world, 'repair');
+
+  if (valve) valve.name = `Теплотрасса Ноль: ${part === 'cord' ? HEATLINE_PARTIAL_CORD : HEATLINE_PARTIAL_SEALANT} давление 1`;
+  if (hazard) hazard.name = 'Теплотрасса Ноль: приглушенный короткий ход жар 1 давление 1';
+  if (safe) safe.name = 'Теплотрасса Ноль: душевой обход основной жар 0';
+  if (repair) repair.name = `Теплотрасса Ноль: ремонтный ящик ждет ${part === 'cord' ? 'герметик' : 'асбестовый шнур'}`;
+
+  for (const room of heatlineRooms(world)) {
+    const tag = heatTag(room);
+    if (tag === 'hazard') setRoomFog(world, room, 68, 'min');
+    else if (tag === 'safe') setRoomFog(world, room, 0, 'set');
+    else setRoomFog(world, room, 18, 'min');
+    stampSteamResidue(world, room, part === 'cord' ? 6400 : 6500, tag === 'hazard');
+  }
+  world.markFogDirty();
+}
+
 function applyPressureFailure(world: World): void {
+  const valve = findHeatlineRoom(world, 'valve');
+  const hazard = findHeatlineRoom(world, 'hazard');
+  const repair = findHeatlineRoom(world, 'repair');
+
+  if (valve) valve.name = `Теплотрасса Ноль: вентильная ${HEATLINE_VENTED} давление 3`;
+  if (hazard) hazard.name = `Теплотрасса Ноль: обваренный коридор ${HEATLINE_VENTED} пар 3`;
+  if (repair) repair.name = `Теплотрасса Ноль: ремонтный ящик мокрый после ${HEATLINE_VENTED}`;
+
   for (const room of heatlineRooms(world)) {
     const tag = heatTag(room);
     if (tag === 'safe') continue;
@@ -209,42 +280,67 @@ export function tryUseHeatlinePressure(
   }
   nextPressureUseAt = state.time + 1.2;
 
-  if (heatlineResolved(world)) {
-    state.msgs.push(msg('Теплотрасса уже сброшена. Короткий ход условно безопасен.', state.time, '#8cf'));
-    publishHeatlineEvent(world, player, state, room, 'blocked', 2, { reason: 'already_resolved' });
-    return true;
-  }
-
   const hasCord = hasItem(player, 'asbestos_cord');
   const hasSealant = hasItem(player, 'sealant_tube');
   const hasGauge = hasItem(player, 'manometer');
+  const partialPart = heatlinePartialPart(world);
+  const needCord = partialPart !== 'cord';
+  const needSealant = partialPart !== 'sealant';
+  const hasInstalledCord = !needCord || hasCord;
+  const hasInstalledSealant = !needSealant || hasSealant;
 
-  if (hasCord && hasSealant && hasGauge) {
-    removeItem(player, 'asbestos_cord', 1);
-    removeItem(player, 'sealant_tube', 1);
-    applyPressureResolution(world, true);
+  if (heatlineResolved(world)) {
+    state.msgs.push(msg('Теплотрасса уже сброшена. Короткий ход условно безопасен.', state.time, '#8cf'));
+    publishHeatlineEvent(world, player, state, room, 'blocked', 2, 'valve_tag', 'Бирка вентиля', { reason: 'already_resolved' });
+    return true;
+  }
+
+  if (heatlineVented(world) && !(hasGauge && hasInstalledCord && hasInstalledSealant) && !(hasInstalledCord && hasInstalledSealant)) {
+    state.msgs.push(msg('Пар уже сорвал вентиль. Без полного комплекта повторять нечего: только слушать, как сохнет ожог.', state.time, '#888'));
+    publishHeatlineEvent(world, player, state, room, 'blocked', 2, 'manometer', 'Манометр', {
+      reason: 'already_vented',
+      missing: [
+        ...(hasInstalledCord ? [] : ['asbestos_cord']),
+        ...(hasInstalledSealant ? [] : ['sealant_tube']),
+        ...(hasGauge ? [] : ['manometer']),
+      ],
+    });
+    nextPressureUseAt = state.time + 1.5;
+    return true;
+  }
+
+  if (hasInstalledCord && hasInstalledSealant && hasGauge) {
+    const wasVented = heatlineVented(world);
+    const consumed = consumeHeatlineParts(player, needCord, needSealant);
+    const item = eventItem(consumed, 'manometer');
+    applyPressureResolution(world, true, partialPart ?? (wasVented ? 'vented' : null));
     addItem(player, 'valve_tag', 1);
     addItem(player, 'filtered_water', 1);
     state.msgs.push(msg('Манометр дрогнул и успокоился. Давление сброшено, короткий ход остыл.', state.time, '#6cf'));
-    publishHeatlineEvent(world, player, state, room, 'repair', 4, {
-      consumed: ['asbestos_cord', 'sealant_tube'],
+    publishHeatlineEvent(world, player, state, room, 'full_repair', 4, item.id, item.name, {
+      consumed,
       checkedWith: 'manometer',
+      installedFromPartial: partialPart,
+      recoveredFromVented: wasVented,
       reward: ['valve_tag', 'filtered_water'],
     });
     nextPressureUseAt = state.time + 2.5;
     return true;
   }
 
-  if (hasCord && hasSealant) {
-    removeItem(player, 'asbestos_cord', 1);
-    removeItem(player, 'sealant_tube', 1);
-    applyPressureResolution(world, false);
+  if (hasInstalledCord && hasInstalledSealant) {
+    const wasVented = heatlineVented(world);
+    const consumed = consumeHeatlineParts(player, needCord, needSealant);
+    const item = eventItem(consumed, 'manometer');
+    applyPressureResolution(world, false, partialPart ?? (wasVented ? 'vented' : null));
     damagePlayer(player, 10);
     addItem(player, 'valve_tag', 1);
     state.msgs.push(msg('Слепой сброс сработал. Пар ушел в соседей, коридор открыт, кожа спорит.', state.time, '#fa4'));
-    publishHeatlineEvent(world, player, state, room, 'shortcut', 4, {
-      consumed: ['asbestos_cord', 'sealant_tube'],
+    publishHeatlineEvent(world, player, state, room, 'shortcut', 4, item.id, item.name, {
+      consumed,
       missing: 'manometer',
+      installedFromPartial: partialPart,
+      recoveredFromVented: wasVented,
       damage: 10,
       reward: ['valve_tag'],
     });
@@ -252,10 +348,53 @@ export function tryUseHeatlinePressure(
     return true;
   }
 
+  if (!partialPart && hasGauge && (hasCord || hasSealant)) {
+    const part: HeatlinePart = hasCord ? 'cord' : 'sealant';
+    const consumed = consumeHeatlineParts(player, part === 'cord', part === 'sealant');
+    applyPartialRepair(world, part);
+    addItem(player, 'metal_water', 1);
+    state.msgs.push(msg(
+      part === 'cord'
+        ? 'Шнур лег на вентиль. Давление стало терпимым, но без герметика короткий ход не открыт.'
+        : 'Герметик схватил шов. Давление стало терпимым, но без шнура короткий ход не открыт.',
+      state.time,
+      '#8cf',
+    ));
+    publishHeatlineEvent(world, player, state, room, 'partial_repair', 3, part === 'cord' ? 'asbestos_cord' : 'sealant_tube', part === 'cord' ? 'Асбестовый шнур' : 'Герметик', {
+      consumed,
+      installed: part === 'cord' ? 'asbestos_cord' : 'sealant_tube',
+      missing: part === 'cord' ? 'sealant_tube' : 'asbestos_cord',
+      checkedWith: 'manometer',
+      reward: ['metal_water'],
+    });
+    nextPressureUseAt = state.time + 2.2;
+    return true;
+  }
+
+  if (partialPart) {
+    state.msgs.push(msg(
+      partialPart === 'cord'
+        ? 'Частичный шнур уже держит. Нужен герметик; без него вентиль только злится.'
+        : 'Частичный герметик уже держит. Нужен асбестовый шнур; без него вентиль только злится.',
+      state.time,
+      '#888',
+    ));
+    publishHeatlineEvent(world, player, state, room, 'blocked', 2, partialPart === 'cord' ? 'asbestos_cord' : 'sealant_tube', partialPart === 'cord' ? 'Асбестовый шнур' : 'Герметик', {
+      reason: 'partial_waiting_missing_part',
+      installed: partialPart === 'cord' ? 'asbestos_cord' : 'sealant_tube',
+      missing: partialPart === 'cord' ? 'sealant_tube' : 'asbestos_cord',
+    });
+    nextPressureUseAt = state.time + 1.5;
+    return true;
+  }
+
+  const consumed = consumeFailedPart(player, hasCord, hasSealant);
+  const item = eventItem(consumed, 'manometer');
   applyPressureFailure(world);
   damagePlayer(player, 16);
   state.msgs.push(msg('Вентиль сорвался паром. Нужны асбестовый шнур и герметик; манометр спасет кожу.', state.time, '#f84'));
-  publishHeatlineEvent(world, player, state, room, 'failure', 3, {
+  publishHeatlineEvent(world, player, state, room, 'vent_failure', 3, item.id, item.name, {
+    consumed,
     missing: [
       ...(hasCord ? [] : ['asbestos_cord']),
       ...(hasSealant ? [] : ['sealant_tube']),
@@ -284,8 +423,9 @@ export function summarizeHeatline(world: World, limit = 8): string[] {
     zones.add(world.zoneMap[ci]);
   }
 
+  const partialPart = heatlinePartialPart(world);
   const lines = [
-    `[HEATLINE] rooms=${rooms.length} hazard=${hazard} safe=${safe} repair=${repair} resolved=${heatlineResolved(world) ? 1 : 0} zones=${[...zones].map(z => z + 1).join(',')}`,
+    `[HEATLINE] rooms=${rooms.length} hazard=${hazard} safe=${safe} repair=${repair} resolved=${heatlineResolved(world) ? 1 : 0} partial=${partialPart ?? '-'} vented=${heatlineVented(world) ? 1 : 0} zones=${[...zones].map(z => z + 1).join(',')}`,
   ];
   for (const room of rooms.slice(0, limit)) {
     lines.push(`[HEATLINE] #${room.id} ${heatTag(room)} ${roomTypeName(room.type)} ${room.name}`);

@@ -8,6 +8,10 @@ const SOUND_MAX_DIST = 25;  // beyond this, sound is silent
 let _playerX = 0, _playerY = 0;
 let _worldDist2: ((ax: number, ay: number, bx: number, by: number) => number) | null = null;
 
+function hasAudioContext(): boolean {
+  return typeof AudioContext !== 'undefined';
+}
+
 export function setListenerPos(x: number, y: number, distFn: (ax: number, ay: number, bx: number, by: number) => number): void {
   _playerX = x;
   _playerY = y;
@@ -26,6 +30,7 @@ function volumeAt(x: number, y: number): number {
 
 /** Play a sound at a world position (volume depends on distance to player) */
 export function playSoundAt(fn: () => void, x: number, y: number): void {
+  if (!hasAudioContext()) return;
   const vol = volumeAt(x, y);
   if (vol < 0.01) return;  // too far, skip entirely
   if (mainGain) {
@@ -353,6 +358,30 @@ export function playGunshot(): void {
   src.start();
 }
 
+/* ── Hostile shot: sharper incoming crack, distinct from player ─ */
+export function playHostileGunshot(): void {
+  const ac = ensureContext();
+  const len = 0.16;
+  const buf = ac.createBuffer(1, ac.sampleRate * len, ac.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) {
+    const t = i / d.length;
+    const env = Math.exp(-t * 28);
+    d[i] = ((Math.random() * 2 - 1) * 0.7 + Math.sin(i * 0.11) * 0.45) * env;
+    d[i] = Math.max(-1, Math.min(1, d[i] * 1.7));
+  }
+  const src = ac.createBufferSource();
+  src.buffer = buf;
+  const g = ac.createGain();
+  g.gain.value = 0.2;
+  const bp = ac.createBiquadFilter();
+  bp.type = 'bandpass';
+  bp.frequency.value = 2600;
+  bp.Q.value = 0.9;
+  src.connect(bp).connect(g).connect(gain());
+  src.start();
+}
+
 /* ── Shotgun: heavy boom ─────────────────────────────────────── */
 export function playShotgun(): void {
   const ac = ensureContext();
@@ -377,6 +406,31 @@ export function playShotgun(): void {
   src.start();
 }
 
+/* ── Hostile shotgun: dry double slap with less low-end weight ── */
+export function playHostileShotgun(): void {
+  const ac = ensureContext();
+  const len = 0.28;
+  const buf = ac.createBuffer(1, ac.sampleRate * len, ac.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) {
+    const t = i / d.length;
+    const env = Math.exp(-t * 15);
+    const slap = Math.sin(i * 0.06) * 0.35 + Math.sin(i * 0.023) * 0.28;
+    d[i] = ((Math.random() * 2 - 1) * 0.75 + slap) * env;
+    d[i] = Math.max(-1, Math.min(1, d[i] * 1.8));
+  }
+  const src = ac.createBufferSource();
+  src.buffer = buf;
+  const g = ac.createGain();
+  g.gain.value = 0.24;
+  const bp = ac.createBiquadFilter();
+  bp.type = 'bandpass';
+  bp.frequency.value = 1250;
+  bp.Q.value = 0.7;
+  src.connect(bp).connect(g).connect(gain());
+  src.start();
+}
+
 /* ── Nailgun: rapid metallic clack ───────────────────────────── */
 export function playNailgun(): void {
   const ac = ensureContext();
@@ -391,50 +445,86 @@ export function playNailgun(): void {
   osc.start(); osc.stop(ac.currentTime + 0.06);
 }
 
+/* ── Hostile nailgun: brittle high metal tick ────────────────── */
+export function playHostileNailgun(): void {
+  const ac = ensureContext();
+  const now = ac.currentTime;
+  const osc = ac.createOscillator();
+  const g = ac.createGain();
+  osc.type = 'square';
+  osc.frequency.setValueAtTime(1150 + Math.random() * 240, now);
+  osc.frequency.exponentialRampToValueAtTime(260, now + 0.055);
+  g.gain.setValueAtTime(0.13, now);
+  g.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
+  const hp = ac.createBiquadFilter();
+  hp.type = 'highpass';
+  hp.frequency.value = 520;
+  osc.connect(hp).connect(g).connect(gain());
+  osc.start();
+  osc.stop(now + 0.07);
+}
+
 /* ── Projectile impact: short concrete/metal tick ────────────── */
 export function playProjectileImpact(): void {
   const ac = ensureContext();
-  const len = 0.08;
+  const len = 0.11;
   const buf = ac.createBuffer(1, ac.sampleRate * len, ac.sampleRate);
   const d = buf.getChannelData(0);
   for (let i = 0; i < d.length; i++) {
     const t = i / d.length;
-    const env = Math.exp(-t * 35);
-    d[i] = ((Math.random() * 2 - 1) * 0.55 + Math.sin(i * 0.18) * 0.25) * env;
+    const env = Math.exp(-t * 42);
+    const ping = Math.sin(i * 0.33 + Math.sin(i * 0.017) * 0.9) * 0.38;
+    d[i] = ((Math.random() * 2 - 1) * 0.52 + ping) * env;
   }
   const src = ac.createBufferSource();
   src.buffer = buf;
   const g = ac.createGain();
-  g.gain.value = 0.12;
+  g.gain.value = 0.13;
   const hp = ac.createBiquadFilter();
   hp.type = 'highpass';
-  hp.frequency.value = 700;
+  hp.frequency.value = 950;
   src.connect(hp).connect(g).connect(gain());
   src.start();
 }
 
-/* ── Energy impact: compact zap/sizzle cue ───────────────────── */
+/* ── Energy/PSI impact: compact zap plus psychic after-ring ───── */
 export function playEnergyImpact(): void {
   const ac = ensureContext();
-  const len = 0.12;
+  const len = 0.2;
+  const now = ac.currentTime;
   const buf = ac.createBuffer(1, ac.sampleRate * len, ac.sampleRate);
   const d = buf.getChannelData(0);
   for (let i = 0; i < d.length; i++) {
     const t = i / d.length;
-    const env = Math.exp(-t * 20);
-    d[i] = Math.sin(i * 0.12 + Math.sin(i * 0.03) * 2) * 0.35 * env;
-    d[i] += (Math.random() * 2 - 1) * 0.25 * env;
+    const env = Math.exp(-t * 14);
+    const warp = Math.sin(i * 0.018) * 2.7;
+    d[i] = Math.sin(i * 0.16 + warp) * 0.34 * env;
+    d[i] += Math.sin(i * 0.047 + warp * 0.4) * 0.18 * env;
+    d[i] += (Math.random() * 2 - 1) * 0.24 * env;
   }
   const src = ac.createBufferSource();
   src.buffer = buf;
   const g = ac.createGain();
-  g.gain.value = 0.14;
+  g.gain.value = 0.15;
   const bp = ac.createBiquadFilter();
   bp.type = 'bandpass';
-  bp.frequency.value = 1200;
-  bp.Q.value = 1.4;
-  src.connect(bp).connect(g).connect(gain());
-  src.start();
+  bp.frequency.value = 1360;
+  bp.Q.value = 1.7;
+  const bus = ac.createGain();
+  bus.connect(gain());
+  src.connect(bp).connect(g).connect(bus);
+  src.start(now);
+
+  const ring = ac.createOscillator();
+  const rg = ac.createGain();
+  ring.type = 'triangle';
+  ring.frequency.setValueAtTime(620 + Math.random() * 90, now);
+  ring.frequency.exponentialRampToValueAtTime(180, now + 0.22);
+  rg.gain.setValueAtTime(0.06, now + 0.02);
+  rg.gain.exponentialRampToValueAtTime(0.001, now + 0.24);
+  ring.connect(rg).connect(bus);
+  ring.start(now + 0.02);
+  ring.stop(now + 0.24);
 }
 
 /* ── Weapon break: crunch ────────────────────────────────────── */
@@ -508,6 +598,53 @@ export function playPsiCast(): void {
   bp.Q.value = 1.5;
   src.connect(bp).connect(g).connect(gain());
   src.start();
+}
+
+/* ── Hostile PSI cast: thinner warning shriek before impact ───── */
+export function playHostilePsiCast(): void {
+  const ac = ensureContext();
+  const now = ac.currentTime;
+  const len = 0.32;
+  const buf = ac.createBuffer(1, Math.max(1, Math.floor(ac.sampleRate * len)), ac.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) {
+    const t = i / d.length;
+    const env = Math.sin(t * Math.PI) * Math.exp(-t * 2.7);
+    const sweep = 0.012 + t * 0.012;
+    d[i] = Math.sin(i * sweep + Math.sin(i * 0.004) * 3.2) * 0.42 * env;
+    d[i] += (Math.random() * 2 - 1) * 0.16 * env;
+    d[i] = Math.max(-0.8, Math.min(0.8, d[i]));
+  }
+  const src = ac.createBufferSource();
+  src.buffer = buf;
+  const g = ac.createGain();
+  g.gain.value = 0.22;
+  const bp = ac.createBiquadFilter();
+  bp.type = 'bandpass';
+  bp.frequency.value = 1250;
+  bp.Q.value = 1.9;
+  src.connect(bp).connect(g).connect(gain());
+  src.start(now);
+}
+
+/* ── Hostile energy shot: electrical snap before red/orange bolts ─ */
+export function playHostileEnergyShot(): void {
+  const ac = ensureContext();
+  const now = ac.currentTime;
+  const osc = ac.createOscillator();
+  const g = ac.createGain();
+  osc.type = 'sawtooth';
+  osc.frequency.setValueAtTime(1850 + Math.random() * 420, now);
+  osc.frequency.exponentialRampToValueAtTime(420, now + 0.11);
+  g.gain.setValueAtTime(0.12, now);
+  g.gain.exponentialRampToValueAtTime(0.001, now + 0.13);
+  const bp = ac.createBiquadFilter();
+  bp.type = 'bandpass';
+  bp.frequency.value = 1750;
+  bp.Q.value = 1.2;
+  osc.connect(bp).connect(g).connect(gain());
+  osc.start(now);
+  osc.stop(now + 0.13);
 }
 
 /* ── Ambient drone (looping) ─────────────────────────────────── */
@@ -700,6 +837,30 @@ export function playFlame(): void {
   bp.type = 'bandpass';
   bp.frequency.value = 400;
   bp.Q.value = 0.5;
+  src.connect(bp).connect(g).connect(gain());
+  src.start();
+}
+
+/* ── Hostile flame: shorter warning cough in the low band ─────── */
+export function playHostileFlame(): void {
+  const ac = ensureContext();
+  const len = 0.13;
+  const buf = ac.createBuffer(1, ac.sampleRate * len, ac.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) {
+    const t = i / d.length;
+    const env = Math.exp(-t * 7);
+    d[i] = (Math.random() * 2 - 1) * env * 0.45;
+    d[i] += Math.sin(i * 0.014 + Math.random() * 0.7) * 0.34 * env;
+  }
+  const src = ac.createBufferSource();
+  src.buffer = buf;
+  const g = ac.createGain();
+  g.gain.value = 0.14;
+  const bp = ac.createBiquadFilter();
+  bp.type = 'bandpass';
+  bp.frequency.value = 310;
+  bp.Q.value = 0.65;
   src.connect(bp).connect(g).connect(gain());
   src.start();
 }

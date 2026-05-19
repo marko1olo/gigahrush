@@ -23,6 +23,7 @@ import { World } from '../../core/world';
 import { MONSTERS } from '../../entities/monster';
 import { monsterSpr, Spr } from '../../render/sprite_index';
 import { publishEvent, registerWorldEventObserver } from '../../systems/events';
+import { registerRouteCue } from '../../systems/route_cues';
 import { randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg';
 import { carveCorridor, findClearArea, placeDoorAt, stampRoom } from '../shared';
 
@@ -318,6 +319,53 @@ export function generatePerestanovshchik(
     addTeleportPair(world, safeSource, safeTarget, 170101, true),
     addTeleportPair(world, loopSource, loopTarget, 170201, false),
   ];
+
+  registerRouteCue(world, {
+    id: 'void_perestanovshchik_safe_door',
+    x: (safeSource % W) + 0.5,
+    y: ((safeSource / W) | 0) + 0.5,
+    targetX: (safeTarget % W) + 0.5,
+    targetY: ((safeTarget / W) | 0) + 0.5,
+    floor: FloorLevel.VOID,
+    roomId: entry.id,
+    targetRoomId: anchor.id,
+    zoneId: world.zoneMap[safeSource],
+    label: 'правая дверь 36',
+    hint: 'бледная метка ведет к якорной 35/37',
+    targetName: 'якорная Перестановщика',
+    color: '#8cf',
+    tags: [PERESTANOVSHCHIK_ID, 'void', 'teleport', 'anchor', 'safe'],
+    toneSeed: entry.id * 1009 + 361,
+    radius: 5.5,
+    targetRadius: 2.4,
+    cooldownSec: 24,
+    heardText: 'У двух дверей 36 правая метка звучит ровнее: она ведет к якорной.',
+    followedText: 'Правая дверь вывела к якорной Перестановщика. Снять якорь или оставить петли - выбор здесь.',
+    ignoredText: 'Бледная дверь осталась позади. Перестановщик держит маршрут на двух петлях.',
+  });
+  registerRouteCue(world, {
+    id: 'void_perestanovshchik_loop_warning',
+    x: (loopSource % W) + 0.5,
+    y: ((loopSource / W) | 0) + 0.5,
+    targetX: (loopTarget % W) + 0.5,
+    targetY: ((loopTarget / W) | 0) + 0.5,
+    floor: FloorLevel.VOID,
+    roomId: entry.id,
+    targetRoomId: loop.id,
+    zoneId: world.zoneMap[loopSource],
+    label: 'левая дверь 36',
+    hint: 'темная метка замыкает боковую петлю',
+    targetName: 'боковая комната 36',
+    color: '#f8c',
+    tags: [PERESTANOVSHCHIK_ID, 'void', 'teleport', 'loop', 'warning'],
+    toneSeed: entry.id * 1009 + 362,
+    radius: 5.5,
+    targetRadius: 2.4,
+    cooldownSec: 24,
+    heardText: 'Левая дверь 36 звучит ниже: это не shortcut, а петля с ответной меткой.',
+    followedText: 'Левая метка замкнула боковую 36. Ищи ответную метку или обычный ход.',
+    ignoredText: 'Темная дверь осталась позади. Петля не взяла время.',
+  });
 
   for (let dx = 3; dx <= 13; dx += 5) {
     world.stamp(entry.x + dx, entry.y + 1, 0.5, 0.5, 0.28, 0.48, 170300 + dx, 210, 210, 190, false);

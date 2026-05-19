@@ -31,7 +31,8 @@ export const FLOOR_69_DEFAULT_SEED = 690004;
 // adapt this string-route floor instead of adding a casual enum here.
 const FLOOR_69_BASE_FLOOR = FloorLevel.MAINTENANCE;
 const FLOOR_69_MAX_FLAGS = 8;
-const FLOOR_69_FULL_POP_COUNT = 180;
+const FLOOR_69_FULL_POP_CAP = 180;
+const FLOOR_69_CHECKPOINT_CROWD_CAP = 12;
 
 const FLOOR_69_NAMES_F = [
   'Алина Сцена', 'Вера Красная', 'Дина Бархат', 'Лада Лента', 'Мира Пайетка',
@@ -129,6 +130,7 @@ const NPC_DEFS: Record<string, PlotNpcDef> = {
       'Пост простой: оружие видно, бумаги на стол, чужие двери не трогать.',
       'Я не святой и не инспектор. Я считаю, кто успеет в тихие комнаты до рейда.',
       'Список рейда стоит дороже патрона, потому что стреляет до выстрела.',
+      'Тарелка расписок у входа решает быстро: платишь бумагой, идешь через пост; крадешь ключ - идешь через глаза.',
     ],
     talkLinesPost: [
       'Сегодня проход мягче. Не путай это с доверием.',
@@ -809,6 +811,17 @@ function decorateRooms(world: World, rooms: Floor69Rooms, seed: number): void {
   for (let y = rooms.staffRoute.y + 3; y < rooms.staffRoute.y + rooms.staffRoute.h - 3; y += 7) {
     setFeature(world, rooms.staffRoute.x + 2, y, Feature.LAMP);
   }
+
+  placeNonExplicitRouteSignals(world, rooms);
+}
+
+function placeNonExplicitRouteSignals(world: World, rooms: Floor69Rooms): void {
+  addScreenWall(world, rooms.publicCorridor.x + 18, rooms.publicCorridor.y - 1, 41);
+  addScreenWall(world, rooms.publicCorridor.x + 44, rooms.publicCorridor.y - 1, 42);
+  addScreenWall(world, rooms.clinic.x + 8, rooms.clinic.y - 1, 43);
+  addScreenWall(world, rooms.refuge.x + 6, rooms.refuge.y + rooms.refuge.h, 44);
+  addPosterWall(world, rooms.staffRoute.x - 1, rooms.staffRoute.y + 8, 45);
+  addPosterWall(world, rooms.debtOffice.x + 5, rooms.debtOffice.y - 1, 46);
 }
 
 export function expandFloor69FullFloor(generation: FloorGeneration, rng: () => number): void {
@@ -833,7 +846,7 @@ export function expandFloor69FullFloor(generation: FloorGeneration, rng: () => n
     `[F69] full geometry rooms=${counts.hotelRooms + counts.dressingRooms + counts.debtRooms + counts.refugeRooms}`
     + ` hotel=${counts.hotelRooms} backstage=${counts.dressingRooms} debt=${counts.debtRooms}`
     + ` refuge=${counts.refugeRooms} gates=${counts.securityGates} loops=${counts.loops}`
-    + ` pop=${FLOOR_69_FULL_POP_COUNT}`,
+    + ` ambientCap=${FLOOR_69_FULL_POP_CAP}`,
   );
 }
 
@@ -849,7 +862,10 @@ function randomFloor69FloorCell(world: World, rng: () => number): { x: number; y
 
 function spawnFloor69Population(generation: FloorGeneration, rng: () => number): void {
   let nextId = generation.entities.reduce((mx, e) => Math.max(mx, e.id), 0) + 1;
-  const target = FLOOR_69_FULL_POP_COUNT;
+  const existingAmbient = generation.entities
+    .filter(e => e.type === EntityType.NPC && e.canGiveQuest !== true)
+    .length;
+  const target = Math.max(0, FLOOR_69_FULL_POP_CAP - existingAmbient);
   for (let i = 0; i < target; i++) {
     const p = randomFloor69FloorCell(generation.world, rng);
     if (!p) break;
@@ -1000,6 +1016,17 @@ function seedContainers(world: World, rooms: Floor69Rooms): void {
     Faction.LIQUIDATOR,
   );
   addContainer(
+    world, rooms.checkpoint, 3, 7, ContainerKind.CASHBOX, 'Тарелка входных расписок 69',
+    'faction', 5,
+    [
+      { defId: 'voluntary_receipt', count: 2 },
+      { defId: 'water_coupon', count: 1 },
+      { defId: 'key', count: 1 },
+    ],
+    ['toll', 'checkpoint', 'debt', 'crowd_pressure'],
+    Faction.LIQUIDATOR,
+  );
+  addContainer(
     world, rooms.refuge, 2, 2, ContainerKind.EMERGENCY_BOX, 'Ящик тихой комнаты 69',
     'public', 6,
     [
@@ -1104,6 +1131,40 @@ function spawnFloor69Npcs(world: World, entities: Entity[], nextId: { v: number 
     { defId: 'water', count: 1 },
     { defId: 'voluntary_receipt', count: 1 },
   ]);
+  spawnCheckpointCrowd(world, entities, nextId, rooms);
+}
+
+function spawnCheckpointCrowd(world: World, entities: Entity[], nextId: { v: number }, rooms: Floor69Rooms): void {
+  const spots: readonly { name: string; isFemale: boolean; occupation: Occupation; faction: Faction; x: number; y: number; item: string; weapon?: string }[] = [
+    { name: 'Гость у тарелки расписок', isFemale: false, occupation: Occupation.TRAVELER, faction: Faction.CITIZEN, x: rooms.publicCorridor.x + 14, y: rooms.publicCorridor.y + 2, item: 'voluntary_receipt' },
+    { name: 'Посетительница с талоном', isFemale: true, occupation: Occupation.SECRETARY, faction: Faction.CITIZEN, x: rooms.publicCorridor.x + 18, y: rooms.publicCorridor.y + 2, item: 'water_coupon' },
+    { name: 'Смотрящий за очередью 69', isFemale: false, occupation: Occupation.HUNTER, faction: Faction.LIQUIDATOR, x: rooms.checkpoint.x + 3, y: rooms.checkpoint.y + 7, item: 'liquidator_token', weapon: 'makarov' },
+    { name: 'Соседка тихого входа', isFemale: true, occupation: Occupation.HOUSEWIFE, faction: Faction.CITIZEN, x: rooms.refuge.x + 2, y: rooms.refuge.y - 2, item: 'bread' },
+    { name: 'Курьер без афиши', isFemale: false, occupation: Occupation.TRAVELER, faction: Faction.CITIZEN, x: rooms.staffRoute.x - 2, y: rooms.staffRoute.y + 7, item: 'metro_ticket' },
+    { name: 'Дежурная клиники 69', isFemale: true, occupation: Occupation.DOCTOR, faction: Faction.SCIENTIST, x: rooms.clinic.x + 2, y: rooms.clinic.y + rooms.clinic.h + 2, item: 'bandage' },
+    { name: 'Бухгалтерская очередь', isFemale: true, occupation: Occupation.SECRETARY, faction: Faction.CITIZEN, x: rooms.debtOffice.x + 2, y: rooms.debtOffice.y - 2, item: 'blank_form' },
+    { name: 'Молчаливый должник', isFemale: false, occupation: Occupation.TRAVELER, faction: Faction.CITIZEN, x: rooms.ledger.x + 8, y: rooms.ledger.y - 2, item: 'voluntary_receipt' },
+    { name: 'Старшая по лампам', isFemale: true, occupation: Occupation.STOREKEEPER, faction: Faction.CITIZEN, x: rooms.hall.x + 3, y: rooms.hall.y + 3, item: 'tea' },
+    { name: 'Проверяющий без протокола', isFemale: false, occupation: Occupation.HUNTER, faction: Faction.LIQUIDATOR, x: rooms.publicCorridor.x + 24, y: rooms.publicCorridor.y + 2, item: 'note', weapon: 'makarov' },
+    { name: 'Свидетель у красной стены', isFemale: false, occupation: Occupation.TRAVELER, faction: Faction.CITIZEN, x: rooms.publicCorridor.x + 30, y: rooms.publicCorridor.y + 2, item: 'cigs' },
+    { name: 'Женщина с чистой справкой', isFemale: true, occupation: Occupation.TRAVELER, faction: Faction.CITIZEN, x: rooms.clinic.x + 12, y: rooms.clinic.y + rooms.clinic.h + 2, item: 'clean_health_cert' },
+  ];
+  for (let i = 0; i < Math.min(FLOOR_69_CHECKPOINT_CROWD_CAP, spots.length); i++) {
+    const spot = spots[i];
+    spawnAmbientAdult(
+      world,
+      entities,
+      nextId,
+      spot.name,
+      spot.isFemale,
+      spot.occupation,
+      spot.faction,
+      spot.x,
+      spot.y,
+      [{ defId: spot.item, count: 1 }],
+      spot.weapon,
+    );
+  }
 }
 
 function seedLooseItems(entities: Entity[], nextId: { v: number }, rooms: Floor69Rooms): void {

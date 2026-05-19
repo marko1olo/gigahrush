@@ -589,33 +589,51 @@ export function sideQuestPrereqsMet(sq: SideQuestStep, quests: readonly Quest[])
   return true;
 }
 
-export function registerSideQuestSteps(quests: SideQuestStep[]): void {
+function checkedRegistryId(id: string, scope: string): string {
+  const trimmed = id.trim();
+  if (!trimmed) throw new Error(`[SIDE_QUEST] missing ${scope} id`);
+  if (trimmed !== id) throw new Error(`[SIDE_QUEST] ${scope} id "${id}" must be trimmed`);
+  return trimmed;
+}
+
+function assertSideQuestStepsCanRegister(quests: readonly SideQuestStep[]): void {
   const existingQuestIds = new Set(SIDE_QUESTS.map(q => q.id));
+  const batchQuestIds = new Set<string>();
   for (const q of quests) {
-    if (existingQuestIds.has(q.id)) {
-      console.warn(`[SIDE_QUEST] duplicate quest id "${q.id}"`);
-      continue;
+    const questId = checkedRegistryId(q.id, 'quest');
+    if (existingQuestIds.has(questId) || batchQuestIds.has(questId)) {
+      throw new Error(`[SIDE_QUEST] duplicate quest id "${questId}"`);
     }
-    existingQuestIds.add(q.id);
+    batchQuestIds.add(questId);
+  }
+}
+
+export function registerSideQuestSteps(quests: readonly SideQuestStep[]): void {
+  assertSideQuestStepsCanRegister(quests);
+  for (const q of quests) {
     SIDE_QUESTS.push(q);
   }
 }
 
 /** Register a side quest content pack (called by content modules at import) */
 export function registerSideQuest(
-  npcId: string, npc: PlotNpcDef, quests: SideQuestStep[],
+  npcId: string, npc: PlotNpcDef, quests: readonly SideQuestStep[],
 ): void {
-  if (PLOT_NPCS[npcId]) console.warn(`[SIDE_QUEST] duplicate NPC id "${npcId}"`);
-  PLOT_NPCS[npcId] = npc;
+  const checkedNpcId = checkedRegistryId(npcId, 'NPC');
+  if (PLOT_NPCS[checkedNpcId]) throw new Error(`[SIDE_QUEST] duplicate NPC id "${checkedNpcId}"`);
+  assertSideQuestStepsCanRegister(quests);
+  PLOT_NPCS[checkedNpcId] = npc;
   registerSideQuestSteps(quests);
 }
 
-export function getSideQuestRegistrySnapshot(): readonly {
-  id: string;
-  giverNpcId: string;
-  type: QuestType;
-  desc: string;
-}[] {
+export interface SideQuestRegistrySnapshot {
+  readonly id: string;
+  readonly giverNpcId: string;
+  readonly type: QuestType;
+  readonly desc: string;
+}
+
+export function getSideQuestRegistrySnapshot(): readonly SideQuestRegistrySnapshot[] {
   return SIDE_QUESTS.map(q => ({
     id: q.id,
     giverNpcId: q.giverNpcId,

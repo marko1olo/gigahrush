@@ -1,7 +1,7 @@
 /* ── VOID afterprotocol runtime — bounded local rules ─────────── */
 
 import {
-  W, DoorState, EntityType, Feature, MonsterKind, AIGoal,
+  W, Cell, DoorState, EntityType, Feature, MonsterKind, AIGoal,
   type Entity, type GameState, type WorldEvent, type WorldContainer, type WorldEventType,
   msg,
 } from '../core/types';
@@ -13,7 +13,7 @@ import {
 } from '../data/void_protocols';
 import { MONSTERS } from '../entities/monster';
 import { monsterSpr, Spr } from '../render/sprite_index';
-import { addItem } from './inventory';
+import { addItem, removeItem } from './inventory';
 import { randomRPG, scaleMonsterHp, scaleMonsterSpeed } from './rpg';
 import { publishEvent, registerWorldEventObserver as observeWorldEvents } from './events';
 
@@ -53,41 +53,108 @@ let nextMarkId = 1;
 let debugProtocolCursor = 0;
 
 const BORROWED_LIGHT_PROTOCOL_ID = 'borrowed_light';
+const SPIRIT_TOLL_PROTOCOL_ID = 'spirit_toll';
 const LOCAL_RULE_CONTEXT_CAP = 8;
 const VOID_RULE_TAG = 'void_rule';
 const BORROWED_LIGHT_TAG = 'borrowed_light';
-const ACCEPT_TAG = 'accept';
-const REJECT_TAG = 'reject';
-const ACCEPTED_TAG = 'accepted';
-const REJECTED_TAG = 'rejected';
+const SPIRIT_TOLL_TAG = 'spirit_toll';
+const CONSUME_TAG = 'consume';
+const KEEP_TAG = 'keep';
+const CONSUMED_TAG = 'consumed';
+const KEPT_TAG = 'kept';
+const OBEY_TAG = 'obey';
+const BREAK_TAG = 'break';
+const PAY_TAG = 'pay';
+const REROUTE_TAG = 'reroute';
+const EXPLOIT_TAG = 'exploit';
+const RESOLVED_TAG = 'resolved';
 
 interface VoidRuleChamberContext {
   world: World;
   entities: Entity[];
   roomId: number;
-  acceptContainerId: number;
-  rejectContainerId: number;
+  consumeContainerId: number;
+  keepContainerId: number;
+}
+
+interface VoidSpiritTollChamberContext {
+  world: World;
+  entities: Entity[];
+  roomId: number;
+  obeyContainerId: number;
+  breakContainerId: number;
+  payContainerId: number;
+  rerouteContainerId: number;
+  exploitContainerId: number;
+  entranceDoorIdx: number;
+  tollDoorIdx: number;
+  bypassDoorIdx: number;
 }
 
 const localRuleChambers: VoidRuleChamberContext[] = [];
+const spiritTollChambers: VoidSpiritTollChamberContext[] = [];
 
 export function registerVoidBorrowedLightChamber(
   world: World,
   entities: Entity[],
   roomId: number,
-  acceptContainerId: number,
-  rejectContainerId: number,
+  consumeContainerId: number,
+  keepContainerId: number,
 ): void {
   const existing = localRuleChambers.find(ctx => ctx.world === world && ctx.roomId === roomId);
   if (existing) {
     existing.entities = entities;
-    existing.acceptContainerId = acceptContainerId;
-    existing.rejectContainerId = rejectContainerId;
+    existing.consumeContainerId = consumeContainerId;
+    existing.keepContainerId = keepContainerId;
     return;
   }
-  localRuleChambers.push({ world, entities, roomId, acceptContainerId, rejectContainerId });
+  localRuleChambers.push({ world, entities, roomId, consumeContainerId, keepContainerId });
   if (localRuleChambers.length > LOCAL_RULE_CONTEXT_CAP) {
     localRuleChambers.splice(0, localRuleChambers.length - LOCAL_RULE_CONTEXT_CAP);
+  }
+}
+
+export function registerVoidSpiritTollChamber(
+  world: World,
+  entities: Entity[],
+  roomId: number,
+  obeyContainerId: number,
+  breakContainerId: number,
+  payContainerId: number,
+  rerouteContainerId: number,
+  exploitContainerId: number,
+  entranceDoorIdx: number,
+  tollDoorIdx: number,
+  bypassDoorIdx: number,
+): void {
+  const existing = spiritTollChambers.find(ctx => ctx.world === world && ctx.roomId === roomId);
+  if (existing) {
+    existing.entities = entities;
+    existing.obeyContainerId = obeyContainerId;
+    existing.breakContainerId = breakContainerId;
+    existing.payContainerId = payContainerId;
+    existing.rerouteContainerId = rerouteContainerId;
+    existing.exploitContainerId = exploitContainerId;
+    existing.entranceDoorIdx = entranceDoorIdx;
+    existing.tollDoorIdx = tollDoorIdx;
+    existing.bypassDoorIdx = bypassDoorIdx;
+    return;
+  }
+  spiritTollChambers.push({
+    world,
+    entities,
+    roomId,
+    obeyContainerId,
+    breakContainerId,
+    payContainerId,
+    rerouteContainerId,
+    exploitContainerId,
+    entranceDoorIdx,
+    tollDoorIdx,
+    bypassDoorIdx,
+  });
+  if (spiritTollChambers.length > LOCAL_RULE_CONTEXT_CAP) {
+    spiritTollChambers.splice(0, spiritTollChambers.length - LOCAL_RULE_CONTEXT_CAP);
   }
 }
 
@@ -107,6 +174,8 @@ function publishProtocolEvent(
   line: string,
   mark: VoidProtocolMark | null,
   severity: 2 | 3 | 4 = 3,
+  extraTags: string[] = [],
+  extraData: Record<string, unknown> = {},
 ): void {
   const targetKey = mark?.targetKey ?? `${state.currentFloor}:protocol:${def.id}`;
   pushTrace(state, def.id, phase, line, targetKey);
@@ -120,12 +189,13 @@ function publishProtocolEvent(
     y: mark?.y,
     actorId: 0,
     actorName: 'Вы',
-    tags: ['void_protocol', phase, def.id].slice(0, 8),
+    tags: ['void_protocol', phase, def.id, ...extraTags].slice(0, 8),
     data: {
       protocolId: def.id,
       protocolName: def.name,
       targetKey,
       expiresAt: mark?.expiresAt,
+      ...extraData,
     },
   });
 }
@@ -189,41 +259,81 @@ function findLocalRuleChamber(event: WorldEvent): VoidRuleChamberContext | undef
   if (containerId === undefined) return undefined;
   for (let i = localRuleChambers.length - 1; i >= 0; i--) {
     const ctx = localRuleChambers[i];
-    if (ctx.acceptContainerId === containerId || ctx.rejectContainerId === containerId) return ctx;
+    if (ctx.consumeContainerId === containerId || ctx.keepContainerId === containerId) return ctx;
   }
   return undefined;
 }
 
-function eventContainer(ctx: VoidRuleChamberContext, event: WorldEvent): WorldContainer | undefined {
+function findSpiritTollChamber(event: WorldEvent): VoidSpiritTollChamberContext | undefined {
+  const containerId = event.containerId;
+  if (containerId === undefined) return undefined;
+  for (let i = spiritTollChambers.length - 1; i >= 0; i--) {
+    const ctx = spiritTollChambers[i];
+    if (
+      ctx.obeyContainerId === containerId
+      || ctx.breakContainerId === containerId
+      || ctx.payContainerId === containerId
+      || ctx.rerouteContainerId === containerId
+      || ctx.exploitContainerId === containerId
+    ) return ctx;
+  }
+  return undefined;
+}
+
+function eventContainer(ctx: { world: World }, event: WorldEvent): WorldContainer | undefined {
   return event.containerId === undefined ? undefined : ctx.world.containerById.get(event.containerId);
 }
 
-function addContainerTag(container: WorldContainer, tag: string): void {
-  if (!container.tags.includes(tag)) container.tags.push(tag);
+function addContainerTag(container: WorldContainer | undefined, tag: string): void {
+  if (container && !container.tags.includes(tag)) container.tags.push(tag);
 }
 
 function containerChoiceMade(container: WorldContainer): boolean {
-  return container.tags.includes(ACCEPTED_TAG) || container.tags.includes(REJECTED_TAG);
+  return container.tags.includes(CONSUMED_TAG) || container.tags.includes(KEPT_TAG);
 }
 
 function chamberChoiceMade(ctx: VoidRuleChamberContext): boolean {
-  const accept = ctx.world.containerById.get(ctx.acceptContainerId);
-  const reject = ctx.world.containerById.get(ctx.rejectContainerId);
-  return !!(accept && containerChoiceMade(accept)) || !!(reject && containerChoiceMade(reject));
+  const consume = ctx.world.containerById.get(ctx.consumeContainerId);
+  const keep = ctx.world.containerById.get(ctx.keepContainerId);
+  return !!(consume && containerChoiceMade(consume)) || !!(keep && containerChoiceMade(keep));
 }
 
 function markChamberChoice(ctx: VoidRuleChamberContext, tag: string): void {
-  const accept = ctx.world.containerById.get(ctx.acceptContainerId);
-  const reject = ctx.world.containerById.get(ctx.rejectContainerId);
-  if (accept) addContainerTag(accept, tag);
-  if (reject) addContainerTag(reject, tag);
+  const consume = ctx.world.containerById.get(ctx.consumeContainerId);
+  const keep = ctx.world.containerById.get(ctx.keepContainerId);
+  addContainerTag(consume, tag);
+  addContainerTag(keep, tag);
 }
 
-function playerInContext(ctx: VoidRuleChamberContext): Entity | undefined {
+function spiritTollChoiceMade(ctx: VoidSpiritTollChamberContext): boolean {
+  return [
+    ctx.obeyContainerId,
+    ctx.breakContainerId,
+    ctx.payContainerId,
+    ctx.rerouteContainerId,
+    ctx.exploitContainerId,
+  ].some(id => ctx.world.containerById.get(id)?.tags.includes(RESOLVED_TAG));
+}
+
+function markSpiritTollChoice(ctx: VoidSpiritTollChamberContext, tag: string): void {
+  for (const id of [
+    ctx.obeyContainerId,
+    ctx.breakContainerId,
+    ctx.payContainerId,
+    ctx.rerouteContainerId,
+    ctx.exploitContainerId,
+  ]) {
+    const container = ctx.world.containerById.get(id);
+    addContainerTag(container, RESOLVED_TAG);
+    addContainerTag(container, tag);
+  }
+}
+
+function playerInContext(ctx: { entities: Entity[] }): Entity | undefined {
   return ctx.entities.find(e => e.type === EntityType.PLAYER && e.alive);
 }
 
-function markFromEvent(ctx: VoidRuleChamberContext, state: GameState, event: WorldEvent, def: VoidProtocolDef): VoidProtocolMark {
+function markFromEvent(ctx: { world: World; roomId: number }, state: GameState, event: WorldEvent, def: VoidProtocolDef): VoidProtocolMark {
   const room = ctx.world.rooms[event.roomId ?? ctx.roomId] ?? ctx.world.rooms[ctx.roomId];
   const x = ctx.world.wrap(Math.floor(event.x ?? (room ? room.x + (room.w >> 1) : 0)));
   const y = ctx.world.wrap(Math.floor(event.y ?? (room ? room.y + (room.h >> 1) : 0)));
@@ -243,6 +353,12 @@ function markFromEvent(ctx: VoidRuleChamberContext, state: GameState, event: Wor
     ended: false,
     originalRoomName: room?.name,
   };
+}
+
+function pushActiveMark(state: GameState, def: VoidProtocolDef, mark: VoidProtocolMark): void {
+  activeMarks.push(mark);
+  if (activeMarks.length > MARK_CAP) activeMarks.splice(0, activeMarks.length - MARK_CAP);
+  cooldownUntil.set(def.id, state.time + def.cooldownSec);
 }
 
 function spawnProtocolMonster(
@@ -404,6 +520,38 @@ function applyBorrowedLight(world: World, mark: VoidProtocolMark): boolean {
   }
 
   return changedFog > 0 || changedDoors > 0;
+}
+
+function markBorrowedLightReceipt(world: World, mark: VoidProtocolMark, kept: boolean): void {
+  const room = mark.roomId >= 0 ? world.rooms[mark.roomId] : undefined;
+  const x = room ? world.wrap(room.x + (room.w >> 1)) : mark.x;
+  const y = room ? world.wrap(room.y + (room.h >> 1)) : mark.y;
+  const ci = world.idx(x, y);
+  if (world.cells[ci] === Cell.FLOOR) {
+    world.features[ci] = kept ? Feature.LAMP : Feature.SCREEN;
+    world.stamp(x, y, 0.5, 0.5, kept ? 0.54 : 0.42, kept ? 0.78 : 0.68, mark.id * 31 + (kept ? 7 : 3), kept ? 210 : 40, 245, kept ? 180 : 255, true);
+  }
+  if (room && !room.name.includes(kept ? 'улика' : 'потреблен')) {
+    room.name = `${room.name}; свет ${kept ? 'улика' : 'потреблен'}`;
+  }
+}
+
+function keepBorrowedLightEvidence(world: World, mark: VoidProtocolMark): void {
+  const room = mark.roomId >= 0 ? world.rooms[mark.roomId] : undefined;
+  if (room) {
+    for (const doorIdx of room.doors.slice(0, 4)) {
+      const door = world.doors.get(doorIdx);
+      if (!door) continue;
+      if (door.state === DoorState.CLOSED) {
+        door.state = DoorState.OPEN;
+      } else if (door.state === DoorState.HERMETIC_CLOSED) {
+        door.state = DoorState.HERMETIC_OPEN;
+      }
+      door.timer = 0;
+    }
+  }
+  markBorrowedLightReceipt(world, mark, true);
+  world.bakeLights();
 }
 
 function applyBorrowedLightBacklash(
@@ -586,13 +734,200 @@ function grantBorrowedLightReward(player: Entity, state: GameState): void {
   else pushHud(state, 'Протокол щелкнул: рюкзак не принял награду.', '#f84');
 }
 
-function acceptBorrowedLightRule(ctx: VoidRuleChamberContext, state: GameState, event: WorldEvent): void {
+function nextRuntimeEntityId(entities: Entity[]): { v: number } {
+  let id = 1;
+  for (const e of entities) id = Math.max(id, e.id + 1);
+  return { v: id };
+}
+
+function setDoor(ctx: VoidSpiritTollChamberContext, doorIdx: number, state: DoorState, timer: number): void {
+  const door = ctx.world.doors.get(doorIdx);
+  if (!door) return;
+  door.state = state;
+  door.timer = timer;
+}
+
+function countItem(player: Entity, defId: string): number {
+  return (player.inventory ?? []).reduce((sum, item) => sum + (item.defId === defId ? item.count : 0), 0);
+}
+
+function paySpiritToll(player: Entity): string | undefined {
+  if (countItem(player, 'ammo_9mm') >= 3 && removeItem(player, 'ammo_9mm', 3)) return '3x ammo_9mm';
+  if (countItem(player, 'ammo_762') >= 2 && removeItem(player, 'ammo_762', 2)) return '2x ammo_762';
+  if (countItem(player, 'ammo_energy') >= 1 && removeItem(player, 'ammo_energy', 1)) return '1x ammo_energy';
+  if ((player.money ?? 0) >= 6) {
+    player.money = (player.money ?? 0) - 6;
+    return '6 money';
+  }
+  return undefined;
+}
+
+function grantSpiritTollSpike(player: Entity, state: GameState, count = 1): void {
+  if (addItem(player, 'void_spike', count)) {
+    pushHud(state, 'П-46 выдала пустотный шип.', '#8ff');
+  } else {
+    pushHud(state, 'П-46 щелкнула: рюкзак не принял шип.', '#f84');
+  }
+}
+
+function liveTollCollectorInRoom(ctx: VoidSpiritTollChamberContext): boolean {
+  return ctx.entities.some(e => (
+    e.alive
+    && e.type === EntityType.MONSTER
+    && e.monsterKind === MonsterKind.SPIRIT
+    && e.name === 'Счетчик пошлины'
+    && ctx.world.roomAt(e.x, e.y)?.id === ctx.roomId
+  ));
+}
+
+function spawnTollBacklash(ctx: VoidSpiritTollChamberContext, mark: VoidProtocolMark, kind: MonsterKind, name: string): void {
+  spawnProtocolMonster(ctx.entities, nextRuntimeEntityId(ctx.entities), kind, name, mark.x + 1, mark.y, nearestLevel(ctx.world, mark));
+}
+
+function publishSpiritTollChoice(
+  state: GameState,
+  def: VoidProtocolDef,
+  phase: ProtocolPhase,
+  choice: string,
+  line: string,
+  mark: VoidProtocolMark,
+  severity: 2 | 3 | 4,
+  extraData: Record<string, unknown> = {},
+): void {
+  publishProtocolEvent(state, def, phase, line, mark, severity, ['p46', choice], {
+    chamber: 'protocol_chamber_p46',
+    branch: choice,
+    ...extraData,
+  });
+}
+
+function startSpiritTollChoice(
+  ctx: VoidSpiritTollChamberContext,
+  state: GameState,
+  event: WorldEvent,
+  def: VoidProtocolDef,
+  choice: string,
+  line: string,
+  severity: 2 | 3 | 4,
+  extraData: Record<string, unknown> = {},
+): VoidProtocolMark {
+  grantVoidProtocol(state, def.id, 'protocol_chamber_p46');
+  const mark = markFromEvent(ctx, state, event, def);
+  pushActiveMark(state, def, mark);
+  publishSpiritTollChoice(state, def, 'started', choice, line, mark, severity, extraData);
+  pushHud(state, line, severity >= 4 ? '#8ff' : '#8cf');
+  return mark;
+}
+
+function obeySpiritTollRule(ctx: VoidSpiritTollChamberContext, state: GameState, event: WorldEvent, def: VoidProtocolDef): void {
+  markSpiritTollChoice(ctx, OBEY_TAG);
+  setDoor(ctx, ctx.tollDoorIdx, DoorState.OPEN, 0);
+  setDoor(ctx, ctx.bypassDoorIdx, DoorState.HERMETIC_CLOSED, 20);
+  const line = 'П-46 приняла повиновение: выход открыт, шип остался в строке.';
+  startSpiritTollChoice(ctx, state, event, def, OBEY_TAG, line, 3, { outcome: 'safe_no_reward' });
+}
+
+function paySpiritTollRule(ctx: VoidSpiritTollChamberContext, state: GameState, event: WorldEvent, def: VoidProtocolDef, player: Entity): void {
+  const paid = paySpiritToll(player);
+  const mark = markFromEvent(ctx, state, event, def);
+  if (!paid) {
+    const line = 'П-46 не нашла патронов или денег для пошлины.';
+    publishSpiritTollChoice(state, def, 'rejected', PAY_TAG, line, mark, 2, { outcome: 'missing_payment' });
+    pushHud(state, line, '#888');
+    return;
+  }
+  markSpiritTollChoice(ctx, PAY_TAG);
+  setDoor(ctx, ctx.tollDoorIdx, DoorState.OPEN, 0);
+  grantSpiritTollSpike(player, state);
+  startSpiritTollChoice(ctx, state, event, def, PAY_TAG, def.startLine, 4, {
+    cost: paid,
+    rewardItemId: 'void_spike',
+  });
+}
+
+function breakSpiritTollRule(ctx: VoidSpiritTollChamberContext, state: GameState, event: WorldEvent, def: VoidProtocolDef, player: Entity): void {
+  markSpiritTollChoice(ctx, BREAK_TAG);
+  setDoor(ctx, ctx.tollDoorIdx, DoorState.OPEN, 0);
+  setDoor(ctx, ctx.entranceDoorIdx, DoorState.HERMETIC_CLOSED, 18);
+  grantSpiritTollSpike(player, state);
+  const mark = startSpiritTollChoice(ctx, state, event, def, BREAK_TAG, 'Очередь сломана. Шип ваш, выход считает до восемнадцати.', 4, {
+    rewardItemId: 'void_spike',
+    cost: 'backlash_fight',
+  });
+  spawnTollBacklash(ctx, mark, MonsterKind.PARAGRAPH, 'Параграф сорванной пошлины');
+  if (player.hp !== undefined) {
+    player.hp = Math.max(1, player.hp - 2);
+    state.dmgFlash = Math.max(state.dmgFlash, 0.2);
+  }
+  publishSpiritTollChoice(state, def, 'backlash', BREAK_TAG, def.backlashLine, mark, 4, {
+    spawned: 'paragraph',
+  });
+  pushHud(state, def.backlashLine, '#f8c');
+}
+
+function rerouteSpiritTollRule(ctx: VoidSpiritTollChamberContext, state: GameState, event: WorldEvent, def: VoidProtocolDef): void {
+  markSpiritTollChoice(ctx, REROUTE_TAG);
+  setDoor(ctx, ctx.tollDoorIdx, DoorState.HERMETIC_CLOSED, 30);
+  setDoor(ctx, ctx.bypassDoorIdx, DoorState.OPEN, 0);
+  const mark = startSpiritTollChoice(ctx, state, event, def, REROUTE_TAG, 'Долг ушел в нижний обход. Награды нет, счетчик не проснулся.', 3, {
+    outcome: 'bypass_open_no_reward',
+  });
+  forLocalCells(ctx.world, mark, (_x, _y, ci) => {
+    if (ctx.world.fog[ci] < 16) ctx.world.fog[ci] = 16;
+  });
+  ctx.world.markFogDirty();
+}
+
+function exploitSpiritTollRule(ctx: VoidSpiritTollChamberContext, state: GameState, event: WorldEvent, def: VoidProtocolDef, player: Entity): void {
+  markSpiritTollChoice(ctx, EXPLOIT_TAG);
+  const collectorAlive = liveTollCollectorInRoom(ctx);
+  const mark = startSpiritTollChoice(
+    ctx,
+    state,
+    event,
+    def,
+    EXPLOIT_TAG,
+    collectorAlive ? 'Квитанция попалась живому счетчику.' : 'Мертвый счетчик оплатил чужой строкой.',
+    collectorAlive ? 4 : 3,
+    { prerequisite: 'toll_collector_dead', collectorAlive },
+  );
+  if (collectorAlive) {
+    setDoor(ctx, ctx.entranceDoorIdx, DoorState.HERMETIC_CLOSED, 12);
+    spawnTollBacklash(ctx, mark, MonsterKind.SPIRIT, 'Счетчик подмены');
+    if (player.hp !== undefined) {
+      player.hp = Math.max(1, player.hp - 2);
+      state.dmgFlash = Math.max(state.dmgFlash, 0.22);
+    }
+    publishSpiritTollChoice(state, def, 'backlash', EXPLOIT_TAG, def.backlashLine, mark, 4, {
+      spawned: 'spirit',
+    });
+    pushHud(state, def.backlashLine, '#f8c');
+    return;
+  }
+  setDoor(ctx, ctx.tollDoorIdx, DoorState.OPEN, 0);
+  grantSpiritTollSpike(player, state);
+  addItem(player, 'ammo_energy', 1);
+}
+
+function handleSpiritTollRule(ctx: VoidSpiritTollChamberContext, state: GameState, event: WorldEvent): void {
+  if (!eventContainer(ctx, event) || spiritTollChoiceMade(ctx)) return;
+  const def = getVoidProtocolDef(SPIRIT_TOLL_PROTOCOL_ID);
+  const player = playerInContext(ctx);
+  if (!def || !player) return;
+  if (eventHasTags(event, OBEY_TAG)) obeySpiritTollRule(ctx, state, event, def);
+  else if (eventHasTags(event, PAY_TAG)) paySpiritTollRule(ctx, state, event, def, player);
+  else if (eventHasTags(event, BREAK_TAG)) breakSpiritTollRule(ctx, state, event, def, player);
+  else if (eventHasTags(event, REROUTE_TAG)) rerouteSpiritTollRule(ctx, state, event, def);
+  else if (eventHasTags(event, EXPLOIT_TAG)) exploitSpiritTollRule(ctx, state, event, def, player);
+}
+
+function consumeBorrowedLightRule(ctx: VoidRuleChamberContext, state: GameState, event: WorldEvent): void {
   if (!eventContainer(ctx, event) || chamberChoiceMade(ctx)) return;
   const player = playerInContext(ctx);
   const def = getVoidProtocolDef(BORROWED_LIGHT_PROTOCOL_ID);
   if (!player || !def) return;
 
-  markChamberChoice(ctx, ACCEPTED_TAG);
+  markChamberChoice(ctx, CONSUMED_TAG);
   grantVoidProtocol(state, def.id, 'borrowed_light_chamber');
   grantBorrowedLightReward(player, state);
 
@@ -602,34 +937,53 @@ function acceptBorrowedLightRule(ctx: VoidRuleChamberContext, state: GameState, 
   cooldownUntil.set(def.id, state.time + def.cooldownSec);
 
   applyBorrowedLight(ctx.world, mark);
-  publishProtocolEvent(state, def, 'started', def.startLine, mark, 4);
+  markBorrowedLightReceipt(ctx.world, mark, false);
+  publishProtocolEvent(state, def, 'started', def.startLine, mark, 4, [CONSUME_TAG], {
+    branch: CONSUME_TAG,
+    rewardItemIds: ['psi_stabilizer', 'ammo_energy'],
+    cost: 'door_psi_debt',
+  });
   pushHud(state, def.startLine, '#8ff');
 
   applyBorrowedLightBacklash(ctx.world, player, ctx.entities, state, mark);
-  publishProtocolEvent(state, def, 'backlash', def.backlashLine, mark, 4);
+  publishProtocolEvent(state, def, 'backlash', def.backlashLine, mark, 4, [CONSUME_TAG], {
+    branch: CONSUME_TAG,
+    debt: 'local_door_closure',
+  });
   pushHud(state, def.backlashLine, '#f8c');
 }
 
-function rejectBorrowedLightRule(ctx: VoidRuleChamberContext, state: GameState, event: WorldEvent): void {
+function keepBorrowedLightRule(ctx: VoidRuleChamberContext, state: GameState, event: WorldEvent): void {
   if (!eventContainer(ctx, event) || chamberChoiceMade(ctx)) return;
   const def = getVoidProtocolDef(BORROWED_LIGHT_PROTOCOL_ID);
   if (!def) return;
-  markChamberChoice(ctx, REJECTED_TAG);
+  markChamberChoice(ctx, KEPT_TAG);
   const mark = markFromEvent(ctx, state, event, def);
-  const line = 'Протокол отклонён. Свет остался своим.';
-  publishProtocolEvent(state, def, 'rejected', line, mark, 2);
-  pushHud(state, line, '#aaa');
+  keepBorrowedLightEvidence(ctx.world, mark);
+  const line = 'Заемный свет оставлен уликой. Награды нет, двери не берут проценты.';
+  publishProtocolEvent(state, def, 'started', line, mark, 3, [KEEP_TAG, 'evidence'], {
+    branch: KEEP_TAG,
+    counterplay: 'evidence_lamp_open_doors',
+  });
+  pushHud(state, line, '#8cf');
 }
 
 function handleVoidLocalRuleEvent(state: GameState, event: WorldEvent): void {
   if (event.type !== 'container_opened' && event.type !== 'item_stolen') return;
-  if (!eventHasTags(event, VOID_RULE_TAG, BORROWED_LIGHT_TAG)) return;
-  const ctx = findLocalRuleChamber(event);
-  if (!ctx) return;
-  if (eventHasTags(event, ACCEPT_TAG)) {
-    acceptBorrowedLightRule(ctx, state, event);
-  } else if (eventHasTags(event, REJECT_TAG)) {
-    rejectBorrowedLightRule(ctx, state, event);
+  if (!eventHasTags(event, VOID_RULE_TAG)) return;
+  if (eventHasTags(event, SPIRIT_TOLL_TAG)) {
+    const ctx = findSpiritTollChamber(event);
+    if (ctx) handleSpiritTollRule(ctx, state, event);
+    return;
+  }
+  if (eventHasTags(event, BORROWED_LIGHT_TAG)) {
+    const ctx = findLocalRuleChamber(event);
+    if (!ctx) return;
+    if (eventHasTags(event, CONSUME_TAG)) {
+      consumeBorrowedLightRule(ctx, state, event);
+    } else if (eventHasTags(event, KEEP_TAG)) {
+      keepBorrowedLightRule(ctx, state, event);
+    }
   }
 }
 

@@ -1,14 +1,15 @@
 /* -- Аварийный медпост (AG44) ----------------------------------- */
-/* Small finite medical POI: trade, restock, steal, or leave.       */
+/* Small finite medical POI: trade, restock, steal, expose, leave.  */
 
 import {
   AIGoal, Cell, ContainerKind, DoorState, EntityType, Faction, Feature,
   FloorLevel, Occupation, QuestType, RoomType, Tex,
-  type ContainerAccess, type Entity, type Room, type WorldContainer,
+  type ContainerAccess, type Entity, type Room, type WorldContainer, type WorldEvent,
 } from '../../core/types';
 import { World } from '../../core/world';
 import { freshNeeds } from '../../data/catalog';
 import { type PlotNpcDef, registerSideQuest } from '../../data/plot';
+import { publishEvent, registerWorldEventObserver } from '../../systems/events';
 import { protectRoom } from '../shared';
 import { genLog } from '../log';
 import { registerZoneContent } from './zone_content';
@@ -16,6 +17,18 @@ import { registerZoneContent } from './zone_content';
 const MEDPOST_ZONE = 44;
 const ROOM_W = 15;
 const ROOM_H = 11;
+const CONTENT_TAG = 'emergency_medpost';
+const OUTCOME_TAG = 'ag44_medpost_outcome';
+
+const MEDPOST_MEDICINE = new Set([
+  'antibiotic',
+  'bandage',
+  'iodine',
+  'morphine_ampoule',
+  'pills',
+  'sanitary_kit',
+  'tourniquet',
+]);
 
 const NPC_DEFS: Record<string, PlotNpcDef> = {
   ag44_dr_kruglov: {
@@ -77,9 +90,73 @@ registerSideQuest('ag44_dr_kruglov', NPC_DEFS.ag44_dr_kruglov, [
     rewardItem: 'pills', rewardCount: 1,
     extraRewards: [{ defId: 'clean_health_cert', count: 1 }],
     relationDelta: 12, xpReward: 45, moneyReward: 55,
+    targetFloor: FloorLevel.LIVING,
+    targetRoomType: RoomType.MEDICAL,
+    targetZoneTag: CONTENT_TAG,
+    targetHint: 'Жилая зона: аварийный медпост Круглова и его опечатанный шкаф.',
+    eventTargetName: 'Аварийный медпост пополнен бинтами до следующей очереди.',
+    eventTags: [CONTENT_TAG, 'medical', 'restock', 'medicine', 'scarcity'],
+    eventData: { outcome: 'medpost_restocked', supplyItem: 'bandage', rumorIds: ['room_emergency_medpost'] },
   },
 ]);
 registerSideQuest('ag44_sanitar_bort', NPC_DEFS.ag44_sanitar_bort, []);
+
+function isMedpostMedicine(itemId: string | undefined): boolean {
+  return itemId !== undefined && MEDPOST_MEDICINE.has(itemId);
+}
+
+function sideQuestId(event: WorldEvent): string {
+  const id = event.data?.sideQuestId;
+  return typeof id === 'string' ? id : '';
+}
+
+registerWorldEventObserver((state, event) => {
+  if (event.tags.includes(OUTCOME_TAG)) return;
+
+  if (event.type === 'quest_completed' && sideQuestId(event) === 'ag44_medpost_restock_bandages') {
+    publishEvent(state, {
+      type: 'faction_relation_changed',
+      floor: FloorLevel.LIVING,
+      zoneId: event.zoneId,
+      roomId: event.roomId,
+      actorId: event.actorId,
+      actorName: event.actorName,
+      actorFaction: event.actorFaction,
+      targetName: 'Круглов получил бинты; медпост удержал очередь без вскрытия шкафа.',
+      severity: 4,
+      privacy: 'local',
+      tags: [CONTENT_TAG, OUTCOME_TAG, 'medical', 'restock', 'scarcity', 'social'],
+      data: { sourceEventId: event.id, outcome: 'medpost_restocked', rumorIds: ['room_emergency_medpost'] },
+    });
+    return;
+  }
+
+  if (event.type !== 'item_stolen' || !event.tags.includes(CONTENT_TAG) || !isMedpostMedicine(event.itemId)) return;
+  publishEvent(state, {
+    type: 'faction_relation_changed',
+    floor: FloorLevel.LIVING,
+    zoneId: event.zoneId,
+    roomId: event.roomId,
+    actorId: event.actorId,
+    actorName: event.actorName,
+    actorFaction: event.actorFaction,
+    targetId: event.targetId,
+    targetName: event.targetName ?? 'аварийный медпост',
+    targetFaction: event.targetFaction,
+    itemId: event.itemId,
+    itemName: event.itemName,
+    itemCount: event.itemCount,
+    containerId: event.containerId,
+    severity: 5,
+    privacy: event.privacy === 'private' ? 'local' : event.privacy,
+    tags: [CONTENT_TAG, OUTCOME_TAG, 'medical', 'medicine_stolen', 'scarcity', 'social'],
+    data: {
+      sourceEventId: event.id,
+      outcome: 'medpost_medicine_stolen',
+      rumorIds: ['room_emergency_medpost', 'rare_bandage_med'],
+    },
+  });
+});
 
 function areaClear(world: World, rx: number, ry: number): boolean {
   for (let dy = -1; dy <= ROOM_H; dy++) {
@@ -227,7 +304,7 @@ function addMedContainer(
     access,
     lockDifficulty: access === 'locked' ? 4 : undefined,
     discovered: true,
-    tags: ['emergency_medpost', 'medical', 'scarcity', ...tags],
+    tags: [CONTENT_TAG, 'medical', 'scarcity', ...tags],
   };
   world.addContainer(container);
 }

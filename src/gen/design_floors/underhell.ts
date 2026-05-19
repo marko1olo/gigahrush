@@ -14,6 +14,7 @@ import { type PlotNpcDef, registerSideQuest } from '../../data/plot';
 import { MONSTERS } from '../../entities/monster';
 import { Spr, monsterSpr } from '../../render/sprite_index';
 import { publishEvent } from '../../systems/events';
+import { registerRouteCue } from '../../systems/route_cues';
 import { calcZoneLevel, randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg';
 import { ensureConnectivity, generateZones, placeDoorAt, stampRoom } from '../shared';
 import { genLog } from '../log';
@@ -42,6 +43,18 @@ export const UNDERHELL_FLAGS = {
 
 export type UnderhellWitnessState = 'sealed' | 'rescued' | 'silenced';
 export type UnderhellVoidGateState = 'sealed' | 'anchored' | 'open';
+export type UnderhellLateWarningId =
+  | 'underhell_threshold_price_echo'
+  | 'underhell_void_cut_darkness_trace';
+
+export interface UnderhellLateWarning {
+  id: UnderhellLateWarningId;
+  label: string;
+  sourceRoomName: string;
+  targetRoomName: string;
+  warning: string;
+  tags: readonly string[];
+}
 
 export interface UnderhellRitualState {
   routeId: typeof UNDERHELL_ROUTE_ID;
@@ -54,6 +67,7 @@ export interface UnderhellRitualState {
   debtWellCell: number;
   voidGateCell: number;
   voidAnchorEntityId: number;
+  lateWarningIds: UnderhellLateWarningId[];
 }
 
 export interface UnderhellRitualSnapshot {
@@ -110,6 +124,25 @@ export const UNDERHELL_THRESHOLD_COSTS = [
     hp: 35,
   },
 ] as const satisfies readonly UnderhellThresholdCost[];
+
+export const UNDERHELL_LATE_WARNINGS: readonly UnderhellLateWarning[] = [
+  {
+    id: 'underhell_threshold_price_echo',
+    label: 'Цена порога возвращается слухом',
+    sourceRoomName: 'Порог трех плат',
+    targetRoomName: 'Свидетельские клетки',
+    warning: 'Порог берет одну плату сейчас, но свидетельская клетка решает, кто потом расскажет о цене.',
+    tags: ['underhell', 'threshold', 'witness', 'warning'],
+  },
+  {
+    id: 'underhell_void_cut_darkness_trace',
+    label: 'Разрез в Пустоту оставляет позднюю тень',
+    sourceRoomName: 'Жертвенные ворота',
+    targetRoomName: 'Разрез в Пустоту',
+    warning: 'Открытый разрез ведет к Пустоте, а позднее может оставить след в Тьме.',
+    tags: ['underhell', 'void_gate', 'darkness', 'warning'],
+  },
+];
 
 export const UNDERHELL_DEBUG_ENTRY = {
   routeId: UNDERHELL_ROUTE_ID,
@@ -497,6 +530,32 @@ export function publishUnderhellBacklash(
   });
 }
 
+export function publishUnderhellLateWarning(
+  state: GameState,
+  warningId: UnderhellLateWarningId,
+  actor?: Entity,
+  world?: World,
+): WorldEvent {
+  const warning = UNDERHELL_LATE_WARNINGS.find(item => item.id === warningId);
+  return publishEvent(state, {
+    type: 'samosbor_warning',
+    floor: UNDERHELL_FLOOR,
+    zoneId: world && actor ? zoneFor(world, actor) : undefined,
+    actorId: actor?.id,
+    actorName: actor?.name,
+    actorFaction: actor?.faction,
+    severity: 4,
+    privacy: 'local',
+    tags: ['underhell', 'late_warning', warningId, ...(warning?.tags ?? [])],
+    data: {
+      routeId: UNDERHELL_ROUTE_ID,
+      z: UNDERHELL_Z,
+      warningId,
+      warning: warning?.warning,
+    },
+  });
+}
+
 function generateUnderhellDesignFloorSeeded(seed: number, forceOpenVoidGate: boolean): UnderhellDesignGeneration {
   const world = new World();
   const entities: Entity[] = [];
@@ -576,7 +635,9 @@ function generateUnderhellDesignFloorSeeded(seed: number, forceOpenVoidGate: boo
   addItemDrop(entities, nextId, threshold.x + threshold.w - 4, threshold.y + threshold.h - 3, 'passport_stub', 1);
   addItemDrop(entities, nextId, gate.x + 2, gate.y + gate.h - 3, 'bottled_voice', 1);
   addNote(entities, nextId, entry.x + 3, entry.y + 3, 'Ниже ада порог берет одну явную плату: holy_water, passport_stub или blood_35hp.');
+  addNote(entities, nextId, threshold.x + 5, threshold.y + 3, UNDERHELL_LATE_WARNINGS[0].warning);
   addNote(entities, nextId, witnessB.x + 4, witnessB.y + 4, 'Свидетель Б молчит. Клетку можно открыть, но можно и заставить ее не помнить.');
+  addNote(entities, nextId, sacrifice.x + 4, sacrifice.y + 4, UNDERHELL_LATE_WARNINGS[1].warning);
 
   spawnUnderhellMonster(world, entities, nextId, MonsterKind.SHADOW, threshold.x + 5, threshold.y + 3, 'Тень у платы', 4);
   spawnUnderhellMonster(world, entities, nextId, MonsterKind.KOSTOREZ, toll.x + toll.w - 5, toll.y + 6, 'Косторез пошлины', 5);
@@ -596,8 +657,10 @@ function generateUnderhellDesignFloorSeeded(seed: number, forceOpenVoidGate: boo
     debtWellCell,
     voidGateCell,
     voidAnchorEntityId: anchorEntityId,
+    lateWarningIds: UNDERHELL_LATE_WARNINGS.map(warning => warning.id),
   };
   if (forceOpenVoidGate) tryOpenUnderhellVoidGate(world, ritualState);
+  registerUnderhellRouteCues(world, ritualState, threshold, witnessA, sacrifice, gate);
 
   world.bakeLights();
   genLog(`[FLOOR19_UNDERHELL] generated ${UNDERHELL_ROUTE_ID} seed ${seed} rooms=${world.rooms.length} gate=${voidGateCell}`);
@@ -609,6 +672,73 @@ function generateUnderhellDesignFloorSeeded(seed: number, forceOpenVoidGate: boo
     spawnY: SPAWN_Y + 0.5,
     ritualState,
   };
+}
+
+function registerUnderhellRouteCues(
+  world: World,
+  ritual: UnderhellRitualState,
+  threshold: Room,
+  witness: Room,
+  sacrifice: Room,
+  gate: Room,
+): void {
+  const thresholdMarkerX = threshold.x + (threshold.w >> 1) + 0.5;
+  const thresholdMarkerY = threshold.y + 3.5;
+  const witnessTargetX = witness.x + 4.5;
+  const witnessTargetY = witness.y + 4.5;
+  const thresholdCell = world.idx(Math.floor(thresholdMarkerX), Math.floor(thresholdMarkerY));
+  registerRouteCue(world, {
+    id: 'underhell_threshold_price_echo',
+    x: thresholdMarkerX,
+    y: thresholdMarkerY,
+    targetX: witnessTargetX,
+    targetY: witnessTargetY,
+    floor: UNDERHELL_FLOOR,
+    roomId: threshold.id,
+    targetRoomId: witness.id,
+    zoneId: world.zoneMap[thresholdCell],
+    label: 'цена порога',
+    hint: 'свидетельская клетка помнит плату',
+    targetName: 'свидетельская клетка',
+    color: '#f88',
+    tags: ['underhell', 'late_warning', 'threshold', 'witness'],
+    toneSeed: threshold.id * 1901 + witness.id,
+    radius: 9,
+    targetRadius: 3,
+    cooldownSec: 40,
+    heardText: 'Порог шепчет о поздней цене: после платы реши, что делать со свидетелем.',
+    followedText: 'Свидетельская клетка найдена. Ее можно открыть, замолчать или оставить долг расти.',
+    ignoredText: 'Пороговая цена ушла в мясо. Свидетель останется чужим поздним слухом.',
+  });
+
+  const gateMarkerX = sacrifice.x + (sacrifice.w >> 1) + 0.5;
+  const gateMarkerY = sacrifice.y + sacrifice.h - 4 + 0.5;
+  const gateTargetX = gate.x + (gate.w >> 1) + 0.5;
+  const gateTargetY = gate.y + (gate.h >> 1) + 0.5;
+  const gateCell = world.idx(Math.floor(gateMarkerX), Math.floor(gateMarkerY));
+  registerRouteCue(world, {
+    id: 'underhell_void_cut_darkness_trace',
+    x: gateMarkerX,
+    y: gateMarkerY,
+    targetX: gateTargetX,
+    targetY: gateTargetY,
+    floor: UNDERHELL_FLOOR,
+    roomId: sacrifice.id,
+    targetRoomId: gate.id,
+    zoneId: world.zoneMap[gateCell],
+    label: 'разрез после ада',
+    hint: 'ворота ведут к Пустоте и поздней Тьме',
+    targetName: 'разрез в Пустоту',
+    color: '#f4a',
+    tags: ['underhell', 'void_gate', 'darkness', 'warning'],
+    toneSeed: ritual.seed + ritual.voidGateCell,
+    radius: 10,
+    targetRadius: 4,
+    cooldownSec: 44,
+    heardText: 'Жертвенные ворота предупреждают: короткий разрез в Пустоту оставит темный след позже.',
+    followedText: 'Разрез найден. Открыть его можно, но Тьма запомнит оплаченный маршрут.',
+    ignoredText: 'Разрез остался позади. Поздняя Тьма пока не получила этот след.',
+  });
 }
 
 function thresholdCostFromFlags(flags: number): UnderhellThresholdCostId | 'none' {

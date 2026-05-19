@@ -23,6 +23,13 @@ const WITNESS_ID = 'pustoy_sosed_liza_sverka';
 const COMPLAINANT_ID = 'pustoy_sosed_kostya_dvernoj';
 const LIQUIDATOR_ID = 'pustoy_sosed_mercaev';
 const OUTCOME_TAG = 'pustoy_sosed_outcome';
+export const PUSTOY_SOSED_ROOM_NAME = 'Квартира с пустым соседом';
+export const PUSTOY_SOSED_REFLECTION_RUMOR_ID = 'lead_kvartiry_pustoy_sosed_reflection';
+const PUSTOY_SOSED_RUMOR_IDS = [
+  'ecology_nelyud_close',
+  'lead_kvartiry_false_neighbor_nelyud',
+  PUSTOY_SOSED_REFLECTION_RUMOR_ID,
+] as const;
 
 const ROOM_W = 18;
 const ROOM_H = 10;
@@ -33,6 +40,21 @@ export const PUSTOY_SOSED_QUEST_IDS = {
   keepDistance: 'pustoy_sosed_keep_distance',
   closeReveal: 'pustoy_sosed_close_reveal',
 } as const;
+
+const EXPOSE_BLOCKERS = [
+  PUSTOY_SOSED_QUEST_IDS.keepDistance,
+  PUSTOY_SOSED_QUEST_IDS.closeReveal,
+];
+const FLEE_BLOCKERS = [
+  PUSTOY_SOSED_QUEST_IDS.checkPapers,
+  PUSTOY_SOSED_QUEST_IDS.reportLiquidator,
+  PUSTOY_SOSED_QUEST_IDS.closeReveal,
+];
+const FIGHT_BLOCKERS = [
+  PUSTOY_SOSED_QUEST_IDS.checkPapers,
+  PUSTOY_SOSED_QUEST_IDS.reportLiquidator,
+  PUSTOY_SOSED_QUEST_IDS.keepDistance,
+];
 
 interface OutcomeDef {
   outcome: 'exposed' | 'ignored' | 'revealed';
@@ -51,7 +73,7 @@ const OUTCOMES: Record<string, OutcomeDef> = {
     severity: 4,
     privacy: 'witnessed',
     tags: ['exposed', 'document_check'],
-    rumorIds: ['ecology_nelyud_close', 'lead_kvartiry_false_neighbor_nelyud'],
+    rumorIds: [...PUSTOY_SOSED_RUMOR_IDS],
     relationDeltas: [
       { faction: Faction.CITIZEN, delta: 5 },
       { faction: Faction.LIQUIDATOR, delta: 3 },
@@ -63,7 +85,7 @@ const OUTCOMES: Record<string, OutcomeDef> = {
     severity: 4,
     privacy: 'public',
     tags: ['exposed', 'liquidator_report'],
-    rumorIds: ['ecology_nelyud_close', 'lead_kvartiry_false_neighbor_nelyud'],
+    rumorIds: [...PUSTOY_SOSED_RUMOR_IDS],
     relationDeltas: [
       { faction: Faction.LIQUIDATOR, delta: 10 },
       { faction: Faction.CULTIST, delta: -4 },
@@ -75,7 +97,7 @@ const OUTCOMES: Record<string, OutcomeDef> = {
     severity: 2,
     privacy: 'local',
     tags: ['ignored', 'avoided'],
-    rumorIds: ['ecology_nelyud_close'],
+    rumorIds: ['ecology_nelyud_close', PUSTOY_SOSED_REFLECTION_RUMOR_ID],
     relationDeltas: [{ faction: Faction.CITIZEN, delta: 2 }],
   },
   [PUSTOY_SOSED_QUEST_IDS.closeReveal]: {
@@ -84,7 +106,7 @@ const OUTCOMES: Record<string, OutcomeDef> = {
     severity: 4,
     privacy: 'witnessed',
     tags: ['revealed', 'black_slime'],
-    rumorIds: ['ecology_nelyud_close', 'lead_kvartiry_false_neighbor_nelyud'],
+    rumorIds: [...PUSTOY_SOSED_RUMOR_IDS],
     relationDeltas: [
       { faction: Faction.LIQUIDATOR, delta: 5 },
       { faction: Faction.CITIZEN, delta: 3 },
@@ -166,20 +188,22 @@ registerSideQuest(WITNESS_ID, WITNESS, [
     relationDelta: 8,
     xpReward: 45,
     moneyReward: 18,
+    blockedBySideQuestIds: EXPOSE_BLOCKERS,
+    abandonsSideQuestIds: EXPOSE_BLOCKERS,
     targetFloor: FloorLevel.KVARTIRY,
     targetRoomType: RoomType.LIVING,
-    targetRoomName: 'Квартира с пустым соседом',
+    targetRoomName: PUSTOY_SOSED_ROOM_NAME,
     targetHint: 'заберите фальшивый пропуск с ближнего стола и держите дистанцию от дальнего жильца',
     eventSeverity: 4,
     eventPrivacy: 'witnessed',
     eventTargetName: 'Фальшивый пропуск Пустого Соседа сверили при свидетеле.',
-    eventTags: ['monster', 'false_neighbor', 'witness', 'infected', 'exposed'],
+    eventTags: ['monster', 'false_neighbor', 'witness', 'infected', 'exposed', 'expose_choice'],
     eventData: {
       monsterId: CONTENT_ID,
       ruName: 'Пустой Сосед',
       clue: 'wrong_apartment_number_and_missing_screen_reflection',
       counterplay: 'document_check_before_close_reveal',
-      rumorIds: ['ecology_nelyud_close', 'lead_kvartiry_false_neighbor_nelyud'],
+      rumorIds: [...PUSTOY_SOSED_RUMOR_IDS],
     },
   },
   {
@@ -195,16 +219,18 @@ registerSideQuest(WITNESS_ID, WITNESS, [
     xpReward: 65,
     moneyReward: 35,
     requiresSideQuestDone: PUSTOY_SOSED_QUEST_IDS.checkPapers,
+    blockedBySideQuestIds: EXPOSE_BLOCKERS,
+    abandonsSideQuestIds: EXPOSE_BLOCKERS,
     eventSeverity: 4,
     eventPrivacy: 'public',
     eventTargetName: 'Пустого Соседа передали ликвидаторам до близкого раскрытия.',
-    eventTags: ['monster', 'false_neighbor', 'witness', 'infected', 'exposed'],
+    eventTags: ['monster', 'false_neighbor', 'witness', 'infected', 'exposed', 'expose_choice'],
     eventData: {
       monsterId: CONTENT_ID,
       ruName: 'Пустой Сосед',
       counterplay: 'witness_report_to_liquidator',
       revealPrevented: true,
-      rumorIds: ['ecology_nelyud_close', 'lead_kvartiry_false_neighbor_nelyud'],
+      rumorIds: [...PUSTOY_SOSED_RUMOR_IDS],
     },
   },
 ]);
@@ -222,20 +248,22 @@ registerSideQuest(COMPLAINANT_ID, COMPLAINANT, [{
   relationDelta: 4,
   xpReward: 25,
   moneyReward: 10,
+  blockedBySideQuestIds: FLEE_BLOCKERS,
+  abandonsSideQuestIds: FLEE_BLOCKERS,
   targetFloor: FloorLevel.KVARTIRY,
   targetRoomType: RoomType.LIVING,
-  targetRoomName: 'Квартира с пустым соседом',
+  targetRoomName: PUSTOY_SOSED_ROOM_NAME,
   targetHint: 'возьмите жалобу у входа и уходите, если не готовы к близкому раскрытию',
   eventSeverity: 2,
   eventPrivacy: 'local',
   eventTargetName: 'Пустого Соседа обошли: жалоба забрана без сближения.',
-  eventTags: ['monster', 'false_neighbor', 'witness', 'infected', 'ignored'],
+  eventTags: ['monster', 'false_neighbor', 'witness', 'infected', 'ignored', 'flee_choice'],
   eventData: {
     monsterId: CONTENT_ID,
     ruName: 'Пустой Сосед',
     counterplay: 'keep_distance_and_leave_with_complaint',
     revealAvoided: true,
-    rumorIds: ['ecology_nelyud_close'],
+    rumorIds: ['ecology_nelyud_close', PUSTOY_SOSED_REFLECTION_RUMOR_ID],
   },
 }]);
 
@@ -252,16 +280,18 @@ registerSideQuest(LIQUIDATOR_ID, LIQUIDATOR, [{
   relationDelta: 10,
   xpReward: 75,
   moneyReward: 45,
+  blockedBySideQuestIds: FIGHT_BLOCKERS,
+  abandonsSideQuestIds: FIGHT_BLOCKERS,
   eventSeverity: 4,
   eventPrivacy: 'witnessed',
   eventTargetName: 'Пустой Сосед раскрылся вблизи и был ликвидирован.',
-  eventTags: ['monster', 'false_neighbor', 'witness', 'infected', 'revealed'],
+  eventTags: ['monster', 'false_neighbor', 'witness', 'infected', 'revealed', 'fight_choice'],
   eventData: {
     monsterId: CONTENT_ID,
     ruName: 'Пустой Сосед',
     failureCondition: 'close_distance_reveal',
     trace: 'black_slime',
-    rumorIds: ['ecology_nelyud_close', 'lead_kvartiry_false_neighbor_nelyud'],
+    rumorIds: [...PUSTOY_SOSED_RUMOR_IDS],
   },
 }]);
 
@@ -395,7 +425,7 @@ export function generatePustoySosedRoom(
     nextRoomId,
     spawnX,
     spawnY,
-    'Квартира с пустым соседом',
+    PUSTOY_SOSED_ROOM_NAME,
     RoomType.LIVING,
     ROOM_W,
     ROOM_H,

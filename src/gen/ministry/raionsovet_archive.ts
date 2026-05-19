@@ -252,7 +252,17 @@ export function generateRaionsovetArchive(
       { defId: 'missing_record_file', count: 1 },
       { defId: 'record_exposure_notice', count: 1 },
     ],
-    ['archive', 'paper', 'theft'],
+    [
+      'archive',
+      'archive_route',
+      'inspection_archive',
+      'raionsovet_archive',
+      'liquidator_archive',
+      'paper',
+      'evidence',
+      'audit',
+      'theft',
+    ],
     Faction.CITIZEN,
   );
   addArchiveContainer(
@@ -265,7 +275,7 @@ export function generateRaionsovetArchive(
       { defId: 'passport_stub', count: 1 },
       { defId: 'permanent_pass', count: 1 },
     ],
-    ['archive', 'locked', 'permit'],
+    ['archive', 'archive_route', 'raionsovet_archive', 'locked', 'permit'],
     Faction.CITIZEN,
   );
   addArchiveContainer(
@@ -278,7 +288,7 @@ export function generateRaionsovetArchive(
       { defId: 'stolen_archive_card', count: 1 },
       { defId: 'fake_pass', count: 1 },
     ],
-    ['archive', 'secret', 'forgery'],
+    ['archive', 'archive_route', 'raionsovet_archive', 'secret', 'forgery'],
   );
 
   genLog(`[MINISTRY_ADMIN] ${room.name} at (${room.x}, ${room.y}) room #${room.id}`);

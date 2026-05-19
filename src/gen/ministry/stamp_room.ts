@@ -1,15 +1,26 @@
 /* ── Комната печатей — Ministry admin POI ─────────────────────── */
 
 import {
-  Tex, Feature, RoomType, Faction, Occupation, QuestType,
-  type Entity,
+  ContainerKind, Tex, Feature, FloorLevel, RoomType, Faction, Occupation, QuestType, msg,
+  type Entity, type GameState, type WorldContainer, type WorldEvent,
 } from '../../core/types';
 import { World } from '../../core/world';
 import { type PlotNpcDef, registerSideQuest } from '../../data/plot';
+import { addFactionRelMutual } from '../../data/relations';
+import { publishEvent, registerWorldEventObserver } from '../../systems/events';
 import {
   type NextId, createAdminRoom, setFeature, addItemDrop, spawnAdminNpc, spawnNamedCivilian,
 } from './admin_common';
 import { genLog } from '../log';
+
+const QUEST_WITNESSED_FORGERY = 'stamp_room_witnessed_forgery';
+const STAMP_ROOM_FORGERY_TAG = 'stamp_room_forgery';
+const FORGED_STAMP_SHEET = 'forged_stamp_sheet';
+const FORGERY_USE_PATHS = [
+  'archive_forged_stamp_supply',
+  'ministry_weapon_permit_forgery',
+  'raionsovet_archive_forged_gate',
+] as const;
 
 const ZOYA_DEF: PlotNpcDef = {
   name: 'Зоя Сургучная',
@@ -61,7 +72,136 @@ registerSideQuest('zoya_surguchnaya', ZOYA_DEF, [
     rewardItem: 'book', rewardCount: 1,
     relationDelta: 10, xpReward: 35, moneyReward: 30,
   },
+  {
+    id: QUEST_WITNESSED_FORGERY,
+    giverNpcId: 'zoya_surguchnaya',
+    type: QuestType.FETCH,
+    desc: 'Зоя Сургучная: «Два куска сургуча. Поставим поддельную печать при понятой: лист пройдет в архив, но журнал тоже проснется.»',
+    targetItem: 'seal_wax', targetCount: 2,
+    rewardItem: FORGED_STAMP_SHEET, rewardCount: 1,
+    extraRewards: [{ defId: 'blank_form', count: 1 }],
+    relationDelta: -5, xpReward: 70, moneyReward: 0,
+    eventTargetName: 'Зоя поставила поддельную печать при свидетеле; лист годится для архивного окна, ночного оружейного разрешения и скупки подделок.',
+    eventSeverity: 5,
+    eventPrivacy: 'witnessed',
+    eventTags: ['ministry', 'stamp_room', STAMP_ROOM_FORGERY_TAG, 'forgery', 'witnessed', 'audit', 'document_gate', 'weapon_permit'],
+    eventData: {
+      outputItemId: FORGED_STAMP_SHEET,
+      outputItemCount: 1,
+      sourceRoom: 'Комната печатей',
+      auditRisk: 'witnessed_stamp_room_entry',
+      failureRisk: 'steal_or_cash_in_under_witness_and_local_audit',
+      usePaths: FORGERY_USE_PATHS,
+      rumorIds: ['player_forged_stamp_risk', 'ministry_document_gate_n3'],
+    },
+  },
 ]);
+
+function nextContainerId(world: World): number {
+  let id = world.containers.reduce((mx, c) => Math.max(mx, c.id), 0) + 1;
+  while (world.containerById.has(id) || world.containers.some(c => c.id === id)) id++;
+  return id;
+}
+
+function addStampAuditContainer(
+  world: World,
+  roomId: number,
+  x: number,
+  y: number,
+  ownerNpcId: number,
+): void {
+  const inventory: WorldContainer['inventory'] = [
+    { defId: FORGED_STAMP_SHEET, count: 1 },
+    { defId: 'seal_wax', count: 2 },
+    { defId: 'blank_form', count: 1 },
+    { defId: 'ink_bottle', count: 1 },
+  ];
+  world.addContainer({
+    id: nextContainerId(world),
+    x,
+    y,
+    floor: FloorLevel.MINISTRY,
+    roomId,
+    zoneId: world.zoneMap[world.idx(x, y)],
+    kind: ContainerKind.FILING_CABINET,
+    name: 'Журнал подштамповки Зои',
+    inventory,
+    capacitySlots: 6,
+    ownerNpcId,
+    ownerName: ZOYA_DEF.name,
+    faction: Faction.CITIZEN,
+    access: 'owner',
+    lockDifficulty: 2,
+    discovered: true,
+    tags: ['ministry', 'stamp_room', STAMP_ROOM_FORGERY_TAG, 'paper', 'forgery', 'audit', 'witness', 'document_gate'],
+  });
+}
+
+function sideQuestIdFrom(event: WorldEvent): string {
+  return typeof event.data?.sideQuestId === 'string' ? event.data.sideQuestId : '';
+}
+
+function publishStampAudit(
+  state: GameState,
+  event: WorldEvent,
+  outcome: 'witnessed_forgery' | 'stolen_sheet',
+): void {
+  if (outcome === 'witnessed_forgery') {
+    addFactionRelMutual(Faction.PLAYER, Faction.LIQUIDATOR, -2);
+    addFactionRelMutual(Faction.PLAYER, Faction.WILD, 1);
+  } else {
+    addFactionRelMutual(Faction.PLAYER, Faction.CITIZEN, -2);
+    addFactionRelMutual(Faction.PLAYER, Faction.LIQUIDATOR, -2);
+  }
+
+  publishEvent(state, {
+    type: 'faction_relation_changed',
+    zoneId: event.zoneId,
+    roomId: event.roomId,
+    x: event.x,
+    y: event.y,
+    actorId: event.actorId,
+    actorName: event.actorName,
+    actorFaction: event.actorFaction,
+    targetId: event.targetId,
+    targetName: outcome === 'witnessed_forgery' ? 'Понятая штамп-комнаты' : 'Ревизия штамп-комнаты',
+    targetFaction: outcome === 'stolen_sheet' ? event.targetFaction ?? Faction.CITIZEN : Faction.LIQUIDATOR,
+    itemId: FORGED_STAMP_SHEET,
+    itemName: 'Лист с поддельной печатью',
+    itemCount: 1,
+    itemValue: 70,
+    containerId: event.containerId,
+    containerOwnerId: event.containerOwnerId,
+    containerFaction: event.containerFaction,
+    severity: outcome === 'stolen_sheet' && event.privacy === 'witnessed' ? 5 : 4,
+    privacy: outcome === 'stolen_sheet' ? event.privacy : 'local',
+    tags: ['ministry', 'stamp_room', STAMP_ROOM_FORGERY_TAG, 'forgery', 'audit', outcome, 'faction'],
+    data: {
+      sourceEventId: event.id,
+      outcome,
+      usePaths: FORGERY_USE_PATHS,
+      witnessCount: event.data?.witnessCount,
+      auditAt: event.data?.auditAt,
+      rumorIds: ['player_forged_stamp_risk', 'container_theft_seen'],
+    },
+  });
+}
+
+function handleStampRoomForgeryEvent(state: GameState, event: WorldEvent): void {
+  if (event.type === 'quest_completed' && sideQuestIdFrom(event) === QUEST_WITNESSED_FORGERY) {
+    publishStampAudit(state, event, 'witnessed_forgery');
+    state.msgs.push(msg('Понятая кивнула, журнал дернулся. Поддельный лист теперь работает, но штамп-комната помнит лицо.', state.time, '#fa8'));
+    return;
+  }
+  if (event.type !== 'item_stolen') return;
+  if (event.itemId !== FORGED_STAMP_SHEET) return;
+  const containerTags = Array.isArray(event.data?.containerTags) ? event.data.containerTags : [];
+  if (!event.tags.includes(STAMP_ROOM_FORGERY_TAG) && !containerTags.includes(STAMP_ROOM_FORGERY_TAG)) return;
+  publishStampAudit(state, event, 'stolen_sheet');
+  state.msgs.push(msg('Ревизия штамп-комнаты подняла строку о поддельном листе. Польза есть, тишины нет.', state.time, '#f84'));
+}
+
+registerWorldEventObserver(handleStampRoomForgeryEvent);
 
 export function generateStampRoom(
   world: World, nextRoomId: number, entities: Entity[], nextId: NextId, spawnX: number, spawnY: number,
@@ -93,6 +233,9 @@ export function generateStampRoom(
 
   addItemDrop(entities, nextId, cx - 2, cy - 1, 'note', 1);
   addItemDrop(entities, nextId, cx + 2, cy - 1, 'ballot', 1);
+  addItemDrop(entities, nextId, cx - 2, cy + 1, 'seal_wax', 1);
+  addItemDrop(entities, nextId, cx + 2, cy + 1, 'ink_bottle', 1);
+  const zoyaId = nextId.v;
   spawnAdminNpc(entities, nextId, ZOYA_DEF, 'zoya_surguchnaya', cx, cy - 1);
   spawnNamedCivilian(
     entities, nextId, 'Охранник Матвей Пломба', false,
@@ -100,6 +243,12 @@ export function generateStampRoom(
     [{ defId: 'makarov', count: 1 }, { defId: 'ammo_9mm', count: 8 }, { defId: 'note', count: 1 }],
     'makarov',
   );
+  spawnNamedCivilian(
+    entities, nextId, 'Понятая Раиса Подпись', true,
+    room.x + room.w - 2, cy + 1, Occupation.SECRETARY, Faction.CITIZEN,
+    [{ defId: 'neighbor_complaint', count: 1 }, { defId: 'note', count: 1 }],
+  );
+  addStampAuditContainer(world, room.id, room.x + room.w - 2, cy, zoyaId);
 
   genLog(`[MINISTRY_ADMIN] ${room.name} at (${room.x}, ${room.y}) room #${room.id}`);
   return { nextRoomId: room.id + 1 };

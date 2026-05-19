@@ -8,6 +8,7 @@ import {
 import { World } from '../src/core/world';
 import { createWorldEventState, getRecentEvents } from '../src/systems/events';
 import { takeFromContainer } from '../src/systems/containers';
+import { routeCueCount } from '../src/systems/route_cues';
 import { freshRPG } from '../src/systems/rpg';
 import {
   generateSeryySmotritel,
@@ -46,6 +47,7 @@ test('Seryy Smotritel chamber teaches no-look route and punishes direct watching
 
   const sourceCell = world.idx(generated.sourceX, generated.sourceY);
   assert.equal(world.features[sourceCell], Feature.APPARATUS);
+  assert.equal(routeCueCount(world), 1);
   assert.equal(world.containers.some(c => c.tags.includes(SERYY_SMOTRITEL_ID) && c.tags.includes('avoided')), true);
   assert.equal(world.containers.some(c => c.tags.includes(SERYY_SMOTRITEL_ID) && c.tags.includes('sample')), true);
 

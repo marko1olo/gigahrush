@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { EntityType, Faction, FloorLevel, type Entity, type Item } from '../src/core/types';
+import { Faction, FloorLevel } from '../src/core/types';
+import { World } from '../src/core/world';
 import { ITEMS } from '../src/data/catalog';
 import { ITEM_TAGS } from '../src/data/items';
 import { RESOURCES } from '../src/data/resources';
@@ -9,28 +10,22 @@ import { ensureEconomyState } from '../src/systems/economy';
 import { createWorldEventState, getRecentEvents, publishEvent } from '../src/systems/events';
 import { useItem } from '../src/systems/inventory';
 import { RATION_COUPON_ITEM_IDS } from '../src/systems/ration_coupons';
-import { makeGameState } from './helpers';
+import { addTestRoom, cloneItems, countInventoryItem, makeGameState, makeTestContainer, makeTestPlayer } from './helpers';
 
-function player(inventory: Item[]): Entity {
-  return {
-    id: 0,
-    type: EntityType.PLAYER,
-    x: 0,
-    y: 0,
-    angle: 0,
-    pitch: 0,
-    alive: true,
-    speed: 0,
-    sprite: 0,
-    name: 'Вы',
-    faction: Faction.PLAYER,
-    inventory: inventory.map(item => ({ ...item })),
-    money: 0,
-  };
-}
-
-function countItem(actor: Entity, defId: string): number {
-  return (actor.inventory ?? []).reduce((sum, item) => item.defId === defId ? sum + item.count : sum, 0);
+function queueWorld(tag = 'ration_queue'): World {
+  const world = new World();
+  const room = addTestRoom(world, { id: 3, x: 10, y: 12, w: 8, h: 5, zoneId: 7, name: 'Тестовая пайковая очередь' });
+  world.addContainer(makeTestContainer({
+    id: 1,
+    x: 12,
+    y: 14,
+    floor: FloorLevel.KVARTIRY,
+    roomId: room.id,
+    zoneId: 7,
+    name: 'Тестовая касса',
+    tags: [tag],
+  }));
+  return world;
 }
 
 test('ration coupon ids resolve through items, resources, and tags', () => {
@@ -46,37 +41,98 @@ test('ration coupon ids resolve through items, resources, and tags', () => {
 
 test('using a fair ration coupon spends stock and grants ration output', () => {
   const state = makeGameState({ currentFloor: FloorLevel.LIVING, worldEvents: createWorldEventState() });
-  const actor = player([{ defId: 'water_coupon', count: 1 }]);
+  const actor = makeTestPlayer({ id: 0, inventory: cloneItems([{ defId: 'water_coupon', count: 1 }]), money: 0 });
 
   useItem(actor, 0, state.msgs, state.time, state);
 
-  assert.equal(countItem(actor, 'water_coupon'), 0);
-  assert.equal(countItem(actor, 'water'), 1);
+  assert.equal(countInventoryItem(actor, 'water_coupon'), 0);
+  assert.equal(countInventoryItem(actor, 'water'), 1);
   const economy = ensureEconomyState(state);
   assert.equal(economy.floors[FloorLevel.LIVING]?.resources.drink_water.stock, 119);
   assert.equal(getRecentEvents(state)[0].type, 'ration_coupon_spent');
 });
 
+test('water trades for a queue place only inside a ration queue room', () => {
+  const state = makeGameState({ currentFloor: FloorLevel.KVARTIRY, worldEvents: createWorldEventState() });
+  const world = queueWorld();
+  const actor = makeTestPlayer({ id: 0, x: 12.5, y: 14.5, inventory: cloneItems([{ defId: 'water', count: 1 }]), money: 0 });
+
+  useItem(actor, 0, state.msgs, state.time, state, 7, world);
+
+  assert.equal(countInventoryItem(actor, 'water'), 0);
+  assert.equal(countInventoryItem(actor, 'bread'), 1);
+  const economy = ensureEconomyState(state);
+  assert.equal(economy.floors[FloorLevel.KVARTIRY]?.resources.drink_water.stock, 121);
+  assert.equal(economy.floors[FloorLevel.KVARTIRY]?.resources.food.stock, 139);
+  const event = getRecentEvents(state)[0];
+  assert.equal(event.type, 'player_use_item');
+  assert.equal(event.data?.outcome, 'water_for_place_trade');
+  assert.equal(event.tags.includes('crowd_relief'), true);
+});
+
+test('bread can jump the ration queue at crowd risk', () => {
+  const state = makeGameState({ currentFloor: FloorLevel.KVARTIRY, worldEvents: createWorldEventState() });
+  const world = queueWorld('ocherednik');
+  const actor = makeTestPlayer({ id: 0, x: 12.5, y: 14.5, inventory: cloneItems([{ defId: 'bread', count: 1 }]), money: 0 });
+
+  useItem(actor, 0, state.msgs, state.time, state, 7, world);
+
+  assert.equal(countInventoryItem(actor, 'bread'), 0);
+  assert.equal(countInventoryItem(actor, 'water_coupon'), 1);
+  const economy = ensureEconomyState(state);
+  assert.equal(economy.floors[FloorLevel.KVARTIRY]?.resources.food.stock, 141);
+  assert.equal(economy.floors[FloorLevel.KVARTIRY]?.resources.drink_water.stock, 119);
+  const event = getRecentEvents(state)[0];
+  assert.equal(event.type, 'player_use_item');
+  assert.equal(event.severity, 4);
+  assert.equal(event.data?.outcome, 'queue_jump_for_coupon');
+  assert.equal(event.tags.includes('crowd_risk'), true);
+});
+
+test('ration queue item trades are capped per local room window', () => {
+  const state = makeGameState({ currentFloor: FloorLevel.KVARTIRY, worldEvents: createWorldEventState() });
+  const world = queueWorld();
+  const actor = makeTestPlayer({ id: 0, x: 12.5, y: 14.5, inventory: cloneItems([{ defId: 'water', count: 4 }]), money: 0 });
+
+  for (let i = 0; i < 4; i++) {
+    state.time = i;
+    useItem(actor, 0, state.msgs, state.time, state, 7, world);
+  }
+
+  assert.equal(countInventoryItem(actor, 'water'), 1);
+  assert.equal(countInventoryItem(actor, 'bread'), 3);
+  assert.equal(getRecentEvents(state, { tags: ['ration_queue_trade'] }).length, 3);
+  assert.equal(state.msgs[state.msgs.length - 1].text.includes('перестала менять места'), true);
+});
+
 test('using a ration stamp pad forges a dangerous ration card', () => {
   const state = makeGameState({ currentFloor: FloorLevel.MINISTRY, worldEvents: createWorldEventState() });
-  const actor = player([{ defId: 'ration_stamp_pad', count: 1 }, { defId: 'blank_form', count: 1 }]);
+  const actor = makeTestPlayer({
+    id: 0,
+    inventory: cloneItems([{ defId: 'ration_stamp_pad', count: 1 }, { defId: 'blank_form', count: 1 }]),
+    money: 0,
+  });
 
   useItem(actor, 0, state.msgs, state.time, state);
 
-  assert.equal(countItem(actor, 'ration_stamp_pad'), 0);
-  assert.equal(countItem(actor, 'blank_form'), 0);
-  assert.equal(countItem(actor, 'forged_ration_card'), 1);
+  assert.equal(countInventoryItem(actor, 'ration_stamp_pad'), 0);
+  assert.equal(countInventoryItem(actor, 'blank_form'), 0);
+  assert.equal(countInventoryItem(actor, 'forged_ration_card'), 1);
   assert.equal(getRecentEvents(state)[0].type, 'ration_coupon_forged');
 });
 
 test('reporting a forged ration card resolves the audit into Kvartiry stock', () => {
   const state = makeGameState({ currentFloor: FloorLevel.MINISTRY, worldEvents: createWorldEventState() });
-  const actor = player([{ defId: 'ration_registry_extract', count: 1 }, { defId: 'forged_ration_card', count: 1 }]);
+  const actor = makeTestPlayer({
+    id: 0,
+    inventory: cloneItems([{ defId: 'ration_registry_extract', count: 1 }, { defId: 'forged_ration_card', count: 1 }]),
+    money: 0,
+  });
 
   useItem(actor, 0, state.msgs, state.time, state);
 
-  assert.equal(countItem(actor, 'ration_registry_extract'), 0);
-  assert.equal(countItem(actor, 'forged_ration_card'), 0);
+  assert.equal(countInventoryItem(actor, 'ration_registry_extract'), 0);
+  assert.equal(countInventoryItem(actor, 'forged_ration_card'), 0);
   assert.equal(actor.money, 18);
   const economy = ensureEconomyState(state);
   assert.equal(economy.floors[FloorLevel.KVARTIRY]?.resources.food.stock, 144);

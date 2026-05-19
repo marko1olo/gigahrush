@@ -1,9 +1,12 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { EntityType, Faction, ItemType, MonsterKind, type Entity, type Msg } from '../src/core/types';
+import { AIGoal, Cell, EntityType, Faction, ItemType, MonsterKind, type Entity, type Msg } from '../src/core/types';
+import { World } from '../src/core/world';
 import { ITEMS, WEAPON_STATS } from '../src/data/catalog';
-import { getStack, spawnCount } from '../src/data/items';
+import { PSI_WEAPON_STATS } from '../src/data/psi';
+import { RESOURCES, resourceForItemType } from '../src/data/resources';
+import { ITEM_TAGS, getStack, spawnCount } from '../src/data/items';
 import {
   addItem,
   consumeAmmo,
@@ -16,11 +19,14 @@ import {
 } from '../src/systems/inventory';
 import {
   awardXP,
+  adjustedPsiCost,
   freshRPG,
   getMaxHp,
+  intPsiCostMult,
   questDifficulty,
   questMoneyReward,
   questXpReward,
+  regenPsi,
   scaleMonsterDmg,
   scaleMonsterHp,
   spendAttrPoint,
@@ -37,6 +43,7 @@ import {
   zhelemishMoveMult,
 } from '../src/systems/status';
 import { getRecentEvents } from '../src/systems/events';
+import { tryFactionCombat } from '../src/systems/ai/combat';
 import { makeGameState } from './helpers';
 
 function makePlayer(): Entity {
@@ -63,7 +70,7 @@ function makePlayer(): Entity {
 test('item stack rules keep weapons single-slot and commodities stackable', () => {
   assert.equal(getStack(ITEMS.bread), 999);
   assert.equal(getStack(ITEMS.pipe), 1);
-  assert.equal(spawnCount(ITEMS.ammo_9mm), 100);
+  assert.equal(spawnCount(ITEMS.ammo_9mm), 4);
   assert.equal(spawnCount(ITEMS.pipe), 1);
 
   const player = makePlayer();
@@ -134,6 +141,11 @@ test('ammo and durability consumption update equipped combat state', () => {
 
   player.weapon = 'knife';
   addItem(player, 'knife', 1);
+  readiness = getWeaponReadiness(player);
+  assert.equal(readiness.range, WEAPON_STATS.knife.range);
+  assert.equal(readiness.knockback, WEAPON_STATS.knife.knockback);
+  assert.equal(readiness.reachLabel, 'дист 1.4');
+  assert.equal(readiness.controlLabel, 'стоп 0.1');
   const before = getEquippedDurability(player);
   assert.equal(before?.max, WEAPON_STATS.knife.durability);
   const msgs: Msg[] = [];
@@ -143,6 +155,133 @@ test('ammo and durability consumption update equipped combat state', () => {
   assert.equal(consumeDurability(player, msgs, 21), true);
   assert.equal(player.weapon, '');
   assert.equal(player.inventory?.some(i => i.defId === 'knife'), false);
+});
+
+test('NPC melee stop pushes targets through the generic faction combat path', () => {
+  const world = new World();
+  for (let y = 508; y <= 512; y++) {
+    for (let x = 508; x <= 512; x++) world.set(x, y, Cell.FLOOR);
+  }
+
+  const attacker: Entity = {
+    id: 10,
+    type: EntityType.NPC,
+    x: 510,
+    y: 510,
+    angle: 0,
+    pitch: 0,
+    alive: true,
+    speed: 3,
+    sprite: 0,
+    hp: 100,
+    maxHp: 100,
+    faction: Faction.LIQUIDATOR,
+    weapon: 'pipe',
+    ai: { goal: AIGoal.IDLE, tx: 0, ty: 0, path: [], pi: 0, stuck: 0, timer: 0 },
+  };
+  const target: Entity = {
+    id: 11,
+    type: EntityType.MONSTER,
+    x: 511,
+    y: 510,
+    angle: 0,
+    pitch: 0,
+    alive: true,
+    speed: 2,
+    sprite: 0,
+    hp: 100,
+    maxHp: 100,
+    monsterKind: MonsterKind.SBORKA,
+  };
+  const beforeDist = world.dist(attacker.x, attacker.y, target.x, target.y);
+
+  assert.equal(tryFactionCombat(world, [attacker, target], attacker, 0.1, 5, [], { v: 100 }), true);
+  assert.equal(target.hp, 100 - WEAPON_STATS.pipe.dmg);
+  assert.ok(world.dist(attacker.x, attacker.y, target.x, target.y) > beforeDist);
+  assert.ok((target.attackCd ?? 0) > 0);
+});
+
+test('PSI weapon ids, resources, and effect bindings stay coherent', () => {
+  const instantEffects = new Set(['storm', 'brain_burn', 'madness', 'control', 'phase', 'mark', 'recall', 'beam']);
+  const statIds = Object.keys(PSI_WEAPON_STATS).sort();
+  const itemIds = Object.values(ITEMS)
+    .filter(def => def.type === ItemType.WEAPON && def.id.startsWith('psi_'))
+    .map(def => def.id)
+    .sort();
+
+  assert.deepEqual(itemIds, statIds);
+
+  for (const id of statIds) {
+    const item = ITEMS[id];
+    const stats = PSI_WEAPON_STATS[id];
+    assert.equal(WEAPON_STATS[id], stats, `${id} must be exported through weapon catalogue`);
+    assert.equal(item.type, ItemType.WEAPON, `${id} must be a weapon item`);
+    assert.ok((stats.psiCost ?? 0) > 0, `${id} must spend PSI`);
+    assert.equal(stats.durability, 0, `${id} must not use durability`);
+    assert.equal(stats.range, 0, `${id} must not masquerade as melee`);
+
+    if (stats.isRanged) {
+      assert.ok((stats.projSpeed ?? 0) > 0, `${id} ranged PSI needs projectile speed`);
+      assert.equal(stats.psiEffect, undefined, `${id} should not mix projectile and instant effects`);
+    } else {
+      assert.ok(stats.psiEffect && instantEffects.has(stats.psiEffect), `${id} has unknown instant effect`);
+    }
+  }
+
+  assert.ok(PSI_WEAPON_STATS.psi_void_needle.psiCost! > freshRPG(1).maxPsi);
+  assert.ok(PSI_WEAPON_STATS.psi_brainburn.psiCost! >= PSI_WEAPON_STATS.psi_storm.psiCost!);
+});
+
+test('PSI recovery is explicit, tagged, and bounded by item values', () => {
+  const player = makePlayer();
+  player.rpg!.psi = 2;
+  regenPsi(player, 999);
+  assert.equal(player.rpg?.psi, 2);
+
+  const restorers: [string, number][] = [
+    ['pills', 3],
+    ['antidep', 12],
+    ['calm_brew', 5],
+    ['holy_water', 10],
+    ['psi_stabilizer', 20],
+  ];
+
+  for (const [id, expectedPsi] of restorers) {
+    const p = makePlayer();
+    p.rpg!.psi = 0;
+    p.rpg!.maxPsi = 50;
+    ITEMS[id].use?.(p);
+    assert.equal(p.rpg?.psi, expectedPsi, `${id} PSI restore changed`);
+    assert.ok(ITEM_TAGS[id]?.includes('psi_restore'), `${id} must publish psi_restore tag`);
+  }
+
+  assert.ok(ITEMS.psi_stabilizer.spawnW < ITEMS.pills.spawnW);
+});
+
+test('audited survival documents, drinks, and rare trophies have economy roles', () => {
+  const byId = Object.fromEntries(RESOURCES.map(resource => [resource.id, resource]));
+
+  assert.equal(resourceForItemType(ItemType.DRINK)?.id, 'drink_water');
+  for (const id of ['tea', 'kompot', 'instant_coffee', 'siren_energy', 'calm_brew']) {
+    assert.ok(byId.drink_water.itemIds.includes(id), `${id} must follow water scarcity`);
+  }
+
+  for (const id of [
+    'official_permit_slip', 'weapon_permit_signed', 'ammo_issue_order',
+    'official_quarantine_clearance', 'elevator_access_order', 'void_archive_warrant',
+    'pneumomail_capsule',
+  ]) {
+    assert.ok(byId.documents.itemIds.includes(id), `${id} must affect document scarcity`);
+    assert.ok(ITEM_TAGS[id]?.includes('document'), `${id} must publish document tags`);
+  }
+
+  for (const id of ['bottled_voice', 'siren_shard', 'void_spike']) {
+    assert.ok(byId.psi.itemIds.includes(id), `${id} must price as a PSI/void trophy`);
+    assert.ok(ITEM_TAGS[id]?.includes('rare_trophy'), `${id} must publish rare trophy tags`);
+  }
+
+  assert.ok(byId.contraband.itemIds.includes('shark_scale'));
+  assert.ok(ITEMS.shark_scale.spawnW > 0);
 });
 
 test('RPG rewards, attribute spend, and scaling formulas remain stable', () => {
@@ -165,6 +304,19 @@ test('RPG rewards, attribute spend, and scaling formulas remain stable', () => {
   assert.equal(questXpReward(difficulty), 160);
   assert.equal(questMoneyReward(difficulty), 40);
   assert.equal(ITEMS.water.type, ItemType.DRINK);
+});
+
+test('INT improves PSI economy but keeps casts resource-bound', () => {
+  const rpg = freshRPG(10);
+
+  assert.equal(adjustedPsiCost(20, rpg), 20);
+  rpg.int = 2;
+  assert.equal(adjustedPsiCost(20, rpg), 18.6);
+  rpg.int = 10;
+  assert.equal(intPsiCostMult(rpg), 0.75);
+  assert.equal(adjustedPsiCost(20, rpg), 15);
+  rpg.int = 50;
+  assert.equal(adjustedPsiCost(20, rpg), 15);
 });
 
 test('zhelemish skin timing, costs, and combat formulas stay bounded', () => {

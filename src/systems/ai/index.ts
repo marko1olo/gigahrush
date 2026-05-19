@@ -19,7 +19,7 @@ const entityByIdCache = new Map<number, Entity>();
 
 export function updateAI(world: World, entities: Entity[], dt: number, time: number, msgs: Msg[], playerId: number, clock: GameClock, samosborActive: boolean, nextId: { v: number }, currentFloor?: FloorLevel, state?: GameState): void {
   // Push per-frame refs into sub-modules
-  setPathContext(msgs, time);
+  setPathContext(msgs, time, samosborActive);
   setCombatContext(msgs, time);
   setNpcContext(msgs, time);
   setMinistryContext(msgs, time);

@@ -1,7 +1,8 @@
 /* ── AG18 concentrate press — factory loop without factory sim ── */
 
 import {
-  Cell, Tex, Feature, RoomType, Faction, Occupation, QuestType, MonsterKind,
+  Cell, ContainerKind, Feature, FloorLevel, Faction, MonsterKind, Occupation, QuestType, RoomType, Tex,
+  type Room, type WorldContainer,
 } from '../../core/types';
 import { type PlotNpcDef, registerSideQuest } from '../../data/plot';
 import { placeDoor } from '../shared';
@@ -9,6 +10,10 @@ import {
   type MaintContentCtx, dropItems, findMaintArea, setFeature, setWater,
   spawnMonstersNear, spawnPlotNpc, stampMaintRoom,
 } from './content_helpers';
+
+const CONTENT_TAG = 'concentrate_press';
+const OUTPUT_TAG = 'concentrate_press_output';
+const QUARANTINE_TAG = 'concentrate_press_quarantine';
 
 const MASTER_DEF: PlotNpcDef = {
   name: 'Инна Прессова',
@@ -100,6 +105,12 @@ const THIEF_DEF: PlotNpcDef = {
   ],
 };
 
+function contentTags(extra: readonly string[] = []): string[] {
+  const tags = [CONTENT_TAG];
+  for (const tag of extra) if (!tags.includes(tag)) tags.push(tag);
+  return tags;
+}
+
 registerSideQuest('ag18_press_master', MASTER_DEF, [{
   id: 'ag18_repair_concentrate_line',
   giverNpcId: 'ag18_press_master',
@@ -168,6 +179,73 @@ function contaminateWaste(ctx: MaintContentCtx, x: number, y: number): void {
   if (dirty) ctx.world.markFogDirty();
 }
 
+function nextContainerId(ctx: MaintContentCtx): number {
+  let id = ctx.world.containers.length + 1;
+  while (ctx.world.containerById.has(id) || ctx.world.containers.some(c => c.id === id)) id++;
+  return id;
+}
+
+function addPressContainer(
+  ctx: MaintContentCtx,
+  room: Room,
+  x: number,
+  y: number,
+  container: Omit<WorldContainer, 'id' | 'x' | 'y' | 'floor' | 'roomId' | 'zoneId'>,
+): WorldContainer {
+  const wx = ctx.world.wrap(x);
+  const wy = ctx.world.wrap(y);
+  const ci = ctx.world.idx(wx, wy);
+  const full: WorldContainer = {
+    id: nextContainerId(ctx),
+    x: wx,
+    y: wy,
+    floor: FloorLevel.MAINTENANCE,
+    roomId: room.id,
+    zoneId: ctx.world.zoneMap[ci],
+    ...container,
+  };
+  ctx.world.addContainer(full);
+  setFeature(ctx.world, wx, wy, Feature.SHELF);
+  return full;
+}
+
+function addPressContainers(ctx: MaintContentCtx, press: Room, waste: Room, masterId: number, guardId: number): void {
+  addPressContainer(ctx, press, press.x + press.w - 3, press.y + 2, {
+    kind: ContainerKind.METAL_CABINET,
+    name: 'Выходной шкаф линии концентрата',
+    inventory: [
+      { defId: 'grey_briquette', count: 4 },
+      { defId: 'concentrate_coupon', count: 1 },
+      { defId: 'gasmask_filter', count: 1 },
+    ],
+    capacitySlots: 10,
+    ownerNpcId: masterId,
+    ownerName: MASTER_DEF.name,
+    faction: Faction.CITIZEN,
+    access: 'owner',
+    discovered: true,
+    factoryId: 'concentrate_press',
+    tags: contentTags([OUTPUT_TAG, 'production_output', 'food', 'legal_output', 'theft']),
+  });
+
+  addPressContainer(ctx, waste, waste.x + waste.w - 2, waste.y + 1, {
+    kind: ContainerKind.METAL_CABINET,
+    name: 'Карантинный шкаф зелёной партии',
+    inventory: [
+      { defId: 'green_briquette', count: 2 },
+      { defId: 'acid_bottle', count: 1 },
+      { defId: 'rawmeat', count: 1 },
+    ],
+    capacitySlots: 8,
+    ownerNpcId: guardId,
+    ownerName: GUARD_DEF.name,
+    faction: Faction.LIQUIDATOR,
+    access: 'owner',
+    discovered: true,
+    tags: contentTags([QUARANTINE_TAG, 'quarantine', 'bad_batch', 'food', 'theft']),
+  });
+}
+
 export function generateConcentratePress(ctx: MaintContentCtx): void {
   const cx = Math.floor(ctx.spawnX);
   const cy = Math.floor(ctx.spawnY);
@@ -219,10 +297,14 @@ export function generateConcentratePress(ctx: MaintContentCtx): void {
   setFeature(ctx.world, waste.x + 4, waste.y + 4, Feature.LAMP);
   contaminateWaste(ctx, waste.x + 2, waste.y + 2);
 
+  const masterId = ctx.nextId.v;
   spawnPlotNpc(ctx, 'ag18_press_master', MASTER_DEF, press.x + 3, press.y + 8, 0);
   spawnPlotNpc(ctx, 'ag18_press_input', INPUT_DEF, input.x + 5, input.y + 4, Math.PI / 2);
+  const guardId = ctx.nextId.v;
   spawnPlotNpc(ctx, 'ag18_press_guard', GUARD_DEF, press.x + 14, press.y + 8, Math.PI);
   spawnPlotNpc(ctx, 'ag18_press_thief', THIEF_DEF, waste.x + 5, waste.y + 4, -Math.PI / 2);
+
+  addPressContainers(ctx, press, waste, masterId, guardId);
 
   dropItems(ctx, input, [
     'filter_layer', 'filter_layer', 'metal_water', 'rawmeat',

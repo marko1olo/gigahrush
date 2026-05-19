@@ -3,14 +3,14 @@
 import {
   W, Cell, RoomType, Faction, ZoneFaction, LiftDirection, FloorLevel,
   EntityType, MonsterKind, Occupation, AIGoal,
-  type Entity, type GameState,
+  type Entity, type GameState, type WorldContainer,
   msg,
 } from '../core/types';
 import { World } from '../core/world';
 import { freshNeeds, randomName, ITEMS } from '../data/catalog';
 import { getStack } from '../data/items';
 import { FACTION_NAMES } from '../data/relations';
-import { MONSTERS, applyMonsterVariant } from '../entities/monster';
+import { MONSTERS, applyMonsterVariant, monsterTypeName } from '../entities/monster';
 import { Spr } from '../render/sprite_index';
 import { awardXP, randomRPG, getMaxHp } from './rpg';
 import { isDebugNoClipEnabled, toggleDebugNoClip } from './psi';
@@ -20,13 +20,13 @@ import {
   forceNextSamosborDirectorBeat,
   summarizeSamosborDirector,
 } from './samosbor_director';
-import { ensureWorldEventState, getImportantEvents, summarizeImportantEventsByFloorZone } from './events';
+import { ensureWorldEventState, getImportantEvents, publishEvent, summarizeImportantEventsByFloorZone } from './events';
 import { describeContainer, ensureRoomContainers, firstNearbyContainer, nearbyContainers, takeFromContainer } from './containers';
-import { getAdjustedItemPrice, summarizeEconomy } from './economy';
+import { changeResourceStock, getAdjustedItemPrice, getResourceScarcity, summarizeEconomy } from './economy';
 import { tickProduction, summarizeProduction } from './production';
 import { addItem } from './inventory';
 import { publishMaronaryShavingAcquired } from './maronary_shaving';
-import { spawnContract, spawnGovnyakCourierContract, summarizeContracts } from './contracts';
+import { spawnContract, spawnContractById, spawnGovnyakCourierContract, summarizeContracts } from './contracts';
 import { debugForcePneumomailCapsule } from './pneumomail';
 import { populationItemSummary } from './balance';
 import { getSamosborDebugLines } from './samosbor';
@@ -34,8 +34,8 @@ import { floorCatalogDebugLines } from './floor_catalog';
 import { summarizeHeatline } from './heatline';
 import { summarizeCarnivorousFungus } from './carnivorous_fungus';
 import { summarizeHladonColdPockets } from './hladon';
-import { summarizeFloorInstances } from './floor_instances';
-import { summarizeFloorRun } from './procedural_floors';
+import { ensureFloorInstanceState, floorInstanceLabel, summarizeFloorInstances } from './floor_instances';
+import { currentFloorRunEntry, resolveFloorRunRoute, summarizeFloorRun } from './procedural_floors';
 import { summarizeProceduralSmog } from './procedural_anomalies';
 import { debugSpawnBadAppleWorld, summarizeBadAppleWorld } from './procedural_anomalies/bad_apple_world';
 import { debugForceVoidProtocol } from './void_protocols';
@@ -44,6 +44,7 @@ import { debugTriggerRouteCue, routeCueCount } from './route_cues';
 import { debugCreateWrongDoorRemap } from './wrong_door';
 import { debugForceHermodoorBorer } from './hermodoor_borer';
 import { DESIGN_FLOOR_ROUTES, type DesignFloorId } from '../data/design_floors';
+import { FLOOR_INSTANCES } from '../data/floor_instances';
 import { type FloorAnomalyId } from '../data/procedural_floors';
 import { isDebugOnePunchManEnabled, keepDebugOnePunchManAlive, toggleDebugOnePunchMan } from './debug_cheats';
 import { fitText } from '../render/ui_text';
@@ -64,7 +65,34 @@ import {
 
 const CATALOG_DEBUG_SEARCHES = ['', 'numbered', '404', 'school', 'hospital', 'market'];
 const DEBUG_FORCED_VERETAR_LEAD_SECONDS = 30;
+const DEBUG_SAMOSBOR_WARNING_SECONDS = 12;
+const DEBUG_MONSTER_SCAN_CAP = 192;
+const DEBUG_CONTAINER_ROUTE_RADIUS = 2;
+const DEBUG_VERIFICATION_CONTRACT_IDS = [
+  'exp_living_emergency_roster',
+  'exp_ministry_safe_override',
+  'exp_kvartiry_ration_stamp',
+  'exp_maint_pressure_repair',
+  'exp_hell_bottled_voice_retrieve',
+  'exp_void_archive_warrant',
+] as const;
+const DEBUG_ECONOMY_PULSES = [
+  { resourceId: 'drink_water', itemId: 'water', delta: -90, label: 'вода' },
+  { resourceId: 'medicine', itemId: 'bandage', delta: -55, label: 'медицина' },
+  { resourceId: 'ammo', itemId: 'ammo_9mm', delta: -65, label: 'патроны' },
+] as const;
+const DEBUG_MONSTER_PACKS: Record<FloorLevel, readonly MonsterKind[]> = {
+  [FloorLevel.MINISTRY]: [MonsterKind.PECHATEED, MonsterKind.PARAGRAPH, MonsterKind.SHOVNIK],
+  [FloorLevel.KVARTIRY]: [MonsterKind.REBAR, MonsterKind.NELYUD, MonsterKind.KRYSNOZHKA],
+  [FloorLevel.LIVING]: [MonsterKind.SBORKA, MonsterKind.SHADOW, MonsterKind.NELYUD],
+  [FloorLevel.MAINTENANCE]: [MonsterKind.TUBE_EEL, MonsterKind.POLZUN, MonsterKind.KOSTOREZ],
+  [FloorLevel.HELL]: [MonsterKind.HERALD, MonsterKind.KOSTOREZ, MonsterKind.TVAR],
+  [FloorLevel.VOID]: [MonsterKind.PARAGRAPH, MonsterKind.EYE, MonsterKind.SPIRIT],
+};
 let catalogDebugSearchIndex = 0;
+let debugVerificationContractIndex = 0;
+let debugEconomyPulseIndex = 0;
+let debugFloorInstanceCursor = 0;
 
 export type DebugCommandAction =
   | { type: 'teleport_story_floor'; floor: FloorLevel }
@@ -127,6 +155,314 @@ function stabilizeSmokeRecovery(world: World, player: Entity, entities: Entity[]
   player.alive = true;
   player.maxHp = Math.max(100, player.maxHp ?? 100);
   player.hp = player.maxHp;
+}
+
+function formatDebugZ(z: number): string {
+  return z > 0 ? `+${z}` : `${z}`;
+}
+
+function currentPlayerZone(world: World, player: Entity): number | undefined {
+  const x = world.wrap(Math.floor(player.x));
+  const y = world.wrap(Math.floor(player.y));
+  const zone = world.zoneMap[world.idx(x, y)];
+  return zone >= 0 ? zone : undefined;
+}
+
+function currentPlayerRoom(world: World, player: Entity): number | undefined {
+  const x = world.wrap(Math.floor(player.x));
+  const y = world.wrap(Math.floor(player.y));
+  const room = world.roomMap[world.idx(x, y)];
+  return room >= 0 ? room : undefined;
+}
+
+function routeEntryLine(prefix: string, entry: ReturnType<typeof currentFloorRunEntry> | null): string {
+  if (!entry) return `${prefix}: нет остановки`;
+  const kind = entry.spec
+    ? `proc ${entry.spec.anomalyId} d${entry.spec.danger}`
+    : entry.designFloorId
+      ? `design ${entry.designFloorId}`
+      : `story ${FloorLevel[entry.baseFloor]}`;
+  return `${prefix}: Z${formatDebugZ(entry.z)} ${kind} ${entry.label}`;
+}
+
+function debugRouteWindowLines(state: GameState): string[] {
+  return [
+    routeEntryLine('now', currentFloorRunEntry(state)),
+    routeEntryLine('up', resolveFloorRunRoute(state, LiftDirection.UP)),
+    routeEntryLine('down', resolveFloorRunRoute(state, LiftDirection.DOWN)),
+  ];
+}
+
+function spawnDebugVerificationContract(state: GameState): string[] {
+  for (let step = 0; step < DEBUG_VERIFICATION_CONTRACT_IDS.length; step++) {
+    const idx = (debugVerificationContractIndex + step) % DEBUG_VERIFICATION_CONTRACT_IDS.length;
+    const id = DEBUG_VERIFICATION_CONTRACT_IDS[idx];
+    if (state.quests.some(q => q.contractId === id)) continue;
+    debugVerificationContractIndex = idx + 1;
+    const created = spawnContractById(state, id, ['debug_route', 'verification']);
+    return [
+      created ? `created ${id}` : `failed ${id}`,
+      ...summarizeContracts(state, 5),
+    ];
+  }
+  return ['all verification contracts already exist in quest history', ...summarizeContracts(state, 5)];
+}
+
+function publishDebugVerificationEvent(world: World, player: Entity, state: GameState): string {
+  const event = publishEvent(state, {
+    type: 'rumor_observed',
+    zoneId: currentPlayerZone(world, player),
+    roomId: currentPlayerRoom(world, player),
+    x: player.x,
+    y: player.y,
+    actorId: player.id,
+    actorName: player.name ?? 'Вы',
+    actorFaction: player.faction,
+    targetName: 'debug verification route',
+    severity: 4,
+    privacy: 'local',
+    tags: ['debug', 'verification', 'events', 'rumor_observed'],
+    data: {
+      source: 'debug_menu',
+      routeZ: currentFloorRunEntry(state).z,
+      samosborActive: state.samosborActive,
+    },
+  });
+  return `published ${event.type}#${event.id} sev${event.severity}`;
+}
+
+function applyDebugEconomyPulse(world: World, player: Entity, state: GameState): string[] {
+  const pulse = DEBUG_ECONOMY_PULSES[debugEconomyPulseIndex++ % DEBUG_ECONOMY_PULSES.length];
+  const before = getResourceScarcity(state, pulse.resourceId);
+  const ok = changeResourceStock(state, pulse.resourceId, pulse.delta);
+  const after = getResourceScarcity(state, pulse.resourceId);
+  if (ok) {
+    publishEvent(state, {
+      type: 'room_lacked_resources',
+      zoneId: currentPlayerZone(world, player),
+      roomId: currentPlayerRoom(world, player),
+      x: player.x,
+      y: player.y,
+      actorId: player.id,
+      actorName: player.name ?? 'Вы',
+      actorFaction: player.faction,
+      itemId: pulse.itemId,
+      itemName: ITEMS[pulse.itemId]?.name ?? pulse.itemId,
+      severity: 4,
+      privacy: 'local',
+      tags: ['debug', 'economy', 'shortage', pulse.resourceId],
+      data: {
+        source: 'debug_menu',
+        resourceId: pulse.resourceId,
+        stockDelta: pulse.delta,
+        scarcityBefore: before,
+        scarcityAfter: after,
+      },
+    });
+  }
+  return [
+    ok
+      ? `${pulse.label}: x${before.toFixed(2)} -> x${after.toFixed(2)} price ${getAdjustedItemPrice(state, pulse.itemId)}`
+      : `${pulse.label}: resource missing`,
+    ...summarizeEconomy(state, 5),
+  ];
+}
+
+function passableDebugCell(world: World, x: number, y: number): boolean {
+  const ci = world.idx(x, y);
+  return (world.cells[ci] === Cell.FLOOR || world.cells[ci] === Cell.WATER) && !world.solid(x, y);
+}
+
+function entityBlocksDebugSpawn(world: World, entities: Entity[], x: number, y: number): boolean {
+  let scanned = 0;
+  for (const e of entities) {
+    if (++scanned > DEBUG_MONSTER_SCAN_CAP) break;
+    if (!e.alive || e.type === EntityType.ITEM_DROP || e.type === EntityType.PROJECTILE) continue;
+    if (world.dist2(x + 0.5, y + 0.5, e.x, e.y) < 1.2) return true;
+  }
+  return false;
+}
+
+function findDebugMonsterSpot(
+  world: World,
+  player: Entity,
+  entities: Entity[],
+  index: number,
+  total: number,
+): { x: number; y: number } | null {
+  const spread = Math.max(0.35, Math.min(0.9, Math.PI / Math.max(3, total)));
+  const base = player.angle + (index - (total - 1) / 2) * spread;
+  for (const dist of [3.2, 4.4, 5.8, 7.0]) {
+    for (const offset of [0, 0.45, -0.45, 0.9, -0.9]) {
+      const x = world.wrap(Math.floor(player.x + Math.cos(base + offset) * dist));
+      const y = world.wrap(Math.floor(player.y + Math.sin(base + offset) * dist));
+      if (!passableDebugCell(world, x, y)) continue;
+      if (entityBlocksDebugSpawn(world, entities, x, y)) continue;
+      return { x: x + 0.5, y: y + 0.5 };
+    }
+  }
+  return null;
+}
+
+function spawnDebugMonsterPack(
+  world: World,
+  player: Entity,
+  entities: Entity[],
+  state: GameState,
+  nextEntityId: { v: number },
+): string[] {
+  const kinds = DEBUG_MONSTER_PACKS[state.currentFloor];
+  let spawned = 0;
+  const names: string[] = [];
+  for (let i = 0; i < kinds.length; i++) {
+    const kind = kinds[i];
+    const def = MONSTERS[kind];
+    const spot = findDebugMonsterSpot(world, player, entities, i, kinds.length);
+    if (!def || !spot) continue;
+    const monster: Entity = {
+      id: nextEntityId.v++,
+      type: EntityType.MONSTER,
+      x: spot.x,
+      y: spot.y,
+      angle: Math.atan2(player.y - spot.y, player.x - spot.x),
+      pitch: 0,
+      alive: true,
+      speed: def.speed,
+      sprite: def.sprite,
+      hp: def.hp,
+      maxHp: def.hp,
+      monsterKind: kind,
+      attackCd: 0,
+      ai: { goal: AIGoal.WANDER, tx: spot.x, ty: spot.y, path: [], pi: 0, stuck: 0, timer: 0 },
+      rpg: randomRPG(player.rpg?.level ?? 1),
+      phasing: kind === MonsterKind.SPIRIT,
+    };
+    applyMonsterVariant(monster, state.currentFloor, true);
+    entities.push(monster);
+    spawned++;
+    names.push(monsterTypeName(kind));
+    publishEvent(state, {
+      type: 'monster_sighted',
+      zoneId: currentPlayerZone(world, player),
+      x: spot.x,
+      y: spot.y,
+      targetId: monster.id,
+      targetName: monsterTypeName(kind),
+      monsterKind: kind,
+      severity: 3,
+      privacy: 'local',
+      tags: ['debug', 'monster', 'verification', 'counterplay'],
+      data: {
+        source: 'debug_menu',
+        counterplay: def.counterplay,
+      },
+    });
+  }
+  return spawned > 0
+    ? [`spawned ${spawned}: ${names.join(', ')}`]
+    : ['no passable spawn cells in front of player'];
+}
+
+function adjacentContainerRouteSpot(world: World, container: WorldContainer): { x: number; y: number } | null {
+  for (let r = 1; r <= DEBUG_CONTAINER_ROUTE_RADIUS; r++) {
+    for (let dy = -r; dy <= r; dy++) {
+      for (let dx = -r; dx <= r; dx++) {
+        if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue;
+        const x = world.wrap(container.x + dx);
+        const y = world.wrap(container.y + dy);
+        if (passableDebugCell(world, x, y)) return { x, y };
+      }
+    }
+  }
+  return null;
+}
+
+function routePlayerToNearestContainer(world: World, player: Entity, state: GameState): string[] {
+  const created = ensureRoomContainers(world, state.currentFloor);
+  let best: WorldContainer | null = null;
+  let bestScore = Infinity;
+  for (const c of world.containers) {
+    if (c.floor !== state.currentFloor) continue;
+    const route = adjacentContainerRouteSpot(world, c);
+    if (!route) continue;
+    const theftBias = c.access === 'faction' || c.access === 'owner' ? -500 : 0;
+    const lootBias = c.inventory.length > 0 ? -250 : 0;
+    const score = world.dist2(player.x, player.y, c.x + 0.5, c.y + 0.5) + theftBias + lootBias;
+    if (score >= bestScore) continue;
+    best = c;
+    bestScore = score;
+  }
+  if (!best) return [`created=${created}; no routeable containers on floor`];
+  const spot = adjacentContainerRouteSpot(world, best);
+  if (!spot) return [`created=${created}; nearest container has no adjacent cell`];
+  player.x = spot.x + 0.5;
+  player.y = spot.y + 0.5;
+  player.angle = Math.atan2((best.y + 0.5) - player.y, (best.x + 0.5) - player.x);
+  player.pitch = 0;
+  return [`created=${created}; routed to ${describeContainer(best)}`];
+}
+
+function armLocalFloorInstance(world: World, player: Entity, state: GameState): string[] {
+  const candidates = FLOOR_INSTANCES.filter(def => def.baseFloor === state.currentFloor);
+  if (candidates.length === 0) return [`no numbered loop uses ${FloorLevel[state.currentFloor]} as base; teleport to another story floor first`];
+  const def = candidates[debugFloorInstanceCursor++ % candidates.length];
+  const store = ensureFloorInstanceState(state, state.currentFloor);
+  const instance = {
+    id: def.id,
+    displayNumber: def.displayNumber,
+    title: def.title,
+    baseFloor: def.baseFloor,
+    seed: Math.floor(Math.random() * 0x7fffffff),
+    seedTag: def.seedTag,
+    risk: def.risk,
+    enteredAt: state.time,
+    fromFloor: state.currentFloor,
+    intendedFloor: state.currentFloor,
+    direction: LiftDirection.DOWN,
+    returnFloor: state.currentFloor,
+  };
+  store.current = instance;
+  store.discovered[def.id] = true;
+  store.anomalyCount++;
+  store.lastAnomalyAt = state.time;
+  store.lastRoll = 0;
+  publishEvent(state, {
+    type: 'elevator_anomaly',
+    floor: def.baseFloor,
+    zoneId: currentPlayerZone(world, player),
+    x: player.x,
+    y: player.y,
+    actorId: player.id,
+    actorName: player.name ?? 'Вы',
+    actorFaction: player.faction,
+    severity: 4,
+    privacy: 'local',
+    tags: ['debug', 'elevator', 'floor_instance', def.id, 'wrong_route'],
+    data: {
+      source: 'debug_menu',
+      displayNumber: def.displayNumber,
+      title: def.title,
+      seed: instance.seed,
+      seedTag: instance.seedTag,
+      risk: instance.risk,
+      fromFloor: instance.fromFloor,
+      intendedFloor: instance.intendedFloor,
+      returnFloor: instance.returnFloor,
+    },
+  });
+  return [
+    `armed ${floorInstanceLabel(instance)}`,
+    'use any lift once to publish loop exit and return to stable route',
+  ];
+}
+
+function setSamosborWarningWindow(state: GameState): string {
+  if (state.samosborActive) {
+    state.samosborTimer = Math.min(state.samosborTimer, DEBUG_SAMOSBOR_WARNING_SECONDS);
+    return `active samosbor ends in <=${DEBUG_SAMOSBOR_WARNING_SECONDS}s`;
+  }
+  state.samosborTimer = DEBUG_SAMOSBOR_WARNING_SECONDS;
+  return `warning window set to ${DEBUG_SAMOSBOR_WARNING_SECONDS}s`;
 }
 
 function spawnSmokeTarget(world: World, player: Entity, entities: Entity[], state: GameState, nextEntityId: { v: number }): boolean {
@@ -566,6 +902,41 @@ export function execDebugCommand(
       for (const line of debugSpawnBadAppleWorld(world, player, state)) state.msgs.push(msg(`[BADAPPLE] ${line}`, state.time, '#fff'));
       return { type: 'refresh_world_data' };
     }
+    case 61: { // Verification contract route
+      for (const line of spawnDebugVerificationContract(state)) state.msgs.push(msg(`[CONTRACT-DEBUG] ${line}`, state.time, '#6cf'));
+      break;
+    }
+    case 62: { // Publish verification event
+      state.msgs.push(msg(`[EVENTS-DEBUG] ${publishDebugVerificationEvent(world, player, state)}`, state.time, '#ff0'));
+      break;
+    }
+    case 63: { // Floor route window
+      for (const line of debugRouteWindowLines(state)) state.msgs.push(msg(`[ROUTE] ${line}`, state.time, '#8cf'));
+      break;
+    }
+    case 64: { // Arm current-floor numbered lift anomaly
+      for (const line of armLocalFloorInstance(world, player, state)) state.msgs.push(msg(`[LIFT-DEBUG] ${line}`, state.time, '#f4a'));
+      break;
+    }
+    case 65: { // Samosbor warning window
+      state.msgs.push(msg(`[SAMOSBOR-DEBUG] ${setSamosborWarningWindow(state)}`, state.time, '#fa4'));
+      break;
+    }
+    case 66: { // Economy scarcity pulse
+      for (const line of applyDebugEconomyPulse(world, player, state)) state.msgs.push(msg(`[ECON-DEBUG] ${line}`, state.time, '#ccf'));
+      break;
+    }
+    case 67: { // Floor-specific monster counterplay pack
+      for (const line of spawnDebugMonsterPack(world, player, entities, state, nextEntityId)) {
+        state.msgs.push(msg(`[MON-DEBUG] ${line}`, state.time, '#f88'));
+      }
+      break;
+    }
+    case 68: { // Route to nearest useful container
+      for (const line of routePlayerToNearestContainer(world, player, state)) state.msgs.push(msg(`[CONT-DEBUG] ${line}`, state.time, '#ccf'));
+      break;
+    }
+    case 69: return { type: 'teleport_procedural_anomaly', anomalyId: 'zombie_apocalypse' };
   }
   return null;
 }
@@ -642,6 +1013,15 @@ const BASE_CMD_LABELS = [
   'ТП: игра жизнь',
   'ТП: поезда',
   'BAD APPLE: экран рядом',
+  'VERIFY: контрактный маршрут',
+  'VERIFY: событие в лог/слух',
+  'VERIFY: окно лифтового маршрута',
+  'VERIFY: номерная петля лифта',
+  'VERIFY: окно предупреждения самосбора',
+  'VERIFY: дефицит экономики',
+  'VERIFY: монстры этажа',
+  'VERIFY: маршрут к контейнеру',
+  'ТП: зомби-апокалипсис',
 ];
 
 const DESIGN_FLOOR_COMMAND_START = BASE_CMD_LABELS.length;

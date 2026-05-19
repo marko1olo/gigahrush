@@ -3,7 +3,7 @@
 import {
   Cell, Feature, Faction, Occupation, RoomType, Tex,
 } from '../../core/types';
-import { PNEUMOMAIL_ROOM_NAME } from '../../data/pneumomail';
+import { PNEUMOMAIL_ROOM_NAME, PNEUMOMAIL_SORTER_ROOM_NAME } from '../../data/pneumomail';
 import {
   type MaintContentCtx, dropItems, findMaintArea, openTile, setFeature,
   spawnAmbientNpc, stampMaintRoom,
@@ -23,7 +23,7 @@ export function generatePneumomailStation(ctx: MaintContentCtx): void {
   const sorter = stampMaintRoom(
     ctx.world, ctx.world.rooms.length, RoomType.STORAGE,
     pos.x + 22, pos.y + 1, 7, 7,
-    'Пневмопочтовый узел: сортировка чужих капсул',
+    PNEUMOMAIL_SORTER_ROOM_NAME,
     Tex.METAL, Tex.F_CONCRETE,
   );
 
@@ -51,6 +51,6 @@ export function generatePneumomailStation(ctx: MaintContentCtx): void {
     { defId: 'pneumomail_capsule', count: 1 },
   ]);
 
-  dropItems(ctx, station, ['note', 'wire_coil', 'duct_tape']);
+  dropItems(ctx, station, ['note', 'wire_coil', 'duct_tape', 'pressure_logbook']);
   dropItems(ctx, sorter, ['pneumomail_capsule', 'pressure_logbook', 'forged_permit_slip']);
 }

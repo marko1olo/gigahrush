@@ -23,6 +23,8 @@ const REPAIR_ID = 'floor11_anya_hermodoor';
 const LOST_ID = 'floor11_misha_lost_property';
 const WITNESS_ID = 'floor11_vera_return_witness';
 
+const CHECKLIST_NOTE = 'Чек-лист вылазки: вода, еда, бинт, патроны, фильтр или талон, маршрутная бумага. Нет цели - возьми слух или контракт до лифта.';
+
 const NPC_DEFS: Record<string, PlotNpcDef> = {
   [ROUTE_KEEPER_ID]: {
     name: 'Лида Маршрутная',
@@ -38,9 +40,14 @@ const NPC_DEFS: Record<string, PlotNpcDef> = {
       { defId: 'caravan_route', count: 1 },
       { defId: 'siren_instruction', count: 2 },
       { defId: 'water_coupon', count: 2 },
+      { defId: 'water', count: 2 },
+      { defId: 'bread', count: 1 },
+      { defId: 'bandage', count: 1 },
+      { defId: 'ammo_9mm', count: 6 },
     ],
     talkLines: [
       'Пункт сборов не выбирает маршрут за тебя. Он проверяет, что ты не идешь в лифт с пустым горлом.',
+      'Общий ящик дает минимум: вода, бинт, хлеб и четыре патрона. Остальное покупай, меняй или воруй уже осознанно.',
       'Вниз к воде: две бутылки, фильтр, фонарь. Если вода поет в трубе, не пей и не стой рядом.',
       'Наверх за бумагой: корешок пропуска, чистые руки, мало лишних записок. Печатеед любит толстые карманы.',
       'Через жилые прослойки бери хлеб, бинт и шесть патронов. Там чаще торгуются, но стреляют без объявления.',
@@ -350,6 +357,21 @@ function nextContainerId(world: World): number {
   return id;
 }
 
+function containerFeature(kind: ContainerKind): Feature {
+  switch (kind) {
+    case ContainerKind.TOOL_LOCKER:
+    case ContainerKind.METAL_CABINET:
+    case ContainerKind.WEAPON_CRATE:
+    case ContainerKind.EMERGENCY_BOX:
+      return Feature.SHELF;
+    case ContainerKind.FILING_CABINET:
+    case ContainerKind.CASHBOX:
+      return Feature.DESK;
+    default:
+      return Feature.SHELF;
+  }
+}
+
 function addPrepContainer(
   world: World,
   room: Room,
@@ -366,6 +388,7 @@ function addPrepContainer(
   const x = world.wrap(room.x + dx);
   const y = world.wrap(room.y + dy);
   const ci = world.idx(x, y);
+  if (world.cells[ci] === Cell.FLOOR) world.features[ci] = containerFeature(kind);
   world.addContainer({
     id: nextContainerId(world),
     x,
@@ -440,10 +463,34 @@ function seedRoom(world: World, room: Room, entities: Entity[], nextId: { v: num
     2,
     2,
     ContainerKind.EMERGENCY_BOX,
-    'Открытый ящик перед лифтом',
+    'Ящик контрольного набора',
     'public',
-    [{ defId: 'siren_instruction', count: 1 }, { defId: 'water_coupon', count: 1 }, { defId: 'bandage', count: 1 }],
-    ['public', 'prep', 'samosbor'],
+    [
+      { defId: 'siren_instruction', count: 1 },
+      { defId: 'water', count: 1 },
+      { defId: 'bread', count: 1 },
+      { defId: 'bandage', count: 1 },
+      { defId: 'ammo_9mm', count: 4 },
+    ],
+    ['public', 'prep', 'loadout', 'checklist', 'samosbor'],
+    routeKeeper,
+    Faction.CITIZEN,
+  );
+  addPrepContainer(
+    world,
+    room,
+    Math.floor(ROOM_W / 2),
+    3,
+    ContainerKind.FILING_CABINET,
+    'Доска маршрутов у лифта',
+    'public',
+    [
+      { defId: 'note', count: 1, data: CHECKLIST_NOTE },
+      { defId: 'filter_receipt', count: 1 },
+      { defId: 'water_coupon', count: 1 },
+      { defId: 'siren_instruction', count: 1 },
+    ],
+    ['public', 'prep', 'route_lead', 'contract_board', 'checklist', 'documents'],
     routeKeeper,
     Faction.CITIZEN,
   );

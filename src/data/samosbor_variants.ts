@@ -12,7 +12,8 @@ export type SamosborAftermathEffectId =
   | 'faction_panic'
   | 'container_theft'
   | 'false_all_clear'
-  | 'item_residue';
+  | 'item_residue'
+  | 'route_block';
 
 export type SamosborModifierId =
   | 'no_siren'
@@ -110,6 +111,13 @@ const ALL_FLOORS = [
 ];
 const CIVIL_FLOORS = [FloorLevel.MINISTRY, FloorLevel.KVARTIRY, FloorLevel.LIVING];
 const CIVIL_AND_SERVICE_FLOORS = [FloorLevel.MINISTRY, FloorLevel.KVARTIRY, FloorLevel.LIVING, FloorLevel.MAINTENANCE];
+const VOID_AND_CIVIL_SERVICE_FLOORS = [
+  FloorLevel.MINISTRY,
+  FloorLevel.KVARTIRY,
+  FloorLevel.LIVING,
+  FloorLevel.MAINTENANCE,
+  FloorLevel.VOID,
+];
 
 export const SAMOSBOR_MODIFIERS: Record<SamosborModifierId, SamosborModifierDef> = {
   no_siren: {
@@ -249,9 +257,9 @@ export const SAMOSBOR_VARIANTS: readonly SamosborVariantDef[] = [
     durationMult: 0.9,
     spawnMult: 0.9,
     sealTimingDelta: -4,
-    warningLines: ['Коридор становится слишком тихим. Сирена не помогает, потому что её не спросили.'],
+    warningLines: ['Коридор становится слишком тихим. Сирена не помогает, потому что её не спросили. Слушай замки и соседей.'],
     modifiers: ['no_siren', 'delayed_seal', 'light_flicker'],
-    gameplaySignal: 'нет штатной сирены, гермы запираются поздно',
+    gameplaySignal: 'нет штатной сирены, гермы запираются поздно, ориентируйся по щелчкам дверей и NPC',
   },
   {
     id: 'wet',
@@ -263,9 +271,9 @@ export const SAMOSBOR_VARIANTS: readonly SamosborVariantDef[] = [
     durationMult: 1.08,
     spawnMult: 1.05,
     sealTimingDelta: 2,
-    warningLines: ['На линолеуме выступает вода. Трубы отвечают туману старым давлением.'],
+    warningLines: ['На линолеуме выступает вода. Трубы отвечают туману старым давлением. Ищи сухой обход до гермы.'],
     modifiers: ['wet_floor_message', 'dense_fog', 'door_twitch'],
-    gameplaySignal: 'синий туман, мокрый пол, плотнее спавн из тумана',
+    gameplaySignal: 'синий туман, мокрый пол, плотнее спавн из тумана, безопаснее сухие коридоры и закрываемые шлюзы',
   },
   {
     id: 'electric',
@@ -277,9 +285,9 @@ export const SAMOSBOR_VARIANTS: readonly SamosborVariantDef[] = [
     durationMult: 0.95,
     spawnMult: 1,
     sealTimingDelta: 4,
-    warningLines: ['Гермоуплотнитель пахнет озоном. Свет режет глаза и пересчитывает зрачки.'],
+    warningLines: ['Гермоуплотнитель пахнет озоном. Свет режет глаза и пересчитывает зрачки. Не стой под лампами.'],
     modifiers: ['light_flicker', 'early_seal', 'extra_eyes'],
-    gameplaySignal: 'циановый туман, раннее запирание, больше глаз в тумане',
+    gameplaySignal: 'циановый туман, раннее запирание, больше глаз в тумане, уходи от света и готовь дверь заранее',
   },
   {
     id: 'meat',
@@ -291,9 +299,9 @@ export const SAMOSBOR_VARIANTS: readonly SamosborVariantDef[] = [
     durationMult: 1.15,
     spawnMult: 1.18,
     sealTimingDelta: 0,
-    warningLines: ['Пахнет сырым мясом. Стены вспоминают, что когда-то умели болеть.'],
+    warningLines: ['Пахнет сырым мясом. Стены вспоминают, что когда-то умели болеть. Держись середины прохода.'],
     modifiers: ['meat_walls_hell', 'false_safe_zone', 'sparse_fog'],
-    gameplaySignal: 'красный туман, ложная безопасность, усиленный спавн тварей',
+    gameplaySignal: 'красный туман, ложная безопасность, усиленный спавн тварей, опасны швы стен и красивые обходы',
   },
   {
     id: 'maronary',
@@ -346,12 +354,12 @@ export const SAMOSBOR_VARIANTS: readonly SamosborVariantDef[] = [
     spawnMult: 0.78,
     sealTimingDelta: -1,
     warningLines: [
-      'НАСТУПИЛ ВЕРЕТАР. Белое окно не показывает двор.',
+      'НАСТУПИЛ ВЕРЕТАР. Белое окно не показывает двор. Ищи тёмную герму, не светлый путь.',
       'Сирена звучит снаружи. В доме не должно быть снаружи.',
       'На полу сухой песок. Карта называет его областью.',
     ],
     modifiers: ['no_sun', 'white_area', 'area_leak', 'photo_distortion'],
-    gameplaySignal: 'белая область, сухой песок, дальняя тревога, ненадёжная карта',
+    gameplaySignal: 'белая область, сухой песок, дальняя тревога, ненадёжная карта, доверяй тёмной герме и проверяй путь',
     audioCue: 'veretar',
     startLine: 'НАСТУПИЛ ВЕРЕТАР',
   },
@@ -362,7 +370,7 @@ export const SAMOSBOR_AFTERMATH_BEATS: readonly SamosborAftermathBeatDef[] = [
     id: 'aftermath_fog_residue',
     title: 'Осадок тумана',
     variants: ['classic', 'wet', 'meat'],
-    floors: ALL_FLOORS,
+    floors: CIVIL_AND_SERVICE_FLOORS,
     weight: 12,
     cooldownSec: 240,
     maxRuns: 8,
@@ -388,6 +396,20 @@ export const SAMOSBOR_AFTERMATH_BEATS: readonly SamosborAftermathBeatDef[] = [
     tags: ['door', 'route'],
   },
   {
+    id: 'aftermath_shortcut_slab_shift',
+    title: 'Плита села в проход',
+    variants: ['classic', 'quiet', 'wet', 'electric', 'meat', 'maronary', 'istotit', 'veretar'],
+    floors: ALL_FLOORS,
+    weight: 11,
+    cooldownSec: 480,
+    maxRuns: 8,
+    radius: 14,
+    severity: 3,
+    effect: 'route_block',
+    message: 'Короткий проход после отбоя сел плитой. Обход длиннее, дверь открыть можно, но маршрут уже не прежний.',
+    tags: ['door', 'route', 'blocked_shortcut'],
+  },
+  {
     id: 'aftermath_aftershock_tvar',
     title: 'Поздняя тварь',
     variants: ['quiet', 'wet', 'meat'],
@@ -398,7 +420,7 @@ export const SAMOSBOR_AFTERMATH_BEATS: readonly SamosborAftermathBeatDef[] = [
     radius: 14,
     severity: 4,
     effect: 'monster_aftershock',
-    message: 'Туман ушёл не весь. Рядом проснулась поздняя тварь, будто ждала отбоя.',
+    message: 'Туман ушёл не весь. Рядом проснулась поздняя тварь: лучше услышать её сейчас, чем спиной.',
     tags: ['monster', 'danger'],
     monsterKind: MonsterKind.TVAR,
   },
@@ -421,14 +443,14 @@ export const SAMOSBOR_AFTERMATH_BEATS: readonly SamosborAftermathBeatDef[] = [
     id: 'aftermath_rumor_seed',
     title: 'Слух об отбойном протоколе',
     variants: ['quiet', 'wet', 'electric', 'meat'],
-    floors: ALL_FLOORS,
-    weight: 10,
+    floors: CIVIL_FLOORS,
+    weight: 14,
     cooldownSec: 420,
     maxRuns: 6,
     radius: 18,
     severity: 2,
     effect: 'rumor_seed',
-    message: 'Соседи запомнили этот вариант самосбора. Теперь каждый расскажет его чуть страшнее.',
+    message: 'Соседи запомнили этот вариант самосбора. Спроси их сейчас: слух покажет, кто видел рабочую герму.',
     tags: ['rumor', 'social'],
   },
   {
@@ -464,14 +486,14 @@ export const SAMOSBOR_AFTERMATH_BEATS: readonly SamosborAftermathBeatDef[] = [
     id: 'aftermath_container_theft',
     title: 'Открытый запас',
     variants: ['quiet', 'wet', 'electric', 'meat'],
-    floors: ALL_FLOORS,
+    floors: CIVIL_AND_SERVICE_FLOORS,
     weight: 10,
     cooldownSec: 480,
     maxRuns: 6,
     radius: 18,
     severity: 3,
     effect: 'container_theft',
-    message: 'Рядом остался раскрытый ящик. Чужое лежит на виду и уже готовит объяснение.',
+    message: 'Рядом остался раскрытый ящик. Чужое лежит на виду: взять можно, но свидетели тоже выжили.',
     tags: ['container', 'theft'],
     itemId: 'water',
   },
@@ -495,13 +517,13 @@ export const SAMOSBOR_AFTERMATH_BEATS: readonly SamosborAftermathBeatDef[] = [
     title: 'Разорванная очередь пайков',
     variants: ['classic', 'quiet', 'electric'],
     floors: CIVIL_FLOORS,
-    weight: 13,
+    weight: 16,
     cooldownSec: 720,
     maxRuns: 4,
     radius: 16,
     severity: 3,
     effect: 'production_shortage',
-    message: 'После отбоя очередь пайков потеряла ведомость. Еда стала дороже, а спор громче.',
+    message: 'После отбоя очередь пайков потеряла ведомость. Еда стала дороже; можно торговаться, воровать или искать другой лифт.',
     tags: ['civil', 'food', 'shortage'],
     resourceId: 'food',
   },
@@ -510,13 +532,13 @@ export const SAMOSBOR_AFTERMATH_BEATS: readonly SamosborAftermathBeatDef[] = [
     title: 'Съеденные бланки',
     variants: ['quiet', 'electric', 'meat'],
     floors: [FloorLevel.MINISTRY, FloorLevel.KVARTIRY],
-    weight: 11,
+    weight: 14,
     cooldownSec: 780,
     maxRuns: 3,
     radius: 18,
     severity: 3,
     effect: 'production_shortage',
-    message: 'В канцелярии недосчитались бланков. Документы теперь будут стоить как маленькое преступление.',
+    message: 'В канцелярии недосчитались бланков. Документы подорожали; подделка, кража или услуга стали реальным выбором.',
     tags: ['civil', 'documents', 'shortage'],
     resourceId: 'documents',
   },
@@ -525,13 +547,13 @@ export const SAMOSBOR_AFTERMATH_BEATS: readonly SamosborAftermathBeatDef[] = [
     title: 'Открытый общий холодильник',
     variants: ['quiet', 'wet', 'meat'],
     floors: [FloorLevel.KVARTIRY, FloorLevel.LIVING],
-    weight: 12,
+    weight: 15,
     cooldownSec: 660,
     maxRuns: 4,
     radius: 14,
     severity: 3,
     effect: 'container_theft',
-    message: 'Общий холодильник остался раскрытым. Взять воду легко, объяснить потом труднее.',
+    message: 'Общий холодильник остался раскрытым. Взять воду легко, объяснить потом труднее, особенно при соседях.',
     tags: ['civil', 'container', 'water'],
     itemId: 'water',
   },
@@ -540,13 +562,13 @@ export const SAMOSBOR_AFTERMATH_BEATS: readonly SamosborAftermathBeatDef[] = [
     title: 'Подъездный донос',
     variants: ['quiet', 'electric', 'meat'],
     floors: CIVIL_FLOORS,
-    weight: 10,
+    weight: 14,
     cooldownSec: 600,
     maxRuns: 4,
     radius: 20,
     severity: 2,
     effect: 'rumor_seed',
-    message: 'На лестнице уже спорят, кто открыл гермодверь. Слух пошёл по жильцам быстрее лифта.',
+    message: 'На лестнице уже спорят, кто открыл гермодверь. Можно уйти тихо, а можно продать версию первым.',
     tags: ['civil', 'rumor', 'social'],
   },
   {
@@ -568,13 +590,13 @@ export const SAMOSBOR_AFTERMATH_BEATS: readonly SamosborAftermathBeatDef[] = [
     title: 'Провал давления',
     variants: ['wet', 'electric'],
     floors: [FloorLevel.MAINTENANCE],
-    weight: 15,
+    weight: 20,
     cooldownSec: 720,
     maxRuns: 4,
     radius: 18,
     severity: 3,
     effect: 'production_shortage',
-    message: 'В коллекторе просело давление. Вода на этом этаже стала предметом торга.',
+    message: 'В коллекторе просело давление. Вода стала предметом торга: манометр лучше проверить до следующей сирены.',
     tags: ['maintenance', 'water', 'pressure'],
     resourceId: 'drink_water',
   },
@@ -583,13 +605,13 @@ export const SAMOSBOR_AFTERMATH_BEATS: readonly SamosborAftermathBeatDef[] = [
     title: 'Сгоревший инструментальный шкаф',
     variants: ['electric', 'wet'],
     floors: [FloorLevel.MAINTENANCE],
-    weight: 12,
+    weight: 16,
     cooldownSec: 780,
     maxRuns: 3,
     radius: 14,
     severity: 3,
     effect: 'container_theft',
-    message: 'Инструментальный шкаф заклинило открытым. Предохранитель лежит на виду и делает вид, что ничей.',
+    message: 'Инструментальный шкаф заклинило открытым. Предохранитель можно забрать, но без него следующий щиток не простит.',
     tags: ['maintenance', 'container', 'electric'],
     itemId: 'fuse',
   },
@@ -598,13 +620,13 @@ export const SAMOSBOR_AFTERMATH_BEATS: readonly SamosborAftermathBeatDef[] = [
     title: 'Сервисный шлюз не держит',
     variants: ['wet', 'electric', 'classic'],
     floors: [FloorLevel.MAINTENANCE],
-    weight: 12,
+    weight: 16,
     cooldownSec: 540,
     maxRuns: 4,
     radius: 16,
     severity: 3,
     effect: 'door_fault',
-    message: 'Сервисный шлюз после отбоя не держит защёлку. Путь открыт, укрытие теперь декоративное.',
+    message: 'Сервисный шлюз после отбоя не держит защёлку. Путь открыт, но как укрытие он теперь обман.',
     tags: ['maintenance', 'door', 'route'],
   },
   {
@@ -612,13 +634,13 @@ export const SAMOSBOR_AFTERMATH_BEATS: readonly SamosborAftermathBeatDef[] = [
     title: 'Поздний угорь',
     variants: ['wet'],
     floors: [FloorLevel.MAINTENANCE, FloorLevel.HELL],
-    weight: 10,
+    weight: 13,
     cooldownSec: 900,
     maxRuns: 3,
     radius: 16,
     severity: 4,
     effect: 'monster_aftershock',
-    message: 'В трубе осталось движение после отбоя. Поздний угорь вышел проверить, кто поверил тишине.',
+    message: 'В трубе осталось движение после отбоя. Поздний угорь слышен по воде: сухой обход стоит времени.',
     tags: ['maintenance', 'monster', 'water'],
     monsterKind: MonsterKind.TUBE_EEL,
   },
@@ -627,13 +649,13 @@ export const SAMOSBOR_AFTERMATH_BEATS: readonly SamosborAftermathBeatDef[] = [
     title: 'Культовый схрон раскрылся',
     variants: ['meat', 'quiet'],
     floors: [FloorLevel.HELL],
-    weight: 11,
+    weight: 15,
     cooldownSec: 900,
     maxRuns: 3,
     radius: 14,
     severity: 3,
     effect: 'container_theft',
-    message: 'Мясной шов раздвинул чужой схрон. Руна доступна, но её заметят даже без глаз.',
+    message: 'Мясной шов раздвинул чужой схрон. Руна доступна, но культ услышит пустоту в тайнике.',
     tags: ['hell', 'container', 'cult'],
     itemId: 'meat_rune',
   },
@@ -642,13 +664,13 @@ export const SAMOSBOR_AFTERMATH_BEATS: readonly SamosborAftermathBeatDef[] = [
     title: 'Послеслед вестника',
     variants: ['meat', 'classic'],
     floors: [FloorLevel.HELL],
-    weight: 9,
+    weight: 14,
     cooldownSec: 1080,
     maxRuns: 2,
     radius: 18,
     severity: 4,
     effect: 'monster_aftershock',
-    message: 'Отбой не убедил стены. В проходе остался послеслед вестника.',
+    message: 'Отбой не убедил стены. В проходе остался послеслед вестника: не гонись за силуэтом у стены.',
     tags: ['hell', 'monster', 'aftershock'],
     monsterKind: MonsterKind.HERALD,
   },
@@ -657,58 +679,58 @@ export const SAMOSBOR_AFTERMATH_BEATS: readonly SamosborAftermathBeatDef[] = [
     title: 'Гнилая мясная выдача',
     variants: ['meat', 'wet'],
     floors: [FloorLevel.HELL],
-    weight: 10,
+    weight: 16,
     cooldownSec: 840,
     maxRuns: 3,
     radius: 16,
     severity: 3,
     effect: 'production_shortage',
-    message: 'Мясная выдача испортилась после перестройки. Преисподняя впервые жалуется на нехватку плоти.',
+    message: 'Мясная выдача испортилась после перестройки. Плоть стала валютой, а культ - кассиром.',
     tags: ['hell', 'shortage', 'meat'],
     resourceId: 'industrial_slurry',
   },
   {
     id: 'aftermath_void_psi_cache',
     title: 'ПСИ-схрон без тени',
-    variants: ['classic', 'quiet'],
+    variants: ['classic', 'quiet', 'maronary', 'veretar'],
     floors: [FloorLevel.VOID],
-    weight: 10,
+    weight: 16,
     cooldownSec: 960,
     maxRuns: 3,
     radius: 12,
     severity: 3,
     effect: 'container_theft',
-    message: 'В Пустоте на миг проявился чужой схрон. ПСИ-пыль можно забрать сейчас.',
+    message: 'В Пустоте на миг проявился чужой схрон. ПСИ-пыль можно забрать сейчас, пока тень не вспомнила владельца.',
     tags: ['void', 'container', 'psi'],
     itemId: 'psi_dust',
   },
   {
     id: 'aftermath_void_spirit_echo',
     title: 'Эхо без жильца',
-    variants: ['classic', 'quiet'],
+    variants: ['classic', 'quiet', 'maronary', 'veretar'],
     floors: [FloorLevel.VOID],
-    weight: 9,
+    weight: 15,
     cooldownSec: 1080,
     maxRuns: 2,
     radius: 16,
     severity: 4,
     effect: 'monster_aftershock',
-    message: 'Пустота повторила отбой не тем голосом. Рядом появился дух.',
+    message: 'Пустота повторила отбой не тем голосом. Рядом появился дух; держи стену за спиной, если стена ещё есть.',
     tags: ['void', 'monster', 'psi'],
     monsterKind: MonsterKind.SPIRIT,
   },
   {
     id: 'aftermath_void_false_map',
     title: 'Ложная карта Пустоты',
-    variants: ['quiet', 'classic'],
+    variants: ['quiet', 'classic', 'maronary', 'veretar'],
     floors: [FloorLevel.VOID],
-    weight: 8,
+    weight: 14,
     cooldownSec: 900,
     maxRuns: 3,
     radius: 7,
     severity: 4,
     effect: 'false_all_clear',
-    message: 'Карта Пустоты показала чистый путь. Туман остался ровно там.',
+    message: 'Карта Пустоты показала чистый путь. Туман остался ровно там: проверь ногами только край.',
     tags: ['void', 'false_clear', 'fog'],
     fogStrength: 165,
   },
@@ -745,7 +767,7 @@ export const SAMOSBOR_AFTERMATH_BEATS: readonly SamosborAftermathBeatDef[] = [
     id: 'aftermath_maronary_green_rumor',
     title: 'Свидетели зелёного',
     variants: ['maronary'],
-    floors: CIVIL_AND_SERVICE_FLOORS,
+    floors: VOID_AND_CIVIL_SERVICE_FLOORS,
     weight: 12,
     cooldownSec: 660,
     maxRuns: 4,
@@ -840,7 +862,7 @@ export const SAMOSBOR_AFTERMATH_BEATS: readonly SamosborAftermathBeatDef[] = [
     radius: 10,
     severity: 3,
     effect: 'item_residue',
-    message: 'У щели лежит засвеченный кадр. На белом поле проступает чужая планировка.',
+    message: 'У щели лежит засвеченный кадр. На белом поле проступает чужая планировка; это улика, а не компас.',
     tags: ['veretar', 'photo', 'evidence', 'sample'],
     itemId: 'overexposed_photo',
   },
@@ -895,12 +917,41 @@ let lastVariant: SamosborVariantId | null = null;
 
 function floorWeight(def: SamosborVariantDef, floor: FloorLevel): number {
   if (!def.floors.includes(floor)) return 0;
-  if (floor === FloorLevel.HELL && def.id === 'meat') return def.weight * 4;
-  if (floor === FloorLevel.MAINTENANCE && (def.id === 'wet' || def.id === 'electric')) return def.weight * 3;
-  if (floor === FloorLevel.LIVING && def.id === 'classic') return def.weight * 2;
-  if ((floor === FloorLevel.LIVING || floor === FloorLevel.KVARTIRY) && def.id === 'istotit') return def.weight * 2;
-  if ((floor === FloorLevel.LIVING || floor === FloorLevel.KVARTIRY) && def.id === 'veretar') return def.weight * 2;
+  if (floor === FloorLevel.MINISTRY) {
+    if (def.id === 'quiet' || def.id === 'electric') return def.weight * 1.8;
+    if (def.id === 'istotit' || def.id === 'veretar') return def.weight * 2.2;
+    if (def.id === 'classic') return def.weight * 0.75;
+  }
+  if (floor === FloorLevel.KVARTIRY || floor === FloorLevel.LIVING) {
+    if (def.id === 'quiet' || def.id === 'electric') return def.weight * 1.45;
+    if (def.id === 'istotit' || def.id === 'veretar') return def.weight * 3;
+    if (def.id === 'wet' || def.id === 'meat') return def.weight * 1.2;
+    if (def.id === 'classic') return def.weight * 0.9;
+  }
+  if (floor === FloorLevel.MAINTENANCE) {
+    if (def.id === 'wet' || def.id === 'electric') return def.weight * 4;
+    if (def.id === 'veretar') return def.weight * 1.6;
+    if (def.id === 'classic') return def.weight * 0.65;
+    if (def.id === 'meat') return def.weight * 0.6;
+  }
+  if (floor === FloorLevel.HELL) {
+    if (def.id === 'meat') return def.weight * 5;
+    if (def.id === 'wet') return def.weight * 1.4;
+    if (def.id === 'maronary' || def.id === 'veretar') return def.weight * 1.6;
+    if (def.id === 'classic') return def.weight * 0.6;
+  }
+  if (floor === FloorLevel.VOID) {
+    if (def.id === 'veretar') return def.weight * 7;
+    if (def.id === 'maronary') return def.weight * 3;
+    if (def.id === 'quiet') return def.weight * 1.3;
+    if (def.id === 'classic') return def.weight * 0.4;
+  }
   return def.weight;
+}
+
+export function getSamosborVariantWeight(id: SamosborVariantId, floor: FloorLevel): number {
+  const def = SAMOSBOR_VARIANTS.find(v => v.id === id);
+  return def ? floorWeight(def, floor) : 0;
 }
 
 function buildActiveVariant(def: SamosborVariantDef): ActiveSamosborVariant {

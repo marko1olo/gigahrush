@@ -12,6 +12,7 @@ import {
   learnRumor,
   notePlayerHelped,
   notePlayerHurt,
+  notePlayerTheftAudited,
   notePlayerTheftWitnessed,
   rememberRecentRumorLead,
   rememberRumor,
@@ -43,11 +44,15 @@ const RUMOR_TALK_COOLDOWN_S = 90;
 const RUMOR_TICK_MINUTES = 7;
 const MAX_RUMOR_EVENT_RECORDS = 32;
 const MAX_RUMOR_EVENTS_PER_TALK = 6;
+const RUMOR_EVENT_REPEAT_COOLDOWN_S = 240;
+const RUMOR_EVENT_MAX_AGE_S = 6 * 60 * 60;
 
 interface RumorEventRecord extends RumorEventLike {
   eventId: number;
   rumorId: string;
   observedAt: number;
+  dedupeKey: string;
+  priority: number;
 }
 
 const rumorEvents: RumorEventRecord[] = [];
@@ -59,12 +64,19 @@ export function selectRumorForNpc(npc: Entity, snapshot: ContextSnapshot, now: n
 
   if (memory.lastEventRumorId) {
     const eventRumor = findRumor(memory.lastEventRumorId);
+    const eventRecord = rumorEvents.find(e => e.eventId === memory.lastRumorEventId && e.rumorId === eventRumor?.id);
     memory.lastEventRumorId = '';
     if (eventRumor && rumorAllowed(eventRumor, snapshot, memory)) {
-      const eventRecord = rumorEvents.find(e => e.eventId === memory.lastRumorEventId && e.rumorId === eventRumor.id);
-      rememberRumor(npc, eventRumor.id, now);
+      if (eventRecord && !rumorEventFresh(eventRecord, now)) return undefined;
+      markRumorSpoken(npc, memory, eventRumor.id, now);
       return renderRumor(eventRumor, snapshot, memory, now, eventRecord);
     }
+  }
+
+  const screenRumor = selectScreenRumor(snapshot, memory);
+  if (screenRumor) {
+    markRumorSpoken(npc, memory, screenRumor.id, now);
+    return renderRumor(screenRumor, snapshot, memory, now);
   }
 
   const preferred = preferredTopics(snapshot, memory);
@@ -72,6 +84,7 @@ export function selectRumorForNpc(npc: Entity, snapshot: ContextSnapshot, now: n
   let bestScore = -Infinity;
   for (const rumor of RUMORS) {
     if (!rumorAllowed(rumor, snapshot, memory)) continue;
+    if (memory.knownRumorIds.includes(rumor.id)) continue;
     const score = scoreRumor(rumor, snapshot, memory, preferred);
     if (score > bestScore) {
       best = rumor;
@@ -79,7 +92,7 @@ export function selectRumorForNpc(npc: Entity, snapshot: ContextSnapshot, now: n
     }
   }
   if (!best) return undefined;
-  rememberRumor(npc, best.id, now);
+  markRumorSpoken(npc, memory, best.id, now);
   return renderRumor(best, snapshot, memory, now);
 }
 
@@ -89,39 +102,131 @@ export function recordRumorEvent(event: WorldEvent | RumorEventLike): boolean {
   if (!rumorId) return false;
   const eventId = typeof event.id === 'number' ? event.id : syntheticRumorEventId++;
   if (rumorEvents.some(e => e.eventId === eventId)) return false;
+  const observedAt = event.time ?? 0;
+  pruneRumorEvents(observedAt);
+  const dedupeKey = rumorEventDedupeKey(event, rumorId);
+  if (rumorEvents.some(e => e.dedupeKey === dedupeKey && rumorEventDuplicateFresh(e, observedAt))) return false;
   rumorEvents.push({
     ...event,
     eventId,
     rumorId,
-    observedAt: event.time ?? 0,
+    observedAt,
+    dedupeKey,
+    priority: rumorEventPriority(event),
     tags: event.tags ? [...event.tags] : [],
     data: event.data ? { ...event.data } : undefined,
   });
-  if (rumorEvents.length > MAX_RUMOR_EVENT_RECORDS) {
-    rumorEvents.splice(0, rumorEvents.length - MAX_RUMOR_EVENT_RECORDS);
-  }
+  trimRumorEventRecords();
   return true;
 }
 
 export function observeRecentRumorEventsForNpc(npc: Entity, snapshot: ContextSnapshot, now: number): number {
   const memory = getNpcMemory(npc, now);
-  let learned = 0;
-  for (let i = rumorEvents.length - 1; i >= 0 && learned < MAX_RUMOR_EVENTS_PER_TALK; i--) {
+  pruneRumorEvents(now);
+  let best: RumorEventRecord | undefined;
+  let bestScore = -Infinity;
+  let scanned = 0;
+  for (let i = rumorEvents.length - 1; i >= 0 && scanned < MAX_RUMOR_EVENTS_PER_TALK; i--) {
     const event = rumorEvents[i];
     if (event.eventId <= memory.lastRumorEventId) break;
+    scanned++;
+    if (!rumorEventFresh(event, now)) continue;
     if (!eventRelevantToNpc(event, snapshot)) continue;
-    applyRumorEventToNpc(npc, event, now);
-    learned++;
+    const score = event.priority + Math.min(8, rumorEvents.length - i);
+    if (score > bestScore) {
+      best = event;
+      bestScore = score;
+    }
   }
-  return learned;
+  if (!best) return 0;
+  applyRumorEventToNpc(npc, best, now);
+  return 1;
 }
 
 export function observeRumorEvent(npc: Entity, event: RumorEventLike, now: number): void {
   if ((event.severity ?? 0) < 2) return;
   const id = eventToStaticRumorId(event);
-  if (id) applyRumorEventToNpc(npc, { ...event, eventId: event.id ?? syntheticRumorEventId++, rumorId: id, observedAt: now }, now);
   const memory = getNpcMemory(npc, now);
+  if (id && (memory.lastEventRumorId !== id || now - memory.lastEventRumorAt >= RUMOR_EVENT_REPEAT_COOLDOWN_S)) {
+    applyRumorEventToNpc(npc, {
+      ...event,
+      eventId: event.id ?? syntheticRumorEventId++,
+      rumorId: id,
+      observedAt: now,
+      dedupeKey: rumorEventDedupeKey(event, id),
+      priority: rumorEventPriority(event),
+    }, now);
+  }
   if ((event.severity ?? 0) >= 4 && !isPlayerTheftEvent(event)) memory.fear = Math.min(100, memory.fear + 8);
+}
+
+function rumorEventFresh(event: RumorEventRecord, now: number): boolean {
+  if (now <= 0 || event.observedAt <= 0) return true;
+  return now - event.observedAt <= RUMOR_EVENT_MAX_AGE_S;
+}
+
+function rumorEventDuplicateFresh(event: RumorEventRecord, now: number): boolean {
+  if (now <= 0 || event.observedAt <= 0) return true;
+  return Math.abs(now - event.observedAt) < RUMOR_EVENT_REPEAT_COOLDOWN_S;
+}
+
+function pruneRumorEvents(now: number): void {
+  if (now <= 0) return;
+  for (let i = rumorEvents.length - 1; i >= 0; i--) {
+    if (!rumorEventFresh(rumorEvents[i], now)) rumorEvents.splice(i, 1);
+  }
+}
+
+function trimRumorEventRecords(): void {
+  while (rumorEvents.length > MAX_RUMOR_EVENT_RECORDS) {
+    let dropIdx = 0;
+    for (let i = 1; i < rumorEvents.length; i++) {
+      const current = rumorEvents[i];
+      const drop = rumorEvents[dropIdx];
+      if (current.priority < drop.priority || (current.priority === drop.priority && current.observedAt < drop.observedAt)) {
+        dropIdx = i;
+      }
+    }
+    rumorEvents.splice(dropIdx, 1);
+  }
+}
+
+function rumorEventPriority(event: RumorEventLike): number {
+  const type = event.type ?? '';
+  let priority = (event.severity ?? 0) * 10;
+  if (eventDataRumorId(event)) priority += 16;
+  if (type.includes('samosbor') || type.startsWith('fog_')) priority += 12;
+  if (type === 'item_stolen' || event.tags?.includes('theft')) priority += 10;
+  if (type === 'contract_created' || type === 'quest_created') priority += 8;
+  if (type.includes('complete') || type.includes('failed')) priority += 8;
+  if ((type.includes('kill') || event.tags?.includes('monster')) && isRareMonsterKind(event.monsterKind)) priority += 12;
+  if (event.privacy === 'public') priority += 3;
+  if (event.privacy === 'secret' || event.privacy === 'private') priority -= 20;
+  return priority;
+}
+
+function rumorEventDedupeKey(event: RumorEventLike, rumorId: string): string {
+  const dataKey = eventDataDedupeKey(event);
+  return [
+    rumorId,
+    event.type ?? '',
+    event.floor ?? '',
+    event.zoneId ?? '',
+    event.roomId ?? '',
+    event.itemId ?? '',
+    event.monsterKind ?? '',
+    dataKey,
+  ].join('|');
+}
+
+function eventDataDedupeKey(event: RumorEventLike): string {
+  const data = event.data;
+  if (!data) return '';
+  for (const key of ['contractId', 'questId', 'sideQuestId', 'factionEventId', 'outcome', 'reason']) {
+    const value = data[key];
+    if (typeof value === 'string' || typeof value === 'number') return `${key}:${value}`;
+  }
+  return '';
 }
 
 export function tickNpcRumorLowFrequency(npc: Entity, now: number, totalMinutes: number, samosborActive: boolean): boolean {
@@ -140,9 +245,29 @@ export function tickNpcRumorLowFrequency(npc: Entity, now: number, totalMinutes:
   return false;
 }
 
+function selectScreenRumor(snapshot: ContextSnapshot, memory: NpcMemory): RumorDef | undefined {
+  if (snapshot.nearbyScreenRumorIds.length === 0) return undefined;
+  let best: RumorDef | undefined;
+  let bestScore = -Infinity;
+  for (const id of snapshot.nearbyScreenRumorIds) {
+    const rumor = findRumor(id);
+    if (!rumor || !rumorAllowed(rumor, snapshot, memory)) continue;
+    if (memory.knownRumorIds.includes(id)) continue;
+    let score = 35 + stableNoise(id, memory.entityId);
+    if (rumor.topic === 'monster') score += 8;
+    if (rumor.lead) score += 6;
+    if (score > bestScore) {
+      best = rumor;
+      bestScore = score;
+    }
+  }
+  return best;
+}
+
 function rumorAllowed(rumor: RumorDef, snapshot: ContextSnapshot, memory: NpcMemory): boolean {
   if (memory.trustPlayer < rumor.minTrust) return false;
   if (snapshot.floor !== undefined && !rumor.floors.includes(snapshot.floor)) return false;
+  if (isEventOnlyRumor(rumor) && memory.lastEventRumorId !== rumor.id) return false;
   return true;
 }
 
@@ -168,11 +293,34 @@ function scoreRumor(rumor: RumorDef, snapshot: ContextSnapshot, memory: NpcMemor
   if (prefIdx >= 0) score += 30 - prefIdx * 8;
   if (!memory.knownRumorIds.includes(rumor.id)) score += 12;
   if (memory.lastEventRumorId === rumor.id) score += 45;
+  if (rumor.lead) score += 10;
+  score += rumorRevealPriority(rumor.reveals);
   if (rumor.minTrust > 0 && memory.trustPlayer >= rumor.minTrust) score += 4;
   if (snapshot.zoneLevel !== undefined && snapshot.zoneLevel >= 6 && rumor.topic === 'monster') score += 10;
   if (snapshot.roomType !== undefined && rumor.topic === 'room') score += 8;
   score += stableNoise(rumor.id, memory.entityId);
   return score;
+}
+
+function markRumorSpoken(npc: Entity, memory: NpcMemory, rumorId: string, now: number): void {
+  if (!rememberRumor(npc, rumorId, now)) memory.lastRumorAt = now;
+}
+
+function isEventOnlyRumor(rumor: RumorDef): boolean {
+  return rumor.id.startsWith('event_');
+}
+
+function rumorRevealPriority(input: RumorDef['reveals']): number {
+  if (!input) return 0;
+  const reveals = Array.isArray(input) ? input : [input];
+  let best = 0;
+  for (const reveal of reveals) {
+    let score = reveal.confidence;
+    if (reveal.kind === 'danger' || reveal.kind === 'container') score += 3;
+    else if (reveal.kind === 'item' || reveal.kind === 'monster' || reveal.kind === 'floor') score += 2;
+    if (score > best) best = score;
+  }
+  return Math.min(10, best);
 }
 
 function renderRumor(
@@ -237,13 +385,19 @@ const ZONE_FACTION_NAMES: Record<number, string> = {
 function formatRevealLine(input: RumorDef['reveals']): string {
   if (!input) return '';
   const reveals = Array.isArray(input) ? input : [input];
-  if (reveals.length < 2 && !reveals.some(r => r.kind === 'danger' || r.kind === 'container')) return '';
+  if (reveals.length < 2 && !reveals.some(revealIsActionable)) return '';
   const parts: string[] = [];
   for (const reveal of reveals) {
     const part = formatReveal(reveal);
     if (part && !parts.includes(part)) parts.push(part);
   }
   return parts.length > 0 ? `Зацепка: ${parts.join(', ')}.` : '';
+}
+
+function revealIsActionable(reveal: RumorReveal): boolean {
+  if (reveal.kind === 'danger' || reveal.kind === 'container') return true;
+  if (reveal.confidence < 4) return false;
+  return formatReveal(reveal).length > 0;
 }
 
 function formatLeadLine(rumor: RumorDef, event?: RumorEventRecord): string {
@@ -271,6 +425,8 @@ function formatEventLead(event: RumorEventRecord): string {
   if (event.floor !== undefined) parts.push(FLOOR_NAMES[event.floor]);
   if (event.zoneId !== undefined) parts.push(`зона ${event.zoneId}`);
   if (event.roomId !== undefined) parts.push(`комната ${event.roomId}`);
+  const resourceName = typeof event.data?.resourceName === 'string' ? event.data.resourceName : '';
+  if (resourceName) parts.push(resourceName.toLowerCase());
   if (event.itemId) {
     const itemName = ITEMS[event.itemId]?.name.toLowerCase();
     if (itemName) parts.push(itemName);
@@ -292,6 +448,8 @@ function eventLeadAction(event: RumorEventRecord): string {
   if (type === 'smog_source_handled') return 'проверь рассеявшийся смог на лут и свидетелей';
   if (type === 'room_produced_items') return 'проверь контейнер цеха, пока партию не разобрали';
   if (type === 'room_lacked_resources' || type === 'room_blocked_production') return 'неси сырье или ищи дефицитный ресурс рядом с цехом';
+  if (event.tags?.includes('resource_shortage')) return 'сверь цены и оплату системных заданий: дефицит поднял давление';
+  if (event.tags?.includes('resource_recovery')) return 'проверь торговцев и задания: часть давления спала';
   if (type === 'container_opened' || type === 'container_looted') return 'проверь контейнер и свидетелей, пока след свежий';
   if (type === 'item_stolen') return 'держись подальше от владельца контейнера или готовь объяснение';
   if (type === 'contract_created' || type === 'quest_created') return 'открой журнал заданий и подготовь вылазку';
@@ -316,6 +474,10 @@ function rememberRecentLead(rumor: RumorDef, text: string, now: number, event?: 
     itemId: rumor.lead?.itemId ?? event?.itemId,
     monsterKind: rumor.lead?.monsterKind ?? event?.monsterKind,
   });
+}
+
+export function describeRumorReveal(reveal: RumorReveal): string {
+  return formatReveal(reveal);
 }
 
 function formatReveal(reveal: RumorReveal): string {
@@ -357,8 +519,94 @@ function containerTagName(tag: string): string {
     case 'paper':
       return 'картотека';
     default:
-      return '';
+      return humanizeTag(tag);
   }
+}
+
+const TAG_WORDS: Record<string, string> = {
+  airlock: 'шлюз',
+  armed: 'оружие',
+  audit: 'ревизия',
+  bad: 'плохая',
+  batch: 'партия',
+  betonov: 'Бетонов',
+  black: 'черная',
+  borrowed: 'заемный',
+  boss: 'босс',
+  chernobog: 'Чернобог',
+  choir: 'хор',
+  confiscation: 'конфискация',
+  container: 'контейнер',
+  contract: 'контракт',
+  counterfeit: 'подделка',
+  cult: 'культ',
+  danger: 'опасность',
+  debt: 'долг',
+  done: 'закрыт',
+  door: 'дверь',
+  economy: 'экономика',
+  external: 'внешняя',
+  failed: 'провален',
+  fair: 'честный',
+  fog: 'туман',
+  forged: 'подделка',
+  green: 'зеленый',
+  hand: 'ладонь',
+  hidden: 'спрятано',
+  idol: 'идол',
+  istotit: 'Истотит',
+  kostorez: 'косторез',
+  lift: 'лифт',
+  light: 'свет',
+  liquidator: 'ликвидатор',
+  lost: 'потеря',
+  market: 'рынок',
+  maronary: 'Маронарий',
+  metro: 'метро',
+  ministry: 'министерство',
+  numbered: 'номерной',
+  obzh: 'ОБЖ',
+  player: 'игрок',
+  pneumomail: 'пневмопочта',
+  production: 'производство',
+  quest: 'задание',
+  quiet: 'тихий',
+  ration: 'паек',
+  recovery: 'восстановление',
+  report: 'рапорт',
+  rescue: 'спасение',
+  samosbor: 'самосбор',
+  school: 'школа',
+  seal: 'пломба',
+  sealed: 'гермодверь',
+  shelter: 'укрытие',
+  shortage: 'дефицит',
+  silver: 'серебро',
+  slime: 'слизь',
+  social: 'социальный след',
+  source: 'источник',
+  steam: 'пар',
+  stolen: 'украдено',
+  tally: 'ведомость',
+  theft: 'кража',
+  trade: 'обмен',
+  variant: 'вариант',
+  veretar: 'Веретар',
+  void: 'пустота',
+  water: 'вода',
+  weapon: 'оружие',
+  white: 'белый',
+  wild: 'дикие',
+  window: 'окно',
+  witness: 'свидетель',
+  wrong: 'ошибка',
+  zhelemish: 'желемыш',
+};
+
+function humanizeTag(tag: string): string {
+  const parts = tag.split('_').filter(Boolean);
+  if (parts.length === 0) return '';
+  return parts.map(part => TAG_WORDS[part] ?? part).join(' ');
 }
 
 function warningTagName(tag: string): string {
@@ -388,7 +636,7 @@ function warningTagName(tag: string): string {
     case 'pneumomail':
       return 'пневмопочта шумит';
     default:
-      return '';
+      return humanizeTag(tag);
   }
 }
 
@@ -407,6 +655,8 @@ function eventToStaticRumorId(event: RumorEventLike): string | undefined {
   if (veretarWindowRumor) return veretarWindowRumor;
   const factionRumor = factionEventRumorId(event);
   if (factionRumor) return factionRumor;
+  const scarcityRumor = resourceScarcityEventRumorId(event);
+  if (scarcityRumor) return scarcityRumor;
   if (type === 'contract_created' || type === 'quest_created') return contractEventRumorId(event);
   if (event.tags?.includes('false_safe_block')) return 'faction_cultist_after_fog';
   if (event.tags?.includes('metro') || event.type?.includes('metro')) return 'floor_metro_error_line';
@@ -440,6 +690,7 @@ function eventToStaticRumorId(event: RumorEventLike): string | undefined {
 function isHighSignalRumorEvent(event: RumorEventLike): boolean {
   const type = event.type ?? '';
   if (eventDataRumorId(event)) return (event.severity ?? 0) >= 2;
+  if (event.tags?.includes('resource_shortage') || event.tags?.includes('resource_recovery')) return (event.severity ?? 0) >= 3;
   if (type === 'faction_event' || event.tags?.includes('faction_event')) return (event.severity ?? 0) >= 2;
   if (type === 'contract_created' || type === 'quest_created') return (event.severity ?? 0) >= 3;
   if (type === 'quest_failed' || type === 'contract_failed') return true;
@@ -493,6 +744,21 @@ function contractEventRumorId(event: RumorEventLike): string {
   if (tags.includes('floor_ministry') || tags.includes('documents') || tags.includes('stealth')) return 'contract_admin_papers';
   if (tags.includes('combat') || tags.includes('kill') || tags.includes('ammo')) return 'contract_liquidator_board';
   return 'player_quest_chain';
+}
+
+function resourceScarcityEventRumorId(event: RumorEventLike): string | undefined {
+  const tags = event.tags ?? [];
+  if (tags.includes('resource_recovery')) return 'economy_resource_recovered';
+  if (!tags.includes('resource_shortage')) return undefined;
+  switch (event.data?.resourceId) {
+    case 'drink_water': return 'economy_water_price';
+    case 'medicine': return 'economy_med_shortage';
+    case 'food': return 'economy_kitchen_stock';
+    case 'ammo': return 'contract_liquidator_board';
+    case 'documents':
+    case 'paper': return 'contract_admin_papers';
+    default: return 'economy_resource_pressure';
+  }
 }
 
 function itemEventRumorId(itemId: string): string | undefined {
@@ -612,7 +878,8 @@ function applyRumorEventToNpc(npc: Entity, event: RumorEventRecord, now: number)
   }
 
   if (isPlayerTheftEvent(event)) {
-    notePlayerTheftWitnessed(npc, now, 1);
+    if (event.tags?.includes('audit') && !event.tags.includes('witnessed')) notePlayerTheftAudited(npc, now, 1);
+    else notePlayerTheftWitnessed(npc, now, 1);
     return;
   }
   if (type === 'quest_completed' || type === 'contract_completed') {

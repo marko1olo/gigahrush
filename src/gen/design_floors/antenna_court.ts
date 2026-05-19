@@ -31,6 +31,7 @@ const SIGNAL_FLAG_MARKET_JAMMED = 1 << 1;
 const SIGNAL_FLAG_VOID_RECORDED = 1 << 2;
 const SIGNAL_FLAG_MINISTRY_NOTICED = 1 << 3;
 const SIGNAL_FLAG_BATTERY_STOLEN = 1 << 4;
+const SIGNAL_FLAG_EXPOSED = 1 << 5;
 
 const CONTAINER_ID_BASE = 320_300;
 const CX = W >> 1;
@@ -59,6 +60,30 @@ export interface AntennaSignalResult {
   signalQuality: number;
   eventTags: string[];
 }
+
+export const ANTENNA_COURT_ROUTE_DECISIONS = [
+  {
+    id: 'signal_repair',
+    roomName: 'Релейная будка',
+    itemId: 'circuit_board',
+    eventAction: 'repair',
+    outcome: 'Паша чинит качество сигнала, а игрок получает route clue вместо полного раскрытия карты.',
+  },
+  {
+    id: 'signal_exposure',
+    roomName: 'Пост сигнал-инспекции',
+    itemId: 'record_exposure_notice',
+    eventAction: 'expose',
+    outcome: 'Круг принимает акт о незаконной записи: подсказка становится министерским следом и слухом.',
+  },
+  {
+    id: 'market_jam',
+    roomName: 'Кабина глушения',
+    itemId: 'fuse',
+    eventAction: 'jam',
+    outcome: 'Мирра дает короткую тишину для рынка 88, но оставляет заметную подпись в эфире.',
+  },
+] as const;
 
 export interface AntennaCourtGeneration extends FloorGeneration {
   routeId: typeof DESIGN_FLOOR_ID;
@@ -239,6 +264,16 @@ registerSideQuest('antenna_pasha_grown', NPC_DEFS.antenna_pasha_grown, [
     relationDelta: 12, xpReward: 45, moneyReward: 30,
   },
   {
+    id: 'antenna_repair_signal',
+    giverNpcId: 'antenna_pasha_grown',
+    type: QuestType.FETCH,
+    desc: 'Паша Выросший: «Нужна целая плата реле. Починим мачту - частота даст маршрутную зацепку без министерского акта.»',
+    targetItem: 'circuit_board', targetCount: 1,
+    rewardItem: 'radio', rewardCount: 1,
+    extraRewards: [{ defId: 'relay_diagram', count: 1 }],
+    relationDelta: 14, xpReward: 60, moneyReward: 35,
+  },
+  {
     id: 'antenna_tell_echo',
     giverNpcId: 'antenna_pasha_grown',
     type: QuestType.TALK,
@@ -272,6 +307,16 @@ registerSideQuest('antenna_captain_krug', NPC_DEFS.antenna_captain_krug, [
     rewardItem: 'official_permit_slip', rewardCount: 1,
     extraRewards: [{ defId: 'ammo_9mm', count: 8 }],
     relationDelta: 12, xpReward: 60, moneyReward: 50,
+  },
+  {
+    id: 'antenna_expose_signal_log',
+    giverNpcId: 'antenna_captain_krug',
+    type: QuestType.FETCH,
+    desc: 'Капитан Круг: «Акт о пропавшей записи превратит пустотный шёпот в министерский след. За бумагу дам законный корешок.»',
+    targetItem: 'record_exposure_notice', targetCount: 1,
+    rewardItem: 'official_permit_slip', rewardCount: 1,
+    extraRewards: [{ defId: 'denunciation', count: 1 }],
+    relationDelta: 10, xpReward: 65, moneyReward: 45,
   },
 ]);
 
@@ -342,6 +387,16 @@ export function recordAntennaCourtAnomaly(
   return result;
 }
 
+export function exposeAntennaCourtSignal(
+  signalState: AntennaCourtSignalState,
+  routeId: Extract<AntennaRouteId, 'ministry' | 'market_88' | 'void_protocol'> = 'ministry',
+): AntennaSignalResult {
+  const result = tuneAntennaCourtSignal(signalState, routeId);
+  signalState.recordedAnomalyFlags |= SIGNAL_FLAG_MINISTRY_NOTICED | SIGNAL_FLAG_EXPOSED;
+  if (!result.ok) signalState.signalQuality = clampQuality(signalState.signalQuality - 1);
+  return result;
+}
+
 export function markAntennaCourtBatteryTaken(signalState: AntennaCourtSignalState): void {
   signalState.recordedAnomalyFlags |= SIGNAL_FLAG_BATTERY_STOLEN;
 }
@@ -349,7 +404,7 @@ export function markAntennaCourtBatteryTaken(signalState: AntennaCourtSignalStat
 export function publishAntennaCourtSignalEvent(
   game: GameState,
   signalState: AntennaCourtSignalState,
-  action: 'tune' | 'jam' | 'record' | 'repair' | 'battery',
+  action: 'tune' | 'jam' | 'record' | 'repair' | 'battery' | 'expose',
   result?: AntennaSignalResult,
 ): WorldEvent {
   const routeId = (result?.routeId ?? signalState.lastTunedRouteId) || undefined;
@@ -357,8 +412,8 @@ export function publishAntennaCourtSignalEvent(
   return publishEvent(game, {
     type: 'rumor_observed',
     floor: game.currentFloor,
-    severity: action === 'jam' || action === 'record' ? 4 : 3,
-    privacy: action === 'jam' ? 'witnessed' : 'local',
+    severity: action === 'jam' || action === 'record' || action === 'expose' ? 4 : 3,
+    privacy: action === 'jam' || action === 'expose' ? 'witnessed' : 'local',
     targetName: routeId ?? DESIGN_FLOOR_ID,
     tags: [
       DESIGN_FLOOR_ID,
@@ -388,6 +443,7 @@ export function antennaCourtDebugLines(signalState: AntennaCourtSignalState): st
     `tuned=${signalState.lastTunedRouteId || 'none'}`,
     `jamUntilHour=${signalState.jamUntilHour}`,
     `flags=${signalState.recordedAnomalyFlags}`,
+    `decisions=${ANTENNA_COURT_ROUTE_DECISIONS.length}`,
   ];
 }
 
@@ -482,6 +538,16 @@ export function generateAntennaCourtDesignFloor(seed = 0): AntennaCourtGeneratio
     { defId: 'circuit_board', count: 1 },
     { defId: 'lamp_bulb', count: 2 },
   ], pasha);
+  addContainer(world, nextContainerId++, rooms.relay, 3, 8, ContainerKind.TOOL_LOCKER, 'Шкаф ремонта верхней мачты', 'room', [
+    { defId: 'circuit_board', count: 1 },
+    { defId: 'fuse', count: 2 },
+    { defId: 'wire_coil', count: 1 },
+  ], pasha);
+  addContainer(world, nextContainerId++, rooms.inspection, 3, 8, ContainerKind.SAFE, 'Сейф экспозиции сигнала', 'faction', [
+    { defId: 'record_exposure_notice', count: 1 },
+    { defId: 'official_permit_slip', count: 1 },
+    { defId: 'denunciation', count: 1 },
+  ], captain);
   addContainer(world, nextContainerId++, rooms.jammer, 8, 3, ContainerKind.CASHBOX, 'Касса короткой тишины', 'owner', [
     { defId: 'metro_ticket', count: 1 },
     { defId: 'cigs', count: 2 },

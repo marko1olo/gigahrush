@@ -2,11 +2,6 @@ import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
 import {
-  EntityType,
-  Faction,
-  type Entity,
-} from '../src/core/types';
-import {
   BANKING_INTEREST_INTERVAL_MINUTES,
   BANKING_LEDGER_CAPACITY,
 } from '../src/data/banking';
@@ -23,7 +18,7 @@ import {
   tickBankingInterest,
 } from '../src/systems/banking';
 import { createWorldEventState, getRecentEvents } from '../src/systems/events';
-import { makeGameState } from './helpers';
+import { makeGameState, makeTestPlayer } from './helpers';
 
 test('banking state normalizes old saves to an empty account with no debt', () => {
   const normalized = normalizeBankingState(undefined);
@@ -38,7 +33,7 @@ test('banking state normalizes old saves to an empty account with no debt', () =
 
 test('cash can move to account and back without overdrawing either side', () => {
   const state = makeGameState({ worldEvents: createWorldEventState() });
-  const player = testPlayer({ money: 100 });
+  const player = makeTestPlayer({ money: 100 });
 
   assert.equal(cashToAccount(state, player, 60, 'atm'), true);
   assert.equal(player.money, 40);
@@ -106,7 +101,7 @@ test('deposits accrue bounded interest and close back into account', () => {
 
 test('bankingForSave returns bounded plain state', () => {
   const state = makeGameState({ worldEvents: createWorldEventState() });
-  const player = testPlayer({ money: 1000 });
+  const player = makeTestPlayer({ money: 1000 });
 
   for (let i = 0; i < BANKING_LEDGER_CAPACITY + 4; i++) {
     assert.equal(cashToAccount(state, player, 1, `cash_${i}`), true);
@@ -119,21 +114,3 @@ test('bankingForSave returns bounded plain state', () => {
   saved.accountRubles = 0;
   assert.equal(ensureBankingState(state).accountRubles, BANKING_LEDGER_CAPACITY + 4);
 });
-
-function testPlayer(overrides: Partial<Entity> = {}): Entity {
-  return {
-    id: 1,
-    type: EntityType.PLAYER,
-    x: 0,
-    y: 0,
-    angle: 0,
-    pitch: 0,
-    alive: true,
-    speed: 0,
-    sprite: 0,
-    name: 'Вы',
-    faction: Faction.PLAYER,
-    inventory: [],
-    ...overrides,
-  };
-}

@@ -118,9 +118,9 @@ export const VOID_PROTOCOLS: readonly VoidProtocolDef[] = [
     durationSec: 90,
     cooldownSec: 240,
     tags: ['void', 'spirit', 'cost'],
-    startLine: 'Пошлина принята не деньгами.',
-    endLine: 'Квитанция остывает.',
-    backlashLine: 'Дух считает сдачу вслух.',
+    startLine: 'Пошлина принята. Проход держит слово.',
+    endLine: 'Квитанция духа остывает.',
+    backlashLine: 'Неплаченная строка зовет счетчика.',
   },
 ];
 

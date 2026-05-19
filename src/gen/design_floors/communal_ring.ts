@@ -34,6 +34,7 @@ export const COMMUNAL_RING_ROUTE_Z = -4;
 
 const BASE_FLOOR = FloorLevel.KVARTIRY;
 const RING_SEED = hashSeed(COMMUNAL_RING_DESIGN_FLOOR_ID);
+const COMMUNAL_QUEUE_CROWD_CAP = 12;
 
 const NPC_IDS = {
   luba: 'communal_laundry_luba',
@@ -55,7 +56,7 @@ const NPC_DEFS: Record<(typeof NPC_IDS)[keyof typeof NPC_IDS], PlotNpcDef> = {
       'Кольцо держится на чистой ткани. Грязная ткань держит только слухи.',
       'Принесёшь рулоны - отдам бинты. Не святые, но сухие.',
       'После самосбора машинка сама открылась. Внутри был список, а не бельё.',
-      'У прачечной общий вход, но у шкафчика есть глаза. Саша видит даже через очередь.',
+      'У прачечной общий вход, но у шкафчика есть глаза. Очередь видит даже через мокрую дверь.',
     ],
     talkLinesPost: [
       'Бинты вывешены. Кто первый снял - тот потом первый объясняет.',
@@ -112,7 +113,7 @@ const NPC_DEFS: Record<(typeof NPC_IDS)[keyof typeof NPC_IDS], PlotNpcDef> = {
       'Кладовая общая, пока дверь закрыта. Открытая кладовая сразу чья-то.',
       'Я не сторож. Я свидетель с хорошей памятью.',
       'Бирку от ключа принесёшь - скажу, какой шкаф пищит тише.',
-      'Можешь украсть тушёнку. Можешь купить. Можешь заслужить. Все три способа пахнут по-разному.',
+      'На столе пайка мало и честно. В шкафу больше, но там очередь считает пальцы.',
     ],
     talkLinesPost: [
       'Пайки выдали. Теперь спорят, кому выдали взглядом больше.',
@@ -221,6 +222,7 @@ export function generateCommunalRingDesignFloor(seed = RING_SEED): FloorGenerati
     decorateRing(world, ring, rooms);
     const owners = spawnCommunalNpcSet(entities, nextId, rooms);
     spawnWitnesses(entities, nextId, rooms);
+    spawnCommunalQueueCrowd(entities, nextId, rooms);
     placeServiceContainers(world, containerId, rooms, owners);
     placeLooseSupplies(world, entities, nextId, rooms);
     applySamosborAftermath(world, entities, nextId, rooms);
@@ -561,6 +563,37 @@ function spawnWitnesses(entities: Entity[], nextId: { v: number }, rooms: Commun
   spawnAmbientNpc(entities, nextId, 'Слесарь душевой очереди', Faction.LIQUIDATOR, Occupation.MECHANIC, rooms.shower.x - 3, rooms.shower.y + 7, [{ defId: 'valve_tag', count: 1 }], 'wrench');
 }
 
+function spawnCommunalQueueCrowd(entities: Entity[], nextId: { v: number }, rooms: CommunalRooms): void {
+  const spots: readonly { name: string; faction: Faction; occupation: Occupation; x: number; y: number; item: string }[] = [
+    { name: 'Очередница у паечного стола', faction: Faction.CITIZEN, occupation: Occupation.HOUSEWIFE, x: rooms.pantry.x + 5, y: rooms.pantry.y - 3, item: 'water_coupon' },
+    { name: 'Сосед с пустой банкой', faction: Faction.CITIZEN, occupation: Occupation.TRAVELER, x: rooms.pantry.x + 8, y: rooms.pantry.y - 3, item: 'bread' },
+    { name: 'Дежурный по списку пайка', faction: Faction.CITIZEN, occupation: Occupation.SECRETARY, x: rooms.pantry.x + 14, y: rooms.pantry.y - 3, item: 'ration_registry_extract' },
+    { name: 'Свидетельница у замка', faction: Faction.CITIZEN, occupation: Occupation.STOREKEEPER, x: rooms.pantry.x + 18, y: rooms.pantry.y - 2, item: 'note' },
+    { name: 'Повар с чужой кружкой', faction: Faction.CITIZEN, occupation: Occupation.COOK, x: rooms.kitchen.x + 6, y: rooms.kitchen.y + rooms.kitchen.h + 2, item: 'tea' },
+    { name: 'Сосед у второй плиты', faction: Faction.CITIZEN, occupation: Occupation.TRAVELER, x: rooms.kitchen.x + 12, y: rooms.kitchen.y + rooms.kitchen.h + 2, item: 'kasha' },
+    { name: 'Старшая по кипятку', faction: Faction.CITIZEN, occupation: Occupation.HOUSEWIFE, x: rooms.kitchen.x + 18, y: rooms.kitchen.y + rooms.kitchen.h + 2, item: 'boiler_water' },
+    { name: 'Слесарь без бирки', faction: Faction.LIQUIDATOR, occupation: Occupation.MECHANIC, x: rooms.shower.x - 3, y: rooms.shower.y + 3, item: 'valve_tag' },
+    { name: 'Мокрый очередник', faction: Faction.CITIZEN, occupation: Occupation.TRAVELER, x: rooms.shower.x - 3, y: rooms.shower.y + 9, item: 'toiletpaper' },
+    { name: 'Тамарин свидетель', faction: Faction.SCIENTIST, occupation: Occupation.SECRETARY, x: rooms.notice.x + 9, y: rooms.notice.y + rooms.notice.h + 2, item: 'neighbor_complaint' },
+    { name: 'Молчаливый возле ядра', faction: Faction.CITIZEN, occupation: Occupation.LOCKSMITH, x: rooms.core.x + 4, y: rooms.core.y - 3, item: 'cleaning_kit' },
+    { name: 'Последний в кольце', faction: Faction.CITIZEN, occupation: Occupation.TRAVELER, x: rooms.core.x + 14, y: rooms.core.y - 3, item: 'bread' },
+  ];
+  for (let i = 0; i < Math.min(COMMUNAL_QUEUE_CROWD_CAP, spots.length); i++) {
+    const spot = spots[i];
+    spawnAmbientNpc(
+      entities,
+      nextId,
+      spot.name,
+      spot.faction,
+      spot.occupation,
+      spot.x,
+      spot.y,
+      [{ defId: spot.item, count: 1 }],
+      spot.faction === Faction.LIQUIDATOR ? 'wrench' : undefined,
+    );
+  }
+}
+
 function spawnAmbientNpc(
   entities: Entity[],
   nextId: { v: number },
@@ -626,6 +659,11 @@ function placeServiceContainers(
     { defId: 'water_coupon', count: 2 },
     { defId: 'ration_registry_extract', count: 1 },
   ], 'owner', owners.sasha, NPC_DEFS.communal_panhandler_sasha.name, ['pantry', 'food', 'witnessed']);
+
+  addContainer(world, containerId, rooms.pantry, 4, 6, ContainerKind.EMERGENCY_BOX, 'Лимитированный стол пайка', [
+    { defId: 'bread', count: 1 },
+    { defId: 'water_coupon', count: 1 },
+  ], 'public', undefined, undefined, ['pantry', 'scarcity', 'ration_limit', 'legal_supply']);
 
   addContainer(world, containerId, rooms.notice, 13, 5, ContainerKind.FILING_CABINET, 'Картотека спорных объявлений', [
     { defId: 'sealed_complaint', count: 2 },

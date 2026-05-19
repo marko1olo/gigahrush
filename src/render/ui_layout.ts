@@ -22,7 +22,7 @@ function inventoryGridScale(canvasW: number, canvasH: number, verticalUnits: num
   const byH = (canvasH * GRID_SCREEN_H) / verticalUnits;
   const fit = Math.min(raw, byW, byH);
   const minScale = Math.max(1, Math.min(GRID_SCALE_TARGET_MIN, byW, byH));
-  return clamp(fit, minScale, GRID_SCALE_MAX);
+  return clamp(fit, Math.min(minScale, fit), GRID_SCALE_MAX);
 }
 
 export function tradeGridScale(canvasW: number, canvasH: number): number {

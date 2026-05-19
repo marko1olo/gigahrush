@@ -10,6 +10,7 @@ import { monsterSpr } from '../../render/sprite_index';
 import { MarkType, stampMark } from '../../render/marks';
 import { playMaronaryPing } from '../../systems/audio';
 import { publishEvent, registerWorldEventObserver as observeWorldEvents } from '../../systems/events';
+import { registerRouteCue } from '../../systems/route_cues';
 import { randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg';
 import { carveCorridor, findClearArea, placeDoorAt, stampRoom } from '../shared';
 
@@ -443,6 +444,30 @@ export function generateMaronarySignalshchik(
     [{ defId: 'overexposed_photo', count: 1 }],
     [TAG_AVOID, 'cover'],
   );
+
+  registerRouteCue(world, {
+    id: 'void_maronary_signalshchik_dark_bypass',
+    x: room.x + 3.5,
+    y: room.y + 3.5,
+    targetX: avoidRoom.x + (avoidRoom.w >> 1) + 0.5,
+    targetY: avoidRoom.y + (avoidRoom.h >> 1) + 0.5,
+    floor: FloorLevel.VOID,
+    roomId: room.id,
+    targetRoomId: avoidRoom.id,
+    zoneId: world.zoneMap[world.idx(room.x + 3, room.y + 3)],
+    label: 'незеленый тон',
+    hint: 'темная полка обходит зеленый сигнал',
+    targetName: 'незеленый обход',
+    color: '#7f9',
+    tags: [ENCOUNTER_ID, 'void', 'maronary', 'bypass', 'wrong_door'],
+    toneSeed: room.id * 991 + 120317,
+    radius: 10,
+    targetRadius: 2.8,
+    cooldownSec: 26,
+    heardText: 'За зеленым писком есть низкий тон: он ведет не к стрелке, а к темной полке.',
+    followedText: 'Незеленый обход выдержал маршрут. Сигнал остался за стеной, награда - в полке.',
+    ignoredText: 'Низкий тон стих. Зеленая стрелка снова выглядит как самый короткий путь.',
+  });
 
   registerSignalshchikContext({
     world,

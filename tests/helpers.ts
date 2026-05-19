@@ -1,9 +1,21 @@
 import {
+  Cell,
+  ContainerKind,
+  EntityType,
+  Faction,
   FloorLevel,
   type GameState,
+  type Entity,
+  type Item,
   type LogEntry,
   type Msg,
+  type Room,
+  RoomType,
+  Tex,
+  type WorldContainer,
+  ZoneFaction,
 } from '../src/core/types';
+import type { World } from '../src/core/world';
 
 export function makeGameState(overrides: Partial<GameState> = {}): GameState {
   const clock = overrides.clock ?? { hour: 8, minute: 0, totalMinutes: 0 };
@@ -59,4 +71,119 @@ export function makeGameState(overrides: Partial<GameState> = {}): GameState {
     gameWon: false,
     ...overrides,
   };
+}
+
+export function makeTestEntity(overrides: Partial<Entity> = {}): Entity {
+  return {
+    id: 1,
+    type: EntityType.PLAYER,
+    x: 0,
+    y: 0,
+    angle: 0,
+    pitch: 0,
+    alive: true,
+    speed: 0,
+    sprite: 0,
+    name: 'Вы',
+    faction: Faction.PLAYER,
+    inventory: [],
+    ...overrides,
+  };
+}
+
+export function makeTestPlayer(overrides: Partial<Entity> = {}): Entity {
+  return makeTestEntity({
+    ...overrides,
+    type: EntityType.PLAYER,
+    name: overrides.name ?? 'Вы',
+    faction: overrides.faction ?? Faction.PLAYER,
+    inventory: overrides.inventory ?? [],
+  });
+}
+
+export function makeTestNpc(overrides: Partial<Entity> = {}): Entity {
+  return makeTestEntity({
+    ...overrides,
+    type: EntityType.NPC,
+    name: overrides.name ?? 'Тестовый NPC',
+    faction: overrides.faction ?? Faction.CITIZEN,
+    inventory: overrides.inventory ?? [],
+    money: overrides.money ?? 100,
+  });
+}
+
+export function countInventoryItem(actor: Pick<Entity, 'inventory'>, defId: string): number {
+  return (actor.inventory ?? []).reduce((sum, item) => item.defId === defId ? sum + item.count : sum, 0);
+}
+
+export function cloneItems(items: readonly Item[]): Item[] {
+  return items.map(item => ({ ...item }));
+}
+
+export function makeTestContainer(overrides: Partial<WorldContainer> = {}): WorldContainer {
+  return {
+    id: 1,
+    x: 0,
+    y: 0,
+    floor: FloorLevel.LIVING,
+    roomId: 1,
+    zoneId: 1,
+    kind: ContainerKind.EMERGENCY_BOX,
+    name: 'Тестовый ящик',
+    inventory: [],
+    capacitySlots: 1,
+    access: 'public',
+    discovered: true,
+    tags: [],
+    ...overrides,
+  };
+}
+
+interface TestRoomOptions extends Partial<Omit<Room, 'doors'>> {
+  doors?: number[];
+  zoneId?: number;
+  zoneFaction?: ZoneFaction;
+  zoneLevel?: number;
+  hqRoomId?: number;
+  carve?: boolean;
+}
+
+export function addTestRoom(world: World, options: TestRoomOptions = {}): Room {
+  const room: Room = {
+    id: options.id ?? 0,
+    type: options.type ?? RoomType.COMMON,
+    x: options.x ?? 10,
+    y: options.y ?? 10,
+    w: options.w ?? 6,
+    h: options.h ?? 6,
+    doors: options.doors ?? [],
+    sealed: options.sealed ?? false,
+    name: options.name ?? 'Тестовая комната',
+    apartmentId: options.apartmentId ?? -1,
+    wallTex: options.wallTex ?? Tex.CONCRETE,
+    floorTex: options.floorTex ?? Tex.F_CONCRETE,
+  };
+  const zoneId = options.zoneId ?? 0;
+  world.rooms[room.id] = room;
+  world.zones[zoneId] = {
+    id: zoneId,
+    cx: (room.x + room.w / 2) | 0,
+    cy: (room.y + room.h / 2) | 0,
+    faction: options.zoneFaction ?? ZoneFaction.CITIZEN,
+    hasLift: false,
+    fogged: false,
+    level: options.zoneLevel ?? 1,
+    hqRoomId: options.hqRoomId ?? -1,
+  };
+
+  if (options.carve === false) return room;
+  for (let y = room.y; y < room.y + room.h; y++) {
+    for (let x = room.x; x < room.x + room.w; x++) {
+      const idx = world.idx(x, y);
+      world.cells[idx] = Cell.FLOOR;
+      world.roomMap[idx] = room.id;
+      world.zoneMap[idx] = zoneId;
+    }
+  }
+  return room;
 }

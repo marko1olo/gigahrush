@@ -29,6 +29,20 @@ export interface SamosborBeatDef {
   resourceId?: string;
 }
 
+export const SAMOSBOR_DIRECTOR_PHASE_BUDGET: Record<SamosborBeatPhase, number> = {
+  warning: 1,
+  active: 3,
+  aftermath: 1,
+};
+
+export const SAMOSBOR_DIRECTOR_MIN_INTERVAL: Record<SamosborBeatPhase, number> = {
+  warning: 6,
+  active: 10,
+  aftermath: 6,
+};
+
+export const SAMOSBOR_DIRECTOR_EFFECT_FAIL_COOLDOWN = 20;
+
 const ALL_FLOORS = [
   FloorLevel.MINISTRY,
   FloorLevel.KVARTIRY,
@@ -40,6 +54,9 @@ const ALL_FLOORS = [
 
 const CIVIL_FLOORS = [FloorLevel.MINISTRY, FloorLevel.KVARTIRY, FloorLevel.LIVING] as const;
 const SERVICE_FLOORS = [FloorLevel.KVARTIRY, FloorLevel.LIVING, FloorLevel.MAINTENANCE] as const;
+const MAINTENANCE_FLOORS = [FloorLevel.MAINTENANCE] as const;
+const HELL_FLOORS = [FloorLevel.HELL] as const;
+const VOID_FLOORS = [FloorLevel.VOID] as const;
 const ALL_VARIANTS = ['classic', 'quiet', 'wet', 'electric', 'meat', 'maronary', 'istotit', 'veretar'] as const;
 
 const registry: SamosborBeatDef[] = [];
@@ -88,6 +105,62 @@ const BASELINE_BEATS: readonly SamosborBeatDef[] = [
     severity: 2,
   },
   {
+    id: 'pre_social_roll_call',
+    phase: 'warning',
+    floors: CIVIL_FLOORS,
+    variants: ALL_VARIANTS,
+    weight: 26,
+    cooldown: 210,
+    maxPerCycle: 1,
+    tags: ['warning', 'social', 'counterplay'],
+    effectId: 'warning_line',
+    line: 'По этажу пошла перекличка. Рабочую герму называют шёпотом: следуй за спором, не за толпой.',
+    color: '#ccf',
+    severity: 3,
+  },
+  {
+    id: 'pre_maintenance_pressure_gauge',
+    phase: 'warning',
+    floors: MAINTENANCE_FLOORS,
+    variants: ['classic', 'wet', 'electric', 'maronary', 'veretar'],
+    weight: 32,
+    cooldown: 210,
+    maxPerCycle: 1,
+    tags: ['warning', 'maintenance', 'pressure', 'counterplay'],
+    effectId: 'warning_line',
+    line: 'Манометр дёрнулся до сирены. К сухому шлюзу сейчас; у воды самосбор слышит быстрее.',
+    color: '#58c',
+    severity: 3,
+  },
+  {
+    id: 'pre_hell_meat_seam',
+    phase: 'warning',
+    floors: HELL_FLOORS,
+    variants: ['quiet', 'wet', 'meat', 'maronary', 'veretar'],
+    weight: 34,
+    cooldown: 210,
+    maxPerCycle: 1,
+    tags: ['warning', 'hell', 'meat', 'counterplay'],
+    effectId: 'warning_line',
+    line: 'Швы стен набухли до сирены. Держись середины прохода и не верь красной безопасной зоне.',
+    color: '#d64b5f',
+    severity: 4,
+  },
+  {
+    id: 'pre_void_anchor_warning',
+    phase: 'warning',
+    floors: VOID_FLOORS,
+    variants: ['classic', 'quiet', 'maronary', 'veretar'],
+    weight: 36,
+    cooldown: 210,
+    maxPerCycle: 1,
+    tags: ['warning', 'void', 'counterplay'],
+    effectId: 'warning_line',
+    line: 'Пустота убрала звук шагов. Держи тёмную герму в поле зрения; светлый маршрут может быть областью.',
+    color: '#f4f1df',
+    severity: 4,
+  },
+  {
     id: 'pre_door_malfunction',
     phase: 'warning',
     floors: ALL_FLOORS,
@@ -100,6 +173,34 @@ const BASELINE_BEATS: readonly SamosborBeatDef[] = [
     line: 'Гермопривод кашляет в стене. Одна дверь уже решает, кто сегодня жилец.',
     color: '#fa0',
     severity: 3,
+  },
+  {
+    id: 'pre_quiet_no_siren_crosscheck',
+    phase: 'warning',
+    floors: ALL_FLOORS,
+    variants: ['quiet'],
+    weight: 31,
+    cooldown: 210,
+    maxPerCycle: 1,
+    tags: ['warning', 'quiet', 'no_siren'],
+    effectId: 'warning_line',
+    line: 'Диспетчер: штатная сирена не подтверждена. Сверяйте карту, экраны и соседские крики.',
+    color: '#9a6bd6',
+    severity: 4,
+  },
+  {
+    id: 'pre_veretar_white_area',
+    phase: 'warning',
+    floors: ALL_FLOORS,
+    variants: ['veretar'],
+    weight: 32,
+    cooldown: 210,
+    maxPerCycle: 1,
+    tags: ['warning', 'veretar', 'white_area'],
+    effectId: 'warning_line',
+    line: 'Диспетчер: внешняя тревога слышна внутри дома. Белую область считать опасной, не видом.',
+    color: '#f4f1df',
+    severity: 4,
   },
   {
     id: 'pre_maronary_green_source',
@@ -184,6 +285,63 @@ const BASELINE_BEATS: readonly SamosborBeatDef[] = [
     line: 'Ликвидаторский патруль идёт на шум самосбора. Патроны считают вполголоса.',
     color: '#6cf',
     severity: 3,
+  },
+  {
+    id: 'active_social_shelter_argument',
+    phase: 'active',
+    floors: CIVIL_FLOORS,
+    variants: ['quiet', 'electric', 'istotit', 'veretar'],
+    weight: 18,
+    cooldown: 240,
+    maxPerCycle: 1,
+    tags: ['rumor', 'social', 'shelter'],
+    effectId: 'rumor_seed',
+    line: 'За дверью спорят, кого пустили в укрытие. Слух станет уликой, если доживёт до отбоя.',
+    color: '#ccf',
+    severity: 3,
+  },
+  {
+    id: 'active_maintenance_breaker_trip',
+    phase: 'active',
+    floors: MAINTENANCE_FLOORS,
+    variants: ['wet', 'electric'],
+    weight: 28,
+    cooldown: 240,
+    maxPerCycle: 1,
+    tags: ['shortage', 'maintenance', 'electric'],
+    effectId: 'resource_shortage',
+    resourceId: 'electronics',
+    line: 'Автомат выбило в щите. Электроника стала дефицитом раньше, чем свет понял, что погас.',
+    color: '#72e6ff',
+    severity: 3,
+  },
+  {
+    id: 'active_hell_meat_hallway',
+    phase: 'active',
+    floors: HELL_FLOORS,
+    variants: ['wet', 'meat'],
+    weight: 26,
+    cooldown: 180,
+    maxPerCycle: 1,
+    tags: ['fog', 'hell', 'meat', 'danger'],
+    effectId: 'local_fog_residue',
+    line: 'Красный след лег вдоль шва. Центр коридора остался честнее стены, но ненадолго.',
+    color: '#d64b5f',
+    severity: 4,
+  },
+  {
+    id: 'active_void_false_relief',
+    phase: 'active',
+    floors: VOID_FLOORS,
+    variants: ['classic', 'quiet', 'maronary', 'veretar'],
+    weight: 28,
+    cooldown: 180,
+    maxPerCycle: 1,
+    tags: ['fog', 'void', 'false_clear', 'danger'],
+    effectId: 'local_fog_residue',
+    line: 'Пустота показала чистый участок и тут же забыла его очистить. Проверяй край, не середину.',
+    color: '#f4f1df',
+    severity: 4,
   },
   {
     id: 'active_container_theft',

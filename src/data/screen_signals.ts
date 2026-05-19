@@ -1,7 +1,7 @@
 /* ── Procedural screen signal definitions ─────────────────────── */
 
 import {
-  FloorLevel, RoomType, ZoneFaction,
+  FloorLevel, RoomType, Tex, ZoneFaction,
   type WorldEventType,
 } from '../core/types';
 
@@ -28,6 +28,8 @@ export interface ScreenSignalDef {
 }
 
 const CIVIL_FLOORS = [FloorLevel.MINISTRY, FloorLevel.KVARTIRY, FloorLevel.LIVING] as const;
+export const SCREEN_SIGNAL_VARIANTS = 8;
+export const SCREEN_SIGNAL_FRAMES = 4;
 const ALL_SIGNAL_FLOORS = [
   FloorLevel.MINISTRY,
   FloorLevel.KVARTIRY,
@@ -57,7 +59,7 @@ export const SCREEN_SIGNAL_DEFS: readonly ScreenSignalDef[] = [
     roomTypes: [RoomType.KITCHEN, RoomType.STORAGE, RoomType.COMMON, RoomType.LIVING, RoomType.OFFICE],
     zoneFactions: [ZoneFaction.CITIZEN, ZoneFaction.WILD, ZoneFaction.SAMOSBOR],
     eventTypes: ['room_lacked_resources', 'room_produced_items', 'rumor_observed'],
-    rumorIds: ['faction_citizen_food', 'room_kitchen_empty', 'rare_bandage_med', 'rare_pills_trade'],
+    rumorIds: ['faction_citizen_food', 'room_kitchen_empty', 'rare_bandage_med', 'rare_pills_trade', 'ecology_krysnozhka_bait', 'ecology_sborka_swarm'],
     tags: ['screen_signal', 'economy', 'shortage', 'ration'],
   },
   {
@@ -69,7 +71,7 @@ export const SCREEN_SIGNAL_DEFS: readonly ScreenSignalDef[] = [
     roomTypes: [RoomType.CORRIDOR, RoomType.COMMON, RoomType.OFFICE, RoomType.HQ, RoomType.STORAGE],
     zoneFactions: [ZoneFaction.CITIZEN, ZoneFaction.LIQUIDATOR, ZoneFaction.CULTIST, ZoneFaction.WILD, ZoneFaction.SAMOSBOR],
     eventTypes: ['faction_patrol_clash', 'samosbor_zone_captured', 'rumor_observed'],
-    rumorIds: ['faction_zone_border', 'faction_hq_storage', 'faction_liquidator_patrol', 'faction_cultist_after_fog'],
+    rumorIds: ['faction_zone_border', 'faction_hq_storage', 'faction_liquidator_patrol', 'faction_cultist_after_fog', 'ecology_nelyud_close', 'ecology_rebar_still', 'ecology_tvar_wall'],
     tags: ['screen_signal', 'faction', 'territory', 'zone'],
   },
   {
@@ -91,7 +93,7 @@ export const SCREEN_SIGNAL_DEFS: readonly ScreenSignalDef[] = [
     floors: [FloorLevel.MINISTRY],
     roomTypes: [RoomType.CORRIDOR, RoomType.COMMON, RoomType.OFFICE],
     eventTypes: ['quest_created', 'quest_completed', 'rumor_observed'],
-    rumorIds: ['faction_ministry_papers', 'floor_ministry_paper', 'rare_key_office'],
+    rumorIds: ['faction_ministry_papers', 'floor_ministry_paper', 'rare_key_office', 'ecology_pechateed_docs', 'ecology_paragraph_clause'],
     tags: ['screen_signal', 'ministry', 'queue', 'papers'],
   },
   {
@@ -102,7 +104,7 @@ export const SCREEN_SIGNAL_DEFS: readonly ScreenSignalDef[] = [
     floors: [FloorLevel.MAINTENANCE],
     roomTypes: [RoomType.PRODUCTION, RoomType.OFFICE, RoomType.MEDICAL, RoomType.COMMON],
     eventTypes: ['room_blocked_production', 'room_lacked_resources', 'rumor_observed'],
-    rumorIds: ['floor_maintenance_water', 'samosbor_wet_variant', 'samosbor_electric_variant'],
+    rumorIds: ['floor_maintenance_water', 'samosbor_wet_variant', 'samosbor_electric_variant', 'ecology_eel_water', 'ecology_lampovy_light', 'ecology_robot_plasma', 'ecology_eye_line'],
     tags: ['screen_signal', 'maintenance', 'pressure', 'water'],
   },
   {
@@ -112,7 +114,7 @@ export const SCREEN_SIGNAL_DEFS: readonly ScreenSignalDef[] = [
     weight: 7,
     floors: [FloorLevel.HELL, FloorLevel.VOID],
     eventTypes: ['fog_boss_spawned', 'fog_boss_killed', 'rumor_observed'],
-    rumorIds: ['floor_void_listens', 'floor_hell_meat', 'samosbor_meat_variant', 'monster_matka_spawn'],
+    rumorIds: ['floor_void_listens', 'floor_hell_meat', 'samosbor_meat_variant', 'monster_matka_spawn', 'ecology_shadow_afterimage', 'ecology_herald_ceiling', 'ecology_creator_white', 'ecology_paragraph_clause'],
     tags: ['screen_signal', 'void', 'hell', 'protocol'],
   },
 ];
@@ -122,6 +124,13 @@ export function screenSignalForVariant(variant: number): ScreenSignalDef | undef
     if (def.textureVariants.includes(variant)) return def;
   }
   return undefined;
+}
+
+export function screenSignalForTexture(tex: number): ScreenSignalDef | undefined {
+  const first = Tex.SCREEN_BASE;
+  const last = first + SCREEN_SIGNAL_VARIANTS * SCREEN_SIGNAL_FRAMES;
+  if (tex < first || tex >= last) return undefined;
+  return screenSignalForVariant(Math.floor((tex - first) / SCREEN_SIGNAL_FRAMES));
 }
 
 export function screenSignalById(id: ScreenSignalId): ScreenSignalDef {

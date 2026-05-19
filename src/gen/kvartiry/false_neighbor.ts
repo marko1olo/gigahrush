@@ -11,7 +11,11 @@ import { monsterSpr } from '../../render/sprite_index';
 import { randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg';
 import {
   createSocialPoiRoom, placeDropNear, setFeatureIfFloor, spawnAmbientNpc, spawnSocialNpc,
+  type SocialPoiRoom,
 } from './social_helpers';
+
+const FALSE_NEIGHBOR_ROOM_NAME = 'Комната чужой очереди';
+const FALSE_NEIGHBOR_RUMOR_IDS = ['ecology_nelyud_close', 'lead_kvartiry_false_neighbor_nelyud'] as const;
 
 const RAYA: PlotNpcDef = {
   name: 'Рая Подозрительная',
@@ -23,6 +27,7 @@ const RAYA: PlotNpcDef = {
   inventory: [{ defId: 'note', count: 1 }, { defId: 'fake_pass', count: 1 }],
   talkLines: [
     'В очереди лишний сосед. Он стоит молча, пока к нему не подходят за солью.',
+    'Экран у двери показывает очередь, но не показывает его плечи. Так даже старый телевизор не врет.',
     'Я повесила лампу и оставила проход свободным. Если он дернется - бегите к двери, не к стене.',
     'Фальшивый пропуск у него в кармане как кожа: вроде свой, а шрифт чужой.',
   ],
@@ -43,6 +48,21 @@ registerSideQuest('kv_raya_podozritelnaya', RAYA, [{
   rewardCount: 1,
   extraRewards: [{ defId: 'fake_pass', count: 1 }],
   relationDelta: 14, xpReward: 85, moneyReward: 45,
+  targetFloor: FloorLevel.KVARTIRY,
+  targetRoomType: RoomType.LIVING,
+  targetRoomName: FALSE_NEIGHBOR_ROOM_NAME,
+  targetHint: 'найдите экран без отражения у входа, держите проход свободным и не подпускайте тихого соседа ближе шести шагов',
+  eventSeverity: 4,
+  eventPrivacy: 'witnessed',
+  eventTargetName: 'Тихого соседа из чужой очереди раскрыли и убили.',
+  eventTags: ['monster', 'false_neighbor', 'witness', 'infected', 'fight_choice'],
+  eventData: {
+    monsterId: 'kv_false_neighbor_nelyud',
+    ruName: 'Тихий сосед',
+    clue: 'missing_screen_reflection_at_queue_door',
+    counterplay: 'keep_exit_open_before_close_reveal',
+    rumorIds: [...FALSE_NEIGHBOR_RUMOR_IDS],
+  },
 }]);
 
 function spawnNelyud(world: World, entities: Entity[], nextId: { v: number }, x: number, y: number): void {
@@ -69,12 +89,20 @@ function spawnNelyud(world: World, entities: Entity[], nextId: { v: number }, x:
   entities.push(monster);
 }
 
+function placeQueueTell(world: World, poi: SocialPoiRoom): void {
+  const screen = world.idx(poi.x + 1, poi.y - 1);
+  world.wallTex[screen] = (Tex.SCREEN_BASE + 6) as Tex;
+  if (!world.screenCells.includes(screen)) world.screenCells.push(screen);
+  setFeatureIfFloor(world, poi.x + 1, poi.y + 1, Feature.SCREEN);
+  world.stamp(poi.x + poi.w - 3, poi.y + poi.h - 3, 0.5, 0.5, 1.4, 0.42, 44016, 4, 5, 5, false);
+}
+
 export function generateFalseNeighborRoom(
   world: World, nextRoomId: number, entities: Entity[], nextId: { v: number }, spawnX: number, spawnY: number,
 ): number {
   const poi = createSocialPoiRoom(
     world, nextRoomId, spawnX, spawnY,
-    'Комната чужой очереди',
+    FALSE_NEIGHBOR_ROOM_NAME,
     RoomType.LIVING,
     13, 8,
     Tex.PANEL, Tex.F_LINO,
@@ -91,12 +119,13 @@ export function generateFalseNeighborRoom(
   setFeatureIfFloor(world, poi.x + poi.w - 2, poi.y + 1, Feature.SHELF);
   setFeatureIfFloor(world, poi.x + poi.w - 2, poi.y + poi.h - 2, Feature.BED);
   world.wallTex[world.idx(poi.x + Math.floor(poi.w / 2), poi.y - 1)] = Tex.POSTER_BASE + 28;
+  placeQueueTell(world, poi);
 
   spawnSocialNpc(entities, nextId, RAYA, 'kv_raya_podozritelnaya', poi.x + 2, poi.y + 2);
   spawnAmbientNpc(entities, nextId, 'Леня Очередной', Faction.CITIZEN, Occupation.LOCKSMITH, poi.x + 4, poi.y + 5, [{ defId: 'bread', count: 1 }]);
   spawnNelyud(world, entities, nextId, poi.x + poi.w - 3, poi.y + poi.h - 3);
 
-  for (const defId of ['note', 'fake_pass', 'unpeople_detector', 'bread']) {
+  for (const defId of ['note', 'fake_pass', 'inspection_mirror', 'unpeople_detector', 'bread']) {
     placeDropNear(world, entities, nextId, poi, defId, 1);
   }
 

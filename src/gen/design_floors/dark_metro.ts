@@ -31,6 +31,7 @@ import { MONSTERS, applyMonsterVariant } from '../../entities/monster';
 import { Spr } from '../../render/sprite_index';
 import { publishEvent } from '../../systems/events';
 import { addRailTrainRoute } from '../../systems/rail_trains';
+import { registerRouteCue } from '../../systems/route_cues';
 import { randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg';
 import { ensureConnectivity, generateZones, sanitizeDoors, stampRoom } from '../shared';
 import type { FloorGeneration } from '../floor_manifest';
@@ -87,6 +88,32 @@ export interface DarkMetroRouteDef {
   tags: readonly string[];
 }
 
+export type DarkMetroAmbushCueId =
+  | 'dark_metro_white_lamp_ambush'
+  | 'dark_metro_red_panel_wrong_stop';
+
+export interface DarkMetroAmbushCueDef {
+  id: DarkMetroAmbushCueId;
+  label: string;
+  markerRoom: 'underpass' | 'platform';
+  targetRoom: 'blindTunnel' | 'exit';
+  warning: string;
+  tags: readonly string[];
+}
+
+export interface DarkMetroFloorState {
+  routeId: typeof DESIGN_FLOOR_ID;
+  z: typeof DARK_METRO_FUTURE_Z;
+  baseFloor: typeof DARK_METRO_BASE_FLOOR;
+  packedState: DarkMetroPackedState;
+  ambushCueIds: DarkMetroAmbushCueId[];
+  shortcutRouteIds: DarkMetroRouteId[];
+}
+
+export interface DarkMetroGeneration extends FloorGeneration {
+  metroState: DarkMetroFloorState;
+}
+
 const ROUTE_BITS = 2;
 const SIGNAL_BITS = 4;
 const STRANDED_BITS = 6;
@@ -133,6 +160,25 @@ export const DARK_METRO_ROUTES: readonly DarkMetroRouteDef[] = [
     clue: 'Белые лампы вдоль стены ведут обратно в зал даже после неверного объявления.',
     fallbackRouteId: 'dark_metro_platform_fallback',
     tags: ['dark_metro', 'fallback', 'safe_return'],
+  },
+];
+
+export const DARK_METRO_AMBUSH_CUES: readonly DarkMetroAmbushCueDef[] = [
+  {
+    id: 'dark_metro_white_lamp_ambush',
+    label: 'Белые лампы перед засадой',
+    markerRoom: 'underpass',
+    targetRoom: 'blindTunnel',
+    warning: 'Белый свет кончается перед слепым тоннелем: дальше тень слышит раньше, чем видит.',
+    tags: ['dark_metro', 'ambush', 'shadow', 'warning'],
+  },
+  {
+    id: 'dark_metro_red_panel_wrong_stop',
+    label: 'Красное табло неверной посадки',
+    markerRoom: 'platform',
+    targetRoom: 'exit',
+    warning: 'Красный номер на табло ведет к короткому ходу, но может объявить чужую остановку.',
+    tags: ['dark_metro', 'wrong_route', 'shortcut', 'warning'],
   },
 ];
 
@@ -326,6 +372,19 @@ export function initialDarkMetroState(seed = DARK_METRO_DEFAULT_SEED): DarkMetro
   });
 }
 
+export function createDarkMetroFloorState(packedState = initialDarkMetroState()): DarkMetroFloorState {
+  return {
+    routeId: DESIGN_FLOOR_ID,
+    z: DARK_METRO_FUTURE_Z,
+    baseFloor: DARK_METRO_BASE_FLOOR,
+    packedState,
+    ambushCueIds: DARK_METRO_AMBUSH_CUES.map(cue => cue.id),
+    shortcutRouteIds: DARK_METRO_ROUTES
+      .filter(route => route.tags.includes('shortcut'))
+      .map(route => route.id),
+  };
+}
+
 export function publishDarkMetroRouteEvent(
   state: GameState,
   world: World,
@@ -366,6 +425,37 @@ export function publishDarkMetroRouteEvent(
   });
 }
 
+export function publishDarkMetroAmbushWarning(
+  state: GameState,
+  world: World,
+  actor: Entity,
+  cueId: DarkMetroAmbushCueId,
+): void {
+  const cue = DARK_METRO_AMBUSH_CUES.find(c => c.id === cueId);
+  const px = Math.floor(actor.x);
+  const py = Math.floor(actor.y);
+  const zoneId = world.zoneMap[world.idx(px, py)];
+  publishEvent(state, {
+    type: 'monster_sighted',
+    floor: DARK_METRO_BASE_FLOOR,
+    zoneId: zoneId >= 0 ? zoneId : undefined,
+    x: actor.x,
+    y: actor.y,
+    actorId: actor.id,
+    actorName: actor.name,
+    actorFaction: actor.faction,
+    severity: 4,
+    privacy: 'local',
+    tags: ['dark_metro', 'ambush_cue', cueId, ...(cue?.tags ?? [])],
+    data: {
+      routeId: DESIGN_FLOOR_ID,
+      z: DARK_METRO_FUTURE_Z,
+      cueId,
+      warning: cue?.warning,
+    },
+  });
+}
+
 interface DarkMetroLayout {
   hall: Room;
   platform: Room;
@@ -391,7 +481,7 @@ interface DarkMetroFullFloorStyle {
 
 const DARK_METRO_FULL_LINE_YS = [118, 260, 402, 642, 786, 920] as const;
 
-export function generateDarkMetroDesignFloor(seed = DARK_METRO_DEFAULT_SEED): FloorGeneration {
+export function generateDarkMetroDesignFloor(seed = DARK_METRO_DEFAULT_SEED): DarkMetroGeneration {
   return withSeededRandom(seed, () => {
     const world = new World();
     const entities: Entity[] = [];
@@ -411,6 +501,7 @@ export function generateDarkMetroDesignFloor(seed = DARK_METRO_DEFAULT_SEED): Fl
     spawnDarkMetroNpcs(ctx, layout);
     spawnDarkMetroLoot(ctx, layout);
     spawnDarkMetroThreats(ctx, layout);
+    registerDarkMetroRouteCues(ctx, layout);
 
     const spawnX = layout.hall.x + Math.floor(layout.hall.w / 2) + 0.5;
     const spawnY = layout.hall.y + Math.floor(layout.hall.h / 2) + 0.5;
@@ -420,7 +511,7 @@ export function generateDarkMetroDesignFloor(seed = DARK_METRO_DEFAULT_SEED): Fl
     applyDarkMetroAmbientLight(world, layout, ctx.packedState);
     world.markFogDirty();
 
-    return { world, entities, spawnX, spawnY };
+    return { world, entities, spawnX, spawnY, metroState: createDarkMetroFloorState(ctx.packedState) };
   });
 }
 
@@ -1038,6 +1129,7 @@ function spawnPlotNpc(
 function spawnDarkMetroLoot(ctx: BuildCtx, layout: DarkMetroLayout): void {
   dropItem(ctx, layout.platform.x + 5, layout.platform.y + 5, 'metro_ticket', 1);
   dropItem(ctx, layout.platform.x + 13, layout.platform.y + 4, 'note', 1, DARK_METRO_ROUTES[2].clue);
+  dropItem(ctx, layout.underpass.x + 2, layout.underpass.y + 6, 'note', 1, DARK_METRO_AMBUSH_CUES[0].warning);
   dropItem(ctx, layout.underpass.x + 5, layout.underpass.y + 10, 'lamp_bulb', 1);
   dropItem(ctx, layout.blindTunnel.x + 19, layout.blindTunnel.y + 2, 'bandage', 1);
   dropItem(ctx, layout.exit.x + 4, layout.exit.y + 4, 'fuse', 1);
@@ -1149,6 +1241,66 @@ function spawnMonster(ctx: BuildCtx, kind: MonsterKind, x: number, y: number, an
   };
   applyMonsterVariant(monster, DARK_METRO_BASE_FLOOR, true);
   ctx.entities.push(monster);
+}
+
+function registerDarkMetroRouteCues(ctx: BuildCtx, layout: DarkMetroLayout): void {
+  const ambushMarkerX = layout.underpass.x + 1.5;
+  const ambushMarkerY = layout.underpass.y + layout.underpass.h - 5 + 0.5;
+  const ambushTargetX = layout.blindTunnel.x + 26.5;
+  const ambushTargetY = layout.blindTunnel.y + 2.5;
+  const ambushCell = ctx.world.idx(Math.floor(ambushMarkerX), Math.floor(ambushMarkerY));
+  registerRouteCue(ctx.world, {
+    id: 'dark_metro_white_lamp_ambush',
+    x: ambushMarkerX,
+    y: ambushMarkerY,
+    targetX: ambushTargetX,
+    targetY: ambushTargetY,
+    floor: DARK_METRO_BASE_FLOOR,
+    roomId: layout.underpass.id,
+    targetRoomId: layout.blindTunnel.id,
+    zoneId: ctx.world.zoneMap[ambushCell],
+    label: 'обрыв белого света',
+    hint: 'лампы кончаются перед тенью',
+    targetName: 'засада слепого тоннеля',
+    color: '#bbf',
+    tags: ['dark_metro', 'ambush', 'warning', 'shadow'],
+    toneSeed: layout.underpass.id * 1709 + layout.blindTunnel.id,
+    radius: 8,
+    targetRadius: 4,
+    cooldownSec: 30,
+    heardText: 'Белые лампы сбиваются: впереди слепой тоннель, где тень уже заняла угол.',
+    followedText: 'Засада прочитана до выстрела. Можно идти медленно, светить или вернуться петлей.',
+    ignoredText: 'Белые лампы остались позади. Слепой тоннель встретит без предупреждения.',
+  });
+
+  const shortcutMarkerX = layout.platform.x + 4 + DARK_METRO_ROUTES[1].panelSlot * 9 + 0.5;
+  const shortcutMarkerY = layout.platform.y + 2.5;
+  const shortcutTargetX = layout.exit.x + 8.5;
+  const shortcutTargetY = layout.exit.y + 3.5;
+  const shortcutCell = ctx.world.idx(Math.floor(shortcutMarkerX), Math.floor(shortcutMarkerY));
+  registerRouteCue(ctx.world, {
+    id: 'dark_metro_service_floor_shortcut',
+    x: shortcutMarkerX,
+    y: shortcutMarkerY,
+    targetX: shortcutTargetX,
+    targetY: shortcutTargetY,
+    floor: DARK_METRO_BASE_FLOOR,
+    roomId: layout.platform.id,
+    targetRoomId: layout.exit.id,
+    zoneId: ctx.world.zoneMap[shortcutCell],
+    label: 'стрелочный коридор',
+    hint: 'предохранитель держит короткий путь к С-15',
+    targetName: DARK_METRO_ROUTES[1].label,
+    color: '#79f',
+    tags: ['dark_metro', 'service_floor', 'shortcut', 'transfer'],
+    toneSeed: layout.platform.id * 1721 + layout.exit.id,
+    radius: 8,
+    targetRadius: 3,
+    cooldownSec: 36,
+    heardText: 'Табло щелкает служебным маршрутом: предохранитель покупает короткий ход к С-15.',
+    followedText: 'Служебный выход найден. Можно потратить предохранитель на путь или сохранить его для ремонта.',
+    ignoredText: 'Стрелочный коридор погас. Служебный shortcut остался на табло.',
+  });
 }
 
 function applyDarkMetroAmbientLight(world: World, layout: DarkMetroLayout, packedState: DarkMetroPackedState): void {

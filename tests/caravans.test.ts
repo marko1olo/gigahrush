@@ -15,7 +15,7 @@ import {
   robCaravanCargo,
   tickCaravans,
 } from '../src/systems/caravans';
-import { ensureEconomyState } from '../src/systems/economy';
+import { ensureEconomyState, getAdjustedItemPrice, getEconomyQuote } from '../src/systems/economy';
 import { createWorldEventState, getRecentEvents, publishEvent } from '../src/systems/events';
 import { makeGameState } from './helpers';
 
@@ -70,6 +70,31 @@ test('caravan tariff getter reflects robbery pressure and paid stabilization', (
   assert.equal(payCaravanTariff(state, LANE_QUEUE), true);
   const stabilized = getCaravanResourceTariffMultiplier(state, 'drink_water', FloorLevel.LIVING);
   assert.ok(stabilized < pressured);
+});
+
+test('caravan tariffs feed item economy quotes and invalidate cached prices', () => {
+  const state = makeGameState({
+    currentFloor: FloorLevel.LIVING,
+    time: 220,
+    worldEvents: createWorldEventState(),
+  });
+  ensureEconomyState(state).floors[FloorLevel.LIVING] = createEconomyFloorState(FloorLevel.LIVING);
+
+  const beforeTariff = getCaravanResourceTariffMultiplier(state, 'drink_water', FloorLevel.LIVING);
+  const beforeQuote = getEconomyQuote(state, 'filtered_water');
+  const cachedBefore = getAdjustedItemPrice(state, 'filtered_water');
+
+  assert.equal(beforeQuote.tariffMultiplier, beforeTariff);
+  assert.equal(beforeQuote.tags.includes('caravan_tariff'), true);
+  assert.equal(robCaravanCargo(state, LANE_QUEUE), true);
+
+  const pressuredTariff = getCaravanResourceTariffMultiplier(state, 'drink_water', FloorLevel.LIVING);
+  const pressuredQuote = getEconomyQuote(state, 'filtered_water');
+
+  assert.ok(pressuredTariff > beforeTariff);
+  assert.equal(pressuredQuote.tariffMultiplier, pressuredTariff);
+  assert.ok(pressuredQuote.buyPrice > beforeQuote.buyPrice);
+  assert.ok(getAdjustedItemPrice(state, 'filtered_water') > cachedBefore);
 });
 
 test('caravan exchange registers route choices and quest events open or close lanes', () => {

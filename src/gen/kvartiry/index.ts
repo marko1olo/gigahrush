@@ -9,7 +9,7 @@ import {
   W, Cell, Tex, RoomType, Feature, LiftDirection, DoorState,
   Faction, Occupation,
   type Room, type Entity,
-  EntityType, AIGoal, FloorLevel,
+  EntityType, AIGoal, FloorLevel, type GameState,
 } from '../../core/types';
 import { World } from '../../core/world';
 import { rng, placeLifts, generateZones, ensureConnectivity } from '../shared';
@@ -20,6 +20,7 @@ import { Spr } from '../../render/sprite_index';
 import { randomOccupation } from '../../data/relations';
 import {
   resetKvartiryContentState,
+  publishKvartiryContentUprising,
   runKvartiryPermanentContent,
   spawnKvartiryNamedNpcs,
   tryKvartiryContentUprising,
@@ -35,8 +36,12 @@ const INITIAL_CITIZENS = 300;
 const INITIAL_WILD = 200;
 const INITIAL_LIQUIDATORS = 100;
 const UPRISING_CHECK_INTERVAL = 30; // seconds between uprising checks
-const UPRISING_RADIUS = 50;  // civilian rally radius
-const LIQUIDATOR_RESPONSE_RADIUS = 100;  // liquidator response radius
+const UPRISING_RADIUS = 34;  // civilian rally radius
+const LIQUIDATOR_RESPONSE_RADIUS = 72;  // liquidator response radius
+const AMBIENT_UPRISING_CHANCE = 0.08;
+const AMBIENT_UPRISING_MIN_CITIZENS = 18;
+const AMBIENT_UPRISING_MAX_CONVERTED = 8;
+const AMBIENT_UPRISING_MAX_RESPONDERS = 6;
 
 /* Population update accumulators */
 let kvCitizenAccum = 0;
@@ -613,7 +618,7 @@ function countFactionNPCs(entities: Entity[], faction: Faction): number {
 }
 
 export function updateKvPopulation(
-  world: World, entities: Entity[], nextId: { v: number }, dt: number,
+  world: World, entities: Entity[], nextId: { v: number }, dt: number, state?: GameState,
 ): void {
   kvCitizenAccum += dt;
   kvWildAccum += dt;
@@ -661,9 +666,13 @@ export function updateKvPopulation(
   // ── Uprising trigger ──────────────────────────────────────────
   if (kvUprisingAccum >= UPRISING_CHECK_INTERVAL) {
     kvUprisingAccum -= UPRISING_CHECK_INTERVAL;
-    if (tryKvartiryContentUprising(world, entities)) return;
-    // Random chance of uprising (30% per check)
-    if (Math.random() < 0.3) {
+    const pressureResult = tryKvartiryContentUprising(world, entities, UPRISING_CHECK_INTERVAL);
+    if (pressureResult) {
+      if (state) publishKvartiryContentUprising(state, pressureResult);
+      return;
+    }
+    // Random background flare-up stays capped; POIs carry the readable unrest.
+    if (Math.random() < AMBIENT_UPRISING_CHANCE) {
       triggerUprising(world, entities);
     }
   }
@@ -672,49 +681,55 @@ export function updateKvPopulation(
 /* ── Uprising mechanic ────────────────────────────────────────── */
 function triggerUprising(world: World, entities: Entity[]): void {
   // Pick a random living citizen as rally center
-  const citizens = entities.filter(e => e.type === EntityType.NPC && e.alive && e.faction === Faction.CITIZEN);
-  if (citizens.length < 50) return;
-
-  const leader = citizens[Math.floor(Math.random() * citizens.length)];
+  let citizenCount = 0;
+  let leader: Entity | null = null;
+  for (const e of entities) {
+    if (e.type !== EntityType.NPC || !e.alive || e.faction !== Faction.CITIZEN || e.plotNpcId) continue;
+    citizenCount++;
+    if (Math.random() < 1 / citizenCount) leader = e;
+  }
+  if (!leader || citizenCount < 50) return;
   const rallyX = leader.x, rallyY = leader.y;
 
-  // Gather citizens within UPRISING_RADIUS
-  const rallied: Entity[] = [];
+  // Count a local cluster before mutating anyone.
+  let ralliedCount = 0;
+  const rallyR2 = UPRISING_RADIUS * UPRISING_RADIUS;
   for (const e of entities) {
     if (e.type !== EntityType.NPC || !e.alive || e.faction !== Faction.CITIZEN) continue;
     if (e.plotNpcId) continue; // don't convert plot NPCs
-    const d = world.dist(e.x, e.y, rallyX, rallyY);
-    if (d <= UPRISING_RADIUS) {
-      rallied.push(e);
-    }
+    if (world.dist2(e.x, e.y, rallyX, rallyY) <= rallyR2) ralliedCount++;
   }
 
-  if (rallied.length < 20) return; // not enough for uprising
+  if (ralliedCount < AMBIENT_UPRISING_MIN_CITIZENS) return; // not enough for uprising
 
-  // Move all rallied citizens toward center (set AI goal)
-  for (const e of rallied) {
+  // Convert only a small edge of the crowd so background unrest does not flood the floor.
+  let converted = 0;
+  for (const e of entities) {
+    if (converted >= AMBIENT_UPRISING_MAX_CONVERTED) break;
+    if (e.type !== EntityType.NPC || !e.alive || e.faction !== Faction.CITIZEN) continue;
+    if (e.plotNpcId) continue;
+    if (world.dist2(e.x, e.y, rallyX, rallyY) > rallyR2) continue;
+    e.faction = Faction.WILD;
     if (e.ai) {
       e.ai.goal = AIGoal.GOTO;
-      e.ai.tx = rallyX + (Math.random() - 0.5) * 10;
-      e.ai.ty = rallyY + (Math.random() - 0.5) * 10;
+      e.ai.tx = world.wrap(rallyX + (Math.random() - 0.5) * 10);
+      e.ai.ty = world.wrap(rallyY + (Math.random() - 0.5) * 10);
     }
+    converted++;
   }
 
-  // Convert rallied citizens to WILD faction (uprising!)
-  for (const e of rallied) {
-    e.faction = Faction.WILD;
-  }
-
-  // Gather liquidators within response radius and set them to hunt
+  // Gather a bounded liquidator response within response radius.
+  let responders = 0;
+  const responseR2 = LIQUIDATOR_RESPONSE_RADIUS * LIQUIDATOR_RESPONSE_RADIUS;
   for (const e of entities) {
+    if (responders >= AMBIENT_UPRISING_MAX_RESPONDERS) break;
     if (e.type !== EntityType.NPC || !e.alive || e.faction !== Faction.LIQUIDATOR) continue;
-    const d = world.dist(e.x, e.y, rallyX, rallyY);
-    if (d <= LIQUIDATOR_RESPONSE_RADIUS) {
-      if (e.ai) {
-        e.ai.goal = AIGoal.GOTO;
-        e.ai.tx = rallyX + (Math.random() - 0.5) * 20;
-        e.ai.ty = rallyY + (Math.random() - 0.5) * 20;
-      }
+    if (world.dist2(e.x, e.y, rallyX, rallyY) > responseR2) continue;
+    if (e.ai) {
+      e.ai.goal = AIGoal.GOTO;
+      e.ai.tx = world.wrap(rallyX + (Math.random() - 0.5) * 20);
+      e.ai.ty = world.wrap(rallyY + (Math.random() - 0.5) * 20);
     }
+    responders++;
   }
 }

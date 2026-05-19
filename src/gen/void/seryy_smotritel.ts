@@ -10,6 +10,7 @@ import { MONSTERS } from '../../entities/monster';
 import { MarkType, stampMark } from '../../render/marks';
 import { monsterSpr } from '../../render/sprite_index';
 import { publishEvent, registerWorldEventObserver as observeWorldEvents } from '../../systems/events';
+import { registerRouteCue } from '../../systems/route_cues';
 import { randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg';
 import { carveCorridor, findClearArea, placeDoor, placeDoorAt, stampRoom } from '../shared';
 import { genLog } from '../log';
@@ -468,6 +469,30 @@ export function generateSeryySmotritel(
     { defId: 'psi_dust', count: 1 },
     note('Слух для НИИ: Серого Смотрителя берут не глазами, а маршрутом.'),
   ], contextTags(TAG_SAMPLE));
+
+  registerRouteCue(world, {
+    id: 'void_seryy_smotritel_memory_bypass',
+    x: entry.x + 2.5,
+    y: entry.y + (entry.h >> 1) + 0.5,
+    targetX: reward.x + 4.5,
+    targetY: reward.y + 2.5,
+    floor: FloorLevel.VOID,
+    roomId: entry.id,
+    targetRoomId: reward.id,
+    zoneId: world.zoneMap[world.idx(entry.x + 2, entry.y + (entry.h >> 1))],
+    label: 'серый обход',
+    hint: 'нижний ход держит источник сбоку',
+    targetName: 'слепой соскоб серобурмалина',
+    color: '#b8c',
+    tags: [SERYY_SMOTRITEL_ID, 'void', 'no_look', 'bypass', 'sample'],
+    toneSeed: entry.id * 977 + 19019,
+    radius: 9,
+    targetRadius: 2.6,
+    cooldownSec: 28,
+    heardText: 'Серый след шепчет снизу: идти по памяти, не держать источник в прямой линии.',
+    followedText: 'Обход вывел к слепому соскобу. Проба берется маршрутом, не взглядом.',
+    ignoredText: 'Серый обход остался в стороне. Прямой коридор снова требует глаза.',
+  });
 
   const generation: SeryySmotritelGeneration = {
     roomId: source.id,

@@ -15,14 +15,15 @@ import { PLOT_CHAIN, PLOT_NPCS, SIDE_QUESTS, isPlotNpc, sideQuestPrereqsMet } fr
 import { CONTRACTS, GOVNYAK_COURIER_PACKAGE_ITEM, type ContractDef, contractToQuest, questTargetEventData } from '../data/contracts';
 import { addItem, removeItem } from './inventory';
 import { getScarcityAdjustedReward } from './economy';
-import { isCurrentStoryFloor } from './procedural_floors';
 import {
   canCompleteGovnyakCourierEndpoint,
   govnyakCourierOutcomeEventData,
   handleContractQuestItemOutcome,
+  isQuestTargetOnCurrentFloor,
   isContractHiddenForAssignment,
   isGovnyakCourierContractId,
   prepareAcceptedContract,
+  resolveQuestTargetRoom,
   resolveGovnyakCourierOutcome,
 } from './contracts';
 import {
@@ -31,7 +32,14 @@ import {
 } from './rpg';
 import { MONSTERS } from '../entities/monster';
 import { publishEvent } from './events';
-import { assignProceduralQuestDeadline, isHandAuthoredQuest, questRemainingMinutes } from './quest_deadlines';
+import {
+  assignProceduralQuestDeadline,
+  deadlineMessageSuffix,
+  ensureQuestDeadline,
+  questDeadlineEventData,
+  questDeadlineExpired,
+  type QuestDeadlineContext,
+} from './quest_deadlines';
 
 const BASE_QUEST_GIVER_CHANCE = 0.35;
 
@@ -80,6 +88,27 @@ function questSpawnMonstersOnAccept(q: Quest): number {
   if (q.plotStepIndex !== undefined) return PLOT_CHAIN[q.plotStepIndex]?.spawnMonstersOnAccept ?? 0;
   if (q.sideQuestId) return SIDE_QUESTS.find(sq => sq.id === q.sideQuestId)?.spawnMonstersOnAccept ?? 0;
   return 0;
+}
+
+function visitNeedsConcreteTarget(q: Quest): boolean {
+  return q.targetRoom !== undefined || q.targetRoomType !== undefined || q.targetZoneTag !== undefined;
+}
+
+function checkVisitQuestAtPlayer(q: Quest, player: Entity, world: World, state: GameState): boolean {
+  if (visitNeedsConcreteTarget(q)) {
+    if (!isQuestTargetOnCurrentFloor(q, state)) return false;
+    const resolved = resolveQuestTargetRoom(world, q, player);
+    if (resolved) q.targetRoom = resolved.room.id;
+    const room = world.roomAt(player.x, player.y);
+    return !!room && resolved !== undefined && room.id === resolved.room.id;
+  }
+
+  if (q.visitFloor !== undefined) return isQuestTargetOnCurrentFloor(q, state);
+  if (q.targetRoom !== undefined) {
+    const room = world.roomAt(player.x, player.y);
+    return !!room && room.id === q.targetRoom;
+  }
+  return false;
 }
 
 /* ── Assign a contextual slice of living NPCs as quest givers ─── */
@@ -142,7 +171,7 @@ export function offerQuest(
 
   state.quests.push(quest);
   npc.questId = quest.id;
-  msgs.push(msg(`Новое задание: ${quest.desc}`, state.time, '#4af'));
+  msgs.push(msg(`Новое задание: ${quest.desc}${deadlineMessageSuffix(quest, state.clock.totalMinutes)}`, state.time, '#4af'));
   const contractId = quest.contractId;
   const contractDef = contractId ? CONTRACTS.find(c => c.id === contractId) : undefined;
   publishEvent(state, {
@@ -242,6 +271,7 @@ export function checkQuests(
 ): void {
   for (const q of state.quests) {
     if (q.done) continue;
+    ensureQuestDeadline(q, state.clock.totalMinutes, questDeadlineContext(q, player, world, state));
     if (expireQuestIfNeeded(q, player, entities, state, msgs)) continue;
     if (handleContractQuestItemOutcome(q, player, entities, state, msgs)) continue;
 
@@ -267,12 +297,7 @@ export function checkQuests(
         break;
 
       case QuestType.VISIT:
-        if (q.visitFloor !== undefined) {
-          if (isCurrentStoryFloor(state, q.visitFloor)) complete = true;
-        } else if (q.targetRoom !== undefined) {
-          const room = world.roomAt(player.x, player.y);
-          if (room && room.id === q.targetRoom) complete = true;
-        }
+        complete = checkVisitQuestAtPlayer(q, player, world, state);
         break;
 
       case QuestType.KILL:
@@ -352,6 +377,7 @@ function failQuest(
       contractFaction: q.contractFaction,
       contractRank: q.contractRank,
       rewardResourceId: contractDef?.rewardResourceId,
+      ...questDeadlineEventData(q, state.clock.totalMinutes),
       reason,
       ...extraData,
       ...questTargetEventData(q),
@@ -471,6 +497,7 @@ function completeQuest(
       rewardResourceId: contractDef?.rewardResourceId,
       xpReward: q.xpReward,
       moneyReward: q.moneyReward,
+      ...questDeadlineEventData(q, state.clock.totalMinutes),
       ...q.eventData,
       ...govnyakCourierOutcomeEventData(q),
       ...questTargetEventData(q),
@@ -527,8 +554,7 @@ function abandonSideQuests(
 }
 
 function expireQuestIfNeeded(q: Quest, player: Entity, entities: Entity[], state: GameState, msgs: Msg[]): boolean {
-  const remaining = questRemainingMinutes(q, state.clock.totalMinutes);
-  if (remaining === undefined || remaining > 0 || isHandAuthoredQuest(q)) return false;
+  if (!questDeadlineExpired(q, state.clock.totalMinutes)) return false;
 
   q.done = true;
   q.failed = true;
@@ -558,14 +584,26 @@ function expireQuestIfNeeded(q: Quest, player: Entity, entities: Entity[], state
       contractFaction: q.contractFaction,
       contractRank: q.contractRank,
       rewardResourceId: contractDef?.rewardResourceId,
-      timeLimitMinutes: q.timeLimitMinutes,
-      expiresAtMinutes: q.expiresAtMinutes,
+      ...questDeadlineEventData(q, state.clock.totalMinutes),
       reason: 'deadline',
       ...q.eventData,
       ...questTargetEventData(q),
     },
   });
   return true;
+}
+
+function questDeadlineContext(q: Quest, player: Entity, world: World, state: GameState): QuestDeadlineContext {
+  const targetFloor = q.visitFloor ?? q.targetFloor;
+  const ctx: QuestDeadlineContext = {
+    samosborDanger: state.samosborActive,
+    crossFloor: targetFloor !== undefined && targetFloor !== state.currentFloor,
+  };
+  if (q.targetRoom !== undefined) {
+    const room = world.rooms[q.targetRoom];
+    if (room) ctx.distance = world.dist(player.x, player.y, room.x + room.w / 2, room.y + room.h / 2);
+  }
+  return ctx;
 }
 /* ── Toroidal direction name (from → to) ─────────────────────── */
 function toroidalDirection(world: World, fromX: number, fromY: number, toX: number, toY: number): string {

@@ -3,8 +3,9 @@ import './index.css';
 import { registerPwaServiceWorker } from './pwa';
 
 import {
-  W, Cell, DoorState, FloorLevel, Feature, Tex, RoomType, LiftDirection,
-  type Entity, type GameState, type WorldContainer,
+  W, Cell, DoorState, FloorLevel, Feature, Tex, RoomType, LiftDirection, ItemType,
+  type Entity, type GameClock, type GameState, type Item, type Needs, type Quest, type RPGStats, type WorldContainer,
+  type WorldEventPrivacy, type WorldEventSeverity,
   EntityType, Faction, MonsterKind, ProjType, QuestType, AIGoal,
   msg, setMsgClock,
 } from './core/types';
@@ -53,7 +54,8 @@ import {
 import { tryHandleMaronaryShavingHandoff } from './systems/maronary_shaving';
 import { createInput, bindInput } from './input';
 import { createMobileControls, type MobileControls, type MobileMenuId } from './mobile';
-import { freshNeeds, ITEMS } from './data/catalog';
+import { freshNeeds, ITEMS, WEAPON_STATS } from './data/catalog';
+import { getStack } from './data/items';
 import { entityDisplayName } from './entities/monster';
 import { ensureProceduralSpriteSeeds } from './entities/procedural_visuals';
 import { MONSTER_VARIANT_BY_ID } from './data/monster_variants';
@@ -71,7 +73,7 @@ import { applyContractFloorHooks, notifyCleanupToolUse } from './systems/contrac
 import {
   freshRPG, awardXP, xpForMonsterKill, xpForNpcKill,
   strMeleeDmgMult, agiSpeedMult, agiAttackSpeedMult,
-  spendAttrPoint,
+  spendAttrPoint, getMaxHp, getMaxPsi,
 } from './systems/rpg';
 import {
   normalizePlayerStatuses,
@@ -117,6 +119,7 @@ import {
   commitFloorRunEntry,
   currentFloorRunEntry,
   ensureFloorRunState,
+  floorRunSaveHasRestorableRoute,
   floorRunEntryAllowsNpcs,
   floorRunStateForSave,
   forceFloorRunStory,
@@ -337,6 +340,271 @@ let pendingLoad: (() => void) | null = null; // deferred heavy generation callba
 let pendingLoadDrawn = false; // true = loading screen was painted, next frame runs the callback
 let currentTip = randomTip();
 let activeSkyProvider: (DynamicSkyTexture & { update(deltaSeconds: number): boolean }) | null = null;
+let lastVoidReturnPortalHintTick = -9999;
+
+interface VoidReturnPortalState {
+  active: boolean;
+  used: boolean;
+  cell: number;
+  openedAt: number;
+  openedTick: number;
+  creatorId: number;
+  enteredFromFloor?: FloorLevel;
+  usedAt?: number;
+  voidSpikeCarried?: boolean;
+  voidSpikeResolved?: boolean;
+}
+
+type VoidReturnPortalHost = GameState & {
+  voidReturnPortal?: VoidReturnPortalState;
+  voidEntryFromFloor?: FloorLevel;
+};
+
+function finiteNumber(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
+function normalizeVoidReturnPortalState(input: unknown): VoidReturnPortalState | undefined {
+  if (!input || typeof input !== 'object') return undefined;
+  const src = input as Partial<VoidReturnPortalState>;
+  const cell = Math.floor(finiteNumber(src.cell, -1));
+  if (cell < 0 || cell >= W * W) return undefined;
+  const enteredFromFloor = isFloorLevel(src.enteredFromFloor) ? src.enteredFromFloor : undefined;
+  return {
+    active: src.active === true,
+    used: src.used === true,
+    cell,
+    openedAt: finiteNumber(src.openedAt, 0),
+    openedTick: Math.max(0, Math.floor(finiteNumber(src.openedTick, 0))),
+    creatorId: Math.floor(finiteNumber(src.creatorId, -1)),
+    enteredFromFloor,
+    usedAt: typeof src.usedAt === 'number' && Number.isFinite(src.usedAt) ? src.usedAt : undefined,
+    voidSpikeCarried: src.voidSpikeCarried === true,
+    voidSpikeResolved: src.voidSpikeResolved === true,
+  };
+}
+
+function getVoidReturnPortalState(targetState: GameState = state): VoidReturnPortalState | undefined {
+  const host = targetState as VoidReturnPortalHost;
+  const normalized = normalizeVoidReturnPortalState(host.voidReturnPortal);
+  if (normalized) host.voidReturnPortal = normalized;
+  else delete host.voidReturnPortal;
+  return normalized;
+}
+
+function setVoidReturnPortalState(targetState: GameState, input: unknown): void {
+  const host = targetState as VoidReturnPortalHost;
+  const normalized = normalizeVoidReturnPortalState(input);
+  if (normalized) host.voidReturnPortal = normalized;
+  else delete host.voidReturnPortal;
+}
+
+function clearVoidReturnPortalState(targetState: GameState = state): void {
+  delete (targetState as VoidReturnPortalHost).voidReturnPortal;
+  lastVoidReturnPortalHintTick = -9999;
+}
+
+function setVoidEntryFromFloor(targetState: GameState, value: unknown): void {
+  const host = targetState as VoidReturnPortalHost;
+  if (isFloorLevel(value)) host.voidEntryFromFloor = value;
+  else delete host.voidEntryFromFloor;
+}
+
+function voidReturnPortalStateForSave(targetState: GameState): VoidReturnPortalState | undefined {
+  const portal = getVoidReturnPortalState(targetState);
+  return portal ? { ...portal } : undefined;
+}
+
+function hasVoidSpike(): boolean {
+  return (player.inventory ?? []).some(item => item.defId === 'void_spike' && item.count > 0);
+}
+
+function voidSpikeResolved(): boolean {
+  return state.quests.some(q =>
+    q.type === QuestType.FETCH &&
+    q.targetItem === 'void_spike' &&
+    q.done &&
+    !q.failed);
+}
+
+function creatorKillQuestSatisfied(): boolean {
+  return state.quests.some(q =>
+    q.type === QuestType.KILL &&
+    q.targetMonsterKind === MonsterKind.CREATOR &&
+    (q.done || (q.killCount ?? 0) >= (q.killNeeded ?? 1)));
+}
+
+function isVoidReturnPortalFloor(targetState: GameState = state): boolean {
+  if (targetState.currentFloor !== FloorLevel.VOID) return false;
+  const entry = currentFloorRunEntry(targetState);
+  return !entry || (entry.storyFloor === FloorLevel.VOID && !entry.designFloorId && !entry.spec);
+}
+
+function removeCreatorFromResolvedVoid(): void {
+  const portal = getVoidReturnPortalState();
+  if (!portal?.active || portal.used || !isVoidReturnPortalFloor()) return;
+  for (let i = entities.length - 1; i >= 0; i--) {
+    const e = entities[i];
+    if (e.type === EntityType.MONSTER && e.monsterKind === MonsterKind.CREATOR) {
+      entities.splice(i, 1);
+    }
+  }
+}
+
+function restoreVoidReturnPortalForCurrentWorld(): boolean {
+  let portal = getVoidReturnPortalState();
+  if (!portal && isVoidReturnPortalFloor() && creatorKillQuestSatisfied()) {
+    const creator = entities.find(e => e.type === EntityType.MONSTER && e.monsterKind === MonsterKind.CREATOR);
+    if (creator) {
+      portal = {
+        active: true,
+        used: false,
+        cell: world.idx(Math.floor(creator.x), Math.floor(creator.y)),
+        openedAt: state.time,
+        openedTick: state.tick,
+        creatorId: creator.id,
+      };
+      (state as VoidReturnPortalHost).voidReturnPortal = portal;
+    }
+  }
+  if (!portal?.active || portal.used || !isVoidReturnPortalFloor()) return false;
+  const ci = portal.cell;
+  world.cells[ci] = Cell.FLOOR;
+  world.floorTex[ci] = Tex.PORTAL;
+  world.wallTex[ci] = 0;
+  world.markFloorTexDirty();
+  removeCreatorFromResolvedVoid();
+  return true;
+}
+
+function openVoidReturnPortalFromCreator(creator: Entity, enteredFromFloor?: FloorLevel): void {
+  const cell = world.idx(Math.floor(creator.x), Math.floor(creator.y));
+  const entryFloor = enteredFromFloor ?? (state as VoidReturnPortalHost).voidEntryFromFloor;
+  (state as VoidReturnPortalHost).voidReturnPortal = {
+    active: true,
+    used: false,
+    cell,
+    openedAt: state.time,
+    openedTick: state.tick,
+    creatorId: creator.id,
+    enteredFromFloor: entryFloor,
+  };
+  restoreVoidReturnPortalForCurrentWorld();
+  const x = cell % W;
+  const y = (cell / W) | 0;
+  const zoneId = world.zoneMap[cell];
+  state.msgs.push(msg('Портал возврата закреплён: победа сработает только в его центре.', state.time, '#0ff'));
+  state.msgs.push(msg('Перед входом можно оставить Пустотный шип Жану, если он у вас.', state.time, '#8cf'));
+  publishEvent(state, {
+    type: 'floor_transition',
+    floor: FloorLevel.VOID,
+    zoneId,
+    x: x + 0.5,
+    y: y + 0.5,
+    actorId: player.id,
+    actorName: player.name,
+    actorFaction: player.faction,
+    targetId: creator.id,
+    targetName: 'Портал возврата открыт',
+    monsterKind: MonsterKind.CREATOR,
+    severity: 5,
+    privacy: 'local',
+    tags: ['floor', 'floor_transition', 'void', 'return_portal', 'opened', 'victory'],
+    data: {
+      portalCell: cell,
+      portalX: x,
+      portalY: y,
+      creatorId: creator.id,
+      enteredFromFloor: entryFloor,
+    },
+  });
+}
+
+function maybeShowVoidReturnPortalHint(playerCell: number): void {
+  if (state.tick - lastVoidReturnPortalHintTick < 180) return;
+  const portal = getVoidReturnPortalState();
+  if (portal?.active && !portal.used) {
+    const px = (portal.cell % W) + 0.5;
+    const py = ((portal.cell / W) | 0) + 0.5;
+    const d2 = world.dist2(player.x, player.y, px, py);
+    if (d2 > 12 * 12) return;
+    const dist = Math.max(0, Math.round(Math.sqrt(d2)));
+    const consequence = hasVoidSpike()
+      ? 'Шип у вас: Жан может забрать его до входа.'
+      : voidSpikeResolved()
+        ? 'Последствие оставлено здесь.'
+        : 'Центр завершит run.';
+    state.msgs.push(msg(`Портал возврата: ${dist}м. ${consequence}`, state.time, '#0ff'));
+    lastVoidReturnPortalHintTick = state.tick;
+    return;
+  }
+  if (world.floorTex[playerCell] === Tex.PORTAL) {
+    state.msgs.push(msg('Эта текстура портала не является закреплённым возвратом.', state.time, '#888'));
+    lastVoidReturnPortalHintTick = state.tick;
+  }
+}
+
+function tryUseVoidReturnPortal(playerCell: number): boolean {
+  const portal = getVoidReturnPortalState();
+  if (!portal?.active || portal.used || !isVoidReturnPortalFloor()) {
+    maybeShowVoidReturnPortalHint(playerCell);
+    return false;
+  }
+  if (playerCell !== portal.cell) {
+    maybeShowVoidReturnPortalHint(playerCell);
+    return false;
+  }
+
+  portal.used = true;
+  portal.usedAt = state.time;
+  portal.voidSpikeCarried = hasVoidSpike();
+  portal.voidSpikeResolved = voidSpikeResolved();
+  state.gameWon = true;
+  state.gameOver = true;
+  state.deathTimer = 0;
+  deathCam = null;
+  state.msgs.push(msg(
+    portal.voidSpikeResolved
+      ? 'Возврат принят. Последствие осталось в Пустоте.'
+      : portal.voidSpikeCarried
+        ? 'Возврат принят. Пустотный шип ушёл с вами.'
+        : 'Возврат принят. Пустота закрыла за вами центр.',
+    state.time,
+    '#0f8',
+  ));
+  publishEvent(state, {
+    type: 'floor_transition',
+    floor: FloorLevel.VOID,
+    zoneId: world.zoneMap[playerCell],
+    x: player.x,
+    y: player.y,
+    actorId: player.id,
+    actorName: player.name,
+    actorFaction: player.faction,
+    targetName: 'Возврат из Пустоты',
+    severity: 5,
+    privacy: 'local',
+    tags: [
+      'floor',
+      'floor_transition',
+      'void',
+      'return_portal',
+      'used',
+      'victory',
+      portal.voidSpikeResolved ? 'void_spike_left' : portal.voidSpikeCarried ? 'void_spike_carried' : 'void_spike_absent',
+    ],
+    data: {
+      portalCell: portal.cell,
+      openedAt: portal.openedAt,
+      openedTick: portal.openedTick,
+      creatorId: portal.creatorId,
+      enteredFromFloor: portal.enteredFromFloor,
+      voidSpikeCarried: portal.voidSpikeCarried,
+      voidSpikeResolved: portal.voidSpikeResolved,
+    },
+  });
+  return true;
+}
 
 interface SmokeDebugSnapshot {
   showDebug: boolean;
@@ -530,6 +798,8 @@ function initGame(): void {
     gameWon: false,
     worldEvents: createWorldEventState(),
   };
+  clearVoidReturnPortalState(state);
+  setVoidEntryFromFloor(state, undefined);
   netReportedSamosborCount = state.samosborCount;
   netDeathReported = false;
   ensureBankingState(state);
@@ -1347,7 +1617,11 @@ function handleKill(e: Entity, killerIsPlayer: boolean, pvx = 0, pvy = 0, goreLe
     }
     // Creator killed — spawn return portal
     if (e.monsterKind === MonsterKind.CREATOR && killerIsPlayer && state.currentFloor === FloorLevel.VOID) {
-      if (onCreatorKilled(e, world, state)) updateWorldData(world);
+      if (onCreatorKilled(e, world, state)) {
+        checkQuests(player, world, entities, state, state.msgs);
+        openVoidReturnPortalFromCreator(e);
+        updateWorldData(world);
+      }
     }
   } else if (e.type === EntityType.NPC && killerIsPlayer) {
     awardXP(player, xpForNpcKill(e.rpg?.level ?? 1), state.msgs, state.time);
@@ -1809,6 +2083,8 @@ function switchFloor(
   const savedMoney = player.money ?? 100;
 
   state.currentFloor = nextFloor;
+  if (nextFloor === FloorLevel.VOID) setVoidEntryFromFloor(state, fromFloor);
+  else setVoidEntryFromFloor(state, undefined);
 
   // Defer heavy generation — game loop will show loading screen first
   pendingLoad = () => {
@@ -1925,6 +2201,7 @@ function switchFloor(
     ensureProductionRooms(state, world);
     prepareEditableFloor();
     ensureProceduralSpriteSeeds(entities);
+    restoreVoidReturnPortalForCurrentWorld();
     if (allowElevatorAnomaly) {
       tryStartLiftArachnaEncounter(world, player, state, {
         direction,
@@ -1957,6 +2234,9 @@ function enterVoidFloor(): void {
 
   state.currentFloor = FloorLevel.VOID;
   forceFloorRunStory(state, FloorLevel.VOID);
+  state.gameWon = false;
+  clearVoidReturnPortalState(state);
+  setVoidEntryFromFloor(state, fromFloor);
 
   pendingLoad = () => {
     resetHellPopulationState();
@@ -2020,6 +2300,7 @@ function enterVoidFloor(): void {
     ensureProductionRooms(state, world);
     prepareEditableFloor();
     ensureProceduralSpriteSeeds(entities);
+    restoreVoidReturnPortalForCurrentWorld();
 
     setGeneratedDynamicSky(gen);
     updateWorldData(world);
@@ -2054,6 +2335,8 @@ function debugTeleportTo(target: DebugTeleportTarget): void {
 
   state.showDebug = false;
   state.currentFloor = target.floor;
+  if (target.floor === FloorLevel.VOID) setVoidEntryFromFloor(state, fromFloor);
+  else setVoidEntryFromFloor(state, undefined);
   if (target.spec) {
     const run = ensureFloorRunState(state, target.floor);
     run.currentZ = target.spec.z;
@@ -2163,6 +2446,7 @@ function debugTeleportTo(target: DebugTeleportTarget): void {
     ensureProductionRooms(state, world);
     prepareEditableFloor();
     ensureProceduralSpriteSeeds(entities);
+    restoreVoidReturnPortalForCurrentWorld();
     setGeneratedDynamicSky(gen);
     updateWorldData(world);
   };
@@ -2284,6 +2568,296 @@ function closeContainerMenu(): void {
 
 /* ── Save / Load ──────────────────────────────────────────────── */
 const SAVE_KEY = 'gigahrush_save';
+const SAVE_INVENTORY_SLOT_CAP = 25;
+const SAVE_QUEST_CAP = 512;
+const SAVE_TEXT_CAP = 192;
+const MAX_SAVE_MONEY = 999_999;
+const MAX_SAVE_LEVEL = 99;
+const MAX_QUEST_TIME_LIMIT_MINUTES = 5 * 24 * 60;
+const EVENT_PRIVACIES: readonly WorldEventPrivacy[] = ['public', 'local', 'witnessed', 'private', 'secret'];
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function finiteInt(value: unknown, fallback: number): number {
+  return Math.trunc(finiteNumber(value, fallback));
+}
+
+function clampNumber(value: unknown, fallback: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, finiteNumber(value, fallback)));
+}
+
+function clampInt(value: unknown, fallback: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, finiteInt(value, fallback)));
+}
+
+function cleanSaveText(value: unknown, fallback = '', max = SAVE_TEXT_CAP): string {
+  return typeof value === 'string' ? value.slice(0, max) : fallback;
+}
+
+function compactSaveData(value: unknown, depth = 0): unknown {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (typeof value === 'string') return value.slice(0, 512);
+  if (typeof value === 'number') return Number.isFinite(value) ? value : undefined;
+  if (typeof value === 'boolean') return value;
+  if (Array.isArray(value)) {
+    if (depth >= 2) return undefined;
+    const out: unknown[] = [];
+    for (const item of value.slice(0, 16)) {
+      const clean = compactSaveData(item, depth + 1);
+      if (clean !== undefined) out.push(clean);
+    }
+    return out;
+  }
+  if (isRecord(value)) {
+    if (depth >= 2) return undefined;
+    const out: Record<string, unknown> = {};
+    let used = 0;
+    for (const [rawKey, rawValue] of Object.entries(value)) {
+      if (used >= 16) break;
+      const key = rawKey.slice(0, 48);
+      const clean = compactSaveData(rawValue, depth + 1);
+      if (key && clean !== undefined) {
+        out[key] = clean;
+        used++;
+      }
+    }
+    return out;
+  }
+  return undefined;
+}
+
+function normalizeNeeds(input: unknown): Needs {
+  const src = isRecord(input) ? input : {};
+  const base = freshNeeds();
+  return {
+    food: clampNumber(src.food, base.food, 0, 100),
+    water: clampNumber(src.water, base.water, 0, 100),
+    sleep: clampNumber(src.sleep, base.sleep, 0, 100),
+    pee: clampNumber(src.pee, base.pee, 0, 100),
+    poo: clampNumber(src.poo, base.poo, 0, 100),
+    pendingPee: src.pendingPee === undefined ? undefined : clampNumber(src.pendingPee, 0, 0, 100),
+    pendingPoo: src.pendingPoo === undefined ? undefined : clampNumber(src.pendingPoo, 0, 0, 100),
+  };
+}
+
+function normalizeInventory(input: unknown): Item[] {
+  if (!Array.isArray(input)) return [];
+  const out: Item[] = [];
+  for (const raw of input) {
+    if (out.length >= SAVE_INVENTORY_SLOT_CAP || !isRecord(raw)) break;
+    const defId = cleanSaveText(raw.defId, '', 64);
+    const def = ITEMS[defId];
+    if (!def) continue;
+    let count = clampInt(raw.count, 1, 1, Math.max(1, getStack(def) * SAVE_INVENTORY_SLOT_CAP));
+    const data = compactSaveData(raw.data);
+    while (count > 0 && out.length < SAVE_INVENTORY_SLOT_CAP) {
+      const add = Math.min(count, getStack(def));
+      out.push(data === undefined ? { defId, count: add } : { defId, count: add, data });
+      count -= add;
+    }
+  }
+  return out;
+}
+
+function normalizeEquippedItem(
+  value: unknown,
+  inventory: readonly Item[],
+  itemType: ItemType.WEAPON | ItemType.TOOL,
+): string {
+  const defId = cleanSaveText(value, '', 64);
+  if (!defId || !inventory.some(slot => slot.defId === defId)) return '';
+  const def = ITEMS[defId];
+  if (!def || def.type !== itemType) return '';
+  if (itemType === ItemType.WEAPON && !WEAPON_STATS[defId]) return '';
+  return defId;
+}
+
+function normalizeRpg(input: unknown): RPGStats {
+  const src = isRecord(input) ? input : {};
+  const level = clampInt(src.level, 1, 1, MAX_SAVE_LEVEL);
+  const rpg = freshRPG(level);
+  rpg.xp = clampInt(src.xp, 0, 0, 1_000_000);
+  rpg.attrPoints = clampInt(src.attrPoints, 0, 0, MAX_SAVE_LEVEL);
+  rpg.str = clampInt(src.str, 0, 0, MAX_SAVE_LEVEL);
+  rpg.agi = clampInt(src.agi, 0, 0, MAX_SAVE_LEVEL);
+  rpg.int = clampInt(src.int, 0, 0, MAX_SAVE_LEVEL);
+  rpg.maxPsi = getMaxPsi(rpg);
+  rpg.psi = clampNumber(src.psi, rpg.maxPsi, 0, rpg.maxPsi);
+  return rpg;
+}
+
+function normalizeClock(input: unknown): GameClock {
+  const src = isRecord(input) ? input : {};
+  const totalMinutes = clampInt(src.totalMinutes, 0, 0, 365 * 24 * 60);
+  return {
+    hour: clampInt(src.hour, Math.floor(totalMinutes / 60) % 24, 0, 23),
+    minute: clampInt(src.minute, totalMinutes % 60, 0, 59),
+    totalMinutes,
+  };
+}
+
+function normalizeQuestType(value: unknown): QuestType | undefined {
+  return typeof value === 'number' && QuestType[value] !== undefined ? value as QuestType : undefined;
+}
+
+function normalizeRoomType(value: unknown): RoomType | undefined {
+  return typeof value === 'number' && RoomType[value] !== undefined ? value as RoomType : undefined;
+}
+
+function normalizeMonsterKind(value: unknown): MonsterKind | undefined {
+  return typeof value === 'number' && MonsterKind[value] !== undefined ? value as MonsterKind : undefined;
+}
+
+function normalizeFaction(value: unknown): Faction | undefined {
+  return typeof value === 'number' && Faction[value] !== undefined ? value as Faction : undefined;
+}
+
+function normalizeEventPrivacy(value: unknown): WorldEventPrivacy | undefined {
+  return typeof value === 'string' && EVENT_PRIVACIES.includes(value as WorldEventPrivacy)
+    ? value as WorldEventPrivacy
+    : undefined;
+}
+
+function normalizeEventSeverity(value: unknown): WorldEventSeverity | undefined {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? Math.max(0, Math.min(5, Math.round(value))) as WorldEventSeverity
+    : undefined;
+}
+
+function normalizeStringArray(value: unknown, maxItems = 8, maxLen = 48): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const out: string[] = [];
+  for (const raw of value) {
+    if (out.length >= maxItems) break;
+    if (typeof raw !== 'string') continue;
+    const clean = raw.slice(0, maxLen);
+    if (clean && !out.includes(clean)) out.push(clean);
+  }
+  return out.length > 0 ? out : undefined;
+}
+
+function normalizeRewardList(value: unknown): Quest['extraRewards'] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const out: { defId: string; count: number }[] = [];
+  for (const raw of value) {
+    if (out.length >= 8 || !isRecord(raw)) break;
+    const defId = cleanSaveText(raw.defId, '', 64);
+    if (!ITEMS[defId]) continue;
+    out.push({ defId, count: clampInt(raw.count, 1, 1, 999) });
+  }
+  return out.length > 0 ? out : undefined;
+}
+
+function normalizeQuest(raw: unknown, nowMinutes: number): Quest | null {
+  if (!isRecord(raw)) return null;
+  const type = normalizeQuestType(raw.type);
+  if (type === undefined) return null;
+  const desc = cleanSaveText(raw.desc);
+  if (!desc) return null;
+  const id = clampInt(raw.id, 0, 1, 1_000_000);
+  const done = raw.done === true || raw.failed === true;
+  const q: Quest = {
+    id,
+    type,
+    giverId: clampInt(raw.giverId, -1, -1, 1_000_000),
+    giverName: cleanSaveText(raw.giverName, '???', 96),
+    desc,
+    done,
+  };
+
+  const targetItem = cleanSaveText(raw.targetItem, '', 64);
+  if (targetItem === 'money' || ITEMS[targetItem]) q.targetItem = targetItem;
+  if (raw.targetCount !== undefined) q.targetCount = clampInt(raw.targetCount, 1, 1, 999);
+  if (typeof raw.targetRoom === 'number' && Number.isFinite(raw.targetRoom)) {
+    q.targetRoom = clampInt(raw.targetRoom, -1, -1, 100_000);
+  }
+  if (isFloorLevel(raw.targetFloor)) q.targetFloor = raw.targetFloor;
+  const targetRoomType = normalizeRoomType(raw.targetRoomType);
+  if (targetRoomType !== undefined) q.targetRoomType = targetRoomType;
+  const targetZoneTag = cleanSaveText(raw.targetZoneTag, '', 48);
+  if (targetZoneTag) q.targetZoneTag = targetZoneTag;
+  const targetHint = cleanSaveText(raw.targetHint);
+  if (targetHint) q.targetHint = targetHint;
+  const targetMonsterKind = normalizeMonsterKind(raw.targetMonsterKind);
+  if (targetMonsterKind !== undefined) q.targetMonsterKind = targetMonsterKind;
+  if (raw.killCount !== undefined) q.killCount = clampInt(raw.killCount, 0, 0, 999);
+  if (raw.killNeeded !== undefined) q.killNeeded = clampInt(raw.killNeeded, 1, 1, 999);
+  if (typeof raw.targetNpcId === 'number' && Number.isFinite(raw.targetNpcId)) {
+    q.targetNpcId = clampInt(raw.targetNpcId, -1, -1, 1_000_000);
+  }
+  const targetNpcName = cleanSaveText(raw.targetNpcName, '', 96);
+  if (targetNpcName) q.targetNpcName = targetNpcName;
+  const targetPlotNpcId = cleanSaveText(raw.targetPlotNpcId, '', 64);
+  if (targetPlotNpcId) q.targetPlotNpcId = targetPlotNpcId;
+  const rewardItem = cleanSaveText(raw.rewardItem, '', 64);
+  if (ITEMS[rewardItem]) q.rewardItem = rewardItem;
+  if (raw.rewardCount !== undefined) q.rewardCount = clampInt(raw.rewardCount, 1, 1, 999);
+  q.extraRewards = normalizeRewardList(raw.extraRewards);
+  if (raw.relationDelta !== undefined) q.relationDelta = clampInt(raw.relationDelta, 0, -100, 100);
+  if (raw.difficulty !== undefined) q.difficulty = clampNumber(raw.difficulty, 1, 0, 10);
+  if (raw.xpReward !== undefined) q.xpReward = clampInt(raw.xpReward, 0, 0, 100_000);
+  if (raw.moneyReward !== undefined) q.moneyReward = clampInt(raw.moneyReward, 0, 0, MAX_SAVE_MONEY);
+  if (typeof raw.plotStepIndex === 'number' && Number.isFinite(raw.plotStepIndex)) {
+    q.plotStepIndex = clampInt(raw.plotStepIndex, 0, 0, 10_000);
+  }
+  const sideQuestId = cleanSaveText(raw.sideQuestId, '', 96);
+  if (sideQuestId) q.sideQuestId = sideQuestId;
+  const contractId = cleanSaveText(raw.contractId, '', 96);
+  if (contractId) q.contractId = contractId;
+  const contractFaction = normalizeFaction(raw.contractFaction);
+  if (contractFaction !== undefined) q.contractFaction = contractFaction;
+  if (raw.contractRank !== undefined) q.contractRank = clampInt(raw.contractRank, 0, 0, 10);
+  if (isFloorLevel(raw.visitFloor)) q.visitFloor = raw.visitFloor;
+  q.eventTags = normalizeStringArray(raw.eventTags);
+  const eventData = compactSaveData(raw.eventData);
+  if (isRecord(eventData)) q.eventData = eventData;
+  q.eventPrivacy = normalizeEventPrivacy(raw.eventPrivacy);
+  q.eventSeverity = normalizeEventSeverity(raw.eventSeverity);
+  const eventTargetName = cleanSaveText(raw.eventTargetName);
+  if (eventTargetName) q.eventTargetName = eventTargetName;
+  const failOnNpcDeathPlotId = cleanSaveText(raw.failOnNpcDeathPlotId, '', 64);
+  if (failOnNpcDeathPlotId) q.failOnNpcDeathPlotId = failOnNpcDeathPlotId;
+  q.abandonsSideQuestIds = normalizeStringArray(raw.abandonsSideQuestIds, 12, 96);
+
+  const timeLimit = raw.timeLimitMinutes === undefined
+    ? undefined
+    : clampInt(raw.timeLimitMinutes, 0, 1, MAX_QUEST_TIME_LIMIT_MINUTES);
+  let expiresAt = raw.expiresAtMinutes === undefined
+    ? undefined
+    : clampInt(raw.expiresAtMinutes, 0, 0, nowMinutes + MAX_QUEST_TIME_LIMIT_MINUTES);
+  if (timeLimit !== undefined) {
+    q.timeLimitMinutes = timeLimit;
+    if (expiresAt === undefined && !done) expiresAt = Math.ceil(nowMinutes + timeLimit);
+  }
+  if (expiresAt !== undefined) q.expiresAtMinutes = expiresAt;
+  if (raw.failed === true) q.failed = true;
+
+  if (!q.done) {
+    if (type === QuestType.FETCH && !q.targetItem) return null;
+    if (type === QuestType.VISIT && q.targetRoom === undefined && q.visitFloor === undefined) return null;
+    if (type === QuestType.KILL && q.targetMonsterKind === undefined && !q.targetPlotNpcId && q.killNeeded === undefined) return null;
+    if (type === QuestType.TALK && q.targetNpcId === undefined && !q.targetPlotNpcId) return null;
+  }
+
+  return q;
+}
+
+function normalizeQuestList(input: unknown, nextQuestIdInput: unknown, nowMinutes: number): { quests: Quest[]; nextQuestId: number } {
+  const quests: Quest[] = [];
+  if (Array.isArray(input)) {
+    for (const raw of input) {
+      if (quests.length >= SAVE_QUEST_CAP) break;
+      const quest = normalizeQuest(raw, nowMinutes);
+      if (quest) quests.push(quest);
+    }
+  }
+  let nextQuestId = clampInt(nextQuestIdInput, 1, 1, 1_000_001);
+  for (const quest of quests) nextQuestId = Math.max(nextQuestId, quest.id + 1);
+  return { quests, nextQuestId };
+}
 
 function saveGame(): void {
   try {
@@ -2310,6 +2884,8 @@ function saveGame(): void {
         currentFloor: state.currentFloor,
         floorRun: floorRunStateForSave(state),
         floorInstances: floorInstanceStateForSave(state),
+        voidReturnPortal: voidReturnPortalStateForSave(state),
+        voidEntryFromFloor: (state as VoidReturnPortalHost).voidEntryFromFloor,
         liftArachna: liftArachnaStateForSave(state),
         netTerminalGen: netTerminalGenStateForSave(state),
         mapEditorPatches: mapEditorPatchStateForSave(state),
@@ -2335,13 +2911,28 @@ function loadGame(): boolean {
       state.msgs.push(msg('Нет сохранения', state.time, '#f84'));
       return false;
     }
-    const data = JSON.parse(raw);
-    const savedFloor = isFloorLevel(data.state.currentFloor) ? data.state.currentFloor : FloorLevel.LIVING;
-    setFloorRunState(state, data.state.floorRun, savedFloor);
-    const loadedFloorInstances = setFloorInstanceState(state, data.state.floorInstances, savedFloor);
-    setLiftArachnaState(state, data.state.liftArachna);
-    setNetTerminalGenState(state, data.state.netTerminalGen);
-    setMapEditorPatchState(state, data.state.mapEditorPatches);
+    const parsed = JSON.parse(raw);
+    const data = isRecord(parsed) ? parsed : {};
+    const dataPlayer = isRecord(data.player) ? data.player : {};
+    const dataState = isRecord(data.state) ? data.state : {};
+    const savedFloor = isFloorLevel(dataState.currentFloor) ? dataState.currentFloor : FloorLevel.LIVING;
+    const savedFloorRun = floorRunSaveHasRestorableRoute(dataState.floorRun)
+      ? dataState.floorRun as Parameters<typeof setFloorRunState>[1]
+      : undefined;
+    const normalizedNeeds = normalizeNeeds(dataPlayer.needs);
+    const normalizedInventory = normalizeInventory(dataPlayer.inventory);
+    const normalizedRpg = normalizeRpg(dataPlayer.rpg);
+    const normalizedMaxHp = getMaxHp(normalizedRpg);
+    const normalizedClock = normalizeClock(dataState.clock);
+    const normalizedQuests = normalizeQuestList(dataState.quests, dataState.nextQuestId, normalizedClock.totalMinutes);
+    const normalizedWeapon = normalizeEquippedItem(dataPlayer.weapon, normalizedInventory, ItemType.WEAPON);
+    const normalizedTool = normalizeEquippedItem(dataPlayer.tool, normalizedInventory, ItemType.TOOL);
+
+    setFloorRunState(state, savedFloorRun, savedFloor);
+    const loadedFloorInstances = setFloorInstanceState(state, dataState.floorInstances as Parameters<typeof setFloorInstanceState>[1], savedFloor);
+    setLiftArachnaState(state, dataState.liftArachna as Parameters<typeof setLiftArachnaState>[1]);
+    setNetTerminalGenState(state, dataState.netTerminalGen as Parameters<typeof setNetTerminalGenState>[1]);
+    setMapEditorPatchState(state, dataState.mapEditorPatches as Parameters<typeof setMapEditorPatchState>[1]);
     const loadedRunEntry = currentFloorRunEntry(state);
     const floor = loadedFloorInstances.current?.baseFloor ?? loadedRunEntry.baseFloor ?? savedFloor;
     const generatedRunEntry = loadedFloorInstances.current ? null : loadedRunEntry;
@@ -2360,27 +2951,32 @@ function loadGame(): boolean {
       world = gen.world;
       entities = gen.entities;
       nextEntityId.v = entities.reduce((mx, e) => Math.max(mx, e.id), 0) + 1;
-      const spawn = safeSpawnNear(data.player.x, data.player.y, gen.spawnX, gen.spawnY);
+      const spawn = safeSpawnNear(
+        finiteNumber(dataPlayer.x, gen.spawnX),
+        finiteNumber(dataPlayer.y, gen.spawnY),
+        gen.spawnX,
+        gen.spawnY,
+      );
 
       player = {
         id: nextEntityId.v++,
         type: EntityType.PLAYER,
         x: spawn.x,
         y: spawn.y,
-        angle: data.player.angle ?? 0,
+        angle: finiteNumber(dataPlayer.angle, 0),
         pitch: 0,
         alive: true,
         speed: 3.0,
         sprite: 0,
-        needs: data.player.needs ?? freshNeeds(),
-        hp: data.player.hp ?? 100,
-        maxHp: data.player.maxHp ?? 100,
-        inventory: data.player.inventory ?? [],
-        weapon: data.player.weapon ?? '',
-        tool: data.player.tool ?? '',
-        money: data.player.money ?? 100,
-        rpg: data.player.rpg ?? freshRPG(1),
-        statuses: normalizePlayerStatuses(data.player.statuses),
+        needs: normalizedNeeds,
+        hp: clampNumber(dataPlayer.hp, normalizedMaxHp, 1, normalizedMaxHp),
+        maxHp: normalizedMaxHp,
+        inventory: normalizedInventory,
+        weapon: normalizedWeapon,
+        tool: normalizedTool,
+        money: clampInt(dataPlayer.money, 100, 0, MAX_SAVE_MONEY),
+        rpg: normalizedRpg,
+        statuses: normalizePlayerStatuses(dataPlayer.statuses),
         name: playerDisplayName(),
         faction: Faction.PLAYER,
       };
@@ -2397,38 +2993,45 @@ function loadGame(): boolean {
       }
       ensureProceduralSpriteSeeds(entities);
 
-      state.time = data.state.time ?? 0;
-      state.tick = data.state.tick ?? 0;
-      state.clock = data.state.clock ?? { hour: 8, minute: 0, totalMinutes: 0 };
-      state.samosborCount = data.state.samosborCount ?? 0;
+      state.time = Math.max(0, finiteNumber(dataState.time, 0));
+      state.tick = clampInt(dataState.tick, 0, 0, 1_000_000_000);
+      state.clock = normalizedClock;
+      state.samosborCount = clampInt(dataState.samosborCount, 0, 0, 100_000);
       netReportedSamosborCount = state.samosborCount;
       netDeathReported = false;
-      state.samosborTimer = data.state.samosborTimer ?? 120;
-      state.quests = data.state.quests ?? [];
-      state.nextQuestId = data.state.nextQuestId ?? 1;
+      state.samosborTimer = clampNumber(dataState.samosborTimer, 120, 0, 24 * 60 * 60);
+      state.quests = normalizedQuests.quests;
+      state.nextQuestId = normalizedQuests.nextQuestId;
       state.currentFloor = floor;
-      setFloorRunState(state, data.state.floorRun, floor);
+      setFloorRunState(state, savedFloorRun, floor);
       setFloorInstanceState(state, loadedFloorInstances, floor);
-      setLiftArachnaState(state, data.state.liftArachna);
-      state.worldEvents = normalizeWorldEventState(data.state.worldEvents);
-      normalizeGameEconomy(state, data.state.economy);
-      (state as GameState & { banking?: BankingState }).banking = normalizeBankingState(data.state.banking);
-      normalizeGameStockMarket(state, data.state.stockMarket);
-      (state as GameState & { production?: ProductionState[] }).production = data.state.production ?? [];
+      setLiftArachnaState(state, dataState.liftArachna as Parameters<typeof setLiftArachnaState>[1]);
+      state.worldEvents = normalizeWorldEventState(dataState.worldEvents as Parameters<typeof normalizeWorldEventState>[0]);
+      normalizeGameEconomy(state, dataState.economy);
+      (state as GameState & { banking?: BankingState }).banking = normalizeBankingState(dataState.banking);
+      normalizeGameStockMarket(state, dataState.stockMarket);
+      (state as GameState & { production?: ProductionState[] }).production = Array.isArray(dataState.production)
+        ? dataState.production as ProductionState[]
+        : [];
       state.samosborActive = false;
       state.uvBeamFx = 0;
       state.uvBeamLen = 0;
       floorTeleportCd = 0;
       state.gameOver = false;
+      state.gameWon = false;
+      state.deathTimer = 0;
       state.showMenu = false;
       state.showContainerMenu = false;
       state.containerMenuTarget = -1;
+      setVoidReturnPortalState(state, dataState.voidReturnPortal);
+      setVoidEntryFromFloor(state, dataState.voidEntryFromFloor);
       replayMapEditorForCurrentFloor();
-      if (Array.isArray(data.state.containers)) restoreValidContainers(world, state.currentFloor, data.state.containers);
+      if (Array.isArray(dataState.containers)) restoreValidContainers(world, state.currentFloor, dataState.containers);
       ensureRoomContainers(world, state.currentFloor);
       ensureProductionRooms(state, world);
       placeNetTerminalGenContentForCurrentFloor();
       ensureProceduralSpriteSeeds(entities);
+      restoreVoidReturnPortalForCurrentWorld();
 
       state.msgs.push(msg('Игра загружена', state.time, '#4af'));
 
@@ -3870,6 +4473,7 @@ function gameLoop(now: number): void {
         prepareEditableFloor();
         ensureProceduralSpriteSeeds(entities);
         clearLiftArachnaActive(state);
+        restoreVoidReturnPortalForCurrentWorld();
         setGeneratedDynamicSky(replacement);
         updateWorldData(world);
       };
@@ -3883,7 +4487,7 @@ function gameLoop(now: number): void {
       updateHellPopulation(world, entities, nextEntityId, dt, state.samosborCount);
     }
     if (state.currentFloor === FloorLevel.KVARTIRY) {
-      updateKvPopulation(world, entities, nextEntityId, dt);
+      updateKvPopulation(world, entities, nextEntityId, dt, state);
     }
     // Periodic NPC reinforcement for floors with ambient population.
     if (currentFloorAllowsNpcPopulation() && allowsAmbientFactionReinforcements(state.currentFloor)) {
@@ -3943,13 +4547,13 @@ function gameLoop(now: number): void {
       }
     }
 
-    // Return portal in Void — end game
+    // Return portal in Void — only the Creator-opened portal can end the run.
     if (state.currentFloor === FloorLevel.VOID && state.tick % 10 === 0) {
       const pci = world.idx(Math.floor(player.x), Math.floor(player.y));
-      if (world.floorTex[pci] === Tex.PORTAL) {
-        state.gameWon = true;
-        state.gameOver = true;
-        state.deathTimer = 0;
+      if (tryUseVoidReturnPortal(pci)) {
+        syncMsgLog();
+        requestAnimationFrame(gameLoop);
+        return;
       }
     }
 
@@ -4049,7 +4653,7 @@ function gameLoop(now: number): void {
       updateHellPopulation(world, entities, nextEntityId, dt, state.samosborCount);
     }
     if (state.currentFloor === FloorLevel.KVARTIRY) {
-      updateKvPopulation(world, entities, nextEntityId, dt);
+      updateKvPopulation(world, entities, nextEntityId, dt, state);
     }
     // Periodic NPC reinforcement for floors with ambient population.
     if (currentFloorAllowsNpcPopulation() && allowsAmbientFactionReinforcements(state.currentFloor)) {

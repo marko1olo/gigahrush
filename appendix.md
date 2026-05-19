@@ -8,6 +8,12 @@ Original source files were moved under `gatbage/` with their relative paths pres
 
 ## Recent Agent Notes
 
+### AUDIT_DOC_CLEANUP - 2026-05-19
+
+Conservative markdown cleanup moved historical working artifacts out of the active root/docs tree while preserving names and paths under `gatbage/`: root `macro_*.md`, `Monster_*.md`, `economics_*.md`, root `tester.md`, current monster task statuses from `Docs/Tasks/`, and current monster/itch logs from `Docs/AgentLogs/`.
+
+Active source-of-truth docs remain `README.md`, `desdoc.md`, `architecture.md`, `cloudflare.md`, the stable root entrypoints, `Docs/DesignFloors/`, `Docs/ProceduralFloors/`, and `Docs/Expansions/`. Routine future work should not recreate `Docs/Tasks` or `Docs/AgentLogs`; keep durable conclusions in this appendix only when they are worth retaining.
+
 ### FLOOR17_DARK_METRO_GEOMETRY - 2026-05-18
 
 Changed files: `src/gen/design_floors/dark_metro.ts`, `src/gen/design_floors/full_floor.ts`, `appendix.md`.

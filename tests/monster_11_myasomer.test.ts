@@ -1,13 +1,14 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { EntityType, Faction, FloorLevel, MonsterKind, ZoneFaction, type Entity } from '../src/core/types';
+import { Cell, EntityType, Faction, FloorLevel, MonsterKind, ZoneFaction, type Entity } from '../src/core/types';
 import { World } from '../src/core/world';
 import {
   generateMyasomer,
   getMyasomerDebugSite,
   resetMyasomerForTests,
 } from '../src/gen/hell/myasomer';
+import { getCellHazardMoveMultiplier } from '../src/systems/cell_hazards';
 import { publishEvent, getRecentEvents } from '../src/systems/events';
 import { makeGameState } from './helpers';
 
@@ -53,11 +54,27 @@ test('myasomer generation creates local quiet and loud rewards', () => {
   const { world, site } = myasomerFixture();
   const room = world.rooms[site.roomId];
   assert.equal(room.name, 'Коридор Мясомера');
+  assert.ok(site.coverCells >= 20, 'rib walls should create readable cover');
+  assert.ok(site.veinCells >= 7, 'center should register a listening vein route hazard');
+
+  for (let x = room.x + 1; x < room.x + room.w - 1; x++) {
+    assert.equal(world.cells[world.idx(x, room.y + 1)], Cell.FLOOR, 'top edge should stay a quiet route');
+    assert.equal(world.cells[world.idx(x, room.y + room.h - 2)], Cell.FLOOR, 'bottom edge should stay a quiet route');
+  }
+
+  const veinProbe = player();
+  veinProbe.x = site.veinX;
+  veinProbe.y = site.veinY;
+  assert.ok(getCellHazardMoveMultiplier(world, veinProbe) < 1, 'center listening vein should slow the player');
 
   const quiet = world.containerById.get(site.quietContainerId);
   const shard = world.containerById.get(site.shardContainerId);
   assert.ok(quiet);
   assert.ok(shard);
+  assert.equal(quiet.tags.includes('quiet_route'), true);
+  assert.equal(quiet.tags.includes('counterplay'), true);
+  assert.equal(shard.tags.includes('loud_route'), true);
+  assert.equal(quiet.inventory.some(item => item.defId === 'note' && String(item.data).includes('краю')), true);
   assert.equal(quiet.inventory.some(item => item.defId === 'rawmeat'), true);
   assert.equal(shard.inventory.some(item => item.defId === 'siren_shard'), true);
   assert.equal(shard.tags.includes('loud_trigger'), true);
@@ -144,5 +161,61 @@ test('siren shard noise escalates locally and caps spawned pressure', () => {
   });
 
   assert.equal(getRecentEvents(state, { tags: ['myasomer_loud_clear'], limit: 1 }).length, 1);
+  resetMyasomerForTests();
+});
+
+test('fire sears the listening vein and removes shadow pressure', () => {
+  const { entities, site } = myasomerFixture();
+  const state = makeGameState({ currentFloor: FloorLevel.HELL, time: 60 });
+
+  publishEvent(state, {
+    type: 'burn_cleanup',
+    floor: FloorLevel.HELL,
+    zoneId: site.zoneId,
+    roomId: site.roomId,
+    x: site.veinX,
+    y: site.veinY,
+    actorId: 1,
+    actorName: 'Вы',
+    actorFaction: Faction.PLAYER,
+    itemId: 'ammo_fuel',
+    itemName: 'Канистра бензина',
+    severity: 4,
+    privacy: 'local',
+    tags: ['fire', 'cleanup', 'slime', 'flamethrower', 'smoke', 'noise'],
+    data: { cleanedHazardCells: site.veinCells, weapon: 'flamethrower' },
+  });
+
+  assert.equal(getRecentEvents(state, { tags: ['myasomer_fire_seared'], limit: 1 }).length, 1);
+  assert.equal(getMyasomerDebugSite()?.fireSeared, true);
+
+  for (let i = 0; i < 5; i++) {
+    state.time += 1;
+    publishEvent(state, {
+      type: 'item_stolen',
+      floor: FloorLevel.HELL,
+      zoneId: site.zoneId,
+      roomId: site.roomId,
+      x: site.x,
+      y: site.y,
+      actorId: 1,
+      actorName: 'Вы',
+      actorFaction: Faction.PLAYER,
+      containerId: site.shardContainerId,
+      itemId: 'siren_shard',
+      itemName: 'Осколок сирены',
+      itemCount: 1,
+      severity: 3,
+      privacy: 'local',
+      tags: ['container', 'theft', 'myasomer', 'loud_trigger'],
+    });
+  }
+
+  const threats = entities.filter(entity => entity.type === EntityType.MONSTER && entity.alive);
+  assert.equal(threats.length, 2);
+  assert.equal(threats.every(entity => entity.monsterKind === MonsterKind.SBORKA), true);
+  const triggered = getRecentEvents(state, { tags: ['myasomer_triggered'], limit: 1 })[0];
+  assert.equal(triggered?.data?.fireSeared, true);
+  assert.equal(triggered?.data?.threatCap, 2);
   resetMyasomerForTests();
 });

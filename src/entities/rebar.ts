@@ -14,8 +14,9 @@ export const DEF: MonsterDef = {
   dmg: 24,
   attackRate: 2.4,
   sprite: 0,   // auto-assigned by generateSprites()
+  aiFlags: ['debrisLurker', 'wallBias'],
   floors: [FloorLevel.LIVING, FloorLevel.MAINTENANCE, FloorLevel.HELL, FloorLevel.VOID],
-  counterplay: 'Не наступайте на ровное железо у стеллажей: отходите в широкий проход, бейте с дистанции и не деритесь голыми руками.',
+  counterplay: 'Не наступайте на ровное железо у стен и стеллажей: вытаскивайте арматуру в центр комнаты, бейте с дистанции и не деритесь голыми руками.',
   lootHint: 'тяжелый металл, витая проволока и редкая годная арматура',
 };
 

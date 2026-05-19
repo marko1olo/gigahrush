@@ -1,59 +1,48 @@
 # Design Floor: Антенный двор
 
-Status: planning artifact. Future route id: `antenna_court`. Future anchor: `z=-32`.
+Status: implemented route floor. Route id: `antenna_court`. Anchor: `z=-36`. Base floor: `MINISTRY`.
 
-Planned owned file: `src/gen/design_floors/antenna_court.ts`.
+Owned file: `src/gen/design_floors/antenna_court.ts`. Route integration: `src/data/design_floors.ts`, `src/gen/design_floors/manifest.ts`, `src/gen/design_floors/full_floor.ts`.
 
 ## Role
 
-An indoor courtyard of antennas, cables, radio booths and false horizon murals. This floor listens to other floors and sometimes broadcasts them back. It is a signal hub between Roof, Ministry, Metro/Error Line, Market 88 and Void protocols.
+An indoor courtyard of antennas, cables, radio booths and false horizon murals. This floor listens to other floors and broadcasts route clues back as rumors, quest rewards and lootable papers.
 
-Primary decisions: tune, jam, record, sell, repair, expose, hide from patrols.
+Primary decisions: tune, repair, jam, record, expose, steal batteries, hide from patrols.
 
 ## Generation
 
-- Courtyard-like open central grid with antenna masts as obstacles.
-- Side rooms: radio club, relay booth, monitoring archive, battery closet, operator dorm.
-- Use long corridors with sound clues rather than huge maze.
-- Add screens/posters where existing procedural screen texture can show signal warnings.
+- Central `Антенный двор` POI with antenna masts, radio club, relay booth, monitoring archive, battery closet, operator dorm, jammer cabin, inspection post and up/down route lifts.
+- Full-floor expansion carves eight repeater sectors, fenced cable rings, maintenance cabins, weather screens and bypass cable paths around the authored POI.
+- Signal screens use existing procedural screen textures; there is no DOM UI or live radio simulation.
 
 ## NPCs
 
-- `antenna_pasha_grown`: radio operator who may connect to School ОБЖ hooks.
-- `antenna_mirra_jammer`: sells jamming time and route rumors.
-- `antenna_captain_krug`: Ministry signal inspector.
-- `antenna_echo_zhenya`: NPC who repeats lines from wrong floors.
+- `antenna_pasha_grown`: radio operator; gives tune and signal repair tasks.
+- `antenna_mirra_jammer`: jammer contact; trades a bounded Market 88 jam for fuses.
+- `antenna_captain_krug`: Ministry signal inspector; pays for battery handoff or signal exposure paperwork.
+- `antenna_echo_zhenya`: echo NPC; points toward impossible recordings.
 
-## Quests
+## Route Decisions
 
-- `antenna_tune_floor`: tune to a chosen floor tag; reward is a clue, not full map reveal.
-- `antenna_jam_raid`: temporarily reduce Market 88 raid pressure or increase suspicion.
-- `antenna_record_void`: capture an impossible signal for Yakov; may add PSI backlash.
-- `antenna_battery_theft`: steal a battery from a guarded closet or earn it by repair.
+- `antenna_repair_signal`: bring `circuit_board` from the relay repair stock and receive `radio` plus `relay_diagram`; repair improves the signal path through `repairAntennaCourtSignal()`.
+- `antenna_expose_signal_log`: bring `record_exposure_notice` to Captain Krug and receive `official_permit_slip`; `exposeAntennaCourtSignal()` marks the Ministry-noticed/exposed flags and `publishAntennaCourtSignalEvent(..., 'expose')` emits a witnessed `rumor_observed`.
+- `antenna_jam_raid`: bring two `fuse` to Mirra; `jamAntennaCourtSignal()` lowers signal quality by one, sets `jamUntilHour` and marks Market 88 jam plus Ministry notice.
+- `antenna_record_void`: recover `bottled_voice` from the locked archive and decide whether the impossible signal becomes science loot, market value or a Ministry exposure.
+- `antenna_battery_theft`: take `ammo_energy` from the owner-guarded battery cabinet or deliver it through Krug's quest for a legal permit.
 
-## Systems
+## Containers And Events
 
-State should be compact:
+- `Батарейный шкаф антенн`: owner container with `ammo_energy`, `fuse`, `wire_coil`; theft uses existing `item_stolen` container events and witness/audit caps.
+- `Шкаф ремонта верхней мачты`: room container with `circuit_board`, `fuse`, `wire_coil` for the repair route.
+- `Сейф экспозиции сигнала`: faction safe with `record_exposure_notice`, `official_permit_slip`, `denunciation` for the expose route.
+- `Архив записанных частот`: locked filing cabinet with `bottled_voice` and exposure paperwork.
+- Signal helper events use `rumor_observed` tags: `antenna_tune`, `antenna_repair`, `antenna_jam`, `antenna_record`, `antenna_expose`, route id tags and compact signal state.
 
-```txt
-signalQuality: 0..5
-jamUntilHour
-lastTunedRouteId
-recordedAnomalyFlags
-```
+## Samosbor
 
-No live radio simulation. Signals update on interaction, samosbor, floor transition or director beat.
+The floor does not add a separate samosbor system. Its authored rooms, doors, containers and route expansion survive normal floor generation/rebuild because all state is generated from `generateAntennaCourtDesignFloor()` and then expanded by `full_floor.ts`. Container theft and signal publication already enter the shared event/rumor/log systems, so aftermath can reference them without a floor-specific event bus.
 
-## Cross-Floor Hooks
+## Debug Path
 
-- Roof antenna repair improves signal quality.
-- Ministry inspections increase risk if illegal recordings exist.
-- Metro and numbered floors can use tuned signal as entry hint.
-- Void/Darkness can corrupt one recorded signal.
-
-## DoD
-
-- Player can tune one signal and receive a useful route/quest clue.
-- Jamming has a bounded consequence and event log entry.
-- Debug prints signal quality, tuned id and corruption flags.
-
+Use the normal lift route to `z=-36` or debug route teleport to `antenna_court`. Spawn starts in `Входной лифтовый тамбур`; walk into `Релейная будка` for repair materials, `Пост сигнал-инспекции` for exposure paperwork, `Кабина глушения` for the Market 88 jam, and `Архив мониторинга` for the void recording.

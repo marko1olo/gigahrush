@@ -1,6 +1,6 @@
 # Design Floor: Крыша
 
-Status: implemented route floor. Route id: `roof`. Anchor: `z=-40`.
+Status: implemented route floor. Route id: `roof`. Anchor: `z=-44`.
 
 Owned file: `src/gen/design_floors/roof.ts`. Route integration: `src/data/design_floors.ts`, `src/gen/design_floors/manifest.ts`, `src/gen/design_floors/full_floor.ts`. Renderer hook: generic dynamic ceiling texture slot in `src/render/webgl.ts`.
 
@@ -19,6 +19,7 @@ The ceiling texture is dynamic sky:
 - time-of-day lighting tint affects floor ambient light, fog and distant cloud color;
 - clouds must be readable as pixel clouds, not smooth gradient or static blue fill;
 - the whole ceiling acts as an even sky light source; do not solve roof visibility by placing lamps;
+- the provider exports ambient and fog tints; the renderer consumes them through the generic dynamic sky path;
 - no network assets.
 
 Implementation exposes `RoofSkyTextureProvider`. The raycaster only knows about a generic dynamic ceiling texture hook.
@@ -32,6 +33,7 @@ Topology is open but bounded:
 - no full empty 1024x1024 plane; use roof islands connected by service walkways;
 - long sightlines are valuable, but use fog and obstacles to keep combat readable;
 - place at least two down routes: normal lift and maintenance hatch.
+- the current build registers one wind route cue from the roof entry toward the sealed ventilation shelter.
 
 Textures: concrete, metal, dark service doors, optional new procedural sky ceiling. Floor can reuse concrete plus tar-paper variants until new texture ids exist.
 

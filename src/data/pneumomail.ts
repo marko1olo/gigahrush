@@ -1,9 +1,11 @@
 /* ── Pneumomail capsules: old infrastructure, fallible leads ─── */
 
 export const PNEUMOMAIL_ROOM_NAME = 'Пневмопочтовый узел: прием и перехват';
+export const PNEUMOMAIL_SORTER_ROOM_NAME = 'Пневмопочтовый узел: сортировка чужих капсул';
 export const PNEUMOMAIL_ROOM_PREFIX = 'Пневмопочтовый узел';
 export const PNEUMOMAIL_CAPSULE_ITEM_ID = 'pneumomail_capsule';
 export const PNEUMOMAIL_CONTRACT_ID = 'maint_pneumomail_pressure_manifest';
+export const PNEUMOMAIL_HISTORY_CAPACITY = 12;
 
 export type PneumomailCapsuleKind =
   | 'true_lead'
@@ -12,6 +14,14 @@ export type PneumomailCapsuleKind =
   | 'empty'
   | 'contraband'
   | 'warning';
+
+export const PNEUMOMAIL_REQUIRED_KINDS: readonly PneumomailCapsuleKind[] = [
+  'true_lead',
+  'warning',
+  'contraband',
+  'contract',
+  'false_lead',
+];
 
 export interface PneumomailCapsuleItem {
   defId: string;
@@ -34,7 +44,7 @@ export const PNEUMOMAIL_CAPSULES: readonly PneumomailCapsuleDef[] = [
     id: 'true_heatline_valve',
     kind: 'true_lead',
     weight: 4,
-    text: 'Капсула стучит: «Теплотрасса Ноль. Бирка вентиля ушла в ремонтный ящик. Сначала проверь манометр.»',
+    text: 'Капсула стучит: «Развилка стояков 16. Бирка вентиля лежит у красного ввода. Сначала проверь мокрый пол.»',
     rumorId: 'pneumomail_true_heatline_valve',
     severity: 3,
   },
@@ -42,9 +52,8 @@ export const PNEUMOMAIL_CAPSULES: readonly PneumomailCapsuleDef[] = [
     id: 'false_archive_chute',
     kind: 'false_lead',
     weight: 3,
-    text: 'Капсула шепчет: «Архив труб N-0 открыт». Бумага слишком свежая; проверяй только по пути.',
-    rumorId: 'pneumomail_false_archive_chute',
-    severity: 3,
+    text: 'Капсула шепчет: «Архив труб N-0 открыт». Бумага слишком свежая; это шум, не маршрут.',
+    severity: 2,
   },
   {
     id: 'pressure_manifest_contract',

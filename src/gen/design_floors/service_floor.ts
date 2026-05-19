@@ -30,6 +30,7 @@ import { type PlotNpcDef, registerSideQuest } from '../../data/plot';
 import { MONSTERS, applyMonsterVariant } from '../../entities/monster';
 import { Spr } from '../../render/sprite_index';
 import { publishEvent } from '../../systems/events';
+import { registerRouteCue } from '../../systems/route_cues';
 import { randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg';
 import { stampRoom } from '../shared';
 import type { FloorGeneration } from '../floor_manifest';
@@ -62,6 +63,21 @@ export interface ServiceRerouteFlags {
   productionBypassArmed: boolean;
 }
 
+export type ServiceTransferRouteId =
+  | 'service_to_production_belt_feed'
+  | 'service_to_dark_metro_signal'
+  | 'service_to_darkness_light_reserve';
+
+export interface ServiceTransferRoute {
+  id: ServiceTransferRouteId;
+  label: string;
+  sourceRoomName: string;
+  targetRouteId: 'production_belt' | 'dark_metro' | 'darkness';
+  requiresZone: ServicePowerZoneId;
+  routeFlag: keyof ServiceRerouteFlags | 'power';
+  clue: string;
+}
+
 export interface ServiceFloorState {
   routeId: typeof DESIGN_FLOOR_ID;
   anchorZ: number;
@@ -70,6 +86,7 @@ export interface ServiceFloorState {
   masterKeyKnown: boolean;
   powerZones: ServicePowerZoneFlag[];
   rerouteFlags: ServiceRerouteFlags;
+  transferRoutes: ServiceTransferRoute[];
   scopedDoorIds: number[];
   scopedContainerIds: number[];
   debugEntry: {
@@ -93,6 +110,36 @@ export const SERVICE_FLOOR_MASTER_SCOPE = {
   rooms: [JANITOR_DEPOT, CLERK_OFFICE],
   note: 'Scoped to recorded Service Floor doors and containers only; it does not use the generic key door path.',
 } as const;
+
+export const SERVICE_TRANSFER_ROUTES: readonly ServiceTransferRoute[] = [
+  {
+    id: 'service_to_production_belt_feed',
+    label: 'Обход питания к Производственному поясу',
+    sourceRoomName: LIFT_MACHINE_ROOM,
+    targetRouteId: 'production_belt',
+    requiresZone: 'machine_hall',
+    routeFlag: 'productionBypassArmed',
+    clue: 'После ремонта С-15 нижний персональный коридор принимает дверь-комплекты и энергоячейки с Пояса.',
+  },
+  {
+    id: 'service_to_dark_metro_signal',
+    label: 'Сигнальный лаз в Темную пересадку',
+    sourceRoomName: VENT_JUNCTION,
+    targetRouteId: 'dark_metro',
+    requiresZone: 'ventilation',
+    routeFlag: 'power',
+    clue: 'Запитанная вентиляция дает короткий путь к стрелочной будке метро, но зовет ламповых.',
+  },
+  {
+    id: 'service_to_darkness_light_reserve',
+    label: 'Резерв аварийного света для Тьмы',
+    sourceRoomName: BREAKER_ROOM,
+    targetRouteId: 'darkness',
+    requiresZone: 'breaker_room',
+    routeFlag: 'power',
+    clue: 'Релейная схема может уйти в поздний световой карман вместо местного комфорта.',
+  },
+];
 
 const BORIS_DEF: PlotNpcDef = {
   name: 'Борис Лифтёр',
@@ -250,6 +297,7 @@ export function createServiceFloorState(): ServiceFloorState {
       marketRaidDiverted: false,
       productionBypassArmed: false,
     },
+    transferRoutes: SERVICE_TRANSFER_ROUTES.map(route => ({ ...route })),
     scopedDoorIds: [],
     scopedContainerIds: [],
     debugEntry: {
@@ -270,6 +318,7 @@ export function summarizeServiceFloorFlags(service: ServiceFloorState): string[]
     `liftMachine=${service.liftMachineState} masterKeyKnown=${service.masterKeyKnown}`,
     `power=${powered}`,
     `reroute lower=${service.rerouteFlags.lowerStaffRouteOpen} marketRaidDiverted=${service.rerouteFlags.marketRaidDiverted} productionBypass=${service.rerouteFlags.productionBypassArmed}`,
+    `transfers=${service.transferRoutes.map(route => `${route.id}:${route.targetRouteId}`).join(',') || 'none'}`,
     `scope doors=${service.scopedDoorIds.length} containers=${service.scopedContainerIds.length}`,
   ];
 }
@@ -330,6 +379,9 @@ export function repairServiceLiftMachine(game: GameState, service: ServiceFloorS
       liftMachineState: service.liftMachineState,
       lowerStaffRouteOpen: service.rerouteFlags.lowerStaffRouteOpen,
       productionBypassArmed: service.rerouteFlags.productionBypassArmed,
+      transferRoutes: service.transferRoutes
+        .filter(route => route.targetRouteId === 'production_belt')
+        .map(route => route.id),
     },
   });
 }
@@ -352,6 +404,9 @@ export function restoreServicePowerZone(
       routeId: service.routeId,
       powerZone: zoneId,
       powered: true,
+      transferRoutes: service.transferRoutes
+        .filter(route => route.requiresZone === zoneId)
+        .map(route => route.id),
     },
   });
 }
@@ -473,6 +528,8 @@ export function generateServiceFloorDesignFloor(): ServiceFloorGeneration {
     { id: 'ventilation', name: VENT_JUNCTION, powered: false, roomId: vent.id },
   ];
 
+  registerServiceRouteCues(world, serviceState, machine, breaker, vent, eastLift);
+
   world.bakeLights();
   return {
     world,
@@ -481,6 +538,111 @@ export function generateServiceFloorDesignFloor(): ServiceFloorGeneration {
     spawnY: serviceState.debugEntry.spawnY,
     serviceState,
   };
+}
+
+function registerServiceRouteCues(
+  world: World,
+  service: ServiceFloorState,
+  machine: Room,
+  breaker: Room,
+  vent: Room,
+  eastLift: Room,
+): void {
+  const productionRoute = service.transferRoutes.find(route => route.id === 'service_to_production_belt_feed');
+  if (productionRoute) {
+    const markerX = machine.x + 5.5;
+    const markerY = machine.y + 5.5;
+    const targetX = eastLift.x + eastLift.w - 5 + 0.5;
+    const targetY = eastLift.y + 6.5;
+    const markerCell = world.idx(Math.floor(markerX), Math.floor(markerY));
+    registerRouteCue(world, {
+      id: productionRoute.id,
+      x: markerX,
+      y: markerY,
+      targetX,
+      targetY,
+      floor: SERVICE_FLOOR_BASE_FLOOR,
+      roomId: machine.id,
+      targetRoomId: eastLift.id,
+      zoneId: world.zoneMap[markerCell],
+      label: 'производственный обход',
+      hint: 'лебедка С-15 тянет к восточному служебному лифту',
+      targetName: productionRoute.label,
+      color: '#8cf',
+      tags: ['service_floor', 'production_belt', 'shortcut', 'repair'],
+      toneSeed: machine.id * 811 + eastLift.id,
+      radius: 9,
+      targetRadius: 3,
+      cooldownSec: 34,
+      heardText: 'Лебедка С-15 стучит в сторону Производственного пояса. Ремонт открывает короткий персональный ход.',
+      followedText: 'Восточный служебный лифт найден. После ремонта он станет обходом к производственной выдаче.',
+      ignoredText: 'Лебедка С-15 стихла за спиной. Производственный обход остался не проверен.',
+    });
+  }
+
+  const metroRoute = service.transferRoutes.find(route => route.id === 'service_to_dark_metro_signal');
+  if (metroRoute) {
+    const markerX = vent.x + vent.w - 4 + 0.5;
+    const markerY = vent.y + 2.5;
+    const targetX = vent.x + 3.5;
+    const targetY = vent.y + vent.h - 4 + 0.5;
+    const markerCell = world.idx(Math.floor(markerX), Math.floor(markerY));
+    registerRouteCue(world, {
+      id: metroRoute.id,
+      x: markerX,
+      y: markerY,
+      targetX,
+      targetY,
+      floor: SERVICE_FLOOR_BASE_FLOOR,
+      roomId: vent.id,
+      targetRoomId: vent.id,
+      zoneId: world.zoneMap[markerCell],
+      label: 'метро-сигнал',
+      hint: 'темный воздух ведет к стрелочной будке',
+      targetName: metroRoute.label,
+      color: '#79f',
+      tags: ['service_floor', 'dark_metro', 'transfer', 'warning'],
+      toneSeed: vent.id * 823 + breaker.id,
+      radius: 8,
+      targetRadius: 3,
+      cooldownSec: 38,
+      heardText: 'Вентиляция отвечает метро-сигналом: короткий путь возможен, если вернуть питание контуру.',
+      followedText: 'Вентиляционный лаз найден. Он обещает Темную пересадку и предупреждает о ламповых.',
+      ignoredText: 'Метро-сигнал ушел в вентиляцию. Короткий лаз остался темным.',
+    });
+  }
+
+  const darknessRoute = service.transferRoutes.find(route => route.id === 'service_to_darkness_light_reserve');
+  if (darknessRoute) {
+    const markerX = breaker.x + breaker.w - 4 + 0.5;
+    const markerY = breaker.y + 5.5;
+    const targetX = breaker.x + 3.5;
+    const targetY = breaker.y + breaker.h - 3 + 0.5;
+    const markerCell = world.idx(Math.floor(markerX), Math.floor(markerY));
+    registerRouteCue(world, {
+      id: darknessRoute.id,
+      x: markerX,
+      y: markerY,
+      targetX,
+      targetY,
+      floor: SERVICE_FLOOR_BASE_FLOOR,
+      roomId: breaker.id,
+      targetRoomId: breaker.id,
+      zoneId: world.zoneMap[markerCell],
+      label: 'резерв света',
+      hint: 'щитовая держит поздний световой запас',
+      targetName: darknessRoute.label,
+      color: '#bbf',
+      tags: ['service_floor', 'darkness', 'transfer', 'light'],
+      toneSeed: breaker.id * 829 + vent.id,
+      radius: 8,
+      targetRadius: 2.8,
+      cooldownSec: 42,
+      heardText: 'Щитовая щелкает поздним резервом: схему можно потратить здесь или оставить для Тьмы.',
+      followedText: 'Релейный резерв найден. Это будущий световой карман, если не израсходовать его на месте.',
+      ignoredText: 'Резерв света остался в щитовой. Поздний маршрут будет темнее.',
+    });
+  }
 }
 
 export function expandServiceFloorMachineMaze(

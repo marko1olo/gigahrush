@@ -7,6 +7,9 @@ import {
 } from '../core/types';
 import { World } from '../core/world';
 import {
+  SAMOSBOR_DIRECTOR_EFFECT_FAIL_COOLDOWN,
+  SAMOSBOR_DIRECTOR_MIN_INTERVAL,
+  SAMOSBOR_DIRECTOR_PHASE_BUDGET,
   getSamosborBeatDefs,
   type SamosborBeatDef,
   type SamosborBeatPhase,
@@ -52,7 +55,12 @@ export interface SamosborDirectorTraceEntry {
   reason: SamosborDirectorTickReason;
   chosenBeatId?: string;
   rejectedTopBeatId?: string;
+  rejectedReason?: string;
   reasonCode: string;
+  legalCount: number;
+  phaseCount: number;
+  phaseBudget: number;
+  cadenceRemaining: number;
   dangerBudget: number;
   reliefBudget: number;
   samosborVariant: SamosborVariantId;
@@ -64,6 +72,8 @@ export interface SamosborDirectorState {
   forceCursor: number;
   cooldowns: Record<string, number>;
   runCounts: Record<string, number>;
+  phaseCounts: Record<string, number>;
+  lastPhaseTickAt: Record<string, number>;
   traceStart: number;
   traceCount: number;
   traces: (SamosborDirectorTraceEntry | null)[];
@@ -87,6 +97,15 @@ function cleanNumberMap(input: unknown): Record<string, number> {
   return out;
 }
 
+function cleanFiniteNumberMap(input: unknown): Record<string, number> {
+  const out: Record<string, number> = {};
+  if (!input || typeof input !== 'object') return out;
+  for (const [k, v] of Object.entries(input as Record<string, unknown>)) {
+    if (typeof v === 'number' && Number.isFinite(v)) out[k] = v;
+  }
+  return out;
+}
+
 export function ensureSamosborDirectorState(state: GameState): SamosborDirectorState {
   const host = state as DirectorGameState;
   const src = host.samosborDirector ?? {};
@@ -98,6 +117,8 @@ export function ensureSamosborDirectorState(state: GameState): SamosborDirectorS
     forceCursor: Number.isFinite(src.forceCursor) ? src.forceCursor as number : 0,
     cooldowns: cleanNumberMap(src.cooldowns),
     runCounts: cleanNumberMap(src.runCounts),
+    phaseCounts: cleanNumberMap(src.phaseCounts),
+    lastPhaseTickAt: cleanFiniteNumberMap(src.lastPhaseTickAt),
     traceStart: Number.isFinite(src.traceStart) ? Math.max(0, Math.min(TRACE_CAP - 1, src.traceStart as number)) : 0,
     traceCount: Number.isFinite(src.traceCount) ? Math.max(0, Math.min(TRACE_CAP, src.traceCount as number)) : 0,
     traces,
@@ -110,6 +131,8 @@ function resetCycleIfNeeded(director: SamosborDirectorState, cycle: number): voi
   if (director.cycle === cycle) return;
   director.cycle = cycle;
   director.runCounts = {};
+  director.phaseCounts = {};
+  director.lastPhaseTickAt = {};
 }
 
 function phaseForReason(reason: SamosborDirectorTickReason): SamosborBeatPhase {
@@ -177,10 +200,30 @@ function rejectBeat(
   return null;
 }
 
+function phaseBudget(phase: SamosborBeatPhase): number {
+  return SAMOSBOR_DIRECTOR_PHASE_BUDGET[phase];
+}
+
+function cadenceRemaining(director: SamosborDirectorState, phase: SamosborBeatPhase, now: number): number {
+  const lastAt = director.lastPhaseTickAt[phase];
+  if (!Number.isFinite(lastAt)) return 0;
+  return Math.max(0, (lastAt ?? -Infinity) + SAMOSBOR_DIRECTOR_MIN_INTERVAL[phase] - now);
+}
+
+function rejectDirectorTick(
+  snapshot: SamosborDirectorSnapshot,
+  director: SamosborDirectorState,
+): { reasonCode: string; cadenceRemaining?: number } | null {
+  const cadence = cadenceRemaining(director, snapshot.phase, snapshot.time);
+  if (cadence > 0) return { reasonCode: 'cadence_cooldown', cadenceRemaining: cadence };
+  if ((director.phaseCounts[snapshot.phase] ?? 0) >= phaseBudget(snapshot.phase)) return { reasonCode: 'phase_budget' };
+  return null;
+}
+
 function pickBeat(
   snapshot: SamosborDirectorSnapshot,
   director: SamosborDirectorState,
-): { beat: SamosborBeatDef | null; rejectedTop?: SamosborBeatDef; rejectedReason?: string } {
+): { beat: SamosborBeatDef | null; rejectedTop?: SamosborBeatDef; rejectedReason?: string; legalCount: number } {
   let total = 0;
   const legal: SamosborBeatDef[] = [];
   let rejectedTop: SamosborBeatDef | undefined;
@@ -189,7 +232,8 @@ function pickBeat(
   for (const beat of getSamosborBeatDefs()) {
     const reason = rejectBeat(beat, snapshot, director);
     if (reason) {
-      if (!rejectedTop || beat.weight > rejectedTop.weight) {
+      const structurallyRelevant = reason !== 'phase_mismatch' && reason !== 'floor_mismatch' && reason !== 'variant_mismatch';
+      if (structurallyRelevant && (!rejectedTop || beat.weight > rejectedTop.weight)) {
         rejectedTop = beat;
         rejectedReason = reason;
       }
@@ -199,14 +243,20 @@ function pickBeat(
     legal.push(beat);
   }
 
-  if (legal.length === 0 || total <= 0) return { beat: null, rejectedTop, rejectedReason };
+  if (legal.length === 0 || total <= 0) return { beat: null, rejectedTop, rejectedReason, legalCount: legal.length };
 
   let roll = Math.random() * total;
   for (const beat of legal) {
     roll -= Math.max(0, beat.weight);
-    if (roll <= 0) return { beat, rejectedTop, rejectedReason };
+    if (roll <= 0) return { beat, rejectedTop, rejectedReason, legalCount: legal.length };
   }
-  return { beat: legal[legal.length - 1], rejectedTop, rejectedReason };
+  return { beat: legal[legal.length - 1], rejectedTop, rejectedReason, legalCount: legal.length };
+}
+
+interface SamosborDirectorTraceMeta {
+  rejectedReason?: string;
+  legalCount?: number;
+  cadenceRemaining?: number;
 }
 
 function recordTrace(
@@ -216,6 +266,7 @@ function recordTrace(
   reasonCode: string,
   chosenBeatId?: string,
   rejectedTopBeatId?: string,
+  meta: SamosborDirectorTraceMeta = {},
 ): void {
   const entry: SamosborDirectorTraceEntry = {
     time: snapshot.time,
@@ -224,7 +275,12 @@ function recordTrace(
     reason,
     chosenBeatId,
     rejectedTopBeatId,
+    rejectedReason: meta.rejectedReason,
     reasonCode,
+    legalCount: meta.legalCount ?? 0,
+    phaseCount: director.phaseCounts[snapshot.phase] ?? 0,
+    phaseBudget: phaseBudget(snapshot.phase),
+    cadenceRemaining: Math.ceil(meta.cadenceRemaining ?? cadenceRemaining(director, snapshot.phase, snapshot.time)),
     dangerBudget: snapshot.dangerBudget,
     reliefBudget: snapshot.reliefBudget,
     samosborVariant: snapshot.variantId,
@@ -237,6 +293,24 @@ function recordTrace(
     director.traces[director.traceStart] = entry;
     director.traceStart = (director.traceStart + 1) % TRACE_CAP;
   }
+}
+
+function markDirectorAttempt(director: SamosborDirectorState, snapshot: SamosborDirectorSnapshot): void {
+  director.lastTickAt = snapshot.time;
+  director.lastPhaseTickAt[snapshot.phase] = snapshot.time;
+}
+
+function commitDirectorBeat(
+  director: SamosborDirectorState,
+  snapshot: SamosborDirectorSnapshot,
+  beat: SamosborBeatDef,
+): void {
+  director.lastTickAt = snapshot.time;
+  director.lastPhaseTickAt[snapshot.phase] = snapshot.time;
+  director.lastBeatId = beat.id;
+  director.runCounts[beat.id] = (director.runCounts[beat.id] ?? 0) + 1;
+  director.phaseCounts[snapshot.phase] = (director.phaseCounts[snapshot.phase] ?? 0) + 1;
+  director.cooldowns[beat.id] = snapshot.time + Math.max(0, beat.cooldown);
 }
 
 export function getSamosborDirectorTrace(state: GameState, limit = 12): SamosborDirectorTraceEntry[] {
@@ -289,6 +363,10 @@ function publishDirectorBeatEvent(
       beatId: beat.id,
       effectId: beat.effectId,
       variantId: snapshot.variantId,
+      cycle: snapshot.cycle,
+      phase: snapshot.phase,
+      dangerBudget: snapshot.dangerBudget,
+      reliefBudget: snapshot.reliefBudget,
       ...extra,
     },
   });
@@ -393,7 +471,7 @@ function seedRumor(world: World, entities: Entity[], state: GameState, snapshot:
       severity: 3,
       floor: state.currentFloor,
       zoneId: snapshot.zoneId,
-      tags: ['samosbor', 'director'],
+      tags: ['samosbor', 'director', `variant_${snapshot.variantId}`],
     }, state.time);
     seen++;
   }
@@ -541,24 +619,45 @@ export function tickSamosborDirector(
   const director = ensureSamosborDirectorState(state);
   resetCycleIfNeeded(director, state.samosborCount);
   const snapshot = buildSnapshot(world, entities, state, variant, reason);
-  const { beat, rejectedTop, rejectedReason } = pickBeat(snapshot, director);
+  const tickReject = rejectDirectorTick(snapshot, director);
+  if (tickReject) {
+    recordTrace(director, snapshot, reason, tickReject.reasonCode, undefined, undefined, {
+      cadenceRemaining: tickReject.cadenceRemaining,
+    });
+    return { fired: false, reasonCode: tickReject.reasonCode };
+  }
+
+  markDirectorAttempt(director, snapshot);
+  const { beat, rejectedTop, rejectedReason, legalCount } = pickBeat(snapshot, director);
   if (!beat) {
-    recordTrace(director, snapshot, reason, rejectedReason ? `no_legal_beat:${rejectedReason}` : 'no_legal_beat', undefined, rejectedTop?.id);
+    recordTrace(
+      director,
+      snapshot,
+      reason,
+      rejectedReason ? `no_legal_beat:${rejectedReason}` : 'no_legal_beat',
+      undefined,
+      rejectedTop?.id,
+      { rejectedReason, legalCount },
+    );
     return { fired: false, reasonCode: 'no_legal_beat' };
   }
 
   const effect = applyBeat(beat, world, entities, state, nextId, snapshot);
   if (!effect.ok) {
-    recordTrace(director, snapshot, reason, 'effect_failed', beat.id, rejectedTop?.id);
+    director.cooldowns[beat.id] = state.time + SAMOSBOR_DIRECTOR_EFFECT_FAIL_COOLDOWN;
+    recordTrace(director, snapshot, reason, 'effect_failed', beat.id, rejectedTop?.id, {
+      rejectedReason,
+      legalCount,
+    });
     return { fired: false, beatId: beat.id, reasonCode: 'effect_failed' };
   }
 
-  director.lastTickAt = state.time;
-  director.lastBeatId = beat.id;
-  director.runCounts[beat.id] = (director.runCounts[beat.id] ?? 0) + 1;
-  director.cooldowns[beat.id] = state.time + Math.max(0, beat.cooldown);
+  commitDirectorBeat(director, snapshot, beat);
   publishDirectorBeatEvent(state, beat, snapshot, effect.extra);
-  recordTrace(director, snapshot, reason, 'selected', beat.id, rejectedTop?.id);
+  recordTrace(director, snapshot, reason, 'selected', beat.id, rejectedTop?.id, {
+    rejectedReason,
+    legalCount,
+  });
   return { fired: true, beatId: beat.id, reasonCode: 'selected' };
 }
 
@@ -583,9 +682,7 @@ export function forceNextSamosborDirectorBeat(
       recordTrace(director, snapshot, 'debug_force', 'effect_failed', beat.id);
       continue;
     }
-    director.lastBeatId = beat.id;
-    director.runCounts[beat.id] = (director.runCounts[beat.id] ?? 0) + 1;
-    director.cooldowns[beat.id] = state.time + Math.max(0, beat.cooldown);
+    commitDirectorBeat(director, snapshot, beat);
     publishDirectorBeatEvent(state, beat, snapshot, effect.extra);
     recordTrace(director, snapshot, 'debug_force', 'forced', beat.id);
     return { fired: true, beatId: beat.id, reasonCode: 'forced' };
@@ -598,10 +695,19 @@ export function clearSamosborDirectorCooldowns(state: GameState): void {
   const director = ensureSamosborDirectorState(state);
   director.cooldowns = {};
   director.runCounts = {};
+  director.phaseCounts = {};
+  director.lastPhaseTickAt = {};
 }
 
 export function summarizeSamosborDirector(state: GameState): string[] {
   const director = ensureSamosborDirectorState(state);
+  const phases = (['warning', 'active', 'aftermath'] as const)
+    .map(phase => {
+      const used = director.phaseCounts[phase] ?? 0;
+      const gate = cadenceRemaining(director, phase, state.time);
+      return `${phase}:${used}/${phaseBudget(phase)}${gate > 0 ? ` wait=${Math.ceil(gate)}s` : ''}`;
+    })
+    .join(' ');
   const activeCooldowns = Object.entries(director.cooldowns)
     .filter(([, until]) => until > state.time)
     .sort((a, b) => a[1] - b[1])
@@ -609,10 +715,12 @@ export function summarizeSamosborDirector(state: GameState): string[] {
     .map(([id, until]) => `${id}:${Math.ceil(until - state.time)}s`);
   const lines = [
     `cycle=${director.cycle} last=${director.lastBeatId || 'none'} trace=${director.traceCount}/${TRACE_CAP}`,
+    `budget=${phases}`,
     `cooldowns=${activeCooldowns.length > 0 ? activeCooldowns.join(', ') : 'none'}`,
   ];
   for (const t of getSamosborDirectorTrace(state, 5)) {
-    lines.push(`${t.phase}/${t.reason}: ${t.chosenBeatId ?? '-'} ${t.reasonCode}`);
+    const rejected = t.rejectedTopBeatId ? ` reject=${t.rejectedTopBeatId}:${t.rejectedReason ?? '?'}` : '';
+    lines.push(`${t.phase}/${t.reason}: ${t.chosenBeatId ?? '-'} ${t.reasonCode} legal=${t.legalCount}${rejected}`);
   }
   return lines;
 }

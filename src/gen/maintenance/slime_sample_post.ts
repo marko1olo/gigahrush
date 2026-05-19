@@ -18,6 +18,8 @@ const SAMPLE_ITEM = 'slime_sample_brown';
 const GREEN_SAMPLE_ITEM = 'slime_sample_green';
 const SILVER_SAMPLE_ITEM = 'slime_sample_silver';
 const EMPTY_CONTAINER_ITEM = 'nii_sample_container';
+const CLEANUP_ACT_ITEM = 'brown_slime_cleanup_act';
+const BROWN_CLEANUP_LEAD_QUEST = 'ag84_nii_brown_cleanup_lead';
 const SCIENCE_QUEST = 'ag62_nii_science_return';
 const LIQUIDATOR_QUEST = 'ag62_nii_liquidator_burn';
 const MARKET_QUEST = 'ag62_nii_market_sale';
@@ -96,16 +98,47 @@ const SENYA_DEF: PlotNpcDef = {
   ],
 };
 
-registerSideQuest(BOKOVA_ID, BOKOVA_DEF, [{
-  id: SCIENCE_QUEST,
-  giverNpcId: BOKOVA_ID,
-  type: QuestType.FETCH,
-  desc: 'Бокова: «Принеси коричневую пробу в пломбе. НИИ запишет её как факт, а тебя как ответственного за факт.»',
-  targetItem: SAMPLE_ITEM, targetCount: 1,
-  rewardItem: EMPTY_CONTAINER_ITEM, rewardCount: 1,
-  extraRewards: [{ defId: 'filtered_water', count: 1 }],
-  relationDelta: 12, xpReward: 70, moneyReward: 90,
-}]);
+registerSideQuest(BOKOVA_ID, BOKOVA_DEF, [
+  {
+    id: BROWN_CLEANUP_LEAD_QUEST,
+    giverNpcId: BOKOVA_ID,
+    type: QuestType.FETCH,
+    desc: 'Бокова: «Начни с сухого обхода: принеси акт зачистки коричневой слизи. Там же возьми пломбированную пробу, если решишь спорить с наукой, печью или рынком.»',
+    targetItem: CLEANUP_ACT_ITEM, targetCount: 1,
+    targetFloor: FloorLevel.MAINTENANCE,
+    targetRoomType: RoomType.PRODUCTION,
+    targetZoneTag: 'brown_slime_cleanup',
+    targetHint: 'Коллекторы: сухой обход с коричневым налётом. Акт лежит рядом с комплектом зачистки; проба нужна для сдачи, прожига или тихой продажи.',
+    rewardItem: EMPTY_CONTAINER_ITEM, rewardCount: 1,
+    extraRewards: [{ defId: 'filter_layer', count: 1 }, { defId: 'seal_wax', count: 1 }],
+    relationDelta: 8, xpReward: 55, moneyReward: 45,
+    eventTargetName: 'Акт зачистки слизи принят на посту НИИ',
+    eventSeverity: 4,
+    eventPrivacy: 'local',
+    eventTags: ['slime_chain', 'nii', 'cleanup', 'brown_slime', 'sample_lead', 'seal'],
+    eventData: {
+      route: 'post_cleanup_sample_branch',
+      nextItems: [SAMPLE_ITEM, EMPTY_CONTAINER_ITEM],
+      branch: ['science', 'liquidator_burn', 'black_market'],
+    },
+  },
+  {
+    id: SCIENCE_QUEST,
+    giverNpcId: BOKOVA_ID,
+    type: QuestType.FETCH,
+    desc: 'Бокова: «Теперь принеси коричневую пробу в пломбе. НИИ запишет её как факт, а тебя как ответственного за факт.»',
+    targetItem: SAMPLE_ITEM, targetCount: 1,
+    targetFloor: FloorLevel.MAINTENANCE,
+    targetRoomType: RoomType.MEDICAL,
+    targetZoneTag: 'nii_sample_post',
+    targetHint: 'Коллекторы: коричневая проба из сухого обхода или выданной тары. Не вскрывать пломбу до поста НИИ.',
+    rewardItem: EMPTY_CONTAINER_ITEM, rewardCount: 1,
+    extraRewards: [{ defId: 'filtered_water', count: 1 }],
+    relationDelta: 12, xpReward: 70, moneyReward: 90,
+    requiresSideQuestDone: BROWN_CLEANUP_LEAD_QUEST,
+    eventTags: ['slime_chain', 'nii', 'science', 'sample_return', 'sealed', 'brown_slime'],
+  },
+]);
 
 registerSideQuest(LIQUIDATOR_ID, SEREDA_DEF, [{
   id: LIQUIDATOR_QUEST,
@@ -113,9 +146,15 @@ registerSideQuest(LIQUIDATOR_ID, SEREDA_DEF, [{
   type: QuestType.FETCH,
   desc: 'Середа: «Ту же коричневую пробу отдашь мне. Запишем как опасный остаток и сожжём без научной гордости.»',
   targetItem: SAMPLE_ITEM, targetCount: 1,
+  targetFloor: FloorLevel.MAINTENANCE,
+  targetRoomType: RoomType.MEDICAL,
+  targetZoneTag: 'nii_sample_post',
+  targetHint: 'Коллекторы: после акта зачистки забери коричневую пробу и отдай ликвидатору на посту НИИ или неси дальше к печи.',
   rewardItem: 'ammo_fuel', rewardCount: 2,
   extraRewards: [{ defId: 'gasmask_filter', count: 1 }],
+  requiresSideQuestDone: BROWN_CLEANUP_LEAD_QUEST,
   relationDelta: 10, xpReward: 65, moneyReward: 70,
+  eventTags: ['slime_chain', 'liquidator', 'burn', 'sample_return', 'brown_slime'],
 }]);
 
 registerSideQuest(MARKET_ID, SENYA_DEF, [{
@@ -124,9 +163,15 @@ registerSideQuest(MARKET_ID, SENYA_DEF, [{
   type: QuestType.FETCH,
   desc: 'Сеня: «Пробу мне, пломбу целой. В журнале будет недостача, у тебя — деньги и лишний повод не задерживаться.»',
   targetItem: SAMPLE_ITEM, targetCount: 1,
+  targetFloor: FloorLevel.MAINTENANCE,
+  targetRoomType: RoomType.MEDICAL,
+  targetZoneTag: 'nii_sample_post',
+  targetHint: 'Коллекторы: коричневая проба после сухого обхода. Для рынка важна целая пломба и отсутствие лишних свидетелей.',
   rewardItem: 'forged_permit_slip', rewardCount: 1,
   extraRewards: [{ defId: 'cigs', count: 4 }],
+  requiresSideQuestDone: BROWN_CLEANUP_LEAD_QUEST,
   relationDelta: 6, xpReward: 60, moneyReward: 140,
+  eventTags: ['slime_chain', 'black_market', 'sell', 'sample_return', 'brown_slime', 'contraband'],
 }]);
 
 const RETURN_ENDPOINTS: Record<string, { endpoint: string; label: string; faction: Faction }> = {

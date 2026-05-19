@@ -28,10 +28,18 @@ export function createEconomyFloorState(floor: FloorLevel): EconomyFloorState {
   return { floor, resources, lastTickAt: 0 };
 }
 
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
+function finiteOr(value: number | undefined, fallback: number): number {
+  return value !== undefined && Number.isFinite(value) ? value : fallback;
+}
+
 export function normalizeEconomyState(value: unknown): EconomyState {
   const src = (value && typeof value === 'object') ? value as Partial<EconomyState> : {};
   const out = createEconomyState();
-  out.priceVersion = src.priceVersion ?? 1;
+  out.priceVersion = Math.max(1, Math.floor(finiteOr(src.priceVersion, 1)));
   if (src.floors) {
     for (const k of Object.keys(src.floors)) {
       const floor = Number(k) as FloorLevel;
@@ -40,11 +48,14 @@ export function normalizeEconomyState(value: unknown): EconomyState {
       if (existing?.resources) {
         for (const r of RESOURCES) {
           const v = existing.resources[r.id];
-          if (v) normalized.resources[r.id] = {
-            stock: Number.isFinite(v.stock) ? v.stock : r.baseStock,
-            target: Number.isFinite(v.target) ? v.target : r.baseStock,
-            lastDelta: Number.isFinite(v.lastDelta) ? v.lastDelta : 0,
-          };
+          if (v) {
+            const target = clamp(finiteOr(v.target, r.baseStock), 1, r.baseStock * 4);
+            normalized.resources[r.id] = {
+              stock: clamp(finiteOr(v.stock, r.baseStock), 0, target * 2),
+              target,
+              lastDelta: clamp(finiteOr(v.lastDelta, 0), -target, target),
+            };
+          }
         }
       }
       normalized.lastTickAt = existing?.lastTickAt ?? 0;

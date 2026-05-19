@@ -4,10 +4,8 @@ import * as assert from 'node:assert/strict';
 import {
   Cell,
   EntityType,
-  Faction,
   FloorLevel,
   LiftDirection,
-  type Entity,
 } from '../src/core/types';
 import {
   DESIGN_FLOOR_ROUTES,
@@ -30,26 +28,7 @@ import {
   BANK_FLOOR_Z,
   BANK_ROOM_NAMES,
 } from '../src/gen/design_floors/bank_floor';
-import { makeGameState } from './helpers';
-
-function testPlayer(x: number, y: number): Entity {
-  return {
-    id: 9999,
-    type: EntityType.PLAYER,
-    x,
-    y,
-    angle: 0,
-    pitch: 0,
-    alive: true,
-    speed: 3,
-    sprite: 0,
-    hp: 100,
-    maxHp: 100,
-    faction: Faction.PLAYER,
-    money: 180,
-    inventory: [{ defId: 'voluntary_receipt', count: 1 }],
-  };
-}
+import { makeGameState, makeTestPlayer } from './helpers';
 
 test('bank_floor is registered as an authored route in a Ministry procedural gap', () => {
   validateDesignFloorGenerators();
@@ -120,7 +99,16 @@ test('bank_floor generator creates named banking rooms, NPCs, containers and pas
 test('bank_floor exposes legal deposit and risky vault interactions through existing systems', () => {
   const gen = generateDesignFloor(BANK_FLOOR_ROUTE_ID);
   const state = makeGameState({ currentFloor: BANK_FLOOR_BASE_FLOOR, time: 12 });
-  const player = testPlayer(gen.spawnX, gen.spawnY);
+  const player = makeTestPlayer({
+    id: 9999,
+    x: gen.spawnX,
+    y: gen.spawnY,
+    speed: 3,
+    hp: 100,
+    maxHp: 100,
+    money: 180,
+    inventory: [{ defId: 'voluntary_receipt', count: 1 }],
+  });
   const deposit = gen.world.containers.find(c => c.tags.includes('banking') && c.tags.includes('account'));
   const vault = gen.world.containers.find(c => c.tags.includes('banking') && c.tags.includes('vault'));
 

@@ -24,16 +24,16 @@ const GESHA: PlotNpcDef = {
   occupation: Occupation.TURNER,
   sprite: Occupation.TURNER,
   hp: 105, maxHp: 105, money: 36, speed: 1.0,
-  inventory: [{ defId: 'ammo_9mm', count: 10 }, { defId: 'ammo_nails', count: 12 }, { defId: 'homemade_pistol', count: 1 }],
+  inventory: [{ defId: 'ammo_9mm', count: 6 }, { defId: 'ammo_nails', count: 6 }, { defId: 'homemade_pistol', count: 1 }],
   talkLines: [
     'Патроны не рождаются. Мы плавим гильзы, гвозди и чужое молчание.',
     'Купить можно тихо. Помочь можно металлом. Сдать можно ликвидатору за дверью.',
     'Горячий ящик не трогай. Там не запас, а причина драки.',
-    'Два листа металла принесёшь — отсыплю девятки, пока обход не вернулся.',
+    'Лист металла в горячий ящик принесёшь — отсыплю девятки, пока обход не вернулся.',
     'Если сирена начнёт петь, беги. Плавилка не убежище.',
   ],
   talkLinesPost: [
-    'Металл пошёл в дело. Теперь у нас есть шесть честных выстрелов и одна нечестная очередь.',
+    'Металл пошёл в дело. Теперь у нас есть шесть честных выстрелов и новая причина молчать.',
     'Патроны бери с умом. ППШ съест их быстрее, чем ты успеешь пожалеть.',
   ],
 };
@@ -63,11 +63,11 @@ registerSideQuest('kv_gesha_gilza', GESHA, [{
   id: 'kv_smelter_metal_help',
   giverNpcId: 'kv_gesha_gilza',
   type: QuestType.FETCH,
-  desc: 'Геша Гильза: «Два листа металла в плавилку. Патроны будут, но тихо.»',
-  targetItem: 'metal_sheet', targetCount: 2,
-  rewardItem: 'ammo_9mm', rewardCount: 10,
-  extraRewards: [{ defId: 'ammo_nails', count: 10 }, { defId: 'cigs', count: 2 }],
-  relationDelta: 9, xpReward: 45, moneyReward: 20,
+  desc: 'Геша Гильза: «Лист металла в горячий ящик. Патроны будут, но тихо.»',
+  targetItem: 'metal_sheet', targetCount: 1,
+  rewardItem: 'ammo_9mm', rewardCount: 6,
+  extraRewards: [{ defId: 'ammo_nails', count: 4 }, { defId: 'cigs', count: 1 }],
+  relationDelta: 8, xpReward: 45, moneyReward: 15,
 }]);
 
 registerSideQuest('kv_polina_obhodnaya', POLINA, [{
@@ -128,24 +128,23 @@ function addSmelterContainer(
 function seedSmelterContainers(world: World, poi: SocialPoiRoom, geshaId: number): void {
   addSmelterContainer(
     world, poi, poi.w - 3, 2, ContainerKind.WEAPON_CRATE, 'Горячий ящик гильзоплавки',
-    'owner', 6,
+    'owner', 5,
     [
-      { defId: 'ammo_9mm', count: 12 },
-      { defId: 'ammo_nails', count: 16 },
-      { defId: 'ammo_shells', count: 2 },
+      { defId: 'ammo_9mm', count: 4 },
+      { defId: 'metal_sheet', count: 1 },
     ],
-    ['ammo', 'weapon', 'production_output', 'illegal', 'theft', 'faction_risk'],
+    ['ammo', 'weapon', 'production_output', 'illegal', 'theft', 'faction_risk', 'contested_output', 'repair_input'],
     { id: geshaId, name: GESHA.name, faction: Faction.WILD, factoryId: 'illegal_ammo_smelter' },
   );
   addSmelterContainer(
     world, poi, 2, poi.h - 3, ContainerKind.METAL_CABINET, 'Бочка патронного лома',
     'faction', 8,
     [
-      { defId: 'metal_sheet', count: 2 },
+      { defId: 'metal_sheet', count: 1 },
       { defId: 'pipe', count: 1 },
-      { defId: 'spring', count: 2 },
+      { defId: 'spring', count: 1 },
     ],
-    ['metal', 'tools', 'recycling', 'theft'],
+    ['metal', 'tools', 'recycling', 'theft', 'repair_input'],
     { faction: Faction.WILD },
   );
   addSmelterContainer(
@@ -187,7 +186,7 @@ export function generateAmmoSmelter(
 
   seedSmelterContainers(world, poi, geshaId);
 
-  for (const defId of ['metal_sheet', 'spring', 'glass_shard', 'note', 'cigs']) {
+  for (const defId of ['spring', 'glass_shard', 'note', 'cigs']) {
     placeDropNear(world, entities, nextId, poi, defId, 1);
   }
 

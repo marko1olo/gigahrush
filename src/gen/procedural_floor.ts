@@ -5,6 +5,7 @@ import {
   Cell,
   ContainerKind,
   Feature,
+  FloorLevel,
   LiftDirection,
   EntityType,
   AIGoal,
@@ -23,9 +24,11 @@ import { World } from '../core/world';
 import { withSeededRandom } from '../core/rand';
 import { ITEMS, NOTES, freshNeeds, randomName } from '../data/catalog';
 import { spawnCount } from '../data/items';
+import { chooseFloorMonsterKind, getMonsterEcology } from '../data/monster_ecology';
 import {
   FALSE_SAFE_BLOCK_ROOM_PREFIX,
   FALSE_SAFE_BLOCK_TAG,
+  FLOOR_RUN_VOID_Z,
   floorRunZAllowsNpcs,
   geometryById,
   majorityById,
@@ -35,6 +38,7 @@ import { MONSTERS, applyMonsterVariant } from '../entities/monster';
 import { monsterSpr, Spr } from '../render/sprite_index';
 import { gaussianLevel, getMaxHp, randomRPG } from '../systems/rpg';
 import { addRailTrainRoute } from '../systems/rail_trains';
+import { registerRouteCue } from '../systems/route_cues';
 import { relightBadAppleWorld } from '../systems/procedural_anomalies/bad_apple_world';
 import {
   canPlaceRoom,
@@ -62,6 +66,10 @@ function chance(p: number): boolean {
 
 function pick<T>(items: readonly T[]): T {
   return items[Math.floor(Math.random() * items.length)];
+}
+
+function isIndustrialGeometry(id: ProceduralFloorSpec['geometryId']): boolean {
+  return id === 'collectors' || id === 'workshops' || id === 'service_spines';
 }
 
 function roomSize(type: RoomType, industrial: boolean): { w: number; h: number } {
@@ -95,7 +103,7 @@ function applyRoomTexture(world: World, room: Room, wallTex: Tex, floorTex: Tex)
 }
 
 function decorateProceduralRoom(world: World, room: Room, spec: ProceduralFloorSpec): void {
-  const industrial = spec.geometryId === 'collectors' || spec.geometryId === 'workshops';
+  const industrial = isIndustrialGeometry(spec.geometryId);
   for (let dy = 1; dy < room.h - 1; dy++) {
     for (let dx = 1; dx < room.w - 1; dx++) {
       if (Math.random() > 0.025) continue;
@@ -149,9 +157,11 @@ function proceduralRoomName(spec: ProceduralFloorSpec, room: Room): string {
     ? 'Цех'
     : spec.geometryId === 'collectors'
       ? 'Канал'
-      : spec.geometryId === 'admin_pockets'
-        ? 'Кабинет'
-        : 'Комната';
+      : spec.geometryId === 'service_spines'
+        ? 'Штрек'
+        : spec.geometryId === 'admin_pockets'
+          ? 'Кабинет'
+          : 'Комната';
   if (room.type === RoomType.PRODUCTION) return `${prefix} ${room.id}`;
   if (room.type === RoomType.CORRIDOR) return `Ход ${room.id}`;
   if (room.type === RoomType.STORAGE) return `Кладовая ${room.id}`;
@@ -313,13 +323,81 @@ function randomFloorCell(world: World, sx: number, sy: number, minDist2: number)
   return null;
 }
 
-function spawnMonster(world: World, entities: Entity[], nextId: { v: number }, spec: ProceduralFloorSpec, sx: number, sy: number): void {
+const PROCEDURAL_MONSTER_CAP = 62;
+
+function proceduralMonsterFloor(spec: ProceduralFloorSpec): FloorLevel {
+  if (spec.z >= FLOOR_RUN_VOID_Z) return FloorLevel.VOID;
+  if (spec.z >= 25) return FloorLevel.HELL;
+  if (spec.z >= 13) return FloorLevel.MAINTENANCE;
+  if (spec.z <= -17) return FloorLevel.MINISTRY;
+  if (spec.z <= -5) return FloorLevel.KVARTIRY;
+  return spec.baseFloor;
+}
+
+function anomalyRoutePressure(spec: ProceduralFloorSpec): number {
+  if (spec.anomalyId === 'samosbor_seed' || spec.anomalyId === 'wall_snake' || spec.anomalyId === 'section_shift' || spec.anomalyId === 'zombie_apocalypse') return 2;
+  if (
+    spec.anomalyId === 'smog' ||
+    spec.anomalyId === 'hladon' ||
+    spec.anomalyId === 'cement_memory' ||
+    spec.anomalyId === 'conway_life' ||
+    spec.anomalyId === 'rail_trains'
+  ) return 1;
+  return 0;
+}
+
+function routePressureLevel(spec: ProceduralFloorSpec): number {
+  let pressure = anomalyRoutePressure(spec);
+  if (spec.danger >= 4) pressure++;
+  if (spec.z >= 25 || spec.z <= -24) pressure++;
+  if (spec.majorityId === 'cultists' || spec.majorityId === 'wild') pressure++;
+  return Math.min(4, pressure);
+}
+
+function proceduralMonsterCount(spec: ProceduralFloorSpec): number {
+  const floor = proceduralMonsterFloor(spec);
+  let count = 8 + spec.danger * 7;
+  if (floor === FloorLevel.HELL || floor === FloorLevel.VOID) count += 5;
+  if (spec.geometryId === 'collectors' || spec.geometryId === 'workshops') count += 3;
+  count += anomalyRoutePressure(spec) * 3;
+  return Math.min(PROCEDURAL_MONSTER_CAP, count);
+}
+
+function rareMonsterLimit(spec: ProceduralFloorSpec): number {
+  if (spec.danger >= 5) return 2;
+  if (spec.danger >= 3) return 1;
+  return 0;
+}
+
+function rareMonsterChance(spec: ProceduralFloorSpec): number {
+  return Math.min(0.08, 0.012 + spec.danger * 0.008 + routePressureLevel(spec) * 0.005);
+}
+
+function roomTypeAt(world: World, x: number, y: number): RoomType | undefined {
+  const rid = world.roomMap[world.idx(x, y)];
+  if (rid >= 0) return world.rooms[rid]?.type;
+  return RoomType.CORRIDOR;
+}
+
+function spawnMonster(
+  world: World,
+  entities: Entity[],
+  nextId: { v: number },
+  spec: ProceduralFloorSpec,
+  sx: number,
+  sy: number,
+  allowRare: boolean,
+): MonsterKind | null {
   const pos = randomFloorCell(world, sx, sy, 90 * 90);
-  if (!pos) return;
-  const basePool: readonly MonsterKind[] = spec.monsterBiasKinds.length > 0
-    ? spec.monsterBiasKinds
-    : [MonsterKind.SBORKA, MonsterKind.TVAR, MonsterKind.POLZUN, MonsterKind.ZOMBIE, MonsterKind.SHADOW];
-  const kind = pick(basePool);
+  if (!pos) return null;
+  const kind = chooseFloorMonsterKind({
+    floor: proceduralMonsterFloor(spec),
+    roomType: roomTypeAt(world, pos.x, pos.y),
+    samosborCount: spec.danger,
+    allowRare,
+    biasKinds: spec.monsterBiasKinds,
+    routePressure: routePressureLevel(spec),
+  });
   const def = MONSTERS[kind];
   const zoneLevel = world.zones[world.zoneMap[world.idx(pos.x, pos.y)]]?.level ?? spec.danger;
   const hp = Math.round(def.hp * (0.75 + zoneLevel * 0.18));
@@ -341,14 +419,20 @@ function spawnMonster(world: World, entities: Entity[], nextId: { v: number }, s
     rpg: randomRPG(Math.max(1, zoneLevel)),
     phasing: kind === MonsterKind.SPIRIT,
   };
-  applyMonsterVariant(monster, spec.baseFloor, spec.danger >= 4);
+  applyMonsterVariant(monster, proceduralMonsterFloor(spec), spec.danger >= 4);
   entities.push(monster);
+  return kind;
 }
 
 function spawnMonsters(world: World, entities: Entity[], nextId: { v: number }, spec: ProceduralFloorSpec, sx: number, sy: number): void {
-  const anomalyExtra = spec.anomalyId === 'samosbor_seed' ? 24 : spec.anomalyId === 'smog' ? 12 : 0;
-  const count = 18 + spec.danger * 18 + anomalyExtra;
-  for (let i = 0; i < count; i++) spawnMonster(world, entities, nextId, spec, sx, sy);
+  const count = proceduralMonsterCount(spec);
+  const rareLimit = rareMonsterLimit(spec);
+  let rareSpawned = 0;
+  for (let i = 0; i < count; i++) {
+    const allowRare = rareSpawned < rareLimit && chance(rareMonsterChance(spec));
+    const kind = spawnMonster(world, entities, nextId, spec, sx, sy, allowRare);
+    if (kind !== null && getMonsterEcology(kind)?.rare) rareSpawned++;
+  }
 }
 
 function roomCenter(room: Room): { x: number; y: number } {
@@ -529,6 +613,125 @@ function applyWaterAndMachines(world: World, spec: ProceduralFloorSpec): void {
   }
 }
 
+function serviceSpineFeature(step: number, line: number): Feature {
+  const mode = (step + line * 3) % 4;
+  if (mode === 0) return Feature.LAMP;
+  if (mode === 1) return Feature.SCREEN;
+  if (mode === 2) return Feature.APPARATUS;
+  return Feature.MACHINE;
+}
+
+function carveServiceSpineCell(world: World, x: number, y: number): boolean {
+  const ci = world.idx(x, y);
+  if (world.cells[ci] === Cell.LIFT || world.hermoWall[ci] || world.aptMask[ci]) return false;
+  world.cells[ci] = Cell.FLOOR;
+  world.floorTex[ci] = Tex.F_CONCRETE;
+  world.wallTex[ci] = Tex.METAL;
+  world.features[ci] = Feature.NONE;
+  world.roomMap[ci] = -1;
+  return true;
+}
+
+function decorateServiceSpineEdge(world: World, x: number, y: number, feature: Feature, spec: ProceduralFloorSpec, step: number): void {
+  const ci = world.idx(x, y);
+  if (world.cells[ci] !== Cell.FLOOR || world.features[ci] !== Feature.NONE) return;
+  world.features[ci] = feature;
+  if (feature === Feature.APPARATUS || feature === Feature.MACHINE) {
+    world.stamp(x, y, 0.5, 0.5, 0.34, 0.52, spec.seed + step * 29, 72, 88, 86, false);
+  }
+}
+
+function carveServiceSpineSegment(
+  world: World,
+  spec: ProceduralFloorSpec,
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+  horizontal: boolean,
+  line: number,
+  stepBase: number,
+): number {
+  const delta = horizontal ? world.delta(ax, bx) : world.delta(ay, by);
+  const stepDir = delta >= 0 ? 1 : -1;
+  const steps = Math.abs(delta);
+  let x = world.wrap(ax);
+  let y = world.wrap(ay);
+
+  for (let s = 0; s <= steps; s++) {
+    for (let side = -1; side <= 1; side++) {
+      const cx = horizontal ? x : x + side;
+      const cy = horizontal ? y + side : y;
+      carveServiceSpineCell(world, cx, cy);
+    }
+
+    const absoluteStep = stepBase + s;
+    if (absoluteStep % 19 === 0) {
+      const side = ((absoluteStep / 19 + line) & 1) === 0 ? -2 : 2;
+      const fx = horizontal ? x : x + side;
+      const fy = horizontal ? y + side : y;
+      decorateServiceSpineEdge(world, fx, fy, serviceSpineFeature(absoluteStep, line), spec, absoluteStep);
+    }
+    if (absoluteStep % 37 === 0) {
+      world.stamp(x, y, 0.5, 0.5, 0.28, 0.36, spec.seed ^ (absoluteStep * 131 + line * 17), 58, 68, 65, false);
+    }
+
+    if (s < steps) {
+      if (horizontal) x = world.wrap(x + stepDir);
+      else y = world.wrap(y + stepDir);
+    }
+  }
+
+  return stepBase + steps + 1;
+}
+
+function chooseServiceSpineTargets(world: World, rooms: Room[], sx: number, sy: number, spec: ProceduralFloorSpec): Room[] {
+  const candidates = rooms
+    .filter(room => room.id !== 0 && room.type !== RoomType.BATHROOM && room.w >= 5 && room.h >= 5)
+    .map(room => ({ room, d2: world.dist2(sx, sy, roomCenter(room).x, roomCenter(room).y) }))
+    .filter(item => item.d2 > 42 * 42)
+    .sort((a, b) => b.d2 - a.d2);
+  const window = candidates.slice(0, Math.min(candidates.length, 18));
+  const targetCount = Math.min(window.length, 2 + Math.floor(spec.danger / 2));
+  const picked: Room[] = [];
+
+  for (let attempt = 0; attempt < targetCount * 10 && picked.length < targetCount; attempt++) {
+    const candidate = pick(window).room;
+    if (picked.includes(candidate)) continue;
+    const c = roomCenter(candidate);
+    const tooClose = picked.some(room => world.dist2(c.x, c.y, roomCenter(room).x, roomCenter(room).y) < 80 * 80);
+    if (tooClose && attempt < targetCount * 6) continue;
+    picked.push(candidate);
+  }
+
+  for (const item of window) {
+    if (picked.length >= targetCount) break;
+    if (!picked.includes(item.room)) picked.push(item.room);
+  }
+  return picked;
+}
+
+function applyServiceSpines(world: World, rooms: Room[], spec: ProceduralFloorSpec, spawnX: number, spawnY: number): void {
+  if (spec.geometryId !== 'service_spines') return;
+  const sx = Math.floor(spawnX);
+  const sy = Math.floor(spawnY);
+  const targets = chooseServiceSpineTargets(world, rooms, sx, sy, spec);
+
+  for (let i = 0; i < targets.length; i++) {
+    const end = roomCenter(targets[i]);
+    const horizontalFirst = ((spec.seed + i) & 1) === 0;
+    let step = i * 997;
+    if (horizontalFirst) {
+      step = carveServiceSpineSegment(world, spec, sx, sy, end.x, sy, true, i, step);
+      carveServiceSpineSegment(world, spec, end.x, sy, end.x, end.y, false, i, step);
+    } else {
+      step = carveServiceSpineSegment(world, spec, sx, sy, sx, end.y, false, i, step);
+      carveServiceSpineSegment(world, spec, sx, end.y, end.x, end.y, true, i, step);
+    }
+    targets[i].name = `${targets[i].name} у сервисного штрека`;
+  }
+}
+
 function applySmog(
   world: World,
   rooms: Room[],
@@ -557,7 +760,7 @@ function applySmog(
     if (allowNpcs) {
       for (let i = 0; i < Math.min(5, 2 + spec.danger); i++) spawnSmogLooter(world, pick(pressureRooms), entities, nextId, spec);
     }
-    for (let i = 0; i < 3 + spec.danger * 2; i++) spawnSmogMonster(world, pick(pressureRooms), entities, nextId, spec);
+    for (let i = 0; i < 2 + spec.danger; i++) spawnSmogMonster(world, pick(pressureRooms), entities, nextId, spec);
     world.anomalySmogCells = [...set];
     world.markFogDirty();
     return;
@@ -714,7 +917,7 @@ function seedHladonCounterplay(world: World, rooms: Room[], coldRooms: Room[], e
   kitRoom.name = `${kitRoom.name} теплый запас`;
   const warmSpot = roomCell(world, kitRoom, Math.floor(kitRoom.w / 2), Math.floor(kitRoom.h / 2));
   if (warmSpot) {
-    world.features[world.idx(warmSpot.x, warmSpot.y)] = spec.geometryId === 'collectors' || spec.geometryId === 'workshops'
+    world.features[world.idx(warmSpot.x, warmSpot.y)] = isIndustrialGeometry(spec.geometryId)
       ? Feature.MACHINE
       : Feature.STOVE;
     world.stamp(warmSpot.x, warmSpot.y, 0.5, 0.5, 0.6, 0.38, spec.seed + 7301, 225, 120, 45, false);
@@ -889,7 +1092,7 @@ function applyRailTrains(
   if (spec.anomalyId !== 'rail_trains') return;
   const anchors = chooseRailAnchorRooms(world, rooms, sx, sy);
   if (anchors.length === 0) return;
-  const lineCount = spec.geometryId === 'collectors' || spec.geometryId === 'workshops'
+  const lineCount = isIndustrialGeometry(spec.geometryId)
     ? Math.min(3, 1 + Math.floor(spec.danger / 2))
     : 1;
   for (let i = 0; i < lineCount; i++) {
@@ -924,6 +1127,186 @@ function placeRoomFeature(world: World, room: Room, feature: Feature, dx: number
   if (!pos) return null;
   world.features[world.idx(pos.x, pos.y)] = feature;
   return pos;
+}
+
+function pressureCueProfile(floor: FloorLevel, spec: ProceduralFloorSpec): {
+  label: string;
+  hint: string;
+  targetName: string;
+  color: string;
+  heardText: string;
+  followedText: string;
+  ignoredText: string;
+} {
+  if (spec.anomalyId === 'hladon') {
+    return {
+      label: 'холодный стык',
+      hint: 'иней шуршит в сторону хищного кармана',
+      targetName: 'холодный карман с тварями',
+      color: '#9df',
+      heardText: 'Вентиляция хрустит инеем. HUD ловит холодный ход, где лучше держать дистанцию.',
+      followedText: 'Холодный след вывел к карману. Твари здесь слышны раньше, чем видны.',
+      ignoredText: 'Иней остался за спиной. Холодный карман пока ждет без свидетелей.',
+    };
+  }
+  if (spec.anomalyId === 'samosbor_seed') {
+    return {
+      label: 'сиренный налет',
+      hint: 'сирена ведет к свежей мясной давке',
+      targetName: 'самосборный карман',
+      color: '#f79',
+      heardText: 'В стене щелкает старая сирена. Маршрут к давке лучше считать заранее.',
+      followedText: 'Сиренный след вывел к мясной давке. Здесь решает отход, а не лишний выстрел.',
+      ignoredText: 'Сиренный след затих позади. Давка осталась на чужом маршруте.',
+    };
+  }
+  if (spec.anomalyId === 'zombie_apocalypse') {
+    return {
+      label: 'очаг ноль',
+      hint: 'толпа шумит вокруг первого мертвяка',
+      targetName: 'очаг заражения',
+      color: '#9f6',
+      heardText: 'За стеной толпа говорит слишком ровно. Один голос уже не дышит.',
+      followedText: 'Шум вывел к очагу. Здесь решение простое: изолировать, стрелять или уходить.',
+      ignoredText: 'Толпа осталась за стеной. Очаг ноль получил еще минуту.',
+    };
+  }
+  if (floor === FloorLevel.MINISTRY) {
+    return {
+      label: 'шорох папок',
+      hint: 'бумаги ведут к живой канцелярии',
+      targetName: 'опасная канцелярия',
+      color: '#bdc7ff',
+      heardText: 'За стеной шуршат папки. По звуку ясно: впереди не очередь, а охота на документы.',
+      followedText: 'Шорох папок вывел к живой канцелярии. Укрытия здесь важнее прямой линии.',
+      ignoredText: 'Папки шуршат дальше без вас. Бумажная угроза осталась в стороне.',
+    };
+  }
+  if (floor === FloorLevel.MAINTENANCE) {
+    return {
+      label: 'трубный стук',
+      hint: 'трубы считают мокрый обход',
+      targetName: 'давящий трубный проход',
+      color: '#8cf',
+      heardText: 'Трубы простукивают обход. Впереди слышны вода, металл и короткая засада.',
+      followedText: 'Трубный стук вывел к давящему проходу. Сухой угол здесь дороже патрона.',
+      ignoredText: 'Трубный стук ушел в бетон. Засада осталась шуметь в стороне.',
+    };
+  }
+  if (floor === FloorLevel.HELL) {
+    return {
+      label: 'мясной зов',
+      hint: 'стены дышат в сторону плотного боя',
+      targetName: 'мясной проход',
+      color: '#f87',
+      heardText: 'Стена дышит теплым ритмом. Впереди плотный бой, но не обязательный.',
+      followedText: 'Мясной зов вывел к проходу. Отступление здесь нужно держать открытым.',
+      ignoredText: 'Мясной зов стих за спиной. Проход остался кормить тишину.',
+    };
+  }
+  if (floor === FloorLevel.VOID) {
+    return {
+      label: 'пустой тон',
+      hint: 'тишина показывает опасную прямую',
+      targetName: 'пустотная линия',
+      color: '#8fdbbd',
+      heardText: 'Тишина взяла ноту. HUD отмечает прямую, где лучше не стоять открыто.',
+      followedText: 'Пустой тон вывел к линии огня. Стена нужна ближе, чем цель.',
+      ignoredText: 'Пустой тон пропал. Опасная прямая осталась вне маршрута.',
+    };
+  }
+  return {
+    label: 'дворовый шорох',
+    hint: 'стены ведут к шумной комнате',
+    targetName: 'шумная комната',
+    color: '#fc9',
+    heardText: 'В стенах идет соседский шорох. Это не толпа, а место, где лучше выбрать угол.',
+    followedText: 'Шорох вывел к шумной комнате. Решайте: обойти, зачистить или быстро забрать лут.',
+    ignoredText: 'Соседский шорох остался позади. Комната подождет другой вылазки.',
+  };
+}
+
+function choosePressureTargetRoom(world: World, rooms: Room[], spec: ProceduralFloorSpec, sx: number, sy: number): Room | null {
+  const preferredTypes = spec.geometryId === 'collectors' || spec.geometryId === 'workshops'
+    ? [RoomType.PRODUCTION, RoomType.STORAGE, RoomType.CORRIDOR, RoomType.COMMON]
+    : spec.geometryId === 'admin_pockets'
+      ? [RoomType.OFFICE, RoomType.STORAGE, RoomType.CORRIDOR, RoomType.COMMON]
+      : [RoomType.COMMON, RoomType.STORAGE, RoomType.CORRIDOR, RoomType.LIVING];
+  let best: Room | null = null;
+  let bestScore = -Infinity;
+  for (const room of rooms) {
+    if (room.id === 0 || room.w < 4 || room.h < 4) continue;
+    const c = roomCenter(room);
+    const d2 = world.dist2(sx, sy, c.x, c.y);
+    if (d2 < 42 * 42) continue;
+    let score = Math.min(150 * 150, d2) / 900;
+    const pref = preferredTypes.indexOf(room.type);
+    if (pref >= 0) score += 80 - pref * 12;
+    if (room.type === RoomType.CORRIDOR) score += routePressureLevel(spec) * 8;
+    if (room.type === RoomType.PRODUCTION && proceduralMonsterFloor(spec) === FloorLevel.MAINTENANCE) score += 20;
+    if (score > bestScore) {
+      bestScore = score;
+      best = room;
+    }
+  }
+  return best;
+}
+
+function choosePressureMarkerRoom(world: World, rooms: Room[], target: Room, sx: number, sy: number): Room | null {
+  let best: Room | null = null;
+  let bestD2 = Infinity;
+  const tc = roomCenter(target);
+  for (const room of rooms) {
+    if (room.id === target.id || room.w < 4 || room.h < 4) continue;
+    const c = roomCenter(room);
+    if (world.dist2(c.x, c.y, tc.x, tc.y) < 20 * 20) continue;
+    const d2 = world.dist2(sx, sy, c.x, c.y);
+    if (d2 < bestD2) {
+      bestD2 = d2;
+      best = room;
+    }
+  }
+  return best ?? rooms.find(room => room.id !== target.id) ?? null;
+}
+
+function registerProceduralMonsterPressureCue(world: World, rooms: Room[], spec: ProceduralFloorSpec, sx: number, sy: number): void {
+  const pressure = routePressureLevel(spec);
+  if (pressure <= 0) return;
+  const target = choosePressureTargetRoom(world, rooms, spec, sx, sy);
+  if (!target) return;
+  const markerRoom = choosePressureMarkerRoom(world, rooms, target, sx, sy);
+  if (!markerRoom) return;
+  const marker = roomCell(world, markerRoom, Math.floor(markerRoom.w / 2), Math.floor(markerRoom.h / 2));
+  const targetPos = roomCell(world, target, Math.floor(target.w / 2), Math.floor(target.h / 2));
+  if (!marker || !targetPos) return;
+
+  const markerCell = world.idx(marker.x, marker.y);
+  if (world.features[markerCell] === Feature.NONE) world.features[markerCell] = Feature.SCREEN;
+  world.stamp(marker.x, marker.y, 0.5, 0.5, 0.34, 0.72, spec.seed ^ 0x5111, 84, 124, 116, true);
+  const profile = pressureCueProfile(proceduralMonsterFloor(spec), spec);
+  registerRouteCue(world, {
+    id: `procedural_${spec.key}_monster_pressure`,
+    x: marker.x + 0.5,
+    y: marker.y + 0.5,
+    targetX: targetPos.x + 0.5,
+    targetY: targetPos.y + 0.5,
+    floor: spec.baseFloor,
+    roomId: markerRoom.id,
+    targetRoomId: target.id,
+    zoneId: world.zoneMap[markerCell],
+    label: profile.label,
+    hint: profile.hint,
+    targetName: profile.targetName,
+    color: profile.color,
+    tags: ['procedural_floor', 'route_pressure', 'monster_pressure', spec.geometryId, spec.majorityId, spec.anomalyId],
+    toneSeed: (spec.seed ^ (target.id * 1103) ^ (markerRoom.id * 67)) >>> 0,
+    radius: 11,
+    targetRadius: 3,
+    cooldownSec: 30,
+    heardText: profile.heardText,
+    followedText: profile.followedText,
+    ignoredText: profile.ignoredText,
+  });
 }
 
 function cleanFalseSafeRoom(world: World, room: Room): void {
@@ -1170,6 +1553,7 @@ export function generateProceduralFloor(spec: ProceduralFloorSpec): FloorGenerat
     const allowNpcs = floorRunZAllowsNpcs(spec.z);
     const { rooms, spawnX, spawnY } = buildRooms(world, spec);
 
+    applyServiceSpines(world, rooms, spec, spawnX, spawnY);
     generateZones(world);
     applyZones(world, spec);
     applyWaterAndMachines(world, spec);
@@ -1189,6 +1573,7 @@ export function generateProceduralFloor(spec: ProceduralFloorSpec): FloorGenerat
     applyRailTrains(world, rooms, entities, nextId, spec, spawnX, spawnY);
     applyFalseSafeBlock(world, rooms, entities, nextId, spec, allowNpcs);
     applyProceduralAnomalyProfile({ world, rooms, entities, nextId, spec, spawnX, spawnY });
+    registerProceduralMonsterPressureCue(world, rooms, spec, spawnX, spawnY);
     if (!allowNpcs) removeNpcEntities(entities);
 
     const spawn = resolveProceduralSpawn(world, spawnX, spawnY);

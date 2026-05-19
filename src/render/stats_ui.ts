@@ -231,34 +231,43 @@ export function drawInventory(
   }
 
   // Equipped weapon info — compact facts, right side
+  const contentBottom = ch - 8 * sy;
   stY += 4 * sy;
   const weapon = getWeaponReadiness(player);
   ctx.fillStyle = '#ccc';
   ctx.font = `${7 * sy}px monospace`;
-  ctx.fillText(
-    fitStatText(ctx, `Оружие: ${weapon.name}  ${weapon.role}  Урон:${weapon.damageLabel}`, barW),
-    stX, stY,
-  );
-  stY += 9 * sy;
-  ctx.fillStyle = weapon.warning ? '#f84' : '#9d9';
-  const weaponState = weapon.cannotFireReason
-    ? `${weapon.resourceLabel}  ${weapon.cannotFireReason}`
-    : `${weapon.resourceLabel}  ${weapon.cooldownLabel}`;
-  ctx.fillText(fitStatText(ctx, weaponState, barW), stX, stY);
-  stY += 12 * sy;
+  if (stY + 8 * sy <= contentBottom) {
+    ctx.fillText(
+      fitStatText(ctx, `Оружие: ${weapon.name}  ${weapon.role}  Урон:${weapon.damageLabel}`, barW),
+      stX, stY,
+    );
+    stY += 9 * sy;
+  }
+  if (stY + 8 * sy <= contentBottom) {
+    ctx.fillStyle = weapon.warning ? '#f84' : '#9d9';
+    const weaponState = weapon.cannotFireReason
+      ? `${weapon.resourceLabel}  ${weapon.cannotFireReason}`
+      : `${weapon.resourceLabel}  ${weapon.cooldownLabel}`;
+    ctx.fillText(fitStatText(ctx, weaponState, barW), stX, stY);
+    stY += 12 * sy;
+  }
 
   const toolName = player.tool ? (ITEMS[player.tool]?.name ?? player.tool) : 'нет';
   const toolDur = getEquippedToolDurability(player);
   const toolDurLabel = toolDur ? `${Math.max(0, Math.ceil(toolDur.cur))}/${toolDur.max}` : '--';
-  ctx.fillStyle = '#8cf';
-  ctx.fillText(fitStatText(ctx, `Инструмент: ${toolName}  Износ:${toolDurLabel}`, barW), stX, stY);
-  stY += 12 * sy;
+  if (stY + 8 * sy <= contentBottom) {
+    ctx.fillStyle = '#8cf';
+    ctx.fillText(fitStatText(ctx, `Инструмент: ${toolName}  Износ:${toolDurLabel}`, barW), stX, stY);
+    stY += 12 * sy;
+  }
 
   // Stats
-  ctx.fillStyle = '#888';
-  ctx.font = `${7 * sy}px monospace`;
-  const day = Math.floor(state.clock.totalMinutes / 1440);
-  ctx.fillText(`Выжил дней: ${day}  |  Самосборов: ${state.samosborCount}`, stX, stY);
+  if (stY + 8 * sy <= contentBottom) {
+    ctx.fillStyle = '#888';
+    ctx.font = `${7 * sy}px monospace`;
+    const day = Math.floor(state.clock.totalMinutes / 1440);
+    ctx.fillText(fitStatText(ctx, `Выжил дней: ${day}  |  Самосборов: ${state.samosborCount}`, barW), stX, stY);
+  }
 }
 
 function drawStatBar(

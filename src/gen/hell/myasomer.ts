@@ -24,6 +24,7 @@ import { ITEMS } from '../../data/catalog';
 import { MONSTERS, applyMonsterVariant } from '../../entities/monster';
 import { MarkType, stampMark } from '../../render/marks';
 import { monsterSpr, Spr } from '../../render/sprite_index';
+import { registerCellHazardSite } from '../../systems/cell_hazards';
 import { publishEvent, registerWorldEventObserver } from '../../systems/events';
 import { randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg';
 import { connectProtectedRoom, findClearArea, protectRoom, stampRoom } from '../shared';
@@ -38,6 +39,8 @@ const EVENT_TAG = 'myasomer_event';
 const RADIUS = 16;
 const RADIUS2 = RADIUS * RADIUS;
 const MAX_THREATS = 3;
+const COUNTERPLAY_THREATS = 2;
+const FULL_COUNTERPLAY_THREATS = 1;
 
 interface MyasomerSite {
   floor: FloorLevel;
@@ -45,14 +48,28 @@ interface MyasomerSite {
   zoneId: number;
   x: number;
   y: number;
+  baitX: number;
+  baitY: number;
+  veinX: number;
+  veinY: number;
   quietContainerId: number;
   shardContainerId: number;
   triggers: number;
   baited: boolean;
+  fireSeared: boolean;
   spawned: number;
   quietCleared: boolean;
   loudCleared: boolean;
+  coverCells: number;
+  veinCells: number;
   threatIds: number[];
+}
+
+interface MyasomerLayout {
+  coverCells: number;
+  veinCells: number;
+  veinX: number;
+  veinY: number;
 }
 
 let activeWorld: World | null = null;
@@ -76,11 +93,11 @@ export function generateMyasomer(world: World, entities: Entity[], nextId: { v: 
   protectRoom(world, room.x, room.y, room.w, room.h, Tex.GUT, Tex.F_MEAT);
   connectProtectedRoom(world, room.x, room.y, room.w, room.h);
   forceMyasomerConnection(world, room);
-  decorateMyasomerRoom(world, room);
+  const layout = decorateMyasomerRoom(world, room);
 
   const quietContainerId = addQuietCache(world, room);
   const shardContainerId = addShardCache(world, room);
-  dropWarningBait(world, entities, nextId, room);
+  const bait = dropWarningBait(world, entities, nextId, room);
 
   const cx = world.wrap(room.x + (room.w >> 1));
   const cy = world.wrap(room.y + (room.h >> 1));
@@ -91,13 +108,20 @@ export function generateMyasomer(world: World, entities: Entity[], nextId: { v: 
     zoneId: world.zoneMap[ci],
     x: cx + 0.5,
     y: cy + 0.5,
+    baitX: (bait?.x ?? cx) + 0.5,
+    baitY: (bait?.y ?? world.wrap(room.y + room.h - 2)) + 0.5,
+    veinX: layout.veinX,
+    veinY: layout.veinY,
     quietContainerId,
     shardContainerId,
     triggers: 0,
     baited: false,
+    fireSeared: false,
     spawned: 0,
     quietCleared: false,
     loudCleared: false,
+    coverCells: layout.coverCells,
+    veinCells: layout.veinCells,
     threatIds: [],
   };
 
@@ -197,11 +221,12 @@ function hasExternalOpening(world: World, room: Room): boolean {
   return false;
 }
 
-function decorateMyasomerRoom(world: World, room: Room): void {
+function decorateMyasomerRoom(world: World, room: Room): MyasomerLayout {
   const rx = room.x;
   const ry = room.y;
   const cx = rx + (room.w >> 1);
   const cy = ry + (room.h >> 1);
+  let coverCells = 0;
 
   for (let dy = 1; dy < room.h - 1; dy++) {
     for (let dx = 1; dx < room.w - 1; dx++) {
@@ -217,6 +242,7 @@ function decorateMyasomerRoom(world: World, room: Room): void {
       world.cells[ci] = Cell.WALL;
       world.wallTex[ci] = Tex.MEAT;
       world.roomMap[ci] = -1;
+      coverCells++;
     }
   }
 
@@ -238,6 +264,47 @@ function decorateMyasomerRoom(world: World, room: Room): void {
     stampMark(world, x, y, 0.5, 0.5, 0.34 + (i % 3) * 0.08, MarkType.DRIP, 11011 + i, 130, 24, 38, 170);
   }
   stampMark(world, rx + room.w - 4, cy, 0.5, 0.5, 1.4, MarkType.POOL, 11140, 115, 18, 32, 190);
+  const vein = registerMyasomerVein(world, room);
+  return { coverCells, ...vein };
+}
+
+function registerMyasomerVein(world: World, room: Room): Pick<MyasomerLayout, 'veinCells' | 'veinX' | 'veinY'> {
+  const cx = world.wrap(room.x + (room.w >> 1));
+  const cy = world.wrap(room.y + (room.h >> 1));
+  const cells: number[] = [];
+
+  for (let dy = -1; dy <= 1; dy++) {
+    for (let dx = -3; dx <= 3; dx++) {
+      if (Math.abs(dx) === 3 && dy !== 0) continue;
+      const x = world.wrap(cx + dx);
+      const y = world.wrap(cy + dy);
+      const ci = world.idx(x, y);
+      if (world.cells[ci] !== Cell.FLOOR || world.roomMap[ci] !== room.id) continue;
+      cells.push(ci);
+      world.floorTex[ci] = Tex.F_GUT;
+    }
+  }
+
+  registerCellHazardSite(world, {
+    id: `${MYASOMER_ID}_listening_vein_${room.id}`,
+    kind: 'myasomer_vein',
+    displayName: 'Слуховая мясная жила',
+    cells,
+    tags: [MYASOMER_ID, 'counterplay', 'route'],
+    slowMult: 0.5,
+    trappedMult: 0.16,
+    stickAfter: 1.1,
+    escapeSeconds: 1.25,
+    npcEscapeSeconds: 3.5,
+    roomId: room.id,
+    zoneId: world.zoneMap[world.idx(cx, cy)],
+    centerX: cx + 0.5,
+    centerY: cy + 0.5,
+    warning: 'Центр слушает шаг. Идите краем, бросьте приманку дальше шума или выжгите жилу.',
+  });
+
+  stampMark(world, cx, cy, 0.5, 0.5, 1.05, MarkType.POOL, 11177, 150, 18, 45, 180);
+  return { veinCells: cells.length, veinX: cx + 0.5, veinY: cy + 0.5 };
 }
 
 function setFeature(world: World, x: number, y: number, feature: Feature, lightRadius: number): void {
@@ -279,6 +346,7 @@ function addQuietCache(world: World, room: Room): number {
     kind: ContainerKind.TRASH_BIN,
     name: 'Тихая мясная ниша',
     inventory: [
+      { defId: 'note', count: 1, data: 'Мясомер слушает центр. Иди по краю, хлеб бросай в мясную ямку, жилу жги только без лишнего лута рядом.' },
       { defId: 'rawmeat', count: 2 },
       { defId: 'bandage', count: 1 },
       { defId: 'water', count: 1 },
@@ -286,7 +354,7 @@ function addQuietCache(world: World, room: Room): number {
     capacitySlots: 6,
     access: 'public',
     discovered: true,
-    tags: [MYASOMER_ID, 'monster', 'noise', 'samosbor_aftermath', 'meat', 'quiet_reward'],
+    tags: [MYASOMER_ID, 'monster', 'noise', 'samosbor_aftermath', 'meat', 'quiet_reward', 'quiet_route', 'counterplay'],
   };
   world.addContainer(container);
   return container.id;
@@ -313,16 +381,16 @@ function addShardCache(world: World, room: Room): number {
     faction: Faction.CULTIST,
     access: 'faction',
     discovered: true,
-    tags: [MYASOMER_ID, 'monster', 'noise', 'samosbor_aftermath', 'meat', 'siren_shard', 'loud_trigger'],
+    tags: [MYASOMER_ID, 'monster', 'noise', 'samosbor_aftermath', 'meat', 'siren_shard', 'loud_trigger', 'loud_route'],
   };
   world.addContainer(container);
   return container.id;
 }
 
-function dropWarningBait(world: World, entities: Entity[], nextId: { v: number }, room: Room): void {
+function dropWarningBait(world: World, entities: Entity[], nextId: { v: number }, room: Room): { x: number; y: number } | null {
   const x = world.wrap(room.x + (room.w >> 1));
-  const y = world.wrap(room.y + room.h - 3);
-  if (world.cells[world.idx(x, y)] !== Cell.FLOOR) return;
+  const y = world.wrap(room.y + room.h - 2);
+  if (world.cells[world.idx(x, y)] !== Cell.FLOOR) return null;
   entities.push({
     id: nextId.v++,
     type: EntityType.ITEM_DROP,
@@ -336,6 +404,7 @@ function dropWarningBait(world: World, entities: Entity[], nextId: { v: number }
     inventory: [{ defId: 'bread', count: 1 }],
     name: 'черствый шумовой ломоть',
   });
+  return { x, y };
 }
 
 function handleMyasomerEvent(state: GameState, event: WorldEvent): void {
@@ -347,6 +416,21 @@ function handleMyasomerEvent(state: GameState, event: WorldEvent): void {
 
   if (event.type === 'monster_bait_placed' && eventInsideSite(world, site, event)) {
     markBaited(state, site, event);
+    return;
+  }
+
+  if (event.type === 'hazard_cleaned' && eventInsideSite(world, site, event) && event.data?.reason === 'fire') {
+    markFireSeared(state, site, event);
+    return;
+  }
+
+  if (event.type === 'burn_cleanup' && eventInsideSite(world, site, event)) {
+    markFireSeared(state, site, event);
+    return;
+  }
+
+  if (event.type === 'hazard_escaped' && eventInsideSite(world, site, event) && event.data?.noisy === true) {
+    handleLoudTrigger(state, world, entities, site, event, 'vein_escape');
     return;
   }
 
@@ -365,7 +449,7 @@ function handleMyasomerEvent(state: GameState, event: WorldEvent): void {
     return;
   }
 
-  if ((event.type === 'burn_cleanup' || event.type === 'collateral_damage') && eventInsideSite(world, site, event)) {
+  if (event.type === 'collateral_damage' && eventInsideSite(world, site, event)) {
     handleLoudTrigger(state, world, entities, site, event, 'local_blast');
     return;
   }
@@ -382,6 +466,19 @@ function markBaited(state: GameState, site: MyasomerSite, event: WorldEvent): vo
   publishMyasomerOutcome(state, site, 'baited', 2, event, {
     baitEventId: event.id,
     counterplay: 'noise_bait',
+  });
+}
+
+function markFireSeared(state: GameState, site: MyasomerSite, event: WorldEvent): void {
+  if (site.fireSeared) return;
+  const priorTriggers = site.triggers;
+  site.fireSeared = true;
+  site.triggers = Math.max(0, site.triggers - 1);
+  pushLine(state, 'Огонь подсушил слуховую жилу. Часть шума ушла в дым.', '#fc4');
+  publishMyasomerOutcome(state, site, 'fire_seared', 3, event, {
+    counterplay: 'fire',
+    triggerRelief: priorTriggers - site.triggers,
+    threatCap: myasomerThreatCap(site),
   });
 }
 
@@ -407,10 +504,13 @@ function handleLoudTrigger(
     return;
   }
 
-  if (site.spawned < MAX_THREATS) {
+  const threatCap = myasomerThreatCap(site);
+  if (site.spawned < threatCap) {
     const spawned = spawnMyasomerPressure(world, entities, site);
     if (spawned > 0) {
-      pushLine(state, site.baited
+      pushLine(state, site.fireSeared
+        ? 'Мясомер сорвался, но выжженная жила выплюнула только сборки.'
+        : site.baited
         ? 'Мясомер сорвался, но приманка увела часть рывка в сторону.'
         : 'Мясомер сорвался на шум. Из мяса вышли тень и сборки.', '#f55');
     }
@@ -420,7 +520,9 @@ function handleLoudTrigger(
     reason,
     triggers: site.triggers,
     spawned: site.spawned,
+    threatCap,
     baited: site.baited,
+    fireSeared: site.fireSeared,
   });
 }
 
@@ -433,7 +535,7 @@ function eventInsideSite(world: World, site: MyasomerSite, event: WorldEvent): b
 function publishMyasomerOutcome(
   state: GameState,
   site: MyasomerSite,
-  outcome: 'warned' | 'triggered' | 'quiet_clear' | 'loud_clear' | 'baited',
+  outcome: 'warned' | 'triggered' | 'quiet_clear' | 'loud_clear' | 'baited' | 'fire_seared',
   severity: 2 | 3 | 4 | 5,
   source: WorldEvent,
   data: Record<string, unknown>,
@@ -490,15 +592,24 @@ function findPlayer(entities: readonly Entity[]): Entity | null {
   return null;
 }
 
+function myasomerThreatCap(site: MyasomerSite): number {
+  if (site.baited && site.fireSeared) return FULL_COUNTERPLAY_THREATS;
+  if (site.baited || site.fireSeared) return COUNTERPLAY_THREATS;
+  return MAX_THREATS;
+}
+
 function spawnMyasomerPressure(world: World, entities: Entity[], site: MyasomerSite): number {
   const player = findPlayer(entities);
-  const spawnPlan: MonsterKind[] = site.baited
+  const spawnPlan: MonsterKind[] = site.fireSeared
+    ? [MonsterKind.SBORKA, MonsterKind.SBORKA]
+    : site.baited
     ? [MonsterKind.SBORKA, MonsterKind.SBORKA]
     : [MonsterKind.SHADOW, MonsterKind.SBORKA, MonsterKind.SBORKA];
   let spawned = 0;
+  const threatCap = myasomerThreatCap(site);
 
   for (const kind of spawnPlan) {
-    if (site.spawned >= MAX_THREATS) break;
+    if (site.spawned >= threatCap) break;
     const pos = findThreatSpawn(world, site, spawned);
     if (!pos) break;
     const id = nextEntityId(entities);

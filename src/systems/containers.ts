@@ -12,6 +12,7 @@ import {
 } from '../data/chernobog_docket';
 import { getStack } from '../data/items';
 import { addFactionRelMutual } from '../data/relations';
+import { changeResourceStock, getEconomyQuote, type EconomyQuote } from './economy';
 import { publishEvent } from './events';
 import { applyTheftRelationPenalty } from './factions';
 import { publishMaronaryShavingAcquired } from './maronary_shaving';
@@ -26,6 +27,20 @@ const MAX_ENTITY_INVENTORY_SLOTS = 25;
 const THEFT_WITNESS_RADIUS = 7;
 const THEFT_WITNESS_SCAN_CAP = 160;
 const THEFT_WITNESS_REPORT_CAP = 4;
+const THEFT_AUDIT_COOLDOWN_S = 120;
+const THEFT_AUDIT_RADIUS = 12;
+const THEFT_AUDIT_SCAN_CAP = 160;
+const THEFT_AUDIT_REPORT_CAP = 2;
+const CONTAINER_BUY_TARIFF = 1.12;
+const CONTAINER_UNLOCK_ITEM_IDS = [
+  'container_key_label',
+  'key',
+  'official_permit_slip',
+  'official_quarantine_clearance',
+  'elevator_access_order',
+] as const;
+
+export type ContainerAccessMode = 'free' | 'steal' | 'buy' | 'unlock' | 'locked' | 'secret';
 
 export interface ContainerAccessInfo {
   label: string;
@@ -34,6 +49,10 @@ export interface ContainerAccessInfo {
   canTake: boolean;
   canPut: boolean;
   theft: boolean;
+  mode?: ContainerAccessMode;
+  purchase?: boolean;
+  unlock?: boolean;
+  service?: boolean;
 }
 
 export interface ContainerInteractionContext {
@@ -46,6 +65,15 @@ export interface ContainerTheftStatus {
   label: string;
   detail: string;
   color: string;
+}
+
+export interface ContainerItemActionInfo {
+  label: string;
+  detail: string;
+  color: string;
+  enabled: boolean;
+  mode: ContainerAccessMode | 'put' | 'service';
+  price?: number;
 }
 
 function containerSeed(roomId: number, kind: ContainerKind, n: number): number {
@@ -335,38 +363,85 @@ export function firstNearbyContainer(world: World, player: Entity): WorldContain
   return list.length > 0 ? list[0] : null;
 }
 
+function inventoryHasAny(actor: Entity, defIds: readonly string[]): string | undefined {
+  const inv = actor.inventory;
+  if (!inv) return undefined;
+  for (const defId of defIds) {
+    if (inv.some(item => item.defId === defId && item.count > 0)) return defId;
+  }
+  return undefined;
+}
+
+function containerUnlockItemId(container: WorldContainer, actor: Entity): string | undefined {
+  if (container.access !== 'locked' || container.tags.includes('unlocked')) return undefined;
+  if (container.tags.includes('quarantine')) {
+    const quarantine = inventoryHasAny(actor, ['official_quarantine_clearance', 'key', 'container_key_label']);
+    if (quarantine) return quarantine;
+  }
+  if (container.tags.includes('paper') || container.tags.includes('permit')) {
+    const paper = inventoryHasAny(actor, ['official_permit_slip', 'elevator_access_order', 'key', 'container_key_label']);
+    if (paper) return paper;
+  }
+  return inventoryHasAny(actor, CONTAINER_UNLOCK_ITEM_IDS);
+}
+
+function isBuyableContainer(container: WorldContainer): boolean {
+  return container.tags.includes('buyable') || container.tags.includes('legal_output');
+}
+
+export function containerServiceHint(container: WorldContainer): string | null {
+  if (container.tags.includes('resident_relief') && !container.tags.includes('resident_relief_done')) return 'еда, вода или талон в общий запас';
+  if (container.tags.includes('evidence_drop') && !container.tags.includes('evidence_drop_done')) return 'улика или документ для сдачи';
+  if (container.tags.includes('sabotage_drop') && !container.tags.includes('sabotage_drop_done')) return 'грязная закладка испортит запас';
+  if (container.tags.includes('production_output')) return 'выдача цеха: можно получить, купить или украсть';
+  if (container.tags.includes('service')) return 'служебная сдача предметов';
+  return null;
+}
+
 export function canAccessContainer(container: WorldContainer, actor: Entity): boolean {
   if (container.access === 'public' || container.access === 'room') return true;
   if (container.access === 'faction') return actor.faction !== undefined && actor.faction === container.faction;
   if (container.access === 'owner') return actor.id === container.ownerNpcId;
-  if (container.access === 'locked') return actor.faction === container.faction && actor.faction !== undefined;
+  if (container.access === 'locked') return container.tags.includes('unlocked')
+    || (actor.faction === container.faction && actor.faction !== undefined);
   if (container.access === 'secret') return container.discovered;
   return false;
 }
 
 export function containerAccessInfo(container: WorldContainer, actor: Entity): ContainerAccessInfo {
   const hasAccess = canAccessContainer(container, actor);
+  const service = containerServiceHint(container) !== null;
+  const unlockItemId = containerUnlockItemId(container, actor);
   switch (container.access) {
     case 'public':
-      return { label: 'ОБЩИЙ', detail: 'Можно брать и класть без последствий.', color: '#8f8', canTake: true, canPut: true, theft: false };
+      return { label: 'ОБЩИЙ', detail: 'Можно брать и класть без последствий.', color: '#8f8', canTake: true, canPut: true, theft: false, mode: 'free', service };
     case 'room':
-      return { label: 'КОМНАТНЫЙ', detail: 'Комнатный запас. Доступ открыт.', color: '#8cf', canTake: true, canPut: true, theft: false };
+      return { label: 'КОМНАТНЫЙ', detail: 'Комнатный запас. Доступ открыт.', color: '#8cf', canTake: true, canPut: true, theft: false, mode: 'free', service };
     case 'faction':
+      if (!hasAccess && isBuyableContainer(container)) {
+        return { label: 'ПОКУПКА ФРАКЦИИ', detail: 'Можно купить по цене дефицита; взлом не нужен.', color: '#ee4', canTake: true, canPut: true, theft: false, mode: 'buy', purchase: true, service };
+      }
       return hasAccess
-        ? { label: 'ФРАКЦИЯ', detail: 'Доступ вашей фракции.', color: '#8cf', canTake: true, canPut: true, theft: false }
-        : { label: 'ЧУЖАЯ ФРАКЦИЯ', detail: 'Кража: свидетели поблизости или ревизия фракции.', color: '#f84', canTake: true, canPut: true, theft: true };
+        ? { label: 'ФРАКЦИЯ', detail: 'Доступ вашей фракции.', color: '#8cf', canTake: true, canPut: true, theft: false, mode: 'free', service }
+        : { label: 'ЧУЖАЯ ФРАКЦИЯ', detail: 'Кража: свидетели поблизости или ревизия фракции.', color: '#f84', canTake: true, canPut: true, theft: true, mode: 'steal', service };
     case 'owner':
+      if (!hasAccess && isBuyableContainer(container)) {
+        return { label: 'ПОКУПКА У ВЛАДЕЛЬЦА', detail: `Владелец: ${container.ownerName ?? 'неизвестен'}. Деньги оставят след вместо кражи.`, color: '#ee4', canTake: true, canPut: true, theft: false, mode: 'buy', purchase: true, service };
+      }
       return hasAccess
-        ? { label: 'ВЛАДЕЛЕЦ', detail: `Владелец: ${container.ownerName ?? 'вы'}.`, color: '#8f8', canTake: true, canPut: true, theft: false }
-        : { label: 'ЧУЖОЕ', detail: `Владелец: ${container.ownerName ?? 'неизвестен'}. Свидетели и ревизия поднимут слух.`, color: '#f84', canTake: true, canPut: true, theft: true };
+        ? { label: 'ВЛАДЕЛЕЦ', detail: `Владелец: ${container.ownerName ?? 'вы'}.`, color: '#8f8', canTake: true, canPut: true, theft: false, mode: 'free', service }
+        : { label: 'ЧУЖОЕ', detail: `Владелец: ${container.ownerName ?? 'неизвестен'}. Свидетели и ревизия поднимут слух.`, color: '#f84', canTake: true, canPut: true, theft: true, mode: 'steal', service };
     case 'locked':
+      if (!hasAccess && unlockItemId) {
+        return { label: 'МОЖНО ОТПЕРЕТЬ', detail: `Подойдёт: ${ITEMS[unlockItemId]?.name ?? unlockItemId}. Открытие будет записано.`, color: '#ee4', canTake: true, canPut: true, theft: false, mode: 'unlock', unlock: true, service };
+      }
       return hasAccess
-        ? { label: 'ОТПЕРТО', detail: 'Замок признаёт ваш доступ.', color: '#8cf', canTake: true, canPut: true, theft: false }
-        : { label: 'ЗАПЕРТО', detail: 'Нужен ключ, код или фракционный доступ.', color: '#f84', canTake: false, canPut: false, theft: false };
+        ? { label: 'ОТПЕРТО', detail: 'Замок признаёт ваш доступ.', color: '#8cf', canTake: true, canPut: true, theft: false, mode: 'free', service }
+        : { label: 'ЗАПЕРТО', detail: 'Нужен ключ, код или фракционный доступ.', color: '#f84', canTake: false, canPut: false, theft: false, mode: 'locked', service };
     case 'secret':
       return container.discovered
-        ? { label: 'ТАЙНИК', detail: 'Тайник найден. Свидетелей нет.', color: '#c8f', canTake: true, canPut: true, theft: false }
-        : { label: 'СКРЫТО', detail: 'Тайник ещё не найден.', color: '#555', canTake: false, canPut: false, theft: false };
+        ? { label: 'ТАЙНИК', detail: 'Тайник найден. Свидетелей нет.', color: '#c8f', canTake: true, canPut: true, theft: false, mode: 'secret', service }
+        : { label: 'СКРЫТО', detail: 'Тайник ещё не найден.', color: '#555', canTake: false, canPut: false, theft: false, mode: 'secret', service };
   }
 }
 
@@ -442,12 +517,21 @@ function normalizeContext(input?: GameState | ContainerInteractionContext): Cont
   return input;
 }
 
-function markAuditIfNeeded(container: WorldContainer, state: GameState): boolean {
+function theftCanBeAudited(container: WorldContainer): boolean {
+  return container.access === 'owner' || container.access === 'faction';
+}
+
+function markTheftKnown(container: WorldContainer, state: GameState): boolean {
   if (container.lastAuditAt !== undefined) return false;
   if (!container.stolenItemIds || container.stolenItemIds.length === 0) return false;
-  if (container.access !== 'owner' && container.access !== 'faction') return false;
+  if (!theftCanBeAudited(container)) return false;
   container.lastAuditAt = state.time;
   return true;
+}
+
+function theftAuditReady(container: WorldContainer, state: GameState): boolean {
+  const missingSince = container.lastOpenedAt ?? 0;
+  return state.time - missingSince >= THEFT_AUDIT_COOLDOWN_S;
 }
 
 function addContainerTag(container: WorldContainer, tag: string): void {
@@ -533,6 +617,74 @@ function containerDepositOutcome(container: WorldContainer, item: Item): {
   return { outcome: 'deposit', relationDelta: 0, severity: 1, tags: [], rumorIds: [] };
 }
 
+function containerPurchaseQuote(
+  state: GameState | undefined,
+  container: WorldContainer,
+  defId: string,
+  count: number,
+): { unitPrice: number; totalPrice: number; quote?: EconomyQuote } {
+  const fallback = Math.max(1, Math.round((ITEMS[defId]?.value ?? 1) * CONTAINER_BUY_TARIFF));
+  if (!state) return { unitPrice: fallback, totalPrice: fallback * count };
+  const quote = getEconomyQuote(state, defId, {
+    traderFaction: container.faction,
+    tariffMultiplier: CONTAINER_BUY_TARIFF,
+    tags: ['container_purchase'],
+    reason: 'container_owner_stock',
+  });
+  return { unitPrice: quote.buyPrice, totalPrice: quote.buyPrice * count, quote };
+}
+
+function depositActionLabel(container: WorldContainer, item: Item): { label: string; detail: string; color: string; mode: 'put' | 'service' } {
+  const def = ITEMS[item.defId];
+  if (container.tags.includes('resident_relief') && !container.tags.includes('resident_relief_done')
+    && (def?.type === ItemType.FOOD || def?.type === ItemType.DRINK || item.defId === 'water_coupon' || item.defId === 'concentrate_coupon')) {
+    return { label: '[E] отдать в общий запас', detail: 'Жильцы запомнят помощь.', color: '#8f8', mode: 'service' };
+  }
+  if (container.tags.includes('evidence_drop') && !container.tags.includes('evidence_drop_done') && isEvidenceItem(item.defId)) {
+    return { label: '[E] сдать улику', detail: 'Документ станет событием и слухом.', color: '#8cf', mode: 'service' };
+  }
+  if (container.tags.includes('sabotage_drop') && !container.tags.includes('sabotage_drop_done') && isSabotageItem(item.defId)) {
+    return { label: '[E] испортить запас', detail: 'Саботаж ударит по владельцу.', color: '#f84', mode: 'service' };
+  }
+  if (item.defId === 'maronary_shaving'
+    && (container.access === 'secret' || container.tags.includes('secret') || container.tags.includes('trash'))) {
+    return { label: '[E] спрятать', detail: 'Контрабанда уйдет в тайник.', color: '#c8f', mode: 'service' };
+  }
+  return { label: '[E] положить', detail: 'Обычная сдача в контейнер.', color: '#8cf', mode: 'put' };
+}
+
+export function containerItemActionInfo(
+  container: WorldContainer,
+  actor: Entity,
+  side: 'container' | 'player',
+  item: Item | undefined,
+  state?: GameState,
+): ContainerItemActionInfo {
+  if (!item) return { label: 'Пустой слот', detail: '', color: '#555', enabled: false, mode: 'free' };
+  const access = containerAccessInfo(container, actor);
+  if (side === 'player') {
+    if (!access.canPut) return { label: 'нет доступа', detail: access.detail, color: '#f84', enabled: false, mode: access.mode ?? 'locked' };
+    const action = depositActionLabel(container, item);
+    return { ...action, enabled: true };
+  }
+  if (!access.canTake) return { label: 'нет доступа', detail: access.detail, color: '#f84', enabled: false, mode: access.mode ?? 'locked' };
+  if (access.purchase) {
+    const price = containerPurchaseQuote(state, container, item.defId, 1).totalPrice;
+    const enabled = (actor.money ?? 0) >= price;
+    return {
+      label: enabled ? `[E] купить ${price}₽` : `нужно ${price}₽`,
+      detail: enabled ? 'Деньги оставят торговый след.' : 'Не хватает наличных.',
+      color: enabled ? '#ee4' : '#f84',
+      enabled,
+      mode: 'buy',
+      price,
+    };
+  }
+  if (access.unlock) return { label: '[E] отпереть и взять', detail: access.detail, color: '#ee4', enabled: true, mode: 'unlock' };
+  if (access.theft) return { label: '[E] украсть', detail: access.detail, color: '#f84', enabled: true, mode: 'steal' };
+  return { label: '[E] взять', detail: access.detail, color: access.color, enabled: true, mode: 'free' };
+}
+
 function findTheftWitnesses(
   world: World | undefined,
   entities: readonly Entity[] | undefined,
@@ -546,7 +698,10 @@ function findTheftWitnesses(
   let scannedNpcs = 0;
   let capped = false;
   for (const entity of entities) {
-    if (witnesses.length >= THEFT_WITNESS_REPORT_CAP) break;
+    if (witnesses.length >= THEFT_WITNESS_REPORT_CAP) {
+      capped = true;
+      break;
+    }
     if (!entity.alive || entity.type !== EntityType.NPC || entity.id === actor.id) continue;
     scannedNpcs++;
     if (scannedNpcs > THEFT_WITNESS_SCAN_CAP) {
@@ -558,6 +713,150 @@ function findTheftWitnesses(
     witnesses.push(entity);
   }
   return { witnesses, scannedNpcs, capped };
+}
+
+function canAuditContainerTheft(entity: Entity, container: WorldContainer): boolean {
+  if (container.ownerNpcId !== undefined && entity.id === container.ownerNpcId) return true;
+  return container.faction !== undefined && entity.faction === container.faction;
+}
+
+function findTheftAuditors(
+  world: World | undefined,
+  entities: readonly Entity[] | undefined,
+  actor: Entity,
+  container: WorldContainer,
+): { auditors: Entity[]; scannedNpcs: number; capped: boolean } {
+  if (!world || !entities) return { auditors: [], scannedNpcs: 0, capped: false };
+
+  const auditors: Entity[] = [];
+  const radiusSq = THEFT_AUDIT_RADIUS * THEFT_AUDIT_RADIUS;
+  let scannedNpcs = 0;
+  let capped = false;
+  for (const entity of entities) {
+    if (auditors.length >= THEFT_AUDIT_REPORT_CAP) {
+      capped = true;
+      break;
+    }
+    if (!entity.alive || entity.type !== EntityType.NPC || entity.id === actor.id) continue;
+    scannedNpcs++;
+    if (scannedNpcs > THEFT_AUDIT_SCAN_CAP) {
+      capped = true;
+      break;
+    }
+    if (!canAuditContainerTheft(entity, container)) continue;
+    if (!Number.isFinite(entity.x) || !Number.isFinite(entity.y)) continue;
+    if (world.dist2(container.x + 0.5, container.y + 0.5, entity.x, entity.y) > radiusSq) continue;
+    auditors.push(entity);
+  }
+  return { auditors, scannedNpcs, capped };
+}
+
+function publishTheftAuditIfDue(container: WorldContainer, actor: Entity, context: ContainerInteractionContext): boolean {
+  const state = context.state;
+  if (!state || !theftCanBeAudited(container)) return false;
+  if (container.lastAuditAt !== undefined) return false;
+  if (!container.stolenItemIds || container.stolenItemIds.length === 0) return false;
+  if (!theftAuditReady(container, state)) return false;
+
+  const audit = findTheftAuditors(context.world, context.entities, actor, container);
+  if (audit.auditors.length === 0) return false;
+
+  const auditedItemId = container.stolenItemIds[container.stolenItemIds.length - 1];
+  const auditedItem = ITEMS[auditedItemId];
+  const firstAuditor = audit.auditors[0];
+  const relationPenalty = applyTheftRelationPenalty(container.faction, false, true);
+  markTheftKnown(container, state);
+  const eventTags = [
+    'container',
+    'theft',
+    'audit',
+    'later_audit',
+    ...(auditedItem?.tags ?? []),
+    ...container.tags,
+  ].filter((tag, idx, all) => all.indexOf(tag) === idx);
+  const event = publishEvent(state, {
+    type: 'item_stolen',
+    zoneId: container.zoneId,
+    roomId: container.roomId,
+    x: container.x,
+    y: container.y,
+    actorId: actor.id,
+    actorName: actor.name,
+    actorFaction: actor.faction,
+    targetId: firstAuditor.id,
+    targetName: firstAuditor.name ?? container.ownerName,
+    targetFaction: firstAuditor.faction ?? container.faction,
+    itemId: auditedItemId,
+    itemName: auditedItem?.name ?? auditedItemId,
+    itemCount: 0,
+    itemValue: auditedItem?.value ?? 0,
+    containerId: container.id,
+    containerOwnerId: container.ownerNpcId,
+    containerFaction: container.faction,
+    severity: 4,
+    privacy: 'local',
+    tags: eventTags,
+    data: {
+      containerName: container.name,
+      containerAccess: container.access,
+      containerTags: container.tags,
+      ownerName: container.ownerName,
+      theftOutcome: 'audit',
+      auditOnly: true,
+      auditAt: container.lastAuditAt,
+      auditDelaySeconds: THEFT_AUDIT_COOLDOWN_S,
+      auditRadius: THEFT_AUDIT_RADIUS,
+      auditorCount: audit.auditors.length,
+      auditorIds: audit.auditors.map(a => a.id),
+      auditorNames: audit.auditors.map(a => a.name ?? `NPC ${a.id}`),
+      auditScanCapped: audit.capped,
+      stolenItemIds: container.stolenItemIds.slice(0, 8),
+      relationPenalty,
+    },
+  });
+  for (const auditor of audit.auditors) observeRumorEvent(auditor, event, state.time);
+  return true;
+}
+
+function unlockContainerForActor(container: WorldContainer, actor: Entity, state: GameState | undefined): { itemId: string } | null {
+  const itemId = containerUnlockItemId(container, actor);
+  if (!itemId) return null;
+  addContainerTag(container, 'unlocked');
+  container.discovered = true;
+  if (state) {
+    publishEvent(state, {
+      type: 'container_opened',
+      zoneId: container.zoneId,
+      roomId: container.roomId,
+      x: container.x,
+      y: container.y,
+      actorId: actor.id,
+      actorName: actor.name,
+      actorFaction: actor.faction,
+      targetId: container.ownerNpcId,
+      targetName: container.ownerName,
+      targetFaction: container.faction,
+      itemId,
+      itemName: ITEMS[itemId]?.name ?? itemId,
+      itemCount: 0,
+      itemValue: ITEMS[itemId]?.value ?? 0,
+      containerId: container.id,
+      containerOwnerId: container.ownerNpcId,
+      containerFaction: container.faction,
+      severity: 2,
+      privacy: 'local',
+      tags: ['container', 'access', 'unlock', 'keyed', ...container.tags].filter((tag, idx, all) => all.indexOf(tag) === idx),
+      data: {
+        containerName: container.name,
+        containerAccess: container.access,
+        containerTags: container.tags,
+        accessOutcome: 'unlock',
+        unlockItemId: itemId,
+        unlockItemName: ITEMS[itemId]?.name ?? itemId,
+      },
+    });
+  }
+  return { itemId };
 }
 
 export function takeFromContainer(
@@ -575,6 +874,12 @@ export function takeFromContainer(
   if (!actor.inventory) actor.inventory = [];
   const take = Math.min(count, slot.count, inventoryFitCount(actor.inventory, slot.defId, MAX_ENTITY_INVENTORY_SLOTS));
   if (take <= 0) return false;
+  const context = normalizeContext(input);
+  const state = context.state;
+  const purchase = access.purchase === true;
+  const purchaseQuote = purchase ? containerPurchaseQuote(state, container, slot.defId, take) : undefined;
+  if (purchaseQuote && (actor.money ?? 0) < purchaseQuote.totalPrice) return false;
+  publishTheftAuditIfDue(container, actor, context);
   const defId = slot.defId;
   const itemName = def.name;
   const item: Item = { defId, count: take, data: take === slot.count ? slot.data : undefined };
@@ -584,28 +889,34 @@ export function takeFromContainer(
     addToInventory(container.inventory, item, take - moved, container.capacitySlots);
     return false;
   }
+  const unlock = access.unlock ? unlockContainerForActor(container, actor, state) : null;
+  if (purchaseQuote) {
+    actor.money = (actor.money ?? 0) - purchaseQuote.totalPrice;
+    if (state && purchaseQuote.quote?.resourceId) {
+      changeResourceStock(state, purchaseQuote.quote.resourceId, -moved, state.currentFloor);
+    }
+  }
   const stolen = access.theft;
   container.lastOpenedBy = actor.id;
-  const context = normalizeContext(input);
-  const state = context.state;
   container.lastOpenedAt = state?.time;
   if (state) {
     const quarantine = container.tags.includes('quarantine');
     const theftWitness = stolen ? findTheftWitnesses(context.world, context.entities, actor, container) : { witnesses: [], scannedNpcs: 0, capped: false };
     const stolenItemKnown = stolen ? markStolen(container, { defId, count: moved }) : false;
-    const auditMarked = stolen ? markAuditIfNeeded(container, state) : false;
-    const auditActive = auditMarked || (stolen && container.lastAuditAt !== undefined);
+    const theftWitnessed = theftWitness.witnesses.length > 0;
+    const auditMarked = stolen && theftWitnessed ? markTheftKnown(container, state) : false;
     const relationPenalty = stolen
-      ? applyTheftRelationPenalty(container.faction, theftWitness.witnesses.length > 0, auditMarked)
+      ? applyTheftRelationPenalty(container.faction, theftWitnessed, false)
       : 0;
     const evidenceTags = chernobogDocketContainerEventTags(container.tags, defId);
     const rumorIds = chernobogDocketContainerRumorIds(container.tags, defId);
     const eventTags = [
       'container',
-      stolen ? 'theft' : 'open',
+      stolen ? 'theft' : purchase ? 'buy' : 'open',
       ...evidenceTags,
-      ...(stolen && theftWitness.witnesses.length > 0 ? ['witnessed'] : []),
-      ...(auditMarked ? ['audit'] : []),
+      ...(purchase ? ['container_purchase'] : []),
+      ...(unlock ? ['unlock'] : []),
+      ...(stolen ? [theftWitnessed ? 'witnessed' : 'unseen'] : []),
       ...(def.tags ?? []),
       ...container.tags,
     ]
@@ -626,24 +937,29 @@ export function takeFromContainer(
       itemId: defId,
       itemName,
       itemCount: moved,
-      itemValue: def.value ?? 0,
+      itemValue: purchaseQuote?.totalPrice ?? def.value ?? 0,
       containerId: container.id,
       containerOwnerId: container.ownerNpcId,
       containerFaction: container.faction,
-      severity: stolen ? theftWitness.witnesses.length > 0 ? 5 : auditActive ? 4 : 3 : quarantine ? 3 : 1,
-      privacy: stolen ? theftWitness.witnesses.length > 0 ? 'witnessed' : auditActive ? 'local' : 'private' : quarantine ? 'local' : 'private',
+      severity: stolen ? theftWitnessed ? 5 : 2 : purchase ? 2 : quarantine ? 3 : 1,
+      privacy: stolen ? theftWitnessed ? 'witnessed' : 'private' : purchase || quarantine ? 'local' : 'private',
       tags: eventTags,
       data: {
         containerName: container.name,
         containerAccess: container.access,
         containerTags: container.tags,
-        ownerName: container.ownerName,
+        accessOutcome: stolen ? 'theft' : purchase ? 'purchase' : unlock ? 'unlock_take' : 'open',
+        price: purchaseQuote?.totalPrice,
+        unitPrice: purchaseQuote?.unitPrice,
+        resourceId: purchaseQuote?.quote?.resourceId,
+        unlockItemId: unlock?.itemId,
+        theftOutcome: stolen ? theftWitnessed ? 'witnessed' : 'unseen' : undefined,
+        auditDelaySeconds: stolen && !theftWitnessed && theftCanBeAudited(container) ? THEFT_AUDIT_COOLDOWN_S : undefined,
         witnessCount: theftWitness.witnesses.length,
         witnessIds: theftWitness.witnesses.map(w => w.id),
-        witnessNames: theftWitness.witnesses.map(w => w.name ?? `NPC ${w.id}`),
+        witnessScanCapped: theftWitness.capped,
         auditMarked,
-        auditAt: container.lastAuditAt,
-        relationPenalty,
+        relationPenalty: stolen ? relationPenalty : undefined,
         stolenItemKnown,
         ...(rumorIds.length > 0 ? { rumorIds } : {}),
       },
@@ -682,11 +998,15 @@ export function putIntoContainer(
   const source = inv[slotIdx];
   const def = source ? ITEMS[source.defId] : undefined;
   if (!source || count <= 0 || !def) return false;
-  if (!containerAccessInfo(container, actor).canPut) return false;
+  const access = containerAccessInfo(container, actor);
+  if (!access.canPut) return false;
   const defId = source.defId;
   const itemName = def.name;
   const moved = Math.min(count, source.count, inventoryFitCount(container.inventory, source.defId, container.capacitySlots));
   if (moved <= 0) return false;
+  const context = normalizeContext(input);
+  const state = context.state;
+  publishTheftAuditIfDue(container, actor, context);
   const item: Item = { defId, count: moved, data: moved === source.count ? source.data : undefined };
   if (!removeFromInventorySlot(inv, slotIdx, moved)) return false;
   const added = addToInventory(container.inventory, item, moved, container.capacitySlots);
@@ -694,9 +1014,8 @@ export function putIntoContainer(
     addToInventory(inv, item, moved - added, MAX_ENTITY_INVENTORY_SLOTS);
     return false;
   }
+  const unlock = access.unlock ? unlockContainerForActor(container, actor, state) : null;
   container.lastOpenedBy = actor.id;
-  const context = normalizeContext(input);
-  const state = context.state;
   container.lastOpenedAt = state?.time;
   if (state) {
     const outcome = containerDepositOutcome(container, { defId, count: moved, data: item.data });
@@ -706,6 +1025,7 @@ export function putIntoContainer(
     const eventTags = [
       'container',
       'deposit',
+      ...(unlock ? ['unlock'] : []),
       ...(witnesses.witnesses.length > 0 ? ['witnessed'] : []),
       ...primaryTags,
       ...outcome.tags,
@@ -738,12 +1058,13 @@ export function putIntoContainer(
         containerName: container.name,
         containerAccess: container.access,
         containerTags: container.tags,
-        ownerName: container.ownerName,
+        accessOutcome: unlock ? 'unlock_deposit' : 'deposit',
+        unlockItemId: unlock?.itemId,
         depositOutcome: outcome.outcome,
         relationDelta: outcome.relationDelta,
         witnessCount: witnesses.witnesses.length,
         witnessIds: witnesses.witnesses.map(w => w.id),
-        witnessNames: witnesses.witnesses.map(w => w.name ?? `NPC ${w.id}`),
+        witnessScanCapped: witnesses.capped,
         rumorIds: outcome.rumorIds,
       },
     });

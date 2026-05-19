@@ -1,8 +1,9 @@
 /* ── Сухой мост над водой — shooter/eel counterplay set piece ── */
 
 import {
-  Cell, Tex, Feature, RoomType, EntityType, AIGoal, FloorLevel, MonsterKind,
-  type Entity,
+  Cell, ContainerKind, Faction, Feature, FloorLevel, MonsterKind, RoomType, Tex,
+  EntityType, AIGoal,
+  type Entity, type Room, type WorldContainer,
 } from '../../core/types';
 import { MONSTERS, applyMonsterVariant } from '../../entities/monster';
 import { Spr } from '../../render/sprite_index';
@@ -14,6 +15,34 @@ import {
 
 const BRIDGE_W = 31;
 const BRIDGE_H = 15;
+
+function nextContainerId(ctx: MaintContentCtx): number {
+  let id = ctx.world.containers.length + 1;
+  while (ctx.world.containerById.has(id) || ctx.world.containers.some(c => c.id === id)) id++;
+  return id;
+}
+
+function addBridgeContainer(
+  ctx: MaintContentCtx,
+  room: Room,
+  x: number,
+  y: number,
+  container: Omit<WorldContainer, 'id' | 'x' | 'y' | 'floor' | 'roomId' | 'zoneId'>,
+): void {
+  const wx = ctx.world.wrap(x);
+  const wy = ctx.world.wrap(y);
+  const ci = ctx.world.idx(wx, wy);
+  ctx.world.addContainer({
+    id: nextContainerId(ctx),
+    x: wx,
+    y: wy,
+    floor: FloorLevel.MAINTENANCE,
+    roomId: room.id,
+    zoneId: ctx.world.zoneMap[ci],
+    ...container,
+  });
+  setFeature(ctx.world, wx, wy, Feature.SHELF);
+}
 
 function setPipeBlock(ctx: MaintContentCtx, x: number, y: number): void {
   const ci = ctx.world.idx(x, y);
@@ -109,13 +138,35 @@ export function generateWaterBridge(ctx: MaintContentCtx): void {
 
   setFeature(ctx.world, room.x + 3, room.y + 2, Feature.APPARATUS);
   setFeature(ctx.world, room.x + 4, room.y + 2, Feature.LAMP);
+  setFeature(ctx.world, room.x + 7, room.y + 7, Feature.LAMP);
   setFeature(ctx.world, room.x + 15, room.y + 7, Feature.LAMP);
+  setFeature(ctx.world, room.x + 23, room.y + 8, Feature.LAMP);
   setFeature(ctx.world, room.x + room.w - 5, room.y + room.h - 3, Feature.SHELF);
   setFeature(ctx.world, room.x + room.w - 3, room.y + 3, Feature.MACHINE);
 
+  addBridgeContainer(ctx, room, room.x + room.w - 5, room.y + room.h - 3, {
+    kind: ContainerKind.TOOL_LOCKER,
+    name: 'Маршрутный ящик сухого моста',
+    inventory: [
+      { defId: 'diver_route_tag', count: 1 },
+      { defId: 'ammo_harpoon', count: 3 },
+      { defId: 'filtered_water', count: 2 },
+      { defId: 'bandage', count: 1 },
+      {
+        defId: 'note',
+        count: 1,
+        data: 'Бирку снимать после перехода: сухие лампы ведут по кромке, угорь теряет темп на бетоне.',
+      },
+    ],
+    capacitySlots: 8,
+    faction: Faction.LIQUIDATOR,
+    access: 'public',
+    discovered: true,
+    tags: ['maintenance', 'water_bridge', 'diver', 'route_tag', 'eel_counterplay', 'contract'],
+  });
+
   dropAt(ctx, room.x + 3, room.y + 2, 'note');
-  dropAt(ctx, room.x + room.w - 5, room.y + room.h - 3, 'ammo_9mm', 12);
-  dropAt(ctx, room.x + room.w - 4, room.y + room.h - 3, 'filtered_water', 2);
+  dropAt(ctx, room.x + room.w - 4, room.y + room.h - 3, 'ammo_9mm', 12);
 
   spawnBridgeMonster(ctx, MonsterKind.TUBE_EEL, room.x + 10, room.y + 5, true);
   spawnBridgeMonster(ctx, MonsterKind.TUBE_EEL, room.x + 21, room.y + 10, true);

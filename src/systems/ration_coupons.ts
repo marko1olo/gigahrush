@@ -2,11 +2,12 @@ import {
   EntityType, Faction, FloorLevel, msg,
   type Entity, type GameState, type Item, type Msg, type WorldEvent,
 } from '../core/types';
+import { type World } from '../core/world';
 import { ITEMS } from '../data/catalog';
 import { getStack } from '../data/items';
 import { addFactionRelMutual } from '../data/relations';
 import { changeResourceStock } from './economy';
-import { publishEvent, registerWorldEventObserver } from './events';
+import { getRecentEvents, publishEvent, registerWorldEventObserver } from './events';
 
 export const RATION_COUPON_ITEM_IDS = [
   'water_coupon',
@@ -19,10 +20,22 @@ export const RATION_COUPON_ITEM_IDS = [
 const COUPON_ITEM_IDS = new Set<string>(RATION_COUPON_ITEM_IDS);
 const MAX_INVENTORY_SLOTS = 25;
 const REPORT_SIDE_QUEST_IDS = new Set(['min_coupon_forgery_report', 'kv_coupon_audit_registry']);
+const QUEUE_ROOM_TAGS = ['ration_queue', 'ocherednik'] as const;
+const QUEUE_TRADE_TAG = 'ration_queue_trade';
+const QUEUE_TRADE_WINDOW_SEC = 180;
+const MAX_QUEUE_TRADES_PER_ROOM = 3;
 
 type RationUseResult = {
   handled: boolean;
 };
+
+interface QueueRoomContext {
+  roomId: number;
+  zoneId: number;
+  x: number;
+  y: number;
+  sourceTag: string;
+}
 
 export function isRationCouponItem(defId: string): boolean {
   return COUPON_ITEM_IDS.has(defId);
@@ -129,6 +142,126 @@ function applyFairSpendEconomy(state: GameState | undefined, resourceId: string)
   if (!state) return;
   changeResourceStock(state, resourceId, -1);
   addFactionRelMutual(Faction.PLAYER, Faction.CITIZEN, 1);
+}
+
+function rationQueueContext(actor: Entity, zoneId: number | undefined, world: World | undefined): QueueRoomContext | null {
+  if (!world || actor.type !== EntityType.PLAYER) return null;
+  const x = Math.floor(actor.x);
+  const y = Math.floor(actor.y);
+  const ci = world.idx(x, y);
+  const roomId = world.roomMap[ci];
+  if (roomId < 0) return null;
+  for (const container of world.containers) {
+    if (container.roomId !== roomId) continue;
+    const sourceTag = QUEUE_ROOM_TAGS.find(tag => container.tags.includes(tag));
+    if (!sourceTag) continue;
+    return { roomId, zoneId: zoneId ?? world.zoneMap[ci], x, y, sourceTag };
+  }
+  return null;
+}
+
+function recentQueueTradeCount(state: GameState | undefined, actor: Entity, roomId: number): number {
+  if (!state) return 0;
+  let count = 0;
+  for (const event of getRecentEvents(state, { tags: [QUEUE_TRADE_TAG], limit: 16 })) {
+    if (event.actorId !== actor.id || event.roomId !== roomId) continue;
+    if (state.time - event.time > QUEUE_TRADE_WINDOW_SEC) continue;
+    count++;
+  }
+  return count;
+}
+
+function publishQueueTradeEvent(
+  state: GameState | undefined,
+  actor: Entity,
+  context: QueueRoomContext,
+  inputItemId: 'water' | 'bread',
+  outputItemId: 'bread' | 'water_coupon',
+  risk: boolean,
+): void {
+  if (!state) return;
+  publishEvent(state, {
+    type: 'player_use_item',
+    zoneId: context.zoneId,
+    roomId: context.roomId,
+    x: context.x,
+    y: context.y,
+    actorId: actor.id,
+    actorName: actorName(actor),
+    actorFaction: actor.faction,
+    itemId: inputItemId,
+    itemName: itemName(inputItemId),
+    itemCount: 1,
+    itemValue: ITEMS[inputItemId]?.value ?? 0,
+    severity: risk ? 4 : 3,
+    privacy: 'local',
+    tags: risk
+      ? ['player', 'inventory', 'ration_queue', QUEUE_TRADE_TAG, 'queue_jump', 'crowd_risk', 'ration_coupon_audit']
+      : ['player', 'inventory', 'ration_queue', QUEUE_TRADE_TAG, 'water_for_place', 'crowd_relief', 'ration_coupon_audit'],
+    data: {
+      source: context.sourceTag,
+      inputItemId,
+      outputItemId,
+      outcome: risk ? 'queue_jump_for_coupon' : 'water_for_place_trade',
+      kvartiryWaterDelta: risk ? -1 : 1,
+      kvartiryFoodDelta: risk ? 1 : -1,
+      rumorIds: risk
+        ? ['kvartiry_queue_unrest', 'ration_coupon_black_market']
+        : ['lead_kvartiry_ration_queue_registry', 'player_trade_fair'],
+    },
+  });
+}
+
+function tradeQueuePlace(
+  actor: Entity,
+  slotIdx: number,
+  msgs: Msg[],
+  time: number,
+  state: GameState | undefined,
+  zoneId: number | undefined,
+  world: World | undefined,
+): RationUseResult {
+  const slot = actor.inventory?.[slotIdx];
+  if (!slot || (slot.defId !== 'water' && slot.defId !== 'bread')) return { handled: false };
+  const context = rationQueueContext(actor, zoneId, world);
+  if (!context) return { handled: false };
+
+  if (recentQueueTradeCount(state, actor, context.roomId) >= MAX_QUEUE_TRADES_PER_ROOM) {
+    msgs.push(msg('Очередь перестала менять места: слишком много рук потянулось к одному окну. Отойдите, если хотите просто поесть или попить.', time, '#aa8'));
+    return { handled: true };
+  }
+
+  const outputItemId = slot.defId === 'water' ? 'bread' : 'water_coupon';
+  const selectedWillFree = slot.count <= 1;
+  if (!hasRoomFor(actor, outputItemId, selectedWillFree)) {
+    msgs.push(msg('Некуда спрятать плату за место. Очередь не держит чужие карманы.', time, '#aa8'));
+    return { handled: true };
+  }
+
+  if (!consumeSlot(actor, slotIdx, 1)) return { handled: true };
+  addItemToActor(actor, outputItemId, 1);
+
+  if (state) {
+    if (slot.defId === 'water') {
+      changeResourceStock(state, 'drink_water', 1, FloorLevel.KVARTIRY);
+      changeResourceStock(state, 'food', -1, FloorLevel.KVARTIRY);
+      addFactionRelMutual(Faction.PLAYER, Faction.CITIZEN, 1);
+    } else {
+      changeResourceStock(state, 'food', 1, FloorLevel.KVARTIRY);
+      changeResourceStock(state, 'drink_water', -1, FloorLevel.KVARTIRY);
+      addFactionRelMutual(Faction.PLAYER, Faction.CITIZEN, -1);
+      addFactionRelMutual(Faction.PLAYER, Faction.WILD, 1);
+    }
+  }
+
+  if (slot.defId === 'water') {
+    msgs.push(msg('Вода ушла за место в очереди. Толпа подвинулась на один вдох; в руку сунули хлеб.', time, '#8cf'));
+    publishQueueTradeEvent(state, actor, context, 'water', 'bread', false);
+  } else {
+    msgs.push(msg('Хлебом куплено место у водного окна. Получен талон, но локти вокруг запомнили прыжок.', time, '#fa6'));
+    publishQueueTradeEvent(state, actor, context, 'bread', 'water_coupon', true);
+  }
+  return { handled: true };
 }
 
 function spendCoupon(
@@ -243,9 +376,13 @@ export function handleRationCouponUse(
   msgs: Msg[],
   time: number,
   state?: GameState,
+  zoneId?: number,
+  world?: World,
 ): boolean {
   const slot = actor.inventory?.[slotIdx];
   if (!slot) return false;
+  const queueTrade = tradeQueuePlace(actor, slotIdx, msgs, time, state, zoneId, world);
+  if (queueTrade.handled) return true;
   if (slot.defId === 'water_coupon' || slot.defId === 'concentrate_coupon') {
     return spendCoupon(actor, slotIdx, slot.defId, msgs, time, state).handled;
   }

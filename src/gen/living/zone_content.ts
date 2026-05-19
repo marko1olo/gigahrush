@@ -36,8 +36,8 @@ interface ZoneContentEntry {
 const registry: ZoneContentEntry[] = [];
 
 export interface ZoneContentRegistrySnapshot {
-  zoneHudId: number;
-  label: string;
+  readonly zoneHudId: number;
+  readonly label: string;
 }
 
 /* ── Register a zone content module ──────────────────────────── */
@@ -52,13 +52,20 @@ export function registerZoneContent(
   label: string,
   generate: ZoneContentGenerator,
 ): void {
+  const trimmedLabel = label.trim();
+  if (!Number.isInteger(zoneHudId) || zoneHudId <= 0) {
+    throw new Error(`[ZONE_CONTENT] invalid zone HUD #${zoneHudId} while registering "${trimmedLabel || '<missing label>'}"`);
+  }
+  if (!trimmedLabel) {
+    throw new Error(`[ZONE_CONTENT] missing label for zone HUD #${zoneHudId}`);
+  }
   if (registry.some(entry => entry.zoneHudId === zoneHudId)) {
-    console.warn(`[ZONE_CONTENT] duplicate zone HUD #${zoneHudId} while registering "${label}"`);
+    throw new Error(`[ZONE_CONTENT] duplicate zone HUD #${zoneHudId} while registering "${trimmedLabel}"`);
   }
-  if (registry.some(entry => entry.label === label)) {
-    console.warn(`[ZONE_CONTENT] duplicate label "${label}"`);
+  if (registry.some(entry => entry.label === trimmedLabel)) {
+    throw new Error(`[ZONE_CONTENT] duplicate label "${trimmedLabel}"`);
   }
-  registry.push({ zoneHudId, label, generate });
+  registry.push({ zoneHudId, label: trimmedLabel, generate });
 }
 
 export function getZoneContentRegistrySnapshot(): readonly ZoneContentRegistrySnapshot[] {
@@ -79,8 +86,7 @@ export function runZoneContentModules(
     const zoneIdx = entry.zoneHudId - 1; // HUD is 1-indexed, array is 0-indexed
     const zone = world.zones[zoneIdx];
     if (!zone) {
-      console.warn(`[ZONE_CONTENT] zone HUD #${entry.zoneHudId} (idx ${zoneIdx}) not found, skipping "${entry.label}"`);
-      continue;
+      throw new Error(`[ZONE_CONTENT] zone HUD #${entry.zoneHudId} (idx ${zoneIdx}) not found for "${entry.label}"`);
     }
     genLog(`[ZONE_CONTENT] running "${entry.label}" in zone HUD #${entry.zoneHudId} center=(${zone.cx}, ${zone.cy})`);
     const result = entry.generate(

@@ -63,6 +63,50 @@ function stampEnergyMark(
   }
 }
 
+function projectileImpactColor(sprite: number | undefined, pt = ProjType.NORMAL): [number, number, number] {
+  if (pt === ProjType.FLAME || sprite === Spr.FLAME_BOLT || sprite === Spr.HOSTILE_FLAME_BOLT) return [255, 92, 24];
+  if (sprite === Spr.EYE_BOLT) return [150, 240, 52];
+  if (sprite === Spr.HOSTILE_PSI_BOLT) return [248, 36, 132];
+  if (sprite === Spr.PSI_BOLT) return [204, 96, 255];
+  if (sprite === Spr.PLASMA_BOLT || sprite === Spr.GAUSS_BOLT) return [110, 232, 255];
+  if (sprite === Spr.HOSTILE_PLASMA_BOLT) return [255, 126, 45];
+  if (pt === ProjType.BFG || sprite === Spr.BFG_BOLT) return [104, 255, 90];
+  if (sprite === Spr.HOSTILE_BULLET || sprite === Spr.HOSTILE_PELLET || sprite === Spr.HOSTILE_NAIL) return [255, 86, 42];
+  return [255, 214, 118];
+}
+
+function spawnProjectileImpactParticles(
+  x: number, y: number,
+  z: number,
+  sprite: number | undefined,
+  pt = ProjType.NORMAL,
+): void {
+  const energy = isEnergyProjectileImpact(sprite, pt);
+  const flame = pt === ProjType.FLAME || sprite === Spr.FLAME_BOLT || sprite === Spr.HOSTILE_FLAME_BOLT;
+  const [r, g, b] = projectileImpactColor(sprite, pt);
+  const count = flame ? 7 : energy ? 10 : 5;
+  const baseSpeed = flame ? 1.7 : energy ? 2.4 : 1.25;
+  const seed = ++_splatterSeed;
+  for (let i = 0; i < count && particles.length < MAX_PARTICLES; i++) {
+    const ang = Math.random() * Math.PI * 2;
+    const spd = baseSpeed * (0.45 + Math.random() * 0.85);
+    const h = (seed * 29 + i * 47) & 31;
+    particles.push({
+      x,
+      y,
+      z,
+      vx: Math.cos(ang) * spd,
+      vy: Math.sin(ang) * spd,
+      vz: (energy ? 0.55 : 0.35) + Math.random() * (flame ? 1.0 : 1.35),
+      life: flame ? 0.42 : energy ? 0.5 : 0.28,
+      size: energy ? 1 + (h & 1) : 1,
+      r: Math.min(255, r + h),
+      g: Math.min(255, g + (h >> 1)),
+      b: Math.min(255, b + (h >> 2)),
+    });
+  }
+}
+
 export function spawnProjectileFloorImpact(
   world: World,
   x: number, y: number,
@@ -72,6 +116,7 @@ export function spawnProjectileFloorImpact(
   const cx = Math.floor(x), cy = Math.floor(y);
   if (world.solid(cx, cy)) return;
   const fx = (x % 1 + 1) % 1, fy = (y % 1 + 1) % 1;
+  spawnProjectileImpactParticles(x, y, 0.08, sprite, pt);
   if (pt === ProjType.FLAME || sprite === Spr.FLAME_BOLT || sprite === Spr.HOSTILE_FLAME_BOLT) {
     stampMark(world, cx, cy, fx, fy, 0.3, MarkType.BURN, ++_splatterSeed, 8, 5, 2, 180);
   } else if (isEnergyProjectileImpact(sprite, pt)) {

@@ -6,6 +6,7 @@ import { World } from '../src/core/world';
 import { isBaitAttractedMonster } from '../src/data/monster_ecology';
 import {
   MONSTER_BAIT_MAX_ACTIVE,
+  MONSTER_BAIT_RADIUS_CAP,
   expireMonsterBaits,
   findMonsterBaitTarget,
   getActiveMonsterBaits,
@@ -56,13 +57,53 @@ function monster(kind: MonsterKind, x: number, y: number, id = 2): Entity {
 
 test('food drops and govnyak use are explicit bait inputs', () => {
   assert.equal(isMonsterBaitItem('bread'), true);
+  assert.equal(isMonsterBaitItem('rawmeat'), true);
   assert.equal(isMonsterBaitItem('govnyak_roll'), true);
   assert.equal(isMonsterBaitUseItem('govnyak_roll'), true);
   assert.equal(isMonsterBaitUseItem('bread'), false);
   assert.equal(isMonsterBaitItem('water'), false);
   assert.equal(isBaitAttractedMonster(MonsterKind.KRYSNOZHKA), true);
   assert.equal(isBaitAttractedMonster(MonsterKind.SBORKA), true);
+  assert.equal(isBaitAttractedMonster(MonsterKind.TUBE_EEL), true);
   assert.equal(isBaitAttractedMonster(MonsterKind.EYE), false);
+});
+
+test('bait profile uses item tags, item cost caps, and risky event tags', () => {
+  resetMonsterBaits();
+  const world = openWorld();
+  const state = makeGameState({ time: 8, currentFloor: FloorLevel.LIVING });
+
+  assert.equal(placeMonsterBait(state, world, actor(), 11, 10, 'rawmeat', 1, 'drop', 77), true);
+  const marker = getActiveMonsterBaits()[0];
+  assert.equal(marker.kind, 'meat');
+  assert.equal(marker.itemValue, 1);
+  assert.ok(marker.baitTags.includes('bait_meat'));
+  assert.ok(marker.baitTags.includes('bait_trap'));
+  assert.ok(marker.risk >= 2);
+  assert.ok(marker.radius <= MONSTER_BAIT_RADIUS_CAP);
+
+  const placed = getRecentEvents(state, { type: 'monster_bait_placed', limit: 1 })[0];
+  assert.ok(placed.tags.includes('risky_attraction'));
+  assert.equal(placed.data?.itemValue, 1);
+});
+
+test('bait attraction prefers ecology-tagged food over a closer generic lure', () => {
+  resetMonsterBaits();
+  const world = openWorld();
+  const state = makeGameState({ time: 9, currentFloor: FloorLevel.LIVING });
+  const player = actor();
+
+  assert.equal(placeMonsterBait(state, world, player, 13, 10, 'bread', 1, 'drop', 88), true);
+  assert.equal(placeMonsterBait(state, world, player, 14, 10, 'rawmeat', 1, 'drop', 89), true);
+
+  const tvar = monster(MonsterKind.TVAR, 10, 10);
+  const bait = findMonsterBaitTarget(world, tvar, 0.2, state.time, state);
+  assert.equal(bait?.itemId, 'rawmeat');
+
+  const attracted = getRecentEvents(state, { type: 'monster_bait_attracted', limit: 1 })[0];
+  assert.equal(attracted.monsterKind, MonsterKind.TVAR);
+  assert.ok((attracted.data?.ecologyTags as string[]).includes('monster_tvar'));
+  assert.ok(Number(attracted.data?.baitFit) > 1);
 });
 
 test('small monsters claim nearby bait through a capped marker scan', () => {
@@ -95,5 +136,8 @@ test('bait markers expire and stay under the active cap', () => {
 
   expireMonsterBaits(state, 100);
   assert.equal(getActiveMonsterBaits().length, 0);
-  assert.equal(getRecentEvents(state, { type: 'monster_bait_expired', limit: 1 })[0]?.data?.source, 'drop');
+  const expired = getRecentEvents(state, { type: 'monster_bait_expired', limit: 1 })[0];
+  assert.equal(expired?.data?.source, 'drop');
+  assert.equal(expired?.data?.outcome, 'failure');
+  assert.ok(expired?.tags.includes('failure'));
 });

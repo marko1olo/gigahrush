@@ -15,8 +15,9 @@ Active docs are intentionally narrow:
 - `architecture.md`: layer contracts, ownership rules and integration patterns.
 - `cloudflare.md`: optional Cloudflare Net Sphere deployment notes.
 - `Docs/DesignFloors/`, `Docs/ProceduralFloors/` and `Docs/Expansions/`: active design/reference packets.
+- `monsters.md`, `expansion.md`, `anomalies.md` and `mobile.md`: small stable compatibility entrypoints for older task references and broad planning packets.
 
-Historical agent prompts, statuses, logs and retired root planning passes are consolidated into [appendix.md](appendix.md). Their original files were moved under `gatbage/` with paths preserved. Do not recreate `Docs/Tasks`, `Docs/AgentLogs`, `Docs/AgentPrompts` or `Docs/DesignFloors/AgentPrompts` for routine work; append a compact note to `appendix.md` only when historical context genuinely needs to be kept.
+Historical agent prompts, statuses, logs, batch files and retired root planning passes are consolidated into [appendix.md](appendix.md). Their original files live under `gatbage/` with paths preserved, including root `macro_*.md`, `Monster_*.md`, `economics_*.md`, `tester.md`, and historical `Docs/Tasks` / `Docs/AgentLogs` output. Do not recreate `Docs/Tasks`, `Docs/AgentLogs`, `Docs/AgentPrompts` or `Docs/DesignFloors/AgentPrompts` for routine work; append a compact note to `appendix.md` only when historical context genuinely needs to be kept.
 
 ## Build And Commands
 
@@ -61,25 +62,27 @@ Current shipped-data scale, counted from source registries:
 | Story `FloorLevel` values | 6 |
 | Authored routed design floors | 17 |
 | Seeded procedural interstitial floors per run | 62 |
-| Procedural floor anomaly profiles | 17 |
+| Procedural floor anomaly profiles | 18 |
 | Numbered lift anomalies | 8 |
 | Main plot steps | 16 |
-| Plot/side NPC ids after manifests load | 212 |
-| Side quest steps after manifests load | 263 |
+| Plot/side NPC ids after manifests load | 299 |
+| Side quest steps after manifests load | 339 |
 | System assignment templates | 67 |
-| Item ids | 240 |
+| Item ids | 242 |
 | Physical weapon stat entries | 31 |
 | PSI weapon stat entries | 16 |
 | Base monster kinds | 24 |
 | Monster ecology entries | 24 |
 | Monster modifier variants | 23 |
-| Static rumors | 303 |
-| Samosbor variants / modifiers / aftermath beats | 8 / 21 / 36 |
-| Samosbor director beats | 16 |
+| Static rumors | 318 |
+| Samosbor variants / modifiers / aftermath beats | 8 / 21 / 37 |
+| Samosbor director beats | 26 |
 | Economy resources | 17 |
 | Caravan supply lanes | 6 |
 | Factory definitions / recipes | 10 / 17 |
-| Debug commands, including routed teleports | 78 |
+| LIVING manifest entries | 31 |
+| Manifest imports checked by content audit | 128 |
+| Debug commands, including routed teleports | 87 |
 
 ## НЕТ-ТЕРМИНАЛ ГЕН
 
@@ -91,7 +94,7 @@ The editor is a canvas HUD overlay over the live `World`: it can paint cells, do
 
 The game is a survival-horror life-sim and stalker-like expedition shooter in a giant self-rearranging Khrushchev block. The world is a 1024x1024 torus. Rooms, corridors, zones, lifts, factions, NPC schedules, containers, quests, production, rumors and samosbor events all exist in the same persistent gameplay loop.
 
-The player starts on `FloorLevel.LIVING` in the act hall. Nearby are Olga, Barni's armory range, Yakov's lab, Vanka's den and the first living-zone POIs. From there the player makes expeditions: prepare food/water/ammo, take a quest or rumor, move through faction territory, fight or sneak, survive samosbor, loot containers, return with consequences.
+The player starts on `FloorLevel.LIVING` in the act hall. Nearby are Olga, Barni's armory range, Yakov's lab, Vanka's den, a protected expedition prep point with a public loadout/checklist stash and the first living-zone POIs. From there the player makes expeditions: prepare food/water/ammo, take a quest or rumor, move through faction territory, fight or sneak, survive samosbor, loot containers, return with consequences.
 
 Core loop:
 
@@ -278,13 +281,13 @@ These are routed string-id floors, not new `FloorLevel` enum values. Each one is
 
 - geometry type: `living_blocks`, `apartment_pressure`, `collectors`, `workshops`, `admin_pockets`;
 - main faction: citizens, liquidators, cultists, wild or scientists, with citizens weighted highest and cultists lowest;
-- anomaly: none, teleport cells, smog, samosbor seed, mushroom mycelium, false safe block, Hladon cold pocket, rail trains, Bad Apple world and topology/route anomalies;
+- anomaly: none, teleport cells, smog, samosbor seed, mushroom mycelium, false safe block, Hladon cold pocket, rail trains, Bad Apple world, zombie apocalypse and topology/route anomalies;
 - danger level: `1..5`, derived from vertical depth, direction and random seed;
 - per-floor loot and monster bias ids derived from the same seed.
 
 `src/systems/procedural_floors.ts` owns save/load state for the run seed, current `z`, visited procedural specs, authored route entry resolution and lift route resolution. `src/gen/procedural_floor.ts` builds procedural floors without spawning authored story NPCs: rooms/corridors, both lift directions, zone danger, faction majority, seed-biased loot, seed-biased monsters and anomaly effects.
 
-Teleport-cell anomaly pairs are stored sparsely in `world.anomalyTeleports`. Stepping on one paired cell moves the player to the paired cell after a short cooldown. Mushroom-mycelium floors also seed bounded carnivorous fungus rooms with corpse/bait feeding, salt neutralization, fire burn-off and risky zhelemish harvests. False safe blocks stamp quiet corridors, a too-clean shelter, black-hand marks, a missing-siren panel and cult-owned supplies; investigating, reporting, looting or breaking the marker publish events, while samosbor pressure is only partially delayed. Hladon cold pockets are bounded procedural rooms with pale frost marks; they slow and drain needs only inside/near the marked cells, and heat items, valve/steam tools or alternate routing counter them. Rail-train anomalies cut fixed rail routes through the floor, add platforms with schedule screens, spawn moving train segments, allow `E` boarding/exit while stopped and publish rail events when trains crush NPCs, monsters or the player. Bad Apple world stamps a 144x108 map rectangle from packed black/white RLE frames; black pixels become dark walls, white pixels become pale floor, and the projector can be paused/resumed with `E`.
+Teleport-cell anomaly pairs are stored sparsely in `world.anomalyTeleports`. Stepping on one paired cell moves the player to the paired cell after a short cooldown. Mushroom-mycelium floors also seed bounded carnivorous fungus rooms with corpse/bait feeding, salt neutralization, fire burn-off and risky zhelemish harvests. False safe blocks stamp quiet corridors, a too-clean shelter, black-hand marks, a missing-siren panel and cult-owned supplies; investigating, reporting, looting or breaking the marker publish events, while samosbor pressure is only partially delayed. Hladon cold pockets are bounded procedural rooms with pale frost marks; they slow and drain needs only inside/near the marked cells, and heat items, valve/steam tools or alternate routing counter them. Rail-train anomalies cut fixed rail routes through the floor, add platforms with schedule screens, spawn moving train segments, allow `E` boarding/exit while stopped and publish rail events when trains crush NPCs, monsters or the player. Bad Apple world stamps a 144x108 map rectangle from packed black/white RLE frames; black pixels become dark walls, white pixels become pale floor, and the projector can be paused/resumed with `E`. Zombie apocalypse floors add a thousand-plus resident crowd, spawn one zombie patient zero and convert any NPC bitten by a zombie into another zombie.
 
 Floor VISIT quests only complete on story anchors, not on procedural or design floors that happen to use the same base `FloorLevel` for system mood.
 
@@ -368,6 +371,8 @@ Major side-content locations include:
 
 System assignment templates live in `src/data/contracts.ts`; quest generation treats them as normal system-assignment templates with scarcity-adjusted rewards and deadlines. The current deck has 67 templates, including expedition, scarcity, monster cleanup, govnyak courier and pneumomail-linked work. Debug can create/list system assignments, but the player-facing NPC action remains `Задание`.
 
+On `KVARTIRY`, the false-neighbor/Pustoy Sosed content uses a screen-reflection tell and local side-quest branches: expose by checking papers/reporting to liquidators, flee by taking the complaint and leaving, or force a close reveal and fight. Resolved branches publish `false_neighbor` world-event data and rumor hooks.
+
 ## World And Data Model
 
 - The world is a 1024x1024 torus.
@@ -439,7 +444,7 @@ The pneumomail station is a static Maintenance POI with intake, intercept, jam a
 4. Place up/down lifts.
 5. Spawn NPCs from the main faction mix, except on NPC-free endgame route floors at `z>=36`.
 6. Spawn loot and monsters with seed-biased weights.
-7. Apply the anomaly: fog, teleport pairs, samosbor-tainted zones/marks, mushroom growth with carnivorous fungus rooms, cold pockets or false safe blocks.
+7. Apply the anomaly: fog, teleport pairs, samosbor-tainted zones/marks, mushroom growth with carnivorous fungus rooms, cold pockets, false safe blocks or zombie-apocalypse crowd/infection.
 
 Geometry and anomaly authoring contracts for future agents live in `Docs/ProceduralFloors/geometry.md` and `Docs/ProceduralFloors/anomaly.md`.
 
@@ -466,7 +471,7 @@ Current behavior:
 9. Fog spreads and can spawn monsters during active phase.
 10. After end, doors reopen, aftermath may apply, and relevant floor geometry is rebuilt.
 
-`data/samosbor_variants.ts` currently has 8 variants, 21 modifiers and 36 aftermath beats. Rare replacement variants include Maronary with green fog/high beep/wrong-door residue, Istotit with a bell cue, golden fog, marked shelter rooms and social aftermath, and Veretar with white-area leakage. `data/samosbor_director.ts` adds 16 bounded director beats for warnings, patrols, shortages, door malfunctions, aftershocks and rumor seeds.
+`data/samosbor_variants.ts` currently has 8 variants, 21 modifiers and 37 aftermath beats. Rare replacement variants include Maronary with green fog/high beep/wrong-door residue, Istotit with a bell cue, golden fog, marked shelter rooms and social aftermath, and Veretar with white-area leakage. `data/samosbor_director.ts` currently registers 26 bounded director beats for warnings, patrols, shortages, door malfunctions, aftershocks and rumor seeds.
 
 Timers by story floor come from `src/gen/floor_manifest.ts`: Ministry is slowest, Kvartiry/Living/Maintenance are progressively more pressured, Hell and Void are fastest. Procedural floors additionally shorten the timer by danger level and anomaly pressure.
 
@@ -482,7 +487,7 @@ Events cover samosbor, zone capture, fog bosses, floor transitions, elevator ano
 
 `systems/world_log.ts` turns important public facts into HUD/log messages. `systems/npc_memory.ts`, `systems/context.ts` and `systems/rumor.ts` let NPC dialogue and rumor spreading react to those facts.
 
-`data/rumors.ts` contains 303 static rumor definitions, and runtime events can become observed/spread rumors.
+`data/rumors.ts` contains 318 static rumor definitions, and runtime events can become observed/spread rumors.
 
 ## NPC, A-Life And Factions
 
@@ -514,13 +519,13 @@ Factions:
 | Wild | raiders/social chaos |
 | Player | separate faction for relation logic |
 
-The world has 64 macro-zones. `systems/factions.ts` controls zone ownership, patrol clashes, territory capture, reinforcements and hostile target logic. `data/faction_events.ts` adds discrete faction events. Cult processions are rare timed faction events with capped pilgrims, residue marks, temporary local control pressure, map/log warnings, and player responses: avoid, follow, report by equipped radio, use a meat rune as cover, or disrupt by violence.
+The world has 64 macro-zones. `systems/factions.ts` controls zone ownership, patrol clashes, territory capture, reinforcements and hostile target logic. `data/faction_events.ts` adds discrete faction events. Cult processions are rare timed faction events with capped pilgrims, residue marks, temporary local control pressure, map/log warnings, and player responses: avoid, follow, report by equipped radio, use a meat rune as disguise, or disrupt by violence. Active processions publish aftermath and end when a samosbor cycle starts.
 
 NPC combat scans are cached through `combatTargetId` / `combatScanCd`, avoiding per-frame broad rescans.
 
 ## Items, Weapons And PSI
 
-`src/data/items.ts` currently defines 240 item ids:
+`src/data/items.ts` currently defines 242 item ids:
 
 - food and drinks: bread, canned food, kasha, briquettes, water, tea, kompot, coffee, etc.
 - medicine: bandage, pills, antidepressant, antibiotic, morphine, PSI stabilizer, sanitary kit.
@@ -549,7 +554,7 @@ Monster supporting data:
 
 Fog bosses can clear fog when killed. Matka is a spawner boss. Heralds open the path to Void. Creator is the final boss.
 
-Krysnozhka, Sborka, Tvar and Polzun can be distracted by explicit bait: dropped food or used/dropped govnyak creates a temporary capped marker. Bait attraction uses active marker caps and cooldowns, not item-drop scans.
+Krysnozhka, Sborka, Tvar, Polzun and Tube Eel can be distracted by explicit bait: dropped food or used/dropped govnyak creates a temporary capped marker. Bait attraction uses active marker caps and cooldowns, not item-drop scans. Tube Eel route set pieces combine water cells, dry-edge counterplay, harpoon ammo and non-cleanable wet-route HUD warnings instead of fluid simulation.
 
 Kostorez is a rare Maintenance/Hell melee elite with a visible blade windup. Distance, a corner/obstacle, or shotgun pellets interrupt the burst; a carried `metal_sheet` can absorb part of one cut.
 
@@ -656,7 +661,7 @@ Screens show active floor/zone context, quest markers, fog overlay, NPC/monster/
 
 On touch devices the game shows a landscape mobile overlay: left virtual joystick for movement, right virtual joystick for camera rotation, center tap zone for attack/shoot, left `[E]` popup for nearby interaction targets, a top-left `FULL`/direct-page control when the browser can use it safely, and a right-side menu rail. The rail's up/down buttons choose inventory, map, quests, log, factions, Net Sphere, save/load menu or debug menu; the center button opens the selected panel or closes the current panel. The canvas resizes to the host viewport/fullscreen iframe, including itch.io mobile launch/fullscreen resizing. Canvas UI panels accept taps for selection, transfer, buy/sell, use/drop and close actions.
 
-Debug menu currently has 61 base commands plus 17 routed design-floor teleports: weapons/PSI, spawn monsters/NPC/items, XP, samosbor variant cycle, noclip, event log, economy prices, containers, production tick, system assignments, balance/catalog, lift instances, VOID protocols, faction events, route cues, samosbor director controls, story/design/procedural/anomaly teleports, Maronary/Istotit/Veretar forcing, govnyak courier, pneumomail, hermodoor borer QA, liquidator-cult clash, `ONEPUNCHMAN`, Net Terminal Gen/map editor commands, rail-train anomaly teleport, Bad Apple screen spawn near the player and smoke expedition setup.
+Debug menu currently has 70 base commands plus 17 routed design-floor teleports: weapons/PSI, spawn monsters/NPC/items, XP, samosbor variant cycle, noclip, event log, economy prices, containers, production tick, system assignments, balance/catalog, lift instances, VOID protocols, faction events, route cues, samosbor director controls, story/design/procedural/anomaly teleports, Maronary/Istotit/Veretar forcing, govnyak courier, pneumomail, hermodoor borer QA, liquidator-cult clash, `ONEPUNCHMAN`, Net Terminal Gen/map editor commands, rail-train anomaly teleport, Bad Apple screen spawn near the player, zombie-apocalypse anomaly teleport, smoke expedition setup, and verification commands for contracts, events, lift route windows, numbered lift loops, samosbor warning, economy scarcity, floor monster packs and container routing.
 
 ## Save And Load
 

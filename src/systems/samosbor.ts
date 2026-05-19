@@ -4,7 +4,7 @@
 
 import {
   W, Cell, DoorState, ZoneFaction, FloorLevel, Tex, Feature, ContainerKind, Faction,
-  type Entity, type GameState, type Msg, type WorldContainer, type WorldEventType,
+  type Entity, type GameState, type Msg, type Room, type WorldContainer, type WorldEventType,
   EntityType, AIGoal, MonsterKind,
   msg,
 } from '../core/types';
@@ -25,6 +25,7 @@ import { flashSamosborWarningScreens } from '../gen/procedural_screens';
 import { rng, pick, weightedPick } from '../gen/shared';
 import { scaleMonsterHp, scaleMonsterSpeed, randomRPG } from './rpg';
 import { publishEvent } from './events';
+import { getSamosborLocalShelters } from './samosbor_hooks';
 import { replaceCellHazards } from './cell_hazards';
 import { tickSamosborDirector } from './samosbor_director';
 import { ensureRoomContainers } from './containers';
@@ -72,6 +73,11 @@ const ISTOTIT_SHELTER_SEARCH_RADIUS = 46;
 const ISTOTIT_SHELTER_CANDIDATE_CAP = 9;
 const ISTOTIT_SUPPLY_TAG = 'istotit_supply';
 const ISTOTIT_DECISION_RADIUS2 = 4.5 * 4.5;
+const PLAYER_SHELTER_DOOR_CAP = 12;
+const UNSHELTERED_FOG_RADIUS = 4;
+const UNSHELTERED_FOG_STRENGTH = 155;
+const UNSHELTERED_HP_DAMAGE = 4;
+const UNSHELTERED_PSI_DAMAGE = 3;
 const FOG_DIRS_X = [1, -1, 0, 0];
 const FOG_DIRS_Y = [0, 0, 1, -1];
 
@@ -86,6 +92,7 @@ let istotitShelterFloor = FloorLevel.LIVING;
 let istotitSupplyContainerIds: number[] = [];
 let istotitDecisionCycle = -1;
 let istotitDecision = '';
+let samosborPlayerShelterRoomId = -1;
 
 interface PendingAftermath {
   state: GameState;
@@ -129,6 +136,19 @@ export interface SamosborWarningSnapshot {
   wrongDoorX?: number;
   wrongDoorY?: number;
   shelterRoomIds: readonly number[];
+  signals: SamosborWarningSignals;
+}
+
+export interface SamosborWarningSignals {
+  audioLine: string;
+  screenLine: string;
+  mapLine: string;
+  npcLine: string;
+  visualLine: string;
+  logLine: string;
+  mapCode: string;
+  channels: readonly string[];
+  channelLines: readonly string[];
 }
 
 interface SamosborWarningRuntime {
@@ -143,6 +163,7 @@ interface SamosborWarningRuntime {
   screenCount: number;
   greenSourceCount: number;
   wrongDoorIdx: number;
+  signals: SamosborWarningSignals;
 }
 
 let samosborWarning: SamosborWarningRuntime | null = null;
@@ -173,12 +194,175 @@ function isVeretar(variant: ActiveSamosborVariant): boolean {
   return variant.def.id === 'veretar';
 }
 
+function hasPreparedHermeticSeal(world: World, room: Room): boolean {
+  if (room.doors.length === 0 || room.doors.length > PLAYER_SHELTER_DOOR_CAP) return false;
+  let hermeticDoors = 0;
+  for (const di of room.doors) {
+    const door = world.doors.get(di);
+    if (!door || door.state !== DoorState.HERMETIC_CLOSED) return false;
+    hermeticDoors++;
+  }
+  return hermeticDoors > 0;
+}
+
+function trySealPreparedPlayerRoom(world: World, state: GameState, room: Room | null): Room | null {
+  if (!room || room.sealed || !hasPreparedHermeticSeal(world, room)) return room;
+  let blocked = false;
+  for (const di of room.doors) {
+    if (blocksHermodoorBorerSeal(world, state, di, room.id)) blocked = true;
+  }
+  if (blocked) {
+    room.sealed = false;
+    return room;
+  }
+  room.sealed = true;
+  return room;
+}
+
+function findNearbyDoorIdx(world: World, cx: number, cy: number, radius: number): number {
+  const r2 = radius * radius;
+  let bestIdx = -1;
+  let bestD2 = Infinity;
+  for (let dy = -radius; dy <= radius; dy++) {
+    for (let dx = -radius; dx <= radius; dx++) {
+      if (dx * dx + dy * dy > r2) continue;
+      const x = world.wrap(cx + dx);
+      const y = world.wrap(cy + dy);
+      const ci = world.idx(x, y);
+      if (world.cells[ci] !== Cell.DOOR || !world.doors.has(ci)) continue;
+      const d2 = world.dist2(cx + 0.5, cy + 0.5, x + 0.5, y + 0.5);
+      if (d2 < bestD2) {
+        bestD2 = d2;
+        bestIdx = ci;
+      }
+    }
+  }
+  return bestIdx;
+}
+
+function seedUnshelteredFog(world: World, x: number, y: number): number {
+  const r2 = UNSHELTERED_FOG_RADIUS * UNSHELTERED_FOG_RADIUS;
+  let changed = 0;
+  for (let dy = -UNSHELTERED_FOG_RADIUS; dy <= UNSHELTERED_FOG_RADIUS; dy++) {
+    for (let dx = -UNSHELTERED_FOG_RADIUS; dx <= UNSHELTERED_FOG_RADIUS; dx++) {
+      if (dx * dx + dy * dy > r2) continue;
+      const wx = world.wrap(x + dx);
+      const wy = world.wrap(y + dy);
+      const ci = world.idx(wx, wy);
+      if (world.cells[ci] !== Cell.FLOOR && world.cells[ci] !== Cell.DOOR) continue;
+      if (world.aptMask[ci] && world.fog[ci] >= 80) continue;
+      if (world.fog[ci] >= UNSHELTERED_FOG_STRENGTH) continue;
+      world.fog[ci] = UNSHELTERED_FOG_STRENGTH;
+      changed++;
+    }
+  }
+  if (changed > 0) world.markFogDirty();
+  return changed;
+}
+
+function applyUnshelteredPressure(player: Entity, state: GameState): { hpDamage: number; psiDamage: number } {
+  let hpDamage = 0;
+  let psiDamage = 0;
+  if (player.hp !== undefined) {
+    const before = player.hp;
+    player.hp = Math.max(1, player.hp - UNSHELTERED_HP_DAMAGE);
+    hpDamage = before - player.hp;
+    if (hpDamage > 0) {
+      state.dmgFlash = Math.max(state.dmgFlash, 0.3);
+      state.dmgSeed = (state.dmgSeed + 23) | 0;
+    }
+  }
+  if (player.rpg) {
+    const beforePsi = player.rpg.psi;
+    player.rpg.psi = Math.max(0, player.rpg.psi - UNSHELTERED_PSI_DAMAGE);
+    psiDamage = beforePsi - player.rpg.psi;
+  }
+  return { hpDamage, psiDamage };
+}
+
+function resolvePlayerShelterAtSeal(
+  world: World,
+  entities: Entity[],
+  state: GameState,
+  variant: ActiveSamosborVariant,
+): void {
+  const player = findPlayer(entities);
+  if (!player) return;
+
+  const px = world.wrap(Math.floor(player.x));
+  const py = world.wrap(Math.floor(player.y));
+  const ci = world.idx(px, py);
+  const room = trySealPreparedPlayerRoom(world, state, world.roomAt(player.x, player.y));
+  const zoneId = world.zoneMap[ci];
+  const nearestDoorIdx = room && room.doors.length > 0
+    ? room.doors[0]
+    : findNearbyDoorIdx(world, px, py, 5);
+
+  if (room?.sealed) {
+    samosborPlayerShelterRoomId = room.id;
+    state.msgs.push(msg(`Укрытие принято: ${room.name}. Гермодверь держит.`, state.time, variant.def.tint));
+    publishEvent(state, {
+      type: 'door_sealed',
+      zoneId,
+      roomId: room.id,
+      x: nearestDoorIdx >= 0 ? nearestDoorIdx % W : px,
+      y: nearestDoorIdx >= 0 ? (nearestDoorIdx / W) | 0 : py,
+      actorId: player.id,
+      actorName: player.name ?? 'Вы',
+      actorFaction: player.faction,
+      targetName: 'Гермодверь',
+      severity: 3,
+      privacy: 'local',
+      tags: ['samosbor', 'shelter', 'success', `variant_${variant.def.id}`],
+      data: {
+        roomName: room.name,
+        roomId: room.id,
+        doorCount: Math.min(room.doors.length, PLAYER_SHELTER_DOOR_CAP),
+        samosborCount: state.samosborCount,
+        variantId: variant.def.id,
+        prepared: hasPreparedHermeticSeal(world, room),
+      },
+    });
+    return;
+  }
+
+  const fogCells = seedUnshelteredFog(world, px, py);
+  const pressure = applyUnshelteredPressure(player, state);
+  state.msgs.push(msg('Герма закрылась не вокруг вас. Туман нашёл щель и записал промах.', state.time, '#f66'));
+  publishEvent(state, {
+    type: 'samosbor_warning',
+    zoneId,
+    roomId: room?.id,
+    x: px,
+    y: py,
+    actorId: player.id,
+    actorName: player.name ?? 'Вы',
+    actorFaction: player.faction,
+    severity: 4,
+    privacy: 'local',
+    tags: ['samosbor', 'shelter', 'failure', `variant_${variant.def.id}`],
+    data: {
+      warning: 'Укрытие сорвано: игрок остался вне рабочей гермы.',
+      roomName: room?.name,
+      roomId: room?.id,
+      nearestDoorIdx: nearestDoorIdx >= 0 ? nearestDoorIdx : undefined,
+      nearestDoorState: nearestDoorIdx >= 0 ? world.doors.get(nearestDoorIdx)?.state : undefined,
+      fogCells,
+      hpDamage: pressure.hpDamage,
+      psiDamage: pressure.psiDamage,
+      samosborCount: state.samosborCount,
+      variantId: variant.def.id,
+    },
+  });
+}
+
 function samosborEventTags(
   variant: ActiveSamosborVariant,
   base: string[],
   wrongDoor = false,
 ): string[] {
   const tags = [...base, `variant_${variant.def.id}`];
+  if (variant.noSiren) tags.push('no_siren');
   if (isMaronary(variant)) {
     tags.push('green_source');
     if (wrongDoor) tags.push('wrong_door');
@@ -198,8 +382,69 @@ function activeIstotitDecision(state: GameState): string | undefined {
   return istotitDecisionCycle === state.samosborCount ? istotitDecision || undefined : undefined;
 }
 
+function mergeRoomIds(ids: readonly number[], more: readonly number[]): number[] {
+  const out = [...ids];
+  for (const id of more) if (!out.includes(id)) out.push(id);
+  return out;
+}
+
+function prepareLocalSamosborShelters(
+  world: World,
+  entities: Entity[],
+  state: GameState,
+  variant: ActiveSamosborVariant,
+  zoneId: number,
+  zoneX: number,
+  zoneY: number,
+): readonly number[] {
+  let roomIds: readonly number[] = [];
+  for (const shelter of getSamosborLocalShelters()) {
+    const prepared = shelter.prepare?.({ world, entities, state, variant, zoneId, zoneX, zoneY }) ?? [];
+    if (prepared.length > 0) roomIds = mergeRoomIds(roomIds, prepared);
+  }
+  return roomIds;
+}
+
+function getLocalSamosborShelterRoomIds(state?: GameState): readonly number[] {
+  let roomIds: readonly number[] = [];
+  for (const shelter of getSamosborLocalShelters()) {
+    const ids = shelter.getRoomIds?.(state) ?? [];
+    if (ids.length > 0) roomIds = mergeRoomIds(roomIds, ids);
+  }
+  return roomIds;
+}
+
+function notifyLocalSamosborShelterEnd(
+  world: World,
+  entities: Entity[],
+  state: GameState,
+  nextId: { v: number },
+  variant: ActiveSamosborVariant | null,
+): void {
+  for (const shelter of getSamosborLocalShelters()) {
+    shelter.onEnd?.({ world, entities, state, nextId, variant });
+  }
+}
+
+function clearLocalSamosborShelters(state?: GameState): void {
+  for (const shelter of getSamosborLocalShelters()) shelter.clear?.(state);
+}
+
+function getLocalSamosborShelterDebugLines(): string[] {
+  const lines: string[] = [];
+  for (const shelter of getSamosborLocalShelters()) {
+    const line = shelter.debugLine?.();
+    if (line) lines.push(line);
+  }
+  return lines;
+}
+
 export function getSamosborShelterRoomIds(state?: GameState): readonly number[] {
-  return istotitSheltersMatch(state) ? istotitShelterRoomIds : [];
+  const istotitRooms = istotitSheltersMatch(state) ? istotitShelterRoomIds : [];
+  const localRooms = getLocalSamosborShelterRoomIds(state);
+  if (localRooms.length === 0) return istotitRooms;
+  if (istotitRooms.length === 0) return localRooms;
+  return mergeRoomIds(istotitRooms, localRooms);
 }
 
 export function getSamosborWarningSnapshot(state?: GameState): SamosborWarningSnapshot | null {
@@ -230,6 +475,7 @@ export function getSamosborWarningSnapshot(state?: GameState): SamosborWarningSn
     wrongDoorX: samosborWarning.wrongDoorIdx >= 0 ? samosborWarning.wrongDoorIdx % W : undefined,
     wrongDoorY: samosborWarning.wrongDoorIdx >= 0 ? (samosborWarning.wrongDoorIdx / W) | 0 : undefined,
     shelterRoomIds: getSamosborShelterRoomIds(state),
+    signals: samosborWarning.signals,
   };
 }
 
@@ -568,7 +814,11 @@ export function tryUseSamosborVariantInteraction(
   lookY: number,
 ): boolean {
   const active = getActiveSamosborVariant();
-  if (!state.samosborActive || !active || !isIstotit(active) || !istotitSheltersMatch(state)) return false;
+  if (!state.samosborActive || !active) return false;
+  for (const shelter of getSamosborLocalShelters()) {
+    if (shelter.tryInteract?.({ world, entities, player, state, nextId, variant: active, lookX, lookY })) return true;
+  }
+  if (!isIstotit(active) || !istotitSheltersMatch(state)) return false;
   const lx = world.wrap(Math.floor(lookX));
   const ly = world.wrap(Math.floor(lookY));
   const lookIdx = world.idx(lx, ly);
@@ -701,7 +951,80 @@ function warningActionLine(zoneId: number, seconds: number, variant: ActiveSamos
   if (isIstotit(variant)) return `ИСТОТИТ через ${seconds}с: ${zoneText}. К золотому контуру, не верьте красивому отбою.`;
   if (isMaronary(variant)) return `МАРОНАРИЙ через ${seconds}с: ${zoneText}. Не смотрите в зелёный источник и проверьте двери.`;
   if (isVeretar(variant)) return `ВЕРЕТАР через ${seconds}с: ${zoneText}. От белого окна, к тёмной герме или из зоны.`;
+  if (variant.def.id === 'quiet') return `ТИХИЙ САМОСБОР через ${seconds}с: ${zoneText}. Сирены может не быть; сверяйте карту, табло и соседей.`;
+  if (variant.def.id === 'wet') return `МОКРЫЙ САМОСБОР через ${seconds}с: ${zoneText}. Уходите с воды к герме или выше по сухому полу.`;
+  if (variant.def.id === 'electric') return `ЭЛЕКТРОСБОР через ${seconds}с: ${zoneText}. Свет врёт глазами; закрывайтесь раньше.`;
+  if (variant.def.id === 'meat') return `МЯСНОЙ РЕЗОНАНС через ${seconds}с: ${zoneText}. Не верьте тихой комнате, выходите из зоны.`;
   return `САМОСБОР через ${seconds}с: ${zoneText}. К герме, из зоны или в ведомость пропавших.`;
+}
+
+function warningMapCode(variant: ActiveSamosborVariant): string {
+  switch (variant.def.id) {
+    case 'quiet': return 'ТИХ';
+    case 'wet': return 'ВОД';
+    case 'electric': return 'ЭЛК';
+    case 'meat': return 'МЯС';
+    case 'maronary': return 'МАР';
+    case 'istotit': return 'ИСТ';
+    case 'veretar': return 'ВЕР';
+    default: return 'СБОР';
+  }
+}
+
+function warningAudioLine(variant: ActiveSamosborVariant): string {
+  if (variant.def.audioCue === 'bell') return 'звук: колокол вместо сирены';
+  if (variant.def.audioCue === 'maronary') return 'звук: высокий писк, сирены нет';
+  if (variant.def.audioCue === 'veretar') return 'звук: дальняя внешняя тревога';
+  if (variant.noSiren) return 'звук: штатной сирены нет';
+  return 'звук: штатная сирена';
+}
+
+function warningMapLine(
+  variant: ActiveSamosborVariant,
+  wrongDoorIdx: number,
+  shelterCount: number,
+): string {
+  if (isMaronary(variant) && wrongDoorIdx >= 0) return 'карта: риск + повтор двери';
+  if (isMaronary(variant)) return 'карта: риск + зелёный источник';
+  if (isIstotit(variant) && shelterCount > 0) return `карта: риск + золотые укрытия ${shelterCount}`;
+  if (isVeretar(variant)) return 'карта: белая область риска';
+  if (variant.def.id === 'quiet') return 'карта: риск важнее сирены';
+  return 'карта: зона риска отмечена';
+}
+
+function buildWarningSignals(
+  variant: ActiveSamosborVariant,
+  screenCount: number,
+  barkCount: number,
+  wrongDoorIdx: number,
+  shelterCount: number,
+): SamosborWarningSignals {
+  const audioLine = warningAudioLine(variant);
+  const screenLine = screenCount > 0
+    ? `экраны: ${screenCount} табло мигают`
+    : 'экраны: рядом нет табло';
+  const mapLine = warningMapLine(variant, wrongDoorIdx, shelterCount);
+  const npcLine = barkCount > 0
+    ? `соседи: ${barkCount} предупреждения`
+    : 'соседи: никого рядом';
+  const visualLine = screenCount > 0
+    ? `визуал: ${screenCount} табло; ${mapLine}`
+    : `визуал: ${mapLine}`;
+  const channels = ['hud', 'log', 'map'];
+  if (screenCount > 0) channels.push('screens');
+  if (barkCount > 0) channels.push('npc_barks');
+  if (!variant.noSiren || variant.def.audioCue) channels.push('audio');
+  return {
+    audioLine,
+    screenLine,
+    mapLine,
+    npcLine,
+    visualLine,
+    logLine: `Каналы предупреждения: ${audioLine}; ${visualLine}; ${npcLine}.`,
+    mapCode: warningMapCode(variant),
+    channels,
+    channelLines: [audioLine, visualLine, npcLine],
+  };
 }
 
 function playVariantWarningCue(variant: ActiveSamosborVariant): void {
@@ -720,6 +1043,43 @@ function playVariantWarningCue(variant: ActiveSamosborVariant): void {
   if (!variant.noSiren) playSamosborAlarm();
 }
 
+function warningBarkForVariant(variant: ActiveSamosborVariant, isFemale: boolean): string {
+  switch (variant.def.id) {
+    case 'istotit':
+      return isFemale
+        ? 'Колокол слышишь? К золотой двери, пока она ещё считает нас живыми!'
+        : 'Сирена сорвалась в колокол. В укрытие, глаза вниз!';
+    case 'maronary':
+      return isFemale
+        ? 'Писк слышишь? Не смотри в зелёное. Дверь проверь два раза!'
+        : 'Зелёный источник не трогай взглядом. Писк врёт про направление!';
+    case 'veretar':
+      return isFemale
+        ? 'Окно завесь. Быстро. Там не наш двор!'
+        : 'Белое не трогай. К тёмной двери, пока карта помнит дом!';
+    case 'quiet':
+      return isFemale
+        ? 'Тихо стало неправильно. Смотри на табло и карту, сирена может молчать!'
+        : 'Не жди сирену. Тишина уже предупреждает, к герме!';
+    case 'wet':
+      return isFemale
+        ? 'Вода пошла по полу. Не стой в низине, к сухой двери!'
+        : 'Мокрый сбор идёт. С пола уходи, дверь закрывай раньше!';
+    case 'electric':
+      return isFemale
+        ? 'Свет моргает как протокол. К герме, пока привод живой!'
+        : 'Озон чувствуешь? Электросбор, глаза от ламп и к двери!';
+    case 'meat':
+      return isFemale
+        ? 'Стены пахнут мясом. Тихой комнате не верь!'
+        : 'Мясо в стенах пошло. Не стой где тепло, беги из зоны!';
+    default:
+      return isFemale
+        ? 'Слышишь? К гермодвери, пока она ещё признаёт нас!'
+        : 'Сирена будет поздно. Ноги к герме, голову вниз!';
+  }
+}
+
 function pushWarningBarks(
   world: World,
   entities: Entity[],
@@ -730,29 +1090,12 @@ function pushWarningBarks(
 ): number {
   let barked = 0;
   let checked = 0;
-  const istotit = isIstotit(variant);
-  const maronary = isMaronary(variant);
-  const veretar = isVeretar(variant);
   for (const e of entities) {
     if (barked >= SAMOSBOR_WARNING_BARK_CAP || checked >= 512) break;
     checked++;
     if (!e.alive || e.type !== EntityType.NPC || !e.name) continue;
     if (world.dist2(zoneX + 0.5, zoneY + 0.5, e.x, e.y) > SAMOSBOR_WARNING_BARK_RADIUS2) continue;
-    const line = istotit
-      ? (e.isFemale
-        ? 'Колокол слышишь? К золотой двери, пока она ещё считает нас живыми!'
-        : 'Сирена сорвалась в колокол. В укрытие, глаза вниз!')
-      : maronary
-        ? (e.isFemale
-          ? 'Писк слышишь? Не смотри в зелёное. Дверь проверь два раза!'
-          : 'Зелёный источник не трогай взглядом. Писк врёт про направление!')
-      : veretar
-        ? (e.isFemale
-          ? 'Окно завесь. Быстро. Там не наш двор!'
-          : 'Белое не трогай. К тёмной двери, пока карта помнит дом!')
-      : (e.isFemale
-        ? 'Слышишь? К гермодвери, пока она ещё признаёт нас!'
-        : 'Сирена будет поздно. Ноги к герме, голову вниз!');
+    const line = warningBarkForVariant(variant, e.isFemale === true);
     state.msgs.push(msg(`${e.name}: ${line}`, state.time, '#fc4'));
     observeRumorEvent(e, {
       type: 'samosbor_warning',
@@ -766,7 +1109,12 @@ function pushWarningBarks(
   return barked;
 }
 
-function ensureSamosborWarning(world: World, entities: Entity[], state: GameState): SamosborWarningRuntime {
+function ensureSamosborWarning(
+  world: World,
+  entities: Entity[],
+  state: GameState,
+  nextId: { v: number },
+): SamosborWarningRuntime {
   if (
     samosborWarning &&
     samosborWarning.floor === state.currentFloor &&
@@ -784,7 +1132,9 @@ function ensureSamosborWarning(world: World, entities: Entity[], state: GameStat
   const floorName = floorLevelDisplayName(state.currentFloor);
   const variantLine = `${variant.def.displayName}: ${variant.def.gameplaySignal}.`;
   const modifierLine = variant.modifiers[0]?.warningLine;
-  const shelterRoomIds = prepareIstotitShelters(world, state, variant, zone.cx, zone.cy);
+  const istotitShelterRoomIds = prepareIstotitShelters(world, state, variant, zone.cx, zone.cy);
+  const localShelterRoomIds = prepareLocalSamosborShelters(world, entities, state, variant, zone.id, zone.cx, zone.cy);
+  const shelterRoomIds = mergeRoomIds(istotitShelterRoomIds, localShelterRoomIds);
   const screenCount = flashSamosborWarningScreens(
     world,
     zone.cx,
@@ -793,6 +1143,26 @@ function ensureSamosborWarning(world: World, entities: Entity[], state: GameStat
     SAMOSBOR_WARNING_SCREEN_CAP,
   );
   const maronaryClue = prepareMaronaryWarningClues(world, variant, zone.cx, zone.cy);
+
+  state.msgs.push(msg(warningLine, state.time, variant.def.tint));
+  if (warningLine !== actionLine) state.msgs.push(msg(actionLine, state.time, variant.def.tint));
+  state.msgs.push(msg(`${floorName}. ${variantLine}`, state.time, variant.def.tint));
+  if (modifierLine) state.msgs.push(msg(modifierLine, state.time, variant.def.tint));
+  if (shelterRoomIds.length > 0) {
+    state.msgs.push(msg('ИСТОТИТ: укрытые комнаты отмечены золотым контуром.', state.time, variant.def.tint));
+  }
+  if (isMaronary(variant) && (maronaryClue.greenSourceCount > 0 || maronaryClue.wrongDoorIdx >= 0)) {
+    state.msgs.push(msg('Маронарий: зелёный источник и повтор двери отмечены на карте.', state.time, variant.def.tint));
+  }
+  const barkCount = pushWarningBarks(world, entities, state, variant, zone.cx, zone.cy);
+  const signals = buildWarningSignals(
+    variant,
+    screenCount,
+    barkCount,
+    maronaryClue.wrongDoorIdx,
+    shelterRoomIds.length,
+  );
+  state.msgs.push(msg(signals.logLine, state.time, variant.def.tint));
 
   samosborWarning = {
     cycle: state.samosborCount,
@@ -806,18 +1176,8 @@ function ensureSamosborWarning(world: World, entities: Entity[], state: GameStat
     screenCount,
     greenSourceCount: maronaryClue.greenSourceCount,
     wrongDoorIdx: maronaryClue.wrongDoorIdx,
+    signals,
   };
-
-  state.msgs.push(msg(warningLine, state.time, variant.def.tint));
-  if (warningLine !== actionLine) state.msgs.push(msg(actionLine, state.time, variant.def.tint));
-  state.msgs.push(msg(`${floorName}. ${variantLine}`, state.time, variant.def.tint));
-  if (modifierLine) state.msgs.push(msg(modifierLine, state.time, variant.def.tint));
-  if (shelterRoomIds.length > 0) {
-    state.msgs.push(msg('ИСТОТИТ: укрытые комнаты отмечены золотым контуром.', state.time, variant.def.tint));
-  }
-  if (isMaronary(variant) && (maronaryClue.greenSourceCount > 0 || maronaryClue.wrongDoorIdx >= 0)) {
-    state.msgs.push(msg('Маронарий: зелёный источник и повтор двери отмечены на карте.', state.time, variant.def.tint));
-  }
 
   publishEvent(state, {
     type: 'samosbor_warning',
@@ -838,9 +1198,16 @@ function ensureSamosborWarning(world: World, entities: Entity[], state: GameStat
       greenSourceCount: maronaryClue.greenSourceCount,
       wrongDoorIdx: maronaryClue.wrongDoorIdx >= 0 ? maronaryClue.wrongDoorIdx : undefined,
       shelterRoomIds,
+      signals: {
+        audio: signals.audioLine,
+        screen: signals.screenLine,
+        map: signals.mapLine,
+        npc: signals.npcLine,
+      },
+      warningChannels: signals.channels,
     },
   });
-  pushWarningBarks(world, entities, state, variant, zone.cx, zone.cy);
+  tickSamosborDirector(world, entities, state, nextId, variant, 'pre_samosbor');
   playVariantWarningCue(variant);
   return samosborWarning;
 }
@@ -858,13 +1225,13 @@ export function updateSamosbor(
     clearSamosborWarning(true);
   }
   if (!state.samosborActive && state.samosborTimer <= SAMOSBOR_WARNING_WINDOW) {
-    ensureSamosborWarning(world, entities, state);
+    ensureSamosborWarning(world, entities, state, nextId);
   }
   updateHermodoorBorer(world, entities, state, dt, nextId);
 
   if (!state.samosborActive && state.samosborTimer <= 0) {
     // ── START samosbor: capture zone + spawn mobs (doors stay open!) ──
-    const warning = ensureSamosborWarning(world, entities, state);
+    const warning = ensureSamosborWarning(world, entities, state, nextId);
     const variant = warning.variant;
     const warningZoneId = warning.zoneId;
     state.samosborActive = true;
@@ -875,6 +1242,7 @@ export function updateSamosbor(
     activeSamosborZoneId = -1;
     samosborDirectorAccum = 0;
     maronaryPingAccum = 0;
+    samosborPlayerShelterRoomId = -1;
     state.msgs.push(msg(variant.def.startLine ?? '⚠ САМОСБОР НАЧАЛСЯ ⚠', state.time, variant.def.tint));
     publishEvent(state, {
       type: 'samosbor_started',
@@ -919,6 +1287,7 @@ export function updateSamosbor(
   if (state.samosborActive && activeVariant && !samosborSealed && state.samosborTimer <= sealBeforeEnd) {
     const sealedShelters = sealApartments(world, entities, state, getSamosborShelterRoomIds(state));
     samosborSealed = true;
+    resolvePlayerShelterAtSeal(world, entities, state, activeVariant);
     const sealText = activeVariant.sealTimingDelta > 0
       ? '⚠ Гермодвери закрываются досрочно! ⚠'
       : activeVariant.sealTimingDelta < 0
@@ -1007,10 +1376,16 @@ export function updateSamosbor(
     samosborDirectorAccum = 0;
     maronaryPingAccum = 0;
 
+    const localShelterRoomIds = getLocalSamosborShelterRoomIds(state);
+    notifyLocalSamosborShelterEnd(world, entities, state, nextId, endedVariant ?? null);
+
     // Unseal apartment doors
     unsealApartments(world);
-    unsealRooms(world, istotitShelterRoomIds);
+    if (samosborPlayerShelterRoomId >= 0) unsealRooms(world, [samosborPlayerShelterRoomId]);
+    unsealRooms(world, mergeRoomIds(istotitShelterRoomIds, localShelterRoomIds));
+    samosborPlayerShelterRoomId = -1;
     clearIstotitShelters();
+    clearLocalSamosborShelters(state);
 
     // Re-roll contextual NPC assignment givers after the shock.
     reassignQuestGivers(entities);
@@ -1337,6 +1712,8 @@ function eventTypeForAftermath(def: SamosborAftermathBeatDef): WorldEventType {
       return 'item_stolen';
     case 'door_fault':
       return 'door_opened';
+    case 'route_block':
+      return 'door_sealed';
     case 'item_residue':
       return 'samosbor_warning';
     default:
@@ -1403,6 +1780,8 @@ function applySamosborAftermathBeat(
       return applyFogResidue(def, pending, world, entities, false);
     case 'door_fault':
       return applyDoorFault(def, pending, world, entities);
+    case 'route_block':
+      return applyRouteBlock(def, pending, world, entities);
     case 'monster_aftershock':
       return applyMonsterAftershock(def, pending, world, entities, nextId);
     case 'rumor_seed':
@@ -1461,6 +1840,33 @@ function findLocalDoor(world: World, x: number, y: number, radius: number): numb
   return -1;
 }
 
+function doorTouchesApartment(world: World, door: { roomA: number; roomB: number }): boolean {
+  const roomA = door.roomA >= 0 ? world.rooms[door.roomA] : undefined;
+  const roomB = door.roomB >= 0 ? world.rooms[door.roomB] : undefined;
+  return (roomA?.apartmentId ?? -1) >= 0 || (roomB?.apartmentId ?? -1) >= 0;
+}
+
+function findRouteScarDoor(world: World, x: number, y: number, radius: number): number {
+  let bestIdx = -1;
+  let bestD2 = radius * radius;
+  for (let dy = -radius; dy <= radius; dy++) {
+    for (let dx = -radius; dx <= radius; dx++) {
+      if (dx * dx + dy * dy > radius * radius) continue;
+      const di = world.idx(x + dx, y + dy);
+      if (world.cells[di] !== Cell.DOOR || world.aptMask[di]) continue;
+      const door = world.doors.get(di);
+      if (!door || door.state === DoorState.LOCKED || door.state === DoorState.HERMETIC_CLOSED) continue;
+      if (doorTouchesApartment(world, door)) continue;
+      const d2 = world.dist2(x + 0.5, y + 0.5, (di % W) + 0.5, ((di / W) | 0) + 0.5);
+      if (d2 < bestD2) {
+        bestD2 = d2;
+        bestIdx = di;
+      }
+    }
+  }
+  return bestIdx;
+}
+
 function applyDoorFault(
   def: SamosborAftermathBeatDef,
   pending: PendingAftermath,
@@ -1488,6 +1894,35 @@ function applyDoorFault(
     oldState,
     newState: door.state,
     wrongDoor: pending.variant.def.id === 'maronary' || def.tags.includes('wrong_door'),
+  });
+  return true;
+}
+
+function applyRouteBlock(
+  def: SamosborAftermathBeatDef,
+  pending: PendingAftermath,
+  world: World,
+  entities: Entity[],
+): boolean {
+  const c = aftermathCenter(world, entities, pending, false);
+  let di = findRouteScarDoor(world, c.x, c.y, Math.min(18, def.radius));
+  if (di < 0) {
+    const pc = aftermathCenter(world, entities, pending, true);
+    di = findRouteScarDoor(world, pc.x, pc.y, Math.min(18, def.radius));
+  }
+  const door = di >= 0 ? world.doors.get(di) : undefined;
+  if (!door) return false;
+  const oldState = door.state;
+  door.state = DoorState.HERMETIC_CLOSED;
+  door.timer = 0;
+  const x = di % W;
+  const y = (di / W) | 0;
+  stampMark(world, x, y, 0.5, 0.5, 0.42, MarkType.SCORCH, 88_000 + di, 116, 96, 84, 150, true);
+  publishAftermath(def, pending, x, y, {
+    doorIdx: di,
+    oldState,
+    newState: door.state,
+    routeBlocked: true,
   });
   return true;
 }
@@ -1674,6 +2109,7 @@ function applyContainerTheft(
   if (!best) return false;
   const oldAccess = best.access;
   best.discovered = true;
+  if (best.access === 'locked') best.access = 'faction';
   if (!best.tags.includes('aftermath_unsealed')) best.tags.push('aftermath_unsealed');
   if (def.itemId && ITEMS[def.itemId] && !best.inventory.some(i => i.defId === def.itemId) && best.inventory.length < best.capacitySlots) {
     best.inventory.push({ defId: def.itemId, count: 1 });
@@ -1681,6 +2117,7 @@ function applyContainerTheft(
   publishAftermath(def, pending, best.x, best.y, {
     containerId: best.id,
     oldAccess,
+    newAccess: best.access,
     itemId: def.itemId,
   });
   return true;
@@ -1706,12 +2143,14 @@ export function getSamosborDebugLines(): string[] {
     ? `${Math.max(0, Math.round(knownSamosborTime - lastVeretarAreaLeakAt))}s ago`
     : '-';
   const istotitLine = `Истотит: shelters=${istotitShelterRoomIds.length} supplies=${istotitSupplyContainerIds.length} decision=${istotitDecision || '-'}`;
+  const localShelterLines = getLocalSamosborShelterDebugLines();
   return [
     `Самосбор: ${active ? active.def.displayName : '-'}`,
     `Предупреждение: ${warning ? `${warning.variantName} ${warningZone} ${warning.secondsLeft}s` : '-'}`,
     `Прошлый вариант: ${getSamosborVariantName(last)}`,
     `Следующий вариант: ${getSamosborVariantName(forced)}`,
     istotitLine,
+    ...localShelterLines,
     `Веретар: area_leak=${lastVeretarAreaLeaks} ${veretarLeakAge}`,
     `Последствия: ${beats}  cd ${hasCooldown ? cooldown : 0}s${pendingAftermath ? ' pending' : ''}`,
     `Последний aftermath: ${Number.isFinite(lastAftermathAt) ? Math.max(0, Math.round(knownSamosborTime - lastAftermathAt)) + 's ago' : '-'}`,

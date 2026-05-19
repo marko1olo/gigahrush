@@ -3,13 +3,8 @@ import * as assert from 'node:assert/strict';
 
 import {
   Cell,
-  EntityType,
-  Faction,
   FloorLevel,
   RoomType,
-  Tex,
-  type Entity,
-  type Room,
 } from '../src/core/types';
 import { World } from '../src/core/world';
 import { NET_TERMINAL_GEN_NORMAL_MIN_TERMINALS } from '../src/data/net_terminal_gen';
@@ -28,7 +23,7 @@ import {
   placeNetTerminalGenTerminalsForCurrentFloor,
   tryUseNetTerminalGen,
 } from '../src/systems/net_terminal_gen';
-import { makeGameState } from './helpers';
+import { addTestRoom, makeGameState, makeTestPlayer } from './helpers';
 
 const DIRS: readonly [number, number][] = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 
@@ -59,7 +54,7 @@ test('using a net terminal without GEN opens bank access instead of denied-only 
   clearNetTerminalGenTerminals();
   const world = makeTerminalWorld();
   const state = makeGameState({ worldEvents: createWorldEventState() });
-  const player = testPlayer({ money: 100 });
+  const player = makeTestPlayer({ x: 100, y: 100, money: 100 });
   placeNetTerminalGenTerminalsForCurrentFloor(world, state, { seed: 2 });
   const terminal = getNetTerminalGenTerminals()[0];
   assert.ok(terminal);
@@ -80,7 +75,7 @@ test('net terminal bank can deposit cash and withdraw account rubles', () => {
   clearNetTerminalGenTerminals();
   const world = makeTerminalWorld();
   const state = makeGameState({ worldEvents: createWorldEventState() });
-  const player = testPlayer({ money: 100 });
+  const player = makeTestPlayer({ x: 100, y: 100, money: 100 });
   placeNetTerminalGenTerminalsForCurrentFloor(world, state, { seed: 3 });
   const terminal = getNetTerminalGenTerminals()[0];
   assert.ok(terminal);
@@ -108,7 +103,7 @@ test('GEN access still routes terminals to the map editor path', () => {
   clearNetTerminalGenTerminals();
   const world = makeTerminalWorld();
   const state = makeGameState();
-  const player = testPlayer({ money: 100 });
+  const player = makeTestPlayer({ x: 100, y: 100, money: 100 });
   placeNetTerminalGenTerminalsForCurrentFloor(world, state, { seed: 4 });
   const terminal = getNetTerminalGenTerminals()[0];
   assert.ok(terminal);
@@ -127,22 +122,14 @@ test('GEN access still routes terminals to the map editor path', () => {
 
 function makeTerminalWorld(): World {
   const world = new World();
-  const room: Room = {
-    id: 0,
+  addTestRoom(world, {
     type: RoomType.LIVING,
     x: 96,
     y: 96,
     w: 48,
     h: 48,
-    doors: [],
-    sealed: false,
     name: 'Тестовый зал',
-    apartmentId: -1,
-    wallTex: Tex.CONCRETE,
-    floorTex: Tex.F_CONCRETE,
-  };
-  world.rooms.push(room);
-  world.carveRect(room.x, room.y, room.w, room.h, room.id);
+  });
   return world;
 }
 
@@ -154,22 +141,4 @@ function hasAdjacentPassable(world: World, x: number, y: number): boolean {
     if ((world.cells[idx] === Cell.FLOOR || world.cells[idx] === Cell.WATER) && !world.solid(nx, ny)) return true;
   }
   return false;
-}
-
-function testPlayer(overrides: Partial<Entity> = {}): Entity {
-  return {
-    id: 1,
-    type: EntityType.PLAYER,
-    x: 100,
-    y: 100,
-    angle: 0,
-    pitch: 0,
-    alive: true,
-    speed: 0,
-    sprite: 0,
-    name: 'Вы',
-    faction: Faction.PLAYER,
-    inventory: [],
-    ...overrides,
-  };
 }

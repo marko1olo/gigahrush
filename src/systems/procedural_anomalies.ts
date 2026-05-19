@@ -55,6 +55,8 @@ const WET_CLOTH_SECONDS = 75;
 const PRESSURE_TICK_SECONDS = 2.5;
 const SMOG_ENTER_FOG = 64;
 const WATER_FOR_CLOTH = ['water', 'filtered_water', 'metal_water', 'boiler_water'];
+const TELEPORT_COUNTER_ITEMS = ['lift_scheme', 'elevator_access_order'] as const;
+const TELEPORT_COUNTER_TOOL = 'radio';
 const FALSE_SAFE_RUMOR_IDS = ['faction_cultist_after_fog'];
 const smogRuntimeByState = new WeakMap<GameState, SmogRuntime>();
 
@@ -76,6 +78,7 @@ function anomalyTags(spec: ProceduralFloorSpec): string[] {
   if (spec.anomalyId === 'conway_life') tags.push('cellular', 'topology', 'moving_walls', 'math');
   if (spec.anomalyId === 'rail_trains') tags.push('rail', 'transit', 'crush', 'industrial');
   if (spec.anomalyId === 'bad_apple_world') tags.push('video', 'screen', 'topology', 'cult_media');
+  if (spec.anomalyId === 'zombie_apocalypse') tags.push('zombie', 'crowd', 'infection', 'quarantine');
   return tags;
 }
 
@@ -190,6 +193,48 @@ function publishSmogEvent(
       anomalyId: spec?.anomalyId,
       sourceIdx: world.anomalySmogSource,
       ...data,
+    },
+  });
+}
+
+function teleportCounterItemId(player: Entity): string {
+  if (player.tool === TELEPORT_COUNTER_TOOL && hasItem(player, TELEPORT_COUNTER_TOOL)) return TELEPORT_COUNTER_TOOL;
+  for (const id of TELEPORT_COUNTER_ITEMS) if (hasItem(player, id)) return id;
+  return '';
+}
+
+function publishTeleportCellsEvent(
+  state: GameState,
+  world: World,
+  player: Entity,
+  counterId: string,
+  sourceIdx: number,
+  targetIdx: number,
+): void {
+  const spec = currentProceduralFloorSpec(state);
+  const item = ITEMS[counterId];
+  publishEvent(state, {
+    type: 'player_use_item',
+    zoneId: playerZoneId(player, world),
+    roomId: world.roomMap[world.idx(Math.floor(player.x), Math.floor(player.y))],
+    x: player.x,
+    y: player.y,
+    actorId: player.id,
+    actorName: player.name ?? 'Вы',
+    actorFaction: player.faction,
+    itemId: counterId,
+    itemName: item?.name ?? counterId,
+    itemCount: 1,
+    itemValue: item?.value ?? 0,
+    severity: 3,
+    privacy: 'local',
+    tags: ['player', 'procedural', 'anomaly', 'teleport_cells', 'route_anchor', counterId],
+    data: {
+      proceduralKey: spec?.key,
+      floorZ: spec?.z,
+      danger: spec?.danger,
+      sourceIdx,
+      targetIdx,
     },
   });
 }
@@ -342,6 +387,38 @@ export function tryHandleSmogSource(world: World, player: Entity, state: GameSta
     ? 'Источник смога перекрыт. Коридоры снова различимы.'
     : 'Источник смога перекрыт голыми руками. Горло и кожа запомнили.',
   state.time, prepared ? '#8cf' : '#f84'));
+  return true;
+}
+
+function tryUseTeleportCellsCounter(
+  world: World,
+  player: Entity,
+  state: GameState,
+  lookX: number,
+  lookY: number,
+): boolean {
+  const spec = currentProceduralFloorSpec(state);
+  if (spec?.anomalyId !== 'teleport_cells') return false;
+  const x = world.wrap(Math.floor(lookX));
+  const y = world.wrap(Math.floor(lookY));
+  const ci = world.idx(x, y);
+  if (world.features[ci] !== Feature.SCREEN) return false;
+  const targetIdx = world.anomalyTeleports.get(ci);
+  if (targetIdx === undefined) return false;
+  if (world.dist2(player.x, player.y, x + 0.5, y + 0.5) > 8.5) return false;
+
+  const counterId = teleportCounterItemId(player);
+  if (!counterId) {
+    state.msgs.push(msg('Экран перескока дрожит. Нужна схема лифтов, приказ доступа или включенная рация.', state.time, '#fa4'));
+    return true;
+  }
+
+  if (counterId === TELEPORT_COUNTER_TOOL) consumeToolDurability(player, 5, state.msgs, state.time, state);
+  else removeItem(player, counterId, 1);
+  world.anomalyTeleports.delete(ci);
+  world.anomalyTeleports.delete(targetIdx);
+  publishTeleportCellsEvent(state, world, player, counterId, ci, targetIdx);
+  state.msgs.push(msg('Перескок заякорен. Эта пара клеток больше не рвет маршрут.', state.time, '#8cf'));
   return true;
 }
 
@@ -556,6 +633,7 @@ export function proceduralAnomalyInteractionTargetId(
   if (badAppleTarget !== null) return badAppleTarget;
   if (feature !== Feature.SCREEN && feature !== Feature.APPARATUS) return null;
   if (spec.anomalyId === 'false_safe_block') return falseSafeRoom(falseSafeRoomAt(world, x, y)) ? ci + 400000 : null;
+  if (spec.anomalyId === 'teleport_cells' && feature === Feature.SCREEN && world.anomalyTeleports.has(ci)) return ci + 550000;
   if (
     spec.anomalyId === 'radio_chess' ||
     spec.anomalyId === 'cement_memory' ||
@@ -576,6 +654,7 @@ export function tryUseProceduralFloorAnomaly(
 ): boolean {
   if (tryHandleSmogSource(world, player, state, lookX, lookY)) return true;
   if (tryUseBadAppleWorldAnomaly(world, player, state, lookX, lookY)) return true;
+  if (tryUseTeleportCellsCounter(world, player, state, lookX, lookY)) return true;
   const spec = currentProceduralFloorSpec(state);
   if (!spec) return false;
   if (spec.anomalyId === 'false_safe_block') return tryUseFalseSafeBlock(world, player, state, spec, lookX, lookY);

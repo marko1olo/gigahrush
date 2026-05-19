@@ -46,10 +46,11 @@ function propName(name, constants = new Map()) {
   return undefined;
 }
 
-function stringValue(expr) {
+function stringValue(expr, constants = new Map()) {
   expr = unwrapConstExpression(expr);
   if (!expr) return undefined;
   if (ts.isStringLiteral(expr) || ts.isNoSubstitutionTemplateLiteral(expr)) return expr.text;
+  if (ts.isIdentifier(expr)) return constants.get(expr.text);
   return undefined;
 }
 
@@ -107,6 +108,20 @@ function stringConstants(relPath) {
   return constants;
 }
 
+function numberConstants(relPath) {
+  const sf = sourceFile(relPath);
+  const constants = new Map();
+  for (const stmt of sf.statements) {
+    if (!ts.isVariableStatement(stmt)) continue;
+    for (const decl of stmt.declarationList.declarations) {
+      if (!ts.isIdentifier(decl.name)) continue;
+      const value = numberValue(decl.initializer);
+      if (value !== undefined) constants.set(decl.name.text, value);
+    }
+  }
+  return constants;
+}
+
 function objectKeys(relPath, name) {
   const init = varInitializer(relPath, name);
   if (!init || !ts.isObjectLiteralExpression(init)) return [];
@@ -146,42 +161,58 @@ function arrayObjects(relPath, name) {
     .map(node => ({ node, line: lineOf(sf, node), file: relPath }));
 }
 
-function getObjectString(obj, key) {
+function getObjectString(obj, key, constants = new Map()) {
   for (const p of obj.properties) {
     if (!ts.isPropertyAssignment(p) || propName(p.name) !== key) continue;
-    return stringValue(p.initializer);
+    return stringValue(p.initializer, constants);
   }
   return undefined;
 }
 
-function getObjectStringArray(obj, key) {
+function getObjectNumber(obj, key, constants = new Map()) {
+  for (const p of obj.properties) {
+    if (!ts.isPropertyAssignment(p) || propName(p.name) !== key) continue;
+    return numberValue(p.initializer, constants);
+  }
+  return undefined;
+}
+
+function getObjectStringArray(obj, key, constants = new Map()) {
   for (const p of obj.properties) {
     if (!ts.isPropertyAssignment(p) || propName(p.name) !== key) continue;
     if (!ts.isArrayLiteralExpression(p.initializer)) return [];
     const sf = p.getSourceFile();
     return p.initializer.elements
-      .map(element => ({ id: stringValue(element), line: lineOf(sf, element) }))
+      .map(element => ({ id: stringValue(element, constants), line: lineOf(sf, element) }))
       .filter(v => v.id);
   }
   return [];
 }
 
+function constObject(relPath, name) {
+  const init = unwrapConstExpression(varInitializer(relPath, name));
+  return init && ts.isObjectLiteralExpression(init) ? init : undefined;
+}
+
 function arrayIds(relPath, name) {
+  const constants = stringConstants(relPath);
   return arrayObjects(relPath, name)
-    .map(({ node, line, file }) => ({ id: getObjectString(node, 'id'), line, file }))
+    .map(({ node, line, file }) => ({ id: getObjectString(node, 'id', constants), line, file }))
     .filter(v => v.id);
 }
 
 function arrayPropIds(relPath, name, prop) {
+  const constants = stringConstants(relPath);
   return arrayObjects(relPath, name)
-    .map(({ node, line, file }) => ({ id: getObjectString(node, prop), line, file }))
+    .map(({ node, line, file }) => ({ id: getObjectString(node, prop, constants), line, file }))
     .filter(v => v.id);
 }
 
 function arrayPropStringRefs(relPath, name, prop) {
+  const constants = stringConstants(relPath);
   const out = [];
   for (const entry of arrayObjects(relPath, name)) {
-    for (const value of getObjectStringArray(entry.node, prop)) {
+    for (const value of getObjectStringArray(entry.node, prop, constants)) {
       out.push({ id: value.id, file: entry.file, line: value.line });
     }
   }
@@ -191,13 +222,14 @@ function arrayPropStringRefs(relPath, name, prop) {
 function objectStringArrayRefs(relPath, name) {
   const init = varInitializer(relPath, name);
   if (!init || !ts.isObjectLiteralExpression(init)) return [];
+  const constants = stringConstants(relPath);
   const sf = sourceFile(relPath);
   const out = [];
   for (const p of init.properties) {
     if (!ts.isPropertyAssignment(p) || !ts.isArrayLiteralExpression(p.initializer)) continue;
     const key = propName(p.name) ?? '<computed>';
     for (const element of p.initializer.elements) {
-      const id = stringValue(element);
+      const id = stringValue(element, constants);
       if (id) out.push({ id, key, file: relPath, line: lineOf(sf, element) });
     }
   }
@@ -212,6 +244,10 @@ function enumMembers(relPath, name) {
     for (const member of node.members) out.push({ id: propName(member.name), line: lineOf(sf, member) });
   });
   return out;
+}
+
+function numberConst(relPath, name) {
+  return numberValue(varInitializer(relPath, name));
 }
 
 function duplicateIds(entries) {
@@ -237,8 +273,10 @@ function resolveImport(fromAbs, spec) {
 
 const importIncoming = new Map();
 const manifestEntries = new Map();
+const manifestImportRefs = [];
 for (const abs of files) {
-  const sf = sourceFile(toRel(abs));
+  const relPath = toRel(abs);
+  const sf = sourceFile(relPath);
   for (const stmt of sf.statements) {
     if (!ts.isImportDeclaration(stmt)) continue;
     const spec = stringValue(stmt.moduleSpecifier);
@@ -247,13 +285,21 @@ for (const abs of files) {
     if (target) {
       const relTarget = toRel(target);
       if (!importIncoming.has(relTarget)) importIncoming.set(relTarget, new Set());
-      importIncoming.get(relTarget).add(toRel(abs));
+      importIncoming.get(relTarget).add(relPath);
     }
     if (abs.endsWith('/content_manifest.ts') && spec.startsWith('./')) {
       const floor = path.basename(path.dirname(abs));
       const rel = target ? toRel(target) : `${toRel(path.dirname(abs))}/${spec}`;
       if (!manifestEntries.has(floor)) manifestEntries.set(floor, []);
       manifestEntries.get(floor).push(rel);
+      manifestImportRefs.push({
+        floor,
+        spec,
+        target: target ? toRel(target) : undefined,
+        file: relPath,
+        line: lineOf(sf, stmt),
+        sideEffect: !stmt.importClause,
+      });
     }
   }
 }
@@ -263,9 +309,12 @@ const sideQuestEntries = [];
 const zoneEntries = [];
 const itemRefs = [];
 const npcRefs = [];
+const rewardTableRefs = [];
+const directItemCallRefs = [];
 
 const knownItemProps = new Set(['defId', 'targetItem', 'rewardItem', 'itemId', 'sampleId']);
 const knownNpcProps = new Set(['giverNpcId', 'targetNpcId', 'targetPlotNpcId']);
+const directItemCallNames = new Set(['addItem', 'addItemDrop', 'dropItem']);
 
 for (const abs of files) {
   const rel = toRel(abs);
@@ -286,14 +335,14 @@ for (const abs of files) {
   forEachNode(sf, node => {
     if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
       if (node.expression.text === 'registerSideQuest') {
-        const npcId = stringValue(node.arguments[0]);
+        const npcId = stringValue(node.arguments[0], stringConstants);
         if (npcId) sideQuestNpcEntries.push({ id: npcId, file: rel, line: lineOf(sf, node) });
         const questArg = node.arguments[2];
         if (questArg && ts.isArrayLiteralExpression(questArg)) {
           for (const element of questArg.elements) {
             if (!ts.isObjectLiteralExpression(element)) continue;
             sideQuestEntries.push({
-              id: getObjectString(element, 'id'),
+              id: getObjectString(element, 'id', stringConstants),
               file: rel,
               line: lineOf(sf, element),
             });
@@ -304,20 +353,33 @@ for (const abs of files) {
         const zoneId = numberValue(node.arguments[0], numberConstants);
         const labelArg = node.arguments[1];
         const label = stringValue(labelArg)
-          ?? (labelArg && ts.isIdentifier(labelArg) ? stringConstants.get(labelArg.text) : undefined)
-          ?? '';
+          ?? (labelArg && ts.isIdentifier(labelArg) ? stringConstants.get(labelArg.text) : undefined);
         zoneEntries.push({ id: zoneId === undefined ? undefined : String(zoneId), label, file: rel, line: lineOf(sf, node) });
+      }
+      if (directItemCallNames.has(node.expression.text) && (rel.startsWith('src/gen/') || rel.startsWith('src/systems/'))) {
+        for (const arg of node.arguments) {
+          const id = stringValue(arg, stringConstants);
+          if (id === undefined) continue;
+          directItemCallRefs.push({ id, call: node.expression.text, file: rel, line: lineOf(sf, arg) });
+          break;
+        }
       }
     }
 
     if (ts.isPropertyAssignment(node)) {
       const name = propName(node.name);
-      const value = stringValue(node.initializer);
+      const value = stringValue(node.initializer, stringConstants);
       if (value && knownItemProps.has(name)) itemRefs.push({ id: value, prop: name, file: rel, line: lineOf(sf, node) });
       if (value && knownNpcProps.has(name)) npcRefs.push({ id: value, prop: name, file: rel, line: lineOf(sf, node) });
+      if (name === 'rewardTable' && ts.isArrayLiteralExpression(node.initializer)) {
+        for (const item of node.initializer.elements) {
+          const id = stringValue(item, stringConstants);
+          if (id) rewardTableRefs.push({ id, prop: 'rewardTable', file: rel, line: lineOf(sf, item) });
+        }
+      }
       if (name === 'plotNpcs' && ts.isArrayLiteralExpression(node.initializer)) {
         for (const item of node.initializer.elements) {
-          const id = stringValue(item);
+          const id = stringValue(item, stringConstants);
           if (id) npcRefs.push({ id, prop: 'plotNpcs', file: rel, line: lineOf(sf, item) });
         }
       }
@@ -353,6 +415,7 @@ const designFloorGeneratorEntries = objectKeys('src/gen/design_floors/manifest.t
 
 const itemIds = new Set(itemEntries.map(v => v.id));
 const questTargetItemIds = new Set([...itemIds, 'money']);
+const itemOrMoneyIds = new Set([...itemIds, 'money']);
 const plotNpcIds = new Set([...plotNpcEntries, ...localNpcDefEntries].map(v => v.id));
 const rumorIds = new Set(rumorEntries.map(v => v.id));
 
@@ -388,9 +451,43 @@ for (const generator of designFloorGeneratorEntries) {
   if (!designFloorRouteIds.has(generator.id)) errors.push(`${generator.file}:${generator.line} design floor generator "${generator.id}" has no route`);
 }
 
+for (const ref of manifestImportRefs) {
+  if (!ref.target) {
+    errors.push(`${ref.file}:${ref.line} ${ref.floor} manifest import "${ref.spec}" does not resolve to a .ts file`);
+    continue;
+  }
+  if (ref.sideEffect) {
+    const text = fs.readFileSync(path.join(root, ref.target), 'utf8');
+    if (!/register(?:SideQuest|ZoneContent)\s*\(/.test(text)) {
+      errors.push(`${ref.file}:${ref.line} side-effect manifest import "${ref.spec}" resolves to ${ref.target} but does not register zone content or a side quest`);
+    }
+  }
+}
+
+const livingZoneHudMax = numberConst('src/core/types.ts', 'WORLD_EVENT_ZONE_COUNT') ?? 64;
+for (const zone of zoneEntries) {
+  if (zone.id === undefined) {
+    errors.push(`${zone.file}:${zone.line} registerZoneContent must use a static numeric zone HUD id`);
+    continue;
+  }
+  const zoneId = Number(zone.id);
+  if (!Number.isInteger(zoneId) || zoneId < 1 || zoneId > livingZoneHudMax) {
+    errors.push(`${zone.file}:${zone.line} registerZoneContent zone ${zone.id} is outside HUD zone range 1..${livingZoneHudMax}`);
+  }
+  if (zone.label === undefined || zone.label.trim().length === 0) {
+    errors.push(`${zone.file}:${zone.line} registerZoneContent zone ${zone.id} must use a static non-empty title`);
+  }
+}
+
 for (const ref of itemRefs) {
   const allowed = ref.prop === 'targetItem' ? questTargetItemIds : itemIds;
   if (!allowed.has(ref.id)) errors.push(`${ref.file}:${ref.line} ${ref.prop} references missing item "${ref.id}"`);
+}
+for (const ref of rewardTableRefs) {
+  if (!itemOrMoneyIds.has(ref.id)) errors.push(`${ref.file}:${ref.line} ${ref.prop} references missing item or money "${ref.id}"`);
+}
+for (const ref of directItemCallRefs) {
+  if (!itemIds.has(ref.id)) errors.push(`${ref.file}:${ref.line} ${ref.call} references missing item "${ref.id}"`);
 }
 for (const ref of npcRefs) {
   if (!plotNpcIds.has(ref.id)) errors.push(`${ref.file}:${ref.line} ${ref.prop} references missing plot NPC "${ref.id}"`);
@@ -400,6 +497,36 @@ for (const ref of slimeTextHandleRefs) {
 }
 for (const ref of proceduralLootRefs) {
   if (!itemIds.has(ref.id)) errors.push(`${ref.file}:${ref.line} LOOT_BY_TAG.${ref.key} references missing item "${ref.id}"`);
+}
+
+const ostovMetaPath = 'src/gen/living/samosbornyy_ostov.ts';
+const ostovMetaObject = constObject(ostovMetaPath, 'SAMOSBORNYY_OSTOV_METADATA');
+if (!ostovMetaObject) {
+  errors.push(`${ostovMetaPath} missing SAMOSBORNYY_OSTOV_METADATA`);
+} else {
+  const stringConsts = stringConstants(ostovMetaPath);
+  const numberConsts = numberConstants(ostovMetaPath);
+  const metadata = {
+    id: getObjectString(ostovMetaObject, 'id', stringConsts),
+    floor: getObjectString(ostovMetaObject, 'floor', stringConsts),
+    zoneHudId: getObjectNumber(ostovMetaObject, 'zoneHudId', numberConsts),
+    zoneTitle: getObjectString(ostovMetaObject, 'zoneTitle', stringConsts),
+    reachability: getObjectString(ostovMetaObject, 'reachability', stringConsts),
+    samosbor: getObjectString(ostovMetaObject, 'samosbor', stringConsts),
+    performance: getObjectString(ostovMetaObject, 'performance', stringConsts),
+  };
+  if (metadata.id !== 'samosbornyy_ostov') errors.push(`${ostovMetaPath}:${lineOf(sourceFile(ostovMetaPath), ostovMetaObject)} SAMOSBORNYY_OSTOV_METADATA.id must be "samosbornyy_ostov"`);
+  if (metadata.floor !== 'living') errors.push(`${ostovMetaPath}:${lineOf(sourceFile(ostovMetaPath), ostovMetaObject)} SAMOSBORNYY_OSTOV_METADATA.floor must be "living"`);
+  if (metadata.zoneHudId !== 64) errors.push(`${ostovMetaPath}:${lineOf(sourceFile(ostovMetaPath), ostovMetaObject)} SAMOSBORNYY_OSTOV_METADATA.zoneHudId must be 64`);
+  for (const key of ['zoneTitle', 'reachability', 'samosbor', 'performance']) {
+    if (!metadata[key]) errors.push(`${ostovMetaPath}:${lineOf(sourceFile(ostovMetaPath), ostovMetaObject)} SAMOSBORNYY_OSTOV_METADATA.${key} is required`);
+  }
+  const zoneEntry = zoneEntries.find(v => v.file === ostovMetaPath && v.id === String(metadata.zoneHudId));
+  if (!zoneEntry) {
+    errors.push(`${ostovMetaPath}:${lineOf(sourceFile(ostovMetaPath), ostovMetaObject)} SAMOSBORNYY_OSTOV_METADATA.zoneHudId is not registered`);
+  } else if (metadata.zoneTitle !== zoneEntry.label) {
+    errors.push(`${ostovMetaPath}:${lineOf(sourceFile(ostovMetaPath), ostovMetaObject)} SAMOSBORNYY_OSTOV_METADATA.zoneTitle differs from registered zone label`);
+  }
 }
 
 const helperModules = new Set([
@@ -451,6 +578,8 @@ console.log(`- procedural majority factions: ${floorMajorityEntries.length}`);
 console.log(`- procedural anomalies: ${floorAnomalyEntries.length}`);
 console.log(`- design floor routes: ${designFloorRouteEntries.length}`);
 console.log(`- design floor generators: ${designFloorGeneratorEntries.length}`);
+console.log(`- manifest imports checked: ${manifestImportRefs.length}`);
+console.log(`- direct item call refs checked: ${directItemCallRefs.length}`);
 for (const [floor, entries] of [...manifestEntries.entries()].sort()) {
   console.log(`- ${floor} manifest entries: ${entries.length}`);
 }
@@ -458,7 +587,7 @@ for (const [floor, entries] of [...manifestEntries.entries()].sort()) {
 console.log('');
 console.log('LIVING zone content');
 for (const z of zoneEntries.filter(v => v.file.includes('/living/')).sort((a, b) => Number(a.id) - Number(b.id))) {
-  console.log(`- zone ${z.id}: ${z.label} (${z.file}:${z.line})`);
+  console.log(`- zone ${z.id ?? '?'}: ${z.label ?? '<unresolved title>'} (${z.file}:${z.line})`);
 }
 
 console.log('');

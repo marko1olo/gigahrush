@@ -8,7 +8,7 @@ import {
 } from '../../core/types';
 import { World } from '../../core/world';
 import { freshNeeds } from '../../data/catalog';
-import { type PlotNpcDef, registerSideQuest } from '../../data/plot';
+import { type PlotNpcDef, registerSideQuest, registerSideQuestSteps } from '../../data/plot';
 import { addFactionRelMutual } from '../../data/relations';
 import { publishEvent, registerWorldEventObserver } from '../../systems/events';
 import { Spr } from '../../render/sprite_index';
@@ -22,6 +22,12 @@ const ZONE_HUD_ID = 57;
 const ROOM_W = 15;
 const ROOM_H = 10;
 const RECRUITER_ID = 'ag77_nina_neighbor';
+const LEAD_QUEST = 'ag77_hear_neighbor_route';
+const EXPOSE_QUEST = 'ag77_expose_external_cell';
+const TRADE_QUEST = 'ag77_use_route_rumor';
+const TRUST_QUEST = 'ag77_accept_quiet_signal';
+const BETRAY_QUEST = 'ag77_betray_neighbor_route';
+const BRANCH_QUEST_IDS = [EXPOSE_QUEST, TRADE_QUEST, TRUST_QUEST, BETRAY_QUEST] as const;
 
 const NPC_DEF: PlotNpcDef = {
   name: 'Нина Павловна',
@@ -55,93 +61,105 @@ const NPC_DEF: PlotNpcDef = {
 };
 
 interface OutcomeDef {
-  outcome: 'exposed' | 'used_as_informant' | 'recruited' | 'ignored';
+  outcome: 'exposed' | 'traded' | 'trusted' | 'betrayed';
   targetName: string;
   severity: WorldEventSeverity;
   privacy: WorldEventPrivacy;
   tags: string[];
+  rumorIds: string[];
+  containerOutcome: string;
   relationDeltas: { faction: Faction; delta: number }[];
 }
 
 const OUTCOMES: Record<string, OutcomeDef> = {
-  ag77_expose_external_cell: {
+  [EXPOSE_QUEST]: {
     outcome: 'exposed',
     targetName: 'Адрес внешней ячейки передан ликвидаторам',
     severity: 4,
     privacy: 'public',
     tags: ['cult', 'chernobog', 'external_cell', 'exposed', 'liquidator', 'report'],
+    rumorIds: ['ag77_external_cell_exposed'],
+    containerOutcome: 'route_cabinet_seized',
     relationDeltas: [
       { faction: Faction.LIQUIDATOR, delta: 14 },
       { faction: Faction.CULTIST, delta: -14 },
     ],
   },
-  ag77_use_route_rumor: {
-    outcome: 'used_as_informant',
-    targetName: 'Маршрут внешней ячейки использован как наводка',
+  [TRADE_QUEST]: {
+    outcome: 'traded',
+    targetName: 'Маршрут внешней ячейки обменян на нижнюю водную наводку',
     severity: 3,
-    privacy: 'secret',
-    tags: ['cult', 'chernobog', 'external_cell', 'used_as_informant', 'route_rumor'],
+    privacy: 'local',
+    tags: ['cult', 'chernobog', 'external_cell', 'traded', 'route_rumor'],
+    rumorIds: ['ag77_external_cell_traded'],
+    containerOutcome: 'route_note_kept_as_trade_copy',
     relationDeltas: [
-      { faction: Faction.CULTIST, delta: 3 },
-      { faction: Faction.LIQUIDATOR, delta: -2 },
+      { faction: Faction.SCIENTIST, delta: 5 },
+      { faction: Faction.CULTIST, delta: -2 },
     ],
   },
-  ag77_accept_quiet_signal: {
-    outcome: 'recruited',
+  [TRUST_QUEST]: {
+    outcome: 'trusted',
     targetName: 'Игрок принял тихий знак внешней ячейки',
     severity: 4,
     privacy: 'secret',
-    tags: ['cult', 'chernobog', 'external_cell', 'recruited', 'black_hand'],
+    tags: ['cult', 'chernobog', 'external_cell', 'trusted', 'black_hand'],
+    rumorIds: ['ag77_external_cell_trusted'],
+    containerOutcome: 'calendar_stash_hint_shared',
     relationDeltas: [
       { faction: Faction.CULTIST, delta: 10 },
       { faction: Faction.LIQUIDATOR, delta: -6 },
       { faction: Faction.SCIENTIST, delta: -2 },
     ],
   },
-  ag77_keep_neighbor_quiet: {
-    outcome: 'ignored',
-    targetName: 'Вербовщицу оставили соседкой и источником слухов',
-    severity: 2,
+  [BETRAY_QUEST]: {
+    outcome: 'betrayed',
+    targetName: 'Тихий маршрут Нины продан громкому культу',
+    severity: 4,
     privacy: 'local',
-    tags: ['cult', 'chernobog', 'external_cell', 'ignored', 'bargain'],
+    tags: ['cult', 'chernobog', 'external_cell', 'betrayed', 'black_hand'],
+    rumorIds: ['ag77_external_cell_betrayed'],
+    containerOutcome: 'calendar_key_label_sold',
     relationDeltas: [
-      { faction: Faction.CULTIST, delta: 2 },
-      { faction: Faction.CITIZEN, delta: -1 },
+      { faction: Faction.CULTIST, delta: 8 },
+      { faction: Faction.CITIZEN, delta: -6 },
+      { faction: Faction.LIQUIDATOR, delta: -4 },
     ],
   },
 };
 
 registerWorldEventObserver(handleAg77Outcome);
 
+function branchBlockers(id: string): string[] {
+  return BRANCH_QUEST_IDS.filter(qid => qid !== id);
+}
+
 registerSideQuest(RECRUITER_ID, NPC_DEF, [
   {
-    id: 'ag77_expose_external_cell',
+    id: LEAD_QUEST,
     giverNpcId: RECRUITER_ID,
-    type: QuestType.TALK,
-    targetPlotNpcId: 'barni',
-    desc: 'След вербовщика: сообщите Барни, что Нина Павловна собирает соседей по "тихому маршруту" и прячет черную ладонь за календарем.',
-    rewardItem: 'ammo_9mm',
-    rewardCount: 8,
-    extraRewards: [{ defId: 'liquidator_ration', count: 1 }],
-    relationDelta: 0,
-    xpReward: 55,
-    moneyReward: 35,
-  },
-  {
-    id: 'ag77_use_route_rumor',
-    giverNpcId: RECRUITER_ID,
-    type: QuestType.VISIT,
-    visitFloor: FloorLevel.MAINTENANCE,
-    desc: 'Нина Павловна: "Проверьте нижний ход у мокрой батареи. Если маршрут правдивый, вернетесь с водой и без лишних фамилий."',
-    rewardItem: 'caravan_route',
+    type: QuestType.FETCH,
+    desc: 'Нина Павловна: "Хлеб на стол, сосед. Тогда я скажу, почему черная ладонь за календарем смотрит не на вас, а на дверь."',
+    targetItem: 'bread',
+    targetCount: 1,
+    rewardItem: 'note',
     rewardCount: 1,
-    extraRewards: [{ defId: 'filtered_water', count: 1 }, { defId: 'note', count: 1 }],
+    extraRewards: [{ defId: 'water_coupon', count: 1 }],
     relationDelta: 0,
-    xpReward: 45,
-    moneyReward: 20,
+    xpReward: 18,
+    moneyReward: 5,
+    eventTargetName: 'Нина Павловна дала тихую маршрутную записку внешней ячейки.',
+    eventSeverity: 3,
+    eventPrivacy: 'local',
+    eventTags: [CONTENT_TAG, 'external_cell', 'lead', 'black_hand'],
+    eventData: {
+      ag77Outcome: 'lead',
+      rumorIds: ['lead_living_external_cell_neighbor'],
+      containerHint: 'route_cabinet_and_calendar_stash',
+    },
   },
   {
-    id: 'ag77_accept_quiet_signal',
+    id: TRUST_QUEST,
     giverNpcId: RECRUITER_ID,
     type: QuestType.FETCH,
     desc: 'Нина Павловна: "Две пачки Примы на общий стол. Кто приносит дым без вопросов, тому показывают дверь без очереди."',
@@ -150,23 +168,101 @@ registerSideQuest(RECRUITER_ID, NPC_DEF, [
     rewardItem: 'temp_pass',
     rewardCount: 1,
     extraRewards: [{ defId: 'caravan_route', count: 1 }, { defId: 'water_coupon', count: 1 }],
+    requiresSideQuestDone: LEAD_QUEST,
+    blockedBySideQuestIds: [...BRANCH_QUEST_IDS],
+    abandonsSideQuestIds: branchBlockers(TRUST_QUEST),
     relationDelta: 0,
     xpReward: 35,
     moneyReward: 15,
+    eventTargetName: 'Игрок остался доверенным курьером тихой соседки.',
+    eventSeverity: 4,
+    eventPrivacy: 'secret',
+    eventTags: [CONTENT_TAG, 'external_cell', 'trust', 'black_hand'],
+    eventData: {
+      ag77Outcome: 'trusted',
+      rumorIds: ['ag77_external_cell_trusted'],
+      containerHint: 'calendar_stash_hint_shared',
+    },
+  },
+]);
+
+registerSideQuestSteps([
+  {
+    id: EXPOSE_QUEST,
+    giverNpcId: 'barni',
+    type: QuestType.FETCH,
+    desc: 'Барни: "Если соседка торгует тихими дверями, неси маршрутную квитанцию из ее тумбы. Слова потом допишем сами."',
+    targetItem: 'caravan_route',
+    targetCount: 1,
+    rewardItem: 'ammo_9mm',
+    rewardCount: 8,
+    extraRewards: [{ defId: 'liquidator_ration', count: 1 }],
+    requiresSideQuestDone: LEAD_QUEST,
+    blockedBySideQuestIds: [...BRANCH_QUEST_IDS],
+    abandonsSideQuestIds: branchBlockers(EXPOSE_QUEST),
+    relationDelta: 0,
+    xpReward: 55,
+    moneyReward: 35,
+    eventTargetName: 'Маршрутная квитанция Нины передана ликвидаторам как адрес внешней ячейки.',
+    eventSeverity: 4,
+    eventPrivacy: 'public',
+    eventTags: [CONTENT_TAG, 'external_cell', 'expose', 'liquidator'],
+    eventData: {
+      ag77Outcome: 'exposed',
+      rumorIds: ['ag77_external_cell_exposed'],
+      containerHint: 'route_cabinet_seized',
+    },
   },
   {
-    id: 'ag77_keep_neighbor_quiet',
-    giverNpcId: RECRUITER_ID,
-    type: QuestType.FETCH,
-    desc: 'Нина Павловна: "Оставим это соседским разговором. Хлеб на стол, записку в карман, и каждый делает вид, что видел только ремонт."',
-    targetItem: 'bread',
-    targetCount: 1,
-    rewardItem: 'water_coupon',
+    id: TRADE_QUEST,
+    giverNpcId: 'yakov',
+    type: QuestType.VISIT,
+    visitFloor: FloorLevel.MAINTENANCE,
+    desc: 'Яков Давидович: "Маршрут Нины похож на эксперимент, который стесняется быть картой. Проверьте нижний ход у мокрой батареи и вернитесь с тем, что он пропускает."',
+    rewardItem: 'caravan_route',
     rewardCount: 1,
-    extraRewards: [{ defId: 'note', count: 1 }],
+    extraRewards: [{ defId: 'filtered_water', count: 1 }, { defId: 'note', count: 1 }],
+    requiresSideQuestDone: LEAD_QUEST,
+    blockedBySideQuestIds: [...BRANCH_QUEST_IDS],
+    abandonsSideQuestIds: branchBlockers(TRADE_QUEST),
     relationDelta: 0,
-    xpReward: 20,
-    moneyReward: 5,
+    xpReward: 45,
+    moneyReward: 20,
+    eventTargetName: 'Маршрут внешней ячейки обменян на проверенную нижнюю водную наводку.',
+    eventSeverity: 4,
+    eventPrivacy: 'local',
+    eventTags: [CONTENT_TAG, 'external_cell', 'trade', 'route'],
+    eventData: {
+      ag77Outcome: 'traded',
+      rumorIds: ['ag77_external_cell_traded'],
+      containerHint: 'route_note_kept_as_trade_copy',
+    },
+  },
+  {
+    id: BETRAY_QUEST,
+    giverNpcId: 'vanka',
+    type: QuestType.FETCH,
+    desc: 'Ванька: "Тихая тетка ладонь прячет? Принеси бирку из коробки за календарем. Ванька скажет, кому дверь теперь шепчет громче."',
+    targetItem: 'container_key_label',
+    targetCount: 1,
+    rewardItem: 'holy_water',
+    rewardCount: 1,
+    extraRewards: [{ defId: 'cigs', count: 3 }],
+    requiresSideQuestDone: LEAD_QUEST,
+    blockedBySideQuestIds: [...BRANCH_QUEST_IDS],
+    abandonsSideQuestIds: branchBlockers(BETRAY_QUEST),
+    relationDelta: 0,
+    xpReward: 50,
+    moneyReward: 12,
+    eventTargetName: 'Бирка из тайника Нины передана Ваньке; тихий маршрут стал громким культовым слухом.',
+    eventSeverity: 4,
+    eventPrivacy: 'local',
+    eventTags: [CONTENT_TAG, 'external_cell', 'betrayal', 'black_hand'],
+    eventData: {
+      ag77Outcome: 'betrayed',
+      rumorIds: ['ag77_external_cell_betrayed'],
+      containerHint: 'calendar_key_label_sold',
+    },
   },
 ]);
 
@@ -198,6 +294,8 @@ function handleAg77Outcome(state: GameState, event: WorldEvent): void {
       outcome: outcome.outcome,
       relationDeltas: outcome.relationDeltas.map(rel => ({ faction: rel.faction, delta: rel.delta })),
       materialHook: 'black_hand_mark_and_route_note',
+      containerOutcome: outcome.containerOutcome,
+      rumorIds: outcome.rumorIds,
     },
   });
 }
@@ -381,7 +479,16 @@ function addContainer(
     access,
     lockDifficulty: access === 'locked' ? 3 : undefined,
     discovered: access !== 'secret',
-    tags: [CONTENT_TAG, 'living', 'cult', 'chernobog', 'external_cell', 'black_hand', 'route_rumor'],
+    tags: [
+      CONTENT_TAG,
+      'living',
+      'cult',
+      'chernobog',
+      'external_cell',
+      'black_hand',
+      'route_rumor',
+      access === 'owner' ? 'evidence_drop' : 'secret',
+    ],
   });
 }
 

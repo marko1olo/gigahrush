@@ -16,7 +16,8 @@ export type FloorGeometryId =
   | 'apartment_pressure'
   | 'collectors'
   | 'workshops'
-  | 'admin_pockets';
+  | 'admin_pockets'
+  | 'service_spines';
 
 export type FloorMajorityId =
   | 'citizens'
@@ -42,7 +43,8 @@ export type FloorAnomalyId =
   | 'section_shift'
   | 'conway_life'
   | 'rail_trains'
-  | 'bad_apple_world';
+  | 'bad_apple_world'
+  | 'zombie_apocalypse';
 
 export const FALSE_SAFE_BLOCK_TAG = 'false_safe_block';
 export const FALSE_SAFE_BLOCK_ROOM_PREFIX = 'Тихий блок';
@@ -177,6 +179,20 @@ export const FLOOR_GEOMETRIES: readonly FloorGeometryDef[] = [
     tags: ['industrial', 'workshop', 'machines'],
   },
   {
+    id: 'service_spines',
+    title: 'сервисные штреки',
+    baseFloor: FloorLevel.MAINTENANCE,
+    weight: 24,
+    roomCount: 62,
+    dangerBias: 0,
+    minZ: 9,
+    maxZ: 23,
+    wallTex: Tex.METAL,
+    floorTex: Tex.F_CONCRETE,
+    roomTypes: [RoomType.CORRIDOR, RoomType.CORRIDOR, RoomType.CORRIDOR, RoomType.PRODUCTION, RoomType.STORAGE, RoomType.OFFICE, RoomType.COMMON],
+    tags: ['industrial', 'service', 'transit', 'power', 'pressure'],
+  },
+  {
     id: 'admin_pockets',
     title: 'административные карманы',
     baseFloor: FloorLevel.MINISTRY,
@@ -252,6 +268,7 @@ export const FLOOR_ANOMALIES: readonly FloorAnomalyDef[] = [
   { id: 'wall_snake', title: 'змейка', weight: 4, minDanger: 2, dangerBias: 2, tags: ['moving_walls', 'predator', 'crush', 'loot_sink'] },
   { id: 'rail_trains', title: 'поезда', weight: 8, minDanger: 2, dangerBias: 1, tags: ['rail', 'transit', 'crush', 'industrial'] },
   { id: 'bad_apple_world', title: 'bad apple!', weight: 3, minDanger: 3, dangerBias: 1, tags: ['video', 'screen', 'topology', 'cult_media'] },
+  { id: 'zombie_apocalypse', title: 'зомби-апокалипсис', weight: 4, minDanger: 2, dangerBias: 2, tags: ['zombie', 'crowd', 'infection', 'quarantine', 'residential'] },
   { id: 'section_shift', title: 'секционный сдвиг', weight: 4, minDanger: 3, dangerBias: 2, tags: ['topology', 'moving_rooms', 'crush', 'toroid'] },
   { id: 'conway_life', title: 'игра жизнь', weight: 3, minDanger: 3, dangerBias: 2, tags: ['cellular', 'topology', 'moving_walls', 'math'] },
   { id: 'samosbor_seed', title: 'поражение самосбором', weight: 9, minDanger: 3, dangerBias: 2, tags: ['samosbor', 'meat'] },
@@ -262,6 +279,8 @@ const LOOT_BY_TAG: Record<string, readonly string[]> = {
   crowd: ['ballot', 'ration_registry_extract', 'forged_ration_card', 'bandage'],
   industrial: ['pipe', 'wrench', 'gear', 'spring', 'metal_sheet', 'ammo_nails', 'pressure_logbook'],
   workshop: ['nailgun', 'ammo_nails', 'circuit_board', 'barrel_part', 'rubber_strip'],
+  service: ['fuse', 'relay_diagram', 'duct_tape', 'wire_coil', 'door_kit', 'flashlight'],
+  power: ['fuse', 'relay_diagram', 'circuit_board', 'lamp_bulb', 'wire_coil'],
   water: ['metal_water', 'filter_layer', 'sealant_tube', 'harpoon_gun'],
   admin: ['blank_form', 'temp_pass', 'official_permit_slip', 'seal_wax', 'ink_bottle'],
   documents: ['note', 'lift_scheme', 'elevator_access_order', 'missing_record_file'],
@@ -296,22 +315,39 @@ const LOOT_BY_TAG: Record<string, readonly string[]> = {
   video: ['circuit_board', 'relay_diagram', 'overexposed_photo', 'lamp_bulb'],
   screen: ['circuit_board', 'relay_diagram', 'filter_receipt', 'note'],
   cult_media: ['psi_dust', 'holy_water', 'meat_rune', 'blank_form'],
+  zombie: ['bandage', 'tourniquet', 'clean_health_cert', 'forged_quarantine_clearance'],
+  infection: ['bandage', 'tourniquet', 'official_quarantine_clearance', 'clean_health_cert'],
+  quarantine: ['bandage', 'clean_health_cert', 'official_quarantine_clearance', 'forged_quarantine_clearance'],
 };
 
 const MONSTERS_BY_TAG: Record<string, readonly MonsterKind[]> = {
-  residential: [MonsterKind.SBORKA, MonsterKind.TVAR, MonsterKind.ZOMBIE, MonsterKind.NELYUD],
-  crowd: [MonsterKind.ZOMBIE, MonsterKind.NELYUD, MonsterKind.SHADOW],
+  residential: [MonsterKind.SBORKA, MonsterKind.TVAR, MonsterKind.ZOMBIE, MonsterKind.KRYSNOZHKA, MonsterKind.NELYUD],
+  civil: [MonsterKind.SHOVNIK, MonsterKind.LAMPOVY, MonsterKind.SBORKA],
+  crowd: [MonsterKind.ZOMBIE, MonsterKind.KRYSNOZHKA, MonsterKind.NELYUD, MonsterKind.SHADOW],
+  riot: [MonsterKind.ZOMBIE, MonsterKind.SHOVNIK, MonsterKind.PECHATEED, MonsterKind.NELYUD],
   industrial: [MonsterKind.REBAR, MonsterKind.POLZUN, MonsterKind.ROBOT, MonsterKind.LAMPOVY],
   workshop: [MonsterKind.REBAR, MonsterKind.ROBOT, MonsterKind.SBORKA],
+  service: [MonsterKind.LAMPOVY, MonsterKind.ROBOT, MonsterKind.REBAR, MonsterKind.TUBE_EEL],
+  power: [MonsterKind.LAMPOVY, MonsterKind.ROBOT, MonsterKind.EYE],
+  machines: [MonsterKind.ROBOT, MonsterKind.LAMPOVY, MonsterKind.REBAR],
+  pipes: [MonsterKind.TUBE_EEL, MonsterKind.POLZUN, MonsterKind.REBAR],
   water: [MonsterKind.TUBE_EEL, MonsterKind.POLZUN, MonsterKind.TVAR],
-  admin: [MonsterKind.PECHATEED, MonsterKind.PARAGRAPH, MonsterKind.SHOVNIK],
+  admin: [MonsterKind.PECHATEED, MonsterKind.SHOVNIK, MonsterKind.PARAGRAPH],
+  documents: [MonsterKind.PECHATEED, MonsterKind.PARAGRAPH, MonsterKind.EYE],
+  armed: [MonsterKind.EYE, MonsterKind.ROBOT, MonsterKind.SHOVNIK],
+  patrol: [MonsterKind.EYE, MonsterKind.LAMPOVY, MonsterKind.ROBOT],
+  raiders: [MonsterKind.NELYUD, MonsterKind.SBORKA, MonsterKind.SHADOW],
+  lab: [MonsterKind.EYE, MonsterKind.LAMPOVY, MonsterKind.PARAGRAPH],
   fog: [MonsterKind.EYE, MonsterKind.SHADOW, MonsterKind.NIGHTMARE],
   smog: [MonsterKind.NELYUD, MonsterKind.POLZUN, MonsterKind.TVAR, MonsterKind.SHADOW],
   govnyak: [MonsterKind.ZOMBIE, MonsterKind.NELYUD, MonsterKind.TVAR],
   mushroom: [MonsterKind.ZOMBIE, MonsterKind.SBORKA, MonsterKind.POLZUN],
-  cold: [MonsterKind.SHADOW, MonsterKind.NELYUD, MonsterKind.TUBE_EEL],
+  cold: [MonsterKind.SHADOW, MonsterKind.TUBE_EEL, MonsterKind.NELYUD],
+  heat_counter: [MonsterKind.TUBE_EEL, MonsterKind.POLZUN, MonsterKind.SHADOW],
+  route_pressure: [MonsterKind.EYE, MonsterKind.SHADOW, MonsterKind.NELYUD, MonsterKind.POLZUN],
   samosbor: [MonsterKind.SHADOW, MonsterKind.NIGHTMARE, MonsterKind.REBAR, MonsterKind.EYE],
   cult: [MonsterKind.SHADOW, MonsterKind.IDOL, MonsterKind.SPIRIT],
+  psi: [MonsterKind.SHADOW, MonsterKind.SPIRIT, MonsterKind.IDOL],
   shelter: [MonsterKind.ZOMBIE, MonsterKind.SHADOW],
   [FALSE_SAFE_BLOCK_TAG]: [MonsterKind.IDOL, MonsterKind.SHADOW, MonsterKind.SPIRIT],
   mirror: [MonsterKind.SHADOW, MonsterKind.SPIRIT, MonsterKind.EYE],
@@ -335,6 +371,9 @@ const MONSTERS_BY_TAG: Record<string, readonly MonsterKind[]> = {
   video: [MonsterKind.EYE, MonsterKind.LAMPOVY, MonsterKind.PARAGRAPH],
   screen: [MonsterKind.EYE, MonsterKind.ROBOT, MonsterKind.LAMPOVY],
   cult_media: [MonsterKind.SHADOW, MonsterKind.SPIRIT, MonsterKind.IDOL],
+  zombie: [MonsterKind.ZOMBIE, MonsterKind.NELYUD, MonsterKind.KRYSNOZHKA],
+  infection: [MonsterKind.ZOMBIE, MonsterKind.TVAR, MonsterKind.NELYUD],
+  quarantine: [MonsterKind.ZOMBIE, MonsterKind.EYE, MonsterKind.PECHATEED],
 };
 
 function clampDanger(v: number): 1 | 2 | 3 | 4 | 5 {
@@ -439,7 +478,9 @@ export function makeProceduralFloorSpec(runSeed: number, z: number): ProceduralF
   const lootPool = collectTagged(tags, LOOT_BY_TAG);
   const monsterPool = collectTagged(tags, MONSTERS_BY_TAG);
   const lootBiasIds = uniquePicks(lootPool, rng, 5);
-  const monsterBiasKinds = uniquePicks(monsterPool, rng, 4);
+  const monsterBiasKinds = anomaly.id === 'zombie_apocalypse'
+    ? [MonsterKind.ZOMBIE]
+    : uniquePicks(monsterPool, rng, 4);
   const anomalyPrefix = anomaly.id === 'none' ? '' : `${anomaly.title}: `;
 
   return {

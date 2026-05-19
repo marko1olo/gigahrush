@@ -1,61 +1,52 @@
 # Design Floor: Верхнее бюро
 
-Status: planning artifact. Future route id: `upper_bureau`. Future anchor: `z=-28`.
+Status: implemented route floor. Route id: `upper_bureau`. Anchor: `z=-28`. Base floor: `MINISTRY`.
 
-Planned owned file: `src/gen/design_floors/upper_bureau.ts`.
+Owned file: `src/gen/design_floors/upper_bureau.ts`. Route integration: `src/data/design_floors.ts`, `src/gen/design_floors/manifest.ts`, `src/gen/design_floors/full_floor.ts`.
 
 ## Role
 
-The floor above the Ministry proper: cleaner, richer, quieter and more dangerous socially. It is where approvals are pre-decided before the official queue sees them. Combat should be possible but costly; stealth, forged documents and blackmail are stronger.
+The floor above the Ministry proper: cleaner, richer, quieter and more dangerous socially. It is where approvals are pre-decided before the official queue sees them. Combat is possible but costly; stealth, forged documents, tolls and blackmail are stronger.
 
-Primary decisions: bribe, forge, expose, steal access, pass inspection, erase a name.
+Primary decisions: bribe, forge, expose, steal access, pass inspection, erase a name, pay or rob the archive toll.
 
 ## Generation
 
-- Wide carpeted corridors, waiting salons, record desks, executive offices, locked file rooms.
-- More sightlines and guard posts than the lower Ministry, fewer crowds.
-- Use existing marble/parquet/red carpet textures.
-- At least one staff-only route must connect to Service Floor hooks later.
+- Central POI: salon, executive office, zero file room, audit office, cleaner closet, staff desk, political shelter, archive toll office, permit ambush room and up/down route lifts.
+- Full-floor expansion adds public queue tiers, private office tiers, archive balconies and service routes around the authored POI.
+- Administrative zones are generated and retuned to `MINISTRY` base floor; no new `FloorLevel` value is added.
 
 ## NPCs
 
-- `bureau_madam_iskra`: senior secretary, gatekeeper of appointments.
-- `bureau_auditor_lev`: audits false papers and market licenses.
-- `bureau_cleaner_tolik`: service worker with real keys.
-- `bureau_visitor_anna`: citizen trying to erase a death record.
+- `bureau_madam_iskra`: senior secretary and appointment gatekeeper.
+- `bureau_auditor_lev`: audits false papers and Market 88 licenses.
+- `bureau_cleaner_tolik`: service worker with real keys and staff route papers.
+- `bureau_visitor_anna`: citizen trying to erase or expose a death record.
+- `bureau_archive_toll_keeper`: sells archive access for money or accepts an exposure act.
+- `bureau_permit_ambush_guard`: handles the forged-permit ambush and rewards clean exposure.
 
-## Quests
+## Route Decisions
 
-- `bureau_preapproval`: obtain an appointment token legally or by theft.
-- `bureau_cleaner_keys`: help or exploit Tolik to access staff doors.
-- `bureau_audit_market88`: choose between warning Market 88 or helping the auditor.
-- `bureau_erase_name`: edit a record, causing Registry Morgue and Raionsovet consequences.
+- Legal preapproval: give `official_permit_slip` to Iskra or recover it from the route to pass the appointment gate quietly.
+- Staff route: help Tolik with `cleaning_kit` or steal his owner container for `key` and `elevator_access_order`.
+- Permit ambush: `Засада поддельных корешков` contains a LIQUIDATOR guard, a second armed NPC, a `forged_permit_slip` drop and a faction filing cabinet tagged `permit_ambush`, `exposure`, `audit`, `theft`.
+- Archive toll: `Платный архивный проход` gives `bureau_archive_toll_pay`, a `money`-based quest for `archive_access_permit` plus `elevator_access_order`; its owner cashbox can also be robbed.
+- Record route: Anna still offers `bureau_erase_name_file` and `bureau_expose_erased_record`, using `missing_record_file`, `record_exposure_notice`, `passport_stub` and `archive_access_permit`.
 
-## Systems
+## Containers And Events
 
-Use access flags and document ids. Do not build a separate bureaucracy system.
-
-Potential flags:
-
-- `upper_bureau.appointment_token`
-- `upper_bureau.staff_route_known`
-- `upper_bureau.audit_heat`
-- `upper_bureau.name_erased`
+- `Сейф предварительных назначений`: locked appointment safe with permit/pass/order papers.
+- `Нулевая картотека`: faction filing cabinet with missing record and exposure papers.
+- `Связка служебных ключей Толика`: owner tool locker for staff route theft.
+- `Папка аудита рынка 88`: owner audit cabinet for Market 88 papers.
+- `Касса архивной пошлины`: owner cashbox with `archive_access_permit`, `elevator_access_order`, `blank_form`, tagged `archive_toll` and `route_clue`.
+- `Папка подставных корешков`: faction filing cabinet with forged permit, exposure notice and denunciation, tagged for ambush/audit/theft.
+- `applyUpperBureauFlagChange()` publishes bounded `faction_relation_changed` events with `auditHeat` clamped to `0..3`; container theft/opening uses the existing container event path.
 
 ## Samosbor
 
-Upper Bureau shelter is excellent but politically gated. The player may enter by correct paper, bribe, forced lock or helping an NPC. Aftermath creates audit pressure, missing files or one sealed office with high-value loot.
+Upper Bureau still uses the shared samosbor and hermodoor behavior. The political shelter is a hermetic room in the central POI; the new toll and ambush rooms are ordinary authored rooms, so a rebuild regenerates them from the route floor generator rather than persisting ad hoc state.
 
-## Cross-Floor Hooks
+## Debug Path
 
-- Ministry consumes preapproval tokens.
-- Raionsovet and Registry Morgue react to edited records.
-- Market 88 can buy audit warnings.
-- Floor 69 blackmail can target Bureau officials.
-
-## DoD
-
-- One legal route and one illegal route through the same gate.
-- At least one document can be forged/stolen/earned.
-- Audit heat is bounded and visible in debug/log.
-
+Use the normal lift route from `MINISTRY z=-24` upward through procedural `z=-25..-27` to `upper_bureau z=-28`, or debug route teleport to `upper_bureau`. Spawn starts in `Салон ожидания верхнего бюро`; the archive toll is east of the staff corridor and the permit ambush is south of the cleaner/staff route.

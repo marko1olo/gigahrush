@@ -422,6 +422,40 @@ export function drawRouteCueWave(
   ctx.restore();
 }
 
+/* ── Cached warning channel rows: audio / visual / NPC signal ─── */
+export function drawSignalRows(
+  ctx: CanvasRenderingContext2D,
+  x: number, y: number, w: number, h: number,
+  time: number,
+  color: string,
+  lines: readonly string[],
+  fontSize: number,
+): void {
+  const count = Math.min(3, lines.length);
+  if (count <= 0 || w <= 0 || h <= 0) return;
+  const rowH = h / count;
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(x, y, w, h);
+  ctx.clip();
+  ctx.font = `${fontSize}px monospace`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  for (let i = 0; i < count; i++) {
+    const cy = y + rowH * (i + 0.5);
+    const pulse = 0.62 + Math.sin(time * 5 + i * 1.7) * 0.12;
+    ctx.fillStyle = `rgba(255,255,255,${0.035 + i * 0.012})`;
+    ctx.fillRect(x, y + i * rowH, w, Math.max(1, rowH - 1));
+    ctx.fillStyle = color;
+    ctx.globalAlpha = pulse;
+    ctx.fillRect(x + 1, cy - rowH * 0.32, 2, Math.max(2, rowH * 0.64));
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = i === 0 ? color : '#d7d7d7';
+    ctx.fillText(lines[i], x + 7, cy);
+  }
+  ctx.restore();
+}
+
 /* ── Maronary overlay: bounded green proof/door repeat noise ─── */
 export function drawMaronaryProofNoise(
   ctx: CanvasRenderingContext2D,

@@ -13,17 +13,18 @@ const DIMA: PlotNpcDef = {
   occupation: Occupation.SECRETARY,
   sprite: Occupation.SECRETARY,
   hp: 80, maxHp: 80, money: 18, speed: 1.0,
-  inventory: [{ defId: 'note', count: 6 }, { defId: 'book', count: 2 }, { defId: 'knife', count: 1 }],
+  inventory: [{ defId: 'note', count: 6 }, { defId: 'book', count: 2 }, { defId: 'ministry_audit_forgery', count: 1 }, { defId: 'knife', count: 1 }],
   talkLines: [
     'Тише. Машинка громче самосбора, но ликвидаторы слышат только бумагу.',
     'Мы печатаем пропуска, жалобы, некрологи и меню столовой. Разница в шрифте.',
     'Мне нужны записки с настоящими печатями. Десять штук, не меньше.',
     'Фальшивый документ работает ровно до первого человека, который умеет читать.',
     'Если бумага пахнет сыростью, её приняли в райсовете без вопросов.',
+    'За два чистых бланка сделаю аудиторское предписание. Не размахивай им при ликвидаторах.',
   ],
   talkLinesPost: [
     'Печати подошли. Теперь у нас есть документы на отсутствие документов.',
-    'Забирай книгу. В ней пустые страницы, зато официальный переплёт.',
+    'Забирай книгу или предписание. В них пустые страницы, зато официальный переплёт.',
   ],
 };
 
@@ -36,6 +37,20 @@ registerSideQuest('kv_dima_pechatnik', DIMA, [{
   rewardItem: 'book', rewardCount: 3,
   extraRewards: [{ defId: 'ballot', count: 12 }, { defId: 'cigs', count: 2 }],
   relationDelta: 14, xpReward: 45, moneyReward: 40,
+}, {
+  id: 'kv_print_ministry_audit_forgery',
+  giverNpcId: 'kv_dima_pechatnik',
+  type: QuestType.FETCH,
+  desc: 'Дима Печатник: «Два пустых бланка - и напечатаю аудиторское предписание. Работает тихо, пока печать не сравнили с настоящей.»',
+  targetItem: 'blank_form', targetCount: 2,
+  rewardItem: 'ministry_audit_forgery', rewardCount: 1,
+  extraRewards: [{ defId: 'ink_bottle', count: 1 }],
+  relationDelta: 8, xpReward: 55, moneyReward: 15,
+  eventPrivacy: 'secret',
+  eventSeverity: 4,
+  eventTags: ['print_room', 'forgery', 'ministry', 'audit', 'access', 'material_cost', 'stealth'],
+  eventTargetName: 'Дима Печатник выдал липовое аудиторское предписание',
+  eventData: { materialCost: 'blank_form:2', risk: 'ministry_audit', route: 'forgery' },
 }]);
 
 export function generatePrintRoom(
@@ -55,7 +70,7 @@ export function generatePrintRoom(
   spawnAmbientNpc(entities, nextId, 'Ира Свидетель', Faction.CITIZEN, Occupation.SECRETARY, poi.x + 6, poi.y + 3, [{ defId: 'note', count: 2 }]);
   spawnAmbientNpc(entities, nextId, 'Курьер с мокрой печатью', Faction.CITIZEN, Occupation.TRAVELER, poi.x + 8, poi.y + 5, [{ defId: 'ballot', count: 3 }]);
 
-  for (const defId of ['note', 'note', 'note', 'note', 'book', 'book', 'ballot', 'cigs']) {
+  for (const defId of ['note', 'note', 'note', 'note', 'book', 'book', 'ballot', 'cigs', 'ink_bottle', 'seal_wax']) {
     placeDropNear(world, entities, nextId, poi, defId, 1);
   }
 

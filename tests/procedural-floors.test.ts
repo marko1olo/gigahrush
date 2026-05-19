@@ -1,8 +1,9 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { Cell, EntityType, FloorLevel, LiftDirection } from '../src/core/types';
+import { Cell, EntityType, Feature, FloorLevel, LiftDirection, MonsterKind, W } from '../src/core/types';
 import {
+  FLOOR_GEOMETRIES,
   FLOOR_RUN_MAX_Z,
   FLOOR_RUN_MIN_Z,
   FLOOR_RUN_VOID_Z,
@@ -23,10 +24,51 @@ import {
   setFloorRunState,
 } from '../src/systems/procedural_floors';
 import { updateBadAppleWorldAnomaly } from '../src/systems/procedural_anomalies/bad_apple_world';
+import { tryZombieApocalypseInfection } from '../src/systems/procedural_anomalies/zombie_apocalypse';
+import { routeCueCount } from '../src/systems/route_cues';
 import { generateProceduralFloor } from '../src/gen/procedural_floor';
 import { generateDesignFloor } from '../src/gen/design_floors/manifest';
 import { generateFloor } from '../src/gen/floor_manifest';
 import { makeGameState } from './helpers';
+
+function reachableCells(gen: ReturnType<typeof generateProceduralFloor>): Uint8Array {
+  const world = gen.world;
+  const out = new Uint8Array(W * W);
+  const queue = new Int32Array(W * W);
+  let head = 0;
+  let tail = 0;
+  const start = world.idx(Math.floor(gen.spawnX), Math.floor(gen.spawnY));
+  out[start] = 1;
+  queue[tail++] = start;
+
+  while (head < tail) {
+    const ci = queue[head++];
+    const x = ci % W;
+    const y = (ci / W) | 0;
+    for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]] as const) {
+      const ni = world.idx(x + dx, y + dy);
+      if (out[ni]) continue;
+      if (world.cells[ni] !== Cell.FLOOR && world.cells[ni] !== Cell.DOOR && world.cells[ni] !== Cell.WATER) continue;
+      out[ni] = 1;
+      queue[tail++] = ni;
+    }
+  }
+
+  return out;
+}
+
+function hasReachableLift(gen: ReturnType<typeof generateProceduralFloor>, reachable: Uint8Array, direction: LiftDirection): boolean {
+  const world = gen.world;
+  for (let i = 0; i < world.cells.length; i++) {
+    if (world.cells[i] !== Cell.LIFT || world.liftDir[i] !== direction) continue;
+    const x = i % W;
+    const y = (i / W) | 0;
+    for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]] as const) {
+      if (reachable[world.idx(x + dx, y + dy)]) return true;
+    }
+  }
+  return false;
+}
 
 test('floor run inserts three procedural floors before the next lower authored floor', () => {
   const state = makeGameState({ currentFloor: FloorLevel.LIVING });
@@ -175,6 +217,84 @@ test('procedural floor generator returns a playable non-story floor', () => {
   assert.equal(gen.entities.some(e => e.type === EntityType.ITEM_DROP), true);
 });
 
+test('service spine geometry carves connected maintenance trunks with usable lifts', () => {
+  const def = FLOOR_GEOMETRIES.find(item => item.id === 'service_spines');
+  assert.equal(def?.minZ, 9);
+  assert.equal(def?.maxZ, 23);
+  assert.equal(def?.tags.includes('service'), true);
+
+  const base = makeProceduralFloorSpec(9127, 17);
+  const gen = generateProceduralFloor({
+    ...base,
+    geometryId: 'service_spines',
+    baseFloor: FloorLevel.MAINTENANCE,
+    anomalyId: 'none',
+    title: `сервисные штреки: ${base.title}`,
+  });
+  const reachable = reachableCells(gen);
+  const spineRooms = gen.world.rooms.filter(room => room.name.includes('сервисного штрека'));
+
+  assert.equal(spineRooms.length >= 2, true);
+  for (const room of spineRooms) {
+    const ci = gen.world.idx(room.x + Math.floor(room.w / 2), room.y + Math.floor(room.h / 2));
+    assert.equal(reachable[ci], 1);
+  }
+  assert.equal(hasReachableLift(gen, reachable, LiftDirection.UP), true);
+  assert.equal(hasReachableLift(gen, reachable, LiftDirection.DOWN), true);
+
+  let serviceFixtures = 0;
+  for (let i = 0; i < gen.world.cells.length; i++) {
+    const feature = gen.world.features[i];
+    if (
+      reachable[i] &&
+      gen.world.roomMap[i] < 0 &&
+      (feature === Feature.SCREEN || feature === Feature.APPARATUS || feature === Feature.MACHINE)
+    ) {
+      serviceFixtures++;
+    }
+  }
+  assert.equal(serviceFixtures > 0, true);
+});
+
+test('procedural monster pressure stays capped and registers a route cue', () => {
+  const base = makeProceduralFloorSpec(2468, 29);
+  const gen = generateProceduralFloor({
+    ...base,
+    danger: 5,
+    anomalyId: 'samosbor_seed',
+    title: `поражение самосбором: ${base.title}`,
+    monsterBiasKinds: [MonsterKind.HERALD, MonsterKind.MANCOBUS, MonsterKind.KOSTOREZ, MonsterKind.NIGHTMARE],
+  });
+  const monsters = gen.entities.filter(e => e.type === EntityType.MONSTER);
+  const rareKinds = new Set([MonsterKind.HERALD, MonsterKind.MANCOBUS, MonsterKind.KOSTOREZ, MonsterKind.NIGHTMARE]);
+
+  assert.equal(monsters.length <= 62, true);
+  assert.equal(monsters.filter(e => e.monsterKind !== undefined && rareKinds.has(e.monsterKind)).length <= 2, true);
+  assert.equal(routeCueCount(gen.world), 1);
+});
+
+test('zombie apocalypse procedural specs bias monster pressure to мертвяки', () => {
+  const spec = makeProceduralFloorSpec(1, 14);
+  assert.equal(spec.anomalyId, 'zombie_apocalypse');
+  assert.deepEqual(spec.monsterBiasKinds, [MonsterKind.ZOMBIE]);
+});
+
+test('deep procedural route floors use route floor identity for monster mix', () => {
+  const base = makeProceduralFloorSpec(1357, 29);
+  const gen = generateProceduralFloor({
+    ...base,
+    danger: 4,
+    anomalyId: 'none',
+    title: base.title,
+    monsterBiasKinds: [MonsterKind.PECHATEED, MonsterKind.PARAGRAPH, MonsterKind.SHOVNIK],
+  });
+  const monsters = gen.entities.filter(e => e.type === EntityType.MONSTER);
+  const bureaucratic = new Set([MonsterKind.PECHATEED, MonsterKind.PARAGRAPH, MonsterKind.SHOVNIK]);
+
+  assert.equal(monsters.length > 0, true);
+  assert.equal(monsters.some(e => e.monsterKind !== undefined && bureaucratic.has(e.monsterKind)), false);
+});
+
 test('void and lower route floors do not generate NPCs', () => {
   const voidGen = generateFloor(FloorLevel.VOID);
   assert.equal(voidGen.entities.some(e => e.type === EntityType.NPC), false);
@@ -291,4 +411,43 @@ test('bad apple runtime advances the map rectangle into white floor cells', () =
 
   assert.equal(whiteFloor > 0, true);
   assert.equal(gen.world.cellVersion > beforeVersion, true);
+});
+
+test('zombie apocalypse anomaly seeds a dense crowd and patient zero infection', () => {
+  const base = makeProceduralFloorSpec(779, 2);
+  const spec = {
+    ...base,
+    anomalyId: 'zombie_apocalypse' as const,
+    geometryId: 'apartment_pressure' as const,
+    baseFloor: FloorLevel.KVARTIRY,
+    danger: 5 as const,
+    monsterBiasKinds: [MonsterKind.SHADOW],
+    title: `зомби-апокалипсис: ${base.title}`,
+  };
+  const gen = generateProceduralFloor(spec);
+  const npcs = gen.entities.filter(e => e.type === EntityType.NPC);
+  const zombiesBeforeInfection = gen.entities.filter(e => e.type === EntityType.MONSTER && e.monsterKind === MonsterKind.ZOMBIE);
+  const patientZero = gen.entities.find(e => e.type === EntityType.MONSTER && e.monsterKind === MonsterKind.ZOMBIE && e.name === 'Пациент зеро');
+
+  assert.equal(npcs.length >= 1000, true);
+  assert.equal(!!patientZero, true);
+  assert.equal(gen.entities.some(e => e.type === EntityType.MONSTER && e.monsterKind === MonsterKind.SHADOW), false);
+  assert.equal(zombiesBeforeInfection.length > 1, true);
+  assert.equal(npcs.some(e => e.ai), true);
+
+  const state = makeGameState({ currentFloor: spec.baseFloor, time: 1 });
+  setFloorRunState(state, {
+    runSeed: 779,
+    currentZ: spec.z,
+    specs: { [spec.key]: spec },
+    visited: {},
+  }, spec.baseFloor);
+
+  const target = npcs[0];
+  const infected = tryZombieApocalypseInfection(gen.world, patientZero!, target, state, state.msgs, state.time);
+  assert.equal(infected, true);
+  assert.equal(target.type, EntityType.MONSTER);
+  assert.equal(target.monsterKind, MonsterKind.ZOMBIE);
+  assert.notEqual(target.monsterKind, MonsterKind.SHADOW);
+  assert.equal(!!target.ai, true);
 });

@@ -97,26 +97,26 @@ const controlTimers = new Map<number, number>();  // entityId → remaining seco
 
 // ── Find target in player's line of sight ────────────────────────
 function findLookTarget(
-  player: Entity, entities: Entity[], _world: World, maxRange: number,
+  player: Entity, entities: Entity[], world: World, maxRange: number,
 ): Entity | null {
   let best: Entity | null = null;
-  let bestDist = maxRange;
+  let bestDist2 = maxRange * maxRange;
 
   for (const e of entities) {
     if (!e.alive || e.id === player.id) continue;
     if (e.type !== EntityType.NPC && e.type !== EntityType.MONSTER) continue;
-    const dx = ((e.x - player.x + W / 2) % W + W) % W - W / 2;
-    const dy = ((e.y - player.y + W / 2) % W + W) % W - W / 2;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    if (dist > maxRange || dist < 0.5) continue;
+    const dx = world.delta(player.x, e.x);
+    const dy = world.delta(player.y, e.y);
+    const dist2 = dx * dx + dy * dy;
+    if (dist2 > maxRange * maxRange || dist2 < 0.25) continue;
     // Check angle — must be within ~15 degrees of look direction
     const angToTarget = Math.atan2(dy, dx);
     let dAngle = angToTarget - player.angle;
     while (dAngle > Math.PI) dAngle -= Math.PI * 2;
     while (dAngle < -Math.PI) dAngle += Math.PI * 2;
     if (Math.abs(dAngle) > 0.26) continue; // ~15 degrees
-    if (dist < bestDist) {
-      bestDist = dist;
+    if (dist2 < bestDist2) {
+      bestDist2 = dist2;
       best = e;
     }
   }
@@ -125,6 +125,7 @@ function findLookTarget(
 
 // ── Пси буря: damage all visible entities in area ────────────────
 const STORM_RANGE = 12;
+const STORM_MAX_TARGETS = 8;
 
 function castStorm(
   player: Entity, entities: Entity[], world: World,
@@ -134,14 +135,14 @@ function castStorm(
   const ws = WEAPON_STATS['psi_storm'];
   const dmg = ws?.dmg ?? 10;
   let hits = 0;
+  const range2 = STORM_RANGE * STORM_RANGE;
 
   for (const e of entities) {
     if (!e.alive || e.id === player.id) continue;
     if (e.type !== EntityType.NPC && e.type !== EntityType.MONSTER) continue;
-    const dx = ((e.x - player.x + W / 2) % W + W) % W - W / 2;
-    const dy = ((e.y - player.y + W / 2) % W + W) % W - W / 2;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    if (dist > STORM_RANGE) continue;
+    const dx = world.delta(player.x, e.x);
+    const dy = world.delta(player.y, e.y);
+    if (dx * dx + dy * dy > range2) continue;
     // Check FOV cone (~60 degrees half-angle)
     const angToTarget = Math.atan2(dy, dx);
     let dAngle = angToTarget - player.angle;
@@ -156,6 +157,7 @@ function castStorm(
         handleKill(e);
       }
       hits++;
+      if (hits >= STORM_MAX_TARGETS) break;
     }
   }
   if (hits > 0) {
@@ -244,6 +246,7 @@ function castRecall(player: Entity, msgs: Msg[], time: number): void {
 // ── Пси Хамехамеха: wide beam that burns everything on path ─────
 const BEAM_RANGE = 20;
 const BEAM_WIDTH = 1.2; // half-width of the beam corridor
+const BEAM_MAX_TARGETS = 10;
 
 function castBeam(
   player: Entity, entities: Entity[], world: World,
@@ -299,8 +302,8 @@ function castBeam(
     if (!e.alive || e.id === player.id) continue;
     if (e.type !== EntityType.NPC && e.type !== EntityType.MONSTER) continue;
     // Project entity position onto beam line
-    const dx = ((e.x - player.x + W / 2) % W + W) % W - W / 2;
-    const dy = ((e.y - player.y + W / 2) % W + W) % W - W / 2;
+    const dx = world.delta(player.x, e.x);
+    const dy = world.delta(player.y, e.y);
     const along = dx * dirX + dy * dirY; // projection along beam
     if (along < 0.5 || along > beamEnd) continue;
     const perp = Math.abs(dx * (-dirY) + dy * dirX); // perpendicular distance
@@ -315,6 +318,7 @@ function castBeam(
         handleKill(e);
       }
       hits++;
+      if (hits >= BEAM_MAX_TARGETS) break;
     }
   }
   if (hits > 0) {
@@ -336,16 +340,19 @@ export function psiAoeExplosion(
   if (radius <= 0) return;
 
   let hits = 0;
+  const radius2 = radius * radius;
+  const maxHits = 10;
   for (const e of entities) {
     if (!e.alive || e.id === proj.ownerId) continue;
     if (e.type !== EntityType.NPC && e.type !== EntityType.MONSTER) continue;
 
-    const dx = ((e.x - proj.x + W / 2) % W + W) % W - W / 2;
-    const dy = ((e.y - proj.y + W / 2) % W + W) % W - W / 2;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    if (dist > radius) continue;
+    const dx = world.delta(proj.x, e.x);
+    const dy = world.delta(proj.y, e.y);
+    const dist2 = dx * dx + dy * dy;
+    if (dist2 > radius2) continue;
     if (e.hp !== undefined) {
       // Damage falls off with distance
+      const dist = Math.sqrt(dist2);
       const falloff = 1 - (dist / radius) * 0.5;
       const finalDmg = Math.round(dmg * falloff);
       e.hp -= finalDmg;
@@ -355,6 +362,7 @@ export function psiAoeExplosion(
         handleKill(e);
       }
       hits++;
+      if (hits >= maxHits) break;
     }
   }
   if (hits > 0) {

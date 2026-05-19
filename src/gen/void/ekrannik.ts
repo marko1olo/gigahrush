@@ -26,6 +26,7 @@ import { World } from '../../core/world';
 import { MONSTERS } from '../../entities/monster';
 import { monsterSpr } from '../../render/sprite_index';
 import { publishEvent, registerWorldEventObserver as observeWorldEvents } from '../../systems/events';
+import { registerRouteCue } from '../../systems/route_cues';
 import { randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg';
 import { carveCorridor, findClearArea, placeDoorAt, stampRoom } from '../shared';
 import { SCREEN_FRAMES } from '../procedural_screens';
@@ -513,6 +514,30 @@ export function generateEkrannik(
     }],
     [TAG_DANGER, 'reward', 'trace'],
   );
+
+  registerRouteCue(world, {
+    id: 'void_ekrannik_fuse_counterroute',
+    x: room.x + 5.5,
+    y: room.y + 5.5,
+    targetX: room.x + room.w - 3.5,
+    targetY: room.y + 5.5,
+    floor: FloorLevel.VOID,
+    roomId: room.id,
+    targetRoomId: room.id,
+    zoneId: world.zoneMap[world.idx(room.x + 5, room.y + 5)],
+    label: 'экран C',
+    hint: 'строка врет; правый щиток тише',
+    targetName: 'предохранитель Экранника',
+    color: '#8ff',
+    tags: [EKRANNIK_ID, 'void', 'screen', 'false_route', 'counterplay'],
+    toneSeed: room.id * 983 + 16016,
+    radius: 9,
+    targetRadius: 2.2,
+    cooldownSec: 26,
+    heardText: 'Экран C шумит слишком ровно. Тихий щиток справа спорит с ним.',
+    followedText: 'Вы нашли щиток Экранника. Предохранитель гасит ложный маршрут до стрельбы.',
+    ignoredText: 'Экран C остался гореть. Восточный ход выглядит проще, чем есть.',
+  });
 
   const controllerMonsterId = spawnMonster(world, entities, nextId, MonsterKind.EYE, RU_NAME, danger.x + 4, danger.y + 3);
   const paragraphId = spawnMonster(world, entities, nextId, MonsterKind.PARAGRAPH, 'Строка маршрута C', danger.x + 7, danger.y + 5);

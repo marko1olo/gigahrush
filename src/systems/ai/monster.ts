@@ -3,13 +3,13 @@
 import {
   W,
   type Entity, type GameState, type Msg,
-  Cell, Feature, ItemType,
+  Cell, Feature, ItemType, RoomType,
   EntityType, AIGoal, MonsterKind,
   msg,
 } from '../../core/types';
 import { World } from '../../core/world';
-import { MONSTERS, entityDisplayName } from '../../entities/monster';
-import { ITEMS } from '../../data/items';
+import { MONSTERS, entityDisplayName, type MonsterAIFlag, type MonsterDef } from '../../entities/monster';
+import { ITEMS, ITEM_TAGS } from '../../data/items';
 import { playGrowl, playSoundAt } from '../audio';
 import { isHostile } from '../factions';
 import { scaleMonsterDmg, strMeleeDmgMult, scaleMonsterHp, scaleMonsterSpeed, randomRPG } from '../rpg';
@@ -26,6 +26,11 @@ import {
   findMonsterBaitTarget,
 } from '../monster_bait';
 import { isDebugOnePunchManEnabled, keepDebugOnePunchManAlive } from '../debug_cheats';
+import {
+  findZombieApocalypseTarget,
+  isZombieApocalypseActive,
+  tryZombieApocalypseInfection,
+} from '../procedural_anomalies/zombie_apocalypse';
 
 /* ── Shared combat target finder ──────────────────────────────── */
 const MONSTER_DETECT = 20;
@@ -35,6 +40,8 @@ const PREFER_SQ = PREFER_PLAYER * PREFER_PLAYER;
 const MATKA_MAX_CHILDREN = 100;
 const PECHATEED_DETECT_SQ = 24 * 24;
 const PECHATEED_FALLBACK_SQ = 10 * 10;
+const DEBRIS_LURKER_COVER_DETECT_SQ = 22 * 22;
+const DEBRIS_LURKER_EXPOSED_DETECT_SQ = 12 * 12;
 const NELYUD_REVEAL_SQ = 6 * 6;
 const KOSTOREZ_DETECT_SQ = 22 * 22;
 const KOSTOREZ_WINDUP_RANGE = 2.25;
@@ -42,11 +49,38 @@ const KOSTOREZ_BURST_RANGE = 2.85;
 const KOSTOREZ_WINDUP_SEC = 1.35;
 const KOSTOREZ_STAGGER_SEC = 1.15;
 const KOSTOREZ_ESCAPE_DIST = 4.0;
+const EYE_SHOT_RANGE = 15;
+const EYE_MIN_RANGE = 1.5;
+const EYE_WINDUP_SEC = 0.85;
+const EYE_LOS_BREAK_COOLDOWN = 0.75;
+const SHADOW_WARNING_RANGE_SQ = 5.5 * 5.5;
+const SHADOW_WINDUP_SEC = 0.55;
+const SHADOW_STRIKE_BREAK_RANGE = 1.65;
+const SHADOW_LIGHT_SAFE = 0.34;
+const SHADOW_DARK_LIGHT = 0.18;
+const SHADOW_CANCEL_COOLDOWN = 0.65;
 const KOSTOREZ_RUMOR_IDS = [
   'monster_kostorez_cuts',
   'ecology_kostorez_windup',
   'ecology_kostorez_shotgun',
   'lead_maintenance_kostorez_locker',
+] as const;
+const EYE_RUMOR_IDS = ['monster_eye_lamps', 'ecology_eye_line'] as const;
+const SHADOW_RUMOR_IDS = ['monster_shadow_silence', 'ecology_shadow_afterimage'] as const;
+const DOCUMENT_ITEM_TAGS = [
+  'document',
+  'documents',
+  'paper',
+  'papers',
+  'admin',
+  'official',
+  'forgery',
+  'forged',
+  'audit',
+  'evidence',
+  'permit',
+  'ration',
+  'coupon',
 ] as const;
 
 /** Entity lookup map — set by updateAI each frame */
@@ -60,6 +94,52 @@ function zoneIdAt(world: World, x: number, y: number): number | undefined {
 
 function kostorezEventData(extra?: Record<string, unknown>): Record<string, unknown> {
   return { rumorIds: [...KOSTOREZ_RUMOR_IDS], ...extra };
+}
+
+function monsterReadabilityRumorIds(kind: MonsterKind | undefined): readonly string[] {
+  switch (kind) {
+    case MonsterKind.EYE: return EYE_RUMOR_IDS;
+    case MonsterKind.SHADOW: return SHADOW_RUMOR_IDS;
+    default: return [];
+  }
+}
+
+function monsterReadabilityEventData(
+  kind: MonsterKind | undefined,
+  extra?: Record<string, unknown>,
+): Record<string, unknown> {
+  const rumorIds = monsterReadabilityRumorIds(kind);
+  return rumorIds.length > 0 ? { rumorIds: [...rumorIds], ...extra } : { ...extra };
+}
+
+function publishMonsterReadabilityEvent(
+  state: GameState | undefined,
+  world: World,
+  e: Entity,
+  target: Entity | undefined,
+  type: 'monster_sighted' | 'monster_windup_interrupted',
+  severity: 3 | 4,
+  tags: string[],
+  data?: Record<string, unknown>,
+): void {
+  if (!state) return;
+  publishEvent(state, {
+    type,
+    zoneId: zoneIdAt(world, e.x, e.y),
+    x: e.x,
+    y: e.y,
+    actorId: e.id,
+    actorName: entityDisplayName(e),
+    actorFaction: e.faction,
+    targetId: target?.id,
+    targetName: target ? entityDisplayName(target) : undefined,
+    targetFaction: target?.faction,
+    monsterKind: e.monsterKind,
+    severity,
+    privacy: target?.type === EntityType.PLAYER ? 'local' : 'witnessed',
+    tags: ['monster', ...tags],
+    data: monsterReadabilityEventData(e.monsterKind, data),
+  });
 }
 
 function publishKostorezEvent(
@@ -161,14 +241,23 @@ function canBeMonsterTarget(other: Entity): boolean {
   return other.type !== EntityType.MONSTER && other.type !== EntityType.PROJECTILE && other.type !== EntityType.ITEM_DROP;
 }
 
-function fixedScanCd(kind: MonsterKind | undefined): number | undefined {
-  switch (kind) {
-    case MonsterKind.SHOVNIK: return 1.1;
-    case MonsterKind.LAMPOVY: return 1.2;
-    case MonsterKind.TUBE_EEL: return 1.3;
-    case MonsterKind.PARAGRAPH: return 1.4;
-    default: return undefined;
+function hasAIFlag(e: Entity, flag: MonsterAIFlag): boolean {
+  return e.monsterKind !== undefined && MONSTERS[e.monsterKind]?.aiFlags?.includes(flag) === true;
+}
+
+function fixedScanCd(e: Entity): number | undefined {
+  switch (e.monsterKind) {
+    case MonsterKind.SBORKA: return 0.55;
+    case MonsterKind.TVAR: return 0.85;
+    case MonsterKind.POLZUN: return 1.35;
+    default: break;
   }
+  if (hasAIFlag(e, 'wallBias')) return 1.1;
+  if (hasAIFlag(e, 'lampPowered')) return 1.2;
+  if (hasAIFlag(e, 'waterStrider')) return 1.3;
+  if (hasAIFlag(e, 'rangedClause')) return 1.4;
+  if (hasAIFlag(e, 'debrisLurker')) return 1.25;
+  return undefined;
 }
 
 export function deterministicScanCd(id: number, base: number, spread: number): number {
@@ -176,18 +265,35 @@ export function deterministicScanCd(id: number, base: number, spread: number): n
   return base + ((h & 1023) / 1023) * spread;
 }
 
+function isDocumentItemTag(tag: string): boolean {
+  return (DOCUMENT_ITEM_TAGS as readonly string[]).includes(tag);
+}
+
+function itemHasDocumentTag(defId: string, tags: readonly string[] | undefined): boolean {
+  const extra = ITEM_TAGS[defId];
+  if (extra) {
+    for (const tag of extra) if (isDocumentItemTag(tag)) return true;
+  }
+  if (tags) {
+    for (const tag of tags) if (isDocumentItemTag(tag)) return true;
+  }
+  return false;
+}
+
+function isOfficePaperLike(defId: string): boolean {
+  const def = ITEMS[defId];
+  if (!def) return false;
+  if (def.type === ItemType.NOTE || def.type === ItemType.KEY) return true;
+  if (itemHasDocumentTag(defId, def.tags)) return true;
+  return def.type === ItemType.MISC &&
+    (def.spawnRooms.includes(RoomType.OFFICE) || def.spawnRooms.includes(RoomType.HQ)) &&
+    !def.spawnRooms.includes(RoomType.PRODUCTION);
+}
+
 function hasDocumentLikeItem(e: Entity): boolean {
   if (!e.inventory || e.inventory.length === 0) return false;
   for (const item of e.inventory) {
-    const def = ITEMS[item.defId];
-    if (!def) continue;
-    if (def.type === ItemType.NOTE || def.type === ItemType.KEY) return true;
-    const text = `${def.name} ${def.desc}`.toLowerCase();
-    if (
-      text.includes('документ') || text.includes('записк') || text.includes('ключ') ||
-      text.includes('бюллет') || text.includes('пропуск') || text.includes('печать') ||
-      text.includes('приказ') || text.includes('справк')
-    ) return true;
+    if (item.count > 0 && isOfficePaperLike(item.defId)) return true;
   }
   return false;
 }
@@ -214,26 +320,121 @@ function adjacentWall(world: World, e: Entity): boolean {
     world.cells[world.idx(x, y + 1)] === Cell.WALL;
 }
 
-function monsterMoveMult(world: World, e: Entity): number {
+function nearDebrisFeature(world: World, e: Entity, radius: number): boolean {
+  const ex = Math.floor(e.x);
+  const ey = Math.floor(e.y);
+  for (let dy = -radius; dy <= radius; dy++) {
+    for (let dx = -radius; dx <= radius; dx++) {
+      if (dx * dx + dy * dy > radius * radius) continue;
+      const feature = world.features[world.idx(ex + dx, ey + dy)];
+      if (feature === Feature.SHELF || feature === Feature.MACHINE || feature === Feature.APPARATUS) return true;
+    }
+  }
+  return false;
+}
+
+function inDebrisCover(world: World, e: Entity): boolean {
+  if (adjacentWall(world, e) || nearDebrisFeature(world, e, 2)) return true;
+  const room = world.roomAt(e.x, e.y);
+  return room?.type === RoomType.STORAGE || room?.type === RoomType.PRODUCTION;
+}
+
+function wallNeighborCount(world: World, x: number, y: number): number {
+  let n = 0;
+  if (world.solid(x - 1, y)) n++;
+  if (world.solid(x + 1, y)) n++;
+  if (world.solid(x, y - 1)) n++;
+  if (world.solid(x, y + 1)) n++;
+  return n;
+}
+
+function inPolzunKillCell(world: World, e: Entity): boolean {
+  const x = Math.floor(e.x);
+  const y = Math.floor(e.y);
+  const ci = world.idx(x, y);
+  return world.cells[ci] === Cell.WATER ||
+    wallNeighborCount(world, x, y) >= 2 ||
+    world.features[ci] === Feature.SINK ||
+    world.features[ci] === Feature.TOILET;
+}
+
+function monsterMeleeRange(e: Entity): number {
   switch (e.monsterKind) {
-    case MonsterKind.SHOVNIK:
-      return adjacentWall(world, e) ? 1.18 : 0.92;
-    case MonsterKind.TUBE_EEL:
-      return world.cells[world.idx(Math.floor(e.x), Math.floor(e.y))] === Cell.WATER ? 1.45 : 0.72;
-    default:
-      return 1;
+    case MonsterKind.TVAR: return 1.55;
+    case MonsterKind.POLZUN: return 1.35;
+    default: return 1.2;
   }
 }
 
-function monsterDmgMult(world: World, e: Entity): number {
+function entityLight(world: World, e: Entity): number {
+  return world.light[world.idx(Math.floor(e.x), Math.floor(e.y))] ?? 0;
+}
+
+function entityHasEquippedLight(e: Entity): boolean {
+  return e.tool === 'flashlight' || e.tool === 'uv_spotlight';
+}
+
+function shadowHasLightCounter(world: World, shadow: Entity, target: Entity): boolean {
+  return entityHasEquippedLight(target) ||
+    entityLight(world, target) >= SHADOW_LIGHT_SAFE ||
+    entityLight(world, shadow) >= SHADOW_LIGHT_SAFE;
+}
+
+function shadowCanDarkAmbush(world: World, shadow: Entity, target: Entity): boolean {
+  return !entityHasEquippedLight(target) &&
+    entityLight(world, shadow) <= SHADOW_DARK_LIGHT &&
+    entityLight(world, target) < SHADOW_LIGHT_SAFE;
+}
+
+function monsterMoveMult(world: World, e: Entity): number {
+  if (hasAIFlag(e, 'debrisLurker')) return inDebrisCover(world, e) ? 1.22 : 0.68;
   switch (e.monsterKind) {
-    case MonsterKind.SHOVNIK:
-      return adjacentWall(world, e) ? 1.2 : 1;
-    case MonsterKind.LAMPOVY:
-      return nearFeature(world, e, Feature.LAMP, 3) ? 1.35 : 0.9;
-    default:
+    case MonsterKind.SHADOW: {
+      const light = entityLight(world, e);
+      if (light >= SHADOW_LIGHT_SAFE) return 0.78;
+      if (light <= SHADOW_DARK_LIGHT) return 1.08;
       return 1;
+    }
+    case MonsterKind.TVAR:
+      return adjacentWall(world, e) ? 1.12 : 0.96;
+    default:
+      break;
   }
+  if (hasAIFlag(e, 'wallBias')) return adjacentWall(world, e) ? 1.18 : 0.92;
+  if (hasAIFlag(e, 'waterStrider')) {
+    return world.cells[world.idx(Math.floor(e.x), Math.floor(e.y))] === Cell.WATER ? 1.45 : 0.72;
+  }
+  return 1;
+}
+
+function monsterDmgMult(world: World, e: Entity, target?: Entity): number {
+  if (hasAIFlag(e, 'debrisLurker')) return inDebrisCover(world, e) ? 1.25 : 0.75;
+  switch (e.monsterKind) {
+    case MonsterKind.SHADOW: {
+      const light = entityLight(world, e);
+      if (light >= SHADOW_LIGHT_SAFE) return 0.72;
+      if (light <= SHADOW_DARK_LIGHT) return 1.1;
+      return 1;
+    }
+    case MonsterKind.TVAR:
+      return adjacentWall(world, e) || (target !== undefined && adjacentWall(world, target)) ? 1.22 : 1;
+    case MonsterKind.POLZUN:
+      return inPolzunKillCell(world, e) || (target !== undefined && inPolzunKillCell(world, target)) ? 1.35 : 1;
+    default:
+      break;
+  }
+  if (hasAIFlag(e, 'wallBias')) return adjacentWall(world, e) ? 1.2 : 1;
+  if (hasAIFlag(e, 'lampPowered')) return nearFeature(world, e, Feature.LAMP, 3) ? 1.35 : 0.9;
+  return 1;
+}
+
+function monsterDetectSq(world: World, e: Entity, fallback: number): number {
+  if (hasAIFlag(e, 'documentHunter')) return PECHATEED_DETECT_SQ;
+  if (hasAIFlag(e, 'closeReveal')) return NELYUD_REVEAL_SQ;
+  if (hasAIFlag(e, 'debrisLurker')) {
+    return inDebrisCover(world, e) ? DEBRIS_LURKER_COVER_DETECT_SQ : DEBRIS_LURKER_EXPOSED_DETECT_SQ;
+  }
+  return fallback;
 }
 
 function followMonsterPath(world: World, e: Entity, dt: number): void {
@@ -292,7 +493,7 @@ function tryFollowMonsterBait(
   return true;
 }
 
-function findPechateedTarget(world: World, entities: Entity[], e: Entity, dt: number): Entity | null {
+function findDocumentHunterTarget(world: World, entities: Entity[], e: Entity, dt: number): Entity | null {
   const ai = e.ai!;
   let target: Entity | null = null;
 
@@ -509,6 +710,175 @@ export function tryMonsterProjectileStagger(
   return true;
 }
 
+function fireMonsterProjectile(
+  world: World,
+  entities: Entity[],
+  e: Entity,
+  target: Entity,
+  def: MonsterDef,
+  nextId: { v: number },
+): void {
+  const baseDmg = def.dmg ?? 10;
+  const level = e.rpg?.level ?? 1;
+  const strMult = e.rpg ? strMeleeDmgMult(e.rpg) : 1;
+  const dmg = Math.round(scaleMonsterDmg(baseDmg, level) * strMult * monsterDmgMult(world, e) * (e.monsterDmgMult ?? 1));
+  const dx = world.delta(e.x, target.x);
+  const dy = world.delta(e.y, target.y);
+  const ang = Math.atan2(dy, dx);
+  const spd = def.projSpeed ?? 8;
+  const cos = Math.cos(ang);
+  const sin = Math.sin(ang);
+  entities.push({
+    id: nextId.v++,
+    type: EntityType.PROJECTILE,
+    x: world.wrap(e.x + cos * 0.5),
+    y: world.wrap(e.y + sin * 0.5),
+    angle: ang,
+    pitch: 0,
+    alive: true,
+    speed: 0,
+    sprite: def.projSprite || Spr.EYE_BOLT,
+    vx: cos * spd,
+    vy: sin * spd,
+    projDmg: dmg,
+    projLife: 3.0,
+    ownerId: e.id,
+    spriteScale: 0.3,
+    spriteZ: 0.5,
+  });
+  playSoundAt(playGrowl, e.x, e.y);
+  e.attackCd = def.attackRate ?? 2;
+}
+
+function updateEyeRanged(
+  world: World,
+  entities: Entity[],
+  e: Entity,
+  target: Entity,
+  def: MonsterDef,
+  bestDist: number,
+  dt: number,
+  time: number,
+  msgs: Msg[],
+  playerId: number,
+  nextId: { v: number },
+  state?: GameState,
+): boolean {
+  const ai = e.ai!;
+  const inShotRange = bestDist < EYE_SHOT_RANGE && bestDist > EYE_MIN_RANGE;
+  const currentTarget = ai.windupTargetId === undefined || ai.windupTargetId === target.id;
+
+  if ((ai.windupTimer ?? 0) > 0) {
+    ai.windupTimer = Math.max(0, (ai.windupTimer ?? 0) - dt);
+    const lineClear = currentTarget && inShotRange && target.alive && hasClearLine(world, e, target, EYE_SHOT_RANGE);
+    if (!lineClear) {
+      ai.windupTimer = undefined;
+      ai.windupTargetId = undefined;
+      e.attackCd = Math.max(e.attackCd ?? 0, EYE_LOS_BREAK_COOLDOWN);
+      if (target.id === playerId) {
+        msgs.push(msg('Выстрел Глаза сорвался о стену. Держите угол до вспышки.', time, '#9cf'));
+        publishMonsterReadabilityEvent(state, world, e, target, 'monster_windup_interrupted', 3, ['eye', 'windup', 'line_of_sight', 'interrupted'], {
+          reason: !inShotRange ? 'range' : 'line_of_sight',
+          counterplay: 'break_line_before_bolt',
+        });
+      }
+      return true;
+    }
+
+    const dx = world.delta(e.x, target.x);
+    const dy = world.delta(e.y, target.y);
+    e.angle = Math.atan2(dy, dx);
+    if (ai.windupTimer <= 0) {
+      fireMonsterProjectile(world, entities, e, target, def, nextId);
+      ai.windupTimer = undefined;
+      ai.windupTargetId = undefined;
+    }
+    return true;
+  }
+
+  if (!inShotRange) return false;
+  if (!hasClearLine(world, e, target, EYE_SHOT_RANGE)) return false;
+
+  if (target.id === playerId && ai.lastSeenTargetId !== playerId) {
+    ai.lastSeenTargetId = playerId;
+    msgs.push(msg('Зрачок Глаза собирает зелёный выстрел. Угол или дверь сорвут линию.', time, '#cf6'));
+    publishMonsterReadabilityEvent(state, world, e, target, 'monster_sighted', 4, ['eye', 'ranged', 'line_of_sight', 'warning'], {
+      windupSec: EYE_WINDUP_SEC,
+      counterplay: 'corner_or_door_breaks_line',
+    });
+  }
+
+  e.attackCd = (e.attackCd ?? 0) - dt;
+  if (e.attackCd <= 0) {
+    ai.windupTimer = EYE_WINDUP_SEC;
+    ai.windupTargetId = target.id;
+  }
+  return true;
+}
+
+function updateShadowAmbushReadability(
+  world: World,
+  e: Entity,
+  target: Entity,
+  bestDist: number,
+  dt: number,
+  time: number,
+  msgs: Msg[],
+  playerId: number,
+  state?: GameState,
+): boolean {
+  const ai = e.ai!;
+
+  if (target.id === playerId &&
+      ai.lastSeenTargetId !== playerId &&
+      world.dist2(e.x, e.y, target.x, target.y) <= SHADOW_WARNING_RANGE_SQ &&
+      shadowCanDarkAmbush(world, e, target)) {
+    ai.lastSeenTargetId = playerId;
+    msgs.push(msg('Теневик отделился от темноты. Свет, шаг назад или широкий проход ломают рывок.', time, '#c8f'));
+    publishMonsterReadabilityEvent(state, world, e, target, 'monster_sighted', 4, ['shadow', 'ambush', 'dark', 'warning'], {
+      windupSec: SHADOW_WINDUP_SEC,
+      counterplay: 'light_distance_or_open_space',
+    });
+  }
+
+  if ((ai.windupTimer ?? 0) > 0) {
+    ai.windupTimer = Math.max(0, (ai.windupTimer ?? 0) - dt);
+    const interrupted = !target.alive ||
+      bestDist > SHADOW_STRIKE_BREAK_RANGE ||
+      ai.windupTargetId !== target.id ||
+      shadowHasLightCounter(world, e, target);
+    if (interrupted) {
+      ai.windupTimer = undefined;
+      ai.windupTargetId = undefined;
+      e.attackCd = Math.max(e.attackCd ?? 0, SHADOW_CANCEL_COOLDOWN);
+      if (target.id === playerId) {
+        msgs.push(msg('Теневик потерял рывок в свете/дистанции.', time, '#ccf'));
+        publishMonsterReadabilityEvent(state, world, e, target, 'monster_windup_interrupted', 3, ['shadow', 'ambush', 'interrupted', 'light'], {
+          reason: shadowHasLightCounter(world, e, target) ? 'light' : 'distance',
+          counterplay: 'keep_light_or_distance',
+        });
+      }
+      return true;
+    }
+    if (ai.windupTimer > 0) return true;
+
+    ai.windupTimer = undefined;
+    ai.windupTargetId = undefined;
+    return false;
+  }
+
+  if (bestDist < 1.2 && (e.attackCd ?? 0) <= 0 && shadowCanDarkAmbush(world, e, target)) {
+    ai.windupTimer = SHADOW_WINDUP_SEC;
+    ai.windupTargetId = target.id;
+    if (target.id === playerId) {
+      msgs.push(msg('Теневик заносит темный рывок. Отступите в свет или за дистанцию.', time, '#c8f'));
+    }
+    return true;
+  }
+
+  return false;
+}
+
 /* ── Drop NPC inventory as ITEM_DROP entities ─────────────────── */
 export function dropNpcInventory(e: Entity, entities: Entity[], nextId: { v: number }): void {
   if (!e.inventory || e.inventory.length === 0) return;
@@ -574,19 +944,20 @@ export function updateMonster(world: World, entities: Entity[], e: Entity, dt: n
     }
   }
 
-  let detectSq = MONSTER_DETECT_SQ;
+  let detectSq = monsterDetectSq(world, e, MONSTER_DETECT_SQ);
   let target: Entity | null;
-  if (e.monsterKind === MonsterKind.PECHATEED) {
-    detectSq = PECHATEED_DETECT_SQ;
-    target = findPechateedTarget(world, entities, e, dt);
-  } else if (e.monsterKind === MonsterKind.NELYUD) {
-    detectSq = NELYUD_REVEAL_SQ;
+  const zombieApocalypse = e.monsterKind === MonsterKind.ZOMBIE && isZombieApocalypseActive(state);
+  if (zombieApocalypse) {
+    target = findZombieApocalypseTarget(world, entities, e, dt, detectSq);
+  } else if (hasAIFlag(e, 'documentHunter')) {
+    target = findDocumentHunterTarget(world, entities, e, dt);
+  } else if (hasAIFlag(e, 'closeReveal')) {
     target = findCombatTarget(world, entities, e, dt, detectSq, 1.25, canBeMonsterTarget);
   } else if (e.monsterKind === MonsterKind.KOSTOREZ) {
     detectSq = KOSTOREZ_DETECT_SQ;
     target = findCombatTarget(world, entities, e, dt, detectSq, deterministicScanCd(e.id, 0.7, 0.3), canBeMonsterTarget);
   } else {
-    const scanCd = fixedScanCd(e.monsterKind) ?? deterministicScanCd(e.id, 1.0, 0.5);
+    const scanCd = fixedScanCd(e) ?? deterministicScanCd(e.id, 1.0, 0.5);
     target = findCombatTarget(
       world, entities, e, dt,
       detectSq, scanCd,
@@ -596,11 +967,12 @@ export function updateMonster(world: World, entities: Entity[], e: Entity, dt: n
 
   // Prefer player only if player is closer than current target
   const player = _entityById.get(playerId);
-  if (player?.alive) {
+  if (player?.alive && !(zombieApocalypse && target?.type === EntityType.NPC)) {
     const pd2 = world.dist2(e.x, e.y, player.x, player.y);
-    const playerHasDocs = hasDocumentLikeItem(player);
-    const targetHasDocs = target ? hasDocumentLikeItem(target) : false;
-    const playerAllowed = e.monsterKind !== MonsterKind.PECHATEED ||
+    const documentHunter = hasAIFlag(e, 'documentHunter');
+    const playerHasDocs = documentHunter && hasDocumentLikeItem(player);
+    const targetHasDocs = documentHunter && target !== null ? hasDocumentLikeItem(target) : false;
+    const playerAllowed = !documentHunter ||
       playerHasDocs ||
       (!targetHasDocs && pd2 < PECHATEED_FALLBACK_SQ);
     if (playerAllowed && target && target.id !== playerId) {
@@ -653,53 +1025,40 @@ export function updateMonster(world: World, entities: Entity[], e: Entity, dt: n
     return;
   }
 
+  if (e.monsterKind === MonsterKind.SHADOW &&
+      updateShadowAmbushReadability(world, e, target, bestDist, dt, time, msgs, playerId, state)) {
+    return;
+  }
+
   // Ranged attack: shoot projectile if in range but not too close
   // Immobile ranged monsters (Idol) fire at any distance within detection range
   const minRange = def?.speed === 0 ? 0 : 1.5;
-  if (def?.isRanged && bestDist < 15 && bestDist > minRange) {
+  if (e.monsterKind === MonsterKind.EYE && def?.isRanged) {
+    if (updateEyeRanged(world, entities, e, target, def, bestDist, dt, time, msgs, playerId, nextId, state)) return;
+  } else if (def?.isRanged && bestDist < 15 && bestDist > minRange) {
     e.attackCd = (e.attackCd ?? 0) - dt;
     if (e.attackCd! <= 0) {
-      const baseDmg = def.dmg ?? 10;
-      const level = e.rpg?.level ?? 1;
-      const strMult = e.rpg ? strMeleeDmgMult(e.rpg) : 1;
-      const dmg = Math.round(scaleMonsterDmg(baseDmg, level) * strMult * monsterDmgMult(world, e) * (e.monsterDmgMult ?? 1));
-      const ang = Math.atan2(target.y - e.y, target.x - e.x);
-      const spd = def.projSpeed ?? 8;
-      const cos = Math.cos(ang);
-      const sin = Math.sin(ang);
-      entities.push({
-        id: nextId.v++,
-        type: EntityType.PROJECTILE,
-        x: e.x + cos * 0.5,
-        y: e.y + sin * 0.5,
-        angle: ang,
-        pitch: 0,
-        alive: true,
-        speed: 0,
-        sprite: def.projSprite ?? Spr.EYE_BOLT,
-        vx: cos * spd,
-        vy: sin * spd,
-        projDmg: dmg,
-        projLife: 3.0,
-        ownerId: e.id,
-        spriteScale: 0.3,
-        spriteZ: 0.5,
-      });
-      playSoundAt(playGrowl, e.x, e.y);
-      e.attackCd = def.attackRate ?? 2;
+      fireMonsterProjectile(world, entities, e, target, def, nextId);
     }
     return;
   }
 
   // Melee attack if close enough
-  if (bestDist < 1.2) {
+  if (bestDist < monsterMeleeRange(e)) {
     e.attackCd = (e.attackCd ?? 0) - dt;
     if (e.attackCd! <= 0) {
       const baseDmg = def?.dmg ?? 10;
       const level = e.rpg?.level ?? 1;
       const strMult = e.rpg ? strMeleeDmgMult(e.rpg) : 1;
-      const rawDmg = Math.round(scaleMonsterDmg(baseDmg, level) * strMult * monsterDmgMult(world, e) * (e.monsterDmgMult ?? 1));
+      const rawDmg = Math.round(scaleMonsterDmg(baseDmg, level) * strMult * monsterDmgMult(world, e, target) * (e.monsterDmgMult ?? 1));
       const dmg = zhelemishIncomingMeleeDamage(target, time, rawDmg);
+      if (tryZombieApocalypseInfection(world, e, target, state, msgs, time)) {
+        const hitAng = Math.atan2(target.y - e.y, target.x - e.x);
+        spawnBloodHit(world, target.x, target.y, hitAng, Math.max(2, Math.round(dmg * 0.35)), false);
+        playSoundAt(playGrowl, e.x, e.y);
+        e.attackCd = def?.attackRate ?? 1;
+        return;
+      }
       if (target.hp !== undefined) {
         const debugImmortalPlayerHit = target.id === playerId && isDebugOnePunchManEnabled();
         if (debugImmortalPlayerHit) {

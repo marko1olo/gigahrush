@@ -4,6 +4,7 @@ import {
   type Item,
   type ItemDef,
   type RPGStats,
+  type WorldEventSeverity,
   Faction,
   FloorLevel,
   Occupation,
@@ -19,8 +20,8 @@ import {
   type EconomyTradeSpreadRule,
 } from '../data/economy_rules';
 import { isSilverSlimeItem, SILVER_SLIME_SEALED_ID } from '../data/items';
-import { RESOURCES, resourceForItem, resourceForItemType } from '../data/resources';
-import { publishEvent } from './events';
+import { RESOURCES, RESOURCE_BY_ID, type ResourceDef, resourceForItem, resourceForItemType } from '../data/resources';
+import { publishEvent, publishResourceScarcityEvent, type ResourceScarcityBand, type ResourceScarcityTrend } from './events';
 import { isGovnyakItem } from './govnyak';
 import { intContractRewardMult } from './rpg';
 
@@ -51,9 +52,27 @@ export interface EconomyQuote {
   reason: string;
 }
 
+export interface EconomyTariffProviderResult {
+  multiplier: number;
+  tags?: readonly string[];
+  reason?: string;
+}
+
+export interface EconomyTariffProvider {
+  id: string;
+  quote(state: GameState, resourceId: string | undefined, floor: EconomyFloorRef): EconomyTariffProviderResult | undefined;
+}
+
 export interface PlayerItemSaleRecordOptions {
   tags?: readonly string[];
   data?: Record<string, unknown>;
+}
+
+export interface ResourceStockChangeOptions {
+  zoneId?: number;
+  roomId?: number;
+  reason?: string;
+  tags?: readonly string[];
 }
 
 interface RuleSummary {
@@ -63,8 +82,20 @@ interface RuleSummary {
 }
 
 const MAX_PRICE_CACHE_ITEMS = 256;
-const MAX_QUOTE_TAGS = 8;
+const MAX_QUOTE_TAGS = 10;
+const DEFAULT_SCARCITY_MAX = 4;
+const DEFAULT_PRICE_PRESSURE_MAX = 5;
+const DEFAULT_REWARD_PRESSURE_MAX = 3;
+const SURPLUS_SCARCITY_MIN = 0.65;
+const RESOURCE_STRAINED_MULT = 1.5;
 const priceCaches = new WeakMap<GameState, PriceCache>();
+var tariffProviders: EconomyTariffProvider[] | undefined;
+const RESOURCE_SCARCITY_RANK: Record<ResourceScarcityBand, number> = {
+  normal: 0,
+  strained: 1,
+  shortage: 2,
+  critical: 3,
+};
 
 function pushTag(out: string[], tag: string | undefined): void {
   if (!tag || out.length >= MAX_QUOTE_TAGS || out.includes(tag)) return;
@@ -84,6 +115,84 @@ function clampRuleMultiplier(value: number): number {
   return Number.isFinite(value) ? Math.max(0.1, Math.min(6, value)) : 1;
 }
 
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
+function smooth01(value: number): number {
+  const t = clamp(value, 0, 1);
+  return t * t * (3 - 2 * t);
+}
+
+function resourceScarcityCap(res: ResourceDef): number {
+  return clamp(res.scarcityMax ?? DEFAULT_SCARCITY_MAX, 1, DEFAULT_SCARCITY_MAX);
+}
+
+function resourcePricePressureCap(res: ResourceDef | undefined): number {
+  return clamp(res?.pricePressureMax ?? DEFAULT_PRICE_PRESSURE_MAX, 1, DEFAULT_PRICE_PRESSURE_MAX);
+}
+
+function resourceRewardPressureCap(res: ResourceDef | undefined, maxMultiplier: number): number {
+  const requested = Number.isFinite(maxMultiplier) ? maxMultiplier : DEFAULT_REWARD_PRESSURE_MAX;
+  return clamp(Math.min(requested, res?.rewardPressureMax ?? DEFAULT_REWARD_PRESSURE_MAX), 1, DEFAULT_REWARD_PRESSURE_MAX);
+}
+
+function scarcityMultiplierFor(res: ResourceDef, stock: { stock: number; target: number }): number {
+  const target = Math.max(1, stock.target);
+  const current = Math.max(0, stock.stock);
+  const maxScarcity = resourceScarcityCap(res);
+  if (current >= target) {
+    const surplus = smooth01((current - target) / target);
+    return clamp(1 - surplus * (1 - SURPLUS_SCARCITY_MIN), SURPLUS_SCARCITY_MIN, maxScarcity);
+  }
+  const lowStock = clamp(res.lowStock, 0, target - 1);
+  const pressure = smooth01((target - current) / Math.max(1, target - lowStock));
+  return clamp(1 + pressure * (maxScarcity - 1), SURPLUS_SCARCITY_MIN, maxScarcity);
+}
+
+function pricePressureMultiplier(
+  res: ResourceDef | undefined,
+  scarcityMultiplier: number,
+  demandMultiplier: number,
+  tariffMultiplier: number,
+): number {
+  const raw = scarcityMultiplier * demandMultiplier * tariffMultiplier;
+  return clamp(raw, 0.1, resourcePricePressureCap(res));
+}
+
+function scarcityBandFor(res: ResourceDef, stock: number, target: number): ResourceScarcityBand {
+  const low = Math.max(1, res.lowStock);
+  if (stock <= Math.max(0, low * 0.5)) return 'critical';
+  if (stock <= low) return 'shortage';
+  const strainedAt = Math.min(Math.max(low + 1, low * RESOURCE_STRAINED_MULT), Math.max(low + 1, target - 1));
+  return stock <= strainedAt ? 'strained' : 'normal';
+}
+
+function severityForBand(band: ResourceScarcityBand, trend: ResourceScarcityTrend): WorldEventSeverity {
+  if (band === 'critical') return 5;
+  if (band === 'shortage') return 4;
+  return trend === 'recovered' ? 3 : 3;
+}
+
+function scarcityRumorIds(resourceId: string, trend: ResourceScarcityTrend): string[] {
+  if (trend === 'recovered') return ['economy_resource_recovered'];
+  switch (resourceId) {
+    case 'drink_water':
+      return ['economy_water_price', 'contract_scarcity_pressure'];
+    case 'medicine':
+      return ['economy_med_shortage', 'contract_scarcity_pressure'];
+    case 'food':
+      return ['economy_kitchen_stock', 'contract_scarcity_pressure'];
+    case 'ammo':
+      return ['contract_liquidator_board', 'contract_scarcity_pressure'];
+    case 'documents':
+    case 'paper':
+      return ['contract_admin_papers', 'contract_scarcity_pressure'];
+    default:
+      return ['economy_resource_pressure', 'contract_scarcity_pressure'];
+  }
+}
+
 function stockFloorFor(state: GameState, opts: EconomyQuoteOptions): FloorLevel {
   if (opts.stockFloor !== undefined) return opts.stockFloor;
   return typeof opts.floor === 'number' ? opts.floor : state.currentFloor;
@@ -101,7 +210,7 @@ function demandFor(resourceId: string | undefined, floor: EconomyFloorRef): Rule
   return out;
 }
 
-function tariffFor(resourceId: string | undefined, floor: EconomyFloorRef, opts: EconomyQuoteOptions): RuleSummary {
+function tariffFor(state: GameState, resourceId: string | undefined, floor: EconomyFloorRef, opts: EconomyQuoteOptions): RuleSummary {
   const out: RuleSummary = { multiplier: 1, tags: [], reasons: [] };
   for (const rule of ECONOMY_TARIFF_RULES) {
     if (resourceId && rule.resourceId !== undefined && rule.resourceId !== resourceId) continue;
@@ -109,6 +218,13 @@ function tariffFor(resourceId: string | undefined, floor: EconomyFloorRef, opts:
     out.multiplier *= clampRuleMultiplier(rule.multiplier);
     pushTags(out.tags, rule.tags);
     out.reasons.push(rule.reason);
+  }
+  for (const provider of tariffProviders ?? []) {
+    const dynamic = provider.quote(state, resourceId, floor);
+    if (!dynamic) continue;
+    out.multiplier *= clampRuleMultiplier(dynamic.multiplier);
+    pushTags(out.tags, dynamic.tags);
+    if (dynamic.reason) out.reasons.push(dynamic.reason);
   }
   if (opts.tariffMultiplier !== undefined) {
     out.multiplier *= clampRuleMultiplier(opts.tariffMultiplier);
@@ -138,12 +254,29 @@ function roundedPrice(basePrice: number, multiplier: number): number {
   return Math.max(1, Math.round(basePrice * multiplier));
 }
 
+function quoteReason(reasons: string[]): string {
+  if (reasons.includes('price_pressure_cap')) {
+    return ['price_pressure_cap', ...reasons.filter(reason => reason !== 'price_pressure_cap')].slice(0, 4).join('+');
+  }
+  return reasons.slice(0, 4).join('+') || 'base_price';
+}
+
 function isEconomyState(value: unknown): value is EconomyState {
   if (!value || typeof value !== 'object') return false;
   const candidate = value as Partial<EconomyState>;
   return typeof candidate.priceVersion === 'number'
     && !!candidate.floors
     && typeof candidate.floors === 'object';
+}
+
+export function registerEconomyTariffProvider(provider: EconomyTariffProvider): void {
+  const providers = tariffProviders ?? (tariffProviders = []);
+  const existing = providers.findIndex(entry => entry.id === provider.id);
+  if (existing >= 0) {
+    providers[existing] = provider;
+  } else {
+    providers.push(provider);
+  }
 }
 
 export function ensureEconomyState(state: GameState): EconomyState {
@@ -171,26 +304,95 @@ export function economyForSave(state: GameState): EconomyState {
   return ensureEconomyState(state);
 }
 
+export function invalidateEconomyPrices(state: GameState): void {
+  ensureEconomyState(state).priceVersion++;
+  priceCaches.delete(state);
+}
+
 export function getResourceScarcity(state: GameState, resourceId: string, floor: FloorLevel = state.currentFloor): number {
   const econ = ensureEconomyState(state);
   const floorState = econ.floors[floor] ?? createEconomyFloorState(floor);
   econ.floors[floor] = floorState;
-  const res = RESOURCES.find(r => r.id === resourceId);
+  const res = RESOURCE_BY_ID[resourceId];
   const stock = floorState.resources[resourceId];
   if (!res || !stock) return 1;
-  return Math.max(0.25, Math.min(4, stock.target / Math.max(1, stock.stock)));
+  return scarcityMultiplierFor(res, stock);
 }
 
-export function changeResourceStock(state: GameState, resourceId: string, delta: number, floor: FloorLevel = state.currentFloor): boolean {
+export function getResourceContractPressure(
+  state: GameState,
+  resourceId: string,
+  floor: FloorLevel = state.currentFloor,
+  maxMultiplier = DEFAULT_REWARD_PRESSURE_MAX,
+): number {
+  const rewardCap = resourceRewardPressureCap(RESOURCE_BY_ID[resourceId], maxMultiplier);
+  return Math.min(rewardCap, Math.max(1, getResourceScarcity(state, resourceId, floor)));
+}
+
+function maybePublishScarcityThreshold(
+  state: GameState,
+  res: ResourceDef,
+  previousStock: number,
+  nextStock: number,
+  floor: FloorLevel,
+  opts: ResourceStockChangeOptions,
+): void {
+  const floorState = ensureEconomyState(state).floors[floor] ?? createEconomyFloorState(floor);
+  const stock = floorState.resources[res.id];
+  if (!stock) return;
+  const previousBand = scarcityBandFor(res, previousStock, stock.target);
+  const band = scarcityBandFor(res, nextStock, stock.target);
+  if (previousBand === band) return;
+
+  const prevRank = RESOURCE_SCARCITY_RANK[previousBand];
+  const nextRank = RESOURCE_SCARCITY_RANK[band];
+  const trend: ResourceScarcityTrend | undefined = nextRank > prevRank
+    ? 'worsened'
+    : prevRank > 0 ? 'recovered' : undefined;
+  if (!trend) return;
+
+  publishResourceScarcityEvent(state, {
+    floor,
+    zoneId: opts.zoneId,
+    roomId: opts.roomId,
+    resourceId: res.id,
+    resourceName: res.name,
+    stock: nextStock,
+    target: stock.target,
+    lowStock: res.lowStock,
+    previousBand,
+    band,
+    trend,
+    severity: severityForBand(band, trend),
+    scarcityMultiplier: getResourceScarcity(state, res.id, floor),
+    contractPressureMultiplier: getResourceContractPressure(state, res.id, floor),
+    tags: opts.tags,
+    reason: opts.reason,
+    rumorIds: scarcityRumorIds(res.id, trend),
+  });
+}
+
+export function changeResourceStock(
+  state: GameState,
+  resourceId: string,
+  delta: number,
+  floor: FloorLevel = state.currentFloor,
+  opts: ResourceStockChangeOptions = {},
+): boolean {
   const econ = ensureEconomyState(state);
   const floorState = econ.floors[floor] ?? createEconomyFloorState(floor);
   econ.floors[floor] = floorState;
   const stock = floorState.resources[resourceId];
   if (!stock) return false;
-  const next = Math.max(0, Math.min(stock.target * 2, stock.stock + delta));
+  const previousStock = stock.stock;
+  const next = clamp(stock.stock + delta, 0, Math.max(1, stock.target) * 2);
   stock.lastDelta = next - stock.stock;
   stock.stock = next;
-  if (stock.lastDelta !== 0) econ.priceVersion++;
+  if (stock.lastDelta !== 0) {
+    econ.priceVersion++;
+    const res = RESOURCE_BY_ID[resourceId];
+    if (res) maybePublishScarcityThreshold(state, res, previousStock, next, floor, opts);
+  }
   floorState.lastTickAt = state.time;
   return true;
 }
@@ -230,7 +432,10 @@ function cachedItemPrice(state: GameState, defId: string): CachedPrice {
   if (!def) return { price: 0, multiplier: 1 };
   const quote = getEconomyQuote(state, defId);
   const multiplier = quote.scarcityMultiplier;
-  const price = roundedPrice(quote.basePrice, quote.scarcityMultiplier * quote.demandMultiplier * quote.tariffMultiplier);
+  const price = roundedPrice(
+    quote.basePrice,
+    pricePressureMultiplier(quote.resourceId ? RESOURCE_BY_ID[quote.resourceId] : undefined, quote.scarcityMultiplier, quote.demandMultiplier, quote.tariffMultiplier),
+  );
   const next = { price, multiplier };
   if (cache.items.size >= MAX_PRICE_CACHE_ITEMS) cache.items.clear();
   cache.items.set(defId, next);
@@ -272,17 +477,21 @@ export function getEconomyQuote(state: GameState, defId: string, opts: EconomyQu
   const resourceId = resource?.id;
   const scarcityMultiplier = resourceId ? getResourceScarcity(state, resourceId, stockFloorFor(state, opts)) : 1;
   const demand = demandFor(resourceId, floor);
-  const tariff = tariffFor(resourceId, floor, opts);
+  const tariff = tariffFor(state, resourceId, floor, opts);
   const spread = spreadFor(opts);
   const basePrice = Math.max(0, def.value ?? 0);
-  const adjustedMultiplier = scarcityMultiplier * demand.multiplier * tariff.multiplier;
+  const rawAdjustedMultiplier = scarcityMultiplier * demand.multiplier * tariff.multiplier;
+  const adjustedMultiplier = pricePressureMultiplier(resource, scarcityMultiplier, demand.multiplier, tariff.multiplier);
   const tags: string[] = ['economy'];
   if (resourceId) pushTag(tags, `res_${resourceId}`);
   pushTags(tags, demand.tags);
   pushTags(tags, tariff.tags);
+  if (adjustedMultiplier < rawAdjustedMultiplier) pushTag(tags, 'price_cap');
   pushTags(tags, spread.tags);
   pushTags(tags, opts.tags);
-  const reasons = [...demand.reasons, ...tariff.reasons, spread.reason];
+  const reasons = [...demand.reasons, ...tariff.reasons];
+  if (adjustedMultiplier < rawAdjustedMultiplier) reasons.push('price_pressure_cap');
+  reasons.push(spread.reason);
   if (opts.reason && opts.tariffMultiplier === undefined) reasons.push(opts.reason);
 
   return {
@@ -294,7 +503,7 @@ export function getEconomyQuote(state: GameState, defId: string, opts: EconomyQu
     sellPrice: roundedPrice(basePrice, adjustedMultiplier * spread.sellMultiplier),
     resourceId,
     tags,
-    reason: reasons.slice(0, 4).join('+') || 'base_price',
+    reason: quoteReason(reasons),
   };
 }
 
@@ -371,10 +580,11 @@ export function getScarcityAdjustedReward(
   maxMultiplier = 3,
   rpg?: RPGStats,
 ): number {
-  const scarcity = getResourceScarcity(state, resourceId, floor);
-  const multiplier = Math.min(maxMultiplier, Math.max(1, scarcity));
+  const rewardCap = resourceRewardPressureCap(RESOURCE_BY_ID[resourceId], maxMultiplier);
+  const multiplier = getResourceContractPressure(state, resourceId, floor, maxMultiplier);
   const intMultiplier = rpg ? intContractRewardMult(rpg) : 1;
-  return Math.max(1, Math.round(baseReward * multiplier * intMultiplier));
+  const totalMultiplier = Math.min(rewardCap + Math.max(0, intMultiplier - 1), multiplier * intMultiplier);
+  return Math.max(1, Math.round(baseReward * totalMultiplier));
 }
 
 export function summarizeEconomy(state: GameState, limit = 8): string[] {

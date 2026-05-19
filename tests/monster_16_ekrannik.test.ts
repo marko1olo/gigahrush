@@ -18,6 +18,7 @@ import {
 } from '../src/gen/void/ekrannik';
 import { takeFromContainer } from '../src/systems/containers';
 import { createWorldEventState, getRecentEvents } from '../src/systems/events';
+import { routeCueCount } from '../src/systems/route_cues';
 import { makeGameState } from './helpers';
 
 function player(): Entity {
@@ -57,6 +58,7 @@ test('ekrannik misinformation stays local and publishes reversible encounter eve
   assert.ok(danger);
   assert.ok(disable);
   assert.equal(world.screenCells.length, 3);
+  assert.equal(routeCueCount(world), 1);
 
   assert.equal(takeFromContainer(read, actor, 0, 1, { state, world, entities }), true);
   assert.equal(takeFromContainer(danger, actor, 0, 1, { state, world, entities }), true);

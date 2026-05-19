@@ -1,7 +1,7 @@
 /* ── Bounded sparse cell hazards ──────────────────────────────── */
 
 import {
-  W, EntityType,
+  W, AIGoal, EntityType, msg,
   type Entity, type GameState, type WorldEventSeverity,
 } from '../core/types';
 import { World } from '../core/world';
@@ -15,16 +15,28 @@ export interface CellHazardSiteDraft {
   displayName: string;
   cells: readonly number[];
   tags?: readonly string[];
+  sticky?: boolean;
+  cleanable?: boolean;
   slowMult?: number;
   trappedMult?: number;
   stickAfter?: number;
   escapeSeconds?: number;
   npcEscapeSeconds?: number;
+  pulsePeriodSeconds?: number;
+  pulseActiveSeconds?: number;
+  pulseOffsetSeconds?: number;
+  activeFog?: number;
+  inactiveFog?: number;
+  playerDamagePerSecond?: number;
+  monsterDamagePerSecond?: number;
+  messageCooldownSeconds?: number;
   roomId?: number;
   zoneId?: number;
   centerX?: number;
   centerY?: number;
   warning?: string;
+  inactiveWarning?: string;
+  warningColor?: string;
 }
 
 interface CellHazardSite {
@@ -34,16 +46,31 @@ interface CellHazardSite {
   tags: string[];
   cells: number[];
   activeCells: Set<number>;
+  sticky: boolean;
+  cleanable: boolean;
   slowMult: number;
   trappedMult: number;
   stickAfter: number;
   escapeSeconds: number;
   npcEscapeSeconds: number;
+  pulsePeriodSeconds: number;
+  pulseActiveSeconds: number;
+  pulseOffsetSeconds: number;
+  pulseActive: boolean;
+  activeFog: number;
+  inactiveFog: number;
+  playerDamagePerSecond: number;
+  monsterDamagePerSecond: number;
+  messageCooldownSeconds: number;
+  lastPulseMessageAt: number;
+  lastMonsterHitMessageAt: number;
   roomId?: number;
   zoneId?: number;
   centerX: number;
   centerY: number;
   warning: string;
+  inactiveWarning: string;
+  warningColor: string;
 }
 
 interface HazardSubjectState {
@@ -52,11 +79,14 @@ interface HazardSubjectState {
   trapped: boolean;
   escapeProgress: number;
   escapedUntil: number;
+  damageCarry: number;
+  lastDamageMessageAt: number;
 }
 
 interface CellHazardRuntime {
   sites: CellHazardSite[];
   byCell: Map<number, CellHazardSite[]>;
+  allByCell: Map<number, CellHazardSite[]>;
   subjects: Map<number, HazardSubjectState>;
   npcScanAccum: number;
 }
@@ -70,11 +100,13 @@ export interface CellHazardWarning {
 
 const runtimes = new WeakMap<World, CellHazardRuntime>();
 const NPC_HAZARD_SCAN_INTERVAL = 0.25;
+const MONSTER_HAZARD_DAMAGE_CAP = 12;
+const HAZARD_MESSAGE_RADIUS2 = 18 * 18;
 
 function ensureRuntime(world: World): CellHazardRuntime {
   let runtime = runtimes.get(world);
   if (!runtime) {
-    runtime = { sites: [], byCell: new Map(), subjects: new Map(), npcScanAccum: 0 };
+    runtime = { sites: [], byCell: new Map(), allByCell: new Map(), subjects: new Map(), npcScanAccum: 0 };
     runtimes.set(world, runtime);
   }
   return runtime;
@@ -83,6 +115,16 @@ function ensureRuntime(world: World): CellHazardRuntime {
 function clampMult(value: number | undefined, fallback: number): number {
   if (!Number.isFinite(value)) return fallback;
   return Math.max(0.05, Math.min(1, value ?? fallback));
+}
+
+function clampNonNegative(value: number | undefined, fallback = 0): number {
+  if (!Number.isFinite(value)) return fallback;
+  return Math.max(0, value ?? fallback);
+}
+
+function clampFog(value: number | undefined): number {
+  if (!Number.isFinite(value)) return -1;
+  return Math.max(0, Math.min(255, Math.floor(value ?? -1)));
 }
 
 function normalizeCells(cells: readonly number[]): number[] {
@@ -108,28 +150,78 @@ function siteCenter(cells: readonly number[]): { x: number; y: number } {
   return { x: sx / cells.length + 0.5, y: sy / cells.length + 0.5 };
 }
 
+function pulseActiveAt(site: Pick<CellHazardSite, 'pulsePeriodSeconds' | 'pulseActiveSeconds' | 'pulseOffsetSeconds'>, time: number): boolean {
+  if (site.pulsePeriodSeconds <= 0) return true;
+  const raw = (time - site.pulseOffsetSeconds) % site.pulsePeriodSeconds;
+  const phase = raw < 0 ? raw + site.pulsePeriodSeconds : raw;
+  return phase < site.pulseActiveSeconds;
+}
+
+function setPulseActive(site: CellHazardSite, active: boolean): boolean {
+  if (site.pulseActive === active) return false;
+  site.pulseActive = active;
+  site.activeCells.clear();
+  if (active) {
+    for (const cell of site.cells) site.activeCells.add(cell);
+  }
+  return true;
+}
+
+function applyPulseFog(world: World, site: CellHazardSite): boolean {
+  const fog = site.pulseActive ? site.activeFog : site.inactiveFog;
+  if (fog < 0) return false;
+  let dirty = false;
+  for (const cell of site.cells) {
+    if (world.fog[cell] === fog) continue;
+    world.fog[cell] = fog;
+    dirty = true;
+  }
+  return dirty;
+}
+
 function normalizeSite(draft: CellHazardSiteDraft): CellHazardSite | null {
   const cells = normalizeCells(draft.cells);
   if (cells.length === 0) return null;
   const center = siteCenter(cells);
-  return {
+  const pulsePeriodSeconds = Math.max(0, draft.pulsePeriodSeconds ?? 0);
+  const pulseActiveSeconds = pulsePeriodSeconds > 0
+    ? Math.max(0.1, Math.min(pulsePeriodSeconds, draft.pulseActiveSeconds ?? pulsePeriodSeconds * 0.5))
+    : 0;
+  const site: CellHazardSite = {
     id: draft.id,
     kind: draft.kind,
     displayName: draft.displayName,
     tags: [...(draft.tags ?? [])],
     cells,
     activeCells: new Set(cells),
+    sticky: draft.sticky ?? true,
+    cleanable: draft.cleanable ?? true,
     slowMult: clampMult(draft.slowMult, 0.45),
     trappedMult: clampMult(draft.trappedMult, 0.12),
     stickAfter: Math.max(0.1, draft.stickAfter ?? 0.7),
     escapeSeconds: Math.max(0.5, draft.escapeSeconds ?? 2.4),
     npcEscapeSeconds: Math.max(0.5, draft.npcEscapeSeconds ?? 4.5),
+    pulsePeriodSeconds,
+    pulseActiveSeconds,
+    pulseOffsetSeconds: Math.max(0, draft.pulseOffsetSeconds ?? 0),
+    pulseActive: true,
+    activeFog: clampFog(draft.activeFog),
+    inactiveFog: clampFog(draft.inactiveFog),
+    playerDamagePerSecond: clampNonNegative(draft.playerDamagePerSecond),
+    monsterDamagePerSecond: clampNonNegative(draft.monsterDamagePerSecond),
+    messageCooldownSeconds: Math.max(0.5, draft.messageCooldownSeconds ?? 2.5),
+    lastPulseMessageAt: -Infinity,
+    lastMonsterHitMessageAt: -Infinity,
     roomId: draft.roomId,
     zoneId: draft.zoneId,
     centerX: draft.centerX ?? center.x,
     centerY: draft.centerY ?? center.y,
     warning: draft.warning ?? 'Красная слизь держит ноги. Обойдите, выжгите или чистите растворителем.',
+    inactiveWarning: draft.inactiveWarning ?? 'Опасный такт стих. Проход открыт ненадолго.',
+    warningColor: draft.warningColor ?? '#c22',
   };
+  if (pulsePeriodSeconds > 0) setPulseActive(site, pulseActiveAt(site, 0));
+  return site;
 }
 
 function cloneSite(site: CellHazardSite): CellHazardSite {
@@ -141,14 +233,18 @@ function cloneSite(site: CellHazardSite): CellHazardSite {
   };
 }
 
+function addIndexedSite(map: Map<number, CellHazardSite[]>, cell: number, site: CellHazardSite): void {
+  const list = map.get(cell);
+  if (list) list.push(site);
+  else map.set(cell, [site]);
+}
+
 function rebuildCellIndex(runtime: CellHazardRuntime): void {
   runtime.byCell.clear();
+  runtime.allByCell.clear();
   for (const site of runtime.sites) {
-    for (const cell of site.activeCells) {
-      const list = runtime.byCell.get(cell);
-      if (list) list.push(site);
-      else runtime.byCell.set(cell, [site]);
-    }
+    for (const cell of site.cells) addIndexedSite(runtime.allByCell, cell, site);
+    for (const cell of site.activeCells) addIndexedSite(runtime.byCell, cell, site);
   }
 }
 
@@ -165,6 +261,15 @@ function activeHazardAt(runtime: CellHazardRuntime, cell: number): CellHazardSit
     }
   }
   return best;
+}
+
+function inactivePulseHazardAt(runtime: CellHazardRuntime, cell: number): CellHazardSite | null {
+  const sites = runtime.allByCell.get(cell);
+  if (!sites) return null;
+  for (const site of sites) {
+    if (site.pulsePeriodSeconds > 0 && !site.pulseActive && site.cells.length > 0) return site;
+  }
+  return null;
 }
 
 function hazardAtEntity(world: World, e: Entity): { site: CellHazardSite; cell: number } | null {
@@ -216,12 +321,49 @@ function publishHazardEvent(
   });
 }
 
+function createSubjectState(hazardId: string, escapedUntil = 0): HazardSubjectState {
+  return {
+    hazardId,
+    timeIn: 0,
+    trapped: false,
+    escapeProgress: 0,
+    escapedUntil,
+    damageCarry: 0,
+    lastDamageMessageAt: -Infinity,
+  };
+}
+
+function updateHazardPulses(world: World, runtime: CellHazardRuntime, state: GameState, player: Entity): void {
+  let indexDirty = false;
+  let fogDirty = false;
+
+  for (const site of runtime.sites) {
+    if (site.pulsePeriodSeconds <= 0 || site.cells.length === 0) continue;
+    const active = pulseActiveAt(site, state.time);
+    if (!setPulseActive(site, active)) continue;
+    indexDirty = true;
+    if (applyPulseFog(world, site)) fogDirty = true;
+
+    if (
+      world.dist2(player.x, player.y, site.centerX, site.centerY) <= HAZARD_MESSAGE_RADIUS2
+      && state.time - site.lastPulseMessageAt >= site.messageCooldownSeconds
+    ) {
+      state.msgs.push(msg(active ? site.warning : site.inactiveWarning, state.time, active ? site.warningColor : '#8cf'));
+      site.lastPulseMessageAt = state.time;
+    }
+  }
+
+  if (indexDirty) rebuildCellIndex(runtime);
+  if (fogDirty) world.markFogDirty();
+}
+
 export function registerCellHazardSite(world: World, draft: CellHazardSiteDraft): void {
   const site = normalizeSite(draft);
   if (!site) return;
   const runtime = ensureRuntime(world);
   runtime.sites = runtime.sites.filter(existing => existing.id !== site.id);
   runtime.sites.push(site);
+  if (applyPulseFog(world, site)) world.markFogDirty();
   rebuildCellIndex(runtime);
 }
 
@@ -234,15 +376,47 @@ export function replaceCellHazards(target: World, source: World): void {
   const targetRuntime: CellHazardRuntime = {
     sites: sourceRuntime.sites.map(cloneSite),
     byCell: new Map(),
+    allByCell: new Map(),
     subjects: new Map(),
     npcScanAccum: 0,
   };
+  let fogDirty = false;
+  for (const site of targetRuntime.sites) {
+    if (applyPulseFog(target, site)) fogDirty = true;
+  }
+  if (fogDirty) target.markFogDirty();
   rebuildCellIndex(targetRuntime);
   runtimes.set(target, targetRuntime);
 }
 
 export function clearCellHazards(world: World): void {
   runtimes.delete(world);
+}
+
+export function deactivateCellHazardSite(
+  world: World,
+  id: string,
+  state?: GameState,
+  actor?: Entity,
+  reason: CellHazardCleanReason = 'tool',
+): number {
+  const runtime = runtimes.get(world);
+  if (!runtime) return 0;
+  const site = runtime.sites.find(candidate => candidate.id === id);
+  if (!site || site.cells.length === 0) return 0;
+
+  const cleaned = site.activeCells.size > 0 ? site.activeCells.size : site.cells.length;
+  site.activeCells.clear();
+  site.cells = [];
+  rebuildCellIndex(runtime);
+  if (state) {
+    publishHazardEvent(state, 'hazard_cleaned', site, 4, actor, {
+      cleanedCells: cleaned,
+      remainingCells: 0,
+      reason,
+    });
+  }
+  return cleaned;
 }
 
 export function getCellHazardMoveMultiplier(world: World, e: Entity): number {
@@ -258,14 +432,25 @@ export function getCellHazardMoveMultiplier(world: World, e: Entity): number {
 
 export function getPlayerHazardWarning(world: World, player: Entity): CellHazardWarning | null {
   const hit = hazardAtEntity(world, player);
-  if (!hit) return null;
   const runtime = runtimes.get(world);
+  if (!hit) {
+    if (!runtime) return null;
+    const cell = world.idx(Math.floor(player.x), Math.floor(player.y));
+    const inactive = inactivePulseHazardAt(runtime, cell);
+    if (!inactive) return null;
+    return {
+      title: inactive.displayName,
+      detail: inactive.inactiveWarning,
+      color: '#8cf',
+      trapped: false,
+    };
+  }
   const subject = runtime?.subjects.get(player.id);
   const trapped = subject?.hazardId === hit.site.id && subject.trapped === true;
   return {
     title: trapped ? 'ВЛИПЛИ' : hit.site.displayName,
     detail: trapped ? 'Двигайтесь, чтобы вырваться. R с чистящим комплектом или огонь снимут липучку.' : hit.site.warning,
-    color: trapped ? '#ff3838' : '#c22',
+    color: trapped ? '#ff3838' : hit.site.warningColor,
     trapped,
   };
 }
@@ -285,6 +470,7 @@ export function cleanCellHazardsNear(
   let cleaned = 0;
 
   for (const site of runtime.sites) {
+    if (!site.cleanable) continue;
     if (site.activeCells.size === 0) continue;
     const removed: number[] = [];
     for (const cell of site.activeCells) {
@@ -294,6 +480,8 @@ export function cleanCellHazardsNear(
     }
     if (removed.length === 0) continue;
     for (const cell of removed) site.activeCells.delete(cell);
+    const removedSet = new Set(removed);
+    site.cells = site.cells.filter(cell => !removedSet.has(cell));
     cleaned += removed.length;
     publishHazardEvent(state, 'hazard_cleaned', site, site.activeCells.size === 0 ? 4 : 3, actor, {
       cleanedCells: removed.length,
@@ -304,6 +492,64 @@ export function cleanCellHazardsNear(
 
   if (cleaned > 0) rebuildCellIndex(runtime);
   return cleaned;
+}
+
+function forceHazardFlee(e: Entity): void {
+  if (!e.ai || (e.type !== EntityType.NPC && e.type !== EntityType.MONSTER)) return;
+  e.ai.goal = AIGoal.FLEE;
+  e.ai.path = [];
+  e.ai.pi = 0;
+  e.ai.timer = Math.max(e.ai.timer, 0.8);
+}
+
+function applyHazardDamage(
+  world: World,
+  state: GameState,
+  site: CellHazardSite,
+  subject: HazardSubjectState,
+  e: Entity,
+  dt: number,
+  damagePerSecond: number,
+  player: Entity,
+): boolean {
+  if (damagePerSecond <= 0 || e.hp === undefined) return false;
+  subject.damageCarry += damagePerSecond * dt;
+  const amount = Math.floor(subject.damageCarry);
+  if (amount <= 0) return false;
+
+  subject.damageCarry -= amount;
+  if (e.type === EntityType.PLAYER) {
+    e.hp = Math.max(1, e.hp - amount);
+    const maxHp = Math.max(1, e.maxHp ?? 100);
+    state.dmgFlash = Math.max(state.dmgFlash, Math.min(1, 0.22 + amount / maxHp));
+  } else {
+    e.hp = Math.max(0, e.hp - amount);
+    if (e.hp <= 0) {
+      e.alive = false;
+      e.hp = 0;
+    } else {
+      forceHazardFlee(e);
+    }
+  }
+
+  const nearPlayer = e.type === EntityType.PLAYER || world.dist2(player.x, player.y, e.x, e.y) <= HAZARD_MESSAGE_RADIUS2;
+  if (!nearPlayer) return true;
+
+  if (e.type === EntityType.MONSTER) {
+    if (state.time - site.lastMonsterHitMessageAt < site.messageCooldownSeconds) return true;
+    state.msgs.push(msg(e.alive
+      ? `${site.displayName} бьет ${subjectName(e)}: -${amount}`
+      : `${site.displayName} добивает ${subjectName(e)}.`,
+    state.time, e.alive ? '#fa4' : '#f66'));
+    site.lastMonsterHitMessageAt = state.time;
+    return true;
+  }
+
+  if (state.time - subject.lastDamageMessageAt >= site.messageCooldownSeconds) {
+    state.msgs.push(msg(`${site.displayName}: -${amount}`, state.time, '#f66'));
+    subject.lastDamageMessageAt = state.time;
+  }
+  return true;
 }
 
 function tickHazardSubject(
@@ -327,20 +573,15 @@ function tickHazardSubject(
     return;
   }
 
-  let subject = prior?.hazardId === hit.site.id ? prior : {
-    hazardId: hit.site.id,
-    timeIn: 0,
-    trapped: false,
-    escapeProgress: 0,
-    escapedUntil: 0,
-  };
+  let subject = prior?.hazardId === hit.site.id ? prior : createSubjectState(hit.site.id);
   if (subject.escapedUntil > state.time) {
     runtime.subjects.set(e.id, subject);
     return;
   }
 
   subject.timeIn += dt;
-  if (!subject.trapped && subject.timeIn >= hit.site.stickAfter) {
+  if (e.id === playerId) applyHazardDamage(world, state, hit.site, subject, e, dt, hit.site.playerDamagePerSecond, e);
+  if (hit.site.sticky && !subject.trapped && subject.timeIn >= hit.site.stickAfter) {
     subject.trapped = true;
     subject.escapeProgress = 0;
     publishHazardEvent(state, 'hazard_trapped', hit.site, e.type === EntityType.PLAYER ? 4 : 3, e, { cell: hit.cell });
@@ -361,17 +602,34 @@ function tickHazardSubject(
         noisy: true,
         seconds: Math.round(subject.timeIn * 10) / 10,
       });
-      subject = {
-        hazardId: hit.site.id,
-        timeIn: 0,
-        trapped: false,
-        escapeProgress: 0,
-        escapedUntil: state.time + 2.5,
-      };
+      subject = createSubjectState(hit.site.id, state.time + 2.5);
     }
   }
 
   runtime.subjects.set(e.id, subject);
+}
+
+function tickMonsterHazardDamage(
+  world: World,
+  runtime: CellHazardRuntime,
+  state: GameState,
+  e: Entity,
+  dt: number,
+  player: Entity,
+): boolean {
+  if (!e.alive || e.type !== EntityType.MONSTER) return false;
+  const hit = hazardAtEntity(world, e);
+  if (!hit || hit.site.monsterDamagePerSecond <= 0) {
+    runtime.subjects.delete(e.id);
+    return false;
+  }
+
+  const prior = runtime.subjects.get(e.id);
+  const subject = prior?.hazardId === hit.site.id ? prior : createSubjectState(hit.site.id);
+  const damaged = applyHazardDamage(world, state, hit.site, subject, e, dt, hit.site.monsterDamagePerSecond, player);
+  if (e.alive) runtime.subjects.set(e.id, subject);
+  else runtime.subjects.delete(e.id);
+  return damaged;
 }
 
 export function tickCellHazards(
@@ -385,14 +643,19 @@ export function tickCellHazards(
   const runtime = runtimes.get(world);
   if (!runtime || runtime.sites.length === 0) return;
 
+  updateHazardPulses(world, runtime, state, player);
   tickHazardSubject(world, runtime, state, player, dt, player.id, playerStruggling);
 
   runtime.npcScanAccum += dt;
   if (runtime.npcScanAccum < NPC_HAZARD_SCAN_INTERVAL) return;
   const npcDt = runtime.npcScanAccum;
   runtime.npcScanAccum = 0;
+  let damagedMonsters = 0;
   for (const e of entities) {
-    if (e.type !== EntityType.NPC) continue;
-    tickHazardSubject(world, runtime, state, e, npcDt, player.id, false);
+    if (e.type === EntityType.NPC) {
+      tickHazardSubject(world, runtime, state, e, npcDt, player.id, false);
+    } else if (damagedMonsters < MONSTER_HAZARD_DAMAGE_CAP && e.type === EntityType.MONSTER) {
+      if (tickMonsterHazardDamage(world, runtime, state, e, npcDt, player)) damagedMonsters++;
+    }
   }
 }

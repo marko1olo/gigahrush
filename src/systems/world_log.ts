@@ -84,13 +84,16 @@ function wrongDoorText(e: WorldEvent): string {
 function factionRelationText(e: WorldEvent): string {
   const factionEventId = typeof e.data?.factionEventId === 'string' ? e.data.factionEventId : '';
   const action = typeof e.data?.processionAction === 'string' ? e.data.processionAction : '';
+  const outcome = typeof e.data?.processionOutcome === 'string' ? e.data.processionOutcome : '';
   if (factionEventId === 'cult_procession') {
     if (action === 'avoid') return `Процессия Чернобога обойдена${e.zoneId !== undefined ? `: зона ${e.zoneId + 1}` : ''}.`;
     if (action === 'follow') return 'Вы прошли в хвосте культовой процессии. Псалом оставил маршрут и боль.';
     if (action === 'report') return 'Маршрут культовой процессии ушёл ликвидаторам по рации.';
-    if (action === 'cover') return 'Мясная руна сработала как прикрытие в хвосте процессии.';
+    if (action === 'disguise' || action === 'cover') return 'Мясная руна сработала как маскировка в хвосте процессии.';
     if (action === 'disrupt') return `Культовая процессия сорвана${e.zoneId !== undefined ? ` в зоне ${e.zoneId + 1}` : ''}.`;
-    if (action === 'aftermath') return `Культовая процессия затихла${e.zoneId !== undefined ? `: зона ${e.zoneId + 1}` : ''}. Давление спало.`;
+    if (action === 'aftermath' && outcome.includes('самосбор')) return `Самосбор смыл культовую процессию${e.zoneId !== undefined ? `: зона ${e.zoneId + 1}` : ''}. Давление спало.`;
+    if (action === 'aftermath' && outcome === 'сорвана') return `Давление сорванной процессии спало${e.zoneId !== undefined ? `: зона ${e.zoneId + 1}` : ''}.`;
+    if (action === 'aftermath') return `Культовая процессия ${outcome || 'затихла'}${e.zoneId !== undefined ? `: зона ${e.zoneId + 1}` : ''}. Давление спало.`;
     return `Культовая процессия идет${e.zoneId !== undefined ? ` в зоне ${e.zoneId + 1}` : ''}. Коридор лучше уступить.`;
   }
   if (factionEventId) {
@@ -268,6 +271,8 @@ function eventText(e: WorldEvent): string {
       return `Огонь испортил: ${e.itemName ?? e.itemId ?? 'предмет'}.`;
     case 'rumor_spread':
       return `${e.actorName ?? 'Кто-то'} передал слух. Теперь он чуть менее чей-то.`;
+    case 'faction_event':
+      return factionRelationText(e);
     case 'faction_patrol_clash':
       return `Патрули столкнулись${e.zoneId !== undefined ? ` в зоне ${e.zoneId + 1}` : ''}.`;
     case 'faction_relation_changed':

@@ -325,8 +325,11 @@ function handleFreeTime(world: World, e: Entity, dt: number): void {
 
 function handleHiding(world: World, e: Entity, dt: number): void {
   const ai = e.ai!;
-  if (ai.goal !== AIGoal.HIDE || ai.path.length === 0) {
+  if (ai.goal !== AIGoal.HIDE) {
     ai.goal = AIGoal.HIDE;
+    ai.timer = 0;
+  }
+  if (ai.path.length === 0 && ai.timer <= 0) {
     if (e.isTraveler) {
       const r = findNearest(world, e, RoomType.LIVING);
       if (r >= 0) gotoRoom(world, e, r);
@@ -334,7 +337,7 @@ function handleHiding(world: World, e: Entity, dt: number): void {
       const targetRoom = findFamilyRoom(world, e, RoomType.LIVING);
       if (targetRoom >= 0) gotoRoom(world, e, targetRoom);
     }
-    ai.timer = 60;
+    ai.timer = 1.25;
   }
   followPath(world, e, dt);
 }
@@ -389,7 +392,7 @@ export function forceHide(entities: Entity[], msgs?: Msg[], time?: number): void
       e.ai.goal = AIGoal.HIDE;
       e.ai.path = [];
       e.ai.pi = 0;
-      e.ai.timer = 60;
+      e.ai.timer = 0;
     }
   }
 }

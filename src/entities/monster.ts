@@ -6,6 +6,7 @@ import type { Entity } from '../core/types';
 
 export type MonsterAIFlag =
   | 'wallBias'
+  | 'debrisLurker'
   | 'lampPowered'
   | 'documentHunter'
   | 'waterStrider'

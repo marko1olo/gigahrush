@@ -9,6 +9,7 @@ import { World } from '../../core/world';
 import { freshNeeds } from '../../data/catalog';
 import { type PlotNpcDef, registerSideQuest } from '../../data/plot';
 import { Spr } from '../../render/sprite_index';
+import { registerRouteCue } from '../../systems/route_cues';
 import { protectRoom } from '../shared';
 import { genLog } from '../log';
 import { registerZoneContent } from './zone_content';
@@ -293,6 +294,45 @@ function seedClues(world: World, entities: Entity[], nextId: { v: number }, room
   dropItem(entities, nextId, room.x + ROOM_W - 4, room.y + ROOM_H - 3, 'siren_instruction', 1);
 }
 
+function registerPaidMapCue(world: World, room: Room): void {
+  const tableX = world.wrap(room.x + Math.floor(ROOM_W / 2)) + 0.5;
+  const tableY = world.wrap(room.y + 5) + 0.5;
+  const markerCell = world.idx(Math.floor(tableX), Math.floor(tableY));
+  registerRouteCue(world, {
+    id: 'living_cartographer_paid_map',
+    x: tableX,
+    y: tableY,
+    targetX: tableX,
+    targetY: tableY,
+    floor: FloorLevel.LIVING,
+    roomId: room.id,
+    targetRoomId: room.id,
+    zoneId: world.zoneMap[markerCell],
+    label: 'живая карта Севы',
+    hint: '35₽ сразу или 70₽ в долг: цель, этаж, убежище, опасность',
+    targetName: 'платная отметка маршрута',
+    color: '#8fd',
+    tags: ['living', 'cartographer', 'paid_map', 'route_planning'],
+    toneSeed: room.id * 43043 + 57,
+    radius: 4,
+    targetRadius: 1.8,
+    cooldownSec: 9,
+    paidReveal: {
+      priceRubles: 35,
+      debtRubles: 70,
+      debtLimitRubles: 210,
+      ttlSec: 480,
+      sellerName: NPC_DEF.name,
+      debtQuestId: 'ag43_cartographer_map_debt',
+      debtTargetHint: 'Жилая зона: Комната живой карты. Верните Севе долг за маршрутные отметки.',
+      kinds: ['contract_target', 'route_floor_hint', 'shelter_mark', 'zone_danger'],
+    },
+    heardText: 'На столе живая карта шевелит нитями маршрута. Она работает только за деньги или запись долга.',
+    followedText: 'Живая карта держит отметки достаточно долго, чтобы сверить вылазку.',
+    ignoredText: 'Карта свернулась обратно в бумагу: бесплатного маршрута не получилось.',
+  });
+}
+
 function generateCartographerZoneMap(
   world: World,
   nextRoomId: number,
@@ -307,6 +347,7 @@ function generateCartographerZoneMap(
   decorateRoom(world, room);
   const cartographer = spawnCartographer(world, entities, nextId, room);
   seedClues(world, entities, nextId, room, cartographer);
+  registerPaidMapCue(world, room);
   genLog(`[AG43] ${ROOM_NAME} at (${room.x}, ${room.y}) room #${room.id}`);
   return { nextRoomId };
 }

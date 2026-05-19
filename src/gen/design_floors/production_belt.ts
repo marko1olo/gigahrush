@@ -15,7 +15,9 @@ import {
   W,
   ZoneFaction,
   type Entity,
+  type GameState,
   type Room,
+  type WorldEvent,
   type WorldContainer,
 } from '../../core/types';
 import { World } from '../../core/world';
@@ -23,6 +25,8 @@ import { ITEMS, freshNeeds } from '../../data/catalog';
 import { type PlotNpcDef, registerSideQuest } from '../../data/plot';
 import { MONSTERS } from '../../entities/monster';
 import { Spr } from '../../render/sprite_index';
+import { publishEvent } from '../../systems/events';
+import { registerRouteCue } from '../../systems/route_cues';
 import { randomRPG } from '../../systems/rpg';
 import {
   ensureConnectivity,
@@ -47,6 +51,44 @@ export interface ProductionBeltLineDef {
   state: 'repairable' | 'audited' | 'bad_batch';
 }
 
+export type ProductionBeltDecisionId =
+  | 'repair_metal_line'
+  | 'transfer_charge_cells'
+  | 'expose_bad_batch'
+  | 'steal_bad_batch';
+
+export interface ProductionBeltPipelineDependency {
+  id: string;
+  fromRouteId: typeof DESIGN_FLOOR_ID;
+  toRouteId: 'service_floor' | 'black_market_88' | 'floor_69' | 'living';
+  factoryId: string;
+  outputTag: string;
+  decisionId: ProductionBeltDecisionId;
+  clue: string;
+}
+
+export interface ProductionBeltLineState {
+  id: string;
+  factoryId: string;
+  roomId: number;
+  outputContainerId: number;
+  state: ProductionBeltLineDef['state'];
+  dependencyIds: string[];
+}
+
+export interface ProductionBeltRouteState {
+  routeId: typeof DESIGN_FLOOR_ID;
+  anchorZ: typeof PRODUCTION_BELT_ROUTE_Z;
+  baseFloor: typeof PRODUCTION_BELT_BASE_FLOOR;
+  lines: ProductionBeltLineState[];
+  dependencies: ProductionBeltPipelineDependency[];
+  cueIds: string[];
+}
+
+export interface ProductionBeltGeneration extends FloorGeneration {
+  productionState: ProductionBeltRouteState;
+}
+
 export const PRODUCTION_BELT_FACTORY_LINES: readonly ProductionBeltLineDef[] = [
   {
     id: 'prod_restore_line',
@@ -68,6 +110,45 @@ export const PRODUCTION_BELT_FACTORY_LINES: readonly ProductionBeltLineDef[] = [
     roomName: 'Патронная плавильня: нелегальная смена',
     outputTags: ['ammo', 'weapon', 'illegal'],
     state: 'bad_batch',
+  },
+];
+
+export const PRODUCTION_BELT_PIPELINE_DEPENDENCIES: readonly ProductionBeltPipelineDependency[] = [
+  {
+    id: 'prod_to_service_door_kits',
+    fromRouteId: DESIGN_FLOOR_ID,
+    toRouteId: 'service_floor',
+    factoryId: 'metal_shop',
+    outputTag: 'tools',
+    decisionId: 'repair_metal_line',
+    clue: 'Дверь-комплекты с восстановительной линии питают машинный зал С-15.',
+  },
+  {
+    id: 'prod_charge_to_service_power',
+    fromRouteId: DESIGN_FLOOR_ID,
+    toRouteId: 'service_floor',
+    factoryId: 'utility_room',
+    outputTag: 'utility',
+    decisionId: 'transfer_charge_cells',
+    clue: 'Энергоячейка из зарядки может уйти в обход Служебного этажа или в карман Егора.',
+  },
+  {
+    id: 'prod_bad_batch_to_market',
+    fromRouteId: DESIGN_FLOOR_ID,
+    toRouteId: 'black_market_88',
+    factoryId: 'illegal_ammo_smelter',
+    outputTag: 'illegal',
+    decisionId: 'steal_bad_batch',
+    clue: 'Зеленая партия стоит денег на рынке, но дает поздний слух о браке.',
+  },
+  {
+    id: 'prod_bad_batch_to_living_warning',
+    fromRouteId: DESIGN_FLOOR_ID,
+    toRouteId: 'living',
+    factoryId: 'illegal_ammo_smelter',
+    outputTag: 'bad_batch',
+    decisionId: 'expose_bad_batch',
+    clue: 'Акт БОТ-14 останавливает плохую еду до Жилой зоны, если игрок принесет образцы.',
   },
 ];
 
@@ -263,6 +344,15 @@ interface ProductionBeltRooms {
   quarantine: Room;
   auditOffice: Room;
   exitDock: Room;
+}
+
+interface ProductionBeltContainers {
+  metalOutput: WorldContainer;
+  chargeOutput: WorldContainer;
+  ammoOutput: WorldContainer;
+  quarantine: WorldContainer;
+  lockers: WorldContainer;
+  loading: WorldContainer;
 }
 
 function paintRoom(world: World, room: Room, wallTex: Tex, floorTex: Tex): void {
@@ -898,44 +988,186 @@ function applyZoneRole(world: World, room: Room, faction: ZoneFaction, level: nu
   }
 }
 
-function populateRooms(world: World, entities: Entity[], nextId: { v: number }, rooms: ProductionBeltRooms): void {
+function createProductionBeltState(
+  rooms: ProductionBeltRooms,
+  containers: ProductionBeltContainers,
+): ProductionBeltRouteState {
+  return {
+    routeId: DESIGN_FLOOR_ID,
+    anchorZ: PRODUCTION_BELT_ROUTE_Z,
+    baseFloor: PRODUCTION_BELT_BASE_FLOOR,
+    lines: [
+      {
+        id: 'prod_restore_line',
+        factoryId: 'metal_shop',
+        roomId: rooms.metalLine.id,
+        outputContainerId: containers.metalOutput.id,
+        state: 'repairable',
+        dependencyIds: ['prod_to_service_door_kits'],
+      },
+      {
+        id: 'prod_charge_line',
+        factoryId: 'utility_room',
+        roomId: rooms.chargeLine.id,
+        outputContainerId: containers.chargeOutput.id,
+        state: 'audited',
+        dependencyIds: ['prod_charge_to_service_power'],
+      },
+      {
+        id: 'prod_illegal_ammo',
+        factoryId: 'illegal_ammo_smelter',
+        roomId: rooms.ammoLine.id,
+        outputContainerId: containers.ammoOutput.id,
+        state: 'bad_batch',
+        dependencyIds: ['prod_bad_batch_to_market', 'prod_bad_batch_to_living_warning'],
+      },
+    ],
+    dependencies: PRODUCTION_BELT_PIPELINE_DEPENDENCIES.map(dep => ({ ...dep })),
+    cueIds: [
+      'production_belt_service_feed',
+      'production_belt_bad_batch_warning',
+    ],
+  };
+}
+
+export function publishProductionBeltDecision(
+  game: GameState,
+  world: World,
+  actor: Entity,
+  routeState: ProductionBeltRouteState,
+  decisionId: ProductionBeltDecisionId,
+): WorldEvent {
+  const dependencies = routeState.dependencies.filter(dep => dep.decisionId === decisionId);
+  const line = routeState.lines.find(l => dependencies.some(dep => dep.factoryId === l.factoryId)) ?? routeState.lines[0];
+  const px = Math.floor(actor.x);
+  const py = Math.floor(actor.y);
+  const zoneId = world.zoneMap[world.idx(px, py)];
+  const badBatch = decisionId === 'expose_bad_batch' || decisionId === 'steal_bad_batch';
+  return publishEvent(game, {
+    type: badBatch ? 'room_blocked_production' : 'room_produced_items',
+    floor: PRODUCTION_BELT_BASE_FLOOR,
+    zoneId: zoneId >= 0 ? zoneId : undefined,
+    roomId: line?.roomId,
+    containerId: line?.outputContainerId,
+    actorId: actor.id,
+    actorName: actor.name,
+    actorFaction: actor.faction,
+    severity: badBatch ? 4 : 3,
+    privacy: decisionId === 'steal_bad_batch' ? 'secret' : 'local',
+    tags: ['production_belt', 'pipeline', decisionId, ...dependencies.map(dep => dep.toRouteId)],
+    data: {
+      routeId: routeState.routeId,
+      z: routeState.anchorZ,
+      decisionId,
+      dependencyIds: dependencies.map(dep => dep.id),
+      factoryIds: dependencies.map(dep => dep.factoryId),
+      outputContainerId: line?.outputContainerId,
+    },
+  });
+}
+
+function registerProductionBeltRouteCues(
+  world: World,
+  rooms: ProductionBeltRooms,
+  containers: ProductionBeltContainers,
+): void {
+  const serviceMarkerX = rooms.chargeLine.x + 6.5;
+  const serviceMarkerY = rooms.chargeLine.y + 6.5;
+  const serviceTargetX = containers.chargeOutput.x + 0.5;
+  const serviceTargetY = containers.chargeOutput.y + 0.5;
+  const serviceCell = world.idx(Math.floor(serviceMarkerX), Math.floor(serviceMarkerY));
+  registerRouteCue(world, {
+    id: 'production_belt_service_feed',
+    x: serviceMarkerX,
+    y: serviceMarkerY,
+    targetX: serviceTargetX,
+    targetY: serviceTargetY,
+    floor: PRODUCTION_BELT_BASE_FLOOR,
+    roomId: rooms.chargeLine.id,
+    targetRoomId: rooms.chargeLine.id,
+    zoneId: world.zoneMap[serviceCell],
+    label: 'зарядная передача',
+    hint: 'реле ведет к энергоячейке для С-15',
+    targetName: containers.chargeOutput.name,
+    color: '#8cf',
+    tags: ['production_belt', 'pipeline', 'service_floor', 'transfer'],
+    toneSeed: rooms.chargeLine.id * 101 + containers.chargeOutput.id,
+    radius: 9,
+    targetRadius: 2.8,
+    cooldownSec: 32,
+    heardText: 'Зарядная линия щелкает в сторону С-15: ячейку можно сдать, украсть или сорвать смену.',
+    followedText: 'Вы у ящика энергоячеек. Это питание для обхода Служебного этажа и повод для кражи.',
+    ignoredText: 'Реле зарядки осталось позади. Служебный обход не получил эту ячейку.',
+  });
+
+  const warningMarkerX = rooms.auditOffice.x + 9.5;
+  const warningMarkerY = rooms.auditOffice.y + 4.5;
+  const warningTargetX = containers.quarantine.x + 0.5;
+  const warningTargetY = containers.quarantine.y + 0.5;
+  const warningCell = world.idx(Math.floor(warningMarkerX), Math.floor(warningMarkerY));
+  registerRouteCue(world, {
+    id: 'production_belt_bad_batch_warning',
+    x: warningMarkerX,
+    y: warningMarkerY,
+    targetX: warningTargetX,
+    targetY: warningTargetY,
+    floor: PRODUCTION_BELT_BASE_FLOOR,
+    roomId: rooms.auditOffice.id,
+    targetRoomId: rooms.quarantine.id,
+    zoneId: world.zoneMap[warningCell],
+    label: 'акт брака',
+    hint: 'зеленая партия пищит за стеной аудита',
+    targetName: containers.quarantine.name,
+    color: '#afa',
+    tags: ['production_belt', 'warning', 'bad_batch', 'living'],
+    toneSeed: rooms.auditOffice.id * 103 + containers.quarantine.id,
+    radius: 8,
+    targetRadius: 3,
+    cooldownSec: 36,
+    heardText: 'Экран БОТ-14 предупреждает: зеленую партию можно выдать наверх или остановить актом.',
+    followedText: 'Карантинный шкаф найден. Дальше выбор: образцы аудитору, товар рынку или оставить отраву в линии.',
+    ignoredText: 'Предупреждение БОТ-14 погасло за спиной. Зеленая партия осталась в маршруте.',
+  });
+}
+
+function populateRooms(world: World, entities: Entity[], nextId: { v: number }, rooms: ProductionBeltRooms): ProductionBeltContainers {
   const galinaId = spawnNpc(entities, nextId, 'prod_foreman_galina', FOREMAN_DEF, rooms.foreman, 1, Math.PI / 2);
   const rustamId = spawnNpc(entities, nextId, 'prod_mechanic_rustam', MECHANIC_DEF, rooms.metalLine, 2, Math.PI);
   const egorId = spawnNpc(entities, nextId, 'prod_worker_egor', WORKER_DEF, rooms.quarantine, 3, -Math.PI / 2);
   const auditorId = spawnNpc(entities, nextId, 'prod_auditor_bot', AUDITOR_DEF, rooms.auditOffice, 4, Math.PI, 'makarov');
 
-  addContainer(world, rooms.metalLine, 1, ContainerKind.TOOL_LOCKER, 'Выходной шкаф восстановительной линии', [
+  const metalOutput = addContainer(world, rooms.metalLine, 1, ContainerKind.TOOL_LOCKER, 'Выходной шкаф восстановительной линии', [
     { defId: 'pipe', count: 1 },
     { defId: 'door_kit', count: 1 },
     { defId: 'metal_sheet', count: 2 },
-  ], ['production_output', 'metal_shop', 'tools', 'faction', 'legal_output', 'theft'], 'owner', Faction.CITIZEN, galinaId, FOREMAN_DEF.name, 'metal_shop');
+  ], ['production_output', 'metal_shop', 'tools', 'faction', 'legal_output', 'service_floor', 'theft'], 'owner', Faction.CITIZEN, galinaId, FOREMAN_DEF.name, 'metal_shop');
 
-  addContainer(world, rooms.chargeLine, 2, ContainerKind.TOOL_LOCKER, 'Опломбированный ящик энергоячеек', [
+  const chargeOutput = addContainer(world, rooms.chargeLine, 2, ContainerKind.TOOL_LOCKER, 'Опломбированный ящик энергоячеек', [
     { defId: 'ammo_energy', count: 1 },
     { defId: 'fuse', count: 2 },
     { defId: 'relay_diagram', count: 1 },
-  ], ['production_output', 'utility_room', 'utility', 'room', 'tech', 'theft'], 'owner', Faction.CITIZEN, rustamId, MECHANIC_DEF.name, 'utility_room');
+  ], ['production_output', 'utility_room', 'utility', 'room', 'tech', 'service_floor', 'transfer', 'theft'], 'owner', Faction.CITIZEN, rustamId, MECHANIC_DEF.name, 'utility_room');
 
-  addContainer(world, rooms.ammoLine, 3, ContainerKind.WEAPON_CRATE, 'Серый ящик патронной смены', [
+  const ammoOutput = addContainer(world, rooms.ammoLine, 3, ContainerKind.WEAPON_CRATE, 'Серый ящик патронной смены', [
     { defId: 'ammo_9mm', count: 18 },
     { defId: 'ammo_fuel', count: 1 },
     { defId: 'metal_sheet', count: 1 },
-  ], ['production_output', 'illegal_ammo_smelter', 'ammo', 'weapon', 'illegal', 'theft'], 'faction', Faction.WILD, egorId, WORKER_DEF.name, 'illegal_ammo_smelter');
+  ], ['production_output', 'illegal_ammo_smelter', 'ammo', 'weapon', 'illegal', 'black_market_88', 'theft'], 'faction', Faction.WILD, egorId, WORKER_DEF.name, 'illegal_ammo_smelter');
 
-  addContainer(world, rooms.quarantine, 4, ContainerKind.METAL_CABINET, 'Карантинный шкаф зеленой партии', [
+  const quarantine = addContainer(world, rooms.quarantine, 4, ContainerKind.METAL_CABINET, 'Карантинный шкаф зеленой партии', [
     { defId: 'green_briquette', count: 4 },
     { defId: 'acid_bottle', count: 1 },
     { defId: 'filter_layer', count: 2 },
-  ], ['quarantine', 'bad_batch', 'food', 'theft'], 'owner', Faction.CITIZEN, auditorId, AUDITOR_DEF.name);
+  ], ['quarantine', 'bad_batch', 'food', 'living', 'warning', 'theft'], 'owner', Faction.CITIZEN, auditorId, AUDITOR_DEF.name);
 
-  addContainer(world, rooms.lockers, 5, ContainerKind.TOOL_LOCKER, 'Открытые шкафчики смены', [
+  const lockers = addContainer(world, rooms.lockers, 5, ContainerKind.TOOL_LOCKER, 'Открытые шкафчики смены', [
     { defId: 'gear', count: 2 },
     { defId: 'fuse', count: 1 },
     { defId: 'wrench', count: 1 },
     { defId: 'water', count: 1 },
   ], ['repair', 'public', 'shift'], 'public');
 
-  addContainer(world, rooms.loadingDock, 6, ContainerKind.METAL_CABINET, 'Промежуточная тара погрузки', [
+  const loading = addContainer(world, rooms.loadingDock, 6, ContainerKind.METAL_CABINET, 'Промежуточная тара погрузки', [
     { defId: 'grey_briquette', count: 3 },
     { defId: 'gasmask_filter', count: 1 },
     { defId: 'container_key_label', count: 1 },
@@ -951,9 +1183,11 @@ function populateRooms(world: World, entities: Entity[], nextId: { v: number }, 
   spawnMonster(entities, nextId, MonsterKind.ROBOT, rooms.chargeLine, 7, 3);
   spawnMonster(entities, nextId, MonsterKind.SBORKA, rooms.quarantine, 8, 2);
   spawnMonster(entities, nextId, MonsterKind.SBORKA, rooms.quarantine, 9, 2);
+
+  return { metalOutput, chargeOutput, ammoOutput, quarantine, lockers, loading };
 }
 
-export function generateProductionBeltDesignFloor(): FloorGeneration {
+export function generateProductionBeltDesignFloor(): ProductionBeltGeneration {
   registerProductionBeltContent();
 
   const world = new World();
@@ -984,8 +1218,10 @@ export function generateProductionBeltDesignFloor(): FloorGeneration {
 
   const entities: Entity[] = [];
   const nextId = { v: 1 };
-  populateRooms(world, entities, nextId, rooms);
+  const containers = populateRooms(world, entities, nextId, rooms);
+  const productionState = createProductionBeltState(rooms, containers);
+  registerProductionBeltRouteCues(world, rooms, containers);
 
   world.bakeLights();
-  return { world, entities, spawnX, spawnY };
+  return { world, entities, spawnX, spawnY, productionState };
 }

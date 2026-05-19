@@ -77,6 +77,25 @@ export const UPPER_BUREAU_GATE_OUTCOMES = [
   },
 ] as const;
 
+export const UPPER_BUREAU_ROUTE_DECISIONS = [
+  {
+    id: 'permit_ambush',
+    roomName: 'Засада поддельных корешков',
+    legalItemId: UPPER_BUREAU_DOCUMENTS.appointmentToken,
+    illegalItemId: UPPER_BUREAU_DOCUMENTS.forgedAppointment,
+    eventTag: 'permit_ambush',
+    outcome: 'Игрок может пройти с чистым корешком, принести подделку как улику или украсть папку засады с ростом аудита.',
+  },
+  {
+    id: 'archive_toll',
+    roomName: 'Платный архивный проход',
+    legalItemId: 'money',
+    illegalItemId: UPPER_BUREAU_DOCUMENTS.auditPacket,
+    eventTag: 'archive_toll',
+    outcome: 'Кассир продает допуск в архив за деньги; альтернативой остается кража кассы или актовое разоблачение.',
+  },
+] as const;
+
 export const UPPER_BUREAU_DEBUG_ENTRY = {
   routeId: UPPER_BUREAU_ROUTE_ID,
   displayName: UPPER_BUREAU_DISPLAY_NAME,
@@ -182,6 +201,53 @@ const ANNA_DEF: PlotNpcDef = {
   ],
 };
 
+const TOLL_KEEPER_DEF: PlotNpcDef = {
+  name: 'Кассир Архивной Пошлины',
+  isFemale: false,
+  faction: Faction.CITIZEN,
+  occupation: Occupation.SECRETARY,
+  sprite: Occupation.SECRETARY,
+  hp: 120, maxHp: 120, money: 190, speed: 0.75,
+  inventory: [
+    { defId: 'archive_access_permit', count: 1 },
+    { defId: 'blank_form', count: 2 },
+    { defId: 'tea', count: 1 },
+  ],
+  talkLines: [
+    'Архивная пошлина не взятка. Взятка стесняется чека.',
+    'Восемьдесят восемь рублей - и проход вспоминает вас как читателя.',
+    'Можно не платить. Тогда принесите акт, что пошлина незаконна, и мы все сделаем вид, что удивлены.',
+  ],
+  talkLinesPost: [
+    'Квитанция тише ключа. Но ключ быстрее.',
+    'Не стойте у кассы после сирены: деньги любят гермодвери сильнее людей.',
+  ],
+};
+
+const AMBUSH_DEF: PlotNpcDef = {
+  name: 'Старший Корешков',
+  isFemale: false,
+  faction: Faction.LIQUIDATOR,
+  occupation: Occupation.HUNTER,
+  sprite: Occupation.HUNTER,
+  hp: 210, maxHp: 210, money: 60, speed: 0.95,
+  inventory: [
+    { defId: 'forged_permit_slip', count: 1 },
+    { defId: 'denunciation', count: 1 },
+    { defId: 'ammo_9mm', count: 8 },
+  ],
+  weapon: 'makarov',
+  talkLines: [
+    'Поддельный корешок идет сюда сам. Мы только ставим стул.',
+    'Чистая бумага проходит мимо. Нервная бумага приводит владельца.',
+    'Принесешь подделку как улику - будет акт. Попробуешь пройти с ней - будет засада.',
+  ],
+  talkLinesPost: [
+    'Засада закрыта до следующего красивого корешка.',
+    'Печать не врет. Врет рука, которая слишком старалась.',
+  ],
+};
+
 registerSideQuest('bureau_madam_iskra', ISKRA_DEF, [
   {
     id: 'bureau_preapproval_legal',
@@ -237,6 +303,42 @@ registerSideQuest('bureau_auditor_lev', LEV_DEF, [
     rewardItem: 'permanent_pass', rewardCount: 1,
     extraRewards: [{ defId: 'record_exposure_notice', count: 1 }],
     relationDelta: 14, xpReward: 100, moneyReward: 120,
+  },
+]);
+
+registerSideQuest('bureau_archive_toll_keeper', TOLL_KEEPER_DEF, [
+  {
+    id: 'bureau_archive_toll_pay',
+    giverNpcId: 'bureau_archive_toll_keeper',
+    type: QuestType.FETCH,
+    desc: 'Кассир Архивной Пошлины: «Восемьдесят восемь рублей - и архивный проход признает вас читателем, а не нарушителем.»',
+    targetItem: 'money', targetCount: 88,
+    rewardItem: 'archive_access_permit', rewardCount: 1,
+    extraRewards: [{ defId: 'elevator_access_order', count: 1 }],
+    relationDelta: 4, xpReward: 65, moneyReward: 0,
+  },
+  {
+    id: 'bureau_archive_toll_expose',
+    giverNpcId: 'bureau_archive_toll_keeper',
+    type: QuestType.FETCH,
+    desc: 'Кассир Архивной Пошлины: «Акт о пропавшей записи можно приложить к кассе. Тогда проход откроется, но Лев услышит скрип.»',
+    targetItem: 'record_exposure_notice', targetCount: 1,
+    rewardItem: 'personal_file_copy', rewardCount: 1,
+    extraRewards: [{ defId: 'denunciation', count: 1 }],
+    relationDelta: -4, xpReward: 75, moneyReward: 35,
+  },
+]);
+
+registerSideQuest('bureau_permit_ambush_guard', AMBUSH_DEF, [
+  {
+    id: 'bureau_permit_ambush_expose',
+    giverNpcId: 'bureau_permit_ambush_guard',
+    type: QuestType.FETCH,
+    desc: 'Старший Корешков: «Принесите кованый корешок как приманку. Чистый проход оставим чистым, а засада получит акт.»',
+    targetItem: 'forged_permit_slip', targetCount: 1,
+    rewardItem: 'record_exposure_notice', rewardCount: 1,
+    extraRewards: [{ defId: 'official_permit_slip', count: 1 }],
+    relationDelta: 10, xpReward: 90, moneyReward: 50,
   },
 ]);
 
@@ -811,6 +913,8 @@ export function generateUpperBureauDesignFloor(): { world: World; entities: Enti
   const cleaner = stampBureauRoom(world, nextRoomId++, RoomType.STORAGE, 'Чистая кладовая Толика', 494, 526, 15, 10, Tex.F_TILE);
   const staffDesk = stampBureauRoom(world, nextRoomId++, RoomType.OFFICE, 'Служебный стол обходных листов', 552, 526, 20, 10, Tex.F_MARBLE_TILE);
   const shelter = stampBureauRoom(world, nextRoomId++, RoomType.COMMON, 'Политическое укрытие при салоне', 464, 496, 16, 14, Tex.F_GREEN_CARPET);
+  const archiveToll = stampBureauRoom(world, nextRoomId++, RoomType.OFFICE, 'Платный архивный проход', 588, 526, 22, 12, Tex.F_GREEN_CARPET);
+  const permitAmbush = stampBureauRoom(world, nextRoomId++, RoomType.HQ, 'Засада поддельных корешков', 520, 548, 24, 12, Tex.F_RED_CARPET);
 
   carveFloorRect(world, 476, 506, 10, 5, Tex.F_RED_CARPET);
   carveFloorRect(world, 517, 506, 72, 5, Tex.F_RED_CARPET);
@@ -819,6 +923,8 @@ export function generateUpperBureauDesignFloor(): { world: World; entities: Enti
   carveFloorRect(world, 501, 537, 82, 5, Tex.F_MARBLE_TILE);
   carveFloorRect(world, 578, 507, 5, 31, Tex.F_MARBLE_TILE);
   carveFloorRect(world, 480, 503, 6, 6, Tex.F_RED_CARPET);
+  carveFloorRect(world, 583, 531, 5, 5, Tex.F_GREEN_CARPET);
+  carveFloorRect(world, 530, 542, 5, 6, Tex.F_MARBLE_TILE);
 
   addDoor(world, salon, 485, 508);
   addDoor(world, salon, 517, 508);
@@ -829,6 +935,8 @@ export function generateUpperBureauDesignFloor(): { world: World; entities: Enti
   addDoor(world, cleaner, 502, 525, DoorState.CLOSED, '', Tex.DOOR_METAL);
   addDoor(world, cleaner, 502, 536, DoorState.CLOSED, '', Tex.DOOR_METAL);
   addDoor(world, staffDesk, 560, 525);
+  addDoor(world, archiveToll, 587, 532, DoorState.CLOSED, '', Tex.DOOR_METAL);
+  addDoor(world, permitAmbush, 532, 547, DoorState.CLOSED, '', Tex.DOOR_METAL);
   addGatePartition(world, 532, 504, 512, 508, UPPER_BUREAU_DOCUMENTS.cleanerKey);
   addGatePartition(world, 522, 536, 543, 540, UPPER_BUREAU_DOCUMENTS.cleanerKey);
 
@@ -842,6 +950,8 @@ export function generateUpperBureauDesignFloor(): { world: World; entities: Enti
   decorateFileRoom(world, files);
   decorateCleanerRoom(world, cleaner);
   decorateSalon(world, shelter);
+  decorateOffice(world, archiveToll);
+  decorateOffice(world, permitAmbush);
 
   setAdministrativeZones(world);
 
@@ -852,6 +962,10 @@ export function generateUpperBureauDesignFloor(): { world: World; entities: Enti
   const tolikId = nextId.v;
   spawnAdminNpc(entities, nextId, TOLIK_DEF, 'bureau_cleaner_tolik', cleaner.x + 4, cleaner.y + 4);
   spawnAdminNpc(entities, nextId, ANNA_DEF, 'bureau_visitor_anna', salon.x + 21, salon.y + 13);
+  const tollKeeperId = nextId.v;
+  spawnAdminNpc(entities, nextId, TOLL_KEEPER_DEF, 'bureau_archive_toll_keeper', archiveToll.x + 4, archiveToll.y + 4);
+  const ambushId = nextId.v;
+  spawnAdminNpc(entities, nextId, AMBUSH_DEF, 'bureau_permit_ambush_guard', permitAmbush.x + 5, permitAmbush.y + 4, true, 'makarov');
   spawnNamedCivilian(
     entities, nextId, 'Инспектор Главного Поста', false,
     530, 510, Occupation.HUNTER, Faction.LIQUIDATOR,
@@ -863,6 +977,12 @@ export function generateUpperBureauDesignFloor(): { world: World; entities: Enti
     salon.x + 9, salon.y + 12, Occupation.SECRETARY, Faction.CITIZEN,
     [{ defId: 'sealed_complaint', count: 1 }, { defId: 'tea', count: 1 }],
   );
+  spawnNamedCivilian(
+    entities, nextId, 'Младший Засадный', false,
+    permitAmbush.x + permitAmbush.w - 5, permitAmbush.y + 7, Occupation.HUNTER, Faction.LIQUIDATOR,
+    [{ defId: 'denunciation', count: 1 }, { defId: 'ammo_9mm', count: 6 }],
+    'makarov',
+  );
 
   addItemDrop(entities, nextId, salon.x + 4, salon.y + salon.h - 3, 'blank_form', 1);
   addItemDrop(entities, nextId, salon.x + 8, salon.y + salon.h - 3, 'official_permit_slip', 1);
@@ -870,6 +990,7 @@ export function generateUpperBureauDesignFloor(): { world: World; entities: Enti
   addItemDrop(entities, nextId, files.x + 3, files.y + 2, 'missing_record_file', 1);
   addItemDrop(entities, nextId, files.x + files.w - 4, files.y + 2, 'record_exposure_notice', 1);
   addItemDrop(entities, nextId, audit.x + 3, audit.y + audit.h - 3, 'denunciation', 1);
+  addItemDrop(entities, nextId, permitAmbush.x + 3, permitAmbush.y + permitAmbush.h - 3, 'forged_permit_slip', 1);
 
   addBureauContainer(
     world, executive, executive.x + executive.w - 3, executive.y + 2,
@@ -923,6 +1044,32 @@ export function generateUpperBureauDesignFloor(): { world: World; entities: Enti
     ],
     ['audit', 'black_market_88', 'paper'],
     { id: levId, name: LEV_DEF.name, faction: Faction.LIQUIDATOR },
+  );
+  addBureauContainer(
+    world, archiveToll, archiveToll.x + archiveToll.w - 3, archiveToll.y + 3,
+    ContainerKind.CASHBOX,
+    'Касса архивной пошлины',
+    'owner',
+    [
+      { defId: 'archive_access_permit', count: 1 },
+      { defId: 'elevator_access_order', count: 1 },
+      { defId: 'blank_form', count: 2 },
+    ],
+    ['archive_toll', 'route_clue', 'paper'],
+    { id: tollKeeperId, name: TOLL_KEEPER_DEF.name, faction: Faction.CITIZEN },
+  );
+  addBureauContainer(
+    world, permitAmbush, permitAmbush.x + permitAmbush.w - 4, permitAmbush.y + permitAmbush.h - 3,
+    ContainerKind.FILING_CABINET,
+    'Папка подставных корешков',
+    'faction',
+    [
+      { defId: 'forged_permit_slip', count: 1 },
+      { defId: 'record_exposure_notice', count: 1 },
+      { defId: 'denunciation', count: 1 },
+    ],
+    ['permit_ambush', 'exposure', 'audit', 'theft'],
+    { id: ambushId, name: AMBUSH_DEF.name, faction: Faction.LIQUIDATOR },
   );
   addBureauContainer(
     world, salon, salon.x + 3, salon.y + salon.h - 4,

@@ -33,6 +33,7 @@ A geometry profile is data that says what kind of procedural floor should be bui
 - `collectors`: industrial collectors, pipes, water.
 - `workshops`: production halls and storage.
 - `admin_pockets`: offices, documents, bureaucracy.
+- `service_spines`: maintenance-side service shafts around `z=9..23`; corridor-heavy rooms are crossed by generation-time three-cell-wide service trunks from spawn to distant rooms, with lamps/screens/machines and service/power loot bias.
 
 ## Adding A Profile
 
@@ -50,6 +51,8 @@ A geometry profile is data that says what kind of procedural floor should be bui
 - Use `world.idx`, `world.wrap`, `world.delta`, `world.dist2`.
 - No per-frame scans. Geometry work is generation-time only.
 - Prefer tags over imports from another content module.
+
+`service_spines` adds only bounded generation-time carving: at most `2 + floor(danger / 2)` service trunks are carved from the spawn room toward distant rooms. It does not add a runtime tick; later samosbor rebuilds regenerate the same trunks from the floor spec seed.
 
 ## Validation
 

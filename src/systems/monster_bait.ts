@@ -6,13 +6,14 @@ import {
   type Entity,
   type FloorLevel,
   type GameState,
+  type ItemDef,
 } from '../core/types';
 import { World } from '../core/world';
-import { ITEMS } from '../data/items';
-import { isBaitAttractedMonster } from '../data/monster_ecology';
+import { ITEMS, ITEM_TAGS } from '../data/items';
+import { isBaitAttractedMonster, monsterEcologyTags } from '../data/monster_ecology';
 import { publishEvent } from './events';
 
-export type MonsterBaitKind = 'food' | 'govnyak';
+export type MonsterBaitKind = 'food' | 'meat' | 'fungal' | 'govnyak';
 export type MonsterBaitSource = 'drop' | 'use';
 
 export interface MonsterBaitMarker {
@@ -23,7 +24,11 @@ export interface MonsterBaitMarker {
   itemId: string;
   itemName: string;
   itemCount: number;
+  itemValue: number;
   kind: MonsterBaitKind;
+  baitTags: string[];
+  strength: number;
+  risk: number;
   source: MonsterBaitSource;
   placedById?: number;
   entityId?: number;
@@ -37,12 +42,22 @@ export interface MonsterBaitMarker {
 
 export const MONSTER_BAIT_MAX_ACTIVE = 8;
 export const MONSTER_BAIT_MAX_CANDIDATES = 8;
+export const MONSTER_BAIT_RADIUS_CAP = 22;
+export const MONSTER_BAIT_TTL_CAP = 42;
+export const MONSTER_BAIT_MAX_ATTRACTIONS_CAP = 6;
 export const MONSTER_BAIT_CONSUME_RADIUS = 1.15;
 export const MONSTER_BAIT_CONSUME_RADIUS_SQ = MONSTER_BAIT_CONSUME_RADIUS * MONSTER_BAIT_CONSUME_RADIUS;
 export const MONSTER_BAIT_COMBAT_LOCK_RADIUS = 5;
 export const MONSTER_BAIT_COMBAT_LOCK_SQ = MONSTER_BAIT_COMBAT_LOCK_RADIUS * MONSTER_BAIT_COMBAT_LOCK_RADIUS;
 
 const GOVNYAK_BAIT_ITEM_IDS = new Set(['govnyak_roll', 'govnyak_brick', 'govnyak_sample', 'govnyak_bad_batch']);
+const BAIT_TRAITS_BY_ECOLOGY_TAG: Record<string, readonly string[]> = {
+  monster_krysnozhka: ['bait_meat', 'bait_fungal', 'bait_stale', 'bait_govnyak', 'govnyak'],
+  monster_sborka: ['bait_starch', 'bait_sugar', 'bait_stale', 'bait_govnyak', 'govnyak'],
+  monster_tvar: ['bait_meat', 'bait_govnyak', 'govnyak'],
+  monster_polzun: ['bait_fungal', 'bait_wet', 'bait_govnyak', 'govnyak'],
+  monster_tube_eel: ['bait_meat', 'bait_wet', 'bait_fungal', 'bait_govnyak', 'govnyak'],
+};
 const activeBaits: MonsterBaitMarker[] = [];
 let nextBaitId = 1;
 
@@ -58,9 +73,12 @@ export function getActiveMonsterBaits(): readonly MonsterBaitMarker[] {
 export function baitKindForItem(defId: string, source: MonsterBaitSource): MonsterBaitKind | null {
   const def = ITEMS[defId];
   if (!def) return null;
-  if (GOVNYAK_BAIT_ITEM_IDS.has(defId) || def.tags?.includes('govnyak')) return 'govnyak';
-  if (source === 'drop' && def.type === ItemType.FOOD) return 'food';
-  return null;
+  const tags = baitItemTags(defId, def);
+  if (GOVNYAK_BAIT_ITEM_IDS.has(defId) || tags.includes('govnyak')) return 'govnyak';
+  if (source !== 'drop' || def.type !== ItemType.FOOD) return null;
+  if (tags.includes('bait_meat')) return 'meat';
+  if (tags.includes('bait_fungal')) return 'fungal';
+  return 'food';
 }
 
 export function isMonsterBaitItem(defId: string): boolean {
@@ -71,17 +89,66 @@ export function isMonsterBaitUseItem(defId: string): boolean {
   return baitKindForItem(defId, 'use') !== null;
 }
 
-function baitRadius(kind: MonsterBaitKind): number {
-  return kind === 'govnyak' ? 18 : 14;
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
 }
 
-function baitTtl(kind: MonsterBaitKind): number {
-  return kind === 'govnyak' ? 30 : 24;
+function addUnique(tags: string[], tag: string): void {
+  if (tag.length > 0 && !tags.includes(tag)) tags.push(tag);
 }
 
-function baitMaxAttractions(kind: MonsterBaitKind, count: number): number {
-  if (kind === 'govnyak') return 5;
-  return Math.max(2, Math.min(4, count));
+function baitItemTags(defId: string, def: ItemDef): string[] {
+  const tags: string[] = [];
+  for (const tag of ITEM_TAGS[defId] ?? []) addUnique(tags, tag);
+  for (const tag of def.tags ?? []) addUnique(tags, tag);
+  if (def.type === ItemType.FOOD) addUnique(tags, 'bait_food');
+  return tags;
+}
+
+function baitCostTier(def: ItemDef, count: number): number {
+  const totalValue = Math.max(0, def.value) * Math.max(1, Math.min(4, count));
+  if (totalValue >= 40) return 3;
+  if (totalValue >= 14) return 2;
+  if (totalValue >= 6) return 1;
+  return 0;
+}
+
+function baitRisk(kind: MonsterBaitKind, tags: readonly string[]): number {
+  let risk = kind === 'govnyak' ? 1 : 0;
+  if (tags.includes('bait_risky') || tags.includes('bad_batch')) risk += 2;
+  if (tags.includes('contaminant') || tags.includes('contraband')) risk = Math.max(risk, 1);
+  return Math.min(3, risk);
+}
+
+function baitProfileForItem(defId: string, source: MonsterBaitSource, count: number): Pick<MonsterBaitMarker, 'kind' | 'itemValue' | 'baitTags' | 'strength' | 'risk' | 'radius' | 'expiresAt' | 'maxAttractions'> | null {
+  const def = ITEMS[defId];
+  if (!def || count <= 0) return null;
+  const kind = baitKindForItem(defId, source);
+  if (!kind) return null;
+
+  const costTier = baitCostTier(def, count);
+  const baitTags = baitItemTags(defId, def);
+  const risk = baitRisk(kind, baitTags);
+  const baseRadius = kind === 'govnyak' ? 15 : kind === 'meat' ? 16 : kind === 'fungal' ? 14 : 11;
+  const baseTtl = kind === 'govnyak' ? 24 : 18;
+  const radius = clamp(baseRadius + costTier * 2 + Math.min(risk, 2) * 2, 8, MONSTER_BAIT_RADIUS_CAP);
+  const ttl = clamp(baseTtl + costTier * 5 + risk * 3, 12, MONSTER_BAIT_TTL_CAP);
+  const maxAttractions = clamp(
+    (kind === 'govnyak' ? 2 : 1) + costTier + Math.min(2, count) + (risk >= 2 ? 1 : 0),
+    1,
+    MONSTER_BAIT_MAX_ATTRACTIONS_CAP,
+  );
+
+  return {
+    kind,
+    itemValue: def.value,
+    baitTags,
+    strength: 1 + costTier * 0.12 + risk * 0.08 + (kind === 'govnyak' ? 0.1 : 0),
+    risk,
+    radius,
+    expiresAt: ttl,
+    maxAttractions,
+  };
 }
 
 function baitScanCooldown(entityId: number): number {
@@ -99,6 +166,14 @@ function markerZone(world: World | undefined, x: number, y: number): { zoneId?: 
   };
 }
 
+function baitEventTags(marker: MonsterBaitMarker, action: string, extraTags: readonly string[] = []): string[] {
+  const tags = ['monster', 'bait', marker.kind, action];
+  if (marker.risk >= 2) addUnique(tags, 'risky_attraction');
+  if (marker.baitTags.includes('bait_trap')) addUnique(tags, 'trap_bait');
+  for (const tag of extraTags) addUnique(tags, tag);
+  return tags;
+}
+
 function publishBaitEnd(
   state: GameState | undefined,
   marker: MonsterBaitMarker,
@@ -108,6 +183,11 @@ function publishBaitEnd(
   monster?: Entity,
 ): void {
   if (!state) return;
+  const outcome = type === 'monster_bait_consumed'
+    ? 'success'
+    : marker.attractedCount > 0
+      ? 'partial'
+      : 'failure';
   publishEvent(state, {
     type,
     time,
@@ -122,13 +202,20 @@ function publishBaitEnd(
     itemId: marker.itemId,
     itemName: marker.itemName,
     itemCount: marker.itemCount,
+    itemValue: marker.itemValue,
     monsterKind: monster?.monsterKind,
-    severity: type === 'monster_bait_consumed' ? 2 : 1,
+    severity: type === 'monster_bait_consumed' ? (marker.risk >= 2 ? 3 : 2) : outcome === 'failure' ? 2 : 1,
     privacy: 'local',
-    tags: ['monster', 'bait', marker.kind, reason],
+    tags: baitEventTags(marker, reason, [outcome]),
     data: {
       baitId: marker.id,
       source: marker.source,
+      outcome,
+      reason,
+      itemValue: marker.itemValue,
+      baitTags: marker.baitTags,
+      strength: marker.strength,
+      risk: marker.risk,
       attractedCount: marker.attractedCount,
       maxAttractions: marker.maxAttractions,
     },
@@ -159,8 +246,8 @@ export function placeMonsterBait(
   entityId?: number,
 ): boolean {
   const def = ITEMS[defId];
-  const kind = baitKindForItem(defId, source);
-  if (!state || !def || !kind || count <= 0) return false;
+  const profile = baitProfileForItem(defId, source, count);
+  if (!state || !def || !profile) return false;
 
   if (activeBaits.length >= MONSTER_BAIT_MAX_ACTIVE) {
     let oldest = 0;
@@ -180,15 +267,19 @@ export function placeMonsterBait(
     itemId: defId,
     itemName: def.name,
     itemCount: count,
-    kind,
+    itemValue: profile.itemValue,
+    kind: profile.kind,
+    baitTags: profile.baitTags,
+    strength: profile.strength,
+    risk: profile.risk,
     source,
     placedById: actor.id,
     entityId,
     ...markerZone(world, bx, by),
-    radius: baitRadius(kind),
-    expiresAt: state.time + baitTtl(kind),
+    radius: profile.radius,
+    expiresAt: state.time + profile.expiresAt,
     attractedCount: 0,
-    maxAttractions: baitMaxAttractions(kind, count),
+    maxAttractions: profile.maxAttractions,
   };
   activeBaits.push(marker);
 
@@ -204,11 +295,17 @@ export function placeMonsterBait(
     itemId: marker.itemId,
     itemName: marker.itemName,
     itemCount: marker.itemCount,
-    severity: kind === 'govnyak' ? 3 : 2,
+    itemValue: marker.itemValue,
+    severity: marker.risk >= 2 ? 3 : marker.kind === 'govnyak' ? 3 : 2,
     privacy: 'local',
-    tags: ['monster', 'bait', kind, source],
+    tags: baitEventTags(marker, source),
     data: {
       baitId: marker.id,
+      source: marker.source,
+      itemValue: marker.itemValue,
+      baitTags: marker.baitTags,
+      strength: marker.strength,
+      risk: marker.risk,
       radius: marker.radius,
       expiresAt: marker.expiresAt,
       maxAttractions: marker.maxAttractions,
@@ -224,6 +321,30 @@ function activeBaitById(id: number, floor: FloorLevel, time: number): MonsterBai
   return null;
 }
 
+function markerHasTrait(marker: MonsterBaitMarker, trait: string): boolean {
+  return marker.baitTags.includes(trait) || (trait === 'bait_govnyak' && marker.kind === 'govnyak');
+}
+
+function baitMatchScore(marker: MonsterBaitMarker, ecologyTags: readonly string[]): number {
+  let matched = marker.kind === 'govnyak';
+  let score = marker.strength;
+
+  for (const ecologyTag of ecologyTags) {
+    const traits = BAIT_TRAITS_BY_ECOLOGY_TAG[ecologyTag];
+    if (!traits) continue;
+    for (const trait of traits) {
+      if (!markerHasTrait(marker, trait)) continue;
+      matched = true;
+      score += 0.35;
+      break;
+    }
+  }
+
+  if (!matched) score *= marker.kind === 'food' ? 0.72 : 0.55;
+  if (marker.risk >= 2) score += 0.15;
+  return clamp(score, 0.45, 1.55);
+}
+
 export function findMonsterBaitTarget(
   world: World,
   monster: Entity,
@@ -236,10 +357,13 @@ export function findMonsterBaitTarget(
   const floor = currentFloor ?? state?.currentFloor;
   if (!ai || floor === undefined || !isBaitAttractedMonster(monster.monsterKind)) return null;
 
+  const ecologyTags = monsterEcologyTags(monster.monsterKind);
   if (ai.baitMarkerId !== undefined) {
     const cached = activeBaitById(ai.baitMarkerId, floor, time);
-    if (cached && world.dist2(monster.x, monster.y, cached.x, cached.y) <= cached.radius * cached.radius) {
-      return cached;
+    if (cached) {
+      const cachedScore = baitMatchScore(cached, ecologyTags);
+      const cachedRadius = cached.radius * cachedScore;
+      if (world.dist2(monster.x, monster.y, cached.x, cached.y) <= cachedRadius * cachedRadius) return cached;
     }
     ai.baitMarkerId = undefined;
   }
@@ -249,16 +373,22 @@ export function findMonsterBaitTarget(
   ai.baitScanCd = baitScanCooldown(monster.id);
 
   let best: MonsterBaitMarker | null = null;
-  let bestD2 = Infinity;
+  let bestScore = 0;
+  let bestAdjustedD2 = Infinity;
   let checked = 0;
   for (const marker of activeBaits) {
     if (checked++ >= MONSTER_BAIT_MAX_CANDIDATES) break;
     if (marker.floor !== floor || marker.expiresAt <= time) continue;
     if (marker.attractedCount >= marker.maxAttractions) continue;
+    const matchScore = baitMatchScore(marker, ecologyTags);
+    const effectiveRadius = marker.radius * matchScore;
     const d2 = world.dist2(monster.x, monster.y, marker.x, marker.y);
-    if (d2 > marker.radius * marker.radius || d2 >= bestD2) continue;
+    if (d2 > effectiveRadius * effectiveRadius) continue;
+    const adjustedD2 = d2 / (matchScore * matchScore);
+    if (adjustedD2 >= bestAdjustedD2) continue;
     best = marker;
-    bestD2 = d2;
+    bestScore = matchScore;
+    bestAdjustedD2 = adjustedD2;
   }
   if (!best) return null;
 
@@ -279,12 +409,20 @@ export function findMonsterBaitTarget(
       itemId: best.itemId,
       itemName: best.itemName,
       itemCount: best.itemCount,
+      itemValue: best.itemValue,
       monsterKind: monster.monsterKind,
-      severity: 2,
+      severity: best.risk >= 2 ? 3 : 2,
       privacy: 'local',
-      tags: ['monster', 'bait', best.kind, 'attracted'],
+      tags: baitEventTags(best, 'attracted', ecologyTags),
       data: {
         baitId: best.id,
+        source: best.source,
+        itemValue: best.itemValue,
+        baitTags: best.baitTags,
+        ecologyTags,
+        baitFit: bestScore,
+        strength: best.strength,
+        risk: best.risk,
         attractedCount: best.attractedCount,
         maxAttractions: best.maxAttractions,
       },

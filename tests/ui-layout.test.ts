@@ -19,3 +19,10 @@ test('trade inventory scale still fits shorter canvases', () => {
   assert.ok((22 * 5 * 2 + 24) * scale <= 1280 * 0.88 + 0.001);
   assert.ok((28 + 22 * 5 + 58) * scale <= 720 * 0.78 + 0.001);
 });
+
+test('grid scale does not force tiny mobile canvases to overflow', () => {
+  const scale = containerGridScale(280, 180);
+  assert.ok(scale < 1);
+  assert.ok((22 * 5 * 2 + 24) * scale <= 280 * 0.88 + 0.001);
+  assert.ok((30 + 22 * 5 + 66) * scale <= 180 * 0.78 + 0.001);
+});

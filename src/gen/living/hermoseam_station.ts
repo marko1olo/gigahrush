@@ -14,6 +14,9 @@ import { registerZoneContent } from './zone_content';
 
 const ROOM_W = 15;
 const ROOM_H = 10;
+export const HERMOSEAM_STATION_ZONE_HUD = 45;
+export const HERMOSEAM_STATION_ZONE_ID = HERMOSEAM_STATION_ZONE_HUD - 1;
+export const HERMOSEAM_STATION_ROOM_NAME = 'Комната герметичного шва';
 
 function areaClear(world: World, rx: number, ry: number): boolean {
   for (let dy = -1; dy <= ROOM_H; dy++) {
@@ -38,7 +41,7 @@ function findOrigin(world: World, zcx: number, zcy: number): { x: number; y: num
   return { x: world.wrap(baseX), y: world.wrap(baseY) };
 }
 
-function carveRoom(world: World, roomId: number, rx: number, ry: number): Room {
+function carveRoom(world: World, roomId: number, rx: number, ry: number, zoneId: number): Room {
   for (let dy = -1; dy <= ROOM_H; dy++) {
     for (let dx = -1; dx <= ROOM_W; dx++) {
       const ci = world.idx(rx + dx, ry + dy);
@@ -47,6 +50,7 @@ function carveRoom(world: World, roomId: number, rx: number, ry: number): Room {
       world.wallTex[ci] = Tex.HERMO_WALL;
       world.floorTex[ci] = Tex.F_CONCRETE;
       world.roomMap[ci] = -1;
+      if (zoneId >= 0) world.zoneMap[ci] = zoneId;
       world.features[ci] = Feature.NONE;
     }
   }
@@ -57,7 +61,7 @@ function carveRoom(world: World, roomId: number, rx: number, ry: number): Room {
     x: world.wrap(rx), y: world.wrap(ry), w: ROOM_W, h: ROOM_H,
     doors: [],
     sealed: false,
-    name: 'Комната герметичного шва',
+    name: HERMOSEAM_STATION_ROOM_NAME,
     apartmentId: -1,
     wallTex: Tex.HERMO_WALL,
     floorTex: Tex.F_CONCRETE,
@@ -71,6 +75,7 @@ function carveRoom(world: World, roomId: number, rx: number, ry: number): Room {
       world.cells[ci] = Cell.FLOOR;
       world.floorTex[ci] = Tex.F_CONCRETE;
       world.roomMap[ci] = roomId;
+      if (zoneId >= 0) world.zoneMap[ci] = zoneId;
     }
   }
 
@@ -125,7 +130,10 @@ function generateHermoseamStation(
   zcy: number,
 ): { nextRoomId: number } {
   const pos = findOrigin(world, zcx, zcy);
-  const room = carveRoom(world, nextRoomId++, pos.x, pos.y);
+  const zoneId = world.zoneMap[world.idx(zcx, zcy)] >= 0
+    ? world.zoneMap[world.idx(zcx, zcy)]
+    : HERMOSEAM_STATION_ZONE_ID;
+  const room = carveRoom(world, nextRoomId++, pos.x, pos.y, zoneId);
   const rx = room.x;
   const ry = room.y;
   const midY = ry + Math.floor(ROOM_H / 2);
@@ -173,4 +181,4 @@ function generateHermoseamStation(
   return { nextRoomId };
 }
 
-registerZoneContent(45, 'Комната герметичного шва', generateHermoseamStation);
+registerZoneContent(HERMOSEAM_STATION_ZONE_HUD, HERMOSEAM_STATION_ROOM_NAME, generateHermoseamStation);

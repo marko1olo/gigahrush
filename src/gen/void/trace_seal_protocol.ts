@@ -9,8 +9,9 @@ import { World } from '../../core/world';
 import { freshNeeds } from '../../data/catalog';
 import { type PlotNpcDef, registerSideQuest } from '../../data/plot';
 import { MONSTERS } from '../../entities/monster';
-import { monsterSpr } from '../../render/sprite_index';
+import { monsterSpr, Spr } from '../../render/sprite_index';
 import { publishEvent, registerWorldEventObserver as observeWorldEvents } from '../../systems/events';
+import { hasItem, removeItem } from '../../systems/inventory';
 import { randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg';
 import { carveCorridor, findClearArea, placeDoorAt, stampRoom } from '../shared';
 
@@ -21,9 +22,14 @@ const PROTOCOL_NAME = 'Запечатать след';
 const TAG_RULE = 'void_rule';
 const TAG_PROTOCOL = 'trace_seal';
 const TAG_SEAL = 'seal';
-const TAG_ERASE = 'erase';
+const TAG_LEAVE_EVIDENCE = 'leave_evidence';
 const TAG_DONE = 'resolved';
 const CONTEXT_CAP = 8;
+const TRACE_SEAL_COSTS = [
+  { itemId: 'seal_wax', label: 'сургуч' },
+  { itemId: 'ammo_energy', label: 'энергоячейка' },
+  { itemId: 'psi_stabilizer', label: 'ПСИ-стабилизатор' },
+] as const;
 
 const CLERK_DEF: PlotNpcDef = {
   name: 'Клерк пустотного протокола',
@@ -37,9 +43,9 @@ const CLERK_DEF: PlotNpcDef = {
   speed: 0.8,
   inventory: [{ defId: 'note', count: 1 }],
   talkLines: [
-    'Форма короткая: запечатать след или стереть его. Третьего окна нет.',
+    'Форма короткая: запечатать след или оставить уликой. Третьего окна нет.',
     'Цель уже выбрана. Не ищите её по дому: это плохо масштабируется.',
-    'Запечатаете след — дверь выдержит. Дом возьмёт соседний проход.',
+    'Запечатаете след — заплатите сургучом, ячейкой или кровью. Дом возьмёт соседний проход.',
   ],
   talkLinesPost: [
     'Если протокол понятен длиннее одной строки, протокол вреден.',
@@ -60,7 +66,7 @@ const NEIGHBOR_DEF: PlotNpcDef = {
   inventory: [{ defId: 'bread', count: 1 }],
   talkLines: [
     'Я только открыла дверь на площадке. Теперь я здесь и дверь помнит не меня.',
-    'Не стирай след просто чтобы было тише. Тишина потом приходит с квитанцией.',
+    'Не прячь след просто чтобы было тише. Тишина потом приходит с квитанцией.',
     'Если запечатаешь, я хотя бы буду знать, какая дверь меня украла.',
   ],
   talkLinesPost: [
@@ -77,7 +83,7 @@ interface TraceSealContext {
   entities: Entity[];
   roomId: number;
   sealContainerId: number;
-  eraseContainerId: number;
+  evidenceContainerId: number;
   targetDoorIdx: number;
   backlashDoorIdx: number;
 }
@@ -89,7 +95,7 @@ function registerTraceSealContext(ctx: TraceSealContext): void {
   if (existing) {
     existing.entities = ctx.entities;
     existing.sealContainerId = ctx.sealContainerId;
-    existing.eraseContainerId = ctx.eraseContainerId;
+    existing.evidenceContainerId = ctx.evidenceContainerId;
     existing.targetDoorIdx = ctx.targetDoorIdx;
     existing.backlashDoorIdx = ctx.backlashDoorIdx;
     return;
@@ -106,7 +112,7 @@ function findTraceSealContext(event: WorldEvent): TraceSealContext | undefined {
   if (event.containerId === undefined) return undefined;
   for (let i = traceSealContexts.length - 1; i >= 0; i--) {
     const ctx = traceSealContexts[i];
-    if (ctx.sealContainerId === event.containerId || ctx.eraseContainerId === event.containerId) return ctx;
+    if (ctx.sealContainerId === event.containerId || ctx.evidenceContainerId === event.containerId) return ctx;
   }
   return undefined;
 }
@@ -117,17 +123,17 @@ function addContainerTag(container: WorldContainer | undefined, tag: string): vo
 
 function choiceAlreadyMade(ctx: TraceSealContext): boolean {
   const seal = ctx.world.containerById.get(ctx.sealContainerId);
-  const erase = ctx.world.containerById.get(ctx.eraseContainerId);
-  return !!(seal?.tags.includes(TAG_DONE) || erase?.tags.includes(TAG_DONE));
+  const evidence = ctx.world.containerById.get(ctx.evidenceContainerId);
+  return !!(seal?.tags.includes(TAG_DONE) || evidence?.tags.includes(TAG_DONE));
 }
 
 function markChoice(ctx: TraceSealContext, branch: string): void {
   const seal = ctx.world.containerById.get(ctx.sealContainerId);
-  const erase = ctx.world.containerById.get(ctx.eraseContainerId);
+  const evidence = ctx.world.containerById.get(ctx.evidenceContainerId);
   addContainerTag(seal, TAG_DONE);
-  addContainerTag(erase, TAG_DONE);
+  addContainerTag(evidence, TAG_DONE);
   addContainerTag(seal, branch);
-  addContainerTag(erase, branch);
+  addContainerTag(evidence, branch);
 }
 
 function targetKey(ctx: TraceSealContext): string {
@@ -145,6 +151,8 @@ function publishProtocol(
   phase: 'obtained' | 'started' | 'backlash' | 'rejected',
   line: string,
   severity: 2 | 3 | 4,
+  branch: string,
+  data: Record<string, unknown> = {},
 ): void {
   publishEvent(state, {
     type: `void_protocol_${phase}` as WorldEventType,
@@ -156,12 +164,14 @@ function publishProtocol(
     y: event.y,
     actorId: 0,
     actorName: 'Вы',
-    tags: ['void_protocol', phase, PROTOCOL_ID, 'black_box'].slice(0, 8),
+    tags: ['void_protocol', phase, PROTOCOL_ID, 'black_box', branch].slice(0, 8),
     data: {
       protocolId: PROTOCOL_ID,
       protocolName: PROTOCOL_NAME,
       targetKey: targetKey(ctx),
       sourceContainerId: event.containerId,
+      branch,
+      ...data,
     },
   });
   pushHud(state, line, phase === 'backlash' ? '#f8c' : '#8ff');
@@ -177,37 +187,76 @@ function nextEntityId(entities: Entity[]): number {
   return id;
 }
 
-function spawnBacklashParagraph(ctx: TraceSealContext): void {
+function spawnTraceThreat(ctx: TraceSealContext, kind: MonsterKind, name: string, x: number, y: number): void {
   const world = ctx.world;
-  const room = world.rooms[ctx.roomId];
-  if (!room) return;
-  const kind = MonsterKind.PARAGRAPH;
   const def = MONSTERS[kind];
   if (!def) return;
-  const x = world.wrap(room.x + room.w - 3);
-  const y = world.wrap(room.y + room.h - 3);
-  if (world.cells[world.idx(x, y)] !== Cell.FLOOR) return;
-  const zoneId = world.zoneMap[world.idx(x, y)];
+  const sx = world.wrap(x);
+  const sy = world.wrap(y);
+  if (world.cells[world.idx(sx, sy)] !== Cell.FLOOR) return;
+  const zoneId = world.zoneMap[world.idx(sx, sy)];
   const level = Math.max(14, world.zones[zoneId]?.level ?? 14);
   const hp = Math.round(scaleMonsterHp(def.hp, level));
   ctx.entities.push({
     id: nextEntityId(ctx.entities),
     type: EntityType.MONSTER,
-    x: x + 0.5,
-    y: y + 0.5,
+    x: sx + 0.5,
+    y: sy + 0.5,
     angle: Math.random() * Math.PI * 2,
     pitch: 0,
     alive: true,
     speed: scaleMonsterSpeed(def.speed, level),
     sprite: monsterSpr(kind),
-    name: 'Параграф черного ящика',
+    name,
     hp,
     maxHp: hp,
     monsterKind: kind,
     attackCd: 0,
     ai: { goal: AIGoal.WANDER, tx: 0, ty: 0, path: [], pi: 0, stuck: 0, timer: 0 },
     rpg: randomRPG(level),
+    phasing: kind === MonsterKind.SPIRIT,
   });
+}
+
+function spawnBacklashParagraph(ctx: TraceSealContext): void {
+  const room = ctx.world.rooms[ctx.roomId];
+  if (!room) return;
+  spawnTraceThreat(ctx, MonsterKind.PARAGRAPH, 'Параграф черного ящика', room.x + room.w - 3, room.y + room.h - 3);
+}
+
+function spawnEvidenceWitness(ctx: TraceSealContext): void {
+  const room = ctx.world.rooms[ctx.roomId];
+  if (!room) return;
+  spawnTraceThreat(ctx, MonsterKind.SPIRIT, 'Свидетель оставленного следа', room.x + room.w - 4, room.y + 2);
+}
+
+function markTraceBranch(ctx: TraceSealContext, branch: 'seal' | 'leave_evidence'): void {
+  const world = ctx.world;
+  const room = world.rooms[ctx.roomId];
+  if (!room) return;
+  const x = world.wrap(room.x + (room.w >> 1));
+  const y = world.wrap(room.y + (room.h >> 1));
+  const ci = world.idx(x, y);
+  if (world.cells[ci] === Cell.FLOOR) {
+    world.features[ci] = branch === 'seal' ? Feature.APPARATUS : Feature.SCREEN;
+    world.stamp(x, y, 0.5, 0.5, branch === 'seal' ? 0.5 : 0.68, branch === 'seal' ? 0.72 : 0.48, room.id * 43 + (branch === 'seal' ? 11 : 19), branch === 'seal' ? 80 : 220, 240, branch === 'seal' ? 255 : 190, true);
+  }
+  if (!room.name.includes(branch === 'seal' ? 'след запечатан' : 'улика оставлена')) {
+    room.name = `${room.name}; ${branch === 'seal' ? 'след запечатан' : 'улика оставлена'}`;
+  }
+}
+
+function spendTraceSealCost(player: Entity, state: GameState): { label: string; itemId?: string; hpCost: number } {
+  for (const cost of TRACE_SEAL_COSTS) {
+    if (!hasItem(player, cost.itemId)) continue;
+    removeItem(player, cost.itemId, 1);
+    return { label: cost.label, itemId: cost.itemId, hpCost: 0 };
+  }
+  if (player.hp !== undefined) {
+    player.hp = Math.max(1, player.hp - 4);
+    state.dmgFlash = Math.max(state.dmgFlash, 0.25);
+  }
+  return { label: 'кровь', hpCost: 4 };
 }
 
 function sealTraceTarget(ctx: TraceSealContext): void {
@@ -225,7 +274,7 @@ function sealTraceTarget(ctx: TraceSealContext): void {
   }
 }
 
-function eraseTraceTarget(ctx: TraceSealContext): void {
+function leaveTraceEvidence(ctx: TraceSealContext): void {
   const room = ctx.world.rooms[ctx.roomId];
   if (!room) return;
   room.sealed = false;
@@ -234,38 +283,67 @@ function eraseTraceTarget(ctx: TraceSealContext): void {
     target.state = DoorState.OPEN;
     target.timer = 0;
   }
-  for (let dy = 1; dy < room.h - 1; dy++) {
-    for (let dx = 1; dx < room.w - 1; dx++) {
-      const ci = ctx.world.idx(room.x + dx, room.y + dy);
-      if (ctx.world.features[ci] === Feature.SCREEN || ctx.world.features[ci] === Feature.APPARATUS) {
-        ctx.world.features[ci] = Feature.NONE;
-      }
-    }
+  const backlash = ctx.world.doors.get(ctx.backlashDoorIdx);
+  if (backlash) {
+    backlash.state = DoorState.OPEN;
+    backlash.timer = 0;
   }
+  markTraceBranch(ctx, 'leave_evidence');
+  ctx.entities.push({
+    id: nextEntityId(ctx.entities),
+    type: EntityType.ITEM_DROP,
+    x: room.x + (room.w >> 1) + 0.5,
+    y: room.y + 2.5,
+    angle: 0,
+    pitch: 0,
+    alive: true,
+    speed: 0,
+    sprite: Spr.ITEM_DROP,
+    inventory: [{
+      defId: 'note',
+      count: 1,
+      data: { text: `${targetKey(ctx)}: след оставлен уликой, дверь не запечатана.` },
+    }],
+  });
 }
 
 function applyTraceSeal(ctx: TraceSealContext, state: GameState, event: WorldEvent): void {
   markChoice(ctx, 'sealed');
-  sealTraceTarget(ctx);
-  publishProtocol(state, ctx, event, 'obtained', `Получен протокол: ${PROTOCOL_NAME}.`, 3);
-  publishProtocol(state, ctx, event, 'started', 'След запечатан. Цель держит адрес.', 4);
-  spawnBacklashParagraph(ctx);
   const player = playerInContext(ctx);
-  if (player?.hp !== undefined) {
-    player.hp = Math.max(1, player.hp - 1);
-    state.dmgFlash = Math.max(state.dmgFlash, 0.12);
-  }
-  publishProtocol(state, ctx, event, 'backlash', 'Отдача: соседний проход молчит.', 4);
+  const cost = player ? spendTraceSealCost(player, state) : { label: 'нет плательщика', hpCost: 0 };
+  sealTraceTarget(ctx);
+  markTraceBranch(ctx, 'seal');
+  publishProtocol(state, ctx, event, 'obtained', `Получен протокол: ${PROTOCOL_NAME}.`, 3, TAG_SEAL, {
+    cost: cost.label,
+    costItemId: cost.itemId,
+    hpCost: cost.hpCost,
+  });
+  publishProtocol(state, ctx, event, 'started', `След запечатан. Цена: ${cost.label}.`, 4, TAG_SEAL, {
+    cost: cost.label,
+    costItemId: cost.itemId,
+    hpCost: cost.hpCost,
+  });
+  spawnBacklashParagraph(ctx);
+  publishProtocol(state, ctx, event, 'backlash', 'Отдача: соседний проход молчит.', 4, TAG_SEAL, {
+    spawned: 'paragraph',
+  });
 }
 
-function applyTraceErase(ctx: TraceSealContext, state: GameState, event: WorldEvent): void {
-  markChoice(ctx, 'erased');
-  eraseTraceTarget(ctx);
-  publishProtocol(state, ctx, event, 'obtained', `Получен протокол: ${PROTOCOL_NAME}.`, 3);
-  publishProtocol(state, ctx, event, 'started', 'След стерт. Цель больше не спорит.', 3);
+function applyTraceEvidence(ctx: TraceSealContext, state: GameState, event: WorldEvent): void {
+  markChoice(ctx, 'evidence_left');
+  leaveTraceEvidence(ctx);
+  publishProtocol(state, ctx, event, 'obtained', `Получен протокол: ${PROTOCOL_NAME}.`, 3, TAG_LEAVE_EVIDENCE, {
+    cost: 'none',
+  });
+  publishProtocol(state, ctx, event, 'started', 'След оставлен уликой. Дверь остается спорной.', 3, TAG_LEAVE_EVIDENCE, {
+    counterplay: 'route_stays_open',
+  });
   const player = playerInContext(ctx);
-  if (player) player.psiMadness = Math.max(player.psiMadness ?? 0, 4);
-  publishProtocol(state, ctx, event, 'backlash', 'Отдача: память ищет нового жильца.', 3);
+  if (player) player.psiMadness = Math.max(player.psiMadness ?? 0, 2);
+  spawnEvidenceWitness(ctx);
+  publishProtocol(state, ctx, event, 'backlash', 'Отдача: улика позвала свидетеля.', 3, TAG_LEAVE_EVIDENCE, {
+    spawned: 'spirit',
+  });
 }
 
 function handleTraceSealEvent(state: GameState, event: WorldEvent): void {
@@ -274,11 +352,11 @@ function handleTraceSealEvent(state: GameState, event: WorldEvent): void {
   const ctx = findTraceSealContext(event);
   if (!ctx) return;
   if (choiceAlreadyMade(ctx)) {
-    publishProtocol(state, ctx, event, 'rejected', 'Протокол уже выбран.', 2);
+    publishProtocol(state, ctx, event, 'rejected', 'Протокол уже выбран.', 2, 'repeat');
     return;
   }
   if (eventHasTags(event, TAG_SEAL)) applyTraceSeal(ctx, state, event);
-  else if (eventHasTags(event, TAG_ERASE)) applyTraceErase(ctx, state, event);
+  else if (eventHasTags(event, TAG_LEAVE_EVIDENCE)) applyTraceEvidence(ctx, state, event);
 }
 
 observeWorldEvents(handleTraceSealEvent);
@@ -430,18 +508,18 @@ export function generateTraceSealProtocol(
     }],
     [TAG_RULE, TAG_PROTOCOL, TAG_SEAL],
   );
-  const eraseContainerId = addTraceContainer(
+  const evidenceContainerId = addTraceContainer(
     world,
     room.id,
     room.x + room.w - 6,
     room.y + (room.h >> 1),
-    'Бланк: стереть след',
+    'Бланк: оставить след уликой',
     [{
       defId: 'note',
       count: 1,
-      data: { text: 'ПРОТОКОЛ: стереть выбранный след. Цель замолчит, но память начнет искать жильца.' },
+      data: { text: 'ПРОТОКОЛ: оставить выбранный след уликой. Дверь не закроется, но улика позовет свидетеля.' },
     }],
-    [TAG_RULE, TAG_PROTOCOL, TAG_ERASE],
+    [TAG_RULE, TAG_PROTOCOL, TAG_LEAVE_EVIDENCE, 'evidence'],
   );
   addTraceContainer(
     world,
@@ -452,7 +530,7 @@ export function generateTraceSealProtocol(
     [{
       defId: 'note',
       count: 1,
-      data: { text: `TRACE ${targetKey({ world, entities, roomId: room.id, sealContainerId, eraseContainerId, targetDoorIdx, backlashDoorIdx })}: цель назначена без поиска по этажу.` },
+      data: { text: `TRACE ${targetKey({ world, entities, roomId: room.id, sealContainerId, evidenceContainerId, targetDoorIdx, backlashDoorIdx })}: цель назначена без поиска по этажу.` },
     }],
     ['void_trace', 'black_box', 'floor20_void'],
   );
@@ -462,7 +540,7 @@ export function generateTraceSealProtocol(
     entities,
     roomId: room.id,
     sealContainerId,
-    eraseContainerId,
+    evidenceContainerId,
     targetDoorIdx,
     backlashDoorIdx,
   });

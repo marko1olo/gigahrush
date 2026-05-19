@@ -4,8 +4,9 @@
 
 import {
   W, Cell,
-  type Entity, type GameState,
+  type Entity, type GameState, type Room, type Zone,
   EntityType, AIGoal, Faction, ZoneFaction, Occupation,
+  type FloorLevel, type WorldEventSeverity, type WorldEventType,
 } from '../core/types';
 import { World } from '../core/world';
 import { freshNeeds, randomName } from '../data/catalog';
@@ -14,6 +15,7 @@ import { getFactionRel, addFactionRelMutual } from '../data/relations';
 import { isPsiMad, isPsiAlly } from './psi';
 import { updateFactionEvents } from './faction_events';
 import { tickCaravans } from './caravans';
+import { getRecentEvents } from './events';
 
 const _PSI_IDS = ['psi_strike','psi_rupture','psi_madness','psi_storm','psi_brainburn'];
 function _pickPsi(): string { return _PSI_IDS[Math.floor(Math.random() * _PSI_IDS.length)]; }
@@ -31,6 +33,8 @@ const FACTION_VS_MONSTER: number[] = [
 
 const HOSTILE_THRESHOLD = -50;
 
+export type FactionRelationDelta = readonly [Faction, number];
+
 /** Get dynamic faction-to-faction relation */
 export function getFactionRelation(a: Faction, b: Faction): number {
   return getFactionRel(a, b);
@@ -44,6 +48,19 @@ export function getFactionMonsterRelation(f: Faction): number {
 /** Check if two factions are hostile (base relation) */
 export function areFactionsHostile(a: Faction, b: Faction): boolean {
   return getFactionRelation(a, b) <= HOSTILE_THRESHOLD;
+}
+
+export function applyFactionRelationDeltas(
+  deltas: readonly FactionRelationDelta[],
+  actor: Faction = Faction.PLAYER,
+): Record<string, number> {
+  const applied: Record<string, number> = {};
+  for (const [faction, delta] of deltas) {
+    if (delta === 0) continue;
+    addFactionRelMutual(actor, faction, delta);
+    applied[Faction[faction] ?? String(faction)] = (applied[Faction[faction] ?? String(faction)] ?? 0) + delta;
+  }
+  return applied;
 }
 
 /** Check if entity considers another entity hostile */
@@ -98,6 +115,73 @@ export interface FactionStats {
   spawnBudget: number;   // patrol squads to spawn (proportional to cells)
 }
 
+export interface FactionZoneUiSnapshot {
+  zoneId: number;
+  x: number;
+  y: number;
+  level: number;
+  owner: ZoneFaction;
+  dominant: ZoneFaction;
+  ownerShare: number;
+  dominantShare: number;
+  pressure: number;
+  contested: boolean;
+  recentEventCount: number;
+  lastEventSeverity: WorldEventSeverity;
+  lastEventTime: number;
+}
+
+export interface FactionOwnerUiSnapshot {
+  faction: ZoneFaction;
+  zones: number;
+  contested: number;
+}
+
+export interface FactionRecentEventUiSnapshot {
+  id: number;
+  time: number;
+  floor: FloorLevel;
+  zoneId: number;
+  x: number;
+  y: number;
+  type: WorldEventType;
+  severity: WorldEventSeverity;
+  name: string;
+  phase: string;
+  text: string;
+  actorFaction?: Faction;
+  targetFaction?: Faction;
+}
+
+export interface FactionUiSnapshot {
+  time: number;
+  floor: FloorLevel;
+  zones: FactionZoneUiSnapshot[];
+  zoneById: (FactionZoneUiSnapshot | undefined)[];
+  owners: FactionOwnerUiSnapshot[];
+  contestedZones: number;
+  recentEvents: FactionRecentEventUiSnapshot[];
+}
+
+const ZONE_UI_FACTIONS = [
+  ZoneFaction.CITIZEN,
+  ZoneFaction.LIQUIDATOR,
+  ZoneFaction.CULTIST,
+  ZoneFaction.WILD,
+  ZoneFaction.SAMOSBOR,
+] as const;
+const UI_ZONE_SAMPLE_RADIUS = 56;
+const UI_ZONE_SAMPLE_STEP = 8;
+const UI_CONTESTED_PRESSURE = 0.22;
+const UI_DOMINANT_CONTESTED_SHARE = 0.28;
+const UI_RECENT_EVENT_LIMIT = 8;
+const uiSampleCounts = new Uint16Array(8);
+let factionUiSnapshot: FactionUiSnapshot | undefined;
+
+export function getFactionUiSnapshot(): FactionUiSnapshot | undefined {
+  return factionUiSnapshot;
+}
+
 export function countFactionTerritory(world: World): Map<ZoneFaction, FactionStats> {
   const stats = new Map<ZoneFaction, FactionStats>();
   for (const zf of [ZoneFaction.CITIZEN, ZoneFaction.LIQUIDATOR, ZoneFaction.CULTIST, ZoneFaction.WILD]) {
@@ -117,6 +201,111 @@ export function countFactionTerritory(world: World): Map<ZoneFaction, FactionSta
   }
 
   return stats;
+}
+
+function factionEventString(data: Record<string, unknown> | undefined, key: string): string {
+  const value = data?.[key];
+  return typeof value === 'string' ? value : '';
+}
+
+function refreshFactionUiSnapshot(world: World, state: GameState): void {
+  const zones: FactionZoneUiSnapshot[] = [];
+  const zoneById: (FactionZoneUiSnapshot | undefined)[] = [];
+  const ownerCounts = new Map<ZoneFaction, FactionOwnerUiSnapshot>();
+  for (const faction of ZONE_UI_FACTIONS) ownerCounts.set(faction, { faction, zones: 0, contested: 0 });
+
+  let contestedZones = 0;
+  for (const zone of world.zones) {
+    if (!zone) continue;
+    uiSampleCounts.fill(0);
+    let sampled = 0;
+    for (let dy = -UI_ZONE_SAMPLE_RADIUS; dy <= UI_ZONE_SAMPLE_RADIUS; dy += UI_ZONE_SAMPLE_STEP) {
+      for (let dx = -UI_ZONE_SAMPLE_RADIUS; dx <= UI_ZONE_SAMPLE_RADIUS; dx += UI_ZONE_SAMPLE_STEP) {
+        const i = world.idx(world.wrap(zone.cx + dx), world.wrap(zone.cy + dy));
+        if (world.zoneMap[i] !== zone.id) continue;
+        const zf = world.factionControl[i];
+        if (zf < uiSampleCounts.length) {
+          uiSampleCounts[zf]++;
+          sampled++;
+        }
+      }
+    }
+
+    let dominant = zone.faction;
+    let dominantCount = 0;
+    for (let i = 0; i < uiSampleCounts.length; i++) {
+      if (uiSampleCounts[i] > dominantCount) {
+        dominantCount = uiSampleCounts[i];
+        dominant = i as ZoneFaction;
+      }
+    }
+
+    const ownerCount = zone.faction < uiSampleCounts.length ? uiSampleCounts[zone.faction] : 0;
+    const ownerShare = sampled > 0 ? ownerCount / sampled : 1;
+    const dominantShare = sampled > 0 ? dominantCount / sampled : 1;
+    const pressure = Math.max(0, 1 - ownerShare);
+    const contested = zone.faction !== ZoneFaction.SAMOSBOR
+      && sampled > 0
+      && (pressure >= UI_CONTESTED_PRESSURE || (dominant !== zone.faction && dominantShare >= UI_DOMINANT_CONTESTED_SHARE));
+    const row: FactionZoneUiSnapshot = {
+      zoneId: zone.id,
+      x: zone.cx,
+      y: zone.cy,
+      level: zone.level ?? 1,
+      owner: zone.faction,
+      dominant,
+      ownerShare,
+      dominantShare,
+      pressure,
+      contested,
+      recentEventCount: 0,
+      lastEventSeverity: 0,
+      lastEventTime: -Infinity,
+    };
+    zones.push(row);
+    zoneById[zone.id] = row;
+    const owner = ownerCounts.get(zone.faction);
+    if (owner) {
+      owner.zones++;
+      if (contested) owner.contested++;
+    }
+    if (contested) contestedZones++;
+  }
+
+  const recentEvents = getRecentEvents(state, { tags: ['faction_event'], limit: UI_RECENT_EVENT_LIMIT }).map(event => {
+    const zoneId = event.zoneId ?? -1;
+    const zone = zoneId >= 0 ? zoneById[zoneId] : undefined;
+    if (event.floor === state.currentFloor && zone) {
+      zone.recentEventCount++;
+      if (event.severity > zone.lastEventSeverity) zone.lastEventSeverity = event.severity;
+      if (event.time >= zone.lastEventTime) zone.lastEventTime = event.time;
+    }
+    return {
+      id: event.id,
+      time: event.time,
+      floor: event.floor,
+      zoneId,
+      x: event.x ?? zone?.x ?? 0,
+      y: event.y ?? zone?.y ?? 0,
+      type: event.type,
+      severity: event.severity,
+      name: factionEventString(event.data, 'name'),
+      phase: factionEventString(event.data, 'phase'),
+      text: factionEventString(event.data, 'residueText') || factionEventString(event.data, 'text'),
+      actorFaction: event.actorFaction,
+      targetFaction: event.targetFaction,
+    };
+  });
+
+  factionUiSnapshot = {
+    time: state.time,
+    floor: state.currentFloor,
+    zones,
+    zoneById,
+    owners: ZONE_UI_FACTIONS.map(faction => ownerCounts.get(faction) ?? { faction, zones: 0, contested: 0 }),
+    contestedZones,
+    recentEvents,
+  };
 }
 
 /* ── Initialize per-cell faction control from zone map ────────── */
@@ -195,6 +384,7 @@ export function updateFactionActivity(
   activityAccum = 0;
   updateFactionEvents(state, world, player, entities, nextId, elapsed, allowSpawns);
   tickCaravans(state, elapsed);
+  refreshFactionUiSnapshot(world, state);
 }
 
 /** Recalculate which faction owns each zone based on cell majority.
@@ -232,10 +422,155 @@ function recalcZoneOwnership(world: World, zoneIds: Set<number>): void {
 }
 
 /* ── Spawn patrol squads at HQ rooms after samosbor / init ───── */
+const AMBIENT_NPC_SOFT_CAP = 220;
+const PATROL_SPAWN_BURST_CAP = 24;
+const REINFORCEMENT_SPAWN_BURST_CAP = 10;
+const MAX_PATROL_NPCS_PER_ZONE = 6;
+const MAX_REINFORCEMENT_NPCS_PER_ZONE = 5;
+const REINFORCEMENT_PER_ZONE_BURST_CAP = 2;
+const ROOM_SPAWN_SCAN_LIMIT = 512;
+const ZONE_FACTION_STRIDE = ZoneFaction.WILD + 1;
+
+let zoneFactionNpcCounts = new Uint16Array(0);
+
+function countAliveNpcs(entities: Entity[]): number {
+  let aliveNPCs = 0;
+  for (const e of entities) {
+    if (e.type === EntityType.NPC && e.alive) aliveNPCs++;
+  }
+  return aliveNPCs;
+}
+
+function countZoneFactionNpcs(world: World, entities: Entity[]): Uint16Array {
+  const needed = world.zones.length * ZONE_FACTION_STRIDE;
+  if (zoneFactionNpcCounts.length !== needed) {
+    zoneFactionNpcCounts = new Uint16Array(needed);
+  } else {
+    zoneFactionNpcCounts.fill(0);
+  }
+
+  for (const e of entities) {
+    if (!e.alive || e.type !== EntityType.NPC || e.faction === undefined) continue;
+    const zf = factionToZone(e.faction);
+    const zid = world.zoneMap[world.idx(Math.floor(e.x), Math.floor(e.y))];
+    if (zid >= world.zones.length) continue;
+    const ci = zid * ZONE_FACTION_STRIDE + zf;
+    if (ci < zoneFactionNpcCounts.length && zoneFactionNpcCounts[ci] < 0xffff) {
+      zoneFactionNpcCounts[ci]++;
+    }
+  }
+
+  return zoneFactionNpcCounts;
+}
+
+function zoneFactionCount(counts: Uint16Array, zone: Zone, zf: ZoneFaction): number {
+  const ci = zone.id * ZONE_FACTION_STRIDE + zf;
+  return ci >= 0 && ci < counts.length ? counts[ci] : 0;
+}
+
+function bumpZoneFactionCount(counts: Uint16Array, zone: Zone, zf: ZoneFaction): void {
+  const ci = zone.id * ZONE_FACTION_STRIDE + zf;
+  if (ci >= 0 && ci < counts.length && counts[ci] < 0xffff) counts[ci]++;
+}
+
+function occupationForFaction(faction: Faction): Occupation {
+  return faction === Faction.LIQUIDATOR ? Occupation.HUNTER :
+         faction === Faction.CULTIST ? Occupation.PILGRIM :
+         faction === Faction.WILD ? Occupation.TRAVELER :
+         Occupation.TRAVELER;
+}
+
+function createAmbientFactionNpc(
+  faction: Faction,
+  occupation: Occupation,
+  zone: Zone,
+  x: number,
+  y: number,
+  nextId: { v: number },
+): Entity {
+  const zoneLevel = zone.level ?? 1;
+  const npcLevel = gaussianLevel(zoneLevel, 2);
+  const rpg = randomRPG(npcLevel);
+  const maxHp = Math.round(getMaxHp(rpg) * 1.3);
+  const nm = randomName(faction);
+  const cultPsi = faction === Faction.CULTIST && Math.random() < 0.4 ? _pickPsi() : undefined;
+
+  return {
+    id: nextId.v++,
+    type: EntityType.NPC,
+    x, y,
+    angle: Math.random() * Math.PI * 2,
+    pitch: 0,
+    alive: true,
+    speed: 1.3 + Math.random() * 0.3,
+    sprite: occupation,
+    name: nm.name,
+    isFemale: nm.female,
+    needs: freshNeeds(),
+    hp: maxHp, maxHp,
+    money: Math.floor(Math.random() * 50),
+    ai: { goal: AIGoal.IDLE, tx: 0, ty: 0, path: [], pi: 0, stuck: 0, timer: 0 },
+    inventory: cultPsi ? [{ defId: cultPsi, count: 1 }] : [],
+    weapon: cultPsi,
+    faction,
+    occupation,
+    isTraveler: true,
+    questId: -1,
+    rpg,
+  };
+}
+
+function roomIsSpawnableInZone(world: World, room: Room, zoneId: number): boolean {
+  if (room.w < 3 || room.h < 3) return false;
+  const cx = world.wrap(room.x + (room.w >> 1));
+  const cy = world.wrap(room.y + (room.h >> 1));
+  return world.zoneMap[world.idx(cx, cy)] === zoneId;
+}
+
+function pickSpawnRoomInZone(world: World, zone: Zone): Room | null {
+  const hq = zone.hqRoomId >= 0 ? world.rooms[zone.hqRoomId] : undefined;
+  if (hq && roomIsSpawnableInZone(world, hq, zone.id)) return hq;
+
+  const rooms = world.rooms;
+  if (rooms.length === 0) return null;
+  const limit = Math.min(rooms.length, ROOM_SPAWN_SCAN_LIMIT);
+  let ri = Math.floor(Math.random() * rooms.length);
+  for (let scanned = 0; scanned < limit; scanned++) {
+    const room = rooms[ri];
+    if (room && roomIsSpawnableInZone(world, room, zone.id)) return room;
+    ri++;
+    if (ri >= rooms.length) ri = 0;
+  }
+  return null;
+}
+
+function spawnAmbientNpcInRoom(
+  world: World,
+  entities: Entity[],
+  nextId: { v: number },
+  zone: Zone,
+  faction: Faction,
+  occupation: Occupation,
+  room: Room,
+): boolean {
+  const sx = room.x + 1 + Math.floor(Math.random() * Math.max(1, room.w - 2));
+  const sy = room.y + 1 + Math.floor(Math.random() * Math.max(1, room.h - 2));
+  if (world.solid(sx, sy)) return false;
+  entities.push(createAmbientFactionNpc(faction, occupation, zone, sx + 0.5, sy + 0.5, nextId));
+  return true;
+}
+
 export function spawnPatrolSquads(
   world: World, entities: Entity[], nextId: { v: number }, stats: Map<ZoneFaction, FactionStats>,
 ): void {
-  for (const zone of world.zones) {
+  let spawnSlots = Math.min(PATROL_SPAWN_BURST_CAP, AMBIENT_NPC_SOFT_CAP - countAliveNpcs(entities));
+  if (spawnSlots <= 0 || world.zones.length === 0) return;
+
+  const counts = countZoneFactionNpcs(world, entities);
+  const startZone = Math.floor(Math.random() * world.zones.length);
+
+  for (let zi = 0; zi < world.zones.length && spawnSlots > 0; zi++) {
+    const zone = world.zones[(startZone + zi) % world.zones.length];
     if (zone.faction === ZoneFaction.SAMOSBOR) continue;
     if (zone.hqRoomId < 0) continue;
 
@@ -249,152 +584,75 @@ export function spawnPatrolSquads(
     const faction = zoneFactionToFaction(zf);
     if (faction === null) continue;
 
-    // Check how many alive NPCs of this faction are already near this zone
-    let nearbyCount = 0;
-    const nearThresh = 80 * 80;
-    for (const ent of entities) {
-      if (ent.alive && ent.type === EntityType.NPC && ent.faction === faction &&
-        world.dist2(ent.x, ent.y, zone.cx, zone.cy) < nearThresh) nearbyCount++;
-    }
+    const nearbyCount = zoneFactionCount(counts, zone, zf);
 
-    // Max patrol NPCs per zone: 3 + budget
-    const maxPatrol = 3 + factionStats.spawnBudget;
+    // Max patrol NPCs per zone stays small even when territory is large.
+    const maxPatrol = Math.min(MAX_PATROL_NPCS_PER_ZONE, 2 + factionStats.spawnBudget);
     if (nearbyCount >= maxPatrol) continue;
 
     // Spawn 2-3 patrol members
-    const count = Math.min(maxPatrol - nearbyCount, 2 + Math.floor(Math.random() * 2));
-    const occupation = faction === Faction.LIQUIDATOR ? Occupation.HUNTER :
-                       faction === Faction.CULTIST ? Occupation.PILGRIM :
-                       faction === Faction.WILD ? Occupation.TRAVELER :
-                       Occupation.TRAVELER;
+    const count = Math.min(maxPatrol - nearbyCount, spawnSlots, 2 + Math.floor(Math.random() * 2));
+    const occupation = occupationForFaction(faction);
 
     for (let i = 0; i < count; i++) {
-      const sx = room.x + 1 + Math.floor(Math.random() * Math.max(1, room.w - 2));
-      const sy = room.y + 1 + Math.floor(Math.random() * Math.max(1, room.h - 2));
-      if (world.solid(sx, sy)) continue;
-
-      const zoneLevel = zone.level ?? 1;
-      const npcLevel = gaussianLevel(zoneLevel, 2);
-      const rpg = randomRPG(npcLevel);
-      const maxHp = Math.round(getMaxHp(rpg) * 1.3);
-      const nm = randomName(faction);
-
-      entities.push({
-        id: nextId.v++,
-        type: EntityType.NPC,
-        x: sx + 0.5, y: sy + 0.5,
-        angle: Math.random() * Math.PI * 2,
-        pitch: 0,
-        alive: true,
-        speed: 1.3 + Math.random() * 0.3,
-        sprite: occupation,
-        name: nm.name,
-        isFemale: nm.female,
-        needs: freshNeeds(),
-        hp: maxHp, maxHp,
-        money: Math.floor(Math.random() * 50),
-        ai: { goal: AIGoal.IDLE, tx: 0, ty: 0, path: [], pi: 0, stuck: 0, timer: 0 },
-        inventory: (faction === Faction.CULTIST && Math.random() < 0.4)
-          ? [{ defId: _pickPsi(), count: 1 }] : [],
-        weapon: (faction === Faction.CULTIST && Math.random() < 0.4) ? _pickPsi() : undefined,
-        faction,
-        occupation,
-        isTraveler: true,
-        questId: -1,
-        rpg,
-      });
+      if (!spawnAmbientNpcInRoom(world, entities, nextId, zone, faction, occupation, room)) continue;
+      bumpZoneFactionCount(counts, zone, zf);
+      spawnSlots--;
+      if (spawnSlots <= 0) return;
     }
   }
 }
 
-/* ── A-Life territory reinforcements — spawn NPCs proportional to territory ── */
-const NPC_SOFT_CAP = 1024;
-
 export function spawnTerritoryReinforcements(
   world: World, entities: Entity[], nextId: { v: number }, stats: Map<ZoneFaction, FactionStats>,
 ): void {
-  // Count alive NPCs
-  let aliveNPCs = 0;
-  for (const e of entities) if (e.type === EntityType.NPC && e.alive) aliveNPCs++;
-  if (aliveNPCs >= NPC_SOFT_CAP) return;
-
-  const deficit = NPC_SOFT_CAP - aliveNPCs;
+  const spawnBudget = Math.min(REINFORCEMENT_SPAWN_BURST_CAP, AMBIENT_NPC_SOFT_CAP - countAliveNpcs(entities));
+  if (spawnBudget <= 0 || world.zones.length === 0) return;
 
   // Calculate total controlled zones across all factions
   let totalZones = 0;
   for (const [, s] of stats) totalZones += s.zones;
   if (totalZones === 0) return;
 
-  // For each faction, spawn NPCs proportional to territory
+  const counts = countZoneFactionNpcs(world, entities);
+  let totalSpawned = 0;
+
+  // For each faction, spawn a bounded burst proportional to territory.
   for (const [zf, s] of stats) {
+    if (totalSpawned >= spawnBudget) break;
     if (s.zones === 0) continue;
     const faction = zoneFactionToFaction(zf);
     if (faction === null) continue;
 
     const factionShare = s.zones / totalZones;
-    const toSpawn = Math.max(1, Math.round(deficit * factionShare));
+    const toSpawn = Math.min(spawnBudget - totalSpawned, Math.max(1, Math.round(spawnBudget * factionShare)));
+    const perZone = Math.min(REINFORCEMENT_PER_ZONE_BURST_CAP, Math.max(1, Math.ceil(toSpawn / s.zones)));
+    const occupation = occupationForFaction(faction);
+    const startZone = Math.floor(Math.random() * world.zones.length);
 
-    // Collect faction's zones for spawn distribution
-    const factionZones = world.zones.filter(z => z.faction === zf);
-    if (factionZones.length === 0) continue;
+    let factionSpawned = 0;
+    for (let zi = 0; zi < world.zones.length && factionSpawned < toSpawn && totalSpawned < spawnBudget; zi++) {
+      const zone = world.zones[(startZone + zi) % world.zones.length];
+      if (zone.faction !== zf) continue;
 
-    // Distribute evenly across zones
-    const perZone = Math.max(1, Math.ceil(toSpawn / factionZones.length));
+      const existing = zoneFactionCount(counts, zone, zf);
+      if (existing >= MAX_REINFORCEMENT_NPCS_PER_ZONE) continue;
 
-    let spawned = 0;
-    for (const zone of factionZones) {
-      if (spawned >= toSpawn) break;
+      const room = pickSpawnRoomInZone(world, zone);
+      if (!room) continue;
 
-      // Find a walkable room in this zone to spawn into
-      const zoneRooms = world.rooms.filter(r =>
-        r && r.w >= 3 && r.h >= 3 &&
-        world.zoneMap[world.idx(r.x + (r.w >> 1), r.y + (r.h >> 1))] === zone.id,
+      const count = Math.min(
+        perZone,
+        toSpawn - factionSpawned,
+        spawnBudget - totalSpawned,
+        MAX_REINFORCEMENT_NPCS_PER_ZONE - existing,
       );
-      if (zoneRooms.length === 0) continue;
-
-      const count = Math.min(perZone, toSpawn - spawned);
-      const occupation = faction === Faction.LIQUIDATOR ? Occupation.HUNTER :
-                         faction === Faction.CULTIST ? Occupation.PILGRIM :
-                         faction === Faction.WILD ? Occupation.TRAVELER :
-                         Occupation.TRAVELER;
 
       for (let i = 0; i < count; i++) {
-        const room = zoneRooms[Math.floor(Math.random() * zoneRooms.length)];
-        const sx = room.x + 1 + Math.floor(Math.random() * Math.max(1, room.w - 2));
-        const sy = room.y + 1 + Math.floor(Math.random() * Math.max(1, room.h - 2));
-        if (world.solid(sx, sy)) continue;
-
-        const zoneLevel = zone.level ?? 1;
-        const npcLevel = gaussianLevel(zoneLevel, 2);
-        const rpg = randomRPG(npcLevel);
-        const maxHp = Math.round(getMaxHp(rpg) * 1.3);
-        const nm = randomName(faction);
-
-        entities.push({
-          id: nextId.v++,
-          type: EntityType.NPC,
-          x: sx + 0.5, y: sy + 0.5,
-          angle: Math.random() * Math.PI * 2,
-          pitch: 0,
-          alive: true,
-          speed: 1.3 + Math.random() * 0.3,
-          sprite: occupation,
-          name: nm.name,
-          isFemale: nm.female,
-          needs: freshNeeds(),
-          hp: maxHp, maxHp,
-          money: Math.floor(Math.random() * 50),
-          ai: { goal: AIGoal.IDLE, tx: 0, ty: 0, path: [], pi: 0, stuck: 0, timer: 0 },
-          inventory: (faction === Faction.CULTIST && Math.random() < 0.4)
-            ? [{ defId: _pickPsi(), count: 1 }] : [],
-          weapon: (faction === Faction.CULTIST && Math.random() < 0.4) ? _pickPsi() : undefined,
-          faction,
-          occupation,
-          isTraveler: true,
-          questId: -1,
-          rpg,
-        });
-        spawned++;
+        if (!spawnAmbientNpcInRoom(world, entities, nextId, zone, faction, occupation, room)) continue;
+        bumpZoneFactionCount(counts, zone, zf);
+        factionSpawned++;
+        totalSpawned++;
       }
     }
   }

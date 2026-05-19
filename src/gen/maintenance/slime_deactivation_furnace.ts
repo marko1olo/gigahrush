@@ -13,6 +13,8 @@ import {
 
 const CONTENT_TAG = 'ag71_slime_deactivation_furnace';
 const FACTORY_ID = 'slime_deactivation_furnace';
+const BROWN_SAMPLE_ITEM = 'slime_sample_brown';
+const BROWN_CLEANUP_LEAD_QUEST = 'ag84_nii_brown_cleanup_lead';
 
 const OPERATOR_DEF: PlotNpcDef = {
   name: 'Вера Гасильная',
@@ -59,26 +61,54 @@ const CLAIMANT_DEF: PlotNpcDef = {
   ],
 };
 
-registerSideQuest('ag71_furnace_operator', OPERATOR_DEF, [{
-  id: 'ag71_furnace_fuel_account',
-  giverNpcId: 'ag71_furnace_operator',
-  type: QuestType.FETCH,
-  desc: 'Вера: «Канистру бензина в расход печи. За топливо выдам сухой остаток и фильтр, без красивых слов про чистоту.»',
-  targetItem: 'ammo_fuel', targetCount: 1,
-  rewardItem: 'deactivated_residue', rewardCount: 2,
-  extraRewards: [{ defId: 'gasmask_filter', count: 1 }],
-  relationDelta: 10, xpReward: 55, moneyReward: 45,
-}]);
+registerSideQuest('ag71_furnace_operator', OPERATOR_DEF, [
+  {
+    id: 'ag84_furnace_burn_brown_sample',
+    giverNpcId: 'ag71_furnace_operator',
+    type: QuestType.FETCH,
+    desc: 'Вера: «Коричневую пробу из сухого обхода в бункер. Я верну гашёный остаток: хуже товара, лучше живого запаха.»',
+    targetItem: BROWN_SAMPLE_ITEM, targetCount: 1,
+    targetFloor: FloorLevel.MAINTENANCE,
+    targetRoomType: RoomType.PRODUCTION,
+    targetZoneTag: 'deactivation_furnace',
+    targetHint: 'Коллекторы: сухой обход даёт коричневую пробу; печь деактивации меняет её на гашёный остаток и фильтр.',
+    rewardItem: 'deactivated_residue', rewardCount: 2,
+    extraRewards: [{ defId: 'gasmask_filter', count: 1 }, { defId: 'filter_receipt', count: 1 }],
+    relationDelta: 12, xpReward: 75, moneyReward: 65,
+    requiresSideQuestDone: BROWN_CLEANUP_LEAD_QUEST,
+    eventTargetName: 'Коричневая проба прожжена в печи деактивации',
+    eventSeverity: 4,
+    eventPrivacy: 'local',
+    eventTags: ['slime_chain', 'furnace', 'burn', 'deactivated_residue', 'liquidator', 'brown_slime'],
+    eventData: { route: 'cleanup_sample_burn', outputItem: 'deactivated_residue' },
+  },
+  {
+    id: 'ag71_furnace_fuel_account',
+    giverNpcId: 'ag71_furnace_operator',
+    type: QuestType.FETCH,
+    desc: 'Вера: «Канистру бензина в расход печи. За топливо выдам сухой остаток и фильтр, без красивых слов про чистоту.»',
+    targetItem: 'ammo_fuel', targetCount: 1,
+    rewardItem: 'deactivated_residue', rewardCount: 2,
+    extraRewards: [{ defId: 'gasmask_filter', count: 1 }],
+    relationDelta: 10, xpReward: 55, moneyReward: 45,
+  },
+]);
 
 registerSideQuest('ag71_furnace_claimant', CLAIMANT_DEF, [{
   id: 'ag71_sell_hot_clot',
   giverNpcId: 'ag71_furnace_claimant',
   type: QuestType.FETCH,
   desc: 'Сенька: «Не жги коричневую пробу. Принеси её мне целой — рынок любит то, что официально должно исчезнуть.»',
-  targetItem: 'slime_sample_brown', targetCount: 1,
+  targetItem: BROWN_SAMPLE_ITEM, targetCount: 1,
+  targetFloor: FloorLevel.MAINTENANCE,
+  targetRoomType: RoomType.PRODUCTION,
+  targetZoneTag: 'deactivation_furnace',
+  targetHint: 'Коллекторы: после сухого обхода Сенька у печи перекупает коричневую пробу до прожига.',
   rewardItem: 'cigs', rewardCount: 5,
   extraRewards: [{ defId: 'acid_bottle', count: 1 }],
+  requiresSideQuestDone: BROWN_CLEANUP_LEAD_QUEST,
   relationDelta: 8, xpReward: 45, moneyReward: 85,
+  eventTags: ['slime_chain', 'black_market', 'sell', 'furnace', 'brown_slime', 'contraband'],
 }]);
 
 function nextContainerId(ctx: MaintContentCtx): number {
@@ -142,7 +172,7 @@ function addFurnaceContainers(ctx: MaintContentCtx, intake: Room, furnace: Room,
     kind: ContainerKind.METAL_CABINET,
     name: 'Приёмный бункер печи гашения',
     inventory: [
-      { defId: 'slime_sample_brown', count: 1 },
+      { defId: BROWN_SAMPLE_ITEM, count: 1 },
       { defId: 'filter_layer', count: 1 },
       { defId: 'deactivated_residue', count: 1 },
     ],

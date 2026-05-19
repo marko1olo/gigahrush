@@ -17,6 +17,15 @@ import { registerZoneContent } from './zone_content';
 export const SAMOSBORNYY_OSTOV_ID = 'samosbornyy_ostov' as const;
 export const SAMOSBORNYY_OSTOV_ROOM_PREFIX = 'Самосборный Остов' as const;
 export const SAMOSBORNYY_OSTOV_ZONE = 64 as const;
+export const SAMOSBORNYY_OSTOV_METADATA = {
+  id: SAMOSBORNYY_OSTOV_ID,
+  floor: 'living',
+  zoneHudId: SAMOSBORNYY_OSTOV_ZONE,
+  zoneTitle: SAMOSBORNYY_OSTOV_ROOM_PREFIX,
+  reachability: 'living_content_manifest_zone_64',
+  samosbor: 'protected_room_apt_mask_connect_protected_room',
+  performance: 'generation_time_19x13_room_one_npc_one_zombie_three_containers',
+} as const;
 
 const ROOM_W = 19;
 const ROOM_H = 13;

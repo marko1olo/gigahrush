@@ -9,6 +9,8 @@ import {
 } from './content_helpers';
 
 const ROOM_NAME = 'Сухой обход: коричневая слизь';
+const BROWN_SAMPLE_ITEM = 'slime_sample_brown';
+const CLEANUP_ACT_ITEM = 'brown_slime_cleanup_act';
 
 function addResidueCell(ctx: MaintContentCtx, cells: number[], roomId: number, x: number, y: number): void {
   const ci = ctx.world.idx(x, y);
@@ -83,10 +85,13 @@ export function generateBrownSlimeCleanup(ctx: MaintContentCtx): void {
   dropAt(ctx, room.x + 2, room.y + 2, 'flamethrower');
   dropAt(ctx, room.x + 3, room.y + 2, 'ammo_fuel');
   dropAt(ctx, room.x + 4, room.y + 2, 'ammo_fuel');
+  dropAt(ctx, room.x + 5, room.y + 2, CLEANUP_ACT_ITEM, 2);
+  dropAt(ctx, room.x + 7, room.y + 3, BROWN_SAMPLE_ITEM, 1,
+    'Пломба санобхода: коричневая проба после сухой зачистки.');
   dropAt(ctx, room.x + 6, room.y + 4, 'infected_mushroom', 2);
   dropAt(ctx, room.x + 8, room.y + 5, 'cloth_roll');
   dropAt(ctx, room.x + 10, room.y + 3, 'note', 1,
-    'Памятка санпоста: огонь снимает слизь быстрее комплекта, но дымит, шумит и портит всё горючее рядом. Бензин не выдаётся повторно.');
+    'Памятка санпоста: акт зачистки несут Боковой на пост НИИ. Пробу в пломбе можно сдать, прожечь в печи или продать без журнала. Огонь быстрее комплекта, но бензин не выдаётся повторно.');
   spawnAmbientNpc(
     ctx, 'Трофим Санобход', Faction.CITIZEN, Occupation.LOCKSMITH,
     room.x + 2, room.y + room.h - 2,

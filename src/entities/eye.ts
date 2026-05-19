@@ -17,7 +17,7 @@ export const DEF: MonsterDef = {
   projSpeed: 8,
   projSprite: 0,        // auto-assigned to Spr.EYE_BOLT
   floors: [FloorLevel.MINISTRY, FloorLevel.LIVING, FloorLevel.MAINTENANCE, FloorLevel.HELL, FloorLevel.VOID],
-  counterplay: 'Ломайте линию огня и сближайтесь после выстрела: Глаз держит прямой коридор, но платит длинной паузой.',
+  counterplay: 'Ломайте линию огня во время зелёного разогрева и сближайтесь после выстрела: Глаз держит прямой коридор, но теряет залп об угол или дверь.',
   lootHint: 'перегоревшие нити, стеклянная пыль, редкая лампа или ПСИ-пыль',
 };
 

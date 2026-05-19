@@ -32,6 +32,7 @@ import { type PlotNpcDef, registerSideQuest } from '../../data/plot';
 import { MONSTERS } from '../../entities/monster';
 import { monsterSpr, Spr } from '../../render/sprite_index';
 import { publishEvent } from '../../systems/events';
+import { registerRouteCue } from '../../systems/route_cues';
 import {
   connectRoomsMST,
   ensureConnectivity,
@@ -396,7 +397,7 @@ export function createRoofSkyTextureProvider(seed = 0, timeOfDay = 0.42): RoofSk
   const cloud = new Float32Array(SKY_GRID_W * SKY_GRID_H);
   const scratch = new Float32Array(cloud.length);
   let phase = 0;
-  let accum = SKY_UPDATE_INTERVAL;
+  let accum = 0;
 
   for (let y = 0; y < SKY_GRID_H; y++) {
     for (let x = 0; x < SKY_GRID_W; x++) {
@@ -516,9 +517,10 @@ export function generateRoofDesignFloor(seed = 0): RoofGeneration {
 
   placeFixedLift(world, rooms.entry.x + 2, rooms.entry.y + 2, LiftDirection.DOWN);
   placeFixedLift(world, rooms.maintenanceHatch.x + rooms.maintenanceHatch.w - 3, rooms.maintenanceHatch.y + 2, LiftDirection.DOWN);
+  registerRoofWindShelterCue(world, rooms);
 
   const spawnX = rooms.entry.x + 5.5;
-  const spawnY = rooms.entry.y + 5.5;
+  const spawnY = rooms.entry.y + 7.5;
   ensureConnectivity(world, spawnX, spawnY);
   applyUniformSkyLight(world);
 
@@ -1096,6 +1098,35 @@ function applyUniformSkyLight(world: World): void {
     }
   }
   world.light.fill(0.94);
+}
+
+function registerRoofWindShelterCue(world: World, rooms: Record<string, Room>): void {
+  const cueX = rooms.entry.x + 8.5;
+  const cueY = rooms.entry.y + 3.5;
+  const shelterX = rooms.ventShelter.x + rooms.ventShelter.w / 2;
+  const shelterY = rooms.ventShelter.y + rooms.ventShelter.h / 2;
+  registerRouteCue(world, {
+    id: 'roof_wind_vent_shelter',
+    x: cueX,
+    y: cueY,
+    targetX: shelterX,
+    targetY: shelterY,
+    floor: ROOF_BASE_FLOOR,
+    label: 'Ветер крыши',
+    hint: 'ветер режет открытую плиту; вентиляционное укрытие ниже по проходу',
+    targetName: 'Вентиляционное укрытие',
+    color: '#9cf',
+    tags: ['roof', 'wind', 'shelter', 'samosbor'],
+    toneSeed: 44_044,
+    radius: 12,
+    targetRadius: 3.8,
+    cooldownSec: 22,
+    roomId: rooms.entry.id,
+    targetRoomId: rooms.ventShelter.id,
+    heardText: 'Ветер тянет к гермодвери: вентиляционное укрытие переживет верхний самосбор.',
+    followedText: 'Шум ветра стихает в вентиляционном укрытии. Здесь можно переждать верхний самосбор.',
+    ignoredText: 'Открытый бетон остался за спиной, но укрытие крыши не проверено.',
+  });
 }
 
 function placeAntennaMast(world: World, x: number, y: number): void {

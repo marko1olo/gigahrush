@@ -12,9 +12,15 @@ import {
   CONTEXT_DANGEROUS_ZONE_LINES,
   CONTEXT_ACTIVE_CONTRACT_LINES,
   CONTEXT_FACTION_LINES,
+  CONTEXT_FACTION_EVENT_FACTION_LINES,
+  CONTEXT_FACTION_EVENT_LINES,
   CONTEXT_HIGH_TRUST_LINES,
   CONTEXT_HUNGER_LINES,
+  CONTEXT_LIFT_ANOMALY_FLOOR_LINES,
+  CONTEXT_LIFT_ANOMALY_LINES,
   CONTEXT_LOW_TRUST_LINES,
+  CONTEXT_MONSTER_KILL_FLOOR_LINES,
+  CONTEXT_MONSTER_KILL_LINES,
   CONTEXT_NEAR_CONTAINER_LINES,
   CONTEXT_OCCUPATION_LINES,
   CONTEXT_PRODUCTION_LINES,
@@ -23,6 +29,7 @@ import {
   CONTEXT_REPEATED_HELP_LINES,
   CONTEXT_SAFE_OWN_ZONE_LINES,
   CONTEXT_SAMOSBOR_AFTER_LINES,
+  CONTEXT_SAMOSBOR_WARNING_LINES,
   CONTEXT_STOLEN_GOODS_LINES,
   CONTEXT_THIRST_LINES,
   CONTEXT_THEFT_FEAR_LINES,
@@ -104,16 +111,20 @@ function pickContextLine(snapshot: ContextSnapshot, memory: NpcMemory): string |
   if (snapshot.isCritical || snapshot.isWounded) return pickContext(CONTEXT_WOUND_LINES, memory);
   if (snapshot.isHungry) return pickContext(CONTEXT_HUNGER_LINES, memory);
   if (snapshot.isThirsty) return pickContext(CONTEXT_THIRST_LINES, memory);
+  if (snapshot.samosborActive === true || snapshot.hasRecentSamosborWarning) return pickContext(CONTEXT_SAMOSBOR_WARNING_LINES, memory);
   if (snapshot.samosborActive === false && (memory.fear > 60 || snapshot.hasRecentSamosborAftermath)) return pickContext(CONTEXT_SAMOSBOR_AFTER_LINES, memory);
   if (snapshot.isDangerousZone) return pickContext(CONTEXT_DANGEROUS_ZONE_LINES, memory);
   if (snapshot.isSafeOwnZone) return pickContext(CONTEXT_SAFE_OWN_ZONE_LINES, memory);
   if (memory.helpedByPlayer >= 2 && memory.trustPlayer > 25) return pickContext(CONTEXT_REPEATED_HELP_LINES, memory);
   if (snapshot.hasActiveContract && Math.random() < 0.45) return pickContext(CONTEXT_ACTIVE_CONTRACT_LINES, memory);
+  if (snapshot.hasRecentPlayerTheft) return pickContext(CONTEXT_STOLEN_GOODS_LINES, memory);
   if (snapshot.hasRecentProductionShortage && Math.random() < 0.55) return pickContext(CONTEXT_PRODUCTION_SHORTAGE_LINES, memory);
   if (snapshot.hasRecentProductionOutput && Math.random() < 0.45) return pickContext(CONTEXT_PRODUCTION_OUTPUT_LINES, memory);
+  if (snapshot.hasRecentLiftAnomaly) return pickContext(floorPool(CONTEXT_LIFT_ANOMALY_FLOOR_LINES, snapshot.floor, CONTEXT_LIFT_ANOMALY_LINES), memory);
+  if (snapshot.hasRecentFactionClash) return pickContext(factionPool(snapshot, CONTEXT_FACTION_EVENT_FACTION_LINES, CONTEXT_FACTION_EVENT_LINES), memory);
+  if (snapshot.hasRecentMonsterKill) return pickContext(floorPool(CONTEXT_MONSTER_KILL_FLOOR_LINES, snapshot.floor, CONTEXT_MONSTER_KILL_LINES), memory);
   if (snapshot.nearbyProduction && Math.random() < 0.35) return pickContext(CONTEXT_PRODUCTION_LINES, memory);
   if (snapshot.nearbyContainer && Math.random() < 0.35) return pickContext(CONTEXT_NEAR_CONTAINER_LINES, memory);
-  if (snapshot.hasRecentPlayerTheft) return pickContext(CONTEXT_STOLEN_GOODS_LINES, memory);
   if (memory.trustPlayer > 45) return pickContext(CONTEXT_HIGH_TRUST_LINES, memory);
   if (snapshot.npcOccupation !== undefined && Math.random() < 0.35) {
     const pool = CONTEXT_OCCUPATION_LINES[snapshot.npcOccupation];
@@ -124,6 +135,14 @@ function pickContextLine(snapshot: ContextSnapshot, memory: NpcMemory): string |
     if (pool) return pickContext(pool, memory);
   }
   return undefined;
+}
+
+function floorPool(pools: Record<number, readonly string[]>, floor: number | undefined, fallback: readonly string[]): readonly string[] {
+  return floor !== undefined ? pools[floor] ?? fallback : fallback;
+}
+
+function factionPool(snapshot: ContextSnapshot, pools: Record<number, readonly string[]>, fallback: readonly string[]): readonly string[] {
+  return snapshot.npcFaction !== undefined ? pools[snapshot.npcFaction] ?? fallback : fallback;
 }
 
 function pickContext(pool: readonly string[], memory: NpcMemory): string {

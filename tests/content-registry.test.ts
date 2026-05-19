@@ -7,6 +7,7 @@ import '../src/gen/ministry/content_manifest';
 import '../src/gen/kvartiry/content_manifest';
 import '../src/gen/maintenance/content_manifest';
 import '../src/gen/hell/content_manifest';
+import '../src/gen/void/content_manifest';
 
 import { FloorLevel, MonsterKind, RoomType } from '../src/core/types';
 import { ITEMS } from '../src/data/catalog';
@@ -14,11 +15,15 @@ import { CONTRACTS } from '../src/data/contracts';
 import { FACTORIES } from '../src/data/factories';
 import { MONSTER_ECOLOGY } from '../src/data/monster_ecology';
 import { MONSTER_VARIANTS } from '../src/data/monster_variants';
-import { PLOT_NPCS, PLOT_CHAIN, SIDE_QUESTS, type PlotStep } from '../src/data/plot';
+import {
+  PLOT_NPCS, PLOT_CHAIN, SIDE_QUESTS, getSideQuestRegistrySnapshot, type PlotStep,
+} from '../src/data/plot';
 import { PLOT_ROOMS } from '../src/data/plot_rooms';
 import { RESOURCES } from '../src/data/resources';
 import { RUMORS, type RumorDef, type RumorReveal } from '../src/data/rumors';
+import { SCREEN_SIGNAL_DEFS } from '../src/data/screen_signals';
 import { MONSTERS } from '../src/entities/monster';
+import { getZoneContentRegistrySnapshot } from '../src/gen/living/zone_content';
 
 const ITEM_IDS = new Set([...Object.keys(ITEMS), 'money']);
 const MONSTER_IDS = new Set(Object.keys(MONSTERS).map(Number));
@@ -31,9 +36,14 @@ const MONSTER_VARIANTS_BY_ID = new Map(MONSTER_VARIANTS.map(v => [v.id, v]));
 function assertUnique(values: readonly string[], label: string): void {
   const seen = new Set<string>();
   for (const value of values) {
-    assert.equal(seen.has(value), false, `${label} duplicate id: ${value}`);
+    assert.equal(seen.has(value), false, `${label} duplicate: ${value}`);
     seen.add(value);
   }
+}
+
+function assertTrimmedText(value: string, label: string): void {
+  assert.equal(value.trim().length > 0, true, `${label} is missing`);
+  assert.equal(value, value.trim(), `${label} must be trimmed`);
 }
 
 function assertItem(id: string | undefined, scope: string): void {
@@ -77,6 +87,32 @@ function assertPlotStep(step: PlotStep, scope: string): void {
     assert.equal(ROOM_TYPE_IDS.has(step.targetRoomType), true, `${scope} references missing room type ${step.targetRoomType}`);
   }
 }
+
+test('Living zone content labels are visible and unique after manifest import', () => {
+  const entries = getZoneContentRegistrySnapshot();
+  assert.ok(entries.length > 0, 'LIVING content manifest did not register zone content');
+
+  for (const entry of entries) {
+    assert.equal(Number.isInteger(entry.zoneHudId) && entry.zoneHudId > 0, true, `LIVING zone content "${entry.label}" has invalid zone HUD id`);
+    assertTrimmedText(entry.label, `LIVING zone content #${entry.zoneHudId} label`);
+  }
+
+  assertUnique(entries.map(entry => String(entry.zoneHudId)), 'LIVING zone content zone HUD id');
+  assertUnique(entries.map(entry => entry.label), 'LIVING zone content label');
+});
+
+test('side quest registry snapshot exposes unique ids after floor manifests import', () => {
+  const entries = getSideQuestRegistrySnapshot();
+  assert.equal(entries.length, SIDE_QUESTS.length, 'side quest snapshot must cover the live registry');
+  assert.ok(entries.length > 0, 'content manifests did not register side quests');
+
+  for (const entry of entries) {
+    assertTrimmedText(entry.id, `SIDE_QUESTS.${entry.id}.id`);
+    assertTrimmedText(entry.giverNpcId, `SIDE_QUESTS.${entry.id}.giverNpcId`);
+  }
+
+  assertUnique(entries.map(entry => entry.id), 'SIDE_QUESTS snapshot id');
+});
 
 test('registered content ids are unique', () => {
   assertUnique(Object.keys(ITEMS), 'ITEMS');
@@ -159,6 +195,13 @@ test('contracts, rumors, rooms, and variants reference existing ids', () => {
 
   for (const variant of MONSTER_VARIANTS) {
     assertMonster(variant.baseKind, `MONSTER_VARIANTS.${variant.id}.baseKind`);
+  }
+
+  for (const def of SCREEN_SIGNAL_DEFS) {
+    assert.ok(def.rumorIds.length > 0, `SCREEN_SIGNAL_DEFS.${def.id} needs at least one rumor hook`);
+    for (const rumorId of def.rumorIds) {
+      assert.ok(RUMORS_BY_ID.has(rumorId), `SCREEN_SIGNAL_DEFS.${def.id} references missing rumor "${rumorId}"`);
+    }
   }
 });
 

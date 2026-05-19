@@ -2,7 +2,7 @@
 
 import { SCR_W, SCR_H } from './webgl';
 import {
-  type Entity, type GameState, EntityType, Cell, Feature,
+  W, type Entity, type GameState, EntityType, Cell, Feature, FloorLevel, Tex,
   ZoneFaction, LiftDirection,
 } from '../core/types';
 import { World } from '../core/world';
@@ -21,10 +21,10 @@ import { drawGameMenu } from './menu_ui';
 import { drawNpcMenu } from './npc_ui';
 import { drawContainerMenu } from './container_ui';
 import { drawNetSphereMenu } from './net_sphere_ui';
-import { drawHudFinanceCompact } from './economy_ui';
 import { drawNetTerminalBank } from './net_terminal_bank_ui';
 import { drawNetTerminalGenDenied } from './net_terminal_gen_ui';
 import { drawMapEditor } from './map_editor_ui';
+import { entityDisplayName } from '../entities/monster';
 import { getActiveSamosborVariant } from '../data/samosbor_variants';
 import { getSamosborShelterRoomIds, getSamosborWarningSnapshot, type SamosborWarningSnapshot } from '../systems/samosbor';
 import { currentFloorInstanceLabel } from '../systems/floor_instances';
@@ -55,10 +55,15 @@ import { isParitelSteamValveTarget } from '../gen/maintenance/paritel_steam_brid
 import {
   textJitter, flicker, drawHoloBar, drawGlitchText,
   drawNeuroPanel, drawGlitchLine, drawStaticNoise, drawVeretarVeil, drawRouteCueWave, drawMaronaryProofNoise, drawSmogVeil,
-  drawSeroburmalineNoLookFx,
+  drawSeroburmalineNoLookFx, drawSignalRows,
 } from './hud_fx';
 
 const BAR_W = 50, BAR_H = 5;
+const COMBAT_TARGET_SCAN_CAP = 160;
+const COMBAT_TARGET_MAX_D2 = 18 * 18;
+const COMBAT_TARGET_BODY_RADIUS = 0.3;
+const COMBAT_TARGET_RAY_STEP_CAP = 48;
+const COMBAT_TARGET_PLANE_LEN = Math.tan(Math.PI / 6);
 
 function toPercent(current: number, max: number): number {
   if (max <= 0) return 0;
@@ -74,6 +79,69 @@ const ZONE_FACTION_NAMES: Record<ZoneFaction, string> = {
 };
 const MSG_MAX = 5;
 
+interface VoidReturnPortalHudState {
+  active?: boolean;
+  used?: boolean;
+  cell?: number;
+  voidSpikeCarried?: boolean;
+  voidSpikeResolved?: boolean;
+}
+
+function voidReturnPortalHudState(state: GameState): VoidReturnPortalHudState | undefined {
+  const portal = (state as GameState & { voidReturnPortal?: VoidReturnPortalHudState }).voidReturnPortal;
+  if (!portal?.active || portal.used || typeof portal.cell !== 'number') return undefined;
+  if (portal.cell < 0 || portal.cell >= W * W) return undefined;
+  return portal;
+}
+
+function voidReturnVictoryLine(state: GameState): string {
+  const portal = (state as GameState & { voidReturnPortal?: VoidReturnPortalHudState }).voidReturnPortal;
+  if (portal?.voidSpikeResolved) return 'Творец повержен. Последствие осталось в Пустоте.';
+  if (portal?.voidSpikeCarried) return 'Творец повержен. Пустотный шип вернулся вместе с вами.';
+  return 'Творец повержен. Хрущ отпустил вас.';
+}
+
+function drawVoidReturnPortalHint(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  sx: number,
+  sy: number,
+  time: number,
+  player: Entity,
+  state: GameState,
+  world: World,
+): void {
+  if (state.currentFloor !== FloorLevel.VOID || state.samosborActive) return;
+  const portal = voidReturnPortalHudState(state);
+  if (!portal || world.floorTex[portal.cell!] !== Tex.PORTAL) return;
+
+  const px = (portal.cell! % W) + 0.5;
+  const py = ((portal.cell! / W) | 0) + 0.5;
+  const dx = world.delta(player.x, px);
+  const dy = world.delta(player.y, py);
+  const dist = Math.max(0, Math.round(Math.sqrt(dx * dx + dy * dy)));
+  const consequence = portal.voidSpikeResolved
+    ? 'шип оставлен'
+    : portal.voidSpikeCarried
+      ? 'шип унесён'
+      : 'центр завершит run';
+  const panelW = Math.min(w - 12 * sx, 196 * sx);
+  const panelH = 28 * sy;
+  const x = (w - panelW) * 0.5;
+  const y = 42 * sy;
+
+  ctx.save();
+  drawNeuroPanel(ctx, x, y, panelW, panelH, time, 988);
+  ctx.textAlign = 'center';
+  ctx.shadowColor = '#0f8';
+  ctx.shadowBlur = 7;
+  drawGlitchText(ctx, 'ПОРТАЛ ВОЗВРАТА', w * 0.5, y + 4 * sy, time * 1.7, 989, '#0f8', 9 * sy);
+  ctx.shadowBlur = 0;
+  drawGlitchText(ctx, fitHudText(ctx, `центр ${dist}м / ${consequence}`, panelW - 12 * sx), w * 0.5, y + 17 * sy, time, 990, '#cfe', 7 * sy);
+  ctx.textAlign = 'left';
+  ctx.restore();
+}
+
 function drawSamosborPrewarning(
   ctx: CanvasRenderingContext2D,
   w: number,
@@ -84,7 +152,7 @@ function drawSamosborPrewarning(
   warning: SamosborWarningSnapshot,
 ): void {
   const panelW = Math.min(w - 12 * sx, 218 * sx);
-  const panelH = 34 * sy;
+  const panelH = 58 * sy;
   const x = (w - panelW) * 0.5;
   const y = 6 * sy;
   const title = warning.variantId === 'istotit'
@@ -136,6 +204,7 @@ function drawSamosborPrewarning(
   ctx.shadowBlur = 0;
   drawGlitchText(ctx, `${warning.variantName} / ${warning.floorName} / ${zone}`, w * 0.5, y + 16 * sy, time, 731, '#ffd36a', 7 * sy);
   drawGlitchText(ctx, action, w * 0.5, y + 25 * sy, time, 732, '#ddd', 7 * sy);
+  drawSignalRows(ctx, x + 6 * sx, y + 32 * sy, panelW - 12 * sx, 20 * sy, time, warning.tint, warning.signals.channelLines, 5.5 * sy);
   ctx.textAlign = 'left';
   ctx.restore();
 }
@@ -267,6 +336,288 @@ function hudWeaponName(name: string): string {
   return name.replace(/^Сгусток:\s*/, '');
 }
 
+function compactHudBottomReserve(w: number, h: number, sy: number): number {
+  if (w <= h || h >= 560) return 0;
+  const controlReserve = Math.min(150, Math.max(96, h * 0.32));
+  const minReadableTop = 90 * sy;
+  return Math.min(controlReserve, Math.max(0, h - minReadableTop - 32 * sy));
+}
+
+interface CombatTargetHud {
+  name: string;
+  dist: number;
+  hpPct: number;
+  danger: boolean;
+}
+
+interface CombatSignalHud {
+  text: string;
+  color: string;
+}
+
+function combatTargetName(e: Entity): string {
+  return e.type === EntityType.PROJECTILE ? 'Снаряд' : entityDisplayName(e);
+}
+
+interface AimTargetHit {
+  dist: number;
+  forward: number;
+  side: number;
+}
+
+function combatSpriteScale(e: Entity): number {
+  return Math.max(0.35, Math.min(1.6, e.spriteScale ?? 1));
+}
+
+function crosshairInsideCombatSprite(e: Entity, forward: number, side: number, pitch: number): boolean {
+  if (forward <= 0.1) return false;
+  const scale = combatSpriteScale(e);
+  const spriteScreenX = Math.floor((SCR_W / 2) * (1 + side / (forward * COMBAT_TARGET_PLANE_LEN)));
+  const rawH = Math.abs(Math.floor(SCR_H / forward));
+  const spriteH = Math.floor(rawH * scale);
+  const spriteW = spriteH;
+  if (spriteW <= 1 || spriteH <= 1) return false;
+
+  const halfH = Math.floor(SCR_H / 2) + Math.floor(pitch * SCR_H);
+  const footY = halfH + Math.floor(rawH * 0.5) - Math.floor(rawH * (e.spriteZ ?? 0));
+  const startY = footY - spriteH;
+  const tightHalfW = Math.max(2, spriteW * 0.34);
+  const verticalInset = Math.max(1, spriteH * 0.08);
+  const centerX = SCR_W * 0.5;
+  const centerY = SCR_H * 0.5;
+  return centerX >= spriteScreenX - tightHalfW && centerX <= spriteScreenX + tightHalfW
+    && centerY >= startY + verticalInset && centerY <= footY - verticalInset;
+}
+
+function aimRayBlocked(world: World, px: number, py: number, dirX: number, dirY: number, maxDist: number): boolean {
+  let mapX = Math.floor(px);
+  let mapY = Math.floor(py);
+  const ddx = dirX === 0 ? Infinity : Math.abs(1 / dirX);
+  const ddy = dirY === 0 ? Infinity : Math.abs(1 / dirY);
+  const stepX = dirX < 0 ? -1 : 1;
+  const stepY = dirY < 0 ? -1 : 1;
+  let sdx = dirX < 0 ? (px - mapX) * ddx : (mapX + 1 - px) * ddx;
+  let sdy = dirY < 0 ? (py - mapY) * ddy : (mapY + 1 - py) * ddy;
+
+  for (let step = 0; step < COMBAT_TARGET_RAY_STEP_CAP; step++) {
+    const dist = Math.min(sdx, sdy);
+    if (dist >= maxDist) return false;
+    if (sdx < sdy) {
+      sdx += ddx;
+      mapX += stepX;
+    } else {
+      sdy += ddy;
+      mapY += stepY;
+    }
+    if (world.solid(mapX, mapY)) return true;
+  }
+  return false;
+}
+
+function aimTargetHit(world: World, player: Entity, e: Entity, ca: number, sa: number): AimTargetHit | null {
+  const dx = world.delta(player.x, e.x);
+  const dy = world.delta(player.y, e.y);
+  const d2 = dx * dx + dy * dy;
+  if (d2 > COMBAT_TARGET_MAX_D2) return null;
+
+  const forward = dx * ca + dy * sa;
+  if (forward <= 0.35) return null;
+  const side = -dx * sa + dy * ca;
+  const bodyRadius = Math.max(0.16, Math.min(0.48, COMBAT_TARGET_BODY_RADIUS * combatSpriteScale(e)));
+  if (Math.abs(side) > bodyRadius) return null;
+  if (!crosshairInsideCombatSprite(e, forward, side, player.pitch)) return null;
+  if (aimRayBlocked(world, player.x, player.y, ca, sa, Math.max(0.25, forward - bodyRadius))) return null;
+
+  return { dist: Math.sqrt(d2), forward, side };
+}
+
+function findAimTarget(world: World, entities: Entity[], player: Entity): CombatTargetHud | null {
+  const ca = Math.cos(player.angle);
+  const sa = Math.sin(player.angle);
+  let best: Entity | null = null;
+  let bestScore = Infinity;
+  let bestDist = 0;
+  let checked = 0;
+
+  for (const e of entities) {
+    if (!e.alive || e.id === player.id) continue;
+    if (e.type !== EntityType.MONSTER && e.type !== EntityType.NPC) continue;
+    if (world.dist2(player.x, player.y, e.x, e.y) > COMBAT_TARGET_MAX_D2) continue;
+    checked++;
+    const hit = aimTargetHit(world, player, e, ca, sa);
+    if (hit) {
+      const score = hit.forward + Math.abs(hit.side) * 0.4;
+      if (score < bestScore) {
+        best = e;
+        bestScore = score;
+        bestDist = hit.dist;
+      }
+    }
+    if (checked >= COMBAT_TARGET_SCAN_CAP) break;
+  }
+
+  if (!best) return null;
+  return {
+    name: combatTargetName(best),
+    dist: Math.max(1, Math.round(bestDist)),
+    hpPct: toPercent(best.hp ?? 0, best.maxHp ?? 100),
+    danger: best.type === EntityType.MONSTER,
+  };
+}
+
+function fitCombatSignal(text: string): string {
+  return text.length > 34 ? text.slice(0, 31) + '...' : text;
+}
+
+function recentCombatSignal(state: GameState, time: number): CombatSignalHud | null {
+  for (let i = state.msgs.length - 1; i >= 0 && i >= state.msgs.length - 8; i--) {
+    const m = state.msgs[i];
+    if (time - m.time > 1.15) continue;
+    const text = m.text;
+    if (text.startsWith('Удар!')) return { text: fitCombatSignal(text.replace(/^Удар!\s*/, 'ПОПАДАНИЕ ')), color: '#fc4' };
+    if (text.includes('повержен') || text.includes('повержена')) return { text: 'ЦЕЛЬ ПОВЕРЖЕНА', color: '#4f4' };
+    if (text.startsWith('Взрыв!') || text.startsWith('БФГ!')) return { text: fitCombatSignal(text.toUpperCase()), color: text.startsWith('БФГ!') ? '#4f4' : '#fa0' };
+    if (text.includes('Нет патронов')) return { text: 'НЕТ ПАТРОНОВ', color: '#f84' };
+    if (text.includes('Недостаточно ПСИ')) return { text: 'НЕТ ПСИ', color: '#f84' };
+    if (m.color === '#f66' || text.includes('режет тебя') || text.includes('задел тебя')) return { text: fitCombatSignal(`УРОН ${text}`), color: '#f66' };
+  }
+  return null;
+}
+
+function inferDeathCause(state: GameState, player: Entity, world: World, entities: Entity[]): { title: string; detail: string } {
+  const deathTime = state.time - state.deathTimer;
+  for (let i = state.msgs.length - 1; i >= 0 && i >= state.msgs.length - 16; i--) {
+    const m = state.msgs[i];
+    if (m.time < deathTime - 10 || m.time > deathTime + 1.5) continue;
+    const text = m.text;
+    if (text.includes('убил Вы')) return { title: 'Причина смерти', detail: text.replace('убил Вы', 'убил вас') };
+    if (text.includes('режет тебя') || text.includes('задел тебя')) return { title: 'Причина смерти', detail: text };
+    if (m.color === '#f66' && text.includes(': -')) return { title: 'Последний урон', detail: text };
+    if (text.includes('Обратная тяга')) return { title: 'Последний урон', detail: text };
+  }
+
+  const needs = player.needs;
+  if (needs) {
+    if (needs.water <= 0) return { title: 'Причина смерти', detail: 'обезвоживание' };
+    if (needs.food <= 0) return { title: 'Причина смерти', detail: 'голод' };
+    if (needs.pee >= 100) return { title: 'Причина смерти', detail: 'мочевой шок' };
+    if (needs.poo >= 100) return { title: 'Причина смерти', detail: 'кишечный шок' };
+  }
+
+  let nearest: Entity | null = null;
+  let nearestD2 = 6 * 6;
+  let checked = 0;
+  for (const e of entities) {
+    if (!e.alive || e.id === player.id) continue;
+    if (e.type !== EntityType.MONSTER && e.type !== EntityType.NPC && e.type !== EntityType.PROJECTILE) continue;
+    const d2 = world.dist2(player.x, player.y, e.x, e.y);
+    if (d2 < nearestD2) {
+      nearestD2 = d2;
+      nearest = e;
+    }
+    checked++;
+    if (checked >= 96) break;
+  }
+  if (nearest) {
+    const dist = Math.max(1, Math.round(Math.sqrt(nearestD2)));
+    return { title: 'Рядом с телом', detail: `${combatTargetName(nearest)} ${dist}м` };
+  }
+  if (state.samosborActive) return { title: 'Причина смерти', detail: 'самосбор: последний источник урона не распознан' };
+  return { title: 'Причина смерти', detail: 'последний источник урона не распознан' };
+}
+
+function drawCombatWeaponPanel(
+  ctx: CanvasRenderingContext2D,
+  weapon: ReturnType<typeof getWeaponReadiness>,
+  w: number,
+  barY: number,
+  sx: number,
+  sy: number,
+  time: number,
+): { y: number; w: number } {
+  const panelW = Math.min(w - 8 * sx, 170 * sx);
+  const panelH = 40 * sy;
+  const panelX = w - panelW - 4 * sx;
+  const panelY = barY - panelH - 4 * sy;
+  const statusColor = weapon.cannotFireReason ? '#f84' : weapon.lowResource ? '#fc4' : weapon.cooldown > 0.05 ? '#8cf' : '#9d9';
+  drawNeuroPanel(ctx, panelX, panelY, panelW, panelH, time, 190);
+  if (weapon.cannotFireReason || weapon.lowResource) {
+    ctx.strokeStyle = weapon.cannotFireReason ? 'rgba(255,80,50,0.75)' : 'rgba(255,210,80,0.55)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(panelX + 0.5, panelY + 0.5, panelW - 1, panelH - 1);
+  }
+
+  const wj = textJitter(time, 200);
+  ctx.textAlign = 'left';
+  ctx.font = `${8 * sy}px monospace`;
+  ctx.fillStyle = `rgba(220,240,255,${flicker(time, 201)})`;
+  ctx.fillText(fitHudText(ctx, hudWeaponName(weapon.name), panelW - 12 * sx), panelX + 6 * sx + wj.dx, panelY + 4 * sy + wj.dy);
+
+  ctx.font = `${7 * sy}px monospace`;
+  ctx.fillStyle = '#8cf';
+  const control = weapon.controlLabel ? ` ${weapon.controlLabel}` : '';
+  const reach = weapon.reachLabel ? ` ${weapon.reachLabel}` : '';
+  const factLine = `${weapon.role} УРН ${weapon.damageLabel}${weapon.pellets > 1 ? `/${weapon.pellets}` : ''}${reach}${control}`;
+  ctx.fillText(fitHudText(ctx, factLine, panelW - 12 * sx), panelX + 6 * sx, panelY + 14 * sy);
+
+  ctx.font = `${9 * sy}px monospace`;
+  ctx.fillStyle = statusColor;
+  const stateLine = weapon.cannotFireReason ? weapon.cannotFireReason.toUpperCase() : weapon.cooldownLabel;
+  ctx.fillText(fitHudText(ctx, stateLine, 54 * sx), panelX + 6 * sx, panelY + 24 * sy);
+  ctx.textAlign = 'right';
+  ctx.fillStyle = weapon.cannotFireReason ? '#f84' : weapon.lowResource ? '#fc4' : '#d7ffd7';
+  ctx.fillText(fitHudText(ctx, weapon.resourceLabel, panelW - 68 * sx), panelX + panelW - 6 * sx, panelY + 24 * sy);
+  ctx.textAlign = 'left';
+
+  drawHoloBar(ctx, panelX + 6 * sx, panelY + panelH - 6 * sy, panelW - 12 * sx, 3 * sy, weapon.cannotFireReason ? 0 : weapon.readyPct * 100, statusColor, time, 193);
+  return { y: panelY, w: panelW };
+}
+
+function drawCombatSightFeedback(
+  ctx: CanvasRenderingContext2D,
+  target: CombatTargetHud | null,
+  signal: CombatSignalHud | null,
+  cx: number,
+  cy: number,
+  sx: number,
+  sy: number,
+  time: number,
+): void {
+  if (target) {
+    const tw = 76 * sx;
+    const th = 15 * sy;
+    const tx = cx - tw * 0.5;
+    const ty = cy - 28 * sy;
+    ctx.fillStyle = 'rgba(2,8,12,0.74)';
+    ctx.fillRect(tx, ty, tw, th);
+    ctx.strokeStyle = target.danger ? 'rgba(255,80,60,0.55)' : 'rgba(255,190,80,0.5)';
+    ctx.strokeRect(tx + 0.5, ty + 0.5, tw - 1, th - 1);
+    ctx.font = `${6 * sy}px monospace`;
+    ctx.fillStyle = target.danger ? '#f88' : '#fc8';
+    ctx.textAlign = 'left';
+    ctx.fillText(fitHudText(ctx, `${target.name} ${target.dist}м`, tw - 8 * sx), tx + 4 * sx, ty + 2 * sy);
+    const hpW = (tw - 8 * sx) * Math.max(0, Math.min(1, target.hpPct / 100));
+    ctx.fillStyle = 'rgba(255,255,255,0.16)';
+    ctx.fillRect(tx + 4 * sx, ty + 10 * sy, tw - 8 * sx, 2 * sy);
+    ctx.fillStyle = target.hpPct < 30 ? '#f84' : '#8f8';
+    ctx.fillRect(tx + 4 * sx, ty + 10 * sy, hpW, 2 * sy);
+  }
+
+  if (signal) {
+    const alpha = 0.75 + Math.sin(time * 24) * 0.12;
+    ctx.font = `bold ${8 * sy}px monospace`;
+    ctx.textAlign = 'center';
+    ctx.shadowColor = signal.color;
+    ctx.shadowBlur = 7;
+    ctx.fillStyle = signal.color;
+    ctx.globalAlpha = alpha;
+    ctx.fillText(signal.text, cx, cy + 13 * sy);
+    ctx.globalAlpha = 1;
+    ctx.shadowBlur = 0;
+    ctx.textAlign = 'left';
+  }
+}
+
 
 
 /* ── The HUD is drawn on the 2D canvas overlaying the 3D view ── */
@@ -299,7 +650,8 @@ export function drawHUD(
   if (smogStatus.inside) drawSmogVeil(ctx, w, h, time, smogStatus.intensity);
 
   // ── Bottom status bar (neuro-interface) ─────────────────
-  const barY = h - 32 * sy;
+  const bottomReserve = compactHudBottomReserve(w, h, sy);
+  const barY = h - 32 * sy - bottomReserve;
   drawNeuroPanel(ctx, 0, barY, w, 32 * sy, time, 1);
 
   if (player.needs) {
@@ -339,6 +691,9 @@ export function drawHUD(
     !state.showInventory && !state.showQuests && !state.showLog &&
     !state.showFactions && !state.showMenu && !state.showNpcMenu && !state.showContainerMenu &&
     !netSphereOpen && !netTerminalGenOpen && !mapEditorOpen;
+  const combatWeapon = showCompactPanels ? getWeaponReadiness(player) : null;
+  const combatTarget = showCompactPanels ? findAimTarget(world, entities, player) : null;
+  const combatSignal = showCompactPanels ? recentCombatSignal(state, time) : null;
 
   const zhelemishLine = showCompactPanels ? zhelemishHudLine(player, time) : null;
   if (zhelemishLine) {
@@ -356,39 +711,9 @@ export function drawHUD(
   const routeCueVisible = !!routeCue && showCompactPanels && !state.samosborActive;
   const smogIndicatorVisible = smogStatus.active && (smogStatus.inside || smogStatus.sourceFound || smogStatus.handled);
 
-  if (showCompactPanels) {
-    let financeY = routeCueVisible ? 45 * sy : 6 * sy;
-    if (smogIndicatorVisible && financeY < 84 * sy) financeY = 84 * sy;
-    if (financeY < barY - 28 * sy) drawHudFinanceCompact(ctx, player, state, sx, sy, time, financeY);
-  }
-
   // Weapon state — compact bottom-right panel, hidden under fullscreen overlays.
   if (showCompactPanels) {
-    const weapon = getWeaponReadiness(player);
-    const panelW = 132 * sx;
-    const panelH = 25 * sy;
-    const panelX = w - panelW - 4 * sx;
-    const panelY = barY - panelH - 4 * sy;
-    drawNeuroPanel(ctx, panelX, panelY, panelW, panelH, time, 190);
-
-    const wj = textJitter(time, 200);
-    ctx.font = `${7 * sy}px monospace`;
-    ctx.textAlign = 'left';
-    ctx.fillStyle = `rgba(200,230,255,${flicker(time, 201)})`;
-    const leftMax = panelW - 58 * sx;
-    ctx.fillText(fitHudText(ctx, hudWeaponName(weapon.name), leftMax), panelX + 6 * sx + wj.dx, panelY + 5 * sy + wj.dy);
-
-    ctx.textAlign = 'right';
-    ctx.fillStyle = '#8cf';
-    const roleLine = fitHudText(ctx, `${weapon.role} ${weapon.damageLabel}`, 50 * sx);
-    ctx.fillText(roleLine, panelX + panelW - 6 * sx + wj.dx, panelY + 5 * sy + wj.dy);
-
-    const stateLine = weapon.cannotFireReason
-      ? `${weapon.resourceLabel} | ${weapon.cannotFireReason}`
-      : `${weapon.resourceLabel} | ${weapon.cooldownLabel}`;
-    ctx.textAlign = 'left';
-    ctx.fillStyle = weapon.warning ? '#f84' : '#9d9';
-    ctx.fillText(fitHudText(ctx, stateLine, panelW - 12 * sx), panelX + 6 * sx, panelY + 15 * sy);
+    const weaponPanel = drawCombatWeaponPanel(ctx, combatWeapon!, w, barY, sx, sy, time);
 
     if (player.tool) {
       const toolName = ITEMS[player.tool]?.name ?? player.tool;
@@ -397,7 +722,9 @@ export function drawHUD(
       const tj = textJitter(time, 210);
       ctx.textAlign = 'right';
       ctx.fillStyle = `rgba(136,200,255,${flicker(time, 211)})`;
-      ctx.fillText(fitHudText(ctx, toolLabel, panelW), w - 8 * sx + tj.dx, panelY - 10 * sy + tj.dy);
+      if (weaponPanel.y > 14 * sy) {
+        ctx.fillText(fitHudText(ctx, toolLabel, weaponPanel.w), w - 8 * sx + tj.dx, weaponPanel.y - 10 * sy + tj.dy);
+      }
       ctx.fillStyle = '#ccc';
     }
     ctx.textAlign = 'left';
@@ -405,6 +732,9 @@ export function drawHUD(
 
   if (routeCueVisible) {
     drawRouteCueHint(ctx, w, sx, sy, time, player, world, routeCue);
+  }
+  if (showCompactPanels) {
+    drawVoidReturnPortalHint(ctx, w, sx, sy, time, player, state, world);
   }
 
   // Universal [E] interaction prompt (color changes per target object)
@@ -467,7 +797,8 @@ export function drawHUD(
       // Subtle glow behind
       ctx.shadowColor = `rgba(${er},${eg},${eb},0.4)`;
       ctx.shadowBlur = 6;
-      ctx.fillText(`[E]${processionHint || liftHint}`, w / 2 + ej.dx, h / 2 + 30 * sy + ej.dy);
+      const prompt = fitHudText(ctx, `[E]${processionHint || liftHint}`, w - 24 * sx);
+      ctx.fillText(prompt, w / 2 + ej.dx, h / 2 + 30 * sy + ej.dy);
       ctx.shadowBlur = 0;
       ctx.textAlign = 'left';
     }
@@ -495,6 +826,8 @@ export function drawHUD(
   const now = state.time;
   let my = 4 * sy;
   ctx.font = `${7 * sy}px monospace`;
+  const msgRightReserve = state.mapMode === 1 ? 90 * sx : 0;
+  const msgMaxW = Math.max(48 * sx, w - 8 * sx - msgRightReserve);
   for (let i = state.msgs.length - 1; i >= Math.max(0, state.msgs.length - MSG_MAX); i--) {
     const m = state.msgs[i];
     const age = now - m.time;
@@ -506,10 +839,11 @@ export function drawHUD(
     const alpha = age > 6 ? 1 - (age - 6) / 2 : 1;
     const mj = textJitter(time, i * 17 + 300);
     ctx.globalAlpha = alpha * flicker(time, i + 300);
+    const stampW = ctx.measureText(_stamp).width;
     ctx.fillStyle = '#556';
     ctx.fillText(_stamp, 4 * sx + mj.dx, my + mj.dy);
     ctx.fillStyle = m.color;
-    ctx.fillText(m.text, 4 * sx + ctx.measureText(_stamp).width + mj.dx, my + mj.dy);
+    ctx.fillText(fitHudText(ctx, m.text, msgMaxW - stampW), 4 * sx + stampW + mj.dx, my + mj.dy);
     my += 9 * sy;
   }
   ctx.globalAlpha = 1;
@@ -520,7 +854,11 @@ export function drawHUD(
   // ── Crosshair (neuro-style) ──────────────────────────────
   const cj = textJitter(time, 999);
   const cAlpha = 0.4 + Math.sin(time * 2) * 0.08;
-  ctx.strokeStyle = `rgba(0,220,200,${cAlpha})`;
+  const crossRgb = combatWeapon?.cannotFireReason ? '255,95,55'
+    : combatTarget ? '255,210,80'
+    : combatWeapon && combatWeapon.cooldown > 0.05 ? '90,180,255'
+    : '0,220,200';
+  ctx.strokeStyle = `rgba(${crossRgb},${cAlpha})`;
   ctx.lineWidth = 1;
   const cx = w / 2 + cj.dx * 0.3, cy = h / 2 + cj.dy * 0.3;
   ctx.beginPath();
@@ -530,8 +868,17 @@ export function drawHUD(
   ctx.moveTo(cx, cy + 2 * sy); ctx.lineTo(cx, cy + 6 * sy);
   ctx.stroke();
   // Small dot center
-  ctx.fillStyle = `rgba(0,255,220,${cAlpha * 0.6})`;
+  ctx.fillStyle = `rgba(${crossRgb},${cAlpha * 0.6})`;
   ctx.fillRect(cx - 0.5, cy - 0.5, 1, 1);
+  if (combatWeapon && combatWeapon.cooldownPct > 0.02) {
+    const r = 10 * Math.min(sx, sy);
+    ctx.strokeStyle = `rgba(${crossRgb},0.48)`;
+    ctx.lineWidth = Math.max(1, Math.min(sx, sy));
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * combatWeapon.readyPct);
+    ctx.stroke();
+  }
+  drawCombatSightFeedback(ctx, combatTarget, combatSignal, cx, cy, sx, sy, time);
 
   // ── Zone info + time + room (neuro-interface left panel) ──
   {
@@ -545,8 +892,9 @@ export function drawHUD(
     const day = Math.floor(state.clock.totalMinutes / 1440);
     const floorInstance = currentFloorInstanceLabel(state);
     const floorRun = currentFloorRunLabel(state);
-    if (floorRun) drawGlitchText(ctx, floorRun, 4 * sx, barY - 62 * sy, time, 398, '#8cf', 7 * sy);
-    if (floorInstance) drawGlitchText(ctx, `Лифт ${floorInstance}`, 4 * sx, barY - 52 * sy, time, 404, '#f4a', 8 * sy);
+    const leftInfoW = Math.max(70 * sx, Math.min(220 * sx, w - 150 * sx));
+    if (floorRun) drawGlitchText(ctx, fitHudText(ctx, floorRun, leftInfoW), 4 * sx, barY - 62 * sy, time, 398, '#8cf', 7 * sy);
+    if (floorInstance) drawGlitchText(ctx, fitHudText(ctx, `Лифт ${floorInstance}`, leftInfoW), 4 * sx, barY - 52 * sy, time, 404, '#f4a', 8 * sy);
     drawGlitchText(ctx, `День ${day}  ${hh}:${mm}`, 4 * sx, barY - 42 * sy, time, 400, '#8ac', 9 * sy);
     ctx.font = `${9 * sy}px monospace`;
 
@@ -557,16 +905,16 @@ export function drawHUD(
       const zj = textJitter(time, 410);
       ctx.fillStyle = `rgba(${zr},${zg},${zb},${flicker(time, 411)})`;
       ctx.font = `${8 * sy}px monospace`;
-      ctx.fillText(`■ Зона ${zid + 1}  Ур.${zone.level ?? 1}`, 4 * sx + zj.dx, barY - 32 * sy + zj.dy);
+      ctx.fillText(fitHudText(ctx, `■ Зона ${zid + 1}  Ур.${zone.level ?? 1}`, leftInfoW), 4 * sx + zj.dx, barY - 32 * sy + zj.dy);
       const fColor = zone.faction === ZoneFaction.SAMOSBOR ? '#c4f' : '#7aa';
-      drawGlitchText(ctx, fLabel, 4 * sx, barY - 22 * sy, time, 412, fColor, 7 * sy);
+      drawGlitchText(ctx, fitHudText(ctx, fLabel, leftInfoW), 4 * sx, barY - 22 * sy, time, 412, fColor, 7 * sy);
       ctx.font = `${7 * sy}px monospace`;
     }
 
     // Room info
     const room = world.roomAt(player.x, player.y);
     if (room) {
-      drawGlitchText(ctx, room.name, 4 * sx, barY - 12 * sy, time, 420, '#688', 7 * sy);
+      drawGlitchText(ctx, fitHudText(ctx, room.name, leftInfoW), 4 * sx, barY - 12 * sy, time, 420, '#688', 7 * sy);
       ctx.font = `${7 * sy}px monospace`;
     }
   }
@@ -621,7 +969,7 @@ export function drawHUD(
   }
   const liftArachnaWarning = getLiftArachnaWarningSnapshot(state);
   if (liftArachnaWarning && !state.gameOver) {
-    drawLiftArachnaWarning(ctx, w, sx, sy, time, liftArachnaWarning, (samosborWarning && !state.samosborActive ? 43 : 6) * sy);
+    drawLiftArachnaWarning(ctx, w, sx, sy, time, liftArachnaWarning, (samosborWarning && !state.samosborActive ? 66 : 6) * sy);
   }
   if (state.samosborActive) {
     const activeVariant = getActiveSamosborVariant();
@@ -640,20 +988,21 @@ export function drawHUD(
     ctx.fillStyle = activeVariant ? activeVariant.def.tint : `rgba(255,40,40,${sAlpha})`;
     ctx.font = `bold ${16 * sy}px monospace`;
     ctx.textAlign = 'center';
-    ctx.fillText(activeTitle, w / 2 + sj.dx * 3, 20 * sy + sj.dy * 2);
+    const fittedActiveTitle = fitHudText(ctx, activeTitle, w - 16 * sx);
+    ctx.fillText(fittedActiveTitle, w / 2 + sj.dx * 3, 20 * sy + sj.dy * 2);
     if (activeVariant) {
       ctx.font = `${8 * sy}px monospace`;
-      ctx.fillText(activeVariant.def.displayName, w / 2 + sj.dx, 38 * sy + sj.dy);
+      ctx.fillText(fitHudText(ctx, activeVariant.def.displayName, w - 16 * sx), w / 2 + sj.dx, 38 * sy + sj.dy);
       if (activeVariant.def.id === 'istotit') {
         const room = world.roomAt(player.x, player.y);
         const inShelter = room ? getSamosborShelterRoomIds(state).includes(room.id) : false;
         ctx.font = `${7 * sy}px monospace`;
-        ctx.fillText(inShelter ? '[E] впустить / закрыть' : '[E] идти на колокол', w / 2 + sj.dx, 48 * sy + sj.dy);
+        ctx.fillText(fitHudText(ctx, inShelter ? '[E] впустить / закрыть' : '[E] идти на колокол', w - 16 * sx), w / 2 + sj.dx, 48 * sy + sj.dy);
       }
     }
     // Doubled glitch offset copy
     ctx.fillStyle = `rgba(0,255,200,${sAlpha * 0.2})`;
-    ctx.fillText(activeTitle, w / 2 + sj.dx * 3 + 2, 20 * sy + sj.dy * 2 + 1);
+    ctx.fillText(fittedActiveTitle, w / 2 + sj.dx * 3 + 2, 20 * sy + sj.dy * 2 + 1);
     ctx.textAlign = 'left';
     ctx.shadowBlur = 0;
     ctx.restore();
@@ -702,7 +1051,7 @@ export function drawHUD(
       ctx.shadowBlur = 0;
       ctx.fillStyle = `rgba(136,170,136,${Math.min(1, (state.deathTimer - 2) * 0.4)})`;
       ctx.font = `${10 * sy}px monospace`;
-      ctx.fillText('Творец повержен. Хрущ отпустил вас.', w / 2, h / 2 + 10 * sy);
+      ctx.fillText(fitHudText(ctx, voidReturnVictoryLine(state), w * 0.82), w / 2, h / 2 + 10 * sy);
       ctx.fillText('[R] — заново', w / 2, h / 2 + 30 * sy);
       ctx.textAlign = 'left';
       ctx.restore();
@@ -732,9 +1081,13 @@ export function drawHUD(
     ctx.fillText('ВЫ ПОГИБЛИ', w / 2 + dj.dx * 2 + 3, h / 2 - 20 * sy + dj.dy + 1);
     ctx.shadowBlur = 0;
     ctx.fillStyle = `rgba(136,136,136,${Math.min(1, state.deathTimer * 0.5)})`;
+    const deathCause = inferDeathCause(state, player, world, entities);
     ctx.font = `${10 * sy}px monospace`;
-    ctx.fillText('Хрущ поглотил ещё одного', w / 2, h / 2 + 10 * sy);
-    ctx.fillText('[R] — заново', w / 2, h / 2 + 30 * sy);
+    ctx.fillText(deathCause.title, w / 2, h / 2 + 10 * sy);
+    ctx.font = `${8 * sy}px monospace`;
+    ctx.fillText(fitHudText(ctx, deathCause.detail, w * 0.82), w / 2, h / 2 + 24 * sy);
+    ctx.font = `${10 * sy}px monospace`;
+    ctx.fillText('[R] — заново', w / 2, h / 2 + 44 * sy);
     ctx.textAlign = 'left';
     ctx.restore();
   }

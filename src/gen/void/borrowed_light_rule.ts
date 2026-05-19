@@ -98,26 +98,26 @@ export function generateBorrowedLightRule(
     room.id,
     room.x + 3,
     room.y + (room.h >> 1),
-    'Квитанция: принять заемный свет',
+    'Квитанция: потребить заемный свет',
     [{
       defId: 'note',
       count: 1,
-      data: { text: 'ПРОТОКОЛ: взять свет взаймы. Награда выдается сразу. Комната сама выставит счет.' },
+      data: { text: 'ПРОТОКОЛ: потребить заемный свет. Награда выдается сразу. Комната сама выставит счет.' },
     }],
-    ['void_rule', 'borrowed_light', 'accept'],
+    ['void_rule', 'borrowed_light', 'consume'],
   );
   const rejectId = addRuleContainer(
     world,
     room.id,
     room.x + room.w - 4,
     room.y + (room.h >> 1),
-    'Квитанция: отказ от света',
+    'Квитанция: оставить свет уликой',
     [{
       defId: 'note',
       count: 1,
-      data: { text: 'ОТКАЗ: свет остается своим. Касса закрывает протокол без награды и без отдачи.' },
+      data: { text: 'ВЕЩДОК: свет не потреблен. Награды нет, зато проценты остаются на полу.' },
     }],
-    ['void_rule', 'borrowed_light', 'reject'],
+    ['void_rule', 'borrowed_light', 'keep', 'evidence'],
   );
 
   const ci = world.idx(room.x + (room.w >> 1), room.y + (room.h >> 1));

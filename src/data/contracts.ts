@@ -1,5 +1,5 @@
 import { Faction, FloorLevel, MonsterKind, QuestType, RoomType, type Quest } from '../core/types';
-import { PNEUMOMAIL_CONTRACT_ID, PNEUMOMAIL_ROOM_NAME } from './pneumomail';
+import { PNEUMOMAIL_CONTRACT_ID, PNEUMOMAIL_SORTER_ROOM_NAME } from './pneumomail';
 import { SILVER_SLIME_SEALED_ID } from './items';
 
 export interface ContractTarget {
@@ -42,6 +42,20 @@ export const GOVNYAK_COURIER_CONTRACT_IDS = [
   'govnyak_courier_confiscate',
   'govnyak_courier_switch',
 ] as const;
+export const NII_AUDIT_SCIENCE_CONTRACT_ID = 'exp_ministry_nii_science_sealed_sample';
+export const NII_AUDIT_LIQUIDATOR_CONTRACT_ID = 'exp_ministry_nii_liquidator_manifest';
+export const NII_AUDIT_MARKET_CONTRACT_ID = 'exp_ministry_nii_market_silver_sample';
+
+export const COMPACT_EXPEDITION_CONTRACT_IDS = [
+  'compact_living_shelter_retrieve',
+  'compact_kvartiry_water_delivery',
+  'compact_maint_sluice_repair',
+  'compact_maint_major_dispatch',
+  'compact_ministry_archive_visit',
+  'compact_ministry_pechateed_kill',
+  'compact_hell_voice_retrieve',
+  'compact_void_protocol_visit',
+] as const;
 
 const EXPEDITION_CONTRACTS: ContractDef[] = [
   {
@@ -56,6 +70,84 @@ const EXPEDITION_CONTRACTS: ContractDef[] = [
     rewardItem: 'nii_sample_container', rewardCount: 1, extraRewards: [{ defId: 'psi_stabilizer', count: 1 }],
     moneyReward: 230, rewardResourceId: 'zhelemish', rewardScarcityMax: 2.8,
     xpReward: 125, relationDelta: 13, tags: ['nii', 'zhelemish', 'sample', 'sealed', 'fetch', 'mushroom', 'science', 'contract'],
+  },
+  {
+    id: 'compact_living_shelter_retrieve', title: 'Малый список укрытия', issuer: 'Домком у гермы',
+    faction: Faction.CITIZEN, rank: 1, type: QuestType.FETCH,
+    desc: 'Короткая вылазка: достать список укрытия из малого аварийного ящика. Если ящик пуст, фамилии начнут искать людей сами.',
+    target: { floor: FloorLevel.LIVING, roomType: RoomType.COMMON, zoneTag: 'emergency_box', hint: 'Жилая зона: общий коридор или комната укрытия; ищите публичный аварийный ящик со списком.' },
+    targetItem: 'emergency_roster', targetCount: 1,
+    rewardItem: 'water_coupon', rewardCount: 2, extraRewards: [{ defId: 'bandage', count: 1 }],
+    moneyReward: 65, rewardResourceId: 'documents', rewardScarcityMax: 2.0,
+    xpReward: 40, relationDelta: 7, tags: ['compact_expedition', 'retrieve', 'floor_living', 'room_common', 'container', 'emergency_box', 'documents', 'samosbor'],
+  },
+  {
+    id: 'compact_kvartiry_water_delivery', title: 'Фильтрованная вода в очередь', issuer: 'Пайковый стол',
+    faction: Faction.CITIZEN, rank: 1, type: QuestType.FETCH,
+    desc: 'Короткая вылазка: доставить две бутылки фильтрованной воды на квартирную очередь. Толпа платит, пока ещё считает по стаканам.',
+    target: { floor: FloorLevel.KVARTIRY, roomType: RoomType.KITCHEN, zoneTag: 'ration_queue', hint: 'Квартиры: коммунальная кухня и пайковая очередь; воду лучше не светить в общем коридоре.' },
+    targetItem: 'filtered_water', targetCount: 2,
+    rewardItem: 'bread', rewardCount: 3, extraRewards: [{ defId: 'water_coupon', count: 1 }],
+    moneyReward: 80, rewardResourceId: 'drink_water', rewardScarcityMax: 2.5,
+    xpReward: 50, relationDelta: 9, tags: ['compact_expedition', 'deliver', 'floor_kvartiry', 'room_kitchen', 'ration_queue', 'water', 'scarcity'],
+  },
+  {
+    id: 'compact_maint_sluice_repair', title: 'Герметик к мокрому шлюзу', issuer: 'Пост перелива',
+    faction: Faction.CITIZEN, rank: 2, type: QuestType.FETCH,
+    desc: 'Короткая вылазка: принести герметик к мокрому шлюзу, пока вода не сделала ремонт необязательным для живых.',
+    target: { floor: FloorLevel.MAINTENANCE, roomType: RoomType.PRODUCTION, zoneTag: 'overflow_sluice', hint: 'Коллекторы: мокрый шлюз, насосная или инструментальный шкаф рядом с переливом.' },
+    targetItem: 'sealant_tube', targetCount: 1,
+    rewardItem: 'filtered_water', rewardCount: 2, extraRewards: [{ defId: 'fuse', count: 1 }],
+    moneyReward: 115, rewardResourceId: 'tools', rewardScarcityMax: 2.4,
+    xpReward: 65, relationDelta: 10, tags: ['compact_expedition', 'repair', 'floor_maintenance', 'room_production', 'overflow_sluice', 'tools', 'water'],
+  },
+  {
+    id: 'compact_maint_major_dispatch', title: 'Сводка на форпост', issuer: 'Лифтовой диспетчер',
+    faction: Faction.LIQUIDATOR, rank: 2, type: QuestType.TALK,
+    desc: 'Короткая вылазка: дойти до Майора Громного и передать сводку по лифтам. Бумага должна прийти раньше патруля.',
+    target: { floor: FloorLevel.MAINTENANCE, roomType: RoomType.HQ, zoneTag: 'forpost', hint: 'Коллекторы: форпост ликвидаторов Майора Громного; держитесь сухих переходов.' },
+    targetPlotNpcId: 'major_grom', targetNpcName: 'Майор Громный',
+    rewardItem: 'ammo_762', rewardCount: 10, extraRewards: [{ defId: 'liquidator_ration', count: 1 }],
+    moneyReward: 125, rewardResourceId: 'ammo', rewardScarcityMax: 2.2,
+    xpReward: 70, relationDelta: 12, tags: ['compact_expedition', 'talk', 'deliver', 'floor_maintenance', 'room_hq', 'forpost', 'liquidator', 'ammo'],
+  },
+  {
+    id: 'compact_ministry_archive_visit', title: 'Сверить живую картотеку', issuer: 'Инспекционное окно',
+    faction: Faction.CITIZEN, rank: 1, type: QuestType.VISIT,
+    desc: 'Короткая вылазка: войти в министерскую картотеку и убедиться, что шкафы ещё стоят на месте, а не читают посетителей.',
+    target: { floor: FloorLevel.MINISTRY, roomType: RoomType.STORAGE, zoneTag: 'archive', hint: 'Министерство: архивная картотека, закрытые шкафы и зеленые учетные лампы.' },
+    rewardItem: 'official_permit_slip', rewardCount: 1,
+    moneyReward: 105, rewardResourceId: 'documents', rewardScarcityMax: 2.2,
+    xpReward: 55, relationDelta: 8, tags: ['compact_expedition', 'visit', 'floor_ministry', 'room_storage', 'archive', 'documents', 'inspect'],
+  },
+  {
+    id: 'compact_ministry_pechateed_kill', title: 'Печатеед у описи', issuer: 'Архивная охрана',
+    faction: Faction.LIQUIDATOR, rank: 2, type: QuestType.KILL,
+    desc: 'Короткая вылазка: убить печатееда у архивной описи. Если он доест журналы, пропуска начнут выбирать владельцев сами.',
+    target: { floor: FloorLevel.MINISTRY, roomType: RoomType.STORAGE, zoneTag: 'archive_combat', hint: 'Министерство: архивные стеллажи и картотека; держите дистанцию от бумажной пасти.' },
+    targetMonsterKind: MonsterKind.PECHATEED, killNeeded: 1,
+    rewardItem: 'ammo_nagant', rewardCount: 12, extraRewards: [{ defId: 'temp_pass', count: 1 }],
+    moneyReward: 150, rewardResourceId: 'ammo', rewardScarcityMax: 2.3,
+    xpReward: 85, relationDelta: 11, tags: ['compact_expedition', 'kill', 'floor_ministry', 'room_storage', 'archive_combat', 'combat', 'documents'],
+  },
+  {
+    id: 'compact_hell_voice_retrieve', title: 'Банка из мясного тайника', issuer: 'Тихий приемщик',
+    faction: Faction.CULTIST, rank: 3, type: QuestType.FETCH,
+    desc: 'Короткая вылазка: вынести голос в банке из адского тайника. Не отвечайте банке, даже если она говорит вашим голосом.',
+    target: { floor: FloorLevel.HELL, roomType: RoomType.STORAGE, zoneTag: 'secret_stash', hint: 'Преисподняя: мясной склад, тайник у порога или обожженная сторожка с банкой.' },
+    targetItem: 'bottled_voice', targetCount: 1,
+    rewardItem: 'holy_water', rewardCount: 1, extraRewards: [{ defId: 'antidep', count: 1 }],
+    moneyReward: 170, rewardResourceId: 'medicine', rewardScarcityMax: 2.4,
+    xpReward: 95, relationDelta: 8, tags: ['compact_expedition', 'retrieve', 'floor_hell', 'room_storage', 'secret_stash', 'psi', 'medicine'],
+  },
+  {
+    id: 'compact_void_protocol_visit', title: 'Проверить зеленый протокол', issuer: 'Нулевая канцелярия',
+    faction: Faction.SCIENTIST, rank: 4, type: QuestType.VISIT,
+    desc: 'Короткая вылазка: войти в протокольную Пустоты и отметить, где зеленая стена перестала притворяться стеной.',
+    target: { floor: FloorLevel.VOID, roomType: RoomType.COMMON, zoneTag: 'void_protocol', hint: 'Пустота: зеленые протокольные проходы; не стойте на линии текста дольше пары вдохов.' },
+    rewardItem: 'psi_dust', rewardCount: 1,
+    moneyReward: 210, rewardResourceId: 'psi', rewardScarcityMax: 2.6,
+    xpReward: 125, relationDelta: 10, tags: ['compact_expedition', 'visit', 'floor_void', 'room_anomaly', 'void_protocol', 'psi', 'inspect'],
   },
   {
     id: 'exp_living_emergency_roster', title: 'Список из аварийного ящика', issuer: 'Дежурная по укрытию',
@@ -117,6 +209,45 @@ const EXPEDITION_CONTRACTS: ContractDef[] = [
     xpReward: 60, relationDelta: 8, tags: ['expedition', 'floor_ministry', 'room_office', 'inspect', 'visit', 'documents'],
   },
   {
+    id: NII_AUDIT_SCIENCE_CONTRACT_ID, title: 'Чистая цепочка НИИ', issuer: 'НИИ слизи, стол ревизии',
+    faction: Faction.SCIENTIST, rank: 3, type: QuestType.FETCH,
+    desc: 'Вылазка: найти ревизионную НИИ и вернуть серебристую пробу в пломбе. Легальная цепочка платит меньше рынка, зато оставляет вас в журнале исследователем, а не курьером.',
+    target: {
+      floor: FloorLevel.MINISTRY, roomType: RoomType.OFFICE, roomName: 'Ревизионная НИИ: утечка проб',
+      zoneTag: 'nii_contraband_audit', hint: 'Министерство: ревизионная НИИ, клетка серебристых проб за запертой перегородкой.',
+    },
+    targetItem: SILVER_SLIME_SEALED_ID, targetCount: 1,
+    rewardItem: 'psi_stabilizer', rewardCount: 1, extraRewards: [{ defId: 'official_quarantine_clearance', count: 1 }],
+    moneyReward: 220, rewardResourceId: 'slime_samples', rewardScarcityMax: 2.7,
+    xpReward: 95, relationDelta: 12, tags: ['expedition', 'floor_ministry', 'room_office', 'nii', 'evidence', 'science', 'legal', 'sample'],
+  },
+  {
+    id: NII_AUDIT_LIQUIDATOR_CONTRACT_ID, title: 'Ведомость утечки НИИ', issuer: 'Ликвидаторская опись',
+    faction: Faction.LIQUIDATOR, rank: 3, type: QuestType.FETCH,
+    desc: 'Вылазка: вынести ведомость утечки НИИ из ревизионной комнаты. Ликвидаторы платят за бумагу, после которой шкафы начинают бояться собственного адреса.',
+    target: {
+      floor: FloorLevel.MINISTRY, roomType: RoomType.OFFICE, roomName: 'Ревизионная НИИ: утечка проб',
+      zoneTag: 'nii_contraband_audit', hint: 'Министерство: ревизионная НИИ, сейф проб и картотека списаний.',
+    },
+    targetItem: 'nii_contraband_manifest', targetCount: 1,
+    rewardItem: 'official_permit_slip', rewardCount: 1, extraRewards: [{ defId: 'ammo_9mm', count: 12 }],
+    moneyReward: 185, rewardResourceId: 'ammo', rewardScarcityMax: 2.8,
+    xpReward: 100, relationDelta: 13, tags: ['expedition', 'floor_ministry', 'room_office', 'nii', 'evidence', 'liquidator', 'legal', 'documents'],
+  },
+  {
+    id: NII_AUDIT_MARKET_CONTRACT_ID, title: 'Серебристая проба без накладной', issuer: 'Тихая скупка НИИ',
+    faction: Faction.WILD, rank: 3, type: QuestType.FETCH,
+    desc: 'Вылазка: унести серебристую пробу из ревизионной НИИ на рынок. Деньги выше, пломба целее, а вопросы потом задают уже не продавцу.',
+    target: {
+      floor: FloorLevel.MINISTRY, roomType: RoomType.OFFICE, roomName: 'Ревизионная НИИ: утечка проб',
+      zoneTag: 'nii_contraband_audit', hint: 'Министерство: ревизионная НИИ, запертая клетка проб и конверт без накладной.',
+    },
+    targetItem: SILVER_SLIME_SEALED_ID, targetCount: 1,
+    rewardItem: 'forged_stamp_sheet', rewardCount: 1, extraRewards: [{ defId: 'nii_market_receipt', count: 1 }],
+    moneyReward: 315, rewardResourceId: 'contraband', rewardScarcityMax: 3.2,
+    xpReward: 85, relationDelta: 8, tags: ['expedition', 'floor_ministry', 'room_office', 'nii', 'evidence', 'wild', 'black_market', 'contraband'],
+  },
+  {
     id: 'exp_kvartiry_ration_stamp', title: 'Штемпель из очереди', issuer: 'Пайковый комитет',
     faction: Faction.CITIZEN, rank: 1, type: QuestType.FETCH,
     desc: 'Вылазка: пройти на этаж Квартир и достать пайковую штемпельную подушку из кассы или кухни, пока очередь не начала ставить печати кулаками.',
@@ -146,17 +277,56 @@ const EXPEDITION_CONTRACTS: ContractDef[] = [
     xpReward: 50, relationDelta: 8, tags: ['expedition', 'floor_kvartiry', 'room_common', 'inspect', 'visit', 'water', 'riot'],
   },
   {
+    id: 'exp_kvartiry_print_audit_forgery', title: 'Аудит из подпольной печати', issuer: 'Ночное окно ревизии',
+    faction: Faction.WILD, rank: 2, type: QuestType.FETCH,
+    desc: 'Вылазка: достать в квартирной типографии липовое аудиторское предписание для министерского прохода. Заплатите Диме бланками, купите у него готовый лист или вынесите тихо; шум превратит бумагу в проверку лиц.',
+    target: {
+      floor: FloorLevel.KVARTIRY, roomType: RoomType.OFFICE, roomName: 'Нелегальная типография',
+      zoneTag: 'kvartiry_print_room', hint: 'Квартиры: нелегальная типография Димы Печатника. Нужны чистые бланки, деньги на готовый лист или тихие руки без свидетелей.',
+    },
+    targetItem: 'ministry_audit_forgery', targetCount: 1,
+    rewardItem: 'archive_access_permit', rewardCount: 1, extraRewards: [{ defId: 'cigs', count: 3 }],
+    moneyReward: 125, rewardResourceId: 'documents', rewardScarcityMax: 2.6,
+    xpReward: 75, relationDelta: 5, tags: ['print_room', 'forgery', 'ministry', 'audit', 'material_cost', 'access', 'document_gate', 'stealth', 'documents', 'expedition', 'floor_kvartiry', 'room_office', 'contraband'],
+  },
+  {
     id: 'exp_maint_brown_slime_cleanup', title: 'Коричневая слизь в сухом обходе', issuer: 'Домком санпоста',
     faction: Faction.CITIZEN, rank: 1, type: QuestType.FETCH,
-    desc: 'Вылазка: спуститься в сухой обход коллекторов, счистить коричневую слизь чистящим комплектом или огнём и принести акт обработки. Запах уже пошёл в жилой стояк.',
+    desc: 'Вылазка: спуститься в сухой обход коллекторов, счистить коричневую слизь чистящим комплектом или огнём и принести акт обработки. Пломбированную пробу дальше можно сдать НИИ, прожечь в печи или продать без журнала.',
     target: {
       floor: FloorLevel.MAINTENANCE, roomType: RoomType.PRODUCTION, roomName: 'Сухой обход: коричневая слизь',
-      zoneTag: 'brown_slime_cleanup', hint: 'Коллекторы: сухой обход с коричневым налётом. Чистящий комплект работает тихо; огнемёт быстрее, но жжёт бензин и портит горючее рядом.',
+      zoneTag: 'brown_slime_cleanup', hint: 'Коллекторы: сухой обход с коричневым налётом. Акт и проба лежат в комнате; чистящий комплект тихий, огнемёт быстрее, но жжёт бензин.',
     },
     targetItem: 'brown_slime_cleanup_act', targetCount: 1,
     rewardItem: 'water_coupon', rewardCount: 3, extraRewards: [{ defId: 'gasmask_filter', count: 1 }, { defId: 'ammo_fuel', count: 1 }],
-    moneyReward: 95, rewardResourceId: 'medicine', rewardScarcityMax: 2.0,
-    xpReward: 55, relationDelta: 10, tags: ['expedition', 'floor_maintenance', 'room_production', 'cleanup', 'slime', 'brown_slime', 'hygiene', 'flamethrower'],
+    moneyReward: 95, rewardResourceId: 'fuel', rewardScarcityMax: 2.0,
+    xpReward: 55, relationDelta: 10, tags: ['expedition', 'floor_maintenance', 'room_production', 'cleanup', 'slime', 'brown_slime', 'hygiene', 'flamethrower', 'slime_chain'],
+  },
+  {
+    id: 'exp_maint_green_acid_sample', title: 'Зелёная проба под фильтром', issuer: 'НИИ слизи, кислотный стол',
+    faction: Faction.SCIENTIST, rank: 3, type: QuestType.FETCH,
+    desc: 'Вылазка: взять зелёную кислотную пробу в НИИ-комнате и не дать ей съесть органику в сумке. Фильтрующий слой дешевле повторной попытки.',
+    target: {
+      floor: FloorLevel.MAINTENANCE, roomType: RoomType.PRODUCTION, roomName: 'НИИ Слизи: зелёная кислотная проба',
+      zoneTag: 'green_acid_sample', hint: 'Коллекторы: зелёная кислотная комната. Возьми фильтрующий слой у стола, пробу держи отдельно от еды и ткани.',
+    },
+    targetItem: 'slime_sample_green', targetCount: 1,
+    rewardItem: 'nii_sample_container', rewardCount: 1, extraRewards: [{ defId: 'gasmask_filter', count: 1 }],
+    moneyReward: 185, rewardResourceId: 'slime_samples', rewardScarcityMax: 2.8,
+    xpReward: 95, relationDelta: 11, tags: ['expedition', 'floor_maintenance', 'room_production', 'science', 'nii', 'slime', 'sample', 'green_acid', 'slime_chain'],
+  },
+  {
+    id: 'exp_maint_furnace_burn_residue', title: 'Пробу в гашёный остаток', issuer: 'Печь деактивации',
+    faction: Faction.LIQUIDATOR, rank: 2, type: QuestType.FETCH,
+    desc: 'Вылазка: принести гашёный остаток после прожига коричневой пробы. Источник — сухой обход, путь короче через печь, рынок платит за то же самое до огня.',
+    target: {
+      floor: FloorLevel.MAINTENANCE, roomType: RoomType.PRODUCTION, roomName: 'Печь деактивации слизи: шумный пуск',
+      zoneTag: 'deactivation_furnace', hint: 'Коллекторы: сухой обход даёт коричневую пробу; печь деактивации выдаёт гашёный остаток, если не продать пробу Сеньке.',
+    },
+    targetItem: 'deactivated_residue', targetCount: 1,
+    rewardItem: 'ammo_fuel', rewardCount: 2, extraRewards: [{ defId: 'filter_receipt', count: 1 }],
+    moneyReward: 125, rewardResourceId: 'fuel', rewardScarcityMax: 2.4,
+    xpReward: 80, relationDelta: 10, tags: ['expedition', 'floor_maintenance', 'room_production', 'liquidator', 'slime', 'burn', 'cleanup', 'deactivated_residue', 'slime_chain'],
   },
   {
     id: 'exp_maint_pressure_repair', title: 'Манометр для перепада', issuer: 'Пост давления',
@@ -171,8 +341,8 @@ const EXPEDITION_CONTRACTS: ContractDef[] = [
   {
     id: 'exp_maint_tube_eel_clear', title: 'Угорь в мокром пролете', issuer: 'Дежурный шлюза',
     faction: Faction.LIQUIDATOR, rank: 3, type: QuestType.KILL,
-    desc: 'Вылазка: зачистить трубного угря в коллекторах, чтобы ремонтники дошли до воды, а не стали частью лотка.',
-    target: { floor: FloorLevel.MAINTENANCE, roomType: RoomType.PRODUCTION, zoneTag: 'overflow_sluice', hint: 'Коллекторы: мокрый пролет, шлюз или труба с засадой.' },
+    desc: 'Вылазка: зачистить трубного угря в коллекторах, чтобы ремонтники дошли до воды, а не стали частью лотка. Держись сухой кромки, бери гарпун или бросай приманку.',
+    target: { floor: FloorLevel.MAINTENANCE, roomType: RoomType.PRODUCTION, zoneTag: 'overflow_sluice', hint: 'Коллекторы: мокрый пролет, шлюз или труба с засадой; вода режет шаг, сухая кромка и приманка выигрывают секунды.' },
     targetMonsterKind: MonsterKind.TUBE_EEL, killNeeded: 1,
     rewardItem: 'ammo_harpoon', rewardCount: 6, extraRewards: [{ defId: 'metal_water', count: 2 }],
     moneyReward: 170, rewardResourceId: 'ammo', rewardScarcityMax: 2.3,
@@ -283,7 +453,7 @@ const EXPEDITION_CONTRACTS: ContractDef[] = [
     target: { floor: FloorLevel.VOID, roomType: RoomType.COMMON, zoneTag: 'void_protocol', hint: 'Пустота: зеленые стены и протокольные проходы.' },
     targetMonsterKind: MonsterKind.PARAGRAPH, killNeeded: 2,
     rewardItem: 'ammo_energy', rewardCount: 2, extraRewards: [{ defId: 'siren_shard', count: 1 }],
-    moneyReward: 260, rewardResourceId: 'ammo', rewardScarcityMax: 2.6,
+    moneyReward: 260, rewardResourceId: 'electronics', rewardScarcityMax: 2.6,
     xpReward: 160, relationDelta: 12, tags: ['expedition', 'floor_void', 'room_anomaly', 'combat', 'kill', 'ammo', 'void_contract'],
   },
 ];
@@ -313,7 +483,8 @@ export const CONTRACTS: ContractDef[] = [
     desc: 'Задание 88: вынести жетон ликвидатора из долгового ящика. Шум считается согласием на риск и приглашением охраны.',
     target: { floor: FloorLevel.LIVING, roomType: RoomType.STORAGE, zoneTag: 'black_market_88', hint: 'Жилая зона: долговой ящик черного рынка 88.' },
     targetItem: 'liquidator_token', targetCount: 1, rewardItem: 'ammo_energy', rewardCount: 1,
-    moneyReward: 120, xpReward: 55, relationDelta: 8, tags: ['black_market', 'theft', 'container', 'liquidator'],
+    moneyReward: 120, rewardResourceId: 'electronics', rewardScarcityMax: 2.0,
+    xpReward: 55, relationDelta: 8, tags: ['black_market', 'theft', 'container', 'liquidator'],
   },
   {
     id: 'bm88_snitch_file', title: 'Бумага на стукача', issuer: 'Нина Шептунья',
@@ -329,7 +500,7 @@ export const CONTRACTS: ContractDef[] = [
     desc: 'Задание 88: доставить фальшивый пропуск тому, кого списки не признают жильцом.',
     target: { floor: FloorLevel.MINISTRY, roomType: RoomType.OFFICE, zoneTag: 'documents', hint: 'Министерство: пропускные окна и шкафы с бланками.' },
     targetItem: 'fake_pass', targetCount: 1, rewardItem: 'key', rewardCount: 1,
-    moneyReward: 88, xpReward: 35, relationDelta: 7, tags: ['black_market', 'documents', 'paper'],
+    moneyReward: 88, xpReward: 35, relationDelta: 7, tags: ['black_market', 'documents', 'paper', 'forged', 'document_gate', 'audit_risk'],
   },
   {
     id: 'govnyak_courier_deliver', title: 'Пакет без вопросов: доставка', issuer: 'Счетная 88',
@@ -367,7 +538,8 @@ export const CONTRACTS: ContractDef[] = [
     desc: 'Пульт ликвидации: две сборки режут жилые коридоры. Уберите их, пока жильцы не начали считать это нормой.',
     target: { floor: FloorLevel.LIVING, roomType: RoomType.CORRIDOR, zoneTag: 'living_corridor', hint: 'Жилая зона: шумные коридоры рядом с квартирами.' },
     targetMonsterKind: MonsterKind.SBORKA, killNeeded: 2, rewardItem: 'ammo_9mm', rewardCount: 18,
-    moneyReward: 70, xpReward: 35, relationDelta: 8, tags: ['liquidator', 'combat'],
+    moneyReward: 70, rewardResourceId: 'ammo', rewardScarcityMax: 1.8,
+    xpReward: 35, relationDelta: 8, tags: ['liquidator', 'combat'],
   },
   {
     id: 'liq_polzun_bounty', title: 'Ползун под пайком', issuer: 'Сержант выдачи',
@@ -383,7 +555,8 @@ export const CONTRACTS: ContractDef[] = [
     desc: 'Комната протокола: уничтожить теневика и не спрашивать, чей силуэт он носит.',
     target: { floor: FloorLevel.LIVING, roomType: RoomType.COMMON, zoneTag: 'act_hall', hint: 'Жилая зона: большие залы, где свет не держится.' },
     targetMonsterKind: MonsterKind.SHADOW, killNeeded: 1, rewardItem: 'ammo_shells', rewardCount: 8,
-    moneyReward: 160, xpReward: 75, relationDelta: 12, tags: ['liquidator', 'combat', 'hard'],
+    moneyReward: 160, rewardResourceId: 'ammo', rewardScarcityMax: 2.2,
+    xpReward: 75, relationDelta: 12, tags: ['liquidator', 'combat', 'hard'],
   },
   {
     id: 'admin_ballot_recovery', title: 'Вернуть бюллетени', issuer: 'Окно N7',
@@ -415,7 +588,7 @@ export const CONTRACTS: ContractDef[] = [
     desc: 'Картотека: добыть краденую архивную карточку. Служебный журнал делает вид, что спит.',
     target: { floor: FloorLevel.MINISTRY, roomType: RoomType.STORAGE, zoneTag: 'archive_theft', hint: 'Министерство: живой архив и закрытые ящики.' },
     targetItem: 'stolen_archive_card', targetCount: 1, rewardItem: 'personal_file_copy', rewardCount: 1,
-    moneyReward: 130, xpReward: 70, relationDelta: 6, tags: ['admin', 'paper', 'archive', 'theft'],
+    moneyReward: 130, xpReward: 70, relationDelta: 6, tags: ['admin', 'paper', 'archive', 'theft', 'stolen', 'access', 'audit'],
   },
   {
     id: 'archive_missing_file_return', title: 'Вернуть пропавшее дело', issuer: 'Инспектор архива',
@@ -456,7 +629,8 @@ export const CONTRACTS: ContractDef[] = [
     desc: 'Квартиры: отбить арматурника у водной очереди, пока толпа не решила, что стояк уже ничей.',
     target: { floor: FloorLevel.KVARTIRY, roomType: RoomType.BATHROOM, zoneTag: 'water_riot', hint: 'Квартиры: водный пост ликвидаторов у стояка.' },
     targetMonsterKind: MonsterKind.REBAR, killNeeded: 1, rewardItem: 'ammo_9mm', rewardCount: 14,
-    moneyReward: 120, xpReward: 65, relationDelta: 10, tags: ['kvartiry', 'water_riot', 'liquidator', 'defense', 'combat'],
+    moneyReward: 120, rewardResourceId: 'ammo', rewardScarcityMax: 1.9,
+    xpReward: 65, relationDelta: 10, tags: ['kvartiry', 'water_riot', 'liquidator', 'defense', 'combat'],
   },
   {
     id: 'kv_water_coupon_heist', title: 'Талоны без очереди', issuer: 'Дикий приемщик воды',
@@ -507,7 +681,7 @@ export const CONTRACTS: ContractDef[] = [
       zoneTag: 'liquidator_archive', hint: 'Министерство: архив ликвидаторских дел, запертая картотека Л-47.',
     },
     rewardItem: 'ammo_762tt', rewardCount: 8,
-    moneyReward: 120, rewardResourceId: 'documents', rewardScarcityMax: 2.2,
+    moneyReward: 120, rewardResourceId: 'ammo', rewardScarcityMax: 2.2,
     xpReward: 65, relationDelta: 9, tags: ['ministry', 'liquidator', 'archive', 'inspect', 'visit', 'documents'],
   },
   {
@@ -552,7 +726,7 @@ export const CONTRACTS: ContractDef[] = [
     desc: 'Окно N3: принести официальный корешок пропуска. Проверочный коридор уважает бумагу больше дыхания.',
     target: { floor: FloorLevel.MINISTRY, roomType: RoomType.OFFICE, zoneTag: 'document_gate', hint: 'Министерство: проверочный коридор, где сначала смотрят на бумагу.' },
     targetItem: 'official_permit_slip', targetCount: 1, rewardItem: 'key', rewardCount: 1,
-    moneyReward: 100, xpReward: 55, relationDelta: 8, tags: ['ministry', 'admin', 'paper', 'access', 'document_gate'],
+    moneyReward: 100, xpReward: 55, relationDelta: 8, tags: ['ministry', 'admin', 'paper', 'documents', 'official', 'access', 'document_gate'],
   },
   {
     id: 'ministry_weapon_permit_packet', title: 'Пакет на короткоствол', issuer: 'Бюро оружразрешений',
@@ -568,7 +742,8 @@ export const CONTRACTS: ContractDef[] = [
     desc: 'Патронный пост: сдать ордер за малую выдачу девятки. Больше бюро не проводит, меньше стыдно выдавать.',
     target: { floor: FloorLevel.MINISTRY, roomType: RoomType.OFFICE, zoneTag: 'weapon_permit', hint: 'Министерство: патронный пост бюро оружейных разрешений.' },
     targetItem: 'ammo_issue_order', targetCount: 1, rewardItem: 'ammo_9mm', rewardCount: 10,
-    moneyReward: 25, xpReward: 35, relationDelta: 5, tags: ['ministry', 'ammo', 'paper', 'weapon_permit'],
+    moneyReward: 25, rewardResourceId: 'ammo', rewardScarcityMax: 1.7,
+    xpReward: 35, relationDelta: 5, tags: ['ministry', 'ammo', 'paper', 'weapon_permit'],
   },
   {
     id: 'ministry_weapon_permit_forgery', title: 'Липовый короткоствол', issuer: 'Ночное окно бюро',
@@ -592,7 +767,7 @@ export const CONTRACTS: ContractDef[] = [
     desc: 'Комната печатей: сдать два кованых корешка, пока настоящая печать не начала охоту за подделками.',
     target: { floor: FloorLevel.MINISTRY, roomType: RoomType.STORAGE, zoneTag: 'forgery', hint: 'Министерство: комната печатей и поддельные корешки.' },
     targetItem: 'forged_permit_slip', targetCount: 2, rewardItem: 'official_permit_slip', rewardCount: 1,
-    moneyReward: 95, xpReward: 45, relationDelta: 8, tags: ['admin', 'paper', 'forged'],
+    moneyReward: 95, xpReward: 45, relationDelta: 8, tags: ['admin', 'paper', 'forged', 'documents', 'forgery', 'audit', 'document_gate'],
   },
   {
     id: 'admin_quarantine_clearance', title: 'Чистые справки', issuer: 'Карантинный стол',
@@ -632,7 +807,8 @@ export const CONTRACTS: ContractDef[] = [
     desc: 'Задание: принести магазинную деталь в патронный шкаф домкома. За ремонт учета выдадут немного 9мм.',
     target: { floor: FloorLevel.LIVING, roomType: RoomType.STORAGE, zoneTag: 'domkom_ammo', hint: 'Жилая зона: патронный шкаф домкома и его пломбированные ящики.' },
     targetItem: 'magazine_part', targetCount: 1, rewardItem: 'ammo_9mm', rewardCount: 8,
-    moneyReward: 35, xpReward: 35, relationDelta: 7, tags: ['citizen', 'supply', 'container', 'ammo', 'living'],
+    moneyReward: 35, rewardResourceId: 'ammo', rewardScarcityMax: 1.6,
+    xpReward: 35, relationDelta: 7, tags: ['citizen', 'supply', 'container', 'ammo', 'living'],
   },
   {
     id: 'citizen_food_stock', title: 'Склад голода', issuer: 'Кухонный комитет',
@@ -680,7 +856,8 @@ export const CONTRACTS: ContractDef[] = [
     desc: 'Задание: зачистить двух трубных угрей у сухого моста. Держись бетона и не принимай бой в воде.',
     target: { floor: FloorLevel.MAINTENANCE, roomType: RoomType.CORRIDOR, zoneTag: 'water_bridge', hint: 'Коллекторы: сухой мост над водяным лотком, где угри быстры только в воде.' },
     targetMonsterKind: MonsterKind.TUBE_EEL, killNeeded: 2, rewardItem: 'ammo_9mm', rewardCount: 18,
-    moneyReward: 120, xpReward: 65, relationDelta: 10, tags: ['maintenance', 'water_bridge', 'combat', 'water'],
+    moneyReward: 120, rewardResourceId: 'ammo', rewardScarcityMax: 2.0,
+    xpReward: 65, relationDelta: 10, tags: ['maintenance', 'water_bridge', 'combat', 'water'],
   },
   {
     id: 'industry_repair_concentrate_line', title: 'Вал концентрата', issuer: 'Мастер брикетного цеха',
@@ -728,8 +905,8 @@ export const CONTRACTS: ContractDef[] = [
     faction: Faction.LIQUIDATOR, rank: 2, type: QuestType.FETCH,
     desc: 'Задание: принести журнал давления, отмеченный пневмопочтовым талоном. Труба старше доверия, но контроль платит за бумагу.',
     target: {
-      floor: FloorLevel.MAINTENANCE, roomType: RoomType.PRODUCTION, roomName: PNEUMOMAIL_ROOM_NAME,
-      zoneTag: 'pneumomail', hint: 'Коллекторы: пневмопочтовый узел, насосные шкафы и соседние посты давления.',
+      floor: FloorLevel.MAINTENANCE, roomType: RoomType.STORAGE, roomName: PNEUMOMAIL_SORTER_ROOM_NAME,
+      zoneTag: 'pneumomail', hint: 'Коллекторы: пневмопочтовый узел, сортировка чужих капсул. Журнал давления лежит в приемной или в сортировке.',
     },
     targetItem: 'pressure_logbook', targetCount: 1,
     rewardItem: 'fuse', rewardCount: 2, extraRewards: [{ defId: 'water_coupon', count: 2 }],

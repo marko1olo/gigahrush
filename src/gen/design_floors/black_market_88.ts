@@ -113,6 +113,7 @@ const MAX_DEBTS = 64;
 const MAX_HEAT = 100;
 const MIN_TRUST = -5;
 const MAX_TRUST = 5;
+const MARKET88_QUEUE_CROWD_CAP = 16;
 
 export const BLACK_MARKET_88_STOCK: readonly Market88StockRow[] = [
   {
@@ -233,7 +234,7 @@ export const BLACK_MARKET_88_CONTRACT_ROWS = [
     requiredTrust: 0,
     heatDelta: 5,
     debtSettlementIds: ['market88.debt.faction_marker'],
-    rewardTable: ['fake_pass', 'rubles'],
+    rewardTable: ['fake_pass', 'money'],
     failureConsequence: 'ministry audit pressure',
   },
 ] as const;
@@ -349,6 +350,7 @@ const NPC_DEFS: Record<string, PlotNpcDef> = {
       'Касса не покупает обратно то, что сама испугалась продать.',
       'Хочешь дешевле - принеси товар, снизь жар или закрой чей-нибудь долг.',
       'После мокрого самосбора сухой хлеб идет как документ.',
+      'Входная касса стоит у самой двери: берешь честный талон или идешь через люк с долгом.',
     ],
     talkLinesPost: [
       'Касса открыта. Ящик закрыт. Это разные новости.',
@@ -667,6 +669,7 @@ export function generateBlackMarket88DesignFloor(): FloorGeneration {
   addAccessLifts(world, rooms);
 
   const npcs = spawnMarketNpcs(world, entities, nextId, rooms);
+  spawnMarketQueueCrowd(world, entities, nextId, rooms);
   seedMarketContainers(world, rooms, npcs);
 
   sanitizeDoors(world);
@@ -1262,7 +1265,68 @@ function spawnNpc(
   return entity;
 }
 
+function spawnMarketQueueCrowd(
+  world: World,
+  entities: Entity[],
+  nextId: { v: number },
+  rooms: MarketRooms,
+): void {
+  const spots: readonly { name: string; faction: Faction; occupation: Occupation; x: number; y: number; item: string; weapon?: string }[] = [
+    { name: 'Очередник с пустым талоном 88', faction: Faction.CITIZEN, occupation: Occupation.TRAVELER, x: rooms.publicGate.x + 2, y: rooms.publicGate.y + 2, item: 'water_coupon' },
+    { name: 'Покупательница сухого пайка 88', faction: Faction.CITIZEN, occupation: Occupation.HOUSEWIFE, x: rooms.mainLane.x + 4, y: rooms.mainLane.y + 8, item: 'bread' },
+    { name: 'Молчаливый должник 88', faction: Faction.CITIZEN, occupation: Occupation.SECRETARY, x: rooms.debtOffice.x + 2, y: rooms.debtOffice.y + 2, item: 'voluntary_receipt' },
+    { name: 'Сторож оружейной очереди 88', faction: Faction.LIQUIDATOR, occupation: Occupation.HUNTER, x: rooms.weaponStall.x + 2, y: rooms.weaponStall.y + 6, item: 'liquidator_token', weapon: 'makarov' },
+    { name: 'Пациент у лекарственного долга 88', faction: Faction.CITIZEN, occupation: Occupation.TRAVELER, x: rooms.medicineLocker.x + 2, y: rooms.medicineLocker.y + 6, item: 'bandage' },
+    { name: 'Слушательница бумажной будки 88', faction: Faction.WILD, occupation: Occupation.SECRETARY, x: rooms.documentBooth.x + 2, y: rooms.documentBooth.y + 6, item: 'blank_form' },
+    { name: 'Человек у закрытого люка 88', faction: Faction.CITIZEN, occupation: Occupation.TRAVELER, x: rooms.serviceHatch.x + 3, y: rooms.serviceHatch.y + 2, item: 'metro_ticket' },
+    { name: 'Курьер с чужим фильтром 88', faction: Faction.CITIZEN, occupation: Occupation.TRAVELER, x: rooms.courierHideout.x + 2, y: rooms.courierHideout.y + 2, item: 'gasmask_filter' },
+    { name: 'Скупщик слуха 88', faction: Faction.WILD, occupation: Occupation.STOREKEEPER, x: rooms.mainLane.x + 9, y: rooms.mainLane.y + 13, item: 'cigs' },
+    { name: 'Проверяющий рядов 88', faction: Faction.LIQUIDATOR, occupation: Occupation.HUNTER, x: rooms.mainLane.x + 16, y: rooms.mainLane.y + 2, item: 'note', weapon: 'makarov' },
+    { name: 'Женщина с пустой аптечкой 88', faction: Faction.CITIZEN, occupation: Occupation.DOCTOR, x: rooms.medicineLocker.x + 7, y: rooms.medicineLocker.y + 6, item: 'sanitary_kit' },
+    { name: 'Держатель очереди 88', faction: Faction.CITIZEN, occupation: Occupation.STOREKEEPER, x: rooms.mainLane.x + 21, y: rooms.mainLane.y + 4, item: 'ration_registry_extract' },
+    { name: 'Ночной свидетель 88', faction: Faction.CITIZEN, occupation: Occupation.TRAVELER, x: rooms.mainLane.x + 27, y: rooms.mainLane.y + 13, item: 'tea' },
+    { name: 'Серый проводник 88', faction: Faction.WILD, occupation: Occupation.TRAVELER, x: rooms.serviceHatch.x + 8, y: rooms.serviceHatch.y + 4, item: 'door_kit' },
+    { name: 'Патронный счетчик 88', faction: Faction.LIQUIDATOR, occupation: Occupation.HUNTER, x: rooms.weaponStall.x + 10, y: rooms.weaponStall.y + 6, item: 'ammo_9mm', weapon: 'makarov' },
+    { name: 'Последний у кассы 88', faction: Faction.CITIZEN, occupation: Occupation.TRAVELER, x: rooms.publicGate.x + 7, y: rooms.publicGate.y + 3, item: 'bread' },
+  ];
+
+  for (let i = 0; i < Math.min(MARKET88_QUEUE_CROWD_CAP, spots.length); i++) {
+    const spot = spots[i];
+    const x = world.wrap(spot.x);
+    const y = world.wrap(spot.y);
+    entities.push({
+      id: nextId.v++,
+      type: EntityType.NPC,
+      x: x + 0.5,
+      y: y + 0.5,
+      angle: Math.random() * Math.PI * 2,
+      pitch: 0,
+      alive: true,
+      speed: 0.72,
+      sprite: spot.occupation,
+      name: spot.name,
+      needs: freshNeeds(),
+      hp: spot.faction === Faction.LIQUIDATOR ? 120 : 80,
+      maxHp: spot.faction === Faction.LIQUIDATOR ? 120 : 80,
+      money: 4 + (i % 5) * 8,
+      ai: { goal: AIGoal.IDLE, tx: x + 0.5, ty: y + 0.5, path: [], pi: 0, stuck: 0, timer: 0 },
+      inventory: [{ defId: spot.item, count: 1 }],
+      weapon: spot.weapon,
+      faction: spot.faction,
+      occupation: spot.occupation,
+      canGiveQuest: false,
+      questId: -1,
+    });
+  }
+}
+
 function seedMarketContainers(world: World, rooms: MarketRooms, npcs: Record<string, Entity>): void {
+  addContainer(world, rooms.publicGate, 5, 3, ContainerKind.CASHBOX, 'Входная касса 88', 'owner', 5, [
+    { defId: 'metro_ticket', count: 1 },
+    { defId: 'water_coupon', count: 1 },
+    { defId: 'voluntary_receipt', count: 1 },
+  ], ['market88', 'entry_toll', 'crowd_pressure', 'debt'], npcs.market88_uliana_cash);
+
   addContainer(world, rooms.mainLane, 5, 12, ContainerKind.CASHBOX, 'Касса Ульяны 88', 'owner', 8, [
     { defId: 'water', count: 2 },
     { defId: 'bread', count: 2 },

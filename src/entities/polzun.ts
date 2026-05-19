@@ -7,14 +7,14 @@ import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 export const DEF: MonsterDef = {
   kind: MonsterKind.POLZUN,
   name: 'Ползун',
-  hp: 150,
-  speed: 1.0,
-  dmg: 18,
-  attackRate: 2.0,
+  hp: 168,
+  speed: 0.85,
+  dmg: 22,
+  attackRate: 2.25,
   sprite: 0,   // auto-assigned by generateSprites()
   aiFlags: ['foodBait'],
   floors: [FloorLevel.LIVING, FloorLevel.MAINTENANCE, FloorLevel.HELL],
-  counterplay: 'Не принимайте бой в дверях, ванной или воде: уходите в прямой проход, держите дистанцию и бросайте еду/говняк в сторону.',
+  counterplay: 'Не принимайте бой в дверях, ванной или воде: это медленный танк, уходите в прямой проход и бросайте еду/говняк в сторону.',
   lootHint: 'мокрая ветошь, грязь из-под ванны, редко фильтрующий слой',
 };
 

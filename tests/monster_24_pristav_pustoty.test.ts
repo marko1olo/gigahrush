@@ -6,6 +6,7 @@ import { World } from '../src/core/world';
 import { generatePristavPustoty } from '../src/gen/void/pristav_pustoty';
 import { takeFromContainer } from '../src/systems/containers';
 import { getRecentEvents } from '../src/systems/events';
+import { routeCueCount } from '../src/systems/route_cues';
 import { makeGameState } from './helpers';
 
 function makePlayer(id: number): Entity {
@@ -42,6 +43,7 @@ test('Пристав Пустоты states the rule before violation pressure', 
   const state = makeGameState({ currentFloor: FloorLevel.VOID });
   const violate = world.containers.find(c => c.tags.includes('pristav_pustoty') && c.tags.includes('violate'));
   assert.ok(violate);
+  assert.equal(routeCueCount(world), 1);
   assert.equal(entities.filter(e => e.type === EntityType.MONSTER).length, 0);
 
   assert.equal(takeFromContainer(violate, player, 0, 1, { state, world, entities }), true);

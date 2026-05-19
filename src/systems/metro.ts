@@ -55,6 +55,7 @@ function pickWrongStop(route: MetroRouteDef): MetroDestination {
 }
 
 function adjustedWrongChance(route: MetroRouteDef, player: Entity, state: GameState): number {
+  if (route.safeReturn) return 0;
   let chance = route.wrongStopChance;
   if (hasItem(player, 'lift_scheme')) chance *= 0.55;
   if (hasItem(player, 'clean_health_cert')) chance *= 0.8;
@@ -63,9 +64,23 @@ function adjustedWrongChance(route: MetroRouteDef, player: Entity, state: GameSt
 }
 
 function destinationData(destination: MetroDestination): Record<string, unknown> {
-  return destination.kind === 'floor'
+  const data = destination.kind === 'floor'
     ? { destinationKind: 'floor', destinationFloor: destination.floor, destinationLabel: destination.label }
     : { destinationKind: 'local', destinationRoomName: destination.roomName, destinationLabel: destination.label };
+  return {
+    ...data,
+    returnRouteId: destination.returnRouteId,
+    returnHint: destination.returnHint,
+  };
+}
+
+function eventTags(route: MetroRouteDef, wrongStop: boolean): string[] {
+  const tags = ['metro', 'route', route.id, wrongStop ? 'wrong_stop' : route.safeReturn ? 'safe_return' : 'arrival'];
+  for (const tag of route.tags) {
+    if (tags.length >= 8) break;
+    if (!tags.includes(tag)) tags.push(tag);
+  }
+  return tags;
 }
 
 function publishMetroEvent(
@@ -90,16 +105,25 @@ function publishMetroEvent(
     actorFaction: player.faction,
     severity: wrongStop ? 4 : 3,
     privacy: 'local',
-    tags: ['metro', 'route', route.id, wrongStop ? 'wrong_stop' : 'arrival'],
+    tags: eventTags(route, wrongStop),
     data: {
       routeId: route.id,
       routeLabel: route.label,
+      routeClue: route.clue,
       wrongStop,
       wrongChance,
+      safeReturn: route.safeReturn === true,
       rumorIds: route.rumorIds,
       ...destinationData(destination),
     },
   });
+}
+
+function routeMessage(route: MetroRouteDef, destination: MetroDestination, wrongStop: boolean): string {
+  const hint = destination.returnHint ? ` ${destination.returnHint}` : '';
+  if (wrongStop) return `Объявление сбилось: ${route.label} стала остановкой «${destination.label}». ${hint}`.trim();
+  if (route.safeReturn) return `Обратная петля вернула маршрут: ${route.label} -> ${destination.label}.`;
+  return `Состав принял маршрут: ${route.label} -> ${destination.label}.`;
 }
 
 export function tryUseMetroRoute(
@@ -116,7 +140,7 @@ export function tryUseMetroRoute(
     return {
       route,
       wrongStop: false,
-      message: 'Табло щелкает, но линия здесь не принимает посадку.',
+      message: `Табло щелкает, но линия здесь не принимает посадку. ${route.clue}`,
       color: '#888',
     };
   }
@@ -134,7 +158,7 @@ export function tryUseMetroRoute(
     return {
       route,
       wrongStop: false,
-      message: 'Турникет требует билет метро.',
+      message: `Турникет требует билет метро. ${route.clue}`,
       color: '#fa4',
     };
   }
@@ -144,7 +168,8 @@ export function tryUseMetroRoute(
   const wrongChance = adjustedWrongChance(route, player, state);
   const wrongStop = route.wrongStops.length > 0 && Math.random() < wrongChance;
   const destination = wrongStop ? pickWrongStop(route) : route.destination;
-  nextMetroUseAt = state.time + route.cooldownSec + (wrongStop ? 24 : 0);
+  const transferHold = wrongStop && destination.kind === 'local' ? 8 : wrongStop ? 24 : 0;
+  nextMetroUseAt = state.time + route.cooldownSec + transferHold;
 
   publishMetroEvent(world, player, state, route, destination, wrongStop, wrongChance);
 
@@ -152,9 +177,7 @@ export function tryUseMetroRoute(
     route,
     destination,
     wrongStop,
-    message: wrongStop
-      ? `Объявление сбилось: ${route.label} стала остановкой «${destination.label}».`
-      : `Состав принял маршрут: ${route.label} -> ${destination.label}.`,
+    message: routeMessage(route, destination, wrongStop),
     color: wrongStop ? '#f84' : '#6cf',
   };
 }

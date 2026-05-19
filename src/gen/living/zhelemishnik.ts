@@ -189,7 +189,8 @@ registerWorldEventObserver((state, event) => {
     return;
   }
 
-  if ((event.type === 'container_opened' || event.type === 'item_stolen') && event.itemId === 'zhelemish_raw') {
+  const guardedHarvestItem = event.itemId === 'zhelemish_raw' || event.itemId === 'slime_sample_brown';
+  if ((event.type === 'container_opened' || event.type === 'item_stolen') && guardedHarvestItem) {
     const tags = eventContainerTags(event);
     if (!tags.includes(CONTENT_TAG) || !tags.includes('guarded_core')) return;
     publishEvent(state, {
@@ -208,11 +209,12 @@ registerWorldEventObserver((state, event) => {
       monsterKind: MonsterKind.POLZUN,
       severity: 4,
       privacy: 'local',
-      tags: ['monster', 'zhelemish', 'food', 'medicine_counterfeit', 'zhelemishnik', 'guardian'],
+      tags: ['monster', 'living_fungal_loop', 'zhelemish', 'slime', 'medicine_counterfeit', 'zhelemishnik', 'guardian'],
       data: {
         outcome: 'guardian_awakened',
         counterplay: ['dried_bait', 'leave_raw_patch', 'salt', 'fire'],
-        patchSpoiled: event.type === 'item_stolen',
+        routeItem: event.itemId,
+        patchSpoiled: event.type === 'item_stolen' || event.itemId === 'zhelemish_raw',
       },
     });
     return;
@@ -397,7 +399,7 @@ function addContainer(
     access,
     lockDifficulty: access === 'locked' ? 3 : undefined,
     discovered: true,
-    tags: [CONTENT_TAG, 'zhelemish', 'food', 'medicine_counterfeit', ...tags],
+    tags: [CONTENT_TAG, 'living_fungal_loop', 'zhelemish', 'food', 'medicine_counterfeit', ...tags],
   });
 }
 
@@ -457,7 +459,7 @@ function dropNote(entities: Entity[], nextId: { v: number }, x: number, y: numbe
     inventory: [{
       defId: 'note',
       count: 1,
-      data: 'Погреб Желемышника: сухой край можно снять, сырое ядро лучше сдать, сварить через соль или оставить. Сырой комок на продажу вернётся мазью и недоверием.',
+      data: 'Погреб Желемышника: сухой край можно снять, сырое ядро лучше сдать, сварить через соль или оставить. Коричневую пробу для Ольги берут из ядра и несут через прачечную, не через желудок.',
     }],
   });
 }

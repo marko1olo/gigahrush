@@ -17,7 +17,7 @@ export const CONTAINER_DEFS: Record<ContainerKind, ContainerDef> = {
   },
   [ContainerKind.METAL_CABINET]: {
     kind: ContainerKind.METAL_CABINET, name: 'Железный шкаф', capacitySlots: 12, defaultAccess: 'room',
-    roomTypes: [RoomType.STORAGE, RoomType.PRODUCTION], itemPool: [{ defId: 'pipe', min: 1, max: 2 }, { defId: 'wrench', min: 1, max: 1 }, { defId: 'ammo_nails', min: 10, max: 30 }, { defId: 'valve_tag', min: 1, max: 2 }, { defId: 'relay_diagram', min: 1, max: 1 }], tags: ['tools'],
+    roomTypes: [RoomType.STORAGE, RoomType.PRODUCTION], itemPool: [{ defId: 'pipe', min: 1, max: 2 }, { defId: 'wrench', min: 1, max: 1 }, { defId: 'ammo_nails', min: 2, max: 6, chance: 0.25 }, { defId: 'valve_tag', min: 1, max: 2 }, { defId: 'relay_diagram', min: 1, max: 1 }], tags: ['tools'],
   },
   [ContainerKind.MEDICAL_CABINET]: {
     kind: ContainerKind.MEDICAL_CABINET, name: 'Медицинский шкаф', capacitySlots: 10, defaultAccess: 'room',
@@ -25,7 +25,7 @@ export const CONTAINER_DEFS: Record<ContainerKind, ContainerDef> = {
   },
   [ContainerKind.WEAPON_CRATE]: {
     kind: ContainerKind.WEAPON_CRATE, name: 'Оружейный ящик', capacitySlots: 8, defaultAccess: 'faction',
-    roomTypes: [RoomType.HQ, RoomType.STORAGE, RoomType.PRODUCTION], itemPool: [{ defId: 'ammo_9mm', min: 12, max: 36 }, { defId: 'knife', min: 1, max: 1 }, { defId: 'makarov', min: 1, max: 1 }], tags: ['weapon', 'locked'],
+    roomTypes: [RoomType.HQ, RoomType.STORAGE, RoomType.PRODUCTION], itemPool: [{ defId: 'ammo_9mm', min: 4, max: 10, chance: 0.75 }, { defId: 'ammo_shells', min: 1, max: 2, chance: 0.35 }, { defId: 'ammo_762tt', min: 4, max: 8, chance: 0.2 }, { defId: 'ammo_nagant', min: 3, max: 6, chance: 0.2 }, { defId: 'ammo_762', min: 5, max: 9, chance: 0.12 }, { defId: 'ammo_harpoon', min: 1, max: 2, chance: 0.08 }, { defId: 'ammo_belt', min: 8, max: 16, chance: 0.03 }, { defId: 'knife', min: 1, max: 1 }, { defId: 'makarov', min: 1, max: 1, chance: 0.35 }], tags: ['weapon', 'locked', 'ammo'],
   },
   [ContainerKind.FRIDGE]: {
     kind: ContainerKind.FRIDGE, name: 'Холодильник', capacitySlots: 8, defaultAccess: 'room',

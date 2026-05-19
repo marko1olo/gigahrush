@@ -7,8 +7,8 @@ import { type PlotNpcDef, registerSideQuest } from '../../data/plot';
 import {
   METRO_DEPOT_ROOM_NAME,
   METRO_ERROR_ROOM_NAME,
-  METRO_ROUTES,
   METRO_STATION_ROOM_NAME,
+  metroRoutesForRoom,
 } from '../../data/metro';
 import {
   type MaintContentCtx, dropItems, findMaintArea, openTile, setFeature,
@@ -151,7 +151,8 @@ export function generateMetroErrorLine(ctx: MaintContentCtx): void {
   for (let x = platform.x + platform.w; x <= depot.x; x++) openTile(ctx.world, x, platform.y + 4);
   for (let y = platform.y + platform.h; y <= errorPocket.y; y++) openTile(ctx.world, platform.x + 8, y);
 
-  for (let slot = 0; slot < METRO_ROUTES.length; slot++) {
+  for (const route of metroRoutesForRoom(METRO_STATION_ROOM_NAME)) {
+    const slot = route.panelSlot;
     const x = platform.x + 2 + slot * 3;
     setFeature(ctx.world, x, platform.y + 2, Feature.SCREEN);
     setFeature(ctx.world, x, platform.y + 3, Feature.APPARATUS);

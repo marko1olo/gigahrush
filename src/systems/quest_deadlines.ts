@@ -17,7 +17,9 @@ const URGENT_FETCH_ITEMS = new Set([
 ]);
 
 export function isHandAuthoredQuest(q: Quest): boolean {
-  return (q.plotStepIndex !== undefined || q.sideQuestId !== undefined) && q.expiresAtMinutes === undefined;
+  return q.contractId === undefined
+    && (q.plotStepIndex !== undefined || q.sideQuestId !== undefined)
+    && q.timeLimitMinutes === undefined;
 }
 
 export function assignProceduralQuestDeadline(
@@ -28,13 +30,74 @@ export function assignProceduralQuestDeadline(
   if (isHandAuthoredQuest(q)) return q;
   const limit = proceduralQuestTimeLimitMinutes(q, ctx);
   q.timeLimitMinutes = limit;
-  q.expiresAtMinutes = Math.ceil(nowMinutes + limit);
+  q.expiresAtMinutes = Math.ceil(safeMinutes(nowMinutes) + limit);
   return q;
 }
 
+export function ensureQuestDeadline(
+  q: Quest,
+  nowMinutes: number,
+  ctx: QuestDeadlineContext = {},
+): Quest {
+  if (q.done) return q;
+  if (isHandAuthoredQuest(q)) {
+    if (q.expiresAtMinutes !== undefined) q.expiresAtMinutes = undefined;
+    return q;
+  }
+
+  const expiresAt = validPositiveMinutes(q.expiresAtMinutes);
+  if (expiresAt !== undefined) {
+    q.expiresAtMinutes = expiresAt;
+    const limit = validPositiveMinutes(q.timeLimitMinutes);
+    if (limit !== undefined) q.timeLimitMinutes = limit;
+    return q;
+  }
+
+  const explicitLimit = validPositiveMinutes(q.timeLimitMinutes);
+  if (explicitLimit !== undefined) {
+    q.timeLimitMinutes = explicitLimit;
+    q.expiresAtMinutes = Math.ceil(safeMinutes(nowMinutes) + explicitLimit);
+    return q;
+  }
+
+  return assignProceduralQuestDeadline(q, nowMinutes, ctx);
+}
+
+export function questHasDeadline(q: Quest): boolean {
+  return !isHandAuthoredQuest(q)
+    && (validPositiveMinutes(q.expiresAtMinutes) !== undefined || validPositiveMinutes(q.timeLimitMinutes) !== undefined);
+}
+
+export function questDeadlineExpired(q: Quest, nowMinutes: number): boolean {
+  const remaining = questRemainingMinutes(q, nowMinutes);
+  return remaining !== undefined && remaining <= 0;
+}
+
+export function questDeadlineEventData(q: Quest, nowMinutes: number): Record<string, unknown> {
+  const remaining = questRemainingMinutes(q, nowMinutes);
+  if (remaining === undefined) return {};
+  return {
+    timeLimitMinutes: q.timeLimitMinutes,
+    expiresAtMinutes: q.expiresAtMinutes,
+    remainingMinutes: remaining,
+  };
+}
+
+export function questDeadlineText(q: Quest, nowMinutes: number): string {
+  const remaining = questRemainingMinutes(q, nowMinutes);
+  return remaining === undefined ? '' : formatQuestMinutes(remaining);
+}
+
+export function deadlineMessageSuffix(q: Quest, nowMinutes: number): string {
+  const text = questDeadlineText(q, nowMinutes);
+  return text ? ` Срок: ${text}.` : '';
+}
+
 export function questRemainingMinutes(q: Quest, nowMinutes: number): number | undefined {
-  if (q.expiresAtMinutes === undefined || isHandAuthoredQuest(q)) return undefined;
-  return Math.max(0, Math.ceil(q.expiresAtMinutes - nowMinutes));
+  if (isHandAuthoredQuest(q)) return undefined;
+  const expiresAt = validPositiveMinutes(q.expiresAtMinutes);
+  if (expiresAt !== undefined) return Math.max(0, Math.ceil(expiresAt - safeMinutes(nowMinutes)));
+  return validPositiveMinutes(q.timeLimitMinutes);
 }
 
 export function formatQuestMinutes(minutes: number): string {
@@ -45,6 +108,15 @@ export function formatQuestMinutes(minutes: number): string {
   if (days > 0) return `${days}д ${hours}ч`;
   if (hours > 0) return `${hours}ч ${rem}м`;
   return `${rem}м`;
+}
+
+function safeMinutes(value: number): number {
+  return Number.isFinite(value) ? value : 0;
+}
+
+function validPositiveMinutes(value: number | undefined): number | undefined {
+  if (value === undefined || !Number.isFinite(value) || value <= 0) return undefined;
+  return Math.ceil(value);
 }
 
 function proceduralQuestTimeLimitMinutes(q: Quest, ctx: QuestDeadlineContext): number {

@@ -1,7 +1,13 @@
 /* ── A-Life barks: contextual NPC dialogue lines ─────────────── */
 
 import { type Entity, type Msg, msg } from '../../core/types';
-import { CONTEXT_BARK_FACTION, CONTEXT_BARK_FEAR, CONTEXT_BARK_WOUNDED } from '../../data/context_lines';
+import {
+  CONTEXT_BARK_FACTION,
+  CONTEXT_BARK_FEAR,
+  CONTEXT_BARK_SAMOSBOR_HIDE,
+  CONTEXT_BARK_SHORTAGE,
+  CONTEXT_BARK_WOUNDED,
+} from '../../data/context_lines';
 
 /* ── Phrase pools ─────────────────────────────────────────────── */
 
@@ -1382,6 +1388,8 @@ function selectContextBarkPool(e: Entity, pool: string[], poolF: string[]): read
   const hpRatio = e.hp !== undefined && e.maxHp ? e.hp / Math.max(1, e.maxHp) : 1;
   if (pool === BARK_WOUNDED && hpRatio < 0.35) return CONTEXT_BARK_WOUNDED;
   if (pool === BARK_FLEE && ((e.needs?.sleep ?? 100) < 20 || hpRatio < 0.6)) return CONTEXT_BARK_FEAR;
+  if (pool === BARK_HIDE && Math.random() < 0.45) return CONTEXT_BARK_SAMOSBOR_HIDE;
+  if (pool === BARK_GENERIC && ((e.needs?.food ?? 100) < 30 || (e.needs?.water ?? 100) < 30) && Math.random() < 0.5) return CONTEXT_BARK_SHORTAGE;
   if (pool === BARK_COMBAT_START && e.faction !== undefined) return CONTEXT_BARK_FACTION[e.faction] ?? (e.isFemale ? poolF : pool);
   return e.isFemale ? poolF : pool;
 }
