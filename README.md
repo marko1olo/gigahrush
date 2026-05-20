@@ -49,7 +49,7 @@ Cloudflare scripts are optional and only matter for Net Sphere deployment: `cf:s
 
 ## Cloudflare Net Sphere
 
-When deployed as a Cloudflare Worker with Assets and the D1 binding described in [cloudflare.md](cloudflare.md), the game exposes an optional in-game `НЕТ-СФЕРА` terminal on `N`. The title screen asks for a persistent `НЕТ-ИМЯ`; each browser also gets a persistent private `НЕТ-ГЕН` id in `localStorage` and a session id in `sessionStorage`. `/netgen NET-...` switches back to an existing cloud profile, `/new` creates a new `НЕТ-ГЕН`, and `/clear` clears local chat history. The terminal polls while open, sends a 30-second heartbeat, records active sessions, samosbor events, deaths, compact progress, recent event summaries such as `[nickname] умер <date>`, and short sanitized chat messages labeled by nickname. The Worker also exposes an optional `/api/net/market` endpoint for compact global market impulses and bounded aggregate quote snapshots. If the binding is missing or the API is offline, the game continues as a local single-file build.
+When deployed as a Cloudflare Worker with Assets and the D1 binding described in [cloudflare.md](cloudflare.md), the game exposes an optional in-game `НЕТ-СФЕРА` terminal on `N`. The title screen asks for a persistent `НЕТ-ИМЯ`; each browser also gets a persistent private `НЕТ-ГЕН` id in `localStorage` and a session id in `sessionStorage`. `/netgen NET-...` switches back to an existing cloud profile, `/new` creates a new `НЕТ-ГЕН`, and `/clear` clears local chat history. The terminal polls while open, sends a 30-second heartbeat, records active sessions, samosbor events, deaths, compact progress, recent dry event summaries such as `Жилец умер. Последний сигнал: Жилая зона, д2 08:30.`, and short sanitized chat messages labeled by nickname. The Worker also exposes an optional `/api/net/market` endpoint for compact global market impulses and bounded aggregate quote snapshots. If the binding is missing or the API is offline, the game continues as a local single-file build.
 
 Direct HTTPS builds also expose PWA metadata. The mobile `FULL` control requests browser fullscreen only on compatible non-iOS browsers. Embedded mobile hosts show a direct-page launcher instead. iPhone/WebKit does not get the forced fullscreen path because it can reload the web view; iOS standalone Home Screen launch remains supported through the manifest and Apple web-app meta tags.
 
@@ -65,18 +65,18 @@ Current shipped-data scale, counted from source registries:
 | Procedural floor anomaly profiles | 18 |
 | Numbered lift anomalies | 8 |
 | Main plot steps | 16 |
-| Plot/side NPC ids after manifests load | 299 |
-| Side quest steps after manifests load | 339 |
-| System assignment templates | 67 |
+| Plot/side NPC ids after manifests load | 303 |
+| Side quest steps after manifests load | 346 |
+| System assignment templates | 133 |
 | Item ids | 242 |
 | Physical weapon stat entries | 31 |
 | PSI weapon stat entries | 16 |
 | Base monster kinds | 24 |
 | Monster ecology entries | 24 |
 | Monster modifier variants | 23 |
-| Static rumors | 318 |
+| Static rumors | 492 |
 | Samosbor variants / modifiers / aftermath beats | 8 / 21 / 37 |
-| Samosbor director beats | 26 |
+| Samosbor director beats | 34 |
 | Economy resources | 17 |
 | Caravan supply lanes | 6 |
 | Factory definitions / recipes | 10 / 17 |
@@ -190,7 +190,7 @@ The authoritative floor map is `FloorLevel` in `src/core/types.ts`, story-floor 
 | `KVARTIRY = 1` | Квартиры | `src/gen/kvartiry/` | dense social riot floor | story anchor `z=-12` |
 | `LIVING = 2` | Жилая зона | `src/gen/living/` | start, hub, apartments, POIs | start story anchor `z=0` |
 | `MAINTENANCE = 3` | Коллекторы | `src/gen/maintenance/` | industrial tunnels, water, repairs | story anchor `z=20` |
-| `HELL = 4` | Преисподняя | `src/gen/hell/` | high-threat meat/cult floor | story anchor `z=28` |
+| `HELL = 4` | Мясной низ | `src/gen/hell/` | high-threat meat/cult floor | story anchor `z=28` |
 | `VOID = 5` | Пустота | `src/gen/void/` | final anomaly/boss floor | story anchor `z=36`, portal from Hell/Underhell |
 
 Normal lifts move through a per-run vertical `FloorRun` route rather than directly through adjacent enum values. The player starts on `LIVING` at `z=0`. Authored/story route stops are spaced every four z-levels by default, and the three levels between each authored/story stop are seeded procedural floors unless an authored stop explicitly occupies a gap. `pioneer_camp` sits above Ministry after the upper office stop: `MINISTRY` at `z=-24`, `upper_bureau` at `z=-28`, `pioneer_camp` at `z=-32`. `bank_floor` occupies the Ministry-to-Raionsovet procedural gap at `z=-22`. The current normal lift span is `z=-44..40` with 23 authored/story stops and 62 procedural floors:
@@ -243,7 +243,7 @@ z= 37.. 39 procedural
 z= 40 darkness
 ```
 
-`VOID` is reachable by the normal route at `z=36` and by portal from Hell/Underhell. The return portal in `VOID` currently ends the game in victory state.
+`VOID` is reachable by the normal route at `z=36` and by portal from Hell/Underhell. The return portal in `VOID` sends the player back to `LIVING` and the run continues in freeplay.
 
 Route floors at `z>=36` are NPC-free endgame spaces: `VOID`, the deeper procedural floors and `darkness` still generate monsters, loot, protocols and hazards, but no NPCs or faction reinforcements.
 
@@ -272,7 +272,7 @@ These are routed string-id floors, not new `FloorLevel` enum values. Each one is
 | 12 | `production_belt` | Производственный пояс | `MAINTENANCE` |
 | 16 | `service_floor` | Служебный этаж | `MAINTENANCE` |
 | 24 | `dark_metro` | Темная пересадка | `MAINTENANCE` |
-| 32 | `underhell` | Ниже ада | `HELL` |
+| 32 | `underhell` | Подпорог | `HELL` |
 | 40 | `darkness` | Тьма | `VOID` |
 
 ### Procedural Floor Combinatorics
@@ -287,7 +287,7 @@ These are routed string-id floors, not new `FloorLevel` enum values. Each one is
 
 `src/systems/procedural_floors.ts` owns save/load state for the run seed, current `z`, visited procedural specs, authored route entry resolution and lift route resolution. `src/gen/procedural_floor.ts` builds procedural floors without spawning authored story NPCs: rooms/corridors, both lift directions, zone danger, faction majority, seed-biased loot, seed-biased monsters and anomaly effects.
 
-Teleport-cell anomaly pairs are stored sparsely in `world.anomalyTeleports`. Stepping on one paired cell moves the player to the paired cell after a short cooldown. Mushroom-mycelium floors also seed bounded carnivorous fungus rooms with corpse/bait feeding, salt neutralization, fire burn-off and risky zhelemish harvests. False safe blocks stamp quiet corridors, a too-clean shelter, black-hand marks, a missing-siren panel and cult-owned supplies; investigating, reporting, looting or breaking the marker publish events, while samosbor pressure is only partially delayed. Hladon cold pockets are bounded procedural rooms with pale frost marks; they slow and drain needs only inside/near the marked cells, and heat items, valve/steam tools or alternate routing counter them. Rail-train anomalies cut fixed rail routes through the floor, add platforms with schedule screens, spawn moving train segments, allow `E` boarding/exit while stopped and publish rail events when trains crush NPCs, monsters or the player. Bad Apple world stamps a 144x108 map rectangle from packed black/white RLE frames; black pixels become dark walls, white pixels become pale floor, and the projector can be paused/resumed with `E`. Zombie apocalypse floors add a thousand-plus resident crowd, spawn one zombie patient zero and convert any NPC bitten by a zombie into another zombie.
+Teleport-cell anomaly pairs are stored sparsely in `world.anomalyTeleports`. Stepping on one paired cell moves the player to the paired cell after a short cooldown. Mushroom-mycelium floors also seed bounded carnivorous fungus rooms with corpse/bait feeding, salt neutralization, fire burn-off and risky zhelemish harvests. False safe blocks stamp quiet corridors, a too-clean shelter, black-hand marks, a missing-siren panel and cult-owned supplies; investigating, reporting, looting or breaking the marker publish events, while samosbor pressure is only partially delayed. Hladon cold pockets are bounded procedural rooms with pale frost marks; they slow and drain needs only inside/near the marked cells, and heat items, valve/steam tools or alternate routing counter them. Rail-train anomalies cut fixed rail routes through the floor, add platforms with schedule screens, spawn moving train segments, allow `E` boarding/exit while stopped and publish rail events when trains crush NPCs, monsters or the player. Bad Apple world stamps a 144x108 map rectangle from packed black/white RLE frames; black pixels become dark walls, white pixels become pale floor, and the projector can be paused/resumed with `E`. Zombie apocalypse floors seed roughly 10k active resident NPCs plus patient zero, and any NPC bitten by a zombie becomes another zombie.
 
 Floor VISIT quests only complete on story anchors, not on procedural or design floors that happen to use the same base `FloorLevel` for system mood.
 
@@ -358,7 +358,7 @@ Procedural NPC assignments have deadlines instead of a global active-quest cap. 
 
 ## Side Quests And System Assignments
 
-Side quests use `registerSideQuest()` from `src/data/plot.ts`. Content modules register NPC definitions and quest steps at module import time. With all floor manifests loaded, the current registry has 207 plot NPC ids: 9 built-in story NPC ids plus 198 content registrations. `SIDE_QUESTS` has 251 steps across base data and `src/gen/`.
+Side quests use `registerSideQuest()` from `src/data/plot.ts`. Content modules register NPC definitions and quest steps at module import time. With all floor manifests loaded, the current registry has 302 plot NPC ids: 9 built-in story NPC ids plus 293 content registrations. `SIDE_QUESTS` has 346 steps across base data and `src/gen/`.
 
 Major side-content locations include:
 
@@ -369,7 +369,7 @@ Major side-content locations include:
 - `hell/`: Nikanor/Marfa plot rooms, Meduka, altar arena, choir tax, PSI meat cache, thin wall chapel and Myasomer.
 - `void/`: Jean's warning cell, bottled voice, protocol chamber, borrowed light rule chamber, trace seal protocol, Maronary Signalshchik, Pristav Pustoty, Perestanovshchik, Seryy Smotritel and Ekrannik.
 
-System assignment templates live in `src/data/contracts.ts`; quest generation treats them as normal system-assignment templates with scarcity-adjusted rewards and deadlines. The current deck has 67 templates, including expedition, scarcity, monster cleanup, govnyak courier and pneumomail-linked work. Debug can create/list system assignments, but the player-facing NPC action remains `Задание`.
+System assignment templates live in `src/data/contracts.ts`; quest generation treats them as normal system-assignment templates with scarcity-adjusted rewards and deadlines. The current deck has 133 templates, including expedition, scarcity, monster cleanup, civil-minister directives, Ministry document-window work, minor-cult errands, govnyak courier and pneumomail-linked work. Debug can create/list system assignments, but the player-facing NPC action remains `Задание`.
 
 On `KVARTIRY`, the false-neighbor/Pustoy Sosed content uses a screen-reflection tell and local side-quest branches: expose by checking papers/reporting to liquidators, flee by taking the complaint and leaving, or force a close reveal and fight. Resolved branches publish `false_neighbor` world-event data and rumor hooks.
 
@@ -416,7 +416,11 @@ Ministry content is grouped behind `src/gen/ministry/content_manifest.ts` to kee
 
 ### Kvartiry
 
-`generateKvartiry()` creates a dense residential riot floor from a wall-source grid, then applies social macro geometry and decorative retuning. Initial population: 300 citizens, 200 wild, 100 liquidators. Runtime caps: 1000 citizens, 1000 wild, 500 liquidators. Social-pressure POIs can trigger local uprising checks on the existing 30-second cadence.
+`generateKvartiry()` creates a dense residential riot floor from a wall-source grid and keeps that percolation layout intact. Initial population comes from `KVARTIRY_POPULATION_PROFILE`: 3000 citizens, 1700 wild residents and 400 liquidators, all with AI. Spawn placement is context-weighted: rooms, public corridors, zone factions and smooth density noise bias independent floor-cell picks, then local groups add riots and response squads. Runtime caps are 6000 citizens, 3200 wild and 800 liquidators, with a 10k active-population ceiling. Social-pressure POIs and ambient unrest can trigger local uprising checks on the existing profile cadence.
+
+### Communal Ring
+
+`generateCommunalRingDesignFloor()` is the authored route-floor коммуналка at `z=-4`: a ring corridor with four сквозные communal flat chains, shared kitchen/laundry/shower/pantry/notice services, wet samosbor aftermath, owned/public containers, 6 quest NPCs and 6 side quests. The full-floor expander keeps the route footprint wide with additional shared-service knots around the 1024x1024 floor.
 
 ### Maintenance
 
@@ -428,11 +432,11 @@ The pneumomail station is a static Maintenance POI with intake, intercept, jam a
 
 ### Hell
 
-`generateHell()` builds organic meat caves through an Ising-style field plus Hell macro geometry, Hell-tuned zones, cultists, liquidators, monsters, 3 Heralds, Hell plot rooms and faster population pressure. Initial counts: 220 monsters, 110 cultists, 18 liquidators. Runtime soft caps are 520 monsters, 150 cultists and 36 liquidators, with bounded reinforcement budgets.
+`generateHell()` builds organic meat caves through an Ising-style field plus Hell macro geometry, Hell-tuned zones, cultists, liquidators, monsters, 3 Heralds, Hell plot rooms and faster population pressure. Initial counts come from `HELL_POPULATION_PROFILE`: 4200 monsters, 700 cultists and 100 liquidators, all with AI. Runtime soft caps are 8200 monsters, 1500 cultists and 300 liquidators, with bounded reinforcement budgets and a roughly 10k active-population ceiling.
 
 ### Void
 
-`generateVoid()` builds folded green/black island geometry, void zones, Jean's warning cell without an NPC, protocol rooms, sparse guardians, loot and the Creator boss. It is reachable on the normal `FloorRun` route at `z=36`, by debug teleport, and by the Hell/Underhell portal after the Herald path opens.
+`generateVoid()` builds folded green/black island geometry, void zones, Jean's warning cell without an NPC, protocol rooms, about 1600 active guardians, loot and the Creator boss. The route-facing `generateFloor(FloorLevel.VOID)` path strips NPCs, so the default endgame space stays NPC-free while still running monsters/protocols. It is reachable on the normal `FloorRun` route at `z=36`, by debug teleport, and by the Hell/Underhell portal after the Herald path opens.
 
 ### Procedural Floors
 
@@ -521,7 +525,7 @@ Factions:
 
 The world has 64 macro-zones. `systems/factions.ts` controls zone ownership, patrol clashes, territory capture, reinforcements and hostile target logic. `data/faction_events.ts` adds discrete faction events. Cult processions are rare timed faction events with capped pilgrims, residue marks, temporary local control pressure, map/log warnings, and player responses: avoid, follow, report by equipped radio, use a meat rune as disguise, or disrupt by violence. Active processions publish aftermath and end when a samosbor cycle starts.
 
-NPC combat scans are cached through `combatTargetId` / `combatScanCd`, avoiding per-frame broad rescans.
+NPC and monster broadphase uses `systems/entity_index.ts`: a 16-cell toroidal bucket index with live id, actor, needs and projectile lists. Combat scans are cached through `combatTargetId` / `combatScanCd` and query nearby buckets instead of scanning every entity. All live AI actors remain active; far routine actors tick on deterministic accumulated cadences, while near-player actors and active threats stay responsive. Combat pathfinding uses the shared pathfinding token budget so 5k-10k crowds cannot launch unbounded BFS waves in one frame.
 
 ## Items, Weapons And PSI
 

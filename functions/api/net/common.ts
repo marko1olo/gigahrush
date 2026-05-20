@@ -187,14 +187,43 @@ function publicNickname(value: unknown): string {
   return cleanNickname(value) || 'Жилец';
 }
 
-function eventDate(now: number): string {
+function eventDate(value: unknown): string {
+  const now = typeof value === 'number' ? value : 0;
   return new Date(now).toISOString().replace('T', ' ').slice(0, 16) + ' UTC';
 }
 
-function eventSummary(type: unknown, nickname: string, createdAt: unknown): string {
-  const at = typeof createdAt === 'number' ? createdAt : 0;
-  if (type === 'death') return `[${nickname}] умер ${eventDate(at)}`;
-  return `[${nickname}] встретил самосбор ${eventDate(at)}`;
+function two(value: number): string {
+  return String(Math.max(0, Math.floor(value))).padStart(2, '0');
+}
+
+function progressFromStoredPayload(value: unknown): ProgressPayload | null {
+  if (typeof value !== 'string' || value.length <= 2) return null;
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!parsed || typeof parsed !== 'object') return null;
+    if (!('floorName' in parsed) && !('day' in parsed) && !('hour' in parsed)) return null;
+    return normalizeProgress(parsed);
+  } catch {
+    return null;
+  }
+}
+
+function progressSignal(progress: ProgressPayload | null, createdAt: unknown): string {
+  if (!progress) return eventDate(createdAt);
+  const floor = progress.floorName || `этаж ${progress.floorId}`;
+  return `${floor}, д${progress.day} ${two(progress.hour)}:${two(progress.minute)}`;
+}
+
+export function netEventSummary(
+  type: unknown,
+  nickname: unknown,
+  createdAt: unknown,
+  progress?: ProgressPayload | null,
+): string {
+  const name = publicNickname(nickname);
+  const signal = progressSignal(progress ?? null, createdAt);
+  if (type === 'death') return `${name} умер. Последний сигнал: ${signal}.`;
+  return `${name}: самосбор. Сигнал: ${signal}.`;
 }
 
 export function normalizeProgress(value: unknown): ProgressPayload {
@@ -314,18 +343,21 @@ export async function readProfile(db: D1Database, netGen: string): Promise<Recor
 
 export async function readEvents(db: D1Database): Promise<Record<string, unknown>[]> {
   const result = await db.prepare(`
-    SELECT nickname, type, summary, created_at
+    SELECT nickname, type, summary, created_at, payload_json
     FROM net_events
     ORDER BY created_at DESC
     LIMIT 20
   `).all<Record<string, unknown>>();
-  return (result.results ?? []).map(row => ({
-    eventKey: `${row.created_at}:${row.type}`,
-    nickname: publicNickname(row.nickname),
-    type: row.type,
-    summary: eventSummary(row.type, publicNickname(row.nickname), row.created_at),
-    createdAt: row.created_at,
-  }));
+  return (result.results ?? []).map(row => {
+    const nickname = publicNickname(row.nickname);
+    return {
+      eventKey: `${row.created_at}:${row.type}`,
+      nickname,
+      type: row.type,
+      summary: netEventSummary(row.type, nickname, row.created_at, progressFromStoredPayload(row.payload_json)),
+      createdAt: row.created_at,
+    };
+  });
 }
 
 export async function readChat(db: D1Database, sinceChatId: number): Promise<Record<string, unknown>[]> {

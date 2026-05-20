@@ -4,6 +4,7 @@ import { W, Cell, ProjType, type Entity, EntityType } from '../core/types';
 import { World } from '../core/world';
 import { stampMark, MarkType } from './marks';
 import { Spr } from './sprite_index';
+import { ensureEntityIndex } from '../systems/entity_index';
 
 /* ── Screen-space blood particles ─────────────────────────────── */
 export interface BloodParticle {
@@ -286,9 +287,8 @@ export function spawnDeathPool(world: World, ex: number, ey: number, gore = fals
 /* ── Blood drip trail for wounded entities ────────────────────── */
 export function updateBloodTrails(world: World, entities: Entity[], dt: number): void {
   // Only process every ~0.3s worth of dt (accumulate externally)
-  for (const e of entities) {
+  for (const e of ensureEntityIndex(entities).actors) {
     if (!e.alive) continue;
-    if (e.type === EntityType.PROJECTILE || e.type === EntityType.ITEM_DROP) continue;
     if (e.hp === undefined || e.maxHp === undefined) continue;
     const ratio = e.hp / e.maxHp;
     if (ratio >= 0.5) continue;  // only bleed when under 50% HP

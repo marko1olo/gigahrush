@@ -121,9 +121,9 @@ function publishMetroEvent(
 
 function routeMessage(route: MetroRouteDef, destination: MetroDestination, wrongStop: boolean): string {
   const hint = destination.returnHint ? ` ${destination.returnHint}` : '';
-  if (wrongStop) return `Объявление сбилось: ${route.label} стала остановкой «${destination.label}». ${hint}`.trim();
-  if (route.safeReturn) return `Обратная петля вернула маршрут: ${route.label} -> ${destination.label}.`;
-  return `Состав принял маршрут: ${route.label} -> ${destination.label}.`;
+  if (wrongStop) return `${route.wrongStopLine ?? `Объявление сбилось: ${route.label} стала остановкой «${destination.label}».`} ${hint}`.trim();
+  if (route.safeReturn) return route.departLine ?? `Обратная петля вернула маршрут: ${route.label} -> ${destination.label}.`;
+  return `${route.departLine ?? `Состав принял маршрут: ${route.label} -> ${destination.label}.`} ${hint}`.trim();
 }
 
 export function tryUseMetroRoute(
@@ -140,7 +140,7 @@ export function tryUseMetroRoute(
     return {
       route,
       wrongStop: false,
-      message: `Табло щелкает, но линия здесь не принимает посадку. ${route.clue}`,
+      message: `${route.unavailableLine ?? 'Табло щелкает, но линия здесь не принимает посадку.'} ${route.clue}`,
       color: '#888',
     };
   }
@@ -158,7 +158,7 @@ export function tryUseMetroRoute(
     return {
       route,
       wrongStop: false,
-      message: `Турникет требует билет метро. ${route.clue}`,
+      message: `${route.noTicketLine ?? 'Турникет требует билет метро.'} ${route.clue}`,
       color: '#fa4',
     };
   }

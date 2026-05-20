@@ -83,7 +83,7 @@ const SEMYON_DEF: PlotNpcDef = {
     'Чернила после такого пахнут дымом, зато Параграфы читают их медленнее.',
   ],
   talkLinesPost: [
-    'Индекс сожжен. Теперь шкаф помнит дырку, но не помнит дорогу к ней.',
+    'Индекс сожжен. В шкафу осталась дырка, но по ней уже не найти нужную полку.',
     'Если услышите шелест, это уже не мой экземпляр.',
   ],
 };
@@ -93,7 +93,7 @@ registerSideQuest('kartotechnik_lidia_alphabetnaya', LIDIA_DEF, [
     id: DECOY_QUEST,
     giverNpcId: 'kartotechnik_lidia_alphabetnaya',
     type: QuestType.FETCH,
-    desc: 'Лидия Алфавитная: «Подсуньте пустой бланк вместо живого дела. Я закрою средний банк ящиков ключом, пока полка считает добычу.»',
+    desc: 'Лидия Алфавитная: «Подсуньте пустой бланк вместо живого дела. Я закрою средний банк ящиков ключом, пока Картотечник занят пустышкой.»',
     targetItem: 'blank_form', targetCount: 1,
     rewardItem: 'key', rewardCount: 1,
     extraRewards: [{ defId: 'ink_bottle', count: 1 }],

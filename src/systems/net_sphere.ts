@@ -3,6 +3,7 @@ import { FloorLevel, type Entity, type GameState } from '../core/types';
 type NetSphereStatus = 'idle' | 'syncing' | 'online' | 'offline';
 export type NetSphereEventType = 'samosbor' | 'death';
 export type NetMarketImpulseKind = string;
+type NetSphereChannel = 'heartbeat' | 'stats' | 'market' | 'market_post' | 'chat' | 'event';
 
 export interface NetMarketImpulse {
   eventKey: string;
@@ -142,7 +143,7 @@ const FLOOR_NAMES: Record<FloorLevel, string> = {
   [FloorLevel.KVARTIRY]: 'Квартиры',
   [FloorLevel.LIVING]: 'Жилая зона',
   [FloorLevel.MAINTENANCE]: 'Коллекторы',
-  [FloorLevel.HELL]: 'Преисподняя',
+  [FloorLevel.HELL]: 'Мясной низ',
   [FloorLevel.VOID]: 'Пустота',
 };
 
@@ -325,9 +326,32 @@ function printableKey(key: string): string {
 
 function statusText(status: NetSphereStatus): string {
   if (status === 'online') return 'СВЯЗЬ ЕСТЬ';
-  if (status === 'syncing') return 'СИНХРОНИЗАЦИЯ';
-  if (status === 'offline') return 'НЕТ СВЯЗИ';
-  return 'ОЖИДАНИЕ';
+  if (status === 'syncing') return 'ПАКЕТ В ПУТИ';
+  if (status === 'offline') return 'OFFLINE';
+  return 'КАНАЛ ЗАКРЫТ';
+}
+
+function netFailureText(err: unknown, channel: NetSphereChannel): string {
+  if (err instanceof NetSphereApiError) {
+    if (err.status === 429) return 'Слишком часто. Пакет не принят.';
+    if (err.status === 503) {
+      return channel === 'market' || channel === 'market_post'
+        ? 'Маркет offline. Цены всё равно растут.'
+        : 'Сервер без базы. Канал offline.';
+    }
+    if (err.status >= 500) {
+      return channel === 'market' || channel === 'market_post'
+        ? 'Маркет молчит. Цены всё равно растут.'
+        : 'Сервер слышит сирену. Пакет ждёт.';
+    }
+    if (channel === 'chat') return 'Сообщение не доставлено: пакет битый.';
+    if (channel === 'event') return 'Событие не принято: пакет битый.';
+    return 'Пакет не принят. Проверь НЕТ-ГЕН.';
+  }
+  if (channel === 'chat') return 'Сообщение не доставлено: маршрут ушёл в самосбор.';
+  if (channel === 'market' || channel === 'market_post') return 'Маркет молчит. Цены всё равно растут.';
+  if (channel === 'event') return 'Событие не доставлено: сервер слышит сирену.';
+  return 'Пакет ушёл в соседний этаж.';
 }
 
 function progressFromState(state: GameState, player: Entity): NetSphereProgress {
@@ -412,7 +436,7 @@ async function postJson(path: string, body: unknown): Promise<unknown> {
   if (!res.ok) {
     throw new NetSphereApiError(serverErrorMessage(data, `HTTP ${res.status}`), res.status);
   }
-  if (!isServerPayload(data)) throw new NetSphereApiError('Cloudflare API недоступен', 502);
+  if (!isServerPayload(data)) throw new NetSphereApiError('пустой пакет', 502);
   return data;
 }
 
@@ -433,7 +457,7 @@ async function heartbeat(state: GameState, player: Entity): Promise<void> {
     runtime.nextHeartbeatAt = performance.now() + HEARTBEAT_MS;
   } catch (err) {
     runtime.status = 'offline';
-    runtime.error = err instanceof Error ? err.message : 'cloudflare недоступен';
+    runtime.error = netFailureText(err, 'heartbeat');
     runtime.nextHeartbeatAt = performance.now() + 10_000;
   } finally {
     runtime.busy = false;
@@ -455,13 +479,13 @@ async function pollOpenStats(): Promise<void> {
     if (!res.ok) {
       throw new NetSphereApiError(serverErrorMessage(data, `HTTP ${res.status}`), res.status);
     }
-    if (!isServerPayload(data)) throw new NetSphereApiError('Cloudflare API недоступен', 502);
+    if (!isServerPayload(data)) throw new NetSphereApiError('пустой пакет', 502);
     applyServerPayload(data);
     runtime.status = 'online';
     runtime.nextPollAt = performance.now() + OPEN_POLL_MS;
   } catch (err) {
     runtime.status = 'offline';
-    runtime.error = err instanceof Error ? err.message : 'cloudflare недоступен';
+    runtime.error = netFailureText(err, 'stats');
     runtime.nextPollAt = performance.now() + 10_000;
   } finally {
     runtime.busy = false;
@@ -478,13 +502,13 @@ async function pollMarketSnapshot(): Promise<void> {
     if (!res.ok) {
       throw new NetSphereApiError(serverErrorMessage(data, `HTTP ${res.status}`), res.status);
     }
-    if (!isServerPayload(data)) throw new NetSphereApiError('Cloudflare API недоступен', 502);
+    if (!isServerPayload(data)) throw new NetSphereApiError('пустой пакет', 502);
     applyServerPayload(data);
     runtime.status = 'online';
     runtime.nextMarketPollAt = performance.now() + MARKET_POLL_MS;
   } catch (err) {
     runtime.status = 'offline';
-    runtime.error = err instanceof Error ? err.message : 'cloudflare недоступен';
+    runtime.error = netFailureText(err, 'market');
     runtime.nextMarketPollAt = performance.now() + 10_000;
   } finally {
     runtime.marketBusy = false;
@@ -509,7 +533,7 @@ async function postMarketImpulses(impulses: readonly NetMarketImpulse[], progres
     runtime.nextMarketPollAt = performance.now() + MARKET_POLL_MS;
   } catch (err) {
     runtime.status = 'offline';
-    runtime.error = err instanceof Error ? err.message : 'market sync failed';
+    runtime.error = netFailureText(err, 'market_post');
   } finally {
     runtime.marketBusy = false;
   }
@@ -533,7 +557,7 @@ async function sendChat(body: string): Promise<void> {
   } catch (err) {
     if (!sendFailureKeepsConnection(err)) runtime.status = 'offline';
     else if (runtime.stats || runtime.profile) runtime.status = 'online';
-    runtime.error = err instanceof Error ? err.message : 'сообщение не ушло';
+    runtime.error = netFailureText(err, 'chat');
   } finally {
     runtime.chatBusy = false;
   }
@@ -549,7 +573,7 @@ function submitDraft(): void {
     if (command === '/netgen' || command === '/ген') {
       const next = cleanNetGen(arg);
       if (!next) {
-        runtime.error = 'НЕТ-ГЕН: формат NET-XXXX-XXXX-XXXX';
+        runtime.error = 'НЕТ-ГЕН: нужен NET-XXXX-XXXX-XXXX';
         return;
       }
       runtime.netGen = next;
@@ -578,7 +602,7 @@ function submitDraft(): void {
       runtime.lastChatId = 0;
       return;
     }
-    runtime.error = 'Команды: /netgen NET-..., /new, /clear';
+    runtime.error = 'Команды: /netgen, /new, /clear';
     return;
   }
   void sendChat(draft);
@@ -708,10 +732,11 @@ export function reportNetSphereEvent(
       runtime.error = '';
     } else if (data && typeof data === 'object' && 'error' in data) {
       if (res.status >= 500) runtime.status = 'offline';
-      runtime.error = String(data.error);
+      runtime.error = netFailureText(new NetSphereApiError(serverErrorMessage(data, `HTTP ${res.status}`), res.status), 'event');
     }
   }).catch(() => {
     runtime.status = 'offline';
+    runtime.error = netFailureText(null, 'event');
   });
 }
 

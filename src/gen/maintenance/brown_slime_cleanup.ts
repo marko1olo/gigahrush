@@ -78,7 +78,7 @@ export function generateBrownSlimeCleanup(ctx: MaintContentCtx): void {
     zoneId: ctx.world.zoneMap[ctx.world.idx(room.x + 6, room.y + 4)],
     centerX: room.x + 7.5,
     centerY: room.y + 4.5,
-    warning: 'Слизь держит обувь и несёт запах в стояк. Чистящий комплект или огонь снимают пятно.',
+    warning: 'Токсичная коричневая слизь держит обувь и несёт запах в стояк. Чистящий комплект или огонь снимают пятно.',
   });
 
   dropItems(ctx, room, ['cleaning_kit', 'gasmask_filter', 'filter_layer', 'water', 'ammo_fuel']);
@@ -91,7 +91,7 @@ export function generateBrownSlimeCleanup(ctx: MaintContentCtx): void {
   dropAt(ctx, room.x + 6, room.y + 4, 'infected_mushroom', 2);
   dropAt(ctx, room.x + 8, room.y + 5, 'cloth_roll');
   dropAt(ctx, room.x + 10, room.y + 3, 'note', 1,
-    'Памятка санпоста: акт зачистки несут Боковой на пост НИИ. Пробу в пломбе можно сдать, прожечь в печи или продать без журнала. Огонь быстрее комплекта, но бензин не выдаётся повторно.');
+    'Памятка санпоста: коричневую слизь считать токсичной до акта и после акта руками не трогать. Пробу в пломбе можно сдать Боковой, прожечь в печи или продать без журнала. Огонь быстрее комплекта, но бензин не выдаётся повторно.');
   spawnAmbientNpc(
     ctx, 'Трофим Санобход', Faction.CITIZEN, Occupation.LOCKSMITH,
     room.x + 2, room.y + room.h - 2,

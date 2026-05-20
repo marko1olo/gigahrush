@@ -19,8 +19,8 @@ export const DEF: MonsterDef = {
   projSpeed: 12,
   projSprite: 0,       // auto-assigned to Spr.PSI_BOLT
   floors: [FloorLevel.MINISTRY, FloorLevel.LIVING, FloorLevel.HELL, FloorLevel.VOID],
-  counterplay: 'Не стойте в открытом среднем проходе: идол не двигается, поэтому сбейте угол стеной или быстро входите в упор между ПСИ-выстрелами.',
-  lootHint: 'ПСИ-пыль, холодный культовый камень; редко идол Чернобога или меточный сгусток',
+  counterplay: 'Идол не двигается: сбейте угол стеной или дверью и входите в упор между ПСИ-выстрелами.',
+  lootHint: 'ПСИ-пыль, холодный культовый камень, редкий идол Чернобога или меточный сгусток',
 };
 
 /* ── Static fallback sprite (used in sprite sheet) ────────────── */

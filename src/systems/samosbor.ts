@@ -349,7 +349,7 @@ function resolvePlayerShelterAtSeal(
 
   const fogCells = seedUnshelteredFog(world, px, py);
   const pressure = applyUnshelteredPressure(player, state);
-  state.msgs.push(msg('Герма закрылась не вокруг вас. Туман нашёл щель и записал промах.', state.time, '#f66'));
+  state.msgs.push(msg('Вы остались снаружи рабочей гермы. Через щель пошёл туман; стало больно дышать.', state.time, '#f66'));
   publishEvent(state, {
     type: 'samosbor_warning',
     zoneId,
@@ -397,6 +397,7 @@ function samosborEventTags(
     tags.push('green_source');
     if (wrongDoor) tags.push('wrong_door');
   }
+  if (isVeretar(variant)) tags.push('white_area', 'area_leak');
   return tags;
 }
 
@@ -573,7 +574,7 @@ function addIstotitSupplyContainer(world: World, state: GameState, roomId: numbe
   const room = world.rooms[roomId];
   if (!pos || !room) return 0;
   const inventory = [
-    ITEMS.holy_water ? { defId: 'holy_water', count: 1 } : null,
+    ITEMS.istotit_candle ? { defId: 'istotit_candle', count: 1 } : null,
     ITEMS.water ? { defId: 'water', count: 1 } : null,
     ITEMS.bread ? { defId: 'bread', count: 1 } : null,
   ].filter((item): item is { defId: string; count: number } => item !== null);
@@ -585,7 +586,7 @@ function addIstotitSupplyContainer(world: World, state: GameState, roomId: numbe
     roomId,
     zoneId: world.zoneMap[world.idx(pos.x, pos.y)],
     kind: ContainerKind.EMERGENCY_BOX,
-    name: `Церковный запас: ${room.name}`,
+    name: `Церковный свечной запас: ${room.name}`,
     inventory,
     capacitySlots: 5,
     faction: Faction.CITIZEN,
@@ -728,7 +729,7 @@ function istotitAdmitNpc(world: World, entities: Entity[], player: Entity, state
   }
   if (player.rpg) player.rpg.psi = Math.max(0, player.rpg.psi - 4);
   addFactionRelMutual(Faction.CITIZEN, Faction.PLAYER, 1);
-  state.msgs.push(msg(`${npc.name ?? 'Сосед'} вписан в золотую комнату. Воды и воздуха стало меньше.`, state.time, '#d6a64b'));
+  state.msgs.push(msg(`${npc.name ?? 'Сосед'} вписан в ведомость у жёлтой гермы. Воды и воздуха стало меньше.`, state.time, '#d6a64b'));
   publishIstotitDecision(world, player, state, 'admit_npc', 3, { targetId: npc.id, targetName: npc.name, roomId });
   return true;
 }
@@ -745,7 +746,7 @@ function istotitShelterAlone(world: World, player: Entity, state: GameState, roo
     door.timer = 0;
   }
   addFactionRelMutual(Faction.CITIZEN, Faction.PLAYER, -1);
-  state.msgs.push(msg('Вы закрыли золотую дверь изнутри. Ведомость потом спросит, кто стоял снаружи.', state.time, '#d6a64b'));
+  state.msgs.push(msg('Вы закрыли жёлтую герму изнутри. Ведомость оставит пустую строку за тем, кто стучал снаружи.', state.time, '#d6a64b'));
   publishIstotitDecision(world, player, state, 'shelter_alone', 3, { roomId });
   return true;
 }
@@ -797,8 +798,8 @@ function istotitFollowBell(
   }
   state.msgs.push(msg(
     spawned > 0
-      ? 'Вы пошли на колокол. Свет ответил глазом.'
-      : 'Вы пошли на колокол. Маршрут стал светлее, голова - тише не стала.',
+      ? 'Вы пошли на колокол. У жёлтой метки открылся глаз; до укрытия теперь придётся пробиваться.'
+      : 'Вы пошли на колокол. На полу осталась жёлтая пыль, а путь к герме стал длиннее.',
     state.time,
     '#d6a64b',
   ));
@@ -829,7 +830,7 @@ function istotitDisruptRite(
     spawned = 1;
   }
   addFactionRelMutual(Faction.CITIZEN, Faction.PLAYER, -2);
-  state.msgs.push(msg('Вы сорвали чин. Золотая дверь открылась, но хор стал туманом.', state.time, '#f84'));
+  state.msgs.push(msg('Вы сорвали церковный порядок. Жёлтая герма открылась, и туман пошёл в комнату с людьми.', state.time, '#f84'));
   publishIstotitDecision(world, player, state, 'disrupt_rite', 5, { doorIdx, fogCells, spawned });
   return true;
 }
@@ -978,14 +979,14 @@ function chooseWarningZone(world: World, entities: Entity[]): { id: number; cx: 
 
 function warningActionLine(zoneId: number, seconds: number, variant: ActiveSamosborVariant): string {
   const zoneText = zoneId >= 0 ? `зона ${zoneId + 1}` : 'локальная зона';
-  if (isIstotit(variant)) return `ИСТОТИТ через ${seconds}с: ${zoneText}. К золотому контуру, не верьте красивому отбою.`;
-  if (isMaronary(variant)) return `МАРОНАРИЙ через ${seconds}с: ${zoneText}. Не смотрите в зелёный источник и проверьте двери.`;
-  if (isVeretar(variant)) return `ВЕРЕТАР через ${seconds}с: ${zoneText}. От белого окна, к тёмной герме или из зоны.`;
-  if (variant.def.id === 'quiet') return `ТИХИЙ САМОСБОР через ${seconds}с: ${zoneText}. Сирены может не быть; сверяйте карту, табло и соседей.`;
-  if (variant.def.id === 'wet') return `МОКРЫЙ САМОСБОР через ${seconds}с: ${zoneText}. Уходите с воды к герме или выше по сухому полу.`;
-  if (variant.def.id === 'electric') return `ЭЛЕКТРОСБОР через ${seconds}с: ${zoneText}. Свет врёт глазами; закрывайтесь раньше.`;
-  if (variant.def.id === 'meat') return `МЯСНОЙ РЕЗОНАНС через ${seconds}с: ${zoneText}. Не верьте тихой комнате, выходите из зоны.`;
-  return `САМОСБОР через ${seconds}с: ${zoneText}. К герме, из зоны или в ведомость пропавших.`;
+  if (isIstotit(variant)) return `ИСТОТИТ через ${seconds}с: ${zoneText}. К жёлтой герме, руки от ручки.`;
+  if (isMaronary(variant)) return `МАРОНАРИЙ через ${seconds}с: ${zoneText}. Не смотри в зелёный источник, сверяй номер двери.`;
+  if (isVeretar(variant)) return `ВЕРЕТАР через ${seconds}с: ${zoneText}. От белого окна, к тёмной герме или за границу зоны.`;
+  if (variant.def.id === 'quiet') return `ТИХИЙ САМОСБОР через ${seconds}с: ${zoneText}. Сирены может не быть; сверяй карту, табло и соседей.`;
+  if (variant.def.id === 'wet') return `МОКРЫЙ САМОСБОР через ${seconds}с: ${zoneText}. С воды к сухой герме или выше по полу.`;
+  if (variant.def.id === 'electric') return `ЭЛЕКТРОСБОР через ${seconds}с: ${zoneText}. Уйди от ламп, закрывайся раньше.`;
+  if (variant.def.id === 'meat') return `МЯСНОЙ САМОСБОР через ${seconds}с: ${zoneText}. От швов в центр прохода или из зоны.`;
+  return `САМОСБОР через ${seconds}с: ${zoneText}. К герме, за границу зоны или закрыться заранее.`;
 }
 
 function warningMapCode(variant: ActiveSamosborVariant): string {
@@ -1003,8 +1004,8 @@ function warningMapCode(variant: ActiveSamosborVariant): string {
 
 function warningAudioLine(variant: ActiveSamosborVariant): string {
   if (variant.def.audioCue === 'bell') return 'звук: колокол вместо сирены';
-  if (variant.def.audioCue === 'maronary') return 'звук: высокий писк, сирены нет';
-  if (variant.def.audioCue === 'veretar') return 'звук: дальняя внешняя тревога';
+  if (variant.def.audioCue === 'maronary') return 'звук: высокий писк; не идти на источник';
+  if (variant.def.audioCue === 'veretar') return 'звук: внешняя тревога за белым окном';
   if (variant.noSiren) return 'звук: штатной сирены нет';
   return 'звук: штатная сирена';
 }
@@ -1014,12 +1015,12 @@ function warningMapLine(
   wrongDoorIdx: number,
   shelterCount: number,
 ): string {
-  if (isMaronary(variant) && wrongDoorIdx >= 0) return 'карта: риск + повтор двери';
-  if (isMaronary(variant)) return 'карта: риск + зелёный источник';
-  if (isIstotit(variant) && shelterCount > 0) return `карта: риск + золотые укрытия ${shelterCount}`;
-  if (isVeretar(variant)) return 'карта: белая область риска';
-  if (variant.def.id === 'quiet') return 'карта: риск важнее сирены';
-  return 'карта: зона риска отмечена';
+  if (isMaronary(variant) && wrongDoorIdx >= 0) return 'карта: повтор двери; сверить сектор';
+  if (isMaronary(variant)) return 'карта: зелёный источник; держаться в стороне';
+  if (isIstotit(variant) && shelterCount > 0) return `карта: жёлтые укрытия ${shelterCount}; мест мало, список короткий`;
+  if (isVeretar(variant)) return 'карта: белое пятно вместо комнаты';
+  if (variant.def.id === 'quiet') return 'карта: сирены может не быть; сверить табло';
+  return 'карта: зона риска отмечена; выйти или закрыться';
 }
 
 function buildWarningSignals(
@@ -1031,11 +1032,11 @@ function buildWarningSignals(
 ): SamosborWarningSignals {
   const audioLine = warningAudioLine(variant);
   const screenLine = screenCount > 0
-    ? `экраны: ${screenCount} табло мигают`
+    ? `экраны: ${screenCount} табло мигают; проверь ближайшее`
     : 'экраны: рядом нет табло';
   const mapLine = warningMapLine(variant, wrongDoorIdx, shelterCount);
   const npcLine = barkCount > 0
-    ? `соседи: ${barkCount} предупреждения`
+    ? `соседи: ${barkCount} предупреждения; слушай короткие команды`
     : 'соседи: никого рядом';
   const visualLine = screenCount > 0
     ? `визуал: ${screenCount} табло; ${mapLine}`
@@ -1050,7 +1051,7 @@ function buildWarningSignals(
     mapLine,
     npcLine,
     visualLine,
-    logLine: `Каналы предупреждения: ${audioLine}; ${visualLine}; ${npcLine}.`,
+    logLine: `Предупреждение принято: ${audioLine}; ${visualLine}; ${npcLine}. Решение: герма, граница зоны или раннее закрытие.`,
     mapCode: warningMapCode(variant),
     channels,
     channelLines: [audioLine, visualLine, npcLine],
@@ -1077,19 +1078,19 @@ function warningBarkForVariant(variant: ActiveSamosborVariant, isFemale: boolean
   switch (variant.def.id) {
     case 'istotit':
       return isFemale
-        ? 'Колокол слышишь? К золотой двери, пока она ещё считает нас живыми!'
-        : 'Сирена сорвалась в колокол. В укрытие, глаза вниз!';
+        ? 'Колокола слышишь? К жёлтой герме, руки от ручки!'
+        : 'Сирена сорвалась в колокола. В укрытие, чужим голосам не отвечай!';
     case 'maronary':
       return isFemale
-        ? 'Писк слышишь? Не смотри в зелёное. Дверь проверь два раза!'
-        : 'Зелёный источник не трогай взглядом. Писк врёт про направление!';
+        ? 'Писк слышишь? Не смотри в зелёное, номер двери проверь!'
+        : 'Зелёный источник не трогай взглядом. Дверь сверяй по карте!';
     case 'veretar':
       return isFemale
-        ? 'Окно завесь. Быстро. Там не наш двор!'
-        : 'Белое не трогай. К тёмной двери, пока карта помнит дом!';
+        ? 'Занавеску держи двумя руками. Там не наш двор!'
+        : 'Белое окно не двор. Оттащи свидетеля и к тёмной герме!';
     case 'quiet':
       return isFemale
-        ? 'Тихо стало неправильно. Смотри на табло и карту, сирена может молчать!'
+        ? 'Тихо стало неправильно. Табло, карта, герма - сейчас!'
         : 'Не жди сирену. Тишина уже предупреждает, к герме!';
     case 'wet':
       return isFemale
@@ -1097,16 +1098,16 @@ function warningBarkForVariant(variant: ActiveSamosborVariant, isFemale: boolean
         : 'Мокрый сбор идёт. С пола уходи, дверь закрывай раньше!';
     case 'electric':
       return isFemale
-        ? 'Свет моргает как протокол. К герме, пока привод живой!'
-        : 'Озон чувствуешь? Электросбор, глаза от ламп и к двери!';
+        ? 'Свет моргает. От ламп к герме, пока привод живой!'
+        : 'Озон чувствуешь? Не смотри на лампы, к двери!';
     case 'meat':
       return isFemale
         ? 'Стены пахнут мясом. Тихой комнате не верь!'
         : 'Мясо в стенах пошло. Не стой где тепло, беги из зоны!';
     default:
       return isFemale
-        ? 'Слышишь? К гермодвери, пока она ещё признаёт нас!'
-        : 'Сирена будет поздно. Ноги к герме, голову вниз!';
+        ? 'Слышишь? К герме, пока уплотнитель держит!'
+        : 'Сирена пошла. Ноги к герме, голову вниз!';
   }
 }
 
@@ -1179,10 +1180,10 @@ function ensureSamosborWarning(
   state.msgs.push(msg(`${floorName}. ${variantLine}`, state.time, variant.def.tint));
   if (modifierLine) state.msgs.push(msg(modifierLine, state.time, variant.def.tint));
   if (shelterRoomIds.length > 0) {
-    state.msgs.push(msg('ИСТОТИТ: укрытые комнаты отмечены золотым контуром.', state.time, variant.def.tint));
+    state.msgs.push(msg('ИСТОТИТ: укрытые комнаты отмечены жёлтой меткой; мест меньше, чем фамилий.', state.time, variant.def.tint));
   }
   if (isMaronary(variant) && (maronaryClue.greenSourceCount > 0 || maronaryClue.wrongDoorIdx >= 0)) {
-    state.msgs.push(msg('Маронарий: зелёный источник и повтор двери отмечены на карте.', state.time, variant.def.tint));
+    state.msgs.push(msg('Маронарий: зелёный источник и повтор двери отмечены. Проверяй маршрут по номеру, не по зелёному свету.', state.time, variant.def.tint));
   }
   const barkCount = pushWarningBarks(world, entities, state, variant, zone.cx, zone.cy);
   const signals = buildWarningSignals(
@@ -1319,12 +1320,12 @@ export function updateSamosbor(
     samosborSealed = true;
     resolvePlayerShelterAtSeal(world, entities, state, activeVariant);
     const sealText = activeVariant.sealTimingDelta > 0
-      ? '⚠ Гермодвери закрываются досрочно! ⚠'
+      ? 'ГЕРМЫ: досрочное закрытие. Кто у ручки - внутрь сейчас.'
       : activeVariant.sealTimingDelta < 0
-        ? '⚠ Гермодвери закрываются с задержкой! ⚠'
-        : '⚠ Гермодвери закрываются! ⚠';
+        ? 'ГЕРМЫ: задержка закрытия. Не стой в коридоре, ищи второй контур.'
+        : 'ГЕРМЫ: закрываются. Руки от внешней ручки.';
     state.msgs.push(msg(sealText, state.time, '#fa0'));
-    if (sealedShelters > 0) state.msgs.push(msg('Золотые двери закрылись мягко. Внутри стало теснее.', state.time, activeVariant.def.tint));
+    if (sealedShelters > 0) state.msgs.push(msg('Жёлтые гермы закрылись мягко. Внутри стало теснее.', state.time, activeVariant.def.tint));
   }
 
   // ── Fog spread — universal, every tick, even outside samosbor ──
@@ -1366,10 +1367,12 @@ export function updateSamosbor(
     state.samosborActive = false;
     state.samosborTimer = nextPostSamosborTimer(state.currentFloor);
     const endLine = endedVariant?.def.id === 'istotit'
-      ? 'Истотит отзвонил... свет остался на плинтусах.'
+      ? 'Истотит отзвонил. Жёлтая пыль осталась на плинтусах, ведомость - на руках.'
       : endedVariant?.def.id === 'maronary'
-        ? 'Маронарий отступил... зелёный свет ушёл не весь.'
-      : 'Самосбор закончился... мир перестраивается.';
+        ? 'Маронарий смолк. Зелёные метки остались у дверей. Проверь номер двери до сна.'
+      : endedVariant?.def.id === 'veretar'
+        ? 'Веретар отступил. Белый песок остался в швах; проверь, все ли вышли из укрытия.'
+      : 'Отбой прошёл. Проверь дверь, карту и тех, кто должен был выйти за тобой.';
     state.msgs.push(msg(endLine, state.time, endedVariant?.def.tint ?? '#aa4'));
     publishEvent(state, {
       type: 'samosbor_ended',
@@ -2534,12 +2537,12 @@ function captureZone(
   }
 
   const zoneLine = istotit
-    ? `☩ Зона ${zone.id + 1} укрыта Истотитом. Золотой туман слушает двери...`
+    ? `Зона ${zone.id + 1}: Истотит держит жёлтые гермы. Двери не трогать.`
     : maronary
-      ? `☠ Зона ${zone.id + 1} захвачена: Маронарий. Зелёный источник доказывает дверь...`
+      ? `Зона ${zone.id + 1}: Маронарий. Зелёный источник и повтор двери на карте.`
     : isVeretar(variant)
-      ? `☠ Зона ${zone.id + 1} захвачена: ${variant.def.displayName}. Белая область раскрывается...`
-    : `☠ Зона ${zone.id + 1} захвачена: ${variant.def.displayName}. Туман распространяется...`;
+      ? `Зона ${zone.id + 1}: ${variant.def.displayName}. Белое пятно лезет через окно.`
+    : `Зона ${zone.id + 1}: ${variant.def.displayName}. Туман пошёл по щелям.`;
   state.msgs.push(msg(zoneLine, state.time, variant.def.tint));
   publishEvent(state, {
     type: 'samosbor_zone_captured',
@@ -2563,9 +2566,13 @@ function captureZone(
     },
   });
   const bossLine = istotit
-    ? `Свидетель света открыл глаз в зоне ${zone.id + 1}. Убейте его, чтобы хор отпустил туман.`
-    : `Босс тумана появился в зоне ${zone.id + 1}! Убейте его чтобы остановить туман.`;
-  state.msgs.push(msg(bossLine, state.time, istotit ? variant.def.tint : '#f4a'));
+    ? `Глаз ведомости открылся в зоне ${zone.id + 1}. Убейте его, чтобы туман отпустил герму.`
+    : maronary
+      ? `Маронарий вывел крупную тварь в зоне ${zone.id + 1}. Убейте её или уходите от повторённой двери.`
+    : isVeretar(variant)
+      ? `Тварь у белого окна появилась в зоне ${zone.id + 1}. Убейте её, чтобы проход не ушёл в пятно.`
+    : `Крупная тварь вышла из тумана в зоне ${zone.id + 1}. Убейте её или уходите за герму.`;
+  state.msgs.push(msg(bossLine, state.time, istotit || maronary || isVeretar(variant) ? variant.def.tint : '#f4a'));
   publishEvent(state, {
     type: 'fog_boss_spawned',
     zoneId: zone.id,
@@ -2577,7 +2584,7 @@ function captureZone(
     severity: 4,
     privacy: 'public',
     tags: ['samosbor', 'fog', 'boss', `variant_${variant.def.id}`],
-    data: { hp: hpFinal, zoneLevel, variantId: variant.def.id, bossTitle: istotit ? 'Свидетель света' : undefined },
+    data: { hp: hpFinal, zoneLevel, variantId: variant.def.id, bossTitle: istotit ? 'Глаз ведомости' : isVeretar(variant) ? 'Тварь у белого окна' : undefined },
   });
   return zone.id;
 }
@@ -2631,7 +2638,7 @@ export function clearFogInZone(world: World, zoneId: number, msgs: Msg[], time: 
   }
   if (fogDirty) world.markFogDirty();
   msgs.push(msg(
-    `Туман в зоне ${zoneId} рассеялся! Босс повержен.`,
+    `Туман в зоне ${zoneId} ушёл. Ликвидаторы могут заходить.`,
     time, '#4f4',
   ));
   if (state) {

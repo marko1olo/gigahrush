@@ -15,8 +15,8 @@ export const DEF: MonsterDef = {
   attackRate: 1.5,
   sprite: 0,   // auto-assigned by generateSprites()
   floors: [FloorLevel.MINISTRY, FloorLevel.HELL, FloorLevel.VOID],
-  counterplay: 'Меняйте позицию до контакта: двери и стены дух проходит, помогает только запас дистанции и сбитый темп.',
-  lootHint: 'пустая память, холодный сквозняк; редко ПСИ-пыль',
+  counterplay: 'Двери и стены не держат духа: меняйте позицию до контакта, держите дистанцию и сбивайте темп УФ-светом.',
+  lootHint: 'пустая память, холодный сквозняк, редкая ПСИ-пыль',
 };
 
 export function generateSprite(): Uint32Array {

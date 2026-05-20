@@ -24,7 +24,7 @@ export const FLOOR_NAMES: Record<FloorLevel, string> = {
   [FloorLevel.KVARTIRY]: 'Квартиры',
   [FloorLevel.LIVING]: 'Жилая зона',
   [FloorLevel.MAINTENANCE]: 'Коллекторы',
-  [FloorLevel.HELL]: 'Преисподняя',
+  [FloorLevel.HELL]: 'Мясной низ',
   [FloorLevel.VOID]: 'Пустота',
 };
 

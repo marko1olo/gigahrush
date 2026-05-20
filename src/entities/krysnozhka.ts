@@ -14,8 +14,8 @@ export const DEF: MonsterDef = {
   sprite: 0,
   aiFlags: ['foodBait'],
   floors: [FloorLevel.KVARTIRY, FloorLevel.LIVING, FloorLevel.MAINTENANCE],
-  counterplay: 'У нее мало здоровья: сбивайте первый рывок дробью, бросайте еду/говняк в сторону или ведите рой через липкую ловушку; запас держите в закрытом контейнере.',
-  lootHint: 'мелкие лапки, грязный жир и мусор гнезда; редко сырое мясо',
+  counterplay: 'Сбивайте первый рывок дробью, бросайте помеченную приманку дальше себя и держите запас еды в закрытом контейнере.',
+  lootHint: 'мелкие лапки, грязный жир, мусор гнезда, редкое сырое мясо',
 };
 
 export function generateSprite(): Uint32Array {

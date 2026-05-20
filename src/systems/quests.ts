@@ -171,7 +171,7 @@ export function offerQuest(
 
   state.quests.push(quest);
   npc.questId = quest.id;
-  msgs.push(msg(`Новое задание: ${quest.desc}${deadlineMessageSuffix(quest, state.clock.totalMinutes)}`, state.time, '#4af'));
+  msgs.push(msg(`Новое поручение: ${quest.desc}${deadlineMessageSuffix(quest, state.clock.totalMinutes)}`, state.time, '#4af'));
   const contractId = quest.contractId;
   const contractDef = contractId ? CONTRACTS.find(c => c.id === contractId) : undefined;
   publishEvent(state, {
@@ -356,7 +356,7 @@ function failQuest(
   if (giver?.questId === q.id) giver.questId = -1;
   const contractDef = q.contractId ? CONTRACTS.find(c => c.id === q.contractId) : undefined;
 
-  if (msgs) msgs.push(msg(`Задание провалено: ${q.desc}`, state.time, '#f66'));
+  if (msgs) msgs.push(msg(`Поручение сорвано: ${q.desc}`, state.time, '#f66'));
   publishEvent(state, {
     type: q.contractId ? 'contract_failed' : 'quest_failed',
     actorId: q.giverId,
@@ -397,13 +397,19 @@ export function checkTalkQuest(
     const matchByPlotId = q.targetPlotNpcId && targetNpc.plotNpcId === q.targetPlotNpcId;
     if (!matchById && !matchByPlotId) continue;
     const plotDef = targetNpc.plotNpcId ? PLOT_NPCS[targetNpc.plotNpcId] : undefined;
-    if (plotDef?.talkQuestResponse) {
-      msgs.push(msg(`${targetNpc.name}: «${plotDef.talkQuestResponse}»`, state.time, '#aaf'));
+    const talkQuestResponse = plotDef?.talkQuestResponse;
+    if (talkQuestResponse) {
+      msgs.push(msg(`${targetNpc.name}: «${pickTalkQuestResponse(talkQuestResponse)}»`, state.time, '#aaf'));
     } else {
       msgs.push(msg(`${targetNpc.name}: «Передам, спасибо.»`, state.time, '#aaf'));
     }
     completeQuest(q, player, entities, state, msgs);
   }
+}
+
+function pickTalkQuestResponse(response: string | readonly string[]): string {
+  if (typeof response === 'string') return response;
+  return response[Math.floor(Math.random() * response.length)] ?? 'Передам, спасибо.';
 }
 
 function contractCompletionTags(contractDef: ContractDef | undefined): string[] {
@@ -438,13 +444,13 @@ function completeQuest(
   if (q.rewardItem) {
     addItem(player, q.rewardItem, q.rewardCount ?? 1);
     const def = ITEMS[q.rewardItem];
-    msgs.push(msg(`Награда: ${def?.name ?? q.rewardItem} ×${q.rewardCount ?? 1}`, state.time, '#4f4'));
+    msgs.push(msg(`Плата: ${def?.name ?? q.rewardItem} ×${q.rewardCount ?? 1}`, state.time, '#4f4'));
   }
   if (q.extraRewards) {
     for (const r of q.extraRewards) {
       addItem(player, r.defId, r.count);
       const def = ITEMS[r.defId];
-      msgs.push(msg(`Награда: ${def?.name ?? r.defId} ×${r.count}`, state.time, '#4f4'));
+      msgs.push(msg(`Плата: ${def?.name ?? r.defId} ×${r.count}`, state.time, '#4f4'));
     }
   }
 
@@ -472,7 +478,7 @@ function completeQuest(
     if (q.sideQuestId) giver.plotDone = true;
   }
 
-  msgs.push(msg(`Задание выполнено: ${q.desc}`, state.time, '#4f4'));
+  msgs.push(msg(`Поручение закрыто: ${q.desc}`, state.time, '#4f4'));
   const contractDef = q.contractId ? CONTRACTS.find(c => c.id === q.contractId) : undefined;
   publishEvent(state, {
     type: q.contractId ? 'contract_completed' : 'quest_completed',
@@ -563,7 +569,7 @@ function expireQuestIfNeeded(q: Quest, player: Entity, entities: Entity[], state
   const contractDef = q.contractId ? CONTRACTS.find(c => c.id === q.contractId) : undefined;
   if (isGovnyakCourierContractId(q.contractId)) removeItem(player, GOVNYAK_COURIER_PACKAGE_ITEM, 1);
 
-  msgs.push(msg(`Срок задания истёк: ${q.desc}`, state.time, '#f66'));
+  msgs.push(msg(`Срок вышел: ${q.desc}`, state.time, '#f66'));
   publishEvent(state, {
     type: q.contractId ? 'contract_failed' : 'quest_failed',
     actorId: q.giverId,
@@ -1052,7 +1058,7 @@ function generateQuest(
     return assignProceduralQuestDeadline({
       id: state.nextQuestId++, type: QuestType.FETCH,
       giverId: npc.id, giverName: npc.name ?? '???',
-      desc: `${npc.name}: «В ${ctx.roomName} нужен ${def.name} ×${count}. Достанешь?»`,
+      desc: `${npc.name}: «Принеси ${def.name} ×${count} в ${ctx.roomName}. Плата после сдачи; не тяни до сирены.»`,
       targetItem: item, targetCount: count,
       rewardItem: reward, rewardCount: 1, relationDelta: 10,
       difficulty: diff, xpReward: questXpReward(diff), moneyReward: intAdjustedMoney(questMoneyReward(diff), player, docWork),
@@ -1069,7 +1075,7 @@ function generateQuest(
     return assignProceduralQuestDeadline({
       id: state.nextQuestId++, type: QuestType.VISIT,
       giverId: npc.id, giverName: npc.name ?? '???',
-      desc: `${npc.name}: «Проверь ${room.name} ${toroidalDirection(world, npc.x, npc.y, room.x, room.y)}»`,
+      desc: `${npc.name}: «Проверь ${room.name} ${toroidalDirection(world, npc.x, npc.y, room.x, room.y)}. Нужна отметка, не рассказ.»`,
       targetRoom: room.id,
       rewardItem: pickRewardItem(occ, ctx), rewardCount: 1, relationDelta: 8,
       difficulty: diff, xpReward: questXpReward(diff), moneyReward: intAdjustedMoney(questMoneyReward(diff), player, docWork),
@@ -1089,7 +1095,7 @@ function generateQuest(
     return assignProceduralQuestDeadline({
       id: state.nextQuestId++, type: QuestType.KILL,
       giverId: npc.id, giverName: npc.name ?? '???',
-      desc: `${npc.name}: «Убей ${monsterQuestName(kind)}${mdef ? ` у ${ctx.roomName}` : ''}»`,
+      desc: `${npc.name}: «Убей ${monsterQuestName(kind)}${mdef ? ` у ${ctx.roomName}` : ''}. Плата после тишины.»`,
       targetMonsterKind: kind, killCount: 0, killNeeded,
       rewardItem: pickRewardItem(occ, ctx), rewardCount: 1, relationDelta: 15,
       difficulty: killDiff, xpReward: questXpReward(killDiff), moneyReward: intAdjustedMoney(questMoneyReward(killDiff), player),
@@ -1104,7 +1110,7 @@ function generateQuest(
   return assignProceduralQuestDeadline({
     id: state.nextQuestId++, type: QuestType.TALK,
     giverId: npc.id, giverName: npc.name ?? '???',
-    desc: `${npc.name}: «Передай ${target.name} сообщение. Он ${toroidalDirection(world, npc.x, npc.y, target.x, target.y)}»`,
+    desc: `${npc.name}: «Передай ${target.name} сообщение. Он ${toroidalDirection(world, npc.x, npc.y, target.x, target.y)}; плата после ответа.»`,
     targetNpcId: target.id, targetNpcName: target.name,
     rewardItem: pickRewardItem(occ, ctx), rewardCount: 1, relationDelta: 12,
     difficulty: talkDiff, xpReward: questXpReward(talkDiff), moneyReward: intAdjustedMoney(questMoneyReward(talkDiff), player),

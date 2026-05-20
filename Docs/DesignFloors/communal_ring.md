@@ -1,8 +1,8 @@
 # Design Floor: Коммунальное кольцо
 
-Status: planning artifact. Future route id: `communal_ring`. Future anchor: `z=-4`.
+Status: implemented authored route floor. Route id: `communal_ring`. Anchor: `z=-4`.
 
-Planned owned file: `src/gen/design_floors/communal_ring.ts`.
+Owned file: `src/gen/design_floors/communal_ring.ts`.
 
 ## Role
 
@@ -12,8 +12,9 @@ Primary decisions: clean, steal, trade, hide, expose, ration, repair, shelter.
 
 ## Generation
 
-- Ring corridor with repeated but varied apartment clusters.
-- Shared services at intervals: laundry, shower, kitchen, pantry, notice office.
+- Ring corridor with four сквозные коммуналки: each chain has pass-through living rooms, a kitchen, a bathroom, internal doors and exits at both ends.
+- Shared services: laundry, shower, kitchen, pantry, notice office and service core.
+- Full-floor expansion adds repeated shared-service knots around the 1024x1024 route footprint.
 - Loops must be navigable; use landmark rooms and signage.
 - Protect permanent POIs from volatile rebuild if integrated into current living-like generator.
 
@@ -23,6 +24,8 @@ Primary decisions: clean, steal, trade, hide, expose, ration, repair, shelter.
 - `communal_shower_viktor`: knows water contamination rumors.
 - `communal_notice_tamara`: controls notice board quests.
 - `communal_panhandler_sasha`: detects theft and trades small goods.
+- `communal_through_nina`: keeps the through-flat food chain alive.
+- `communal_primus_yegor`: repairs the primus/boiling-water route through a valve tag.
 
 ## Quests
 
@@ -30,6 +33,8 @@ Primary decisions: clean, steal, trade, hide, expose, ration, repair, shelter.
 - `communal_notice_dispute`: choose which public notice becomes official.
 - `communal_pantry_theft`: steal, buy or earn access to food storage.
 - `communal_shower_pressure`: repair pressure or let water route to Collectors.
+- `communal_through_chain_bread`: feed the сквозная коммуналка for safer passage and a key-label reward.
+- `communal_primus_valve`: bring a valve tag to restore boiling water in the pass-through flat.
 
 ## Samosbor
 
@@ -47,4 +52,3 @@ Communal Ring should produce aftermath accusations. A sealed laundry, missing pa
 - At least three shared services exist and each has a decision.
 - One service state changes after samosbor.
 - The floor feels residential but distinct from Kvartiry density and Living hub safety.
-

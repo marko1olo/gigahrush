@@ -1,13 +1,6 @@
 import { type NetSphereSnapshot } from '../systems/net_sphere';
 import { drawGlitchText, drawNeuroPanel, drawStaticNoise } from './hud_fx';
-
-function fitText(ctx: CanvasRenderingContext2D, text: string, maxW: number): string {
-  if (maxW <= 0) return '';
-  if (ctx.measureText(text).width <= maxW) return text;
-  let end = text.length - 3;
-  while (end > 1 && ctx.measureText(text.slice(0, end) + '...').width > maxW) end--;
-  return text.slice(0, Math.max(1, end)) + '...';
-}
+import { fitText } from './ui_text';
 
 function wrapText(ctx: CanvasRenderingContext2D, text: string, maxW: number, maxLines: number): string[] {
   if (maxW <= 0 || maxLines <= 0) return [];
@@ -94,7 +87,7 @@ export function drawNetSphereMenu(
   ctx.fillText(net.statusText, x + pad, headerY + 16 * s);
   if (net.busy) {
     ctx.fillStyle = '#89a';
-    ctx.fillText('пакет...', x + pad + 75 * s, headerY + 16 * s);
+    ctx.fillText('пакет', x + pad + 75 * s, headerY + 16 * s);
   }
 
   const leftX = x + pad;
@@ -106,13 +99,13 @@ export function drawNetSphereMenu(
 
   const stats = net.stats;
   statLine(ctx, 'онлайн', String(stats?.onlineUsers ?? '-'), leftX, ly, leftW, valueOffset, '#7f8'); ly += 10 * s;
-  statLine(ctx, 'игроков', String(stats?.totalPlayers ?? '-'), leftX, ly, leftW, valueOffset, '#8cf'); ly += 10 * s;
+  statLine(ctx, 'всего', String(stats?.totalPlayers ?? '-'), leftX, ly, leftW, valueOffset, '#8cf'); ly += 10 * s;
   statLine(ctx, 'самосборов', String(stats?.totalSamosbors ?? '-'), leftX, ly, leftW, valueOffset, '#f6c'); ly += 10 * s;
   statLine(ctx, 'смертей', String(stats?.totalDeaths ?? '-'), leftX, ly, leftW, valueOffset, '#f86'); ly += 16 * s;
 
   const profile = net.profile;
   statLine(ctx, 'запусков', String(profile?.runs ?? '-'), leftX, ly, leftW, valueOffset, '#8cf'); ly += 10 * s;
-  statLine(ctx, 'мой пик', profile ? `ур.${profile.bestLevel} / ${profile.bestSamosborCount} сбор.` : '-', leftX, ly, leftW, valueOffset, '#fd8'); ly += 10 * s;
+  statLine(ctx, 'лучшее', profile ? `ур.${profile.bestLevel} / ${profile.bestSamosborCount} сб.` : '-', leftX, ly, leftW, valueOffset, '#fd8'); ly += 10 * s;
   statLine(ctx, 'мой этаж', profile?.lastFloor || '-', leftX, ly, leftW, valueOffset, '#9df'); ly += 10 * s;
   statLine(ctx, 'мои смерти', String(profile?.deaths ?? '-'), leftX, ly, leftW, valueOffset, '#f98'); ly += 16 * s;
 

@@ -42,7 +42,7 @@ const EFFECTS: Record<ShelterTallyOutcome, ShelterTallyEffect> = {
     privacy: 'local',
     tags: ['submit', 'ministry'],
     rumorIds: ['samosbor_istotit_tally_ministry'],
-    consequence: 'Министерство получило фамилии укрытых и теперь сверяет пустые строки.',
+    consequence: 'Министерство получило фамилии укрытых; старшие секций уже записали, кто отнес список наверх.',
     relationDeltas: [[Faction.LIQUIDATOR, 2], [Faction.CITIZEN, -2]],
   },
   submit_forged_ministry: {
@@ -51,7 +51,7 @@ const EFFECTS: Record<ShelterTallyOutcome, ShelterTallyEffect> = {
     privacy: 'public',
     tags: ['submit', 'ministry', 'forgery'],
     rumorIds: ['samosbor_istotit_tally_forged'],
-    consequence: 'Липовая ведомость ушла наверх, но печать слишком ровная.',
+    consequence: 'Липовая ведомость ушла наверх, но печать слишком ровная, а старшая секции узнает чужой почерк.',
     relationDeltas: [[Faction.LIQUIDATOR, -4], [Faction.CITIZEN, -2]],
   },
   give_residents: {
@@ -61,7 +61,7 @@ const EFFECTS: Record<ShelterTallyOutcome, ShelterTallyEffect> = {
     privacy: 'local',
     tags: ['handoff', 'residents'],
     rumorIds: ['samosbor_istotit_tally_residents'],
-    consequence: 'Жильцы увидели, кого вписали, кого забыли и за кем теперь долг.',
+    consequence: 'Старшие секций прочли список у батареи: кого вписали, кого забыли и кому теперь положена свеча.',
     relationDeltas: [[Faction.CITIZEN, 5]],
   },
   give_forged_residents: {
@@ -71,7 +71,7 @@ const EFFECTS: Record<ShelterTallyOutcome, ShelterTallyEffect> = {
     privacy: 'public',
     tags: ['handoff', 'residents', 'forgery'],
     rumorIds: ['samosbor_istotit_tally_forged'],
-    consequence: 'Жильцы получили список с лишними живыми и недостающими мертвыми.',
+    consequence: 'Жильцы получили список с лишними живыми; домком спрашивает, кто держал ручку.',
     relationDeltas: [[Faction.CITIZEN, -5]],
   },
   forge: {
@@ -80,7 +80,7 @@ const EFFECTS: Record<ShelterTallyOutcome, ShelterTallyEffect> = {
     privacy: 'private',
     tags: ['forge', 'forgery'],
     rumorIds: ['samosbor_istotit_tally_forged'],
-    consequence: 'В список добавлена правильная пустота: одна фамилия исчезла, другая стала удобной.',
+    consequence: 'В список добавлена чужая фамилия; старшая секции заметит не печать, а соседа, который молчит на перекличке.',
     relationDeltas: [[Faction.CITIZEN, -2]],
   },
   sell_cult: {
@@ -90,7 +90,7 @@ const EFFECTS: Record<ShelterTallyOutcome, ShelterTallyEffect> = {
     privacy: 'local',
     tags: ['trade', 'cult'],
     rumorIds: ['samosbor_istotit_tally_sold'],
-    consequence: 'Культ получил имена свидетелей и считает это долгом перед хором.',
+    consequence: 'Культ получил имена свидетелей; теперь этих людей будут искать у гермы после следующего колокола.',
     relationDeltas: [[Faction.CULTIST, 5], [Faction.CITIZEN, -4]],
   },
   sell_liquidator: {
@@ -109,7 +109,7 @@ const EFFECTS: Record<ShelterTallyOutcome, ShelterTallyEffect> = {
     privacy: 'local',
     tags: ['hide', 'stash'],
     rumorIds: ['samosbor_istotit_tally_hidden'],
-    consequence: 'Ведомость спрятана; теперь отсутствие списка само стало уликой.',
+    consequence: 'Ведомость спрятана; теперь домком считает пустые строки и тех, кто отводит глаза.',
     relationDeltas: [[Faction.CITIZEN, -2]],
   },
   stolen: {
@@ -118,7 +118,7 @@ const EFFECTS: Record<ShelterTallyOutcome, ShelterTallyEffect> = {
     privacy: 'witnessed',
     tags: ['theft', 'stolen'],
     rumorIds: ['samosbor_istotit_tally_stolen'],
-    consequence: 'Список укрытых украден до ревизии, а значит кто-то знает, зачем.',
+    consequence: 'Список укрытых украден до ревизии; старшая записала пропажу, свидетелей и тех, кто перестал отвечать.',
     relationDeltas: [[Faction.CITIZEN, -3]],
   },
 };

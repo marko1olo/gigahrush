@@ -32,7 +32,7 @@ registerSideQuest('kv_dima_pechatnik', DIMA, [{
   id: 'kv_print_notes',
   giverNpcId: 'kv_dima_pechatnik',
   type: QuestType.FETCH,
-  desc: 'Дима Печатник: «Неси десять записок с печатями. Сделаем бумагу, которая кусается.»',
+  desc: 'Дима Печатник: «Неси десять записок с печатями. Сделаем бумагу, после которой охрана задает меньше вопросов.»',
   targetItem: 'note', targetCount: 10,
   rewardItem: 'book', rewardCount: 3,
   extraRewards: [{ defId: 'ballot', count: 12 }, { defId: 'cigs', count: 2 }],

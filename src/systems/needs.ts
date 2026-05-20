@@ -3,6 +3,7 @@
 import { type Entity, type Msg, EntityType, msg } from '../core/types';
 import { Spr } from '../render/sprite_index';
 import { isDebugOnePunchManEnabled, keepDebugOnePunchManAlive } from './debug_cheats';
+import { ensureEntityIndex } from './entity_index';
 
 // Rates per second
 const FOOD_RATE  = 0.08;
@@ -12,7 +13,8 @@ const PEE_DIGEST = 0.10;   // pending → pee per second
 const POO_DIGEST = 0.06;   // pending → poo per second
 
 export function updateNeeds(entities: Entity[], dt: number, time: number, msgs: Msg[], playerId: number, nextId?: { v: number }): void {
-  for (const e of entities) {
+  const needsEntities = ensureEntityIndex(entities).needs;
+  for (const e of needsEntities) {
     if (!e.alive || !e.needs) continue;
     const n = e.needs;
 

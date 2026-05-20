@@ -22,7 +22,7 @@ export function setPathContext(msgs: Msg[], time: number, samosborActive = false
 /* ── BFS pathfinding (toroidal, avoids closed doors) ──────────── */
 
 const BFS_LIMIT = 800;
-const PATH_CACHE_MAX = 96;
+const PATH_CACHE_MAX = 512;
 const PATH_KEY_MOD = W * W;
 const ROUTINE_PATH_RATE = 18;
 const ROUTINE_PATH_BURST = 10;
@@ -69,9 +69,6 @@ function beginRoutinePathBudget(time: number, samosborActive: boolean): void {
   _routinePathDenied = 0;
   _routinePathDeferred = 0;
   _pathCacheHits = 0;
-  _pathCache.clear();
-  _pathCacheWorld = null;
-
   const burst = samosborActive ? ROUTINE_PATH_SAMOSBOR_BURST : ROUTINE_PATH_BURST;
   const rate = samosborActive ? ROUTINE_PATH_SAMOSBOR_RATE : ROUTINE_PATH_RATE;
   if (_routinePathLastTime < 0 || time < _routinePathLastTime || samosborActive !== _routinePathSamosbor) {
@@ -128,7 +125,7 @@ function readCachedPath(world: World, start: number, end: number): number[] | nu
   const cached = _pathCache.get(pathKey(start, end));
   if (cached === undefined) return null;
   _pathCacheHits++;
-  return cached.slice();
+  return cached;
 }
 
 function storeCachedPath(world: World, start: number, end: number, path: number[]): void {
@@ -137,7 +134,7 @@ function storeCachedPath(world: World, start: number, end: number, path: number[
     const first = _pathCache.keys().next().value;
     if (first !== undefined) _pathCache.delete(first);
   }
-  _pathCache.set(pathKey(start, end), path.slice());
+  _pathCache.set(pathKey(start, end), path);
 }
 
 export function bfsPath(world: World, sx: number, sy: number, ex: number, ey: number): number[] {
@@ -207,7 +204,7 @@ function computeBfsPath(world: World, start: number, end: number): number[] {
   return path;
 }
 
-function tryAssignPathToCell(world: World, e: Entity, tx: number, ty: number): AssignPathStatus {
+export function tryAssignPathToCell(world: World, e: Entity, tx: number, ty: number): AssignPathStatus {
   const ai = e.ai!;
   const sx = world.wrap(Math.floor(e.x));
   const sy = world.wrap(Math.floor(e.y));
@@ -321,10 +318,38 @@ export function followPath(world: World, e: Entity, dt: number): void {
 }
 
 /* ── Find nearest room of type ────────────────────────────────── */
+interface RoomTypeCache {
+  cellVersion: number;
+  roomCount: number;
+  roomsByType: Map<RoomType, number[]>;
+}
+
+const roomTypeCaches = new WeakMap<World, RoomTypeCache>();
+
+function roomsOfType(world: World, type: RoomType): number[] {
+  let cache = roomTypeCaches.get(world);
+  if (!cache || cache.cellVersion !== world.cellVersion || cache.roomCount !== world.rooms.length) {
+    const roomsByType = new Map<RoomType, number[]>();
+    for (const room of world.rooms) {
+      if (!room) continue;
+      let ids = roomsByType.get(room.type);
+      if (!ids) {
+        ids = [];
+        roomsByType.set(room.type, ids);
+      }
+      ids.push(room.id);
+    }
+    cache = { cellVersion: world.cellVersion, roomCount: world.rooms.length, roomsByType };
+    roomTypeCaches.set(world, cache);
+  }
+  return cache.roomsByType.get(type) ?? [];
+}
+
 export function findNearest(world: World, e: Entity, type: RoomType): number {
   let best = -1, bestD = Infinity;
-  for (const room of world.rooms) {
-    if (!room || room.type !== type) continue;
+  for (const roomId of roomsOfType(world, type)) {
+    const room = world.rooms[roomId];
+    if (!room) continue;
     const d = world.dist2(e.x, e.y, room.x + room.w / 2, room.y + room.h / 2);
     if (d < bestD) { bestD = d; best = room.id; }
   }
@@ -334,8 +359,9 @@ export function findNearest(world: World, e: Entity, type: RoomType): number {
 /* ── Find family's room of type ───────────────────────────────── */
 export function findFamilyRoom(world: World, e: Entity, type: RoomType): number {
   if (e.familyId !== undefined) {
-    for (const room of world.rooms) {
-      if (!room || room.type !== type || room.apartmentId !== e.familyId) continue;
+    for (const roomId of roomsOfType(world, type)) {
+      const room = world.rooms[roomId];
+      if (!room || room.apartmentId !== e.familyId) continue;
       return room.id;
     }
   }

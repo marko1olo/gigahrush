@@ -9,6 +9,7 @@ import { World } from '../core/world';
 import { ITEMS } from '../data/catalog';
 import { getEquippedToolDurability, getWeaponReadiness } from '../systems/inventory';
 import { getPlayerHazardWarning } from '../systems/cell_hazards';
+import { formatLastPlayerDamageCause } from '../systems/damage';
 import { xpForLevel } from '../systems/rpg';
 import { zhelemishHudLine } from '../systems/status';
 import { drawDebugOverlay } from '../systems/debug';
@@ -40,6 +41,7 @@ import { railTrainInteractionTargetId } from '../systems/rail_trains';
 import { getActiveRouteCueHud, isRouteCueTarget, type RouteCueHud } from '../systems/route_cues';
 import { getCultProcessionPrompt } from '../systems/faction_events';
 import { getSeroburmalineHudFx } from '../systems/seroburmaline';
+import { ENTITY_MASK_ACTOR, ENTITY_MASK_NPC, getEntityIndex } from '../systems/entity_index';
 import { getNetSphereSnapshot, isNetSphereOpen } from '../systems/net_sphere';
 import {
   getNetTerminalBankSnapshot,
@@ -57,6 +59,7 @@ import {
   drawNeuroPanel, drawGlitchLine, drawStaticNoise, drawVeretarVeil, drawRouteCueWave, drawMaronaryProofNoise, drawSmogVeil,
   drawSeroburmalineNoLookFx, drawSignalRows,
 } from './hud_fx';
+import { fitText as fitUiText, setUiTextTime } from './ui_text';
 
 const BAR_W = 50, BAR_H = 4;
 const NEEDS_PANEL_H = 20;
@@ -65,6 +68,8 @@ const COMBAT_TARGET_MAX_D2 = 18 * 18;
 const COMBAT_TARGET_BODY_RADIUS = 0.3;
 const COMBAT_TARGET_RAY_STEP_CAP = 48;
 const COMBAT_TARGET_PLANE_LEN = Math.tan(Math.PI / 6);
+const aimTargetQuery: Entity[] = [];
+const interactionNpcQuery: Entity[] = [];
 
 function toPercent(current: number, max: number): number {
   if (max <= 0) return 0;
@@ -84,6 +89,7 @@ interface VoidReturnPortalHudState {
   active?: boolean;
   used?: boolean;
   cell?: number;
+  playerMustLeaveCell?: boolean;
   voidSpikeCarried?: boolean;
   voidSpikeResolved?: boolean;
 }
@@ -97,9 +103,9 @@ function voidReturnPortalHudState(state: GameState): VoidReturnPortalHudState | 
 
 function voidReturnVictoryLine(state: GameState): string {
   const portal = (state as GameState & { voidReturnPortal?: VoidReturnPortalHudState }).voidReturnPortal;
-  if (portal?.voidSpikeResolved) return 'Творец повержен. Последствие осталось в Пустоте.';
-  if (portal?.voidSpikeCarried) return 'Творец повержен. Пустотный шип вернулся вместе с вами.';
-  return 'Творец повержен. Хрущ отпустил вас.';
+  if (portal?.voidSpikeResolved) return 'ЗАДАЧА ЗАКРЫТА. Шип оставлен.';
+  if (portal?.voidSpikeCarried) return 'ЗАДАЧА ЗАКРЫТА. Шип вынесен.';
+  return 'ЗАДАЧА ЗАКРЫТА. Выход открыт.';
 }
 
 function drawVoidReturnPortalHint(
@@ -121,11 +127,13 @@ function drawVoidReturnPortalHint(
   const dx = world.delta(player.x, px);
   const dy = world.delta(player.y, py);
   const dist = Math.max(0, Math.round(Math.sqrt(dx * dx + dy * dy)));
-  const consequence = portal.voidSpikeResolved
-    ? 'шип оставлен'
-    : portal.voidSpikeCarried
-      ? 'шип унесён'
-      : 'центр завершит run';
+  const consequence = portal.playerMustLeaveCell
+    ? 'выйти и войти снова'
+    : portal.voidSpikeResolved
+      ? 'шип оставлен'
+      : portal.voidSpikeCarried
+        ? 'шип унесён'
+        : 'встаньте в центр для выхода';
   const panelW = Math.min(w - 12 * sx, 196 * sx);
   const panelH = 28 * sy;
   const x = (w - panelW) * 0.5;
@@ -136,7 +144,7 @@ function drawVoidReturnPortalHint(
   ctx.textAlign = 'center';
   ctx.shadowColor = '#0f8';
   ctx.shadowBlur = 7;
-  drawGlitchText(ctx, 'ПОРТАЛ ВОЗВРАТА', w * 0.5, y + 4 * sy, time * 1.7, 989, '#0f8', 9 * sy);
+  drawGlitchText(ctx, 'ВЫХОД ДОМОЙ', w * 0.5, y + 4 * sy, time * 1.7, 989, '#0f8', 9 * sy);
   ctx.shadowBlur = 0;
   drawGlitchText(ctx, fitHudText(ctx, `центр ${dist}м / ${consequence}`, panelW - 12 * sx), w * 0.5, y + 17 * sy, time, 990, '#cfe', 7 * sy);
   ctx.textAlign = 'left';
@@ -165,12 +173,12 @@ function drawSamosborPrewarning(
     : `САМОСБОР: ${warning.secondsLeft}s`;
   const zone = warning.zoneId >= 0 ? `Зона ${warning.zoneId + 1}` : 'Локальная зона';
   const action = warning.variantId === 'istotit'
-    ? (warning.shelterRoomIds.length > 0 ? 'Золотой контур на карте; дверь примет не всех' : 'К укрытию, не отвечайте хору')
+    ? (warning.shelterRoomIds.length > 0 ? 'Укрытие на карте. Мест мало.' : 'К укрытию. Не отвечайте голосам.')
     : warning.variantId === 'maronary'
-    ? (warning.wrongDoorX !== undefined ? 'Повтор двери отмечен; источник не проверять взглядом' : 'Не смотрите в зелёный источник')
+    ? (warning.wrongDoorX !== undefined ? 'Повтор двери отмечен. Не смотрите в источник.' : 'Не смотрите в зелёный источник.')
     : warning.variantId === 'veretar'
-    ? 'Закрыть белую щель, не смотреть, выйти из зоны'
-    : 'К гермодвери или выйдите из зоны';
+    ? 'Закройте белую щель или выйдите из зоны.'
+    : 'К гермодвери или выйдите из зоны.';
 
   ctx.save();
   ctx.fillStyle = warning.variantId === 'veretar' ? 'rgba(31,31,28,0.84)' : 'rgba(18,6,24,0.82)';
@@ -227,10 +235,10 @@ function drawLiftArachnaWarning(
     ? `АРАХНА ПАДАЕТ: ${warning.secondsLeft}s`
     : `ШАХТА НАД ЛИФТОМ: ${warning.secondsLeft}s`;
   const action = warning.baited
-    ? 'Отходите от лифта, цель сбита шумом'
+    ? 'Отойдите от лифта. Цель сбита шумом.'
     : warning.secondWarning
-      ? 'Смотрите вверх или уходите от шахты'
-      : 'Скрежет сверху, проверьте потолок';
+      ? 'Смотрите вверх или уходите от шахты.'
+      : 'Скрежет сверху. Проверьте потолок.';
   const zone = warning.zoneId >= 0 ? `Зона ${warning.zoneId + 1}` : 'Лифтовой узел';
 
   ctx.save();
@@ -326,11 +334,7 @@ function activeVisitLiftHint(state: GameState, direction: LiftDirection): string
 }
 
 function fitHudText(ctx: CanvasRenderingContext2D, text: string, maxW: number): string {
-  if (maxW <= 0) return '';
-  if (ctx.measureText(text).width <= maxW) return text;
-  let end = text.length - 3;
-  while (end > 1 && ctx.measureText(text.slice(0, end) + '...').width > maxW) end--;
-  return text.slice(0, Math.max(1, end)) + '...';
+  return fitUiText(ctx, text, maxW);
 }
 
 function hudWeaponName(name: string): string {
@@ -440,7 +444,9 @@ function findAimTarget(world: World, entities: Entity[], player: Entity): Combat
   let bestDist = 0;
   let checked = 0;
 
-  for (const e of entities) {
+  getEntityIndex().queryRadius(player.x, player.y, Math.sqrt(COMBAT_TARGET_MAX_D2), aimTargetQuery, ENTITY_MASK_ACTOR);
+  const candidates = aimTargetQuery.length > 0 ? aimTargetQuery : entities;
+  for (const e of candidates) {
     if (!e.alive || e.id === player.id) continue;
     if (e.type !== EntityType.MONSTER && e.type !== EntityType.NPC) continue;
     if (world.dist2(player.x, player.y, e.x, e.y) > COMBAT_TARGET_MAX_D2) continue;
@@ -466,27 +472,26 @@ function findAimTarget(world: World, entities: Entity[], player: Entity): Combat
   };
 }
 
-function fitCombatSignal(text: string): string {
-  return text.length > 34 ? text.slice(0, 31) + '...' : text;
-}
-
 function recentCombatSignal(state: GameState, time: number): CombatSignalHud | null {
   for (let i = state.msgs.length - 1; i >= 0 && i >= state.msgs.length - 8; i--) {
     const m = state.msgs[i];
     if (time - m.time > 1.15) continue;
     const text = m.text;
-    if (text.startsWith('Удар!')) return { text: fitCombatSignal(text.replace(/^Удар!\s*/, 'ПОПАДАНИЕ ')), color: '#fc4' };
+    if (text.startsWith('Удар!')) return { text: text.replace(/^Удар!\s*/, 'ПОПАДАНИЕ '), color: '#fc4' };
     if (text.includes('повержен') || text.includes('повержена')) return { text: 'ЦЕЛЬ ПОВЕРЖЕНА', color: '#4f4' };
-    if (text.startsWith('Взрыв!') || text.startsWith('БФГ!')) return { text: fitCombatSignal(text.toUpperCase()), color: text.startsWith('БФГ!') ? '#4f4' : '#fa0' };
+    if (text.startsWith('Взрыв!') || text.startsWith('БФГ!')) return { text: text.toUpperCase(), color: text.startsWith('БФГ!') ? '#4f4' : '#fa0' };
     if (text.includes('Нет патронов')) return { text: 'НЕТ ПАТРОНОВ', color: '#f84' };
     if (text.includes('Недостаточно ПСИ')) return { text: 'НЕТ ПСИ', color: '#f84' };
-    if (m.color === '#f66' || text.includes('режет тебя') || text.includes('задел тебя')) return { text: fitCombatSignal(`УРОН ${text}`), color: '#f66' };
+    if (m.color === '#f66' || text.includes('режет тебя') || text.includes('задел тебя')) return { text: `УРОН ${text}`, color: '#f66' };
   }
   return null;
 }
 
 function inferDeathCause(state: GameState, player: Entity, world: World, entities: Entity[]): { title: string; detail: string } {
   const deathTime = state.time - state.deathTimer;
+  const lastDamageCause = formatLastPlayerDamageCause(state, deathTime);
+  if (lastDamageCause) return { title: 'Причина смерти', detail: lastDamageCause };
+
   for (let i = state.msgs.length - 1; i >= 0 && i >= state.msgs.length - 16; i--) {
     const m = state.msgs[i];
     if (m.time < deathTime - 10 || m.time > deathTime + 1.5) continue;
@@ -501,8 +506,8 @@ function inferDeathCause(state: GameState, player: Entity, world: World, entitie
   if (needs) {
     if (needs.water <= 0) return { title: 'Причина смерти', detail: 'обезвоживание' };
     if (needs.food <= 0) return { title: 'Причина смерти', detail: 'голод' };
-    if (needs.pee >= 100) return { title: 'Причина смерти', detail: 'мочевой шок' };
-    if (needs.poo >= 100) return { title: 'Причина смерти', detail: 'кишечный шок' };
+    if (needs.pee >= 100) return { title: 'Причина смерти', detail: 'мочевой отказ' };
+    if (needs.poo >= 100) return { title: 'Причина смерти', detail: 'кишечный отказ' };
   }
 
   let nearest: Entity | null = null;
@@ -523,8 +528,8 @@ function inferDeathCause(state: GameState, player: Entity, world: World, entitie
     const dist = Math.max(1, Math.round(Math.sqrt(nearestD2)));
     return { title: 'Рядом с телом', detail: `${combatTargetName(nearest)} ${dist}м` };
   }
-  if (state.samosborActive) return { title: 'Причина смерти', detail: 'самосбор: последний источник урона не распознан' };
-  return { title: 'Причина смерти', detail: 'последний источник урона не распознан' };
+  if (state.samosborActive) return { title: 'Причина смерти', detail: 'самосбор: источник урона не распознан' };
+  return { title: 'Причина смерти', detail: 'источник урона не распознан' };
 }
 
 function drawCombatWeaponPanel(
@@ -613,7 +618,7 @@ function drawCombatSightFeedback(
     ctx.shadowBlur = 7;
     ctx.fillStyle = signal.color;
     ctx.globalAlpha = alpha;
-    ctx.fillText(signal.text, cx, cy + 13 * sy);
+    ctx.fillText(fitHudText(ctx, signal.text, ctx.canvas.width * 0.82), cx, cy + 13 * sy);
     ctx.globalAlpha = 1;
     ctx.shadowBlur = 0;
     ctx.textAlign = 'left';
@@ -648,6 +653,7 @@ export function drawHUD(
   ctx.textBaseline = 'top';
 
   const time = uiTime;
+  setUiTextTime(time);
   const smogStatus = getProceduralSmogStatus(world, player, state);
   if (smogStatus.inside) drawSmogVeil(ctx, w, h, time, smogStatus.intensity);
 
@@ -773,7 +779,8 @@ export function drawHUD(
     }
     if (!canInteract) {
       let bestD2 = 4.0;
-      for (const e of entities) {
+      getEntityIndex().queryRadius(lookX, lookY, 2, interactionNpcQuery, ENTITY_MASK_NPC);
+      for (const e of interactionNpcQuery) {
         if (!e.alive || e.type !== EntityType.NPC) continue;
         const d2 = world.dist2(lookX, lookY, e.x, e.y);
         if (d2 < bestD2) { bestD2 = d2; canInteract = true; targetId = e.id; }
@@ -978,12 +985,12 @@ export function drawHUD(
   if (state.samosborActive) {
     const activeVariant = getActiveSamosborVariant();
     const activeTitle = activeVariant?.def.id === 'istotit'
-      ? '☩ ИСТОТИТ ☩'
+      ? 'ИСТОТИТ'
       : activeVariant?.def.id === 'maronary'
       ? 'МАРОНАРИЙ'
       : activeVariant?.def.id === 'veretar'
       ? 'ВЕРЕТАР'
-      : '⚠ САМОСБОР ⚠';
+      : 'САМОСБОР';
     const sj = textJitter(time * 3, 666);
     const sAlpha = 0.5 + Math.sin(time * 8) * 0.3;
     ctx.save();
@@ -1001,7 +1008,7 @@ export function drawHUD(
         const room = world.roomAt(player.x, player.y);
         const inShelter = room ? getSamosborShelterRoomIds(state).includes(room.id) : false;
         ctx.font = `${7 * sy}px monospace`;
-        ctx.fillText(fitHudText(ctx, inShelter ? '[E] впустить / закрыть' : '[E] идти на колокол', w - 16 * sx), w / 2 + sj.dx, 48 * sy + sj.dy);
+        ctx.fillText(fitHudText(ctx, inShelter ? '[E] впустить / закрыть' : '[E] к колоколу', w - 16 * sx), w / 2 + sj.dx, 48 * sy + sj.dy);
       }
     }
     // Doubled glitch offset copy
@@ -1112,10 +1119,10 @@ export function drawHUD(
       status: 'locked',
       code: terminal.terminalIdx >= 0 ? `IDX ${terminal.terminalIdx}` : undefined,
       lines: [
-        'Счет доступен через банковский режим терминала.',
-        'Редактор карты требует НЕТ-ТЕРМИНАЛ ГЕН.',
+        'Счёт доступен в банковском режиме.',
+        'Редактор карты требует НЕТ-ГЕН.',
       ],
-      footer: '[Enter] закрыть  |  счет доступен без ГЕН',
+      footer: '[Enter] закрыть  |  счёт без ГЕН',
     });
   }
 
@@ -1138,7 +1145,7 @@ export function drawHUD(
     ctx.font = `bold ${16 * sy}px monospace`;
     ctx.textAlign = 'center';
     const sleepPct = Math.floor(player.needs?.sleep ?? 0);
-    ctx.fillText(`Сон... ${sleepPct}%`, w / 2, h / 2 - 10 * sy);
+    ctx.fillText(`Сон: ${sleepPct}%`, w / 2, h / 2 - 10 * sy);
     ctx.fillStyle = '#666';
     ctx.font = `${8 * sy}px monospace`;
     ctx.fillText('[Z] — отпустите чтобы проснуться', w / 2, h / 2 + 10 * sy);

@@ -3,7 +3,7 @@
 import { type Entity, type GameState, Faction } from '../core/types';
 import { ITEMS } from '../data/catalog';
 import { FACTION_NAMES, OCCUPATION_NAMES } from '../data/relations';
-import { formatQuestMinutes, questRemainingMinutes } from '../systems/quest_deadlines';
+import { questDeadlineText, questRemainingMinutes } from '../systems/quest_deadlines';
 import { drawNeuroPanel, drawGlitchText, textJitter, flicker } from './hud_fx';
 import { dialogMenuScale, tradeGridScale } from './ui_layout';
 import { drawCenteredWrappedText, drawWrappedText, fitText } from './ui_text';
@@ -53,7 +53,7 @@ export function drawNpcMenu(
 
   if (state.npcMenuTab === 'main') {
     // Main menu: Talk, Quest, Trade
-    const items = ['Разговор', 'Задание', 'Торговля'];
+    const items = ['Говорить', 'Задание', 'Торг'];
     ctx.font = `${10 * sy}px monospace`;
     for (let i = 0; i < items.length; i++) {
       const selected = i === state.npcMenuSel;
@@ -64,7 +64,7 @@ export function drawNpcMenu(
     }
     ctx.fillStyle = '#456';
     ctx.font = `${8 * sy}px monospace`;
-    ctx.fillText(fitText(ctx, 'W/S — выбор  |  [E] выбрать  |  ENTER — закрыть', pw - 16 * sx), px + 8 * sx, py + ph - 11 * sy);
+    ctx.fillText(fitText(ctx, 'W/S выбор  |  [E] выбрать  |  Enter закрыть', pw - 16 * sx), px + 8 * sx, py + ph - 11 * sy);
 
   } else if (state.npcMenuTab === 'talk') {
     // Talk: show procedural text
@@ -76,7 +76,7 @@ export function drawNpcMenu(
 
     ctx.fillStyle = '#555';
     ctx.font = `${8 * sy}px monospace`;
-    ctx.fillText('[E/ENTER] назад', px + 8 * sx, py + ph - 11 * sy);
+    ctx.fillText('[E/Enter] назад', px + 8 * sx, py + ph - 11 * sy);
 
   } else if (state.npcMenuTab === 'quest') {
     // Quest tab: paginated, one quest per page with word wrap
@@ -85,7 +85,7 @@ export function drawNpcMenu(
     ctx.font = `${9 * sy}px monospace`;
     if (total === 0) {
       ctx.fillStyle = '#888';
-      ctx.fillText('Нет активных заданий.', px + 8 * sx, py + 40 * sy);
+      ctx.fillText('Активных заданий нет.', px + 8 * sx, py + 40 * sy);
     } else {
       const page = Math.min(state.questPage, total - 1);
       const q = active[page];
@@ -114,12 +114,12 @@ export function drawNpcMenu(
         ly += 12 * sy;
         ctx.fillStyle = remaining <= 120 ? '#f66' : remaining <= 360 ? '#fa6' : '#8cf';
         ctx.font = `${8 * sy}px monospace`;
-        ctx.fillText(`Срок: ${formatQuestMinutes(remaining)}`, px + 8 * sx, ly);
+        ctx.fillText(fitText(ctx, `Срок: ${questDeadlineText(q, state.clock.totalMinutes)}`, maxW), px + 8 * sx, ly);
       }
     }
     ctx.fillStyle = '#555';
     ctx.font = `${8 * sy}px monospace`;
-    const hint = total > 1 ? '[W/S] листать  |  [E/ENTER] назад' : '[E/ENTER] назад';
+    const hint = total > 1 ? '[W/S] листать  |  [E/Enter] назад' : '[E/Enter] назад';
     ctx.fillText(fitText(ctx, hint, pw - 16 * sx), px + 8 * sx, py + ph - 11 * sy);
 
   } else if (state.npcMenuTab === 'trade') {
@@ -148,7 +148,7 @@ export function drawNpcMenu(
     ctx.fillStyle = '#aaa';
     ctx.font = `${9.5 * sy}px monospace`;
     ctx.textAlign = 'center';
-    ctx.fillText('ТОРГОВЛЯ', cw / 2, 10 * sy);
+    ctx.fillText('ТОРГ', cw / 2, 10 * sy);
     ctx.textAlign = 'left';
 
     // ── Headers with money ──
@@ -184,7 +184,7 @@ export function drawNpcMenu(
             ctx.fillRect(cx + 1 * sx, cy + 1 * sy, Math.max(1, 2 * sx), cellSz - 4 * sy);
             ctx.font = `${4.5 * sy}px monospace`;
             ctx.fillStyle = side === 'npc' ? '#8cf' : '#ee4';
-            ctx.fillText(side === 'npc' ? 'ТОРГ' : 'ВАШ', cx + 4 * sx, cy + 3 * sy);
+            ctx.fillText(side === 'npc' ? 'ПРОД' : 'ВАШ', cx + 4 * sx, cy + 3 * sy);
             if (questLabel) {
               ctx.fillStyle = questItemStateColor(price.questState);
               ctx.textAlign = 'right';
@@ -244,7 +244,7 @@ export function drawNpcMenu(
     } else {
       ctx.fillStyle = '#555';
       ctx.font = `${7 * sy}px monospace`;
-      ctx.fillText('Пустой слот', cw / 2, descY + 6 * sy);
+      ctx.fillText('Пусто', cw / 2, descY + 6 * sy);
     }
     ctx.textAlign = 'left';
 
@@ -253,9 +253,9 @@ export function drawNpcMenu(
     ctx.font = `${6.5 * sy}px monospace`;
     ctx.textAlign = 'right';
     const hintW = Math.max(60 * sx, cw - 16 * sx);
-    ctx.fillText(fitText(ctx, 'WASD — курсор', hintW), cw - 8 * sx, ch - 24 * sy);
-    ctx.fillText(fitText(ctx, 'E — купить/продать', hintW), cw - 8 * sx, ch - 16 * sy);
-    ctx.fillText(fitText(ctx, 'ENTER — назад', hintW), cw - 8 * sx, ch - 8 * sy);
+    ctx.fillText(fitText(ctx, 'WASD курсор', hintW), cw - 8 * sx, ch - 24 * sy);
+    ctx.fillText(fitText(ctx, 'E купить/продать', hintW), cw - 8 * sx, ch - 16 * sy);
+    ctx.fillText(fitText(ctx, 'Enter назад', hintW), cw - 8 * sx, ch - 8 * sy);
     ctx.textAlign = 'left';
   }
 }

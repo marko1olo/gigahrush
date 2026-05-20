@@ -1,8 +1,8 @@
 # Design Floor: Этаж 69
 
-Status: planning artifact. Future route id: `floor_69`. Future anchor: `z=4`.
+Status: authored route floor. Route id: `floor_69`. Anchor: `z=4`.
 
-Planned owned file: `src/gen/design_floors/floor_69.ts`. Existing reference: F69 sprite-bank notes are preserved in `../../appendix.md` and archived original files under `../../gatbage/Docs/Tasks/Status_UNASSIGNED.md` and `../../gatbage/Docs/AgentLogs/Rationale_UNASSIGNED.md`.
+Owned file: `src/gen/design_floors/floor_69.ts`. Existing reference: F69 sprite-bank notes are preserved in `../../appendix.md` and archived original files under `../../gatbage/Docs/Tasks/Status_UNASSIGNED.md` and `../../gatbage/Docs/AgentLogs/Rationale_UNASSIGNED.md`.
 
 ## Tone And Safety
 
@@ -20,7 +20,7 @@ Floor 69 is a zлачный residential floor: rooms rented by the hour, illegal
 - Room types can reuse living, common, storage, smoking, medical and office.
 - Keep corridors readable; avoid maze of tiny rooms.
 - Include at least two exits: public lift and staff/service route.
-- Use the future F69 female NPC sprite bank for adult performers/workers where appropriate, but also include guards, accountants, medics, cleaners and customers.
+- Use the F69 female NPC sprite bank for adult performers/workers where appropriate, but also include guards, accountants, medics, cleaners and customers.
 
 ## NPCs
 
@@ -68,4 +68,6 @@ Samosbor turns vice into shelter economics. Some locked private rooms are safe, 
 - At least one quest has protect/expose/profit outcomes.
 - Adult-only constraints are explicit in code comments/docs where relevant.
 - No explicit player-facing sexual descriptions.
+- `f69_performer_ira` keeps a 20+ line adult worker voice about boundaries, debt, raids, clinic access and blackmail.
+- Supporting rumors, notes and system contracts expose protect, hide, pay debt, medical supply and expose choices.
 - Heat/trust/debt are visible in debug and bounded.

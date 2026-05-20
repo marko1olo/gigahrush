@@ -14,8 +14,8 @@ export const DEF: MonsterDef = {
   sprite: 0,   // auto-assigned by generateSprites()
   aiFlags: ['foodBait'],
   floors: [FloorLevel.LIVING, FloorLevel.MAINTENANCE, FloorLevel.HELL],
-  counterplay: 'Не принимайте бой в дверях, ванной или воде: это медленный танк, уходите в прямой проход и бросайте еду/говняк в сторону.',
-  lootHint: 'мокрая ветошь, грязь из-под ванны, редко фильтрующий слой',
+  counterplay: 'Медленный, но в двери, ванной или воде уже рядом: отходите по прямой, не спиной к сантехнике, и уводите приманкой в сторону.',
+  lootHint: 'мокрая ветошь, ванная грязь, редкий фильтрующий слой',
 };
 
 export function generateSprite(): Uint32Array {

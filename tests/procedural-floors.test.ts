@@ -13,6 +13,7 @@ import {
   zForStoryFloor,
 } from '../src/data/procedural_floors';
 import { DESIGN_FLOOR_ROUTES } from '../src/data/design_floors';
+import { PROCEDURAL_POPULATION_PROFILE } from '../src/data/population_profiles';
 import {
   BAD_APPLE_HEIGHT,
   BAD_APPLE_WIDTH,
@@ -29,7 +30,33 @@ import { routeCueCount } from '../src/systems/route_cues';
 import { generateProceduralFloor } from '../src/gen/procedural_floor';
 import { generateDesignFloor } from '../src/gen/design_floors/manifest';
 import { generateFloor } from '../src/gen/floor_manifest';
+import type { World } from '../src/core/world';
 import { makeGameState } from './helpers';
+
+function playableBounds(world: World): { count: number; minX: number; minY: number; maxX: number; maxY: number } {
+  const out = { count: 0, minX: W, minY: W, maxX: -1, maxY: -1 };
+  for (let y = 0; y < W; y++) {
+    for (let x = 0; x < W; x++) {
+      const cell = world.cells[world.idx(x, y)];
+      if (cell !== Cell.FLOOR && cell !== Cell.WATER && cell !== Cell.DOOR && cell !== Cell.LIFT) continue;
+      out.count++;
+      if (x < out.minX) out.minX = x;
+      if (y < out.minY) out.minY = y;
+      if (x > out.maxX) out.maxX = x;
+      if (y > out.maxY) out.maxY = y;
+    }
+  }
+  return out;
+}
+
+function assertFullFootprint(world: World, label: string): void {
+  const bounds = playableBounds(world);
+  assert.equal(bounds.minX, 0, `${label} minX`);
+  assert.equal(bounds.minY, 0, `${label} minY`);
+  assert.equal(bounds.maxX, W - 1, `${label} maxX`);
+  assert.equal(bounds.maxY, W - 1, `${label} maxY`);
+  assert.equal(bounds.count >= 18_000, true, `${label} playable cells`);
+}
 
 function reachableCells(gen: ReturnType<typeof generateProceduralFloor>): Uint8Array {
   const world = gen.world;
@@ -268,7 +295,9 @@ test('procedural monster pressure stays capped and registers a route cue', () =>
   const monsters = gen.entities.filter(e => e.type === EntityType.MONSTER);
   const rareKinds = new Set([MonsterKind.HERALD, MonsterKind.MANCOBUS, MonsterKind.KOSTOREZ, MonsterKind.NIGHTMARE]);
 
-  assert.equal(monsters.length <= 62, true);
+  assert.equal(monsters.length <= PROCEDURAL_POPULATION_PROFILE.monsterCap, true);
+  assert.equal(monsters.length >= 1000, true);
+  assert.equal(monsters.every(e => e.ai), true);
   assert.equal(monsters.filter(e => e.monsterKind !== undefined && rareKinds.has(e.monsterKind)).length <= 2, true);
   assert.equal(routeCueCount(gen.world), 1);
 });
@@ -299,6 +328,7 @@ test('void and lower route floors do not generate NPCs', () => {
   const voidGen = generateFloor(FloorLevel.VOID);
   assert.equal(voidGen.entities.some(e => e.type === EntityType.NPC), false);
   assert.equal(voidGen.entities.some(e => e.type === EntityType.MONSTER), true);
+  assertFullFootprint(voidGen.world, 'VOID story floor');
 
   const base = makeProceduralFloorSpec(321, FLOOR_RUN_VOID_Z + 1);
   const procGen = generateProceduralFloor({
@@ -312,6 +342,13 @@ test('void and lower route floors do not generate NPCs', () => {
   const darknessGen = generateDesignFloor('darkness');
   assert.equal(darknessGen.entities.some(e => e.type === EntityType.NPC), false);
   assert.equal(darknessGen.entities.some(e => e.type === EntityType.MONSTER), true);
+  assertFullFootprint(darknessGen.world, 'darkness design floor');
+});
+
+test('authored design floors occupy the full 1024x1024 route footprint', () => {
+  for (const route of DESIGN_FLOOR_ROUTES) {
+    assertFullFootprint(generateDesignFloor(route.id).world, route.id);
+  }
 });
 
 test('rail train anomaly generates tracks, trains, and rideable train entities', () => {
@@ -429,7 +466,8 @@ test('zombie apocalypse anomaly seeds a dense crowd and patient zero infection',
   const zombiesBeforeInfection = gen.entities.filter(e => e.type === EntityType.MONSTER && e.monsterKind === MonsterKind.ZOMBIE);
   const patientZero = gen.entities.find(e => e.type === EntityType.MONSTER && e.monsterKind === MonsterKind.ZOMBIE && e.name === 'Пациент зеро');
 
-  assert.equal(npcs.length >= 1000, true);
+  assert.equal(npcs.length >= 10_000, true);
+  assert.equal(npcs.every(e => e.ai), true);
   assert.equal(!!patientZero, true);
   assert.equal(gen.entities.some(e => e.type === EntityType.MONSTER && e.monsterKind === MonsterKind.SHADOW), false);
   assert.equal(zombiesBeforeInfection.length > 1, true);

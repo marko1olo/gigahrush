@@ -213,7 +213,7 @@ const NPC_DEFS: Record<string, PlotNpcDef> = {
       'Не называйте это улицей. У улицы есть конец, а здесь только повтор.',
     ],
     talkLinesPost: [
-      'Кадр у вас. Теперь облако будет помнить уже не только меня.',
+      'Кадр у вас. Теперь у Якова будет бумага, а не мой рассказ на честном слове.',
       'Если Яков спросит, я не спал. Спящие не считают повторы.',
     ],
     talkQuestResponse: 'Скажите Якову: небо не над нами. Оно перед нами, как экран.',
@@ -225,7 +225,7 @@ registerSideQuest('roof_rigger_senya', NPC_DEFS.roof_rigger_senya, [
     id: 'roof_repair_antenna',
     giverNpcId: 'roof_rigger_senya',
     type: QuestType.FETCH,
-    desc: 'Сеня Верхолаз: «Принеси два мотка проволоки. С ячейкой будет лучше, но без проволоки мачта даже не услышит саму себя.»',
+    desc: 'Сеня Верхолаз: «Принеси два мотка проволоки. С ячейкой будет лучше, но без проволоки мачта не держит контакт даже в тихую погоду.»',
     targetItem: 'wire_coil', targetCount: 2,
     rewardItem: 'relay_diagram', rewardCount: 1,
     extraRewards: [{ defId: 'radio', count: 1 }, { defId: 'ammo_energy', count: 1 }],

@@ -27,7 +27,7 @@ export const RAIONSOVET_ARCHIVE_DEBUG_SEED = 602006;
 
 export const RAIONSOVET_ARCHIVE_META = {
   routeId: RAIONSOVET_ARCHIVE_ROUTE_ID,
-  displayName: 'Райсовет и Живой архив',
+  displayName: 'Райсовет и архив картотек',
   z: RAIONSOVET_ARCHIVE_Z,
   baseFloor: FloorLevel.MINISTRY,
   debugEntry: 'generateRaionsovetArchiveDesignFloor()',
@@ -48,7 +48,7 @@ export const RAIONSOVET_ARCHIVE_DOCUMENTS: readonly RaionsovetArchiveDocument[] 
   {
     id: 'doc_archive_floor_permit',
     itemId: 'archive_access_permit',
-    title: 'Допуск к живой картотеке',
+    title: 'Допуск к закрытой картотеке',
     routeId: RAIONSOVET_ARCHIVE_ROUTE_ID,
     accessTags: ['archive_entry', 'personal_file'],
     suspicion: 0,
@@ -167,7 +167,7 @@ export const RAIONSOVET_ARCHIVE_ACCESS_CHECKS: readonly RaionsovetArchiveAccessC
     illegalItemId: 'stolen_archive_card',
     legalFlag: 'archive.card_swapped.living_shelf_17',
     illegalFlag: 'archive.card_swapped.living_shelf_17.stolen',
-    visibleEffect: 'Карточка меняет владельца комнаты через квест или через кражу из картотеки.',
+    visibleEffect: 'Карточка меняет владельца комнаты через поручение или через кражу из картотеки.',
   },
 ];
 
@@ -231,13 +231,14 @@ const LIDA_DEF: PlotNpcDef = {
     { defId: 'blank_form', count: 2 },
   ],
   talkLines: [
-    'Маршрут не существует, пока я не поставила его в указатель.',
-    'Два пустых бланка — и у вас будет допуск к живой картотеке.',
+    'Маршрут не существует, пока я не поставила его в указатель у лифта.',
+    'Два пустых бланка - и у вас будет допуск к закрытой картотеке.',
     'Кованая печать тоже открывает полку. Потом полка открывает дело на вас.',
+    'Не подписывайте форму без адресата. В картотеке пустая графа быстро получает чужую фамилию.',
   ],
   talkLinesPost: [
-    'Ваш маршрут числится живым. Не спорьте с ним в лифте.',
-    'Карточки слушают аккуратных. Громких они переписывают.',
+    'Ваш маршрут внесен в журнал. В лифте держите ордер сверху, а не в кармане.',
+    'Карточки любят аккуратных. Громких тут переписывают без очереди.',
   ],
 };
 
@@ -255,11 +256,12 @@ const GRANDFATHER_DEF: PlotNpcDef = {
   talkLines: [
     'Я не старый. Я карточка, которую забыли вынуть из человека.',
     'Вернете краденую карточку — покажу, чья комната пережила самосбор.',
-    'Если меня сдвинуть на полку, этаж вспомнит другого жильца.',
+    'Если меня сдвинуть на полку, в комнате окажется другой жилец с правильной карточкой.',
+    'Дело без обложки не принимается. Обложку берегите: по ней пропускают к полке.',
   ],
   talkLinesPost: [
     'Карточка легла не туда. Теперь квартира спорит с фамилией.',
-    'Запомните: право на комнату мягче ключа, но глубже замка.',
+    'Запомните: право на комнату тише ключа, зато проверяющий смотрит сначала в него.',
   ],
 };
 
@@ -279,10 +281,11 @@ const FIRE_LIQUIDATOR_DEF: PlotNpcDef = {
     'Западные стеллажи заражены туманом. Бумага уже кашляет фамилиями.',
     'Принесете пропавшее дело — решим: сохранить запись или сжечь полку.',
     'Сохранить — значит рискнуть людьми. Сжечь — значит оставить людей без прав.',
+    'Печатеед у огневой полки не сторож. Он санитар документа: ест лишних владельцев.',
   ],
   talkLinesPost: [
     'Полка дымится, но коридор стал тише.',
-    'Если запись спасли, проверьте дверь. Она теперь помнит лишнее имя.',
+    'Если запись спасли, проверьте дверь. В журнале теперь лишнее имя, и проверяющий его найдет.',
   ],
 };
 
@@ -302,6 +305,7 @@ const FALSE_HEIR_DEF: PlotNpcDef = {
     'Я наследую только пустые комнаты. Они не возражают, если бумага правильная.',
     'Рынок 88 любит лицензии, особенно те, которые никто не проверял утром.',
     'Принесите лист с печатью — сделаем так, будто торговля была всегда.',
+    'Липовая лицензия открывает рынок и закрывает чей-то настоящий адрес.',
   ],
   talkLinesPost: [
     'Лицензия чистая на вид. Грязь спрятана в журнале.',
@@ -314,7 +318,7 @@ registerSideQuest('archive_lida_index', LIDA_DEF, [
     id: 'archive_get_floor_permit',
     giverNpcId: 'archive_lida_index',
     type: QuestType.FETCH,
-    desc: 'Лида Индексная: «Два пустых бланка — и дам допуск к живой картотеке и маршрутный ордер.»',
+    desc: 'Лида Индексная: «Два пустых бланка - и дам допуск к закрытой картотеке и маршрутный ордер. Подписывать их будете не здесь.»',
     targetItem: 'blank_form',
     targetCount: 2,
     rewardItem: 'archive_access_permit',
@@ -331,7 +335,7 @@ registerSideQuest('archive_paper_grandfather', GRANDFATHER_DEF, [
     id: 'archive_swap_card',
     giverNpcId: 'archive_paper_grandfather',
     type: QuestType.FETCH,
-    desc: 'Дед Бумажный: «Принесите краденую карточку. Я покажу, кому теперь числится комната.»',
+    desc: 'Дед Бумажный: «Принесите краденую карточку. Я покажу, кому теперь числится комната, и кто останется без строки.»',
     targetItem: 'stolen_archive_card',
     targetCount: 1,
     rewardItem: 'personal_file_copy',
@@ -348,7 +352,7 @@ registerSideQuest('archive_fire_liquidator', FIRE_LIQUIDATOR_DEF, [
     id: 'archive_save_or_burn',
     giverNpcId: 'archive_fire_liquidator',
     type: QuestType.FETCH,
-    desc: 'Инна Огневая: «Принесите пропавшее дело. Сохраним запись или сожжем зараженную полку по акту.»',
+    desc: 'Инна Огневая: «Принесите пропавшее дело. Сохраним запись или сожжем зараженную полку по акту. Оба варианта вредят разным людям.»',
     targetItem: 'missing_record_file',
     targetCount: 1,
     rewardItem: 'record_exposure_notice',
@@ -726,7 +730,7 @@ export function expandRaionsovetArchiveGeometry(world: World, rng: () => number)
   const counterHall = createArchiveRoom(world, world.rooms.length, RoomType.OFFICE, 392, 418, 242, 36, 'Мост счетных окон', Tex.MARBLE, Tex.F_RED_CARPET);
   const westVault = createArchiveRoom(world, world.rooms.length, RoomType.STORAGE, 174, 288, 76, 56, 'Запечатанный ряд квартирных прав', Tex.METAL, Tex.F_CONCRETE);
   const eastVault = createArchiveRoom(world, world.rooms.length, RoomType.STORAGE, 778, 308, 72, 58, 'Восточный сейф личных дел', Tex.METAL, Tex.F_CONCRETE);
-  const readingPit = createArchiveRoom(world, world.rooms.length, RoomType.COMMON, 372, 594, 278, 104, 'Читальный провал живых дел', Tex.MARBLE, Tex.F_PARQUET);
+  const readingPit = createArchiveRoom(world, world.rooms.length, RoomType.COMMON, 372, 594, 278, 104, 'Читальный провал личных дел', Tex.MARBLE, Tex.F_PARQUET);
   const serviceLift = createArchiveRoom(world, world.rooms.length, RoomType.PRODUCTION, 706, 548, 88, 62, 'Служебный лифт документов', Tex.METAL, Tex.F_CONCRETE);
 
   connectArchiveRoomToPoint(world, counterHall, 530, 464, Tex.F_MARBLE_TILE);

@@ -130,7 +130,7 @@ const NPC_DEFS: Record<CampNpcId, PlotNpcDef> = {
       'В медпункте тихо, потому что стены здесь слушают пульс.',
     ],
     talkLinesPost: [
-      'Перевязочный запас есть. Это не безопасность, но уже не голая надежда.',
+      'Перевязочный запас есть. Это не безопасность, но уже не голые руки.',
       'Если кто-то улыбается одинаково долго, ведите ко мне или сразу к Егору.',
     ],
   },
@@ -153,7 +153,7 @@ const NPC_DEFS: Record<CampNpcId, PlotNpcDef> = {
     ],
     talkLinesPost: [
       'Компот есть. Дежурные спорят, кому положен первый ковш.',
-      'Если в каше шевелится тень, не мешайте против часовой.',
+      'Если в каше что-то шевелится, не мешайте вообще. Зовите дежурного и отходите от котла.',
     ],
   },
 };
@@ -313,7 +313,7 @@ function initCampWorld(world: World): void {
 }
 
 function buildCampCore(world: World): CampRooms {
-  const square = addOpenArea(world, RoomType.COMMON, CX - 45, CY - 34, 90, 68, 'Площадь вечной линейки', Tex.F_CONCRETE);
+  const square = addOpenArea(world, RoomType.COMMON, CX - 45, CY - 34, 90, 68, 'Площадь обязательной линейки', Tex.F_CONCRETE);
   const gate = addCampRoom(world, RoomType.CORRIDOR, CX - 34, CY - 126, 68, 20, 'Ворота и остановка лагеря', Tex.BRICK, Tex.F_CONCRETE);
   const canteen = addCampRoom(world, RoomType.KITCHEN, CX + 58, CY + 40, 48, 26, 'Столовая на три бесконечных обеда', Tex.TILE_W, Tex.F_TILE);
   const infirmary = addCampRoom(world, RoomType.MEDICAL, CX - 92, CY + 42, 32, 22, 'Медпункт тихого часа', Tex.TILE_W, Tex.F_TILE);

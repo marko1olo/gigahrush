@@ -4,7 +4,7 @@
 
 import {
   Cell, DoorState, Tex, Feature, RoomType,
-  type Room, type Entity, EntityType, AIGoal, Faction, Occupation, QuestType,
+  type Room, type Entity, EntityType, AIGoal, Faction, Occupation, QuestType, MonsterKind,
 } from '../../core/types';
 import { World } from '../../core/world';
 import { freshNeeds } from '../../data/catalog';
@@ -16,6 +16,10 @@ import { registerZoneContent } from './zone_content';
 
 const CLASSROOM_NAME = 'Кабинет ОБЖ';
 const SHELTER_NAME = 'Спортзал-убежище ОБЖ';
+const CONTENT_TAG = 'obzh_school';
+const QUEST_ESCORT_GROUP = 'ag16_obzh_parent_escort';
+const QUEST_PROTECT_DOOR = 'ag16_obzh_protect_door';
+const QUEST_REPAIR_GAP = 'ag16_obzh_repair_gap';
 
 const SCHOOL_W = 26;
 const SCHOOL_H = 11;
@@ -49,13 +53,16 @@ const NPC_DEFS: Record<string, PlotNpcDef> = {
       { defId: 'note', count: 1 },
     ],
     talkLines: [
-      'Это не тьюториал. Это урок, который проверяет сирена.',
-      'Сначала аптечка. Потом убежище. Потом список. Потом дверь.',
-      'У сорванной гермодвери не геройствуют. Ее чинят или бросают людей на сквозняк.',
+      'Головы считаем вслух. Кто сбился - начинает заново, без стыда.',
+      'От двери отошли. Руки на стол, мел в коробку, глаза не в глазок.',
+      'Если из проема зовут мамой, не отвечаем. Сначала сто, потом журнал, потом взрослый.',
+      'Сначала аптечка. Потом убежище. Потом список. Потом дверь. Урок короткий, потому что сирена длинная.',
+      'У сорванной гермодвери не геройствуют. Ее чинят или уводят людей в другое место.',
     ],
     talkLinesPost: [
-      'Если взял дверь-комплект, реши сам: закрыть класс или унести его дальше.',
-      'Во время самосбора дети слушают правила. Взрослые чаще спорят.',
+      'Комплект двери не трогай без взрослого. Взрослый сегодня ты.',
+      'Во время самосбора дети слушают правила. Взрослые чаще торгуются с правилами.',
+      'Журнал эвакуации не успокаивает. Он просто не дает забыть, кого еще искать.',
     ],
   },
 
@@ -68,10 +75,15 @@ const NPC_DEFS: Record<string, PlotNpcDef> = {
     hp: 55, maxHp: 55, money: 2, speed: 0.95,
     inventory: [{ defId: 'bread', count: 1 }],
     talkLines: [
-      'Я знаю правило: не бежать. Но ноги знают другое правило.',
-      'Если дверь поставят, я сяду под парту и буду считать вдохи.',
+      'Я знаю правило: не бежать. Но ноги иногда читают не тот плакат.',
+      'Если дверь поставят, я сяду под парту и буду считать вдохи до ста.',
+      'У меня мел был белый, а стрелка получилась к убежищу. Я не специально.',
+      'Нам сказали: если мама зовет из двери, надо считать до ста и не отвечать.',
     ],
-    talkLinesPost: ['Я запомнила, где убежище. Только бы коридор тоже запомнил.'],
+    talkLinesPost: [
+      'Я запомнила, где убежище. Только бы стрелку мелом не стерли до сирены.',
+      'Учительница сказала держать руки занятыми. Я держу хлеб и не плачу громко.',
+    ],
   },
 
   ag16_parent_lida: {
@@ -87,9 +99,13 @@ const NPC_DEFS: Record<string, PlotNpcDef> = {
     ],
     talkLines: [
       'Я заберу своего ребенка до приказа. Приказ потом извиняться не будет.',
-      'Паек один. Учитель говорит делить по списку. Я говорю - сначала маленьким.',
+      'Паек один. Учитель говорит делить по списку. Я говорю - сначала маленьким, потом спорить.',
+      'Не надо мне красивых слов. Скажите, где убежище, и кто идет последним.',
     ],
-    talkLinesPost: ['Если дверь закрыта, я подожду. Если открыта - я не обещаю.'],
+    talkLinesPost: [
+      'Если дверь закрыта, я подожду. Если открыта - я не обещаю.',
+      'Нина считает головы лучше меня. Я считаю свою, а потом стыжусь и считаю остальных.',
+    ],
   },
 
   ag16_guard_roman: {
@@ -106,8 +122,13 @@ const NPC_DEFS: Record<string, PlotNpcDef> = {
     talkLines: [
       'Я держу коридор, пока он держится коридором.',
       'Гермодверь сорвана. Поставишь комплект - туман упрется в железо.',
+      'Если кто-то стучит детским голосом из проема, отвечаю я. Трубой.',
+      'Не пускай детей к глазку. Даже если там обещают родителей и свет.',
     ],
-    talkLinesPost: ['Если сирена началась, не спорь у порога. Закрывай.'],
+    talkLinesPost: [
+      'Если сирена началась, не спорь у порога. Закрывай.',
+      'Отвлечь голос можно шумом. Защитить детей - только расстоянием и дверью.',
+    ],
   },
 
   ag16_vadim_monitor: {
@@ -120,10 +141,15 @@ const NPC_DEFS: Record<string, PlotNpcDef> = {
     inventory: [{ defId: 'note', count: 1 }],
     talkLines: [
       'Пункт первый: не паниковать. Пункт второй: если паника уже есть, записать ее в журнал.',
-      'Без списка никто не входит в убежище. Даже если стены возражают.',
+      'Без списка никто не входит в убежище. Даже если в коридоре уже стучат.',
+      'Я считаю головы. Если голова спорит, считаю еще раз.',
+      'В глазок не смотрю. Там иногда раньше видно то, чего еще нет.',
     ],
-    talkLinesPost: ['Я отметил тебя в журнале как условно полезного взрослого.'],
-    talkQuestResponse: 'Список у меня. Скажи Нине ОБЖ: трое идут в убежище, один остается у двери, родком спорит.',
+    talkLinesPost: [
+      'Я отметил тебя в журнале как условно полезного взрослого.',
+      'Карта детей лежит в журнале. Она неправильная, но лучше взрослых указателей.',
+    ],
+    talkQuestResponse: 'Список у меня. Скажи Нине ОБЖ: трое идут в убежище, один остается у двери, родком спорит, но идет.',
   },
 };
 
@@ -137,16 +163,20 @@ registerSideQuest('ag16_nina_obzh', NPC_DEFS.ag16_nina_obzh, [
     rewardItem: 'water', rewardCount: 2,
     extraRewards: [{ defId: 'bread', count: 1 }],
     relationDelta: 10, xpReward: 25, moneyReward: 10,
+    eventTags: [CONTENT_TAG, 'school', 'medkit', 'supply'],
+    eventData: { outcome: 'medkit_stocked', rumorIds: ['room_obzh_school_gap'] },
   },
   {
     id: 'ag16_obzh_visit_shelter',
     giverNpcId: 'ag16_nina_obzh',
     type: QuestType.VISIT,
-    desc: `Нина ОБЖ: «Проверь ${SHELTER_NAME}. Маршрут должен быть в ногах до сирены.»`,
+    desc: `Нина ОБЖ: «Проверь ${SHELTER_NAME}. Маршрут должен быть в ногах до сирены, не в разговорах.»`,
     targetRoomName: SHELTER_NAME,
     rewardItem: 'flashlight', rewardCount: 1,
     extraRewards: [{ defId: 'note', count: 1 }],
     relationDelta: 10, xpReward: 30, moneyReward: 10,
+    eventTags: [CONTENT_TAG, 'shelter', 'route_checked'],
+    eventData: { outcome: 'shelter_route_checked', rumorIds: ['samosbor_obzh_shelter'] },
   },
   {
     id: 'ag16_obzh_talk_monitor',
@@ -156,29 +186,63 @@ registerSideQuest('ag16_nina_obzh', NPC_DEFS.ag16_nina_obzh, [
     targetNpcId: 'ag16_vadim_monitor',
     rewardItem: 'kompot', rewardCount: 1,
     relationDelta: 8, xpReward: 20, moneyReward: 5,
+    eventTags: [CONTENT_TAG, 'journal', 'children_counted'],
+    eventData: { outcome: 'evacuation_journal_checked', rumorIds: ['player_obzh_escort_group'] },
   },
   {
-    id: 'ag16_obzh_repair_gap',
+    id: QUEST_REPAIR_GAP,
     giverNpcId: 'ag16_nina_obzh',
     type: QuestType.FETCH,
-    desc: 'Нина ОБЖ: «Принеси гаечный ключ к сорванной гермодвери. Комплект выдам тебе: поставишь дверь здесь или унесешь - это уже решение.»',
+    desc: 'Нина ОБЖ: «Принеси гаечный ключ к сорванной гермодвери. Комплект выдам тебе: поставишь дверь здесь или унесешь - это твое решение.»',
     targetItem: 'wrench', targetCount: 1,
     rewardItem: 'door_kit', rewardCount: 1,
     extraRewards: [{ defId: 'bandage', count: 1 }],
     relationDelta: 14, xpReward: 45, moneyReward: 25,
+    eventTags: [CONTENT_TAG, 'repair', 'door_kit', 'shelter_gap'],
+    eventData: { outcome: 'door_kit_issued', rumorIds: ['player_obzh_door_kit', 'lead_living_obzh_door_kit'] },
   },
 ]);
 
 registerSideQuest('ag16_pupil_mira', NPC_DEFS.ag16_pupil_mira, []);
-registerSideQuest('ag16_parent_lida', NPC_DEFS.ag16_parent_lida, []);
-registerSideQuest('ag16_guard_roman', NPC_DEFS.ag16_guard_roman, []);
+registerSideQuest('ag16_parent_lida', NPC_DEFS.ag16_parent_lida, [
+  {
+    id: QUEST_ESCORT_GROUP,
+    giverNpcId: 'ag16_parent_lida',
+    type: QuestType.VISIT,
+    desc: `Лида из родкома: «Проведи нас до ${SHELTER_NAME}. Я не спорю, я иду последней и считаю головы.»`,
+    targetRoomName: SHELTER_NAME,
+    rewardItem: 'water', rewardCount: 2,
+    extraRewards: [{ defId: 'child_map', count: 1 }],
+    relationDelta: 12, xpReward: 35, moneyReward: 15,
+    failOnNpcDeathPlotId: 'ag16_pupil_mira',
+    eventTags: [CONTENT_TAG, 'escort', 'shelter', 'children'],
+    eventData: { outcome: 'group_escorted', rumorIds: ['player_obzh_escort_group', 'samosbor_obzh_shelter'] },
+  },
+]);
+registerSideQuest('ag16_guard_roman', NPC_DEFS.ag16_guard_roman, [
+  {
+    id: QUEST_PROTECT_DOOR,
+    giverNpcId: 'ag16_guard_roman',
+    type: QuestType.KILL,
+    desc: 'Роман Дежурный: «Отвлеки тварь от сорванной двери. Не у проема дерись: уведи шум на себя, потом бей.»',
+    targetMonsterKind: MonsterKind.TVAR,
+    killNeeded: 1,
+    rewardItem: 'ammo_9mm', rewardCount: 10,
+    extraRewards: [{ defId: 'bandage', count: 1 }],
+    relationDelta: 10, xpReward: 45, moneyReward: 20,
+    spawnMonstersOnAccept: 1,
+    failOnNpcDeathPlotId: 'ag16_pupil_mira',
+    eventTags: [CONTENT_TAG, 'protect', 'distract', 'shelter_gap'],
+    eventData: { outcome: 'door_voice_distracted', rumorIds: ['player_obzh_protected_door', 'samosbor_obzh_shelter'] },
+  },
+]);
 registerSideQuest('ag16_vadim_monitor', NPC_DEFS.ag16_vadim_monitor, []);
 
 const NPC_SPAWNS: NpcSpawn[] = [
   { id: 'ag16_nina_obzh', room: 'classroom', dx: 6, dy: 1, angle: Math.PI / 2, canGiveQuest: true },
   { id: 'ag16_pupil_mira', room: 'classroom', dx: 3, dy: 6, angle: -Math.PI / 2, scale: 0.65 },
-  { id: 'ag16_parent_lida', room: 'classroom', dx: 10, dy: 6, angle: Math.PI },
-  { id: 'ag16_guard_roman', room: 'classroom', dx: 2, dy: 8, angle: -Math.PI / 2, weapon: 'pipe' },
+  { id: 'ag16_parent_lida', room: 'classroom', dx: 10, dy: 6, angle: Math.PI, canGiveQuest: true },
+  { id: 'ag16_guard_roman', room: 'classroom', dx: 2, dy: 8, angle: -Math.PI / 2, weapon: 'pipe', canGiveQuest: true },
   { id: 'ag16_vadim_monitor', room: 'shelter', dx: 2, dy: 3, angle: 0, scale: 0.72 },
 ];
 

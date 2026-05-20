@@ -74,7 +74,7 @@ function dropProtocolNote(entities: Entity[], nextId: { v: number }, x: number, 
     inventory: [{
       defId: 'note',
       count: 1,
-      data: { text: `П-46: ${protocolNames}. Место применения: рядом.` },
+      data: { text: `П-46: ${protocolNames}. Применять рядом с целью; не читать у двери, пока не решили платить.` },
     }],
   });
 }

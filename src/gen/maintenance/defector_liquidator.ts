@@ -292,7 +292,7 @@ const OUTCOMES: Partial<Record<string, OutcomeEffect>> = {
   },
   [INFORMANT_QUEST]: {
     id: 'informant',
-    message: 'Лида пустила Митькин страх в эфир. Теперь он информатор, а не герой и не мученик.',
+    message: 'Лида пустила Митькин страх в эфир. Теперь он информатор, а не тело в рапорте.',
     tags: ['informant', 'wire'],
     rumorIds: ['faction_chernobog_recruitment'],
     deltas: [

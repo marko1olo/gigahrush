@@ -10,11 +10,15 @@ import { stampMark, MarkType } from '../render/marks';
 import { WEAPON_STATS } from '../data/catalog';
 import { spawnBloodHit, spawnDeathPool } from '../render/blood';
 import { entityDisplayName } from '../entities/monster';
+import { ENTITY_MASK_ACTOR, ensureEntityIndex } from './entity_index';
 
 // ── Module state (player-only transient effects) ─────────────────
 let phaseTimer = 0;                              // phase shift remaining seconds
 let markPos: { x: number; y: number } | null = null;  // saved teleport mark
 let debugNoClip = false;                        // debug override for phase movement
+const psiTargetQuery: Entity[] = [];
+let hasActiveMadness = false;
+let madnessScanAccum = 0;
 
 // ── Queries ──────────────────────────────────────────────────────
 export function isPhaseActive(): boolean { return phaseTimer > 0; }
@@ -43,6 +47,7 @@ export function castInstantSpell(
   time: number,
   handleKill: (e: Entity) => void,
 ): { beamLen?: number } {
+  ensureEntityIndex(entities);
   switch (effect) {
     case 'storm':    castStorm(player, entities, world, msgs, time, handleKill); break;
     case 'brain_burn': castBrainBurn(player, entities, world, msgs, time, handleKill); break;
@@ -63,25 +68,42 @@ export function updatePsiEffects(entities: Entity[], dt: number): void {
     phaseTimer = Math.max(0, phaseTimer - dt);
   }
 
-  // Decay madness on all entities (control timers tracked separately below)
-  for (const e of entities) {
-    if (!e.alive) continue;
-    if (e.psiMadness !== undefined && e.psiMadness > 0) {
-      e.psiMadness -= dt;
-      if (e.psiMadness <= 0) {
-        e.psiMadness = undefined;
-        // Reset combat target so AI re-evaluates
-        if (e.ai) e.ai.combatTargetId = undefined;
+  let madnessDt = dt;
+  let scanMadness = hasActiveMadness;
+  if (!scanMadness) {
+    madnessScanAccum += dt;
+    if (madnessScanAccum >= 0.5) {
+      madnessDt = madnessScanAccum;
+      madnessScanAccum = 0;
+      scanMadness = true;
+    }
+  }
+
+  if (scanMadness) {
+    hasActiveMadness = false;
+    const actors = ensureEntityIndex(entities).actors;
+    for (const e of actors) {
+      if (!e.alive) continue;
+      if (e.psiMadness !== undefined && e.psiMadness > 0) {
+        e.psiMadness -= madnessDt;
+        if (e.psiMadness <= 0) {
+          e.psiMadness = undefined;
+          // Reset combat target so AI re-evaluates
+          if (e.ai) e.ai.combatTargetId = undefined;
+        } else {
+          hasActiveMadness = true;
+        }
       }
     }
   }
 
   // Control timers
+  const byId = controlTimers.size > 0 ? ensureEntityIndex(entities).byId : null;
   for (const [eid, remaining] of controlTimers) {
     const left = remaining - dt;
     if (left <= 0) {
       controlTimers.delete(eid);
-      const e = entities.find(en => en.id === eid);
+      const e = byId?.get(eid);
       if (e) {
         e.psiControlledBy = undefined;
         if (e.ai) e.ai.combatTargetId = undefined;
@@ -102,7 +124,8 @@ function findLookTarget(
   let best: Entity | null = null;
   let bestDist2 = maxRange * maxRange;
 
-  for (const e of entities) {
+  ensureEntityIndex(entities).queryRadius(player.x, player.y, maxRange, psiTargetQuery, ENTITY_MASK_ACTOR);
+  for (const e of psiTargetQuery) {
     if (!e.alive || e.id === player.id) continue;
     if (e.type !== EntityType.NPC && e.type !== EntityType.MONSTER) continue;
     const dx = world.delta(player.x, e.x);
@@ -137,7 +160,8 @@ function castStorm(
   let hits = 0;
   const range2 = STORM_RANGE * STORM_RANGE;
 
-  for (const e of entities) {
+  ensureEntityIndex(entities).queryRadius(player.x, player.y, STORM_RANGE, psiTargetQuery, ENTITY_MASK_ACTOR);
+  for (const e of psiTargetQuery) {
     if (!e.alive || e.id === player.id) continue;
     if (e.type !== EntityType.NPC && e.type !== EntityType.MONSTER) continue;
     const dx = world.delta(player.x, e.x);
@@ -210,6 +234,7 @@ function castTargeted(
 
   if (mode === 'madness') {
     target.psiMadness = PSI_EFFECT_DURATION;
+    hasActiveMadness = true;
     if (target.ai) target.ai.combatTargetId = undefined;
     msgs.push(msg(`Безумие! ${entityDisplayName(target)} сходит с ума`, time, '#f4f'));
   } else {
@@ -298,7 +323,8 @@ function castBeam(
 
   // Damage all entities within the beam corridor
   let hits = 0;
-  for (const e of entities) {
+  ensureEntityIndex(entities).queryRadius(player.x, player.y, beamEnd + BEAM_WIDTH, psiTargetQuery, ENTITY_MASK_ACTOR);
+  for (const e of psiTargetQuery) {
     if (!e.alive || e.id === player.id) continue;
     if (e.type !== EntityType.NPC && e.type !== EntityType.MONSTER) continue;
     // Project entity position onto beam line
@@ -342,7 +368,8 @@ export function psiAoeExplosion(
   let hits = 0;
   const radius2 = radius * radius;
   const maxHits = 10;
-  for (const e of entities) {
+  ensureEntityIndex(entities).queryRadius(proj.x, proj.y, radius, psiTargetQuery, ENTITY_MASK_ACTOR);
+  for (const e of psiTargetQuery) {
     if (!e.alive || e.id === proj.ownerId) continue;
     if (e.type !== EntityType.NPC && e.type !== EntityType.MONSTER) continue;
 

@@ -190,7 +190,7 @@ function publishStampAudit(
 function handleStampRoomForgeryEvent(state: GameState, event: WorldEvent): void {
   if (event.type === 'quest_completed' && sideQuestIdFrom(event) === QUEST_WITNESSED_FORGERY) {
     publishStampAudit(state, event, 'witnessed_forgery');
-    state.msgs.push(msg('Понятая кивнула, журнал дернулся. Поддельный лист теперь работает, но штамп-комната помнит лицо.', state.time, '#fa8'));
+    state.msgs.push(msg('Понятая кивнула, журнал дернулся. Поддельный лист теперь работает, но понятая видела лицо.', state.time, '#fa8'));
     return;
   }
   if (event.type !== 'item_stolen') return;

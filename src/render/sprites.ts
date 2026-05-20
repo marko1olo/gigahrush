@@ -26,7 +26,7 @@ export function generateSprites(): SpriteData[] {
   sprites.push(generateVeteranSprite());
   // Gordon Freeman (maintenance)
   sprites.push(generateGordonSprite());
-  // Медука Мегуку (hell)
+  // Мегука ПСИ-дежурная (hell)
   sprites.push(generateMadokaSprite());
   // Пахом Братишка (kvartiry)
   sprites.push(generatePakhomSprite());

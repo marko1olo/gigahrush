@@ -377,7 +377,7 @@ function handleSealContainerEvent(state: GameState, event: WorldEvent): void {
 
   if ((event.type === 'container_opened' || event.type === 'item_stolen') && !ctx.noticed) {
     ctx.noticed = true;
-    state.msgs.push(msg('Пахнет свежей резиной. Белая пломба держит не стену, а маршрут.', state.time, '#f4e7b0'));
+    state.msgs.push(msg('Пахнет свежей резиной. Белая пломба закрыла прямой проход, обход справа еще открыт.', state.time, '#f4e7b0'));
     publishPlombEvent(state, ctx, 'monster_sighted', 4, ['warning', 'noticed'], {
       warning: 'fresh rubber smell, white sealant line, ticking handle',
       itemId: event.itemId,

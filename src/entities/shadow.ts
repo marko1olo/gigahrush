@@ -14,7 +14,7 @@ export const DEF: MonsterDef = {
   attackRate: 1.0,
   sprite: 0,   // auto-assigned by generateSprites()
   floors: [FloorLevel.MINISTRY, FloorLevel.KVARTIRY, FloorLevel.LIVING, FloorLevel.HELL, FloorLevel.VOID],
-  counterplay: 'Темный рывок читается короткой паузой: отходите в свет, включайте фонарь или рвите дистанцию до первого удара.',
+  counterplay: 'Темный рывок читается паузой силуэта: шагните в свет, включите фонарь или разорвите дистанцию до первого удара.',
   lootHint: 'темный след, холодная пыль, редкий странный сгусток',
 };
 

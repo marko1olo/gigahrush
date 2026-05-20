@@ -77,7 +77,7 @@ const SHELTER_COMMISSAR_DEF: PlotNpcDef = {
     { defId: 'water_coupon', count: 2 },
   ],
   talkLines: [
-    'Список укрытия всегда длиннее комнаты. Моя работа - решить, кого дверь вспомнит первым.',
+    'Список укрытия всегда длиннее комнаты. Моя работа - решить, чью фамилию пустят первой.',
     'Принесите список до сирены. Подделка спасает место, но потом ревизия ищет фамилию.',
     'Печатеед не любит пустые руки. Если несете список, не бегите с ним рядом с зубами.',
   ],
@@ -115,7 +115,7 @@ registerSideQuest('ministry_route_clerk', ROUTE_CLERK_DEF, [
     id: 'ministry_floor_pass',
     giverNpcId: 'ministry_route_clerk',
     type: QuestType.FETCH,
-    desc: 'Семен Маршрутный: «Официальный корешок пропуска - и я выдам маршрутную бумагу. Она не отменит опасный этаж, но лифт запомнит причину.»',
+    desc: 'Семен Маршрутный: «Официальный корешок пропуска - и я выдам маршрутную бумагу. Она не отменит опасный этаж, но на посту будет что показать.»',
     targetItem: 'official_permit_slip', targetCount: 1,
     rewardItem: 'caravan_route', rewardCount: 1,
     extraRewards: [{ defId: 'key', count: 1 }, { defId: 'temp_pass', count: 1 }],

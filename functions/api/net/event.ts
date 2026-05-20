@@ -5,6 +5,7 @@ import {
   cleanNetGen,
   cleanSessionId,
   json,
+  netEventSummary,
   normalizeProgress,
   readBody,
   readEvents,
@@ -13,16 +14,6 @@ import {
   requireDb,
   upsertPresence,
 } from './common';
-
-function eventDate(now: number): string {
-  return new Date(now).toISOString().replace('T', ' ').slice(0, 16) + ' UTC';
-}
-
-function eventSummary(type: 'samosbor' | 'death', nickname: string, now: number): string {
-  const name = nickname || 'Жилец';
-  if (type === 'death') return `[${name}] умер ${eventDate(now)}`;
-  return `[${name}] встретил самосбор ${eventDate(now)}`;
-}
 
 export async function onRequestPost(context: PagesContext): Promise<Response> {
   const db = requireDb(context.env);
@@ -39,7 +30,7 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
     const now = Date.now();
     const progress = normalizeProgress(body.progress);
     await upsertPresence(db, netGen, sessionId, progress, now);
-    const summary = eventSummary(type, progress.nickname, now);
+    const summary = netEventSummary(type, progress.nickname, now, progress);
 
     const result = await db.prepare(`
       INSERT OR IGNORE INTO net_events (event_key, net_gen, nickname, type, summary, created_at, payload_json)

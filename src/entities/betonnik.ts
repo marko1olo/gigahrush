@@ -13,8 +13,8 @@ export const DEF: MonsterDef = {
   attackRate: 3.0,
   sprite: 0,   // auto-assigned by generateSprites()
   floors: [FloorLevel.MINISTRY, FloorLevel.LIVING, FloorLevel.MAINTENANCE, FloorLevel.HELL, FloorLevel.VOID],
-  counterplay: 'Не меняйтесь ударами в прямом коридоре: углы, запас выносливости, шумовая приманка, огонь или герметизация слабого проёма дают время уйти.',
-  lootHint: 'арматура, бетонная крошка, редкий тёплый бетонный сгусток',
+  counterplay: 'Не меняйтесь ударами в прямом коридоре: углы, запас выносливости, шум, огонь или запечатанный слабый проем дают окно уйти.',
+  lootHint: 'арматурная крошка, бетонные осколки, редкий теплый бетонный сгусток',
 };
 
 export function generateSprite(): Uint32Array {

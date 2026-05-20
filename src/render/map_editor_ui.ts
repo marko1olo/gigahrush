@@ -4,6 +4,7 @@ import {
 } from '../core/types';
 import type { World } from '../core/world';
 import { drawGlitchText, drawNeuroPanel, drawStaticNoise } from './hud_fx';
+import { fitText } from './ui_text';
 
 export type MapEditorToolId = 'cell' | 'door' | 'texture' | 'feature' | 'entity' | 'container' | 'inspect' | string;
 export type MapEditorDirtyCell = number | { x: number; y: number; idx?: number };
@@ -143,14 +144,6 @@ const pendingDirtyCells = new WeakMap<World, Set<number>>();
 const zoneRgb: number[] = [];
 
 for (let i = 0; i < 64; i++) zoneRgb.push(makeZoneRgb(i));
-
-function fitText(ctx: CanvasRenderingContext2D, text: string, maxW: number): string {
-  if (maxW <= 0) return '';
-  if (ctx.measureText(text).width <= maxW) return text;
-  let end = text.length - 3;
-  while (end > 1 && ctx.measureText(text.slice(0, end) + '...').width > maxW) end--;
-  return text.slice(0, Math.max(1, end)) + '...';
-}
 
 function packRgb(r: number, g: number, b: number): number {
   return (r << 16) | (g << 8) | b;
@@ -917,7 +910,7 @@ function drawModePanel(
 }
 
 function statusParts(state: MapEditorSnapshotLike): string[] {
-  const floor = state.floorLabel ?? state.floorKey ?? 'current floor';
+  const floor = state.floorLabel ?? state.floorKey ?? 'текущий этаж';
   const z = state.z === undefined ? '' : `z:${state.z}`;
   const tool = state.tool ?? 'cell';
   const brush = state.brushLabel ?? (state.brush === undefined ? '-' : String(state.brush));
@@ -947,7 +940,7 @@ function drawStatus(
 
   const hints = state.hints && state.hints.length > 0
     ? state.hints.join('  |  ')
-    : 'Esc закрыть  |  WASD/стрелки панорама  |  wheel/+/- zoom  |  Tab инструмент';
+    : 'Esc закрыть  |  WASD/стрелки карта  |  wheel/+/- масштаб  |  Tab инструмент';
   ctx.textAlign = 'right';
   ctx.fillStyle = '#4f6470';
   ctx.fillText(fitText(ctx, hints, w * 0.48), layout.x + layout.w - layout.pad, y);
@@ -979,7 +972,7 @@ export function drawMapEditor(
   drawGlitchText(ctx, 'НЕТ-ТЕРМИНАЛ ГЕН: РЕДАКТОР КАРТЫ', layout.x + layout.pad, layout.y + 8 * s, time, 1231, '#63f6ff', 10 * s);
   ctx.font = `${7 * s}px monospace`;
   ctx.fillStyle = '#607080';
-  const subtitle = state.mode ? `режим: ${state.mode}` : 'live world snapshot';
+  const subtitle = state.mode ? `режим: ${state.mode}` : 'снимок этажа';
   ctx.fillText(fitText(ctx, subtitle, layout.w * 0.36), layout.x + layout.w - layout.pad - 128 * s, layout.y + 10 * s);
 
   drawToolStrip(ctx, layout, state, s);

@@ -21,7 +21,7 @@ const FLOOR_NAMES: Record<FloorLevel, string> = {
   1: 'Квартиры',
   2: 'Жилая зона',
   3: 'Коллекторы',
-  4: 'Преисподняя',
+  4: 'Мясной низ',
   5: 'Пустота',
 };
 
@@ -633,9 +633,9 @@ function triggerPaidReveal(
 }
 
 function cueMessage(marker: RouteCueMarker, action: string): string {
-  if (action === 'followed') return marker.followedText ?? `Пение вывело к цели: ${marker.targetName}.`;
-  if (action === 'ignored') return marker.ignoredText ?? `Пение вентиля осталось позади: ${marker.targetName} не проверена.`;
-  return marker.heardText ?? `Вентиляция поет: ${marker.hint}`;
+  if (action === 'followed') return marker.followedText ?? `Метка вывела к цели: ${marker.targetName}. Проверьте отход перед лутом.`;
+  if (action === 'ignored') return marker.ignoredText ?? `Метка осталась за спиной: ${marker.targetName} не проверена.`;
+  return marker.heardText ?? `Меловая стрелка и шум стены дают маршрут: ${marker.hint}`;
 }
 
 function setCueHud(state: GameState, marker: RouteCueMarker): void {

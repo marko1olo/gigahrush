@@ -18,16 +18,19 @@ import { registerZoneContent } from './zone_content';
 
 const CONTENT_TAG = 'ag77_external_cell_neighbor';
 const OUTCOME_EVENT_TAG = 'ag77_external_cell_outcome';
+const THEFT_EVENT_TAG = 'ag77_external_cell_theft_seen';
 const ZONE_HUD_ID = 57;
 const ROOM_W = 15;
 const ROOM_H = 10;
 const RECRUITER_ID = 'ag77_nina_neighbor';
+const WITNESS_ID = 'ag77_tamara_quiet_witness';
 const LEAD_QUEST = 'ag77_hear_neighbor_route';
 const EXPOSE_QUEST = 'ag77_expose_external_cell';
 const TRADE_QUEST = 'ag77_use_route_rumor';
 const TRUST_QUEST = 'ag77_accept_quiet_signal';
 const BETRAY_QUEST = 'ag77_betray_neighbor_route';
-const BRANCH_QUEST_IDS = [EXPOSE_QUEST, TRADE_QUEST, TRUST_QUEST, BETRAY_QUEST] as const;
+const SILENCE_QUEST = 'ag77_keep_neighbor_route_quiet';
+const BRANCH_QUEST_IDS = [EXPOSE_QUEST, TRADE_QUEST, TRUST_QUEST, BETRAY_QUEST, SILENCE_QUEST] as const;
 
 const NPC_DEF: PlotNpcDef = {
   name: 'Нина Павловна',
@@ -49,19 +52,60 @@ const NPC_DEF: PlotNpcDef = {
     'Не стойте в дверях, сосед. Тут сквозит, а сквозняк теперь ходит с вопросами.',
     'Я не из храма. Храм шумный. Я просто знаю, какая дверь после сирены остаётся дверью.',
     'Если пойдёте ниже, не берите левый ход у мокрой батареи. Там ликвидаторы пишут пропажи, а не маршруты.',
-    'Черная ладонь на косяке? Детвора мазалась сажей. Хотя дети давно так тихо не играют.',
+    'Черная ладонь на косяке? Сажа с котельной. Только дети такую метку на чужой двери не оставляют.',
     'Можно жить проще: не спрашивать, кто дал маршрут, и возвращаться с водой.',
     'Барни всё равно нюхает чужие записки. Хотите сдать меня — сдавайте коротко, пока он не спросил вас первым.',
+    'Хлеб возьмите. Потом сами решите, помощь это была или долг.',
+    'Календарь висит криво потому, что за ним коробка. Не все тайники надо открывать при соседях.',
+    'Маршрут сухой до второй трубы. Дальше не молитесь, считайте шаги.',
+    'Ваньке бумажки не показывайте сразу. Он слышит цену раньше смысла.',
+    'Если кто спросит, я просто соседка. Просто соседки тоже ведут список долгов.',
+    'Не при соседях, милый. У соседей уши общие, а долги личные.',
   ],
   talkLinesPost: [
     'Соседи остаются соседями, даже когда у каждого свой список дверей.',
     'Я сказала только маршрут. Что вы с ним сделали — уже ваша биография.',
-    'Не ищите тут алтарь. У нормального человека под кроватью пыль, не откровение.',
+    'Не ищите тут алтарь. Под кроватью пыль, квитанции и одна коробка не для обхода.',
+    'Тихую дверь не благодарят вслух. Ее потом ищут по вашему голосу.',
+    'Квитанцию держите сухой. Мокрая бумага быстрее признается не тем людям.',
+    'Большие слова тут ни при чем, милый. Просто кто-то должен помнить, кому вы обязаны.',
+  ],
+  talkQuestResponse: [
+    'Вот и хорошо. Иногда самый крепкий замок - это сосед, который не пошёл на кухню болтать.',
+    'Маршрут останется маршрутом, пока его не понесли хвастаться.',
+    'Ладонь за календарем не для красоты. Это чтобы свои не стучали громко.',
+  ],
+};
+
+const WITNESS_DEF: PlotNpcDef = {
+  name: 'Тамара Сухая',
+  isFemale: true,
+  faction: Faction.CITIZEN,
+  occupation: Occupation.HOUSEWIFE,
+  sprite: Occupation.HOUSEWIFE,
+  hp: 95,
+  maxHp: 95,
+  money: 12,
+  speed: 0.78,
+  inventory: [
+    { defId: 'bread', count: 1 },
+    { defId: 'water_coupon', count: 1 },
+    { defId: 'note', count: 1 },
+  ],
+  talkLines: [
+    'Я не видела ладонь. Я видела календарь, а календарей у всех хватает.',
+    'Нина говорит нормально. Это и страшно: нормальные слова лучше прячут долг.',
+    'Если бумагу не несете Барни, не несите ее и языком.',
+    'У тихой двери не стучат дважды. Второй стук уже для тех, кто считает свидетелей.',
+  ],
+  talkLinesPost: [
+    'Сухая квитанция легче мокрого доноса.',
+    'Молчание тоже работа. Просто за нее редко благодарят вслух.',
   ],
 };
 
 interface OutcomeDef {
-  outcome: 'exposed' | 'traded' | 'trusted' | 'betrayed';
+  outcome: 'exposed' | 'traded' | 'trusted' | 'betrayed' | 'silent';
   targetName: string;
   severity: WorldEventSeverity;
   privacy: WorldEventPrivacy;
@@ -126,6 +170,20 @@ const OUTCOMES: Record<string, OutcomeDef> = {
       { faction: Faction.LIQUIDATOR, delta: -4 },
     ],
   },
+  [SILENCE_QUEST]: {
+    outcome: 'silent',
+    targetName: 'Маршрут внешней ячейки оставлен без свидетелей',
+    severity: 3,
+    privacy: 'secret',
+    tags: ['cult', 'chernobog', 'external_cell', 'silent', 'concealment', 'social'],
+    rumorIds: ['ag77_external_cell_silent'],
+    containerOutcome: 'route_note_left_unshown',
+    relationDeltas: [
+      { faction: Faction.CITIZEN, delta: 4 },
+      { faction: Faction.CULTIST, delta: 3 },
+      { faction: Faction.LIQUIDATOR, delta: -3 },
+    ],
+  },
 };
 
 registerWorldEventObserver(handleAg77Outcome);
@@ -139,7 +197,7 @@ registerSideQuest(RECRUITER_ID, NPC_DEF, [
     id: LEAD_QUEST,
     giverNpcId: RECRUITER_ID,
     type: QuestType.FETCH,
-    desc: 'Нина Павловна: "Хлеб на стол, сосед. Тогда я скажу, почему черная ладонь за календарем смотрит не на вас, а на дверь."',
+    desc: 'Нина Павловна: "Хлеб на стол, сосед. Тогда скажу, почему метка за календарем ведет не к вам, а к запасной двери."',
     targetItem: 'bread',
     targetCount: 1,
     rewardItem: 'note',
@@ -186,6 +244,34 @@ registerSideQuest(RECRUITER_ID, NPC_DEF, [
   },
 ]);
 
+registerSideQuest(WITNESS_ID, WITNESS_DEF, [
+  {
+    id: SILENCE_QUEST,
+    giverNpcId: WITNESS_ID,
+    type: QuestType.TALK,
+    desc: 'Тамара Сухая: "Если маршрут оставляете себе, скажите Нине одной фразой. Без Барни, без Ваньки, без общей кухни."',
+    targetNpcId: RECRUITER_ID,
+    rewardItem: 'bread',
+    rewardCount: 1,
+    extraRewards: [{ defId: 'note', count: 1 }],
+    requiresSideQuestDone: LEAD_QUEST,
+    blockedBySideQuestIds: [...BRANCH_QUEST_IDS],
+    abandonsSideQuestIds: branchBlockers(SILENCE_QUEST),
+    relationDelta: 0,
+    xpReward: 28,
+    moneyReward: 0,
+    eventTargetName: 'Игрок оставил маршрут тихой соседки без доноса и продажи.',
+    eventSeverity: 3,
+    eventPrivacy: 'secret',
+    eventTags: [CONTENT_TAG, 'external_cell', 'silence', 'concealment'],
+    eventData: {
+      ag77Outcome: 'silent',
+      rumorIds: ['ag77_external_cell_silent'],
+      containerHint: 'route_note_left_unshown',
+    },
+  },
+]);
+
 registerSideQuestSteps([
   {
     id: EXPOSE_QUEST,
@@ -218,7 +304,7 @@ registerSideQuestSteps([
     giverNpcId: 'yakov',
     type: QuestType.VISIT,
     visitFloor: FloorLevel.MAINTENANCE,
-    desc: 'Яков Давидович: "Маршрут Нины похож на эксперимент, который стесняется быть картой. Проверьте нижний ход у мокрой батареи и вернитесь с тем, что он пропускает."',
+    desc: 'Яков Давидович: "По модели Нины маршрут неполный: нет контрольного прохода и отметки влажности. Проверьте нижний ход у мокрой батареи, запишите, что он пропускает, и вернитесь с результатом."',
     rewardItem: 'caravan_route',
     rewardCount: 1,
     extraRewards: [{ defId: 'filtered_water', count: 1 }, { defId: 'note', count: 1 }],
@@ -242,7 +328,7 @@ registerSideQuestSteps([
     id: BETRAY_QUEST,
     giverNpcId: 'vanka',
     type: QuestType.FETCH,
-    desc: 'Ванька: "Тихая тетка ладонь прячет? Принеси бирку из коробки за календарем. Ванька скажет, кому дверь теперь шепчет громче."',
+    desc: 'Ванька: "Тихая тетка метку прячет? Принеси бирку из коробки за календарем. Только быстро: если метка культовая, я хочу обменять адрес до ночи, а не сидеть рядом и ждать."',
     targetItem: 'container_key_label',
     targetCount: 1,
     rewardItem: 'holy_water',
@@ -254,7 +340,7 @@ registerSideQuestSteps([
     relationDelta: 0,
     xpReward: 50,
     moneyReward: 12,
-    eventTargetName: 'Бирка из тайника Нины передана Ваньке; тихий маршрут стал громким культовым слухом.',
+    eventTargetName: 'Бирка из тайника Нины передана Ваньке; он обменял адрес на защиту и три пачки сигарет.',
     eventSeverity: 4,
     eventPrivacy: 'local',
     eventTags: [CONTENT_TAG, 'external_cell', 'betrayal', 'black_hand'],
@@ -267,7 +353,37 @@ registerSideQuestSteps([
 ]);
 
 function handleAg77Outcome(state: GameState, event: WorldEvent): void {
-  if (event.type !== 'quest_completed' || event.tags.includes(OUTCOME_EVENT_TAG)) return;
+  if (event.tags.includes(OUTCOME_EVENT_TAG) || event.tags.includes(THEFT_EVENT_TAG)) return;
+  if (event.type === 'item_stolen' && event.tags.includes('external_cell') && event.itemId === 'caravan_route') {
+    addFactionRelMutual(Faction.PLAYER, Faction.CITIZEN, -4);
+    addFactionRelMutual(Faction.PLAYER, Faction.CULTIST, -3);
+    publishEvent(state, {
+      type: 'faction_relation_changed',
+      floor: event.floor,
+      zoneId: event.zoneId,
+      roomId: event.roomId,
+      actorId: event.actorId,
+      actorName: event.actorName,
+      actorFaction: event.actorFaction,
+      targetName: 'Тихая соседка заметила пропажу из маршрутной тумбы',
+      severity: 3,
+      privacy: event.privacy === 'witnessed' ? 'local' : 'private',
+      tags: [OUTCOME_EVENT_TAG, THEFT_EVENT_TAG, 'ag77_external_cell', 'external_cell', 'stolen', 'theft'],
+      data: {
+        sourceEventId: event.id,
+        outcome: 'stolen',
+        itemId: event.itemId,
+        containerId: event.containerId,
+        relationDeltas: [
+          { faction: Faction.CITIZEN, delta: -4 },
+          { faction: Faction.CULTIST, delta: -3 },
+        ],
+        rumorIds: ['ag77_external_cell_stolen'],
+      },
+    });
+    return;
+  }
+  if (event.type !== 'quest_completed') return;
   const sideQuestId = typeof event.data?.sideQuestId === 'string' ? event.data.sideQuestId : '';
   const outcome = OUTCOMES[sideQuestId];
   if (!outcome) return;
@@ -525,6 +641,39 @@ function spawnRecruiter(world: World, entities: Entity[], nextId: { v: number },
   return npc;
 }
 
+function spawnWitness(world: World, entities: Entity[], nextId: { v: number }, room: Room): Entity {
+  const existing = entities.find(e => e.alive && e.plotNpcId === WITNESS_ID);
+  if (existing) return existing;
+  const x = world.wrap(room.x + 8);
+  const y = world.wrap(room.y + 6);
+  const npc: Entity = {
+    id: nextId.v++,
+    type: EntityType.NPC,
+    x: x + 0.5,
+    y: y + 0.5,
+    angle: -Math.PI / 2,
+    pitch: 0,
+    alive: true,
+    speed: WITNESS_DEF.speed,
+    sprite: WITNESS_DEF.sprite,
+    name: WITNESS_DEF.name,
+    isFemale: WITNESS_DEF.isFemale,
+    needs: freshNeeds(),
+    hp: WITNESS_DEF.hp,
+    maxHp: WITNESS_DEF.maxHp,
+    money: WITNESS_DEF.money,
+    ai: { goal: AIGoal.IDLE, tx: x + 0.5, ty: y + 0.5, path: [], pi: 0, stuck: 0, timer: 0 },
+    inventory: WITNESS_DEF.inventory.map(i => ({ ...i })),
+    faction: WITNESS_DEF.faction,
+    occupation: WITNESS_DEF.occupation,
+    plotNpcId: WITNESS_ID,
+    canGiveQuest: true,
+    questId: -1,
+  };
+  entities.push(npc);
+  return npc;
+}
+
 function seedRoom(world: World, room: Room, entities: Entity[], nextId: { v: number }, recruiter: Entity): void {
   addContainer(
     world,
@@ -573,6 +722,7 @@ function generateExternalCellNeighbor(
   connectSouth(world, room);
   decorateRoom(world, room);
   const recruiter = spawnRecruiter(world, entities, nextId, room);
+  spawnWitness(world, entities, nextId, room);
   seedRoom(world, room, entities, nextId, recruiter);
 
   genLog(`[AG77] ${room.name} at (${room.x}, ${room.y}) room #${room.id}; zone ${ZONE_HUD_ID}`);

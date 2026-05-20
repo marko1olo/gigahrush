@@ -300,7 +300,7 @@ function registerMyasomerVein(world: World, room: Room): Pick<MyasomerLayout, 'v
     zoneId: world.zoneMap[world.idx(cx, cy)],
     centerX: cx + 0.5,
     centerY: cy + 0.5,
-    warning: 'Центр слушает шаг. Идите краем, бросьте приманку дальше шума или выжгите жилу.',
+    warning: 'Центральная жила реагирует на шум. Идите краем, бросьте хлеб в ямку или выжгите жилу.',
   });
 
   stampMark(world, cx, cy, 0.5, 0.5, 1.05, MarkType.POOL, 11177, 150, 18, 45, 180);
@@ -346,7 +346,7 @@ function addQuietCache(world: World, room: Room): number {
     kind: ContainerKind.TRASH_BIN,
     name: 'Тихая мясная ниша',
     inventory: [
-      { defId: 'note', count: 1, data: 'Мясомер слушает центр. Иди по краю, хлеб бросай в мясную ямку, жилу жги только без лишнего лута рядом.' },
+      { defId: 'note', count: 1, data: 'Мясомер реагирует на шум в центре. Иди по краю, хлеб бросай в мясную ямку, жилу жги только без лишнего лута рядом.' },
       { defId: 'rawmeat', count: 2 },
       { defId: 'bandage', count: 1 },
       { defId: 'water', count: 1 },
@@ -436,7 +436,7 @@ function handleMyasomerEvent(state: GameState, event: WorldEvent): void {
 
   if (event.containerId === site.quietContainerId && !site.quietCleared && site.triggers === 0) {
     site.quietCleared = true;
-    pushLine(state, 'Если идти по мягкому краю, стена только бьётся. Мясомер не проснулся.', '#9d8');
+    pushLine(state, 'Если идти по мягкому краю, жила только дергается. Мясомер не проснулся.', '#9d8');
     publishMyasomerOutcome(state, site, 'quiet_clear', 3, event, {
       containerId: site.quietContainerId,
       reward: 'rawmeat',
@@ -462,7 +462,7 @@ function handleMyasomerEvent(state: GameState, event: WorldEvent): void {
 function markBaited(state: GameState, site: MyasomerSite, event: WorldEvent): void {
   if (site.baited) return;
   site.baited = true;
-  pushLine(state, 'Приманка легла в мясной слух. Ответ ушёл в сторону.', '#c8f');
+  pushLine(state, 'Приманка упала в мясную ямку. Следующий рывок уйдет туда.', '#c8f');
   publishMyasomerOutcome(state, site, 'baited', 2, event, {
     baitEventId: event.id,
     counterplay: 'noise_bait',
@@ -474,7 +474,7 @@ function markFireSeared(state: GameState, site: MyasomerSite, event: WorldEvent)
   const priorTriggers = site.triggers;
   site.fireSeared = true;
   site.triggers = Math.max(0, site.triggers - 1);
-  pushLine(state, 'Огонь подсушил слуховую жилу. Часть шума ушла в дым.', '#fc4');
+  pushLine(state, 'Огонь подсушил слуховую жилу. Один шум можно списать.', '#fc4');
   publishMyasomerOutcome(state, site, 'fire_seared', 3, event, {
     counterplay: 'fire',
     triggerRelief: priorTriggers - site.triggers,
@@ -493,13 +493,13 @@ function handleLoudTrigger(
   site.triggers++;
 
   if (site.triggers === 1) {
-    pushLine(state, 'В стене начался частый пульс. Запах сырого мяса стал ближе.', '#f9a');
+    pushLine(state, 'В стене начался частый пульс. Еще один громкий шаг поднимет тени.', '#f9a');
     publishMyasomerOutcome(state, site, 'warned', 3, event, { reason, triggers: site.triggers });
     return;
   }
 
   if (site.triggers === 2) {
-    pushLine(state, 'Мясомер считает второй звук. Ещё один шум сорвёт тени с ребер.', '#f84');
+    pushLine(state, 'Мясомер засек второй шум. Следующий шум выпустит тень и сборки.', '#f84');
     publishMyasomerOutcome(state, site, 'triggered', 4, event, { reason, triggers: site.triggers });
     return;
   }
@@ -509,10 +509,10 @@ function handleLoudTrigger(
     const spawned = spawnMyasomerPressure(world, entities, site);
     if (spawned > 0) {
       pushLine(state, site.fireSeared
-        ? 'Мясомер сорвался, но выжженная жила выплюнула только сборки.'
+        ? 'Мясомер сорвался, но выжженная жила выпустила только сборки.'
         : site.baited
-        ? 'Мясомер сорвался, но приманка увела часть рывка в сторону.'
-        : 'Мясомер сорвался на шум. Из мяса вышли тень и сборки.', '#f55');
+        ? 'Мясомер сорвался, но приманка увела первую тень в сторону.'
+        : 'Мясомер сорвался на шум. Из стены вышли тень и сборки.', '#f55');
     }
   }
 
@@ -679,7 +679,7 @@ function maybePublishLoudClear(state: GameState, entities: readonly Entity[], si
     if (threat?.alive) return;
   }
   site.loudCleared = true;
-  pushLine(state, 'Мясомер захлебнулся собственным ритмом. Шумовая цена оплачена.', '#fc4');
+  pushLine(state, 'Мясомер сбит. Больше он не реагирует на шум в этом коридоре.', '#fc4');
   publishMyasomerOutcome(state, site, 'loud_clear', 3, event, {
     clearedThreats: site.threatIds.length,
     rewardTrace: ITEMS.siren_shard?.name ?? 'siren_shard',

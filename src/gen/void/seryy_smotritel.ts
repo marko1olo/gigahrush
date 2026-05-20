@@ -348,7 +348,7 @@ function applyWatched(ctx: SeryyContext, state: GameState, event: WorldEvent): v
 function markAvoided(ctx: SeryyContext, state: GameState, event: WorldEvent): void {
   if (ctx.avoided) return;
   ctx.avoided = true;
-  state.msgs.push(msg('Вы прошли по меткам памяти, не задерживая взгляд.', state.time, '#9ac'));
+  state.msgs.push(msg('Вы прошли по нижним меткам, не глядя на источник.', state.time, '#9ac'));
   publishSeryyEvent(state, ctx, TAG_AVOIDED, 2, event);
 }
 
@@ -372,7 +372,7 @@ function disableSource(ctx: SeryyContext, state: GameState, event: WorldEvent): 
 function markSampleTaken(ctx: SeryyContext, state: GameState, event: WorldEvent): void {
   if (ctx.sampleTaken || event.itemId !== 'slime_sample_seroburmaline') return;
   ctx.sampleTaken = true;
-  state.msgs.push(msg('Проба серобурмалина снята по памяти.', state.time, '#b8c'));
+  state.msgs.push(msg('Проба серобурмалина снята из слепого соскоба.', state.time, '#b8c'));
   publishSeryyEvent(state, ctx, TAG_SAMPLE, 3, event);
 }
 
@@ -421,7 +421,7 @@ export function generateSeryySmotritel(
   const hall = stampRoom(world, world.rooms.length, RoomType.PRODUCTION, pos.x + 10, pos.y + 5, 21, 9, -1);
   hall.name = `${SERYY_SMOTRITEL_RU_NAME}: прямой коридор`;
   const bypass = stampRoom(world, world.rooms.length, RoomType.CORRIDOR, pos.x + 10, pos.y + 15, 21, 5, -1);
-  bypass.name = `${SERYY_SMOTRITEL_RU_NAME}: обход по памяти`;
+  bypass.name = `${SERYY_SMOTRITEL_RU_NAME}: обход без взгляда`;
   const source = stampRoom(world, world.rooms.length, RoomType.OFFICE, pos.x + 32, pos.y + 5, 9, 9, -1);
   source.name = `${SERYY_SMOTRITEL_RU_NAME}: серобурмалиновый источник`;
   const reward = stampRoom(world, world.rooms.length, RoomType.STORAGE, pos.x + 32, pos.y + 15, 9, 5, -1);
@@ -457,8 +457,8 @@ export function generateSeryySmotritel(
   const watchContainerId = addContainer(world, hall, hall.x + 10, hall.y + 4, 'Прямой взгляд Серого Смотрителя', [
     note('ПРЯМО НЕ СМОТРЕТЬ. Если читаешь эту строку из коридора, уже поздно: отходи за стену.'),
   ], contextTags(TAG_WATCHED));
-  const avoidContainerId = addContainer(world, bypass, bypass.x + 9, bypass.y + 2, 'Метки памяти: идти по нижнему обходу', [
-    note('Работать по памяти: два шага от свечи, рука по стене, источник остается сбоку.'),
+  const avoidContainerId = addContainer(world, bypass, bypass.x + 9, bypass.y + 2, 'Нижние метки: идти без взгляда', [
+    note('Идти по меткам: два шага от свечи, рука по стене, источник остается сбоку.'),
   ], contextTags(TAG_AVOIDED));
   const disableContainerId = addContainer(world, source, source.x + 2, source.y + 4, 'Боковой рычаг: разбить отражатель', [
     note('Рычаг сбоку ломает зеркало. Не стой в прямой линии с серым пятном.'),
@@ -467,7 +467,7 @@ export function generateSeryySmotritel(
   const sampleContainerId = addContainer(world, reward, reward.x + 4, reward.y + 2, 'Слепая проба серобурмалина', [
     { defId: 'slime_sample_seroburmaline', count: 1 },
     { defId: 'psi_dust', count: 1 },
-    note('Слух для НИИ: Серого Смотрителя берут не глазами, а маршрутом.'),
+    note('Слух для НИИ: Серого Смотрителя берут маршрутом: источник сбоку, рука по стене, глаза вниз.'),
   ], contextTags(TAG_SAMPLE));
 
   registerRouteCue(world, {
@@ -489,9 +489,9 @@ export function generateSeryySmotritel(
     radius: 9,
     targetRadius: 2.6,
     cooldownSec: 28,
-    heardText: 'Серый след шепчет снизу: идти по памяти, не держать источник в прямой линии.',
-    followedText: 'Обход вывел к слепому соскобу. Проба берется маршрутом, не взглядом.',
-    ignoredText: 'Серый обход остался в стороне. Прямой коридор снова требует глаза.',
+    heardText: 'Нижняя метка показывает обход: рука по стене, источник сбоку, глаза вниз.',
+    followedText: 'Обход вывел к слепому соскобу. Пробу можно взять без прямого взгляда.',
+    ignoredText: 'Серый обход остался в стороне. Прямой коридор ведет прямо под источник.',
   });
 
   const generation: SeryySmotritelGeneration = {

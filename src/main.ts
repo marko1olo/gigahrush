@@ -6,7 +6,7 @@ import {
   W, Cell, DoorState, FloorLevel, Feature, Tex, RoomType, LiftDirection, ItemType,
   type Entity, type GameClock, type GameState, type Item, type Needs, type Quest, type RPGStats, type WorldContainer,
   type WorldEventPrivacy, type WorldEventSeverity,
-  EntityType, Faction, MonsterKind, ProjType, QuestType, AIGoal,
+  EntityType, Faction, MonsterKind, Occupation, ProjType, QuestType, AIGoal,
   msg, setMsgClock,
 } from './core/types';
 import { World } from './core/world';
@@ -73,7 +73,7 @@ import { applyContractFloorHooks, notifyCleanupToolUse } from './systems/contrac
 import {
   freshRPG, awardXP, xpForMonsterKill, xpForNpcKill,
   strMeleeDmgMult, agiSpeedMult, agiAttackSpeedMult,
-  spendAttrPoint, getMaxHp, getMaxPsi,
+  spendAttrPoint, getMaxHp, getMaxPsi, randomRPG,
 } from './systems/rpg';
 import {
   normalizePlayerStatuses,
@@ -82,6 +82,7 @@ import {
 } from './systems/status';
 import { DEBUG_COMMAND_COUNT, execDebugCommand, type DebugCommandAction } from './systems/debug';
 import { debugOnePunchMeleeDamage, isDebugOnePunchManEnabled, keepDebugOnePunchManAlive } from './systems/debug_cheats';
+import { recordPlayerDamage } from './systems/damage';
 import { createWorldEventState, normalizeWorldEventState, publishEvent, trimEventHistoryForSave } from './systems/events';
 import { UV_SPOTLIGHT_ID, useUvSpotlight } from './systems/uv_spotlight';
 import { tryUseMetroRoute } from './systems/metro';
@@ -171,6 +172,7 @@ import {
   castInstantSpell, updatePsiEffects, psiAoeExplosion,
   isNoClipActive, resetPsiState,
 } from './systems/psi';
+import { ENTITY_MASK_ACTOR, ENTITY_MASK_ITEM_DROP, ENTITY_MASK_NPC, rebuildEntityIndex, getEntityIndex } from './systems/entity_index';
 import {
   applyDamageRelationPenalty,
   updateFactionCapture, initFactionControl, countFactionTerritory, spawnPatrolSquads,
@@ -349,6 +351,7 @@ interface VoidReturnPortalState {
   openedAt: number;
   openedTick: number;
   creatorId: number;
+  playerMustLeaveCell?: boolean;
   enteredFromFloor?: FloorLevel;
   usedAt?: number;
   voidSpikeCarried?: boolean;
@@ -377,6 +380,7 @@ function normalizeVoidReturnPortalState(input: unknown): VoidReturnPortalState |
     openedAt: finiteNumber(src.openedAt, 0),
     openedTick: Math.max(0, Math.floor(finiteNumber(src.openedTick, 0))),
     creatorId: Math.floor(finiteNumber(src.creatorId, -1)),
+    playerMustLeaveCell: src.playerMustLeaveCell === true,
     enteredFromFloor,
     usedAt: typeof src.usedAt === 'number' && Number.isFinite(src.usedAt) ? src.usedAt : undefined,
     voidSpikeCarried: src.voidSpikeCarried === true,
@@ -480,6 +484,7 @@ function restoreVoidReturnPortalForCurrentWorld(): boolean {
 function openVoidReturnPortalFromCreator(creator: Entity, enteredFromFloor?: FloorLevel): void {
   const cell = world.idx(Math.floor(creator.x), Math.floor(creator.y));
   const entryFloor = enteredFromFloor ?? (state as VoidReturnPortalHost).voidEntryFromFloor;
+  const playerCell = world.idx(Math.floor(player.x), Math.floor(player.y));
   (state as VoidReturnPortalHost).voidReturnPortal = {
     active: true,
     used: false,
@@ -487,13 +492,14 @@ function openVoidReturnPortalFromCreator(creator: Entity, enteredFromFloor?: Flo
     openedAt: state.time,
     openedTick: state.tick,
     creatorId: creator.id,
+    playerMustLeaveCell: playerCell === cell,
     enteredFromFloor: entryFloor,
   };
   restoreVoidReturnPortalForCurrentWorld();
   const x = cell % W;
   const y = (cell / W) | 0;
   const zoneId = world.zoneMap[cell];
-  state.msgs.push(msg('Портал возврата закреплён: победа сработает только в его центре.', state.time, '#0ff'));
+  state.msgs.push(msg('Портал возврата закреплён: переход сработает только в его центре.', state.time, '#0ff'));
   state.msgs.push(msg('Перед входом можно оставить Пустотный шип Жану, если он у вас.', state.time, '#8cf'));
   publishEvent(state, {
     type: 'floor_transition',
@@ -509,7 +515,7 @@ function openVoidReturnPortalFromCreator(creator: Entity, enteredFromFloor?: Flo
     monsterKind: MonsterKind.CREATOR,
     severity: 5,
     privacy: 'local',
-    tags: ['floor', 'floor_transition', 'void', 'return_portal', 'opened', 'victory'],
+    tags: ['floor', 'floor_transition', 'void', 'return_portal', 'opened'],
     data: {
       portalCell: cell,
       portalX: x,
@@ -533,7 +539,7 @@ function maybeShowVoidReturnPortalHint(playerCell: number): void {
       ? 'Шип у вас: Жан может забрать его до входа.'
       : voidSpikeResolved()
         ? 'Последствие оставлено здесь.'
-        : 'Центр завершит run.';
+        : 'Центр вернёт в жилую зону.';
     state.msgs.push(msg(`Портал возврата: ${dist}м. ${consequence}`, state.time, '#0ff'));
     lastVoidReturnPortalHintTick = state.tick;
     return;
@@ -544,6 +550,136 @@ function maybeShowVoidReturnPortalHint(playerCell: number): void {
   }
 }
 
+function returnFromVoidPortalToLiving(portal: VoidReturnPortalState): void {
+  portal.used = true;
+  portal.usedAt = state.time;
+  portal.voidSpikeCarried = hasVoidSpike();
+  portal.voidSpikeResolved = voidSpikeResolved();
+
+  const fromFloor = state.currentFloor;
+  const savedInventory = player.inventory ? [...player.inventory] : [];
+  const savedNeeds = player.needs ? { ...player.needs } : freshNeeds();
+  const savedHp = player.hp ?? 100;
+  const savedMaxHp = player.maxHp ?? 100;
+  const savedWeapon = player.weapon ?? '';
+  const savedTool = player.tool ?? '';
+  const savedRpg = player.rpg ? { ...player.rpg } : freshRPG(1);
+  const savedStatuses = player.statuses?.map(s => ({ ...s }));
+  const savedMoney = player.money ?? 100;
+  const savedAngle = player.angle;
+  const portalCell = portal.cell;
+  const openedAt = portal.openedAt;
+  const openedTick = portal.openedTick;
+  const creatorId = portal.creatorId;
+  const enteredFromFloor = portal.enteredFromFloor;
+  const voidSpikeWasCarried = portal.voidSpikeCarried;
+  const voidSpikeWasResolved = portal.voidSpikeResolved;
+  const voidSpikeTag = voidSpikeWasResolved ? 'void_spike_left' : voidSpikeWasCarried ? 'void_spike_carried' : 'void_spike_absent';
+
+  state.currentFloor = FloorLevel.LIVING;
+  state.gameWon = false;
+  state.gameOver = false;
+  deathCam = null;
+  clearVoidReturnPortalState(state);
+  setVoidEntryFromFloor(state, undefined);
+  forceFloorRunStory(state, FloorLevel.LIVING);
+  const floorInstances = ensureFloorInstanceState(state, FloorLevel.LIVING);
+  floorInstances.current = null;
+  floorInstances.lastStableFloor = FloorLevel.LIVING;
+  state.msgs.push(msg(
+    voidSpikeWasResolved
+      ? 'Возврат принят. Последствие осталось в Пустоте. Жилая зона принимает вас обратно.'
+      : voidSpikeWasCarried
+        ? 'Возврат принят. Пустотный шип вернулся вместе с вами.'
+        : 'Возврат принят. Пустота закрыла за вами центр. Жилая зона снова под ногами.',
+    state.time,
+    '#0f8',
+  ));
+
+  pendingLoad = () => {
+    resetGeneratedFloorPopulationState();
+    const gen = generateFloor(FloorLevel.LIVING);
+    world = gen.world;
+    entities = gen.entities;
+    nextEntityId.v = entities.reduce((mx, e) => Math.max(mx, e.id), 0) + 1;
+
+    player = {
+      id: nextEntityId.v++,
+      type: EntityType.PLAYER,
+      x: gen.spawnX,
+      y: gen.spawnY,
+      angle: savedAngle,
+      pitch: 0,
+      alive: true,
+      speed: 3.0,
+      sprite: 0,
+      needs: savedNeeds,
+      hp: savedHp,
+      maxHp: savedMaxHp,
+      inventory: savedInventory,
+      weapon: savedWeapon,
+      tool: savedTool,
+      money: savedMoney,
+      rpg: savedRpg,
+      statuses: savedStatuses,
+      name: playerDisplayName(),
+      faction: Faction.PLAYER,
+    };
+    entities.push(player);
+    applyContractFloorHooks(state, world, entities, nextEntityId, player);
+    prevPlayerHp = player.hp ?? 100;
+
+    initFactionRelations();
+    initFactionControl(world);
+    const fStats = countFactionTerritory(world);
+    if (allowsFactionEntryReinforcements(FloorLevel.LIVING)) {
+      spawnPatrolSquads(world, entities, nextEntityId, fStats);
+      spawnTerritoryReinforcements(world, entities, nextEntityId, fStats);
+    }
+    ensureProceduralSpriteSeeds(entities);
+    _npcReinforcementAccum = 0;
+
+    state.samosborTimer = adjustFloorRunSamosborTimer(state, nextFloorEntrySamosborTimer(FloorLevel.LIVING));
+    state.samosborActive = false;
+    floorTeleportCd = 0;
+    resetPsiState();
+    clearLiftArachnaActive(state);
+
+    publishEvent(state, {
+      type: 'floor_transition',
+      floor: FloorLevel.LIVING,
+      zoneId: world.zoneMap[world.idx(Math.floor(player.x), Math.floor(player.y))],
+      x: player.x,
+      y: player.y,
+      actorId: player.id,
+      actorName: player.name,
+      actorFaction: player.faction,
+      targetName: 'Возврат в жилую зону',
+      severity: 5,
+      privacy: 'local',
+      tags: ['floor', 'floor_transition', 'void', 'return_portal', 'used', 'freeplay', voidSpikeTag],
+      data: {
+        fromFloor,
+        toFloor: FloorLevel.LIVING,
+        portalCell,
+        openedAt,
+        openedTick,
+        creatorId,
+        enteredFromFloor,
+        voidSpikeCarried: voidSpikeWasCarried,
+        voidSpikeResolved: voidSpikeWasResolved,
+      },
+    });
+
+    ensureRoomContainers(world, state.currentFloor);
+    ensureProductionRooms(state, world);
+    prepareEditableFloor();
+    ensureProceduralSpriteSeeds(entities);
+    setGeneratedDynamicSky(gen);
+    updateWorldData(world);
+  };
+}
+
 function tryUseVoidReturnPortal(playerCell: number): boolean {
   const portal = getVoidReturnPortalState();
   if (!portal?.active || portal.used || !isVoidReturnPortalFloor()) {
@@ -551,58 +687,19 @@ function tryUseVoidReturnPortal(playerCell: number): boolean {
     return false;
   }
   if (playerCell !== portal.cell) {
+    if (portal.playerMustLeaveCell) portal.playerMustLeaveCell = false;
     maybeShowVoidReturnPortalHint(playerCell);
     return false;
   }
+  if (portal.playerMustLeaveCell) {
+    if (state.tick - lastVoidReturnPortalHintTick >= 120) {
+      state.msgs.push(msg('Портал раскрылся под ногами. Отойдите и войдите снова, когда будете готовы.', state.time, '#0ff'));
+      lastVoidReturnPortalHintTick = state.tick;
+    }
+    return false;
+  }
 
-  portal.used = true;
-  portal.usedAt = state.time;
-  portal.voidSpikeCarried = hasVoidSpike();
-  portal.voidSpikeResolved = voidSpikeResolved();
-  state.gameWon = true;
-  state.gameOver = true;
-  state.deathTimer = 0;
-  deathCam = null;
-  state.msgs.push(msg(
-    portal.voidSpikeResolved
-      ? 'Возврат принят. Последствие осталось в Пустоте.'
-      : portal.voidSpikeCarried
-        ? 'Возврат принят. Пустотный шип ушёл с вами.'
-        : 'Возврат принят. Пустота закрыла за вами центр.',
-    state.time,
-    '#0f8',
-  ));
-  publishEvent(state, {
-    type: 'floor_transition',
-    floor: FloorLevel.VOID,
-    zoneId: world.zoneMap[playerCell],
-    x: player.x,
-    y: player.y,
-    actorId: player.id,
-    actorName: player.name,
-    actorFaction: player.faction,
-    targetName: 'Возврат из Пустоты',
-    severity: 5,
-    privacy: 'local',
-    tags: [
-      'floor',
-      'floor_transition',
-      'void',
-      'return_portal',
-      'used',
-      'victory',
-      portal.voidSpikeResolved ? 'void_spike_left' : portal.voidSpikeCarried ? 'void_spike_carried' : 'void_spike_absent',
-    ],
-    data: {
-      portalCell: portal.cell,
-      openedAt: portal.openedAt,
-      openedTick: portal.openedTick,
-      creatorId: portal.creatorId,
-      enteredFromFloor: portal.enteredFromFloor,
-      voidSpikeCarried: portal.voidSpikeCarried,
-      voidSpikeResolved: portal.voidSpikeResolved,
-    },
-  });
+  returnFromVoidPortalToLiving(portal);
   return true;
 }
 
@@ -618,11 +715,17 @@ interface SmokeDebugSnapshot {
   playerAlive: boolean;
   playerHp: number;
   samosborActive: boolean;
+  entityCount: number;
+  liveActorCount: number;
+  liveAiCount: number;
+  npcCount: number;
+  monsterCount: number;
 }
 
 declare global {
   interface Window {
     __gigahrushSmokeState?: () => SmokeDebugSnapshot | null;
+    __gigahrushStressSpawn?: (count: number) => SmokeDebugSnapshot | null;
   }
 }
 
@@ -632,7 +735,29 @@ function installSmokeDebugHook(): void {
   if (!smokeDebug) return;
   window.__gigahrushSmokeState = () => {
     if (typeof state === 'undefined' || typeof player === 'undefined') return null;
-    return {
+    return smokeSnapshot();
+  };
+  window.__gigahrushStressSpawn = (count: number) => {
+    if (typeof state === 'undefined' || typeof player === 'undefined') return null;
+    spawnSmokeStressPopulation(Math.max(0, Math.min(12_000, Math.floor(count))));
+    rebuildEntityIndex(entities);
+    return smokeSnapshot();
+  };
+}
+
+function smokeSnapshot(): SmokeDebugSnapshot {
+  let liveActorCount = 0;
+  let liveAiCount = 0;
+  let npcCount = 0;
+  let monsterCount = 0;
+  for (const e of entities) {
+    if (!e.alive || (e.type !== EntityType.NPC && e.type !== EntityType.MONSTER)) continue;
+    liveActorCount++;
+    if (e.ai) liveAiCount++;
+    if (e.type === EntityType.NPC) npcCount++;
+    else monsterCount++;
+  }
+  return {
       showDebug: state.showDebug,
       debugSel: state.debugSel,
       showQuests: state.showQuests,
@@ -644,8 +769,73 @@ function installSmokeDebugHook(): void {
       playerAlive: player.alive,
       playerHp: player.hp ?? 0,
       samosborActive: state.samosborActive,
-    };
+      entityCount: entities.length,
+      liveActorCount,
+      liveAiCount,
+      npcCount,
+      monsterCount,
   };
+}
+
+function spawnSmokeStressPopulation(count: number): void {
+  if (count <= 0) return;
+  const monsterKinds = [MonsterKind.ZOMBIE, MonsterKind.TVAR, MonsterKind.SBORKA, MonsterKind.SHADOW];
+  let spawned = 0;
+  for (let attempt = 0; attempt < count * 24 && spawned < count; attempt++) {
+    const x = Math.floor(Math.random() * W);
+    const y = Math.floor(Math.random() * W);
+    const ci = world.idx(x, y);
+    if (world.cells[ci] !== Cell.FLOOR && world.cells[ci] !== Cell.WATER) continue;
+    if (world.dist2(player.x, player.y, x + 0.5, y + 0.5) < 8 * 8) continue;
+    if (spawned % 10 < 7) {
+      entities.push({
+        id: nextEntityId.v++,
+        type: EntityType.NPC,
+        x: x + 0.5,
+        y: y + 0.5,
+        angle: Math.random() * Math.PI * 2,
+        pitch: 0,
+        alive: true,
+        speed: 1.05,
+        sprite: Occupation.TRAVELER,
+        spriteSeed: (state.tick + spawned * 2654435761) >>> 0,
+        name: `Стресс-жилец ${spawned + 1}`,
+        needs: freshNeeds(),
+        hp: 60,
+        maxHp: 60,
+        money: 0,
+        faction: spawned % 3 === 0 ? Faction.WILD : Faction.CITIZEN,
+        occupation: Occupation.TRAVELER,
+        questId: -1,
+        isTraveler: true,
+        ai: { goal: AIGoal.WANDER, tx: x, ty: y, path: [], pi: 0, stuck: 0, timer: Math.random() * 4, combatScanCd: Math.random() * 1.5 },
+        inventory: [],
+        rpg: randomRPG(2),
+      });
+    } else {
+      const kind = monsterKinds[spawned % monsterKinds.length];
+      entities.push({
+        id: nextEntityId.v++,
+        type: EntityType.MONSTER,
+        x: x + 0.5,
+        y: y + 0.5,
+        angle: Math.random() * Math.PI * 2,
+        pitch: 0,
+        alive: true,
+        speed: 1.1,
+        sprite: monsterSpr(kind),
+        spriteSeed: (state.tick ^ spawned * 1103515245) >>> 0,
+        hp: 80,
+        maxHp: 80,
+        monsterKind: kind,
+        attackCd: 0,
+        ai: { goal: AIGoal.WANDER, tx: x, ty: y, path: [], pi: 0, stuck: 0, timer: Math.random() * 4, combatScanCd: Math.random() * 1.5 },
+        rpg: randomRPG(2),
+      });
+    }
+    spawned++;
+  }
+  state.msgs.push(msg(`SMOKE stress AI: +${spawned}`, state.time, '#8ff'));
 }
 
 function setGeneratedDynamicSky(gen?: FloorGeneration): void {
@@ -823,6 +1013,7 @@ function initGame(): void {
   initWebGL(canvas, textures, sprites, world);
   setGeneratedDynamicSky(gen);
   updateWorldData(world);
+  rebuildEntityIndex(entities);
 }
 
 drawLoading();
@@ -1018,8 +1209,14 @@ function projectileThreatLabel(p: Entity): string {
 }
 
 function reportPlayerProjectileHit(p: Entity, dmg: number): void {
+  const actor = projectileActor(p);
+  const threat = projectileThreatLabel(p);
+  const detail = actor && actor.id !== player.id
+    ? `${threat} от ${entityDisplayName(actor)}: -${dmg}`
+    : `${threat}: -${dmg}`;
+  recordPlayerDamage(state, actor ?? p, dmg, detail);
   if (state.tick - lastProjectileHitMsgTick < 18) return;
-  state.msgs.push(msg(`${projectileThreatLabel(p)}: -${dmg}`, state.time, '#f66'));
+  state.msgs.push(msg(detail, state.time, '#f66'));
   lastProjectileHitMsgTick = state.tick;
 }
 
@@ -1674,8 +1871,10 @@ const FLAME_COLLATERAL_ITEMS = new Set([
 
 function projectileActor(p: Entity): Entity | undefined {
   if (p.ownerId === player.id) return player;
-  return entities.find(e => e.id === p.ownerId);
+  return getEntityIndex().byId.get(p.ownerId ?? -1);
 }
+
+const flameCollateralQuery: Entity[] = [];
 
 function applyFlameBackdraft(x: number, y: number, actor: Entity | undefined): void {
   state.dmgFlash = Math.max(state.dmgFlash, 0.12);
@@ -1686,12 +1885,14 @@ function applyFlameBackdraft(x: number, y: number, actor: Entity | undefined): v
     return;
   }
   player.hp = Math.max(1, (player.hp ?? 1) - 1);
+  recordPlayerDamage(state, undefined, 1, 'Обратная тяга: дым и жар в лицо', 'hazard');
   state.msgs.push(msg('Обратная тяга: дым и жар в лицо', state.time, '#f84'));
 }
 
 function burnCollateralNearFlame(x: number, y: number, radius: number, actor: Entity | undefined): boolean {
   const r2 = radius * radius;
-  for (const drop of entities) {
+  getEntityIndex().queryRadius(x, y, radius, flameCollateralQuery, ENTITY_MASK_ITEM_DROP);
+  for (const drop of flameCollateralQuery) {
     const inv = drop.inventory;
     if (!drop.alive || drop.type !== EntityType.ITEM_DROP || !inv?.length) continue;
     if (world.dist2(x, y, drop.x, drop.y) > r2) continue;
@@ -1753,9 +1954,12 @@ function resolveFlameCleanup(p: Entity, x: number, y: number, radius: number): v
   state.msgs.push(msg(`Огонь выжег слизь: ${cleanedHazards} кл.`, state.time, '#fa4'));
 }
 
+const projectileHitQuery: Entity[] = [];
+const explosionHitQuery: Entity[] = [];
+
 /* ── Projectile update: move, collide walls + entities ────────── */
 function updateProjectiles(dt: number): void {
-  for (const p of entities) {
+  for (const p of getEntityIndex().projectiles) {
     if (p.type !== EntityType.PROJECTILE || !p.alive) continue;
     p.projLife = (p.projLife ?? 0) - dt;
     const pt = p.projType ?? ProjType.NORMAL;
@@ -1855,7 +2059,8 @@ function updateProjectiles(dt: number): void {
 
     // Entity collision — check monsters and NPCs
     const dmg = p.projDmg ?? 0;
-    for (const e of entities) {
+    getEntityIndex().queryRadius(p.x, p.y, pt === ProjType.FLAME ? 0.8 : 0.6, projectileHitQuery, ENTITY_MASK_ACTOR);
+    for (const e of projectileHitQuery) {
       if (!e.alive || e.id === p.ownerId) continue;
       if (e.type !== EntityType.MONSTER && e.type !== EntityType.NPC && e.type !== EntityType.PLAYER) continue;
       const hitRadius = pt === ProjType.FLAME ? 0.8 : 0.6;
@@ -1907,10 +2112,12 @@ function triggerExplosion(p: Entity, pt: ProjType): void {
   const radius = p.aoeRadius ?? 4;
   const dmg = p.aoeDmg ?? p.projDmg ?? 80;
   const isPlayer = p.ownerId === player.id;
+  const actor = projectileActor(p);
 
   // AoE damage to all entities in radius
   let hits = 0;
-  for (const e of entities) {
+  getEntityIndex().queryRadius(p.x, p.y, radius, explosionHitQuery, ENTITY_MASK_ACTOR);
+  for (const e of explosionHitQuery) {
     if (!e.alive || e.id === p.ownerId) continue;
     if (e.type !== EntityType.NPC && e.type !== EntityType.MONSTER && e.type !== EntityType.PLAYER) continue;
     const dx = ((e.x - p.x + W / 2) % W + W) % W - W / 2;
@@ -1926,6 +2133,12 @@ function triggerExplosion(p: Entity, pt: ProjType): void {
         continue;
       }
       e.hp -= finalDmg;
+      if (e.id === player.id) {
+        const detail = actor && actor.id !== player.id
+          ? `Взрыв от ${entityDisplayName(actor)}: -${finalDmg}`
+          : `Взрыв: -${finalDmg}`;
+        recordPlayerDamage(state, actor ?? p, finalDmg, detail);
+      }
       // Explosion blast pushes blood outward from epicenter
       const blastVx = dist > 0.1 ? (dx / dist) * 12 : 0;
       const blastVy = dist > 0.1 ? (dy / dist) * 12 : 0;
@@ -3051,6 +3264,7 @@ function loadGame(): boolean {
       state.gameOver = false;
       state.gameWon = false;
       state.deathTimer = 0;
+      state.lastDamage = undefined;
       state.showMenu = false;
       state.showContainerMenu = false;
       state.containerMenuTarget = -1;
@@ -3482,6 +3696,8 @@ function confirmActiveMobileSelection(): void {
   updateMobileContext();
 }
 
+const interactNpcQuery: Entity[] = [];
+
 function canInteractAhead(): boolean {
   if (!started || typeof state === 'undefined' || typeof world === 'undefined' || typeof player === 'undefined') return false;
   if (state.gameOver || state.sleeping || isMobileMenuOpen()) return false;
@@ -3499,7 +3715,8 @@ function canInteractAhead(): boolean {
   if (hladonInteractionTargetId(world, lookX, lookY) !== null) return true;
   if (proceduralAnomalyInteractionTargetId(world, state, lookX, lookY) !== null) return true;
 
-  for (const e of entities) {
+  getEntityIndex().queryRadius(lookX, lookY, 2, interactNpcQuery, ENTITY_MASK_NPC);
+  for (const e of interactNpcQuery) {
     if (!e.alive || e.type !== EntityType.NPC) continue;
     if (isHostile(e, player) || isHostile(player, e)) continue;
     if (world.dist2(lookX, lookY, e.x, e.y) < 4.0) return true;
@@ -3510,10 +3727,11 @@ function canInteractAhead(): boolean {
 }
 
 function updateMobileContext(): void {
+  const mobileEnabled = mobileControls?.isEnabled() === true;
   mobileControls?.updateContext({
     started,
     menuOpen: isMobileMenuOpen(),
-    canInteract: canInteractAhead(),
+    canInteract: mobileEnabled ? canInteractAhead() : false,
     gameOver: typeof state !== 'undefined' && state.gameOver,
   });
 }
@@ -4364,6 +4582,19 @@ let uiTime = 0;
 let lastSlidePair = -1;
 let lastSlideCellA = -1;
 let lastSlideCellB = -1;
+let needsTickAccum = 0;
+let bloodTrailAccum = 0;
+let deadCleanupAccum = 0;
+
+function cleanupDeadEntities(dt: number): void {
+  deadCleanupAccum += dt;
+  if (deadCleanupAccum < 0.5) return;
+  deadCleanupAccum = 0;
+  for (let i = entities.length - 1; i >= 0; i--) {
+    const e = entities[i];
+    if (!e.alive && e.type !== EntityType.PLAYER) entities.splice(i, 1);
+  }
+}
 
 function gameLoop(now: number): void {
   // Two-phase deferred loading:
@@ -4382,6 +4613,7 @@ function gameLoop(now: number): void {
     pendingLoad = null;
     pendingLoadDrawn = false;
     fn();
+    rebuildEntityIndex(entities);
     lastTime = performance.now(); // reset dt so we don't get a huge spike
     requestAnimationFrame(gameLoop);
     return;
@@ -4476,7 +4708,12 @@ function gameLoop(now: number): void {
     updateDoors(dt);
     updateWrongDoorRemaps(world, state);
     updateHladonColdPocket(world, player, state, dt);
-    updateNeeds(entities, dt, state.time, state.msgs, player.id, nextEntityId);
+    needsTickAccum += dt;
+    if (needsTickAccum >= 0.25) {
+      const needsDt = needsTickAccum;
+      needsTickAccum = 0;
+      updateNeeds(entities, needsDt, state.time, state.msgs, player.id, nextEntityId);
+    }
     if (updateBetonoedShortcut(world, entities, player, state, dt)) updateWorldData(world);
     setListenerPos(player.x, player.y, (ax, ay, bx, by) => world.dist2(ax, ay, bx, by));
     updateRouteCues(world, player, state);
@@ -4540,7 +4777,12 @@ function gameLoop(now: number): void {
     updateSeroburmalineExposure(world, player, state, dt);
 
     // Blood trails from wounded entities + particle physics
-    updateBloodTrails(world, entities, dt);
+    bloodTrailAccum += dt;
+    if (bloodTrailAccum >= 0.3) {
+      const bloodDt = bloodTrailAccum;
+      bloodTrailAccum = 0;
+      updateBloodTrails(world, entities, bloodDt);
+    }
     updateParticles(world, dt);
 
     // Cycle slide textures every 5 seconds — left tile=even, right tile=odd
@@ -4622,15 +4864,7 @@ function gameLoop(now: number): void {
     }
     reportNetSphereProgressEvents();
 
-    // Clean up dead entities (except player) — projectiles cleaned every frame, rest every 2s
-    for (let i = entities.length - 1; i >= 0; i--) {
-      const e = entities[i];
-      if (!e.alive && e.type !== EntityType.PLAYER) {
-        if (e.type === EntityType.PROJECTILE || state.tick % 120 === 0) {
-          entities.splice(i, 1);
-        }
-      }
-    }
+    cleanupDeadEntities(dt);
 
     // Sync new messages to persistent log, then trim
     syncMsgLog();
@@ -4649,7 +4883,12 @@ function gameLoop(now: number): void {
     updateProjectiles(dt);
     updateDoors(dt);
     updateWrongDoorRemaps(world, state);
-    updateNeeds(entities, dt, state.time, state.msgs, player.id, nextEntityId);
+    needsTickAccum += dt;
+    if (needsTickAccum >= 0.25) {
+      const needsDt = needsTickAccum;
+      needsTickAccum = 0;
+      updateNeeds(entities, needsDt, state.time, state.msgs, player.id, nextEntityId);
+    }
     if (updateBetonoedShortcut(world, entities, player, state, dt)) updateWorldData(world);
     setListenerPos(player.x, player.y, (ax, ay, bx, by) => world.dist2(ax, ay, bx, by));
     updateAI(world, entities, dt, state.time, state.msgs, player.id, state.clock, state.samosborActive, nextEntityId, state.currentFloor, state);
@@ -4696,16 +4935,14 @@ function gameLoop(now: number): void {
         ensureProceduralSpriteSeeds(entities);
       }
     }
-    updateBloodTrails(world, entities, dt);
-    updateParticles(world, dt);
-    for (let i = entities.length - 1; i >= 0; i--) {
-      const e = entities[i];
-      if (!e.alive && e.type !== EntityType.PLAYER) {
-        if (e.type === EntityType.PROJECTILE || state.tick % 120 === 0) {
-          entities.splice(i, 1);
-        }
-      }
+    bloodTrailAccum += dt;
+    if (bloodTrailAccum >= 0.3) {
+      const bloodDt = bloodTrailAccum;
+      bloodTrailAccum = 0;
+      updateBloodTrails(world, entities, bloodDt);
     }
+    updateParticles(world, dt);
+    cleanupDeadEntities(dt);
     syncMsgLog();
     while (state.msgs.length > 50) state.msgs.shift();
     _prevMsgCount = state.msgs.length;
@@ -4740,6 +4977,7 @@ function gameLoop(now: number): void {
   }
 
   // Update dynamic world data (fog, door states, wallTex for slides)
+  rebuildEntityIndex(entities);
   updateGeneratedDynamicSky(dt);
   updateDynamicData(world, camX, camY);
 

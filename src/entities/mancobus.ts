@@ -18,8 +18,8 @@ export const DEF: MonsterDef = {
   projSpeed: 6,
   projSprite: 0, // uses PSI_BOLT or similar
   floors: [FloorLevel.MAINTENANCE, FloorLevel.HELL],
-  counterplay: 'Не входите в прямой сектор: сперва снимите охрану, затем бейте Манкобуса из-за углов между залпами; стены и колонны гасят огненный темп.',
-  lootHint: 'жирный металл, командная органика, энергоячейки и закупоренный голос',
+  counterplay: 'Не входите в прямой сектор: сначала снимите охрану, затем бейте из-за углов между залпами. Стены и колонны режут огненный темп.',
+  lootHint: 'жирный металл, командная органика, энергоячейка, закупоренный голос',
 };
 
 export function generateSprite(): Uint32Array {

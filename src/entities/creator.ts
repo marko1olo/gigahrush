@@ -1,6 +1,5 @@
-/* ── Creator (Творец) — final boss, white glowing silhouette ── */
-/*   Pure white radiant figure. Supreme entity of the hrush.     */
-/*   Ranged AoE splash attacks, extremely powerful.              */
+/* ── Creator (Творец) — late VOID green contour encounter ───── */
+/*   Local accounting error with ranged AoE splash attacks.       */
 
 import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
@@ -18,15 +17,15 @@ export const DEF: MonsterDef = {
   projSpeed: 9,
   projSprite: 0,
   floors: [FloorLevel.VOID],
-  counterplay: 'Входите только с полным запасом: держите укрытие между залпами и не тратьте рывок без видимого выхода.',
-  lootHint: 'пустотные шипы и финальный след аварийного мастера без лица',
+  counterplay: 'Входите с полным запасом: держите укрытие между залпами, уходите из зелёного света и не тратьте рывок без выхода.',
+  lootHint: 'пустотные шипы и квитанция контура без владельца',
 };
 
 export function generateSprite(): Uint32Array {
   const t = new Uint32Array(S * S).fill(CLEAR);
   const cx = S / 2;
 
-  // Radiant humanoid silhouette — blinding white with ethereal glow
+  // A humanoid outline only because the witness expects one.
   for (let y = 4; y < 60; y++) {
     // Humanoid shape: head, shoulders, torso, legs
     let halfW: number;
@@ -50,9 +49,9 @@ export function generateSprite(): Uint32Array {
         for (let dx = -2; dx <= 2; dx++) {
           const px = legCx + dx;
           if (px >= 0 && px < S) {
-            const bright = 200 + Math.floor(noise(px, y, 901) * 55);
+            const bright = 170 + Math.floor(noise(px, y, 901) * 65);
             const glow = clamp(bright + Math.floor(Math.sin((y + px) * 0.3) * 20));
-            t[y * S + px] = rgba(glow, glow, clamp(glow + 10));
+            t[y * S + px] = rgba(clamp(glow - 45), glow, clamp(glow - 15));
           }
         }
       }
@@ -65,47 +64,45 @@ export function generateSprite(): Uint32Array {
       const dx = (x - cx) / Math.max(halfW, 1);
       const edgeFade = 1 - dx * dx;
       const n = noise(x, y, 900) * 30;
-      // Pure white with slight luminosity variation
-      const base = 200 + Math.floor(edgeFade * 55 + n * 0.5);
-      const r = clamp(base + Math.floor(Math.sin(y * 0.1 + x * 0.05) * 10));
-      const g = clamp(base + Math.floor(Math.cos(y * 0.08 + x * 0.07) * 8));
-      const b = clamp(base + 15); // slightly bluish-white
+      const base = 170 + Math.floor(edgeFade * 70 + n * 0.5);
+      const r = clamp(base - 55 + Math.floor(Math.sin(y * 0.1 + x * 0.05) * 10));
+      const g = clamp(base + 20 + Math.floor(Math.cos(y * 0.08 + x * 0.07) * 8));
+      const b = clamp(base - 25);
       t[y * S + x] = rgba(r, g, b);
     }
   }
 
-  // Arms spread outward — radiating light
+  // Lateral proof lines: the same door counted twice.
   for (let arm = -1; arm <= 1; arm += 2) {
     for (let a = 0; a < 14; a++) {
       const ax = cx + arm * (10 + a);
       const ay = 22 + Math.floor(Math.sin(a * 0.4) * 2);
       for (let dy = -1; dy <= 1; dy++) {
         if (ax >= 0 && ax < S && ay + dy >= 0 && ay + dy < S) {
-          const bright = 230 - a * 3;
-          t[(ay + dy) * S + ax] = rgba(bright, bright, clamp(bright + 10));
+          const bright = 220 - a * 3;
+          t[(ay + dy) * S + ax] = rgba(clamp(bright - 70), bright, clamp(bright - 35));
         }
       }
     }
   }
 
-  // Eyes — intense white-blue glow
+  // Witness marks, not eyes.
   for (let dy = -1; dy <= 1; dy++) {
     for (let dx = -2; dx <= 0; dx++) {
       const px = cx - 3 + dx, py = 8 + dy;
       if (px >= 0 && px < S && py >= 0 && py < S)
-        t[py * S + px] = rgba(200, 220, 255);
+        t[py * S + px] = rgba(120, 255, 170);
     }
     for (let dx = 0; dx <= 2; dx++) {
       const px = cx + 2 + dx, py = 8 + dy;
       if (px >= 0 && px < S && py >= 0 && py < S)
-        t[py * S + px] = rgba(200, 220, 255);
+        t[py * S + px] = rgba(120, 255, 170);
     }
   }
-  // Eye pupils — pure bright
-  t[8 * S + (cx - 3)] = rgba(255, 255, 255);
-  t[8 * S + (cx + 3)] = rgba(255, 255, 255);
+  t[8 * S + (cx - 3)] = rgba(210, 255, 220);
+  t[8 * S + (cx + 3)] = rgba(210, 255, 220);
 
-  // Radiating corona / halo effect around the figure
+  // Broken accounting contour around the figure.
   for (let angle = 0; angle < 32; angle++) {
     const a = (angle / 32) * Math.PI * 2;
     for (let r = 24; r < 28 + Math.floor(noise(angle, 0, 902) * 5); r++) {
@@ -114,7 +111,7 @@ export function generateSprite(): Uint32Array {
       if (hx >= 0 && hx < S && hy >= 0 && hy < S && t[hy * S + hx] === CLEAR) {
         const fade = 1 - (r - 24) / 8;
         const c = Math.floor(180 * fade);
-        t[hy * S + hx] = rgba(c, c, clamp(c + 20), Math.floor(160 * fade));
+        t[hy * S + hx] = rgba(Math.floor(c * 0.45), clamp(c + 50), Math.floor(c * 0.7), Math.floor(160 * fade));
       }
     }
   }

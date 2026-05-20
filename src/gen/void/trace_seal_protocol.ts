@@ -32,7 +32,7 @@ const TRACE_SEAL_COSTS = [
 ] as const;
 
 const CLERK_DEF: PlotNpcDef = {
-  name: 'Клерк пустотного протокола',
+  name: 'Клерк протокола следа',
   isFemale: false,
   faction: Faction.SCIENTIST,
   occupation: Occupation.SECRETARY,
@@ -43,13 +43,13 @@ const CLERK_DEF: PlotNpcDef = {
   speed: 0.8,
   inventory: [{ defId: 'note', count: 1 }],
   talkLines: [
-    'Форма короткая: запечатать след или оставить уликой. Третьего окна нет.',
-    'Цель уже выбрана. Не ищите её по дому: это плохо масштабируется.',
-    'Запечатаете след — заплатите сургучом, ячейкой или кровью. Дом возьмёт соседний проход.',
+    'Форма короткая: запечатать след или оставить его уликой. Первый вариант закрывает проход, второй зовет свидетеля.',
+    'Цель уже выбрана черным ящиком. Не бегайте по этажу: смотрите номер в записке.',
+    'Запечатаете след - заплатите сургучом, ячейкой или здоровьем. Соседний проход закроется на месте.',
   ],
   talkLinesPost: [
-    'Если протокол понятен длиннее одной строки, протокол вреден.',
-    'Черный ящик пишет только то, что можно потом предъявить стене.',
+    'Под сиреной пишите одно действие и цену. Длинную формулировку дверь не примет.',
+    'Черный ящик печатает адрес следа. Бумагу потом можно показать клерку или двери.',
   ],
 };
 
@@ -65,13 +65,13 @@ const NEIGHBOR_DEF: PlotNpcDef = {
   speed: 0.9,
   inventory: [{ defId: 'bread', count: 1 }],
   talkLines: [
-    'Я только открыла дверь на площадке. Теперь я здесь и дверь помнит не меня.',
-    'Не прячь след просто чтобы было тише. Тишина потом приходит с квитанцией.',
-    'Если запечатаешь, я хотя бы буду знать, какая дверь меня украла.',
+    'Я открыла дверь на площадке за хлебом. Шагнула сюда, а моя квартира осталась за другой ручкой.',
+    'Не прячь след ради тишины. Закроешь соседний проход - люди за ним перестанут отвечать.',
+    'Если запечатаешь, я хотя бы буду знать, какая дверь меня утащила.',
   ],
   talkLinesPost: [
-    'Соседний проход уже обиделся. Слышишь, как он молчит?',
-    'Меня вернут не туда. Но хоть след останется с адресом.',
+    'Соседний проход уже закрыт. За ним кашляли, теперь молчат - это на вашей бумаге.',
+    'Меня вернут не туда. Но улика с адресом останется, и меня будут искать не по слухам.',
   ],
 };
 
@@ -256,7 +256,7 @@ function spendTraceSealCost(player: Entity, state: GameState): { label: string; 
     player.hp = Math.max(1, player.hp - 4);
     state.dmgFlash = Math.max(state.dmgFlash, 0.25);
   }
-  return { label: 'кровь', hpCost: 4 };
+  return { label: 'здоровье', hpCost: 4 };
 }
 
 function sealTraceTarget(ctx: TraceSealContext): void {
@@ -324,7 +324,7 @@ function applyTraceSeal(ctx: TraceSealContext, state: GameState, event: WorldEve
     hpCost: cost.hpCost,
   });
   spawnBacklashParagraph(ctx);
-  publishProtocol(state, ctx, event, 'backlash', 'Отдача: соседний проход молчит.', 4, TAG_SEAL, {
+  publishProtocol(state, ctx, event, 'backlash', 'Отдача: соседний проход закрылся; за ним больше не слышно людей.', 4, TAG_SEAL, {
     spawned: 'paragraph',
   });
 }
@@ -335,7 +335,7 @@ function applyTraceEvidence(ctx: TraceSealContext, state: GameState, event: Worl
   publishProtocol(state, ctx, event, 'obtained', `Получен протокол: ${PROTOCOL_NAME}.`, 3, TAG_LEAVE_EVIDENCE, {
     cost: 'none',
   });
-  publishProtocol(state, ctx, event, 'started', 'След оставлен уликой. Дверь остается спорной.', 3, TAG_LEAVE_EVIDENCE, {
+  publishProtocol(state, ctx, event, 'started', 'След оставлен уликой. Дверь остается открытой, но спорной.', 3, TAG_LEAVE_EVIDENCE, {
     counterplay: 'route_stays_open',
   });
   const player = playerInContext(ctx);
@@ -504,7 +504,7 @@ export function generateTraceSealProtocol(
     [{
       defId: 'note',
       count: 1,
-      data: { text: 'ПРОТОКОЛ: запечатать выбранный след. Польза локальна. Отдача уйдет в соседний проход.' },
+      data: { text: 'ПРОТОКОЛ: запечатать выбранный след. Заплатите сургучом, энергоячейкой или здоровьем; соседний проход закроется.' },
     }],
     [TAG_RULE, TAG_PROTOCOL, TAG_SEAL],
   );
@@ -517,7 +517,7 @@ export function generateTraceSealProtocol(
     [{
       defId: 'note',
       count: 1,
-      data: { text: 'ПРОТОКОЛ: оставить выбранный след уликой. Дверь не закроется, но улика позовет свидетеля.' },
+      data: { text: 'ПРОТОКОЛ: оставить выбранный след уликой. Проход останется открыт, но появится свидетель.' },
     }],
     [TAG_RULE, TAG_PROTOCOL, TAG_LEAVE_EVIDENCE, 'evidence'],
   );
@@ -526,11 +526,11 @@ export function generateTraceSealProtocol(
     room.id,
     room.x + (room.w >> 1),
     room.y + 2,
-    'Черный ящик: последний след',
+    'Черный ящик: назначенный след',
     [{
       defId: 'note',
       count: 1,
-      data: { text: `TRACE ${targetKey({ world, entities, roomId: room.id, sealContainerId, evidenceContainerId, targetDoorIdx, backlashDoorIdx })}: цель назначена без поиска по этажу.` },
+      data: { text: `TRACE ${targetKey({ world, entities, roomId: room.id, sealContainerId, evidenceContainerId, targetDoorIdx, backlashDoorIdx })}: цель указана на этой бумаге; бегать по этажу не надо.` },
     }],
     ['void_trace', 'black_box', 'floor20_void'],
   );

@@ -256,7 +256,7 @@ function markThreatNeutralized(
 ): void {
   if (hasToken(room, TOKEN_NEUTRAL)) return;
   addRoomToken(room, TOKEN_NEUTRAL);
-  state.msgs.push(msg('Паритель сорвался в конденсат. Мост слушает только трубы.', state.time, '#8cf'));
+  state.msgs.push(msg('Паритель сорвался в конденсат. На мосту остались только трубы и мокрый пол.', state.time, '#8cf'));
   publishParitelEvent(world, player, state, room, 'paritel_threat_neutralized', 4, ['threat', method], { method });
 }
 

@@ -352,7 +352,7 @@ function applyAnchorBreak(ctx: PristavContext, state: GameState, event: WorldEve
     ctx,
     event,
     'anchor_broken',
-    'Якорь протокола сломан: правило осыпалось, но акт уже летит.',
+    'Якорь протокола сломан. Правило снято, но Параграф уже несет акт о поломке.',
     4,
     { rewardItem: event.itemId === 'void_spike' ? 'void_spike' : undefined },
   );
@@ -570,7 +570,7 @@ export function generatePristavPustoty(
     radius: 9,
     targetRadius: 2.4,
     cooldownSec: 30,
-    heardText: 'Пустотная линия гудит как канцелярский звонок: сначала правило, потом выход.',
+    heardText: 'Линия Пристава звенит как канцелярский звонок: сначала отметка, потом прямой выход.',
     followedText: 'Вы дошли до таблички Пристава. Теперь выбор явный: обойти, заплатить, нарушить или ломать якорь.',
     ignoredText: 'Линия Пристава осталась без отметки. Прямой порог будет считать это нарушением.',
   });

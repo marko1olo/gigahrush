@@ -384,7 +384,7 @@ function handleVeretarSandUse(e: Entity, slotIdx: number, msgs: Msg[], time: num
   }
 
   decrementInventorySlot(e.inventory, slotIdx);
-  msgs.push(msg('Вы вытряхнули белый песок в щель пола. Доказательство уничтожено, но сумка стала тише.', time, '#d8d4bf'));
+  msgs.push(msg('Белый песок вытряхнут в щель пола. Доказательство уничтожено.', time, '#d8d4bf'));
   publishVeretarSandEvent(state, e, 'destroyed', VERETAR_UNSEALED_SAND, 1, 2);
   return true;
 }
@@ -422,7 +422,7 @@ function publishPlayerItemEvent(
 
 function openGovnyakCourierPackage(actor: Entity, msgs: Msg[], time: number, state?: GameState): boolean {
   if (!state) {
-    msgs.push(msg('Пломба держит пакет закрытым. Нужен активный маршрут, чтобы понять цену любопытства.', time, '#888'));
+    msgs.push(msg('Пломба держит пакет закрытым. Нужен активный маршрут.', time, '#888'));
     return true;
   }
 
@@ -453,8 +453,8 @@ function openGovnyakCourierPackage(actor: Entity, msgs: Msg[], time: number, sta
   removeItem(actor, GOVNYAK_COURIER_PACKAGE_ITEM, 1);
   msgs.push(msg(
     failedContracts.length > 0
-      ? 'Пломба сорвана. Внутри серый табачный комок и чужая бухгалтерия. Курьерский маршрут провален.'
-      : 'Пломба сорвана. Внутри почти ничего, кроме запаха дешёвого забытья и чужой метки.',
+      ? 'Пломба сорвана. Внутри серый табачный комок и бумаги. Курьерский маршрут провален.'
+      : 'Пломба сорвана. Внутри почти пусто. Метка активна.',
     time,
     '#f84',
   ));
@@ -543,7 +543,7 @@ function zhelemishHealingFrictionText(e: Entity, beforeHp: number | undefined, t
   const rawGain = e.hp - beforeHp;
   const adjustedGain = Math.max(1, Math.round(rawGain * mult));
   e.hp = Math.min(e.maxHp ?? 100, beforeHp + adjustedGain);
-  return ` Желемыш забрал часть лечения: +${adjustedGain}/${Math.round(rawGain)}.`;
+  return ` Желемыш снизил лечение: +${adjustedGain}/${Math.round(rawGain)}.`;
 }
 
 function publishSilverSlimeInventoryEvent(
@@ -603,7 +603,7 @@ function handleSilverSlimeUse(
     consumeInventorySlot(e, slotIdx);
     addItem(e, SILVER_SLIME_OPENED_ID, 1);
 
-    msgs.push(msg(`Серебристая слизь вскрыта: сон +25, ПСИ +${psiGain}, вода -12, HP -6. Пломба уже не доказательство.`, time, '#bfc'));
+    msgs.push(msg(`Прозрачная слизь вскрыта: сон +25, ПСИ +${psiGain}, вода -12, HP -6. Пломба уже не доказательство.`, time, '#bfc'));
     publishSilverSlimeInventoryEvent(
       state,
       e,
@@ -806,17 +806,17 @@ function useDocumentAtMinistryGate(
   if (official) {
     changeResourceStock(state, 'documents', 1, FloorLevel.MINISTRY);
     addFactionRelMutual(Faction.PLAYER, Faction.CITIZEN, 1);
-    msgs.push(msg('Официальный корешок принят. Дверь N3 выдала ключ без лишнего шума.', time, '#8f8'));
+    msgs.push(msg('Официальный корешок принят. Дверь N3 выдала ключ.', time, '#8f8'));
   } else if (stolen) {
     changeResourceStock(state, 'documents', 1, FloorLevel.MINISTRY);
     addFactionRelMutual(Faction.PLAYER, Faction.LIQUIDATOR, 2);
     addFactionRelMutual(Faction.PLAYER, Faction.WILD, -1);
-    msgs.push(msg('Краденая архивная карточка сдана как улика. Выдан архивный допуск; рынок это не одобрит.', time, '#8cf'));
+    msgs.push(msg('Краденая архивная карточка сдана как улика. Выдан архивный допуск.', time, '#8cf'));
   } else {
     changeResourceStock(state, 'documents', -1, FloorLevel.MINISTRY);
     addFactionRelMutual(Faction.PLAYER, Faction.LIQUIDATOR, -2);
     addFactionRelMutual(Faction.PLAYER, Faction.WILD, 1);
-    msgs.push(msg(`${ITEMS[defId]?.name ?? defId} принят. Доступ выдан, но журнал запомнил слишком ровную бумагу.`, time, '#fa6'));
+    msgs.push(msg(`${ITEMS[defId]?.name ?? defId} принят. Доступ выдан. Риск проверки.`, time, '#fa6'));
   }
 
   publishDocumentActionEvent(
@@ -858,12 +858,12 @@ function forgePermitFromStampSheet(
   const inputs = ['forged_stamp_sheet', 'blank_form', 'ink_bottle'] as const;
   for (const id of inputs) {
     if (!hasItem(e, id)) {
-      msgs.push(msg('Для кованого корешка нужны лист с поддельной печатью, пустой бланк и чернила.', time, '#aa8'));
+      msgs.push(msg('Для поддельного корешка нужны лист с поддельной печатью, пустой бланк и чернила.', time, '#aa8'));
       return true;
     }
   }
   if (!hasRoomForOutputAfterConsuming(e, 'forged_permit_slip', inputs)) {
-    msgs.push(msg('Некуда положить кованый корешок. Освободите слот перед печатью.', time, '#aa8'));
+    msgs.push(msg('Некуда положить поддельный корешок. Освободите слот перед печатью.', time, '#aa8'));
     return true;
   }
   if (!consumeDocumentItems(e, inputs)) return true;
@@ -873,7 +873,7 @@ function forgePermitFromStampSheet(
     addFactionRelMutual(Faction.PLAYER, Faction.LIQUIDATOR, -1);
     addFactionRelMutual(Faction.PLAYER, Faction.WILD, 1);
   }
-  msgs.push(msg('Бланк, чернила и поддельная печать сошлись в кованый корешок пропуска. Теперь риск можно нести к N3.', time, '#fa6'));
+  msgs.push(msg('Поддельный корешок готов: бланк, чернила, поддельная печать. Несите к N3.', time, '#fa6'));
   publishDocumentActionEvent(
     state,
     e,
@@ -912,7 +912,7 @@ function sellDocumentToBlackMarket(
   changeResourceStock(state, 'contraband', 1, state.currentFloor);
   addFactionRelMutual(Faction.PLAYER, Faction.WILD, 2);
   addFactionRelMutual(Faction.PLAYER, Faction.LIQUIDATOR, -1);
-  msgs.push(msg(`${ITEMS[defId]?.name ?? defId} ушёл через рынок за ${price}₽. Доступ потерян, слух остался.`, time, '#ee4'));
+  msgs.push(msg(`${ITEMS[defId]?.name ?? defId} продан на рынке за ${price}₽. Доступ потерян.`, time, '#ee4'));
   publishDocumentActionEvent(
     state,
     e,
@@ -947,7 +947,7 @@ function handleDocumentPaperUse(
   if (defId === 'forged_stamp_sheet') return forgePermitFromStampSheet(e, msgs, time, state, zoneId, world);
   if (!DOCUMENT_GATE_ITEMS.has(defId) && DOCUMENT_MARKET_VALUES[defId] === undefined) return false;
   if (!state || e.type !== EntityType.PLAYER) {
-    msgs.push(msg(ITEMS[defId]?.desc ?? 'Бумага требует адресата.', time, '#aa8'));
+    msgs.push(msg(ITEMS[defId]?.desc ?? 'Бумаге нужен адресат.', time, '#aa8'));
     return true;
   }
 
@@ -958,14 +958,14 @@ function handleDocumentPaperUse(
     return sellDocumentToBlackMarket(e, defId, msgs, time, state, zoneId, world);
   }
 
-  msgs.push(msg('Эта бумага просит адресата: N3, архивное окно, квартирную типографию или рынок.', time, '#aa8'));
+  msgs.push(msg('Нужен адресат: N3, архивное окно, типография или рынок.', time, '#aa8'));
   return true;
 }
 
 function handleShelterTallyUse(e: Entity, defId: string, msgs: Msg[], time: number, state?: GameState): boolean {
   if (!isShelterTallyItem(defId)) return false;
   if (!state || e.type !== EntityType.PLAYER) {
-    msgs.push(msg(ITEMS[defId]?.desc ?? 'Бумага требует адресата.', time, '#aa8'));
+    msgs.push(msg(ITEMS[defId]?.desc ?? 'Бумаге нужен адресат.', time, '#aa8'));
     return true;
   }
 
@@ -974,7 +974,7 @@ function handleShelterTallyUse(e: Entity, defId: string, msgs: Msg[], time: numb
     removeItem(e, SHELTER_TALLY_ID, 1);
     removeItem(e, 'forged_stamp_sheet', 1);
     addItem(e, FORGED_SHELTER_TALLY_ID, 1);
-    msgs.push(msg('Ведомость переписана под печать. В списке появились удобные живые и удобные пустые места.', time, '#fa8'));
+    msgs.push(msg('Ведомость переписана под печать. Риск ревизии.', time, '#fa8'));
     publishShelterTallyEvent(state, e, SHELTER_TALLY_ID, 'forge');
     return true;
   }
@@ -983,10 +983,10 @@ function handleShelterTallyUse(e: Entity, defId: string, msgs: Msg[], time: numb
     removeItem(e, defId, 1);
     if (!forged) {
       e.money = (e.money ?? 0) + 45;
-      msgs.push(msg('Министерство приняло ведомость укрытых. +45₽ за аккуратные фамилии.', time, '#ee4'));
+      msgs.push(msg('Ведомость укрытых сдана в Министерство. +45₽.', time, '#ee4'));
       publishShelterTallyEvent(state, e, defId, 'submit_ministry', { itemValue: 45 });
     } else {
-      msgs.push(msg('Министерство приняло липовую ведомость, но печать смотрела слишком ровно.', time, '#f84'));
+      msgs.push(msg('Липовая ведомость сдана в Министерство. Риск проверки.', time, '#f84'));
       publishShelterTallyEvent(state, e, defId, 'submit_forged_ministry');
     }
     return true;
@@ -995,16 +995,16 @@ function handleShelterTallyUse(e: Entity, defId: string, msgs: Msg[], time: numb
   if (state.currentFloor === FloorLevel.LIVING || state.currentFloor === FloorLevel.KVARTIRY) {
     removeItem(e, defId, 1);
     if (forged) {
-      msgs.push(msg('Жильцы читают липовый список и сразу находят лишнюю благодарность.', time, '#f84'));
+      msgs.push(msg('Жильцы нашли лишние строки в липовом списке.', time, '#f84'));
       publishShelterTallyEvent(state, e, defId, 'give_forged_residents');
     } else {
-      msgs.push(msg('Старшие подъезда получили список. Кто-то благодарит, кто-то ищет свое пустое место.', time, '#8f8'));
+      msgs.push(msg('Старшие подъезда получили список укрытых.', time, '#8f8'));
       publishShelterTallyEvent(state, e, defId, 'give_residents');
     }
     return true;
   }
 
-  msgs.push(msg('Ведомость укрытых требует адресата: Министерство, жилой блок, рынок или тайник.', time, '#aa8'));
+  msgs.push(msg('Ведомости нужен адресат: Министерство, жилой блок, рынок или тайник.', time, '#aa8'));
   return true;
 }
 
@@ -1147,7 +1147,7 @@ export function dropItem(
   msgs.push(msg(`Выброшено: ${def.name}${dropCount > 1 ? ' ×' + dropCount : ''}`, time, '#aa6'));
   publishPlayerItemEvent(state, player, 'player_drop_item', def.id, dropCount, 2);
   if (placeMonsterBait(state, world, player, dropX, dropY, def.id, dropCount, 'drop', dropId)) {
-    msgs.push(msg('Запах приманки пошёл по коридору', time, '#ca6'));
+    msgs.push(msg('Приманка оставлена: монстры могут учуять.', time, '#ca6'));
   }
 }
 
@@ -1194,7 +1194,7 @@ export function pickupNearby(
       if (addItem(player, item.defId, item.count, acid ? undefined : item.data)) {
         if (acid?.organicRisk) {
           removeItem(player, GREEN_ACID_COUNTERMEASURE, 1);
-          msgs.push(msg(`Фильтрующий слой принял кислоту: ${def?.name ?? item.defId} спасён.`, time, '#9f4'));
+          msgs.push(msg(`Фильтрующий слой нейтрализовал кислоту: ${def?.name ?? item.defId} сохранён.`, time, '#9f4'));
           publishGreenAcidItemEvent(state, player, 'neutralization', item.defId, item.count, zoneId, drop.x, drop.y);
         }
         if (acid?.sample) {

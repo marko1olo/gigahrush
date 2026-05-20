@@ -8,6 +8,7 @@ import '../src/gen/kvartiry/content_manifest';
 import '../src/gen/maintenance/content_manifest';
 import '../src/gen/hell/content_manifest';
 import '../src/gen/void/content_manifest';
+import '../src/gen/design_floors/manifest';
 
 import { FloorLevel, MonsterKind, RoomType } from '../src/core/types';
 import { ITEMS } from '../src/data/catalog';

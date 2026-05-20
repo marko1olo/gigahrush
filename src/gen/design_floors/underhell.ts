@@ -106,7 +106,7 @@ export interface UnderhellThresholdCost {
 export const UNDERHELL_THRESHOLD_COSTS = [
   {
     id: 'holy_water',
-    label: '1 фляга святой воды',
+    label: '1 фляга воды с церковной печатью',
     flag: UNDERHELL_FLAGS.THRESHOLD_HOLY_WATER,
     item: { defId: 'holy_water', count: 1 },
   },
@@ -119,7 +119,7 @@ export const UNDERHELL_THRESHOLD_COSTS = [
   },
   {
     id: 'blood_35hp',
-    label: '35 HP кровью у порога',
+    label: '35 HP кровью у поста',
     flag: UNDERHELL_FLAGS.THRESHOLD_BLOOD_HP,
     hp: 35,
   },
@@ -128,18 +128,18 @@ export const UNDERHELL_THRESHOLD_COSTS = [
 export const UNDERHELL_LATE_WARNINGS: readonly UnderhellLateWarning[] = [
   {
     id: 'underhell_threshold_price_echo',
-    label: 'Цена порога возвращается слухом',
-    sourceRoomName: 'Порог трех плат',
+    label: 'Цена пропуска возвращается слухом',
+    sourceRoomName: 'Пост трех оплат',
     targetRoomName: 'Свидетельские клетки',
-    warning: 'Порог берет одну плату сейчас, но свидетельская клетка решает, кто потом расскажет о цене.',
+    warning: 'Пост берет одну плату сейчас, но свидетельская клетка решает, кто потом расскажет о цене.',
     tags: ['underhell', 'threshold', 'witness', 'warning'],
   },
   {
     id: 'underhell_void_cut_darkness_trace',
-    label: 'Разрез в Пустоту оставляет позднюю тень',
-    sourceRoomName: 'Жертвенные ворота',
-    targetRoomName: 'Разрез в Пустоту',
-    warning: 'Открытый разрез ведет к Пустоте, а позднее может оставить след в Тьме.',
+    label: 'Разрез к Пустоте оставляет след',
+    sourceRoomName: 'Списочная створка',
+    targetRoomName: 'Разрез к Пустоте',
+    warning: 'Открытый разрез ведет к Пустоте, а позже может оставить мокрый след в темном отсеке.',
     tags: ['underhell', 'void_gate', 'darkness', 'warning'],
   },
 ];
@@ -147,7 +147,7 @@ export const UNDERHELL_LATE_WARNINGS: readonly UnderhellLateWarning[] = [
 export const UNDERHELL_DEBUG_ENTRY = {
   routeId: UNDERHELL_ROUTE_ID,
   z: UNDERHELL_Z,
-  label: 'Ниже ада',
+  label: 'Нижний пропускник',
   generator: 'generateUnderhellDesignFloor',
   seed: UNDERHELL_DEFAULT_SEED,
   smokePath: [
@@ -155,18 +155,18 @@ export const UNDERHELL_DEBUG_ENTRY = {
     'Корневой вход',
     'Обратный уступ',
     'Корневая лестница',
-    'Порог трех плат',
+    'Пост трех оплат',
     'Культовая пошлинная палата',
     'Свидетельские клетки',
     'Печь долга',
-    'Перевернутая часовня',
-    'Жертвенные ворота',
-    'Разрез в Пустоту',
+    'Палата якоря',
+    'Списочная створка',
+    'Разрез к Пустоте',
   ],
 } as const;
 
 const THRESHOLD_MARFUSHA_DEF: PlotNpcDef = {
-  name: 'Марфуша Пороговая',
+  name: 'Марфуша Постовая',
   isFemale: true,
   faction: Faction.CULTIST,
   occupation: Occupation.PRIEST,
@@ -177,12 +177,12 @@ const THRESHOLD_MARFUSHA_DEF: PlotNpcDef = {
     { defId: 'note', count: 1 },
   ],
   talkLines: [
-    'Ниже ада не берут верой. Берут водой, именем или кровью.',
-    'Порог принимает три платы: святую воду, паспортный корешок или тридцать пять здоровья прямо здесь.',
-    'Платить можно один раз. Второй раз порог спросит уже не у тебя.',
+    'Нижний пропускник не слушает веру. Нужна вода с печатью, корешок паспорта или кровь на мокрой плитке.',
+    'Пост принимает три платы: флягу с печатью, паспортный корешок или тридцать пять здоровья прямо здесь.',
+    'Платить можно один раз. Второй раз пост спросит у свидетеля, списка или двери.',
   ],
   talkLinesPost: [
-    'Порог услышал плату. Теперь держи глаза на свидетелях, они помнят лишнее.',
+    'Пост принял плату. Теперь смотри на клетки: свидетели помнят лишнее.',
     'Если Пустота откроется мягко, не верь мягкости.',
   ],
 };
@@ -200,7 +200,7 @@ const DEBT_CULTIST_DEF: PlotNpcDef = {
   ],
   talkLines: [
     'Рынок 88 и этаж 69 пишут долги разными чернилами. Горят одинаково.',
-    'Принеси лист с поддельной печатью. Я сожгу долг, а долг запомнит запах.',
+    'Принеси лист с поддельной печатью. Я сожгу долг, а запах уйдет в журнал как оплата.',
     'Бумага исчезнет сразу. Последствие придет позже, с чужой фамилией.',
   ],
   talkLinesPost: [
@@ -244,7 +244,7 @@ const FALSE_YAKOV_DEF: PlotNpcDef = {
   ],
   talkLines: [
     'Яков Давидович бы сказал: не трогай якорь. Поэтому я скажу наоборот.',
-    'Разрез откроется, когда порог оплачен, а якорь разбит. Порядок не важен.',
+    'Разрез откроется, когда пост оплачен, а якорь разбит. Порядок не важен.',
     'Если голос в банке начнет учить тебя фамилии, закрой банку патроном.',
   ],
   talkLinesPost: [
@@ -257,7 +257,7 @@ registerSideQuest('underhell_threshold_marfusha', THRESHOLD_MARFUSHA_DEF, [
     id: 'underhell_pay_threshold',
     giverNpcId: 'underhell_threshold_marfusha',
     type: QuestType.FETCH,
-    desc: 'Марфуша Пороговая: «Порог примет одну из трех плат: флягу святой воды, паспортный корешок или 35 HP кровью. Для журнала принеси святую воду, для интегратора есть три явных cost id.»',
+    desc: 'Марфуша Постовая: «Пост примет одну из трех плат: флягу с церковной печатью, паспортный корешок или 35 HP кровью. Для журнала принеси флягу, остальные цены отмечены в табличке.»',
     targetItem: 'holy_water', targetCount: 1,
     rewardItem: 'psi_stabilizer', rewardCount: 1,
     relationDelta: 8, xpReward: 90,
@@ -295,7 +295,7 @@ registerSideQuest('underhell_false_yakov_echo', FALSE_YAKOV_DEF, [
     id: 'underhell_open_void_cut',
     giverNpcId: 'underhell_false_yakov_echo',
     type: QuestType.KILL,
-    desc: 'Ложный Яков-эхо: «Разбей ритуальный идол-якорь в перевернутой часовне. Если порог уже оплачен, разрез в Пустоту откроется сразу.»',
+    desc: 'Ложный Яков-эхо: «Разбей идол-якорь в палате якоря. Если пост уже оплачен, разрез к Пустоте откроется сразу.»',
     targetMonsterKind: MonsterKind.IDOL,
     killNeeded: 1,
     rewardItem: 'void_spike', rewardCount: 1,
@@ -461,7 +461,7 @@ export function breakUnderhellVoidAnchor(
     actorName: actor?.name,
     actorFaction: actor?.faction,
     targetId: ritual.voidAnchorEntityId,
-    targetName: 'Идол-якорь Нижнего ада',
+    targetName: 'Идол-якорь нижнего поста',
     severity: opened ? 5 : 4,
     privacy: 'local',
     tags: ['underhell', 'void_gate', opened ? 'open' : 'anchor_broken'],
@@ -566,15 +566,15 @@ function generateUnderhellDesignFloorSeeded(seed: number, forceOpenVoidGate: boo
   const entry = createUnderhellRoom(world, SPAWN_X - 8, SPAWN_Y - 6, 17, 13, RoomType.COMMON, 'Корневой вход', Tex.GUT, Tex.F_MEAT);
   const fallback = createUnderhellRoom(world, SPAWN_X - 64, SPAWN_Y + 8, 17, 11, RoomType.CORRIDOR, 'Обратный уступ', Tex.MEAT, Tex.F_MEAT);
   const rootStair = createUnderhellRoom(world, SPAWN_X + 48, SPAWN_Y + 8, 17, 11, RoomType.CORRIDOR, 'Корневая лестница', Tex.GUT, Tex.F_GUT);
-  const threshold = createUnderhellRoom(world, SPAWN_X - 15, SPAWN_Y + 46, 31, 15, RoomType.HQ, 'Порог трех плат', Tex.GUT, Tex.F_GUT);
+  const threshold = createUnderhellRoom(world, SPAWN_X - 15, SPAWN_Y + 46, 31, 15, RoomType.HQ, 'Пост трех оплат', Tex.GUT, Tex.F_GUT);
   const witnessA = createUnderhellRoom(world, SPAWN_X - 57, SPAWN_Y + 49, 11, 9, RoomType.STORAGE, 'Свидетельская клетка А', Tex.MEAT, Tex.F_MEAT);
   const witnessB = createUnderhellRoom(world, SPAWN_X + 46, SPAWN_Y + 49, 11, 9, RoomType.STORAGE, 'Свидетельская клетка Б', Tex.MEAT, Tex.F_MEAT);
   const toll = createUnderhellRoom(world, SPAWN_X - 15, SPAWN_Y + 103, 31, 13, RoomType.HQ, 'Культовая пошлинная палата', Tex.MEAT, Tex.F_GUT);
   const debt = createUnderhellRoom(world, SPAWN_X - 80, SPAWN_Y + 132, 21, 15, RoomType.PRODUCTION, 'Печь сожженного долга', Tex.GUT, Tex.F_GUT);
-  const chapel = createUnderhellRoom(world, SPAWN_X + 59, SPAWN_Y + 132, 27, 19, RoomType.HQ, 'Перевернутая часовня', Tex.MEAT, Tex.F_GUT);
-  const sacrifice = createUnderhellRoom(world, SPAWN_X - 14, SPAWN_Y + 188, 29, 17, RoomType.CORRIDOR, 'Жертвенные ворота', Tex.GUT, Tex.F_MEAT);
+  const chapel = createUnderhellRoom(world, SPAWN_X + 59, SPAWN_Y + 132, 27, 19, RoomType.HQ, 'Палата якоря', Tex.MEAT, Tex.F_GUT);
+  const sacrifice = createUnderhellRoom(world, SPAWN_X - 14, SPAWN_Y + 188, 29, 17, RoomType.CORRIDOR, 'Списочная створка', Tex.GUT, Tex.F_MEAT);
   const lowerFallback = createUnderhellRoom(world, SPAWN_X - 69, SPAWN_Y + 195, 19, 11, RoomType.CORRIDOR, 'Нижний обратный уступ', Tex.MEAT, Tex.F_MEAT);
-  const gate = createUnderhellRoom(world, SPAWN_X - 11, SPAWN_Y + 252, 23, 15, RoomType.CORRIDOR, 'Разрез в Пустоту', Tex.VOID_WALL, Tex.F_VOID);
+  const gate = createUnderhellRoom(world, SPAWN_X - 11, SPAWN_Y + 252, 23, 15, RoomType.CORRIDOR, 'Разрез к Пустоте', Tex.VOID_WALL, Tex.F_VOID);
 
   connectRooms(world, entry, threshold, 2, DoorState.HERMETIC_OPEN, Tex.F_GUT);
   connectRooms(world, entry, fallback, 1, DoorState.HERMETIC_OPEN, Tex.F_CONCRETE);
@@ -634,17 +634,17 @@ function generateUnderhellDesignFloorSeeded(seed: number, forceOpenVoidGate: boo
   addItemDrop(entities, nextId, threshold.x + 3, threshold.y + threshold.h - 3, 'holy_water', 1);
   addItemDrop(entities, nextId, threshold.x + threshold.w - 4, threshold.y + threshold.h - 3, 'passport_stub', 1);
   addItemDrop(entities, nextId, gate.x + 2, gate.y + gate.h - 3, 'bottled_voice', 1);
-  addNote(entities, nextId, entry.x + 3, entry.y + 3, 'Ниже ада порог берет одну явную плату: holy_water, passport_stub или blood_35hp.');
+  addNote(entities, nextId, entry.x + 3, entry.y + 3, 'Нижний пропускник берет одну явную плату: holy_water, passport_stub или blood_35hp. После оплаты проверь свидетелей.');
   addNote(entities, nextId, threshold.x + 5, threshold.y + 3, UNDERHELL_LATE_WARNINGS[0].warning);
-  addNote(entities, nextId, witnessB.x + 4, witnessB.y + 4, 'Свидетель Б молчит. Клетку можно открыть, но можно и заставить ее не помнить.');
+  addNote(entities, nextId, witnessB.x + 4, witnessB.y + 4, 'Свидетель Б молчит. Клетку можно открыть, но можно и оставить его без показаний.');
   addNote(entities, nextId, sacrifice.x + 4, sacrifice.y + 4, UNDERHELL_LATE_WARNINGS[1].warning);
 
   spawnUnderhellMonster(world, entities, nextId, MonsterKind.SHADOW, threshold.x + 5, threshold.y + 3, 'Тень у платы', 4);
   spawnUnderhellMonster(world, entities, nextId, MonsterKind.KOSTOREZ, toll.x + toll.w - 5, toll.y + 6, 'Косторез пошлины', 5);
   spawnUnderhellMonster(world, entities, nextId, MonsterKind.SPIRIT, debt.x + 4, debt.y + 6, 'Дым сожженного долга', 5);
-  spawnUnderhellMonster(world, entities, nextId, MonsterKind.REBAR, sacrifice.x + 6, sacrifice.y + 8, 'Костяная арматура ворот', 5);
+  spawnUnderhellMonster(world, entities, nextId, MonsterKind.REBAR, sacrifice.x + 6, sacrifice.y + 8, 'Костяная арматура створки', 5);
   spawnUnderhellMonster(world, entities, nextId, MonsterKind.EYE, gate.x + gate.w - 4, gate.y + 4, 'Глаз разреза', 5);
-  const anchorEntityId = spawnUnderhellMonster(world, entities, nextId, MonsterKind.IDOL, chapel.x + 13, chapel.y + 11, 'Идол-якорь Нижнего ада', 7);
+  const anchorEntityId = spawnUnderhellMonster(world, entities, nextId, MonsterKind.IDOL, chapel.x + 13, chapel.y + 11, 'Идол-якорь нижнего поста', 7);
 
   const ritualState: UnderhellRitualState = {
     routeId: UNDERHELL_ROUTE_ID,
@@ -697,8 +697,8 @@ function registerUnderhellRouteCues(
     roomId: threshold.id,
     targetRoomId: witness.id,
     zoneId: world.zoneMap[thresholdCell],
-    label: 'цена порога',
-    hint: 'свидетельская клетка помнит плату',
+    label: 'цена пропуска',
+    hint: 'свидетели знают, чем платили',
     targetName: 'свидетельская клетка',
     color: '#f88',
     tags: ['underhell', 'late_warning', 'threshold', 'witness'],
@@ -706,9 +706,9 @@ function registerUnderhellRouteCues(
     radius: 9,
     targetRadius: 3,
     cooldownSec: 40,
-    heardText: 'Порог шепчет о поздней цене: после платы реши, что делать со свидетелем.',
+    heardText: 'У поста скребет решетка: после оплаты реши, что делать со свидетелем.',
     followedText: 'Свидетельская клетка найдена. Ее можно открыть, замолчать или оставить долг расти.',
-    ignoredText: 'Пороговая цена ушла в мясо. Свидетель останется чужим поздним слухом.',
+    ignoredText: 'Цена пропуска ушла в журнал. Свидетель останется чужим поздним слухом.',
   });
 
   const gateMarkerX = sacrifice.x + (sacrifice.w >> 1) + 0.5;
@@ -726,18 +726,18 @@ function registerUnderhellRouteCues(
     roomId: sacrifice.id,
     targetRoomId: gate.id,
     zoneId: world.zoneMap[gateCell],
-    label: 'разрез после ада',
-    hint: 'ворота ведут к Пустоте и поздней Тьме',
-    targetName: 'разрез в Пустоту',
+    label: 'разрез после поста',
+    hint: 'створка ведет к Пустоте и темному отсеку',
+    targetName: 'разрез к Пустоте',
     color: '#f4a',
     tags: ['underhell', 'void_gate', 'darkness', 'warning'],
     toneSeed: ritual.seed + ritual.voidGateCell,
     radius: 10,
     targetRadius: 4,
     cooldownSec: 44,
-    heardText: 'Жертвенные ворота предупреждают: короткий разрез в Пустоту оставит темный след позже.',
-    followedText: 'Разрез найден. Открыть его можно, но Тьма запомнит оплаченный маршрут.',
-    ignoredText: 'Разрез остался позади. Поздняя Тьма пока не получила этот след.',
+    heardText: 'Списочная створка предупреждает: короткий разрез к Пустоте оставит мокрый след позже.',
+    followedText: 'Разрез найден. Открыть его можно, но в темном отсеке останется след оплаченного маршрута.',
+    ignoredText: 'Разрез остался позади. Темный отсек пока не получил этот след.',
   });
 }
 

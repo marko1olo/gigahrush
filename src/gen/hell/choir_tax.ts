@@ -64,7 +64,7 @@ interface ChoirSite {
 const BRANCH_SPECS: Record<ChoirBranch, ChoirBranchSpec> = {
   pay: {
     label: 'налог уплачен',
-    message: 'Хор принял мясо и записал ваш голос в кассу. ПСИ стало тише, но культ запомнил плательщика.',
+    message: 'Касса приняла мясо. ПСИ-давление упало, но Пахом запомнил вашу сдачу.',
     color: '#dca',
     psiLoss: 2,
     hpPerMissingPsi: 0,
@@ -73,7 +73,7 @@ const BRANCH_SPECS: Record<ChoirBranch, ChoirBranchSpec> = {
   },
   refuse: {
     label: 'налог отвергнут',
-    message: 'Отказная плита щёлкнула зубами. Мясо осталось при вас, внимание хора - тоже.',
+    message: 'Отказная плита щелкнула. Мясо осталось при вас, зато рядом поднимается Тень.',
     color: '#fa8',
     psiLoss: 4,
     hpPerMissingPsi: 1,
@@ -82,7 +82,7 @@ const BRANCH_SPECS: Record<ChoirBranch, ChoirBranchSpec> = {
   },
   fight: {
     label: 'сигнал сбит силой',
-    message: 'Идол потерял ноту. Хор ответил коротким ПСИ-ударом и зовом из стен.',
+    message: 'Идол сбит. Получаете ПСИ-удар; из стен идут Глаз и Тень.',
     color: '#f66',
     psiLoss: 6,
     hpPerMissingPsi: 1,
@@ -91,7 +91,7 @@ const BRANCH_SPECS: Record<ChoirBranch, ChoirBranchSpec> = {
   },
   steal: {
     label: 'касса вскрыта',
-    message: 'Касса мясного хора запомнила ладонь. Содержимое ваше, но недоимка пошла по полу.',
+    message: 'Касса вскрыта. Содержимое ваше, но недоимка вызвала Тварь, Глаз и Тень.',
     color: '#f84',
     psiLoss: 8,
     hpPerMissingPsi: 1,
@@ -116,13 +116,13 @@ const GUIDE_DEF: PlotNpcDef = {
     { defId: 'bandage', count: 1 },
   ],
   talkLines: [
-    'Не стой под хором. Он считает вдохи и берёт налог с выхода.',
-    'Две лампы подряд - мой ход наружу. Третья уже врёт, там алтарь.',
+    'Не стой под хором. Там плиты считают шаги; выход дешевле открыть мясом.',
+    'Две лампы подряд - мой ход наружу. Третья уже врёт, там пепельная плита.',
     'Можно платить мясом. Можно бить идол. Можно унести раненого. Нельзя ждать.',
   ],
   talkLinesPost: [
-    'Если хор стих, не слушай паузу. Пауза тоже берёт плату.',
-    'Ликвидатора вывели словом, не ногами. В Аду это иногда одно и то же.',
+    'Если хор стих, не стой на месте. После паузы из боковой стены лезут тени.',
+    'Ликвидатора вывели по слову. Теперь быстро: горячий ход долго открытым не бывает.',
   ],
   talkQuestResponse: 'Принял. Веду его по горячему ходу, пока хор занят тобой.',
 };
@@ -140,13 +140,13 @@ const TAXMAN_DEF: PlotNpcDef = {
     { defId: 'rawmeat', count: 2 },
   ],
   talkLines: [
-    'Три куска мяса - и хор делает вид, что ты не проходил.',
-    'Голос в банке можно сдать мне. Можно оставить себе. Оба выбора шумят.',
-    'Касса рядом. Воруй аккуратно: здесь даже пол свидетель.',
+    'Три куска мяса в кассу - и проходишь без драки.',
+    'Голос в банке можно сдать мне за стабилизатор. Оставишь себе - будешь отбиваться сам.',
+    'Касса рядом. Воруй аккуратно: пол мокрый, следы остаются.',
   ],
   talkLinesPost: [
-    'Налог закрыт. Дальше плати ногами.',
-    'Не открывай голос при идоле. Он начнёт считать заново.',
+    'Налог закрыт. Дальше беги к горячему ходу, пока плиты не включились снова.',
+    'Не открывай банку при идоле. Сработает новая ведомость, и опять полезут сторожа.',
   ],
 };
 
@@ -163,13 +163,13 @@ const LIQUIDATOR_DEF: PlotNpcDef = {
     { defId: 'liquidator_ration', count: 1 },
   ],
   talkLines: [
-    'Группа кончилась. Я остался последним, потому что лежал ниже остальных.',
+    'Группа кончилась. Я выжил, потому что меня завалило под ребрами и не добили.',
     'Арсений знает горячий ход. Передай ему, что я живой, пока не доказано обратное.',
-    'Хор держит сигнал на идоле. Урони его - ликвидаторы поверят бумаге без печати.',
+    'Идол держит сигнал на кассе. Сломай его - наверху поверят, что мы не просто пропали.',
   ],
   talkLinesPost: [
-    'Если выберусь, скажу наверху: Ад берёт налог, но сдачу даёт телами.',
-    'Я слышал, как хор репетирует наши фамилии. Пора уходить.',
+    'Если выберусь, скажу наверху: внизу берут мясом, патронами и людьми.',
+    'На табличке уже пишут наши фамилии по слогам. Пора уходить.',
   ],
 };
 
@@ -195,7 +195,7 @@ registerSideQuest(TAXMAN_ID, TAXMAN_DEF, [
     id: 'hell18_pay_cult_tax',
     giverNpcId: TAXMAN_ID,
     type: QuestType.FETCH,
-    desc: 'Пахом Мясной Налог: «Три куска сырого мяса в кассу хора. Заплатишь ресурсом - сбережёшь патроны.»',
+    desc: 'Пахом Мясной Налог: «Три куска сырого мяса в кассу хора. Заплатишь мясом - сбережёшь патроны.»',
     targetItem: 'rawmeat',
     targetCount: 3,
     rewardItem: 'meat_rune',
@@ -226,7 +226,7 @@ registerSideQuest(LIQUIDATOR_ID, LIQUIDATOR_DEF, [
     id: 'hell18_extract_last_liquidator',
     giverNpcId: LIQUIDATOR_ID,
     type: QuestType.TALK,
-    desc: 'Капрал Шрамко: «Дай Арсению знак на выход. Он {dir}. Не геройствуй: это эвакуация, не зачистка.»',
+    desc: 'Капрал Шрамко: «Дай Арсению знак на выход. Он {dir}. Не задерживайся: это эвакуация, не зачистка.»',
     targetNpcId: GUIDE_ID,
     rewardItem: 'liquidator_ration',
     rewardCount: 1,
@@ -239,22 +239,22 @@ registerSideQuest(LIQUIDATOR_ID, LIQUIDATOR_DEF, [
 
 const OUTCOME_BY_QUEST: Record<string, { name: string; tags: string[]; severity: 3 | 4 | 5 }> = {
   hell18_break_altar_signal: {
-    name: 'Доказательство Ада: сигнальный алтарь мясного хора сломан.',
+    name: 'Доказательство снизу: сигнальная плита мясного хора сломана.',
     tags: ['hell18', 'ritual_break', 'cult_signal', 'proof'],
     severity: 5,
   },
   hell18_extract_last_liquidator: {
-    name: 'Исход Ада: последний ликвидатор получил путь к выходу.',
+    name: 'Исход снизу: последний ликвидатор получил путь к выходу.',
     tags: ['hell18', 'extraction', 'liquidator', 'proof'],
     severity: 4,
   },
   hell18_pay_cult_tax: {
-    name: 'Исход Ада: культовый налог уплачен ресурсом, бой отложен.',
+    name: 'Исход снизу: мясной налог уплачен, бой отложен.',
     tags: ['hell18', 'cult_tax', 'resource_sacrifice'],
     severity: 3,
   },
   hell18_take_psi_cache: {
-    name: 'Доказательство Ада: голос из ПСИ-кассы вынесен из хора.',
+    name: 'Доказательство снизу: голос из ПСИ-кассы вынесен из хора.',
     tags: ['hell18', 'psi_cache', 'proof'],
     severity: 4,
   },
@@ -488,7 +488,7 @@ function spawnChoirBranchBacklash(
       alive: true,
       speed: scaleMonsterSpeed(def.speed, level),
       sprite: monsterSpr(kind),
-      name: kind === MonsterKind.EYE ? 'Глаз недоимки' : kind === MonsterKind.SHADOW ? 'Тень налоговой паузы' : 'Тварь мясной недоимки',
+      name: kind === MonsterKind.EYE ? 'Глаз у кассы' : kind === MonsterKind.SHADOW ? 'Тень у отказной плиты' : 'Тварь мясной недоимки',
       hp,
       maxHp: hp,
       monsterKind: kind,
@@ -816,8 +816,8 @@ function spawnChoirCultists(world: World, room: Room, entities: Entity[], nextId
 function spawnChoirMonsters(world: World, room: Room, entities: Entity[], nextId: { v: number }): void {
   const placements: readonly { kind: MonsterKind; dx: number; dy: number; bonus: number; name?: string; phasing?: boolean }[] = [
     { kind: MonsterKind.IDOL, dx: 15, dy: 12, bonus: 5, name: 'Сигнальный идол хора' },
-    { kind: MonsterKind.EYE, dx: 13, dy: 8, bonus: 3, name: 'Глаз первой ноты' },
-    { kind: MonsterKind.EYE, dx: 17, dy: 8, bonus: 3, name: 'Глаз второй ноты' },
+    { kind: MonsterKind.EYE, dx: 13, dy: 8, bonus: 3, name: 'Глаз у кассы' },
+    { kind: MonsterKind.EYE, dx: 17, dy: 8, bonus: 3, name: 'Глаз у выхода' },
     { kind: MonsterKind.SHADOW, dx: 12, dy: 16, bonus: 2 },
     { kind: MonsterKind.SHADOW, dx: 18, dy: 16, bonus: 2 },
     { kind: MonsterKind.TVAR, dx: 11, dy: 12, bonus: 1 },
@@ -916,7 +916,7 @@ function addChoirRefusalLedger(world: World, room: Room): number {
       {
         defId: 'note',
         count: 1,
-        data: 'Отказная плита: не платишь мясом - платишь вниманием. Подпись не нужна, пол уже свидетель.',
+        data: 'Отказная плита: не платишь мясом - получаешь ПСИ-удар и тень у выхода. Подпись не нужна.',
       },
       { defId: 'bandage', count: 1 },
     ],
@@ -939,11 +939,11 @@ function nextContainerId(world: World): number {
 function dropChoirTraces(world: World, room: Room, entities: Entity[], nextId: { v: number }): void {
   dropItem(world, entities, nextId, room.x + 6, room.y + 15, 'rawmeat', 2);
   dropNote(world, entities, nextId, room.x + room.w - 6, room.y + room.h - 7,
-    'Уголь Арсения: две лампы подряд ведут к выходу. Если слышишь третью, ты снова у алтаря.');
+    'Уголь Арсения: две лампы подряд ведут к выходу. Если слышишь третью, ты снова у пепельной плиты.');
   dropNote(world, entities, nextId, room.x + 14, room.y + 5,
-    'Партитура мясного хора: налог берётся мясом, голосом или тишиной. Идол держит сигнал, пока видит кассу.');
+    'Ведомость мясного хора: 3 куска сырого мяса открывают проход без боя. Банку с голосом не вскрывать у идола.');
   dropNote(world, entities, nextId, room.x + room.w - 8, room.y + 6,
-    'Журнал Шрамко: группа списана, патроны почти списаны, но доказательство ада ещё можно вынести наверх.');
+    'Журнал Шрамко: группа списана, патроны почти списаны, но доказательство снизу ещё можно вынести наверх.');
 }
 
 function dropItem(

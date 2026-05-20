@@ -80,7 +80,7 @@ const CHAINS: readonly ChainSpec[] = [
   },
   {
     id: 'deep_altar',
-    name: 'Нижний алтарный карман',
+    name: 'Нижний пепельный карман',
     entry: { x: 0, y: 46 },
     arena: { x: 8, y: 158 },
     exit: { x: 54, y: 212 },
@@ -214,7 +214,7 @@ function stampRitualRoom(world: World, center: Pos, target: Pos, spec: ChainSpec
   const room = stampHellRoom(
     world,
     spec.motif === 'barricade' ? RoomType.HQ : RoomType.STORAGE,
-    `${spec.name}: ритуальная награда`,
+    `${spec.name}: пороговая награда`,
     center.x - (w >> 1),
     center.y - (h >> 1),
     w,

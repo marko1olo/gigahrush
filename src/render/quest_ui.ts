@@ -5,7 +5,7 @@ import { ITEMS } from '../data/catalog';
 import { isQuestTargetOnCurrentFloor, questRouteFloor, questTargetLiftDirection } from '../systems/contracts';
 import { getRecentEvents } from '../systems/events';
 import { getRecentRumorLead } from '../systems/npc_memory';
-import { formatQuestMinutes, questHasDeadline, questRemainingMinutes } from '../systems/quest_deadlines';
+import { formatQuestMinutes, questDeadlineText, questHasDeadline, questRemainingMinutes } from '../systems/quest_deadlines';
 import { drawNeuroPanel, drawGlitchText } from './hud_fx';
 import { drawWrappedText, fitText } from './ui_text';
 
@@ -14,7 +14,7 @@ const FLOOR_NAMES: Record<FloorLevel, string> = {
   [FloorLevel.KVARTIRY]: 'Квартиры',
   [FloorLevel.LIVING]: 'Жилая зона',
   [FloorLevel.MAINTENANCE]: 'Коллекторы',
-  [FloorLevel.HELL]: 'Преисподняя',
+  [FloorLevel.HELL]: 'Мясной низ',
   [FloorLevel.VOID]: 'Пустота',
 };
 
@@ -111,7 +111,7 @@ function rewardSummary(q: Quest): string {
     }
   }
   if ((q.xpReward ?? 0) > 0) parts.push(`${q.xpReward}XP`);
-  return parts.length > 0 ? `НАГР ${parts.join('+')}` : 'НАГР --';
+  return parts.length > 0 ? `ПЛАТА ${parts.join('+')}` : 'ПЛАТА --';
 }
 
 function drawLabelCell(
@@ -178,7 +178,7 @@ function drawObjectiveRow(
 
 function routeDetail(q: Quest): string {
   if (q.targetHint) return q.targetHint;
-  if (q.targetRoomType !== undefined) return `Ищите ${ROOM_TYPE_NAMES[q.targetRoomType]}.`;
+  if (q.targetRoomType !== undefined) return `Нужна зона: ${ROOM_TYPE_NAMES[q.targetRoomType]}.`;
   return '';
 }
 
@@ -187,17 +187,17 @@ function questRouteHint(q: Quest, state: GameState): string {
   const floor = routeFloor(q);
   const detail = routeDetail(q);
   if (floor !== undefined) {
-    if (isQuestTargetOnCurrentFloor(q, state)) return detail ? `Цель на этом этаже. ${detail}` : 'Цель на этом этаже.';
+    if (isQuestTargetOnCurrentFloor(q, state)) return detail ? `Цель здесь. ${detail}` : 'Цель здесь.';
     const dir = questTargetLiftDirection(q, state) === LiftDirection.DOWN ? '↓' : '↑';
     return detail
       ? `Цель: ${FLOOR_NAMES[floor]}. Лифт ${dir}. ${detail}`
-      : `Цель: ${FLOOR_NAMES[floor]}. Ищите лифт ${dir}.`;
+      : `Цель: ${FLOOR_NAMES[floor]}. Лифт ${dir}.`;
   }
   if (q.type === QuestType.TALK && q.targetPlotNpcId && q.targetNpcId === undefined) {
-    return 'Собеседник на другом уровне. Ищите лифт.';
+    return 'Собеседник на другом уровне. Нужен лифт.';
   }
   if (q.type === QuestType.VISIT && q.targetRoom === undefined) {
-    return 'Комната отметится на карте, когда этаж будет найден.';
+    return 'Комната появится на карте после входа на этаж.';
   }
   return detail;
 }
@@ -207,13 +207,13 @@ function failedQuestText(q: Quest, state: GameState): string {
   const event = getRecentEvents(state, { type: eventType, limit: 24 })
     .find(e => e.data?.questId === q.id || (q.contractId !== undefined && e.data?.contractId === q.contractId));
   const reason = typeof event?.data?.reason === 'string' ? event.data.reason : '';
-  if (reason === 'deadline') return 'Провалено: срок вышел';
-  if (reason === 'npc_dead') return 'Провалено: ключевой NPC погиб';
-  if (reason === 'abandoned') return 'Провалено: выбран другой исход';
-  if (reason === 'opened_package') return 'Провалено: пакет вскрыт';
-  if (reason === 'route_closed') return 'Провалено: маршрут закрыт';
-  if (questHasDeadline(q) && questRemainingMinutes(q, state.clock.totalMinutes) === 0) return 'Провалено: срок вышел';
-  return 'Провалено';
+  if (reason === 'deadline') return 'Сорвано: срок вышел';
+  if (reason === 'npc_dead') return 'Сорвано: ключевой NPC погиб';
+  if (reason === 'abandoned') return 'Сорвано: выбран другой исход';
+  if (reason === 'opened_package') return 'Сорвано: пакет вскрыт';
+  if (reason === 'route_closed') return 'Сорвано: маршрут закрыт';
+  if (questHasDeadline(q) && questRemainingMinutes(q, state.clock.totalMinutes) === 0) return 'Сорвано: срок вышел';
+  return 'Сорвано';
 }
 
 export function drawQuestLog(
@@ -242,7 +242,7 @@ export function drawQuestLog(
   if (all.length === 0) {
     ctx.fillStyle = '#666';
     ctx.font = `${8 * sy}px monospace`;
-    ctx.fillText('Нет заданий. Поговорите с жителями [E].', px + 8 * sx, py + 24 * sy);
+    ctx.fillText('Нет заданий. Поговорите с жильцами [E].', px + 8 * sx, py + 24 * sy);
     return;
   }
 
@@ -295,7 +295,7 @@ export function drawQuestLog(
     ly += 12 * sy;
     ctx.fillStyle = remaining <= 120 ? '#f66' : remaining <= 360 ? '#fa6' : '#8cf';
     ctx.font = `${7 * sy}px monospace`;
-    ctx.fillText(`Срок: ${formatQuestMinutes(remaining)}`, px + 8 * sx, ly);
+    ctx.fillText(fitText(ctx, `Срок: ${questDeadlineText(q, state.clock.totalMinutes)}`, maxW), px + 8 * sx, ly);
   } else if (isFailed && ly < contentBottom) {
     ly += 12 * sy;
     ctx.fillStyle = '#f66';

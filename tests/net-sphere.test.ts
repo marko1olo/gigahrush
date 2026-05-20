@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 
 import { onRequestPost as postChat } from '../functions/api/net/chat';
 import { cleanMessage, cleanNickname, type D1Database, type D1PreparedStatement } from '../functions/api/net/common';
+import { onRequestPost as postEvent } from '../functions/api/net/event';
 import { onRequestPost as postHello } from '../functions/api/net/hello';
 import { onRequestGet as getStats } from '../functions/api/net/stats';
 
@@ -167,6 +168,30 @@ class FakeD1 implements D1Database {
         created_at: Number(values[2]),
       });
       return { meta: { changes: 1, last_row_id: id } };
+    }
+    if (query.includes('INSERT OR IGNORE INTO net_events')) {
+      const eventKey = String(values[0]);
+      if (this.events.some(row => row.event_key === eventKey)) return { meta: { changes: 0 } };
+      this.events.unshift({
+        event_key: eventKey,
+        net_gen: String(values[1]),
+        nickname: String(values[2]),
+        type: String(values[3]),
+        summary: String(values[4]),
+        created_at: Number(values[5]),
+        payload_json: String(values[6]),
+      });
+      return { meta: { changes: 1 } };
+    }
+    if (query.includes('UPDATE net_players SET total_samosbors = total_samosbors + 1')) {
+      const row = this.players.get(String(values[0]));
+      if (row) row.total_samosbors += 1;
+      return { meta: { changes: row ? 1 : 0 } };
+    }
+    if (query.includes('UPDATE net_players SET deaths = deaths + 1')) {
+      const row = this.players.get(String(values[0]));
+      if (row) row.deaths += 1;
+      return { meta: { changes: row ? 1 : 0 } };
     }
     throw new Error(`Unhandled fake run query: ${query}`);
   }
@@ -347,6 +372,45 @@ test('Net Sphere chat stores sanitized body and rate-limits same NET-GEN', async
   }
 });
 
+test('Net Sphere event summaries stay short and use last progress signal', async () => {
+  const realNow = Date.now;
+  const db = new FakeD1();
+
+  Date.now = () => Date.UTC(2026, 4, 18, 2, 42);
+  try {
+    const response = await postEvent({
+      request: postRequest(identityBody({
+        type: 'death',
+        eventKey: 'death:1',
+        progress: {
+          nickname: 'Жилец',
+          floorId: 3,
+          floorName: 'Коллекторы',
+          samosborCount: 2,
+          level: 5,
+          xp: 120,
+          hp: 0,
+          maxHp: 100,
+          alive: false,
+          gameOver: true,
+          gameTime: 12345,
+          day: 7,
+          hour: 3,
+          minute: 5,
+        },
+      })),
+      env: { GIGA_NET: db },
+    });
+    const data = await responseJson(response);
+    const events = data.events as Record<string, unknown>[];
+
+    assert.equal(response.status, 200);
+    assert.equal(events[0].summary, 'Жилец умер. Последний сигнал: Коллекторы, д7 03:05.');
+  } finally {
+    Date.now = realNow;
+  }
+});
+
 test('Net Sphere does not expose NET-GEN-shaped legacy nicknames as public names', async () => {
   const db = new FakeD1();
   const now = Date.UTC(2026, 4, 18, 2, 42);
@@ -384,5 +448,5 @@ test('Net Sphere does not expose NET-GEN-shaped legacy nicknames as public names
   assert.equal(profile.nickname, 'Жилец');
   assert.equal(chat[0].nickname, 'Жилец');
   assert.equal(events[0].nickname, 'Жилец');
-  assert.equal(events[0].summary, '[Жилец] умер 2026-05-18 02:42 UTC');
+  assert.equal(events[0].summary, 'Жилец умер. Последний сигнал: 2026-05-18 02:42 UTC.');
 });

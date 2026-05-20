@@ -19,8 +19,8 @@ export const DEF: MonsterDef = {
   projSpeed: 9,
   projSprite: 0,        // auto-assigned
   floors: [FloorLevel.MINISTRY, FloorLevel.MAINTENANCE],
-  counterplay: 'Сойдите с прямой линии плазмы, дождитесь залпа и заходите в паузу перезарядки: робот крепкий, но честно платит временем после выстрела.',
-  lootHint: 'электронный лом, платы, проводка и редкая энергоячейка',
+  counterplay: 'Сойдите с прямой линии плазмы, дождитесь залпа и заходите в паузу перезарядки. В воде линия особенно плохая.',
+  lootHint: 'электронный лом, плата, проводка, редкая энергоячейка',
 };
 
 /* ── Static fallback sprite (used in sprite sheet) ────────────── */

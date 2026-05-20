@@ -102,7 +102,7 @@ export function generateBorrowedLightRule(
     [{
       defId: 'note',
       count: 1,
-      data: { text: 'ПРОТОКОЛ: потребить заемный свет. Награда выдается сразу. Комната сама выставит счет.' },
+      data: { text: 'ПРОТОКОЛ: забрать заемный свет. Сразу получите стабилизатор и энергоячейку; двери комнаты закроются, здоровье дернет отдачей.' },
     }],
     ['void_rule', 'borrowed_light', 'consume'],
   );
@@ -115,7 +115,7 @@ export function generateBorrowedLightRule(
     [{
       defId: 'note',
       count: 1,
-      data: { text: 'ВЕЩДОК: свет не потреблен. Награды нет, зато проценты остаются на полу.' },
+      data: { text: 'ВЕЩДОК: лампа остается на месте. Награды нет, зато двери останутся открытыми и долг не появится.' },
     }],
     ['void_rule', 'borrowed_light', 'keep', 'evidence'],
   );

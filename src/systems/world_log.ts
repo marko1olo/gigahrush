@@ -71,13 +71,13 @@ function samosborWarningText(e: WorldEvent): string {
 function wrongDoorText(e: WorldEvent): string {
   switch (e.data?.phase) {
     case 'created':
-      return 'Маронарий доказал неправильную дверь. На карте появился зелёный разрыв.';
+      return 'Маронарий: отмечена неправильная дверь.';
     case 'used':
-      return 'Неправильная дверь сработала один раз. Коридор оказался не тем.';
+      return 'Неправильная дверь сработала. Выход изменён.';
     case 'expired':
-      return 'Неправильная дверь погасла. Дом сделал вид, что совпадения не было.';
+      return 'Неправильная дверь погасла.';
     default:
-      return 'Неправильная дверь шумит зелёным в маршруте.';
+      return 'Неправильная дверь активна на маршруте.';
   }
 }
 
@@ -87,14 +87,14 @@ function factionRelationText(e: WorldEvent): string {
   const outcome = typeof e.data?.processionOutcome === 'string' ? e.data.processionOutcome : '';
   if (factionEventId === 'cult_procession') {
     if (action === 'avoid') return `Процессия Чернобога обойдена${e.zoneId !== undefined ? `: зона ${e.zoneId + 1}` : ''}.`;
-    if (action === 'follow') return 'Вы прошли в хвосте культовой процессии. Псалом оставил маршрут и боль.';
-    if (action === 'report') return 'Маршрут культовой процессии ушёл ликвидаторам по рации.';
-    if (action === 'disguise' || action === 'cover') return 'Мясная руна сработала как маскировка в хвосте процессии.';
+    if (action === 'follow') return 'Вы прошли в хвосте процессии. Маршрут отмечен, ПСИ просело.';
+    if (action === 'report') return 'Маршрут культовой процессии передан ликвидаторам по рации.';
+    if (action === 'disguise' || action === 'cover') return 'Мясная метка сработала. Вас пропустили в хвост.';
     if (action === 'disrupt') return `Культовая процессия сорвана${e.zoneId !== undefined ? ` в зоне ${e.zoneId + 1}` : ''}.`;
-    if (action === 'aftermath' && outcome.includes('самосбор')) return `Самосбор смыл культовую процессию${e.zoneId !== undefined ? `: зона ${e.zoneId + 1}` : ''}. Давление спало.`;
+    if (action === 'aftermath' && outcome.includes('самосбор')) return `Самосбор прервал культовую процессию${e.zoneId !== undefined ? `: зона ${e.zoneId + 1}` : ''}. Давление спало.`;
     if (action === 'aftermath' && outcome === 'сорвана') return `Давление сорванной процессии спало${e.zoneId !== undefined ? `: зона ${e.zoneId + 1}` : ''}.`;
     if (action === 'aftermath') return `Культовая процессия ${outcome || 'затихла'}${e.zoneId !== undefined ? `: зона ${e.zoneId + 1}` : ''}. Давление спало.`;
-    return `Культовая процессия идет${e.zoneId !== undefined ? ` в зоне ${e.zoneId + 1}` : ''}. Коридор лучше уступить.`;
+    return `Культовая процессия идёт${e.zoneId !== undefined ? ` в зоне ${e.zoneId + 1}` : ''}. Уступите коридор.`;
   }
   if (factionEventId) {
     const name = typeof e.data?.name === 'string' ? e.data.name : factionEventId;
@@ -110,8 +110,8 @@ function pneumomailText(e: WorldEvent): string {
   if (action === 'capsule_sent') return `Пневмопочта: отправлена улика ${e.itemName ?? e.itemId ?? ''}.`;
   if (action === 'capsule_jammed') return `Пневмопочта: труба заклинена${e.itemName ? ` через ${e.itemName}` : ''}.`;
   if (action === 'capsule_intercepted') return `Пневмопочта: перехвачена ${e.itemName ?? 'капсула'}.`;
-  if (action === 'capsule_reported') return 'Пневмопочта: тамперинг сдан в контроль.';
-  return 'Пневмопочта: событие ушло по трубе.';
+  if (action === 'capsule_reported') return 'Пневмопочта: вскрытие сдано в контроль.';
+  return 'Пневмопочта: событие в журнале.';
 }
 
 function eventText(e: WorldEvent): string {
@@ -122,12 +122,12 @@ function eventText(e: WorldEvent): string {
     case 'samosbor_warning':
       return samosborWarningText(e);
     case 'samosbor_started':
-      if (e.data?.variantId === 'maronary') return `Маронарий произошёл${e.zoneId !== undefined ? `: зона ${e.zoneId + 1}` : ''}. Коридор доказывает лишнее.`;
-      return `Самосбор пошёл${e.zoneId !== undefined ? `: зона ${e.zoneId + 1}` : ''}. Коридор больше не общий.`;
+      if (e.data?.variantId === 'maronary') return `Маронарий начался${e.zoneId !== undefined ? `: зона ${e.zoneId + 1}` : ''}. Не проверяйте дверь взглядом.`;
+      return `Самосбор начался${e.zoneId !== undefined ? `: зона ${e.zoneId + 1}` : ''}. Ищите гермодверь.`;
     case 'samosbor_zone_captured':
-      return `Зона ${e.zoneId !== undefined ? e.zoneId + 1 : '?'} ушла под самосбор. Карта ей больше не начальник.`;
+      return `Зона ${e.zoneId !== undefined ? e.zoneId + 1 : '?'} под самосбором. Карта устарела.`;
     case 'samosbor_ended':
-      return 'Отбой самосбора. Мир перестраивается и делает вид, что так было.';
+      return 'Отбой самосбора. Проверьте карту и двери.';
     case 'hermodoor_borer_detected':
       return `Гермоточильщик у двери: ${String(e.data?.roomName ?? 'укрытие')}. Есть время среагировать.`;
     case 'hermodoor_borer_damage':
@@ -137,15 +137,15 @@ function eventText(e: WorldEvent): string {
     case 'hermodoor_borer_compromised':
       return `Укрытие скомпрометировано: ${String(e.data?.roomName ?? 'укрытие')}.`;
     case 'fog_boss_spawned':
-      return `Босс тумана собрался${e.zoneId !== undefined ? ` в зоне ${e.zoneId + 1}` : ''}.`;
+      return `Босс тумана появился${e.zoneId !== undefined ? ` в зоне ${e.zoneId + 1}` : ''}.`;
     case 'fog_boss_killed':
-      return `Босс тумана рассыпался${e.zoneId !== undefined ? ` в зоне ${e.zoneId + 1}` : ''}. Туман запомнит.`;
+      return `Босс тумана уничтожен${e.zoneId !== undefined ? ` в зоне ${e.zoneId + 1}` : ''}.`;
     case 'smog_entered':
-      return `Говнячный смог давит${e.zoneId !== undefined ? ` в зоне ${e.zoneId + 1}` : ''}. Фильтр, ткань, обход или источник.`;
+      return `Смог${e.zoneId !== undefined ? ` в зоне ${e.zoneId + 1}` : ''}. Нужен фильтр, ткань или обход.`;
     case 'smog_source_found':
       return `Источник смога найден${e.zoneId !== undefined ? ` в зоне ${e.zoneId + 1}` : ''}. Его можно перекрыть.`;
     case 'smog_source_handled':
-      return `Источник смога перекрыт${e.zoneId !== undefined ? ` в зоне ${e.zoneId + 1}` : ''}. Дышать стало дешевле.`;
+      return `Источник смога перекрыт${e.zoneId !== undefined ? ` в зоне ${e.zoneId + 1}` : ''}.`;
     case 'monster_sighted':
       return `${e.actorName ?? 'Косторез'} заметил цель. Замах будет виден.`;
     case 'monster_windup_interrupted':
@@ -167,27 +167,27 @@ function eventText(e: WorldEvent): string {
     case 'rail_train_crush':
       return `Поезд задавил: ${e.actorName ?? 'цель'}.`;
     case 'rumor_observed':
-      if (e.tags.includes('false_safe_block')) return 'Тихий блок раскрыт: отсутствие сирены оказалось культовой меткой.';
+      if (e.tags.includes('false_safe_block')) return 'Тихий блок раскрыт: нет сирены, есть культовая метка.';
       return `${e.actorName ?? 'Кто-то'} заметил слух.`;
     case 'player_pick_item':
       return `Подобрано: ${e.itemName ?? e.itemId ?? 'предмет'}${e.itemCount && e.itemCount > 1 ? ` x${e.itemCount}` : ''}.`;
     case 'player_drop_item':
       return `Выброшено: ${e.itemName ?? e.itemId ?? 'предмет'}${e.itemCount && e.itemCount > 1 ? ` x${e.itemCount}` : ''}.`;
     case 'player_use_item':
-      if (e.tags.includes('false_safe_block') && e.tags.includes('marker_resolved')) return 'Черная ладонь сорвана. Тихий блок потерял чужую тишину.';
+      if (e.tags.includes('false_safe_block') && e.tags.includes('marker_resolved')) return 'Черная ладонь снята. Тихий блок снова обычный.';
       return `Использовано: ${e.itemName ?? e.itemId ?? 'предмет'}.`;
     case 'player_destroy_item':
       return `Уничтожено: ${e.itemName ?? e.itemId ?? 'предмет'}.`;
     case 'player_sell_item':
-      if (e.tags.includes('govnyak')) return `Говняк продан${e.targetName ? ` -> ${e.targetName}` : ''}. Долг сменил карман.`;
+      if (e.tags.includes('govnyak')) return `Говняк продан${e.targetName ? ` -> ${e.targetName}` : ''}. Долг перенесён.`;
       return `Продано: ${e.itemName ?? e.itemId ?? 'предмет'}${e.targetName ? ` -> ${e.targetName}` : ''}.`;
     case 'player_handoff_item':
-      if (e.tags.includes('govnyak') && e.tags.includes('confiscation')) return `Говняк сдан ликвидатору${e.targetName ? ` -> ${e.targetName}` : ''}. Вопросы остались.`;
-      if (e.tags.includes('govnyak')) return `Говняк куплен${e.targetName ? ` у ${e.targetName}` : ''}. Цена не вся в рублях.`;
+      if (e.tags.includes('govnyak') && e.tags.includes('confiscation')) return `Говняк сдан ликвидатору${e.targetName ? ` -> ${e.targetName}` : ''}.`;
+      if (e.tags.includes('govnyak')) return `Говняк куплен${e.targetName ? ` у ${e.targetName}` : ''}. Проверьте долг.`;
       return `Передано: ${e.itemName ?? e.itemId ?? 'предмет'}${e.targetName ? ` -> ${e.targetName}` : ''}.`;
     case 'player_status_applied':
-      if (e.data?.statusId === 'zhelemish_skin') return 'Желемышная кожа легла поверх тела: защита с плохой ценой.';
-      if (String(e.data?.statusId ?? '').startsWith('govnyak_')) return 'Говняк дал короткую тишину и оставил счётчик.';
+      if (e.data?.statusId === 'zhelemish_skin') return 'Желемышная кожа включена: защита, расход воды и ПСИ.';
+      if (String(e.data?.statusId ?? '').startsWith('govnyak_')) return 'Говняк подействовал. Долг растёт.';
       return 'Временное состояние получено.';
     case 'player_status_bad_reaction':
       if (e.data?.statusId === 'zhelemish_skin') return 'Желемыш дал плохую реакцию: вода и ПСИ просели.';
@@ -195,7 +195,7 @@ function eventText(e: WorldEvent): string {
       return 'Плохая реакция на временное состояние.';
     case 'player_status_cured':
       if (e.data?.statusId === 'zhelemish_skin') return 'Желемышная кожа снята лекарством.';
-      if (e.data?.statusId === 'govnyak_debt') return 'Говнячный долг сошёл. Прицел снова спорит честнее.';
+      if (e.data?.statusId === 'govnyak_debt') return 'Говнячный долг снят. Прицел стабилен.';
       return 'Временное состояние снято.';
     case 'player_status_expired':
       if (e.data?.statusId === 'zhelemish_skin') return 'Желемышная кожа высохла и отвалилась.';
@@ -204,10 +204,10 @@ function eventText(e: WorldEvent): string {
     case 'tool_broke':
       return `Сломано: ${e.itemName ?? e.itemId ?? 'инструмент'}.`;
     case 'player_kill_monster':
-      if (e.data?.monsterVariantId === 'betonoed') return 'Бетоноед добит. Слабая стена больше не получит зубов.';
-      return `Убит ${e.targetName ?? monsterName(e.monsterKind)}. Проход стал тише.`;
+      if (e.data?.monsterVariantId === 'betonoed') return 'Бетоноед добит. Слабая стена в безопасности.';
+      return `Убит ${e.targetName ?? monsterName(e.monsterKind)}.`;
     case 'player_kill_npc':
-      return `Убит жилец: ${e.targetName ?? 'без имени'}. Люди это запомнят.`;
+      return `Убит жилец: ${e.targetName ?? 'без имени'}. Репутация снижена.`;
     case 'npc_kill_monster':
       return `${e.actorName ?? 'NPC'} убил ${monsterName(e.monsterKind)}.`;
     case 'npc_kill_npc':
@@ -226,51 +226,51 @@ function eventText(e: WorldEvent): string {
     case 'contract_failed':
       return `Системное задание сорвалось: ${e.data?.reason ?? 'отказ окна'}.`;
     case 'ration_coupon_spent':
-      return `Талон погашен: ${e.itemName ?? e.itemId ?? 'пайковый документ'}. Очередь выдала положенное.`;
+      return `Талон погашен: ${e.itemName ?? e.itemId ?? 'пайковый документ'}. Паёк выдан.`;
     case 'ration_coupon_stolen':
-      return `Украдены талоны: ${e.itemName ?? e.itemId ?? 'пайковая бумага'}. Пайковый аудит проснулся.`;
+      return `Украдены талоны: ${e.itemName ?? e.itemId ?? 'пайковая бумага'}. Запущен пайковый аудит.`;
     case 'ration_coupon_forged':
-      return `Подделан пайковый документ: ${e.itemName ?? e.itemId ?? 'карточка'}. Печать слишком ровная.`;
+      return `Подделан пайковый документ: ${e.itemName ?? e.itemId ?? 'карточка'}. Риск ревизии.`;
     case 'ration_coupon_reported':
       return `Пайковая махинация сдана: ${e.itemName ?? e.itemId ?? 'улика'}. Очередь пересчитает пайки.`;
     case 'ration_audit_resolved':
-      if (e.data?.outcome === 'black_market_sale') return 'Пайковая карточка продана на рынок. Дефицит сменил карман.';
+      if (e.data?.outcome === 'black_market_sale') return 'Пайковая карточка продана на рынок.';
       return 'Пайковая ревизия закрыта. Министерство и очередь сверили списки.';
     case 'container_opened':
       if (e.tags.includes('false_safe_block')) return `Открыт запас тихого блока: ${containerName(e)}.`;
       if (e.tags.includes('quarantine')) return `Карантин открыт: ${containerName(e)}.`;
-      return `Открыт контейнер: ${containerName(e)}. Проверьте, чей он был до вас.`;
+      return `Открыт контейнер: ${containerName(e)}.`;
     case 'item_stolen':
-      if (e.tags.includes('false_safe_block')) return `Чужой запас тихого блока взят: ${e.itemName ?? e.itemId ?? 'предмет'}. Метка это помнит.`;
-      if (e.tags.includes('quarantine')) return `Карантин нарушен: ${e.itemName ?? e.itemId ?? 'предмет'} вынесли из ${containerName(e)}. Журнал задышал.`;
-      if (e.tags.includes('witnessed')) return `Кражу заметили: ${e.itemName ?? e.itemId ?? 'предмет'} из ${containerName(e)}. Слух уже пошёл.`;
-      if (e.tags.includes('audit')) return `Ревизия вспомнит кражу: ${e.itemName ?? e.itemId ?? 'предмет'} из ${containerName(e)}.`;
-      return `Кража: ${e.itemName ?? e.itemId ?? 'предмет'}. Чужая вещь шумит в кармане.`;
+      if (e.tags.includes('false_safe_block')) return `Чужой запас тихого блока взят: ${e.itemName ?? e.itemId ?? 'предмет'}. Метка активна.`;
+      if (e.tags.includes('quarantine')) return `Карантин нарушен: ${e.itemName ?? e.itemId ?? 'предмет'} вынесли из ${containerName(e)}.`;
+      if (e.tags.includes('witnessed')) return `Кражу заметили: ${e.itemName ?? e.itemId ?? 'предмет'} из ${containerName(e)}.`;
+      if (e.tags.includes('audit')) return `Кража попадёт в ревизию: ${e.itemName ?? e.itemId ?? 'предмет'} из ${containerName(e)}.`;
+      return `Кража: ${e.itemName ?? e.itemId ?? 'предмет'}.`;
     case 'item_deposited':
       if (e.tags.includes('resident_relief')) return `Запас возвращён жильцам: ${e.itemName ?? e.itemId ?? 'предмет'} в ${containerName(e)}.`;
       if (e.tags.includes('evidence')) return `Доказательство подброшено: ${e.itemName ?? e.itemId ?? 'предмет'} в ${containerName(e)}.`;
       if (e.tags.includes('sabotage')) return `Запас испорчен: ${e.itemName ?? e.itemId ?? 'предмет'} в ${containerName(e)}.`;
       return `Положено в контейнер: ${e.itemName ?? e.itemId ?? 'предмет'}.`;
     case 'room_produced_items':
-      return `Цех выдал: ${e.itemName ?? e.itemId ?? 'партия'}${e.itemCount && e.itemCount > 1 ? ` x${e.itemCount}` : ''}. Станок плюнул в ящик.`;
+      return `Цех выдал: ${e.itemName ?? e.itemId ?? 'партия'}${e.itemCount && e.itemCount > 1 ? ` x${e.itemCount}` : ''}.`;
     case 'room_lacked_resources':
-      return `Цех встал: не хватает сырья${e.roomId !== undefined ? ` в комнате #${e.roomId}` : ''}. Очередь узнает первой.`;
+      return `Цех встал: не хватает сырья${e.roomId !== undefined ? ` в комнате #${e.roomId}` : ''}.`;
     case 'room_blocked_production':
       return `Цех заблокирован: ${String(e.data?.blockedReason ?? 'нет места')}.`;
     case 'hazard_trapped':
-      return `${e.actorName ?? 'Кто-то'} влип в ${String(e.data?.hazardName ?? 'опасность')}. Ноги держит красная слизь.`;
+      return `${e.actorName ?? 'Кто-то'} застрял в ${String(e.data?.hazardName ?? 'опасность')}.`;
     case 'hazard_escaped':
-      return `${e.actorName ?? 'Кто-то'} вырвался из ${String(e.data?.hazardName ?? 'липкой зоны')}${e.data?.noisy ? ', шум пошёл по трубам' : ''}.`;
+      return `${e.actorName ?? 'Кто-то'} вышел из ${String(e.data?.hazardName ?? 'липкой зоны')}${e.data?.noisy ? ', шумно' : ''}.`;
     case 'hazard_cleaned':
       return `${String(e.data?.hazardName ?? 'Опасность')} очищена: ${String(e.data?.cleanedCells ?? '?')} клет.`;
     case 'burn_cleanup':
-      return `Огонь зачистил остаток: ${String(e.data?.cleanedHazardCells ?? '?')} клет. Дым пошёл по трубам.`;
+      return `Огонь зачистил остаток: ${String(e.data?.cleanedHazardCells ?? '?')} клет.`;
     case 'fuel_empty':
       return 'Огнемёт сухой: бензин кончился.';
     case 'collateral_damage':
       return `Огонь испортил: ${e.itemName ?? e.itemId ?? 'предмет'}.`;
     case 'rumor_spread':
-      return `${e.actorName ?? 'Кто-то'} передал слух. Теперь он чуть менее чей-то.`;
+      return `${e.actorName ?? 'Кто-то'} передал слух.`;
     case 'faction_event':
       return factionRelationText(e);
     case 'faction_patrol_clash':
@@ -278,10 +278,10 @@ function eventText(e: WorldEvent): string {
     case 'faction_relation_changed':
       return factionRelationText(e);
     case 'floor_transition':
-      if (e.tags.includes('false_safe_block')) return 'Переход: тихий блок. Сирена здесь выглядит необязательной.';
+      if (e.tags.includes('false_safe_block')) return 'Переход: тихий блок. Сирены нет.';
       return `Переход: ${e.targetName ?? 'другой этаж'}.`;
     case 'door_opened':
-      if (e.tags.includes('betonoed') && e.tags.includes('wall_breached')) return 'Бетоноед вскрыл слабую стену. Короткий ход открыт и опасен.';
+      if (e.tags.includes('betonoed') && e.tags.includes('wall_breached')) return 'Бетоноед вскрыл слабую стену. Короткий ход открыт.';
       if (e.tags.includes('betonoed') && e.tags.includes('shortcut_used')) return 'Ход Бетоноеда использован как короткий маршрут.';
       if (e.tags.includes('wrong_door')) return wrongDoorText(e);
       return `Дверь открылась${e.zoneId !== undefined ? ` в зоне ${e.zoneId + 1}` : ''}.`;
@@ -292,23 +292,23 @@ function eventText(e: WorldEvent): string {
       if (e.tags.includes('betonoed') && e.tags.includes('driven_off')) return 'Бетоноед отогнан от слабой стены.';
       return `${e.targetName ?? 'Смерть'} замечена.`;
     case 'paritel_valve_changed':
-      return `Паровой мост: вентиль изменил счет давления до ${String(e.data?.pressure ?? '?')}/3.`;
+      return `Паровой мост: давление ${String(e.data?.pressure ?? '?')}/3.`;
     case 'paritel_bridge_crossed':
-      return 'Паровой мост пройден. Трубы считают шаги уже за спиной.';
+      return 'Паровой мост пройден.';
     case 'paritel_threat_neutralized':
-      return 'Паритель нейтрализован. Шипение осталось без хозяина.';
+      return 'Паритель нейтрализован.';
     case 'paritel_steam_injury':
-      return 'Паровой мост обжег игрока: видимость и кожа не согласились.';
+      return 'Паровой мост обжёг игрока.';
     case 'paritel_steam_avoided':
       return 'Паровой мост обойден без прямого ожога.';
     case 'lift_arachna_warned':
       return 'Лифт: над шахтой скребет лифтовая арахна. Смотрите вверх или отходите.';
     case 'lift_arachna_sprung':
       return e.tags.includes('baited_drop')
-        ? 'Лифтовая арахна сорвалась на шум и упала неудачно.'
+        ? 'Лифтовая арахна сорвалась на шум и промахнулась.'
         : 'Лифтовая арахна упала из шахты.';
     case 'lift_arachna_avoided':
-      return 'Лифтовая арахна не решилась падать. Шахта снова тихая.';
+      return 'Лифтовая арахна не упала. Шахта тиха.';
     case 'lift_arachna_cleared':
       return 'Лифтовая арахна очищена. У лифта стало тише.';
     default:

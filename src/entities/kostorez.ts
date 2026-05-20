@@ -13,8 +13,8 @@ export const DEF: MonsterDef = {
   attackRate: 2.8,
   sprite: 0,
   floors: [FloorLevel.MAINTENANCE, FloorLevel.HELL],
-  counterplay: 'Не стойте в замахе: дистанция, угол или колонна срывают рывок; дробь сбивает его, а лист металла смягчает один рез.',
-  lootHint: 'резаный металл, лист металла под броню или обломок арматуры',
+  counterplay: 'Не стойте в замахе: три шага, угол или колонна срывают рывок; дробь сбивает пилы, бронелист принимает один рез.',
+  lootHint: 'резаный металл, бронелист, обломок арматуры',
 };
 
 export function generateSprite(): Uint32Array {

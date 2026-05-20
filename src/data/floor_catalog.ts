@@ -43,7 +43,7 @@ export const FLOOR_CATALOG: readonly FloorCatalogDef[] = [
     tags: ['numbered', 'cult', 'combat', 'samosbor'],
     rarity: 'legendary',
     minDepth: 4,
-    unlockHint: 'Служебный коридор Ада требует жертву или бой с усиленным самосбором.',
+    unlockHint: 'Служебный коридор Мясного низа требует плату у порога или бой с усиленным самосбором.',
     contentStatus: 'needs_generator',
   },
   {
@@ -73,7 +73,7 @@ export const FLOOR_CATALOG: readonly FloorCatalogDef[] = [
     tags: ['market', 'economy', 'debt', 'stealth'],
     rarity: 'uncommon',
     minDepth: 1,
-    unlockHint: 'Редкий торговый карман даёт долги, контрабанду и риск облавы.',
+    unlockHint: 'Торговый карман даёт долги и контрабанду, но крупная сделка может привести облаву.',
     contentStatus: 'design_doc',
   },
   {
@@ -173,7 +173,7 @@ export const FLOOR_CATALOG: readonly FloorCatalogDef[] = [
     tags: ['void', 'protocol', 'backlash', 'late_game'],
     rarity: 'legendary',
     minDepth: 5,
-    unlockHint: 'Поздний протокол меняет локальное правило и оставляет отдачу после выхода.',
+    unlockHint: 'Поздний протокол меняет правило комнаты и оставляет штраф после выхода.',
     contentStatus: 'design_doc',
   },
   {
@@ -263,7 +263,7 @@ export const FLOOR_CATALOG: readonly FloorCatalogDef[] = [
     tags: ['lost_property', 'inventory', 'theft', 'memory'],
     rarity: 'common',
     minDepth: 0,
-    unlockHint: 'Чужую вещь можно вернуть за доверие или украсть с памятью свидетелей.',
+    unlockHint: 'Чужую вещь можно вернуть за доверие или украсть с риском, что свидетели запомнят кражу.',
     contentStatus: 'catalog_only',
   },
   {
@@ -283,7 +283,7 @@ export const FLOOR_CATALOG: readonly FloorCatalogDef[] = [
     tags: ['pump', 'rhythm', 'water', 'ambush'],
     rarity: 'uncommon',
     minDepth: 2,
-    unlockHint: 'Ритм насосов подсказывает безопасный проход и момент засады из воды.',
+    unlockHint: 'Ритм насосов подсказывает, когда пройти сухо и когда ждать засаду из воды.',
     contentStatus: 'catalog_only',
   },
   {

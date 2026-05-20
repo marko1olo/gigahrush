@@ -14,8 +14,8 @@ export const DEF: MonsterDef = {
   sprite: 0,
   aiFlags: ['closeReveal'],
   floors: [FloorLevel.LIVING, FloorLevel.KVARTIRY, FloorLevel.MINISTRY],
-  counterplay: 'Проверяйте дистанцией: не подходите к молчаливому соседу без свидетеля, света и свободного выхода.',
-  lootHint: 'фальшивый пропуск, слишком ровные бытовые вещи, редкий детектор нелюдей',
+  counterplay: 'Проверяйте дистанцией: молчаливого соседа не подпускайте без света, свидетеля и свободного выхода за спиной.',
+  lootHint: 'фальшивый пропуск, слишком ровная бытовая вещь, редкий детектор нелюдей',
 };
 
 export function generateSprite(): Uint32Array {

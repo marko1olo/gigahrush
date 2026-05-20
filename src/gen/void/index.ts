@@ -1,6 +1,6 @@
 /* ── Void level generator — island graph and folded geometry ─── */
 /*   Green/black abstract space with honest impossible routes.    */
-/*   Final boss: Creator (Творец) — white glowing silhouette.     */
+/*   Late threat: Creator (Творец) — green proof contour.         */
 /*   Reached via portal in Hell after killing 3 Heralds.          */
 
 import {
@@ -11,6 +11,7 @@ import {
 import { World } from '../../core/world';
 
 import { rng, ensureConnectivity, generateZones } from '../shared';
+import { VOID_POPULATION_PROFILE } from '../../data/population_profiles';
 import { calcZoneLevel, randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg';
 import { MONSTERS } from '../../entities/monster';
 import { Spr, monsterSpr } from '../../render/sprite_index';
@@ -52,7 +53,7 @@ export function generateVoid(): { world: World; entities: Entity[]; spawnX: numb
   world.bakeLights();
 
   /* ══════════════════════════════════════════════════════════════
-     Phase 4: Creator boss — return frame
+     Phase 4: Creator — return condition
      ══════════════════════════════════════════════════════════════ */
   const bossX = layout.bossX;
   const bossY = layout.bossY;
@@ -72,10 +73,10 @@ export function generateVoid(): { world: World; entities: Entity[]; spawnX: numb
     monsterKind: MonsterKind.CREATOR, attackCd: 0,
     ai: { goal: AIGoal.WANDER, tx: 0, ty: 0, path: [], pi: 0, stuck: 0, timer: 0 },
     rpg,
-    spriteScale: 1.5, // larger than normal
+    spriteScale: 1.5,
   });
 
-  // Light up the boss area
+  // The encounter must read clearly from range despite the abstract sprite.
   for (let dy = -5; dy <= 5; dy++) {
     for (let dx = -5; dx <= 5; dx++) {
       if (dx * dx + dy * dy <= 25) {
@@ -95,7 +96,7 @@ export function generateVoid(): { world: World; entities: Entity[]; spawnX: numb
     MonsterKind.SHADOW, MonsterKind.NIGHTMARE, MonsterKind.EYE,
     MonsterKind.REBAR, MonsterKind.BETONNIK, MonsterKind.SPIRIT,
   ];
-  for (let i = 0; i < 120; i++) {
+  for (let i = 0; i < VOID_POPULATION_PROFILE.guardians; i++) {
     const cell = randomFloorCell(world, spawnX, spawnY, 26);
     if (cell < 0) continue;
     const kind = voidKinds[rng(0, voidKinds.length - 1)];
@@ -126,7 +127,7 @@ export function generateVoid(): { world: World; entities: Entity[]; spawnX: numb
      Phase 6: Loot
      ══════════════════════════════════════════════════════════════ */
   const drops = ['canned', 'bandage', 'pills', 'antidep', 'ammo_energy', 'ammo_762', 'grenade'];
-  for (let i = 0; i < 80; i++) {
+  for (let i = 0; i < VOID_POPULATION_PROFILE.lootDrops; i++) {
     const cell = randomFloorCell(world, spawnX, spawnY, 8);
     if (cell < 0) continue;
     entities.push({

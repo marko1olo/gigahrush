@@ -15,6 +15,18 @@ const URGENT_FETCH_ITEMS = new Set([
   'antibiotic', 'bandage', 'pills', 'antidep',
   'water', 'bread', 'canned', 'ammo_9mm', 'ammo_762', 'ammo_shells',
 ]);
+const MEDICAL_FETCH_ITEMS = new Set(['antibiotic', 'bandage', 'pills', 'antidep', 'morphine_ampoule', 'sanitary_kit']);
+const WATER_FETCH_ITEMS = new Set(['water', 'filtered_water', 'water_coupon']);
+const FOOD_FETCH_ITEMS = new Set(['bread', 'canned', 'kasha', 'grey_briquette', 'liquidator_ration']);
+const REPAIR_FETCH_ITEMS = new Set([
+  'sealant_tube', 'fuse', 'manometer', 'pipe', 'valve_tag', 'gear',
+  'filter_layer', 'block_kit', 'door_kit', 'hermo_gasket', 'ammo_energy',
+  'pressure_logbook',
+]);
+const DOCUMENT_FETCH_ITEMS = new Set([
+  'blank_form', 'official_permit_slip', 'fake_pass', 'temp_pass', 'permanent_pass',
+  'denunciation', 'sealed_complaint', 'missing_record_file', 'emergency_roster',
+]);
 
 export function isHandAuthoredQuest(q: Quest): boolean {
   return q.contractId === undefined
@@ -85,7 +97,10 @@ export function questDeadlineEventData(q: Quest, nowMinutes: number): Record<str
 
 export function questDeadlineText(q: Quest, nowMinutes: number): string {
   const remaining = questRemainingMinutes(q, nowMinutes);
-  return remaining === undefined ? '' : formatQuestMinutes(remaining);
+  if (remaining === undefined) return '';
+  const compact = formatQuestMinutes(remaining);
+  const label = deadlineWindowLabel(q, remaining);
+  return label ? `${label} (${compact})` : compact;
 }
 
 export function deadlineMessageSuffix(q: Quest, nowMinutes: number): string {
@@ -108,6 +123,39 @@ export function formatQuestMinutes(minutes: number): string {
   if (days > 0) return `${days}д ${hours}ч`;
   if (hours > 0) return `${hours}ч ${rem}м`;
   return `${rem}м`;
+}
+
+function deadlineWindowLabel(q: Quest, minutes: number): string {
+  if (minutes <= 60) {
+    if (q.type === QuestType.KILL) return 'до сдачи поста';
+    if (q.type === QuestType.TALK) return 'пока адресат на месте';
+    return fetchDeadlineLabel(q) ?? 'до обхода';
+  }
+  if (minutes <= 6 * 60) {
+    if (q.type === QuestType.KILL) return 'до смены патруля';
+    if (q.type === QuestType.TALK) return 'до смены у поста';
+    return fetchDeadlineLabel(q) ?? 'до смены';
+  }
+  if (minutes <= 18 * 60) {
+    if (q.type === QuestType.KILL) return 'до вечерней зачистки';
+    if (q.type === QuestType.TALK) return 'до вечерней переклички';
+    return fetchDeadlineLabel(q) ?? 'до отбоя';
+  }
+  if (minutes <= 24 * 60) return 'до отбоя';
+  if (minutes <= 48 * 60) return 'до следующей смены';
+  if (minutes <= 72 * 60) return 'до сверки';
+  return 'несколько смен';
+}
+
+function fetchDeadlineLabel(q: Quest): string | undefined {
+  if (q.type !== QuestType.FETCH || !q.targetItem) return undefined;
+  if (q.targetItem === 'gasmask_filter') return 'до намокания фильтра';
+  if (MEDICAL_FETCH_ITEMS.has(q.targetItem)) return 'до закрытия медпоста';
+  if (WATER_FETCH_ITEMS.has(q.targetItem)) return 'до конца очереди';
+  if (FOOD_FETCH_ITEMS.has(q.targetItem)) return 'до раздачи';
+  if (REPAIR_FETCH_ITEMS.has(q.targetItem)) return 'до аварийной смены';
+  if (DOCUMENT_FETCH_ITEMS.has(q.targetItem)) return 'до сверки окна';
+  return undefined;
 }
 
 function safeMinutes(value: number): number {

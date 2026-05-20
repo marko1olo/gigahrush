@@ -41,7 +41,7 @@ _i += TRAVELER_COUNT;     // traveler sprites
 _i += PRIEST_COUNT;       // priest sprite
 const _VETERAN   = _i++;  // veteran sprite (Степаныч)
 const _GORDON    = _i++;  // Gordon Freeman (maintenance)
-const _MADOKA    = _i++;  // Медука Мегуку (hell)
+const _MADOKA    = _i++;  // Мегука ПСИ-дежурная (hell)
 const _PAKHOM    = _i++;  // Пахом Братишка (kvartiry)
 const _ITEM_DROP = _i++;
 const _MON_BASE  = _i; _i += MONSTER_COUNT;

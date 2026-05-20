@@ -14,8 +14,8 @@ export const DEF: MonsterDef = {
   sprite: 0,   // auto-assigned by generateSprites()
   aiFlags: ['foodBait'],
   floors: [FloorLevel.MINISTRY, FloorLevel.KVARTIRY, FloorLevel.LIVING, FloorLevel.MAINTENANCE, FloorLevel.HELL],
-  counterplay: 'Пятитесь в широкий проход: у сборки почти нет здоровья, еда/говняк уводят ее с линии, дробь или дешевые выстрелы гасят рывок.',
-  lootHint: 'кладовой мусор, проволока и редкая изолента',
+  counterplay: 'Быстрая и слабая: принимайте в широком проходе, гасите дешевым выстрелом до касания и не тратьте последний магазин на первую.',
+  lootHint: 'проволока, кладовой мусор, редкая изолента из треснувшего узла',
 };
 
 export function generateSprite(): Uint32Array {

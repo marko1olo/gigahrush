@@ -132,7 +132,7 @@ export const SERVICE_TRANSFER_ROUTES: readonly ServiceTransferRoute[] = [
   },
   {
     id: 'service_to_darkness_light_reserve',
-    label: 'Резерв аварийного света для Тьмы',
+    label: 'Резерв аварийного света для темного отсека',
     sourceRoomName: BREAKER_ROOM,
     targetRouteId: 'darkness',
     requiresZone: 'breaker_room',
@@ -276,7 +276,7 @@ registerSideQuest('service_locked_out_clerk', CLERK_DEF, [
     id: 'service_reroute_raid',
     giverNpcId: 'service_locked_out_clerk',
     type: QuestType.FETCH,
-    desc: 'Павел: «Бланк обхода в диспетчерскую С-15. Рейдовая очередь пойдёт в пустой коридор, если журнал поверит печати.»',
+    desc: 'Павел: «Бланк обхода в диспетчерскую С-15. Рейдовую очередь отправят в пустой коридор, если печать пройдет у диспетчера.»',
     targetItem: 'elevator_override_form', targetCount: 1,
     rewardItem: 'official_permit_slip', rewardCount: 1,
     extraRewards: [{ defId: 'ammo_9mm', count: 12 }],
@@ -638,7 +638,7 @@ function registerServiceRouteCues(
       radius: 8,
       targetRadius: 2.8,
       cooldownSec: 42,
-      heardText: 'Щитовая щелкает поздним резервом: схему можно потратить здесь или оставить для Тьмы.',
+      heardText: 'Щитовая щелкает поздним резервом: схему можно потратить здесь или оставить для темного отсека.',
       followedText: 'Релейный резерв найден. Это будущий световой карман, если не израсходовать его на месте.',
       ignoredText: 'Резерв света остался в щитовой. Поздний маршрут будет темнее.',
     });

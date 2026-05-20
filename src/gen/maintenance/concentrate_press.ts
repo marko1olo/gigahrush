@@ -115,7 +115,7 @@ registerSideQuest('ag18_press_master', MASTER_DEF, [{
   id: 'ag18_repair_concentrate_line',
   giverNpcId: 'ag18_press_master',
   type: QuestType.FETCH,
-  desc: 'Инна: «Две шестерни на главный вал. Починим линию, пока ее не признали культовым объектом.»',
+  desc: 'Инна: «Две шестерни на главный вал. Починим линию, пока ее не закрыли как опасный объект.»',
   targetItem: 'gear', targetCount: 2,
   rewardItem: 'door_kit', rewardCount: 1,
   extraRewards: [{ defId: 'grey_briquette', count: 3 }],

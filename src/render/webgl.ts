@@ -16,6 +16,7 @@ import type { TexData } from './textures';
 import type { SpriteData } from './sprites';
 import type { BloodParticle } from './blood';
 import { containerSpr, featureSpr } from './sprite_index';
+import { ENTITY_MASK_VISIBLE, getEntityIndex } from '../systems/entity_index';
 
 export interface DynamicSkyTexture {
   readonly width: number;
@@ -43,6 +44,7 @@ const PARTICLE_INSTANCE_CAP = 256;
 const PROCEDURAL_SPRITE_CACHE_MAX = 384;
 const PROCEDURAL_SPRITE_CACHE_TARGET = 288;
 const VISIBLE_SPRITE_CAP = 1024;
+const visibleEntityQuery: Entity[] = [];
 const STATIC_OBJECT_RADIUS = MAX_DRAW;
 
 /* ── GLSL Shaders ─────────────────────────────────────────────── */
@@ -1810,7 +1812,7 @@ function collectStaticObjectSprites(world: World, px: number, py: number, count:
 function renderSpritesGL(
   world: World,
   _sprites: SpriteData[],
-  entities: Entity[],
+  _entities: Entity[],
   px: number, py: number, pAngle: number, pPitch: number,
   fogDensity: number, purpleFog: number,
   camHeight: number,
@@ -1837,7 +1839,8 @@ function renderSpritesGL(
 
   // Collect visible entities without per-frame record allocation.
   let visibleCount = 0;
-  for (const e of entities) {
+  getEntityIndex().queryRadius(px, py, MAX_DRAW, visibleEntityQuery, ENTITY_MASK_VISIBLE);
+  for (const e of visibleEntityQuery) {
     if (!e.alive || e.type === EntityType.PLAYER) continue;
     const dx = toroidalDelta(e.x, px);
     const dy = toroidalDelta(e.y, py);

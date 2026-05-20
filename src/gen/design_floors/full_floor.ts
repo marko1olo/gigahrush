@@ -34,6 +34,7 @@ import { expandPioneerCampFullFloor } from './pioneer_camp';
 import { expandProductionBeltGeometry } from './production_belt';
 import { expandRaionsovetArchiveGeometry } from './raionsovet_archive';
 import { expandRegistryMorgueGeometry } from './registry_morgue';
+import { ensureRouteWideFootprint } from './route_shell';
 
 interface FloorStyle {
   wallTex: Tex;
@@ -107,6 +108,7 @@ export function expandDesignFloorGeneration<T extends FloorGeneration>(
       expandBankFloorRouteGeometry(generation.world, rng);
       break;
   }
+  ensureRouteWideFootprint(generation.world, route, rng);
   finalizeExpandedFloor(generation, route, rng);
   return generation;
 }
@@ -562,8 +564,8 @@ function expandUnderhell(world: World, entities: Entity[], rng: () => number, fl
   const specs = [
     { x: 146, y: 146, w: 38, h: 24, r: 34, name: 'Остров бездонной кости' },
     { x: 360, y: 104, w: 34, h: 22, r: 30, name: 'Корневой верхний уступ' },
-    { x: 620, y: 118, w: 42, h: 24, r: 36, name: 'Пустой жертвенник моста' },
-    { x: 842, y: 204, w: 36, h: 26, r: 32, name: 'Сторожевой зуб бездны' },
+    { x: 620, y: 118, w: 42, h: 24, r: 36, name: 'Пустая плита моста' },
+    { x: 842, y: 204, w: 36, h: 26, r: 32, name: 'Сторожевой бетонный зуб' },
     { x: 884, y: 452, w: 34, h: 28, r: 31, name: 'Пошлинная боковая скоба' },
     { x: 820, y: 722, w: 44, h: 24, r: 37, name: 'Нижний костяной разворот' },
     { x: 604, y: 864, w: 42, h: 26, r: 38, name: 'Ложный выход к Пустоте' },

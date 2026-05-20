@@ -96,14 +96,14 @@ function handoffText(outcome: ShavingOutcome, npcName: string, reward: number): 
   switch (outcome) {
     case 'science':
       return npcName === 'Яков Давидович'
-        ? `Яков спрятал стружку в пустую чашку: «Это не покупка, это изъятие из логики». +${reward}₽`
-        : `${npcName} купил стружку и сразу спросил, кто ещё видел зелёный свет. +${reward}₽`;
+        ? `Яков спрятал зелёную стружку отдельно от бумаг: «Это не покупка, это изъятие из логики». +${reward}₽`
+        : `${npcName} купил стружку для НИИ и сразу спросил, какая дверь повторилась. +${reward}₽`;
     case 'cult':
-      return `${npcName} принял стружку как возвращённый слог стены. Деньги отсчитаны слишком тихо. +${reward}₽`;
+      return `${npcName} принял зелёную стружку как возвращённый слог стены. Деньги отсчитаны без взгляда в глазок. +${reward}₽`;
     case 'ministry':
-      return `${npcName} оформил стружку как зелёный инцидент. Продажа звучит как признание. +${reward}₽`;
+      return `${npcName} оформил стружку как зелёный инцидент. Продажа звучит как признание маршрута. +${reward}₽`;
     case 'sale':
-      return `${npcName} купил стружку и завернул её дважды. Теперь вопрос купил вас обратно. +${reward}₽`;
+      return `${npcName} купил стружку и завернул её дважды. Теперь вопрос купил вас обратно и знает вашу дверь. +${reward}₽`;
   }
 }
 
@@ -135,8 +135,8 @@ export function destroyMaronaryShaving(actor: Entity, state: GameState | undefin
   }
 
   return actor.rpg
-    ? 'Стружка рассыпалась в серую пыль. В ушах пискнуло: ПСИ -6.'
-    : 'Стружка рассыпалась в серую пыль. Пальцы саднит: HP -2.';
+    ? 'Стружка рассыпалась в серую пыль. Писк доказал ошибку: ПСИ -6.'
+    : 'Стружка рассыпалась в серую пыль. Пальцы саднит, но документы молчат: HP -2.';
 }
 
 export function publishMaronaryShavingAcquired(actor: Entity, state: GameState, source: string): void {
@@ -171,7 +171,7 @@ export function tryHandleMaronaryShavingHandoff(
   const slot = inv?.[slotIdx];
   if (!inv || !slot || slot.defId !== ITEM_ID) return false;
   if (!addToNpcInventory(npc)) {
-    state.msgs.push(msg(`${npc.name ?? 'Покупатель'} некуда спрятать стружку.`, state.time, '#f84'));
+    state.msgs.push(msg(`${npc.name ?? 'Покупатель'} некуда спрятать стружку отдельно от документов.`, state.time, '#f84'));
     return true;
   }
   if (!removeOneFromSlot(inv, slotIdx)) return false;

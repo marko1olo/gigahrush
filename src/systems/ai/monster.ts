@@ -15,9 +15,10 @@ import { isHostile } from '../factions';
 import { scaleMonsterDmg, strMeleeDmgMult, scaleMonsterHp, scaleMonsterSpeed, randomRPG } from '../rpg';
 import { zhelemishIncomingMeleeDamage } from '../status';
 import { spawnBloodHit, spawnDeathPool } from '../../render/blood';
-import { bfsPath, followPath, wanderNearby } from './pathfinding';
+import { followPath, tryAssignPathToCell, wanderNearby } from './pathfinding';
 import { Spr } from '../../render/sprite_index';
 import { publishEvent } from '../events';
+import { recordPlayerDamage } from '../damage';
 import {
   MONSTER_BAIT_COMBAT_LOCK_SQ,
   MONSTER_BAIT_CONSUME_RADIUS_SQ,
@@ -26,6 +27,7 @@ import {
   findMonsterBaitTarget,
 } from '../monster_bait';
 import { isDebugOnePunchManEnabled, keepDebugOnePunchManAlive } from '../debug_cheats';
+import { ENTITY_MASK_ACTOR, ENTITY_MASK_MONSTER, getEntityIndex } from '../entity_index';
 import {
   findZombieApocalypseTarget,
   isZombieApocalypseActive,
@@ -86,6 +88,10 @@ const DOCUMENT_ITEM_TAGS = [
 /** Entity lookup map — set by updateAI each frame */
 let _entityById = new Map<number, Entity>();
 export function setEntityMap(m: Map<number, Entity>): void { _entityById = m; }
+
+const combatQuery: Entity[] = [];
+const documentHunterQuery: Entity[] = [];
+const matkaChildrenQuery: Entity[] = [];
 
 function zoneIdAt(world: World, x: number, y: number): number | undefined {
   const zid = world.zoneMap[world.idx(Math.floor(x), Math.floor(y))];
@@ -222,7 +228,9 @@ export function findCombatTarget(
     ai.combatScanCd = scanCd;
     let newTarget: Entity | null = null;
     let newBest = rangeSq;
-    for (const other of entities) {
+    getEntityIndex().queryRadius(e.x, e.y, Math.sqrt(rangeSq), combatQuery, ENTITY_MASK_ACTOR);
+    const candidates = combatQuery.length > 0 ? combatQuery : entities;
+    for (const other of candidates) {
       if (!other.alive || other.id === e.id) continue;
       if (!typeFilter(other)) continue;
       const d2 = world.dist2(e.x, e.y, other.x, other.y);
@@ -482,10 +490,7 @@ function tryFollowMonsterBait(
   const ty = Math.floor(bait.y);
   ai.timer -= dt;
   if (ai.path.length === 0 || ai.timer <= 0 || ai.tx !== tx || ai.ty !== ty) {
-    ai.tx = tx;
-    ai.ty = ty;
-    ai.path = bfsPath(world, Math.floor(e.x), Math.floor(e.y), tx, ty);
-    ai.pi = 0;
+    tryAssignPathToCell(world, e, tx, ty);
     ai.timer = 1.4;
   }
   if (ai.path.length === 0) return false;
@@ -493,7 +498,7 @@ function tryFollowMonsterBait(
   return true;
 }
 
-function findDocumentHunterTarget(world: World, entities: Entity[], e: Entity, dt: number): Entity | null {
+function findDocumentHunterTarget(world: World, _entities: Entity[], e: Entity, dt: number): Entity | null {
   const ai = e.ai!;
   let target: Entity | null = null;
 
@@ -515,7 +520,8 @@ function findDocumentHunterTarget(world: World, entities: Entity[], e: Entity, d
     let docBest = PECHATEED_DETECT_SQ;
     let fallbackTarget: Entity | null = null;
     let fallbackBest = PECHATEED_FALLBACK_SQ;
-    for (const other of entities) {
+    getEntityIndex().queryRadius(e.x, e.y, Math.sqrt(PECHATEED_DETECT_SQ), documentHunterQuery, ENTITY_MASK_ACTOR);
+    for (const other of documentHunterQuery) {
       if (!other.alive || other.id === e.id || !canBeMonsterTarget(other)) continue;
       if (!isHostile(e, other)) continue;
       const d2 = world.dist2(e.x, e.y, other.x, other.y);
@@ -572,6 +578,7 @@ function finishKostorezWindup(
       keepDebugOnePunchManAlive(target);
     } else {
       target.hp -= dmg;
+      if (target.id === playerId) recordPlayerDamage(state, e, dmg, `${entityDisplayName(e)} режет тебя: -${dmg}`);
       if (target.hp <= 0) {
         target.alive = false;
         target.hp = 0;
@@ -649,7 +656,7 @@ function updateKostorez(
 
     if (!target.alive || dist > KOSTOREZ_BURST_RANGE || !hasClearLine(world, e, target, KOSTOREZ_BURST_RANGE)) {
       publishKostorezEscape(world, e, target, playerId, state, dist > KOSTOREZ_BURST_RANGE ? 'distance' : 'obstacle');
-      msgs.push(msg('Косторез сорвал замах о пустой воздух.', time, '#fc4'));
+      msgs.push(msg('Косторез промахнулся: цель вышла из замаха.', time, '#fc4'));
       ai.windupTimer = undefined;
       ai.windupTargetId = undefined;
       e.spriteScale = undefined;
@@ -672,8 +679,7 @@ function updateKostorez(
 
   if (dist > KOSTOREZ_ESCAPE_DIST) ai.windupTargetId = undefined;
   if (ai.path.length === 0 || ai.timer <= 0) {
-    ai.path = bfsPath(world, Math.floor(e.x), Math.floor(e.y), Math.floor(target.x), Math.floor(target.y));
-    ai.pi = 0;
+    tryAssignPathToCell(world, e, Math.floor(target.x), Math.floor(target.y));
     ai.timer = 1.4;
   }
   ai.timer -= dt;
@@ -801,7 +807,7 @@ function updateEyeRanged(
 
   if (target.id === playerId && ai.lastSeenTargetId !== playerId) {
     ai.lastSeenTargetId = playerId;
-    msgs.push(msg('Зрачок Глаза собирает зелёный выстрел. Угол или дверь сорвут линию.', time, '#cf6'));
+    msgs.push(msg('Глаз заряжает зелёный выстрел. Угол или дверь сорвут линию.', time, '#cf6'));
     publishMonsterReadabilityEvent(state, world, e, target, 'monster_sighted', 4, ['eye', 'ranged', 'line_of_sight', 'warning'], {
       windupSec: EYE_WINDUP_SEC,
       counterplay: 'corner_or_door_breaks_line',
@@ -834,7 +840,7 @@ function updateShadowAmbushReadability(
       world.dist2(e.x, e.y, target.x, target.y) <= SHADOW_WARNING_RANGE_SQ &&
       shadowCanDarkAmbush(world, e, target)) {
     ai.lastSeenTargetId = playerId;
-    msgs.push(msg('Теневик отделился от темноты. Свет, шаг назад или широкий проход ломают рывок.', time, '#c8f'));
+    msgs.push(msg('Теневик вышел из темного угла. Свет, шаг назад или широкий проход ломают рывок.', time, '#c8f'));
     publishMonsterReadabilityEvent(state, world, e, target, 'monster_sighted', 4, ['shadow', 'ambush', 'dark', 'warning'], {
       windupSec: SHADOW_WINDUP_SEC,
       counterplay: 'light_distance_or_open_space',
@@ -852,7 +858,7 @@ function updateShadowAmbushReadability(
       ai.windupTargetId = undefined;
       e.attackCd = Math.max(e.attackCd ?? 0, SHADOW_CANCEL_COOLDOWN);
       if (target.id === playerId) {
-        msgs.push(msg('Теневик потерял рывок в свете/дистанции.', time, '#ccf'));
+        msgs.push(msg('Теневик потерял рывок в свете или на дистанции.', time, '#ccf'));
         publishMonsterReadabilityEvent(state, world, e, target, 'monster_windup_interrupted', 3, ['shadow', 'ambush', 'interrupted', 'light'], {
           reason: shadowHasLightCounter(world, e, target) ? 'light' : 'distance',
           counterplay: 'keep_light_or_distance',
@@ -871,7 +877,7 @@ function updateShadowAmbushReadability(
     ai.windupTimer = SHADOW_WINDUP_SEC;
     ai.windupTargetId = target.id;
     if (target.id === playerId) {
-      msgs.push(msg('Теневик заносит темный рывок. Отступите в свет или за дистанцию.', time, '#c8f'));
+      msgs.push(msg('Теневик готовит рывок из тени. Отступите в свет или за дистанцию.', time, '#c8f'));
     }
     return true;
   }
@@ -905,7 +911,8 @@ export function updateMonster(world: World, entities: Entity[], e: Entity, dt: n
     if (e.matkaTimer <= 0) {
       e.matkaTimer = 60;
       let nearby = 0;
-      for (const o of entities) {
+      getEntityIndex().queryRadius(e.x, e.y, 20, matkaChildrenQuery, ENTITY_MASK_MONSTER);
+      for (const o of matkaChildrenQuery) {
         if (o.type === EntityType.MONSTER && o.alive && o.id !== e.id && world.dist2(e.x, e.y, o.x, o.y) < 400) nearby++;
       }
       if (nearby < MATKA_MAX_CHILDREN) {
@@ -1065,6 +1072,7 @@ export function updateMonster(world: World, entities: Entity[], e: Entity, dt: n
           keepDebugOnePunchManAlive(target);
         } else {
           target.hp -= dmg;
+          if (target.id === playerId) recordPlayerDamage(state, e, dmg, `${entityDisplayName(e)} задел тебя: -${dmg}`);
           if (target.hp <= 0) { target.alive = false; target.hp = 0; }
           const hitAng = Math.atan2(target.y - e.y, target.x - e.x);
           spawnBloodHit(world, target.x, target.y, hitAng, dmg, target.type === EntityType.MONSTER);
@@ -1087,8 +1095,7 @@ export function updateMonster(world: World, entities: Entity[], e: Entity, dt: n
   // Hunt: pathfind to target
   ai.timer -= dt;
   if (ai.path.length === 0 || ai.timer <= 0) {
-    ai.path = bfsPath(world, Math.floor(e.x), Math.floor(e.y), Math.floor(target.x), Math.floor(target.y));
-    ai.pi = 0;
+    tryAssignPathToCell(world, e, Math.floor(target.x), Math.floor(target.y));
     ai.timer = 2;
   }
 

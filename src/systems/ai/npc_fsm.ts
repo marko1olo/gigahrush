@@ -40,23 +40,36 @@ function getScheduledState(hour: number, samosborActive: boolean, e?: Entity): N
 }
 
 /* ── Work room types by occupation ────────────────────────────── */
-function getWorkRoomTypes(occ: Occupation | undefined): RoomType[] {
+const WORK_KITCHEN = [RoomType.KITCHEN] as const;
+const WORK_MEDICAL = [RoomType.MEDICAL] as const;
+const WORK_PRODUCTION = [RoomType.PRODUCTION] as const;
+const WORK_OFFICE = [RoomType.OFFICE] as const;
+const WORK_STORAGE = [RoomType.STORAGE] as const;
+const WORK_SCIENTIST = [RoomType.OFFICE, RoomType.MEDICAL] as const;
+const WORK_DIRECTOR = [RoomType.OFFICE, RoomType.COMMON] as const;
+const WORK_HOUSEWIFE = [RoomType.LIVING, RoomType.KITCHEN] as const;
+const WORK_CHILD = [RoomType.LIVING, RoomType.COMMON] as const;
+const WORK_ALCOHOLIC = [RoomType.SMOKING, RoomType.COMMON, RoomType.KITCHEN] as const;
+const WORK_HUNTER = [RoomType.CORRIDOR, RoomType.COMMON] as const;
+const WORK_DEFAULT = [RoomType.PRODUCTION, RoomType.OFFICE] as const;
+
+function getWorkRoomTypes(occ: Occupation | undefined): readonly RoomType[] {
   switch (occ) {
-    case Occupation.COOK:        return [RoomType.KITCHEN];
-    case Occupation.DOCTOR:      return [RoomType.MEDICAL];
+    case Occupation.COOK:        return WORK_KITCHEN;
+    case Occupation.DOCTOR:      return WORK_MEDICAL;
     case Occupation.LOCKSMITH:
     case Occupation.ELECTRICIAN:
     case Occupation.TURNER:
-    case Occupation.MECHANIC:    return [RoomType.PRODUCTION];
-    case Occupation.SECRETARY:   return [RoomType.OFFICE];
-    case Occupation.STOREKEEPER: return [RoomType.STORAGE];
-    case Occupation.SCIENTIST:   return [RoomType.OFFICE, RoomType.MEDICAL];
-    case Occupation.DIRECTOR:    return [RoomType.OFFICE, RoomType.COMMON];
-    case Occupation.HOUSEWIFE:   return [RoomType.LIVING, RoomType.KITCHEN];
-    case Occupation.CHILD:       return [RoomType.LIVING, RoomType.COMMON];
-    case Occupation.ALCOHOLIC:   return [RoomType.SMOKING, RoomType.COMMON, RoomType.KITCHEN];
-    case Occupation.HUNTER:      return [RoomType.CORRIDOR, RoomType.COMMON];
-    default:                     return [RoomType.PRODUCTION, RoomType.OFFICE];
+    case Occupation.MECHANIC:    return WORK_PRODUCTION;
+    case Occupation.SECRETARY:   return WORK_OFFICE;
+    case Occupation.STOREKEEPER: return WORK_STORAGE;
+    case Occupation.SCIENTIST:   return WORK_SCIENTIST;
+    case Occupation.DIRECTOR:    return WORK_DIRECTOR;
+    case Occupation.HOUSEWIFE:   return WORK_HOUSEWIFE;
+    case Occupation.CHILD:       return WORK_CHILD;
+    case Occupation.ALCOHOLIC:   return WORK_ALCOHOLIC;
+    case Occupation.HUNTER:      return WORK_HUNTER;
+    default:                     return WORK_DEFAULT;
   }
 }
 

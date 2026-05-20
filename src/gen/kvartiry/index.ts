@@ -1,7 +1,7 @@
 /* ── Kvartiry floor generator (Floor -1) — КВАРТИРЫ ──────────── */
 /*   Dense residential maze with wall_l=4 grid pattern.           */
-/*   1000 citizens + 1000 wild + 500 liquidators.                 */
-/*   Groups spawn in random locations — eternal riots.            */
+/*   Data-driven crowd profile: larger resident/wild/response caps. */
+/*   Natural resident field plus local groups — eternal riots.    */
 /*   Uprising mechanic: civilians rally → become WILD.            */
 /*   Rooms by zone: living, kitchen, smoking, bathroom, etc.      */
 
@@ -15,6 +15,8 @@ import { World } from '../../core/world';
 import { rng, placeLifts, generateZones, ensureConnectivity } from '../shared';
 import { placeProceduralScreens } from '../procedural_screens';
 import { randomName, freshNeeds } from '../../data/catalog';
+import { KVARTIRY_POPULATION_PROFILE, type NpcPopulationBucket } from '../../data/population_profiles';
+import { sampleNaturalPopulationCells } from '../population_placement';
 import { calcZoneLevel, randomRPG, gaussianLevel, getMaxHp } from '../../systems/rpg';
 import { Spr } from '../../render/sprite_index';
 import { randomOccupation } from '../../data/relations';
@@ -29,19 +31,20 @@ import { applyKvartiryGeometry, decorateKvartiryGeometry } from './geometry';
 
 /* ── Constants ────────────────────────────────────────────────── */
 const WALL_L = 4;  // grid spacing for wall sources
-const CITIZEN_CAP = 1000;
-const WILD_CAP = 1000;
-const LIQUIDATOR_CAP = 500;
-const INITIAL_CITIZENS = 300;
-const INITIAL_WILD = 200;
-const INITIAL_LIQUIDATORS = 100;
-const UPRISING_CHECK_INTERVAL = 30; // seconds between uprising checks
-const UPRISING_RADIUS = 34;  // civilian rally radius
-const LIQUIDATOR_RESPONSE_RADIUS = 72;  // liquidator response radius
-const AMBIENT_UPRISING_CHANCE = 0.08;
-const AMBIENT_UPRISING_MIN_CITIZENS = 18;
-const AMBIENT_UPRISING_MAX_CONVERTED = 8;
-const AMBIENT_UPRISING_MAX_RESPONDERS = 6;
+const KV_POPULATION = KVARTIRY_POPULATION_PROFILE;
+const CITIZEN_PROFILE = KV_POPULATION.citizens;
+const WILD_PROFILE = KV_POPULATION.wild;
+const LIQUIDATOR_PROFILE = KV_POPULATION.liquidators;
+const CITIZEN_CAP = CITIZEN_PROFILE.softCap;
+const WILD_CAP = WILD_PROFILE.softCap;
+const LIQUIDATOR_CAP = LIQUIDATOR_PROFILE.softCap;
+const UPRISING_CHECK_INTERVAL = KV_POPULATION.uprising.intervalSec;
+const UPRISING_RADIUS = KV_POPULATION.uprising.radius;
+const LIQUIDATOR_RESPONSE_RADIUS = KV_POPULATION.uprising.responseRadius;
+const AMBIENT_UPRISING_CHANCE = KV_POPULATION.uprising.ambientChance;
+const AMBIENT_UPRISING_MIN_CITIZENS = KV_POPULATION.uprising.minCitizens;
+const AMBIENT_UPRISING_MAX_CONVERTED = KV_POPULATION.uprising.maxConverted;
+const AMBIENT_UPRISING_MAX_RESPONDERS = KV_POPULATION.uprising.maxResponders;
 
 /* Population update accumulators */
 let kvCitizenAccum = 0;
@@ -49,18 +52,18 @@ let kvWildAccum = 0;
 let kvLiquidatorAccum = 0;
 let kvUprisingAccum = 0;
 
-const SPAWN_INTERVAL = 2.0;  // seconds between group spawn checks
+const SPAWN_INTERVAL = KV_POPULATION.spawnIntervalSec;
 
 /* ── Room type definitions for kvartiry floor ─────────────────── */
 const KV_ROOM_TYPES: { type: RoomType; name: string; weight: number }[] = [
-  { type: RoomType.LIVING,     name: 'Жилая',       weight: 30 },
-  { type: RoomType.KITCHEN,    name: 'Кухня',        weight: 20 },
-  { type: RoomType.BATHROOM,   name: 'Санузел',      weight: 12 },
-  { type: RoomType.SMOKING,    name: 'Курилка',      weight: 10 },
-  { type: RoomType.STORAGE,    name: 'Кладовая',     weight: 10 },
-  { type: RoomType.COMMON,     name: 'Зал',          weight: 8 },
-  { type: RoomType.CORRIDOR,   name: 'Коридор',      weight: 5 },
-  { type: RoomType.OFFICE,     name: 'Бухгалтерия',  weight: 5 },
+  { type: RoomType.LIVING,     name: 'Комната с матрасом', weight: 30 },
+  { type: RoomType.KITCHEN,    name: 'Общая кухня',        weight: 20 },
+  { type: RoomType.BATHROOM,   name: 'Мокрый санузел',     weight: 12 },
+  { type: RoomType.SMOKING,    name: 'Курилка у шахты',    weight: 10 },
+  { type: RoomType.STORAGE,    name: 'Кладовка с пайками', weight: 10 },
+  { type: RoomType.COMMON,     name: 'Зал очереди',        weight: 8 },
+  { type: RoomType.CORRIDOR,   name: 'Проходной коридор',  weight: 5 },
+  { type: RoomType.OFFICE,     name: 'Стол учёта',         weight: 5 },
 ];
 
 let lastPickedIdx = -1;
@@ -148,44 +151,167 @@ function npcWeapon(faction: Faction, occupation: Occupation): { weapon: string; 
   return { weapon: '', inv: [] };
 }
 
+/* ── Spawn a single NPC on an exact floor cell ───────────────── */
+function spawnNpcAtCell(
+  world: World, entities: Entity[], nextId: { v: number },
+  faction: Faction, occupation: Occupation,
+  x: number, y: number,
+): boolean {
+  const ci = world.idx(x, y);
+  if (world.cells[ci] !== Cell.FLOOR) return false;
+  const zoneId = world.zoneMap[ci];
+  const zoneLevel = world.zones[zoneId]?.level ?? 1;
+  const npcLevel = gaussianLevel(zoneLevel, 2);
+  const rpg = randomRPG(npcLevel);
+  const maxHp = getMaxHp(rpg);
+  const nm = randomName(faction);
+  const loadout = npcWeapon(faction, occupation);
+  entities.push({
+    id: nextId.v++, type: EntityType.NPC,
+    x: x + 0.5, y: y + 0.5,
+    angle: Math.random() * Math.PI * 2, pitch: 0,
+    alive: true,
+    speed: occupation === Occupation.CHILD ? 0.8 : 1.2,
+    sprite: occupation,
+    spriteScale: occupation === Occupation.CHILD ? 0.6 : 1.0,
+    name: nm.name, isFemale: nm.female,
+    needs: freshNeeds(), hp: maxHp, maxHp,
+    money: rng(5, 60),
+    ai: { goal: AIGoal.IDLE, tx: 0, ty: 0, path: [], pi: 0, stuck: 0, timer: 0 },
+    inventory: loadout.inv.map(i => ({ ...i })),
+    weapon: loadout.weapon || undefined,
+    faction, occupation,
+    questId: -1, isTraveler: true,
+    rpg,
+  });
+  return true;
+}
+
 /* ── Spawn a single NPC at a random floor cell ───────────────── */
 function spawnNpcAt(
   world: World, entities: Entity[], nextId: { v: number },
   faction: Faction, occupation: Occupation,
+  anchorX = -1, anchorY = -1, radius = 0,
 ): boolean {
+  const anchored = radius > 0 && anchorX >= 0 && anchorY >= 0;
   for (let i = 0; i < 100; i++) {
-    const x = Math.floor(Math.random() * W);
-    const y = Math.floor(Math.random() * W);
+    let x: number;
+    let y: number;
+    if (anchored && i < 70) {
+      x = world.wrap(Math.floor(anchorX) + rng(-radius, radius));
+      y = world.wrap(Math.floor(anchorY) + rng(-radius, radius));
+    } else {
+      x = Math.floor(Math.random() * W);
+      y = Math.floor(Math.random() * W);
+    }
     const ci = world.idx(x, y);
     if (world.cells[ci] !== Cell.FLOOR) continue;
-    const zoneId = world.zoneMap[ci];
-    const zoneLevel = world.zones[zoneId]?.level ?? 1;
-    const npcLevel = gaussianLevel(zoneLevel, 2);
-    const rpg = randomRPG(npcLevel);
-    const maxHp = getMaxHp(rpg);
-    const nm = randomName(faction);
-    const loadout = npcWeapon(faction, occupation);
-    entities.push({
-      id: nextId.v++, type: EntityType.NPC,
-      x: x + 0.5, y: y + 0.5,
-      angle: Math.random() * Math.PI * 2, pitch: 0,
-      alive: true,
-      speed: occupation === Occupation.CHILD ? 0.8 : 1.2,
-      sprite: occupation,
-      spriteScale: occupation === Occupation.CHILD ? 0.6 : 1.0,
-      name: nm.name, isFemale: nm.female,
-      needs: freshNeeds(), hp: maxHp, maxHp,
-      money: rng(5, 60),
-      ai: { goal: AIGoal.IDLE, tx: 0, ty: 0, path: [], pi: 0, stuck: 0, timer: 0 },
-      inventory: loadout.inv.map(i => ({ ...i })),
-      weapon: loadout.weapon || undefined,
-      faction, occupation,
-      questId: -1, isTraveler: true,
-      rpg,
-    });
-    return true;
+    if (spawnNpcAtCell(world, entities, nextId, faction, occupation, x, y)) return true;
   }
   return false;
+}
+
+function pickNpcGroupAnchor(world: World, profile?: NpcPopulationBucket, seed = 0): { x: number; y: number } | null {
+  if (profile) {
+    const cells = sampleNaturalPopulationCells(world, 1, profile, seed);
+    const cell = cells[0];
+    if (cell !== undefined) return { x: cell % W, y: (cell / W) | 0 };
+  }
+  for (let t = 0; t < 200; t++) {
+    const x = Math.floor(Math.random() * W);
+    const y = Math.floor(Math.random() * W);
+    if (world.cells[world.idx(x, y)] === Cell.FLOOR) return { x, y };
+  }
+  return null;
+}
+
+function npcSeedGroupSize(profile: NpcPopulationBucket, remaining: number): number {
+  const hi = Math.min(profile.groupMax, remaining);
+  const lo = Math.min(profile.groupMin, hi);
+  return rng(lo, hi);
+}
+
+function npcRefillBatchSize(profile: NpcPopulationBucket, deficit: number): number {
+  const pressureBatch = Math.max(profile.refillMin, Math.ceil(deficit / profile.refillDeficitDivisor));
+  return Math.min(deficit, pressureBatch, rng(profile.refillMin, profile.refillMax));
+}
+
+function npcPopulationSeed(faction: Faction, nextId: number): number {
+  return 1009 + faction * 10007 + nextId * 13;
+}
+
+function spawnNaturalNpcBatch(
+  world: World,
+  entities: Entity[],
+  nextId: { v: number },
+  faction: Faction,
+  profile: NpcPopulationBucket,
+  count: number,
+  fixedOccupation?: Occupation,
+): number {
+  const cells = sampleNaturalPopulationCells(world, count, profile, npcPopulationSeed(faction, nextId.v));
+  let spawned = 0;
+  for (const cell of cells) {
+    const occ = fixedOccupation ?? randomOccupation(faction);
+    if (spawnNpcAtCell(world, entities, nextId, faction, occ, cell % W, (cell / W) | 0)) spawned++;
+  }
+  return spawned;
+}
+
+function spawnNpcGroup(
+  world: World,
+  entities: Entity[],
+  nextId: { v: number },
+  faction: Faction,
+  profile: NpcPopulationBucket,
+  count: number,
+  fixedOccupation?: Occupation,
+): number {
+  const anchor = pickNpcGroupAnchor(world, profile, npcPopulationSeed(faction, nextId.v));
+  let spawned = 0;
+  for (let i = 0; i < count; i++) {
+    const occ = fixedOccupation ?? randomOccupation(faction);
+    if (spawnNpcAt(world, entities, nextId, faction, occ, anchor?.x ?? -1, anchor?.y ?? -1, profile.spreadRadius)) spawned++;
+  }
+  return spawned;
+}
+
+function spawnNpcPopulationBatch(
+  world: World,
+  entities: Entity[],
+  nextId: { v: number },
+  faction: Faction,
+  profile: NpcPopulationBucket,
+  count: number,
+  fixedOccupation?: Occupation,
+): number {
+  const naturalTarget = Math.min(count, Math.max(1, Math.round(count * profile.scatterShare)));
+  let spawned = spawnNaturalNpcBatch(world, entities, nextId, faction, profile, naturalTarget, fixedOccupation);
+  const groupedTarget = count - spawned;
+  if (groupedTarget > 0) {
+    spawned += spawnNpcGroup(world, entities, nextId, faction, profile, groupedTarget, fixedOccupation);
+  }
+  return spawned;
+}
+
+function seedNpcPopulation(
+  world: World,
+  entities: Entity[],
+  nextId: { v: number },
+  faction: Faction,
+  profile: NpcPopulationBucket,
+  fixedOccupation?: Occupation,
+): void {
+  const naturalTarget = Math.min(profile.initial, Math.round(profile.initial * profile.scatterShare));
+  let spawned = spawnNaturalNpcBatch(world, entities, nextId, faction, profile, naturalTarget, fixedOccupation);
+  let groups = 0;
+  while (spawned < profile.initial && groups < 256) {
+    const groupSize = npcSeedGroupSize(profile, profile.initial - spawned);
+    const added = spawnNpcGroup(world, entities, nextId, faction, profile, groupSize, fixedOccupation);
+    if (added <= 0) break;
+    spawned += added;
+    groups++;
+  }
 }
 
 /* ══════════════════════════════════════════════════════════════════
@@ -512,42 +638,11 @@ export function generateKvartiry(): { world: World; entities: Entity[]; spawnX: 
   // ── Phase 8: Light map ────────────────────────────────────────
   world.bakeLights();
 
-  // ── Phase 9: Spawn NPCs (groups scattered across the map) ────
+  // ── Phase 9: Spawn NPCs (whole-floor baseline plus local unrest groups)
   const nid = { v: nextId };
-  // Citizens: spawn in groups of 1-100
-  for (let spawned = 0; spawned < INITIAL_CITIZENS; ) {
-    const groupSize = Math.min(rng(1, 100), INITIAL_CITIZENS - spawned);
-    // Pick a random anchor position
-    let ax = 0, ay = 0, found = false;
-    for (let t = 0; t < 200; t++) {
-      ax = Math.floor(Math.random() * W);
-      ay = Math.floor(Math.random() * W);
-      if (world.cells[world.idx(ax, ay)] === Cell.FLOOR) { found = true; break; }
-    }
-    if (!found) break;
-    for (let g = 0; g < groupSize; g++) {
-      const occ = randomOccupation(Faction.CITIZEN);
-      spawnNpcAt(world, entities, nid, Faction.CITIZEN, occ);
-    }
-    spawned += groupSize;
-  }
-  // Wild: spawn in groups of 1-100
-  for (let spawned = 0; spawned < INITIAL_WILD; ) {
-    const groupSize = Math.min(rng(1, 100), INITIAL_WILD - spawned);
-    for (let g = 0; g < groupSize; g++) {
-      const occ = randomOccupation(Faction.WILD);
-      spawnNpcAt(world, entities, nid, Faction.WILD, occ);
-    }
-    spawned += groupSize;
-  }
-  // Liquidators: spawn in groups of 1-50
-  for (let spawned = 0; spawned < INITIAL_LIQUIDATORS; ) {
-    const groupSize = Math.min(rng(1, 50), INITIAL_LIQUIDATORS - spawned);
-    for (let g = 0; g < groupSize; g++) {
-      spawnNpcAt(world, entities, nid, Faction.LIQUIDATOR, Occupation.HUNTER);
-    }
-    spawned += groupSize;
-  }
+  seedNpcPopulation(world, entities, nid, Faction.CITIZEN, CITIZEN_PROFILE);
+  seedNpcPopulation(world, entities, nid, Faction.WILD, WILD_PROFILE);
+  seedNpcPopulation(world, entities, nid, Faction.LIQUIDATOR, LIQUIDATOR_PROFILE, Occupation.HUNTER);
   nextId = nid.v;
 
   // ── Phase 10: Spawn items (ballots scattered everywhere) ─────
@@ -598,8 +693,7 @@ export function generateKvartiry(): { world: World; entities: Entity[]; spawnX: 
 
 /* ══════════════════════════════════════════════════════════════════
    Population update — called every frame from main.ts
-   Maintains 1000 citizens, 1000 wild, 500 liquidators.
-   Groups spawn in random locations for "eternal riots" feel.
+   Maintains the data profile caps with a whole-floor baseline plus groups.
    ══════════════════════════════════════════════════════════════════ */
 export function resetKvPopulationState(): void {
   kvCitizenAccum = 0;
@@ -625,41 +719,38 @@ export function updateKvPopulation(
   kvLiquidatorAccum += dt;
   kvUprisingAccum += dt;
 
-  // ── Replenish citizens in groups of 1-100 ─────────────────────
+  // ── Replenish citizens as background residents plus local groups
   if (kvCitizenAccum >= SPAWN_INTERVAL) {
     kvCitizenAccum -= SPAWN_INTERVAL;
     const deficit = CITIZEN_CAP - countFactionNPCs(entities, Faction.CITIZEN);
     if (deficit > 0) {
-      const batch = Math.min(rng(1, 100), deficit);
-      for (let i = 0; i < batch; i++) {
-        const occ = randomOccupation(Faction.CITIZEN);
-        if (!spawnNpcAt(world, entities, nextId, Faction.CITIZEN, occ)) break;
-      }
+      spawnNpcPopulationBatch(world, entities, nextId, Faction.CITIZEN, CITIZEN_PROFILE, npcRefillBatchSize(CITIZEN_PROFILE, deficit));
     }
   }
 
-  // ── Replenish wild in groups of 1-100 ─────────────────────────
+  // ── Replenish wild as background unrest plus denser local packs
   if (kvWildAccum >= SPAWN_INTERVAL) {
     kvWildAccum -= SPAWN_INTERVAL;
     const deficit = WILD_CAP - countFactionNPCs(entities, Faction.WILD);
     if (deficit > 0) {
-      const batch = Math.min(rng(1, 100), deficit);
-      for (let i = 0; i < batch; i++) {
-        const occ = randomOccupation(Faction.WILD);
-        if (!spawnNpcAt(world, entities, nextId, Faction.WILD, occ)) break;
-      }
+      spawnNpcPopulationBatch(world, entities, nextId, Faction.WILD, WILD_PROFILE, npcRefillBatchSize(WILD_PROFILE, deficit));
     }
   }
 
-  // ── Replenish liquidators in groups of 1-50 ───────────────────
+  // ── Replenish liquidators in response squads ──────────────────
   if (kvLiquidatorAccum >= SPAWN_INTERVAL) {
     kvLiquidatorAccum -= SPAWN_INTERVAL;
     const deficit = LIQUIDATOR_CAP - countFactionNPCs(entities, Faction.LIQUIDATOR);
     if (deficit > 0) {
-      const batch = Math.min(rng(1, 50), deficit);
-      for (let i = 0; i < batch; i++) {
-        if (!spawnNpcAt(world, entities, nextId, Faction.LIQUIDATOR, Occupation.HUNTER)) break;
-      }
+      spawnNpcPopulationBatch(
+        world,
+        entities,
+        nextId,
+        Faction.LIQUIDATOR,
+        LIQUIDATOR_PROFILE,
+        npcRefillBatchSize(LIQUIDATOR_PROFILE, deficit),
+        Occupation.HUNTER,
+      );
     }
   }
 

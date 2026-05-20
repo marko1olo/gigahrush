@@ -13,8 +13,8 @@ export const DEF: MonsterDef = {
   attackRate: 1.5,
   sprite: 0,   // auto-assigned by generateSprites()
   floors: [FloorLevel.MINISTRY, FloorLevel.KVARTIRY, FloorLevel.LIVING, FloorLevel.MAINTENANCE, FloorLevel.HELL],
-  counterplay: 'Вытягивайте мертвяка из кухни, очереди или палаты в пустой проход и добивайте до контакта.',
-  lootHint: 'бытовой хлам прежнего жильца, редко записка или сигареты',
+  counterplay: 'Опасен толпой и дверью: вытяните из кухни, очереди или палаты в пустой проход и добейте до первого хвата.',
+  lootHint: 'карманный бытовой хлам, чужая записка, редкие сигареты',
 };
 
 export function generateSprite(): Uint32Array {

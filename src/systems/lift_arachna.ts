@@ -281,8 +281,8 @@ export function tryStartLiftArachnaEncounter(
   stampCeilingShadow(world, lift.x, lift.y, seed);
   state.msgs.push(msg(
     secondWarning
-      ? 'ЛИФТОВАЯ АРАХНА: нить в шахте. Смотрите вверх или уходите от лифта.'
-      : 'Над лифтом скребет бетон. С потолка свисает тонкая нить.',
+      ? 'ЛИФТОВАЯ АРАХНА: кабина теплая, нить в шахте. Смотрите вверх или уходите от лифта.'
+      : 'Лифт привез теплый запах и замолчал. Над кабиной скребет бетон, с потолка свисает тонкая нить.',
     state.time,
     secondWarning ? '#f4a' : '#fa0',
   ));
@@ -322,7 +322,7 @@ export function resolveLiftArachnaDeparture(world: World, _player: Entity, state
     active,
     'lift_arachna_avoided',
     'left_by_lift',
-    'Вы ушли раньше, чем нить выдержала ваш вес.',
+    'Лифт увез вас раньше, чем нить выдержала вес. Запах остался в шахте.',
     '#8cf',
   );
 }
@@ -358,7 +358,7 @@ function spawnLiftArachna(world: World, entities: Entity[], player: Entity, stat
       active,
       'lift_arachna_avoided',
       'no_drop_cell',
-      'В шахте щелкнуло, но арахна не нашла пола под бросок.',
+      'В шахте щелкнуло, но арахна не нашла пола под бросок. Кабина осталась теплой и чужой.',
       '#8cf',
     );
     return;
@@ -405,8 +405,8 @@ function spawnLiftArachna(world: World, entities: Entity[], player: Entity, stat
   store.lastResolvedAt = state.time;
   state.msgs.push(msg(
     active.baited
-      ? 'Арахна сорвалась на шум и ударилась о поручень.'
-      : 'С потолка у лифта падает лифтовая арахна!',
+      ? 'Арахна сорвалась на шум и ударилась о поручень кабины.'
+      : 'С потолка у лифта падает лифтовая арахна. Двери закрываются слишком поздно.',
     state.time,
     '#f44',
   ));
@@ -462,7 +462,7 @@ export function notifyLiftArachnaNoise(
       active,
       'lift_arachna_cleared',
       `preempt_${weaponId || 'noise'}`,
-      'Вы ударили в шахту до броска. Нить оборвалась, арахна ушла выше.',
+      'Вы ударили в шахту до броска. Нить оборвалась, арахна ушла выше, туда, где лифт не отвечает.',
       '#4f4',
     );
     return;
@@ -472,7 +472,7 @@ export function notifyLiftArachnaNoise(
   active.dropAt = Math.min(active.dropAt, state.time + 0.75);
   if (!active.baitMsg) {
     active.baitMsg = true;
-    state.msgs.push(msg('Шум сорвал арахну с потолка. Теперь она падает неудачно.', state.time, '#fc4'));
+    state.msgs.push(msg('Шум сорвал арахну с потолка. Теперь она падает неудачно, цепляясь за поручень кабины.', state.time, '#fc4'));
   }
 }
 
@@ -500,7 +500,7 @@ export function updateLiftArachnaEncounter(
         active,
         'lift_arachna_cleared',
         'monster_down',
-        'Лифтовая арахна больше не держит шахту.',
+        'Лифтовая арахна больше не держит шахту. Кнопка остывает.',
         '#4f4',
       );
     }
@@ -515,7 +515,7 @@ export function updateLiftArachnaEncounter(
       active,
       'lift_arachna_avoided',
       'retreated',
-      'Вы отошли от шахты. Нить дернулась и ушла обратно в бетон.',
+      'Вы отошли от шахты. Нить дернулась и ушла обратно в бетон, лифт отказался спорить.',
       '#8cf',
     );
     return;
@@ -530,7 +530,7 @@ export function updateLiftArachnaEncounter(
         active,
         'lift_arachna_avoided',
         'looked_up',
-        'Вы засекли движение над кабиной. Арахна не рискнула падать.',
+        'Вы засекли движение над кабиной. Арахна не рискнула падать на того, кто смотрит вверх.',
         '#8cf',
       );
       return;

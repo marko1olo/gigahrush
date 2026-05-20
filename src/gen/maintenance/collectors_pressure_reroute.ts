@@ -168,7 +168,7 @@ registerSideQuest('collectors_tube_hunter_ilyas', ILYAS_DEF, [
     id: 'floor16_collectors_hunt_tube_eel',
     giverNpcId: 'collectors_tube_hunter_ilyas',
     type: QuestType.KILL,
-    desc: 'Ильяс: «Три трубных угря в лотке. Стреляй с сухого края, не геройствуй жабрами.»',
+    desc: 'Ильяс: «Три трубных угря в лотке. Стреляй с сухого края, жабры из себя не строй.»',
     targetMonsterKind: MonsterKind.TUBE_EEL,
     killNeeded: 3,
     rewardItem: 'harpoon_gun', rewardCount: 1,

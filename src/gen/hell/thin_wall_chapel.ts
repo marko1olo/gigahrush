@@ -1,4 +1,4 @@
-/* ── Часовня тонкой стены — Hell phasing encounter ───────────── */
+/* ── Тонкая стена — Hell phasing encounter ───────────────────── */
 
 import {
   AIGoal, Cell, ContainerKind, EntityType, Faction, Feature, FloorLevel,
@@ -16,7 +16,7 @@ import { randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg'
 import { connectProtectedRoom, findClearArea, protectRoom, stampRoom } from '../shared';
 import { genLog } from '../log';
 
-const CHAPEL_NAME = 'Часовня тонкой стены';
+const CHAPEL_NAME = 'Пост тонкой стены';
 const BLACK_HAND_SCOUT_ID = 'ag78_black_hand_scout';
 const BLACK_HAND_REPORT_QUEST_ID = 'ag78_black_hand_report';
 const BLACK_HAND_REPORT_EVENT_TAG = 'ag78_black_hand_reported';
@@ -39,13 +39,13 @@ const SCOUT_DEF: PlotNpcDef = {
     { defId: 'cleaning_kit', count: 1 },
   ],
   talkLines: [
-    'На полу черная ладонь. Не кровь, не копоть. Маршрут, если верить тем, кто не вернулся.',
-    'Можно обойти, можно пройти по следу, можно стереть знак. Мне нужна отметка на карте, а не геройство.',
+    'На полу черная ладонь. Не масло, не копоть. Маршрут, если верить пустым биркам у стены.',
+    'Можно обойти, можно пройти по следу, можно стереть знак. Мне нужна отметка на карте, а не красивый труп.',
     'В конце обычно тайник. Чужой. Поэтому тихий только до первой украденной вещи.',
   ],
   talkLinesPost: [
     'Ладонь внесена в журнал. Без вывода, без богословия.',
-    'Если будешь стирать знак, держи воду и комплект. Пол не обязан соглашаться сразу.',
+    'Если будешь стирать знак, держи воду и комплект. С первого раза ладонь часто не сходит.',
   ],
 };
 
@@ -54,7 +54,7 @@ registerSideQuest(BLACK_HAND_SCOUT_ID, SCOUT_DEF, [
     id: BLACK_HAND_REPORT_QUEST_ID,
     giverNpcId: BLACK_HAND_SCOUT_ID,
     type: QuestType.VISIT,
-    desc: 'Коптев: «Черная ладонь ведет к часовне {dir}. Дойди до конца следа, отметь место и реши сам: обходить, чистить или брать тайник.»',
+    desc: 'Коптев: «Черная ладонь ведет к тонкой стене {dir}. Дойди до конца следа, отметь место и реши сам: обходить, чистить или брать тайник.»',
     targetRoomName: CHAPEL_NAME,
     rewardItem: 'cleaning_kit',
     rewardCount: 1,

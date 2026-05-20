@@ -1,4 +1,5 @@
 import { drawGlitchText, drawNeuroPanel, drawStaticNoise, textJitter } from './hud_fx';
+import { fitText } from './ui_text';
 
 export type NetTerminalGenDeniedStatus = 'missing' | 'denied' | 'offline' | 'searching' | 'locked' | string;
 
@@ -11,14 +12,6 @@ export interface NetTerminalGenDeniedSnapshot {
 }
 
 export type NetTerminalGenDeniedInput = readonly string[] | NetTerminalGenDeniedSnapshot | undefined;
-
-function fitText(ctx: CanvasRenderingContext2D, text: string, maxW: number): string {
-  if (maxW <= 0) return '';
-  if (ctx.measureText(text).width <= maxW) return text;
-  let end = text.length - 3;
-  while (end > 1 && ctx.measureText(text.slice(0, end) + '...').width > maxW) end--;
-  return text.slice(0, Math.max(1, end)) + '...';
-}
 
 function wrapText(ctx: CanvasRenderingContext2D, text: string, maxW: number, maxLines: number): string[] {
   if (maxW <= 0 || maxLines <= 0) return [];
@@ -45,10 +38,10 @@ function normalizeDeniedInput(input: NetTerminalGenDeniedInput): NetTerminalGenD
 }
 
 function deniedStatusText(status: NetTerminalGenDeniedStatus | undefined): string {
-  if (!status || status === 'missing' || status === 'denied') return 'НЕТ-ТЕРМИНАЛ ГЕН НЕ ОБНАРУЖЕН';
-  if (status === 'offline') return 'КАНАЛ ТЕРМИНАЛА МОЛЧИТ';
+  if (!status || status === 'missing' || status === 'denied') return 'НЕТ-ТЕРМИНАЛ ГЕН НЕ НАЙДЕН';
+  if (status === 'offline') return 'ТЕРМИНАЛ ОФЛАЙН';
   if (status === 'searching') return 'ПОИСК НЕТ-ТЕРМИНАЛА ГЕН';
-  if (status === 'locked') return 'ДОСТУП К ГЕНУ ЗАПЕРТ';
+  if (status === 'locked') return 'ГЕН ЗАПЕРТ';
   return String(status).toUpperCase();
 }
 
@@ -73,8 +66,8 @@ export function drawNetTerminalGenDenied(
   const lines = denied.lines && denied.lines.length > 0
     ? denied.lines
     : [
-      'Странный кусок плоти не найден.',
-      'Терминал показывает только отказ и греет воздух за стеной.',
+      'Нужен НЕТ-ГЕН: странный кусок плоти.',
+      'Без него доступен только банк.',
     ];
 
   ctx.save();
@@ -122,7 +115,7 @@ export function drawNetTerminalGenDenied(
 
   ctx.fillStyle = '#4f6470';
   ctx.font = `${7 * s}px monospace`;
-  const footer = denied.footer ?? '[Esc] закрыть  |  найдите НЕТ-ГЕН';
+  const footer = denied.footer ?? '[Esc] закрыть  |  нужен НЕТ-ГЕН';
   ctx.fillText(fitText(ctx, footer, maxTextW), x + pad, y + panelH - 16 * s);
   if (denied.code) {
     ctx.textAlign = 'right';

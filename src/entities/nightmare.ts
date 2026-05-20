@@ -16,8 +16,8 @@ export const DEF: MonsterDef = {
   attackRate: 1.15,
   sprite: 0,   // auto-assigned by generateSprites()
   floors: [FloorLevel.MINISTRY, FloorLevel.LIVING, FloorLevel.MAINTENANCE, FloorLevel.HELL, FloorLevel.VOID],
-  counterplay: 'Не проверяйте его терпением: быстро влейте тяжелый урон или сразу уходите из комнаты.',
-  lootHint: 'психический след, ПСИ-пыль или антидепрессант после редкой удачной зачистки',
+  counterplay: 'Не играйте в длинный бой: либо сразу вливайте тяжелый урон с выходом за спиной, либо уходите из комнаты до давления.',
+  lootHint: 'психический налет, ПСИ-пыль, редкий антидепрессант из мокрой памяти',
 };
 
 /* ── Static fallback sprite (used in sprite sheet) ────────────── */
@@ -171,4 +171,3 @@ export function generateNightmareSprite(seed: number): Uint32Array {
 
   return t;
 }
-

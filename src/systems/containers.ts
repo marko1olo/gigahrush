@@ -391,6 +391,7 @@ function isBuyableContainer(container: WorldContainer): boolean {
 
 export function containerServiceHint(container: WorldContainer): string | null {
   if (container.tags.includes('resident_relief') && !container.tags.includes('resident_relief_done')) return 'еда, вода или талон в общий запас';
+  if (container.tags.includes('veretar_window_seal') && !container.tags.includes('veretar_window_sealed_done')) return 'ткань или герметик для белой щели';
   if (container.tags.includes('evidence_drop') && !container.tags.includes('evidence_drop_done')) return 'улика или документ для сдачи';
   if (container.tags.includes('sabotage_drop') && !container.tags.includes('sabotage_drop_done')) return 'грязная закладка испортит запас';
   if (container.tags.includes('production_output')) return 'выдача цеха: можно получить, купить или украсть';
@@ -558,6 +559,10 @@ function isSabotageItem(defId: string): boolean {
     || defId === 'glass_shard';
 }
 
+function isVeretarSealItem(defId: string): boolean {
+  return defId === 'cloth_roll' || defId === 'sealant_tube';
+}
+
 function containerDepositOutcome(container: WorldContainer, item: Item): {
   outcome: string;
   relationDelta: number;
@@ -576,6 +581,19 @@ function containerDepositOutcome(container: WorldContainer, item: Item): {
       severity: 3,
       tags: ['resident_relief', 'relief'],
       rumorIds: ['faction_citizen_food'],
+    };
+  }
+  if (container.tags.includes('veretar_window_seal') && !container.tags.includes('veretar_window_sealed_done') && isVeretarSealItem(item.defId)) {
+    addContainerTag(container, 'veretar_window_sealed_done');
+    const curtain = item.defId === 'cloth_roll';
+    addContainerTag(container, curtain ? 'veretar_window_curtained' : 'veretar_window_sealed_done_hard');
+    addFactionRelMutual(Faction.PLAYER, Faction.CITIZEN, curtain ? 1 : 2);
+    return {
+      outcome: curtain ? 'veretar_window_curtained' : 'veretar_window_sealed',
+      relationDelta: curtain ? 1 : 2,
+      severity: curtain ? 3 : 4,
+      tags: ['veretar', curtain ? 'veretar_window_curtain' : 'veretar_window_seal', 'witness'],
+      rumorIds: [curtain ? 'samosbor_veretar_window_curtained' : 'samosbor_veretar_window_sealed'],
     };
   }
   if (container.tags.includes('evidence_drop') && !container.tags.includes('evidence_drop_done') && isEvidenceItem(item.defId)) {
@@ -639,6 +657,11 @@ function depositActionLabel(container: WorldContainer, item: Item): { label: str
   if (container.tags.includes('resident_relief') && !container.tags.includes('resident_relief_done')
     && (def?.type === ItemType.FOOD || def?.type === ItemType.DRINK || item.defId === 'water_coupon' || item.defId === 'concentrate_coupon')) {
     return { label: '[E] отдать в общий запас', detail: 'Жильцы запомнят помощь.', color: '#8f8', mode: 'service' };
+  }
+  if (container.tags.includes('veretar_window_seal') && !container.tags.includes('veretar_window_sealed_done') && isVeretarSealItem(item.defId)) {
+    return item.defId === 'cloth_roll'
+      ? { label: '[E] занавесить', detail: 'Ткань закроет белое окно и даст свидетелю отойти.', color: '#f4f1df', mode: 'service' }
+      : { label: '[E] замазать', detail: 'Герметик закроет белую щель под рамой.', color: '#f4f1df', mode: 'service' };
   }
   if (container.tags.includes('evidence_drop') && !container.tags.includes('evidence_drop_done') && isEvidenceItem(item.defId)) {
     return { label: '[E] сдать улику', detail: 'Документ станет событием и слухом.', color: '#8cf', mode: 'service' };

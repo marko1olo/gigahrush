@@ -161,7 +161,7 @@ function stopTrain(train: RailTrain, station: number, state: GameState, world: W
   train.stopUntil = state.time + train.stopSeconds;
   if (state.time >= train.nextDoorMsgAt && trainDistance2(world, track, train, player.x, player.y) < 16 * 16) {
     train.nextDoorMsgAt = state.time + 6;
-    state.msgs.push(msg(`${train.label}: двери открыты, можно сесть или выйти.`, state.time, '#6cf'));
+    state.msgs.push(msg(`${train.label}: двери открыты. Дежурная платформы кивает: ехать, выйти или переждать у стены.`, state.time, '#6cf'));
   }
 }
 
@@ -214,7 +214,7 @@ function updateTrainCollisions(world: World, entities: Entity[], player: Entity,
           if (!track || trainStopped(train, state) || train.passengerId === player.id) continue;
           if (state.time >= train.nextWarnAt && trainDistance2(world, track, train, player.x, player.y) < WARN_DIST2) {
             train.nextWarnAt = state.time + 4;
-            state.msgs.push(msg('Рельсы дрожат: поезд близко. Платформа безопаснее пути.', state.time, '#fa4'));
+            state.msgs.push(msg('Рельсы дрожат: поезд близко. Уходите на платформу, пока кабина не вошла в поворот.', state.time, '#fa4'));
           }
         }
       }
@@ -228,7 +228,7 @@ function updateTrainCollisions(world: World, entities: Entity[], player: Entity,
     if (entity.id === player.id && state.time < train.nextCrushAt) continue;
     if (entity.id === player.id) {
       train.nextCrushAt = state.time + 0.85;
-      state.msgs.push(msg(`${train.label} ударил по костям: -38 HP.`, state.time, '#f66'));
+      state.msgs.push(msg(`${train.label} ударил по костям: -38 HP. Машинист не тормозил, двери уже закрывались.`, state.time, '#f66'));
     }
     damageEntity(world, entity, train, state);
   }
@@ -328,19 +328,19 @@ export function tryUseRailTrain(
   if (riding) {
     const track = trackById(world, riding.trackId);
     if (!track || !trainStopped(riding, state)) {
-      state.msgs.push(msg('Двери поезда закрыты. Сойти можно на следующей платформе.', state.time, '#888'));
+      state.msgs.push(msg('Двери поезда закрыты. Сойти можно на следующей платформе; мысли тоже держите внутри.', state.time, '#888'));
       return true;
     }
     const exit = nearestPlatformCell(world, track, player.x, player.y, 8 * 8);
     if (exit < 0) {
-      state.msgs.push(msg('За дверью нет платформы. Поезд держит маршрут дальше.', state.time, '#888'));
+      state.msgs.push(msg('За дверью нет платформы. Поезд держит маршрут дальше и не признает прыжок выходом.', state.time, '#888'));
       return true;
     }
     const p = cellCenter(exit);
     player.x = p.x + 0.5;
     player.y = p.y + 0.5;
     riding.passengerId = -1;
-    state.msgs.push(msg(`${riding.label}: вы вышли на платформу.`, state.time, '#8cf'));
+    state.msgs.push(msg(`${riding.label}: вы вышли на платформу. Сначала к стене, потом смотреть табло.`, state.time, '#8cf'));
     publishRailEvent(world, state, player, riding, 'rail_train_exited', 3, ['exit']);
     return true;
   }
@@ -351,7 +351,7 @@ export function tryUseRailTrain(
   train.passengerSeat = Math.max(1, Math.floor(train.length * 0.42));
   const track = trackById(world, train.trackId);
   if (track) bindPassenger(player, track, train);
-  state.msgs.push(msg(`${train.label}: двери закрылись, маршрут пошел.`, state.time, '#6cf'));
+  state.msgs.push(msg(`${train.label}: двери закрылись, маршрут пошел. Руки убрать, мысли тоже.`, state.time, '#6cf'));
   publishRailEvent(world, state, player, train, 'rail_train_boarded', 3, ['board']);
   return true;
 }

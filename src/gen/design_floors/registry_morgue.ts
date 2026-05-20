@@ -61,13 +61,14 @@ const NPC_DEFS: Record<string, PlotNpcDef> = {
       { defId: 'ink_bottle', count: 1 },
     ],
     talkLines: [
-      'Здесь не умирают. Здесь меняют строку учета.',
+      'Здесь не спорят, кто умер. Здесь смотрят, какая строка в журнале осталась открытой.',
       'Бирка без книги ничего не значит. Книга без бирки значит слишком много.',
       'Холодильная камера держит туман лучше людей, но внутри всегда есть цена.',
+      'Не подписывайте пустое свидетельство. Пустая графа быстро получает чужой пульс.',
       'Если запись исправить правильно, Райсовет признает новый факт раньше человека.',
     ],
     talkLinesPost: [
-      'Запись легла ровно. Теперь дверь спорит уже с другим именем.',
+      'Запись легла ровно. Теперь дверь открывается на другое имя.',
       'Не носите две справки рядом. Они начинают сверять вас между собой.',
     ],
   },
@@ -86,6 +87,7 @@ const NPC_DEFS: Record<string, PlotNpcDef> = {
     talkLines: [
       'Я тележки считаю по колесам. Сегодня одно колесо вернулось без тележки.',
       'В грязной камере человек попросил свою бирку слишком вежливо.',
+      'Бирку лучше не класть в карман с пропуском. Потом оба спорят, кто из вас живой.',
       'Не подходите близко к тому, кто сам знает номер ящика.',
     ],
     talkLinesPost: [
@@ -109,6 +111,7 @@ const NPC_DEFS: Record<string, PlotNpcDef> = {
       'Мне не нужны лекарства. Мне нужна фамилия, которую не вычеркнули.',
       'Если найдете личное дело, я узнаю, кого мне оплакивать в очереди.',
       'Пустая бирка хуже пустого ящика. Ящик хотя бы честно молчит.',
+      'Корешок без дела не возвращает человека. Но без корешка его даже искать не будут.',
     ],
     talkLinesPost: [
       'Имя вернулось. Этого мало, но теперь хотя бы есть кому молчать.',
@@ -132,6 +135,7 @@ const NPC_DEFS: Record<string, PlotNpcDef> = {
       'Медицинский шкаф открывается справкой, ключом или преступлением.',
       'Мне нужна чистая карантинная бумага. Тогда выдача станет законной.',
       'Если полезете в шкаф сами, журнал назовет это кражей. Я назову громче.',
+      'Справка без адресата заражает очередь быстрее кашля.',
     ],
     talkLinesPost: [
       'Справка чистая. Лекарства теперь грязнятся только руками.',
@@ -145,7 +149,7 @@ registerSideQuest('morgue_registrar_faina', NPC_DEFS.morgue_registrar_faina, [
     id: 'morgue_find_tag',
     giverNpcId: 'morgue_registrar_faina',
     type: QuestType.FETCH,
-    desc: 'Фаина Реестровая: «Верните бирку из холодной камеры. Без нее живого человека можно закрыть бумагой.»',
+    desc: 'Фаина Реестровая: «Верните бирку из холодной камеры. Без нее живого человека можно закрыть бумагой, а потом искать уже по форме.»',
     targetItem: 'container_key_label', targetCount: 1,
     rewardItem: 'official_quarantine_clearance', rewardCount: 1,
     extraRewards: [{ defId: 'clean_health_cert', count: 1 }],
@@ -155,7 +159,7 @@ registerSideQuest('morgue_registrar_faina', NPC_DEFS.morgue_registrar_faina, [
     id: 'morgue_swap_certificate',
     giverNpcId: 'morgue_registrar_faina',
     type: QuestType.FETCH,
-    desc: 'Фаина Реестровая: «Принесите акт о пропавшей записи. Я оформлю смерть так, что Райсовет выдаст допуск живому.»',
+    desc: 'Фаина Реестровая: «Принесите акт о пропавшей записи. Я оформлю смерть так, что Райсовет выдаст допуск человеку у окна. Пустую строку не трогайте.»',
     targetItem: 'record_exposure_notice', targetCount: 1,
     rewardItem: 'archive_access_permit', rewardCount: 1,
     extraRewards: [{ defId: 'passport_stub', count: 1 }],
@@ -182,7 +186,7 @@ registerSideQuest('morgue_relative_ira', NPC_DEFS.morgue_relative_ira, [
     id: 'morgue_name_return',
     giverNpcId: 'morgue_relative_ira',
     type: QuestType.FETCH,
-    desc: 'Ира Заименованная: «Найдите пропавшее личное дело. Мне нужен не ящик, а имя.»',
+    desc: 'Ира Заименованная: «Найдите пропавшее личное дело. Мне нужен не ящик, а имя, пока графа не стала чужой.»',
     targetItem: 'missing_record_file', targetCount: 1,
     rewardItem: 'sealed_complaint', rewardCount: 1,
     extraRewards: [{ defId: 'tea', count: 1 }],
@@ -818,7 +822,7 @@ function seedRegistryMorgueReadables(world: World, entities: Entity[], nextId: N
     rooms.reception.y + rooms.reception.h - 2,
     'note',
     1,
-    'Прием ведется по двум спискам: кто умер и кто может это доказать.',
+    'Прием ведется по двум спискам: кто умер и кто может это доказать. Несовпадение списков считать очередью.',
   );
   addDrop(
     entities,
@@ -827,7 +831,7 @@ function seedRegistryMorgueReadables(world: World, entities: Entity[], nextId: N
     rooms.tagRoom.y + 3,
     'note',
     1,
-    'Бирка N-16 совпала с живой очередью Райсовета. До выяснения считать фамилию холодной.',
+    'Бирка N-16 совпала с живой очередью Райсовета. До выяснения считать фамилию холодной и не выдавать ей воду.',
   );
   addDrop(
     entities,
@@ -844,7 +848,7 @@ function seedRegistryMorgueReadables(world: World, entities: Entity[], nextId: N
     rooms.ledger.y + rooms.ledger.h - 2,
     'note',
     1,
-    'Свидетельство о смерти открывает архив быстрее пропуска, если подпись поставлена до вопроса.',
+    'Свидетельство о смерти открывает архив быстрее пропуска, если подпись поставлена до вопроса. После вопроса проверяющий смотрит на того, кто принес бумагу.',
   );
   addDrop(
     entities,
@@ -853,7 +857,7 @@ function seedRegistryMorgueReadables(world: World, entities: Entity[], nextId: N
     rooms.contaminated.y + 3,
     'note',
     1,
-    'Если человек сам просит свою бирку, проверьте дистанцию. Нелюдь любит чужой порядок.',
+    'Если человек сам просит свою бирку, проверьте дистанцию. Нелюдь любит чужой порядок и ближний разговор.',
   );
 
   world.stamp(rooms.ledger.x + 5, rooms.ledger.y + 5, 0.5, 0.5, 2, 0.18, 7161, 35, 35, 42, false);

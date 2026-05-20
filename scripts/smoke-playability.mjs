@@ -25,6 +25,8 @@ const runExpedition = envFlag('SMOKE_EXPEDITION')
   || envFlag('SMOKE_LONG')
   || smokeScenario === 'expedition'
   || smokeScenario === 'long';
+const runStress = smokeScenario === 'stress' || envFlag('SMOKE_STRESS');
+const stressEntities = Math.max(0, Math.min(12000, Number.parseInt(process.env.SMOKE_STRESS_ENTITIES ?? '10000', 10) || 0));
 
 const KEY = {
   enter: ['Enter', 'Enter', 13],
@@ -233,6 +235,10 @@ async function collectFrameTelemetry(client, frames) {
 
 async function readGameDebug(client) {
   return evaluate(client, `window.__gigahrushSmokeState?.() ?? null`);
+}
+
+async function spawnStressPopulation(client, count) {
+  return evaluate(client, `window.__gigahrushStressSpawn?.(${JSON.stringify(count)}) ?? null`);
 }
 
 async function waitForGameDebug(client, label, predicate, timeoutMs = 2000) {
@@ -1026,6 +1032,26 @@ async function main() {
       });
     }
 
+    if (runStress) {
+      await runStep(`stress target ${stressEntities} AI actors`, async () => {
+        const before = await readGameDebug(client);
+        const beforeAi = before?.liveAiCount ?? 0;
+        const spawnCount = Math.max(0, stressEntities - beforeAi);
+        const after = await spawnStressPopulation(client, spawnCount);
+        if (!after) throw new Error('stress hook is not installed');
+        if (after.liveAiCount < stressEntities) {
+          failures.push(`stress liveAiCount ${after.liveAiCount} < target ${stressEntities}`);
+        }
+        if (before && spawnCount > 0 && after.liveAiCount - before.liveAiCount < Math.floor(spawnCount * 0.95)) {
+          failures.push(`stress spawned too few AI actors: before=${before.liveAiCount}, after=${after.liveAiCount}, requestedSpawn=${spawnCount}, target=${stressEntities}`);
+        }
+        await waitPage(client, 1400);
+        running = await sampleRunning(client);
+        requireRunningTelemetry(running, `after stress target ${stressEntities}`, failures);
+        return running;
+      });
+    }
+
     if (failures.length > 0) {
       const diagnostics = await readSmokeDiagnostics(client).catch(err => ({ error: err?.message ?? String(err) }));
       const screenshot = await maybeCaptureFailureScreenshot(client).catch(err => `capture failed: ${err?.message ?? err}`);
@@ -1034,12 +1060,23 @@ async function main() {
     }
 
     const perf = await collectFrameTelemetry(client, perfFrameCount);
+    if (runStress && perf) {
+      const liveAi = running?.liveAiCount ?? stressEntities;
+      const p95Limit = liveAi >= 10000 ? 50 : 33;
+      if (perf.p95Ms > p95Limit) {
+        throw new Error(`Stress perf failed: p95FrameMs=${perf.p95Ms.toFixed(2)} > ${p95Limit} for ${liveAi} live AI actors`);
+      }
+      if (perf.maxMs > 200) {
+        throw new Error(`Stress perf failed: maxFrameMs=${perf.maxMs.toFixed(2)} > 200 for ${stressEntities} AI actors`);
+      }
+    }
     const perfText = perf
       ? `; frames=${perf.frames}, avgFrameMs=${perf.avgMs.toFixed(2)}, p95FrameMs=${perf.p95Ms.toFixed(2)}, maxFrameMs=${perf.maxMs.toFixed(2)}`
       : '';
     const scenarioText = runExpedition ? '; expedition=on' : '; expedition=off';
     const thirdWaveText = runThirdWave ? '; thirdWave=on' : '; thirdWave=off';
-    console.log(`Smoke playability passed at ${gameUrl}${scenarioText}${thirdWaveText}; hudLit=${running.hudLit}, hudCenterLit=${running.hudCenterLit}, sceneLit=${running.sceneLit}${perfText}`);
+    const stressText = runStress ? `; stress=${stressEntities}` : '; stress=off';
+    console.log(`Smoke playability passed at ${gameUrl}${scenarioText}${thirdWaveText}${stressText}; hudLit=${running.hudLit}, hudCenterLit=${running.hudCenterLit}, sceneLit=${running.sceneLit}${perfText}`);
   } finally {
     client?.close();
     await stopProcess(chrome);

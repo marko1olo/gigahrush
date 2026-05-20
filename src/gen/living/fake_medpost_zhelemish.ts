@@ -97,7 +97,7 @@ const NPC_DEFS: Record<string, PlotNpcDef> = {
       'Если понесете жалобу наверх, не отдавайте её первому окну без имени.',
     ],
     talkLinesPost: [
-      'Она услышала вас. Иногда чужой голос честнее родного.',
+      'Она вас услышала. От меня Даша ждала паники, от вас получила состав мази.',
       'Жалоба подана или нет, но Даша больше не мажет эту серую дрянь.',
     ],
   },
@@ -131,7 +131,7 @@ registerSideQuest(DOCTOR_ID, NPC_DEFS[DOCTOR_ID], [
     id: QUEST_BUY_TREATMENT,
     giverNpcId: DOCTOR_ID,
     type: QuestType.FETCH,
-    desc: 'Левин Мазник: «Тридцать пять рублей за курс желемышной мази. Не чудо, но очередь до утра вы не выдержите.»',
+    desc: 'Левин Мазник: «Тридцать пять рублей за курс желемышной мази. Не лечение, но очередь до утра вы не выдержите.»',
     targetItem: 'money', targetCount: 35,
     rewardItem: 'antifungal_ointment', rewardCount: 1,
     extraRewards: [{ defId: 'forged_quarantine_clearance', count: 1 }],

@@ -1,6 +1,6 @@
-/* ── Herald (Вестник) — Hell siren watcher ───────────────────── */
+/* ── Herald (Вестник) — threshold siren watcher ───────────────── */
 /*   Tall listening mast with voice horns, dangling eyes and      */
-/*   a meat-root base. It reads as a watcher, not a tree.         */
+/*   a meat-root base. It reads as a guard, not a boss.           */
 
 import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
@@ -18,8 +18,8 @@ export const DEF: MonsterDef = {
   projSpeed: 7,
   projSprite: 0,
   floors: [FloorLevel.HELL],
-  counterplay: 'Стреляйте из-за угла или колонны и не задерживайтесь в прямой линии/голосе: Вестник карает открытый коридор.',
-  lootHint: 'осколок сирены, запечатанный голос',
+  counterplay: 'Держите дверь, угол или колонну между залпами: Вестник сторожит открытую линию, а не охотится за героем.',
+  lootHint: 'осколок сирены, бирка порога, запечатанный голос',
 };
 
 export function generateSprite(): Uint32Array {

@@ -809,7 +809,7 @@ export function execDebugCommand(
     case 34: { // Grant Maronary shaving
       const ok = addItem(player, 'maronary_shaving', 1);
       if (ok) publishMaronaryShavingAcquired(player, state, 'debug_grant');
-      state.msgs.push(msg(ok ? '[MAR] золотая стружка выдана' : '[MAR] нет места для стружки', state.time, ok ? '#fc4' : '#f84'));
+      state.msgs.push(msg(ok ? '[MAR] зелёная стружка выдана' : '[MAR] нет места для стружки', state.time, ok ? '#fc4' : '#f84'));
       break;
     }
     case 35: { // Force Istotit variant + start
@@ -978,7 +978,7 @@ const BASE_CMD_LABELS = [
   'ТП: Квартиры',
   'ТП: Жилая зона',
   'ТП: Коллекторы',
-  'ТП: Преисподняя',
+  'ТП: Мясной низ',
   'ТП: Пустота',
   'ТП: случайный процедурный',
   'Smoke: expedition setup',

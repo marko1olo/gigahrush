@@ -11,7 +11,7 @@ import { ITEMS } from './items';
 export const NET_TERMINAL_GEN_STATE_KEY = 'netTerminalGen';
 export const NET_TERMINAL_GEN_ITEM_ID = 'net_terminal_gen_flesh';
 export const NET_TERMINAL_GEN_ITEM_NAME = 'Странный кусок плоти';
-export const NET_TERMINAL_GEN_PICKUP_MESSAGE = 'Кажется, это что-то очень важное.';
+export const NET_TERMINAL_GEN_PICKUP_MESSAGE = 'НЕТ-ГЕН найден. Терминалы откроют карту.';
 export const NET_TERMINAL_GEN_DENIED_TEXT = 'НЕТ-ТЕРМИНАЛ ГЕН НЕ ОБНАРУЖЕН';
 export const NET_TERMINAL_GEN_OPEN_TEXT = 'НЕТ-ТЕРМИНАЛ ГЕН';
 
@@ -23,7 +23,7 @@ export const NET_TERMINAL_GEN_FLESH_ITEM: ItemDef = {
   id: NET_TERMINAL_GEN_ITEM_ID,
   name: NET_TERMINAL_GEN_ITEM_NAME,
   type: ItemType.MISC,
-  desc: 'Тёплый кусок без организма. Внутри него щёлкает право открыть чужую карту.',
+  desc: 'Ключ НЕТ-ТЕРМИНАЛА ГЕН. Тёплый кусок, терминалы признают его как допуск.',
   spawnRooms: [],
   spawnW: 0,
   value: 0,

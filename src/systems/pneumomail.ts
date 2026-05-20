@@ -323,7 +323,7 @@ function interceptMail(world: World, player: Entity, state: GameState, target: P
 function jamTube(world: World, player: Entity, state: GameState, target: PneumomailTarget): boolean {
   const runtime = runtimeFor(state);
   if (state.time < runtime.jammedUntil) {
-    state.msgs.push(msg('Труба уже забита. Старый дом слушает тишину.', state.time, '#888'));
+    state.msgs.push(msg('Труба уже забита. Новая капсула сейчас только застрянет рядом с клином.', state.time, '#888'));
     return true;
   }
   const jamItem = hasItem(player, 'wire_coil') ? 'wire_coil' : hasItem(player, 'duct_tape') ? 'duct_tape' : '';

@@ -45,15 +45,42 @@ const NPC_DEFS: Record<string, PlotNpcDef> = {
       { defId: 'iodine', count: 1 },
     ],
     talkLines: [
-      'Медпост аварийный, не больница. Лечим тем, что еще не украли.',
+      'Медпост аварийный, не больница. Лечим тем, что ещё не украли.',
       'Бинты идут на кровь, антибиотик - по списку, таблетки - за деньги или услугу.',
       'Пополните ящик бинтами, и я отпущу часть запаса без скандала.',
       'Чужой шкаф открывается легко. Потом открывается журнал.',
+      'Температуру назовите числом. Слово страшно в карту не помещается.',
+      'Морфин выдаю только под подпись. Боль громкая, но журнал громче.',
     ],
     talkLinesPost: [
       'Спасибо за бинты. Теперь хотя бы один человек доживет до очереди.',
       'Если нужна медицина, покупайте сейчас. После сирены цена снова поползет.',
       'Санитар считает ампулы громче, чем шаги в коридоре.',
+      'После фиолетового тумана спрашиваю не храбрость, а сон и фильтр.',
+    ],
+  },
+
+  ag44_feldsher_lagunova: {
+    name: 'Фельдшер Лагунова',
+    isFemale: true,
+    faction: Faction.CITIZEN,
+    occupation: Occupation.DOCTOR,
+    sprite: Occupation.DOCTOR,
+    hp: 105, maxHp: 105, money: 42, speed: 0.8,
+    inventory: [
+      { defId: 'tourniquet', count: 1 },
+      { defId: 'filter_layer', count: 1 },
+    ],
+    talkLines: [
+      'Сначала давление, потом разговор. Если стоите - уже хорошо.',
+      'Фильтр мокрый? Снимайте медленно. Лицо руками не трогать.',
+      'Бинт тёплый через час - к столу. Холодный и мокрый - в отдельный пакет, к двери не подходить.',
+      'Йод закончится раньше смены. Поэтому льём точно, не красиво.',
+      'Антидепрессант не для смелости. Он для сна, когда после тумана не закрываются глаза.',
+    ],
+    talkLinesPost: [
+      'Повязку проверяйте на повороте, не в середине коридора.',
+      'Если фиолетовый туман вернётся, сразу к герме. Спорить будете после фильтра.',
     ],
   },
 
@@ -72,10 +99,33 @@ const NPC_DEFS: Record<string, PlotNpcDef> = {
       'Я не врач. Я слежу, чтобы шкафы не уходили раньше раненых.',
       'Круглов торгует честно, пока очередь не давит дверь.',
       'Украдете из сумки - не спорьте с событием. Оно уже случилось.',
+      'Не стойте у прохода. У меня носилки ходят быстрее ваших мыслей.',
+      'Санитар злой не потому, что злой. Потому что третью смену считает живых.',
     ],
     talkLinesPost: [
       'Медпост жив, пока запас не стал слухом.',
-      'Дверь закрывайте. Туман любит запах йода.',
+      'Дверь закрывайте. Йодом тянет в коридор, и очередь сразу лезет внутрь.',
+      'Кто трогает лицо после фильтра, тот потом спорит уже с Кругловым.',
+    ],
+  },
+
+  ag44_queue_patient: {
+    name: 'Игорь Очередной',
+    isFemale: false,
+    faction: Faction.CITIZEN,
+    occupation: Occupation.TRAVELER,
+    sprite: Occupation.TRAVELER,
+    hp: 70, maxHp: 95, money: 6, speed: 0.55,
+    inventory: [{ defId: 'clean_health_cert', count: 1 }],
+    talkLines: [
+      'Я в очереди после крови и перед температурой. Хорошее место, если не падать.',
+      'Фельдшер сказала не спать после ОВС. Я бы рад, только сон сам ушёл.',
+      'У меня справка чистая, пока я не кашлянул на печать.',
+      'Если бинт дадут один, я возьму половину. Вторую оставьте тому, кто идёт к герме.',
+    ],
+    talkLinesPost: [
+      'Очередь сдвинулась на один вдох. В медпосте это почти праздник.',
+      'Если меня спросят, вы стояли тут давно и лицо не трогали.',
     ],
   },
 };
@@ -99,7 +149,9 @@ registerSideQuest('ag44_dr_kruglov', NPC_DEFS.ag44_dr_kruglov, [
     eventData: { outcome: 'medpost_restocked', supplyItem: 'bandage', rumorIds: ['room_emergency_medpost'] },
   },
 ]);
+registerSideQuest('ag44_feldsher_lagunova', NPC_DEFS.ag44_feldsher_lagunova, []);
 registerSideQuest('ag44_sanitar_bort', NPC_DEFS.ag44_sanitar_bort, []);
+registerSideQuest('ag44_queue_patient', NPC_DEFS.ag44_queue_patient, []);
 
 function isMedpostMedicine(itemId: string | undefined): boolean {
   return itemId !== undefined && MEDPOST_MEDICINE.has(itemId);
@@ -398,7 +450,9 @@ function generateEmergencyMedpost(
   connectSouth(world, room);
   decorateRoom(world, room);
   const doctor = spawnNpc(world, entities, nextId, room, 'ag44_dr_kruglov', 3, 4, Math.PI / 2, true);
+  spawnNpc(world, entities, nextId, room, 'ag44_feldsher_lagunova', 9, 4, Math.PI, false);
   spawnNpc(world, entities, nextId, room, 'ag44_sanitar_bort', ROOM_W - 4, ROOM_H - 3, Math.PI, false, 'pipe');
+  spawnNpc(world, entities, nextId, room, 'ag44_queue_patient', 6, ROOM_H - 3, 0, false);
   seedContainers(world, room, doctor);
   genLog(`[AG44] Аварийный медпост at (${pos.x}, ${pos.y}) room #${room.id}`);
   return { nextRoomId };

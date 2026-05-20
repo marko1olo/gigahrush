@@ -25,9 +25,8 @@ import {
   type ProceduralAnomalyGenContext,
 } from './common';
 
-const MIN_CROWD = 1040;
-const CROWD_PER_DANGER = 90;
-const ACTIVE_CROWD_CAP = 220;
+const MIN_CROWD = 9000;
+const CROWD_PER_DANGER = 120;
 const CROWD_OCCUPATIONS = [
   Occupation.HOUSEWIFE,
   Occupation.LOCKSMITH,
@@ -41,7 +40,7 @@ const CROWD_OCCUPATIONS = [
 ] as const;
 
 function crowdCount(ctx: ProceduralAnomalyGenContext): number {
-  return Math.min(1450, MIN_CROWD + ctx.spec.danger * CROWD_PER_DANGER + Math.floor(ctx.rooms.length * 0.7));
+  return Math.min(9800, MIN_CROWD + ctx.spec.danger * CROWD_PER_DANGER + Math.floor(ctx.rooms.length * 0.7));
 }
 
 function crowdRooms(rooms: readonly Room[]): Room[] {
@@ -214,12 +213,11 @@ export function applyZombieApocalypse(ctx: ProceduralAnomalyGenContext): void {
   if (outbreak) markOutbreakRoom(ctx, outbreak);
 
   const target = crowdCount(ctx);
-  const activeTarget = Math.min(ACTIVE_CROWD_CAP, Math.floor(target * 0.16));
   const occupied = new Set<number>();
   let spawned = 0;
   for (let i = 0; i < target * 4 && spawned < target; i++) {
     const room = Math.random() < 0.22 && outbreak ? outbreak : pick(rooms);
-    if (spawnCrowdNpc(ctx, room, occupied, spawned, spawned < activeTarget)) spawned++;
+    if (spawnCrowdNpc(ctx, room, occupied, spawned, true)) spawned++;
   }
 
   convertShadowSpawnsToZombies(ctx);

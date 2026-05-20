@@ -41,6 +41,8 @@ const NPC_IDS = {
   viktor: 'communal_shower_viktor',
   tamara: 'communal_notice_tamara',
   sasha: 'communal_panhandler_sasha',
+  nina: 'communal_through_nina',
+  yegor: 'communal_primus_yegor',
 } as const;
 
 const NPC_DEFS: Record<(typeof NPC_IDS)[keyof typeof NPC_IDS], PlotNpcDef> = {
@@ -54,7 +56,7 @@ const NPC_DEFS: Record<(typeof NPC_IDS)[keyof typeof NPC_IDS], PlotNpcDef> = {
     inventory: [{ defId: 'cloth_roll', count: 2 }, { defId: 'bandage', count: 2 }, { defId: 'cleaning_kit', count: 1 }],
     talkLines: [
       'Кольцо держится на чистой ткани. Грязная ткань держит только слухи.',
-      'Принесёшь рулоны - отдам бинты. Не святые, но сухие.',
+      'Принесёшь рулоны - отдам бинты. Не стерильные, но сухие.',
       'После самосбора машинка сама открылась. Внутри был список, а не бельё.',
       'У прачечной общий вход, но у шкафчика есть глаза. Очередь видит даже через мокрую дверь.',
     ],
@@ -75,7 +77,7 @@ const NPC_DEFS: Record<(typeof NPC_IDS)[keyof typeof NPC_IDS], PlotNpcDef> = {
       'Душ не моет. Душ голосует давлением.',
       'Две бирки вентиля - и я решу, кому сегодня достанется вода.',
       'Можно пустить напор вниз, в коллекторы. Тогда здесь сухо, зато снизу злые.',
-      'Не стой босиком у третьей кабинки. Там вода помнит сирену.',
+      'Не стой босиком у третьей кабинки. После сирены там бьет грязная вода.',
     ],
     talkLinesPost: [
       'Напор ровный. Слишком ровный, если слушать трубу.',
@@ -120,13 +122,51 @@ const NPC_DEFS: Record<(typeof NPC_IDS)[keyof typeof NPC_IDS], PlotNpcDef> = {
       'Я видел меньше, чем мог. Это тоже услуга.',
     ],
   },
+  communal_through_nina: {
+    name: 'Нина Сквозная',
+    isFemale: true,
+    faction: Faction.CITIZEN,
+    occupation: Occupation.HOUSEWIFE,
+    sprite: Occupation.HOUSEWIFE,
+    hp: 95, maxHp: 95, money: 18, speed: 0.82,
+    inventory: [{ defId: 'bread', count: 1 }, { defId: 'neighbor_complaint', count: 1 }, { defId: 'water_coupon', count: 1 }],
+    talkLines: [
+      'Коммуналка сквозная: вошёл за хлебом, вышел свидетелем.',
+      'У нас три двери и ни одной личной тишины. Зато сирену слышно раньше всех.',
+      'Две буханки в цепочку - и я скажу, какой шкаф открывается без крика.',
+      'Не стой в проходной комнате спиной к кухне. Там спор горячее плиты.',
+    ],
+    talkLinesPost: [
+      'Хлеб дошёл до конца цепочки. Сегодня двери хлопают тише.',
+      'Если кто спросит про ключевую бирку, ты её нашёл законно. Почти.',
+    ],
+  },
+  communal_primus_yegor: {
+    name: 'Егор Примус',
+    isFemale: false,
+    faction: Faction.CITIZEN,
+    occupation: Occupation.LOCKSMITH,
+    sprite: Occupation.LOCKSMITH,
+    hp: 105, maxHp: 105, money: 22, speed: 0.88,
+    inventory: [{ defId: 'boiler_water', count: 1 }, { defId: 'tea', count: 1 }, { defId: 'wrench', count: 1 }],
+    talkLines: [
+      'Примус не сломан. Он ждёт бирку, чтобы решить, кому кипяток.',
+      'Сквозная квартира удобная: дым уходит к соседям, жалоба возвращается к тебе.',
+      'Бирку вентиля принеси - запущу чайник и не спрошу, откуда пар.',
+      'Кухня на проходе честнее комнаты: там видно, кто украл и кто сделал вид.',
+    ],
+    talkLinesPost: [
+      'Кипяток пошёл. Теперь осталось пережить благодарность.',
+      'Двери держатся, пока чайник шумит громче очереди.',
+    ],
+  },
 };
 
 registerSideQuest(NPC_IDS.luba, NPC_DEFS.communal_laundry_luba, [{
   id: 'communal_clean_bandages',
   giverNpcId: NPC_IDS.luba,
   type: QuestType.FETCH,
-  desc: 'Люба Прачечная: «Два рулона ткани - и я отстираю из них бинты, пока машинка не вспомнила самосбор.»',
+  desc: 'Люба Прачечная: «Два рулона ткани - и я отстираю из них бинты до вечерней очереди. Потом машинку опять займут простыни с поста.»',
   targetItem: 'cloth_roll',
   targetCount: 2,
   rewardItem: 'bandage',
@@ -141,7 +181,7 @@ registerSideQuest(NPC_IDS.viktor, NPC_DEFS.communal_shower_viktor, [{
   id: 'communal_shower_pressure',
   giverNpcId: NPC_IDS.viktor,
   type: QuestType.FETCH,
-  desc: 'Виктор Напорный: «Две бирки вентиля. Починим душ или спустим воду коллекторам - но решение будет твоё.»',
+  desc: 'Виктор Напорный: «Две бирки вентиля. Починим душ или спустим воду коллекторам. Выбирай, кто сегодня останется сухим.»',
   targetItem: 'valve_tag',
   targetCount: 2,
   rewardItem: 'filtered_water',
@@ -182,6 +222,40 @@ registerSideQuest(NPC_IDS.sasha, NPC_DEFS.communal_panhandler_sasha, [{
   moneyReward: 12,
 }]);
 
+registerSideQuest(NPC_IDS.nina, NPC_DEFS.communal_through_nina, [{
+  id: 'communal_through_chain_bread',
+  giverNpcId: NPC_IDS.nina,
+  type: QuestType.FETCH,
+  desc: 'Нина Сквозная: «Две буханки пустим через проходные комнаты. Накормленные соседи чаще держат дверь открытой и реже зовут домкома.»',
+  targetItem: 'bread',
+  targetCount: 2,
+  rewardItem: 'container_key_label',
+  rewardCount: 1,
+  extraRewards: [{ defId: 'water_coupon', count: 1 }],
+  relationDelta: 10,
+  xpReward: 35,
+  moneyReward: 16,
+  eventTags: ['communal_ring', 'through_flat', 'food', 'resident_relief'],
+  eventData: { routeChoice: 'feed_through_flat', rumorIds: ['economy_kitchen_stock'] },
+}]);
+
+registerSideQuest(NPC_IDS.yegor, NPC_DEFS.communal_primus_yegor, [{
+  id: 'communal_primus_valve',
+  giverNpcId: NPC_IDS.yegor,
+  type: QuestType.FETCH,
+  desc: 'Егор Примус: «Бирку вентиля дай. Починим кипяток в сквозной коммуналке или хотя бы сделаем вид, что очередь управляема.»',
+  targetItem: 'valve_tag',
+  targetCount: 1,
+  rewardItem: 'boiler_water',
+  rewardCount: 2,
+  extraRewards: [{ defId: 'tea', count: 2 }],
+  relationDelta: 9,
+  xpReward: 35,
+  moneyReward: 18,
+  eventTags: ['communal_ring', 'through_flat', 'repair', 'water'],
+  eventData: { routeChoice: 'repair_primus', rumorIds: ['maint_steam_valves'] },
+}]);
+
 interface RingLayout {
   left: number;
   right: number;
@@ -196,13 +270,22 @@ interface RingLayout {
   spawnY: number;
 }
 
-interface CommunalRooms {
+interface ThroughFlat {
+  name: string;
+  rooms: Room[];
+}
+
+interface CommunalServiceRooms {
   laundry: Room;
   kitchen: Room;
   shower: Room;
   pantry: Room;
   notice: Room;
   core: Room;
+}
+
+interface CommunalRooms extends CommunalServiceRooms {
+  flats: ThroughFlat[];
 }
 
 type OwnerKey = keyof typeof NPC_IDS;
@@ -215,15 +298,21 @@ export function generateCommunalRingDesignFloor(seed = RING_SEED): FloorGenerati
     const containerId = { v: 1 };
 
     const ring = carveRing(world);
-    const rooms = buildServiceRooms(world, ring);
+    const serviceRooms = buildServiceRooms(world, ring);
+    const rooms: CommunalRooms = {
+      ...serviceRooms,
+      flats: buildThroughCommunalFlats(world, ring),
+    };
     generateZones(world);
     applyCommunalZones(world);
     placeRingLifts(world, ring);
     decorateRing(world, ring, rooms);
     const owners = spawnCommunalNpcSet(entities, nextId, rooms);
     spawnWitnesses(entities, nextId, rooms);
+    spawnThroughFlatResidents(entities, nextId, rooms.flats);
     spawnCommunalQueueCrowd(entities, nextId, rooms);
     placeServiceContainers(world, containerId, rooms, owners);
+    placeThroughFlatContainers(world, containerId, rooms.flats, owners);
     placeLooseSupplies(world, entities, nextId, rooms);
     applySamosborAftermath(world, entities, nextId, rooms);
 
@@ -345,7 +434,7 @@ function placeCorridorPinch(world: World, x: number, y: number, width: number, g
   }
 }
 
-function buildServiceRooms(world: World, ring: RingLayout): CommunalRooms {
+function buildServiceRooms(world: World, ring: RingLayout): CommunalServiceRooms {
   let id = 0;
   const kitchen = createRoom(world, id++, RoomType.KITCHEN, W / 2 - 31, ring.top - 11, 21, 10, 'Общая кухня с двумя плитами', Tex.TILE_W, Tex.F_TILE);
   connectRoomToCorridor(world, kitchen, kitchen.x + 10, kitchen.y + kitchen.h, DoorState.CLOSED);
@@ -368,6 +457,167 @@ function buildServiceRooms(world: World, ring: RingLayout): CommunalRooms {
   connectRoomToCorridor(world, core, core.x + 10, core.y - 1, DoorState.CLOSED);
 
   return { laundry, kitchen, shower, pantry, notice, core };
+}
+
+interface ThroughFlatSpec {
+  name: string;
+  x: number;
+  y: number;
+  horizontal: boolean;
+  entryX: number;
+  entryY: number;
+  exitX: number;
+  exitY: number;
+}
+
+const THROUGH_FLAT_TYPES: readonly RoomType[] = [
+  RoomType.LIVING,
+  RoomType.KITCHEN,
+  RoomType.LIVING,
+  RoomType.BATHROOM,
+  RoomType.LIVING,
+];
+
+function buildThroughCommunalFlats(world: World, ring: RingLayout): ThroughFlat[] {
+  const specs: readonly ThroughFlatSpec[] = [
+    {
+      name: 'Северная сквозная коммуналка',
+      x: ring.left + 22,
+      y: ring.top - 35,
+      horizontal: true,
+      entryX: ring.left + 12,
+      entryY: ring.top + 1,
+      exitX: ring.right - 10,
+      exitY: ring.top + 1,
+    },
+    {
+      name: 'Южная сквозная коммуналка',
+      x: ring.left + 36,
+      y: ring.bottom + 22,
+      horizontal: true,
+      entryX: ring.left + 18,
+      entryY: ring.bottom + 2,
+      exitX: ring.right - 25,
+      exitY: ring.bottom + 2,
+    },
+    {
+      name: 'Западная сквозная коммуналка',
+      x: ring.left - 37,
+      y: ring.top + 10,
+      horizontal: false,
+      entryX: ring.left + 1,
+      entryY: ring.top + 16,
+      exitX: ring.left + 1,
+      exitY: ring.bottom - 18,
+    },
+    {
+      name: 'Восточная сквозная коммуналка',
+      x: ring.right + ring.width + 28,
+      y: ring.top + 18,
+      horizontal: false,
+      entryX: ring.right + 2,
+      entryY: ring.top + 28,
+      exitX: ring.right + 2,
+      exitY: ring.bottom - 12,
+    },
+  ];
+  const flats: ThroughFlat[] = [];
+  for (const spec of specs) flats.push(addThroughCommunalFlat(world, spec));
+  return flats;
+}
+
+function addThroughCommunalFlat(world: World, spec: ThroughFlatSpec): ThroughFlat {
+  const roomW = 8;
+  const roomH = 7;
+  const rooms: Room[] = [];
+  for (let i = 0; i < THROUGH_FLAT_TYPES.length; i++) {
+    const type = THROUGH_FLAT_TYPES[i];
+    const x = spec.horizontal ? spec.x + i * (roomW + 1) : spec.x;
+    const y = spec.horizontal ? spec.y : spec.y + i * (roomH + 1);
+    const tile = type === RoomType.KITCHEN || type === RoomType.BATHROOM;
+    const floorTex = type === RoomType.BATHROOM ? Tex.F_TILE : type === RoomType.KITCHEN ? Tex.F_LINO : Tex.F_WOOD;
+    const wallTex = tile ? Tex.TILE_W : Tex.PANEL;
+    const room = createRoom(world, world.rooms.length, type, x, y, roomW, roomH, `${spec.name}: ${throughFlatRoomName(type, i)}`, wallTex, floorTex);
+    decorateThroughFlatRoom(world, room, i);
+    if (rooms.length > 0) connectAdjacentFlatRooms(world, rooms[rooms.length - 1], room, spec.horizontal);
+    rooms.push(room);
+  }
+
+  const first = rooms[0];
+  const last = rooms[rooms.length - 1];
+  connectThroughFlatEnd(world, first, spec.horizontal ? 'west' : 'north', spec.entryX, spec.entryY);
+  connectThroughFlatEnd(world, last, spec.horizontal ? 'east' : 'south', spec.exitX, spec.exitY);
+  return { name: spec.name, rooms };
+}
+
+function throughFlatRoomName(type: RoomType, index: number): string {
+  if (type === RoomType.KITCHEN) return 'кухня на проходе';
+  if (type === RoomType.BATHROOM) return 'санузел у второй двери';
+  return index === 0 ? 'первая жилая' : index === THROUGH_FLAT_TYPES.length - 1 ? 'выходная жилая' : 'средняя жилая';
+}
+
+function decorateThroughFlatRoom(world: World, room: Room, index: number): void {
+  if (room.type === RoomType.KITCHEN) {
+    placeFeature(world, room.x + 2, room.y + 2, Feature.STOVE);
+    placeFeature(world, room.x + 5, room.y + 2, Feature.SINK);
+    placeFeature(world, room.x + 4, room.y + 5, Feature.TABLE);
+    return;
+  }
+  if (room.type === RoomType.BATHROOM) {
+    placeFeature(world, room.x + 2, room.y + 2, Feature.TOILET);
+    placeFeature(world, room.x + 5, room.y + 2, Feature.SINK);
+    return;
+  }
+  placeFeature(world, room.x + 2, room.y + 2, Feature.BED);
+  placeFeature(world, room.x + 5, room.y + 4, index % 2 === 0 ? Feature.TABLE : Feature.SHELF);
+  if (index === 0) placeFeature(world, room.x + 5, room.y + 2, Feature.LAMP);
+}
+
+function connectAdjacentFlatRooms(world: World, a: Room, b: Room, horizontal: boolean): void {
+  const x = horizontal ? a.x + a.w : a.x + (a.w >> 1);
+  const y = horizontal ? a.y + (a.h >> 1) : a.y + a.h;
+  const idx = world.idx(x, y);
+  world.cells[idx] = Cell.DOOR;
+  world.wallTex[idx] = Tex.DOOR_WOOD;
+  world.doors.set(idx, {
+    idx,
+    state: DoorState.CLOSED,
+    roomA: a.id,
+    roomB: b.id,
+    keyId: '',
+    timer: 0,
+  });
+  a.doors.push(idx);
+  b.doors.push(idx);
+}
+
+function connectThroughFlatEnd(world: World, room: Room, side: 'west' | 'east' | 'north' | 'south', targetX: number, targetY: number): void {
+  let doorX = room.x + (room.w >> 1);
+  let doorY = room.y + (room.h >> 1);
+  let outX = doorX;
+  let outY = doorY;
+  if (side === 'west') {
+    doorX = room.x - 1;
+    outX = doorX - 1;
+  } else if (side === 'east') {
+    doorX = room.x + room.w;
+    outX = doorX + 1;
+  } else if (side === 'north') {
+    doorY = room.y - 1;
+    outY = doorY - 1;
+  } else {
+    doorY = room.y + room.h;
+    outY = doorY + 1;
+  }
+  if (side === 'west' || side === 'east') {
+    doorY = room.y + (room.h >> 1);
+    outY = doorY;
+  } else {
+    doorX = room.x + (room.w >> 1);
+    outX = doorX;
+  }
+  connectRoomToCorridor(world, room, doorX, doorY, DoorState.CLOSED);
+  carveLineWidth(world, outX, outY, targetX, targetY, 1, Tex.F_LINO);
 }
 
 function createRoom(
@@ -403,6 +653,7 @@ function createRoom(
 function connectRoomToCorridor(world: World, room: Room, x: number, y: number, state: DoorState, keyId = ''): void {
   const idx = world.idx(x, y);
   world.cells[idx] = Cell.DOOR;
+  world.wallTex[idx] = Tex.DOOR_WOOD;
   world.doors.set(idx, {
     idx,
     state,
@@ -509,11 +760,15 @@ function markPosterWall(world: World, x: number, y: number, n: number): void {
 }
 
 function spawnCommunalNpcSet(entities: Entity[], nextId: { v: number }, rooms: CommunalRooms): Record<OwnerKey, number> {
+  const northFlat = rooms.flats[0]?.rooms[0] ?? rooms.kitchen;
+  const southFlat = rooms.flats[1]?.rooms[1] ?? rooms.core;
   const owners = {
     luba: spawnNpc(entities, nextId, NPC_DEFS.communal_laundry_luba, NPC_IDS.luba, rooms.laundry.x + 6, rooms.laundry.y + 5),
     viktor: spawnNpc(entities, nextId, NPC_DEFS.communal_shower_viktor, NPC_IDS.viktor, rooms.shower.x + 5, rooms.shower.y + 6, 'wrench'),
     tamara: spawnNpc(entities, nextId, NPC_DEFS.communal_notice_tamara, NPC_IDS.tamara, rooms.notice.x + 4, rooms.notice.y + 4),
     sasha: spawnNpc(entities, nextId, NPC_DEFS.communal_panhandler_sasha, NPC_IDS.sasha, rooms.pantry.x + 11, rooms.pantry.y - 3, 'knife'),
+    nina: spawnNpc(entities, nextId, NPC_DEFS.communal_through_nina, NPC_IDS.nina, northFlat.x + 3, northFlat.y + 3),
+    yegor: spawnNpc(entities, nextId, NPC_DEFS.communal_primus_yegor, NPC_IDS.yegor, southFlat.x + 4, southFlat.y + 3, 'wrench'),
   };
   return owners;
 }
@@ -561,6 +816,29 @@ function spawnWitnesses(entities: Entity[], nextId: { v: number }, rooms: Commun
   spawnAmbientNpc(entities, nextId, 'Очередник с тазом', Faction.CITIZEN, Occupation.TRAVELER, rooms.laundry.x + rooms.laundry.w + 3, rooms.laundry.y + 6, [{ defId: 'cloth_roll', count: 1 }]);
   spawnAmbientNpc(entities, nextId, 'Повар у второй плиты', Faction.CITIZEN, Occupation.COOK, rooms.kitchen.x + 15, rooms.kitchen.y + 5, [{ defId: 'kasha', count: 2 }], 'knife');
   spawnAmbientNpc(entities, nextId, 'Слесарь душевой очереди', Faction.LIQUIDATOR, Occupation.MECHANIC, rooms.shower.x - 3, rooms.shower.y + 7, [{ defId: 'valve_tag', count: 1 }], 'wrench');
+}
+
+function spawnThroughFlatResidents(entities: Entity[], nextId: { v: number }, flats: readonly ThroughFlat[]): void {
+  const names = [
+    'Жилец у первой двери',
+    'Соседка с кастрюлей',
+    'Свидетель у санузла',
+    'Старший по проходу',
+  ];
+  for (let i = 0; i < flats.length; i++) {
+    const flat = flats[i];
+    const room = flat.rooms[(i + 2) % flat.rooms.length];
+    spawnAmbientNpc(
+      entities,
+      nextId,
+      `${names[i % names.length]}: ${flat.name}`,
+      Faction.CITIZEN,
+      i % 2 === 0 ? Occupation.TRAVELER : Occupation.HOUSEWIFE,
+      room.x + 3,
+      room.y + 3,
+      [{ defId: i % 2 === 0 ? 'bread' : 'neighbor_complaint', count: 1 }],
+    );
+  }
 }
 
 function spawnCommunalQueueCrowd(entities: Entity[], nextId: { v: number }, rooms: CommunalRooms): void {
@@ -672,6 +950,29 @@ function placeServiceContainers(
   ], 'owner', owners.tamara, NPC_DEFS.communal_notice_tamara.name, ['notice', 'paper']);
 }
 
+function placeThroughFlatContainers(
+  world: World,
+  containerId: { v: number },
+  flats: readonly ThroughFlat[],
+  owners: Record<OwnerKey, number>,
+): void {
+  for (let i = 0; i < flats.length; i++) {
+    const flat = flats[i];
+    const room = flat.rooms[Math.min(2, flat.rooms.length - 1)];
+    const ownerId = i === 0 ? owners.nina : i === 1 ? owners.yegor : undefined;
+    const ownerName = i === 0
+      ? NPC_DEFS.communal_through_nina.name
+      : i === 1
+        ? NPC_DEFS.communal_primus_yegor.name
+        : undefined;
+    addContainer(world, containerId, room, 5, 5, i % 2 === 0 ? ContainerKind.WOODEN_CHEST : ContainerKind.METAL_CABINET, `${flat.name}: общий шкаф у прохода`, [
+      { defId: 'bread', count: 1 + (i % 2) },
+      { defId: 'tea', count: 1 },
+      { defId: i === 1 ? 'valve_tag' : 'neighbor_complaint', count: 1 },
+    ], ownerId === undefined ? 'room' : 'owner', ownerId, ownerName, ['communal_ring', 'through_flat', 'shared_home']);
+  }
+}
+
 function addContainer(
   world: World,
   containerId: { v: number },
@@ -715,6 +1016,10 @@ function placeLooseSupplies(world: World, entities: Entity[], nextId: { v: numbe
   placeDrop(world, entities, nextId, rooms.laundry, 5, 8, 'cloth_roll', 1);
   placeDrop(world, entities, nextId, rooms.shower, 3, 9, 'toiletpaper', 1);
   placeDrop(world, entities, nextId, rooms.notice, 7, 6, 'neighbor_complaint', 1);
+  for (const flat of rooms.flats) {
+    placeDrop(world, entities, nextId, flat.rooms[1], 3, 4, 'bread', 1);
+    placeDrop(world, entities, nextId, flat.rooms[3], 4, 3, 'toiletpaper', 1);
+  }
 }
 
 function placeDrop(

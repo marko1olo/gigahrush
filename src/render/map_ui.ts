@@ -22,7 +22,9 @@ import { getActiveCultProcessionSnapshots } from '../systems/faction_events';
 import { seroburmalineSourceCellState } from '../systems/seroburmaline';
 import { formatQuestMinutes, questRemainingMinutes } from '../systems/quest_deadlines';
 import { getRouteCueMapReveals, type RouteCueMapReveal } from '../systems/route_cues';
+import { ENTITY_MASK_VISIBLE, getEntityIndex } from '../systems/entity_index';
 import { getBlackHandMarkCells } from './marks';
+import { fitText as fitMapText } from './ui_text';
 
 const MAP_SIZE = 80;
 type QuestKind = 'plot' | 'side' | 'system';
@@ -36,6 +38,7 @@ const activeTargetRooms = new Map<number, QuestKind>();
 const activeFetchItems = new Map<string, QuestKind>();
 const drawnTargetRooms = new Set<number>();
 const MAX_CONCRETE_QUEST_ROOM_MARKERS = 8;
+const mapEntityQuery: Entity[] = [];
 
 const QUEST_KIND_PRIORITY: Record<QuestKind, number> = { plot: 3, side: 2, system: 1 };
 const QUEST_MARKERS: Record<QuestKind, { label: string; stroke: string; fill: string; text: string }> = {
@@ -210,13 +213,6 @@ function drawQuestDiamond(
 function drawQuestMarker(ctx: CanvasRenderingContext2D, x: number, y: number, sz: number, sw: number, kind: QuestKind): void {
   const marker = QUEST_MARKERS[kind];
   drawQuestDiamond(ctx, x, y, sz, sw, marker.stroke, marker.fill);
-}
-
-function fitMapText(ctx: CanvasRenderingContext2D, text: string, maxW: number): string {
-  if (ctx.measureText(text).width <= maxW) return text;
-  let end = text.length - 3;
-  while (end > 1 && ctx.measureText(text.slice(0, end) + '...').width > maxW) end--;
-  return text.slice(0, Math.max(1, end)) + '...';
 }
 
 function drawObjectiveStrip(
@@ -615,8 +611,8 @@ function drawFactionMapLegend(
     ctx.fillText(label, tx + 9, y);
     tx += tw + 5;
   }
-  const contested = snapshot.contestedZones > 0 ? `спорные ${snapshot.contestedZones}` : 'спорных нет';
-  const hint = fitMapText(ctx, `${contested}; подпись A/B = владелец/давление`, maxW - Math.max(0, tx - x));
+  const contested = snapshot.contestedZones > 0 ? `спор ${snapshot.contestedZones}` : 'спора нет';
+  const hint = fitMapText(ctx, `${contested}; A/B владелец/давление`, maxW - Math.max(0, tx - x));
   if (tx < x + maxW - 20) {
     ctx.fillStyle = snapshot.contestedZones > 0 ? '#ffd36a' : '#666';
     ctx.fillText(hint, tx, y);
@@ -796,7 +792,7 @@ for (let i = 0; i < 64; i++) {
 /* ── Shared map renderer (used by minimap + fullmap) ──────────── */
 function drawMap(
   ctx: CanvasRenderingContext2D,
-  world: World, entities: Entity[], player: Entity,
+  world: World, _entities: Entity[], player: Entity,
   _sx: number, _sy: number,
   mapX: number, mapY: number, mapW: number, mapH: number,
   radius: number, bgAlpha: number,
@@ -978,7 +974,8 @@ function drawMap(
   drawFactionEventMarkers(ctx, world, factionSnapshot, currentFloor, pxI, pyI, mapX, mapY, mapW, mapH, radius, cellW, cellH, uiTime);
 
   // Entities
-  for (const e of entities) {
+  getEntityIndex().queryRadius(player.x, player.y, radius * Math.SQRT2 + 2, mapEntityQuery, ENTITY_MASK_VISIBLE);
+  for (const e of mapEntityQuery) {
     if (!e.alive || e.type === EntityType.PLAYER) continue;
     const edx = world.delta(pxI, Math.floor(e.x));
     const edy = world.delta(pyI, Math.floor(e.y));
@@ -1008,7 +1005,7 @@ function drawMap(
   // Quest markers — plot NPC markers + VISIT room markers
   if (quests) {
     // Mark all plot NPCs (gold if active quest / new quest available, blue otherwise)
-    for (const e of entities) {
+    for (const e of mapEntityQuery) {
       if (!e.alive || !e.plotNpcId) continue;
       const edx = world.delta(pxI, Math.floor(e.x));
       const edy = world.delta(pyI, Math.floor(e.y));
@@ -1059,7 +1056,7 @@ function drawMap(
     }
     // KILL quest markers — show target monsters as red diamonds
     if (activeKillKinds.size > 0) {
-      for (const e of entities) {
+      for (const e of mapEntityQuery) {
         if (!e.alive || e.type !== EntityType.MONSTER) continue;
         const markerKind = e.monsterKind === undefined ? undefined : activeKillKinds.get(e.monsterKind);
         if (!markerKind) continue;
@@ -1180,7 +1177,7 @@ export function drawFullMap(
   if (cartographerLead) {
     ctx.fillStyle = cartographerLead.color;
     ctx.fillText(
-      fitMapText(ctx, `Картограф: ${cartographerLead.label} - ${cartographerLead.hint}`, mapW - 16 * sx),
+      fitMapText(ctx, `Карта: ${cartographerLead.label} - ${cartographerLead.hint}`, mapW - 16 * sx),
       pad + 4,
       pad + mapH - 24 * sy,
     );

@@ -25,12 +25,12 @@ import { observeRumorEvent } from './rumor';
 import { gaussianLevel, getMaxHp, randomRPG } from './rpg';
 
 const SCHEDULER_TICK_SEC = 10;
-const MIN_EVENT_GAP_SEC = 55;
-const MAX_EVENT_NPCS = 32;
+const MIN_EVENT_GAP_SEC = 45;
+const MAX_EVENT_NPCS = 44;
 const MAX_EVENT_DROPS = 24;
 const MAX_EVENT_MARKS = 10;
 const MAX_PRESSURE_CELLS = 96;
-export const MAX_PROCESSION_PILGRIMS = 4;
+export const MAX_PROCESSION_PILGRIMS = 5;
 const FACTION_EVENT_QUEST_ID = -25025;
 const RECENT_LIMIT = 12;
 const MAX_ACTIVE_PROCESSIONS = 3;
@@ -187,7 +187,7 @@ export function updateFactionEvents(
   }
 
   const result = triggerFactionEvent(state, world, player, entities, nextId, zoneId, def, false);
-  nextEventAt = state.time + (result.ok ? MIN_EVENT_GAP_SEC + Math.random() * 80 : 25 + Math.random() * 35);
+  nextEventAt = state.time + (result.ok ? MIN_EVENT_GAP_SEC + Math.random() * 70 : 25 + Math.random() * 35);
 }
 
 export function forceFactionEvent(
@@ -374,7 +374,7 @@ export function tryInteractCultProcession(
       '#f8c',
     ));
   } else {
-    state.msgs.push(msg('Вы уже услышали этот ход. Второй раз псалом только кусается.', state.time, '#888'));
+    state.msgs.push(msg('Вы уже знаете этот ход. Второй раз процессия ничего нового не даст.', state.time, '#888'));
   }
   return true;
 }

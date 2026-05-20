@@ -1,13 +1,6 @@
 import { type NetTerminalBankSnapshot } from '../systems/net_terminal_gen';
 import { drawGlitchText, drawNeuroPanel, drawStaticNoise, textJitter } from './hud_fx';
-
-function fitText(ctx: CanvasRenderingContext2D, text: string, maxW: number): string {
-  if (maxW <= 0) return '';
-  if (ctx.measureText(text).width <= maxW) return text;
-  let end = text.length - 3;
-  while (end > 1 && ctx.measureText(text.slice(0, end) + '...').width > maxW) end--;
-  return text.slice(0, Math.max(1, end)) + '...';
-}
+import { fitText } from './ui_text';
 
 function money(value: number): string {
   return `${Math.max(0, Math.floor(value))} руб.`;
@@ -69,9 +62,9 @@ export function drawNetTerminalBank(
   ctx.font = `${8 * s}px monospace`;
   let ly = y + 38 * s;
   const lineH = 13 * s;
-  drawLine(ctx, x + pad, ly, 'Наличные', money(bank.cashRubles), maxTextW, '#d8f0d0');
+  drawLine(ctx, x + pad, ly, 'Нал', money(bank.cashRubles), maxTextW, '#d8f0d0');
   ly += lineH;
-  drawLine(ctx, x + pad, ly, 'Счет', money(bank.accountRubles), maxTextW, '#8fdcff');
+  drawLine(ctx, x + pad, ly, 'Счёт', money(bank.accountRubles), maxTextW, '#8fdcff');
   ly += lineH;
   drawLine(ctx, x + pad, ly, 'Депозит', money(bank.depositRubles), maxTextW, '#f0d27a');
   ly += lineH;
@@ -96,9 +89,9 @@ export function drawNetTerminalBank(
 
   ctx.font = `${8 * s}px monospace`;
   ctx.fillStyle = '#aab8bd';
-  ctx.fillText(fitText(ctx, `Сумма операции: ${money(bank.amountRubles)}`, maxTextW), x + pad, actionY + 18 * s);
+  ctx.fillText(fitText(ctx, `Сумма: ${money(bank.amountRubles)}`, maxTextW), x + pad, actionY + 18 * s);
   ctx.fillStyle = bank.canSubmit ? '#6f8' : '#f86';
-  ctx.fillText(bank.canSubmit ? 'Операция доступна.' : 'Недостаточно средств для выбранной суммы.', x + pad, actionY + 31 * s);
+  ctx.fillText(fitText(ctx, bank.canSubmit ? 'Готово.' : 'Мало средств.', maxTextW), x + pad, actionY + 31 * s);
 
   if (bank.message) {
     ctx.fillStyle = '#d7f7ff';

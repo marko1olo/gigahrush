@@ -14,8 +14,8 @@ export const DEF: MonsterDef = {
   sprite: 0,   // auto-assigned by generateSprites()
   aiFlags: ['foodBait', 'wallBias'],
   floors: [FloorLevel.KVARTIRY, FloorLevel.LIVING, FloorLevel.MAINTENANCE, FloorLevel.HELL],
-  counterplay: 'Держите полторы клетки и центр комнаты: у стены тварь бьет больнее, а еда/говняк разрывают контакт.',
-  lootHint: 'сырой органический хлам, бетонная крошка, редко сырое мясо',
+  counterplay: 'Не жмитесь к панели: держите полторы клетки и центр комнаты, а еду или говняк бросайте вбок, чтобы разорвать контакт.',
+  lootHint: 'сырая органика, бетонная крошка у лап, редкий кусок мяса',
 };
 
 export function generateSprite(): Uint32Array {

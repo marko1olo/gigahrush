@@ -91,7 +91,7 @@ const MONSTER_PLACEMENTS: readonly { kind: MonsterKind; dx: number; dy: number; 
   { kind: MonsterKind.SHADOW, dx: 18, dy: 10, bonus: 2, wave: 1 },
   { kind: MonsterKind.POLZUN, dx: 7, dy: 14, bonus: 2, wave: 1 },
   { kind: MonsterKind.REBAR, dx: 15, dy: 14, bonus: 2, wave: 1 },
-  { kind: MonsterKind.NIGHTMARE, dx: 11, dy: 5, name: 'Кошмарище алтаря', bonus: 4, wave: 2 },
+  { kind: MonsterKind.NIGHTMARE, dx: 11, dy: 5, name: 'Кошмарище пепельной плиты', bonus: 4, wave: 2 },
 ];
 
 const CULTIST_PLACEMENTS: readonly { dx: number; dy: number; wave: ArenaWave }[] = [
@@ -123,7 +123,7 @@ export function spawnHellAltarArena(world: World, entities: Entity[], nextId: { 
   if (!site) return;
 
   const room = stampRoom(world, world.rooms.length, RoomType.COMMON, site.x, site.y, ROOM_W, ROOM_H, -1);
-  room.name = 'Пепельный алтарь готовности';
+  room.name = 'Пепельная плита готовности';
   room.wallTex = Tex.GUT;
   room.floorTex = Tex.F_MEAT;
   protectRoom(world, room.x, room.y, room.w, room.h, Tex.GUT, Tex.F_MEAT);
@@ -576,18 +576,18 @@ function registerAltarRouteCue(world: World, room: Room, entry: Route, escape: R
     roomId: room.id,
     targetRoomId: room.id,
     zoneId: world.zoneMap[world.idx(Math.floor(cx), Math.floor(cy))],
-    label: 'пепельный алтарь',
+    label: 'пепельная плита',
     hint: 'глаза держат дальнюю линию; желтые ожоги ведут к выходу',
-    targetName: 'Пепельный алтарь готовности',
+    targetName: 'Пепельная плита готовности',
     color: '#f96',
     tags: [TAG_SITE, 'hell', 'arena', 'combat', 'phase_cue', 'escape_route'],
     toneSeed: room.id * 313 + 86086,
     radius: 11,
     targetRadius: 3.4,
     cooldownSec: 24,
-    heardText: 'За дверью пепельный алтарь: сперва снимай глаза и культистов, прячься за ребрами.',
-    followedText: `Центр алтаря ответил. Желтые ожоги показывают выход примерно в ${escapeDist} кл.`,
-    ignoredText: 'Пепельный алтарь остался за спиной. Его фазы не сорвались.',
+    heardText: 'За дверью пепельная плита: сначала снимай глаза и культистов, держи ребро между собой и центром.',
+    followedText: `Пепельная плита включилась. Желтые ожоги на полу ведут к выходу примерно в ${escapeDist} кл.`,
+    ignoredText: 'Пепельная плита осталась за спиной. Волны начнутся без вашей подготовки.',
   });
   return cueId;
 }
@@ -622,7 +622,7 @@ function handleCueEvent(state: GameState, site: AltarArenaSite, event: WorldEven
     site,
     event,
     'entered',
-    'Алтарь слышит шаг: дальние глаза держат центр, ребра дают укрытие, желтый след ведет наружу.',
+    'Пепельная плита включилась: дальние глаза держат центр, ребра дают укрытие, желтый след ведет наружу.',
     3,
     { action },
   );
@@ -679,8 +679,8 @@ function spawnArenaWave(
       source,
       'phase_flank',
       spawned > 0
-        ? 'Боковые шрамы раскрылись: тени идут с флангов, задние культисты подняли крюки.'
-        : 'Боковые шрамы вспыхнули, но алтарь не нашёл тела для второй волны.',
+        ? 'Боковые проходы раскрылись: тени идут с флангов, задние культисты подняли крюки.'
+        : 'Боковые проходы вспыхнули, но вторая волна не нашла живой цели.',
       spawned > 0 ? 4 : 3,
       { spawnedNow: spawned, killed: site.killedIds.length },
     );
@@ -691,8 +691,8 @@ function spawnArenaWave(
       source,
       'phase_boss',
       spawned > 0
-        ? 'Центральный круг провалился. Кошмарище одно: держи ребро между собой и алтарем.'
-        : 'Центральный круг провалился пустым. Алтарь выдохся раньше кошмара.',
+        ? 'Центральный круг провалился. Кошмарище идет одно: держи ребро между собой и центром.'
+        : 'Центральный круг провалился пустым. Плита выдохлась раньше кошмара.',
       spawned > 0 ? 5 : 3,
       { spawnedNow: spawned, killed: site.killedIds.length },
     );
@@ -721,7 +721,7 @@ function maybeClearArena(
     site,
     source,
     'cleared',
-    'Алтарь погас. В центре остался крюк, руна и заряд; желтый выход больше не спорит.',
+    'Пепельная плита погасла. В центре остались крюк, руна и заряд; желтый выход свободен.',
     4,
     { rewardSpawned: site.rewardSpawned, clearedHostiles: site.hostileIds.length },
   );
@@ -747,7 +747,7 @@ function publishArenaEvent(
     actorId: source.actorId,
     actorName: source.actorName,
     actorFaction: source.actorFaction,
-    targetName: 'Пепельный алтарь готовности',
+    targetName: 'Пепельная плита готовности',
     itemId: source.itemId,
     itemName: source.itemName,
     itemCount: source.itemCount,

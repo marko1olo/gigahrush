@@ -14,8 +14,8 @@ export const DEF: MonsterDef = {
   sprite: 0,
   aiFlags: ['documentHunter'],
   floors: [FloorLevel.MINISTRY, FloorLevel.KVARTIRY, FloorLevel.LIVING],
-  counterplay: 'Сбросьте лишние бумаги, бланки и ключи перед боем: с документами он чует издалека, без них держится короткой дистанции. Кайтите через углы.',
-  lootHint: 'обглоданные бланки, чернила и редкий пустой формуляр',
+  counterplay: 'Чует документы как кровь: Сбросьте лишние бумаги, бланки и корешки в ящик до боя. Без бумажного запаха хуже ищет цель; держите дистанцию и теряйте его через углы.',
+  lootHint: 'обглоданные бланки, кислые чернила и пустой формуляр без подписи',
 };
 
 export function generateSprite(): Uint32Array {

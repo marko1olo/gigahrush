@@ -1,5 +1,5 @@
-/* ── Логово Ваньки Банчиного — безумец в культистской зоне ─────── */
-/*   Комната 6×5, гнилые стены, бетонный пол.                     */
+/* ── Комната Ваньки Банчиного — испуганный сосед в культовой зоне ─ */
+/*   Комната 6×5, облезлые стены, бетонный пол.                   */
 /*   Генерируется в ближайшей зоне культистов (100–200 клеток)   */
 /*   от спавна. Защищена aptMask.                                  */
 
@@ -103,7 +103,7 @@ function spawnVanka(_world: World, room: Room, entities: Entity[], nextId: { v: 
   });
 }
 
-/** Scatter shadow monsters around Vanka's den — must be called AFTER volatile maze exists */
+/** Scatter shadow monsters around Vanka's den — must be called AFTER volatile maze exists. */
 export function spawnVankaShadows(
   world: World, entities: Entity[], nextId: { v: number },
 ): void {

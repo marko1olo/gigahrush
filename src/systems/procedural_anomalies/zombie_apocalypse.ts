@@ -13,6 +13,7 @@ import { monsterSpr } from '../../render/sprite_index';
 import { publishEvent } from '../events';
 import { randomRPG } from '../rpg';
 import { currentProceduralFloorSpec } from '../procedural_floors';
+import { ENTITY_MASK_ACTOR, getEntityIndex } from '../entity_index';
 
 interface ZombieApocalypseRuntime {
   infections: number;
@@ -21,6 +22,7 @@ interface ZombieApocalypseRuntime {
 }
 
 const runtimeByState = new WeakMap<GameState, ZombieApocalypseRuntime>();
+const zombieTargetQuery: Entity[] = [];
 
 function runtimeFor(state: GameState): ZombieApocalypseRuntime {
   let runtime = runtimeByState.get(state);
@@ -41,7 +43,7 @@ function canZombieApocalypseTarget(e: Entity, zombieId: number): boolean {
 
 export function findZombieApocalypseTarget(
   world: World,
-  entities: Entity[],
+  _entities: Entity[],
   zombie: Entity,
   dt: number,
   rangeSq: number,
@@ -51,7 +53,7 @@ export function findZombieApocalypseTarget(
 
   ai.combatScanCd = (ai.combatScanCd ?? 0) - dt;
   if (ai.combatTargetId !== undefined) {
-    const cached = entities.find(e => e.id === ai.combatTargetId);
+    const cached = getEntityIndex().byId.get(ai.combatTargetId);
     if (cached && canZombieApocalypseTarget(cached, zombie.id) && world.dist2(zombie.x, zombie.y, cached.x, cached.y) < rangeSq) {
       return cached;
     }
@@ -66,7 +68,8 @@ export function findZombieApocalypseTarget(
   let playerTarget: Entity | null = null;
   let playerBest = Math.min(rangeSq, 7 * 7);
 
-  for (const other of entities) {
+  getEntityIndex().queryRadius(zombie.x, zombie.y, Math.sqrt(rangeSq), zombieTargetQuery, ENTITY_MASK_ACTOR);
+  for (const other of zombieTargetQuery) {
     if (!canZombieApocalypseTarget(other, zombie.id)) continue;
     const d2 = world.dist2(zombie.x, zombie.y, other.x, other.y);
     if (other.type === EntityType.NPC && d2 < npcBest) {

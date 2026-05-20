@@ -55,7 +55,7 @@ export function updateCementMemoryAnomaly(world: World, player: Entity, state: G
       runtime.lastMsgAt = state.time;
       state.msgs.push(msg(stage === 2
         ? 'Старый след тянет ноги и режет подошвы.'
-        : 'Запекшийся маршрут давит грудь: цемент помнит обратный ход.',
+        : 'Запекшийся маршрут давит грудь: обратный ход уже закрывает цемент.',
       state.time, stage === 2 ? '#ca8' : '#f84'));
     }
   }
@@ -77,7 +77,7 @@ export function tryUseCementMemoryAnomaly(world: World, player: Entity, state: G
   const cleared = coolMemory(world, runtime, state.time, RING_SIZE);
   state.msgs.push(msg(cleared > 0
     ? 'Щиток амнезии сбросил свежие следы. Можно идти обратно, но недолго.'
-    : 'Щиток гудит пусто: этаж пока не успел вас запомнить.',
+    : 'Щиток гудит пусто: свежих цементных следов рядом нет.',
   state.time, cleared > 0 ? '#8cf' : '#888'));
   return true;
 }

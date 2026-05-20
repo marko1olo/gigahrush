@@ -624,11 +624,17 @@ function warningTagName(tag: string): string {
     case 'lift':
       return 'проверь лифт';
     case 'silver_slime':
-      return 'серебристая проба вызывает вопросы';
+      return 'прозрачная проба вызывает вопросы';
     case 'veretar_window_rescue':
       return 'свидетеля оттащили от белого окна';
     case 'veretar_window_seal':
       return 'белую щель заклеили';
+    case 'veretar_window_curtain':
+      return 'белое окно занавесили';
+    case 'veretar_window_sample':
+      return 'с белого подоконника взяли песок';
+    case 'veretar_photo_taken':
+      return 'засвеченный кадр вынесли из белого прохода';
     case 'veretar_window_lost':
       return 'белый обход забрал свидетеля';
     case 'false_lead':
@@ -690,6 +696,7 @@ function eventToStaticRumorId(event: RumorEventLike): string | undefined {
 function isHighSignalRumorEvent(event: RumorEventLike): boolean {
   const type = event.type ?? '';
   if (eventDataRumorId(event)) return (event.severity ?? 0) >= 2;
+  if (veretarWindowEventRumorId(event)) return (event.severity ?? 0) >= 2;
   if (event.tags?.includes('resource_shortage') || event.tags?.includes('resource_recovery')) return (event.severity ?? 0) >= 3;
   if (type === 'faction_event' || event.tags?.includes('faction_event')) return (event.severity ?? 0) >= 2;
   if (type === 'contract_created' || type === 'quest_created') return (event.severity ?? 0) >= 3;
@@ -730,11 +737,15 @@ function veretarWindowEventRumorId(event: RumorEventLike): string | undefined {
   if (sideQuestId === 'ag95_pull_witness_from_window') return 'samosbor_veretar_window_rescue';
   if (sideQuestId === 'ag95_mark_white_shortcut') return 'samosbor_veretar_window_lost';
   const tags = event.tags ?? [];
+  const depositOutcome = event.data?.depositOutcome;
+  if (depositOutcome === 'veretar_window_curtained') return 'samosbor_veretar_window_curtained';
+  if (depositOutcome === 'veretar_window_sealed') return 'samosbor_veretar_window_sealed';
+  if (tags.includes('veretar_window_curtain')) return 'samosbor_veretar_window_curtained';
   if (tags.includes('veretar_window_seal')) return 'samosbor_veretar_window_sealed';
   if (tags.includes('veretar_window_shortcut') || tags.includes('veretar_window_lost')) return 'samosbor_veretar_window_lost';
   if (tags.includes('veretar_window_sample')) return event.itemId === 'overexposed_photo'
-    ? 'samosbor_veretar_photo'
-    : 'samosbor_veretar_sand';
+    ? 'samosbor_veretar_photo_taken'
+    : 'samosbor_veretar_window_sampled';
   return undefined;
 }
 
@@ -743,7 +754,7 @@ function contractEventRumorId(event: RumorEventLike): string {
   if (tags.includes('void_contract')) return 'void_contracts_do_not_return';
   if (tags.includes('floor_ministry') || tags.includes('documents') || tags.includes('stealth')) return 'contract_admin_papers';
   if (tags.includes('combat') || tags.includes('kill') || tags.includes('ammo')) return 'contract_liquidator_board';
-  return 'player_quest_chain';
+  return 'contract_created';
 }
 
 function resourceScarcityEventRumorId(event: RumorEventLike): string | undefined {

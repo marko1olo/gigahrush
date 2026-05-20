@@ -73,7 +73,7 @@ export const CARAVAN_LANES: readonly CaravanLaneDef[] = [
   },
   {
     id: 'hell_cult_psi_goods',
-    name: 'Преисподняя -> культовые ПСИ-грузы',
+    name: 'Мясной низ -> культовые ПСИ-грузы',
     fromFloor: FloorLevel.HELL,
     toFloor: FloorLevel.LIVING,
     resourceDeltas: [{ resourceId: 'psi', count: 2 }, { resourceId: 'contraband', count: 2 }],

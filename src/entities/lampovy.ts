@@ -14,8 +14,8 @@ export const DEF: MonsterDef = {
   sprite: 0,
   aiFlags: ['lampPowered'],
   floors: [FloorLevel.LIVING, FloorLevel.KVARTIRY, FloorLevel.MINISTRY, FloorLevel.MAINTENANCE],
-  counterplay: 'Не держите его в световом пятне: уводите на три клетки от лампы или за угол; тушите свет только там, где сцена дает доступ.',
-  lootHint: 'перегоревшая нить, стекло и запах озона; редко лампа или предохранитель',
+  counterplay: 'Не деритесь под лампой: уводите на три клетки от света или за угол, а доступный выключатель используйте до сближения.',
+  lootHint: 'перегоревшая нить, стекло, запах озона, редкий предохранитель',
 };
 
 export function generateSprite(): Uint32Array {

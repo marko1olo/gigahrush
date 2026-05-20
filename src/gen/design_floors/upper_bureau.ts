@@ -215,7 +215,7 @@ const TOLL_KEEPER_DEF: PlotNpcDef = {
   ],
   talkLines: [
     'Архивная пошлина не взятка. Взятка стесняется чека.',
-    'Восемьдесят восемь рублей - и проход вспоминает вас как читателя.',
+    'Восемьдесят восемь рублей - и касса запишет вас читателем.',
     'Можно не платить. Тогда принесите акт, что пошлина незаконна, и мы все сделаем вид, что удивлены.',
   ],
   talkLinesPost: [
@@ -263,7 +263,7 @@ registerSideQuest('bureau_madam_iskra', ISKRA_DEF, [
     id: 'bureau_preapproval_fee',
     giverNpcId: 'bureau_madam_iskra',
     type: QuestType.FETCH,
-    desc: 'Мадам Искра: «Сто восемьдесят рублей ускорительного сбора. Назначение вспомнит вас задним числом.»',
+    desc: 'Мадам Искра: «Сто восемьдесят рублей ускорительного сбора. Я поставлю назначение задним числом.»',
     targetItem: 'money', targetCount: 180,
     rewardItem: 'key', rewardCount: 1,
     extraRewards: [{ defId: 'official_permit_slip', count: 1 }],

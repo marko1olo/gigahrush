@@ -208,6 +208,20 @@ export enum MonsterKind {
   KOSTOREZ,   // melee elite              — косторез (читабельный рывок)
 }
 
+export type PlayerDamageSourceKind = 'monster' | 'npc' | 'projectile' | 'hazard' | 'need' | 'samosbor' | 'unknown';
+
+export interface PlayerDamageRecord {
+  time: number;
+  tick: number;
+  amount: number;
+  sourceKind: PlayerDamageSourceKind;
+  sourceId?: number;
+  sourceName: string;
+  monsterKind?: MonsterKind;
+  weaponId?: string;
+  detail: string;
+}
+
 // ── Factions ─────────────────────────────────────────────────────
 export enum Faction {
   CITIZEN,     // граждане
@@ -337,6 +351,9 @@ export interface AIState {
   baitScanCd?: number;        // cooldown until next bounded bait scan
   ambientBarkCd?: number;     // cooldown for rare generic A-Life chatter
   wanderAngle?: number;        // phasing monster drift direction
+  thinkAccum?: number;         // accumulated dt for staggered far-AI ticks
+  thinkInterval?: number;      // deterministic cadence for far-AI ticks
+  nearFrame?: number;          // transient marker for current near-player AI frame
 }
 
 export interface Entity {
@@ -813,6 +830,7 @@ export interface GameState {
   msgLog: LogEntry[];          // persistent message log with timestamps
   dmgFlash: number;           // damage vignette intensity 0..1, decays over time
   dmgSeed: number;            // random seed for vein pattern per hit
+  lastDamage?: PlayerDamageRecord;
   deathTimer: number;         // seconds since player death (for camera drop)
   sleeping: boolean;          // player is holding Z to sleep
   beamFx: number;            // PSI beam visual timer (seconds remaining)
@@ -820,7 +838,7 @@ export interface GameState {
   beamLen: number;           // beam length (cells)
   uvBeamFx: number;          // UV spotlight visual timer (seconds remaining)
   uvBeamLen: number;         // UV spotlight reach (cells)
-  gameWon: boolean;          // player killed Creator and entered return portal
+  gameWon: boolean;          // legacy game-over victory flag; return portal now continues freeplay
   worldEvents?: WorldEventState; // bounded structured event history; old saves may omit it
 }
 

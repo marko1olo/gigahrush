@@ -1,7 +1,7 @@
 /* ── NPC combat: faction fights + fleeing ─────────────────────── */
 
 import {
-  type Entity, type Msg,
+  type Entity, type GameState, type Msg,
   EntityType, AIGoal, Occupation, Faction, ProjType,
   msg,
 } from '../../core/types';
@@ -19,9 +19,11 @@ import { spawnBloodHit, spawnDeathPool } from '../../render/blood';
 import { consumeAmmo, consumeDurability } from '../inventory';
 import { isDebugOnePunchManEnabled, keepDebugOnePunchManAlive } from '../debug_cheats';
 import { entityDisplayName } from '../../entities/monster';
-import { bfsPath, followPath } from './pathfinding';
+import { bfsPath, followPath, tryAssignPathToCell } from './pathfinding';
 import { Spr, hostileProjectileSprite } from '../../render/sprite_index';
 import { findCombatTarget, dropNpcInventory, deterministicScanCd } from './monster';
+import { recordPlayerDamage } from '../damage';
+import { ENTITY_MASK_MONSTER, getEntityIndex } from '../entity_index';
 import {
   bark,
   BARK_COMBAT_START, BARK_COMBAT_START_F, BARK_CHANCE_COMBAT,
@@ -42,9 +44,10 @@ export function setCombatContext(msgs: Msg[], time: number): void {
 const NPC_FLEE_DETECT_SQ = 10 * 10;
 const NPC_FLEE_DIST = 20;
 const NPC_FLEE_SCAN_CD = 1.5;
+const fleeMonsterQuery: Entity[] = [];
 
 export function tryFleeFromMonster(
-  world: World, entities: Entity[], e: Entity, dt: number,
+  world: World, _entities: Entity[], e: Entity, dt: number,
 ): boolean {
   const isCombatant = (e.psiMadness ?? 0) > 0 ||
     e.isTraveler ||
@@ -75,7 +78,8 @@ export function tryFleeFromMonster(
 
   let nearestMonster: Entity | null = null;
   let nearestD2 = NPC_FLEE_DETECT_SQ;
-  for (const other of entities) {
+  getEntityIndex().queryRadius(e.x, e.y, 10, fleeMonsterQuery, ENTITY_MASK_MONSTER);
+  for (const other of fleeMonsterQuery) {
     if (!other.alive || other.type !== EntityType.MONSTER) continue;
     const d2 = world.dist2(e.x, e.y, other.x, other.y);
     if (d2 < nearestD2) {
@@ -128,7 +132,7 @@ const MELEE_KNOCKBACK_CAP = 0.65;
 const MELEE_STAGGER_CAP = 0.35;
 
 export function tryFactionCombat(
-  world: World, entities: Entity[], e: Entity, dt: number, _time: number, msgs: Msg[], nextId: { v: number },
+  world: World, entities: Entity[], e: Entity, dt: number, _time: number, msgs: Msg[], nextId: { v: number }, state?: GameState,
 ): boolean {
   const ws = WEAPON_STATS[e.weapon ?? ''] ?? WEAPON_STATS[''];
   const isArmed = ws.dmg > 3 || ws.isRanged;
@@ -200,8 +204,7 @@ export function tryFactionCombat(
   const meleeRange = meleeWs.range || NPC_ATTACK_RANGE;
   if (bestDist > meleeRange) {
     if (ai.path.length === 0 || ai.timer <= 0) {
-      ai.path = bfsPath(world, Math.floor(e.x), Math.floor(e.y), Math.floor(target.x), Math.floor(target.y));
-      ai.pi = 0;
+      tryAssignPathToCell(world, e, Math.floor(target.x), Math.floor(target.y));
       ai.timer = 2;
     }
     followPath(world, e, dt);
@@ -221,6 +224,7 @@ export function tryFactionCombat(
         keepDebugOnePunchManAlive(target);
       } else {
         target.hp -= dmg;
+        if (target.type === EntityType.PLAYER) recordPlayerDamage(state, e, dmg, `${entityDisplayName(e)} задел тебя: -${dmg}`);
         if (target.type === EntityType.NPC) {
           applyDamageRelationPenalty(e.faction, target.faction, dmg);
           if (target.hp > 0 && target.hp < (target.maxHp ?? 100) * 0.5) {

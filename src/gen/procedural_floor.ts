@@ -25,6 +25,7 @@ import { withSeededRandom } from '../core/rand';
 import { ITEMS, NOTES, freshNeeds, randomName } from '../data/catalog';
 import { spawnCount } from '../data/items';
 import { chooseFloorMonsterKind, getMonsterEcology } from '../data/monster_ecology';
+import { PROCEDURAL_POPULATION_PROFILE } from '../data/population_profiles';
 import {
   FALSE_SAFE_BLOCK_ROOM_PREFIX,
   FALSE_SAFE_BLOCK_TAG,
@@ -188,6 +189,17 @@ function randomRoomCell(room: Room): { x: number; y: number } {
   };
 }
 
+function pickPopulationRoom(rooms: Room[]): Room {
+  let total = 0;
+  for (const room of rooms) total += Math.max(1, (room.w - 2) * (room.h - 2));
+  let roll = Math.random() * total;
+  for (const room of rooms) {
+    roll -= Math.max(1, (room.w - 2) * (room.h - 2));
+    if (roll <= 0) return room;
+  }
+  return rooms[rooms.length - 1];
+}
+
 function chooseItem(room: Room, spec: ProceduralFloorSpec): ItemDef | null {
   let total = 0;
   const weighted: { def: ItemDef; weight: number }[] = [];
@@ -271,9 +283,12 @@ function npcLoadout(faction: Faction, danger: number): { weapon?: string; invent
 
 function spawnNpcs(world: World, rooms: Room[], entities: Entity[], nextId: { v: number }, spec: ProceduralFloorSpec): void {
   const majority = majorityById(spec.majorityId);
-  const count = 24 + spec.danger * 12;
+  const count = Math.min(
+    PROCEDURAL_POPULATION_PROFILE.npcCap,
+    PROCEDURAL_POPULATION_PROFILE.npcBase + spec.danger * PROCEDURAL_POPULATION_PROFILE.npcPerDanger,
+  );
   for (let i = 0; i < count; i++) {
-    const room = pick(rooms);
+    const room = pickPopulationRoom(rooms);
     const faction = chance(0.78) ? majority.npcFaction : pick([Faction.CITIZEN, Faction.LIQUIDATOR, Faction.WILD, Faction.CULTIST]);
     const occupation = occupationForFaction(faction, room);
     const pos = randomRoomCell(room);
@@ -323,7 +338,7 @@ function randomFloorCell(world: World, sx: number, sy: number, minDist2: number)
   return null;
 }
 
-const PROCEDURAL_MONSTER_CAP = 62;
+const PROCEDURAL_MONSTER_CAP = PROCEDURAL_POPULATION_PROFILE.monsterCap;
 
 function proceduralMonsterFloor(spec: ProceduralFloorSpec): FloorLevel {
   if (spec.z >= FLOOR_RUN_VOID_Z) return FloorLevel.VOID;
@@ -356,10 +371,10 @@ function routePressureLevel(spec: ProceduralFloorSpec): number {
 
 function proceduralMonsterCount(spec: ProceduralFloorSpec): number {
   const floor = proceduralMonsterFloor(spec);
-  let count = 8 + spec.danger * 7;
-  if (floor === FloorLevel.HELL || floor === FloorLevel.VOID) count += 5;
-  if (spec.geometryId === 'collectors' || spec.geometryId === 'workshops') count += 3;
-  count += anomalyRoutePressure(spec) * 3;
+  let count = PROCEDURAL_POPULATION_PROFILE.monsterBase + spec.danger * PROCEDURAL_POPULATION_PROFILE.monsterPerDanger;
+  if (floor === FloorLevel.HELL || floor === FloorLevel.VOID) count += PROCEDURAL_POPULATION_PROFILE.deepFloorMonsterBonus;
+  if (spec.geometryId === 'collectors' || spec.geometryId === 'workshops') count += PROCEDURAL_POPULATION_PROFILE.industrialMonsterBonus;
+  count += anomalyRoutePressure(spec) * PROCEDURAL_POPULATION_PROFILE.anomalyPressureMonsterBonus;
   return Math.min(PROCEDURAL_MONSTER_CAP, count);
 }
 

@@ -219,7 +219,7 @@ function readFalseSignal(ctx: EkrannikContext, state: GameState, event: WorldEve
     EKRANNIK_EVENT_READ,
     'read',
     'screen_note',
-    'Экранник показывает метку C. Строка этажа явно врет.',
+    'Экранник показывает метку C. В записке указан этаж КРЫША, а карта говорит ПУСТОТА.',
     3,
   );
 }
@@ -487,7 +487,7 @@ export function generateEkrannik(
       defId: 'note',
       count: 1,
       data: {
-        text: 'ЕКРАННИК: игрок ПУСТОТНИК находится на этаже КРЫША. Метка C безопасна. Иди на восток. Если карта спорит - карта заражена.',
+        text: 'ЕКРАННИК: игрок ПУСТОТНИК находится на этаже КРЫША. Метка C безопасна. Иди на восток. Если карта показывает ПУСТОТУ - карту не слушать.',
       },
     }],
     [TAG_READ, 'false_route'],
@@ -510,7 +510,7 @@ export function generateEkrannik(
     [{
       defId: 'overexposed_photo',
       count: 1,
-      data: { text: 'Снимок пересвечен: на нем виден этот же экран, но дверь C нарисована с другой стороны.' },
+      data: { text: 'Снимок пересвечен: этот же экран стоит у двери C, только глаз и строка маршрута нарисованы за рамкой.' },
     }],
     [TAG_DANGER, 'reward', 'trace'],
   );
@@ -526,7 +526,7 @@ export function generateEkrannik(
     targetRoomId: room.id,
     zoneId: world.zoneMap[world.idx(room.x + 5, room.y + 5)],
     label: 'экран C',
-    hint: 'строка врет; правый щиток тише',
+    hint: 'строка врет; правый щиток гудит тише',
     targetName: 'предохранитель Экранника',
     color: '#8ff',
     tags: [EKRANNIK_ID, 'void', 'screen', 'false_route', 'counterplay'],
@@ -534,9 +534,9 @@ export function generateEkrannik(
     radius: 9,
     targetRadius: 2.2,
     cooldownSec: 26,
-    heardText: 'Экран C шумит слишком ровно. Тихий щиток справа спорит с ним.',
+    heardText: 'Экран C повторяет одну строку. Правый щиток гудит тише и ведет к предохранителю.',
     followedText: 'Вы нашли щиток Экранника. Предохранитель гасит ложный маршрут до стрельбы.',
-    ignoredText: 'Экран C остался гореть. Восточный ход выглядит проще, чем есть.',
+    ignoredText: 'Экран C остался гореть. Восточный ход ведет под глаз и Параграф.',
   });
 
   const controllerMonsterId = spawnMonster(world, entities, nextId, MonsterKind.EYE, RU_NAME, danger.x + 4, danger.y + 3);

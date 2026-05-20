@@ -32,7 +32,7 @@ export function onHeraldKilled(
   world.floorTex[ci] = Tex.PORTAL;
   const portalZid = world.zoneMap[ci];
   const portalZoneName = portalZid >= 0 ? `зона ${portalZid + 1}` : '???';
-  state.msgs.push(msg('Марфа Пороговая: «Порог открыт. Теперь только не называй голос ответом.»', state.time, '#0f8'));
+  state.msgs.push(msg('Марфа Пороговая: «Порог открыт. Видишь зелёный пол - входи быстро, но за голосами в стороне не ходи.»', state.time, '#0f8'));
   state.msgs.push(msg(`Проход в Пустоту открыт в ${portalZoneName}!`, state.time, '#0ff'));
   return true; // caller should updateWorldData
 }
@@ -44,8 +44,8 @@ export function onCreatorKilled(
   const px = Math.floor(e.x), py = Math.floor(e.y);
   const ci = world.idx(px, py);
   world.floorTex[ci] = Tex.PORTAL;
-  state.msgs.push(msg('Творец повержен.', state.time, '#ff0'));
-  state.msgs.push(msg('Портал домой открылся на месте Творца.', state.time, '#0ff'));
+  state.msgs.push(msg('Творец упал. Портал возврата открылся на его месте.', state.time, '#9f8'));
+  state.msgs.push(msg('Встаньте в центр портала, пока залпы не вернулись.', state.time, '#0ff'));
   return true; // caller should updateWorldData
 }
 
@@ -78,15 +78,15 @@ export function tryCreateVoiceQuest(
     q.plotStepIndex !== undefined &&
     q.plotStepIndex >= hellContactStepIndex);
   if (chainAlreadyReached) return;
-  state.msgs.push(msg('В мясном шуме слышно человеческое дыхание. Рядом должен быть выживший.', state.time, '#0f8'));
-  state.msgs.push(msg('Найдите Никанора Обожжённого в аду.', state.time, '#4af'));
+  state.msgs.push(msg('Сквозь шум Мясного низа слышно человеческое дыхание. Рядом живой, найдите его до следующего боя.', state.time, '#0f8'));
+  state.msgs.push(msg('Найдите Никанора Обожжённого в Мясном низу.', state.time, '#4af'));
 }
 
 /* ── Void entry messages — Creator trap reveal ───────────────── */
 export function onVoidEntry(state: GameState): void {
-  state.msgs.push(msg('Портал перенёс вас в… Пустоту.', state.time, '#0f8'));
-  state.msgs.push(msg('̸̨̛̟̟̹̠̓ «А теперь ты исчезнешь, ищущий.»', state.time, '#f44'));
-  state.msgs.push(msg('̸̨̛̟̟̹̠̓ «Я вычеркну тебя из существования.»', state.time, '#f44'));
-  state.msgs.push(msg('Таинственный голос — это был Творец. Вы в ловушке.', state.time, '#fa0'));
-  state.msgs.push(msg('Найдите Жана Пустотника. Он знает, как не унести дыру обратно.', state.time, '#4af'));
+  state.msgs.push(msg('Портал выбросил вас в Пустоту: двери называют чужие комнаты, документы не совпадают с выходами.', state.time, '#0f8'));
+  state.msgs.push(msg('Творец закрыл обратный ход. Обычная дверь сейчас не вернёт вас домой.', state.time, '#9f8'));
+  state.msgs.push(msg('Проверяйте рабочие предупреждения: они пишут, какая комната врёт.', state.time, '#9f8'));
+  state.msgs.push(msg('Голос, который вёл вас сюда, был Творцом. Считайте новые объявления ловушкой.', state.time, '#fa0'));
+  state.msgs.push(msg('Найдите Жана Пустотника. Он знает, где открыть обратный портал.', state.time, '#4af'));
 }

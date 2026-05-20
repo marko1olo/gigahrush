@@ -142,8 +142,8 @@ const ROOM_SPECS: readonly DarknessRoomSpec[] = [
     y: ROOM_ORIGIN_Y + 8,
     w: 12,
     h: 9,
-    hiddenName: 'Порог',
-    revealedName: 'Порог остаточного света',
+    hiddenName: 'Входной пост',
+    revealedName: 'Входной пост с аварийной лампой',
     lightCost: 0,
     revealedAtStart: true,
     lamps: [[2, 2, Feature.LAMP], [9, 6, Feature.CANDLE]],
@@ -286,7 +286,7 @@ const QUESTS: readonly DarknessQuestDef[] = [
     id: 'darkness_keep_lamp_alive',
     giverKey: 'darkness_lamp_bearer_nika',
     title: 'Держать лампу живой',
-    objective: 'Донести свет от порога до возвратного следа, не тратя его на каждую дверь.',
+    objective: 'Донести лампу от входного поста до возвратного следа, не тратя заряд на каждую дверь.',
     choices: ['spend_light', 'save_light'],
     rewardHint: 'светлая короткая дорога или запас фонаря на обратный путь',
   },
@@ -301,10 +301,10 @@ const QUESTS: readonly DarknessQuestDef[] = [
   {
     id: 'darkness_shadow_toll',
     giverKey: 'darkness_shadow_collector',
-    title: 'Теневая пошлина',
-    objective: 'Отдать лампу, драться с тенями или идти длинным темным обходом.',
+    title: 'Пошлина за короткий ход',
+    objective: 'Отдать лампу, драться у короткого хода или идти длинным темным обходом.',
     choices: ['pay_toll', 'fight_shadows', 'long_route'],
-    rewardHint: 'короткий путь, добыча с теней или сохраненный свет',
+    rewardHint: 'короткий путь, добыча с поста или сохраненный свет',
   },
   {
     id: 'darkness_return_with_trace',
@@ -381,7 +381,7 @@ const NPC_SPECS: readonly DarknessNpcSpec[] = [
   },
   {
     key: 'darkness_shadow_collector',
-    name: 'Сборщик тени',
+    name: 'Сборщик у короткого хода',
     isFemale: false,
     faction: Faction.CULTIST,
     occupation: Occupation.PILGRIM,
@@ -395,7 +395,7 @@ const NPC_SPECS: readonly DarknessNpcSpec[] = [
       {
         defId: 'note',
         count: 1,
-        data: 'Пошлина принимается светом. Отказ принимается тенью. Обход принимает время.',
+        data: 'Пошлина принимается лампой. Отказ принимается дракой. Обход принимает время.',
       },
     ],
   },
@@ -943,7 +943,7 @@ function placeContent(world: World, entities: Entity[], nextId: { v: number }, r
     {
       defId: 'note',
       count: 1,
-      data: 'Это не награда, а право ошибиться: переждать тьму, затем идти дальше без редкого ключа.',
+      data: 'Это не награда, а право ошибиться: переждать темный отсек, затем идти дальше без редкого ключа.',
     },
   ], ['darkness', 'emergency_stash', 'fallback_route']);
 
@@ -1073,7 +1073,7 @@ export function publishDarknessLateWarning(
     roomId: options.sourceRoomId,
     x: options.x,
     y: options.y,
-    actorName: 'Тьма',
+    actorName: 'Темный отсек',
     targetName: warning?.label,
     severity: 4,
     privacy: 'secret',
@@ -1098,7 +1098,7 @@ export function publishDarknessReturnTrace(
     roomId: options.sourceRoomId,
     x: options.x,
     y: options.y,
-    actorName: 'Тьма',
+    actorName: 'Темный отсек',
     targetName: 'Жилая зона / Министерство / Яков',
     severity: 4,
     privacy: 'secret',
@@ -1174,7 +1174,7 @@ function registerDarknessRouteCues(world: World, roomsByKey: Map<string, Room>):
       targetRadius: 3,
       cooldownSec: 44,
       heardText: 'Пульт аварийного света предупреждает: возвратный след станет фактом для верхних этажей.',
-      followedText: 'Комната следа найдена. Забрать кадр значит вынести Тьму в другой маршрут.',
+      followedText: 'Комната следа найдена. Забрать кадр значит вынести темный отсек в другой маршрут.',
       ignoredText: 'Возвратный след остался в темноте. Верхние этажи пока не знают это имя.',
     });
   }

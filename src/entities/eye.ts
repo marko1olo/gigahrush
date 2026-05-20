@@ -17,8 +17,8 @@ export const DEF: MonsterDef = {
   projSpeed: 8,
   projSprite: 0,        // auto-assigned to Spr.EYE_BOLT
   floors: [FloorLevel.MINISTRY, FloorLevel.LIVING, FloorLevel.MAINTENANCE, FloorLevel.HELL, FloorLevel.VOID],
-  counterplay: 'Ломайте линию огня во время зелёного разогрева и сближайтесь после выстрела: Глаз держит прямой коридор, но теряет залп об угол или дверь.',
-  lootHint: 'перегоревшие нити, стеклянная пыль, редкая лампа или ПСИ-пыль',
+  counterplay: 'Зеленый разогрев значит залп: ломайте линию огня углом или дверью до вспышки, затем сближайтесь, пока глаз перезаряжается.',
+  lootHint: 'перегоревшая нить, стеклянная пыль, редкая лампа или ПСИ-пыль',
 };
 
 export function generateSprite(): Uint32Array {

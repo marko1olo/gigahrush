@@ -153,12 +153,27 @@ function objectKeysInFiles(name) {
 }
 
 function arrayObjects(relPath, name) {
-  const init = varInitializer(relPath, name);
+  const init = arrayInitializer(relPath, varInitializer(relPath, name));
   if (!init || !ts.isArrayLiteralExpression(init)) return [];
   const sf = sourceFile(relPath);
   return init.elements
     .filter(ts.isObjectLiteralExpression)
     .map(node => ({ node, line: lineOf(sf, node), file: relPath }));
+}
+
+function arrayInitializer(relPath, expr) {
+  expr = unwrapConstExpression(expr);
+  if (!expr) return undefined;
+  if (ts.isArrayLiteralExpression(expr)) return expr;
+  if (
+    ts.isCallExpression(expr)
+    && ts.isPropertyAccessExpression(expr.expression)
+    && expr.expression.name.text === 'map'
+    && ts.isIdentifier(expr.expression.expression)
+  ) {
+    return arrayInitializer(relPath, varInitializer(relPath, expr.expression.expression.text));
+  }
+  return undefined;
 }
 
 function getObjectString(obj, key, constants = new Map()) {

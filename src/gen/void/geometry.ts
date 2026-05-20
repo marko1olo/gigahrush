@@ -58,6 +58,12 @@ const FOLDED_PATHS: readonly (readonly (readonly [number, number])[])[] = [
   [[432, 492], [388, 382], [562, 508]],
 ];
 
+const VOID_REMOTE_POCKETS: readonly (readonly [number, number])[] = [
+  [0, 512], [84, 86], [312, 0], [706, 92], [1023, 214],
+  [928, 520], [1023, 846], [688, 1023], [328, 922], [0, 790],
+  [122, 390], [512, 1023], [512, 0], [1023, 512],
+];
+
 function setVoidFloor(world: World, x: number, y: number): void {
   const i = world.idx(x, y);
   if (world.cells[i] === Cell.LIFT) return;
@@ -262,6 +268,110 @@ function placeVoidLifts(world: World): void {
   placeLift(world, 711, 570, 710, 570, LiftDirection.UP);
 }
 
+function buildVoidProtectedMask(world: World): Uint8Array {
+  const mask = new Uint8Array(W * W);
+  for (const room of world.rooms) {
+    for (let y = room.y - 1; y <= room.y + room.h; y++) {
+      for (let x = room.x - 1; x <= room.x + room.w; x++) mask[world.idx(x, y)] = 1;
+    }
+  }
+  for (const idx of world.doors.keys()) mask[idx] = 1;
+  for (let i = 0; i < W * W; i++) if (world.cells[i] === Cell.LIFT) mask[i] = 1;
+  return mask;
+}
+
+function carveVoidFootprintBand(
+  world: World,
+  mask: Uint8Array,
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+  radius: number,
+): void {
+  if (ax === bx) {
+    const from = Math.min(ay, by);
+    const to = Math.max(ay, by);
+    for (let y = from; y <= to; y++) carveVoidFootprintDisc(world, mask, ax, y, radius);
+    return;
+  }
+  if (ay === by) {
+    const from = Math.min(ax, bx);
+    const to = Math.max(ax, bx);
+    for (let x = from; x <= to; x++) carveVoidFootprintDisc(world, mask, x, ay, radius);
+    return;
+  }
+
+  const ddx = world.delta(ax, bx);
+  const ddy = world.delta(ay, by);
+  const steps = Math.max(1, Math.abs(ddx), Math.abs(ddy));
+  for (let step = 0; step <= steps; step++) {
+    const x = world.wrap(Math.round(ax + (ddx * step) / steps));
+    const y = world.wrap(Math.round(ay + (ddy * step) / steps));
+    carveVoidFootprintDisc(world, mask, x, y, radius);
+  }
+}
+
+function clampVoidPoint(x: number, y: number): [number, number] {
+  return [
+    Math.max(0, Math.min(W - 1, Math.round(x))),
+    Math.max(0, Math.min(W - 1, Math.round(y))),
+  ];
+}
+
+function carveVoidFoldRoute(world: World, mask: Uint8Array, ax: number, ay: number, bx: number, by: number, serial: number): void {
+  const [mx1, my1] = clampVoidPoint(ax + (bx - ax) * 0.34 + Math.sin(serial * 1.7) * 74, ay + (by - ay) * 0.24);
+  const [mx2, my2] = clampVoidPoint(ax + (bx - ax) * 0.68, ay + (by - ay) * 0.72 + Math.cos(serial * 1.31) * 82);
+  const pts: readonly (readonly [number, number])[] = [[ax, ay], [mx1, my1], [mx2, my2], [bx, by]];
+  for (let i = 1; i < pts.length; i++) {
+    carveVoidFootprintBand(world, mask, pts[i - 1][0], pts[i - 1][1], pts[i][0], pts[i][1], serial % 3 === 0 ? 2 : 1);
+  }
+}
+
+function carveVoidFootprintDisc(world: World, mask: Uint8Array, cx: number, cy: number, radius: number): void {
+  const floorR2 = radius * radius;
+  const shoulder = radius + 2;
+  const shoulderR2 = shoulder * shoulder;
+  for (let dy = -shoulder; dy <= shoulder; dy++) {
+    for (let dx = -shoulder; dx <= shoulder; dx++) {
+      const d2 = dx * dx + dy * dy;
+      if (d2 > shoulderR2) continue;
+      const ci = world.idx(cx + dx, cy + dy);
+      if (mask[ci] || world.cells[ci] === Cell.LIFT || world.cells[ci] === Cell.DOOR) continue;
+      if (d2 <= floorR2) {
+        world.cells[ci] = Cell.FLOOR;
+        world.roomMap[ci] = -1;
+        world.floorTex[ci] = Tex.F_VOID;
+        world.wallTex[ci] = 0;
+        world.hermoWall[ci] = 0;
+      } else if (world.cells[ci] === Cell.WALL || world.cells[ci] === Cell.ABYSS) {
+        world.cells[ci] = Cell.WALL;
+        world.roomMap[ci] = -1;
+        world.wallTex[ci] = Tex.VOID_WALL;
+        world.floorTex[ci] = Tex.F_VOID;
+        world.features[ci] = Feature.NONE;
+        world.hermoWall[ci] = 0;
+      }
+    }
+  }
+}
+
+function expandVoidMegastructureFootprint(world: World): void {
+  const mask = buildVoidProtectedMask(world);
+  let last: readonly [number, number] = [SPAWN_X, SPAWN_Y];
+  for (let i = 0; i < VOID_REMOTE_POCKETS.length; i++) {
+    const pocket = VOID_REMOTE_POCKETS[i];
+    carveVoidFoldRoute(world, mask, last[0], last[1], pocket[0], pocket[1], i);
+    carveVoidFootprintDisc(world, mask, pocket[0], pocket[1], 7 + (i % 4));
+    const ci = world.idx(pocket[0], pocket[1]);
+    if (world.cells[ci] === Cell.FLOOR && world.features[ci] === Feature.NONE) {
+      world.features[ci] = i % 3 === 0 ? Feature.CANDLE : Feature.APPARATUS;
+    }
+    last = pocket;
+  }
+  carveVoidFoldRoute(world, mask, last[0], last[1], SPAWN_X, SPAWN_Y, 40);
+}
+
 export function paintVoidDefaults(world: World): void {
   for (let i = 0; i < W * W; i++) {
     if (world.cells[i] === Cell.FLOOR || world.cells[i] === Cell.DOOR) {
@@ -286,6 +396,7 @@ export function buildVoidGeometry(world: World): VoidGeometryLayout {
   addReturnFrame(world, 684, 558);
   carveEchoAlcoves(world);
   placeVoidLifts(world);
+  expandVoidMegastructureFootprint(world);
   paintVoidDefaults(world);
 
   return {
