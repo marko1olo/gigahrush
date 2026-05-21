@@ -13,12 +13,10 @@ import {
 } from '../core/types';
 import type { World } from '../core/world';
 import { CARAVAN_LANE_BY_ID, CARAVAN_LANES, SMALL_CARAVAN_TEMPLATES, type CaravanLaneDef, type SmallCaravanTemplateDef } from '../data/caravans';
-import { freshNeeds } from '../data/catalog';
 import type { EconomyFloorRef } from '../data/economy_rules';
 import { addFactionRelMutual } from '../data/relations';
 import { changeResourceStock, invalidateEconomyPrices, registerEconomyTariffProvider } from './economy';
 import { publishEvent, registerWorldEventObserver } from './events';
-import { entitySpawnSlots } from './entity_limits';
 
 export const CARAVAN_TICK_SECONDS = 30;
 export const MAX_CARAVAN_LANES_PER_TICK = 2;
@@ -514,44 +512,49 @@ function nearbyMemberPosition(world: World, x: number, y: number, index: number)
   return { x, y };
 }
 
+function claimSmallCaravanMember(
+  world: World,
+  entities: Entity[],
+  template: SmallCaravanTemplateDef,
+  run: SmallCaravanRunState,
+  usedIds: Set<number>,
+): Entity | null {
+  let best: Entity | null = null;
+  let bestD2 = Infinity;
+  for (const npc of entities) {
+    if (!npc.alive || npc.type !== EntityType.NPC || !npc.ai) continue;
+    if (usedIds.has(npc.id) || npc.plotNpcId || npc.canGiveQuest || (npc.questId !== undefined && npc.questId !== -1)) continue;
+    if (npc.faction !== template.faction) continue;
+    const d2 = world.dist2(run.x, run.y, npc.x, npc.y);
+    if (d2 >= bestD2) continue;
+    best = npc;
+    bestD2 = d2;
+  }
+  if (!best) return null;
+  const pos = nearbyMemberPosition(world, Math.floor(run.x), Math.floor(run.y), run.memberIds.length);
+  const ai = best.ai;
+  if (!ai) return null;
+  usedIds.add(best.id);
+  best.isTraveler = true;
+  ai.goal = AIGoal.GOTO;
+  ai.tx = pos.x;
+  ai.ty = pos.y;
+  ai.path = [];
+  ai.pi = 0;
+  ai.timer = 0;
+  run.memberIds.push(best.id);
+  return best;
+}
+
 function spawnSmallCaravanMembers(
   world: World,
   entities: Entity[],
-  nextId: { v: number },
   template: SmallCaravanTemplateDef,
   run: SmallCaravanRunState,
 ): void {
-  const slots = entitySpawnSlots(entities, EntityType.NPC, template.memberCount);
-  for (let i = 0; i < slots; i++) {
-    const pos = nearbyMemberPosition(world, Math.floor(run.x), Math.floor(run.y), i);
-    const member: Entity = {
-      id: nextId.v++,
-      type: EntityType.NPC,
-      x: pos.x + 0.5,
-      y: pos.y + 0.5,
-      angle: Math.PI * 2 * (i / Math.max(1, template.memberCount)),
-      pitch: 0,
-      alive: true,
-      speed: 0.82 + Math.max(0, 4 - template.risk) * 0.03,
-      sprite: template.occupation,
-      spriteSeed: 0x51c0 + i + run.id.length * 17,
-      name: template.memberNames[i] ?? `${template.name} #${i + 1}`,
-      needs: freshNeeds(),
-      hp: 70 + template.risk * 8,
-      maxHp: 70 + template.risk * 8,
-      money: 6 + template.risk * 4,
-      ai: { goal: AIGoal.WANDER, tx: pos.x, ty: pos.y, path: [], pi: 0, stuck: 0, timer: 0 },
-      inventory: [],
-      weapon: template.risk >= 4 ? 'knife' : undefined,
-      faction: template.faction,
-      occupation: template.occupation,
-      isTraveler: true,
-      familyId: -100000 - Math.max(1, Number(run.id.replace(/\D+/g, '')) || 1),
-      canGiveQuest: false,
-      questId: -1,
-    };
-    entities.push(member);
-    run.memberIds.push(member.id);
+  const usedIds = new Set<number>();
+  for (let i = 0; i < template.memberCount; i++) {
+    if (!claimSmallCaravanMember(world, entities, template, run, usedIds)) return;
   }
 }
 
@@ -567,7 +570,7 @@ export function spawnSmallCaravanNear(
   state: GameState,
   world: World,
   entities: Entity[],
-  nextId: { v: number },
+  _nextId: { v: number },
   player?: Entity,
   templateId?: string,
 ): SmallCaravanRunState | undefined {
@@ -593,7 +596,7 @@ export function spawnSmallCaravanNear(
     risk: template.risk,
     memberIds: [],
   };
-  spawnSmallCaravanMembers(world, entities, nextId, template, run);
+  spawnSmallCaravanMembers(world, entities, template, run);
   caravans.active[run.id] = run;
   caravans.nextSmallSpawnAt = state.time + SMALL_CARAVAN_SPAWN_SECONDS;
   const def = CARAVAN_LANE_BY_ID[template.laneId];

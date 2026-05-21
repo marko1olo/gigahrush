@@ -1,6 +1,7 @@
 /* ── Emergency panel canvas menu ─────────────────────────────── */
 
 import type { Entity } from '../core/types';
+import { controlBindingLabel, controlHint } from '../systems/controls';
 import { getEmergencyPanelMenuSnapshot } from '../systems/emergency_panels';
 import { drawGlitchText, drawNeuroPanel, flicker, textJitter } from './hud_fx';
 import { fitText } from './ui_text';
@@ -59,6 +60,6 @@ export function drawEmergencyPanelMenu(
   ctx.fillStyle = '#8aa';
   ctx.fillText(fitText(ctx, snap.message, panelW - 16 * sx), x + 8 * sx, y + panelH - 17 * sy);
   ctx.fillStyle = '#586';
-  ctx.fillText(fitText(ctx, '[E] принять  [W/S] выбор  [Enter] уйти', panelW - 16 * sx), x + 8 * sx, y + panelH - 8 * sy);
+  ctx.fillText(fitText(ctx, `${controlHint('interact')} принять  ${controlBindingLabel('menuUp')}/${controlBindingLabel('menuDown')} выбор  ${controlBindingLabel('gameMenu')} уйти`, panelW - 16 * sx), x + 8 * sx, y + panelH - 8 * sy);
   ctx.restore();
 }

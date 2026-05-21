@@ -25,6 +25,7 @@ import { ensureWorldEventState, getImportantEvents, publishEvent, summarizeImpor
 import { summarizeRoomMemoryForRoom } from './room_memory';
 import { describeContainer, ensureRoomContainers, firstNearbyContainer, nearbyContainers, takeFromContainer } from './containers';
 import { changeResourceStock, getAdjustedItemPrice, getResourceScarcity, summarizeEconomy } from './economy';
+import { controlBindingLabel } from './controls';
 import { tickProduction, summarizeProduction } from './production';
 import { addItem, removeItem } from './inventory';
 import { findActorPermit, recordPermitAccess, recordPermitExposure } from './permits';
@@ -1639,5 +1640,5 @@ export function drawDebugOverlay(
   ry = hintY + lh * 0.6;
   ctx.fillStyle = '#555';
   const range = CMD_LABELS.length > visibleRows ? ` ${scrollStart + 1}-${scrollEnd}/${CMD_LABELS.length}` : '';
-  ctx.fillText(fitText(ctx, `↑↓/W/S${range}  E выбрать  ~ закрыть`, w - rx - margin), rx, ry);
+  ctx.fillText(fitText(ctx, `${controlBindingLabel('menuUp')}/${controlBindingLabel('menuDown')}${range}  ${controlBindingLabel('interact')} выбрать  ${controlBindingLabel('debug')} закрыть`, w - rx - margin), rx, ry);
 }

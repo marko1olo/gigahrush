@@ -1,8 +1,9 @@
 /* ── Faction relations matrix (F key) ─────────────────────────── */
 
-import { type Entity, Faction, ZoneFaction } from '../core/types';
+import { type Entity, Faction, type GameState, ZoneFaction } from '../core/types';
 import { getFactionRel } from '../data/relations';
 import { getFactionUiSnapshot, type FactionUiSnapshot } from '../systems/factions';
+import { getAlifeLeaderboardSnapshot, type AlifeLeaderboardEntry, type AlifeLeaderboardSnapshot } from '../systems/alife';
 import { drawNeuroPanel, drawGlitchText } from './hud_fx';
 import { fitText } from './ui_text';
 
@@ -21,6 +22,14 @@ const ZONE_FACTION_COLORS: Record<ZoneFaction, string> = {
   [ZoneFaction.CULTIST]: '#bc59ff',
   [ZoneFaction.SAMOSBOR]: '#e64e5c',
   [ZoneFaction.WILD]: '#e0a745',
+};
+const FACTION_SHORT: Record<Faction, string> = {
+  [Faction.PLAYER]: 'ИГР',
+  [Faction.CITIZEN]: 'ГРЖ',
+  [Faction.LIQUIDATOR]: 'ЛИК',
+  [Faction.CULTIST]: 'КУЛ',
+  [Faction.SCIENTIST]: 'НИИ',
+  [Faction.WILD]: 'ДИК',
 };
 
 function eventColor(severity: number): string {
@@ -172,10 +181,92 @@ function drawFactionSnapshotPanel(
   }
 }
 
+function karmaColor(karma: number): string {
+  return karma >= 48 ? '#8f8' : karma >= 0 ? '#bdc' : karma >= -48 ? '#fa6' : '#f66';
+}
+
+function drawRankRow(
+  ctx: CanvasRenderingContext2D,
+  entry: AlifeLeaderboardEntry,
+  x: number,
+  y: number,
+  w: number,
+  rowH: number,
+  sy: number,
+): void {
+  if (entry.player) {
+    ctx.fillStyle = 'rgba(30,120,105,0.28)';
+    ctx.fillRect(x + 3, y - 1, w - 6, rowH);
+  }
+  ctx.font = `${7.5 * sy}px monospace`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillStyle = entry.player ? '#fff' : '#bbb';
+  const prefix = `${String(entry.rank).padStart(3, ' ')} ${FACTION_SHORT[entry.faction]} L${String(entry.level).padStart(2, '0')}`;
+  ctx.fillText(prefix, x + 6, y);
+  ctx.fillStyle = karmaColor(entry.karma);
+  ctx.fillText(`K${entry.karma}`, x + Math.min(w - 42 * sy, 76 * sy), y);
+  ctx.fillStyle = entry.player ? '#eff' : '#9ab';
+  const nameX = x + 112 * sy;
+  const nameW = Math.max(24, w - (nameX - x) - 58 * sy);
+  ctx.fillText(fitText(ctx, entry.name, nameW), nameX, y);
+  ctx.textAlign = 'right';
+  ctx.fillStyle = '#edb';
+  ctx.fillText(String(entry.score), x + w - 6, y);
+  ctx.textAlign = 'left';
+}
+
+function drawAlifeRankPanel(
+  ctx: CanvasRenderingContext2D,
+  snapshot: AlifeLeaderboardSnapshot,
+  scroll: number,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  sy: number,
+): void {
+  ctx.fillStyle = 'rgba(0,10,14,0.72)';
+  ctx.fillRect(x, y, w, h);
+  ctx.strokeStyle = 'rgba(0,220,160,0.35)';
+  ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.font = `bold ${9 * sy}px monospace`;
+  ctx.fillStyle = '#0d9';
+  ctx.fillText('A-LIFE РЕЙТИНГ ТОП 100', x + 6, y + 5);
+
+  ctx.font = `${7.5 * sy}px monospace`;
+  ctx.fillStyle = '#9ab';
+  const self = snapshot.player;
+  ctx.fillText(fitText(ctx, `Вы #${self.rank}/${snapshot.totalAlive} score ${self.score} karma ${self.karma}`, w - 12), x + 6, y + 18 * sy);
+
+  const rowH = 10 * sy;
+  const listY = y + 32 * sy;
+  const rows = Math.max(1, Math.floor((h - 40 * sy) / rowH));
+  const maxScroll = Math.max(0, snapshot.entries.length - rows);
+  const start = Math.max(0, Math.min(maxScroll, scroll));
+  const end = Math.min(snapshot.entries.length, start + rows);
+  for (let i = start; i < end; i++) {
+    drawRankRow(ctx, snapshot.entries[i], x, listY + (i - start) * rowH, w, rowH, sy);
+  }
+  if (!snapshot.entries.some(entry => entry.player) || self.rank > snapshot.entries.length) {
+    const selfY = y + h - 12 * sy;
+    ctx.strokeStyle = 'rgba(0,220,160,0.22)';
+    ctx.beginPath();
+    ctx.moveTo(x + 6, selfY - 3 * sy);
+    ctx.lineTo(x + w - 6, selfY - 3 * sy);
+    ctx.stroke();
+    drawRankRow(ctx, self, x, selfY, w, rowH, sy);
+  }
+}
+
 export function drawFactionMenu(
   ctx: CanvasRenderingContext2D,
-  _player: Entity,
+  player: Entity,
   _entities: Entity[],
+  state: GameState,
   sx: number, sy: number,
   time = 0,
 ): void {
@@ -190,24 +281,37 @@ export function drawFactionMenu(
   // Title
   ctx.font = `bold ${12 * sy}px monospace`;
   ctx.textAlign = 'center';
-  drawGlitchText(ctx, fitText(ctx, 'ОТНОШЕНИЯ ФРАКЦИЙ', w - 16 * sx), w / 2, 20 * sy, time, 950, '#0ca', 12 * sy);
+  drawGlitchText(ctx, fitText(ctx, 'ОТНОШЕНИЯ И A-LIFE РЕЙТИНГ', w - 16 * sx), w / 2, 20 * sy, time, 950, '#0ca', 12 * sy);
 
   const snapshot = getFactionUiSnapshot();
+  const ranks = getAlifeLeaderboardSnapshot(state, player, 100);
   const topY = 36 * sy;
   const botY = h - 16 * sy;
   const pad = 6 * sx;
   const sideBySide = w >= 520 * sx;
   const sideW = sideBySide ? Math.min(230 * sx, w * 0.38) : w - pad * 2;
   const tableW = sideBySide ? w - sideW - pad * 3 : w - pad * 2;
-  const tableH = sideBySide ? botY - topY : Math.max(140 * sy, (botY - topY) * 0.58);
+  const tableH = sideBySide ? Math.max(120 * sy, (botY - topY) * 0.52) : Math.max(120 * sy, (botY - topY) * 0.42);
   drawRelationMatrix(ctx, pad, topY, tableW, tableH, sy);
-  drawFactionSnapshotPanel(
+  if (sideBySide) {
+    drawFactionSnapshotPanel(
+      ctx,
+      snapshot,
+      pad,
+      topY + tableH + 6 * sy,
+      tableW,
+      botY - (topY + tableH + 6 * sy),
+      sy,
+    );
+  }
+  drawAlifeRankPanel(
     ctx,
-    snapshot,
+    ranks,
+    state.factionRankScroll ?? 0,
     sideBySide ? pad * 2 + tableW : pad,
     sideBySide ? topY : topY + tableH + 6 * sy,
     sideW,
-    sideBySide ? tableH : botY - (topY + tableH + 6 * sy),
+    sideBySide ? botY - topY : botY - (topY + tableH + 6 * sy),
     sy,
   );
 
@@ -216,7 +320,7 @@ export function drawFactionMenu(
   ctx.font = `${8 * sy}px monospace`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
-  ctx.fillText('[F] закрыть', w / 2, botY + 2 * sy);
+  ctx.fillText('[F] закрыть  ↑↓ рейтинг', w / 2, botY + 2 * sy);
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
 }

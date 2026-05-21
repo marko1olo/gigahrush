@@ -1,10 +1,12 @@
 /* ── Input handler: keyboard + mouse (pointer lock) ──────────── */
 
 import { type InputState } from './core/types';
-
-type BooleanInputKey = {
-  [K in keyof InputState]: InputState[K] extends boolean ? K : never;
-}[keyof InputState];
+import {
+  applyControlCode,
+  clearControlInputs,
+  consumeControlCaptureCode,
+  getControlCaptureAction,
+} from './systems/controls';
 
 export function createInput(): InputState {
   return {
@@ -22,66 +24,26 @@ export function createInput(): InputState {
     factionMenu: false,
     logMenu: false,
     sleep: false,
+    controls: false,
+    controlReset: false,
     mouse: { dx: 0, dy: 0, locked: false },
     touch: { moveX: 0, moveY: 0, lookX: 0, lookY: 0, active: false },
   };
 }
 
 export function bindInput(input: InputState, canvas: HTMLCanvasElement): () => void {
-  const keyMap: Record<string, BooleanInputKey> = {
-    KeyW: 'fwd', KeyS: 'back',
-    ArrowUp: 'fwd', ArrowDown: 'back',
-    ArrowLeft: 'left', ArrowRight: 'right',
-    KeyA: 'strafeL', KeyD: 'strafeR',
-    Space: 'attack',
-    KeyE: 'interact',
-    KeyF: 'factionMenu',
-    KeyL: 'logMenu',
-    KeyM: 'map',
-    KeyI: 'inv',
-    KeyR: 'use', // restart (handled in main)
-    KeyG: 'use', // tool activation
-    KeyQ: 'questLog',
-    // Russian layout equivalents
-    KeyC: 'fwd',   // Ц -> W pos
-    KeyY: 'fwd',   // fallback
-  };
-
   const onDown = (e: KeyboardEvent) => {
-    const k = keyMap[e.code];
-    if (k) input[k] = true;
-    // Inventory / menu navigation
-    if (e.code === 'ArrowUp' || e.code === 'KeyW') input.invUp = true;
-    if (e.code === 'ArrowDown' || e.code === 'KeyS') input.invDn = true;
-    if (e.code === 'ArrowLeft' || e.code === 'KeyA') input.invLeft = true;
-    if (e.code === 'ArrowRight') input.invRight = true;
-    if (e.code === 'KeyD') input.drop = true;
-    if (e.code === 'Enter') { input.escape = true; e.preventDefault(); return; }
-    if (e.code === 'Digit1') input.attrStr = true;
-    if (e.code === 'Digit2') input.attrAgi = true;
-    if (e.code === 'Digit3') input.attrInt = true;
-    if (e.code === 'Backquote') input.debugScreen = true;
-    if (e.code === 'KeyP') input.pee = true;
-    if (e.code === 'KeyZ') input.sleep = true;
+    if (getControlCaptureAction()) {
+      if (!e.metaKey && !e.ctrlKey && !e.altKey) consumeControlCaptureCode(e.code);
+      e.preventDefault();
+      return;
+    }
+    applyControlCode(input, e.code, true);
     e.preventDefault();
   };
 
   const onUp = (e: KeyboardEvent) => {
-    const k = keyMap[e.code];
-    if (k) input[k] = false;
-    if (e.code === 'ArrowUp' || e.code === 'KeyW') input.invUp = false;
-    if (e.code === 'ArrowDown' || e.code === 'KeyS') input.invDn = false;
-    if (e.code === 'ArrowLeft' || e.code === 'KeyA') input.invLeft = false;
-    if (e.code === 'ArrowRight') input.invRight = false;
-    if (e.code === 'KeyR' || e.code === 'KeyG') input.use = false;
-    if (e.code === 'KeyD') input.drop = false;
-    if (e.code === 'Enter') input.escape = false;
-    if (e.code === 'Digit1') input.attrStr = false;
-    if (e.code === 'Digit2') input.attrAgi = false;
-    if (e.code === 'Digit3') input.attrInt = false;
-    if (e.code === 'Backquote') input.debugScreen = false;
-    if (e.code === 'KeyP') input.pee = false;
-    if (e.code === 'KeyZ') input.sleep = false;
+    applyControlCode(input, e.code, false);
   };
 
   const onMouse = (e: MouseEvent) => {
@@ -112,7 +74,10 @@ export function bindInput(input: InputState, canvas: HTMLCanvasElement): () => v
 
   const onLockChange = () => {
     input.mouse.locked = document.pointerLockElement === canvas;
-    if (!input.mouse.locked) input.mouseAttack = false;
+    if (!input.mouse.locked) {
+      input.mouseAttack = false;
+      clearControlInputs(input);
+    }
   };
 
   document.addEventListener('keydown', onDown);

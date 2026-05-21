@@ -41,6 +41,12 @@ import {
   questDeadlineExpired,
   type QuestDeadlineContext,
 } from './quest_deadlines';
+import {
+  addNpcPlayerRelation,
+  completedQuestFactionRelationDelta,
+  completedQuestGiverRelationDelta,
+  getNpcPlayerRelation,
+} from './npc_relations';
 
 const BASE_QUEST_GIVER_CHANCE = 0.35;
 
@@ -117,6 +123,7 @@ export function reassignQuestGivers(entities: Entity[]): void {
   for (const e of entities) {
     if (e.type !== EntityType.NPC || !e.alive) continue;
     if (isPlotNpc(e)) continue;
+    if (e.persistentNpcId) continue;
     e.canGiveQuest = Math.random() < questGiverChance(e);
   }
 }
@@ -158,7 +165,8 @@ export function offerQuest(
   if (!isPlotNpc(npc)) {
     const npcFaction = npc.faction ?? Faction.CITIZEN;
     const rel = getFactionRel(Faction.PLAYER, npcFaction);
-    if (rel < -10) {
+    const personalRel = getNpcPlayerRelation(npc);
+    if (rel < -10 || personalRel < -10) {
       msgs.push(msg(`${npc.name} не хочет с вами разговаривать.`, state.time, '#a44'));
       return;
     }
@@ -467,13 +475,18 @@ function completeQuest(
     msgs.push(msg(`+${q.moneyReward}₽`, state.time, '#ee4'));
   }
 
-  // Relation boost
-  const delta = q.relationDelta ?? 10;
-  const giverFaction = entities.find(e => e.id === q.giverId)?.faction ?? q.contractFaction ?? Faction.CITIZEN;
-  addFactionRelMutual(Faction.PLAYER, giverFaction, delta);
+  const giver = entities.find(e => e.id === q.giverId);
+  const giverFaction = giver?.faction ?? q.contractFaction ?? Faction.CITIZEN;
+  const factionRelationDelta = completedQuestFactionRelationDelta(q.relationDelta);
+  if (factionRelationDelta !== 0) addFactionRelMutual(Faction.PLAYER, giverFaction, factionRelationDelta);
+  const giverPlayerRelationDelta = giver?.type === EntityType.NPC
+    ? completedQuestGiverRelationDelta(q.relationDelta, q.difficulty)
+    : 0;
+  const giverPlayerRelation = giverPlayerRelationDelta !== 0 && giver
+    ? addNpcPlayerRelation(giver, giverPlayerRelationDelta)
+    : undefined;
 
   // Clear NPC's questId
-  const giver = entities.find(e => e.id === q.giverId);
   if (giver) {
     giver.questId = -1;
     // Side quest NPC: switch to post-dialogue after completion
@@ -505,6 +518,9 @@ function completeQuest(
       rewardResourceId: contractDef?.rewardResourceId,
       xpReward: q.xpReward,
       moneyReward: q.moneyReward,
+      factionRelationDelta,
+      giverPlayerRelationDelta,
+      giverPlayerRelation,
       ...questDeadlineEventData(q, state.clock.totalMinutes),
       ...q.eventData,
       ...govnyakCourierOutcomeEventData(q),

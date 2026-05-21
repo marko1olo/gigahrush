@@ -1,4 +1,5 @@
 import { type GamblingOverlaySnapshot } from '../systems/gambling';
+import { controlBindingLabel, controlHint } from '../systems/controls';
 import { drawGlitchText, drawNeuroPanel, drawStaticNoise, textJitter } from './hud_fx';
 import { fitText } from './ui_text';
 
@@ -51,6 +52,6 @@ export function drawGamblingOverlay(
 
   ctx.fillStyle = '#6d6670';
   ctx.font = `${7 * s}px monospace`;
-  ctx.fillText(fitText(ctx, '[W/S] ставка  [E] играть  [Enter] выйти', maxW), x + pad, y + panelH - 16 * s);
+  ctx.fillText(fitText(ctx, `${controlBindingLabel('menuUp')}/${controlBindingLabel('menuDown')} ставка  ${controlHint('interact')} играть  ${controlBindingLabel('gameMenu')} выйти`, maxW), x + pad, y + panelH - 16 * s);
   ctx.restore();
 }

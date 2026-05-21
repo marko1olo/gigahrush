@@ -1,4 +1,5 @@
 import { type ComputerOverlaySnapshot } from '../systems/computers';
+import { controlBindingLabel, controlHint } from '../systems/controls';
 import { drawGlitchText, drawNeuroPanel, drawStaticNoise } from './hud_fx';
 import { fitText, wrapTextLines } from './ui_text';
 
@@ -55,7 +56,7 @@ export function drawComputerOverlay(
 
   ctx.fillStyle = computer.copied ? '#888' : '#6cf';
   ctx.fillText(
-    fitText(ctx, computer.copied ? 'Данные уже скопированы.' : `[E] скопировать: ${computer.copyLabel} +${computer.rewardRubles} руб.`, maxW),
+    fitText(ctx, computer.copied ? 'Данные уже скопированы.' : `${controlHint('interact')} скопировать: ${computer.copyLabel} +${computer.rewardRubles} руб.`, maxW),
     x + pad,
     y + panelH - 34 * s,
   );
@@ -65,6 +66,6 @@ export function drawComputerOverlay(
   }
   ctx.fillStyle = '#547078';
   ctx.font = `${7 * s}px monospace`;
-  ctx.fillText(fitText(ctx, '[W/S] страницы  [E] копия  [Enter] закрыть', maxW), x + pad, y + panelH - 14 * s);
+  ctx.fillText(fitText(ctx, `${controlBindingLabel('menuUp')}/${controlBindingLabel('menuDown')} страницы  ${controlHint('interact')} копия  ${controlBindingLabel('gameMenu')} закрыть`, maxW), x + pad, y + panelH - 14 * s);
   ctx.restore();
 }

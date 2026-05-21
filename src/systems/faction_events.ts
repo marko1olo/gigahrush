@@ -20,6 +20,7 @@ import { addFactionRelMutual } from '../data/relations';
 import { stampMark, MarkType } from '../render/marks';
 import { Spr } from '../render/sprite_index';
 import { ensureRoomContainers } from './containers';
+import { controlHint } from './controls';
 import { changeResourceStock } from './economy';
 import { publishEvent } from './events';
 import { addItem, hasItem } from './inventory';
@@ -683,7 +684,7 @@ function triggerFactionClash(
   nextId: { v: number },
   zoneId: number,
   def: FactionEventDef,
-  _force: boolean,
+  force: boolean,
   taggedNpcs: number,
   taggedDrops: number,
   key: string,
@@ -698,8 +699,8 @@ function triggerFactionClash(
   );
   const totalNpcs = sideCounts[0] + sideCounts[1];
   if (totalNpcs <= 1) return blocked('стороны стычки не собрались');
-  if (taggedNpcs + totalNpcs > MAX_EVENT_NPCS) return blocked('достигнут лимит NPC событий');
-  if (entitySpawnSlots(entities, EntityType.NPC, totalNpcs) < totalNpcs) return blocked('достигнут общий лимит NPC');
+  if (force && taggedNpcs + totalNpcs > MAX_EVENT_NPCS) return blocked('достигнут лимит NPC событий');
+  if (force && entitySpawnSlots(entities, EntityType.NPC, totalNpcs) < totalNpcs) return blocked('достигнут общий лимит NPC');
 
   const center = spawnCenter(world, player, zoneId);
   const angle = Math.random() * Math.PI * 2;
@@ -708,15 +709,19 @@ function triggerFactionClash(
     { x: center.x - Math.cos(angle) * 4, y: center.y - Math.sin(angle) * 4 },
   ];
   const staged: Entity[] = [];
+  const createdIds = new Set<number>();
+  const claimedIds = new Set<number>();
   const liquidatorIds: number[] = [];
   const cultistIds: number[] = [];
 
   for (let s = 0; s < clashDef.sides.length; s++) {
     const side = clashDef.sides[s];
     for (let i = 0; i < sideCounts[s]; i++) {
-      const pos = findSpawnCell(world, anchors[s].x, anchors[s].y, zoneId, 0, 6);
-      if (!pos) continue;
-      const npc = createFactionNpc(world, zoneId, def, side.faction, pos.x + 0.5, pos.y + 0.5, nextId, side);
+      const npc = force
+        ? createFactionEventNpcAt(world, zoneId, def, side.faction, anchors[s].x, anchors[s].y, nextId, side, 0, 6)
+        : claimFactionEventNpc(world, entities, zoneId, side.faction, anchors[s].x, anchors[s].y, claimedIds);
+      if (!npc) continue;
+      if (force) createdIds.add(npc.id);
       npc.angle = Math.atan2(anchors[1 - s].y - npc.y, anchors[1 - s].x - npc.x);
       npc.ai!.goal = AIGoal.HUNT;
       npc.ai!.tx = Math.floor(anchors[1 - s].x);
@@ -732,7 +737,7 @@ function triggerFactionClash(
   const firstCultist = staged.find(e => e.faction === Faction.CULTIST);
   for (const npc of staged) {
     npc.ai!.combatTargetId = npc.faction === Faction.LIQUIDATOR ? firstCultist?.id : firstLiquidator?.id;
-    entities.push(npc);
+    if (createdIds.has(npc.id)) entities.push(npc);
   }
 
   const availableDrops = entitySpawnSlots(entities, EntityType.ITEM_DROP, Math.max(0, MAX_EVENT_DROPS - taggedDrops));
@@ -1149,8 +1154,8 @@ function triggerFactionEvent(
   const taggedNpcs = countTagged(entities, EntityType.NPC);
   const taggedDrops = countTagged(entities, EntityType.ITEM_DROP);
   if (taggedNpcs >= MAX_EVENT_NPCS) return blocked('достигнут лимит NPC событий');
-  const eventNpcSlots = entitySpawnSlots(entities, EntityType.NPC, MAX_EVENT_NPCS - taggedNpcs);
-  if (eventNpcSlots <= 0 && def.minGroup > 0) return blocked('достигнут общий лимит NPC');
+  const eventNpcSlots = force ? entitySpawnSlots(entities, EntityType.NPC, MAX_EVENT_NPCS - taggedNpcs) : MAX_EVENT_NPCS - taggedNpcs;
+  if (force && eventNpcSlots <= 0 && def.minGroup > 0) return blocked('достигнут общий лимит NPC');
   if (taggedDrops >= MAX_EVENT_DROPS && def.drops && def.drops.length > 0) return blocked('достигнут лимит трофеев событий');
   const eventDropSlots = entitySpawnSlots(entities, EntityType.ITEM_DROP, MAX_EVENT_DROPS - taggedDrops);
   if (eventDropSlots <= 0 && def.drops && def.drops.length > 0) return blocked('достигнут общий лимит предметов');
@@ -1167,11 +1172,13 @@ function triggerFactionEvent(
   const center = spawnCenter(world, player, zoneId);
   let spawnedNpcs = 0;
   const spawnedNpcIds: number[] = [];
+  const claimedNpcIds = new Set<number>();
   for (let i = 0; i < groupSize; i++) {
-    const pos = findSpawnCell(world, center.x, center.y, zoneId, 5, 18);
-    if (!pos) continue;
-    const npc = createFactionNpc(world, zoneId, def, faction, pos.x + 0.5, pos.y + 0.5, nextId);
-    entities.push(npc);
+    const npc = force
+      ? createFactionEventNpcAt(world, zoneId, def, faction, center.x, center.y, nextId)
+      : claimFactionEventNpc(world, entities, zoneId, faction, center.x, center.y, claimedNpcIds);
+    if (!npc) continue;
+    if (force) entities.push(npc);
     spawnedNpcIds.push(npc.id);
     spawnedNpcs++;
   }
@@ -1499,7 +1506,7 @@ function applyProcessionFearTick(
   if (covered || safelyAvoiding) return;
   if (!p.warned) {
     p.warned = true;
-    state.msgs.push(msg('Процессия рядом. [E] у края: переждать; ближе: идти в хвосте или доложить рацией.', state.time, '#fc6'));
+    state.msgs.push(msg(`Процессия рядом. ${controlHint('interact')} у края: переждать; ближе: идти в хвосте или доложить рацией.`, state.time, '#fc6'));
     return;
   }
   if (dist <= def.procession.actionRadius) {
@@ -1581,6 +1588,60 @@ function publishProcessionAction(
     },
   });
   return event.id;
+}
+
+function claimFactionEventNpc(
+  world: World,
+  entities: Entity[],
+  zoneId: number,
+  faction: Faction,
+  x: number,
+  y: number,
+  claimedIds: Set<number>,
+): Entity | null {
+  let best: Entity | null = null;
+  let bestD2 = Infinity;
+  for (const npc of entities) {
+    if (!npc.alive || npc.type !== EntityType.NPC || !npc.ai) continue;
+    if (claimedIds.has(npc.id)) continue;
+    if (npc.plotNpcId || npc.canGiveQuest || (npc.questId !== undefined && npc.questId !== -1)) continue;
+    if (npc.faction !== faction) continue;
+    if (world.zoneMap[world.idx(Math.floor(npc.x), Math.floor(npc.y))] !== zoneId) continue;
+    const d2 = world.dist2(x, y, npc.x, npc.y);
+    if (d2 >= bestD2) continue;
+    best = npc;
+    bestD2 = d2;
+  }
+  if (!best) return null;
+  const ai = best.ai;
+  if (!ai) return null;
+  claimedIds.add(best.id);
+  best.isTraveler = true;
+  ai.goal = AIGoal.GOTO;
+  ai.tx = Math.floor(x);
+  ai.ty = Math.floor(y);
+  ai.path = [];
+  ai.pi = 0;
+  ai.timer = 0;
+  ai.combatTargetId = undefined;
+  return best;
+}
+
+function createFactionEventNpcAt(
+  world: World,
+  zoneId: number,
+  def: FactionEventDef,
+  faction: Faction,
+  cx: number,
+  cy: number,
+  nextId: { v: number },
+  side?: FactionClashSideDef,
+  minR = 5,
+  maxR = 18,
+): Entity | null {
+  const pos = findSpawnCell(world, cx, cy, zoneId, minR, maxR);
+  if (!pos) return null;
+  return createFactionNpc(world, zoneId, def, faction, pos.x + 0.5, pos.y + 0.5, nextId, side);
 }
 
 function createFactionNpc(

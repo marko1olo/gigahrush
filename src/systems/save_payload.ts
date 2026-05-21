@@ -33,6 +33,7 @@ export interface SavePayloadSections {
   voidReturnPortal?: unknown;
   voidEntryFromFloor?: unknown;
   liftArachna: unknown;
+  alife: unknown;
   netTerminalGen: unknown;
   mapEditorPatches: unknown;
   worldEvents: unknown;
@@ -63,6 +64,11 @@ export interface SavePayload {
     rpg?: RPGStats;
     statuses?: PlayerStatus[];
     money?: number;
+    playerRelation?: number;
+    karma?: number;
+    kills?: number;
+    npcKills?: number;
+    monsterKills?: number;
   };
   state: {
     time: number;
@@ -79,6 +85,7 @@ export interface SavePayload {
     voidReturnPortal?: unknown;
     voidEntryFromFloor?: unknown;
     liftArachna: unknown;
+    alife: unknown;
     netTerminalGen: unknown;
     mapEditorPatches: unknown;
     worldEvents: unknown;
@@ -230,6 +237,11 @@ export function buildSavePayload(input: SavePayloadBuildInput): SavePayload {
       rpg: player.rpg ? { ...player.rpg } : undefined,
       statuses: statusesForSave(player.statuses),
       money: player.money,
+      playerRelation: player.playerRelation,
+      karma: player.karma,
+      kills: player.kills,
+      npcKills: player.npcKills,
+      monsterKills: player.monsterKills,
     },
     state: {
       time: state.time,
@@ -246,6 +258,7 @@ export function buildSavePayload(input: SavePayloadBuildInput): SavePayload {
       voidReturnPortal: sections.voidReturnPortal,
       voidEntryFromFloor: sections.voidEntryFromFloor,
       liftArachna: sections.liftArachna,
+      alife: sections.alife,
       netTerminalGen: sections.netTerminalGen,
       mapEditorPatches: sections.mapEditorPatches,
       worldEvents: sections.worldEvents,
@@ -299,6 +312,7 @@ export function summarizeSavePayload(
     { label: 'player', value: payload.player, count: payload.player.inventory?.length, cap: SAVE_PLAYER_INVENTORY_CAP },
     { label: 'quests', value: payload.state.quests, count: payload.state.quests.length, cap: SAVE_QUEST_CAP },
     { label: 'events', value: payload.state.worldEvents, count: countWorldEvents(payload.state.worldEvents) },
+    { label: 'alife', value: payload.state.alife },
     { label: 'mapEditor', value: payload.state.mapEditorPatches, count: countMapEditorOps(payload.state.mapEditorPatches) },
     { label: 'economy', value: payload.state.economy },
     { label: 'banking', value: payload.state.banking },

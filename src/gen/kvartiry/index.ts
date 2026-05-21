@@ -36,9 +36,6 @@ const KV_POPULATION = KVARTIRY_POPULATION_PROFILE;
 const CITIZEN_PROFILE = KV_POPULATION.citizens;
 const WILD_PROFILE = KV_POPULATION.wild;
 const LIQUIDATOR_PROFILE = KV_POPULATION.liquidators;
-const CITIZEN_CAP = CITIZEN_PROFILE.softCap;
-const WILD_CAP = WILD_PROFILE.softCap;
-const LIQUIDATOR_CAP = LIQUIDATOR_PROFILE.softCap;
 const UPRISING_CHECK_INTERVAL = KV_POPULATION.uprising.intervalSec;
 const UPRISING_RADIUS = KV_POPULATION.uprising.radius;
 const LIQUIDATOR_RESPONSE_RADIUS = KV_POPULATION.uprising.responseRadius;
@@ -47,13 +44,7 @@ const AMBIENT_UPRISING_MIN_CITIZENS = KV_POPULATION.uprising.minCitizens;
 const AMBIENT_UPRISING_MAX_CONVERTED = KV_POPULATION.uprising.maxConverted;
 const AMBIENT_UPRISING_MAX_RESPONDERS = KV_POPULATION.uprising.maxResponders;
 
-/* Population update accumulators */
-let kvCitizenAccum = 0;
-let kvWildAccum = 0;
-let kvLiquidatorAccum = 0;
 let kvUprisingAccum = 0;
-
-const SPAWN_INTERVAL = KV_POPULATION.spawnIntervalSec;
 
 /* ── Room type definitions for kvartiry floor ─────────────────── */
 const KV_ROOM_TYPES: { type: RoomType; name: string; weight: number }[] = [
@@ -186,11 +177,6 @@ function spawnNpcAtCell(
     rpg,
   });
   return true;
-}
-
-function npcRefillBatchSize(profile: NpcPopulationProfile, deficit: number): number {
-  const pressureBatch = Math.max(profile.refillMin, Math.ceil(deficit / profile.refillDeficitDivisor));
-  return Math.min(deficit, pressureBatch, rng(profile.refillMin, profile.refillMax));
 }
 
 function npcPopulationSeed(faction: Faction, nextId: number): number {
@@ -618,67 +604,17 @@ export function generateKvartiry(): { world: World; entities: Entity[]; spawnX: 
 }
 
 /* ══════════════════════════════════════════════════════════════════
-   Population update — called every frame from main.ts
-   Maintains the data profile caps with a whole-floor natural baseline.
+   Population pressure update — called every frame from main.ts.
    ══════════════════════════════════════════════════════════════════ */
 export function resetKvPopulationState(): void {
-  kvCitizenAccum = 0;
-  kvWildAccum = 0;
-  kvLiquidatorAccum = 0;
   kvUprisingAccum = 0;
   resetKvartiryContentState();
 }
 
-function countFactionNPCs(entities: Entity[], faction: Faction): number {
-  let n = 0;
-  for (const e of entities) {
-    if (e.type === EntityType.NPC && e.alive && e.faction === faction) n++;
-  }
-  return n;
-}
-
 export function updateKvPopulation(
-  world: World, entities: Entity[], nextId: { v: number }, dt: number, state?: GameState,
+  world: World, entities: Entity[], dt: number, state?: GameState,
 ): void {
-  kvCitizenAccum += dt;
-  kvWildAccum += dt;
-  kvLiquidatorAccum += dt;
   kvUprisingAccum += dt;
-
-  // ── Replenish citizens as background residents across the whole floor
-  if (kvCitizenAccum >= SPAWN_INTERVAL) {
-    kvCitizenAccum -= SPAWN_INTERVAL;
-    const deficit = CITIZEN_CAP - countFactionNPCs(entities, Faction.CITIZEN);
-    if (deficit > 0) {
-      spawnNpcPopulationBatch(world, entities, nextId, Faction.CITIZEN, CITIZEN_PROFILE, npcRefillBatchSize(CITIZEN_PROFILE, deficit));
-    }
-  }
-
-  // ── Replenish wild as background unrest across the whole floor
-  if (kvWildAccum >= SPAWN_INTERVAL) {
-    kvWildAccum -= SPAWN_INTERVAL;
-    const deficit = WILD_CAP - countFactionNPCs(entities, Faction.WILD);
-    if (deficit > 0) {
-      spawnNpcPopulationBatch(world, entities, nextId, Faction.WILD, WILD_PROFILE, npcRefillBatchSize(WILD_PROFILE, deficit));
-    }
-  }
-
-  // ── Replenish liquidators in response squads ──────────────────
-  if (kvLiquidatorAccum >= SPAWN_INTERVAL) {
-    kvLiquidatorAccum -= SPAWN_INTERVAL;
-    const deficit = LIQUIDATOR_CAP - countFactionNPCs(entities, Faction.LIQUIDATOR);
-    if (deficit > 0) {
-      spawnNpcPopulationBatch(
-        world,
-        entities,
-        nextId,
-        Faction.LIQUIDATOR,
-        LIQUIDATOR_PROFILE,
-        npcRefillBatchSize(LIQUIDATOR_PROFILE, deficit),
-        Occupation.HUNTER,
-      );
-    }
-  }
 
   // ── Uprising trigger ──────────────────────────────────────────
   if (kvUprisingAccum >= UPRISING_CHECK_INTERVAL) {

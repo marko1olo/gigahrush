@@ -15,13 +15,10 @@ import { priestDeathCurse } from './gen/living/temple';
 import { updateProceduralScreens } from './gen/procedural_screens';
 import { generateProceduralFloor } from './gen/procedural_floor';
 import { generateDesignFloor } from './gen/design_floors/manifest';
-import { updateHellPopulation, resetHellPopulationState } from './gen/hell';
 import { updateKvPopulation } from './gen/kvartiry';
 import {
   FLOOR_MESSAGE_COLORS,
   FLOOR_NAMES,
-  allowsAmbientFactionReinforcements,
-  allowsFactionEntryReinforcements,
   generateFloor,
   isFloorLevel,
   nextFloorEntrySamosborTimer,
@@ -54,6 +51,14 @@ import {
 import { tryHandleMaronaryShavingHandoff } from './systems/maronary_shaving';
 import { createInput, bindInput } from './input';
 import { createMobileControls, type MobileControls, type MobileMenuId } from './mobile';
+import {
+  CONTROL_ACTIONS,
+  beginControlCapture,
+  cancelControlCapture,
+  controlBindingLabel,
+  getControlCaptureAction,
+  resetControlBinding,
+} from './systems/controls';
 import { freshNeeds, ITEMS, WEAPON_STATS } from './data/catalog';
 import { getStack } from './data/items';
 import { entityDisplayName } from './entities/monster';
@@ -72,7 +77,7 @@ import { offerQuest, checkQuests, checkTalkQuest, notifyKill, notifyNpcKill } fr
 import { applyContractFloorHooks, notifyCleanupToolUse } from './systems/contracts';
 import {
   freshRPG, awardXP, xpForMonsterKill, xpForNpcKill,
-  strMeleeDmgMult, agiSpeedMult, agiAttackSpeedMult,
+  meleeDamage, agiSpeedMult, agiAttackSpeedMult,
   spendAttrPoint, getMaxHp, getMaxPsi, randomRPG,
 } from './systems/rpg';
 import {
@@ -186,10 +191,23 @@ import {
 } from './systems/entity_index';
 import {
   applyDamageRelationPenalty,
-  updateFactionCapture, initFactionControl, countFactionTerritory, spawnPatrolSquads,
-  zoneFactionToFaction, spawnTerritoryReinforcements,
+  updateFactionCapture, initFactionControl,
+  zoneFactionToFaction,
   updateFactionActivity,
 } from './systems/factions';
+import {
+  captureAlifeFloorState,
+  currentAlifeFloorKey,
+  materializeAlifeFloorPopulation,
+  recordAlifeNpcDeath,
+  setAlifeState,
+} from './systems/alife';
+import {
+  PLAYER_SELF_RELATION,
+  PLAYER_START_KARMA,
+  addKarma,
+  recordEntityKill,
+} from './systems/alife_rating';
 import {
   recordFactionClashPlayerHit,
   recordFactionEventLootTaken,
@@ -293,6 +311,17 @@ function savePlayerNickname(value: string): string {
 
 function playerDisplayName(): string {
   return playerNickname || 'Жилец';
+}
+
+function playerAlifeFields(source: Partial<Entity> = {}): Pick<Entity, 'persistentNpcId' | 'playerRelation' | 'karma' | 'kills' | 'npcKills' | 'monsterKills'> {
+  return {
+    persistentNpcId: 'player',
+    playerRelation: PLAYER_SELF_RELATION,
+    karma: clampInt(source.karma, PLAYER_START_KARMA, -128, 128),
+    kills: clampInt(source.kills, 0, 0, 1_000_000),
+    npcKills: clampInt(source.npcKills, 0, 0, 1_000_000),
+    monsterKills: clampInt(source.monsterKills, 0, 0, 1_000_000),
+  };
 }
 
 function resize() {
@@ -573,6 +602,7 @@ function returnFromVoidPortalToLiving(portal: VoidReturnPortalState): void {
   portal.voidSpikeResolved = voidSpikeResolved();
 
   const fromFloor = state.currentFloor;
+  captureCurrentAlifeFloor();
   const savedInventory = player.inventory ? [...player.inventory] : [];
   const savedNeeds = player.needs ? { ...player.needs } : freshNeeds();
   const savedHp = player.hp ?? 100;
@@ -618,6 +648,7 @@ function returnFromVoidPortalToLiving(portal: VoidReturnPortalState): void {
     world = replaceWorldFromGeneration(null, gen);
     entities = gen.entities;
     nextEntityId.v = entities.reduce((mx, e) => Math.max(mx, e.id), 0) + 1;
+    materializeCurrentAlifeFloor();
 
     player = {
       id: nextEntityId.v++,
@@ -640,6 +671,7 @@ function returnFromVoidPortalToLiving(portal: VoidReturnPortalState): void {
       statuses: savedStatuses,
       name: playerDisplayName(),
       faction: Faction.PLAYER,
+      ...playerAlifeFields(player),
     };
     entities.push(player);
     applyContractFloorHooks(state, world, entities, nextEntityId, player);
@@ -647,14 +679,7 @@ function returnFromVoidPortalToLiving(portal: VoidReturnPortalState): void {
 
     initFactionRelations();
     initFactionControl(world);
-    const fStats = countFactionTerritory(world);
-    if (allowsFactionEntryReinforcements(FloorLevel.LIVING)) {
-      spawnPatrolSquads(world, entities, nextEntityId, fStats);
-      spawnTerritoryReinforcements(world, entities, nextEntityId, fStats);
-    }
     ensureProceduralSpriteSeeds(entities);
-    _npcReinforcementAccum = 0;
-
     state.samosborTimer = adjustFloorRunSamosborTimer(state, nextFloorEntrySamosborTimer(FloorLevel.LIVING));
     state.samosborActive = false;
     floorTeleportCd = 0;
@@ -989,6 +1014,7 @@ function initGame(): void {
     name: playerDisplayName(),
     rpg: freshRPG(1),
     faction: Faction.PLAYER,
+    ...playerAlifeFields(),
   };
   entities.push(player);
   prevPlayerHp = player.hp ?? 100;
@@ -996,10 +1022,6 @@ function initGame(): void {
   // Initialize faction relations and per-cell faction control
   initFactionRelations();
   initFactionControl(world);
-  const fStats = countFactionTerritory(world);
-  spawnPatrolSquads(world, entities, nextEntityId, fStats);
-  spawnTerritoryReinforcements(world, entities, nextEntityId, fStats);
-  ensureProceduralSpriteSeeds(entities);
   resetGeneratedFloorPopulationState();
   clearRoomMemory();
 
@@ -1040,8 +1062,12 @@ function initGame(): void {
     showDebug: false,
     debugSel: 0,
     showFactions: false,
+    factionRankScroll: 0,
     showLog: false,
     logScroll: 0,
+    showControls: false,
+    controlSel: 0,
+    controlScroll: 0,
     msgLog: [{ text: 'Добро пожаловать в ГИГАХРУЩ. Закройте дверь.', color: '#aaa', day: 0, hour: 8, minute: 0 }],
     dmgFlash: 0,
     dmgSeed: 0,
@@ -1069,6 +1095,7 @@ function initGame(): void {
   ensureLiftArachnaState(state);
   ensureNetTerminalGenState(state);
   ensureMapEditorPatchState(state);
+  materializeCurrentAlifeFloor();
   ensureRoomContainers(world, state.currentFloor);
   ensureProductionRooms(state, world);
   prepareEditableFloor();
@@ -1506,11 +1533,7 @@ function playerActions(_dt: number): void {
       }
     } else {
       // ── Melee attack: range check + durability ──────────
-      // Fist base damage = player level; other melee uses ws.dmg
-      const baseDmg = (!player.weapon && player.rpg) ? player.rpg.level : ws.dmg;
-      // STR bonus to melee damage
-      const strMult = player.rpg ? strMeleeDmgMult(player.rpg) : 1;
-      const normalDmg = Math.round(baseDmg * strMult);
+      const normalDmg = meleeDamage(player.rpg, player.weapon, ws.dmg);
       const range = ws.range;
       const ax = player.x + Math.cos(player.angle) * range;
       const ay = player.y + Math.sin(player.angle) * range;
@@ -1525,7 +1548,7 @@ function playerActions(_dt: number): void {
             e.hp -= dmg;
             // Relation penalty for hitting non-hostile NPCs
             if (e.type === EntityType.NPC) {
-              applyDamageRelationPenalty(player.faction, e.faction, dmg);
+              applyDamageRelationPenalty(player.faction, e.faction, dmg, e, player);
               recordFactionClashPlayerHit(state, world, player, e, dmg);
             }
             // Blood splatter on hit — use player facing as velocity direction
@@ -1705,6 +1728,7 @@ function handleKill(e: Entity, killerIsPlayer: boolean, pvx = 0, pvy = 0, goreLe
     state.msgs.push(msg(playerKillMessage(e), state.time, '#4f4'));
   }
   if (killerIsPlayer && (e.type === EntityType.MONSTER || e.type === EntityType.NPC)) {
+    recordEntityKill(player, e);
     const eventCell = world.idx(Math.floor(e.x), Math.floor(e.y));
     const zoneId = world.zoneMap[eventCell];
     const roomId = world.roomMap[eventCell];
@@ -1730,9 +1754,12 @@ function handleKill(e: Entity, killerIsPlayer: boolean, pvx = 0, pvy = 0, goreLe
       } : undefined,
 	    });
     if (e.type === EntityType.NPC) recordFactionClashPlayerHit(state, world, player, e, e.maxHp ?? 1);
-	  }
+  }
   // Drop NPC inventory as loot
-  if (e.type === EntityType.NPC) dropEntityInventory(e);
+  if (e.type === EntityType.NPC) {
+    recordAlifeNpcDeath(state, e);
+    dropEntityInventory(e);
+  }
   if (e.isFogBoss && e.fogBossZone !== undefined) {
     clearFogInZone(world, e.fogBossZone, state.msgs, state.time, state);
   }
@@ -2032,7 +2059,7 @@ function updateProjectiles(dt: number): void {
             e.hp -= dmg;
             tryMonsterProjectileStagger(world, state, e, p, player.id);
             if (e.type === EntityType.NPC && p.ownerId === player.id) {
-              applyDamageRelationPenalty(player.faction, e.faction, dmg);
+              applyDamageRelationPenalty(player.faction, e.faction, dmg, e, player);
               recordFactionClashPlayerHit(state, world, player, e, dmg);
             }
             const hitAngle = Math.atan2(p.vy ?? 0, p.vx ?? 0);
@@ -2105,7 +2132,7 @@ function triggerExplosion(p: Entity, pt: ProjType): void {
       const blastVy = dist > 0.1 ? (dy / dist) * 12 : 0;
       spawnBloodHit(world, e.x, e.y, Math.atan2(dy, dx), finalDmg, e.type === EntityType.MONSTER, blastVx, blastVy, 0.4);
       if (e.type === EntityType.NPC && isPlayer) {
-        applyDamageRelationPenalty(player.faction, e.faction, finalDmg);
+        applyDamageRelationPenalty(player.faction, e.faction, finalDmg, e, player);
         recordFactionClashPlayerHit(state, world, player, e, finalDmg);
       }
       if (e.hp <= 0) {
@@ -2233,6 +2260,14 @@ function currentFloorAllowsNpcPopulation(): boolean {
   return floorTargetAllowsNpcPopulation(currentFloorRunEntry(state), state.currentFloor);
 }
 
+function captureCurrentAlifeFloor(): void {
+  captureAlifeFloorState(state, entities);
+}
+
+function materializeCurrentAlifeFloor(floorKey = currentAlifeFloorKey(state)): void {
+  materializeAlifeFloorPopulation(state, world, entities, nextEntityId, floorKey);
+}
+
 function switchFloor(
   direction: LiftDirection,
   overrideArrivalText?: string,
@@ -2240,6 +2275,7 @@ function switchFloor(
   allowElevatorAnomaly = true,
 ): void {
   const fromFloor = state.currentFloor;
+  captureCurrentAlifeFloor();
   let nextFloor: FloorLevel;
   const activeFloorInstance = allowElevatorAnomaly ? getActiveFloorInstance(state) : null;
   let runEntry = allowElevatorAnomaly
@@ -2308,6 +2344,7 @@ function switchFloor(
     world = replaceWorldFromGeneration(null, gen);
     entities = gen.entities;
     nextEntityId.v = entities.reduce((mx, e) => Math.max(mx, e.id), 0) + 1;
+    materializeCurrentAlifeFloor();
 
     const spawn = safeSpawnNear(savedX, savedY, gen.spawnX, gen.spawnY);
     player = {
@@ -2331,6 +2368,7 @@ function switchFloor(
       statuses: savedStatuses,
       name: playerDisplayName(),
       faction: Faction.PLAYER,
+      ...playerAlifeFields(player),
     };
     entities.push(player);
     applyContractFloorHooks(state, world, entities, nextEntityId, player);
@@ -2338,14 +2376,7 @@ function switchFloor(
 
     initFactionRelations();
     initFactionControl(world);
-    const fStats = countFactionTerritory(world);
-    if (floorTargetAllowsNpcPopulation(generatedRunEntry, nextFloor) && allowsFactionEntryReinforcements(nextFloor)) {
-      spawnPatrolSquads(world, entities, nextEntityId, fStats);
-      spawnTerritoryReinforcements(world, entities, nextEntityId, fStats);
-    }
     ensureProceduralSpriteSeeds(entities);
-    _npcReinforcementAccum = 0;
-
     state.samosborTimer = adjustFloorRunSamosborTimer(state, nextFloorEntrySamosborTimer(nextFloor));
     state.samosborActive = false;
     floorTeleportCd = 0;
@@ -2441,6 +2472,7 @@ function switchFloor(
 /* ── Portal transition to Void floor ──────────────────────────── */
 function enterVoidFloor(): void {
   const fromFloor = state.currentFloor;
+  captureCurrentAlifeFloor();
   const savedInventory = player.inventory ? [...player.inventory] : [];
   const savedNeeds = player.needs ? { ...player.needs } : freshNeeds();
   const savedHp = player.hp ?? 100;
@@ -2459,7 +2491,6 @@ function enterVoidFloor(): void {
   setVoidEntryFromFloor(state, fromFloor);
 
   pendingLoad = () => {
-    resetHellPopulationState();
     const gen = generateFloor(FloorLevel.VOID);
     world = replaceWorldFromGeneration(null, gen);
     entities = gen.entities;
@@ -2486,6 +2517,7 @@ function enterVoidFloor(): void {
       statuses: savedStatuses,
       name: playerDisplayName(),
       faction: Faction.PLAYER,
+      ...playerAlifeFields(player),
     };
     entities.push(player);
     applyContractFloorHooks(state, world, entities, nextEntityId, player);
@@ -2542,6 +2574,7 @@ function formatFloorZ(z: number): string {
 
 function debugTeleportTo(target: DebugTeleportTarget): void {
   const fromFloor = state.currentFloor;
+  captureCurrentAlifeFloor();
   const savedInventory = player.inventory ? [...player.inventory] : [];
   const savedNeeds = player.needs ? { ...player.needs } : freshNeeds();
   const savedHp = player.hp ?? 100;
@@ -2582,6 +2615,7 @@ function debugTeleportTo(target: DebugTeleportTarget): void {
     world = replaceWorldFromGeneration(null, gen);
     entities = gen.entities;
     nextEntityId.v = entities.reduce((mx, e) => Math.max(mx, e.id), 0) + 1;
+    materializeCurrentAlifeFloor();
 
     player = {
       id: nextEntityId.v++,
@@ -2604,6 +2638,7 @@ function debugTeleportTo(target: DebugTeleportTarget): void {
       statuses: savedStatuses,
       name: playerDisplayName(),
       faction: Faction.PLAYER,
+      ...playerAlifeFields(player),
     };
     entities.push(player);
     applyContractFloorHooks(state, world, entities, nextEntityId, player);
@@ -2611,15 +2646,7 @@ function debugTeleportTo(target: DebugTeleportTarget): void {
 
     initFactionRelations();
     initFactionControl(world);
-    const fStats = countFactionTerritory(world);
-    const targetRunEntry = target.spec || target.designFloorId ? currentFloorRunEntry(state) : undefined;
-    if (floorTargetAllowsNpcPopulation(targetRunEntry, target.floor) && allowsFactionEntryReinforcements(target.floor)) {
-      spawnPatrolSquads(world, entities, nextEntityId, fStats);
-      spawnTerritoryReinforcements(world, entities, nextEntityId, fStats);
-    }
     ensureProceduralSpriteSeeds(entities);
-    _npcReinforcementAccum = 0;
-
     state.samosborTimer = adjustFloorRunSamosborTimer(state, nextFloorEntrySamosborTimer(target.floor));
     state.samosborActive = false;
     floorTeleportCd = 0;
@@ -3064,6 +3091,7 @@ function normalizeQuestList(input: unknown, nextQuestIdInput: unknown, nowMinute
 
 function saveGame(): void {
   try {
+    captureCurrentAlifeFloor();
     const data = createGameSavePayload(player, state, world.containers, {
       voidReturnPortal: voidReturnPortalStateForSave(state),
       voidEntryFromFloor: (state as VoidReturnPortalHost).voidEntryFromFloor,
@@ -3114,11 +3142,14 @@ function loadGame(): boolean {
     setLiftArachnaState(state, dataState.liftArachna as Parameters<typeof setLiftArachnaState>[1]);
     setNetTerminalGenState(state, dataState.netTerminalGen as Parameters<typeof setNetTerminalGenState>[1]);
     setMapEditorPatchState(state, dataState.mapEditorPatches as Parameters<typeof setMapEditorPatchState>[1]);
+    setAlifeState(state, dataState.alife);
     const loadedRunEntry = currentFloorRunEntry(state);
     const floor = loadedFloorInstances.current?.baseFloor ?? loadedRunEntry.baseFloor ?? savedFloor;
     const generatedRunEntry = loadedFloorInstances.current ? null : loadedRunEntry;
 
     state.showMenu = false;
+    state.showControls = false;
+    cancelControlCapture();
     closeNetTerminalGen();
     closeMapEditor();
     pendingLoad = () => {
@@ -3134,6 +3165,7 @@ function loadGame(): boolean {
       world = replaceWorldFromGeneration(null, gen);
       entities = gen.entities;
       nextEntityId.v = entities.reduce((mx, e) => Math.max(mx, e.id), 0) + 1;
+      materializeCurrentAlifeFloor(generatedRunEntry ? floorRunEntryRouteId(generatedRunEntry) : currentAlifeFloorKey(state));
       const spawn = safeSpawnNear(
         finiteNumber(dataPlayer.x, gen.spawnX),
         finiteNumber(dataPlayer.y, gen.spawnY),
@@ -3162,6 +3194,7 @@ function loadGame(): boolean {
         statuses: normalizePlayerStatuses(dataPlayer.statuses),
         name: playerDisplayName(),
         faction: Faction.PLAYER,
+        ...playerAlifeFields(dataPlayer as Partial<Entity>),
       };
       entities.push(player);
       applyContractFloorHooks(state, world, entities, nextEntityId, player);
@@ -3169,11 +3202,6 @@ function loadGame(): boolean {
 
       initFactionRelations();
       initFactionControl(world);
-      const fStats = countFactionTerritory(world);
-      if (floorTargetAllowsNpcPopulation(generatedRunEntry, floor) && allowsFactionEntryReinforcements(floor)) {
-        spawnPatrolSquads(world, entities, nextEntityId, fStats);
-        spawnTerritoryReinforcements(world, entities, nextEntityId, fStats);
-      }
       ensureProceduralSpriteSeeds(entities);
 
       state.time = Math.max(0, finiteNumber(dataState.time, 0));
@@ -3208,6 +3236,8 @@ function loadGame(): boolean {
       state.deathTimer = 0;
       state.lastDamage = undefined;
       state.showMenu = false;
+      state.showControls = false;
+      cancelControlCapture();
       state.showContainerMenu = false;
       state.containerMenuTarget = -1;
       setVoidReturnPortalState(state, dataState.voidReturnPortal);
@@ -3235,7 +3265,6 @@ function loadGame(): boolean {
 
 /* ── Urination faction penalty ─────────────────────────────────── */
 let _urinePenaltyAccum = 0;
-let _npcReinforcementAccum = 0;
 let _urinePenaltyStarted = false;
 let _prevToolUse = false;
 let _toolActionCd = 0;
@@ -3257,6 +3286,7 @@ function applyUrinationPenalty(dt: number): void {
     _urinePenaltyStarted = true;
     addFactionRel(ownerFaction, Faction.PLAYER, -1);
     addFactionRel(Faction.PLAYER, ownerFaction, -1);
+    addKarma(player, -1);
     state.msgs.push(msg('Местные недовольны...', state.time, '#f84'));
   }
 
@@ -3483,6 +3513,8 @@ let prevMenuUp = false, prevMenuDn = false, prevMenuLeft = false, prevMenuRight 
 let prevMenuInteract = false, prevDrop = false;
 let prevFactionMenu = false;
 let prevLogMenu = false;
+let prevControlsMenu = false;
+let prevControlReset = false;
 type MenuRepeatKey = 'up' | 'down' | 'left' | 'right';
 const MENU_REPEAT_DELAY = 0.30;
 const MENU_REPEAT_INTERVAL = 0.085;
@@ -3540,14 +3572,14 @@ function mobileGestureUnlock(): void {
 function syncPauseState(): void {
   if (typeof state === 'undefined') return;
   state.paused = state.showMenu || state.showInventory || state.showNpcMenu || state.showContainerMenu ||
-    state.showQuests || state.showDebug || state.showFactions || state.showLog ||
+    state.showQuests || state.showDebug || state.showFactions || state.showLog || state.showControls ||
     isNetSphereOpen() || isNetTerminalGenOpen() || isInteractableOverlayOpen() || isEmergencyPanelMenuOpen() || isMapEditorOpen();
 }
 
 function isMobileMenuOpen(): boolean {
   if (typeof state === 'undefined') return false;
   return state.showMenu || state.showInventory || state.showNpcMenu || state.showContainerMenu ||
-    state.showQuests || state.showDebug || state.showFactions || state.showLog ||
+    state.showQuests || state.showDebug || state.showFactions || state.showLog || state.showControls ||
     state.mapMode === 2 || isNetSphereOpen() || isNetTerminalGenOpen() || isInteractableOverlayOpen() || isEmergencyPanelMenuOpen() || isMapEditorOpen();
 }
 
@@ -3561,6 +3593,8 @@ function closeMobilePanels(includeMap = true): void {
   state.showDebug = false;
   state.showFactions = false;
   state.showLog = false;
+  state.showControls = false;
+  cancelControlCapture();
   if (includeMap) state.mapMode = 0;
   closeNetSphere();
   closeNetTerminalGen();
@@ -3596,6 +3630,7 @@ function openMobileMenu(menu: MobileMenuId): void {
       break;
     case 'factions':
       state.showFactions = true;
+      state.factionRankScroll = 0;
       break;
     case 'net':
       openNetSphere();
@@ -3811,6 +3846,43 @@ function menuScale(): { sx: number; sy: number } {
   return { sx: s, sy: s };
 }
 
+function controlsVisibleRows(): number {
+  const { sy } = menuScale();
+  return Math.max(4, Math.floor((hudCanvas.height - 58 * sy) / Math.max(1, 12 * sy)));
+}
+
+function keepControlSelectionVisible(): void {
+  const maxSel = Math.max(0, CONTROL_ACTIONS.length - 1);
+  state.controlSel = Math.max(0, Math.min(maxSel, state.controlSel));
+  const visible = controlsVisibleRows();
+  const maxScroll = Math.max(0, CONTROL_ACTIONS.length - visible);
+  if (state.controlSel < state.controlScroll) state.controlScroll = state.controlSel;
+  if (state.controlSel >= state.controlScroll + visible) state.controlScroll = state.controlSel - visible + 1;
+  state.controlScroll = Math.max(0, Math.min(maxScroll, state.controlScroll));
+}
+
+function openControlsMenu(): void {
+  state.showMenu = false;
+  state.showInventory = false;
+  state.showQuests = false;
+  state.showNpcMenu = false;
+  closeContainerMenu();
+  state.showDebug = false;
+  state.showFactions = false;
+  state.showLog = false;
+  state.mapMode = 0;
+  state.showControls = true;
+  cancelControlCapture();
+  keepControlSelectionVisible();
+  syncPauseState();
+}
+
+function closeControlsMenu(): void {
+  state.showControls = false;
+  cancelControlCapture();
+  syncPauseState();
+}
+
 function pointInRect(x: number, y: number, rx: number, ry: number, rw: number, rh: number): boolean {
   return x >= rx && x <= rx + rw && y >= ry && y <= ry + rh;
 }
@@ -3823,12 +3895,29 @@ function handleMobileHudTap(x: number, y: number): void {
   const baseSy = h / SCR_H;
   const { sx, sy } = menuScale();
 
-  if (state.mapMode === 2 && !state.showInventory && !state.showQuests && !state.showLog && !state.showFactions && !state.showMenu && !state.showNpcMenu && !state.showContainerMenu) {
+  if (state.mapMode === 2 && !state.showInventory && !state.showQuests && !state.showLog && !state.showFactions && !state.showMenu && !state.showControls && !state.showNpcMenu && !state.showContainerMenu) {
     state.mapMode = 0;
     return;
   }
 
-  if (state.showMenu) {
+  if (state.showControls) {
+    const { sy } = menuScale();
+    const top = 34 * sy;
+    const rowH = 12 * sy;
+    const visible = controlsVisibleRows();
+    const relRow = Math.floor((y - top) / rowH);
+    if (y > h - 22 * sy) {
+      closeControlsMenu();
+      return;
+    }
+    if (relRow >= 0 && relRow < visible) {
+      const idx = state.controlScroll + relRow;
+      if (idx >= 0 && idx < CONTROL_ACTIONS.length) {
+        state.controlSel = idx;
+        keepControlSelectionVisible();
+      }
+    }
+  } else if (state.showMenu) {
     for (let i = 0; i < 4; i++) {
       const yy = h / 2 - 20 * sy + i * 20 * sy;
       if (pointInRect(x, y, w / 2 - 90 * sx, yy - 6 * sy, 180 * sx, 16 * sy)) {
@@ -4023,6 +4112,8 @@ function handleMenuInput(): void {
     closeContainerMenu();
     state.showFactions = false;
     state.showLog = false;
+    state.showControls = false;
+    cancelControlCapture();
     closeNetSphere();
     closeNetTerminalGen();
     closeInteractableOverlay();
@@ -4042,6 +4133,8 @@ function handleMenuInput(): void {
     prevQuestMenu = input.questLog;
     prevFactionMenu = input.factionMenu;
     prevLogMenu = input.logMenu;
+    prevControlsMenu = input.controls;
+    prevControlReset = input.controlReset;
     return;
   }
 
@@ -4054,6 +4147,8 @@ function handleMenuInput(): void {
     state.showFactions = false;
     state.showLog = false;
     state.showDebug = false;
+    state.showControls = false;
+    cancelControlCapture();
     closeNetSphere();
     state.paused = true;
 
@@ -4108,6 +4203,8 @@ function handleMenuInput(): void {
     prevDebug = input.debugScreen;
     prevFactionMenu = input.factionMenu;
     prevLogMenu = input.logMenu;
+    prevControlsMenu = input.controls;
+    prevControlReset = input.controlReset;
     prevMap = input.map;
     return;
   }
@@ -4121,6 +4218,8 @@ function handleMenuInput(): void {
     state.showFactions = false;
     state.showLog = false;
     state.showDebug = false;
+    state.showControls = false;
+    cancelControlCapture();
     closeNetSphere();
     state.paused = true;
 
@@ -4158,6 +4257,8 @@ function handleMenuInput(): void {
     prevDebug = input.debugScreen;
     prevFactionMenu = input.factionMenu;
     prevLogMenu = input.logMenu;
+    prevControlsMenu = input.controls;
+    prevControlReset = input.controlReset;
     prevMap = input.map;
     return;
   }
@@ -4171,6 +4272,8 @@ function handleMenuInput(): void {
     state.showFactions = false;
     state.showLog = false;
     state.showDebug = false;
+    state.showControls = false;
+    cancelControlCapture();
     closeNetSphere();
     state.paused = true;
 
@@ -4202,6 +4305,8 @@ function handleMenuInput(): void {
     prevDebug = input.debugScreen;
     prevFactionMenu = input.factionMenu;
     prevLogMenu = input.logMenu;
+    prevControlsMenu = input.controls;
+    prevControlReset = input.controlReset;
     prevMap = input.map;
     return;
   }
@@ -4215,6 +4320,8 @@ function handleMenuInput(): void {
     state.showFactions = false;
     state.showLog = false;
     state.showDebug = false;
+    state.showControls = false;
+    cancelControlCapture();
     state.paused = true;
     resetMenuRepeats();
     prevEsc = input.escape;
@@ -4229,6 +4336,8 @@ function handleMenuInput(): void {
     prevDebug = input.debugScreen;
     prevFactionMenu = input.factionMenu;
     prevLogMenu = input.logMenu;
+    prevControlsMenu = input.controls;
+    prevControlReset = input.controlReset;
     return;
   }
 
@@ -4243,9 +4352,56 @@ function handleMenuInput(): void {
   const questEdge = input.questLog && !prevQuestMenu;
   const factionEdge = input.factionMenu && !prevFactionMenu;
   const logEdge = input.logMenu && !prevLogMenu;
+  const controlsEdge = input.controls && !prevControlsMenu;
+  const controlResetEdge = input.controlReset && !prevControlReset;
   const anyRepeatMenuOpen = state.showMenu || state.showInventory || state.showQuests ||
-    state.showContainerMenu || state.showNpcMenu || state.showDebug || state.showLog;
+    state.showContainerMenu || state.showNpcMenu || state.showDebug || state.showFactions || state.showLog || state.showControls;
   if (!anyRepeatMenuOpen) resetMenuRepeats();
+
+  if (controlsEdge) {
+    if (state.showControls) closeControlsMenu();
+    else openControlsMenu();
+  }
+
+  // ── Hotkey / rebind screen ───────────────────────────────
+  if (state.showControls) {
+    if (!getControlCaptureAction()) {
+      const upNav = menuRepeatStep('up', input.invUp, upEdge);
+      const dnNav = menuRepeatStep('down', input.invDn, dnEdge);
+      if (upNav) state.controlSel = Math.max(0, state.controlSel - 1);
+      if (dnNav) state.controlSel = Math.min(CONTROL_ACTIONS.length - 1, state.controlSel + 1);
+      keepControlSelectionVisible();
+      if (interactEdge) {
+        const action = CONTROL_ACTIONS[state.controlSel];
+        if (action) beginControlCapture(action.id);
+      }
+      if (controlResetEdge) {
+        const action = CONTROL_ACTIONS[state.controlSel];
+        if (action) {
+          resetControlBinding(action.id);
+          state.msgs.push(msg(`Клавиши сброшены: ${action.label}`, state.time, '#8cf'));
+        }
+      }
+    }
+    if (escEdge) closeControlsMenu();
+
+    prevEsc = input.escape;
+    prevMenuUp = input.invUp;
+    prevMenuDn = input.invDn;
+    prevMenuLeft = input.invLeft;
+    prevMenuRight = input.invRight;
+    prevMenuInteract = input.interact;
+    prevDrop = input.drop;
+    prevInvMenu = input.inv;
+    prevQuestMenu = input.questLog;
+    prevDebug = input.debugScreen;
+    prevFactionMenu = input.factionMenu;
+    prevLogMenu = input.logMenu;
+    prevControlsMenu = input.controls;
+    prevControlReset = input.controlReset;
+    syncPauseState();
+    return;
+  }
 
   // ── Enter: toggle game menu (or close any open menu) ─────
   if (escEdge) {
@@ -4474,6 +4630,10 @@ function handleMenuInput(): void {
   // ── Faction relations menu ───────────────────────────────
   else if (state.showFactions) {
     if (factionEdge || escEdge) { state.showFactions = false; }
+    const upNav = menuRepeatStep('up', input.invUp, upEdge);
+    const dnNav = menuRepeatStep('down', input.invDn, dnEdge);
+    if (upNav) state.factionRankScroll = Math.max(0, state.factionRankScroll - 3);
+    if (dnNav) state.factionRankScroll = Math.min(99, state.factionRankScroll + 3);
   }
   // ── Message log menu ─────────────────────────────────────
   else if (state.showLog) {
@@ -4490,7 +4650,7 @@ function handleMenuInput(): void {
     if (dbgEdge) { state.showDebug = true; state.debugSel = 0; }
     if (invEdge) { state.showInventory = true; state.invSel = 0; }
     if (questEdge) { state.showQuests = true; }
-    if (factionEdge) { state.showFactions = true; }
+    if (factionEdge) { state.showFactions = true; state.factionRankScroll = 0; }
     if (logEdge) { state.showLog = true; state.logScroll = 0; }
   }
 
@@ -4507,6 +4667,8 @@ function handleMenuInput(): void {
   prevDebug = input.debugScreen;
   prevFactionMenu = input.factionMenu;
   prevLogMenu = input.logMenu;
+  prevControlsMenu = input.controls;
+  prevControlReset = input.controlReset;
 
   // Auto-pause when any menu is open
   syncPauseState();
@@ -4531,6 +4693,7 @@ function cleanupDeadEntities(dt: number): number {
   for (let i = entities.length - 1; i >= 0; i--) {
     const e = entities[i];
     if (!e.alive && e.type !== EntityType.PLAYER) {
+      if (e.type === EntityType.NPC) recordAlifeNpcDeath(state, e);
       entities.splice(i, 1);
       removed++;
     }
@@ -4674,15 +4837,12 @@ function gameLoop(now: number): void {
     if (updateSamosbor(world, entities, state, dt, nextEntityId)) {
       reportNetSphereProgressEvents();
       pendingLoad = () => {
+        captureCurrentAlifeFloor();
         clearWrongDoorRemaps(world, state, 'world_rebuild');
         const replacement = currentRouteRebuildGeneration();
         rebuildWorld(world, entities, nextEntityId, state.samosborCount, state.currentFloor, replacement);
         initFactionControl(world);
-        const fStats = countFactionTerritory(world);
-        if (state.currentFloor !== FloorLevel.HELL) {
-          spawnPatrolSquads(world, entities, nextEntityId, fStats);
-          spawnTerritoryReinforcements(world, entities, nextEntityId, fStats);
-        }
+        materializeCurrentAlifeFloor();
         ensureProceduralSpriteSeeds(entities);
         ensureRoomContainers(world, state.currentFloor);
         ensureProductionRooms(state, world);
@@ -4699,21 +4859,8 @@ function gameLoop(now: number): void {
     // Faction zone capture (cell-based territory control)
     updateFactionCapture(world, entities, dt);
     updateFactionActivity(world, entities, player, state, nextEntityId, dt, currentFloorAllowsNpcPopulation());
-    if (state.currentFloor === FloorLevel.HELL) {
-      updateHellPopulation(world, entities, nextEntityId, dt, state.samosborCount);
-    }
     if (state.currentFloor === FloorLevel.KVARTIRY) {
-      updateKvPopulation(world, entities, nextEntityId, dt, state);
-    }
-    // Periodic NPC reinforcement for floors with ambient population.
-    if (currentFloorAllowsNpcPopulation() && allowsAmbientFactionReinforcements(state.currentFloor)) {
-      _npcReinforcementAccum += dt;
-      if (_npcReinforcementAccum >= 30) {
-        _npcReinforcementAccum -= 30;
-        const fStats = countFactionTerritory(world);
-        spawnTerritoryReinforcements(world, entities, nextEntityId, fStats);
-        ensureProceduralSpriteSeeds(entities);
-      }
+      updateKvPopulation(world, entities, dt, state);
     }
     // Continuous monster spawn for Grom's defense quest (step 8)
     if (state.currentFloor === FloorLevel.MAINTENANCE) {
@@ -4848,15 +4995,12 @@ function gameLoop(now: number): void {
     if (updateSamosbor(world, entities, state, dt, nextEntityId)) {
       reportNetSphereProgressEvents();
       pendingLoad = () => {
+        captureCurrentAlifeFloor();
         clearWrongDoorRemaps(world, state, 'world_rebuild');
         const replacement = currentRouteRebuildGeneration();
         rebuildWorld(world, entities, nextEntityId, state.samosborCount, state.currentFloor, replacement);
         initFactionControl(world);
-        const fStats = countFactionTerritory(world);
-        if (state.currentFloor !== FloorLevel.HELL) {
-          spawnPatrolSquads(world, entities, nextEntityId, fStats);
-          spawnTerritoryReinforcements(world, entities, nextEntityId, fStats);
-        }
+        materializeCurrentAlifeFloor();
         ensureProceduralSpriteSeeds(entities);
         ensureRoomContainers(world, state.currentFloor);
         ensureProductionRooms(state, world);
@@ -4871,21 +5015,8 @@ function gameLoop(now: number): void {
     }
     updateFactionCapture(world, entities, dt);
     updateFactionActivity(world, entities, player, state, nextEntityId, dt, currentFloorAllowsNpcPopulation());
-    if (state.currentFloor === FloorLevel.HELL) {
-      updateHellPopulation(world, entities, nextEntityId, dt, state.samosborCount);
-    }
     if (state.currentFloor === FloorLevel.KVARTIRY) {
-      updateKvPopulation(world, entities, nextEntityId, dt, state);
-    }
-    // Periodic NPC reinforcement for floors with ambient population.
-    if (currentFloorAllowsNpcPopulation() && allowsAmbientFactionReinforcements(state.currentFloor)) {
-      _npcReinforcementAccum += dt;
-      if (_npcReinforcementAccum >= 30) {
-        _npcReinforcementAccum -= 30;
-        const fStats2 = countFactionTerritory(world);
-        spawnTerritoryReinforcements(world, entities, nextEntityId, fStats2);
-        ensureProceduralSpriteSeeds(entities);
-      }
+      updateKvPopulation(world, entities, dt, state);
     }
     bloodTrailAccum += dt;
     if (bloodTrailAccum >= 0.3) {
@@ -4973,7 +5104,7 @@ function showTitle(): void {
   ctx.fillText(
     mobileControls?.isEnabled()
       ? 'Тап — начать  |  левый джойстик — ходьба  |  правый — камера  |  центр — атака'
-      : 'WASD — движение  |  Мышь — обзор  |  E — действие  |  N — НЕТ-СФЕРА  |  I — инвентарь  |  M — карта',
+      : `${controlBindingLabel('moveForward')} — движение  |  Мышь — обзор  |  ${controlBindingLabel('interact')} — действие  |  ${controlBindingLabel('controlsMenu')} — все клавиши`,
     w / 2,
     h / 2 + 96,
   );

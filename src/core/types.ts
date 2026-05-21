@@ -289,9 +289,9 @@ export interface RPGStats {
   level: number;
   xp: number;
   attrPoints: number;      // unspent attribute points
-  str: number;             // сила: +10% melee dmg & maxHP per point
-  agi: number;             // ловкость: +10% attack speed & move speed per point
-  int: number;             // интеллект: +10% maxPsi & XP bonus per point
+  str: number;             // сила: melee dmg + maxHP scaling
+  agi: number;             // ловкость: movement/attack/spread scaling
+  int: number;             // интеллект: maxPsi, XP, reward and PSI cost scaling
   psi: number;             // current PSI (mana)
   maxPsi: number;          // base max PSI (scaled by INT)
 }
@@ -384,10 +384,17 @@ export interface Entity {
   tool?: string;              // equipped tool def id
   faction?: Faction;
   occupation?: Occupation;
+  playerRelation?: number;    // personal attitude to player, -100..100; below hostile threshold attacks
+  karma?: number;             // A-Life moral/social charge, -128..128; player starts at 0
+  kills?: number;             // total actor kills for A-Life ranking
+  npcKills?: number;          // NPC kills for A-Life ranking
+  monsterKills?: number;      // monster kills for A-Life ranking
   isTraveler?: boolean;       // путник/паломник/охотник — бродит по лабиринту
   assignedRoomId?: number;    // назначенный кабинет (министерство)
   questId?: number;           // active quest given by this NPC (-1 = none)
-  canGiveQuest?: boolean;     // only ~10% NPCs can give quests
+  canGiveQuest?: boolean;     // authored/current quest affordance; persistent A-Life NPCs are valid quest candidates
+  alifeId?: number;           // persistent procedural NPC identity
+  persistentNpcId?: string;   // stable non-plot NPC key, e.g. alife:123
   money?: number;             // рубли
   spriteScale?: number;       // sprite size multiplier (child = 0.6)
   spriteZ?: number;           // vertical offset: 0=ground, 0.5=eye level (projectiles)
@@ -855,8 +862,12 @@ export interface GameState {
   showDebug: boolean;
   debugSel: number;
   showFactions: boolean;       // faction relations matrix (F key)
+  factionRankScroll: number;   // A-Life leaderboard scroll inside F menu
   showLog: boolean;            // message log menu (L key)
   logScroll: number;           // scroll offset in log menu
+  showControls: boolean;       // hotkey / rebind screen (Tab by default)
+  controlSel: number;
+  controlScroll: number;
   msgLog: LogEntry[];          // persistent message log with timestamps
   dmgFlash: number;           // damage vignette intensity 0..1, decays over time
   dmgSeed: number;            // random seed for vein pattern per hit
@@ -868,7 +879,7 @@ export interface GameState {
   beamLen: number;           // beam length (cells)
   uvBeamFx: number;          // UV spotlight visual timer (seconds remaining)
   uvBeamLen: number;         // UV spotlight reach (cells)
-  gameWon: boolean;          // legacy game-over victory flag; return portal now continues freeplay
+  gameWon: boolean;          // end-screen victory flag; return portal now continues freeplay
   worldEvents?: WorldEventState; // bounded structured event history; old saves may omit it
 }
 
@@ -904,6 +915,8 @@ export interface InputState {
   factionMenu: boolean;         // F key — faction relations matrix
   logMenu: boolean;             // L key — message log
   sleep: boolean;               // Z key — hold to sleep
+  controls: boolean;            // Tab by default — hotkey / rebind screen
+  controlReset: boolean;        // Backspace by default — reset selected binding
   mouse: { dx: number; dy: number; locked: boolean; };
   touch: { moveX: number; moveY: number; lookX: number; lookY: number; active: boolean; };
 }

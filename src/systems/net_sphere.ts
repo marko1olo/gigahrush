@@ -1,4 +1,5 @@
 import { FloorLevel, type Entity, type GameState } from '../core/types';
+import { matchesControlAction } from './controls';
 
 type NetSphereStatus = 'idle' | 'syncing' | 'online' | 'offline';
 export type NetSphereEventType = 'samosbor' | 'death';
@@ -619,7 +620,7 @@ export function bindNetSphereInput(): () => void {
 
   const onDown = (e: KeyboardEvent) => {
     if (!runtime.open) {
-      if (!e.ctrlKey && !e.metaKey && !e.altKey && e.code === 'KeyN') {
+      if (!e.ctrlKey && !e.metaKey && !e.altKey && matchesControlAction('netSphere', e.code)) {
         openNetSphere();
         e.preventDefault();
       }
@@ -627,17 +628,17 @@ export function bindNetSphereInput(): () => void {
     }
 
     if (e.metaKey || e.ctrlKey || e.altKey) return;
-    if (e.code === 'Escape') {
+    if (matchesControlAction('netClose', e.code)) {
       runtime.open = false;
       e.preventDefault();
       return;
     }
-    if (e.code === 'Enter') {
+    if (matchesControlAction('netSubmit', e.code)) {
       submitDraft();
       e.preventDefault();
       return;
     }
-    if (e.code === 'Backspace') {
+    if (matchesControlAction('netErase', e.code)) {
       runtime.draft = runtime.draft.slice(0, -1);
       e.preventDefault();
       return;

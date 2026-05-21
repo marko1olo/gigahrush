@@ -1,6 +1,7 @@
 /* ── Message log (L key) — fullscreen STALKER-style PDA log ───── */
 
 import { type GameState } from '../core/types';
+import { controlBindingLabel, controlHint } from '../systems/controls';
 import { drawNeuroPanel, drawGlitchText } from './hud_fx';
 import { wrapTextLines } from './ui_text';
 
@@ -20,7 +21,7 @@ export function drawLogMenu(
   drawNeuroPanel(ctx, 4 * sx, 4 * sy, w - 8 * sx, h - 8 * sy, time, 60);
 
   // Title
-  drawGlitchText(ctx, 'ЖУРНАЛ СООБЩЕНИЙ [L]', 12 * sx, 14 * sy, time, 600, '#6cf', 10 * sy);
+  drawGlitchText(ctx, `ЖУРНАЛ СООБЩЕНИЙ ${controlHint('log')}`, 12 * sx, 14 * sy, time, 600, '#6cf', 10 * sy);
   ctx.font = `${10 * sy}px monospace`;
 
   // Separator
@@ -105,5 +106,5 @@ export function drawLogMenu(
   // Bottom hint
   ctx.fillStyle = '#555';
   ctx.font = `${7 * sy}px monospace`;
-  ctx.fillText(`[W/S] листать  |  ${log.length} сообщ.  |  [L] закрыть`, 12 * sx, h - 8 * sy);
+  ctx.fillText(`${controlBindingLabel('menuUp')}/${controlBindingLabel('menuDown')} листать  |  ${log.length} сообщ.  |  ${controlHint('log')} закрыть`, 12 * sx, h - 8 * sy);
 }

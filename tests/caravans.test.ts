@@ -204,7 +204,7 @@ test('caravan contract completions apply escort, raid, reroute, report, and seat
   assert.equal(state.msgs.some(entry => entry.text.includes('Место в малом караване')), true);
 });
 
-test('small caravan groups spawn near service cells and expose only nearest HUD snapshot', () => {
+test('small caravan runs open near service cells without creating new people', () => {
   const world = new World();
   addTestRoom(world, {
     id: 2,
@@ -229,7 +229,8 @@ test('small caravan groups spawn near service cells and expose only nearest HUD 
 
   const run = spawnSmallCaravanNear(state, world, entities, nextId, player, 'queue_lift_porters');
   assert.ok(run);
-  assert.equal(entities.length > 1, true);
+  assert.equal(entities.length, 1);
+  assert.equal(run.memberIds.length, 0);
 
   const nearest = getNearestSmallCaravan(state, world, player, 80);
   assert.equal(nearest?.id, run?.id);

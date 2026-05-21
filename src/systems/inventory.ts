@@ -41,6 +41,7 @@ import {
   adjustedPsiCost,
   agiAttackSpeedMult,
   agiRangedSpreadMult,
+  meleeDamage,
   strDurabilityWearMult,
   strHeavyWeaponSpeedMult,
   strMeleeDmgMult,
@@ -1683,8 +1684,7 @@ function weaponDamageLabel(e: Entity, ws: WeaponStats): { damage: number; label:
     const pellets = ws.pellets ?? 1;
     return { damage: ws.dmg, label: pellets > 1 ? `${ws.dmg}x${pellets}` : String(ws.dmg) };
   }
-  const baseDmg = (!e.weapon && e.rpg) ? e.rpg.level : ws.dmg;
-  const damage = Math.round(baseDmg * (e.rpg ? strMeleeDmgMult(e.rpg) : 1));
+  const damage = meleeDamage(e.rpg, e.weapon, ws.dmg);
   return { damage, label: String(damage) };
 }
 

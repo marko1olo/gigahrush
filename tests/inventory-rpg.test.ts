@@ -24,6 +24,7 @@ import {
   getMaxHp,
   getMaxPsi,
   intPsiCostMult,
+  meleeDamage,
   questDifficulty,
   questMoneyReward,
   questXpReward,
@@ -47,6 +48,7 @@ import {
 } from '../src/systems/status';
 import { getRecentEvents } from '../src/systems/events';
 import { tryFactionCombat } from '../src/systems/ai/combat';
+import { rebuildEntityIndex } from '../src/systems/entity_index';
 import { makeGameState } from './helpers';
 
 function makePlayer(): Entity {
@@ -68,6 +70,10 @@ function makePlayer(): Entity {
     name: 'Вы',
     rpg: freshRPG(1),
   };
+}
+
+function round3(value: number): number {
+  return Math.round(value * 1000) / 1000;
 }
 
 test('item stack rules keep weapons single-slot and commodities stackable', () => {
@@ -204,6 +210,84 @@ test('NPC melee stop pushes targets through the generic faction combat path', ()
   assert.ok((target.attackCd ?? 0) > 0);
 });
 
+test('hostile stronger NPC chases the player instead of returning to routine AI', () => {
+  const world = new World();
+  for (let y = 506; y <= 514; y++) {
+    for (let x = 506; x <= 520; x++) world.set(x, y, Cell.FLOOR);
+  }
+
+  const player = makePlayer();
+  player.id = 1;
+  player.x = 516;
+  player.y = 510;
+  player.hp = 30;
+  player.maxHp = 30;
+  const hunter: Entity = {
+    id: 12,
+    type: EntityType.NPC,
+    x: 510,
+    y: 510,
+    angle: 0,
+    pitch: 0,
+    alive: true,
+    speed: 3,
+    sprite: 0,
+    hp: 240,
+    maxHp: 240,
+    faction: Faction.CITIZEN,
+    playerRelation: -80,
+    weapon: '',
+    rpg: freshRPG(30),
+    ai: { goal: AIGoal.IDLE, tx: 0, ty: 0, path: [], pi: 0, stuck: 0, timer: 0 },
+  };
+  const entities = [player, hunter];
+  rebuildEntityIndex(entities);
+
+  assert.equal(tryFactionCombat(world, entities, hunter, 0.1, 5, [], { v: 100 }), true);
+  assert.equal(hunter.ai?.goal, AIGoal.HUNT);
+  assert.equal(hunter.ai?.combatTargetId, player.id);
+});
+
+test('hostile weaker NPC flees a nearby stronger player', () => {
+  const world = new World();
+  for (let y = 506; y <= 514; y++) {
+    for (let x = 506; x <= 520; x++) world.set(x, y, Cell.FLOOR);
+  }
+
+  const player = makePlayer();
+  player.id = 1;
+  player.x = 516;
+  player.y = 510;
+  player.hp = 200;
+  player.maxHp = 200;
+  player.weapon = 'sledgehammer';
+  player.rpg = freshRPG(10);
+  const scared: Entity = {
+    id: 13,
+    type: EntityType.NPC,
+    x: 510,
+    y: 510,
+    angle: 0,
+    pitch: 0,
+    alive: true,
+    speed: 2,
+    sprite: 0,
+    hp: 20,
+    maxHp: 20,
+    faction: Faction.CITIZEN,
+    playerRelation: -80,
+    weapon: '',
+    rpg: freshRPG(1),
+    ai: { goal: AIGoal.IDLE, tx: 0, ty: 0, path: [], pi: 0, stuck: 0, timer: 0 },
+  };
+  const entities = [player, scared];
+  rebuildEntityIndex(entities);
+
+  assert.equal(tryFactionCombat(world, entities, scared, 0.1, 5, [], { v: 100 }), true);
+  assert.equal(scared.ai?.goal, AIGoal.FLEE);
+  assert.equal(scared.ai?.combatTargetId, player.id);
+});
+
 test('PSI weapon ids, resources, and effect bindings stay coherent', () => {
   const instantEffects = new Set(['storm', 'brain_burn', 'madness', 'control', 'phase', 'mark', 'recall', 'beam']);
   const statIds = Object.keys(PSI_WEAPON_STATS).sort();
@@ -316,19 +400,21 @@ test('RPG rewards, attribute spend, and scaling formulas remain stable', () => {
   assert.equal(ITEMS.water.type, ItemType.DRINK);
 });
 
-test('RPG stat effects stay bounded and appear in weapon readiness', () => {
-  const capped = freshRPG(30);
-  capped.str = 50;
-  capped.agi = 50;
-  capped.int = 50;
-  const effects = rpgStatEffects(capped);
-  assert.equal(effects.meleeDamageMult, 1.75);
-  assert.equal(effects.heavyWeaponSpeedMult, 0.75);
-  assert.equal(effects.moveSpeedMult, 1.45);
-  assert.equal(effects.attackCooldownMult, 0.62);
-  assert.equal(effects.rangedSpreadMult, 0.55);
-  assert.equal(effects.xpMult, 1.5);
-  assert.equal(effects.psiCostMult, 0.75);
+test('RPG stat effects avoid hard caps and appear in weapon readiness', () => {
+  const high = freshRPG(30);
+  high.str = 50;
+  high.agi = 50;
+  high.int = 50;
+  const effects = rpgStatEffects(high);
+  assert.equal(effects.maxHp, 440);
+  assert.equal(effects.maxPsi, 89);
+  assert.equal(effects.meleeDamageMult, 1.5);
+  assert.equal(round3(effects.heavyWeaponSpeedMult), 0.286);
+  assert.equal(effects.moveSpeedMult, 1.5);
+  assert.equal(round3(effects.attackCooldownMult), 0.167);
+  assert.equal(round3(effects.rangedSpreadMult), 0.143);
+  assert.equal(round3(effects.xpMult), 1.982);
+  assert.equal(round3(effects.psiCostMult), 0.364);
 
   const bruiser = makePlayer();
   bruiser.rpg!.str = 3;
@@ -341,8 +427,8 @@ test('RPG stat effects stay bounded and appear in weapon readiness', () => {
     Math.round(WEAPON_STATS.sledgehammer.speed * strHeavyWeaponSpeedMult(bruiser.rpg!, WEAPON_STATS.sledgehammer.speed) * 1000) / 1000,
   );
   const heavyReadiness = getWeaponReadiness(bruiser);
-  assert.equal(heavyReadiness.damage, 68);
-  assert.match(heavyReadiness.statLabel, /СИЛ урон \+30%/);
+  assert.equal(heavyReadiness.damage, 54);
+  assert.match(heavyReadiness.statLabel, /СИЛ урон \+3%/);
   assert.match(heavyReadiness.statLabel, /тяж\. темп -13%/);
   assert.match(heavyReadiness.statLabel, /ЛОВ КД -17%/);
 
@@ -352,21 +438,30 @@ test('RPG stat effects stay bounded and appear in weapon readiness', () => {
   psiUser.rpg!.psi = psiUser.rpg!.maxPsi;
   psiUser.weapon = 'psi_rupture';
   const psiReadiness = getWeaponReadiness(psiUser);
-  assert.equal(psiReadiness.resourceLabel, 'ПСИ 12/12 -7.4');
-  assert.match(psiReadiness.statLabel, /ИНТ ПСИ -7%/);
+  assert.equal(psiReadiness.resourceLabel, 'ПСИ 12/12 -7.5');
+  assert.match(psiReadiness.statLabel, /ИНТ ПСИ -6%/);
 });
 
-test('INT improves PSI economy but keeps casts resource-bound', () => {
+test('melee weapon damage receives level and strength scaling', () => {
+  const rpg = freshRPG(5);
+  rpg.str = 10;
+
+  assert.equal(meleeDamage(rpg, '', WEAPON_STATS[''].dmg), 6);
+  assert.equal(meleeDamage(rpg, 'knife', WEAPON_STATS.knife.dmg), 12);
+  assert.equal(meleeDamage(rpg, 'sledgehammer', WEAPON_STATS.sledgehammer.dmg), 62);
+});
+
+test('INT improves PSI economy without a hard floor', () => {
   const rpg = freshRPG(10);
 
   assert.equal(adjustedPsiCost(20, rpg), 20);
   rpg.int = 2;
-  assert.equal(adjustedPsiCost(20, rpg), 18.6);
+  assert.equal(adjustedPsiCost(20, rpg), 18.7);
   rpg.int = 10;
-  assert.equal(intPsiCostMult(rpg), 0.75);
-  assert.equal(adjustedPsiCost(20, rpg), 15);
+  assert.equal(round3(intPsiCostMult(rpg)), 0.741);
+  assert.equal(adjustedPsiCost(20, rpg), 14.8);
   rpg.int = 50;
-  assert.equal(adjustedPsiCost(20, rpg), 15);
+  assert.equal(adjustedPsiCost(20, rpg), 7.3);
 });
 
 test('zhelemish skin timing, costs, and combat formulas stay bounded', () => {

@@ -940,7 +940,7 @@ function drawStatus(
 
   const hints = state.hints && state.hints.length > 0
     ? state.hints.join('  |  ')
-    : 'Esc закрыть  |  WASD/стрелки карта  |  wheel/+/- масштаб  |  Tab инструмент';
+    : 'Enter закрыть  |  WASD/стрелки карта  |  wheel/+/- масштаб';
   ctx.textAlign = 'right';
   ctx.fillStyle = '#4f6470';
   ctx.fillText(fitText(ctx, hints, w * 0.48), layout.x + layout.w - layout.pad, y);

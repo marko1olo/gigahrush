@@ -56,6 +56,7 @@ export function makeGameState(overrides: Partial<GameState> = {}): GameState {
     showDebug: false,
     debugSel: 0,
     showFactions: false,
+    factionRankScroll: 0,
     showLog: false,
     logScroll: 0,
     msgLog: [] as LogEntry[],

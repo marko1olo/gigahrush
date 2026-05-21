@@ -9,7 +9,6 @@ import {
   Feature,
   FloorLevel,
   MonsterKind,
-  Occupation,
   RoomType,
   Tex,
   W,
@@ -31,10 +30,10 @@ import {
   type EmergencyPanelDomain,
   type EmergencyPanelId,
 } from '../data/emergency_panels';
-import { ITEMS, freshNeeds, randomName } from '../data/catalog';
+import { ITEMS } from '../data/catalog';
 import { MONSTERS, applyMonsterVariant } from '../entities/monster';
 import { monsterSpr } from '../render/sprite_index';
-import { gaussianLevel, getMaxHp, randomRPG } from './rpg';
+import { randomRPG } from './rpg';
 import { removeItem } from './inventory';
 import { publishEvent } from './events';
 import { applyInfrastructureRelationResponse, zoneFactionToFaction } from './factions';
@@ -505,45 +504,34 @@ function spawnPanelInspector(
   world: World,
   panel: EmergencyPanelInstance,
   entities: Entity[],
-  nextId: { v: number },
   owner: Faction | null,
 ): number {
   if (owner === null || owner === Faction.PLAYER || Math.random() > 0.35) return 0;
   const room = panel.roomId >= 0 ? world.rooms[panel.roomId] : undefined;
   if (!room) return 0;
-  for (let attempt = 0; attempt < 32; attempt++) {
-    const x = world.wrap(room.x + 1 + Math.floor(Math.random() * Math.max(1, room.w - 2)));
-    const y = world.wrap(room.y + 1 + Math.floor(Math.random() * Math.max(1, room.h - 2)));
-    if (world.solid(x, y)) continue;
-    const zone = world.zones[panel.zoneId];
-    const rpg = randomRPG(gaussianLevel(zone?.level ?? 2, 2));
-    const maxHp = getMaxHp(rpg);
-    const name = randomName(owner);
-    entities.push({
-      id: nextId.v++,
-      type: EntityType.NPC,
-      x: x + 0.5,
-      y: y + 0.5,
-      angle: Math.random() * Math.PI * 2,
-      pitch: 0,
-      alive: true,
-      speed: 1.12,
-      sprite: owner === Faction.LIQUIDATOR ? Occupation.HUNTER : owner === Faction.WILD ? Occupation.TRAVELER : Occupation.MECHANIC,
-      name: name.name,
-      isFemale: name.female,
-      needs: freshNeeds(),
-      hp: maxHp,
-      maxHp,
-      money: 8 + Math.floor(Math.random() * 45),
-      ai: { goal: AIGoal.GOTO, tx: panel.x + 0.5, ty: panel.y + 0.5, path: [], pi: 0, stuck: 0, timer: 0 },
-      faction: owner,
-      occupation: owner === Faction.LIQUIDATOR ? Occupation.HUNTER : Occupation.MECHANIC,
-      isTraveler: true,
-      questId: -1,
-      rpg,
-      inventory: owner === Faction.LIQUIDATOR ? [{ defId: 'makarov', count: 1 }] : [{ defId: 'wrench', count: 1 }],
-      weapon: owner === Faction.LIQUIDATOR ? 'makarov' : 'wrench',
-    });
+  let best: Entity | null = null;
+  let bestD2 = Infinity;
+  const tx = panel.x + 0.5;
+  const ty = panel.y + 0.5;
+  for (const npc of entities) {
+    if (!npc.alive || npc.type !== EntityType.NPC || !npc.ai || npc.faction !== owner) continue;
+    if (npc.plotNpcId || npc.canGiveQuest || (npc.questId !== undefined && npc.questId !== -1)) continue;
+    if (world.zoneMap[world.idx(Math.floor(npc.x), Math.floor(npc.y))] !== panel.zoneId) continue;
+    const d2 = world.dist2(tx, ty, npc.x, npc.y);
+    if (d2 >= bestD2) continue;
+    best = npc;
+    bestD2 = d2;
+  }
+  if (best) {
+    const ai = best.ai;
+    if (!ai) return 0;
+    best.isTraveler = true;
+    ai.goal = AIGoal.GOTO;
+    ai.tx = tx;
+    ai.ty = ty;
+    ai.path = [];
+    ai.pi = 0;
+    ai.timer = 0;
     return 1;
   }
   return 0;
@@ -714,9 +702,9 @@ function activatePanelAction(
   const relationDelta = applyInfrastructureRelationResponse(owner, action);
   const patrols = alertLocalPatrols(world, panel, entities, player, owner, severity);
   const spawned = (action === 'shutdown' || action === 'overload')
-    ? spawnPanelThreat(world, rooms, entities, nextId, player, def) + spawnPanelInspector(world, panel, entities, nextId, owner)
+    ? spawnPanelThreat(world, rooms, entities, nextId, player, def) + spawnPanelInspector(world, panel, entities, owner)
     : action === 'force'
-      ? spawnPanelInspector(world, panel, entities, nextId, owner)
+      ? spawnPanelInspector(world, panel, entities, owner)
       : 0;
 
   panel.status = actionStatus(action);

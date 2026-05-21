@@ -18,9 +18,11 @@ import {
 import { getStack } from '../data/items';
 import { addFactionRelMutual } from '../data/relations';
 import { changeResourceStock, getEconomyQuote, type EconomyQuote } from './economy';
+import { controlHint } from './controls';
 import { publishEvent } from './events';
 import { recordPermitAccess } from './permits';
 import { applyRoomMemoryRelationPenalty, applyTheftRelationPenalty } from './factions';
+import { addKarma } from './alife_rating';
 import { publishMaronaryShavingAcquired } from './maronary_shaving';
 import {
   ROOM_MEMORY_BITS,
@@ -742,24 +744,24 @@ function depositActionLabel(container: WorldContainer, item: Item): { label: str
   const def = ITEMS[item.defId];
   if (container.tags.includes('resident_relief') && !container.tags.includes('resident_relief_done')
     && (def?.type === ItemType.FOOD || def?.type === ItemType.DRINK || item.defId === 'water_coupon' || item.defId === 'concentrate_coupon')) {
-    return { label: '[E] отдать в общий запас', detail: 'Жильцы запомнят помощь.', color: '#8f8', mode: 'service' };
+    return { label: `${controlHint('interact')} отдать в общий запас`, detail: 'Жильцы запомнят помощь.', color: '#8f8', mode: 'service' };
   }
   if (container.tags.includes('veretar_window_seal') && !container.tags.includes('veretar_window_sealed_done') && isVeretarSealItem(item.defId)) {
     return item.defId === 'cloth_roll'
-      ? { label: '[E] занавесить', detail: 'Ткань закроет белое окно и даст свидетелю отойти.', color: '#f4f1df', mode: 'service' }
-      : { label: '[E] замазать', detail: 'Герметик закроет белую щель под рамой.', color: '#f4f1df', mode: 'service' };
+      ? { label: `${controlHint('interact')} занавесить`, detail: 'Ткань закроет белое окно и даст свидетелю отойти.', color: '#f4f1df', mode: 'service' }
+      : { label: `${controlHint('interact')} замазать`, detail: 'Герметик закроет белую щель под рамой.', color: '#f4f1df', mode: 'service' };
   }
   if (container.tags.includes('evidence_drop') && !container.tags.includes('evidence_drop_done') && isEvidenceItem(item.defId)) {
-    return { label: '[E] сдать улику', detail: 'Документ станет событием и слухом.', color: '#8cf', mode: 'service' };
+    return { label: `${controlHint('interact')} сдать улику`, detail: 'Документ станет событием и слухом.', color: '#8cf', mode: 'service' };
   }
   if (container.tags.includes('sabotage_drop') && !container.tags.includes('sabotage_drop_done') && isSabotageItem(item.defId)) {
-    return { label: '[E] испортить запас', detail: 'Саботаж ударит по владельцу.', color: '#f84', mode: 'service' };
+    return { label: `${controlHint('interact')} испортить запас`, detail: 'Саботаж ударит по владельцу.', color: '#f84', mode: 'service' };
   }
   if (item.defId === 'maronary_shaving'
     && (container.access === 'secret' || container.tags.includes('secret') || container.tags.includes('trash'))) {
-    return { label: '[E] спрятать', detail: 'Контрабанда уйдет в тайник.', color: '#c8f', mode: 'service' };
+    return { label: `${controlHint('interact')} спрятать`, detail: 'Контрабанда уйдет в тайник.', color: '#c8f', mode: 'service' };
   }
-  return { label: '[E] положить', detail: 'Обычная сдача в контейнер.', color: '#8cf', mode: 'put' };
+  return { label: `${controlHint('interact')} положить`, detail: 'Обычная сдача в контейнер.', color: '#8cf', mode: 'put' };
 }
 
 export function containerItemActionInfo(
@@ -781,7 +783,7 @@ export function containerItemActionInfo(
     const price = containerPurchaseQuote(state, container, item.defId, 1).totalPrice;
     const enabled = (actor.money ?? 0) >= price;
     return {
-      label: enabled ? `[E] купить ${price}₽` : `нужно ${price}₽`,
+      label: enabled ? `${controlHint('interact')} купить ${price}₽` : `нужно ${price}₽`,
       detail: enabled ? 'Деньги оставят торговый след.' : 'Не хватает наличных.',
       color: enabled ? '#ee4' : '#f84',
       enabled,
@@ -789,9 +791,9 @@ export function containerItemActionInfo(
       price,
     };
   }
-  if (access.unlock) return { label: '[E] отпереть и взять', detail: access.detail, color: '#ee4', enabled: true, mode: 'unlock' };
-  if (access.theft) return { label: '[E] украсть', detail: access.detail, color: '#f84', enabled: true, mode: 'steal' };
-  return { label: '[E] взять', detail: access.detail, color: access.color, enabled: true, mode: 'free' };
+  if (access.unlock) return { label: `${controlHint('interact')} отпереть и взять`, detail: access.detail, color: '#ee4', enabled: true, mode: 'unlock' };
+  if (access.theft) return { label: `${controlHint('interact')} украсть`, detail: access.detail, color: '#f84', enabled: true, mode: 'steal' };
+  return { label: `${controlHint('interact')} взять`, detail: access.detail, color: access.color, enabled: true, mode: 'free' };
 }
 
 function findTheftWitnesses(
@@ -1083,6 +1085,8 @@ export function takeFromContainer(
     const relationPenalty = stolen
       ? applyTheftRelationPenalty(container.faction, theftWitnessed, false)
       : 0;
+    const karmaPenalty = stolen ? (theftWitnessed ? -3 : -2) : 0;
+    if (karmaPenalty !== 0) addKarma(actor, karmaPenalty);
     const evidenceTags = chernobogDocketContainerEventTags(container.tags, defId);
     const rumorIds = chernobogDocketContainerRumorIds(container.tags, defId);
     const eventTags = [
@@ -1135,6 +1139,7 @@ export function takeFromContainer(
         witnessScanCapped: theftWitness.capped,
         auditMarked,
         relationPenalty: stolen ? relationPenalty : undefined,
+        karmaPenalty: stolen ? karmaPenalty : undefined,
         stolenItemKnown,
         ...(rumorIds.length > 0 ? { rumorIds } : {}),
       },

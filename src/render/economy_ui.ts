@@ -3,6 +3,7 @@ import { ITEMS } from '../data/catalog';
 import { getStack } from '../data/items';
 import { RESOURCES, RESOURCE_BY_ID } from '../data/resources';
 import { bankingSummary } from '../systems/banking';
+import { controlHint } from '../systems/controls';
 import { getAdjustedItemPrice, getEconomyQuote, getItemPriceMultiplier, getResourceScarcity } from '../systems/economy';
 import { stockMarketSnapshot } from '../systems/stock_market';
 import { drawGlitchText, drawNeuroPanel } from './hud_fx';
@@ -480,7 +481,7 @@ export function tradePriceDisplay(
   const hasSpace = hasInventoryRoom(receiver.inventory, defId);
   const ok = hasMoney && hasSpace;
   const status = ok
-    ? side === 'buy' ? '[E] купить' : '[E] продать'
+    ? side === 'buy' ? `${controlHint('interact')} купить` : `${controlHint('interact')} продать`
     : !hasMoney
       ? side === 'buy' ? 'не хватает денег' : 'у торговца нет денег'
       : side === 'buy' ? 'нет места' : 'у торговца нет места';

@@ -1,3 +1,4 @@
+import { controlHint } from '../systems/controls';
 import { drawGlitchText, drawNeuroPanel, drawStaticNoise, textJitter } from './hud_fx';
 import { fitText, wrapTextLines } from './ui_text';
 
@@ -96,7 +97,7 @@ export function drawNetTerminalGenDenied(
 
   ctx.fillStyle = '#4f6470';
   ctx.font = `${7 * s}px monospace`;
-  const footer = denied.footer ?? '[Esc] закрыть  |  нужен НЕТ-ГЕН';
+  const footer = denied.footer ?? `${controlHint('interact')} закрыть  |  нужен НЕТ-ГЕН`;
   ctx.fillText(fitText(ctx, footer, maxTextW), x + pad, y + panelH - 16 * s);
   if (denied.code) {
     ctx.textAlign = 'right';

@@ -8,7 +8,7 @@ import { generateMinistry } from './ministry';
 import { generateKvartiry, resetKvPopulationState } from './kvartiry';
 import { generateWorld } from './living';
 import { generateMaintenance } from './maintenance';
-import { generateHell, resetHellPopulationState } from './hell';
+import { generateHell } from './hell';
 import { generateVoid } from './void';
 import { withoutNpcEntities } from './entity_filters';
 
@@ -65,16 +65,7 @@ export function nextPostSamosborTimer(floor: FloorLevel): number {
   }
 }
 
-export function allowsFactionEntryReinforcements(floor: FloorLevel): boolean {
-  return floor !== FloorLevel.HELL && floor !== FloorLevel.VOID;
-}
-
-export function allowsAmbientFactionReinforcements(floor: FloorLevel): boolean {
-  return floor !== FloorLevel.HELL && floor !== FloorLevel.KVARTIRY && floor !== FloorLevel.VOID;
-}
-
 export function resetGeneratedFloorPopulationState(): void {
-  resetHellPopulationState();
   resetKvPopulationState();
 }
 

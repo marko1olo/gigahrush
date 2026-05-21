@@ -25,14 +25,22 @@ const BASE_HP = 100;
 const HP_PER_LEVEL = 10;
 const BASE_PSI = 10;
 const PSI_PER_LEVEL = 1;
-const STR_BONUS_CAP = 0.75;
-const AGI_MOVE_BONUS_CAP = 0.45;
-const AGI_ATTACK_SPEED_FLOOR = 0.62;
-const AGI_SPREAD_FLOOR = 0.55;
-const INT_PSI_BONUS_CAP = 0.75;
-const INT_XP_BONUS_CAP = 0.5;
+const STR_HP_PER_POINT = 1;
+const STR_MELEE_DAMAGE_PER_POINT = 0.01;
+const AGI_MOVE_SPEED_PER_POINT = 0.01;
+const AGI_ATTACK_COOLDOWN_PER_POINT = 0.1;
+const AGI_SPREAD_PER_POINT = 0.12;
+const INT_PSI_PER_POINT = 1;
+const INT_XP_BONUS_PER_POINT = 0.08;
+const INT_XP_BONUS_ASYMPTOTE = 1.0;
+const INT_CONTRACT_REWARD_PER_POINT = 0.04;
+const INT_CONTRACT_REWARD_ASYMPTOTE = 0.5;
+const INT_DOCUMENT_REWARD_PER_POINT = 0.06;
+const INT_DOCUMENT_REWARD_ASYMPTOTE = 0.7;
+const INT_PSI_COST_EFFICIENCY_PER_POINT = 0.035;
+const STR_DURABILITY_WEAR_PER_POINT = 0.08;
 const HEAVY_WEAPON_COOLDOWN = 0.65;
-const HEAVY_WEAPON_SPEED_FLOOR = 0.75;
+const STR_HEAVY_WEAPON_SPEED_PER_POINT = 0.05;
 
 export function getLevelHp(level: number): number { return BASE_HP + HP_PER_LEVEL * (level - 1); }
 export function getLevelPsi(level: number): number { return BASE_PSI + PSI_PER_LEVEL * (level - 1); }
@@ -75,44 +83,67 @@ export function randomRPG(level: number): RPGStats {
   };
 }
 
-function statBonus(points: number, perPoint: number, cap: number): number {
-  return Math.min(cap, Math.max(0, points) * perPoint);
+function positivePoints(points: number): number {
+  return Math.max(0, points);
+}
+
+function inverseStatMult(points: number, perPoint: number): number {
+  return 1 / (1 + positivePoints(points) * perPoint);
+}
+
+function asymptoticBonus(points: number, perPoint: number, asymptote: number): number {
+  const p = positivePoints(points);
+  if (p <= 0 || perPoint <= 0 || asymptote <= 0) return 0;
+  return asymptote * (1 - Math.exp(-(p * perPoint) / asymptote));
 }
 
 // ── Compute effective max PSI (level base + INT multiplier) ──────
 export function getMaxPsi(rpg: RPGStats): number {
-  return Math.round(getLevelPsi(rpg.level) * (1 + statBonus(rpg.int, 0.1, INT_PSI_BONUS_CAP)));
+  return Math.round(getLevelPsi(rpg.level) + Math.max(0, rpg.int) * INT_PSI_PER_POINT);
 }
 
 // ── Compute effective max HP (level base + STR multiplier) ───────
 export function getMaxHp(rpg: RPGStats): number {
-  return Math.round(getLevelHp(rpg.level) * (1 + statBonus(rpg.str, 0.1, STR_BONUS_CAP)));
+  return Math.round(getLevelHp(rpg.level) + Math.max(0, rpg.str) * STR_HP_PER_POINT);
 }
 
 // ── Attribute multipliers ────────────────────────────────────────
-export function strMeleeDmgMult(rpg: RPGStats): number { return 1 + statBonus(rpg.str, 0.1, STR_BONUS_CAP); }
-export function agiSpeedMult(rpg: RPGStats): number { return 1 + statBonus(rpg.agi, 0.1, AGI_MOVE_BONUS_CAP); }
+export function strMeleeDmgMult(rpg: RPGStats): number { return 1 + Math.max(0, rpg.str) * STR_MELEE_DAMAGE_PER_POINT; }
+export function meleeBaseDamage(rpg: RPGStats | undefined, weaponId: string | undefined, weaponDamage: number): number {
+  const base = Math.max(0, weaponDamage);
+  if (!rpg) return base;
+  const levelBonus = Math.max(0, Math.floor(rpg.level) - 1);
+  return weaponId ? base + levelBonus : Math.max(1, Math.floor(rpg.level));
+}
+export function meleeDamage(rpg: RPGStats | undefined, weaponId: string | undefined, weaponDamage: number): number {
+  return Math.round(meleeBaseDamage(rpg, weaponId, weaponDamage) * (rpg ? strMeleeDmgMult(rpg) : 1));
+}
+export function agiSpeedMult(rpg: RPGStats): number { return 1 + positivePoints(rpg.agi) * AGI_MOVE_SPEED_PER_POINT; }
 export function agiAttackSpeedMult(rpg: RPGStats): number {
-  return Math.max(AGI_ATTACK_SPEED_FLOOR, 1 / (1 + 0.1 * Math.max(0, rpg.agi)));
+  return inverseStatMult(rpg.agi, AGI_ATTACK_COOLDOWN_PER_POINT);
 } // lower cooldown
-export function intXpMult(rpg: RPGStats): number { return 1 + statBonus(rpg.int, 0.1, INT_XP_BONUS_CAP); }
+export function intXpMult(rpg: RPGStats): number {
+  return 1 + asymptoticBonus(rpg.int, INT_XP_BONUS_PER_POINT, INT_XP_BONUS_ASYMPTOTE);
+}
 export function strDurabilityWearMult(rpg: RPGStats): number {
-  return 1 / (1 + statBonus(rpg.str, 0.08, 0.64));
+  return inverseStatMult(rpg.str, STR_DURABILITY_WEAR_PER_POINT);
 }
 export function strHeavyWeaponSpeedMult(rpg: RPGStats, baseCooldown: number): number {
   return baseCooldown >= HEAVY_WEAPON_COOLDOWN
-    ? Math.max(HEAVY_WEAPON_SPEED_FLOOR, 1 / (1 + 0.05 * Math.max(0, rpg.str)))
+    ? inverseStatMult(rpg.str, STR_HEAVY_WEAPON_SPEED_PER_POINT)
     : 1;
 }
 export function agiRangedSpreadMult(rpg: RPGStats): number {
-  return Math.max(AGI_SPREAD_FLOOR, 1 / (1 + 0.12 * Math.max(0, rpg.agi)));
+  return inverseStatMult(rpg.agi, AGI_SPREAD_PER_POINT);
 }
-export function intPsiCostMult(rpg: RPGStats): number { return Math.max(0.75, 1 - 0.035 * rpg.int); }
+export function intPsiCostMult(rpg: RPGStats): number {
+  return inverseStatMult(rpg.int, INT_PSI_COST_EFFICIENCY_PER_POINT);
+}
 export function intContractRewardMult(rpg: RPGStats): number {
-  return 1 + Math.min(0.35, 0.05 * rpg.int);
+  return 1 + asymptoticBonus(rpg.int, INT_CONTRACT_REWARD_PER_POINT, INT_CONTRACT_REWARD_ASYMPTOTE);
 }
 export function intDocumentRewardMult(rpg: RPGStats): number {
-  return 1 + Math.min(0.5, 0.08 * rpg.int);
+  return 1 + asymptoticBonus(rpg.int, INT_DOCUMENT_REWARD_PER_POINT, INT_DOCUMENT_REWARD_ASYMPTOTE);
 }
 
 export function adjustedPsiCost(baseCost: number, rpg?: RPGStats): number {

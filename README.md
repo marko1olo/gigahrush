@@ -22,9 +22,11 @@ Active docs are intentionally narrow. Use them by role:
 - `desdoc.md`: current planning snapshot and next-iteration priorities.
 - `plans.md`: consolidated unimplemented/partial plans extracted from current planning docs.
 - `architecture.md`: layer contracts, ownership rules and integration patterns.
+- `alife.md`: shipped persistent procedural NPC population model.
 - `scaling.md`: shipped high-density population, entity-index and smoke baseline facts.
 - `cloudflare.md`: optional Cloudflare Net Sphere deployment notes.
 - `commit.md`: release commit/deploy runbook for explicit commit requests.
+- `LICENSE.md`: source-available non-commercial license for the game and repository.
 - `Docs/DesignFloors/`, `Docs/ProceduralFloors/` and `Docs/Expansions/`: active design/reference packets.
 - `scenarist.md`: active project-wide tone brief for player-facing text passes. It does not document shipped behavior.
 - `Docs/ScenarioWriters/`: active subordinate voice/domain packets for text passes. It is active, not archive; read `Docs/ScenarioWriters/README.md` before using it.
@@ -156,6 +158,20 @@ Core loop:
 5. Survive samosbor and aftermath.
 6. Bring back loot, XP, reputation, money, story progress or trouble.
 
+## A-Life Population
+
+New runs create a compact in-memory pool of `1_000_000` procedural NPC records when runtime memory allows it, falling back to `100_000` on constrained browsers. Records are distributed across story floors, routed design floors and the per-run procedural floor deck. Only the current floor is materialized into live `entities`; other floors keep identity, floor assignment, family id, quest affordance, RPG traits, loadout, death state and optional last known coordinates without running AI.
+
+Persistent NPC generation uses data profiles in `src/data/alife_generation.ts`: faction weights, level tail, wealth tail, pockets and occupation mixes remain expandable without rewriting the runtime system.
+
+When a floor is generated, ambient generator NPCs are used as placement templates and replaced by A-Life NPC entities with stable `alifeId` / `persistentNpcId`. Materialized NPCs also carry personal `playerRelation`, initialized from faction attitude plus deterministic individual fluctuation, and `karma` in `[-128, 128]`, with faction-biased distribution. Before floor transitions, samosbor rebuilds and saves, live A-Life NPC state is folded back into the pool. Killed A-Life NPCs and killed `plotNpcId` NPCs do not respawn on later visits. Saves store the A-Life seed, dead ids and changed-record overrides, not the full live entity array.
+
+The player is an A-Life actor too: the player has `karma`, kill counters, rank score inputs and `playerRelation = 100` to self. The Faction/A-Life panel includes a cached `A-LIFE РЕЙТИНГ ТОП 100` with the player's own global rank among alive persistent NPCs.
+
+Periodic background NPC/monster refill is disabled. NPC updates now come from current-floor AI, explicit faction/events/caravans, slow bounded migration/event passes, samosbor rebuild materialization and quest/scripted spawns. Monsters still appear through initial generation, samosbor, quests, lift encounters, hack backlash and authored consequences.
+
+The detailed product and engineering contract for this system lives in [alife.md](alife.md).
+
 ## Project Shape
 
 ```txt
@@ -206,12 +222,13 @@ src/
     shared.ts
   systems/
     ai/            NPC/monster AI, combat, pathfinding, FSM
+    alife.ts       persistent procedural NPC pool and floor materialization
     net_sphere.ts  optional Cloudflare identity, heartbeat, stats, chat and event client
     samosbor.ts    siren, fog, seals, rebuild, boss/monster spawns
     events.ts      structured world event buffers
     quests.ts      plot, side, procedural and contract quest handling
     inventory.ts   inventory, trade, item use, weapons
-    factions.ts    zone capture, patrols, reinforcements
+    factions.ts    zone capture, hostility, faction events
     economy.ts     resource stocks and scarcity prices
     banking.ts     deposits, loans, interest and route bank state
     stock_market.ts quote ticks and global market impulses
@@ -315,7 +332,7 @@ z= 40 darkness
 
 `VOID` is reachable by the normal route at `z=36` and by portal from Hell/Underhell. The return portal in `VOID` sends the player back to `LIVING` and the run continues in freeplay.
 
-Route floors at `z>=36` are NPC-free endgame spaces: `VOID`, the deeper procedural floors and `darkness` still generate monsters, loot, protocols and hazards, but no NPCs or faction reinforcements.
+Route floors at `z>=36` are NPC-free endgame spaces: `VOID`, the deeper procedural floors and `darkness` still generate monsters, loot, protocols and hazards, but no NPCs or faction event spawns.
 
 When switching floors, the floor is regenerated and the player preserves HP, needs, inventory, equipped weapon/tool, money and RPG stats.
 
@@ -489,7 +506,7 @@ Ministry content is grouped behind `src/gen/ministry/content_manifest.ts` to kee
 
 ### Kvartiry
 
-`generateKvartiry()` creates a dense residential riot floor from a wall-source grid and keeps that percolation layout intact. Initial population comes from `KVARTIRY_POPULATION_PROFILE`: 3000 citizens, 1700 wild residents and 400 liquidators, all with AI. Spawn placement is context-weighted: rooms, public corridors, zone factions and smooth density noise bias independent floor-cell picks across the whole floor. Runtime caps are 6000 citizens, 3200 wild and 800 liquidators inside the shared 5k NPC ceiling. Social-pressure POIs and ambient unrest can trigger local uprising checks on the existing profile cadence.
+`generateKvartiry()` creates a dense residential riot floor from a wall-source grid and keeps that percolation layout intact. Initial population comes from `KVARTIRY_POPULATION_PROFILE`: 3000 citizens, 1700 wild residents and 400 liquidators, all with AI inside the shared 5k NPC ceiling. Spawn placement is context-weighted: rooms, public corridors, zone factions and smooth density noise bias independent floor-cell picks across the whole floor. Runtime population refill is disabled; social-pressure POIs and ambient unrest can trigger local uprising checks on the existing profile cadence.
 
 ### Communal Ring
 
@@ -505,7 +522,7 @@ The pneumomail station is a static Maintenance POI with intake, intercept, jam a
 
 ### Hell
 
-`generateHell()` builds organic meat caves through an Ising-style field plus Hell macro geometry, Hell-tuned zones, cultists, liquidators, monsters, 3 Heralds, Hell plot rooms and faster population pressure. Initial counts come from `HELL_POPULATION_PROFILE`: 4200 monsters, 700 cultists and 100 liquidators, all with AI. Spawn placement uses the shared smoothed whole-floor placement field with zone/noise weights; route arenas remain anchors, but initial population is not piled into arena cells. Runtime soft caps are 8200 monsters, 1500 cultists and 300 liquidators with bounded reinforcement budgets, inside the shared entity ceilings.
+`generateHell()` builds organic meat caves through an Ising-style field plus Hell macro geometry, Hell-tuned zones, cultists, liquidators, monsters, 3 Heralds, Hell plot rooms and faster population pressure. Initial counts come from `HELL_POPULATION_PROFILE`: 4200 monsters, 700 cultists and 100 liquidators, all with AI. Spawn placement uses the shared smoothed whole-floor placement field with zone/noise weights; route arenas remain anchors, but initial population is not piled into arena cells. Runtime population refill is disabled; additional pressure comes from samosbor, quests, lift encounters, hack backlash and authored consequences.
 
 ### Void
 
@@ -600,7 +617,9 @@ Factions:
 | Wild | raiders/social chaos |
 | Player | separate faction for relation logic |
 
-The world has 64 macro-zones. `systems/factions.ts` controls zone ownership, patrol clashes, territory capture, reinforcements and hostile target logic. `data/faction_events.ts` adds discrete faction events. Cult processions are rare timed faction events with capped pilgrims, residue marks, temporary local control pressure, map/log warnings, and player responses: avoid, follow, report by equipped radio, use a meat rune as disguise, or disrupt by violence. Active processions publish aftermath and end when a samosbor cycle starts.
+The world has 64 macro-zones. `systems/factions.ts` controls zone ownership, patrol/noise response, territory capture and hostile target logic. `data/faction_events.ts` adds discrete faction events. Cult processions are rare timed faction events with capped pilgrims, residue marks, temporary local control pressure, map/log warnings, and player responses: avoid, follow, report by equipped radio, use a meat rune as disguise, or disrupt by violence. Active processions publish aftermath and end when a samosbor cycle starts.
+
+Personal NPC relation to the player is separate from faction relation but uses the same hostile threshold. Attacking an NPC lowers that individual relation, and quest completion raises the giver's personal value more than the issuing faction's small normal gain (`+1`). An individual NPC can therefore become hostile or grateful even before the faction-wide matrix fully changes. Player karma starts at `0`; attacking non-enemies, stealing and urinating on owned floor reduce it.
 
 NPC and monster broadphase uses `systems/entity_index.ts`: a 16-cell toroidal bucket index with live id, actor, needs and projectile lists. Combat scans are cached through `combatTargetId` / `combatScanCd` and query nearby buckets instead of scanning every entity. All live AI actors remain active; far routine actors tick on deterministic accumulated cadences, while near-player actors and player-targeting threats stay responsive. NPCs are primed with an A-Life state/task before LOD cadence can skip them, moving monsters default to wandering, and actors with a combat target use `HUNT`. Pathfinding uses `systems/ai/pathfinding.ts`: a baked whole-floor BFS navigation tree over the 1024x1024 toroidal field, rebuilt when `world.cellVersion` or samosbor phase changes. Routine and combat path assignment read bounded chunks from that tree instead of launching per-actor BFS queues; ordinary closed doors are routeable and opened by movement, while locked and hermetic-closed doors block navigation. Shared A-Life destinations, such as nearest kitchen, toilet, workplace or shelter class, use cached behavior flow fields layered over the same geometry: each behavior supplies a source set, the field is baked once per geometry version, and many actors follow bounded chunks from it. The AI LOD profile also caps far hot-promotions for active attackers, projectile owners and recently damaged actors, so large NPC/monster fights continue on combat cadence without making every distant participant frame-rate hot.
 
@@ -648,9 +667,9 @@ RPG stats:
 - level
 - XP
 - unspent attribute points
-- STR: melee and max HP scaling
-- AGI: movement and attack speed scaling
-- INT: max PSI and XP bonus scaling
+- STR: melee damage `+1%` per point, melee weapon level bonus, max HP `+1` per point
+- AGI: movement `+1%` per point plus asymptotic attack/spread improvement
+- INT: max PSI `+1` per point plus asymptotic XP/reward/PSI-cost improvement
 - current/max PSI
 
 XP uses a soft quadratic formula in `systems/rpg.ts`. Monsters and NPCs can scale by zone level.
@@ -716,11 +735,13 @@ HUD/UI modules:
 - `stats_ui.ts`: RPG/stat view.
 - `menu_ui.ts`: save/load menu.
 - `net_sphere_ui.ts`: optional Cloudflare stats/chat terminal.
-- `computer_ui.ts`, `gambling_ui.ts`, `net_hack_ui.ts`, `emergency_panel_ui.ts`: generated local interaction overlays.
+- `computer_ui.ts`, `gambling_ui.ts`, `net_hack_ui.ts`, `emergency_panel_ui.ts`, `controls_ui.ts`: generated local interaction and controls overlays.
 
 Screens show active floor/zone context, quest markers, fog overlay, NPC/monster/drop pips and current player status.
 
 ## Controls
+
+`Tab` opens the in-game hotkey screen. It lists every registered keyboard action and lets the player rebind the selected action immediately; bindings are stored in browser `localStorage` separately from the game save. The game uses `KeyboardEvent.code`, so defaults follow physical keys and keep working across keyboard layouts; the browser Tab focus action is prevented while the game input handler is active.
 
 | Key | Action |
 | --- | --- |
@@ -736,6 +757,8 @@ Screens show active floor/zone context, quest markers, fog overlay, NPC/monster/
 | `L` | message log |
 | `F` | factions |
 | `N` | Net Sphere terminal; shows offline state when Cloudflare API is unavailable |
+| `Tab` | hotkey/rebind screen |
+| `Backspace` on hotkey screen | reset selected binding |
 | `G` / `R` | use equipped tool; `R` also restarts from game-over prompt |
 | `D` in inventory | drop selected inventory item |
 | `P` | pee |

@@ -1,6 +1,7 @@
 /* ── Game menu (ESC) ──────────────────────────────────────────── */
 
 import { type GameState } from '../core/types';
+import { controlBindingLabel } from '../systems/controls';
 import { drawNeuroPanel, textJitter, flicker } from './hud_fx';
 import { fitText } from './ui_text';
 
@@ -51,7 +52,11 @@ export function drawGameMenu(
 
   ctx.fillStyle = '#456';
   ctx.font = `${7 * sy}px monospace`;
-  ctx.fillText(fitText(ctx, 'W/S — выбор  |  E — подтвердить  |  ENTER — закрыть', pw - 12 * _sx), w / 2, py + ph - 10 * sy);
+  ctx.fillText(
+    fitText(ctx, `${controlBindingLabel('menuUp')}/${controlBindingLabel('menuDown')} — выбор  |  ${controlBindingLabel('interact')} — подтвердить  |  ${controlBindingLabel('gameMenu')} — закрыть`, pw - 12 * _sx),
+    w / 2,
+    py + ph - 10 * sy,
+  );
 
   ctx.textAlign = 'left';
 }

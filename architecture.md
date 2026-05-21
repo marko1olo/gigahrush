@@ -30,7 +30,8 @@ Critical runtime facts:
 - `main.ts` owns the game loop and calls systems in fixed order.
 - `systems/events.ts` is the current EventBus analogue: fixed-size ring buffers, public event publication, and query filters.
 - Shared `E` interaction goes through `systems/interactions.ts`; generated gambling machines, local computers, NET-hack terminals, emergency panels, Net Terminal Gen and special floor interactions plug into that dispatcher.
-- Save/load uses `systems/save_runtime.ts` and `systems/save_payload.ts`. Current save shape version is `3`; old or unversioned saves are rejected rather than migrated.
+- `systems/alife.ts` owns persistent procedural NPC identity. A run creates an adaptive compact NPC pool (`1_000_000` when runtime memory allows it, otherwise `100_000`), materializes only the active floor into live `entities`, folds live state back on transitions/rebuilds/saves, and records permanent deaths. `systems/npc_relations.ts` owns compact personal relation-to-player math shared by A-Life, quests and hostility. `alife.md` is the detailed design contract for this feature.
+- Save/load uses `systems/save_runtime.ts` and `systems/save_payload.ts`. Current save shape version is `5`; old or unversioned saves are rejected rather than migrated.
 - Existing content extensibility already exists in `registerSideQuest`, `registerZoneContent`, floor content manifests, `SAMOSBOR_VARIANTS`, `getSamosborBeatDefs()`, contract/economy registries, route/design-floor ids and `publishEvent`.
 
 ## 2. Non-Negotiable Invariants
@@ -84,6 +85,7 @@ Definitions  ->  Generation  ->  Runtime Systems  ->  Render/UI
 - Owns generic runtime behavior.
 - Systems must consume definitions, not hardcode one module.
 - Systems must publish important state changes through `publishEvent`.
+- A-Life population is a system concern, not generator state: generators may create ambient NPC templates, but `systems/alife.ts` assigns persistent procedural NPC identity and decides which live NPCs exist on the active floor.
 - Shared AI navigation should stay field-based at runtime: `systems/ai/pathfinding.ts` bakes the current 1024x1024 world geometry into a reusable BFS navigation tree, then layers cached behavior flow fields over target source sets such as kitchens, toilets, workplaces or shelters. New generic AI behaviors should provide a source set and reuse that field layer instead of queuing per-actor BFS jobs.
 
 `render/`
@@ -104,6 +106,62 @@ Use `src/gen/population_placement.ts` for floor-wide scattering:
 - This is generation-time field sampling, not runtime buckets, not per-cell spawn caps, and not a content-specific exception.
 
 Special rooms and authored POIs should influence the field with weights or anchors. They should not own broad population placement by directly pushing hundreds of entities into a small room or arena. Local scripted encounters can still spawn bounded local groups when that group is the gameplay object.
+
+### A-Life Integration Contract
+
+Persistent A-Life is a pillar system, not another spawn table. The shipped target is `1_000_000` procedural NPC identities when runtime memory allows it, with `100_000` as the fallback for constrained browsers. Future work must preserve that scale split instead of promising a million fully simulated live actors.
+
+The identity boundary is:
+
+- `systems/alife.ts` owns ordinary human NPC identity, death, changed-record overrides, floor assignment and materialization.
+- `systems/npc_relations.ts` owns personal NPC relation constants and helpers; faction systems consume it for hostility and penalties instead of duplicating thresholds.
+- `gen/` owns geometry, rooms, POIs, monsters, loot and placement templates.
+- `systems/ai/` owns behavior for live actors only.
+- `systems/events.ts` owns public facts that other systems can react to: deaths, rank changes, migration, family consequences, missing quest givers and population events.
+- `render/` reads A-Life facts for display and must not decide who exists.
+
+Activation lifecycle:
+
+1. Run start creates or restores the deterministic A-Life pool.
+2. Floor generation may create ambient ordinary NPC templates.
+3. Floor activation removes those templates and materializes existing A-Life records into their slots.
+4. Active-floor AI, combat, trade and quests run on the materialized entities.
+5. Floor transition, samosbor rebuild and save fold touched live state back into the pool.
+6. Death marks the persistent identity dead. The missing person is not replaced by refill logic.
+
+Materialization is slot-based. If a floor has thousands of assigned A-Life records, that does not mean thousands of live `entities` must be pushed into the runtime array. The active floor is bounded by generation templates, placement fields, authored anchors and explicit events. Dead slots stay empty unless a named event migrates or introduces a specific person.
+
+Ordinary background refill is forbidden:
+
+- No timed refill-to-cap for human NPCs.
+- No generator-side identity creation after A-Life materialization.
+- No silent replacement of a killed persistent person.
+- No monster refill just because a count dropped.
+
+Allowed new actors must declare their reason:
+
+- Samosbor, lift, quest, faction, caravan, hack backlash or authored event actors may spawn as bounded encounters.
+- If such an actor is an ordinary person who can persist after the event, they should be assigned or reserve a persistent identity.
+- If the actor is temporary pressure, the event system owns its lifetime and it must not masquerade as population refill.
+
+Quest and authored NPCs should migrate toward the same identity model. Current `plotNpcId` keys are stable authored identity; future quest logic should prefer `persistentNpcId`/reserved A-Life ids over transient live entity ids. Any suitable persistent NPC can be a quest source; "quest giver" is a current role/affordance, not a separate NPC caste. Killing a quest giver is a world fact and should be resolved through data-defined fallback content, not by respawning the same giver.
+
+Personal relation is separate from faction relation but uses the same hostile threshold. A materialized NPC initializes `playerRelation` from its faction attitude plus deterministic fluctuation; player damage lowers the individual relation, and quest completion raises the giver's personal relation more than the faction's small normal gain. The field must fold back through A-Life overrides so grudges and gratitude survive floor travel.
+
+The player is also an A-Life actor for shared social math: `karma`, kill counters and rank score live on the player entity too, with `playerRelation = 100` for self-relation. The player is not counted as an ordinary NPC pool slot, but the top-100 A-Life rating includes the player with a real rank among alive persistent NPCs. Future possession should therefore swap the controlled entity/camera/input owner onto another persistent NPC rather than creating a special player-only simulation path.
+
+Off-floor NPCs are frozen by default. They do not pathfind, fight, tick needs, scan rooms or update per frame. Only bounded aggregate events, migrations or slow batch passes may change off-floor state, and those changes must be recorded as compact facts or overrides.
+
+Cleared floors remain meaningfully changed, but they are not sealed forever. They can receive explicit migrants, overflow residents, caravans, refugees or faction arrivals. If such migration reaches the active floor, new arrivals should enter through believable anchors such as lifts or route entrances.
+
+The save model is deterministic pool reconstruction plus sparse state:
+
+- Save seed, population version/count, dead ids, dead plot ids and bounded changed-record overrides.
+- Do not serialize the full live `entities` array.
+- Do not serialize every full NPC record when seed reconstruction is enough.
+- Any change to population allocation, route floor keys, required identity fields or plot/reserved id mapping must bump save shape or explicitly reject stale saves.
+
+Future fields such as family edges, friends, rank, kills, quest seed, home/work anchors and exact inventory are allowed only with a measured storage plan. Prefer ids, small numeric fields, typed arrays and sparse overrides over large object graphs.
 
 ## 4. Parallel Agent Ownership
 
@@ -206,10 +264,10 @@ Current floor matrix:
 | Floor | Generator | Additive Hook | Manifest Status | Shared-File Risk |
 | --- | --- | --- | --- | --- |
 | `MINISTRY` | `src/gen/ministry/index.ts` | `runMinistryContent()` | implemented | low; agents edit `content_manifest.ts` |
-| `KVARTIRY` | `src/gen/kvartiry/index.ts` | named NPC and permanent content runners | implemented | medium; population update still lives in `index.ts` |
+| `KVARTIRY` | `src/gen/kvartiry/index.ts` | named NPC and permanent content runners | implemented | medium; uprising pressure update still lives in `index.ts` |
 | `LIVING` | `src/gen/living/index.ts` | side-effect zone content + side quest spawners | implemented | medium; `side_quests.ts` remains ordered spawn registry |
 | `MAINTENANCE` | `src/gen/maintenance/index.ts` | `runMaintenanceContent()` | implemented | low; mixed generator signatures hidden behind adapters |
-| `HELL` | `src/gen/hell/index.ts` | `runHellContent()` | implemented | low; population update remains in `index.ts` |
+| `HELL` | `src/gen/hell/index.ts` | `runHellContent()` | implemented | low; initial population generation remains in `index.ts` |
 | `VOID` | `src/gen/void/index.ts` | `runVoidContent()` | implemented | low; agents edit `content_manifest.ts` |
 
 `src/gen/floor_manifest.ts` owns floor names, floor message colors, `FloorLevel -> generator`, and save/load generation. Adding a new story floor now starts there instead of duplicating switch logic in `main.ts` and `systems/samosbor.ts`.
@@ -244,6 +302,7 @@ Avoid:
 
 - Per-module `setInterval`.
 - Per-frame full-world scans.
+- Periodic refill-to-cap population spawners for ordinary NPCs or monsters.
 - Per-entity closures allocated during updates.
 - Deep class inheritance.
 - JSON parse/stringify in the game loop.
@@ -278,7 +337,7 @@ For a generated POI:
 - Add doors to `world.doors` and `room.doors`.
 - Protect permanent content with `aptMask` where required.
 - Connect to an existing floor cell.
-- Spawn NPCs/items with `nextId.v++`.
+- Spawn authored/event NPCs and items with `nextId.v++`. Ordinary ambient NPCs should be placement templates that A-Life can replace with persistent identities during floor activation.
 - Publish or register enough data for quests/map/debug to find it.
 
 For a data-only module:
@@ -377,6 +436,7 @@ src/data/factories.ts          FactoryDef[] with recipes
 src/data/economy_rules.ts      price/scarcity rules
 src/data/rumors.ts             RumorDef[]
 src/data/monster_variants.ts   MonsterVariantDef[]
+src/data/alife_generation.ts   persistent NPC faction, level, wealth and pocket profiles
 src/data/floor_catalog.ts      data-only future floor catalog
 src/data/permits.ts            access papers and spoilage defs
 src/data/computers.ts          generated computer defs

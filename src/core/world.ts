@@ -235,8 +235,8 @@ export class World {
     return id >= 0 ? this.rooms[id] ?? null : null;
   }
 
-  /* Legacy stamp — delegates to the new procedural mark system.
-     Kept for callers that still use the old (cx, cy, fx, fy, radius, intensity, seed, r, g, b, wallOk) signature.
+  /* Compatibility stamp — delegates to the procedural mark system.
+     Kept for callers that use the compact (cx, cy, fx, fy, radius, intensity, seed, r, g, b, wallOk) signature.
      Uses MarkType.SPLAT for general blobs, which produces organic irregular shapes. */
   stamp(cx: number, cy: number, fx: number, fy: number, radius: number, intensity: number, seed: number, cr: number, cg: number, cb: number, wallOk = false): void {
     stampMark(this, cx, cy, fx, fy, radius, MarkType.SPLAT, seed, cr, cg, cb, intensity, wallOk);

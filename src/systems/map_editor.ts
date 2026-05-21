@@ -25,6 +25,7 @@ import { Spr } from '../render/sprite_index';
 import { getMaxHp, randomRPG } from './rpg';
 import { currentFloorRunEntry } from './procedural_floors';
 import { activeFloorInstanceWorldKey, floorInstanceLabel, getActiveFloorInstance } from './floor_instances';
+import { controlBindingLabel, controlHint } from './controls';
 import { mapEditorContainerBrushes, mapEditorEntityBrushes } from './map_editor_catalog';
 import { canSpawnEntityType } from './entity_limits';
 
@@ -954,11 +955,11 @@ function menuEntries(): readonly MapEditorMenuEntry[] {
 }
 
 function modeHints(): readonly string[] {
-  if (runtime.mode === 'map') return ['WASD/стрелки курсор', 'E поставить', 'Enter меню', 'M zoom'];
-  if (runtime.mode === 'menu') return ['W/S пункт', 'E выбрать', 'Enter карта'];
-  if (runtime.mode === 'brush') return ['A/D тип кисти', 'W/S значение', 'E выбрать', 'Enter назад'];
-  if (runtime.mode === 'objects') return ['A/D группа', 'W/S объект', 'E выбрать', 'Enter назад'];
-  return ['WASD/стрелки инспектор', 'E карта', 'Enter назад'];
+  if (runtime.mode === 'map') return [`${controlBindingLabel('menuUp')}/${controlBindingLabel('menuDown')} курсор`, `${controlHint('interact')} поставить`, `${controlBindingLabel('gameMenu')} меню`, `${controlBindingLabel('map')} zoom`];
+  if (runtime.mode === 'menu') return [`${controlBindingLabel('menuUp')}/${controlBindingLabel('menuDown')} пункт`, `${controlHint('interact')} выбрать`, `${controlBindingLabel('gameMenu')} карта`];
+  if (runtime.mode === 'brush') return [`${controlBindingLabel('menuLeft')}/${controlBindingLabel('menuRight')} тип кисти`, `${controlBindingLabel('menuUp')}/${controlBindingLabel('menuDown')} значение`, `${controlHint('interact')} выбрать`, `${controlBindingLabel('gameMenu')} назад`];
+  if (runtime.mode === 'objects') return [`${controlBindingLabel('menuLeft')}/${controlBindingLabel('menuRight')} группа`, `${controlBindingLabel('menuUp')}/${controlBindingLabel('menuDown')} объект`, `${controlHint('interact')} выбрать`, `${controlBindingLabel('gameMenu')} назад`];
+  return [`${controlBindingLabel('menuUp')}/${controlBindingLabel('menuDown')} инспектор`, `${controlHint('interact')} карта`, `${controlBindingLabel('gameMenu')} назад`];
 }
 
 export function getMapEditorSnapshot(state: GameState): MapEditorSnapshot {

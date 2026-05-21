@@ -4,6 +4,7 @@ import { FloorLevel, LiftDirection, RoomType, type GameState, type Quest, QuestT
 import { ITEMS } from '../data/catalog';
 import { zForStoryFloor } from '../data/procedural_floors';
 import { isQuestTargetOnCurrentFloor, questRouteFloor, questTargetLiftDirection } from '../systems/contracts';
+import { controlBindingLabel, controlHint } from '../systems/controls';
 import { getRecentEvents } from '../systems/events';
 import { getRecentRumorLead } from '../systems/npc_memory';
 import { currentFloorRunEntry, floorRunEntryMapLabel, formatFloorZ } from '../systems/procedural_floors';
@@ -236,7 +237,7 @@ export function drawQuestLog(
   ctx.fillRect(px, py, pw, ph);
   drawNeuroPanel(ctx, px, py, pw, ph, time, 50);
 
-  drawGlitchText(ctx, 'ЗАДАНИЯ [Q]', px + 8 * sx, py + 6 * sy, time, 500, '#6cf', 9 * sy);
+  drawGlitchText(ctx, `ЗАДАНИЯ ${controlHint('quests')}`, px + 8 * sx, py + 6 * sy, time, 500, '#6cf', 9 * sy);
   ctx.font = `${9 * sy}px monospace`;
 
   const active = state.quests.filter(q => !q.done);
@@ -246,7 +247,7 @@ export function drawQuestLog(
   if (all.length === 0) {
     ctx.fillStyle = '#666';
     ctx.font = `${8 * sy}px monospace`;
-    ctx.fillText('Нет заданий. Поговорите с жильцами [E].', px + 8 * sx, py + 24 * sy);
+    ctx.fillText(`Нет заданий. Поговорите с жильцами ${controlHint('interact')}.`, px + 8 * sx, py + 24 * sy);
     return;
   }
 
@@ -340,6 +341,8 @@ export function drawQuestLog(
   // Bottom hint
   ctx.fillStyle = '#555';
   ctx.font = `${7 * sy}px monospace`;
-  const hint = all.length > 1 ? '[W/S] листать  |  [Q] закрыть' : '[Q] закрыть';
+  const hint = all.length > 1
+    ? `${controlBindingLabel('menuUp')}/${controlBindingLabel('menuDown')} листать  |  ${controlHint('quests')} закрыть`
+    : `${controlHint('quests')} закрыть`;
   ctx.fillText(hint, px + 8 * sx, py + ph - 8 * sy);
 }

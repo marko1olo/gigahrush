@@ -2,10 +2,6 @@ import { FloorLevel, RoomType, ZoneFaction } from '../core/types';
 
 export interface NpcPopulationProfile {
   initial: number;
-  softCap: number;
-  refillMin: number;
-  refillMax: number;
-  refillDeficitDivisor: number;
   noiseScale: number;
   noiseStrength: number;
   openWeight: number;
@@ -15,12 +11,6 @@ export interface NpcPopulationProfile {
 
 export interface MonsterPopulationProfile {
   initial: number;
-  softCap: number;
-  batchMin: number;
-  batchMax: number;
-  refillDeficitDivisor: number;
-  intervalSec: number;
-  reinforcementBudget: number;
   noiseScale: number;
   noiseStrength: number;
   openWeight: number;
@@ -31,13 +21,8 @@ export interface MonsterPopulationProfile {
 export const KVARTIRY_POPULATION_PROFILE = {
   id: 'kvartiry_lively',
   floor: FloorLevel.KVARTIRY,
-  spawnIntervalSec: 2.0,
   citizens: {
     initial: 3000,
-    softCap: 6000,
-    refillMin: 60,
-    refillMax: 180,
-    refillDeficitDivisor: 20,
     noiseScale: 96,
     noiseStrength: 0.2,
     openWeight: 0.95,
@@ -61,10 +46,6 @@ export const KVARTIRY_POPULATION_PROFILE = {
   },
   wild: {
     initial: 1700,
-    softCap: 3200,
-    refillMin: 50,
-    refillMax: 160,
-    refillDeficitDivisor: 18,
     noiseScale: 72,
     noiseStrength: 0.26,
     openWeight: 1.15,
@@ -88,10 +69,6 @@ export const KVARTIRY_POPULATION_PROFILE = {
   },
   liquidators: {
     initial: 400,
-    softCap: 800,
-    refillMin: 10,
-    refillMax: 50,
-    refillDeficitDivisor: 16,
     noiseScale: 128,
     noiseStrength: 0.18,
     openWeight: 1.1,
@@ -129,12 +106,6 @@ export const HELL_POPULATION_PROFILE = {
   floor: FloorLevel.HELL,
   monsters: {
     initial: 4200,
-    softCap: 8200,
-    batchMin: 20,
-    batchMax: 90,
-    refillDeficitDivisor: 80,
-    intervalSec: 1.1,
-    reinforcementBudget: 6200,
     noiseScale: 160,
     noiseStrength: 0.05,
     openWeight: 1.0,
@@ -151,12 +122,6 @@ export const HELL_POPULATION_PROFILE = {
   },
   cultists: {
     initial: 700,
-    softCap: 1500,
-    batchMin: 5,
-    batchMax: 30,
-    refillDeficitDivisor: 55,
-    intervalSec: 3.2,
-    reinforcementBudget: 1100,
     noiseScale: 128,
     noiseStrength: 0.08,
     openWeight: 1.0,
@@ -173,12 +138,6 @@ export const HELL_POPULATION_PROFILE = {
   },
   liquidators: {
     initial: 100,
-    softCap: 300,
-    batchMin: 1,
-    batchMax: 8,
-    refillDeficitDivisor: 30,
-    intervalSec: 7.0,
-    reinforcementBudget: 220,
     noiseScale: 144,
     noiseStrength: 0.06,
     openWeight: 1.0,

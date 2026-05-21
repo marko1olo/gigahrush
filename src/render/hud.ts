@@ -9,6 +9,7 @@ import { World } from '../core/world';
 import { ITEMS } from '../data/catalog';
 import { getEquippedToolDurability, getWeaponReadiness, type WeaponReadiness } from '../systems/inventory';
 import { getPlayerHazardWarning } from '../systems/cell_hazards';
+import { controlHint } from '../systems/controls';
 import { formatLastPlayerDamageCause } from '../systems/damage';
 import { xpForLevel } from '../systems/rpg';
 import { zhelemishHudLine } from '../systems/status';
@@ -19,6 +20,7 @@ import { drawQuestLog } from './quest_ui';
 import { drawLogMenu } from './log_ui';
 import { drawFactionMenu } from './factions_ui';
 import { drawGameMenu } from './menu_ui';
+import { drawControlsMenu } from './controls_ui';
 import { drawNpcMenu } from './npc_ui';
 import { drawContainerMenu } from './container_ui';
 import { drawEmergencyPanelMenu } from './emergency_panel_ui';
@@ -740,7 +742,7 @@ export function drawHUD(
   const mapEditorOpen = isMapEditorOpen();
   const showCompactPanels = state.mapMode !== 2 &&
     !state.showInventory && !state.showQuests && !state.showLog &&
-    !state.showFactions && !state.showMenu && !state.showNpcMenu && !state.showContainerMenu &&
+    !state.showFactions && !state.showMenu && !state.showControls && !state.showNpcMenu && !state.showContainerMenu &&
     !netSphereOpen && !netTerminalGenOpen && !emergencyPanelOpen && !mapEditorOpen;
   const combatWeapon = showCompactPanels ? getWeaponReadiness(player) : null;
   const combatTarget = showCompactPanels ? findAimTarget(world, player) : null;
@@ -795,7 +797,7 @@ export function drawHUD(
   }
 
   // Universal [E] interaction prompt (color changes per target object)
-  if (!emergencyPanelOpen) {
+  if (!emergencyPanelOpen && !state.showControls) {
     const lookX = player.x + Math.cos(player.angle) * 1.5;
     const lookY = player.y + Math.sin(player.angle) * 1.5;
     const interaction = findInteractionTarget({
@@ -822,7 +824,7 @@ export function drawHUD(
       // Subtle glow behind
       ctx.shadowColor = `rgba(${er},${eg},${eb},0.4)`;
       ctx.shadowBlur = 6;
-      const prompt = fitHudText(ctx, `[E]${interaction.prompt}`, w - 24 * sx);
+      const prompt = fitHudText(ctx, `${controlHint('interact')}${interaction.prompt}`, w - 24 * sx);
       ctx.fillText(prompt, w / 2 + ej.dx, h / 2 + 30 * sy + ej.dy);
       ctx.shadowBlur = 0;
       ctx.textAlign = 'left';
@@ -830,7 +832,7 @@ export function drawHUD(
   }
 
   const hazardWarning = getPlayerHazardWarning(world, player);
-  if (hazardWarning && state.mapMode !== 2 && !state.showInventory && !state.showQuests && !state.showLog && !netSphereOpen && !netTerminalGenOpen && !emergencyPanelOpen && !mapEditorOpen) {
+  if (hazardWarning && state.mapMode !== 2 && !state.showInventory && !state.showQuests && !state.showLog && !state.showControls && !netSphereOpen && !netTerminalGenOpen && !emergencyPanelOpen && !mapEditorOpen) {
     const panelW = Math.min(w - 16 * sx, 230 * sx);
     const panelH = 28 * sy;
     const panelX = (w - panelW) * 0.5;
@@ -961,12 +963,17 @@ export function drawHUD(
 
   // ── Faction relations matrix (F) ─────────────────────────
   if (state.showFactions) {
-    drawFactionMenu(ctx, player, entities, msx, msy, time);
+    drawFactionMenu(ctx, player, entities, state, msx, msy, time);
   }
 
   // ── Message log (L) ─────────────────────────────────────
   if (state.showLog) {
     drawLogMenu(ctx, state, msx, msy, time);
+  }
+
+  // ── Controls / keybinds (Tab) ────────────────────────────
+  if (state.showControls) {
+    drawControlsMenu(ctx, state, msx, msy, time);
   }
 
   // ── Game menu (ESC) ──────────────────────────────────────
@@ -1024,7 +1031,7 @@ export function drawHUD(
         const room = world.roomAt(player.x, player.y);
         const inShelter = room ? getSamosborShelterRoomIds(state).includes(room.id) : false;
         ctx.font = `${7 * sy}px monospace`;
-        ctx.fillText(fitHudText(ctx, inShelter ? '[E] впустить / закрыть' : '[E] к колоколу', w - 16 * sx), w / 2 + sj.dx, 48 * sy + sj.dy);
+        ctx.fillText(fitHudText(ctx, inShelter ? `${controlHint('interact')} впустить / закрыть` : `${controlHint('interact')} к колоколу`, w - 16 * sx), w / 2 + sj.dx, 48 * sy + sj.dy);
       }
     }
     // Doubled glitch offset copy
@@ -1153,7 +1160,7 @@ export function drawHUD(
         'Счёт доступен в банковском режиме.',
         'Редактор карты требует НЕТ-ГЕН.',
       ],
-      footer: '[Enter] закрыть  |  счёт без ГЕН',
+      footer: `${controlHint('gameMenu')} закрыть  |  счёт без ГЕН`,
     });
   }
 

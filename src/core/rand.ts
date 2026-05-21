@@ -35,7 +35,7 @@ export function seededRandom(seed: number): () => number {
   };
 }
 
-/** Run legacy Math.random-based generators under a local deterministic seed. */
+/** Run Math.random-based generators under a local deterministic seed. */
 export function withSeededRandom<T>(seed: number, fn: () => T): T {
   const oldRandom = Math.random;
   Math.random = seededRandom(seed);

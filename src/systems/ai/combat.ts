@@ -11,9 +11,9 @@ import {
   playAttack, playHostileEnergyShot, playHostileFlame, playHostileGunshot, playHostileNailgun,
   playHostilePsiCast, playHostileShotgun, playSoundAt,
 } from '../audio';
-import { applyDamageRelationPenalty } from '../factions';
+import { applyDamageRelationPenalty, isHostile } from '../factions';
 import { clearFogInZone } from '../samosbor';
-import { strMeleeDmgMult, agiAttackSpeedMult } from '../rpg';
+import { agiAttackSpeedMult, meleeDamage } from '../rpg';
 import { zhelemishIncomingMeleeDamage } from '../status';
 import { spawnBloodHit, spawnDeathPool } from '../../render/blood';
 import { consumeAmmo, consumeDurability } from '../inventory';
@@ -22,6 +22,7 @@ import { entityDisplayName } from '../../entities/monster';
 import { bfsPath, followPath, tryAssignPathToCell } from './pathfinding';
 import { Spr, hostileProjectileSprite } from '../../render/sprite_index';
 import { findCombatTarget, dropNpcInventory, deterministicScanCd, hasClearLineOfFire } from './monster';
+import { recordEntityKill } from '../alife_rating';
 import { recordPlayerDamage } from '../damage';
 import { ENTITY_MASK_MONSTER, getEntityIndex } from '../entity_index';
 import { publishWeaponNoise } from '../noise';
@@ -50,13 +51,7 @@ const fleeMonsterQuery: Entity[] = [];
 export function tryFleeFromMonster(
   world: World, _entities: Entity[], e: Entity, dt: number,
 ): boolean {
-  const isCombatant = (e.psiMadness ?? 0) > 0 ||
-    e.isTraveler ||
-    e.occupation === Occupation.HUNTER ||
-    e.occupation === Occupation.PILGRIM ||
-    e.faction === Faction.LIQUIDATOR ||
-    e.faction === Faction.CULTIST ||
-    e.faction === Faction.WILD;
+  const isCombatant = npcIsBrave(e);
   if (isCombatant) return false;
 
   const ws = WEAPON_STATS[e.weapon ?? ''];
@@ -65,12 +60,7 @@ export function tryFleeFromMonster(
   const ai = e.ai!;
 
   if (ai.goal === AIGoal.FLEE && ai.timer > 0) {
-    ai.timer -= dt;
-    const savedSpeed = e.speed;
-    e.speed *= 1.3;
-    followPath(world, e, dt);
-    e.speed = savedSpeed;
-    return true;
+    return continueFlee(world, e, dt);
   }
 
   ai.combatScanCd = (ai.combatScanCd ?? 0) - dt;
@@ -99,10 +89,37 @@ export function tryFleeFromMonster(
     return false;
   }
 
+  return startFleeFromThreat(world, e, nearestMonster, dt);
+}
+
+/* ── NPC faction combat: attack nearby hostile entities ────────── */
+const NPC_COMBAT_RANGE = 8;
+const NPC_CHASE_RANGE = 18;
+const NPC_ATTACK_RANGE = 1.3;
+const NPC_COMBAT_CD = 1.2;
+const NPC_RANGED_MAX = 12;
+const NPC_RANGED_MIN = 1.5;
+const NPC_RANGED_LOS_BREAK_CD = 0.45;
+const MELEE_KNOCKBACK_CAP = 0.65;
+const MELEE_STAGGER_CAP = 0.35;
+const NPC_FLEE_THREAT_RATIO = 0.65;
+
+function continueFlee(world: World, e: Entity, dt: number): boolean {
+  const ai = e.ai!;
+  ai.timer -= dt;
+  const savedSpeed = e.speed;
+  e.speed *= 1.3;
+  followPath(world, e, dt);
+  e.speed = savedSpeed;
+  return true;
+}
+
+function startFleeFromThreat(world: World, e: Entity, threat: Entity, dt: number): boolean {
+  const ai = e.ai!;
   bark(e, _barkMsgs, _barkTime, BARK_FLEE, BARK_FLEE_F, BARK_CHANCE_FLEE, '#ff8');
   ai.goal = AIGoal.FLEE;
-  const dx = world.delta(nearestMonster.x, e.x);
-  const dy = world.delta(nearestMonster.y, e.y);
+  const dx = world.delta(threat.x, e.x);
+  const dy = world.delta(threat.y, e.y);
   const len = Math.sqrt(dx * dx + dy * dy);
   let nx: number, ny: number;
   if (len > 0.1) {
@@ -118,42 +135,50 @@ export function tryFleeFromMonster(
   ai.tx = fleeX;
   ai.ty = fleeY;
   ai.timer = 3;
-
-  const savedSpeed = e.speed;
-  e.speed *= 1.3;
-  followPath(world, e, dt);
-  e.speed = savedSpeed;
-  return true;
+  return continueFlee(world, e, dt);
 }
 
-/* ── NPC faction combat: attack nearby hostile entities ────────── */
-const NPC_COMBAT_RANGE = 8;
-const NPC_ATTACK_RANGE = 1.3;
-const NPC_COMBAT_CD = 1.2;
-const NPC_RANGED_MAX = 12;
-const NPC_RANGED_MIN = 1.5;
-const NPC_RANGED_LOS_BREAK_CD = 0.45;
-const MELEE_KNOCKBACK_CAP = 0.65;
-const MELEE_STAGGER_CAP = 0.35;
-
-export function tryFactionCombat(
-  world: World, entities: Entity[], e: Entity, dt: number, _time: number, msgs: Msg[], nextId: { v: number }, state?: GameState,
-): boolean {
-  const ws = WEAPON_STATS[e.weapon ?? ''] ?? WEAPON_STATS[''];
-  const isArmed = ws.dmg > 3 || ws.isRanged;
-
-  const isCombatant = (e.psiMadness ?? 0) > 0 ||
-    e.isTraveler ||
+function npcIsBrave(e: Entity): boolean {
+  return (e.psiMadness ?? 0) > 0 ||
     e.occupation === Occupation.HUNTER ||
     e.occupation === Occupation.PILGRIM ||
     e.faction === Faction.LIQUIDATOR ||
     e.faction === Faction.CULTIST ||
-    e.faction === Faction.WILD ||
-    isArmed;
-  if (!isCombatant) return false;
+    e.faction === Faction.WILD;
+}
 
-  const detectRange = ws.isRanged ? NPC_RANGED_MAX : NPC_COMBAT_RANGE;
+function npcThreatScore(e: Entity): number {
+  const ws = WEAPON_STATS[e.weapon ?? ''] ?? WEAPON_STATS[''];
+  const weapon = ws.isRanged ? ws.dmg * (ws.pellets ?? 1) * 1.6 : ws.dmg;
+  const hp = Math.max(0, e.hp ?? 20) * 0.22;
+  const level = Math.max(1, e.rpg?.level ?? 1) * 3;
+  return hp + weapon + level;
+}
+
+function npcShouldFleeTarget(e: Entity, target: Entity): boolean {
+  if (npcIsBrave(e)) return false;
+  return npcThreatScore(e) < npcThreatScore(target) * NPC_FLEE_THREAT_RATIO;
+}
+
+function livePlayerTarget(entities: readonly Entity[]): Entity | undefined {
+  return entities.find(other => other.alive && other.type === EntityType.PLAYER);
+}
+
+export function tryFactionCombat(
+  world: World, entities: Entity[], e: Entity, dt: number, _time: number, msgs: Msg[], nextId: { v: number }, state?: GameState, player?: Entity,
+): boolean {
+  const ws = WEAPON_STATS[e.weapon ?? ''] ?? WEAPON_STATS[''];
+  const isArmed = ws.dmg > 3 || ws.isRanged;
+
+  const isCombatant = npcIsBrave(e) ||
+    isArmed;
+  const playerTarget = player?.alive && player.type === EntityType.PLAYER ? player : livePlayerTarget(entities);
+  const hostileToPlayer = playerTarget !== undefined && isHostile(e, playerTarget);
   const ai = e.ai!;
+  if (ai.goal === AIGoal.FLEE && ai.timer > 0) return continueFlee(world, e, dt);
+  if (!isCombatant && !hostileToPlayer) return false;
+
+  const detectRange = hostileToPlayer ? NPC_CHASE_RANGE : ws.isRanged ? NPC_RANGED_MAX : NPC_COMBAT_RANGE;
   if ((ai.staggerTimer ?? 0) > 0) {
     ai.staggerTimer = Math.max(0, (ai.staggerTimer ?? 0) - dt);
     e.attackCd = Math.max(e.attackCd ?? 0, 0.12);
@@ -167,6 +192,10 @@ export function tryFactionCombat(
   );
 
   if (!target) return false;
+  if (npcShouldFleeTarget(e, target)) {
+    ai.combatTargetId = target.id;
+    return startFleeFromThreat(world, e, target, dt);
+  }
   if (ai.combatTargetId !== target.id || prevTarget === undefined) {
     bark(e, msgs, _time, BARK_COMBAT_START, BARK_COMBAT_START_F, BARK_CHANCE_COMBAT, '#fa8');
   }
@@ -237,9 +266,8 @@ export function tryFactionCombat(
   // Melee attack
   e.attackCd = (e.attackCd ?? 0) - dt;
   if (e.attackCd! <= 0) {
-    const strMult = e.rpg ? strMeleeDmgMult(e.rpg) : 1;
     const baseDmg = meleeWs.dmg > 0 ? meleeWs.dmg : (5 + Math.floor(Math.random() * 8));
-    const rawDmg = Math.round(baseDmg * strMult);
+    const rawDmg = meleeDamage(e.rpg, e.weapon, baseDmg);
     const dmg = zhelemishIncomingMeleeDamage(target, _time, rawDmg);
     if (target.hp !== undefined) {
       const debugImmortalPlayerHit = target.type === EntityType.PLAYER && isDebugOnePunchManEnabled();
@@ -249,7 +277,7 @@ export function tryFactionCombat(
         target.hp -= dmg;
         if (target.type === EntityType.PLAYER) recordPlayerDamage(state, e, dmg, `${entityDisplayName(e)} задел тебя: -${dmg}`);
         if (target.type === EntityType.NPC) {
-          applyDamageRelationPenalty(e.faction, target.faction, dmg);
+          applyDamageRelationPenalty(e.faction, target.faction, dmg, target, e);
           if (target.hp > 0 && target.hp < (target.maxHp ?? 100) * 0.5) {
             bark(target, msgs, _time, BARK_WOUNDED, BARK_WOUNDED_F, BARK_CHANCE_WOUNDED, '#f88');
           }
@@ -258,6 +286,7 @@ export function tryFactionCombat(
         spawnBloodHit(world, target.x, target.y, hitAng, dmg, target.type === EntityType.MONSTER);
         applyMeleeKnockback(world, e, target, meleeWs);
         if (target.hp <= 0) {
+          recordEntityKill(e, target);
           target.alive = false;
           spawnDeathPool(world, target.x, target.y, target.type === EntityType.MONSTER);
           if (target.type === EntityType.NPC) dropNpcInventory(target, entities, nextId);

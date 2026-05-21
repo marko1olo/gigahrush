@@ -25,27 +25,9 @@ const HELL_MONSTER_PROFILE = HELL_POPULATION.monsters;
 const HELL_CULTIST_PROFILE = HELL_POPULATION.cultists;
 const HELL_LIQUIDATOR_PROFILE = HELL_POPULATION.liquidators;
 
-export const HELL_MONSTER_SOFT_CAP = HELL_MONSTER_PROFILE.softCap;
-export const HELL_CULTIST_SOFT_CAP = HELL_CULTIST_PROFILE.softCap;
-export const HELL_LIQUIDATOR_SOFT_CAP = HELL_LIQUIDATOR_PROFILE.softCap;
-
 const INITIAL_MONSTER_COUNT = HELL_MONSTER_PROFILE.initial;
 const INITIAL_CULTIST_COUNT = HELL_CULTIST_PROFILE.initial;
 const INITIAL_LIQUIDATOR_COUNT = HELL_LIQUIDATOR_PROFILE.initial;
-
-const HELL_MONSTER_INTERVAL = HELL_MONSTER_PROFILE.intervalSec;
-const HELL_CULTIST_INTERVAL = HELL_CULTIST_PROFILE.intervalSec;
-const HELL_LIQUIDATOR_INTERVAL = HELL_LIQUIDATOR_PROFILE.intervalSec;
-const HELL_MONSTER_REINFORCEMENT_BUDGET = HELL_MONSTER_PROFILE.reinforcementBudget;
-const HELL_CULTIST_REINFORCEMENT_BUDGET = HELL_CULTIST_PROFILE.reinforcementBudget;
-const HELL_LIQUIDATOR_REINFORCEMENT_BUDGET = HELL_LIQUIDATOR_PROFILE.reinforcementBudget;
-
-let hellMonsterAccum = 0;
-let hellCultistAccum = 0;
-let hellLiquidatorAccum = 0;
-let hellMonsterReinforcementBudget = HELL_MONSTER_REINFORCEMENT_BUDGET;
-let hellCultistReinforcementBudget = HELL_CULTIST_REINFORCEMENT_BUDGET;
-let hellLiquidatorReinforcementBudget = HELL_LIQUIDATOR_REINFORCEMENT_BUDGET;
 
 type SpawnFaction = Faction.CULTIST | Faction.LIQUIDATOR;
 
@@ -64,17 +46,7 @@ const HELL_MONSTER_BASE: Record<number, { hp: number; speed: number; sprite: num
   [MonsterKind.SPIRIT]:    { hp: 50, speed: 2.0, sprite: monsterSpr(MonsterKind.SPIRIT) },
 };
 
-export function resetHellPopulationState(): void {
-  hellMonsterAccum = 0;
-  hellCultistAccum = 0;
-  hellLiquidatorAccum = 0;
-  hellMonsterReinforcementBudget = HELL_MONSTER_REINFORCEMENT_BUDGET;
-  hellCultistReinforcementBudget = HELL_CULTIST_REINFORCEMENT_BUDGET;
-  hellLiquidatorReinforcementBudget = HELL_LIQUIDATOR_REINFORCEMENT_BUDGET;
-}
-
 export function generateHell(): { world: World; entities: Entity[]; spawnX: number; spawnY: number } {
-  resetHellPopulationState();
   const world = new World();
   const entities: Entity[] = [];
   let nextId = 1;
@@ -120,46 +92,6 @@ export function generateHell(): { world: World; entities: Entity[]; spawnX: numb
   placeProceduralScreens(world, FloorLevel.HELL);
 
   return { world, entities, spawnX, spawnY };
-}
-
-export function updateHellPopulation(
-  world: World, entities: Entity[], nextId: { v: number }, dt: number, samosborCount: number,
-): void {
-  hellMonsterAccum += dt;
-  hellCultistAccum += dt;
-  hellLiquidatorAccum += dt;
-
-  if (hellMonsterAccum >= HELL_MONSTER_INTERVAL) {
-    hellMonsterAccum -= HELL_MONSTER_INTERVAL;
-    const deficit = HELL_MONSTER_SOFT_CAP - countLivingMonsters(entities);
-    if (deficit > 0 && hellMonsterReinforcementBudget > 0) {
-      const batch = Math.min(hellMonsterReinforcementBudget, populationBatchSize(HELL_MONSTER_PROFILE, deficit));
-      hellMonsterReinforcementBudget -= spawnHellMonsterBatch(world, entities, nextId, batch, samosborCount);
-    }
-  }
-
-  if (hellCultistAccum >= HELL_CULTIST_INTERVAL) {
-    hellCultistAccum -= HELL_CULTIST_INTERVAL;
-    const deficit = HELL_CULTIST_SOFT_CAP - countFactionNPCs(entities, Faction.CULTIST);
-    if (deficit > 0 && hellCultistReinforcementBudget > 0) {
-      const batch = Math.min(hellCultistReinforcementBudget, populationBatchSize(HELL_CULTIST_PROFILE, deficit));
-      hellCultistReinforcementBudget -= spawnFactionAgentBatch(world, entities, nextId, Faction.CULTIST, batch);
-    }
-  }
-
-  if (hellLiquidatorAccum >= HELL_LIQUIDATOR_INTERVAL) {
-    hellLiquidatorAccum -= HELL_LIQUIDATOR_INTERVAL;
-    const deficit = HELL_LIQUIDATOR_SOFT_CAP - countFactionNPCs(entities, Faction.LIQUIDATOR);
-    if (deficit > 0 && hellLiquidatorReinforcementBudget > 0) {
-      const squad = Math.min(hellLiquidatorReinforcementBudget, populationBatchSize(HELL_LIQUIDATOR_PROFILE, deficit));
-      hellLiquidatorReinforcementBudget -= spawnFactionAgentBatch(world, entities, nextId, Faction.LIQUIDATOR, squad);
-    }
-  }
-}
-
-function populationBatchSize(profile: MonsterPopulationProfile, deficit: number): number {
-  const pressureBatch = Math.max(profile.batchMin, Math.ceil(deficit / profile.refillDeficitDivisor));
-  return Math.min(deficit, pressureBatch, rng(profile.batchMin, profile.batchMax));
 }
 
 function buildIsingCaveField(): Uint8Array {
@@ -627,22 +559,6 @@ function pickHellMonsterKind(samosborCount: number): MonsterKind {
   ];
   if (samosborCount >= 3 && Math.random() < 0.05) pool.push(MonsterKind.MATKA);
   return pick(pool);
-}
-
-function countLivingMonsters(entities: Entity[]): number {
-  let count = 0;
-  for (const entity of entities) {
-    if (entity.alive && entity.type === EntityType.MONSTER) count++;
-  }
-  return count;
-}
-
-function countFactionNPCs(entities: Entity[], faction: Faction): number {
-  let count = 0;
-  for (const entity of entities) {
-    if (entity.alive && entity.type === EntityType.NPC && entity.faction === faction) count++;
-  }
-  return count;
 }
 
 function randomFloorCell(world: World): number {

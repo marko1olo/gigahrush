@@ -4,6 +4,7 @@ import {
   type WorldContainer,
 } from '../core/types';
 import { bankingForSave } from './banking';
+import { alifeForSave } from './alife';
 import { economyForSave } from './economy';
 import { trimEventHistoryForSave } from './events';
 import { floorInstanceStateForSave } from './floor_instances';
@@ -15,7 +16,7 @@ import { floorRunStateForSave } from './procedural_floors';
 import { buildSavePayload, type SavePayload } from './save_payload';
 import { stockMarketForSave } from './stock_market';
 
-export const SAVE_SHAPE_VERSION = 3;
+export const SAVE_SHAPE_VERSION = 5;
 export type SaveShapeVersionStatus = 'missing' | 'old' | 'current' | 'newer' | 'invalid';
 
 export interface SaveRuntimeExtras {
@@ -61,6 +62,7 @@ export function createGameSavePayload(
       voidReturnPortal: extras.voidReturnPortal,
       voidEntryFromFloor: extras.voidEntryFromFloor,
       liftArachna: liftArachnaStateForSave(state),
+      alife: alifeForSave(state),
       netTerminalGen: netTerminalGenStateForSave(state),
       mapEditorPatches: mapEditorPatchStateForSave(state),
       worldEvents: trimEventHistoryForSave(state),

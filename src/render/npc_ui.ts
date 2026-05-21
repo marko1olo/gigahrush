@@ -3,6 +3,7 @@
 import { type Entity, type GameState, Faction } from '../core/types';
 import { ITEMS } from '../data/catalog';
 import { FACTION_NAMES, OCCUPATION_NAMES } from '../data/relations';
+import { controlBindingLabel, controlHint } from '../systems/controls';
 import { questDeadlineText, questRemainingMinutes } from '../systems/quest_deadlines';
 import { drawNeuroPanel, drawGlitchText, textJitter, flicker } from './hud_fx';
 import { dialogMenuScale, tradeGridScale } from './ui_layout';
@@ -64,7 +65,7 @@ export function drawNpcMenu(
     }
     ctx.fillStyle = '#456';
     ctx.font = `${8 * sy}px monospace`;
-    ctx.fillText(fitText(ctx, 'W/S выбор  |  [E] выбрать  |  Enter закрыть', pw - 16 * sx), px + 8 * sx, py + ph - 11 * sy);
+    ctx.fillText(fitText(ctx, `${controlBindingLabel('menuUp')}/${controlBindingLabel('menuDown')} выбор  |  ${controlHint('interact')} выбрать  |  ${controlBindingLabel('gameMenu')} закрыть`, pw - 16 * sx), px + 8 * sx, py + ph - 11 * sy);
 
   } else if (state.npcMenuTab === 'talk') {
     // Talk: show procedural text
@@ -76,7 +77,7 @@ export function drawNpcMenu(
 
     ctx.fillStyle = '#555';
     ctx.font = `${8 * sy}px monospace`;
-    ctx.fillText('[E/Enter] назад', px + 8 * sx, py + ph - 11 * sy);
+    ctx.fillText(`${controlHint('interact')}/${controlBindingLabel('gameMenu')} назад`, px + 8 * sx, py + ph - 11 * sy);
 
   } else if (state.npcMenuTab === 'quest') {
     // Quest tab: paginated, one quest per page with word wrap
@@ -119,7 +120,9 @@ export function drawNpcMenu(
     }
     ctx.fillStyle = '#555';
     ctx.font = `${8 * sy}px monospace`;
-    const hint = total > 1 ? '[W/S] листать  |  [E/Enter] назад' : '[E/Enter] назад';
+    const hint = total > 1
+      ? `${controlBindingLabel('menuUp')}/${controlBindingLabel('menuDown')} листать  |  ${controlHint('interact')}/${controlBindingLabel('gameMenu')} назад`
+      : `${controlHint('interact')}/${controlBindingLabel('gameMenu')} назад`;
     ctx.fillText(fitText(ctx, hint, pw - 16 * sx), px + 8 * sx, py + ph - 11 * sy);
 
   } else if (state.npcMenuTab === 'trade') {
@@ -253,9 +256,9 @@ export function drawNpcMenu(
     ctx.font = `${6.5 * sy}px monospace`;
     ctx.textAlign = 'right';
     const hintW = Math.max(60 * sx, cw - 16 * sx);
-    ctx.fillText(fitText(ctx, 'WASD курсор', hintW), cw - 8 * sx, ch - 24 * sy);
-    ctx.fillText(fitText(ctx, 'E купить/продать', hintW), cw - 8 * sx, ch - 16 * sy);
-    ctx.fillText(fitText(ctx, 'Enter назад', hintW), cw - 8 * sx, ch - 8 * sy);
+    ctx.fillText(fitText(ctx, `${controlBindingLabel('menuUp')}/${controlBindingLabel('menuDown')} курсор`, hintW), cw - 8 * sx, ch - 24 * sy);
+    ctx.fillText(fitText(ctx, `${controlBindingLabel('interact')} купить/продать`, hintW), cw - 8 * sx, ch - 16 * sy);
+    ctx.fillText(fitText(ctx, `${controlBindingLabel('gameMenu')} назад`, hintW), cw - 8 * sx, ch - 8 * sy);
     ctx.textAlign = 'left';
   }
 }

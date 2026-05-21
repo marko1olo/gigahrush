@@ -4,6 +4,7 @@ import { type Entity, type GameState } from '../core/types';
 import { World } from '../core/world';
 import { ITEMS } from '../data/catalog';
 import { containerAccessInfo, containerItemActionInfo, containerTheftStatus } from '../systems/containers';
+import { controlBindingLabel } from '../systems/controls';
 import {
   itemValueDisplay,
   questItemStateColor,
@@ -187,8 +188,8 @@ export function drawContainerMenu(
   ctx.font = `${6.5 * sy}px monospace`;
   ctx.textAlign = 'right';
   const hintW = Math.max(60 * sx, cw - 16 * sx);
-  ctx.fillText(fitText(ctx, 'W/S/стрелки - курсор', hintW), cw - 8 * sx, ch - 24 * sy);
-  ctx.fillText(fitText(ctx, 'E - перенести 1 предмет', hintW), cw - 8 * sx, ch - 16 * sy);
-  ctx.fillText(fitText(ctx, 'ENTER - закрыть', hintW), cw - 8 * sx, ch - 8 * sy);
+  ctx.fillText(fitText(ctx, `${controlBindingLabel('menuUp')}/${controlBindingLabel('menuDown')} - курсор`, hintW), cw - 8 * sx, ch - 24 * sy);
+  ctx.fillText(fitText(ctx, `${controlBindingLabel('interact')} - перенести 1 предмет`, hintW), cw - 8 * sx, ch - 16 * sy);
+  ctx.fillText(fitText(ctx, `${controlBindingLabel('gameMenu')} - закрыть`, hintW), cw - 8 * sx, ch - 8 * sy);
   ctx.textAlign = 'left';
 }

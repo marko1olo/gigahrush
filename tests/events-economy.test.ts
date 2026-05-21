@@ -346,7 +346,7 @@ test('critical survival scarcity caps price pressure and contract rewards', () =
     FloorLevel.KVARTIRY,
     3,
     { level: 1, xp: 0, attrPoints: 0, str: 0, agi: 0, int: 99, psi: 0, maxPsi: 0 },
-  ), 265);
+  ), 280);
 });
 
 test('economy price cache invalidates when stock changes and debug summary stays bounded', () => {
@@ -508,6 +508,7 @@ test('witnessed container theft marks audit, memory, event context, and faction 
   assert.equal(getNpcMemory(witness, state.time).hurtByPlayer, 1);
   assert.equal(getNpcMemory(witness, state.time).trustPlayer, -14);
   assert.equal(getFactionRel(Faction.CITIZEN, Faction.PLAYER), 46);
+  assert.equal(player.karma, -3);
 });
 
 test('unseen container theft stays private until a nearby owner faction audit', () => {
@@ -563,6 +564,7 @@ test('unseen container theft stays private until a nearby owner faction audit', 
   assert.equal(box.lastAuditAt, undefined);
   assert.deepEqual(box.stolenItemIds, ['water']);
   assert.equal(getFactionRel(Faction.CITIZEN, Faction.PLAYER), 50);
+  assert.equal(player.karma, -2);
 
   state.time += 121;
   assert.equal(putIntoContainer(box, player, 0, 1, { state, world, entities: [player, auditor] }), true);

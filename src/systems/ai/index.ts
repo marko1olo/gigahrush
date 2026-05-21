@@ -293,7 +293,7 @@ export function updateAI(world: World, entities: Entity[], dt: number, time: num
     else if (decision.tier === 'warm') aiStats.updatedWarm++;
     else aiStats.updatedCold++;
     if (e.type === EntityType.NPC) {
-      if (!tryFactionCombat(world, entities, e, aiDt, time, msgs, nextId, state)) {
+      if (!tryFactionCombat(world, entities, e, aiDt, time, msgs, nextId, state, player)) {
         if (!tryFleeFromMonster(world, entities, e, aiDt)) {
           if (isMinistry) {
             updateMinistryNPC(world, entities, e, aiDt, time, clock, samosborActive);

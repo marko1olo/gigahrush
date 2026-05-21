@@ -3,6 +3,7 @@
 import { type Entity, type GameState, ItemType } from '../core/types';
 import { ITEMS } from '../data/catalog';
 import { getEquippedToolDurability, getWeaponReadiness } from '../systems/inventory';
+import { controlHint } from '../systems/controls';
 import {
   rpgStatEffects,
   rpgStatEffectsAfterSpend,
@@ -47,7 +48,7 @@ export function drawInventory(
   ctx.fillStyle = '#456';
   ctx.font = `${7 * sy}px monospace`;
   ctx.textAlign = 'right';
-  ctx.fillText('[I] закрыть', cw - 8 * sx, 6 * sy);
+  ctx.fillText(`${controlHint('inventory')} закрыть`, cw - 8 * sx, 6 * sy);
   ctx.textAlign = 'left';
 
   // ── LEFT COLUMN: grid + item desc + weapon + money ───────
@@ -105,10 +106,10 @@ export function drawInventory(
       ctx.fillText(`Цена: ${def.value ?? 0}₽`, descX, actionBaseY);
       if (def.use || def.type === ItemType.WEAPON || def.type === ItemType.TOOL) {
         ctx.fillStyle = '#6a6';
-        ctx.fillText('[E] использовать', descX, actionBaseY + 10 * sy);
+        ctx.fillText(`${controlHint('interact')} использовать`, descX, actionBaseY + 10 * sy);
       }
       ctx.fillStyle = '#a86';
-      ctx.fillText('[D] выкинуть', descX, actionBaseY + 20 * sy);
+      ctx.fillText(`${controlHint('drop')} выкинуть`, descX, actionBaseY + 20 * sy);
     }
   } else {
     ctx.fillStyle = '#555';
@@ -140,7 +141,7 @@ export function drawInventory(
   if (player.rpg) {
     const rpg = player.rpg;
     const apLabel = rpg.attrPoints > 0 ? `  +${rpg.attrPoints}` : '';
-    const attrLine = `[1]СИЛ:${rpg.str}  [2]ЛОВ:${rpg.agi}  [3]ИНТ:${rpg.int}${apLabel}`;
+    const attrLine = `${controlHint('attrStr')}СИЛ:${rpg.str}  ${controlHint('attrAgi')}ЛОВ:${rpg.agi}  ${controlHint('attrInt')}ИНТ:${rpg.int}${apLabel}`;
     ctx.font = `${8 * sy}px monospace`;
     if (nameEndX + ctx.measureText(attrLine).width > stX + barW) {
       stY += 11 * sy;
@@ -152,15 +153,18 @@ export function drawInventory(
       ctx.fillText(fitStatText(ctx, attrLine, attrMaxW), nameEndX, stY);
     } else {
       ctx.fillStyle = '#e84';
-      ctx.fillText(`[1]СИЛ:${rpg.str}`, nameEndX, stY);
-      const s1w = ctx.measureText(`[1]СИЛ:${rpg.str}  `).width;
+      const strLabel = `${controlHint('attrStr')}СИЛ:${rpg.str}`;
+      const agiLabel = `${controlHint('attrAgi')}ЛОВ:${rpg.agi}`;
+      const intLabel = `${controlHint('attrInt')}ИНТ:${rpg.int}`;
+      ctx.fillText(strLabel, nameEndX, stY);
+      const s1w = ctx.measureText(`${strLabel}  `).width;
       ctx.fillStyle = '#4e8';
-      ctx.fillText(`[2]ЛОВ:${rpg.agi}`, nameEndX + s1w, stY);
-      const s2w = ctx.measureText(`[2]ЛОВ:${rpg.agi}  `).width;
+      ctx.fillText(agiLabel, nameEndX + s1w, stY);
+      const s2w = ctx.measureText(`${agiLabel}  `).width;
       ctx.fillStyle = '#48f';
-      ctx.fillText(`[3]ИНТ:${rpg.int}`, nameEndX + s1w + s2w, stY);
+      ctx.fillText(intLabel, nameEndX + s1w + s2w, stY);
       if (apLabel) {
-        const s3w = ctx.measureText(`[3]ИНТ:${rpg.int} `).width;
+        const s3w = ctx.measureText(`${intLabel} `).width;
         ctx.fillStyle = '#ee4';
         ctx.fillText(apLabel, nameEndX + s1w + s2w + s3w, stY);
       }
