@@ -132,6 +132,52 @@ function pickFittingWord(words: string[], seed: number, axis: number, maxW: numb
   return words[idx]; // fallback
 }
 
+function phraseTokensFit(text: string, maxW: number): boolean {
+  for (const token of text.split(' ')) {
+    if (measureText(token) > maxW) return false;
+  }
+  return true;
+}
+
+function pickWrappablePhrase(words: string[], seed: number, axis: number, maxW: number): string {
+  const idx = Math.floor(wordHash(seed, axis) * words.length);
+  for (let i = 0; i < words.length; i++) {
+    const w = words[(idx + i) % words.length];
+    if (phraseTokensFit(w, maxW)) return w;
+  }
+  return pickFittingWord(words, seed, axis, maxW);
+}
+
+function wrapPosterWords(parts: readonly string[], maxW: number, maxLines: number): string[] {
+  const lines: string[] = [];
+  for (const part of parts) {
+    for (const rawToken of part.split(' ')) {
+      const token = rawToken.trim();
+      if (!token) continue;
+      const prev = lines[lines.length - 1] ?? '';
+      const next = prev ? `${prev} ${token}` : token;
+      if (prev && measureText(next) <= maxW) {
+        lines[lines.length - 1] = next;
+      } else if (measureText(token) <= maxW && lines.length < maxLines) {
+        lines.push(token);
+      }
+    }
+  }
+  return lines;
+}
+
+function drawPosterTextBlock(
+  t: Uint32Array,
+  lines: readonly string[],
+  startY: number,
+  fg: number,
+  accent: number,
+): void {
+  for (let i = 0; i < lines.length; i++) {
+    drawTextCentered(t, lines[i], startY + i * CELL_H, i === 0 || i === lines.length - 1 ? accent : fg);
+  }
+}
+
 /* ── Palette generation from noise ───────────────────────────── */
 function makePalette(seed: number): { bgR: number; bgG: number; bgB: number; fg: number; accent: number; accent2: number } {
   const r = seededRng(seed * 7 + 111);
@@ -307,26 +353,24 @@ function generateSinglePoster(t: Uint32Array, seed: number): void {
   }
 
   // Text — combinatorial word selection via independent hash axes
-  // Pick only words that fit within the poster border
+  // Pick phrases that can wrap within the poster border.
   const maxTextW = S - 2 * (borderW + 1);
-  const lineA = pickFittingWord(WORDS_A, seed, 1, maxTextW);
-  const lineB = pickFittingWord(WORDS_B, seed, 2, maxTextW);
-  const lineC = pickFittingWord(WORDS_C, seed, 3, maxTextW);
+  const lineA = pickWrappablePhrase(WORDS_A, seed, 1, maxTextW);
+  const lineB = pickWrappablePhrase(WORDS_B, seed, 2, maxTextW);
+  const lineC = pickWrappablePhrase(WORDS_C, seed, 3, maxTextW);
+  const lineD = pickWrappablePhrase(WORDS_B, seed, 4, maxTextW);
 
   // Text layout
   if (hasDecoration) {
-    const textStart = S - 4 - CELL_H * 3;
-    drawTextCentered(t, lineA, textStart, fg);
-    drawTextCentered(t, lineB, textStart + CELL_H, fg);
-    drawTextCentered(t, lineC, textStart + CELL_H * 2, accent);
+    const lines = wrapPosterWords([lineA, lineB, lineC], maxTextW, 4);
+    const textStart = S - 3 - CELL_H * lines.length;
+    drawPosterTextBlock(t, lines, textStart, fg, accent);
   } else {
     // Full text poster — more space for words
-    const totalH = CELL_H * 3 + 4;
+    const lines = wrapPosterWords([lineA, lineB, lineD, lineC], maxTextW, 5);
+    const totalH = CELL_H * lines.length + 4;
     const startY = Math.floor((S - totalH) / 2);
-    drawTextCentered(t, lineA, startY, accent);
-    for (let dx = -12; dx <= 12; dx++) tpx(t, mid + dx, startY + CELL_H + 1, accent);
-    drawTextCentered(t, lineB, startY + CELL_H + 4, fg);
-    drawTextCentered(t, lineC, startY + CELL_H * 2 + 4, fg);
+    drawPosterTextBlock(t, lines, startY, fg, accent);
   }
 }
 

@@ -46,7 +46,9 @@ import { canSpawnEntityType, entitySpawnSlots } from '../entity_limits';
 
 /* ── Shared combat target finder ──────────────────────────────── */
 const MONSTER_DETECT = 20;
+const MONSTER_MELEE_DETECT = 30;
 const MONSTER_DETECT_SQ = MONSTER_DETECT * MONSTER_DETECT;
+const MONSTER_MELEE_DETECT_SQ = MONSTER_MELEE_DETECT * MONSTER_MELEE_DETECT;
 const IMMEDIATE_THREAT_RADIUS_SQ = 10 * 10;
 const PREFER_PLAYER = 15;
 const PREFER_SQ = PREFER_PLAYER * PREFER_PLAYER;
@@ -56,13 +58,13 @@ const PECHATEED_FALLBACK_SQ = 10 * 10;
 const DEBRIS_LURKER_COVER_DETECT_SQ = 22 * 22;
 const DEBRIS_LURKER_EXPOSED_DETECT_SQ = 12 * 12;
 const NELYUD_REVEAL_SQ = 6 * 6;
-const KOSTOREZ_DETECT_SQ = 22 * 22;
+const KOSTOREZ_DETECT_SQ = MONSTER_MELEE_DETECT_SQ;
 const KOSTOREZ_WINDUP_RANGE = 2.25;
 const KOSTOREZ_BURST_RANGE = 2.85;
 const KOSTOREZ_WINDUP_SEC = 1.35;
 const KOSTOREZ_STAGGER_SEC = 1.15;
 const KOSTOREZ_ESCAPE_DIST = 4.0;
-const SAFEGUARD_DETECT_SQ = 24 * 24;
+const SAFEGUARD_DETECT_SQ = MONSTER_MELEE_DETECT_SQ;
 const SAFEGUARD_WINDUP_RANGE = 2.1;
 const SAFEGUARD_BURST_RANGE = 2.6;
 const SAFEGUARD_WINDUP_SEC = 0.85;
@@ -1227,7 +1229,9 @@ export function updateMonster(world: World, entities: Entity[], e: Entity, dt: n
     }
   }
 
-  let detectSq = monsterDetectSq(world, e, MONSTER_DETECT_SQ);
+  const def = e.monsterKind !== undefined ? MONSTERS[e.monsterKind] : null;
+  const baseDetectSq = def && !def.isRanged && def.speed > 0 ? MONSTER_MELEE_DETECT_SQ : MONSTER_DETECT_SQ;
+  let detectSq = monsterDetectSq(world, e, baseDetectSq);
   let target: Entity | null;
   const zombieApocalypse = e.monsterKind === MonsterKind.ZOMBIE && isZombieApocalypseActive(state);
   if (zombieApocalypse) {
@@ -1265,8 +1269,6 @@ export function updateMonster(world: World, entities: Entity[], e: Entity, dt: n
       if (pd2 < detectSq) { target = player; ai.combatTargetId = player.id; ai.goal = AIGoal.HUNT; }
     }
   }
-
-  const def = e.monsterKind !== undefined ? MONSTERS[e.monsterKind] : null;
 
   if (tryFollowMonsterBait(world, e, target, dt, time, msgs, state)) return;
 

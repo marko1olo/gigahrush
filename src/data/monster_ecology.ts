@@ -44,6 +44,9 @@ export interface MonsterEcologyQuery {
   roomTags?: readonly string[];
   samosborCount?: number;
   allowRare?: boolean;
+  allowOffFloor?: boolean;
+  floorAffinity?: 'strict' | 'weighted' | 'none';
+  excludeKinds?: readonly MonsterKind[];
   rng?: () => number;
   biasKinds?: readonly MonsterKind[];
   routePressure?: number;
@@ -58,6 +61,8 @@ export interface MonsterEcologyRank {
 const CIVIL: readonly FloorLevel[] = [FloorLevel.MINISTRY, FloorLevel.KVARTIRY, FloorLevel.LIVING];
 const DEEP: readonly FloorLevel[] = [FloorLevel.MAINTENANCE, FloorLevel.HELL, FloorLevel.VOID];
 const ALL_BUT_VOID: readonly FloorLevel[] = [FloorLevel.MINISTRY, FloorLevel.KVARTIRY, FloorLevel.LIVING, FloorLevel.MAINTENANCE, FloorLevel.HELL];
+const NATIVE_FLOOR_MULT = 2.4;
+const BIAS_KIND_MULT = 2.7;
 const ROUTE_PRESSURE_KINDS: readonly MonsterKind[] = [
   MonsterKind.EYE,
   MonsterKind.SHADOW,
@@ -404,7 +409,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     floors: [FloorLevel.VOID],
     rooms: [RoomType.COMMON, RoomType.HQ],
     variants: [],
-    spawnWeight: 0.04,
+    spawnWeight: 0,
     minSamosborCount: 99,
     rare: true,
     lootHint: 'пустотный шип, белая пыль, пустая квитанция протокола',
@@ -758,19 +763,59 @@ function ecologyTagWeight(def: MonsterEcologyDef, query: MonsterEcologyQuery): n
   return Math.max(0, weight);
 }
 
-function ecologySpawnWeight(def: MonsterEcologyDef, query: MonsterEcologyQuery): number {
-  if (!def.floors.includes(query.floor)) return 0;
+function excludedFromSpawn(def: MonsterEcologyDef, query: MonsterEcologyQuery): boolean {
+  return query.excludeKinds?.includes(def.kind) === true;
+}
+
+function monsterFloorAffinityMode(query: MonsterEcologyQuery): 'strict' | 'weighted' | 'none' {
+  if (query.floorAffinity) return query.floorAffinity;
+  if (query.allowOffFloor === false) return 'strict';
+  return 'weighted';
+}
+
+function ecologyWaveAllows(def: MonsterEcologyDef, query: MonsterEcologyQuery): boolean {
   const wave = query.samosborCount ?? 1;
-  if (wave < def.minSamosborCount) return 0;
-  if (def.rare && !query.allowRare) return 0;
+  if (wave < def.minSamosborCount) return false;
+  if (def.rare && !query.allowRare) return false;
+  return true;
+}
+
+function floorHasNativePool(query: MonsterEcologyQuery): boolean {
+  for (const def of MONSTER_ECOLOGY) {
+    if (excludedFromSpawn(def, query)) continue;
+    if (!def.floors.includes(query.floor)) continue;
+    if (!ecologyWaveAllows(def, query)) continue;
+    return true;
+  }
+  return false;
+}
+
+function ecologyFloorWeight(def: MonsterEcologyDef, query: MonsterEcologyQuery): number {
+  const floorFits = def.floors.includes(query.floor);
+  const mode = monsterFloorAffinityMode(query);
+  if (mode === 'none') return 1;
+  if (mode === 'strict') return floorFits ? 1 : 0;
+  if (!floorHasNativePool(query)) return 1;
+  return floorFits ? NATIVE_FLOOR_MULT : 1;
+}
+
+function ecologyBiasWeight(def: MonsterEcologyDef, query: MonsterEcologyQuery): number {
+  if (!query.biasKinds || query.biasKinds.length === 0) return 1;
+  const biasIndex = query.biasKinds.indexOf(def.kind);
+  if (biasIndex < 0) return 1;
+  return BIAS_KIND_MULT - Math.min(4, biasIndex) * 0.25;
+}
+
+function ecologySpawnWeight(def: MonsterEcologyDef, query: MonsterEcologyQuery): number {
+  if (excludedFromSpawn(def, query)) return 0;
+  if (!ecologyWaveAllows(def, query)) return 0;
   let weight = def.spawnWeight;
+  weight *= ecologyFloorWeight(def, query);
+  if (weight <= 0) return 0;
   if (query.roomType !== undefined) weight *= def.rooms.includes(query.roomType) ? 1.7 : 0.4;
   weight *= ecologyTagWeight(def, query);
   if (DEEP.includes(query.floor) && def.rooms.includes(RoomType.PRODUCTION)) weight *= 1.15;
-  if (query.biasKinds && query.biasKinds.length > 0) {
-    const biasIndex = query.biasKinds.indexOf(def.kind);
-    weight *= biasIndex >= 0 ? 2.5 - Math.min(3, biasIndex) * 0.25 : 0.55;
-  }
+  weight *= ecologyBiasWeight(def, query);
   const pressure = Math.max(0, Math.min(4, query.routePressure ?? 0));
   if (pressure > 0) {
     if (def.rooms.includes(RoomType.CORRIDOR)) weight *= 1 + pressure * 0.08;
@@ -809,8 +854,9 @@ export function chooseFloorMonsterKind(query: MonsterEcologyQuery): MonsterKind 
   if (chosen !== undefined) return chosen;
 
   for (const def of MONSTER_ECOLOGY) {
-    if (!def.floors.includes(query.floor)) continue;
-    if (def.rare && !query.allowRare) continue;
+    if (excludedFromSpawn(def, query)) continue;
+    if (!ecologyWaveAllows(def, query)) continue;
+    if (ecologyFloorWeight(def, query) <= 0) continue;
     return def.kind;
   }
   return MonsterKind.SBORKA;

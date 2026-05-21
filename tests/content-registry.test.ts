@@ -227,7 +227,11 @@ test('monster ecology covers every registered monster and resolves tactical refe
     ecologyKinds.add(def.kind);
     assert.ok(def.floors.length > 0, `${scope} needs at least one floor`);
     assert.ok(def.rooms.length > 0, `${scope} needs at least one room type`);
-    assert.ok(def.spawnWeight > 0, `${scope} needs positive spawnWeight`);
+    if (def.kind === MonsterKind.CREATOR) {
+      assert.equal(def.spawnWeight, 0, `${scope} must stay data-disabled for generic spawning`);
+    } else {
+      assert.ok(def.spawnWeight > 0, `${scope} needs positive spawnWeight`);
+    }
     assert.ok(def.counterplay.trim().length >= 32, `${scope} needs concrete counterplay`);
     assert.ok(def.lootHint.trim().length >= 8, `${scope} needs lootHint`);
     assert.ok(def.rumorIds.length > 0, `${scope} needs at least one rumor`);

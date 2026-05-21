@@ -1,6 +1,6 @@
 # Design Floor: Черный рынок 88
 
-Status: implemented authored route floor. Route id: `black_market_88`. Anchor: `z=8`. Base floor: `LIVING`. Shipped HUD name: `Черный рынок 88`.
+Status: implemented authored route floor. Route id: `black_market_88`. Anchor: `z=-10`. Base floor: `LIVING`. Shipped HUD name: `Черный рынок 88`.
 
 Owned file: `src/gen/design_floors/black_market_88.ts`. Older hidden-pocket references remain historical: `src/gen/living/black_market_88.ts`, `Docs/Expansions/05_black_market_88/`. Planning sections below may predate the routed implementation; verify individual NPC, quest and system claims against source before treating them as shipped.
 

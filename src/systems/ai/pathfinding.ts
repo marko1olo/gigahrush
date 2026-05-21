@@ -71,6 +71,23 @@ interface FlowPathAssignment {
   sourceProvider: BehaviorFlowFieldSourceProvider;
 }
 
+export interface PathSteering {
+  x: number;
+  y: number;
+  distance: number;
+  nextCell: number;
+  targetCell: number;
+}
+
+interface SteeringPathAssignment {
+  world: World;
+  cellVersion: number;
+  samosborActive: boolean;
+  target: number;
+  path: number[];
+  pi: number;
+}
+
 export interface PathfindingBudgetStats {
   routineUsed: number;
   routineDenied: number;
@@ -91,6 +108,7 @@ type AssignPathStatus = 'assigned' | 'same' | 'not_found';
 
 const _behaviorFlowFields = new Map<string, BehaviorFlowField>();
 const _flowPathAssignments = new WeakMap<Entity, FlowPathAssignment>();
+const _steeringPathAssignments = new WeakMap<Entity, SteeringPathAssignment>();
 const _roomTypeSourceProviders = new Map<string, BehaviorFlowFieldSourceProvider>();
 
 function beginPathFrame(time: number, samosborActive: boolean): void {
@@ -493,6 +511,103 @@ export function tryAssignPathToCell(world: World, e: Entity, tx: number, ty: num
   return 'assigned';
 }
 
+function openPathDoor(world: World, cell: number): void {
+  if (world.cells[cell] !== Cell.DOOR) return;
+  const door = world.doors.get(cell);
+  if (door && door.state === DoorState.CLOSED) {
+    door.state = DoorState.OPEN;
+    door.timer = 5;
+  }
+}
+
+function validSteeringAssignment(assignment: SteeringPathAssignment, world: World, target: number): boolean {
+  return assignment.world === world &&
+    assignment.cellVersion === world.cellVersion &&
+    assignment.samosborActive === _pathSamosborActive &&
+    assignment.target === target;
+}
+
+export function clearEntitySteeringPath(e: Entity): void {
+  _steeringPathAssignments.delete(e);
+}
+
+export function steerEntityTowardCell(world: World, e: Entity, tx: number, ty: number): PathSteering | null {
+  const sx = world.wrap(Math.floor(e.x));
+  const sy = world.wrap(Math.floor(e.y));
+  tx = world.wrap(tx);
+  ty = world.wrap(ty);
+  const start = world.idx(sx, sy);
+  const target = world.idx(tx, ty);
+  const targetX = tx + 0.5;
+  const targetY = ty + 0.5;
+  const targetDistance = world.dist(e.x, e.y, targetX, targetY);
+  if (start === target || targetDistance < 0.35) {
+    _steeringPathAssignments.delete(e);
+    return null;
+  }
+
+  let assignment = _steeringPathAssignments.get(e);
+  if (!assignment || !validSteeringAssignment(assignment, world, target) || assignment.pi >= assignment.path.length) {
+    const path = buildBakedTreePath(world, start, target);
+    if (path.length === 0) {
+      _steeringPathAssignments.delete(e);
+      return null;
+    }
+    assignment = {
+      world,
+      cellVersion: world.cellVersion,
+      samosborActive: _pathSamosborActive,
+      target,
+      path,
+      pi: 0,
+    };
+    _steeringPathAssignments.set(e, assignment);
+  }
+
+  while (assignment.pi < assignment.path.length) {
+    const cell = assignment.path[assignment.pi];
+    const cx = (cell % W) + 0.5;
+    const cy = ((cell / W) | 0) + 0.5;
+    if (world.dist(e.x, e.y, cx, cy) >= 0.3) break;
+    assignment.pi++;
+  }
+
+  if (assignment.pi >= assignment.path.length) {
+    const path = buildBakedTreePath(world, start, target);
+    if (path.length === 0) {
+      _steeringPathAssignments.delete(e);
+      return null;
+    }
+    assignment.path = path;
+    assignment.pi = 0;
+    assignment.cellVersion = world.cellVersion;
+    assignment.samosborActive = _pathSamosborActive;
+  }
+
+  const nextCell = assignment.path[assignment.pi];
+  openPathDoor(world, nextCell);
+  const nextX = (nextCell % W) + 0.5;
+  const nextY = ((nextCell / W) | 0) + 0.5;
+  const dx = world.delta(e.x, nextX);
+  const dy = world.delta(e.y, nextY);
+  const stepDistance = Math.sqrt(dx * dx + dy * dy);
+  if (stepDistance < 0.01) return null;
+  return {
+    x: dx / stepDistance,
+    y: dy / stepDistance,
+    distance: targetDistance,
+    nextCell,
+    targetCell: target,
+  };
+}
+
+function canActorOccupy(world: World, x: number, y: number, r: number): boolean {
+  return !world.solid(Math.floor(x + r), Math.floor(y + r)) &&
+    !world.solid(Math.floor(x + r), Math.floor(y - r)) &&
+    !world.solid(Math.floor(x - r), Math.floor(y + r)) &&
+    !world.solid(Math.floor(x - r), Math.floor(y - r));
+}
+
 /* ── Follow path ──────────────────────────────────────────────── */
 export function followPath(world: World, e: Entity, dt: number): void {
   const ai = e.ai!;
@@ -540,24 +655,26 @@ export function followPath(world: World, e: Entity, dt: number): void {
 
   // Open doors in the way (never open hermetic doors — they protect apartments during samosbor)
   const nextCellI = world.idx(Math.floor(tx), Math.floor(ty));
-  if (world.cells[nextCellI] === Cell.DOOR) {
-    const door = world.doors.get(nextCellI);
-    if (door && door.state === DoorState.CLOSED) {
-      door.state = DoorState.OPEN;
-      door.timer = 5; // auto-close after 5s
-    }
-  }
+  openPathDoor(world, nextCellI);
 
   // Move toward target
   const speed = e.speed * getCellHazardMoveMultiplier(world, e) * dt;
   const nx = e.x + (dx / dist) * speed;
   const ny = e.y + (dy / dist) * speed;
+  const r = e.type === EntityType.MONSTER ? 0.18 : 0.16;
+  let moved = false;
 
-  if (!world.solid(Math.floor(nx), Math.floor(e.y))) e.x = ((nx % W) + W) % W;
-  if (!world.solid(Math.floor(e.x), Math.floor(ny))) e.y = ((ny % W) + W) % W;
+  if (canActorOccupy(world, nx, e.y, r)) {
+    e.x = ((nx % W) + W) % W;
+    moved = true;
+  }
+  if (canActorOccupy(world, e.x, ny, r)) {
+    e.y = ((ny % W) + W) % W;
+    moved = true;
+  }
 
   // Stuck detection
-  ai.stuck += dt;
+  ai.stuck = moved ? Math.max(0, ai.stuck - dt * 2) : ai.stuck + dt;
   if (ai.stuck > 3) {
     ai.path = [];
     ai.pi = 0;

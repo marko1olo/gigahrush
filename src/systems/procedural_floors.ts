@@ -389,7 +389,7 @@ export function currentFloorRunEntry(state: GameState): FloorRunEntry {
 
 export function resolveFloorRunRoute(state: GameState, direction: LiftDirection): FloorRunEntry | null {
   const run = ensureFloorRunState(state);
-  const dz = direction === LiftDirection.DOWN ? 1 : -1;
+  const dz = direction === LiftDirection.DOWN ? -1 : 1;
   const targetZ = run.currentZ + dz;
   if (targetZ < FLOOR_RUN_MIN_Z || targetZ > FLOOR_RUN_MAX_Z) return null;
   return entryForZ(state, targetZ);
@@ -536,7 +536,7 @@ export function adjustFloorRunSamosborTimer(state: GameState, baseTimer: number)
         ? -0.12
         : spec.anomalyId === 'hladon'
           ? 0.12
-          : spec.anomalyId === 'wall_snake' || spec.anomalyId === 'section_shift' || spec.anomalyId === 'conway_life' || spec.anomalyId === 'bad_apple_world' || spec.anomalyId === 'zombie_apocalypse'
+          : spec.anomalyId === 'wall_snake' || spec.anomalyId === 'living_tunnels' || spec.anomalyId === 'section_shift' || spec.anomalyId === 'conway_life' || spec.anomalyId === 'bad_apple_world' || spec.anomalyId === 'zombie_apocalypse'
             ? 0.2
             : spec.anomalyId === 'cement_memory'
               ? 0.14

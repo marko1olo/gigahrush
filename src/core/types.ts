@@ -902,6 +902,7 @@ export interface InputState {
   fwd: boolean; back: boolean; left: boolean; right: boolean;
   strafeL: boolean; strafeR: boolean;
   attack: boolean; interact: boolean; pickup: boolean;
+  interactHeld: boolean;       // raw hold state for pressure/resistance mechanics
   map: boolean; inv: boolean;
   invUp: boolean; invDn: boolean; invLeft: boolean; invRight: boolean;
   use: boolean;

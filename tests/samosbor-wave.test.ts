@@ -17,6 +17,7 @@ import { createWorldEventState } from '../src/systems/events';
 import { registerRouteCue, routeCueCount } from '../src/systems/route_cues';
 import {
   cancelSamosborWave,
+  finishSamosborWave,
   getSamosborWaveDebugSnapshot,
   startSamosborWave,
   tickSamosborWave,
@@ -74,6 +75,22 @@ function makeRoom(id: number, x: number, y: number, w: number, h: number, apartm
     wallTex: Tex.CONCRETE,
     floorTex: Tex.F_CONCRETE,
   };
+}
+
+function makeReplacementWorld(cx = 24, cy = 24): World {
+  const world = new World();
+  world.zones[0] = { id: 0, cx, cy, faction: ZoneFaction.CITIZEN, hasLift: false, fogged: false, level: 1, hqRoomId: -1 };
+  for (let y = cy - 2; y <= cy + 2; y++) {
+    for (let x = cx - 2; x <= cx + 2; x++) {
+      const idx = world.idx(x, y);
+      world.cells[idx] = Cell.FLOOR;
+      world.floorTex[idx] = Tex.F_TILE;
+      world.wallTex[idx] = Tex.PANEL;
+      world.zoneMap[idx] = 0;
+      world.roomMap[idx] = -1;
+    }
+  }
+  return world;
 }
 
 test('samosbor wave does not mutate aptMask or protected apartment cells', () => {
@@ -184,4 +201,42 @@ test('samosbor wave leaves doors, containers, route cues, and entity cells consi
   assert.equal(routeCueCount(world), 0);
   const snapshot = getSamosborWaveDebugSnapshot();
   assert.equal(snapshot?.frontierLength, snapshot?.queuedCount);
+});
+
+test('finished local samosbor wave splices a regenerated field and stitches old boundary floors', () => {
+  const { world, state, entities } = makeOpenWaveWorld();
+  const protectedRoom = makeRoom(9, 22, 23, 3, 3, 1);
+  world.rooms[protectedRoom.id] = protectedRoom;
+  world.apartmentRoomCount = 1;
+  const protectedIdx = world.idx(23, 24);
+  world.aptMask[protectedIdx] = 1;
+  world.hermoWall[protectedIdx] = 1;
+  world.cells[protectedIdx] = Cell.FLOOR;
+  world.roomMap[protectedIdx] = protectedRoom.id;
+  world.floorTex[protectedIdx] = Tex.F_WOOD;
+
+  const outsideIdx = world.idx(17, 24);
+  const boundaryIdx = world.idx(18, 24);
+  const generatedIdx = world.idx(26, 24);
+  world.cells[outsideIdx] = Cell.FLOOR;
+  world.floorTex[outsideIdx] = Tex.F_LINO;
+
+  assert.equal(startSamosborWave(world, entities, state, 'small', 24, 24, { seed: 55, radius: 4, budgetCellsPerTick: 64 }), true);
+  runWaveToEnd(world, entities, state);
+  const replacement = { world: makeReplacementWorld(), entities: [], spawnX: 24.5, spawnY: 24.5 };
+  const finished = finishSamosborWave(world, entities, state, replacement);
+
+  assert.equal(world.cells[generatedIdx], Cell.FLOOR);
+  assert.equal(world.floorTex[generatedIdx], Tex.F_TILE);
+  assert.equal(world.cells[outsideIdx], Cell.FLOOR);
+  assert.equal(world.floorTex[outsideIdx], Tex.F_LINO);
+  assert.equal(world.cells[boundaryIdx], Cell.FLOOR);
+  assert.equal(world.aptMask[protectedIdx], 1);
+  assert.equal(world.hermoWall[protectedIdx], 1);
+  assert.equal(world.cells[protectedIdx], Cell.FLOOR);
+  assert.equal(world.roomMap[protectedIdx], protectedRoom.id);
+  assert.equal(world.floorTex[protectedIdx], Tex.F_WOOD);
+  assert.ok((finished?.fieldCells ?? 0) > 0);
+  assert.ok((finished?.regeneratedCells ?? 0) > 0);
+  assert.ok((finished?.stitchedCells ?? 0) > 0);
 });

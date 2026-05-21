@@ -108,8 +108,8 @@ Current shipped-data scale, counted from source registries:
 | --- | ---: |
 | Story `FloorLevel` values | 6 |
 | Authored routed design floors | 18 |
-| Seeded procedural interstitial floors per run | 61 |
-| Procedural floor geometry / majority / anomaly profiles | 10 / 5 / 18 |
+| Seeded procedural/fallback route floors per run | 77 |
+| Procedural floor geometry / majority / anomaly profiles | 10 / 5 / 19 |
 | Numbered lift anomalies | 8 |
 | Main plot steps | 16 |
 | Plot/side NPC ids after production manifests load | 313 |
@@ -141,7 +141,7 @@ The editor is a canvas HUD overlay over the live `World`: it can paint cells, do
 
 `E` interaction now routes through a shared dispatcher used by desktop, HUD prompts and mobile context. Generated floors also seed sparse interactable registries for gambling machines, local computers and НЕТ-hack terminals; these open canvas overlays, publish world events and mutate only local player/runtime state.
 
-`silicon_net_well` is a routed design floor at `z=18`: a кремниевый НЕТ-колодец with Sibo, administrators, a cyborg scientist, special НЕТ-КОЛОДЕЦ terminals, Safeguard hack backlash and the rare `gravity_beam_emitter`. Failed special-console hacks publish `net_terminal_hack_failed` and spawn one Safeguard subject to cooldown; the GBE is a generic energy weapon that deletes a bounded beam line of cells, doors, containers and entities.
+`silicon_net_well` is a routed design floor at `z=-22`: a кремниевый НЕТ-колодец with Sibo, administrators, a cyborg scientist, special НЕТ-КОЛОДЕЦ terminals, Safeguard hack backlash and the rare `gravity_beam_emitter`. Failed special-console hacks publish `net_terminal_hack_failed` and spawn one Safeguard subject to cooldown; the GBE is a generic energy weapon that deletes a bounded beam line of cells, doors, containers and entities.
 
 ## Concept
 
@@ -271,68 +271,68 @@ The authoritative floor map is `FloorLevel` in `src/core/types.ts`, story-floor 
 
 | Enum | HUD name | Generator | Role | Transition |
 | --- | --- | --- | --- | --- |
-| `MINISTRY = 0` | Министерство | `src/gen/ministry/` | documents, permits, offices, archives | story anchor `z=-24` |
-| `KVARTIRY = 1` | Квартиры | `src/gen/kvartiry/` | dense social riot floor | story anchor `z=-12` |
+| `MINISTRY = 0` | Министерство | `src/gen/ministry/` | documents, permits, offices, archives | story anchor `z=+30` |
+| `KVARTIRY = 1` | Квартиры | `src/gen/kvartiry/` | dense social riot floor | story anchor `z=+14` |
 | `LIVING = 2` | Жилая зона | `src/gen/living/` | start, hub, apartments, POIs | start story anchor `z=0` |
-| `MAINTENANCE = 3` | Коллекторы | `src/gen/maintenance/` | industrial tunnels, water, repairs | story anchor `z=20` |
-| `HELL = 4` | Мясной низ | `src/gen/hell/` | high-threat meat/cult floor | story anchor `z=28` |
-| `VOID = 5` | Пустота | `src/gen/void/` | final anomaly/boss floor | story anchor `z=36`, portal from Hell/Underhell |
+| `MAINTENANCE = 3` | Коллекторы | `src/gen/maintenance/` | industrial tunnels, water, repairs | story anchor `z=-26` |
+| `HELL = 4` | Мясной низ | `src/gen/hell/` | high-threat meat/cult floor | story anchor `z=-36` |
+| `VOID = 5` | Пустота | `src/gen/void/` | final anomaly/boss floor | story anchor `z=-50`, portal from Hell/Underhell |
 
-Normal lifts move through a per-run vertical `FloorRun` route rather than directly through adjacent enum values. The player starts on `LIVING` at `z=0`. Authored/story route stops are spaced every four z-levels by default, and the three levels between each authored/story stop are seeded procedural floors unless an authored stop explicitly occupies a gap. `pioneer_camp` sits above Ministry after the upper office stop: `MINISTRY` at `z=-24`, `upper_bureau` at `z=-28`, `pioneer_camp` at `z=-32`. `bank_floor` occupies the Ministry-to-Raionsovet procedural gap at `z=-22`; `silicon_net_well` occupies the service-to-Maintenance gap at `z=18`. The current normal lift span is `z=-44..40` with 24 authored/story stops and 61 procedural floors:
+Normal lifts move through a per-run vertical `FloorRun` route rather than directly through adjacent enum values. The player starts on `LIVING` at `z=0`; down decreases `z`, up increases `z`. The route spans 101 floors from `z=-50` to `z=+50`: `VOID` is the final lowest floor at `z=-50`, and `roof` is the highest floor at `z=+50`. The expandable target pattern is every even `z` as an authored/story slot and every odd `z` as a procedural floor. Until more authored floors exist, any unoccupied even slot also falls back to seeded procedural generation. The current span has 24 authored/story stops and 77 procedural/fallback floors.
 
 ```txt
-z=-44 roof
-z=-43..-41 procedural
-z=-40 chthonic_attic
-z=-39..-37 procedural
-z=-36 antenna_court
-z=-35..-33 procedural
-z=-32 pioneer_camp
-z=-31..-29 procedural
-z=-28 upper_bureau
-z=-27..-25 procedural
-z=-24 MINISTRY
-z=-23 procedural
-z=-22 bank_floor
-z=-21 procedural
-z=-20 raionsovet_archive
-z=-19..-17 procedural
-z=-16 registry_morgue
-z=-15..-13 procedural
-z=-12 KVARTIRY
-z=-11..-9 procedural
-z= -8 manhattan_crossroads
-z= -7..-5 procedural
-z= -4 communal_ring
-z= -3..-1 procedural
+z=+50 roof
+z=+49..+47 procedural
+z=+46 chthonic_attic
+z=+45..+43 procedural
+z=+42 antenna_court
+z=+41..+39 procedural
+z=+38 pioneer_camp
+z=+37..+35 procedural
+z=+34 upper_bureau
+z=+33..+31 procedural
+z=+30 MINISTRY
+z=+29..+27 procedural
+z=+26 bank_floor
+z=+25..+23 procedural
+z=+22 raionsovet_archive
+z=+21..+19 procedural
+z=+18 registry_morgue
+z=+17..+15 procedural
+z=+14 KVARTIRY
+z=+13.. +9 procedural
+z= +8 manhattan_crossroads
+z= +7.. +5 procedural
+z= +4 communal_ring
+z= +3.. +1 procedural
 z=  0 LIVING
-z=  1..  3 procedural
-z=  4 floor_69
-z=  5..  7 procedural
-z=  8 black_market_88
-z=  9.. 11 procedural
-z= 12 production_belt
-z= 13.. 15 procedural
-z= 16 service_floor
-z= 17 procedural
-z= 18 silicon_net_well
-z= 19 procedural
-z= 20 MAINTENANCE
-z= 21.. 23 procedural
-z= 24 dark_metro
-z= 25.. 27 procedural
-z= 28 HELL
-z= 29.. 31 procedural
-z= 32 underhell
-z= 33.. 35 procedural
-z= 36 VOID
-z= 37.. 39 procedural
-z= 40 darkness
+z= -1.. -3 procedural
+z= -4 floor_69
+z= -5.. -9 procedural
+z=-10 black_market_88
+z=-11..-13 procedural
+z=-14 production_belt
+z=-15..-17 procedural
+z=-18 service_floor
+z=-19..-21 procedural
+z=-22 silicon_net_well
+z=-23..-25 procedural
+z=-26 MAINTENANCE
+z=-27..-31 procedural
+z=-32 dark_metro
+z=-33..-35 procedural
+z=-36 HELL
+z=-37..-39 procedural
+z=-40 underhell
+z=-41..-47 procedural
+z=-48 darkness
+z=-49 procedural
+z=-50 VOID
 ```
 
-`VOID` is reachable by the normal route at `z=36` and by portal from Hell/Underhell. The return portal in `VOID` sends the player back to `LIVING` and the run continues in freeplay.
+`VOID` is reachable by the normal route at `z=-50` and by portal from Hell/Underhell. The return portal in `VOID` sends the player back to `LIVING` and the run continues in freeplay.
 
-Route floors at `z>=36` are NPC-free endgame spaces: `VOID`, the deeper procedural floors and `darkness` still generate monsters, loot, protocols and hazards, but no NPCs or faction event spawns.
+Route floors at `z<=-48` are NPC-free endgame spaces: `darkness`, the final procedural gap and `VOID` still generate monsters, loot, protocols and hazards, but no NPCs or faction event spawns.
 
 When switching floors, the floor is regenerated and the player preserves HP, needs, inventory, equipped weapon/tool, money and RPG stats.
 
@@ -340,28 +340,28 @@ When switching floors, the floor is regenerated and the player preserves HP, nee
 
 These are routed string-id floors, not new `FloorLevel` enum values. Each one is generated by `src/gen/design_floors/<id>.ts`; runtime systems use its `baseFloor` for mood, economy, monsters and faction defaults.
 
-`src/gen/design_floors/full_floor.ts` expands these authored modules into full 1024x1024 route floors with route-specific secondary layout algorithms, zone retuning, lights, doors and connectivity. The small authored rooms remain as named POIs inside the larger floor. `roof` also exposes a 1024x1024 dynamic sky provider backed by 16x16 cloud chunks; `render/webgl.ts` consumes it through a generic dynamic ceiling texture slot, and roof light comes from a uniform sky lightmap instead of placed lamps. `bank_floor` adds cash desks, a deposit row, credit window, debtor queue, staffed vault and a service bypass; banking choices currently use existing NPC quest and container systems with `banking` tags for deposits, loans, repayments, forged debt paper and vault theft. `floor_69` seeds an ambient adult population using the F69 procedural sprite bank, with female NPC variants forming a majority of that floor's added crowd. `silicon_net_well` is a Maintenance route floor for NЕТ access, silicon life and hackable NЕТ-колодец terminals. `dark_metro` has fixed-route moving trains: they stop at platforms, allow `E` boarding/exit, carry the player between stops and crush living entities on active rails.
+`src/gen/design_floors/full_floor.ts` expands these authored modules into full 1024x1024 route floors with route-specific secondary layout algorithms, zone retuning, lights, doors and connectivity. The small authored rooms remain as named POIs inside the larger floor. `roof` also exposes a 1024x1024 dynamic sky provider backed by 16x16 cloud chunks; `render/webgl.ts` consumes it through a generic dynamic ceiling texture slot, and roof light comes from a uniform sky lightmap instead of placed lamps. `bank_floor` adds cash desks, a deposit row, credit window, debtor queue, staffed vault and a service bypass; banking choices currently use existing NPC quest and container systems with `banking` tags for deposits, loans, repayments, forged debt paper and vault theft. `floor_69` seeds an ambient adult population using the F69 procedural sprite bank, with female NPC variants forming a majority of that floor's added crowd. `silicon_net_well` is a Maintenance route floor for NЕТ access, silicon life and hackable NЕТ-колодец terminals. `dark_metro` has fixed-route moving trains: they stop at platforms, allow `E` boarding/exit, carry the player between stops and crush living entities on active rails. `darkness` is the separate endgame route floor at `z=-48`; its generator clears baked light sources and the renderer uses zero ambient there, so only player/tool mechanics can illuminate it.
 
 | z | Route id | HUD name | Base floor |
 | ---: | --- | --- | --- |
-| -44 | `roof` | Крыша | `MINISTRY` |
-| -40 | `chthonic_attic` | Чердак техслужб | `MINISTRY` |
-| -36 | `antenna_court` | Антенный двор | `MINISTRY` |
-| -32 | `pioneer_camp` | Пионерлагерь | `LIVING` |
-| -28 | `upper_bureau` | Верхнее бюро | `MINISTRY` |
-| -22 | `bank_floor` | Банковский этаж | `MINISTRY` |
-| -20 | `raionsovet_archive` | Райсовет и архив картотек | `MINISTRY` |
-| -16 | `registry_morgue` | Морг регистраций | `MINISTRY` |
-| -8 | `manhattan_crossroads` | Перекрестки | `KVARTIRY` |
-| -4 | `communal_ring` | Коммунальное кольцо | `KVARTIRY` |
-| 4 | `floor_69` | Этаж 69 | `MAINTENANCE` |
-| 8 | `black_market_88` | Черный рынок 88 | `LIVING` |
-| 12 | `production_belt` | Производственный пояс | `MAINTENANCE` |
-| 16 | `service_floor` | Служебный этаж | `MAINTENANCE` |
-| 18 | `silicon_net_well` | Кремниевый НЕТ-колодец | `MAINTENANCE` |
-| 24 | `dark_metro` | Темная пересадка | `MAINTENANCE` |
-| 32 | `underhell` | Нижний пропускник | `HELL` |
-| 40 | `darkness` | Темный отсек | `VOID` |
+| 50 | `roof` | Крыша | `MINISTRY` |
+| 46 | `chthonic_attic` | Чердак техслужб | `MINISTRY` |
+| 42 | `antenna_court` | Антенный двор | `MINISTRY` |
+| 38 | `pioneer_camp` | Пионерлагерь | `LIVING` |
+| 34 | `upper_bureau` | Верхнее бюро | `MINISTRY` |
+| 26 | `bank_floor` | Банковский этаж | `MINISTRY` |
+| 22 | `raionsovet_archive` | Райсовет и архив картотек | `MINISTRY` |
+| 18 | `registry_morgue` | Морг регистраций | `MINISTRY` |
+| 8 | `manhattan_crossroads` | Перекрестки | `KVARTIRY` |
+| 4 | `communal_ring` | Коммунальное кольцо | `KVARTIRY` |
+| -4 | `floor_69` | Этаж 69 | `MAINTENANCE` |
+| -10 | `black_market_88` | Черный рынок 88 | `LIVING` |
+| -14 | `production_belt` | Производственный пояс | `MAINTENANCE` |
+| -18 | `service_floor` | Служебный этаж | `MAINTENANCE` |
+| -22 | `silicon_net_well` | Кремниевый НЕТ-колодец | `MAINTENANCE` |
+| -32 | `dark_metro` | Темная пересадка | `MAINTENANCE` |
+| -40 | `underhell` | Нижний пропускник | `HELL` |
+| -48 | `darkness` | Темный отсек | `VOID` |
 
 ### Procedural Floor Combinatorics
 
@@ -369,13 +369,13 @@ These are routed string-id floors, not new `FloorLevel` enum values. Each one is
 
 - geometry type: `living_blocks`, `apartment_pressure`, `communal_knots`, `attic_weatherworks`, `archive_warrens`, `collectors`, `workshops`, `service_spines`, `sump_causeways`, `admin_pockets`;
 - main faction: citizens, liquidators, cultists, wild or scientists, with citizens weighted highest and cultists lowest;
-- anomaly: none, teleport cells, smog, samosbor seed, mushroom mycelium, Hladon cold pocket, false safe block, mirror run, radio chess, conveyor sorter, fractal floor, cement memory, wall snake, rail trains, Bad Apple world, zombie apocalypse, section shift and Conway life;
+- anomaly: none, teleport cells, smog, samosbor seed, mushroom mycelium, Hladon cold pocket, false safe block, mirror run, radio chess, conveyor sorter, fractal floor, cement memory, wall snake, living tunnels, rail trains, Bad Apple world, zombie apocalypse, section shift and Conway life;
 - danger level: `1..5`, derived from vertical depth, direction and random seed;
 - per-floor loot and monster bias ids derived from the same seed.
 
 `src/systems/procedural_floors.ts` owns save/load state for the run seed, current `z`, visited procedural specs, authored route entry resolution and lift route resolution. `src/gen/procedural_floor.ts` builds procedural floors without spawning authored story NPCs: rooms/corridors, both lift directions, zone danger, faction majority, seed-biased loot, seed-biased monsters and anomaly effects.
 
-Teleport-cell anomaly pairs are stored sparsely in `world.anomalyTeleports`. Stepping on one paired cell moves the player to the paired cell after a short cooldown. Mushroom-mycelium floors also seed bounded carnivorous fungus rooms with corpse/bait feeding, salt neutralization, fire burn-off and risky zhelemish harvests. False safe blocks stamp quiet corridors, a too-clean shelter, black-hand marks, a missing-siren panel and cult-owned supplies; investigating, reporting, looting or breaking the marker publish events, while samosbor pressure is only partially delayed. Hladon cold pockets are bounded procedural rooms with pale frost marks; they slow and drain needs only inside/near the marked cells, and heat items, valve/steam tools or alternate routing counter them. Rail-train anomalies cut fixed rail routes through the floor, add platforms with schedule screens, spawn moving train segments, allow `E` boarding/exit while stopped and publish rail events when trains crush NPCs, monsters or the player. Bad Apple world stamps a 144x108 map rectangle from packed black/white RLE frames; black pixels become dark walls, white pixels become pale floor, and the projector can be paused/resumed with `E`. Zombie apocalypse floors seed up to the shared 5k active resident NPC ceiling plus patient zero, and any NPC bitten by a zombie becomes another zombie.
+Teleport-cell anomaly pairs are stored sparsely in `world.anomalyTeleports`. Stepping on one paired cell moves the player to the paired cell after a short cooldown. Mushroom-mycelium floors also seed bounded carnivorous fungus rooms with corpse/bait feeding, salt neutralization, fire burn-off and risky zhelemish harvests. False safe blocks stamp quiet corridors, a too-clean shelter, black-hand marks, a missing-siren panel and cult-owned supplies; investigating, reporting, looting or breaking the marker publish events, while samosbor pressure is only partially delayed. Hladon cold pockets are bounded procedural rooms with pale frost marks; they slow and drain needs only inside/near the marked cells, and heat items, valve/steam tools or alternate routing counter them. Living-tunnel anomalies seed multiple root apparatuses across the generated floor; each root continuously carves a short moving organic tunnel while its tail restores the previous cell state, so the route opens and closes without full-world runtime scans. Sealant, jackhammer or UV use on a root pauses its local growth and collapses part of the old trail. Rail-train anomalies cut fixed rail routes through the floor, add platforms with schedule screens, spawn moving train segments, allow `E` boarding/exit while stopped and publish rail events when trains crush NPCs, monsters or the player. Bad Apple world stamps a 144x108 map rectangle from packed black/white RLE frames; black pixels become dark walls, white pixels become pale floor, and the projector can be paused/resumed with `E`. Zombie apocalypse floors seed up to the shared 5k active resident NPC ceiling plus patient zero, and any NPC bitten by a zombie becomes another zombie.
 
 Floor VISIT quests only complete on story anchors, not on procedural or design floors that happen to use the same base `FloorLevel` for system mood.
 
@@ -510,7 +510,7 @@ Ministry content is grouped behind `src/gen/ministry/content_manifest.ts` to kee
 
 ### Communal Ring
 
-`generateCommunalRingDesignFloor()` is the authored route-floor коммуналка at `z=-4`: a ring corridor with four сквозные communal flat chains, shared kitchen/laundry/shower/pantry/notice services, wet samosbor aftermath, owned/public containers, 6 quest NPCs and 6 side quests. The full-floor expander keeps the route footprint wide with additional shared-service knots around the 1024x1024 floor.
+`generateCommunalRingDesignFloor()` is the authored route-floor коммуналка at `z=+4`: a ring corridor with four сквозные communal flat chains, shared kitchen/laundry/shower/pantry/notice services, wet samosbor aftermath, owned/public containers, 6 quest NPCs and 6 side quests. The full-floor expander keeps the route footprint wide with additional shared-service knots around the 1024x1024 floor.
 
 ### Maintenance
 
@@ -526,7 +526,7 @@ The pneumomail station is a static Maintenance POI with intake, intercept, jam a
 
 ### Void
 
-`generateVoid()` builds folded green/black island geometry, void zones, Jean's warning cell without an NPC, protocol rooms, about 1600 active guardians, loot and the Creator boss. The route-facing `generateFloor(FloorLevel.VOID)` path strips NPCs, so the default endgame space stays NPC-free while still running monsters/protocols. It is reachable on the normal `FloorRun` route at `z=36`, by debug teleport, and by the Hell/Underhell portal after the Herald path opens.
+`generateVoid()` builds folded green/black island geometry, void zones, Jean's warning cell without an NPC, protocol rooms, about 1600 active guardians, loot and the Creator boss. The route-facing `generateFloor(FloorLevel.VOID)` path strips NPCs, so the default endgame space stays NPC-free while still running monsters/protocols. It is reachable on the normal `FloorRun` route at `z=-50`, by debug teleport, and by the Hell/Underhell portal after the Herald path opens.
 
 ### Procedural Floors
 
@@ -536,7 +536,7 @@ The pneumomail station is a static Maintenance POI with intake, intercept, jam a
 2. Connect rooms with toroidal corridors and ensure connectivity.
 3. Generate 64 zones, danger levels and main faction control.
 4. Place up/down lifts.
-5. Spawn NPCs from the main faction mix through the shared smoothed whole-floor placement field, except on NPC-free endgame route floors at `z>=36`.
+5. Spawn NPCs from the main faction mix through the shared smoothed whole-floor placement field, except on NPC-free endgame route floors at `z<=-48`.
 6. Spawn loot and monsters with seed-biased weights.
 7. Apply the anomaly: fog, teleport pairs, samosbor-tainted zones/marks, mushroom growth with carnivorous fungus rooms, cold pockets, false safe blocks or zombie-apocalypse crowd/infection.
 
@@ -563,15 +563,15 @@ Current behavior:
 7. Fog boss and corridor/map monsters spawn.
 8. Near the end, hermodoor sealing occurs with variant timing.
 9. Fog spreads and can spawn monsters during active phase.
-10. On the story `LIVING` floor, small/medium scale rolls start `systems/samosbor_wave.ts`: a bounded frontier mutates volatile cells during the active phase, preserving apartments, hermowalls, lifts and the player's shelter.
+10. On the story `LIVING` floor, small/medium scale rolls start `systems/samosbor_wave.ts`: a bounded frontier mutates volatile cells during the active phase, records a local rebuild field radius, preserves apartments, hermowalls, lifts and the player's shelter, then splices a freshly generated floor field into that local area at the end with boundary floor stitches.
 11. Full scale, route/design/procedural floors and wave start failures keep the old deferred `pendingLoad` rebuild path.
 12. After end, doors reopen, aftermath may apply, and either the local wave is finalized or relevant floor geometry is rebuilt.
 
-`data/samosbor_variants.ts` currently has 8 variants, 21 modifiers and 40 aftermath beats. Rare replacement variants include Maronary with green fog/high beep/wrong-door residue, Istotit with a bell cue, golden fog, marked shelter rooms and social aftermath, and Veretar with white-area leakage. `data/samosbor_director.ts` currently registers 34 bounded director beats for warnings, patrols, shortages, door malfunctions, aftershocks and rumor seeds.
+`data/samosbor_variants.ts` currently has 8 variants, 21 modifiers and 40 aftermath beats. Rare replacement variants include Maronary with green fog, an intentionally kept high beep/active ping identity, damaging green source glow and wrong-door residue, Istotit with a low bell cue, golden fog, marked shelter rooms and social aftermath, and Veretar with white-area leakage. `data/samosbor_director.ts` currently registers 34 bounded director beats for warnings, patrols, shortages, door malfunctions, aftershocks and rumor seeds.
 
 Timers by story floor come from `src/gen/floor_manifest.ts`: Ministry is slowest, Kvartiry/Living/Maintenance are progressively more pressured, Hell and Void are fastest. Procedural floors additionally shorten the timer by danger level and anomaly pressure.
 
-Route cues live on the concrete `World` that registered them. Story, design, procedural and floor-instance loads keep their generated cue state with that world object. Samosbor rebuilds are in-place, so full story/design/procedural replacements copy only the replacement world's fresh markers into the live world and drop old heard/followed/map-reveal state; Living's volatile regrow clears old cue state before the maze is regenerated. Runtime samosbor waves prune only cues whose source/target cells were touched by the wave.
+Route cues live on the concrete `World` that registered them. Story, design, procedural and floor-instance loads keep their generated cue state with that world object. Samosbor rebuilds are in-place, so full story/design/procedural replacements copy only the replacement world's fresh markers into the live world and drop old heard/followed/map-reveal state; Living's volatile regrow clears old cue state before the maze is regenerated. Runtime samosbor waves prune cues whose source/target cells fall inside the final local rebuild field.
 
 ## Events, Memory And Rumors
 

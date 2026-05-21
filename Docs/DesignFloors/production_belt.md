@@ -1,6 +1,6 @@
 # Design Floor: Производственный пояс
 
-Status: implemented authored route floor. Route id: `production_belt`. Anchor: `z=12`. Base floor: `MAINTENANCE`. Shipped HUD name: `Производственный пояс`.
+Status: implemented authored route floor. Route id: `production_belt`. Anchor: `z=-14`. Base floor: `MAINTENANCE`. Shipped HUD name: `Производственный пояс`.
 
 Owned file: `src/gen/design_floors/production_belt.ts`. Existing references: `src/systems/production.ts`, `src/data/factories.ts`, `src/gen/maintenance/concentrate_press.ts`. Planning sections below may predate the routed implementation; verify exact factory behavior against source.
 

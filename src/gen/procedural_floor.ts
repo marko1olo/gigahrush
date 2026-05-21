@@ -780,6 +780,7 @@ function spawnMonster(
   const kind = chooseFloorMonsterKind({
     floor: proceduralMonsterFloor(spec),
     roomType: roomTypeAt(world, pos.x, pos.y),
+    floorTags: spec.monsterBiasTags,
     samosborCount: spec.danger,
     allowRare,
     biasKinds: spec.monsterBiasKinds,

@@ -27,6 +27,7 @@ import { addItem, hasItem } from './inventory';
 import { observeRumorEvent } from './rumor';
 import { gaussianLevel, getMaxHp, randomRPG } from './rpg';
 import { entitySpawnSlots } from './entity_limits';
+import { steerEntityTowardCell, tryAssignPathToCell } from './ai/pathfinding';
 
 const SCHEDULER_TICK_SEC = 10;
 const MIN_EVENT_GAP_SEC = 45;
@@ -40,6 +41,10 @@ const RECENT_LIMIT = 12;
 const MAX_ACTIVE_PROCESSIONS = 3;
 const PROCESSION_FEAR_TICK_SEC = 5;
 const PROCESSION_REPORT_CLOSE_SEC = 18;
+const PROCESSION_RESIST_GRACE_SEC = 0.45;
+const PROCESSION_RESIST_ACTION_SEC = 1.35;
+const PROCESSION_PULL_MIN_DIST = 1.35;
+const PROCESSION_PULL_AXIS = 0.72;
 const MAX_ACTIVE_CLASHES = 2;
 const CLASH_SEEN_DIST2 = 26 * 26;
 const CLASH_AVOID_DIST2 = 38 * 38;
@@ -170,6 +175,13 @@ export interface CultProcessionMapSnapshot {
   reported: boolean;
   disrupted: boolean;
   disguised: boolean;
+}
+
+export interface CultProcessionCompulsion {
+  x: number;
+  y: number;
+  strength: number;
+  distance: number;
 }
 
 let schedulerAccum = 0;
@@ -504,9 +516,75 @@ export function getCultProcessionPrompt(world: World, state: GameState, player: 
   if (!def?.procession) return '';
   const dist = world.dist(player.x, player.y, p.x, p.y);
   if (player.tool === 'radio') return ' доложить';
-  if (dist > def.procession.actionRadius) return ' скрыться';
-  if (hasItem(player, 'meat_rune')) return ' пройти под знаком';
-  return ' идти в хвосте';
+  if (dist > def.procession.actionRadius) return ' удерживать: сопротивляться';
+  if (hasItem(player, 'meat_rune')) return ' удерживать: не идти за знаком';
+  return ' удерживать: сопротивляться ходу';
+}
+
+function beginCultProcessionFollow(
+  state: GameState,
+  p: ActiveCultProcession,
+  player: Entity,
+): void {
+  if (p.followed) return;
+  p.followed = true;
+  const psiLoss = 2 + Math.floor(Math.random() * 3);
+  let riskText = `ПСИ -${psiLoss}`;
+  if (player.rpg && player.rpg.psi > 0) {
+    player.rpg.psi = Math.max(0, player.rpg.psi - psiLoss);
+  } else if (player.hp !== undefined) {
+    const hpLoss = 1 + Math.floor(Math.random() * 3);
+    player.hp = Math.max(1, player.hp - hpLoss);
+    riskText = `HP -${hpLoss}`;
+  }
+  const foundRune = Math.random() < 0.18 && addItem(player, 'meat_rune', 1);
+  publishProcessionAction(state, p, player, 'follow', 4, {
+    actionText: 'Псалом процессии подхватил шаг игрока.',
+    riskText,
+    foundRune,
+  });
+  state.msgs.push(msg(foundRune
+    ? `Псалом подхватил шаг. ${riskText}; в ладонь липнет мясная руна. Удерживайте ${controlHint('interact')}, чтобы сопротивляться.`
+    : `Псалом подхватил шаг. ${riskText}; удерживайте ${controlHint('interact')}, чтобы сопротивляться.`,
+    state.time,
+    '#f8c',
+  ));
+}
+
+export function updateCultProcessionCompulsion(
+  state: GameState,
+  world: World,
+  player: Entity,
+  resisting: boolean,
+): CultProcessionCompulsion | null {
+  const p = nearestCultProcession(world, state, player);
+  if (!p) return null;
+  const def = cultProcessionDef();
+  if (!def?.procession) return null;
+  const dist = world.dist(player.x, player.y, p.x, p.y);
+  if (dist > def.procession.fearRadius || dist <= PROCESSION_PULL_MIN_DIST) return null;
+
+  if (resisting) {
+    p.coverUntil = Math.max(p.coverUntil, state.time + PROCESSION_RESIST_GRACE_SEC);
+    p.nextFearAt = Math.max(p.nextFearAt, state.time + PROCESSION_FEAR_TICK_SEC);
+    if (!p.avoided) {
+      p.avoided = true;
+      publishProcessionAction(state, p, player, 'avoid', 3, {
+        actionText: 'Игрок сопротивляется ходу процессии и сбивает навязанный шаг.',
+        resisted: true,
+      });
+      state.msgs.push(msg('Вы упираетесь в бетон. Псалом тянет слабее, пока удерживается клавиша.', state.time, '#ccf'));
+    }
+    return null;
+  }
+
+  if (p.coverUntil > state.time) return null;
+  const steering = steerEntityTowardCell(world, player, Math.floor(p.x), Math.floor(p.y));
+  if (!steering) return null;
+  beginCultProcessionFollow(state, p, player);
+  const near = Math.max(0, 1 - dist / Math.max(1, def.procession.fearRadius));
+  const strength = PROCESSION_PULL_AXIS * (0.55 + near * 0.45);
+  return { x: steering.x, y: steering.y, strength, distance: dist };
 }
 
 export function tryInteractCultProcession(
@@ -552,42 +630,33 @@ export function tryInteractCultProcession(
   }
 
   if (hasItem(player, 'meat_rune')) {
-    p.disguised = true;
-    p.coverUntil = Math.max(p.coverUntil, state.time + def.procession.coverSec);
-    addFactionRelMutual(Faction.PLAYER, Faction.CULTIST, 1);
-    publishProcessionAction(state, p, player, 'disguise', 3, {
-      actionText: 'Игрок использовал мясную руну как пропуск и маскировку.',
-      disguiseSec: def.procession.coverSec,
-    });
-    state.msgs.push(msg('Мясная руна теплеет. Процессия принимает вас за тень в хвосте.', state.time, '#c8f'));
+    p.coverUntil = Math.max(p.coverUntil, state.time + PROCESSION_RESIST_ACTION_SEC);
+    if (!p.disguised) {
+      p.disguised = true;
+      addFactionRelMutual(Faction.PLAYER, Faction.CULTIST, 1);
+      publishProcessionAction(state, p, player, 'disguise', 3, {
+        actionText: 'Игрок держит мясную руну как якорь и не дает процессии забрать шаг.',
+        disguiseSec: PROCESSION_RESIST_ACTION_SEC,
+        resisted: true,
+      });
+      state.msgs.push(msg('Мясная руна теплеет и держит вас на месте. Процессия проходит мимо.', state.time, '#c8f'));
+    } else {
+      state.msgs.push(msg('Руна уже держит ваш шаг вне процессии.', state.time, '#888'));
+    }
     return true;
   }
 
-  if (!p.followed) {
-    p.followed = true;
-    const psiLoss = 5 + Math.floor(Math.random() * 6);
-    let riskText = `ПСИ -${psiLoss}`;
-    if (player.rpg && player.rpg.psi > 0) {
-      player.rpg.psi = Math.max(0, player.rpg.psi - psiLoss);
-    } else if (player.hp !== undefined) {
-      const hpLoss = 3 + Math.floor(Math.random() * 5);
-      player.hp = Math.max(1, player.hp - hpLoss);
-      riskText = `HP -${hpLoss}`;
-    }
-    const foundRune = Math.random() < 0.25 && addItem(player, 'meat_rune', 1);
-    publishProcessionAction(state, p, player, 'follow', 4, {
-      actionText: 'Игрок пошел за процессией и услышал опасный маршрут.',
-      riskText,
-      foundRune,
+  p.coverUntil = Math.max(p.coverUntil, state.time + PROCESSION_RESIST_ACTION_SEC);
+  p.nextFearAt = state.time + PROCESSION_FEAR_TICK_SEC;
+  if (!p.avoided) {
+    p.avoided = true;
+    publishProcessionAction(state, p, player, 'avoid', 3, {
+      actionText: 'Игрок сопротивляется ходу процессии у самой линии.',
+      resisted: true,
     });
-    state.msgs.push(msg(foundRune
-      ? `Вы идете в хвосте процессии. ${riskText}; в ладонь липнет мясная руна.`
-      : `Вы идете в хвосте процессии. ${riskText}; маршрут остается в голове.`,
-      state.time,
-      '#f8c',
-    ));
+    state.msgs.push(msg('Вы сбили навязанный шаг. Держите клавишу, иначе псалом снова потянет.', state.time, '#ccf'));
   } else {
-    state.msgs.push(msg('Вы уже знаете этот ход. Второй раз процессия ничего нового не даст.', state.time, '#888'));
+    state.msgs.push(msg('Вы уже сопротивляетесь ходу процессии.', state.time, '#888'));
   }
   return true;
 }
@@ -1179,6 +1248,7 @@ function triggerFactionEvent(
       : claimFactionEventNpc(world, entities, zoneId, faction, center.x, center.y, claimedNpcIds);
     if (!npc) continue;
     if (force) entities.push(npc);
+    if (def.procession) guideProcessionNpc(world, npc, center.x, center.y, def.procession.activeSec);
     spawnedNpcIds.push(npc.id);
     spawnedNpcs++;
   }
@@ -1506,16 +1576,16 @@ function applyProcessionFearTick(
   if (covered || safelyAvoiding) return;
   if (!p.warned) {
     p.warned = true;
-    state.msgs.push(msg(`Процессия рядом. ${controlHint('interact')} у края: переждать; ближе: идти в хвосте или доложить рацией.`, state.time, '#fc6'));
+    state.msgs.push(msg(`Процессия рядом. Шаг потянет сам; удерживайте ${controlHint('interact')}, чтобы сопротивляться, или доложите рацией.`, state.time, '#fc6'));
     return;
   }
   if (dist <= def.procession.actionRadius) {
     if (player.rpg && player.rpg.psi > 0) {
       player.rpg.psi = Math.max(0, player.rpg.psi - 1);
-      state.msgs.push(msg('Псалом давит на ПСИ. Отступите, вмешайтесь или идите в хвосте.', state.time, '#c8f'));
+      state.msgs.push(msg('Псалом давит на ПСИ. Держите сопротивление или уходите с линии.', state.time, '#c8f'));
     } else if (player.hp !== undefined) {
       player.hp = Math.max(1, player.hp - 1);
-      state.msgs.push(msg('Псалом режет слух до крови. Лучше не стоять в ходе.', state.time, '#f8c'));
+      state.msgs.push(msg('Псалом режет слух до крови. Удерживайте шаг против хода.', state.time, '#f8c'));
     }
   }
 }
@@ -1625,6 +1695,20 @@ function claimFactionEventNpc(
   ai.timer = 0;
   ai.combatTargetId = undefined;
   return best;
+}
+
+function guideProcessionNpc(world: World, npc: Entity, x: number, y: number, activeSec: number): void {
+  const ai = npc.ai;
+  if (!ai) return;
+  ai.goal = AIGoal.GOTO;
+  ai.combatTargetId = undefined;
+  ai.combatScanCd = 0;
+  ai.timer = Math.max(ai.timer, Math.min(activeSec, 18));
+  const status = tryAssignPathToCell(world, npc, Math.floor(x), Math.floor(y));
+  if (status === 'not_found') {
+    ai.goal = AIGoal.WANDER;
+    ai.timer = Math.min(ai.timer, 3);
+  }
 }
 
 function createFactionEventNpcAt(

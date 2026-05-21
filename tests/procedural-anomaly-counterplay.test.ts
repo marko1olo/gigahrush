@@ -17,13 +17,14 @@ import {
 } from '../src/core/world';
 
 interface HeavyTopologyCase {
-  id: Extract<FloorAnomalyId, 'wall_snake' | 'conway_life' | 'section_shift'>;
+  id: Extract<FloorAnomalyId, 'wall_snake' | 'living_tunnels' | 'conway_life' | 'section_shift'>;
   controlFeature: Feature;
   roomPattern: RegExp;
 }
 
 const HEAVY_TOPOLOGY_CASES: readonly HeavyTopologyCase[] = [
   { id: 'wall_snake', controlFeature: Feature.SCREEN, roomPattern: /\[wall_snake:/ },
+  { id: 'living_tunnels', controlFeature: Feature.APPARATUS, roomPattern: /\[living_tunnel:/ },
   { id: 'section_shift', controlFeature: Feature.APPARATUS, roomPattern: /\[section_shift:/ },
   { id: 'conway_life', controlFeature: Feature.APPARATUS, roomPattern: /^Игра жизнь:/ },
 ];

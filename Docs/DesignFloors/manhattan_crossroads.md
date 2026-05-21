@@ -1,6 +1,6 @@
 # Design Floor: Перекрестки
 
-Status: implemented authored route floor. Route id: `manhattan_crossroads`. Anchor: `z=-8`. Base floor: `KVARTIRY`. Shipped HUD name: `Перекрестки`.
+Status: implemented authored route floor. Route id: `manhattan_crossroads`. Anchor: `z=+8`. Base floor: `KVARTIRY`. Shipped HUD name: `Перекрестки`.
 
 Owned file: `src/gen/design_floors/manhattan_crossroads.ts`. Planning sections below may predate the routed implementation; verify exact NPC, quest and route-blocker claims against source.
 

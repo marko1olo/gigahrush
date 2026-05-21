@@ -34,6 +34,8 @@ import { flashSamosborWarningScreens } from '../gen/procedural_screens';
 import { rng, pick, weightedPick } from '../gen/shared';
 import { scaleMonsterHp, scaleMonsterSpeed, randomRPG } from './rpg';
 import { publishEvent } from './events';
+import { controlHint } from './controls';
+import { ENTITY_MASK_ACTOR, ensureEntityIndex } from './entity_index';
 import { getSamosborLocalShelters } from './samosbor_hooks';
 import { replaceCellHazards } from './cell_hazards';
 import { tickSamosborDirector } from './samosbor_director';
@@ -43,7 +45,7 @@ import { replaceEmergencyPanelStateForRebuild } from './emergency_panels';
 import { changeResourceStock } from './economy';
 import { observeRumorEvent } from './rumor';
 import { getNpcMemory } from './npc_memory';
-import { bfsPath } from './ai/pathfinding';
+import { steerEntityTowardCell, tryAssignPathToCell } from './ai/pathfinding';
 import { createMaronaryWrongDoorRemap } from './wrong_door';
 import { canSpawnEntityType, entitySpawnSlots } from './entity_limits';
 import {
@@ -77,7 +79,8 @@ import {
 
 const SAMOSBOR_DUR_MIN = 12;      // min duration (0.2 game hours = 12 real sec)
 const SAMOSBOR_DUR_MAX = 90;      // max duration (1.5 game hours = 90 real sec)
-const MONSTERS_PER_SAMOSBOR = 6;
+const MONSTERS_PER_SAMOSBOR = 10;
+const RANDOM_MAP_MONSTERS_PER_SAMOSBOR = 14;
 const FOG_SAMPLES_PER_TICK = 64;  // random cells sampled per tick for fog spread
 const FOG_SPAWN_INTERVAL  = 1.0;  // seconds between monster spawns in fog
 const SEAL_BEFORE_END = 10;       // seal apartments 10 seconds before samosbor ends
@@ -91,6 +94,10 @@ const MARONARY_SOURCE_RADIUS = 34;
 const MARONARY_SOURCE_CAP = 3;
 const MARONARY_WRONG_DOOR_RADIUS = 24;
 const MARONARY_PING_INTERVAL = 4.75;
+const MARONARY_GLOW_RADIUS = 2.65;
+const MARONARY_GLOW_DAMAGE_PER_SECOND = 3;
+const MARONARY_GLOW_INTERVAL = 0.7;
+const MARONARY_GLOW_ACTOR_CAP = 8;
 const ISTOTIT_SHELTER_SEARCH_RADIUS = 46;
 const ISTOTIT_SHELTER_CANDIDATE_CAP = 9;
 const ISTOTIT_SUPPLY_TAG = 'istotit_supply';
@@ -109,6 +116,9 @@ let activeSamosborZoneId = -1;
 let knownSamosborTime = 0;
 let samosborDirectorAccum = 0;
 let maronaryPingAccum = 0;
+let maronaryGlowAccum = 0;
+let maronaryGlowNoticeAt = -Infinity;
+let maronaryGlowCells: number[] = [];
 let activeSamosborScale: SamosborWaveScale = 'full';
 let istotitShelterRoomIds: number[] = [];
 let istotitShelterCycle = -1;
@@ -142,6 +152,8 @@ let lastAftermathBeatIds: string[] = [];
 let lastAftermathFloor = FloorLevel.LIVING;
 let lastVeretarAreaLeaks = 0;
 let lastVeretarAreaLeakAt = -Infinity;
+let istotitBellFollowNoticeAt = -Infinity;
+let istotitBellResistNoticeAt = -Infinity;
 
 export interface SamosborWarningSnapshot {
   floor: FloorLevel;
@@ -175,6 +187,13 @@ export interface SamosborWarningSignals {
   channelLines: readonly string[];
 }
 
+export interface SamosborCompulsion {
+  x: number;
+  y: number;
+  strength: number;
+  distance: number;
+}
+
 interface SamosborWarningRuntime {
   cycle: number;
   floor: FloorLevel;
@@ -192,6 +211,12 @@ interface SamosborWarningRuntime {
 
 let samosborWarning: SamosborWarningRuntime | null = null;
 
+function clearMaronaryGlowRuntime(): void {
+  maronaryGlowAccum = 0;
+  maronaryGlowNoticeAt = -Infinity;
+  maronaryGlowCells = [];
+}
+
 function clearIstotitShelters(): void {
   istotitShelterRoomIds = [];
   istotitShelterCycle = -1;
@@ -204,6 +229,7 @@ function clearSamosborWarning(clearVariant: boolean, resetDrone = true): void {
   if (clearVariant) {
     clearActiveSamosborVariant();
     clearIstotitShelters();
+    clearMaronaryGlowRuntime();
   }
 }
 
@@ -213,6 +239,7 @@ export function resetSamosborRuntimeForTests(): void {
   knownSamosborTime = 0;
   samosborDirectorAccum = 0;
   maronaryPingAccum = 0;
+  clearMaronaryGlowRuntime();
   samosborPlayerShelterRoomId = -1;
   pendingAftermath = null;
   lastAftermathAt = -Infinity;
@@ -220,6 +247,8 @@ export function resetSamosborRuntimeForTests(): void {
   lastAftermathFloor = FloorLevel.LIVING;
   lastVeretarAreaLeaks = 0;
   lastVeretarAreaLeakAt = -Infinity;
+  istotitBellFollowNoticeAt = -Infinity;
+  istotitBellResistNoticeAt = -Infinity;
   fogSpawnAccum = 0;
   activeSamosborScale = 'full';
   cancelSamosborWave();
@@ -232,6 +261,58 @@ export function resetSamosborRuntimeForTests(): void {
 
 function isIstotit(variant: ActiveSamosborVariant): boolean {
   return variant.def.id === 'istotit';
+}
+
+function nearestSamosborShelterCenter(world: World, player: Entity, roomIds: readonly number[]): { x: number; y: number; dist2: number } | null {
+  let best: { x: number; y: number; dist2: number } | null = null;
+  for (const roomId of roomIds) {
+    const room = world.rooms[roomId];
+    if (!room) continue;
+    const x = world.wrap(room.x + Math.floor(room.w / 2)) + 0.5;
+    const y = world.wrap(room.y + Math.floor(room.h / 2)) + 0.5;
+    const dist2 = world.dist2(player.x, player.y, x, y);
+    if (!best || dist2 < best.dist2) best = { x, y, dist2 };
+  }
+  return best;
+}
+
+export function updateIstotitBellCompulsion(
+  world: World,
+  state: GameState,
+  player: Entity,
+  resisting: boolean,
+): SamosborCompulsion | null {
+  const variant = getActiveSamosborVariant();
+  if (!state.samosborActive || !variant || !isIstotit(variant)) return null;
+  const room = world.roomAt(player.x, player.y);
+  const shelterRoomIds = getSamosborShelterRoomIds(state);
+  if (room && shelterRoomIds.includes(room.id)) return null;
+
+  const shelter = nearestSamosborShelterCenter(world, player, shelterRoomIds);
+  const zone = activeSamosborZoneId >= 0 ? world.zones[activeSamosborZoneId] : undefined;
+  const tx = shelter?.x ?? (zone ? zone.cx + 0.5 : W / 2 + 0.5);
+  const ty = shelter?.y ?? (zone ? zone.cy + 0.5 : W / 2 + 0.5);
+  const dx = world.delta(player.x, tx);
+  const dy = world.delta(player.y, ty);
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  if (dist < 1.25) return null;
+
+  if (resisting) {
+    if (state.time >= istotitBellResistNoticeAt + 3.5) {
+      istotitBellResistNoticeAt = state.time;
+      state.msgs.push(msg('Вы держите шаг против колокола. Отпустите - ноги снова пойдут к жёлтому контуру.', state.time, '#d6a64b'));
+    }
+    return null;
+  }
+
+  const steering = steerEntityTowardCell(world, player, Math.floor(tx), Math.floor(ty));
+  if (!steering) return null;
+
+  if (state.time >= istotitBellFollowNoticeAt + 5) {
+    istotitBellFollowNoticeAt = state.time;
+    state.msgs.push(msg(`Колокол ставит шаг за вас. Удерживайте ${controlHint('interact')}, чтобы сопротивляться.`, state.time, '#d6a64b'));
+  }
+  return { x: steering.x, y: steering.y, strength: 0.52, distance: dist };
 }
 
 function isMaronary(variant: ActiveSamosborVariant): boolean {
@@ -738,11 +819,11 @@ function guideNpcToShelter(world: World, npc: Entity, roomId: number): void {
   if (!room) return;
   const tx = world.wrap(room.x + Math.floor(room.w / 2));
   const ty = world.wrap(room.y + Math.floor(room.h / 2));
-  npc.ai.path = bfsPath(world, Math.floor(npc.x), Math.floor(npc.y), tx, ty);
+  const status = tryAssignPathToCell(world, npc, tx, ty);
   npc.ai.pi = 0;
   npc.ai.tx = tx;
   npc.ai.ty = ty;
-  npc.ai.goal = npc.ai.path.length > 0 ? AIGoal.FLEE : AIGoal.IDLE;
+  npc.ai.goal = status !== 'not_found' ? AIGoal.FLEE : AIGoal.IDLE;
   npc.ai.timer = 6;
 }
 
@@ -914,7 +995,7 @@ function stampMaronarySourceMark(world: World, ci: number, seed: number, radius 
   stampMark(world, x, y, 0.5, 0.5, radius, MarkType.MARONARY, seed, 53, 255, 102, 175, world.cells[ci] === Cell.WALL);
 }
 
-function stampMaronarySources(world: World, cx: number, cy: number): number {
+function stampMaronarySources(world: World, cx: number, cy: number): number[] {
   const selected: number[] = [];
   const r2 = MARONARY_SOURCE_RADIUS * MARONARY_SOURCE_RADIUS;
 
@@ -945,7 +1026,7 @@ function stampMaronarySources(world: World, cx: number, cy: number): number {
   for (let i = 0; i < selected.length; i++) {
     stampMaronarySourceMark(world, selected[i], 82_000 + selected[i] + i * 577);
   }
-  return selected.length;
+  return selected;
 }
 
 function chooseMaronaryWrongDoorClue(world: World, cx: number, cy: number): number {
@@ -969,6 +1050,20 @@ function chooseMaronaryWrongDoorClue(world: World, cx: number, cy: number): numb
   return bestIdx;
 }
 
+function addMaronaryGlowCell(cells: number[], ci: number): void {
+  if (ci < 0) return;
+  if (!cells.includes(ci)) cells.push(ci);
+}
+
+function rememberMaronaryGlowCells(sourceCells: readonly number[], wrongDoorIdx: number): number {
+  const next: number[] = [];
+  for (const ci of sourceCells) addMaronaryGlowCell(next, ci);
+  addMaronaryGlowCell(next, wrongDoorIdx);
+  maronaryGlowCells = next;
+  maronaryGlowAccum = 0;
+  return next.length;
+}
+
 function prepareMaronaryWarningClues(
   world: World,
   variant: ActiveSamosborVariant,
@@ -976,10 +1071,142 @@ function prepareMaronaryWarningClues(
   cy: number,
 ): { greenSourceCount: number; wrongDoorIdx: number } {
   if (!isMaronary(variant)) return { greenSourceCount: 0, wrongDoorIdx: -1 };
+  const sourceCells = stampMaronarySources(world, cx, cy);
+  const wrongDoorIdx = chooseMaronaryWrongDoorClue(world, cx, cy);
+  const greenSourceCount = rememberMaronaryGlowCells(sourceCells, wrongDoorIdx);
   return {
-    greenSourceCount: stampMaronarySources(world, cx, cy),
-    wrongDoorIdx: chooseMaronaryWrongDoorClue(world, cx, cy),
+    greenSourceCount,
+    wrongDoorIdx,
   };
+}
+
+const maronaryGlowActors: Entity[] = [];
+
+function maronaryGlowSourceCenter(ci: number): { x: number; y: number } {
+  return { x: (ci % W) + 0.5, y: ((ci / W) | 0) + 0.5 };
+}
+
+function forceMaronaryGlowFlee(world: World, e: Entity, sx: number, sy: number): void {
+  if (!e.ai || e.type === EntityType.PLAYER) return;
+  const dx = world.delta(sx, e.x);
+  const dy = world.delta(sy, e.y);
+  const len = Math.max(0.1, Math.sqrt(dx * dx + dy * dy));
+  e.ai.goal = AIGoal.FLEE;
+  e.ai.tx = world.wrap(Math.floor(e.x + dx / len * 8));
+  e.ai.ty = world.wrap(Math.floor(e.y + dy / len * 8));
+  e.ai.path = [];
+  e.ai.pi = 0;
+  e.ai.timer = Math.max(e.ai.timer, 1.2);
+}
+
+function applyMaronaryGlowDamage(world: World, state: GameState, e: Entity, amount: number, sx: number, sy: number): number {
+  if (!e.alive || e.hp === undefined || amount <= 0) return 0;
+  const before = e.hp;
+  if (e.type === EntityType.PLAYER) {
+    e.hp = Math.max(1, e.hp - amount);
+  } else {
+    e.hp = Math.max(0, e.hp - amount);
+    if (e.hp <= 0) {
+      e.alive = false;
+      e.hp = 0;
+    } else {
+      forceMaronaryGlowFlee(world, e, sx, sy);
+    }
+  }
+  const actual = before - e.hp;
+  if (actual <= 0) return 0;
+  if (e.type === EntityType.PLAYER) {
+    const maxHp = Math.max(1, e.maxHp ?? 100);
+    state.dmgFlash = Math.max(state.dmgFlash, Math.min(1, 0.2 + actual / maxHp));
+    state.dmgSeed = (state.dmgSeed + 53) | 0;
+    recordPlayerDamage(state, undefined, actual, `Маронарий: зелёное свечение -${actual}`, 'samosbor');
+  }
+  return actual;
+}
+
+function hasDamagedMaronaryGlowActor(ids: readonly number[], id: number): boolean {
+  for (const damagedId of ids) if (damagedId === id) return true;
+  return false;
+}
+
+function tickMaronaryGlowDamage(
+  world: World,
+  entities: Entity[],
+  state: GameState,
+  dt: number,
+  variant: ActiveSamosborVariant | null,
+): void {
+  if (!variant || !isMaronary(variant) || maronaryGlowCells.length === 0) {
+    maronaryGlowAccum = 0;
+    return;
+  }
+
+  maronaryGlowAccum += dt;
+  if (maronaryGlowAccum < MARONARY_GLOW_INTERVAL) return;
+  const elapsed = Math.min(1.5, maronaryGlowAccum);
+  maronaryGlowAccum = 0;
+  const damage = Math.max(1, Math.round(MARONARY_GLOW_DAMAGE_PER_SECOND * elapsed));
+  const damagedIds: number[] = [];
+  const player = findPlayer(entities);
+  let playerDamage = 0;
+  let hitCount = 0;
+  let sourceX = 0;
+  let sourceY = 0;
+  const index = ensureEntityIndex(entities);
+
+  for (const sourceCell of maronaryGlowCells) {
+    const source = maronaryGlowSourceCenter(sourceCell);
+    sourceX = source.x;
+    sourceY = source.y;
+    index.queryRadiusCapped(source.x, source.y, MARONARY_GLOW_RADIUS, maronaryGlowActors, ENTITY_MASK_ACTOR, MARONARY_GLOW_ACTOR_CAP);
+    if (player && world.dist2(source.x, source.y, player.x, player.y) <= MARONARY_GLOW_RADIUS * MARONARY_GLOW_RADIUS) {
+      maronaryGlowActors.push(player);
+    }
+    for (const e of maronaryGlowActors) {
+      if (hasDamagedMaronaryGlowActor(damagedIds, e.id)) continue;
+      const actual = applyMaronaryGlowDamage(world, state, e, damage, source.x, source.y);
+      if (actual <= 0) continue;
+      damagedIds.push(e.id);
+      hitCount++;
+      if (e.type === EntityType.PLAYER) playerDamage += actual;
+    }
+  }
+
+  if (playerDamage <= 0 || state.time < maronaryGlowNoticeAt + 2.5) return;
+  maronaryGlowNoticeAt = state.time;
+  state.msgs.push(msg('Зелёное свечение Маронария жжёт кожу. Отойдите от источника.', state.time, variant.def.tint));
+  publishEvent(state, {
+    type: 'samosbor_warning',
+    x: sourceX,
+    y: sourceY,
+    actorId: player?.id,
+    actorName: player?.name ?? 'Вы',
+    actorFaction: player?.faction,
+    severity: 4,
+    privacy: 'local',
+    tags: ['samosbor', 'maronary', 'green_source', 'glow_damage', 'variant_maronary'],
+    data: {
+      damage: playerDamage,
+      hitCount,
+      sourceCells: maronaryGlowCells.length,
+      radius: MARONARY_GLOW_RADIUS,
+    },
+  });
+}
+
+export function setMaronaryGlowCellsForTests(cells: readonly number[]): void {
+  maronaryGlowCells = [...cells];
+  maronaryGlowAccum = 0;
+}
+
+export function tickMaronaryGlowDamageForTests(
+  world: World,
+  entities: Entity[],
+  state: GameState,
+  dt: number,
+  variant: ActiveSamosborVariant | null,
+): void {
+  tickMaronaryGlowDamage(world, entities, state, dt, variant);
 }
 
 function chooseWarningZone(world: World, entities: Entity[]): { id: number; cx: number; cy: number } {
@@ -1038,7 +1265,7 @@ function warningMapCode(variant: ActiveSamosborVariant): string {
 }
 
 function warningAudioLine(variant: ActiveSamosborVariant): string {
-  if (variant.def.audioCue === 'bell') return 'звук: колокол вместо сирены';
+  if (variant.def.audioCue === 'bell') return 'звук: низкий колокол вместо сирены';
   if (variant.def.audioCue === 'beep') return 'звук: высокий писк; не идти на источник';
   if (variant.def.audioCue === 'distant_alarm') return 'звук: внешняя тревога за белым окном';
   if (variant.def.audioCue === 'siren') return 'звук: штатная сирена';
@@ -1058,8 +1285,8 @@ function warningMapLine(
   wrongDoorIdx: number,
   shelterCount: number,
 ): string {
-  if (isMaronary(variant) && wrongDoorIdx >= 0) return 'карта: повтор двери; сверить сектор';
-  if (isMaronary(variant)) return 'карта: зелёный источник; держаться в стороне';
+  if (isMaronary(variant) && wrongDoorIdx >= 0) return 'карта: повтор двери; зелёное свечение жжёт';
+  if (isMaronary(variant)) return 'карта: зелёный источник жжёт; держаться в стороне';
   if (isIstotit(variant) && shelterCount > 0) return `карта: жёлтые укрытия ${shelterCount}; мест мало, список короткий`;
   if (isVeretar(variant)) return 'карта: белое пятно вместо комнаты';
   if (variant.def.id === 'quiet') return 'карта: сирены может не быть; сверить табло';
@@ -1227,7 +1454,7 @@ function ensureSamosborWarning(
     state.msgs.push(msg('ИСТОТИТ: укрытые комнаты отмечены жёлтой меткой; мест меньше, чем фамилий.', state.time, variant.def.tint));
   }
   if (isMaronary(variant) && (maronaryClue.greenSourceCount > 0 || maronaryClue.wrongDoorIdx >= 0)) {
-    state.msgs.push(msg('Маронарий: зелёный источник и повтор двери отмечены. Проверяй маршрут по номеру, не по зелёному свету.', state.time, variant.def.tint));
+    state.msgs.push(msg('Маронарий: зелёный источник и повтор двери отмечены. Свечение жжёт; проверяй маршрут по номеру, не по зелёному свету.', state.time, variant.def.tint));
   }
   const barkCount = pushWarningBarks(world, entities, state, variant, zone.cx, zone.cy);
   const signals = buildWarningSignals(
@@ -1368,7 +1595,7 @@ export function updateSamosbor(
         scale,
         zone?.cx ?? warning.zoneX,
         zone?.cy ?? warning.zoneY,
-        { protectedRoomIds: protectedRooms },
+        { protectedRoomIds: protectedRooms, durationSec: Math.max(6, state.samosborTimer - 1) },
       );
       if (!started) activeSamosborScale = 'full';
     } else {
@@ -1385,6 +1612,7 @@ export function updateSamosbor(
 
   // ── Seal apartments 10 seconds before samosbor ends ──
   const activeVariant = getActiveSamosborVariant();
+  tickMaronaryGlowDamage(world, entities, state, dt, activeVariant);
   const sealBeforeEnd = Math.max(0, SEAL_BEFORE_END + (activeVariant?.sealTimingDelta ?? 0));
   if (state.samosborActive && activeVariant && !samosborSealed && state.samosborTimer <= sealBeforeEnd) {
     const sealedShelters = sealApartments(world, entities, state, getSamosborShelterRoomIds(state));
@@ -1483,6 +1711,7 @@ export function updateSamosbor(
     clearActiveSamosborVariant();
     samosborDirectorAccum = 0;
     maronaryPingAccum = 0;
+    clearMaronaryGlowRuntime();
 
     const localShelterRoomIds = getLocalSamosborShelterRoomIds(state);
     notifyLocalSamosborShelterEnd(world, entities, state, nextId, endedVariant ?? null);
@@ -1501,7 +1730,8 @@ export function updateSamosbor(
 
     activeSamosborScale = 'full';
     if (endedScale !== 'full') {
-      finishSamosborWave(world, entities, state);
+      const replacement = generateFloor(state.currentFloor);
+      finishSamosborWave(world, entities, state, replacement);
       applyPendingSamosborAftermathAfterWave(world, entities, nextId, state.currentFloor);
       return false;
     }
@@ -2257,11 +2487,11 @@ function applyFactionPanic(
     const len = Math.max(0.1, Math.sqrt(dx * dx + dy * dy));
     const tx = world.wrap(Math.floor(npc.x + dx / len * 14));
     const ty = world.wrap(Math.floor(npc.y + dy / len * 14));
-    ai.path = bfsPath(world, Math.floor(npc.x), Math.floor(npc.y), tx, ty);
+    const status = tryAssignPathToCell(world, npc, tx, ty);
     ai.pi = 0;
     ai.tx = tx;
     ai.ty = ty;
-    ai.goal = ai.path.length > 0 ? AIGoal.FLEE : AIGoal.WANDER;
+    ai.goal = status !== 'not_found' ? AIGoal.FLEE : AIGoal.WANDER;
     ai.timer = 5;
     getNpcMemory(npc, pending.state.time).fear = 100;
   }
@@ -2462,6 +2692,7 @@ export function getSamosborDebugLines(): string[] {
 function pickMonsterKindForWave(floor: FloorLevel, samosborCount: number): MonsterKind {
   return chooseFloorMonsterKind({
     floor,
+    floorTags: ['samosbor', 'fog'],
     samosborCount,
     allowRare: samosborCount >= 4 && Math.random() < 0.08,
   });
@@ -2603,7 +2834,7 @@ function spawnMonsters(
   }
 }
 
-/* ── Spawn ~10 monsters at random map locations ──────────────── */
+/* ── Spawn an extra map-wide monster pulse ───────────────────── */
 function spawnRandomMapMonsters(
   world: World,
   entities: Entity[],
@@ -2612,7 +2843,7 @@ function spawnRandomMapMonsters(
   variant: ActiveSamosborVariant,
   floor: FloorLevel,
 ): void {
-  const target = Math.max(1, Math.round(10 * variant.spawnMult));
+  const target = Math.max(1, Math.round(RANDOM_MAP_MONSTERS_PER_SAMOSBOR * variant.spawnMult));
   const slots = entitySpawnSlots(entities, EntityType.MONSTER, target);
   if (slots <= 0) return;
   let spawned = 0;

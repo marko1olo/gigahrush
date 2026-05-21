@@ -3,7 +3,7 @@ import * as assert from 'node:assert/strict';
 
 import { AIGoal, Cell, DoorState, EntityType, RoomType, Tex, type Entity } from '../src/core/types';
 import { World } from '../src/core/world';
-import { bfsPath, getPathfindingBudgetStats, gotoNearestRoomType, gotoRoom, setPathContext } from '../src/systems/ai/pathfinding';
+import { bfsPath, getPathfindingBudgetStats, gotoNearestRoomType, gotoRoom, setPathContext, steerEntityTowardCell } from '../src/systems/ai/pathfinding';
 
 function makeCorridorWorld(): World {
   const world = new World();
@@ -28,6 +28,13 @@ function makeCorridorWorld(): World {
     wallTex: Tex.CONCRETE,
     floorTex: Tex.F_CONCRETE,
   });
+  return world;
+}
+
+function makeCornerWorld(): World {
+  const world = new World();
+  for (let x = 0; x <= 10; x++) world.set(x, 10, Cell.FLOOR);
+  for (let y = 10; y <= 14; y++) world.set(10, y, Cell.FLOOR);
   return world;
 }
 
@@ -136,4 +143,20 @@ test('behavior room flow field assigns many actors from one baked field', () => 
   stats = getPathfindingBudgetStats();
   assert.equal(stats.bfsCalls, 0);
   assert.equal(stats.cacheHits >= 1, true);
+});
+
+test('path steering follows baked path chunks instead of the final point vector', () => {
+  const world = makeCornerWorld();
+  const player = npc(100, 0);
+  player.type = EntityType.PLAYER;
+  player.x = 0.5;
+  player.y = 10.5;
+
+  setPathContext([], 0);
+  const steering = steerEntityTowardCell(world, player, 10, 14);
+
+  assert.ok(steering);
+  assert.equal(steering.nextCell, world.idx(1, 10));
+  assert.equal(steering.x > 0.99, true);
+  assert.equal(Math.abs(steering.y) < 0.01, true);
 });

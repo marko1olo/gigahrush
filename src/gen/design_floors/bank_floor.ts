@@ -31,7 +31,7 @@ import { stampRoom } from '../shared';
 import type { FloorGeneration } from '../floor_manifest';
 
 export const BANK_FLOOR_ROUTE_ID = 'bank_floor' as const;
-export const BANK_FLOOR_Z = -22;
+export const BANK_FLOOR_Z = 26;
 export const BANK_FLOOR_BASE_FLOOR = FloorLevel.MINISTRY;
 
 export const BANK_ROOM_NAMES = {
@@ -299,7 +299,7 @@ export function createBankFloorState(): BankFloorState {
     debugEntry: {
       spawnX: 454.5,
       spawnY: 514.5,
-      summary: 'bank_floor z=-22 spawn at west lift; cash desks, credit window, vault and debtor queue are connected.',
+      summary: 'bank_floor z=+26 spawn at west lift; cash desks, credit window, vault and debtor queue are connected.',
     },
   };
 }

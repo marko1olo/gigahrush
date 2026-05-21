@@ -1,6 +1,6 @@
 # Design Floor: Нижний пропускник
 
-Status: implemented authored route floor. Route id: `underhell`. Anchor: `z=32`. Base floor: `HELL`. Shipped HUD name: `Нижний пропускник`.
+Status: implemented authored route floor. Route id: `underhell`. Anchor: `z=-40`. Base floor: `HELL`. Shipped HUD name: `Нижний пропускник`.
 
 Owned file: `src/gen/design_floors/underhell.ts`. Planning sections below preserve the older `Ниже ада` brief and may predate the routed implementation.
 

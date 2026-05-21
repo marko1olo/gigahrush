@@ -1,6 +1,6 @@
 # Design Floor: Морг регистраций
 
-Status: implemented authored route floor. Route id: `registry_morgue`. Anchor: `z=-16`. Base floor: `MINISTRY`. Shipped HUD name: `Морг регистраций`.
+Status: implemented authored route floor. Route id: `registry_morgue`. Anchor: `z=+18`. Base floor: `MINISTRY`. Shipped HUD name: `Морг регистраций`.
 
 Owned file: `src/gen/design_floors/registry_morgue.ts`. Catalog reference: `pocket_morgue_registry`. Planning sections below may predate the routed implementation; verify exact identity/death mechanics against source.
 

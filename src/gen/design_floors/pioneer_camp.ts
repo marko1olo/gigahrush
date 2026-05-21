@@ -35,7 +35,7 @@ import { ensureConnectivity, generateZones, sanitizeDoors, stampRoom } from '../
 import type { FloorGeneration } from '../floor_manifest';
 
 export const PIONEER_CAMP_DESIGN_FLOOR_ID = 'pioneer_camp' as const;
-export const PIONEER_CAMP_ROUTE_Z = -32;
+export const PIONEER_CAMP_ROUTE_Z = 38;
 export const PIONEER_CAMP_BASE_FLOOR = FloorLevel.LIVING;
 export const PIONEER_CAMP_DISPLAY_NAME = 'Пионерлагерь';
 

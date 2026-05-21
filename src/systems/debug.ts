@@ -839,8 +839,10 @@ export function execDebugCommand(
   state: GameState,
   nextEntityId: { v: number },
 ): DebugCommandAction | null {
-  if (idx >= DESIGN_FLOOR_COMMAND_START) {
-    const def = DESIGN_FLOOR_ROUTES[idx - DESIGN_FLOOR_COMMAND_START];
+  const execIdx = debugCommandExecutionIndex(idx);
+  if (execIdx < 0) return null;
+  if (execIdx >= DESIGN_FLOOR_COMMAND_START) {
+    const def = DESIGN_FLOOR_ROUTES[execIdx - DESIGN_FLOOR_COMMAND_START];
     if (def) {
       return {
         type: 'teleport_design_floor',
@@ -853,7 +855,7 @@ export function execDebugCommand(
     }
   }
 
-  switch (idx) {
+  switch (execIdx) {
     case 0: { // All weapons + ammo + PSI spells — spawn as drops around player
       const allItems: { defId: string; count: number }[] = [
         // weapons
@@ -1430,23 +1432,139 @@ const BASE_CMD_DEFS = [
   { id: 'spoil_permit', label: 'PERMIT: испортить пропуск' },
 ] as const satisfies readonly DebugCommandDef[];
 
+const BASE_CMD_VISUAL_BEFORE_DESIGN = [
+  'spawn_all_weapons',
+  'grant_xp',
+  'toggle_noclip',
+  'toggle_onepunchman',
+  'grant_permit_pack',
+  'check_permit_access',
+  'spoil_permit',
+  'spawn_monsters',
+  'floor_monster_pack',
+  'spawn_npc',
+  'spawn_items',
+  'spawn_bad_apple_world',
+  'debug_samosbor_small_wave',
+  'teleport_living',
+  'teleport_ministry',
+  'teleport_kvartiry',
+  'teleport_maintenance',
+  'teleport_hell',
+  'teleport_void',
+  'teleport_random_procedural',
+  'teleport_smog',
+  'teleport_false_safe_block',
+  'teleport_hladon',
+  'teleport_fractal_floor',
+  'teleport_mirror_run',
+  'teleport_radio_chess',
+  'teleport_cement_memory',
+  'teleport_conveyor_sorter',
+  'teleport_wall_snake',
+  'teleport_section_shift',
+  'teleport_conway_life',
+  'teleport_rail_trains',
+  'teleport_zombie_apocalypse',
+] as const satisfies readonly BaseDebugCommandId[];
+
+const BASE_CMD_VISUAL_AFTER_DESIGN = [
+  'cycle_samosbor_variant',
+  'rare_samosbor',
+  'force_maronary_samosbor',
+  'force_istotit_samosbor',
+  'samosbor_director_state',
+  'force_samosbor_director_beat',
+  'clear_samosbor_director_cooldowns',
+  'samosbor_warning_window',
+  'recent_events',
+  'faction_events',
+  'force_faction_event',
+  'force_cult_procession',
+  'force_liquidator_cult_clash',
+  'publish_verification_event',
+  'economy_prices',
+  'economy_scarcity_pulse',
+  'force_production_tick',
+  'nearby_containers',
+  'take_from_container',
+  'route_to_container',
+  'balance_catalog',
+  'elevator_instances',
+  'route_floor_summary',
+  'arm_floor_instance',
+  'spawn_system_contract',
+  'govnyak_courier_contract',
+  'verification_contract_route',
+  'smoke_expedition_setup',
+  'expedition_proof_prep',
+  'expedition_proof_lift_ready',
+  'expedition_proof_collectors_arrival',
+  'expedition_proof_risk',
+  'expedition_proof_container',
+  'expedition_proof_samosbor_warning',
+  'expedition_proof_return',
+  'void_protocols',
+  'route_cue_nearest',
+  'force_maronary_wrong_door',
+  'grant_maronary_shaving',
+  'force_pneumomail_capsule',
+  'force_hermodoor_borer',
+  'grant_net_terminal_gen_access',
+  'place_net_terminal_gen_terminals',
+  'place_net_terminal_gen_in_front',
+  'open_map_editor',
+  'net_terminal_gen_status',
+  'replay_current_map_patch',
+  'clear_current_map_patch',
+] as const satisfies readonly BaseDebugCommandId[];
+
 function designFloorCommandId(id: DesignFloorId): DebugCommandId {
   return `${DESIGN_FLOOR_COMMAND_ID_PREFIX}${id}` as DebugCommandId;
 }
 
 const DESIGN_FLOOR_COMMAND_START = BASE_CMD_DEFS.length;
+const BASE_CMD_DEF_BY_ID = new Map<BaseDebugCommandId, DebugCommandDef>();
+const BASE_CMD_EXEC_INDEX_BY_ID = new Map<BaseDebugCommandId, number>();
+for (let i = 0; i < BASE_CMD_DEFS.length; i++) {
+  BASE_CMD_DEF_BY_ID.set(BASE_CMD_DEFS[i].id, BASE_CMD_DEFS[i]);
+  BASE_CMD_EXEC_INDEX_BY_ID.set(BASE_CMD_DEFS[i].id, i);
+}
+
+function commandDef(id: BaseDebugCommandId): DebugCommandDef {
+  const def = BASE_CMD_DEF_BY_ID.get(id);
+  if (!def) throw new Error(`Unknown debug command id: ${id}`);
+  return def;
+}
+
 const CMD_DEFS: readonly DebugCommandDef[] = [
-  ...BASE_CMD_DEFS,
+  ...BASE_CMD_VISUAL_BEFORE_DESIGN.map(commandDef),
   ...DESIGN_FLOOR_ROUTES.map(def => ({
     id: designFloorCommandId(def.id),
     label: `ТП: ${def.displayName} (${def.z > 0 ? `+${def.z}` : def.z})`,
   })),
+  ...BASE_CMD_VISUAL_AFTER_DESIGN.map(commandDef),
 ];
 const CMD_LABELS = CMD_DEFS.map(def => def.label);
 const DEBUG_COMMAND_INDEX_BY_ID = new Map<DebugCommandId, number>();
 for (let i = 0; i < CMD_DEFS.length; i++) DEBUG_COMMAND_INDEX_BY_ID.set(CMD_DEFS[i].id, i);
 
 export const DEBUG_COMMAND_COUNT = CMD_LABELS.length;
+
+function designFloorCommandIndex(id: DebugCommandId): number {
+  if (!id.startsWith(DESIGN_FLOOR_COMMAND_ID_PREFIX)) return -1;
+  const designId = id.slice(DESIGN_FLOOR_COMMAND_ID_PREFIX.length) as DesignFloorId;
+  const idx = DESIGN_FLOOR_ROUTES.findIndex(def => def.id === designId);
+  return idx < 0 ? -1 : DESIGN_FLOOR_COMMAND_START + idx;
+}
+
+function debugCommandExecutionIndex(displayIdx: number): number {
+  const def = CMD_DEFS[displayIdx];
+  if (!def) return -1;
+  const designIdx = designFloorCommandIndex(def.id);
+  if (designIdx >= 0) return designIdx;
+  return BASE_CMD_EXEC_INDEX_BY_ID.get(def.id as BaseDebugCommandId) ?? -1;
+}
 
 export function getDebugCommandIds(): readonly DebugCommandId[] {
   return CMD_DEFS.map(def => def.id);
@@ -1466,6 +1584,21 @@ declare global {
 if (typeof window !== 'undefined') {
   window.__gigahrushDebugCommandIndex = getDebugCommandIndex;
   window.__gigahrushDebugCommandIds = getDebugCommandIds;
+}
+
+interface DebugInfoLine {
+  text: string;
+  color: string;
+}
+
+let debugInfoPage = 0;
+
+export function moveDebugInfoPage(delta: number): void {
+  debugInfoPage = Math.max(0, debugInfoPage + delta);
+}
+
+export function resetDebugInfoPage(): void {
+  debugInfoPage = 0;
 }
 
 export function drawDebugOverlay(
@@ -1546,19 +1679,14 @@ export function drawDebugOverlay(
 
   /* ── Left column ──────────────────────────────────────────── */
   const lx = margin + pad;
-  let y = margin + pad;
+  const leftTop = margin + pad;
+  const leftHintY = h - margin - pad - lh * 1.4;
   const leftMaxW = Math.max(20 * sx, divX - lx - pad);
+  const infoLines: DebugInfoLine[] = [];
   const row = (t: string, c: string) => {
-    ctx.fillStyle = c;
-    ctx.fillText(fitText(ctx, t, leftMaxW), lx, y);
-    y += lh;
+    infoLines.push({ text: t, color: c });
   };
-  const gap = () => { y += lh * 0.4; };
-
-  ctx.save();
-  ctx.beginPath();
-  ctx.rect(margin + 1 * sx, margin + 1 * sy, Math.max(1, divX - margin - 2 * sx), Math.max(lh, h - margin * 2 - 2 * sy));
-  ctx.clip();
+  const gap = () => { infoLines.push({ text: '', color: '#000' }); };
 
   row(`Существа: ${totalAlive}  Предметы: ${totalItems}`, '#aaa');
   row(`Комнаты: ${funcRooms}  Лифты: ${lifts} (↑${liftsUp} ↓${liftsDown})`, '#aaa');
@@ -1591,7 +1719,35 @@ export function drawDebugOverlay(
   for (const zf of zfOrder) {
     row(`  ${ZONE_FACTION_NAMES[zf]}: ${zoneFactionCells[zf] || 0}`, '#bbb');
   }
+
+  const leftRows = Math.max(1, Math.floor((leftHintY - leftTop - lh * 0.4) / lh));
+  const leftPageCount = Math.max(1, Math.ceil(infoLines.length / leftRows));
+  debugInfoPage = Math.max(0, Math.min(leftPageCount - 1, debugInfoPage));
+  const leftStart = debugInfoPage * leftRows;
+  const leftEnd = Math.min(infoLines.length, leftStart + leftRows);
+  let y = leftTop;
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(margin + 1 * sx, leftTop - sy, Math.max(1, divX - margin - 2 * sx), Math.max(lh, leftHintY - leftTop));
+  ctx.clip();
+
+  for (let i = leftStart; i < leftEnd; i++) {
+    const line = infoLines[i];
+    if (line.text) {
+      ctx.fillStyle = line.color;
+      ctx.fillText(fitText(ctx, line.text, leftMaxW), lx, y);
+    }
+    y += lh;
+  }
   ctx.restore();
+
+  ctx.fillStyle = '#555';
+  ctx.fillText(
+    fitText(ctx, `${controlBindingLabel('menuLeft')}/${controlBindingLabel('menuRight')} инфо ${debugInfoPage + 1}/${leftPageCount}`, leftMaxW),
+    lx,
+    leftHintY + lh * 0.6,
+  );
 
   /* ── Right column: commands ───────────────────────────────── */
   const rx = divX + pad;

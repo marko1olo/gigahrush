@@ -19,7 +19,7 @@ import { MONSTERS, applyMonsterVariant } from '../../entities/monster';
 import { monsterSpr } from '../../render/sprite_index';
 import { ensureConnectivity, generateZones, sanitizeDoors } from '../shared';
 import type { FloorGeneration } from '../floor_manifest';
-import { expandDarknessRouteGeometry } from './darkness';
+import { blackoutDarknessLights, expandDarknessRouteGeometry } from './darkness';
 import { expandFloor69FullFloor, spawnFloor69ReachablePopulation } from './floor_69';
 import { expandManhattanCrossroadsRouteShell } from './manhattan_crossroads';
 import { expandServiceFloorMachineMaze } from './service_floor';
@@ -139,14 +139,15 @@ function finalizeExpandedFloor<T extends FloorGeneration>(
 ): void {
   generateZones(generation.world);
   tuneZones(generation.world, style(route), route.id);
-  if (route.id !== 'roof') {
-    const lightCount = route.id === 'darkness' ? 8 : route.id === 'dark_metro' ? 130 : 260;
+  if (route.id !== 'roof' && route.id !== 'darkness') {
+    const lightCount = route.id === 'dark_metro' ? 130 : 260;
     scatterAmbientLights(generation.world, rng, lightCount);
   }
   ensureConnectivity(generation.world, generation.spawnX, generation.spawnY);
   sanitizeDoors(generation.world);
   generation.world.rebuildContainerMap();
   if (route.id === 'roof') applyUniformSkyLight(generation.world);
+  else if (route.id === 'darkness') blackoutDarknessLights(generation.world);
   else generation.world.bakeLights();
 }
 

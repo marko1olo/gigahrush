@@ -824,6 +824,51 @@ function drawFactionMapLegend(
   ctx.restore();
 }
 
+const MAP_ICON_LEGEND: readonly { glyph: string; label: string; color: string }[] = [
+  { glyph: '^', label: 'игрок', color: '#fff' },
+  { glyph: 'L', label: 'лифт', color: '#dd4' },
+  { glyph: 'Q', label: 'квест', color: '#6cf' },
+  { glyph: '*', label: 'люди/монстры/лут', color: '#e44' },
+  { glyph: 'Ж', label: 'герма', color: '#d6a64b' },
+  { glyph: 'КАР', label: 'караван', color: '#ffd36a' },
+  { glyph: 'КУЛЬТ', label: 'процессия', color: '#b45cff' },
+  { glyph: 'СБ', label: 'риск самосбора', color: '#f66' },
+  { glyph: '->', label: 'маршрут/слух', color: '#8cf' },
+];
+
+function drawMapIconLegend(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  maxW: number,
+  sx: number,
+  sy: number,
+): void {
+  ctx.save();
+  ctx.font = `${7 * sy}px monospace`;
+  ctx.textBaseline = 'top';
+  const rowH = 10 * sy;
+  let tx = x;
+  let ty = y;
+  let rows = 1;
+  for (const entry of MAP_ICON_LEGEND) {
+    const text = `${entry.glyph} ${entry.label}`;
+    const tw = ctx.measureText(text).width + 10 * sx;
+    if (tx > x && tx + tw > x + maxW) {
+      tx = x;
+      ty += rowH;
+      rows++;
+      if (rows > 2) break;
+    }
+    ctx.fillStyle = entry.color;
+    ctx.fillText(entry.glyph, tx, ty);
+    ctx.fillStyle = '#9aa';
+    ctx.fillText(entry.label, tx + ctx.measureText(entry.glyph).width + 3 * sx, ty);
+    tx += tw;
+  }
+  ctx.restore();
+}
+
 function drawWrongDoorCues(
   ctx: CanvasRenderingContext2D,
   world: World,
@@ -1481,6 +1526,7 @@ export function drawFullMap(
   const numberedLiftLabel = numberedLiftRouteLabel(state, floorInstanceLabel);
   const topRows = (routeLabel ? 1 : 0) + (numberedLiftLabel ? 1 : 0);
   drawFactionMapLegend(ctx, getFactionUiSnapshot(), currentFloor, pad + 4, pad + (topRows > 1 ? 28 : 16) * sy, mapW - 8 * sx);
+  drawMapIconLegend(ctx, pad + 4, pad + (topRows > 1 ? 40 : 28) * sy, mapW - 8 * sx, sx, sy);
   drawObjectiveStrip(ctx, quests, currentFloor, state, pad + mapW - Math.min(360 * sx, mapW - 12 * sx), pad + 8 * sy, Math.min(360 * sx, mapW - 12 * sx), sx, sy, 4);
 
   ctx.fillStyle = '#666';

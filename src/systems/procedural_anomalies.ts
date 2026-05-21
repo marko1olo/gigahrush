@@ -25,6 +25,11 @@ import {
   tryUseBadAppleWorldAnomaly,
   updateBadAppleWorldAnomaly,
 } from './procedural_anomalies/bad_apple_world';
+import {
+  livingTunnelsInteractionTargetId,
+  tryUseLivingTunnelsAnomaly,
+  updateLivingTunnelsAnomaly,
+} from './procedural_anomalies/living_tunnels';
 import { updateRadioChessAnomaly, tryUseRadioChessAnomaly } from './procedural_anomalies/radio_chess';
 import { updateSectionShiftAnomaly, tryUseSectionShiftAnomaly } from './procedural_anomalies/section_shift';
 import { updateWallSnakeAnomaly, tryUseWallSnakeAnomaly } from './procedural_anomalies/wall_snake';
@@ -74,6 +79,7 @@ function anomalyTags(spec: ProceduralFloorSpec): string[] {
   if (spec.anomalyId === 'cement_memory') tags.push('trail', 'pressure', 'no_backtracking', 'samosbor');
   if (spec.anomalyId === 'conveyor_sorter') tags.push('conveyor', 'items', 'industrial', 'movement');
   if (spec.anomalyId === 'wall_snake') tags.push('moving_walls', 'predator', 'crush', 'loot_sink');
+  if (spec.anomalyId === 'living_tunnels') tags.push('living_tunnels', 'topology', 'moving_walls', 'repair', 'route_pressure');
   if (spec.anomalyId === 'section_shift') tags.push('topology', 'moving_rooms', 'crush', 'toroid');
   if (spec.anomalyId === 'conway_life') tags.push('cellular', 'topology', 'moving_walls', 'math');
   if (spec.anomalyId === 'rail_trains') tags.push('rail', 'transit', 'crush', 'industrial');
@@ -288,6 +294,7 @@ export function updateProceduralAnomalies(world: World, player: Entity, state: G
     else if (spec.anomalyId === 'cement_memory') updateCementMemoryAnomaly(world, player, state, dt);
     else if (spec.anomalyId === 'conveyor_sorter') updateConveyorSorterAnomaly(world, player, state, dt);
     else if (spec.anomalyId === 'wall_snake') updateWallSnakeAnomaly(world, player, state, dt);
+    else if (spec.anomalyId === 'living_tunnels') updateLivingTunnelsAnomaly(world, player, state, dt);
     else if (spec.anomalyId === 'section_shift') updateSectionShiftAnomaly(world, player, state, dt);
     else if (spec.anomalyId === 'conway_life') updateConwayLifeAnomaly(world, player, state, dt);
     return;
@@ -631,6 +638,8 @@ export function proceduralAnomalyInteractionTargetId(
   const feature = world.features[ci] as Feature;
   const badAppleTarget = badAppleWorldInteractionTargetId(world, lookX, lookY);
   if (badAppleTarget !== null) return badAppleTarget;
+  const livingTunnelTarget = spec.anomalyId === 'living_tunnels' ? livingTunnelsInteractionTargetId(world, lookX, lookY) : null;
+  if (livingTunnelTarget !== null) return livingTunnelTarget;
   if (feature !== Feature.SCREEN && feature !== Feature.APPARATUS) return null;
   if (spec.anomalyId === 'false_safe_block') return falseSafeRoom(falseSafeRoomAt(world, x, y)) ? ci + 400000 : null;
   if (spec.anomalyId === 'teleport_cells' && feature === Feature.SCREEN && world.anomalyTeleports.has(ci)) return ci + 550000;
@@ -639,6 +648,7 @@ export function proceduralAnomalyInteractionTargetId(
     spec.anomalyId === 'cement_memory' ||
     spec.anomalyId === 'conveyor_sorter' ||
     spec.anomalyId === 'wall_snake' ||
+    spec.anomalyId === 'living_tunnels' ||
     spec.anomalyId === 'section_shift' ||
     spec.anomalyId === 'conway_life'
   ) return ci + 530000;
@@ -662,6 +672,7 @@ export function tryUseProceduralFloorAnomaly(
   if (spec.anomalyId === 'cement_memory') return tryUseCementMemoryAnomaly(world, player, state, lookX, lookY);
   if (spec.anomalyId === 'conveyor_sorter') return tryUseConveyorSorterAnomaly(world, player, state, lookX, lookY);
   if (spec.anomalyId === 'wall_snake') return tryUseWallSnakeAnomaly(world, player, state, lookX, lookY);
+  if (spec.anomalyId === 'living_tunnels') return tryUseLivingTunnelsAnomaly(world, player, state, lookX, lookY);
   if (spec.anomalyId === 'section_shift') return tryUseSectionShiftAnomaly(world, player, state, lookX, lookY);
   if (spec.anomalyId === 'conway_life') return tryUseConwayLifeAnomaly(world, player, state, lookX, lookY);
   return false;

@@ -1,6 +1,6 @@
 # Design Floor: Райсовет и архив картотек
 
-Status: implemented authored route floor. Route id: `raionsovet_archive`. Anchor: `z=-20`. Base floor: `MINISTRY`. Shipped HUD name: `Райсовет и архив картотек`.
+Status: implemented authored route floor. Route id: `raionsovet_archive`. Anchor: `z=+22`. Base floor: `MINISTRY`. Shipped HUD name: `Райсовет и архив картотек`.
 
 Owned file: `src/gen/design_floors/raionsovet_archive.ts`. Existing design reference: `Docs/Expansions/03_raionsovet_archive/`. Planning sections below preserve the older `Живой архив` name and may predate the routed implementation.
 

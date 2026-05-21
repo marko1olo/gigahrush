@@ -162,6 +162,31 @@ function forceWarningWindow(variantId: SamosborVariantId): {
   return { state, warning };
 }
 
+function makeMaronaryGlowWorld(): {
+  world: World;
+  entities: Entity[];
+  player: Entity;
+  nextId: { v: number };
+} {
+  const world = new World();
+  world.zones[0] = { id: 0, cx: 13, cy: 13, faction: ZoneFaction.CITIZEN, hasLift: false, fogged: false, level: 1, hqRoomId: -1 };
+  for (let y = 8; y <= 18; y++) {
+    for (let x = 8; x <= 18; x++) {
+      const ci = world.idx(x, y);
+      world.set(x, y, Cell.FLOOR);
+      world.zoneMap[ci] = 0;
+    }
+  }
+  const screenIdx = world.idx(12, 10);
+  world.set(12, 10, Cell.WALL);
+  world.features[screenIdx] = Feature.SCREEN;
+  world.zoneMap[screenIdx] = 0;
+  world.screenCells = [screenIdx];
+
+  const player = makePlayer(1, 12.5, 11.5);
+  return { world, entities: [player], player, nextId: { v: 2 } };
+}
+
 test('prepared hermodoor room shelters player and publishes success event', () => {
   const ctx = makeShelterWorld(DoorState.HERMETIC_CLOSED);
   const state = resolveQuietSeal(ctx);
@@ -234,6 +259,33 @@ test('normal and rare samosbor warnings keep variant-specific colors and cues', 
     assert.match(warning.signals.audioLine, spec.audio);
     assert.match(warning.signals.mapLine, spec.map);
   }
+});
+
+test('maronary green source glow damages player near marked source', () => {
+  resetSamosborRuntimeForTests();
+  const ctx = makeMaronaryGlowWorld();
+  const state = makeGameState({
+    currentFloor: FloorLevel.LIVING,
+    samosborTimer: 1,
+    worldEvents: createWorldEventState(),
+  });
+  assert.equal(forceNextSamosborVariant('maronary'), true);
+
+  assert.equal(updateSamosbor(ctx.world, ctx.entities, state, 0, ctx.nextId), false);
+  const warning = getSamosborWarningSnapshot(state);
+  assert.ok(warning);
+  assert.equal(warning.variantId, 'maronary');
+  assert.ok(warning.greenSourceCount > 0);
+
+  const hpBefore = ctx.player.hp ?? 0;
+  assert.equal(updateSamosbor(ctx.world, ctx.entities, state, 1, ctx.nextId), false);
+
+  assert.ok((ctx.player.hp ?? 0) < hpBefore);
+  assert.equal(state.lastDamage?.sourceKind, 'samosbor');
+  assert.match(state.lastDamage?.detail ?? '', /Маронарий: зелёное свечение/);
+  const events = getRecentEvents(state, { tags: ['glow_damage'], limit: 1 });
+  assert.equal(events.length, 1);
+  assert.equal(events[0].data?.damage, hpBefore - (ctx.player.hp ?? 0));
 });
 
 interface RuntimeGenerationCase {

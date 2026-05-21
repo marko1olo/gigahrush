@@ -10,6 +10,7 @@ import { randomName, freshNeeds } from '../../data/catalog';
 import { rng, pick, ensureConnectivity, placeLifts, generateZones } from '../shared';
 import { placeProceduralScreens } from '../procedural_screens';
 import { HELL_POPULATION_PROFILE, type MonsterPopulationProfile } from '../../data/population_profiles';
+import { chooseFloorMonsterKind } from '../../data/monster_ecology';
 import { sampleNaturalPopulationCells } from '../population_placement';
 import { MONSTERS } from '../../entities/monster';
 import { calcZoneLevel, randomRPG, scaleMonsterHp, scaleMonsterSpeed, gaussianLevel, getMaxHp } from '../../systems/rpg';
@@ -30,21 +31,6 @@ const INITIAL_CULTIST_COUNT = HELL_CULTIST_PROFILE.initial;
 const INITIAL_LIQUIDATOR_COUNT = HELL_LIQUIDATOR_PROFILE.initial;
 
 type SpawnFaction = Faction.CULTIST | Faction.LIQUIDATOR;
-
-const HELL_MONSTER_BASE: Record<number, { hp: number; speed: number; sprite: number }> = {
-  [MonsterKind.SBORKA]:    { hp: 10, speed: 2.8, sprite: monsterSpr(MonsterKind.SBORKA) },
-  [MonsterKind.TVAR]:      { hp: 60, speed: 2.0, sprite: monsterSpr(MonsterKind.TVAR) },
-  [MonsterKind.POLZUN]:    { hp: 120, speed: 1.2, sprite: monsterSpr(MonsterKind.POLZUN) },
-  [MonsterKind.BETONNIK]:  { hp: 2000, speed: 1.0, sprite: monsterSpr(MonsterKind.BETONNIK) },
-  [MonsterKind.ZOMBIE]:    { hp: 45, speed: 1.7, sprite: monsterSpr(MonsterKind.ZOMBIE) },
-  [MonsterKind.EYE]:       { hp: 55, speed: 2.4, sprite: monsterSpr(MonsterKind.EYE) },
-  [MonsterKind.NIGHTMARE]: { hp: 85, speed: 1.8, sprite: monsterSpr(MonsterKind.NIGHTMARE) },
-  [MonsterKind.SHADOW]:    { hp: 70, speed: 2.6, sprite: monsterSpr(MonsterKind.SHADOW) },
-  [MonsterKind.REBAR]:     { hp: 130, speed: 1.15, sprite: monsterSpr(MonsterKind.REBAR) },
-  [MonsterKind.MATKA]:     { hp: 340, speed: 0.45, sprite: monsterSpr(MonsterKind.MATKA) },
-  [MonsterKind.HERALD]:    { hp: 800, speed: 1.4, sprite: monsterSpr(MonsterKind.HERALD) },
-  [MonsterKind.SPIRIT]:    { hp: 50, speed: 2.0, sprite: monsterSpr(MonsterKind.SPIRIT) },
-};
 
 export function generateHell(): { world: World; entities: Entity[]; spawnX: number; spawnY: number } {
   const world = new World();
@@ -423,7 +409,7 @@ function hellPopulationSeed(kind: number, nextId: number): number {
 }
 
 function createHellMonster(world: World, nextId: { v: number }, kind: MonsterKind, x: number, y: number): Entity {
-  const def = HELL_MONSTER_BASE[kind] ?? HELL_MONSTER_BASE[MonsterKind.TVAR];
+  const def = MONSTERS[kind] ?? MONSTERS[MonsterKind.TVAR];
   const ci = world.idx(Math.floor(x), Math.floor(y));
   const zid = world.zoneMap[ci];
   const zoneLevel = (zid >= 0 && world.zones[zid]) ? (world.zones[zid].level ?? 10) : 10;
@@ -439,7 +425,7 @@ function createHellMonster(world: World, nextId: { v: number }, kind: MonsterKin
     pitch: 0,
     alive: true,
     speed: scaleMonsterSpeed(def.speed, zoneLevel + Math.max(1, bonus - 1)),
-    sprite: def.sprite,
+    sprite: monsterSpr(kind),
     hp,
     maxHp: hp,
     monsterKind: kind,
@@ -546,19 +532,12 @@ function createHellLiquidator(world: World, nextId: { v: number }, cell: number)
 }
 
 function pickHellMonsterKind(samosborCount: number): MonsterKind {
-  const pool = [
-    MonsterKind.TVAR, MonsterKind.TVAR,
-    MonsterKind.POLZUN, MonsterKind.POLZUN,
-    MonsterKind.ZOMBIE,
-    MonsterKind.SHADOW, MonsterKind.SHADOW,
-    MonsterKind.EYE,
-    MonsterKind.NIGHTMARE, MonsterKind.NIGHTMARE,
-    MonsterKind.REBAR,
-    MonsterKind.BETONNIK,
-    MonsterKind.SPIRIT,
-  ];
-  if (samosborCount >= 3 && Math.random() < 0.05) pool.push(MonsterKind.MATKA);
-  return pick(pool);
+  return chooseFloorMonsterKind({
+    floor: FloorLevel.HELL,
+    floorTags: ['hell', 'meat', 'deep', 'cult'],
+    samosborCount: Math.max(4, samosborCount),
+    allowRare: true,
+  });
 }
 
 function randomFloorCell(world: World): number {

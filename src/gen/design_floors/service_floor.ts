@@ -36,7 +36,7 @@ import { stampRoom } from '../shared';
 import type { FloorGeneration } from '../floor_manifest';
 
 export const DESIGN_FLOOR_ID = 'service_floor' as const;
-export const SERVICE_FLOOR_Z = 16;
+export const SERVICE_FLOOR_Z = -18;
 export const SERVICE_FLOOR_BASE_FLOOR = FloorLevel.MAINTENANCE;
 
 const MASTER_SCOPE_TAG = 'service_master_scope';
@@ -303,7 +303,7 @@ export function createServiceFloorState(): ServiceFloorState {
     debugEntry: {
       spawnX: 416.5,
       spawnY: 514.5,
-      summary: 'service_floor z=16 spawn at west service lift; east lift is reachable through the staff corridor.',
+      summary: 'service_floor z=-18 spawn at west service lift; east lift is reachable through the staff corridor.',
     },
   };
 }

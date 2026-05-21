@@ -1,6 +1,6 @@
 # Story Anchor Brief: Министерство
 
-Status: historical expansion brief for the existing story anchor. Current route stop: `FloorLevel.MINISTRY` at `z=-24`. There is no shipped design-floor route id `ministry`; README and `src/data/procedural_floors.ts` remain source of truth.
+Status: historical expansion brief for the existing story anchor. Current route stop: `FloorLevel.MINISTRY` at `z=+30`. There is no shipped design-floor route id `ministry`; README and `src/data/procedural_floors.ts` remain source of truth.
 
 Existing generator reference: `src/gen/ministry/`. Planning sections below describe possible route-scale expansion, not shipped design-floor route data.
 

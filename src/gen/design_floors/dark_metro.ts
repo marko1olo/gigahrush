@@ -38,7 +38,7 @@ import type { FloorGeneration } from '../floor_manifest';
 
 export const DESIGN_FLOOR_ID = 'dark_metro' as const;
 export const DARK_METRO_DISPLAY_NAME = 'Темная пересадка';
-export const DARK_METRO_FUTURE_Z = 24;
+export const DARK_METRO_FUTURE_Z = -32;
 export const DARK_METRO_DEFAULT_SEED = 0x17da_4b0d;
 
 const DARK_METRO_BASE_FLOOR = FloorLevel.MAINTENANCE;

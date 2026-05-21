@@ -4,6 +4,7 @@ import { applyCementMemory } from './cement_memory';
 import { applyConveyorSorter } from './conveyor_sorter';
 import { applyConwayLife } from './conway_life';
 import { applyFractalFloor } from './fractal_floor';
+import { applyLivingTunnels } from './living_tunnels';
 import { applyMirrorRun } from './mirror_run';
 import { applyRadioChess } from './radio_chess';
 import { applySectionShift } from './section_shift';
@@ -29,6 +30,9 @@ export function applyProceduralAnomalyProfile(ctx: ProceduralAnomalyGenContext):
       break;
     case 'wall_snake':
       applyWallSnake(ctx);
+      break;
+    case 'living_tunnels':
+      applyLivingTunnels(ctx);
       break;
     case 'section_shift':
       applySectionShift(ctx);

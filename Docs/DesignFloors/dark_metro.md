@@ -1,6 +1,6 @@
 # Design Floor: Темная пересадка
 
-Status: implemented authored route floor. Route id: `dark_metro`. Anchor: `z=24`. Base floor: `MAINTENANCE`. Shipped HUD name: `Темная пересадка`.
+Status: implemented authored route floor. Route id: `dark_metro`. Anchor: `z=-32`. Base floor: `MAINTENANCE`. Shipped HUD name: `Темная пересадка`.
 
 Owned file: `src/gen/design_floors/dark_metro.ts`. Existing references: `Docs/Expansions/02_metro_error_line/`, `src/gen/maintenance/metro_error_line.ts`. Planning sections below may predate the routed train implementation; verify exact train behavior against source.
 

@@ -1,6 +1,6 @@
 # Story Anchor Brief: Коллекторы
 
-Status: historical expansion brief for the existing story anchor. Current route stop: `FloorLevel.MAINTENANCE` at `z=20`. There is no shipped design-floor route id `collectors`; README and `src/data/procedural_floors.ts` remain source of truth.
+Status: historical expansion brief for the existing story anchor. Current route stop: `FloorLevel.MAINTENANCE` at `z=-26`. There is no shipped design-floor route id `collectors`; README and `src/data/procedural_floors.ts` remain source of truth.
 
 Existing generator reference: `src/gen/maintenance/`. Planning sections below describe possible route-scale expansion, not shipped design-floor route data.
 

@@ -6,9 +6,11 @@ import { World } from '../src/core/world';
 import { DEF as SBORKA_DEF } from '../src/entities/sborka';
 import { DEF as TVAR_DEF } from '../src/entities/tvar';
 import { DEF as POLZUN_DEF } from '../src/entities/polzun';
+import { MONSTERS } from '../src/entities/monster';
 import { getMonsterEcology } from '../src/data/monster_ecology';
 import { setEntityMap, updateMonster } from '../src/systems/ai/monster';
 import { setListenerPos } from '../src/systems/audio';
+import { rebuildEntityIndex } from '../src/systems/entity_index';
 
 function openWorld(): World {
   const world = new World();
@@ -34,7 +36,7 @@ function player(x: number, y: number): Entity {
 }
 
 function monster(kind: MonsterKind, x: number, y: number): Entity {
-  const def = kind === MonsterKind.SBORKA ? SBORKA_DEF : kind === MonsterKind.TVAR ? TVAR_DEF : POLZUN_DEF;
+  const def = MONSTERS[kind];
   return {
     id: 2,
     type: EntityType.MONSTER,
@@ -60,11 +62,25 @@ function runMonsterHit(kind: MonsterKind, dist: number, setup?: (world: World) =
   const target = player(10 + dist, 10);
   const threat = monster(kind, 10, 10);
   const entities = [target, threat];
+  rebuildEntityIndex(entities);
   setEntityMap(new Map(entities.map(e => [e.id, e])));
   const msgs: Msg[] = [];
 
   updateMonster(world, entities, threat, 0.2, 10, msgs, target.id, { v: 100 });
   return target.hp ?? 0;
+}
+
+function runMonsterTargeting(kind: MonsterKind, dist: number): Entity {
+  const world = openWorld();
+  setListenerPos(512, 512, world.dist2.bind(world));
+  const target = player(10 + dist, 10);
+  const threat = monster(kind, 10, 10);
+  const entities = [target, threat];
+  rebuildEntityIndex(entities);
+  setEntityMap(new Map(entities.map(e => [e.id, e])));
+
+  updateMonster(world, entities, threat, 0.2, 10, [], target.id, { v: 100 });
+  return threat;
 }
 
 test('common monster role data separates fodder, distance threat, and tank', () => {
@@ -89,6 +105,19 @@ test('common monster role data separates fodder, distance threat, and tank', () 
   assert.equal(POLZUN_DEF.attackRate >= 2, true, 'POLZUN should leave a planning window');
   assert.equal(polzun?.rooms.includes(RoomType.BATHROOM), true);
   assert.equal(polzun?.rooms.includes(RoomType.PRODUCTION), true);
+});
+
+test('generic melee monsters keep hunting past the old twenty-cell leash', () => {
+  const threat = runMonsterTargeting(MonsterKind.SBORKA, 28);
+
+  assert.equal(threat.ai?.combatTargetId, 1);
+  assert.equal(threat.ai?.goal, AIGoal.HUNT);
+});
+
+test('ranged monsters keep their bounded search radius', () => {
+  const threat = runMonsterTargeting(MonsterKind.EYE, 21);
+
+  assert.equal(threat.ai?.combatTargetId, undefined);
 });
 
 test('tvar threatens from outside default melee range and punishes wall hugging', () => {

@@ -33,7 +33,7 @@ import type { FloorGeneration } from '../floor_manifest';
 
 export const BLACK_MARKET_88_ROUTE_ID = 'black_market_88' as const;
 export const BLACK_MARKET_88_DISPLAY_NAME = 'Черный рынок 88';
-export const BLACK_MARKET_88_FUTURE_Z = 8;
+export const BLACK_MARKET_88_FUTURE_Z = -10;
 export const BLACK_MARKET_88_CONTAINER_FLOOR = FloorLevel.LIVING;
 
 export type Market88LaneId = 'survival' | 'weapons' | 'medicine' | 'documents' | 'access';

@@ -8,7 +8,7 @@ import {
   type GameClock, Cell,
 } from '../../core/types';
 import { World } from '../../core/world';
-import { followPath, gotoNearestRoomType, gotoRoom, wanderNearby, wanderInRoom, bfsPath } from './pathfinding';
+import { followPath, gotoNearestRoomType, gotoRoom, tryAssignPathToCell, wanderNearby, wanderInRoom } from './pathfinding';
 import { stampMark, MarkType } from '../../render/marks';
 import {
   bark,
@@ -369,7 +369,6 @@ function handlePatrol(world: World, e: Entity, dt: number): void {
 
 /** Patrol helper: pick a random corridor point (not in any room) */
 function patrolCorridor(world: World, e: Entity): void {
-  const ai = e.ai!;
   for (let attempt = 0; attempt < 20; attempt++) {
     const dx = Math.floor(Math.random() * 60) - 30;
     const dy = Math.floor(Math.random() * 60) - 30;
@@ -378,14 +377,8 @@ function patrolCorridor(world: World, e: Entity): void {
     const ci = world.idx(tx, ty);
     if (world.cells[ci] !== Cell.FLOOR) continue;
     if (world.roomMap[ci] >= 0) continue; // only corridors
-    const path = bfsPath(world, Math.floor(e.x), Math.floor(e.y), tx, ty);
-    if (path.length > 0) {
-      ai.path = path;
-      ai.pi = 0;
-      ai.tx = tx;
-      ai.ty = ty;
-      return;
-    }
+    const status = tryAssignPathToCell(world, e, tx, ty);
+    if (status !== 'not_found') return;
   }
   wanderNearby(world, e);
 }

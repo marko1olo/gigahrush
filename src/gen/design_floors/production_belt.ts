@@ -38,7 +38,7 @@ import {
 import type { FloorGeneration } from '../floor_manifest';
 
 export const DESIGN_FLOOR_ID = 'production_belt' as const;
-export const PRODUCTION_BELT_ROUTE_Z = 12;
+export const PRODUCTION_BELT_ROUTE_Z = -14;
 export const PRODUCTION_BELT_BASE_FLOOR = FloorLevel.MAINTENANCE;
 
 const CONTENT_TAG = 'floor14_production_belt';

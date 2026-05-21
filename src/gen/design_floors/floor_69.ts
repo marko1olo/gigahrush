@@ -25,7 +25,7 @@ import { genLog } from '../log';
 import type { FloorGeneration } from '../floor_manifest';
 
 export const DESIGN_FLOOR_ID = 'floor_69' as const;
-export const DESIGN_FLOOR_Z = 4;
+export const DESIGN_FLOOR_Z = -4;
 export const FLOOR_69_DEFAULT_SEED = 690004;
 
 // Current core state still requires a FloorLevel. Future route integration should

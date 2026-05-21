@@ -1,6 +1,6 @@
 # Design Floor: Темный отсек
 
-Status: implemented authored route floor. Route id: `darkness`. Anchor: `z=40`. Base floor: `VOID`. Shipped HUD name: `Темный отсек`.
+Status: implemented authored route floor. Route id: `darkness`. Anchor: `z=-50`. Base floor: `VOID`. Shipped HUD name: `Темный отсек`.
 
 Owned file: `src/gen/design_floors/darkness.ts`. Planning sections below preserve the original `Тьма` brief; shipped route display is `Темный отсек`.
 

@@ -37,7 +37,7 @@ import { ensureConnectivity, generateZones, sanitizeDoors, stampRoom } from '../
 import type { FloorGeneration } from '../floor_manifest';
 
 export const DESIGN_FLOOR_ID = 'manhattan_crossroads' as const;
-export const MANHATTAN_CROSSROADS_Z = -8;
+export const MANHATTAN_CROSSROADS_Z = 8;
 export const MANHATTAN_CROSSROADS_SEED = 9009;
 
 const CENTER = W >> 1;

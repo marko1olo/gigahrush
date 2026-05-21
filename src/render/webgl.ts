@@ -74,6 +74,7 @@ uniform float uFogDensity;
 uniform float uGlitch;
 uniform float uCamHeight;        // 0..1 (0.5 = default)
 uniform float uFlashlight;       // 0..1
+uniform float uAmbient;          // floor ambient light
 uniform float uTime;
 uniform int   uPurpleFog;        // 1 if player is in fogged area
 uniform vec3  uFogColor;         // active samosbor variant fog tint
@@ -109,7 +110,6 @@ const float MAX_DIST = ${MAX_DRAW.toFixed(1)};
 const float TEX_F = ${TEX.toFixed(1)};
 const int TEX_I = ${TEX};
 const int ATLAS_COLS_I = ${ATLAS_COLS};
-const float AMBIENT = 0.12;
 const float PI = 3.14159265;
 
 /* ── Helpers ──────────────────────────────────────────────────── */
@@ -371,6 +371,10 @@ void main() {
   float fogF = min(1.0, dist * uFogDensity);
 
   vec3 pixel = fogColor(); // default = fog
+  // Render abyss cells as solid glitch-dark blocks. The old special case drew
+  // an endless vertical void, which looked like a visual-only pit instead of a
+  // concrete obstruction.
+  hitAbyss = false;
 
   if (hitAbyss) {
     // Abyss rendering
@@ -407,10 +411,17 @@ void main() {
     if (hit && row >= drawStart && row <= drawEnd) {
       // ── Wall ──
       ivec2 hitCell = ivec2(wrapI(mapX), wrapI(mapY));
-      float cellLit = min(1.0, AMBIENT + sampleLight(hitCell) * (1.0 - AMBIENT) + flashlightBoost(dist));
+      float cellLit = min(1.0, uAmbient + sampleLight(hitCell) * (1.0 - uAmbient) + flashlightBoost(dist));
       float d = row - (HALF_H - lineH * (1.0 - uCamHeight));
       int texYi = int(floor(d / lineH * TEX_F)) & (TEX_I - 1);
       vec3 c = sampleAtlas(wallTexId, texXi, texYi).rgb;
+      if (texelFetch(uCells, hitCell, 0).r == ${Cell.ABYSS}u) {
+        float glitch = noiseI(hitCell.x + texYi, hitCell.y + texXi, int(floor(uTime * 18.0)) + 1337);
+        float scan = step(0.72, fract((float(texYi) + uTime * 38.0) * 0.19 + glitch));
+        vec3 dark = vec3(3.0/255.0, 5.0/255.0, 8.0/255.0);
+        vec3 cut = vec3(30.0/255.0, 8.0/255.0, 46.0/255.0);
+        c = mix(dark, cut, scan * (0.35 + glitch * 0.45));
+      }
       // Surface overlay (blood, bullet holes)
       c = blendSurface(c, hitCell, texXi >> 2, texYi >> 2);
       // Hell eye overlay on organic walls
@@ -434,13 +445,14 @@ void main() {
           int ftx = int(floor(floorX * TEX_F)) & (TEX_I - 1);
           int fty = int(floor(floorY * TEX_F)) & (TEX_I - 1);
           float ff = min(1.0, currentDist * uFogDensity);
-          float fLit = min(1.0, AMBIENT + sampleLight(fCell) * (1.0 - AMBIENT) + flashlightBoost(currentDist));
+          float fLit = min(1.0, uAmbient + sampleLight(fCell) * (1.0 - uAmbient) + flashlightBoost(currentDist));
 
           uint fCellType = texelFetch(uCells, fCell, 0).r;
           if (fCellType == ${Cell.ABYSS}u) {
-            float voidF = min(1.0, currentDist * 0.12);
-            float v = 3.0 * (1.0 - voidF) / 255.0;
-            pixel = vec3(v, v, v);
+            vec3 fc = sampleAtlas(${Tex.F_ABYSS}u, ftx, fty).rgb;
+            float scan = step(0.78, fract((float(fty) + uTime * 26.0) * 0.23));
+            fc = mix(fc * 0.35, vec3(22.0/255.0, 6.0/255.0, 34.0/255.0), scan * 0.45);
+            pixel = applyFogV(fc, ff);
             pixelDepth = min(1.0, currentDist / MAX_DIST);
           } else {
             uint floorTexId = fCellType == ${Cell.WATER}u
@@ -469,13 +481,14 @@ void main() {
           int ftx = int(floor(floorX * TEX_F)) & (TEX_I - 1);
           int fty = int(floor(floorY * TEX_F)) & (TEX_I - 1);
           float ff = min(1.0, currentDist * uFogDensity);
-          float cLit = min(1.0, AMBIENT + sampleLight(cCell) * (1.0 - AMBIENT) + flashlightBoost(currentDist));
+          float cLit = min(1.0, uAmbient + sampleLight(cCell) * (1.0 - uAmbient) + flashlightBoost(currentDist));
 
           uint cCellType = texelFetch(uCells, cCell, 0).r;
           if (cCellType == ${Cell.ABYSS}u) {
-            float voidF = min(1.0, currentDist * 0.12);
-            float v = 4.0 * (1.0 - voidF) / 255.0;
-            pixel = vec3(v, v + 1.0/255.0, v);
+            vec3 cc = sampleAtlas(${Tex.DARK}u, ftx, fty).rgb * 0.22;
+            float scan = step(0.8, fract((float(ftx) + uTime * 21.0) * 0.21));
+            cc = mix(cc, vec3(18.0/255.0, 5.0/255.0, 28.0/255.0), scan * 0.42);
+            pixel = applyFogV(cc, ff);
             pixelDepth = min(1.0, currentDist / MAX_DIST);
           } else {
             uint feat = texelFetch(uFeatures, cCell, 0).r;
@@ -1318,7 +1331,7 @@ export function initWebGL(
   const rayVAO = createQuadVAO(gl, rayProgram);
   const rayUniforms = getUniforms(gl, rayProgram, [
     'uResolution', 'uPos', 'uAngle', 'uPitch', 'uFogDensity',
-    'uGlitch', 'uCamHeight', 'uFlashlight', 'uTime', 'uPurpleFog', 'uFogColor',
+    'uGlitch', 'uCamHeight', 'uFlashlight', 'uAmbient', 'uTime', 'uPurpleFog', 'uFogColor',
     'uCells', 'uWallTex', 'uFloorTex', 'uFeatures', 'uLight', 'uFog',
     'uDoorStates', 'uAtlas', 'uAtlasSize', 'uUseDynamicSky', 'uDynamicSky',
     'uDynamicSkyTint', 'uBaseFogColor', 'uSurfaceAtlas', 'uSurfaceIdx',
@@ -1564,6 +1577,7 @@ export function renderSceneGL(
   time = 0,
   bloodParticles: BloodParticle[] = [],
   samosborActive = false,
+  ambientLight = 0.12,
 ): void {
   if (!glState) return;
   const { gl } = glState;
@@ -1592,6 +1606,7 @@ export function renderSceneGL(
   gl.uniform1f(ru['uGlitch']!, glitch);
   gl.uniform1f(ru['uCamHeight']!, camHeight);
   gl.uniform1f(ru['uFlashlight']!, flashlight);
+  gl.uniform1f(ru['uAmbient']!, ambientLight);
   gl.uniform1f(ru['uTime']!, time);
   gl.uniform1i(ru['uPurpleFog']!, purpleFog);
   gl.uniform3f(ru['uFogColor']!, fogRgb[0] / 255, fogRgb[1] / 255, fogRgb[2] / 255);

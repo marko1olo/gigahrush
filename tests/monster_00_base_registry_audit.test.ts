@@ -8,6 +8,7 @@ import {
   getMonsterEcology,
   monsterEcologyEventData,
   monsterEcologyTags,
+  rankMonsterEcology,
 } from '../src/data/monster_ecology';
 import {
   MONSTER_VARIANTS,
@@ -287,6 +288,7 @@ test('monster ecology selection respects floor placement and rare gates', () => 
       for (const sample of rngSamples) {
         const kind = chooseFloorMonsterKind({
           floor,
+          floorAffinity: 'strict',
           samosborCount: 6,
           allowRare,
           rng: () => sample,
@@ -298,6 +300,49 @@ test('monster ecology selection respects floor placement and rare gates', () => 
       }
     }
   }
+});
+
+test('universal monster ecology keeps zero-weight monsters in data but out of weighted picks', () => {
+  const ranked = rankMonsterEcology({
+    floor: FloorLevel.LIVING,
+    samosborCount: 99,
+    allowRare: true,
+  }, EXPECTED_BASE_MONSTER_IDS.length);
+  const kinds = new Set(ranked.map(entry => entry.kind));
+
+  for (const kindName of EXPECTED_BASE_MONSTER_IDS) {
+    const kind = MonsterKind[kindName as keyof typeof MonsterKind] as MonsterKind;
+    if (kind === MonsterKind.CREATOR) {
+      const ecology = getMonsterEcology(kind);
+      assert.equal(ecology?.spawnWeight, 0, 'Creator should be data-disabled through spawnWeight');
+      assert.equal(kinds.has(kind), false, 'zero-weight Creator must stay out of universal weighted picks');
+    } else {
+      assert.equal(kinds.has(kind), true, `${kindName} should stay available to universal samosbor picks`);
+    }
+  }
+});
+
+test('floor affinity boosts native and design-biased monsters without filtering the table', () => {
+  const ranked = rankMonsterEcology({
+    floor: FloorLevel.LIVING,
+    samosborCount: 99,
+    allowRare: true,
+    biasKinds: [MonsterKind.TUBE_EEL],
+  }, EXPECTED_BASE_MONSTER_IDS.length);
+  const byKind = new Map(ranked.map(entry => [entry.kind, entry.weight]));
+
+  assert.ok(byKind.has(MonsterKind.TUBE_EEL), 'design-biased off-floor monster should remain selectable');
+  assert.ok(byKind.has(MonsterKind.SBORKA), 'native floor monster should remain selectable');
+  assert.ok(byKind.has(MonsterKind.ROBOT), 'unbiased off-floor monster should remain selectable');
+  assert.equal(byKind.has(MonsterKind.CREATOR), false, 'zero table weight should keep Creator out of generic spawn picks');
+  assert.ok(
+    (byKind.get(MonsterKind.TUBE_EEL) ?? 0) > (byKind.get(MonsterKind.ROBOT) ?? 0),
+    'design bias should multiply the table weight instead of acting as a hard filter',
+  );
+  assert.ok(
+    (byKind.get(MonsterKind.SBORKA) ?? 0) > (byKind.get(MonsterKind.ROBOT) ?? 0),
+    'native floor affinity should multiply the table weight instead of filtering outsiders',
+  );
 });
 
 test('monster variants and new-kind floor manifests stay data-driven', () => {

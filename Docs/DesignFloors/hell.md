@@ -1,6 +1,6 @@
 # Story Anchor Brief: Мясной низ
 
-Status: historical expansion brief for the existing story anchor. Current route stop: `FloorLevel.HELL` at `z=28`. There is no shipped design-floor route id `hell`; README and `src/data/procedural_floors.ts` remain source of truth.
+Status: historical expansion brief for the existing story anchor. Current route stop: `FloorLevel.HELL` at `z=-36`. There is no shipped design-floor route id `hell`; README and `src/data/procedural_floors.ts` remain source of truth.
 
 Existing generator reference: `src/gen/hell/`. Planning sections below describe possible route-scale expansion, not shipped design-floor route data.
 

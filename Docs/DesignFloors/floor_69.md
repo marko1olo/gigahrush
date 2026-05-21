@@ -1,6 +1,6 @@
 # Design Floor: Этаж 69
 
-Status: implemented authored route floor. Route id: `floor_69`. Anchor: `z=4`. Base floor: `MAINTENANCE`. Shipped HUD name: `Этаж 69`.
+Status: implemented authored route floor. Route id: `floor_69`. Anchor: `z=-4`. Base floor: `MAINTENANCE`. Shipped HUD name: `Этаж 69`.
 
 Owned file: `src/gen/design_floors/floor_69.ts`. Existing reference: F69 sprite-bank notes are preserved in `../../appendix.md` and archived original files under `../../gatbage/Docs/Tasks/Status_UNASSIGNED.md` and `../../gatbage/Docs/AgentLogs/Rationale_UNASSIGNED.md`.
 

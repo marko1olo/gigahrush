@@ -1,6 +1,6 @@
 # Design Floor: Крыша
 
-Status: implemented authored route floor. Route id: `roof`. Anchor: `z=-44`. Base floor: `MINISTRY`. Shipped HUD name: `Крыша`.
+Status: implemented authored route floor. Route id: `roof`. Anchor: `z=+50`. Base floor: `MINISTRY`. Shipped HUD name: `Крыша`.
 
 Owned file: `src/gen/design_floors/roof.ts`. Route integration: `src/data/design_floors.ts`, `src/gen/design_floors/manifest.ts`, `src/gen/design_floors/full_floor.ts`. Renderer hook: generic dynamic ceiling texture slot in `src/render/webgl.ts`.
 

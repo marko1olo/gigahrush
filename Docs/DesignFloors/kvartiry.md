@@ -1,6 +1,6 @@
 # Story Anchor Brief: Квартиры
 
-Status: historical expansion brief for the existing story anchor. Current route stop: `FloorLevel.KVARTIRY` at `z=-12`. There is no shipped design-floor route id `kvartiry`; README and `src/data/procedural_floors.ts` remain source of truth.
+Status: historical expansion brief for the existing story anchor. Current route stop: `FloorLevel.KVARTIRY` at `z=+14`. There is no shipped design-floor route id `kvartiry`; README and `src/data/procedural_floors.ts` remain source of truth.
 
 Existing generator reference: `src/gen/kvartiry/`. Planning sections below describe possible route-scale expansion, not shipped design-floor route data.
 

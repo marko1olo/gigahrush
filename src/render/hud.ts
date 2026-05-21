@@ -357,6 +357,77 @@ function fitHudText(ctx: CanvasRenderingContext2D, text: string, maxW: number): 
   return fitUiText(ctx, text, maxW);
 }
 
+function samosborCrawlLines(variantId: string | undefined, resistHint: string): readonly string[] {
+  switch (variantId) {
+    case 'istotit':
+      return [
+        'КОЛОКОЛ НЕ ЗОВЕТ',
+        'ОН СТАВИТ НОГИ',
+        `${resistHint} ДЕРЖАТЬ ПРОТИВ ШАГА`,
+        'ЖЕЛТАЯ ГЕРМА СМОТРИТ',
+      ];
+    case 'maronary':
+      return [
+        'ДВЕРЬ ПОВТОРИЛАСЬ',
+        'НОМЕР СТАЛ ЧУЖИМ',
+        'НЕ СМОТРИ В ЗЕЛЕНЫЙ ИСТОЧНИК',
+        'ДОКАЗАТЕЛЬСТВО ИДЕТ ЗА ТОБОЙ',
+      ];
+    case 'veretar':
+      return [
+        'БЕЛАЯ ЩЕЛЬ РАСТЕТ',
+        'ПЕСОК ИДЕТ ПО ШВАМ',
+        'ЗАКРОЙ КРОМКУ ИЛИ УХОДИ',
+        'НЕ СЧИТАЙ ВЫШЕДШИХ ВСЛУХ',
+      ];
+    default:
+      return [
+        'САМОСБОР ИДЕТ',
+        'СТЕНЫ МЕНЯЮТ МЕСТА',
+        'ДЫШИ НИЖЕ ДЫМА',
+        'БЕГИ К ГЕРМЕ',
+      ];
+  }
+}
+
+function drawSamosborCrawl(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  sx: number,
+  sy: number,
+  time: number,
+  variantId: string | undefined,
+  tint: string,
+): void {
+  const lines = samosborCrawlLines(variantId, controlHint('interact'));
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.beginPath();
+  ctx.rect(w * 0.08, h * 0.24, w * 0.84, h * 0.52);
+  ctx.clip();
+  for (let i = 0; i < lines.length; i++) {
+    const travel = (time * 0.135 + i * 0.22) % 1;
+    const y = h * 0.78 - travel * h * 0.58;
+    const size = (7.5 + travel * 8.5) * sy;
+    const alpha = Math.max(0, Math.min(1, 1 - Math.abs(travel - 0.48) * 1.65));
+    if (alpha <= 0.02) continue;
+    const jitter = textJitter(time * 2.5, 1800 + i * 17);
+    ctx.globalAlpha = alpha * 0.76;
+    ctx.shadowColor = tint;
+    ctx.shadowBlur = 9 * Math.min(sx, sy);
+    ctx.fillStyle = tint;
+    ctx.font = `bold ${size}px monospace`;
+    ctx.fillText(fitHudText(ctx, lines[i], w * 0.72), w * 0.5 + jitter.dx * 1.5, y + jitter.dy);
+    ctx.globalAlpha = alpha * 0.22;
+    ctx.fillStyle = '#8ff';
+    ctx.fillText(fitHudText(ctx, lines[i], w * 0.72), w * 0.5 + jitter.dx * 1.5 + 2 * sx, y + jitter.dy + sy);
+  }
+  ctx.restore();
+  ctx.globalAlpha = 1;
+}
+
 function hudWeaponName(name: string): string {
   return name.replace(/^Сгусток:\s*/, '');
 }
@@ -1031,7 +1102,7 @@ export function drawHUD(
         const room = world.roomAt(player.x, player.y);
         const inShelter = room ? getSamosborShelterRoomIds(state).includes(room.id) : false;
         ctx.font = `${7 * sy}px monospace`;
-        ctx.fillText(fitHudText(ctx, inShelter ? `${controlHint('interact')} впустить / закрыть` : `${controlHint('interact')} к колоколу`, w - 16 * sx), w / 2 + sj.dx, 48 * sy + sj.dy);
+        ctx.fillText(fitHudText(ctx, inShelter ? `${controlHint('interact')} впустить / закрыть` : `удерживать ${controlHint('interact')}: сопротивляться колоколу`, w - 16 * sx), w / 2 + sj.dx, 48 * sy + sj.dy);
       }
     }
     // Doubled glitch offset copy
@@ -1040,6 +1111,7 @@ export function drawHUD(
     ctx.textAlign = 'left';
     ctx.shadowBlur = 0;
     ctx.restore();
+    drawSamosborCrawl(ctx, w, h, sx, sy, time, activeVariant?.def.id, activeVariant?.def.tint ?? '#f44');
     // Extra static noise during samosbor
     drawStaticNoise(ctx, 0, 0, w, h, time, 0.04);
     if (activeVariant?.def.id === 'maronary') drawMaronaryProofNoise(ctx, w, h, time, 0.85);

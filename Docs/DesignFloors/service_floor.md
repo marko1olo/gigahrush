@@ -1,6 +1,6 @@
 # Design Floor: Служебный этаж
 
-Status: implemented authored route floor. Route id: `service_floor`. Anchor: `z=16`. Base floor: `MAINTENANCE`. Shipped HUD name: `Служебный этаж`.
+Status: implemented authored route floor. Route id: `service_floor`. Anchor: `z=-18`. Base floor: `MAINTENANCE`. Shipped HUD name: `Служебный этаж`.
 
 Owned file: `src/gen/design_floors/service_floor.ts`. Planning sections below may predate the routed implementation; verify exact lift, power and access behavior against source.
 

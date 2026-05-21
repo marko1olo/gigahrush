@@ -41,7 +41,7 @@ import { stampMark, MarkType } from './render/marks';
 import { updateNeeds } from './systems/needs';
 import { updateAI, tryMonsterProjectileStagger, getAiSchedulerStats, type AiSchedulerStats } from './systems/ai';
 import { generateTalkText, generateNpcTradeItems } from './data/dialogue';
-import { updateSamosbor, rebuildWorld, clearFogInZone } from './systems/samosbor';
+import { updateSamosbor, rebuildWorld, clearFogInZone, updateIstotitBellCompulsion } from './systems/samosbor';
 import { cleanCellHazardsNear, getCellHazardMoveMultiplier, tickCellHazards } from './systems/cell_hazards';
 import {
   pickupNearby, useItem, dropItem, getWeaponStats,
@@ -85,7 +85,13 @@ import {
   updateZhelemishSkinStatus,
   zhelemishMoveMult,
 } from './systems/status';
-import { DEBUG_COMMAND_COUNT, execDebugCommand, type DebugCommandAction } from './systems/debug';
+import {
+  DEBUG_COMMAND_COUNT,
+  execDebugCommand,
+  moveDebugInfoPage,
+  resetDebugInfoPage,
+  type DebugCommandAction,
+} from './systems/debug';
 import { debugOnePunchMeleeDamage, isDebugOnePunchManEnabled, keepDebugOnePunchManAlive } from './systems/debug_cheats';
 import { formatLastPlayerDamageCause, hasFreshPlayerDamageRecord, recordPlayerDamage } from './systems/damage';
 import { createWorldEventState, normalizeWorldEventState, publishEvent } from './systems/events';
@@ -212,6 +218,7 @@ import {
   recordFactionClashPlayerHit,
   recordFactionEventLootTaken,
   tryReportLiquidatorCultClashAftermath,
+  updateCultProcessionCompulsion,
 } from './systems/faction_events';
 import {
   bindNetSphereInput,
@@ -1209,6 +1216,36 @@ function updateDoors(dt: number): void {
 }
 
 /* ── Player movement ──────────────────────────────────────────── */
+const PLAYER_COLLISION_R = 0.16;
+
+function playerCanOccupy(x: number, y: number, r = PLAYER_COLLISION_R): boolean {
+  return !world.solid(Math.floor(x + r), Math.floor(y + r)) &&
+    !world.solid(Math.floor(x + r), Math.floor(y - r)) &&
+    !world.solid(Math.floor(x - r), Math.floor(y + r)) &&
+    !world.solid(Math.floor(x - r), Math.floor(y - r));
+}
+
+function nudgeBlockedPlayerToFloor(): void {
+  if (isNoClipActive()) return;
+  const px = Math.floor(player.x);
+  const py = Math.floor(player.y);
+  if (!world.solid(px, py) && playerCanOccupy(player.x, player.y)) return;
+  for (let r = 1; r <= 5; r++) {
+    for (let dy = -r; dy <= r; dy++) {
+      for (let dx = -r; dx <= r; dx++) {
+        if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue;
+        const x = world.wrap(px + dx);
+        const y = world.wrap(py + dy);
+        if (!passableSpawnCell(x + 0.5, y + 0.5)) continue;
+        if (!playerCanOccupy(x + 0.5, y + 0.5)) continue;
+        player.x = x + 0.5;
+        player.y = y + 0.5;
+        return;
+      }
+    }
+  }
+}
+
 function movePlayer(dt: number): void {
   if (!player.alive) return;
   if (state.sleeping) return; // no movement while sleeping
@@ -1228,6 +1265,7 @@ function movePlayer(dt: number): void {
   if (input.touch.lookX !== 0) player.angle += input.touch.lookX * 3.0 * dt;
   if (input.touch.lookY !== 0) player.pitch = Math.max(-1, Math.min(1, player.pitch - input.touch.lookY * 1.6 * dt));
   if (isRidingRailTrain(world, player)) return;
+  nudgeBlockedPlayerToFloor();
 
   // Movement
   const cos = Math.cos(player.angle);
@@ -1236,6 +1274,16 @@ function movePlayer(dt: number): void {
   const strafeAxis = Math.max(-1, Math.min(1, (input.strafeR ? 1 : 0) - (input.strafeL ? 1 : 0) + input.touch.moveX));
   let mx = cos * fwdAxis - sin * strafeAxis;
   let my = sin * fwdAxis + cos * strafeAxis;
+  const processionPull = updateCultProcessionCompulsion(state, world, player, input.interactHeld);
+  if (processionPull) {
+    mx += processionPull.x * processionPull.strength;
+    my += processionPull.y * processionPull.strength;
+  }
+  const bellPull = updateIstotitBellCompulsion(world, state, player, input.interactHeld);
+  if (bellPull) {
+    mx += bellPull.x * bellPull.strength;
+    my += bellPull.y * bellPull.strength;
+  }
 
   // Normalize
   const len = Math.sqrt(mx * mx + my * my);
@@ -1252,7 +1300,7 @@ function movePlayer(dt: number): void {
     mx = mx / len * speed * moveMod;
     my = my / len * speed * moveMod;
 
-    const r = 0.2; // collision radius
+    const r = PLAYER_COLLISION_R; // small enough to slide along tight concrete corners
     const canClip = isNoClipActive();
     // X movement – check all 4 AABB corners (skip if noclip effect is active)
     const nx = player.x + mx;
@@ -3642,6 +3690,7 @@ function openMobileMenu(menu: MobileMenuId): void {
     case 'debug':
       state.showDebug = true;
       state.debugSel = 0;
+      resetDebugInfoPage();
       break;
   }
   syncPauseState();
@@ -4619,8 +4668,12 @@ function handleMenuInput(): void {
     else {
       const upNav = menuRepeatStep('up', input.invUp, upEdge);
       const dnNav = menuRepeatStep('down', input.invDn, dnEdge);
+      const leftNav = menuRepeatStep('left', input.invLeft, leftEdge);
+      const rightNav = menuRepeatStep('right', input.invRight, rightEdge);
       if (upNav) state.debugSel = Math.max(0, state.debugSel - 1);
       if (dnNav) state.debugSel = Math.min(DEBUG_COMMAND_COUNT - 1, state.debugSel + 1);
+      if (leftNav) moveDebugInfoPage(-1);
+      if (rightNav) moveDebugInfoPage(1);
       if (interactEdge) {
         const action = execDebugCommand(state.debugSel, world, player, entities, state, nextEntityId);
         if (action) handleDebugCommandAction(action);
@@ -4647,7 +4700,7 @@ function handleMenuInput(): void {
   // ── Normal gameplay toggles ──────────────────────────────
   else {
     const dbgEdge = input.debugScreen && !prevDebug;
-    if (dbgEdge) { state.showDebug = true; state.debugSel = 0; }
+    if (dbgEdge) { state.showDebug = true; state.debugSel = 0; resetDebugInfoPage(); }
     if (invEdge) { state.showInventory = true; state.invSel = 0; }
     if (questEdge) { state.showQuests = true; }
     if (factionEdge) { state.showFactions = true; state.factionRankScroll = 0; }
@@ -5067,9 +5120,10 @@ function gameLoop(now: number): void {
   updateDynamicData(world, camX, camY);
 
   // WebGL raycaster + sprites
+  const ambientLight = currentFloorRunEntry(state).designFloorId === 'darkness' ? 0 : 0.12;
   renderSceneGL(world, textures, sprites, entities,
     camX, camY, camAngle, camPitch,
-    fogDensity, glitch, camH, flashlight, uiTime, particles, state.samosborActive);
+    fogDensity, glitch, camH, flashlight, uiTime, particles, state.samosborActive, ambientLight);
 
   // Draw HUD on 2D overlay canvas
   ctx.clearRect(0, 0, hudCanvas.width, hudCanvas.height);

@@ -102,6 +102,7 @@ const NPC_RANGED_MIN = 1.5;
 const NPC_RANGED_LOS_BREAK_CD = 0.45;
 const MELEE_KNOCKBACK_CAP = 0.65;
 const MELEE_STAGGER_CAP = 0.35;
+const KNOCKBACK_BODY_R = 0.16;
 const NPC_FLEE_THREAT_RATIO = 0.65;
 
 function continueFlee(world: World, e: Entity, dt: number): boolean {
@@ -322,10 +323,16 @@ function applyMeleeKnockback(world: World, source: Entity, target: Entity, ws: W
     len = 1;
   }
 
+  const canOccupy = (x: number, y: number): boolean =>
+    !world.solid(Math.floor(x + KNOCKBACK_BODY_R), Math.floor(y + KNOCKBACK_BODY_R)) &&
+    !world.solid(Math.floor(x + KNOCKBACK_BODY_R), Math.floor(y - KNOCKBACK_BODY_R)) &&
+    !world.solid(Math.floor(x - KNOCKBACK_BODY_R), Math.floor(y + KNOCKBACK_BODY_R)) &&
+    !world.solid(Math.floor(x - KNOCKBACK_BODY_R), Math.floor(y - KNOCKBACK_BODY_R));
+
   const nx = world.wrap(target.x + dx / len * force);
-  if (!world.solid(Math.floor(nx), Math.floor(target.y))) target.x = nx;
+  if (canOccupy(nx, target.y)) target.x = nx;
   const ny = world.wrap(target.y + dy / len * force);
-  if (!world.solid(Math.floor(target.x), Math.floor(ny))) target.y = ny;
+  if (canOccupy(target.x, ny)) target.y = ny;
 
   const stagger = Math.min(MELEE_STAGGER_CAP, 0.08 + force * 0.35);
   if (target.ai) target.ai.staggerTimer = Math.max(target.ai.staggerTimer ?? 0, stagger);

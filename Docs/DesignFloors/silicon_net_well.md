@@ -5,7 +5,7 @@ Status: shipped routed design floor.
 ## Route Facts
 
 - Route id: `silicon_net_well`
-- z: `18`
+- z: `-22`
 - Base floor: `FloorLevel.MAINTENANCE`
 - Generator: `src/gen/design_floors/silicon_net_well.ts`
 - Debug teleport: generated from `DESIGN_FLOOR_ROUTES`

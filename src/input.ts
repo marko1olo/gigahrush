@@ -12,7 +12,7 @@ export function createInput(): InputState {
   return {
     fwd: false, back: false, left: false, right: false,
     strafeL: false, strafeR: false,
-    attack: false, interact: false, pickup: false,
+    attack: false, interact: false, interactHeld: false, pickup: false,
     map: false, inv: false, invUp: false, invDn: false, invLeft: false, invRight: false,
     use: false, escape: false,
     questLog: false,

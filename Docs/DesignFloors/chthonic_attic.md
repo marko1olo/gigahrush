@@ -1,8 +1,8 @@
 # Design Floor: Чердак техслужб
 
-Status: implemented authored route floor. Route id: `chthonic_attic`. Anchor: `z=-40`. Base floor: `MINISTRY`. Shipped HUD name: `Чердак техслужб`.
+Status: implemented authored route floor. Route id: `chthonic_attic`. Anchor: `z=+46`. Base floor: `MINISTRY`. Shipped HUD name: `Чердак техслужб`.
 
-Owned file: `src/gen/design_floors/chthonic_attic.ts`. Planning sections below preserve the original brief; shipped z differs from the old `z=-36` plan because `roof` moved to `z=-44`, `antenna_court` occupies `z=-36`, and `pioneer_camp` occupies `z=-32`.
+Owned file: `src/gen/design_floors/chthonic_attic.ts`. Planning sections below preserve the original brief; shipped z differs from the old `z=-36` plan because the current route spans `z=-50..+50` and reserves even z-slots for future authored/story floors.
 
 ## Role
 

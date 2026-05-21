@@ -155,6 +155,8 @@ export function createMobileControls(input: InputState, options: MobileControlsO
     input.touch.lookY = 0;
     input.touch.active = false;
     input.mouseAttack = false;
+    input.interact = false;
+    input.interactHeld = false;
     moveActive = false;
     lookActive = false;
     movePointer = -1;
@@ -282,18 +284,33 @@ export function createMobileControls(input: InputState, options: MobileControlsO
     el.addEventListener('lostpointercapture', pointerEnd);
   };
 
-  const pulseButton = (el: HTMLButtonElement, key: BooleanInputKey): void => {
+  const holdInteractButton = (el: HTMLButtonElement): void => {
+    let interactPointer = -1;
     el.addEventListener('pointerdown', e => {
       if (!enabled || !context.started) return;
       e.preventDefault();
       e.stopPropagation();
       options.onGesture();
-      if (key === 'interact' && context.menuOpen) {
+      if (context.menuOpen) {
         options.onConfirm();
         return;
       }
-      pulse(key);
+      interactPointer = e.pointerId;
+      capturePointer(el, e.pointerId);
+      input.interact = true;
+      input.interactHeld = true;
     });
+    const pointerEnd = (e: PointerEvent): void => {
+      if (e.pointerId !== interactPointer) return;
+      e.preventDefault();
+      releasePointer(el, e.pointerId);
+      interactPointer = -1;
+      input.interact = false;
+      input.interactHeld = false;
+    };
+    el.addEventListener('pointerup', pointerEnd);
+    el.addEventListener('pointercancel', pointerEnd);
+    el.addEventListener('lostpointercapture', pointerEnd);
   };
 
   const menuNav = (dir: number): void => {
@@ -319,7 +336,7 @@ export function createMobileControls(input: InputState, options: MobileControlsO
 
   bindPad(movePad, moveThumb, 'move');
   bindPad(lookPad, lookThumb, 'look');
-  pulseButton(interact, 'interact');
+  holdInteractButton(interact);
 
   fullscreen.addEventListener('pointerdown', e => {
     if (!enabled || isStandaloneDisplay()) return;

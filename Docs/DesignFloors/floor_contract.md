@@ -8,7 +8,7 @@ These docs defined the authored design-floor wave. They are not interstitial pro
 
 - One design floor starts as one owned TypeScript module: `src/gen/design_floors/<id>.ts`.
 - If a floor grows beyond one real responsibility, convert it to `src/gen/<id>/index.ts` plus `content_manifest.ts`; do not scatter content through `main.ts`.
-- The original brief assumed anchors every four z-levels with three procedural floors between them. Shipped route data can insert authored stops into those gaps, such as `bank_floor` at `z=-22`; use `README.md` and source for the current gap count.
+- The original brief assumed anchors every four z-levels with three procedural floors between them. Shipped route data now spans `z=-50..+50`, reserves even z-slots for future authored/story floors, and uses seeded procedural fallback for every unoccupied slot; use `README.md` and source for the current gap count.
 - Design floor route ids are lowercase snake case and stable. Use them in quests, rumors, debug and save data.
 - Every floor must have its own NPCs, at least three playable decisions and one debug entry path.
 - Use existing registries and hooks first: `registerSideQuest`, content manifests, containers, contracts, rumors, events, faction/economy state.
@@ -55,16 +55,16 @@ Every floor implementation must expose:
 
 ## Route Scale
 
-The historical examples below use planned z anchors spaced by 4. They are not the shipped source of truth: the current route spans `z=-44..40`, includes `pioneer_camp` at `z=-32`, and inserts `bank_floor` at `z=-22`.
+The historical examples below use planned z anchors spaced by 4. They are not the shipped source of truth: the current route spans `z=-50..+50`, keeps `LIVING` at `z=0`, and leaves unoccupied even slots as procedural fallback until authored floors claim them.
 
 Example:
 
 ```txt
-z=-20 DESIGN: raionsovet_archive
-z=-19 procedural
-z=-18 procedural
-z=-17 procedural
-z=-16 DESIGN: registry_morgue
+z=+22 DESIGN: raionsovet_archive
+z=+21 procedural
+z=+20 procedural fallback
+z=+19 procedural
+z=+18 DESIGN: registry_morgue
 ```
 
 The exact current game route is `README.md`, `src/data/design_floors.ts` and `src/data/procedural_floors.ts`.

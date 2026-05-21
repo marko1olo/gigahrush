@@ -1,7 +1,7 @@
 import { after, test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { Cell, EntityType, Feature, FloorLevel, LiftDirection, MonsterKind, W } from '../src/core/types';
+import { Cell, EntityType, Feature, FloorLevel, LiftDirection, MonsterKind, Tex, W } from '../src/core/types';
 import {
   FLOOR_GEOMETRIES,
   FLOOR_RUN_MAX_Z,
@@ -9,6 +9,7 @@ import {
   FLOOR_RUN_VOID_Z,
   PROCEDURAL_FLOOR_COUNT,
   PROCEDURAL_FLOOR_ZS,
+  floorRunProfileZ,
   makeProceduralFloorSpec,
   type ProceduralFloorSpec,
   zForStoryFloor,
@@ -47,6 +48,7 @@ import {
 } from '../src/systems/map_editor';
 import { currentNetTerminalGenFloorKey } from '../src/systems/net_terminal_gen';
 import { updateBadAppleWorldAnomaly } from '../src/systems/procedural_anomalies/bad_apple_world';
+import { updateLivingTunnelsAnomaly } from '../src/systems/procedural_anomalies/living_tunnels';
 import { tryZombieApocalypseInfection } from '../src/systems/procedural_anomalies/zombie_apocalypse';
 import { routeCueCount } from '../src/systems/route_cues';
 import { getEmergencyPanels } from '../src/systems/emergency_panels';
@@ -160,9 +162,10 @@ interface DangerBandSummary {
 const DANGER_SNAPSHOT_SEEDS = [41, 4101, 4102, 4103, 4104] as const;
 
 function dangerBandForZ(z: number): DangerBandId {
-  if (z <= -13) return 'upper';
-  if (z <= 8) return 'residential';
-  if (z <= 27) return 'industrial';
+  const profileZ = floorRunProfileZ(z);
+  if (profileZ <= -13) return 'upper';
+  if (profileZ <= 8) return 'residential';
+  if (profileZ <= 27) return 'industrial';
   return 'hellVoid';
 }
 
@@ -243,22 +246,22 @@ test('floor run inserts three procedural floors before the next lower authored f
   setFloorRunState(state, { runSeed: 123, currentZ: 0, specs: {}, visited: {} }, FloorLevel.LIVING);
 
   const first = resolveFloorRunRoute(state, LiftDirection.DOWN);
-  assert.equal(first?.z, 1);
+  assert.equal(first?.z, -1);
   assert.equal(first?.procedural, true);
   commitFloorRunEntry(state, first!);
 
   const second = resolveFloorRunRoute(state, LiftDirection.DOWN);
-  assert.equal(second?.z, 2);
+  assert.equal(second?.z, -2);
   assert.equal(second?.procedural, true);
   commitFloorRunEntry(state, second!);
 
   const third = resolveFloorRunRoute(state, LiftDirection.DOWN);
-  assert.equal(third?.z, 3);
+  assert.equal(third?.z, -3);
   assert.equal(third?.procedural, true);
   commitFloorRunEntry(state, third!);
 
   const authored = resolveFloorRunRoute(state, LiftDirection.DOWN);
-  assert.equal(authored?.z, 4);
+  assert.equal(authored?.z, -4);
   assert.equal(authored?.designFloorId, 'floor_69');
   assert.equal(authored?.baseFloor, FloorLevel.MAINTENANCE);
 });
@@ -274,10 +277,10 @@ test('floor run UX labels expose z, route id, danger, anomaly and return path', 
   const first = resolveFloorRunRoute(state, LiftDirection.DOWN);
   assert.equal(first?.procedural, true);
   assert.equal(floorRunEntryKind(first!), 'procedural');
-  assert.match(floorRunEntryLiftLabel(first!), /ВЫЛАЗКА Z\+1 z1 риск \d\/5:/);
-  assert.match(floorRunEntryMapLabel(first!), /Z\+1 z1 риск \d\/5/);
-  assert.match(floorRunEntryRouteCard(first!), /ВЫЛАЗКА Z\+1 z1 риск \d\/5: .+\. .+, .+, .+\./);
-  assert.match(floorRunArrivalLead(first!, LiftDirection.UP), /Зацепка: ВЫЛАЗКА Z\+1 z1 риск \d\/5: .+\. .+ Возврат: лифт ↑ к предыдущему Z\./);
+  assert.match(floorRunEntryLiftLabel(first!), /ВЫЛАЗКА Z-1 z-1 риск \d\/5:/);
+  assert.match(floorRunEntryMapLabel(first!), /Z-1 z-1 риск \d\/5/);
+  assert.match(floorRunEntryRouteCard(first!), /ВЫЛАЗКА Z-1 z-1 риск \d\/5: .+\. .+, .+, .+\./);
+  assert.match(floorRunArrivalLead(first!, LiftDirection.UP), /Зацепка: ВЫЛАЗКА Z-1 z-1 риск \d\/5: .+\. .+ Возврат: лифт ↑ к предыдущему Z\./);
 
   commitFloorRunEntry(state, first!);
   commitFloorRunEntry(state, resolveFloorRunRoute(state, LiftDirection.DOWN)!);
@@ -285,13 +288,13 @@ test('floor run UX labels expose z, route id, danger, anomaly and return path', 
   const authored = resolveFloorRunRoute(state, LiftDirection.DOWN);
   assert.equal(authored?.designFloorId, 'floor_69');
   assert.equal(floorRunEntryKind(authored!), 'design');
-  assert.match(floorRunEntryLiftLabel(authored!), /РУЧНОЙ МАРШРУТ Z\+4 floor_69 риск 3\/5/);
-  assert.match(floorRunEntryRouteCard(authored!), /РУЧНОЙ МАРШРУТ Z\+4 floor_69 риск 3\/5: .+\. населенный сбой, сделки, слухи\./);
+  assert.match(floorRunEntryLiftLabel(authored!), /РУЧНОЙ МАРШРУТ Z-4 floor_69 риск 3\/5/);
+  assert.match(floorRunEntryRouteCard(authored!), /РУЧНОЙ МАРШРУТ Z-4 floor_69 риск 3\/5: .+\. населенный сбой, сделки, слухи\./);
   assert.match(floorRunArrivalLead(authored!, LiftDirection.UP), /населенный сбой, сделки, слухи/);
   assert.match(floorRunArrivalLead(authored!, LiftDirection.UP), /Возврат: лифт ↑ к предыдущему Z/);
 });
 
-test('floor run keeps authored cadence with compact bank and silicon well exceptions', () => {
+test('floor run keeps authored stops on expandable even route slots', () => {
   const anchors = [
     zForStoryFloor(FloorLevel.MINISTRY),
     zForStoryFloor(FloorLevel.KVARTIRY),
@@ -304,20 +307,17 @@ test('floor run keeps authored cadence with compact bank and silicon well except
 
   assert.equal(anchors[0], FLOOR_RUN_MIN_Z);
   assert.equal(anchors.at(-1), FLOOR_RUN_MAX_Z);
-  for (let i = 1; i < anchors.length; i++) {
-    const prev = anchors[i - 1];
-    const curr = anchors[i];
-    const bankGap = (prev === -24 && curr === -22) || (prev === -22 && curr === -20);
-    const siliconGap = (prev === 16 && curr === 18) || (prev === 18 && curr === 20);
-    assert.equal(curr - prev, bankGap || siliconGap ? 2 : 4);
-  }
+  assert.equal(new Set(anchors).size, anchors.length);
+  assert.equal(anchors.every(z => z % 2 === 0), true);
+  assert.equal(PROCEDURAL_FLOOR_ZS.every(z => !anchors.includes(z)), true);
+  assert.equal(PROCEDURAL_FLOOR_ZS.some(z => z % 2 === 0), true);
 });
 
 test('floor run places pioneer camp one authored step above upper bureau', () => {
   const state = makeGameState({ currentFloor: FloorLevel.MINISTRY });
-  setFloorRunState(state, { runSeed: 789, currentZ: -24, specs: {}, visited: {} }, FloorLevel.MINISTRY);
+  setFloorRunState(state, { runSeed: 789, currentZ: 30, specs: {}, visited: {} }, FloorLevel.MINISTRY);
 
-  for (const expectedZ of [-25, -26, -27]) {
+  for (const expectedZ of [31, 32, 33]) {
     const entry = resolveFloorRunRoute(state, LiftDirection.UP);
     assert.equal(entry?.z, expectedZ);
     assert.equal(entry?.procedural, true);
@@ -325,11 +325,11 @@ test('floor run places pioneer camp one authored step above upper bureau', () =>
   }
 
   const upperBureau = resolveFloorRunRoute(state, LiftDirection.UP);
-  assert.equal(upperBureau?.z, -28);
+  assert.equal(upperBureau?.z, 34);
   assert.equal(upperBureau?.designFloorId, 'upper_bureau');
   commitFloorRunEntry(state, upperBureau!);
 
-  for (const expectedZ of [-29, -30, -31]) {
+  for (const expectedZ of [35, 36, 37]) {
     const entry = resolveFloorRunRoute(state, LiftDirection.UP);
     assert.equal(entry?.z, expectedZ);
     assert.equal(entry?.procedural, true);
@@ -337,25 +337,26 @@ test('floor run places pioneer camp one authored step above upper bureau', () =>
   }
 
   const camp = resolveFloorRunRoute(state, LiftDirection.UP);
-  assert.equal(camp?.z, -32);
+  assert.equal(camp?.z, 38);
   assert.equal(camp?.designFloorId, 'pioneer_camp');
   assert.equal(camp?.baseFloor, FloorLevel.LIVING);
 });
 
 test('floor run exposes seeded procedural slots across the normal lift span', () => {
-  assert.equal(PROCEDURAL_FLOOR_COUNT, 61);
-  assert.equal(PROCEDURAL_FLOOR_ZS[0], -43);
-  assert.equal(PROCEDURAL_FLOOR_ZS.at(-1), 39);
+  assert.equal(PROCEDURAL_FLOOR_COUNT, 77);
+  assert.equal(PROCEDURAL_FLOOR_ZS[0], -49);
+  assert.equal(PROCEDURAL_FLOOR_ZS.at(-1), 49);
   assert.equal(PROCEDURAL_FLOOR_ZS.includes(1), true);
   assert.equal(PROCEDURAL_FLOOR_ZS.includes(-25), true);
   assert.equal(PROCEDURAL_FLOOR_ZS.includes(-22), false);
-  assert.equal(PROCEDURAL_FLOOR_ZS.includes(-32), false);
-  assert.equal(PROCEDURAL_FLOOR_ZS.includes(18), false);
+  assert.equal(PROCEDURAL_FLOOR_ZS.includes(2), true);
+  assert.equal(PROCEDURAL_FLOOR_ZS.includes(26), false);
+  assert.equal(PROCEDURAL_FLOOR_ZS.includes(38), false);
 
   const state = makeGameState({ currentFloor: FloorLevel.LIVING });
   setFloorRunState(state, { runSeed: 456, currentZ: 0, specs: {}, visited: {} }, FloorLevel.LIVING);
 
-  for (const expectedZ of [-1, -2, -3]) {
+  for (const expectedZ of [1, 2, 3]) {
     const entry = resolveFloorRunRoute(state, LiftDirection.UP);
     assert.equal(entry?.z, expectedZ);
     assert.equal(entry?.procedural, true);
@@ -363,11 +364,11 @@ test('floor run exposes seeded procedural slots across the normal lift span', ()
   }
 
   const communalRing = resolveFloorRunRoute(state, LiftDirection.UP);
-  assert.equal(communalRing?.z, -4);
+  assert.equal(communalRing?.z, 4);
   assert.equal(communalRing?.designFloorId, 'communal_ring');
   commitFloorRunEntry(state, communalRing!);
 
-  for (const expectedZ of [-5, -6, -7]) {
+  for (const expectedZ of [5, 6, 7]) {
     const entry = resolveFloorRunRoute(state, LiftDirection.UP);
     assert.equal(entry?.z, expectedZ);
     assert.equal(entry?.procedural, true);
@@ -375,11 +376,11 @@ test('floor run exposes seeded procedural slots across the normal lift span', ()
   }
 
   const crossroads = resolveFloorRunRoute(state, LiftDirection.UP);
-  assert.equal(crossroads?.z, -8);
+  assert.equal(crossroads?.z, 8);
   assert.equal(crossroads?.designFloorId, 'manhattan_crossroads');
   commitFloorRunEntry(state, crossroads!);
 
-  for (const expectedZ of [-9, -10, -11]) {
+  for (const expectedZ of [9, 10, 11, 12, 13]) {
     const entry = resolveFloorRunRoute(state, LiftDirection.UP);
     assert.equal(entry?.z, expectedZ);
     assert.equal(entry?.procedural, true);
@@ -387,7 +388,7 @@ test('floor run exposes seeded procedural slots across the normal lift span', ()
   }
 
   const kvartiry = resolveFloorRunRoute(state, LiftDirection.UP);
-  assert.equal(kvartiry?.z, -12);
+  assert.equal(kvartiry?.z, 14);
   assert.equal(kvartiry?.storyFloor, FloorLevel.KVARTIRY);
 });
 
@@ -486,14 +487,14 @@ test('active numbered floor editor replay does not leak patches to intended rout
 
 test('procedural floor danger deck keeps route-band pressure rhythm', () => {
   assert.deepEqual(summarizeDangerDeck(), {
-    upper: { slots: 115, averageTimes100: 313, dangerCounts: [0, 18, 65, 31, 1] },
-    residential: { slots: 75, averageTimes100: 236, dangerCounts: [10, 30, 33, 2, 0] },
-    industrial: { slots: 70, averageTimes100: 381, dangerCounts: [0, 3, 21, 32, 14] },
-    hellVoid: { slots: 45, averageTimes100: 467, dangerCounts: [0, 0, 1, 13, 31] },
+    upper: { slots: 135, averageTimes100: 313, dangerCounts: [0, 33, 54, 46, 2] },
+    residential: { slots: 95, averageTimes100: 241, dangerCounts: [10, 39, 43, 3, 0] },
+    industrial: { slots: 95, averageTimes100: 376, dangerCounts: [0, 7, 24, 49, 15] },
+    hellVoid: { slots: 60, averageTimes100: 472, dangerCounts: [0, 0, 2, 13, 45] },
   });
   assert.deepEqual(summarizeAnomalyPressure(), {
-    none: { slots: 95, averageTimes100: 269, danger5: 4 },
-    anomaly: { slots: 210, averageTimes100: 361, danger5: 42 },
+    none: { slots: 105, averageTimes100: 260, danger5: 2 },
+    anomaly: { slots: 280, averageTimes100: 364, danger5: 60 },
   });
 });
 
@@ -503,11 +504,12 @@ test('procedural floor danger snapshot is deterministic by z and seed', () => {
     .join(' ');
 
   assert.equal(snapshot, [
-    '-43:3 -42:3 -41:4 -39:4 -38:4 -37:3 -35:3 -34:4 -33:3 -31:4 -30:3 -29:3',
-    '-27:3 -26:4 -25:4 -23:3 -21:3 -19:3 -18:2 -17:2 -15:3 -14:4 -13:2',
-    '-11:2 -10:4 -9:3 -7:3 -6:2 -5:2 -3:1 -2:1 -1:3 1:1 2:2 3:3',
-    '5:3 6:3 7:2 9:4 10:4 11:3 13:4 14:3 15:4 17:4 19:4',
-    '21:4 22:4 23:5 25:3 26:4 27:5 29:5 30:5 31:4 33:4 34:5 35:4 37:5 38:5 39:5',
+    '-49:5 -47:5 -46:5 -45:5 -44:5 -43:5 -42:5 -41:5 -39:5 -38:5 -37:4 -35:5 -34:5',
+    '-33:5 -31:5 -30:4 -29:3 -28:4 -27:4 -25:4 -24:5 -23:3 -21:4 -20:4 -19:4',
+    '-17:3 -16:2 -15:3 -13:3 -12:2 -11:2 -9:3 -8:2 -7:2 -6:3 -5:3 -3:3 -2:1 -1:3',
+    '1:1 2:1 3:2 5:2 6:3 7:2 9:3 10:3 11:3 12:3 13:2 15:2 16:4 17:2',
+    '19:3 20:2 21:2 23:3 24:3 25:2 27:3 28:3 29:3 31:2 32:2 33:2 35:3 36:3',
+    '37:3 39:5 40:4 41:4 43:4 44:3 45:4 47:4 48:4 49:4',
   ].join(' '));
 });
 
@@ -599,7 +601,7 @@ test('service spine geometry carves connected maintenance trunks with usable lif
 });
 
 test('procedural monster pressure stays capped and registers a route cue', () => {
-  const base = makeProceduralFloorSpec(2468, 29);
+  const base = makeProceduralFloorSpec(2468, -38);
   const gen = timedProceduralSpec({
     ...base,
     danger: 5,
@@ -618,13 +620,13 @@ test('procedural monster pressure stays capped and registers a route cue', () =>
 });
 
 test('zombie apocalypse procedural specs bias monster pressure to мертвяки', () => {
-  const spec = makeProceduralFloorSpec(2, -35);
+  const spec = makeProceduralFloorSpec(779, -35);
   assert.equal(spec.anomalyId, 'zombie_apocalypse');
   assert.deepEqual(spec.monsterBiasKinds, [MonsterKind.ZOMBIE]);
 });
 
-test('deep procedural route floors use route floor identity for monster mix', () => {
-  const base = makeProceduralFloorSpec(1357, 29);
+test('deep procedural route floors blend route identity with design monster bias', () => {
+  const base = makeProceduralFloorSpec(1357, -35);
   const gen = timedProceduralSpec({
     ...base,
     danger: 4,
@@ -634,9 +636,12 @@ test('deep procedural route floors use route floor identity for monster mix', ()
   }, 'forced deep monster mix seed=1357');
   const monsters = gen.entities.filter(e => e.type === EntityType.MONSTER);
   const bureaucratic = new Set([MonsterKind.PECHATEED, MonsterKind.PARAGRAPH, MonsterKind.SHOVNIK]);
+  const deep = new Set([MonsterKind.TVAR, MonsterKind.POLZUN, MonsterKind.SHADOW, MonsterKind.EYE, MonsterKind.TUBE_EEL, MonsterKind.KOSTOREZ]);
 
   assert.equal(monsters.length > 0, true);
-  assert.equal(monsters.some(e => e.monsterKind !== undefined && bureaucratic.has(e.monsterKind)), false);
+  assert.equal(monsters.some(e => e.monsterKind !== undefined && bureaucratic.has(e.monsterKind)), true);
+  assert.equal(monsters.some(e => e.monsterKind !== undefined && deep.has(e.monsterKind)), true);
+  assert.equal(monsters.some(e => e.monsterKind === MonsterKind.CREATOR), false);
 });
 
 test('void and lower route floors do not generate NPCs', () => {
@@ -657,6 +662,8 @@ test('void and lower route floors do not generate NPCs', () => {
   const darknessGen = timeFloorGeneration('design darkness', () => generateDesignFloor('darkness'));
   assert.equal(darknessGen.entities.some(e => e.type === EntityType.NPC), false);
   assert.equal(darknessGen.entities.some(e => e.type === EntityType.MONSTER), true);
+  assert.equal(darknessGen.world.features.some(feature => feature === Feature.LAMP || feature === Feature.CANDLE), false);
+  assert.equal(darknessGen.world.light.some(value => value > 0), false);
   assertFullFootprint(darknessGen.world, 'darkness design floor');
 });
 
@@ -682,6 +689,33 @@ test('rail train anomaly generates tracks, trains, and rideable train entities',
   assert.equal(gen.world.railTracks[0].stationOffsets.length > 0, true);
   assert.equal(gen.world.railTracks[0].platformCells.length > 0, true);
   assert.equal(gen.world.railTrains[0].entityIds.every(id => gen.entities.some(e => e.id === id && e.type === EntityType.ITEM_DROP)), true);
+});
+
+test('living tunnels anomaly seeds roots and mutates bounded cells over time', () => {
+  const base = makeProceduralFloorSpec(881, 9);
+  const spec = {
+    ...base,
+    anomalyId: 'living_tunnels' as const,
+    danger: Math.max(3, base.danger) as typeof base.danger,
+    title: `живые тоннели: ${base.title}`,
+  };
+  const gen = timedProceduralSpec(spec, 'forced living tunnels seed=881');
+  const roots = gen.world.rooms.filter(room => room.name.includes('[living_tunnel:'));
+  assert.equal(roots.length > 0, true);
+
+  const state = makeGameState({ currentFloor: spec.baseFloor });
+  const player = makeTestPlayer({ id: 999999, x: gen.spawnX, y: gen.spawnY, hp: 100, maxHp: 100 });
+  const beforeVersion = gen.world.cellVersion;
+  updateLivingTunnelsAnomaly(gen.world, player, state, 1.4);
+
+  let liveCells = 0;
+  for (let i = 0; i < gen.world.cells.length; i++) {
+    if (gen.world.cells[i] === Cell.FLOOR && gen.world.floorTex[i] === Tex.F_GUT) liveCells++;
+  }
+
+  assert.equal(gen.world.cellVersion > beforeVersion, true);
+  assert.equal(liveCells > 0, true);
+  assert.equal(gen.world.cells[gen.world.idx(Math.floor(gen.spawnX), Math.floor(gen.spawnY))], Cell.FLOOR);
 });
 
 test('bad apple frame pack decodes 144x108 binary frames', () => {
@@ -767,7 +801,7 @@ test('bad apple runtime advances the map rectangle into white floor cells', () =
 });
 
 test('zombie apocalypse anomaly seeds a dense crowd and patient zero infection', () => {
-  const base = makeProceduralFloorSpec(779, 2);
+  const base = makeProceduralFloorSpec(779, -35);
   const spec = {
     ...base,
     anomalyId: 'zombie_apocalypse' as const,

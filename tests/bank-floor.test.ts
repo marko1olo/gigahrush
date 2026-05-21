@@ -30,7 +30,7 @@ import {
 } from '../src/gen/design_floors/bank_floor';
 import { makeGameState, makeTestPlayer } from './helpers';
 
-test('bank_floor is registered as an authored route in a Ministry procedural gap', () => {
+test('bank_floor is registered as an authored Ministry-band route', () => {
   validateDesignFloorGenerators();
 
   const route = designFloorById(BANK_FLOOR_ROUTE_ID);
@@ -44,12 +44,14 @@ test('bank_floor is registered as an authored route in a Ministry procedural gap
 
 test('normal lift route reaches bank_floor between Ministry and Raionsovet archive', () => {
   const state = makeGameState({ currentFloor: FloorLevel.MINISTRY });
-  setFloorRunState(state, { runSeed: 2214, currentZ: -24, specs: {}, visited: {} }, FloorLevel.MINISTRY);
+  setFloorRunState(state, { runSeed: 2214, currentZ: 30, specs: {}, visited: {} }, FloorLevel.MINISTRY);
 
-  const gap = resolveFloorRunRoute(state, LiftDirection.DOWN);
-  assert.equal(gap?.z, -23);
-  assert.equal(gap?.procedural, true);
-  commitFloorRunEntry(state, gap!);
+  for (const expectedZ of [29, 28, 27]) {
+    const gap = resolveFloorRunRoute(state, LiftDirection.DOWN);
+    assert.equal(gap?.z, expectedZ);
+    assert.equal(gap?.procedural, true);
+    commitFloorRunEntry(state, gap!);
+  }
 
   const bank = resolveFloorRunRoute(state, LiftDirection.DOWN);
   assert.equal(bank?.z, BANK_FLOOR_Z);
@@ -57,13 +59,15 @@ test('normal lift route reaches bank_floor between Ministry and Raionsovet archi
   assert.equal(bank?.baseFloor, BANK_FLOOR_BASE_FLOOR);
   commitFloorRunEntry(state, bank!);
 
-  const nextGap = resolveFloorRunRoute(state, LiftDirection.DOWN);
-  assert.equal(nextGap?.z, -21);
-  assert.equal(nextGap?.procedural, true);
-  commitFloorRunEntry(state, nextGap!);
+  for (const expectedZ of [25, 24, 23]) {
+    const nextGap = resolveFloorRunRoute(state, LiftDirection.DOWN);
+    assert.equal(nextGap?.z, expectedZ);
+    assert.equal(nextGap?.procedural, true);
+    commitFloorRunEntry(state, nextGap!);
+  }
 
   const archive = resolveFloorRunRoute(state, LiftDirection.DOWN);
-  assert.equal(archive?.z, -20);
+  assert.equal(archive?.z, 22);
   assert.equal(archive?.designFloorId, 'raionsovet_archive');
 });
 

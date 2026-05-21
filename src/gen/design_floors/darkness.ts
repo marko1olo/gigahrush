@@ -25,7 +25,7 @@ import {
 import type { FloorGeneration } from '../floor_manifest';
 
 export const DARKNESS_DESIGN_FLOOR_ID = 'darkness' as const;
-export const DARKNESS_FUTURE_Z = 40;
+export const DARKNESS_FUTURE_Z = -48;
 export const DARKNESS_PRESERVED_NAME_ID = 'tamara_belova' as const;
 
 export const DARKNESS_DEBUG_ENTRY = {
@@ -423,6 +423,19 @@ const NPC_SPECS: readonly DarknessNpcSpec[] = [
 ];
 
 const darknessStateByWorld = new WeakMap<World, DarknessFloorState>();
+
+export function blackoutDarknessLights(world: World): void {
+  let removed = false;
+  for (let i = 0; i < W * W; i++) {
+    const feature = world.features[i];
+    if (feature === Feature.LAMP || feature === Feature.CANDLE) {
+      world.features[i] = Feature.NONE;
+      removed = true;
+    }
+  }
+  world.light.fill(0);
+  if (removed) world.markCellsDirty();
+}
 
 function centerX(room: Room): number {
   return worldWrap(room.x + (room.w >> 1));
@@ -1197,7 +1210,7 @@ export function generateDarknessDesignFloor(): DarknessDesignGeneration {
   placeContent(world, entities, nextId, roomsByKey);
   registerDarknessRouteCues(world, roomsByKey);
   ensureConnectivity(world, spawnX, spawnY);
-  world.bakeLights();
+  blackoutDarknessLights(world);
 
   const darknessState = initialState(labels);
   darknessStateByWorld.set(world, darknessState);

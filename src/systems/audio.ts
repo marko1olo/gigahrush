@@ -254,7 +254,8 @@ export function playSamosborAlarm(): void {
   src.start();
 }
 
-/* ── Maronary cue: thin green-screen beep and distant chord ───── */
+/* ── Maronary cue: thin green-screen beep and distant chord ─────
+   This high beep + wall tick is the approved Maronary identity; keep it distinct from sirens. */
 export function playMaronarySignal(): void {
   const ac = beginCue('samosbor_beep');
   if (!ac) return;
@@ -347,42 +348,64 @@ export function playVeretarSignal(): void {
   drone.stop(now + len);
 }
 
-/* ── Istotit cue: distant bell with low wordless choir ─────────── */
+/* ── Istotit cue: low cathedral bell with wordless choir ───────── */
 export function playIstotitBell(): void {
   const ac = beginCue('samosbor_bell');
   if (!ac) return;
   const now = ac.currentTime;
-  const len = 3.4;
+  const len = 4.2;
   const bus = ac.createGain();
   bus.gain.setValueAtTime(0.001, now);
-  bus.gain.exponentialRampToValueAtTime(0.2, now + 0.08);
+  bus.gain.exponentialRampToValueAtTime(0.26, now + 0.06);
   bus.gain.exponentialRampToValueAtTime(0.001, now + len);
-  bus.connect(gain());
+  const lp = ac.createBiquadFilter();
+  lp.type = 'lowpass';
+  lp.frequency.setValueAtTime(780, now);
+  lp.frequency.exponentialRampToValueAtTime(520, now + len);
+  bus.connect(lp).connect(gain());
 
-  const bellFreqs = [392, 523.25, 659.25];
-  for (let i = 0; i < bellFreqs.length; i++) {
-    const osc = ac.createOscillator();
-    const g = ac.createGain();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(bellFreqs[i], now + i * 0.11);
-    g.gain.setValueAtTime(0.12 / (i + 1), now + i * 0.11);
-    g.gain.exponentialRampToValueAtTime(0.001, now + len - i * 0.2);
-    osc.connect(g).connect(bus);
-    osc.start(now + i * 0.11);
-    osc.stop(now + len);
+  const strikes = [0, 0.44, 0.9, 1.38];
+  const fundamentals = [82.41, 73.42, 98, 65.41];
+  const partials = [1, 1.5, 2.01, 2.72];
+  for (let s = 0; s < strikes.length; s++) {
+    const strikeAt = now + strikes[s];
+    for (let p = 0; p < partials.length; p++) {
+      const osc = ac.createOscillator();
+      const g = ac.createGain();
+      osc.type = p === 0 ? 'triangle' : 'sine';
+      osc.frequency.setValueAtTime(fundamentals[s] * partials[p], strikeAt);
+      g.gain.setValueAtTime(0.001, strikeAt);
+      g.gain.exponentialRampToValueAtTime((0.16 - s * 0.018) / (p + 1), strikeAt + 0.025);
+      g.gain.exponentialRampToValueAtTime(0.001, now + len - p * 0.18);
+      osc.connect(g).connect(bus);
+      osc.start(strikeAt);
+      osc.stop(now + len);
+    }
   }
 
   const choir = ac.createOscillator();
   choir.type = 'triangle';
-  choir.frequency.setValueAtTime(130.81, now + 0.35);
-  choir.frequency.linearRampToValueAtTime(123.47, now + len);
+  choir.frequency.setValueAtTime(65.41, now + 0.25);
+  choir.frequency.linearRampToValueAtTime(61.74, now + len);
   const choirGain = ac.createGain();
   choirGain.gain.setValueAtTime(0.001, now);
-  choirGain.gain.exponentialRampToValueAtTime(0.055, now + 0.55);
+  choirGain.gain.exponentialRampToValueAtTime(0.07, now + 0.75);
   choirGain.gain.exponentialRampToValueAtTime(0.001, now + len);
   choir.connect(choirGain).connect(bus);
-  choir.start(now + 0.35);
+  choir.start(now + 0.25);
   choir.stop(now + len);
+
+  const undertone = ac.createOscillator();
+  undertone.type = 'sawtooth';
+  undertone.frequency.setValueAtTime(41.2, now);
+  undertone.frequency.linearRampToValueAtTime(38.9, now + len);
+  const undertoneGain = ac.createGain();
+  undertoneGain.gain.setValueAtTime(0.001, now);
+  undertoneGain.gain.exponentialRampToValueAtTime(0.035, now + 0.18);
+  undertoneGain.gain.exponentialRampToValueAtTime(0.001, now + len);
+  undertone.connect(undertoneGain).connect(bus);
+  undertone.start(now);
+  undertone.stop(now + len);
 }
 
 /* ── Route cue: short pipe-song hint, procedural and non-looping ─ */

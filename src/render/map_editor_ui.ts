@@ -115,7 +115,7 @@ const DEFAULT_CELL_PALETTE: readonly MapEditorPaletteEntry[] = [
   { id: Cell.WALL, label: 'WALL', color: '#2b3036' },
   { id: Cell.DOOR, label: 'DOOR', color: '#a67646' },
   { id: Cell.WATER, label: 'WATER', color: '#286b8c' },
-  { id: Cell.ABYSS, label: 'ABYSS', color: '#100812' },
+  { id: Cell.ABYSS, label: 'GLITCH', color: '#100812' },
   { id: Cell.LIFT, label: 'LIFT', color: '#d4cb3c' },
 ];
 
@@ -716,7 +716,7 @@ function cellName(cell: number): string {
     case Cell.FLOOR: return 'FLOOR';
     case Cell.WALL: return 'WALL';
     case Cell.DOOR: return 'DOOR';
-    case Cell.ABYSS: return 'ABYSS';
+    case Cell.ABYSS: return 'GLITCH';
     case Cell.LIFT: return 'LIFT';
     case Cell.WATER: return 'WATER';
     default: return String(cell);

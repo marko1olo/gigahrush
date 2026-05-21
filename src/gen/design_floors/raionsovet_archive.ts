@@ -22,7 +22,7 @@ import {
 import type { FloorGeneration } from '../floor_manifest';
 
 export const RAIONSOVET_ARCHIVE_ROUTE_ID = 'raionsovet_archive' as const;
-export const RAIONSOVET_ARCHIVE_Z = -20;
+export const RAIONSOVET_ARCHIVE_Z = 22;
 export const RAIONSOVET_ARCHIVE_DEBUG_SEED = 602006;
 
 export const RAIONSOVET_ARCHIVE_META = {

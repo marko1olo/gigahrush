@@ -389,7 +389,8 @@ test('RPG rewards, attribute spend, and scaling formulas remain stable', () => {
   assert.equal(psiPlanner.rpg?.maxPsi, getMaxPsi(psiPlanner.rpg!));
   assert.equal(psiPlanner.rpg?.psi, 6);
 
-  assert.equal(xpForMonsterKill(MonsterKind.SBORKA, 1), 15);
+  assert.equal(xpForMonsterKill(MonsterKind.SBORKA, 1), 30);
+  assert.equal(xpForMonsterKill(MonsterKind.CREATOR, 1), 1000);
   assert.equal(scaleMonsterHp(100, 3), 124);
   assert.equal(scaleMonsterDmg(10, 3), 12);
 

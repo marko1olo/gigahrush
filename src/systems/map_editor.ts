@@ -840,7 +840,7 @@ function cellName(cell: Cell): string {
     case Cell.DOOR: return 'DOOR';
     case Cell.WATER: return 'WATER';
     case Cell.LIFT: return 'LIFT';
-    case Cell.ABYSS: return 'ABYSS';
+    case Cell.ABYSS: return 'GLITCH';
     default: return String(cell);
   }
 }

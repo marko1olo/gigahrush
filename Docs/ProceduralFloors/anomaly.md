@@ -26,7 +26,7 @@ An anomaly profile is data that modifies an otherwise normal procedural floor:
 
 ## Existing Profiles
 
-Source count: 18 profiles in `FLOOR_ANOMALIES`.
+Source count: 19 profiles in `FLOOR_ANOMALIES`.
 
 - `none` - tags: none; runtime/rebuild: normal procedural floor with no anomaly-specific generator or runtime hook.
 - `smog` - tags: `fog`, `visibility`, `smog`, `govnyak`, `contraband`; runtime/rebuild: generation writes bounded fog cells, `world.anomalySmogSource`, `world.anomalySmogCells` and a source apparatus; runtime pressure/counterplay lives in `src/systems/procedural_anomalies.ts` and must stay tied to the current `World`/`GameState`, not renderer state.
@@ -40,6 +40,7 @@ Source count: 18 profiles in `FLOOR_ANOMALIES`.
 - `fractal_floor` - tags: `fractal`, `maze`, `topology`, `documents`; runtime/rebuild: generation stamps a bounded fractal domain, copy rooms, loot and limited teleports; it must not carve through spawn/lifts/protected cells or isolate route-critical space.
 - `cement_memory` - tags: `trail`, `pressure`, `no_backtracking`, `samosbor`; runtime/rebuild: generation marks amnesia rooms and panels; runtime records a fixed-size ring of recent player cells, ages marks once per second and lets panels clear recent trail pressure.
 - `wall_snake` - tags: `moving_walls`, `predator`, `crush`, `loot_sink`; runtime/rebuild: generation stores one perimeter path in the room name and places bait; runtime uses fixed typed arrays to move a wall body and restore tail cells, with bait shortening/stopping the snake.
+- `living_tunnels` - tags: `living_tunnels`, `topology`, `moving_walls`, `repair`, `route_pressure`; runtime/rebuild: generation seeds multiple root apparatuses across ordinary procedural rooms and stores root descriptors in room names; runtime advances bounded tendrils every 0.42s, carves only small patches, restores old tail cell snapshots and lets sealant, jackhammer or UV pause a local root.
 - `rail_trains` - tags: `rail`, `transit`, `crush`, `industrial`; runtime/rebuild: generation carves rail beds/platforms and registers `world.railTracks` plus train entities; `src/systems/rail_trains.ts` owns motion, boarding, collisions and train-cell maps.
 - `bad_apple_world` - tags: `video`, `screen`, `topology`, `cult_media`; runtime/rebuild: generation stamps a 144x108 Bad Apple room connected from spawn; runtime frame animation mutates wall/floor cells from cached screen descriptors and projector interaction toggles the animation.
 - `zombie_apocalypse` - tags: `zombie`, `crowd`, `infection`, `quarantine`, `residential`; runtime/rebuild: generation is active only where procedural NPCs are allowed, seeds a dense civilian crowd and patient zero, and converts shadow spawns to zombies; runtime infection converts NPCs through the entity index and publishes outbreak events.
@@ -94,7 +95,7 @@ The audit compares the ids listed under `Existing Profiles` with `FLOOR_ANOMALIE
 
 For anomaly implementation changes, also verify:
 
-- The generated floor remains reachable from spawn to up/down lift after all anomaly code runs, especially for `bad_apple_world`, `conway_life`, `fractal_floor`, `rail_trains`, `section_shift`, `teleport_cells` and `wall_snake`.
+- The generated floor remains reachable from spawn to up/down lift after all anomaly code runs, especially for `bad_apple_world`, `conway_life`, `fractal_floor`, `living_tunnels`, `rail_trains`, `section_shift`, `teleport_cells` and `wall_snake`.
 - Runtime caches reset or rebuild after floor transitions, save/load and samosbor rebuilds.
 - Interactions are reachable through HUD look targeting and have counterplay or an explicit decision.
 - Dirty flags and sparse maps are updated after cell, fog, texture, light or container mutations.

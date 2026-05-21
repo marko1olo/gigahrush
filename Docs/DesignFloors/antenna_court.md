@@ -1,6 +1,6 @@
 # Design Floor: Антенный двор
 
-Status: implemented authored route floor. Route id: `antenna_court`. Anchor: `z=-36`. Base floor: `MINISTRY`. Shipped HUD name: `Антенный двор`.
+Status: implemented authored route floor. Route id: `antenna_court`. Anchor: `z=+42`. Base floor: `MINISTRY`. Shipped HUD name: `Антенный двор`.
 
 Owned file: `src/gen/design_floors/antenna_court.ts`. Route integration: `src/data/design_floors.ts`, `src/gen/design_floors/manifest.ts`, `src/gen/design_floors/full_floor.ts`.
 
@@ -45,4 +45,4 @@ The floor does not add a separate samosbor system. Its authored rooms, doors, co
 
 ## Debug Path
 
-Use the normal lift route to `z=-36` or debug route teleport to `antenna_court`. Spawn starts in `Входной лифтовый тамбур`; walk into `Релейная будка` for repair materials, `Пост сигнал-инспекции` for exposure paperwork, `Кабина глушения` for the Market 88 jam, and `Архив мониторинга` for the void recording.
+Use the normal lift route to `z=+42` or debug route teleport to `antenna_court`. Spawn starts in `Входной лифтовый тамбур`; walk into `Релейная будка` for repair materials, `Пост сигнал-инспекции` for exposure paperwork, `Кабина глушения` for the Market 88 jam, and `Архив мониторинга` for the void recording.

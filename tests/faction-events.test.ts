@@ -25,6 +25,7 @@ import {
   recordFactionClashPlayerHit,
   resetFactionEventsForTests,
   tryInteractCultProcession,
+  updateCultProcessionCompulsion,
   updateFactionEvents,
 } from '../src/systems/faction_events';
 import { makeGameState } from './helpers';
@@ -134,8 +135,14 @@ test('cult procession exposes follow, report, disguise, avoid and violent disrup
   assert.ok(pilgrims.length <= MAX_PROCESSION_PILGRIMS);
   assert.equal(getActiveCultProcessionSnapshots(state).length, 1);
 
-  assert.equal(getCultProcessionPrompt(world, state, actor), ' идти в хвосте');
+  assert.equal(getCultProcessionPrompt(world, state, actor), ' удерживать: сопротивляться ходу');
   assert.equal(tryInteractCultProcession(state, world, actor, entities), true);
+  expectAction(state, 'avoid');
+
+  state.time += 2;
+  actor.x = 68.5;
+  const pull = updateCultProcessionCompulsion(state, world, actor, false);
+  assert.ok(pull && pull.strength > 0);
   expectAction(state, 'follow');
   assert.ok((actor.hp ?? 0) < 40 || actor.inventory?.some(item => item.defId === 'meat_rune'));
 
@@ -146,13 +153,13 @@ test('cult procession exposes follow, report, disguise, avoid and violent disrup
 
   actor.tool = undefined;
   actor.inventory = [{ defId: 'meat_rune', count: 1 }];
-  assert.equal(getCultProcessionPrompt(world, state, actor), ' пройти под знаком');
+  assert.equal(getCultProcessionPrompt(world, state, actor), ' удерживать: не идти за знаком');
   assert.equal(tryInteractCultProcession(state, world, actor, entities), true);
   expectAction(state, 'disguise');
 
   actor.x = 76.5;
   actor.inventory = [];
-  assert.equal(getCultProcessionPrompt(world, state, actor), ' скрыться');
+  assert.equal(getCultProcessionPrompt(world, state, actor), ' удерживать: сопротивляться');
   assert.equal(tryInteractCultProcession(state, world, actor, entities), true);
   expectAction(state, 'avoid');
 

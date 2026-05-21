@@ -1,5 +1,5 @@
 /* -- Design floor: Морг регистраций ----------------------------
- * Future route id registry_morgue, z=-16. Self-contained authored
+ * Future route id registry_morgue, z=+18. Self-contained authored
  * generator; an integrator can wire it into FloorRun later.
  */
 
@@ -40,7 +40,7 @@ import { genLog } from '../log';
 import type { FloorGeneration } from '../floor_manifest';
 
 export const REGISTRY_MORGUE_ROUTE_ID = 'registry_morgue' as const;
-export const REGISTRY_MORGUE_FUTURE_Z = -16 as const;
+export const REGISTRY_MORGUE_FUTURE_Z = 18 as const;
 export const REGISTRY_MORGUE_BASE_FLOOR = FloorLevel.MINISTRY;
 export const REGISTRY_MORGUE_DEBUG_ENTRY = 'design_floor.registry_morgue' as const;
 

@@ -37,7 +37,7 @@ import {
 import type { FloorGeneration } from '../floor_manifest';
 
 export const DESIGN_FLOOR_ID = 'silicon_net_well' as const;
-export const SILICON_NET_WELL_Z = 18;
+export const SILICON_NET_WELL_Z = -22;
 export const SILICON_NET_WELL_BASE_FLOOR = FloorLevel.MAINTENANCE;
 
 const SEED = hashSeed(DESIGN_FLOOR_ID);

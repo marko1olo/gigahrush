@@ -6,11 +6,12 @@ import {
   msg,
 } from '../core/types';
 
-// ── XP formula: soft quadratic — looks linear at 1-10, quadratic long-term ──
-// xpToLevel(L) = 80*L + 5*L²
-// Level 1: 85,  Level 5: 525,  Level 10: 1300,  Level 20: 3600,  Level 50: 16500
+// ── XP formula: first level-up at 100, then soft quadratic growth ──
+// xpForLevel(2) = 100, xpForLevel(5) = 295, xpForLevel(10) = 1020.
 export function xpForLevel(level: number): number {
-  return 80 * level + 5 * level * level;
+  if (level <= 1) return 0;
+  const rank = level - 1;
+  return 75 + 25 * rank + 10 * rank * (rank - 1);
 }
 
 // Total XP needed to reach a given level (from 0)
@@ -238,31 +239,31 @@ export function spendAttrPoint(e: Entity, attr: 'str' | 'agi' | 'int'): boolean 
 
 // ── XP for killing a monster (scales with monster level) ─────────
 const MONSTER_BASE_XP: Record<MonsterKind, number> = {
-  [MonsterKind.SBORKA]:    15,
-  [MonsterKind.TVAR]:      30,
-  [MonsterKind.POLZUN]:    50,
-  [MonsterKind.BETONNIK]: 120,
-  [MonsterKind.ZOMBIE]:    20,
-  [MonsterKind.EYE]:       25,
-  [MonsterKind.NIGHTMARE]: 45,
-  [MonsterKind.SHADOW]:    35,
-  [MonsterKind.REBAR]:     55,
-  [MonsterKind.MATKA]:    150,
-  [MonsterKind.MANCOBUS]: 200,
-  [MonsterKind.HERALD]:   180,
-  [MonsterKind.CREATOR]:  500,
-  [MonsterKind.SPIRIT]:   40,
-  [MonsterKind.IDOL]:      10,
-  [MonsterKind.ROBOT]:     35,
-  [MonsterKind.SHOVNIK]:   32,
-  [MonsterKind.LAMPOVY]:   28,
-  [MonsterKind.PECHATEED]: 38,
-  [MonsterKind.TUBE_EEL]:  55,
-  [MonsterKind.PARAGRAPH]: 45,
-  [MonsterKind.NELYUD]:    70,
-  [MonsterKind.KRYSNOZHKA]: 24,
-  [MonsterKind.KOSTOREZ]:  95,
-  [MonsterKind.SAFEGUARD]: 125,
+  [MonsterKind.SBORKA]:     30,
+  [MonsterKind.TVAR]:       60,
+  [MonsterKind.POLZUN]:    100,
+  [MonsterKind.BETONNIK]:  240,
+  [MonsterKind.ZOMBIE]:     40,
+  [MonsterKind.EYE]:        50,
+  [MonsterKind.NIGHTMARE]:  90,
+  [MonsterKind.SHADOW]:     70,
+  [MonsterKind.REBAR]:     110,
+  [MonsterKind.MATKA]:     300,
+  [MonsterKind.MANCOBUS]:  400,
+  [MonsterKind.HERALD]:    360,
+  [MonsterKind.CREATOR]:  1000,
+  [MonsterKind.SPIRIT]:    80,
+  [MonsterKind.IDOL]:       20,
+  [MonsterKind.ROBOT]:      70,
+  [MonsterKind.SHOVNIK]:    64,
+  [MonsterKind.LAMPOVY]:    56,
+  [MonsterKind.PECHATEED]:  76,
+  [MonsterKind.TUBE_EEL]:  110,
+  [MonsterKind.PARAGRAPH]:  90,
+  [MonsterKind.NELYUD]:    140,
+  [MonsterKind.KRYSNOZHKA]: 48,
+  [MonsterKind.KOSTOREZ]:  190,
+  [MonsterKind.SAFEGUARD]: 250,
 };
 
 export function xpForMonsterKill(kind: MonsterKind, monsterLevel: number): number {

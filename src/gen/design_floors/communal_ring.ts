@@ -30,7 +30,7 @@ import { ensureConnectivity, generateZones, sanitizeDoors, stampRoom } from '../
 import type { FloorGeneration } from '../floor_manifest';
 
 export const COMMUNAL_RING_DESIGN_FLOOR_ID = 'communal_ring' as const;
-export const COMMUNAL_RING_ROUTE_Z = -4;
+export const COMMUNAL_RING_ROUTE_Z = 4;
 
 const BASE_FLOOR = FloorLevel.KVARTIRY;
 const RING_SEED = hashSeed(COMMUNAL_RING_DESIGN_FLOOR_ID);

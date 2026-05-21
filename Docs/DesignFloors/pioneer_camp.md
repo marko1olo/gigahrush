@@ -1,12 +1,12 @@
 # Design Floor: Пионерлагерь
 
-Status: implemented authored route floor. Route id: `pioneer_camp`. Anchor: `z=-32`. Base floor: `LIVING`. Shipped HUD name: `Пионерлагерь`.
+Status: implemented authored route floor. Route id: `pioneer_camp`. Anchor: `z=+38`. Base floor: `LIVING`. Shipped HUD name: `Пионерлагерь`.
 
 Owned file: `src/gen/design_floors/pioneer_camp.ts`. Route integration: `src/data/design_floors.ts`, `src/gen/design_floors/manifest.ts`, `src/gen/design_floors/full_floor.ts`.
 
 ## Shipped Facts
 
-`pioneer_camp` is an inserted upward-route stop above `upper_bureau` and below `antenna_court`. It occupies `z=-32`; `antenna_court` is shipped at `z=-36`.
+`pioneer_camp` is an upward-route stop above `upper_bureau` and below `antenna_court`. It occupies `z=+38`; `antenna_court` is shipped at `z=+42`.
 
 The generator builds a Soviet summer-camp pocket with generic camp grammar, not copied third-party names. It includes:
 
@@ -20,4 +20,4 @@ The generator builds a Soviet summer-camp pocket with generic camp grammar, not 
 
 The floor uses existing NPC, quest, container, monster, lift and route-expansion systems. There is no separate camp schedule simulation.
 
-Use the normal lift route to `z=-32` or debug route teleport to `pioneer_camp`. Spawn starts at `Ворота и остановка лагеря`.
+Use the normal lift route to `z=+38` or debug route teleport to `pioneer_camp`. Spawn starts at `Ворота и остановка лагеря`.

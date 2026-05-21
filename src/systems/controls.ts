@@ -156,6 +156,12 @@ export function applyControlCode(input: InputState, code: string, pressed: boole
   for (const action of CONTROL_ACTIONS) {
     const key = actionInput(action);
     if (!key || !matchesControlAction(action.id, code)) continue;
+    if (action.id === 'interact') {
+      input.interact = pressed ? !input.interactHeld : false;
+      input.interactHeld = pressed;
+      matched = true;
+      continue;
+    }
     input[key] = pressed;
     matched = true;
   }
@@ -170,6 +176,7 @@ export function clearControlInputs(input: InputState): void {
     input[key] = false;
     cleared[key] = true;
   }
+  input.interactHeld = false;
 }
 
 export function setControlPrimaryBinding(actionId: ControlActionId, code: string): void {

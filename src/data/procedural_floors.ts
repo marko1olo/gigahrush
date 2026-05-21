@@ -45,6 +45,7 @@ export type FloorAnomalyId =
   | 'cement_memory'
   | 'conveyor_sorter'
   | 'wall_snake'
+  | 'living_tunnels'
   | 'section_shift'
   | 'conway_life'
   | 'rail_trains'
@@ -137,6 +138,7 @@ export const PROCEDURAL_LOOT_ANOMALY_TAGS: Readonly<Record<FloorAnomalyId, reado
   cement_memory: ['cement_memory', 'route_pressure'],
   conveyor_sorter: ['conveyor', 'industrial_cache'],
   wall_snake: ['moving_walls', 'crush_risk'],
+  living_tunnels: ['living_tunnels', 'topology', 'repair_cache'],
   section_shift: ['section_shift', 'topology'],
   conway_life: ['conway_life', 'cellular'],
   rail_trains: ['rail', 'transit_cache'],
@@ -166,6 +168,7 @@ export const PROCEDURAL_LOOT_ANOMALY_KIND_BIAS: Readonly<Record<FloorAnomalyId, 
   cement_memory: [ContainerKind.FILING_CABINET, ContainerKind.EMERGENCY_BOX, ContainerKind.SECRET_STASH],
   conveyor_sorter: [ContainerKind.METAL_CABINET, ContainerKind.TOOL_LOCKER, ContainerKind.WEAPON_CRATE],
   wall_snake: [ContainerKind.SECRET_STASH, ContainerKind.METAL_CABINET, ContainerKind.EMERGENCY_BOX],
+  living_tunnels: [ContainerKind.TOOL_LOCKER, ContainerKind.METAL_CABINET, ContainerKind.SECRET_STASH],
   section_shift: [ContainerKind.SECRET_STASH, ContainerKind.TOOL_LOCKER, ContainerKind.FILING_CABINET],
   conway_life: [ContainerKind.METAL_CABINET, ContainerKind.FILING_CABINET, ContainerKind.SECRET_STASH],
   rail_trains: [ContainerKind.TOOL_LOCKER, ContainerKind.METAL_CABINET, ContainerKind.EMERGENCY_BOX],
@@ -177,18 +180,23 @@ export function proceduralLootValueCap(danger: 1 | 2 | 3 | 4 | 5): number {
   return PROCEDURAL_LOOT_VALUE_CAP_BY_DANGER[danger];
 }
 
-export const FLOOR_RUN_MIN_Z = -44;
-export const FLOOR_RUN_MAX_Z = 40;
-export const FLOOR_RUN_VOID_Z = 36;
+export const FLOOR_RUN_MIN_Z = -50;
+export const FLOOR_RUN_MAX_Z = 50;
+export const FLOOR_RUN_VOID_Z = -50;
+export const FLOOR_RUN_NPC_FREE_Z = -48;
 
 const STORY_Z_BY_FLOOR: Readonly<Record<FloorLevel, number>> = {
-  [FloorLevel.MINISTRY]: -24,
-  [FloorLevel.KVARTIRY]: -12,
+  [FloorLevel.MINISTRY]: 30,
+  [FloorLevel.KVARTIRY]: 14,
   [FloorLevel.LIVING]: 0,
-  [FloorLevel.MAINTENANCE]: 20,
-  [FloorLevel.HELL]: 28,
+  [FloorLevel.MAINTENANCE]: -26,
+  [FloorLevel.HELL]: -36,
   [FloorLevel.VOID]: FLOOR_RUN_VOID_Z,
 };
+
+export function floorRunProfileZ(z: number): number {
+  return Math.round(z >= 0 ? z * -44 / 50 : z * -40 / 50);
+}
 
 function makeProceduralFloorZs(): readonly number[] {
   const zs: number[] = [];
@@ -403,6 +411,7 @@ export const FLOOR_ANOMALIES: readonly FloorAnomalyDef[] = [
   { id: 'fractal_floor', title: 'фрактал', weight: 6, minDanger: 3, dangerBias: 1, tags: ['fractal', 'maze', 'topology', 'documents'] },
   { id: 'cement_memory', title: 'цементная память', weight: 6, minDanger: 3, dangerBias: 1, tags: ['trail', 'pressure', 'no_backtracking', 'samosbor'] },
   { id: 'wall_snake', title: 'змейка', weight: 4, minDanger: 2, dangerBias: 2, tags: ['moving_walls', 'predator', 'crush', 'loot_sink'] },
+  { id: 'living_tunnels', title: 'живые тоннели', weight: 4, minDanger: 2, dangerBias: 2, tags: ['living_tunnels', 'topology', 'moving_walls', 'repair', 'route_pressure'] },
   { id: 'rail_trains', title: 'поезда', weight: 8, minDanger: 2, dangerBias: 1, tags: ['rail', 'transit', 'crush', 'industrial'] },
   { id: 'bad_apple_world', title: 'bad apple!', weight: 3, minDanger: 3, dangerBias: 1, tags: ['video', 'screen', 'topology', 'cult_media'] },
   { id: 'zombie_apocalypse', title: 'зомби-апокалипсис', weight: 4, minDanger: 2, dangerBias: 2, tags: ['zombie', 'crowd', 'infection', 'quarantine', 'residential'] },
@@ -455,6 +464,7 @@ const LOOT_BY_TAG: Record<string, readonly string[]> = {
   trail: ['ink_bottle', 'alcohol_bottle', 'lift_scheme', 'cloth_roll'],
   pressure: ['pressure_logbook', 'valve_tag', 'sealant_tube'],
   moving_walls: ['wrench', 'gear', 'spring', 'metal_sheet'],
+  living_tunnels: ['sealant_tube', 'asbestos_cord', 'pressure_logbook', 'relay_diagram', 'lift_scheme'],
   predator: ['meat_rune', 'ammo_nails', 'harpoon_gun'],
   crush: ['bandage', 'tourniquet', 'wrench'],
   rail: ['metro_ticket', 'wrench', 'fuse', 'relay_diagram', 'valve_tag'],
@@ -523,6 +533,7 @@ const MONSTERS_BY_TAG: Record<string, readonly MonsterKind[]> = {
   trail: [MonsterKind.NELYUD, MonsterKind.SHADOW, MonsterKind.ZOMBIE],
   pressure: [MonsterKind.REBAR, MonsterKind.POLZUN],
   moving_walls: [MonsterKind.REBAR, MonsterKind.SBORKA],
+  living_tunnels: [MonsterKind.POLZUN, MonsterKind.REBAR, MonsterKind.TUBE_EEL, MonsterKind.BETONNIK],
   predator: [MonsterKind.TVAR, MonsterKind.KOSTOREZ, MonsterKind.POLZUN, MonsterKind.SAFEGUARD],
   crush: [MonsterKind.REBAR, MonsterKind.KOSTOREZ, MonsterKind.SAFEGUARD],
   rail: [MonsterKind.REBAR, MonsterKind.ROBOT, MonsterKind.TUBE_EEL],
@@ -619,7 +630,7 @@ export function isProceduralFloorZ(z: number): boolean {
 }
 
 export function floorRunZAllowsNpcs(z: number): boolean {
-  return z < FLOOR_RUN_VOID_Z;
+  return z > FLOOR_RUN_NPC_FREE_Z;
 }
 
 export function proceduralFloorKey(z: number): string {
@@ -644,16 +655,17 @@ export function proceduralFloorMonsterBiasTags(spec: Pick<ProceduralFloorSpec, '
 }
 
 export function proceduralMonsterFloor(spec: Pick<ProceduralFloorSpec, 'z' | 'baseFloor'>): FloorLevel {
-  if (spec.z >= FLOOR_RUN_VOID_Z) return FloorLevel.VOID;
-  if (spec.z >= 25) return FloorLevel.HELL;
-  if (spec.z >= 13) return FloorLevel.MAINTENANCE;
-  if (spec.z <= -17) return FloorLevel.MINISTRY;
-  if (spec.z <= -5) return FloorLevel.KVARTIRY;
+  const profileZ = floorRunProfileZ(spec.z);
+  if (spec.z <= FLOOR_RUN_NPC_FREE_Z) return FloorLevel.VOID;
+  if (profileZ >= 25) return FloorLevel.HELL;
+  if (profileZ >= 13) return FloorLevel.MAINTENANCE;
+  if (profileZ <= -17) return FloorLevel.MINISTRY;
+  if (profileZ <= -5) return FloorLevel.KVARTIRY;
   return spec.baseFloor;
 }
 
 export function proceduralFloorAnomalyRoutePressure(spec: Pick<ProceduralFloorSpec, 'anomalyId'>): number {
-  if (spec.anomalyId === 'samosbor_seed' || spec.anomalyId === 'wall_snake' || spec.anomalyId === 'section_shift' || spec.anomalyId === 'zombie_apocalypse') return 2;
+  if (spec.anomalyId === 'samosbor_seed' || spec.anomalyId === 'wall_snake' || spec.anomalyId === 'living_tunnels' || spec.anomalyId === 'section_shift' || spec.anomalyId === 'zombie_apocalypse') return 2;
   if (
     spec.anomalyId === 'smog' ||
     spec.anomalyId === 'hladon' ||
@@ -666,8 +678,9 @@ export function proceduralFloorAnomalyRoutePressure(spec: Pick<ProceduralFloorSp
 
 export function proceduralFloorRoutePressureLevel(spec: Pick<ProceduralFloorSpec, 'anomalyId' | 'danger' | 'z' | 'majorityId'>): number {
   let pressure = proceduralFloorAnomalyRoutePressure(spec);
+  const profileZ = floorRunProfileZ(spec.z);
   if (spec.danger >= 4) pressure++;
-  if (spec.z >= 25 || spec.z <= -24) pressure++;
+  if (profileZ >= 25 || profileZ <= -24) pressure++;
   if (spec.majorityId === 'cultists' || spec.majorityId === 'wild') pressure++;
   return Math.min(4, pressure);
 }
@@ -676,17 +689,18 @@ export function makeProceduralFloorSpec(runSeed: number, z: number): ProceduralF
   const seed = hashSeed(`floor:${runSeed}:${z}`, runSeed);
   const rng = seededRandom(seed);
   const depth = Math.abs(z);
+  const profileZ = floorRunProfileZ(z);
   const geometry = pickWeighted(
-    FLOOR_GEOMETRIES.filter(def => zAllowed(def, z)),
+    FLOOR_GEOMETRIES.filter(def => zAllowed(def, profileZ)),
     rng,
     def => {
       let w = def.weight;
-      if (z < 0 && def.baseFloor === FloorLevel.MINISTRY) w *= 1.8;
-      if (z > 0 && def.baseFloor === FloorLevel.MAINTENANCE) w *= 1.6;
+      if (profileZ < 0 && def.baseFloor === FloorLevel.MINISTRY) w *= 1.8;
+      if (profileZ > 0 && def.baseFloor === FloorLevel.MAINTENANCE) w *= 1.6;
       return w;
     },
   );
-  const baseDangerScore = routeDangerScore(z) + geometry.dangerBias * 0.55 + rng() - 0.5;
+  const baseDangerScore = routeDangerScore(profileZ) + geometry.dangerBias * 0.55 + rng() - 0.5;
   const earlyDanger = clampDanger(baseDangerScore);
   const majority = pickWeighted(
     FLOOR_MAJORITY_FACTIONS.filter(def => (def.minDanger ?? 1) <= earlyDanger),

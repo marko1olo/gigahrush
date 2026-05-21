@@ -1,6 +1,6 @@
 # Design Floor: Коммунальное кольцо
 
-Status: implemented authored route floor. Route id: `communal_ring`. Anchor: `z=-4`. Base floor: `KVARTIRY`. Shipped HUD name: `Коммунальное кольцо`.
+Status: implemented authored route floor. Route id: `communal_ring`. Anchor: `z=+4`. Base floor: `KVARTIRY`. Shipped HUD name: `Коммунальное кольцо`.
 
 Owned file: `src/gen/design_floors/communal_ring.ts`.
 

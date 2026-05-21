@@ -14,6 +14,7 @@ These packets describe voice, domain tone, target files and text-pass DoD. They 
 | `37_*.md` through `42_*.md` | active surface/system text packets | Barks, rumors, notes, quests, contracts and ordinary samosbor text. |
 | `43_istotit.md`, `44_maronary.md`, `45_veretar.md` | active rare-samosbor text packets | Use with current `src/data/samosbor_variants.ts`, `src/data/samosbor_director.ts` and related systems. |
 | `46_*.md` through `50_*.md` | active late/domain packets | Hell, Ministry absurdity, monster counterplay, Net Sphere and final VOID/Tvorets text. |
+| `game_text_inventory.md` | active working inventory | Generated player-facing text extraction from `src/**/*.ts`; use for broad scenario review/replacement passes, not as tone guidance. |
 | `../../gatbage/**` | archive-only context | Historical prompts, logs and retired lore notes. Read only when a task explicitly asks for history or comparison. |
 
 No file under `Docs/ScenarioWriters/` is archived as of this map. If a packet becomes stale, mark its status here before moving or deleting anything.
