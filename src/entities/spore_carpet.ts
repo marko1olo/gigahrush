@@ -14,7 +14,7 @@ export const DEF: MonsterDef = {
   sprite: 0,
   aiFlags: ['lurkingFurniture'],
   floors: [FloorLevel.MINISTRY, FloorLevel.KVARTIRY, FloorLevel.LIVING, FloorLevel.MAINTENANCE],
-  counterplay: 'Смотрите на поднятые углы и зеленые жилы: обходите проем, жгите с дистанции или держите соль и фильтр до пересечения ковра.',
+  counterplay: 'Смотрите на поднятые углы и зеленые жилы: обходите проем, жгите с дистанции или держите фильтр до пересечения ковра.',
   lootHint: 'плесневелая бахрома, споровый отпечаток, редкий фильтрующий слой из старой подкладки',
 };
 

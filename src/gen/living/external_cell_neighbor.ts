@@ -304,7 +304,7 @@ registerSideQuestSteps([
     giverNpcId: 'yakov',
     type: QuestType.VISIT,
     visitFloor: FloorLevel.MAINTENANCE,
-    desc: 'Яков Давидович: "По модели Нины маршрут неполный: нет контрольного прохода и отметки влажности. Проверьте нижний ход у мокрой батареи, запишите, что он пропускает, и вернитесь с результатом."',
+    desc: 'Яков Давидович: "По модели Нины маршрут неполный. Спуститесь в Коллекторы и вернитесь с отметкой, что он вообще выводит вниз."',
     rewardItem: 'caravan_route',
     rewardCount: 1,
     extraRewards: [{ defId: 'filtered_water', count: 1 }, { defId: 'note', count: 1 }],

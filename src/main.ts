@@ -3515,7 +3515,7 @@ function updateEquippedTool(dt: number): void {
     const horizontal = (l === Cell.WALL && r === Cell.WALL && u !== Cell.WALL && d !== Cell.WALL);
     const vertical = (u === Cell.WALL && d === Cell.WALL && l !== Cell.WALL && r !== Cell.WALL);
     if (!horizontal && !vertical) {
-      state.msgs.push(msg('Нужен проём типа стена-дверь-стена', state.time, '#f84'));
+      state.msgs.push(msg('Нужен проход между двумя стенами', state.time, '#f84'));
       return;
     }
     const roomA = world.roomMap[world.idx(cx - 1, cy)] >= 0 ? world.roomMap[world.idx(cx - 1, cy)] : world.roomMap[world.idx(cx, cy - 1)];

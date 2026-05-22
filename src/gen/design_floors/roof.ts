@@ -329,7 +329,7 @@ export function printRoofCloudFrame(state: RoofWeatherState): RoofWeatherResult 
   return {
     action: 'cloud_frame_printed',
     label: 'Облачный кадр распечатан',
-    logLine: 'Кадр неба зафиксировал повтор: это улика для Якова и приманка для Пустоты.',
+    logLine: 'Кадр неба зафиксировал повтор: это улика для Якова и приманка для тех, кто скупает закрытые записи.',
     signalQuality: state.signalQuality,
     tags: ['sky', 'cloud', 'yakov'],
   };

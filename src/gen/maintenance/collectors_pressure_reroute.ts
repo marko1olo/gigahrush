@@ -63,11 +63,11 @@ const CARTOGRAPHER_DEF: PlotNpcDef = {
   talkLines: [
     'Я картограф. Утонул не весь: руки еще рисуют, ноги уже верят воде.',
     'В мокрой картотеке маршруты всплывают только при лампе. Проверь стенд и не наступай на блеск.',
-    'Фильтры нужны наверх. Грязная вода тоже вода, но очередь от нее начинает лаять.',
+    'Фильтры нужны наверх. Грязная вода тоже вода, но без фильтра очередь начинает кашлять.',
   ],
   talkLinesPost: [
     'Карта подсохла по краям. Этого хватит, чтобы уйти и вернуться не тем же человеком.',
-    'Фильтры дошли до учета. Теперь вода хотя бы делает вид, что чистая.',
+    'Фильтры дошли до учета. Воду выдали отдельно, по мокрой квитанции.',
   ],
 };
 
@@ -155,7 +155,7 @@ registerSideQuest('collectors_drowned_cartographer', CARTOGRAPHER_DEF, [
     id: 'floor16_collectors_filter_run',
     giverNpcId: 'collectors_drowned_cartographer',
     type: QuestType.FETCH,
-    desc: 'Картограф: «Два фильтра на прогон. Отнесем наверх чистую воду, а не мокрое объяснение.»',
+    desc: 'Картограф: «Два фильтра в учет. Наверх отнесём чистую выдачу, а не мокрое объяснение.»',
     targetItem: 'gasmask_filter', targetCount: 2,
     rewardItem: 'filtered_water', rewardCount: 3,
     extraRewards: [{ defId: 'filter_receipt', count: 1 }, { defId: 'bandage', count: 1 }],

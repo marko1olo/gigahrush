@@ -136,19 +136,19 @@ const OWNED_ZONES = [
 ] as const;
 
 const SHORTAGE_RESIDUE_CHOICES = [
-  { kind: 'cleanup', text: 'подобрать воду/хлеб и вернуть след в ближайший запас' },
+  { kind: 'cleanup', text: 'подобрать воду/хлеб и вернуть найденное в ближайший запас' },
   { kind: 'avoid', text: 'обойти очередь и не входить в давку' },
   { kind: 'report', text: 'сказать старшему у пайкового стола, где просела поставка' },
 ] as const satisfies readonly FactionResidueChoiceDef[];
 
 const ENFORCEMENT_RESIDUE_CHOICES = [
-  { kind: 'cleanup', text: 'собрать гильзы, кровь и бумагу до второго обхода' },
+  { kind: 'cleanup', text: 'собрать гильзы и бумаги, замыть кровь до второго обхода' },
   { kind: 'avoid', text: 'обойти пост и не шуметь у линии контроля' },
   { kind: 'report', text: 'передать след ликвидатору как свидетельство' },
 ] as const satisfies readonly FactionResidueChoiceDef[];
 
 const CULT_RESIDUE_CHOICES = [
-  { kind: 'cleanup', text: 'снять мясную руну или замыть ладонь, пока знак свежий' },
+  { kind: 'cleanup', text: 'снять мясную руну или смыть отпечаток ладони, пока знак свежий' },
   { kind: 'avoid', text: 'держаться у стены и дать ходу пройти мимо' },
   { kind: 'report', text: 'сдать маршрут или знак ликвидаторам' },
 ] as const satisfies readonly FactionResidueChoiceDef[];
@@ -583,7 +583,7 @@ export const FACTION_EVENT_DEFS: readonly FactionEventDef[] = [
     },
     residueText: 'рассыпанные патроны, пулевые отметины, копоть, кровь у коридора и бинт с номером смены',
     residueChoices: ENFORCEMENT_RESIDUE_CHOICES,
-    message: 'Ликвидаторы прошли зачисткой по коридорам: монстров стало меньше, патронов тоже, а шум теперь слышат быстрее.',
+    message: 'Ликвидаторы прошли зачисткой по коридорам: пуль и копоти стало больше, патронов меньше, а шум теперь слышат быстрее.',
     itemId: 'ammo_9mm',
     severity: 4,
     privacy: 'local',
@@ -615,7 +615,7 @@ export const FACTION_EVENT_DEFS: readonly FactionEventDef[] = [
     },
     residueText: 'меловые номера проб, рыночная расписка, загрязненная проба, пустая тара и пропавшая строка в ведомости',
     residueChoices: EVIDENCE_RESIDUE_CHOICES,
-    message: 'Учёные НИИ выводят пробы через чужие шкафы: можно сдать накладную, продать расписку или оставить утечку расти.',
+    message: 'Учёные НИИ выводят пробы через чужие шкафы: можно сдать накладную, продать расписку или оставить утечку висеть на секции.',
     itemId: 'nii_market_receipt',
     severity: 4,
     privacy: 'local',

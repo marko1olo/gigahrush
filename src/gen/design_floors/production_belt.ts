@@ -148,7 +148,7 @@ export const PRODUCTION_BELT_PIPELINE_DEPENDENCIES: readonly ProductionBeltPipel
     factoryId: 'illegal_ammo_smelter',
     outputTag: 'bad_batch',
     decisionId: 'expose_bad_batch',
-    clue: 'Акт БОТ-14 останавливает плохую еду до Жилой зоны, если игрок принесет образцы.',
+    clue: 'Акт БОТ-14 останавливает зеленую партию до Жилой зоны, если сдать образцы аудитору.',
   },
 ];
 

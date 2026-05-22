@@ -161,7 +161,7 @@ function eventText(e: WorldEvent): string {
     case 'samosbor_warning':
       return samosborWarningText(e);
     case 'samosbor_started':
-      if (e.data?.variantId === 'maronary') return `Маронарий начался${e.zoneId !== undefined ? `: зона ${e.zoneId + 1}` : ''}. Не проверяйте дверь взглядом.`;
+      if (e.data?.variantId === 'maronary') return `Маронарий начался${e.zoneId !== undefined ? `: зона ${e.zoneId + 1}` : ''}. Сверяйте номер двери по карте; не идите на зелёное свечение.`;
       return `Самосбор начался${e.zoneId !== undefined ? `: зона ${e.zoneId + 1}` : ''}. Ищите гермодверь.`;
     case 'samosbor_zone_captured':
       return `Зона ${e.zoneId !== undefined ? e.zoneId + 1 : '?'} под самосбором. Карта устарела.`;
@@ -396,7 +396,7 @@ function eventText(e: WorldEvent): string {
     case 'paritel_threat_neutralized':
       return 'Паритель нейтрализован.';
     case 'paritel_steam_injury':
-      return 'Паровой мост обжёг игрока.';
+      return 'Паровой мост обжёг вас.';
     case 'paritel_steam_avoided':
       return 'Паровой мост обойден без прямого ожога.';
     case 'lift_arachna_warned':

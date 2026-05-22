@@ -20,11 +20,14 @@ import {
   recordAlifeNpcDeath,
   setAlifeState,
 } from '../src/systems/alife';
+import { setFloorRunState } from '../src/systems/procedural_floors';
 import { getFactionRel, initFactionRelations } from '../src/data/relations';
 import { freshRPG } from '../src/systems/rpg';
 
 function minimalState(): GameState {
-  return { currentFloor: FloorLevel.LIVING } as GameState;
+  const state = { currentFloor: FloorLevel.LIVING } as GameState;
+  setFloorRunState(state, { runSeed: 1 }, FloorLevel.LIVING);
+  return state;
 }
 
 function ambientTemplate(id: number, x: number, y: number): Entity {

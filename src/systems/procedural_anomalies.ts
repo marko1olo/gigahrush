@@ -260,7 +260,7 @@ export function getProceduralSmogStatus(world: World, player: Entity, state: Gam
       ? protection === 'filter'
         ? 'фильтр держит смог'
         : protection === 'wet_cloth'
-          ? 'влажная ткань держит смог'
+          ? 'влажная ткань спасает горло'
           : protection === 'cloth_ready'
             ? 'ткань и вода готовы'
             : 'кашель: нужен фильтр или обход'
@@ -529,7 +529,7 @@ function publishFalseSafeRumor(
 function discoverFalseSafeBlock(world: World, player: Entity, state: GameState, room: Room, outcome: string): void {
   const revealed = revealFalseSafeStashes(world);
   markFalseSafeRooms(world, FALSE_SAFE_BLOCK_DISCOVERED);
-  state.msgs.push(msg('Табло молчит: сирена здесь не заведена в сеть. Под чистым полом чужая ладонь.', state.time, '#fa4'));
+  state.msgs.push(msg('Табло молчит: сирена здесь не заведена в сеть. Под чистым полом культовая метка и чужой запас.', state.time, '#fa4'));
   publishFalseSafeRumor(world, player, state, room, outcome, 4, 'local', { revealedStashes: revealed });
 }
 

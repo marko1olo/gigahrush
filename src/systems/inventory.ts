@@ -394,7 +394,7 @@ function handleVeretarPickupRisk(
   }
 
   if (pickedSand) {
-    msgs.push(msg('Белый песок открыт: держите его отдельно от пайка и бумаг или запечатайте герметиком.', time, '#f4e7b0'));
+    msgs.push(msg('Белый песок открыт: следующий пайк или бумага в сумке может испортиться. Запечатайте герметиком или держите слот свободным.', time, '#f4e7b0'));
     publishVeretarSandEvent(state, actor, 'unsealed_pickup', VERETAR_UNSEALED_SAND, 1, 2, zoneId);
   }
 }
@@ -790,7 +790,10 @@ function inventorySpecialUseLabel(defId: string, def: ItemDef, slot: Item): stri
   if (def.type === ItemType.NOTE && slot.data) return 'E прочесть';
   if (itemHasTag(defId, 'coupon') || itemHasTag(defId, 'single_use')) return 'E погасить';
   if (itemHasTag(defId, 'permit') || itemHasTag(defId, 'document_gate')) return 'E предъявить';
-  if (itemHasTag(defId, 'sealed') || itemHasTag(defId, 'sample') || itemHasTag(defId, 'veretar')) return 'E проверить';
+  if (defId === VERETAR_UNSEALED_SAND) return 'E запечатать / высыпать';
+  if (defId === VERETAR_SEALED_SAND) return 'E проверить пломбу';
+  if (itemHasTag(defId, 'sample')) return 'E вскрыть пробу';
+  if (itemHasTag(defId, 'sealed') || itemHasTag(defId, 'veretar')) return 'E проверить';
   if (itemHasTag(defId, 'govnyak') || itemHasTag(defId, 'zhelemish')) return 'E применить';
   if (itemHasTag(defId, 'noise')) return 'E применить';
   if (itemHasTag(defId, 'document') || def.type === ItemType.KEY) return 'E проверить';
@@ -834,8 +837,8 @@ export function getInventorySlotActionInfo(e: Entity, slotIdx: number): Inventor
         ? `D выкинуть ×${slot.count}`
         : 'D выкинуть',
     sellLabel: value > 0
-      ? `Торг: база ${value}₽${slot.count > 1 ? `/шт · ${value * slot.count}₽` : ''}`
-      : 'Торг: почти даром',
+      ? `Справка: базовая цена ${value}₽${slot.count > 1 ? `/шт · ${value * slot.count}₽` : ''}`
+      : 'Справка: почти даром',
     canUse,
     canDrop: true,
     isEquippedWeapon,
@@ -1208,7 +1211,7 @@ function handleDocumentPaperUse(
     return sellDocumentToBlackMarket(e, defId, msgs, time, state, zoneId, world);
   }
 
-  msgs.push(msg('Нужен адресат: N3, архивное окно, типография или рынок.', time, '#aa8'));
+  msgs.push(msg('Здесь адресата нет. Документы принимают в Министерстве: N3 или архивное окно; часть бумаг продаётся на рынке жилого блока.', time, '#aa8'));
   return true;
 }
 
@@ -1254,7 +1257,7 @@ function handleShelterTallyUse(e: Entity, defId: string, msgs: Msg[], time: numb
     return true;
   }
 
-  msgs.push(msg('Ведомости нужен адресат: Министерство, жилой блок, рынок или тайник.', time, '#aa8'));
+  msgs.push(msg('Ведомость принимают в Министерстве или у старших подъезда в жилом блоке/Квартирах.', time, '#aa8'));
   return true;
 }
 

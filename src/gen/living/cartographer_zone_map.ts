@@ -48,7 +48,7 @@ registerSideQuest(CARTOGRAPHER_ID, NPC_DEF, [
     id: 'ag43_cartographer_maintenance_lead',
     giverNpcId: CARTOGRAPHER_ID,
     type: QuestType.VISIT,
-    desc: 'Сева Картограф: «Проверь нижнюю зацепку: Коллекторы, зона 47, производственная у воды, опасность 4/5. Если слышишь воду - жди трубного угря; в шкафах ищи фильтр или фонарь.»',
+    desc: 'Сева Картограф: «Спустись в Коллекторы и вернись с отметкой нижней зацепки. Если слышишь воду - держи фильтр или фонарь под рукой.»',
     visitFloor: FloorLevel.MAINTENANCE,
     rewardItem: 'caravan_route',
     rewardCount: 1,

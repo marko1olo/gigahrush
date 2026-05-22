@@ -57,7 +57,7 @@ test('forced caravan tick moves stock between two floors and publishes visible e
     getRecentEvents(state, { tags: ['caravan', 'tariff', 'supply_lane', LANE_QUEUE], limit: 1 }).length,
     1,
   );
-  assert.equal(state.msgLog.some(entry => entry.text.includes('Квартиры -> жилая очередь')), true);
+  assert.equal(state.msgLog.some(entry => entry.text.includes('Квартиры -> Жилая: еда и вода')), true);
 });
 
 test('caravan tariff getter reflects robbery pressure and paid stabilization', () => {

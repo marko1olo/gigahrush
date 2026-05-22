@@ -82,7 +82,7 @@ test('runtime event rumors keep floor zone and room context in leads', () => {
   const line = selectRumorForNpc(npc, snapshot, now);
   assert.ok(line);
   assert.match(line, /Коллекторы/);
-  assert.match(line, /зона 12/);
+  assert.match(line, /зона 13/);
   assert.match(line, /Брикетный цех: линия концентрата/);
   assert.match(line, /концентрат/i);
 

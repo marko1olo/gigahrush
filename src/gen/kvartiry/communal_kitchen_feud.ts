@@ -193,7 +193,7 @@ registerSideQuest(FEOFAN_ID, FEOFAN, [{
   id: COMMUNAL_KITCHEN_FEUD_QUEST_IDS.stealKey,
   giverNpcId: FEOFAN_ID,
   type: QuestType.FETCH,
-  desc: 'Феофан у кастрюли: «Укради заёмный кухонный ключ из Райиной тумбы. Дверь должна слушать кипяток.»',
+    desc: 'Феофан у кастрюли: «Укради заёмный кухонный ключ из Райиной тумбы. Без ключа Рая держит кухню на крике.»',
   targetItem: 'borrowed_kitchen_key', targetCount: 1,
   rewardItem: 'holy_water', rewardCount: 1,
   extraRewards: [{ defId: 'kasha', count: 2 }],

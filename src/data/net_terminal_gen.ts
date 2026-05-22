@@ -11,7 +11,7 @@ import { ITEMS } from './items';
 export const NET_TERMINAL_GEN_STATE_KEY = 'netTerminalGen';
 export const NET_TERMINAL_GEN_ITEM_ID = 'net_terminal_gen_flesh';
 export const NET_TERMINAL_GEN_ITEM_NAME = 'Странный кусок плоти';
-export const NET_TERMINAL_GEN_PICKUP_MESSAGE = 'НЕТ-ГЕН найден. Терминалы откроют карту.';
+export const NET_TERMINAL_GEN_PICKUP_MESSAGE = 'НЕТ-ГЕН найден. Терминалы откроют редактор карты.';
 export const NET_TERMINAL_GEN_DENIED_TEXT = 'НЕТ-ТЕРМИНАЛ ГЕН НЕ ОБНАРУЖЕН';
 export const NET_TERMINAL_GEN_OPEN_TEXT = 'НЕТ-ТЕРМИНАЛ ГЕН';
 

@@ -18,6 +18,7 @@ import {
   BAD_APPLE_WIDTH,
   drawBadAppleFrame,
 } from '../../data/bad_apple_frames';
+import { primeBadAppleProjectorAudio, updateBadAppleProjectorLoop } from '../audio';
 import { publishEvent } from '../events';
 
 const BAD_APPLE_ROOM_PREFIX = 'Bad Apple!';
@@ -346,10 +347,22 @@ function publishBadAppleEvent(
 
 export function updateBadAppleWorldAnomaly(world: World, player: Entity, state: GameState, dt: number): void {
   const runtime = runtimeFor(world);
-  if (runtime.screens.length === 0) return;
+  if (runtime.screens.length === 0) {
+    updateBadAppleProjectorLoop(false, player.x, player.y, 0);
+    return;
+  }
   let changed = 0;
+  let audioScreen: BadAppleScreenRuntime | null = null;
+  let audioDist2 = Infinity;
   for (const screen of runtime.screens) {
     if (!screen.active) continue;
+    const soundX = screen.projectorIdx >= 0 ? (screen.projectorIdx % W) + 0.5 : screen.x + BAD_APPLE_WIDTH * 0.5;
+    const soundY = screen.projectorIdx >= 0 ? ((screen.projectorIdx / W) | 0) + 0.5 : screen.y + BAD_APPLE_HEIGHT * 0.5;
+    const dist2 = world.dist2(player.x, player.y, soundX, soundY);
+    if (dist2 < audioDist2) {
+      audioDist2 = dist2;
+      audioScreen = screen;
+    }
     screen.accum += dt;
     while (screen.accum >= BAD_APPLE_FRAME_SECONDS) {
       screen.accum -= BAD_APPLE_FRAME_SECONDS;
@@ -362,6 +375,13 @@ export function updateBadAppleWorldAnomaly(world: World, player: Entity, state: 
     world.markWallTexDirty();
     world.markFloorTexDirty();
     world.markFogDirty();
+  }
+  if (audioScreen) {
+    const soundX = audioScreen.projectorIdx >= 0 ? (audioScreen.projectorIdx % W) + 0.5 : audioScreen.x + BAD_APPLE_WIDTH * 0.5;
+    const soundY = audioScreen.projectorIdx >= 0 ? ((audioScreen.projectorIdx / W) | 0) + 0.5 : audioScreen.y + BAD_APPLE_HEIGHT * 0.5;
+    updateBadAppleProjectorLoop(true, soundX, soundY, audioScreen.frame);
+  } else {
+    updateBadAppleProjectorLoop(false, player.x, player.y, 0);
   }
 }
 
@@ -385,6 +405,7 @@ export function tryUseBadAppleWorldAnomaly(world: World, player: Entity, state: 
     if (world.dist2(player.x, player.y, px + 0.5, py + 0.5) > 8) continue;
     if (world.dist2(lookX, lookY, px + 0.5, py + 0.5) > 4) continue;
     screen.active = !screen.active;
+    if (screen.active) primeBadAppleProjectorAudio();
     const room = world.rooms[screen.roomId];
     if (room) room.name = writeBadAppleRoomTag(screen.x, screen.y, screen.roomId, screen.projectorIdx, screen.frame, screen.active);
     state.msgs.push(msg(screen.active ? 'Проектор снова печатает Bad Apple! на бетон.' : 'Проектор остановлен. Кадр застыл в стенах.', state.time, screen.active ? '#8cf' : '#fa4'));
@@ -399,6 +420,7 @@ export function tryUseBadAppleWorldAnomaly(world: World, player: Entity, state: 
 }
 
 export function debugSpawnBadAppleWorld(world: World, player: Entity, state: GameState): string[] {
+  primeBadAppleProjectorAudio();
   const site = findBadAppleSiteNear(world, player.x, player.y);
   const placement = stampBadAppleWorld(world, site.x, site.y, { x: player.x, y: player.y });
   publishBadAppleEvent(world, player, state, 'bad_apple_spawned', 4, {

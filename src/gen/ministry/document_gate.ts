@@ -521,7 +521,7 @@ function handleDocumentGateUse(ctx: InventoryUseHandlerContext): boolean {
   if (!access) {
     if (!isRelevantRejectedDocument(ctx.def.id, ctx.def)) return false;
     ctx.msgs.push(msg(
-      `${GATE_ROOM_NAME} отверг ${ctx.def.name}: нужен корешок, допуск, подделка, краденая карточка, расписка, акт разоблачения или ключ инспектора.`,
+      `${GATE_ROOM_NAME} отверг ${ctx.def.name}: нужен корешок, допуск, подделка, краденая карточка, расписка, акт разоблачения или контрольный ключ.`,
       ctx.time,
       '#f84',
     ));

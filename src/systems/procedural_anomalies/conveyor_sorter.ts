@@ -41,7 +41,7 @@ export function updateConveyorSorterAnomaly(world: World, player: Entity, state:
 
   if (state.time - cache.lastMsgAt > 10) {
     cache.lastMsgAt = state.time;
-    state.msgs.push(msg('Сортировочная лента тянет вас к приемнику. Щиток можно заклинить клавишей E.', state.time, '#ca8'));
+    state.msgs.push(msg('Сортировочная лента тянет вас к приемнику. Щиток можно заклинить клавишей взаимодействия.', state.time, '#ca8'));
   }
 }
 

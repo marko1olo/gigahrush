@@ -96,7 +96,7 @@ export const EMERGENCY_PANEL_DEFS: readonly EmergencyPanelDef[] = [
       repair: 'Починить вытяжку',
       shutdown: 'Остановить вентиляцию',
       force: 'Вскрыть вентканал',
-      overload: 'Перегнать туман',
+      overload: 'Загнать туман в комнату',
     },
   },
 ];

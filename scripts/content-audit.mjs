@@ -821,6 +821,7 @@ const screenSignalEntries = arrayIds('src/data/screen_signals.ts', 'SCREEN_SIGNA
 const screenSignalEventTypeRefs = propertyStringArrayRefs('src/data/screen_signals.ts', 'SCREEN_SIGNAL_DEFS', 'eventTypes');
 const screenSignalTagRefs = propertyStringArrayRefs('src/data/screen_signals.ts', 'SCREEN_SIGNAL_DEFS', 'tags');
 const contractTagRefs = propertyStringArrayRefs('src/data/contracts.ts', 'CONTRACTS', 'tags');
+const contractRewardResourceRefs = arrayPropIds('src/data/contracts.ts', 'CONTRACTS', 'rewardResourceId');
 const sideQuestTagRefs = propertyStringArrayRefs('src/data/plot.ts', 'SIDE_QUESTS', 'eventTags');
 const rumorWarningTagRefs = nestedWarningTagRefs('src/data/rumors.ts', 'RUMORS');
 const nestedRumorRefs = [];
@@ -845,6 +846,7 @@ const questTargetItemIds = new Set([...itemIds, 'money']);
 const itemOrMoneyIds = new Set([...itemIds, 'money']);
 const plotNpcIds = new Set([...plotNpcEntries, ...localNpcDefEntries].map(v => v.id));
 const rumorIds = new Set(rumorEntries.map(v => v.id));
+const resourceIds = new Set(resourceEntries.map(v => v.id));
 const worldEventTypes = new Set(worldEventTypeEntries.map(v => v.id));
 
 const errors = [];
@@ -1014,6 +1016,9 @@ for (const ref of screenSignalEventTypeRefs) {
 }
 for (const ref of [...screenSignalTagRefs, ...contractTagRefs, ...sideQuestTagRefs, ...rumorWarningTagRefs]) {
   if (!tagIdRe.test(ref.id)) errors.push(`${ref.file}:${ref.line} ${ref.prop} uses non-static or invalid event tag id "${ref.id}"`);
+}
+for (const ref of contractRewardResourceRefs) {
+  if (!resourceIds.has(ref.id)) errors.push(`${ref.file}:${ref.line} CONTRACTS.rewardResourceId references missing resource "${ref.id}"`);
 }
 for (const ref of nestedRumorRefs) {
   if (!rumorIds.has(ref.id)) errors.push(`${ref.file}:${ref.line} rumorIds references missing rumor "${ref.id}"`);

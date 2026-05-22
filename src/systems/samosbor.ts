@@ -1241,7 +1241,7 @@ function chooseWarningZone(world: World, entities: Entity[]): { id: number; cx: 
 
 function warningActionLine(zoneId: number, seconds: number, variant: ActiveSamosborVariant): string {
   const zoneText = zoneId >= 0 ? `зона ${zoneId + 1}` : 'локальная зона';
-  if (isIstotit(variant)) return `ИСТОТИТ через ${seconds}с: ${zoneText}. К жёлтой герме, руки от ручки.`;
+  if (isIstotit(variant)) return `ИСТОТИТ через ${seconds}с: ${zoneText}. К жёлтой герме. Внутри решайте: впустить соседа или закрыться одному.`;
   if (isMaronary(variant)) return `МАРОНАРИЙ через ${seconds}с: ${zoneText}. Не смотри в зелёный источник, сверяй номер двери.`;
   if (isVeretar(variant)) return `ВЕРЕТАР через ${seconds}с: ${zoneText}. От белого окна, к тёмной герме или за границу зоны.`;
   if (variant.def.id === 'quiet') return `ТИХИЙ САМОСБОР через ${seconds}с: ${zoneText}. Сирены может не быть; сверяй карту, табло и соседей.`;
@@ -1349,7 +1349,7 @@ function warningBarkForVariant(variant: ActiveSamosborVariant, isFemale: boolean
   switch (variant.def.id) {
     case 'istotit':
       return isFemale
-        ? 'Колокола слышишь? К жёлтой герме, руки от ручки!'
+        ? 'Колокола слышишь? К жёлтой герме. Внутри решай: впустить соседа или закрыться одной!'
         : 'Сирена сорвалась в колокола. В укрытие, чужим голосам не отвечай!';
     case 'maronary':
       return isFemale
@@ -1451,7 +1451,7 @@ function ensureSamosborWarning(
   state.msgs.push(msg(`${floorName}. ${variantLine}`, state.time, variant.def.tint));
   if (modifierLine) state.msgs.push(msg(modifierLine, state.time, variant.def.tint));
   if (shelterRoomIds.length > 0) {
-    state.msgs.push(msg('ИСТОТИТ: укрытые комнаты отмечены жёлтой меткой; мест меньше, чем фамилий.', state.time, variant.def.tint));
+    state.msgs.push(msg('ИСТОТИТ: жёлтые гермы отмечены на карте; мест мало. Внутри нажмите E: впустить соседа или закрыться одному.', state.time, variant.def.tint));
   }
   if (isMaronary(variant) && (maronaryClue.greenSourceCount > 0 || maronaryClue.wrongDoorIdx >= 0)) {
     state.msgs.push(msg('Маронарий: зелёный источник и повтор двери отмечены. Свечение жжёт; проверяй маршрут по номеру, не по зелёному свету.', state.time, variant.def.tint));
@@ -1622,7 +1622,7 @@ export function updateSamosbor(
       ? 'ГЕРМЫ: досрочное закрытие. Кто у ручки - внутрь сейчас.'
       : activeVariant.sealTimingDelta < 0
         ? 'ГЕРМЫ: задержка закрытия. Не стой в коридоре, ищи второй контур.'
-        : 'ГЕРМЫ: закрываются. Руки от внешней ручки.';
+        : 'ГЕРМЫ: закрываются. Не стойте снаружи; зайдите в комнату или ищите второй контур.';
     state.msgs.push(msg(sealText, state.time, '#fa0'));
     if (sealedShelters > 0) state.msgs.push(msg('Жёлтые гермы закрылись мягко. Внутри стало теснее.', state.time, activeVariant.def.tint));
   }

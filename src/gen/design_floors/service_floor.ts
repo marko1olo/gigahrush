@@ -132,7 +132,7 @@ export const SERVICE_TRANSFER_ROUTES: readonly ServiceTransferRoute[] = [
   },
   {
     id: 'service_to_darkness_light_reserve',
-    label: 'Резерв аварийного света для темного отсека',
+    label: 'Резерв аварийного света для позднего маршрута',
     sourceRoomName: BREAKER_ROOM,
     targetRouteId: 'darkness',
     requiresZone: 'breaker_room',
@@ -638,7 +638,7 @@ function registerServiceRouteCues(
       radius: 8,
       targetRadius: 2.8,
       cooldownSec: 42,
-      heardText: 'Щитовая щелкает поздним резервом: схему можно потратить здесь или оставить для темного отсека.',
+      heardText: 'Щитовая щелкает поздним резервом: схему можно потратить здесь или оставить для нижнего маршрута.',
       followedText: 'Релейный резерв найден. Это будущий световой карман, если не израсходовать его на месте.',
       ignoredText: 'Резерв света остался в щитовой. Поздний маршрут будет темнее.',
     });

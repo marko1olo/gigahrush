@@ -594,7 +594,8 @@ function recentCombatSignal(state: GameState, time: number): CombatSignalHud | n
     if (text.startsWith('Взрыв!') || text.startsWith('БФГ!')) return { text: text.toUpperCase(), color: text.startsWith('БФГ!') ? '#4f4' : '#fa0' };
     if (text.includes('Нет патронов')) return { text: 'НЕТ ПАТРОНОВ', color: '#f84' };
     if (text.includes('Недостаточно ПСИ')) return { text: 'НЕТ ПСИ', color: '#f84' };
-    if (m.color === '#f66' || text.includes('режет тебя') || text.includes('задел тебя')) return { text: `УРОН ${text}`, color: '#f66' };
+    if (text.includes('режет тебя') || text.includes('задел тебя')) return { text: `УРОН ${text}`, color: '#f66' };
+    if (m.color === '#f66') return { text, color: '#f66' };
   }
   return null;
 }
@@ -1229,8 +1230,8 @@ export function drawHUD(
       status: 'locked',
       code: terminal.terminalIdx >= 0 ? `IDX ${terminal.terminalIdx}` : undefined,
       lines: [
-        'Счёт доступен в банковском режиме.',
-        'Редактор карты требует НЕТ-ГЕН.',
+        'НЕТ-ГЕН не найден.',
+        'Банковский счёт доступен, редактор карты закрыт.',
       ],
       footer: `${controlHint('gameMenu')} закрыть  |  счёт без ГЕН`,
     });

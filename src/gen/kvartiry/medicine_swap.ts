@@ -311,7 +311,7 @@ registerSideQuest('kv_lekha_menyala', LEKHA, [{
   id: WILD_ANTIDEP_QUEST_ID,
   giverNpcId: 'kv_lekha_menyala',
   type: QuestType.FETCH,
-  desc: 'Лёха Меняла: «Два антидепрессанта, и дверь останется доброй к тебе.»',
+    desc: 'Лёха Меняла: «Два антидепрессанта - и я не буду мешать тебе у двери.»',
   targetItem: 'antidep', targetCount: 2,
   rewardItem: 'pipe', rewardCount: 1,
   extraRewards: [{ defId: 'cigs', count: 4 }, { defId: 'water', count: 1 }],

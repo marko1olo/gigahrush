@@ -48,7 +48,7 @@ const FLOOR_IDS = new Set(
 export const CARAVAN_LANES: readonly CaravanLaneDef[] = [
   {
     id: 'kvartiry_living_food_water',
-    name: 'Квартиры -> жилая очередь воды и еды',
+    name: 'Квартиры -> Жилая: еда и вода',
     fromFloor: FloorLevel.KVARTIRY,
     toFloor: FloorLevel.LIVING,
     resourceDeltas: [{ resourceId: 'food', count: 6 }, { resourceId: 'drink_water', count: 5 }],
@@ -59,7 +59,7 @@ export const CARAVAN_LANES: readonly CaravanLaneDef[] = [
   },
   {
     id: 'maintenance_living_tools',
-    name: 'Коллекторы -> жилая ремонтная линия',
+    name: 'Коллекторы -> Жилая: металл и инструмент',
     fromFloor: FloorLevel.MAINTENANCE,
     toFloor: FloorLevel.LIVING,
     resourceDeltas: [{ resourceId: 'metal', count: 5 }, { resourceId: 'tools', count: 3 }],
@@ -82,7 +82,7 @@ export const CARAVAN_LANES: readonly CaravanLaneDef[] = [
   },
   {
     id: 'ministry_market_docs',
-    name: 'Министерство -> рынок бумаг и банка',
+    name: 'Министерство -> Жилая: бумаги и бланки',
     fromFloor: FloorLevel.MINISTRY,
     toFloor: FloorLevel.LIVING,
     resourceDeltas: [{ resourceId: 'documents', count: 5 }, { resourceId: 'paper', count: 4 }],
@@ -105,7 +105,7 @@ export const CARAVAN_LANES: readonly CaravanLaneDef[] = [
   },
   {
     id: 'net_exchange_data',
-    name: 'НЕТ-терминал -> обменные данные',
+    name: 'Министерство -> Жилая: НЕТ-схемы и бумаги',
     fromFloor: FloorLevel.MINISTRY,
     toFloor: FloorLevel.LIVING,
     resourceDeltas: [{ resourceId: 'electronics', count: 3 }, { resourceId: 'documents', count: 2 }],

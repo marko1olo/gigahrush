@@ -182,7 +182,7 @@ const EXPEDITION_CONTRACTS: ContractDef[] = [
   {
     id: 'compact_kvartiry_water_delivery', title: 'Фильтрованная вода в очередь', issuer: 'Пайковый стол',
     faction: Faction.CITIZEN, rank: 1, type: QuestType.FETCH,
-    desc: 'Доставь две бутылки фильтрованной воды к пайковому столу. За них дадут хлеб и талон; в коридоре воду не светить.',
+    desc: 'Доставь две бутылки фильтрованной воды к пайковому столу. За них дадут хлеб и талон; в коридоре воду не показывать.',
     target: { floor: FloorLevel.KVARTIRY, roomType: RoomType.KITCHEN, zoneTag: 'ration_queue', hint: 'Квартиры: коммунальная кухня, пайковая очередь и котёл беляка; воду лучше не светить в общем коридоре.' },
     targetItem: 'filtered_water', targetCount: 2,
     rewardItem: 'bread', rewardCount: 3, extraRewards: [{ defId: 'water_coupon', count: 1 }],
@@ -488,7 +488,7 @@ const EXPEDITION_CONTRACTS: ContractDef[] = [
     desc: 'Найди кормовую ванну, где слизневик берёт еду вместо крови. Подойди с фильтром и запасом еды или лекарств; задача - отметить пробу, а не устроить охоту.',
     target: {
       floor: FloorLevel.MAINTENANCE, roomType: RoomType.PRODUCTION, roomName: 'Кормовая ванна слизневика',
-      zoneTag: 'safe_slimevik_den', hint: 'Коллекторы: кормовая ванна слизневика. Слизневик нейтрален, но долгий контакт без фильтра сушит воду и ПСИ; бартер едой или лекарством отмечает пробу.',
+      zoneTag: 'safe_slimevik_den', hint: 'Коллекторы: кормовая ванна слизневика. Слизневик нейтрален, но долгий контакт без фильтра садит дыхание и ПСИ; бартер едой или лекарством отмечает пробу.',
     },
     targetMonsterKind: MonsterKind.SLIMEVIK,
     rewardItem: 'nii_sample_container', rewardCount: 1, extraRewards: [{ defId: 'filter_layer', count: 1 }],
@@ -670,7 +670,7 @@ const EXPEDITION_CONTRACTS: ContractDef[] = [
   {
     id: 'exp_maint_betonov_ministry_map', title: 'Карта Z+22 под подпись', issuer: 'Министерский прием НИИ',
     faction: Faction.CITIZEN, rank: 3, type: QuestType.FETCH,
-    desc: 'Министерский приём НИИ требует карту Бетонова с нижней Z-линией. Плата пропуском и квитанцией; карта станет уликой, сменщик у шкафа строкой в деле.',
+    desc: 'Министерский приём НИИ требует карту Бетонова с отметкой Z+22. Плата пропуском и квитанцией; карта станет уликой, сменщик у шкафа строкой в деле.',
     target: {
       floor: FloorLevel.MAINTENANCE, roomType: RoomType.STORAGE, roomName: PNEUMOMAIL_SORTER_ROOM_NAME,
       zoneTag: 'pneumomail', hint: 'Коллекторы: пневмопочтовая сортировка и мокрые шкафы после лифта Z+22. Ищите записку-карту, не образец.',
@@ -875,7 +875,7 @@ const CARAVAN_CONTRACTS: ContractDef[] = [
   {
     id: 'caravan_escort_net_signalers', title: 'Проводить НЕТ-сигнальщиков', issuer: 'Ира НЕТ-маршрут',
     faction: Faction.SCIENTIST, rank: 3, type: QuestType.VISIT,
-    desc: 'Сигнальный караван НЕТ-терминала несет задержки и схемы. Проведи их до обменной точки: линия данных откроется шире.',
+    desc: 'Сигнальный караван НЕТ-терминала несет релейные схемы и журналы задержек. Проведи их до обменной точки: линия данных откроется шире.',
     target: { floor: FloorLevel.LIVING, roomType: RoomType.OFFICE, zoneTag: 'caravan_exchange', hint: 'Жилая зона: караванная касса, терминальный стол или рыночный узел с антенной.' },
     rewardItem: 'relay_diagram', rewardCount: 1,
     moneyReward: 150, rewardResourceId: 'electronics', rewardScarcityMax: 2.5,
@@ -1016,7 +1016,7 @@ export const CONTRACTS: ContractDef[] = [
   {
     id: 'bm88_wet_stub_forgery', title: 'Мокрый корешок', issuer: 'Злата Тишина',
     faction: Faction.WILD, rank: 2, type: QuestType.FETCH,
-    desc: 'Злата Тишина просит официальный корешок с живой печатью. Сухой пойдёт на подделку, мокрый - на скидку и чужой проход через министерский стол.',
+    desc: 'Злата Тишина просит официальный корешок с живой печатью. Целый пойдёт на подделку, помятый - на скидку и чужой проход через министерский стол.',
     target: { floor: FloorLevel.MINISTRY, roomType: RoomType.OFFICE, zoneTag: 'document_gate', hint: 'Министерство: пропускные окна, проверочные коридоры и шкафы корешков.' },
     targetItem: 'official_permit_slip', targetCount: 1,
     rewardItem: 'fake_pass', rewardCount: 1, extraRewards: [{ defId: 'forged_quarantine_clearance', count: 1 }],
@@ -1227,7 +1227,7 @@ export const CONTRACTS: ContractDef[] = [
   {
     id: 'archive_card_discreet', title: 'Карточка без очереди', issuer: 'Картотека райсовета',
     faction: Faction.CITIZEN, rank: 1, type: QuestType.FETCH,
-    desc: 'Картотека райсовета платит копией дела за краденую архивную карточку. Брать из закрытого ящика тихо: служебный журнал спит только при свидетелях.',
+    desc: 'Картотека райсовета платит копией дела за краденую архивную карточку. Брать из закрытого ящика тихо: служебный журнал спит только без свидетелей.',
     target: { floor: FloorLevel.MINISTRY, roomType: RoomType.STORAGE, zoneTag: 'archive_theft', hint: 'Министерство: живой архив и закрытые ящики.' },
     targetItem: 'stolen_archive_card', targetCount: 1, rewardItem: 'personal_file_copy', rewardCount: 1,
     moneyReward: 130, xpReward: 70, relationDelta: 6, tags: ['admin', 'paper', 'archive', 'theft', 'stolen', 'access', 'audit'],
@@ -1465,7 +1465,7 @@ export const CONTRACTS: ContractDef[] = [
   {
     id: 'ministry_document_gate_n3', title: 'Проверка коридора N3', issuer: 'Окно N3',
     faction: Faction.CITIZEN, rank: 1, type: QuestType.FETCH,
-    desc: 'Окно N3 просит официальный корешок, но пост принимает разные риски: законный пропуск, кованую печать, краденую карточку, расписку ускорительного сбора или акт о пропавшей записи. Всё, кроме чистого корешка, оставляет след ревизии.',
+    desc: 'Окно N3 просит официальный корешок. Подделка, краденая карточка или расписка помогут пройти коридор, но для закрытия задания нужен чистый корешок без следа ревизии.',
     target: { floor: FloorLevel.MINISTRY, roomType: RoomType.OFFICE, zoneTag: 'document_gate', hint: 'Министерство: проверочный коридор N3, касса ускорительного сбора, шкаф карточек и стол актов разоблачения.' },
     targetItem: 'official_permit_slip', targetCount: 1, rewardItem: 'key', rewardCount: 1,
     moneyReward: 100, xpReward: 55, relationDelta: 8, tags: ['ministry', 'admin', 'paper', 'documents', 'official', 'access', 'document_gate', 'forgery', 'theft', 'bribe', 'expose', 'audit_risk'],

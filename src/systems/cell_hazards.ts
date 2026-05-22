@@ -220,7 +220,7 @@ function normalizeSite(draft: CellHazardSiteDraft): CellHazardSite | null {
     zoneId: draft.zoneId,
     centerX: draft.centerX ?? center.x,
     centerY: draft.centerY ?? center.y,
-    warning: draft.warning ?? 'Красная слизь держит ноги. Обойдите, выжгите или чистите растворителем.',
+    warning: draft.warning ?? 'Красная слизь держит ноги. Обойдите, выжгите или чистите комплектом.',
     inactiveWarning: draft.inactiveWarning ?? 'Опасный такт стих. Проход открыт ненадолго.',
     warningColor: draft.warningColor ?? '#c22',
   };

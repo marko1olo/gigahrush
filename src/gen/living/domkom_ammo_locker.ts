@@ -80,7 +80,7 @@ registerSideQuest(KEEPER_ID, NPC_DEFS[KEEPER_ID], [
     id: 'ag42_zoya_magazine_part',
     giverNpcId: KEEPER_ID,
     type: QuestType.FETCH,
-    desc: 'Зоя Патронная: «Принеси магазин или магазинную деталь. За учетную мелочь отдам немного 9мм и одну дробь.»',
+    desc: 'Зоя Патронная: «Принеси пустой магазин. За учетную мелочь отдам немного 9мм и одну дробь.»',
     targetItem: 'magazine_part',
     targetCount: 1,
     rewardItem: 'ammo_9mm',

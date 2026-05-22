@@ -189,7 +189,7 @@ export function drawContainerMenu(
   ctx.textAlign = 'right';
   const hintW = Math.max(60 * sx, cw - 16 * sx);
   ctx.fillText(fitText(ctx, `${controlBindingLabel('menuUp')}/${controlBindingLabel('menuDown')} - курсор`, hintW), cw - 8 * sx, ch - 24 * sy);
-  ctx.fillText(fitText(ctx, `${controlBindingLabel('interact')} - перенести 1 предмет`, hintW), cw - 8 * sx, ch - 16 * sy);
+  ctx.fillText(fitText(ctx, `${controlBindingLabel('interact')} - действие с предметом`, hintW), cw - 8 * sx, ch - 16 * sy);
   ctx.fillText(fitText(ctx, `${controlBindingLabel('gameMenu')} - закрыть`, hintW), cw - 8 * sx, ch - 8 * sy);
   ctx.textAlign = 'left';
 }

@@ -59,7 +59,7 @@ export const UPPER_BUREAU_GATE_OUTCOMES = [
     route: 'social_economic',
     documentItem: UPPER_BUREAU_DOCUMENTS.cleanerKey,
     flag: UPPER_BUREAU_FLAG_IDS.appointmentToken,
-    consequence: 'Игрок проходит за деньги; аудит получает слабый след.',
+    consequence: 'Проход за деньги открыт; аудит получает слабый след.',
   },
   {
     id: 'cleaner_staff_route',
@@ -84,7 +84,7 @@ export const UPPER_BUREAU_ROUTE_DECISIONS = [
     legalItemId: UPPER_BUREAU_DOCUMENTS.appointmentToken,
     illegalItemId: UPPER_BUREAU_DOCUMENTS.forgedAppointment,
     eventTag: 'permit_ambush',
-    outcome: 'Игрок может пройти с чистым корешком, принести подделку как улику или украсть папку засады с ростом аудита.',
+    outcome: 'С чистым корешком проход открыт; подделку можно сдать как улику или украсть папку засады с ростом аудита.',
   },
   {
     id: 'archive_toll',
@@ -334,7 +334,7 @@ registerSideQuest('bureau_permit_ambush_guard', AMBUSH_DEF, [
     id: 'bureau_permit_ambush_expose',
     giverNpcId: 'bureau_permit_ambush_guard',
     type: QuestType.FETCH,
-    desc: 'Старший Корешков: «Принесите кованый корешок как приманку. Чистый проход оставим чистым, а засада получит акт.»',
+    desc: 'Старший Корешков: «Принесите поддельный корешок как приманку. Чистый проход оставим чистым, а засада получит акт.»',
     targetItem: 'forged_permit_slip', targetCount: 1,
     rewardItem: 'record_exposure_notice', rewardCount: 1,
     extraRewards: [{ defId: 'official_permit_slip', count: 1 }],

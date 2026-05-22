@@ -12,7 +12,9 @@ const distHtml = path.resolve(root, 'dist', 'index.html');
 const itchZip = path.resolve(root, 'itch', 'gigahrush-itch.zip');
 const manifestPath = path.resolve(root, 'dist', 'build-size-manifest.json');
 const reportPath = path.resolve(root, 'dist', 'build-size-report.json');
-const badApplePath = path.resolve(root, 'src', 'data', 'bad_apple_frames.ts');
+const badAppleDecoderPath = path.resolve(root, 'src', 'data', 'bad_apple_frames.ts');
+const badAppleFramePackPath = path.resolve(root, 'src', 'data', 'bad_apple_frame_pack.ts');
+const badAppleAudioPath = path.resolve(root, 'src', 'data', 'bad_apple_theme_lofi.ts');
 
 const budgets = {
   htmlBytes: 9_500_000,
@@ -26,7 +28,12 @@ const bucketDefs = [
   {
     id: 'generated_frames',
     label: 'generated frame data',
-    match: id => id === 'src/data/bad_apple_frames.ts',
+    match: id => id === 'src/data/bad_apple_frames.ts' || id === 'src/data/bad_apple_frame_pack.ts',
+  },
+  {
+    id: 'bad_apple_audio',
+    label: 'Bad Apple audio',
+    match: id => id === 'src/data/bad_apple_theme_lofi.ts',
   },
   {
     id: 'sprite_code',
@@ -120,7 +127,7 @@ async function collectSourceFiles(dir, prefix = '') {
 }
 
 function parseNumberConst(source, name) {
-  const match = source.match(new RegExp(`export const ${name} = (\\d+);`));
+  const match = source.match(new RegExp(`export const ${name} = ([\\d.]+);`));
   return match ? Number(match[1]) : undefined;
 }
 
@@ -161,9 +168,14 @@ const itchStale = itchStat ? itchStat.mtimeMs + 1000 < htmlStat.mtimeMs : false;
 const manifest = await readJsonMaybe(manifestPath);
 const modules = Array.isArray(manifest?.modules) ? manifest.modules : [];
 const sourceFiles = await collectSourceFiles(path.resolve(root, 'src'));
-const badAppleData = await readFile(badApplePath);
-const badAppleSource = badAppleData.toString('utf8');
-const badAppleGzipBytes = gzipSync(badAppleData, { level: 9 }).length;
+const badAppleDecoderData = await readFile(badAppleDecoderPath);
+const badAppleFramePackData = await readFile(badAppleFramePackPath);
+const badAppleFrameData = Buffer.concat([badAppleDecoderData, badAppleFramePackData]);
+const badAppleSource = badAppleDecoderData.toString('utf8');
+const badAppleGzipBytes = gzipSync(badAppleFrameData, { level: 9 }).length;
+const badAppleAudioData = await readFile(badAppleAudioPath);
+const badAppleAudioSource = badAppleAudioData.toString('utf8');
+const badAppleAudioGzipBytes = gzipSync(badAppleAudioData, { level: 9 }).length;
 
 const buckets = [];
 for (const def of bucketDefs) {
@@ -182,7 +194,7 @@ const warnings = [];
 addWarning(warnings, 'single-file HTML', htmlData.length, budgets.htmlBytes);
 addWarning(warnings, 'single-file HTML gzip', htmlGzipBytes, budgets.htmlGzipBytes);
 if (itchStat && !itchStale) addWarning(warnings, 'itch upload ZIP', itchStat.size, budgets.itchZipBytes);
-addWarning(warnings, 'Bad Apple generated frame source', badAppleData.length, budgets.badAppleSourceBytes);
+addWarning(warnings, 'Bad Apple generated frame source', badAppleFrameData.length, budgets.badAppleSourceBytes);
 addWarning(warnings, 'Bad Apple generated frame gzip', badAppleGzipBytes, budgets.badAppleGzipBytes);
 
 const topModules = modules
@@ -202,6 +214,7 @@ const badApple = {
   sourceFirst: parseNumberConst(badAppleSource, 'BAD_APPLE_SOURCE_FRAME_FIRST'),
   sourceLast: parseNumberConst(badAppleSource, 'BAD_APPLE_SOURCE_FRAME_LAST'),
   sourceStep: parseNumberConst(badAppleSource, 'BAD_APPLE_SOURCE_FRAME_STEP'),
+  keyframeInterval: parseNumberConst(badAppleSource, 'BAD_APPLE_KEYFRAME_INTERVAL'),
   rleRuns: parseNumberConst(badAppleSource, 'BAD_APPLE_RLE_TOTAL_RUNS'),
   rleMaxRuns: parseNumberConst(badAppleSource, 'BAD_APPLE_RLE_MAX_RUNS'),
 };
@@ -216,8 +229,13 @@ const report = {
   },
   badApple: {
     ...badApple,
-    sourceBytes: badAppleData.length,
+    sourceBytes: badAppleFrameData.length,
     gzipBytes: badAppleGzipBytes,
+    decoderBytes: badAppleDecoderData.length,
+    framePackBytes: badAppleFramePackData.length,
+    audioSourceBytes: badAppleAudioData.length,
+    audioGzipBytes: badAppleAudioGzipBytes,
+    audioDurationSeconds: parseNumberConst(badAppleAudioSource, 'BAD_APPLE_THEME_DURATION_SECONDS'),
   },
   buckets,
   topModules,
@@ -238,9 +256,10 @@ if (itchStat) {
 }
 lines.push('');
 lines.push('Generated Frame Data');
-lines.push(`- src/data/bad_apple_frames.ts: ${formatBoth(badAppleData.length)} raw; ${formatBoth(badAppleGzipBytes)} gzip`);
+lines.push(`- src/data/bad_apple_frames.ts + src/data/bad_apple_frame_pack.ts: ${formatBoth(badAppleFrameData.length)} raw; ${formatBoth(badAppleGzipBytes)} gzip`);
 lines.push(`- Bad Apple frames: ${badApple.frames ?? '?'} at ${badApple.width ?? '?'}x${badApple.height ?? '?'}, source ${badApple.sourceFirst ?? '?'}..${badApple.sourceLast ?? '?'} step ${badApple.sourceStep ?? '?'}`);
-lines.push(`- RLE runs: ${badApple.rleRuns ?? '?'} total, ${badApple.rleMaxRuns ?? '?'} max per frame`);
+lines.push(`- Keyframe interval: ${badApple.keyframeInterval ?? '?'}; RLE runs: ${badApple.rleRuns ?? '?'} total, ${badApple.rleMaxRuns ?? '?'} max per frame`);
+lines.push(`- Bad Apple low-fi audio: ${formatBoth(badAppleAudioData.length)} raw; ${formatBoth(badAppleAudioGzipBytes)} gzip; duration ${parseNumberConst(badAppleAudioSource, 'BAD_APPLE_THEME_DURATION_SECONDS') ?? '?'}s`);
 lines.push('');
 lines.push('Source And Rendered Buckets');
 for (const bucket of buckets) {

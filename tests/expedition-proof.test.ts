@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { FloorLevel, QuestType, RoomType } from '../src/core/types';
-import { CONTRACTS, contractToQuest } from '../src/data/contracts';
+import { CONTRACTS, contractToQuest, questTargetEventData, questTargetRoute } from '../src/data/contracts';
 import {
   SMOKE_DEBUG_COMMAND_IDS,
   getDebugCommandIndex,
@@ -104,4 +104,29 @@ test('expedition proof contract carries risk, container objective, reward, and r
   assert.equal(quest.targetMarker?.risk, 2);
   assert.equal(quest.rewardItem, 'filtered_water');
   assert.equal(quest.moneyReward, def.moneyReward);
+});
+
+test('all system contracts keep route-readable quest and event target data', () => {
+  for (const def of CONTRACTS) {
+    assert.ok(def.target.hint.trim().length >= 12, `${def.id} needs a concrete target hint`);
+
+    const quest = contractToQuest(def, 10_000);
+    assert.equal(quest.contractId, def.id, `${def.id} must survive as quest contract id`);
+    assert.equal(quest.targetFloor, def.target.floor, `${def.id} must preserve target floor`);
+    assert.equal(quest.targetRoomType, def.target.roomType, `${def.id} must preserve target room type`);
+    assert.equal(quest.targetZoneTag, def.target.zoneTag, `${def.id} must preserve target zone tag`);
+    assert.equal(quest.targetHint, def.target.hint, `${def.id} must preserve target hint`);
+    assert.equal(quest.targetMarker?.floor, def.target.floor, `${def.id} must expose marker floor`);
+    assert.equal(quest.targetMarker?.roomType, def.target.roomType, `${def.id} must expose marker room type`);
+    assert.equal(quest.targetMarker?.zoneTag, def.target.zoneTag, `${def.id} must expose marker zone tag`);
+    assert.ok(questTargetRoute(quest), `${def.id} must expose a route target`);
+
+    const eventData = questTargetEventData(quest);
+    assert.equal(eventData.targetFloor, def.target.floor, `${def.id} event data must include target floor`);
+    assert.equal(eventData.targetHint, def.target.hint, `${def.id} event data must include target hint`);
+    assert.deepEqual(eventData.targetMarker, quest.targetMarker, `${def.id} event data must include target marker`);
+    if (def.target.zoneTag) {
+      assert.equal(eventData.targetZoneTag, def.target.zoneTag, `${def.id} event data must include target zone tag`);
+    }
+  }
 });

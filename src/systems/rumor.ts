@@ -487,7 +487,7 @@ function formatEventLead(event: RumorEventRecord): string {
   if (event.floor !== undefined) pushLeadPart(parts, FLOOR_NAMES[event.floor]);
   const zoneName = eventZoneName(event);
   if (zoneName) pushLeadPart(parts, zoneName);
-  else if (event.zoneId !== undefined) pushLeadPart(parts, `зона ${event.zoneId}`);
+  else if (event.zoneId !== undefined) pushLeadPart(parts, `зона ${event.zoneId + 1}`);
   const roomName = eventRoomName(event);
   if (roomName) pushLeadPart(parts, roomName);
   else if (event.roomType !== undefined) pushLeadPart(parts, ROOM_TYPE_NAMES[event.roomType]);
@@ -530,7 +530,7 @@ function eventLeadAction(event: RumorEventRecord): string {
   if (type === 'shelter_tally_handled') return 'спроси, кому ушла ведомость укрытых и кто оказался лишним в строках';
   if (type === 'player_sell_item' || type === 'player_handoff_item') return 'спроси, кому ушла проба и сохранилась ли пломба';
   if (type === 'player_destroy_item') return 'проверь, что открытый остаток не остался в инвентаре';
-  return 'проверь место слуха, пока событие не стерли стены';
+  return 'проверь место слуха, пока свидетели не разошлись и следы не затоптали';
 }
 
 function rememberRecentLead(rumor: RumorDef, text: string, now: number, event?: RumorEventRecord): void {
@@ -718,7 +718,7 @@ function warningTagName(tag: string): string {
 
 function fillSlots(text: string, snapshot: ContextSnapshot): string {
   let out = text;
-  if (out.includes('{zone}')) out = out.split('{zone}').join(snapshot.zoneId === undefined ? 'этой зоне' : `зоне ${snapshot.zoneId}`);
+  if (out.includes('{zone}')) out = out.split('{zone}').join(snapshot.zoneId === undefined ? 'этой зоне' : `зоне ${snapshot.zoneId + 1}`);
   if (out.includes('{room}')) out = out.split('{room}').join(snapshot.roomName ?? 'этой комнате');
   return out;
 }

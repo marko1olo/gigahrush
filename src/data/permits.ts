@@ -66,7 +66,7 @@ export const PERMIT_DEFS: readonly PermitDef[] = [
   {
     id: 'ministry_forged_slip',
     itemId: 'forged_permit_slip',
-    title: 'кованый корешок',
+    title: 'поддельный корешок',
     method: 'forged',
     official: false,
     accessTags: ['ministry_n3', 'general_admin'],

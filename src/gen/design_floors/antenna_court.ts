@@ -67,7 +67,7 @@ export const ANTENNA_COURT_ROUTE_DECISIONS = [
     roomName: 'Релейная будка',
     itemId: 'circuit_board',
     eventAction: 'repair',
-    outcome: 'Паша чинит качество сигнала, а игрок получает route clue вместо полного раскрытия карты.',
+    outcome: 'Паша чинит реле: сигнал дает маршрутную зацепку, не полную карту.',
   },
   {
     id: 'signal_exposure',
@@ -152,10 +152,10 @@ const SIGNAL_CLUES: Record<AntennaRouteId, SignalClueDef> = {
     tags: ['market_88', 'raid', 'jam'],
   },
   void_protocol: {
-    label: 'Пустотный протокол',
+    label: '[ДАННЫЕ УДАЛЕНЫ]',
     minQuality: 5,
-    clue: 'Пустота записывается как отсутствие слов; не открывай банку рядом с зеркальным экраном.',
-    faintClue: 'В тишине слышна фраза без говорящего.',
+    clue: 'Сигнал записан как [ДАННЫЕ УДАЛЕНЫ]; банку не открывать рядом с зеркальным экраном.',
+    faintClue: 'В тишине слышно: [ДАННЫЕ УДАЛЕНЫ].',
     tags: ['void', 'protocol', 'recording'],
   },
 };
@@ -225,7 +225,7 @@ const NPC_DEFS: Record<string, PlotNpcDef> = {
     ],
     talkLinesPost: [
       'Батареи на месте или в отчете. Меня устроит любой вариант с подписью.',
-      'Не носи пустотную запись через Министерство без бумаги.',
+      'Не носи закрытую запись через Министерство без бумаги.',
     ],
   },
   antenna_echo_zhenya: {
@@ -241,12 +241,12 @@ const NPC_DEFS: Record<string, PlotNpcDef> = {
     ],
     talkLines: [
       'Я повторяю не людей. Я повторяю места, когда они забывают закрыть рот.',
-      'Пустотный сигнал можно записать в банку. Потом его можно продать. Или отдать Якову. Или пожалеть.',
+      'Сигнал можно записать в банку. Потом его можно продать, отдать Якову или запереть обратно в архив.',
       'Если банка дрожит без голоса, значит запись получилась.',
     ],
     talkLinesPost: [
       'Теперь у меня во рту тише. Спасибо или извини, не знаю.',
-      'Яков поймет запись. Рынок просто купит страх.',
+      'Яков разберет запись. Рынок просто купит банку.',
     ],
     talkQuestResponse: 'Скажи Паше: верхняя мачта не сломана, она притворяется лежачей антенной.',
   },
@@ -312,7 +312,7 @@ registerSideQuest('antenna_captain_krug', NPC_DEFS.antenna_captain_krug, [
     id: 'antenna_expose_signal_log',
     giverNpcId: 'antenna_captain_krug',
     type: QuestType.FETCH,
-    desc: 'Капитан Круг: «Акт о пропавшей записи превратит пустотный шёпот в министерский след. За бумагу дам законный корешок.»',
+    desc: 'Капитан Круг: «Акт о пропавшей записи превратит закрытый шёпот в министерский след. За бумагу дам законный корешок.»',
     targetItem: 'record_exposure_notice', targetCount: 1,
     rewardItem: 'official_permit_slip', rewardCount: 1,
     extraRewards: [{ defId: 'denunciation', count: 1 }],
@@ -325,7 +325,7 @@ registerSideQuest('antenna_echo_zhenya', NPC_DEFS.antenna_echo_zhenya, [
     id: 'antenna_record_void',
     giverNpcId: 'antenna_echo_zhenya',
     type: QuestType.FETCH,
-    desc: 'Эхо Женя: «Запиши невозможный голос в банку и реши: продать страх или отдать его тем, кто понимает пустоту.»',
+    desc: 'Эхо Женя: «Запиши голосовую аномалию в банку и реши: продать ее рынку или отдать тому, кто умеет читать записи.»',
     targetItem: 'bottled_voice', targetCount: 1,
     rewardItem: 'psi_stabilizer', rewardCount: 1,
     extraRewards: [{ defId: 'antidep', count: 1 }],

@@ -191,7 +191,7 @@ export function updateRadioChessAnomaly(world: World, player: Entity, state: Gam
   const phase = PHASES[phaseIndex % PHASES.length];
   if (phaseIndex !== runtime.lastPhase) {
     runtime.lastPhase = phaseIndex;
-    state.msgs.push(msg(`Радио: можно ${phaseName(phase)}.`, state.time, '#dd8'));
+    state.msgs.push(msg(`Радио: безопасны ${phaseName(phase)}.`, state.time, '#dd8'));
   }
 
   runtime.tickAccum += dt;

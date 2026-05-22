@@ -52,7 +52,7 @@ const CLAIMANT_DEF: PlotNpcDef = {
   ],
   talkLines: [
     'Сенька Канистра. Ликвидаторы зовут это опасным остатком, рынок зовёт это товаром.',
-    'Проба в печи станет пылью и фильтром. В моих руках — долгом, слухом и деньгами.',
+    'Проба в печи станет сухим остатком. В моих руках — долгом, слухом и деньгами.',
     'Топливо у них под пломбой. Пломба — это такая просьба открыть аккуратно.',
   ],
   talkLinesPost: [
@@ -71,7 +71,7 @@ registerSideQuest('ag71_furnace_operator', OPERATOR_DEF, [
     targetFloor: FloorLevel.MAINTENANCE,
     targetRoomType: RoomType.PRODUCTION,
     targetZoneTag: 'deactivation_furnace',
-    targetHint: 'Коллекторы: сухой обход даёт коричневую пробу; печь деактивации меняет её на гашёный остаток и фильтр.',
+    targetHint: 'Коллекторы: сухой обход даёт коричневую пробу; печь деактивации гасит её в сухой остаток, а фильтр выдают по акту.',
     rewardItem: 'deactivated_residue', rewardCount: 2,
     extraRewards: [{ defId: 'gasmask_filter', count: 1 }, { defId: 'filter_receipt', count: 1 }],
     relationDelta: 12, xpReward: 75, moneyReward: 65,

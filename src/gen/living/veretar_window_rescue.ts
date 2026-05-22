@@ -83,7 +83,7 @@ registerSideQuest(WITNESS_ID, WITNESS, [
     id: 'ag95_mark_white_shortcut',
     giverNpcId: WITNESS_ID,
     type: QuestType.VISIT,
-    desc: 'Лида Белооконная: «Белый обход справа от окна короче обычного коридора. Если выберешь его до пломбы, фото заберёшь, а свидетель замолчит.»',
+    desc: 'Лида Белооконная: «Белый обход справа от окна короче обычного коридора. Если выберешь его, фото заберёшь, а свидетель замолчит.»',
     targetRoomName: SHORTCUT_NAME,
     rewardItem: 'overexposed_photo',
     rewardCount: 1,
