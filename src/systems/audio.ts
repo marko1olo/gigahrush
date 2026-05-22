@@ -1133,6 +1133,51 @@ export function playHostileFlame(): void {
   src.start();
 }
 
+export function playFogSharkHiss(): void {
+  const ac = beginCue('monster_growl');
+  if (!ac) return;
+  const len = 0.36;
+  const buf = ac.createBuffer(1, ac.sampleRate * len, ac.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) {
+    const t = i / d.length;
+    const env = Math.sin(t * Math.PI) * (1 - t * 0.25);
+    d[i] = (Math.random() * 2 - 1) * env * 0.32 + Math.sin(i * 0.029) * env * 0.12;
+  }
+  const src = ac.createBufferSource();
+  src.buffer = buf;
+  const g = ac.createGain();
+  g.gain.value = 0.12;
+  const hp = ac.createBiquadFilter();
+  hp.type = 'highpass';
+  hp.frequency.value = 520;
+  src.connect(hp).connect(g).connect(gain());
+  src.start();
+}
+
+export function playFogSharkBite(): void {
+  const ac = beginCue('melee_attack');
+  if (!ac) return;
+  const len = 0.09;
+  const buf = ac.createBuffer(1, ac.sampleRate * len, ac.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) {
+    const t = i / d.length;
+    const env = Math.exp(-t * 13);
+    d[i] = (Math.random() * 2 - 1) * env * 0.42 + Math.sin(i * 0.18) * env * 0.24;
+  }
+  const src = ac.createBufferSource();
+  src.buffer = buf;
+  const g = ac.createGain();
+  g.gain.value = 0.16;
+  const bp = ac.createBiquadFilter();
+  bp.type = 'bandpass';
+  bp.frequency.value = 930;
+  bp.Q.value = 1.4;
+  src.connect(bp).connect(g).connect(gain());
+  src.start();
+}
+
 /* ── PSI Beam: continuous howling energy ──────────────────────── */
 export function playPsiBeam(): void {
   const ac = beginCue('psi_cast');

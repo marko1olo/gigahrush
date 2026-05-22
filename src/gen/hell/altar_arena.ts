@@ -7,7 +7,7 @@ import {
 } from '../../core/types';
 import { World } from '../../core/world';
 import { freshNeeds, randomName } from '../../data/catalog';
-import { MONSTERS, applyMonsterVariant } from '../../entities/monster';
+import { MONSTERS } from '../../entities/monster';
 import { getMaxHp, gaussianLevel, randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg';
 import { Spr } from '../../render/sprite_index';
 import { MarkType, stampMark } from '../../render/marks';
@@ -460,7 +460,7 @@ function createArenaMonster(
     monsterKind: kind,
     attackCd: def.attackRate,
     ai: {
-      goal: target ? AIGoal.HUNT : AIGoal.IDLE,
+      goal: target ? AIGoal.HUNT : AIGoal.WANDER,
       tx: Math.floor(target?.x ?? x),
       ty: Math.floor(target?.y ?? y),
       path: [],
@@ -470,7 +470,6 @@ function createArenaMonster(
     },
     rpg,
   };
-  applyMonsterVariant(entity, FloorLevel.HELL);
   return entity;
 }
 

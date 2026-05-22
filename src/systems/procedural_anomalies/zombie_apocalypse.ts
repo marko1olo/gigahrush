@@ -124,7 +124,6 @@ export function tryZombieApocalypseInfection(
   target.questId = undefined;
   target.weapon = undefined;
   target.tool = undefined;
-  target.monsterVariantId = undefined;
   target.monsterDmgMult = undefined;
   target.phasing = false;
   target.psiControlledBy = undefined;

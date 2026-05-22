@@ -49,8 +49,9 @@ import {
   proceduralLootValueCap,
   type ProceduralFloorSpec,
 } from '../data/procedural_floors';
-import { MONSTERS, applyMonsterVariant } from '../entities/monster';
+import { MONSTERS } from '../entities/monster';
 import { monsterSpr, Spr } from '../render/sprite_index';
+import { MarkType, stampMark } from '../render/marks';
 import { gaussianLevel, getMaxHp, randomRPG } from '../systems/rpg';
 import { canSpawnEntityType, entitySpawnSlots } from '../systems/entity_limits';
 import { addRailTrainRoute } from '../systems/rail_trains';
@@ -76,6 +77,8 @@ import { applyProceduralAnomalyProfile } from './procedural_anomalies';
 import { removeNpcEntities } from './entity_filters';
 import { registerProceduralAnomalyPlacement } from './procedural_anomalies/common';
 import { sampleNaturalPopulationCells, type NaturalPopulationProfile } from './population_placement';
+
+const EXCLUDE_GNILUSHKA = [MonsterKind.GNILUSHKA] as const;
 
 function irng(lo: number, hi: number): number {
   return lo + Math.floor(Math.random() * (hi - lo + 1));
@@ -679,6 +682,8 @@ function proceduralNpcPlacementProfile(spec: ProceduralFloorSpec): NaturalPopula
     noiseScale: highDensity ? 160 : 128,
     noiseStrength: highDensity ? 0.02 : 0.1,
     openWeight: 1.0,
+    bucketSize: highDensity ? 32 : undefined,
+    maxPerBucket: highDensity ? 20 : undefined,
     roomWeights: highDensity
       ? {
           [RoomType.LIVING]: 1.0,
@@ -759,10 +764,71 @@ function rareMonsterChance(spec: ProceduralFloorSpec): number {
   return Math.min(0.08, 0.012 + spec.danger * 0.008 + routePressureLevel(spec) * 0.005);
 }
 
+function proceduralAllowsGnilushka(spec: ProceduralFloorSpec): boolean {
+  return spec.anomalyId === 'samosbor_seed'
+    || spec.anomalyId === 'false_safe_block'
+    || spec.anomalyId === 'mushroom_mycelium';
+}
+
 function roomTypeAt(world: World, x: number, y: number): RoomType | undefined {
   const rid = world.roomMap[world.idx(x, y)];
   if (rid >= 0) return world.rooms[rid]?.type;
   return RoomType.CORRIDOR;
+}
+
+function canPlaceBezekhiyAt(world: World, x: number, y: number): boolean {
+  const idx = world.idx(x, y);
+  return world.cells[idx] === Cell.FLOOR && !world.solid(x, y);
+}
+
+function bezekhiyDoorSpawn(world: World, pos: { x: number; y: number }): { x: number; y: number } | null {
+  const dirs = [
+    [1, 0],
+    [-1, 0],
+    [0, 1],
+    [0, -1],
+  ] as const;
+  let best: { x: number; y: number } | null = null;
+  let bestD2 = 18 * 18;
+  for (let dy = -18; dy <= 18; dy++) {
+    for (let dx = -18; dx <= 18; dx++) {
+      const x = world.wrap(pos.x + dx);
+      const y = world.wrap(pos.y + dy);
+      const idx = world.idx(x, y);
+      if (world.cells[idx] !== Cell.DOOR || !world.doors.has(idx)) continue;
+      const d2 = world.dist2(pos.x + 0.5, pos.y + 0.5, x + 0.5, y + 0.5);
+      if (d2 >= bestD2) continue;
+      for (const [ox, oy] of dirs) {
+        const sx = world.wrap(x + ox);
+        const sy = world.wrap(y + oy);
+        if (!canPlaceBezekhiyAt(world, sx, sy)) continue;
+        best = { x: sx, y: sy };
+        bestD2 = d2;
+        break;
+      }
+    }
+  }
+  return best;
+}
+
+function tumannikFogSpawn(world: World, pos: { x: number; y: number }): { x: number; y: number } | null {
+  let best: { x: number; y: number } | null = null;
+  let bestD2 = 30 * 30;
+  for (let dy = -30; dy <= 30; dy++) {
+    for (let dx = -30; dx <= 30; dx++) {
+      const x = world.wrap(pos.x + dx);
+      const y = world.wrap(pos.y + dy);
+      const ci = world.idx(x, y);
+      if (world.fog[ci] < 36) continue;
+      if (world.cells[ci] !== Cell.FLOOR && world.cells[ci] !== Cell.WATER) continue;
+      if (world.solid(x, y)) continue;
+      const d2 = world.dist2(pos.x + 0.5, pos.y + 0.5, x + 0.5, y + 0.5);
+      if (d2 >= bestD2) continue;
+      bestD2 = d2;
+      best = { x, y };
+    }
+  }
+  return best;
 }
 
 function spawnMonster(
@@ -783,17 +849,24 @@ function spawnMonster(
     floorTags: spec.monsterBiasTags,
     samosborCount: spec.danger,
     allowRare,
+    excludeKinds: proceduralAllowsGnilushka(spec) ? undefined : EXCLUDE_GNILUSHKA,
     biasKinds: spec.monsterBiasKinds,
     routePressure: routePressureLevel(spec),
   });
   const def = MONSTERS[kind];
-  const zoneLevel = world.zones[world.zoneMap[world.idx(pos.x, pos.y)]]?.level ?? spec.danger;
+  const spawnPos = kind === MonsterKind.BEZEKHIY
+    ? bezekhiyDoorSpawn(world, pos) ?? pos
+    : kind === MonsterKind.TUMANNIK
+      ? tumannikFogSpawn(world, pos)
+      : pos;
+  if (!spawnPos) return null;
+  const zoneLevel = world.zones[world.zoneMap[world.idx(spawnPos.x, spawnPos.y)]]?.level ?? spec.danger;
   const hp = Math.round(def.hp * (0.75 + zoneLevel * 0.18));
   const monster: Entity = {
     id: nextId.v++,
     type: EntityType.MONSTER,
-    x: pos.x + 0.5,
-    y: pos.y + 0.5,
+    x: spawnPos.x + 0.5,
+    y: spawnPos.y + 0.5,
     angle: Math.random() * Math.PI * 2,
     pitch: 0,
     alive: true,
@@ -803,13 +876,24 @@ function spawnMonster(
     maxHp: hp,
     monsterKind: kind,
     attackCd: 0,
-    ai: { goal: AIGoal.WANDER, tx: pos.x, ty: pos.y, path: [], pi: 0, stuck: 0, timer: 0 },
+    ai: { goal: AIGoal.WANDER, tx: spawnPos.x, ty: spawnPos.y, path: [], pi: 0, stuck: 0, timer: 0 },
     rpg: randomRPG(Math.max(1, zoneLevel)),
     phasing: kind === MonsterKind.SPIRIT,
   };
-  applyMonsterVariant(monster, proceduralMonsterFloor(spec), spec.danger >= 4);
+  if (kind === MonsterKind.PAUPSINA) stampPaupsinaWebWarning(world, spawnPos.x, spawnPos.y, spec.seed ^ nextId.v);
   entities.push(monster);
   return kind;
+}
+
+function stampPaupsinaWebWarning(world: World, cx: number, cy: number, seed: number): void {
+  for (let i = 0; i < 5; i++) {
+    const a = seed * 0.017 + i * 1.77;
+    const d = i === 0 ? 0 : 1 + (i % 3);
+    const x = world.wrap(cx + Math.round(Math.cos(a) * d));
+    const y = world.wrap(cy + Math.round(Math.sin(a) * d));
+    if (world.solid(x, y)) continue;
+    stampMark(world, x, y, 0.5, 0.5, i === 0 ? 0.54 : 0.32, MarkType.WEB, seed + i * 91, 226, 226, 202, i === 0 ? 175 : 120);
+  }
 }
 
 function spawnMonsters(world: World, entities: Entity[], nextId: { v: number }, spec: ProceduralFloorSpec, sx: number, sy: number): void {
@@ -986,7 +1070,6 @@ function spawnSmogMonster(world: World, room: Room, entities: Entity[], nextId: 
     rpg: randomRPG(Math.max(1, zoneLevel)),
     phasing: kind === MonsterKind.SPIRIT,
   };
-  applyMonsterVariant(monster, spec.baseFloor, true);
   entities.push(monster);
 }
 

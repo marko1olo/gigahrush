@@ -8,7 +8,7 @@ import {
 } from '../../core/types';
 import { World } from '../../core/world';
 import { type PlotNpcDef, registerSideQuest } from '../../data/plot';
-import { MONSTERS, applyMonsterVariant } from '../../entities/monster';
+import { MONSTERS } from '../../entities/monster';
 import { publishEvent, registerWorldEventObserver } from '../../systems/events';
 import { randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg';
 import {
@@ -269,7 +269,6 @@ function wakeMachinery(site: RemontnikSite, state: GameState, reason: RemontnikO
     ai: { goal: AIGoal.WANDER, tx: site.shortcutX, ty: site.shortcutY, path: [], pi: 0, stuck: 0, timer: 0 },
     rpg: randomRPG(zoneLevel),
   };
-  applyMonsterVariant(robot, FloorLevel.MAINTENANCE, true);
   site.entities.push(robot);
   state.msgs.push(msg(
     reason === 'welded'

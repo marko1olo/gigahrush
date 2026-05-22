@@ -4,7 +4,7 @@
 
 External research pass for missing Samosbor/Gigahrush creatures. Sources are unstable and often contradictory, so each plan turns a repeated motif into a bounded game rule instead of copying lore text.
 
-Current game coverage checked against `README.md`, `architecture.md`, `src/core/types.ts`, `src/entities/monster.ts`, `src/data/monster_ecology.ts`, obsolete `src/data/monster_variants.ts`, `src/systems/ai/monster.ts`, and targeted `rg` searches.
+Current game coverage checked against `README.md`, `architecture.md`, `src/core/types.ts`, `src/entities/monster.ts`, `src/data/monster_ecology.ts`, the obsolete/current-at-writing `src/data/monster_variants.ts`, `src/systems/ai/monster.ts`, and targeted `rg` searches.
 
 ## Hard Rule
 
@@ -18,7 +18,15 @@ These files are written for one GPT-5.5 worker per `addmonster_N.md`.
 
 Wave A can run in parallel: `addmonster_01.md` through `addmonster_42.md`. Each worker owns only the monster in its file. Private package files are safe to create in parallel; shared registry edits must be minimal, append-only, and conflict-resolved by preserving every other worker's additions.
 
-Wave B is serial: `addmonster_43.md`. Run it only after Wave A branches are merged or intentionally staged. It owns the runtime migration that deletes the old mechanical subtype layer.
+Wave B is serial: `addmonster_43.md`. It owns the runtime migration that deletes the old mechanical subtype layer. It was originally written as the final pass after Wave A, but it may also run between an incomplete first Wave A and a repeat Wave A. In that mode it must preserve every partial standalone monster already present and leave a clear handoff for repeat workers to finish missing per-monster pieces.
+
+Repeat Wave A mode:
+
+- Treat `addmonster_01.md` through `addmonster_42.md` as audit/completion prompts, not clean-room prompts.
+- Each worker must first search the current tree for its planned `MonsterKind`, sprite module, display name, old source id, authored POI, AI hook, and tests.
+- If partial work exists, keep its established ids and finish the missing `Done` items instead of adding a duplicate monster package.
+- If `addmonster_43.md` already removed `monsterVariantId`, `MONSTER_VARIANTS`, and `src/data/monster_variants.ts`, repeat workers must not re-add them. Any leftover old references become direct `MonsterKind`, encounter tags, or authored module state.
+- Shared-file conflict resolution is conservative: keep one canonical entry for the assigned monster, preserve unrelated monsters, and avoid sorting/refactor churn.
 
 Common worker contract:
 
@@ -26,7 +34,7 @@ Common worker contract:
 - Do not edit another worker's monster package, another `addmonster_N.md`, or unrelated floor/content systems.
 - Do not introduce or revive `monsterVariantId`, `MONSTER_VARIANTS`, `applyMonsterVariant`, mechanical prefixes, or derived monster stats.
 - If a shared file conflicts, keep both monsters' additions and avoid sorting/refactoring churn.
-- Final report must list changed paths, the new `MonsterKind`, reachability/debug path, tests run, and any deferred integration work.
+- Final report must list changed paths, the new or existing `MonsterKind`, reachability/debug path, tests run, whether this was a fresh implementation or repeat completion, and any deferred integration work.
 
 ## Plans Created
 

@@ -51,9 +51,11 @@ import {
   applyZhelemishSkinWithMessage,
   cureZhelemishSkin,
   isZhelemishCureItem,
+  sporeHazeAimSpreadMult,
   zhelemishHealingMult,
   zhelemishSourceForItem,
 } from './status';
+import { consumeNoisyDocumentDelay } from './document_scent';
 
 const MAX_SLOTS = 25;
 const GOVNYAK_COURIER_ROUTE_SET = new Set<string>(GOVNYAK_COURIER_CONTRACT_IDS);
@@ -1262,6 +1264,12 @@ export function useItem(e: Entity, slotIdx: number, msgs: Msg[], time: number, s
   const slot = e.inventory[slotIdx];
   const def = ITEMS[slot.defId];
   if (!def) return;
+  const noisyDocument = consumeNoisyDocumentDelay(slot, time);
+  if (noisyDocument) {
+    msgs.push(msg(`Конторская метка шумит в бумаге: ${noisyDocument.itemName}. Попробуйте еще раз через секунду.`, time, '#d9b36a'));
+    publishPlayerItemEvent(state, e, 'player_use_item', def.id, 1, 2, zoneId);
+    return;
+  }
 
   for (const handler of getInventoryUseHandlers()) {
     if (handler({ actor: e, slotIdx, slot, def, msgs, time, state, zoneId, world })) return;
@@ -1471,7 +1479,8 @@ export function pickupNearby(
 export function getWeaponStats(e: Entity): WeaponStats {
   const ws = WEAPON_STATS[e.weapon ?? ''] ?? WEAPON_STATS[''];
   const govnyakSpread = govnyakAimSpreadMult(e);
-  if (!e.rpg && govnyakSpread === 1) return ws;
+  const sporeSpread = sporeHazeAimSpreadMult(e);
+  if (!e.rpg && govnyakSpread === 1 && sporeSpread === 1) return ws;
   let speed = ws.speed;
   let spread = ws.spread;
   let psiCost = ws.psiCost;
@@ -1482,7 +1491,7 @@ export function getWeaponStats(e: Entity): WeaponStats {
     if (nextSpeed !== ws.speed) { speed = nextSpeed; changed = true; }
   }
   if (ws.isRanged && ws.spread !== undefined && ws.spread > 0) {
-    const nextSpread = ws.spread * (e.rpg ? agiRangedSpreadMult(e.rpg) : 1) * govnyakSpread;
+    const nextSpread = ws.spread * (e.rpg ? agiRangedSpreadMult(e.rpg) : 1) * govnyakSpread * sporeSpread;
     if (nextSpread !== ws.spread) { spread = nextSpread; changed = true; }
   }
   if (e.rpg && ws.psiCost !== undefined && ws.psiCost > 0) {

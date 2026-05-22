@@ -10,7 +10,7 @@ import { World } from '../../core/world';
 import { FALSE_SAFE_BLOCK_ROOM_PREFIX, FALSE_SAFE_BLOCK_TAG } from '../../data/procedural_floors';
 import { type PlotNpcDef, registerSideQuest } from '../../data/plot';
 import { addFactionRelMutual } from '../../data/relations';
-import { MONSTERS, applyMonsterVariant } from '../../entities/monster';
+import { MONSTERS } from '../../entities/monster';
 import { monsterSpr } from '../../render/sprite_index';
 import { publishEvent, registerWorldEventObserver } from '../../systems/events';
 import { randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg';
@@ -524,7 +524,6 @@ function spawnSvodMonster(
     ai: { goal: AIGoal.WANDER, tx: pos.x + 0.5, ty: pos.y + 0.5, path: [], pi: 0, stuck: 0, timer: 0 },
     rpg: randomRPG(level),
   };
-  applyMonsterVariant(monster, FloorLevel.KVARTIRY, kind === MonsterKind.IDOL || level >= 4);
   entities.push(monster);
 }
 

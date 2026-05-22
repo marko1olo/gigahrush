@@ -15,7 +15,6 @@ import { ITEMS } from '../src/data/catalog';
 import { CONTRACTS } from '../src/data/contracts';
 import { FACTORIES } from '../src/data/factories';
 import { MONSTER_ECOLOGY } from '../src/data/monster_ecology';
-import { MONSTER_VARIANTS } from '../src/data/monster_variants';
 import {
   PLOT_NPCS, PLOT_CHAIN, SIDE_QUESTS, getSideQuestRegistrySnapshot, type PlotStep,
 } from '../src/data/plot';
@@ -32,7 +31,12 @@ const ROOM_TYPE_IDS = new Set(Object.values(RoomType).filter(v => typeof v === '
 const FLOOR_LEVEL_IDS = new Set(Object.values(FloorLevel).filter(v => typeof v === 'number'));
 const RESOURCE_IDS = new Set(RESOURCES.map(r => r.id));
 const RUMORS_BY_ID = new Map(RUMORS.map(r => [r.id, r]));
-const MONSTER_VARIANTS_BY_ID = new Map(MONSTER_VARIANTS.map(v => [v.id, v]));
+const ZERO_WEIGHT_MONSTERS = new Set<MonsterKind>([
+  MonsterKind.BETONOED,
+  MonsterKind.CREATOR,
+  MonsterKind.PSEUDOLIFT,
+  MonsterKind.BLACK_LIQUIDATOR,
+]);
 
 function assertUnique(values: readonly string[], label: string): void {
   const seen = new Set<string>();
@@ -121,7 +125,6 @@ test('registered content ids are unique', () => {
   assertUnique(RESOURCES.map(r => r.id), 'RESOURCES');
   assertUnique(FACTORIES.map(f => f.id), 'FACTORIES');
   assertUnique(RUMORS.map(r => r.id), 'RUMORS');
-  assertUnique(MONSTER_VARIANTS.map(v => v.id), 'MONSTER_VARIANTS');
   assertUnique(SIDE_QUESTS.map(q => q.id), 'SIDE_QUESTS');
   assertUnique(Object.keys(PLOT_NPCS), 'PLOT_NPCS');
 });
@@ -194,10 +197,6 @@ test('contracts, rumors, rooms, and variants reference existing ids', () => {
     }
   }
 
-  for (const variant of MONSTER_VARIANTS) {
-    assertMonster(variant.baseKind, `MONSTER_VARIANTS.${variant.id}.baseKind`);
-  }
-
   for (const def of SCREEN_SIGNAL_DEFS) {
     assertTrimmedText(def.label, `SCREEN_SIGNAL_DEFS.${def.id}.label`);
     assert.ok(def.rumorIds.length > 0, `SCREEN_SIGNAL_DEFS.${def.id} needs at least one rumor hook`);
@@ -227,7 +226,7 @@ test('monster ecology covers every registered monster and resolves tactical refe
     ecologyKinds.add(def.kind);
     assert.ok(def.floors.length > 0, `${scope} needs at least one floor`);
     assert.ok(def.rooms.length > 0, `${scope} needs at least one room type`);
-    if (def.kind === MonsterKind.CREATOR) {
+    if (ZERO_WEIGHT_MONSTERS.has(def.kind)) {
       assert.equal(def.spawnWeight, 0, `${scope} must stay data-disabled for generic spawning`);
     } else {
       assert.ok(def.spawnWeight > 0, `${scope} needs positive spawnWeight`);
@@ -252,15 +251,6 @@ test('monster ecology covers every registered monster and resolves tactical refe
     }
     for (const floor of def.floors) {
       assert.equal(rumorFloors.has(floor), true, `${scope} has no rumor coverage on floor ${FloorLevel[floor]}`);
-    }
-
-    for (const variantId of def.variants) {
-      const variant = MONSTER_VARIANTS_BY_ID.get(variantId);
-      assert.ok(variant, `${scope} references missing variant "${variantId}"`);
-      assert.equal(variant.baseKind, def.kind, `${scope} variant "${variantId}" has wrong baseKind`);
-      for (const floor of variant.floors) {
-        assert.equal(def.floors.includes(floor), true, `${scope} variant "${variantId}" uses outside floor ${FloorLevel[floor]}`);
-      }
     }
 
     for (const drop of def.rareDrops) {

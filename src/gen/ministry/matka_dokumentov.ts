@@ -302,7 +302,6 @@ function spawnPaperThreats(ctx: MatkaDokumentovContext, desired: number): number
       hp,
       maxHp: hp,
       monsterKind: kind,
-      monsterVariantId: MATKA_DOKUMENTOV_ID,
       monsterDmgMult: 0.9,
       attackCd: 0.65 + i * 0.2,
       ai: { goal: AIGoal.WANDER, tx: pos.x, ty: pos.y, path: [], pi: 0, stuck: 0, timer: 0 },

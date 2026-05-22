@@ -7,22 +7,22 @@ import {
   type Entity, type GameState, type Room,
 } from '../../core/types';
 import { World } from '../../core/world';
-import { MONSTER_VARIANT_BY_ID } from '../../data/monster_variants';
 import { MONSTERS } from '../../entities/monster';
 import { monsterSpr } from '../../render/sprite_index';
 import { publishEvent } from '../../systems/events';
 import { hasItem, removeItem } from '../../systems/inventory';
+import { findNoiseForActor } from '../../systems/noise';
 import { randomRPG } from '../../systems/rpg';
 import {
   type MaintContentCtx, dropItems, findMaintArea, setFeature, stampMaintRoom,
 } from './content_helpers';
 
-const BETONOED_VARIANT_ID = 'betonoed';
 const ROOM_PREFIX = 'Бетоноед';
-const NOISE_BAIT_IDS = new Set(['radio', 'bottled_voice', 'siren_shard']);
+const NOISE_BAIT_IDS = new Set(['noise_can', 'radio', 'bottled_voice', 'siren_shard']);
 const BREACH_NEAR_SQ = 16 * 16;
 const BREACH_KEEPALIVE_SQ = 24 * 24;
 const NOISE_BAIT_SQ = 5 * 5;
+const NOISE_LURE_SQ = 9 * 9;
 const FIRE_DRIVE_OFF_SECONDS = 1.1;
 
 export interface BetonoedRuntimeResult {
@@ -46,6 +46,10 @@ interface BetonoedState {
   breachAt: number;
   scanAt: number;
   fireExposure: number;
+  lastHp: number;
+  damageNoticeAt: number;
+  lastNoiseId: number;
+  lureNoticeAt: number;
 }
 
 let activeBetonoed: BetonoedState | null = null;
@@ -128,14 +132,13 @@ function publishBetonoedEvent(
     actorId: type === 'death_seen' ? encounter.monsterId : undefined,
     targetId: type === 'door_opened' && !tags.includes('shortcut_used') ? encounter.monsterId : encounter.weakIdx,
     targetName: 'слабая бетонная стена',
-    itemId: tags.includes('sealant') ? 'sealant_tube' : undefined,
-    monsterKind: MonsterKind.BETONNIK,
+    itemId: tags.includes('sealant') ? 'sealant_tube' : tags.includes('block_kit') ? 'block_kit' : undefined,
+    monsterKind: MonsterKind.BETONOED,
     severity,
     privacy: 'local',
     tags: ['maintenance', 'betonoed', 'shortcut', ...tags],
     data: {
       system: 'betonoed_shortcut',
-      monsterVariantId: BETONOED_VARIANT_ID,
       weakCell: encounter.weakIdx,
       weakX: encounter.weakX,
       weakY: encounter.weakY,
@@ -231,20 +234,54 @@ function flameNear(world: World, entities: Entity[], monster: Entity): boolean {
   return false;
 }
 
-function forceBetonoedVariant(monster: Entity): void {
-  const variant = MONSTER_VARIANT_BY_ID[BETONOED_VARIANT_ID];
-  if (!variant) return;
-  monster.monsterVariantId = variant.id;
-  monster.monsterDmgMult = variant.dmgMult;
-  monster.speed *= variant.speedMult;
-  if (monster.maxHp !== undefined) {
-    monster.maxHp = Math.max(1, Math.round(monster.maxHp * variant.hpMult));
-    monster.hp = monster.maxHp;
+function applyNoiseLure(world: World, monster: Entity, state: GameState, encounter: BetonoedState): boolean {
+  const noise = findNoiseForActor(world, state, monster, state.time, {
+    minSeverity: 2,
+    scanInterval: 0.35,
+    hearingMult: 1.35,
+  });
+  if (!noise || noise.id === encounter.lastNoiseId) return false;
+  encounter.lastNoiseId = noise.id;
+  if (noise.actorId === monster.id) return false;
+
+  const nearWeakWall = world.dist2(noise.x, noise.y, encounter.weakX + 0.5, encounter.weakY + 0.5) <= NOISE_LURE_SQ;
+  if (nearWeakWall) {
+    encounter.noiseBaitSeen = true;
+    encounter.breachAt = Math.min(encounter.breachAt || Infinity, state.time + 0.8);
+    monster.ai = {
+      ...(monster.ai ?? { goal: AIGoal.WANDER, tx: encounter.weakX, ty: encounter.weakY, path: [], pi: 0, stuck: 0, timer: 0 }),
+      goal: AIGoal.GOTO,
+      tx: encounter.weakX,
+      ty: encounter.weakY,
+      path: [],
+      pi: 0,
+      timer: 0,
+    };
+    warnBreach(state, encounter, 'noise');
+    return true;
   }
+
+  if (encounter.breachAt > 0) {
+    encounter.breachAt = Math.max(encounter.breachAt, state.time + 1.8);
+  }
+  monster.ai = {
+    ...(monster.ai ?? { goal: AIGoal.WANDER, tx: Math.floor(noise.x), ty: Math.floor(noise.y), path: [], pi: 0, stuck: 0, timer: 0 }),
+    goal: AIGoal.GOTO,
+    tx: Math.floor(noise.x),
+    ty: Math.floor(noise.y),
+    path: [],
+    pi: 0,
+    timer: 0,
+  };
+  if (state.time >= encounter.lureNoticeAt) {
+    state.msgs.push(msg('Бетоноед ушёл на шум. Слабая стена получила короткую паузу.', state.time, '#fc8'));
+    encounter.lureNoticeAt = state.time + 2.8;
+  }
+  return true;
 }
 
 function spawnBetonoed(ctx: MaintContentCtx, room: Room, weakX: number, weakY: number): number {
-  const def = MONSTERS[MonsterKind.BETONNIK];
+  const def = MONSTERS[MonsterKind.BETONOED];
   const pos = worldFloorCell(ctx.world, room, weakX - 2, weakY);
   const x = pos.x;
   const y = pos.y;
@@ -259,16 +296,15 @@ function spawnBetonoed(ctx: MaintContentCtx, room: Room, weakX: number, weakY: n
     pitch: 0,
     alive: true,
     speed: def.speed,
-    sprite: monsterSpr(MonsterKind.BETONNIK),
+    sprite: monsterSpr(MonsterKind.BETONOED),
     hp,
     maxHp: hp,
     name: 'Бетоноед',
-    monsterKind: MonsterKind.BETONNIK,
+    monsterKind: MonsterKind.BETONOED,
     attackCd: 0,
     ai: { goal: AIGoal.WANDER, tx: weakX, ty: weakY, path: [], pi: 0, stuck: 0, timer: 0 },
     rpg: randomRPG(zoneLevel),
   };
-  forceBetonoedVariant(monster);
   ctx.entities.push(monster);
   return monster.id;
 }
@@ -334,7 +370,7 @@ export function generateBetonoedShortcut(ctx: MaintContentCtx): void {
   ctx.world.stamp(weakX - 1, weakY, 0.5, 0.5, 0.4, 80, weakIdx, 120, 120, 115);
   ctx.world.stamp(weakX + 1, weakY, 0.5, 0.5, 0.35, 75, weakIdx + 1, 95, 82, 62);
 
-  dropItems(ctx, bait, ['bottled_voice', 'sealant_tube', 'block_kit', 'flamethrower', 'ammo_fuel']);
+  dropItems(ctx, bait, ['noise_can', 'bottled_voice', 'sealant_tube', 'block_kit', 'flamethrower', 'ammo_fuel']);
   dropItems(ctx, shortcut, ['rebar', 'ammo_fuel', 'psi_concrete_splinter']);
 
   const monsterId = spawnBetonoed(ctx, bait, weakX, weakY);
@@ -354,6 +390,10 @@ export function generateBetonoedShortcut(ctx: MaintContentCtx): void {
     breachAt: 0,
     scanAt: 0,
     fireExposure: 0,
+    lastHp: 0,
+    damageNoticeAt: 0,
+    lastNoiseId: 0,
+    lureNoticeAt: 0,
   };
 }
 
@@ -376,6 +416,12 @@ export function tryUseBetonoedShortcut(
   if (hasItem(player, 'sealant_tube')) {
     removeItem(player, 'sealant_tube', 1);
     const changed = sealWeakWall(world, player, state, encounter, 'sealant');
+    return { handled: true, worldChanged: changed };
+  }
+
+  if (hasItem(player, 'block_kit')) {
+    removeItem(player, 'block_kit', 1);
+    const changed = sealWeakWall(world, player, state, encounter, 'block_kit');
     return { handled: true, worldChanged: changed };
   }
 
@@ -414,6 +460,20 @@ export function updateBetonoedShortcut(
     }
   } else {
     encounter.fireExposure = Math.max(0, encounter.fireExposure - dt * 0.5);
+  }
+
+  applyNoiseLure(world, monster, state, encounter);
+
+  if (!encounter.breached && !encounter.sealed && monster.hp !== undefined) {
+    if (encounter.lastHp <= 0) encounter.lastHp = monster.hp;
+    if (monster.hp < encounter.lastHp - 0.5) {
+      if (encounter.breachAt > 0) encounter.breachAt = Math.max(encounter.breachAt, state.time + 1.4);
+      if (state.time >= encounter.damageNoticeAt) {
+        state.msgs.push(msg('Бетоноед сбился с прогрыза и отступил от шва.', state.time, '#fc4'));
+        encounter.damageNoticeAt = state.time + 2.4;
+      }
+    }
+    encounter.lastHp = monster.hp;
   }
 
   if (encounter.breached && !encounter.sealed && weakPassageClosed(world, encounter)) {

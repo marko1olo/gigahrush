@@ -68,6 +68,20 @@ Player decision: leave fog, use fire and risk explosion, or break line and wait 
 - Fire explosion is bounded and readable.
 - No per-frame full-world fog scans.
 
+## Third-Pass Audit (2026-05-22)
+
+Second run left a partial package. Keep `MonsterKind.FOG_SHARK`, `src/entities/fog_shark.ts`, existing ecology/rumors, and the current fog/pack AI hooks. Finish the missing `Done` items: fire/explosion counterplay, `fog_shark_ignited` event output, and focused tests for fog speed or dry slowdown plus bounded explosion behavior. Do not replace this with a generic swarm, samosbor modifier, or second shark package.
+
+## Repeat-Pass Instructions
+
+This file may be run after one or more earlier addmonster workers already touched the tree. Treat existing work for this monster as partial implementation to audit and finish, not as a reason to create a second package.
+
+- First search the current tree for the planned `MonsterKind`, sprite module name, Russian display name, and former variant id or source name when this file lists one.
+- If the monster already exists, keep its established ids and file names unless they are clearly broken; complete missing `Done` items instead of replacing the implementation.
+- Repair reachability/debug spawning, ecology, rumors, events/log output, bounded AI behavior, and focused tests as needed.
+- If `addmonster_43.md` has already removed `monsterVariantId` and `src/data/monster_variants.ts`, do not re-add them. Convert leftover references to direct `MonsterKind`, encounter tags, or authored module state.
+- Preserve other addmonster additions in shared files. Resolve duplicates by keeping one canonical entry for this monster and leaving unrelated entries alone.
+
 ## Agent Orchestration
 
 - Parallel owner: one GPT-5.5 worker implements only this addmonster file.
@@ -75,4 +89,4 @@ Player decision: leave fog, use fire and risk explosion, or break line and wait 
 - Write scope: create/modify only the monster package, sprite, authored POI/tests needed for this creature. Do not edit another `addmonster_*.md`.
 - Shared files: make only minimal append-style edits for this monster; never reorder or refactor shared registries while other agents are working.
 - Forbidden: `monsterVariantId`, `MONSTER_VARIANTS`, `applyMonsterVariant`, prefix-derived stats, or any mechanical subtype system.
-- Final report: changed paths, new `MonsterKind`, reachability/debug path, tests run or skipped, and conflicts/TODOs.
+- Final report: changed paths, new or existing `MonsterKind`, reachability/debug path, tests run or skipped, whether this was fresh work or repeat completion, and conflicts/TODOs.

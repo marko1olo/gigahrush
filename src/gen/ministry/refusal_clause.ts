@@ -53,6 +53,7 @@ export function generateRefusalClauseOffice(
   addItemDrop(entities, nextId, rx + room.w - 3, ry + room.h - 2, 'ink_bottle', 1);
 
   spawnAdminMonster(world, entities, nextId, rx + room.w - 3, cy, MonsterKind.PARAGRAPH);
+  spawnAdminMonster(world, entities, nextId, rx + room.w - 5, cy + 2, MonsterKind.KONTORSHCHIK);
 
   genLog(`[MINISTRY_ADMIN] ${room.name} at (${room.x}, ${room.y}) room #${room.id}`);
   return { nextRoomId: room.id + 1 };

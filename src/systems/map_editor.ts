@@ -20,7 +20,7 @@ import { type World } from '../core/world';
 import { ITEMS, freshNeeds, randomName } from '../data/catalog';
 import { CONTAINER_DEFS } from '../data/container_defs';
 import { randomOccupation } from '../data/relations';
-import { MONSTERS, applyMonsterVariant } from '../entities/monster';
+import { MONSTERS } from '../entities/monster';
 import { Spr } from '../render/sprite_index';
 import { getMaxHp, randomRPG } from './rpg';
 import { currentFloorRunEntry } from './procedural_floors';
@@ -540,7 +540,7 @@ function applyCellOp(world: World, entities: Entity[], player: Entity, op: { x: 
   return { ok: true, reason: 'ok', dirtyCells: [idx] };
 }
 
-function spawnEditorEntity(world: World, entities: Entity[], state: GameState, nextEntityId: { v: number }, op: Extract<MapEditorOp, { kind: 'spawn_entity' }>): MapEditorApplyResult {
+function spawnEditorEntity(world: World, entities: Entity[], nextEntityId: { v: number }, op: Extract<MapEditorOp, { kind: 'spawn_entity' }>): MapEditorApplyResult {
   const x = world.wrap(Math.floor(op.x));
   const y = world.wrap(Math.floor(op.y));
   const idx = world.idx(x, y);
@@ -586,7 +586,6 @@ function spawnEditorEntity(world: World, entities: Entity[], state: GameState, n
       ai: { goal: AIGoal.IDLE, tx: 0, ty: 0, path: [], pi: 0, stuck: 0, timer: 0 },
       rpg,
     };
-    applyMonsterVariant(monster, state.currentFloor, true);
     entities.push(monster);
   } else {
     if (!canSpawnEntityType(entities, EntityType.NPC)) return setError('Лимит NPC достигнут');
@@ -713,7 +712,7 @@ export function applyMapEditorOp(
     pushDirty(idx);
     result = { ok: true, reason: 'ok', dirtyCells: [idx] };
   } else if (op.kind === 'spawn_entity') {
-    result = spawnEditorEntity(world, entities, state, nextEntityId, op);
+    result = spawnEditorEntity(world, entities, nextEntityId, op);
   } else if (op.kind === 'delete_entity') {
     const entity = entities.find(e => e.id === op.entityId && e.type !== EntityType.PLAYER);
     if (!entity) return setError('Нет entity');

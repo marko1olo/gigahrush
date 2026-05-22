@@ -1,11 +1,11 @@
 /* ── Герметичный шов — Living tactical monster room ──────────── */
 
 import {
-  AIGoal, Cell, EntityType, Feature, FloorLevel, MonsterKind, RoomType, Tex,
+  AIGoal, Cell, EntityType, Feature, MonsterKind, RoomType, Tex,
   type Entity, type Room,
 } from '../../core/types';
 import { World } from '../../core/world';
-import { MONSTERS, applyMonsterVariant } from '../../entities/monster';
+import { MONSTERS } from '../../entities/monster';
 import { monsterSpr, Spr } from '../../render/sprite_index';
 import { randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg';
 import { connectProtectedRoom, protectRoom } from '../shared';
@@ -117,7 +117,6 @@ function spawnMonster(world: World, entities: Entity[], nextId: { v: number }, k
     ai: { goal: AIGoal.WANDER, tx: x, ty: y, path: [], pi: 0, stuck: 0, timer: 0 },
     rpg: randomRPG(zoneLevel),
   };
-  applyMonsterVariant(monster, FloorLevel.LIVING, true);
   entities.push(monster);
 }
 

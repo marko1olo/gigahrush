@@ -27,7 +27,7 @@ import { World } from '../../core/world';
 import { hashSeed, withSeededRandom } from '../../core/rand';
 import { freshNeeds } from '../../data/catalog';
 import { type PlotNpcDef, registerSideQuest } from '../../data/plot';
-import { MONSTERS, applyMonsterVariant } from '../../entities/monster';
+import { MONSTERS } from '../../entities/monster';
 import { Spr } from '../../render/sprite_index';
 import { publishEvent } from '../../systems/events';
 import { addRailTrainRoute } from '../../systems/rail_trains';
@@ -1247,7 +1247,6 @@ function spawnMonster(ctx: BuildCtx, kind: MonsterKind, x: number, y: number, an
     ai: { goal: AIGoal.WANDER, tx: anchor.x + Math.floor(anchor.w / 2), ty: anchor.y + Math.floor(anchor.h / 2), path: [], pi: 0, stuck: 0, timer: 0 },
     rpg: randomRPG(zoneLevel),
   };
-  applyMonsterVariant(monster, DARK_METRO_BASE_FLOOR, true);
   ctx.entities.push(monster);
 }
 

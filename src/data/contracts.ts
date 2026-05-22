@@ -483,6 +483,19 @@ const EXPEDITION_CONTRACTS: ContractDef[] = [
     xpReward: 95, relationDelta: 11, tags: ['expedition', 'floor_maintenance', 'room_production', 'science', 'nii', 'slime', 'sample', 'green_acid', 'slime_chain'],
   },
   {
+    id: 'exp_maint_safe_slimevik_bargain', title: 'Корм для безопасного слизневика', issuer: 'Полевой пост НИИ слизи',
+    faction: Faction.SCIENTIST, rank: 2, type: QuestType.VISIT,
+    desc: 'Найди кормовую ванну, где слизневик берёт еду вместо крови. Подойди с фильтром и запасом еды или лекарств; задача - отметить пробу, а не устроить охоту.',
+    target: {
+      floor: FloorLevel.MAINTENANCE, roomType: RoomType.PRODUCTION, roomName: 'Кормовая ванна слизневика',
+      zoneTag: 'safe_slimevik_den', hint: 'Коллекторы: кормовая ванна слизневика. Слизневик нейтрален, но долгий контакт без фильтра сушит воду и ПСИ; бартер едой или лекарством отмечает пробу.',
+    },
+    targetMonsterKind: MonsterKind.SLIMEVIK,
+    rewardItem: 'nii_sample_container', rewardCount: 1, extraRewards: [{ defId: 'filter_layer', count: 1 }],
+    moneyReward: 115, rewardResourceId: 'slime_samples', rewardScarcityMax: 2.4,
+    xpReward: 70, relationDelta: 9, tags: ['expedition', 'floor_maintenance', 'room_production', 'science', 'nii', 'slime', 'slimevik', 'visit', 'bargain', 'sample'],
+  },
+  {
     id: 'exp_living_white_sample_shift', title: 'Белая проба второй смены', issuer: 'Маршрутный пост НИИ',
     faction: Faction.SCIENTIST, rank: 2, type: QuestType.FETCH,
     desc: 'Вынеси белую пробу из запертой пробной и не разглядывай её при людях. Пломба целая - платят; голос дрожит - отход.',

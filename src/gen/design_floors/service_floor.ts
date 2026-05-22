@@ -27,7 +27,7 @@ import {
 import { World } from '../../core/world';
 import { freshNeeds } from '../../data/catalog';
 import { type PlotNpcDef, registerSideQuest } from '../../data/plot';
-import { MONSTERS, applyMonsterVariant } from '../../entities/monster';
+import { MONSTERS } from '../../entities/monster';
 import { Spr } from '../../render/sprite_index';
 import { publishEvent } from '../../systems/events';
 import { registerRouteCue } from '../../systems/route_cues';
@@ -1243,7 +1243,6 @@ function spawnMonsterPack(
       ai: { goal: AIGoal.WANDER, tx: x, ty: y, path: [], pi: 0, stuck: 0, timer: 0 },
       rpg: randomRPG(zoneLevel),
     };
-    applyMonsterVariant(monster, SERVICE_FLOOR_BASE_FLOOR, true);
     entities.push(monster);
   }
 }

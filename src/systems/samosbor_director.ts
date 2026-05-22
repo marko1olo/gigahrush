@@ -16,7 +16,7 @@ import {
 } from '../data/samosbor_director';
 import { type SamosborVariantId, type ActiveSamosborVariant } from '../data/samosbor_variants';
 import { freshNeeds, ITEMS, randomName } from '../data/catalog';
-import { MONSTERS, applyMonsterVariant } from '../entities/monster';
+import { MONSTERS } from '../entities/monster';
 import { getMaxHp, randomRPG, scaleMonsterHp, scaleMonsterSpeed } from './rpg';
 import { changeResourceStock } from './economy';
 import { publishEvent, getRecentEvents } from './events';
@@ -193,7 +193,7 @@ function rejectBeat(
 ): string | null {
   if (beat.phase !== snapshot.phase) return 'phase_mismatch';
   if (!beat.floors.includes(snapshot.floor)) return 'floor_mismatch';
-  if (!beat.variants.includes(snapshot.variantId)) return 'variant_mismatch';
+  if (!beat.variants.includes(snapshot.variantId)) return 'samosbor_mismatch';
   if ((director.cooldowns[beat.id] ?? 0) > snapshot.time) return 'cooldown';
   if ((director.runCounts[beat.id] ?? 0) >= beat.maxPerCycle) return 'max_per_cycle';
   if (beat.tags.includes('danger') && snapshot.dangerBudget <= 0) return 'danger_budget';
@@ -232,7 +232,7 @@ function pickBeat(
   for (const beat of getSamosborBeatDefs()) {
     const reason = rejectBeat(beat, snapshot, director);
     if (reason) {
-      const structurallyRelevant = reason !== 'phase_mismatch' && reason !== 'floor_mismatch' && reason !== 'variant_mismatch';
+      const structurallyRelevant = reason !== 'phase_mismatch' && reason !== 'floor_mismatch' && reason !== 'samosbor_mismatch';
       if (structurallyRelevant && (!rejectedTop || beat.weight > rejectedTop.weight)) {
         rejectedTop = beat;
         rejectedReason = reason;
@@ -358,7 +358,7 @@ function publishDirectorBeatEvent(
     containerId,
     severity: beat.severity,
     privacy: 'public',
-    tags: ['samosbor', 'director', `variant_${snapshot.variantId}`, ...beat.tags].slice(0, 8),
+    tags: ['samosbor', 'director', `samosbor_${snapshot.variantId}`, ...beat.tags].slice(0, 8),
     data: {
       beatId: beat.id,
       effectId: beat.effectId,
@@ -473,7 +473,7 @@ function seedRumor(world: World, entities: Entity[], state: GameState, snapshot:
       severity: 3,
       floor: state.currentFloor,
       zoneId: snapshot.zoneId,
-      tags: ['samosbor', 'director', `variant_${snapshot.variantId}`],
+      tags: ['samosbor', 'director', `samosbor_${snapshot.variantId}`],
     }, state.time);
     seen++;
   }
@@ -555,7 +555,6 @@ function spawnAftershockMonster(
     rpg,
     phasing: kind === MonsterKind.SPIRIT,
   };
-  applyMonsterVariant(monster, snapshot.floor, true);
   entities.push(monster);
   return 1;
 }

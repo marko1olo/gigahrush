@@ -365,6 +365,7 @@ function contextFactKind(event: WorldEvent): ContextFact['kind'] | undefined {
     event.tags.includes('permit')
   ) return 'social';
   if (event.type === 'contract_created' || event.type === 'contract_completed' || event.type === 'contract_failed') return 'quest_hook';
+  if (event.type === 'gnilushka_spared' || event.type === 'gnilushka_delivered') return 'social';
   if (
     event.type === 'player_kill_monster' ||
     event.type === 'npc_kill_monster' ||
@@ -374,6 +375,7 @@ function contextFactKind(event: WorldEvent): ContextFact['kind'] | undefined {
     event.type === 'death_seen'
   ) return 'death';
   if (event.type === 'monster_sighted' && isRareMonsterEvent(event)) return 'danger';
+  if (event.type === 'gnilushka_hurt') return 'danger';
   if (event.type === 'emergency_panel_used') {
     if (event.tags.includes('repair')) return 'production';
     if (event.tags.includes('overload') || event.tags.includes('shutdown')) return 'danger';

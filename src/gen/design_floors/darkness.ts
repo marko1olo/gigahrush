@@ -974,6 +974,7 @@ function placeContent(world: World, entities: Entity[], nextId: { v: number }, r
   spawnMonster(entities, nextId, MonsterKind.SHADOW, tollGate.x + 6, tollGate.y + 2, 12, 'Тень турникета');
   spawnMonster(entities, nextId, MonsterKind.SHADOW, emergency.x + 10, emergency.y + 5, 11, 'Тень длинного обхода');
   spawnMonster(entities, nextId, MonsterKind.SHADOW, name.x + 3, name.y + 8, 11, 'Тень без фамилии');
+  spawnMonster(entities, nextId, MonsterKind.GLUBINNAYA_TEN, trace.x + 5, trace.y + 8, 13, 'Глубинная Тень у пустотного шва');
   spawnMonster(entities, nextId, MonsterKind.LAMPOVY, generator.x + 6, generator.y + 5, 12, 'Ламповый у генератора');
   spawnMonster(entities, nextId, MonsterKind.EYE, trace.x + 9, trace.y + 2, 13, 'Глаз возврата');
 }
@@ -1063,7 +1064,9 @@ export function expandDarknessRouteGeometry(world: World, entities: Entity[], rn
   for (let i = 0; i < shadowCount; i++) {
     const x = i % 2 === 0 ? southPocket.x + Math.floor(rng() * 5) - 2 : tollGate.x + 2 + Math.floor(rng() * 6);
     const y = i % 2 === 0 ? southPocket.y + Math.floor(rng() * 5) - 2 : tollGate.y + 2 + Math.floor(rng() * 4);
-    spawnMonster(entities, nextId, MonsterKind.SHADOW, world.wrap(x), world.wrap(y), 11 + (i & 1), 'Тень темного маршрута');
+    const kind = i === shadowCount - 1 ? MonsterKind.GLUBINNAYA_TEN : MonsterKind.SHADOW;
+    const name = kind === MonsterKind.GLUBINNAYA_TEN ? 'Глубинная Тень темного маршрута' : 'Тень темного маршрута';
+    spawnMonster(entities, nextId, kind, world.wrap(x), world.wrap(y), 11 + (i & 1), name);
   }
 
   world.markFogDirty();

@@ -6,7 +6,7 @@ import {
   type Entity, type GameState, type Room, type WorldContainer, type WorldEvent,
 } from '../../core/types';
 import { World } from '../../core/world';
-import { MONSTERS, applyMonsterVariant } from '../../entities/monster';
+import { MONSTERS } from '../../entities/monster';
 import { MarkType, stampMark } from '../../render/marks';
 import { monsterSpr, Spr } from '../../render/sprite_index';
 import { publishEvent, registerWorldEventObserver } from '../../systems/events';
@@ -289,7 +289,6 @@ function spawnPlombirovshchik(world: World, entities: Entity[], nextId: { v: num
     ai: { goal: AIGoal.WANDER, tx: doorX(sealedDoorIdx), ty: doorY(sealedDoorIdx), path: [], pi: 0, stuck: 0, timer: 0 },
     rpg: randomRPG(zoneLevel),
   };
-  applyMonsterVariant(monster, FloorLevel.LIVING, true);
   entities.push(monster);
   return id;
 }

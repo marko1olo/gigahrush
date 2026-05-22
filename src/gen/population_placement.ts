@@ -17,6 +17,8 @@ export interface PlacementFieldProfile {
   smoothingPasses?: number;
   smoothingBlend?: number;
   anchors?: readonly PlacementFieldAnchor[];
+  bucketSize?: number;
+  maxPerBucket?: number;
 }
 
 export type NaturalPopulationProfile = PlacementFieldProfile;
@@ -69,11 +71,16 @@ export function samplePlacementFieldCells(
   const strata = populationStrata(cells, count, seed);
   const out: number[] = [];
   const used = new Set<number>();
+  const maxPerBucket = profile.maxPerBucket && profile.maxPerBucket > 0 ? Math.floor(profile.maxPerBucket) : 0;
+  const bucketSize = Math.max(1, Math.floor(profile.bucketSize ?? 32));
+  const bucketSide = Math.ceil(W / bucketSize);
+  const bucketCounts = maxPerBucket > 0 ? new Int32Array(bucketSide * bucketSide) : undefined;
   for (let i = 0; i < count; i++) {
-    const cell = pickContextCell(world, cells, strata, field.weights, seed, i, used);
+    const cell = pickContextCell(world, cells, strata, field.weights, seed, i, used, bucketCounts, bucketSize, bucketSide, maxPerBucket);
     if (cell >= 0) {
       out.push(cell);
       used.add(cell);
+      if (bucketCounts) bucketCounts[bucketIndexForCell(cell, bucketSize, bucketSide)]++;
     }
   }
   return out;
@@ -159,6 +166,10 @@ function pickContextCell(
   seed: number,
   serial: number,
   used: Set<number>,
+  bucketCounts?: Int32Array,
+  bucketSize = 32,
+  bucketSide = Math.ceil(W / bucketSize),
+  maxPerBucket = 0,
 ): number {
   let bestCell = -1;
   let bestScore = -Infinity;
@@ -167,7 +178,7 @@ function pickContextCell(
   const stratum = activeCount > 0 ? strata.active[base] : -1;
   for (let attempt = 0; attempt < CANDIDATE_TRIES && stratum >= 0; attempt++) {
     const cell = pickStratumCell(strata, stratum, seed, serial, attempt, used);
-    if (cell < 0 || used.has(cell) || world.cells[cell] !== Cell.FLOOR) continue;
+    if (cell < 0 || used.has(cell) || world.cells[cell] !== Cell.FLOOR || bucketIsFull(cell, bucketCounts, bucketSize, bucketSide, maxPerBucket)) continue;
     const score = weights[cell] * (0.85 + hash3(cell, serial, seed) * 0.3);
     if (score > bestScore) {
       bestScore = score;
@@ -179,14 +190,33 @@ function pickContextCell(
   for (let attempt = 1; attempt < CANDIDATE_TRIES && activeCount > 0; attempt++) {
     const activeIndex = (base + attempt * strata.jump) % activeCount;
     const cell = pickStratumCell(strata, strata.active[activeIndex], seed, serial, attempt, used);
-    if (!used.has(cell) && world.cells[cell] === Cell.FLOOR) return cell;
+    if (cell >= 0 && !used.has(cell) && world.cells[cell] === Cell.FLOOR && !bucketIsFull(cell, bucketCounts, bucketSize, bucketSide, maxPerBucket)) return cell;
   }
   const fallbackStart = Math.floor(hash3(seed, serial, 29) * cells.length);
   for (let i = 0; i < cells.length; i++) {
     const cell = cells[(fallbackStart + i) % cells.length];
-    if (!used.has(cell) && world.cells[cell] === Cell.FLOOR) return cell;
+    if (!used.has(cell) && world.cells[cell] === Cell.FLOOR && !bucketIsFull(cell, bucketCounts, bucketSize, bucketSide, maxPerBucket)) return cell;
   }
   return -1;
+}
+
+function bucketIndexForCell(cell: number, bucketSize: number, bucketSide: number): number {
+  const x = cell % W;
+  const y = (cell / W) | 0;
+  const bx = Math.min(bucketSide - 1, Math.floor(x / bucketSize));
+  const by = Math.min(bucketSide - 1, Math.floor(y / bucketSize));
+  return by * bucketSide + bx;
+}
+
+function bucketIsFull(
+  cell: number,
+  bucketCounts: Int32Array | undefined,
+  bucketSize: number,
+  bucketSide: number,
+  maxPerBucket: number,
+): boolean {
+  if (!bucketCounts || maxPerBucket <= 0) return false;
+  return bucketCounts[bucketIndexForCell(cell, bucketSize, bucketSide)] >= maxPerBucket;
 }
 
 function pickStratumCell(

@@ -6,7 +6,7 @@ import {
   type Entity, type GameState, type Room, type WorldEventSeverity,
 } from '../../core/types';
 import { type World } from '../../core/world';
-import { MONSTERS, applyMonsterVariant } from '../../entities/monster';
+import { MONSTERS } from '../../entities/monster';
 import { publishEvent } from '../../systems/events';
 import { randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg';
 import {
@@ -315,7 +315,6 @@ function spawnBridgeMonster(ctx: MaintContentCtx, kind: MonsterKind, x: number, 
     rpg: randomRPG(zoneLevel),
     spriteScale: name ? 1.12 : undefined,
   };
-  applyMonsterVariant(monster, FloorLevel.MAINTENANCE, true);
   ctx.entities.push(monster);
 }
 

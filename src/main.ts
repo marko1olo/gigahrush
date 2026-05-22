@@ -43,6 +43,8 @@ import { updateAI, tryMonsterProjectileStagger, getAiSchedulerStats, type AiSche
 import { generateTalkText, generateNpcTradeItems } from './data/dialogue';
 import { updateSamosbor, rebuildWorld, clearFogInZone, updateIstotitBellCompulsion } from './systems/samosbor';
 import { cleanCellHazardsNear, getCellHazardMoveMultiplier, tickCellHazards } from './systems/cell_hazards';
+import { adjustMonsterProjectileDamage, recordMonsterMeleeDeath, recordMonsterProjectileDeath } from './systems/monster_counterplay';
+import { applyMonsterArmorHit } from './systems/monster_armor';
 import {
   pickupNearby, useItem, dropItem, getWeaponStats,
   consumeDurability, consumeAmmo, consumeToolDurability, getEquippedToolDurability,
@@ -63,7 +65,6 @@ import { freshNeeds, ITEMS, WEAPON_STATS } from './data/catalog';
 import { getStack } from './data/items';
 import { entityDisplayName } from './entities/monster';
 import { ensureProceduralSpriteSeeds } from './entities/procedural_visuals';
-import { MONSTER_VARIANT_BY_ID } from './data/monster_variants';
 import {
   playFootstep, playAttack, playDoor,
   playGunshot, playShotgun, playNailgun, playBreak,
@@ -81,7 +82,10 @@ import {
   spendAttrPoint, getMaxHp, getMaxPsi, randomRPG,
 } from './systems/rpg';
 import {
+  applyPaupsinaWeb,
+  isPaupsinaWebCuttingWeapon,
   normalizePlayerStatuses,
+  reducePaupsinaWeb,
   updateZhelemishSkinStatus,
   zhelemishMoveMult,
 } from './systems/status';
@@ -157,6 +161,12 @@ import {
   tryStartLiftArachnaEncounter,
   updateLiftArachnaEncounter,
 } from './systems/lift_arachna';
+import {
+  clearPseudoliftActive,
+  preparePseudoliftForCurrentFloor,
+  setPseudoliftState,
+  updatePseudolifts,
+} from './systems/pseudolift';
 import { clearWrongDoorRemaps, tryUseWrongDoorRemap, updateWrongDoorRemaps } from './systems/wrong_door';
 import {
   containerAccessInfo,
@@ -692,6 +702,7 @@ function returnFromVoidPortalToLiving(portal: VoidReturnPortalState): void {
     floorTeleportCd = 0;
     resetPsiState();
     clearLiftArachnaActive(state);
+    clearPseudoliftActive(state);
 
     publishEvent(state, {
       type: 'floor_transition',
@@ -960,6 +971,7 @@ function placeNetTerminalGenContentForCurrentFloor(): void {
 function prepareEditableFloor(): void {
   replayMapEditorForCurrentFloor();
   placeNetTerminalGenContentForCurrentFloor();
+  preparePseudoliftForCurrentFloor(world, state);
 }
 
 function drawLoading(): void {
@@ -1366,6 +1378,7 @@ function playWeaponSound(weaponId: string, ws: import('./data/weapons').WeaponSt
 
 function projectileThreatLabel(p: Entity): string {
   const pt = p.projType ?? ProjType.NORMAL;
+  if (pt === ProjType.WEB) return 'Паутина';
   if (pt === ProjType.FLAME || p.sprite === Spr.FLAME_BOLT || p.sprite === Spr.HOSTILE_FLAME_BOLT) return 'Ожог';
   if (pt === ProjType.BFG || p.sprite === Spr.BFG_BOLT) return 'Энергия';
   if (p.sprite === Spr.EYE_BOLT) return 'Глаз';
@@ -1492,6 +1505,7 @@ function playerActions(_dt: number): void {
             projDmg: ws.dmg,
             projLife: 3.0,
             ownerId: player.id,
+            weapon: player.weapon ?? '',
             spriteScale: 0.3,
             spriteZ: 0.5,
           };
@@ -1520,6 +1534,7 @@ function playerActions(_dt: number): void {
     } else if (ws.isRanged) {
       // ── Ranged attack: spawn projectile(s) ──────────────
       if (consumeAmmo(player, state)) {
+        if (ws.projType === ProjType.FLAME) reducePaupsinaWeb(player, state.time, state.msgs, state, player, 'fire');
         if (ws.deletionBeam) {
           const result = fireDeletionBeam(world, entities, player, state, player.weapon ?? '', ws, handleKill);
           state.beamFx = 0.45;
@@ -1550,6 +1565,7 @@ function playerActions(_dt: number): void {
               projDmg: ws.dmg,
               projLife: pt === ProjType.GRENADE ? 1.5 : pt === ProjType.FLAME ? 0.7 : 3.0,
               ownerId: player.id,
+              weapon: player.weapon ?? '',
               spriteScale: pt === ProjType.BFG ? 0.6 : pt === ProjType.FLAME ? (0.55 + Math.random() * 0.25) : pt === ProjType.GRENADE ? 0.35 : 0.25,
               spriteZ: 0.5,
               projType: pt,
@@ -1586,13 +1602,21 @@ function playerActions(_dt: number): void {
       const ax = player.x + Math.cos(player.angle) * range;
       const ay = player.y + Math.sin(player.angle) * range;
 
-      let hitSomething = false;
+      let hitSomething = isPaupsinaWebCuttingWeapon(player.weapon)
+        ? reducePaupsinaWeb(player, state.time, state.msgs, state, player, 'cut')
+        : false;
       for (const e of entities) {
         if ((e.type !== EntityType.MONSTER && e.type !== EntityType.NPC) || !e.alive) continue;
         if (e.id === player.id) continue;
         if (world.dist(ax, ay, e.x, e.y) < 1.2) {
           if (e.hp !== undefined) {
-            const dmg = debugOnePunchMeleeDamage(e, normalDmg);
+            const rawDmg = debugOnePunchMeleeDamage(e, normalDmg);
+            const armor = applyMonsterArmorHit(world, state, e, {
+              damage: rawDmg,
+              attacker: player,
+              weaponId: player.weapon ?? '',
+            });
+            const dmg = armor.damage;
             e.hp -= dmg;
             // Relation penalty for hitting non-hostile NPCs
             if (e.type === EntityType.NPC) {
@@ -1610,6 +1634,14 @@ function playerActions(_dt: number): void {
               const meleeGore = (player.weapon === 'chainsaw' || player.weapon === 'axe') ? 3
                 : (player.weapon === 'rebar' || player.weapon === 'pipe') ? 2 : 1;
               handleKill(e, true, mVx, mVy, meleeGore);
+              recordMonsterMeleeDeath(
+                world,
+                state,
+                e,
+                player.weapon,
+                player,
+                (target, vx, vy, gore) => handleKill(target, true, vx, vy, gore),
+              );
             }
           }
           hitSomething = true;
@@ -1643,35 +1675,6 @@ function dropEntityInventory(e: Entity): void {
     });
   }
   e.inventory = [];
-}
-
-const VARIANT_LOOT_CHANCE = 0.16;
-
-function lootForMonsterVariant(variantId: string): string {
-  const variant = MONSTER_VARIANT_BY_ID[variantId];
-  if (!variant) return 'strange_clot';
-  if (variant.baseKind === MonsterKind.ROBOT) return 'ammo_energy';
-  if (variant.flags.includes('document_bias')) return 'blank_form';
-  if (variant.flags.includes('water_bias')) return 'metal_water';
-  if (variant.flags.includes('lamp_bias')) return 'lamp_bulb';
-  if (variant.flags.includes('armored') || variant.flags.includes('wall_bias')) return 'rebar';
-  if (variant.flags.includes('ranged_bias')) return 'fuse';
-  return 'strange_clot';
-}
-
-function maybeDropVariantLoot(e: Entity): void {
-  if (!e.monsterVariantId) return;
-  const defId = lootForMonsterVariant(e.monsterVariantId);
-  const def = ITEMS[defId];
-  if (!def || Math.random() > VARIANT_LOOT_CHANCE) return;
-  entities.push({
-    id: nextEntityId.v++, type: EntityType.ITEM_DROP,
-    x: e.x + (Math.random() - 0.5) * 0.35,
-    y: e.y + (Math.random() - 0.5) * 0.35,
-    angle: 0, pitch: 0, alive: true, speed: 0, sprite: Spr.ITEM_DROP,
-    inventory: [{ defId, count: 1 }],
-  });
-  state.msgs.push(msg(`${entityDisplayName(e)} оставил ${def.name}.`, state.time, '#c8f'));
 }
 
 /* ── Defense quest continuous monster spawner (step 8) ─────────── */
@@ -1796,10 +1799,7 @@ function handleKill(e: Entity, killerIsPlayer: boolean, pvx = 0, pvy = 0, goreLe
       severity: e.isFogBoss || e.type === EntityType.NPC ? 4 : 3,
       privacy: 'local',
       tags: e.type === EntityType.MONSTER ? ['combat', 'kill', 'monster'] : ['combat', 'kill', 'npc'],
-      data: e.type === EntityType.MONSTER && e.monsterVariantId ? {
-        monsterVariantId: e.monsterVariantId,
-        monsterVariantLootHint: MONSTER_VARIANT_BY_ID[e.monsterVariantId]?.lootHint,
-      } : undefined,
+      data: undefined,
 	    });
     if (e.type === EntityType.NPC) recordFactionClashPlayerHit(state, world, player, e, e.maxHp ?? 1);
   }
@@ -1828,7 +1828,6 @@ function handleKill(e: Entity, killerIsPlayer: boolean, pvx = 0, pvy = 0, goreLe
       }
     }
     if (killerIsPlayer) {
-      maybeDropVariantLoot(e);
       awardXP(player, xpForMonsterKill(e.monsterKind, e.rpg?.level ?? 1), state.msgs, state.time);
     }
     // Herald killed — check if voice quest (kill 3 heralds) is now complete → spawn portal
@@ -2075,7 +2074,7 @@ function updateProjectiles(dt: number): void {
     p.y = wy;
 
     // Entity collision — check monsters and NPCs
-    const dmg = p.projDmg ?? 0;
+    const baseDmg = p.projDmg ?? 0;
     const hitRadius = pt === ProjType.FLAME ? 0.8 : 0.6;
     entityIndex.queryPathRadius(prevX, prevY, p.x, p.y, hitRadius, projectileHitQuery, ENTITY_MASK_ACTOR);
     let nearestHit: Entity | undefined;
@@ -2099,7 +2098,24 @@ function updateProjectiles(dt: number): void {
       if (hitT < Infinity) {
         const hitX = projectilePathPoint(prevX, p.x, hitT);
         const hitY = projectilePathPoint(prevY, p.y, hitT);
+        const hitZ = p.spriteZ ?? 0.5;
+        if (pt === ProjType.WEB) {
+          applyPaupsinaWeb(e, state.time, state.msgs, state, projectileActor(p));
+          spawnProjectileBodyImpact(world, hitX, hitY, p.sprite, pt, hitZ);
+          playProjectileBodyHitCue(p, e.x, e.y, e.id === player.id);
+          p.alive = false;
+          break;
+        }
+        if (pt === ProjType.FLAME) reducePaupsinaWeb(e, state.time, state.msgs, state, projectileActor(p), 'fire');
         if (e.hp !== undefined) {
+          const counterplayDmg = adjustMonsterProjectileDamage(e, p, baseDmg);
+          const armor = applyMonsterArmorHit(world, state, e, {
+            damage: counterplayDmg,
+            attacker: projectileActor(p),
+            weaponId: p.weapon,
+            projectileType: pt,
+          });
+          const dmg = armor.damage;
           const debugImmortalPlayerHit = e.id === player.id && isDebugOnePunchManEnabled();
           if (debugImmortalPlayerHit) {
             keepDebugOnePunchManAlive(player);
@@ -2111,7 +2127,6 @@ function updateProjectiles(dt: number): void {
               recordFactionClashPlayerHit(state, world, player, e, dmg);
             }
             const hitAngle = Math.atan2(p.vy ?? 0, p.vx ?? 0);
-            const hitZ = p.spriteZ ?? 0.5;
             spawnBloodHit(world, hitX, hitY, hitAngle, dmg, e.type === EntityType.MONSTER, p.vx ?? 0, p.vy ?? 0, hitZ);
             spawnProjectileBodyImpact(world, hitX, hitY, p.sprite, pt, hitZ);
           }
@@ -2122,6 +2137,14 @@ function updateProjectiles(dt: number): void {
             e.alive = false;
             e.hp = 0;
             handleKill(e, p.ownerId === player.id, p.vx ?? 0, p.vy ?? 0, p.projGore ?? 1);
+            recordMonsterProjectileDeath(
+              world,
+              state,
+              e,
+              p,
+              projectileActor(p),
+              (target, vx, vy, gore) => handleKill(target, p.ownerId === player.id, vx, vy, gore),
+            );
           }
         }
         if (pt === ProjType.GRENADE || pt === ProjType.BFG) {
@@ -2162,7 +2185,15 @@ function triggerExplosion(p: Entity, pt: ProjType): void {
     if (dist > radius) continue;
     if (e.hp !== undefined) {
       const falloff = 1 - (dist / radius) * 0.6;
-      const finalDmg = Math.round(dmg * falloff);
+      const rawFinalDmg = Math.round(dmg * falloff);
+      const armor = applyMonsterArmorHit(world, state, e, {
+        damage: rawFinalDmg,
+        attacker: actor,
+        weaponId: p.weapon,
+        projectileType: pt,
+        aoe: true,
+      });
+      const finalDmg = armor.damage;
       if (e.id === player.id && isDebugOnePunchManEnabled()) {
         keepDebugOnePunchManAlive(player);
         hits++;
@@ -2343,6 +2374,7 @@ function switchFloor(
     }
   }
   resolveLiftArachnaDeparture(world, player, state);
+  clearPseudoliftActive(state);
   const liftZoneId = world.zoneMap[world.idx(Math.floor(player.x), Math.floor(player.y))];
   const route = allowElevatorAnomaly
     ? resolveElevatorRoute(state, fromFloor, nextFloor, direction, liftZoneId)
@@ -2535,6 +2567,7 @@ function enterVoidFloor(): void {
   state.currentFloor = FloorLevel.VOID;
   forceFloorRunStory(state, FloorLevel.VOID);
   state.gameWon = false;
+  clearPseudoliftActive(state);
   clearVoidReturnPortalState(state);
   setVoidEntryFromFloor(state, fromFloor);
 
@@ -2636,6 +2669,7 @@ function debugTeleportTo(target: DebugTeleportTarget): void {
 
   state.showDebug = false;
   state.currentFloor = target.floor;
+  clearPseudoliftActive(state);
   if (target.floor === FloorLevel.VOID) setVoidEntryFromFloor(state, fromFloor);
   else setVoidEntryFromFloor(state, undefined);
   if (target.spec) {
@@ -3188,6 +3222,7 @@ function loadGame(): boolean {
     setFloorRunState(state, savedFloorRun, savedFloor);
     const loadedFloorInstances = setFloorInstanceState(state, dataState.floorInstances as Parameters<typeof setFloorInstanceState>[1], savedFloor);
     setLiftArachnaState(state, dataState.liftArachna as Parameters<typeof setLiftArachnaState>[1]);
+    setPseudoliftState(state, dataState.pseudolift as Parameters<typeof setPseudoliftState>[1]);
     setNetTerminalGenState(state, dataState.netTerminalGen as Parameters<typeof setNetTerminalGenState>[1]);
     setMapEditorPatchState(state, dataState.mapEditorPatches as Parameters<typeof setMapEditorPatchState>[1]);
     setAlifeState(state, dataState.alife);
@@ -3266,6 +3301,7 @@ function loadGame(): boolean {
       setFloorRunState(state, savedFloorRun, floor);
       setFloorInstanceState(state, loadedFloorInstances, floor);
       setLiftArachnaState(state, dataState.liftArachna as Parameters<typeof setLiftArachnaState>[1]);
+      setPseudoliftState(state, dataState.pseudolift as Parameters<typeof setPseudoliftState>[1]);
       state.worldEvents = normalizeWorldEventState(dataState.worldEvents as Parameters<typeof normalizeWorldEventState>[0]);
       normalizeGameEconomy(state, dataState.economy);
       (state as GameState & { banking?: BankingState }).banking = normalizeBankingState(dataState.banking);
@@ -4844,6 +4880,7 @@ function gameLoop(now: number): void {
     // If switchFloor was triggered, pendingLoad is set — skip the rest of this frame
     if (pendingLoad) { requestAnimationFrame(gameLoop); return; }
     updateLiftArachnaEncounter(world, entities, player, state, dt, nextEntityId);
+    updatePseudolifts(world, entities, player, state);
     updateEquippedTool(dt);
     // Player urination (P key)
     if (input.pee && player.alive && player.needs && player.needs.pee > 5) {
@@ -4892,6 +4929,7 @@ function gameLoop(now: number): void {
       pendingLoad = () => {
         captureCurrentAlifeFloor();
         clearWrongDoorRemaps(world, state, 'world_rebuild');
+        clearPseudoliftActive(state);
         const replacement = currentRouteRebuildGeneration();
         rebuildWorld(world, entities, nextEntityId, state.samosborCount, state.currentFloor, replacement);
         initFactionControl(world);
@@ -5043,6 +5081,7 @@ function gameLoop(now: number): void {
     }
     if (updateBetonoedShortcut(world, entities, player, state, dt)) updateWorldData(world);
     setListenerPos(player.x, player.y, (ax, ay, bx, by) => world.dist2(ax, ay, bx, by));
+    updatePseudolifts(world, entities, player, state);
     updateAI(world, entities, dt, state.time, state.msgs, player.id, state.clock, state.samosborActive, nextEntityId, state.currentFloor, state);
     tickCellHazards(world, entities, state, dt, player, false);
     if (updateSamosbor(world, entities, state, dt, nextEntityId)) {
@@ -5050,6 +5089,7 @@ function gameLoop(now: number): void {
       pendingLoad = () => {
         captureCurrentAlifeFloor();
         clearWrongDoorRemaps(world, state, 'world_rebuild');
+        clearPseudoliftActive(state);
         const replacement = currentRouteRebuildGeneration();
         rebuildWorld(world, entities, nextEntityId, state.samosborCount, state.currentFloor, replacement);
         initFactionControl(world);

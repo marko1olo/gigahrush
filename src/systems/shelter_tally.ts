@@ -253,7 +253,7 @@ export function publishShelterTallyEvent(
     containerFaction: input.container?.faction,
     severity: effect.severity,
     privacy: input.privacy ?? effect.privacy,
-    tags: ['istotit', 'variant_istotit', 'shelter_tally', 'document', ...effect.tags],
+    tags: ['istotit', 'samosbor_istotit', 'shelter_tally', 'document', ...effect.tags],
     data: {
       outcome,
       choice: outcome,

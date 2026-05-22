@@ -7,7 +7,7 @@
 
 import {
   W, Cell, TEX, Tex, MAX_DRAW, Feature, ContainerKind,
-  type Entity, EntityType, ProjType,
+  type Entity, EntityType, ProjType, MonsterKind,
 } from '../core/types';
 import { World } from '../core/world';
 import { getActiveSamosborVariant } from '../data/samosbor_variants';
@@ -1682,6 +1682,16 @@ function toroidalDelta(a: number, b: number): number {
   return d;
 }
 
+function wrapWorldFloat(v: number): number {
+  return ((v % W) + W) % W;
+}
+
+function hasTumannikRenderOffset(e: Entity): boolean {
+  if (e.monsterKind !== MonsterKind.TUMANNIK) return false;
+  const ai = e.ai;
+  return Math.abs(ai?.fogOffsetX ?? 0) > 0.05 || Math.abs(ai?.fogOffsetY ?? 0) > 0.05;
+}
+
 function pushVisibleSprite(
   count: number,
   entity: Entity | null,
@@ -1860,8 +1870,10 @@ function renderSpritesGL(
   getEntityIndex().queryRadiusCapped(px, py, MAX_DRAW, visibleEntityQuery, ENTITY_MASK_VISIBLE, VISIBLE_ENTITY_QUERY_CAP);
   for (const e of visibleEntityQuery) {
     if (!e.alive || e.type === EntityType.PLAYER) continue;
-    const dx = toroidalDelta(e.x, px);
-    const dy = toroidalDelta(e.y, py);
+    const renderX = hasTumannikRenderOffset(e) ? wrapWorldFloat(e.x + (e.ai?.fogOffsetX ?? 0)) : e.x;
+    const renderY = hasTumannikRenderOffset(e) ? wrapWorldFloat(e.y + (e.ai?.fogOffsetY ?? 0)) : e.y;
+    const dx = toroidalDelta(renderX, px);
+    const dy = toroidalDelta(renderY, py);
     const dist = dx * dx + dy * dy;
     if (dist < MAX_DRAW * MAX_DRAW) {
       const isProjectile = e.type === EntityType.PROJECTILE
@@ -1880,6 +1892,27 @@ function renderSpritesGL(
         (e.id % 997) * 0.137,
       );
       if (visibleCount >= VISIBLE_SPRITE_CAP) break;
+    }
+    if (hasTumannikRenderOffset(e)) {
+      const realDx = toroidalDelta(e.x, px);
+      const realDy = toroidalDelta(e.y, py);
+      const realDist = realDx * realDx + realDy * realDy;
+      const realLight = world.light[world.idx(Math.floor(e.x), Math.floor(e.y))] ?? 0;
+      if (realDist < 4.2 * 4.2 || realLight >= 0.28) {
+        visibleCount = pushVisibleSprite(
+          visibleCount,
+          e,
+          realDx,
+          realDy,
+          realDist,
+          e.sprite ?? 0,
+          Math.min(0.7, e.spriteScale ?? 0.7),
+          e.spriteZ ?? 0,
+          0,
+          (e.id % 997) * 0.137 + 19,
+        );
+        if (visibleCount >= VISIBLE_SPRITE_CAP) break;
+      }
     }
   }
   visibleCount = collectStaticObjectSprites(world, px, py, visibleCount);

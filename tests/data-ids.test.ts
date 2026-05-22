@@ -20,7 +20,6 @@ import { FACTION_EVENT_DEFS } from '../src/data/faction_events';
 import { FLOOR_CATALOG } from '../src/data/floor_catalog';
 import { FLOOR_INSTANCES } from '../src/data/floor_instances';
 import { MONSTER_ECOLOGY } from '../src/data/monster_ecology';
-import { MONSTER_VARIANTS } from '../src/data/monster_variants';
 import { PLOT_CHAIN, PLOT_NPCS, SIDE_QUESTS, type PlotStep, type SideQuestStep } from '../src/data/plot';
 import { RESOURCES, resourceForItem } from '../src/data/resources';
 import { RUMORS, type RumorReveal } from '../src/data/rumors';
@@ -689,31 +688,22 @@ test('screen signal definitions reference known rumors, rooms, factions, and var
   assert.deepEqual(invalid, [], 'screen signal references must resolve');
 });
 
-test('monster variant and floor catalog ids are unique and valid', () => {
-  assertUnique('monster variant', MONSTER_VARIANTS.map(v => v.id));
+test('monster ecology and floor catalog ids are unique and valid', () => {
   assertUnique('monster ecology', MONSTER_ECOLOGY.map(e => String(e.kind)));
   assertUnique('floor catalog', FLOOR_CATALOG.map(f => f.id));
   assertUnique('floor instance', FLOOR_INSTANCES.map(f => f.id));
 
   const rumorIds = new Set(RUMORS.map(r => r.id));
-  const variantIds = new Set(MONSTER_VARIANTS.map(v => v.id));
   const invalid: string[] = [];
 
   for (const [kind, def] of Object.entries(MONSTERS)) {
     if (def.kind !== Number(kind)) invalid.push(dataRef('monster', kind, 'kind', def.kind));
   }
 
-  for (const v of MONSTER_VARIANTS) {
-    if (!ID_RE.test(v.id)) invalid.push(dataRef('monsterVariant', v.id, 'idFormat', v.id));
-    if (!monsterExists(v.baseKind)) invalid.push(dataRef('monsterVariant', v.id, 'baseKind', v.baseKind));
-    for (const floor of v.floors) if (!isFloorLevel(floor)) invalid.push(dataRef('monsterVariant', v.id, 'floors', floor));
-  }
-
   for (const e of MONSTER_ECOLOGY) {
     if (!monsterExists(e.kind)) invalid.push(dataRef('monsterEcology', e.kind, 'kind', e.kind));
     for (const floor of e.floors) if (!isFloorLevel(floor)) invalid.push(dataRef('monsterEcology', e.kind, 'floors', floor));
     for (const roomType of e.rooms) if (!ROOM_TYPE_IDS.has(roomType)) invalid.push(dataRef('monsterEcology', e.kind, 'rooms', roomType));
-    for (const variant of e.variants) if (!variantIds.has(variant)) invalid.push(dataRef('monsterEcology', e.kind, 'variants', variant));
     for (const rumorId of e.rumorIds) if (!rumorIds.has(rumorId)) invalid.push(dataRef('monsterEcology', e.kind, 'rumorIds', rumorId));
     e.rareDrops.forEach((drop, index) => pushItemRef(invalid, 'monsterEcology', e.kind, `rareDrops[${index}].itemId`, drop.itemId));
   }

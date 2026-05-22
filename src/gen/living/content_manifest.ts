@@ -34,3 +34,7 @@ import './veretar_window_rescue';
 import './scientist_escort_sample';
 import './apartment_raid';
 import './plombirovshchik';
+import './lampoglaz_corridor';
+import './gnilushka_lost_cell';
+import './blood_plant_den';
+import './spore_carpet_cache';

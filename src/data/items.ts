@@ -90,6 +90,7 @@ export const ITEM_TAGS: Record<string, readonly string[]> = {
   void_archive_warrant: ['document', 'void', 'archive', 'warrant', 'evidence'],
   pneumomail_capsule: ['document', 'pneumomail', 'sealed', 'evidence'],
   shark_scale: ['rare_trophy', 'contraband', 'water', 'fake'],
+  red_mold_sample: ['blood_plant', 'red_mold', 'sample', 'contraband', 'evidence'],
   bottled_voice: ['rare_trophy', 'psi', 'evidence', 'voice'],
   siren_shard: ['rare_trophy', 'samosbor', 'psi', 'evidence'],
   void_spike: ['rare_trophy', 'void', 'psi', 'evidence'],
@@ -348,6 +349,7 @@ export const ITEMS: Record<string, ItemDef> = {
   overexposed_photo:{ id:'overexposed_photo', name:'Засвеченный кадр', type:ItemType.MISC, desc:'Белое фото после Веретара. На кадре лишняя комната и край белого обхода; как карта бесполезно, как улика опасно.', spawnRooms:[], spawnW:0, value:140, tags:['veretar','evidence','photo','contaminated_item'] },
 
   // ── Образцы слизи AG61: spawnW 0, источник задают будущие slime sites/contracts ──
+  red_mold_sample:{ id:'red_mold_sample', name:'Проба красной плесени', type:ItemType.MISC, desc:'Теплая красная плесень из корневого притона. НИИ и рынок платят, но свидетели называют это заражением.', spawnRooms:[], spawnW:0, value:180, tags:['blood_plant','red_mold','sample','contraband','evidence'], stack:3 },
   slime_sample_brown:{ id:'slime_sample_brown', name:'Проба коричневой слизи', type:ItemType.MISC, desc:'Запечатанная пробирка с токсичным дешёвым остатком после самосбора. Жильцы платят за чистый проход, НИИ - за акт ошибки.', spawnRooms:[], spawnW:0, value:35 },
   slime_sample_green:{ id:'slime_sample_green', name:'Проба зелёной слизи', type:ItemType.MISC, desc:'Кислотная проба ОВС в толстом стекле. НИИ просит не ставить её рядом с едой, тканью и тем, что жалко.', spawnRooms:[], spawnW:0, value:120 },
   slime_sample_white:{ id:'slime_sample_white', name:'Проба белой слизи', type:ItemType.MISC, desc:'Матовая пробирка с мутагенным белым остатком. На неё не смотрят дольше подписи в форме 728/01-Д.', spawnRooms:[], spawnW:0, value:180 },

@@ -6,7 +6,7 @@ import {
   msg,
 } from '../core/types';
 import { World } from '../core/world';
-import { MONSTERS, applyMonsterVariant } from '../entities/monster';
+import { MONSTERS } from '../entities/monster';
 import { monsterSpr } from '../render/sprite_index';
 import { stampMark, MarkType } from '../render/marks';
 import { playBreak, playDoor, playSoundAt } from './audio';
@@ -226,7 +226,6 @@ function spawnBorerMonster(
   entities: Entity[],
   nextEntityId: { v: number },
   target: BorerTarget,
-  floor: FloorLevel,
 ): number {
   const pos = walkableNearDoor(world, target.doorIdx, target.roomId) ?? { x: doorX(target.doorIdx), y: doorY(target.doorIdx) };
   const def = MONSTERS[MonsterKind.SHOVNIK];
@@ -251,7 +250,6 @@ function spawnBorerMonster(
     ai: { goal: AIGoal.WANDER, tx: doorX(target.doorIdx), ty: doorY(target.doorIdx), path: [], pi: 0, stuck: 0, timer: 0 },
     rpg: randomRPG(zoneLevel),
   };
-  applyMonsterVariant(monster, floor, true);
   entities.push(monster);
   return monster.id;
 }
@@ -308,7 +306,7 @@ function startBorer(
   if (!target) return null;
 
   const delay = source === 'debug' ? BORER_DEBUG_DAMAGE_DELAY : BORER_DAMAGE_DELAY;
-  const monsterId = spawnBorerMonster(world, entities, nextEntityId, target, state.currentFloor);
+  const monsterId = spawnBorerMonster(world, entities, nextEntityId, target);
   const runtime: BorerRuntime = {
     id: store.nextId++,
     floor: state.currentFloor,

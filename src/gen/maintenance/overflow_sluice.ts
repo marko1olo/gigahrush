@@ -2,11 +2,11 @@
 
 import {
   AIGoal, Cell, EntityType, Tex, Feature, RoomType, Faction, Occupation, QuestType,
-  MonsterKind, FloorLevel,
+  MonsterKind,
   type Entity,
 } from '../../core/types';
 import { type PlotNpcDef, registerSideQuest } from '../../data/plot';
-import { MONSTERS, applyMonsterVariant } from '../../entities/monster';
+import { MONSTERS } from '../../entities/monster';
 import { registerCellHazardSite } from '../../systems/cell_hazards';
 import { randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg';
 import {
@@ -179,7 +179,6 @@ function spawnWaterEel(ctx: MaintContentCtx, x: number, y: number, targetX: numb
     ai: { goal: AIGoal.WANDER, tx: targetX, ty: targetY, path: [], pi: 0, stuck: 0, timer: 0 },
     rpg: randomRPG(zoneLevel),
   };
-  applyMonsterVariant(monster, FloorLevel.MAINTENANCE, true);
   ctx.entities.push(monster);
 }
 

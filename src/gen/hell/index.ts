@@ -413,7 +413,7 @@ function createHellMonster(world: World, nextId: { v: number }, kind: MonsterKin
   const ci = world.idx(Math.floor(x), Math.floor(y));
   const zid = world.zoneMap[ci];
   const zoneLevel = (zid >= 0 && world.zones[zid]) ? (world.zones[zid].level ?? 10) : 10;
-  const bonus = kind === MonsterKind.BETONNIK || kind === MonsterKind.MATKA ? 3 : 1;
+  const bonus = kind === MonsterKind.BETONNIK || kind === MonsterKind.MATKA || kind === MonsterKind.KHOROVAYA_MATKA ? 3 : 1;
   const rpg = randomRPG(zoneLevel + bonus);
   const hp = Math.round(scaleMonsterHp(def.hp, zoneLevel + bonus) * (1 + rpg.str * 0.1));
   return {
@@ -671,7 +671,7 @@ function spawnSealedHerald(
       name: 'Неизвестный Вестник',
       hp, maxHp: hp,
       monsterKind: MonsterKind.HERALD, attackCd: 0,
-      ai: { goal: AIGoal.IDLE, tx: 0, ty: 0, path: [], pi: 0, stuck: 0, timer: 0 },
+      ai: { goal: AIGoal.WANDER, tx: 0, ty: 0, path: [], pi: 0, stuck: 0, timer: 0 },
       rpg,
     });
     return true;

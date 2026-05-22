@@ -17,7 +17,7 @@ Safe insertion point documentation:
 */
 
 import {
-  W, Cell, Tex, Feature, RoomType, FloorLevel,
+  W, Cell, Tex, Feature, RoomType,
   type Room, type Entity,
   EntityType, AIGoal, Faction, Occupation, MonsterKind,
 } from '../../core/types';
@@ -29,7 +29,7 @@ import {
   protectRoom, rng, stampRoom,
 } from '../shared';
 import { randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg';
-import { MONSTERS, applyMonsterVariant } from '../../entities/monster';
+import { MONSTERS } from '../../entities/monster';
 import { Spr } from '../../render/sprite_index';
 
 export interface MaintContentCtx {
@@ -263,7 +263,6 @@ export function spawnMonstersNear(
       ai: { goal: AIGoal.WANDER, tx: x, ty: y, path: [], pi: 0, stuck: 0, timer: 0 },
       rpg: randomRPG(zoneLevel),
     };
-    applyMonsterVariant(monster, FloorLevel.MAINTENANCE, true);
     ctx.entities.push(monster);
     spawned++;
   }

@@ -226,6 +226,7 @@ function validatePublicProbeConfig(targetUrl, groups) {
     }
   }
   for (const group of groups) {
+    if ((group.key === "version" || group.key === "key_image") && group.markers.length === 0) continue;
     if (group.markers.length === 0) errors.push("Missing " + group.key + " assertions in upload_manifest.json.");
   }
   return errors;

@@ -115,21 +115,20 @@ Current shipped-data scale, counted from source registries:
 | Plot/side NPC ids after production manifests load | 313 |
 | Side quest steps after production manifests load | 372 |
 | System assignment templates | 201 |
-| Item ids | 253 |
+| Item ids | 254 |
 | Physical weapon stat entries | 32 |
 | PSI weapon stat entries | 16 |
-| Base monster kinds | 25 |
-| Monster ecology entries | 25 |
-| Monster modifier variants | 23 |
-| Static rumors | 515 |
+| Base monster kinds | 67 |
+| Monster ecology entries | 67 |
+| Static rumors | 578 |
 | Samosbor variants / modifiers / aftermath beats | 8 / 21 / 40 |
 | Samosbor director beats | 34 |
 | Economy resources | 17 |
 | Caravan supply lanes / small caravan templates | 6 / 5 |
 | Factory definitions / recipes | 12 / 19 |
-| LIVING manifest entries | 31 |
-| Manifest imports checked by content audit | 128 |
-| Debug commands, including routed teleports | 99 |
+| LIVING manifest entries | 35 |
+| Manifest imports checked by content audit | 144 |
+| Debug commands, including routed teleports | 103 |
 
 `npm run content:audit` is intentionally conservative and reports static literal registrations: currently 303 plot NPC ids, 348 side quest steps and 133 literal contract entries. The runtime counts above include production manifest imports, dynamic route-floor side-quest registration and spread/composed contract arrays used by the running game.
 
@@ -199,15 +198,15 @@ src/
     emergency_panels.ts emergency panel definitions
     rumors.ts       static rumor definitions
     relations.ts    faction and occupation text/relations
-    monster_*.ts    ecology, variants, slime/zhelemish data
+    monster_*.ts    ecology, slime/zhelemish data
     design_floors.ts authored string-id floor route stops
     procedural_floors.ts floor geometry/faction/anomaly combinatorics
     floor_*.ts      catalog and numbered lift instances
     samosbor_*.ts   samosbor variants and director beats
     void_protocols.ts
   entities/
-    monster.ts      monster registry and variant application
-    *.ts            25 monster definitions + sprite generators
+    monster.ts      monster registry and sprite map
+    *.ts            monster definitions + sprite generators
   gen/
     floor_manifest.ts        FloorLevel -> generator map
     living/                  apartments, volatile maze, tutor room, hub geometry, zone POIs
@@ -450,10 +449,10 @@ Side quests use `registerSideQuest()` from `src/data/plot.ts`. Content modules r
 
 Major side-content locations include:
 
-- `living/`: temple, Istotit supply cache, library, market, black market 88, mushroom cellar, zhelemish cellar, zhelemishnik, carnivorous fungus room, fake zhelemish medpost, concierge/radio/kitchen pack, domkom/laundry pack, domkom ammo locker, emergency medpost, expedition prep, external-cell neighbor, govnyak smoke den, cartographer room, hermoseam station, school ОБЖ, hospital quarantine, white compulsion room, Belaya Prislushka, Veretar window room, scientist escort sample, Golos za dveryu, Plombirovshchik, Samosbornyy Ostov and art studies.
+- `living/`: temple, Istotit supply cache, library, market, black market 88, mushroom cellar, zhelemish cellar, zhelemishnik, carnivorous fungus room, Spore Carpet cache, fake zhelemish medpost, concierge/radio/kitchen pack, domkom/laundry pack, domkom ammo locker, emergency medpost, expedition prep, external-cell neighbor, govnyak smoke den, cartographer room, hermoseam station, school ОБЖ, hospital quarantine, white compulsion room, Belaya Prislushka, Veretar window room, scientist escort sample, Golos za dveryu, Plombirovshchik, Samosbornyy Ostov and art studies.
 - `ministry/`: permit office, weapon permit bureau, document gate, stamp room, interrogation room, queue hall, inspection archive, raionsovet archive, liquidator archive, NII contraband audit, Chernobog docket handlers, refusal clause, secret smoking room, Kartotechnik archive, Matka Dokumentov room, routed ministry design-floor content and named NPC pack.
 - `kvartiry/`: ration queue, Ocherednik, water riot, ammo smelter, illegal print room, barricade, false neighbor, Pustoy Sosed, communal kitchen feud, cult supply kitchen, Chernobozhiy Svod, lost child corner, medicine swap, red corner, KV08 route assembly and named social NPCs.
-- `maintenance/`: forpost, Mancobus room, flooded lab, pressure station, steam valves, diver cache, water bridge, Paritel steam bridge, watermeter post, overflow sluice, heatline zero, metro error line, concentrate press, Pressovik, Nasosnaya Matka, lift repair shaft, Remontnik bez smeny, charge cage 089, automation cage, Hladonets, Kabelnik, collectors pressure reroute, defector liquidator, Ostavshiysya Likvidator, NII slime sample post, blue glow sample, green acid room, brown slime cleanup room, slime deactivation furnace, slime singing vents, Ventshun, red adhesive trap, cult-held workshop, Seroburmaline no-look route, pneumomail station, black slime eyes, Chernaya Lichinka, Betonoed shortcut, Kostorez locker and Filtronos.
+- `maintenance/`: forpost, Mancobus room, flooded lab, pressure station, steam valves, diver cache, water bridge, Olgoy meat cache, Vodyanoy Koshmar pump room, Paritel steam bridge, watermeter post, overflow sluice, heatline zero, metro error line, concentrate press, Pressovik, Nasosnaya Matka, lift repair shaft, Remontnik bez smeny, charge cage 089, automation cage, Hladonets, Kabelnik, collectors pressure reroute, defector liquidator, Ostavshiysya Likvidator, NII slime sample post, blue glow sample, green acid room, brown slime cleanup room, slime deactivation furnace, slime singing vents, Ventshun, red adhesive trap, cult-held workshop, Seroburmaline no-look route, pneumomail station, black slime eyes, Chernaya Lichinka, Betonoed shortcut, Kostorez locker and Filtronos.
 - `hell/`: Nikanor/Marfa plot rooms, Meduka, altar arena, choir tax, PSI meat cache, thin wall chapel and Myasomer.
 - `void/`: Jean's warning cell, bottled voice, protocol chamber, borrowed light rule chamber, trace seal protocol, Maronary Signalshchik, Pristav Pustoty, Perestanovshchik, Seryy Smotritel and Ekrannik.
 
@@ -641,22 +640,25 @@ PSI does not regenerate passively. It is restored by medicine/items and scales w
 
 ## Monsters
 
-25 base monster kinds are registered in `src/entities/monster.ts`:
+`src/entities/monster.ts` currently registers 67 standalone `MonsterKind` packages. The legacy starting set includes:
 
 `SBORKA`, `TVAR`, `POLZUN`, `BETONNIK`, `ZOMBIE`, `EYE`, `NIGHTMARE`, `SHADOW`, `REBAR`, `MATKA`, `IDOL`, `MANCOBUS`, `HERALD`, `CREATOR`, `SPIRIT`, `ROBOT`, `SHOVNIK`, `LAMPOVY`, `PECHATEED`, `TUBE_EEL`, `PARAGRAPH`, `NELYUD`, `KRYSNOZHKA`, `KOSTOREZ`, `SAFEGUARD`.
+
+Standalone monster packages extend that registry. `LAMPOGLAZ` is a Living/Ministry light-linked turret: it shoots harder and faster when the target stands in lit cells or near lamps, and loses its windup when the target cuts line of sight or moves into darkness. `DIKIY_MERTVYAK` is a Kvartiry/Living fragile crowd-runner: early damage cancels its shove momentum, while door jams, queues and dense actors let it stagger/panic nearby NPCs. `VODYANOY_KOSHMAR` is a Maintenance water-line PSI predator: bounded slow wet-connectivity checks ramp pressure while the target stays on a connected wet line, and dry concrete creates a short interruption window. `TRUBNYY_AVTOMAT` is a Maintenance wet-line machine: it charges only along bounded wet/drain lines, can be denied by stepping dry or flanking, and has a long recovery after firing. `OLGOY` is a Maintenance/Hell meat worm: raw meat and corpses distract it, dry floor slows it, and water/pipe/abyss cells let it bite harder and drag targets. `GLUBINNAYA_TEN` is a Hell/Void delayed-shadow predator: chasing its dark afterimage triggers a second-beat strike, while holding position or using light collapses the bait. `SPORE_CARPET` is a Ministry/Kvartiry/Living/Maintenance dormant floor ambusher: proximity, opened containers, noise and fire wake it; close puffs apply `spore_haze`, while flame burns delay the next puff and publish a route clue.
 
 Monster supporting data:
 
 - `src/data/monster_ecology.ts`: floors, rooms, counterplay, loot hints, rumor ids.
-- `src/data/monster_variants.ts`: 23 cheap modifier variants, e.g. cracked, wet, silent, panel, office, deep, lamp, pipe, false, garbage, black-slime and betonoed.
 - `src/systems/ai/monster.ts`: behavior rules.
 - `src/entities/*.ts`: stats and procedural sprites.
+
+Mechanical modifier variants have been removed; new creatures are standalone `MonsterKind` packages with direct stats, sprite generation, ecology and AI hooks.
 
 Fog bosses can clear fog when killed. Matka is a spawner boss. Heralds open the path to Void. Creator is the final boss.
 
 Krysnozhka, Sborka, Tvar, Polzun and Tube Eel can be distracted by explicit bait: dropped food or used/dropped govnyak creates a temporary capped marker. Bait attraction uses active marker caps and cooldowns, not item-drop scans. Tube Eel route set pieces combine water cells, dry-edge counterplay, harpoon ammo and non-cleanable wet-route HUD warnings instead of fluid simulation.
 
-Kostorez is a rare Maintenance/Hell melee elite with a visible blade windup. Distance, a corner/obstacle, or shotgun pellets interrupt the burst; a carried `metal_sheet` can absorb part of one cut. Safeguard is a fast NET/BLAME blade guard used by `silicon_net_well` terminals and late-route NET backlash.
+Kostorez is a rare Maintenance/Hell melee elite with a visible blade windup. Distance, a corner/obstacle, or shotgun pellets interrupt the burst; a carried `metal_sheet` can absorb part of one cut. Zakalyonnaya Armatura is a rare Maintenance/Hell armored rebar elite: weak melee and panic pistol hits are resisted until shotgun, heavy melee, explosive or heavy ranged hits strip its armor stacks. Safeguard is a fast NET/BLAME blade guard used by `silicon_net_well` terminals and late-route NET backlash.
 
 Several newer monster ideas are implemented as reachable floor content modules rather than new `MonsterKind` enum values. Examples: Golos za dveryu and Plombirovshchik on Living, Ocherednik and Pustoy Sosed on Kvartiry, Pressovik/Nasosnaya Matka/Hladonets/Kabelnik/Ventshun/Filtronos on Maintenance, Myasomer in Hell, and Ekrannik/Perestanovshchik/Pristav Pustoty/Seryy Smotritel in Void. These modules use existing entities, items, events, room marks, route cues and local mechanics instead of expanding the core enum for every named encounter.
 

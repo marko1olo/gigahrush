@@ -72,7 +72,7 @@ registerSideQuest(WITNESS_ID, WITNESS, [
     eventTargetName: 'Свидетеля оттащили от белого окна Веретара.',
     eventSeverity: 4,
     eventPrivacy: 'witnessed',
-    eventTags: ['variant_veretar', 'veretar_window_rescue', 'witness', 'rescued'],
+    eventTags: ['samosbor_veretar', 'veretar_window_rescue', 'witness', 'rescued'],
     eventData: {
       outcome: 'rescued',
       readableChoices: ['cover', 'seal', 'sand', 'photo', 'shortcut'],
@@ -94,7 +94,7 @@ registerSideQuest(WITNESS_ID, WITNESS, [
     eventTargetName: 'Игрок выбрал белый обход Веретара: путь стал короче, свидетель после окна замолчал.',
     eventSeverity: 4,
     eventPrivacy: 'local',
-    eventTags: ['variant_veretar', 'veretar_window_shortcut', 'veretar_window_lost', 'costly_shortcut', 'overexposed_photo', 'shortcut', 'witness'],
+    eventTags: ['samosbor_veretar', 'veretar_window_shortcut', 'veretar_window_lost', 'costly_shortcut', 'overexposed_photo', 'shortcut', 'witness'],
     eventData: {
       outcome: 'shortcut_used',
       routeCost: 'silent_witness',
@@ -140,7 +140,7 @@ function addContainer(
     faction: Faction.CITIZEN,
     access: 'owner',
     discovered: true,
-    tags: [CONTENT_TAG, 'variant_veretar', 'area_leak', ...tags],
+    tags: [CONTENT_TAG, 'samosbor_veretar', 'area_leak', ...tags],
   });
 }
 

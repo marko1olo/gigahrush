@@ -15,7 +15,7 @@ import {
 import { World } from '../../core/world';
 import { hashSeed, seededRandom } from '../../core/rand';
 import type { DesignFloorRouteDef } from '../../data/design_floors';
-import { MONSTERS, applyMonsterVariant } from '../../entities/monster';
+import { MONSTERS } from '../../entities/monster';
 import { monsterSpr } from '../../render/sprite_index';
 import { ensureConnectivity, generateZones, sanitizeDoors } from '../shared';
 import type { FloorGeneration } from '../floor_manifest';
@@ -81,7 +81,7 @@ export function expandDesignFloorGeneration<T extends FloorGeneration>(
       expandServiceFloor(generation.world, rng, style(route));
       break;
     case 'underhell':
-      expandUnderhell(generation.world, generation.entities, rng, route.baseFloor);
+      expandUnderhell(generation.world, generation.entities, rng);
       break;
     case 'darkness':
       expandDarkness(generation.world, generation.entities, rng);
@@ -562,7 +562,7 @@ function expandServiceFloor(world: World, rng: () => number, s: FloorStyle): voi
   expandServiceFloorMachineMaze(world, rng, s);
 }
 
-function expandUnderhell(world: World, entities: Entity[], rng: () => number, floor: FloorLevel): void {
+function expandUnderhell(world: World, entities: Entity[], rng: () => number): void {
   const specs = [
     { x: 146, y: 146, w: 38, h: 24, r: 34, name: 'Остров бездонной кости' },
     { x: 360, y: 104, w: 34, h: 22, r: 30, name: 'Корневой верхний уступ' },
@@ -601,7 +601,7 @@ function expandUnderhell(world: World, entities: Entity[], rng: () => number, fl
   carveLine(world, 512, 784, points[6].x, points[6].y, 2, Tex.F_CONCRETE);
   carveLine(world, 452, 716, points[8].x, points[8].y, 1, Tex.F_CONCRETE);
   sinkExpandedUnderhellAbyss(world);
-  spawnAmbientMonsters(world, entities, rng, floor, 64, [MonsterKind.SHADOW, MonsterKind.IDOL, MonsterKind.SPIRIT, MonsterKind.REBAR, MonsterKind.KOSTOREZ]);
+  spawnAmbientMonsters(world, entities, rng, 64, [MonsterKind.SHADOW, MonsterKind.IDOL, MonsterKind.SPIRIT, MonsterKind.REBAR, MonsterKind.KOSTOREZ]);
 }
 
 function sinkExpandedUnderhellAbyss(world: World): void {
@@ -626,7 +626,6 @@ function spawnAmbientMonsters(
   world: World,
   entities: Entity[],
   rng: () => number,
-  floor: FloorLevel,
   count: number,
   kinds: MonsterKind[],
 ): void {
@@ -653,7 +652,6 @@ function spawnAmbientMonsters(
       ai: { goal: AIGoal.WANDER, tx: p.x, ty: p.y, path: [], pi: 0, stuck: 0, timer: 0 },
       phasing: kind === MonsterKind.SPIRIT,
     };
-    applyMonsterVariant(monster, floor, rng() < 0.5);
     entities.push(monster);
   }
 }

@@ -8,6 +8,7 @@ import {
   Occupation,
   RoomType,
   Tex,
+  W,
   type Entity,
   type Room,
 } from '../../core/types';
@@ -15,6 +16,7 @@ import { freshNeeds, randomName } from '../../data/catalog';
 import { PROCEDURAL_POPULATION_PROFILES } from '../../data/population_profiles';
 import { floorRunZAllowsNpcs } from '../../data/procedural_floors';
 import { MONSTERS } from '../../entities/monster';
+import { HEAD_SLUG_HOSTED_STAGE } from '../../entities/head_slug';
 import { monsterSpr } from '../../render/sprite_index';
 import { canSpawnEntityType, entitySpawnSlots } from '../../systems/entity_limits';
 import { gaussianLevel, getMaxHp, randomRPG } from '../../systems/rpg';
@@ -38,6 +40,9 @@ const CROWD_OCCUPATIONS = [
   Occupation.CHILD,
   Occupation.TRAVELER,
 ] as const;
+
+const CROWD_BUCKET_SIZE = 32;
+const CROWD_BUCKET_CAP = 20;
 
 function crowdCount(ctx: ProceduralAnomalyGenContext): number {
   return entitySpawnSlots(ctx.entities, EntityType.NPC, PROCEDURAL_POPULATION_PROFILES.highDensity.npcs.cap);
@@ -64,22 +69,47 @@ function chooseOutbreakRoom(ctx: ProceduralAnomalyGenContext, rooms: readonly Ro
   return candidates[Math.floor(Math.random() * Math.min(candidates.length, 18))].room;
 }
 
-function freeCrowdCell(ctx: ProceduralAnomalyGenContext, room: Room, occupied: Set<number>): { x: number; y: number } | null {
-  for (let attempt = 0; attempt < 18; attempt++) {
+function chooseMedicalSlugRoom(rooms: readonly Room[]): Room | null {
+  const candidates = rooms.filter(room => room.type === RoomType.MEDICAL && room.w * room.h >= 30);
+  return candidates.length > 0 ? pick(candidates) : null;
+}
+
+function crowdBucketIndex(x: number, y: number): number {
+  const side = Math.ceil(W / CROWD_BUCKET_SIZE);
+  const bx = Math.min(side - 1, Math.max(0, Math.floor(x / CROWD_BUCKET_SIZE)));
+  const by = Math.min(side - 1, Math.max(0, Math.floor(y / CROWD_BUCKET_SIZE)));
+  return by * side + bx;
+}
+
+function buildCrowdBucketCounts(entities: readonly Entity[]): Int32Array {
+  const side = Math.ceil(W / CROWD_BUCKET_SIZE);
+  const counts = new Int32Array(side * side);
+  for (const entity of entities) {
+    if (!entity.alive || entity.type !== EntityType.NPC) continue;
+    counts[crowdBucketIndex(entity.x, entity.y)]++;
+  }
+  return counts;
+}
+
+function freeCrowdCell(ctx: ProceduralAnomalyGenContext, room: Room, occupied: Set<number>, bucketCounts: Int32Array): { x: number; y: number } | null {
+  for (let attempt = 0; attempt < 36; attempt++) {
     const pos = randomRoomCell(ctx.world, room, false);
     if (!pos) continue;
     if (ctx.world.dist2(ctx.spawnX, ctx.spawnY, pos.x + 0.5, pos.y + 0.5) < 8 * 8) continue;
     const ci = ctx.world.idx(pos.x, pos.y);
     if (occupied.has(ci)) continue;
     if (ctx.world.cells[ci] !== Cell.FLOOR) continue;
+    const bucket = crowdBucketIndex(pos.x + 0.5, pos.y + 0.5);
+    if (bucketCounts[bucket] >= CROWD_BUCKET_CAP) continue;
     occupied.add(ci);
+    bucketCounts[bucket]++;
     return pos;
   }
   return null;
 }
 
-function spawnCrowdNpc(ctx: ProceduralAnomalyGenContext, room: Room, occupied: Set<number>, order: number, active: boolean): boolean {
-  const pos = freeCrowdCell(ctx, room, occupied);
+function spawnCrowdNpc(ctx: ProceduralAnomalyGenContext, room: Room, occupied: Set<number>, bucketCounts: Int32Array, order: number, active: boolean): boolean {
+  const pos = freeCrowdCell(ctx, room, occupied, bucketCounts);
   if (!pos) return false;
   const ci = ctx.world.idx(pos.x, pos.y);
   const zoneLevel = ctx.world.zones[ctx.world.zoneMap[ci]]?.level ?? ctx.spec.danger;
@@ -181,6 +211,38 @@ function spawnPatientZero(ctx: ProceduralAnomalyGenContext, room: Room): void {
   });
 }
 
+function spawnHeadSlugPatient(ctx: ProceduralAnomalyGenContext, room: Room): void {
+  if (!canSpawnEntityType(ctx.entities, EntityType.MONSTER)) return;
+  const pos = randomRoomCell(ctx.world, room, false);
+  if (!pos) return;
+  const def = MONSTERS[MonsterKind.HEAD_SLUG];
+  const ci = ctx.world.idx(pos.x, pos.y);
+  const zoneLevel = ctx.world.zones[ctx.world.zoneMap[ci]]?.level ?? ctx.spec.danger;
+  const hp = Math.round(def.hp * (0.9 + zoneLevel * 0.08));
+  const skill = Math.min(1.28, 0.88 + zoneLevel * 0.03);
+  ctx.entities.push({
+    id: ctx.nextId.v++,
+    type: EntityType.MONSTER,
+    x: pos.x + 0.5,
+    y: pos.y + 0.5,
+    angle: Math.random() * Math.PI * 2,
+    pitch: 0,
+    alive: true,
+    speed: def.speed * skill,
+    sprite: monsterSpr(MonsterKind.HEAD_SLUG),
+    spriteSeed: (ctx.spec.seed ^ 0x5106) >>> 0,
+    name: 'Медицинский носитель слизня',
+    hp,
+    maxHp: hp,
+    monsterKind: MonsterKind.HEAD_SLUG,
+    monsterStage: HEAD_SLUG_HOSTED_STAGE,
+    parasiteHostSkill: skill,
+    attackCd: 0,
+    ai: { goal: AIGoal.WANDER, tx: pos.x, ty: pos.y, path: [], pi: 0, stuck: 0, timer: 0, combatScanCd: 0 },
+    rpg: randomRPG(Math.max(1, zoneLevel)),
+  });
+}
+
 function convertShadowSpawnsToZombies(ctx: ProceduralAnomalyGenContext): void {
   const def = MONSTERS[MonsterKind.ZOMBIE];
   for (const e of ctx.entities) {
@@ -195,7 +257,6 @@ function convertShadowSpawnsToZombies(ctx: ProceduralAnomalyGenContext): void {
     e.maxHp = hp;
     e.speed = def.speed * (0.9 + ctx.spec.danger * 0.04);
     e.attackCd = 0;
-    e.monsterVariantId = undefined;
     e.monsterDmgMult = undefined;
     e.phasing = false;
     if (e.ai) {
@@ -215,18 +276,23 @@ export function applyZombieApocalypse(ctx: ProceduralAnomalyGenContext): void {
 
   const target = crowdCount(ctx);
   const occupied = new Set<number>();
+  const bucketCounts = buildCrowdBucketCounts(ctx.entities);
   let spawned = 0;
-  for (let i = 0; i < target * 4 && spawned < target; i++) {
+  for (let i = 0; i < target * 12 && spawned < target; i++) {
     const room = Math.random() < 0.22 && outbreak ? outbreak : pick(rooms);
-    if (spawnCrowdNpc(ctx, room, occupied, spawned, true)) spawned++;
+    if (spawnCrowdNpc(ctx, room, occupied, bucketCounts, spawned, true)) spawned++;
   }
 
   convertShadowSpawnsToZombies(ctx);
 
   if (outbreak) {
     spawnPatientZero(ctx, outbreak);
+    const slugRoom = chooseMedicalSlugRoom(rooms);
+    if (slugRoom) spawnHeadSlugPatient(ctx, slugRoom);
     const c = roomCenter(outbreak);
     addItemDrop(ctx, c.x + 1, c.y, 'clean_health_cert', 1);
     addItemDrop(ctx, c.x - 1, c.y, 'bandage', 2);
   }
+
+  convertShadowSpawnsToZombies(ctx);
 }

@@ -8,7 +8,7 @@ import {
 import { World } from '../../core/world';
 import { freshNeeds } from '../../data/catalog';
 import { type PlotNpcDef, registerSideQuest } from '../../data/plot';
-import { MONSTERS, applyMonsterVariant } from '../../entities/monster';
+import { MONSTERS } from '../../entities/monster';
 import { Spr, monsterSpr } from '../../render/sprite_index';
 import { publishEvent, registerWorldEventObserver } from '../../systems/events';
 import { randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg';
@@ -526,7 +526,6 @@ function spawnGolosMonster(world: World, entities: Entity[], nextId: { v: number
     ai: { goal: AIGoal.IDLE, tx: x, ty: y, path: [], pi: 0, stuck: 0, timer: 0 },
     rpg: randomRPG(zoneLevel),
   };
-  applyMonsterVariant(monster, FloorLevel.LIVING, false);
   entities.push(monster);
 }
 

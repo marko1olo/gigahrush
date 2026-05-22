@@ -25,6 +25,7 @@ import { findCombatTarget, dropNpcInventory, deterministicScanCd, hasClearLineOf
 import { recordEntityKill } from '../alife_rating';
 import { recordPlayerDamage } from '../damage';
 import { ENTITY_MASK_MONSTER, getEntityIndex } from '../entity_index';
+import { applyMonsterIncomingDamage } from '../monster_traits';
 import { publishWeaponNoise } from '../noise';
 import {
   bark,
@@ -269,7 +270,8 @@ export function tryFactionCombat(
   if (e.attackCd! <= 0) {
     const baseDmg = meleeWs.dmg > 0 ? meleeWs.dmg : (5 + Math.floor(Math.random() * 8));
     const rawDmg = meleeDamage(e.rpg, e.weapon, baseDmg);
-    const dmg = zhelemishIncomingMeleeDamage(target, _time, rawDmg);
+    let dmg = zhelemishIncomingMeleeDamage(target, _time, rawDmg);
+    if (target.type === EntityType.MONSTER) dmg = applyMonsterIncomingDamage(world, target, dmg);
     if (target.hp !== undefined) {
       const debugImmortalPlayerHit = target.type === EntityType.PLAYER && isDebugOnePunchManEnabled();
       if (debugImmortalPlayerHit) {

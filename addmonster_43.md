@@ -12,6 +12,15 @@ Lore may call creatures relatives, subspecies, strains, or local names. Code mus
 
 That contradicts the game's modular content rule: meaningful monsters should be reachable, readable, and owned by a bounded package, not hidden behind `monsterVariantId`.
 
+## Current Run Context
+
+This file may run after an incomplete first `addmonster_01.md` through `addmonster_42.md` wave and before a repeat wave. Treat every already-added standalone monster as user/agent work to preserve, even if it is partial.
+
+- Do not delete a new `MonsterKind`, sprite file, ecology row, rumor, AI hook, POI, or test just because its worker did not finish every `Done` item.
+- When old variant plumbing points at a monster that is not complete yet, migrate the plumbing to the planned direct `MonsterKind` or a named encounter tag, then leave the missing monster-specific behavior for that repeat file.
+- If removing the registry exposes duplicate or partial shared entries, keep the canonical direct-monster entry and record any unfinished per-monster gaps in the final report.
+- After this pass, repeat workers for `addmonster_01.md` through `addmonster_42.md` should operate against the post-migration code shape and must not recreate the removed subtype layer.
+
 ## Remove
 
 - Delete `src/data/monster_variants.ts`.
@@ -61,7 +70,7 @@ Policy:
 ## Save And Docs
 
 - Bump save shape or explicitly invalidate stale saves. The project is early development, so no legacy compatibility path is required.
-- Update `README.md` counts: remove `Monster modifier variants | 23`; standalone monster count increases only when the new packages are implemented.
+- Update `README.md` counts: remove the current `Monster modifier variants` row, whatever its count is at the time of this migration; standalone monster count increases only when the new packages are implemented.
 - Update `architecture.md` to remove `src/data/monster_variants.ts` and any "monster variant pack" language.
 
 ## Tests
@@ -75,14 +84,15 @@ Policy:
 ## Done
 
 - `rg "monsterVariantId|MONSTER_VARIANTS|applyMonsterVariant|chooseMonsterVariant|variantsForKind|variant_" src tests README.md architecture.md` returns no mechanical subtype references.
-- Former entries 20 through 42 exist as direct monster plans or implemented monster packages.
+- Former entries 20 through 42 are no longer reachable through a mechanical subtype registry; they remain either implemented direct monster packages or explicit repeat-pass work in their own `addmonster_N.md` files.
 - No player-facing behavior depends on an invisible modifier registry.
 
 ## Agent Orchestration
 
-- Serial owner: one GPT-5.5 integration/migration worker handles this file after the parallel monster workers are merged or intentionally staged.
-- First read: `AGENTS.md`, `README.md`, `architecture.md`, `addmonster_00_index.md`, every completed `addmonster_20.md` through `addmonster_42.md`, then this file.
+- Serial owner: one GPT-5.5 integration/migration worker handles this file after the first parallel monster wave is merged, intentionally staged, or known to be partial.
+- First read: `AGENTS.md`, `README.md`, `architecture.md`, `addmonster_00_index.md`, every `addmonster_20.md` through `addmonster_42.md` with implemented or partial work, then this file. If completion status is unclear, skim all 20-42 plans before deleting variant plumbing.
 - Write scope: remove the mechanical subtype layer, consolidate shared registries, update docs/tests/save shape, and preserve every standalone monster package already added by other agents.
 - Shared files: this worker is allowed to touch broad shared files, but must not delete another worker's new `MonsterKind`, sprite module, ecology entry, rumor, authored POI, or test.
 - Forbidden: compatibility shims that keep `monsterVariantId`, hidden prefix systems, or a renamed universal subtype registry.
-- Final report: deleted APIs/files, migrated direct special cases, updated tests/docs, `rg` proof for removed subtype references, `npm run check` result, and any unresolved merge conflicts.
+- Repeat-wave handoff: list any monster whose package exists but still lacks reachability, bounded AI, events/logs, tests, or docs so the repeat `addmonster_N.md` worker can finish it without reintroducing variants.
+- Final report: deleted APIs/files, migrated direct special cases, updated tests/docs, `rg` proof for removed subtype references, `npm run check` result, repeat-wave gaps, and any unresolved merge conflicts.

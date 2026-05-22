@@ -97,6 +97,8 @@ export interface SamosborAftermathBeatDef {
   message: string;
   tags: readonly string[];
   monsterKind?: MonsterKind;
+  monsterCount?: number;
+  minSamosborCount?: number;
   resourceId?: string;
   itemId?: string;
   fogStrength?: number;
@@ -629,6 +631,23 @@ export const SAMOSBOR_AFTERMATH_BEATS: readonly SamosborAftermathBeatDef[] = [
     effect: 'faction_panic',
     message: 'Ликвидаторы пошли по следу самосбора. Люди расходятся; коридор меняет хозяина до следующего обхода.',
     tags: ['faction', 'pressure', 'civil'],
+  },
+  {
+    id: 'aftermath_black_liquidator_patrol',
+    title: 'Черный обход',
+    variants: ['classic', 'wet', 'electric'],
+    floors: CIVIL_FLOORS,
+    weight: 5,
+    cooldownSec: 960,
+    maxRuns: 2,
+    radius: 18,
+    severity: 4,
+    effect: 'monster_aftershock',
+    message: 'После тяжелого отбоя в коридор вошла черная зачистка. Не открывай дверь и не держи пробу на виду.',
+    tags: ['monster', 'false_cleanup', 'liquidator', 'patrol'],
+    monsterKind: MonsterKind.BLACK_LIQUIDATOR,
+    monsterCount: 3,
+    minSamosborCount: 3,
   },
   {
     id: 'aftermath_pressure_station_drop',

@@ -63,6 +63,20 @@ Player decision: cut power/network, fight avatar, destroy local server, or accep
 - Screen-powered state is readable.
 - Mind control is capped and evented.
 
+## Third-Pass Audit (2026-05-22)
+
+Partial package exists. Keep `MonsterKind.CHERVIE_AVATAR`, `src/entities/chervie_avatar.ts`, and existing ecology/rumors. Missing pieces: `netPossessor` runtime behavior, screen/server-powered state, capped mind pulse events, compromised terminal reachability or debug path, and focused tests for local source radius and pulse cap.
+
+## Repeat-Pass Instructions
+
+This file may be run after one or more earlier addmonster workers already touched the tree. Treat existing work for this monster as partial implementation to audit and finish, not as a reason to create a second package.
+
+- First search the current tree for the planned `MonsterKind`, sprite module name, Russian display name, and former variant id or source name when this file lists one.
+- If the monster already exists, keep its established ids and file names unless they are clearly broken; complete missing `Done` items instead of replacing the implementation.
+- Repair reachability/debug spawning, ecology, rumors, events/log output, bounded AI behavior, and focused tests as needed.
+- If `addmonster_43.md` has already removed `monsterVariantId` and `src/data/monster_variants.ts`, do not re-add them. Convert leftover references to direct `MonsterKind`, encounter tags, or authored module state.
+- Preserve other addmonster additions in shared files. Resolve duplicates by keeping one canonical entry for this monster and leaving unrelated entries alone.
+
 ## Agent Orchestration
 
 - Parallel owner: one GPT-5.5 worker implements only this addmonster file.
@@ -70,4 +84,4 @@ Player decision: cut power/network, fight avatar, destroy local server, or accep
 - Write scope: create/modify only the monster package, sprite, authored POI/tests needed for this creature. Do not edit another `addmonster_*.md`.
 - Shared files: make only minimal append-style edits for this monster; never reorder or refactor shared registries while other agents are working.
 - Forbidden: `monsterVariantId`, `MONSTER_VARIANTS`, `applyMonsterVariant`, prefix-derived stats, or any mechanical subtype system.
-- Final report: changed paths, new `MonsterKind`, reachability/debug path, tests run or skipped, and conflicts/TODOs.
+- Final report: changed paths, new or existing `MonsterKind`, reachability/debug path, tests run or skipped, whether this was fresh work or repeat completion, and conflicts/TODOs.

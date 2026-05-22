@@ -5,7 +5,7 @@ Use these if the account has no custom CSS access.
 ## Core Fields
 
 - Title: `GIGAH|RUSH`
-- Short description: `Вылазки, патроны и самосбор внутри хрущёвки размером с город.`
+- Short description: `Выживание, вылазки и САМОСБОР внутри бесконечной хрущёвки.`
 - Genre: `Shooter`
 - Tags: `Survival Horror`, `Procedural Generation`, `Life Simulation`, `Dungeon Crawler`, `Roguelike`, `Doom`, `Maze`, `Russian`, `Pixel Art`, `Browser`
 
@@ -21,8 +21,8 @@ Use these if the account has no custom CSS access.
 - Cover image: upload `assets/gigahrush_cover_630x500.png`.
 - Cover alternatives if the crop is bad: use `visual_variants/gigahrush_cover_variant_red_alarm_630x500.png`, then `visual_variants/gigahrush_cover_variant_green_maronary_630x500.png`, then `visual_variants/gigahrush_cover_variant_white_veretar_630x500.png`.
 - Social image if available: upload `assets/gigahrush_social_1200x630.png`.
-- Screenshot set: use `enhanced_screenshots/` first, then raw screenshots only as fallback.
-- Extra promo/capsule images: use `animated/`, `visual_variants/`, `capsules/`, and `assets/gigahrush_media_wall_1920x1080.png` where itch exposes slots.
+- Screenshot/GIF set: use `approved_frontpage/` only for the current approved itch gallery.
+- Extra promo/capsule images: use `capsules/`, `visual_variants/`, and `assets/gigahrush_media_wall_1920x1080.png` where itch exposes non-gallery slots.
 
 ## Colors
 

@@ -17,6 +17,7 @@ import { primeMinistryAlifeState, setMinistryContext, updateMinistryNPC } from '
 import { expireMonsterBaits } from '../monster_bait';
 import { ensureEntityIndex } from '../entity_index';
 import { isActorNoiseHot } from '../noise';
+import { updateSwarmNests } from '../swarm_nests';
 
 type AiLodTier = 'hot' | 'warm' | 'cold';
 
@@ -138,6 +139,7 @@ function isBossActor(e: Entity): boolean {
   switch (e.monsterKind) {
     case MonsterKind.BETONNIK:
     case MonsterKind.MATKA:
+    case MonsterKind.KHOROVAYA_MATKA:
     case MonsterKind.MANCOBUS:
     case MonsterKind.CREATOR:
       return true;
@@ -271,6 +273,7 @@ export function updateAI(world: World, entities: Entity[], dt: number, time: num
 
   const isMinistry = currentFloor === FloorLevel.MINISTRY;
   const player = entityIndex.byId.get(playerId);
+  updateSwarmNests(world, entities, dt, time, player, nextId, state);
   aiFrame = (aiFrame + 1) & 0x3fffffff;
   resetAiStats(aiFrame, entityIndex.ai.length, entityIndex.projectiles.length);
 

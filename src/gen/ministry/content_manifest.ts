@@ -17,6 +17,9 @@ import { generateLiquidatorArchive } from './liquidator_archive';
 import { generateRaionsovetArchive } from './raionsovet_archive';
 import { generateRefusalClauseOffice } from './refusal_clause';
 import { generateDocumentGate } from './document_gate';
+import { generateLampoglazLine } from './lampoglaz_line';
+import { generateKantselyarskiyIdolLine } from './kantselyarskiy_idol_line';
+import { generateMukhozhukAudit } from './mukhozhuk_audit';
 import { generateNiiContrabandAudit } from './nii_contraband_audit';
 import { generateKartotechnikArchive } from './kartotechnik';
 import { generateMatkaDokumentovRoom } from './matka_dokumentov';
@@ -59,6 +62,9 @@ export function runMinistryContent(
     generateLiquidatorArchive,
     generateRaionsovetArchive,
     generateRefusalClauseOffice,
+    generateLampoglazLine,
+    generateKantselyarskiyIdolLine,
+    generateMukhozhukAudit,
     generateDocumentGate,
   ]) {
     const r = generate(world, nextRoomId, entities, idRef, spawnX, spawnY);

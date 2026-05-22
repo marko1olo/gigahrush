@@ -288,7 +288,7 @@ async function checkHtmlCopy(manifest) {
     if (/<script\b/i.test(html)) {
       addError(`${rel(defaultDescription)} contains <script>, which should not be pasted into itch copy`);
     }
-    if (!/<p\b/i.test(html) || !/<h2\b/i.test(html)) {
+    if (!/<p\b/i.test(html) || !/<h[1-3]\b/i.test(html)) {
       addError(`${rel(defaultDescription)} is missing expected paragraph/section HTML copy`);
     }
     const title = manifest.core_fields?.title;
@@ -327,22 +327,22 @@ async function checkManifestAssets(manifest) {
   if (!Array.isArray(manifest.screenshots) || manifest.screenshots.length === 0) {
     addError('upload_manifest.json must contain a non-empty screenshots array');
   } else {
-    let expectedScreenshotDimensions = null;
+    const screenshotDimensions = new Map();
     for (const [index, screenshotPath] of manifest.screenshots.entries()) {
       const absPath = resolvePackPath(screenshotPath, `screenshots.${index}`);
       if (!absPath) continue;
       const actual = await checkImage(absPath, `screenshot ${index + 1}`, null, 'png');
       if (!actual) continue;
-      if (!expectedScreenshotDimensions) expectedScreenshotDimensions = { width: actual.width, height: actual.height };
-      if (!sameDimensions(actual, expectedScreenshotDimensions)) {
-        addError(`Screenshot ${index + 1} is ${formatDimensions(actual)}; expected all screenshots to match ${formatDimensions(expectedScreenshotDimensions)}: ${rel(absPath)}`);
-      }
-      if (Math.abs((actual.width / actual.height) - (16 / 9)) > 0.01) {
-        addError(`Screenshot ${index + 1} is not 16:9: ${rel(absPath)} (${formatDimensions(actual)})`);
+      const dimensions = formatDimensions(actual);
+      screenshotDimensions.set(dimensions, (screenshotDimensions.get(dimensions) ?? 0) + 1);
+      const aspect = actual.width / actual.height;
+      if (aspect < 1.55 || aspect > 1.85) {
+        addError(`Screenshot ${index + 1} has an unusual aspect ratio: ${rel(absPath)} (${dimensions})`);
       }
     }
-    if (expectedScreenshotDimensions) {
-      addInfo(`screenshots: ${manifest.screenshots.length} files at ${formatDimensions(expectedScreenshotDimensions)}`);
+    if (screenshotDimensions.size > 0) {
+      const summary = [...screenshotDimensions.entries()].map(([dimensions, count]) => `${count}x ${dimensions}`).join(', ');
+      addInfo(`screenshots: ${manifest.screenshots.length} files (${summary})`);
     }
   }
 

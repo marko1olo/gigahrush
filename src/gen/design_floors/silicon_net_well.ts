@@ -26,7 +26,7 @@ import { World } from '../../core/world';
 import { hashSeed, withSeededRandom } from '../../core/rand';
 import { freshNeeds } from '../../data/catalog';
 import { type PlotNpcDef, type SideQuestStep, registerSideQuest } from '../../data/plot';
-import { MONSTERS, applyMonsterVariant } from '../../entities/monster';
+import { MONSTERS } from '../../entities/monster';
 import { monsterSpr, Spr } from '../../render/sprite_index';
 import {
   ensureConnectivity,
@@ -374,6 +374,7 @@ function placeDrops(world: World, entities: Entity[], nextId: { v: number }, roo
 
 function spawnThreats(world: World, entities: Entity[], nextId: { v: number }, rooms: SiliconRooms): void {
   spawnMonster(world, entities, nextId, MonsterKind.ROBOT, rooms.terminal.x + rooms.terminal.w - 18, rooms.terminal.y + 28, 4, 'Кремниевый страж');
+  spawnMonster(world, entities, nextId, MonsterKind.CHERVIE_AVATAR, rooms.terminal.x + 52, rooms.terminal.y + 19, 5, 'Червие НЕТ-ветки');
   spawnMonster(world, entities, nextId, MonsterKind.SAFEGUARD, rooms.terminal.x + rooms.terminal.w - 36, rooms.terminal.y + 30, 5, 'Сейфгард НЕТ-колодца');
   spawnMonster(world, entities, nextId, MonsterKind.PARAGRAPH, rooms.checkpoint.x + rooms.checkpoint.w + 10, rooms.checkpoint.y + 18, 4, 'Параграф допуска');
   spawnMonster(world, entities, nextId, MonsterKind.SPIRIT, rooms.well.x + 28, rooms.well.y + 82, 4, 'Кремниевая тень');
@@ -658,6 +659,5 @@ function spawnMonster(
     ai: { goal: AIGoal.WANDER, tx: x, ty: y, path: [], pi: 0, stuck: 0, timer: 0 },
     phasing: kind === MonsterKind.SPIRIT,
   };
-  applyMonsterVariant(monster, SILICON_NET_WELL_BASE_FLOOR, level >= 5);
   entities.push(monster);
 }

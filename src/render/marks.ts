@@ -62,6 +62,7 @@ export const enum MarkType {
   BLACK_HAND, // cult route warning — readable palm + fingers
   SEROBURMALINE, // visual-risk slime — gray/magenta crystalline residue
   BURN,     // fire burn — torn/wispy charred patches, semi-transparent
+  WEB,      // pale spider web threads — readable adhesive warning
 }
 
 export interface BlackHandMarkCell {
@@ -268,10 +269,22 @@ function shaderSeroburmaline(u: number, v: number, seed: number): number {
   return Math.min(1, Math.max(radial, spoke * 0.86) + grit);
 }
 
+function shaderWeb(u: number, v: number, seed: number): number {
+  const r = Math.sqrt(u * u + v * v);
+  if (r > 1.1) return 0;
+  const angle = Math.atan2(v, u) + hash(seed) * 0.25;
+  const spokes = Math.abs(Math.sin(angle * 4)) > 0.94 ? (1 - r * 0.35) : 0;
+  const ringA = Math.abs(r - 0.34) < 0.035 ? 1 - Math.abs(r - 0.34) / 0.035 : 0;
+  const ringB = Math.abs(r - 0.62) < 0.03 ? 1 - Math.abs(r - 0.62) / 0.03 : 0;
+  const sag = Math.abs(v + Math.sin(u * 5 + seed) * 0.06) < 0.026 && Math.abs(u) < 0.92 ? 0.8 : 0;
+  const torn = fbm(u * 7 + seed, v * 7 - seed, seed + 333);
+  return Math.max(spokes, ringA, ringB, sag) * (0.7 + torn * 0.3);
+}
+
 /* ── Shader dispatch ──────────────────────────────────────────── */
 const SHADERS: ((u: number, v: number, seed: number) => number)[] = [
   shaderSplat, shaderBullet, shaderScorch, shaderDrip, shaderPool, shaderPsi, shaderMaronary, shaderBlackHand,
-  shaderSeroburmaline, shaderBurn,
+  shaderSeroburmaline, shaderBurn, shaderWeb,
 ];
 
 function blackHandCells(world: World): BlackHandMarkCell[] {

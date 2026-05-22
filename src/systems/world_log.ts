@@ -30,20 +30,33 @@ function monsterName(kind?: MonsterKind): string {
     case MonsterKind.TVAR: return 'тварь';
     case MonsterKind.POLZUN: return 'ползун';
     case MonsterKind.BETONNIK: return 'бетонник';
+    case MonsterKind.BETONOED: return 'бетоноед';
     case MonsterKind.ZOMBIE: return 'мертвяк';
+    case MonsterKind.DIKIY_MERTVYAK: return 'дикий мертвяк';
     case MonsterKind.EYE: return 'глаз';
     case MonsterKind.NIGHTMARE: return 'кошмарище';
     case MonsterKind.SHADOW: return 'теневик';
+    case MonsterKind.TONKAYA_TEN: return 'тонкая тень';
+    case MonsterKind.LISHENNYY: return 'лишенный';
     case MonsterKind.REBAR: return 'арматура';
     case MonsterKind.MATKA: return 'матка';
+    case MonsterKind.KHOROVAYA_MATKA: return 'хоровая матка';
     case MonsterKind.IDOL: return 'идол';
     case MonsterKind.MANCOBUS: return 'манкобус';
     case MonsterKind.HERALD: return 'вестник';
     case MonsterKind.CREATOR: return 'творец';
     case MonsterKind.SPIRIT: return 'дух';
+    case MonsterKind.LOZHNYY_DUKH: return 'ложный дух';
     case MonsterKind.ROBOT: return 'робот';
+    case MonsterKind.TRUBNYY_AVTOMAT: return 'трубный автомат';
+    case MonsterKind.LAMPOGLAZ: return 'лампоглаз';
+    case MonsterKind.GREEN_DOG: return 'зеленая собака';
+    case MonsterKind.GNILUSHKA: return 'гнилушка';
     case MonsterKind.KOSTOREZ: return 'косторез';
     case MonsterKind.SAFEGUARD: return 'сейфгард';
+    case MonsterKind.SOBRANNYY: return 'собранный человек';
+    case MonsterKind.BLACK_LIQUIDATOR: return 'черный ликвидатор';
+    case MonsterKind.CHERVIE_AVATAR: return 'Червие';
     default: return 'монстр';
   }
 }
@@ -179,15 +192,64 @@ function eventText(e: WorldEvent): string {
     case 'monster_windup_interrupted':
       return `${e.actorName ?? 'Косторез'} сбит во время замаха.`;
     case 'monster_armor_cut':
+      if (e.tags.includes('armor_strip')) return `${e.targetName ?? 'Броня монстра'} потерял бронеплиту.`;
       return e.tags.includes('armor_cut')
         ? `${e.actorName ?? 'Косторез'} срезал бронелист.`
         : `${e.actorName ?? 'Косторез'} провел режущий удар.`;
     case 'monster_escaped':
       return `${e.targetName ?? 'Цель'} ушла из-под замаха ${monsterName(e.monsterKind)}.`;
+    case 'false_liquidator_knock':
+      return 'Черная зачистка стучит в дверь. Сверьте номер маски и не показывайте пробу.';
+    case 'false_liquidator_revealed':
+      return `Черный ликвидатор раскрыт: ${String(e.data?.reason ?? 'ложный обход')}.`;
+    case 'green_dog_howl':
+      return 'Зеленая собака завыла у прохода. Стая делит цель: металл, банка или дробь разорвут заход.';
+    case 'green_dog_scared':
+      return 'Зеленая собака сорвалась от громкого металла. Несколько секунд стая не держит цель.';
+    case 'fog_shark_pack_sighted':
+      return 'Туманные акулы взяли стаю. Выйдите из тумана, закройте дверь или держите угол.';
+    case 'fog_shark_ignited':
+      return `Газовый пузырь туманной акулы взорвался: ${String(e.data?.hitCount ?? 0)} целей. Огонь держите на дистанции.`;
+    case 'head_slug_detached':
+      return 'Головной слизень сорвался с носителя и ищет новое тело.';
+    case 'head_slug_rehosted':
+      return `Головной слизень занял носителя: ${e.targetName ?? 'тело'}.`;
+    case 'head_slug_quarantined':
+      return 'Головной слизень заперт в карантинном контуре.';
+    case 'gnilushka_spared':
+      return e.tags.includes('helped')
+        ? 'Гнилушка получила помощь и не стала боем. Слух запомнит сдержанность.'
+        : 'С Гнилушкой поговорили без выстрела. Она осталась опасной только в углу.';
+    case 'gnilushka_hurt':
+      return 'Гнилушку ранили. Теперь она бежит от людей и режет только если её прижали.';
+    case 'gnilushka_delivered':
+      return 'Гнилушка ушла по маршруту НИИ. На полу остался добровольный соскоб.';
+    case 'composite_woke':
+      return `${e.actorName ?? 'Собранный человек'} проснулся: ${String(e.data?.reason ?? 'шум')}.`;
+    case 'composite_growth':
+      return `${e.actorName ?? 'Собранный человек'} набрал массу: ${String(e.data?.stacks ?? '?')}.`;
+    case 'composite_isolated':
+      return `${e.actorName ?? 'Собранный человек'} изолирован: ${String(e.data?.reason ?? 'порог')}.`;
+    case 'obzhivalshchik_scratched':
+      return e.tags.includes('growth')
+        ? `Комнатный обживальщик нарастил стену: ${String(e.data?.growthCount ?? '?')}/${String(e.data?.growthCap ?? '?')}.`
+        : 'Комнатный обживальщик скребет квартиру. Шум и кража поднимут злость.';
+    case 'obzhivalshchik_calmed':
+      return 'Комнатный обживальщик стих после доклада или помощи соседям.';
+    case 'obzhivalshchik_breached':
+      return 'Комнатный обживальщик вышел из комнаты: коридор стал частью квартиры.';
     case 'net_terminal_hack_failed':
       return e.tags.includes('safeguard_spawned')
         ? 'НЕТ-терминал отклонил взлом. Сейфгард вышел на отказ.'
         : 'НЕТ-терминал отклонил взлом. Белый след уже отмечен.';
+    case 'chervie_signal':
+      return e.tags.includes('mind_pulse')
+        ? 'Червие дало локальный НЕТ-импульс. Люди рядом слышат чужой приказ.'
+        : 'Червие снова держится за экран или серверный аппарат.';
+    case 'chervie_server_cut':
+      return 'Источник Червие отключен. Аватар потерял зеленую защиту и скорость.';
+    case 'chervie_false_order':
+      return 'Червие напечатало ложный приказ. Не выполняйте команду с экрана.';
     case 'metro_route_taken':
       return `Метро: ${String(e.data?.routeLabel ?? 'маршрут')} -> ${String(e.data?.destinationLabel ?? 'остановка')}.`;
     case 'metro_wrong_stop':
@@ -238,7 +300,8 @@ function eventText(e: WorldEvent): string {
     case 'tool_broke':
       return `Сломано: ${e.itemName ?? e.itemId ?? 'инструмент'}.`;
     case 'player_kill_monster':
-      if (e.data?.monsterVariantId === 'betonoed') return 'Бетоноед добит. Слабая стена в безопасности.';
+      if (e.monsterKind === MonsterKind.BETONOED) return 'Бетоноед добит. Слабая стена в безопасности.';
+      if (e.monsterKind === MonsterKind.GNILUSHKA) return 'Гнилушка убита. Это был не обычный бой с тварью.';
       return `Убит ${e.targetName ?? monsterName(e.monsterKind)}.`;
     case 'player_kill_npc':
       return `Убит жилец: ${e.targetName ?? 'без имени'}. Репутация снижена.`;
@@ -346,6 +409,14 @@ function eventText(e: WorldEvent): string {
       return 'Лифтовая арахна не упала. Шахта тиха.';
     case 'lift_arachna_cleared':
       return 'Лифтовая арахна очищена. У лифта стало тише.';
+    case 'pseudolift_suspected':
+      return `Лифт не сходится: табло ${String(e.data?.fakeFloorLabel ?? '?')}, порог влажный.`;
+    case 'pseudolift_revealed':
+      return e.tags.includes('cleared')
+        ? 'Псевдолифт осел в шахту. Кабина снова проходима.'
+        : 'Псевдолифт раскрыл кабину пастью.';
+    case 'pseudolift_fed':
+      return `Псевдолифт ушел на приманку: ${e.itemName ?? e.itemId ?? 'предмет'}.`;
     default:
       return `${e.type}${e.zoneId !== undefined ? ` (зона ${e.zoneId + 1})` : ''}.`;
   }
@@ -358,13 +429,13 @@ function shouldLog(e: WorldEvent): boolean {
   if (e.privacy === 'secret' || e.privacy === 'private') {
     return e.severity >= 2 && (e.actorName === 'Вы' || e.actorId === 0);
   }
-  return e.severity >= 3 || e.type.startsWith('quest_') || e.type.startsWith('contract_') || e.type.startsWith('samosbor_') || e.type.startsWith('fog_boss_') || e.type.startsWith('smog_') || e.type.startsWith('monster_') || e.type.startsWith('metro_') || e.type.startsWith('rail_train_') || e.type.startsWith('hazard_') || e.type.startsWith('paritel_');
+  return e.severity >= 3 || e.type.startsWith('quest_') || e.type.startsWith('contract_') || e.type.startsWith('samosbor_') || e.type.startsWith('fog_boss_') || e.type.startsWith('smog_') || e.type.startsWith('monster_') || e.type.startsWith('gnilushka_') || e.type.startsWith('metro_') || e.type.startsWith('rail_train_') || e.type.startsWith('hazard_') || e.type.startsWith('paritel_');
 }
 
 function shouldHud(e: WorldEvent): boolean {
   if (!shouldLog(e)) return false;
   if (e.type === 'ammo_consumed') return false;
-  return e.severity >= 3 || e.tags.includes('pneumomail') || e.type.startsWith('quest_') || e.type.startsWith('samosbor_') || e.type.startsWith('fog_boss_') || e.type.startsWith('smog_') || e.type.startsWith('monster_') || e.type.startsWith('metro_') || e.type.startsWith('rail_train_') || e.type.startsWith('hazard_') || e.type.startsWith('paritel_');
+  return e.severity >= 3 || e.tags.includes('pneumomail') || e.type.startsWith('quest_') || e.type.startsWith('samosbor_') || e.type.startsWith('fog_boss_') || e.type.startsWith('smog_') || e.type.startsWith('monster_') || e.type.startsWith('gnilushka_') || e.type.startsWith('metro_') || e.type.startsWith('rail_train_') || e.type.startsWith('hazard_') || e.type.startsWith('paritel_');
 }
 
 function pushLog(state: GameState, entry: LogEntry): void {

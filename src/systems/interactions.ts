@@ -33,6 +33,7 @@ import { questTargetLiftDirection } from './contracts';
 import { getCultProcessionPrompt, tryInteractCultProcession } from './faction_events';
 import { isHostile } from './factions';
 import { getActiveFloorInstance } from './floor_instances';
+import { findGnilushkaInteractionTarget, tryUseGnilushkaInteraction } from './gnilushka';
 import {
   activateGamblingBet,
   clearGamblingMachines,
@@ -70,12 +71,14 @@ import {
   tryUseNetTerminalGen,
 } from './net_terminal_gen';
 import { tryUsePneumomailTube } from './pneumomail';
+import { pseudoliftPrompt, tryUsePseudolift } from './pseudolift';
 import { floorRunLiftPrompt, currentFloorRunLabel } from './procedural_floors';
 import { proceduralAnomalyInteractionTargetId, tryUseProceduralFloorAnomaly } from './procedural_anomalies';
 import { railTrainInteractionTargetId, tryUseRailTrain } from './rail_trains';
 import { isRouteCueTarget, tryUseRouteCue } from './route_cues';
 import { tryUseSamosborVariantInteraction } from './samosbor';
 import { tryCoverSeroburmalineSource } from './seroburmaline';
+import { findSlimevikInteractionTarget, tryUseSlimevikInteraction } from './slimevik';
 
 export type InteractableKind =
   | 'instant'
@@ -298,8 +301,17 @@ export function findInteractionTarget(ctx: InteractionContext): InteractionTarge
     return target('emergency_panel', panel.idx + 620000, panel.defId, panel.x, panel.y, 49, ' аварийный щиток');
   }
 
+  const slimevik = findSlimevikInteractionTarget(ctx.world, ctx.player, ctx.entities);
+  if (slimevik) return target('instant', slimevik.id + 640000, 'slimevik', slimevik.x, slimevik.y, 55, ' слизневик');
+
+  const gnilushka = findGnilushkaInteractionTarget(ctx.world, ctx.player, ctx.entities);
+  if (gnilushka) return target('instant', gnilushka.id + 645000, 'gnilushka', gnilushka.x, gnilushka.y, 54, ' разговор');
+
   const npc = findFriendlyNpc(ctx);
   if (npc) return target('npc', npc.id, 'npc', npc.x, npc.y, 50, ' разговор');
+
+  const pseudoLift = pseudoliftPrompt(ctx.world, ctx.state, ctx.lookX, ctx.lookY);
+  if (pseudoLift) return target('lift', idx + 205000, 'pseudolift', idx % W, (idx / W) | 0, 58, pseudoLift);
 
   const cell = ctx.world.cells[idx];
   if (cell === Cell.LIFT || ctx.world.features[idx] === Feature.LIFT_BUTTON) {
@@ -419,10 +431,17 @@ export function activateInteraction(ctx: InteractionContext): InteractionResult 
     return { handled: true, openedOverlay: true };
   }
 
+  if (tryUseGnilushkaInteraction(ctx.world, ctx.player, ctx.state, ctx.entities, ctx.nextEntityId)) return { handled: true, worldChanged: true };
+  if (tryUseSlimevikInteraction(ctx.world, ctx.player, ctx.state, ctx.entities, ctx.nextEntityId)) return { handled: true, worldChanged: true };
+
   const npc = findFriendlyNpc(ctx);
   if (npc) {
     ctx.openNpcMenu?.(npc);
     return { handled: true, openedOverlay: true };
+  }
+
+  if (tryUsePseudolift(ctx.world, ctx.entities, ctx.nextEntityId, ctx.player, ctx.state, ctx.lookX, ctx.lookY)) {
+    return { handled: true, worldChanged: true };
   }
 
   if (ctx.world.cells[idx] === Cell.LIFT || ctx.world.features[idx] === Feature.LIFT_BUTTON) {

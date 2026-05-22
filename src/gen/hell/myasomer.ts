@@ -21,7 +21,7 @@ import {
 } from '../../core/types';
 import { World } from '../../core/world';
 import { ITEMS } from '../../data/catalog';
-import { MONSTERS, applyMonsterVariant } from '../../entities/monster';
+import { MONSTERS } from '../../entities/monster';
 import { MarkType, stampMark } from '../../render/marks';
 import { monsterSpr, Spr } from '../../render/sprite_index';
 import { registerCellHazardSite } from '../../systems/cell_hazards';
@@ -655,7 +655,6 @@ function spawnMyasomerPressure(world: World, entities: Entity[], site: MyasomerS
       ai: { goal: AIGoal.HUNT, tx: targetX, ty: targetY, path: [], pi: 0, stuck: 0, timer: 0 },
       rpg: randomRPG(level),
     };
-    applyMonsterVariant(monster, FloorLevel.HELL);
     entities.push(monster);
     site.threatIds.push(id);
     site.spawned++;

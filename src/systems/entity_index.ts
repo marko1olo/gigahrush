@@ -21,6 +21,7 @@ export type EntityIndexRebuildReason =
   | 'simulation'
   | 'spawn_cleanup'
   | 'smoke_stress'
+  | 'marketing_hell_eyes'
   | 'ensure';
 
 export interface EntityIndexBucketStats {

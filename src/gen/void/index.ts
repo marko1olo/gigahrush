@@ -93,8 +93,9 @@ export function generateVoid(): { world: World; entities: Entity[]; spawnX: numb
      Phase 5: Guardian monsters scattered
      ══════════════════════════════════════════════════════════════ */
   const voidKinds = [
-    MonsterKind.SHADOW, MonsterKind.NIGHTMARE, MonsterKind.EYE,
+    MonsterKind.SHADOW, MonsterKind.GLUBINNAYA_TEN, MonsterKind.NIGHTMARE, MonsterKind.EYE,
     MonsterKind.REBAR, MonsterKind.BETONNIK, MonsterKind.SPIRIT,
+    MonsterKind.LOZHNYY_DUKH,
   ];
   for (let i = 0; i < VOID_POPULATION_PROFILE.guardians; i++) {
     const cell = randomFloorCell(world, spawnX, spawnY, 26);

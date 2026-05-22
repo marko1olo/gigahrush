@@ -238,32 +238,43 @@ export function spendAttrPoint(e: Entity, attr: 'str' | 'agi' | 'int'): boolean 
 }
 
 // ── XP for killing a monster (scales with monster level) ─────────
-const MONSTER_BASE_XP: Record<MonsterKind, number> = {
+const MONSTER_BASE_XP: Partial<Record<MonsterKind, number>> = {
   [MonsterKind.SBORKA]:     30,
   [MonsterKind.TVAR]:       60,
   [MonsterKind.POLZUN]:    100,
   [MonsterKind.BETONNIK]:  240,
+  [MonsterKind.BETONOED]:  130,
   [MonsterKind.ZOMBIE]:     40,
+  [MonsterKind.DIKIY_MERTVYAK]: 42,
   [MonsterKind.EYE]:        50,
   [MonsterKind.NIGHTMARE]:  90,
   [MonsterKind.SHADOW]:     70,
+  [MonsterKind.TONKAYA_TEN]: 58,
   [MonsterKind.REBAR]:     110,
   [MonsterKind.MATKA]:     300,
+  [MonsterKind.KHOROVAYA_MATKA]: 380,
+  [MonsterKind.SOBRANNYY]: 220,
   [MonsterKind.MANCOBUS]:  400,
   [MonsterKind.HERALD]:    360,
   [MonsterKind.CREATOR]:  1000,
   [MonsterKind.SPIRIT]:    80,
+  [MonsterKind.LOZHNYY_DUKH]: 95,
   [MonsterKind.IDOL]:       20,
   [MonsterKind.ROBOT]:      70,
+  [MonsterKind.TRUBNYY_AVTOMAT]: 150,
   [MonsterKind.SHOVNIK]:    64,
   [MonsterKind.LAMPOVY]:    56,
+  [MonsterKind.LAMPOGLAZ]:  84,
   [MonsterKind.PECHATEED]:  76,
   [MonsterKind.TUBE_EEL]:  110,
   [MonsterKind.PARAGRAPH]:  90,
   [MonsterKind.NELYUD]:    140,
   [MonsterKind.KRYSNOZHKA]: 48,
+  [MonsterKind.GREEN_DOG]: 72,
   [MonsterKind.KOSTOREZ]:  190,
   [MonsterKind.SAFEGUARD]: 250,
+  [MonsterKind.RZHAVNIK]:   70,
+  [MonsterKind.OLGOY]:     170,
 };
 
 export function xpForMonsterKill(kind: MonsterKind, monsterLevel: number): number {

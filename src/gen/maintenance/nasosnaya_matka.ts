@@ -7,7 +7,7 @@ import {
   type WorldEvent, type WorldEventSeverity,
 } from '../../core/types';
 import { type PlotNpcDef, registerSideQuest } from '../../data/plot';
-import { MONSTERS, applyMonsterVariant } from '../../entities/monster';
+import { MONSTERS } from '../../entities/monster';
 import { changeResourceStock } from '../../systems/economy';
 import { getRecentEvents, publishEvent, registerWorldEventObserver } from '../../systems/events';
 import { randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg';
@@ -314,7 +314,6 @@ function spawnNasosnayaMonster(
     rpg: randomRPG(level),
     matkaTimer: options.matkaCore ? Number.POSITIVE_INFINITY : undefined,
   };
-  if (!options.matkaCore) applyMonsterVariant(monster, FloorLevel.MAINTENANCE, true);
   ctx.entities.push(monster);
   return monster;
 }

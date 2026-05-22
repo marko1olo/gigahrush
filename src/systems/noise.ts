@@ -581,6 +581,23 @@ function handleNoiseSourceEvent(state: GameState, event: WorldEvent): void {
     return;
   }
 
+  if (eventType === 'paritel_valve_changed' || event.tags.includes('valve')) {
+    publishNoise(state, {
+      x: event.x ?? 0,
+      y: event.y ?? 0,
+      floor: event.floor,
+      radius: 14,
+      ttl: 4.5,
+      source: 'decoy',
+      severity: 3,
+      actorId: event.actorId,
+      actorFaction: event.actorFaction,
+      eventId: event.id,
+      tags: ['valve', 'pipe', 'metal', 'counterplay'],
+    });
+    return;
+  }
+
   if (eventType === 'document_gate_access_failure' || event.tags.includes('access_denied')) {
     publishNoise(state, {
       x: event.x ?? 0,

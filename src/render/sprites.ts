@@ -42,9 +42,9 @@ export function generateSprites(): SpriteData[] {
     def.sprite = monsterSpr(kind);
     // Auto-assign projSprite for ranged monsters
     if (def.isRanged && (def.projSprite === undefined || def.projSprite === 0)) {
-      def.projSprite = kind === MonsterKind.EYE ? Spr.EYE_BOLT
+      def.projSprite = kind === MonsterKind.EYE || kind === MonsterKind.LAMPOGLAZ ? Spr.EYE_BOLT
                      : kind === MonsterKind.PARAGRAPH ? Spr.PARAGRAPH_BOLT
-                     : kind === MonsterKind.ROBOT ? Spr.HOSTILE_PLASMA_BOLT
+                     : kind === MonsterKind.ROBOT || kind === MonsterKind.TRUBNYY_AVTOMAT ? Spr.HOSTILE_PLASMA_BOLT
                      : kind === MonsterKind.MANCOBUS ? Spr.HOSTILE_FLAME_BOLT
                      : Spr.HOSTILE_PSI_BOLT;
     }

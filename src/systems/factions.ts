@@ -23,6 +23,7 @@ import {
   isNpcPlayerHostile,
 } from './npc_relations';
 import { addKarma } from './alife_rating';
+import { isPassiveDefensiveNeutralMonster } from './monster_traits';
 
 /* ── Faction relation accessors (dynamic — reads live matrix) ─── */
 // Monsters use a fixed attitude, not tracked in the matrix
@@ -71,6 +72,7 @@ export function isHostile(attacker: Entity, target: Entity): boolean {
   if (isPsiAlly(attacker, target)) return false;
   // PSI madness: mad entities attack everyone
   if (isPsiMad(attacker)) return target.id !== attacker.id;
+  if (isPassiveDefensiveNeutralMonster(attacker) || isPassiveDefensiveNeutralMonster(target)) return false;
   // Monsters: use faction-vs-monster table
   if (attacker.type === EntityType.MONSTER && target.type === EntityType.MONSTER) return false;
   if (attacker.type === EntityType.MONSTER) {

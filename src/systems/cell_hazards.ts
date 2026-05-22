@@ -31,6 +31,7 @@ export interface CellHazardSiteDraft {
   playerDamagePerSecond?: number;
   monsterDamagePerSecond?: number;
   messageCooldownSeconds?: number;
+  expiresAt?: number;
   roomId?: number;
   zoneId?: number;
   centerX?: number;
@@ -63,6 +64,7 @@ interface CellHazardSite {
   playerDamagePerSecond: number;
   monsterDamagePerSecond: number;
   messageCooldownSeconds: number;
+  expiresAt: number;
   lastPulseMessageAt: number;
   lastMonsterHitMessageAt: number;
   roomId?: number;
@@ -211,6 +213,7 @@ function normalizeSite(draft: CellHazardSiteDraft): CellHazardSite | null {
     playerDamagePerSecond: clampNonNegative(draft.playerDamagePerSecond),
     monsterDamagePerSecond: clampNonNegative(draft.monsterDamagePerSecond),
     messageCooldownSeconds: Math.max(0.5, draft.messageCooldownSeconds ?? 2.5),
+    expiresAt: Number.isFinite(draft.expiresAt) ? Math.max(0, draft.expiresAt ?? 0) : 0,
     lastPulseMessageAt: -Infinity,
     lastMonsterHitMessageAt: -Infinity,
     roomId: draft.roomId,
@@ -368,6 +371,18 @@ export function registerCellHazardSite(world: World, draft: CellHazardSiteDraft)
   rebuildCellIndex(runtime);
 }
 
+function expireCellHazards(runtime: CellHazardRuntime, time: number): boolean {
+  const kept = runtime.sites.filter(site => site.expiresAt <= 0 || site.expiresAt > time);
+  if (kept.length === runtime.sites.length) return false;
+  runtime.sites = kept;
+  const liveIds = new Set(kept.map(site => site.id));
+  for (const [entityId, subject] of runtime.subjects) {
+    if (!liveIds.has(subject.hazardId)) runtime.subjects.delete(entityId);
+  }
+  rebuildCellIndex(runtime);
+  return true;
+}
+
 export function replaceCellHazards(target: World, source: World): void {
   const sourceRuntime = runtimes.get(source);
   if (!sourceRuntime || sourceRuntime.sites.length === 0) {
@@ -454,6 +469,16 @@ export function getPlayerHazardWarning(world: World, player: Entity): CellHazard
     color: trapped ? '#ff3838' : hit.site.warningColor,
     trapped,
   };
+}
+
+export function entityInActiveCellHazard(world: World, e: Entity, tags: readonly string[] = []): boolean {
+  const hit = hazardAtEntity(world, e);
+  if (!hit) return false;
+  if (tags.length === 0) return true;
+  for (const tag of tags) {
+    if (hit.site.tags.includes(tag) || hit.site.kind === tag) return true;
+  }
+  return false;
 }
 
 export function cleanCellHazardsNear(
@@ -648,6 +673,8 @@ export function tickCellHazards(
   const runtime = runtimes.get(world);
   if (!runtime || runtime.sites.length === 0) return;
 
+  expireCellHazards(runtime, state.time);
+  if (runtime.sites.length === 0) return;
   updateHazardPulses(world, runtime, state, player);
   tickHazardSubject(world, runtime, state, player, dt, player.id, playerStruggling);
 

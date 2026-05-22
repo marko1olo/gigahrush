@@ -1,10 +1,13 @@
 import { EntityType, Faction, MonsterKind, Occupation, type Entity } from '../core/types';
-import { MONSTER_VARIANT_BY_ID } from '../data/monster_variants';
 import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 import { MONSTER_SPRITES } from './monster';
 import { generateIdolSprite } from './idol';
+import { generateKantselyarskiyIdolSprite } from './kantselyarskiy_idol';
 import { generateNightmareSprite } from './nightmare';
+import { generateProtokolnikSprite } from './protokolnik';
 import { generateRobotSprite } from './robot';
+import { generateBlackLiquidatorSprite } from './black_liquidator';
+import { HEAD_SLUG_DETACHED_STAGE, generateSlugSprite } from './head_slug';
 import { Spr } from '../render/sprite_index';
 
 type RGB = readonly [number, number, number];
@@ -423,19 +426,24 @@ function component(c: number, shift: number): number {
   return (c >>> shift) & 0xff;
 }
 
-function monsterTint(kind: MonsterKind, seed: number, variantId: string | undefined): RGB {
-  const cue = variantId ? MONSTER_VARIANT_BY_ID[variantId]?.cue : undefined;
-  if (cue) return cue.tint;
-  const variantSeed = variantId ? hashText(variantId, seed) : seed;
+function monsterTint(kind: MonsterKind, seed: number): RGB {
+  const variantSeed = seed;
   const palettes: Partial<Record<MonsterKind, readonly RGB[]>> = {
     [MonsterKind.SBORKA]: [[118, 48, 62], [84, 60, 92], [110, 78, 48]],
     [MonsterKind.TVAR]: [[86, 54, 68], [92, 70, 46], [58, 78, 82]],
     [MonsterKind.POLZUN]: [[82, 70, 58], [94, 54, 46], [58, 72, 66]],
     [MonsterKind.BETONNIK]: [[118, 116, 108], [92, 102, 112], [118, 96, 84]],
+    [MonsterKind.BETONOED]: [[168, 160, 132], [138, 132, 116], [194, 178, 146]],
     [MonsterKind.ZOMBIE]: [[82, 100, 78], [108, 86, 74], [76, 84, 92]],
+    [MonsterKind.DIKIY_MERTVYAK]: [[132, 72, 58], [94, 96, 78], [116, 88, 92]],
     [MonsterKind.EYE]: [[170, 62, 64], [110, 82, 154], [198, 132, 72]],
+    [MonsterKind.LAMPOGLAZ]: [[218, 174, 54], [84, 178, 78], [210, 202, 168]],
     [MonsterKind.SHADOW]: [[18, 18, 24], [24, 20, 34], [16, 26, 28]],
     [MonsterKind.REBAR]: [[118, 72, 48], [92, 90, 84], [132, 58, 42]],
+    [MonsterKind.RZHAVNIK]: [[146, 72, 32], [96, 58, 36], [158, 104, 78]],
+    [MonsterKind.ZAKALENNAYA_ARMATURA]: [[42, 48, 52], [92, 88, 78], [160, 66, 32]],
+    [MonsterKind.SLIME_WOMAN]: [[12, 82, 58], [24, 116, 92], [92, 48, 132]],
+    [MonsterKind.KHOROVAYA_MATKA]: [[118, 26, 34], [86, 70, 72], [172, 148, 136]],
     [MonsterKind.SPIRIT]: [[128, 166, 186], [136, 118, 184], [188, 196, 202]],
     [MonsterKind.KOSTOREZ]: [[136, 92, 78], [120, 116, 102], [148, 68, 58]],
     [MonsterKind.SAFEGUARD]: [[214, 224, 232], [184, 202, 214], [240, 242, 238]],
@@ -444,11 +452,10 @@ function monsterTint(kind: MonsterKind, seed: number, variantId: string | undefi
   return rgbJitter(pickRgb(list, variantSeed, 1), variantSeed, 2, 34);
 }
 
-function mutateMonsterSprite(base: Uint32Array, kind: MonsterKind, seed: number, variantId?: string): Uint32Array {
+function mutateMonsterSprite(base: Uint32Array, kind: MonsterKind, seed: number): Uint32Array {
   const out = new Uint32Array(S * S).fill(CLEAR);
-  const cue = variantId ? MONSTER_VARIANT_BY_ID[variantId]?.cue : undefined;
-  const tint = monsterTint(kind, seed, variantId);
-  const strength = cue ? 0.42 + rnd(seed, 401) * 0.14 : 0.18 + rnd(seed, 401) * 0.28;
+  const tint = monsterTint(kind, seed);
+  const strength = 0.18 + rnd(seed, 401) * 0.28;
   const alphaMul = kind === MonsterKind.SPIRIT ? 0.62 + rnd(seed, 402) * 0.22 : 1;
   const dark = kind === MonsterKind.SHADOW ? 0.48 : 1;
 
@@ -473,83 +480,10 @@ function mutateMonsterSprite(base: Uint32Array, kind: MonsterKind, seed: number,
   return out;
 }
 
-function addMonsterVariantCueMarks(t: Uint32Array, variantId: string | undefined, seed: number): void {
-  const cue = variantId ? MONSTER_VARIANT_BY_ID[variantId]?.cue : undefined;
-  if (!cue) return;
-  const tint = cue.tint;
-
-  switch (cue.mark) {
-    case 'cracks':
-      for (let i = 0; i < 5; i++) {
-        const x = 20 + Math.floor(rnd(seed, 730 + i) * 24);
-        const y = 14 + Math.floor(rnd(seed, 740 + i) * 34);
-        paintLine(t, x, y, x + 4 - Math.floor(rnd(seed, 750 + i) * 9), y + 8, [236, 74, 70], seed + 760 + i, i === 0 ? 1 : 0);
-      }
-      break;
-    case 'wet_drips':
-      for (let i = 0; i < 7; i++) {
-        const x = 18 + Math.floor(rnd(seed, 770 + i) * 28);
-        const y = 24 + Math.floor(rnd(seed, 780 + i) * 20);
-        paintLine(t, x, y, x + Math.floor(rnd(seed, 790 + i) * 3) - 1, y + 8 + Math.floor(rnd(seed, 800 + i) * 7), [76, 196, 210], seed + 810 + i, 0);
-      }
-      paintEllipse(t, 32, 53, 16, 3, (d, x, y) => rgba(50, 130, 148, clamp(130 * (1 - d) + noise(x, y, seed + 811) * 60)));
-      break;
-    case 'silence_stitches':
-      paintLine(t, 20, 24, 44, 24, [196, 196, 188], seed + 820, 0);
-      for (let x = 23; x <= 41; x += 4) paintLine(t, x, 21, x, 27, [58, 58, 58], seed + 821 + x, 0);
-      paintEllipse(t, 32, 17, 13, 4, (d) => rgba(210, 210, 202, clamp(65 * (1 - d))));
-      break;
-    case 'panel_edges':
-      paintLine(t, 18, 16, 46, 16, [196, 188, 158], seed + 830, 1);
-      paintLine(t, 18, 33, 48, 32, [92, 86, 74], seed + 831, 0);
-      paintLine(t, 24, 13, 22, 48, [184, 178, 158], seed + 832, 0);
-      paintLine(t, 40, 14, 42, 47, [70, 66, 58], seed + 833, 0);
-      break;
-    case 'wild_rags':
-      paintRect(t, 17, 29, 11, 5, [184, 52, 34], seed + 840);
-      paintRect(t, 36, 35, 10, 6, [132, 64, 42], seed + 841);
-      paintLine(t, 20, 17, 43, 39, [226, 92, 46], seed + 842, 0);
-      break;
-    case 'lamp_halo':
-      paintEllipse(t, 32, 18, 21, 12, (d, x, y) => rgba(244, 208, 84, clamp((1 - d) * 110 + noise(x, y, seed + 850) * 25)));
-      paintEllipse(t, 32, 18, 8, 5, (d) => rgba(255, 232, 126, clamp(230 * (1 - d))));
-      paintLine(t, 21, 12, 43, 12, [255, 214, 72], seed + 851, 0);
-      break;
-    case 'black_slime':
-      for (let i = 0; i < 8; i++) {
-        const x = 18 + Math.floor(rnd(seed, 860 + i) * 30);
-        const y = 18 + Math.floor(rnd(seed, 870 + i) * 27);
-        paintLine(t, x, y, x + Math.floor(rnd(seed, 880 + i) * 5) - 2, y + 7 + Math.floor(rnd(seed, 890 + i) * 7), [4, 8, 10], seed + 900 + i, rnd(seed, 910 + i) > 0.62 ? 1 : 0);
-      }
-      paintEllipse(t, 32, 42, 17, 7, (d, x, y) => rgba(8, 10, 12, clamp(220 * (1 - d) + noise(x, y, seed + 901) * 30)));
-      paintLine(t, 19, 20, 46, 45, [92, 64, 124], seed + 902, 0);
-      break;
-    case 'pipe_bands':
-      paintLine(t, 18, 21, 48, 21, [78, 210, 224], seed + 920, 1);
-      paintLine(t, 17, 36, 46, 37, [58, 170, 190], seed + 921, 1);
-      paintLine(t, 24, 12, 24, 49, [174, 106, 58], seed + 922, 0);
-      paintLine(t, 42, 16, 41, 50, [174, 106, 58], seed + 923, 0);
-      break;
-    case 'garbage_flecks':
-      for (let i = 0; i < 22; i++) {
-        const x = 13 + Math.floor(rnd(seed, 930 + i) * 38);
-        const y = 18 + Math.floor(rnd(seed, 960 + i) * 35);
-        const c: RGB = rnd(seed, 990 + i) > 0.5 ? [176, 132, 48] : [72, 110, 58];
-        paintRect(t, x, y, 1 + Math.floor(rnd(seed, 1020 + i) * 3), 1 + Math.floor(rnd(seed, 1050 + i) * 2), c, seed + 1080 + i, 235);
-      }
-      break;
-    case 'concrete_bite':
-      paintEllipse(t, 32, 20, 13, 5, (d, x, y) => rgba(tint[0], tint[1], tint[2], clamp(190 * (1 - d) + noise(x, y, seed + 1090) * 40)));
-      paintLine(t, 19, 19, 45, 47, [66, 60, 50], seed + 1091, 1);
-      paintLine(t, 43, 18, 21, 45, [66, 60, 50], seed + 1092, 0);
-      for (let i = 0; i < 6; i++) paintRect(t, 21 + i * 4, 24 + (i % 2), 2, 4, [236, 226, 188], seed + 1100 + i);
-      break;
-  }
-}
-
 function addMonsterEyes(t: Uint32Array, kind: MonsterKind, seed: number): void {
   const baseCount =
     kind === MonsterKind.EYE ? 1 :
+    kind === MonsterKind.KHOROVAYA_MATKA ? 7 :
     kind === MonsterKind.MATKA || kind === MonsterKind.MANCOBUS ? 5 :
     kind === MonsterKind.SHADOW || kind === MonsterKind.SPIRIT ? 2 :
     1 + Math.floor(rnd(seed, 500) * 4);
@@ -571,7 +505,7 @@ function addMonsterEyes(t: Uint32Array, kind: MonsterKind, seed: number): void {
 
 function addMonsterMarks(t: Uint32Array, kind: MonsterKind, seed: number): void {
   const mark: RGB =
-    kind === MonsterKind.BETONNIK || kind === MonsterKind.REBAR ? [40, 34, 30] :
+    kind === MonsterKind.BETONNIK || kind === MonsterKind.BETONOED || kind === MonsterKind.REBAR || kind === MonsterKind.RZHAVNIK || kind === MonsterKind.ZAKALENNAYA_ARMATURA ? [40, 34, 30] :
     kind === MonsterKind.ROBOT ? [210, 160, 72] :
     kind === MonsterKind.SPIRIT ? [210, 236, 246] :
     [72, 18, 22];
@@ -585,6 +519,22 @@ function addMonsterMarks(t: Uint32Array, kind: MonsterKind, seed: number): void 
   }
 }
 
+const ZAK_ARMOR_MAX_STACKS = 3;
+
+function addZakalennayaArmorChips(t: Uint32Array, seed: number, armorStacks: number | undefined): void {
+  const stacks = armorStacks ?? ZAK_ARMOR_MAX_STACKS;
+  const lost = Math.max(0, ZAK_ARMOR_MAX_STACKS - Math.max(0, Math.min(ZAK_ARMOR_MAX_STACKS, stacks)));
+  if (lost <= 0) return;
+
+  for (let i = 0; i < lost; i++) {
+    const sx = 18 + Math.floor(rnd(seed, 720 + i) * 28);
+    const sy = 15 + Math.floor(rnd(seed, 740 + i) * 34);
+    paintLine(t, sx, sy, sx + 7 + i * 2, sy + 2 + i * 3, [190, 184, 160], seed + 760 + i, 1);
+    paintLine(t, sx + 2, sy + 2, sx + 10, sy + 7, [24, 22, 20], seed + 780 + i, 0);
+    paintEllipse(t, sx + 5, sy + 5, 2 + i, 2, (d, x, y) => col([92, 88, 78], Math.floor((1 - d) * 22 + noise(x, y, seed + 790 + i) * 8)));
+  }
+}
+
 function corruptFalseHuman(seed: number): Uint32Array {
   const t = generateProceduralNpcSprite(seed, Occupation.TRAVELER, Faction.WILD, rnd(seed, 710) > 0.5, Occupation.TRAVELER);
   addMonsterEyes(t, MonsterKind.NELYUD, seed ^ 0xa771);
@@ -593,19 +543,22 @@ function corruptFalseHuman(seed: number): Uint32Array {
   return t;
 }
 
-export function generateProceduralMonsterSprite(kind: MonsterKind, seed: number, variantId?: string): Uint32Array {
+export function generateProceduralMonsterSprite(kind: MonsterKind, seed: number, pressureTier = 0, armorStacks?: number): Uint32Array {
   if (kind === MonsterKind.NELYUD) return corruptFalseHuman(seed);
 
   const special = kind === MonsterKind.NIGHTMARE ? generateNightmareSprite(seed)
     : kind === MonsterKind.ROBOT ? generateRobotSprite(seed)
     : kind === MonsterKind.IDOL ? generateIdolSprite(seed)
+    : kind === MonsterKind.KANTSELYARSKIY_IDOL ? generateKantselyarskiyIdolSprite(seed)
+    : kind === MonsterKind.PROTOKOLNIK ? generateProtokolnikSprite(seed, pressureTier)
+    : kind === MonsterKind.BLACK_LIQUIDATOR ? generateBlackLiquidatorSprite(seed % 12)
     : undefined;
-  if (special && !variantId) return special;
+  if (special) return special;
 
   const gen = MONSTER_SPRITES[kind] ?? MONSTER_SPRITES[MonsterKind.SBORKA];
-  const out = mutateMonsterSprite(special ?? gen(), kind, seed, variantId);
+  const out = mutateMonsterSprite(special ?? gen(), kind, seed);
   addMonsterMarks(out, kind, seed);
-  addMonsterVariantCueMarks(out, variantId, seed);
+  if (kind === MonsterKind.ZAKALENNAYA_ARMATURA) addZakalennayaArmorChips(out, seed, armorStacks);
   addMonsterEyes(out, kind, seed);
   return out;
 }
@@ -626,7 +579,6 @@ function deriveEntitySpriteSeed(e: Entity): number {
     h = mix32(e.id ^ Math.imul(Math.floor(e.x * 16), 0x45d9f3b) ^ Math.imul(Math.floor(e.y * 16), 0x119de1f3));
     if (e.name) h = hashText(e.name, h);
     if (e.plotNpcId) h = hashText(e.plotNpcId, h);
-    if (e.monsterVariantId) h = hashText(e.monsterVariantId, h);
   }
   return h || 1;
 }
@@ -644,7 +596,8 @@ export function proceduralEntitySpriteKey(e: Entity): number {
   const kind = e.monsterKind ?? 0;
   const occ = e.occupation ?? inferOccupation(undefined, e.sprite);
   let h = deriveEntitySpriteSeed(e);
-  if (e.monsterVariantId) h = hashText(e.monsterVariantId, h);
+  if (e.monsterKind === MonsterKind.PROTOKOLNIK) h = mix32(h ^ Math.imul((e.protocolPressureTier ?? 0) + 1, 0x6d2b79f5));
+  if (e.monsterKind === MonsterKind.ZAKALENNAYA_ARMATURA) h = mix32(h ^ Math.imul((e.monsterArmorStacks ?? ZAK_ARMOR_MAX_STACKS) + 1, 0x7feb352d));
   h = mix32(h ^ Math.imul(e.type, 0x9e3779b1) ^ Math.imul(kind + 1, 0x85ebca6b) ^ Math.imul(occ + 1, 0xc2b2ae35));
   if (e.isFemale) h = mix32(h ^ 0x51ed270b);
   if (e.faction !== undefined) h = mix32(h ^ Math.imul(e.faction + 1, 0x27d4eb2d));
@@ -663,7 +616,10 @@ export function generateProceduralEntitySprite(e: Entity): Uint32Array | null {
     return generateProceduralNpcSprite(seed, e.occupation, e.faction, e.isFemale, e.sprite);
   }
   if (e.type === EntityType.MONSTER) {
-    return generateProceduralMonsterSprite(e.monsterKind ?? MonsterKind.SBORKA, seed, e.monsterVariantId);
+    if (e.monsterKind === MonsterKind.HEAD_SLUG && e.monsterStage === HEAD_SLUG_DETACHED_STAGE) {
+      return generateSlugSprite();
+    }
+    return generateProceduralMonsterSprite(e.monsterKind ?? MonsterKind.SBORKA, seed, e.protocolPressureTier, e.monsterArmorStacks);
   }
   return null;
 }

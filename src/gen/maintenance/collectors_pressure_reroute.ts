@@ -7,7 +7,7 @@ import {
   type Entity, type GameState, type Room, type WorldContainer,
 } from '../../core/types';
 import { type PlotNpcDef, registerSideQuest } from '../../data/plot';
-import { MONSTERS, applyMonsterVariant } from '../../entities/monster';
+import { MONSTERS } from '../../entities/monster';
 import { changeResourceStock } from '../../systems/economy';
 import { getRecentEvents, publishEvent, registerWorldEventObserver } from '../../systems/events';
 import { randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg';
@@ -346,7 +346,6 @@ function spawnWaterEel(ctx: MaintContentCtx, x: number, y: number): void {
     ai: { goal: AIGoal.WANDER, tx: x, ty: y, path: [], pi: 0, stuck: 0, timer: 0 },
     rpg: randomRPG(zoneLevel),
   };
-  applyMonsterVariant(eel, FloorLevel.MAINTENANCE, true);
   ctx.entities.push(eel);
 }
 

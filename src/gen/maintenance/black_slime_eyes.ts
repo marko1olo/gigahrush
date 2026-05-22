@@ -12,7 +12,7 @@ import { monsterSpr } from '../../render/sprite_index';
 import { publishEvent, registerWorldEventObserver } from '../../systems/events';
 import { randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg';
 import {
-  type MaintContentCtx, findMaintArea, openTile, setFeature, stampMaintRoom,
+  type MaintContentCtx, findMaintArea, openTile, setFeature, setWater, stampMaintRoom,
 } from './content_helpers';
 
 const TAG_SITE = 'ag67_black_slime';
@@ -21,7 +21,6 @@ const TAG_SAMPLE = 'sample';
 const TAG_LURE = 'lure';
 const TAG_SEAL = 'seal';
 const TAG_COUNTERPLAY = 'counterplay';
-const VARIANT_ID = 'black_slime_eye';
 const SAMPLE_ITEM = 'slime_sample_black';
 const ROOM_W = 24;
 const ROOM_H = 15;
@@ -188,7 +187,16 @@ function findEyeSpawnCell(ctx: BlackSlimeContext, room: Room, slot: number): { x
     const x = ctx.world.wrap(ax + Math.round(Math.cos(angle) * dist));
     const y = ctx.world.wrap(ay + Math.round(Math.sin(angle) * dist));
     const ci = ctx.world.idx(x, y);
-    if (ctx.world.cells[ci] === Cell.FLOOR && ctx.world.roomMap[ci] === room.id) return { x, y };
+    if (ctx.world.cells[ci] === Cell.WATER && ctx.world.roomMap[ci] === room.id) return { x, y };
+  }
+
+  for (let attempt = 0; attempt < 80; attempt++) {
+    const angle = (Math.PI * 2 * (slot + attempt / 11)) / MAX_EYES_PER_SITE;
+    const dist = 1 + (attempt % 4);
+    const x = ctx.world.wrap(ax + Math.round(Math.cos(angle) * dist));
+    const y = ctx.world.wrap(ay + Math.round(Math.sin(angle) * dist));
+    const ci = ctx.world.idx(x, y);
+    if ((ctx.world.cells[ci] === Cell.FLOOR || ctx.world.cells[ci] === Cell.WATER) && ctx.world.roomMap[ci] === room.id) return { x, y };
   }
   return null;
 }
@@ -200,7 +208,7 @@ function spawnBlackSlimeEyes(ctx: BlackSlimeContext, source: WorldEvent): number
   const count = 1 + ((source.id + ctx.roomId) % MAX_EYES_PER_SITE);
   let nextId = nextEntityId(ctx.entities);
   let spawned = 0;
-  const def = MONSTERS[MonsterKind.EYE];
+  const def = MONSTERS[MonsterKind.CHERNOSLIZ];
 
   for (let i = 0; i < count; i++) {
     const pos = findEyeSpawnCell(ctx, room, i);
@@ -217,17 +225,15 @@ function spawnBlackSlimeEyes(ctx: BlackSlimeContext, source: WorldEvent): number
       angle: Math.random() * Math.PI * 2,
       pitch: 0,
       alive: true,
-      speed: scaleMonsterSpeed(def.speed, zoneLevel) * 0.78,
-      sprite: monsterSpr(MonsterKind.EYE),
+      speed: scaleMonsterSpeed(def.speed, zoneLevel),
+      sprite: monsterSpr(MonsterKind.CHERNOSLIZ),
       hp,
       maxHp: hp,
-      monsterKind: MonsterKind.EYE,
-      monsterVariantId: VARIANT_ID,
-      monsterDmgMult: 0.75,
-      attackCd: 0.8 + i * 0.25,
+      monsterKind: MonsterKind.CHERNOSLIZ,
+      attackCd: 0.35 + i * 0.25,
       ai: { goal: AIGoal.WANDER, tx: room.x + 3, ty: room.y + 3, path: [], pi: 0, stuck: 0, timer: 0 },
       rpg: randomRPG(zoneLevel),
-      spriteScale: 0.62,
+      spriteScale: 0.72,
     };
     ctx.entities.push(eye);
     ctx.eyeIds.push(eye.id);
@@ -260,7 +266,7 @@ function disturbBlackSlime(state: GameState, ctx: BlackSlimeContext, event: Worl
     event,
     'disturbed',
     spawned > 0
-      ? 'Черная слизь моргнула: из пятна поднялись маленькие глаза.'
+      ? 'Черная слизь моргнула: из пятна поднялся чернослиз.'
       : 'Черная слизь дрогнула, но новых глаз не стало.',
     spawned > 0 ? 4 : 3,
     { spawnedEyesNow: spawned, cap: MAX_EYES_PER_SITE },
@@ -292,8 +298,8 @@ function sealBlackSlime(state: GameState, ctx: BlackSlimeContext, event: WorldEv
     event,
     'threat_sealed',
     sealedEyes > 0
-      ? 'Герметик схватился: маленькие глаза осели в черной пленке.'
-      : 'Герметик закрыл остаток до того, как он успел вырастить глаза.',
+      ? 'Герметик схватился: чернослиз осел в черной пленке.'
+      : 'Герметик закрыл остаток до того, как он успел вырастить чернослиз.',
     sealedEyes > 0 ? 4 : 3,
     { sealedEyes, cap: MAX_EYES_PER_SITE },
   );
@@ -331,7 +337,7 @@ function handleContainerEvent(state: GameState, event: WorldEvent): void {
 }
 
 function handleKillEvent(state: GameState, event: WorldEvent): void {
-  if (event.type !== 'player_kill_monster' || event.monsterKind !== MonsterKind.EYE) return;
+  if (event.type !== 'player_kill_monster' || event.monsterKind !== MonsterKind.CHERNOSLIZ) return;
   const ctx = findContextByEye(event);
   if (!ctx) return;
   const remaining = ctx.eyeIds.filter(id => ctx.entities.some(e => e.id === id && e.alive)).length;
@@ -341,8 +347,8 @@ function handleKillEvent(state: GameState, event: WorldEvent): void {
     event,
     'threat_killed',
     remaining > 0
-      ? `Чернослизный глаз лопнул. В пятне осталось еще ${remaining}.`
-      : 'Последний чернослизный глаз лопнул. Пятно стало плоским.',
+      ? `Чернослиз лопнул. В пятне осталось еще ${remaining}.`
+      : 'Последний чернослиз лопнул. Пятно стало плоским.',
     remaining > 0 ? 3 : 4,
     { remainingEyes: remaining, cap: MAX_EYES_PER_SITE },
   );
@@ -365,6 +371,15 @@ function decorateBlackSlimeSite(ctx: MaintContentCtx, entry: Room, nest: Room): 
 
   const cx = nest.x + Math.floor(nest.w / 2);
   const cy = nest.y + Math.floor(nest.h / 2);
+  for (let dy = -5; dy <= 5; dy++) {
+    for (let dx = -9; dx <= 9; dx++) {
+      if ((dx * dx) / 81 + (dy * dy) / 25 > 1) continue;
+      const x = cx + dx;
+      const y = cy + dy;
+      const ci = ctx.world.idx(x, y);
+      if (ctx.world.roomMap[ci] === nest.id) setWater(ctx.world, x, y);
+    }
+  }
   ctx.world.stamp(cx, cy, 0.5, 0.5, 5.2, 0.92, 67001, 3, 5, 7, false);
   ctx.world.stamp(cx + 4, cy - 3, 0.5, 0.5, 2.2, 0.8, 67002, 10, 12, 18, true);
   ctx.world.stamp(cx - 5, cy + 3, 0.5, 0.5, 2.7, 0.74, 67003, 5, 8, 10, false);

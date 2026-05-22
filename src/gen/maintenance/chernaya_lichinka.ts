@@ -28,7 +28,6 @@ const TAG_HARVEST = 'harvest';
 const TAG_WITNESS = 'cult_witness';
 const HAZARD_KIND = 'black_slime_larva';
 const SAMPLE_ITEM = 'slime_sample_black';
-const VARIANT_ID = 'chernaya_lichinka';
 const MAX_CONTEXTS = 8;
 const MAX_THREATS = 3;
 const CHAMBER_W = 24;
@@ -313,7 +312,6 @@ function spawnLichinkaThreats(ctx: LichinkaContext, source: WorldEvent, count: n
       maxHp: hp,
       name: kind === MonsterKind.EYE ? 'Глаз Черной Личинки' : 'Черная Личинка',
       monsterKind: kind,
-      monsterVariantId: VARIANT_ID,
       monsterDmgMult: kind === MonsterKind.EYE ? 0.65 : 0.8,
       attackCd: 0.35 + i * 0.18,
       ai: { goal: AIGoal.WANDER, tx: room.x + room.w - 3, ty: room.y + Math.floor(room.h / 2), path: [], pi: 0, stuck: 0, timer: 0 },

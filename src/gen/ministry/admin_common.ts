@@ -2,7 +2,6 @@
 
 import {
   W, Cell, Tex, Feature, RoomType, EntityType, AIGoal, Faction, Occupation,
-  FloorLevel,
   type Room, type Entity, type MonsterKind,
 } from '../../core/types';
 import { World } from '../../core/world';
@@ -11,7 +10,7 @@ import { type PlotNpcDef } from '../../data/plot';
 import { stampRoom, protectRoom, connectProtectedRoom, findClearArea } from '../shared';
 import { Spr, monsterSpr } from '../../render/sprite_index';
 import { randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg';
-import { MONSTERS, applyMonsterVariant } from '../../entities/monster';
+import { MONSTERS } from '../../entities/monster';
 
 export type NextId = { v: number };
 
@@ -144,6 +143,5 @@ export function spawnAdminMonster(
     ai: { goal: AIGoal.WANDER, tx: x, ty: y, path: [], pi: 0, stuck: 0, timer: 0 },
     rpg,
   };
-  applyMonsterVariant(monster, FloorLevel.MINISTRY, true);
   entities.push(monster);
 }

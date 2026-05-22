@@ -23,6 +23,9 @@ import { generateMetroErrorLine } from './metro_error_line';
 import { generateConcentratePress } from './concentrate_press';
 import { generatePressovik } from './pressovik';
 import { generateWaterBridge } from './water_bridge';
+import { generateOlgoyMeatCache } from './olgoy_meat_cache';
+import { generateVodyanoyKoshmarLine } from './vodyanoy_koshmar_line';
+import { generateTrubnyyAvtomatLine } from './trubnyy_avtomat_line';
 import { generateNasosnayaMatka } from './nasosnaya_matka';
 import { generateLiftRepairShaft } from './lift_repair_shaft';
 import { generateRemontnikBezSmeny } from './remontnik_bez_smeny';
@@ -38,6 +41,8 @@ import { generateSlimeSamplePost } from './slime_sample_post';
 import { generateBlueGlowSample } from './blue_glow_sample';
 import { generateGreenAcidRoom } from './green_acid_room';
 import { generateBrownSlimeCleanup } from './brown_slime_cleanup';
+import { generateSafeSlimevikDen } from './safe_slimevik_den';
+import { generateSlimeWomanSump } from './slime_woman_sump';
 import { generateSlimeDeactivationFurnace } from './slime_deactivation_furnace';
 import { generateSlimeSingingVents } from './slime_singing_vents';
 import { generateVentshun } from './ventshun';
@@ -48,8 +53,12 @@ import { generateSeroburmalineNoLook } from './seroburmaline_no_look';
 import { generatePneumomailStation } from './pneumomail_station';
 import { generateBetonoedShortcut } from './betonoed_shortcut';
 import { generateKostorezLocker } from './kostorez_locker';
+import { generateSlepoglazLine } from './slepoglaz_line';
 import { generateOstavshiysyaLikvidator } from './ostavshiysya_likvidator';
 import { generateFiltronos } from './filtronos';
+import { generateRzhavnikShelf } from './rzhavnik_shelf';
+import { generateBorshchevikBlockade } from './borshchevik_blockade';
+import { generateSwarmNest } from './swarm_nest';
 
 export function runMaintenanceContent(
   world: World,
@@ -109,6 +118,40 @@ export function runMaintenanceContent(
   generateWaterBridge({ world, entities, nextId: { v: nextId }, spawnX, spawnY });
   nextId = syncNextEntityId(entities, nextId);
 
+  withPoiGenerationMetadata(world, entities, {
+    id: 'maint_olgoy_meat_cache',
+    floor: 'maintenance',
+    debugLabel: 'Коллекторы: мясной сборник Олгой-Хорхоя',
+    decisionHooks: [
+      { kind: 'flee', id: 'olgoy_dry_floor', label: 'увести Олгой-Хорхоя с воды на сухой пол' },
+      { kind: 'steal', id: 'olgoy_meat_cache_loot', label: 'забрать мясной тайник без боя у трубы' },
+      { kind: 'kill', id: 'olgoy_collector_worm', label: 'убить Олгой-Хорхоя вдали от лотка' },
+    ],
+  }, () => generateOlgoyMeatCache({ world, entities, nextId: { v: nextId }, spawnX, spawnY }));
+  nextId = syncNextEntityId(entities, nextId);
+
+  withPoiGenerationMetadata(world, entities, {
+    id: 'maint_vodyanoy_koshmar_line',
+    floor: 'maintenance',
+    debugLabel: 'Коллекторы: насосная водяного кошмара',
+    decisionHooks: [
+      { kind: 'flee', id: 'vodyanoy_koshmar_dry_break', label: 'сойти с мокрой линии на сухой бетон' },
+      { kind: 'kill', id: 'vodyanoy_koshmar_pressure_window', label: 'ударить во время спада давления' },
+    ],
+  }, () => generateVodyanoyKoshmarLine({ world, entities, nextId: { v: nextId }, spawnX, spawnY }));
+  nextId = syncNextEntityId(entities, nextId);
+
+  withPoiGenerationMetadata(world, entities, {
+    id: 'maint_trubnyy_avtomat_line',
+    floor: 'maintenance',
+    debugLabel: 'Коллекторы: мокрая линия трубного автомата',
+    decisionHooks: [
+      { kind: 'kill', id: 'trubnyy_avtomat_wet_line', label: 'сойти с мокрой прямой и ударить на остывании' },
+      { kind: 'steal', id: 'trubnyy_avtomat_energy_cell', label: 'забрать энергоячейки после выключения автомата' },
+    ],
+  }, () => generateTrubnyyAvtomatLine({ world, entities, nextId: { v: nextId }, spawnX, spawnY }));
+  nextId = syncNextEntityId(entities, nextId);
+
   generateNasosnayaMatka({ world, entities, nextId: { v: nextId }, spawnX, spawnY });
   nextId = syncNextEntityId(entities, nextId);
 
@@ -166,7 +209,43 @@ export function runMaintenanceContent(
   generateVentshun({ world, entities, nextId: { v: nextId }, spawnX, spawnY });
   nextId = syncNextEntityId(entities, nextId);
 
+  withPoiGenerationMetadata(world, entities, {
+    id: 'maint_swarm_nest',
+    floor: 'maintenance',
+    debugLabel: 'Коллекторы: вентиляционная матка роя',
+    decisionHooks: [
+      { kind: 'repair', id: 'swarm_source_seal', label: 'заклеить источник роя изолентой или герметиком' },
+      { kind: 'kill', id: 'swarm_source_burn', label: 'выжечь источник роя огнем' },
+      { kind: 'flee', id: 'swarm_bodies_sprint', label: 'пробежать через короткоживущие тела без зачистки источника' },
+    ],
+  }, () => generateSwarmNest({ world, entities, nextId: { v: nextId }, spawnX, spawnY }));
+  nextId = syncNextEntityId(entities, nextId);
+
   generateBrownSlimeCleanup({ world, entities, nextId: { v: nextId }, spawnX, spawnY });
+  nextId = syncNextEntityId(entities, nextId);
+
+  withPoiGenerationMetadata(world, entities, {
+    id: 'safe_slimevik_den',
+    floor: 'maintenance',
+    debugLabel: 'Коллекторы: кормовая ванна слизневика',
+    decisionHooks: [
+      { kind: 'quest', id: 'exp_maint_safe_slimevik_bargain', label: 'найти безопасного слизневика и обменять корм на пробу' },
+      { kind: 'trade', id: 'slimevik_bargain', label: 'дать еду или лекарство вместо убийства' },
+      { kind: 'flee', id: 'slimevik_contact', label: 'держать дистанцию без фильтра и тары' },
+    ],
+  }, () => generateSafeSlimevikDen({ world, entities, nextId: { v: nextId }, spawnX, spawnY }));
+  nextId = syncNextEntityId(entities, nextId);
+
+  withPoiGenerationMetadata(world, entities, {
+    id: 'slime_woman_sump',
+    floor: 'maintenance',
+    debugLabel: 'Коллекторы: жижевой отстойник НИИ',
+    decisionHooks: [
+      { kind: 'flee', id: 'slime_woman_dry_edge', label: 'уйти из воды на сухой освещенный край' },
+      { kind: 'repair', id: 'slime_woman_residue_clean', label: 'счистить токсичную пленку после хватки' },
+      { kind: 'quest', id: 'slime_woman_sample', label: 'взять зеленую пробу только в тару НИИ' },
+    ],
+  }, () => generateSlimeWomanSump({ world, entities, nextId: { v: nextId }, spawnX, spawnY }));
   nextId = syncNextEntityId(entities, nextId);
 
   generateGreenAcidRoom({ world, entities, nextId: { v: nextId }, spawnX, spawnY });
@@ -193,10 +272,55 @@ export function runMaintenanceContent(
   generateChernayaLichinka({ world, entities, nextId: { v: nextId }, spawnX, spawnY });
   nextId = syncNextEntityId(entities, nextId);
 
-  generateBetonoedShortcut({ world, entities, nextId: { v: nextId }, spawnX, spawnY });
+  withPoiGenerationMetadata(world, entities, {
+    id: 'maint_betonoed_shortcut',
+    floor: 'maintenance',
+    debugLabel: 'Коллекторы: слабая стена Бетоноеда',
+    decisionHooks: [
+      { kind: 'repair', id: 'betonoed_seal_weak_wall', label: 'запечатать шов герметиком или блок-комплектом' },
+      { kind: 'flee', id: 'betonoed_noise_lure', label: 'увести Бетоноеда шумом от слабой стены' },
+      { kind: 'kill', id: 'betonoed_fire_drive_off', label: 'сорвать прогрыз уроном или огнем' },
+      { kind: 'reroute', id: 'betonoed_shortcut_used', label: 'рискнуть коротким ходом после прогрыза' },
+    ],
+  }, () => generateBetonoedShortcut({ world, entities, nextId: { v: nextId }, spawnX, spawnY }));
+  nextId = syncNextEntityId(entities, nextId);
+
+  withPoiGenerationMetadata(world, entities, {
+    id: 'maint_borshchevik_blockade',
+    floor: 'maintenance',
+    debugLabel: 'Коллекторы: борщевик на сервисном обходе',
+    decisionHooks: [
+      { kind: 'kill', id: 'borshchevik_cut_path', label: 'рубить стебли и чистить сок без дыма' },
+      { kind: 'flee', id: 'borshchevik_dry_bypass', label: 'обойти заросший коридор через сухой склад' },
+      { kind: 'repair', id: 'borshchevik_fire_burnout', label: 'выжечь быстро и отойти от семенного дыма' },
+    ],
+  }, () => generateBorshchevikBlockade({ world, entities, nextId: { v: nextId }, spawnX, spawnY }));
   nextId = syncNextEntityId(entities, nextId);
 
   generateKostorezLocker({ world, entities, nextId: { v: nextId }, spawnX, spawnY });
+  nextId = syncNextEntityId(entities, nextId);
+
+  withPoiGenerationMetadata(world, entities, {
+    id: 'maint_rzhavnik_shelf',
+    floor: 'maintenance',
+    debugLabel: 'Коллекторы: стеллаж ровного металла',
+    decisionHooks: [
+      { kind: 'kill', id: 'rzhavnik_first_leap', label: 'проверить ровные прутья издали и пережить первый рывок' },
+      { kind: 'steal', id: 'rzhavnik_scrap_loot', label: 'быстро забрать металл с риском складской засады' },
+      { kind: 'flee', id: 'rzhavnik_storage_route', label: 'обойти загроможденный стеллаж' },
+    ],
+  }, () => generateRzhavnikShelf({ world, entities, nextId: { v: nextId }, spawnX, spawnY }));
+  nextId = syncNextEntityId(entities, nextId);
+
+  withPoiGenerationMetadata(world, entities, {
+    id: 'maint_slepoglaz_line',
+    floor: 'maintenance',
+    debugLabel: 'Коллекторы: коридор слепого прострела',
+    decisionHooks: [
+      { kind: 'flee', id: 'slepoglaz_sidesteps', label: 'шумнуть, уйти с линии и сблизиться после луча' },
+      { kind: 'steal', id: 'slepoglaz_psi_dust', label: 'забрать ПСИ-пыль с прострелянной дорожки' },
+    ],
+  }, () => generateSlepoglazLine({ world, entities, nextId: { v: nextId }, spawnX, spawnY }));
   nextId = syncNextEntityId(entities, nextId);
 
   generateFiltronos({ world, entities, nextId: { v: nextId }, spawnX, spawnY });

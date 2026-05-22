@@ -11,7 +11,7 @@ import {
 import { World } from '../../core/world';
 import { freshNeeds } from '../../data/catalog';
 import { type PlotNpcDef, registerSideQuest } from '../../data/plot';
-import { MONSTERS, applyMonsterVariant } from '../../entities/monster';
+import { MONSTERS } from '../../entities/monster';
 import { Spr, monsterSpr } from '../../render/sprite_index';
 import { publishEvent } from '../../systems/events';
 import { calcZoneLevel, randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg';
@@ -916,7 +916,6 @@ function spawnArchiveMonster(
     ai: { goal: AIGoal.WANDER, tx: x, ty: y, path: [], pi: 0, stuck: 0, timer: 0 },
     rpg: randomRPG(zoneLevel),
   };
-  applyMonsterVariant(monster, FloorLevel.MINISTRY, true);
   entities.push(monster);
 }
 
@@ -1148,6 +1147,7 @@ export function generateRaionsovetArchiveDesignFloor(): FloorGeneration {
   spawnArchiveNpc(entities, nextId, FALSE_HEIR_DEF, 'archive_false_heir', heir.x + 4, heir.y + 4);
   spawnArchiveGuard(entities, nextId, checker.x + checker.w - 4, checker.y + checker.h - 4);
   spawnArchiveMonster(world, entities, nextId, shelves.x + 7, shelves.y + shelves.h - 5, MonsterKind.PARAGRAPH);
+  spawnArchiveMonster(world, entities, nextId, catalog.x + catalog.w - 5, catalog.y + Math.floor(catalog.h / 2), MonsterKind.PROTOKOLNIK);
   spawnArchiveMonster(world, entities, nextId, fire.x + 8, fire.y + 4, MonsterKind.PECHATEED);
 
   world.bakeLights();

@@ -13,7 +13,7 @@ import { ITEMS, NOTES } from '../data/catalog';
 import { addFactionRelMutual } from '../data/relations';
 import { spawnCount } from '../data/items';
 import { chooseFloorMonsterKind } from '../data/monster_ecology';
-import { MONSTERS, applyMonsterVariant } from '../entities/monster';
+import { MONSTERS } from '../entities/monster';
 import { Spr } from '../render/sprite_index';
 import { stampMark, MarkType } from '../render/marks';
 import { forceHide } from './ai';
@@ -443,7 +443,7 @@ function resolvePlayerShelterAtSeal(
       targetName: 'Гермодверь',
       severity: 3,
       privacy: 'local',
-      tags: ['samosbor', 'shelter', 'success', 'prepared', `variant_${variant.def.id}`],
+      tags: ['samosbor', 'shelter', 'success', 'prepared', `samosbor_${variant.def.id}`],
       data: {
         outcome: 'prepared_shelter',
         roomName: room.name,
@@ -471,7 +471,7 @@ function resolvePlayerShelterAtSeal(
     actorFaction: player.faction,
     severity: 4,
     privacy: 'local',
-    tags: ['samosbor', 'shelter', 'failure', 'unprepared', `variant_${variant.def.id}`],
+    tags: ['samosbor', 'shelter', 'failure', 'unprepared', `samosbor_${variant.def.id}`],
     data: {
       outcome: 'unprepared_shelter',
       warning: 'Укрытие сорвано: игрок остался вне рабочей гермы.',
@@ -502,7 +502,7 @@ function samosborEventTags(
   base: string[],
   wrongDoor = false,
 ): string[] {
-  const tags = [...base, `variant_${variant.def.id}`];
+  const tags = [...base, `samosbor_${variant.def.id}`];
   if (variant.noSiren) tags.push('no_siren');
   if (isMaronary(variant)) {
     tags.push('green_source');
@@ -786,7 +786,7 @@ function publishIstotitDecision(
     actorFaction: player.faction,
     severity,
     privacy: severity >= 4 ? 'local' : 'private',
-    tags: ['samosbor', 'istotit', 'decision', kind, 'variant_istotit'],
+    tags: ['samosbor', 'istotit', 'decision', kind, 'samosbor_istotit'],
     data: {
       decision: kind,
       shelterRoomIds: istotitShelterRoomIds,
@@ -1184,7 +1184,7 @@ function tickMaronaryGlowDamage(
     actorFaction: player?.faction,
     severity: 4,
     privacy: 'local',
-    tags: ['samosbor', 'maronary', 'green_source', 'glow_damage', 'variant_maronary'],
+    tags: ['samosbor', 'maronary', 'green_source', 'glow_damage', 'samosbor_maronary'],
     data: {
       damage: playerDamage,
       hitCount,
@@ -1404,7 +1404,7 @@ function pushWarningBarks(
       severity: 4,
       floor: state.currentFloor,
       zoneId: world.zoneMap[world.idx(Math.floor(e.x), Math.floor(e.y))],
-      tags: ['samosbor', 'warning', 'bark', `variant_${variant.def.id}`],
+      tags: ['samosbor', 'warning', 'bark', `samosbor_${variant.def.id}`],
     }, state.time);
     barked++;
   }
@@ -1686,7 +1686,7 @@ export function updateSamosbor(
       privacy: 'public',
       tags: endedVariant
         ? samosborEventTags(endedVariant, ['samosbor', 'end', 'regrow', 'aftermath_pending'])
-        : ['samosbor', 'end', 'regrow', 'variant_unknown', 'aftermath_pending'],
+        : ['samosbor', 'end', 'regrow', 'samosbor_unknown', 'aftermath_pending'],
       data: {
         samosborCount: state.samosborCount,
         variantId: endedVariant?.def.id,
@@ -1971,16 +1971,19 @@ function pickAftermathBeat(
   defs: readonly SamosborAftermathBeatDef[],
   used: Set<string>,
   now: number,
+  samosborCount: number,
 ): SamosborAftermathBeatDef | null {
   let total = 0;
   for (const def of defs) {
     if (used.has(def.id) || !beatReady(def, now)) continue;
+    if (samosborCount < (def.minSamosborCount ?? 0)) continue;
     total += def.weight;
   }
   if (total <= 0) return null;
   let roll = Math.random() * total;
   for (const def of defs) {
     if (used.has(def.id) || !beatReady(def, now)) continue;
+    if (samosborCount < (def.minSamosborCount ?? 0)) continue;
     roll -= def.weight;
     if (roll <= 0) return def;
   }
@@ -2007,7 +2010,7 @@ function applyPendingSamosborAftermath(
   const applied: string[] = [];
 
   while (applied.length < target && used.size < defs.length) {
-    const def = pickAftermathBeat(defs, used, state.time);
+    const def = pickAftermathBeat(defs, used, state.time, pending.samosborCount);
     if (!def) break;
     used.add(def.id);
     if (!applySamosborAftermathBeat(def, pending, world, entities, nextId)) continue;
@@ -2084,7 +2087,7 @@ function publishAftermath(
       'samosbor',
       'aftermath',
       def.effect,
-      `variant_${pending.variant.def.id}`,
+      `samosbor_${pending.variant.def.id}`,
       ...def.tags,
     ].slice(0, 8),
     data: {
@@ -2317,14 +2320,29 @@ function applyMonsterAftershock(
   entities: Entity[],
   nextId: { v: number },
 ): boolean {
-  if (!canSpawnEntityType(entities, EntityType.MONSTER)) return false;
   const c = aftermathCenter(world, entities, pending, true);
-  const pos = findWalkableNear(world, c.x, c.y, 5, Math.max(7, def.radius));
-  if (!pos) return false;
+  const targetCount = Math.max(1, Math.min(4, Math.floor(def.monsterCount ?? 1)));
+  const slots = entitySpawnSlots(entities, EntityType.MONSTER, targetCount);
+  if (slots <= 0) return false;
   const kind = def.monsterKind ?? MonsterKind.TVAR;
-  const monster = createMonster(world, nextId, kind, pos.x + 0.5, pos.y + 0.5, pending.floor, true);
-  entities.push(monster);
-  publishAftermath(def, pending, pos.x, pos.y, { monsterKind: kind, targetId: monster.id });
+  const spawnedIds: number[] = [];
+  let firstPos: { x: number; y: number } | null = null;
+  for (let i = 0; i < slots; i++) {
+    const pos = findWalkableNear(world, c.x, c.y, 5 + i, Math.max(7 + i, def.radius + i * 2));
+    if (!pos) continue;
+    const monster = createMonster(world, nextId, kind, pos.x + 0.5, pos.y + 0.5, pending.floor, true);
+    entities.push(monster);
+    spawnedIds.push(monster.id);
+    if (!firstPos) firstPos = pos;
+  }
+  if (!firstPos || spawnedIds.length === 0) return false;
+  publishAftermath(def, pending, firstPos.x, firstPos.y, {
+    monsterKind: kind,
+    targetId: spawnedIds[0],
+    targetIds: spawnedIds,
+    monsterCount: spawnedIds.length,
+    spawnCap: targetCount,
+  });
   return true;
 }
 
@@ -2698,7 +2716,7 @@ function pickMonsterKindForWave(floor: FloorLevel, samosborCount: number): Monst
   });
 }
 
-function createMonster(world: World, nextId: { v: number }, kind: MonsterKind, x: number, y: number, floor: FloorLevel, forceVariant = false): Entity {
+function createMonster(world: World, nextId: { v: number }, kind: MonsterKind, x: number, y: number, _floor: FloorLevel, _forceVariant = false): Entity {
   const def = MONSTERS[kind];
   const ci = world.idx(Math.floor(x), Math.floor(y));
   const zid = world.zoneMap[ci];
@@ -2706,6 +2724,7 @@ function createMonster(world: World, nextId: { v: number }, kind: MonsterKind, x
   const rpg = randomRPG(zoneLevel);
   const hpBase = scaleMonsterHp(def.hp, zoneLevel);
   const hpFinal = Math.round(hpBase * (1 + 0.1 * rpg.str));
+  const goal = kind === MonsterKind.BLACK_LIQUIDATOR ? AIGoal.WANDER : AIGoal.HUNT;
   const monster: Entity = {
     id: nextId.v++,
     type: EntityType.MONSTER,
@@ -2719,11 +2738,10 @@ function createMonster(world: World, nextId: { v: number }, kind: MonsterKind, x
     maxHp: hpFinal,
     monsterKind: kind,
     attackCd: def.attackRate,
-    ai: { goal: AIGoal.HUNT, tx: 0, ty: 0, path: [], pi: 0, stuck: 0, timer: 0 },
+    ai: { goal, tx: 0, ty: 0, path: [], pi: 0, stuck: 0, timer: 0 },
     rpg,
     phasing: kind === MonsterKind.SPIRIT,
   };
-  applyMonsterVariant(monster, floor, forceVariant);
   return monster;
 }
 
@@ -3008,7 +3026,6 @@ function captureZone(
     isFogBoss: true,
     fogBossZone: zone.id,
   };
-  applyMonsterVariant(boss, state.currentFloor, true);
   entities.push(boss);
 
   const extraEyeSlots = entitySpawnSlots(entities, EntityType.MONSTER, variant.extraEyes);
@@ -3070,7 +3087,7 @@ function captureZone(
     monsterKind: bossKind,
     severity: 4,
     privacy: 'public',
-    tags: ['samosbor', 'fog', 'boss', `variant_${variant.def.id}`],
+    tags: ['samosbor', 'fog', 'boss', `samosbor_${variant.def.id}`],
     data: { hp: hpFinal, zoneLevel, variantId: variant.def.id, bossTitle: istotit ? 'Глаз ведомости' : isVeretar(variant) ? 'Тварь у белого окна' : undefined },
   });
   return zone.id;

@@ -616,6 +616,7 @@ function generateScientistEscortSample(
   seedContainers(world, lab, sample, scientist, broker, forger);
   spawnMonsterNear(world, entities, nextId, sample.x + 5, sample.y + 5, MonsterKind.SBORKA, 0.2);
   spawnMonsterNear(world, entities, nextId, sample.x + 8, sample.y + 4, MonsterKind.POLZUN, 2.4);
+  spawnMonsterNear(world, entities, nextId, sample.x + 3, sample.y + 6, MonsterKind.SLIMEVIK, 4.1);
 
   genLog(`[AG72] ${lab.name} at (${lab.x}, ${lab.y}) room #${lab.id}, sample #${sample.id}`);
   return { nextRoomId };

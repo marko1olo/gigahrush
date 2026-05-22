@@ -179,6 +179,7 @@ export enum ProjType {
   FLAME,        // short range, leaves fire trail on floor
   BFG,          // slow orb, on impact huge AoE + green screen flash
   BEAM,         // continuous beam (psi kamehameha)
+  WEB,          // sticky monster shot, applies bounded web slow/root
 }
 
 export enum MonsterKind {
@@ -207,6 +208,48 @@ export enum MonsterKind {
   KRYSNOZHKA, // food/garbage swarm       — крысоножка (идёт на приманку)
   KOSTOREZ,   // melee elite              — косторез (читабельный рывок)
   SAFEGUARD,  // NET/BLAME blade guard    — сейфгард (быстрый охранитель)
+  BLACK_LIQUIDATOR, // false cleanup patrol — черный ликвидатор
+  KHOROVAYA_MATKA, // choir countdown spawner — хоровая матка
+  SLIMEVIK,   // neutral slime scavenger  — слизневик (бартер и риск контакта)
+  SOBRANNYY,  // post-samosbor composite  — собранный человек (растет от боя)
+  ZHORNAYA_TVAR, // scent-lunge predator  — жорная тварь (уходит на еду)
+  BEZEKHIY,   // door-threshold ambusher  — безэхий (спина к проему)
+  PSEUDOLIFT, // elevator mimic trap      — псевдолифт (ловушка маршрута)
+  SLEPOGLAZ,  // blind last-sound turret  — слепоглаз (стреляет туда, где шумели)
+  OLGOY,      // collector meat worm      — олгой-хорхой (мясо, трубы, рывок)
+  VODYANOY_KOSHMAR, // water-line PSI predator — водяной кошмар (давление по мокрой линии)
+  LAMPOGLAZ,  // light-linked turret      — лампоглаз (стреляет по свету)
+  TUMANNIK,   // fog-pocket ambusher      — туманник (ложный силуэт)
+  CHERNOSLIZ, // black-water ambush eye   — чернослиз (первый выстрел из воды)
+  RZHAVNIK,   // scrap-disguise ambusher  — ржавник (первый рывок из металлолома)
+  BETONOED,   // weak-wall breacher       — бетоноед (прогрызает слабые стены)
+  PANELNIK,   // wall-braced slab bruiser — панельник (силён у стены)
+  PAUPSINA,   // web-spitting service spider — паупсина
+  BORSHCHEVIK, // rooted hostile plant    — борщевик (сок, семена, корни)
+  OBZHIVALSHCHIK, // room-bound resident aberration — комнатный обживальщик
+  HEAD_SLUG,  // host parasite            — головной слизень (ворует носителя)
+  PROTOKOLNIK, // document-pressure horror — протокольник (давит бумагами)
+  DIKIY_MERTVYAK, // fragile crowd-runner — дикий мертвяк (дверной затор)
+  KONTORSHCHIK, // document-scent undead  — конторщик (идет на бумаги)
+  TONKAYA_TEN, // bait-line shadow lure   — тонкая тень (отступает к темной линии)
+  KANTSELYARSKIY_IDOL, // office-field psi hazard — канцелярский идол
+  LOZHNYY_DUKH, // door phaser            — ложный дух (один проход через дверь)
+  CHERVIE_AVATAR, // net-borne AI avatar  — Червие (экранный импульс)
+  POMOYNY_ROY, // food-attracted garbage swarm — помойный рой (окружает по запаху)
+  TRUBNYY_AVTOMAT, // wet-line machine    — трубный автомат (заряжает мокрую прямую)
+  LOTOCHNIK,  // wet-service crawler      — лоточник (броня в воде)
+  TRESKOTNIK, // brittle crack sprinter    — трескотник (сбиваемый рывок)
+  ZAKALENNAYA_ARMATURA, // armored rebar elite — закаленная арматура
+  GLUBINNAYA_TEN, // delayed second-beat shadow — глубинная тень
+  GREEN_DOG,  // mossy door-pack predator — зеленая собака (боится громкого металла)
+  SLIME_WOMAN, // toxic slime humanoid    — жижевая женщина (вода сильнее, сухой свет слабит)
+  GNILUSHKA,  // defensive neutral mutant  — гнилушка (говорит, бежит, дерется в углу)
+  MUKHOZHUK_HOST, // parasite authority host — мухожук-носитель (локальные дурные приказы)
+  FOG_SHARK,  // fog-swimming pack predator — туманная акула (горит взрывом)
+  BLOOD_PLANT, // rooted red-mold hive source — кровавое растение
+  SWARM,      // vent/void source swarm   — рой (источник в щели или вентиляции)
+  SPORE_CARPET, // lurking domestic spore rug — ковер (просыпается у лута)
+  LISHENNYY,  // deep light-following shadow guardian — лишенный
 }
 
 export type PlayerDamageSourceKind = 'monster' | 'npc' | 'projectile' | 'hazard' | 'need' | 'samosbor' | 'void' | 'unknown';
@@ -296,7 +339,7 @@ export interface RPGStats {
   maxPsi: number;          // base max PSI (scaled by INT)
 }
 
-export type PlayerStatusId = 'zhelemish_skin' | 'govnyak_relief' | 'govnyak_cough' | 'govnyak_debt';
+export type PlayerStatusId = 'zhelemish_skin' | 'govnyak_relief' | 'govnyak_cough' | 'govnyak_debt' | 'paupsina_web' | 'spore_haze';
 export type PlayerStatusSource =
   | 'zhelemish_raw'
   | 'zhelemish_treated'
@@ -304,6 +347,8 @@ export type PlayerStatusSource =
   | 'govnyak_brick'
   | 'govnyak_sample'
   | 'govnyak_bad_batch'
+  | 'paupsina_web'
+  | 'spore_carpet'
   | 'debug';
 
 export interface PlayerStatus {
@@ -333,6 +378,16 @@ export enum NpcState {
   BREAK,       // перекур / перерыв
 }
 
+export interface MonsterBaitLineState {
+  x: number;
+  y: number;
+  dx: number;
+  dy: number;
+  nerve: number;
+  armed: boolean;
+  spent: boolean;
+}
+
 export interface AIState {
   goal: AIGoal;
   tx: number; ty: number;     // target position
@@ -346,16 +401,124 @@ export interface AIState {
   combatScanCd?: number;      // cooldown until next full hostile scan
   windupTimer?: number;       // generic readable attack windup countdown
   windupTargetId?: number;    // target locked by current windup
+  windupStartHp?: number;     // HP snapshot for interruptible windups
   staggerTimer?: number;      // temporary interrupt / stagger lockout
   lastSeenTargetId?: number;  // event throttle for first sight / escape beats
+  sprintTimer?: number;       // straight-line special burst countdown
+  sprintDx?: number;          // normalized burst direction X
+  sprintDy?: number;          // normalized burst direction Y
   bossPhaseIndex?: number;    // last announced boss phase cue
   baitMarkerId?: number;      // cached monster bait marker id
   baitScanCd?: number;        // cooldown until next bounded bait scan
+  baitLine?: MonsterBaitLineState; // Tonkaya Ten prepared dark corridor/door line
+  secondBeatX?: number;       // Glubinnaya Ten delayed afterimage anchor
+  secondBeatY?: number;
+  secondBeatTargetX?: number; // target position when the afterimage was armed
+  secondBeatTargetY?: number;
+  secondBeatDx?: number;      // offset strike direction, normalized
+  secondBeatDy?: number;
+  secondBeatTimer?: number;
+  secondBeatHold?: number;    // target stood still long enough to collapse bait
+  lightScanCd?: number;       // Лишенный bounded light-source scan cooldown
+  lightTargetX?: number;
+  lightTargetY?: number;
+  lightTargetId?: number;
+  lightTargetKind?: 'actor' | 'drop' | 'feature';
+  lightAvoidTimer?: number;   // short UV/bright-cell repulsion window
+  lightCueAt?: number;
+  parasiteRehostCd?: number;  // Head slug bounded corpse/stunned-host scan cooldown
+  parasiteScanOffset?: number; // Head slug rotating corpse scan cursor; avoids full entity scans
+  parasiteQuarantineCd?: number; // Head slug sealed-room event throttle
+  meatTargetId?: number;      // Olgoy cached corpse target id
+  meatScanCd?: number;        // Olgoy bounded corpse scent scan cooldown
+  meatScanOffset?: number;    // Olgoy rotating corpse scan offset
+  choirCountdown?: number;    // хоровая матка: seconds until wet choir spawn
+  choirCueStep?: number;      // last announced countdown step
+  choirChildIds?: number[];   // capped child ids owned by a spawner encounter
+  choirLastChildCount?: number;
+  choirSpawnedChildren?: number;
+  choirVulnerableTimer?: number;
+  choirLastHp?: number;       // damage gate memory while membranes are closed
+  protocolPressure?: number;  // Протокольник PSI pressure, capped and HUD-readable
+  protocolExposure?: number;  // seconds spent in the current protocol chase
+  protocolPressurePulseCd?: number;
+  protocolPressureWarnAt?: number;
+  waterPressure?: number;     // Водяной кошмар: capped wet-line PSI pressure
+  waterLineScanCd?: number;   // slow bounded wet-connectivity scan cooldown
+  waterLineBreakTimer?: number; // dry concrete interruption grace
+  waterLinePulseCd?: number;  // readable pressure damage/drain cadence
+  waterLineTargetId?: number; // target id validated by the last wet-line scan
+  waterLineConnected?: boolean;
+  waterLineCueCd?: number;    // visual ripple cue cooldown
+  homeRoomId?: number;        // local-room leash anchor for room-bound actors
+  anger?: number;             // bounded local pressure/hostility meter
+  growthCount?: number;       // bounded local residue/growth marks placed
+  growthCd?: number;          // cooldown for local residue/growth
+  scratchCd?: number;         // cooldown for local audible/readable room beats
+  lastNoiseId?: number;       // last processed bounded noise record
+  lastRoomMemoryEventId?: number; // last processed communal room-memory fact
+  breached?: boolean;         // room-bound actor has crossed its leash
   ambientBarkCd?: number;     // cooldown for rare generic A-Life chatter
   wanderAngle?: number;        // phasing monster drift direction
   thinkAccum?: number;         // accumulated dt for staggered far-AI ticks
   thinkInterval?: number;      // deterministic cadence for far-AI ticks
   nearFrame?: number;          // transient marker for current near-player AI frame
+  netPulseCd?: number;         // Chervie/net possessor local mind pulse cooldown
+  netPowered?: boolean;        // last readable local NET power state
+  netAnchorX?: number;         // local compromised server/terminal anchor
+  netAnchorY?: number;
+  slimeScanCd?: number;        // Slimevik cached local slime search cooldown
+  slimeTargetX?: number;       // Slimevik cached slime mark/room target
+  slimeTargetY?: number;
+  slimeContactTimer?: number;  // Slimevik close-contact exposure timer
+  slimeContactCd?: number;     // Slimevik contact risk cooldown
+  compositeDormant?: boolean;  // Sobrannyy idle state before room/contact wakeup
+  compositeArmorUntil?: number; // short wake window that ignores small damage
+  compositeIsolatedUntil?: number; // isolation feedback throttle
+  meatGrowthStacks?: number;   // bounded temporary composite growth
+  meatGrowthUntil?: number;    // time when growth stacks expire
+  meatGrowthHitWindowUntil?: number; // repeated-hit window end
+  meatGrowthHitPressure?: number; // accumulated hit pressure in current window
+  deadEchoHold?: number;        // Bezekhiy direct-look reveal hold
+  deadEchoRevealed?: boolean;   // Bezekhiy has become audible/ordinary
+  deadEchoSpent?: boolean;      // Bezekhiy one-shot threshold bonus spent
+  deadEchoDoorIdx?: number;     // Bezekhiy cached nearest door threshold
+  deadEchoDoorSide?: number;    // Last player side of cached threshold
+  wallBraceWasActive?: boolean; // Panelnik touched a wall on a previous brace tick
+  wallBraceSlowTimer?: number;  // brief slowdown after wall-brace is broken in open floor
+  wallBraceCueAt?: number;      // next allowed wall-brace readability message time
+  scrapWake?: number;           // Rzhavnik: 0 dormant, 1 first leap, 2 fragile walker
+  scrapWakeTimer?: number;      // Rzhavnik first-leap timebox
+  plantPuffCd?: number;         // rooted plant seed/sap burst cooldown
+  plantRootCd?: number;         // sparse authored root-structure cooldown
+  sporePuffCd?: number;         // Spore Carpet bounded local puff cooldown
+  sporeRecoilTimer?: number;    // Spore Carpet fire recoil window
+  sporeContainerScanCd?: number; // Spore Carpet throttled nearby-container event scan
+  sporeLastContainerEventId?: number;
+  sporeBurnedAt?: number;       // fire event throttle
+  shoveCharge?: number;         // Dikiy Mertvyak crowd shove momentum
+  shoveCooldown?: number;       // cooldown after a crowd shove burst
+  shoveStartHp?: number;        // initial HP snapshot; any early damage cancels shove
+  falsePhaseCd?: number;        // Ложный Дух: cooldown before next local door phase
+  falsePhaseActive?: number;    // Ложный Дух: brief interruptible post-crossing reveal
+  falsePhaseDoorIdx?: number;   // Ложный Дух: closed door used by the queued local phase
+  falsePhaseX?: number;         // Ложный Дух: queued local door landing x
+  falsePhaseY?: number;         // Ложный Дух: queued local door landing y
+  fogOffsetX?: number;          // Туманник: fake visible silhouette offset from real body
+  fogOffsetY?: number;
+  fogOffsetUntil?: number;      // time when the fake silhouette expires without refresh
+  fogOffsetCollapsedUntil?: number; // short reveal window after light/fire/leaving fog
+  fogOffsetNoiseId?: number;    // last noise record used to bias the displaced origin
+  fogOffsetCueAt?: number;      // throttle for local readability messages
+  falsePatrolRevealed?: boolean; // Черный ликвидатор: fake cleanup phase has broken
+  falsePatrolDoorIdx?: number;   // Черный ликвидатор: cached local door waypoint
+  falsePatrolScanCd?: number;    // Черный ликвидатор: bounded local door scan cooldown
+  falsePatrolKnockCd?: number;   // Черный ликвидатор: door-knock event cooldown
+  parasiteExposed?: boolean;    // Мухожук: reveal/readability beat already published
+  parasiteCommandCd?: number;   // Мухожук: bounded local command pulse cooldown
+  parasiteFoodScanCd?: number;  // Мухожук: throttled container appetite scan
+  parasiteFoodScanOffset?: number; // Мухожук: rotating container scan start
+  parasiteFoodTargetContainerId?: number;
 }
 
 export interface Entity {
@@ -376,8 +539,13 @@ export interface Entity {
   inventory?: Item[];
   name?: string;
   monsterKind?: MonsterKind;
-  monsterVariantId?: string;   // optional cheap modifier from data/monster_variants
-  monsterDmgMult?: number;     // cached damage multiplier from variant
+  monsterDmgMult?: number;     // authored temporary monster damage multiplier
+  monsterArmorStacks?: number;  // stripped armor state for standalone armored monsters
+  monsterArmorChip?: number;    // bounded weak-hit chip progress toward armor strip
+  monsterArmorLastStripAt?: number;
+  monsterArmorLastMsgAt?: number;
+  monsterStage?: number;       // monster-specific compact stage/state
+  parasiteHostSkill?: number;  // Head slug copied host movement skill
   attackCd?: number;
   familyId?: number;
   weapon?: string;            // equipped item def id
@@ -421,6 +589,7 @@ export interface Entity {
   psiMadness?: number;         // remaining seconds of PSI madness (attacks everyone)
   psiControlledBy?: number;    // entity id of PSI controller (ally override)
   phasing?: boolean;           // can move through walls (spirit)
+  protocolPressureTier?: number; // quantized sprite cue for Протокольник pressure
 }
 
 // ── Items ────────────────────────────────────────────────────────
@@ -649,9 +818,34 @@ export const WORLD_EVENT_TYPES = [
   'fog_boss_spawned',
   'fog_boss_killed',
   'monster_sighted',
+  'lishennyy_lured',
+  'lishennyy_contact_decay',
   'monster_windup_interrupted',
   'monster_armor_cut',
   'monster_escaped',
+  'false_liquidator_knock',
+  'false_liquidator_revealed',
+  'green_dog_howl',
+  'green_dog_scared',
+  'fog_shark_pack_sighted',
+  'fog_shark_ignited',
+  'borshchevik_cut',
+  'borshchevik_burned',
+  'borshchevik_seed_puff',
+  'blood_plant_root_cut',
+  'blood_plant_burned',
+  'red_mold_exposed',
+  'spore_carpet_woke',
+  'spore_carpet_burned',
+  'spore_carpet_puff',
+  'paupsina_webbed',
+  'paupsina_web_cut',
+  'olgoy_burrowed',
+  'olgoy_fed',
+  'olgoy_dragged_target',
+  'composite_woke',
+  'composite_growth',
+  'composite_isolated',
   'smog_entered',
   'smog_source_found',
   'smog_source_handled',
@@ -669,6 +863,9 @@ export const WORLD_EVENT_TYPES = [
   'computer_data_stolen',
   'net_terminal_hacked',
   'net_terminal_hack_failed',
+  'chervie_signal',
+  'chervie_server_cut',
+  'chervie_false_order',
   'quest_created',
   'quest_completed',
   'quest_failed',
@@ -692,6 +889,9 @@ export const WORLD_EVENT_TYPES = [
   'lift_arachna_sprung',
   'lift_arachna_avoided',
   'lift_arachna_cleared',
+  'pseudolift_suspected',
+  'pseudolift_revealed',
+  'pseudolift_fed',
   'paritel_valve_changed',
   'paritel_bridge_crossed',
   'paritel_threat_neutralized',
@@ -716,6 +916,26 @@ export const WORLD_EVENT_TYPES = [
   'krysnozhka_baited',
   'krysnozhka_dispersed',
   'krysnozhka_nest_cleared',
+  'slimevik_bargain',
+  'slimevik_harvested',
+  'slimevik_killed',
+  'slime_humanoid_sampled',
+  'slime_humanoid_dried',
+  'gnilushka_spared',
+  'gnilushka_hurt',
+  'gnilushka_delivered',
+  'mukhozhuk_exposed',
+  'mukhozhuk_food_spoiled',
+  'head_slug_detached',
+  'head_slug_rehosted',
+  'head_slug_quarantined',
+  'bezekhiy_revealed',
+  'bezekhiy_lunge',
+  'obzhivalshchik_scratched',
+  'obzhivalshchik_calmed',
+  'obzhivalshchik_breached',
+  'swarm_source_sealed',
+  'swarm_source_burned',
   'death_seen',
 ] as const;
 

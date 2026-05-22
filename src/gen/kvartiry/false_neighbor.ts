@@ -6,7 +6,7 @@ import {
 } from '../../core/types';
 import { World } from '../../core/world';
 import { type PlotNpcDef, registerSideQuest } from '../../data/plot';
-import { MONSTERS, applyMonsterVariant } from '../../entities/monster';
+import { MONSTERS } from '../../entities/monster';
 import { monsterSpr } from '../../render/sprite_index';
 import { randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg';
 import {
@@ -89,7 +89,6 @@ function spawnNelyud(world: World, entities: Entity[], nextId: { v: number }, x:
     ai: { goal: AIGoal.WANDER, tx: x, ty: y, path: [], pi: 0, stuck: 0, timer: 0 },
     rpg: randomRPG(zoneLevel),
   };
-  applyMonsterVariant(monster, FloorLevel.KVARTIRY, true);
   entities.push(monster);
 }
 

@@ -102,6 +102,7 @@ function stampEnergyMark(
 }
 
 function projectileImpactColor(sprite: number | undefined, pt = ProjType.NORMAL): [number, number, number] {
+  if (pt === ProjType.WEB) return [224, 226, 204];
   if (pt === ProjType.FLAME || sprite === Spr.FLAME_BOLT || sprite === Spr.HOSTILE_FLAME_BOLT) return [255, 92, 24];
   if (sprite === Spr.EYE_BOLT) return [150, 240, 52];
   if (sprite === Spr.PARAGRAPH_BOLT) return [248, 42, 104];
@@ -157,7 +158,9 @@ export function spawnProjectileBodyImpact(
   const cx = Math.floor(x), cy = Math.floor(y);
   if (world.solid(cx, cy)) return;
   const fx = (x % 1 + 1) % 1, fy = (y % 1 + 1) % 1;
-  if (pt === ProjType.FLAME || sprite === Spr.FLAME_BOLT || sprite === Spr.HOSTILE_FLAME_BOLT) {
+  if (pt === ProjType.WEB) {
+    stampProjectileMark(world, cx, cy, fx, fy, 0.22, MarkType.WEB, ++_splatterSeed, 226, 226, 202, 170);
+  } else if (pt === ProjType.FLAME || sprite === Spr.FLAME_BOLT || sprite === Spr.HOSTILE_FLAME_BOLT) {
     stampProjectileMark(world, cx, cy, fx, fy, 0.18, MarkType.BURN, ++_splatterSeed, 10, 5, 2, 145);
   } else if (isEnergyProjectileImpact(sprite, pt)) {
     stampEnergyMark(world, cx, cy, fx, fy, 0.12, sprite);
@@ -174,7 +177,9 @@ export function spawnProjectileFloorImpact(
   if (world.solid(cx, cy)) return;
   const fx = (x % 1 + 1) % 1, fy = (y % 1 + 1) % 1;
   spawnProjectileImpactParticles(x, y, 0.08, sprite, pt);
-  if (pt === ProjType.FLAME || sprite === Spr.FLAME_BOLT || sprite === Spr.HOSTILE_FLAME_BOLT) {
+  if (pt === ProjType.WEB) {
+    stampProjectileMark(world, cx, cy, fx, fy, 0.34, MarkType.WEB, ++_splatterSeed, 226, 226, 202, 185);
+  } else if (pt === ProjType.FLAME || sprite === Spr.FLAME_BOLT || sprite === Spr.HOSTILE_FLAME_BOLT) {
     stampProjectileMark(world, cx, cy, fx, fy, 0.3, MarkType.BURN, ++_splatterSeed, 8, 5, 2, 180);
   } else if (isEnergyProjectileImpact(sprite, pt)) {
     stampEnergyMark(world, cx, cy, fx, fy, 0.18, sprite);
@@ -190,7 +195,9 @@ export function spawnProjectileWallImpact(
   sprite: number | undefined,
   pt = ProjType.NORMAL,
 ): void {
-  if (pt === ProjType.FLAME || sprite === Spr.FLAME_BOLT || sprite === Spr.HOSTILE_FLAME_BOLT) {
+  if (pt === ProjType.WEB) {
+    stampProjectileMark(world, cx, cy, u, v, 0.3, MarkType.WEB, ++_splatterSeed, 226, 226, 202, 185, true);
+  } else if (pt === ProjType.FLAME || sprite === Spr.FLAME_BOLT || sprite === Spr.HOSTILE_FLAME_BOLT) {
     stampProjectileMark(world, cx, cy, u, v, 0.25, MarkType.BURN, ++_splatterSeed, 5, 3, 1, 190, true);
   } else if (isEnergyProjectileImpact(sprite, pt)) {
     stampEnergyMark(world, cx, cy, u, v, 0.16, sprite, true);

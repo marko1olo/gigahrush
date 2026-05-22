@@ -5,34 +5,43 @@
   "public_probe": {
     "mode": "logged_out_public_get",
     "url": "https://tenevik.itch.io/gigahrush",
-    "release_marker": "MACRO2_73-public-live-2026-05-20",
+    "release_marker": "",
     "assertions": {
       "title_markers": [
         "GIGAH|RUSH"
       ],
       "copy_markers": [
-        "Вылазки, патроны и самосбор",
-        "ГИГАХРУЩ - это вылазки",
+        "Выживание в бесконечном бетонном лабиринте",
+        "ГИГАХРУЩ",
+        "Ты не проходишь уровни. Ты живёшь внутри огромного дома",
+        "Сотни этажей",
         "https://gigahrush.bileter.workers.dev"
       ],
       "key_image_markers": [
-        "gigahrush_cover_630x500",
-        "gigahrush_screen_01_combat",
-        "gigahrush_screen_02_contract",
-        "gigahrush_screen_03_inventory",
-        "gigahrush_screen_04_act_hall"
+        "27404489",
+        "27404490",
+        "27404496",
+        "27404497",
+        "27404498",
+        "27404499",
+        "27404501",
+        "27404502",
+        "27404503",
+        "27404504",
+        "27404505",
+        "27404508",
+        "27404509",
+        "27404510"
       ],
-      "version_markers": [
-        "MACRO2_73-public-live-2026-05-20"
-      ]
+      "version_markers": []
     },
     "credential_policy": "No credentials are required or sent by the normal public probe path."
   },
-  "default_description": "description_ru_overkill.html",
-  "fallback_description": "description_ru_overkill.md",
+  "default_description": "description_ru_approved.html",
+  "fallback_description": "description_ru_approved.md",
   "core_fields": {
     "title": "GIGAH|RUSH",
-    "short_description": "Вылазки, патроны и самосбор внутри хрущёвки размером с город.",
+    "short_description": "Выживание, вылазки и САМОСБОР внутри бесконечной хрущёвки.",
     "genre": "Shooter",
     "tags": [
       "Survival Horror",
@@ -85,10 +94,16 @@
       "priority": 2
     },
     {
-      "role": "animated_media",
-      "path": "animated/gigahrush_samosbor_loop_640x360.gif",
-      "dimensions": "640x360",
-      "priority": 2
+      "role": "approved_gif_blinking_eyes",
+      "path": "approved_frontpage_itch/anim_hell_blinking_eyes.gif",
+      "dimensions": "560x315",
+      "priority": 1
+    },
+    {
+      "role": "approved_gif_maronary_samosbor",
+      "path": "approved_frontpage_itch/anim_underhell_maronary_samosbor_loop.gif",
+      "dimensions": "640x400",
+      "priority": 1
     },
     {
       "role": "media_wall",
@@ -98,10 +113,34 @@
     }
   ],
   "screenshots": [
-    "enhanced_screenshots/gigahrush_screen_01_combat.png",
-    "enhanced_screenshots/gigahrush_screen_02_contract.png",
-    "enhanced_screenshots/gigahrush_screen_03_inventory.png",
-    "enhanced_screenshots/gigahrush_screen_04_act_hall.png"
+    "approved_frontpage/hell_02-hell-maronary-samosbor.png",
+    "approved_frontpage/hell_03-underhell-gate-pack.png",
+    "approved_frontpage/hell_05-void-eye-protocols.png",
+    "approved_frontpage/hell_06-darkness-route-blackout.png",
+    "approved_frontpage/hell_07-procedural-wall-snake.png",
+    "approved_frontpage/hell_09-smog-false-safe-block.png",
+    "approved_frontpage/loc_03-ministerstvo-raionsovet-archive.png",
+    "approved_frontpage/loc_04-kollektory-maintenance.png",
+    "approved_frontpage/loc_07-krysha-antenny.png",
+    "approved_frontpage/extra_01-living-start-hud.png",
+    "approved_frontpage/extra_03-living-monster-ring-clean.png",
+    "approved_frontpage/extra_04-living-combat-hud.png"
+  ],
+  "approved_frontpage_media": [
+    "approved_frontpage_itch/anim_hell_blinking_eyes.gif",
+    "approved_frontpage_itch/anim_underhell_maronary_samosbor_loop.gif",
+    "approved_frontpage/hell_02-hell-maronary-samosbor.png",
+    "approved_frontpage/hell_03-underhell-gate-pack.png",
+    "approved_frontpage/hell_05-void-eye-protocols.png",
+    "approved_frontpage/hell_06-darkness-route-blackout.png",
+    "approved_frontpage/hell_07-procedural-wall-snake.png",
+    "approved_frontpage/hell_09-smog-false-safe-block.png",
+    "approved_frontpage/loc_03-ministerstvo-raionsovet-archive.png",
+    "approved_frontpage/loc_04-kollektory-maintenance.png",
+    "approved_frontpage/loc_07-krysha-antenny.png",
+    "approved_frontpage/extra_01-living-start-hud.png",
+    "approved_frontpage/extra_03-living-monster-ring-clean.png",
+    "approved_frontpage/extra_04-living-combat-hud.png"
   ],
   "cover_alternatives": [
     "visual_variants/gigahrush_cover_variant_red_alarm_630x500.png",

@@ -45,7 +45,7 @@ interface SignalshchikContext {
 const signalshchikContexts: SignalshchikContext[] = [];
 
 function signalTags(phase: string, extra: string[] = []): string[] {
-  return ['monster', 'maronary', 'green_source', 'signal', ENCOUNTER_ID, phase, 'variant_maronary', ...extra].slice(0, 8);
+  return ['monster', 'maronary', 'green_source', 'signal', ENCOUNTER_ID, phase, 'samosbor_maronary', ...extra].slice(0, 8);
 }
 
 function registerSignalshchikContext(ctx: SignalshchikContext): void {

@@ -7,8 +7,10 @@ import {
 } from '../core/types';
 import { World } from '../core/world';
 import { entityDisplayName } from '../entities/monster';
+import { HEAD_SLUG_DETACHED_STAGE } from '../entities/head_slug';
 import { consumeToolDurability, getEquippedToolDurability } from './inventory';
 import { publishEvent } from './events';
+import { interruptLozhnyyDukhFalsePhase } from './ai/monster';
 
 export const UV_SPOTLIGHT_ID = 'uv_spotlight';
 
@@ -164,6 +166,67 @@ function applyUvMonsterEffect(world: World, target: Entity, dirX: number, dirY: 
     }
     return 'spirit_stagger';
   }
+  if (target.monsterKind === MonsterKind.LOZHNYY_DUKH) {
+    return interruptLozhnyyDukhFalsePhase(world, undefined, target, undefined, 'uv_spotlight')
+      ? 'false_phase_interrupted'
+      : null;
+  }
+  if (target.monsterKind === MonsterKind.SLIME_WOMAN) {
+    target.attackCd = Math.max(target.attackCd ?? 0, 2.1);
+    if (target.hp !== undefined) target.hp = Math.max(1, target.hp - Math.max(6, Math.round((target.maxHp ?? target.hp) * 0.08)));
+    const nx = world.wrap(target.x + dirX * 0.35);
+    const ny = world.wrap(target.y + dirY * 0.35);
+    if (!world.solid(Math.floor(nx), Math.floor(ny))) {
+      target.x = nx;
+      target.y = ny;
+    }
+    target.spriteScale = 0.86;
+    if (target.ai) {
+      target.ai.goal = AIGoal.WANDER;
+      target.ai.combatTargetId = undefined;
+      target.ai.path = [];
+      target.ai.timer = 1.2;
+    }
+    return 'slime_humanoid_dried';
+  }
+  if (target.monsterKind === MonsterKind.LISHENNYY) {
+    target.attackCd = Math.max(target.attackCd ?? 0, 2.4);
+    const nx = world.wrap(target.x + dirX * 0.55);
+    const ny = world.wrap(target.y + dirY * 0.55);
+    if (!world.solid(Math.floor(nx), Math.floor(ny))) {
+      target.x = nx;
+      target.y = ny;
+    }
+    target.spriteScale = 0.84;
+    if (target.ai) {
+      target.ai.lightAvoidTimer = Math.max(target.ai.lightAvoidTimer ?? 0, 2.4);
+      target.ai.staggerTimer = Math.max(target.ai.staggerTimer ?? 0, 0.75);
+      target.ai.combatTargetId = undefined;
+      target.ai.lightTargetId = undefined;
+      target.ai.lightTargetKind = undefined;
+      target.ai.path = [];
+      target.ai.timer = 0.9;
+    }
+    return 'lishennyy_light_repel';
+  }
+  if (target.monsterKind === MonsterKind.HEAD_SLUG) {
+    target.attackCd = Math.max(target.attackCd ?? 0, 2.0);
+    if (target.hp !== undefined && target.monsterStage === HEAD_SLUG_DETACHED_STAGE) target.hp = Math.max(1, target.hp - 3);
+    const nx = world.wrap(target.x + dirX * 0.45);
+    const ny = world.wrap(target.y + dirY * 0.45);
+    if (!world.solid(Math.floor(nx), Math.floor(ny))) {
+      target.x = nx;
+      target.y = ny;
+    }
+    target.spriteScale = target.monsterStage === HEAD_SLUG_DETACHED_STAGE ? 0.5 : 0.9;
+    if (target.ai) {
+      target.ai.parasiteRehostCd = Math.max(target.ai.parasiteRehostCd ?? 0, 5.5);
+      target.ai.combatTargetId = undefined;
+      target.ai.path = [];
+      target.ai.timer = 1.1;
+    }
+    return target.monsterStage === HEAD_SLUG_DETACHED_STAGE ? 'head_slug_rehost_blocked' : 'head_slug_stagger';
+  }
   return null;
 }
 
@@ -245,6 +308,28 @@ export function useUvSpotlight(
     affected++;
     if (affectedNames.length < 2) affectedNames.push(entityDisplayName(target));
     publishUvTarget(state, world, player, target, effect, target.x, target.y);
+    if (effect === 'slime_humanoid_dried') {
+      publishEvent(state, {
+        type: 'slime_humanoid_dried',
+        zoneId: zoneAt(world, target.x, target.y),
+        x: target.x,
+        y: target.y,
+        actorId: player.id,
+        actorName: player.name ?? 'Вы',
+        actorFaction: player.faction,
+        targetId: target.id,
+        targetName: entityDisplayName(target),
+        targetFaction: target.faction,
+        monsterKind: MonsterKind.SLIME_WOMAN,
+        itemId: UV_SPOTLIGHT_ID,
+        itemName: 'УФ-прожектор ликвидатора',
+        itemValue: 950,
+        severity: 4,
+        privacy: 'local',
+        tags: ['player', 'monster', 'slime_woman', 'uv_spotlight', 'counterplay'],
+        data: { effect, counterplay: 'uv_spotlight_pushes_slime_humanoid_into_dry_window' },
+      });
+    }
   }
 
   const revealed = revealUvSurfaceMarks(world, player, beamLen);

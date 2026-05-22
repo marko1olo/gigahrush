@@ -1,7 +1,7 @@
 /* ── Debug menu: commands + overlay rendering ────────────────── */
 
 import {
-  W, Cell, RoomType, Faction, ZoneFaction, LiftDirection, FloorLevel,
+  W, Cell, Feature, RoomType, Faction, ZoneFaction, LiftDirection, FloorLevel,
   EntityType, MonsterKind, Occupation, AIGoal,
   type Entity, type GameState, type WorldContainer,
   msg,
@@ -11,8 +11,8 @@ import { freshNeeds, randomName, ITEMS } from '../data/catalog';
 import { getStack } from '../data/items';
 import { getPermitDef, type PermitAccessTag } from '../data/permits';
 import { FACTION_NAMES } from '../data/relations';
-import { MONSTERS, applyMonsterVariant, monsterTypeName } from '../entities/monster';
-import { Spr } from '../render/sprite_index';
+import { MONSTERS, monsterTypeName } from '../entities/monster';
+import { monsterSpr, Spr } from '../render/sprite_index';
 import { awardXP, randomRPG, getMaxHp } from './rpg';
 import { isDebugNoClipEnabled, toggleDebugNoClip } from './psi';
 import { cycleForcedSamosborVariant, forceNextSamosborVariant, getActiveSamosborVariant } from '../data/samosbor_variants';
@@ -54,6 +54,8 @@ import { debugTriggerRouteCue, routeCueCount } from './route_cues';
 import { debugCreateWrongDoorRemap } from './wrong_door';
 import { debugForceHermodoorBorer } from './hermodoor_borer';
 import { debugStartSamosborWaveAtPlayer } from './samosbor_wave';
+import { debugForcePseudoliftNearPlayer, pseudoliftDebugSummary } from './pseudolift';
+import { createSwarmSourceEntity, registerSwarmNestSource } from './swarm_nests';
 import { DESIGN_FLOOR_ROUTES, type DesignFloorId } from '../data/design_floors';
 import { FLOOR_INSTANCES } from '../data/floor_instances';
 import { type FloorAnomalyId } from '../data/procedural_floors';
@@ -117,12 +119,12 @@ export const SMOKE_DEBUG_COMMAND_IDS = {
   expeditionProofReturn: 'expedition_proof_return',
 } as const;
 const DEBUG_MONSTER_PACKS: Record<FloorLevel, readonly MonsterKind[]> = {
-  [FloorLevel.MINISTRY]: [MonsterKind.PECHATEED, MonsterKind.PARAGRAPH, MonsterKind.SHOVNIK],
-  [FloorLevel.KVARTIRY]: [MonsterKind.REBAR, MonsterKind.NELYUD, MonsterKind.KRYSNOZHKA],
-  [FloorLevel.LIVING]: [MonsterKind.SBORKA, MonsterKind.SHADOW, MonsterKind.NELYUD],
-  [FloorLevel.MAINTENANCE]: [MonsterKind.TUBE_EEL, MonsterKind.POLZUN, MonsterKind.KOSTOREZ, MonsterKind.SAFEGUARD],
-  [FloorLevel.HELL]: [MonsterKind.HERALD, MonsterKind.KOSTOREZ, MonsterKind.TVAR],
-  [FloorLevel.VOID]: [MonsterKind.PARAGRAPH, MonsterKind.EYE, MonsterKind.SPIRIT, MonsterKind.SAFEGUARD],
+  [FloorLevel.MINISTRY]: [MonsterKind.PECHATEED, MonsterKind.KONTORSHCHIK, MonsterKind.PARAGRAPH, MonsterKind.PROTOKOLNIK, MonsterKind.SHOVNIK, MonsterKind.LAMPOGLAZ, MonsterKind.KANTSELYARSKIY_IDOL, MonsterKind.LOZHNYY_DUKH, MonsterKind.TONKAYA_TEN, MonsterKind.BLACK_LIQUIDATOR, MonsterKind.HEAD_SLUG, MonsterKind.CHERVIE_AVATAR, MonsterKind.MUKHOZHUK_HOST, MonsterKind.BEZEKHIY, MonsterKind.SPORE_CARPET],
+  [FloorLevel.KVARTIRY]: [MonsterKind.REBAR, MonsterKind.NELYUD, MonsterKind.KRYSNOZHKA, MonsterKind.POMOYNY_ROY, MonsterKind.GREEN_DOG, MonsterKind.PANELNIK, MonsterKind.PAUPSINA, MonsterKind.BLACK_LIQUIDATOR, MonsterKind.OBZHIVALSHCHIK, MonsterKind.ZHORNAYA_TVAR, MonsterKind.DIKIY_MERTVYAK, MonsterKind.HEAD_SLUG, MonsterKind.BEZEKHIY, MonsterKind.TRESKOTNIK, MonsterKind.GNILUSHKA, MonsterKind.SPORE_CARPET],
+  [FloorLevel.LIVING]: [MonsterKind.SBORKA, MonsterKind.SHADOW, MonsterKind.NELYUD, MonsterKind.LAMPOGLAZ, MonsterKind.POMOYNY_ROY, MonsterKind.GREEN_DOG, MonsterKind.PANELNIK, MonsterKind.PAUPSINA, MonsterKind.BLACK_LIQUIDATOR, MonsterKind.OBZHIVALSHCHIK, MonsterKind.TUMANNIK, MonsterKind.FOG_SHARK, MonsterKind.ZHORNAYA_TVAR, MonsterKind.SOBRANNYY, MonsterKind.SLIME_WOMAN, MonsterKind.BORSHCHEVIK, MonsterKind.BLOOD_PLANT, MonsterKind.HEAD_SLUG, MonsterKind.LOZHNYY_DUKH, MonsterKind.DIKIY_MERTVYAK, MonsterKind.BEZEKHIY, MonsterKind.TRESKOTNIK, MonsterKind.TONKAYA_TEN, MonsterKind.GNILUSHKA, MonsterKind.SPORE_CARPET],
+  [FloorLevel.MAINTENANCE]: [MonsterKind.TUBE_EEL, MonsterKind.POLZUN, MonsterKind.KOSTOREZ, MonsterKind.SAFEGUARD, MonsterKind.BETONOED, MonsterKind.POMOYNY_ROY, MonsterKind.SWARM, MonsterKind.GREEN_DOG, MonsterKind.PANELNIK, MonsterKind.PAUPSINA, MonsterKind.SOBRANNYY, MonsterKind.SLIME_WOMAN, MonsterKind.BORSHCHEVIK, MonsterKind.BLOOD_PLANT, MonsterKind.OLGOY, MonsterKind.VODYANOY_KOSHMAR, MonsterKind.ZAKALENNAYA_ARMATURA, MonsterKind.HEAD_SLUG, MonsterKind.CHERVIE_AVATAR, MonsterKind.MUKHOZHUK_HOST, MonsterKind.TRUBNYY_AVTOMAT, MonsterKind.FOG_SHARK, MonsterKind.SPORE_CARPET],
+  [FloorLevel.HELL]: [MonsterKind.HERALD, MonsterKind.KOSTOREZ, MonsterKind.KHOROVAYA_MATKA, MonsterKind.TVAR, MonsterKind.TUMANNIK, MonsterKind.FOG_SHARK, MonsterKind.ZHORNAYA_TVAR, MonsterKind.SOBRANNYY, MonsterKind.BLOOD_PLANT, MonsterKind.SWARM, MonsterKind.OLGOY, MonsterKind.ZAKALENNAYA_ARMATURA, MonsterKind.TRESKOTNIK, MonsterKind.GLUBINNAYA_TEN, MonsterKind.LISHENNYY],
+  [FloorLevel.VOID]: [MonsterKind.PARAGRAPH, MonsterKind.EYE, MonsterKind.SPIRIT, MonsterKind.SAFEGUARD, MonsterKind.LOZHNYY_DUKH, MonsterKind.TONKAYA_TEN, MonsterKind.CHERVIE_AVATAR, MonsterKind.GLUBINNAYA_TEN, MonsterKind.LISHENNYY],
 };
 const DEBUG_PERMIT_PACK = [
   'official_permit_slip',
@@ -186,6 +188,9 @@ type BaseDebugCommandId =
   | 'force_pneumomail_capsule'
   | 'force_hermodoor_borer'
   | 'force_liquidator_cult_clash'
+  | 'debug_false_cleanup_patrol'
+  | 'debug_mukhozhuk_host'
+  | 'debug_chervie_site'
   | 'toggle_onepunchman'
   | 'grant_net_terminal_gen_access'
   | 'place_net_terminal_gen_terminals'
@@ -223,6 +228,7 @@ type BaseDebugCommandId =
   | 'grant_permit_pack'
   | 'check_permit_access'
   | 'spoil_permit'
+  | 'force_pseudolift'
   | 'debug_samosbor_small_wave';
 
 const DESIGN_FLOOR_COMMAND_ID_PREFIX = 'teleport_design_floor:';
@@ -605,6 +611,42 @@ function findDebugMonsterSpot(
   return null;
 }
 
+const DEBUG_FOG_SHARK_FOG_CAP = 40;
+
+function seedDebugFogSharkPatch(world: World, kind: MonsterKind, x: number, y: number): number {
+  if (kind !== MonsterKind.FOG_SHARK) return 0;
+  const cx = Math.floor(x);
+  const cy = Math.floor(y);
+  let cells = 0;
+  for (let dy = -4; dy <= 4; dy++) {
+    for (let dx = -4; dx <= 4; dx++) {
+      if (cells >= DEBUG_FOG_SHARK_FOG_CAP) break;
+      if (dx * dx + dy * dy > 18) continue;
+      const px = world.wrap(cx + dx);
+      const py = world.wrap(cy + dy);
+      if (world.solid(px, py)) continue;
+      const ci = world.idx(px, py);
+      world.fog[ci] = Math.max(world.fog[ci], 88);
+      cells++;
+    }
+  }
+  if (cells > 0) world.markFogDirty();
+  return cells;
+}
+
+function seedDebugLishennyyLight(world: World, player: Entity, kind: MonsterKind): number {
+  if (kind !== MonsterKind.LISHENNYY) return 0;
+  for (const dist of [2, 3, 4]) {
+    const x = world.wrap(Math.floor(player.x + Math.cos(player.angle) * dist));
+    const y = world.wrap(Math.floor(player.y + Math.sin(player.angle) * dist));
+    if (!passableDebugCell(world, x, y)) continue;
+    world.features[world.idx(x, y)] = Feature.LAMP;
+    world.bakeLights();
+    return 1;
+  }
+  return 0;
+}
+
 function spawnDebugMonsterPack(
   world: World,
   player: Entity,
@@ -621,6 +663,41 @@ function spawnDebugMonsterPack(
     const def = MONSTERS[kind];
     const spot = findDebugMonsterSpot(world, player, entities, i, kinds.length);
     if (!def || !spot) continue;
+    if (kind === MonsterKind.SWARM) {
+      const source = createSwarmSourceEntity(nextEntityId.v++, spot.x, spot.y, player.rpg?.level ?? 2);
+      source.angle = Math.atan2(player.y - spot.y, player.x - spot.x);
+      entities.push(source);
+      registerSwarmNestSource(world, {
+        id: `debug_swarm_nest_${source.id}`,
+        x: source.x,
+        y: source.y,
+        sourceEntityId: source.id,
+        activationRadius: 36,
+        spawnRadius: 4.5,
+        spawnCooldown: 1.2,
+        maxChildren: 6,
+      });
+      spawned++;
+      names.push(`${monsterTypeName(kind)}+source`);
+      publishEvent(state, {
+        type: 'monster_sighted',
+        zoneId: currentPlayerZone(world, player),
+        x: spot.x,
+        y: spot.y,
+        targetId: source.id,
+        targetName: source.name,
+        monsterKind: kind,
+        severity: 3,
+        privacy: 'local',
+        tags: ['debug', 'monster', 'swarm', 'source', 'verification', 'counterplay'],
+        data: {
+          source: 'debug_menu',
+          counterplay: def.counterplay,
+          maxChildren: 6,
+        },
+      });
+      continue;
+    }
     const monster: Entity = {
       id: nextEntityId.v++,
       type: EntityType.MONSTER,
@@ -639,10 +716,11 @@ function spawnDebugMonsterPack(
       rpg: randomRPG(player.rpg?.level ?? 1),
       phasing: kind === MonsterKind.SPIRIT,
     };
-    applyMonsterVariant(monster, state.currentFloor, true);
     entities.push(monster);
+    const debugFogCells = seedDebugFogSharkPatch(world, kind, spot.x, spot.y);
+    const debugLightCells = seedDebugLishennyyLight(world, player, kind);
     spawned++;
-    names.push(monsterTypeName(kind));
+    names.push(debugLightCells > 0 ? `${monsterTypeName(kind)}+light` : debugFogCells > 0 ? `${monsterTypeName(kind)}+fog` : monsterTypeName(kind));
     publishEvent(state, {
       type: 'monster_sighted',
       zoneId: currentPlayerZone(world, player),
@@ -657,12 +735,253 @@ function spawnDebugMonsterPack(
       data: {
         source: 'debug_menu',
         counterplay: def.counterplay,
+        debugFogCells,
+        debugLightCells,
       },
     });
   }
   return spawned > 0
     ? [`spawned ${spawned}: ${names.join(', ')}`]
     : ['no passable spawn cells in front of player'];
+}
+
+function spawnDebugFalseCleanupPatrol(
+  world: World,
+  player: Entity,
+  entities: Entity[],
+  state: GameState,
+  nextEntityId: { v: number },
+): string[] {
+  const kind = MonsterKind.BLACK_LIQUIDATOR;
+  const def = MONSTERS[kind];
+  const target = 3;
+  const slots = entitySpawnSlots(entities, EntityType.MONSTER, target);
+  let spawned = 0;
+  for (let i = 0; i < slots; i++) {
+    const spot = findDebugMonsterSpot(world, player, entities, i, target);
+    if (!spot) continue;
+    entities.push({
+      id: nextEntityId.v++,
+      type: EntityType.MONSTER,
+      x: spot.x,
+      y: spot.y,
+      angle: Math.atan2(player.y - spot.y, player.x - spot.x),
+      pitch: 0,
+      alive: true,
+      speed: def.speed,
+      sprite: def.sprite,
+      hp: def.hp,
+      maxHp: def.hp,
+      monsterKind: kind,
+      attackCd: def.attackRate,
+      ai: { goal: AIGoal.WANDER, tx: spot.x, ty: spot.y, path: [], pi: 0, stuck: 0, timer: 0 },
+      rpg: randomRPG(player.rpg?.level ?? 1),
+      spriteSeed: (nextEntityId.v * 2654435761) >>> 0,
+    });
+    spawned++;
+  }
+  if (spawned > 0) {
+    state.samosborCount = Math.max(state.samosborCount, 3);
+    publishEvent(state, {
+      type: 'false_liquidator_knock',
+      zoneId: currentPlayerZone(world, player),
+      x: player.x,
+      y: player.y,
+      targetName: 'debug false cleanup patrol',
+      monsterKind: kind,
+      severity: 3,
+      privacy: 'local',
+      tags: ['debug', 'monster', 'black_liquidator', 'false_cleanup'],
+      data: { source: 'debug_menu', monsterCount: spawned },
+    });
+  }
+  return spawned > 0
+    ? [`fake cleanup patrol spawned: ${spawned}`]
+    : ['no passable spawn cells for fake cleanup patrol'];
+}
+
+function nearestDebugMukhozhukNpc(world: World, player: Entity, entities: Entity[]): Entity | null {
+  let best: Entity | null = null;
+  let bestD2 = 9 * 9;
+  for (const e of entities) {
+    if (!e.alive || e.type !== EntityType.NPC || !e.ai || e.plotNpcId !== undefined) continue;
+    const d2 = world.dist2(player.x, player.y, e.x, e.y);
+    if (d2 >= bestD2) continue;
+    best = e;
+    bestD2 = d2;
+  }
+  return best;
+}
+
+function turnNpcIntoDebugMukhozhuk(npc: Entity, player: Entity): void {
+  const def = MONSTERS[MonsterKind.MUKHOZHUK_HOST];
+  npc.type = EntityType.MONSTER;
+  npc.monsterKind = MonsterKind.MUKHOZHUK_HOST;
+  npc.name = `${npc.name ?? 'Носитель'}: мухожук`;
+  npc.speed = def.speed;
+  npc.sprite = def.sprite;
+  npc.hp = Math.max(npc.hp ?? 1, Math.round(def.hp * 0.78));
+  npc.maxHp = Math.max(npc.maxHp ?? 1, def.hp);
+  npc.attackCd = 0;
+  npc.ai = { goal: AIGoal.HUNT, tx: Math.floor(player.x), ty: Math.floor(player.y), path: [], pi: 0, stuck: 0, timer: 0, combatTargetId: player.id };
+  npc.inventory = [
+    ...(npc.inventory ?? []),
+    { defId: 'quarantine_medcard', count: 1 },
+  ].slice(0, 12);
+}
+
+function spawnDebugMukhozhukHost(
+  world: World,
+  player: Entity,
+  entities: Entity[],
+  state: GameState,
+  nextEntityId: { v: number },
+): string[] {
+  const existingNpc = nearestDebugMukhozhukNpc(world, player, entities);
+  let host: Entity;
+  let mode = 'spawned';
+  if (existingNpc) {
+    turnNpcIntoDebugMukhozhuk(existingNpc, player);
+    host = existingNpc;
+    mode = 'infected_nearest_npc';
+  } else {
+    if (!canSpawnEntityType(entities, EntityType.MONSTER)) return ['monster entity limit reached'];
+    const spot = findDebugMonsterSpot(world, player, entities, 0, 1);
+    if (!spot) return ['no passable spawn cell in front of player'];
+    const def = MONSTERS[MonsterKind.MUKHOZHUK_HOST];
+    host = {
+      id: nextEntityId.v++,
+      type: EntityType.MONSTER,
+      x: spot.x,
+      y: spot.y,
+      angle: Math.atan2(player.y - spot.y, player.x - spot.x),
+      pitch: 0,
+      alive: true,
+      speed: def.speed,
+      sprite: def.sprite,
+      hp: def.hp,
+      maxHp: def.hp,
+      name: 'Ревизор-носитель: мухожук',
+      monsterKind: MonsterKind.MUKHOZHUK_HOST,
+      attackCd: 0,
+      ai: { goal: AIGoal.HUNT, tx: Math.floor(player.x), ty: Math.floor(player.y), path: [], pi: 0, stuck: 0, timer: 0, combatTargetId: player.id },
+      rpg: randomRPG(player.rpg?.level ?? 1),
+      faction: Faction.LIQUIDATOR,
+      occupation: Occupation.DIRECTOR,
+      inventory: [{ defId: 'quarantine_medcard', count: 1 }],
+    };
+    entities.push(host);
+  }
+
+  publishEvent(state, {
+    type: 'mukhozhuk_exposed',
+    zoneId: currentPlayerZone(world, player),
+    roomId: currentPlayerRoom(world, player),
+    x: host.x,
+    y: host.y,
+    actorId: host.id,
+    actorName: host.name,
+    actorFaction: host.faction,
+    targetId: player.id,
+    targetName: player.name ?? 'Вы',
+    targetFaction: player.faction,
+    monsterKind: MonsterKind.MUKHOZHUK_HOST,
+    severity: 4,
+    privacy: 'local',
+    tags: ['debug', 'monster', 'mukhozhuk', 'parasite_leader', mode],
+    data: {
+      source: 'debug_menu',
+      mode,
+      counterplay: MONSTERS[MonsterKind.MUKHOZHUK_HOST]?.counterplay,
+      rumorIds: ['monster_mukhozhuk_host_command', 'ecology_mukhozhuk_quarantine'],
+    },
+  });
+  return [`${mode}: ${host.name ?? monsterTypeName(MonsterKind.MUKHOZHUK_HOST)} #${host.id}`];
+}
+
+function placeDebugChervieFeature(world: World, x: number, y: number, feature: Feature): boolean {
+  const wx = world.wrap(x);
+  const wy = world.wrap(y);
+  if (!passableDebugCell(world, wx, wy)) return false;
+  world.features[world.idx(wx, wy)] = feature;
+  return true;
+}
+
+function spawnDebugChervieSite(
+  world: World,
+  player: Entity,
+  entities: Entity[],
+  state: GameState,
+  nextEntityId: { v: number },
+): string[] {
+  if (!canSpawnEntityType(entities, EntityType.MONSTER)) return ['monster entity limit reached'];
+  const spot = findDebugMonsterSpot(world, player, entities, 0, 1);
+  if (!spot) return ['no passable spawn cell in front of player'];
+  const kind = MonsterKind.CHERVIE_AVATAR;
+  const def = MONSTERS[kind];
+  const mx = Math.floor(spot.x);
+  const my = Math.floor(spot.y);
+  let apparatus = false;
+  let screen = false;
+  const sourceOffsets = [
+    { dx: 1, dy: 0, feature: Feature.APPARATUS },
+    { dx: -1, dy: 0, feature: Feature.SCREEN },
+    { dx: 0, dy: 1, feature: Feature.APPARATUS },
+    { dx: 0, dy: -1, feature: Feature.SCREEN },
+    { dx: 2, dy: 1, feature: Feature.SCREEN },
+    { dx: -2, dy: -1, feature: Feature.APPARATUS },
+  ] as const;
+  for (const source of sourceOffsets) {
+    const placed = placeDebugChervieFeature(world, mx + source.dx, my + source.dy, source.feature);
+    if (!placed) continue;
+    if (source.feature === Feature.APPARATUS) apparatus = true;
+    if (source.feature === Feature.SCREEN) screen = true;
+  }
+
+  const monster: Entity = {
+    id: nextEntityId.v++,
+    type: EntityType.MONSTER,
+    x: spot.x,
+    y: spot.y,
+    angle: Math.atan2(player.y - spot.y, player.x - spot.x),
+    pitch: 0,
+    alive: true,
+    speed: def.speed,
+    sprite: monsterSpr(kind),
+    hp: def.hp,
+    maxHp: def.hp,
+    name: 'Червие отладочного экрана',
+    monsterKind: kind,
+    attackCd: 0,
+    ai: { goal: AIGoal.HUNT, tx: Math.floor(player.x), ty: Math.floor(player.y), path: [], pi: 0, stuck: 0, timer: 0, combatTargetId: player.id },
+    rpg: randomRPG(player.rpg?.level ?? 1),
+  };
+  entities.push(monster);
+  publishEvent(state, {
+    type: 'chervie_signal',
+    zoneId: currentPlayerZone(world, player),
+    roomId: currentPlayerRoom(world, player),
+    x: monster.x,
+    y: monster.y,
+    actorId: monster.id,
+    actorName: monster.name,
+    actorFaction: monster.faction,
+    targetId: player.id,
+    targetName: player.name ?? 'Вы',
+    targetFaction: player.faction,
+    monsterKind: kind,
+    severity: 4,
+    privacy: 'local',
+    tags: ['debug', 'monster', 'chervie', 'net', 'screen', 'apparatus'],
+    data: {
+      source: 'debug_menu',
+      apparatus,
+      screen,
+      counterplay: def.counterplay,
+      rumorIds: ['monster_chervie_avatar_screen', 'ecology_chervie_avatar_disconnect'],
+    },
+  });
+  return [`chervie site: avatar #${monster.id}, apparatus=${apparatus ? 1 : 0}, screen=${screen ? 1 : 0}`];
 }
 
 function adjacentContainerRouteSpot(world: World, container: WorldContainer): { x: number; y: number } | null {
@@ -767,7 +1086,7 @@ function setSamosborWarningWindow(state: GameState): string {
   return `warning window set to ${DEBUG_SAMOSBOR_WARNING_SECONDS}s`;
 }
 
-function spawnSmokeTarget(world: World, player: Entity, entities: Entity[], state: GameState, nextEntityId: { v: number }): boolean {
+function spawnSmokeTarget(world: World, player: Entity, entities: Entity[], nextEntityId: { v: number }): boolean {
   if (!canSpawnEntityType(entities, EntityType.MONSTER)) return false;
   const def = MONSTERS[MonsterKind.SBORKA];
   const baseAngles = [player.angle, player.angle + 0.45, player.angle - 0.45, player.angle + Math.PI];
@@ -786,7 +1105,6 @@ function spawnSmokeTarget(world: World, player: Entity, entities: Entity[], stat
         ai: { goal: AIGoal.IDLE, tx: 0, ty: 0, path: [], pi: 0, stuck: 0, timer: 0 },
         rpg: randomRPG(player.rpg?.level ?? 1),
       };
-      applyMonsterVariant(monster, state.currentFloor, true);
       entities.push(monster);
       return true;
     }
@@ -909,8 +1227,8 @@ export function execDebugCommand(
           rpg: randomRPG(player.rpg?.level ?? 1),
           phasing: k === MonsterKind.SPIRIT,
         };
-        applyMonsterVariant(monster, state.currentFloor, true);
         entities.push(monster);
+        seedDebugFogSharkPatch(world, k, monster.x, monster.y);
       }
       state.msgs.push(msg('Все монстры заспавнены', state.time, '#ff0'));
       break;
@@ -1110,7 +1428,7 @@ export function execDebugCommand(
       addItem(player, 'ammo_9mm', 30);
       player.weapon = 'makarov';
       const moved = movePlayerToSmokeLift(world, player, entities);
-      const target = spawnSmokeTarget(world, player, entities, state, nextEntityId);
+      const target = spawnSmokeTarget(world, player, entities, nextEntityId);
       const contract = spawnContract(state);
       state.msgs.push(msg(
         `[SMOKE] kit=${player.weapon} lift=${moved ? 'ready' : 'missing'} target=${target ? 'spawned' : 'skipped'} contract=${contract ? 'created' : 'skipped'}`,
@@ -1334,6 +1652,30 @@ export function execDebugCommand(
       for (const line of spoilDebugPermit(world, player, state)) state.msgs.push(msg(`[PERMIT] ${line}`, state.time, '#f84'));
       break;
     }
+    case 81: {
+      for (const line of debugForcePseudoliftNearPlayer(world, player, state)) {
+        state.msgs.push(msg(`[PSEUDOLIFT] ${line}`, state.time, '#fc4'));
+      }
+      return { type: 'refresh_world_data' };
+    }
+    case 82: {
+      for (const line of spawnDebugFalseCleanupPatrol(world, player, entities, state, nextEntityId)) {
+        state.msgs.push(msg(`[FALSE-CLEANUP] ${line}`, state.time, '#f84'));
+      }
+      return { type: 'refresh_world_data' };
+    }
+    case 83: {
+      for (const line of spawnDebugMukhozhukHost(world, player, entities, state, nextEntityId)) {
+        state.msgs.push(msg(`[MUKHOZHUK] ${line}`, state.time, '#ce8'));
+      }
+      return { type: 'refresh_world_data' };
+    }
+    case 84: {
+      for (const line of spawnDebugChervieSite(world, player, entities, state, nextEntityId)) {
+        state.msgs.push(msg(`[CHERVIE] ${line}`, state.time, '#6f8'));
+      }
+      return { type: 'refresh_world_data' };
+    }
   }
   return null;
 }
@@ -1430,6 +1772,10 @@ const BASE_CMD_DEFS = [
   { id: 'grant_permit_pack', label: 'PERMIT: выдать пакет' },
   { id: 'check_permit_access', label: 'PERMIT: проверить доступ' },
   { id: 'spoil_permit', label: 'PERMIT: испортить пропуск' },
+  { id: 'force_pseudolift', label: 'PSEUDOLIFT: ловушка у лифта' },
+  { id: 'debug_false_cleanup_patrol', label: 'SAMOSBOR: ложная зачистка' },
+  { id: 'debug_mukhozhuk_host', label: 'MUKHOZHUK: носитель у игрока' },
+  { id: 'debug_chervie_site', label: 'CHERVIE: экранный узел' },
 ] as const satisfies readonly DebugCommandDef[];
 
 const BASE_CMD_VISUAL_BEFORE_DESIGN = [
@@ -1446,6 +1792,9 @@ const BASE_CMD_VISUAL_BEFORE_DESIGN = [
   'spawn_items',
   'spawn_bad_apple_world',
   'debug_samosbor_small_wave',
+  'debug_false_cleanup_patrol',
+  'debug_mukhozhuk_host',
+  'debug_chervie_site',
   'teleport_living',
   'teleport_ministry',
   'teleport_kvartiry',
@@ -1493,6 +1842,7 @@ const BASE_CMD_VISUAL_AFTER_DESIGN = [
   'elevator_instances',
   'route_floor_summary',
   'arm_floor_instance',
+  'force_pseudolift',
   'spawn_system_contract',
   'govnyak_courier_contract',
   'verification_contract_route',
@@ -1701,6 +2051,7 @@ export function drawDebugOverlay(
   for (const line of summarizeProceduralSmog(world, state).slice(0, 2)) row(`Смог: ${line}`, '#b98');
   for (const line of summarizeBadAppleWorld(world).slice(0, 2)) row(`BadApple: ${line}`, '#eee');
   for (const line of summarizeFloorInstances(state).slice(0, 2)) row(`Лифт: ${line}`, '#f4a');
+  for (const line of pseudoliftDebugSummary(state).slice(0, 2)) row(`Псевдолифт: ${line}`, '#fc4');
   for (const line of getSamosborDebugLines()) row(line, '#9cf');
   gap();
 

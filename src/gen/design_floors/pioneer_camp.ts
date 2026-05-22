@@ -29,7 +29,7 @@ import { World } from '../../core/world';
 import { hashSeed, withSeededRandom } from '../../core/rand';
 import { freshNeeds } from '../../data/catalog';
 import { type PlotNpcDef, registerSideQuest } from '../../data/plot';
-import { MONSTERS, applyMonsterVariant } from '../../entities/monster';
+import { MONSTERS } from '../../entities/monster';
 import { monsterSpr, Spr } from '../../render/sprite_index';
 import { ensureConnectivity, generateZones, sanitizeDoors, stampRoom } from '../shared';
 import type { FloorGeneration } from '../floor_manifest';
@@ -850,7 +850,6 @@ function spawnMonster(
     ai: { goal: AIGoal.WANDER, tx: x, ty: y, path: [], pi: 0, stuck: 0, timer: 0 },
     phasing: kind === MonsterKind.SHADOW,
   };
-  applyMonsterVariant(monster, PIONEER_CAMP_BASE_FLOOR, level >= 3);
   entities.push(monster);
 }
 

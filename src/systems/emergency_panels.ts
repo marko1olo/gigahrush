@@ -7,7 +7,6 @@ import {
   EntityType,
   Faction,
   Feature,
-  FloorLevel,
   MonsterKind,
   RoomType,
   Tex,
@@ -31,7 +30,7 @@ import {
   type EmergencyPanelId,
 } from '../data/emergency_panels';
 import { ITEMS } from '../data/catalog';
-import { MONSTERS, applyMonsterVariant } from '../entities/monster';
+import { MONSTERS } from '../entities/monster';
 import { monsterSpr } from '../render/sprite_index';
 import { randomRPG } from './rpg';
 import { removeItem } from './inventory';
@@ -493,7 +492,6 @@ function spawnPanelThreat(
       rpg: randomRPG(Math.max(1, zoneLevel)),
       phasing: kind === MonsterKind.SPIRIT,
     };
-    applyMonsterVariant(monster, FloorLevel.MAINTENANCE, zoneLevel >= 4);
     entities.push(monster);
     return 1;
   }

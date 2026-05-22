@@ -5,7 +5,7 @@ import {
   RoomType, Tex, msg,
   type Entity, type GameState, type Room, type WorldContainer, type WorldEvent, type WorldEventType,
 } from '../../core/types';
-import { MONSTERS, applyMonsterVariant } from '../../entities/monster';
+import { MONSTERS } from '../../entities/monster';
 import { Spr, monsterSpr } from '../../render/sprite_index';
 import { publishEvent, registerWorldEventObserver } from '../../systems/events';
 import { randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg';
@@ -321,7 +321,6 @@ function spawnFiltronos(ctx: MaintContentCtx, room: Room): number {
     rpg: randomRPG(zoneLevel),
     spriteScale: 0.9,
   };
-  applyMonsterVariant(monster, FloorLevel.MAINTENANCE, true);
   ctx.entities.push(monster);
   return monster.id;
 }

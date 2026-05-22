@@ -9,7 +9,7 @@ import {
 import { World } from '../../core/world';
 import { freshNeeds } from '../../data/catalog';
 import { type PlotNpcDef, registerSideQuest } from '../../data/plot';
-import { MONSTERS, applyMonsterVariant } from '../../entities/monster';
+import { MONSTERS } from '../../entities/monster';
 import { monsterSpr, Spr } from '../../render/sprite_index';
 import { publishEvent, registerWorldEventObserver } from '../../systems/events';
 import { randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg';
@@ -496,7 +496,6 @@ function spawnChoirBranchBacklash(
       ai: { goal: player ? AIGoal.HUNT : AIGoal.WANDER, tx: player?.x ?? site.x, ty: player?.y ?? site.y, path: [], pi: 0, stuck: 0, timer: 0 },
       rpg: randomRPG(level),
     };
-    applyMonsterVariant(monster, FloorLevel.HELL);
     entities.push(monster);
     site.backlashSpawned++;
     site.backlashIds.push(id);
@@ -821,7 +820,7 @@ function spawnChoirMonsters(world: World, room: Room, entities: Entity[], nextId
     { kind: MonsterKind.SHADOW, dx: 12, dy: 16, bonus: 2 },
     { kind: MonsterKind.SHADOW, dx: 18, dy: 16, bonus: 2 },
     { kind: MonsterKind.TVAR, dx: 11, dy: 12, bonus: 1 },
-    { kind: MonsterKind.TVAR, dx: 19, dy: 12, bonus: 1 },
+    { kind: MonsterKind.KHOROVAYA_MATKA, dx: 19, dy: 12, bonus: 5, name: 'Хоровая Матка мясного порога' },
     { kind: MonsterKind.POLZUN, dx: 15, dy: 20, bonus: 2, name: 'Ползун под кассой' },
   ];
   for (const p of placements) spawnChoirMonster(world, room, entities, nextId, p);
@@ -861,7 +860,6 @@ function spawnChoirMonster(
     rpg: randomRPG(level),
     phasing: placement.phasing,
   };
-  applyMonsterVariant(monster, FloorLevel.HELL, placement.kind === MonsterKind.IDOL);
   entities.push(monster);
 }
 

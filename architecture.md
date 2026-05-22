@@ -31,7 +31,7 @@ Critical runtime facts:
 - `systems/events.ts` is the current EventBus analogue: fixed-size ring buffers, public event publication, and query filters.
 - Shared `E` interaction goes through `systems/interactions.ts`; generated gambling machines, local computers, NET-hack terminals, emergency panels, Net Terminal Gen and special floor interactions plug into that dispatcher.
 - `systems/alife.ts` owns persistent procedural NPC identity. A run creates an adaptive compact NPC pool (`1_000_000` when runtime memory allows it, otherwise `100_000`), materializes only the active floor into live `entities`, folds live state back on transitions/rebuilds/saves, and records permanent deaths. `systems/npc_relations.ts` owns compact personal relation-to-player math shared by A-Life, quests and hostility. `alife.md` is the detailed design contract for this feature.
-- Save/load uses `systems/save_runtime.ts` and `systems/save_payload.ts`. Current save shape version is `6`; old or unversioned saves are rejected rather than migrated.
+- Save/load uses `systems/save_runtime.ts` and `systems/save_payload.ts`. Current save shape version is `7`; old or unversioned saves are rejected rather than migrated.
 - Existing content extensibility already exists in `registerSideQuest`, `registerZoneContent`, floor content manifests, `SAMOSBOR_VARIANTS`, `getSamosborBeatDefs()`, contract/economy registries, route/design-floor ids and `publishEvent`.
 
 ## 2. Non-Negotiable Invariants
@@ -435,7 +435,6 @@ src/data/resources.ts          ResourceDef[]
 src/data/factories.ts          FactoryDef[] with recipes
 src/data/economy_rules.ts      price/scarcity rules
 src/data/rumors.ts             RumorDef[]
-src/data/monster_variants.ts   MonsterVariantDef[]
 src/data/alife_generation.ts   persistent NPC faction, level, wealth and pocket profiles
 src/data/floor_catalog.ts      data-only future floor catalog
 src/data/permits.ts            access papers and spoilage defs
@@ -575,13 +574,13 @@ Phase 0: Documentation and boundaries.
 
 Phase 1: Registry hardening.
 
-- Standardize registries for events, contracts, documents, monster variants, economy.
+- Standardize registries for events, contracts, documents, standalone monster packages, economy.
 - Add duplicate-id checks.
 - Add debug inspection for each registry.
 
 Phase 2: Content lanes.
 
-- Agents add one POI, one NPC/quest, one event pack, one monster variant pack, or one document pack per task.
+- Agents add one POI, one NPC/quest, one event pack, one standalone monster package, or one document pack per task.
 - Integrator owns central enum/sprite/texture expansion.
 
 Phase 3: Runtime systems.

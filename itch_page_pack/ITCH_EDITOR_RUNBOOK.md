@@ -8,7 +8,7 @@ Use this order. It avoids relying on custom CSS first, because CSS access can be
 ## 1. Core Page Fields
 
 - Title: `GIGAH|RUSH`
-- Short description: `Вылазки, патроны и самосбор внутри хрущёвки размером с город.`
+- Short description: `Выживание, вылазки и САМОСБОР внутри бесконечной хрущёвки.`
 - Classification: `Game`
 - Kind of project: `HTML`
 - Genre: `Shooter`
@@ -18,9 +18,10 @@ Tags:
 `Survival Horror`, `Procedural Generation`, `Life Simulation`, `Dungeon Crawler`, `Roguelike`, `Doom`, `Maze`, `Russian`, `Pixel Art`, `Browser`, `Singleplayer`, `Atmospheric`, `Horror`
 
 Description:
-- Primary paste: `description_ru_overkill.html`
-- Fallback paste if itch strips HTML: `description_ru_overkill.md`
-- Public version marker, keep visible in the final description text: `MACRO2_73-public-live-2026-05-20`
+- Primary paste: `description_ru_approved.html`
+- Exact user-approved source: `description_ru_approved.md`
+- Do not rewrite, shorten, or remove this description text. Only append after it if extra copy is explicitly needed.
+- Public page copy markers for verification: `Выживание в бесконечном бетонном лабиринте`, `Ты не проходишь уровни. Ты живёшь внутри огромного дома`, `Сотни этажей`
 
 ## 2. Theme
 
@@ -45,19 +46,24 @@ If the header slot overlays the page title, use the clean no-title header. If it
 
 ## 3. Screenshots And Media
 
-Primary screenshot order:
+Approved media order from `screenshots/frontpage-review/PICKLIST.md` (`upload=true` only). Use the two `approved_frontpage_itch/` GIFs for itch upload; they are optimized copies of the approved source GIFs and stay under itch's 3 MB screenshot limit.
 
-1. `enhanced_screenshots/gigahrush_screen_01_combat.png`
-2. `enhanced_screenshots/gigahrush_screen_02_contract.png`
-3. `enhanced_screenshots/gigahrush_screen_03_inventory.png`
-4. `enhanced_screenshots/gigahrush_screen_04_act_hall.png`
+1. `approved_frontpage_itch/anim_hell_blinking_eyes.gif`
+2. `approved_frontpage_itch/anim_underhell_maronary_samosbor_loop.gif`
+3. `approved_frontpage/hell_02-hell-maronary-samosbor.png`
+4. `approved_frontpage/hell_03-underhell-gate-pack.png`
+5. `approved_frontpage/hell_05-void-eye-protocols.png`
+6. `approved_frontpage/hell_06-darkness-route-blackout.png`
+7. `approved_frontpage/hell_07-procedural-wall-snake.png`
+8. `approved_frontpage/hell_09-smog-false-safe-block.png`
+9. `approved_frontpage/loc_03-ministerstvo-raionsovet-archive.png`
+10. `approved_frontpage/loc_04-kollektory-maintenance.png`
+11. `approved_frontpage/loc_07-krysha-antenny.png`
+12. `approved_frontpage/extra_01-living-start-hud.png`
+13. `approved_frontpage/extra_03-living-monster-ring-clean.png`
+14. `approved_frontpage/extra_04-living-combat-hud.png`
 
-Extra media, if itch accepts more images/GIFs:
-
-1. `animated/gigahrush_samosbor_loop_640x360.gif`
-2. `visual_variants/gigahrush_contact_sheet_1600x900.png`
-3. `assets/gigahrush_media_wall_1920x1080.png`
-4. `visual_variants/gigahrush_vertical_poster_1080x1620.png`
+Do not upload `anim_hell_blinking_eyes_preview.png`, `anim_hell_blinking_eyes_strip.png`, or `contact_sheet.png`; those are marked service-only in the approved source folder.
 
 Cover alternatives, if the default cover crops badly:
 
@@ -78,8 +84,8 @@ The editor preview only proves that authenticated editor state looks right. It d
 
 Before saving, use preview/editor UI only for these checks:
 
-- title, short description, genre, tags, colors, screenshots, and embed settings match this runbook;
-- the version marker is present in the description: `MACRO2_73-public-live-2026-05-20`;
+- title, short description, genre, tags, colors, approved screenshots/GIFs, and embed settings match this runbook;
+- the frontpage copy markers are present in the description;
 - the screenshot/sidebar column is visible in the editor preview;
 - the game embed is still first and set to `1280 x 720`.
 
@@ -117,21 +123,21 @@ node itch_page_pack/probe_itch_editor.js --html /tmp/gigahrush-itch.html
 For a quick manual marker scan:
 
 ```bash
-curl -L https://tenevik.itch.io/gigahrush | rg "GIGAH\\|RUSH|ГИГАХРУЩ - это вылазки|gigahrush_screen_01_combat|MACRO2_73-public-live-2026-05-20"
+curl -L https://tenevik.itch.io/gigahrush | rg "GIGAH\\|RUSH|Выживание в бесконечном бетонном лабиринте|Ты не проходишь уровни|Сотни этажей"
 ```
 
 The script asserts:
 
 - title marker: `GIGAH|RUSH`;
-- copy markers: short description, first description sentence, and `https://gigahrush.bileter.workers.dev`;
-- key image markers: cover plus all four enhanced screenshot filenames;
-- version marker: `MACRO2_73-public-live-2026-05-20`.
+- copy markers: short description, frontpage description text, and `https://gigahrush.bileter.workers.dev`;
+- key image markers: the 14 current live itch image ids from `upload_manifest.json`;
+- version marker: none for the frontpage pass.
 
 Also open the public page in an incognito or logged-out browser and check:
 
 - the public page is no longer white/default;
-- the description starts with `ГИГАХРУЩ - это вылазки...`;
-- the four enhanced screenshots are visible;
+- the description starts with `Выживание в бесконечном бетонном лабиринте`;
+- all 14 approved media files are visible in the itch media list or page gallery;
 - the embed still launches;
 - mobile width does not overflow;
 - `https://gigahrush.bileter.workers.dev` is clickable.

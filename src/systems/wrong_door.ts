@@ -258,7 +258,7 @@ function publishWrongDoorEvent(
     actorName: 'Вы',
     severity: phase === 'used' ? 5 : phase === 'created' ? 4 : 3,
     privacy: 'local',
-    tags: ['samosbor', 'maronary', 'wrong_door', phase, 'door', 'route', 'variant_maronary'],
+    tags: ['samosbor', 'maronary', 'wrong_door', phase, 'door', 'route', 'samosbor_maronary'],
     data: {
       phase,
       reason,

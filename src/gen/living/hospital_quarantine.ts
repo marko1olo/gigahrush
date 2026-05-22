@@ -11,6 +11,7 @@ import { World } from '../../core/world';
 import { freshNeeds } from '../../data/catalog';
 import { type PlotNpcDef, registerSideQuest } from '../../data/plot';
 import { MONSTERS } from '../../entities/monster';
+import { HEAD_SLUG_HOSTED_STAGE } from '../../entities/head_slug';
 import { monsterSpr, Spr } from '../../render/sprite_index';
 import { publishEvent, registerWorldEventObserver } from '../../systems/events';
 import { genLog } from '../log';
@@ -533,6 +534,24 @@ function pushOutbreakMonster(world: World, entities: Entity[], nextId: { v: numb
   world.stamp(x, y, 0.5, 0.5, 6, 0.45, 17017, 72, 90, 68, false);
 }
 
+function pushHeadSlugHost(world: World, entities: Entity[], nextId: { v: number }, x: number, y: number): void {
+  const def = MONSTERS[MonsterKind.HEAD_SLUG];
+  entities.push({
+    id: nextId.v++, type: EntityType.MONSTER,
+    x: x + 0.5, y: y + 0.5,
+    angle: Math.random() * Math.PI * 2, pitch: 0,
+    alive: true, speed: def.speed * 0.9, sprite: monsterSpr(MonsterKind.HEAD_SLUG),
+    name: 'Карантинный носитель слизня',
+    hp: def.hp, maxHp: def.hp,
+    monsterKind: MonsterKind.HEAD_SLUG,
+    monsterStage: HEAD_SLUG_HOSTED_STAGE,
+    parasiteHostSkill: 0.9,
+    attackCd: 0,
+    ai: { goal: AIGoal.WANDER, tx: x, ty: y, path: [], pi: 0, stuck: 0, timer: 0 },
+  });
+  world.stamp(x, y, 0.5, 0.5, 4, 0.35, 17019, 112, 62, 76, false);
+}
+
 function addHospitalContainer(
   world: World,
   room: Room,
@@ -709,6 +728,7 @@ function generateHospitalQuarantine(
   pushNpc(entities, nextId, NPC_DEFS.ag17_yura_patient, 'ag17_yura_patient', rx + 16, ry + 9, true);
   pushNpc(entities, nextId, NPC_DEFS.ag17_varvara_morgue, 'ag17_varvara_morgue', rx + 6, ry + 13, true);
   pushOutbreakMonster(world, entities, nextId, rx + 17, ry + 5);
+  pushHeadSlugHost(world, entities, nextId, rx + 15, ry + 7);
 
   genLog(`[AG17] Больничный блок карантина at (${rx}, ${ry}) room #${roomId}`);
   return { nextRoomId };

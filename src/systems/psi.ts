@@ -11,6 +11,7 @@ import { WEAPON_STATS } from '../data/catalog';
 import { spawnBloodHit, spawnDeathPool } from '../render/blood';
 import { entityDisplayName } from '../entities/monster';
 import { ENTITY_MASK_ACTOR, ensureEntityIndex } from './entity_index';
+import { applyMonsterIncomingDamage } from './monster_traits';
 
 // ── Module state (player-only transient effects) ─────────────────
 let phaseTimer = 0;                              // phase shift remaining seconds
@@ -336,7 +337,7 @@ function castBeam(
     if (perp > BEAM_WIDTH) continue;
     if (e.hp !== undefined) {
       const falloff = 1 - (along / beamEnd) * 0.3;
-      const finalDmg = Math.round(dmg * falloff);
+      const finalDmg = applyMonsterIncomingDamage(world, e, Math.round(dmg * falloff));
       e.hp -= finalDmg;
       spawnBloodHit(world, e.x, e.y, player.angle, finalDmg, e.type === EntityType.MONSTER);
       if (e.hp <= 0) {
@@ -381,7 +382,7 @@ export function psiAoeExplosion(
       // Damage falls off with distance
       const dist = Math.sqrt(dist2);
       const falloff = 1 - (dist / radius) * 0.5;
-      const finalDmg = Math.round(dmg * falloff);
+      const finalDmg = applyMonsterIncomingDamage(world, e, Math.round(dmg * falloff));
       e.hp -= finalDmg;
       spawnBloodHit(world, e.x, e.y, Math.atan2(dy, dx), finalDmg, e.type === EntityType.MONSTER);
       if (e.hp <= 0) {

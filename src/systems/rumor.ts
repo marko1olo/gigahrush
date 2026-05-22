@@ -513,6 +513,8 @@ function eventLeadAction(event: RumorEventRecord): string {
   if (type === 'smog_entered') return 'готовь фильтр или влажную ткань, либо обходи плотные комнаты';
   if (type === 'smog_source_found') return 'найди аппарат и перекрой источник, если есть инструмент';
   if (type === 'smog_source_handled') return 'проверь рассеявшийся смог на лут и свидетелей';
+  if (type === 'fog_shark_pack_sighted') return 'выйди из тумана, закрывай двери и не давай стае прямой заход';
+  if (type === 'fog_shark_ignited') return 'огонь работает, но держи дистанцию от газового брюха';
   if (type === 'room_produced_items') return 'проверь контейнер цеха, пока партию не разобрали';
   if (type === 'room_lacked_resources' || type === 'room_blocked_production') return 'неси сырье или ищи дефицитный ресурс рядом с цехом';
   if (event.tags?.includes('resource_shortage')) return 'сверь цены и оплату системных заданий: дефицит поднял давление';
@@ -734,12 +736,13 @@ function eventToStaticRumorId(event: RumorEventLike): string | undefined {
   if (type === 'contract_created' || type === 'quest_created') return contractEventRumorId(event);
   if (event.tags?.includes('false_safe_block')) return 'faction_cultist_after_fog';
   if (event.tags?.includes('metro') || event.type?.includes('metro')) return 'floor_metro_error_line';
-  if (event.tags?.includes('variant_maronary')) return 'samosbor_maronary_variant';
+  if (event.tags?.includes('samosbor_maronary')) return 'samosbor_maronary_variant';
   if (event.tags?.includes('wrong_door')) return 'samosbor_maronary_door';
-  if (event.tags?.includes('variant_veretar')) return 'samosbor_veretar_variant';
+  if (event.tags?.includes('samosbor_veretar')) return 'samosbor_veretar_variant';
   if (type === 'samosbor_zone_captured') return 'event_samosbor_zone_captured';
   if (type === 'fog_boss_spawned') return 'samosbor_electric_variant';
   if (type === 'fog_boss_killed') return 'event_fog_boss_killed';
+  if (type === 'fog_shark_pack_sighted' || type === 'fog_shark_ignited') return 'ecology_fog_shark_fire';
   if (type.startsWith('smog_')) return 'player_seen_fog';
   if (type === 'room_produced_items') return 'event_factory_output';
   if (type === 'room_lacked_resources' || type === 'room_blocked_production') return 'event_factory_shortage';
@@ -773,7 +776,7 @@ function isHighSignalRumorEvent(event: RumorEventLike): boolean {
   if (type === 'metro_wrong_stop' || type === 'elevator_anomaly' || type === 'elevator_loop_exit') return true;
   if (event.tags?.includes('false_safe_block')) return (event.severity ?? 0) >= 3;
   if ((event.severity ?? 0) < 3) return false;
-  if (type === 'samosbor_zone_captured' || type === 'fog_boss_spawned' || type === 'fog_boss_killed' || type.startsWith('smog_') || type === 'item_stolen') return true;
+  if (type === 'samosbor_zone_captured' || type === 'fog_boss_spawned' || type === 'fog_boss_killed' || type.startsWith('smog_') || type.startsWith('fog_shark_') || type === 'item_stolen') return true;
   if (type === 'item_deposited') return true;
   if (type === 'container_opened' || type === 'container_looted') return true;
   if (type === 'player_pick_item' && event.itemId !== undefined && itemEventRumorId(event.itemId) !== undefined) return true;
@@ -917,17 +920,21 @@ function isPlayerTheftEvent(event: RumorEventLike): boolean {
 
 function isRareMonsterKind(kind: MonsterKind | undefined): boolean {
   return kind === MonsterKind.BETONNIK
+    || kind === MonsterKind.BETONOED
     || kind === MonsterKind.NIGHTMARE
     || kind === MonsterKind.SHADOW
     || kind === MonsterKind.REBAR
     || kind === MonsterKind.MATKA
+    || kind === MonsterKind.KHOROVAYA_MATKA
     || kind === MonsterKind.MANCOBUS
     || kind === MonsterKind.HERALD
     || kind === MonsterKind.CREATOR
     || kind === MonsterKind.SHOVNIK
     || kind === MonsterKind.LAMPOVY
+    || kind === MonsterKind.LAMPOGLAZ
     || kind === MonsterKind.PECHATEED
     || kind === MonsterKind.TUBE_EEL
+    || kind === MonsterKind.TRUBNYY_AVTOMAT
     || kind === MonsterKind.PARAGRAPH
     || kind === MonsterKind.NELYUD
     || kind === MonsterKind.KOSTOREZ

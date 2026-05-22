@@ -1,13 +1,15 @@
 # GIGAH|RUSH itch Page Pack
 
-Status: ready for upload, live itch edit blocked by auth/Cloudflare in current non-focus automation path.
+Status: live itch page updated and public-probed on 2026-05-22.
 
 ## Main Files
 
-- `description_ru.html` - paste into itch description editor if HTML is accepted.
-- `description_ru.md` - fallback plain Markdown version.
-- `description_ru_overkill.html` - stronger default copy for the current page pass.
-- `description_ru_overkill.md` - fallback Markdown for the stronger copy.
+- `description_ru.html` - legacy description fragment; do not use for the current approved page pass.
+- `description_ru.md` - legacy Markdown fallback; do not use for the current approved page pass.
+- `description_ru_overkill.html` - legacy stronger copy; do not use for the current approved page pass.
+- `description_ru_overkill.md` - legacy stronger Markdown fallback; do not use for the current approved page pass.
+- `description_ru_approved.html` - current user-approved itch description as an HTML fragment.
+- `description_ru_approved.md` - exact user-approved source text. Do not rewrite or remove existing text; only append after it.
 - `itch_fields_ru.md` - exact title/short-description/tags/screenshot order.
 - `ITCH_EDITOR_RUNBOOK.md` - exact editor order for the live itch page.
 - `upload_manifest.json` - machine-readable upload roles, dimensions, and priority.
@@ -30,6 +32,8 @@ Status: ready for upload, live itch edit blocked by auth/Cloudflare in current n
 - `capsules/` - wide and small capsule-style promo images.
 - `visual_variants/` - extra covers, clean header, poster, contact sheet.
 - `animated/gigahrush_samosbor_loop_640x360.gif` - optional animated screenshot media.
+- `approved_frontpage/` - current approved upload set copied from `screenshots/frontpage-review` (`upload=true` only): 12 PNG screenshots and 2 GIFs.
+- `approved_frontpage_itch/` - itch-safe optimized copies of the two approved GIFs, used for the live gallery because itch rejects screenshot media above 3 MB.
 
 ## Verification Artifacts
 
@@ -39,13 +43,8 @@ Status: ready for upload, live itch edit blocked by auth/Cloudflare in current n
 - `local_preview_v3.html` - v3 preview including clean header, GIF, and contact sheet.
 - `source_screenshots/` - current public itch screenshots downloaded from the live page and reused as visual proof.
 
-## Live Edit Blocker
+## Live Page State
 
-Current headless/non-focus route cannot authenticate into the itch editor:
+The current live page uses `description_ru_approved.html`, the 12 approved PNG screenshots, and the 2 optimized GIFs from `approved_frontpage_itch/`.
 
-- `https://itch.io/login` returns Cloudflare security verification in headless Edge.
-- Existing Edge session has no DevTools remote debugging port.
-- Active Edge profile cookies are locked by the running browser process.
-- Firefox profile has no itch.io session cookies.
-
-Do not claim the live page is updated until `https://tenevik.itch.io/gigahrush` is checked after saving.
+Do not claim a future live-page update until `https://tenevik.itch.io/gigahrush` is checked after saving.

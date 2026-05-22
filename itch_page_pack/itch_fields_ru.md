@@ -8,9 +8,9 @@
 
 Use option 1 by default.
 
-1. `Вылазки, патроны и самосбор внутри хрущёвки размером с город.`
-2. `Survival horror / ARPG shooter про дом, который перестраивает людей, двери и долги.`
-3. `Не спасайте дом. Вернитесь до отбоя.`
+1. `Выживание, вылазки и САМОСБОР внутри бесконечной хрущёвки.`
+2. `Survival horror / ARPG shooter про жизнь и вылазки в бетонном лабиринте.`
+3. `Еда, вода, патроны, документы, фракции, монстры и САМОСБОР.`
 
 ## Genre
 
@@ -20,19 +20,30 @@ Use option 1 by default.
 
 `Survival Horror`, `Procedural Generation`, `Life Simulation`, `Dungeon Crawler`, `Roguelike`, `Doom`, `Maze`, `Russian`, `Pixel Art`, `Browser`, `Singleplayer`, `Atmospheric`, `Horror`
 
-## Recommended First Screenshot Order
+## Approved Screenshot And GIF Order
 
-1. `enhanced_screenshots/gigahrush_screen_01_combat.png`
-2. `enhanced_screenshots/gigahrush_screen_02_contract.png`
-3. `enhanced_screenshots/gigahrush_screen_03_inventory.png`
-4. `enhanced_screenshots/gigahrush_screen_04_act_hall.png`
+Use only the approved `upload=true` set. For the two GIFs, upload the optimized `approved_frontpage_itch/` copies because itch rejects gallery files above 3 MB.
 
-## Extra Media Order
+1. `approved_frontpage_itch/anim_hell_blinking_eyes.gif`
+2. `approved_frontpage_itch/anim_underhell_maronary_samosbor_loop.gif`
+3. `approved_frontpage/hell_02-hell-maronary-samosbor.png`
+4. `approved_frontpage/hell_03-underhell-gate-pack.png`
+5. `approved_frontpage/hell_05-void-eye-protocols.png`
+6. `approved_frontpage/hell_06-darkness-route-blackout.png`
+7. `approved_frontpage/hell_07-procedural-wall-snake.png`
+8. `approved_frontpage/hell_09-smog-false-safe-block.png`
+9. `approved_frontpage/loc_03-ministerstvo-raionsovet-archive.png`
+10. `approved_frontpage/loc_04-kollektory-maintenance.png`
+11. `approved_frontpage/loc_07-krysha-antenny.png`
+12. `approved_frontpage/extra_01-living-start-hud.png`
+13. `approved_frontpage/extra_03-living-monster-ring-clean.png`
+14. `approved_frontpage/extra_04-living-combat-hud.png`
 
-1. `animated/gigahrush_samosbor_loop_640x360.gif`
-2. `visual_variants/gigahrush_contact_sheet_1600x900.png`
-3. `assets/gigahrush_media_wall_1920x1080.png`
-4. `visual_variants/gigahrush_vertical_poster_1080x1620.png`
+Do not upload these service files:
+
+- source service file: anim_hell_blinking_eyes_preview.png
+- source service file: anim_hell_blinking_eyes_strip.png
+- source service file: contact_sheet.png
 
 ## Cover Backup Order
 

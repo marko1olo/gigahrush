@@ -11,9 +11,10 @@ import {
 import { World } from '../core/world';
 import { ITEMS, ITEM_TAGS } from '../data/items';
 import { isBaitAttractedMonster, monsterEcologyTags } from '../data/monster_ecology';
+import { isDocumentScentItem } from './document_scent';
 import { publishEvent } from './events';
 
-export type MonsterBaitKind = 'food' | 'meat' | 'fungal' | 'govnyak';
+export type MonsterBaitKind = 'food' | 'meat' | 'fungal' | 'govnyak' | 'document';
 export type MonsterBaitSource = 'drop' | 'use';
 
 export interface MonsterBaitMarker {
@@ -66,10 +67,15 @@ export const MONSTER_BAIT_COMBAT_LOCK_SQ = MONSTER_BAIT_COMBAT_LOCK_RADIUS * MON
 const GOVNYAK_BAIT_ITEM_IDS = new Set(['govnyak_roll', 'govnyak_brick', 'govnyak_sample', 'govnyak_bad_batch']);
 const BAIT_TRAITS_BY_ECOLOGY_TAG: Record<string, readonly string[]> = {
   monster_krysnozhka: ['bait_meat', 'bait_fungal', 'bait_stale', 'bait_govnyak', 'govnyak'],
+  monster_pomoyny_roy: ['bait_food', 'bait_meat', 'bait_fungal', 'bait_stale', 'bait_govnyak', 'govnyak'],
+  monster_swarm: ['bait_meat', 'bait_fungal', 'bait_stale', 'bait_govnyak', 'govnyak'],
   monster_sborka: ['bait_starch', 'bait_sugar', 'bait_stale', 'bait_govnyak', 'govnyak'],
   monster_tvar: ['bait_meat', 'bait_govnyak', 'govnyak'],
+  monster_zhornaya_tvar: ['bait_meat', 'bait_food', 'bait_stale', 'bait_risky', 'bait_govnyak', 'govnyak'],
   monster_polzun: ['bait_fungal', 'bait_wet', 'bait_govnyak', 'govnyak'],
   monster_tube_eel: ['bait_meat', 'bait_wet', 'bait_fungal', 'bait_govnyak', 'govnyak'],
+  monster_olgoy: ['bait_meat', 'bait_wet', 'bait_risky', 'bait_govnyak', 'govnyak'],
+  monster_kontorshchik: ['bait_document', 'document', 'paper', 'forms', 'permit', 'stamp'],
 };
 const activeBaits: MonsterBaitMarker[] = [];
 let nextBaitId = 1;
@@ -88,6 +94,7 @@ export function baitKindForItem(defId: string, source: MonsterBaitSource): Monst
   if (!def) return null;
   const tags = baitItemTags(defId, def);
   if (GOVNYAK_BAIT_ITEM_IDS.has(defId) || tags.includes('govnyak')) return 'govnyak';
+  if (source === 'drop' && isDocumentScentItem(defId, def)) return 'document';
   if (source !== 'drop' || def.type !== ItemType.FOOD) return null;
   if (tags.includes('bait_meat')) return 'meat';
   if (tags.includes('bait_fungal')) return 'fungal';
@@ -115,6 +122,7 @@ function baitItemTags(defId: string, def: ItemDef): string[] {
   for (const tag of ITEM_TAGS[defId] ?? []) addUnique(tags, tag);
   for (const tag of def.tags ?? []) addUnique(tags, tag);
   if (def.type === ItemType.FOOD) addUnique(tags, 'bait_food');
+  if (isDocumentScentItem(defId, def)) addUnique(tags, 'bait_document');
   return tags;
 }
 
@@ -128,6 +136,7 @@ function baitCostTier(def: ItemDef, count: number): number {
 
 function baitRisk(kind: MonsterBaitKind, tags: readonly string[]): number {
   let risk = kind === 'govnyak' ? 1 : 0;
+  if (kind === 'document' && (tags.includes('official') || tags.includes('permit') || tags.includes('warrant') || tags.includes('audit'))) risk += 1;
   if (tags.includes('bait_risky') || tags.includes('bad_batch')) risk += 2;
   if (tags.includes('contaminant') || tags.includes('contraband')) risk = Math.max(risk, 1);
   return Math.min(3, risk);
@@ -142,8 +151,8 @@ function baitProfileForItem(defId: string, source: MonsterBaitSource, count: num
   const costTier = baitCostTier(def, count);
   const baitTags = baitItemTags(defId, def);
   const risk = baitRisk(kind, baitTags);
-  const baseRadius = kind === 'govnyak' ? 15 : kind === 'meat' ? 16 : kind === 'fungal' ? 14 : 11;
-  const baseTtl = kind === 'govnyak' ? 24 : 18;
+  const baseRadius = kind === 'document' ? 16 : kind === 'govnyak' ? 15 : kind === 'meat' ? 16 : kind === 'fungal' ? 14 : 11;
+  const baseTtl = kind === 'document' ? 24 : kind === 'govnyak' ? 24 : 18;
   const radius = clamp(baseRadius + costTier * 2 + Math.min(risk, 2) * 2, 8, MONSTER_BAIT_RADIUS_CAP);
   const ttl = clamp(baseTtl + costTier * 5 + risk * 3, 12, MONSTER_BAIT_TTL_CAP);
   const maxAttractions = clamp(
@@ -165,6 +174,7 @@ function baitProfileForItem(defId: string, source: MonsterBaitSource, count: num
 }
 
 function baitKindLabel(kind: MonsterBaitKind): string {
+  if (kind === 'document') return 'бумага';
   if (kind === 'govnyak') return 'говняк';
   if (kind === 'meat') return 'мясо';
   if (kind === 'fungal') return 'гриб';
@@ -405,6 +415,7 @@ export function findMonsterBaitTarget(
   time: number,
   state?: GameState,
   currentFloor?: FloorLevel,
+  candidateOk?: (marker: MonsterBaitMarker) => boolean,
 ): MonsterBaitMarker | null {
   const ai = monster.ai;
   const floor = currentFloor ?? state?.currentFloor;
@@ -413,7 +424,7 @@ export function findMonsterBaitTarget(
   const ecologyTags = monsterEcologyTags(monster.monsterKind);
   if (ai.baitMarkerId !== undefined) {
     const cached = activeBaitById(ai.baitMarkerId, floor, time);
-    if (cached) {
+    if (cached && (!candidateOk || candidateOk(cached))) {
       const cachedScore = baitMatchScore(cached, ecologyTags);
       const cachedRadius = cached.radius * cachedScore;
       if (world.dist2(monster.x, monster.y, cached.x, cached.y) <= cachedRadius * cachedRadius) return cached;
@@ -433,6 +444,7 @@ export function findMonsterBaitTarget(
     if (checked++ >= MONSTER_BAIT_MAX_CANDIDATES) break;
     if (marker.floor !== floor || marker.expiresAt <= time) continue;
     if (marker.attractedCount >= marker.maxAttractions) continue;
+    if (candidateOk && !candidateOk(marker)) continue;
     const matchScore = baitMatchScore(marker, ecologyTags);
     const effectiveRadius = marker.radius * matchScore;
     const d2 = world.dist2(monster.x, monster.y, marker.x, marker.y);
@@ -487,11 +499,23 @@ export function findMonsterBaitTarget(
 }
 
 export function consumeMonsterBait(state: GameState | undefined, marker: MonsterBaitMarker, monster: Entity, time: number): number | undefined {
+  const entityId = consumeMonsterBaitMarker(state, marker, time, 'consumed', monster);
+  if (monster.ai?.baitMarkerId === marker.id) monster.ai.baitMarkerId = undefined;
+  return entityId;
+}
+
+export function consumeMonsterBaitMarker(
+  state: GameState | undefined,
+  marker: MonsterBaitMarker,
+  time: number,
+  reason: string,
+  monster?: Entity,
+): number | undefined {
   const index = activeBaits.findIndex(b => b.id === marker.id);
   if (index < 0) return undefined;
   const [removed] = activeBaits.splice(index, 1);
-  if (monster.ai?.baitMarkerId === removed.id) monster.ai.baitMarkerId = undefined;
-  publishBaitEnd(state, removed, 'monster_bait_consumed', time, 'consumed', monster);
+  if (monster?.ai?.baitMarkerId === removed.id) monster.ai.baitMarkerId = undefined;
+  publishBaitEnd(state, removed, 'monster_bait_consumed', time, reason, monster);
   return removed.entityId;
 }
 

@@ -1,10 +1,10 @@
 /* -- Monster_06 Kabelnik: visible industrial tether/trap room -- */
 
 import {
-  AIGoal, Cell, EntityType, Feature, FloorLevel, MonsterKind, RoomType, Tex,
+  AIGoal, Cell, EntityType, Feature, MonsterKind, RoomType, Tex,
   type Entity,
 } from '../../core/types';
-import { MONSTERS, applyMonsterVariant } from '../../entities/monster';
+import { MONSTERS } from '../../entities/monster';
 import { MarkType, stampMark } from '../../render/marks';
 import { Spr } from '../../render/sprite_index';
 import { registerCellHazardSite } from '../../systems/cell_hazards';
@@ -77,7 +77,6 @@ function spawnKabelnik(ctx: MaintContentCtx, x: number, y: number): void {
     rpg: randomRPG(zoneLevel),
     spriteScale: 1.12,
   };
-  applyMonsterVariant(monster, FloorLevel.MAINTENANCE, true);
   ctx.entities.push(monster);
 }
 

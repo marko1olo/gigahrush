@@ -25,7 +25,7 @@ import { World } from '../../core/world';
 import { withSeededRandom } from '../../core/rand';
 import { freshNeeds } from '../../data/catalog';
 import { type PlotNpcDef, registerSideQuest } from '../../data/plot';
-import { MONSTERS, applyMonsterVariant } from '../../entities/monster';
+import { MONSTERS } from '../../entities/monster';
 import { Spr, monsterSpr } from '../../render/sprite_index';
 import {
   calcZoneLevel,
@@ -1163,7 +1163,6 @@ function spawnMonster(world: World, entities: Entity[], nextId: { v: number }, k
     ai: { goal: AIGoal.WANDER, tx: CENTER, ty: CENTER, path: [], pi: 0, stuck: 0, timer: 0 },
     rpg: randomRPG(level),
   };
-  applyMonsterVariant(monster, FloorLevel.KVARTIRY, level >= 4);
   entities.push(monster);
 }
 

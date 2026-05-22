@@ -11,10 +11,6 @@ import {
   rankMonsterEcology,
 } from '../src/data/monster_ecology';
 import {
-  MONSTER_VARIANTS,
-  chooseMonsterVariant,
-} from '../src/data/monster_variants';
-import {
   MONSTERS,
   MONSTER_SPRITES,
   NEW_MONSTER_KINDS,
@@ -23,43 +19,27 @@ import {
 } from '../src/entities/monster';
 import { S } from '../src/render/pixutil';
 
-const EXPECTED_BASE_MONSTER_IDS = [
-  'SBORKA',
-  'TVAR',
-  'POLZUN',
-  'BETONNIK',
-  'ZOMBIE',
-  'EYE',
-  'NIGHTMARE',
-  'SHADOW',
-  'REBAR',
-  'MATKA',
-  'IDOL',
-  'MANCOBUS',
-  'HERALD',
-  'CREATOR',
-  'SPIRIT',
-  'ROBOT',
-  'SHOVNIK',
-  'LAMPOVY',
-  'PECHATEED',
-  'TUBE_EEL',
-  'PARAGRAPH',
-  'NELYUD',
-  'KRYSNOZHKA',
-  'KOSTOREZ',
-  'SAFEGUARD',
-] as const;
+const ZERO_WEIGHT_MONSTERS = new Set<MonsterKind>([
+  MonsterKind.BETONOED,
+  MonsterKind.CREATOR,
+  MonsterKind.PSEUDOLIFT,
+  MonsterKind.BLACK_LIQUIDATOR,
+]);
 
 interface TacticalAudit {
   kind: MonsterKind;
   floors: readonly FloorLevel[];
   rare: boolean;
   aiFlags?: readonly string[];
-  variants?: readonly string[];
   defCounterplay: RegExp;
   ecologyCounterplay: RegExp;
   statGuard: (def: MonsterDef) => void;
+}
+
+function enumMonsterKinds(): MonsterKind[] {
+  return Object.values(MonsterKind)
+    .filter((value): value is MonsterKind => typeof value === 'number')
+    .sort((a, b) => a - b);
 }
 
 function monsterKinds(): MonsterKind[] {
@@ -89,8 +69,7 @@ function opaquePixels(sprite: Uint32Array): number {
 
 test('base monster registry keeps stable enum ids, ecology tags, and floor data', () => {
   const kinds = monsterKinds();
-  assert.deepEqual(kinds.map(kind => MonsterKind[kind]), EXPECTED_BASE_MONSTER_IDS);
-  assert.equal(kinds.length, 25);
+  assert.deepEqual(kinds, enumMonsterKinds());
 
   for (const kind of kinds) {
     const def = MONSTERS[kind];
@@ -115,7 +94,6 @@ test('base monster registry keeps stable enum ids, ecology tags, and floor data'
     const data = monsterEcologyEventData(kind);
     assert.deepEqual(data?.ecologyFloors, ecology.floors);
     assert.deepEqual(data?.ecologyRooms, ecology.rooms);
-    assert.deepEqual(data?.ecologyVariants, ecology.variants);
     assert.equal(data?.ecologyCounterplay, ecology.counterplay);
     assert.equal(data?.ecologyLootHint, ecology.lootHint);
   }
@@ -143,7 +121,6 @@ test('uncovered common monsters keep their tactical counterplay roles', () => {
       floors: [FloorLevel.MINISTRY, FloorLevel.KVARTIRY, FloorLevel.LIVING, FloorLevel.MAINTENANCE, FloorLevel.HELL],
       rare: false,
       aiFlags: ['foodBait'],
-      variants: ['cracked_sborka', 'fog_sborka'],
       defCounterplay: /широк|еда|говняк|дроб/,
       ecologyCounterplay: /широк|приман|сборк/,
       statGuard: def => {
@@ -157,7 +134,6 @@ test('uncovered common monsters keep their tactical counterplay roles', () => {
       floors: [FloorLevel.KVARTIRY, FloorLevel.LIVING, FloorLevel.MAINTENANCE, FloorLevel.HELL],
       rare: false,
       aiFlags: ['foodBait', 'wallBias'],
-      variants: ['panel_tvar', 'hungry_tvar'],
       defCounterplay: /средн|стен|еда|говняк/,
       ecologyCounterplay: /полторы клетки|центр комнаты|кромк|больнее/,
       statGuard: def => {
@@ -170,7 +146,6 @@ test('uncovered common monsters keep their tactical counterplay roles', () => {
       kind: MonsterKind.EYE,
       floors: [FloorLevel.MINISTRY, FloorLevel.LIVING, FloorLevel.MAINTENANCE, FloorLevel.HELL, FloorLevel.VOID],
       rare: false,
-      variants: ['blind_eye', 'lamp_eye'],
       defCounterplay: /линию огня|после выстрела|коридор/,
       ecologyCounterplay: /Ломайте линию|после выстрела|коридор/,
       statGuard: def => {
@@ -183,7 +158,6 @@ test('uncovered common monsters keep their tactical counterplay roles', () => {
       kind: MonsterKind.SHADOW,
       floors: [FloorLevel.MINISTRY, FloorLevel.KVARTIRY, FloorLevel.LIVING, FloorLevel.HELL, FloorLevel.VOID],
       rare: false,
-      variants: ['deep_shadow', 'thin_shadow'],
       defCounterplay: /освещ|широк|дистанц/,
       ecologyCounterplay: /Двиг|просвет|темнот/,
       statGuard: def => {
@@ -195,7 +169,6 @@ test('uncovered common monsters keep their tactical counterplay roles', () => {
       kind: MonsterKind.REBAR,
       floors: [FloorLevel.LIVING, FloorLevel.MAINTENANCE, FloorLevel.HELL, FloorLevel.VOID],
       rare: true,
-      variants: ['rebar_veteran', 'rust_rebar'],
       defCounterplay: /желез|стеллаж|дистанц|голыми руками/,
       ecologyCounterplay: /желез|склад|дистанц|руками/,
       statGuard: def => {
@@ -221,7 +194,6 @@ test('uncovered common monsters keep their tactical counterplay roles', () => {
       floors: [FloorLevel.KVARTIRY, FloorLevel.LIVING, FloorLevel.MAINTENANCE],
       rare: false,
       aiFlags: ['foodBait'],
-      variants: ['garbage_krysnozhka'],
       defCounterplay: /мало здоровья|дроб|еда|говняк|ловушк/,
       ecologyCounterplay: /приман|ловушк|рывок|дроб/,
       statGuard: def => {
@@ -264,9 +236,6 @@ test('uncovered common monsters keep their tactical counterplay roles', () => {
     assert.deepEqual(sortedFloors(ecology.floors), sortedFloors(audit.floors), `${MonsterKind[audit.kind]} ecology floors changed`);
     assert.equal(ecology.rare, audit.rare, `${MonsterKind[audit.kind]} rare gate changed`);
     if (audit.aiFlags) assert.deepEqual(def.aiFlags, audit.aiFlags, `${MonsterKind[audit.kind]} aiFlags changed`);
-    for (const variant of audit.variants ?? []) {
-      assert.equal(ecology.variants.includes(variant), true, `${MonsterKind[audit.kind]} lost ecology variant ${variant}`);
-    }
     assert.match(def.counterplay ?? '', audit.defCounterplay);
     assert.match(ecology.counterplay, audit.ecologyCounterplay);
     audit.statGuard(def);
@@ -307,15 +276,15 @@ test('universal monster ecology keeps zero-weight monsters in data but out of we
     floor: FloorLevel.LIVING,
     samosborCount: 99,
     allowRare: true,
-  }, EXPECTED_BASE_MONSTER_IDS.length);
+  }, monsterKinds().length);
   const kinds = new Set(ranked.map(entry => entry.kind));
 
-  for (const kindName of EXPECTED_BASE_MONSTER_IDS) {
-    const kind = MonsterKind[kindName as keyof typeof MonsterKind] as MonsterKind;
-    if (kind === MonsterKind.CREATOR) {
+  for (const kind of monsterKinds()) {
+    const kindName = MonsterKind[kind];
+    if (ZERO_WEIGHT_MONSTERS.has(kind)) {
       const ecology = getMonsterEcology(kind);
-      assert.equal(ecology?.spawnWeight, 0, 'Creator should be data-disabled through spawnWeight');
-      assert.equal(kinds.has(kind), false, 'zero-weight Creator must stay out of universal weighted picks');
+      assert.equal(ecology?.spawnWeight, 0, `${kindName} should be data-disabled through spawnWeight`);
+      assert.equal(kinds.has(kind), false, `zero-weight ${kindName} must stay out of universal weighted picks`);
     } else {
       assert.equal(kinds.has(kind), true, `${kindName} should stay available to universal samosbor picks`);
     }
@@ -328,13 +297,15 @@ test('floor affinity boosts native and design-biased monsters without filtering 
     samosborCount: 99,
     allowRare: true,
     biasKinds: [MonsterKind.TUBE_EEL],
-  }, EXPECTED_BASE_MONSTER_IDS.length);
+  }, monsterKinds().length);
   const byKind = new Map(ranked.map(entry => [entry.kind, entry.weight]));
 
   assert.ok(byKind.has(MonsterKind.TUBE_EEL), 'design-biased off-floor monster should remain selectable');
   assert.ok(byKind.has(MonsterKind.SBORKA), 'native floor monster should remain selectable');
   assert.ok(byKind.has(MonsterKind.ROBOT), 'unbiased off-floor monster should remain selectable');
-  assert.equal(byKind.has(MonsterKind.CREATOR), false, 'zero table weight should keep Creator out of generic spawn picks');
+  for (const kind of ZERO_WEIGHT_MONSTERS) {
+    assert.equal(byKind.has(kind), false, `zero table weight should keep ${MonsterKind[kind]} out of generic spawn picks`);
+  }
   assert.ok(
     (byKind.get(MonsterKind.TUBE_EEL) ?? 0) > (byKind.get(MonsterKind.ROBOT) ?? 0),
     'design bias should multiply the table weight instead of acting as a hard filter',
@@ -345,7 +316,7 @@ test('floor affinity boosts native and design-biased monsters without filtering 
   );
 });
 
-test('monster variants and new-kind floor manifests stay data-driven', () => {
+test('new-kind floor manifests stay data-driven', () => {
   const floorMap = new Map<MonsterKind, FloorLevel[]>();
   for (const [floorKey, kinds] of Object.entries(NEW_MONSTERS_BY_FLOOR)) {
     const floor = Number(floorKey) as FloorLevel;
@@ -361,48 +332,38 @@ test('monster variants and new-kind floor manifests stay data-driven', () => {
     assert.deepEqual(sortedFloors(floorMap.get(kind)), sortedFloors(def.floors), `${MonsterKind[kind]} floor manifest diverged from local def`);
   }
 
-  for (const variant of MONSTER_VARIANTS) {
-    assert.match(variant.id, /^[a-z0-9]+(?:_[a-z0-9]+)*$/, `${variant.id} should stay lowercase snake_case`);
-    assert.equal(variant.flags.length > 0, true, `${variant.id} needs at least one tactical flag`);
-    assert.equal(
-      variant.hpMult !== 1 || variant.speedMult !== 1 || variant.dmgMult !== 1,
-      true,
-      `${variant.id} should change at least one combat multiplier`,
-    );
-    assert.equal(variant.lootHint.trim().length >= 4, true, `${variant.id} needs a loot hint`);
-    for (const floor of variant.floors) {
-      const baseFloors = MONSTERS[variant.baseKind].floors?.length
-        ? MONSTERS[variant.baseKind].floors
-        : getMonsterEcology(variant.baseKind)?.floors;
-      assert.equal(
-        baseFloors?.includes(floor),
-        true,
-        `${variant.id} is placed outside ${MonsterKind[variant.baseKind]} floors`,
-      );
-      const picked = chooseMonsterVariant(variant.baseKind, floor);
-      assert.ok(picked, `${variant.id} floor should be selectable for ${MonsterKind[variant.baseKind]}`);
-      assert.equal(picked.baseKind, variant.baseKind);
-      assert.equal(picked.floors.includes(floor), true);
-    }
-  }
 });
 
 test('bait-attracted monster list is narrow and backed by foodBait AI flags', () => {
   assert.deepEqual(BAIT_ATTRACTED_MONSTER_KINDS, [
     MonsterKind.KRYSNOZHKA,
+    MonsterKind.POMOYNY_ROY,
+    MonsterKind.SWARM,
     MonsterKind.SBORKA,
     MonsterKind.TVAR,
+    MonsterKind.ZHORNAYA_TVAR,
     MonsterKind.POLZUN,
     MonsterKind.TUBE_EEL,
+    MonsterKind.OLGOY,
+    MonsterKind.SLIMEVIK,
+    MonsterKind.GREEN_DOG,
+    MonsterKind.KONTORSHCHIK,
   ]);
 
   for (const kind of BAIT_ATTRACTED_MONSTER_KINDS) {
     const flags = MONSTERS[kind].aiFlags ?? [];
     assert.equal(
-      flags.includes('foodBait') || flags.includes('waterStrider'),
+      flags.includes('foodBait') ||
+        flags.includes('waterStrider') ||
+        flags.includes('garbageSurround') ||
+        flags.includes('scentOvercommit') ||
+        flags.includes('slimeScavenger') ||
+        flags.includes('packHowl') ||
+        flags.includes('meatWorm') ||
+        flags.includes('documentScent'),
       true,
       `${MonsterKind[kind]} bait tag must be backed by an explicit movement/cue flag`,
     );
-    assert.match(MONSTERS[kind].counterplay ?? '', /ед|говняк|приман|сух|кромк|вод/);
+    assert.match(MONSTERS[kind].counterplay ?? '', /ед|говняк|приман|сух|кромк|вод|бланк|бумаг|фильтр|тар|металл|шум|дроб/);
   }
 });

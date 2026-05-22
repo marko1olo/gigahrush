@@ -8,7 +8,7 @@ import {
 import { World } from '../../core/world';
 import { freshNeeds } from '../../data/catalog';
 import { type PlotNpcDef, registerSideQuest } from '../../data/plot';
-import { MONSTERS, applyMonsterVariant } from '../../entities/monster';
+import { MONSTERS } from '../../entities/monster';
 import { stampBlackHandTrail } from '../../render/marks';
 import { monsterSpr, Spr } from '../../render/sprite_index';
 import { publishEvent, registerWorldEventObserver } from '../../systems/events';
@@ -122,7 +122,6 @@ function spawnSpirit(world: World, entities: Entity[], nextId: { v: number }, x:
     rpg: randomRPG(zoneLevel + 1),
     phasing: true,
   };
-  applyMonsterVariant(spirit, FloorLevel.HELL, true);
   entities.push(spirit);
 }
 

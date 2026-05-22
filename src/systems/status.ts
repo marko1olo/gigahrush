@@ -33,6 +33,19 @@ const GOVNYAK_STATUS_SOURCES = new Set<PlayerStatusSource>([
   'govnyak_sample',
   'govnyak_bad_batch',
 ]);
+export const PAUPSINA_WEB_ID: PlayerStatusId = 'paupsina_web';
+export const PAUPSINA_WEB_DURATION_SEC = 4.2;
+export const PAUPSINA_WEB_ROOT_SEC = 0.65;
+export const PAUPSINA_WEB_MOVE_MULT = 0.54;
+export const PAUPSINA_WEB_ROOT_MULT = 0.22;
+const PAUPSINA_WEB_CUT_REDUCTION_SEC = 2.6;
+const PAUPSINA_WEB_FIRE_REDUCTION_SEC = 3.8;
+const PAUPSINA_WEB_CUT_WEAPONS = new Set(['knife', 'axe', 'chainsaw', 'fire_hook', 'bayonet', 'entrenching_spade']);
+export const SPORE_HAZE_ID: PlayerStatusId = 'spore_haze';
+export const SPORE_HAZE_DURATION_SEC = 4.8;
+export const SPORE_HAZE_PROTECTED_DURATION_SEC = 2.2;
+export const SPORE_HAZE_AIM_SPREAD_MULT = 1.65;
+export const SPORE_HAZE_PROTECTED_AIM_SPREAD_MULT = 1.18;
 
 export interface ZhelemishApplyResult {
   status: PlayerStatus;
@@ -93,23 +106,38 @@ export function normalizePlayerStatuses(input: unknown): PlayerStatus[] | undefi
   for (const raw of input) {
     if (!raw || typeof raw !== 'object') continue;
     const rec = raw as Partial<PlayerStatus>;
-    if (rec.id !== ZHELEMISH_SKIN_ID && !GOVNYAK_STATUS_IDS.has(rec.id as PlayerStatusId)) continue;
+    if (rec.id !== ZHELEMISH_SKIN_ID && rec.id !== PAUPSINA_WEB_ID && rec.id !== SPORE_HAZE_ID && !GOVNYAK_STATUS_IDS.has(rec.id as PlayerStatusId)) continue;
     const source = rec.id === ZHELEMISH_SKIN_ID
       ? rec.source === 'zhelemish_raw' || rec.source === 'zhelemish_treated' || rec.source === 'debug'
         ? rec.source
         : 'zhelemish_raw'
-      : GOVNYAK_STATUS_SOURCES.has(rec.source as PlayerStatusSource)
-        ? rec.source as PlayerStatusSource
-        : 'govnyak_roll';
+      : rec.id === PAUPSINA_WEB_ID
+        ? 'paupsina_web'
+        : rec.id === SPORE_HAZE_ID
+          ? 'spore_carpet'
+          : GOVNYAK_STATUS_SOURCES.has(rec.source as PlayerStatusSource)
+            ? rec.source as PlayerStatusSource
+            : 'govnyak_roll';
     const startedAt = Number.isFinite(rec.startedAt) ? Number(rec.startedAt) : 0;
     const expiresAt = Number.isFinite(rec.expiresAt) ? Number(rec.expiresAt) : 0;
     if (expiresAt <= startedAt) continue;
-    const id = rec.id === ZHELEMISH_SKIN_ID ? ZHELEMISH_SKIN_ID : rec.id as PlayerStatusId;
+    const id = rec.id === ZHELEMISH_SKIN_ID
+      ? ZHELEMISH_SKIN_ID
+      : rec.id === PAUPSINA_WEB_ID
+        ? PAUPSINA_WEB_ID
+        : rec.id === SPORE_HAZE_ID
+          ? SPORE_HAZE_ID
+          : rec.id as PlayerStatusId;
+    const cappedExpiresAt = id === PAUPSINA_WEB_ID
+      ? Math.min(expiresAt, startedAt + PAUPSINA_WEB_DURATION_SEC)
+      : id === SPORE_HAZE_ID
+        ? Math.min(expiresAt, startedAt + SPORE_HAZE_DURATION_SEC)
+      : expiresAt;
     out.push({
       id,
       source,
       startedAt,
-      expiresAt,
+      expiresAt: cappedExpiresAt,
       intensity: Number.isFinite(rec.intensity) ? Number(rec.intensity) : undefined,
       badReaction: rec.badReaction === true,
     });
@@ -122,6 +150,190 @@ export function activeZhelemishSkin(entity: Entity, time: number): PlayerStatus 
     if (status.id === ZHELEMISH_SKIN_ID && status.expiresAt > time) return status;
   }
   return undefined;
+}
+
+export function activePaupsinaWeb(entity: Entity, time: number): PlayerStatus | undefined {
+  for (const status of entity.statuses ?? []) {
+    if (status.id === PAUPSINA_WEB_ID && status.expiresAt > time) return status;
+  }
+  return undefined;
+}
+
+export function activeSporeHaze(entity: Entity, time: number): PlayerStatus | undefined {
+  for (const status of entity.statuses ?? []) {
+    if (status.id === SPORE_HAZE_ID && status.expiresAt > time) return status;
+  }
+  return undefined;
+}
+
+function hasSporeProtection(entity: Entity): boolean {
+  for (const item of entity.inventory ?? []) {
+    if (item.count <= 0) continue;
+    if (item.defId === 'gasmask_filter' || item.defId === 'filter_layer' || item.defId === 'antifungal_ointment') return true;
+  }
+  return false;
+}
+
+export function hasSporeHazeProtection(entity: Entity): boolean {
+  return hasSporeProtection(entity);
+}
+
+export function applySporeHaze(
+  entity: Entity,
+  time: number,
+  msgs?: Msg[],
+  state?: GameState,
+  source?: Entity,
+): PlayerStatus {
+  const protectedByGear = hasSporeProtection(entity);
+  const duration = protectedByGear ? SPORE_HAZE_PROTECTED_DURATION_SEC : SPORE_HAZE_DURATION_SEC;
+  if (!entity.statuses) entity.statuses = [];
+  const existing = entity.statuses.find(s => s.id === SPORE_HAZE_ID);
+  const status: PlayerStatus = {
+    id: SPORE_HAZE_ID,
+    source: 'spore_carpet',
+    startedAt: time,
+    expiresAt: time + duration,
+    intensity: protectedByGear ? 0.35 : 1,
+  };
+  if (existing) Object.assign(existing, status);
+  else entity.statuses.push(status);
+
+  if (msgs && entity.type === EntityType.PLAYER) {
+    msgs.push(msg(
+      protectedByGear
+        ? 'Фильтр поймал споры ковра: прицел мутнеет ненадолго.'
+        : 'Ковер выдохнул споры: глаза слезятся, прицел плывет.',
+      time,
+      protectedByGear ? '#9cf' : '#bf8',
+    ));
+  }
+  if (state && entity.type === EntityType.PLAYER) {
+    publishEvent(state, {
+      type: 'player_status_applied',
+      actorId: source?.id,
+      actorName: source?.name,
+      actorFaction: source?.faction,
+      targetId: entity.id,
+      targetName: entity.name ?? 'Вы',
+      targetFaction: entity.faction,
+      monsterKind: source?.monsterKind,
+      severity: protectedByGear ? 2 : 4,
+      privacy: 'local',
+      tags: ['player', 'monster', 'spore_carpet', 'spores', 'status', protectedByGear ? 'protected' : 'haze'],
+      data: {
+        statusId: SPORE_HAZE_ID,
+        duration,
+        protectedByGear,
+        aimSpreadMult: protectedByGear ? SPORE_HAZE_PROTECTED_AIM_SPREAD_MULT : SPORE_HAZE_AIM_SPREAD_MULT,
+        rumorIds: ['monster_spore_carpet_lifted_corner', 'ecology_spore_carpet_fire_salt'],
+      },
+    });
+  }
+  return existing ?? status;
+}
+
+export function applyPaupsinaWeb(
+  entity: Entity,
+  time: number,
+  msgs?: Msg[],
+  state?: GameState,
+  source?: Entity,
+): PlayerStatus {
+  if (!entity.statuses) entity.statuses = [];
+  const existing = entity.statuses.find(s => s.id === PAUPSINA_WEB_ID);
+  const status: PlayerStatus = {
+    id: PAUPSINA_WEB_ID,
+    source: 'paupsina_web',
+    startedAt: time,
+    expiresAt: time + PAUPSINA_WEB_DURATION_SEC,
+    intensity: 1,
+  };
+  if (existing) Object.assign(existing, status);
+  else entity.statuses.push(status);
+
+  if (msgs && entity.type === EntityType.PLAYER) {
+    msgs.push(msg('Паупсина плюнула сетью: ноги липнут, но нож или огонь быстро рвут путы.', time, '#ddd'));
+  }
+  if (state) {
+    publishEvent(state, {
+      type: 'paupsina_webbed',
+      actorId: source?.id,
+      actorName: source?.name,
+      actorFaction: source?.faction,
+      targetId: entity.id,
+      targetName: entity.name ?? (entity.type === EntityType.PLAYER ? 'Вы' : undefined),
+      targetFaction: entity.faction,
+      monsterKind: source?.monsterKind,
+      severity: entity.type === EntityType.PLAYER ? 4 : 3,
+      privacy: entity.type === EntityType.PLAYER ? 'local' : 'witnessed',
+      tags: ['monster', 'paupsina', 'web', 'status', 'control'],
+      data: {
+        statusId: PAUPSINA_WEB_ID,
+        duration: PAUPSINA_WEB_DURATION_SEC,
+        rootSec: PAUPSINA_WEB_ROOT_SEC,
+        moveMult: PAUPSINA_WEB_MOVE_MULT,
+        counterplay: 'cut_or_burn_web_break_line_of_sight',
+        rumorIds: ['monster_paupsina_web', 'ecology_paupsina_cut_fire'],
+      },
+    });
+  }
+  return existing ?? status;
+}
+
+export function isPaupsinaWebCuttingWeapon(weaponId: string | undefined): boolean {
+  return !!weaponId && PAUPSINA_WEB_CUT_WEAPONS.has(weaponId);
+}
+
+export function reducePaupsinaWeb(
+  entity: Entity,
+  time: number,
+  msgs?: Msg[],
+  state?: GameState,
+  actor?: Entity,
+  method: 'cut' | 'fire' = 'cut',
+): boolean {
+  const status = activePaupsinaWeb(entity, time);
+  if (!status) return false;
+  const reduction = method === 'fire' ? PAUPSINA_WEB_FIRE_REDUCTION_SEC : PAUPSINA_WEB_CUT_REDUCTION_SEC;
+  const before = status.expiresAt;
+  status.expiresAt = Math.min(status.expiresAt, time + Math.max(0, before - time - reduction));
+  const freed = status.expiresAt <= time + 0.15;
+  if (freed && entity.statuses) {
+    const idx = entity.statuses.indexOf(status);
+    if (idx >= 0) entity.statuses.splice(idx, 1);
+    if (entity.statuses.length === 0) delete entity.statuses;
+  }
+  if (msgs && entity.type === EntityType.PLAYER) {
+    msgs.push(msg(method === 'fire' ? 'Огонь схватил паутину: липкая сеть спала.' : 'Лезвие режет паутину: сеть уже не держит.', time, '#8cf'));
+  }
+  if (state) {
+    publishEvent(state, {
+      type: 'paupsina_web_cut',
+      actorId: actor?.id,
+      actorName: actor?.name ?? (actor?.id === entity.id && entity.type === EntityType.PLAYER ? 'Вы' : undefined),
+      actorFaction: actor?.faction,
+      targetId: entity.id,
+      targetName: entity.name ?? (entity.type === EntityType.PLAYER ? 'Вы' : undefined),
+      targetFaction: entity.faction,
+      severity: 3,
+      privacy: entity.type === EntityType.PLAYER ? 'local' : 'witnessed',
+      tags: ['monster', 'paupsina', 'web', method, freed ? 'freed' : 'reduced'],
+      data: {
+        statusId: PAUPSINA_WEB_ID,
+        method,
+        reduction,
+        remaining: freed ? 0 : Math.max(0, status.expiresAt - time),
+      },
+    });
+  }
+  return true;
+}
+
+export function paupsinaWebMoveMult(entity: Entity, time: number): number {
+  const status = activePaupsinaWeb(entity, time);
+  if (!status) return 1;
+  return time - status.startedAt < PAUPSINA_WEB_ROOT_SEC ? PAUPSINA_WEB_ROOT_MULT : PAUPSINA_WEB_MOVE_MULT;
 }
 
 export function isZhelemishSkinItem(itemId: string): boolean {
@@ -242,6 +454,20 @@ export function updateZhelemishSkinStatus(entity: Entity, state: GameState, dt: 
   if (!statuses) return;
   for (let i = statuses.length - 1; i >= 0; i--) {
     const status = statuses[i];
+    if (status.id === PAUPSINA_WEB_ID) {
+      if (status.expiresAt <= state.time) {
+        statuses.splice(i, 1);
+        if (entity.type === EntityType.PLAYER) state.msgs.push(msg('Паутинные путы осыпались сухой ниткой.', state.time, '#8cf'));
+      }
+      continue;
+    }
+    if (status.id === SPORE_HAZE_ID) {
+      if (status.expiresAt <= state.time) {
+        statuses.splice(i, 1);
+        if (entity.type === EntityType.PLAYER) state.msgs.push(msg('Споровая муть выветрилась.', state.time, '#8cf'));
+      }
+      continue;
+    }
     if (status.id !== ZHELEMISH_SKIN_ID) continue;
     if (status.expiresAt <= state.time) {
       statuses.splice(i, 1);
@@ -256,7 +482,13 @@ export function updateZhelemishSkinStatus(entity: Entity, state: GameState, dt: 
 }
 
 export function zhelemishMoveMult(entity: Entity, time: number): number {
-  return activeZhelemishSkin(entity, time) ? MOVE_MULT : 1;
+  return (activeZhelemishSkin(entity, time) ? MOVE_MULT : 1) * paupsinaWebMoveMult(entity, time);
+}
+
+export function sporeHazeAimSpreadMult(entity: Entity, time = 0): number {
+  const status = activeSporeHaze(entity, time);
+  if (!status) return 1;
+  return (status.intensity ?? 1) < 0.5 ? SPORE_HAZE_PROTECTED_AIM_SPREAD_MULT : SPORE_HAZE_AIM_SPREAD_MULT;
 }
 
 export function zhelemishHealingMult(entity: Entity, time: number): number {
@@ -269,6 +501,16 @@ export function zhelemishIncomingMeleeDamage(entity: Entity, time: number, damag
 }
 
 export function zhelemishHudLine(entity: Entity, time: number): string | null {
+  const web = activePaupsinaWeb(entity, time);
+  if (web) {
+    const left = Math.max(0, Math.ceil(web.expiresAt - time));
+    return `ПАУТИНА ${left}s  ход -${Math.round((1 - paupsinaWebMoveMult(entity, time)) * 100)}%  нож/огонь`;
+  }
+  const haze = activeSporeHaze(entity, time);
+  if (haze) {
+    const left = Math.max(0, Math.ceil(haze.expiresAt - time));
+    return `СПОРЫ ${left}s  прицел x${sporeHazeAimSpreadMult(entity, time).toFixed(1)}  фильтр/соль`;
+  }
   const status = activeZhelemishSkin(entity, time);
   if (!status) return null;
   const left = Math.max(0, Math.ceil(status.expiresAt - time));
@@ -278,6 +520,16 @@ export function zhelemishHudLine(entity: Entity, time: number): string | null {
 }
 
 export function zhelemishStatsLine(entity: Entity, time: number): string | null {
+  const web = activePaupsinaWeb(entity, time);
+  if (web) {
+    const left = Math.max(0, Math.ceil(web.expiresAt - time));
+    return `Паупсина сеть: ${left}s из ${PAUPSINA_WEB_DURATION_SEC}s, короткий корень и ход -${Math.round((1 - PAUPSINA_WEB_MOVE_MULT) * 100)}%; нож, багор, топор, бензопила или огонь снимают быстрее`;
+  }
+  const haze = activeSporeHaze(entity, time);
+  if (haze) {
+    const left = Math.max(0, Math.ceil(haze.expiresAt - time));
+    return `Споры ковра: ${left}s, разброс x${sporeHazeAimSpreadMult(entity, time).toFixed(2)}; фильтр, соль или огонь сокращают риск`;
+  }
   const status = activeZhelemishSkin(entity, time);
   if (!status) return null;
   const left = Math.max(0, Math.ceil(status.expiresAt - time));

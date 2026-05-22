@@ -12,11 +12,12 @@ import { liftArachnaStateForSave } from './lift_arachna';
 import { mapEditorPatchStateForSave } from './map_editor';
 import { netTerminalGenStateForSave } from './net_terminal_gen';
 import { productionForSave } from './production';
+import { pseudoliftStateForSave } from './pseudolift';
 import { floorRunStateForSave } from './procedural_floors';
 import { buildSavePayload, type SavePayload } from './save_payload';
 import { stockMarketForSave } from './stock_market';
 
-export const SAVE_SHAPE_VERSION = 6;
+export const SAVE_SHAPE_VERSION = 7;
 export type SaveShapeVersionStatus = 'missing' | 'old' | 'current' | 'newer' | 'invalid';
 
 export interface SaveRuntimeExtras {
@@ -62,6 +63,7 @@ export function createGameSavePayload(
       voidReturnPortal: extras.voidReturnPortal,
       voidEntryFromFloor: extras.voidEntryFromFloor,
       liftArachna: liftArachnaStateForSave(state),
+      pseudolift: pseudoliftStateForSave(state),
       alife: alifeForSave(state),
       netTerminalGen: netTerminalGenStateForSave(state),
       mapEditorPatches: mapEditorPatchStateForSave(state),

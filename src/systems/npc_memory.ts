@@ -445,10 +445,12 @@ function pushResidue(out: NpcWitnessResidue[], value: NpcWitnessResidue): void {
 
 function isRareMonsterKind(kind: MonsterKind | undefined): boolean {
   return kind === MonsterKind.BETONNIK
+    || kind === MonsterKind.BETONOED
     || kind === MonsterKind.NIGHTMARE
     || kind === MonsterKind.SHADOW
     || kind === MonsterKind.REBAR
     || kind === MonsterKind.MATKA
+    || kind === MonsterKind.KHOROVAYA_MATKA
     || kind === MonsterKind.MANCOBUS
     || kind === MonsterKind.HERALD
     || kind === MonsterKind.CREATOR
@@ -456,6 +458,7 @@ function isRareMonsterKind(kind: MonsterKind | undefined): boolean {
     || kind === MonsterKind.LAMPOVY
     || kind === MonsterKind.PECHATEED
     || kind === MonsterKind.TUBE_EEL
+    || kind === MonsterKind.TRUBNYY_AVTOMAT
     || kind === MonsterKind.PARAGRAPH
     || kind === MonsterKind.NELYUD
     || kind === MonsterKind.KOSTOREZ
