@@ -21,7 +21,7 @@ import { genLog } from '../log';
 
 export const DESIGN_FLOOR_ID = 'underhell' as const;
 export const UNDERHELL_ROUTE_ID = DESIGN_FLOOR_ID;
-export const UNDERHELL_Z = -40;
+export const UNDERHELL_Z = -38;
 export const UNDERHELL_DEFAULT_SEED = 19032;
 
 const UNDERHELL_FLOOR = FloorLevel.HELL;

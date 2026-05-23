@@ -1,3 +1,5 @@
+import { translateText } from '../systems/localization';
+
 let uiTextTime = 0;
 const fitTextSeenAt = new Map<string, number>();
 const FIT_TEXT_CACHE_LIMIT = 256;
@@ -90,6 +92,7 @@ function splitOverwideToken(ctx: CanvasRenderingContext2D, token: string, maxW: 
 }
 
 export function fitText(ctx: CanvasRenderingContext2D, text: string, maxW: number): string {
+  text = translateText(text);
   if (maxW <= 0 || text.length === 0) return '';
   if (ctx.measureText(text).width <= maxW) return text;
   const count = maxFittingChars(ctx, text, maxW);
@@ -105,6 +108,7 @@ export function wrapTextLines(
   maxW: number,
   maxLines = 64,
 ): string[] {
+  text = translateText(text);
   if (maxW <= 0 || maxLines <= 0) return [];
   const lines: string[] = [];
   const pushLine = (line: string): boolean => {

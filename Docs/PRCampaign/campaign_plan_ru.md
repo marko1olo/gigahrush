@@ -12,6 +12,13 @@
 - Fandom samosb0r: https://samosb0r.fandom.com/ru/wiki/ГИГАХРУЩ
 - Fandom archive EN: https://samosborarchive-en.fandom.com/wiki/GIGAH_RUSH
 
+Текущий релизный snapshot на 2026-05-22:
+
+- `itch/gigahrush-itch.zip`: 4.2M, SHA-256 `9f29b9348b816b17543585a29f2c423b90862658554b2add0297ff747057c42c`.
+- `dist/index.html`: 8.8M, SHA-256 `34bf6a161b6e9aa32b15c4c02882153f09313aca3b1c03d7178601bf1d8bb7d8`.
+- Cloudflare build: https://gigahrush.bileter.workers.dev отдает 200 и публично не содержит `noindex`.
+- itch.io page: https://tenevik.itch.io/gigahrush отдает 200, но публичный HTML пока содержит `noindex`.
+
 ## Запущено
 
 | Статус | Площадка | URL | Что сделано |
@@ -19,7 +26,12 @@
 | Done | Самосбор Archive Fandom | https://samosborarchive.fandom.com/ru/wiki/ГИГАХРУЩ | Создана страница игры. |
 | Done | samosb0r Fandom | https://samosb0r.fandom.com/ru/wiki/ГИГАХРУЩ | Создана страница игры. |
 | Done | Self-Assembly Wiki EN / Fandom | https://samosborarchive-en.fandom.com/wiki/GIGAH_RUSH | Создана английская страница игры с инфобоксом, контекстом Self-Assembly, ссылками на itch.io, онлайн-версию, Telegram, Newgrounds, DTF и GameDev.ru. |
+| Done | Архив Самосбора / Игры по вселенной | https://samosborarchive.fandom.com/ru/wiki/Игры_по_вселенной | `ГИГАХРУЩ` добавлен в список игр по вселенной; ссылка ведет на itch.io и внутреннюю страницу `[[ГИГАХРУЩ]]`. |
+| Done | Self-Assembly Games / Fandom EN | https://samosborarchive-en.fandom.com/wiki/Self-Assembly_Games | `GIGAH RUSH` добавлен в английский список Self-Assembly games; ссылка ведет на itch.io и внутреннюю страницу `[[GIGAH RUSH]]`. |
 | Blocked | ShoutWiki Самосбор | https://samosbor.shoutwiki.com/wiki/ГИГАХРУЩ | Публикация невозможна: abuse filter `запрет правок` с правилом `1==1` запрещает все правки. |
+| Ready | KPI agent brief | `KPI.md` | Создан бриф агента мониторинга: опубликованные поверхности, KPI, good/bad signs, cadence daily/weekly/incident, шаблон отчета и текущие блокеры. |
+| Done | KPI report 2026-05-22 | `Docs/PRCampaign/kpi_report_2026-05-22.md` | Первый отчет кампании: itch/Cloudflare/Newgrounds/DTF/GameDev/Fandom/IndieDB/iDev статусы, good/bad signs, fix queue и owner-needed блокеры. |
+| Ready | Link opportunities | `Docs/PRCampaign/link_opportunities_2026-05-22.md` | Список адекватных мест для ссылок: P0 wiki lists, осторожные wiki-discussion варианты, внешние devlog/submission площадки, готовые RU/EN wikitext snippets. |
 | Ready | Copy pack | `Docs/PRCampaign/copy_pack_ru.md` | Готовы RU/EN посты, pitch, письма и one-liners. |
 | Ready | Wiki page drafts | `Docs/WikiPages/` | Готовы wikitext-заготовки под вики. |
 | Waiting | itch.io indexing | https://itch.io/docs/creators/getting-indexed | Снята галка `Disable new downloads & purchases`, которая исключала проект из индексации; `noindex` пока остается до асинхронной обработки/модерации itch. |
@@ -29,7 +41,8 @@
 | Done | HTML5 portal preflight | `itch/gigahrush-itch.zip` | `npm run itch:verify` прошел: 7 root-relative files, 4 445 484 bytes. `npm run smoke` прошел: canvas/HUD/scene lit, blank-screen smoke clean. |
 | Done | GameDev.ru / Проекты / Оцените | https://gamedev.ru/projects/forum/?id=295485 | Опубликована тема с запросом конкретного фидбека, ссылками на itch.io, онлайн-версию и Telegram. |
 | Done | DTF / Инди | https://dtf.ru/indie/5077801-gigahrush-brauzernyj-survival-horror | Опубликован devlog-пост с изображением, ссылками на itch.io, онлайн-версию и Telegram; NSFW/adult flags не включались. |
-| Done | Newgrounds | https://www.newgrounds.com/portal/view/1033564 | Создан и опубликован HTML5 game project `GIGAH RUSH`: ZIP загружен, icon/genre/rating/author comments заполнены, ссылки на itch.io и Telegram есть в Author Comments. |
+| Done | Newgrounds | https://www.newgrounds.com/portal/view/1033564 | Создан и опубликован HTML5 game project `GIGAH RUSH`: ZIP загружен, icon/genre/rating/author comments заполнены, ссылки на itch.io и Telegram есть в Author Comments. После финального релиза 2026-05-22 HTML5 archive обновлен и опубликован заново; публичный iframe отдает HTML 9 262 219 bytes. |
+| Submitted | GamHub | https://gamhub.net/website_submit/ | Отправлена карточка `GIGAH\|RUSH` через публичную форму: itch.io как основной URL, direct browser build и Telegram в описании; категории Adventure/Shooter/Survival/Horror/Simulation, Best Browser Games, free-to-play. Сервер вернул `{"code":200,"msg":"Submit success"}`; публичный поиск пока `No results found`, ждем review. |
 | Blocked | IndieDB | https://www.indiedb.com/games/add | Прямая публикация из shell блокируется Cloudflare managed challenge; нужен ручной проход в браузере с авторизованной сессией. |
 
 ## Волна 0: привести главную страницу в порядок
@@ -59,6 +72,14 @@
 | --- | --- | --- | --- | --- | --- |
 | A | IndieDB | https://www.indiedb.com/games/add | Страница игры, новости/updates | Нужна учетная запись; страница проекта и материалы. | Создать profile, добавить screenshots/GIF, затем update-новость. |
 | A | Newgrounds | https://www.newgrounds.com/projects/games/new | HTML5 upload | Нужен ZIP с `index.html` в корне; игра должна работать в браузере, без pop-ups и правовых проблем. | Проверить совместимость single-file build и создать NG-пакет. |
+| A | GamHub | https://gamhub.net/website_submit/ | Browser-game directory submission | Форма публичная, review 24-48 часа; не принимает political/porn/terrorism content. | Отправлено 2026-05-22; проверить поиск/публикацию через 24-48 часов. |
+| A | DiscoverGG | https://discovergg.com/submit.php | Browser-game discovery listing | Страница требует бесплатный login/signup: username, email, password. | После email/аккаунта подать itch URL, category Action/Adventure, screenshot и короткое EN описание. |
+| B | Gamemoor | https://gamemoor.com/developer | Browser-game publishing platform | Developer portal открыт, но редиректит на login; есть Google login. | Войти через Google/почту, затем подать игру в review queue. |
+| B | PLRun | https://plrun.com/plrun-for-developers/ | HTML5/WebGL portal | Требует account или письмо на `dev@plrun.com`; mobile/touch, family-friendly, English UI preferred. | Нужен контактный email/подпись; затем отправить ZIP/hosted link и screenshots. |
+| B | FreeZonePlay | https://freezoneplay.com/for-developers/ | Email submission | Принимают HTML5/WebGL; требуют email с hosted link/ZIP, details, screenshots, studio/social links. | Нужен контактный email/подпись; отправить `Game Submission: GIGAH RUSH`. |
+| B | Free Indie Games | https://www.freeindiegames.org/submit-game/ | Editorial review/contact form | Просят genre, length, publisher, state alpha/beta и детали; review не гарантирован. | Нужен email для формы; использовать короткий curator pitch. |
+| B | Fake Portal | https://fakeportal.com/developer-resources/ | Indie directory developer submission | Форма требует contact name/email/country и подробные поля; листинг бесплатный, но review. | Нужен email/подпись; подать как Available Now, Solo/Small Team, Itchio/PC, Survival/RPG/Action. |
+| C | Playtesta | https://playtesta.com/ | Paid playtesting/listing | Для creator flow нужен аккаунт; JS bundle показывает checkout `PlayTesta - Indie Game Listing` за `$19`. | Не использовать без отдельного подтверждения бюджета. |
 | B | CrazyGames | https://developer.crazygames.com/ | HTML5/WebGL portal | Требуются английская локализация, производительность, SDK/портальные ограничения, no cross-promotion. | Рассматривать после отдельной портальной сборки. |
 | B | iDev.Games | https://idev.games/publish-game | HTML5 publish | Нужна browser game; низкий порог входа; `/submit-game` сейчас отдает 404. | Добавить как small web-indie listing. |
 | C | Poki | https://developers.poki.com/ | Curated portal | Жесткие требования к размеру, mobile/desktop, 16:9, no external links, target initial download under 8 MB. | Пока только как future porting target. |
@@ -114,7 +135,8 @@
 ## Следующие действия
 
 1. Через 1-2 часа перепроверить `noindex` на itch.io; если останется, ждать ручной модерации или писать в support.
-2. Пройти IndieDB Cloudflare/email validation в живом браузере и создать страницу игры по `Docs/PRCampaign/en_portal_store_copy.md`.
-3. Проверить Newgrounds embed/play preview вручную в браузере и при необходимости поправить viewport/tags/title.
-4. Отправить Alpha Beta Gamer и Free Game Planet коротким EN pitch.
-5. Спланировать SDK-адаптер для Яндекс Игры / Пикабу Игры без загрязнения основной сборки.
+2. Проверить GamHub через 24-48 часов: поиск `GIGAH|RUSH`, наличие страницы, теги и ссылки.
+3. Пройти IndieDB Cloudflare/email validation в живом браузере и создать страницу игры по `Docs/PRCampaign/en_portal_store_copy.md`.
+4. Для DiscoverGG/Gamemoor/Fake Portal нужен email/account; после входа подать те же EN поля без копипаста текста из GamHub.
+5. Получить контактный email/подпись и отправить Alpha Beta Gamer, FreeZonePlay, PLRun, Free Indie Games и Free Game Planet коротким EN pitch.
+6. Спланировать SDK-адаптер для Яндекс Игры / Пикабу Игры без загрязнения основной сборки.

@@ -9,10 +9,8 @@ import {
 } from '../core/types';
 import { World } from '../core/world';
 import { PLOT_CHAIN } from './plot';
-import { addItem } from '../systems/inventory';
-import { awardXP } from '../systems/rpg';
 
-/* ── Herald killed → portal to Void ─────────────────────────── */
+/* ── Heralds killed → lower Podad route opens ───────────────── */
 export function onHeraldKilled(
   e: Entity, world: World, state: GameState,
 ): boolean {
@@ -29,12 +27,11 @@ export function onHeraldKilled(
 
   const px = Math.floor(e.x), py = Math.floor(e.y);
   const ci = world.idx(px, py);
-  world.floorTex[ci] = Tex.PORTAL;
   const portalZid = world.zoneMap[ci];
-  const portalZoneName = portalZid >= 0 ? `зона ${portalZid + 1}` : '???';
-  state.msgs.push(msg('Марфа Пороговая: «Порог открыт. Видишь зелёный пол - входи быстро, но за голосами в стороне не ходи.»', state.time, '#0f8'));
-  state.msgs.push(msg(`Проход в Пустоту открыт в ${portalZoneName}!`, state.time, '#0ff'));
-  return true; // caller should updateWorldData
+  const zoneName = portalZid >= 0 ? `зона ${portalZid + 1}` : '???';
+  state.msgs.push(msg('Марфа Пороговая: «Счёт сошёлся. Нижний лифт теперь услышит кнопку, но Пустота сама к тебе не придёт.»', state.time, '#0f8'));
+  state.msgs.push(msg(`Нижний маршрут Подада открыт через ${zoneName}. Ищи лифт вниз.`, state.time, '#0ff'));
+  return true; // caller should update route gates/world data
 }
 
 /* ── Creator killed → return portal ──────────────────────────── */
@@ -49,43 +46,31 @@ export function onCreatorKilled(
   return true; // caller should updateWorldData
 }
 
-/* ── Auto-complete step 10 (VISIT Hell) on arrival ───────────── */
+/* ── Hell holdout hint on arrival ────────────────────────────── */
 export function onHellArrival(
-  player: Entity, state: GameState,
+  _player: Entity, state: GameState,
 ): void {
-  const step10Quest = state.quests.find(q => q.plotStepIndex === 10 && !q.done);
-  if (step10Quest) {
-    step10Quest.done = true;
-    if (step10Quest.rewardItem) {
-      addItem(player, step10Quest.rewardItem, step10Quest.rewardCount ?? 1);
-    }
-    if (step10Quest.extraRewards) {
-      for (const r of step10Quest.extraRewards) addItem(player, r.defId, r.count);
-    }
-    if (step10Quest.xpReward) awardXP(player, step10Quest.xpReward, state.msgs, state.time);
-    state.msgs.push(msg(`Задание выполнено: ${step10Quest.desc}`, state.time, '#4f4'));
-  }
+  const holdoutQuest = state.quests.find(q => !q.done && q.eventTags?.includes('hell_holdout'));
+  if (!holdoutQuest || (holdoutQuest.holdProgressSeconds ?? 0) > 0) return;
+  state.msgs.push(msg('Мясной низ принял высадку. Найдите зону закрепления и держите её до подхода группы.', state.time, '#f66'));
 }
 
 /* ── Hell entry hint; the chain itself is data-driven in PLOT_CHAIN. */
 export function tryCreateVoiceQuest(
   _world: World, _entities: Entity[], state: GameState,
 ): void {
-  const hellContactStepIndex = PLOT_CHAIN.findIndex(step => step.giverNpcId === 'hell_contact');
-  if (hellContactStepIndex < 0) return;
-  if (!state.quests.some(q => q.plotStepIndex === 10 && q.done)) return;
-  const chainAlreadyReached = state.quests.some(q =>
-    q.plotStepIndex !== undefined &&
-    q.plotStepIndex >= hellContactStepIndex);
-  if (chainAlreadyReached) return;
-  state.msgs.push(msg('Сквозь шум Мясного низа слышно человеческое дыхание. Рядом живой, найдите его до следующего боя.', state.time, '#0f8'));
-  state.msgs.push(msg('Найдите Никанора Обожжённого в Мясном низу.', state.time, '#4af'));
+  const holdoutDone = state.quests.some(q => q.done && q.eventTags?.includes('hell_holdout'));
+  const podadStepIndex = PLOT_CHAIN.findIndex(step => step.targetRoute?.designFloorId === 'podad');
+  if (podadStepIndex < 0) return;
+  const podadStepReached = state.quests.some(q => q.plotStepIndex !== undefined && q.plotStepIndex >= podadStepIndex);
+  if (!holdoutDone || podadStepReached) return;
+  state.msgs.push(msg('Лифт ответил тяжелым металлом: группа Громного уже идёт к зоне закрепления.', state.time, '#0f8'));
 }
 
 /* ── Void entry messages — Creator trap reveal ───────────────── */
 export function onVoidEntry(state: GameState): void {
-  state.msgs.push(msg('Портал выбросил вас в Пустоту: двери называют чужие комнаты, документы не совпадают с выходами.', state.time, '#0f8'));
-  state.msgs.push(msg('Творец закрыл обратный ход. Обычная дверь сейчас не вернёт вас домой.', state.time, '#9f8'));
+  state.msgs.push(msg('Лифт довёз до Z-50: двери называют чужие комнаты, документы не совпадают с выходами.', state.time, '#0f8'));
+  state.msgs.push(msg('Творец вышел на связь без портала. Обычная дверь сейчас не вернёт вас домой.', state.time, '#9f8'));
   state.msgs.push(msg('Проверяйте рабочие предупреждения: они пишут, какая комната врёт.', state.time, '#9f8'));
   state.msgs.push(msg('Голос, который вёл вас сюда, был Творцом. Считайте новые объявления ловушкой.', state.time, '#fa0'));
   state.msgs.push(msg('Найдите Жана Пустотника. Он знает, где открыть обратный портал.', state.time, '#4af'));

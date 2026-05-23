@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -7,6 +8,12 @@ import { viteSingleFile } from "vite-plugin-singlefile";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const root = __dirname;
+const CYRILLIC_RE = /[А-Яа-яЁё]/;
+
+type RuntimeLocaleCatalog = [
+  [string, string][],
+  [string, string][],
+];
 
 function normalizeModuleId(id: string): string {
   const clean = id.split("?")[0] ?? id;
@@ -61,8 +68,56 @@ function buildSizeManifest(): Plugin {
   };
 }
 
+function normalizeText(text: string): string {
+  return text.replace(/\r\n?/g, "\n").trim();
+}
+
+function sourceKey(text: string): string {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(36);
+}
+
+function runtimeEnglishLocale(): RuntimeLocaleCatalog {
+  const file = path.join(root, "locales", "en.json");
+  const parsed = JSON.parse(readFileSync(file, "utf8")) as {
+    entries?: Record<string, { source?: unknown; translation?: unknown; status?: unknown } | string>;
+  };
+  const exact: [string, string][] = [];
+  const templates: [string, string][] = [];
+  const exactSources = new Map<string, string>();
+
+  for (const record of Object.values(parsed.entries ?? {})) {
+    if (typeof record !== "object" || !record || record.status === "todo") continue;
+    if (typeof record.source !== "string" || typeof record.translation !== "string") continue;
+    const source = normalizeText(record.source);
+    const translation = normalizeText(record.translation);
+    if (!source || !translation || !CYRILLIC_RE.test(source)) continue;
+    if (source.includes("${")) {
+      templates.push([source, translation]);
+      continue;
+    }
+
+    const key = sourceKey(source);
+    const previous = exactSources.get(key);
+    if (previous && previous !== source) {
+      throw new Error(`English locale runtime hash collision between "${previous}" and "${source}"`);
+    }
+    exactSources.set(key, source);
+    exact.push([key, translation]);
+  }
+
+  return [exact, templates];
+}
+
 export default defineConfig({
   plugins: [buildSizeManifest(), viteSingleFile()],
+  define: {
+    "globalThis.__GIGAHRUSH_EN_LOCALE__": JSON.stringify(runtimeEnglishLocale()),
+  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "src"),

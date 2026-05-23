@@ -26,7 +26,7 @@
 ## Current Gaps
 
 - itch.io public HTML currently contains `noindex`; check itch dashboard/indexing status.
-- itch Release Announcements post is drafted, but local Chrome profile was not logged into itch.
+- IndieDB automation is still blocked by Cloudflare managed challenge even after browser cookies appeared; continue only through a live browser flow or after a public game page exists.
 - ShoutWiki page cannot be created because the wiki abuse filter blocks all edits.
 - Portal builds for Яндекс Игры, Пикабу Игры, CrazyGames, Poki and GamePix need separate SDK/packaging decisions.
 

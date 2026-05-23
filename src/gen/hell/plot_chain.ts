@@ -3,11 +3,9 @@
 import {
   W, Cell, Feature, FloorLevel,
   type Room, type Entity, type Item,
-  EntityType, AIGoal,
+  EntityType,
 } from '../../core/types';
 import { World } from '../../core/world';
-import { freshNeeds } from '../../data/catalog';
-import { PLOT_NPCS } from '../../data/plot';
 import { PLOT_ROOMS } from '../../data/plot_rooms';
 import { registerRouteCue } from '../../systems/route_cues';
 import { stampRoom, protectRoom, connectProtectedRoom, findClearArea } from '../shared';
@@ -19,58 +17,48 @@ export function generateHellPlotChain(
   const sx = W >> 1;
   const sy = W >> 1;
 
-  const contactRoom = stampPlotRoom(world, 'hell_contact_cell', sx, sy, 8, 28, 14);
-  decorateContactRoom(world, contactRoom);
-  spawnPlotNpc(world, contactRoom, 'hell_contact', entities, nextId);
-  dropRoomItem(world, contactRoom, entities, nextId, contactRoom.w - 2, contactRoom.h - 2, [
+  const anchorRoom = stampPlotRoom(world, 'hell_anchor_zone', sx, sy, 24, 90, 36);
+  decorateAnchorRoom(world, anchorRoom);
+  registerAnchorCue(world, anchorRoom);
+  dropRoomItem(world, anchorRoom, entities, nextId, anchorRoom.w - 2, anchorRoom.h - 2, [
     { defId: 'bandage', count: 2 },
     { defId: 'water', count: 1 },
+    { defId: 'ammo_762', count: 12 },
   ]);
-
-  const thresholdRoom = stampPlotRoom(world, 'herald_threshold', sx, sy, 55, 120, 76);
-  decorateThresholdRoom(world, thresholdRoom);
-  spawnPlotNpc(world, thresholdRoom, 'herald_clue', entities, nextId);
-  registerHeraldThresholdCue(world, contactRoom, thresholdRoom);
-  dropRoomNote(world, contactRoom, entities, nextId, 1, contactRoom.h - 2,
-    'Порог Вестников впереди: проверь обратный ход от контактной клетки, держи дверь между залпами и забирай награду с края, не из центра.');
-  dropRoomItem(world, thresholdRoom, entities, nextId, 1, thresholdRoom.h - 2, [
-    { defId: 'holy_water', count: 1 },
-    { defId: 'antidep', count: 1 },
-  ]);
+  dropRoomNote(world, anchorRoom, entities, nextId, 1, anchorRoom.h - 2,
+    'Зона закрепления: пять минут держать центр, не отходить за створки, лифт слушать после отбоя.');
 }
 
-function registerHeraldThresholdCue(world: World, contactRoom: Room, thresholdRoom: Room): void {
-  const x = world.wrap(contactRoom.x + Math.floor(contactRoom.w / 2)) + 0.5;
-  const y = world.wrap(contactRoom.y + Math.floor(contactRoom.h / 2)) + 0.5;
-  const targetX = world.wrap(thresholdRoom.x + Math.floor(thresholdRoom.w / 2)) + 0.5;
-  const targetY = world.wrap(thresholdRoom.y + Math.floor(thresholdRoom.h / 2)) + 0.5;
+function registerAnchorCue(world: World, anchorRoom: Room): void {
+  const x = world.wrap(anchorRoom.x + Math.floor(anchorRoom.w / 2)) + 0.5;
+  const y = world.wrap(anchorRoom.y + Math.floor(anchorRoom.h / 2)) + 0.5;
   registerRouteCue(world, {
-    id: 'hell_herald_threshold_retreat',
+    id: 'hell_anchor_zone_holdout',
     x,
     y,
-    targetX,
-    targetY,
+    targetX: x,
+    targetY: y,
     floor: FloorLevel.HELL,
-    roomId: contactRoom.id,
-    targetRoomId: thresholdRoom.id,
-    label: 'порог Вестников',
-    hint: 'входи только с отмеченным отходом; награда лежит у края',
-    targetName: 'Порог Вестников',
-    color: '#f88',
-    tags: ['hell', 'herald_threshold', 'retreat', 'reward', 'warning'],
-    toneSeed: contactRoom.id * 7301 + thresholdRoom.id,
-    radius: 9,
-    targetRadius: 5,
+    roomId: anchorRoom.id,
+    targetRoomId: anchorRoom.id,
+    label: 'зона закрепления',
+    hint: 'держи центр до прихода ликвидаторов; выход за створки сбросит удержание',
+    targetName: 'Зона закрепления',
+    color: '#f66',
+    tags: ['hell', 'holdout', 'liquidator', 'anchor'],
+    toneSeed: anchorRoom.id * 7301 + 47,
+    radius: 12,
+    targetRadius: 7,
     cooldownSec: 45,
-    heardText: 'Контактная клетка предупреждает: у порога Вестников сначала найди обратный ход.',
-    followedText: 'Порог Вестников отмечен. Держи дверь между залпами и забирай награду с края.',
-    ignoredText: 'Порог Вестников остался впереди без проверенного отхода.',
+    heardText: 'Металлическая створка отмечает место для закрепления: держи центр и не уходи за порог.',
+    followedText: 'Зона закрепления отмечена. Пять минут давления, потом лифт приведет своих.',
+    ignoredText: 'Зона закрепления осталась позади. Таймер не держит пустое место.',
   });
 }
 
 function stampPlotRoom(
   world: World,
-  roomId: 'hell_contact_cell' | 'herald_threshold',
+  roomId: 'hell_anchor_zone',
   ax: number,
   ay: number,
   minDist: number,
@@ -90,43 +78,11 @@ function stampPlotRoom(
   return room;
 }
 
-function decorateContactRoom(world: World, room: Room): void {
+function decorateAnchorRoom(world: World, room: Room): void {
   world.features[world.idx(room.x + 1, room.y + 1)] = Feature.CANDLE;
   world.features[world.idx(room.x + Math.floor(room.w / 2), room.y + Math.floor(room.h / 2))] = Feature.LAMP;
   world.features[world.idx(room.x + room.w - 2, room.y + 1)] = Feature.SHELF;
-}
-
-function decorateThresholdRoom(world: World, room: Room): void {
-  const cx = room.x + Math.floor(room.w / 2);
-  const cy = room.y + Math.floor(room.h / 2);
-  world.features[world.idx(cx, cy)] = Feature.CANDLE;
-  world.features[world.idx(room.x + 1, room.y + 1)] = Feature.CANDLE;
-  world.features[world.idx(room.x + room.w - 2, room.y + 1)] = Feature.CANDLE;
   world.features[world.idx(room.x + Math.floor(room.w / 2), room.y + room.h - 2)] = Feature.APPARATUS;
-}
-
-function spawnPlotNpc(
-  world: World,
-  room: Room,
-  plotNpcId: 'hell_contact' | 'herald_clue',
-  entities: Entity[],
-  nextId: { v: number },
-): void {
-  const def = PLOT_NPCS[plotNpcId];
-  const x = world.wrap(room.x + Math.floor(room.w / 2));
-  const y = world.wrap(room.y + Math.floor(room.h / 2));
-  entities.push({
-    id: nextId.v++, type: EntityType.NPC,
-    x: x + 0.5, y: y + 0.5,
-    angle: Math.PI, pitch: 0, alive: true, speed: def.speed,
-    sprite: def.sprite,
-    name: def.name, isFemale: def.isFemale,
-    needs: freshNeeds(), hp: def.hp, maxHp: def.maxHp, money: def.money,
-    ai: { goal: AIGoal.IDLE, tx: 0, ty: 0, path: [], pi: 0, stuck: 0, timer: 0 },
-    inventory: def.inventory.map(i => ({ ...i })),
-    faction: def.faction, occupation: def.occupation,
-    plotNpcId, canGiveQuest: true, questId: -1,
-  });
 }
 
 function dropRoomItem(

@@ -2,7 +2,7 @@
 
 Purpose: turn the current TypeScript/Vite raycaster game into a content factory where many agents can add rooms, NPCs, quests, events, monsters, documents, economy hooks, and floor variants without fighting over the same files.
 
-This document is based on the current code, `README.md`, `plans.md`, and `desdoc.md` as of 2026-05-20. It is not a rewrite plan. The project is already playable; architecture work must protect that.
+This document is based on the current code, `README.md`, `plans.md`, and `desdoc.md` as of 2026-05-23. It is not a rewrite plan. The project is already playable; architecture work must protect that.
 
 ## 1. Current Fact Map
 
@@ -26,12 +26,12 @@ Critical runtime facts:
 - `entities` is a flat array of plain objects with optional component fields. There are no entity subclasses.
 - The world is a 1024x1024 torus. All coordinate work must use `world.idx`, `world.wrap`, `world.delta`, or `world.dist`.
 - Floor generators return `{ world, entities, spawnX, spawnY }`.
-- Normal lift travel uses `systems/procedural_floors.ts` as a per-run vertical route across `z=-50..+50`. Existing `FloorLevel` values remain 6 story/base floors; authored design floors are 18 string-id route stops from `src/data/design_floors.ts`; unoccupied route positions are 77 seeded procedural/fallback specs with `z`, seed, geometry, main faction, anomaly and danger. Down decreases `z`; `VOID` is the final lowest stop at `z=-50`, `darkness` is the dark endgame route floor at `z=-48`, and `roof` is the highest stop at `z=+50`.
+- Normal lift travel uses `systems/procedural_floors.ts` as a per-run vertical route across `z=-50..+50`. Existing `FloorLevel` values remain 6 story/base floors; authored design floors are 19 string-id route stops from `src/data/design_floors.ts`; unoccupied route positions are 76 seeded procedural/fallback specs with `z`, seed, geometry, main faction, anomaly and danger. Down decreases `z`; `VOID` is the final lowest stop at `z=-50`, `darkness` is the dark endgame route floor at `z=-48`, `podad` is the Herald-gated Hell route floor at `z=-40`, `underhell` is at `z=-38`, and `roof` is the highest stop at `z=+50`.
 - `main.ts` owns the game loop and calls systems in fixed order.
 - `systems/events.ts` is the current EventBus analogue: fixed-size ring buffers, public event publication, and query filters.
 - Shared `E` interaction goes through `systems/interactions.ts`; generated gambling machines, local computers, NET-hack terminals, emergency panels, Net Terminal Gen and special floor interactions plug into that dispatcher.
 - `systems/alife.ts` owns persistent procedural NPC identity. A run creates an adaptive compact NPC pool (`1_000_000` when runtime memory allows it, otherwise `100_000`), materializes only the active floor into live `entities`, folds live state back on transitions/rebuilds/saves, and records permanent deaths. `systems/npc_relations.ts` owns compact personal relation-to-player math shared by A-Life, quests and hostility. `alife.md` is the detailed design contract for this feature.
-- Save/load uses `systems/save_runtime.ts` and `systems/save_payload.ts`. Current save shape version is `7`; old or unversioned saves are rejected rather than migrated.
+- Save/load uses `systems/save_runtime.ts` and `systems/save_payload.ts`. Current save shape version is `8`; old or unversioned saves are rejected rather than migrated.
 - Existing content extensibility already exists in `registerSideQuest`, `registerZoneContent`, floor content manifests, `SAMOSBOR_VARIANTS`, `getSamosborBeatDefs()`, contract/economy registries, route/design-floor ids and `publishEvent`.
 
 ## 2. Non-Negotiable Invariants

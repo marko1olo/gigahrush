@@ -9,6 +9,7 @@ import {
   type Entity, type Quest, type WorldEventPrivacy, type WorldEventSeverity,
   QuestType, Faction, Occupation, MonsterKind, FloorLevel,
 } from '../core/types';
+import type { QuestRouteTarget } from './contracts';
 
 /* ── Story NPC definition ─────────────────────────────────────── */
 export interface PlotNpcDef {
@@ -437,47 +438,96 @@ export const PLOT_CHAIN: PlotStep[] = [
     extraRewards: [{ defId: 'bandage', count: 5 }, { defId: 'ammo_762', count: 30 }],
     relationDelta: 30, xpReward: 150, moneyReward: 200,
   },
-  // Step 10: Major Grom → go to Hell
+  // Step 10: Major Grom → anchor a Hell foothold
   {
     giverNpcId: 'major_grom',
     type: QuestType.VISIT,
-    desc: 'Громный отправляет тебя ниже, к мясному этажу, где люди знают больше о запретном и чаще не возвращаются. Проверь лифт у порога; ранен - назад.',
+    desc: 'Громный отправляет тебя в Мясной низ закрепиться до прихода группы. Найди зону закрепления, держи её пять минут и не уходи за створки: твари проверят шум раньше ликвидаторов.',
     rewardItem: 'bandage', rewardCount: 5,
-    extraRewards: [{ defId: 'antidep', count: 2 }],
-    relationDelta: 20, xpReward: 100,
+    extraRewards: [{ defId: 'antidep', count: 2 }, { defId: 'ammo_762', count: 20 }],
+    relationDelta: 25, xpReward: 180,
+    targetFloor: FloorLevel.HELL,
+    targetRoute: { z: -36, label: 'Z-36 Мясной низ' },
+    targetRoomName: 'Зона закрепления',
+    targetHint: 'В аду удерживай комнату "Зона закрепления" 300 секунд. Выход из комнаты сбрасывает таймер.',
     visitFloor: FloorLevel.HELL,
+    holdSeconds: 300,
+    holdResetOnExit: true,
+    holdSpawnMonsters: 3,
+    holdSpawnIntervalSeconds: 18,
+    holdSpawnMaxAlive: 12,
+    eventTags: ['hell_holdout', 'liquidator_anchor', 'story_route'],
+    eventData: { routeId: 'story:hell', floorZ: -36, holdSeconds: 300 },
+    eventTargetName: 'Зона закрепления в Мясном низу удержана.',
   },
-  // Step 11: Hell contact → talk to Herald watcher
+  // Step 11: Major Grom → go to Podad
+  {
+    giverNpcId: 'major_grom',
+    type: QuestType.VISIT,
+    desc: 'Громный дошёл до зоны и разворачивает пост. Следующий ход ниже: спустись в Подад на Z-40. Это не пропускник и не обычный ад; стены там двигаются, а проход вниз ещё закрыт.',
+    rewardItem: 'ammo_762', rewardCount: 24,
+    extraRewards: [{ defId: 'bandage', count: 3 }],
+    relationDelta: 18, xpReward: 120,
+    targetFloor: FloorLevel.HELL,
+    targetRoute: { designFloorId: 'podad', label: 'Z-40 Подад' },
+    targetHint: 'Иди обычными лифтами вниз до Z-40: Подад.',
+    visitFloor: FloorLevel.HELL,
+    eventTags: ['podad', 'story_route', 'lower_route'],
+    eventData: { routeId: 'podad', floorZ: -40 },
+  },
+  // Step 12: Hell contact → talk to Herald watcher in Podad
   {
     giverNpcId: 'hell_contact',
     type: QuestType.TALK,
-    desc: 'На нижнем этаже с тобой уже говорит чужой порядок. Найди Марфу Пороговую {dir}: она знает, как пройти к Вестникам.',
+    desc: 'Подад шевелит стены вокруг входа. Найди Марфу Пороговую {dir}: она считает Вестников и знает, почему лифт вниз не отвечает.',
     targetNpcId: 'herald_clue',
     rewardItem: 'psi_phase', rewardCount: 1,
     extraRewards: [{ defId: 'holy_water', count: 1 }],
+    targetFloor: FloorLevel.HELL,
+    targetRoute: { designFloorId: 'podad', label: 'Z-40 Подад' },
     relationDelta: 8, xpReward: 70,
   },
-  // Step 12: Herald clue → kill three Heralds
+  // Step 13: Herald clue → kill three Heralds in Podad
   {
     giverNpcId: 'herald_clue',
     type: QuestType.KILL,
-    desc: 'Убей трёх Вестников у порога. Пока они живы, проход к Пустоте держится закрытым, а голос только проверяет, как далеко ты зашёл.',
+    desc: 'Убей трёх Вестников в Подаде. Пока они живы, нижние лифты молчат, а тоннели зарастают за спиной.',
     targetMonsterKind: MonsterKind.HERALD, killNeeded: 3,
     rewardItem: 'psi_void_needle', rewardCount: 1,
     extraRewards: [{ defId: 'antidep', count: 2 }],
+    targetFloor: FloorLevel.HELL,
+    targetRoute: { designFloorId: 'podad', label: 'Z-40 Подад' },
     relationDelta: 10, xpReward: 220,
+    eventTags: ['podad', 'herald_gate', 'lower_route_unlocked'],
+    eventData: { routeId: 'podad', floorZ: -40 },
   },
-  // Step 13: Void warning → test the threshold voice
+  // Step 14: Herald clue → descend to the bottom route
+  {
+    giverNpcId: 'herald_clue',
+    type: QuestType.VISIT,
+    desc: 'НИЖЕ И НИЖЕ. Вестники упали, нижние лифты открыты. Спускайся обычным маршрутом до Z-50: там голос уже не прячется за чужой дверью.',
+    rewardItem: 'psi_stabilizer', rewardCount: 1,
+    extraRewards: [{ defId: 'holy_water', count: 1 }],
+    relationDelta: 6, xpReward: 180,
+    targetFloor: FloorLevel.VOID,
+    targetRoute: { z: -50, label: 'Z-50 Пустота' },
+    targetHint: 'После Подада иди лифтами вниз через открытые этажи до Z-50.',
+    visitFloor: FloorLevel.VOID,
+    eventTags: ['below_and_below', 'void_contact', 'story_route'],
+    eventData: { routeId: 'story:void', floorZ: -50 },
+    eventTargetName: 'Путь ниже открыт до Z-50.',
+  },
+  // Step 15: Void warning → test the threshold voice
   {
     giverNpcId: 'void_warning',
     type: QuestType.FETCH,
-    desc: 'Порог пройден, и таинственный голос уже знает, что ты зашёл слишком далеко. Забери голос в банке из камеры Жана и верни ему; крышку не открывать.',
+    desc: 'На Z-50 Творец вышел на связь чужим голосом. Жан просит проверить ловушку: забери голос в банке из его камеры и верни ему; крышку не открывать.',
     targetItem: 'bottled_voice', targetCount: 1,
     rewardItem: 'psi_stabilizer', rewardCount: 1,
     extraRewards: [{ defId: 'antidep', count: 1 }],
     relationDelta: 6, xpReward: 140,
   },
-  // Step 14: Void warning → kill the Creator
+  // Step 16: Void warning → kill the Creator
   {
     giverNpcId: 'void_warning',
     type: QuestType.KILL,
@@ -487,7 +537,7 @@ export const PLOT_CHAIN: PlotStep[] = [
     extraRewards: [{ defId: 'psi_stabilizer', count: 1 }],
     relationDelta: 12, xpReward: 500,
   },
-  // Step 15: Void warning → leave the return consequence behind
+  // Step 17: Void warning → leave the return consequence behind
   {
     giverNpcId: 'void_warning',
     type: QuestType.FETCH,
@@ -511,6 +561,7 @@ export interface PlotStep {
   targetRoomType?: number;
   targetRoomName?: string;
   targetFloor?: FloorLevel;
+  targetRoute?: QuestRouteTarget;
   targetZoneTag?: string;
   targetHint?: string;
   targetMonsterKind?: MonsterKind;
@@ -534,6 +585,11 @@ export interface PlotStep {
   visitFloor?: FloorLevel;
   /** Optional explicit deadline for authored urgent side quests. */
   timeLimitMinutes?: number;
+  holdSeconds?: number;
+  holdResetOnExit?: boolean;
+  holdSpawnMonsters?: number;
+  holdSpawnIntervalSeconds?: number;
+  holdSpawnMaxAlive?: number;
 }
 
 /* ── Side quest definition (independent, no prerequisite chain) ─ */

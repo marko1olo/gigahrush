@@ -16,6 +16,7 @@ import { generateDarknessDesignFloor } from './darkness';
 import { generateFloor69DesignFloor } from './floor_69';
 import { generateManhattanCrossroadsDesignFloor } from './manhattan_crossroads';
 import { generatePioneerCampDesignFloor } from './pioneer_camp';
+import { generatePodadDesignFloor } from './podad';
 import { generateProductionBeltDesignFloor } from './production_belt';
 import { generateRaionsovetArchiveDesignFloor } from './raionsovet_archive';
 import { generateRegistryMorgueDesignFloor } from './registry_morgue';
@@ -44,6 +45,7 @@ const DESIGN_FLOOR_GENERATORS: Record<DesignFloorId, () => FloorGeneration> = {
   silicon_net_well: generateSiliconNetWellDesignFloor,
   dark_metro: generateDarkMetroDesignFloor,
   underhell: generateUnderhellDesignFloor,
+  podad: generatePodadDesignFloor,
   darkness: generateDarknessDesignFloor,
 };
 

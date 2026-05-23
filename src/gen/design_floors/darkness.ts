@@ -2,13 +2,12 @@
 
 import {
   W, Cell, Tex, Feature, RoomType, DoorState, LiftDirection,
-  FloorLevel, ZoneFaction, Faction, Occupation, EntityType, AIGoal,
+  FloorLevel, ZoneFaction, EntityType, AIGoal,
   MonsterKind, ContainerKind,
   type Entity, type Room, type Item, type WorldContainer,
   type GameState, type WorldEvent,
 } from '../../core/types';
 import { World } from '../../core/world';
-import { freshNeeds } from '../../data/catalog';
 import { MONSTERS } from '../../entities/monster';
 import { monsterSpr, Spr } from '../../render/sprite_index';
 import { publishEvent } from '../../systems/events';
@@ -59,7 +58,7 @@ export interface DarknessRoomLabel {
 
 export interface DarknessQuestDef {
   id: string;
-  giverKey: string;
+  sourceKey: string;
   title: string;
   objective: string;
   choices: DarknessQuestChoice[];
@@ -99,21 +98,6 @@ export interface DarknessReturnTraceOptions {
   sourceZoneId?: number;
   x?: number;
   y?: number;
-}
-
-interface DarknessNpcSpec {
-  key: string;
-  name: string;
-  isFemale: boolean;
-  faction: Faction;
-  occupation: Occupation;
-  roomKey: string;
-  dx: number;
-  dy: number;
-  hp: number;
-  speed: number;
-  money: number;
-  inventory: Item[];
 }
 
 interface DarknessRoomSpec {
@@ -284,7 +268,7 @@ const ROOM_SPECS: readonly DarknessRoomSpec[] = [
 const QUESTS: readonly DarknessQuestDef[] = [
   {
     id: 'darkness_keep_lamp_alive',
-    giverKey: 'darkness_lamp_bearer_nika',
+    sourceKey: 'lamp',
     title: 'Держать лампу живой',
     objective: 'Донести лампу от входного поста до возвратного следа, не тратя заряд на каждую дверь.',
     choices: ['spend_light', 'save_light'],
@@ -292,7 +276,7 @@ const QUESTS: readonly DarknessQuestDef[] = [
   },
   {
     id: 'darkness_find_name',
-    giverKey: 'darkness_name_lost',
+    sourceKey: 'name',
     title: 'Вернуть имя',
     objective: 'Осветить безымянную регистратуру и сохранить одну карточку имени.',
     choices: ['preserve_name', 'leave_name'],
@@ -300,7 +284,7 @@ const QUESTS: readonly DarknessQuestDef[] = [
   },
   {
     id: 'darkness_shadow_toll',
-    giverKey: 'darkness_shadow_collector',
+    sourceKey: 'toll',
     title: 'Пошлина за короткий ход',
     objective: 'Отдать лампу, драться у короткого хода или идти длинным темным обходом.',
     choices: ['pay_toll', 'fight_shadows', 'long_route'],
@@ -308,7 +292,7 @@ const QUESTS: readonly DarknessQuestDef[] = [
   },
   {
     id: 'darkness_return_with_trace',
-    giverKey: 'darkness_return_trace',
+    sourceKey: 'trace',
     title: 'Вынести след',
     objective: 'Забрать засвеченный кадр и вынести его будущим адресатам: Жилой зоне, Министерству или Якову.',
     choices: ['carry_trace'],
@@ -332,93 +316,6 @@ export const DARKNESS_LATE_WARNINGS: readonly DarknessLateWarning[] = [
     targetKey: 'trace',
     warning: 'След возврата можно вынести, но он станет фактом для Жилой зоны, Министерства или Якова.',
     tags: ['darkness', 'return_trace', 'late_warning', 'warning'],
-  },
-];
-
-const NPC_SPECS: readonly DarknessNpcSpec[] = [
-  {
-    key: 'darkness_lamp_bearer_nika',
-    name: 'Ника с лампой',
-    isFemale: true,
-    faction: Faction.CITIZEN,
-    occupation: Occupation.ELECTRICIAN,
-    roomKey: 'lamp',
-    dx: 3,
-    dy: 4,
-    hp: 90,
-    speed: 1.25,
-    money: 18,
-    inventory: [
-      { defId: 'flashlight', count: 1 },
-      { defId: 'lamp_bulb', count: 2 },
-      { defId: 'water', count: 1 },
-      {
-        defId: 'note',
-        count: 1,
-        data: 'Ника: свет не бесплатный. Потратишь на таблички - обратно пойдешь на ощупь.',
-      },
-    ],
-  },
-  {
-    key: 'darkness_name_lost',
-    name: 'Женщина без имени',
-    isFemale: true,
-    faction: Faction.CITIZEN,
-    occupation: Occupation.SECRETARY,
-    roomKey: 'name',
-    dx: 7,
-    dy: 5,
-    hp: 70,
-    speed: 0.8,
-    money: 0,
-    inventory: [
-      {
-        defId: 'note',
-        count: 1,
-        data: 'Под лампой читается: Тамара Белова, кв. нет, этаж спорный. В темноте строка снова пустая.',
-      },
-    ],
-  },
-  {
-    key: 'darkness_shadow_collector',
-    name: 'Сборщик у короткого хода',
-    isFemale: false,
-    faction: Faction.CULTIST,
-    occupation: Occupation.PILGRIM,
-    roomKey: 'toll',
-    dx: 7,
-    dy: 5,
-    hp: 160,
-    speed: 0.9,
-    money: 0,
-    inventory: [
-      {
-        defId: 'note',
-        count: 1,
-        data: 'Пошлина принимается лампой. Отказ принимается дракой. Обход принимает время.',
-      },
-    ],
-  },
-  {
-    key: 'darkness_return_trace',
-    name: 'След возврата',
-    isFemale: false,
-    faction: Faction.SCIENTIST,
-    occupation: Occupation.SCIENTIST,
-    roomKey: 'trace',
-    dx: 6,
-    dy: 4,
-    hp: 1,
-    speed: 0,
-    money: 0,
-    inventory: [
-      { defId: 'overexposed_photo', count: 1 },
-      {
-        defId: 'note',
-        count: 1,
-        data: 'На белом кадре проступает чужая подпись: Тамара Белова вернулась в список, но список не знает где.',
-      },
-    ],
   },
 ];
 
@@ -737,34 +634,6 @@ function addContainer(
   world.addContainer(container);
 }
 
-function spawnNpc(entities: Entity[], nextId: { v: number }, room: Room, spec: DarknessNpcSpec): number {
-  const id = nextId.v++;
-  entities.push({
-    id,
-    type: EntityType.NPC,
-    x: room.x + spec.dx + 0.5,
-    y: room.y + spec.dy + 0.5,
-    angle: Math.random() * Math.PI * 2,
-    pitch: 0,
-    alive: true,
-    speed: spec.speed,
-    sprite: spec.occupation,
-    name: spec.name,
-    isFemale: spec.isFemale,
-    needs: freshNeeds(),
-    hp: spec.hp,
-    maxHp: spec.hp,
-    ai: { goal: AIGoal.IDLE, tx: 0, ty: 0, path: [], pi: 0, stuck: 0, timer: 0 },
-    inventory: spec.inventory.map(item => ({ ...item })),
-    faction: spec.faction,
-    occupation: spec.occupation,
-    canGiveQuest: true,
-    questId: -1,
-    money: spec.money,
-  });
-  return id;
-}
-
 function spawnMonster(
   entities: Entity[],
   nextId: { v: number },
@@ -860,11 +729,6 @@ function buildRooms(world: World): { roomsByKey: Map<string, Room>; labels: Dark
 }
 
 function placeContent(world: World, entities: Entity[], nextId: { v: number }, roomsByKey: Map<string, Room>): void {
-  for (const spec of NPC_SPECS) {
-    const room = roomsByKey.get(spec.roomKey);
-    if (room) spawnNpc(entities, nextId, room, spec);
-  }
-
   const entry = roomsByKey.get('entry')!;
   const lamp = roomsByKey.get('lamp')!;
   const generator = roomsByKey.get('generator')!;

@@ -233,7 +233,7 @@ test('procedural population deck keeps random slots normal-density unless the ra
     }
   }
 
-  assert.equal(PROCEDURAL_FLOOR_ZS.length, 77);
+  assert.equal(PROCEDURAL_FLOOR_ZS.length, 76);
   assert.equal(summary.slots, PROCEDURAL_FLOOR_ZS.length * seeds.length);
   assert.equal(summary.highDensity > 0, true);
   assert.equal(summary.normal > summary.highDensity, true);

@@ -446,6 +446,35 @@ function seedContainers(world: World, room: Room, agafaId: number, markelId: num
   );
 }
 
+function canBuildSupplyRoom(world: World, x: number, y: number): boolean {
+  for (let dy = -1; dy <= ROOM_H; dy++) {
+    for (let dx = -1; dx <= ROOM_W; dx++) {
+      const ci = world.idx(x + dx, y + dy);
+      if (world.aptMask[ci] || world.cells[ci] === Cell.LIFT) return false;
+    }
+  }
+  return true;
+}
+
+function findSupplyRoomArea(world: World, zcx: number, zcy: number): { x: number; y: number } | null {
+  const clear = findClearArea(world, Math.floor(zcx), Math.floor(zcy), ROOM_W, ROOM_H, 14, 64);
+  if (clear) return clear;
+
+  const cx = Math.floor(zcx) - Math.floor(ROOM_W / 2);
+  const cy = Math.floor(zcy) - Math.floor(ROOM_H / 2);
+  for (let r = 0; r <= 96; r++) {
+    for (let dy = -r; dy <= r; dy++) {
+      for (let dx = -r; dx <= r; dx++) {
+        if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue;
+        const x = world.wrap(cx + dx);
+        const y = world.wrap(cy + dy);
+        if (canBuildSupplyRoom(world, x, y)) return { x, y };
+      }
+    }
+  }
+  return null;
+}
+
 function generateIstotitSupplyCache(
   world: World,
   nextRoomId: number,
@@ -454,7 +483,7 @@ function generateIstotitSupplyCache(
   zcx: number,
   zcy: number,
 ): { nextRoomId: number } {
-  const pos = findClearArea(world, Math.floor(zcx), Math.floor(zcy), ROOM_W, ROOM_H, 14, 64);
+  const pos = findSupplyRoomArea(world, zcx, zcy);
   if (!pos) {
     genLog(`[AG89] ${ROOM_NAME} skipped: no clear area near zone center (${zcx}, ${zcy})`);
     return { nextRoomId };

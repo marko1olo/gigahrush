@@ -6,7 +6,7 @@ Existing generator reference: `src/gen/hell/`. Planning sections below describe 
 
 ## Role
 
-Hell is high-threat combat and PSI survival: meat architecture, cultists, heralds, arenas, thin chapels, dangerous caches and short brutal routes. It is not a place to loiter.
+Hell is high-threat combat and PSI survival: meat architecture, cultists, liquidators, arenas, thin chapels, dangerous caches, a story foothold room and short brutal routes. It is not a place to loiter.
 
 Primary decisions: fight, flee, sacrifice resource, break ritual, use PSI, take rare cache, seal route.
 
@@ -14,7 +14,8 @@ Primary decisions: fight, flee, sacrifice resource, break ritual, use PSI, take 
 
 Use current Hell generator as base:
 
-- meat rooms, cult spaces, altar arena, PSI meat cache, thin-wall chapel, Herald threshold;
+- meat rooms, cult spaces, altar arena, PSI meat cache, thin-wall chapel and the story holdout anchor zone;
+- down lifts are normal Hell route exits, while Heralds live in Podad at `z=-40`;
 - compact routes with strong encounter identity;
 - more set pieces, not endless meat corridors.
 
@@ -42,7 +43,7 @@ Hell should feel near-constant but still structured: warning is short, shelters 
 
 - Chthonic Attic foreshadows roots/cult marks.
 - Underhell opens after Hell choices.
-- Void portal remains late route.
+- Podad carries the Herald gate for the lower route.
 - Ministry/Liquidators react to proof from Hell.
 
 ## DoD

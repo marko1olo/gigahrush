@@ -719,8 +719,18 @@ export interface Quest {
   // Generic route target metadata; unlike visitFloor, targetFloor is only a hint.
   targetFloor?: FloorLevel;
   targetRoomType?: RoomType;
+  targetRoomName?: string;
   targetZoneTag?: string;
   targetMarker?: QuestTargetMarker;
+  targetRoute?: {
+    designFloorId?: string;
+    z?: number;
+    anomalyId?: string;
+    proceduralTag?: string;
+    tags?: readonly string[];
+    label?: string;
+    risk?: number;
+  };
   targetHint?: string;
   // KILL: targetMonsterKind + killCount/killNeeded
   targetMonsterKind?: MonsterKind;
@@ -744,6 +754,14 @@ export interface Quest {
   contractFaction?: Faction;  // issuer faction for generated contracts
   contractRank?: number;      // license/difficulty tier
   visitFloor?: FloorLevel;    // auto-complete VISIT quest when entering this floor
+  holdSeconds?: number;       // VISIT: remain at target this many real seconds
+  holdProgressSeconds?: number;
+  holdLastTime?: number;
+  holdResetOnExit?: boolean;
+  holdSpawnMonsters?: number; // VISIT holdout: monsters per pressure wave
+  holdSpawnIntervalSeconds?: number;
+  holdSpawnMaxAlive?: number;
+  holdSpawnLastTime?: number;
   eventTags?: string[];       // extra tags for authored quest events
   eventData?: Record<string, unknown>; // extra compact data for authored quest events
   eventPrivacy?: WorldEventPrivacy; // privacy override for authored quest events

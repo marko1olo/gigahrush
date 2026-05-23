@@ -1,6 +1,6 @@
 # Design Floor: Нижний пропускник
 
-Status: implemented authored route floor. Route id: `underhell`. Anchor: `z=-40`. Base floor: `HELL`. Shipped HUD name: `Нижний пропускник`.
+Status: implemented authored route floor. Route id: `underhell`. Anchor: `z=-38`. Base floor: `HELL`. Shipped HUD name: `Нижний пропускник`.
 
 Owned file: `src/gen/design_floors/underhell.ts`. Planning sections below preserve the older `Ниже ада` brief and may predate the routed implementation.
 
@@ -48,7 +48,7 @@ No global morality system. Consequences publish events and affect relevant floor
 
 - Market 88 and Floor 69 debts can be burned here, with worse later consequence.
 - Chthonic Attic roots can change one Underhell route.
-- Void requires this floor's gate state for authored route.
+- Podad now carries the Herald lower-route gate; this floor remains the lower threshold before it.
 - Darkness can later reveal unpaid tribute.
 
 ## DoD

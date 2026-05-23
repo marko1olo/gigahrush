@@ -16,7 +16,7 @@ import {
 } from '../src/data/procedural_floors';
 import { DESIGN_FLOOR_ROUTES } from '../src/data/design_floors';
 import { ENTITY_SOFT_LIMITS } from '../src/data/entity_limits';
-import { PROCEDURAL_POPULATION_PROFILES } from '../src/data/population_profiles';
+import { HELL_POPULATION_PROFILE, PROCEDURAL_POPULATION_PROFILES } from '../src/data/population_profiles';
 import {
   BAD_APPLE_HEIGHT,
   BAD_APPLE_WIDTH,
@@ -53,6 +53,7 @@ import { tryZombieApocalypseInfection } from '../src/systems/procedural_anomalie
 import { routeCueCount } from '../src/systems/route_cues';
 import { getEmergencyPanels } from '../src/systems/emergency_panels';
 import { generateProceduralFloor } from '../src/gen/procedural_floor';
+import { generateDarknessDesignFloor } from '../src/gen/design_floors/darkness';
 import { generateDesignFloor } from '../src/gen/design_floors/manifest';
 import { generateFloor } from '../src/gen/floor_manifest';
 import {
@@ -343,7 +344,7 @@ test('floor run places pioneer camp one authored step above upper bureau', () =>
 });
 
 test('floor run exposes seeded procedural slots across the normal lift span', () => {
-  assert.equal(PROCEDURAL_FLOOR_COUNT, 77);
+  assert.equal(PROCEDURAL_FLOOR_COUNT, 76);
   assert.equal(PROCEDURAL_FLOOR_ZS[0], -49);
   assert.equal(PROCEDURAL_FLOOR_ZS.at(-1), 49);
   assert.equal(PROCEDURAL_FLOOR_ZS.includes(1), true);
@@ -490,11 +491,11 @@ test('procedural floor danger deck keeps route-band pressure rhythm', () => {
     upper: { slots: 135, averageTimes100: 313, dangerCounts: [0, 33, 54, 46, 2] },
     residential: { slots: 95, averageTimes100: 241, dangerCounts: [10, 39, 43, 3, 0] },
     industrial: { slots: 95, averageTimes100: 376, dangerCounts: [0, 7, 24, 49, 15] },
-    hellVoid: { slots: 60, averageTimes100: 472, dangerCounts: [0, 0, 2, 13, 45] },
+    hellVoid: { slots: 55, averageTimes100: 471, dangerCounts: [0, 0, 2, 12, 41] },
   });
   assert.deepEqual(summarizeAnomalyPressure(), {
-    none: { slots: 105, averageTimes100: 260, danger5: 2 },
-    anomaly: { slots: 280, averageTimes100: 364, danger5: 60 },
+    none: { slots: 104, averageTimes100: 259, danger5: 2 },
+    anomaly: { slots: 276, averageTimes100: 362, danger5: 56 },
   });
 });
 
@@ -504,7 +505,7 @@ test('procedural floor danger snapshot is deterministic by z and seed', () => {
     .join(' ');
 
   assert.equal(snapshot, [
-    '-49:5 -47:5 -46:5 -45:5 -44:5 -43:5 -42:5 -41:5 -39:5 -38:5 -37:4 -35:5 -34:5',
+    '-49:5 -47:5 -46:5 -45:5 -44:5 -43:5 -42:5 -41:5 -39:5 -37:4 -35:5 -34:5',
     '-33:5 -31:5 -30:4 -29:3 -28:4 -27:4 -25:4 -24:5 -23:3 -21:4 -20:4 -19:4',
     '-17:3 -16:2 -15:3 -13:3 -12:2 -11:2 -9:3 -8:2 -7:2 -6:3 -5:3 -3:3 -2:1 -1:3',
     '1:1 2:1 3:2 5:2 6:3 7:2 9:3 10:3 11:3 12:3 13:2 15:2 16:4 17:2',
@@ -665,6 +666,21 @@ test('void and lower route floors do not generate NPCs', () => {
   assert.equal(darknessGen.world.features.some(feature => feature === Feature.LAMP || feature === Feature.CANDLE), false);
   assert.equal(darknessGen.world.light.some(value => value > 0), false);
   assertFullFootprint(darknessGen.world, 'darkness design floor');
+
+  const rawDarknessGen = timeFloorGeneration('raw design darkness', () => generateDarknessDesignFloor());
+  assert.equal(rawDarknessGen.entities.some(e => e.type === EntityType.NPC), false);
+  assert.equal(rawDarknessGen.entities.some(e => e.type === EntityType.MONSTER), true);
+});
+
+test('podad ships as a denser-than-Hell monster floor with gated lower lifts', () => {
+  const gen = timeFloorGeneration('design podad population', () => generateDesignFloor('podad'));
+  const monsters = gen.entities.filter(e => e.type === EntityType.MONSTER);
+  const heralds = monsters.filter(e => e.monsterKind === MonsterKind.HERALD);
+  const hasDownLift = gen.world.cells.some((cell, idx) => cell === Cell.LIFT && gen.world.liftDir[idx] === LiftDirection.DOWN);
+
+  assert.equal(monsters.length > HELL_POPULATION_PROFILE.monsters.initial, true);
+  assert.equal(heralds.length, 3);
+  assert.equal(hasDownLift, false);
 });
 
 testGenerationMatrix('authored design floors occupy the full 1024x1024 route footprint', () => {

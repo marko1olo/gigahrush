@@ -6,7 +6,7 @@ Status: historical planning artifact that seeded the authored-floor wave. Curren
 
 This folder turns the requested large floor wave into implementable slices for separate GPT-5.5 agents. Many `.md` files are historical floor briefs with intended TS ownership, gameplay role, NPC/quest surface, cross-floor hooks and Definition of Done. Shipped route ids and z anchors are listed below and remain subordinate to source.
 
-The current game has 6 coded base floors, 18 routed authored design floors and procedural/fallback route floors. This folder preserves original agent briefs; treat planning sections below each doc as historical when they conflict with `README.md` or shipped route data.
+The current game has 6 coded base floors, 19 routed authored design floors and procedural/fallback route floors. This folder preserves original agent briefs; treat planning sections below each doc as historical when they conflict with `README.md` or shipped route data.
 
 ## Current Shipped Vertical Route
 
@@ -35,9 +35,10 @@ Down decreases `z`; up increases `z`. Design-floor rows mirror `src/data/design_
 | -26 | story | `FloorLevel.MAINTENANCE` | Коллекторы | `MAINTENANCE` | [collectors.md](collectors.md) |
 | -32 | design | `dark_metro` | Темная пересадка | `MAINTENANCE` | [dark_metro.md](dark_metro.md) |
 | -36 | story | `FloorLevel.HELL` | Мясной низ | `HELL` | [hell.md](hell.md) |
-| -40 | design | `underhell` | Нижний пропускник | `HELL` | [underhell.md](underhell.md) |
-| -46 | story | `FloorLevel.VOID` | Пустота | `VOID` | [void.md](void.md) |
-| -50 | design | `darkness` | Темный отсек | `VOID` | [darkness.md](darkness.md) |
+| -38 | design | `underhell` | Нижний пропускник | `HELL` | [underhell.md](underhell.md) |
+| -40 | design | `podad` | Подад | `HELL` | [podad.md](podad.md) |
+| -48 | design | `darkness` | Темный отсек | `VOID` | [darkness.md](darkness.md) |
+| -50 | story | `FloorLevel.VOID` | Пустота | `VOID` | [void.md](void.md) |
 
 Historical differences now called out explicitly: the original plan assumed a shorter `z=-44..40` route with authored stops every four z-levels. Shipped route data now spans `z=-50..+50`, keeps `LIVING` at `z=0`, reserves even z-slots for future authored/story floors, and uses procedural fallback for every unoccupied slot.
 
@@ -48,7 +49,7 @@ Historical differences now called out explicitly: the original plan assumed a sh
 - Floor 69 and Market 88 share vice/debt/blackmail state, but Floor 69 must stay non-graphic and adult-only.
 - Production feeds Market 88, Living scarcity, Ministry quotas and Collector repair parts.
 - Service Floor and Collectors control lifts, pressure and water consequences for all lower floors.
-- Hell, Underhell, Void and Darkness form the late descent: combat, ritual, protocol, then light failure. `hell` and `void` are story anchors, not design-floor route ids.
+- Hell, Underhell, Podad, Darkness and Void form the late descent: combat, lower threshold, moving meat topology, light failure and protocol. `hell` and `void` are story anchors, not design-floor route ids.
 - Roof, Antenna Court and Chthonic Attic make the upward route useful: sky, signal, weather, dangerous shortcuts and false safety.
 
 ## Agent Use

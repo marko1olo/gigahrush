@@ -12,7 +12,14 @@ import { isSilverSlimeItem, SILVER_SLIME_SEALED_ID } from '../data/items';
 
 import { addFactionRelMutual, getFactionRel } from '../data/relations';
 import { PLOT_CHAIN, PLOT_NPCS, SIDE_QUESTS, isPlotNpc, sideQuestPrereqsMet } from '../data/plot';
-import { CONTRACTS, GOVNYAK_COURIER_PACKAGE_ITEM, type ContractDef, contractToQuest, questTargetEventData } from '../data/contracts';
+import {
+  CONTRACTS,
+  GOVNYAK_COURIER_PACKAGE_ITEM,
+  type ContractDef,
+  type QuestRouteTarget,
+  contractToQuest,
+  questTargetEventData,
+} from '../data/contracts';
 import { addItem, removeItem } from './inventory';
 import { getScarcityAdjustedReward } from './economy';
 import {
@@ -52,7 +59,9 @@ const BASE_QUEST_GIVER_CHANCE = 0.35;
 
 interface AuthoredQuestMeta {
   targetFloor?: FloorLevel;
+  targetRoute?: QuestRouteTarget;
   targetRoomType?: number;
+  targetRoomName?: string;
   targetZoneTag?: string;
   targetHint?: string;
   eventTags?: string[];
@@ -63,12 +72,19 @@ interface AuthoredQuestMeta {
   failOnNpcDeathPlotId?: string;
   abandonsSideQuestIds?: string[];
   timeLimitMinutes?: number;
+  holdSeconds?: number;
+  holdResetOnExit?: boolean;
+  holdSpawnMonsters?: number;
+  holdSpawnIntervalSeconds?: number;
+  holdSpawnMaxAlive?: number;
 }
 
 function authoredQuestMeta(step: AuthoredQuestMeta, state: GameState): Partial<Quest> {
   const meta: Partial<Quest> = {};
   if (step.targetFloor !== undefined) meta.targetFloor = step.targetFloor;
+  if (step.targetRoute) meta.targetRoute = { ...step.targetRoute };
   if (step.targetRoomType !== undefined) meta.targetRoomType = step.targetRoomType as RoomType;
+  if (step.targetRoomName) meta.targetRoomName = step.targetRoomName;
   if (step.targetZoneTag) meta.targetZoneTag = step.targetZoneTag;
   if (step.targetHint) meta.targetHint = step.targetHint;
   if (step.eventTags?.length) meta.eventTags = [...step.eventTags];
@@ -82,6 +98,15 @@ function authoredQuestMeta(step: AuthoredQuestMeta, state: GameState): Partial<Q
     meta.timeLimitMinutes = step.timeLimitMinutes;
     meta.expiresAtMinutes = Math.ceil(state.clock.totalMinutes + step.timeLimitMinutes);
   }
+  if (step.holdSeconds !== undefined) {
+    meta.holdSeconds = Math.max(1, Math.round(step.holdSeconds));
+    meta.holdProgressSeconds = 0;
+    meta.holdLastTime = state.time;
+  }
+  if (step.holdResetOnExit !== undefined) meta.holdResetOnExit = step.holdResetOnExit;
+  if (step.holdSpawnMonsters !== undefined) meta.holdSpawnMonsters = Math.max(0, Math.round(step.holdSpawnMonsters));
+  if (step.holdSpawnIntervalSeconds !== undefined) meta.holdSpawnIntervalSeconds = Math.max(1, step.holdSpawnIntervalSeconds);
+  if (step.holdSpawnMaxAlive !== undefined) meta.holdSpawnMaxAlive = Math.max(1, Math.round(step.holdSpawnMaxAlive));
   return meta;
 }
 
@@ -98,7 +123,7 @@ function questSpawnMonstersOnAccept(q: Quest): number {
 }
 
 function visitNeedsConcreteTarget(q: Quest): boolean {
-  return q.targetRoom !== undefined || q.targetRoomType !== undefined || q.targetZoneTag !== undefined;
+  return q.targetRoom !== undefined || q.targetRoomType !== undefined || q.targetRoomName !== undefined || q.targetZoneTag !== undefined;
 }
 
 function checkVisitQuestAtPlayer(q: Quest, player: Entity, world: World, state: GameState): boolean {
@@ -227,10 +252,23 @@ function spawnQuestMonsters(
   nextEntityId: { v: number }, count: number,
   msgs: Msg[], time: number,
 ): void {
+  spawnQuestMonstersAt(npc.x, npc.y, world, entities, nextEntityId, count, msgs, time);
+}
+
+function spawnQuestMonstersAt(
+  x: number,
+  y: number,
+  world: World,
+  entities: Entity[],
+  nextEntityId: { v: number },
+  count: number,
+  msgs: Msg[],
+  time: number,
+): void {
   const slots = entitySpawnSlots(entities, EntityType.MONSTER, count);
   let spawned = 0;
   for (let i = 0; i < slots; i++) {
-    // Pick random floor cell in radius 3-8 from NPC (tight corridors)
+    // Pick random floor cell in radius 3-8 from anchor (tight corridors)
     const angle = (Math.PI * 2 * i) / slots + (Math.random() - 0.5) * 0.5;
     const dist = 3 + Math.random() * 5;
     let found = false;
@@ -238,8 +276,8 @@ function spawnQuestMonsters(
     for (let attempt = 0; attempt < 60; attempt++) {
       const a = angle + (attempt > 0 ? (Math.random() - 0.5) * 1.5 : 0);
       const d = dist + (attempt > 0 ? (Math.random() - 0.5) * 4 : 0);
-      const tx = ((Math.floor(npc.x) + Math.round(Math.cos(a) * d)) % W + W) % W;
-      const ty = ((Math.floor(npc.y) + Math.round(Math.sin(a) * d)) % W + W) % W;
+      const tx = ((Math.floor(x) + Math.round(Math.cos(a) * d)) % W + W) % W;
+      const ty = ((Math.floor(y) + Math.round(Math.sin(a) * d)) % W + W) % W;
       if (world.cells[world.idx(tx, ty)] === Cell.FLOOR) {
         mx = tx; my = ty; found = true; break;
       }
@@ -257,14 +295,14 @@ function spawnQuestMonsters(
     entities.push({
       id: nextEntityId.v++, type: EntityType.MONSTER,
       x: mx + 0.5, y: my + 0.5,
-      angle: Math.atan2(npc.y - my - 0.5, npc.x - mx - 0.5),
+      angle: Math.atan2(y - my - 0.5, x - mx - 0.5),
       pitch: 0, alive: true,
       speed: scaleMonsterSpeed(mdef.speed, zoneLevel),
       sprite: mdef.sprite,
       hp: scaleMonsterHp(mdef.hp, zoneLevel),
       maxHp: scaleMonsterHp(mdef.hp, zoneLevel),
       monsterKind: kind, attackCd: 0,
-      ai: { goal: AIGoal.WANDER, tx: Math.floor(npc.x), ty: Math.floor(npc.y), path: [], pi: 0, stuck: 0, timer: 0 },
+      ai: { goal: AIGoal.WANDER, tx: Math.floor(x), ty: Math.floor(y), path: [], pi: 0, stuck: 0, timer: 0 },
       rpg,
     });
     spawned++;
@@ -274,10 +312,77 @@ function spawnQuestMonsters(
   }
 }
 
+function holdAnchor(q: Quest, player: Entity, world: World, state: GameState): { present: boolean; x: number; y: number } {
+  const resolved = resolveQuestTargetRoom(world, q, player);
+  if (resolved) {
+    q.targetRoom = resolved.room.id;
+    const room = world.roomAt(player.x, player.y);
+    return {
+      present: !!room && room.id === resolved.room.id,
+      x: resolved.room.x + resolved.room.w / 2,
+      y: resolved.room.y + resolved.room.h / 2,
+    };
+  }
+  return { present: checkVisitQuestAtPlayer(q, player, world, state), x: player.x, y: player.y };
+}
+
+function countMonstersNear(world: World, entities: readonly Entity[], x: number, y: number, radius: number): number {
+  let count = 0;
+  const r2 = radius * radius;
+  for (const e of entities) {
+    if (e.type !== EntityType.MONSTER || !e.alive) continue;
+    if (world.dist2(x, y, e.x, e.y) <= r2) count++;
+  }
+  return count;
+}
+
+function updateHoldoutQuest(
+  q: Quest,
+  player: Entity,
+  world: World,
+  entities: Entity[],
+  state: GameState,
+  msgs: Msg[],
+  nextEntityId?: { v: number },
+): boolean {
+  if (q.holdSeconds === undefined) return false;
+  if (!isQuestTargetOnCurrentFloor(q, state)) {
+    q.holdLastTime = state.time;
+    if (q.holdResetOnExit) q.holdProgressSeconds = 0;
+    return false;
+  }
+
+  const anchor = holdAnchor(q, player, world, state);
+  const last = q.holdLastTime ?? state.time;
+  const dt = Math.max(0, Math.min(2, state.time - last));
+  q.holdLastTime = state.time;
+
+  if (!anchor.present) {
+    if (q.holdResetOnExit && (q.holdProgressSeconds ?? 0) > 0) {
+      q.holdProgressSeconds = 0;
+      msgs.push(msg('Удержание сорвано: зона потеряна, таймер пошёл заново.', state.time, '#fa4'));
+    }
+    return false;
+  }
+
+  q.holdProgressSeconds = Math.min(q.holdSeconds, (q.holdProgressSeconds ?? 0) + dt);
+
+  if (nextEntityId && q.holdSpawnMonsters && q.holdSpawnIntervalSeconds) {
+    const maxAlive = q.holdSpawnMaxAlive ?? Math.max(6, q.holdSpawnMonsters * 3);
+    const lastSpawn = q.holdSpawnLastTime ?? -Infinity;
+    if (state.time - lastSpawn >= q.holdSpawnIntervalSeconds && countMonstersNear(world, entities, anchor.x, anchor.y, 30) < maxAlive) {
+      q.holdSpawnLastTime = state.time;
+      spawnQuestMonstersAt(anchor.x, anchor.y, world, entities, nextEntityId, q.holdSpawnMonsters, msgs, state.time);
+    }
+  }
+
+  return q.holdProgressSeconds >= q.holdSeconds;
+}
+
 /* ── Check all active quests for completion ───────────────────── */
 export function checkQuests(
   player: Entity, world: World, entities: Entity[],
-  state: GameState, msgs: Msg[],
+  state: GameState, msgs: Msg[], nextEntityId?: { v: number },
 ): void {
   for (const q of state.quests) {
     if (q.done) continue;
@@ -307,7 +412,9 @@ export function checkQuests(
         break;
 
       case QuestType.VISIT:
-        complete = checkVisitQuestAtPlayer(q, player, world, state);
+        complete = q.holdSeconds !== undefined
+          ? updateHoldoutQuest(q, player, world, entities, state, msgs, nextEntityId)
+          : checkVisitQuestAtPlayer(q, player, world, state);
         break;
 
       case QuestType.KILL:

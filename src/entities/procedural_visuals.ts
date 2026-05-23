@@ -27,19 +27,6 @@ const CIVILIAN_TOPS: readonly RGB[] = [
 const CIVILIAN_PANTS: readonly RGB[] = [
   [54, 52, 58], [62, 56, 46], [48, 62, 82], [74, 66, 58], [36, 42, 52],
 ];
-const FLOOR69_STAGE_TOPS: readonly RGB[] = [
-  [112, 34, 58], [42, 58, 112], [38, 106, 98], [48, 44, 54],
-  [132, 105, 54], [124, 72, 96], [70, 82, 110], [116, 116, 108],
-];
-const FLOOR69_STAGE_BOTTOMS: readonly RGB[] = [
-  [30, 28, 34], [58, 44, 62], [42, 48, 62], [72, 54, 44],
-  [88, 70, 42], [38, 66, 60], [96, 50, 72],
-];
-const FLOOR69_STAGE_ACCENTS: readonly RGB[] = [
-  [220, 178, 78], [214, 92, 142], [92, 190, 184], [196, 208, 214],
-  [168, 118, 208], [238, 128, 78],
-];
-
 function mix32(v: number): number {
   v >>>= 0;
   v ^= v >>> 16;
@@ -280,64 +267,6 @@ function addNpcEquipment(
   }
 }
 
-function paintFloor69StageOutfit(t: Uint32Array, seed: number): void {
-  const cx = 32 + Math.floor((rnd(seed, 2) - 0.5) * 3);
-  const top = rgbJitter(pickRgb(FLOOR69_STAGE_TOPS, seed, 801), seed, 802, 24);
-  const bottom = rgbJitter(pickRgb(FLOOR69_STAGE_BOTTOMS, seed, 811), seed, 812, 18);
-  const accent = rgbJitter(pickRgb(FLOOR69_STAGE_ACCENTS, seed, 821), seed, 822, 22);
-  const coat = rnd(seed, 831) > 0.42;
-  const yTop = 23;
-  const yMid = 42 + Math.floor(rnd(seed, 832) * 3);
-  const yBot = 55;
-
-  for (let y = yTop; y < yMid; y++) {
-    const k = (y - yTop) / Math.max(1, yMid - yTop);
-    const hw = Math.floor(7 + k * (coat ? 4 : 3));
-    for (let x = cx - hw; x <= cx + hw; x++) {
-      if (x < 0 || x >= S || y < 0 || y >= S || t[y * S + x] === CLEAR) continue;
-      const side = Math.abs(x - cx) / Math.max(1, hw);
-      const n = Math.floor((noise(x, y, seed + 840) - 0.5) * 18 - side * 10);
-      t[y * S + x] = col(top, n);
-    }
-  }
-
-  for (let y = yMid - 2; y < yBot; y++) {
-    const k = (y - yMid + 2) / Math.max(1, yBot - yMid + 2);
-    const hw = Math.floor((coat ? 9 : 7) + k * (coat ? 3 : 5));
-    for (let x = cx - hw; x <= cx + hw; x++) {
-      if (x < 0 || x >= S || y < 0 || y >= S || t[y * S + x] === CLEAR) continue;
-      const n = Math.floor((noise(x, y, seed + 850) - 0.5) * 16);
-      t[y * S + x] = col(bottom, n);
-    }
-  }
-
-  const sashY = 31 + Math.floor(rnd(seed, 861) * 7);
-  for (let x = cx - 8; x <= cx + 8; x++) {
-    const y = sashY + Math.floor((x - cx) * (rnd(seed, 862) > 0.5 ? 0.18 : -0.18));
-    if (x >= 0 && x < S && y >= 0 && y < S && t[y * S + x] !== CLEAR) t[y * S + x] = col(accent);
-  }
-  if (rnd(seed, 870) > 0.5) {
-    paintRect(t, cx + 8, 35, 4, 11, accent, seed + 871, 245);
-    paintLine(t, cx + 7, 32, cx + 11, 45, accent, seed + 872, 0);
-  } else {
-    paintRect(t, cx - 11, 28, 4, 8, accent, seed + 873, 238);
-  }
-}
-
-function generateFloor69ClothedNpcSprite(seed: number): Uint32Array {
-  const bodySeed = mix32(seed ^ 0xf69c0de);
-  const occupations = [
-    Occupation.TRAVELER,
-    Occupation.SECRETARY,
-    Occupation.STOREKEEPER,
-    Occupation.HOUSEWIFE,
-  ] as const;
-  const occ = occupations[Math.floor(rnd(bodySeed, 790) * occupations.length) % occupations.length];
-  const t = generateProceduralNpcSprite(bodySeed, occ, Faction.CITIZEN, true, occ);
-  paintFloor69StageOutfit(t, bodySeed);
-  return t;
-}
-
 function paintMatch(t: Uint32Array, x0: number, y0: number, x1: number, y1: number, seed: number, headAtEnd = true): void {
   paintLine(t, x0 + 1, y0 + 1, x1 + 1, y1 + 1, [58, 40, 28], seed + 1, 1);
   paintLine(t, x0, y0, x1, y1, [174, 128, 72], seed + 2, 1);
@@ -566,7 +495,7 @@ export function generateProceduralMonsterSprite(kind: MonsterKind, seed: number,
 export function entityUsesProceduralSprite(e: Entity): boolean {
   if (e.type === EntityType.MONSTER) return true;
   if (e.type !== EntityType.NPC) return false;
-  return (e.sprite >= 0 && e.sprite <= Occupation.PRIEST) || isFloor69FemaleSprite(e.sprite);
+  return e.sprite >= 0 && e.sprite <= Occupation.PRIEST;
 }
 
 export function isFloor69FemaleSprite(sprite: number): boolean {
@@ -606,9 +535,6 @@ export function proceduralEntitySpriteKey(e: Entity): number {
 
 export function generateProceduralEntitySprite(e: Entity): Uint32Array | null {
   const seed = proceduralEntitySpriteKey(e);
-  if (e.type === EntityType.NPC && isFloor69FemaleSprite(e.sprite)) {
-    return generateFloor69ClothedNpcSprite(seed);
-  }
   if (e.type === EntityType.NPC && e.plotNpcId === 'vanka') {
     return generateVankaMatchSprite(seed);
   }

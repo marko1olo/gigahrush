@@ -8,13 +8,29 @@ import {
   openStandalonePage,
 } from './fullscreen';
 import { isStandaloneDisplay } from './pwa';
+import { getLocalizationLanguage } from './systems/localization';
 
 export type MobileMenuId = 'inventory' | 'map' | 'quests' | 'log' | 'factions' | 'net' | 'menu' | 'debug';
 
-interface MobileMenuItem {
+interface MobileText {
+  ru: string;
+  en: string;
+}
+
+interface MobileActionBase {
+  label: MobileText;
+  ariaLabel: MobileText;
+}
+
+interface MobileMenuAction extends MobileActionBase {
+  kind: 'menu';
   id: MobileMenuId;
-  label: string;
-  ariaLabel: string;
+}
+
+interface MobileInputAction extends MobileActionBase {
+  kind: 'input';
+  input: BooleanInputKey;
+  hold?: boolean;
 }
 
 export interface MobileControlsContext {
@@ -42,16 +58,32 @@ type BooleanInputKey = {
   [K in keyof InputState]: InputState[K] extends boolean ? K : never;
 }[keyof InputState];
 
-const MENU_ITEMS: readonly MobileMenuItem[] = [
-  { id: 'inventory', label: 'ИНВ', ariaLabel: 'Открыть инвентарь' },
-  { id: 'map', label: 'КАРТА', ariaLabel: 'Открыть карту' },
-  { id: 'quests', label: 'ЗАД', ariaLabel: 'Открыть задания' },
-  { id: 'log', label: 'ЖУРН', ariaLabel: 'Открыть журнал сообщений' },
-  { id: 'factions', label: 'ФРАК', ariaLabel: 'Открыть фракции' },
-  { id: 'net', label: 'НЕТ', ariaLabel: 'Открыть НЕТ-СФЕРУ' },
-  { id: 'menu', label: 'МЕНЮ', ariaLabel: 'Открыть меню сохранения' },
-  { id: 'debug', label: 'ОТЛ', ariaLabel: 'Открыть отладочное меню' },
+type MobileAction = MobileMenuAction | MobileInputAction;
+
+const MOBILE_ACTIONS: readonly MobileAction[] = [
+  { kind: 'menu', id: 'inventory', label: { ru: 'ИНВ', en: 'INV' }, ariaLabel: { ru: 'Открыть инвентарь', en: 'Open inventory' } },
+  { kind: 'menu', id: 'map', label: { ru: 'КАРТА', en: 'MAP' }, ariaLabel: { ru: 'Открыть карту', en: 'Open map' } },
+  { kind: 'menu', id: 'quests', label: { ru: 'ЗАД', en: 'QUEST' }, ariaLabel: { ru: 'Открыть задания', en: 'Open quests' } },
+  { kind: 'menu', id: 'log', label: { ru: 'ЖУРН', en: 'LOG' }, ariaLabel: { ru: 'Открыть журнал сообщений', en: 'Open message log' } },
+  { kind: 'menu', id: 'factions', label: { ru: 'ФРАК', en: 'FACT' }, ariaLabel: { ru: 'Открыть фракции', en: 'Open factions' } },
+  { kind: 'menu', id: 'net', label: { ru: 'НЕТ', en: 'NET' }, ariaLabel: { ru: 'Открыть НЕТ-СФЕРУ', en: 'Open Net Sphere' } },
+  { kind: 'menu', id: 'menu', label: { ru: 'МЕНЮ', en: 'MENU' }, ariaLabel: { ru: 'Открыть меню сохранения', en: 'Open save menu' } },
+  { kind: 'input', input: 'attack', hold: true, label: { ru: 'БОЙ', en: 'FIRE' }, ariaLabel: { ru: 'Атака', en: 'Attack' } },
+  { kind: 'input', input: 'interact', hold: true, label: { ru: 'ДЕЙСТ', en: 'ACT' }, ariaLabel: { ru: 'Взаимодействие', en: 'Interact' } },
+  { kind: 'input', input: 'use', hold: true, label: { ru: 'ИНСТР', en: 'TOOL' }, ariaLabel: { ru: 'Использовать инструмент', en: 'Use tool' } },
+  { kind: 'input', input: 'sleep', hold: true, label: { ru: 'СОН', en: 'SLEEP' }, ariaLabel: { ru: 'Спать, удерживать', en: 'Sleep, hold' } },
+  { kind: 'input', input: 'pee', hold: true, label: { ru: 'ПИС', en: 'PEE' }, ariaLabel: { ru: 'Пописать', en: 'Pee' } },
+  { kind: 'input', input: 'controls', label: { ru: 'КЛАВ', en: 'KEYS' }, ariaLabel: { ru: 'Открыть экран клавиш', en: 'Open controls screen' } },
+  { kind: 'input', input: 'drop', label: { ru: 'СБРОС', en: 'DROP' }, ariaLabel: { ru: 'Выбросить или перенести вправо', en: 'Drop or move right' } },
+  { kind: 'input', input: 'attrStr', label: { ru: 'СИЛ', en: 'STR' }, ariaLabel: { ru: 'Очко в силу', en: 'Spend point on strength' } },
+  { kind: 'input', input: 'attrAgi', label: { ru: 'ЛОВ', en: 'AGI' }, ariaLabel: { ru: 'Очко в ловкость', en: 'Spend point on agility' } },
+  { kind: 'input', input: 'attrInt', label: { ru: 'ИНТ', en: 'INT' }, ariaLabel: { ru: 'Очко в интеллект', en: 'Spend point on intellect' } },
+  { kind: 'menu', id: 'debug', label: { ru: 'ОТЛ', en: 'DBG' }, ariaLabel: { ru: 'Открыть отладочное меню', en: 'Open debug menu' } },
 ];
+
+function mobileText(text: MobileText): string {
+  return getLocalizationLanguage() === 'en' ? text.en : text.ru;
+}
 
 function shouldUseTouchControls(): boolean {
   const ua = navigator.userAgent;
@@ -89,7 +121,7 @@ export function createMobileControls(input: InputState, options: MobileControlsO
 
   const rotate = document.createElement('div');
   rotate.className = 'mobile-rotate';
-  rotate.textContent = 'Поверните телефон горизонтально';
+  rotate.textContent = mobileText({ ru: 'Поверните телефон горизонтально', en: 'Rotate phone landscape' });
 
   const movePad = makeButton('mobile-pad mobile-pad--move', '', 'Джойстик движения');
   const moveThumb = document.createElement('span');
@@ -101,25 +133,27 @@ export function createMobileControls(input: InputState, options: MobileControlsO
   lookThumb.className = 'mobile-pad-thumb';
   lookPad.append(lookThumb);
 
-  const interact = makeButton('mobile-interact', 'E', 'Взаимодействие');
-  const fire = makeButton('mobile-fire-zone', '', 'Атака');
-  const fullscreen = makeButton('mobile-fullscreen', 'FULL', 'Полный экран');
+  const interact = makeButton('mobile-interact', 'E', mobileText({ ru: 'Взаимодействие', en: 'Interact' }));
+  const fire = makeButton('mobile-fire-zone', '', mobileText({ ru: 'Атака', en: 'Attack' }));
+  const fullscreen = makeButton('mobile-fullscreen', 'FULL', mobileText({ ru: 'Полный экран', en: 'Fullscreen' }));
 
-  const menuRail = document.createElement('div');
-  menuRail.className = 'mobile-menu-rail';
-  const menuUp = makeButton('mobile-menu-btn', '▲', 'Меню выше');
-  const menuSelect = makeButton('mobile-menu-btn mobile-menu-select', MENU_ITEMS[0].label, MENU_ITEMS[0].ariaLabel);
-  const menuDown = makeButton('mobile-menu-btn', '▼', 'Меню ниже');
-  menuRail.append(menuUp, menuSelect, menuDown);
+  const actionRail = document.createElement('div');
+  actionRail.className = 'mobile-menu-rail';
+  const actionUp = makeButton('mobile-menu-btn', '▲', mobileText({ ru: 'Действие выше', en: 'Previous action' }));
+  const actionSelect = makeButton('mobile-menu-btn mobile-menu-select', mobileText(MOBILE_ACTIONS[0].label), mobileText(MOBILE_ACTIONS[0].ariaLabel));
+  const actionDown = makeButton('mobile-menu-btn', '▼', mobileText({ ru: 'Действие ниже', en: 'Next action' }));
+  actionRail.append(actionUp, actionSelect, actionDown);
 
-  root.append(rotate, fire, fullscreen, movePad, lookPad, interact, menuRail);
+  root.append(rotate, fire, fullscreen, movePad, lookPad, interact, actionRail);
   document.body.append(root);
 
   let enabled = false;
-  let selectedMenu = 0;
+  let selectedAction = 0;
   let movePointer = -1;
   let lookPointer = -1;
   let firePointer = -1;
+  let actionPointer = -1;
+  let heldActionInput: BooleanInputKey | null = null;
   let moveActive = false;
   let lookActive = false;
   let context: MobileControlsContext = {
@@ -134,14 +168,30 @@ export function createMobileControls(input: InputState, options: MobileControlsO
     (input as unknown as Record<BooleanInputKey, boolean>)[key] = value;
   };
 
+  const setActionInput = (key: BooleanInputKey, value: boolean): void => {
+    if (key === 'interact') {
+      input.interact = value ? !input.interactHeld : false;
+      input.interactHeld = value;
+      return;
+    }
+    setBool(key, value);
+  };
+
   const pulse = (key: BooleanInputKey): void => {
-    setBool(key, true);
+    setActionInput(key, true);
     const old = pulseTimers.get(key);
     if (old) clearTimeout(old);
     pulseTimers.set(key, setTimeout(() => {
-      setBool(key, false);
+      setActionInput(key, false);
       pulseTimers.delete(key);
     }, 90));
+  };
+
+  const releaseHeldAction = (): void => {
+    if (!heldActionInput) return;
+    setActionInput(heldActionInput, false);
+    heldActionInput = null;
+    actionPointer = -1;
   };
 
   const updateTouchActive = (): void => {
@@ -155,8 +205,10 @@ export function createMobileControls(input: InputState, options: MobileControlsO
     input.touch.lookY = 0;
     input.touch.active = false;
     input.mouseAttack = false;
-    input.interact = false;
-    input.interactHeld = false;
+    releaseHeldAction();
+    for (const action of MOBILE_ACTIONS) {
+      if (action.kind === 'input') setActionInput(action.input, false);
+    }
     moveActive = false;
     lookActive = false;
     movePointer = -1;
@@ -166,13 +218,26 @@ export function createMobileControls(input: InputState, options: MobileControlsO
     lookThumb.style.transform = '';
   };
 
+  const updateLocalizedText = (): void => {
+    rotate.textContent = mobileText({ ru: 'Поверните телефон горизонтально', en: 'Rotate phone landscape' });
+    movePad.setAttribute('aria-label', mobileText({ ru: 'Джойстик движения', en: 'Movement stick' }));
+    lookPad.setAttribute('aria-label', mobileText({ ru: 'Джойстик камеры', en: 'Camera stick' }));
+    interact.setAttribute('aria-label', mobileText({ ru: 'Взаимодействие', en: 'Interact' }));
+    fire.setAttribute('aria-label', mobileText({ ru: 'Атака', en: 'Attack' }));
+    actionUp.setAttribute('aria-label', mobileText(context.menuOpen ? { ru: 'Меню выше', en: 'Menu up' } : { ru: 'Действие выше', en: 'Previous action' }));
+    actionDown.setAttribute('aria-label', mobileText(context.menuOpen ? { ru: 'Меню ниже', en: 'Menu down' } : { ru: 'Действие ниже', en: 'Next action' }));
+  };
+
   const updateSelectedLabel = (): void => {
-    menuSelect.textContent = context.menuOpen
-      ? (context.gameOver ? 'R' : 'ЗАКР')
-      : MENU_ITEMS[selectedMenu].label;
-    menuSelect.setAttribute(
+    const action = MOBILE_ACTIONS[selectedAction];
+    actionSelect.textContent = context.menuOpen
+      ? (context.gameOver ? 'R' : mobileText({ ru: 'ЗАКР', en: 'CLOSE' }))
+      : mobileText(action.label);
+    actionSelect.setAttribute(
       'aria-label',
-      context.menuOpen ? (context.gameOver ? 'Перезапуск' : 'Закрыть меню') : MENU_ITEMS[selectedMenu].ariaLabel,
+      context.menuOpen
+        ? (context.gameOver ? mobileText({ ru: 'Перезапуск', en: 'Restart' }) : mobileText({ ru: 'Закрыть меню', en: 'Close menu' }))
+        : mobileText(action.ariaLabel),
     );
   };
 
@@ -187,7 +252,11 @@ export function createMobileControls(input: InputState, options: MobileControlsO
     fullscreen.textContent = embedded ? '↗' : (active ? 'EXIT' : 'FULL');
     fullscreen.setAttribute(
       'aria-label',
-      embedded ? 'Открыть игру отдельной страницей' : (isMobileFullscreenActive() ? 'Выйти из полного экрана' : 'Полный экран'),
+      embedded
+        ? mobileText({ ru: 'Открыть игру отдельной страницей', en: 'Open game in a separate page' })
+        : (isMobileFullscreenActive()
+          ? mobileText({ ru: 'Выйти из полного экрана', en: 'Exit fullscreen' })
+          : mobileText({ ru: 'Полный экран', en: 'Fullscreen' })),
     );
   };
 
@@ -207,6 +276,7 @@ export function createMobileControls(input: InputState, options: MobileControlsO
     root.classList.toggle('can-interact', context.canInteract);
     root.classList.toggle('is-game-over', context.gameOver);
     root.classList.toggle('is-portrait', portrait);
+    updateLocalizedText();
     updateSelectedLabel();
     updateFullscreenUi();
   };
@@ -313,24 +383,34 @@ export function createMobileControls(input: InputState, options: MobileControlsO
     el.addEventListener('lostpointercapture', pointerEnd);
   };
 
-  const menuNav = (dir: number): void => {
+  const actionNav = (dir: number): void => {
     options.onGesture();
     if (context.menuOpen) {
       pulse(dir < 0 ? 'invUp' : 'invDn');
     } else {
-      selectedMenu = (selectedMenu + MENU_ITEMS.length + dir) % MENU_ITEMS.length;
+      selectedAction = (selectedAction + MOBILE_ACTIONS.length + dir) % MOBILE_ACTIONS.length;
       updateSelectedLabel();
     }
   };
 
-  const menuConfirm = (): void => {
+  const actionConfirm = (e: PointerEvent): void => {
     options.onGesture();
     if (context.gameOver) {
       pulse('use');
     } else if (context.menuOpen) {
       options.onClose();
     } else {
-      options.onMenu(MENU_ITEMS[selectedMenu].id);
+      const action = MOBILE_ACTIONS[selectedAction];
+      if (action.kind === 'menu') {
+        options.onMenu(action.id);
+      } else if (action.hold) {
+        actionPointer = e.pointerId;
+        heldActionInput = action.input;
+        capturePointer(actionSelect, e.pointerId);
+        setActionInput(action.input, true);
+      } else {
+        pulse(action.input);
+      }
     }
   };
 
@@ -378,24 +458,33 @@ export function createMobileControls(input: InputState, options: MobileControlsO
   fire.addEventListener('pointercancel', endFire);
   fire.addEventListener('lostpointercapture', endFire);
 
-  menuUp.addEventListener('pointerdown', e => {
+  actionUp.addEventListener('pointerdown', e => {
     if (!enabled || !context.started) return;
     e.preventDefault();
     e.stopPropagation();
-    menuNav(-1);
+    actionNav(-1);
   });
-  menuDown.addEventListener('pointerdown', e => {
+  actionDown.addEventListener('pointerdown', e => {
     if (!enabled || !context.started) return;
     e.preventDefault();
     e.stopPropagation();
-    menuNav(1);
+    actionNav(1);
   });
-  menuSelect.addEventListener('pointerdown', e => {
+  actionSelect.addEventListener('pointerdown', e => {
     if (!enabled || !context.started) return;
     e.preventDefault();
     e.stopPropagation();
-    menuConfirm();
+    actionConfirm(e);
   });
+  const actionEnd = (e: PointerEvent): void => {
+    if (e.pointerId !== actionPointer) return;
+    e.preventDefault();
+    releasePointer(actionSelect, e.pointerId);
+    releaseHeldAction();
+  };
+  actionSelect.addEventListener('pointerup', actionEnd);
+  actionSelect.addEventListener('pointercancel', actionEnd);
+  actionSelect.addEventListener('lostpointercapture', actionEnd);
 
   const onResize = (): void => refresh();
   window.addEventListener('resize', onResize);

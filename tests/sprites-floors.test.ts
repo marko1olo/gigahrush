@@ -3,6 +3,7 @@ import * as assert from 'node:assert/strict';
 
 import { Cell, ContainerKind, EntityType, Feature, FloorLevel, MonsterKind, Occupation, Tex, type Entity } from '../src/core/types';
 import { entityUsesProceduralSprite, generateProceduralEntitySprite, isFloor69FemaleSprite } from '../src/entities/procedural_visuals';
+import { generateDesignFloor } from '../src/gen/design_floors/manifest';
 import { generateFloor, isFloorLevel } from '../src/gen/floor_manifest';
 import { S } from '../src/render/pixutil';
 import {
@@ -166,7 +167,7 @@ test('texture atlas procedural ranges stay allocated and filled', () => {
   }
 });
 
-test('F69 NPC sprites use seed-driven procedural adult variants', () => {
+test('F69 authored NPC sprites stay on the atlas path instead of default procedural NPC sprites', () => {
   const f69Npc: Entity = {
     id: 6901,
     type: EntityType.NPC,
@@ -185,24 +186,15 @@ test('F69 NPC sprites use seed-driven procedural adult variants', () => {
     id: 6902,
     sprite: Occupation.TRAVELER,
   };
-  const otherF69Npc: Entity = {
-    ...f69Npc,
-    id: 6903,
-    name: 'Другая сцена',
-  };
   const authoredNpc: Entity = {
     ...f69Npc,
     id: 6904,
     sprite: Spr.VETERAN,
   };
 
-  const f69Sprite = generateProceduralEntitySprite(f69Npc);
-  const otherF69Sprite = generateProceduralEntitySprite(otherF69Npc);
   assert.equal(isFloor69FemaleSprite(f69Npc.sprite), true);
-  assert.equal(entityUsesProceduralSprite(f69Npc), true);
-  assert.equal(f69Sprite?.length, S * S);
-  assert.equal(otherF69Sprite?.length, S * S);
-  assert.notEqual(spriteHash(f69Sprite!), spriteHash(otherF69Sprite!));
+  assert.equal(entityUsesProceduralSprite(f69Npc), false);
+  assert.equal(generateProceduralEntitySprite(f69Npc), null);
   assert.equal(entityUsesProceduralSprite(travelerNpc), true);
   assert.equal(generateProceduralEntitySprite(travelerNpc)?.length, S * S);
   assert.equal(entityUsesProceduralSprite(authoredNpc), false);
@@ -241,6 +233,31 @@ test('all floor generators return playable spawn cells and live actors', () => {
     assert.equal(generated.world.solid(sx, sy), false, `floor ${floor} spawn must not be solid`);
     assert.equal(generated.world.zones.length, 64, `floor ${floor} should have 64 zones`);
     assert.ok(generated.entities.some(e => e.alive && (e.type === EntityType.NPC || e.type === EntityType.MONSTER)));
+  }
+});
+
+test('living generation places AG89 Istotit supply cache quest content', () => {
+  const generated = generateFloor(FloorLevel.LIVING);
+  const plotNpcIds = new Set(generated.entities
+    .filter(e => e.type === EntityType.NPC && e.plotNpcId)
+    .map(e => e.plotNpcId));
+
+  assert.equal(generated.world.rooms.some(room => room?.name === 'Общий свечной запас'), true);
+  for (const id of ['ag89_agafa_svechnaya', 'ag89_savva_guard', 'ag89_markel_report', 'ag89_lida_barter']) {
+    assert.equal(plotNpcIds.has(id), true, `${id} should spawn with AG89 supply cache`);
+  }
+});
+
+test('floor 69 floor screens are registered as signal screen cells', () => {
+  const generated = generateDesignFloor('floor_69');
+  const screenFeatureCells: number[] = [];
+  for (let i = 0; i < generated.world.features.length; i++) {
+    if (generated.world.features[i] === Feature.SCREEN) screenFeatureCells.push(i);
+  }
+
+  assert.ok(screenFeatureCells.length >= 2);
+  for (const ci of screenFeatureCells) {
+    assert.equal(generated.world.screenCells.includes(ci), true, `screen feature cell ${ci} should be in screenCells`);
   }
 });
 

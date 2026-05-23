@@ -124,7 +124,9 @@ export function floor69DebugLines(state: Floor69State, seed = FLOOR_69_DEFAULT_S
 }
 
 /*
- * Adult-only constraint: Floor 69 handles social crime and harm reduction.
+ * Adult-only constraint: Floor 69 is an optional 18+ route floor about adult
+ * vice, social crime and harm reduction. It is not mandatory progression
+ * content and should not be sanitized into generic residential material.
  * Do not add minors, child sprites, graphic sex text, or explicit mechanics here.
  */
 const NPC_DEFS: Record<string, PlotNpcDef> = {
@@ -517,7 +519,9 @@ function connect(
 
 function setFeature(world: World, x: number, y: number, feature: Feature): void {
   const ci = world.idx(x, y);
-  if (world.cells[ci] === Cell.FLOOR) world.features[ci] = feature;
+  if (world.cells[ci] !== Cell.FLOOR) return;
+  world.features[ci] = feature;
+  if (feature === Feature.SCREEN && !world.screenCells.includes(ci)) world.screenCells.push(ci);
 }
 
 function addScreenWall(world: World, x: number, y: number, variant: number): void {

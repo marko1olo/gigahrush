@@ -446,13 +446,6 @@ export function combatWeaponHudLines(weapon: Pick<
   };
 }
 
-function compactHudBottomReserve(w: number, h: number, panelH: number, sy: number): number {
-  if (w <= h || h >= 560) return 0;
-  const controlReserve = Math.min(150, Math.max(96, h * 0.32));
-  const minReadableTop = 90 * sy;
-  return Math.min(controlReserve, Math.max(0, h - minReadableTop - panelH));
-}
-
 interface CombatTargetHud {
   name: string;
   dist: number;
@@ -773,8 +766,7 @@ export function drawHUD(
 
   // ── Bottom status bar (neuro-interface) ─────────────────
   const needsPanelH = NEEDS_PANEL_H * sy;
-  const bottomReserve = compactHudBottomReserve(w, h, needsPanelH, sy);
-  const barY = h - needsPanelH - bottomReserve;
+  const barY = h - needsPanelH;
   drawNeuroPanel(ctx, 0, barY, w, needsPanelH, time, 1);
 
   if (player.needs) {

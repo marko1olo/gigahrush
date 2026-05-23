@@ -687,6 +687,10 @@ export function recordAlifeNpcDeath(state: GameState, entity: Entity): void {
   if (entity.plotNpcId) alife.deadPlotNpcIds.add(entity.plotNpcId);
 }
 
+export function isPlotNpcDead(state: GameState, plotNpcId: string): boolean {
+  return ensureAlifeState(state).deadPlotNpcIds.has(plotNpcId);
+}
+
 function passable(world: World, x: number, y: number): boolean {
   const cell = world.cells[world.idx(Math.floor(x), Math.floor(y))];
   return cell === Cell.FLOOR || cell === Cell.WATER;
@@ -718,7 +722,18 @@ function materializeEntity(record: AlifeNpcRecord, template: Entity | undefined,
   record.x = x;
   record.y = y;
   record.angle = record.angle ?? template?.angle ?? unit(alife.seed, record.id, 77) * Math.PI * 2;
-  record.sprite = record.sprite ?? template?.sprite ?? record.occupation;
+  const templateSprite = template?.sprite;
+  const adoptTemplateProfile = record.sprite === undefined &&
+    template !== undefined &&
+    templateSprite !== undefined &&
+    templateSprite !== (template.occupation ?? record.occupation);
+  if (adoptTemplateProfile) {
+    if (template.name) record.name = template.name;
+    if (template.isFemale !== undefined) record.female = template.isFemale;
+    if (template.occupation !== undefined) record.occupation = template.occupation;
+    if (template.faction !== undefined) record.faction = template.faction;
+  }
+  record.sprite = record.sprite ?? templateSprite ?? record.occupation;
   record.spriteSeed = record.spriteSeed ?? hash32(alife.seed, record.id, 901);
   record.playerRelation = record.playerRelation ?? playerRelationForRecord(record, alife.seed);
   const rpg = rpgFromRecord(record);

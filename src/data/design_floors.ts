@@ -18,6 +18,7 @@ export type DesignFloorId =
   | 'silicon_net_well'
   | 'dark_metro'
   | 'underhell'
+  | 'podad'
   | 'darkness';
 
 export interface DesignFloorRouteDef {
@@ -47,7 +48,8 @@ export const DESIGN_FLOOR_ROUTES: readonly DesignFloorRouteDef[] = [
   { id: 'service_floor', z: -18, displayName: 'Служебный этаж', baseFloor: FloorLevel.MAINTENANCE, color: '#8cf', role: 'служебный обход и ремонт', danger: 3 },
   { id: 'silicon_net_well', z: -22, displayName: 'Кремниевый НЕТ-колодец', baseFloor: FloorLevel.MAINTENANCE, color: '#63f6ff', role: 'НЕТ-доступ, кремниевая жизнь, редкое оружие', danger: 4 },
   { id: 'dark_metro', z: -32, displayName: 'Темная пересадка', baseFloor: FloorLevel.MAINTENANCE, color: '#79f', role: 'опасный короткий ход', danger: 4 },
-  { id: 'underhell', z: -40, displayName: 'Нижний пропускник', baseFloor: FloorLevel.HELL, color: '#f44', role: 'боевой порог мясного низа', danger: 5 },
+  { id: 'underhell', z: -38, displayName: 'Нижний пропускник', baseFloor: FloorLevel.HELL, color: '#f44', role: 'боевой порог мясного низа', danger: 5 },
+  { id: 'podad', z: -40, displayName: 'Подад', baseFloor: FloorLevel.HELL, color: '#d34', role: 'живые тоннели, двигающиеся стены, нижний порог', danger: 5 },
   { id: 'darkness', z: -48, displayName: 'Темный отсек', baseFloor: FloorLevel.VOID, color: '#88f', role: 'позднее давление', danger: 5 },
 ];
 

@@ -583,12 +583,26 @@ async function installInputTrace(client) {
 }
 
 async function readSmokeDiagnostics(client) {
-  return evaluate(client, `(() => ({
-    focused: document.hasFocus(),
-    readyState: document.readyState,
-    pointerLocked: document.pointerLockElement?.id ?? '',
-    keys: window.__gigahrushSmokeKeys ?? [],
-  }))()`);
+  return evaluate(client, `(() => {
+    const frame = document.getElementById('mobile-smoke-frame');
+    const frameDoc = frame instanceof HTMLIFrameElement ? frame.contentDocument : null;
+    const frameBody = frameDoc?.body ?? null;
+    return {
+      focused: document.hasFocus(),
+      readyState: document.readyState,
+      pointerLocked: document.pointerLockElement?.id ?? '',
+      keys: window.__gigahrushSmokeKeys ?? [],
+      embeddedFrame: frame instanceof HTMLIFrameElement ? {
+        src: frame.src,
+        contentHref: frameDoc?.location.href ?? '',
+        readyState: frameDoc?.readyState ?? '',
+        title: frameDoc?.title ?? '',
+        bodyChildren: frameBody?.children.length ?? -1,
+        mobileRoot: Boolean(frameDoc?.querySelector('.mobile-controls')),
+        scriptCount: frameDoc?.scripts.length ?? -1,
+      } : null,
+    };
+  })()`);
 }
 
 async function readRepoText(relPath) {
@@ -987,6 +1001,8 @@ async function readMobileLayout(client, frameSelector = '') {
     const doc = frame instanceof HTMLIFrameElement ? frame.contentDocument : document;
     const win = doc?.defaultView;
     if (!doc || !win) return { missingDocument: true };
+    if (!doc.body) return { missingDocument: true };
+    const HTMLElementCtor = win.HTMLElement;
     const frameRect = frame instanceof HTMLIFrameElement ? frame.getBoundingClientRect() : { left: 0, top: 0 };
     const viewport = {
       width: frame instanceof HTMLIFrameElement ? frameRect.width : win.innerWidth,
@@ -996,7 +1012,7 @@ async function readMobileLayout(client, frameSelector = '') {
     const meta = doc.querySelector('meta[name="viewport"]')?.getAttribute('content') ?? '';
     const rectFor = selector => {
       const el = doc.querySelector(selector);
-      if (!(el instanceof HTMLElement)) return { exists: false };
+      if (!(el instanceof HTMLElementCtor)) return { exists: false };
       const rect = el.getBoundingClientRect();
       const style = win.getComputedStyle(el);
       const hidden = el.hidden || style.display === 'none' || style.visibility === 'hidden';
@@ -1029,7 +1045,7 @@ async function readMobileLayout(client, frameSelector = '') {
       maxTouchPoints: win.navigator.maxTouchPoints,
       hasOntouch: 'ontouchstart' in win,
       bodyMobileControlsOn: doc.body.classList.contains('mobile-controls-on'),
-      root: root instanceof HTMLElement ? {
+      root: root instanceof HTMLElementCtor ? {
         exists: true,
         hidden: root.hidden || win.getComputedStyle(root).display === 'none',
         classes: root.className,
@@ -1119,15 +1135,15 @@ function requireMobileLayout(layout, label, failures, options = {}) {
   }
 }
 
-async function waitForMobileLayout(client, frameSelector = '') {
+async function waitForMobileLayout(client, frameSelector = '', timeoutMs = 10000) {
   const startedAt = Date.now();
   let last = null;
-  while (Date.now() - startedAt < 5000) {
+  while (Date.now() - startedAt < timeoutMs) {
     last = await readMobileLayout(client, frameSelector);
     if (!last.missingDocument && last.root?.exists && !last.root.hidden) return last;
     await waitPage(client, 80);
   }
-  return last ?? await readMobileLayout(client, frameSelector);
+  return await readMobileLayout(client, frameSelector);
 }
 
 async function tapMobileMenuSelect(client, settleMs = 180) {

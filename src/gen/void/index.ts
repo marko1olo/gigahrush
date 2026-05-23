@@ -1,7 +1,7 @@
 /* ── Void level generator — island graph and folded geometry ─── */
 /*   Green/black abstract space with honest impossible routes.    */
 /*   Late threat: Creator (Творец) — green proof contour.         */
-/*   Reached via portal in Hell after killing 3 Heralds.          */
+/*   Reached by normal lower-route descent after the Herald gate. */
 
 import {
   W, Cell, Feature,

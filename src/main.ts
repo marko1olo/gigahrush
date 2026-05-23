@@ -76,6 +76,8 @@ import {
 } from './systems/audio';
 import { offerQuest, checkQuests, checkTalkQuest, notifyKill, notifyNpcKill } from './systems/quests';
 import { applyContractFloorHooks, notifyCleanupToolUse } from './systems/contracts';
+import { updateScriptedArrivals } from './systems/scripted_arrivals';
+import { applyStoryRouteGates } from './systems/story_route_gates';
 import {
   freshRPG, awardXP, xpForMonsterKill, xpForNpcKill,
   meleeDamage, agiSpeedMult, agiAttackSpeedMult,
@@ -285,13 +287,14 @@ import {
   type FloorAnomalyId,
   type ProceduralFloorSpec,
 } from './data/procedural_floors';
-import { type DesignFloorId } from './data/design_floors';
+import { DESIGN_FLOOR_ROUTES, type DesignFloorId } from './data/design_floors';
 import {
   nextTitleLanguageId,
   normalizeTitleLanguageId,
   type TitleLanguageId,
 } from './data/languages';
 import { drawTitleScreen, hitTitleLanguage, type TitleLanguageHit } from './render/title_ui';
+import { installCanvasLocalization, setLocalizationLanguage } from './systems/localization';
 
 /* ── Canvas setup ─────────────────────────────────────────────── */
 const canvas = document.getElementById('game') as HTMLCanvasElement;
@@ -306,6 +309,8 @@ let playerNickname = loadPlayerNickname();
 let titleLanguageId = loadTitleLanguageId();
 let titleLanguageHits: TitleLanguageHit[] = [];
 let mobileControls: MobileControls | null = null;
+installCanvasLocalization();
+setLocalizationLanguage(titleLanguageId);
 
 function looksLikeNetGenName(value: string): boolean {
   const clean = value.trim().toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 32);
@@ -354,6 +359,7 @@ function loadTitleLanguageId(): TitleLanguageId {
 
 function saveTitleLanguageId(id: TitleLanguageId): void {
   titleLanguageId = normalizeTitleLanguageId(id);
+  setLocalizationLanguage(titleLanguageId);
   try {
     localStorage.setItem(TITLE_LANGUAGE_KEY, titleLanguageId);
   } catch {
@@ -1870,9 +1876,12 @@ function handleKill(e: Entity, killerIsPlayer: boolean, pvx = 0, pvy = 0, goreLe
     if (killerIsPlayer) {
       awardXP(player, xpForMonsterKill(e.monsterKind, e.rpg?.level ?? 1), state.msgs, state.time);
     }
-    // Herald killed — check if voice quest (kill 3 heralds) is now complete → spawn portal
+    // Herald killed — check if the Podad lower route is now open.
     if (e.monsterKind === MonsterKind.HERALD && killerIsPlayer && state.currentFloor === FloorLevel.HELL) {
-      if (onHeraldKilled(e, world, state)) updateWorldData(world);
+      if (onHeraldKilled(e, world, state)) {
+        applyStoryRouteGates(world, player, state);
+        updateWorldData(world);
+      }
     }
     // Creator killed — spawn return portal
     if (e.monsterKind === MonsterKind.CREATOR && killerIsPlayer && state.currentFloor === FloorLevel.VOID) {
@@ -2568,6 +2577,10 @@ function switchFloor(
       onHellArrival(player, state);
       tryCreateVoiceQuest(world, entities, state);
     }
+    const enteredStoryVoid = generatedRunEntry
+      ? generatedRunEntry.storyFloor === FloorLevel.VOID
+      : nextFloor === FloorLevel.VOID && !allowElevatorAnomaly;
+    if (!route.activeInstance && enteredStoryVoid) onVoidEntry(state);
     ensureRoomContainers(world, state.currentFloor);
     ensureProductionRooms(state, world);
     prepareEditableFloor();
@@ -2575,6 +2588,7 @@ function switchFloor(
     updateMapExploration(world, player, state);
     ensureProceduralSpriteSeeds(entities);
     restoreVoidReturnPortalForCurrentWorld();
+    applyStoryRouteGates(world, player, state);
     if (allowElevatorAnomaly) {
       tryStartLiftArachnaEncounter(world, player, state, {
         direction,
@@ -2586,99 +2600,6 @@ function switchFloor(
     }
 
     // Update WebGL world data after floor change
-    setGeneratedDynamicSky(gen);
-    updateWorldData(world);
-  };
-}
-
-/* ── Portal transition to Void floor ──────────────────────────── */
-function enterVoidFloor(): void {
-  const fromFloor = state.currentFloor;
-  captureCurrentAlifeFloor();
-  const savedInventory = player.inventory ? [...player.inventory] : [];
-  const savedNeeds = player.needs ? { ...player.needs } : freshNeeds();
-  const savedHp = player.hp ?? 100;
-  const savedMaxHp = player.maxHp ?? 100;
-  const savedWeapon = player.weapon ?? '';
-  const savedTool = player.tool ?? '';
-  const savedRpg = player.rpg ? { ...player.rpg } : freshRPG(1);
-  const savedStatuses = player.statuses?.map(s => ({ ...s }));
-  const savedMoney = player.money ?? 100;
-  const savedAngle = player.angle;
-
-  state.currentFloor = FloorLevel.VOID;
-  forceFloorRunStory(state, FloorLevel.VOID);
-  state.gameWon = false;
-  clearPseudoliftActive(state);
-  clearVoidReturnPortalState(state);
-  setVoidEntryFromFloor(state, fromFloor);
-
-  pendingLoad = () => {
-    const gen = generateFloor(FloorLevel.VOID);
-    world = replaceWorldFromGeneration(null, gen);
-    entities = gen.entities;
-    nextEntityId.v = entities.reduce((mx, e) => Math.max(mx, e.id), 0) + 1;
-
-    player = {
-      id: nextEntityId.v++,
-      type: EntityType.PLAYER,
-      x: gen.spawnX,
-      y: gen.spawnY,
-      angle: savedAngle,
-      pitch: 0,
-      alive: true,
-      speed: 3.0,
-      sprite: 0,
-      needs: savedNeeds,
-      hp: savedHp,
-      maxHp: savedMaxHp,
-      inventory: savedInventory,
-      weapon: savedWeapon,
-      tool: savedTool,
-      money: savedMoney,
-      rpg: savedRpg,
-      statuses: savedStatuses,
-      name: playerDisplayName(),
-      faction: Faction.PLAYER,
-      ...playerAlifeFields(player),
-    };
-    entities.push(player);
-    applyContractFloorHooks(state, world, entities, nextEntityId, player);
-    prevPlayerHp = player.hp ?? 100;
-
-    initFactionRelations();
-    initFactionControl(world);
-    ensureProceduralSpriteSeeds(entities);
-    resetPsiState();
-
-    state.samosborTimer = nextFloorEntrySamosborTimer(FloorLevel.VOID);
-    state.samosborActive = false;
-    floorTeleportCd = 0;
-    clearLiftArachnaActive(state);
-
-    publishEvent(state, {
-      type: 'floor_transition',
-      zoneId: world.zoneMap[world.idx(Math.floor(player.x), Math.floor(player.y))],
-      x: player.x,
-      y: player.y,
-      actorId: player.id,
-      actorName: player.name,
-      actorFaction: player.faction,
-      severity: 5,
-      privacy: 'local',
-      tags: ['floor', 'floor_transition', 'void'],
-      data: { fromFloor, toFloor: FloorLevel.VOID, portal: true },
-    });
-
-    onVoidEntry(state);
-    ensureRoomContainers(world, state.currentFloor);
-    ensureProductionRooms(state, world);
-    prepareEditableFloor();
-    resetMapExploration(world);
-    updateMapExploration(world, player, state);
-    ensureProceduralSpriteSeeds(entities);
-    restoreVoidReturnPortalForCurrentWorld();
-
     setGeneratedDynamicSky(gen);
     updateWorldData(world);
   };
@@ -2822,6 +2743,7 @@ function debugTeleportTo(target: DebugTeleportTarget): void {
     updateMapExploration(world, player, state);
     ensureProceduralSpriteSeeds(entities);
     restoreVoidReturnPortalForCurrentWorld();
+    applyStoryRouteGates(world, player, state);
     setGeneratedDynamicSky(gen);
     updateWorldData(world);
   };
@@ -3109,6 +3031,24 @@ function normalizeRewardList(value: unknown): Quest['extraRewards'] | undefined 
   return out.length > 0 ? out : undefined;
 }
 
+function normalizeQuestTargetRoute(value: unknown): Quest['targetRoute'] | undefined {
+  if (!isRecord(value)) return undefined;
+  const out: NonNullable<Quest['targetRoute']> = {};
+  const designFloorId = cleanSaveText(value.designFloorId, '', 64);
+  if (designFloorId && DESIGN_FLOOR_ROUTES.some(route => route.id === designFloorId)) out.designFloorId = designFloorId;
+  if (typeof value.z === 'number' && Number.isFinite(value.z)) out.z = clampInt(value.z, 0, -50, 50);
+  const anomalyId = cleanSaveText(value.anomalyId, '', 64);
+  if (anomalyId) out.anomalyId = anomalyId;
+  const proceduralTag = cleanSaveText(value.proceduralTag, '', 64);
+  if (proceduralTag) out.proceduralTag = proceduralTag;
+  const tags = normalizeStringArray(value.tags, 8, 48);
+  if (tags) out.tags = tags;
+  const label = cleanSaveText(value.label, '', 96);
+  if (label) out.label = label;
+  if (value.risk !== undefined) out.risk = clampInt(value.risk, 1, 1, 5);
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
 function normalizeQuest(raw: unknown, nowMinutes: number): Quest | null {
   if (!isRecord(raw)) return null;
   const type = normalizeQuestType(raw.type);
@@ -3135,8 +3075,11 @@ function normalizeQuest(raw: unknown, nowMinutes: number): Quest | null {
   if (isFloorLevel(raw.targetFloor)) q.targetFloor = raw.targetFloor;
   const targetRoomType = normalizeRoomType(raw.targetRoomType);
   if (targetRoomType !== undefined) q.targetRoomType = targetRoomType;
+  const targetRoomName = cleanSaveText(raw.targetRoomName, '', 96);
+  if (targetRoomName) q.targetRoomName = targetRoomName;
   const targetZoneTag = cleanSaveText(raw.targetZoneTag, '', 48);
   if (targetZoneTag) q.targetZoneTag = targetZoneTag;
+  q.targetRoute = normalizeQuestTargetRoute(raw.targetRoute);
   const targetHint = cleanSaveText(raw.targetHint);
   if (targetHint) q.targetHint = targetHint;
   const targetMonsterKind = normalizeMonsterKind(raw.targetMonsterKind);
@@ -3169,6 +3112,14 @@ function normalizeQuest(raw: unknown, nowMinutes: number): Quest | null {
   if (contractFaction !== undefined) q.contractFaction = contractFaction;
   if (raw.contractRank !== undefined) q.contractRank = clampInt(raw.contractRank, 0, 0, 10);
   if (isFloorLevel(raw.visitFloor)) q.visitFloor = raw.visitFloor;
+  if (raw.holdSeconds !== undefined) q.holdSeconds = clampInt(raw.holdSeconds, 0, 1, 3600);
+  if (raw.holdProgressSeconds !== undefined) q.holdProgressSeconds = clampNumber(raw.holdProgressSeconds, 0, 0, 3600);
+  if (raw.holdLastTime !== undefined) q.holdLastTime = clampNumber(raw.holdLastTime, 0, 0, 1_000_000_000);
+  if (raw.holdResetOnExit !== undefined) q.holdResetOnExit = raw.holdResetOnExit === true;
+  if (raw.holdSpawnMonsters !== undefined) q.holdSpawnMonsters = clampInt(raw.holdSpawnMonsters, 0, 0, 32);
+  if (raw.holdSpawnIntervalSeconds !== undefined) q.holdSpawnIntervalSeconds = clampNumber(raw.holdSpawnIntervalSeconds, 1, 1, 600);
+  if (raw.holdSpawnMaxAlive !== undefined) q.holdSpawnMaxAlive = clampInt(raw.holdSpawnMaxAlive, 1, 1, 64);
+  if (raw.holdSpawnLastTime !== undefined) q.holdSpawnLastTime = clampNumber(raw.holdSpawnLastTime, 0, 0, 1_000_000_000);
   q.eventTags = normalizeStringArray(raw.eventTags);
   const eventData = compactSaveData(raw.eventData);
   if (isRecord(eventData)) q.eventData = eventData;
@@ -3195,7 +3146,7 @@ function normalizeQuest(raw: unknown, nowMinutes: number): Quest | null {
 
   if (!q.done) {
     if (type === QuestType.FETCH && !q.targetItem) return null;
-    if (type === QuestType.VISIT && q.targetRoom === undefined && q.visitFloor === undefined) return null;
+    if (type === QuestType.VISIT && q.targetRoom === undefined && q.targetRoomName === undefined && q.targetRoute === undefined && q.visitFloor === undefined) return null;
     if (type === QuestType.KILL && q.targetMonsterKind === undefined && !q.targetPlotNpcId && q.killNeeded === undefined) return null;
     if (type === QuestType.TALK && q.targetNpcId === undefined && !q.targetPlotNpcId) return null;
   }
@@ -3381,6 +3332,7 @@ function loadGame(): boolean {
       updateMapExploration(world, player, state);
       ensureProceduralSpriteSeeds(entities);
       restoreVoidReturnPortalForCurrentWorld();
+      applyStoryRouteGates(world, player, state);
 
       state.msgs.push(msg('Игра загружена', state.time, '#4af'));
 
@@ -5036,6 +4988,7 @@ function gameLoop(now: number): void {
         ensureProceduralSpriteSeeds(entities);
         clearLiftArachnaActive(state);
         restoreVoidReturnPortalForCurrentWorld();
+        applyStoryRouteGates(world, player, state);
         setGeneratedDynamicSky(replacement);
         updateWorldData(world);
       };
@@ -5086,19 +5039,9 @@ function gameLoop(now: number): void {
     }
     // Check quest completion
     if (state.tick % 30 === 0) {
-      checkQuests(player, world, entities, state, state.msgs);
-    }
-
-    // Portal step-on check — teleport to Void floor
-    if (state.currentFloor === FloorLevel.HELL && state.tick % 10 === 0) {
-      const pci = world.idx(Math.floor(player.x), Math.floor(player.y));
-      if (world.floorTex[pci] === Tex.PORTAL) {
-        // Transition to Void — use switchFloor-like mechanism
-        enterVoidFloor();
-        // Bail out: currentFloor is already VOID but old world still has the portal;
-        // continuing would trigger the "return portal" check and freeze the game.
-        requestAnimationFrame(gameLoop);
-        return;
+      checkQuests(player, world, entities, state, state.msgs, nextEntityId);
+      if (updateScriptedArrivals(world, entities, player, state, nextEntityId)) {
+        rebuildEntityIndexAfterSpawnCleanup(entities);
       }
     }
 

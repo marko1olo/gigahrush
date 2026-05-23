@@ -387,8 +387,17 @@ export function currentFloorRunEntry(state: GameState): FloorRunEntry {
   };
 }
 
+export function podadLowerRouteOpen(state: GameState): boolean {
+  return state.quests.some(q =>
+    q.targetMonsterKind === MonsterKind.HERALD &&
+    (q.killNeeded ?? 0) >= 3 &&
+    (q.done || (q.killCount ?? 0) >= (q.killNeeded ?? 3)));
+}
+
 export function resolveFloorRunRoute(state: GameState, direction: LiftDirection): FloorRunEntry | null {
   const run = ensureFloorRunState(state);
+  const current = entryForZ(state, run.currentZ);
+  if (current?.designFloorId === 'podad' && direction === LiftDirection.DOWN && !podadLowerRouteOpen(state)) return null;
   const dz = direction === LiftDirection.DOWN ? -1 : 1;
   const targetZ = run.currentZ + dz;
   if (targetZ < FLOOR_RUN_MIN_Z || targetZ > FLOOR_RUN_MAX_Z) return null;

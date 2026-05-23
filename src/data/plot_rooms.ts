@@ -81,6 +81,15 @@ export const PLOT_ROOMS: Record<string, PlotRoomDef> = {
     roomType: RoomType.COMMON,
     plotNpcs: ['hell_contact'],
   },
+  hell_anchor_zone: {
+    id: 'hell_anchor_zone',
+    name: 'Зона закрепления',
+    w: 13, h: 11,
+    wallTex: Tex.METAL,
+    floorTex: Tex.F_CONCRETE,
+    roomType: RoomType.HQ,
+    plotNpcs: [],
+  },
   herald_threshold: {
     id: 'herald_threshold',
     name: 'Порог Вестников',

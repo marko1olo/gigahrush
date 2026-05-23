@@ -475,6 +475,7 @@ function worldHasTaggedContainer(world: World, tag: string): boolean {
 }
 
 function roomStillMatchesQuest(world: World, q: Quest, room: Room): boolean {
+  if (q.targetRoomName !== undefined && room.name !== q.targetRoomName) return false;
   if (!roomMatchesQuestType(q, room)) return false;
   return !q.targetZoneTag
     || !worldHasTaggedContainer(world, q.targetZoneTag)
@@ -530,6 +531,25 @@ function resolveByRoomType(
   return best ? { room: best, source: 'room_type' } : undefined;
 }
 
+function resolveByRoomName(
+  world: World,
+  q: Quest,
+  origin?: Pick<Entity, 'x' | 'y'>,
+): QuestTargetRoomResolution | undefined {
+  if (!q.targetRoomName) return undefined;
+  let best: Room | undefined;
+  let bestScore = -Infinity;
+  for (const room of world.rooms) {
+    if (!room || room.name !== q.targetRoomName || !roomMatchesQuestType(q, room)) continue;
+    const score = roomDistanceScore(world, room, origin);
+    if (score > bestScore) {
+      best = room;
+      bestScore = score;
+    }
+  }
+  return best ? { room: best, source: 'room_type' } : undefined;
+}
+
 export function resolveQuestTargetRoom(
   world: World,
   q: Quest,
@@ -539,7 +559,7 @@ export function resolveQuestTargetRoom(
     const room = world.rooms[q.targetRoom];
     if (room && roomStillMatchesQuest(world, q, room)) return { room, source: 'quest_room' };
   }
-  return resolveByTaggedContainer(world, q, origin) ?? resolveByRoomType(world, q, origin);
+  return resolveByTaggedContainer(world, q, origin) ?? resolveByRoomName(world, q, origin) ?? resolveByRoomType(world, q, origin);
 }
 
 function createContractQuest(def: ContractDef, state: GameState, giver?: { id: number; name?: string }) {

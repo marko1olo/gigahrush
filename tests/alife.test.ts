@@ -121,6 +121,10 @@ test('A-Life materialization preserves template sprite identity for special floo
   world.cells[world.idx(12, 10)] = Cell.FLOOR;
   const template = ambientTemplate(1, 12.5, 10.5);
   template.sprite = 777;
+  template.name = 'Особый шаблон';
+  template.isFemale = true;
+  template.occupation = Occupation.SECRETARY;
+  template.faction = Faction.SCIENTIST;
   template.isTraveler = false;
   template.assignedRoomId = 42;
   template.ai = { goal: AIGoal.WANDER, tx: 12, ty: 10, path: [{ x: 12, y: 10 }], pi: 0, stuck: 2, timer: 3 };
@@ -130,6 +134,10 @@ test('A-Life materialization preserves template sprite identity for special floo
 
   assert.equal(entities.length, 1);
   assert.equal(entities[0].sprite, 777);
+  assert.equal(entities[0].name, 'Особый шаблон');
+  assert.equal(entities[0].isFemale, true);
+  assert.equal(entities[0].occupation, Occupation.SECRETARY);
+  assert.equal(entities[0].faction, Faction.SCIENTIST);
   assert.equal(typeof entities[0].spriteSeed, 'number');
   assert.equal(typeof entities[0].canGiveQuest, 'boolean');
   assert.equal(entities[0].isTraveler, false);

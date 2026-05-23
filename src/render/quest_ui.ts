@@ -3,7 +3,7 @@
 import { FloorLevel, LiftDirection, RoomType, type GameState, type Quest, QuestType } from '../core/types';
 import { ITEMS } from '../data/catalog';
 import { zForStoryFloor } from '../data/procedural_floors';
-import { isQuestTargetOnCurrentFloor, questRouteFloor, questTargetLiftDirection } from '../systems/contracts';
+import { isQuestTargetOnCurrentFloor, questRouteFloor, questRouteTargetLabel, questTargetLiftDirection } from '../systems/contracts';
 import { controlBindingLabel, controlHint } from '../systems/controls';
 import { getRecentEvents } from '../systems/events';
 import { getRecentRumorLead } from '../systems/npc_memory';
@@ -193,10 +193,12 @@ function questRouteHint(q: Quest, state: GameState): string {
     if (isQuestTargetOnCurrentFloor(q, state)) return detail ? `Цель здесь. ${detail}` : 'Цель здесь.';
     const dir = questTargetLiftDirection(q, state) === LiftDirection.DOWN ? '↓' : '↑';
     const currentZ = currentFloorRunEntry(state).z;
+    const routeLabel = questRouteTargetLabel(q, state);
     const targetZ = zForStoryFloor(floor);
+    const target = routeLabel || `${FLOOR_NAMES[floor]} Z${formatFloorZ(targetZ)}`;
     return detail
-      ? `Цель: ${FLOOR_NAMES[floor]} Z${formatFloorZ(targetZ)}. Лифт ${dir} от Z${formatFloorZ(currentZ)}. ${detail}`
-      : `Цель: ${FLOOR_NAMES[floor]} Z${formatFloorZ(targetZ)}. Лифт ${dir} от Z${formatFloorZ(currentZ)}.`;
+      ? `Цель: ${target}. Лифт ${dir} от Z${formatFloorZ(currentZ)}. ${detail}`
+      : `Цель: ${target}. Лифт ${dir} от Z${formatFloorZ(currentZ)}.`;
   }
   if (q.type === QuestType.TALK && q.targetPlotNpcId && q.targetNpcId === undefined) {
     return 'Собеседник на другом уровне. Нужен лифт.';
@@ -293,6 +295,13 @@ export function drawQuestLog(
     ly += 4 * sy;
     ctx.fillStyle = '#aaa';
     ctx.fillText(`Прогресс: ${q.killCount ?? 0}/${q.killNeeded}`, px + 8 * sx, ly);
+  }
+  if (!q.done && q.holdSeconds !== undefined && ly < contentBottom) {
+    ly += 4 * sy;
+    ctx.fillStyle = '#aaa';
+    const have = Math.floor(q.holdProgressSeconds ?? 0);
+    const need = Math.floor(q.holdSeconds);
+    ctx.fillText(`Удержание: ${have}/${need} сек`, px + 8 * sx, ly);
   }
 
   const remaining = questRemainingMinutes(q, state.clock.totalMinutes);
