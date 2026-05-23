@@ -156,7 +156,7 @@ function restoreCell(world: World, player: Entity, state: GameState, runtime: Li
   world.roomMap[ci] = snap.roomMap;
   world.wallTex[ci] = snap.wallTex;
   world.floorTex[ci] = snap.floorTex;
-  world.features[ci] = snap.feature;
+  world.setFeatureAt(ci, snap.feature);
   world.fog[ci] = snap.fog;
   return 1;
 }
@@ -172,7 +172,7 @@ function carveTunnelCell(world: World, runtime: LivingTunnelRuntime, ci: number)
   addTunnelRef(world, runtime, ci);
   if (world.cells[ci] === Cell.WALL) world.roomMap[ci] = -1;
   world.cells[ci] = Cell.FLOOR;
-  if (world.features[ci] === Feature.LAMP) world.features[ci] = Feature.NONE;
+  if (world.features[ci] === Feature.LAMP) world.setFeatureAt(ci, Feature.NONE);
   world.floorTex[ci] = Tex.F_GUT;
   world.wallTex[ci] = Tex.GUT;
   world.fog[ci] = Math.max(world.fog[ci], 24 + (ci & 15));

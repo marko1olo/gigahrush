@@ -3544,7 +3544,7 @@ function updateEquippedTool(dt: number): void {
       state.msgs.push(msg('В защищенных укрытиях строительство запрещено', state.time, '#f44'));
       return;
     }
-    if (world.cells[ci] === Cell.DOOR) world.doors.delete(ci);
+    if (world.cells[ci] === Cell.DOOR) world.removeDoorAt(ci);
     world.cells[ci] = Cell.WALL;
     const room = world.roomAt(player.x, player.y);
     world.wallTex[ci] = room?.wallTex ?? Tex.CONCRETE;
@@ -3578,14 +3578,23 @@ function updateEquippedTool(dt: number): void {
 
   if (toolId === 'vacuum') {
     if (!input.use || _toolActionCd > 0) return;
-    const fi = world.idx(cx, cy);
-    if (world.fog[fi] > 0) {
-      world.fog[fi] = 0;
+    const pcx = Math.floor(player.x);
+    const pcy = Math.floor(player.y);
+    let clearedFog = 0;
+    for (let oy = -1; oy <= 1; oy++) {
+      for (let ox = -1; ox <= 1; ox++) {
+        const fi = world.idx(pcx + ox, pcy + oy);
+        if (world.fog[fi] <= 0) continue;
+        world.fog[fi] = 0;
+        clearedFog++;
+      }
+    }
+    if (clearedFog > 0) {
       world.markFogDirty();
       consumeToolDurability(player, 1, state.msgs, state.time, state);
-      state.msgs.push(msg('Туман всосан пылесосом', state.time, '#c8f'));
+      state.msgs.push(msg(`Пылесос втянул туман рядом: ${clearedFog} кл.`, state.time, '#c8f'));
     } else {
-      state.msgs.push(msg('Тут нет тумана', state.time, '#888'));
+      state.msgs.push(msg('Рядом нет тумана', state.time, '#888'));
     }
     _toolActionCd = 0.15;
   }

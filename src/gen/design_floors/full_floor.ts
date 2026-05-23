@@ -21,7 +21,7 @@ import { monsterSpr } from '../../render/sprite_index';
 import { ensureConnectivity, generateZones, sanitizeDoors } from '../shared';
 import type { FloorGeneration } from '../floor_manifest';
 import { blackoutDarknessLights, expandDarknessRouteGeometry } from './darkness';
-import { expandFloor69FullFloor } from './floor_69';
+import { applyFloor69AmbientSpriteTemplates, expandFloor69FullFloor } from './floor_69';
 import { expandManhattanCrossroadsRouteShell } from './manhattan_crossroads';
 import { expandServiceFloorMachineMaze, placeServiceFloorEmergencyPanels } from './service_floor';
 import { expandChthonicAtticRootNetwork, retuneExpandedChthonicAtticEcology } from './chthonic_attic';
@@ -125,6 +125,7 @@ export function expandDesignFloorGeneration<T extends FloorGeneration>(
   if (route.id === 'chthonic_attic') retuneExpandedChthonicAtticEcology(generation.world);
   if (route.id === 'pioneer_camp') tunePioneerCampPopulationZones(generation.world);
   applyDesignFloorPopulationField(generation, route);
+  if (route.id === 'floor_69') applyFloor69AmbientSpriteTemplates(generation.entities);
   return generation;
 }
 

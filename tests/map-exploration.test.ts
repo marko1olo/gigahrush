@@ -1,13 +1,20 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { Cell, RoomType, Tex } from '../src/core/types';
+import { Cell, EntityType, Faction, FloorLevel, RoomType, Tex, ZoneFaction, type Entity } from '../src/core/types';
 import { World } from '../src/core/world';
+import { createWorldEventState } from '../src/systems/events';
 import {
   isMapCellExplored,
+  mapExplorationStats,
   resetMapExploration,
+  revealWholeMap,
   revealMapZone,
+  syncMapExplorationAfterSamosborWave,
+  updateMapExploration,
 } from '../src/systems/map_exploration';
+import { cancelSamosborWave, finishSamosborWave, startSamosborWave } from '../src/systems/samosbor_wave';
+import { makeGameState } from './helpers';
 
 test('map zone reveal includes corridor geometry without revealing other zones', () => {
   const world = new World();
@@ -74,4 +81,126 @@ test('zone reveal treats touched rooms as whole map elements', () => {
 
   assert.equal(isMapCellExplored(world, left), true);
   assert.equal(isMapCellExplored(world, right), true);
+});
+
+function makeMapPlayer(x: number, y: number): Entity {
+  return {
+    id: 1,
+    type: EntityType.PLAYER,
+    x: x + 0.5,
+    y: y + 0.5,
+    angle: 0,
+    pitch: 0,
+    alive: true,
+    speed: 1,
+    sprite: 0,
+    name: 'Вы',
+    faction: Faction.PLAYER,
+  };
+}
+
+function carveMapTestFloor(world: World, cx: number, cy: number, half: number, roomId: number, zoneId = 0): void {
+  world.zones[zoneId] = { id: zoneId, cx, cy, faction: ZoneFaction.CITIZEN, hasLift: false, fogged: false, level: 1, hqRoomId: -1 };
+  world.rooms[roomId] = {
+    id: roomId,
+    type: RoomType.COMMON,
+    x: cx - half,
+    y: cy - half,
+    w: half * 2 + 1,
+    h: half * 2 + 1,
+    doors: [],
+    sealed: false,
+    name: `map room ${roomId}`,
+    apartmentId: -1,
+    wallTex: Tex.CONCRETE,
+    floorTex: Tex.F_CONCRETE,
+  };
+  for (let y = cy - half; y <= cy + half; y++) {
+    for (let x = cx - half; x <= cx + half; x++) {
+      const idx = world.idx(x, y);
+      world.cells[idx] = Cell.FLOOR;
+      world.zoneMap[idx] = zoneId;
+      world.roomMap[idx] = roomId;
+      world.floorTex[idx] = Tex.F_CONCRETE;
+    }
+  }
+}
+
+test('player movement reveals only local cell trail, not the whole entered room', () => {
+  const world = new World();
+  carveMapTestFloor(world, 12, 12, 2, 0, 0);
+  carveMapTestFloor(world, 40, 40, 7, 1, 1);
+  resetMapExploration(world);
+  const player = makeMapPlayer(12, 12);
+  const state = makeGameState({
+    currentFloor: FloorLevel.LIVING,
+    worldEvents: createWorldEventState(),
+  });
+
+  updateMapExploration(world, player, state);
+  const farRoomIdx = world.idx(46, 40);
+  assert.equal(isMapCellExplored(world, farRoomIdx), false);
+
+  player.x = 40.5;
+  player.y = 40.5;
+  updateMapExploration(world, player, state);
+
+  assert.equal(isMapCellExplored(world, world.idx(40, 40)), true);
+  assert.equal(isMapCellExplored(world, farRoomIdx), false);
+});
+
+test('debug revealWholeMap marks every cell explored', () => {
+  const world = new World();
+  carveMapTestFloor(world, 12, 12, 1, 0, 0);
+  resetMapExploration(world);
+  const player = makeMapPlayer(12, 12);
+  const state = makeGameState({
+    currentFloor: FloorLevel.LIVING,
+    worldEvents: createWorldEventState(),
+  });
+  const distantWallIdx = world.idx(90, 90);
+
+  updateMapExploration(world, player, state);
+  assert.equal(isMapCellExplored(world, distantWallIdx), false);
+
+  assert.equal(revealWholeMap(world), world.cells.length);
+  assert.equal(isMapCellExplored(world, distantWallIdx), true);
+  assert.equal(mapExplorationStats(world).cells, world.cells.length);
+});
+
+test('local samosbor map fog does not reveal the whole rebuilt patch room on re-entry', () => {
+  cancelSamosborWave();
+  const cx = 40;
+  const cy = 40;
+  const world = new World();
+  carveMapTestFloor(world, cx, cy, 10, 0);
+  resetMapExploration(world);
+  const player = makeMapPlayer(cx, cy);
+  const state = makeGameState({
+    currentFloor: FloorLevel.LIVING,
+    samosborActive: true,
+    samosborCount: 1,
+    worldEvents: createWorldEventState(),
+  });
+  const entities = [player];
+
+  updateMapExploration(world, player, state);
+  const farHiddenIdx = world.idx(cx + 4, cy);
+  assert.equal(isMapCellExplored(world, farHiddenIdx), true);
+
+  assert.equal(startSamosborWave(world, entities, state, 'small', cx, cy, { seed: 99, radius: 4, budgetCellsPerTick: 64 }), true);
+  const replacementWorld = new World();
+  carveMapTestFloor(replacementWorld, cx, cy, 10, 2);
+  const replacement = { world: replacementWorld, entities: [], spawnX: cx + 0.5, spawnY: cy + 0.5 };
+  finishSamosborWave(world, entities, state, replacement);
+  syncMapExplorationAfterSamosborWave(world, state);
+
+  assert.equal(isMapCellExplored(world, world.idx(cx, cy)), false);
+  assert.equal(isMapCellExplored(world, farHiddenIdx), false);
+
+  updateMapExploration(world, player, state);
+
+  assert.equal(isMapCellExplored(world, world.idx(cx, cy)), true);
+  assert.equal(isMapCellExplored(world, farHiddenIdx), false);
+  cancelSamosborWave();
 });

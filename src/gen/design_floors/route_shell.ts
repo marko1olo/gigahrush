@@ -411,7 +411,11 @@ function expandRoofShell(world: World, mask: Uint8Array, rng: () => number, stat
   ];
   let last = c;
   for (let i = 0; i < slabs.length; i++) {
-    const p = clampPoint({ x: slabs[i].x + jitter(rng, 18), y: slabs[i].y + jitter(rng, 18) });
+    const slab = slabs[i];
+    const p = clampPoint({
+      x: slab.x === 0 || slab.x === EDGE ? slab.x : slab.x + jitter(rng, 18),
+      y: slab.y === 0 || slab.y === EDGE ? slab.y : slab.y + jitter(rng, 18),
+    });
     carveBentRoute(world, mask, last, p, style, rng, 0.25);
     const room = tryStampShellRoom(world, mask, i % 3 === 0 ? RoomType.PRODUCTION : RoomType.COMMON, p.x - 18, p.y - 12, 36, 24, `${style.roomPrefix} ${i + 1}`, style);
     if (room) decorateRoofSlab(world, room, i);

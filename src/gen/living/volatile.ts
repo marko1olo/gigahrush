@@ -26,7 +26,7 @@ export function generateVolatileMaze(world: World): void {
   for (let i = aptCount; i < world.rooms.length; i++) {
     const room = world.rooms[i];
     if (!room) continue;
-    for (const di of room.doors) world.doors.delete(di);
+    for (const di of room.doors.slice()) world.removeDoorAt(di);
   }
   world.rooms.length = aptCount;
 
@@ -34,7 +34,9 @@ export function generateVolatileMaze(world: World): void {
   for (let i = 0; i < aptCount; i++) {
     const room = world.rooms[i];
     if (!room) continue;
-    room.doors = room.doors.filter(di => {
+    const keepDoors: number[] = [];
+    const removeDoors: number[] = [];
+    for (const di of room.doors) {
       const door = world.doors.get(di);
       if (!door) {
         // Door data already removed (by volatile room cleanup) — fix cell
@@ -42,15 +44,19 @@ export function generateVolatileMaze(world: World): void {
           world.cells[di] = Cell.WALL;
           world.wallTex[di] = room.wallTex;
         }
-        return false;
+        continue;
       }
       if (door.roomA >= 0 && door.roomA < aptCount &&
-          door.roomB >= 0 && door.roomB < aptCount) return true;
+          door.roomB >= 0 && door.roomB < aptCount) {
+        keepDoors.push(di);
+        continue;
+      }
       world.cells[door.idx] = Cell.WALL;
       world.wallTex[door.idx] = room.wallTex;
-      world.doors.delete(di);
-      return false;
-    });
+      removeDoors.push(di);
+    }
+    room.doors = keepDoors;
+    for (const di of removeDoors) world.removeDoorAt(di);
     room.sealed = false;
   }
 
@@ -358,8 +364,8 @@ export function wipeVolatile(world: World): void {
     world.features[i] = 0;
     world.light[i] = 0;
   }
-  for (const [idx] of world.doors) {
+  for (const [idx] of Array.from(world.doors)) {
     if (world.aptMask[idx]) continue;
-    world.doors.delete(idx);
+    world.removeDoorAt(idx);
   }
 }

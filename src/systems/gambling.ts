@@ -81,7 +81,7 @@ export function placeGamblingMachine(world: World, x: number, y: number, defId: 
   if (!def) return null;
   const idx = world.idx(x, y);
   if (!canUseMachineCell(world, idx)) return null;
-  world.features[idx] = Feature.MACHINE;
+  world.setFeatureAt(idx, Feature.MACHINE);
   const machine: GamblingMachine = { idx, x: idx % W, y: (idx / W) | 0, defId: def.id };
   gamblingRegistry.set(idx, machine);
   return machine;

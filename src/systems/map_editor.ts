@@ -511,9 +511,9 @@ function applyCellOp(world: World, entities: Entity[], player: Entity, op: { x: 
   if (cellProtected(world, idx)) return setError('ЗАЩИЩЕНО');
   if (activeTerminalProtected(world, idx)) return setError('ТЕРМИНАЛ АКТИВЕН');
   if (world.idx(Math.floor(player.x), Math.floor(player.y)) === idx && !passable(op.cell)) return setError('Нельзя замуровать себя');
-  if (op.cell !== Cell.DOOR) world.doors.delete(idx);
+  if (op.cell !== Cell.DOOR) world.removeDoorAt(idx);
   if (op.cell === Cell.WALL || op.cell === Cell.ABYSS) {
-    world.features[idx] = Feature.NONE;
+    world.setFeatureAt(idx, Feature.NONE);
     removeContainersAt(world, idx);
     removeLooseEntitiesAt(entities, idx, world);
   }
@@ -687,8 +687,7 @@ export function applyMapEditorOp(
     const idx = world.idx(op.x, op.y);
     if (cellProtected(world, idx)) return setError('ЗАЩИЩЕНО');
     if (activeTerminalProtected(world, idx)) return setError('ТЕРМИНАЛ АКТИВЕН');
-    world.features[idx] = op.feature;
-    if (op.feature === Feature.LAMP || op.feature === Feature.CANDLE) world.bakeLights();
+    world.setFeatureAt(idx, op.feature);
     pushDirty(idx);
     result = { ok: true, reason: 'ok', dirtyCells: [idx] };
   } else if (op.kind === 'set_door') {
@@ -707,7 +706,7 @@ export function applyMapEditorOp(
   } else if (op.kind === 'delete_door') {
     const idx = world.idx(op.x, op.y);
     if (activeTerminalProtected(world, idx)) return setError('ТЕРМИНАЛ АКТИВЕН');
-    world.doors.delete(idx);
+    world.removeDoorAt(idx);
     if (world.cells[idx] === Cell.DOOR) world.cells[idx] = Cell.FLOOR;
     pushDirty(idx);
     result = { ok: true, reason: 'ok', dirtyCells: [idx] };

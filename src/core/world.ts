@@ -57,13 +57,19 @@ function markWorldReplaced(world: World, versions: {
   surfaceVersion: number;
   wallTexVersion: number;
   floorTexVersion: number;
+  featureVersion: number;
   fogVersion: number;
 }): void {
   world.cellVersion = nextVersion(versions.cellVersion);
   world.surfaceVersion = nextVersion(versions.surfaceVersion);
   world.wallTexVersion = nextVersion(versions.wallTexVersion);
   world.floorTexVersion = nextVersion(versions.floorTexVersion);
+  world.featureVersion = nextVersion(versions.featureVersion);
   world.fogVersion = nextVersion(versions.fogVersion);
+}
+
+function lightFeature(feature: number): boolean {
+  return feature === Feature.LAMP || feature === Feature.CANDLE;
 }
 
 export class World {
@@ -96,6 +102,7 @@ export class World {
   surfaceVersion = 0;              // bumped when surfaceMap pixels change
   wallTexVersion = 0;              // bumped when runtime wall texture data changes
   floorTexVersion = 0;             // bumped when runtime floor texture data changes
+  featureVersion = 0;              // bumped when runtime feature data or baked feature light changes
   fogVersion = 0;                  // bumped when runtime fog data changes
   liftDir:   Uint8Array;           // LiftDirection per cell (only meaningful where cells[i] === Cell.LIFT)
   containers: WorldContainer[] = [];
@@ -193,7 +200,52 @@ export class World {
 
   markFloorTexDirty(): void { this.floorTexVersion = (this.floorTexVersion + 1) | 0; }
 
+  markFeaturesDirty(rebakeLights = false): void {
+    if (rebakeLights) this.bakeLights();
+    this.featureVersion = (this.featureVersion + 1) | 0;
+  }
+
   markFogDirty(): void { this.fogVersion = (this.fogVersion + 1) | 0; }
+
+  setFeatureAt(idx: number, feature: Feature, rebakeLights = true): boolean {
+    const old = this.features[idx] as Feature;
+    if (old === feature) return false;
+    this.features[idx] = feature;
+    this.markFeaturesDirty(rebakeLights && (lightFeature(old) || lightFeature(feature)));
+    if (old === Feature.SCREEN && feature !== Feature.SCREEN) this.screenCells = this.screenCells.filter(i => i !== idx);
+    if (feature === Feature.SCREEN && !this.screenCells.includes(idx)) this.screenCells.push(idx);
+    if (old === Feature.SLIDE && feature !== Feature.SLIDE) this.slideCells = this.slideCells.filter(i => i !== idx);
+    if (feature === Feature.SLIDE && !this.slideCells.includes(idx)) this.slideCells.push(idx);
+    return true;
+  }
+
+  removeDoorAt(idx: number): boolean {
+    let changed = false;
+    const door = this.doors.get(idx);
+    const removeFromRoom = (roomId: number): void => {
+      const room = roomId >= 0 ? this.rooms[roomId] : undefined;
+      if (!room) return;
+      const next = room.doors.filter(i => i !== idx);
+      if (next.length !== room.doors.length) {
+        room.doors = next;
+        changed = true;
+      }
+    };
+    if (door) {
+      removeFromRoom(door.roomA);
+      removeFromRoom(door.roomB);
+    }
+    if (this.doors.delete(idx)) changed = true;
+    for (const room of this.rooms) {
+      if (!room) continue;
+      const next = room.doors.filter(i => i !== idx);
+      if (next.length !== room.doors.length) {
+        room.doors = next;
+        changed = true;
+      }
+    }
+    return changed;
+  }
 
   solid(x: number, y: number): boolean {
     const i = this.idx(x, y);
@@ -365,6 +417,7 @@ export function replaceWorldFromGeneration(target: World | null | undefined, gen
       surfaceVersion: source.surfaceVersion,
       wallTexVersion: source.wallTexVersion,
       floorTexVersion: source.floorTexVersion,
+      featureVersion: source.featureVersion,
       fogVersion: source.fogVersion,
     });
     return source;
@@ -375,6 +428,7 @@ export function replaceWorldFromGeneration(target: World | null | undefined, gen
     surfaceVersion: target.surfaceVersion,
     wallTexVersion: target.wallTexVersion,
     floorTexVersion: target.floorTexVersion,
+    featureVersion: target.featureVersion,
     fogVersion: target.fogVersion,
   };
 

@@ -753,7 +753,7 @@ function dropContractSample(
 function markZhelemishSampleSite(world: World, x: number, y: number, sealed: boolean): void {
   const ci = world.idx(x, y);
   if (world.cells[ci] !== Cell.FLOOR && world.cells[ci] !== Cell.WATER) return;
-  world.features[ci] = sealed ? Feature.APPARATUS : Feature.SHELF;
+  world.setFeatureAt(ci, sealed ? Feature.APPARATUS : Feature.SHELF);
   world.stamp(x, y, 0.5, 0.5, sealed ? 5 : 3, sealed ? 0.62 : 0.42, 105105 + (sealed ? 1 : 2), 84, sealed ? 150 : 92, sealed ? 72 : 58, false);
 }
 

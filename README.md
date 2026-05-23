@@ -461,7 +461,7 @@ The main plot is data-driven through `PLOT_NPCS` and `PLOT_CHAIN` in `src/data/p
 
 Quest markers appear on minimap/full map. TALK points to target NPC, VISIT to room/floor target, FETCH generally back to the giver unless the quest has a specific target.
 
-The minimap and `M` full map use UI-only exploration memory from `src/systems/map_exploration.ts`. A new/current floor starts with walkable geometry in the player's starting macro-zone revealed, including rooms, corridors, doors, lifts, water and abyss cells; entering a room reveals that room, movement adds a small local trail, and cartographer/route-cue knowledge or samosbor shelter signals can reveal target rooms, zones or nearby areas. Unexplored geometry is dark on both map modes, with a short visual-only feather on non-wall cells at explored borders so unknown passages fade into darkness while hidden wall mass stays black, and hidden cells do not show ordinary entity dots. This does not modify `World` solidity, raycaster visibility, AI vision, BFS, pathfinding or faction logic.
+The minimap and `M` full map use UI-only exploration memory from `src/systems/map_exploration.ts`. A new/current floor starts with walkable geometry in the player's starting macro-zone revealed, including rooms, corridors, doors, lifts, water and abyss cells. After that, player movement reveals only a small local cell trail; entering a room or zone does not reveal that room or zone by itself. Cartographer/route-cue knowledge, samosbor shelter signals and other explicit events can still reveal target rooms, zones or nearby areas as one-time cell reveals. Unexplored geometry is dark on both map modes, with a short visual-only feather on non-wall cells at explored borders so unknown passages fade into darkness while hidden wall mass stays black, and hidden cells do not show ordinary entity dots. This does not modify `World` solidity, raycaster visibility, AI vision, BFS, pathfinding or faction logic.
 
 Procedural NPC assignments have deadlines instead of a global active-quest cap. The shortest rare urgent tasks, such as a nearby danger cleanup during samosbor, get at least 1 in-game hour. Normal procedural work is usually around a day. Cross-floor, high-rank, multi-kill or high-count assignments can run for several days. Plot-chain quests and most hand-authored side quests registered through content modules do not expire unless a module explicitly sets a deadline.
 
@@ -584,21 +584,24 @@ Current behavior:
 3. Warning messages/events are published.
 4. Siren plays unless the variant suppresses or replaces it.
 5. Citizens/scientists hide through AI; liquidators and cultists keep acting.
-6. A zone is captured by samosbor fog.
-7. Fog boss and corridor/map monsters spawn.
+6. A zone is captured by samosbor fog/light; that zone seeds the field.
+7. Fog boss, corridor monsters and map-pressure monsters spawn; start monsters are not leashed to the captured seed.
 8. Near the end, hermodoor sealing occurs with variant timing.
-9. Fog spreads and can spawn monsters during active phase.
-10. On the story `LIVING` floor, small/medium scale rolls start `systems/samosbor_wave.ts`: a bounded frontier mutates volatile cells during the active phase, records a local rebuild field radius, preserves apartments, hermowalls, lifts and the player's shelter, then splices a freshly generated floor field into that local area at the end with boundary floor stitches.
-11. Full scale, route/design/procedural floors and wave start failures keep the old deferred `pendingLoad` rebuild path.
-12. After end, doors reopen, aftermath may apply, and either the local wave is finalized or relevant floor geometry is rebuilt.
+9. The fog/light field spreads through reachable floor/water cells in the accessible volume; walls and doors stop it. Outside active samosbor the field keeps spreading, but its gameplay effect is inert.
+10. Active fog samples apply the current variant's effect: classic samosbor spawns monsters, Maronary rewrites actors/items/container contents/cell details, Veretar deletes actors/items/containers/cells into white residue, and Istotit heals or creates actors/items/features.
+11. On the story `LIVING` floor, samosbor rolls start `systems/samosbor_wave.ts`: a bounded small/medium frontier mutates volatile cells during the active phase, records a local rebuild field radius, preserves apartments, hermowalls, lifts and explicitly protected shelter rooms, then splices a freshly generated floor field into that local area at the end with boundary floor stitches, generated room traits, existing zone ownership left intact and old fog preserved on still-walkable cells.
+12. Route/design/procedural floors keep the deferred `pendingLoad` rebuild path until they have route-aware local patch generation.
+13. After end, doors reopen, aftermath may apply, and either the local wave is finalized or relevant floor geometry is rebuilt.
 
-`data/samosbor_variants.ts` currently has 8 variants, 21 modifiers and 40 aftermath beats. Rare replacement variants include Maronary with green fog, an intentionally kept high beep/active ping identity, damaging green source glow and wrong-door residue, Istotit with a low bell cue, golden fog, marked shelter rooms and social aftermath, and Veretar with white-area leakage. `data/samosbor_director.ts` currently registers 34 bounded director beats for warnings, patrols, shortages, door malfunctions, aftershocks and rumor seeds.
+`data/samosbor_variants.ts` currently has 8 variants, 21 modifiers and 40 aftermath beats. Rare replacement variants include Maronary with green fog/light, an intentionally kept high beep/active ping identity, damaging green source glow, wrong-door residue and identity rewrites; Istotit with a low bell cue, golden fog/light, marked shelter rooms, healing/creation effects and social aftermath; and Veretar with white fog/light, deletion effects, area leakage and white residue. The player-facing philosophy is explicit in runtime mechanics: samosbor brings purple fog and monsters, Maronary changes, Veretar removes, Istotit creates. `data/samosbor_director.ts` currently registers 34 bounded director beats for warnings, patrols, shortages, door malfunctions, aftershocks and rumor seeds.
+
+The `vacuum` tool clears samosbor fog/light from the player's cell and the eight neighboring cells, so the player can clean the active field edge without stepping deeper into it.
 
 Timers by story floor come from `src/gen/floor_manifest.ts`: Ministry is slowest, Kvartiry/Living/Maintenance are progressively more pressured, Hell and Void are fastest. Procedural floors additionally shorten the timer by danger level and anomaly pressure.
 
-Route cues live on the concrete `World` that registered them. Story, design, procedural and floor-instance loads keep their generated cue state with that world object. Samosbor rebuilds are in-place, so full story/design/procedural replacements copy only the replacement world's fresh markers into the live world and drop old heard/followed/map-reveal state; Living's volatile regrow clears old cue state before the maze is regenerated. Runtime samosbor waves prune cues whose source/target cells fall inside the final local rebuild field.
+Route cues live on the concrete `World` that registered them. Story, design, procedural and floor-instance loads keep their generated cue state with that world object. Deferred story/design/procedural replacements copy only the replacement world's fresh markers into the live world and drop old heard/followed/map-reveal state; Living's volatile regrow clears old cue state before the maze is regenerated. Runtime samosbor waves prune cues whose source/target cells fall inside the final local rebuild field.
 
-Map exploration follows the rebuild boundary visually only: full samosbor rebuilds clear the current map memory and reveal the player's new starting sector again, while Living's local samosbor wave covers the rebuilt field area back with map fog-of-war. This is separate from purple fog density and from simulation visibility.
+Map exploration follows the rebuild boundary visually only: deferred samosbor rebuilds clear the current map memory and reveal the player's new starting sector again, while Living's local samosbor wave covers the rebuilt field area back with map fog-of-war. Re-entering that darkened local field reveals it through the same normal local cell trail as any other unknown map area. This is separate from purple fog density and from simulation visibility.
 
 ## Events, Memory And Rumors
 

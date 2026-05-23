@@ -135,7 +135,7 @@ function deleteBeamCell(world: World, idx: number): { any: boolean; cells: numbe
   let features = 0;
   if (cell === Cell.WALL || cell === Cell.DOOR) {
     if (cell === Cell.DOOR) {
-      world.doors.delete(idx);
+      world.removeDoorAt(idx);
       doors = 1;
     }
     world.cells[idx] = Cell.FLOOR;
@@ -146,7 +146,7 @@ function deleteBeamCell(world: World, idx: number): { any: boolean; cells: numbe
     any = true;
   }
   if (world.features[idx] !== Feature.NONE) {
-    world.features[idx] = Feature.NONE;
+    world.setFeatureAt(idx, Feature.NONE);
     features = 1;
     any = true;
   }

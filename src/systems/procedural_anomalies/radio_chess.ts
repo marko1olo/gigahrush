@@ -237,11 +237,11 @@ export function tryUseRadioChessAnomaly(
 
   if (runtime.disabledBeacons.has(target.idx)) {
     runtime.disabledBeacons.delete(target.idx);
-    world.features[target.idx] = Feature.APPARATUS;
+    world.setFeatureAt(target.idx, Feature.APPARATUS);
     state.msgs.push(msg('Маяк снова читает доску.', state.time, '#dd8'));
   } else {
     runtime.disabledBeacons.add(target.idx);
-    world.features[target.idx] = Feature.MACHINE;
+    world.setFeatureAt(target.idx, Feature.MACHINE);
     state.msgs.push(msg('Маяк выключен. Клетки рядом молчат.', state.time, '#8cf'));
   }
   return true;

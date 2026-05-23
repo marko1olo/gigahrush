@@ -743,9 +743,14 @@ function toroidalDirection(world: World, fromX: number, fromY: number, toX: numb
   // dy<0 = target is above = north; dx>0 = target is right = east
   const ns = dy < -5 ? 'север' : dy > 5 ? 'юг' : '';
   const ew = dx > 5 ? 'восток' : dx < -5 ? 'запад' : '';
-  if (ns && ew) return `на ${ns}о-${ew}е`;
-  if (ns) return `на ${ns}е`;
-  if (ew) return `на ${ew}е`;
+  if (ns === 'север' && ew === 'восток') return 'на северо-востоке';
+  if (ns === 'север' && ew === 'запад') return 'на северо-западе';
+  if (ns === 'юг' && ew === 'восток') return 'на юго-востоке';
+  if (ns === 'юг' && ew === 'запад') return 'на юго-западе';
+  if (ns === 'север') return 'на севере';
+  if (ns === 'юг') return 'на юге';
+  if (ew === 'восток') return 'на востоке';
+  if (ew === 'запад') return 'на западе';
   return 'недалеко';
 }
 

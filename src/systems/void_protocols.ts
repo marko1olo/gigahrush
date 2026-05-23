@@ -442,11 +442,11 @@ function applySilence(world: World, mark: VoidProtocolMark): boolean {
   let changed = 0;
   forLocalCells(world, mark, (_x, _y, ci) => {
     if (world.features[ci] === Feature.LAMP || world.features[ci] === Feature.CANDLE) {
-      world.features[ci] = Feature.NONE;
+      world.setFeatureAt(ci, Feature.NONE, false);
       changed++;
     }
   });
-  if (changed > 0) world.bakeLights();
+  if (changed > 0) world.markFeaturesDirty(true);
   return true;
 }
 
@@ -569,7 +569,7 @@ function markBorrowedLightReceipt(world: World, mark: VoidProtocolMark, kept: bo
   const y = room ? world.wrap(room.y + (room.h >> 1)) : mark.y;
   const ci = world.idx(x, y);
   if (world.cells[ci] === Cell.FLOOR) {
-    world.features[ci] = kept ? Feature.LAMP : Feature.SCREEN;
+    world.setFeatureAt(ci, kept ? Feature.LAMP : Feature.SCREEN);
     world.stamp(x, y, 0.5, 0.5, kept ? 0.54 : 0.42, kept ? 0.78 : 0.68, mark.id * 31 + (kept ? 7 : 3), kept ? 210 : 40, 245, kept ? 180 : 255, true);
   }
   if (room && !room.name.includes(kept ? 'улика' : 'потреблен')) {

@@ -1436,16 +1436,7 @@ export function sanitizeDoors(world: World): void {
     for (const i of toRemove) {
       // Apartment doors become WALL, non-apartment become FLOOR
       world.cells[i] = world.aptMask[i] ? Cell.WALL : Cell.FLOOR;
-      const door = world.doors.get(i);
-      if (door) {
-        const rA = world.rooms[door.roomA];
-        if (rA) rA.doors = rA.doors.filter(d => d !== i);
-        if (door.roomB >= 0) {
-          const rB = world.rooms[door.roomB];
-          if (rB) rB.doors = rB.doors.filter(d => d !== i);
-        }
-        world.doors.delete(i);
-      }
+      world.removeDoorAt(i);
     }
   }
 }
@@ -1494,18 +1485,7 @@ export function openVolatileDoors(world: World): void {
   }
   for (const idx of toOpen) {
     world.cells[idx] = Cell.FLOOR;
-    const door = world.doors.get(idx);
-    if (door) {
-      if (door.roomA >= 0) {
-        const rA = world.rooms[door.roomA];
-        if (rA) rA.doors = rA.doors.filter(d => d !== idx);
-      }
-      if (door.roomB >= 0) {
-        const rB = world.rooms[door.roomB];
-        if (rB) rB.doors = rB.doors.filter(d => d !== idx);
-      }
-    }
-    world.doors.delete(idx);
+    world.removeDoorAt(idx);
   }
 }
 
@@ -1586,13 +1566,7 @@ function canCarveLiftConnectorCell(world: World, idx: number): boolean {
 }
 
 function clearDoorAt(world: World, idx: number): void {
-  const door = world.doors.get(idx);
-  if (!door) return;
-  const roomA = world.rooms[door.roomA];
-  if (roomA) roomA.doors = roomA.doors.filter(d => d !== idx);
-  const roomB = world.rooms[door.roomB];
-  if (roomB) roomB.doors = roomB.doors.filter(d => d !== idx);
-  world.doors.delete(idx);
+  world.removeDoorAt(idx);
 }
 
 function setConnectorFloor(world: World, idx: number, floorTex: Tex): boolean {

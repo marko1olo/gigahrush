@@ -73,13 +73,13 @@ import {
   replayMapEditorPatchForCurrentFloor,
   summarizeMapEditor,
 } from './map_editor';
+import { revealWholeMap } from './map_exploration';
 import { getAiSchedulerStats } from './ai';
 import { canSpawnEntityType, entitySpawnSlots } from './entity_limits';
 
 /* ── Command execution ───────────────────────────────────────── */
 
 const CATALOG_DEBUG_SEARCHES = ['', 'numbered', '404', 'school', 'hospital', 'market'];
-const DEBUG_FORCED_VERETAR_LEAD_SECONDS = 30;
 const DEBUG_SAMOSBOR_WARNING_SECONDS = 12;
 const DEBUG_MONSTER_SCAN_CAP = 192;
 const DEBUG_CONTAINER_ROUTE_RADIUS = 2;
@@ -152,6 +152,7 @@ type BaseDebugCommandId =
   | 'grant_xp'
   | 'cycle_samosbor_variant'
   | 'toggle_noclip'
+  | 'revealmap'
   | 'recent_events'
   | 'economy_prices'
   | 'nearby_containers'
@@ -640,8 +641,7 @@ function seedDebugLishennyyLight(world: World, player: Entity, kind: MonsterKind
     const x = world.wrap(Math.floor(player.x + Math.cos(player.angle) * dist));
     const y = world.wrap(Math.floor(player.y + Math.sin(player.angle) * dist));
     if (!passableDebugCell(world, x, y)) continue;
-    world.features[world.idx(x, y)] = Feature.LAMP;
-    world.bakeLights();
+    world.setFeatureAt(world.idx(x, y), Feature.LAMP);
     return 1;
   }
   return 0;
@@ -903,7 +903,7 @@ function placeDebugChervieFeature(world: World, x: number, y: number, feature: F
   const wx = world.wrap(x);
   const wy = world.wrap(y);
   if (!passableDebugCell(world, wx, wy)) return false;
-  world.features[world.idx(wx, wy)] = feature;
+  world.setFeatureAt(world.idx(wx, wy), feature);
   return true;
 }
 
@@ -1439,12 +1439,12 @@ export function execDebugCommand(
     }
     case 30: { // Force Veretar variant + start
       forceNextSamosborVariant('veretar');
-      if (!state.samosborActive) state.samosborTimer = DEBUG_FORCED_VERETAR_LEAD_SECONDS;
+      if (!state.samosborActive) state.samosborTimer = 0;
       if (isSmokeDebugRun()) stabilizeSmokeRecovery(world, player, entities);
       state.msgs.push(msg(
         state.samosborActive
           ? '[DEBUG] Следующий самосбор: Веретар после текущего'
-          : `[DEBUG] Следующий самосбор: Веретар через ${DEBUG_FORCED_VERETAR_LEAD_SECONDS}с`,
+          : '[DEBUG] Следующий самосбор: Веретар',
         state.time,
         '#f4f1df',
       ));
@@ -1676,6 +1676,11 @@ export function execDebugCommand(
       }
       return { type: 'refresh_world_data' };
     }
+    case 85: {
+      const cells = revealWholeMap(world);
+      state.msgs.push(msg(`[DEBUG] revealmap: открыто клеток ${cells}`, state.time, '#ff0'));
+      break;
+    }
   }
   return null;
 }
@@ -1776,12 +1781,14 @@ const BASE_CMD_DEFS = [
   { id: 'debug_false_cleanup_patrol', label: 'SAMOSBOR: ложная зачистка' },
   { id: 'debug_mukhozhuk_host', label: 'MUKHOZHUK: носитель у игрока' },
   { id: 'debug_chervie_site', label: 'CHERVIE: экранный узел' },
+  { id: 'revealmap', label: 'REVEALMAP: открыть всю карту' },
 ] as const satisfies readonly DebugCommandDef[];
 
 const BASE_CMD_VISUAL_BEFORE_DESIGN = [
   'spawn_all_weapons',
   'grant_xp',
   'toggle_noclip',
+  'revealmap',
   'toggle_onepunchman',
   'grant_permit_pack',
   'check_permit_access',

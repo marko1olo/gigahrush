@@ -117,7 +117,7 @@ export function placeNetHackTerminal(world: World, x: number, y: number, defId: 
   if (!def) return null;
   const idx = world.idx(x, y);
   if (!canUseHackCell(world, idx)) return null;
-  world.features[idx] = Feature.APPARATUS;
+  world.setFeatureAt(idx, Feature.APPARATUS);
   const terminal: NetHackTerminal = {
     idx,
     x: idx % W,

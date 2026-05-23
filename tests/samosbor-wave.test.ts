@@ -17,6 +17,7 @@ import { createWorldEventState } from '../src/systems/events';
 import { registerRouteCue, routeCueCount } from '../src/systems/route_cues';
 import {
   cancelSamosborWave,
+  chooseSamosborScale,
   finishSamosborWave,
   getSamosborWaveDebugSnapshot,
   startSamosborWave,
@@ -80,6 +81,12 @@ function makeRoom(id: number, x: number, y: number, w: number, h: number, apartm
 function makeReplacementWorld(cx = 24, cy = 24): World {
   const world = new World();
   world.zones[0] = { id: 0, cx, cy, faction: ZoneFaction.CITIZEN, hasLift: false, fogged: false, level: 1, hqRoomId: -1 };
+  const generatedRoom = makeRoom(3, cx - 2, cy - 2, 5, 5);
+  generatedRoom.type = RoomType.KITCHEN;
+  generatedRoom.name = 'Сгенерированная кухня';
+  generatedRoom.wallTex = Tex.PANEL;
+  generatedRoom.floorTex = Tex.F_TILE;
+  world.rooms[generatedRoom.id] = generatedRoom;
   for (let y = cy - 2; y <= cy + 2; y++) {
     for (let x = cx - 2; x <= cx + 2; x++) {
       const idx = world.idx(x, y);
@@ -87,7 +94,7 @@ function makeReplacementWorld(cx = 24, cy = 24): World {
       world.floorTex[idx] = Tex.F_TILE;
       world.wallTex[idx] = Tex.PANEL;
       world.zoneMap[idx] = 0;
-      world.roomMap[idx] = -1;
+      world.roomMap[idx] = generatedRoom.id;
     }
   }
   return world;
@@ -140,6 +147,17 @@ test('samosbor wave respects the per-tick budget', () => {
   const snapshot = getSamosborWaveDebugSnapshot();
   assert.equal(tick.processed <= 3, true);
   assert.equal((snapshot?.lastProcessed ?? 99) <= 3, true);
+});
+
+test('story living samosbor scale rolls stay local', () => {
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING });
+  const originalRandom = Math.random;
+  Math.random = () => 0.999999;
+  try {
+    assert.notEqual(chooseSamosborScale(state), 'full');
+  } finally {
+    Math.random = originalRandom;
+  }
 });
 
 test('samosbor wave leaves doors, containers, route cues, and entity cells consistent after patch', () => {
@@ -220,14 +238,29 @@ test('finished local samosbor wave splices a regenerated field and stitches old 
   const generatedIdx = world.idx(26, 24);
   world.cells[outsideIdx] = Cell.FLOOR;
   world.floorTex[outsideIdx] = Tex.F_LINO;
+  world.zones[0].faction = ZoneFaction.CITIZEN;
+  world.zones[0].fogged = false;
+  world.zones[0].level = 7;
 
   assert.equal(startSamosborWave(world, entities, state, 'small', 24, 24, { seed: 55, radius: 4, budgetCellsPerTick: 64 }), true);
   runWaveToEnd(world, entities, state);
-  const replacement = { world: makeReplacementWorld(), entities: [], spawnX: 24.5, spawnY: 24.5 };
+  world.fog[generatedIdx] = 180;
+  const replacementWorld = makeReplacementWorld();
+  replacementWorld.zones[0].faction = ZoneFaction.CULTIST;
+  replacementWorld.zones[0].fogged = true;
+  replacementWorld.zones[0].level = 2;
+  const replacement = { world: replacementWorld, entities: [], spawnX: 24.5, spawnY: 24.5 };
   const finished = finishSamosborWave(world, entities, state, replacement);
 
   assert.equal(world.cells[generatedIdx], Cell.FLOOR);
   assert.equal(world.floorTex[generatedIdx], Tex.F_TILE);
+  assert.equal(world.fog[generatedIdx], 180);
+  assert.equal(world.zones[0].faction, ZoneFaction.CITIZEN);
+  assert.equal(world.zones[0].fogged, false);
+  assert.equal(world.zones[0].level, 7);
+  const generatedRoom = world.rooms[world.roomMap[generatedIdx]];
+  assert.equal(generatedRoom?.type, RoomType.KITCHEN);
+  assert.equal(generatedRoom?.name, 'Сгенерированная кухня');
   assert.equal(world.cells[outsideIdx], Cell.FLOOR);
   assert.equal(world.floorTex[outsideIdx], Tex.F_LINO);
   assert.equal(world.cells[boundaryIdx], Cell.FLOOR);

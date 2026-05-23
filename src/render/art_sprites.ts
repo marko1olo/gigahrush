@@ -56,15 +56,6 @@ const F69_RIBBON: [number, number, number][] = [
   [158, 62, 126],
 ];
 
-const F69_IRIS: [number, number, number][] = [
-  [54, 42, 62],
-  [78, 46, 88],
-  [54, 78, 112],
-  [92, 54, 60],
-  [50, 92, 70],
-  [112, 86, 46],
-];
-
 function mix32(v: number): number {
   v >>>= 0;
   v ^= v >>> 16;
@@ -92,6 +83,8 @@ function jitterColor(c: [number, number, number], seed: number, salt: number, am
 }
 
 function put(t: Uint32Array, x: number, y: number, c: number): void {
+  x = Math.round(x);
+  y = Math.round(y);
   if (x >= 0 && x < S && y >= 0 && y < S) t[y * S + x] = c;
 }
 
@@ -284,26 +277,25 @@ function putColorCapsule(
   }
 }
 
-function drawRibbon(t: Uint32Array, variant: number, seed: number, cx = 32 + ((variant & 1) ? 1 : -1) + (variant % 3) - 1): void {
+function drawRibbon(
+  t: Uint32Array,
+  seed: number,
+  leftLegTopX: number,
+  leftFootX: number,
+  rightLegTopX: number,
+  rightFootX: number,
+  legTop: number,
+  legBot: number,
+): void {
   const [r, g, b] = jitterColor(pickColor(F69_RIBBON, seed, 12), seed, 13, 24);
-
-  for (let x = cx - 5; x <= cx + 5; x++) put(t, x, 23, rgba(r, g, b));
-  put(t, cx - 2, 24, rgba(clamp(r + 32), clamp(g + 24), clamp(b + 20)));
-  put(t, cx + 2, 24, rgba(clamp(r + 32), clamp(g + 24), clamp(b + 20)));
-  put(t, cx, 25, rgba(clamp(r + 12), clamp(g + 10), clamp(b + 8)));
-
-  for (let y = 29; y < 42; y++) {
-    const p = (y - 29) / 13;
-    const side = 4 + Math.floor(Math.sin(p * Math.PI) * 1.5);
-    const stripe = ((y + seed) & 3) === 0 ? 22 : 0;
-    put(t, cx - side, y, rgba(clamp(r + stripe), clamp(g + stripe), clamp(b + stripe)));
-    put(t, cx + side, y, rgba(clamp(r + stripe), clamp(g + stripe), clamp(b + stripe)));
-  }
 
   for (let y = 52; y < 61; y++) {
     const shine = ((y + seed) & 5) === 0 ? 34 : 0;
-    for (let x = cx - 7; x <= cx - 4; x++) put(t, x, y, rgba(clamp(r + shine), clamp(g + shine), clamp(b + shine)));
-    for (let x = cx + 4; x <= cx + 7; x++) put(t, x, y, rgba(clamp(r + shine), clamp(g + shine), clamp(b + shine)));
+    const p = Math.max(0, Math.min(1, (y - legTop) / Math.max(1, legBot - legTop)));
+    const lx = Math.round(leftLegTopX + (leftFootX - leftLegTopX) * p);
+    const rx = Math.round(rightLegTopX + (rightFootX - rightLegTopX) * p);
+    for (let x = lx - 2; x <= lx + 1; x++) put(t, x, y, rgba(clamp(r + shine), clamp(g + shine), clamp(b + shine)));
+    for (let x = rx - 1; x <= rx + 2; x++) put(t, x, y, rgba(clamp(r + shine), clamp(g + shine), clamp(b + shine)));
   }
 }
 
@@ -385,17 +377,33 @@ function drawFigureStudyDetails(
     put(t, x + side, chestY, rgba(clamp(pr + 22), clamp(pg + 16), clamp(pb + 14), 190));
   }
 
-  for (let y = 34; y < 40; y += 2) put(t, cx + lean, y, rgba(clamp(r - 24), clamp(g - 18), clamp(b - 14), 150));
+  put(t, cx + lean, 36 + (variant & 1), rgba(clamp(r - 42), clamp(g - 32), clamp(b - 26)));
 
   const lowerR = clamp(hairR * 0.48 + noise(variant, 0, seed) * 24);
   const lowerG = clamp(hairG * 0.48 + noise(variant, 1, seed) * 20);
   const lowerB = clamp(hairB * 0.48 + noise(variant, 2, seed) * 18);
-  for (let y = 41; y <= 45; y++) {
-    const hw = y < 43 ? 1 : y === 43 ? 2 : 3;
-    for (let x = cx + lean - hw; x <= cx + lean + hw; x++) {
-      if (Math.abs(x - cx - lean) + Math.abs(y - 43) > 4) continue;
-      const n = noise(x, y, seed + 330) * 18 - 9;
-      put(t, x, y, rgba(clamp(lowerR + n), clamp(lowerG + n), clamp(lowerB + n)));
+  const lowerPresence = Math.max(0, (rnd(seed, 331) - 0.18) / 0.82);
+  const lowerHeight = lowerPresence <= 0 ? 0 : 2 + Math.floor(lowerPresence * 3 + rnd(seed, 332) * 2);
+  const lowerMaxHalf = 0.6 + lowerPresence * 2.2;
+  const lowerCx = cx + lean + Math.floor(rnd(seed, 333) * 3) - 1;
+  for (let dy = 0; dy < lowerHeight; dy++) {
+    const y = 41 + dy;
+    const p = dy / Math.max(1, lowerHeight - 1);
+    const rowCx = lowerCx + Math.sin((p * 2.2 + variant * 0.11) * Math.PI) * 0.55;
+    const rowHalf = 0.35 + p * lowerMaxHalf + (noise(dy, variant, seed + 334) - 0.5) * 0.8;
+    for (let x = Math.floor(rowCx - rowHalf - 1); x <= Math.ceil(rowCx + rowHalf + 1); x++) {
+      const edge = Math.abs(x - rowCx) / Math.max(0.5, rowHalf);
+      if (edge > 1.15) continue;
+      const grain = noise(x, y, seed + 330);
+      const keep = edge < 0.38 || grain < lowerPresence * 0.68 + (1 - edge) * 0.26;
+      if (!keep) continue;
+      const cover = Math.max(0.42, Math.min(0.92, 0.54 + lowerPresence * 0.28 + (1 - edge) * 0.15 + (grain - 0.5) * 0.12));
+      const n = noise(x, y, seed + 335) * 18 - 9;
+      put(t, x, y, rgba(
+        clamp(lowerR * cover + r * (1 - cover) + n),
+        clamp(lowerG * cover + g * (1 - cover) + n),
+        clamp(lowerB * cover + b * (1 - cover) + n),
+      ));
     }
   }
 }
@@ -405,22 +413,22 @@ function drawHairPixel(t: Uint32Array, x: number, y: number, r: number, g: numbe
   put(t, x, y, rgba(clamp(r + n - edge), clamp(g + n - edge), clamp(b + n - edge)));
 }
 
-function drawLowerHair(t: Uint32Array, cx: number, lean: number, variant: number, r: number, g: number, b: number, seed: number): void {
+function drawLowerHair(t: Uint32Array, cx: number, lean: number, variant: number, r: number, g: number, b: number, seed: number, hairScale: number): void {
   const style = variant % 6;
   if (style === 1) {
     for (const side of [-1, 1]) {
       const tailX = cx + lean + side * (9 + (variant & 1));
-      putColorCapsule(t, tailX, 18, tailX + side * 2, 55, 3.8, r, g, b, seed + 120 + side);
-      putColorEllipse(t, tailX + side, 54, 3.5, 4.2, r, g, b, seed + 130 + side);
+      putColorCapsule(t, tailX, 18, tailX + side * 2, 55, 3.8 * hairScale, r, g, b, seed + 120 + side);
+      putColorEllipse(t, tailX + side, 54, 3.5 * hairScale, 4.2 * hairScale, r, g, b, seed + 130 + side);
     }
     return;
   }
   if (style === 4) {
     const side = (variant & 1) ? 1 : -1;
-    putColorCapsule(t, cx + lean + side * 7, 15, cx + lean + side * 12, 51, 4.2, r, g, b, seed + 141);
-    putColorEllipse(t, cx + lean + side * 12, 51, 4.8, 5.0, r, g, b, seed + 142);
+    putColorCapsule(t, cx + lean + side * 7, 15, cx + lean + side * 12, 51, 4.2 * hairScale, r, g, b, seed + 141);
+    putColorEllipse(t, cx + lean + side * 12, 51, 4.8 * hairScale, 5.0 * hairScale, r, g, b, seed + 142);
     for (let y = 16; y < 36; y++) {
-      const hw = 7 + Math.floor(Math.sin((y + variant) * 0.2) * 2);
+      const hw = (7 + Math.floor(Math.sin((y + variant) * 0.2) * 2)) * hairScale;
       for (let x = cx + lean - hw; x <= cx + lean + hw; x++) {
         if (Math.abs(x - cx - lean) < 3 && y > 23) continue;
         drawHairPixel(t, x, y, r, g, b, seed + 143, Math.abs(x - cx - lean));
@@ -431,7 +439,7 @@ function drawLowerHair(t: Uint32Array, cx: number, lean: number, variant: number
   if (style === 5) {
     for (let y = 13; y <= 30; y++) {
       const p = (y - 13) / 17;
-      const outer = 11 - p * 3;
+      const outer = (11 - p * 3) * hairScale;
       const rowCx = cx + lean + Math.sin((p * 4 + variant) * Math.PI) * 1.5;
       for (let x = Math.floor(rowCx - outer); x <= Math.ceil(rowCx + outer); x++) {
         if (Math.abs(x - rowCx) <= outer) drawHairPixel(t, x, y, r, g, b, seed + 151, Math.abs(x - rowCx));
@@ -445,7 +453,7 @@ function drawLowerHair(t: Uint32Array, cx: number, lean: number, variant: number
   for (let y = 13; y <= yBot; y++) {
     const p = (y - 13) / Math.max(1, yBot - 13);
     const wave = Math.sin((p * 3.4 + variant * 0.31) * Math.PI) * (style === 3 ? 2.2 : 1.1);
-    const outer = style === 2 ? 8.8 + Math.sin(p * Math.PI) * 3.0 : 8.2 + p * (style === 3 ? 7.0 : 4.8);
+    const outer = (style === 2 ? 8.8 + Math.sin(p * Math.PI) * 3.0 : 8.2 + p * (style === 3 ? 7.0 : 4.8)) * hairScale;
     const inner = style === 3 ? 2.5 + p * 1.5 : 3.5 + p * 0.8;
     const rowCx = cx + lean + wave;
     for (let x = Math.floor(rowCx - outer); x <= Math.ceil(rowCx + outer); x++) {
@@ -457,17 +465,17 @@ function drawLowerHair(t: Uint32Array, cx: number, lean: number, variant: number
   }
 }
 
-function drawTopHair(t: Uint32Array, cx: number, lean: number, variant: number, r: number, g: number, b: number, seed: number): void {
+function drawTopHair(t: Uint32Array, cx: number, lean: number, variant: number, r: number, g: number, b: number, seed: number, hairScale: number): void {
   const top = Math.floor(variant / 2) % 5;
-  putColorEllipse(t, cx + lean, 13, 7.6, 5.0, r, g, b, seed + 200);
+  putColorEllipse(t, cx + lean, 13, 7.6 * hairScale, 5.0 * hairScale, r, g, b, seed + 200);
 
   if (top === 1) {
-    putColorEllipse(t, cx + lean - 7, 9, 3.7, 3.8, r, g, b, seed + 210);
-    putColorEllipse(t, cx + lean + 7, 9, 3.7, 3.8, r, g, b, seed + 211);
+    putColorEllipse(t, cx + lean - 7, 9, 3.7 * hairScale, 3.8 * hairScale, r, g, b, seed + 210);
+    putColorEllipse(t, cx + lean + 7, 9, 3.7 * hairScale, 3.8 * hairScale, r, g, b, seed + 211);
   } else if (top === 2) {
     for (const side of [-1, 1]) {
       for (let y = 7; y < 13; y++) {
-        const hw = y - 6;
+        const hw = (y - 6) * hairScale;
         for (let x = cx + lean + side * 7 - hw; x <= cx + lean + side * 7 + hw; x++) {
           if (side < 0 ? x > cx + lean - 5 : x < cx + lean + 5) continue;
           drawHairPixel(t, x, y, r, g, b, seed + 220 + side, 6);
@@ -475,19 +483,19 @@ function drawTopHair(t: Uint32Array, cx: number, lean: number, variant: number, 
       }
     }
   } else if (top === 3) {
-    putColorEllipse(t, cx + lean + ((variant & 1) ? -4 : 4), 9, 5.8, 3.2, r, g, b, seed + 230);
+    putColorEllipse(t, cx + lean + ((variant & 1) ? -4 : 4), 9, 5.8 * hairScale, 3.2 * hairScale, r, g, b, seed + 230);
   } else if (top === 4) {
     for (let i = -4; i <= 4; i += 2) {
-      putColorCapsule(t, cx + lean + i, 7, cx + lean + i + Math.sin(i + variant) * 2, 14, 1.5, r, g, b, seed + 232 + i);
+      putColorCapsule(t, cx + lean + i, 7, cx + lean + i + Math.sin(i + variant) * 2, 14, 1.5 * hairScale, r, g, b, seed + 232 + i);
     }
   }
 
   for (let y = 14; y <= 21; y++) {
     const row = y - 14;
     const fall = row * 0.6;
-    const fringe = 6 - Math.floor(row * 0.35);
+    const fringe = (6 - Math.floor(row * 0.35)) * hairScale;
     for (let x = cx + lean - fringe; x <= cx + lean + fringe; x++) {
-      const blade = Math.abs((x - cx - lean + variant) % 4) <= 1;
+      const blade = Math.abs((Math.round(x) - cx - lean + variant) % 4) <= 1;
       if (!blade && row > 3) continue;
       const edge = row > 4 && Math.abs(x - cx - lean) < 2 ? 18 : 2;
       if (y + fall > 23) continue;
@@ -496,21 +504,7 @@ function drawTopHair(t: Uint32Array, cx: number, lean: number, variant: number, 
   }
 }
 
-function drawAnimeFace(t: Uint32Array, cx: number, lean: number, variant: number, skinR: number, skinG: number, skinB: number, seed = variant): void {
-  const eyeY = 17;
-  const [er, eg, eb] = jitterColor(pickColor(F69_IRIS, seed, 14), seed, 15, 18);
-  for (const side of [-1, 1]) {
-    const ex = cx + lean + side * 2;
-    put(t, ex, eyeY - 2, rgba(24, 18, 22));
-    put(t, ex + side, eyeY - 2, rgba(24, 18, 22));
-    put(t, ex, eyeY - 1, rgba(er, eg, eb));
-    put(t, ex + side, eyeY - 1, rgba(er, eg, eb));
-    put(t, ex, eyeY, rgba(er, eg, eb));
-    put(t, ex + side, eyeY, rgba(clamp(er - 18), clamp(eg - 16), clamp(eb - 14)));
-    put(t, ex, eyeY + 1, rgba(18, 14, 18));
-    put(t, ex + side, eyeY + 1, rgba(18, 14, 18));
-    put(t, ex, eyeY - 2, rgba(250, 250, 250));
-  }
+function drawAnimeFace(t: Uint32Array, cx: number, lean: number, skinR: number, skinG: number, skinB: number): void {
   put(t, cx + lean - 4, 20, rgba(230, 116, 126, 150));
   put(t, cx + lean + 4, 20, rgba(230, 116, 126, 150));
   put(t, cx + lean, 20, rgba(clamp(skinR - 36), clamp(skinG - 28), clamp(skinB - 24)));
@@ -574,14 +568,19 @@ export function generateFloor69FemaleNpcSprite(variant: number): Uint32Array {
   const [hr, hg, hb] = jitterColor(pickColor(F69_HAIR, seed, 4), seed, 5, 34);
   const cx = 31 + Math.floor(rnd(seed, 6) * 4);
   const lean = Math.floor(rnd(seed, 7) * 5) - 2;
+  const shoulderScale = 1;
+  const waistScale = 1;
+  const hipScale = 1;
+  const hairScale = 1;
+  const ribbonRate = 1;
   const legRad = 1.35 + rnd(seed, 8) * 0.85;
   const legTop = 39 + rnd(seed, 9) * 2.5;
   const legBot = 58 + rnd(seed, 10) * 3;
   const legHipSpread = 2.0 + rnd(seed, 11) * 1.7;
   const legFootSpread = 4.0 + rnd(seed, 12) * 3.0;
-  const shoulder = 4.5 + rnd(seed, 13) * 2.6;
-  const waist = 1.45 + rnd(seed, 14) * 1.25;
-  const hip = 4.7 + rnd(seed, 15) * 2.6;
+  const shoulder = (4.5 + rnd(seed, 13) * 2.6) * shoulderScale;
+  const waist = (1.45 + rnd(seed, 14) * 1.25) * waistScale;
+  const hip = (4.7 + rnd(seed, 15) * 2.6) * hipScale;
   const torsoBot = 42 + Math.floor(rnd(seed, 16) * 4);
   const armPose = Math.floor(rnd(seed, 17) * 5);
 
@@ -593,10 +592,14 @@ export function generateFloor69FemaleNpcSprite(variant: number): Uint32Array {
     }
   }
 
-  drawLowerHair(t, cx, lean, v, hr, hg, hb, seed);
+  drawLowerHair(t, cx, lean, v, hr, hg, hb, seed, hairScale);
 
-  putColorCapsule(t, cx - legHipSpread + lean * 0.2, legTop, cx - legFootSpread - lean, legBot, legRad, sr, sg, sb, seed + 1);
-  putColorCapsule(t, cx + legHipSpread + lean * 0.2, legTop, cx + legFootSpread - lean, legBot, legRad, sr, sg, sb, seed + 2);
+  const leftLegTopX = cx - legHipSpread + lean * 0.2;
+  const leftFootX = cx - legFootSpread - lean;
+  const rightLegTopX = cx + legHipSpread + lean * 0.2;
+  const rightFootX = cx + legFootSpread - lean;
+  putColorCapsule(t, leftLegTopX, legTop, leftFootX, legBot, legRad, sr, sg, sb, seed + 1);
+  putColorCapsule(t, rightLegTopX, legTop, rightFootX, legBot, legRad, sr, sg, sb, seed + 2);
   if (armPose === 0) {
     putColorCapsule(t, cx - shoulder + 0.5, 27, cx - 8 - lean, 44, 1.05 + rnd(seed, 18) * 0.45, sr, sg, sb, seed + 3);
     putColorCapsule(t, cx + shoulder - 0.5, 27, cx + 8 - lean, 44, 1.05 + rnd(seed, 19) * 0.45, sr, sg, sb, seed + 4);
@@ -616,13 +619,13 @@ export function generateFloor69FemaleNpcSprite(variant: number): Uint32Array {
   drawVaseTorso(t, cx, lean, sr, sg, sb, seed + 5, shoulder, waist, hip, torsoBot);
   drawSoftHighlights(t, cx, lean, sr, sg, sb, seed + 6);
   drawFigureStudyDetails(t, cx, lean, v, sr, sg, sb, hr, hg, hb, seed + 10);
-  if (rnd(seed, 20) > 0.42) drawRibbon(t, v, seed, cx + lean);
+  if (rnd(seed, 20) < ribbonRate) drawRibbon(t, seed, leftLegTopX, leftFootX, rightLegTopX, rightFootX, legTop, legBot);
 
   // Neck, face, hair mass, and facial pixels.
   putColorCapsule(t, cx + lean, 21, cx + lean, 25, 1.5, sr, sg, sb, seed + 7);
   putColorEllipse(t, cx + lean, 17, 5.6, 6.4, sr, sg, sb, seed + 8);
-  drawTopHair(t, cx, lean, v, hr, hg, hb, seed);
-  drawAnimeFace(t, cx, lean, v, sr, sg, sb, seed);
+  drawTopHair(t, cx, lean, v, hr, hg, hb, seed, hairScale);
+  drawAnimeFace(t, cx, lean, sr, sg, sb);
 
   drawContour(t, seed);
   return t;

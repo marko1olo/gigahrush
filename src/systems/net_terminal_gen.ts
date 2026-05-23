@@ -599,10 +599,9 @@ export function placeNetTerminalGenTerminal(
   const idx = world.idx(x, y);
   if (!canUseTerminalCell(world, idx)) return null;
   const feature = world.cells[idx] === Cell.WALL ? Feature.SCREEN : def.feature === Feature.SCREEN ? Feature.APPARATUS : def.feature;
-  world.features[idx] = feature;
+  world.setFeatureAt(idx, feature);
   if (feature === Feature.SCREEN) {
     world.wallTex[idx] = def.wallTex;
-    if (!world.screenCells.includes(idx)) world.screenCells.push(idx);
     world.markWallTexDirty();
   }
   return registerNetTerminalGenTerminal(world, x, y, { ...def, feature }, source);

@@ -401,7 +401,7 @@ export function tryHandleSmogSource(world: World, player: Entity, state: GameSta
     cleared++;
   }
   world.anomalySmogHandled = true;
-  world.features[world.anomalySmogSource] = Feature.MACHINE;
+  world.setFeatureAt(world.anomalySmogSource, Feature.MACHINE);
   world.markFogDirty();
 
   if (!prepared) {
@@ -583,7 +583,7 @@ function resolveFalseSafeMarker(
   }
 
   consumeToolDurability(player, toolId === 'cleaning_kit' ? 8 : 1, state.msgs, state.time, state);
-  world.features[ci] = Feature.NONE;
+  world.setFeatureAt(ci, Feature.NONE);
   markFalseSafeRooms(world, FALSE_SAFE_BLOCK_DISCOVERED);
   markFalseSafeRooms(world, FALSE_SAFE_BLOCK_RESOLVED);
   revealFalseSafeStashes(world);

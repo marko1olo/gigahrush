@@ -17,7 +17,6 @@ interface MapExplorationRuntime {
   initialized: boolean;
   initialZoneId: number;
   lastCell: number;
-  lastRoomId: number;
   lastSamosborWaveFogKey: string;
 }
 
@@ -31,7 +30,6 @@ function emptyRuntime(): MapExplorationRuntime {
     initialized: false,
     initialZoneId: -1,
     lastCell: -1,
-    lastRoomId: -2,
     lastSamosborWaveFogKey: '',
   };
 }
@@ -100,6 +98,16 @@ export function revealMapArea(world: World, x: number, y: number, radius: number
   }
 }
 
+export function revealWholeMap(world: World): number {
+  const runtime = runtimeFor(world);
+  runtime.explored.fill(1);
+  runtime.revealedRooms.clear();
+  for (const room of world.rooms) if (room) runtime.revealedRooms.add(room.id);
+  runtime.revealedZones.clear();
+  for (const zone of world.zones) if (zone) runtime.revealedZones.add(zone.id);
+  return runtime.explored.length;
+}
+
 function hideMapArea(world: World, x: number, y: number, radius: number): void {
   const runtime = explorationByWorld.get(world);
   if (!runtime) return;
@@ -122,14 +130,6 @@ function hideMapArea(world: World, x: number, y: number, radius: number): void {
   for (const roomId of hiddenRooms) runtime.revealedRooms.delete(roomId);
   for (const zoneId of hiddenZones) runtime.revealedZones.delete(zoneId);
   runtime.lastCell = -1;
-  runtime.lastRoomId = -2;
-}
-
-function revealCurrentRoom(world: World, runtime: MapExplorationRuntime, cellIdx: number): void {
-  const roomId = world.roomMap[cellIdx];
-  if (roomId === runtime.lastRoomId) return;
-  runtime.lastRoomId = roomId;
-  if (roomId >= 0) revealMapRoom(world, roomId);
 }
 
 function revealRouteCueKnowledge(world: World, state: GameState): void {
@@ -161,7 +161,6 @@ export function updateMapExploration(world: World, player: Entity, state: GameSt
     runtime.lastCell = cellIdx;
     revealMapArea(world, px, py, LOCAL_TRAIL_RADIUS);
   }
-  revealCurrentRoom(world, runtime, cellIdx);
   revealRouteCueKnowledge(world, state);
   revealSamosborShelters(world, state);
 }

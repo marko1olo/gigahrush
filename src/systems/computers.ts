@@ -86,8 +86,7 @@ export function placeComputer(world: World, x: number, y: number, defId: Compute
   if (!def) return null;
   const idx = world.idx(x, y);
   if (!canUseComputerCell(world, idx)) return null;
-  world.features[idx] = Feature.SCREEN;
-  if (!world.screenCells.includes(idx)) world.screenCells.push(idx);
+  world.setFeatureAt(idx, Feature.SCREEN);
   const terminal: ComputerTerminal = { idx, x: idx % W, y: (idx / W) | 0, defId: def.id };
   computerRegistry.set(idx, terminal);
   return terminal;

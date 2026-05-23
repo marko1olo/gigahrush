@@ -2424,7 +2424,7 @@ function forceProceduralFloor(world: World, x: number, y: number, roomId: number
   world.floorTex[ci] = floorTex;
   world.features[ci] = Feature.NONE;
   world.roomMap[ci] = roomId;
-  world.doors.delete(ci);
+  world.removeDoorAt(ci);
   return true;
 }
 

@@ -353,7 +353,7 @@ function createOutputContainer(
   const kind = outputKindFor(factory, recipe);
   const def = CONTAINER_DEFS[kind];
   const ci = world.idx(pos.x, pos.y);
-  if (world.features[ci] === Feature.NONE) world.features[ci] = Feature.SHELF;
+  if (world.features[ci] === Feature.NONE) world.setFeatureAt(ci, Feature.SHELF);
   const access = outputAccessFor(factory, recipe);
   const container: WorldContainer = {
     id: nextContainerId(world),

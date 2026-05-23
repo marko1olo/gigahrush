@@ -204,6 +204,16 @@ vec3 applyFogV(vec3 c, float f) {
   return mix(c, fc, f);
 }
 
+vec3 applyCellFog(vec3 c, ivec2 p, float baseF) {
+  vec3 outColor = applyFogV(c, baseF);
+  float localFog = float(sampleFog(p)) / 255.0;
+  if (localFog <= 0.02) return outColor;
+  float phase = float((p.x * 11 + p.y * 7) & 63) * 0.0997331;
+  float pulse = 0.82 + 0.18 * sin(uTime * 1.65 + phase);
+  float f = clamp(localFog * 0.78 * pulse, 0.0, 0.88);
+  return mix(outColor, uFogColor, f);
+}
+
 float flashlightBoost(float dist) {
   if (uFlashlight <= 0.0) return 0.0;
   float radius = 8.5;
@@ -470,7 +480,7 @@ void main() {
       }
       if (side == 1) c *= 0.7;
       c *= cellLit;
-      pixel = applyFogV(c, fogF);
+      pixel = applyCellFog(c, hitCell, fogF);
       pixelDepth = min(1.0, dist / MAX_DIST);
     } else if (row > (hit ? drawEnd : HALF_H)) {
       // ── Floor ──
@@ -492,7 +502,7 @@ void main() {
             vec3 fc = sampleAtlas(${Tex.F_ABYSS}u, ftx, fty).rgb;
             float scan = step(0.78, fract((float(fty) + uTime * 26.0) * 0.23));
             fc = mix(fc * 0.35, vec3(22.0/255.0, 6.0/255.0, 34.0/255.0), scan * 0.45);
-            pixel = applyFogV(fc, ff);
+            pixel = applyCellFog(fc, fCell, ff);
             pixelDepth = min(1.0, currentDist / MAX_DIST);
           } else {
             uint floorTexId = fCellType == ${Cell.WATER}u
@@ -503,7 +513,7 @@ void main() {
             // Surface overlay (blood, urine, etc.)
             fc = blendSurface(fc, fCell, ftx >> 2, fty >> 2);
             fc *= fLit;
-            pixel = applyFogV(fc, ff);
+            pixel = applyCellFog(fc, fCell, ff);
             pixelDepth = min(1.0, currentDist / MAX_DIST);
           }
         }
@@ -528,7 +538,7 @@ void main() {
             vec3 cc = sampleAtlas(${Tex.DARK}u, ftx, fty).rgb * 0.22;
             float scan = step(0.8, fract((float(ftx) + uTime * 21.0) * 0.21));
             cc = mix(cc, vec3(18.0/255.0, 5.0/255.0, 28.0/255.0), scan * 0.42);
-            pixel = applyFogV(cc, ff);
+            pixel = applyCellFog(cc, cCell, ff);
             pixelDepth = min(1.0, currentDist / MAX_DIST);
           } else {
             uint feat = texelFetch(uFeatures, cCell, 0).r;
@@ -536,14 +546,14 @@ void main() {
               float glow = max(0.0, 1.0 - currentDist * 0.15);
               if (organicLightCell(cCell)) {
                 vec3 cc = sampleAtlas(${Tex.CEIL}u, ftx, fty).rgb * (0.25 + cLit * 0.35);
-                pixel = applyFogV(applyHellLamp(cc, ftx, fty, cCell.x, cCell.y, currentDist), ff);
+                pixel = applyCellFog(applyHellLamp(cc, ftx, fty, cCell.x, cCell.y, currentDist), cCell, ff);
               } else {
-                pixel = applyFogV(vec3(220.0/255.0 * glow, 180.0/255.0 * glow, 80.0/255.0 * glow), ff);
+                pixel = applyCellFog(vec3(220.0/255.0 * glow, 180.0/255.0 * glow, 80.0/255.0 * glow), cCell, ff);
               }
               pixelDepth = min(1.0, currentDist / MAX_DIST);
             } else if (feat == ${Feature.CANDLE}u) {
               float glow = max(0.0, 1.0 - currentDist * 0.18);
-              pixel = applyFogV(vec3(240.0/255.0 * glow, 180.0/255.0 * glow, 50.0/255.0 * glow), ff);
+              pixel = applyCellFog(vec3(240.0/255.0 * glow, 180.0/255.0 * glow, 50.0/255.0 * glow), cCell, ff);
               pixelDepth = min(1.0, currentDist / MAX_DIST);
             } else {
               vec3 cc;
@@ -555,7 +565,7 @@ void main() {
                 cc = sampleAtlas(${Tex.CEIL}u, ftx, fty).rgb;
                 cc *= cLit;
               }
-              pixel = applyFogV(cc, ff);
+              pixel = applyCellFog(cc, cCell, ff);
               pixelDepth = min(1.0, currentDist / MAX_DIST);
             }
           }
@@ -957,6 +967,7 @@ interface GLState {
   cellVersion: number;
   wallTexVersion: number;
   floorTexVersion: number;
+  featureVersion: number;
   fogVersion: number;
   doorStatesData: Uint8Array;
   // Uniforms cache
@@ -1476,6 +1487,7 @@ export function initWebGL(
     cellVersion: world.cellVersion,
     wallTexVersion: world.wallTexVersion,
     floorTexVersion: world.floorTexVersion,
+    featureVersion: world.featureVersion,
     fogVersion: world.fogVersion,
     doorStatesData,
     rayUniforms, blitUniforms, spriteUniforms,
@@ -1532,6 +1544,7 @@ export function updateWorldData(world: World): void {
 
   gl.bindTexture(gl.TEXTURE_2D, glState.featuresTex);
   gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, W, W, gl.RED_INTEGER, gl.UNSIGNED_BYTE, world.features);
+  glState.featureVersion = world.featureVersion;
 
   gl.bindTexture(gl.TEXTURE_2D, glState.lightTex);
   gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, W, W, gl.RED, gl.FLOAT, world.light);
@@ -1562,6 +1575,14 @@ export function updateDynamicData(world: World, camX = 0, camY = 0): void {
     gl.bindTexture(gl.TEXTURE_2D, glState.featuresTex);
     gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, W, W, gl.RED_INTEGER, gl.UNSIGNED_BYTE, world.features);
     glState.cellVersion = world.cellVersion;
+  }
+
+  if (world.featureVersion !== glState.featureVersion) {
+    gl.bindTexture(gl.TEXTURE_2D, glState.featuresTex);
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, W, W, gl.RED_INTEGER, gl.UNSIGNED_BYTE, world.features);
+    gl.bindTexture(gl.TEXTURE_2D, glState.lightTex);
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, W, W, gl.RED, gl.FLOAT, world.light);
+    glState.featureVersion = world.featureVersion;
   }
 
   if (world.wallTexVersion !== glState.wallTexVersion) {
@@ -1631,7 +1652,7 @@ export function renderSceneGL(
   const pci = world.idx(Math.floor(px), Math.floor(py));
   const purpleFog = world.fog[pci] > 50 ? 1 : 0;
   const activeVariant = getActiveSamosborVariant();
-  const defaultFogRgb: [number, number, number] = [20, 5, 30];
+  const defaultFogRgb: [number, number, number] = [80, 20, 120];
   const fogRgb: readonly [number, number, number] = activeVariant?.fogColor ?? defaultFogRgb;
   const samosborStyle = activeVariant?.def.id === 'veretar' ? 3 : 0;
 

@@ -21,6 +21,7 @@ import { ENTITY_SOFT_LIMITS } from '../src/data/entity_limits';
 import { getMonsterEcology } from '../src/data/monster_ecology';
 import { SIDE_QUESTS } from '../src/data/plot';
 import { PROCEDURAL_POPULATION_PROFILES } from '../src/data/population_profiles';
+import { isFloor69FemaleSprite } from '../src/entities/procedural_visuals';
 import {
   BAD_APPLE_HEIGHT,
   BAD_APPLE_WIDTH,
@@ -1029,6 +1030,10 @@ test('floor 69 uses the shared field as an adult social-debt route', () => {
     e.occupation === Occupation.DOCTOR ||
     e.occupation === Occupation.HUNTER,
   );
+  const generatedWorkers = ambientNpcs.filter(e => e.name?.startsWith('Этаж 69: работница '));
+  const generatedVisitors = ambientNpcs.filter(e => e.name?.startsWith('Этаж 69: посетитель '));
+  const floor69FemaleSprites = ambientNpcs.filter(e => isFloor69FemaleSprite(e.sprite));
+  const femaleQuestNpcs = npcs.filter(e => e.plotNpcId?.startsWith('f69_') && e.isFemale === true);
 
   assert.equal(npcs.length >= 1700 && npcs.length <= 3200, true);
   assert.equal(ambientNpcs.length >= 1700, true);
@@ -1036,6 +1041,13 @@ test('floor 69 uses the shared field as an adult social-debt route', () => {
   assert.equal(npcs.some(e => e.occupation === Occupation.CHILD), false);
   assert.equal(liquidatorNpcs.length > 40, true);
   assert.equal(socialStaffNpcs.length > 400, true);
+  assert.equal(floor69FemaleSprites.length >= 300, true);
+  assert.equal(floor69FemaleSprites.length, generatedWorkers.length);
+  assert.equal(floor69FemaleSprites.every(e => e.isFemale === true && e.name?.startsWith('Этаж 69: работница ')), true);
+  assert.equal(generatedWorkers.every(e => isFloor69FemaleSprite(e.sprite)), true);
+  assert.equal(generatedVisitors.every(e => !isFloor69FemaleSprite(e.sprite)), true);
+  assert.deepEqual(femaleQuestNpcs.map(e => e.plotNpcId).sort(), ['f69_doctor_sima', 'f69_madam_roza', 'f69_performer_ira']);
+  assert.equal(femaleQuestNpcs.every(e => isFloor69FemaleSprite(e.sprite)), true);
   assert.equal(maxEntitiesInArea(gen.entities, EntityType.NPC, 32) <= 26, true);
 });
 

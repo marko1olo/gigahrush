@@ -600,7 +600,7 @@ export function debugForcePseudoliftNearPlayer(world: World, player: Entity, sta
     world.wallTex[liftIdx] = Tex.LIFT_DOOR;
     world.liftDir[liftIdx] = LiftDirection.DOWN;
     const buttonIdx = world.idx(px, py);
-    world.features[buttonIdx] = Feature.LIFT_BUTTON;
+    world.setFeatureAt(buttonIdx, Feature.LIFT_BUTTON);
     world.liftDir[buttonIdx] = LiftDirection.DOWN;
     madeFake = true;
   }

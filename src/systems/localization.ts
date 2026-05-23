@@ -24,8 +24,13 @@ declare global {
 
 const CYRILLIC_RE = /[А-Яа-яЁё]/;
 const CYRILLIC_GLOBAL_RE = /[А-Яа-яЁё]/g;
-const TEMPLATE_PLACEHOLDER_RE = /\$\{[^}]+\}/g;
+const CYRILLIC_LETTER_RE = /[А-Яа-яЁё]/;
+const LETTER_RE = /[A-Za-zА-Яа-яЁё]/;
+const TEMPLATE_PLACEHOLDER_RE = /\$\{[^}]+\}|\{[A-Za-z_][A-Za-z0-9_]*\}/g;
 const TRANSLATION_CACHE_LIMIT = 8192;
+const COMPOSED_TEXT_MAX_LENGTH = 96;
+const COMPOSED_MATCH_MAX_LENGTH = 48;
+const COMPOSED_UNKNOWN_WORD_MAX = 28;
 const FALLBACK_EN_LOCALE: RuntimeLocaleCatalogData = [
   [
     ['1kpmy5f', 'Continue'],
@@ -121,24 +126,138 @@ function catalogForActiveLanguage(): RuntimeCatalog | null {
   return englishCatalog;
 }
 
-function applyTemplateRule(text: string, rule: TemplateRule): string | null {
+function applyTemplateRule(text: string, rule: TemplateRule, catalog: RuntimeCatalog): string | null {
   if (!text.includes(rule.anchor)) return null;
   const match = rule.regex.exec(text);
   if (!match) return null;
 
   let out = rule.translation;
   for (let i = 0; i < rule.placeholders.length; i++) {
-    out = out.split(rule.placeholders[i]).join(match[i + 1] ?? '');
+    const value = match[i + 1] ?? '';
+    const translatedValue = CYRILLIC_RE.test(value)
+      ? (translateWithCatalog(value, catalog, 1) ?? value)
+      : value;
+    out = out.split(rule.placeholders[i]).join(translatedValue);
   }
   return out;
 }
 
-function translateCore(text: string, catalog: RuntimeCatalog): string | null {
-  const exact = catalog.exact.get(sourceKey(text));
-  if (exact !== undefined) return exact;
+function isWordBoundary(text: string, index: number): boolean {
+  if (index <= 0 || index >= text.length) return true;
+  return !LETTER_RE.test(text[index - 1] ?? '') || !LETTER_RE.test(text[index] ?? '');
+}
 
+function exactTranslation(text: string, catalog: RuntimeCatalog): string | null {
+  return catalog.exact.get(sourceKey(text)) ?? null;
+}
+
+function transliterateRussianWord(word: string): string {
+  const pairs: Record<string, string> = {
+    А: 'A', а: 'a',
+    Б: 'B', б: 'b',
+    В: 'V', в: 'v',
+    Г: 'G', г: 'g',
+    Д: 'D', д: 'd',
+    Е: 'E', е: 'e',
+    Ё: 'Yo', ё: 'yo',
+    Ж: 'Zh', ж: 'zh',
+    З: 'Z', з: 'z',
+    И: 'I', и: 'i',
+    Й: 'Y', й: 'y',
+    К: 'K', к: 'k',
+    Л: 'L', л: 'l',
+    М: 'M', м: 'm',
+    Н: 'N', н: 'n',
+    О: 'O', о: 'o',
+    П: 'P', п: 'p',
+    Р: 'R', р: 'r',
+    С: 'S', с: 's',
+    Т: 'T', т: 't',
+    У: 'U', у: 'u',
+    Ф: 'F', ф: 'f',
+    Х: 'Kh', х: 'kh',
+    Ц: 'Ts', ц: 'ts',
+    Ч: 'Ch', ч: 'ch',
+    Ш: 'Sh', ш: 'sh',
+    Щ: 'Shch', щ: 'shch',
+    Ы: 'Y', ы: 'y',
+    Э: 'E', э: 'e',
+    Ю: 'Yu', ю: 'yu',
+    Я: 'Ya', я: 'ya',
+    Ь: '', ь: '',
+    Ъ: '', ъ: '',
+  };
+  let out = '';
+  for (const ch of Array.from(word)) out += pairs[ch] ?? ch;
+  return out;
+}
+
+function canTransliterateUnknowns(text: string): boolean {
+  if (text.length > 64 || /[,;:!?]/.test(text)) return false;
+  const words = text.match(/[А-Яа-яЁё]+/g) ?? [];
+  if (words.length === 0 || words.length > 5) return false;
+  return words.every(word => /^[А-ЯЁ][А-Яа-яЁё]*$/.test(word));
+}
+
+function translateComposedText(text: string, catalog: RuntimeCatalog): string | null {
+  if (text.length > COMPOSED_TEXT_MAX_LENGTH || !CYRILLIC_RE.test(text)) return null;
+
+  const allowTransliteration = canTransliterateUnknowns(text);
+  let out = '';
+  let changed = false;
+  let unresolvedCyrillic = false;
+
+  for (let i = 0; i < text.length;) {
+    const ch = text[i] ?? '';
+    if (!CYRILLIC_LETTER_RE.test(ch) || !isWordBoundary(text, i)) {
+      out += ch;
+      i += 1;
+      continue;
+    }
+
+    let bestEnd = -1;
+    let bestTranslation = '';
+    const maxEnd = Math.min(text.length, i + COMPOSED_MATCH_MAX_LENGTH);
+    for (let end = maxEnd; end > i; end--) {
+      if (!isWordBoundary(text, end)) continue;
+      const candidate = text.slice(i, end).trimEnd();
+      if (!candidate || !CYRILLIC_RE.test(candidate)) continue;
+      const translated = exactTranslation(candidate, catalog);
+      if (translated !== null) {
+        bestEnd = i + candidate.length;
+        bestTranslation = translated;
+        break;
+      }
+    }
+
+    if (bestEnd > i) {
+      out += bestTranslation;
+      i = bestEnd;
+      changed = true;
+      continue;
+    }
+
+    let wordEnd = i + 1;
+    while (wordEnd < text.length && CYRILLIC_LETTER_RE.test(text[wordEnd] ?? '')) wordEnd++;
+    const word = text.slice(i, wordEnd);
+    if (allowTransliteration && word.length <= COMPOSED_UNKNOWN_WORD_MAX) {
+      out += transliterateRussianWord(word);
+      changed = true;
+    } else {
+      out += word;
+      unresolvedCyrillic = true;
+    }
+    i = wordEnd;
+  }
+
+  if (!changed) return null;
+  if (unresolvedCyrillic && CYRILLIC_RE.test(out)) return null;
+  return out;
+}
+
+function translateTemplateText(text: string, catalog: RuntimeCatalog): string | null {
   for (const rule of catalog.templates) {
-    const translated = applyTemplateRule(text, rule);
+    const translated = applyTemplateRule(text, rule, catalog);
     if (translated !== null) return translated;
   }
 
@@ -157,13 +276,24 @@ function cyrillicSpan(text: string): { start: number; end: number } | null {
   return first >= 0 && last >= first ? { start: first, end: last + 1 } : null;
 }
 
-function translateDecoratedText(text: string, catalog: RuntimeCatalog): string | null {
+function translateDecoratedText(text: string, catalog: RuntimeCatalog, derived: boolean): string | null {
   const span = cyrillicSpan(text);
   if (!span || (span.start === 0 && span.end === text.length)) return null;
 
   const middle = text.slice(span.start, span.end);
-  const translated = translateCore(middle, catalog);
+  const translated = exactTranslation(middle, catalog)
+    ?? (derived ? translateTemplateText(middle, catalog) : null)
+    ?? (derived ? translateComposedText(middle, catalog) : null);
   return translated === null ? null : `${text.slice(0, span.start)}${translated}${text.slice(span.end)}`;
+}
+
+function translateWithCatalog(text: string, catalog: RuntimeCatalog | null, depth = 0): string | null {
+  if (!catalog || !text || !CYRILLIC_RE.test(text)) return null;
+  return exactTranslation(text, catalog)
+    ?? translateDecoratedText(text, catalog, false)
+    ?? translateTemplateText(text, catalog)
+    ?? translateDecoratedText(text, catalog, true)
+    ?? (depth < 2 ? translateComposedText(text, catalog) : null);
 }
 
 export function setLocalizationLanguage(id: TitleLanguageId): void {
@@ -185,7 +315,7 @@ export function translateText(input: string): string {
   const leading = input.match(/^\s*/)?.[0] ?? '';
   const trailing = input.match(/\s*$/)?.[0] ?? '';
   const core = input.slice(leading.length, input.length - trailing.length);
-  const translated = translateCore(core, catalog) ?? translateDecoratedText(core, catalog);
+  const translated = translateWithCatalog(core, catalog);
   const out = translated === null ? input : `${leading}${translated}${trailing}`;
 
   if (translationCache.size >= TRANSLATION_CACHE_LIMIT) translationCache.clear();

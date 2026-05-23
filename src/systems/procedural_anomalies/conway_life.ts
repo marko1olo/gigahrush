@@ -283,7 +283,7 @@ export function tryUseConwayLifeAnomaly(
   const cleared = disableArena(world, arena);
   const room = world.rooms[arena.roomId];
   if (room && !isDisabledRoom(room)) room.name = `${room.name}; ${CONWAY_LIFE_DISABLED}`;
-  if (arena.controlIdx >= 0) world.features[arena.controlIdx] = Feature.MACHINE;
+  if (arena.controlIdx >= 0) world.setFeatureAt(arena.controlIdx, Feature.MACHINE);
   world.markCellsDirty();
   world.markWallTexDirty();
   world.markFloorTexDirty();

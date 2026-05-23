@@ -57,6 +57,7 @@ const ALIFE_DESKTOP_DEVICE_MEMORY_GB = 8;
 const BYTES_PER_MB = 1024 * 1024;
 const ALIFE_MIN_FLOOR_POOL = 32;
 const ALIFE_SAVE_OVERRIDE_CAP = 12_000;
+const ALIFE_NEW_ARRIVAL_SEARCH_CAP = 4096;
 
 const STORY_FLOOR_KEYS: Record<FloorLevel, string> = {
   [FloorLevel.MINISTRY]: 'story:ministry',
@@ -113,6 +114,12 @@ interface AlifeNpcRecord {
 
 export interface AlifeNpcOverride {
   id: number;
+  name?: string;
+  female?: boolean;
+  faction?: Faction;
+  occupation?: Occupation;
+  familyId?: number;
+  canGiveQuest?: boolean;
   x?: number;
   y?: number;
   angle?: number;
@@ -696,6 +703,145 @@ export function recordAlifeNpcDeath(state: GameState, entity: Entity): void {
   if (entity.plotNpcId) alife.deadPlotNpcIds.add(entity.plotNpcId);
 }
 
+export function rewriteAlifeNpcIdentityFromEntity(state: GameState, entity: Entity): void {
+  if (entity.alifeId === undefined) return;
+  const alife = ensureAlifeState(state);
+  const record = alife.npcs[entity.alifeId - 1];
+  if (!record) return;
+  if (entity.name) record.name = entity.name.slice(0, 80);
+  record.female = entity.isFemale === true;
+  if (entity.faction !== undefined) record.faction = entity.faction;
+  if (entity.occupation !== undefined) record.occupation = entity.occupation;
+  if (entity.familyId !== undefined) record.familyId = Math.max(0, Math.floor(entity.familyId));
+  if (entity.canGiveQuest !== undefined) record.canGiveQuest = entity.canGiveQuest;
+  captureEntityToRecord(record, entity);
+  alife.leaderboardVersion++;
+}
+
+function liveAlifeIds(entities: readonly Entity[]): Set<number> {
+  const ids = new Set<number>();
+  for (const entity of entities) {
+    if (entity.type === EntityType.NPC && entity.alifeId !== undefined && entity.alive) ids.add(entity.alifeId);
+  }
+  return ids;
+}
+
+function pickReusableRecordIndex(alife: AlifeState, floorKey: string, usedIds: Set<number>): number {
+  const pickFromBucket = (bucket: readonly number[] | undefined): number => {
+    if (!bucket || bucket.length === 0) return -1;
+    const start = Math.floor(Math.random() * bucket.length);
+    const limit = Math.min(bucket.length, ALIFE_NEW_ARRIVAL_SEARCH_CAP);
+    for (let attempt = 0; attempt < limit; attempt++) {
+      const recordIndex = bucket[(start + attempt) % bucket.length];
+      const record = alife.npcs[recordIndex];
+      if (record && !record.dead && !usedIds.has(record.id)) return recordIndex;
+    }
+    return -1;
+  };
+
+  const floorPick = pickFromBucket(alife.floorIndex[floorKey]);
+  if (floorPick >= 0) return floorPick;
+
+  for (let attempt = 0; attempt < Math.min(alife.npcs.length, ALIFE_NEW_ARRIVAL_SEARCH_CAP); attempt++) {
+    const recordIndex = Math.floor(Math.random() * alife.npcs.length);
+    const record = alife.npcs[recordIndex];
+    if (record && !record.dead && !usedIds.has(record.id)) return recordIndex;
+  }
+  return -1;
+}
+
+function attachRecordToFloor(alife: AlifeState, recordIndex: number, floorKey: string): void {
+  for (const key of Object.keys(alife.floorIndex)) {
+    const bucket = alife.floorIndex[key];
+    const at = bucket.indexOf(recordIndex);
+    if (at >= 0) bucket.splice(at, 1);
+  }
+  const bucket = alife.floorIndex[floorKey] ?? [];
+  if (!bucket.includes(recordIndex)) bucket.push(recordIndex);
+  alife.floorIndex[floorKey] = bucket;
+}
+
+function arrivalRecordFromEntity(id: number, state: GameState, floorKey: string, entity: Entity): AlifeNpcRecord {
+  const faction = entity.faction ?? Faction.CITIZEN;
+  const occupation = entity.occupation ?? Occupation.TRAVELER;
+  const rpg = entity.rpg;
+  const maxHp = Math.max(1, Math.floor(entity.maxHp ?? (rpg ? getMaxHp(rpg) : 100)));
+  return {
+    id,
+    floorKey,
+    floor: state.currentFloor,
+    faction,
+    occupation,
+    name: (entity.name ?? `Житель ${id}`).slice(0, 80),
+    female: entity.isFemale === true,
+    level: Math.max(1, Math.floor(rpg?.level ?? 1)),
+    str: Math.max(0, Math.floor(rpg?.str ?? 1)),
+    agi: Math.max(0, Math.floor(rpg?.agi ?? 1)),
+    int: Math.max(0, Math.floor(rpg?.int ?? 1)),
+    hp: Math.max(1, Math.min(Math.floor(entity.hp ?? maxHp), maxHp)),
+    maxHp,
+    money: Math.max(0, Math.min(5_000_000, Math.floor(entity.money ?? 0))),
+    familyId: Math.max(0, Math.floor(entity.familyId ?? id)),
+    canGiveQuest: entity.canGiveQuest === true,
+    sprite: entity.sprite,
+    spriteSeed: entity.spriteSeed,
+    weapon: entity.weapon,
+    inventory: inventoryCopy(entity.inventory),
+    karma: clampKarma(entity.karma ?? initialNpcKarma(faction, occupation, 0.5)),
+    x: entity.x,
+    y: entity.y,
+    angle: entity.angle,
+    touched: true,
+  };
+}
+
+function rewriteArrivalRecordFromEntity(record: AlifeNpcRecord, state: GameState, floorKey: string, entity: Entity): void {
+  record.floorKey = floorKey;
+  record.floor = state.currentFloor;
+  record.dead = false;
+  if (entity.name) record.name = entity.name.slice(0, 80);
+  record.female = entity.isFemale === true;
+  if (entity.faction !== undefined) record.faction = entity.faction;
+  if (entity.occupation !== undefined) record.occupation = entity.occupation;
+  if (entity.familyId !== undefined) record.familyId = Math.max(0, Math.floor(entity.familyId));
+  record.canGiveQuest = entity.canGiveQuest === true;
+  if (entity.rpg) recordRpg(record, entity.rpg);
+  captureEntityToRecord(record, entity);
+  record.touched = true;
+}
+
+export function assignPersistentAlifeNpcFromEntity(
+  state: GameState,
+  entity: Entity,
+  entities: readonly Entity[],
+  floorKey = currentAlifeFloorKey(state),
+): boolean {
+  if (entity.type !== EntityType.NPC || entity.plotNpcId || entity.persistentNpcId) return false;
+  if (entity.alifeId !== undefined) {
+    rewriteAlifeNpcIdentityFromEntity(state, entity);
+    return true;
+  }
+  const alife = ensureAlifeState(state);
+  const usedIds = liveAlifeIds(entities);
+  let recordIndex = pickReusableRecordIndex(alife, floorKey, usedIds);
+  let record: AlifeNpcRecord | undefined;
+  if (recordIndex >= 0) {
+    record = alife.npcs[recordIndex];
+  } else if (alife.npcs.length < ALIFE_TARGET_POPULATION) {
+    recordIndex = alife.npcs.length;
+    record = arrivalRecordFromEntity(recordIndex + 1, state, floorKey, entity);
+    alife.npcs.push(record);
+    alife.total = alife.npcs.length;
+  }
+  if (!record) return false;
+  attachRecordToFloor(alife, recordIndex, floorKey);
+  rewriteArrivalRecordFromEntity(record, state, floorKey, entity);
+  entity.alifeId = record.id;
+  entity.persistentNpcId = `alife:${record.id}`;
+  alife.leaderboardVersion++;
+  return true;
+}
+
 export function isPlotNpcDead(state: GameState, plotNpcId: string): boolean {
   return ensureAlifeState(state).deadPlotNpcIds.has(plotNpcId);
 }
@@ -871,6 +1017,16 @@ function applyOverride(alife: AlifeState, input: unknown): void {
   const id = clampInt(input.id, 0, 1, alife.npcs.length);
   const record = alife.npcs[id - 1];
   if (!record) return;
+  if (typeof input.name === 'string' && input.name.length > 0) record.name = input.name.slice(0, 80);
+  if (typeof input.female === 'boolean') record.female = input.female;
+  if (typeof input.faction === 'number' && Number.isFinite(input.faction)) {
+    record.faction = clampInt(input.faction, record.faction, Faction.CITIZEN, Faction.PLAYER) as Faction;
+  }
+  if (typeof input.occupation === 'number' && Number.isFinite(input.occupation)) {
+    record.occupation = clampInt(input.occupation, record.occupation, Occupation.HOUSEWIFE, Occupation.PRIEST) as Occupation;
+  }
+  record.familyId = clampInt(input.familyId, record.familyId, 0, 1_000_000_000);
+  if (typeof input.canGiveQuest === 'boolean') record.canGiveQuest = input.canGiveQuest;
   if (typeof input.x === 'number' && Number.isFinite(input.x)) record.x = input.x;
   if (typeof input.y === 'number' && Number.isFinite(input.y)) record.y = input.y;
   if (typeof input.angle === 'number' && Number.isFinite(input.angle)) record.angle = input.angle;
@@ -933,6 +1089,12 @@ export function alifeForSave(state: GameState): AlifeSaveState {
     const rpg = rpgFromRecord(record);
     overrides.push({
       id: record.id,
+      name: record.name,
+      female: record.female,
+      faction: record.faction,
+      occupation: record.occupation,
+      familyId: record.familyId,
+      canGiveQuest: record.canGiveQuest,
       x: record.x,
       y: record.y,
       angle: record.angle,

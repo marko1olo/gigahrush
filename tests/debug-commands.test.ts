@@ -49,6 +49,10 @@ test('smoke debug hooks have stable command ids', () => {
   }
 });
 
+test('revealmap debug command has a stable id', () => {
+  assert.ok(getDebugCommandIndex('revealmap') >= 0, 'revealmap must resolve to a debug menu command');
+});
+
 test('smoke playability script calls hooks by stable ids', () => {
   const here = path.dirname(fileURLToPath(import.meta.url));
   const source = readFileSync(path.resolve(here, '../scripts/smoke-playability.mjs'), 'utf8');

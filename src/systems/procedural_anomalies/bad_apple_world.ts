@@ -84,7 +84,7 @@ function inRect(world: World, x: number, y: number, rx: number, ry: number, rw: 
 function setBadApplePixel(world: World, ci: number, black: boolean, roomId: number): void {
   world.cells[ci] = black ? Cell.WALL : Cell.FLOOR;
   world.roomMap[ci] = roomId;
-  world.features[ci] = Feature.NONE;
+  world.setFeatureAt(ci, Feature.NONE);
   world.aptMask[ci] = 0;
   world.hermoWall[ci] = 0;
   world.fog[ci] = black ? 4 : 0;
@@ -108,11 +108,11 @@ function carveDebugFloor(world: World, x: number, y: number, roomId = -1): void 
   if (world.cells[ci] === Cell.LIFT) return;
   world.cells[ci] = Cell.FLOOR;
   world.roomMap[ci] = roomId;
-  world.features[ci] = Feature.NONE;
+  world.setFeatureAt(ci, Feature.NONE);
   world.floorTex[ci] = Tex.F_CONCRETE;
   world.aptMask[ci] = 0;
   world.hermoWall[ci] = 0;
-  world.doors.delete(ci);
+  world.removeDoorAt(ci);
   world.light[ci] = Math.max(world.light[ci], 0.35);
 }
 
@@ -141,7 +141,7 @@ function buildProjector(world: World, x: number, y: number, roomId: number): num
   }
   carveLine(world, px + 2, py, x - 1, py);
   const pi = world.idx(px, py);
-  world.features[pi] = Feature.APPARATUS;
+  world.setFeatureAt(pi, Feature.APPARATUS);
   world.floorTex[pi] = Tex.F_VOID;
   world.roomMap[pi] = roomId;
   world.light[pi] = 0.95;
@@ -213,7 +213,7 @@ export function stampBadAppleWorld(
   for (let i = 0; i < BAD_APPLE_PIXELS; i++) {
     const ci = world.idx(rx + localX(i), ry + localY(i));
     touched.add(ci);
-    world.doors.delete(ci);
+    world.removeDoorAt(ci);
     setBadApplePixel(world, ci, frame[i] !== 0, roomId);
   }
   clearContainersOnTouchedCells(world, touched);

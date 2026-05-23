@@ -33,6 +33,15 @@ export const FLOOR_69_DEFAULT_SEED = 690004;
 const FLOOR_69_BASE_FLOOR = FloorLevel.MAINTENANCE;
 const FLOOR_69_MAX_FLAGS = 8;
 const FLOOR_69_CHECKPOINT_CROWD_CAP = 12;
+const FLOOR_69_WORKER_RATE = 0.34;
+const FLOOR_69_FEMALE_SPRITE_COUNT = Spr.F69_FEMALE_NPC_7 - Spr.F69_FEMALE_NPC_BASE + 1;
+const FLOOR_69_WORKER_OCCUPATIONS = new Set<Occupation>([
+  Occupation.TRAVELER,
+  Occupation.HOUSEWIFE,
+  Occupation.SECRETARY,
+  Occupation.STOREKEEPER,
+  Occupation.DIRECTOR,
+]);
 
 const IRA_WORKER_LINES = [
   'Милый, смотреть можно на ценник. На дверь тоже смотри: рейд ходит тише клиентов.',
@@ -88,6 +97,59 @@ export interface Floor69Generation extends FloorGeneration {
 
 function bounded(v: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, v));
+}
+
+function hashFloor69Entity(entity: Entity, salt = 0): number {
+  let h = (entity.id ^ Math.imul(Math.floor(entity.x * 16), 0x45d9f3b) ^ Math.imul(Math.floor(entity.y * 16), 0x119de1f3) ^ salt) >>> 0;
+  h ^= h >>> 16;
+  h = Math.imul(h, 0x7feb352d) >>> 0;
+  h ^= h >>> 15;
+  h = Math.imul(h, 0x846ca68b) >>> 0;
+  h ^= h >>> 16;
+  return h >>> 0;
+}
+
+function floor69FemaleSprite(entity: Entity): number {
+  return Spr.F69_FEMALE_NPC_BASE + (hashFloor69Entity(entity, 0x690069) % FLOOR_69_FEMALE_SPRITE_COUNT);
+}
+
+function isFloor69GeneratedVisitor(entity: Entity): boolean {
+  return entity.type === EntityType.NPC &&
+    !entity.plotNpcId &&
+    !entity.persistentNpcId &&
+    entity.alifeId === undefined &&
+    entity.questId === -1 &&
+    entity.occupation !== Occupation.CHILD &&
+    FLOOR_69_WORKER_OCCUPATIONS.has(entity.occupation ?? Occupation.TRAVELER) &&
+    entity.isFemale !== false &&
+    (entity.name?.startsWith('Этаж 69: посетитель ') ?? false);
+}
+
+function shouldPromoteFloor69Worker(entity: Entity): boolean {
+  if (!isFloor69GeneratedVisitor(entity)) return false;
+  if (entity.faction !== undefined && entity.faction !== Faction.CITIZEN) return false;
+  return hashFloor69Entity(entity, 0x169) / 0x100000000 < FLOOR_69_WORKER_RATE;
+}
+
+function isFloor69Worker(entity: Entity): boolean {
+  return entity.type === EntityType.NPC && (entity.name?.startsWith('Этаж 69: работница ') ?? false);
+}
+
+function promoteFloor69Worker(entity: Entity): void {
+  if (entity.name?.startsWith('Этаж 69: посетитель ')) {
+    entity.name = entity.name.replace('Этаж 69: посетитель ', 'Этаж 69: работница ');
+  }
+  if (!isFloor69Worker(entity)) return;
+  entity.sprite = floor69FemaleSprite(entity);
+  entity.isFemale = true;
+  entity.spriteScale = 1;
+}
+
+export function applyFloor69AmbientSpriteTemplates(entities: Entity[]): void {
+  for (const entity of entities) {
+    if (shouldPromoteFloor69Worker(entity)) promoteFloor69Worker(entity);
+    else if (isFloor69Worker(entity)) promoteFloor69Worker(entity);
+  }
 }
 
 export function createFloor69State(state: Partial<Floor69State> = {}): Floor69State {
@@ -196,7 +258,7 @@ const NPC_DEFS: Record<string, PlotNpcDef> = {
     isFemale: true,
     faction: Faction.SCIENTIST,
     occupation: Occupation.DOCTOR,
-    sprite: Occupation.DOCTOR,
+    sprite: Spr.F69_FEMALE_NPC_5,
     hp: 130, maxHp: 130, money: 85, speed: 0.8,
     inventory: [
       { defId: 'bandage', count: 4 },
@@ -1386,6 +1448,7 @@ export function generateFloor69DesignFloor(seed = FLOOR_69_DEFAULT_SEED): Floor6
     applyZones(world);
     seedContainers(world, rooms);
     spawnFloor69Npcs(world, entities, nextId, rooms);
+    applyFloor69AmbientSpriteTemplates(entities);
     seedLooseItems(entities, nextId, rooms);
     registerFloor69RouteCues(world, rooms);
 

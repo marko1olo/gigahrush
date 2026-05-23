@@ -277,7 +277,7 @@ function muteSurfaceArea(world: World, cx: number, cy: number, radiusCells: numb
 
 function coverSource(world: World, source: SeroburmalineSource, seed: number): void {
   const ci = world.idx(source.x, source.y);
-  world.features[ci] = SEROBURMALINE_COVERED_FEATURE;
+  world.setFeatureAt(ci, SEROBURMALINE_COVERED_FEATURE);
   for (let dy = -1; dy <= 1; dy++) {
     for (let dx = -1; dx <= 1; dx++) {
       const fi = world.idx(source.x + dx, source.y + dy);

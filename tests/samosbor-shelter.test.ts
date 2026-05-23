@@ -26,6 +26,7 @@ import type { FloorGeneration } from '../src/gen/floor_manifest';
 import { createWorldEventState, getRecentEvents } from '../src/systems/events';
 import {
   getSamosborWarningSnapshot,
+  applySamosborFogEffectAtCellForTests,
   rebuildWorld,
   resetSamosborRuntimeForTests,
   resolvePlayerShelterAtSealForTests,
@@ -50,6 +51,24 @@ const QUIET_TEST_VARIANT: ActiveSamosborVariant = {
   shelterRoomCount: 0,
   fogColor: QUIET_VARIANT_DEF.fogColor,
 };
+
+function testVariant(id: SamosborVariantId): ActiveSamosborVariant {
+  const def = SAMOSBOR_VARIANTS.find(variant => variant.id === id);
+  if (!def) throw new Error(`${id} samosbor variant missing`);
+  return {
+    def,
+    modifiers: [],
+    durationMult: def.durationMult,
+    spawnMult: def.spawnMult,
+    fogSeedMult: 1,
+    fogSpawnIntervalMult: 1,
+    sealTimingDelta: def.sealTimingDelta,
+    noSiren: false,
+    extraEyes: 0,
+    shelterRoomCount: 0,
+    fogColor: def.fogColor,
+  };
+}
 
 beforeEach(() => {
   resetSamosborRuntimeForTests();
@@ -286,6 +305,164 @@ test('maronary green source glow damages player near marked source', () => {
   const events = getRecentEvents(state, { tags: ['glow_damage'], limit: 1 });
   assert.equal(events.length, 1);
   assert.equal(events[0].data?.damage, hpBefore - (ctx.player.hp ?? 0));
+});
+
+function makeFogEffectWorld(): { world: World; state: ReturnType<typeof makeGameState>; entities: Entity[]; nextId: { v: number }; ci: number } {
+  const world = new World();
+  world.zones[0] = { id: 0, cx: 20, cy: 20, faction: ZoneFaction.SAMOSBOR, hasLift: false, fogged: true, level: 2, hqRoomId: -1 };
+  for (let y = 18; y <= 22; y++) {
+    for (let x = 18; x <= 22; x++) {
+      const ci = world.idx(x, y);
+      world.set(x, y, Cell.FLOOR);
+      world.zoneMap[ci] = 0;
+      world.roomMap[ci] = -1;
+    }
+  }
+  const ci = world.idx(20, 20);
+  world.fog[ci] = 180;
+  const state = makeGameState({
+    currentFloor: FloorLevel.LIVING,
+    samosborActive: true,
+    samosborCount: 2,
+    worldEvents: createWorldEventState(),
+  });
+  return { world, state, entities: [], nextId: { v: 10 }, ci };
+}
+
+test('classic fog effect spawns a monster from active fog', () => {
+  const ctx = makeFogEffectWorld();
+
+  const applied = applySamosborFogEffectAtCellForTests(
+    ctx.world,
+    ctx.entities,
+    ctx.state,
+    ctx.nextId,
+    ctx.state.samosborCount,
+    testVariant('classic'),
+    FloorLevel.LIVING,
+    ctx.ci,
+  );
+
+  assert.equal(applied, true);
+  assert.equal(ctx.entities.length, 1);
+  assert.equal(ctx.entities[0].type, EntityType.MONSTER);
+});
+
+test('maronary fog effect rewrites actor identity in active fog', () => {
+  const ctx = makeFogEffectWorld();
+  const npc: Entity = {
+    id: 2,
+    type: EntityType.NPC,
+    x: 20.5,
+    y: 20.5,
+    angle: 0,
+    pitch: 0,
+    alive: true,
+    speed: 1,
+    sprite: 0,
+    name: 'Старое имя',
+    faction: Faction.CITIZEN,
+  };
+  ctx.entities.push(npc);
+
+  const applied = applySamosborFogEffectAtCellForTests(
+    ctx.world,
+    ctx.entities,
+    ctx.state,
+    ctx.nextId,
+    ctx.state.samosborCount,
+    testVariant('maronary'),
+    FloorLevel.LIVING,
+    ctx.ci,
+  );
+
+  assert.equal(applied, true);
+  assert.notEqual(npc.name, 'Старое имя');
+  assert.ok(npc.rpg);
+  assert.ok((npc.inventory?.length ?? 0) > 0);
+  assert.equal(getRecentEvents(ctx.state, { tags: ['maronary', 'rewrite'], limit: 1 }).length, 1);
+});
+
+test('veretar fog effect deletes actor in active fog', () => {
+  const ctx = makeFogEffectWorld();
+  const npc: Entity = {
+    id: 3,
+    type: EntityType.NPC,
+    x: 20.5,
+    y: 20.5,
+    angle: 0,
+    pitch: 0,
+    alive: true,
+    speed: 1,
+    sprite: 0,
+    name: 'Свидетель',
+    faction: Faction.CITIZEN,
+  };
+  ctx.entities.push(npc);
+
+  const applied = applySamosborFogEffectAtCellForTests(
+    ctx.world,
+    ctx.entities,
+    ctx.state,
+    ctx.nextId,
+    ctx.state.samosborCount,
+    testVariant('veretar'),
+    FloorLevel.LIVING,
+    ctx.ci,
+  );
+
+  assert.equal(applied, true);
+  assert.equal(npc.alive, false);
+  assert.equal(npc.hp, 0);
+  const events = getRecentEvents(ctx.state, { tags: ['veretar', 'delete'], limit: 1 });
+  assert.equal(events.length, 1);
+  assert.equal(events[0].data?.effect, 'npc_deleted');
+});
+
+test('istotit fog effect heals actors in active fog', () => {
+  const ctx = makeFogEffectWorld();
+  const player = makePlayer(1, 20.5, 20.5);
+  player.hp = 20;
+  player.maxHp = 100;
+  player.needs = { food: 10, water: 10, sleep: 10, pee: 0, poo: 0 };
+  ctx.entities.push(player);
+
+  const applied = applySamosborFogEffectAtCellForTests(
+    ctx.world,
+    ctx.entities,
+    ctx.state,
+    ctx.nextId,
+    ctx.state.samosborCount,
+    testVariant('istotit'),
+    FloorLevel.LIVING,
+    ctx.ci,
+  );
+
+  assert.equal(applied, true);
+  assert.equal(player.hp, 38);
+  assert.equal(player.needs.food, 18);
+  assert.equal(getRecentEvents(ctx.state, { tags: ['istotit', 'create'], limit: 1 }).length, 1);
+});
+
+test('captured samosbor zone is restored before post-cycle rebuild', () => {
+  const ctx = makeShelterWorld(DoorState.CLOSED);
+  const state = makeGameState({
+    currentFloor: FloorLevel.MINISTRY,
+    samosborTimer: 0,
+    worldEvents: createWorldEventState(),
+  });
+  assert.equal(forceNextSamosborVariant('classic'), true);
+
+  assert.equal(updateSamosbor(ctx.world, ctx.entities, state, 0, ctx.nextId), false);
+  assert.equal(state.samosborActive, true);
+  assert.equal(ctx.world.zones[0].faction, ZoneFaction.SAMOSBOR);
+  assert.equal(ctx.world.zones[0].fogged, true);
+
+  state.samosborTimer = 0;
+  assert.equal(updateSamosbor(ctx.world, ctx.entities, state, 0, ctx.nextId), true);
+  assert.equal(state.samosborActive, false);
+  assert.equal(ctx.world.zones[0].faction, ZoneFaction.CITIZEN);
+  assert.equal(ctx.world.zones[0].fogged, false);
 });
 
 interface RuntimeGenerationCase {
@@ -568,5 +745,22 @@ test('procedural samosbor rebuild copies anomaly, smog, fog and rail runtime sta
   assert.equal(ctx.target.railTrains[0]?.trackId, ctx.trackId);
   assert.equal(ctx.target.railTrainCells.get(ctx.trackCell), 0);
   assert.equal(ctx.target.liftDir[ctx.teleportA], LiftDirection.UP);
+  assertDirtyVersionsBumped(ctx);
+});
+
+test('full samosbor rebuild preserves old fog on walkable regenerated cells only', () => {
+  const ctx = makeRuntimeGenerationCase(4, FloorLevel.MINISTRY);
+  ctx.generation.world.cells[ctx.staleIdx] = Cell.FLOOR;
+  ctx.generation.world.floorTex[ctx.staleIdx] = Tex.F_CONCRETE;
+  ctx.generation.world.wallTex[ctx.staleIdx] = Tex.CONCRETE;
+  ctx.generation.world.zoneMap[ctx.staleIdx] = 0;
+  ctx.generation.world.fog[ctx.staleIdx] = 0;
+
+  rebuildWorld(ctx.target, ctx.entities, ctx.nextId, 4, FloorLevel.MINISTRY, ctx.generation);
+
+  assert.equal(ctx.target.cells[ctx.staleIdx], Cell.FLOOR);
+  assert.equal(ctx.target.aptMask[ctx.staleIdx], 0);
+  assert.equal(ctx.target.hermoWall[ctx.staleIdx], 0);
+  assert.equal(ctx.target.fog[ctx.staleIdx], 220);
   assertDirtyVersionsBumped(ctx);
 });

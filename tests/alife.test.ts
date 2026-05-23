@@ -13,6 +13,7 @@ import {
   type GameState,
 } from '../src/core/types';
 import {
+  assignPersistentAlifeNpcFromEntity,
   alifeForSave,
   defaultAlifePopulation,
   getAlifeLeaderboardSnapshot,
@@ -87,6 +88,33 @@ test('A-Life materializes ambient slots and leaves killed slots empty', () => {
   assert.notEqual(regenerated[0].alifeId, killedAlifeId);
   assert.equal(regenerated[0].x, 11.5);
   assert.equal(alifeForSave(state).deadIds.includes(killedAlifeId), true);
+});
+
+test('event-created ordinary NPC receives persistent A-Life identity', () => {
+  const state = minimalState();
+  setAlifeState(state, { seed: 12345, total: 100_000 });
+  const npc = ambientTemplate(50, 16.5, 16.5);
+  npc.name = 'Новый жилец';
+  npc.faction = Faction.SCIENTIST;
+  npc.occupation = Occupation.SCIENTIST;
+  npc.money = 77;
+  npc.canGiveQuest = true;
+  npc.rpg = freshRPG(12);
+  npc.maxHp = 64;
+  npc.hp = 64;
+  const entities: Entity[] = [];
+
+  assert.equal(assignPersistentAlifeNpcFromEntity(state, npc, entities), true);
+
+  assert.equal(typeof npc.alifeId, 'number');
+  assert.equal(npc.persistentNpcId, `alife:${npc.alifeId}`);
+  const save = alifeForSave(state);
+  const override = save.overrides.find(item => item.id === npc.alifeId);
+  assert.ok(override);
+  assert.equal(override.name, 'Новый жилец');
+  assert.equal(override.faction, Faction.SCIENTIST);
+  assert.equal(override.occupation, Occupation.SCIENTIST);
+  assert.equal(override.canGiveQuest, true);
 });
 
 test('A-Life quest candidates are bounded instead of every persistent NPC offering work', () => {

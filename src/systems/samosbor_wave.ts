@@ -226,7 +226,7 @@ export function canRunSamosborWave(state: GameState): boolean {
 
 export function chooseSamosborScale(state: GameState): SamosborWaveScale {
   if (!canRunSamosborWave(state)) return 'full';
-  const defs = Object.values(SAMOSBOR_WAVE_SCALE_DEFS);
+  const defs = [SAMOSBOR_WAVE_SCALE_DEFS.small, SAMOSBOR_WAVE_SCALE_DEFS.medium];
   let total = 0;
   for (const def of defs) total += def.weight;
   let roll = Math.random() * total;
@@ -234,7 +234,7 @@ export function chooseSamosborScale(state: GameState): SamosborWaveScale {
     roll -= def.weight;
     if (roll <= 0) return def.scale;
   }
-  return 'full';
+  return 'medium';
 }
 
 function waveOriginXY(wave: SamosborWave): { x: number; y: number } {
@@ -411,20 +411,8 @@ function noteTouched(wave: SamosborWave, idx: number): void {
   wave.changedCells++;
 }
 
-function removeDoorFromRoom(world: World, roomId: number, idx: number): void {
-  const room = roomId >= 0 ? world.rooms[roomId] : undefined;
-  if (!room) return;
-  const at = room.doors.indexOf(idx);
-  if (at >= 0) room.doors.splice(at, 1);
-}
-
 function removeDoor(world: World, idx: number): boolean {
-  const door = world.doors.get(idx);
-  if (!door) return false;
-  removeDoorFromRoom(world, door.roomA, idx);
-  removeDoorFromRoom(world, door.roomB, idx);
-  world.doors.delete(idx);
-  return true;
+  return world.removeDoorAt(idx);
 }
 
 function addDoorToRoom(world: World, roomId: number, idx: number): void {
@@ -472,7 +460,7 @@ function cleanSolidCell(world: World, wave: SamosborWave, idx: number, flags: Di
     changed = true;
   }
   if (world.features[idx] !== Feature.NONE) {
-    world.features[idx] = Feature.NONE;
+    world.setFeatureAt(idx, Feature.NONE);
     flags.cells = true;
     changed = true;
   }
@@ -518,7 +506,7 @@ function applyFloor(world: World, wave: SamosborWave, idx: number, flags: DirtyF
     changed = true;
   }
   if (world.features[idx] !== Feature.NONE && oldRoom < 0) {
-    world.features[idx] = Feature.NONE;
+    world.setFeatureAt(idx, Feature.NONE);
     flags.cells = true;
     changed = true;
   }
@@ -780,11 +768,43 @@ function copyGeneratedSurfaceCell(world: World, source: World, idx: number): voi
   else world.surfaceMap.delete(idx);
 }
 
+function retunePatchRoomFromGeneratedField(world: World, source: World, wave: SamosborWave, indices: readonly number[]): void {
+  const room = world.rooms[wave.patchRoomId];
+  if (!room) return;
+  const counts = new Map<number, number>();
+  for (const idx of indices) {
+    const roomId = source.roomMap[idx];
+    if (roomId < 0 || !source.rooms[roomId]) continue;
+    counts.set(roomId, (counts.get(roomId) ?? 0) + 1);
+  }
+  let bestRoomId = -1;
+  let bestCount = 0;
+  for (const [roomId, count] of counts) {
+    if (count > bestCount) {
+      bestRoomId = roomId;
+      bestCount = count;
+    }
+  }
+  const sourceRoom = bestRoomId >= 0 ? source.rooms[bestRoomId] : undefined;
+  if (sourceRoom) {
+    room.type = sourceRoom.type;
+    room.name = sourceRoom.name;
+    room.wallTex = sourceRoom.wallTex;
+    room.floorTex = sourceRoom.floorTex;
+  } else {
+    room.type = RoomType.CORRIDOR;
+    room.name = 'Перестроенный коридор';
+    room.wallTex = Tex.CONCRETE;
+    room.floorTex = Tex.F_CONCRETE;
+  }
+}
+
 function copyGeneratedFieldCells(world: World, source: World, wave: SamosborWave, indices: readonly number[]): number {
   let copied = 0;
   const patchRoomId = wave.patchRoomId;
   pushUnique(wave.dirtyRooms, patchRoomId);
   for (const idx of indices) {
+    const oldFog = world.fog[idx];
     const cell = localPatchCell(source.cells[idx]);
     world.cells[idx] = cell;
     world.roomMap[idx] = walkableCell(cell) ? patchRoomId : -1;
@@ -792,7 +812,7 @@ function copyGeneratedFieldCells(world: World, source: World, wave: SamosborWave
     world.floorTex[idx] = source.cells[idx] === Cell.ABYSS ? Tex.F_ABYSS : source.floorTex[idx];
     world.features[idx] = walkableCell(cell) ? passiveGeneratedFeature(source.features[idx]) : Feature.NONE;
     world.light[idx] = source.light[idx];
-    world.fog[idx] = 0;
+    world.fog[idx] = walkableCell(cell) ? Math.max(oldFog, source.fog[idx]) : 0;
     world.liftDir[idx] = 0;
     world.aptMask[idx] = 0;
     world.hermoWall[idx] = 0;
@@ -840,7 +860,7 @@ function carvePatchFloor(world: World, wave: SamosborWave, idx: number): boolean
   world.roomMap[idx] = wave.patchRoomId;
   world.floorTex[idx] = Tex.F_CONCRETE;
   world.wallTex[idx] = Tex.CONCRETE;
-  world.features[idx] = Feature.NONE;
+  world.setFeatureAt(idx, Feature.NONE);
   world.fog[idx] = 0;
   world.surfaceMap.delete(idx);
   pushUnique(wave.dirtyRooms, wave.patchRoomId);
@@ -904,6 +924,7 @@ function applyGeneratedFieldPatch(
   const fieldSet = new Set(field.indices);
   removeDoorsInField(world, field.indices);
   wave.regeneratedCells += copyGeneratedFieldCells(world, source, wave, field.indices);
+  retunePatchRoomFromGeneratedField(world, source, wave, field.indices);
   wave.fieldCells = field.indices.length;
   wave.stitchedCells += stitchLocalRebuildField(world, wave, field.mask, field.indices);
   refreshPassiveFeatureLists(world, source, field.mask);
@@ -914,6 +935,7 @@ function applyGeneratedFieldPatch(
   world.markCellsDirty();
   world.markWallTexDirty();
   world.markFloorTexDirty();
+  world.markFeaturesDirty();
   world.markFogDirty();
   world.surfaceVersion = (world.surfaceVersion + 1) | 0;
   wave.regenerated = true;
@@ -1008,7 +1030,7 @@ export function cancelSamosborWave(): void {
 
 export function startSamosborWave(
   world: World,
-  entities: readonly Entity[],
+  _entities: readonly Entity[],
   state: GameState,
   scale: SamosborWaveScale,
   originX: number,
@@ -1027,9 +1049,6 @@ export function startSamosborWave(
     : 0;
   const protectedRooms = new Set<number>();
   for (const roomId of options.protectedRoomIds ?? []) if (roomId >= 0) protectedRooms.add(roomId);
-  const player = entities.find(e => e.type === EntityType.PLAYER && e.alive);
-  const playerRoomId = player ? world.roomMap[world.idx(Math.floor(player.x), Math.floor(player.y))] : -1;
-  if (playerRoomId >= 0) protectedRooms.add(playerRoomId);
 
   const originIdx = world.idx(originX, originY);
   const wave: SamosborWave = {

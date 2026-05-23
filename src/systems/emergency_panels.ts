@@ -221,7 +221,7 @@ export function placeEmergencyPanel(
 ): EmergencyPanelInstance | null {
   const panel = registerEmergencyPanel(world, x, y, defId, seed);
   if (!panel) return null;
-  world.features[panel.idx] = Feature.APPARATUS;
+  world.setFeatureAt(panel.idx, Feature.APPARATUS);
   const def = getEmergencyPanelDef(defId) ?? EMERGENCY_PANEL_DEFS[0];
   const tint = def.domain === 'power'
     ? [220, 190, 70]
@@ -329,10 +329,10 @@ function addLamps(world: World, rooms: readonly Room[], seed: number): number {
     if (added >= 5) return;
     if (world.cells[idx] !== Cell.FLOOR || world.features[idx] !== Feature.NONE) return;
     if (((x * 17 + y * 31 + seed) & 15) !== 0) return;
-    world.features[idx] = Feature.LAMP;
+    world.setFeatureAt(idx, Feature.LAMP, false);
     added++;
   });
-  if (added > 0) world.bakeLights();
+  if (added > 0) world.markFeaturesDirty(true);
   return added;
 }
 
@@ -340,10 +340,10 @@ function removeLamps(world: World, rooms: readonly Room[]): number {
   let removed = 0;
   forRoomCells(world, rooms, idx => {
     if (world.features[idx] !== Feature.LAMP) return;
-    world.features[idx] = Feature.NONE;
+    world.setFeatureAt(idx, Feature.NONE, false);
     removed++;
   });
-  if (removed > 0) world.bakeLights();
+  if (removed > 0) world.markFeaturesDirty(true);
   return removed;
 }
 
