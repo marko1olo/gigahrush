@@ -120,6 +120,8 @@ export class EntityIndex {
   readonly needs: Entity[] = [];
   readonly projectiles: Entity[] = [];
   private builtFor: readonly Entity[] | null = null;
+  private builtEntityCount = -1;
+  private dirty = true;
   private version = 0;
   private simulationFrame = -1;
   private debugStats = emptyDebugStats();
@@ -180,6 +182,8 @@ export class EntityIndex {
     }
 
     this.builtFor = entities;
+    this.builtEntityCount = entities.length;
+    this.dirty = false;
     this.version++;
     this.simulationFrame = simulationFrame;
     this.debugStats = {
@@ -207,12 +211,16 @@ export class EntityIndex {
   }
 
   rebuildForSimulation(entities: readonly Entity[], simulationFrame: number): void {
-    if (this.builtFor === entities && this.simulationFrame === simulationFrame) return;
+    if (this.isBuiltFor(entities) && this.simulationFrame === simulationFrame) return;
     this.rebuild(entities, 'simulation', simulationFrame);
   }
 
   isBuiltFor(entities: readonly Entity[]): boolean {
-    return this.builtFor === entities;
+    return this.builtFor === entities && this.builtEntityCount === entities.length && !this.dirty;
+  }
+
+  markDirty(): void {
+    this.dirty = true;
   }
 
   getVersion(): number {
@@ -427,6 +435,10 @@ export function rebuildEntityIndexForSimulation(entities: readonly Entity[], sim
 export function rebuildEntityIndexAfterSpawnCleanup(entities: readonly Entity[]): EntityIndex {
   runtimeEntityIndex.rebuild(entities, 'spawn_cleanup');
   return runtimeEntityIndex;
+}
+
+export function markEntityIndexDirty(): void {
+  runtimeEntityIndex.markDirty();
 }
 
 export function ensureEntityIndex(entities: readonly Entity[]): EntityIndex {

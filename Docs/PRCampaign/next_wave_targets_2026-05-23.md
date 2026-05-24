@@ -26,6 +26,7 @@ Current release artifact:
 - current owner-updated best media folder: `tmp/prcampaign_screenshot_hunt_2026-05-23/selected_best/`.
 - square 3x3 contact sheet for social/portal preview: `tmp/prcampaign_screenshot_hunt_2026-05-23/selected_best/contact_sheet_3x3.png`; `contact_sheet_png.png` is the same image under the older filename.
 - PR agents should take GIFs/screenshots from `selected_best/` first: two GIF motion hooks plus the nine PNGs used in the 3x3 sheet.
+- Flexible media-first rule after PR 13: every public post, listing, devlog, forum thread or announcement must include visible project media: native screenshot/GIF/video/gallery/thumbnail or platform media upload. Prefer direct build plus itch mirror when links are allowed. If external links are forbidden or discouraged, do not evade the rule; make the post self-contained with native media, strong game description, developer disclosure and a legal platform-native path such as profile/listing/search wording where appropriate. If a platform allows neither links nor media, hold and record the blocker.
 
 ## Completed Same-Day Fixes
 
@@ -35,6 +36,7 @@ Current release artifact:
 - MyIndie is now public/playable at `https://myindie.ru/games/game/gigahrush`; uploaded cover, 3 screenshots and `itch/gigahrush-itch.zip` (`4 999 557` bytes), with Web iframe verified.
 - Kongregate Developer Application is submitted; wait for approval before Alpha/upload.
 - 2ch /b/ thread is now live: https://2ch.org/b/res/333348764.html. Public recheck 2026-05-23 23:26 UTC / 2026-05-24 00:26 BST found 14 posts, 11 files and 6 posters; OP uses developer disclosure, direct Cloudflare build first, itch second, and the prepared media pack (`01_hero_gif_hell_blinking_eyes.gif`, `contact_sheet_3x3.png`, `02_gif_underhell_maronary_samosbor_loop.gif`). No duplicate thread, no bumping and no extra mirrors unless asked.
+- PR 14 follow-up on 2026-05-24 17:32-17:44 UTC: Game Jolt short post was fixed with a visible owner media/playable comment, full Game Jolt media update is live, IndieDB news is awaiting authorisation, HTML5GameDevs requires registration/password/Terms after attempted guest submit, DevTribe add path returns `403`, and Pikabu posting waits on owner login. PBBG.com `/games` now publicly links the r/PBBG post, but `/games/gigahrush` is still `404`.
 
 ## 2026-05-23 PR 11 Public Upload Update
 
@@ -73,15 +75,15 @@ The owner marked DTF as successful on 2026-05-23. The repeatable pattern is not 
 
 | Priority | Surface | URL | Format | Guardrail / next step |
 | --- | --- | --- | --- | --- |
-| A | DevTribe | https://devtribe.ru/ | RU devlog/project diary | Register/login, create one project/devlog post with fresh copy and media; do not paste DTF verbatim. |
-| A | Pikabu gamedev community | https://pikabu.ru/community/gamedev | RU longpost/devlog | Use developer disclosure, GIF/screenshots and a concrete feedback ask; avoid a naked external-link dump. |
+| A | DevTribe | https://devtribe.ru/ | RU devlog/project diary | Browser is logged in as `jirnyak`, but `https://devtribe.ru/p/games-dev/add` returns `Ошибка #403`; owner/account trust/support needed before posting. |
+| A | Pikabu gamedev community | https://pikabu.ru/community/gamedev | RU longpost/devlog | Use developer disclosure, GIF/screenshots and a concrete feedback ask; avoid a naked external-link dump. Browser currently waits on Yandex login/code. |
 | A | Indie Spotlight | https://t.me/indiespotlight | RU editorial/channel pitch | Ask whether editorial/free submission is appropriate; send GIF, 3-4 screenshots and playable links. |
 | A | MyIndie | https://myindie.ru/games/game/gigahrush | RU playable listing, now public | Monitor the new listing and comments; later update media/description only for a real new build. |
-| A | Game Jolt devlog | https://gamejolt.com/games/gigahrush/1072064 | EN game-page devlog | Add more gallery media first, then post through trusted UI only; no duplicate release spam. |
-| A | IndieDB article | https://www.indiedb.com/games/gigahrush | EN media-rich article/news | Prepare "browser survival horror build after DTF feedback" with screenshots and concrete update angle. |
-| A | r/WebGames | https://www.reddit.com/r/WebGames/ | EN direct browser-game post | Wait 24-48h after r/playmygame; use direct Cloudflare link and distinct title/body. |
+| A | Game Jolt devlog | https://gamejolt.com/games/gigahrush/1072064 | EN game-page devlog | Done enough for today: full media update is live and the weaker short post now has a visible media/playable owner comment. Next Game Jolt action should be gallery media upload or a real new build/update, not another post. |
+| A | IndieDB article | https://www.indiedb.com/games/gigahrush | EN media-rich article/news | Submitted: `https://www.indiedb.com/games/gigahrush/news/gigahrush-clearer-media-for-the-browser-survival-horror-build`, currently awaiting authorisation. Recheck after roughly one day; do not duplicate-submit. |
+| A | Reddit monitoring after PR 13 | `r/PBBG`, `r/WebGames`, `r/Games Indie Sunday` | EN community posts already published | Monitor live URLs in `Docs/PRCampaign/PR_13.md`; answer only real questions/bugs; do not add another Reddit post without owner instruction. |
 | B | TIGSource DevLogs | https://forums.tigsource.com/ | Long-running EN devlog thread | Use process/design detail and commit to updates; not a one-off ad. |
-| B | HTML5 GameDevs Showcase | https://www.html5gamedevs.com/forum/8-game-showcase/ | EN browser tech/showcase post | Ask for HTML5/WebGL/performance feedback; emphasize zero-runtime TypeScript/WebGL/canvas. |
+| B | HTML5 GameDevs Showcase | https://www.html5gamedevs.com/forum/8-game-showcase/ | EN browser tech/showcase post | Best EN fit, but PR 14 guest-submit attempt led to required registration details: display name, email, password, browser-name answer and Terms agreement. Owner must register/log in or explicitly approve account creation before final publish. |
 | B | Habr / vc.ru | https://habr.com/ru/hubs/gamedev/articles/ / https://vc.ru/ | Technical or case-study article | Only as useful engineering/business material with links secondary; promotional reposts are high risk. |
 | C | StopGame / PlayGround / Kanobu | https://stopgame.ru/ / https://www.playground.ru/ / https://kanobu.ru/ | Editorial or cautious community material | Do not use as direct advertising devlog without a new angle; check rules/account UI first. |
 
@@ -228,29 +230,117 @@ Kongregate submission notes:
 
 ## P1: Reddit / Community Follow-Up
 
-Do not post the same copy everywhere. The current r/playmygame post is live; wait at least 24-48 hours and use a different angle.
+Do not post the same copy everywhere. Current state after owner override and PR 13: r/PBBG, r/WebGames and r/Games Indie Sunday are live; r/IndieDev was removed by moderator/automoderation; r/playmygame remains live from the previous pass. Next action is monitoring and replies only.
 
-2026-05-23 check: do not add another Reddit/community post today. The r/playmygame post is still fresh and only public AutoModerator activity was visible; monitor comments and prepare r/WebGames for 2026-05-24/25.
+2026-05-24 correction: the earlier r/indiegames wording was imprecise. GIGAH|RUSH has playable links: `https://gigahrush.bileter.workers.dev` and `https://tenevik.itch.io/gigahrush`. The r/indiegames risk is that the subreddit is media-first and restrictive around external store/site/social links and AI-related ambiguity. If used later, it needs native gameplay media first and links only where rules allow.
 
-2026-05-23 участок 2 recheck: r/playmygame is still public at `https://www.reddit.com/r/playmygame/comments/1tku91k/gigahrush/`; public JSON shows `removed_by_category: null`, `over_18: false`, `score: 1`, `upvote_ratio: 1.0`, `num_comments: 1`, and the only visible comment is AutoModerator's safe-for-work/low-effort reminder. Do not repost to r/playmygame for one month. If the owner wants one additional Reddit post despite the fresh r/playmygame post, r/WebGames is the only rule-fit candidate for a same-day post, but campaign risk remains medium-high because it would be another Reddit self-promo within roughly 10 hours. Safer recommendation: wait until 2026-05-24 or 2026-05-25 and post only one subreddit.
+All future public posts must include media presence. Use playable links when allowed; if links are not allowed, use a self-contained native media post and record the legal player path or no-link exception. PR 13 corrected the live r/PBBG, r/WebGames and r/Games comments at 17:06 UTC with direct itch GIF/screenshot URLs where links/comments were allowed.
 
-### 2026-05-23 Reddit go/no-go
+### 2026-05-24 Reddit state
 
-| Target | Current rule fit | Same-day decision |
+| Target | Current state | Decision |
 | --- | --- | --- |
-| r/WebGames | Fits the game: browser playable, no account required, direct permanent URL, title must start with game name, no repost found in subreddit search. Account must be at least 7 days old with 10 comment karma. | Conditional go only if the owner accepts the same-day self-promo risk; otherwise schedule for 2026-05-24/25. Use a direct link post to the Cloudflare build, not itch.io. |
-| r/indiegames | Promotion is allowed only with gameplay image/gif/video; no URL shorteners; no feedback-bait title; store/page/social links and feedback-on-promo-material posts are disallowed. | No-go today. Use later with a Reddit-native GIF/video or direct GIF post, promotional title, and no feedback-bait. |
-| r/IndieDev | Loose rules, but audience prefers GIFs/images and is peer/developer-focused; only explicit current rule bans capsule comparison posts except Wednesdays. | No-go today. Use later only with a dev/process angle and media, not as a play-my-game duplicate. |
-| r/Games Indie Sunday | Only Sunday 12 AM EST for 24h; text post, Indie Sunday flair, required video footage in body, developer-only, same game/developer cooldown 60 days. | No-go today because 2026-05-23 is Saturday. Earliest window is Sunday 2026-05-24 00:00 EST, if account history and format are clean. |
+| r/PBBG | Live: `https://old.reddit.com/r/PBBG/comments/1tmhjtz/gigahrush_a_singleplayer_persistent_browser/`; media comment added. | Monitor PBBG-fit questions; do not repost. |
+| r/WebGames | Live: `https://old.reddit.com/r/WebGames/comments/1tmhk3l/gigahrush_free_browser_survival_horror_arpg_in_an/`; developer comment edited with playable links plus media URLs. | Monitor browser/readability feedback; do not repost. |
+| r/Games Indie Sunday | Live: `https://old.reddit.com/r/Games/comments/1tmhl9l/gigahrush_tenevik_games_browser_survival_horror/`; comment edited with playable links plus media URLs. | Monitor closely; respect cooldown; do not repost if removed. |
+| r/IndieDev | Removed: `https://old.reddit.com/r/IndieDev/comments/1tmhkq5/gigahrush_a_typescriptwebgl_survival_horror_where/`. | Treat as removed; no immediate repost. |
+| r/indiegames | Not posted. | Hold unless owner requests manual media-first rewrite or modmail. |
 
 | Target | Format | Text Angle | Risk |
 | --- | --- | --- | --- |
-| r/WebGames | Direct browser game link or short self-post | "Free browser survival horror you can launch in one click." Lead with direct build, itch second. | Avoid duplicating r/playmygame body. |
-| r/indiegames | GIF/image post + link comment | Focus on Samosbor/A-Life/factions, not just "play my game". | Watch self-promo rules and cooldown. |
-| r/IndieDev | Dev-focused post | Technical/process angle: one-file WebGL/canvas survival sim, procedural assets, A-Life. | Do not make it a naked ad. |
-| r/Games Indie Sunday | Weekly allowed format only | Strong description + media + direct play link. | Only in the Indie Sunday hub and only if current weekly rules fit. |
+| New Reddit post | Do not use by default after PR 13 | Only if owner explicitly asks and rules are rechecked. | Same-day/near-term Reddit burst and removal risk. |
+| r/indiegames future attempt | Native gameplay media first, then permitted link placement | Samosbor/A-Life/factions with no feedback-bait. | External-link and AI-related ambiguity; use modmail/manual rewrite if uncertain. |
 
-### r/WebGames Draft
+## Post Quality Brief Template
+
+Use this before any new public post, listing, devlog, forum thread or pitch. Treat each post as a standalone mini-project built for one platform and one audience.
+
+```md
+Platform:
+URL / draft location:
+Date:
+Owner / account:
+Audience:
+Allowed promo format:
+Developer disclosure included:
+
+Primary goal:
+Desired audience action:
+Success signal:
+
+Why this platform:
+Known rules:
+Posting cooldown / prior posts:
+Risk:
+Required format:
+
+Post-specific hook:
+Audience-specific framing:
+What is different from previous posts:
+What not to repeat:
+
+Primary playable route:
+Backup playable route:
+Links allowed:
+If links are forbidden, no-link presentation plan:
+If direct-link-only, where media will be added:
+
+Primary media asset:
+Supporting media:
+Why this media fits the audience:
+Does it show actual gameplay/UI/place/monster/decision:
+Alt/caption text:
+File size/platform constraints checked:
+
+Title:
+Opening line:
+One-sentence game description:
+3 concrete gameplay facts:
+Expectation-setting:
+Feedback ask:
+Forbidden claims removed:
+
+Likely first questions:
+Likely harsh criticism:
+One factual reply prepared:
+No-reply cases:
+Useful feedback themes to extract:
+
+Record after posting:
+- exact URL
+- timestamp
+- flair/category
+- playable/media plan used
+- moderation state
+- score/views/comments if visible
+- useful feedback
+- next action
+```
+
+Pass conditions:
+
+- Native or hosted gameplay media is present unless the platform explicitly forbids media.
+- There is a compliant playable route: direct link, submission URL, platform listing, profile/search path or documented no-link exception.
+- The copy is rewritten for the audience and does not reuse Reddit/DTF/itch text verbatim.
+- Developer affiliation is visible.
+- The post gives a concrete reason to comment: controls, first-run clarity, Samosbor, browser performance, expedition loop, UI readability, lore fit or platform fit.
+- Expectations are accurate: browser game, survival horror, ARPG/shooter, single-player/local persistence where relevant.
+- A comment-response plan exists before publishing.
+
+Fail conditions:
+
+- Same text already used elsewhere with only names/links changed.
+- No gameplay media and no documented platform rule forcing that.
+- No compliant playable route or documented no-link plan.
+- The post looks like a link dump.
+- The title could fit any indie horror game.
+- The copy overclaims MMO/PvP/server persistence, Steam/Newgrounds availability, release dates, fixes or platform status.
+- Developer affiliation is hidden or ambiguous.
+- Platform rules are unread, unclear or recently caused removal.
+- It asks for likes, votes, ratings, bumps, reposts or generic support.
+- There is no plan to record URL/status/KPI after publishing.
+
+### r/WebGames Draft - historical
 
 ```text
 Title: GIGAH|RUSH - free browser survival horror inside an endless concrete apartment block
@@ -264,6 +354,34 @@ itch.io page: https://tenevik.itch.io/gigahrush
 
 Free to play. Not NSFW; it is survival horror with combat, corpses, blood, sirens and disturbing events.
 ```
+
+## P1.5: PBBG / Persistent Browser Game Surfaces
+
+Source pack: `Docs/PRCampaign/reddit_pbbg_publicity_2026-05-24.md`.
+
+2026-05-24 PR 13 update: `r/PBBG`, `r/WebGames` and `r/Games Indie Sunday` were published; PBBG.com was submitted for review; `r/IndieDev` was posted but removed by moderator/automoderation. Do not repost the removed `r/IndieDev` thread immediately. Next work is monitoring, replies and PBBG.com approval check.
+
+| Target | Format | Decision | Guardrail |
+| --- | --- | --- | --- |
+| r/PBBG | Reddit media/text post, `Game Advertisement` flair | Published: https://old.reddit.com/r/PBBG/comments/1tmhjtz/gigahrush_a_singleplayer_persistent_browser/ | Monitor; say it is single-player/local-persistent, not MMO/PvP/server-economy. |
+| PBBG.com | Directory submission | Submitted for review; final response said it will be reviewed for approval. Final accepted image was `11_factions_alife_rank_panel.png` after the larger `contact_sheet_3x3.png` path hit upload-size trouble. | Recheck public listing URL later; do not duplicate-submit while pending. |
+| PBBG forum / Discourse | Forum topic or directory-support context | Later, only if a real discussion/devlog thread is acceptable. | Do not duplicate the exact Reddit copy. Lead with systems/persistence design. |
+
+Historical `r/PBBG` media order from the prep pass:
+
+1. `tmp/prcampaign_screenshot_hunt_2026-05-23/selected_best/contact_sheet_3x3.png`
+2. `tmp/prcampaign_screenshot_hunt_2026-05-23/selected_best/11_factions_alife_rank_panel.png`
+3. `tmp/prcampaign_screenshot_hunt_2026-05-23/selected_best/07_contract_quest_log.png`
+4. `tmp/prcampaign_screenshot_hunt_2026-05-23/selected_best/09_trade_grid.png`
+5. `tmp/prcampaign_screenshot_hunt_2026-05-23/selected_best/08_inventory_prep_loadout.png`
+6. `tmp/prcampaign_screenshot_hunt_2026-05-23/selected_best/10_full_map_route_context.png`
+7. Optional motion: `tmp/prcampaign_screenshot_hunt_2026-05-23/selected_best/02_gif_underhell_maronary_samosbor_loop.gif`
+
+Current Reddit rule after PR 13:
+
+- r/PBBG, r/WebGames and r/Games Indie Sunday were all posted by explicit owner override on 2026-05-24, then corrected with playable links plus direct media URLs.
+- Do not add another Reddit post now. Monitor current threads, answer concrete questions, and record removal/comment states.
+- If any Reddit post is removed, record the removal reason and do not immediately replace it with another subreddit post.
 
 ## P2: Low Fit / Skip For Now
 
@@ -348,10 +466,10 @@ Scope: English-language user-generated indie/devlog/community-post surfaces simi
 | Game Jolt Devlog / Communities | https://gamejolt.com/help-docs/creators/add-game and https://gamejolt.com/help-docs/start/communities | A | Native game-page devlogs plus topical communities; good fit because GIGAH\|RUSH page is already live. | Add more media first; post a devlog/update through trusted UI only, then share to relevant communities after reading each community rules. |
 | IndieDB Articles | https://www.indiedb.com/articles | A | Public article feed is full of update/devlog/playtest posts; GIGAH\|RUSH page already exists. | Prepare a media-rich English article tied to a concrete playable update, not a repost of the listing text. |
 | TIGSource DevLogs | https://forums.tigsource.com/ | B | Long-form indie devlog forum culture; best for technical/design process and repeated updates. | Register/login, create one thread with a strong first post and plan to maintain it; avoid link dump. |
-| r/WebGames | https://www.reddit.com/r/WebGames/ | A | Browser-game audience; current public summaries indicate direct playable browser links and game-name-first titles fit. | Wait at least 24-48h after r/playmygame; use direct Cloudflare link and distinct copy. |
-| r/Games Indie Sunday | https://www.reddit.com/r/Games/comments/p9adzi | A | Large English gaming audience; official weekly developer showcase allows self-posts during Indie Sunday. | Earliest Sunday window; include video footage, self-post format, developer disclosure and cooldown compliance. |
-| r/IndieDev | https://www.reddit.com/r/IndieDev/ | B | Developer/community discussion audience; allows loose sharing but has account-age/comment-karma filters and high anti-spam sensitivity. | Use a process/dev angle with gameplay media and real discussion question; avoid storefront/direct link as the whole post. |
-| r/indiegames | https://www.reddit.com/r/indiegames/ | B | Player-facing indie subreddit; recent rule discussions reject fake feedback-bait and low-effort promo. | Use native GIF/video and honest launch/update framing; no same-day cross-post blast. |
+| r/WebGames | https://www.reddit.com/r/WebGames/ | A | Browser-game audience; PR 13 direct-link post is live. | Monitor `https://old.reddit.com/r/WebGames/comments/1tmhk3l/gigahrush_free_browser_survival_horror_arpg_in_an/`; do not repost. |
+| r/Games Indie Sunday | https://www.reddit.com/r/Games/comments/p9adzi | A | Large English gaming audience; PR 13 Indie Sunday post is live. | Monitor `https://old.reddit.com/r/Games/comments/1tmhl9l/gigahrush_tenevik_games_browser_survival_horror/`; respect cooldown and do not repost if removed. |
+| r/IndieDev | https://www.reddit.com/r/IndieDev/ | B | Posted during PR 13 and removed by moderator/automoderation. | Do not repost immediately; only modmail/manual review if owner explicitly asks. |
+| r/indiegames | https://www.reddit.com/r/indiegames/ | B | Player-facing indie subreddit; risk is media-first/external-link/AI ambiguity, not lack of playable links. | Hold. Future attempt needs native gameplay GIF/screenshots first, manual rewrite or modmail, and playable links only where rules allow. |
 | Hacker News Show HN | https://news.ycombinator.com/showhn.html | C | Not a game community, but browser-native one-file procedural WebGL/canvas build can fit technical curiosity. | Only after writing a concise technical angle and being ready to answer; title must start `Show HN:` and no upvote asks. |
 | Game Developer Blogs | https://www.gamedeveloper.com/blogging-guidelines | C | User-submitted developer articles can be featured, but must teach peers and not be an ad. | Pitch/write a technical postmortem: procedural browser survival horror, one-file build, A-Life, rendering constraints. |
 | Product Hunt | https://www.producthunt.com/launch | C | Maker/product launch community with comments/upvotes; not devlog-native and weak game fit unless framed as a playable browser product. | Use only for a polished launch milestone with gallery/video; no vote solicitation and no duplicate relaunch under six months without major update. |

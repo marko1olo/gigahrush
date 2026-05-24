@@ -591,6 +591,7 @@ export function checkQuests(
 export function notifyKill(kind: MonsterKind, state: GameState): void {
   for (const q of state.quests) {
     if (q.done || q.type !== QuestType.KILL) continue;
+    if (!isQuestTargetOnCurrentFloor(q, state)) continue;
     if (q.targetMonsterKind === kind || q.targetMonsterKind === undefined) {
       q.killCount = (q.killCount ?? 0) + 1;
     }
@@ -695,11 +696,47 @@ function contractCompletionTags(contractDef: ContractDef | undefined): string[] 
   return tags;
 }
 
+function questRewardStacks(q: Quest): { defId: string; count: number }[] {
+  const rewards: { defId: string; count: number }[] = [];
+  if (q.rewardItem) rewards.push({ defId: q.rewardItem, count: q.rewardCount ?? 1 });
+  for (const reward of q.extraRewards ?? []) rewards.push({ defId: reward.defId, count: reward.count });
+  return rewards;
+}
+
+function questRewardsFitAfterHandoff(q: Quest, player: Entity): boolean {
+  const rewards = questRewardStacks(q);
+  if (rewards.length === 0) return true;
+  const probe: Entity = {
+    ...player,
+    inventory: (player.inventory ?? []).map(item => ({ ...item })),
+  };
+  if (q.type === QuestType.FETCH && q.targetItem && q.targetItem !== 'money') {
+    removeItem(probe, q.targetItem, q.targetCount ?? 1);
+  }
+  for (const reward of rewards) {
+    if (!addItem(probe, reward.defId, reward.count)) return false;
+  }
+  return true;
+}
+
+function questRewardNoSpaceText(q: Quest): string {
+  const names = questRewardStacks(q).map(reward => {
+    const def = ITEMS[reward.defId];
+    return `${def?.name ?? reward.defId} ×${reward.count}`;
+  });
+  return `Нет места для платы: ${names.join(', ')}. Освободите инвентарь и сдайте поручение снова.`;
+}
+
 /* ── Complete a quest ─────────────────────────────────────────── */
 function completeQuest(
   q: Quest, player: Entity, entities: Entity[],
   state: GameState, msgs: Msg[],
-): void {
+): boolean {
+  if (!questRewardsFitAfterHandoff(q, player)) {
+    msgs.push(msg(questRewardNoSpaceText(q), state.time, '#fa4'));
+    return false;
+  }
+
   q.done = true;
   resolveGovnyakCourierOutcome(q, player, state, msgs);
 
@@ -820,6 +857,7 @@ function completeQuest(
   }
 
   abandonSideQuests(q, entities, state, msgs);
+  return true;
 }
 
 function abandonSideQuests(

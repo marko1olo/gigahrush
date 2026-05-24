@@ -687,35 +687,71 @@ function handleSilverSlimeUse(
   return false;
 }
 
-/* ── Add item to entity inventory ─────────────────────────────── */
-export function addItem(e: Entity, defId: string, count = 1, data?: unknown): boolean {
-  if (!e.inventory) e.inventory = [];
+function itemAddCapacity(e: Entity, defId: string, count: number, data: unknown): number {
+  if (count <= 0) return 0;
   const def = ITEMS[defId];
-  if (!def) return false;
+  if (!def) return 0;
+  const stackMax = getStack(def);
+  let capacity = 0;
+  for (const slot of e.inventory ?? []) {
+    if (slot.defId === defId && slot.count < stackMax && canStackData(slot.data, data)) {
+      capacity += stackMax - slot.count;
+      if (capacity >= count) return capacity;
+    }
+  }
+  capacity += Math.max(0, MAX_SLOTS - (e.inventory?.length ?? 0)) * stackMax;
+  return capacity;
+}
 
+export function canAddItem(e: Entity, defId: string, count = 1, data?: unknown): boolean {
+  if (!ITEMS[defId]) return false;
+  if (count <= 0) return true;
+  return itemAddCapacity(e, defId, count, data) >= count;
+}
+
+function defaultSlotData(defId: string, def: ItemDef, data: unknown): unknown {
+  if (data !== undefined) return data;
+  const ws = WEAPON_STATS[defId];
+  if (defId === CHALK_ITEM_ID) return createChalkItemData(def.durability ?? 0);
+  if (ws && !ws.isRanged && ws.durability > 0) return { dur: ws.durability };
+  if (def.durability && def.durability > 0) return { dur: def.durability };
+  return undefined;
+}
+
+function addItemMovedCount(e: Entity, defId: string, count = 1, data?: unknown): number {
+  const def = ITEMS[defId];
+  if (!def || count <= 0) return 0;
+  count = Math.min(count, itemAddCapacity(e, defId, count, data));
+  if (count <= 0) return 0;
+  if (!e.inventory) e.inventory = [];
+
+  const originalCount = count;
+  const stackMax = getStack(def);
   // Try stacking
   for (const slot of e.inventory) {
-    if (slot.defId === defId && slot.count < getStack(def) && canStackData(slot.data, data)) {
-      const add = Math.min(count, getStack(def) - slot.count);
+    if (slot.defId === defId && slot.count < stackMax && canStackData(slot.data, data)) {
+      const add = Math.min(count, stackMax - slot.count);
       slot.count += add;
       count -= add;
-      if (count <= 0) return true;
+      if (count <= 0) return originalCount;
     }
   }
 
   // New slot — init durability for melee weapons
   while (count > 0 && e.inventory.length < MAX_SLOTS) {
-    const add = Math.min(count, getStack(def));
-    const ws = WEAPON_STATS[defId];
-    let slotData = data;
-    if (slotData === undefined && defId === CHALK_ITEM_ID) slotData = createChalkItemData(def.durability ?? 0);
-    else if (slotData === undefined && ws && !ws.isRanged && ws.durability > 0) slotData = { dur: ws.durability };
-    else if (slotData === undefined && def.durability && def.durability > 0) slotData = { dur: def.durability };
+    const add = Math.min(count, stackMax);
+    const slotData = defaultSlotData(defId, def, data);
     e.inventory.push({ defId, count: add, data: slotData });
     count -= add;
   }
 
-  return count <= 0;
+  return originalCount - count;
+}
+
+/* ── Add item to entity inventory ─────────────────────────────── */
+export function addItem(e: Entity, defId: string, count = 1, data?: unknown): boolean {
+  if (!canAddItem(e, defId, count, data)) return false;
+  return addItemMovedCount(e, defId, count, data) === Math.max(0, count);
 }
 
 /* ── Remove item from inventory ───────────────────────────────── */
@@ -1434,7 +1470,8 @@ export function pickupNearby(
     if (!inv || inv.length === 0) continue;
 
     let pickedAny = false;
-    for (const item of inv) {
+    for (let itemIndex = 0; itemIndex < inv.length;) {
+      const item = inv[itemIndex];
       const def = ITEMS[item.defId];
       const acid = greenAcidPickupData(item.data);
       const zoneId = world.zoneMap[world.idx(Math.floor(drop.x), Math.floor(drop.y))];
@@ -1446,36 +1483,46 @@ export function pickupNearby(
             time, '#9f4',
           ));
           publishGreenAcidItemEvent(state, player, 'exposure', item.defId, item.count, zoneId, drop.x, drop.y);
+          itemIndex++;
           continue;
         }
+        const lostCount = item.count;
         msgs.push(msg(`${def?.name ?? item.defId} вспенился в кислоте. Добыча потеряна.`, time, '#bf4'));
-        item.count = 0;
+        inv.splice(itemIndex, 1);
         pickedAny = true;
-        publishGreenAcidItemEvent(state, player, 'exposure', item.defId, 1, zoneId, drop.x, drop.y);
+        publishGreenAcidItemEvent(state, player, 'exposure', item.defId, lostCount, zoneId, drop.x, drop.y);
         continue;
       }
 
-      if (addItem(player, item.defId, item.count, acid ? undefined : item.data)) {
+      const moved = addItemMovedCount(player, item.defId, item.count, acid ? undefined : item.data);
+      if (moved > 0) {
         if (acid?.organicRisk) {
           removeItem(player, GREEN_ACID_COUNTERMEASURE, 1);
           msgs.push(msg(`Фильтрующий слой нейтрализовал кислоту: ${def?.name ?? item.defId} сохранён.`, time, '#9f4'));
-          publishGreenAcidItemEvent(state, player, 'neutralization', item.defId, item.count, zoneId, drop.x, drop.y);
+          publishGreenAcidItemEvent(state, player, 'neutralization', item.defId, moved, zoneId, drop.x, drop.y);
         }
         if (acid?.sample) {
           msgs.push(msg('Взята проба зелёной кислотной слизи.', time, '#9f4'));
-          publishGreenAcidItemEvent(state, player, 'sample', item.defId, item.count, zoneId, drop.x, drop.y);
+          publishGreenAcidItemEvent(state, player, 'sample', item.defId, moved, zoneId, drop.x, drop.y);
         }
         msgs.push(msg(`Подобрано: ${def?.name ?? item.defId}`, time, '#dd4'));
-        publishPlayerItemEvent(state, player, 'player_pick_item', item.defId, item.count, 2, zoneId);
+        publishPlayerItemEvent(state, player, 'player_pick_item', item.defId, moved, 2, zoneId);
         handleVeretarPickupRisk(player, item.defId, msgs, time, state, zoneId);
+        item.count -= moved;
+        if (item.count <= 0) inv.splice(itemIndex, 1);
+        else itemIndex++;
         pickedAny = true;
+        continue;
       }
+      itemIndex++;
     }
 
     if (pickedAny) {
-      removeMonsterBaitForEntity(drop.id, state, time, 'picked_up');
-      onPickedDrop?.(drop);
-      drop.alive = false;
+      if (inv.length === 0) {
+        removeMonsterBaitForEntity(drop.id, state, time, 'picked_up');
+        onPickedDrop?.(drop);
+        drop.alive = false;
+      }
       playPickup();
     }
   }

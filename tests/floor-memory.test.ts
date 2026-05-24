@@ -1,7 +1,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { Cell, EntityType, Feature, LiftDirection, type Entity } from '../src/core/types';
+import {
+  Cell,
+  ContainerKind,
+  DoorState,
+  EntityType,
+  Feature,
+  LiftDirection,
+  RoomType,
+  Tex,
+  ZoneFaction,
+  type Entity,
+  type Room,
+  type Zone,
+} from '../src/core/types';
 import { SURFACE_FLAG_CHALK_MAP, World } from '../src/core/world';
 import {
   collectFloorLiftAnchors,
@@ -27,6 +40,36 @@ function entity(id: number, type: EntityType): Entity {
     alive: true,
     speed: 1,
     sprite: 0,
+  };
+}
+
+function testRoom(id: number, doors: number[] = []): Room {
+  return {
+    id,
+    type: RoomType.COMMON,
+    x: 0,
+    y: 0,
+    w: 4,
+    h: 4,
+    doors,
+    sealed: false,
+    name: `room ${id}`,
+    apartmentId: -1,
+    wallTex: Tex.CONCRETE,
+    floorTex: Tex.F_CONCRETE,
+  };
+}
+
+function testZone(id: number, hasLift: boolean): Zone {
+  return {
+    id,
+    cx: id * 128 + 64,
+    cy: 64,
+    faction: ZoneFaction.CITIZEN,
+    hasLift,
+    fogged: false,
+    level: 0,
+    hqRoomId: -1,
   };
 }
 
@@ -130,6 +173,39 @@ test('floor memory save view is capped and prefers newest entries', () => {
   clearFloorMemory();
 });
 
+test('floor memory restore keeps saved entries packed and capped until take', () => {
+  clearFloorMemory();
+  const world = new World();
+  assert.equal(captureFloorMemory('story:packed_template', world, [entity(50, EntityType.NPC)], 3, 4, 1, 0), true);
+  const template = floorMemoryStateForSave().entries[0];
+  assert.ok(template);
+
+  const entries = Array.from({ length: 32 }, (_, i) => ({
+    ...JSON.parse(JSON.stringify(template)),
+    key: `story:packed_${i}`,
+    capturedAt: i,
+  }));
+  clearFloorMemory();
+
+  const restored = restoreFloorMemoryFromSave({
+    version: 1,
+    entries,
+    bytes: 0,
+    byteBudget: Number.MAX_SAFE_INTEGER,
+  });
+  assert.equal(restored.restored, 24);
+  assert.equal(restored.keys.length, 24);
+
+  const stats = floorMemoryStats();
+  assert.equal(stats.fullCount, 0);
+  assert.equal(stats.packedCount, 24);
+  assert.ok(takeFloorMemory('story:packed_23'));
+  assert.equal(floorMemoryStats().fullCount, 0);
+  assert.equal(floorMemoryStats().packedCount, 23);
+  assert.equal(takeFloorMemory('story:packed_31'), null);
+  clearFloorMemory();
+});
+
 test('floor memory save byte cap skips oversized entries', () => {
   clearFloorMemory();
   setFloorMemorySaveByteBudgetForTests(4096);
@@ -180,6 +256,81 @@ test('floor memory restore skips corrupt snapshots and malformed nested entries'
   assert.equal(loaded.generation.world.surfaceMap.get(idx)?.[0], 9);
   assert.deepEqual(loaded.generation.entities.map(e => e.id), [40]);
   assert.equal(takeFloorMemory('story:tolerant_bad'), null);
+  clearFloorMemory();
+});
+
+test('floor memory restore sanitizes invalid doors and malformed containers before hydration', () => {
+  clearFloorMemory();
+  const world = new World();
+  const doorIdx = world.idx(30, 30);
+  world.cells[doorIdx] = Cell.DOOR;
+  world.rooms = [testRoom(0, [doorIdx])];
+  world.doors.set(doorIdx, {
+    idx: doorIdx,
+    state: DoorState.OPEN,
+    roomA: 0,
+    roomB: -1,
+    keyId: '',
+    timer: 0,
+  });
+  world.addContainer({
+    id: 77,
+    x: 31,
+    y: 30,
+    floor: 0,
+    roomId: 0,
+    zoneId: 0,
+    kind: ContainerKind.METAL_CABINET,
+    name: 'valid box',
+    inventory: [{ defId: 'bread', count: 2 }],
+    capacitySlots: 4,
+    access: 'public',
+    discovered: true,
+    tags: ['valid'],
+  });
+
+  assert.equal(captureFloorMemory('story:sanitize_nested', world, [], 30.5, 31.5, 1, 0), true);
+  const saved = floorMemoryStateForSave();
+  const entry = JSON.parse(JSON.stringify(saved.entries[0])) as typeof saved.entries[number];
+  entry.world.doors[0][1].state = 999;
+  entry.world.doors.push([world.idx(31, 31), {
+    idx: world.idx(31, 31),
+    state: DoorState.OPEN,
+    roomA: 0,
+    roomB: -1,
+    keyId: '',
+    timer: 0,
+  }]);
+  (entry.world.containers as unknown[]).push({
+    id: 'bad',
+    x: 'nope',
+    y: 30,
+    floor: 0,
+    roomId: 0,
+    zoneId: 0,
+    kind: ContainerKind.SAFE,
+    name: 'bad box',
+    inventory: [{ defId: 'ammo_9x18', count: 1 }],
+    capacitySlots: 4,
+    access: 'public',
+    discovered: true,
+    tags: ['bad'],
+  });
+
+  clearFloorMemory();
+  const restored = restoreFloorMemoryFromSave({ version: 1, entries: [entry], bytes: 0, byteBudget: 0 });
+  assert.equal(restored.restored, 1);
+  assert.equal(floorMemoryStats().packedCount, 1);
+
+  const loaded = takeFloorMemory('story:sanitize_nested');
+  assert.ok(loaded);
+  const restoredWorld = loaded.generation.world;
+  assert.equal(restoredWorld.doors.get(doorIdx)?.state, DoorState.CLOSED);
+  assert.equal(restoredWorld.solid(30, 30), true);
+  assert.equal(restoredWorld.doors.has(world.idx(31, 31)), false);
+  assert.equal(restoredWorld.containers.length, 1);
+  assert.equal(restoredWorld.containerById.get(77)?.name, 'valid box');
+  assert.equal(restoredWorld.containerById.has(Number.NaN), false);
   clearFloorMemory();
 });
 
@@ -238,6 +389,34 @@ test('route lift layout mirrors return lifts and normalizes both directions to e
       assert.notEqual(target.features[target.idx(anchor.liftX + dx, anchor.liftY + dy)], Feature.LIFT_BUTTON);
     }
   }
+});
+
+test('route lift layout recomputes zone lift flags after demotion and placement', () => {
+  const world = new World();
+  world.zones = [testZone(0, true), testZone(1, false)];
+  world.zoneMap.fill(0);
+
+  const staleLiftIdx = world.idx(12, 12);
+  world.cells[staleLiftIdx] = Cell.LIFT;
+  world.liftDir[staleLiftIdx] = LiftDirection.DOWN;
+  world.zoneMap[staleLiftIdx] = 0;
+
+  for (let y = 40; y <= 48; y++) {
+    for (let x = 40; x <= 48; x++) {
+      const idx = world.idx(x, y);
+      world.cells[idx] = Cell.FLOOR;
+      world.zoneMap[idx] = 1;
+    }
+  }
+
+  const result = ensureFloorRouteLiftLayout(world, 44.5, 44.5, [LiftDirection.UP], {
+    countPerDirection: 1,
+  });
+
+  assert.equal(result.demoted, 1);
+  assert.equal(result.up, 1);
+  assert.equal(world.zones[0]?.hasLift, false);
+  assert.equal(world.zones[1]?.hasLift, true);
 });
 
 test('route lift layout forces mirrored anchors by carving bounded access', () => {

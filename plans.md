@@ -1,8 +1,10 @@
 # GIGAHRUSH Plans
 
-Статус: consolidated backlog from active planning docs as of 2026-05-23.
+Статус: consolidated backlog from active planning docs as of 2026-05-24.
 
 `README.md` remains the source of truth for shipped behavior. This file is only for plans that are not fully proven in game yet, or are implemented as a thin slice but still have documented expansion debt. Historical prompts and old batch plans live under `gatbage/`.
+
+Project-bible terms such as honest current-floor simulation, player-as-controlled-entity, non-player-spawn-bubble AI and off-floor bounded macro-life are source-of-truth contracts in `README.md` and `architecture.md`; this backlog should not redefine them.
 
 ## Already Landed Enough To Treat As Source Facts
 
@@ -12,7 +14,7 @@ These are no longer pure plans; update `README.md` instead when their behavior c
 - 20 routed authored design floors and 75 procedural/fallback interstitial floors.
 - 19 procedural anomaly ids in data/generation/runtime surface, including rail trains, Bad Apple, zombie apocalypse, Conway, section shift and samosbor seed.
 - 8 numbered lift instance definitions with runtime interruption state.
-- Runtime floor memory for visited route stops in the current session: ordinary lift travel restores the stored `World`/entities for the exact floor key, while first visits and save loads regenerate from route seed/data. Samosbor changes the active world and the stitched result becomes the next stored state for that same key.
+- Runtime floor memory for visited route stops: ordinary lift travel restores the stored `World`/entities for the exact floor key, and browser saves include bounded packed floor-memory entries when they fit the save budget. First visits, evicted snapshots and missing save entries regenerate from route seed/data. Samosbor changes the active world and the stitched result becomes the next stored state for that same key.
 - Net Sphere optional Cloudflare/D1 terminal and Net Terminal Gen current-floor editor.
 - High-density active AI profiles, entity index broadphase and pathfinding budget.
 - Save shape versioning with current-shape rejection of stale saves.
@@ -50,7 +52,7 @@ The expansion packets under `Docs/Expansions/**` are planning/reference document
 
 ## Procedural Anomaly Backlog
 
-`anomalies.md` is now partly stale as an implementation-order document because all 18 anomaly ids are represented in the current procedural deck. Keep it as a design/counterplay reference. Remaining work belongs in focused source tasks:
+`anomalies.md` is now partly stale as an implementation-order document because all 19 anomaly ids are represented in the current procedural deck. Keep it as a design/counterplay reference. Remaining work belongs in focused source tasks:
 
 - More readable counterplay for heavy topology anomalies: `wall_snake`, `conway_life`, `section_shift`.
 - More NPC/faction use of anomaly facts, not only player hazards.

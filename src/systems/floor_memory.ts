@@ -2,13 +2,23 @@
 
 import {
   Cell,
+  ContainerKind,
+  DoorState,
   EntityType,
   Feature,
+  Faction,
   FloorLevel,
   LiftDirection,
+  RoomType,
   Tex,
   W,
+  ZoneFaction,
+  type Door,
   type Entity,
+  type Item,
+  type Room,
+  type WorldContainer,
+  type Zone,
 } from '../core/types';
 import { World } from '../core/world';
 import { type FloorGeneration } from '../gen/floor_manifest';
@@ -446,36 +456,320 @@ function cloneJsonOr<T>(value: unknown, fallback: T): T {
   }
 }
 
-function worldFromSave(input: unknown): World | null {
+function finiteInt(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? Math.floor(value)
+    : fallback;
+}
+
+function finiteIntRange(value: unknown, min: number, max: number, fallback: number): number {
+  const n = finiteInt(value, fallback);
+  return n >= min && n <= max ? n : fallback;
+}
+
+function enumNumberValues(source: Record<string, string | number>): number[] {
+  return Object.values(source).filter((value): value is number => typeof value === 'number');
+}
+
+function enumValue(
+  value: unknown,
+  source: Record<string, string | number>,
+  fallback: number,
+): number {
+  const n = finiteInt(value, fallback);
+  return enumNumberValues(source).includes(n) ? n : fallback;
+}
+
+function stringValue(value: unknown, fallback = '', maxLength = 160): string {
+  if (typeof value !== 'string') return fallback;
+  return value.length > maxLength ? value.slice(0, maxLength) : value;
+}
+
+function stringListValue(input: unknown, maxEntries: number, maxLength = 96): string[] {
+  if (!Array.isArray(input)) return [];
+  const out: string[] = [];
+  for (const value of input) {
+    if (typeof value !== 'string') continue;
+    out.push(value.length > maxLength ? value.slice(0, maxLength) : value);
+    if (out.length >= maxEntries) break;
+  }
+  return out;
+}
+
+function jsonCloneableValue<T>(value: unknown, fallback: T): T {
+  try {
+    return cloneJson(value) as T;
+  } catch {
+    return fallback;
+  }
+}
+
+function sanitizeItems(input: unknown, maxEntries: number): Item[] {
+  if (!Array.isArray(input)) return [];
+  const out: Item[] = [];
+  for (const raw of input) {
+    if (!isRecord(raw)) continue;
+    const defId = stringValue(raw.defId, '', 96);
+    if (!defId) continue;
+    const count = finiteIntRange(raw.count, 1, 999, 1);
+    const item: Item = { defId, count };
+    if ('data' in raw) item.data = jsonCloneableValue(raw.data, undefined);
+    out.push(item);
+    if (out.length >= maxEntries) break;
+  }
+  return out;
+}
+
+function sanitizeRooms(input: unknown): Room[] {
+  if (!Array.isArray(input)) return [];
+  const out: Room[] = [];
+  for (const raw of input) {
+    if (!isRecord(raw)) continue;
+    const id = finiteInt(raw.id, -1);
+    if (id !== out.length) continue;
+    const w = finiteIntRange(raw.w, 1, W, 1);
+    const h = finiteIntRange(raw.h, 1, W, 1);
+    out.push({
+      id,
+      type: enumValue(raw.type, RoomType, RoomType.COMMON) as RoomType,
+      x: finiteIntRange(raw.x, 0, W - 1, 0),
+      y: finiteIntRange(raw.y, 0, W - 1, 0),
+      w,
+      h,
+      doors: restoreNumberList(raw.doors),
+      sealed: raw.sealed === true,
+      name: stringValue(raw.name, '', 120),
+      apartmentId: finiteIntRange(raw.apartmentId, -1, 32767, -1),
+      wallTex: finiteIntRange(raw.wallTex, 0, Tex.COUNT - 1, Tex.CONCRETE) as Tex,
+      floorTex: finiteIntRange(raw.floorTex, 0, Tex.COUNT - 1, Tex.F_CONCRETE) as Tex,
+    });
+    if (out.length >= 32767) break;
+  }
+  return out;
+}
+
+function sanitizeZones(input: unknown): Zone[] {
+  if (!Array.isArray(input)) return [];
+  const out: Zone[] = [];
+  for (const raw of input) {
+    if (!isRecord(raw)) continue;
+    const id = finiteInt(raw.id, -1);
+    if (id !== out.length || id > 255) continue;
+    out.push({
+      id,
+      cx: finiteIntRange(raw.cx, 0, W - 1, 0),
+      cy: finiteIntRange(raw.cy, 0, W - 1, 0),
+      faction: enumValue(raw.faction, ZoneFaction, ZoneFaction.WILD) as ZoneFaction,
+      hasLift: raw.hasLift === true,
+      fogged: raw.fogged === true,
+      level: finiteIntRange(raw.level, 0, 100, 0),
+      hqRoomId: finiteIntRange(raw.hqRoomId, -1, 32767, -1),
+    });
+  }
+  return out;
+}
+
+function sanitizeDoorEntries(input: unknown, rooms: readonly Room[], world?: World): Array<[number, Door]> {
+  const out: Array<[number, Door]> = [];
+  if (!Array.isArray(input)) return out;
+  const seen = new Set<number>();
+  for (const entry of input) {
+    if (!Array.isArray(entry) || entry.length !== 2 || !isRecord(entry[1])) continue;
+    const idx = finiteIntRange(entry[0], 0, W * W - 1, -1);
+    if (idx < 0 || seen.has(idx)) continue;
+    if (world && world.cells[idx] !== Cell.DOOR) continue;
+    const raw = entry[1];
+    const roomA = finiteIntRange(raw.roomA, -1, rooms.length - 1, -1);
+    const roomB = finiteIntRange(raw.roomB, -1, rooms.length - 1, -1);
+    out.push([idx, {
+      idx,
+      state: enumValue(raw.state, DoorState, DoorState.CLOSED) as DoorState,
+      roomA,
+      roomB,
+      keyId: stringValue(raw.keyId, '', 96),
+      timer: typeof raw.timer === 'number' && Number.isFinite(raw.timer)
+        ? Math.max(0, Math.min(3600, raw.timer))
+        : 0,
+    }]);
+    seen.add(idx);
+  }
+  return out;
+}
+
+const CONTAINER_ACCESS_VALUES = new Set(['public', 'room', 'faction', 'owner', 'locked', 'secret']);
+
+function sanitizeContainers(
+  input: unknown,
+  rooms: readonly Room[],
+  zones: readonly Zone[],
+): WorldContainer[] {
+  if (!Array.isArray(input)) return [];
+  const out: WorldContainer[] = [];
+  const seen = new Set<number>();
+  for (const raw of input) {
+    if (!isRecord(raw)) continue;
+    const id = finiteInt(raw.id, -1);
+    const x = finiteInt(raw.x, -1);
+    const y = finiteInt(raw.y, -1);
+    if (id < 0 || seen.has(id) || x < 0 || x >= W || y < 0 || y >= W) continue;
+    const capacitySlots = finiteIntRange(raw.capacitySlots, 1, 128, 8);
+    const access = typeof raw.access === 'string' && CONTAINER_ACCESS_VALUES.has(raw.access)
+      ? raw.access as WorldContainer['access']
+      : 'public';
+    const container: WorldContainer = {
+      id,
+      x,
+      y,
+      floor: enumValue(raw.floor, FloorLevel, FloorLevel.LIVING) as FloorLevel,
+      roomId: finiteIntRange(raw.roomId, -1, rooms.length - 1, -1),
+      zoneId: finiteIntRange(raw.zoneId, 0, Math.max(0, zones.length - 1), 0),
+      kind: enumValue(raw.kind, ContainerKind, ContainerKind.METAL_CABINET) as ContainerKind,
+      name: stringValue(raw.name, 'контейнер', 120),
+      inventory: sanitizeItems(raw.inventory, capacitySlots),
+      capacitySlots,
+      access,
+      discovered: raw.discovered === true,
+      tags: stringListValue(raw.tags, 16, 64),
+    };
+    if (typeof raw.ownerNpcId === 'number' && Number.isFinite(raw.ownerNpcId)) container.ownerNpcId = Math.floor(raw.ownerNpcId);
+    if (typeof raw.ownerName === 'string') container.ownerName = stringValue(raw.ownerName, '', 120);
+    if (typeof raw.faction === 'number') container.faction = enumValue(raw.faction, Faction, Faction.CITIZEN) as Faction;
+    if (typeof raw.lockDifficulty === 'number' && Number.isFinite(raw.lockDifficulty)) {
+      container.lockDifficulty = Math.max(0, Math.min(100, Math.floor(raw.lockDifficulty)));
+    }
+    container.stolenItemIds = stringListValue(raw.stolenItemIds, 64, 96);
+    if (typeof raw.lastOpenedBy === 'number' && Number.isFinite(raw.lastOpenedBy)) container.lastOpenedBy = Math.floor(raw.lastOpenedBy);
+    if (typeof raw.lastOpenedAt === 'number' && Number.isFinite(raw.lastOpenedAt)) container.lastOpenedAt = raw.lastOpenedAt;
+    if (typeof raw.lastAuditAt === 'number' && Number.isFinite(raw.lastAuditAt)) container.lastAuditAt = raw.lastAuditAt;
+    if (typeof raw.factoryId === 'string') container.factoryId = stringValue(raw.factoryId, '', 96);
+    if (typeof raw.lastProducedAt === 'number' && Number.isFinite(raw.lastProducedAt)) container.lastProducedAt = raw.lastProducedAt;
+    if (typeof raw.lastProducedItemId === 'string') container.lastProducedItemId = stringValue(raw.lastProducedItemId, '', 96);
+    if (typeof raw.lastProducedCount === 'number' && Number.isFinite(raw.lastProducedCount)) {
+      container.lastProducedCount = Math.max(0, Math.min(999, Math.floor(raw.lastProducedCount)));
+    }
+    if (
+      raw.productionBlockedReason === 'no_inputs' ||
+      raw.productionBlockedReason === 'container_full' ||
+      raw.productionBlockedReason === 'no_container'
+    ) {
+      container.productionBlockedReason = raw.productionBlockedReason;
+    }
+    out.push(container);
+    seen.add(id);
+  }
+  return out;
+}
+
+function reconcileRoomDoors(world: World): void {
+  const validDoorIdx = new Set(world.doors.keys());
+  for (const room of world.rooms) {
+    room.doors = room.doors.filter(idx => validDoorIdx.has(idx));
+  }
+  for (const [idx, door] of world.doors) {
+    const roomA = door.roomA >= 0 ? world.rooms[door.roomA] : undefined;
+    const roomB = door.roomB >= 0 ? world.rooms[door.roomB] : undefined;
+    if (roomA && !roomA.doors.includes(idx)) roomA.doors.push(idx);
+    if (roomB && !roomB.doors.includes(idx)) roomB.doors.push(idx);
+  }
+}
+
+function recomputeWorldZoneLiftFlags(world: World): void {
+  for (const zone of world.zones) zone.hasLift = false;
+  for (let i = 0; i < world.cells.length; i++) {
+    if (world.cells[i] !== Cell.LIFT) continue;
+    const zone = world.zones[world.zoneMap[i]];
+    if (zone) zone.hasLift = true;
+  }
+}
+
+function validateRleArray(saved: RleArraySave): boolean {
+  if (!saved || !WORLD_ARRAY_FIELDS.some(def => def.field === saved.field && def.type === saved.type)) return false;
+  if (saved.length !== W * W || typeof saved.data !== 'string') return false;
+  const bytes = tryBase64ToBytes(saved.data);
+  if (!bytes) return false;
+  const offset = { v: 0 };
+  let i = 0;
+  while (i < saved.length && offset.v < bytes.length) {
+    const len = readVarUint(bytes, offset);
+    const value = readRleValue(bytes, offset, saved.type);
+    if (value === null) return false;
+    if (len <= 0 || i + len > saved.length) return false;
+    i += len;
+  }
+  return i === saved.length && offset.v === bytes.length;
+}
+
+function sanitizedRleArray(input: unknown, field: WorldArrayField, type: RleArrayType): RleArraySave | null {
+  if (!isRecord(input) || input.field !== field || input.type !== type) return null;
+  const saved: RleArraySave = {
+    field,
+    type,
+    length: finiteInt(input.length, -1),
+    data: stringValue(input.data, '', Number.MAX_SAFE_INTEGER),
+  };
+  return validateRleArray(saved) ? saved : null;
+}
+
+function sanitizedWorldSave(input: unknown): FloorMemoryWorldSave | null {
   if (!isRecord(input) || !Array.isArray(input.arrays)) return null;
+  const arrays: RleArraySave[] = [];
+  for (const def of WORLD_ARRAY_FIELDS) {
+    const raw = input.arrays.find(candidate => isRecord(candidate) && candidate.field === def.field && candidate.type === def.type);
+    const saved = sanitizedRleArray(raw, def.field, def.type);
+    if (!saved) return null;
+    arrays.push(saved);
+  }
+  const rooms = sanitizeRooms(input.rooms);
+  const zones = sanitizeZones(input.zones);
+  const surfaceMap: Array<[number, string]> = [];
+  for (const [idx, pixels] of restoreSurfaceMap(input.surfaceMap)) surfaceMap.push([idx, bytesToBase64(pixels)]);
+  return {
+    arrays,
+    rooms,
+    zones,
+    doors: sanitizeDoorEntries(input.doors, rooms),
+    containers: sanitizeContainers(input.containers, rooms, zones),
+    surfaceMap,
+    anomalyTeleports: restoreNumberEntries(input.anomalyTeleports)
+      .filter(([a, b]) => a >= 0 && a < W * W && b >= 0 && b < W * W),
+    anomalySmogSource: finiteIntRange(input.anomalySmogSource, -1, W * W - 1, -1),
+    anomalySmogCells: restoreNumberList(input.anomalySmogCells),
+    anomalySmogHandled: input.anomalySmogHandled === true,
+    railTracks: Array.isArray(input.railTracks) ? cloneJsonOr<World['railTracks']>(input.railTracks, []) : [],
+    railTrains: Array.isArray(input.railTrains) ? cloneJsonOr<World['railTrains']>(input.railTrains, []) : [],
+    railTrainCells: restoreNumberEntries(input.railTrainCells)
+      .filter(([cell, train]) => cell >= 0 && cell < W * W && train >= 0),
+    slideCells: restoreNumberList(input.slideCells),
+    screenCells: restoreNumberList(input.screenCells),
+  };
+}
+
+function worldFromSave(input: unknown): World | null {
+  const savedWorld = sanitizedWorldSave(input);
+  if (!savedWorld) return null;
   const world = new World();
   for (const def of WORLD_ARRAY_FIELDS) {
-    const saved = input.arrays.find(candidate => isRecord(candidate) && candidate.field === def.field && candidate.type === def.type) as RleArraySave | undefined;
+    const saved = savedWorld.arrays.find(candidate => candidate.field === def.field && candidate.type === def.type);
     if (!saved) return null;
     if (!applyRleArray(world, saved)) return null;
   }
-  world.rooms = Array.isArray(input.rooms) ? cloneJsonOr<World['rooms']>(input.rooms, []) : [];
-  world.zones = Array.isArray(input.zones) ? cloneJsonOr<World['zones']>(input.zones, []) : [];
-  world.doors = new Map(
-    Array.isArray(input.doors)
-      ? input.doors
-        .filter(entry => Array.isArray(entry) && Number.isFinite(Number(entry[0])))
-        .map(entry => [Math.floor(Number(entry[0])), cloneJsonOr<World['doors'] extends Map<number, infer D> ? D : never>(entry[1], {} as World['doors'] extends Map<number, infer D> ? D : never)] as [number, World['doors'] extends Map<number, infer D> ? D : never])
-      : [],
-  );
-  world.containers = Array.isArray(input.containers) ? cloneJsonOr<World['containers']>(input.containers, []) : [];
+  world.rooms = sanitizeRooms(savedWorld.rooms);
+  world.zones = sanitizeZones(savedWorld.zones);
+  world.doors = new Map(sanitizeDoorEntries(savedWorld.doors, world.rooms, world));
+  reconcileRoomDoors(world);
+  recomputeWorldZoneLiftFlags(world);
+  world.containers = sanitizeContainers(savedWorld.containers, world.rooms, world.zones);
   world.rebuildContainerMap();
-  world.surfaceMap = restoreSurfaceMap(input.surfaceMap);
-  world.anomalyTeleports = new Map(restoreNumberEntries(input.anomalyTeleports));
-  const anomalySmogSource = Number(input.anomalySmogSource);
-  world.anomalySmogSource = Number.isFinite(anomalySmogSource) ? Math.floor(anomalySmogSource) : -1;
-  world.anomalySmogCells = restoreNumberList(input.anomalySmogCells);
-  world.anomalySmogHandled = input.anomalySmogHandled === true;
-  world.railTracks = Array.isArray(input.railTracks) ? cloneJsonOr<World['railTracks']>(input.railTracks, []) : [];
-  world.railTrains = Array.isArray(input.railTrains) ? cloneJsonOr<World['railTrains']>(input.railTrains, []) : [];
-  world.railTrainCells = new Map(restoreNumberEntries(input.railTrainCells));
-  world.slideCells = restoreNumberList(input.slideCells);
-  world.screenCells = restoreNumberList(input.screenCells);
+  world.surfaceMap = restoreSurfaceMap(savedWorld.surfaceMap);
+  world.anomalyTeleports = new Map(savedWorld.anomalyTeleports);
+  world.anomalySmogSource = savedWorld.anomalySmogSource;
+  world.anomalySmogCells = savedWorld.anomalySmogCells;
+  world.anomalySmogHandled = savedWorld.anomalySmogHandled;
+  world.railTracks = cloneJsonOr<World['railTracks']>(savedWorld.railTracks, []);
+  world.railTrains = cloneJsonOr<World['railTrains']>(savedWorld.railTrains, []);
+  world.railTrainCells = new Map(savedWorld.railTrainCells);
+  world.slideCells = savedWorld.slideCells;
+  world.screenCells = savedWorld.screenCells;
   world.bakeLights();
   world.markCellsDirty();
   world.surfaceVersion = (world.surfaceVersion + 1) | 0;
@@ -948,11 +1242,7 @@ export function ensureFloorRouteLiftLayout(
   }
 
   if (changed) {
-    for (let i = 0; i < world.cells.length; i++) {
-      if (world.cells[i] !== Cell.LIFT) continue;
-      const zone = world.zones[world.zoneMap[i]];
-      if (zone) zone.hasLift = true;
-    }
+    recomputeWorldZoneLiftFlags(world);
     markRouteLiftLayoutDirty(world);
   }
 
@@ -1159,6 +1449,24 @@ function restoreEntities(input: unknown): Entity[] {
   return out;
 }
 
+function sanitizedSaveEntry(raw: Partial<FloorMemorySaveEntry>): FloorMemorySaveEntry | null {
+  const key = cleanFloorKey(raw?.key);
+  if (!key || !raw?.world) return null;
+  const world = sanitizedWorldSave(raw.world);
+  if (!world) return null;
+  const entities = restoreEntities(raw.entities);
+  return {
+    key,
+    spawnX: finiteCoord(raw.spawnX, W / 2),
+    spawnY: finiteCoord(raw.spawnY, W / 2),
+    capturedAt: finiteCoord(raw.capturedAt, 0),
+    samosborCount: finiteNonNegativeInt(raw.samosborCount),
+    world,
+    entities,
+    estimatedBytes: finiteNonNegativeInt(raw.estimatedBytes),
+  };
+}
+
 export function restoreFloorMemoryFromSave(
   input: unknown,
   options: {
@@ -1170,35 +1478,23 @@ export function restoreFloorMemoryFromSave(
   if (!input || typeof input !== 'object' || Array.isArray(input)) return result;
   const state = input as Partial<FloorMemorySaveState>;
   if (state.version !== 1 || !Array.isArray(state.entries)) return result;
-  for (const raw of state.entries.slice(0, MAX_FLOOR_MEMORY_ENTRIES)) {
+  for (const raw of state.entries.slice(0, MAX_FLOOR_MEMORY_SAVE_ENTRIES)) {
     try {
-      const key = cleanFloorKey(raw?.key);
-      if (!key || !raw?.world) {
+      const save = sanitizedSaveEntry(raw as Partial<FloorMemorySaveEntry>);
+      if (!save) {
         result.skipped++;
         continue;
       }
-      const world = worldFromSave(raw.world);
-      if (!world) {
-        result.skipped++;
-        continue;
-      }
-      const entities = restoreEntities(raw.entities);
-      const ok = captureFloorMemory(
-        key,
-        world,
-        entities,
-        finiteCoord(raw.spawnX, W / 2),
-        finiteCoord(raw.spawnY, W / 2),
-        finiteCoord(raw.capturedAt, 0),
-        finiteNonNegativeInt(raw.samosborCount),
-        options.generationExtrasForKey?.(key),
-      );
-      if (ok) {
-        result.restored++;
-        result.keys.push(key);
-      } else {
-        result.skipped++;
-      }
+      removePackedFloorMemoryEntry(save.key);
+      const estimatedBytes = estimateJsonBytes(save);
+      packedFloorMemory.set(save.key, {
+        save: { ...save, estimatedBytes },
+        estimatedBytes,
+        generationExtras: options.generationExtrasForKey?.(save.key),
+      });
+      packedFloorMemoryBytes += estimatedBytes;
+      result.restored++;
+      result.keys.push(save.key);
     } catch {
       result.skipped++;
     }

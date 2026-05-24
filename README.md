@@ -8,6 +8,18 @@ Core engineering taste: no hardcoding, no crutches. Keep systems elegant, univer
 
 This README is the factual implementation map. Design priorities for the next iteration are in [desdoc.md](desdoc.md). Engineering ownership and module rules are in [architecture.md](architecture.md).
 
+## Project Bible
+
+ГИГАХРУЩ is built around one loaded 1024x1024 toroidal floor as a living simulation surface. Materialized NPCs, monsters, projectiles, rooms, factions, containers, events and samosbor effects share that same `World` and `entities` array. The simulation is not a player-spawn bubble: far actors may tick on deterministic cadences and broadphase/path caches, but they remain live actors on the current floor.
+
+The player is a controlled entity, not a separate world rule. Input, camera, HUD and save ownership are player-specific, but combat, needs, faction hostility, damage, events, A-Life social math, toroidal coordinates and samosbor selection operate on entities. Systems should preserve this isotropy: when a mechanic can apply to any actor, it should not become player-only logic. The live player entity can be recreated on floor load from controlled-player state; systems must persist `persistentNpcId: 'player'` or player save fields, not the transient live `player.id`.
+
+The vertical game is the persistent `FloorRun`: the player starts on `LIVING` at `z=0`, normal lifts span `z=-50..+50`, and every stop is a keyed floor identity. Story anchors, authored design floors, procedural stops and numbered lift instances are separate little worlds with their own generator/package, population field, NPC/monster mix, rules, POIs and route role. Danger and pressure generally rise away from the center through `z`, `abs(z)`, floor data, anomaly pressure and local design overrides rather than one hardcoded formula.
+
+The building is inhabited before the player arrives. A-Life creates up to `1_000_000` procedural NPC identities when memory allows it, with a `100_000` fallback on constrained runtimes, and distributes them across story, design and procedural route keys. Only the current floor is materialized into live AI; off-floor people are persistent records that change only through explicit bounded events, migration, caravans, quests, trade/economy consequences, resettlement or saved overrides. Deaths are permanent, ordinary background refill is disabled, and cleared floors stay changed until a named arrival or migration changes them.
+
+Samosbor is not a loading-screen reset. It is a random local world mutation on the current map: warning, active pressure, shelter checks, variant effects, local geometry rewrite, aftermath, events and the stitched floor state becoming the next persistent snapshot for that floor key.
+
 ## Save And Legacy Policy
 
 The browser save lives in `localStorage` under `gigahrush_save` and carries the shape version from `src/systems/save_runtime.ts`. ГИГАХРУЩ is in active development: old saves and legacy runtime paths are not a product contract. When a gameplay/system update breaks save shape, bump the save shape version and reject stale saves explicitly instead of adding cross-version migration code.
@@ -297,7 +309,7 @@ The authoritative floor map is `FloorLevel` in `src/core/types.ts`, story-floor 
 
 Normal lifts move through a per-run vertical `FloorRun` route rather than directly through adjacent enum values. The player starts on `LIVING` at `z=0`; down decreases `z`, up increases `z`. The route spans 101 floors from `z=-50` to `z=+50`: `VOID` is the final lowest floor at `z=-50`, and `roof` is the highest floor at `z=+50`. The expandable target pattern is every even `z` as an authored/story slot and every odd `z` as a procedural floor. Until more authored floors exist, any unoccupied even slot also falls back to seeded procedural generation. The current span has 26 authored/story stops and 75 procedural/fallback floors.
 
-Visited route stops are kept in bounded runtime memory under stable floor keys (`story:*`, design ids, procedural keys and numbered lift instance keys). Each key owns its own live `World` object and non-player/non-projectile entities: decals, bullet/blood marks, opened doors, containers, monsters and map exploration belong to that exact floor and are restored only when the player returns to that same key in the same session. Re-entering an unvisited stop still runs the generator from the run seed. After generation or memory restoration, normal route floors are postprocessed to the route lift contract: most floors get 8 down and 8 up lift cells, `roof` only gets 8 down, `VOID` only gets 8 up, and `podad` gets lower down lifts only after the Herald gate opens. A normal lift transition mirrors the departure lift group onto the arrival floor as the opposite return direction at the same coordinates; if the restored/generated floor has no reachable access there, normalization can carve a bounded connector so cross-floor lift continuity wins. Route lift interaction is on the `Cell.LIFT` block itself; adjacent `LIFT_BUTTON` features are not travel anchors and are stripped next to route lifts. Samosbor paths mutate the active floor locally from a random map source, defer the generated field splice through the two-phase loading screen, drop any stale parked copy for the same key, and the stitched world becomes the next stored snapshot when the player leaves.
+Visited route stops are kept in bounded runtime memory under stable floor keys (`story:*`, design ids, procedural keys and numbered lift instance keys). Each key owns its own live `World` object and non-player/non-projectile entities: decals, bullet/blood marks, opened doors, containers and monsters belong to that exact floor and are restored only when the player returns to that same key. UI-only map exploration belongs to the live `World` during the current session; packed/save floor-memory restores geometry/entities, but exploration can restart when a packed snapshot creates a new `World`. Re-entering an unvisited stop still runs the generator from the run seed. After generation or memory restoration, normal route floors are postprocessed to the route lift contract: most floors get 8 down and 8 up lift cells, `roof` only gets 8 down, `VOID` only gets 8 up, and `podad` gets lower down lifts only after the Herald gate opens. A normal lift transition mirrors the departure lift group onto the arrival floor as the opposite return direction at the same coordinates; if the restored/generated floor has no reachable access there, normalization can carve a bounded connector so cross-floor lift continuity wins. Route lift interaction is on the `Cell.LIFT` block itself; adjacent `LIFT_BUTTON` features are not travel anchors and are stripped next to route lifts. Samosbor paths mutate the active floor locally from a random map source, defer the generated field splice through the two-phase loading screen, drop any stale parked copy for the same key, and the stitched world becomes the next stored snapshot when the player leaves.
 
 ```txt
 z=+50 roof
@@ -357,7 +369,7 @@ z=-50 VOID
 
 Route floors at `z<=-48` are NPC-free endgame spaces: `darkness`, the final procedural gap and `VOID` still generate monsters, loot, protocols and hazards, but no NPCs or faction event spawns.
 
-When switching floors, the player preserves HP, needs, inventory, equipped weapon/tool, money and RPG stats; visited floors restore from runtime memory, while first visits and local save loads regenerate from route data.
+When switching floors, the player preserves HP, needs, inventory, equipped weapon/tool, money and RPG stats. Visited floors restore from runtime memory or from packed save floor-memory entries when available; first visits, evicted snapshots and missing save entries regenerate from route data.
 
 ### Authored Design Floors
 
@@ -500,6 +512,7 @@ On `KVARTIRY`, the false-neighbor/Pustoy Sosed content uses a screen-reflection 
 - Floor-wide population/content placement goes through `src/gen/population_placement.ts`: generation builds a dense 1024x1024 placement field from room weights, zone weights, optional anchors and value noise, smooths it locally over neighboring floor cells, then samples the field with coverage strata. This is generation-time scattering, not a runtime bucket cap. Current high-density NPC/monster paths for Kvartiry, Hell and procedural floors use this field approach.
 - Use `world.idx`, `world.wrap`, `world.delta`, `world.dist` and `world.dist2` for all toroidal coordinate work.
 - Prefer `dist2` when only comparing range.
+- Sparse cell hazard sites can be actor-visible but not fully actor-symmetric: NPCs and monsters can be trapped, escape or receive capped hazard damage, while some direct damage fields are configured as player-pressure traps.
 
 Cell types: `FLOOR`, `WALL`, `DOOR`, `ABYSS`, `LIFT`, `WATER`.
 
@@ -571,7 +584,7 @@ The pneumomail station is a static Maintenance POI with intake, intercept, jam a
 4. Place up/down lifts.
 5. Spawn NPCs from the main faction mix through the shared smoothed whole-floor placement field, except on NPC-free endgame route floors at `z<=-48`.
 6. Spawn loot and monsters with seed-biased weights.
-7. Apply the anomaly: fog, teleport pairs, samosbor-tainted zones/marks, mushroom growth with carnivorous fungus rooms, cold pockets, false safe blocks or zombie-apocalypse crowd/infection.
+7. Apply the anomaly: fog, teleport pairs, samosbor-tainted zones/marks, mushroom growth with carnivorous fungus rooms, cold pockets, false safe blocks, fractal/mirror/radio/conveyor topology, cement memory, moving walls/tunnels, rail trains, Bad Apple media space, Conway arenas, section shifts or zombie-apocalypse crowd/infection.
 
 Geometry and anomaly authoring contracts for future agents live in `Docs/ProceduralFloors/geometry.md` and `Docs/ProceduralFloors/anomaly.md`.
 
@@ -623,7 +636,7 @@ Events cover samosbor, zone capture, fog bosses, floor transitions, elevator ano
 
 `systems/world_log.ts` turns important public facts into HUD/log messages. `systems/npc_memory.ts`, `systems/context.ts` and `systems/rumor.ts` let NPC dialogue and rumor spreading react to those facts.
 
-`data/rumors.ts` contains 515 static rumor definitions, and runtime events can become observed/spread rumors.
+`data/rumors.ts` contains 578 static rumor definitions, and runtime events can become observed/spread rumors.
 
 ## NPC, A-Life And Factions
 
@@ -663,7 +676,7 @@ NPC and monster broadphase uses `systems/entity_index.ts`: a 16-cell toroidal bu
 
 ## Items, Weapons And PSI
 
-`src/data/items.ts` currently defines 253 item ids:
+`src/data/items.ts` currently defines 255 item ids:
 
 - food and drinks: bread, canned food, kasha, briquettes, water, tea, kompot, coffee, etc.
 - medicine: bandage, pills, antidepressant, antibiotic, morphine, PSI stabilizer, sanitary kit.
@@ -810,7 +823,7 @@ Screens show active floor/zone context, quest markers, fog overlay, NPC/monster/
 
 On touch devices the game shows the title immediately and defers initial world generation until the player starts the run. The landscape mobile overlay has a left virtual joystick for movement, right virtual joystick for camera rotation, center tap zone for attack/shoot, left `[E]` popup for nearby interaction targets, a top-left `FULL`/direct-page control when the browser can use it safely, and a right-side menu rail. Mobile camera sensitivity is configurable in the `U` UI menu and defaults to 50%. Desktop fullscreen is the same browser fullscreen path through the remappable `F11` action. The rail's up/down buttons choose inventory, map, quests, log, factions, Net Sphere, save/load menu or debug menu; the center button opens the selected panel or closes the current panel. The canvas resizes to the host viewport/fullscreen iframe, including itch.io mobile launch/fullscreen resizing. Canvas UI panels accept taps for selection, transfer, buy/sell, use/drop and close actions.
 
-Debug menu currently has 86 base commands plus 20 routed design-floor teleports (106 total): weapons/PSI, spawn monsters/NPC/items, XP, samosbor variant cycle and small wave trigger, noclip, event log, economy prices, containers, production tick, system assignments, balance/catalog, lift instances, VOID protocols, faction events, route cues, samosbor director controls, story/design/procedural/anomaly teleports, Maronary/Istotit/Veretar forcing, govnyak courier, pneumomail, hermodoor borer QA, liquidator-cult clash, `ONEPUNCHMAN`, Net Terminal Gen/map editor commands, rail-train anomaly teleport, Bad Apple screen spawn near the player, zombie-apocalypse anomaly teleport, smoke expedition setup, expedition proof commands, permit debug commands and verification commands for contracts, events, lift route windows, numbered lift loops, samosbor warning, economy scarcity, floor monster packs and container routing.
+Debug menu currently has 107 commands including 20 routed design-floor teleports: weapons/PSI, spawn monsters/NPC/items, XP, samosbor variant cycle and small wave trigger, noclip, event log, economy prices, containers, production tick, system assignments, balance/catalog, lift instances, VOID protocols, faction events, route cues, samosbor director controls, story/design/procedural/anomaly teleports, Maronary/Istotit/Veretar forcing, govnyak courier, pneumomail, hermodoor borer QA, liquidator-cult clash, `ONEPUNCHMAN`, Net Terminal Gen/map editor commands, rail-train anomaly teleport, Bad Apple screen spawn near the player, zombie-apocalypse anomaly teleport, smoke expedition setup, expedition proof commands, permit debug commands and verification commands for contracts, events, lift route windows, numbered lift loops, samosbor warning, economy scarcity, floor monster packs and container routing.
 
 ## Save And Load
 

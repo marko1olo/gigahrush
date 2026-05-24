@@ -1,4 +1,4 @@
-import { Cell, W, type RoomType, type ZoneFaction } from '../core/types';
+import { Cell, Feature, W, type RoomType, type ZoneFaction } from '../core/types';
 import type { World } from '../core/world';
 
 export interface PlacementFieldAnchor {
@@ -89,10 +89,16 @@ export function samplePlacementFieldCells(
 export function createPlacementField(world: World, profile: PlacementFieldProfile, seed: number): PlacementField {
   const weights = new Float32Array(CELL_COUNT);
   for (let cell = 0; cell < CELL_COUNT; cell++) {
-    if (world.cells[cell] === Cell.FLOOR) weights[cell] = cellPlacementWeight(world, cell, profile, seed);
+    if (isPopulationPlacementCandidateCell(world, cell)) weights[cell] = cellPlacementWeight(world, cell, profile, seed);
   }
   smoothPlacementField(world, weights, profile.smoothingPasses ?? 2, profile.smoothingBlend ?? 0.55);
   return { width: W, cellVersion: world.cellVersion, seed, weights };
+}
+
+export function isPopulationPlacementCandidateCell(world: World, cell: number): boolean {
+  return world.cells[cell] === Cell.FLOOR &&
+    world.features[cell] === Feature.NONE &&
+    !world.containerMap.has(cell);
 }
 
 function populationCellCache(world: World): PopulationCellCache {
@@ -101,7 +107,7 @@ function populationCellCache(world: World): PopulationCellCache {
 
   const cells: number[] = [];
   for (let cell = 0; cell < CELL_COUNT; cell++) {
-    if (world.cells[cell] === Cell.FLOOR) cells.push(cell);
+    if (isPopulationPlacementCandidateCell(world, cell)) cells.push(cell);
   }
 
   const cache: PopulationCellCache = {
@@ -178,7 +184,7 @@ function pickContextCell(
   const stratum = activeCount > 0 ? strata.active[base] : -1;
   for (let attempt = 0; attempt < CANDIDATE_TRIES && stratum >= 0; attempt++) {
     const cell = pickStratumCell(strata, stratum, seed, serial, attempt, used);
-    if (cell < 0 || used.has(cell) || world.cells[cell] !== Cell.FLOOR || bucketIsFull(cell, bucketCounts, bucketSize, bucketSide, maxPerBucket)) continue;
+    if (cell < 0 || used.has(cell) || !isPopulationPlacementCandidateCell(world, cell) || bucketIsFull(cell, bucketCounts, bucketSize, bucketSide, maxPerBucket)) continue;
     const score = weights[cell] * (0.85 + hash3(cell, serial, seed) * 0.3);
     if (score > bestScore) {
       bestScore = score;
@@ -190,12 +196,12 @@ function pickContextCell(
   for (let attempt = 1; attempt < CANDIDATE_TRIES && activeCount > 0; attempt++) {
     const activeIndex = (base + attempt * strata.jump) % activeCount;
     const cell = pickStratumCell(strata, strata.active[activeIndex], seed, serial, attempt, used);
-    if (cell >= 0 && !used.has(cell) && world.cells[cell] === Cell.FLOOR && !bucketIsFull(cell, bucketCounts, bucketSize, bucketSide, maxPerBucket)) return cell;
+    if (cell >= 0 && !used.has(cell) && isPopulationPlacementCandidateCell(world, cell) && !bucketIsFull(cell, bucketCounts, bucketSize, bucketSide, maxPerBucket)) return cell;
   }
   const fallbackStart = Math.floor(hash3(seed, serial, 29) * cells.length);
   for (let i = 0; i < cells.length; i++) {
     const cell = cells[(fallbackStart + i) % cells.length];
-    if (!used.has(cell) && world.cells[cell] === Cell.FLOOR && !bucketIsFull(cell, bucketCounts, bucketSize, bucketSide, maxPerBucket)) return cell;
+    if (!used.has(cell) && isPopulationPlacementCandidateCell(world, cell) && !bucketIsFull(cell, bucketCounts, bucketSize, bucketSide, maxPerBucket)) return cell;
   }
   return -1;
 }
@@ -295,7 +301,7 @@ function smoothPlacementField(world: World, weights: Float32Array, passes: numbe
       const down = ((y + 1) & (W - 1)) * W;
       for (let x = 0; x < W; x++) {
         const idx = row + x;
-        if (world.cells[idx] !== Cell.FLOOR) {
+        if (!isPopulationPlacementCandidateCell(world, idx)) {
           scratch[idx] = 0;
           continue;
         }
@@ -307,10 +313,10 @@ function smoothPlacementField(world: World, weights: Float32Array, passes: numbe
         const right = row + rightX;
         const upIdx = up + x;
         const downIdx = down + x;
-        if (world.cells[left] === Cell.FLOOR) { sum += weights[left]; total++; }
-        if (world.cells[right] === Cell.FLOOR) { sum += weights[right]; total++; }
-        if (world.cells[upIdx] === Cell.FLOOR) { sum += weights[upIdx]; total++; }
-        if (world.cells[downIdx] === Cell.FLOOR) { sum += weights[downIdx]; total++; }
+        if (isPopulationPlacementCandidateCell(world, left)) { sum += weights[left]; total++; }
+        if (isPopulationPlacementCandidateCell(world, right)) { sum += weights[right]; total++; }
+        if (isPopulationPlacementCandidateCell(world, upIdx)) { sum += weights[upIdx]; total++; }
+        if (isPopulationPlacementCandidateCell(world, downIdx)) { sum += weights[downIdx]; total++; }
         scratch[idx] = weights[idx] * keep + (sum / total) * mix;
       }
     }

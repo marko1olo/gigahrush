@@ -1,7 +1,7 @@
 import { after, test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { Cell, DoorState, EntityType, Faction, Feature, FloorLevel, LiftDirection, MonsterKind, Occupation, QuestType, RoomType, Tex, W, ZoneFaction } from '../src/core/types';
+import { Cell, ContainerKind, DoorState, EntityType, Faction, Feature, FloorLevel, LiftDirection, MonsterKind, Occupation, QuestType, RoomType, Tex, W, ZoneFaction } from '../src/core/types';
 import {
   FLOOR_GEOMETRIES,
   FLOOR_RUN_MAX_Z,
@@ -64,6 +64,7 @@ import { generateProceduralFloor } from '../src/gen/procedural_floor';
 import { generateDarknessDesignFloor } from '../src/gen/design_floors/darkness';
 import { generateDesignFloor } from '../src/gen/design_floors/manifest';
 import { generateFloor } from '../src/gen/floor_manifest';
+import { sampleNaturalPopulationCells } from '../src/gen/population_placement';
 import {
   World,
   auditReachability,
@@ -1180,6 +1181,53 @@ test('generic design floor population field adds density without violating edge 
   assert.equal(roofMonsters.length <= ENTITY_SOFT_LIMITS[EntityType.MONSTER], true);
 });
 
+test('population placement sampler skips fixtures, containers and lift buttons', () => {
+  const world = new World();
+  for (let x = 10; x < 20; x++) {
+    const ci = world.idx(x, 10);
+    world.cells[ci] = Cell.FLOOR;
+  }
+  const lampCell = world.idx(10, 10);
+  const liftButtonCell = world.idx(11, 10);
+  const tableCell = world.idx(12, 10);
+  const containerCell = world.idx(13, 10);
+  world.features[lampCell] = Feature.LAMP;
+  world.features[liftButtonCell] = Feature.LIFT_BUTTON;
+  world.liftDir[liftButtonCell] = LiftDirection.DOWN;
+  world.features[tableCell] = Feature.TABLE;
+  world.addContainer({
+    id: 1,
+    x: 13,
+    y: 10,
+    floor: FloorLevel.LIVING,
+    roomId: -1,
+    zoneId: 0,
+    kind: ContainerKind.WOODEN_CHEST,
+    name: 'test placement blocker',
+    inventory: [],
+    capacitySlots: 1,
+    access: 'public',
+    discovered: true,
+    tags: [],
+  });
+
+  const blocked = new Set([lampCell, liftButtonCell, tableCell, containerCell]);
+  const cells = sampleNaturalPopulationCells(world, 20, {
+    noiseScale: 64,
+    noiseStrength: 0,
+    openWeight: 1,
+    smoothingPasses: 0,
+  }, 88013);
+
+  assert.equal(cells.length, 6);
+  assert.equal(new Set(cells).size, cells.length);
+  for (const cell of cells) {
+    assert.equal(blocked.has(cell), false, `sampled occupied fixture cell ${cell}`);
+    assert.equal(world.features[cell], Feature.NONE);
+    assert.equal(world.containerMap.has(cell), false);
+  }
+});
+
 test('black market 88 ships dense trade, guarded contraband, and service-gut monster pressure', () => {
   const gen = timeFloorGeneration('design black_market_88 rework', () => generateDesignFloor('black_market_88'));
   const npcs = gen.entities.filter(e => e.type === EntityType.NPC);
@@ -1207,6 +1255,16 @@ test('black market 88 ships dense trade, guarded contraband, and service-gut mon
     );
   };
   const serviceMonsters = monsters.filter(e => serviceRoom(e.x, e.y)).length;
+  const serviceGutZone = (x: number, y: number): boolean => {
+    const northSouthGuts = x >= 180 && x <= 844 && ((y >= 286 && y <= 356) || (y >= 676 && y <= 736));
+    const westEastGuts = y >= 344 && y <= 660 && (x <= 180 || x >= 844);
+    return northSouthGuts || westEastGuts;
+  };
+  const serviceGutZones = gen.world.zones.filter(zone => serviceGutZone(zone.cx, zone.cy));
+  const serviceGutFactionSet = new Set(serviceGutZones.map(zone => zone.faction));
+  const hostileServiceGutZones = serviceGutZones.filter(zone =>
+    zone.faction === ZoneFaction.WILD || zone.faction === ZoneFaction.SAMOSBOR,
+  );
   const marketQuestTags = new Set(SIDE_QUESTS
     .filter(q => q.id.startsWith('market88_'))
     .flatMap(q => q.eventTags ?? []));
@@ -1217,6 +1275,10 @@ test('black market 88 ships dense trade, guarded contraband, and service-gut mon
   assert.equal(guardedMarketContainers.length >= 8, true);
   assert.equal(guardedMarketContainers.every(c => c.access !== 'public' && c.access !== 'room'), true);
   assert.equal(serviceMonsters >= 80, true);
+  assert.equal(serviceGutZones.length >= 8, true);
+  assert.equal(hostileServiceGutZones.length, serviceGutZones.length);
+  assert.equal(serviceGutFactionSet.has(ZoneFaction.WILD), true);
+  assert.equal(serviceGutFactionSet.has(ZoneFaction.SAMOSBOR), true);
   for (const tag of ['supplier_delivery', 'protect_courier', 'forgery', 'debt_settlement', 'supplier_betrayal', 'market_scarcity']) {
     assert.equal(marketQuestTags.has(tag), true, `missing Market 88 quest event tag ${tag}`);
   }

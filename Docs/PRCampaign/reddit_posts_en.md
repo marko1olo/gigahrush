@@ -1,12 +1,23 @@
 # Reddit Posts EN: GIGAH|RUSH
 
-Prepared on 2026-05-22. Do not publish blindly: subreddit rules, flairs and AutoModerator behavior can change. Before posting, open each subreddit while logged in, check current rules, available post types and required flair.
+Prepared on 2026-05-22. Updated after PR 13 on 2026-05-24. Do not publish blindly: subreddit rules, flairs and AutoModerator behavior can change. Before posting, open each subreddit while logged in, check current rules, available post types and required flair.
+
+Current status: PR 13 already published r/PBBG, r/WebGames and r/Games Indie Sunday; r/IndieDev was removed by moderator/automoderation; r/indiegames was not posted. Treat the copy below as historical/reusable source text, not as a queue to post from.
 
 Core links:
 
 - itch.io: https://tenevik.itch.io/gigahrush
 - Direct web build: https://gigahrush.bileter.workers.dev
 - Gameplay GIF: https://img.itch.zone/aW1hZ2UvNDU4NzE2MC8yNzQwNDQ4OS5naWY=/original/LTioNh.gif
+
+Public media URLs used for corrective Reddit comments:
+
+- https://img.itch.zone/aW1hZ2UvNDU4NzE2MC8yNzQwNDQ4OS5naWY=/original/LTioNh.gif
+- https://img.itch.zone/aW1hZ2UvNDU4NzE2MC8yNzQwNDQ5MC5naWY=/original/xkmr2K.gif
+- https://img.itch.zone/aW1hZ2UvNDU4NzE2MC8yNzQwNDQ5Ni5wbmc=/original/jkZMuU.png
+- https://img.itch.zone/aW1hZ2UvNDU4NzE2MC8yNzQwNDQ5Ny5wbmc=/original/3s0gVC.png
+- https://img.itch.zone/aW1hZ2UvNDU4NzE2MC8yNzQwNDQ5OC5wbmc=/original/aAQDl7.png
+- https://img.itch.zone/aW1hZ2UvNDU4NzE2MC8yNzQwNDQ5OS5wbmc=/original/ZUMFjW.png
 
 ## General Reddit Rules And Risks
 
@@ -15,6 +26,7 @@ Core links:
 - Avoid vote requests, comment requests, giveaway hooks, artificial urgency and "please help us beat the algorithm" language.
 - Avoid feedback-bait titles if the real purpose is promotion. Ask for concrete feedback only where the subreddit allows it.
 - Prefer a gameplay GIF/video upload for broad indie subreddits. Put store/build links in the body or first comment depending on subreddit norms.
+- Flexible media-first rule after PR 13: every public Reddit post needs a platform-compliant playable/media plan. If links are allowed, include the direct build and/or itch mirror. If links are forbidden or discouraged, use native screenshots/GIF/video and a self-contained game description without evasive URL placement. If the subreddit requires a direct link post, put the playable URL in the post and add media in the first allowed developer comment.
 - Use direct links only, never URL shorteners.
 - Reply to comments normally. Do not paste the same link repeatedly in replies.
 - If a post is removed, do not repost immediately. Read the removal reason and ask modmail only if the rule conflict is unclear.
@@ -81,7 +93,7 @@ The game is playable now in browser.
 
 Links:
 
-itch.io: https://tenevik.itch.io/gigahrush  
+itch.io: https://tenevik.itch.io/gigahrush
 Direct web build: https://gigahrush.bileter.workers.dev
 
 Current build has preparation, expeditions, combat, trading, quests, factions, procedural and hand-made floors, browser saves, A-Life NPCs and persistent consequences. If you try it, the most useful feedback is about pacing, readability and whether the survival pressure feels fair.
@@ -121,6 +133,12 @@ https://tenevik.itch.io/gigahrush
 Developer note: this is an in-development browser build made with TypeScript, WebGL/canvas and procedural assets. The current build already has the main loop: preparation, expeditions, combat, trading, quests, factions, procedural floors, saves and A-Life NPCs.
 
 Feedback on browser performance, readability and first-run confusion would be especially useful.
+
+Gameplay GIFs/screenshots:
+https://img.itch.zone/aW1hZ2UvNDU4NzE2MC8yNzQwNDQ4OS5naWY=/original/LTioNh.gif
+https://img.itch.zone/aW1hZ2UvNDU4NzE2MC8yNzQwNDQ5MC5naWY=/original/xkmr2K.gif
+https://img.itch.zone/aW1hZ2UvNDU4NzE2MC8yNzQwNDQ5Ni5wbmc=/original/jkZMuU.png
+https://img.itch.zone/aW1hZ2UvNDU4NzE2MC8yNzQwNDQ5Ny5wbmc=/original/3s0gVC.png
 
 ## r/Games Indie Sunday
 
@@ -174,12 +192,61 @@ Thanks for taking a look. A few notes that may help set expectations:
 - The setting and terminology come from Russian-language survival horror/Samosbor fiction, so some names are intentionally unfamiliar in English.
 - The feedback I am most interested in is whether the first expedition is readable, whether Samosbor feels threatening, and whether the UI explains enough without slowing the game down.
 
+## r/PBBG
+
+Risk level: medium. r/PBBG explicitly welcomes developer promotion when the post adds value, but GIGAH|RUSH is an edge-case fit: browser-based and persistent through local save/world consequences, but currently single-player rather than MMO/PvP/server-economy PBBG. Do not overclaim. Use `Game Advertisement` flair if available and attach systems-focused media from `tmp/prcampaign_screenshot_hunt_2026-05-23/selected_best/`.
+
+Recommended media order: `contact_sheet_3x3.png`, `11_factions_alife_rank_panel.png`, `07_contract_quest_log.png`, `09_trade_grid.png`, `08_inventory_prep_loadout.png`, `10_full_map_route_context.png`, optional `02_gif_underhell_maronary_samosbor_loop.gif`.
+
+### Title
+
+GIGAH|RUSH - a single-player persistent browser survival horror with A-Life NPCs, factions, and disasters
+
+### Post Body
+
+Hi r/PBBG. I am the developer of **GIGAH|RUSH**.
+
+This may be an edge case for the sub, so I want to be clear up front: it is a browser-based persistent game, but it is currently **single-player**, not an MMO or PvP game. The current build now has English localization.
+
+The PBBG-adjacent part is the world simulation. You start in a safer living zone, prepare food, water, ammo, medicine, documents and weapons, then take lifts into hostile floors. NPCs trade, sleep, fight, hide during disasters and can die permanently. Factions control zones, reputation shifts, prices change, quests/contracts send you into dangerous routes, and consequences can remain in the world through browser saves.
+
+The main disaster is **Samosbor**: doors can seal, fog pushes through cracks, monsters become active, and a floor can change after the alarm ends.
+
+Current build includes preparation, expeditions, combat, trading, inventory, contracts, factions, procedural and authored floors, browser saves, and A-Life NPC persistence.
+
+It is rough in the places dense browser sims are usually rough: onboarding, UI readability, and first-expedition clarity. I have already seen that feedback elsewhere and I am actively using it.
+
+My specific question for this sub: does the persistence / A-Life / expedition loop make this interesting to PBBG players even without MMO or PvP, or would you expect a different direction for it to really belong here?
+
+### First Comment
+
+Play in browser:
+
+https://gigahrush.bileter.workers.dev
+
+itch.io page / mirror:
+
+https://tenevik.itch.io/gigahrush
+
+No install and no account required. If one host loads slowly, try the other.
+
+I am happy to answer questions about the persistence model, A-Life NPCs, Samosbor, or the tech stack. The most useful feedback would be: where the first expedition becomes confusing, whether the UI is readable, and whether the persistent consequences are visible enough.
+
+Content note: survival horror, combat, corpses, blood, sirens and disturbing procedural events. It is not adult/NSFW.
+
+Gameplay GIFs/screenshots:
+https://img.itch.zone/aW1hZ2UvNDU4NzE2MC8yNzQwNDQ4OS5naWY=/original/LTioNh.gif
+https://img.itch.zone/aW1hZ2UvNDU4NzE2MC8yNzQwNDQ5MC5naWY=/original/xkmr2K.gif
+https://img.itch.zone/aW1hZ2UvNDU4NzE2MC8yNzQwNDQ5OC5wbmc=/original/aAQDl7.png
+https://img.itch.zone/aW1hZ2UvNDU4NzE2MC8yNzQwNDQ5OS5wbmc=/original/ZUMFjW.png
+
 ## Posting Order
 
-1. Post to r/playmygame first because it is explicitly about playing free games.
-2. Wait at least 24-48 hours, answer comments, then post a different angle to r/WebGames.
-3. Use r/indiegames after there is a stronger GIF/video and a clean promotional title.
-4. Use r/Games Indie Sunday last, only on Sunday and only with the correct text-post format, flair and video link.
+1. Current state: r/PBBG, r/WebGames and r/Games Indie Sunday were posted in PR 13 on 2026-05-24; r/IndieDev was removed; r/playmygame remains live from the earlier pass.
+2. Do not post another Reddit target now. Monitor, answer concrete questions/bugs, and record removal/comment states.
+3. Do not repost r/IndieDev immediately.
+4. Keep r/indiegames on hold unless the owner asks for a manual media-first rewrite or modmail clears current external-link/AI-related ambiguity. The issue is not missing playable links; the links exist.
+5. Any future public Reddit post must have a platform-compliant playable/media plan; direct playable-link submissions satisfy the playable route, with media added through the first allowed comment, gallery, profile/media field, native upload or documented exception.
 
 ## Sources Checked
 
@@ -187,5 +254,8 @@ Thanks for taking a look. A few notes that may help set expectations:
 - Copy pack: `Docs/PRCampaign/copy_pack_ru.md`
 - itch announcement draft: `Docs/PRCampaign/itch_release_announcement.md`
 - r/Games rules, Rule 8 and Indie Sunday: https://www.reddit.com/r/Games/wiki/rules/
+- r/PBBG current page/rules: https://www.reddit.com/r/PBBG/
+- r/WebGames current page/rules: https://www.reddit.com/r/WebGames/
 - r/indiegames moderator post on promotion vs feedback-bait: https://www.reddit.com/r/indiegames/comments/1esd7yf
 - r/Games removal examples for direct web-game links and Indie Sunday formatting: https://www.reddit.com/r/Games/
+- Current Reddit/PBBG publicity pack: `Docs/PRCampaign/reddit_pbbg_publicity_2026-05-24.md`

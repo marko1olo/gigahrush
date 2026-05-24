@@ -1,4 +1,4 @@
-# Scaling Status: 1k-5k NPC / 10k Monster Per Current World
+# Scaling Status: Current-Floor 1k-5k NPC / 10k Monster Runtime
 
 ## Goal
 
@@ -9,6 +9,8 @@ Selected 1024x1024 floors target thousands of live NPCs and monsters in one load
 - monster-heavy floors and stress runs: up to the shared 10000-monster ceiling.
 
 This does not mean rendering all entities or running every actor at browser frame rate. It means every live NPC/monster keeps an `AIState` and remains in simulation. Near-player actors and active threats are updated every frame; far actors update on deterministic accumulated cadences, so AI is not disabled in distant areas.
+
+This document describes the loaded current world only. Off-floor A-Life identities are persistent records and may change through bounded aggregate events, migrations, caravans or quests, but they are not hidden realtime floor simulations.
 
 The shipped population baselines below are source facts from `src/data/population_profiles.ts`; content-registry counts belong in `README.md` and planning tradeoffs stay in `desdoc.md`.
 
@@ -26,7 +28,7 @@ Population numbers are data-driven in `src/data/population_profiles.ts`.
 
 All spawned residents have AI. Runtime caps are 6000 citizens, 3200 wild and 800 liquidators, inside the shared 5000-NPC ceiling.
 
-Each NPC population profile has a data-driven distribution profile. Starting and refill placement uses independent floor-cell picks biased by room type, zone faction and smooth density noise, so riots remain dense without tile quotas, spawn buckets or checkerboard population guarantees.
+Each NPC population profile has a data-driven distribution profile. Initial placement and explicit event/reinforcement placement use independent floor-cell picks biased by room type, zone faction and smooth density noise, so riots remain dense without tile quotas, spawn buckets or checkerboard population guarantees.
 
 Measured start population in the current build is about 5000 live AI actors before later reinforcements.
 
@@ -44,7 +46,7 @@ Measured start population in the current build is about 5000 live AI actors. Hel
 
 ### Procedural Floors
 
-`PROCEDURAL_POPULATION_PROFILE` scales by danger and floor conditions. The current procedural floor deck has 10 geometry profiles, 5 majority-faction profiles and 18 anomaly profiles:
+`PROCEDURAL_POPULATION_PROFILE` scales by danger and floor conditions. The current procedural floor deck has 10 geometry profiles, 5 majority-faction profiles and 19 anomaly profiles:
 
 - NPC base 3500, danger scaling 300, cap 5000;
 - monster base 350, danger scaling 180, cap 1500;

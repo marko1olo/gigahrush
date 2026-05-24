@@ -6,7 +6,7 @@ Status: historical planning artifact that seeded the authored-floor wave. Curren
 
 This folder turns the requested large floor wave into implementable slices for separate GPT-5.5 agents. Many `.md` files are historical floor briefs with intended TS ownership, gameplay role, NPC/quest surface, cross-floor hooks and Definition of Done. Shipped route ids and z anchors are listed below and remain subordinate to source.
 
-The current game has 6 coded base floors, 19 routed authored design floors and procedural/fallback route floors. This folder preserves original agent briefs; treat planning sections below each doc as historical when they conflict with `README.md` or shipped route data.
+The current game has 6 coded base floors, 20 routed authored design floors and procedural/fallback route floors. This folder preserves original agent briefs; treat planning sections below each doc as historical when they conflict with `README.md` or shipped route data.
 
 ## Current Shipped Vertical Route
 
@@ -24,6 +24,7 @@ Down decreases `z`; up increases `z`. Design-floor rows mirror `src/data/design_
 | 22 | design | `raionsovet_archive` | Райсовет и архив картотек | `MINISTRY` | [raionsovet_archive.md](raionsovet_archive.md) |
 | 18 | design | `registry_morgue` | Морг регистраций | `MINISTRY` | [registry_morgue.md](registry_morgue.md) |
 | 14 | story | `FloorLevel.KVARTIRY` | Квартиры | `KVARTIRY` | [kvartiry.md](kvartiry.md) |
+| 12 | design | `slime_nii` | НИИ слизи | `KVARTIRY` | [rework_floor_20_slime_nii.md](rework_floor_20_slime_nii.md) |
 | 8 | design | `manhattan_crossroads` | Перекрестки | `KVARTIRY` | [manhattan_crossroads.md](manhattan_crossroads.md) |
 | 4 | design | `communal_ring` | Коммунальное кольцо | `KVARTIRY` | [communal_ring.md](communal_ring.md) |
 | 0 | story | `FloorLevel.LIVING` | Жилая зона | `LIVING` | [living.md](living.md) |
@@ -42,15 +43,15 @@ Down decreases `z`; up increases `z`. Design-floor rows mirror `src/data/design_
 
 Historical differences now called out explicitly: the original plan assumed a shorter `z=-44..40` route with authored stops every four z-levels. Shipped route data now spans `z=-50..+50`, keeps `LIVING` at `z=0`, reserves even z-slots for future authored/story floors, and uses procedural fallback for every unoccupied slot.
 
-## Proposed Unshipped Authored Floor
+## Historical Proposed Authored Floor
 
-The population rework batch adds one proposed manual floor brief that is not yet in the shipped route:
+The population rework batch proposed one manual floor brief that is now shipped in the route:
 
-| Proposed z | Proposed route id | Display name | Intended role | Doc |
+| z | Route id | Display name | Role | Doc |
 | ---: | --- | --- | --- | --- |
 | 12 | `slime_nii` | НИИ слизи | Biological lab/quarantine bridge between `KVARTIRY` and `manhattan_crossroads` | [rework_floor_20_slime_nii.md](rework_floor_20_slime_nii.md) |
 
-Do not add this row to the shipped route table or `README.md` until `src/data/design_floors.ts`, `src/gen/design_floors/slime_nii.ts`, manifest registration and validation exist.
+Keep this note only to explain why the shipped route table links to a `rework_floor_*` brief instead of a non-rework `slime_nii.md` file.
 
 ## Cross-Floor Spine
 
@@ -78,7 +79,7 @@ Do not update `README.md` until a floor is actually implemented and validated.
 
 ## 2026 Population Rework Batch
 
-The current rework batch exists to fix sparse routed design floors while preserving each floor's identity. Start with [floor_contract.md](floor_contract.md), then hand one of these files to each parallel implementation agent:
+This completed rework batch exists as shipped-floor context and as source material for future audits. It fixed sparse routed design floors while preserving each floor's identity. Start future work with [floor_contract.md](floor_contract.md), then use these files as the historical brief for the matching route id:
 
 | Task | Route id | Doc |
 | ---: | --- | --- |
@@ -101,6 +102,6 @@ The current rework batch exists to fix sparse routed design floors while preserv
 | 17 | `underhell` | [rework_floor_17_underhell.md](rework_floor_17_underhell.md) |
 | 18 | `podad` | [rework_floor_18_podad.md](rework_floor_18_podad.md) |
 | 19 | `darkness` | [rework_floor_19_darkness.md](rework_floor_19_darkness.md) |
-| 20 | `slime_nii` proposed | [rework_floor_20_slime_nii.md](rework_floor_20_slime_nii.md) |
+| 20 | `slime_nii` | [rework_floor_20_slime_nii.md](rework_floor_20_slime_nii.md) |
 
-After the parallel floor agents finish, run the integration pass from [rework_orchectrator.md](rework_orchectrator.md).
+The parallel implementation pass has landed; use [rework_orchectrator.md](rework_orchectrator.md) only as historical integration context unless a new audit explicitly reopens it.

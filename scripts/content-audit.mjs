@@ -820,6 +820,15 @@ const populationProfileEntries = exportedConstObjectIds('src/data/population_pro
 const screenSignalEntries = arrayIds('src/data/screen_signals.ts', 'SCREEN_SIGNAL_DEFS');
 const screenSignalEventTypeRefs = propertyStringArrayRefs('src/data/screen_signals.ts', 'SCREEN_SIGNAL_DEFS', 'eventTypes');
 const screenSignalTagRefs = propertyStringArrayRefs('src/data/screen_signals.ts', 'SCREEN_SIGNAL_DEFS', 'tags');
+const permitEntries = arrayIds('src/data/permits.ts', 'PERMIT_DEFS');
+const permitItemRefs = arrayPropIds('src/data/permits.ts', 'PERMIT_DEFS', 'itemId');
+const permitForgeryEntries = arrayIds('src/data/permits.ts', 'PERMIT_FORGERY_RECIPES');
+const permitForgeryOutputRefs = arrayPropIds('src/data/permits.ts', 'PERMIT_FORGERY_RECIPES', 'outputItemId');
+const permitForgeryInputRefs = propertyStringArrayRefs('src/data/permits.ts', 'PERMIT_FORGERY_RECIPES', 'inputItemIds');
+const permitForgeryEventTagRefs = propertyStringArrayRefs('src/data/permits.ts', 'PERMIT_FORGERY_RECIPES', 'eventTags');
+const computerEntries = objectKeys('src/data/computers.ts', 'COMPUTER_DEFS');
+const netHackTerminalEntries = objectKeys('src/data/net_hack.ts', 'NET_HACK_TERMINALS');
+const emergencyPanelEntries = arrayIds('src/data/emergency_panels.ts', 'EMERGENCY_PANEL_DEFS');
 const contractTagRefs = propertyStringArrayRefs('src/data/contracts.ts', 'CONTRACTS', 'tags');
 const contractRewardResourceRefs = arrayPropIds('src/data/contracts.ts', 'CONTRACTS', 'rewardResourceId');
 const sideQuestTagRefs = propertyStringArrayRefs('src/data/plot.ts', 'SIDE_QUESTS', 'eventTags');
@@ -898,6 +907,11 @@ addDuplicateErrors('DESIGN_FLOOR_GENERATORS', designFloorGeneratorEntries);
 addDuplicateErrors('POPULATION_PROFILES', populationProfileEntries);
 addDuplicateErrors('WORLD_EVENT_TYPES', worldEventTypeEntries);
 addDuplicateErrors('SCREEN_SIGNAL_DEFS', screenSignalEntries);
+addDuplicateErrors('PERMIT_DEFS', permitEntries);
+addDuplicateErrors('PERMIT_FORGERY_RECIPES', permitForgeryEntries);
+addDuplicateErrors('COMPUTER_DEFS', computerEntries);
+addDuplicateErrors('NET_HACK_TERMINALS', netHackTerminalEntries);
+addDuplicateErrors('EMERGENCY_PANEL_DEFS', emergencyPanelEntries);
 addDuplicateErrors('RESOURCES', resourceEntries);
 addDuplicateErrors('CARAVAN_LANES', caravanEntries);
 addDuplicateErrors('FACTORIES', factoryEntries);
@@ -1014,7 +1028,7 @@ const tagIdRe = /^[a-z][a-z0-9_]*$/;
 for (const ref of screenSignalEventTypeRefs) {
   if (!worldEventTypes.has(ref.id)) errors.push(`${ref.file}:${ref.line} SCREEN_SIGNAL_DEFS.${ref.owner ?? '<unknown>'}.eventTypes references missing WorldEventType "${ref.id}"`);
 }
-for (const ref of [...screenSignalTagRefs, ...contractTagRefs, ...sideQuestTagRefs, ...rumorWarningTagRefs]) {
+for (const ref of [...screenSignalTagRefs, ...permitForgeryEventTagRefs, ...contractTagRefs, ...sideQuestTagRefs, ...rumorWarningTagRefs]) {
   if (!tagIdRe.test(ref.id)) errors.push(`${ref.file}:${ref.line} ${ref.prop} uses non-static or invalid event tag id "${ref.id}"`);
 }
 for (const ref of contractRewardResourceRefs) {
@@ -1055,6 +1069,9 @@ for (const zone of zoneEntries) {
 for (const ref of itemRefs) {
   const allowed = ref.prop === 'targetItem' ? questTargetItemIds : itemIds;
   if (!allowed.has(ref.id)) errors.push(`${ref.file}:${ref.line} ${ref.prop} references missing item "${ref.id}"`);
+}
+for (const ref of [...permitItemRefs, ...permitForgeryOutputRefs, ...permitForgeryInputRefs]) {
+  if (!itemIds.has(ref.id)) errors.push(`${ref.file}:${ref.line} permit registry references missing item "${ref.id}"`);
 }
 for (const ref of rewardTableRefs) {
   if (!itemOrMoneyIds.has(ref.id)) errors.push(`${ref.file}:${ref.line} ${ref.prop} references missing item or money "${ref.id}"`);
@@ -1152,6 +1169,8 @@ console.log(`- procedural geometry docs: ${floorGeometryDocEntries.length}`);
 console.log(`- procedural anomaly docs: ${floorAnomalyDocEntries.length}`);
 console.log(`- design floor routes: ${designFloorRouteEntries.length}`);
 console.log(`- design floor generators: ${designFloorGeneratorEntries.length}`);
+console.log(`- permits / forgery recipes: ${permitEntries.length} / ${permitForgeryEntries.length}`);
+console.log(`- computers / net hack terminals / emergency panels: ${computerEntries.length} / ${netHackTerminalEntries.length} / ${emergencyPanelEntries.length}`);
 console.log(`- manifest imports checked: ${manifestImportRefs.length}`);
 console.log(`- direct item call refs checked: ${directItemCallRefs.length}`);
 for (const [floor, entries] of [...manifestEntries.entries()].sort()) {

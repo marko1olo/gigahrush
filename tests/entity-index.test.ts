@@ -6,6 +6,9 @@ import {
   ENTITY_MASK_MONSTER,
   ENTITY_MASK_NPC,
   EntityIndex,
+  ensureEntityIndex,
+  markEntityIndexDirty,
+  rebuildEntityIndex,
 } from '../src/systems/entity_index';
 
 function entity(id: number, type: EntityType, x: number, y: number, alive = true): Entity {
@@ -133,4 +136,36 @@ test('planned simulation rebuild is idempotent per frame token', () => {
   index.rebuildForSimulation(entities, 8);
   assert.equal(index.getVersion(), 2);
   assert.equal(index.getDebugStats().simulationFrame, 8);
+});
+
+test('runtime ensure rebuilds when the flat entity array grows in place', () => {
+  const entities = [
+    entity(1, EntityType.NPC, 20, 20),
+  ];
+
+  const first = rebuildEntityIndex(entities);
+  assert.equal(first.byId.has(2), false);
+
+  entities.push(entity(2, EntityType.MONSTER, 24, 20));
+  const rebuilt = ensureEntityIndex(entities);
+
+  assert.equal(rebuilt.byId.get(2)?.id, 2);
+  assert.equal(rebuilt.getDebugStats().rebuildReason, 'ensure');
+});
+
+test('runtime dirty mark forces ensure to rebuild moved entity buckets', () => {
+  const entities = [
+    entity(1, EntityType.NPC, 20, 20),
+  ];
+  rebuildEntityIndex(entities);
+  entities[0].x = 80;
+  entities[0].y = 80;
+  markEntityIndexDirty();
+
+  const rebuilt = ensureEntityIndex(entities);
+  const out: Entity[] = [];
+  rebuilt.queryRadius(20, 20, 4, out, ENTITY_MASK_NPC);
+  assert.deepEqual(out.map(e => e.id), []);
+  rebuilt.queryRadius(80, 80, 4, out, ENTITY_MASK_NPC);
+  assert.deepEqual(out.map(e => e.id), [1]);
 });

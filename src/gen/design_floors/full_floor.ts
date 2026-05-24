@@ -251,12 +251,11 @@ function tuneManhattanCrossroadsZone(world: World, zone: Zone, baseDanger: numbe
 
 function tuneBlackMarket88Zone(world: World, zone: Zone, baseDanger: number): void {
   const inBazaar = zone.cx >= 260 && zone.cx <= 764 && zone.cy >= 328 && zone.cy <= 696;
-  const serviceGuts = zone.cx <= 180 || zone.cx >= 844 || zone.cy <= 332 || zone.cy >= 696;
   const debtAndPapers = zone.cx >= 420 && zone.cx <= 660 && zone.cy >= 420 && zone.cy <= 620;
   const guardPosts = (zone.cx >= 386 && zone.cx <= 476 && zone.cy >= 456 && zone.cy <= 536)
     || (zone.cx >= 552 && zone.cx <= 646 && zone.cy >= 412 && zone.cy <= 570);
 
-  if (serviceGuts && inBazaar) {
+  if (isBlackMarket88ServiceGutZone(zone)) {
     zone.faction = zone.id % 5 === 0 ? ZoneFaction.SAMOSBOR : ZoneFaction.WILD;
     zone.level = Math.max(zone.level, baseDanger + 1);
   } else if (guardPosts) {
@@ -272,6 +271,14 @@ function tuneBlackMarket88Zone(world: World, zone: Zone, baseDanger: number): vo
     zone.faction = ZoneFaction.WILD;
   }
   void world;
+}
+
+function isBlackMarket88ServiceGutZone(zone: Zone): boolean {
+  const northSouthGuts = zone.cx >= 180 && zone.cx <= 844 &&
+    ((zone.cy >= 286 && zone.cy <= 356) || (zone.cy >= 676 && zone.cy <= 736));
+  const westEastGuts = zone.cy >= 344 && zone.cy <= 660 &&
+    (zone.cx <= 180 || zone.cx >= 844);
+  return northSouthGuts || westEastGuts;
 }
 
 function retuneRaionsovetArchiveZones(world: World): void {

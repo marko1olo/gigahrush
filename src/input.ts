@@ -37,6 +37,37 @@ interface InputBindOptions {
   onFullscreenToggle?: () => void;
 }
 
+function clearPointerState(input: InputState): void {
+  input.mouse.dx = 0;
+  input.mouse.dy = 0;
+  input.mouseAttack = false;
+  input.touch.moveX = 0;
+  input.touch.moveY = 0;
+  input.touch.lookX = 0;
+  input.touch.lookY = 0;
+  input.touch.active = false;
+}
+
+function clearLostInputState(input: InputState, canvas: HTMLCanvasElement): void {
+  clearControlInputs(input);
+  clearPointerState(input);
+  input.mouse.locked = document.pointerLockElement === canvas;
+}
+
+function requestPointerLockSafe(canvas: HTMLCanvasElement): void {
+  if (document.pointerLockElement === canvas) return;
+  const requestPointerLock = canvas.requestPointerLock;
+  if (typeof requestPointerLock !== 'function') return;
+  try {
+    const result = requestPointerLock.call(canvas) as Promise<void> | void;
+    result?.catch?.(() => {
+      // Pointer lock may be denied outside a user-activation window.
+    });
+  } catch {
+    // Some embedded browsers expose pointer lock but still throw synchronously.
+  }
+}
+
 export function bindInput(input: InputState, canvas: HTMLCanvasElement, options: InputBindOptions = {}): () => void {
   const onDown = (e: KeyboardEvent) => {
     if (getControlCaptureAction()) {
@@ -66,9 +97,7 @@ export function bindInput(input: InputState, canvas: HTMLCanvasElement, options:
   };
 
   const onClick = () => {
-    if (document.pointerLockElement !== canvas) {
-      canvas.requestPointerLock();
-    }
+    requestPointerLockSafe(canvas);
   };
 
   const onMouseDown = (e: MouseEvent) => {
@@ -86,9 +115,17 @@ export function bindInput(input: InputState, canvas: HTMLCanvasElement, options:
   const onLockChange = () => {
     input.mouse.locked = document.pointerLockElement === canvas;
     if (!input.mouse.locked) {
-      input.mouseAttack = false;
+      clearPointerState(input);
       clearControlInputs(input);
     }
+  };
+
+  const onBlur = () => {
+    clearLostInputState(input, canvas);
+  };
+
+  const onVisibilityChange = () => {
+    if (document.hidden) clearLostInputState(input, canvas);
   };
 
   document.addEventListener('keydown', onDown);
@@ -98,6 +135,9 @@ export function bindInput(input: InputState, canvas: HTMLCanvasElement, options:
   canvas.addEventListener('mousedown', onMouseDown);
   document.addEventListener('mouseup', onMouseUp);
   document.addEventListener('pointerlockchange', onLockChange);
+  window.addEventListener('blur', onBlur);
+  document.addEventListener('blur', onBlur, true);
+  document.addEventListener('visibilitychange', onVisibilityChange);
 
   return () => {
     document.removeEventListener('keydown', onDown);
@@ -107,5 +147,8 @@ export function bindInput(input: InputState, canvas: HTMLCanvasElement, options:
     canvas.removeEventListener('mousedown', onMouseDown);
     document.removeEventListener('mouseup', onMouseUp);
     document.removeEventListener('pointerlockchange', onLockChange);
+    window.removeEventListener('blur', onBlur);
+    document.removeEventListener('blur', onBlur, true);
+    document.removeEventListener('visibilitychange', onVisibilityChange);
   };
 }

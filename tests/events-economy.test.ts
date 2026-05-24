@@ -211,6 +211,80 @@ test('world event publication clamps payloads before notifying observers', () =>
   assert.equal(event.data?.undef, undefined);
 });
 
+test('world event observers dispatch from a snapshot and isolate failures', () => {
+  const state = makeGameState({ worldEvents: createWorldEventState() });
+  const calls: string[] = [];
+  const originalWarn = console.warn;
+  let warnCount = 0;
+  console.warn = (): void => {
+    warnCount++;
+  };
+
+  const selfRemoving = (): void => {
+    calls.push('self');
+    unregisterWorldEventObserver(selfRemoving);
+  };
+  const throwing = (): void => {
+    calls.push('throwing');
+    throw new Error('observer failed');
+  };
+  const afterThrow = (): void => {
+    calls.push('after');
+  };
+
+  try {
+    registerWorldEventObserver(selfRemoving);
+    registerWorldEventObserver(throwing);
+    registerWorldEventObserver(afterThrow);
+
+    publishEvent(state, {
+      type: 'faction_event',
+      severity: 3,
+      privacy: 'public',
+      tags: ['observer_test'],
+    });
+  } finally {
+    unregisterWorldEventObserver(selfRemoving);
+    unregisterWorldEventObserver(throwing);
+    unregisterWorldEventObserver(afterThrow);
+    console.warn = originalWarn;
+  }
+
+  assert.deepEqual(calls, ['self', 'throwing', 'after']);
+  assert.equal(warnCount, 1);
+});
+
+test('world event observer error logging is bounded per publication', () => {
+  const state = makeGameState({ worldEvents: createWorldEventState() });
+  const originalWarn = console.warn;
+  let warnCount = 0;
+  console.warn = (): void => {
+    warnCount++;
+  };
+  const observers: (() => void)[] = [];
+  for (let i = 0; i < 12; i++) {
+    const observer = (): void => {
+      throw new Error(`observer ${i} failed`);
+    };
+    observers.push(observer);
+    registerWorldEventObserver(observer);
+  }
+
+  try {
+    publishEvent(state, {
+      type: 'faction_event',
+      severity: 3,
+      privacy: 'public',
+      tags: ['observer_bound_test'],
+    });
+  } finally {
+    for (const observer of observers) unregisterWorldEventObserver(observer);
+    console.warn = originalWarn;
+  }
+
+  assert.equal(warnCount, 8);
+});
+
 test('AG82 idol branch completion returns the idol and publishes branch context', () => {
   initFactionRelations();
   const branch = SIDE_QUESTS.find(q => q.id === 'idol_ministry_registration');

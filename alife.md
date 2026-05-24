@@ -220,6 +220,12 @@ Population is assigned by route identity, not just by base enum floor.
 
 This makes routed floors persistent even when multiple floors share the same base `FloorLevel`.
 
+## Route Population Shape
+
+A-Life distribution is route-key weighted and data-driven. The current code gives ordinary story-floor population the strongest weights around dense residential/social anchors (`KVARTIRY`, `LIVING`), lower ordinary weights for industrial/Hell anchors, and no ordinary NPC allocation for `VOID`. Authored design floors use `src/data/design_floor_population.ts`; procedural floors use `proceduralPopulationBudget()` plus `floorRunZAllowsNpcs()`.
+
+That means "farther from the center gets harsher" is a systemic bias, not a single hardcoded formula. Route depth, danger, anomaly pressure, floor role and local overrides can all shift the mix. Extreme endgame stops can be ordinary-NPC-free while still adding monster/protocol pressure; nearer authored floors can be unusually dangerous if their role demands it.
+
 ## Materialization Contract
 
 Floor generators still own construction:

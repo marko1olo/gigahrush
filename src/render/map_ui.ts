@@ -1087,18 +1087,18 @@ function drawMap(
   if (quests) {
     clearActiveQuestMarkers();
     let concreteRoomMarkers = 0;
-	    for (const q of quests) {
-	      if (q.done) continue;
-	      const kind = questKind(q);
-	      if (q.type === QuestType.TALK && q.targetNpcId !== undefined) setMarkerKind(activeTalkTargets, q.targetNpcId, kind);
-	      if (q.type === QuestType.TALK && q.targetPlotNpcId) setMarkerKind(activeTalkPlotTargets, q.targetPlotNpcId, kind);
-      if (q.type === QuestType.KILL && q.targetMonsterKind !== undefined) setMarkerKind(activeKillKinds, q.targetMonsterKind, kind);
+    for (const q of quests) {
+      if (q.done) continue;
+      const kind = questKind(q);
+      if (q.type === QuestType.TALK && q.targetNpcId !== undefined) setMarkerKind(activeTalkTargets, q.targetNpcId, kind);
+      if (q.type === QuestType.TALK && q.targetPlotNpcId) setMarkerKind(activeTalkPlotTargets, q.targetPlotNpcId, kind);
       if (
         q.type === QuestType.FETCH &&
         q.targetItem &&
         (q.targetFloor === undefined || q.targetFloor === currentFloor)
       ) setMarkerKind(activeFetchItems, q.targetItem, kind);
       if (!questTargetVisibleOnMap(q, currentFloor, state)) continue;
+      if (q.type === QuestType.KILL && q.targetMonsterKind !== undefined) setMarkerKind(activeKillKinds, q.targetMonsterKind, kind);
       const hasRoomTarget = q.targetRoom !== undefined || q.targetRoomType !== undefined || q.targetZoneTag !== undefined;
       if (hasRoomTarget && concreteRoomMarkers < MAX_CONCRETE_QUEST_ROOM_MARKERS) {
         const resolved = resolveQuestTargetRoom(world, q, player);

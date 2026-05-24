@@ -76,6 +76,11 @@ function round3(value: number): number {
   return Math.round(value * 1000) / 1000;
 }
 
+function descNumber(desc: string, re: RegExp): number | undefined {
+  const match = re.exec(desc);
+  return match ? Number(match[1].replace(',', '.')) : undefined;
+}
+
 test('item stack rules keep weapons single-slot and commodities stackable', () => {
   assert.equal(getStack(ITEMS.bread), 999);
   assert.equal(getStack(ITEMS.pipe), 1);
@@ -317,6 +322,21 @@ test('PSI weapon ids, resources, and effect bindings stay coherent', () => {
 
   assert.ok(PSI_WEAPON_STATS.psi_void_needle.psiCost! > freshRPG(1).maxPsi);
   assert.ok(PSI_WEAPON_STATS.psi_brainburn.psiCost! >= PSI_WEAPON_STATS.psi_storm.psiCost!);
+});
+
+test('PSI weapon descriptions match executable cost and damage numbers', () => {
+  for (const [id, stats] of Object.entries(PSI_WEAPON_STATS)) {
+    const item = ITEMS[id];
+    assert.ok(item, `${id} must have an item definition`);
+
+    const descCost = descNumber(item.desc, /(\d+(?:[,.]\d+)?)\s*ПСИ/u);
+    assert.equal(descCost, stats.psiCost, `${id} description PSI cost must match PSI_WEAPON_STATS`);
+
+    const descDamage = descNumber(item.desc, /(\d+(?:[,.]\d+)?)\s*урона/u);
+    if (descDamage !== undefined) {
+      assert.equal(descDamage, stats.dmg, `${id} description damage must match PSI_WEAPON_STATS`);
+    }
+  }
 });
 
 test('PSI recovery is explicit, tagged, and bounded by item values', () => {

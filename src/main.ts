@@ -2385,7 +2385,7 @@ function projectilePathHitT(x0: number, y0: number, x1: number, y1: number, e: E
 
 /* ── Projectile update: move, collide walls + entities ────────── */
 function updateProjectiles(dt: number): void {
-  const entityIndex = getEntityIndex();
+  const entityIndex = rebuildEntityIndexForSimulation(entities, entityIndexFrame);
   for (const p of entityIndex.projectiles) {
     if (p.type !== EntityType.PROJECTILE || !p.alive) continue;
     p.projLife = (p.projLife ?? 0) - dt;
@@ -5606,7 +5606,6 @@ function gameLoop(now: number): void {
 
   if (!state.paused) {
     entityIndexFrame = (entityIndexFrame + 1) & 0x3fffffff;
-    rebuildEntityIndexForSimulation(entities, entityIndexFrame);
   }
 
   // ── Update ───────────────────────────────────────────────
@@ -5645,6 +5644,7 @@ function gameLoop(now: number): void {
     }
 
     movePlayer(dt);
+    rebuildEntityIndexForSimulation(entities, entityIndexFrame);
     playerActions(dt);
     // If switchFloor was triggered, pendingLoad is set — skip the rest of this frame
     if (pendingLoad) { requestAnimationFrame(gameLoop); return; }
@@ -5682,7 +5682,7 @@ function gameLoop(now: number): void {
     if (needsTickAccum >= 0.25) {
       const needsDt = needsTickAccum;
       needsTickAccum = 0;
-      updateNeeds(entities, needsDt, state.time, state.msgs, player.id, nextEntityId, state);
+      updateNeeds(entities, needsDt, state.time, state.msgs, player.id, nextEntityId, state, world);
     }
     if (updateBetonoedShortcut(world, entities, player, state, dt)) updateWorldData(world);
     setListenerPos(player.x, player.y, (ax, ay, bx, by) => world.dist2(ax, ay, bx, by));
@@ -5843,7 +5843,7 @@ function gameLoop(now: number): void {
     if (needsTickAccum >= 0.25) {
       const needsDt = needsTickAccum;
       needsTickAccum = 0;
-      updateNeeds(entities, needsDt, state.time, state.msgs, player.id, nextEntityId, state);
+      updateNeeds(entities, needsDt, state.time, state.msgs, player.id, nextEntityId, state, world);
     }
     if (updateBetonoedShortcut(world, entities, player, state, dt)) updateWorldData(world);
     setListenerPos(player.x, player.y, (ax, ay, bx, by) => world.dist2(ax, ay, bx, by));

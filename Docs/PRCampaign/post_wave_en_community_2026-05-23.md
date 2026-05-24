@@ -351,7 +351,7 @@ Timing/cooldown risks:
 1. HTML5GameDevs Showcase: best technical/platform fit and low overlap with current Reddit activity.
 2. TIGSource DevLogs: best for a durable devlog thread, but only if the owner intends to return with updates.
 3. GameDev.net Showcase: useful developer feedback surface; keep it in project/showcase areas.
-4. r/WebGames: wait until 2026-05-24/25 unless the owner accepts same-day Reddit self-promo risk.
+4. Reddit after PR 13: r/PBBG, r/WebGames and r/Games Indie Sunday are live; r/IndieDev was removed. Keep Reddit monitoring-only unless the owner explicitly requests a new target, and require a platform-compliant playable/media plan for any future public post.
 
 ## Global Guardrails
 

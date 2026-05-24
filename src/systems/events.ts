@@ -42,6 +42,7 @@ const BASE_FLOORS = [
 ] as const;
 const RESOURCE_SCARCITY_EVENT_COOLDOWN_S = 600;
 const MAX_RESOURCE_SCARCITY_RUMORS = 4;
+const MAX_OBSERVER_ERROR_LOGS = 8;
 
 export interface EventZoneSummary {
   floor: FloorLevel;
@@ -98,6 +99,21 @@ export function unregisterWorldEventObserver(observer: WorldEventObserver): bool
   if (idx < 0) return false;
   eventObservers.splice(idx, 1);
   return true;
+}
+
+function dispatchEventObservers(state: GameState, event: WorldEvent): void {
+  const snapshot = eventObservers.slice();
+  let errorLogs = 0;
+  for (const observer of snapshot) {
+    try {
+      observer(state, event);
+    } catch (error) {
+      if (errorLogs < MAX_OBSERVER_ERROR_LOGS && typeof console !== 'undefined' && typeof console.warn === 'function') {
+        console.warn('World event observer failed', error);
+        errorLogs++;
+      }
+    }
+  }
 }
 
 function createBuffer(capacity: number): WorldEventBuffer {
@@ -550,7 +566,7 @@ export function publishEvent(state: GameState, draft: WorldEventDraft): WorldEve
   recordRoomMemoryEvent(event);
   recordWorldLogEvent(state, event);
   recordRumorEvent(event);
-  for (const observer of eventObservers) observer(state, event);
+  dispatchEventObservers(state, event);
   return event;
 }
 

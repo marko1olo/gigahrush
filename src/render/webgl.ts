@@ -357,7 +357,6 @@ void main() {
   bool hit = false;
   float dist = MAX_DIST;
   uint wallTexId = 0u;
-  bool hitAbyss = false;
 
   /* ── DDA loop ───────────────────────────────────────────── */
   for (int step = 0; step < MAX_STEPS; step++) {
@@ -387,7 +386,6 @@ void main() {
       dist = stepDist;
       wallTexId = ${Tex.DARK}u;
       hit = true;
-      hitAbyss = true;
       break;
     }
     if (cell == ${Cell.DOOR}u) {
@@ -421,44 +419,7 @@ void main() {
   float fogF = min(1.0, dist * uFogDensity);
 
   vec3 pixel = fogColor(); // default = fog
-  // Render abyss cells as solid glitch-dark blocks. The old special case drew
-  // an endless vertical void, which looked like a visual-only pit instead of a
-  // concrete obstruction.
-  hitAbyss = false;
-
-  if (hitAbyss) {
-    // Abyss rendering
-    float edgeH = min(lineH, uResolution.y * 0.15);
-    float edgeMid = HALF_H;
-    float edgeStart = max(0.0, edgeMid - edgeH * 0.5);
-    float edgeEnd = min(uResolution.y - 1.0, edgeMid + edgeH * 0.5);
-
-    if (row >= edgeStart && row <= edgeEnd) {
-      float d = row - edgeStart;
-      int texYi = int(floor(d / edgeH * TEX_F)) & (TEX_I - 1);
-      vec3 c = sampleAtlas(${Tex.DARK}u, texXi, texYi).rgb * 0.3;
-      pixel = applyFogV(c, min(1.0, dist * uFogDensity));
-      pixelDepth = min(1.0, dist / MAX_DIST);
-    } else if (row > edgeEnd) {
-      float depthF = (row - edgeEnd) / (uResolution.y - edgeEnd);
-      float v = max(0.0, 4.0 * (1.0 - depthF)) / 255.0;
-      pixel = vec3(v, v, v);
-      pixelDepth = min(1.0, dist / MAX_DIST);
-    } else {
-      float upF = (edgeStart - row) / max(1.0, edgeStart);
-      if (uUseDynamicSky == 1) {
-        vec2 skyUv = wrapF(uPos + vec2(rayDX, rayDY) * (18.0 + upF * 120.0)) / float(W_SIZE);
-        vec3 sky = texture(uDynamicSky, skyUv).rgb * uDynamicSkyTint;
-        sky *= 0.55 + 0.35 * (1.0 - upF);
-        pixel = applyFogV(sky, min(0.45, dist * uFogDensity));
-      } else {
-        float v = max(0.0, 3.0 * (1.0 - upF)) / 255.0;
-        pixel = vec3(v, v + 2.0/255.0, v);
-      }
-      pixelDepth = min(1.0, dist / MAX_DIST);
-    }
-  } else {
-    if (hit && row >= drawStart && row <= drawEnd) {
+  if (hit && row >= drawStart && row <= drawEnd) {
       // ── Wall ──
       ivec2 hitCell = ivec2(wrapI(mapX), wrapI(mapY));
       float cellLit = min(1.0, uAmbient + sampleLight(hitCell) * (1.0 - uAmbient) + flashlightBoost(dist));
@@ -482,7 +443,7 @@ void main() {
       c *= cellLit;
       pixel = applyCellFog(c, hitCell, fogF);
       pixelDepth = min(1.0, dist / MAX_DIST);
-    } else if (row > (hit ? drawEnd : HALF_H)) {
+  } else if (row > (hit ? drawEnd : HALF_H)) {
       // ── Floor ──
       float rowDist = row - HALF_H;
       if (rowDist > 0.0) {
@@ -518,7 +479,7 @@ void main() {
           }
         }
       }
-    } else if (row < (hit ? drawStart : HALF_H)) {
+  } else if (row < (hit ? drawStart : HALF_H)) {
       // ── Ceiling ──
       float rowDist = HALF_H - row;
       if (rowDist > 0.0) {
@@ -571,7 +532,6 @@ void main() {
           }
         }
       }
-    }
   }
 
   // Encode depth into alpha for CPU readback (sprite clipping)

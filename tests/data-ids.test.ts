@@ -15,12 +15,17 @@ import {
 import { ITEMS, WEAPON_STATS } from '../src/data/catalog';
 import { CONTAINER_DEFS } from '../src/data/container_defs';
 import { COMPACT_EXPEDITION_CONTRACT_IDS, CONTRACTS } from '../src/data/contracts';
+import { COMPUTER_DEFS } from '../src/data/computers';
 import { FACTORIES } from '../src/data/factories';
 import { FACTION_EVENT_DEFS } from '../src/data/faction_events';
+import { EMERGENCY_PANEL_DEFS } from '../src/data/emergency_panels';
 import { FLOOR_CATALOG } from '../src/data/floor_catalog';
 import { FLOOR_INSTANCES } from '../src/data/floor_instances';
 import { MONSTER_ECOLOGY } from '../src/data/monster_ecology';
+import { NET_HACK_TERMINALS } from '../src/data/net_hack';
+import { PERMIT_DEFS, PERMIT_FORGERY_RECIPES } from '../src/data/permits';
 import { PLOT_CHAIN, PLOT_NPCS, SIDE_QUESTS, type PlotStep, type SideQuestStep } from '../src/data/plot';
+import { FLOOR_GEOMETRIES } from '../src/data/procedural_floors';
 import { RESOURCES, resourceForItem } from '../src/data/resources';
 import { RUMORS, type RumorReveal } from '../src/data/rumors';
 import { getSamosborBeatDefs } from '../src/data/samosbor_director';
@@ -692,6 +697,91 @@ test('screen signal definitions reference known rumors, rooms, factions, and var
   }
 
   assert.deepEqual(invalid, [], 'screen signal references must resolve');
+});
+
+test('permit and local terminal registries stay keyed and reference live data', () => {
+  assertUnique('permit', PERMIT_DEFS.map(def => def.id));
+  assertUnique('permit item', PERMIT_DEFS.map(def => def.itemId));
+  assertUnique('permit forgery recipe', PERMIT_FORGERY_RECIPES.map(recipe => recipe.id));
+  assertUnique('computer', Object.keys(COMPUTER_DEFS));
+  assertUnique('net hack terminal', Object.keys(NET_HACK_TERMINALS));
+  assertUnique('emergency panel', EMERGENCY_PANEL_DEFS.map(def => def.id));
+  assertUnique('emergency panel domain', EMERGENCY_PANEL_DEFS.map(def => def.domain));
+
+  const rumorIds = new Set(RUMORS.map(rumor => rumor.id));
+  const geometryIds = new Set(FLOOR_GEOMETRIES.map(geometry => geometry.id));
+  const invalid: string[] = [];
+
+  for (const def of PERMIT_DEFS) {
+    if (!ID_RE.test(def.id)) invalid.push(dataRef('permit', def.id, 'idFormat', def.id));
+    pushItemRef(invalid, 'permit', def.id, 'itemId', def.itemId);
+    if (def.title.trim().length === 0) invalid.push(dataRef('permit', def.id, 'title', def.title));
+    if (def.accessTags.length === 0) invalid.push(dataRef('permit', def.id, 'accessTags', 'empty'));
+    for (const tag of def.accessTags) if (!ID_RE.test(tag)) invalid.push(dataRef('permit', def.id, 'accessTags', tag));
+    if (def.floors.length === 0) invalid.push(dataRef('permit', def.id, 'floors', 'empty'));
+    for (const floor of def.floors) if (!isFloorLevel(floor)) invalid.push(dataRef('permit', def.id, 'floors', floor));
+    if (def.severity < 1 || def.severity > 5) invalid.push(dataRef('permit', def.id, 'severity', def.severity));
+    if (!['private', 'local', 'witnessed', 'public'].includes(def.privacy)) invalid.push(dataRef('permit', def.id, 'privacy', def.privacy));
+    if (def.successLine.trim().length < 16) invalid.push(dataRef('permit', def.id, 'successLine', def.successLine));
+    for (const cost of def.factionCost) {
+      if (!FACTION_IDS.has(cost.faction)) invalid.push(dataRef('permit', def.id, 'factionCost.faction', cost.faction));
+      if (cost.delta === 0) invalid.push(dataRef('permit', def.id, `factionCost.${cost.faction}.delta`, cost.delta));
+    }
+    for (const rumorId of def.rumorIds ?? []) if (!rumorIds.has(rumorId)) invalid.push(dataRef('permit', def.id, 'rumorIds', rumorId));
+  }
+
+  const permitItemIds = new Set(PERMIT_DEFS.map(def => def.itemId));
+  for (const recipe of PERMIT_FORGERY_RECIPES) {
+    if (!ID_RE.test(recipe.id)) invalid.push(dataRef('permitForgery', recipe.id, 'idFormat', recipe.id));
+    pushItemRef(invalid, 'permitForgery', recipe.id, 'outputItemId', recipe.outputItemId);
+    if (!permitItemIds.has(recipe.outputItemId)) invalid.push(dataRef('permitForgery', recipe.id, 'outputPermit', recipe.outputItemId));
+    recipe.inputItemIds.forEach((itemId, index) => pushItemRef(invalid, 'permitForgery', recipe.id, `inputItemIds[${index}]`, itemId));
+    if (recipe.inputItemIds.length === 0) invalid.push(dataRef('permitForgery', recipe.id, 'inputItemIds', 'empty'));
+    for (const tag of recipe.eventTags) if (!ID_RE.test(tag)) invalid.push(dataRef('permitForgery', recipe.id, 'eventTags', tag));
+    for (const rumorId of recipe.rumorIds) if (!rumorIds.has(rumorId)) invalid.push(dataRef('permitForgery', recipe.id, 'rumorIds', rumorId));
+  }
+
+  for (const [key, def] of Object.entries(COMPUTER_DEFS)) {
+    if (key !== def.id) invalid.push(dataRef('computer', key, 'id', def.id));
+    if (def.label.trim().length === 0) invalid.push(dataRef('computer', def.id, 'label', def.label));
+    if (def.prompt.trim().length === 0) invalid.push(dataRef('computer', def.id, 'prompt', def.prompt));
+    if (def.stealRewardRubles < 0) invalid.push(dataRef('computer', def.id, 'stealRewardRubles', def.stealRewardRubles));
+    if (def.pages.length === 0) invalid.push(dataRef('computer', def.id, 'pages', 'empty'));
+    def.pages.forEach((page, index) => {
+      if (page.title.trim().length === 0) invalid.push(dataRef('computer', def.id, `pages[${index}].title`, page.title));
+      if (page.lines.length === 0) invalid.push(dataRef('computer', def.id, `pages[${index}].lines`, 'empty'));
+    });
+  }
+
+  for (const [key, def] of Object.entries(NET_HACK_TERMINALS)) {
+    if (key !== def.id) invalid.push(dataRef('netHackTerminal', key, 'id', def.id));
+    if (def.baseDifficulty <= 0) invalid.push(dataRef('netHackTerminal', def.id, 'baseDifficulty', def.baseDifficulty));
+    if (def.randomDifficultyMax < 0) invalid.push(dataRef('netHackTerminal', def.id, 'randomDifficultyMax', def.randomDifficultyMax));
+    if (def.rewardRubles < 0) invalid.push(dataRef('netHackTerminal', def.id, 'rewardRubles', def.rewardRubles));
+    if (def.failPsiDamage < 0) invalid.push(dataRef('netHackTerminal', def.id, 'failPsiDamage', def.failPsiDamage));
+    if (def.failHpDamage < 0) invalid.push(dataRef('netHackTerminal', def.id, 'failHpDamage', def.failHpDamage));
+  }
+
+  for (const def of EMERGENCY_PANEL_DEFS) {
+    if (!ID_RE.test(def.id)) invalid.push(dataRef('emergencyPanel', def.id, 'idFormat', def.id));
+    if (def.weight <= 0) invalid.push(dataRef('emergencyPanel', def.id, 'weight', def.weight));
+    if (!/^#[0-9a-f]{6}$/i.test(def.color)) invalid.push(dataRef('emergencyPanel', def.id, 'color', def.color));
+    if (def.roomTypes.length === 0) invalid.push(dataRef('emergencyPanel', def.id, 'roomTypes', 'empty'));
+    for (const roomType of def.roomTypes) if (!ROOM_TYPE_IDS.has(roomType)) invalid.push(dataRef('emergencyPanel', def.id, 'roomTypes', roomType));
+    for (const geometryId of Object.keys(def.geometryWeights)) {
+      if (!geometryIds.has(geometryId)) invalid.push(dataRef('emergencyPanel', def.id, 'geometryWeights', geometryId));
+      if ((def.geometryWeights[geometryId] ?? 0) <= 0) invalid.push(dataRef('emergencyPanel', def.id, `geometryWeights.${geometryId}`, def.geometryWeights[geometryId]));
+    }
+    if (def.repairCost.length === 0) invalid.push(dataRef('emergencyPanel', def.id, 'repairCost', 'empty'));
+    def.repairCost.forEach((cost, index) => pushItemStackRefs(invalid, 'emergencyPanel', def.id, `repairCost[${index}]`, { defId: cost.itemId, count: cost.count }));
+    assertUnique(`emergencyPanel ${def.id} tag`, [...def.tags]);
+    for (const tag of def.tags) if (!ID_RE.test(tag)) invalid.push(dataRef('emergencyPanel', def.id, 'tags', tag));
+    for (const [action, label] of Object.entries(def.actionLabels)) {
+      if (label.trim().length === 0) invalid.push(dataRef('emergencyPanel', def.id, `actionLabels.${action}`, label));
+    }
+  }
+
+  assert.deepEqual(invalid, [], 'permit, terminal, and emergency panel references must resolve');
 });
 
 test('monster ecology and floor catalog ids are unique and valid', () => {

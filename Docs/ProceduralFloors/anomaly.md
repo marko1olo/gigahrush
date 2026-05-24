@@ -31,7 +31,7 @@ Source count: 19 profiles in `FLOOR_ANOMALIES`.
 - `none` - tags: none; runtime/rebuild: normal procedural floor with no anomaly-specific generator or runtime hook.
 - `smog` - tags: `fog`, `visibility`, `smog`, `govnyak`, `contraband`; runtime/rebuild: generation writes bounded fog cells, `world.anomalySmogSource`, `world.anomalySmogCells` and a source apparatus; runtime pressure/counterplay lives in `src/systems/procedural_anomalies.ts` and must stay tied to the current `World`/`GameState`, not renderer state.
 - `teleport_cells` - tags: `topology`; runtime/rebuild: generation creates symmetric sparse pairs in `world.anomalyTeleports` and screen markers; interaction can consume a counter item to delete one pair, so every added pair must stay bidirectional and avoid protected cells.
-- `mushroom_mycelium` - tags: `mushroom`, `food`; runtime/rebuild: generation seeds apparatus-like growth points, mushroom drops and carnivorous fungus rooms; no dedicated anomaly tick is required.
+- `mushroom_mycelium` - tags: `mushroom`, `food`, `slime`; runtime/rebuild: generation seeds apparatus-like growth points, mushroom drops and carnivorous fungus rooms; no dedicated anomaly tick is required.
 - `hladon` - tags: `cold`, `heat_counter`, `route_pressure`; runtime/rebuild: generation names cold rooms with the `Хладон:` prefix and adds frost, fog and warm counterplay drops; runtime cold masks are cached per `World` in `src/systems/hladon.ts` and rebuilt from room names after floor rebuilds.
 - `false_safe_block` - tags: `cult`, `shelter`, `false_safe_block`; runtime/rebuild: generation creates a clean shelter room, nearby quiet corridors, cult containers, screen/apparatus evidence and caretakers; runtime discovery/resolution is stored through room-name flags, container discovery and events.
 - `mirror_run` - tags: `mirror`, `duality`, `teleport`, `loot`; runtime/rebuild: generation decorates mirrored room pairs, drops paired loot and adds limited `world.anomalyTeleports` links; no dedicated tick, but topology pairs must stay sparse and symmetric.
@@ -46,7 +46,7 @@ Source count: 19 profiles in `FLOOR_ANOMALIES`.
 - `zombie_apocalypse` - tags: `zombie`, `crowd`, `infection`, `quarantine`, `residential`; runtime/rebuild: generation is active only where procedural NPCs are allowed, seeds a dense civilian crowd and patient zero, and converts shadow spawns to zombies; runtime infection converts NPCs through the entity index and publishes outbreak events.
 - `section_shift` - tags: `topology`, `moving_rooms`, `crush`, `toroid`; runtime/rebuild: generation writes section bounds into room names and places apparatus controls; runtime teleports the player within the same bounded section after warnings and can freeze a section temporarily.
 - `conway_life` - tags: `cellular`, `topology`, `moving_walls`, `math`; runtime/rebuild: generation names bounded arenas and seeds wall/floor cells plus controls; runtime ticks B3/S23 every 0.75s using per-arena typed masks and protects doors, lifts, containers and cells near the player.
-- `samosbor_seed` - tags: `samosbor`, `meat`; runtime/rebuild: generation adds fog, meat/gut floor marks and samosbor-zone pressure; route timers treat it as high samosbor pressure through `adjustFloorRunSamosborTimer`.
+- `samosbor_seed` - tags: `samosbor`, `meat`, `slime`; runtime/rebuild: generation adds fog, meat/gut floor marks and samosbor-zone pressure; route timers treat it as high samosbor pressure through `adjustFloorRunSamosborTimer`.
 
 ## Runtime And Rebuild Constraints
 

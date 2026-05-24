@@ -311,6 +311,14 @@ function entryMatchesRouteTarget(entry: FloorRunEntry, route: QuestRouteTarget, 
   return true;
 }
 
+function routeHasPositionalTarget(route: QuestRouteTarget | undefined): route is QuestRouteTarget {
+  if (!route) return false;
+  return routeZ(route.z) !== undefined ||
+    route.designFloorId !== undefined ||
+    route.anomalyId !== undefined ||
+    (route.tags?.length ?? 0) > 0;
+}
+
 function enrichRouteHint(q: Quest, state: GameState): void {
   const label = questRouteTargetLabel(q, state);
   if (!label) return;
@@ -436,7 +444,7 @@ export function questRouteFloor(q: Quest): FloorLevel | undefined {
 
 export function isQuestTargetOnCurrentFloor(q: Quest, state: GameState): boolean {
   const route = questTargetRoute(q);
-  if (route) return entryMatchesRouteTarget(currentFloorRunEntry(state), route, state);
+  if (routeHasPositionalTarget(route)) return entryMatchesRouteTarget(currentFloorRunEntry(state), route, state);
   const floor = questRouteFloor(q);
   if (floor === undefined) return true;
   return isCurrentStoryFloor(state, floor);
@@ -450,9 +458,10 @@ export function questRequiresRouteTravel(q: Quest, state: GameState): boolean {
 export function questTargetLiftDirection(q: Quest, state: GameState): LiftDirection | undefined {
   const floor = questRouteFloor(q);
   const route = questTargetRoute(q);
-  if ((floor === undefined && !route) || isQuestTargetOnCurrentFloor(q, state)) return undefined;
+  const positionalRoute = routeHasPositionalTarget(route) ? route : undefined;
+  if ((floor === undefined && !positionalRoute) || isQuestTargetOnCurrentFloor(q, state)) return undefined;
   const currentZ = currentFloorRunEntry(state).z;
-  const targetZ = routeZ(route?.z) ?? (route?.designFloorId ? designFloorById(route.designFloorId)?.z : undefined) ?? (floor !== undefined ? zForStoryFloor(floor) : undefined);
+  const targetZ = routeZ(positionalRoute?.z) ?? (positionalRoute?.designFloorId ? designFloorById(positionalRoute.designFloorId)?.z : undefined) ?? (floor !== undefined ? zForStoryFloor(floor) : undefined);
   if (targetZ === undefined) return undefined;
   if (currentZ === targetZ) return undefined;
   return targetZ < currentZ ? LiftDirection.DOWN : LiftDirection.UP;
