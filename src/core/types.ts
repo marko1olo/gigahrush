@@ -1078,7 +1078,7 @@ export interface GameState {
   nextQuestId: number;
   currentFloor: FloorLevel;
   fogSpreadTimer: number;     // ticks between fog spread steps
-  // ── Game menu (ESC) ──
+  // ── Game menu (Enter) ──
   showMenu: boolean;
   menuSel: number;            // selected entry in the game menu
   // ── NPC interaction menu ──

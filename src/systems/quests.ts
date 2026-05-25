@@ -69,6 +69,14 @@ export interface CurrentObjective {
   color: string;
 }
 
+export type NpcQuestMarkerTone = 'authored' | 'procedural';
+
+export interface NpcQuestMarkerState {
+  tone: NpcQuestMarkerTone;
+  active: boolean;
+  showExclamation: boolean;
+}
+
 interface AuthoredQuestMeta {
   targetFloor?: FloorLevel;
   targetRoute?: QuestRouteTarget;
@@ -207,12 +215,40 @@ export function nextAvailablePlotStepForNpc(npc: Entity, state: Pick<GameState, 
 }
 
 export function activeTalkQuestForNpc(npc: Entity, state: Pick<GameState, 'quests'>): Quest | undefined {
-  return state.quests.find(q =>
+  return state.quests.find(q => activeTalkQuestMatchesNpc(q, npc));
+}
+
+function activeTalkQuestMatchesNpc(q: Quest, npc: Entity): boolean {
+  return (
     !q.done &&
     !q.failed &&
     q.type === QuestType.TALK &&
     (q.targetNpcId === npc.id || (npc.plotNpcId !== undefined && q.targetPlotNpcId === npc.plotNpcId))
   );
+}
+
+function activeTalkQuestForNpcByTone(
+  npc: Entity,
+  state: Pick<GameState, 'quests'>,
+  tone: NpcQuestMarkerTone,
+): Quest | undefined {
+  return state.quests.find(q => activeTalkQuestMatchesNpc(q, npc) && questMarkerTone(q) === tone);
+}
+
+function questMarkerTone(q: Quest): NpcQuestMarkerTone {
+  return q.plotStepIndex !== undefined || q.sideQuestId !== undefined ? 'authored' : 'procedural';
+}
+
+function npcHasAcceptedProceduralQuest(npc: Entity, state: Pick<GameState, 'quests'>): boolean {
+  return state.quests.some(q => q.giverId === npc.id && questMarkerTone(q) === 'procedural');
+}
+
+function npcCanShowProceduralQuestOffer(npc: Entity, state: Pick<GameState, 'quests'>): boolean {
+  return npc.type === EntityType.NPC &&
+    npc.alive &&
+    npc.canGiveQuest === true &&
+    npc.plotNpcId === undefined &&
+    !npcHasAcceptedProceduralQuest(npc, state);
 }
 
 function activeQuestFromNpc(npc: Entity, state: Pick<GameState, 'quests'>): Quest | undefined {
@@ -232,8 +268,27 @@ export function npcCanGiveQuestNow(npc: Entity, state: Pick<GameState, 'quests'>
 }
 
 export function npcHasQuestMarker(npc: Entity, state: Pick<GameState, 'quests'>): boolean {
-  if (npc.type !== EntityType.NPC || !npc.alive) return false;
-  return activeTalkQuestForNpc(npc, state) !== undefined || npcCanGiveQuestNow(npc, state);
+  const marker = npcQuestMarkerState(npc, state);
+  return marker !== null && marker.active;
+}
+
+export function npcQuestMarkerState(npc: Entity, state: Pick<GameState, 'quests'>): NpcQuestMarkerState | null {
+  if (npc.type !== EntityType.NPC || !npc.alive) return null;
+
+  if (activeTalkQuestForNpcByTone(npc, state, 'authored')) {
+    return { tone: 'authored', active: true, showExclamation: true };
+  }
+  if (npc.plotNpcId && npcCanGiveQuestNow(npc, state)) {
+    return { tone: 'authored', active: true, showExclamation: true };
+  }
+  if (npcCanShowProceduralQuestOffer(npc, state)) {
+    return { tone: 'procedural', active: true, showExclamation: true };
+  }
+  if (activeTalkQuestForNpcByTone(npc, state, 'procedural')) {
+    return { tone: 'procedural', active: true, showExclamation: false };
+  }
+  if (npc.plotNpcId) return { tone: 'authored', active: false, showExclamation: false };
+  return null;
 }
 
 function withObjectivePrefix(text: string): string {
@@ -354,12 +409,14 @@ export function offerQuest(
 
   const quest = generateQuest(npc, player, world, entities, state);
   if (!quest) {
+    if (!isPlotNpc(npc)) npc.canGiveQuest = false;
     pushNpcQuestMessage(npc, player, world, state, msgs, `${npc.name}: «Пока ничего не нужно.»`, '#888');
     return;
   }
 
   state.quests.push(quest);
   npc.questId = quest.id;
+  if (!isPlotNpc(npc)) npc.canGiveQuest = false;
   pushNpcQuestMessage(npc, player, world, state, msgs, `Новое поручение: ${quest.desc}${deadlineMessageSuffix(quest, state.clock.totalMinutes)}`, '#4af');
   const contractId = quest.contractId;
   const contractDef = contractId ? CONTRACTS.find(c => c.id === contractId) : undefined;

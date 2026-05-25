@@ -134,7 +134,7 @@ export function drawControlsMenu(
   ctx.textBaseline = 'alphabetic';
   ctx.fillText(
     capture
-      ? 'Esc отменит ввод. Backspace вернёт выбранное действие к умолчанию.'
+      ? `${controlHint('gameMenu')} отменит ввод. Backspace вернёт выбранное действие к умолчанию.`
       : isButtons
         ? 'Экранные кнопки и мобильная рельса живут отдельно от клавиатурных биндов.'
         : 'Бинды и чувствительность мыши хранятся отдельно от сохранения игры и применяются сразу.',

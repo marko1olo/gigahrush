@@ -1,5 +1,5 @@
 import { type NetSphereSnapshot } from '../systems/net_sphere';
-import { controlBindingLabel, controlHint } from '../systems/controls';
+import { controlHint } from '../systems/controls';
 import { drawGlitchText, drawNeuroPanel, drawStaticNoise } from './hud_fx';
 import { fitText, wrapTextLines } from './ui_text';
 
@@ -124,7 +124,7 @@ export function drawNetSphereMenu(
   ctx.fillStyle = '#607080';
   ctx.fillText(fitText(ctx, '/netgen NET-...  /new  /clear', leftW), leftX, commandY);
   ctx.fillStyle = '#607080';
-  ctx.fillText(fitText(ctx, `${controlHint('netSphere')} открыть  ${controlHint('netClose')} закрыть  ${controlBindingLabel('netSubmit')} отправить`, leftW), leftX, commandY + 10 * s);
+  ctx.fillText(fitText(ctx, `${controlHint('netSphere')} открыть  ${controlHint('netClose')} закрыть  ${controlHint('netSubmit')} отправить`, leftW), leftX, commandY + 10 * s);
   ctx.restore();
 
   ctx.strokeStyle = 'rgba(92,246,255,0.34)';

@@ -1,4 +1,4 @@
-/* ── Game menu (ESC) ──────────────────────────────────────────── */
+/* ── Game menu (Enter) ────────────────────────────────────────── */
 
 import { type GameState } from '../core/types';
 import { GAME_MENU_ITEMS } from '../systems/game_menu';

@@ -328,6 +328,7 @@ class FakeKeyboardEvent {
   readonly metaKey: boolean;
   readonly altKey: boolean;
   defaultPrevented = false;
+  immediatePropagationStopped = false;
 
   constructor(code: string, key = '', flags: Partial<Pick<KeyboardEvent, 'ctrlKey' | 'metaKey' | 'altKey'>> = {}) {
     this.code = code;
@@ -340,25 +341,42 @@ class FakeKeyboardEvent {
   preventDefault(): void {
     this.defaultPrevented = true;
   }
+
+  stopImmediatePropagation(): void {
+    this.immediatePropagationStopped = true;
+  }
 }
 
 class FakeBrowserDocument {
   pointerLockElement: Element | null = null;
-  private readonly listeners = new Map<string, Set<EventListenerOrEventListenerObject>>();
+  private readonly listeners = new Map<string, {
+    capture: Set<EventListenerOrEventListenerObject>;
+    bubble: Set<EventListenerOrEventListenerObject>;
+  }>();
 
-  addEventListener(type: string, listener: EventListenerOrEventListenerObject | null): void {
+  addEventListener(
+    type: string,
+    listener: EventListenerOrEventListenerObject | null,
+    options?: boolean | AddEventListenerOptions,
+  ): void {
     if (!listener) return;
     let bucket = this.listeners.get(type);
     if (!bucket) {
-      bucket = new Set();
+      bucket = { capture: new Set(), bubble: new Set() };
       this.listeners.set(type, bucket);
     }
-    bucket.add(listener);
+    (this.isCapture(options) ? bucket.capture : bucket.bubble).add(listener);
   }
 
-  removeEventListener(type: string, listener: EventListenerOrEventListenerObject | null): void {
+  removeEventListener(
+    type: string,
+    listener: EventListenerOrEventListenerObject | null,
+    options?: boolean | EventListenerOptions,
+  ): void {
     if (!listener) return;
-    this.listeners.get(type)?.delete(listener);
+    const bucket = this.listeners.get(type);
+    if (!bucket) return;
+    (this.isCapture(options) ? bucket.capture : bucket.bubble).delete(listener);
   }
 
   exitPointerLock(): void {
@@ -366,14 +384,22 @@ class FakeBrowserDocument {
   }
 
   dispatch(type: string, event: unknown): void {
-    for (const listener of [...(this.listeners.get(type) ?? [])]) {
+    const bucket = this.listeners.get(type);
+    if (!bucket) return;
+    for (const listener of [...bucket.capture, ...bucket.bubble]) {
       if (typeof listener === 'function') listener(event as Event);
       else listener.handleEvent(event as Event);
+      if ((event as { immediatePropagationStopped?: boolean }).immediatePropagationStopped) return;
     }
   }
 
   listenerCount(type: string): number {
-    return this.listeners.get(type)?.size ?? 0;
+    const bucket = this.listeners.get(type);
+    return bucket ? bucket.capture.size + bucket.bubble.size : 0;
+  }
+
+  private isCapture(options?: boolean | EventListenerOptions): boolean {
+    return typeof options === 'boolean' ? options : options?.capture === true;
   }
 }
 
@@ -700,6 +726,10 @@ test('Net Sphere input binding opens after game input prevention but ignores con
     const net = await import('../src/systems/net_sphere');
     controls.cancelControlCapture();
     net.closeNetSphere();
+    assert.equal(controls.matchesControlAction('netSubmit', 'KeyE'), true);
+    assert.equal(controls.matchesControlAction('netSubmit', 'Enter'), false);
+    assert.equal(controls.matchesControlAction('netClose', 'Enter'), true);
+    assert.equal(controls.matchesControlAction('netClose', 'Escape'), false);
 
     const unbind = net.bindNetSphereInput();
     const repeatedUnbind = net.bindNetSphereInput();
@@ -717,12 +747,29 @@ test('Net Sphere input binding opens after game input prevention but ignores con
     assert.equal(net.isNetSphereOpen(), false);
     controls.cancelControlCapture();
 
+    const lockedElement = {} as Element;
+    browser.document.pointerLockElement = lockedElement;
     const open = new FakeKeyboardEvent('KeyN', 'n');
     browser.document.dispatch('keydown', open);
     assert.equal(net.isNetSphereOpen(), true);
     assert.equal(open.defaultPrevented, true);
+    assert.equal(open.immediatePropagationStopped, true);
+    assert.equal(browser.document.pointerLockElement, lockedElement);
 
-    net.closeNetSphere();
+    const leakedCodes: string[] = [];
+    const leakListener = (event: Event) => {
+      leakedCodes.push((event as unknown as FakeKeyboardEvent).code);
+    };
+    browser.document.addEventListener('keydown', leakListener);
+    const close = new FakeKeyboardEvent('Enter', 'Enter');
+    browser.document.dispatch('keydown', close);
+    assert.equal(net.isNetSphereOpen(), false);
+    assert.equal(close.defaultPrevented, true);
+    assert.equal(close.immediatePropagationStopped, true);
+    assert.deepEqual(leakedCodes, []);
+    assert.equal(browser.document.pointerLockElement, lockedElement);
+    browser.document.removeEventListener('keydown', leakListener);
+
     repeatedUnbind();
     assert.equal(browser.document.listenerCount('keydown'), 0);
     assert.equal(browser.document.listenerCount('paste'), 0);
@@ -769,7 +816,7 @@ test('Net Sphere aborts stalled client fetches and releases busy flags', async (
     net.openNetSphere();
 
     browser.document.dispatch('keydown', new FakeKeyboardEvent('KeyH', 'h'));
-    browser.document.dispatch('keydown', new FakeKeyboardEvent('Enter', 'Enter'));
+    browser.document.dispatch('keydown', new FakeKeyboardEvent('KeyE', 'e'));
     net.tickNetSphere(minimalNetSphereState(), minimalNetSpherePlayer());
     assert.equal(net.getNetSphereSnapshot().busy, true);
 

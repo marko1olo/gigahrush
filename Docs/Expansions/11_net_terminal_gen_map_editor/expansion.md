@@ -164,7 +164,7 @@ Overlay layout:
 - Top/left compact tool strip: cell, door, texture, feature, entity, item, inspect.
 - Bottom status line: `z/key`, x/y, selected brush, dirty op count, hints.
 - Right compact palette for current tool.
-- Escape closes without undoing applied changes.
+- Enter closes without undoing applied changes. Escape is not a game-window key in the browser build.
 - Optional confirmation only for destructive bulk clear/fill.
 
 Controls:
@@ -176,8 +176,8 @@ Controls:
 | WASD/arrows | pan editor viewport |
 | Right click / hold sample | sample current cell into brush |
 | Tab | cycle tool category |
-| E/Enter | apply current single-cell action |
-| Esc | close terminal/editor |
+| E | apply current single-cell action |
+| Enter | close terminal/editor |
 
 Performance rule for the "whole floor" view:
 

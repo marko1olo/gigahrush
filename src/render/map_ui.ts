@@ -11,7 +11,7 @@ import {
   questTargetLiftDirection,
   resolveQuestTargetRoom,
 } from '../systems/contracts';
-import { npcHasQuestMarker } from '../systems/quests';
+import { npcQuestMarkerState } from '../systems/quests';
 import { areFactionsHostile, getFactionUiSnapshot, type FactionUiSnapshot } from '../systems/factions';
 import { getActiveSamosborVariant } from '../data/samosbor_variants';
 import { getSamosborShelterRoomIds, getSamosborWarningSnapshot } from '../systems/samosbor';
@@ -31,8 +31,6 @@ import { uiElementEnabled } from '../systems/ui_orchestrator';
 const MAP_SIZE = 80;
 type QuestKind = 'plot' | 'side' | 'system';
 
-const activeTalkTargets = new Map<number, QuestKind>();
-const activeTalkPlotTargets = new Map<string, QuestKind>();
 const activeKillKinds = new Map<MonsterKind, QuestKind>();
 const activeTargetRoomTypes = new Map<RoomType, QuestKind>();
 const activeTargetRooms = new Map<number, QuestKind>();
@@ -49,8 +47,9 @@ const MAP_CROWD_GROUP_NPC = 0;
 const MAP_CROWD_GROUP_HOSTILE_NPC = 1;
 const MAP_CROWD_GROUP_MONSTER = 2;
 const MAP_CROWD_GROUP_ITEM = 3;
-const MAP_INACTIVE_NPC_MARKER = { stroke: '#04375c', fill: '#49b8ff', text: '#80d8ff' };
-const MAP_ACTIVE_NPC_MARKER = { stroke: '#8a5c00', fill: '#ffd21f', text: '#ffe06a' };
+const MAP_AUTHORED_IDLE_NPC_MARKER = { stroke: '#064225', fill: '#35d072', text: '#91ffb4' };
+const MAP_AUTHORED_ACTIVE_NPC_MARKER = { stroke: '#8a5c00', fill: '#ffd21f', text: '#ffe06a' };
+const MAP_PROCEDURAL_NPC_MARKER = { stroke: '#04375c', fill: '#49b8ff', text: '#80d8ff' };
 const MAP_UNEXPLORED_FADE_RADIUS = 3;
 const mapCrowdHashKeys = new Int32Array(MAP_CROWD_BIN_HASH_CAP);
 const mapCrowdHashBins = new Int16Array(MAP_CROWD_BIN_HASH_CAP);
@@ -201,8 +200,6 @@ function setMarkerKind<K>(map: Map<K, QuestKind>, key: K, kind: QuestKind): void
 }
 
 function clearActiveQuestMarkers(): void {
-  activeTalkTargets.clear();
-  activeTalkPlotTargets.clear();
   activeKillKinds.clear();
   activeTargetRoomTypes.clear();
   activeTargetRooms.clear();
@@ -1090,8 +1087,6 @@ function drawMap(
     for (const q of quests) {
       if (q.done) continue;
       const kind = questKind(q);
-      if (q.type === QuestType.TALK && q.targetNpcId !== undefined) setMarkerKind(activeTalkTargets, q.targetNpcId, kind);
-      if (q.type === QuestType.TALK && q.targetPlotNpcId) setMarkerKind(activeTalkPlotTargets, q.targetPlotNpcId, kind);
       if (
         q.type === QuestType.FETCH &&
         q.targetItem &&
@@ -1322,32 +1317,31 @@ function drawMap(
     }
   }
 
-	  // Quest markers — notable NPC markers + VISIT room markers
-	  if (quests) {
-	    // Mark plot NPCs blue by default; gold is reserved for a current quest action.
-	    for (const e of mapEntityQuery) {
-	      if (!e.alive || e.type !== EntityType.NPC) continue;
-	      const hasActiveMarker = state ? npcHasQuestMarker(e, state) : false;
-	      if (!hasActiveMarker && !e.plotNpcId) continue;
-	      const eCell = world.idx(Math.floor(e.x), Math.floor(e.y));
-	      if (!isMapCellExplored(world, eCell)) continue;
-	      const edx = world.delta(pxI, Math.floor(e.x));
-	      const edy = world.delta(pyI, Math.floor(e.y));
-	      if (Math.abs(edx) > radius || Math.abs(edy) > radius) continue;
+  // Quest markers — notable NPC markers + VISIT room markers
+  if (quests) {
+    for (const e of mapEntityQuery) {
+      if (!e.alive || e.type !== EntityType.NPC) continue;
+      const markerState = state ? npcQuestMarkerState(e, state) : null;
+      if (!markerState) continue;
+      const eCell = world.idx(Math.floor(e.x), Math.floor(e.y));
+      if (!isMapCellExplored(world, eCell)) continue;
+      const edx = world.delta(pxI, Math.floor(e.x));
+      const edy = world.delta(pyI, Math.floor(e.y));
+      if (Math.abs(edx) > radius || Math.abs(edy) > radius) continue;
 
-	      const markerKind = activeTalkTargets.get(e.id) ?? (e.plotNpcId !== undefined ? activeTalkPlotTargets.get(e.plotNpcId) : undefined);
-	      const markerStyle = hasActiveMarker ? MAP_ACTIVE_NPC_MARKER : MAP_INACTIVE_NPC_MARKER;
-
-	      const qsx = mapX + (edx + radius) * cellW;
-	      const qsy = mapY + (edy + radius) * cellH;
-	      const sz = 6, sw = 4;
-	      drawQuestDiamond(ctx, qsx, qsy, sz, sw, markerStyle.stroke, markerStyle.fill);
-	      if (hasActiveMarker && mapW > 140 && mapH > 120) {
-	        ctx.fillStyle = markerStyle.text;
-	        ctx.font = '7px monospace';
-	        ctx.fillText(markerKind ? QUEST_MARKERS[markerKind].label : '!', qsx + 5, qsy - 5);
-	      }
-	    }
+      const markerStyle = markerState.tone === 'procedural'
+        ? MAP_PROCEDURAL_NPC_MARKER
+        : markerState.active ? MAP_AUTHORED_ACTIVE_NPC_MARKER : MAP_AUTHORED_IDLE_NPC_MARKER;
+      const qsx = mapX + (edx + radius) * cellW;
+      const qsy = mapY + (edy + radius) * cellH;
+      const sz = 6, sw = 4;
+      drawQuestDiamond(ctx, qsx, qsy, sz, sw, markerStyle.stroke, markerStyle.fill);
+      if (markerState.showExclamation && mapW > 140 && mapH > 120) {
+        ctx.fillStyle = markerStyle.text;
+        ctx.font = 'bold 8px monospace';
+        ctx.fillText('!', qsx + 5, qsy - 5);
+      }
+    }
     // VISIT quest markers (room targets)
     for (const q of quests) {
       if (q.done) continue;

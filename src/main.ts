@@ -376,12 +376,11 @@ let titleInputField: TitleInputField = 'name';
 let titleLanguageId = loadTitleLanguageId();
 let titleLanguageHits: TitleLanguageHit[] = [];
 let mobileControls: MobileControls | null = null;
-type PointerCaptureGateReason = 'startup' | 'released' | 'menu_key';
+type PointerCaptureGateReason = 'startup' | 'released';
 let pointerCaptureGate = false;
 let pointerCaptureGateReason: PointerCaptureGateReason = 'startup';
 let pointerCaptureStartPending = false;
 let pointerCaptureStartSeed: number | undefined;
-let pointerCaptureReleasePendingUntil = 0;
 installCanvasLocalization();
 setLocalizationLanguage(titleLanguageId);
 
@@ -520,7 +519,6 @@ function setPointerCaptureCursorClass(active: boolean): void {
 function clearPointerCaptureGate(): void {
   if (!pointerCaptureGate) return;
   pointerCaptureGate = false;
-  pointerCaptureReleasePendingUntil = 0;
   setPointerCaptureCursorClass(false);
   if (typeof state !== 'undefined') syncPauseState();
   updateMobileContext();
@@ -557,22 +555,6 @@ function requirePointerCaptureGate(reason: PointerCaptureGateReason, clearInputs
   return !wasOpen;
 }
 
-function exitPointerLockForCaptureGate(): void {
-  if (!canvasHasPointerLock()) return;
-  try {
-    document.exitPointerLock();
-  } catch {
-    // Some embedded browsers expose pointer lock but reject exit calls.
-  }
-}
-
-function forcePointerCaptureGate(reason: PointerCaptureGateReason, clearInputs = true): boolean {
-  const opened = requirePointerCaptureGate(reason, clearInputs);
-  pointerCaptureReleasePendingUntil = reason === 'menu_key' ? performance.now() + 500 : 0;
-  exitPointerLockForCaptureGate();
-  return opened;
-}
-
 function syncPointerCaptureRequirement(): void {
   if (!desktopPointerCaptureRequired()) {
     pointerCaptureStartPending = false;
@@ -581,7 +563,6 @@ function syncPointerCaptureRequirement(): void {
     return;
   }
   if (canvasHasPointerLock()) {
-    if (pointerCaptureGate && performance.now() < pointerCaptureReleasePendingUntil) return;
     if (!pointerCaptureStartPending) clearPointerCaptureGate();
     return;
   }
@@ -5061,12 +5042,7 @@ function handleMenuInput(): void {
     return;
   }
 
-  const gateWasVisible = pointerCaptureGateVisible();
-  const menuKeyGateEdge = input.escape && !prevEsc;
-  const gateOpenedByMenuKey = menuKeyGateEdge && !gateWasVisible
-    ? forcePointerCaptureGate('menu_key', false)
-    : false;
-  if (pointerCaptureGateVisible() && !gateOpenedByMenuKey) {
+  if (pointerCaptureGateVisible()) {
     resetMenuRepeats();
     syncMenuInputBaselines();
     syncPauseState();

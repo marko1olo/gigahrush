@@ -63,7 +63,7 @@ import {
 import { getComputerOverlaySnapshot } from '../systems/computers';
 import { getGamblingOverlaySnapshot } from '../systems/gambling';
 import { findInteractionTarget } from '../systems/interactions';
-import { npcHasQuestMarker } from '../systems/quests';
+import { npcQuestMarkerState, type NpcQuestMarkerTone } from '../systems/quests';
 import { getNetHackOverlaySnapshot } from '../systems/net_hack';
 import { getMapEditorSnapshot, isMapEditorOpen } from '../systems/map_editor';
 import { isEmergencyPanelMenuOpen } from '../systems/emergency_panels';
@@ -581,7 +581,7 @@ interface CombatTargetHud {
   name: string;
   dist: number;
   hpPct: number;
-  questMarker: boolean;
+  questMarkerTone: NpcQuestMarkerTone | null;
   screenX: number;
   headY: number;
   attitude: CombatTargetAttitude;
@@ -728,11 +728,12 @@ function findAimTarget(world: World, player: Entity, state: GameState): CombatTa
 
   if (!best || !bestHit) return null;
   const projection = combatSpriteProjection(best, bestHit.forward, bestHit.side, player.pitch);
+  const questMarker = best.type === EntityType.NPC ? npcQuestMarkerState(best, state) : null;
   return {
     name: combatTargetName(best),
     dist: Math.max(1, Math.round(bestDist)),
     hpPct: toPercent(best.hp ?? 0, best.maxHp ?? 100),
-    questMarker: best.type === EntityType.NPC && npcHasQuestMarker(best, state),
+    questMarkerTone: questMarker?.showExclamation ? questMarker.tone : null,
     screenX: projection?.screenX ?? SCR_W * 0.5,
     headY: projection?.headY ?? SCR_H * 0.5 - 44,
     attitude: combatTargetAttitude(best, player),
@@ -814,7 +815,7 @@ export function drawPointerCaptureGate(ctx: CanvasRenderingContext2D, time = 0):
   const sy = h / SCR_H;
   const s = Math.max(0.78, Math.min(2.2, Math.min(sx, sy)));
   const panelW = Math.min(w - 24 * s, 430 * s);
-  const panelH = Math.min(h - 24 * s, 198 * s);
+  const panelH = Math.min(h - 24 * s, 246 * s);
   const x = (w - panelW) * 0.5;
   const y = (h - panelH) * 0.5;
 
@@ -842,28 +843,34 @@ export function drawPointerCaptureGate(ctx: CanvasRenderingContext2D, time = 0):
   ctx.font = `${Math.round(9 * s)}px monospace`;
   ctx.fillText(fitHudText(ctx, 'Данная игра является шутером от первого лица', panelW - 24 * s), w * 0.5, y + 61 * s);
   ctx.fillText(fitHudText(ctx, 'и не использует мышку.', panelW - 24 * s), w * 0.5, y + 75 * s);
+  ctx.fillStyle = '#9ab';
+  ctx.fillText(fitHudText(ctx, 'Вместо ESC используйте Enter: меню / назад.', panelW - 24 * s), w * 0.5, y + 91 * s);
+  ctx.fillText(fitHudText(ctx, 'Вместо Enter используйте E: подтвердить / отправить.', panelW - 24 * s), w * 0.5, y + 105 * s);
 
   ctx.strokeStyle = 'rgba(100,220,255,0.25)';
   ctx.beginPath();
-  ctx.moveTo(x + 24 * s, y + 94 * s);
-  ctx.lineTo(x + panelW - 24 * s, y + 94 * s);
+  ctx.moveTo(x + 24 * s, y + 121 * s);
+  ctx.lineTo(x + panelW - 24 * s, y + 121 * s);
   ctx.stroke();
 
   ctx.shadowBlur = 10 * s;
   ctx.fillStyle = '#bff';
   ctx.font = `bold ${Math.round(17 * s)}px monospace`;
-  ctx.fillText(fitHudText(ctx, 'CLICK THE SCREEN', panelW - 18 * s), w * 0.5, y + 116 * s);
+  ctx.fillText(fitHudText(ctx, 'CLICK THE SCREEN', panelW - 18 * s), w * 0.5, y + 143 * s);
   ctx.font = `bold ${Math.round(12 * s)}px monospace`;
-  ctx.fillText(fitHudText(ctx, 'TO CAPTURE THE CURSOR', panelW - 18 * s), w * 0.5, y + 137 * s);
+  ctx.fillText(fitHudText(ctx, 'TO CAPTURE THE CURSOR', panelW - 18 * s), w * 0.5, y + 164 * s);
 
   ctx.shadowBlur = 0;
   ctx.fillStyle = '#c8d0d0';
   ctx.font = `${Math.round(9 * s)}px monospace`;
-  ctx.fillText(fitHudText(ctx, 'This game is a first-person shooter', panelW - 24 * s), w * 0.5, y + 159 * s);
-  ctx.fillText(fitHudText(ctx, 'and does not use the mouse cursor.', panelW - 24 * s), w * 0.5, y + 173 * s);
+  ctx.fillText(fitHudText(ctx, 'This game is a first-person shooter', panelW - 24 * s), w * 0.5, y + 186 * s);
+  ctx.fillText(fitHudText(ctx, 'and does not use the mouse cursor.', panelW - 24 * s), w * 0.5, y + 200 * s);
+  ctx.fillStyle = '#9ab';
+  ctx.fillText(fitHudText(ctx, 'Use Enter instead of Esc: menu / back.', panelW - 24 * s), w * 0.5, y + 216 * s);
+  ctx.fillText(fitHudText(ctx, 'Use E instead of Enter: confirm / send.', panelW - 24 * s), w * 0.5, y + 230 * s);
   ctx.fillStyle = '#708888';
   ctx.font = `${Math.round(7 * s)}px monospace`;
-  ctx.fillText(fitHudText(ctx, 'После захвата игра продолжится. / Game resumes after capture.', panelW - 24 * s), w * 0.5, y + 186 * s);
+  ctx.fillText(fitHudText(ctx, 'После клика игра продолжится. / Game resumes after click.', panelW - 24 * s), w * 0.5, y + 240 * s);
   ctx.textAlign = 'left';
   ctx.restore();
 }
@@ -877,7 +884,7 @@ function drawPointerLockPrompt(
   time: number,
 ): void {
   const panelW = Math.min(w - 18 * sx, 226 * sx);
-  const panelH = 34 * sy;
+  const panelH = 48 * sy;
   const x = (w - panelW) * 0.5;
   const y = h * 0.5 - 54 * sy;
   ctx.save();
@@ -893,7 +900,8 @@ function drawPointerLockPrompt(
   ctx.shadowBlur = 0;
   ctx.font = `${7 * sy}px monospace`;
   ctx.fillStyle = '#9ab';
-  ctx.fillText(fitHudText(ctx, `После захвата ЛКМ/${controlHint('attack')} стреляет. ${controlHint('gameMenu')} откроет меню.`, panelW - 14 * sx), w * 0.5, y + 20 * sy);
+  ctx.fillText(fitHudText(ctx, `После захвата ЛКМ/${controlHint('attack')} стреляет. ${controlHint('gameMenu')} меню/назад.`, panelW - 14 * sx), w * 0.5, y + 20 * sy);
+  ctx.fillText(fitHudText(ctx, `${controlHint('interact')} подтвердить вместо Enter. Esc отпускает курсор браузером.`, panelW - 14 * sx), w * 0.5, y + 32 * sy);
   ctx.textAlign = 'left';
   ctx.restore();
 }
@@ -985,9 +993,10 @@ function drawCombatSightFeedback(
     const palette = combatTargetPalette(target.attitude);
     const label = `${target.name} ${target.dist}м`;
     ctx.font = `${6.5 * s}px monospace`;
-    const minW = (target.questMarker ? 88 : 72) * s;
+    const hasQuestMarker = target.questMarkerTone !== null;
+    const minW = (hasQuestMarker ? 88 : 72) * s;
     const maxW = Math.min(ctx.canvas.width - 8 * s, 124 * s);
-    const tw = Math.max(minW, Math.min(maxW, ctx.measureText(label).width + (target.questMarker ? 25 : 13) * s));
+    const tw = Math.max(minW, Math.min(maxW, ctx.measureText(label).width + (hasQuestMarker ? 25 : 13) * s));
     const th = 18 * s;
     const tx = Math.max(4 * s, Math.min(ctx.canvas.width - tw - 4 * s, target.screenX * sx - tw * 0.5));
     const ty = Math.max(4 * s, Math.min(ctx.canvas.height - th - 4 * s, target.headY * sy - 22 * s));
@@ -999,19 +1008,22 @@ function drawCombatSightFeedback(
     ctx.textAlign = 'left';
     let textX = tx + 5 * s;
     let textW = tw - 10 * s;
-    if (target.questMarker) {
+    if (hasQuestMarker) {
+      const questColor = target.questMarkerTone === 'procedural'
+        ? { bg: 'rgba(3,34,58,0.95)', stroke: '#80d8ff', shadow: '#22aaff', text: '#80d8ff' }
+        : { bg: 'rgba(94,58,0,0.95)', stroke: '#fff15a', shadow: '#ffb000', text: '#ffe84a' };
       const markX = tx + 5 * s;
       const markY = ty + 2 * s;
       const markW = 9 * s;
       const markH = 10 * s;
-      ctx.fillStyle = 'rgba(94,58,0,0.95)';
+      ctx.fillStyle = questColor.bg;
       ctx.fillRect(markX, markY, markW, markH);
-      ctx.strokeStyle = '#fff15a';
+      ctx.strokeStyle = questColor.stroke;
       ctx.strokeRect(markX + 0.5, markY + 0.5, markW - 1, markH - 1);
-      ctx.shadowColor = '#ffb000';
+      ctx.shadowColor = questColor.shadow;
       ctx.shadowBlur = 8;
       ctx.font = `bold ${10 * s}px monospace`;
-      ctx.fillStyle = '#ffe84a';
+      ctx.fillStyle = questColor.text;
       ctx.fillText('!', markX + 2.2 * s, ty + 0.5 * s);
       ctx.shadowBlur = 0;
       ctx.font = `${6.5 * s}px monospace`;
@@ -1449,7 +1461,7 @@ export function drawHUD(
     drawUiSettingsMenu(ctx, state, msx, msy, time);
   }
 
-  // ── Game menu (ESC) ──────────────────────────────────────
+  // ── Game menu (Enter) ────────────────────────────────────
   if (state.showMenu) {
     drawGameMenu(ctx, state, msx, msy, time);
   }

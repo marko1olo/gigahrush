@@ -180,6 +180,7 @@ const runtime: NetSphereRuntime = {
   bound: false,
 };
 let inputUnbind: (() => void) | null = null;
+const NET_SPHERE_INPUT_LISTENER_OPTIONS: AddEventListenerOptions = { capture: true };
 
 function storageGet(storage: Storage, key: string): string {
   try {
@@ -214,6 +215,16 @@ function cleanNetGen(value: string): string {
   let clean = value.trim().toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 32);
   if (clean && !clean.startsWith('NET-')) clean = `NET-${clean}`;
   return /^NET-[A-Z0-9-]{4,28}$/.test(clean) ? clean : '';
+}
+
+function consumeNetSphereKeyboardEvent(e: KeyboardEvent): void {
+  e.preventDefault();
+  e.stopImmediatePropagation();
+}
+
+function consumeNetSphereClipboardEvent(e: ClipboardEvent): void {
+  e.preventDefault();
+  e.stopImmediatePropagation();
 }
 
 function ensureIdentity(): void {
@@ -654,7 +665,7 @@ export function bindNetSphereInput(): () => void {
         matchesControlAction('netSphere', e.code)
       ) {
         openNetSphere();
-        e.preventDefault();
+        consumeNetSphereKeyboardEvent(e);
       }
       return;
     }
@@ -662,23 +673,23 @@ export function bindNetSphereInput(): () => void {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     if (matchesControlAction('netClose', e.code)) {
       runtime.open = false;
-      e.preventDefault();
+      consumeNetSphereKeyboardEvent(e);
       return;
     }
     if (matchesControlAction('netSubmit', e.code)) {
       submitDraft();
-      e.preventDefault();
+      consumeNetSphereKeyboardEvent(e);
       return;
     }
     if (matchesControlAction('netErase', e.code)) {
       runtime.draft = runtime.draft.slice(0, -1);
-      e.preventDefault();
+      consumeNetSphereKeyboardEvent(e);
       return;
     }
     const char = printableKey(e.key);
     if (char && runtime.draft.length < DRAFT_LIMIT) {
       runtime.draft += char;
-      e.preventDefault();
+      consumeNetSphereKeyboardEvent(e);
     }
   };
 
@@ -687,17 +698,17 @@ export function bindNetSphereInput(): () => void {
     const text = e.clipboardData?.getData('text/plain') ?? '';
     if (!text) return;
     runtime.draft = (runtime.draft + cleanOutgoingText(text)).slice(0, DRAFT_LIMIT);
-    e.preventDefault();
+    consumeNetSphereClipboardEvent(e);
   };
 
-  document.addEventListener('keydown', onDown);
-  document.addEventListener('paste', onPaste);
+  document.addEventListener('keydown', onDown, NET_SPHERE_INPUT_LISTENER_OPTIONS);
+  document.addEventListener('paste', onPaste, NET_SPHERE_INPUT_LISTENER_OPTIONS);
   inputUnbind = () => {
     if (!runtime.bound) return;
     runtime.bound = false;
     inputUnbind = null;
-    document.removeEventListener('keydown', onDown);
-    document.removeEventListener('paste', onPaste);
+    document.removeEventListener('keydown', onDown, NET_SPHERE_INPUT_LISTENER_OPTIONS);
+    document.removeEventListener('paste', onPaste, NET_SPHERE_INPUT_LISTENER_OPTIONS);
   };
   return inputUnbind;
 }
@@ -711,7 +722,6 @@ export function openNetSphere(): void {
   runtime.open = true;
   runtime.nextPollAt = 0;
   runtime.error = '';
-  if (document.pointerLockElement) document.exitPointerLock();
 }
 
 export function closeNetSphere(): void {

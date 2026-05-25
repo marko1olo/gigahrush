@@ -11,6 +11,7 @@ import {
   npcCanGiveQuestNow,
   npcHasImportantQuestAction,
   npcHasQuestMarker,
+  npcQuestMarkerState,
   npcQuestActionHint,
   offerQuest,
 } from '../src/systems/quests';
@@ -30,7 +31,9 @@ test('fresh run exposes Olga as the first soft objective', () => {
   assert.equal(nextAvailablePlotStepForNpc(olga, state)?.index, 0);
   assert.equal(npcHasImportantQuestAction(olga, state), true);
   assert.equal(npcHasQuestMarker(olga, state), true);
+  assert.deepEqual(npcQuestMarkerState(olga, state), { tone: 'authored', active: true, showExclamation: true });
   assert.equal(npcHasQuestMarker(barni, state), false);
+  assert.deepEqual(npcQuestMarkerState(barni, state), { tone: 'authored', active: false, showExclamation: false });
   assert.match(npcQuestActionHint(olga, state) ?? '', /Барни/);
 });
 
@@ -64,6 +67,31 @@ test('accepted first plot step points to Barni and the armory range', () => {
   quest.done = true;
   assert.equal(npcCanGiveQuestNow(barni, state), true);
   assert.equal(npcHasQuestMarker(barni, state), true);
+});
+
+test('quest marker state separates authored and procedural NPC map roles', () => {
+  const state = makeGameState();
+  const giver = makeTestNpc({ id: 20, name: 'Диспетчер', canGiveQuest: true });
+  const target = makeTestNpc({ id: 21, name: 'Адресат', canGiveQuest: false });
+
+  assert.deepEqual(npcQuestMarkerState(giver, state), { tone: 'procedural', active: true, showExclamation: true });
+
+  state.quests.push({
+    id: 77,
+    type: QuestType.TALK,
+    giverId: giver.id,
+    giverName: giver.name ?? 'Диспетчер',
+    desc: 'Передай сообщение.',
+    targetNpcId: target.id,
+    targetNpcName: target.name,
+    done: false,
+  });
+
+  assert.equal(npcQuestMarkerState(giver, state), null);
+  assert.deepEqual(npcQuestMarkerState(target, state), { tone: 'procedural', active: true, showExclamation: false });
+
+  state.quests[0].done = true;
+  assert.equal(npcQuestMarkerState(target, state), null);
 });
 
 test('Olga quest action accepts the first plot step instead of ambient no-op', () => {

@@ -61,12 +61,15 @@ Start with communication:
 1. Title/start hint:
    - click captures mouse
    - `ЛКМ/Пробел` attack
+   - `E` confirm/send instead of Enter
+   - `Enter` menu/back instead of Esc
    - `F11` fullscreen
    - `Tab` controls
    - `U` interface
 
 2. Pointer-lock overlay or one-time center prompt:
    - before lock: `Кликните по игре: мышь будет захвачена для обзора`
+   - explain that Esc belongs to browser pointer-lock release, while in-game back/close is `Enter`
    - after lock: disappear
 
 3. Novice combat feedback:

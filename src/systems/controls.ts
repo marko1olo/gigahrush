@@ -35,8 +35,8 @@ export const CONTROL_ACTIONS = [
   { id: 'log', group: 'Экраны', label: 'Журнал сообщений', input: 'logMenu', defaultKeys: ['KeyL'] },
   { id: 'netSphere', group: 'Экраны', label: 'НЕТ-СФЕРА', defaultKeys: ['KeyN'] },
   { id: 'debug', group: 'Экраны', label: 'Отладка', input: 'debugScreen', defaultKeys: ['Backquote'] },
-  { id: 'netSubmit', group: 'НЕТ-СФЕРА', label: 'Отправить сообщение', defaultKeys: ['Enter'] },
-  { id: 'netClose', group: 'НЕТ-СФЕРА', label: 'Закрыть чат', defaultKeys: ['Escape'] },
+  { id: 'netSubmit', group: 'НЕТ-СФЕРА', label: 'Отправить сообщение / подтвердить', defaultKeys: ['KeyE'] },
+  { id: 'netClose', group: 'НЕТ-СФЕРА', label: 'Закрыть окно', defaultKeys: ['Enter'] },
   { id: 'netErase', group: 'НЕТ-СФЕРА', label: 'Удалить символ', defaultKeys: ['Backspace'] },
   { id: 'menuUp', group: 'Меню', label: 'Выбор вверх', input: 'invUp', defaultKeys: ['KeyW', 'ArrowUp'] },
   { id: 'menuDown', group: 'Меню', label: 'Выбор вниз', input: 'invDn', defaultKeys: ['KeyS', 'ArrowDown'] },
@@ -52,7 +52,7 @@ export const CONTROL_ACTIONS = [
 export type ControlActionId = typeof CONTROL_ACTIONS[number]['id'];
 type ControlBindings = Record<ControlActionId, string[]>;
 
-const CONTROL_STORAGE_KEY = 'gigahrush_control_bindings_v2';
+const CONTROL_STORAGE_KEY = 'gigahrush_control_bindings_v3';
 
 const CODE_LABELS: Record<string, string> = {
   ArrowUp: '↑',
@@ -214,7 +214,7 @@ export function getControlCaptureAction(): ControlActionId | null {
 
 export function consumeControlCaptureCode(code: string): boolean {
   if (!captureAction) return false;
-  if (code === 'Escape') {
+  if (code === 'Enter' || code === 'Escape') {
     captureAction = null;
     return true;
   }
