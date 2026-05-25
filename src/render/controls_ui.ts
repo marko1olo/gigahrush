@@ -6,8 +6,22 @@ import {
   getControlCaptureAction,
 } from '../systems/controls';
 import { MOBILE_BUTTON_CONTROL_ROWS } from '../systems/mobile_actions';
+import {
+  MOUSE_LOOK_SENSITIVITY_MAX,
+  MOUSE_LOOK_SENSITIVITY_MIN,
+  mouseLookSensitivity,
+} from '../systems/ui_orchestrator';
 import { drawNeuroPanel, drawGlitchText, flicker, textJitter } from './hud_fx';
 import { fitText } from './ui_text';
+
+function mouseSensitivitySliderText(): string {
+  const value = mouseLookSensitivity();
+  const pct = Math.round(value * 100);
+  const segments = 12;
+  const t = Math.max(0, Math.min(1, (value - MOUSE_LOOK_SENSITIVITY_MIN) / (MOUSE_LOOK_SENSITIVITY_MAX - MOUSE_LOOK_SENSITIVITY_MIN)));
+  const filled = Math.max(0, Math.min(segments, Math.round(t * segments)));
+  return `[${'#'.repeat(filled)}${'-'.repeat(segments - filled)}] ${pct}%`;
+}
 
 export function drawControlsMenu(
   ctx: CanvasRenderingContext2D,
@@ -20,7 +34,7 @@ export function drawControlsMenu(
   const h = ctx.canvas.height;
   const time = uiTime;
   const isButtons = state.controlView === 'buttons';
-  const rowCount = isButtons ? MOBILE_BUTTON_CONTROL_ROWS.length : CONTROL_ACTIONS.length;
+  const rowCount = isButtons ? MOBILE_BUTTON_CONTROL_ROWS.length : CONTROL_ACTIONS.length + 1;
   const rowH = 12 * sy;
   const top = 34 * sy;
   const bottom = h - 24 * sy;
@@ -43,7 +57,7 @@ export function drawControlsMenu(
   ctx.fillText(
     fitText(ctx, isButtons
       ? `${controlHint('controlsMenu')} закрыть  |  ${controlHint('gameMenu')} закрыть`
-      : `${controlHint('controlsMenu')} открыть/закрыть  |  ${controlHint('interact')} изменить  |  ${controlHint('controlReset')} сбросить  |  ${controlHint('gameMenu')} закрыть`,
+      : `${controlHint('controlsMenu')} открыть/закрыть  |  ${controlHint('interact')} изменить  |  ←/→ слайдер  |  ${controlHint('controlReset')} сбросить  |  ${controlHint('gameMenu')} закрыть`,
     w - 24 * sx),
     12 * sx,
     25 * sy,
@@ -58,14 +72,20 @@ export function drawControlsMenu(
   ctx.fillStyle = '#345';
   ctx.fillText('РАЗДЕЛ', x + 14 * sx, top - 7 * sy);
   ctx.fillText('ДЕЙСТВИЕ', x + groupW + 18 * sx, top - 7 * sy);
-  ctx.fillText(isButtons ? 'КНОПКА' : 'КЛАВИШИ', x + groupW + labelW + 20 * sx, top - 7 * sy);
+  ctx.fillText(isButtons ? 'КНОПКА' : 'КЛАВИШИ / ЗНАЧЕНИЕ', x + groupW + labelW + 20 * sx, top - 7 * sy);
 
   ctx.textBaseline = 'middle';
   for (let row = 0; row < visible; row++) {
     const i = scroll + row;
     if (i >= rowCount) break;
-    const action = CONTROL_ACTIONS[i];
-    const button = MOBILE_BUTTON_CONTROL_ROWS[i];
+    const action = isButtons ? undefined : CONTROL_ACTIONS[i];
+    const button = isButtons ? MOBILE_BUTTON_CONTROL_ROWS[i] : undefined;
+    const isMouseSensitivity = !isButtons && i === CONTROL_ACTIONS.length;
+    if (isButtons) {
+      if (!button) break;
+    } else if (!action && !isMouseSensitivity) {
+      break;
+    }
     const rowY = top + row * rowH;
     const textY = rowY + rowH * 0.5;
     const isSel = i === selected;
@@ -74,18 +94,26 @@ export function drawControlsMenu(
     if (isSel) {
       ctx.fillStyle = `rgba(0,90,78,${0.46 + 0.12 * flicker(time, 1145 + i)})`;
       ctx.fillRect(x - 2 * sx, rowY, w - x * 2 + 4 * sx, rowH);
-      ctx.strokeStyle = isCapture ? '#fd6' : 'rgba(0,255,190,0.46)';
+      ctx.strokeStyle = isCapture || isMouseSensitivity ? '#fd6' : 'rgba(0,255,190,0.46)';
       ctx.strokeRect(x - 2 * sx + 0.5, rowY + 0.5, w - x * 2 + 4 * sx - 1, rowH - 1);
     }
 
     ctx.fillStyle = isSel ? '#0fa' : '#6a8';
     ctx.fillText(isSel ? '▶' : ' ', x, textY);
     ctx.fillStyle = '#689';
-    ctx.fillText(fitText(ctx, isButtons ? button.group : action.group, groupW - 10 * sx), x + 14 * sx, textY);
+    const group = isButtons ? button?.group ?? '' : isMouseSensitivity ? 'Мышь' : action?.group ?? '';
+    const label = isButtons ? button?.label ?? '' : isMouseSensitivity ? 'Чувствительность мыши' : action?.label ?? '';
+    ctx.fillText(fitText(ctx, group, groupW - 10 * sx), x + 14 * sx, textY);
     ctx.fillStyle = isSel ? '#dff' : '#9bb';
-    ctx.fillText(fitText(ctx, isButtons ? button.label : action.label, labelW - 8 * sx), x + groupW + 18 * sx, textY);
-    ctx.fillStyle = isCapture ? '#fd6' : isSel ? '#fff' : '#9cb';
-    const keys = isButtons ? button.binding : isCapture ? 'НАЖМИТЕ КЛАВИШУ...' : controlBindingLabel(action.id);
+    ctx.fillText(fitText(ctx, label, labelW - 8 * sx), x + groupW + 18 * sx, textY);
+    ctx.fillStyle = isCapture || isMouseSensitivity ? '#fd6' : isSel ? '#fff' : '#9cb';
+    const keys = isButtons
+      ? button?.binding ?? ''
+      : isMouseSensitivity
+        ? mouseSensitivitySliderText()
+        : isCapture
+          ? 'НАЖМИТЕ КЛАВИШУ...'
+          : action ? controlBindingLabel(action.id) : '';
     ctx.fillText(fitText(ctx, keys, keyW - 4 * sx), x + groupW + labelW + 20 * sx, textY);
   }
 
@@ -109,7 +137,7 @@ export function drawControlsMenu(
       ? 'Esc отменит ввод. Backspace вернёт выбранное действие к умолчанию.'
       : isButtons
         ? 'Экранные кнопки и мобильная рельса живут отдельно от клавиатурных биндов.'
-      : 'Бинды хранятся отдельно от сохранения игры и применяются сразу.',
+        : 'Бинды и чувствительность мыши хранятся отдельно от сохранения игры и применяются сразу.',
     12 * sx,
     h - 10 * sy,
   );

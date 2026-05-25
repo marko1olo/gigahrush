@@ -29,6 +29,12 @@ body {
   cursor: none;
 }
 
+html.pointer-capture-required,
+body.pointer-capture-required,
+body.pointer-capture-required canvas {
+  cursor: pointer;
+}
+
 @supports (-webkit-touch-callout: none) {
   html,
   body {

@@ -10,7 +10,7 @@ Selected 1024x1024 floors target thousands of live NPCs and monsters in one load
 
 This does not mean rendering all entities or running every actor at browser frame rate. It means every live NPC/monster keeps an `AIState` and remains in simulation. Near-player actors and active threats are updated every frame; far actors update on deterministic accumulated cadences, so AI is not disabled in distant areas.
 
-This document describes the loaded current world only. Off-floor A-Life identities are persistent records and may change through bounded aggregate events, migrations, caravans or quests, but they are not hidden realtime floor simulations.
+This document describes the loaded current world only. Off-floor A-Life identities are persistent records; current macro changes come from folded live state, deaths, saved overrides, caravans, contracts and faction/economy events. Future migration must be explicit and bounded. Off-floor floors are not hidden realtime simulations.
 
 The shipped population baselines below are source facts from `src/data/population_profiles.ts`; content-registry counts belong in `README.md` and planning tradeoffs stay in `desdoc.md`.
 
@@ -48,11 +48,12 @@ Measured start population in the current build is about 5000 live AI actors. Hel
 
 `PROCEDURAL_POPULATION_PROFILE` scales by danger and floor conditions. The current procedural floor deck has 10 geometry profiles, 5 majority-faction profiles and 19 anomaly profiles:
 
-- NPC base 3500, danger scaling 300, cap 5000;
-- monster base 350, danger scaling 180, cap 1500;
-- deep, industrial and anomaly pressure bonuses.
+- normal procedural NPCs: base 260, danger scaling 150, anomaly-pressure scaling 80, band bonus 0/120/220/0, cap 1250;
+- normal procedural monsters: base 120, danger scaling 110, anomaly-pressure scaling 70, band bonus 0/80/140/220, industrial bonus 70, cap 1100;
+- high-density `zombie_apocalypse` NPCs: base 3400, danger scaling 180, anomaly-pressure scaling 140, band bonus 0/160/300/0, cap 5000;
+- high-density `zombie_apocalypse` monsters: base 260, danger scaling 130, anomaly-pressure scaling 90, band bonus 0/80/160/240, industrial bonus 80, cap 1500.
 
-A danger-5 procedural floor can generate about 6500 live AI actors: up to 5000 NPCs plus up to 1500 monsters. Procedural NPCs use the shared smoothed coverage-stratified whole-floor placement field instead of repeatedly picking random rooms. Zombie apocalypse floors use the same 5000-NPC ceiling plus patient-zero pressure; the former independent 9000+ crowd burst was removed.
+A high-density danger-5 procedural floor can generate about 6500 live AI actors: up to 5000 NPCs plus up to 1500 monsters. Ordinary procedural floors are intentionally lighter, with pressure coming from danger, anomaly profile, industrial geometry and route band rather than a universal max-density baseline. Procedural NPCs use the shared smoothed coverage-stratified whole-floor placement field instead of repeatedly picking random rooms. Zombie apocalypse floors use the same 5000-NPC ceiling plus patient-zero pressure; the former independent 9000+ crowd burst was removed.
 
 ### `VOID`
 

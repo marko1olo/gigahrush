@@ -30,6 +30,7 @@ These are the main unfinished design debts from `desdoc.md`:
 | Route legibility | `FloorRun`, route cues, maps, design-floor teleports, procedural specs, optional title seed and runtime floor memory exist. | Show route seed/id, danger, target reason and return path consistently in lift/map/quest/log language. |
 | Samosbor as expedition drama | Variants, modifiers, director beats, local Living wave and aftermath events exist. | Tie warning, shelter, active phase and aftermath to visible route changes, residue, rumors, containers or contracts. |
 | Consequences that stick | Events, room memory, NPC memory, rumors, containers, faction events, economy and production exist. | Make stealing, reporting, repairing, trading and sheltering leave more visible aftereffects. |
+| A-Life macro consistency | Million/fallback pool, active-floor materialization, death foldback, caravan/economy/contract macro and no ordinary refill exist; save currently stores up to `65_536` dead A-Life ids. | Move explicit migrants by changing persistent `floorKey`, bind generated quest givers to stable `persistentNpcId`, and choose a save strategy for full-million depopulation before promising it as shipped. |
 
 ## Expansion Backlog
 

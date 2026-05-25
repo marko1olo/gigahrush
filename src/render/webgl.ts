@@ -17,6 +17,7 @@ import type { SpriteData } from './sprites';
 import type { BloodParticle } from './blood';
 import { containerSpr, featureSpr } from './sprite_index';
 import { ENTITY_MASK_VISIBLE, getEntityIndex } from '../systems/entity_index';
+import type { CameraView } from '../systems/camera';
 
 export interface DynamicSkyTexture {
   readonly width: number;
@@ -1601,20 +1602,23 @@ export function renderSceneGL(
   textures: TexData[],
   sprites: SpriteData[],
   entities: Entity[],
-  px: number, py: number, pAngle: number, pPitch: number,
+  camera: CameraView,
   fogDensity: number,
   glitch: number,
-  camHeight = 0.5,
   flashlight = 0,
   time = 0,
   bloodParticles: BloodParticle[] = [],
   samosborActive = false,
   ambientLight = 0.12,
-  fovRadians = DEFAULT_FOV_RADIANS,
 ): void {
   if (!glState) return;
   const { gl } = glState;
-  const planeLen = planeLenForFov(fovRadians);
+  const px = camera.x;
+  const py = camera.y;
+  const pAngle = camera.angle;
+  const pPitch = camera.pitch;
+  const camHeight = camera.height;
+  const planeLen = planeLenForFov(camera.fovRadians || DEFAULT_FOV_RADIANS);
 
   // Check if player is in purple fog
   const pci = world.idx(Math.floor(px), Math.floor(py));

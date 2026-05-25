@@ -25,7 +25,17 @@ Current shipped baseline:
 - `alifeId` and `persistentNpcId` identify materialized procedural NPCs.
 - `plotNpcId` deaths are tracked by A-Life so killed named NPCs do not reappear on later generation.
 - Materialized A-Life NPCs carry personal `playerRelation`; AI hostility checks it before falling back to faction hostility.
-- Browser saves store A-Life seed, total population, dead ids, dead plot ids and bounded changed-record overrides. Full live entities are not serialized.
+- Browser saves store A-Life seed, total population, up to `65_536` dead A-Life ids, dead plot ids and bounded changed-record overrides. Full live entities are not serialized.
+
+## Current Gaps Against The Bible
+
+These are current implementation limits, not new design goals:
+
+- Death is permanent in memory, but save/load persistence for procedural A-Life deaths is capped at `65_536` ids. A player can depopulate active floors, but "depopulate the whole million and preserve every death through save/load" is not fully true yet.
+- Caravan supply lanes move resources, stability, tariffs and events between floors. Small caravans can recruit live member `entity.id`s for the current encounter, but arrival does not currently move those members' `alifeId`/`persistentNpcId` records to a new `floorKey`.
+- The A-Life module has APIs for assigning/moving records and creating persistent records from live entities, but broad migration/resettlement is not wired into caravans as actual record movement yet.
+- Contract/assignment quest conversion can still use a live giver id or a synthetic fallback id; it does not consistently bind generated quest givers to `persistentNpcId`.
+- Off-floor macro life is represented mainly by caravans, contracts, economy/faction state and compact events. There is not yet a separate slow batch A-Life simulation that processes off-floor NPC records for migration, rank summaries or family/friend consequences.
 
 ## Core Rule
 
@@ -49,7 +59,7 @@ Event actor policy:
 
 - If an event spawns an ordinary person who can survive beyond the event, that person should reserve or receive a persistent identity.
 - If an event spawns temporary pressure, the actor must stay scoped to that event and must not count as population refill.
-- Faction reinforcements, caravans and evacuees are migrations or authored arrivals, not hidden replacement of dead residents.
+- Faction reinforcements, caravans and evacuees are authored arrivals now; when they persist beyond an event, they must become explicit migrations rather than hidden replacement of dead residents.
 
 If a system needs a person, it should first ask whether that person is:
 

@@ -26,6 +26,10 @@ export const UI_ELEMENT_DEFS = [
 ] as const satisfies readonly UiElementDef[];
 
 export type UiElementId = typeof UI_ELEMENT_DEFS[number]['id'];
+export const MOUSE_LOOK_SENSITIVITY_DEFAULT = 1.3;
+export const MOUSE_LOOK_SENSITIVITY_MIN = 0.5;
+export const MOUSE_LOOK_SENSITIVITY_MAX = 2.5;
+export const MOUSE_LOOK_SENSITIVITY_STEP = 0.1;
 export const MOBILE_LOOK_SENSITIVITY_DEFAULT = 0.5;
 export const MOBILE_LOOK_SENSITIVITY_MIN = 0.25;
 export const MOBILE_LOOK_SENSITIVITY_MAX = 1.5;
@@ -36,6 +40,7 @@ export const CAMERA_FOV_MAX_DEGREES = 110;
 export const CAMERA_FOV_STEP_DEGREES = 5;
 
 type UiSettings = Record<UiElementId, boolean> & {
+  mouseLookSensitivity: number;
   mobileLookSensitivity: number;
   cameraFovDegrees: number;
 };
@@ -173,6 +178,7 @@ function settingsFromEnabledIds(enabledIds: readonly UiElementId[]): UiSettings 
   const enabled = new Set<UiElementId>(enabledIds);
   const out = {} as UiSettings;
   for (const def of UI_ELEMENT_DEFS) out[def.id] = def.locked || enabled.has(def.id);
+  out.mouseLookSensitivity = MOUSE_LOOK_SENSITIVITY_DEFAULT;
   out.mobileLookSensitivity = MOBILE_LOOK_SENSITIVITY_DEFAULT;
   out.cameraFovDegrees = CAMERA_FOV_DEFAULT_DEGREES;
   return out;
@@ -194,9 +200,23 @@ function normalizeUiSettings(raw: unknown): UiSettings {
     const value = src[def.id];
     if (typeof value === 'boolean') out[def.id] = value;
   }
+  out.mouseLookSensitivity = normalizeMouseLookSensitivity(src.mouseLookSensitivity);
   out.mobileLookSensitivity = normalizeMobileLookSensitivity(src.mobileLookSensitivity);
   out.cameraFovDegrees = normalizeCameraFovDegrees(src.cameraFovDegrees);
   return out;
+}
+
+function normalizeMouseLookSensitivity(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return MOUSE_LOOK_SENSITIVITY_DEFAULT;
+  const clamped = Math.max(MOUSE_LOOK_SENSITIVITY_MIN, Math.min(MOUSE_LOOK_SENSITIVITY_MAX, value));
+  const stepped = Math.round(clamped / MOUSE_LOOK_SENSITIVITY_STEP) * MOUSE_LOOK_SENSITIVITY_STEP;
+  return Math.round(stepped * 100) / 100;
+}
+
+function mouseLookSensitivityStepIndex(value: number): number {
+  const steps = Math.round((MOUSE_LOOK_SENSITIVITY_MAX - MOUSE_LOOK_SENSITIVITY_MIN) / MOUSE_LOOK_SENSITIVITY_STEP) + 1;
+  const normalized = normalizeMouseLookSensitivity(value);
+  return Math.max(0, Math.min(steps - 1, Math.round((normalized - MOUSE_LOOK_SENSITIVITY_MIN) / MOUSE_LOOK_SENSITIVITY_STEP)));
 }
 
 function normalizeMobileLookSensitivity(value: unknown): number {
@@ -298,13 +318,35 @@ export function resetUiSettings(): void {
 export function applyUiPreset(id: UiPresetId): boolean {
   const preset = presetsById.get(id);
   if (!preset) return false;
+  const mouseSensitivity = mouseLookSensitivity();
   const sensitivity = mobileLookSensitivity();
   const fov = cameraFovDegrees();
   settings = settingsFromEnabledIds(preset.enabled);
+  settings.mouseLookSensitivity = mouseSensitivity;
   settings.mobileLookSensitivity = sensitivity;
   settings.cameraFovDegrees = fov;
   saveUiSettings();
   return true;
+}
+
+export function mouseLookSensitivity(): number {
+  settings.mouseLookSensitivity = normalizeMouseLookSensitivity(settings.mouseLookSensitivity);
+  return settings.mouseLookSensitivity;
+}
+
+export function adjustMouseLookSensitivity(deltaSteps: number): number {
+  const steps = Math.round((MOUSE_LOOK_SENSITIVITY_MAX - MOUSE_LOOK_SENSITIVITY_MIN) / MOUSE_LOOK_SENSITIVITY_STEP) + 1;
+  const current = mouseLookSensitivityStepIndex(mouseLookSensitivity());
+  const next = Math.max(0, Math.min(steps - 1, current + Math.trunc(deltaSteps)));
+  settings.mouseLookSensitivity = Math.round((MOUSE_LOOK_SENSITIVITY_MIN + next * MOUSE_LOOK_SENSITIVITY_STEP) * 100) / 100;
+  saveUiSettings();
+  return settings.mouseLookSensitivity;
+}
+
+export function resetMouseLookSensitivity(): number {
+  settings.mouseLookSensitivity = MOUSE_LOOK_SENSITIVITY_DEFAULT;
+  saveUiSettings();
+  return settings.mouseLookSensitivity;
 }
 
 export function mobileLookSensitivity(): number {

@@ -29,9 +29,10 @@ Critical runtime facts:
 - Normal lift travel uses `systems/procedural_floors.ts` as a per-run vertical route across `z=-50..+50`. Existing `FloorLevel` values remain 6 story/base floors; authored design floors are 20 string-id route stops from `src/data/design_floors.ts`; unoccupied route positions are 75 seeded procedural/fallback specs with `z`, seed, geometry, main faction, anomaly and danger. Down decreases `z`; `VOID` is the final lowest stop at `z=-50`, `darkness` is the dark endgame route floor at `z=-48`, `podad` is the Herald-gated Hell route floor at `z=-40`, `underhell` is at `z=-38`, and `roof` is the highest stop at `z=+50`.
 - `systems/floor_memory.ts` keeps visited route stops alive by stable floor key. Hot entries keep their own live `World` object plus non-player/non-projectile entities; older entries are packed into RLE snapshots instead of being lost, so decals, bullet/blood marks, containers, opened doors and monsters survive ordinary floor travel for that exact floor. UI-only map exploration survives while its live `World` object survives, but packed/save restoration can restart exploration for the restored world. Browser saves include the packed floor-memory section and restore it before selecting the active floor; samosbor/rebuild paths update the active `World` and drop only stale parked memory for that same key.
 - `main.ts` owns the game loop and calls systems in fixed order.
+- `systems/camera.ts` owns transient runtime camera modes and resolves them to `CameraView` for render. The death camera is one mode of this system; future free-camera and cinematic modes should plug into the same API.
 - `systems/events.ts` is the current EventBus analogue: fixed-size ring buffers, public event publication, and query filters.
 - Shared `E` interaction goes through `systems/interactions.ts`; generated gambling machines, local computers, NET-hack terminals, emergency panels, Net Terminal Gen and special floor interactions plug into that dispatcher.
-- `systems/alife.ts` owns persistent procedural NPC identity. A run creates an adaptive compact NPC pool (`1_000_000` when runtime memory allows it, otherwise `100_000`), materializes only the active floor into live `entities`, folds live state back on transitions/rebuilds/saves, and records permanent deaths. `systems/npc_relations.ts` owns compact personal relation-to-player math shared by A-Life, quests and hostility. `alife.md` is the detailed design contract for this feature.
+- `systems/alife.ts` owns persistent procedural NPC identity. A run creates an adaptive compact NPC pool (`1_000_000` when runtime memory allows it, otherwise `100_000`), materializes only the active floor into live `entities`, folds live state back on transitions/rebuilds/saves, and records permanent deaths. Browser saves keep dead procedural A-Life ids with a current cap of `65_536`. `systems/npc_relations.ts` owns compact personal relation-to-player math shared by A-Life, quests and hostility. `alife.md` is the detailed design contract for this feature.
 - Save/load uses `systems/save_runtime.ts` and `systems/save_payload.ts`. Current save shape version is `9`; old or unversioned saves are rejected rather than migrated.
 - Existing content extensibility already exists in `registerSideQuest`, `registerZoneContent`, floor content manifests, `SAMOSBOR_VARIANTS`, `getSamosborBeatDefs()`, contract/economy registries, route/design-floor ids and `publishEvent`.
 
@@ -39,9 +40,9 @@ Critical runtime facts:
 
 The core premise is one honest current-floor simulation. The loaded 1024x1024 toroidal `World` is the real surface where materialized NPCs, monsters, projectiles, rooms, factions, containers, route cues and samosbor effects coexist. Systems may use broadphase indexes, whole-floor navigation fields, dirty versions, deterministic LOD cadences and bounded budgets, but they must not turn the current floor into a player-centered spawn bubble.
 
-The player is a controlled entity. `EntityType.PLAYER` lives in the same flat entity array as NPCs and monsters; input, camera, HUD and save ownership are special, while combat, faction hostility, damage, needs, events, A-Life rank/karma and toroidal spatial math should stay entity-oriented whenever possible. Isotropy means shared mechanics and world math, not identical update cadence: hot/warm/cold actor budgets are allowed when cold actors still tick on deterministic bounded cadences. New mechanics should treat player-only branches as integration exceptions, not as the default design shape.
+The player is a controlled entity. `EntityType.PLAYER` lives in the same flat entity array as NPCs and monsters; input, camera, HUD and save ownership are special, while combat, faction hostility, damage, needs, events, A-Life rank/karma and toroidal spatial math should stay entity-oriented whenever possible. Runtime camera state is a transient systems layer over the controlled entity: player-follow, death camera, free camera and cinematic camera resolve to the same view shape without changing who the gameplay actor is. Isotropy means shared mechanics and world math, not identical update cadence: hot/warm/cold actor budgets are allowed when cold actors still tick on deterministic bounded cadences. New mechanics should treat player-only branches as integration exceptions, not as the default design shape.
 
-The macro building is persistent route identity, not full hidden realtime simulation. `FloorRun` spans `z=-50..+50`, starts at `LIVING`/`z=0`, and keys every story, design, procedural and numbered-lift floor. Visited floor state survives through floor memory and bounded packed save snapshots when it fits the save budget. Off-floor NPCs do not pathfind, fight, tick needs or scan rooms; only explicit bounded migration, caravan, quest, faction, economy or event passes may change them.
+The macro building is persistent route identity, not full hidden realtime simulation. `FloorRun` spans `z=-50..+50`, starts at `LIVING`/`z=0`, and keys every story, design, procedural and numbered-lift floor. Visited floor state survives through floor memory and bounded packed save snapshots when it fits the save budget. Off-floor NPCs do not pathfind, fight, tick needs or scan rooms; only explicit bounded migration, caravan, quest, faction, economy or event passes may change them. Current shipped macro is mostly folded live state, deaths, saved overrides, caravan/economy/faction events and contract targets; broad persistent A-Life migration between floor keys is not wired into caravans yet.
 
 Each route stop should behave like a small world package: own generator, route role, population field, NPC/faction mix, monster pressure, POIs, local rules and reachable player decisions. Route depth and `abs(z)` increase pressure through samosbor timing, population profiles, procedural danger, anomaly pressure and design overrides, not through a single monotonic hardcoded danger formula.
 
@@ -97,6 +98,7 @@ Definitions  ->  Generation  ->  Runtime Systems  ->  Render/UI
 - Owns generic runtime behavior.
 - Systems must consume definitions, not hardcode one module.
 - Systems must publish important state changes through `publishEvent`.
+- Camera modes belong in systems and resolve to small view data: position, yaw, pitch shear, height and FOV. They are transient unless a future feature explicitly defines persistent camera data and save caps.
 - Runtime floor memory is a systems concern. Route stop identity, visited keys and lift anchors are generic route facts; generators provide initial worlds, and route lift normalization may carve a bounded access connector when that is needed to preserve same-coordinate lift continuity between adjacent floors.
 - A-Life population is a system concern, not generator state: generators may create ambient NPC templates, but `systems/alife.ts` assigns persistent procedural NPC identity and decides which live NPCs exist on the active floor.
 - Shared AI navigation should stay field-based at runtime: `systems/ai/pathfinding.ts` bakes the current 1024x1024 world geometry into a reusable BFS navigation tree, then layers cached behavior flow fields over target source sets such as kitchens, toilets, workplaces or shelters. New generic AI behaviors should provide a source set and reuse that field layer instead of queuing per-actor BFS jobs.
@@ -104,6 +106,7 @@ Definitions  ->  Generation  ->  Runtime Systems  ->  Render/UI
 `render/`
 
 - Reads state and draws.
+- Consumes `CameraView` from systems; it must not decide which camera mode is active.
 - Visual feature additions should be data-indexed: texture id, sprite id, mark type, HUD flag.
 - Do not put gameplay decisions here.
 
@@ -167,9 +170,11 @@ Off-floor NPCs are frozen by default. They do not pathfind, fight, tick needs, s
 
 Cleared floors remain meaningfully changed, but they are not sealed forever. They can receive explicit migrants, overflow residents, caravans, refugees or faction arrivals. If such migration reaches the active floor, new arrivals should enter through believable anchors such as lifts or route entrances.
 
+Current implementation gaps are explicit: caravan supply lanes move resources/stability/tariffs/events and small caravans carry live `memberIds`, but they do not move those actors' persistent `alifeId` records to another `floorKey`; generated contract givers can still be transient or synthetic ids instead of stable `persistentNpcId`; there is no separate slow off-floor A-Life batch for family/friend/rank consequences yet.
+
 The save model is deterministic pool reconstruction plus sparse state:
 
-- Save seed, population version/count, dead ids, dead plot ids and bounded changed-record overrides.
+- Save seed, population version/count, up to `65_536` dead procedural ids, dead plot ids and bounded changed-record overrides.
 - Do not serialize the full live `entities` array.
 - Do not serialize every full NPC record when seed reconstruction is enough.
 - Any change to population allocation, route floor keys, required identity fields or plot/reserved id mapping must bump save shape or explicitly reject stale saves.
@@ -337,7 +342,7 @@ Avoid:
 - Deep class inheritance.
 - JSON parse/stringify in the game loop.
 - DOM work in systems.
-- Renderer-side gameplay state.
+- Renderer-side gameplay state, including camera mode ownership.
 
 Default budgets:
 

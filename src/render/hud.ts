@@ -807,6 +807,67 @@ function inferDeathCause(state: GameState, player: Entity, world: World): { titl
   return { title: 'Причина смерти', detail: 'источник урона не распознан' };
 }
 
+export function drawPointerCaptureGate(ctx: CanvasRenderingContext2D, time = 0): void {
+  const w = ctx.canvas.width;
+  const h = ctx.canvas.height;
+  const sx = w / SCR_W;
+  const sy = h / SCR_H;
+  const s = Math.max(0.78, Math.min(2.2, Math.min(sx, sy)));
+  const panelW = Math.min(w - 24 * s, 430 * s);
+  const panelH = Math.min(h - 24 * s, 198 * s);
+  const x = (w - panelW) * 0.5;
+  const y = (h - panelH) * 0.5;
+
+  setUiTextTime(time);
+  ctx.save();
+  ctx.fillStyle = 'rgba(0,0,0,0.82)';
+  ctx.fillRect(0, 0, w, h);
+  drawStaticNoise(ctx, 0, 0, w, h, time, 0.018);
+  drawNeuroPanel(ctx, x, y, panelW, panelH, time, 1500);
+  ctx.strokeStyle = 'rgba(100,220,255,0.72)';
+  ctx.lineWidth = Math.max(1, s);
+  ctx.strokeRect(x + 0.5, y + 0.5, panelW - 1, panelH - 1);
+
+  ctx.textAlign = 'center';
+  ctx.shadowColor = '#6cf';
+  ctx.shadowBlur = 10 * s;
+  ctx.fillStyle = '#bff';
+  ctx.font = `bold ${Math.round(17 * s)}px monospace`;
+  ctx.fillText(fitHudText(ctx, 'КЛИКНИТЕ ПО ЭКРАНУ', panelW - 18 * s), w * 0.5, y + 18 * s);
+  ctx.font = `bold ${Math.round(12 * s)}px monospace`;
+  ctx.fillText(fitHudText(ctx, 'ДЛЯ ЗАХВАТА КУРСОРА', panelW - 18 * s), w * 0.5, y + 39 * s);
+
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = '#c8d0d0';
+  ctx.font = `${Math.round(9 * s)}px monospace`;
+  ctx.fillText(fitHudText(ctx, 'Данная игра является шутером от первого лица', panelW - 24 * s), w * 0.5, y + 61 * s);
+  ctx.fillText(fitHudText(ctx, 'и не использует мышку.', panelW - 24 * s), w * 0.5, y + 75 * s);
+
+  ctx.strokeStyle = 'rgba(100,220,255,0.25)';
+  ctx.beginPath();
+  ctx.moveTo(x + 24 * s, y + 94 * s);
+  ctx.lineTo(x + panelW - 24 * s, y + 94 * s);
+  ctx.stroke();
+
+  ctx.shadowBlur = 10 * s;
+  ctx.fillStyle = '#bff';
+  ctx.font = `bold ${Math.round(17 * s)}px monospace`;
+  ctx.fillText(fitHudText(ctx, 'CLICK THE SCREEN', panelW - 18 * s), w * 0.5, y + 116 * s);
+  ctx.font = `bold ${Math.round(12 * s)}px monospace`;
+  ctx.fillText(fitHudText(ctx, 'TO CAPTURE THE CURSOR', panelW - 18 * s), w * 0.5, y + 137 * s);
+
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = '#c8d0d0';
+  ctx.font = `${Math.round(9 * s)}px monospace`;
+  ctx.fillText(fitHudText(ctx, 'This game is a first-person shooter', panelW - 24 * s), w * 0.5, y + 159 * s);
+  ctx.fillText(fitHudText(ctx, 'and does not use the mouse cursor.', panelW - 24 * s), w * 0.5, y + 173 * s);
+  ctx.fillStyle = '#708888';
+  ctx.font = `${Math.round(7 * s)}px monospace`;
+  ctx.fillText(fitHudText(ctx, 'После захвата игра продолжится. / Game resumes after capture.', panelW - 24 * s), w * 0.5, y + 186 * s);
+  ctx.textAlign = 'left';
+  ctx.restore();
+}
+
 function drawPointerLockPrompt(
   ctx: CanvasRenderingContext2D,
   w: number,
@@ -994,7 +1055,7 @@ export function drawHUD(
   world: World,
   entities: Entity[],
   uiTime = state.time,
-  options: { pointerLockHint?: boolean } = {},
+  options: { pointerLockHint?: boolean; pointerCaptureGate?: boolean } = {},
 ): void {
   ctx.save();
   ctx.imageSmoothingEnabled = false;
@@ -1602,6 +1663,10 @@ export function drawHUD(
 
   // ── Global neuro-interface overlay (always-on) ───────────
   if (screenFxVisible) drawGlitchLine(ctx, w, h, time);
+
+  if (options.pointerCaptureGate) {
+    drawPointerCaptureGate(ctx, time);
+  }
 
   ctx.restore();
 }

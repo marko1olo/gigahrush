@@ -5,16 +5,20 @@ import {
   CAMERA_FOV_DEFAULT_DEGREES,
   DEFAULT_UI_PRESET_ID,
   MOBILE_LOOK_SENSITIVITY_DEFAULT,
+  MOUSE_LOOK_SENSITIVITY_DEFAULT,
   UI_ELEMENT_DEFS,
   UI_PRESETS,
   adjustCameraFov,
   adjustMobileLookSensitivity,
+  adjustMouseLookSensitivity,
   activeUiPresetId,
   applyUiPreset,
   cameraFovDegrees,
   mobileLookSensitivity,
+  mouseLookSensitivity,
   resetCameraFov,
   resetMobileLookSensitivity,
+  resetMouseLookSensitivity,
   resetUiElement,
   resetUiSettings,
   setUiElementEnabled,
@@ -48,6 +52,7 @@ test('UI orchestrator defaults to the novice-safe HUD enabled', () => {
   assert.equal(uiElementEnabled('samosbor_text'), true);
   assert.equal(uiElementEnabled('credits'), true);
   assert.equal(mobileLookSensitivity(), MOBILE_LOOK_SENSITIVITY_DEFAULT);
+  assert.equal(mouseLookSensitivity(), MOUSE_LOOK_SENSITIVITY_DEFAULT);
   assert.equal(cameraFovDegrees(), CAMERA_FOV_DEFAULT_DEGREES);
 });
 
@@ -127,6 +132,17 @@ test('UI orchestrator stores mobile look sensitivity outside presets', () => {
   assert.equal(resetMobileLookSensitivity(), 0.5);
   const row = uiSettingsRowAt(uiSettingsRowCount('interface') - 1, 'interface');
   assert.equal(row?.kind, 'mobile_sensitivity');
+});
+
+test('UI orchestrator stores desktop mouse sensitivity outside presets', () => {
+  resetUiSettings();
+  assert.equal(mouseLookSensitivity(), 1.3);
+  assert.equal(adjustMouseLookSensitivity(1), 1.4);
+  assert.equal(adjustMouseLookSensitivity(-20), 0.5);
+  assert.equal(adjustMouseLookSensitivity(2), 0.7);
+  assert.equal(applyUiPreset('off'), true);
+  assert.equal(mouseLookSensitivity(), 0.7);
+  assert.equal(resetMouseLookSensitivity(), 1.3);
 });
 
 test('UI orchestrator stores camera FOV as a graphics setting outside presets', () => {

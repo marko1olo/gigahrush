@@ -31,7 +31,7 @@ import {
   SCR_W, SCR_H, initWebGL, renderSceneGL, updateWorldData, updateDynamicData,
   disposeWebGL, setDynamicSkyTexture, type DynamicSkyTexture,
 } from './render/webgl';
-import { drawHUD } from './render/hud';
+import { drawHUD, drawPointerCaptureGate } from './render/hud';
 import {
   spawnBloodHit, spawnDeathPool, updateBloodTrails, updateParticles, particles,
   spawnProjectileBodyImpact, spawnProjectileFloorImpact, spawnProjectileWallImpact, isEnergyProjectileImpact,
@@ -67,13 +67,16 @@ import {
   DEFAULT_UI_PRESET_ID,
   adjustCameraFov,
   adjustMobileLookSensitivity,
+  adjustMouseLookSensitivity,
   applyUiPreset,
   cameraFovRadians,
   mobileLookSensitivity,
+  mouseLookSensitivity,
   nextVisibleMapMode,
   normalizeVisibleMapMode,
   resetCameraFov,
   resetMobileLookSensitivity,
+  resetMouseLookSensitivity,
   resetUiElement,
   toggleUiElement,
   uiElementEnabled,
@@ -337,7 +340,7 @@ import {
 } from './systems/map_editor';
 import { createGameSavePayload, saveShapeVersionStatus } from './systems/save_runtime';
 import { addFactionRel, addFactionRelMutual, initFactionRelations } from './data/relations';
-import { type DeathCam, initDeathCam, updateDeathCam, getDeathCamAngle, getDeathCamPitch } from './systems/death';
+import { createRuntimeCamera, resetRuntimeCamera, runtimeCameraView, startDeathCamera, updateRuntimeCamera } from './systems/camera';
 import { onHeraldKilled, onCreatorKilled, onHellArrival, tryCreateVoiceQuest, onVoidEntry } from './data/plot_events';
 import { randomTip } from './data/tips';
 import {
@@ -373,6 +376,12 @@ let titleInputField: TitleInputField = 'name';
 let titleLanguageId = loadTitleLanguageId();
 let titleLanguageHits: TitleLanguageHit[] = [];
 let mobileControls: MobileControls | null = null;
+type PointerCaptureGateReason = 'startup' | 'released' | 'menu_key';
+let pointerCaptureGate = false;
+let pointerCaptureGateReason: PointerCaptureGateReason = 'startup';
+let pointerCaptureStartPending = false;
+let pointerCaptureStartSeed: number | undefined;
+let pointerCaptureReleasePendingUntil = 0;
 installCanvasLocalization();
 setLocalizationLanguage(titleLanguageId);
 
@@ -495,6 +504,92 @@ function setPageHiddenPause(hidden: boolean): void {
   syncPauseState();
 }
 
+function desktopPointerCaptureRequired(): boolean {
+  return mobileControls?.isEnabled() !== true;
+}
+
+function canvasHasPointerLock(): boolean {
+  return document.pointerLockElement === canvas;
+}
+
+function setPointerCaptureCursorClass(active: boolean): void {
+  document.documentElement.classList.toggle('pointer-capture-required', active);
+  document.body.classList.toggle('pointer-capture-required', active);
+}
+
+function clearPointerCaptureGate(): void {
+  if (!pointerCaptureGate) return;
+  pointerCaptureGate = false;
+  pointerCaptureReleasePendingUntil = 0;
+  setPointerCaptureCursorClass(false);
+  if (typeof state !== 'undefined') syncPauseState();
+  updateMobileContext();
+}
+
+function pointerCaptureGateVisible(): boolean {
+  return desktopPointerCaptureRequired() && pointerCaptureGate;
+}
+
+function drawPointerCaptureGateScreen(): void {
+  ctx.clearRect(0, 0, hudCanvas.width, hudCanvas.height);
+  drawPointerCaptureGate(ctx, performance.now() / 1000);
+  updateMobileContext();
+}
+
+function requirePointerCaptureGate(reason: PointerCaptureGateReason, clearInputs = true): boolean {
+  if (!desktopPointerCaptureRequired()) return false;
+  const wasOpen = pointerCaptureGate;
+  pointerCaptureGate = true;
+  pointerCaptureGateReason = reason;
+  setPointerCaptureCursorClass(true);
+  if (clearInputs && typeof input !== 'undefined') {
+    clearControlInputs(input);
+    input.mouseAttack = false;
+    input.mouse.dx = 0;
+    input.mouse.dy = 0;
+  }
+  if (typeof state !== 'undefined') {
+    state.sleeping = false;
+    syncPauseState();
+  }
+  updateMobileContext();
+  if (!started) drawPointerCaptureGateScreen();
+  return !wasOpen;
+}
+
+function exitPointerLockForCaptureGate(): void {
+  if (!canvasHasPointerLock()) return;
+  try {
+    document.exitPointerLock();
+  } catch {
+    // Some embedded browsers expose pointer lock but reject exit calls.
+  }
+}
+
+function forcePointerCaptureGate(reason: PointerCaptureGateReason, clearInputs = true): boolean {
+  const opened = requirePointerCaptureGate(reason, clearInputs);
+  pointerCaptureReleasePendingUntil = reason === 'menu_key' ? performance.now() + 500 : 0;
+  exitPointerLockForCaptureGate();
+  return opened;
+}
+
+function syncPointerCaptureRequirement(): void {
+  if (!desktopPointerCaptureRequired()) {
+    pointerCaptureStartPending = false;
+    pointerCaptureStartSeed = undefined;
+    clearPointerCaptureGate();
+    return;
+  }
+  if (canvasHasPointerLock()) {
+    if (pointerCaptureGate && performance.now() < pointerCaptureReleasePendingUntil) return;
+    if (!pointerCaptureStartPending) clearPointerCaptureGate();
+    return;
+  }
+  if (started && typeof state !== 'undefined' && !state.gameOver) {
+    requirePointerCaptureGate('released');
+  }
+}
+
 function resize() {
   const viewport = window.visualViewport;
   const cssWidth = Math.max(1, Math.round(viewport?.width ?? window.innerWidth ?? document.documentElement.clientWidth));
@@ -561,7 +656,7 @@ let state: GameState;
 let nextEntityId = { v: 1 };
 let prevPlayerHp = 100; // track HP changes for damage flash
 let lastProjectileHitMsgTick = -999;
-let deathCam: DeathCam | null = null;
+let runtimeCamera = createRuntimeCamera();
 let pendingLoad: (() => void) | null = null; // deferred heavy generation callback
 let pendingLoadDrawn = false; // true = loading screen was painted, next frame runs the callback
 let currentTip = randomTip();
@@ -922,7 +1017,7 @@ function returnFromVoidPortalToLiving(portal: VoidReturnPortalState): void {
   state.currentFloor = FloorLevel.LIVING;
   state.gameWon = false;
   state.gameOver = false;
-  deathCam = null;
+  resetRuntimeCamera(runtimeCamera);
   clearVoidReturnPortalState(state);
   setVoidEntryFromFloor(state, undefined);
   forceFloorRunStory(state, FloorLevel.LIVING);
@@ -1071,6 +1166,8 @@ interface SmokeDebugSnapshot {
   playerAlive: boolean;
   playerHp: number;
   paused: boolean;
+  pointerCaptureGate: boolean;
+  pointerCaptureGateReason: string;
   playerX: number;
   playerY: number;
   samosborActive: boolean;
@@ -1173,6 +1270,8 @@ function smokeSnapshot(): SmokeDebugSnapshot {
       playerAlive: player.alive,
       playerHp: player.hp ?? 0,
       paused: state.paused,
+      pointerCaptureGate: pointerCaptureGateVisible(),
+      pointerCaptureGateReason: pointerCaptureGateVisible() ? pointerCaptureGateReason : '',
       playerX: player.x,
       playerY: player.y,
       samosborActive: state.samosborActive,
@@ -1354,6 +1453,7 @@ function scheduleLoading(fn: () => void): void {
 }
 
 function initGame(runSeedOverride?: number): void {
+  resetRuntimeCamera(runtimeCamera);
   clearFloorMemory();
   resetNoiseRecords();
   const gen = generateFloor(FloorLevel.LIVING);
@@ -1512,6 +1612,19 @@ mobileControls = createMobileControls(input, {
   onConfirm: confirmActiveMobileSelection,
   onClose: closeActiveMobileMenu,
 });
+document.addEventListener('pointerlockchange', () => {
+  input.mouse.locked = canvasHasPointerLock();
+  if (input.mouse.locked) {
+    if (pointerCaptureStartPending) completePointerCapturedStart();
+    else clearPointerCaptureGate();
+    return;
+  }
+  if (started && typeof state !== 'undefined' && !state.gameOver) {
+    requirePointerCaptureGate('released');
+  } else if (!pointerCaptureStartPending) {
+    clearPointerCaptureGate();
+  }
+});
 installSmokeDebugHook();
 bootInitialGameOrTitle();
 
@@ -1604,7 +1717,7 @@ function handlePlayerDeath(): void {
   const cause = formatLastPlayerDamageCause(state, deathTime);
   state.gameOver = true;
   state.deathTimer = 0;
-  deathCam = initDeathCam(player.x, player.y, player.angle);
+  startDeathCamera(runtimeCamera, player.x, player.y, player.angle);
   state.msgs.push(msg(cause ? `Вы погибли: ${cause}` : 'Вы погибли: источник урона не распознан', state.time, '#f66'));
 }
 
@@ -1658,8 +1771,9 @@ function movePlayer(dt: number): void {
 
   // Mouse look
   if (input.mouse.locked) {
-    player.angle += input.mouse.dx * 0.003;
-    player.pitch = Math.max(-PLAYER_PITCH_LIMIT, Math.min(PLAYER_PITCH_LIMIT, player.pitch - input.mouse.dy * 0.003));
+    const mouseSensitivity = mouseLookSensitivity();
+    player.angle += input.mouse.dx * 0.003 * mouseSensitivity;
+    player.pitch = Math.max(-PLAYER_PITCH_LIMIT, Math.min(PLAYER_PITCH_LIMIT, player.pitch - input.mouse.dy * 0.003 * mouseSensitivity));
     input.mouse.dx = 0;
     input.mouse.dy = 0;
   }
@@ -2680,7 +2794,7 @@ function triggerExplosion(p: Entity, pt: ProjType): void {
 /* ── Restart check ────────────────────────────────────────────── */
 function checkRestart(): void {
   if (state.gameOver && input.use) {
-    deathCam = null;
+    resetRuntimeCamera(runtimeCamera);
     scheduleLoading(() => { initGame(); });
     input.use = false;
   }
@@ -3781,6 +3895,7 @@ function loadGame(): boolean {
       state.gameOver = false;
       state.gameWon = false;
       state.deathTimer = 0;
+      resetRuntimeCamera(runtimeCamera);
       state.lastDamage = undefined;
       state.showMenu = false;
       state.showControls = false;
@@ -4121,6 +4236,24 @@ function menuRepeatStep(key: MenuRepeatKey, held: boolean, edge: boolean): boole
   return false;
 }
 
+function syncMenuInputBaselines(): void {
+  prevEsc = input.escape;
+  prevMenuUp = input.invUp;
+  prevMenuDn = input.invDn;
+  prevMenuLeft = input.invLeft;
+  prevMenuRight = input.invRight;
+  prevMenuInteract = input.interact;
+  prevDrop = input.drop;
+  prevInvMenu = input.inv;
+  prevQuestMenu = input.questLog;
+  prevDebug = input.debugScreen;
+  prevFactionMenu = input.factionMenu;
+  prevLogMenu = input.logMenu;
+  prevControlsMenu = input.controls;
+  prevUiSettingsMenu = input.uiSettings;
+  prevControlReset = input.controlReset;
+}
+
 function tryLockLandscape(): void {
   const orientation = screen.orientation as (ScreenOrientation & { lock?: (orientation: 'landscape') => Promise<void> }) | undefined;
   if (!orientation?.lock) return;
@@ -4156,7 +4289,7 @@ function mobileGestureUnlock(): void {
 
 function syncPauseState(): void {
   if (typeof state === 'undefined') return;
-  state.paused = pageHiddenPause || state.showMenu || state.showInventory || state.showNpcMenu || state.showContainerMenu ||
+  state.paused = pointerCaptureGateVisible() || pageHiddenPause || state.showMenu || state.showInventory || state.showNpcMenu || state.showContainerMenu ||
     state.showQuests || state.showDebug || state.showFactions || state.showLog || state.showControls || state.showUiSettings ||
     isNetSphereOpen() || isNetTerminalGenOpen() || isInteractableOverlayOpen() || isEmergencyPanelMenuOpen() || isMapEditorOpen();
 }
@@ -4455,7 +4588,11 @@ function controlsVisibleRows(): number {
 }
 
 function controlMenuItemCount(): number {
-  return state.controlView === 'buttons' ? MOBILE_BUTTON_CONTROL_ROWS.length : CONTROL_ACTIONS.length;
+  return state.controlView === 'buttons' ? MOBILE_BUTTON_CONTROL_ROWS.length : CONTROL_ACTIONS.length + 1;
+}
+
+function controlMouseSensitivitySelected(): boolean {
+  return state.controlView === 'keys' && state.controlSel === CONTROL_ACTIONS.length;
 }
 
 function keepControlSelectionVisible(): void {
@@ -4627,8 +4764,13 @@ function handleMobileHudTap(x: number, y: number): void {
     if (relRow >= 0 && relRow < visible) {
       const idx = state.controlScroll + relRow;
       if (idx >= 0 && idx < controlMenuItemCount()) {
+        const wasSelected = state.controlSel === idx;
         state.controlSel = idx;
         keepControlSelectionVisible();
+        if (wasSelected && controlMouseSensitivitySelected()) {
+          const sensitivity = adjustMouseLookSensitivity(1);
+          state.msgs.push(msg(`Чувствительность мыши: ${Math.round(sensitivity * 100)}%`, state.time, '#8cf'));
+        }
       }
     }
   } else if (state.showUiSettings) {
@@ -4854,6 +4996,7 @@ let suppressNextTitleClick = false;
 
 function handleTitleCanvasPointerUp(e: PointerEvent): void {
   if (started || mobileControls?.isEnabled()) return;
+  if (pointerCaptureGateVisible()) return;
   const rect = canvas.getBoundingClientRect();
   const x = (e.clientX - rect.left) * (hudCanvas.width / Math.max(1, rect.width));
   const y = (e.clientY - rect.top) * (hudCanvas.height / Math.max(1, rect.height));
@@ -4915,6 +5058,18 @@ function handleMenuInput(): void {
     prevControlsMenu = input.controls;
     prevUiSettingsMenu = input.uiSettings;
     prevControlReset = input.controlReset;
+    return;
+  }
+
+  const gateWasVisible = pointerCaptureGateVisible();
+  const menuKeyGateEdge = input.escape && !prevEsc;
+  const gateOpenedByMenuKey = menuKeyGateEdge && !gateWasVisible
+    ? forcePointerCaptureGate('menu_key', false)
+    : false;
+  if (pointerCaptureGateVisible() && !gateOpenedByMenuKey) {
+    resetMenuRepeats();
+    syncMenuInputBaselines();
+    syncPauseState();
     return;
   }
 
@@ -5164,11 +5319,20 @@ function handleMenuInput(): void {
       if (upNav) state.controlSel = Math.max(0, state.controlSel - 1);
       if (dnNav) state.controlSel = Math.min(controlMenuItemCount() - 1, state.controlSel + 1);
       keepControlSelectionVisible();
-      if (interactEdge && state.controlView === 'keys') {
+      const mouseSensitivitySelected = controlMouseSensitivitySelected();
+      const leftNav = mouseSensitivitySelected ? menuRepeatStep('left', input.invLeft, leftEdge) : false;
+      const rightNav = mouseSensitivitySelected ? menuRepeatStep('right', input.invRight, rightEdge) : false;
+      if (mouseSensitivitySelected && (leftNav || rightNav || interactEdge)) {
+        const sensitivity = adjustMouseLookSensitivity(leftNav ? -1 : 1);
+        state.msgs.push(msg(`Чувствительность мыши: ${Math.round(sensitivity * 100)}%`, state.time, '#8cf'));
+      } else if (interactEdge && state.controlView === 'keys') {
         const action = CONTROL_ACTIONS[state.controlSel];
         if (action) beginControlCapture(action.id);
       }
-      if (controlResetEdge && state.controlView === 'keys') {
+      if (controlResetEdge && mouseSensitivitySelected) {
+        const sensitivity = resetMouseLookSensitivity();
+        state.msgs.push(msg(`Чувствительность мыши сброшена: ${Math.round(sensitivity * 100)}%`, state.time, '#8cf'));
+      } else if (controlResetEdge && state.controlView === 'keys') {
         const action = CONTROL_ACTIONS[state.controlSel];
         if (action) {
           resetControlBinding(action.id);
@@ -5581,6 +5745,8 @@ function gameLoop(now: number): void {
     return;
   }
 
+  syncPointerCaptureRequirement();
+
   const rawDt = (now - lastTime) / 1000;
   lastTime = now;
   const frameDt = Math.min(rawDt, 0.05); // cap delta
@@ -5615,10 +5781,10 @@ function gameLoop(now: number): void {
   if (state.beamFx > 0) state.beamFx = Math.max(0, state.beamFx - dt * 2.5);
   if (state.uvBeamFx > 0) state.uvBeamFx = Math.max(0, state.uvBeamFx - dt * 5.0);
 
-  // Rolling head physics after death
-  if (state.gameOver && deathCam) {
+  // Runtime camera modes are visual-only; player death is the rolling-head mode.
+  if (state.gameOver && runtimeCamera.mode === 'death') {
     state.deathTimer += dt;
-    updateDeathCam(deathCam, world, dt);
+    updateRuntimeCamera(runtimeCamera, world, dt);
   }
 
   if (!state.paused && !state.gameOver) {
@@ -5913,13 +6079,9 @@ function gameLoop(now: number): void {
     ? 0.3 + Math.sin(uiTime * 5) * 0.15
     : Math.min(0.18, smogFogBonus * 4);
 
-  // Use death cam position/angle when dead, otherwise player
-  const camX     = deathCam ? deathCam.x              : player.x;
-  const camY     = deathCam ? deathCam.y              : player.y;
-  const camAngle = deathCam ? getDeathCamAngle(deathCam) : player.angle;
-  const camPitch = deathCam ? getDeathCamPitch(deathCam) : player.pitch;
-
-  const camH = deathCam ? deathCam.height : 0.5;
+  const cameraView = runtimeCameraView(runtimeCamera, player, cameraFovRadians());
+  const camX = cameraView.x;
+  const camY = cameraView.y;
   let flashlight = 0;
   if (!state.gameOver && player.tool === 'flashlight') {
     const d = getEquippedToolDurability(player);
@@ -5933,13 +6095,14 @@ function gameLoop(now: number): void {
   // WebGL raycaster + sprites
   const ambientLight = currentFloorRunEntry(state).designFloorId === 'darkness' ? 0 : 0.12;
   renderSceneGL(world, textures, sprites, entities,
-    camX, camY, camAngle, camPitch,
-    fogDensity, glitch, camH, flashlight, uiTime, particles, state.samosborActive, ambientLight, cameraFovRadians());
+    cameraView,
+    fogDensity, glitch, flashlight, uiTime, particles, state.samosborActive, ambientLight);
 
   // Draw HUD on 2D overlay canvas
   ctx.clearRect(0, 0, hudCanvas.width, hudCanvas.height);
   drawHUD(ctx, hudCanvas.width / SCR_W, hudCanvas.height / SCR_H, player, state, world, entities, uiTime, {
-    pointerLockHint: !mobileControls?.isEnabled() && !input.mouse.locked,
+    pointerLockHint: !mobileControls?.isEnabled() && !input.mouse.locked && !pointerCaptureGateVisible(),
+    pointerCaptureGate: pointerCaptureGateVisible(),
   });
 
   requestAnimationFrame(gameLoop);
@@ -5962,6 +6125,9 @@ function returnToTitleScreen(): void {
   pendingLoad = null;
   pendingLoadDrawn = false;
   started = false;
+  pointerCaptureStartPending = false;
+  pointerCaptureStartSeed = undefined;
+  clearPointerCaptureGate();
   titleRunSeedText = '';
   titleInputField = 'name';
   titleStartNeedsInit = true;
@@ -5992,11 +6158,35 @@ function finishStartGameFromTitle(): void {
   updateMobileContext();
 }
 
+function completePointerCapturedStart(): void {
+  if (!pointerCaptureStartPending || started) return;
+  const seedOverride = pointerCaptureStartSeed;
+  pointerCaptureStartPending = false;
+  pointerCaptureStartSeed = undefined;
+  clearPointerCaptureGate();
+  if (seedOverride !== undefined || titleStartNeedsInit) {
+    scheduleLoading(() => {
+      initGame(seedOverride);
+      titleStartNeedsInit = false;
+      finishStartGameFromTitle();
+    });
+  } else {
+    finishStartGameFromTitle();
+  }
+  requestAnimationFrame(gameLoop);
+}
+
 function startGameFromTitle(): void {
   if (started || pendingLoad) return;
   mobileGestureUnlock();
   savePlayerNickname(playerNickname);
   const seedOverride = titleRunSeedOverride();
+  if (desktopPointerCaptureRequired() && !canvasHasPointerLock()) {
+    pointerCaptureStartPending = true;
+    pointerCaptureStartSeed = seedOverride;
+    requirePointerCaptureGate('startup');
+    return;
+  }
   if (seedOverride !== undefined || titleStartNeedsInit) {
     scheduleLoading(() => {
       initGame(seedOverride);
@@ -6012,6 +6202,10 @@ function startGameFromTitle(): void {
 
 function startHandler(e: KeyboardEvent): void {
   if (started || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (pointerCaptureGateVisible()) {
+    e.preventDefault();
+    return;
+  }
   if (e.code === 'Tab' || e.code === 'ArrowUp' || e.code === 'ArrowDown') {
     titleInputField = titleInputField === 'name' ? 'seed' : 'name';
     showTitle();
