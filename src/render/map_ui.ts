@@ -156,6 +156,7 @@ function mapCrowdBinForKey(key: number): number {
 function mapEntityCrowdGroup(e: Entity): number {
   if (e.type === EntityType.MONSTER) return MAP_CROWD_GROUP_MONSTER;
   if (e.type === EntityType.ITEM_DROP || e.type === EntityType.PROJECTILE) return MAP_CROWD_GROUP_ITEM;
+  if (e.type === EntityType.BILLBOARD) return -1;
   if (e.type === EntityType.NPC && e.faction !== undefined && areFactionsHostile(Faction.PLAYER, e.faction)) {
     return MAP_CROWD_GROUP_HOSTILE_NPC;
   }
@@ -1485,7 +1486,8 @@ function drawMap(
     const esy = mapY + (edy + radius) * cellH;
     const bx = Math.floor((esx - mapX) / crowdBinPx);
     const by = Math.floor((esy - mapY) / crowdBinPx);
-    addMapCrowdDot(esx, esy, by * 2048 + bx, mapEntityCrowdGroup(e));
+    const group = mapEntityCrowdGroup(e);
+    if (group >= 0) addMapCrowdDot(esx, esy, by * 2048 + bx, group);
   }
   drawMapCrowdBins(ctx, mapW, mapH);
 

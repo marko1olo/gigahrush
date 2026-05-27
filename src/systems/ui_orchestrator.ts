@@ -271,20 +271,6 @@ export function uiElementEnabled(id: UiElementId): boolean {
   return settings[id] ?? def?.defaultEnabled ?? false;
 }
 
-export function normalizeVisibleMapMode(current: number, minimapEnabled = uiElementEnabled('minimap')): number {
-  const mode = Math.floor(current);
-  if (mode === 2) return 2;
-  if (mode === 1 && minimapEnabled) return 1;
-  return 0;
-}
-
-export function nextVisibleMapMode(current: number, minimapEnabled = uiElementEnabled('minimap')): number {
-  const modes = minimapEnabled ? [0, 1, 2] : [0, 2];
-  const normalized = normalizeVisibleMapMode(current, minimapEnabled);
-  const idx = modes.indexOf(normalized);
-  return modes[(idx + 1) % modes.length] ?? 0;
-}
-
 export function setUiElementEnabled(id: UiElementId, enabled: boolean): boolean {
   const def = defsById.get(id);
   if (!def) return false;

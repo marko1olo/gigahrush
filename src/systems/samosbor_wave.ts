@@ -735,11 +735,11 @@ function cleanupFinalEntities(world: World, wave: SamosborWave, entities: Entity
       wave.deletedProjectiles++;
       continue;
     }
-    if (entity.type === EntityType.ITEM_DROP && inTouched && !entityWalkableCell(world, idx)) {
+    if ((entity.type === EntityType.ITEM_DROP || entity.type === EntityType.BILLBOARD) && inTouched && !entityWalkableCell(world, idx)) {
       if (relocateEntity(world, entity, 18)) wave.relocatedEntities++;
       else {
         entities.splice(i, 1);
-        wave.deletedItems++;
+        if (entity.type === EntityType.ITEM_DROP) wave.deletedItems++;
       }
       continue;
     }

@@ -35,6 +35,7 @@ export interface TradeCreditSummary {
   creditCount: number;
   fullPrice: number;
   cashDue: number;
+  changeDue: number;
   surplus: number;
   npcOfferValue?: number;
   npcOfferCount?: number;
@@ -273,13 +274,16 @@ function publishPlayerBuyEvent(
     data: {
       price,
       cashPaid: price,
+      cashReceived: credit?.changeDue ?? 0,
+      netCashPaid: price - (credit?.changeDue ?? 0),
+      direction: 'npc_to_player',
       unitPrice: fullPrice,
       totalPrice: fullPrice,
       creditValue: credit?.creditValue ?? 0,
       creditCount: credit?.creditCount ?? 0,
       creditSurplus: credit?.surplus ?? 0,
+      unpaidSurplus: Math.max(0, (credit?.surplus ?? 0) - (credit?.changeDue ?? 0)),
       creditItems: itemListForEvent(playerOffer),
-      direction: 'npc_to_player',
       sellerId: npc.id,
       sellerName: npc.name,
       buyerId: player.id,
@@ -358,12 +362,14 @@ function tradeSummaryFromOffers(
   const creditCount = totalOfferCount(playerOffer);
   const fullPrice = askValue(state, npc, npcOffer, opts);
   const npcOfferCount = totalOfferCount(npcOffer);
+  const surplus = Math.max(0, creditValue - fullPrice);
   return {
     creditValue,
     creditCount,
     fullPrice,
     cashDue: Math.max(0, fullPrice - creditValue),
-    surplus: Math.max(0, creditValue - fullPrice),
+    changeDue: Math.min(surplus, Math.max(0, npc.money ?? 0)),
+    surplus,
     npcOfferValue: fullPrice,
     npcOfferCount,
   };
@@ -540,15 +546,15 @@ function publishTradeDealEvent(
     targetFaction: npc.faction,
     itemId: defId || undefined,
     itemName: def ? def.name : defId || undefined,
-    itemCount: totalOfferCount(npcOffer),
-    itemValue: summary.fullPrice,
+    itemCount: totalOfferCount(npcOffer) > 0 ? totalOfferCount(npcOffer) : totalOfferCount(playerOffer),
+    itemValue: totalOfferCount(npcOffer) > 0 ? summary.fullPrice : summary.creditValue,
     severity: 1,
     privacy: 'private',
     tags: [
       'player',
       'inventory',
       'trade',
-      'buy',
+      ...(totalOfferCount(npcOffer) > 0 ? ['buy'] : ['sell']),
       ...(hasCredit ? ['barter'] : []),
       ...(totalOfferCount(npcOffer) > 1 ? ['bundle'] : []),
       ...combinedQuoteTags(quotes),
@@ -556,16 +562,19 @@ function publishTradeDealEvent(
     data: {
       price,
       cashPaid: price,
-      unitPrice: summary.fullPrice,
-      totalPrice: summary.fullPrice,
+      cashReceived: summary.changeDue,
+      netCashPaid: price - summary.changeDue,
+      direction: totalOfferCount(npcOffer) > 0 ? 'npc_to_player' : 'player_to_npc',
       creditValue: summary.creditValue,
       creditCount: summary.creditCount,
       creditSurplus: summary.surplus,
+      unpaidSurplus: Math.max(0, summary.surplus - summary.changeDue),
       creditItems: itemListForEvent(playerOffer),
       askValue: summary.fullPrice,
       askCount: totalOfferCount(npcOffer),
+      unitPrice: summary.fullPrice,
+      totalPrice: summary.fullPrice,
       askItems: itemListForEvent(npcOffer),
-      direction: 'npc_to_player',
       sellerId: npc.id,
       sellerName: npc.name,
       buyerId: player.id,
@@ -585,26 +594,28 @@ export function executeTradeDeal(
   const npcOffer = cloneInventory(getTradeNpcOffer(state));
   const summary = tradeSummaryFromOffers(state, npc, playerOffer, npcOffer, opts);
   const firstAsk = npcOffer.find(item => item.count > 0);
-  if (!firstAsk) return { ok: false, code: 'no_item', price: summary.cashDue, credit: summary };
+  const firstOffer = playerOffer.find(item => item.count > 0);
+  const firstItem = firstAsk ?? firstOffer;
+  if (!firstItem) return { ok: false, code: 'no_item', price: summary.cashDue, credit: summary };
   if ((player.money ?? 0) < summary.cashDue) {
-    return { ok: false, code: 'player_no_money', defId: firstAsk.defId, price: summary.cashDue, credit: summary };
+    return { ok: false, code: 'player_no_money', defId: firstItem.defId, price: summary.cashDue, credit: summary };
   }
   if (!hasInventoryItems(player.inventory, playerOffer) || !hasInventoryItems(npc.inventory, npcOffer)) {
     clearTradeOffers(state);
-    return { ok: false, code: 'no_item', defId: firstAsk.defId, price: summary.cashDue, credit: getTradeDealSummary(state, npc, opts) };
+    return { ok: false, code: 'no_item', defId: firstItem.defId, price: summary.cashDue, credit: getTradeDealSummary(state, npc, opts) };
   }
 
   const playerAfterOutgoing = cloneInventory(player.inventory);
   const npcAfterOutgoing = cloneInventory(npc.inventory);
   if (!removeInventoryItems(playerAfterOutgoing, playerOffer) || !removeInventoryItems(npcAfterOutgoing, npcOffer)) {
     clearTradeOffers(state);
-    return { ok: false, code: 'no_item', defId: firstAsk.defId, price: summary.cashDue, credit: getTradeDealSummary(state, npc, opts) };
+    return { ok: false, code: 'no_item', defId: firstItem.defId, price: summary.cashDue, credit: getTradeDealSummary(state, npc, opts) };
   }
   if (!canReceiveAll(player, playerAfterOutgoing, npcOffer)) {
-    return { ok: false, code: 'player_no_space', defId: firstAsk.defId, price: summary.cashDue, credit: summary };
+    return { ok: false, code: 'player_no_space', defId: firstItem.defId, price: summary.cashDue, credit: summary };
   }
   if (!canReceiveAll(npc, npcAfterOutgoing, playerOffer)) {
-    return { ok: false, code: 'npc_no_space', defId: firstAsk.defId, price: summary.cashDue, credit: summary };
+    return { ok: false, code: 'npc_no_space', defId: firstItem.defId, price: summary.cashDue, credit: summary };
   }
 
   if (!player.inventory) player.inventory = [];
@@ -613,15 +624,15 @@ export function executeTradeDeal(
   removeInventoryItems(npc.inventory, npcOffer);
   for (const item of npcOffer) addItem(player, item.defId, item.count, item.data);
   for (const item of playerOffer) addItem(npc, item.defId, item.count, item.data);
-  player.money = (player.money ?? 0) - summary.cashDue;
-  npc.money = (npc.money ?? 0) + summary.cashDue;
+  player.money = (player.money ?? 0) - summary.cashDue + summary.changeDue;
+  npc.money = (npc.money ?? 0) + summary.cashDue - summary.changeDue;
   applyTradeAskStockDeltas(state, npc, npcOffer, opts);
   applyTradeCreditStockDeltas(state, npc, playerOffer, opts);
-  const quotes = npcOffer.map(item => getEconomyQuote(state, item.defId, quoteOptions(npc, opts)));
+  const quotes = [...npcOffer, ...playerOffer].map(item => getEconomyQuote(state, item.defId, quoteOptions(npc, opts)));
   publishTradeDealEvent(state, player, npc, summary.cashDue, summary, playerOffer, npcOffer, quotes, opts.zoneId);
   clearTradeOffers(state);
   primeTradePriceCache(state, [npc.inventory, player.inventory]);
-  return { ok: true, code: 'deal_done', defId: firstAsk.defId, price: summary.cashDue, quote: quotes[0], credit: summary };
+  return { ok: true, code: 'deal_done', defId: firstItem.defId, price: summary.cashDue, quote: quotes[0], credit: summary };
 }
 
 export function buyFromNpc(
@@ -668,8 +679,8 @@ export function buyFromNpc(
   decrementSlot(npcInv, slotIndex);
   addItem(player, defId, 1, slot.data);
   for (const item of playerOffer) addItem(npc, item.defId, item.count, item.data);
-  player.money = (player.money ?? 0) - cashDue;
-  npc.money = (npc.money ?? 0) + cashDue;
+  player.money = (player.money ?? 0) - cashDue + credit.changeDue;
+  npc.money = (npc.money ?? 0) + cashDue - credit.changeDue;
   if (quote.resourceId) changeResourceStock(state, quote.resourceId, -1, stockFloorForTrade(state, opts));
   applyTradeCreditStockDeltas(state, npc, playerOffer, opts);
   publishPlayerBuyEvent(state, player, npc, defId, cashDue, quote, opts.zoneId, credit, playerOffer);

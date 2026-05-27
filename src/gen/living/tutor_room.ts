@@ -80,10 +80,10 @@ export function generateTutorRoom(
     for (let dx = 1; dx < hallW - 1; dx++)
       if (dx % 2 === 1) {
         entities.push({
-          id: nextId.v++, type: EntityType.ITEM_DROP,
+          id: nextId.v++, type: EntityType.BILLBOARD,
           x: hallX + dx + 0.5, y: hallY + dy + 0.5,
           angle: 0, pitch: 0, alive: true, speed: 0,
-          sprite: DESK_SPRITE, spriteScale: 0.5, inventory: [],
+          sprite: DESK_SPRITE, spriteScale: 0.5,
         });
       }
 
@@ -177,10 +177,10 @@ export function generateTutorRoom(
   const counterY = armY + 3;
   for (let dx = 1; dx < armW - 1; dx++) {
     entities.push({
-      id: nextId.v++, type: EntityType.ITEM_DROP,
+      id: nextId.v++, type: EntityType.BILLBOARD,
       x: armX + dx + 0.5, y: counterY + 0.5,
       angle: 0, pitch: 0, alive: true, speed: 0,
-      sprite: DESK_SPRITE, spriteScale: 0.5, inventory: [],
+      sprite: DESK_SPRITE, spriteScale: 0.5,
     });
   }
 

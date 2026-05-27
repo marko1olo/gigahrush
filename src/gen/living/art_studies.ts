@@ -48,11 +48,10 @@ function setWallPosterBand(world: World, rx: number, ry: number): void {
 
 function spawnStudySprite(entities: Entity[], nextId: { v: number }, x: number, y: number, sprite: number): void {
   entities.push({
-    id: nextId.v++, type: EntityType.ITEM_DROP,
+    id: nextId.v++, type: EntityType.BILLBOARD,
     x: x + 0.5, y: y + 0.5,
     angle: 0, pitch: 0, alive: true, speed: 0,
     sprite, spriteScale: 0.88,
-    inventory: [],
   });
 }
 

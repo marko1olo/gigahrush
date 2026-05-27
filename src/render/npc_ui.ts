@@ -4,6 +4,7 @@ import { type Entity, type GameState, Faction } from '../core/types';
 import { ITEMS } from '../data/catalog';
 import { FACTION_NAMES, OCCUPATION_NAMES } from '../data/relations';
 import { controlBindingLabel, controlHint } from '../systems/controls';
+import { getDiceSnapshot } from '../systems/dice';
 import { getDurakSnapshot } from '../systems/durak';
 import {
   getNpcInteractionInterfaceSnapshot,
@@ -15,6 +16,7 @@ import { drawNeuroPanel, drawGlitchText, textJitter, flicker } from './hud_fx';
 import { dialogMenuScale, tradeGridScale } from './ui_layout';
 import { drawCenteredWrappedText, drawWrappedText, fitText } from './ui_text';
 import { drawDurakInterface } from './durak_ui';
+import { drawDiceInterface } from './dice_ui';
 import {
   questItemStateColor,
   questItemStateLabel,
@@ -26,6 +28,7 @@ import {
   getTradeNpcOffer,
   getTradeOffer,
 } from '../systems/trade';
+import { drawItemGridIcon } from './item_sprites';
 
 export function drawNpcMenu(
   ctx: CanvasRenderingContext2D,
@@ -142,6 +145,11 @@ export function drawNpcMenu(
     const durak = getDurakSnapshot();
     if (durak.open && durak.npcId === npc.id) {
       drawDurakInterface(ctx, durak, px, py, pw, ph, sx, sy, time);
+      return;
+    }
+    const dice = getDiceSnapshot();
+    if (dice.open && dice.npcId === npc.id) {
+      drawDiceInterface(ctx, dice, px, py, pw, ph, sx, sy, time);
       return;
     }
     const snapshot = getNpcInteractionInterfaceSnapshot();
@@ -287,10 +295,11 @@ export function drawNpcMenu(
               ctx.fillText(questLabel, cx + cellSz - 4 * sx, cy + 3 * sy);
               ctx.textAlign = 'left';
             }
-            ctx.fillStyle = selected ? '#ee4' : '#ccc';
-            ctx.font = `${5.6 * sy}px monospace`;
-            const name = fitText(ctx, def?.name ?? item.defId, cellSz - 4 * sx);
-            ctx.fillText(name, cx + 2 * sx, cy + 10 * sy);
+            drawItemGridIcon(ctx, item.defId, def?.name ?? item.defId, cx, cy, cellSz, sx, sy, selected, selected ? 1 : 0.84, {
+              nameYUnits: 8,
+              iconTopUnits: 8.8,
+              bottomReserveUnits: 5.4,
+            });
             ctx.fillStyle = price.color;
             ctx.font = `${4.8 * sy}px monospace`;
             ctx.fillText(
@@ -316,7 +325,7 @@ export function drawNpcMenu(
     drawGrid(npcOffer, npcOfferX, 'npc_offer', `ВЗЯТЬ ${deal.fullPrice}₽`);
     drawGrid(npcInv, npcX, 'npc', 'ТОВАРЫ');
 
-    const canDeal = (deal.npcOfferCount ?? 0) > 0 && (player.money ?? 0) >= deal.cashDue;
+    const canDeal = ((deal.npcOfferCount ?? 0) > 0 || deal.creditCount > 0) && (player.money ?? 0) >= deal.cashDue;
     const dealSelected = state.tradeSide === 'deal';
     ctx.fillStyle = dealSelected ? (canDeal ? 'rgba(40,110,55,0.9)' : 'rgba(120,65,25,0.9)') : 'rgba(20,28,24,0.94)';
     ctx.fillRect(dealX, dealY, dealW, dealH);
@@ -326,15 +335,24 @@ export function drawNpcMenu(
     ctx.font = `${7.6 * sy}px monospace`;
     ctx.fillStyle = canDeal ? '#8f8' : '#f84';
     const dealText = canDeal
-      ? `ОБМЕН · доплата ${deal.cashDue}₽`
-      : (deal.npcOfferCount ?? 0) <= 0
-        ? 'ОБМЕН · выберите товары NPC'
+      ? deal.cashDue > 0
+        ? `ОБМЕН · доплата ${deal.cashDue}₽`
+        : deal.changeDue > 0
+          ? `ОБМЕН · сдача ${deal.changeDue}₽`
+          : (deal.npcOfferCount ?? 0) <= 0
+            ? 'ОТДАТЬ NPC'
+            : 'ОБМЕН'
+      : ((deal.npcOfferCount ?? 0) <= 0 && deal.creditCount <= 0)
+        ? 'ОБМЕН · выберите предметы'
         : `НЕ ХВАТАЕТ ${deal.cashDue - (player.money ?? 0)}₽`;
     ctx.fillText(fitText(ctx, dealText, dealW - 8 * sx), dealX + dealW / 2, dealY + 10.5 * sy);
-    ctx.fillStyle = deal.surplus > 0 ? '#fa6' : '#889';
+    const unpaidSurplus = Math.max(0, deal.surplus - deal.changeDue);
+    ctx.fillStyle = deal.changeDue > 0 ? '#8f8' : unpaidSurplus > 0 ? '#fa6' : '#889';
     ctx.font = `${6.2 * sy}px monospace`;
-    const summaryLine = deal.surplus > 0
-      ? `NPC ${deal.fullPrice}₽ · вы ${deal.creditValue}₽ · сдачи нет (${deal.surplus}₽)`
+    const summaryLine = deal.changeDue > 0
+      ? `NPC ${deal.fullPrice}₽ · вы ${deal.creditValue}₽ · сдача ${deal.changeDue}₽${unpaidSurplus > 0 ? ` · без сдачи ${unpaidSurplus}₽` : ''}`
+      : unpaidSurplus > 0
+        ? `NPC ${deal.fullPrice}₽ · вы ${deal.creditValue}₽ · сдачи нет (${unpaidSurplus}₽)`
       : `NPC ${deal.fullPrice}₽ · вы ${deal.creditValue}₽ · наличными ${deal.cashDue}₽`;
     ctx.fillText(fitText(ctx, summaryLine, dealW - 8 * sx), dealX + dealW / 2, dealY + dealH + 8 * sy);
     ctx.textAlign = 'left';

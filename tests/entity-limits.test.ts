@@ -28,6 +28,7 @@ test('entity soft limits are centralized by gameplay type', () => {
   assert.equal(ENTITY_SOFT_LIMITS[EntityType.MONSTER], 10_000);
   assert.equal(ENTITY_SOFT_LIMITS[EntityType.ITEM_DROP], 100_000);
   assert.equal(ENTITY_SOFT_LIMITS[EntityType.PROJECTILE], 100_000);
+  assert.equal(ENTITY_SOFT_LIMITS[EntityType.BILLBOARD], 100_000);
   assert.equal(ENTITY_SOFT_LIMITS[EntityType.PROJECTILE], ENTITY_SOFT_LIMITS[EntityType.ITEM_DROP]);
 });
 
@@ -49,10 +50,12 @@ test('entity spawn slots ignore unrelated and dead entities', () => {
     entity(2, EntityType.NPC, false),
     entity(3, EntityType.MONSTER),
     entity(4, EntityType.ITEM_DROP),
+    entity(5, EntityType.BILLBOARD),
   ];
   assert.equal(countLiveEntitiesOfType(entities, EntityType.NPC), 1);
   assert.equal(entitySpawnSlots(entities, EntityType.MONSTER, 12), 12);
   assert.equal(entitySpawnSlots(entities, EntityType.ITEM_DROP, 12), 12);
+  assert.equal(entitySpawnSlots(entities, EntityType.BILLBOARD, 12), 12);
 });
 
 test('projectile slots keep the emergency combat ceiling high', () => {

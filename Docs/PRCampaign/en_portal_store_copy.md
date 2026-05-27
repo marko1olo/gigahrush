@@ -45,7 +45,7 @@ Controls:
 Feature bullets:
 
 - Browser survival horror / ARPG shooter with no install required.
-- A 1024x1024 toroidal concrete megastructure with rooms, corridors, lifts, factions, NPCs, containers, quests, production, rumors and Samosbor events in one persistent loop.
+- An unbounded concrete megastructure with rooms, corridors, lifts, factions, NPCs, containers, quests, production, rumors and Samosbor events in one persistent loop.
 - Expedition structure: prepare food, water, ammo, medicine, documents, weapons or PSI tools before leaving the safer living area.
 - Procedural and hand-crafted floors with faction territory, hostile routes, traders, monsters, anomalies and consequences.
 - A-Life NPCs with identities, faction relationships, routines, inventory, death state and persistent effects between visits.

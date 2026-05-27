@@ -34,6 +34,8 @@ import {
   questDifficulty,
   questMoneyReward,
   questXpReward,
+  RPG_ATTRIBUTE_CAP,
+  RPG_LEVEL_CAP,
   rpgStatEffects,
   regenPsi,
   scaleMonsterDmg,
@@ -386,6 +388,42 @@ test('hostile stronger NPC chases the player instead of returning to routine AI'
   assert.equal(hunter.ai?.combatTargetId, player.id);
 });
 
+test('runtime faction combat can skip dead-player full scans with an explicit sentinel', () => {
+  const world = new World();
+  for (let y = 506; y <= 514; y++) {
+    for (let x = 506; x <= 520; x++) world.set(x, y, Cell.FLOOR);
+  }
+
+  const player = makePlayer();
+  player.id = 1;
+  player.x = 516;
+  player.y = 510;
+  const civilian: Entity = {
+    id: 14,
+    type: EntityType.NPC,
+    x: 510,
+    y: 510,
+    angle: 0,
+    pitch: 0,
+    alive: true,
+    speed: 2,
+    sprite: 0,
+    hp: 30,
+    maxHp: 30,
+    faction: Faction.CITIZEN,
+    playerRelation: -80,
+    weapon: '',
+    rpg: freshRPG(1),
+    ai: { goal: AIGoal.IDLE, tx: 0, ty: 0, path: [], pi: 0, stuck: 0, timer: 0 },
+  };
+  const entities = [player, civilian];
+  rebuildEntityIndex(entities);
+
+  assert.equal(tryFactionCombat(world, entities, civilian, 0.1, 5, [], { v: 100 }, undefined, null), false);
+  assert.equal(tryFactionCombat(world, entities, civilian, 0.1, 5, [], { v: 100 }), true);
+  assert.equal(civilian.ai?.combatTargetId, player.id);
+});
+
 test('hostile weaker NPC flees a nearby stronger player', () => {
   const world = new World();
   for (let y = 506; y <= 514; y++) {
@@ -638,6 +676,24 @@ test('RPG rewards, attribute spend, and scaling formulas remain stable', () => {
   assert.equal(questXpReward(difficulty), 160);
   assert.equal(questMoneyReward(difficulty), 40);
   assert.equal(ITEMS.water.type, ItemType.DRINK);
+});
+
+test('RPG progression clamps runtime levels and attributes to the shared cap', () => {
+  const player = makePlayer();
+  const msgs: Msg[] = [];
+  player.rpg = freshRPG(RPG_LEVEL_CAP - 1);
+  player.rpg.xp = xpForLevel(RPG_LEVEL_CAP) - 1;
+
+  awardXP(player, 10_000_000, msgs, 45);
+
+  assert.equal(player.rpg.level, RPG_LEVEL_CAP);
+  assert.equal(player.rpg.xp, 0);
+  assert.ok(msgs.some(item => item.text.includes(`УРОВЕНЬ ${RPG_LEVEL_CAP}`)));
+
+  player.rpg.attrPoints = 1;
+  player.rpg.str = RPG_ATTRIBUTE_CAP;
+  assert.equal(spendAttrPoint(player, 'str'), false);
+  assert.equal(player.rpg.attrPoints, 1);
 });
 
 test('RPG stat effects avoid hard caps and appear in weapon readiness', () => {

@@ -40,7 +40,7 @@ export function rankScore(stats: RankStats): number {
 export function entityRankScore(entity: Entity): number {
   return rankScore({
     level: getEntityLevel(entity),
-    money: entity.money,
+    money: (entity.money ?? 0) + (entity.accountRubles ?? 0),
     kills: entity.kills,
     npcKills: entity.npcKills,
     monsterKills: entity.monsterKills,

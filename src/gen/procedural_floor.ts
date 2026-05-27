@@ -27,6 +27,7 @@ import { withSeededRandom } from '../core/rand';
 import { ITEMS, NOTES, freshNeeds, randomName } from '../data/catalog';
 import { ITEM_TAGS, getStack, spawnCount } from '../data/items';
 import { CONTAINER_DEFS, containerKindsForRoom } from '../data/container_defs';
+import { proceduralContainerValueCap as economyProceduralContainerValueCap } from '../data/economics';
 import { emergencyPanelDefsForGeometry, type EmergencyPanelDef } from '../data/emergency_panels';
 import { chooseFloorMonsterKind, getMonsterEcology } from '../data/monster_ecology';
 import {
@@ -299,7 +300,7 @@ function addCappedItem(inv: Item[], item: Item, valueCap: number, capacitySlots:
 }
 
 function proceduralContainerValueCap(kind: ContainerKind, spec: ProceduralFloorSpec): number {
-  return Math.min(proceduralLootValueCap(spec.danger), CONTAINER_DEFS[kind].proceduralValueCap ?? Number.POSITIVE_INFINITY);
+  return Math.min(proceduralLootValueCap(spec.danger, spec.z), economyProceduralContainerValueCap(kind, spec.danger, spec.z));
 }
 
 function seedProceduralLootInventory(room: Room, kind: ContainerKind, spec: ProceduralFloorSpec): Item[] {

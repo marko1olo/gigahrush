@@ -13,18 +13,20 @@
 | Public old-identity web trace | Found | Public search shows a ModDB/DBolical page for `GIGAH\|RUSH` with creator `jirnyak` and homepage pointing to Tenevik itch. | Search may surface old creator identity even if links are current. | Recheck in browser/account context; migrate creator/profile or delete if transfer is impossible. |
 | Active draft cleanup | In progress | `next_wave_targets_2026-05-23.md`, `needed_access_ru.md`, `next_wave_schedule_ru.md`, `post_wave_en_community_2026-05-23.md`, KPI and campaign plan were updated. | Other old copy may remain in historical docs. | Use `rg` before any outbound post. |
 | RU/CIS upload scout | Completed read-only | Six subagents plus local official-doc checks ranked Яндекс Игры as best long-term RU/CIS playable upload target; VK Play browser project and ИграйТут are nearer current-build scouts. Details: `Docs/PRCampaign/ru_cis_upload_platforms_2026-05-26.md`. | Яндекс/Пикабу require SDK work; VK Play needs dashboard/legal/moderation; ИграйТут needs external-link/CSP/content check. | Owner chooses one lane before any submission: Yandex portal build, VK Play draft, or ИграйТут quick upload. |
+| MyIndie Tenevik publication | Done | Authenticated Chrome/Tenevik pass at 2026-05-26 18:06-18:22 UTC / 19:06-19:22 BST updated and published `https://myindie.ru/games/game/gigahrush`. Public page now shows `Авторы (Tenevik Games)`, profile `TENEVIK`, dates `26.05.2026`, RU copy with `GIGAH\|RUSH`, clickable itch/direct/Telegram description links, 11 MyIndie-hosted media images and the current `5 078 498` byte ZIP. Follow-up at 19:17 UTC / 20:17 BST removed public map/topology wording and uses `безграничная бетонная структура` / `безграничная структура`. Web iframe URL returned `200`, title `ГИГАХРУЩ - САМОСБОР`, and direct browser check showed two canvas layers. Details: `Docs/PRCampaign/PR_16.md`. | Platform retained older gallery thumbnails alongside new media; possible duplicate media polish later. | Treat MyIndie as live Tenevik-owned RU surface; monitor moderation/comments/Web iframe/clickable links/public wording, no duplicate listing. |
 
 ## Good Signs
 
 - The new credential is stored in an ignored local env file rather than a tracked document.
 - The current operating docs now distinguish future Tenevik identity from historical old-account facts.
+- MyIndie no longer leaks the old public `jirnyak` author on the active slug; it now shows Tenevik Games/TENEVIK, the current HTML5 build starts through MyIndie, the description has visible clickable links to itch/direct/Telegram, and the public text no longer reveals map size or topology.
 - No source/gameplay code needs changes for this PR migration.
 
 ## Bad Signs
 
 - Several useful live pages were likely created from old accounts; deleting everything would reduce campaign reach.
 - Old support chains and outbound pitches still require monitoring from the old mailbox until closed or forwarded.
-- Public creator/profile names may need manual dashboard changes on iDev.Games, ModDB/IndieDB, Game Jolt, MyIndie, DTF, GameDev.ru and Reddit.
+- Public creator/profile names still need manual dashboard checks on iDev.Games, ModDB/IndieDB, Game Jolt, DTF, GameDev.ru and Reddit. MyIndie was fixed through the Tenevik session on 2026-05-26.
 
 ## Next Actions
 
@@ -35,6 +37,7 @@
 5. Recheck ModDB/IndieDB account ownership and update creator/profile display to Tenevik.
 6. Keep monitoring old Gmail threads only for replies, bounces and support closure; do not initiate new PR from it.
 7. For Russian/CIS playable upload, do not scatter-submit. Pick one lane: Яндекс Игры as the main SDK build, VK Play browser draft as the first owner-dashboard scout, or ИграйТут as the quick HTML5 archive candidate.
+8. MyIndie is now monitoring-only: watch moderation, comments, plays/downloads, Web iframe availability, clickable link retention and public wording retention at `https://myindie.ru/games/game/gigahrush`.
 
 ## Owner Needed
 

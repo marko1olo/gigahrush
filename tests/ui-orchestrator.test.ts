@@ -22,8 +22,6 @@ import {
   resetUiElement,
   resetUiSettings,
   setUiElementEnabled,
-  nextVisibleMapMode,
-  normalizeVisibleMapMode,
   toggleUiElement,
   uiElementEnabled,
   uiSettingsRowAt,
@@ -56,15 +54,13 @@ test('UI orchestrator defaults to the novice-safe HUD enabled', () => {
   assert.equal(cameraFovDegrees(), CAMERA_FOV_DEFAULT_DEGREES);
 });
 
-test('UI orchestrator skips invisible minimap map states', () => {
+test('UI orchestrator treats minimap as an ordinary interface surface', () => {
   resetUiSettings();
-  assert.equal(nextVisibleMapMode(0, true), 1);
-  assert.equal(nextVisibleMapMode(1, true), 2);
-  assert.equal(nextVisibleMapMode(2, true), 0);
-  assert.equal(nextVisibleMapMode(0, false), 2);
-  assert.equal(nextVisibleMapMode(2, false), 0);
-  assert.equal(normalizeVisibleMapMode(1, false), 0);
-  assert.equal(normalizeVisibleMapMode(1, true), 1);
+  assert.equal(uiElementEnabled('minimap'), true);
+  assert.equal(toggleUiElement('minimap'), false);
+  assert.equal(uiElementEnabled('minimap'), false);
+  assert.equal(resetUiElement('minimap'), true);
+  assert.equal(uiElementEnabled('minimap'), true);
 });
 
 test('UI orchestrator toggles normal elements but keeps locked system text visible', () => {

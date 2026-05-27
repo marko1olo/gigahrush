@@ -11,6 +11,10 @@ import {
 } from '../core/types';
 import { hashSeed, seededRandom } from '../core/rand';
 import { designFloorAtZ } from './design_floors';
+import {
+  ECONOMY_PROCEDURAL_LOOT_VALUE_CAP_BY_DANGER,
+  proceduralLootValueCap as economyProceduralLootValueCap,
+} from './economics';
 
 export type FloorGeometryId =
   | 'living_blocks'
@@ -109,11 +113,7 @@ export interface ProceduralFloorSpec {
 }
 
 export const PROCEDURAL_LOOT_VALUE_CAP_BY_DANGER: Readonly<Record<1 | 2 | 3 | 4 | 5, number>> = {
-  1: 55,
-  2: 85,
-  3: 125,
-  4: 180,
-  5: 260,
+  ...ECONOMY_PROCEDURAL_LOOT_VALUE_CAP_BY_DANGER,
 };
 
 export const PROCEDURAL_LOOT_FACTION_TAGS: Readonly<Record<FloorMajorityId, readonly string[]>> = {
@@ -176,8 +176,8 @@ export const PROCEDURAL_LOOT_ANOMALY_KIND_BIAS: Readonly<Record<FloorAnomalyId, 
   zombie_apocalypse: [ContainerKind.MEDICAL_CABINET, ContainerKind.EMERGENCY_BOX, ContainerKind.SECRET_STASH],
 };
 
-export function proceduralLootValueCap(danger: 1 | 2 | 3 | 4 | 5): number {
-  return PROCEDURAL_LOOT_VALUE_CAP_BY_DANGER[danger];
+export function proceduralLootValueCap(danger: 1 | 2 | 3 | 4 | 5, routeZ?: number): number {
+  return economyProceduralLootValueCap(danger, routeZ);
 }
 
 export const FLOOR_RUN_MIN_Z = -50;

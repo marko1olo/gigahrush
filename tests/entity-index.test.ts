@@ -3,8 +3,10 @@ import assert from 'node:assert/strict';
 import { EntityType, Faction, W, type Entity } from '../src/core/types';
 import {
   ENTITY_MASK_ACTOR,
+  ENTITY_MASK_BILLBOARD,
   ENTITY_MASK_MONSTER,
   ENTITY_MASK_NPC,
+  ENTITY_MASK_VISIBLE,
   EntityIndex,
   ensureEntityIndex,
   markEntityIndexDirty,
@@ -43,9 +45,10 @@ test('entity index exposes live AI actors and projectiles', () => {
   npc.needs = { food: 100, water: 100, sleep: 100, pee: 0, poo: 0 };
   const projectile = entity(2, EntityType.PROJECTILE, 11, 10);
   const drop = entity(3, EntityType.ITEM_DROP, 12, 10);
+  const billboard = entity(4, EntityType.BILLBOARD, 13, 10);
   npc.ai = { goal: 0, tx: 0, ty: 0, path: [], pi: 0, stuck: 0, timer: 0 };
   projectile.projLife = 1;
-  index.rebuild([npc, projectile, drop]);
+  index.rebuild([npc, projectile, drop, billboard]);
 
   assert.deepEqual(index.actors.map(e => e.id), [1]);
   assert.deepEqual(index.ai.map(e => e.id), [1]);
@@ -80,6 +83,25 @@ test('entity index type masks filter query results', () => {
   assert.deepEqual(out.map(e => e.id), [1]);
 
   index.queryRadius(20, 20, 6, out, ENTITY_MASK_MONSTER);
+  assert.deepEqual(out.map(e => e.id), [2]);
+});
+
+test('billboard entities are visible but not actors or item drops', () => {
+  const index = new EntityIndex();
+  index.rebuild([
+    entity(1, EntityType.NPC, 20, 20),
+    entity(2, EntityType.BILLBOARD, 21, 20),
+    entity(3, EntityType.ITEM_DROP, 22, 20),
+  ]);
+
+  const out: Entity[] = [];
+  index.queryRadius(20, 20, 6, out, ENTITY_MASK_VISIBLE);
+  assert.deepEqual(out.map(e => e.id).sort((a, b) => a - b), [1, 2, 3]);
+
+  index.queryRadius(20, 20, 6, out, ENTITY_MASK_ACTOR);
+  assert.deepEqual(out.map(e => e.id), [1]);
+
+  index.queryRadius(20, 20, 6, out, ENTITY_MASK_BILLBOARD);
   assert.deepEqual(out.map(e => e.id), [2]);
 });
 

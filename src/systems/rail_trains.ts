@@ -170,7 +170,7 @@ function positionTrainEntities(world: World, entities: Entity[], track: RailTrai
 function createTrainSegmentEntity(id: number, train: RailTrain, segment: number): Entity {
   return {
     id,
-    type: EntityType.ITEM_DROP,
+    type: EntityType.BILLBOARD,
     x: 0,
     y: 0,
     angle: 0,
@@ -182,7 +182,6 @@ function createTrainSegmentEntity(id: number, train: RailTrain, segment: number)
     spriteZ: 0,
     name: segment === 0 ? train.label : `${train.label} вагон`,
     faction: Faction.WILD,
-    inventory: [],
   };
 }
 
@@ -225,7 +224,7 @@ function updateTrainMotion(world: World, track: RailTrainTrack, train: RailTrain
 }
 
 function damageEntity(world: World, victim: Entity, train: RailTrain, state: GameState): void {
-  if (victim.type === EntityType.ITEM_DROP || victim.type === EntityType.PROJECTILE) return;
+  if (victim.type !== EntityType.PLAYER && victim.type !== EntityType.NPC && victim.type !== EntityType.MONSTER) return;
   const amount = victim.type === EntityType.PLAYER ? 38 : 260;
   if (victim.hp !== undefined) {
     victim.hp = Math.max(0, victim.hp - amount);
@@ -500,7 +499,7 @@ export function addRailTrainRoute(
     train.entityIds.push(id);
     entities.push({
       id,
-      type: EntityType.ITEM_DROP,
+      type: EntityType.BILLBOARD,
       x: 0,
       y: 0,
       angle: 0,
@@ -512,7 +511,6 @@ export function addRailTrainRoute(
       spriteZ: 0,
       name: i === 0 ? opts.label : `${opts.label} вагон`,
       faction: Faction.WILD,
-      inventory: [],
     });
   }
 

@@ -222,7 +222,7 @@ function nearestActor(world: World, e: Entity, radius: number): Entity | null {
   let bestD2 = radius * radius;
   getEntityIndex().queryRadiusCapped(e.x, e.y, radius, gnilushkaActorQuery, ENTITY_MASK_ACTOR, ACTOR_QUERY_CAP);
   for (const other of gnilushkaActorQuery) {
-    if (!other.alive || other.id === e.id || other.type === EntityType.MONSTER || other.type === EntityType.ITEM_DROP || other.type === EntityType.PROJECTILE) continue;
+    if (!other.alive || other.id === e.id || (other.type !== EntityType.PLAYER && other.type !== EntityType.NPC)) continue;
     const d2 = world.dist2(e.x, e.y, other.x, other.y);
     if (d2 < bestD2) {
       best = other;

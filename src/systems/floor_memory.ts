@@ -87,6 +87,7 @@ interface RleArraySave {
 interface FloorMemoryWorldSave {
   arrays: RleArraySave[];
   rooms: unknown[];
+  apartmentRoomCount: number;
   zones: unknown[];
   doors: Array<[number, unknown]>;
   containers: unknown[];
@@ -406,6 +407,7 @@ function worldForSave(world: World): FloorMemoryWorldSave {
   return {
     arrays: WORLD_ARRAY_FIELDS.map(def => encodeRleArray(worldArray(world, def.field), def.field, def.type)),
     rooms: cloneJson(world.rooms),
+    apartmentRoomCount: finiteIntRange(world.apartmentRoomCount, 0, world.rooms.length, 0),
     zones: cloneJson(world.zones),
     doors: [...world.doors.entries()].map(([idx, door]) => [idx, cloneJson(door)]),
     containers: cloneJson(world.containers),
@@ -720,12 +722,15 @@ function sanitizedWorldSave(input: unknown): FloorMemoryWorldSave | null {
     arrays.push(saved);
   }
   const rooms = sanitizeRooms(input.rooms);
+  const apartmentRoomCount = finiteIntRange(input.apartmentRoomCount, 0, rooms.length, -1);
+  if (apartmentRoomCount < 0) return null;
   const zones = sanitizeZones(input.zones);
   const surfaceMap: Array<[number, string]> = [];
   for (const [idx, pixels] of restoreSurfaceMap(input.surfaceMap)) surfaceMap.push([idx, bytesToBase64(pixels)]);
   return {
     arrays,
     rooms,
+    apartmentRoomCount,
     zones,
     doors: sanitizeDoorEntries(input.doors, rooms),
     containers: sanitizeContainers(input.containers, rooms, zones),
@@ -754,6 +759,7 @@ function worldFromSave(input: unknown): World | null {
     if (!applyRleArray(world, saved)) return null;
   }
   world.rooms = sanitizeRooms(savedWorld.rooms);
+  world.apartmentRoomCount = savedWorld.apartmentRoomCount;
   world.zones = sanitizeZones(savedWorld.zones);
   world.doors = new Map(sanitizeDoorEntries(savedWorld.doors, world.rooms, world));
   reconcileRoomDoors(world);
@@ -1431,6 +1437,36 @@ function finiteNonNegativeInt(value: unknown, fallback = 0): number {
     : fallback;
 }
 
+function knownEntityType(value: unknown): value is EntityType {
+  return typeof value === 'number'
+    && Number.isInteger(value)
+    && value >= EntityType.PLAYER
+    && value <= EntityType.BILLBOARD;
+}
+
+function finiteEntityCoord(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return W / 2;
+  return ((value % W) + W) % W;
+}
+
+function sanitizeRestoredEntity(entity: Entity): Entity | null {
+  if (typeof entity.id !== 'number' || !Number.isFinite(entity.id)) return null;
+  if (!knownEntityType(entity.type)) return null;
+  if (!storableEntity(entity)) return null;
+  entity.id = Math.floor(entity.id);
+  entity.x = finiteEntityCoord(entity.x);
+  entity.y = finiteEntityCoord(entity.y);
+  entity.angle = finiteCoord(entity.angle, 0);
+  entity.pitch = finiteCoord(entity.pitch, 0);
+  entity.speed = finiteCoord(entity.speed, 0);
+  entity.sprite = finiteNonNegativeInt(entity.sprite, 0);
+  if (entity.spriteScale !== undefined) entity.spriteScale = finiteCoord(entity.spriteScale, 1);
+  if (entity.spriteZ !== undefined) entity.spriteZ = finiteCoord(entity.spriteZ, 0);
+  if (typeof entity.alive !== 'boolean') entity.alive = true;
+  if (entity.type === EntityType.BILLBOARD) entity.inventory = undefined;
+  return entity;
+}
+
 function restoreEntities(input: unknown): Entity[] {
   if (!Array.isArray(input)) return [];
   const out: Entity[] = [];
@@ -1442,9 +1478,8 @@ function restoreEntities(input: unknown): Entity[] {
     } catch {
       continue;
     }
-    if (typeof entity.id !== 'number' || !Number.isFinite(entity.id)) continue;
-    if (!storableEntity(entity)) continue;
-    out.push(entity);
+    const sanitized = sanitizeRestoredEntity(entity);
+    if (sanitized) out.push(sanitized);
   }
   return out;
 }

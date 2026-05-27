@@ -170,7 +170,14 @@ export interface Door {
 }
 
 // ── Entities ─────────────────────────────────────────────────────
-export enum EntityType { PLAYER, NPC, MONSTER, ITEM_DROP, PROJECTILE }
+export enum EntityType {
+  PLAYER,
+  NPC,
+  MONSTER,
+  ITEM_DROP,
+  PROJECTILE,
+  BILLBOARD, // non-interactive visible prop entity: desks, train cars, large decor
+}
 
 /** Special projectile behaviour tags */
 export enum ProjType {
@@ -563,7 +570,8 @@ export interface Entity {
   canGiveQuest?: boolean;     // authored/current quest affordance; persistent A-Life NPCs are valid quest candidates
   alifeId?: number;           // persistent procedural NPC identity
   persistentNpcId?: string;   // stable non-plot NPC key, e.g. alife:123
-  money?: number;             // рубли
+  money?: number;             // наличные рубли
+  accountRubles?: number;     // банковский счет; у игрока основной счет хранится в GameState.banking
   spriteScale?: number;       // sprite size multiplier (child = 0.6)
   spriteZ?: number;           // vertical offset: 0=ground, 0.5=eye level (projectiles)
   plotNpcId?: string;         // story NPC key (e.g. 'olga', 'barni', 'yakov') — see data/plot.ts
@@ -1070,7 +1078,7 @@ export interface GameState {
   paused: boolean;
   gameOver: boolean;
   showInventory: boolean;
-  mapMode: number;          // 0=off, 1=minimap, 2=fullmap
+  mapMode: number;          // 0=closed, 2=full map overlay; minimap is a UI setting
   showQuests: boolean;
   invSel: number;
   msgs: Msg[];

@@ -167,14 +167,18 @@ function livePlayerTarget(entities: readonly Entity[]): Entity | undefined {
 }
 
 export function tryFactionCombat(
-  world: World, entities: Entity[], e: Entity, dt: number, _time: number, msgs: Msg[], nextId: { v: number }, state?: GameState, player?: Entity,
+  world: World, entities: Entity[], e: Entity, dt: number, _time: number, msgs: Msg[], nextId: { v: number }, state?: GameState, player?: Entity | null,
 ): boolean {
   const ws = WEAPON_STATS[e.weapon ?? ''] ?? WEAPON_STATS[''];
   const isArmed = ws.dmg > 3 || ws.isRanged;
 
   const isCombatant = npcIsBrave(e) ||
     isArmed;
-  const playerTarget = player?.alive && player.type === EntityType.PLAYER ? player : livePlayerTarget(entities);
+  const playerTarget = player === null
+    ? undefined
+    : player?.alive && player.type === EntityType.PLAYER
+      ? player
+      : livePlayerTarget(entities);
   const hostileToPlayer = playerTarget !== undefined && isHostile(e, playerTarget);
   const ai = e.ai!;
   if (ai.goal === AIGoal.FLEE && ai.timer > 0) return continueFlee(world, e, dt);

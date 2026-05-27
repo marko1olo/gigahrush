@@ -1814,7 +1814,7 @@ export function updateSamosbor(
     }
 
     // NPCs hide (citizens/scientists only — handled by forceHide)
-    forceHide(entities, state.msgs, state.time);
+    forceHide(entities, state.msgs, state.time, world, state.clock);
 
     // Capture a zone with фиолетовый туман + spawn fog boss
     activeSamosborZoneId = captureZone(
@@ -2144,14 +2144,14 @@ export function rebuildWorld(
   // Living floor: only rebuild volatile maze, keep apartments
   const aptCount = world.apartmentRoomCount;
 
-  // Kill projectiles and remove item drops outside apartments
+  // Kill projectiles and remove loose visible props outside apartments
   for (let i = entities.length - 1; i >= 0; i--) {
     const e = entities[i];
     if (e.type === EntityType.PROJECTILE) {
       entities.splice(i, 1);
       continue;
     }
-    if (e.type === EntityType.ITEM_DROP) {
+    if (e.type === EntityType.ITEM_DROP || e.type === EntityType.BILLBOARD) {
       const rid = world.roomMap[world.idx(Math.floor(e.x), Math.floor(e.y))];
       if (rid < 0 || rid >= aptCount) {
         entities.splice(i, 1);
@@ -3172,6 +3172,7 @@ function entityOnFogCell(world: World, entities: Entity[], ci: number): Entity |
   const exact = samosborFogEffectEntities.filter(e =>
     e.alive &&
     world.idx(Math.floor(e.x), Math.floor(e.y)) === ci &&
+    e.type !== EntityType.BILLBOARD &&
     e.type !== EntityType.PROJECTILE);
   if (exact.length === 0) return null;
   exact.sort((a, b) => a.type - b.type);
@@ -3981,13 +3982,13 @@ function randomTransferEntity(entities: Entity[]): Entity | null {
   if (entities.length === 0) return null;
   for (let attempt = 0; attempt < SAMOSBOR_RANDOM_ENTITY_TRANSFER_ENTITY_ATTEMPTS; attempt++) {
     const entity = entities[Math.floor(Math.random() * entities.length)];
-    if (entity?.alive && entity.type !== EntityType.PROJECTILE) return entity;
+    if (entity?.alive && entity.type !== EntityType.PROJECTILE && entity.type !== EntityType.BILLBOARD) return entity;
   }
   const start = Math.floor(Math.random() * entities.length);
   const limit = Math.min(entities.length, 512);
   for (let i = 0; i < limit; i++) {
     const entity = entities[(start + i) % entities.length];
-    if (entity.alive && entity.type !== EntityType.PROJECTILE) return entity;
+    if (entity.alive && entity.type !== EntityType.PROJECTILE && entity.type !== EntityType.BILLBOARD) return entity;
   }
   return null;
 }

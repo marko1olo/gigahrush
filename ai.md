@@ -1,0 +1,415 @@
+# Active-Floor AI
+
+This document is the planning contract for live NPC and monster behavior on the loaded floor.
+
+A-Life answers who exists, where that person belongs, whether they are dead, and what persistent facts fold back into the run. That contract lives in [alife.md](alife.md). This document answers how materialized live actors think, move, fight, hide, react and create readable situations on the active 1024x1024 toroidal `World`.
+
+The core direction is simple: ordinary NPCs should not be synchronized by a global schedule. Thousands of materialized people on the current floor should behave like independent agents with their own needs, professions, anchors, fear, habits and local context. Monsters should likewise be gameplay rules with territory, stimuli, readable warnings and counterplay, not only HP/speed variants.
+
+## Current Baseline
+
+The current implementation is useful but too synchronous for ordinary civilians:
+
+- `src/systems/ai/index.ts` owns the single `updateAI()` entry point. It updates hot/warm/cold live AI actors through deterministic cadence, not through a player spawn bubble.
+- `src/systems/ai/npc_fsm.ts` maps `clock.hour` and `samosborActive` to `NpcState`: sleep, morning, work, lunch, free time, hiding and traveling.
+- `src/systems/ai/ministry_ai.ts` has a separate ministry schedule with meetings, patrols and breaks, still driven by shared time bands.
+- `src/systems/ai/combat.ts` gives NPC combat, fleeing, ranged windup and relation-aware hostility higher priority than routine behavior.
+- `src/systems/ai/pathfinding.ts` provides a toroidal baked navigation tree and cached behavior flow fields for shared targets such as kitchens, bathrooms and work rooms.
+- `src/systems/ai/monster.ts` contains the monster target loop and many `MonsterKind`/`aiFlags` behavior hooks.
+- `src/systems/entity_index.ts` is the runtime broadphase for AI target, threat and local actor queries.
+
+The failure mode is visible: if many NPCs share the same hour, state and room-type target, they can decide together that it is time to work and then follow the same flow field toward production rooms. This creates the reported "everyone walks in a line to the factory" problem.
+
+## Target Model
+
+Use a hybrid:
+
+- A utility selector chooses the current intent from local scores.
+- A small finite-state executor performs that intent: select target, travel, perform, recover, retry or abandon.
+- GOAP-style planning is allowed only as one or two local steps, such as "hungry, has food, eat" or "hungry, no food, go to kitchen".
+- Behavior-tree style special logic is reserved for authored NPCs, floor variants and monsters where a small generic utility rule is not expressive enough.
+
+Global time can remain a soft rhythm input, but it must not force all NPCs into the same state at the same moment. Work, sleep and lunch are pressures, not commands.
+
+## AI And A-Life Boundary
+
+AI may read live fields such as `alifeId`, `persistentNpcId`, `plotNpcId`, `faction`, `occupation`, `needs`, `playerRelation`, `karma`, `rpg`, weapon and inventory. It may change live position, combat target, needs, health, inventory and compact transient AI state.
+
+AI must not:
+
+- create ordinary persistent NPC identities;
+- refill a floor to a population cap;
+- silently replace a killed persistent person;
+- run pathfinding, needs, combat, line of sight or local event reactions for off-floor NPCs;
+- mutate the full A-Life pool directly from routine behavior;
+- serialize navigation caches, flow fields, scheduler internals or full behavior histories.
+
+Persistent effects go through A-Life foldback, floor memory, compact events, faction/economy/quest state or an explicit current save section. Required persistent AI fields require a save shape bump, not legacy migration scaffolding.
+
+## Individual NPC State
+
+The next NPC behavior pass should split persistent personality from transient live execution.
+
+Compact persistent or sparse-overridden A-Life fields:
+
+- `needProfileId`: deterministic need decay/restoration profile.
+- `routineSeed`: stable personal jitter for cadence, target choice and tie breaks.
+- `roleAiId`: civilian, worker, guard, medic, trader, traveler, cultist, scavenger or authored role family.
+- `homeRoomId` or home anchor cell when the floor is known.
+- `workRoomId`, work anchor cell or work route anchor when the floor is known.
+- `socialRoomId` or faction/social anchor when needed.
+- `shiftOffsetMinutes`: personal rhythm offset, not a global schedule lock.
+- `duty`, `sociability`, `riskTolerance`, `greed`, `panicBias`: compact `0..255` traits.
+- `lastSafeRoomId` only if shelter memory must survive floor travel.
+
+Transient `AIState` fields for implementation:
+
+- `intentId`;
+- `intentStartedAt`;
+- `intentUntil`;
+- `nextDecisionAt`;
+- `nextTargetResolveAt`;
+- `targetRoomId`;
+- `targetCell`;
+- `reservationRoomId`;
+- `reservationUntil`;
+- `frustration`;
+- `blockedUntil`;
+- `lastIntentScore` for debug and hysteresis.
+
+`NpcState` should become a visible/debug label derived from intent. It should not remain the source of truth for ordinary NPC decisions.
+
+## Need Randomization
+
+When A-Life materializes a floor, NPC needs should be deterministic but individualized:
+
+- food, water, sleep, pee and poo start from stable per-NPC rolls, role profile and floor context;
+- profession and faction bias the starting state, e.g. guards start more alert, cooks less hungry, travelers more thirsty, wounded scavengers more likely to seek treatment;
+- current room can nudge needs, but should not make all actors in one room identical;
+- materialization must not use `Math.random()` in a way that makes save/load or floor revisit behavior drift unpredictably.
+
+This makes the first decision after floor activation local: one worker goes to a machine, another looks for water, another visits a bathroom, another keeps smoking, another responds to a monster sound.
+
+## NPC Utility Intents
+
+Each decision tick scores a compact list of intents. The list should stay small and data-driven:
+
+- `safety`: samosbor, monster, gunfire, fire, fog, faction threat.
+- `combat`: attack a hostile actor if brave, armed, ordered or cornered.
+- `flee`: escape a stronger monster/NPC/player or a dangerous room.
+- `toilet`: pee/poo pressure.
+- `drink`: water need or dehydration risk.
+- `eat`: food need or starvation risk.
+- `sleep`: low sleep and safe enough context.
+- `work`: role/profession duty.
+- `heal`: low HP, medical room, med item or medic.
+- `social`: talk, trade, rumor, family/friend proximity, quest affordance.
+- `patrol`: guards, liquidators, hunters, cult watchers.
+- `loot`: greed, nearby unattended item/container, faction rules.
+- `repair`: mechanics/electricians/responders near broken content.
+- `escort`: help ally/family/quest actor reach shelter or exit.
+- `wander`: low-pressure local movement.
+
+Example score shape:
+
+```txt
+score = needPressure
+      + roleBias
+      + softRhythmBias
+      + localStimulus
+      + personalTraitBias
+      + currentIntentStickiness
+      - distanceCost
+      - crowdPenalty
+      - dangerPenalty
+      - factionZonePenalty
+```
+
+The winning intent must beat the current intent by a hysteresis margin unless the new intent is emergency class. This prevents nervous twitching between kitchen, bathroom and work.
+
+## Work Without Synchronized Streams
+
+Work should not mean "go to nearest production room".
+
+Rules:
+
+- Every worker gets a stable work anchor or route on first materialization when possible.
+- Work is split by profession: machine work, repair sweep, kitchen duty, medical duty, storage audit, office paperwork, patrol, delivery, guard post, research, scavenging or cult service.
+- `shiftOffsetMinutes` and `routineSeed` only modify utility. They never hard-force a state transition for all NPCs.
+- Common room-type flow fields remain useful for kitchens, bathrooms, med rooms and generic shelter. Personal home/work anchors should use direct room/cell targets or small role-specific source sets.
+- Rooms have soft capacity. A crowded target gets a crowd penalty rather than accepting every actor.
+- Reservation is local and approximate: reserve a room/anchor for a short time, release on arrival, failure, panic or combat.
+- If the target is blocked, the NPC increases `frustration`, picks an alternate anchor or switches to a lower-score intent.
+
+This keeps visible floor life dense but breaks the line of identical workers walking toward one factory field.
+
+## Decision Cadence
+
+Use the existing hot/warm/cold scheduler. Cadence changes how often a live actor rethinks, not whether it exists.
+
+Recommended limits for the implementation pass:
+
+- hot NPC utility rescore: `1.0..2.5s`;
+- warm NPC utility rescore: `4..8s`;
+- cold NPC utility rescore: `12..30s`;
+- global utility decisions per frame: about `48`;
+- new target/path resolutions per frame: about `32`;
+- social/crowd/threat radius: usually `8..16`;
+- social/crowd/threat result cap: usually `8..16`;
+- flow-field cache stays around the existing pathfinding cache budget;
+- no per-NPC `setInterval`;
+- no per-frame full `entities`, full `World` or full A-Life pool scans.
+
+Cold NPCs still accumulate time and eventually act. They are not disabled.
+
+## Local Events And Memory
+
+NPCs should react by locality and memory, not by omniscience.
+
+Preferred flow:
+
+1. A system publishes a compact `WorldEvent`.
+2. Direct witnesses immediately update `NpcMemory`, rumor state or a short-lived intent.
+3. Other nearby NPCs sample recent local facts on their staggered AI tick.
+4. The fact changes fear, trust, hostility, rumor, target choice or a visible action.
+
+Examples:
+
+- A theft creates witness suspicion, not global knowledge.
+- A monster sighting creates fear and a rumor near that zone.
+- A faction fight makes nearby civilians flee and armed faction actors respond.
+- A player rescue raises individual trust more than broad faction relation.
+- A denied shelter can become a grudge on the person who was refused.
+
+No routine AI should scan the whole event ring every frame.
+
+## Samosbor Reaction
+
+`state.samosborActive` and warning state are global pressure, not global orders. The actual reaction is per NPC:
+
+- Citizens and scientists seek home, assigned room or nearest valid shelter.
+- Liquidators may hold a corridor, escort civilians, fight monsters or hide if wounded/low on ammo.
+- Cultists may move toward ritual pressure, guard a shelter, exclude outsiders or exploit chaos.
+- Wild residents may scatter, raid containers, ambush or hide in unclaimed rooms.
+- Travelers choose the nearest reachable safe room or route anchor rather than a family room.
+
+Shelter choice is local and capped. Candidate sources:
+
+- current room if sealable;
+- family/home/assigned room;
+- nearest `getSamosborShelterRoomIds()` candidates;
+- nearby suitable rooms;
+- local shelter modules registered through `registerSamosborLocalShelter()`.
+
+Shelter score should use distance, path availability, door state, room pressure, faction ownership, fear, trust, player relation and recent player behavior.
+
+During active samosbor:
+
+- high fear can freeze an NPC inside shelter;
+- brave/armed actors can defend a door;
+- trusted NPCs can follow or accept escort briefly;
+- hostile NPCs can avoid the player or deny shared shelter;
+- faction actors protect their own first;
+- panic can break the plan if fog, monsters or door pressure rises.
+
+If a samosbor effect rewrites, deletes, heals or creates an ordinary person who persists beyond the event, the result must update A-Life through explicit APIs and compact events.
+
+## Monster AI Direction
+
+A monster is a gameplay rule. It must change at least one decision: route, position, noise, light, water, door, item, crowd, ammo, faction/social choice or shelter behavior.
+
+The target shape is:
+
+```txt
+ecology role + archetype FSM + stimuli + territory + counterplay reaction
+```
+
+Recommended archetypes:
+
+- `chaser`: simple pursuit with one readable weakness.
+- `ambusher`: waits in terrain, door, water, fog, corpse or container context.
+- `territorial`: controls a room, feature, nest, fog pocket, water patch or door cluster.
+- `resource_predator`: responds to food, documents, corpses, blood, light, sound or bait.
+- `pack_hunter`: shares target locally with capped neighbors.
+- `line_turret`: threatens visible straight lines with windup/cooldown.
+- `parasite_controller`: uses hosts, commands or infection with strict caps.
+- `trap_tether`: dangerous near an anchor, weaker or retreating away from it.
+- `conditional_neutral`: can be traded with, fed, avoided or provoked.
+- `hive_spawner`: creates capped children from a visible source.
+- `room_puzzle_boss`: bound to a room rule with explicit counterplay.
+
+Generic monster states:
+
+- `Dormant`;
+- `PatrolTerritory`;
+- `InvestigateStimulus`;
+- `WarnTelegraph`;
+- `Commit`;
+- `Recover`;
+- `FleeReset`;
+- `FeedClaim`;
+- `ReturnHome`.
+
+These do not require a new enum per monster. They can map to existing `AIGoal`, `monsterStage`, `ai.*` scalar fields and `aiFlags`.
+
+## Monster Stimuli
+
+Shared stimuli should be compact and prioritized:
+
+- hostile sight;
+- recent damage;
+- noise;
+- bait or food scent;
+- document scent;
+- corpse or blood;
+- light, dark, fog, water, wet line or fire;
+- door/container/room-memory event;
+- pack call;
+- samosbor pressure.
+
+Each stimulus needs a source, radius, severity, tags and short TTL. Monsters read local capped samples through `entity_index`, noise helpers, room memory, item/bait helpers or ecology-specific small scans. They do not scan the whole floor.
+
+## Monster Territory, Drives And Packs
+
+Territory is a first-class AI input:
+
+- home room;
+- door threshold;
+- source feature;
+- fog/water patch;
+- corpse nest;
+- office field;
+- screen/apparatus;
+- vent/abyss source;
+- samosbor scar.
+
+Territorial monsters should not chase forever across the whole floor. They pressure the edge, return to the anchor, lose strength outside the area or switch to restoring territory.
+
+Drives are small bounded scalars:
+
+- `fear`;
+- `hunger`;
+- `anger` or `arousal`;
+- `packConfidence`;
+- `territoryPressure`.
+
+They decay on AI ticks and only open specific transitions. Hunger can override pursuit until combat lock; fear can trigger flee/reset; pack confidence can enable flank/share behavior.
+
+Pack behavior must not be all-to-all. Use one howl/pulse/leader fact, capped neighbor query, shared target cooldown and deterministic slots around the target.
+
+## Counterplay Contract
+
+Counterplay must change AI state, not only damage numbers.
+
+Good counterplay can:
+
+- interrupt a windup;
+- break line of sight;
+- scare a pack;
+- satisfy hunger with bait;
+- expose a mimic;
+- deny a territory anchor;
+- force a reset;
+- cut a wet/light/fog connection;
+- make the monster choose a different target.
+
+Every new or reworked monster needs:
+
+- warning cue;
+- tactical response;
+- route/resource/social decision;
+- event, rumor, mark, trace or loot clue;
+- bounded query/cadence/cap;
+- samosbor reaction or explicit reason for being exempt.
+
+## Pathfinding And Movement
+
+AI movement stays toroidal and field-based:
+
+- use `world.wrap`, `world.delta`, `world.dist` and `world.dist2`;
+- routine movement uses the baked navigation tree and behavior flow fields;
+- common target classes should add a source provider instead of per-actor BFS;
+- personal home/work targets can use direct room/cell paths with target-resolution caps;
+- runtime geometry mutation must bump the correct dirty versions so stale paths and flow fields rebuild;
+- actors must tolerate samosbor, doors and room changes by clearing or retargeting stale paths.
+
+## Debug And Telemetry
+
+Future debugging should show behavior pressure without serializing large histories:
+
+- AI scheduler stats: hot, warm, cold, skipped, updated, important promotions.
+- Pathfinding stats: cache hits, bakes, assigned paths, denied/deferred paths.
+- Entity-index stats: query count, bucket checks, max result count.
+- NPC intent sample: last intent, last score, next decision time, target room/cell.
+- Monster sample: archetype, stimulus, territory, drive scalars, counterplay state.
+- Samosbor sample: selected shelter, fear, escort/deny/defend decision.
+
+Any trace buffer should be bounded, for example the last `300` AI-relevant samples.
+
+## Save Boundary
+
+Transient behavior can be lost on reload:
+
+- current intent;
+- path;
+- flow-field assignment;
+- scheduler accumulator;
+- target resolve cooldown;
+- local reservations;
+- monster short windup/recover timers unless already represented by an existing save section.
+
+Persistent consequences must be compact:
+
+- death;
+- HP;
+- position;
+- inventory;
+- player relation;
+- karma/counters;
+- quest/faction/economy facts;
+- compact world events;
+- floor-memory changes.
+
+Use `alifeId`, `persistentNpcId`, `plotNpcId`, room id, zone id and route key. Do not persist behavior by transient `entity.id` unless the entity is explicitly live-session-only.
+
+## Implementation Order
+
+1. Document and expose current AI stats in debug so the existing schedule-driven baseline is measurable.
+2. Keep fixed `100_000` A-Life population as the runtime baseline in `src/systems/alife.ts`.
+3. Add deterministic A-Life need/personality fields used at materialization.
+4. Convert ordinary NPC schedule selection into utility intent selection while keeping current handlers as executors.
+5. Add home/work/social anchors and soft room capacity.
+6. Expand the current per-NPC samosbor shelter hook into full emergency intent selection for escort, defense, denial and panic.
+7. Move common monster behavior toward archetype helpers while preserving existing special counterplay.
+8. Add focused tests for cadence, target selection, path invalidation, shelter reaction and no-refill guarantees.
+
+## Acceptance Checklist
+
+For any AI change, answer:
+
+- Does it operate only on live active-floor actors?
+- Does it avoid ordinary population refill?
+- Does it use toroidal world math?
+- Is every scan bounded by radius, cap and cadence?
+- Does it reuse `entity_index` and pathfinding caches?
+- Does it avoid synchronized global schedule decisions for ordinary NPCs?
+- Does it preserve NPC-vs-NPC, NPC-vs-monster and monster-vs-NPC behavior?
+- Does it publish compact events for player-visible consequences?
+- Does persistent state fold through A-Life/save/floor memory instead of transient AI caches?
+- Does a monster change player tactics and show readable counterplay?
+
+## Anti-Patterns
+
+Reject these:
+
+- global clock bands as the primary ordinary NPC decision source;
+- all workers using one broad room-type target at the same time;
+- per-frame full `entities`, full room, full event or full A-Life scans;
+- per-actor BFS for routine behavior;
+- invisible off-floor realtime simulation;
+- renderer-owned gameplay state;
+- content-specific branches in `main.ts`, `core/world.ts`, `render/webgl.ts` or the generic AI orchestrator;
+- monster additions that only change HP, speed or sprite;
+- AI code that creates persistent people after A-Life materialization;
+- hidden replacement of killed NPCs;
+- unbounded barks, logs, events or debug traces.

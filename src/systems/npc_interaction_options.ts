@@ -1,9 +1,11 @@
 import { EntityType, msg, type Entity, type GameState } from '../core/types';
 import { DESIGN_FLOOR_ROUTES } from '../data/design_floors';
+import { closeDiceGame, diceStakeFromNpc, startDiceGame } from './dice';
 import { closeDurakGame, durakStakeFromNpc, startDurakGame } from './durak';
 import { npcHasQuestMarker } from './quests';
 
 export const CARD_DECK_ITEM_ID = 'card_deck';
+export const DICE_BONE_ITEM_ID = 'dice_bone';
 export const NPC_MENU_INTERFACE_TAB = 'interface';
 
 export interface NpcInteractionContext {
@@ -80,8 +82,16 @@ function hasCardDeck(ctx: NpcInteractionContext): boolean {
   return countItem(ctx.player, CARD_DECK_ITEM_ID) > 0 || countItem(ctx.npc, CARD_DECK_ITEM_ID) > 0;
 }
 
+function hasDice(ctx: NpcInteractionContext): boolean {
+  return countItem(ctx.player, DICE_BONE_ITEM_ID) > 0 || countItem(ctx.npc, DICE_BONE_ITEM_ID) > 0;
+}
+
 function durakStake(ctx: NpcInteractionContext): number {
   return durakStakeFromNpc(ctx.npc);
+}
+
+function diceStake(ctx: NpcInteractionContext): number {
+  return diceStakeFromNpc(ctx.npc);
 }
 
 function currentRouteId(state: GameState): string {
@@ -159,6 +169,7 @@ export function openNpcInteractionInterface(ctx: NpcInteractionContext, request:
 
 export function closeNpcInteractionInterface(state?: GameState): void {
   closeDurakGame();
+  closeDiceGame();
   runtime.open = false;
   runtime.id = '';
   runtime.title = '';
@@ -218,6 +229,37 @@ registerNpcInteractionOption({
         'Подкидной дурак на двоих, без перевода.',
       ],
       message: 'Деньги переходят только после победы или сдачи.',
+    });
+  },
+});
+
+registerNpcInteractionOption({
+  id: 'dice',
+  order: 31,
+  label: ctx => `Играть в кости (₽${diceStake(ctx)})`,
+  visible: hasDice,
+  disabledReason: ctx => {
+    const stake = diceStake(ctx);
+    if (stake <= 0) return 'У NPC нет денег для ставки.';
+    if (cleanMoney(ctx.player) < stake) return `Нужно ₽${stake} для ставки в кости.`;
+    return undefined;
+  },
+  activate: ctx => {
+    const stake = diceStake(ctx);
+    if (!startDiceGame(ctx)) {
+      ctx.state.msgs.push(msg('Кости не легли на стол.', ctx.state.time, '#f84'));
+      return;
+    }
+    openNpcInteractionInterface(ctx, {
+      id: 'dice',
+      title: 'КОСТИ',
+      stakeRubles: stake,
+      lines: [
+        `${ctx.npc.name ?? 'NPC'} ставит пару костей на бетон.`,
+        `Ставка зафиксирована: 10% от денег NPC, сейчас ₽${stake}.`,
+        'Бросайте до 21. Перебор проигрывает; равный счет оставляет деньги при себе.',
+      ],
+      message: 'E бросить, сброс/стоп передать ход NPC.',
     });
   },
 });

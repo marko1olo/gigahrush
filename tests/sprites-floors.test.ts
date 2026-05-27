@@ -273,6 +273,32 @@ test('living start tutorial rooms keep samosbor-proof hermowalls', () => {
   }
 });
 
+test('living start tutorial desks are billboards, not item drops', () => {
+  const generated = generateFloor(FloorLevel.LIVING);
+  const tutorDesks = generated.entities.filter(e =>
+    e.type === EntityType.BILLBOARD &&
+    e.sprite === Spr.DESK &&
+    e.spriteScale === 0.5);
+
+  assert.ok(tutorDesks.length >= 12, 'tutorial desks and armory counter should be billboard props');
+  assert.equal(tutorDesks.every(e => !e.inventory?.length), true);
+  assert.ok(generated.entities.some(e =>
+    e.type === EntityType.ITEM_DROP &&
+    e.sprite === Spr.ITEM_DROP &&
+    e.inventory?.some(slot => slot.defId === 'ammo_9mm' && slot.count > 0)));
+});
+
+test('living art study sprites are billboards, not empty item drops', () => {
+  const generated = generateFloor(FloorLevel.LIVING);
+  const artProps = generated.entities.filter(e =>
+    e.type === EntityType.BILLBOARD &&
+    e.sprite >= Spr.ART_NUDE_BASE &&
+    e.sprite <= Spr.ART_NUDE_3);
+
+  assert.equal(artProps.length >= 4, true);
+  assert.equal(artProps.every(e => e.spriteScale === 0.88 && !e.inventory?.length), true);
+});
+
 test('floor 69 floor screens are registered as signal screen cells', () => {
   const generated = generateDesignFloor('floor_69');
   const screenFeatureCells: number[] = [];

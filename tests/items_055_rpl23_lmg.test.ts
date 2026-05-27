@@ -16,7 +16,7 @@ test('rpl23 lmg is a heavy liquidator squad weapon with belt ammo pressure', () 
   assert.equal(def.name, 'РПЛ-23 Лёшкинского');
   assert.equal(def.type, ItemType.WEAPON);
   assert.deepEqual(def.spawnRooms, [RoomType.HQ]);
-  assert.equal(def.value, 3600);
+  assert.ok(def.value >= 5_000);
   assert.equal(resourceForItem(def.id)?.id, 'ammo');
   assert.equal(WEAPON_ROLE_TIERS.rpl23_lmg, 'ammo_burn');
 

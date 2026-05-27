@@ -1,7 +1,8 @@
 /* ── UI-only map exploration memory ───────────────────────────── */
 
-import { Cell, W, type Entity, type GameState } from '../core/types';
+import { Cell, EntityType, QuestType, W, type Entity, type GameState, type Quest } from '../core/types';
 import type { World } from '../core/world';
+import { isQuestTargetOnCurrentFloor, resolveQuestTargetRoom } from './contracts';
 import { getRouteCueMapReveals } from './route_cues';
 import { getSamosborShelterRoomIds } from './samosbor';
 import { getSamosborWaveDebugSnapshot } from './samosbor_wave';
@@ -9,6 +10,7 @@ import { getSamosborWaveDebugSnapshot } from './samosbor_wave';
 const LOCAL_TRAIL_RADIUS = 2;
 const ROUTE_REVEAL_RADIUS = 8;
 const ZONE_REVEAL_RADIUS = 18;
+const QUEST_MARKER_REVEAL_RADIUS = 8;
 
 interface MapExplorationRuntime {
   explored: Uint8Array;
@@ -145,6 +147,99 @@ function revealRouteCueKnowledge(world: World, state: GameState): void {
 
 function revealSamosborShelters(world: World, state: GameState): void {
   for (const roomId of getSamosborShelterRoomIds(state)) revealMapRoom(world, roomId);
+}
+
+function questHasMapRevealTarget(q: Quest): boolean {
+  return q.targetRoom !== undefined ||
+    q.targetRoomType !== undefined ||
+    q.targetRoomName !== undefined ||
+    q.targetZoneTag !== undefined ||
+    q.targetMarker?.roomType !== undefined ||
+    q.targetMarker?.roomName !== undefined ||
+    q.targetMarker?.zoneTag !== undefined ||
+    q.targetNpcId !== undefined ||
+    q.targetPlotNpcId !== undefined ||
+    q.targetMonsterKind !== undefined;
+}
+
+function questWithMarkerFallback(q: Quest): Quest {
+  const marker = q.targetMarker;
+  if (!marker) return q;
+  return {
+    ...q,
+    targetRoomType: q.targetRoomType ?? marker.roomType,
+    targetRoomName: q.targetRoomName ?? marker.roomName,
+    targetZoneTag: q.targetZoneTag ?? marker.zoneTag,
+  };
+}
+
+function questMarkerTargetOnCurrentFloor(q: Quest, state: GameState): boolean {
+  if (!isQuestTargetOnCurrentFloor(q, state)) return false;
+  if (
+    q.targetFloor === undefined &&
+    q.visitFloor === undefined &&
+    q.targetRoute === undefined &&
+    q.targetMarker?.floor !== undefined
+  ) return q.targetMarker.floor === state.currentFloor;
+  return true;
+}
+
+function revealQuestEntityMarker(world: World, e: Entity): void {
+  if (!e.alive) return;
+  const room = world.roomAt(e.x, e.y);
+  if (room) {
+    revealMapRoom(world, room.id);
+  } else {
+    revealMapArea(world, e.x, e.y, QUEST_MARKER_REVEAL_RADIUS);
+  }
+}
+
+function revealNearestQuestMonsterMarker(
+  world: World,
+  player: Entity,
+  entities: readonly Entity[],
+  q: Quest,
+): void {
+  if (q.targetMonsterKind === undefined) return;
+  let best: Entity | undefined;
+  let bestD2 = Infinity;
+  for (const e of entities) {
+    if (!e.alive || e.type !== EntityType.MONSTER || e.monsterKind !== q.targetMonsterKind) continue;
+    const d2 = world.dist2(player.x, player.y, e.x, e.y);
+    if (d2 < bestD2) {
+      best = e;
+      bestD2 = d2;
+    }
+  }
+  if (best) revealQuestEntityMarker(world, best);
+}
+
+export function revealQuestTargetOnMap(
+  world: World,
+  player: Entity,
+  state: GameState,
+  q: Quest,
+  entities?: readonly Entity[],
+): void {
+  if (q.done || q.failed || !questHasMapRevealTarget(q)) return;
+  if (!questMarkerTargetOnCurrentFloor(q, state)) return;
+
+  const roomTarget = resolveQuestTargetRoom(world, questWithMarkerFallback(q), player);
+  if (roomTarget) revealMapRoom(world, roomTarget.room.id);
+
+  if (!entities?.length) return;
+  const targetEntity = entities.find(e =>
+    e.alive &&
+    (
+      (q.targetNpcId !== undefined && e.id === q.targetNpcId) ||
+      (q.targetPlotNpcId !== undefined && e.plotNpcId === q.targetPlotNpcId)
+    ),
+  );
+  if (targetEntity) {
+    revealQuestEntityMarker(world, targetEntity);
+  } else if (q.type === QuestType.KILL) {
+    revealNearestQuestMonsterMarker(world, player, entities, q);
+  }
 }
 
 export function updateMapExploration(world: World, player: Entity, state: GameState): void {

@@ -74,8 +74,6 @@ import {
   cameraFovRadians,
   mobileLookSensitivity,
   mouseLookSensitivity,
-  nextVisibleMapMode,
-  normalizeVisibleMapMode,
   resetCameraFov,
   resetMobileLookSensitivity,
   resetMouseLookSensitivity,
@@ -119,6 +117,7 @@ import {
   npcHasImportantQuestAction,
   npcQuestActionHint,
 } from './systems/quests';
+import { handleDiceInput, isDiceGameOpen } from './systems/dice';
 import { handleDurakInput, isDurakGameOpen } from './systems/durak';
 import {
   activateNpcCustomMenuOption,
@@ -138,6 +137,7 @@ import {
   freshRPG, awardXP, xpForMonsterKill, xpForNpcKill,
   meleeDamage, agiSpeedMult, agiAttackSpeedMult,
   spendAttrPoint, getMaxHp, getMaxPsi, randomRPG, xpForLevel,
+  RPG_ATTRIBUTE_CAP, RPG_LEVEL_CAP,
 } from './systems/rpg';
 import {
   applyPaupsinaWeb,
@@ -1979,10 +1979,6 @@ function playerActions(_dt: number): void {
   if (!player.alive) return;
   if (state.sleeping) return; // no actions while sleeping
 
-  // Toggle map
-  if (input.map && !prevMap) state.mapMode = nextVisibleMapMode(state.mapMode);
-  prevMap = input.map;
-
   // Pickup (on interact key E, if looking at item drop)
   // Auto-pickup handles walking over items (see tick%15 below)
 
@@ -3488,7 +3484,6 @@ const SAVE_INVENTORY_SLOT_CAP = 25;
 const SAVE_QUEST_CAP = 512;
 const SAVE_TEXT_CAP = 192;
 const MAX_SAVE_MONEY = 999_999;
-const MAX_SAVE_LEVEL = 99;
 const MAX_QUEST_TIME_LIMIT_MINUTES = 5 * 24 * 60;
 const EVENT_PRIVACIES: readonly WorldEventPrivacy[] = ['public', 'local', 'witnessed', 'private', 'secret'];
 
@@ -3593,13 +3588,14 @@ function normalizeEquippedItem(
 
 function normalizeRpg(input: unknown): RPGStats {
   const src = isRecord(input) ? input : {};
-  const level = clampInt(src.level, 1, 1, MAX_SAVE_LEVEL);
+  const level = clampInt(src.level, 1, 1, RPG_LEVEL_CAP);
   const rpg = freshRPG(level);
-  rpg.xp = clampInt(src.xp, 0, 0, 1_000_000);
-  rpg.attrPoints = clampInt(src.attrPoints, 0, 0, MAX_SAVE_LEVEL);
-  rpg.str = clampInt(src.str, 0, 0, MAX_SAVE_LEVEL);
-  rpg.agi = clampInt(src.agi, 0, 0, MAX_SAVE_LEVEL);
-  rpg.int = clampInt(src.int, 0, 0, MAX_SAVE_LEVEL);
+  const xpCap = level >= RPG_LEVEL_CAP ? 0 : Math.max(0, xpForLevel(level + 1) - 1);
+  rpg.xp = clampInt(src.xp, 0, 0, xpCap);
+  rpg.attrPoints = clampInt(src.attrPoints, 0, 0, RPG_ATTRIBUTE_CAP);
+  rpg.str = clampInt(src.str, 0, 0, RPG_ATTRIBUTE_CAP);
+  rpg.agi = clampInt(src.agi, 0, 0, RPG_ATTRIBUTE_CAP);
+  rpg.int = clampInt(src.int, 0, 0, RPG_ATTRIBUTE_CAP);
   rpg.maxPsi = getMaxPsi(rpg);
   rpg.psi = clampNumber(src.psi, rpg.maxPsi, 0, rpg.maxPsi);
   return rpg;
@@ -4319,6 +4315,7 @@ function syncMenuInputBaselines(): void {
   prevControlsMenu = input.controls;
   prevUiSettingsMenu = input.uiSettings;
   prevControlReset = input.controlReset;
+  prevMap = input.map;
 }
 
 function tryLockLandscape(): void {
@@ -4394,6 +4391,48 @@ function closeMobilePanels(includeMap = true): void {
   updateMobileContext(true);
 }
 
+function closeInterfacesForFullMap(): void {
+  clearTradeOffers(state);
+  state.showMenu = false;
+  state.showInventory = false;
+  state.showQuests = false;
+  state.showNpcMenu = false;
+  closeNpcInteractionInterface();
+  closeContainerMenu();
+  state.showDebug = false;
+  state.showFactions = false;
+  state.showLog = false;
+  state.showControls = false;
+  state.showUiSettings = false;
+  cancelControlCapture();
+  closeNetSphere();
+  closeNetTerminalGen();
+  closeInteractableOverlay();
+  closeEmergencyPanelMenu();
+  closeMapEditor();
+}
+
+function openFullMapMenu(): void {
+  if (typeof state === 'undefined') return;
+  closeInterfacesForFullMap();
+  state.mapMode = 2;
+  resetMenuRepeats();
+  syncPauseState();
+  updateMobileContext(true);
+}
+
+function closeFullMapMenu(): void {
+  if (typeof state === 'undefined') return;
+  state.mapMode = 0;
+  syncPauseState();
+  updateMobileContext(true);
+}
+
+function toggleFullMapMenu(): void {
+  if (state.mapMode === 2) closeFullMapMenu();
+  else openFullMapMenu();
+}
+
 function closeActiveMobileMenu(): void {
   closeMobilePanels(true);
 }
@@ -4407,8 +4446,7 @@ function openMobileMenu(menu: MobileMenuId): void {
       state.invSel = 0;
       break;
     case 'map':
-      closeMobilePanels(false);
-      state.mapMode = nextVisibleMapMode(state.mapMode);
+      toggleFullMapMenu();
       break;
     case 'quests':
       state.showQuests = true;
@@ -4460,6 +4498,9 @@ function confirmActiveMobileSelection(): void {
     } else if (state.npcMenuTab === NPC_MENU_INTERFACE_TAB) {
       if (npc && isDurakGameOpen()) {
         const result = handleDurakInput({ state, player, npc, input: { interactEdge: true } });
+        if (result.closeInterface) closeNpcInteractionInterface(state);
+      } else if (npc && isDiceGameOpen()) {
+        const result = handleDiceInput({ state, player, npc, input: { interactEdge: true } });
         if (result.closeInterface) closeNpcInteractionInterface(state);
       } else {
         closeNpcInteractionInterface(state);
@@ -4658,8 +4699,10 @@ function reportTradeResult(npc: Entity, result: TradeResult): void {
       const offer = result.credit?.creditCount ?? 0;
       const credit = result.credit?.creditValue ?? 0;
       const paid = result.price > 0 ? `, доплата ${result.price}₽` : '';
-      const surplus = (result.credit?.surplus ?? 0) > 0 ? `, переплата ${result.credit?.surplus}₽` : '';
-      state.msgs.push(msg(`Сделка: получено ${ask}, отдано ${offer}${paid}${credit > 0 ? `, предметами ${credit}₽` : ''}${surplus}`, state.time, '#4f4'));
+      const change = (result.credit?.changeDue ?? 0) > 0 ? `, сдача ${result.credit?.changeDue}₽` : '';
+      const unpaidSurplus = Math.max(0, (result.credit?.surplus ?? 0) - (result.credit?.changeDue ?? 0));
+      const surplus = unpaidSurplus > 0 ? `, без сдачи ${unpaidSurplus}₽` : '';
+      state.msgs.push(msg(`Сделка: получено ${ask}, отдано ${offer}${paid}${change}${credit > 0 ? `, предметами ${credit}₽` : ''}${surplus}`, state.time, '#4f4'));
     } else if (result.code === 'sold' && result.defId && result.price !== undefined) {
       const def = ITEMS[result.defId];
       state.msgs.push(msg(`Продано: ${def?.name ?? result.defId} (+${result.price}₽)`, state.time, '#4f4'));
@@ -4810,16 +4853,11 @@ function closeUiSettingsMenu(): void {
   syncPauseState();
 }
 
-function clampUiSettingsMapMode(): void {
-  state.mapMode = normalizeVisibleMapMode(state.mapMode);
-}
-
 function applyUiSettingsSelection(index: number): void {
   const row = uiSettingsRowAt(index, state.uiSettingsView);
   if (!row) return;
   if (row.kind === 'preset') {
     if (applyUiPreset(row.preset.id)) {
-      clampUiSettingsMapMode();
       state.msgs.push(msg(`UI пресет: ${row.preset.label}`, state.time, '#8cf'));
     }
     return;
@@ -4835,7 +4873,6 @@ function applyUiSettingsSelection(index: number): void {
     return;
   }
   toggleUiElement(row.element.id);
-  clampUiSettingsMapMode();
 }
 
 function resetUiSettingsSelection(index: number): void {
@@ -4843,7 +4880,6 @@ function resetUiSettingsSelection(index: number): void {
   if (!row) return;
   if (row.kind === 'preset') {
     applyUiPreset(DEFAULT_UI_PRESET_ID);
-    clampUiSettingsMapMode();
     state.msgs.push(msg('UI сброшен: Новичок', state.time, '#8cf'));
     return;
   }
@@ -4858,7 +4894,6 @@ function resetUiSettingsSelection(index: number): void {
     return;
   }
   resetUiElement(row.element.id);
-  clampUiSettingsMapMode();
   state.msgs.push(msg(`UI сброшен: ${row.element.label}`, state.time, '#8cf'));
 }
 
@@ -5110,6 +5145,9 @@ function handleMobileHudTap(x: number, y: number): void {
         if (isDurakGameOpen()) {
           const result = handleDurakInput({ state, player, npc, input: { escEdge: true } });
           if (result.closeInterface) closeNpcInteractionInterface(state);
+        } else if (isDiceGameOpen()) {
+          const result = handleDiceInput({ state, player, npc, input: { escEdge: true } });
+          if (result.closeInterface) closeNpcInteractionInterface(state);
         } else {
           closeNpcInteractionInterface(state);
         }
@@ -5218,6 +5256,7 @@ function handleMenuInput(): void {
     prevControlsMenu = input.controls;
     prevUiSettingsMenu = input.uiSettings;
     prevControlReset = input.controlReset;
+    prevMap = input.map;
     return;
   }
 
@@ -5225,6 +5264,13 @@ function handleMenuInput(): void {
     resetMenuRepeats();
     syncMenuInputBaselines();
     syncPauseState();
+    return;
+  }
+
+  const globalMapEdge = input.map && !prevMap;
+  if (globalMapEdge && !isMapEditorOpen()) {
+    toggleFullMapMenu();
+    syncMenuInputBaselines();
     return;
   }
 
@@ -5555,6 +5601,7 @@ function handleMenuInput(): void {
     if (state.showNpcMenu) {
       const npc = entities.find(e => e.id === state.npcMenuTarget);
       if (npc && isDurakGameOpen()) handleDurakInput({ state, player, npc, input: { escEdge: true } });
+      else if (npc && isDiceGameOpen()) handleDiceInput({ state, player, npc, input: { escEdge: true } });
       clearTradeOffers(state);
       closeNpcInteractionInterface();
       state.showNpcMenu = false;
@@ -5565,6 +5612,7 @@ function handleMenuInput(): void {
     else if (state.showFactions) { state.showFactions = false; }
     else if (state.showLog) { state.showLog = false; }
     else if (state.showUiSettings) { state.showUiSettings = false; }
+    else if (state.mapMode === 2) { closeFullMapMenu(); }
     else if (state.showMenu && state.menuSel === 1) { runGameMenuSelection(state.menuSel); }
     else if (state.showMenu) { state.showMenu = false; }
     else { state.showMenu = !state.showMenu; state.menuSel = 0; }
@@ -5774,6 +5822,16 @@ function handleMenuInput(): void {
           input: { leftNav, rightNav, interactEdge, dropEdge },
         });
         if (result.closeInterface) closeNpcInteractionInterface(state);
+      } else if (npc && isDiceGameOpen()) {
+        const leftNav = menuRepeatStep('left', input.invLeft, leftEdge);
+        const rightNav = menuRepeatStep('right', input.invRight, rightEdge);
+        const result = handleDiceInput({
+          state,
+          player,
+          npc,
+          input: { leftNav, rightNav, interactEdge, dropEdge },
+        });
+        if (result.closeInterface) closeNpcInteractionInterface(state);
       } else if (interactEdge || escEdge) {
         closeNpcInteractionInterface(state);
       }
@@ -5815,6 +5873,10 @@ function handleMenuInput(): void {
     if (upNav) state.logScroll = Math.min(maxScroll, state.logScroll + 3);
     if (dnNav) state.logScroll = Math.max(0, state.logScroll - 3);
   }
+  // ── Full map menu ───────────────────────────────────────
+  else if (state.mapMode === 2) {
+    // M and Enter close the full map; other menu hotkeys wait for the map to close.
+  }
   // ── Normal gameplay toggles ──────────────────────────────
   else {
     const dbgEdge = input.debugScreen && !prevDebug;
@@ -5841,6 +5903,7 @@ function handleMenuInput(): void {
   prevControlsMenu = input.controls;
   prevUiSettingsMenu = input.uiSettings;
   prevControlReset = input.controlReset;
+  prevMap = input.map;
 
   // Auto-pause when any menu is open
   syncPauseState();

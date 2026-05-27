@@ -12,6 +12,7 @@ import {
 } from './economy_ui';
 import { containerMenuGridLayout } from './ui_layout';
 import { drawCenteredWrappedText, fitText } from './ui_text';
+import { drawItemGridIcon } from './item_sprites';
 
 export function drawContainerMenu(
   ctx: CanvasRenderingContext2D,
@@ -117,9 +118,11 @@ export function drawContainerMenu(
             ctx.fillText(questLabel, cx + cellSz - 4 * sx, cy + 3 * sy);
             ctx.textAlign = 'left';
           }
-          ctx.fillStyle = selected ? '#0fa' : '#ccc';
-          ctx.font = `${5.6 * sy}px monospace`;
-          ctx.fillText(fitText(ctx, def?.name ?? item.defId, cellSz - 4 * sx), cx + 2 * sx, cy + 10 * sy);
+          drawItemGridIcon(ctx, item.defId, def?.name ?? item.defId, cx, cy, cellSz, sx, sy, selected, selected ? 1 : 0.84, {
+            nameYUnits: 8,
+            iconTopUnits: 8.8,
+            bottomReserveUnits: 5.4,
+          });
           ctx.fillStyle = value.scarcityColor;
           ctx.font = `${4.8 * sy}px monospace`;
           ctx.fillText(

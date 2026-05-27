@@ -164,7 +164,7 @@ function nearestActor(world: World, entities: readonly Entity[], e: Entity): Ent
   let best: Entity | null = null;
   let bestD2 = FLEE_DISTANCE * FLEE_DISTANCE;
   for (const other of entities) {
-    if (!other.alive || other.id === e.id || other.type === EntityType.MONSTER || other.type === EntityType.ITEM_DROP || other.type === EntityType.PROJECTILE) continue;
+    if (!other.alive || other.id === e.id || (other.type !== EntityType.PLAYER && other.type !== EntityType.NPC)) continue;
     const d2 = world.dist2(e.x, e.y, other.x, other.y);
     if (d2 < bestD2) {
       best = other;

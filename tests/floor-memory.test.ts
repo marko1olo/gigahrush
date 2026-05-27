@@ -10,6 +10,7 @@ import {
   LiftDirection,
   RoomType,
   Tex,
+  W,
   ZoneFaction,
   type Entity,
   type Room,
@@ -115,6 +116,8 @@ test('floor memory save restores full world snapshot without regenerating baseli
   const cellIdx = world.idx(17, 19);
   world.cells[cellIdx] = Cell.FLOOR;
   world.features[cellIdx] = Feature.SCREEN;
+  world.rooms = [testRoom(0), testRoom(1), testRoom(2)];
+  world.apartmentRoomCount = 2;
   world.surfaceMap.set(cellIdx, new Uint8Array(16 * 16 * 4).fill(7));
   world.surfaceFlags[cellIdx] |= SURFACE_FLAG_CHALK_MAP;
   world.addContainer({
@@ -138,6 +141,7 @@ test('floor memory save restores full world snapshot without regenerating baseli
 
   assert.equal(captureFloorMemory('procedural:test_floor', world, [npc], 17.5, 19.5, 12, 3), true);
   const saved = floorMemoryStateForSave();
+  assert.equal(saved.entries[0]?.world.apartmentRoomCount, 2);
   clearFloorMemory();
 
   const restored = restoreFloorMemoryFromSave(saved);
@@ -145,6 +149,7 @@ test('floor memory save restores full world snapshot without regenerating baseli
   const loaded = takeFloorMemory('procedural:test_floor');
   assert.ok(loaded);
   const restoredWorld = loaded.generation.world;
+  assert.equal(restoredWorld.apartmentRoomCount, 2);
   assert.equal(restoredWorld.cells[cellIdx], Cell.FLOOR);
   assert.equal(restoredWorld.features[cellIdx], Feature.SCREEN);
   assert.equal(restoredWorld.surfaceMap.get(cellIdx)?.[0], 7);
@@ -223,6 +228,32 @@ test('floor memory save byte cap skips oversized entries', () => {
   assert.equal(saved.entries.some(entry => entry.key === 'story:huge_save'), false);
 
   setFloorMemorySaveByteBudgetForTests(undefined);
+  clearFloorMemory();
+});
+
+test('floor memory restore sanitizes billboard props as non-item entities', () => {
+  clearFloorMemory();
+  const world = new World();
+  const billboard = entity(55, EntityType.BILLBOARD);
+  billboard.inventory = [{ defId: 'bread', count: 1 }];
+  assert.equal(captureFloorMemory('story:billboard_restore', world, [billboard], 10.5, 10.5, 1, 0), true);
+
+  const saved = floorMemoryStateForSave();
+  const entry = JSON.parse(JSON.stringify(saved.entries[0])) as typeof saved.entries[number] & { entities: unknown[] };
+  (entry.entities[0] as Record<string, unknown>).x = 'bad';
+  entry.entities.push({ id: 99, type: 999, x: 1, y: 1, angle: 0, pitch: 0, alive: true, speed: 0, sprite: 0 });
+
+  clearFloorMemory();
+  const restored = restoreFloorMemoryFromSave({ version: 1, entries: [entry], bytes: 0, byteBudget: 0 });
+  assert.equal(restored.restored, 1);
+
+  const loaded = takeFloorMemory('story:billboard_restore');
+  assert.ok(loaded);
+  assert.equal(loaded.generation.entities.length, 1);
+  const restoredBillboard = loaded.generation.entities[0];
+  assert.equal(restoredBillboard.type, EntityType.BILLBOARD);
+  assert.equal(restoredBillboard.inventory, undefined);
+  assert.equal(restoredBillboard.x, W / 2);
   clearFloorMemory();
 });
 

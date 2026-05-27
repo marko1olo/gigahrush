@@ -7,6 +7,7 @@ import { controlHint } from '../systems/controls';
 import {
   rpgStatEffects,
   rpgStatEffectsAfterSpend,
+  RPG_LEVEL_CAP,
   xpForLevel,
   type RPGStatEffects,
 } from '../systems/rpg';
@@ -15,6 +16,7 @@ import { drawNeuroPanel, drawGlitchText, textJitter, flicker } from './hud_fx';
 import { fitText as fitStatText } from './ui_text';
 import { drawInventoryFinanceBlock, readFinanceSnapshot } from './economy_ui';
 import { fullscreenInventoryLayout } from './ui_layout';
+import { drawItemGridIcon } from './item_sprites';
 
 export function drawInventory(
   ctx: CanvasRenderingContext2D,
@@ -74,14 +76,13 @@ export function drawInventory(
       if (idx < inv.length) {
         const item = inv[idx];
         const def = ITEMS[item.defId];
-        ctx.fillStyle = selected ? '#0fa' : '#8aa';
-        ctx.font = `${6 * sy}px monospace`;
-        const name = fitStatText(ctx, def?.name ?? item.defId, cellSz - 4 * sx);
-        ctx.fillText(name, cx + 2 * sx, cy + 10 * sy);
+        drawItemGridIcon(ctx, item.defId, def?.name ?? item.defId, cx, cy, cellSz, sx, sy, selected, selected ? 1 : 0.86);
         if (item.count > 1) {
           ctx.fillStyle = '#6a8';
           ctx.font = `${5 * sy}px monospace`;
-          ctx.fillText(`×${item.count}`, cx + cellSz - 16 * sx, cy + cellSz - 5 * sy);
+          ctx.textAlign = 'center';
+          ctx.fillText(`×${item.count}`, cx + cellSz / 2, cy + cellSz - 5 * sy);
+          ctx.textAlign = 'left';
         }
       }
     }
@@ -185,12 +186,13 @@ export function drawInventory(
 
   // XP bar
   if (player.rpg) {
-    const xpNeeded = xpForLevel(player.rpg.level + 1);
+    const capped = player.rpg.level >= RPG_LEVEL_CAP;
+    const xpNeeded = capped ? 1 : xpForLevel(player.rpg.level + 1);
     ctx.fillStyle = '#8a8';
     ctx.font = `${7 * sy}px monospace`;
-    ctx.fillText(`XP: ${player.rpg.xp}/${xpNeeded}`, stX, stY);
+    ctx.fillText(capped ? `XP: максимум ${RPG_LEVEL_CAP}` : `XP: ${player.rpg.xp}/${xpNeeded}`, stX, stY);
     stY += 9 * sy;
-    drawStatBar(ctx, stX, stY, barW, 4 * sy, xpNeeded > 0 ? player.rpg.xp / xpNeeded : 0, '#af4');
+    drawStatBar(ctx, stX, stY, barW, 4 * sy, capped ? 1 : player.rpg.xp / xpNeeded, '#af4');
     stY += 8 * sy;
   }
 

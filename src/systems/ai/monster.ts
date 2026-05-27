@@ -43,7 +43,7 @@ import {
 } from '../monster_bait';
 import { entityInActiveCellHazard, registerCellHazardSite } from '../cell_hazards';
 import { isDebugOnePunchManEnabled, keepDebugOnePunchManAlive } from '../debug_cheats';
-import { ENTITY_MASK_ACTOR, ENTITY_MASK_ITEM_DROP, ENTITY_MASK_MONSTER, ENTITY_MASK_NPC, getEntityIndex } from '../entity_index';
+import { ENTITY_MASK_ACTOR, ENTITY_MASK_ITEM_DROP, ENTITY_MASK_MONSTER, ENTITY_MASK_NPC, ensureEntityIndex, getEntityIndex } from '../entity_index';
 import { updateSlimevikMonster } from '../slimevik';
 import { updateGnilushkaMonster } from '../gnilushka';
 import { HEAD_SLUG_DETACHED_STAGE, HEAD_SLUG_HOSTED_STAGE } from '../../entities/head_slug';
@@ -434,7 +434,7 @@ const mukhozhukCommandQuery: Entity[] = [];
 const cherviePulseQuery: Entity[] = [];
 const sporeCarpetPuffQuery: Entity[] = [];
 const lishennyyLightQuery: Entity[] = [];
-const olgoyFedCorpseIds = new Set<number>();
+const olgoyFedCorpses = new WeakSet<Entity>();
 
 interface SobrannyyRuntime {
   lastHp: number;
@@ -456,7 +456,7 @@ interface SlimeWomanRuntime {
   lastDryEventAt: number;
 }
 
-const slimeWomanRuntime = new Map<number, SlimeWomanRuntime>();
+const slimeWomanRuntime = new WeakMap<Entity, SlimeWomanRuntime>();
 const SLIME_WOMAN_HAZARD_TAGS = ['slime', 'toxic', 'black_slime', 'green_slime', 'slime_woman'] as const;
 
 interface GreenDogRuntime {
@@ -469,14 +469,14 @@ interface GreenDogRuntime {
   lastScaryNoiseId: number;
 }
 
-const greenDogRuntime = new Map<number, GreenDogRuntime>();
+const greenDogRuntime = new WeakMap<Entity, GreenDogRuntime>();
 
 interface FogSharkRuntime {
   nextShareAt: number;
   nextSightAt: number;
 }
 
-const fogSharkRuntime = new Map<number, FogSharkRuntime>();
+const fogSharkRuntime = new WeakMap<Entity, FogSharkRuntime>();
 
 function zoneIdAt(world: World, x: number, y: number): number | undefined {
   const zid = world.zoneMap[world.idx(Math.floor(x), Math.floor(y))];
@@ -484,7 +484,7 @@ function zoneIdAt(world: World, x: number, y: number): number | undefined {
 }
 
 function greenDogState(e: Entity): GreenDogRuntime {
-  let state = greenDogRuntime.get(e.id);
+  let state = greenDogRuntime.get(e);
   if (!state) {
     state = {
       nextHowlAt: -Infinity,
@@ -495,19 +495,19 @@ function greenDogState(e: Entity): GreenDogRuntime {
       fearY: e.y,
       lastScaryNoiseId: 0,
     };
-    greenDogRuntime.set(e.id, state);
+    greenDogRuntime.set(e, state);
   }
   return state;
 }
 
 function fogSharkState(e: Entity): FogSharkRuntime {
-  let state = fogSharkRuntime.get(e.id);
+  let state = fogSharkRuntime.get(e);
   if (!state) {
     state = {
       nextShareAt: -Infinity,
       nextSightAt: -Infinity,
     };
-    fogSharkRuntime.set(e.id, state);
+    fogSharkRuntime.set(e, state);
   }
   return state;
 }
@@ -2568,9 +2568,8 @@ export function findCombatTarget(
     ai.combatScanCd = scanCd;
     let newTarget: Entity | null = null;
     let newBest = rangeSq;
-    getEntityIndex().queryRadius(e.x, e.y, Math.sqrt(rangeSq), combatQuery, ENTITY_MASK_ACTOR);
-    const candidates = combatQuery.length > 0 ? combatQuery : entities;
-    for (const other of candidates) {
+    ensureEntityIndex(entities).queryRadius(e.x, e.y, Math.sqrt(rangeSq), combatQuery, ENTITY_MASK_ACTOR);
+    for (const other of combatQuery) {
       if (!other.alive || other.id === e.id) continue;
       if (!typeFilter(other)) continue;
       const d2 = world.dist2(e.x, e.y, other.x, other.y);
@@ -2607,7 +2606,7 @@ function findImmediateCombatTarget(
 }
 
 function canBeMonsterTarget(other: Entity): boolean {
-  return other.type !== EntityType.MONSTER && other.type !== EntityType.PROJECTILE && other.type !== EntityType.ITEM_DROP;
+  return other.type === EntityType.PLAYER || other.type === EntityType.NPC;
 }
 
 function hasAIFlag(e: Entity, flag: MonsterAIFlag): boolean {
@@ -3211,7 +3210,7 @@ function findOlgoyCorpseTarget(world: World, entities: Entity[], e: Entity, dt: 
   const radiusSq = OLGOY_CORPSE_RADIUS * OLGOY_CORPSE_RADIUS;
   if (ai.meatTargetId !== undefined) {
     const cached = corpseById(entities, ai.meatTargetId);
-    if (cached && !cached.alive && !olgoyFedCorpseIds.has(cached.id) && world.dist2(e.x, e.y, cached.x, cached.y) <= radiusSq) return cached;
+    if (cached && !cached.alive && !olgoyFedCorpses.has(cached) && world.dist2(e.x, e.y, cached.x, cached.y) <= radiusSq) return cached;
     ai.meatTargetId = undefined;
   }
 
@@ -3226,7 +3225,7 @@ function findOlgoyCorpseTarget(world: World, entities: Entity[], e: Entity, dt: 
   let bestD2 = radiusSq;
   for (let i = 0; i < limit; i++) {
     const corpse = entities[(start + i) % entities.length];
-    if (corpse.alive || olgoyFedCorpseIds.has(corpse.id)) continue;
+    if (corpse.alive || olgoyFedCorpses.has(corpse)) continue;
     if (corpse.type !== EntityType.NPC && corpse.type !== EntityType.MONSTER) continue;
     const d2 = world.dist2(e.x, e.y, corpse.x, corpse.y);
     if (d2 >= bestD2) continue;
@@ -3256,7 +3255,7 @@ function tryFollowOlgoyCorpse(
   ai.goal = AIGoal.HUNT;
   ai.combatTargetId = undefined;
   if (world.dist2(e.x, e.y, corpse.x, corpse.y) <= 1.35 * 1.35) {
-    olgoyFedCorpseIds.add(corpse.id);
+    olgoyFedCorpses.add(corpse);
     ai.meatTargetId = undefined;
     ai.path = [];
     ai.pi = 0;
@@ -4216,10 +4215,10 @@ function isSlimeWomanDryCounterCell(world: World, e: Entity): boolean {
 
 function slimeWomanRuntimeState(e: Entity): SlimeWomanRuntime {
   const hp = Math.max(1, e.hp ?? e.maxHp ?? 1);
-  let runtime = slimeWomanRuntime.get(e.id);
+  let runtime = slimeWomanRuntime.get(e);
   if (!runtime) {
     runtime = { lastHp: hp, lastResidueAt: -Infinity, lastDryEventAt: -Infinity };
-    slimeWomanRuntime.set(e.id, runtime);
+    slimeWomanRuntime.set(e, runtime);
   }
   return runtime;
 }
@@ -4345,7 +4344,7 @@ function updateSlimeWomanState(
 ): void {
   if (e.monsterKind !== MonsterKind.SLIME_WOMAN) return;
   if (!e.alive || (e.hp ?? 1) <= 0) {
-    slimeWomanRuntime.delete(e.id);
+    slimeWomanRuntime.delete(e);
     return;
   }
   const runtime = slimeWomanRuntimeState(e);

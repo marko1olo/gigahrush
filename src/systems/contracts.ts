@@ -30,10 +30,11 @@ import {
   questTargetEventData,
   setQuestTargetRoute,
 } from '../data/contracts';
+import { ITEMS } from '../data/catalog';
 import { addFactionRelMutual } from '../data/relations';
 import { MONSTERS } from '../entities/monster';
 import { monsterSpr, Spr } from '../render/sprite_index';
-import { getItemPriceMultiplier, getScarcityAdjustedReward } from './economy';
+import { getResourceContractPressure } from './economy';
 import { publishEvent } from './events';
 import { addItem, removeItem } from './inventory';
 import { currentFloorRunEntry, ensureFloorRunState, isCurrentStoryFloor, type FloorRunEntry } from './procedural_floors';
@@ -52,6 +53,9 @@ import {
 import { designFloorAtZ, designFloorById } from '../data/design_floors';
 import { assignProceduralQuestDeadline } from './quest_deadlines';
 import { canSpawnEntityType, entitySpawnSlots } from './entity_limits';
+import { intContractRewardMult } from './rpg';
+import { calculateQuestReward, type QuestRewardObjectiveKind } from './quest_rewards';
+import { getAlifeNpcTotalMoney } from './alife';
 
 const CLEANUP_SURFACE_THRESHOLD = 480;
 const ZHELEMISH_NII_CONTRACT_ID = 'nii_zhelemish_pure_sample';
@@ -427,15 +431,79 @@ export function isContractHiddenForAssignment(def: ContractDef): boolean {
   return def.tags.includes('debug_only');
 }
 
-function adjustedContractMoney(state: GameState, def: ContractDef): number {
-  if (def.rewardResourceId) {
-    return getScarcityAdjustedReward(state, def.rewardResourceId, def.moneyReward, def.target.floor, def.rewardScarcityMax ?? 3);
+function questObjectiveKindForContract(def: ContractDef): QuestRewardObjectiveKind {
+  if (def.tags.includes('repair')) return 'repair';
+  if (def.tags.includes('theft') || def.tags.includes('steal')) return 'steal';
+  if (def.tags.includes('expose') || def.tags.includes('audit')) return 'expose';
+  switch (def.type) {
+    case QuestType.TALK: return 'talk';
+    case QuestType.VISIT: return def.tags.includes('hold') || def.tags.includes('defend') ? 'hold' : 'visit';
+    case QuestType.KILL: return 'kill';
+    case QuestType.FETCH:
+    default: return 'fetch';
   }
-  const itemId = def.targetItem ?? def.rewardItem;
-  if (!itemId) return def.moneyReward;
-  const scarcity = getItemPriceMultiplier(state, itemId);
-  const rewardMul = Math.max(0.75, Math.min(1.5, 0.75 + scarcity * 0.25));
-  return Math.max(1, Math.round(def.moneyReward * rewardMul));
+}
+
+function contractTargetZ(def: ContractDef, q: Quest): number {
+  const route = questTargetRoute(q);
+  if (route?.z !== undefined) return route.z;
+  if (route?.designFloorId) return designFloorById(route.designFloorId)?.z ?? zForStoryFloor(def.target.floor);
+  return zForStoryFloor(def.target.floor);
+}
+
+function contractTargetDanger(state: GameState, def: ContractDef, q: Quest): 1 | 2 | 3 | 4 | 5 {
+  const route = questTargetRoute(q);
+  if (route?.risk !== undefined) return Math.max(1, Math.min(5, Math.round(route.risk))) as 1 | 2 | 3 | 4 | 5;
+  if (route?.designFloorId) return Math.max(1, Math.min(5, designFloorById(route.designFloorId)?.danger ?? def.rank)) as 1 | 2 | 3 | 4 | 5;
+  if (route?.z !== undefined && isProceduralFloorZ(route.z)) {
+    const spec = ensureFloorRunState(state).specs[proceduralFloorKey(route.z)];
+    if (spec) return spec.danger;
+  }
+  return Math.max(1, Math.min(5, def.rank)) as 1 | 2 | 3 | 4 | 5;
+}
+
+function contractObjectiveValue(def: ContractDef): number {
+  const itemValue = def.targetItem ? (ITEMS[def.targetItem]?.value ?? 0) * Math.max(1, def.targetCount ?? 1) : 0;
+  const killValue = def.type === QuestType.KILL ? 90 * Math.max(1, def.killNeeded ?? 1) * Math.max(1, def.rank) : 0;
+  return Math.max(itemValue, killValue, def.moneyReward);
+}
+
+export function applyContractRewardAtAcceptance(
+  q: Quest,
+  def: ContractDef,
+  state: GameState,
+  player?: Entity,
+  giver?: Entity,
+): void {
+  const current = currentFloorRunEntry(state);
+  const targetZ = contractTargetZ(def, q);
+  const danger = contractTargetDanger(state, def, q);
+  const scarcityMult = def.rewardResourceId
+    ? getResourceContractPressure(state, def.rewardResourceId, def.target.floor, def.rewardScarcityMax ?? 3)
+    : 1;
+  const playerRewardMult = player?.rpg ? intContractRewardMult(player.rpg) : 1;
+  const reward = calculateQuestReward({
+    objectiveKind: questObjectiveKindForContract(def),
+    objectiveValue: contractObjectiveValue(def),
+    objectiveCount: 1,
+    currentZ: current.z,
+    targetZ,
+    routeDistance: Math.abs(targetZ - current.z) * 24,
+    danger,
+    plotPhase: 0,
+    giverLevel: giver?.rpg?.level ?? def.rank,
+    giverWealth: getAlifeNpcTotalMoney(state, giver) ?? ((giver?.money ?? 0) + (giver?.accountRubles ?? 0)),
+    giverFaction: giver?.faction ?? def.faction,
+    risk: questTargetRoute(q)?.risk ?? def.rank,
+    scarcityMult,
+    playerRewardMult,
+    authoredBaseMoney: def.moneyReward,
+    authoredBaseXp: def.xpReward,
+    tags: def.tags,
+  });
+  q.difficulty = reward.difficulty;
+  q.moneyReward = reward.moneyReward;
+  q.xpReward = reward.xpReward;
 }
 
 export function questRouteFloor(q: Quest): FloorLevel | undefined {
@@ -571,10 +639,10 @@ export function resolveQuestTargetRoom(
   return resolveByTaggedContainer(world, q, origin) ?? resolveByRoomName(world, q, origin) ?? resolveByRoomType(world, q, origin);
 }
 
-function createContractQuest(def: ContractDef, state: GameState, giver?: { id: number; name?: string }) {
+function createContractQuest(def: ContractDef, state: GameState, giver?: { id: number; name?: string }, player?: Entity) {
   const quest = contractToQuest(def, state.nextQuestId++, giver);
-  quest.moneyReward = adjustedContractMoney(state, def);
   prepareAcceptedContract(quest, state);
+  applyContractRewardAtAcceptance(quest, def, state, player);
   return quest;
 }
 
@@ -1035,7 +1103,7 @@ export function spawnGovnyakCourierContract(
   }
 
   for (const def of defs) {
-    const quest = createContractQuest(def, state, giver);
+    const quest = createContractQuest(def, state, giver, player);
     assignProceduralQuestDeadline(quest, state.clock.totalMinutes, {
       crossFloor: quest.targetFloor !== undefined && quest.targetFloor !== state.currentFloor,
     });

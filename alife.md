@@ -6,10 +6,10 @@ The player does not enter an empty procedural map that slowly fills itself. The 
 
 ## Design Goal
 
-The final design target is:
+The next implementation target is:
 
-- Up to `1_000_000` procedural NPC identities per run when runtime memory allows it.
-- `100_000` procedural NPC identities as the fallback floor for constrained browsers.
+- Exactly `100_000` procedural NPC identities per run on every supported runtime.
+- No million-size pool, no memory/device/browser tier and no fallback population branch.
 - Every ordinary NPC has a stable identity, floor assignment, faction, occupation, level, inventory, family/friend graph, rank state, quest potential and death state.
 - Quest NPCs are part of the same identity model instead of being a separate magical category.
 - Only the active floor is materialized into live `entities`.
@@ -18,7 +18,7 @@ The final design target is:
 
 Current shipped baseline:
 
-- `src/systems/alife.ts` creates a compact in-memory pool of `1_000_000` procedural NPC records on browsers with enough heap, otherwise `100_000`.
+- `src/systems/alife.ts` now uses the fixed `100_000` population contract. There is no million-size runtime branch and no mobile/memory fallback population branch.
 - Records are distributed across story floors, routed design floors and the per-run procedural floor deck.
 - Live `entities` still contain only the active floor.
 - Generator-owned ambient NPCs become placement templates; A-Life records are materialized into those slots.
@@ -27,11 +27,13 @@ Current shipped baseline:
 - Materialized A-Life NPCs carry personal `playerRelation`; AI hostility checks it before falling back to faction hostility.
 - Browser saves store A-Life seed, total population, up to `65_536` dead A-Life ids, dead plot ids and bounded changed-record overrides. Full live entities are not serialized.
 
+Active-floor behavior, scheduler, pathfinding, NPC intent selection, monster archetypes and samosbor reactions are specified in [ai.md](ai.md). This file owns persistent identity and population facts; `ai.md` owns what materialized live actors decide to do.
+
 ## Current Gaps Against The Bible
 
 These are current implementation limits, not new design goals:
 
-- Death is permanent in memory, but save/load persistence for procedural A-Life deaths is capped at `65_536` ids. A player can depopulate active floors, but "depopulate the whole million and preserve every death through save/load" is not fully true yet.
+- Death is permanent in memory, but save/load persistence for procedural A-Life deaths is capped at `65_536` ids. A player can depopulate active floors, but "depopulate the whole fixed `100_000` pool and preserve every death through save/load" is not fully true yet.
 - Caravan supply lanes move resources, stability, tariffs and events between floors. Small caravans can recruit live member `entity.id`s for the current encounter, but arrival does not currently move those members' `alifeId`/`persistentNpcId` records to a new `floorKey`.
 - The A-Life module has APIs for assigning/moving records and creating persistent records from live entities, but broad migration/resettlement is not wired into caravans as actual record movement yet.
 - Contract/assignment quest conversion can still use a live giver id or a synthetic fallback id; it does not consistently bind generated quest givers to `persistentNpcId`.
@@ -115,7 +117,7 @@ Current fields:
 - `canGiveQuest`: active/authored quest affordance; persistent A-Life NPCs get a stable bounded candidate roll instead of a special quest-giver caste or a universal offer flag.
 - `level`, `str`, `agi`, `int`: RPG state.
 - `hp`, `maxHp`: folded health.
-- `money`, `weapon`, `inventory`: folded economy/loadout.
+- `money`, `accountRubles`, `weapon`, `inventory`: folded cash/account economy and loadout.
 - `sprite`, `spriteSeed`: folded visual identity when a floor template provides special NPC art.
 - `kills`, `npcKills`, `monsterKills`: optional changed counters; default is zero by absence.
 - `playerRelation`: optional personal attitude to the player. Absence means "not individually initialized yet"; on first materialization it is initialized from the NPC faction's current relation to the player plus a small deterministic fluctuation.
@@ -127,6 +129,8 @@ Target fields:
 
 - `homeFloorKey`, `homeRoomId` or procedural home anchor.
 - `workFloorKey`, `workRoomId` or faction/work anchor.
+- `needProfileId`, `routineSeed` and `roleAiId` for deterministic individual active-floor behavior.
+- `shiftOffsetMinutes`, `duty`, `sociability`, `riskTolerance`, `greed` and `panicBias` as compact numeric traits when the AI implementation needs persistent personality.
 - `friends`: bounded ids, preferably 3-8.
 - `family`: spouse/parent/child/sibling ids through compact relation edges.
 - `rank`: faction or global social rank.
@@ -389,50 +393,44 @@ A-Life save data stores:
 - total population count
 - dead A-Life ids
 - dead plot NPC ids
-- bounded changed-record overrides: position, health, money, inventory, RPG state, visual seed/sprite and changed counters
+- bounded changed-record overrides: position, health, cash, account balance, inventory, RPG state, visual seed/sprite and changed counters
 
 The full pool is regenerated deterministically from seed and run route state, then overrides are applied.
 
 Rules:
 
 - Do not serialize the live `entities` array.
-- Do not serialize all `100_000` or `1_000_000` full records when deterministic reconstruction plus overrides is enough.
+- Do not serialize all `100_000` full records when deterministic reconstruction plus overrides is enough.
 - Bump save shape if persistent identity fields become required, if floor allocation changes, or if route floor keys/reserved plot ids can move existing NPC identities.
 - Current development saves may be invalidated instead of migrated.
 
 ## Scaling Target
 
-The shipped runtime target is adaptive:
+The selected population target is fixed:
 
-- Use `1_000_000` NPC identities when browser heap/device memory indicates enough room.
-- Fall back to `100_000` NPC identities on constrained or unknown runtimes.
+- Use `100_000` procedural NPC identities on every supported runtime.
+- Do not branch population size by browser heap, device memory, mobile/touch status or platform.
 - Keep active-floor materialization around the existing floor population budgets, roughly thousands of live NPCs, not the full bucket.
 
 Measured on 2026-05-20 with the current JS object pool in Node/V8:
 
 - `100_000` records: about `42.6 MB` heap, about `101 ms` creation.
-- `1_000_000` records: about `425 MB` heap, about `804 ms` creation.
 
-The architecture must remain compatible with `1_000_000` NPCs:
+The architecture still stays compact because `100_000` identities are persistent records, not live actors:
 
 - Use ids and compact numeric fields.
 - Prefer deterministic generation from seed.
 - Store sparse overrides for changed records.
 - Avoid per-record object churn in hot paths.
-- Do not put large strings or arrays on every record unless memory has been measured.
-
-If `1_000_000` becomes too heavy as JS objects, move the pool toward structure-of-arrays:
-
-- typed arrays for ids, floor indexes, faction, occupation, level, hp, flags
-- string tables for names
-- sparse maps for inventory, coordinates and changed state
+- Do not put large strings, arrays or behavior histories on every record unless memory has been measured.
+- Keep full `100_000`-pool scans out of frame-time systems.
 
 ## Integration Rules
 
 - `systems/alife.ts` is the owner of persistent procedural NPC identity.
 - `core/types.ts` may expose only primitive identity fields needed by live `Entity`.
 - `gen/` can create placement templates but must not implement refill logic.
-- `systems/ai/` keeps behavior unchanged and consumes live entities only.
+- `systems/ai/` consumes live entities only; active-floor behavior, scheduler, pathfinding, utility intent selection and monster behavior contracts live in [ai.md](ai.md).
 - `systems/quests.ts` should move toward stable persistent ids.
 - `systems/events.ts` should record deaths, rank changes and social consequences.
 - Migration, resettlement and off-floor event passes must be slow, bounded and explicit; they are not refill-to-cap.
@@ -450,11 +448,11 @@ Useful telemetry:
 
 ## Owner Decisions
 
-Decisions recorded on 2026-05-20:
+Decisions recorded on 2026-05-26:
 
-1. Target population is `1_000_000` when memory allows it. The fallback is `100_000`.
+1. Target population is fixed at `100_000` procedural NPC identities for every supported runtime. The old million target and adaptive fallback branch are retired.
 2. Active floor population remains bounded by the existing floor budgets, roughly thousands of NPCs, not the whole floor bucket.
-3. NPCs can migrate between floors through events, caravans, quests, resettlement and future lazy background migration.
+3. NPCs can migrate between floors only through explicit implemented events, caravans, quests or resettlement logic.
 4. Off-floor migration/event work may process records in bounded batches of `N`; it must not become full simulation.
 5. Death is permanent for every NPC, including authored, plot and quest NPCs. There is no respawn.
 6. Any suitable NPC can be a quest source. Quest-giver is a role produced by rules/content, not a separate global class.
@@ -477,3 +475,4 @@ A-Life is considered fully integrated when:
 - Rank/family/friend data has at least one visible gameplay surface.
 - Save/load preserves deaths, touched state and quest identity.
 - No ordinary NPC or monster system refills to a cap in the background.
+- Active-floor NPC and monster behavior follows the local individualized AI contract in [ai.md](ai.md) instead of synchronizing ordinary NPCs through a global schedule.

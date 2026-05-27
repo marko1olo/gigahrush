@@ -16,6 +16,7 @@ import type { TexData } from './textures';
 import type { SpriteData } from './sprites';
 import type { BloodParticle } from './blood';
 import { containerSpr, featureSpr } from './sprite_index';
+import { generateItemSprite, itemDropDefId, itemSpriteKey } from './item_sprites';
 import { ENTITY_MASK_VISIBLE, getEntityIndex } from '../systems/entity_index';
 import type { CameraView } from '../systems/camera';
 
@@ -43,10 +44,20 @@ const ATLAS_TEX_SIZE = TEX;       // 64px each texture
 const PARTICLE_INSTANCE_CAP = 256;
 const PROCEDURAL_SPRITE_CACHE_MAX = 384;
 const PROCEDURAL_SPRITE_CACHE_TARGET = 288;
+const ITEM_SPRITE_CACHE_MAX = 512;
+const ITEM_SPRITE_CACHE_TARGET = 448;
+const ITEM_DROP_WORLD_SPRITE_SCALE = 0.34;
 const VISIBLE_SPRITE_CAP = 1024;
 const VISIBLE_ENTITY_QUERY_CAP = VISIBLE_SPRITE_CAP * 2;
 const visibleEntityQuery: Entity[] = [];
 const STATIC_OBJECT_RADIUS = MAX_DRAW;
+
+const enum VisibleSpriteSource {
+  ENTITY = 0,
+  ITEM_DROP = 1,
+  FEATURE = 2,
+  CONTAINER = 3,
+}
 
 /* ── GLSL Shaders ─────────────────────────────────────────────── */
 
@@ -945,6 +956,7 @@ interface GLState {
   spriteVAO: WebGLVertexArrayObject;
   spriteTextures: WebGLTexture[];   // individual sprite textures
   proceduralSpriteTextures: Map<number, ProceduralSpriteCacheEntry>;
+  itemSpriteTextures: Map<string, ProceduralSpriteCacheEntry>;
   proceduralSpriteUseTick: number;
   // Surface marks
   surfaceAtlasTex: WebGLTexture;    // 512×512 RGBA atlas of 16×16 overlays
@@ -983,6 +995,7 @@ const visibleSpriteScale: number[] = [];
 const visibleSpriteZ: number[] = [];
 const visibleProjectile: number[] = [];
 const visibleSeed: number[] = [];
+const visibleSource: VisibleSpriteSource[] = [];
 
 /* ── Shader compilation helpers ───────────────────────────────── */
 function compileShader(gl: WebGL2RenderingContext, type: number, src: string): WebGLShader {
@@ -1198,6 +1211,49 @@ function trimProceduralSpriteCache(): void {
     gl.deleteTexture(oldest.texture);
     proceduralSpriteTextures.delete(oldestKey);
   }
+}
+
+function trimItemSpriteCache(): void {
+  if (!glState || glState.itemSpriteTextures.size <= ITEM_SPRITE_CACHE_MAX) return;
+  const { gl, itemSpriteTextures } = glState;
+  while (itemSpriteTextures.size > ITEM_SPRITE_CACHE_TARGET) {
+    let oldestKey = '';
+    let oldestUse = Number.MAX_SAFE_INTEGER;
+    for (const [key, entry] of itemSpriteTextures) {
+      if (entry.usedAt < oldestUse) {
+        oldestUse = entry.usedAt;
+        oldestKey = key;
+      }
+    }
+    const oldest = itemSpriteTextures.get(oldestKey);
+    if (!oldest) break;
+    gl.deleteTexture(oldest.texture);
+    itemSpriteTextures.delete(oldestKey);
+  }
+}
+
+function itemDropTexture(e: Entity | null): WebGLTexture | null {
+  if (!glState || !e || e.type !== EntityType.ITEM_DROP) return null;
+  const defId = itemDropDefId(e);
+  if (!defId) return null;
+  const key = itemSpriteKey(defId);
+  const cached = glState.itemSpriteTextures.get(key);
+  glState.proceduralSpriteUseTick++;
+  if (cached) {
+    cached.usedAt = glState.proceduralSpriteUseTick;
+    return cached.texture;
+  }
+  const texture = createSpriteTexture(glState.gl, generateItemSprite(defId));
+  glState.itemSpriteTextures.set(key, { texture, usedAt: glState.proceduralSpriteUseTick });
+  trimItemSpriteCache();
+  return texture;
+}
+
+function visibleEntitySpriteSource(e: Entity): VisibleSpriteSource {
+  // Only real inventory payload drops use generated item textures and small world scale.
+  return e.type === EntityType.ITEM_DROP && itemDropDefId(e)
+    ? VisibleSpriteSource.ITEM_DROP
+    : VisibleSpriteSource.ENTITY;
 }
 
 function proceduralEntityTexture(e: Entity): WebGLTexture | null {
@@ -1473,6 +1529,7 @@ export function initWebGL(
     dynamicSkyH: 1,
     spriteProgram, spriteVAO, spriteTextures,
     proceduralSpriteTextures: new Map(),
+    itemSpriteTextures: new Map(),
     proceduralSpriteUseTick: 0,
     surfaceAtlasTex, surfaceIdxTex,
     surfacePixels: surfData.pixels,
@@ -1775,6 +1832,7 @@ function pushVisibleSprite(
   spriteZ: number,
   projectile: number,
   seed: number,
+  source: VisibleSpriteSource,
 ): number {
   if (count >= VISIBLE_SPRITE_CAP || spriteIdx < 0) return count;
   visibleEntities[count] = entity;
@@ -1786,6 +1844,7 @@ function pushVisibleSprite(
   visibleSpriteZ[count] = spriteZ;
   visibleProjectile[count] = projectile;
   visibleSeed[count] = seed;
+  visibleSource[count] = source;
   visibleOrder[count] = count;
   return count + 1;
 }
@@ -1868,6 +1927,7 @@ function collectStaticObjectSprites(world: World, px: number, py: number, count:
       0,
       0,
       container.id,
+      VisibleSpriteSource.CONTAINER,
     );
     if (count >= VISIBLE_SPRITE_CAP) return count;
   }
@@ -1901,6 +1961,7 @@ function collectStaticObjectSprites(world: World, px: number, py: number, count:
         featureSpriteZ(feature),
         0,
         idx,
+        VisibleSpriteSource.FEATURE,
       );
       if (count >= VISIBLE_SPRITE_CAP) return count;
     }
@@ -1962,6 +2023,7 @@ function renderSpritesGL(
         e.spriteZ ?? 0,
         isProjectile,
         (e.id % 997) * 0.137,
+        visibleEntitySpriteSource(e),
       );
       if (visibleCount >= VISIBLE_SPRITE_CAP) break;
     }
@@ -1982,6 +2044,7 @@ function renderSpritesGL(
           e.spriteZ ?? 0,
           0,
           (e.id % 997) * 0.137 + 19,
+          VisibleSpriteSource.ENTITY,
         );
         if (visibleCount >= VISIBLE_SPRITE_CAP) break;
       }
@@ -1998,6 +2061,7 @@ function renderSpritesGL(
   visibleSpriteZ.length = visibleCount;
   visibleProjectile.length = visibleCount;
   visibleSeed.length = visibleCount;
+  visibleSource.length = visibleCount;
   // Sort far to near
   visibleOrder.sort((a, b) => visibleDist[b] - visibleDist[a]);
 
@@ -2025,7 +2089,10 @@ function renderSpritesGL(
 
     const spriteScreenX = Math.floor((SCR_W / 2) * (1 + txf / tyf));
     const rawH = Math.abs(Math.floor(SCR_H / tyf));
-    const scale = visibleSpriteScale[vi];
+    const source = visibleSource[vi];
+    const scale = source === VisibleSpriteSource.ITEM_DROP
+      ? visibleSpriteScale[vi] * ITEM_DROP_WORLD_SPRITE_SCALE
+      : visibleSpriteScale[vi];
     const spriteH = Math.floor(rawH * scale);
     const spriteW = spriteH;
 
@@ -2058,9 +2125,10 @@ function renderSpritesGL(
       gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
     }
 
-    // Bind sprite texture. NPCs and monsters use per-entity procedural
-    // textures keyed by their seed; atlas sprites remain for drops/projectiles.
-    let spriteTex = e ? proceduralEntityTexture(e) : null;
+    // Bind sprite texture. Item drops and procedural actors can override
+    // the shared atlas without changing saved entity payloads.
+    let spriteTex = source === VisibleSpriteSource.ITEM_DROP ? itemDropTexture(e) : null;
+    if (!spriteTex && e) spriteTex = proceduralEntityTexture(e);
     const sprIdx = visibleSpriteIdx[vi];
     if (!spriteTex && sprIdx >= 0 && sprIdx < glState.spriteTextures.length) {
       spriteTex = glState.spriteTextures[sprIdx];
@@ -2179,5 +2247,6 @@ export function disposeWebGL(): void {
   gl.deleteTexture(glState.surfaceIdxTex);
   for (const t of glState.spriteTextures) gl.deleteTexture(t);
   for (const entry of glState.proceduralSpriteTextures.values()) gl.deleteTexture(entry.texture);
+  for (const entry of glState.itemSpriteTextures.values()) gl.deleteTexture(entry.texture);
   glState = null;
 }

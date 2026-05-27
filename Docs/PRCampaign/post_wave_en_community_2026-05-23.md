@@ -130,7 +130,7 @@ The main loop is preparation and expedition:
 - scavenge hostile floors with factions, traders, monsters, quests, rumors and Samosbor events;
 - return with supplies, information and consequences, or die and leave persistent changes behind.
 
-The project is built as a zero-runtime-dependency TypeScript/Vite browser game. The world is a 1024x1024 toroidal concrete megastructure, with flat entity arrays, typed-array world storage and procedural visuals instead of imported asset packs. NPCs can trade, sleep, fight, hide and die permanently; factions track player behavior; Samosbor events can lock down routes and make familiar space unsafe.
+The project is built as a zero-runtime-dependency TypeScript/Vite browser game. Publicly, the world is an unbounded concrete megastructure, with flat entity arrays, typed-array world storage and procedural visuals instead of imported asset packs. NPCs can trade, sleep, fight, hide and die permanently; factions track player behavior; Samosbor events can lock down routes and make familiar space unsafe.
 
 Playable build:
 https://tenevik.itch.io/gigahrush

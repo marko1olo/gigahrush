@@ -13,6 +13,8 @@ import { ITEMS, ITEM_TAGS } from '../data/items';
 import { isBaitAttractedMonster, monsterEcologyTags } from '../data/monster_ecology';
 import { isDocumentScentItem } from './document_scent';
 import { publishEvent } from './events';
+import { activeFloorInstanceWorldKey } from './floor_instances';
+import { currentFloorRunEntry, floorRunEntryFloorKey } from './procedural_floors';
 
 export type MonsterBaitKind = 'food' | 'meat' | 'fungal' | 'govnyak' | 'document';
 export type MonsterBaitSource = 'drop' | 'use';
@@ -22,6 +24,7 @@ export interface MonsterBaitMarker {
   x: number;
   y: number;
   floor: FloorLevel;
+  floorKey?: string;
   itemId: string;
   itemName: string;
   itemCount: number;
@@ -87,6 +90,11 @@ export function resetMonsterBaits(): void {
 
 export function getActiveMonsterBaits(): readonly MonsterBaitMarker[] {
   return activeBaits;
+}
+
+function monsterBaitFloorKey(state: GameState | undefined): string | undefined {
+  if (!state) return undefined;
+  return activeFloorInstanceWorldKey(state) ?? floorRunEntryFloorKey(currentFloorRunEntry(state));
 }
 
 export function baitKindForItem(defId: string, source: MonsterBaitSource): MonsterBaitKind | null {
@@ -289,8 +297,15 @@ function removeBaitAt(index: number, state: GameState | undefined, time: number,
 }
 
 export function expireMonsterBaits(state: GameState | undefined, time: number): void {
+  const floor = state?.currentFloor;
+  const floorKey = monsterBaitFloorKey(state);
   for (let i = activeBaits.length - 1; i >= 0; i--) {
-    if (activeBaits[i].expiresAt <= time) removeBaitAt(i, state, time, 'timeout');
+    const marker = activeBaits[i];
+    if (marker.expiresAt <= time) {
+      removeBaitAt(i, state, time, 'timeout');
+    } else if (floor !== undefined && (marker.floor !== floor || (floorKey !== undefined && marker.floorKey !== floorKey))) {
+      removeBaitAt(i, state, time, 'floor_changed');
+    }
   }
 }
 
@@ -324,6 +339,7 @@ export function placeMonsterBait(
     x: bx,
     y: by,
     floor: state.currentFloor,
+    floorKey: monsterBaitFloorKey(state),
     itemId: defId,
     itemName: def.name,
     itemCount: count,
@@ -377,9 +393,13 @@ export function placeMonsterBait(
   return true;
 }
 
-function activeBaitById(id: number, floor: FloorLevel, time: number): MonsterBaitMarker | null {
+function baitMatchesFloor(marker: MonsterBaitMarker, floor: FloorLevel, floorKey: string | undefined): boolean {
+  return marker.floor === floor && (floorKey === undefined || marker.floorKey === floorKey);
+}
+
+function activeBaitById(id: number, floor: FloorLevel, floorKey: string | undefined, time: number): MonsterBaitMarker | null {
   for (const marker of activeBaits) {
-    if (marker.id === id && marker.floor === floor && marker.expiresAt > time) return marker;
+    if (marker.id === id && baitMatchesFloor(marker, floor, floorKey) && marker.expiresAt > time) return marker;
   }
   return null;
 }
@@ -419,11 +439,12 @@ export function findMonsterBaitTarget(
 ): MonsterBaitMarker | null {
   const ai = monster.ai;
   const floor = currentFloor ?? state?.currentFloor;
+  const floorKey = monsterBaitFloorKey(state);
   if (!ai || floor === undefined || !isBaitAttractedMonster(monster.monsterKind)) return null;
 
   const ecologyTags = monsterEcologyTags(monster.monsterKind);
   if (ai.baitMarkerId !== undefined) {
-    const cached = activeBaitById(ai.baitMarkerId, floor, time);
+    const cached = activeBaitById(ai.baitMarkerId, floor, floorKey, time);
     if (cached && (!candidateOk || candidateOk(cached))) {
       const cachedScore = baitMatchScore(cached, ecologyTags);
       const cachedRadius = cached.radius * cachedScore;
@@ -441,8 +462,8 @@ export function findMonsterBaitTarget(
   let bestAdjustedD2 = Infinity;
   let checked = 0;
   for (const marker of activeBaits) {
+    if (!baitMatchesFloor(marker, floor, floorKey) || marker.expiresAt <= time) continue;
     if (checked++ >= MONSTER_BAIT_MAX_CANDIDATES) break;
-    if (marker.floor !== floor || marker.expiresAt <= time) continue;
     if (marker.attractedCount >= marker.maxAttractions) continue;
     if (candidateOk && !candidateOk(marker)) continue;
     const matchScore = baitMatchScore(marker, ecologyTags);

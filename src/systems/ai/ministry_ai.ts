@@ -8,12 +8,14 @@ import {
   type GameClock, Cell,
 } from '../../core/types';
 import { World } from '../../core/world';
+import { ENTITY_MASK_ACTOR, ensureEntityIndex } from '../entity_index';
 import { followPath, gotoNearestRoomType, gotoRoom, tryAssignPathToCell, wanderNearby, wanderInRoom } from './pathfinding';
 import { stampMark, MarkType } from '../../render/marks';
 import {
   bark,
   BARK_GENERIC, BARK_GENERIC_F, BARK_CHANCE_GENERIC,
 } from './barks';
+import { chooseNpcEmergencyDecision } from './npc_emergency';
 
 let _barkMsgs: Msg[] = [];
 let _barkTime = 0;
@@ -23,9 +25,117 @@ export function setMinistryContext(msgs: Msg[], time: number): void {
   _barkTime = time;
 }
 
+const DAY_MINUTES = 24 * 60;
+const MINISTRY_ROUTINE_OFFSET_MINUTES = 30;
+const ministryEmergencyLocalActors: Entity[] = [];
+
+function mix32(v: number): number {
+  v |= 0;
+  v ^= v >>> 16;
+  v = Math.imul(v, 0x7feb352d);
+  v ^= v >>> 15;
+  v = Math.imul(v, 0x846ca68b);
+  v ^= v >>> 16;
+  return v >>> 0;
+}
+
+function hashString32(text: string, salt: number): number {
+  let h = (0x811c9dc5 ^ salt) >>> 0;
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return mix32(h);
+}
+
+function stableNpcSeed(e: Entity, salt: number): number {
+  if (e.persistentNpcId) return hashString32(e.persistentNpcId, salt);
+  if (e.plotNpcId) return hashString32(e.plotNpcId, salt ^ 0x4f1bbcdc);
+  if (e.alifeId !== undefined) return mix32(Math.imul(e.alifeId | 0, 0x9e3779b1) ^ salt);
+  return mix32(Math.imul(e.id | 0, 0x85ebca6b) ^ Math.imul(e.assignedRoomId ?? 0, 0xc2b2ae35) ^ salt);
+}
+
+function stableUnit(e: Entity, salt: number): number {
+  return stableNpcSeed(e, salt) / 0x100000000;
+}
+
+function softRoutineHour(clock: GameClock, e: Entity, offsetMinutes: number): number {
+  const baseMinute = clock.hour * 60 + clock.minute;
+  const offset = Math.round((stableUnit(e, 0x6d17) * 2 - 1) * offsetMinutes);
+  const shifted = ((baseMinute + offset) % DAY_MINUTES + DAY_MINUTES) % DAY_MINUTES;
+  return Math.floor(shifted / 60);
+}
+
+function ministryTransitionDelay(e: Entity, from: NpcState | undefined, to: NpcState): number {
+  const fromState = from ?? to;
+  return 2 + stableUnit(e, 0x4a11 ^ Math.imul(fromState + 1, 149) ^ Math.imul(to + 1, 941)) * 20;
+}
+
+function primeMinistryRoutineGoal(e: Entity, state: NpcState): void {
+  const ai = e.ai!;
+  if (ai.combatTargetId !== undefined || ai.goal !== AIGoal.IDLE || ai.timer > 0) return;
+  ai.goal = defaultGoalForMinistryState(state);
+  ai.timer = Math.max(ai.timer, 0.5 + stableUnit(e, 0x79bd ^ Math.imul(state + 1, 419)) * 5);
+}
+
+function enterMinistryState(e: Entity, next: NpcState): void {
+  const ai = e.ai!;
+  const prev = ai.npcState;
+  if (prev === next) return;
+  ai.npcState = next;
+  ai.stateTimer = 0;
+  if (ai.combatTargetId !== undefined) return;
+
+  if (next === NpcState.HIDING) {
+    ai.path = [];
+    ai.pi = 0;
+    ai.goal = AIGoal.HIDE;
+    ai.timer = Math.max(0.15, stableUnit(e, 0x5afe) * 1.35);
+    return;
+  }
+
+  if (ai.goal === AIGoal.IDLE || prev === NpcState.HIDING) {
+    ai.goal = defaultGoalForMinistryState(next);
+  }
+  ai.timer = Math.max(ai.timer, ministryTransitionDelay(e, prev, next));
+}
+
+function tryAssignMinistryEmergencyShelterPath(world: World, _entities: readonly Entity[], e: Entity, clock: GameClock): boolean {
+  const ai = e.ai!;
+  const homeRoomId = e.assignedRoomId !== undefined && e.assignedRoomId >= 0 ? e.assignedRoomId : undefined;
+  const nearbyRadius = 14 + Math.floor(stableUnit(e, 0x3ac1) * 8);
+  ensureEntityIndex(_entities).queryRadiusCapped(e.x, e.y, nearbyRadius, ministryEmergencyLocalActors, ENTITY_MASK_ACTOR, 64);
+  const decision = chooseNpcEmergencyDecision(world, e, {
+    phase: 'active',
+    homeRoomId,
+    localActors: ministryEmergencyLocalActors,
+    localActorCap: 16,
+    candidateCap: 8,
+    nearbyRadius,
+    nearbyRoomCap: 8,
+    seedSalt: Math.floor(clock.totalMinutes / 30),
+  });
+  if (decision.targetRoomId < 0) return false;
+
+  ai.goal = AIGoal.HIDE;
+  ai.tx = decision.targetCellX;
+  ai.ty = decision.targetCellY;
+  ai.path = [];
+  ai.pi = 0;
+  ai.stuck = 0;
+  const status = tryAssignPathToCell(world, e, decision.targetCellX, decision.targetCellY);
+  if (status === 'not_found') {
+    ai.timer = 0;
+    return false;
+  }
+  ai.timer = Math.max(0.75, decision.rethinkAfterSec);
+  return true;
+}
+
 /* ── Ministry schedule — occupation-aware ─────────────────────── */
-function getMinistrySchedule(hour: number, samosborActive: boolean, e: Entity): NpcState {
+function getMinistrySchedule(clock: GameClock, samosborActive: boolean, e: Entity): NpcState {
   if (samosborActive && e.faction !== Faction.LIQUIDATOR) return NpcState.HIDING;
+  const hour = softRoutineHour(clock, e, MINISTRY_ROUTINE_OFFSET_MINUTES);
   if (hour >= 22 || hour < 7)  return NpcState.SLEEPING;
   if (hour >= 7  && hour < 8)  return NpcState.MORNING;
   if (hour >= 8  && hour < 10) return NpcState.WORKING;
@@ -57,17 +167,15 @@ export function primeMinistryAlifeState(e: Entity, clock: GameClock, samosborAct
   const ai = e.ai;
   if (!ai) return;
   if (ai.npcState === undefined) {
-    ai.npcState = getMinistrySchedule(clock.hour, samosborActive, e);
+    ai.npcState = getMinistrySchedule(clock, samosborActive, e);
     ai.stateTimer = 0;
   }
-  if (ai.goal === AIGoal.IDLE && ai.combatTargetId === undefined && ai.timer <= 0) {
-    ai.goal = defaultGoalForMinistryState(ai.npcState);
-  }
+  primeMinistryRoutineGoal(e, ai.npcState);
 }
 
 /* ── Main ministry NPC update ─────────────────────────────────── */
 export function updateMinistryNPC(
-  world: World, _entities: Entity[], e: Entity,
+  world: World, entities: Entity[], e: Entity,
   dt: number, _time: number, clock: GameClock, samosborActive: boolean,
 ): void {
   const ai = e.ai!;
@@ -75,25 +183,18 @@ export function updateMinistryNPC(
 
   // Initialize
   if (ai.npcState === undefined) {
-    ai.npcState = getMinistrySchedule(clock.hour, samosborActive, e);
+    ai.npcState = getMinistrySchedule(clock, samosborActive, e);
     ai.stateTimer = 0;
   }
+  primeMinistryRoutineGoal(e, ai.npcState);
 
   // Schedule transitions
-  const scheduled = getMinistrySchedule(clock.hour, samosborActive, e);
+  const scheduled = getMinistrySchedule(clock, samosborActive, e);
   if (ai.npcState !== scheduled && ai.npcState !== NpcState.HIDING) {
-    ai.npcState = scheduled;
-    ai.path = [];
-    ai.pi = 0;
-    ai.goal = AIGoal.IDLE;
-    ai.stateTimer = 0;
+    enterMinistryState(e, scheduled);
   }
   if (ai.npcState === NpcState.HIDING && !samosborActive) {
-    ai.npcState = scheduled;
-    ai.path = [];
-    ai.pi = 0;
-    ai.goal = AIGoal.IDLE;
-    ai.stateTimer = 0;
+    enterMinistryState(e, scheduled);
   }
 
   ai.timer -= dt;
@@ -138,7 +239,7 @@ export function updateMinistryNPC(
     case NpcState.BREAK:     handleBreak(world, e, dt); break;
     case NpcState.FREE_TIME: handleFreeTime(world, e, dt); break;
     case NpcState.PATROL:    handlePatrol(world, e, dt); break;
-    case NpcState.HIDING:    handleHiding(world, e, dt); break;
+    case NpcState.HIDING:    handleHiding(world, entities, e, dt, clock); break;
   }
 
   tryAmbientBark(e, dt, samosborActive);
@@ -384,12 +485,17 @@ function patrolCorridor(world: World, e: Entity): void {
 }
 
 /** Hiding: go to assigned room or nearest office */
-function handleHiding(world: World, e: Entity, dt: number): void {
+function handleHiding(world: World, entities: readonly Entity[], e: Entity, dt: number, clock: GameClock): void {
   const ai = e.ai!;
-  if (ai.goal !== AIGoal.HIDE || ai.path.length === 0) {
+  if (ai.goal !== AIGoal.HIDE) {
     ai.goal = AIGoal.HIDE;
-    gotoAssignedOrNearest(world, e, RoomType.OFFICE);
-    ai.timer = 60;
+    ai.timer = 0;
+  }
+  if (ai.path.length === 0 && ai.timer <= 0) {
+    if (!tryAssignMinistryEmergencyShelterPath(world, entities, e, clock)) {
+      gotoAssignedOrNearest(world, e, RoomType.OFFICE);
+      ai.timer = 60;
+    }
   }
   followPath(world, e, dt);
 }

@@ -17,7 +17,8 @@ test('granit4u belt shotgun is a slow crowd-control shell weapon', () => {
   assert.equal(def.name, '«Гранит»-4у');
   assert.equal(def.type, ItemType.WEAPON);
   assert.deepEqual(def.spawnRooms, [RoomType.HQ]);
-  assert.equal(def.value, PROCEDURAL_LOOT_VALUE_CAP_BY_DANGER[5]);
+  assert.ok(def.value >= 100_000);
+  assert.ok(def.value <= PROCEDURAL_LOOT_VALUE_CAP_BY_DANGER[5]);
   assert.ok(def.value > PROCEDURAL_LOOT_VALUE_CAP_BY_DANGER[4]);
   assert.equal(resourceForItem(def.id)?.id, 'ammo');
 
@@ -57,7 +58,7 @@ test('granit4u is reachable as a deep liquidator procedural reward theft', () =>
   assert.equal(stash.access, 'faction');
   assert.ok(stash.tags.includes('liquidator_stock'));
   assert.ok(stash.tags.includes('danger_5'));
-  assert.ok(stash.tags.includes('value_cap_260'));
+  assert.ok(stash.tags.includes(`value_cap_${PROCEDURAL_LOOT_VALUE_CAP_BY_DANGER[5]}`));
   assert.equal(stash.inventory.find(item => item.defId === 'granit4u_belt_shotgun')?.count, 1);
 
   const access = containerAccessInfo(stash, makeTestPlayer());

@@ -6,6 +6,7 @@ import {
   type GameClock,
 } from '../../core/types';
 import { World } from '../../core/world';
+import { ENTITY_MASK_ACTOR, ensureEntityIndex } from '../entity_index';
 import { stampMark, MarkType } from '../../render/marks';
 import {
   followPath,
@@ -13,6 +14,7 @@ import {
   gotoNearestRoomOfTypes,
   gotoNearestRoomType,
   gotoRoom,
+  tryAssignPathToCell,
   wanderNearby,
   wanderFar,
 } from './pathfinding';
@@ -21,6 +23,7 @@ import {
   BARK_HIDE, BARK_HIDE_F, BARK_CHANCE_HIDE,
   BARK_GENERIC, BARK_GENERIC_F, BARK_CHANCE_GENERIC,
 } from './barks';
+import { chooseNpcEmergencyDecision } from './npc_emergency';
 import { tickNpcMemoryLowFrequency } from '../npc_memory';
 import { tickNpcRumorLowFrequency } from '../rumor';
 
@@ -32,13 +35,131 @@ export function setNpcContext(msgs: Msg[], time: number): void {
   _barkTime = time;
 }
 
+const DAY_MINUTES = 24 * 60;
+const ROUTINE_OFFSET_MINUTES = 45;
+const emergencyLocalActors: Entity[] = [];
+
+function mix32(v: number): number {
+  v |= 0;
+  v ^= v >>> 16;
+  v = Math.imul(v, 0x7feb352d);
+  v ^= v >>> 15;
+  v = Math.imul(v, 0x846ca68b);
+  v ^= v >>> 16;
+  return v >>> 0;
+}
+
+function hashString32(text: string, salt: number): number {
+  let h = (0x811c9dc5 ^ salt) >>> 0;
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return mix32(h);
+}
+
+function stableNpcSeed(e: Entity, salt: number): number {
+  if (e.persistentNpcId) return hashString32(e.persistentNpcId, salt);
+  if (e.plotNpcId) return hashString32(e.plotNpcId, salt ^ 0x4f1bbcdc);
+  if (e.alifeId !== undefined) return mix32(Math.imul(e.alifeId | 0, 0x9e3779b1) ^ salt);
+  return mix32(Math.imul(e.id | 0, 0x85ebca6b) ^ Math.imul(e.familyId ?? 0, 0xc2b2ae35) ^ salt);
+}
+
+function stableUnit(e: Entity, salt: number): number {
+  return stableNpcSeed(e, salt) / 0x100000000;
+}
+
+function softRoutineHour(clock: GameClock, e: Entity | undefined, offsetMinutes: number): number {
+  const baseMinute = clock.hour * 60 + clock.minute;
+  const offset = e ? Math.round((stableUnit(e, 0x5171) * 2 - 1) * offsetMinutes) : 0;
+  const shifted = ((baseMinute + offset) % DAY_MINUTES + DAY_MINUTES) % DAY_MINUTES;
+  return Math.floor(shifted / 60);
+}
+
+function routineTransitionDelay(e: Entity, from: NpcState | undefined, to: NpcState): number {
+  const fromState = from ?? to;
+  return 2 + stableUnit(e, 0x71a5 ^ Math.imul(fromState + 1, 131) ^ Math.imul(to + 1, 977)) * 22;
+}
+
+function primeRoutineGoal(e: Entity, state: NpcState): void {
+  const ai = e.ai!;
+  if (ai.combatTargetId !== undefined || ai.goal !== AIGoal.IDLE || ai.timer > 0) return;
+  ai.goal = defaultGoalForState(state);
+  ai.timer = Math.max(ai.timer, 0.5 + stableUnit(e, 0x91dd ^ Math.imul(state + 1, 379)) * 5.5);
+}
+
+function enterNpcState(e: Entity, next: NpcState): void {
+  const ai = e.ai!;
+  const prev = ai.npcState;
+  if (prev === next) return;
+  ai.npcState = next;
+  ai.stateTimer = 0;
+  if (ai.combatTargetId !== undefined) return;
+
+  if (next === NpcState.HIDING) {
+    ai.path = [];
+    ai.pi = 0;
+    ai.goal = AIGoal.HIDE;
+    ai.timer = Math.max(0.15, stableUnit(e, 0x5afe) * 1.35);
+    return;
+  }
+
+  if (ai.goal === AIGoal.IDLE || prev === NpcState.HIDING) {
+    ai.goal = defaultGoalForState(next);
+  }
+  ai.timer = Math.max(ai.timer, routineTransitionDelay(e, prev, next));
+}
+
+function preferredEmergencyRoomId(world: World, e: Entity): number | undefined {
+  const familyRoomId = e.isTraveler ? -1 : findFamilyRoom(world, e, RoomType.LIVING);
+  if (familyRoomId >= 0) return familyRoomId;
+  if (e.assignedRoomId !== undefined && e.assignedRoomId >= 0) return e.assignedRoomId;
+  return undefined;
+}
+
+function tryAssignEmergencyShelterPath(world: World, _entities: readonly Entity[], e: Entity, clock?: GameClock): boolean {
+  const ai = e.ai!;
+  const homeRoomId = preferredEmergencyRoomId(world, e);
+  const assignedRoomId = e.assignedRoomId !== undefined && e.assignedRoomId >= 0 ? e.assignedRoomId : undefined;
+  const preferredRoomIds = assignedRoomId !== undefined && assignedRoomId !== homeRoomId ? [assignedRoomId] : undefined;
+  const nearbyRadius = 18 + Math.floor(stableUnit(e, 0x2b87) * 8);
+  ensureEntityIndex(_entities).queryRadiusCapped(e.x, e.y, nearbyRadius, emergencyLocalActors, ENTITY_MASK_ACTOR, 64);
+  const decision = chooseNpcEmergencyDecision(world, e, {
+    phase: 'active',
+    homeRoomId,
+    preferredRoomIds,
+    localActors: emergencyLocalActors,
+    localActorCap: 16,
+    candidateCap: 8,
+    nearbyRadius,
+    nearbyRoomCap: 8,
+    seedSalt: Math.floor((clock?.totalMinutes ?? 0) / 30),
+  });
+  if (decision.targetRoomId < 0) return false;
+
+  ai.goal = AIGoal.HIDE;
+  ai.tx = decision.targetCellX;
+  ai.ty = decision.targetCellY;
+  ai.path = [];
+  ai.pi = 0;
+  ai.stuck = 0;
+  const status = tryAssignPathToCell(world, e, decision.targetCellX, decision.targetCellY);
+  if (status === 'not_found') {
+    ai.timer = 0;
+    return false;
+  }
+  ai.timer = Math.max(0.75, decision.rethinkAfterSec);
+  return true;
+}
+
 /* ── Schedule → NpcState mapping ──────────────────────────────── */
-function getScheduledState(hour: number, samosborActive: boolean, e?: Entity): NpcState {
+function getScheduledState(clock: GameClock, samosborActive: boolean, e?: Entity): NpcState {
   if (e?.isTraveler) {
     if (samosborActive && e.faction === Faction.CITIZEN) return NpcState.HIDING;
     return NpcState.TRAVELING;
   }
   if (samosborActive) return NpcState.HIDING;
+  const hour = softRoutineHour(clock, e, ROUTINE_OFFSET_MINUTES);
   if (hour >= 22 || hour < 6)  return NpcState.SLEEPING;
   if (hour >= 6  && hour < 8)  return NpcState.MORNING;
   if (hour >= 8  && hour < 12) return NpcState.WORKING;
@@ -63,12 +184,10 @@ export function primeNpcAlifeState(e: Entity, clock: GameClock, samosborActive: 
   if (!ai) return;
   if (e.plotNpcId === 'olga' && !e.plotDone) return;
   if (ai.npcState === undefined) {
-    ai.npcState = getScheduledState(clock.hour, samosborActive, e);
+    ai.npcState = getScheduledState(clock, samosborActive, e);
     ai.stateTimer = 0;
   }
-  if (ai.goal === AIGoal.IDLE && ai.combatTargetId === undefined && ai.timer <= 0) {
-    ai.goal = defaultGoalForState(ai.npcState);
-  }
+  primeRoutineGoal(e, ai.npcState);
 }
 
 /* ── Work room types by occupation ────────────────────────────── */
@@ -106,20 +225,21 @@ function getWorkRoomTypes(occ: Occupation | undefined): readonly RoomType[] {
 }
 
 /* ── NPC behavior: schedule-driven FSM with needs ─────────────── */
-export function updateNPC(world: World, _entities: Entity[], e: Entity, dt: number, _time: number, clock: GameClock, samosborActive: boolean): void {
+export function updateNPC(world: World, entities: Entity[], e: Entity, dt: number, _time: number, clock: GameClock, samosborActive: boolean): void {
   const ai = e.ai!;
   const n = e.needs;
 
   // Initialize NPC state if not set
   if (ai.npcState === undefined) {
-    ai.npcState = getScheduledState(clock.hour, samosborActive, e);
+    ai.npcState = getScheduledState(clock, samosborActive, e);
     ai.stateTimer = 0;
   }
+  primeRoutineGoal(e, ai.npcState);
 
   // ── Ольга Дмитриевна: tutor → doctor transition after 1 game hour ──
   if (e.plotNpcId === 'olga' && !e.plotDone && clock.totalMinutes >= 60) {
     e.plotDone = true;
-    ai.npcState = getScheduledState(clock.hour, samosborActive, e);
+    ai.npcState = getScheduledState(clock, samosborActive, e);
     ai.path = [];
     ai.pi = 0;
     ai.goal = AIGoal.IDLE;
@@ -132,22 +252,14 @@ export function updateNPC(world: World, _entities: Entity[], e: Entity, dt: numb
   }
 
   // Check for schedule transition
-  const scheduled = getScheduledState(clock.hour, samosborActive, e);
+  const scheduled = getScheduledState(clock, samosborActive, e);
   if (ai.npcState !== scheduled && ai.npcState !== NpcState.HIDING) {
     if (!e.isTraveler || scheduled !== NpcState.TRAVELING) {
-      ai.npcState = scheduled;
-      ai.path = [];
-      ai.pi = 0;
-      ai.goal = AIGoal.IDLE;
-      ai.stateTimer = 0;
+      enterNpcState(e, scheduled);
     }
   }
   if (ai.npcState === NpcState.HIDING && !samosborActive) {
-    ai.npcState = scheduled;
-    ai.path = [];
-    ai.pi = 0;
-    ai.goal = AIGoal.IDLE;
-    ai.stateTimer = 0;
+    enterNpcState(e, scheduled);
   }
 
   ai.timer -= dt;
@@ -188,7 +300,7 @@ export function updateNPC(world: World, _entities: Entity[], e: Entity, dt: numb
     case NpcState.WORKING:   handleWorking(world, e, dt); break;
     case NpcState.LUNCH:     handleLunch(world, e, dt); break;
     case NpcState.FREE_TIME: handleFreeTime(world, e, dt); break;
-    case NpcState.HIDING:    handleHiding(world, e, dt); break;
+    case NpcState.HIDING:    handleHiding(world, entities, e, dt, clock); break;
     case NpcState.TRAVELING: handleTraveling(world, e, dt); break;
   }
 
@@ -348,20 +460,22 @@ function handleFreeTime(world: World, e: Entity, dt: number): void {
   followPath(world, e, dt);
 }
 
-function handleHiding(world: World, e: Entity, dt: number): void {
+function handleHiding(world: World, entities: readonly Entity[], e: Entity, dt: number, clock: GameClock): void {
   const ai = e.ai!;
   if (ai.goal !== AIGoal.HIDE) {
     ai.goal = AIGoal.HIDE;
     ai.timer = 0;
   }
   if (ai.path.length === 0 && ai.timer <= 0) {
-    if (e.isTraveler) {
-      gotoNearestRoomType(world, e, RoomType.LIVING);
-    } else {
-      const targetRoom = findFamilyRoom(world, e, RoomType.LIVING);
-      if (targetRoom >= 0) gotoRoom(world, e, targetRoom);
+    if (!tryAssignEmergencyShelterPath(world, entities, e, clock)) {
+      if (e.isTraveler) {
+        gotoNearestRoomType(world, e, RoomType.LIVING);
+      } else {
+        const targetRoom = findFamilyRoom(world, e, RoomType.LIVING);
+        if (targetRoom >= 0) gotoRoom(world, e, targetRoom);
+      }
+      ai.timer = 1.25;
     }
-    ai.timer = 1.25;
   }
   followPath(world, e, dt);
 }
@@ -404,7 +518,7 @@ function handleTraveling(world: World, e: Entity, dt: number): void {
 }
 
 /* ── Force NPCs to hide (called by samosbor) ─────────────────── */
-export function forceHide(entities: Entity[], msgs?: Msg[], time?: number): void {
+export function forceHide(entities: Entity[], msgs?: Msg[], time?: number, world?: World, clock?: GameClock): void {
   for (const e of entities) {
     if (e.type === EntityType.NPC && e.alive && e.ai) {
       if (e.faction === Faction.LIQUIDATOR || e.faction === Faction.CULTIST || e.faction === Faction.WILD) continue;
@@ -414,6 +528,7 @@ export function forceHide(entities: Entity[], msgs?: Msg[], time?: number): void
       e.ai.path = [];
       e.ai.pi = 0;
       e.ai.timer = 0;
+      if (world) tryAssignEmergencyShelterPath(world, entities, e, clock);
     }
   }
 }

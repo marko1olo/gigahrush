@@ -29,7 +29,7 @@
 - отдельного `portal/` или `releases/portal/` каталога с Newgrounds/iDev/Crazy/Yandex/Pikabu/IgrayTut ZIP-пакетами;
 - EN store-page набора: короткое описание, длинное описание, теги, возрастной дисклеймер, управление, content warning;
 - 16:9 маркетинговых изображений под 1280x720, 1920x1080 и 640x360, подписанных по назначению, а не только itch pack;
-- квадратных иконок 512x512 и 1024x1024 для RU-порталов;
+- квадратных иконок в требуемом площадкой размере для RU-порталов;
 - трейлера или чистого 30-60 секунд gameplay video;
 - публичного press-kit URL или ZIP с fact sheet RU/EN, контактами и выбранными медиа;
 - портального smoke-чеклиста: iframe, fullscreen, mobile controls, pause on blur, audio mute, no console errors;
@@ -52,7 +52,7 @@
 | iDev.Games | HTML5 ZIP с `index.html` или `index.htm` в корне. Их tutorial прямо требует root index file. | Текущий ZIP уже совпадает по базовой структуре. | Нужен iDev-specific publish form pack: EN title/description, thumbnail, tags, controls. Лучше проверить, не мешают ли `manifest.webmanifest`/`sw.js` в их iframe/CDN. |
 | CrazyGames Basic Launch | Отдельный CrazyGames ZIP/build candidate без внешней саморекламы, с чистым iframe/fullscreen поведением, no external ads, console-clean QA. Для Basic Launch SDK optional, но требования включают initial download <= 50MB, total <= 250MB или 50MB без SDK, file count <= 1500. | Размер подходит: HTML 9.25 MB, ZIP 4.45 MB, файлов в ZIP мало. WebGL/canvas build уже браузерный. | Нужна английская локализация/landing-in-gameplay оценка, PEGI12/content check, no external links/cross-promotion, QA в CrazyGames iframe. Для монетизации и Full Launch нужен SDK. |
 | Яндекс Игры | Отдельная Yandex build branch/profile даже до SDK: fullscreen/mobile/Desktop declarations, no OS shortcut conflicts, pause/audio behavior, guest play with saved progress. | Русский интерфейс уже основной; игра браузерная; есть mobile controls и PWA/fullscreen логика. | Нужна отдельная сборка с Yandex SDK, настройкой паузы/звука при background, сохранениями через SDK при необходимости, и модерационными материалами. Модерация заявлена 3-5 рабочих дней. |
-| Пикабу Игры | GamePush/Pikabu ZIP и промоматериалы под их размеры. | Есть рабочий HTML5 ZIP и RU-материалы. | Нужны облачные сохранения, автопауза при сворачивании/рекламе, отключение звука в фоне, отсутствие критических console errors, квадратная 1024x1024 и горизонтальная 1920x1080 иконки. |
+| Пикабу Игры | GamePush/Pikabu ZIP и промоматериалы под их размеры. | Есть рабочий HTML5 ZIP и RU-материалы. | Нужны облачные сохранения, автопауза при сворачивании/рекламе, отключение звука в фоне, отсутствие критических console errors, квадратная и горизонтальная иконки в требуемых площадкой размерах. |
 | ИграйТут | IgrayTut-target build с правильными метаданными и локальными медиа размерами. | Есть browser build, RU copy, 1920x1080 background/media wall, скриншоты. | Нужны 512x512 icon, 1280x720 cover, 640x360 thumbnail, минимум 2 горизонтальных screenshots 1280x720-2560x1440 без альфа. Если подключать SDK, нужен `IgrayTut.init` до storage/ads/leaderboard/achievements/payments. |
 
 ## Нужен SDK/интеграция

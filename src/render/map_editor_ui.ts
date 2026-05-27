@@ -583,6 +583,7 @@ function entityColor(entity: Entity): string {
   if (entity.type === EntityType.NPC) return '#59d46b';
   if (entity.type === EntityType.MONSTER) return '#e44';
   if (entity.type === EntityType.ITEM_DROP) return '#dd4';
+  if (entity.type === EntityType.BILLBOARD) return '#8a8';
   if (entity.type === EntityType.PROJECTILE) return '#8cf';
   return '#fff';
 }

@@ -1336,7 +1336,7 @@ test('rail train anomaly generates tracks, trains, and rideable train entities',
   assert.equal(gen.world.railTrains.length > 0, true);
   assert.equal(gen.world.railTracks[0].stationOffsets.length > 0, true);
   assert.equal(gen.world.railTracks[0].platformCells.length > 0, true);
-  assert.equal(gen.world.railTrains[0].entityIds.every(id => gen.entities.some(e => e.id === id && e.type === EntityType.ITEM_DROP)), true);
+  assert.equal(gen.world.railTrains[0].entityIds.every(id => gen.entities.some(e => e.id === id && e.type === EntityType.BILLBOARD)), true);
 });
 
 test('smog anomaly spends gasmask filters under sustained exposure', () => {

@@ -32,6 +32,7 @@ import {
   type AlifeFactionProfile,
   type WeightedValue,
 } from '../data/alife_generation';
+import { RPG_ATTRIBUTE_CAP, RPG_LEVEL_CAP } from '../data/rpg_progression';
 import { freshNeeds } from '../data/catalog';
 import { ensureFloorRunState, floorRunEntryFloorKey, currentFloorRunEntry } from './procedural_floors';
 import { floorKeyForDesign, floorKeyForProcedural, floorKeyForStory } from './floor_keys';
@@ -49,16 +50,12 @@ import {
   type RankStats,
 } from './alife_rating';
 
-const ALIFE_VERSION = 1;
-const ALIFE_TARGET_POPULATION = 1_000_000;
-const ALIFE_FALLBACK_POPULATION = 100_000;
-const ALIFE_ESTIMATED_OBJECT_MB_PER_100K = 43;
-const ALIFE_HEAP_RESERVE_MB = 512;
-const ALIFE_DESKTOP_DEVICE_MEMORY_GB = 8;
-const BYTES_PER_MB = 1024 * 1024;
+const ALIFE_VERSION = 2;
+const ALIFE_POPULATION = 100_000;
 const ALIFE_MIN_FLOOR_POOL = 32;
 const ALIFE_SAVE_OVERRIDE_CAP = 12_000;
 const ALIFE_SAVE_DEAD_IDS_CAP = 65_536;
+const ALIFE_MONEY_CAP = 5_000_000;
 
 interface AlifeFloorPlan {
   key: string;
@@ -85,7 +82,7 @@ interface AlifeNpcRecord {
   hp: number;
   maxHp: number;
   money: number;
-  activeMoney?: number;
+  accountRubles: number;
   familyId: number;
   canGiveQuest: boolean;
   sprite?: number;
@@ -119,6 +116,7 @@ export interface AlifeNpcOverride {
   angle?: number;
   hp?: number;
   money?: number;
+  accountRubles?: number;
   weapon?: string;
   inventory?: Item[];
   rpg?: RPGStats;
@@ -173,8 +171,6 @@ export interface AlifeLeaderboardSnapshot {
 }
 
 type AlifeHost = GameState & { alife?: AlifeState };
-type RuntimePerformance = Performance & { memory?: { jsHeapSizeLimit?: number } };
-type RuntimeNavigator = Navigator & { deviceMemory?: number };
 
 const CITIZEN_MALE = ['Иван', 'Петр', 'Алексей', 'Дмитрий', 'Сергей', 'Андрей', 'Николай', 'Михаил'];
 const CITIZEN_FEMALE = ['Мария', 'Анна', 'Елена', 'Ольга', 'Наталья', 'Татьяна', 'Ирина', 'Светлана'];
@@ -221,33 +217,8 @@ function clampInt(value: unknown, fallback: number, min: number, max: number): n
   return Math.max(min, Math.min(max, Math.trunc(value)));
 }
 
-function runtimeHeapLimitMb(): number | undefined {
-  const limit = (globalThis.performance as RuntimePerformance | undefined)?.memory?.jsHeapSizeLimit;
-  if (typeof limit !== 'number' || !Number.isFinite(limit) || limit <= 0) return undefined;
-  return limit / BYTES_PER_MB;
-}
-
-function isMobileRuntime(): boolean {
-  const nav = globalThis.navigator as RuntimeNavigator | undefined;
-  const ua = nav?.userAgent ?? '';
-  const mobileUa = /android|iphone|ipad|ipod|mobile/i.test(ua);
-  const touchCapable = (nav?.maxTouchPoints ?? 0) > 0 || 'ontouchstart' in globalThis;
-  const compactViewport = typeof window !== 'undefined' && Math.min(window.innerWidth, window.innerHeight) < 900;
-  return mobileUa || (touchCapable && compactViewport);
-}
-
 export function defaultAlifePopulation(): number {
-  if (isMobileRuntime()) return ALIFE_FALLBACK_POPULATION;
-  const targetPoolMb = ALIFE_ESTIMATED_OBJECT_MB_PER_100K * (ALIFE_TARGET_POPULATION / 100_000);
-  const heapLimitMb = runtimeHeapLimitMb();
-  if (heapLimitMb !== undefined) {
-    return heapLimitMb >= targetPoolMb + ALIFE_HEAP_RESERVE_MB ? ALIFE_TARGET_POPULATION : ALIFE_FALLBACK_POPULATION;
-  }
-  const deviceMemory = (globalThis.navigator as RuntimeNavigator | undefined)?.deviceMemory;
-  if (typeof deviceMemory === 'number' && Number.isFinite(deviceMemory)) {
-    return deviceMemory >= ALIFE_DESKTOP_DEVICE_MEMORY_GB ? ALIFE_TARGET_POPULATION : ALIFE_FALLBACK_POPULATION;
-  }
-  return ALIFE_FALLBACK_POPULATION;
+  return ALIFE_POPULATION;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -436,7 +407,7 @@ function levelForRecord(plan: AlifeFloorPlan, faction: Faction, seed: number, in
   return Math.max(1, Math.min(ALIFE_MAX_LEVEL, 1 + Math.floor(Math.expm1(scaled))));
 }
 
-function moneyForRecord(plan: AlifeFloorPlan, profile: AlifeFactionProfile, level: number, seed: number, index: number): number {
+function wealthForRecord(plan: AlifeFloorPlan, profile: AlifeFactionProfile, level: number, seed: number, index: number): number {
   const floorMult = plan.floor === FloorLevel.MINISTRY ? 2.4
     : plan.key === floorKeyForDesign('bank_floor') ? 6.5
       : plan.floor === FloorLevel.MAINTENANCE ? 1.25
@@ -446,7 +417,7 @@ function moneyForRecord(plan: AlifeFloorPlan, profile: AlifeFactionProfile, leve
   const u = Math.max(0.000001, 1 - unit(seed, index, 42));
   const tail = Math.pow(u, -0.8) - 1;
   const money = Math.floor(base * (0.45 + tail));
-  return Math.max(0, Math.min(5_000_000, money));
+  return Math.max(0, Math.min(ALIFE_MONEY_CAP, money));
 }
 
 function loadoutForRecord(faction: Faction, danger: number, level: number, seed: number, index: number): { weapon?: string; inventory?: Item[] } {
@@ -520,29 +491,52 @@ function questCandidateChance(faction: Faction, occupation: Occupation): number 
   return Math.max(0.04, Math.min(0.24, chance));
 }
 
-function activeMoneyCap(record: AlifeNpcRecord): number {
-  let cap = record.faction === Faction.SCIENTIST || record.faction === Faction.LIQUIDATOR ? 700
-    : record.faction === Faction.WILD || record.faction === Faction.CULTIST ? 120
+function cashCapForProfile(
+  faction: Faction,
+  occupation: Occupation,
+  floorKey: string,
+  floor: FloorLevel,
+  level: number,
+): number {
+  let cap = faction === Faction.SCIENTIST || faction === Faction.LIQUIDATOR ? 700
+    : faction === Faction.WILD || faction === Faction.CULTIST ? 120
       : 80;
   if (
-    record.occupation === Occupation.STOREKEEPER ||
-    record.occupation === Occupation.COOK ||
-    record.occupation === Occupation.DOCTOR ||
-    record.occupation === Occupation.SECRETARY ||
-    record.occupation === Occupation.DIRECTOR
+    occupation === Occupation.STOREKEEPER ||
+    occupation === Occupation.COOK ||
+    occupation === Occupation.DOCTOR ||
+    occupation === Occupation.SECRETARY ||
+    occupation === Occupation.DIRECTOR
   ) {
-    cap = Math.max(cap, record.floorKey === floorKeyForDesign('bank_floor') || record.floor === FloorLevel.MINISTRY ? 1600 : 500);
+    cap = Math.max(cap, floorKey === floorKeyForDesign('bank_floor') || floor === FloorLevel.MINISTRY ? 1600 : 500);
   }
-  if (record.level >= 45) cap = Math.round(cap * 1.35);
+  if (level >= 45) cap = Math.round(cap * 1.35);
   return Math.min(2_000, cap);
 }
 
-function activeMoneyForRecord(record: AlifeNpcRecord, seed: number): number {
-  if (record.activeMoney !== undefined) return Math.max(0, Math.min(record.money, Math.floor(record.activeMoney)));
-  const cap = activeMoneyCap(record);
-  if (record.money <= cap) return record.money;
-  const spread = 0.65 + unit(seed, record.id, 96) * 0.7;
-  return Math.max(0, Math.min(record.money, Math.round(cap * spread)));
+function cashForWealth(
+  wealth: number,
+  faction: Faction,
+  occupation: Occupation,
+  floorKey: string,
+  floor: FloorLevel,
+  level: number,
+  seed: number,
+  index: number,
+): number {
+  const total = Math.max(0, Math.min(ALIFE_MONEY_CAP, Math.floor(wealth)));
+  const cap = cashCapForProfile(faction, occupation, floorKey, floor, level);
+  if (total <= cap) return total;
+  const spread = 0.65 + unit(seed, index, 96) * 0.7;
+  return Math.max(0, Math.min(total, cap, Math.round(cap * spread)));
+}
+
+function splitClampedMoney(cash: unknown, accountRubles: unknown): { money: number; accountRubles: number } {
+  const money = clampInt(cash, 0, 0, ALIFE_MONEY_CAP);
+  const account = clampInt(accountRubles, 0, 0, ALIFE_MONEY_CAP);
+  const total = Math.min(ALIFE_MONEY_CAP, money + account);
+  const pocket = Math.min(money, total);
+  return { money: pocket, accountRubles: total - pocket };
 }
 
 function createRecord(id: number, plan: AlifeFloorPlan, seed: number): AlifeNpcRecord {
@@ -553,7 +547,8 @@ function createRecord(id: number, plan: AlifeFloorPlan, seed: number): AlifeNpcR
   const rpg = rpgForRecord(level, seed, id);
   const maxHp = getMaxHp(rpg);
   const named = nameForRecord(faction, seed, id);
-  const money = moneyForRecord(plan, profile, level, seed, id);
+  const wealth = wealthForRecord(plan, profile, level, seed, id);
+  const money = cashForWealth(wealth, faction, occupation, plan.key, plan.floor, level, seed, id);
   const loadout = loadoutForRecord(faction, plan.danger, level, seed, id);
   const pockets = pocketItemsForRecord(faction, occupation, plan.danger, seed, id);
   return {
@@ -571,6 +566,7 @@ function createRecord(id: number, plan: AlifeFloorPlan, seed: number): AlifeNpcR
     hp: maxHp,
     maxHp,
     money,
+    accountRubles: Math.max(0, wealth - money),
     familyId: Math.floor((id - 1) / 4),
     canGiveQuest: unit(seed, id, 94) < questCandidateChance(faction, occupation),
     weapon: loadout.weapon,
@@ -579,8 +575,8 @@ function createRecord(id: number, plan: AlifeFloorPlan, seed: number): AlifeNpcR
   };
 }
 
-function createAlifeState(state: GameState, seed: number, total: number): AlifeState {
-  const boundedTotal = Math.max(1_000, Math.min(ALIFE_TARGET_POPULATION, Math.floor(total)));
+function createAlifeState(state: GameState, seed: number, _total: number): AlifeState {
+  const boundedTotal = ALIFE_POPULATION;
   const plans = buildFloorPlans(state);
   const counts = allocatedCounts(plans, boundedTotal);
   const npcs: AlifeNpcRecord[] = [];
@@ -631,11 +627,18 @@ function rpgFromRecord(record: AlifeNpcRecord): RPGStats {
 }
 
 function recordRpg(record: AlifeNpcRecord, rpg: RPGStats): void {
-  record.level = Math.max(1, Math.floor(rpg.level));
-  record.str = Math.max(0, Math.floor(rpg.str));
-  record.agi = Math.max(0, Math.floor(rpg.agi));
-  record.int = Math.max(0, Math.floor(rpg.int));
-  record.maxHp = getMaxHp(rpg);
+  const shell = {
+    ...rpg,
+    level: clampInt(rpg.level, 1, 1, RPG_LEVEL_CAP),
+    str: clampInt(rpg.str, 0, 0, RPG_ATTRIBUTE_CAP),
+    agi: clampInt(rpg.agi, 0, 0, RPG_ATTRIBUTE_CAP),
+    int: clampInt(rpg.int, 0, 0, RPG_ATTRIBUTE_CAP),
+  };
+  record.level = shell.level;
+  record.str = shell.str;
+  record.agi = shell.agi;
+  record.int = shell.int;
+  record.maxHp = getMaxHp(shell);
   record.hp = Math.min(record.hp, record.maxHp);
 }
 
@@ -660,13 +663,12 @@ function captureEntityToRecord(record: AlifeNpcRecord, entity: Entity): void {
   record.sprite = entity.sprite;
   record.spriteSeed = entity.spriteSeed;
   record.hp = Math.max(0, Math.min(entity.hp ?? record.hp, entity.maxHp ?? record.maxHp));
-  const entityMoney = Math.max(0, Math.floor(entity.money ?? activeMoneyForRecord(record, 0)));
-  if (record.activeMoney !== undefined && record.money > record.activeMoney) {
-    record.money = Math.max(0, Math.min(5_000_000, record.money + entityMoney - record.activeMoney));
-  } else {
-    record.money = Math.max(0, Math.min(5_000_000, entityMoney));
-  }
-  record.activeMoney = entityMoney;
+  const money = splitClampedMoney(
+    entity.money ?? record.money,
+    entity.accountRubles ?? record.accountRubles,
+  );
+  record.money = money.money;
+  record.accountRubles = money.accountRubles;
   record.weapon = entity.weapon;
   record.inventory = inventoryCopy(entity.inventory);
   if (entity.playerRelation !== undefined) record.playerRelation = clampRelation(entity.playerRelation);
@@ -682,9 +684,9 @@ function reconcileExistingAlifeEntities(alife: AlifeState, entities: readonly En
   for (const entity of entities) {
     if (entity.type !== EntityType.NPC || entity.alifeId === undefined || !entity.alive) continue;
     const record = alife.npcs[entity.alifeId - 1];
-    if (!record || record.dead || record.activeMoney !== undefined) continue;
-    const entityMoney = Math.max(0, Math.floor(entity.money ?? activeMoneyForRecord(record, alife.seed)));
-    record.activeMoney = Math.max(0, Math.min(record.money, entityMoney));
+    if (!record || record.dead) continue;
+    if (entity.money === undefined) entity.money = record.money;
+    if (entity.accountRubles === undefined) entity.accountRubles = record.accountRubles;
   }
 }
 
@@ -753,7 +755,12 @@ function arrivalRecordFromEntity(id: number, state: GameState, floorKey: string,
   const faction = entity.faction ?? Faction.CITIZEN;
   const occupation = entity.occupation ?? Occupation.TRAVELER;
   const rpg = entity.rpg;
-  const maxHp = Math.max(1, Math.floor(entity.maxHp ?? (rpg ? getMaxHp(rpg) : 100)));
+  const level = clampInt(rpg?.level, 1, 1, RPG_LEVEL_CAP);
+  const str = clampInt(rpg?.str, 1, 0, RPG_ATTRIBUTE_CAP);
+  const agi = clampInt(rpg?.agi, 1, 0, RPG_ATTRIBUTE_CAP);
+  const int = clampInt(rpg?.int, 1, 0, RPG_ATTRIBUTE_CAP);
+  const rpgShell = { level, xp: 0, attrPoints: 0, str, agi, int, psi: 0, maxPsi: 0 };
+  const maxHp = Math.max(1, Math.floor(entity.maxHp ?? getMaxHp(rpgShell)));
   return {
     id,
     floorKey,
@@ -762,13 +769,13 @@ function arrivalRecordFromEntity(id: number, state: GameState, floorKey: string,
     occupation,
     name: (entity.name ?? `Житель ${id}`).slice(0, 80),
     female: entity.isFemale === true,
-    level: Math.max(1, Math.floor(rpg?.level ?? 1)),
-    str: Math.max(0, Math.floor(rpg?.str ?? 1)),
-    agi: Math.max(0, Math.floor(rpg?.agi ?? 1)),
-    int: Math.max(0, Math.floor(rpg?.int ?? 1)),
+    level,
+    str,
+    agi,
+    int,
     hp: Math.max(1, Math.min(Math.floor(entity.hp ?? maxHp), maxHp)),
     maxHp,
-    money: Math.max(0, Math.min(5_000_000, Math.floor(entity.money ?? 0))),
+    ...splitClampedMoney(entity.money ?? 0, entity.accountRubles ?? 0),
     familyId: Math.max(0, Math.floor(entity.familyId ?? id)),
     canGiveQuest: entity.canGiveQuest === true,
     sprite: entity.sprite,
@@ -796,10 +803,42 @@ function copyArrivalSocialFieldsToEntity(record: AlifeNpcRecord, entity: Entity,
   entity.monsterKills = record.monsterKills ?? 0;
 }
 
+function liveAlifeIds(entities: readonly Entity[]): Set<number> {
+  const ids = new Set<number>();
+  for (const entity of entities) {
+    if (entity.type === EntityType.NPC && entity.alifeId !== undefined && entity.alive) ids.add(entity.alifeId);
+  }
+  return ids;
+}
+
+function arrivalRecordReusable(record: AlifeNpcRecord, activeIds: ReadonlySet<number>): boolean {
+  return !record.dead &&
+    !record.touched &&
+    !activeIds.has(record.id) &&
+    record.playerRelation === undefined &&
+    (record.kills ?? 0) === 0 &&
+    (record.npcKills ?? 0) === 0 &&
+    (record.monsterKills ?? 0) === 0;
+}
+
+function reserveArrivalRecordIndex(alife: AlifeState, entities: readonly Entity[], floorKey: string): number {
+  const activeIds = liveAlifeIds(entities);
+  const bucket = alife.floorIndex[floorKey] ?? [];
+  for (const recordIndex of bucket) {
+    const record = alife.npcs[recordIndex];
+    if (record && arrivalRecordReusable(record, activeIds)) return recordIndex;
+  }
+  for (let recordIndex = 0; recordIndex < alife.npcs.length; recordIndex++) {
+    const record = alife.npcs[recordIndex];
+    if (record && arrivalRecordReusable(record, activeIds)) return recordIndex;
+  }
+  return -1;
+}
+
 export function assignPersistentAlifeNpcFromEntity(
   state: GameState,
   entity: Entity,
-  _entities: readonly Entity[],
+  entities: readonly Entity[],
   floorKey = currentAlifeFloorKey(state),
 ): boolean {
   if (entity.type !== EntityType.NPC || entity.plotNpcId || entity.persistentNpcId) return false;
@@ -808,11 +847,18 @@ export function assignPersistentAlifeNpcFromEntity(
     return true;
   }
   const alife = ensureAlifeState(state);
-  if (alife.npcs.length >= ALIFE_TARGET_POPULATION) return false;
-  const recordIndex = alife.npcs.length;
-  const record = arrivalRecordFromEntity(recordIndex + 1, state, floorKey, entity);
-  alife.npcs.push(record);
-  alife.total = alife.npcs.length;
+  let recordIndex = alife.npcs.length;
+  let record: AlifeNpcRecord;
+  if (recordIndex < ALIFE_POPULATION) {
+    record = arrivalRecordFromEntity(recordIndex + 1, state, floorKey, entity);
+    alife.npcs.push(record);
+    alife.total = alife.npcs.length;
+  } else {
+    recordIndex = reserveArrivalRecordIndex(alife, entities, floorKey);
+    if (recordIndex < 0) return false;
+    record = arrivalRecordFromEntity(alife.npcs[recordIndex].id, state, floorKey, entity);
+    alife.npcs[recordIndex] = record;
+  }
   attachRecordToFloor(alife, recordIndex, floorKey);
   copyArrivalSocialFieldsToEntity(record, entity, alife.seed);
   entity.alifeId = record.id;
@@ -823,6 +869,13 @@ export function assignPersistentAlifeNpcFromEntity(
 
 export function isPlotNpcDead(state: GameState, plotNpcId: string): boolean {
   return ensureAlifeState(state).deadPlotNpcIds.has(plotNpcId);
+}
+
+export function getAlifeNpcTotalMoney(state: GameState, npc: Entity | undefined): number | undefined {
+  if (!npc || npc.alifeId === undefined) return undefined;
+  const alife = (state as AlifeHost).alife ?? ensureAlifeState(state);
+  const record = alife.npcs[npc.alifeId - 1];
+  return record ? Math.max(0, Math.floor(record.money + record.accountRubles)) : undefined;
 }
 
 function passable(world: World, x: number, y: number): boolean {
@@ -871,8 +924,6 @@ function materializeEntity(record: AlifeNpcRecord, template: Entity | undefined,
   record.spriteSeed = record.spriteSeed ?? hash32(alife.seed, record.id, 901);
   record.playerRelation = record.playerRelation ?? playerRelationForRecord(record, alife.seed);
   const rpg = rpgFromRecord(record);
-  const activeMoney = activeMoneyForRecord(record, alife.seed);
-  record.activeMoney = activeMoney;
   const ai = template?.ai
     ? { goal: template.ai.goal, tx: template.ai.tx, ty: template.ai.ty, path: [], pi: 0, stuck: 0, timer: 0 }
     : { goal: AIGoal.IDLE, tx: 0, ty: 0, path: [], pi: 0, stuck: 0, timer: 0 };
@@ -893,7 +944,8 @@ function materializeEntity(record: AlifeNpcRecord, template: Entity | undefined,
     needs: freshNeeds(),
     hp: Math.max(1, Math.min(record.hp, record.maxHp)),
     maxHp: record.maxHp,
-    money: activeMoney,
+    money: record.money,
+    accountRubles: record.accountRubles,
     ai,
     inventory: inventoryCopy(record.inventory) ?? [],
     weapon: record.weapon,
@@ -983,10 +1035,10 @@ function normalizeInventory(input: unknown): Item[] | undefined {
 
 function normalizeRpg(input: unknown): RPGStats | undefined {
   if (!isRecord(input)) return undefined;
-  const level = clampInt(input.level, 1, 1, 100);
-  const str = clampInt(input.str, 0, 0, 100);
-  const agi = clampInt(input.agi, 0, 0, 100);
-  const int = clampInt(input.int, 0, 0, 100);
+  const level = clampInt(input.level, 1, 1, RPG_LEVEL_CAP);
+  const str = clampInt(input.str, 0, 0, RPG_ATTRIBUTE_CAP);
+  const agi = clampInt(input.agi, 0, 0, RPG_ATTRIBUTE_CAP);
+  const int = clampInt(input.int, 0, 0, RPG_ATTRIBUTE_CAP);
   const shell = { level, xp: 0, attrPoints: 0, str, agi, int, psi: 0, maxPsi: 0 };
   const maxPsi = getMaxPsi(shell);
   return { ...shell, psi: maxPsi, maxPsi };
@@ -1021,7 +1073,12 @@ function applyOverride(alife: AlifeState, input: unknown): void {
   if (typeof input.sprite === 'number' && Number.isFinite(input.sprite)) record.sprite = clampInt(input.sprite, record.sprite ?? record.occupation, 0, 4096);
   if (typeof input.spriteSeed === 'number' && Number.isFinite(input.spriteSeed)) record.spriteSeed = clampInt(input.spriteSeed, record.spriteSeed ?? 1, 1, 0x7fffffff);
   record.hp = clampInt(input.hp, record.hp, 0, record.maxHp);
-  record.money = clampInt(input.money, record.money, 0, 5_000_000);
+  const money = splitClampedMoney(
+    input.money ?? record.money,
+    input.accountRubles ?? record.accountRubles,
+  );
+  record.money = money.money;
+  record.accountRubles = money.accountRubles;
   record.weapon = typeof input.weapon === 'string' ? input.weapon.slice(0, 64) : record.weapon;
   record.inventory = normalizeInventory(input.inventory) ?? record.inventory;
   record.kills = clampInt(input.kills, record.kills ?? 0, 0, 1_000_000);
@@ -1039,7 +1096,7 @@ function applyOverride(alife: AlifeState, input: unknown): void {
 export function setAlifeState(state: GameState, input: unknown): AlifeState {
   const save = isRecord(input) ? input : {};
   const seed = clampInt(save.seed, Math.floor(Math.random() * 0x7fffffff), 1, 0x7fffffff);
-  const total = clampInt(save.total, defaultAlifePopulation(), 1_000, ALIFE_TARGET_POPULATION);
+  const total = defaultAlifePopulation();
   const alife = createAlifeState(state, seed, total);
   if (Array.isArray(save.deadIds)) {
     const seenDeadIds = new Set<number>();
@@ -1094,6 +1151,7 @@ export function alifeForSave(state: GameState): AlifeSaveState {
       angle: record.angle,
       hp: record.hp,
       money: record.money,
+      accountRubles: record.accountRubles,
       weapon: record.weapon,
       inventory: inventoryCopy(record.inventory),
       rpg,
@@ -1123,7 +1181,7 @@ export function currentAlifeFloorKey(state: GameState): string {
 function recordRankStats(record: AlifeNpcRecord): RankStats {
   return {
     level: record.level,
-    money: record.money,
+    money: record.money + record.accountRubles,
     kills: record.kills,
     npcKills: record.npcKills,
     monsterKills: record.monsterKills,
@@ -1135,7 +1193,7 @@ function playerRankSignature(player: Entity, version: number): string {
   return [
     version,
     player.rpg?.level ?? 1,
-    player.money ?? 0,
+    (player.money ?? 0) + (player.accountRubles ?? 0),
     player.kills ?? 0,
     player.npcKills ?? 0,
     player.monsterKills ?? 0,

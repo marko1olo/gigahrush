@@ -33,8 +33,8 @@ Critical runtime facts:
 - `systems/camera.ts` owns transient runtime camera modes and resolves them to `CameraView` for render. The death camera is one mode of this system; future free-camera and cinematic modes should plug into the same API.
 - `systems/events.ts` is the current EventBus analogue: fixed-size ring buffers, public event publication, and query filters.
 - Shared `E` interaction goes through `systems/interactions.ts`; generated gambling machines, local computers, NET-hack terminals, emergency panels, Net Terminal Gen and special floor interactions plug into that dispatcher.
-- `systems/alife.ts` owns persistent procedural NPC identity. A run creates an adaptive compact NPC pool (`1_000_000` when runtime memory allows it, otherwise `100_000`), materializes only the active floor into live `entities`, folds live state back on transitions/rebuilds/saves, and records permanent deaths. Browser saves keep dead procedural A-Life ids with a current cap of `65_536`. `systems/npc_relations.ts` owns compact personal relation-to-player math shared by A-Life, quests and hostility. `alife.md` is the detailed design contract for this feature.
-- Save/load uses `systems/save_runtime.ts` and `systems/save_payload.ts`. Current save shape version is `9`; old or unversioned saves are rejected rather than migrated.
+- `systems/alife.ts` owns persistent procedural NPC identity. A run creates a fixed compact NPC pool of `100_000` procedural identities, materializes only the active floor into live `entities`, folds live state back on transitions/rebuilds/saves, and records permanent deaths. Browser saves keep dead procedural A-Life ids with a current cap of `65_536`. `systems/npc_relations.ts` owns compact personal relation-to-player math shared by A-Life, quests and hostility. `alife.md` is the detailed design contract for this feature.
+- Save/load uses `systems/save_runtime.ts` and `systems/save_payload.ts`. Current save shape version is `11`; old or unversioned saves are rejected rather than migrated.
 - Existing content extensibility already exists in `registerSideQuest`, `registerZoneContent`, floor content manifests, `SAMOSBOR_VARIANTS`, `getSamosborBeatDefs()`, contract/economy registries, route/design-floor ids and `publishEvent`.
 
 ## 1.1 Project Bible And Honest Scope
@@ -109,6 +109,7 @@ Definitions  ->  Generation  ->  Runtime Systems  ->  Render/UI
 - Reads state and draws.
 - Consumes `CameraView` from systems; it must not decide which camera mode is active.
 - Visual feature additions should be data-indexed: texture id, sprite id, mark type, HUD flag.
+- Item visuals derive from `defId` through the procedural item sprite renderer; do not store static item sprite ids in save payloads.
 - Do not put gameplay decisions here.
 
 ### Field Generation Contract
@@ -126,7 +127,7 @@ Special rooms and authored POIs should influence the field with weights or ancho
 
 ### A-Life Integration Contract
 
-Persistent A-Life is a pillar system, not another spawn table. The shipped target is `1_000_000` procedural NPC identities when runtime memory allows it, with `100_000` as the fallback for constrained browsers. Future work must preserve that scale split instead of promising a million fully simulated live actors.
+Persistent A-Life is a pillar system, not another spawn table. The shipped target is a fixed `100_000` procedural NPC identities on every supported runtime. Future work must preserve that as a compact persistent identity pool instead of promising a million fully simulated live actors.
 
 The identity boundary is:
 
@@ -310,7 +311,7 @@ Current floor matrix:
 
 `src/data/design_floors.ts` and `src/gen/design_floors/manifest.ts` own routed authored design floors without adding new `FloorLevel` enum values. `src/gen/design_floors/full_floor.ts` is the integration layer that expands small authored POI modules into full 1024x1024 route floors while keeping route-specific content out of `main.ts`. `src/data/procedural_floors.ts`, `src/systems/procedural_floors.ts`, and `src/gen/procedural_floor.ts` own interstitial procedural floors. Add new procedural geometry/anomaly profiles there or through their docs contracts; do not clone named story content into procedural floors.
 
-Generic render hooks are allowed when a floor needs a reusable presentation channel. The roof uses this pattern: `src/gen/design_floors/roof.ts` exposes a 1024x1024 dynamic sky texture provider, and `src/render/webgl.ts` only owns the generic dynamic ceiling texture slot, not roof gameplay.
+Generic render hooks are allowed when a floor or item family needs a reusable presentation channel. The roof uses this pattern: `src/gen/design_floors/roof.ts` exposes a 1024x1024 dynamic sky texture provider, and `src/render/webgl.ts` only owns the generic dynamic ceiling texture slot, not roof gameplay. Item drops use the same rule: `render/webgl.ts` only asks for a generic procedural texture by item id, while item-specific visual language lives in `src/render/item_sprites.ts`.
 
 Later, if edit contention is still high, use Vite eager globs:
 
@@ -390,7 +391,9 @@ Good:
 
 ```txt
 data/economy.ts       definitions: resources, recipes, price rules
+data/economics.ts     shared long-progression caps, price floors and reward bands
 systems/economy.ts    slow tick: production, shortage events, debug stats
+systems/quest_rewards.ts runtime reward math from objective, route, danger and giver context
 gen/industry/*.ts     rooms that carry factory ids and spawn workers
 ```
 
@@ -471,7 +474,7 @@ src/data/resources.ts          ResourceDef[]
 src/data/factories.ts          FactoryDef[] with recipes
 src/data/economy_rules.ts      price/scarcity rules
 src/data/rumors.ts             RumorDef[]
-src/data/alife_generation.ts   persistent NPC faction, level, wealth and pocket profiles
+src/data/alife_generation.ts   persistent NPC faction, level, account wealth and pocket profiles
 src/data/floor_catalog.ts      data-only future floor catalog
 src/data/permits.ts            access papers and spoilage defs
 src/data/computers.ts          generated computer defs

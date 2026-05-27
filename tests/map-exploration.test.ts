@@ -1,18 +1,21 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { Cell, EntityType, Faction, FloorLevel, RoomType, Tex, ZoneFaction, type Entity } from '../src/core/types';
+import { Cell, EntityType, Faction, FloorLevel, MonsterKind, QuestType, RoomType, Tex, ZoneFaction, type Entity } from '../src/core/types';
 import { World } from '../src/core/world';
 import { createWorldEventState } from '../src/systems/events';
 import {
   isMapCellExplored,
   mapExplorationStats,
   resetMapExploration,
+  revealQuestTargetOnMap,
   revealWholeMap,
   revealMapZone,
   syncMapExplorationAfterSamosborWave,
   updateMapExploration,
 } from '../src/systems/map_exploration';
+import { PLOT_NPCS } from '../src/data/plot';
+import { offerQuest } from '../src/systems/quests';
 import { cancelSamosborWave, finishSamosborWave, startSamosborWave } from '../src/systems/samosbor_wave';
 import { makeGameState } from './helpers';
 
@@ -147,6 +150,167 @@ test('player movement reveals only local cell trail, not the whole entered room'
 
   assert.equal(isMapCellExplored(world, world.idx(40, 40)), true);
   assert.equal(isMapCellExplored(world, farRoomIdx), false);
+});
+
+test('active talk quest reveals the target NPC room on the map', () => {
+  const world = new World();
+  carveMapTestFloor(world, 12, 12, 2, 0, 0);
+  carveMapTestFloor(world, 80, 80, 4, 1, 1);
+  resetMapExploration(world);
+  const player = makeMapPlayer(12, 12);
+  const target: Entity = {
+    id: 20,
+    type: EntityType.NPC,
+    x: 80.5,
+    y: 80.5,
+    angle: 0,
+    pitch: 0,
+    alive: true,
+    speed: 1,
+    sprite: 0,
+    name: 'Целевой сосед',
+    faction: Faction.CITIZEN,
+  };
+  const state = makeGameState({
+    currentFloor: FloorLevel.LIVING,
+    worldEvents: createWorldEventState(),
+    quests: [{
+      id: 1,
+      type: QuestType.TALK,
+      giverId: 10,
+      giverName: 'Ольга',
+      desc: 'Поговорить с целевым соседом.',
+      targetNpcId: target.id,
+      targetNpcName: target.name,
+      done: false,
+    }],
+  });
+
+  updateMapExploration(world, player, state);
+  assert.equal(isMapCellExplored(world, world.idx(84, 80)), false);
+  revealQuestTargetOnMap(world, player, state, state.quests[0], [player, target]);
+
+  assert.equal(isMapCellExplored(world, world.idx(84, 80)), true);
+});
+
+test('active visit quest reveals the resolved target room on the map', () => {
+  const world = new World();
+  carveMapTestFloor(world, 12, 12, 2, 0, 0);
+  carveMapTestFloor(world, 92, 92, 4, 1, 1);
+  resetMapExploration(world);
+  const player = makeMapPlayer(12, 12);
+  const state = makeGameState({
+    currentFloor: FloorLevel.LIVING,
+    worldEvents: createWorldEventState(),
+    quests: [{
+      id: 2,
+      type: QuestType.VISIT,
+      giverId: 10,
+      giverName: 'Яков',
+      desc: 'Проверить дальнюю комнату.',
+      targetRoom: 1,
+      done: false,
+    }],
+  });
+
+  updateMapExploration(world, player, state);
+  assert.equal(isMapCellExplored(world, world.idx(96, 92)), false);
+  revealQuestTargetOnMap(world, player, state, state.quests[0]);
+
+  assert.equal(isMapCellExplored(world, world.idx(96, 92)), true);
+});
+
+test('active kill quest reveals a radius around the nearest target monster marker', () => {
+  const world = new World();
+  carveMapTestFloor(world, 12, 12, 2, 0, 0);
+  const monsterIdx = world.idx(120, 120);
+  world.cells[monsterIdx] = Cell.FLOOR;
+  world.zoneMap[monsterIdx] = 2;
+  resetMapExploration(world);
+  const player = makeMapPlayer(12, 12);
+  const monster: Entity = {
+    id: 30,
+    type: EntityType.MONSTER,
+    x: 120.5,
+    y: 120.5,
+    angle: 0,
+    pitch: 0,
+    alive: true,
+    speed: 1,
+    sprite: 0,
+    monsterKind: MonsterKind.TVAR,
+  };
+  const state = makeGameState({
+    currentFloor: FloorLevel.LIVING,
+    worldEvents: createWorldEventState(),
+    quests: [{
+      id: 3,
+      type: QuestType.KILL,
+      giverId: 10,
+      giverName: 'Барни',
+      desc: 'Убить тварь.',
+      targetMonsterKind: MonsterKind.TVAR,
+      killCount: 0,
+      killNeeded: 1,
+      done: false,
+    }],
+  });
+
+  updateMapExploration(world, player, state);
+  assert.equal(isMapCellExplored(world, monsterIdx), false);
+  revealQuestTargetOnMap(world, player, state, state.quests[0], [player, monster]);
+
+  assert.equal(isMapCellExplored(world, monsterIdx), true);
+});
+
+test('accepting a quest from an NPC reveals the target room once', () => {
+  const world = new World();
+  carveMapTestFloor(world, 12, 12, 2, 0, 0);
+  carveMapTestFloor(world, 80, 80, 4, 1, 1);
+  resetMapExploration(world);
+  const player = makeMapPlayer(12, 12);
+  const olga: Entity = {
+    id: 10,
+    type: EntityType.NPC,
+    x: 12.5,
+    y: 13.5,
+    angle: 0,
+    pitch: 0,
+    alive: true,
+    speed: 1,
+    sprite: 0,
+    name: PLOT_NPCS.olga.name,
+    faction: Faction.CITIZEN,
+    plotNpcId: 'olga',
+    canGiveQuest: true,
+  };
+  const barni: Entity = {
+    id: 11,
+    type: EntityType.NPC,
+    x: 80.5,
+    y: 80.5,
+    angle: 0,
+    pitch: 0,
+    alive: true,
+    speed: 1,
+    sprite: 0,
+    name: PLOT_NPCS.barni.name,
+    faction: Faction.CITIZEN,
+    plotNpcId: 'barni',
+    canGiveQuest: true,
+  };
+  const state = makeGameState({
+    currentFloor: FloorLevel.LIVING,
+    worldEvents: createWorldEventState(),
+  });
+
+  updateMapExploration(world, player, state);
+  assert.equal(isMapCellExplored(world, world.idx(84, 80)), false);
+
+  offerQuest(olga, player, world, [player, olga, barni], state, state.msgs, { v: 20 });
+
+  assert.equal(state.quests.length, 1);
+  assert.equal(isMapCellExplored(world, world.idx(84, 80)), true);
 });
 
 test('debug revealWholeMap marks every cell explored', () => {

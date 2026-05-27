@@ -191,7 +191,7 @@ Body:
 ```text
 Hi, I am the developer of GIGAH|RUSH. The attached GIF/screenshots are from the current browser build.
 
-It is a survival horror / ARPG shooter inside a 1024x1024 toroidal concrete apartment block. The player prepares food, water, ammo, medicine, documents and weapons, then leaves the safer living area for hostile floors with traders, factions, contracts, monsters and Samosbor disasters.
+It is a survival horror / ARPG shooter inside an unbounded concrete apartment block. The player prepares food, water, ammo, medicine, documents and weapons, then leaves the safer living area for hostile floors with traders, factions, contracts, monsters and Samosbor disasters.
 
 Tech side: TypeScript/Vite, WebGL raycaster, canvas HUD, procedural textures/sprites/sound, typed-array world storage, no runtime game engine dependency.
 

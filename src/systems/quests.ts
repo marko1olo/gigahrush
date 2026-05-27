@@ -21,8 +21,8 @@ import {
   questTargetEventData,
 } from '../data/contracts';
 import { addItem, removeItem } from './inventory';
-import { getScarcityAdjustedReward } from './economy';
 import {
+  applyContractRewardAtAcceptance,
   canCompleteGovnyakCourierEndpoint,
   govnyakCourierOutcomeEventData,
   handleContractQuestItemOutcome,
@@ -34,9 +34,11 @@ import {
   resolveGovnyakCourierOutcome,
 } from './contracts';
 import {
-  questDifficulty, questXpReward, questMoneyReward, awardXP, randomRPG, scaleMonsterHp, scaleMonsterSpeed,
+  awardXP, randomRPG, scaleMonsterHp, scaleMonsterSpeed,
   intContractRewardMult, intDocumentRewardMult,
 } from './rpg';
+import { currentFloorRunEntry, floorRunEntryDanger } from './procedural_floors';
+import { calculateQuestReward, type QuestRewardObjectiveKind } from './quest_rewards';
 import { MONSTERS } from '../entities/monster';
 import { publishEvent } from './events';
 import { entitySpawnSlots } from './entity_limits';
@@ -56,6 +58,8 @@ import {
 } from './npc_relations';
 import { pushNpcLogMessage } from './ai/barks';
 import { hearingRadiusMetersForActor } from './hearing';
+import { getAlifeNpcTotalMoney } from './alife';
+import { revealQuestTargetOnMap } from './map_exploration';
 
 const BASE_QUEST_GIVER_CHANCE = 0.35;
 
@@ -451,6 +455,7 @@ export function offerQuest(
     const spawnCount = questSpawnMonstersOnAccept(quest);
     if (spawnCount > 0) spawnQuestMonsters(npc, world, entities, nextEntityId, spawnCount, msgs, state.time);
   }
+  revealQuestTargetOnMap(world, player, state, quest, entities);
 }
 
 /* ── Spawn hostile monsters around NPC (for quest defense events) ── */
@@ -1366,14 +1371,42 @@ function contractScore(def: ContractDef, npc: Entity, ctx: QuestContext): number
   return score;
 }
 
-function hasDocumentTags(tags: readonly string[]): boolean {
-  return tags.includes('paper') || tags.includes('documents') || tags.includes('admin');
-}
-
-function intAdjustedMoney(base: number, player: Entity, documentWork = false): number {
-  if (!player.rpg || base <= 0) return base;
-  const mult = documentWork ? intDocumentRewardMult(player.rpg) : intContractRewardMult(player.rpg);
-  return Math.max(1, Math.round(base * mult));
+function proceduralReward(
+  objectiveKind: QuestRewardObjectiveKind,
+  npc: Entity,
+  player: Entity,
+  state: GameState,
+  ctx: QuestContext,
+  opts: {
+    objectiveValue?: number;
+    objectiveCount?: number;
+    distance?: number;
+    risk?: number;
+    documentWork?: boolean;
+    tags?: readonly string[];
+  } = {},
+) {
+  const entry = currentFloorRunEntry(state);
+  const playerRewardMult = player.rpg
+    ? opts.documentWork ? intDocumentRewardMult(player.rpg) : intContractRewardMult(player.rpg)
+    : 1;
+  return calculateQuestReward({
+    objectiveKind,
+    objectiveValue: opts.objectiveValue,
+    objectiveCount: opts.objectiveCount,
+    currentZ: entry.z,
+    targetZ: entry.z,
+    routeDistance: opts.distance ?? 0,
+    danger: floorRunEntryDanger(entry),
+    plotPhase: 0,
+    giverLevel: npc.rpg?.level ?? ctx.zoneLevel,
+    giverWealth: getAlifeNpcTotalMoney(state, npc) ?? ((npc.money ?? 0) + (npc.accountRubles ?? 0)),
+    giverFaction: npc.faction,
+    risk: opts.risk ?? (ctx.samosborDanger ? 2 : 1),
+    urgency: ctx.samosborDanger ? 1.2 : 1,
+    playerRewardMult,
+    tags: opts.tags,
+  });
 }
 
 function pickSystemQuest(npc: Entity, player: Entity, ctx: QuestContext, state: GameState): Quest | null {
@@ -1386,14 +1419,9 @@ function pickSystemQuest(npc: Entity, player: Entity, ctx: QuestContext, state: 
   if (scored.length === 0) return null;
   const top = scored.slice(0, Math.min(3, scored.length));
   const picked = top[Math.floor(Math.random() * top.length)].def;
-  const moneyReward = picked.rewardResourceId
-    ? getScarcityAdjustedReward(
-      state, picked.rewardResourceId, picked.moneyReward,
-      picked.target.floor, picked.rewardScarcityMax ?? 3, player.rpg,
-    )
-    : intAdjustedMoney(picked.moneyReward, player, hasDocumentTags(picked.tags));
-  const quest = contractToQuest(picked, state.nextQuestId++, { id: npc.id, name: npc.name }, moneyReward);
+  const quest = contractToQuest(picked, state.nextQuestId++, { id: npc.id, name: npc.name });
   prepareAcceptedContract(quest, state);
+  applyContractRewardAtAcceptance(quest, picked, state, player, npc);
   return assignProceduralQuestDeadline(quest, state.clock.totalMinutes, {
     samosborDanger: ctx.samosborDanger,
     nearbyMonster: ctx.nearbyMonster !== undefined,
@@ -1434,15 +1462,22 @@ function generateQuest(
     if (!def) return null;
     const count = targetCountForItem(item, ctx);
     const reward = pickRewardItem(occ, ctx);
-    const diff = questDifficulty((def.value ?? 10) * count, 50, ctx.samosborDanger ? 1.3 : 1.0);
     const docWork = item === 'note' || item === 'book' || item === 'ballot' || ctx.roomType === RoomType.OFFICE;
+    const rewardCalc = proceduralReward('fetch', npc, player, state, ctx, {
+      objectiveValue: def.value ?? 10,
+      objectiveCount: count,
+      distance: 50,
+      risk: ctx.samosborDanger ? 2 : 1,
+      documentWork: docWork,
+      tags: ['procedural', 'fetch'],
+    });
     return assignProceduralQuestDeadline({
       id: state.nextQuestId++, type: QuestType.FETCH,
       giverId: npc.id, giverName: npc.name ?? '???',
       desc: `${npc.name}: «Принеси ${def.name} ×${count} в ${ctx.roomName}. Плата после сдачи; не тяни до сирены.»`,
       targetItem: item, targetCount: count,
       rewardItem: reward, rewardCount: 1, relationDelta: 10,
-      difficulty: diff, xpReward: questXpReward(diff), moneyReward: intAdjustedMoney(questMoneyReward(diff), player, docWork),
+      difficulty: rewardCalc.difficulty, xpReward: rewardCalc.xpReward, moneyReward: rewardCalc.moneyReward,
       done: false,
     }, state.clock.totalMinutes, { samosborDanger: ctx.samosborDanger, nearbyMonster: ctx.nearbyMonster !== undefined });
   }
@@ -1451,15 +1486,20 @@ function generateQuest(
     const room = pickVisitRoom(world, npc, preferredVisitRooms(npc, ctx));
     if (!room) return null;
     const dist = world.dist(npc.x, npc.y, room.x, room.y);
-    const diff = questDifficulty(0, dist, ctx.samosborDanger ? 1.1 : 0.8);
     const docWork = room.name.includes('архив') || room.name.includes('кабин') || preferredVisitRooms(npc, ctx).includes(RoomType.OFFICE);
+    const rewardCalc = proceduralReward('visit', npc, player, state, ctx, {
+      distance: dist,
+      risk: ctx.samosborDanger ? 2 : 1,
+      documentWork: docWork,
+      tags: ['procedural', 'visit'],
+    });
     return assignProceduralQuestDeadline({
       id: state.nextQuestId++, type: QuestType.VISIT,
       giverId: npc.id, giverName: npc.name ?? '???',
       desc: `${npc.name}: «Проверь ${room.name} ${toroidalDirection(world, npc.x, npc.y, room.x, room.y)}. Нужна отметка, не рассказ.»`,
       targetRoom: room.id,
       rewardItem: pickRewardItem(occ, ctx), rewardCount: 1, relationDelta: 8,
-      difficulty: diff, xpReward: questXpReward(diff), moneyReward: intAdjustedMoney(questMoneyReward(diff), player, docWork),
+      difficulty: rewardCalc.difficulty, xpReward: rewardCalc.xpReward, moneyReward: rewardCalc.moneyReward,
       done: false,
     }, state.clock.totalMinutes, {
       samosborDanger: ctx.samosborDanger,
@@ -1472,14 +1512,19 @@ function generateQuest(
     const kind = pickKillKind(npc, ctx);
     const mdef = MONSTERS[kind];
     const killNeeded = ctx.samosborDanger && kind === MonsterKind.SBORKA ? 2 : 1;
-    const killDiff = questDifficulty(0, 0, monsterQuestScale(kind) * killNeeded);
+    const rewardCalc = proceduralReward('kill', npc, player, state, ctx, {
+      objectiveValue: 90 * monsterQuestScale(kind),
+      objectiveCount: killNeeded,
+      risk: Math.max(2, monsterQuestScale(kind)),
+      tags: ['procedural', 'kill', 'combat'],
+    });
     return assignProceduralQuestDeadline({
       id: state.nextQuestId++, type: QuestType.KILL,
       giverId: npc.id, giverName: npc.name ?? '???',
       desc: `${npc.name}: «Убей ${monsterQuestName(kind)}${mdef ? ` у ${ctx.roomName}` : ''}. Плата после тишины.»`,
       targetMonsterKind: kind, killCount: 0, killNeeded,
       rewardItem: pickRewardItem(occ, ctx), rewardCount: 1, relationDelta: 15,
-      difficulty: killDiff, xpReward: questXpReward(killDiff), moneyReward: intAdjustedMoney(questMoneyReward(killDiff), player),
+      difficulty: rewardCalc.difficulty, xpReward: rewardCalc.xpReward, moneyReward: rewardCalc.moneyReward,
       done: false,
     }, state.clock.totalMinutes, { samosborDanger: ctx.samosborDanger, nearbyMonster: ctx.nearbyMonster !== undefined });
   }
@@ -1487,14 +1532,18 @@ function generateQuest(
   const target = pickTalkTarget(npc, world, entities);
   if (!target) return null;
   const dist = world.dist(npc.x, npc.y, target.x, target.y);
-  const talkDiff = questDifficulty(0, dist, 0.6);
+  const rewardCalc = proceduralReward('talk', npc, player, state, ctx, {
+    distance: dist,
+    risk: 1,
+    tags: ['procedural', 'talk'],
+  });
   return assignProceduralQuestDeadline({
     id: state.nextQuestId++, type: QuestType.TALK,
     giverId: npc.id, giverName: npc.name ?? '???',
     desc: `${npc.name}: «Передай ${target.name} сообщение. Он ${toroidalDirection(world, npc.x, npc.y, target.x, target.y)}; плата после ответа.»`,
     targetNpcId: target.id, targetNpcName: target.name,
     rewardItem: pickRewardItem(occ, ctx), rewardCount: 1, relationDelta: 12,
-    difficulty: talkDiff, xpReward: questXpReward(talkDiff), moneyReward: intAdjustedMoney(questMoneyReward(talkDiff), player),
+    difficulty: rewardCalc.difficulty, xpReward: rewardCalc.xpReward, moneyReward: rewardCalc.moneyReward,
     done: false,
   }, state.clock.totalMinutes, {
     samosborDanger: ctx.samosborDanger,

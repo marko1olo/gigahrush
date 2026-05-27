@@ -11,7 +11,7 @@ import { getEquippedToolDurability, getWeaponReadiness, type WeaponReadiness } f
 import { getPlayerHazardWarning } from '../systems/cell_hazards';
 import { controlHint } from '../systems/controls';
 import { formatLastPlayerDamageCause } from '../systems/damage';
-import { xpForLevel } from '../systems/rpg';
+import { RPG_LEVEL_CAP, xpForLevel } from '../systems/rpg';
 import { zhelemishHudLine } from '../systems/status';
 import { drawDebugOverlay } from '../systems/debug';
 import { ZONE_COLORS, drawMinimap, drawFullMap } from './map_ui';
@@ -1184,7 +1184,8 @@ export function drawHUD(
       ['ТУАЛ', Math.max(0, 100 - player.needs.pee), 100, '#da4'],
     );
     if (player.rpg) {
-      bars.push(['XP', player.rpg.xp, xpForLevel(player.rpg.level + 1), '#af4']);
+      const capped = player.rpg.level >= RPG_LEVEL_CAP;
+      bars.push(['XP', capped ? 1 : player.rpg.xp, capped ? 1 : xpForLevel(player.rpg.level + 1), '#af4']);
     }
     const barAreaW = Math.max(1, bottomVitals.w - 16 * sx);
     const barSpacing = Math.max(26 * sx, Math.min(62 * sx, barAreaW / bars.length));
@@ -1292,7 +1293,7 @@ export function drawHUD(
     }
   }
 
-  if (showCompactPanels && state.mapMode === 1 && showMinimap) {
+  if (showCompactPanels && showMinimap) {
     const mapRect = allocateHudSlot(slots.topRightNavigation, 80 * sy, 80 * sx, 'right');
     drawMinimap(ctx, world, entities, player, sx, sy, state.quests, currentFloorInstanceLabel(state), state.currentFloor, state, time, mapRect);
   }
@@ -1449,7 +1450,7 @@ export function drawHUD(
     }
   }
 
-  // ── Minimap (if toggled) ─────────────────────────────────
+  // ── Full map menu ────────────────────────────────────────
   if (state.mapMode === 2) {
     drawFullMap(ctx, world, entities, player, sx, sy, state.quests, currentFloorInstanceLabel(state), state.currentFloor, state, time);
   }

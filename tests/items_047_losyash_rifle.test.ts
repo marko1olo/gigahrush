@@ -39,7 +39,8 @@ test('losyash rifle is reachable from a deep procedural recon stash', () => {
 
   const generated = generateProceduralFloor(spec);
   const stash = generated.world.containers.find(container =>
-    container.inventory.some(item => item.defId === 'losyash_rifle')
+    container.tags.includes('deep_recon_stash')
+    && container.inventory.some(item => item.defId === 'losyash_rifle')
   );
 
   assert.ok(stash, 'deep sump procedural floor should expose losyash_rifle in a stash');

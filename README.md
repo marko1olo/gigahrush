@@ -16,7 +16,7 @@ The player is a controlled entity, not a separate world rule. Input, camera, HUD
 
 The vertical game is the persistent `FloorRun`: the player starts on `LIVING` at `z=0`, normal lifts span `z=-50..+50`, and every stop is a keyed floor identity. Story anchors, authored design floors, procedural stops and numbered lift instances are separate little worlds with their own generator/package, population field, NPC/monster mix, rules, POIs and route role. Danger and pressure generally rise away from the center through `z`, `abs(z)`, floor data, anomaly pressure and local design overrides rather than one hardcoded formula.
 
-The building is inhabited before the player arrives. A-Life creates up to `1_000_000` procedural NPC identities when memory allows it, with a `100_000` fallback on constrained runtimes, and distributes them across story, design and procedural route keys. Only the current floor is materialized into live AI; off-floor people are persistent records. Current shipped macro changes come from folded live state, deaths, saved overrides, caravan/economy/faction/contract events and authored arrivals. Broad persistent NPC migration/resettlement is still a tracked A-Life gap, not a hidden realtime simulation. Deaths are permanent, ordinary background refill is disabled, and cleared floors stay changed until an explicit arrival or migration changes them.
+The building is inhabited before the player arrives. A-Life creates a fixed `100_000` procedural NPC identities on every supported runtime and distributes them across story, design and procedural route keys. Only the current floor is materialized into live AI; off-floor people are persistent records. Current shipped macro changes come from folded live state, deaths, saved overrides, caravan/economy/faction/contract events and authored arrivals. Broad persistent NPC migration/resettlement is still a tracked A-Life gap, not a hidden realtime simulation. Deaths are permanent, ordinary background refill is disabled, and cleared floors stay changed until an explicit arrival or migration changes them.
 
 Samosbor is not a loading-screen reset. It is a random local world mutation on the current map: warning, active pressure, shelter checks, variant effects, local geometry rewrite, aftermath, events and the stitched floor state becoming the next persistent snapshot for that floor key.
 
@@ -124,7 +124,7 @@ When deployed as a Cloudflare Worker with Assets and the D1 binding described in
 
 Direct HTTPS builds also expose PWA metadata. Desktop play has a remappable `F11` fullscreen action that requests browser fullscreen with hidden navigation UI and never auto-opens on load. The mobile `FULL` control requests browser fullscreen only on compatible non-iOS browsers. Embedded mobile hosts show a direct-page launcher instead. iPhone/WebKit does not get the forced fullscreen path because it can reload the web view; iOS standalone Home Screen launch remains supported through the manifest and Apple web-app meta tags.
 
-The runtime HUD is configurable through the `U` UI orchestrator menu. HUD elements are stored in browser-local UI settings outside the game save; fresh local settings use the `Новичок` preset with bottom tabs, weapon panel, crosshair, simple `E` interaction prompt, hazard warnings and minimap support enabled, while route hints and the transient stenographic HUD summary are off by default. When enabled, the stenographic summary is a full-width top HUD band capped to the upper third of the screen and shows recent one-line messages with time and distance. The same browser-local settings also store desktop mouse sensitivity, defaulting to 130% of the old mouse-look speed, and mobile look sensitivity, defaulting to 50% of the original touch rotation speed. The full message log still records entries and opens with `L`. NPCs with authored quest action - either an authored quest they can issue now or an authored active TALK target - are marked by a bright yellow `!` in the existing aim target name/HP box, not in the `E` prompt; procedural quest offers use a blue `!`. Map NPC markers use green for idle authored quest NPCs, gold for authored quest actions, and blue for procedural quest offers or procedural TALK targets. Procedural givers that already issued or completed their quest fall back to ordinary NPC dots. `M` cycles minimap, full map and hidden map; when minimap UI is disabled, the cycle skips the invisible minimap state. The full map does not draw the quest strip over the map. Caravan markers are a separate UI surface and are off by default. Players can switch to `Выкл всё`, `Минимум`, `Бой`, `Маршрут` or `Полный` presets and then adjust individual surfaces. Damage/sleep feedback, samosbor text, weapon/tool beam visuals and title/final screens are locked on, while location panel, route hints, stenographic HUD summary, status hints, anomaly deep hints and cosmetic screen effects can be toggled independently. Desktop title and in-game prompts explain mandatory click-to-capture mouse look before gameplay, `ЛКМ`/attack, `F11`, `Tab`, `U`, `Enter` as menu/back/close, and `E` as confirm/send; losing pointer lock pauses the game behind the capture screen. `Esc` is not used for game windows because browser builds reserve it for browser escape/pointer-lock behavior. The `Enter` game menu also links to key bindings, interface toggles and the graphics/FOV screen without releasing pointer lock by itself.
+The runtime HUD is configurable through the `U` UI orchestrator menu. HUD elements are stored in browser-local UI settings outside the game save; fresh local settings use the `Новичок` preset with bottom tabs, weapon panel, crosshair, simple `E` interaction prompt, hazard warnings and minimap support enabled, while route hints and the transient stenographic HUD summary are off by default. When enabled, the stenographic summary is a full-width top HUD band capped to the upper third of the screen and shows recent one-line messages with time and distance. The same browser-local settings also store desktop mouse sensitivity, defaulting to 130% of the old mouse-look speed, and mobile look sensitivity, defaulting to 50% of the original touch rotation speed. The full message log still records entries and opens with `L`. NPCs with authored quest action - either an authored quest they can issue now or an authored active TALK target - are marked by a bright yellow `!` in the existing aim target name/HP box, not in the `E` prompt; procedural quest offers use a blue `!`. Map NPC markers use green for idle authored quest NPCs, gold for authored quest actions, and blue for procedural quest offers or procedural TALK targets. Procedural givers that already issued or completed their quest fall back to ordinary NPC dots. `M` opens or closes the standalone full map overlay, closes other canvas interfaces when it opens, and does not pause the simulation. The `U` interface setting controls only the HUD minimap. The full map does not draw the quest strip over the map. Caravan markers are a separate UI surface and are off by default. Players can switch to `Выкл всё`, `Минимум`, `Бой`, `Маршрут` or `Полный` presets and then adjust individual surfaces. Damage/sleep feedback, samosbor text, weapon/tool beam visuals and title/final screens are locked on, while location panel, route hints, stenographic HUD summary, status hints, anomaly deep hints and cosmetic screen effects can be toggled independently. Desktop title and in-game prompts explain mandatory click-to-capture mouse look before gameplay, `ЛКМ`/attack, `F11`, `Tab`, `U`, `Enter` as menu/back/close, and `E` as confirm/send; losing pointer lock pauses the game behind the capture screen. `Esc` is not used for game windows because browser builds reserve it for browser escape/pointer-lock behavior. The `Enter` game menu also links to key bindings, interface toggles and the graphics/FOV screen without releasing pointer lock by itself.
 
 Localized floor messages use the toroidal world metric and enter the HUD/log only inside the current hearing radius, defaulting to 100 meters from the player. Heard NPC lines, AI actor messages and structured floor events carry distance in meters next to the timestamp; the radius is a runtime context value, and equipped hearing tools such as the liquidator radio headset can expand it without changing message pools. Structured floor events in the stenographic summary resolve distance from coordinates first, then actor/target id, room id or zone id.
 
@@ -166,7 +166,7 @@ The current build includes an optional debug/diegetic current-floor map editor. 
 
 The editor is a canvas HUD overlay over the live `World`: it can paint cells, doors, textures and features, spawn/delete entities and containers from live game registries, choose NPC faction variants, and replay compact current-floor patches after floor transitions, save/load and samosbor rebuilds.
 
-`E` interaction now routes through a shared dispatcher used by desktop, HUD prompts and mobile context. Generated floors also seed sparse interactable registries for gambling machines, local computers and НЕТ-hack terminals; these open canvas overlays, publish world events and mutate only local player/runtime state. NPC main-menu rows are built through a conditional option registry, so inventory-, route-, NPC- and quest-gated entries can open transient interfaces without changing save shape. A card-deck NPC option starts a two-player throw-in durak hand with a fixed 10% NPC-money stake, transient card state, cheap-card NPC heuristics and settlement through existing gambling events.
+`E` interaction now routes through a shared dispatcher used by desktop, HUD prompts and mobile context. Generated floors also seed sparse interactable registries for gambling machines, local computers and НЕТ-hack terminals; these open canvas overlays, publish world events and mutate only local player/runtime state. NPC main-menu rows are built through a conditional option registry, so inventory-, route-, NPC- and quest-gated entries can open transient interfaces without changing save shape. A card-deck NPC option starts a two-player throw-in durak hand with a fixed 10% NPC-money stake, transient card state, cheap-card NPC heuristics and settlement through existing gambling events. A bone-dice NPC option appears when either side carries `dice_bone`, uses the same 10% NPC-money stake, plays a transient 21-point dice round and settles through the same gambling event types.
 
 `silicon_net_well` is a routed design floor at `z=-22`: a кремниевый НЕТ-колодец with Sibo, administrators, a cyborg scientist, special НЕТ-КОЛОДЕЦ terminals, Safeguard hack backlash and the rare `gravity_beam_emitter`. Failed special-console hacks publish `net_terminal_hack_failed` and spawn one Safeguard subject to cooldown; the GBE is a generic energy weapon that deletes a bounded beam line of cells, doors, containers and entities.
 
@@ -187,7 +187,7 @@ Core loop:
 
 ## A-Life Population
 
-New runs create a compact in-memory pool of `1_000_000` procedural NPC records when runtime memory allows it, falling back to `100_000` on constrained browsers and touch/mobile runtimes. Records are distributed across story floors, routed design floors and the per-run procedural floor deck. Only the current floor is materialized into live `entities`; other floors keep identity, floor assignment, family id, quest affordance, RPG traits, loadout, death state and optional last known coordinates without running AI.
+New runs create a compact in-memory pool of `100_000` procedural NPC records on every supported runtime. Records are distributed across story floors, routed design floors and the per-run procedural floor deck. Only the current floor is materialized into live `entities`; other floors keep identity, floor assignment, family id, quest affordance, RPG traits, loadout, death state and optional last known coordinates without running AI.
 
 Persistent NPC generation uses data profiles in `src/data/alife_generation.ts`: faction weights, level tail, wealth tail, pockets and occupation mixes remain expandable without rewriting the runtime system.
 
@@ -673,7 +673,7 @@ The world has 64 macro-zones. `systems/factions.ts` controls zone ownership, pat
 
 Personal NPC relation to the player is separate from faction relation but uses the same hostile threshold. Attacking an NPC lowers that individual relation, and quest completion raises the giver's personal value more than the issuing faction's small normal gain (`+1`). An individual NPC can therefore become hostile or grateful even before the faction-wide matrix fully changes. Player karma starts at `0`; attacking non-enemies, stealing and urinating on owned floor reduce it.
 
-NPC and monster broadphase uses `systems/entity_index.ts`: a 16-cell toroidal bucket index with live id, actor, needs and projectile lists. Combat scans are cached through `combatTargetId` / `combatScanCd` and query nearby buckets instead of scanning every entity. All live AI actors remain active; far routine actors tick on deterministic accumulated cadences, while near-player actors and player-targeting threats stay responsive. NPCs are primed with an A-Life state/task before LOD cadence can skip them, moving monsters default to wandering, and actors with a combat target use `HUNT`. Pathfinding uses `systems/ai/pathfinding.ts`: a baked whole-floor BFS navigation tree over the 1024x1024 toroidal field, rebuilt when `world.cellVersion` or samosbor phase changes. Routine and combat path assignment read bounded chunks from that tree instead of launching per-actor BFS queues; ordinary closed doors are routeable and opened by movement, while locked and hermetic-closed doors block navigation. Shared A-Life destinations, such as nearest kitchen, toilet, workplace or shelter class, use cached behavior flow fields layered over the same geometry: each behavior supplies a source set, the field is baked once per geometry version, and many actors follow bounded chunks from it. The AI LOD profile also caps far hot-promotions for active attackers, projectile owners and recently damaged actors, so large NPC/monster fights continue on combat cadence without making every distant participant frame-rate hot.
+NPC and monster broadphase uses `systems/entity_index.ts`: a 16-cell toroidal bucket index with live id, actor, needs and projectile lists. Combat scans are cached through `combatTargetId` / `combatScanCd` and query nearby buckets instead of scanning every entity. All live AI actors remain active; far routine actors tick on deterministic accumulated cadences, while near-player actors and player-targeting threats stay responsive. NPCs are primed with an A-Life state/task before LOD cadence can skip them, routine schedule boundaries use stable per-NPC offsets instead of one global hour edge, moving monsters default to wandering, and actors with a combat target use `HUNT`. Pathfinding uses `systems/ai/pathfinding.ts`: a baked whole-floor BFS navigation tree over the 1024x1024 toroidal field, rebuilt when `world.cellVersion` or samosbor phase changes. Routine and combat path assignment read bounded chunks from that tree instead of launching per-actor BFS queues; ordinary closed doors are routeable and opened by movement, while locked and hermetic-closed doors block navigation. Shared A-Life destinations, such as nearest kitchen, toilet, workplace or shelter class, use cached behavior flow fields layered over the same geometry: each behavior supplies a source set, the field is baked once per geometry version, and many actors follow bounded chunks from it. Samosbor hiding now seeds per-NPC emergency shelter targets from current/home/assigned/nearby rooms with capped local scoring instead of only resetting every citizen to the same abstract hide goal. The AI LOD profile also caps far hot-promotions for active attackers, projectile owners and recently damaged actors, so large NPC/monster fights continue on combat cadence without making every distant participant frame-rate hot.
 
 ## Items, Weapons And PSI
 
@@ -743,13 +743,15 @@ The player manages needs manually through items and behavior. NPC needs are rest
 
 Economy:
 
+- `src/data/economics.ts`: long-progression money bands, top-gear/PSI value floors, major reward tags and depth-aware procedural loot caps.
 - `src/data/resources.ts`: 17 resources.
 - `src/systems/economy.ts`: per-floor stock, scarcity multiplier, adjusted price cache.
+- `src/systems/quest_rewards.ts`: canonical runtime reward calculation for procedural quests and system contracts from objective value, route depth, danger, giver level/wealth, scarcity and major-reward tags.
 - `src/data/banking.ts` and `src/systems/banking.ts`: bank deposits, credit, repayment and interest state.
 - `src/data/stock_market.ts` and `src/systems/stock_market.ts`: local quote ticks and optional Net Sphere market impulses.
 - `src/data/caravans.ts` and `src/systems/caravans.ts`: 6 supply lanes, bounded slow ticks, tariff pressure and route actions.
-- Scarcity affects item prices and some contract rewards.
-- Money is currently carried as entity cash (`Entity.money`) and used by NPC trade.
+- Scarcity affects item prices and runtime contract/procedural quest rewards.
+- Money is carried as entity cash (`Entity.money`) for live trade; persistent A-Life NPCs also have `accountRubles`, and wealth is cash plus account balance.
 - NPC trade uses one symmetric `Торг` screen: edge 5x5 inventories show player/NPC stock, center 5x5 baskets stage what each side gives and takes, and `E` commits one atomic transaction with scarcity-adjusted item values plus only the remaining cash delta.
 - Current-version economy save data is sanitized on load, including missing floor/resource rows inside the accepted save shape.
 - The debug menu has an economy prices summary for current stock and adjusted prices.
@@ -773,6 +775,7 @@ Rendering:
 - WebGL DDA raycaster.
 - Procedural texture atlas.
 - Procedural sprite atlas for fixed props/projectiles plus seed-generated per-entity NPC/monster sprite textures.
+- Item drops use procedural item-specific textures derived from the drop's `defId`; the same generator draws inventory/container icons without adding save payload fields.
 - Per-cell wall/floor textures.
 - Surface marks and blood/gore marks.
 - Fog, glitch and HUD effects.
@@ -786,9 +789,9 @@ HUD/UI modules:
 - `quest_ui.ts`: quest log.
 - `log_ui.ts`: message log.
 - `npc_ui.ts`: NPC interaction menu.
-- `container_ui.ts`: container transfer UI.
+- `container_ui.ts`: container transfer UI with item icons.
 - `factions_ui.ts`: factions panel.
-- `stats_ui.ts`: RPG/stat view.
+- `stats_ui.ts`: RPG/stat and inventory view with item icons.
 - `menu_ui.ts`: save/load menu.
 - `net_sphere_ui.ts`: optional Cloudflare stats/chat terminal.
 - `computer_ui.ts`, `gambling_ui.ts`, `net_hack_ui.ts`, `emergency_panel_ui.ts`, `controls_ui.ts`: generated local interaction and controls overlays.
@@ -808,7 +811,7 @@ Screens show active floor/zone context, quest markers, fog overlay, NPC/monster/
 | `I` | inventory |
 | `1` / `2` / `3` | spend STR / AGI / INT point in inventory |
 | Arrow keys / `W` / `S` / `A` in menus | menu navigation; right movement uses `ArrowRight` |
-| `M` | minimap -> full map -> off |
+| `M` | open/close full map overlay |
 | `Q` | quest log |
 | `L` | message log |
 | `F` | factions |
@@ -950,6 +953,7 @@ Items:
 - Add `ItemDef` to `src/data/items.ts`.
 - Give it a spawn room list, value, type and optional `use`.
 - If it affects economy, map it in `src/data/resources.ts`.
+- Item world/inventory visuals are normally derived from `defId` by `src/render/item_sprites.ts`; add generic visual tags/rules there instead of storing sprite ids in save payloads.
 
 Weapons:
 

@@ -104,6 +104,7 @@ test('symmetric trade commits baskets with only cash delta and no change', () =>
   assert.equal(result.ok, true);
   assert.equal(result.code, 'deal_done');
   assert.equal(result.price, summary.cashDue);
+  assert.equal(summary.changeDue, 0);
   assert.equal(player.money, 100 - summary.cashDue);
   assert.equal(npc.money, summary.cashDue);
   assert.equal(countInventoryItem(player, 'water'), 1);
@@ -117,9 +118,64 @@ test('symmetric trade commits baskets with only cash delta and no change', () =>
   const event = getRecentEvents(state, { limit: 1 })[0];
   assert.equal(event.type, 'player_handoff_item');
   assert.equal(event.data?.cashPaid, summary.cashDue);
+  assert.equal(event.data?.cashReceived, 0);
   assert.equal(event.data?.creditValue, summary.creditValue);
   assert.equal(event.data?.askValue, summary.fullPrice);
   assert.equal(event.tags.includes('trade'), true);
+  assert.equal(event.tags.includes('barter'), true);
+});
+
+test('symmetric trade pays NPC change when the trader has cash', () => {
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING });
+  resetFloor(state, FloorLevel.LIVING);
+  const player = makeTestPlayer({ id: 1, inventory: [{ defId: 'flashlight', count: 1 }], money: 100 });
+  const npc = makeTestNpc({ id: 2, name: 'Торговец', inventory: [{ defId: 'water', count: 1 }], money: 200 });
+
+  assert.equal(addTradeAskFromSlot(state, npc, 0).ok, true);
+  assert.equal(addTradeOfferFromSlot(state, player, npc, 0).ok, true);
+  const summary = getTradeDealSummary(state, npc);
+  assert.ok(summary.surplus > 0);
+  assert.equal(summary.changeDue, summary.surplus);
+  const result = executeTradeDeal(state, player, npc);
+
+  assert.equal(result.ok, true);
+  assert.equal(result.code, 'deal_done');
+  assert.equal(result.price, 0);
+  assert.equal(player.money, 100 + summary.changeDue);
+  assert.equal(npc.money, 200 - summary.changeDue);
+  assert.equal(countInventoryItem(player, 'water'), 1);
+  assert.equal(countInventoryItem(npc, 'flashlight'), 1);
+
+  const event = getRecentEvents(state, { limit: 1 })[0];
+  assert.equal(event.data?.cashPaid, 0);
+  assert.equal(event.data?.cashReceived, summary.changeDue);
+  assert.equal(event.data?.unpaidSurplus, 0);
+});
+
+test('NPC accepts a player-only profitable barter offer', () => {
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING });
+  resetFloor(state, FloorLevel.LIVING);
+  const player = makeTestPlayer({ id: 1, inventory: [{ defId: 'bread', count: 1 }], money: 0 });
+  const npc = makeTestNpc({ id: 2, name: 'Торговец', inventory: [], money: 0 });
+
+  assert.equal(addTradeOfferFromSlot(state, player, npc, 0).ok, true);
+  const summary = getTradeDealSummary(state, npc);
+  const result = executeTradeDeal(state, player, npc);
+
+  assert.equal(result.ok, true);
+  assert.equal(result.code, 'deal_done');
+  assert.equal(result.defId, 'bread');
+  assert.equal(result.price, 0);
+  assert.equal(summary.fullPrice, 0);
+  assert.equal(summary.changeDue, 0);
+  assert.equal(countInventoryItem(player, 'bread'), 0);
+  assert.equal(countInventoryItem(npc, 'bread'), 1);
+  assert.equal(getTradeOffer(state).length, 0);
+  assert.equal(getTradeNpcOffer(state).length, 0);
+
+  const event = getRecentEvents(state, { limit: 1 })[0];
+  assert.equal(event.data?.direction, 'player_to_npc');
+  assert.equal(event.tags.includes('sell'), true);
   assert.equal(event.tags.includes('barter'), true);
 });
 

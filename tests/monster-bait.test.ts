@@ -18,6 +18,7 @@ import {
   resetMonsterBaits,
 } from '../src/systems/monster_bait';
 import { getRecentEvents } from '../src/systems/events';
+import { setFloorRunState } from '../src/systems/procedural_floors';
 import { makeGameState } from './helpers';
 
 function openWorld(): World {
@@ -145,6 +146,21 @@ test('small monsters claim nearby bait through a capped marker scan', () => {
 
   const eye = monster(MonsterKind.EYE, 13, 10, 3);
   assert.equal(findMonsterBaitTarget(world, eye, 0.2, state.time, state), null);
+});
+
+test('bait markers are scoped to the current route floor key, not only FloorLevel', () => {
+  resetMonsterBaits();
+  const world = openWorld();
+  const state = makeGameState({ time: 10, currentFloor: FloorLevel.KVARTIRY });
+  setFloorRunState(state, { runSeed: 17, currentZ: 12 }, FloorLevel.KVARTIRY);
+
+  assert.equal(placeMonsterBait(state, world, actor(), 10, 10, 'bread', 1, 'drop', 99), true);
+  setFloorRunState(state, { runSeed: 17, currentZ: 8 }, FloorLevel.KVARTIRY);
+
+  const sborka = monster(MonsterKind.SBORKA, 13, 10);
+  assert.equal(findMonsterBaitTarget(world, sborka, 0.2, state.time, state), null);
+  expireMonsterBaits(state, state.time + 1);
+  assert.equal(getActiveMonsterBaits().length, 0);
 });
 
 test('bait markers expire and stay under the active cap', () => {

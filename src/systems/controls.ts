@@ -29,7 +29,7 @@ export const CONTROL_ACTIONS = [
   { id: 'uiSettings', group: 'Экраны', label: 'Настройка UI', input: 'uiSettings', defaultKeys: ['KeyU'] },
   { id: 'fullscreen', group: 'Экраны', label: 'Полный экран', defaultKeys: ['F11'] },
   { id: 'inventory', group: 'Экраны', label: 'Инвентарь', input: 'inv', defaultKeys: ['KeyI'] },
-  { id: 'map', group: 'Экраны', label: 'Карта: мини / полная / выкл.', input: 'map', defaultKeys: ['KeyM'] },
+  { id: 'map', group: 'Экраны', label: 'Большая карта', input: 'map', defaultKeys: ['KeyM'] },
   { id: 'quests', group: 'Экраны', label: 'Задания', input: 'questLog', defaultKeys: ['KeyQ'] },
   { id: 'factions', group: 'Экраны', label: 'Фракции / A-Life', input: 'factionMenu', defaultKeys: ['KeyF'] },
   { id: 'log', group: 'Экраны', label: 'Журнал сообщений', input: 'logMenu', defaultKeys: ['KeyL'] },

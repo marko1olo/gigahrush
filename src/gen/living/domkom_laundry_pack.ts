@@ -401,7 +401,7 @@ function dropItem(entities: Entity[], nextId: { v: number }, x: number, y: numbe
 function dropDesk(entities: Entity[], nextId: { v: number }, x: number, y: number, scale = 0.55): void {
   entities.push({
     id: nextId.v++,
-    type: EntityType.ITEM_DROP,
+    type: EntityType.BILLBOARD,
     x: x + 0.5,
     y: y + 0.5,
     angle: 0,
@@ -410,7 +410,6 @@ function dropDesk(entities: Entity[], nextId: { v: number }, x: number, y: numbe
     speed: 0,
     sprite: Spr.DESK,
     spriteScale: scale,
-    inventory: [],
   });
 }
 

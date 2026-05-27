@@ -5,6 +5,9 @@ import {
   W, MonsterKind, FloorLevel,
   msg,
 } from '../core/types';
+import { RPG_ATTRIBUTE_CAP, RPG_LEVEL_CAP } from '../data/rpg_progression';
+
+export { RPG_ATTRIBUTE_CAP, RPG_LEVEL_CAP } from '../data/rpg_progression';
 
 // ── XP formula: first level-up at 100, then soft quadratic growth ──
 // xpForLevel(2) = 100, xpForLevel(5) = 295, xpForLevel(10) = 1020.
@@ -16,8 +19,9 @@ export function xpForLevel(level: number): number {
 
 // Total XP needed to reach a given level (from 0)
 export function totalXpForLevel(level: number): number {
+  const cappedLevel = clampRpgLevel(level);
   let total = 0;
-  for (let i = 1; i <= level; i++) total += xpForLevel(i);
+  for (let i = 1; i <= cappedLevel; i++) total += xpForLevel(i);
   return total;
 }
 
@@ -43,14 +47,29 @@ const STR_DURABILITY_WEAR_PER_POINT = 0.08;
 const HEAVY_WEAPON_COOLDOWN = 0.65;
 const STR_HEAVY_WEAPON_SPEED_PER_POINT = 0.05;
 
-export function getLevelHp(level: number): number { return BASE_HP + HP_PER_LEVEL * (level - 1); }
-export function getLevelPsi(level: number): number { return BASE_PSI + PSI_PER_LEVEL * (level - 1); }
+export function clampRpgLevel(level: number): number {
+  return Math.max(1, Math.min(RPG_LEVEL_CAP, Math.floor(Number.isFinite(level) ? level : 1)));
+}
+
+export function clampRpgAttribute(points: number): number {
+  return Math.max(0, Math.min(RPG_ATTRIBUTE_CAP, Math.floor(Number.isFinite(points) ? points : 0)));
+}
+
+export function getLevelHp(level: number): number {
+  const cappedLevel = clampRpgLevel(level);
+  return BASE_HP + HP_PER_LEVEL * (cappedLevel - 1);
+}
+export function getLevelPsi(level: number): number {
+  const cappedLevel = clampRpgLevel(level);
+  return BASE_PSI + PSI_PER_LEVEL * (cappedLevel - 1);
+}
 
 // ── Fresh RPG stats ──────────────────────────────────────────────
 export function freshRPG(level = 1): RPGStats {
-  const maxPsi = getLevelPsi(level);
+  const cappedLevel = clampRpgLevel(level);
+  const maxPsi = getLevelPsi(cappedLevel);
   return {
-    level,
+    level: cappedLevel,
     xp: 0,
     attrPoints: 0,
     str: 0,
@@ -63,7 +82,8 @@ export function freshRPG(level = 1): RPGStats {
 
 // ── Random RPG stats for NPC/monster at given level ──────────────
 export function randomRPG(level: number): RPGStats {
-  const points = Math.max(0, level - 1);
+  const cappedLevel = clampRpgLevel(level);
+  const points = Math.max(0, cappedLevel - 1);
   let str = 0, agi = 0, int_ = 0;
   for (let i = 0; i < points; i++) {
     const r = Math.random();
@@ -71,9 +91,9 @@ export function randomRPG(level: number): RPGStats {
     else if (r < 0.67) agi++;
     else int_++;
   }
-  const maxPsi = getMaxPsi({ level, xp: 0, attrPoints: 0, str, agi, int: int_, psi: 0, maxPsi: 0 });
+  const maxPsi = getMaxPsi({ level: cappedLevel, xp: 0, attrPoints: 0, str, agi, int: int_, psi: 0, maxPsi: 0 });
   return {
-    level,
+    level: cappedLevel,
     xp: 0,
     attrPoints: 0,
     str,
@@ -191,14 +211,22 @@ export function rpgStatEffectsAfterSpend(rpg: RPGStats, attr: 'str' | 'agi' | 'i
 // ── Award XP and handle level-ups ────────────────────────────────
 export function awardXP(e: Entity, amount: number, msgs: Msg[], time: number): void {
   if (!e.rpg) return;
+  e.rpg.level = clampRpgLevel(e.rpg.level);
+  if (e.rpg.level >= RPG_LEVEL_CAP) {
+    e.rpg.xp = 0;
+    e.rpg.maxPsi = getMaxPsi(e.rpg);
+    e.rpg.psi = Math.min(e.rpg.psi, e.rpg.maxPsi);
+    return;
+  }
   // INT bonus to XP
-  const adjusted = Math.round(amount * intXpMult(e.rpg));
+  const adjusted = Math.max(0, Math.round(amount * intXpMult(e.rpg)));
+  if (adjusted <= 0) return;
   e.rpg.xp += adjusted;
 
   msgs.push(msg(`+${adjusted} XP`, time, '#af4'));
 
   // Check for level up(s)
-  while (e.rpg.xp >= xpForLevel(e.rpg.level + 1)) {
+  while (e.rpg.level < RPG_LEVEL_CAP && e.rpg.xp >= xpForLevel(e.rpg.level + 1)) {
     e.rpg.xp -= xpForLevel(e.rpg.level + 1);
     e.rpg.level++;
     e.rpg.attrPoints++;
@@ -214,13 +242,16 @@ export function awardXP(e: Entity, amount: number, msgs: Msg[], time: number): v
     }
     msgs.push(msg(`УРОВЕНЬ ${e.rpg.level}! +1 очко атрибутов`, time, '#ff4'));
   }
+  if (e.rpg.level >= RPG_LEVEL_CAP) e.rpg.xp = 0;
 }
 
 // ── Spend attribute point ────────────────────────────────────────
 export function spendAttrPoint(e: Entity, attr: 'str' | 'agi' | 'int'): boolean {
   if (!e.rpg || e.rpg.attrPoints <= 0) return false;
+  const current = clampRpgAttribute(e.rpg[attr]);
+  if (current >= RPG_ATTRIBUTE_CAP) return false;
   e.rpg.attrPoints--;
-  e.rpg[attr]++;
+  e.rpg[attr] = current + 1;
 
   // Recalculate derived stats
   if (attr === 'str' && e.maxHp !== undefined) {
@@ -331,7 +362,7 @@ export function gaussianLevel(center: number, sigma = 2): number {
   const u1 = Math.random() || 0.001;
   const u2 = Math.random();
   const z = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
-  return Math.max(1, Math.round(center + z * sigma));
+  return clampRpgLevel(Math.round(center + z * sigma));
 }
 
 // ── PSI recovery is explicit: items, rewards, drains and level-ups only ──

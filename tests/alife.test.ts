@@ -17,6 +17,7 @@ import {
   alifeForSave,
   captureAlifeFloorState,
   defaultAlifePopulation,
+  getAlifeNpcTotalMoney,
   getAlifeLeaderboardSnapshot,
   materializeAlifeFloorPopulation,
   recordAlifeNpcDeath,
@@ -24,7 +25,7 @@ import {
 } from '../src/systems/alife';
 import { setFloorRunState } from '../src/systems/procedural_floors';
 import { getFactionRel, initFactionRelations } from '../src/data/relations';
-import { freshRPG } from '../src/systems/rpg';
+import { freshRPG, RPG_LEVEL_CAP } from '../src/systems/rpg';
 
 function minimalState(): GameState {
   const state = { currentFloor: FloorLevel.LIVING } as GameState;
@@ -59,11 +60,11 @@ function ambientTemplate(id: number, x: number, y: number): Entity {
   };
 }
 
-test('A-Life default population falls back when runtime memory is unknown', () => {
+test('A-Life default population is fixed when runtime memory is unknown', () => {
   assert.equal(defaultAlifePopulation(), 100_000);
 });
 
-test('A-Life mobile runtime keeps fallback population despite large memory hints', () => {
+test('A-Life mobile runtime keeps the same fixed population despite large memory hints', () => {
   const navigatorDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
   const performanceDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'performance');
   const windowDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'window');
@@ -246,18 +247,20 @@ test('A-Life design-floor records use Floor 69 social population mix', () => {
   assert.ok(industrialTrades.length < floor69.length * 0.05, 'floor_69 should not inherit the generic Maintenance worker mix');
 });
 
-test('A-Life generation keeps broad level and wealth tails bounded', () => {
+test('A-Life generation keeps broad level and account wealth tails bounded', () => {
   const state = minimalState();
   const alife = setAlifeState(state, { seed: 12345, total: 100_000 }) as {
-    npcs: Array<{ level: number; money: number }>;
+    npcs: Array<{ level: number; money: number; accountRubles: number }>;
   };
   const lowLevel = alife.npcs.filter(npc => npc.level <= 10).length;
   const maxLevel = Math.max(...alife.npcs.map(npc => npc.level));
-  const millionaires = alife.npcs.filter(npc => npc.money >= 1_000_000).length;
+  const millionaires = alife.npcs.filter(npc => npc.money + npc.accountRubles >= 1_000_000).length;
+  const richPocket = Math.max(...alife.npcs.map(npc => npc.money));
 
   assert.ok(lowLevel > 50_000, 'most generated NPCs should stay in levels 1-10');
   assert.equal(maxLevel, 100);
   assert.ok(millionaires > 0 && millionaires < 10, 'procedural millionaires should exist but stay rare');
+  assert.ok(richPocket <= 2_000, 'generated NPC cash stays pocket-sized while accountRubles carries wealth');
 });
 
 test('A-Life materialization preserves template sprite identity for special floors', () => {
@@ -292,9 +295,12 @@ test('A-Life materialization preserves template sprite identity for special floo
   assert.equal(entities[0].ai?.path.length, 0);
 });
 
-test('A-Life caps active pocket cash without removing off-floor wealth tails', () => {
+test('A-Life materializes cash and account wealth as separate NPC fields', () => {
   const state = minimalState();
-  setAlifeState(state, { seed: 12345, total: 100_000, overrides: [{ id: 1, money: 1_000_000 }] });
+  const alife = setAlifeState(state, { seed: 12345, total: 100_000, overrides: [{ id: 1, money: 640, accountRubles: 999_360 }] }) as {
+    floorIndex: Record<string, number[]>;
+  };
+  alife.floorIndex['story:living'] = [0];
   const world = new World();
   world.cells[world.idx(12, 10)] = Cell.FLOOR;
   const entities = [ambientTemplate(1, 12.5, 10.5)];
@@ -302,13 +308,22 @@ test('A-Life caps active pocket cash without removing off-floor wealth tails', (
   materializeAlifeFloorPopulation(state, world, entities, { v: 2 }, 'story:living');
 
   assert.equal(entities.length, 1);
-  assert.ok((entities[0].money ?? 0) <= 2_000);
-  assert.equal(alifeForSave(state).overrides.some(item => item.id === 1 && item.money === 1_000_000), true);
+  assert.equal(entities[0].money, 640);
+  assert.equal(entities[0].accountRubles, 999_360);
+  assert.equal(getAlifeNpcTotalMoney(state, entities[0]), 1_000_000);
+  assert.equal(alifeForSave(state).overrides.some(item =>
+    item.id === 1 &&
+    item.money === 640 &&
+    item.accountRubles === 999_360,
+  ), true);
 });
 
-test('A-Life restored floor entities preserve total wealth on capture', () => {
+test('A-Life restored floor entities preserve account wealth on capture', () => {
   const state = minimalState();
-  setAlifeState(state, { seed: 12345, total: 100_000, overrides: [{ id: 1, money: 1_000_000 }] });
+  const alife = setAlifeState(state, { seed: 12345, total: 100_000, overrides: [{ id: 1, money: 640, accountRubles: 999_360 }] }) as {
+    floorIndex: Record<string, number[]>;
+  };
+  alife.floorIndex['story:living'] = [0];
   const world = new World();
   world.cells[world.idx(12, 10)] = Cell.FLOOR;
   const restored = ambientTemplate(1, 12.5, 10.5);
@@ -320,7 +335,11 @@ test('A-Life restored floor entities preserve total wealth on capture', () => {
   materializeAlifeFloorPopulation(state, world, entities, { v: 2 }, 'story:living');
   captureAlifeFloorState(state, entities);
 
-  assert.equal(alifeForSave(state).overrides.some(item => item.id === 1 && item.money === 1_000_000), true);
+  assert.equal(alifeForSave(state).overrides.some(item =>
+    item.id === 1 &&
+    item.money === 640 &&
+    item.accountRubles === 999_360,
+  ), true);
 });
 
 test('A-Life leaderboard includes the player as a ranked actor', () => {
@@ -344,12 +363,12 @@ test('A-Life leaderboard includes the player as a ranked actor', () => {
     npcKills: 120,
     monsterKills: 180,
     money: 10_000,
-    rpg: freshRPG(100),
+    rpg: freshRPG(RPG_LEVEL_CAP),
   };
 
   const snapshot = getAlifeLeaderboardSnapshot(state, player, 100);
 
-  assert.equal(snapshot.totalAlive, 1_001);
+  assert.equal(snapshot.totalAlive, 100_001);
   assert.ok(snapshot.player.rank <= 100);
   assert.equal(snapshot.entries.some(entry => entry.player), true);
 });
