@@ -9,7 +9,7 @@ export interface UiElementDef {
 export const UI_ELEMENT_DEFS = [
   { id: 'bottom_tabs', group: 'Основа', label: 'Нижние табы', defaultEnabled: true, locked: false },
   { id: 'weapon_panel', group: 'Бой', label: 'Оружие и инструмент', defaultEnabled: true, locked: false },
-  { id: 'crosshair', group: 'Бой', label: 'Прицел, цель, попадания', defaultEnabled: true, locked: false },
+  { id: 'crosshair', group: 'Бой', label: 'Прицел и цель', defaultEnabled: true, locked: false },
   { id: 'interaction_prompt', group: 'Бой', label: 'Подсказка действия', defaultEnabled: true, locked: false },
   { id: 'damage_feedback', group: 'Опасность', label: 'Урон и сон', defaultEnabled: true, locked: true },
   { id: 'hazard_warning', group: 'Опасность', label: 'Предупреждения угроз', defaultEnabled: true, locked: false },
@@ -89,7 +89,7 @@ export const UI_PRESETS = [
   {
     id: 'combat',
     label: 'Бой',
-    hint: 'Оружие, прицел, попадания, урон и ближайшие угрозы.',
+    hint: 'Оружие, прицел, урон и ближайшие угрозы.',
     enabled: [
       'bottom_tabs',
       'weapon_panel',

@@ -1743,6 +1743,31 @@ let floorTeleportCd = 0; // prevents anomaly teleport ping-pong
 let _prevMsgCount = 0; // for syncing msgs → msgLog
 let netReportedSamosborCount = 0;
 let netDeathReported = false;
+const MSG_LOG_SYNC_DEDUPE_SCAN = 32;
+
+function sameOptionalNumber(a: number | undefined, b: number | undefined, scale = 1): boolean {
+  const aa = Number.isFinite(a) ? Math.round(a! * scale) : undefined;
+  const bb = Number.isFinite(b) ? Math.round(b! * scale) : undefined;
+  return aa === bb;
+}
+
+function msgAlreadyLogged(m: (typeof state.msgs)[number], distanceMeters: number): boolean {
+  const start = Math.max(0, state.msgLog.length - MSG_LOG_SYNC_DEDUPE_SCAN);
+  for (let i = state.msgLog.length - 1; i >= start; i--) {
+    const entry = state.msgLog[i];
+    if (entry.text !== m.text || entry.color !== m.color) continue;
+    if (entry.day !== m.day || entry.hour !== m.hour || entry.minute !== m.minute) continue;
+    if (!sameOptionalNumber(entry.distanceMeters, distanceMeters)) continue;
+    if (entry.floor !== (m.floor ?? state.currentFloor)) continue;
+    if (!sameOptionalNumber(entry.actorId, m.actorId)) continue;
+    if (!sameOptionalNumber(entry.targetId, m.targetId)) continue;
+    if (!sameOptionalNumber(entry.roomId, m.roomId)) continue;
+    if (!sameOptionalNumber(entry.zoneId, m.zoneId)) continue;
+    if (!sameOptionalNumber(entry.x, m.x, 10) || !sameOptionalNumber(entry.y, m.y, 10)) continue;
+    return true;
+  }
+  return false;
+}
 
 /** Sync new msgs to persistent msgLog with clock timestamps */
 function syncMsgLog(): void {
@@ -1765,8 +1790,7 @@ function syncMsgLog(): void {
       const distanceMeters = resolvedDistance ?? worldLogMessageDistance(location);
       m.distanceMeters = distanceMeters;
       msgs[writeIdx++] = m;
-      const last = state.msgLog[state.msgLog.length - 1];
-      if (last && last.text === m.text && last.day === m.day && last.hour === m.hour && last.minute === m.minute && last.distanceMeters === distanceMeters) continue;
+      if (msgAlreadyLogged(m, distanceMeters)) continue;
       state.msgLog.push({
         text: m.text,
         color: m.color,

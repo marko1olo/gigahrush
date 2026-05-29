@@ -413,7 +413,7 @@ function eventText(e: WorldEvent): string {
     case 'player_kill_npc':
       return `Убит жилец: ${e.targetName ?? 'без имени'}. Репутация снижена.`;
     case 'npc_kill_monster':
-      return `${e.actorName ?? 'NPC'} убил ${monsterName(e.monsterKind)}.`;
+      return `${e.actorName ?? 'NPC'} убил ${e.targetName ?? monsterName(e.monsterKind)}.`;
     case 'npc_kill_npc':
       return `${e.actorName ?? 'NPC'} убил ${e.targetName ?? 'NPC'}.`;
     case 'quest_created':

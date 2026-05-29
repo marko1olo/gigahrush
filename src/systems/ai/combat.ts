@@ -349,7 +349,6 @@ export function tryFactionCombat(
           target.alive = false;
           spawnDeathPool(world, target.x, target.y, target.type === EntityType.MONSTER);
           if (target.type === EntityType.NPC) dropNpcInventory(target, entities, nextId);
-          pushNpcLogMessage(e, msgs, _time, `${e.name ?? 'NPC'} ${e.isFemale ? 'убила' : 'убил'} ${entityDisplayName(target)}`, '#fa4');
           bark(e, msgs, _time, BARK_KILL, BARK_KILL_F, BARK_CHANCE_KILL, '#da4');
           if (target.isFogBoss && target.fogBossZone !== undefined) {
             clearFogInZone(world, target.fogBossZone, msgs, _time);

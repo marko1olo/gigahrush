@@ -23,7 +23,7 @@ export function drawUiSettingsMenu(
   const time = uiTime;
   const view = state.uiSettingsView ?? 'interface';
   const rowH = 12 * sy;
-  const top = 34 * sy;
+  const top = 44 * sy;
   const bottom = h - 24 * sy;
   const visible = Math.max(4, Math.floor((bottom - top) / rowH));
   const rowCount = uiSettingsRowCount(view);
@@ -46,7 +46,7 @@ export function drawUiSettingsMenu(
   ctx.fillText(
     fitTextStable(ctx, `${controlHint('uiSettings')} открыть/закрыть  |  ${controlHint('interact')} применить/переключить  |  Backspace сбросить  |  ${controlHint('gameMenu')} закрыть`, w - 24 * sx),
     12 * sx,
-    25 * sy,
+    26 * sy,
   );
 
   const x = 10 * sx;

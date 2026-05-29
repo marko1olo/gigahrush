@@ -102,7 +102,6 @@ const MSG_MAX = 12;
 const MSG_SCAN_MAX = 32;
 const HUD_MESSAGE_TTL_SECONDS = 8;
 const HUD_MESSAGE_FADE_START_SECONDS = 6;
-const COMBAT_SIGNAL_TTL_SECONDS = 1.15;
 const HUD_MINIMAP_UNITS = 68;
 const HUD_SUMMARY_MAX_LINES_PER_MSG = 3;
 
@@ -652,11 +651,6 @@ interface CombatTargetHud {
   attitude: CombatTargetAttitude;
 }
 
-interface CombatSignalHud {
-  text: string;
-  color: string;
-}
-
 type CombatTargetAttitude = 'hostile' | 'neutral' | 'friendly';
 
 function combatTargetName(e: Entity): string {
@@ -803,23 +797,6 @@ function findAimTarget(world: World, player: Entity, state: GameState): CombatTa
     headY: projection?.headY ?? SCR_H * 0.5 - 44,
     attitude: combatTargetAttitude(best, player),
   };
-}
-
-function recentCombatSignal(state: GameState, gameTime: number): CombatSignalHud | null {
-  for (let i = state.msgs.length - 1; i >= 0 && i >= state.msgs.length - 8; i--) {
-    const m = state.msgs[i];
-    if (!hudMessageVisible(m.time, gameTime, COMBAT_SIGNAL_TTL_SECONDS)) continue;
-    const text = m.text;
-    if (text.startsWith('Выстрел')) return { text: 'ВЫСТРЕЛ', color: '#8cf' };
-    if (text.startsWith('Удар!')) return { text: text.replace(/^Удар!\s*/, 'ПОПАДАНИЕ '), color: '#fc4' };
-    if (text.includes('повержен') || text.includes('повержена')) return { text: 'ЦЕЛЬ ПОВЕРЖЕНА', color: '#4f4' };
-    if (text.startsWith('Взрыв!') || text.startsWith('БФГ!')) return { text: text.toUpperCase(), color: text.startsWith('БФГ!') ? '#4f4' : '#fa0' };
-    if (text.includes('Нет патронов')) return { text: 'НЕТ ПАТРОНОВ', color: '#f84' };
-    if (text.includes('Недостаточно ПСИ')) return { text: 'НЕТ ПСИ', color: '#f84' };
-    if (text.includes('режет тебя') || text.includes('задел тебя')) return { text: `УРОН ${text}`, color: '#f66' };
-    if (m.color === '#f66') return { text, color: '#f66' };
-  }
-  return null;
 }
 
 function inferDeathCause(state: GameState, player: Entity, world: World): { title: string; detail: string } {
@@ -1045,12 +1022,8 @@ function combatTargetPalette(attitude: CombatTargetAttitude): { bg: string; stro
 function drawCombatSightFeedback(
   ctx: CanvasRenderingContext2D,
   target: CombatTargetHud | null,
-  signal: CombatSignalHud | null,
-  cx: number,
-  cy: number,
   sx: number,
   sy: number,
-  time: number,
 ): void {
   if (target) {
     const s = Math.max(1, Math.min(sx, sy));
@@ -1105,20 +1078,6 @@ function drawCombatSightFeedback(
     ctx.fillRect(tx + 5 * s, ty + 13 * s, hpTrackW, 2 * s);
     ctx.fillStyle = target.hpPct < 30 ? '#f84' : palette.bar;
     ctx.fillRect(tx + 5 * s, ty + 13 * s, hpW, 2 * s);
-  }
-
-  if (signal) {
-    const alpha = 0.75 + Math.sin(time * 24) * 0.12;
-    ctx.font = `bold ${8 * sy}px monospace`;
-    ctx.textAlign = 'center';
-    ctx.shadowColor = signal.color;
-    ctx.shadowBlur = 7;
-    ctx.fillStyle = signal.color;
-    ctx.globalAlpha = alpha;
-    ctx.fillText(fitHudText(ctx, signal.text, ctx.canvas.width * 0.82), cx, cy + 13 * sy);
-    ctx.globalAlpha = 1;
-    ctx.shadowBlur = 0;
-    ctx.textAlign = 'left';
   }
 }
 
@@ -1246,7 +1205,6 @@ export function drawHUD(
   const needsWeaponReadiness = showCompactPanels && (showWeaponPanel || showCrosshair);
   const combatWeapon = needsWeaponReadiness ? getWeaponReadiness(player) : null;
   const combatTarget = showCompactPanels && showCrosshair ? findAimTarget(world, player, state) : null;
-  const combatSignal = showCompactPanels && showCrosshair ? recentCombatSignal(state, gameTime) : null;
 
   const zhelemishLine = showCompactPanels && showStatusHints ? zhelemishHudLine(player, gameTime) : null;
   if (zhelemishLine) {
@@ -1503,7 +1461,7 @@ export function drawHUD(
       ctx.arc(cx, cy, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * combatWeapon.readyPct);
       ctx.stroke();
     }
-    drawCombatSightFeedback(ctx, combatTarget, combatSignal, cx, cy, sx, sy, time);
+    drawCombatSightFeedback(ctx, combatTarget, sx, sy);
   }
 
   // ── Zone info + time + room (neuro-interface left panel) ──

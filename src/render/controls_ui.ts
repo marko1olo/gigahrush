@@ -36,7 +36,7 @@ export function drawControlsMenu(
   const isButtons = state.controlView === 'buttons';
   const rowCount = isButtons ? MOBILE_BUTTON_CONTROL_ROWS.length : CONTROL_ACTIONS.length + 1;
   const rowH = 12 * sy;
-  const top = 34 * sy;
+  const top = 44 * sy;
   const bottom = h - 24 * sy;
   const visible = Math.max(4, Math.floor((bottom - top) / rowH));
   const maxScroll = Math.max(0, rowCount - visible);
@@ -60,7 +60,7 @@ export function drawControlsMenu(
       : 'Enter закрыть  |  E изменить/добавить  |  Backspace сбросить  |  ←/→ слайдер',
     w - 24 * sx),
     12 * sx,
-    25 * sy,
+    26 * sy,
   );
 
   const x = 10 * sx;

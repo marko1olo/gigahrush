@@ -9,6 +9,7 @@ import {
 } from '../core/types';
 import type { World } from '../core/world';
 import { WEAPON_STATS } from '../data/catalog';
+import { entityDisplayName } from '../entities/monster';
 import { getEntityIndex } from './entity_index';
 import { publishEvent } from './events';
 import { isHostile } from './factions';
@@ -82,7 +83,7 @@ function cleanSeverity(value: number): WorldEventSeverity {
 function displayName(e: Entity): string {
   if (e.name) return e.name;
   if (isPlayerEntity(e)) return 'Вы';
-  if (e.type === EntityType.MONSTER) return 'Тварь';
+  if (e.type === EntityType.MONSTER) return entityDisplayName(e);
   return 'NPC';
 }
 
