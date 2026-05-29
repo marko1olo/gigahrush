@@ -23,6 +23,7 @@ interface ZombieApocalypseRuntime {
 }
 
 const runtimeByState = new WeakMap<GameState, ZombieApocalypseRuntime>();
+const ZOMBIE_TARGET_SCAN_CAP = 80;
 const zombieTargetQuery: Entity[] = [];
 
 function runtimeFor(state: GameState): ZombieApocalypseRuntime {
@@ -69,7 +70,7 @@ export function findZombieApocalypseTarget(
   let playerTarget: Entity | null = null;
   let playerBest = Math.min(rangeSq, 7 * 7);
 
-  getEntityIndex().queryRadius(zombie.x, zombie.y, Math.sqrt(rangeSq), zombieTargetQuery, ENTITY_MASK_ACTOR);
+  getEntityIndex().queryRadiusCapped(zombie.x, zombie.y, Math.sqrt(rangeSq), zombieTargetQuery, ENTITY_MASK_ACTOR, ZOMBIE_TARGET_SCAN_CAP);
   for (const other of zombieTargetQuery) {
     if (!canZombieApocalypseTarget(other, zombie.id)) continue;
     const d2 = world.dist2(zombie.x, zombie.y, other.x, other.y);

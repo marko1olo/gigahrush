@@ -88,13 +88,10 @@ interface SteeringPathAssignment {
   pi: number;
 }
 
-export interface PathfindingBudgetStats {
+export interface PathfindingStats {
   routineUsed: number;
   routineDenied: number;
   routineDeferred: number;
-  routineTokens: number;
-  routineBurst: number;
-  routineRate: number;
   cacheHits: number;
   cacheSize: number;
   bfsCalls: number;
@@ -125,14 +122,11 @@ function beginPathFrame(time: number, samosborActive: boolean): void {
   _bfsVisited = 0;
 }
 
-export function getPathfindingBudgetStats(out?: PathfindingBudgetStats): PathfindingBudgetStats {
+export function getPathfindingStats(out?: PathfindingStats): PathfindingStats {
   const stats = out ?? {
     routineUsed: 0,
     routineDenied: 0,
     routineDeferred: 0,
-    routineTokens: 0,
-    routineBurst: 0,
-    routineRate: 0,
     cacheHits: 0,
     cacheSize: 0,
     bfsCalls: 0,
@@ -144,9 +138,6 @@ export function getPathfindingBudgetStats(out?: PathfindingBudgetStats): Pathfin
   stats.routineUsed = _routinePathUsed;
   stats.routineDenied = _routinePathDenied;
   stats.routineDeferred = _routinePathDeferred;
-  stats.routineTokens = 0;
-  stats.routineBurst = 0;
-  stats.routineRate = 0;
   stats.cacheHits = _pathCacheHits;
   stats.cacheSize = _navComponents;
   stats.bfsCalls = _bfsCalls;

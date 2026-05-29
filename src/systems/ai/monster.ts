@@ -44,6 +44,7 @@ import {
 import { entityInActiveCellHazard, registerCellHazardSite } from '../cell_hazards';
 import { isDebugOnePunchManEnabled, keepDebugOnePunchManAlive } from '../debug_cheats';
 import { ENTITY_MASK_ACTOR, ENTITY_MASK_ITEM_DROP, ENTITY_MASK_MONSTER, ENTITY_MASK_NPC, ensureEntityIndex, getEntityIndex } from '../entity_index';
+import { notifyActorDamaged } from '../combat_stimulus';
 import { updateSlimevikMonster } from '../slimevik';
 import { updateGnilushkaMonster } from '../gnilushka';
 import { HEAD_SLUG_DETACHED_STAGE, HEAD_SLUG_HOSTED_STAGE } from '../../entities/head_slug';
@@ -79,6 +80,13 @@ const MONSTER_MELEE_DETECT = 30;
 const MONSTER_DETECT_SQ = MONSTER_DETECT * MONSTER_DETECT;
 const MONSTER_MELEE_DETECT_SQ = MONSTER_MELEE_DETECT * MONSTER_MELEE_DETECT;
 const IMMEDIATE_THREAT_RADIUS_SQ = 10 * 10;
+const COMBAT_TARGET_SCAN_CAP = 80;
+const IMMEDIATE_THREAT_SCAN_CAP = 40;
+const OLGOY_SCENT_SCAN_CAP = 64;
+const LISHENNYY_LIGHT_SCAN_CAP = 72;
+const CHERNOSLIZ_SCAN_CAP = 64;
+const DOCUMENT_HUNTER_SCAN_CAP = 72;
+const SLEPOGLAZ_BEAM_SCAN_CAP = 96;
 const PREFER_PLAYER = 15;
 const PREFER_SQ = PREFER_PLAYER * PREFER_PLAYER;
 const MATKA_MAX_CHILDREN = 100;
@@ -2547,9 +2555,9 @@ export function findCombatTarget(
   ai.combatScanCd = (ai.combatScanCd ?? 0) - dt;
   if (ai.combatTargetId !== undefined) {
     const cached = _entityById.get(ai.combatTargetId);
-    if (cached && cached.alive) {
+    if (cached && cached.alive && typeFilter(cached)) {
       const d2 = world.dist2(e.x, e.y, cached.x, cached.y);
-      if (d2 < rangeSq) { target = cached; }
+      if (d2 < rangeSq && isHostile(e, cached)) { target = cached; }
     }
     if (!target) ai.combatTargetId = undefined;
   }
@@ -2569,7 +2577,7 @@ export function findCombatTarget(
     ai.combatScanCd = scanCd;
     let newTarget: Entity | null = null;
     let newBest = rangeSq;
-    ensureEntityIndex(entities).queryRadius(e.x, e.y, Math.sqrt(rangeSq), combatQuery, ENTITY_MASK_ACTOR);
+    ensureEntityIndex(entities).queryRadiusCapped(e.x, e.y, Math.sqrt(rangeSq), combatQuery, ENTITY_MASK_ACTOR, COMBAT_TARGET_SCAN_CAP);
     for (const other of combatQuery) {
       if (!other.alive || other.id === e.id) continue;
       if (!typeFilter(other)) continue;
@@ -2579,7 +2587,10 @@ export function findCombatTarget(
       newBest = d2;
       newTarget = other;
     }
-    if (newTarget) { target = newTarget; ai.combatTargetId = newTarget.id; }
+    if (newTarget && (!target || newBest < world.dist2(e.x, e.y, target.x, target.y) * 0.72)) {
+      target = newTarget;
+      ai.combatTargetId = newTarget.id;
+    }
   }
 
   return target;
@@ -2593,7 +2604,7 @@ function findImmediateCombatTarget(
 ): Entity | null {
   let target: Entity | null = null;
   let best = rangeSq;
-  getEntityIndex().queryRadius(e.x, e.y, Math.sqrt(rangeSq), combatQuery, ENTITY_MASK_ACTOR);
+  getEntityIndex().queryRadiusCapped(e.x, e.y, Math.sqrt(rangeSq), combatQuery, ENTITY_MASK_ACTOR, IMMEDIATE_THREAT_SCAN_CAP);
   for (const other of combatQuery) {
     if (!other.alive || other.id === e.id) continue;
     if (!typeFilter(other)) continue;
@@ -2607,7 +2618,7 @@ function findImmediateCombatTarget(
 }
 
 function canBeMonsterTarget(other: Entity): boolean {
-  return isPlayerEntity(other) || isPlayerEntity(other) || other.type === EntityType.NPC;
+  return isPlayerEntity(other) || other.type === EntityType.NPC;
 }
 
 function hasAIFlag(e: Entity, flag: MonsterAIFlag): boolean {
@@ -2648,6 +2659,11 @@ function fixedScanCd(e: Entity): number | undefined {
 export function deterministicScanCd(id: number, base: number, spread: number): number {
   const h = Math.imul(id ^ 0x9E3779B9, 0x85EBCA6B) >>> 0;
   return base + ((h & 1023) / 1023) * spread;
+}
+
+function monsterHashUnit(id: number, salt: number): number {
+  const h = Math.imul(id ^ salt, 0x85ebca6b) >>> 0;
+  return (h & 1023) / 1023;
 }
 
 function hasDocumentLikeItem(e: Entity): boolean {
@@ -3179,7 +3195,7 @@ function findMeatWormTarget(world: World, e: Entity, dt: number): Entity | null 
   ai.combatScanCd = deterministicScanCd(e.id, 0.95, 0.45);
 
   let bestScore = bloodSq;
-  getEntityIndex().queryRadius(e.x, e.y, OLGOY_BLOOD_RADIUS, combatQuery, ENTITY_MASK_ACTOR);
+  getEntityIndex().queryRadiusCapped(e.x, e.y, OLGOY_BLOOD_RADIUS, combatQuery, ENTITY_MASK_ACTOR, OLGOY_SCENT_SCAN_CAP);
   for (const other of combatQuery) {
     if (!other.alive || other.id === e.id || !canBeMonsterTarget(other)) continue;
     if (!isHostile(e, other)) continue;
@@ -4034,7 +4050,7 @@ function findLishennyyLightTarget(
   let best = findLishennyyFeatureTarget(world, e);
   let bestWeight = best ? lishennyyWeightedScore(world, e, best.x, best.y, best.score, best.source) : -Infinity;
 
-  getEntityIndex().queryRadius(e.x, e.y, LISHENNYY_DETECT_RADIUS, lishennyyLightQuery, ENTITY_MASK_ACTOR | ENTITY_MASK_ITEM_DROP);
+  getEntityIndex().queryRadiusCapped(e.x, e.y, LISHENNYY_DETECT_RADIUS, lishennyyLightQuery, ENTITY_MASK_ACTOR | ENTITY_MASK_ITEM_DROP, LISHENNYY_LIGHT_SCAN_CAP);
   for (const other of lishennyyLightQuery) {
     if (!other.alive || other.id === e.id) continue;
     if (other.type === EntityType.ITEM_DROP) {
@@ -4489,7 +4505,7 @@ function findChernoSlizTarget(world: World, e: Entity, dt: number): Entity | nul
   ai.combatScanCd = fixedScanCd(e) ?? 0.75;
   let target: Entity | null = null;
   let best = chernoslizDetectSq(world, e);
-  getEntityIndex().queryRadius(e.x, e.y, Math.sqrt(best), chernoslizTargetQuery, ENTITY_MASK_ACTOR);
+  getEntityIndex().queryRadiusCapped(e.x, e.y, Math.sqrt(best), chernoslizTargetQuery, ENTITY_MASK_ACTOR, CHERNOSLIZ_SCAN_CAP);
   for (const other of chernoslizTargetQuery) {
     if (!chernoslizCanTarget(world, e, other)) continue;
     const d2 = world.dist2(e.x, e.y, other.x, other.y);
@@ -4770,6 +4786,7 @@ function updateBloodPlantRootHive(
       keepDebugOnePunchManAlive(target);
     } else {
       target.hp -= dmg;
+      notifyActorDamaged(world, target, e, dmg, 'monster_special', time, state);
       if (target.id === playerId) recordPlayerDamage(state, e, dmg, `${entityDisplayName(e)} ударило корнем: -${dmg}`);
       if (target.hp <= 0) {
         target.alive = false;
@@ -4842,6 +4859,7 @@ function updateBorshchevikRootedPlant(
         keepDebugOnePunchManAlive(target);
       } else {
         target.hp -= dmg;
+        notifyActorDamaged(world, target, e, dmg, 'monster_special', time, state);
         if (target.id === playerId) recordPlayerDamage(state, e, dmg, `${entityDisplayName(e)} обжег кожу соком: -${dmg}`);
         if (target.hp <= 0) {
           target.alive = false;
@@ -5091,6 +5109,7 @@ function finishRzhavnikLeap(
       keepDebugOnePunchManAlive(target);
     } else {
       target.hp -= damage;
+      notifyActorDamaged(world, target, e, damage, 'monster_special', time, state);
       if (target.id === playerId) recordPlayerDamage(state, e, damage, `Ржавник ударил первым рывком: -${damage}`);
       if (target.hp <= 0) {
         target.alive = false;
@@ -5245,6 +5264,7 @@ function damageZhornayaTarget(
     keepDebugOnePunchManAlive(target);
   } else {
     target.hp -= dmg;
+    notifyActorDamaged(world, target, e, dmg, 'monster_special', time, state);
     if (target.id === playerId) recordPlayerDamage(state, e, dmg, `${entityDisplayName(e)} врезалась в тебя на запах: -${dmg}`);
     if (target.hp <= 0) { target.alive = false; target.hp = 0; }
     const hitAng = Math.atan2(target.y - e.y, target.x - e.x);
@@ -5400,7 +5420,7 @@ function findDocumentHunterTarget(world: World, _entities: Entity[], e: Entity, 
     let docBest = docRangeSq;
     let fallbackTarget: Entity | null = null;
     let fallbackBest = fallbackRangeSq;
-    getEntityIndex().queryRadius(e.x, e.y, Math.sqrt(docRangeSq), documentHunterQuery, ENTITY_MASK_ACTOR);
+    getEntityIndex().queryRadiusCapped(e.x, e.y, Math.sqrt(docRangeSq), documentHunterQuery, ENTITY_MASK_ACTOR, DOCUMENT_HUNTER_SCAN_CAP);
     for (const other of documentHunterQuery) {
       if (!other.alive || other.id === e.id || !canBeMonsterTarget(other)) continue;
       if (!isHostile(e, other)) continue;
@@ -5512,6 +5532,7 @@ function finishBladeEliteWindup(
       keepDebugOnePunchManAlive(target);
     } else {
       target.hp -= dmg;
+      notifyActorDamaged(world, target, e, dmg, 'monster_special', time, state);
       if (target.id === playerId) recordPlayerDamage(state, e, dmg, `${entityDisplayName(e)} ${tuning.strikeVerb} тебя: -${dmg}`);
       if (target.hp <= 0) {
         target.alive = false;
@@ -5807,6 +5828,7 @@ function applySporeCarpetPuff(
         keepDebugOnePunchManAlive(target);
       } else {
         target.hp -= dmg;
+        notifyActorDamaged(world, target, e, dmg, 'monster_special', time, state);
         if (target.hp <= 0) {
           target.hp = 0;
           target.alive = false;
@@ -6402,6 +6424,7 @@ export function updateVodyanoyWaterPressureLine(
     ai.waterLinePulseCd = VODYANOY_WET_LINE_PULSE_SEC;
     const dmg = Math.max(1, Math.round(1 + ai.waterPressure * 0.62));
     target.hp = Math.max(0, target.hp - dmg);
+    notifyActorDamaged(world, target, e, dmg, 'monster_special', time, state);
     if (target.rpg) target.rpg.psi = Math.max(0, target.rpg.psi - Math.max(1, Math.round(2 + ai.waterPressure)));
     if (target.hp <= 0) {
       target.alive = false;
@@ -6816,7 +6839,7 @@ function fireSlepoglazBeam(
 
   e.angle = angle;
   stampSlepoglazBeam(world, e, dirX, dirY, len);
-  getEntityIndex().queryRadius(e.x, e.y, len + SLEPOGLAZ_BEAM_WIDTH + 1, slepoglazBeamQuery, ENTITY_MASK_ACTOR);
+  getEntityIndex().queryRadiusCapped(e.x, e.y, len + SLEPOGLAZ_BEAM_WIDTH + 1, slepoglazBeamQuery, ENTITY_MASK_ACTOR, SLEPOGLAZ_BEAM_SCAN_CAP);
   for (const target of slepoglazBeamQuery) {
     if (!target.alive || target.id === e.id) continue;
     if (!isPlayerEntity(target) && target.type !== EntityType.NPC) continue;
@@ -6833,6 +6856,7 @@ function fireSlepoglazBeam(
       keepDebugOnePunchManAlive(target);
     } else {
       target.hp -= dmg;
+      notifyActorDamaged(world, target, e, dmg, 'monster_special', time, state);
       if (target.id === playerId) {
         hitPlayer = true;
         recordPlayerDamage(state, e, dmg, `${entityDisplayName(e)} прожег старую позицию: -${dmg}`);
@@ -6920,6 +6944,7 @@ function updateSlepoglazCloseDefense(
     keepDebugOnePunchManAlive(target);
   } else {
     target.hp -= dmg;
+    notifyActorDamaged(world, target, e, dmg, 'monster_special', time, state);
     if (target.id === playerId) recordPlayerDamage(state, e, dmg, `${entityDisplayName(e)} слепо дернул нервом: -${dmg}`);
     if (target.hp <= 0) {
       target.alive = false;
@@ -7236,6 +7261,7 @@ function damageTumannikOffsetStrike(
     keepDebugOnePunchManAlive(target);
   } else {
     target.hp -= dmg;
+    notifyActorDamaged(world, target, e, dmg, 'monster_special', time, state);
     if (target.id === playerId) recordPlayerDamage(state, e, dmg, `${entityDisplayName(e)} ударил сбоку из тумана: -${dmg}`);
     if (target.hp <= 0) { target.alive = false; target.hp = 0; }
     const hitAng = Math.atan2(world.delta(ay, target.y), world.delta(ax, target.x));
@@ -7451,6 +7477,7 @@ function damageGlubinnayaSecondBeat(
     keepDebugOnePunchManAlive(target);
   } else {
     target.hp -= dmg;
+    notifyActorDamaged(world, target, e, dmg, 'monster_special', time, state);
     if (target.id === playerId) recordPlayerDamage(state, e, dmg, 'Глубинная Тень ударила вторым телом: -' + dmg);
     if (target.hp <= 0) {
       target.alive = false;
@@ -7701,6 +7728,7 @@ function damageTonkayaTenStrike(
     keepDebugOnePunchManAlive(target);
   } else {
     target.hp -= dmg;
+    notifyActorDamaged(world, target, e, dmg, 'monster_special', time, state);
     if (target.id === playerId) recordPlayerDamage(state, e, dmg, `${entityDisplayName(e)} ударила с темной линии: -${dmg}`);
     if (target.hp <= 0) { target.alive = false; target.hp = 0; }
     const hitAng = Math.atan2(world.delta(e.y, target.y), world.delta(e.x, target.x));
@@ -7903,6 +7931,7 @@ function damageTreskotnikTarget(
       keepDebugOnePunchManAlive(target);
     } else {
       target.hp -= dmg;
+      notifyActorDamaged(world, target, e, dmg, 'monster_special', time, state);
       if (target.id === playerId) recordPlayerDamage(state, e, dmg, `${entityDisplayName(e)} влетел в тебя по красной трещине: -${dmg}`);
       if (target.hp <= 0) {
         target.alive = false;
@@ -8100,6 +8129,109 @@ export function dropNpcInventory(e: Entity, entities: Entity[], nextId: { v: num
   e.inventory = [];
 }
 
+export function updateSimpleMonster(world: World, entities: Entity[], e: Entity, dt: number, time: number, msgs: Msg[], playerId: number, nextId: { v: number }, state?: GameState): void {
+  const ai = e.ai!;
+  const def = e.monsterKind !== undefined ? MONSTERS[e.monsterKind] : null;
+  if (!def) return;
+
+  const player = _entityById.get(playerId);
+  const detectSq = def.speed > 0 && !def.isRanged ? MONSTER_MELEE_DETECT_SQ : MONSTER_DETECT_SQ;
+  let target = findCombatTarget(world, entities, e, dt, detectSq, fixedScanCd(e) ?? deterministicScanCd(e.id, 1.0, 0.5), canBeMonsterTarget);
+
+  if (player?.alive && target?.id !== playerId) {
+    const pd2 = world.dist2(e.x, e.y, player.x, player.y);
+    if ((!target || pd2 < world.dist2(e.x, e.y, target.x, target.y)) && pd2 < Math.min(PREFER_SQ, detectSq)) {
+      target = player;
+      ai.combatTargetId = player.id;
+    }
+  }
+
+  if (!target) {
+    if (def.speed === 0) return;
+    ai.goal = AIGoal.WANDER;
+    ai.combatTargetId = undefined;
+    ai.timer -= dt;
+    if (ai.path.length === 0 || ai.pi >= ai.path.length || ai.timer <= 0) {
+      if (e.phasing) {
+        ai.timer = 2 + monsterHashUnit(e.id, 0x51a7) * 3;
+        ai.wanderAngle = monsterHashUnit(e.id + Math.floor(time * 0.25), 0x7d13) * Math.PI * 2;
+      } else {
+        wanderNearby(world, e);
+        ai.timer = 1.5 + monsterHashUnit(e.id, 0x5a31) * 2.5;
+      }
+    }
+    if (e.phasing) {
+      const a = ai.wanderAngle ?? 0;
+      const spd = e.speed * 0.4 * dt;
+      e.x = ((e.x + Math.cos(a) * spd) % W + W) % W;
+      e.y = ((e.y + Math.sin(a) * spd) % W + W) % W;
+    } else {
+      followMonsterPath(world, e, dt);
+    }
+    return;
+  }
+
+  ai.combatTargetId = target.id;
+  ai.goal = AIGoal.HUNT;
+  const bestDist = Math.sqrt(world.dist2(e.x, e.y, target.x, target.y));
+  if (def.isRanged && bestDist < rangedMonsterShotRange(e.monsterKind) && bestDist > rangedMonsterMinRange(e.monsterKind)) {
+    e.attackCd = (e.attackCd ?? 0) - dt;
+    if (e.attackCd! <= 0) {
+      fireMonsterProjectile(world, entities, e, target, def, nextId);
+    }
+    return;
+  }
+  if (bestDist < monsterMeleeRange(world, e)) {
+    e.attackCd = (e.attackCd ?? 0) - dt;
+    if (e.attackCd! <= 0) {
+      const level = e.rpg?.level ?? 1;
+      const strMult = e.rpg ? strMeleeDmgMult(e.rpg) : 1;
+      const rawDmg = Math.round(scaleMonsterDmg(def.dmg, level) * strMult * monsterDmgMult(world, e, target) * (e.monsterDmgMult ?? 1));
+      const dmg = zhelemishIncomingMeleeDamage(target, time, rawDmg);
+      if (tryZombieApocalypseInfection(world, e, target, state, msgs, time)) {
+        e.attackCd = def.attackRate;
+        return;
+      }
+      if (target.hp !== undefined) {
+        const debugImmortalPlayerHit = target.id === playerId && isDebugOnePunchManEnabled();
+        if (debugImmortalPlayerHit) keepDebugOnePunchManAlive(target);
+        else {
+          target.hp -= dmg;
+          notifyActorDamaged(world, target, e, dmg, 'monster_melee', time, state);
+          if (target.id === playerId) recordPlayerDamage(state, e, dmg, `${entityDisplayName(e)} задел тебя: -${dmg}`);
+          if (target.hp <= 0) {
+            target.alive = false;
+            target.hp = 0;
+            spawnDeathPool(world, target.x, target.y, target.type === EntityType.MONSTER);
+            if (target.type === EntityType.NPC) dropNpcInventory(target, entities, nextId);
+          }
+        }
+      }
+      e.attackCd = def.attackRate;
+    }
+    return;
+  }
+
+  if (def.speed === 0) return;
+  ai.timer -= dt;
+  if (ai.path.length === 0 || ai.timer <= 0) {
+    tryAssignPathToCell(world, e, Math.floor(target.x), Math.floor(target.y));
+    ai.timer = 2;
+  }
+  if (e.phasing) {
+    const ddx = world.delta(e.x, target.x);
+    const ddy = world.delta(e.y, target.y);
+    const dd = Math.sqrt(ddx * ddx + ddy * ddy);
+    if (dd > 0.1) {
+      const spd = e.speed * dt;
+      e.x = ((e.x + (ddx / dd) * spd) % W + W) % W;
+      e.y = ((e.y + (ddy / dd) * spd) % W + W) % W;
+    }
+    return;
+  }
+  followMonsterPath(world, e, dt, target);
+}
+
 /* ── Monster AI update ────────────────────────────────────────── */
 export function updateMonster(world: World, entities: Entity[], e: Entity, dt: number, time: number, msgs: Msg[], playerId: number, nextId: { v: number }, state?: GameState): void {
   const ai = e.ai!;
@@ -8115,7 +8247,7 @@ export function updateMonster(world: World, entities: Entity[], e: Entity, dt: n
     if (e.matkaTimer <= 0) {
       e.matkaTimer = 60;
       let nearby = 0;
-      getEntityIndex().queryRadius(e.x, e.y, 20, matkaChildrenQuery, ENTITY_MASK_MONSTER);
+      getEntityIndex().queryRadiusCapped(e.x, e.y, 20, matkaChildrenQuery, ENTITY_MASK_MONSTER, MATKA_MAX_CHILDREN + 1);
       for (const o of matkaChildrenQuery) {
         if (o.type === EntityType.MONSTER && o.alive && o.id !== e.id && world.dist2(e.x, e.y, o.x, o.y) < 400) nearby++;
       }
@@ -8375,6 +8507,7 @@ export function updateMonster(world: World, entities: Entity[], e: Entity, dt: n
           keepDebugOnePunchManAlive(target);
         } else {
           target.hp -= dmg;
+          notifyActorDamaged(world, target, e, dmg, 'monster_melee', time, state);
           applyLishennyyContactDecay(state, world, e, target, dmg, time, msgs, playerId);
           applyKontorshchikGrab(state, world, e, target, time, msgs);
           dropSlimeWomanResidue(world, e, target, time, state, 'grab');

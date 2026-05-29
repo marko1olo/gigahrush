@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import { AIGoal, EntityType, FloorLevel, W, type Entity } from '../src/core/types';
 import type { World } from '../src/core/world';
 import {
-  AI_LOD_SCHEDULER_PROFILE,
   HELL_POPULATION_PROFILE,
   KVARTIRY_POPULATION_PROFILE,
   PROCEDURAL_POPULATION_PROFILES,
@@ -12,6 +11,7 @@ import {
   proceduralPopulationProfileId,
   VOID_POPULATION_PROFILE,
 } from '../src/data/population_profiles';
+import { ACTIVE_ACTOR_SOFT_LIMIT } from '../src/data/entity_limits';
 import {
   PROCEDURAL_FLOOR_ZS,
   floorRunZAllowsNpcs,
@@ -69,6 +69,7 @@ function tasklessNpcCount(entities: readonly Entity[]): number {
   let count = 0;
   for (const entity of entities) {
     if (!entity.alive || entity.type !== EntityType.NPC || !entity.ai) continue;
+    if (entity.persistentNpcId === 'player') continue;
     if (entity.ai.goal === AIGoal.IDLE && entity.ai.combatTargetId === undefined && entity.ai.npcState === undefined) count++;
   }
   return count;
@@ -83,21 +84,23 @@ function idleMovingMonsterCount(entities: readonly Entity[]): number {
   return count;
 }
 
-test('KVARTIRY starts as a five-thousand actor AI floor', () => {
+test('KVARTIRY starts as a power-of-two actor AI floor', () => {
   const gen = generateKvartiry();
   const actors = liveActors(gen.entities);
-  assert.equal(actors.length >= 5000, true);
+  assert.equal(actors.length <= ACTIVE_ACTOR_SOFT_LIMIT, true);
+  assert.equal(actors.length >= ACTIVE_ACTOR_SOFT_LIMIT - 128, true);
   assert.equal(liveAiActors(gen.entities).length, actors.length);
   assert.equal(gen.entities.filter(e => e.type === EntityType.NPC).length >= KVARTIRY_POPULATION_PROFILE.citizens.initial, true);
   tickOneAlifeFrame(gen, FloorLevel.KVARTIRY);
   assert.equal(tasklessNpcCount(gen.entities), 0);
 });
 
-test('HELL starts as a five-thousand actor AI floor', () => {
+test('HELL starts as a power-of-two actor AI floor', () => {
   const gen = generateHell();
   const actors = liveActors(gen.entities);
   const monsters = gen.entities.filter(e => e.alive && e.type === EntityType.MONSTER);
-  assert.equal(actors.length >= 5000, true);
+  assert.equal(actors.length <= ACTIVE_ACTOR_SOFT_LIMIT, true);
+  assert.equal(actors.length >= ACTIVE_ACTOR_SOFT_LIMIT - 128, true);
   assert.equal(liveAiActors(gen.entities).length, actors.length);
   assert.equal(monsters.length >= HELL_POPULATION_PROFILE.monsters.initial, true);
   assert.equal(maxLiveActorsInArea(gen.entities, 32) <= 24, true);
@@ -113,18 +116,6 @@ test('VOID keeps NPC-free endgame density through monsters', () => {
   assert.equal(liveAiActors(gen.entities).length, actors.length);
   assert.equal(gen.entities.filter(e => e.type === EntityType.MONSTER).length >= VOID_POPULATION_PROFILE.guardians, true);
   assert.equal(VOID_POPULATION_PROFILE.floor, FloorLevel.VOID);
-});
-
-test('AI LOD profile keeps a hot bubble and slower warm/cold cohorts', () => {
-  const profile = AI_LOD_SCHEDULER_PROFILE;
-  assert.equal(profile.hotRadius, 36);
-  assert.equal(profile.warmRadius > profile.hotRadius, true);
-  assert.equal(profile.intervals.warm.combat.base < profile.intervals.warm.npc.base, true);
-  assert.equal(profile.intervals.cold.npc.base >= profile.intervals.warm.npc.base * 3, true);
-  assert.equal(profile.intervals.cold.monster.base >= profile.intervals.warm.monster.base * 3, true);
-  assert.equal(profile.recentDamageHotSec >= 3, true);
-  assert.equal(profile.hotPromotionCaps.activeAttackers >= 64, true);
-  assert.equal(profile.hotPromotionCaps.projectileOwners < profile.hotPromotionCaps.activeAttackers, true);
 });
 
 test('procedural population budget scales by danger anomaly pressure and route band', () => {
@@ -180,8 +171,10 @@ test('procedural population budget scales by danger anomaly pressure and route b
   assert.equal(calm.npcs < dangerous.npcs, true);
   assert.equal(dangerous.monsters < pressured.monsters, true);
   assert.equal(pressured.monsters < deep.monsters, true);
-  assert.equal(capped.npcs, PROCEDURAL_POPULATION_PROFILES.highDensity.npcs.cap);
-  assert.equal(capped.monsters, PROCEDURAL_POPULATION_PROFILES.highDensity.monsters.cap);
+  assert.equal(capped.npcs + capped.monsters, ACTIVE_ACTOR_SOFT_LIMIT);
+  assert.equal(capped.npcs > capped.monsters, true);
+  assert.equal(capped.npcs <= PROCEDURAL_POPULATION_PROFILES.highDensity.npcs.cap, true);
+  assert.equal(capped.monsters <= PROCEDURAL_POPULATION_PROFILES.highDensity.monsters.cap, true);
   assert.equal(voidRoute.npcs, 0);
   assert.equal(voidRoute.monsters <= PROCEDURAL_POPULATION_PROFILES.highDensity.monsters.cap, true);
 });
@@ -211,6 +204,7 @@ test('procedural population deck keeps random slots normal-density unless the ra
         profileId,
       });
       const actorBudget = budget.npcs + budget.monsters;
+      assert.equal(actorBudget <= ACTIVE_ACTOR_SOFT_LIMIT, true);
 
       summary.slots++;
       assert.equal(budget.npcs <= budget.npcCap, true);

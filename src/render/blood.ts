@@ -332,9 +332,18 @@ export function spawnDeathPool(world: World, ex: number, ey: number, gore = fals
 }
 
 /* ── Blood drip trail for wounded entities ────────────────────── */
+const BLOOD_TRAIL_ACTOR_BUDGET = 768;
+let bloodTrailCursor = 0;
+
 export function updateBloodTrails(world: World, entities: Entity[], dt: number): void {
   // Only process every ~0.3s worth of dt (accumulate externally)
-  for (const e of ensureEntityIndex(entities).actors) {
+  const actors = ensureEntityIndex(entities).actors;
+  const total = actors.length;
+  if (total === 0) return;
+  const budget = Math.min(total, BLOOD_TRAIL_ACTOR_BUDGET);
+  for (let checked = 0; checked < budget; checked++) {
+    if (bloodTrailCursor >= total) bloodTrailCursor = 0;
+    const e = actors[bloodTrailCursor++];
     if (!e.alive) continue;
     if (e.hp === undefined || e.maxHp === undefined) continue;
     const ratio = e.hp / e.maxHp;

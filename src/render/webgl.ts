@@ -50,12 +50,12 @@ const DEFAULT_FOV_RADIANS = Math.PI / 2;
 const ATLAS_COLS = 8;             // 8 textures per row
 const ATLAS_TEX_SIZE = TEX;       // 64px each texture
 const PARTICLE_INSTANCE_CAP = 256;
-const PROCEDURAL_SPRITE_CACHE_MAX = 384;
-const PROCEDURAL_SPRITE_CACHE_TARGET = 288;
-const ITEM_SPRITE_CACHE_MAX = 512;
-const ITEM_SPRITE_CACHE_TARGET = 448;
+const PROCEDURAL_SPRITE_CACHE_MAX = 8192;
+const PROCEDURAL_SPRITE_CACHE_TARGET = 8192;
+const ITEM_SPRITE_CACHE_MAX = 8192;
+const ITEM_SPRITE_CACHE_TARGET = 8192;
 const ITEM_DROP_WORLD_SPRITE_SCALE = 0.34;
-const VISIBLE_SPRITE_CAP = 1024;
+const VISIBLE_SPRITE_CAP = 512;
 const VISIBLE_ENTITY_QUERY_CAP = VISIBLE_SPRITE_CAP * 2;
 const visibleEntityQuery: Entity[] = [];
 const STATIC_OBJECT_RADIUS = MAX_DRAW;
@@ -1289,6 +1289,45 @@ function proceduralEntityTexture(e: Entity): WebGLTexture | null {
   glState.proceduralSpriteTextures.set(key, { texture, usedAt: glState.proceduralSpriteUseTick });
   trimProceduralSpriteCache();
   return texture;
+}
+
+export function rebuildProceduralSpriteCache(entities: readonly Entity[]): number {
+  if (!glState) return 0;
+  const { gl, proceduralSpriteTextures, itemSpriteTextures } = glState;
+  for (const entry of proceduralSpriteTextures.values()) gl.deleteTexture(entry.texture);
+  proceduralSpriteTextures.clear();
+  for (const entry of itemSpriteTextures.values()) gl.deleteTexture(entry.texture);
+  itemSpriteTextures.clear();
+  let built = 0;
+  for (const e of entities) {
+    if (!e.alive || !entityUsesProceduralSprite(e)) continue;
+    const key = proceduralEntitySpriteKey(e);
+    if (proceduralSpriteTextures.has(key)) continue;
+    const sprite = generateProceduralEntitySprite(e);
+    if (!sprite) continue;
+    glState.proceduralSpriteUseTick++;
+    proceduralSpriteTextures.set(key, {
+      texture: createSpriteTexture(gl, sprite),
+      usedAt: glState.proceduralSpriteUseTick,
+    });
+    built++;
+    if (proceduralSpriteTextures.size >= PROCEDURAL_SPRITE_CACHE_MAX) break;
+  }
+  for (const e of entities) {
+    if (!e.alive || e.type !== EntityType.ITEM_DROP) continue;
+    const defId = itemDropDefId(e);
+    if (!defId) continue;
+    const key = itemSpriteKey(defId);
+    if (itemSpriteTextures.has(key)) continue;
+    glState.proceduralSpriteUseTick++;
+    itemSpriteTextures.set(key, {
+      texture: createSpriteTexture(gl, generateItemSprite(defId)),
+      usedAt: glState.proceduralSpriteUseTick,
+    });
+    built++;
+    if (itemSpriteTextures.size >= ITEM_SPRITE_CACHE_MAX) break;
+  }
+  return built;
 }
 
 /* ── Build door state map from World ──────────────────────────── */

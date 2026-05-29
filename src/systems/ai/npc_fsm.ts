@@ -55,11 +55,14 @@ const UTILITY_THREAT_RADIUS = 16;
 const UTILITY_THREAT_CAP = 32;
 const UTILITY_SWITCH_MARGIN = 7;
 const UTILITY_EMERGENCY_SCORE = 58;
+const UTILITY_RETHINK_BASE_SEC = 1.5;
+const UTILITY_RETHINK_SPREAD_SEC = 2.5;
 const emergencyLocalActors: Entity[] = [];
 const utilityLocalActors: Entity[] = [];
 const utilityScoreBuffer = createNpcUtilityScoreBuffer();
 const utilityIntentByNpc = new WeakMap<Entity, NpcUtilityIntentId>();
 const utilityScoreByNpc = new WeakMap<Entity, number>();
+const utilityNextDecisionAtByNpc = new WeakMap<Entity, number>();
 
 function stableUnit(e: Entity, salt: string | number): number {
   return npcUtilityJitter01(npcUtilityIdentityFromEntity(e), salt);
@@ -67,6 +70,21 @@ function stableUnit(e: Entity, salt: string | number): number {
 
 function stableTimer(e: Entity, salt: string | number, base: number, spread: number): number {
   return base + stableUnit(e, salt) * spread;
+}
+
+function utilityRethinkInterval(e: Entity): number {
+  return stableTimer(e, 'utility_rethink', UTILITY_RETHINK_BASE_SEC, UTILITY_RETHINK_SPREAD_SEC);
+}
+
+function hasActivePath(e: Entity): boolean {
+  const ai = e.ai;
+  return !!ai && ai.path.length > 0 && ai.pi < ai.path.length;
+}
+
+function canHoldRoutineFrame(e: Entity, intent: NpcUtilityIntentId, samosborActive: boolean): boolean {
+  const ai = e.ai;
+  if (!ai || samosborActive || ai.combatTargetId !== undefined || hasActivePath(e) || ai.timer <= 0) return false;
+  return intent === 'work' || intent === 'social' || intent === 'patrol' || intent === 'wander';
 }
 
 function preferredEmergencyRoomId(world: World, e: Entity): number | undefined {
@@ -265,6 +283,7 @@ export function updateNPC(
     ai.stateTimer = 0;
     utilityIntentByNpc.delete(e);
     utilityScoreByNpc.delete(e);
+    utilityNextDecisionAtByNpc.delete(e);
   }
   if (e.plotNpcId === 'olga' && !e.plotDone) {
     ai.goal = AIGoal.IDLE;
@@ -272,10 +291,18 @@ export function updateNPC(
     return;
   }
 
-  const intent = selectAndEnterUtilityIntent(world, entities, e, clock, samosborActive, profile);
+  const decision = selectAndEnterUtilityIntent(world, entities, e, clock, samosborActive, profile);
+  const intent = decision.intent;
 
   ai.timer -= dt;
   ai.stateTimer = (ai.stateTimer ?? 0) + dt;
+
+  if (!decision.rescored && canHoldRoutineFrame(e, intent, samosborActive)) {
+    tickNpcMemoryLowFrequency(e, time, clock.totalMinutes, samosborActive);
+    tickNpcRumorLowFrequency(e, time, clock.totalMinutes, samosborActive);
+    tryAmbientBark(e, dt, samosborActive);
+    return;
+  }
 
   applyRoomRestoration(world, e, dt, profile);
 
@@ -326,8 +353,13 @@ function selectAndEnterUtilityIntent(
   clock: GameClock,
   samosborActive: boolean,
   profile: NpcAiProfile,
-): NpcUtilityIntentId {
+): { intent: NpcUtilityIntentId; rescored: boolean } {
   const currentIntent = utilityIntentByNpc.get(e);
+  const now = _barkTime;
+  if (currentIntent !== undefined && !samosborActive && (utilityNextDecisionAtByNpc.get(e) ?? -Infinity) > now) {
+    return { intent: currentIntent, rescored: false };
+  }
+
   const scores = scoreNpcUtilities({
     identity: npcUtilityIdentityFromEntity(e),
     minuteOfDay: clock.hour * 60 + clock.minute,
@@ -353,7 +385,8 @@ function selectAndEnterUtilityIntent(
     emergencyScore: UTILITY_EMERGENCY_SCORE,
   });
   enterUtilityIntent(e, selected.intent, selected.score, profile);
-  return selected.intent;
+  utilityNextDecisionAtByNpc.set(e, now + utilityRethinkInterval(e));
+  return { intent: selected.intent, rescored: true };
 }
 
 function buildLocalUtilityScores(

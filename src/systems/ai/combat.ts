@@ -2,7 +2,7 @@
 
 import {
   type Entity, type GameState, type Msg,
-  EntityType, AIGoal, Occupation, Faction, ProjType,
+  EntityType, AIGoal, ProjType,
 } from '../../core/types';
 import { World } from '../../core/world';
 import { WEAPON_STATS, type WeaponStats } from '../../data/catalog';
@@ -18,7 +18,7 @@ import { spawnBloodHit, spawnDeathPool } from '../../render/blood';
 import { consumeAmmo, consumeDurability } from '../inventory';
 import { isDebugOnePunchManEnabled, keepDebugOnePunchManAlive } from '../debug_cheats';
 import { entityDisplayName } from '../../entities/monster';
-import { bfsPath, followPath, tryAssignPathToCell } from './pathfinding';
+import { followPath, tryAssignPathToCell } from './pathfinding';
 import { Spr, hostileProjectileSprite } from '../../render/sprite_index';
 import { findCombatTarget, dropNpcInventory, deterministicScanCd, hasClearLineOfFire } from './monster';
 import { recordEntityKill } from '../alife_rating';
@@ -27,6 +27,7 @@ import { ENTITY_MASK_MONSTER, getEntityIndex } from '../entity_index';
 import { applyMonsterIncomingDamage } from '../monster_traits';
 import { publishWeaponNoise } from '../noise';
 import { getCurrentPlayerEntity, isPlayerEntity } from '../player_actor';
+import { getRecentCombatThreat, notifyActorDamaged, npcCombatProfile } from '../combat_stimulus';
 import {
   bark,
   BARK_COMBAT_START, BARK_COMBAT_START_F, BARK_CHANCE_COMBAT,
@@ -46,12 +47,12 @@ export function setCombatContext(msgs: Msg[], time: number): void {
 
 /* ── NPC flee from monsters (non-combatants) ─────────────────── */
 const NPC_FLEE_DETECT_SQ = 10 * 10;
-const NPC_FLEE_DIST = 20;
 const NPC_FLEE_SCAN_CD = 1.5;
+const NPC_FLEE_MONSTER_SCAN_CAP = 32;
 const fleeMonsterQuery: Entity[] = [];
 
 export function tryFleeFromMonster(
-  world: World, _entities: Entity[], e: Entity, dt: number,
+  world: World, _entities: Entity[], e: Entity, dt: number, time = _barkTime,
 ): boolean {
   const isCombatant = npcIsBrave(e);
   if (isCombatant) return false;
@@ -64,6 +65,10 @@ export function tryFleeFromMonster(
   if (ai.goal === AIGoal.FLEE && ai.timer > 0) {
     return continueFlee(world, e, dt);
   }
+  const damageThreat = getRecentCombatThreat(e, time);
+  if (damageThreat?.reaction === 'flee' && damageThreat.attacker.alive) {
+    return startFleeFromThreat(world, e, damageThreat.attacker, dt);
+  }
 
   ai.combatScanCd = (ai.combatScanCd ?? 0) - dt;
   if (ai.combatScanCd! > 0 && ai.goal !== AIGoal.FLEE) return false;
@@ -71,7 +76,7 @@ export function tryFleeFromMonster(
 
   let nearestMonster: Entity | null = null;
   let nearestD2 = NPC_FLEE_DETECT_SQ;
-  getEntityIndex().queryRadius(e.x, e.y, 10, fleeMonsterQuery, ENTITY_MASK_MONSTER);
+  getEntityIndex().queryRadiusCapped(e.x, e.y, 10, fleeMonsterQuery, ENTITY_MASK_MONSTER, NPC_FLEE_MONSTER_SCAN_CAP);
   for (const other of fleeMonsterQuery) {
     if (!other.alive || other.type !== EntityType.MONSTER) continue;
     const d2 = world.dist2(e.x, e.y, other.x, other.y);
@@ -106,15 +111,28 @@ const MELEE_KNOCKBACK_CAP = 0.65;
 const MELEE_STAGGER_CAP = 0.35;
 const KNOCKBACK_BODY_R = 0.16;
 const NPC_FLEE_THREAT_RATIO = 0.65;
+const NPC_FLEE_ANGLE_OFFSETS = [0, 0.55, -0.55, 1.1, -1.1, 1.75, -1.75, Math.PI] as const;
+const NPC_FLEE_DISTANCES = [20, 14, 8] as const;
+
+interface NpcRangedProfile {
+  minRange: number;
+  maxRange: number;
+}
+
+interface FactionCombatOptions {
+  visualProjectiles?: boolean;
+  simple?: boolean;
+}
 
 function continueFlee(world: World, e: Entity, dt: number): boolean {
   const ai = e.ai!;
+  if (ai.path.length === 0 || ai.pi >= ai.path.length) return false;
   ai.timer -= dt;
   const savedSpeed = e.speed;
   e.speed *= 1.3;
   followPath(world, e, dt);
   e.speed = savedSpeed;
-  return true;
+  return ai.path.length > 0 && ai.timer > 0;
 }
 
 function startFleeFromThreat(world: World, e: Entity, threat: Entity, dt: number): boolean {
@@ -131,23 +149,37 @@ function startFleeFromThreat(world: World, e: Entity, threat: Entity, dt: number
     const a = Math.random() * Math.PI * 2;
     nx = Math.cos(a); ny = Math.sin(a);
   }
-  const fleeX = world.wrap(Math.floor(e.x + nx * NPC_FLEE_DIST));
-  const fleeY = world.wrap(Math.floor(e.y + ny * NPC_FLEE_DIST));
-  ai.path = bfsPath(world, Math.floor(e.x), Math.floor(e.y), fleeX, fleeY);
+  const baseAngle = Math.atan2(ny, nx);
+  for (const dist of NPC_FLEE_DISTANCES) {
+    for (const offset of NPC_FLEE_ANGLE_OFFSETS) {
+      const a = baseAngle + offset;
+      const fleeX = world.wrap(Math.floor(e.x + Math.cos(a) * dist));
+      const fleeY = world.wrap(Math.floor(e.y + Math.sin(a) * dist));
+      if (world.solid(fleeX, fleeY)) continue;
+      if (tryAssignPathToCell(world, e, fleeX, fleeY) !== 'assigned') continue;
+      ai.timer = 2.4 + dist * 0.05;
+      return continueFlee(world, e, dt);
+    }
+  }
+
+  const step = Math.max(0.25, Math.min(0.9, e.speed * 1.5 * dt));
+  const sx = world.wrap(e.x + nx * step);
+  const sy = world.wrap(e.y + ny * step);
+  let moved = false;
+  if (!world.solid(Math.floor(sx), Math.floor(e.y))) e.x = sx;
+  if (e.x === sx) moved = true;
+  if (!world.solid(Math.floor(e.x), Math.floor(sy))) {
+    e.y = sy;
+    moved = true;
+  }
+  ai.path = [];
   ai.pi = 0;
-  ai.tx = fleeX;
-  ai.ty = fleeY;
-  ai.timer = 3;
-  return continueFlee(world, e, dt);
+  ai.timer = 0;
+  return moved;
 }
 
 function npcIsBrave(e: Entity): boolean {
-  return (e.psiMadness ?? 0) > 0 ||
-    e.occupation === Occupation.HUNTER ||
-    e.occupation === Occupation.PILGRIM ||
-    e.faction === Faction.LIQUIDATOR ||
-    e.faction === Faction.CULTIST ||
-    e.faction === Faction.WILD;
+  return npcCombatProfile(e).brave;
 }
 
 function npcThreatScore(e: Entity): number {
@@ -168,10 +200,13 @@ function livePlayerTarget(entities: readonly Entity[]): Entity | undefined {
 }
 
 export function tryFactionCombat(
-  world: World, entities: Entity[], e: Entity, dt: number, _time: number, msgs: Msg[], nextId: { v: number }, state?: GameState, player?: Entity | null,
+  world: World, entities: Entity[], e: Entity, dt: number, _time: number, msgs: Msg[], nextId: { v: number }, state?: GameState, player?: Entity | null, options?: FactionCombatOptions,
 ): boolean {
   const ws = WEAPON_STATS[e.weapon ?? ''] ?? WEAPON_STATS[''];
+  const rangedProfile = ws.isRanged ? npcRangedProfile(ws) : undefined;
   const isArmed = ws.dmg > 3 || ws.isRanged;
+  const visualProjectiles = options?.visualProjectiles ?? true;
+  const simple = options?.simple === true;
 
   const isCombatant = npcIsBrave(e) ||
     isArmed;
@@ -183,23 +218,28 @@ export function tryFactionCombat(
   const hostileToPlayer = playerTarget !== undefined && isHostile(e, playerTarget);
   const ai = e.ai!;
   if (ai.goal === AIGoal.FLEE && ai.timer > 0) return continueFlee(world, e, dt);
-  if (!isCombatant && !hostileToPlayer) return false;
+  const damageThreat = getRecentCombatThreat(e, _time);
+  const forcedTarget = damageThreat?.reaction !== 'startled' ? damageThreat?.attacker : undefined;
+  if (!isCombatant && !hostileToPlayer && !forcedTarget) return false;
 
-  const detectRange = hostileToPlayer ? NPC_CHASE_RANGE : ws.isRanged ? NPC_RANGED_MAX : NPC_COMBAT_RANGE;
+  const detectRange = forcedTarget ? Math.max(NPC_CHASE_RANGE, rangedProfile?.maxRange ?? NPC_COMBAT_RANGE)
+    : hostileToPlayer ? NPC_CHASE_RANGE : rangedProfile ? rangedProfile.maxRange : NPC_COMBAT_RANGE;
   if ((ai.staggerTimer ?? 0) > 0) {
     ai.staggerTimer = Math.max(0, (ai.staggerTimer ?? 0) - dt);
     e.attackCd = Math.max(e.attackCd ?? 0, 0.12);
     return true;
   }
   const prevTarget = ai.combatTargetId;
-  const target = findCombatTarget(
-    world, entities, e, dt,
-    detectRange * detectRange, deterministicScanCd(e.id, 0.8, 0.4),
-    o => o.type === EntityType.NPC || o.type === EntityType.MONSTER || isPlayerEntity(o),
-  );
+  const target = forcedTarget?.alive
+    ? forcedTarget
+    : findCombatTarget(
+      world, entities, e, dt,
+      detectRange * detectRange, deterministicScanCd(e.id, 0.8, 0.4),
+      o => o.type === EntityType.NPC || o.type === EntityType.MONSTER || isPlayerEntity(o),
+    );
 
   if (!target) return false;
-  if (npcShouldFleeTarget(e, target)) {
+  if (damageThreat?.reaction === 'flee' || (damageThreat?.reaction !== 'fight' && npcShouldFleeTarget(e, target))) {
     ai.combatTargetId = target.id;
     return startFleeFromThreat(world, e, target, dt);
   }
@@ -212,10 +252,20 @@ export function tryFactionCombat(
   const bestDist = Math.sqrt(world.dist2(e.x, e.y, target.x, target.y));
   const atkSpeedMod = e.rpg ? agiAttackSpeedMult(e.rpg) : 1;
 
+  if (simple && ws.isRanged && rangedProfile && bestDist < rangedProfile.maxRange && bestDist > rangedProfile.minRange) {
+    e.attackCd = (e.attackCd ?? 0) - dt;
+    if (e.attackCd! <= 0) {
+      if (npcCommitRangedShot(world, e, target, ws, entities, nextId, atkSpeedMod, true, _time, state)) return true;
+      npcAutoEquipBestWeapon(e);
+      e.attackCd = Math.max(e.attackCd ?? 0, 0.35);
+    }
+    return true;
+  }
+
   // Ranged NPC: telegraph line-of-fire before committing the shot.
-  if (ws.isRanged && bestDist < NPC_RANGED_MAX && bestDist > NPC_RANGED_MIN) {
+  if (ws.isRanged && rangedProfile && bestDist < rangedProfile.maxRange && bestDist > rangedProfile.minRange) {
     const currentTarget = ai.windupTargetId === undefined || ai.windupTargetId === target.id;
-    const lineClear = currentTarget && target.alive && hasClearLineOfFire(world, e, target, NPC_RANGED_MAX);
+    const lineClear = currentTarget && target.alive && hasClearLineOfFire(world, e, target, rangedProfile.maxRange);
 
     if ((ai.windupTimer ?? 0) > 0) {
       ai.windupTimer = Math.max(0, (ai.windupTimer ?? 0) - dt);
@@ -233,7 +283,7 @@ export function tryFactionCombat(
       }
 
       if (ai.windupTimer <= 0) {
-        if (npcCommitRangedShot(world, e, target, ws, entities, nextId, atkSpeedMod, state)) return true;
+        if (npcCommitRangedShot(world, e, target, ws, entities, nextId, atkSpeedMod, visualProjectiles, _time, state)) return true;
         npcAutoEquipBestWeapon(e);
         e.attackCd = Math.max(e.attackCd ?? 0, 0.35);
       }
@@ -283,6 +333,7 @@ export function tryFactionCombat(
         keepDebugOnePunchManAlive(target);
       } else {
         target.hp -= dmg;
+        notifyActorDamaged(world, target, e, dmg, 'npc_melee', _time, state);
         if (isPlayerEntity(target)) recordPlayerDamage(state, e, dmg, `${entityDisplayName(e)} задел тебя: -${dmg}`);
         if (target.type === EntityType.NPC) {
           applyDamageRelationPenalty(e.faction, target.faction, dmg, target, e);
@@ -346,6 +397,26 @@ function applyMeleeKnockback(world: World, source: Entity, target: Entity, ws: W
   if (!isPlayerEntity(target)) target.attackCd = Math.max(target.attackCd ?? 0, stagger);
 }
 
+function npcRangedProfile(ws: WeaponStats): NpcRangedProfile {
+  const pellets = ws.pellets ?? 1;
+  const isShotgunLike = pellets > 1 || (ws.spread ?? 0) > 0.18;
+  const isFlame = ws.projType === ProjType.FLAME;
+  const isHeavy = ws.aoeRadius !== undefined || ws.projType === ProjType.BFG;
+  const fastProjectile = (ws.projSpeed ?? 0) >= 20;
+  const maxRange = isHeavy ? 11
+    : fastProjectile ? 15
+      : isShotgunLike || isFlame ? 9
+        : NPC_RANGED_MAX;
+  const minRange = isHeavy ? 4.2
+    : isFlame ? 2.7
+      : isShotgunLike ? 2.3
+        : NPC_RANGED_MIN;
+  return {
+    minRange,
+    maxRange,
+  };
+}
+
 function npcRangedDamageScore(ws: WeaponStats): number {
   return ws.dmg * (ws.pellets ?? 1) + (ws.aoeRadius ? 45 : 0);
 }
@@ -392,23 +463,33 @@ function npcCommitRangedShot(
   entities: Entity[],
   nextId: { v: number },
   atkSpeedMod: number,
+  visualProjectiles: boolean,
+  time: number,
   state?: GameState,
 ): boolean {
   if (ws.psiCost) {
     if (!e.rpg || e.rpg.psi < ws.psiCost) return false;
     e.rpg.psi -= ws.psiCost;
-    npcFireProjectile(world, e, target, ws, entities, nextId);
-    playSoundAt(playHostilePsiCast, e.x, e.y);
-    publishWeaponNoise(state, e, e.weapon ?? '', ws);
+    if (visualProjectiles) {
+      npcFireProjectile(world, e, target, ws, entities, nextId);
+      playSoundAt(playHostilePsiCast, e.x, e.y);
+      publishWeaponNoise(state, e, e.weapon ?? '', ws);
+    } else {
+      npcApplyDistantRangedDamage(world, e, target, ws, entities, nextId, time, state);
+    }
     e.attackCd = ws.speed * atkSpeedMod;
     e.ai!.windupTimer = undefined;
     e.ai!.windupTargetId = undefined;
     return true;
   }
   if (ws.ammoType && !consumeAmmo(e)) return false;
-  npcFireProjectile(world, e, target, ws, entities, nextId);
-  playSoundAt(hostileWeaponSound(e.weapon ?? ''), e.x, e.y);
-  publishWeaponNoise(state, e, e.weapon ?? '', ws);
+  if (visualProjectiles) {
+    npcFireProjectile(world, e, target, ws, entities, nextId);
+    playSoundAt(hostileWeaponSound(e.weapon ?? ''), e.x, e.y);
+    publishWeaponNoise(state, e, e.weapon ?? '', ws);
+  } else {
+    npcApplyDistantRangedDamage(world, e, target, ws, entities, nextId, time, state);
+  }
   e.attackCd = ws.speed * atkSpeedMod;
   e.ai!.windupTimer = undefined;
   e.ai!.windupTargetId = undefined;
@@ -432,6 +513,33 @@ function hostileWeaponSound(weaponId: string): () => void {
     default:
       return playHostileGunshot;
   }
+}
+
+function npcApplyDistantRangedDamage(
+  world: World,
+  e: Entity,
+  target: Entity,
+  ws: WeaponStats,
+  entities: Entity[],
+  nextId: { v: number },
+  time: number,
+  state?: GameState,
+): void {
+  if (target.hp === undefined || !target.alive) return;
+  const pelletFactor = Math.max(1, ws.pellets ?? 1);
+  let dmg = Math.max(1, Math.round(ws.dmg * pelletFactor));
+  if (target.type === EntityType.MONSTER) dmg = applyMonsterIncomingDamage(world, target, dmg);
+  target.hp -= dmg;
+  notifyActorDamaged(world, target, e, dmg, 'npc_ranged', time, state);
+  if (isPlayerEntity(target)) recordPlayerDamage(state, e, dmg, `${entityDisplayName(e)} попал: -${dmg}`);
+  if (target.type === EntityType.NPC) applyDamageRelationPenalty(e.faction, target.faction, dmg, target, e);
+  if (target.hp > 0) return;
+
+  recordEntityKill(e, target);
+  target.alive = false;
+  target.hp = 0;
+  if (target.type === EntityType.NPC) dropNpcInventory(target, entities, nextId);
+  if (target.isFogBoss && target.fogBossZone !== undefined) clearFogInZone(world, target.fogBossZone, _barkMsgs, time);
 }
 
 /* ── NPC: fire ranged projectile ──────────────────────────────── */

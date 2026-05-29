@@ -37,9 +37,7 @@ import { isHostile } from '../systems/factions';
 import { getNpcPlayerRelation } from '../systems/npc_relations';
 import {
   getSamosborActiveInstructionSnapshot,
-  getSamosborWarningSnapshot,
   type SamosborActiveInstructionSnapshot,
-  type SamosborWarningSnapshot,
 } from '../systems/samosbor';
 import { currentFloorInstanceLabel } from '../systems/floor_instances';
 import { getLiftArachnaWarningSnapshot, type LiftArachnaWarningSnapshot } from '../systems/lift_arachna';
@@ -70,7 +68,7 @@ import { isEmergencyPanelMenuOpen } from '../systems/emergency_panels';
 import {
   textJitter, flicker, drawHoloBar, drawGlitchText,
   drawNeuroPanel, drawGlitchLine, drawStaticNoise, drawVeretarVeil, drawRouteCueWave, drawMaronaryProofNoise, drawSmogVeil,
-  drawSeroburmalineNoLookFx, drawSignalRows,
+  drawSeroburmalineNoLookFx,
 } from './hud_fx';
 import { fitTextStable as fitUiText, setUiTextTime } from './ui_text';
 import { allocateHudSlot, createHudSlots, getMobileHudSafeContext, type UiRect } from './ui_layout';
@@ -105,24 +103,29 @@ const MSG_SCAN_MAX = 32;
 const HUD_MESSAGE_TTL_SECONDS = 8;
 const HUD_MESSAGE_FADE_START_SECONDS = 6;
 const COMBAT_SIGNAL_TTL_SECONDS = 1.15;
+const HUD_MINIMAP_UNITS = 68;
+const HUD_SUMMARY_MAX_LINES_PER_MSG = 3;
 
 export interface HudPerfDebugSnapshot {
   fps?: number;
   frameMsAvg?: number;
   frameMsMax?: number;
+  simMs?: number;
+  needsMs?: number;
+  contentMs?: number;
   aiMs?: number;
+  hazardMs?: number;
+  samosborMs?: number;
+  factionMs?: number;
+  bloodMs?: number;
+  cleanupMs?: number;
   renderMs?: number;
   hudMs?: number;
   liveAi?: number;
   visibleSprites?: number;
   drawnSprites?: number;
   visibleEntityQueryResults?: number;
-  aiHot?: number;
-  aiWarm?: number;
-  aiCold?: number;
-  aiUpdatedHot?: number;
-  aiUpdatedWarm?: number;
-  aiUpdatedCold?: number;
+  aiUpdated?: number;
   aiSkipped?: number;
 }
 
@@ -209,64 +212,6 @@ function drawVoidReturnPortalHint(
   drawGlitchText(ctx, 'ВЫХОД ДОМОЙ', x + panelW * 0.5, y + 4 * sy, time * 1.7, 989, '#0f8', 9 * sy);
   ctx.shadowBlur = 0;
   drawGlitchText(ctx, fitHudText(ctx, `центр ${dist}м / ${consequence}`, panelW - 12 * sx), x + panelW * 0.5, y + 17 * sy, time, 990, '#cfe', 7 * sy);
-  ctx.textAlign = 'left';
-  ctx.restore();
-}
-
-function drawSamosborPrewarning(
-  ctx: CanvasRenderingContext2D,
-  w: number,
-  _h: number,
-  sx: number,
-  sy: number,
-  time: number,
-  warning: SamosborWarningSnapshot,
-  y: number,
-  compact = false,
-): void {
-  const panelW = Math.min(w - 12 * sx, 218 * sx);
-  const panelH = (compact ? 24 : 64) * sy;
-  const x = (w - panelW) * 0.5;
-  const title = `${samosborHudTitle(warning.variantId, warning.variantName)}: ${warning.secondsLeft}s`;
-  const zone = warning.zoneId >= 0 ? `Зона ${warning.zoneId + 1}` : 'Локальная зона';
-
-  ctx.save();
-  ctx.fillStyle = warning.variantId === 'veretar' ? 'rgba(31,31,28,0.84)' : 'rgba(18,6,24,0.82)';
-  ctx.fillRect(x, y, panelW, panelH);
-  ctx.strokeStyle = warning.tint;
-  ctx.lineWidth = 1;
-  ctx.strokeRect(x + 0.5, y + 0.5, panelW - 1, panelH - 1);
-  drawStaticNoise(ctx, x, y, panelW, panelH, time, 0.018);
-  if (warning.variantId === 'maronary') {
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(x, y, panelW, panelH);
-    ctx.clip();
-    ctx.translate(x, y);
-    drawMaronaryProofNoise(ctx, panelW, panelH, time, 0.45);
-    ctx.restore();
-  }
-  if (warning.variantId === 'veretar') {
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(x, y, panelW, panelH);
-    ctx.clip();
-    ctx.translate(x, y);
-    drawVeretarVeil(ctx, panelW, panelH, time, 0.7);
-    ctx.restore();
-  }
-
-  ctx.textAlign = 'center';
-  ctx.shadowColor = warning.tint;
-  ctx.shadowBlur = 8;
-  drawGlitchText(ctx, title, w * 0.5, y + 4 * sy, time * 2, 730, warning.tint, 10 * sy);
-  ctx.shadowBlur = 0;
-  drawGlitchText(ctx, `${warning.floorName} / ${zone}`, w * 0.5, y + 16 * sy, time, 731, '#ffd36a', 7 * sy);
-  if (!compact) {
-    drawGlitchText(ctx, fitHudText(ctx, warning.actionLine, panelW - 12 * sx), w * 0.5, y + 25 * sy, time, 732, '#fff', 7 * sy);
-    drawGlitchText(ctx, fitHudText(ctx, warning.shelterHintLine, panelW - 12 * sx), w * 0.5, y + 34 * sy, time, 733, '#ffd36a', 6 * sy);
-    drawSignalRows(ctx, x + 6 * sx, y + 42 * sy, panelW - 12 * sx, 16 * sy, time, warning.tint, warning.signals.channelLines, 5.5 * sy);
-  }
   ctx.textAlign = 'left';
   ctx.restore();
 }
@@ -477,6 +422,31 @@ function fitHudText(ctx: CanvasRenderingContext2D, text: string, maxW: number): 
   return fitUiText(ctx, text, maxW);
 }
 
+function wrapHudText(ctx: CanvasRenderingContext2D, text: string, maxW: number, maxLines: number): string[] {
+  const limit = Math.max(1, Math.floor(maxLines));
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return [''];
+  const lines: string[] = [];
+  let line = '';
+  for (const word of words) {
+    const next = line ? `${line} ${word}` : word;
+    if (ctx.measureText(next).width <= maxW || !line) {
+      line = next;
+      continue;
+    }
+    lines.push(line);
+    line = word;
+    if (lines.length >= limit) break;
+  }
+  if (lines.length < limit && line) lines.push(line);
+  if (lines.length === 0) lines.push(text);
+  const overflow = words.join(' ') !== lines.join(' ');
+  const last = lines.length - 1;
+  if (overflow && last >= 0) lines[last] = `${fitHudText(ctx, lines[last], Math.max(1, maxW - ctx.measureText('...').width))}...`;
+  else if (last >= 0) lines[last] = fitHudText(ctx, lines[last], maxW);
+  return lines.map(item => fitHudText(ctx, item, maxW));
+}
+
 function compactNumber(value: number | undefined): string {
   return Number.isFinite(value) ? String(Math.round(value!)) : '-';
 }
@@ -491,8 +461,9 @@ function drawFpsCounter(ctx: CanvasRenderingContext2D, perf: HudPerfDebugSnapsho
   const s = Math.max(1, Math.min(sx, sy));
   const lines = [
     `FPS ${Math.round(fps)}  кадр ${compactMs(perf?.frameMsAvg)}/${compactMs(perf?.frameMsMax)}мс`,
-    `AI ${compactNumber(perf?.liveAi)} H${compactNumber(perf?.aiHot)}/${compactNumber(perf?.aiUpdatedHot)} W${compactNumber(perf?.aiWarm)}/${compactNumber(perf?.aiUpdatedWarm)} C${compactNumber(perf?.aiCold)}/${compactNumber(perf?.aiUpdatedCold)} skip ${compactNumber(perf?.aiSkipped)}`,
-    `VIS ${compactNumber(perf?.visibleSprites)} draw ${compactNumber(perf?.drawnSprites)} q ${compactNumber(perf?.visibleEntityQueryResults)}  ms AI ${compactMs(perf?.aiMs)} R ${compactMs(perf?.renderMs)} HUD ${compactMs(perf?.hudMs)}`,
+    `AI ${compactNumber(perf?.liveAi)} upd ${compactNumber(perf?.aiUpdated)} skip ${compactNumber(perf?.aiSkipped)}`,
+    `VIS ${compactNumber(perf?.visibleSprites)} draw ${compactNumber(perf?.drawnSprites)} q ${compactNumber(perf?.visibleEntityQueryResults)}  ms SIM ${compactMs(perf?.simMs)} AI ${compactMs(perf?.aiMs)} R ${compactMs(perf?.renderMs)} HUD ${compactMs(perf?.hudMs)}`,
+    `SYS N ${compactMs(perf?.needsMs)} C ${compactMs(perf?.contentMs)} HZ ${compactMs(perf?.hazardMs)} S ${compactMs(perf?.samosborMs)} F ${compactMs(perf?.factionMs)} B ${compactMs(perf?.bloodMs)} X ${compactMs(perf?.cleanupMs)}`,
   ];
   const padX = 3 * s;
   const padY = 2 * s;
@@ -840,7 +811,6 @@ function recentCombatSignal(state: GameState, gameTime: number): CombatSignalHud
     if (!hudMessageVisible(m.time, gameTime, COMBAT_SIGNAL_TTL_SECONDS)) continue;
     const text = m.text;
     if (text.startsWith('Выстрел')) return { text: 'ВЫСТРЕЛ', color: '#8cf' };
-    if (text.includes('мимо')) return { text: text.toUpperCase(), color: '#fc4' };
     if (text.startsWith('Удар!')) return { text: text.replace(/^Удар!\s*/, 'ПОПАДАНИЕ '), color: '#fc4' };
     if (text.includes('повержен') || text.includes('повержена')) return { text: 'ЦЕЛЬ ПОВЕРЖЕНА', color: '#4f4' };
     if (text.startsWith('Взрыв!') || text.startsWith('БФГ!')) return { text: text.toUpperCase(), color: text.startsWith('БФГ!') ? '#4f4' : '#fa0' };
@@ -1296,7 +1266,6 @@ export function drawHUD(
   const routeCueVisible = !!routeCue && routeHintsVisible;
   const smallCaravan = showCompactPanels && showCaravanHints ? getNearestSmallCaravan(state, world, player) : undefined;
   const smogIndicatorVisible = showCompactPanels && anomalySafetyVisible && smogStatus.active && (smogStatus.inside || smogStatus.sourceFound || smogStatus.handled);
-  const samosborWarning = getSamosborWarningSnapshot(state);
   const perfDebug = options.perf ?? (options.fps !== undefined ? { fps: options.fps } : undefined);
 
   if (showCompactPanels && uiElementEnabled('fps_counter') && perfDebug) {
@@ -1310,25 +1279,64 @@ export function drawHUD(
   }
 
   // ── Stenographic summary: top-left event band ─────────
-  if (showCompactPanels && showMessages && !state.samosborActive && !samosborWarning) {
+  if (showCompactPanels && showMessages && !state.samosborActive) {
     const s = Math.max(1, Math.min(sx, sy));
-    const pad = 5 * s;
-    const headerH = 9 * s;
-    const rowH = 9 * s;
-    const summarySlot = slots.topLeftEvent;
-    const maxPanelH = Math.min(summarySlot.h, Math.max(36 * s, h * 0.33));
-    const maxRows = Math.max(0, Math.min(MSG_MAX, Math.floor((maxPanelH - pad * 2 - headerH) / rowH)));
-    const selectedMsgs: Array<{ msg: GameState['msgs'][number]; index: number }> = [];
+    const pad = 4 * s;
+    const headerH = 8 * s;
+    const rowH = 7.2 * s;
+    const rowGap = 1.8 * s;
+    const minimapReserve = showMinimap ? HUD_MINIMAP_UNITS * s + 6 * s : 0;
+    const summaryRight = showMinimap
+      ? Math.max(slots.safe.left, w - slots.safe.right - minimapReserve)
+      : w - slots.safe.right;
+    const summaryW = Math.max(0, summaryRight - slots.safe.left);
+    const summarySlot = { ...slots.topLeftEvent, w: summaryW };
+    const availableH = Math.max(0, summarySlot.y + summarySlot.h - summarySlot.cursorY);
+    const maxPanelH = Math.min(availableH, Math.max(40 * s, h * 0.33));
+    const plannedMsgs: Array<{
+      msg: GameState['msgs'][number];
+      index: number;
+      stamp: string;
+      stampW: number;
+      lines: string[];
+      h: number;
+    }> = [];
     const scanStart = Math.max(0, state.msgs.length - MSG_SCAN_MAX);
-    for (let i = state.msgs.length - 1; i >= scanStart && selectedMsgs.length < maxRows; i--) {
+    ctx.save();
+    ctx.font = `${5.8 * s}px monospace`;
+    const bodyW = Math.max(1, summaryW - pad * 2);
+    let usedH = 0;
+    for (let i = state.msgs.length - 1; i >= scanStart && plannedMsgs.length < MSG_MAX; i--) {
       const m = state.msgs[i];
       if (!hudMessageVisible(m.time, gameTime)) continue;
       if (m.hud === false) continue;
-      selectedMsgs.push({ msg: m, index: i });
+      const day = m.day;
+      const hour = String(m.hour).padStart(2, '0');
+      const minute = String(m.minute).padStart(2, '0');
+      const dist = m.distanceMeters !== undefined ? ` ${Math.max(0, Math.round(m.distanceMeters))}м` : '';
+      const stamp = `Д${day} ${hour}:${minute}${dist}`;
+      const stampW = Math.min(58 * s, Math.max(34 * s, ctx.measureText(stamp).width + 5 * s));
+      const textW = Math.max(42 * s, bodyW - stampW);
+      const remainingH = maxPanelH - pad * 2 - headerH - usedH;
+      const remainingLines = Math.max(1, Math.floor((remainingH - rowGap) / rowH));
+      const maxLines = Math.min(HUD_SUMMARY_MAX_LINES_PER_MSG, remainingLines);
+      const lines = wrapHudText(ctx, m.text, textW, maxLines);
+      const itemH = Math.max(rowH, lines.length * rowH) + rowGap;
+      if (pad * 2 + headerH + usedH + itemH > maxPanelH) {
+        if (plannedMsgs.length === 0 && remainingLines > 0) {
+          const clipped = wrapHudText(ctx, m.text, textW, remainingLines);
+          plannedMsgs.push({ msg: m, index: i, stamp, stampW, lines: clipped, h: clipped.length * rowH });
+        }
+        break;
+      }
+      plannedMsgs.push({ msg: m, index: i, stamp, stampW, lines, h: itemH });
+      usedH += itemH;
     }
-    if (selectedMsgs.length > 0 && summarySlot.w >= 96 * s) {
-      const panelH = Math.min(maxPanelH, pad * 2 + headerH + selectedMsgs.length * rowH);
-      const rect = allocateHudSlot(summarySlot, panelH, summarySlot.w, 'left');
+    ctx.restore();
+    if (plannedMsgs.length > 0 && summaryW >= 128 * s) {
+      const panelH = Math.min(maxPanelH, pad * 2 + headerH + plannedMsgs.reduce((sum, item) => sum + item.h, 0));
+      const rect = allocateHudSlot(summarySlot, panelH, summaryW, 'left');
+      slots.topLeftEvent.cursorY = summarySlot.cursorY;
       const reserveY = rect.y + rect.h + summarySlot.gap;
       slots.topCenterCritical.cursorY = Math.max(slots.topCenterCritical.cursorY, reserveY);
       drawNeuroPanel(ctx, rect.x, rect.y, rect.w, rect.h, time, 306);
@@ -1337,41 +1345,40 @@ export function drawHUD(
       ctx.save();
       ctx.textAlign = 'left';
       ctx.shadowBlur = 0;
-      ctx.font = `${7 * s}px monospace`;
-      const titleY = rect.y + pad + 4 * s;
+      ctx.font = `${6.2 * s}px monospace`;
+      const titleY = rect.y + pad + 2.5 * s;
       ctx.fillStyle = 'rgba(130,235,230,0.88)';
-      ctx.fillText(fitHudText(ctx, 'СТЕНОСВОДКА', 84 * s), rect.x + pad, titleY);
+      ctx.fillText(fitHudText(ctx, 'СТЕНОСВОДКА', 78 * s), rect.x + pad, titleY);
+      ctx.font = `${5.4 * s}px monospace`;
       ctx.fillStyle = 'rgba(82,110,126,0.84)';
-      ctx.fillText(fitHudText(ctx, 'последние сообщения', Math.max(16 * s, rect.w - 100 * s)), rect.x + pad + 88 * s, titleY);
+      ctx.fillText(fitHudText(ctx, 'последние сообщения', Math.max(16 * s, rect.w - 92 * s)), rect.x + pad + 82 * s, titleY + 0.4 * s);
       ctx.strokeStyle = 'rgba(70,220,255,0.25)';
       ctx.beginPath();
       ctx.moveTo(rect.x + pad, rect.y + pad + headerH);
       ctx.lineTo(rect.x + rect.w - pad, rect.y + pad + headerH);
       ctx.stroke();
 
-      let my = rect.y + pad + headerH + 6 * s;
-      for (const item of selectedMsgs) {
+      let my = rect.y + pad + headerH + 4 * s;
+      for (const item of plannedMsgs) {
         const m = item.msg;
         const age = hudMessageAgeSeconds(m.time, gameTime);
-        const day = m.day;
-        const hour = String(m.hour).padStart(2, '0');
-        const minute = String(m.minute).padStart(2, '0');
-        const dist = m.distanceMeters !== undefined ? ` ${Math.max(0, Math.round(m.distanceMeters))}м` : '';
-        const stamp = `Д${day} ${hour}:${minute}${dist}`;
         const alpha = age > HUD_MESSAGE_FADE_START_SECONDS
           ? 1 - (age - HUD_MESSAGE_FADE_START_SECONDS) / (HUD_MESSAGE_TTL_SECONDS - HUD_MESSAGE_FADE_START_SECONDS)
           : 1;
         const rowJitter = textJitter(time, item.index * 17 + 300);
         const rowY = my + rowJitter.dy * 0.28;
-        const stampW = Math.min(72 * s, Math.max(42 * s, ctx.measureText(stamp).width + 5 * s));
-        const textX = rect.x + pad + stampW;
-        const textW = Math.max(32 * s, rect.x + rect.w - pad - textX);
         ctx.globalAlpha = alpha * flicker(time, item.index + 300);
+        ctx.font = `${5.3 * s}px monospace`;
         ctx.fillStyle = 'rgba(120,145,160,0.82)';
-        ctx.fillText(fitHudText(ctx, stamp, stampW - 4 * s), rect.x + pad + rowJitter.dx * 0.28, rowY);
+        ctx.fillText(fitHudText(ctx, item.stamp, item.stampW - 4 * s), rect.x + pad + rowJitter.dx * 0.28, rowY);
         ctx.fillStyle = m.color;
-        ctx.fillText(fitHudText(ctx, m.text, textW), textX + rowJitter.dx * 0.28, rowY);
-        my += rowH;
+        ctx.font = `${5.8 * s}px monospace`;
+        const textX = rect.x + pad + item.stampW;
+        const textW = Math.max(32 * s, rect.x + rect.w - pad - textX);
+        for (let line = 0; line < item.lines.length; line++) {
+          ctx.fillText(fitHudText(ctx, item.lines[line], textW), textX + rowJitter.dx * 0.28, rowY + line * rowH);
+        }
+        my += item.h;
       }
       ctx.restore();
       ctx.globalAlpha = 1;
@@ -1379,7 +1386,9 @@ export function drawHUD(
   }
 
   if (showCompactPanels && showMinimap) {
-    const mapRect = allocateHudSlot(slots.topRightNavigation, 80 * sy, 80 * sx, 'right');
+    const s = Math.max(1, Math.min(sx, sy));
+    const mapSize = Math.max(48 * s, Math.min(HUD_MINIMAP_UNITS * s, slots.topRightNavigation.w, slots.topRightNavigation.h));
+    const mapRect = allocateHudSlot(slots.topRightNavigation, mapSize, mapSize, 'right');
     drawMinimap(ctx, world, entities, player, sx, sy, state.quests, currentFloorInstanceLabel(state), state.currentFloor, state, time, mapRect);
   }
   if (objectiveRoute) {
@@ -1589,18 +1598,6 @@ export function drawHUD(
     drawEmergencyPanelMenu(ctx, player, msx, msy, time);
   }
 
-  // ── SAMOSBOR warning (intense glitch) ──────────────────────
-  if (showSamosborText && samosborWarning && !state.samosborActive) {
-    const compactCritical = centerModalOpen;
-    const rect = allocateHudSlot(
-      slots.topCenterCritical,
-      (compactCritical ? 24 : 64) * sy,
-      Math.min(w - 12 * sx, 218 * sx),
-      'center',
-    );
-    drawSamosborPrewarning(ctx, w, h, sx, sy, time, samosborWarning, rect.y, compactCritical);
-    if (screenFxVisible && samosborWarning.variantId === 'veretar') drawVeretarVeil(ctx, w, h, time, 0.45);
-  }
   const liftArachnaWarning = getLiftArachnaWarningSnapshot(state);
   if (liftArachnaWarning && !state.gameOver) {
     const rect = allocateHudSlot(

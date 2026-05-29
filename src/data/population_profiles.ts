@@ -1,4 +1,5 @@
 import { FloorLevel, RoomType, ZoneFaction } from '../core/types';
+import { ACTIVE_ACTOR_SOFT_LIMIT, fitActiveActorCounts } from './entity_limits';
 
 export interface NpcPopulationProfile {
   initial: number;
@@ -22,7 +23,7 @@ export const KVARTIRY_POPULATION_PROFILE = {
   id: 'kvartiry_lively',
   floor: FloorLevel.KVARTIRY,
   citizens: {
-    initial: 3000,
+    initial: 2381,
     noiseScale: 96,
     noiseStrength: 0.2,
     openWeight: 0.95,
@@ -45,7 +46,7 @@ export const KVARTIRY_POPULATION_PROFILE = {
     },
   },
   wild: {
-    initial: 1700,
+    initial: 1349,
     noiseScale: 72,
     noiseStrength: 0.26,
     openWeight: 1.15,
@@ -68,7 +69,7 @@ export const KVARTIRY_POPULATION_PROFILE = {
     },
   },
   liquidators: {
-    initial: 400,
+    initial: 238,
     noiseScale: 128,
     noiseStrength: 0.18,
     openWeight: 1.1,
@@ -105,7 +106,7 @@ export const HELL_POPULATION_PROFILE = {
   id: 'hell_lively',
   floor: FloorLevel.HELL,
   monsters: {
-    initial: 4200,
+    initial: 3387,
     noiseScale: 160,
     noiseStrength: 0.05,
     openWeight: 1.0,
@@ -121,7 +122,7 @@ export const HELL_POPULATION_PROFILE = {
     },
   },
   cultists: {
-    initial: 700,
+    initial: 565,
     noiseScale: 128,
     noiseStrength: 0.08,
     openWeight: 1.0,
@@ -137,7 +138,7 @@ export const HELL_POPULATION_PROFILE = {
     },
   },
   liquidators: {
-    initial: 100,
+    initial: 80,
     noiseScale: 144,
     noiseStrength: 0.06,
     openWeight: 1.0,
@@ -243,7 +244,7 @@ export const PROCEDURAL_POPULATION_PROFILES = {
         deep: 300,
         voidRoute: 0,
       },
-      cap: 5000,
+      cap: ACTIVE_ACTOR_SOFT_LIMIT,
     },
     monsters: {
       base: 260,
@@ -309,41 +310,15 @@ export function proceduralPopulationBudget(input: ProceduralPopulationBudgetInpu
   const profile = PROCEDURAL_POPULATION_PROFILES[input.profileId];
   const band = proceduralPopulationBand(input.z);
   const monsterRaw = scaledPopulationCount(profile.monsters, band, input.danger, input.anomalyPressure);
-  const monsters = Math.min(profile.monsters.cap, monsterRaw + (input.industrial ? profile.monsters.industrialBonus : 0));
+  const rawNpcs = input.npcAllowed ? scaledPopulationCount(profile.npcs, band, input.danger, input.anomalyPressure) : 0;
+  const rawMonsters = Math.min(profile.monsters.cap, monsterRaw + (input.industrial ? profile.monsters.industrialBonus : 0));
+  const fitted = fitActiveActorCounts(rawNpcs, rawMonsters);
   return {
     profileId: profile.id,
     band,
-    npcs: input.npcAllowed ? scaledPopulationCount(profile.npcs, band, input.danger, input.anomalyPressure) : 0,
-    monsters,
+    npcs: fitted.npcs,
+    monsters: fitted.monsters,
     npcCap: profile.npcs.cap,
     monsterCap: profile.monsters.cap,
   };
 }
-
-export const AI_LOD_SCHEDULER_PROFILE = {
-  id: 'ai_hot_warm_cold',
-  hotRadius: 36,
-  warmRadius: 128,
-  recentDamageHotSec: 4.0,
-  maxAccumulatedDt: 1.25,
-  activeAttackerHotRange: 8,
-  hotPromotionCaps: {
-    activeAttackers: 64,
-    projectileOwners: 16,
-    recentlyDamaged: 24,
-  },
-  intervals: {
-    warm: {
-      monster: { base: 0.35, spread: 0.25 },
-      npc: { base: 0.55, spread: 0.35 },
-      traveler: { base: 0.7, spread: 0.4 },
-      combat: { base: 0.24, spread: 0.18 },
-    },
-    cold: {
-      monster: { base: 1.45, spread: 0.85 },
-      npc: { base: 2.35, spread: 1.25 },
-      traveler: { base: 2.8, spread: 1.4 },
-      combat: { base: 0.85, spread: 0.45 },
-    },
-  },
-} as const;

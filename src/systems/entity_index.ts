@@ -7,11 +7,13 @@ export const ENTITY_MASK_PROJECTILE = 1 << EntityType.PROJECTILE;
 export const ENTITY_MASK_BILLBOARD = 1 << EntityType.BILLBOARD;
 export const ENTITY_MASK_ACTOR = ENTITY_MASK_NPC | ENTITY_MASK_MONSTER;
 export const ENTITY_MASK_VISIBLE = ENTITY_MASK_ACTOR | ENTITY_MASK_ITEM_DROP | ENTITY_MASK_PROJECTILE | ENTITY_MASK_BILLBOARD;
+const ENTITY_MASK_STATIC_VISIBLE = ENTITY_MASK_ITEM_DROP | ENTITY_MASK_BILLBOARD;
 
 const BUCKET_SIZE = 16;
 const BUCKET_SHIFT = 4;
 const BUCKETS_PER_AXIS = W >> BUCKET_SHIFT;
 const BUCKET_COUNT = BUCKETS_PER_AXIS * BUCKETS_PER_AXIS;
+const BUCKET_PLANE_COUNT = BUCKET_COUNT * 2;
 const BUCKET_MASK = BUCKETS_PER_AXIS - 1;
 const PATH_BUCKET_STEP = BUCKET_SIZE * 0.5;
 
@@ -84,7 +86,7 @@ function emptyDebugStats(): EntityIndexDebugStats {
     itemCount: 0,
     rebuildMs: 0,
     buckets: {
-      bucketCount: BUCKET_COUNT,
+      bucketCount: BUCKET_PLANE_COUNT,
       usedBucketCount: 0,
       maxBucketSize: 0,
       meanUsedBucketSize: 0,
@@ -112,6 +114,9 @@ function wrappedBucketCoord(v: number): number {
 
 export class EntityIndex {
   private readonly buckets: Entity[][];
+  private readonly staticBuckets: Entity[][];
+  private readonly dynamicEntities: Entity[] = [];
+  private readonly staticIndexedIds = new Set<number>();
   private readonly bucketVisits = new Uint32Array(BUCKET_COUNT);
   private bucketVisitId = 1;
   readonly byId = new Map<number, Entity>();
@@ -126,9 +131,12 @@ export class EntityIndex {
   private version = 0;
   private simulationFrame = -1;
   private debugStats = emptyDebugStats();
+  private staticUsedBucketCount = 0;
+  private staticMaxBucketSize = 0;
 
   constructor() {
     this.buckets = Array.from({ length: BUCKET_COUNT }, () => []);
+    this.staticBuckets = Array.from({ length: BUCKET_COUNT }, () => []);
   }
 
   beginTelemetryFrame(): void {
@@ -150,6 +158,9 @@ export class EntityIndex {
   ): void {
     const startedAt = nowMs();
     for (let i = 0; i < BUCKET_COUNT; i++) this.buckets[i].length = 0;
+    for (let i = 0; i < BUCKET_COUNT; i++) this.staticBuckets[i].length = 0;
+    this.dynamicEntities.length = 0;
+    this.staticIndexedIds.clear();
     this.byId.clear();
     this.entityOrder.clear();
     this.ai.length = 0;
@@ -177,11 +188,13 @@ export class EntityIndex {
       if (e.needs) this.needs.push(e);
       if (e.ai && (e.type === EntityType.NPC || e.type === EntityType.MONSTER)) this.ai.push(e);
       if (e.type === EntityType.PROJECTILE) this.projectiles.push(e);
-      const bx = wrappedBucketCoord(e.x);
-      const by = wrappedBucketCoord(e.y);
-      const bucket = this.buckets[by * BUCKETS_PER_AXIS + bx];
+      const staticVisible = (entityMask(e) & ENTITY_MASK_STATIC_VISIBLE) !== 0;
+      const bucketIndex = wrappedBucketCoord(e.y) * BUCKETS_PER_AXIS + wrappedBucketCoord(e.x);
+      const bucket = staticVisible ? this.staticBuckets[bucketIndex] : this.buckets[bucketIndex];
       if (bucket.length === 0) usedBucketCount++;
       bucket.push(e);
+      if (staticVisible) this.staticIndexedIds.add(e.id);
+      else this.dynamicEntities.push(e);
       if (bucket.length > maxBucketSize) maxBucketSize = bucket.length;
     }
 
@@ -190,6 +203,7 @@ export class EntityIndex {
     this.dirty = false;
     this.version++;
     this.simulationFrame = simulationFrame;
+    this.recomputeStaticBucketStats();
     this.debugStats = {
       version: this.version,
       rebuildReason,
@@ -205,7 +219,7 @@ export class EntityIndex {
       itemCount,
       rebuildMs: nowMs() - startedAt,
       buckets: {
-        bucketCount: BUCKET_COUNT,
+        bucketCount: BUCKET_PLANE_COUNT,
         usedBucketCount,
         maxBucketSize,
         meanUsedBucketSize: usedBucketCount > 0 ? liveEntityCount / usedBucketCount : 0,
@@ -214,13 +228,132 @@ export class EntityIndex {
     };
   }
 
+  private rebuildDynamicForSimulation(entities: readonly Entity[], simulationFrame: number): void {
+    const startedAt = nowMs();
+    for (let i = 0; i < BUCKET_COUNT; i++) this.buckets[i].length = 0;
+    this.byId.clear();
+    this.entityOrder.clear();
+    this.ai.length = 0;
+    this.actors.length = 0;
+    this.needs.length = 0;
+    this.projectiles.length = 0;
+    this.addEntityTailToCachedBuckets(entities);
+
+    let liveDynamicEntityCount = 0;
+    let dynamicUsedBucketCount = 0;
+    let dynamicMaxBucketSize = 0;
+    let dynamicBucketedCount = 0;
+    let npcCount = 0;
+    let monsterCount = 0;
+    const itemCount = this.staticIndexedIds.size;
+
+    for (let dynamicOrder = 0; dynamicOrder < this.dynamicEntities.length; dynamicOrder++) {
+      const e = this.dynamicEntities[dynamicOrder];
+      if (!e || !e.alive) {
+        if (e) {
+          this.byId.delete(e.id);
+          this.entityOrder.delete(e.id);
+        }
+        continue;
+      }
+      liveDynamicEntityCount++;
+      this.byId.set(e.id, e);
+      this.entityOrder.set(e.id, dynamicOrder);
+      if (e.type === EntityType.NPC || e.type === EntityType.MONSTER) this.actors.push(e);
+      if (e.type === EntityType.NPC) npcCount++;
+      else if (e.type === EntityType.MONSTER) monsterCount++;
+      if (e.needs) this.needs.push(e);
+      if (e.ai && (e.type === EntityType.NPC || e.type === EntityType.MONSTER)) this.ai.push(e);
+      if (e.type === EntityType.PROJECTILE) this.projectiles.push(e);
+
+      const bucketIndex = wrappedBucketCoord(e.y) * BUCKETS_PER_AXIS + wrappedBucketCoord(e.x);
+      const bucket = this.buckets[bucketIndex];
+      if (bucket.length === 0) dynamicUsedBucketCount++;
+      bucket.push(e);
+      dynamicBucketedCount++;
+      if (bucket.length > dynamicMaxBucketSize) dynamicMaxBucketSize = bucket.length;
+    }
+
+    this.builtEntityCount = entities.length;
+    this.version++;
+    this.simulationFrame = simulationFrame;
+    const usedBucketCount = dynamicUsedBucketCount + this.staticUsedBucketCount;
+    const bucketedCount = dynamicBucketedCount + this.staticIndexedIds.size;
+    this.debugStats = {
+      version: this.version,
+      rebuildReason: 'simulation',
+      simulationFrame,
+      entityCount: entities.length,
+      liveEntityCount: liveDynamicEntityCount + this.staticIndexedIds.size,
+      actorCount: this.actors.length,
+      aiCount: this.ai.length,
+      needsCount: this.needs.length,
+      projectileCount: this.projectiles.length,
+      npcCount,
+      monsterCount,
+      itemCount,
+      rebuildMs: nowMs() - startedAt,
+      buckets: {
+        bucketCount: BUCKET_PLANE_COUNT,
+        usedBucketCount,
+        maxBucketSize: Math.max(dynamicMaxBucketSize, this.staticMaxBucketSize),
+        meanUsedBucketSize: usedBucketCount > 0 ? bucketedCount / usedBucketCount : 0,
+      },
+      queries: this.debugStats.queries,
+    };
+  }
+
+  private recomputeStaticBucketStats(): void {
+    this.staticUsedBucketCount = 0;
+    this.staticMaxBucketSize = 0;
+    for (const bucket of this.staticBuckets) {
+      if (bucket.length === 0) continue;
+      this.staticUsedBucketCount++;
+      if (bucket.length > this.staticMaxBucketSize) this.staticMaxBucketSize = bucket.length;
+    }
+  }
+
+  private addEntityTailToCachedBuckets(entities: readonly Entity[]): void {
+    if (entities.length <= this.builtEntityCount) return;
+    for (let order = Math.max(0, this.builtEntityCount); order < entities.length; order++) {
+      const e = entities[order];
+      if (!e || !e.alive) continue;
+      this.byId.set(e.id, e);
+      this.entityOrder.set(e.id, order);
+      if ((entityMask(e) & ENTITY_MASK_STATIC_VISIBLE) !== 0) {
+        if (this.staticIndexedIds.has(e.id)) continue;
+        this.staticIndexedIds.add(e.id);
+        const bucketIndex = wrappedBucketCoord(e.y) * BUCKETS_PER_AXIS + wrappedBucketCoord(e.x);
+        const bucket = this.staticBuckets[bucketIndex];
+        bucket.push(e);
+        if (bucket.length === 1) this.staticUsedBucketCount++;
+        if (bucket.length > this.staticMaxBucketSize) this.staticMaxBucketSize = bucket.length;
+      } else {
+        this.dynamicEntities.push(e);
+      }
+    }
+  }
+
   rebuildForSimulation(entities: readonly Entity[], simulationFrame: number): void {
     if (this.isBuiltFor(entities) && this.simulationFrame === simulationFrame) return;
-    this.rebuild(entities, 'simulation', simulationFrame);
+    if (this.builtFor !== entities || this.dirty || entities.length < this.builtEntityCount) {
+      this.rebuild(entities, 'simulation', simulationFrame);
+      return;
+    }
+    this.rebuildDynamicForSimulation(entities, simulationFrame);
   }
 
   isBuiltFor(entities: readonly Entity[]): boolean {
     return this.builtFor === entities && this.builtEntityCount === entities.length && !this.dirty;
+  }
+
+  ensureForCurrentEntities(entities: readonly Entity[]): void {
+    if (this.isBuiltFor(entities)) return;
+    if (this.builtFor === entities && !this.dirty && entities.length >= this.builtEntityCount) {
+      this.rebuildDynamicForSimulation(entities, this.simulationFrame);
+      return;
+    }
+    this.rebuild(entities, 'ensure');
   }
 
   markDirty(): void {
@@ -281,14 +414,27 @@ export class EntityIndex {
     const span = Math.ceil(radius / BUCKET_SIZE);
     const r2 = radius * radius;
     let bucketChecks = 0;
+    const includeStatic = (typeMask & ENTITY_MASK_STATIC_VISIBLE) !== 0;
 
     for (let oy = -span; oy <= span; oy++) {
       const yy = (by + oy + BUCKETS_PER_AXIS) & BUCKET_MASK;
       for (let ox = -span; ox <= span; ox++) {
         const xx = (bx + ox + BUCKETS_PER_AXIS) & BUCKET_MASK;
-        const bucket = this.buckets[yy * BUCKETS_PER_AXIS + xx];
+        const bucketIndex = yy * BUCKETS_PER_AXIS + xx;
+        const bucket = this.buckets[bucketIndex];
         bucketChecks++;
         for (const e of bucket) {
+          if (!e.alive) continue;
+          if ((entityMask(e) & typeMask) === 0) continue;
+          const dx = wrappedDelta(x, e.x);
+          const dy = wrappedDelta(y, e.y);
+          if (dx * dx + dy * dy <= r2) out.push(e);
+        }
+        if (!includeStatic) continue;
+        const staticBucket = this.staticBuckets[bucketIndex];
+        bucketChecks++;
+        for (const e of staticBucket) {
+          if (!e.alive) continue;
           if ((entityMask(e) & typeMask) === 0) continue;
           const dx = wrappedDelta(x, e.x);
           const dy = wrappedDelta(y, e.y);
@@ -316,6 +462,7 @@ export class EntityIndex {
     const span = Math.ceil(radius / BUCKET_SIZE);
     const r2 = radius * radius;
     let bucketChecks = 0;
+    const includeStatic = (typeMask & ENTITY_MASK_STATIC_VISIBLE) !== 0;
 
     for (let ring = 0; ring <= span; ring++) {
       for (let oy = -ring; oy <= ring; oy++) {
@@ -323,9 +470,26 @@ export class EntityIndex {
           if (ring > 0 && Math.max(Math.abs(ox), Math.abs(oy)) !== ring) continue;
           const yy = (by + oy + BUCKETS_PER_AXIS) & BUCKET_MASK;
           const xx = (bx + ox + BUCKETS_PER_AXIS) & BUCKET_MASK;
-          const bucket = this.buckets[yy * BUCKETS_PER_AXIS + xx];
+          const bucketIndex = yy * BUCKETS_PER_AXIS + xx;
+          const bucket = this.buckets[bucketIndex];
           bucketChecks++;
           for (const e of bucket) {
+            if (!e.alive) continue;
+            if ((entityMask(e) & typeMask) === 0) continue;
+            const dx = wrappedDelta(x, e.x);
+            const dy = wrappedDelta(y, e.y);
+            if (dx * dx + dy * dy > r2) continue;
+            out.push(e);
+            if (out.length >= maxResults) {
+              this.recordQuery(typeMask, bucketChecks, out.length, false);
+              return out.length;
+            }
+          }
+          if (!includeStatic) continue;
+          const staticBucket = this.staticBuckets[bucketIndex];
+          bucketChecks++;
+          for (const e of staticBucket) {
+            if (!e.alive) continue;
             if ((entityMask(e) & typeMask) === 0) continue;
             const dx = wrappedDelta(x, e.x);
             const dy = wrappedDelta(y, e.y);
@@ -352,14 +516,15 @@ export class EntityIndex {
     radius: number,
     out: Entity[],
     typeMask = ENTITY_MASK_VISIBLE,
+    maxResults = Infinity,
   ): number {
     out.length = 0;
-    if (radius < 0) return 0;
+    if (radius < 0 || maxResults <= 0) return 0;
 
     const dx = wrappedDelta(x0, x1);
     const dy = wrappedDelta(y0, y1);
     const len2 = dx * dx + dy * dy;
-    if (len2 <= 0.000001) return this.queryRadius(x0, y0, radius, out, typeMask);
+    if (len2 <= 0.000001) return this.queryRadiusCapped(x0, y0, radius, out, typeMask, maxResults);
 
     const len = Math.sqrt(len2);
     const steps = Math.max(1, Math.ceil(len / PATH_BUCKET_STEP));
@@ -367,6 +532,7 @@ export class EntityIndex {
     const r2 = radius * radius;
     const visitId = this.nextBucketVisitId();
     let bucketChecks = 0;
+    const includeStatic = (typeMask & ENTITY_MASK_STATIC_VISIBLE) !== 0;
 
     for (let i = 0; i <= steps; i++) {
       const t = i / steps;
@@ -382,6 +548,7 @@ export class EntityIndex {
           bucketChecks++;
           const bucket = this.buckets[bucketIndex];
           for (const e of bucket) {
+            if (!e.alive) continue;
             if ((entityMask(e) & typeMask) === 0) continue;
             const ex = wrappedDelta(x0, e.x);
             const ey = wrappedDelta(y0, e.y);
@@ -390,7 +557,34 @@ export class EntityIndex {
             else if (hitT > 1) hitT = 1;
             const px = ex - dx * hitT;
             const py = ey - dy * hitT;
-            if (px * px + py * py <= r2) out.push(e);
+            if (px * px + py * py <= r2) {
+              out.push(e);
+              if (out.length >= maxResults) {
+                this.recordQuery(typeMask, bucketChecks, out.length, true);
+                return out.length;
+              }
+            }
+          }
+          if (!includeStatic) continue;
+          bucketChecks++;
+          const staticBucket = this.staticBuckets[bucketIndex];
+          for (const e of staticBucket) {
+            if (!e.alive) continue;
+            if ((entityMask(e) & typeMask) === 0) continue;
+            const ex = wrappedDelta(x0, e.x);
+            const ey = wrappedDelta(y0, e.y);
+            let hitT = (ex * dx + ey * dy) / len2;
+            if (hitT < 0) hitT = 0;
+            else if (hitT > 1) hitT = 1;
+            const px = ex - dx * hitT;
+            const py = ey - dy * hitT;
+            if (px * px + py * py <= r2) {
+              out.push(e);
+              if (out.length >= maxResults) {
+                this.recordQuery(typeMask, bucketChecks, out.length, true);
+                return out.length;
+              }
+            }
           }
         }
       }
@@ -451,7 +645,7 @@ export function markEntityIndexDirty(): void {
 
 export function ensureEntityIndex(entities: readonly Entity[]): EntityIndex {
   // Runtime systems should normally read getEntityIndex(); this is only a load/test guard.
-  if (!runtimeEntityIndex.isBuiltFor(entities)) runtimeEntityIndex.rebuild(entities, 'ensure');
+  runtimeEntityIndex.ensureForCurrentEntities(entities);
   return runtimeEntityIndex;
 }
 

@@ -1,14 +1,13 @@
-# Scaling Status: Current-Floor 1k-5k NPC / 10k Monster Runtime
+# Scaling Status: Current-Floor 1k-4096 Active Actor Runtime
 
 ## Goal
 
 Selected 1024x1024 floors target thousands of live NPCs and monsters in one loaded toroidal world:
 
 - minimum lively floor pressure: at least 1000 active AI actors;
-- dense NPC floors: up to the shared 5000-NPC ceiling;
-- monster-heavy floors and stress runs: up to the shared 10000-monster ceiling.
+- dense NPC, monster-heavy and mixed war floors: up to the shared 4096 active NPC+monster actor ceiling.
 
-This does not mean rendering all entities or running every actor at browser frame rate. It means every live NPC/monster keeps an `AIState` and remains in simulation. Near-player actors and active threats are updated every frame; far actors update on deterministic accumulated cadences, so AI is not disabled in distant areas.
+This does not mean rendering all entities or making every actor solve expensive decisions every frame. It means every live NPC/monster keeps an `AIState` and receives the active-floor AI pass every simulation frame. Expensive target, utility, noise and path questions are bounded by broadphase queries, cached ids, flow fields and actor-local cooldowns, not by player-distance tiers.
 
 This document describes the loaded current world only. Off-floor A-Life identities are persistent records; current macro changes come from folded live state, deaths, saved overrides, caravans, contracts and faction/economy events. Future migration must be explicit and bounded. Off-floor floors are not hidden realtime simulations.
 
@@ -20,17 +19,17 @@ Population numbers are data-driven in `src/data/population_profiles.ts`.
 
 ### `KVARTIRY`
 
-`KVARTIRY_POPULATION_PROFILE` starts the riot floor with:
+`KVARTIRY_POPULATION_PROFILE` targets the riot floor with:
 
-- 3000 citizens;
-- 1700 wild residents/rioters;
-- 400 liquidators.
+- 2381 citizens;
+- 1349 wild residents/rioters;
+- 238 liquidators.
 
-All spawned residents have AI. Runtime caps are 6000 citizens, 3200 wild and 800 liquidators, inside the shared 5000-NPC ceiling.
+All spawned residents have AI. Runtime caps use one shared 4096 active actor ceiling for NPCs and monsters, so faction mixes and authored/content actors compete for the same actor pool instead of separate NPC/monster buckets.
 
 Each NPC population profile has a data-driven distribution profile. Initial placement and explicit event/reinforcement placement use independent floor-cell picks biased by room type, zone faction and smooth density noise, so riots remain dense without tile quotas, spawn buckets or checkerboard population guarantees.
 
-Measured start population in the current build is about 5000 live AI actors before later reinforcements.
+Measured start population in the current build is about 4096 live AI actors before later reinforcements.
 
 ### `HELL`
 
@@ -40,9 +39,9 @@ Measured start population in the current build is about 5000 live AI actors befo
 - 700 cultists;
 - 100 liquidators.
 
-All spawned actors have AI. Runtime caps are 8200 monsters, 1500 cultists and 300 liquidators, inside the shared 10000-monster and 5000-NPC ceilings.
+All spawned actors have AI. Its shipped baseline reserves room under the shared 4096 active actor ceiling: 3387 monsters, 565 cultists and 80 liquidators before authored/content actors.
 
-Measured start population in the current build is about 5000 live AI actors. Hell placement uses the shared smoothed coverage-stratified placement field over the full floor, with narrow zone/noise weights instead of direct arena-cell pileups.
+Measured start population in the current build is about 4096 live AI actors. Hell placement uses the shared smoothed coverage-stratified placement field over the full floor, with narrow zone/noise weights instead of direct arena-cell pileups.
 
 ### Procedural Floors
 
@@ -50,10 +49,10 @@ Measured start population in the current build is about 5000 live AI actors. Hel
 
 - normal procedural NPCs: base 260, danger scaling 150, anomaly-pressure scaling 80, band bonus 0/120/220/0, cap 1250;
 - normal procedural monsters: base 120, danger scaling 110, anomaly-pressure scaling 70, band bonus 0/80/140/220, industrial bonus 70, cap 1100;
-- high-density `zombie_apocalypse` NPCs: base 3400, danger scaling 180, anomaly-pressure scaling 140, band bonus 0/160/300/0, cap 5000;
+- high-density `zombie_apocalypse` NPCs: base 3400, danger scaling 180, anomaly-pressure scaling 140, band bonus 0/160/300/0, local cap 4096 before fitting;
 - high-density `zombie_apocalypse` monsters: base 260, danger scaling 130, anomaly-pressure scaling 90, band bonus 0/80/160/240, industrial bonus 80, cap 1500.
 
-A high-density danger-5 procedural floor can generate about 6500 live AI actors: up to 5000 NPCs plus up to 1500 monsters. Ordinary procedural floors are intentionally lighter, with pressure coming from danger, anomaly profile, industrial geometry and route band rather than a universal max-density baseline. Procedural NPCs use the shared smoothed coverage-stratified whole-floor placement field instead of repeatedly picking random rooms. Zombie apocalypse floors use the same 5000-NPC ceiling plus patient-zero pressure; the former independent 9000+ crowd burst was removed.
+A high-density danger-5 procedural floor fits its NPC and monster targets into the same 4096 active actor ceiling. Ordinary procedural floors are intentionally lighter, with pressure coming from danger, anomaly profile, industrial geometry and route band rather than a universal max-density baseline. Procedural NPCs use the shared smoothed coverage-stratified whole-floor placement field instead of repeatedly picking random rooms. Zombie apocalypse floors keep a dense resident crowd and zombie pressure within that shared ceiling; patient zero uses an available monster slot or upgrades an existing generated zombie.
 
 ### `VOID`
 
@@ -72,20 +71,19 @@ A high-density danger-5 procedural floor can generate about 6500 live AI actors:
 
 The index is rebuilt after floor loading and once per frame before rendering, then reused by simulation systems. Local systems no longer scan the full `entities` array for target acquisition, projectile hits, AoE, sprite collection, map pips or interaction prompts.
 
-### Active AI Cadence
+### Active AI Pass
 
-All AI actors remain active. `updateAI()` iterates the indexed live-AI list and keeps:
+All AI actors remain active. `updateAI()` iterates the indexed live-AI list once per simulation frame and keeps:
 
-- NPC A-Life state/task primed before cadence skips;
+- NPC A-Life state/task primed;
 - moving idle monsters normalized to wander;
-- near-player actors hot every frame;
-- actors targeting the player hot inside the player-relevant bubble;
-- windup/stagger actors hot;
-- far active-attacker, projectile-owner and recent-damage hot promotions capped by `AI_LOD_SCHEDULER_PROFILE.hotPromotionCaps`;
-- far routine actors on deterministic accumulated cadences;
-- far combat actors active on a faster cadence than routine actors.
+- NPC fight/flee before routine utility;
+- monster combat through the shared simple target/move/hit-or-shoot step;
+- cached target scans through `combatTargetId` / `combatScanCd`;
+- NPC utility rescoring on stable actor-local rethink timers while current intents execute every frame;
+- physical projectile, HP, blood, death, drop and event consequences for fights anywhere on the active floor.
 
-This keeps the full-floor simulation alive without making far residents and monsters pay frame-rate costs.
+This keeps the full-floor simulation isotropic: rendering proximity affects visibility, not whether an actor thinks. Frame-time growth is controlled by cheap per-actor steps and bounded local queries rather than global hot/warm/cold gates.
 
 ### Baked Navigation
 
@@ -111,8 +109,7 @@ The following recurring full scans were removed or reduced:
 `scripts/smoke-playability.mjs` supports target-total stress:
 
 ```bash
-SMOKE_SCENARIO=stress SMOKE_STRESS_ENTITIES=5000 SMOKE_PERF_FRAMES=300 npm run smoke
-SMOKE_SCENARIO=stress SMOKE_STRESS_ENTITIES=10000 SMOKE_PERF_FRAMES=300 npm run smoke
+SMOKE_SCENARIO=stress SMOKE_STRESS_ENTITIES=4096 SMOKE_PERF_FRAMES=300 npm run smoke
 ```
 
 `SMOKE_STRESS_ENTITIES` is a target live-AI count, not an extra count on top of the current floor. The smoke hook spawns only the missing amount and verifies that the target is reached. Spawned stress actors all have AI.
@@ -120,8 +117,7 @@ SMOKE_SCENARIO=stress SMOKE_STRESS_ENTITIES=10000 SMOKE_PERF_FRAMES=300 npm run 
 Current measured browser smoke results:
 
 - normal smoke, 300 frames: p95 about 25 ms;
-- stress target 5000 live AI, 300 frames: avg 19.14 ms, p95 25.10 ms, max 42.00 ms on the 2026-05-20 local smoke run.
-- forced zombie apocalypse procedural floor, 60 AI frames in Node: about 6046 live AI, avg 19.68 ms, p95 25.15 ms, max 44.49 ms on the 2026-05-20 local profile run.
+- stress target 4096 live AI is the current smoke target after the power-of-two cap pass. Refresh this line with a local smoke measurement after the next browser performance run.
 
 Stress fails if canvas/WebGL blanks, target live AI is not reached, p95 exceeds the configured target threshold, or max frame time exceeds 200 ms.
 

@@ -44,7 +44,7 @@ export function drawUiSettingsMenu(
   ctx.font = `${7 * sy}px monospace`;
   ctx.fillStyle = '#577';
   ctx.fillText(
-    fitTextStable(ctx, `${controlHint('uiSettings')} открыть/закрыть  |  ${controlHint('interact')} применить/переключить  |  ${controlHint('controlReset')} сбросить  |  ${controlHint('gameMenu')} закрыть`, w - 24 * sx),
+    fitTextStable(ctx, `${controlHint('uiSettings')} открыть/закрыть  |  ${controlHint('interact')} применить/переключить  |  Backspace сбросить  |  ${controlHint('gameMenu')} закрыть`, w - 24 * sx),
     12 * sx,
     25 * sy,
   );

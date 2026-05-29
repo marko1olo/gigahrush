@@ -27,7 +27,7 @@ Current shipped baseline:
 - Materialized A-Life NPCs carry personal `playerRelation`; AI hostility checks it before falling back to faction hostility.
 - Browser saves store A-Life seed, total population, up to `65_536` dead A-Life ids, dead plot ids and bounded changed-record overrides. Full live entities are not serialized.
 
-Active-floor behavior, scheduler, pathfinding, NPC intent selection, monster archetypes and samosbor reactions are specified in [ai.md](ai.md). This file owns persistent identity and population facts; `ai.md` owns what materialized live actors decide to do.
+Active-floor behavior, full-pass AI, pathfinding, NPC intent selection, short mass-combat step, monster behavior and samosbor reactions are specified in [ai.md](ai.md). This file owns persistent identity and population facts; `ai.md` owns what materialized live actors decide to do.
 
 ## Current Gaps Against The Bible
 
@@ -81,7 +81,7 @@ Enter floor
   -> use generated ambient NPCs as placement templates
   -> remove those template NPCs
   -> materialize live NPC entities from the floor's A-Life slice
-  -> run existing AI/combat/quests/trade exactly as before
+  -> run active-floor AI/combat/quests/trade on those individual entities
 
 Leave floor / rebuild / save
   -> fold live A-Life entity state back into records
@@ -95,6 +95,8 @@ NPC death
 ```
 
 The system is deliberately cinematic and data-oriented. Off-floor life is represented by compact facts and slow aggregate state, not invisible per-NPC simulation.
+
+Active-floor mass combat is allowed to be much simpler than an individual social routine. A materialized NPC still has its own identity, faction, relation to the player, role, current intent, needs, inventory, HP, target and counters, but a dense fight can resolve through the shared short combat-step documented in [ai.md](ai.md): choose a hostile faction target, move, hit or fire a physical projectile, and write real consequences. Those consequences are what A-Life cares about at foldback time.
 
 ## Identity Fields
 
@@ -263,7 +265,7 @@ A-Life owns ordinary procedural NPC identity:
 
 The template slot rule matters. If floor generation provides 5,000 ambient NPC slots and 100 matching A-Life records are dead, the floor materializes 4,900 A-Life NPCs. It does not pull 100 unrelated people from deeper in the pool to hide the deaths.
 
-This is also the active-floor budget. A floor may own thousands of identity records, but runtime work is capped by slots, authored anchors and explicit encounters. Future work must not materialize every assigned record just because it exists in the pool.
+This is also the active-floor budget. A floor may own thousands of identity records, but live materialization uses the shared 4096 NPC+monster actor soft cap, authored anchors and explicit encounters. Future work must not materialize every assigned record just because it exists in the pool.
 
 If a player clears a floor, the deaths remain real. The floor can later receive people only through explicit migration or arrival logic: unassigned overflow residents, caravans, refugees, faction movement or quest consequences. If lazy migration brings people to the currently active floor, they should enter through a believable anchor such as a lift, stairwell, caravan route or event door.
 
@@ -382,6 +384,8 @@ This preserves the fantasy of a living building without spending CPU on invisibl
 
 Lazy off-floor work is allowed only as expandable aggregate A-Life. It must never become honest current-floor simulation for floors the player cannot see.
 
+The active floor is different: it is the honest live simulation surface. Every materialized NPC/monster receives the active-floor AI pass regardless of distance from the player. This full-pass model is the current AI foundation; cheap combat, cached target scans and actor-local decision cooldowns are performance mechanics, not absence of life. If a current-floor NPC or monster dies, wounds someone, drops inventory, creates blood/bullet marks, changes relation or publishes a compact event, that fact must be visible when the player reaches the place or when the live state folds back into A-Life/floor memory.
+
 ## Save Model
 
 Current save shape version is in `src/systems/save_runtime.ts`.
@@ -430,7 +434,7 @@ The architecture still stays compact because `100_000` identities are persistent
 - `systems/alife.ts` is the owner of persistent procedural NPC identity.
 - `core/types.ts` may expose only primitive identity fields needed by live `Entity`.
 - `gen/` can create placement templates but must not implement refill logic.
-- `systems/ai/` consumes live entities only; active-floor behavior, scheduler, pathfinding, utility intent selection and monster behavior contracts live in [ai.md](ai.md).
+- `systems/ai/` consumes live entities only; active-floor behavior, pathfinding, utility intent selection and monster behavior contracts live in [ai.md](ai.md).
 - `systems/quests.ts` should move toward stable persistent ids.
 - `systems/events.ts` should record deaths, rank changes and social consequences.
 - Migration, resettlement and off-floor event passes must be slow, bounded and explicit; they are not refill-to-cap.

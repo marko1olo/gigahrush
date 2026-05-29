@@ -17,10 +17,10 @@ import {
 } from '../src/data/procedural_floors';
 import { DESIGN_FLOOR_ROUTES } from '../src/data/design_floors';
 import { designFloorPopulationProfile } from '../src/data/design_floor_population';
-import { ENTITY_SOFT_LIMITS } from '../src/data/entity_limits';
+import { ACTIVE_ACTOR_SOFT_LIMIT, ENTITY_SOFT_LIMITS } from '../src/data/entity_limits';
 import { getMonsterEcology } from '../src/data/monster_ecology';
 import { SIDE_QUESTS } from '../src/data/plot';
-import { PROCEDURAL_POPULATION_PROFILES } from '../src/data/population_profiles';
+import { PROCEDURAL_POPULATION_PROFILES, proceduralPopulationBudget } from '../src/data/population_profiles';
 import { isFloor69FemaleSprite } from '../src/entities/procedural_visuals';
 import {
   BAD_APPLE_HEIGHT,
@@ -806,9 +806,10 @@ test('podad ships as a denser-than-Hell monster floor with gated lower lifts', (
 
   assert.equal(ambientNpcs.length, 0);
   assert.equal(npcs.length <= 60, true);
-  assert.equal(monsters.length, profile.monsterTarget);
-  assert.equal(monsters.length >= 6500, true);
-  assert.equal(monsters.length <= 9500, true);
+  assert.equal(monsters.length <= profile.monsterTarget, true);
+  assert.equal(monsters.length >= profile.monsterTarget - 16, true);
+  assert.equal(monsters.length <= ACTIVE_ACTOR_SOFT_LIMIT, true);
+  assert.equal(monsters.length >= ACTIVE_ACTOR_SOFT_LIMIT - 16, true);
   assert.equal(monsters.length <= ENTITY_SOFT_LIMITS[EntityType.MONSTER], true);
   assert.equal(heralds.length, 3);
   assert.equal(nonHeraldRareMonsters.length, 0);
@@ -820,7 +821,7 @@ test('design floor population profiles follow route density curve and caps', () 
 
   assert.equal(profiles.roof.npcTarget, 0);
   assert.equal(profiles.chthonic_attic.npcTarget, 0);
-  assert.equal(profiles.chthonic_attic.monsterTarget, 4300);
+  assert.equal(profiles.chthonic_attic.monsterTarget, ACTIVE_ACTOR_SOFT_LIMIT);
   assert.equal(profiles.chthonic_attic.monsterTags.includes('fog'), true);
   assert.equal((profiles.chthonic_attic.monsterPlacement.maxPerBucket ?? 0) <= 8, true);
   assert.equal(profiles.roof.monsterTarget > profiles.bank_floor.monsterTarget, true);
@@ -839,7 +840,7 @@ test('design floor population profiles follow route density curve and caps', () 
   assert.equal((profiles.floor_69.npcPlacement.roomWeights?.[RoomType.HQ] ?? 0) > 1, true);
   assert.equal((profiles.floor_69.npcPlacement.anchors?.length ?? 0) >= 4, true);
   assert.equal(profiles.antenna_court.npcTarget >= 20 && profiles.antenna_court.npcTarget <= 80, true);
-  assert.equal(profiles.antenna_court.monsterTarget >= 2200 && profiles.antenna_court.monsterTarget <= 4500, true);
+  assert.equal(profiles.antenna_court.monsterTarget >= 2200 && profiles.antenna_court.monsterTarget <= ACTIVE_ACTOR_SOFT_LIMIT, true);
   assert.equal(profiles.antenna_court.npcFactions.some(entry => entry.value === Faction.CITIZEN), false);
   assert.equal(profiles.antenna_court.monsterBiasKinds.includes(MonsterKind.LAMPOVY), true);
   assert.equal(profiles.antenna_court.monsterTags.includes('signal'), true);
@@ -856,7 +857,7 @@ test('design floor population profiles follow route density curve and caps', () 
   assert.equal((profiles.slime_nii.npcPlacement.roomWeights?.[RoomType.MEDICAL] ?? 0) > 1.5, true);
   assert.equal((profiles.slime_nii.monsterPlacement.anchors?.length ?? 0) >= 4, true);
   assert.equal(profiles.dark_metro.npcTarget >= 80 && profiles.dark_metro.npcTarget <= 300, true);
-  assert.equal(profiles.dark_metro.monsterTarget >= 2500 && profiles.dark_metro.monsterTarget <= 4500, true);
+  assert.equal(profiles.dark_metro.monsterTarget >= 2500 && profiles.dark_metro.monsterTarget <= ACTIVE_ACTOR_SOFT_LIMIT, true);
   assert.equal(profiles.dark_metro.npcNoun, 'ветеран');
   assert.equal(profiles.dark_metro.npcFactions.some(entry => entry.value === Faction.CITIZEN), false);
   assert.equal(profiles.dark_metro.monsterTags.includes('rail'), true);
@@ -864,14 +865,14 @@ test('design floor population profiles follow route density curve and caps', () 
   assert.equal((profiles.dark_metro.npcPlacement.roomWeights?.[RoomType.HQ] ?? 0) > 4, true);
   assert.equal(profiles.podad.npcTarget, 0);
   assert.equal(profiles.darkness.npcTarget, 0);
-  assert.equal(profiles.darkness.monsterTarget >= 3000 && profiles.darkness.monsterTarget <= 7000, true);
+  assert.equal(profiles.darkness.monsterTarget >= 3000 && profiles.darkness.monsterTarget <= ACTIVE_ACTOR_SOFT_LIMIT, true);
   assert.equal((profiles.darkness.monsterPlacement.anchors?.length ?? 0) >= 4, true);
   assert.equal(profiles.darkness.monsterTags.includes('sound'), true);
   assert.equal(profiles.underhell.npcTarget >= 0 && profiles.underhell.npcTarget <= 120, true);
-  assert.equal(profiles.underhell.monsterTarget >= 4500 && profiles.underhell.monsterTarget <= 8000, true);
+  assert.equal(profiles.underhell.monsterTarget >= 3900 && profiles.underhell.monsterTarget <= ACTIVE_ACTOR_SOFT_LIMIT, true);
   assert.equal(profiles.underhell.npcNoun, 'ветеран');
   assert.deepEqual(profiles.underhell.npcFactions.map(item => item.value), [Faction.LIQUIDATOR, Faction.CULTIST]);
-  assert.equal(profiles.podad.monsterTarget, 8200);
+  assert.equal(profiles.podad.monsterTarget, ACTIVE_ACTOR_SOFT_LIMIT);
   assert.equal((profiles.podad.monsterPlacement.anchors?.length ?? 0) >= 5, true);
   assert.equal(profiles.podad.monsterTags.includes('living_tunnels'), true);
   assert.equal(profiles.podad.monsterTags.includes('section_shift'), true);
@@ -880,6 +881,7 @@ test('design floor population profiles follow route density curve and caps', () 
     const profile = profiles[route.id];
     assert.equal(profile.npcTarget <= (ENTITY_SOFT_LIMITS[EntityType.NPC] ?? 0), true, `${route.id} npc cap`);
     assert.equal(profile.monsterTarget <= (ENTITY_SOFT_LIMITS[EntityType.MONSTER] ?? 0), true, `${route.id} monster cap`);
+    assert.equal(profile.npcTarget + profile.monsterTarget <= ACTIVE_ACTOR_SOFT_LIMIT, true, `${route.id} actor cap`);
     if (!floorRunZAllowsNpcs(route.z)) assert.equal(profile.npcTarget, 0, `${route.id} npc-free route`);
   }
 });
@@ -946,7 +948,7 @@ test('underhell ships as a monster-owned veteran threshold', () => {
   assert.equal(ambientNpcs.length <= 80, true);
   assert.equal(ambientNpcs.every(e => e.name?.includes('ветеран')), true);
   assert.equal(npcs.every(e => e.faction !== undefined && legalNpcFactions.has(e.faction)), true);
-  assert.equal(monsters.length >= 4500 && monsters.length <= 8000, true);
+  assert.equal(monsters.length >= 3900 && monsters.length <= ACTIVE_ACTOR_SOFT_LIMIT, true);
   assert.equal(maxEntitiesInArea(gen.entities, EntityType.MONSTER, 32) <= 64, true);
   assert.equal(routeCueCount(gen.world) >= 4, true);
   assert.equal(lowerSamosborZones.length > 0, true);
@@ -975,7 +977,7 @@ test('dark metro ships as sparse defended bands inside monster-heavy train press
   assert.equal(ambientNpcs.length, profile.npcTarget);
   assert.equal(ambientNpcs.length >= 80 && ambientNpcs.length <= 300, true);
   assert.equal(monsters.length, profile.monsterTarget);
-  assert.equal(monsters.length >= 2500 && monsters.length <= 4500, true);
+  assert.equal(monsters.length >= 2500 && monsters.length <= ACTIVE_ACTOR_SOFT_LIMIT, true);
   assert.equal(ambientNpcs.every(e => e.name?.includes('ветеран')), true);
   assert.equal(ambientNpcs.every(e => e.faction !== undefined && legalNpcFactions.has(e.faction)), true);
   assert.equal(gen.world.railTracks.length >= 7, true);
@@ -1035,7 +1037,7 @@ test('antenna court is a monster-owned signal yard with bounded specialist encla
   assert.equal(ambientNpcs.length >= 20 && ambientNpcs.length <= 80, true);
   assert.equal(ambientNpcs.every(e => e.faction !== undefined && legalNpcFactions.has(e.faction)), true);
   assert.equal(ambientNpcs.every(e => e.name?.includes('сигнал-специалист')), true);
-  assert.equal(monsters.length >= 2200 && monsters.length <= 4500, true);
+  assert.equal(monsters.length >= 2200 && monsters.length <= ACTIVE_ACTOR_SOFT_LIMIT, true);
   assert.equal(openHostileZones.length >= 20, true);
 });
 
@@ -1158,7 +1160,7 @@ test('chthonic attic keeps a zero-ordinary-NPC monster service maze', () => {
 
   assert.equal(ambientNpcs.length, 0);
   assert.equal(npcs.length <= 40, true);
-  assert.equal(monsters.length >= 3000 && monsters.length <= 5000, true);
+  assert.equal(monsters.length >= 2500 && monsters.length <= ACTIVE_ACTOR_SOFT_LIMIT, true);
   assert.equal(maxEntitiesInArea(gen.entities, EntityType.MONSTER, 32) <= 36, true);
   assert.equal(gen.world.zones.some(zone => zone.fogged && zone.faction === ZoneFaction.SAMOSBOR), true);
   assert.equal(cacheCount >= 4, true);
@@ -1178,8 +1180,8 @@ test('generic design floor population field adds density without violating edge 
   const roofNpcs = roof.entities.filter(e => e.type === EntityType.NPC);
   const roofMonsters = roof.entities.filter(e => e.type === EntityType.MONSTER);
   assert.equal(roofNpcs.length, 0);
-  assert.equal(roofMonsters.length >= 4500, true);
-  assert.equal(roofMonsters.length <= 7000, true);
+  assert.equal(roofMonsters.length >= ACTIVE_ACTOR_SOFT_LIMIT - 16, true);
+  assert.equal(roofMonsters.length <= ACTIVE_ACTOR_SOFT_LIMIT, true);
   assert.equal(roofMonsters.length <= ENTITY_SOFT_LIMITS[EntityType.MONSTER], true);
 });
 
@@ -1545,11 +1547,22 @@ test('zombie apocalypse anomaly seeds a dense crowd and patient zero infection',
   };
   const gen = timedProceduralSpec(spec, 'forced zombie apocalypse seed=779');
   const npcs = gen.entities.filter(e => e.type === EntityType.NPC);
+  const actors = gen.entities.filter(e => e.type === EntityType.NPC || e.type === EntityType.MONSTER);
   const zombiesBeforeInfection = gen.entities.filter(e => e.type === EntityType.MONSTER && e.monsterKind === MonsterKind.ZOMBIE);
   const patientZero = gen.entities.find(e => e.type === EntityType.MONSTER && e.monsterKind === MonsterKind.ZOMBIE && e.name === 'Пациент зеро');
+  const budget = proceduralPopulationBudget({
+    z: spec.z,
+    danger: spec.danger,
+    anomalyPressure: 2,
+    industrial: false,
+    npcAllowed: true,
+    profileId: 'highDensity',
+  });
 
-  assert.equal(npcs.length, ENTITY_SOFT_LIMITS[EntityType.NPC]);
-  assert.equal(npcs.length >= PROCEDURAL_POPULATION_PROFILES.highDensity.npcs.cap, true);
+  assert.equal(actors.length <= ACTIVE_ACTOR_SOFT_LIMIT, true);
+  assert.equal(npcs.length >= budget.npcs - 16, true);
+  assert.equal(npcs.length <= budget.npcs + 16, true);
+  assert.equal(npcs.length >= 3000, true);
   assert.equal(maxEntitiesInArea(gen.entities, EntityType.NPC, 32) <= 20, true);
   assert.equal(npcs.every(e => e.ai), true);
   assert.equal(!!patientZero, true);

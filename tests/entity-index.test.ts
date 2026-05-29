@@ -160,7 +160,7 @@ test('planned simulation rebuild is idempotent per frame token', () => {
   assert.equal(index.getDebugStats().simulationFrame, 8);
 });
 
-test('runtime ensure rebuilds when the flat entity array grows in place', () => {
+test('runtime ensure uses the dynamic simulation path when the flat entity array grows in place', () => {
   const entities = [
     entity(1, EntityType.NPC, 20, 20),
   ];
@@ -172,7 +172,7 @@ test('runtime ensure rebuilds when the flat entity array grows in place', () => 
   const rebuilt = ensureEntityIndex(entities);
 
   assert.equal(rebuilt.byId.get(2)?.id, 2);
-  assert.equal(rebuilt.getDebugStats().rebuildReason, 'ensure');
+  assert.equal(rebuilt.getDebugStats().rebuildReason, 'simulation');
 });
 
 test('runtime dirty mark forces ensure to rebuild moved entity buckets', () => {

@@ -18,6 +18,7 @@ import { MAX_CARAVAN_LANES_PER_TICK, tickCaravans } from './caravans';
 import { getRecentEvents, publishEvent } from './events';
 import { getRecentNoiseRecords, type NoiseRecord } from './noise';
 import { tryAssignPathToCell } from './ai/pathfinding';
+import { ENTITY_MASK_NPC, ensureEntityIndex, getEntityIndex } from './entity_index';
 import {
   HOSTILE_RELATION_THRESHOLD,
   addNpcPlayerRelation,
@@ -71,6 +72,8 @@ export function applyFactionRelationDeltas(
 export function isHostile(attacker: Entity, target: Entity): boolean {
   // PSI control: controlled entities don't attack their controller (and vice-versa)
   if (isPsiAlly(attacker, target)) return false;
+  // Monsters are one ecology faction. They can compete through movement/space, but not through combat hostility.
+  if (attacker.type === EntityType.MONSTER && target.type === EntityType.MONSTER) return false;
   // PSI madness: mad entities attack everyone
   if (isPsiMad(attacker)) return target.id !== attacker.id;
   if (isPassiveDefensiveNeutralMonster(attacker) || isPassiveDefensiveNeutralMonster(target)) return false;
@@ -80,7 +83,6 @@ export function isHostile(attacker: Entity, target: Entity): boolean {
     return areFactionsHostile(attacker.faction ?? Faction.CITIZEN, Faction.PLAYER);
   }
   // Monsters: use faction-vs-monster table
-  if (attacker.type === EntityType.MONSTER && target.type === EntityType.MONSTER) return false;
   if (attacker.type === EntityType.MONSTER) {
     // Monsters are hostile to everyone except cultists
     const tFaction = target.faction ?? Faction.CITIZEN;
@@ -187,8 +189,11 @@ const UI_ZONE_SAMPLE_STEP = 8;
 const UI_CONTESTED_PRESSURE = 0.22;
 const UI_DOMINANT_CONTESTED_SHARE = 0.28;
 const UI_RECENT_EVENT_LIMIT = 8;
+const UI_IDLE_REFRESH_SEC = 4;
+const UI_OPEN_REFRESH_SEC = 1;
 const uiSampleCounts = new Uint16Array(8);
 let factionUiSnapshot: FactionUiSnapshot | undefined;
+let factionUiSnapshotAccum = 0;
 
 export function getFactionUiSnapshot(): FactionUiSnapshot | undefined {
   return factionUiSnapshot;
@@ -334,10 +339,11 @@ let captureAccum = 0;
 let activityAccum = 0;
 const NOISE_PATROL_EVENT_LIMIT = 6;
 const NOISE_PATROL_COOLDOWN_S = 8;
-const NOISE_PATROL_RADIUS_SQ = 44 * 44;
+const NOISE_PATROL_RADIUS = 44;
 const NOISE_PATROL_RESPONDERS_PER_EVENT = 3;
 const NOISE_PATROL_ENTITY_SCAN_CAP = 360;
 const lastNoisePatrolResponseAt = new Map<string, number>();
+const noisePatrolQuery: Entity[] = [];
 
 export function updateFactionCapture(world: World, entities: Entity[], dt: number): void {
   captureAccum += dt;
@@ -346,7 +352,7 @@ export function updateFactionCapture(world: World, entities: Entity[], dt: numbe
 
   // Collect capturers that are in enemy territory
   const capturers: { ex: number; ey: number; myZf: ZoneFaction }[] = [];
-  for (const e of entities) {
+  for (const e of ensureEntityIndex(entities).actors) {
     if (!e.alive || e.type !== EntityType.NPC) continue;
     if (e.faction === undefined) continue;
     if (!e.isTraveler && e.occupation !== Occupation.HUNTER) continue;
@@ -398,7 +404,12 @@ export function updateFactionActivity(
   updateNoisePatrolResponse(world, entities, state);
   updateFactionEvents(state, world, player, entities, nextId, elapsed, allowSpawns);
   tickCaravans(state, elapsed, false, MAX_CARAVAN_LANES_PER_TICK, world, entities, player, nextId);
-  refreshFactionUiSnapshot(world, state);
+  factionUiSnapshotAccum += elapsed;
+  const uiRefreshSec = state.showFactions ? UI_OPEN_REFRESH_SEC : UI_IDLE_REFRESH_SEC;
+  if (!factionUiSnapshot || factionUiSnapshot.floor !== state.currentFloor || factionUiSnapshotAccum >= uiRefreshSec) {
+    factionUiSnapshotAccum = 0;
+    refreshFactionUiSnapshot(world, state);
+  }
 }
 
 function canRespondToNoise(e: Entity): boolean {
@@ -422,17 +433,15 @@ function shouldRespondToNoise(state: GameState, zoneId: number, record: NoiseRec
   return true;
 }
 
-function sendNoisePatrol(world: World, entities: Entity[], record: NoiseRecord): number {
+function sendNoisePatrol(world: World, _entities: Entity[], record: NoiseRecord): number {
   let responders = 0;
-  let scanned = 0;
   const tx = Math.floor(record.x);
   const ty = Math.floor(record.y);
-  for (const e of entities) {
-    if (responders >= NOISE_PATROL_RESPONDERS_PER_EVENT || scanned >= NOISE_PATROL_ENTITY_SCAN_CAP) break;
-    scanned++;
+  getEntityIndex().queryRadiusCapped(record.x, record.y, NOISE_PATROL_RADIUS, noisePatrolQuery, ENTITY_MASK_NPC, NOISE_PATROL_ENTITY_SCAN_CAP);
+  for (const e of noisePatrolQuery) {
+    if (responders >= NOISE_PATROL_RESPONDERS_PER_EVENT) break;
     if (!canRespondToNoise(e)) continue;
     if (record.actorId !== undefined && e.id === record.actorId) continue;
-    if (world.dist2(e.x, e.y, record.x, record.y) > NOISE_PATROL_RADIUS_SQ) continue;
     const ai = e.ai!;
     ai.goal = AIGoal.HUNT;
     ai.combatScanCd = 0;
@@ -440,6 +449,7 @@ function sendNoisePatrol(world: World, entities: Entity[], record: NoiseRecord):
     tryAssignPathToCell(world, e, tx, ty);
     responders++;
   }
+  noisePatrolQuery.length = 0;
   return responders;
 }
 

@@ -9,7 +9,7 @@ import {
   ZoneFaction,
 } from '../core/types';
 import type { DesignFloorId, DesignFloorRouteDef } from './design_floors';
-import { ENTITY_SOFT_LIMITS } from './entity_limits';
+import { ACTIVE_ACTOR_SOFT_LIMIT, ENTITY_SOFT_LIMITS, fitActiveActorCounts } from './entity_limits';
 
 export interface DesignPlacementFieldProfile {
   noiseScale: number;
@@ -70,8 +70,8 @@ interface DesignFloorPopulationOverride {
 
 type PlacementKind = 'social' | 'communal' | 'floor_69' | 'admin' | 'bank' | 'industrial' | 'silicon' | 'slime' | 'attic' | 'hell' | 'underhell' | 'void' | 'roof' | 'camp' | 'metro' | 'morgue' | 'crossroads';
 
-const ENTITY_NPC_CAP = ENTITY_SOFT_LIMITS[EntityType.NPC] ?? 5_000;
-const ENTITY_MONSTER_CAP = ENTITY_SOFT_LIMITS[EntityType.MONSTER] ?? 10_000;
+const ENTITY_NPC_CAP = ENTITY_SOFT_LIMITS[EntityType.NPC] ?? ACTIVE_ACTOR_SOFT_LIMIT;
+const ENTITY_MONSTER_CAP = ENTITY_SOFT_LIMITS[EntityType.MONSTER] ?? ACTIVE_ACTOR_SOFT_LIMIT;
 
 const DARKNESS_CENTER = W >> 1;
 const PODAD_CENTER = W >> 1;
@@ -319,7 +319,7 @@ const METRO_MONSTER_ANCHORS: readonly DesignPlacementFieldAnchor[] = [
 const DESIGN_FLOOR_POPULATION_OVERRIDES: Readonly<Record<DesignFloorId, DesignFloorPopulationOverride>> = {
   roof: {
     npcTarget: 0,
-    monsterTarget: 5600,
+    monsterTarget: ACTIVE_ACTOR_SOFT_LIMIT,
     monsterBiasKinds: [MonsterKind.EYE, MonsterKind.SHADOW, MonsterKind.REBAR, MonsterKind.LAMPOGLAZ, MonsterKind.TONKAYA_TEN],
     monsterTags: ['roof', 'sky', 'antenna', 'signal', 'wind', 'open', 'weather'],
     monsterPlacementKind: 'roof',
@@ -768,8 +768,8 @@ const DESIGN_FLOOR_POPULATION_OVERRIDES: Readonly<Record<DesignFloorId, DesignFl
     monsterPlacementKind: 'metro',
   },
   underhell: {
-    npcTarget: 80,
-    monsterTarget: 6400,
+    npcTarget: 64,
+    monsterTarget: 4032,
     npcFactions: UNDERHELL_THRESHOLD_MIX,
     npcOccupations: UNDERHELL_THRESHOLD_OCCUPATIONS,
     npcNoun: 'ветеран',
@@ -788,7 +788,7 @@ const DESIGN_FLOOR_POPULATION_OVERRIDES: Readonly<Record<DesignFloorId, DesignFl
   },
   podad: {
     npcTarget: 0,
-    monsterTarget: 8200,
+    monsterTarget: ACTIVE_ACTOR_SOFT_LIMIT,
     monsterBiasKinds: [MonsterKind.OLGOY, MonsterKind.KOSTOREZ, MonsterKind.ZHORNAYA_TVAR, MonsterKind.CHERNOSLIZ, MonsterKind.POLZUN],
     monsterTags: ['hell', 'podad', 'meat', 'deep', 'living_tunnels', 'moving_walls', 'section_shift', 'gate'],
     monsterPlacementKind: 'hell',
@@ -809,7 +809,7 @@ const DESIGN_FLOOR_POPULATION_OVERRIDES: Readonly<Record<DesignFloorId, DesignFl
   },
   darkness: {
     npcTarget: 0,
-    monsterTarget: 5200,
+    monsterTarget: ACTIVE_ACTOR_SOFT_LIMIT,
     monsterBiasKinds: [MonsterKind.SHADOW, MonsterKind.TONKAYA_TEN, MonsterKind.GLUBINNAYA_TEN, MonsterKind.LISHENNYY, MonsterKind.SLEPOGLAZ],
     monsterTags: ['dark', 'low_light', 'void', 'route_pressure', 'sound', 'noise', 'light', 'lamp', 'protocol'],
     monsterPlacementKind: 'void',
@@ -1358,8 +1358,11 @@ export function designFloorPopulationProfile(route: DesignFloorRouteDef): Design
   const override = DESIGN_FLOOR_POPULATION_OVERRIDES[route.id] ?? {};
   const npcBase = baseNpcTarget(route);
   const monsterBase = baseMonsterTarget(route);
-  const npcTarget = clampInt(override.npcTarget ?? npcBase * (override.npcMult ?? 1), 0, ENTITY_NPC_CAP);
-  const monsterTarget = clampInt(override.monsterTarget ?? monsterBase * (override.monsterMult ?? 1), 0, ENTITY_MONSTER_CAP);
+  const rawNpcTarget = clampInt(override.npcTarget ?? npcBase * (override.npcMult ?? 1), 0, ENTITY_NPC_CAP);
+  const rawMonsterTarget = clampInt(override.monsterTarget ?? monsterBase * (override.monsterMult ?? 1), 0, ENTITY_MONSTER_CAP);
+  const fitted = fitActiveActorCounts(rawNpcTarget, rawMonsterTarget);
+  const npcTarget = fitted.npcs;
+  const monsterTarget = fitted.monsters;
   const depthLevel = 1 + Math.round(depth01(route.z) * 8);
   const npcPlacementKind = override.npcPlacementKind ?? defaultPlacementKind(route);
   const monsterPlacementKind = override.monsterPlacementKind ?? defaultPlacementKind(route);

@@ -182,8 +182,7 @@ function markOutbreakRoom(ctx: ProceduralAnomalyGenContext, room: Room): void {
   ctx.world.markFogDirty();
 }
 
-function spawnPatientZero(ctx: ProceduralAnomalyGenContext, room: Room): void {
-  if (!canSpawnEntityType(ctx.entities, EntityType.MONSTER)) return;
+function tunePatientZero(ctx: ProceduralAnomalyGenContext, entity: Entity, room: Room): void {
   const pos = randomRoomCell(ctx.world, room, false) ??
     randomFloorCell(ctx.world, ctx.spawnX, ctx.spawnY, 36 * 36) ??
     { x: Math.floor(ctx.spawnX), y: Math.floor(ctx.spawnY) };
@@ -191,25 +190,46 @@ function spawnPatientZero(ctx: ProceduralAnomalyGenContext, room: Room): void {
   const ci = ctx.world.idx(pos.x, pos.y);
   const zoneLevel = ctx.world.zones[ctx.world.zoneMap[ci]]?.level ?? ctx.spec.danger;
   const hp = Math.round(def.hp * (1.2 + zoneLevel * 0.2));
-  ctx.entities.push({
-    id: ctx.nextId.v++,
-    type: EntityType.MONSTER,
-    x: pos.x + 0.5,
-    y: pos.y + 0.5,
-    angle: Math.random() * Math.PI * 2,
-    pitch: 0,
-    alive: true,
-    speed: def.speed * 1.08,
-    sprite: monsterSpr(MonsterKind.ZOMBIE),
-    spriteSeed: (ctx.spec.seed ^ 0x70) >>> 0,
-    name: 'Пациент зеро',
-    hp,
-    maxHp: hp,
-    monsterKind: MonsterKind.ZOMBIE,
-    attackCd: 0,
-    ai: { goal: AIGoal.HUNT, tx: pos.x, ty: pos.y, path: [], pi: 0, stuck: 0, timer: 0, combatScanCd: 0 },
-    rpg: randomRPG(Math.max(1, zoneLevel + 1)),
-  });
+  entity.type = EntityType.MONSTER;
+  entity.x = pos.x + 0.5;
+  entity.y = pos.y + 0.5;
+  entity.angle = Math.random() * Math.PI * 2;
+  entity.pitch = 0;
+  entity.alive = true;
+  entity.speed = def.speed * 1.08;
+  entity.sprite = monsterSpr(MonsterKind.ZOMBIE);
+  entity.spriteSeed = (ctx.spec.seed ^ 0x70) >>> 0;
+  entity.name = 'Пациент зеро';
+  entity.hp = hp;
+  entity.maxHp = hp;
+  entity.monsterKind = MonsterKind.ZOMBIE;
+  entity.attackCd = 0;
+  entity.ai = { goal: AIGoal.HUNT, tx: pos.x, ty: pos.y, path: [], pi: 0, stuck: 0, timer: 0, combatScanCd: 0 };
+  entity.rpg = randomRPG(Math.max(1, zoneLevel + 1));
+  entity.faction = undefined;
+  entity.occupation = undefined;
+  entity.needs = undefined;
+}
+
+function spawnPatientZero(ctx: ProceduralAnomalyGenContext, room: Room): void {
+  if (canSpawnEntityType(ctx.entities, EntityType.MONSTER)) {
+    const patient: Entity = {
+      id: ctx.nextId.v++,
+      type: EntityType.MONSTER,
+      x: 0,
+      y: 0,
+      angle: 0,
+      pitch: 0,
+      alive: true,
+      speed: 0,
+      sprite: monsterSpr(MonsterKind.ZOMBIE),
+    };
+    tunePatientZero(ctx, patient, room);
+    ctx.entities.push(patient);
+    return;
+  }
+  const existingZombie = ctx.entities.find(entity => entity.alive && entity.type === EntityType.MONSTER && entity.monsterKind === MonsterKind.ZOMBIE);
+  if (existingZombie) tunePatientZero(ctx, existingZombie, room);
 }
 
 function spawnHeadSlugPatient(ctx: ProceduralAnomalyGenContext, room: Room): void {

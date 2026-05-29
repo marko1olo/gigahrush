@@ -1,29 +1,50 @@
 # Active-Floor AI
 
-This document is the planning contract for live NPC and monster behavior on the loaded floor.
+This document is the shipped contract for live NPC and monster behavior on the loaded floor.
 
 A-Life answers who exists, where that person belongs, whether they are dead, and what persistent facts fold back into the run. That contract lives in [alife.md](alife.md). This document answers how materialized live actors think, move, fight, hide, react and create readable situations on the active 1024x1024 toroidal `World`.
 
-The core direction is simple: ordinary NPCs should not be synchronized by a global schedule. Thousands of materialized people on the current floor should behave like independent agents with their own needs, professions, anchors, fear, habits and local context. Monsters should likewise be gameplay rules with territory, stimuli, readable warnings and counterplay, not only HP/speed variants.
+The core direction is simple: ordinary NPCs should not be synchronized by a global schedule. Thousands of materialized people on the current floor behave like independent agents with their own needs, professions, anchors, fear, habits, faction, personal relation and local context. In mass combat they deliberately use a short shared combat-step instead of a large per-actor brain; individuality lives in target memory, role, loadout, current intent and persistent A-Life facts, not in expensive tactical planning for every actor.
 
 ## Current Baseline
 
-The current implementation has moved ordinary NPCs off the old global schedule path:
+The current implementation has moved ordinary NPCs off the old global schedule path and removed active-floor proximity tiers. This full-pass isotropic model is the foundation for current-floor AI:
 
-- `src/systems/ai/index.ts` owns the single `updateAI()` entry point. It updates hot/warm/cold live AI actors through deterministic cadence, not through a player spawn bubble.
+- `src/systems/ai/index.ts` owns the single `updateAI()` entry point. It makes one full pass over the indexed live-AI list every simulation frame, regardless of distance from the player.
 - `src/systems/ai/npc_utility.ts` scores safety, combat, flee, toilet, drink, eat, sleep, work, heal, social, patrol and wander from needs, threat, role, soft rhythm, local room context and current-intent stickiness.
-- `src/systems/ai/npc_fsm.ts` is now the utility executor: it selects the winning intent, maps it to a visible/debug `NpcState`, and reuses bounded path/needs handlers for travel and activity.
+- `src/systems/ai/npc_fsm.ts` is now the utility executor: it selects the winning intent on an actor-local rethink timer, maps it to a visible/debug `NpcState`, and reuses bounded path/needs handlers for travel and activity every frame.
 - Ministry NPCs use the same executor with a ministry profile; the old separate ministry schedule path is removed.
-- `src/systems/ai/combat.ts` gives NPC combat, fleeing, ranged windup and relation-aware hostility higher priority than routine behavior.
+- `src/systems/ai/combat.ts` gives NPC combat, fleeing, physical ranged fire and relation-aware hostility higher priority than routine behavior.
 - `src/systems/ai/pathfinding.ts` provides a toroidal baked navigation tree and cached behavior flow fields for shared targets such as kitchens, bathrooms and work rooms.
 - `src/systems/ai/monster.ts` contains the monster target loop and many `MonsterKind`/`aiFlags` behavior hooks.
 - `src/systems/entity_index.ts` is the runtime broadphase for AI target, threat and local actor queries.
+- `src/data/entity_limits.ts` defines one shared 4096 active NPC+monster actor soft cap for the current floor; this is a gameplay density ceiling, not an AI scheduling trick.
 
 The old failure mode was that many NPCs could share the same hour, state and room-type target, decide together that it was time to work and follow the same flow field toward production rooms. Current runtime selection lets urgent needs, threat, role and local context beat work or lunch pressure, so the clock no longer forces synchronized factory streams.
 
-## Target Model
+## Shipped Mass-Combat Contract
 
-Use a hybrid:
+The working high-density rule is:
+
+```txt
+actor -> keep current intent/target -> choose hostile faction target -> move -> hit or shoot -> persist consequences
+```
+
+This is used for NPC and monster combat across the whole active floor. The short step is allowed to be tactically dumb: NPCs may shoot through a crowd, monsters may pressure by direct movement, and friendly fire may happen. The required honesty is in the data: physical projectiles, HP, deaths, blood/bullet marks, dropped inventory, events and A-Life/floor-memory foldback must be real.
+
+The short combat-step must not erase personal behavior:
+
+- every actor can keep `combatTargetId`, cooldowns, path/frustration, current intent/debug label and recent damage memory;
+- NPC role, faction, bravery, weapon, personal relation to the player, needs and utility pressure still decide whether they fight, flee, hide, patrol, work or recover;
+- routine utility can resume after danger passes;
+- player distance does not decide AI cadence or whether an actor exists;
+- actors do not scan noise or targets every frame; those expensive choices use local cooldowns and cached ids, while movement, cooldowns, attacks and current intents continue every frame.
+
+The result should feel like faction waves and particle pressure, not like hidden turn resolution and not like a frozen far map.
+
+## Routine Target Model
+
+Outside dense combat, use a hybrid:
 
 - A utility selector chooses the current intent from local scores.
 - A small finite-state executor performs that intent: select target, travel, perform, recover, retry or abandon.
@@ -43,7 +64,7 @@ AI must not:
 - silently replace a killed persistent person;
 - run pathfinding, needs, combat, line of sight or local event reactions for off-floor NPCs;
 - mutate the full A-Life pool directly from routine behavior;
-- serialize navigation caches, flow fields, scheduler internals or full behavior histories.
+- serialize navigation caches, flow fields, actor-local cooldown internals or full behavior histories.
 
 Persistent effects go through A-Life foldback, floor memory, compact events, faction/economy/quest state or an explicit current save section. Required persistent AI fields require a save shape bump, not legacy migration scaffolding.
 
@@ -146,22 +167,16 @@ This keeps visible floor life dense but breaks the line of identical workers wal
 
 ## Decision Cadence
 
-Use the existing hot/warm/cold scheduler. Cadence changes how often a live actor rethinks, not whether it exists.
+There is no active-floor hot/warm/cold tiering. Every live AI actor receives the frame. Cadence belongs only to expensive choices inside that actor:
 
-Recommended limits for the implementation pass:
+- NPC utility rescore uses a stable personal timer around `0.45..1.0s`; the selected intent keeps executing every frame.
+- Combat target scans use `combatTargetId` / `combatScanCd` and bucket queries; current targets are validated cheaply before a new scan.
+- Path assignment uses baked navigation and cached behavior flow fields; current paths are followed every frame.
+- Noise, social, crowd and threat reads are bounded by radius, result cap and local cooldown.
+- No per-NPC `setInterval`.
+- No per-frame full `entities`, full `World` or full A-Life pool scans.
 
-- hot NPC utility rescore: `1.0..2.5s`;
-- warm NPC utility rescore: `4..8s`;
-- cold NPC utility rescore: `12..30s`;
-- global utility decisions per frame: about `48`;
-- new target/path resolutions per frame: about `32`;
-- social/crowd/threat radius: usually `8..16`;
-- social/crowd/threat result cap: usually `8..16`;
-- flow-field cache stays around the existing pathfinding cache budget;
-- no per-NPC `setInterval`;
-- no per-frame full `entities`, full `World` or full A-Life pool scans.
-
-Cold NPCs still accumulate time and eventually act. They are not disabled.
+The consequence is honest but minimal: every actor is active, yet expensive questions are not asked 60 times per second.
 
 ## Local Events And Memory
 
@@ -338,7 +353,7 @@ AI movement stays toroidal and field-based:
 
 Future debugging should show behavior pressure without serializing large histories:
 
-- AI scheduler stats: hot, warm, cold, skipped, updated, important promotions.
+- AI stats: live AI, updated actors, skipped controlled-player actors, NPC/monster split, plot/boss/attacker/projectile-owner counts.
 - Pathfinding stats: cache hits, bakes, assigned paths, denied/deferred paths.
 - Entity-index stats: query count, bucket checks, max result count.
 - NPC intent sample: last intent, last score, next decision time, target room/cell.
@@ -354,7 +369,6 @@ Transient behavior can be lost on reload:
 - current intent;
 - path;
 - flow-field assignment;
-- scheduler accumulator;
 - target resolve cooldown;
 - local reservations;
 - monster short windup/recover timers unless already represented by an existing save section.
@@ -373,7 +387,7 @@ Persistent consequences must be compact:
 
 Use `alifeId`, `persistentNpcId`, `plotNpcId`, room id, zone id and route key. Do not persist behavior by transient `entity.id` unless the entity is explicitly live-session-only.
 
-## Implementation Order
+## Future Implementation Order
 
 1. Keep fixed `100_000` A-Life population as the runtime baseline in `src/systems/alife.ts`.
 2. Add deterministic A-Life need/personality fields used at materialization.

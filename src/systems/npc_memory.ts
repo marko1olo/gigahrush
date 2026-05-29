@@ -100,7 +100,7 @@ export interface RecentRumorLead {
   monsterKind?: MonsterKind;
 }
 
-const MAX_NPC_MEMORIES = 1536;
+const MAX_NPC_MEMORIES = 16384;
 const MAX_RUMORS_PER_NPC = 12;
 const MAX_OBSERVED_FACTS_PER_NPC = 8;
 const MAX_OBSERVED_FACT_RESIDUE = 4;
@@ -278,10 +278,10 @@ export function trimNpcMemory(npc: Entity, now: number): void {
 }
 
 export function tickNpcMemoryLowFrequency(npc: Entity, now: number, totalMinutes: number, samosborActive: boolean): boolean {
-  const memory = getNpcMemory(npc, now);
   const stagger = npc.id % MEMORY_TICK_MINUTES;
-  if (totalMinutes - memory.lastMemoryTickMinute < MEMORY_TICK_MINUTES) return false;
   if ((totalMinutes | 0) % MEMORY_TICK_MINUTES !== stagger) return false;
+  const memory = getNpcMemory(npc, now);
+  if (totalMinutes - memory.lastMemoryTickMinute < MEMORY_TICK_MINUTES) return false;
 
   memory.lastMemoryTickMinute = totalMinutes;
   if (samosborActive) memory.fear = clamp(memory.fear + 4, 0, 100);

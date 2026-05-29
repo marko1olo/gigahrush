@@ -6,6 +6,7 @@ import {
 } from '../core/types';
 import { World } from '../core/world';
 import { recordPlayerDamage } from './damage';
+import { ENTITY_MASK_ACTOR, getEntityIndex } from './entity_index';
 import { publishEvent } from './events';
 import { isPlayerEntity } from './player_actor';
 
@@ -72,6 +73,7 @@ interface CellHazardSite {
   zoneId?: number;
   centerX: number;
   centerY: number;
+  queryRadius: number;
   warning: string;
   inactiveWarning: string;
   warningColor: string;
@@ -107,6 +109,11 @@ const runtimes = new WeakMap<World, CellHazardRuntime>();
 const NPC_HAZARD_SCAN_INTERVAL = 0.25;
 const MONSTER_HAZARD_DAMAGE_CAP = 12;
 const HAZARD_MESSAGE_RADIUS2 = 18 * 18;
+const HAZARD_ACTOR_SCAN_CAP_PER_SITE = 160;
+const HAZARD_ACTOR_SCAN_CAP_TOTAL = 384;
+const HAZARD_BUCKET_STALE_PAD = 18;
+const hazardActorQuery: Entity[] = [];
+const hazardActorSeen = new Set<number>();
 
 function ensureRuntime(world: World): CellHazardRuntime {
   let runtime = runtimes.get(world);
@@ -155,6 +162,18 @@ function siteCenter(cells: readonly number[]): { x: number; y: number } {
   return { x: sx / cells.length + 0.5, y: sy / cells.length + 0.5 };
 }
 
+function siteQueryRadius(cells: readonly number[], center: { x: number; y: number }): number {
+  let maxD2 = 1;
+  for (const cell of cells) {
+    const x = cell % W + 0.5;
+    const y = ((cell / W) | 0) + 0.5;
+    const dx = x - center.x;
+    const dy = y - center.y;
+    maxD2 = Math.max(maxD2, dx * dx + dy * dy);
+  }
+  return Math.min(96, Math.sqrt(maxD2) + HAZARD_BUCKET_STALE_PAD);
+}
+
 function pulseActiveAt(site: Pick<CellHazardSite, 'pulsePeriodSeconds' | 'pulseActiveSeconds' | 'pulseOffsetSeconds'>, time: number): boolean {
   if (site.pulsePeriodSeconds <= 0) return true;
   const raw = (time - site.pulseOffsetSeconds) % site.pulsePeriodSeconds;
@@ -188,6 +207,8 @@ function normalizeSite(draft: CellHazardSiteDraft): CellHazardSite | null {
   const cells = normalizeCells(draft.cells);
   if (cells.length === 0) return null;
   const center = siteCenter(cells);
+  const centerX = draft.centerX ?? center.x;
+  const centerY = draft.centerY ?? center.y;
   const pulsePeriodSeconds = Math.max(0, draft.pulsePeriodSeconds ?? 0);
   const pulseActiveSeconds = pulsePeriodSeconds > 0
     ? Math.max(0.1, Math.min(pulsePeriodSeconds, draft.pulseActiveSeconds ?? pulsePeriodSeconds * 0.5))
@@ -220,8 +241,9 @@ function normalizeSite(draft: CellHazardSiteDraft): CellHazardSite | null {
     lastMonsterHitMessageAt: -Infinity,
     roomId: draft.roomId,
     zoneId: draft.zoneId,
-    centerX: draft.centerX ?? center.x,
-    centerY: draft.centerY ?? center.y,
+    centerX,
+    centerY,
+    queryRadius: siteQueryRadius(cells, { x: centerX, y: centerY }),
     warning: draft.warning ?? 'Красная слизь держит ноги. Обойдите, выжгите или чистите комплектом.',
     inactiveWarning: draft.inactiveWarning ?? 'Опасный такт стих. Проход открыт ненадолго.',
     warningColor: draft.warningColor ?? '#c22',
@@ -668,7 +690,7 @@ function tickMonsterHazardDamage(
 
 export function tickCellHazards(
   world: World,
-  entities: Entity[],
+  _entities: Entity[],
   state: GameState,
   dt: number,
   player: Entity,
@@ -687,11 +709,40 @@ export function tickCellHazards(
   const npcDt = runtime.npcScanAccum;
   runtime.npcScanAccum = 0;
   let damagedMonsters = 0;
-  for (const e of entities) {
-    if (e.type === EntityType.NPC && !isPlayerEntity(e)) {
-      tickHazardSubject(world, runtime, state, e, npcDt, player.id, false);
-    } else if (damagedMonsters < MONSTER_HAZARD_DAMAGE_CAP && e.type === EntityType.MONSTER) {
-      if (tickMonsterHazardDamage(world, runtime, state, e, npcDt, player)) damagedMonsters++;
+  let scanned = 0;
+  hazardActorSeen.clear();
+  const index = getEntityIndex();
+  for (const site of runtime.sites) {
+    if (scanned >= HAZARD_ACTOR_SCAN_CAP_TOTAL) break;
+    if (site.activeCells.size === 0) continue;
+    const cap = Math.min(HAZARD_ACTOR_SCAN_CAP_PER_SITE, HAZARD_ACTOR_SCAN_CAP_TOTAL - scanned);
+    index.queryRadiusCapped(site.centerX, site.centerY, site.queryRadius, hazardActorQuery, ENTITY_MASK_ACTOR, cap);
+    for (const e of hazardActorQuery) {
+      if (scanned >= HAZARD_ACTOR_SCAN_CAP_TOTAL) break;
+      if (hazardActorSeen.has(e.id)) continue;
+      hazardActorSeen.add(e.id);
+      scanned++;
+      if (!e.alive) continue;
+      if (e.type === EntityType.NPC && !isPlayerEntity(e)) {
+        tickHazardSubject(world, runtime, state, e, npcDt, player.id, false);
+      } else if (damagedMonsters < MONSTER_HAZARD_DAMAGE_CAP && e.type === EntityType.MONSTER) {
+        if (tickMonsterHazardDamage(world, runtime, state, e, npcDt, player)) damagedMonsters++;
+      }
     }
   }
+  hazardActorQuery.length = 0;
+  for (const id of runtime.subjects.keys()) {
+    if (hazardActorSeen.has(id)) continue;
+    const e = index.byId.get(id);
+    if (!e?.alive) {
+      runtime.subjects.delete(id);
+      continue;
+    }
+    if (e.type === EntityType.NPC && !isPlayerEntity(e)) {
+      tickHazardSubject(world, runtime, state, e, npcDt, player.id, false);
+    } else if (e.type === EntityType.MONSTER) {
+      tickMonsterHazardDamage(world, runtime, state, e, npcDt, player);
+    }
+  }
+  hazardActorSeen.clear();
 }

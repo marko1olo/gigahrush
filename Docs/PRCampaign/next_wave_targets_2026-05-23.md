@@ -20,6 +20,29 @@ Sender/contact superseded by owner on 2026-05-26:
 - Do not mention `https://jirny.uk` in new posts, pitches, portal forms or support messages.
 - Historical logs still record already-sent mail from `jirnyak@gmail.com`; do not use that account for new outbound PR except to close or transfer old support threads.
 
+## 2026-05-28 PR 38 Next Posts / Surfaces
+
+Full copy pack and scout: `Docs/PRCampaign/PR_38_next_posts_and_surfaces_2026-05-28.md`.
+
+No public post, email, form submission, vote, rating, upload, portal final-click or account action was made in PR 38. The pass prepared ready-to-use copy and re-ranked surfaces after Reddit `BAD_CAPTCHA` / removal and Pikabu GamePush moderation.
+
+Immediate queue:
+
+1. Official Tenevik-owned short post on X/VK/Telegram/Bluesky, with native GIF/contact-sheet media and direct playable link.
+2. One RU proposal to Indie Spotlight / ИНДИ.РФ; use MyIndie first, direct build second, one GIF and contact sheet.
+3. Exactly three EN editorial pitches if outbound is chosen: Big Boss Battle, Rely on Horror, The Indie Informer.
+4. ИграйТут portal prep after account/developer access, artifact/media preflight and browser/mobile QA.
+5. Reddit remains hold until owner manually clears Reddit captcha/account trust and warms the account. Next Reddit path stays PR 35 profile native-media first, then one PR 36 subreddit retry only if it survives public checks.
+
+New lower-priority surfaces:
+
+| Surface | Fresh reason | Guardrail |
+| --- | --- | --- |
+| ИграйТут | HTML5 portal with SDK, moderation, developer cabinet, cloud saves, analytics and support path. | Separate portal prep. Check localStorage fallback, mobile/fullscreen/input/audio/save behavior before submit. |
+| KickoutGames | Browser-game submission form accepts title, URL, description, screenshots and licensing options. | Owner must approve licensing choice; do not select exclusive/site-lock without explicit approval. |
+| GameBolt | HTML5/JavaScript submission path via `hello@storerider.com`. | Family-friendly requirement is a fit risk because ГИГАХРУЩ has horror, blood and body-horror notes. |
+| GrandGames | Public add-game page says HTML5 developers can add games by writing support. | Lower audience fit; use only after stronger current targets. |
+
 Current release artifact:
 
 - `itch/gigahrush-itch.zip`: 4 999 557 bytes, SHA-256 `fa63dd2be47292814989234482f40597b23fa58df2ec3ab823992953f6c66321`.
@@ -64,7 +87,7 @@ Public/browser recheck at 20:59-21:26 UTC / 21:59-22:26 BST. No duplicate submis
 - Direct Cloudflare build remains current and indexable: `10 673 018` bytes, SHA-256 `732ced4bc2d7bcf91edaec7382ca67d5f4707d1e75ed3c5a29f0ed5df3424d18`.
 - Release Announcements is live with 38 views and one post; DTF old post remains successful with `13` comments, `10` favorites, `7` reactions, `2 138` views, `569` hits and `2 737` total on the 2026-05-27 recheck; DTF follow-up is also live from PR 24. DiscoverGG is live/indexable with one vote and the itch play link retained.
 - DTF current watch set: old post `https://dtf.ru/indie/5077801-gigahrush-brauzernyj-survival-horror`; follow-up `https://dtf.ru/indie/5086991-gigahrusha-novaya-versiya-myindie-i-kadry-iz-samosbora`. Monitor comments/retention only; no duplicate DTF post.
-- Reddit r/playmygame remains live, non-NSFW and not removed, with only AutoModerator visible. Keep r/WebGames delayed and distinct.
+- Reddit r/playmygame initially survived as non-NSFW/not removed, but PR 36 public recheck now shows it as deleted with only AutoModerator visible. Treat it as historical, not an active surface.
 - DiscoverGG and iDev.Games are live/indexable enough for active links; GamHub, Fake Portal and FreeZonePlay are still not public; Querygame remains 404/not submitted.
 - IndieDB browser/account check confirms the game page and screenshot page open with expected titles, but shell still sees Cloudflare `403`. Newgrounds still requires manual/support work: Chrome is at login, Opera GX has the editable project tab, and the durable blocker remains RIP plus `9B` upload.
 
@@ -239,7 +262,11 @@ Kongregate submission notes:
 
 ## P1: Reddit / Community Follow-Up
 
-Do not post the same copy everywhere. Current state after owner override and PR 13: r/PBBG, r/WebGames and r/Games Indie Sunday are live; r/IndieDev was removed by moderator/automoderation; r/playmygame remains live from the previous pass. Next action is monitoring and replies only.
+2026-05-28 PR 37 update: owner overrode the hold and requested the old successful subreddits again from the new Tenevik account. Only one safe attempt was made, `r/playmygame`, through old Reddit in the authenticated Chrome session. No public post was created: the form returned `That was a tricky one. Why don't you try that again.`, and same-origin `/api/submit` returned `BAD_CAPTCHA` for `captcha`. Do not retry automated Reddit submits until the owner manually clears Reddit's human challenge/account trust state.
+
+2026-05-28 PR 36 update: old-account Reddit URLs are historical lessons only. Public `.json` rechecks now show `r/playmygame`, `r/PBBG`, `r/WebGames` and `r/Games Indie Sunday` as `author:"[deleted]"`, `selftext:"[deleted]"`, `removed_by_category:"deleted"`. Do not revive those threads from the Tenevik account. Use `Docs/PRCampaign/PR_36_reddit_continuation_old_account_lessons_2026-05-28.md` for the current queue: PR 35 profile recovery first, then one `r/DestroyMyGame` raw-gameplay critique post if the profile post survives, then `r/gamedevscreens` or `r/proceduralgeneration` after a separate cooldown. Upvotes/comments are KPIs only; no vote asks, coordinated voting, fake comments, alts, bots or engagement piles.
+
+Do not post the same copy everywhere. Historical state after owner override and PR 13: r/PBBG, r/WebGames and r/Games Indie Sunday initially survived authenticated checks; r/IndieDev was removed by moderator/automoderation; r/playmygame initially survived the previous pass. PR 36 supersedes the old "live" wording because the public posts now show as deleted.
 
 2026-05-24 correction: the earlier r/indiegames wording was imprecise. GIGAH|RUSH has playable links: `https://gigahrush.bileter.workers.dev` and `https://tenevik.itch.io/gigahrush`. The r/indiegames risk is that the subreddit is media-first and restrictive around external store/site/social links and AI-related ambiguity. If used later, it needs native gameplay media first and links only where rules allow.
 
@@ -249,9 +276,9 @@ All future public posts must include media presence. Use playable links when all
 
 | Target | Current state | Decision |
 | --- | --- | --- |
-| r/PBBG | Live: `https://old.reddit.com/r/PBBG/comments/1tmhjtz/gigahrush_a_singleplayer_persistent_browser/`; media comment added. | Monitor PBBG-fit questions; do not repost. |
-| r/WebGames | Live: `https://old.reddit.com/r/WebGames/comments/1tmhk3l/gigahrush_free_browser_survival_horror_arpg_in_an/`; developer comment edited with playable links plus media URLs. | Monitor browser/readability feedback; do not repost. |
-| r/Games Indie Sunday | Live: `https://old.reddit.com/r/Games/comments/1tmhl9l/gigahrush_tenevik_games_browser_survival_horror/`; comment edited with playable links plus media URLs. | Monitor closely; respect cooldown; do not repost if removed. |
+| r/PBBG | Historical URL now public-deleted: `https://old.reddit.com/r/PBBG/comments/1tmhjtz/gigahrush_a_singleplayer_persistent_browser/`; media comment was added during PR 13. | Do not revive or bump. Reuse PBBG lessons only. |
+| r/WebGames | Historical URL now public-deleted: `https://old.reddit.com/r/WebGames/comments/1tmhk3l/gigahrush_free_browser_survival_horror_arpg_in_an/`; developer comment was edited with playable links plus media URLs during PR 13. | Do not revive or bump. Reuse direct-browser-link lesson only. |
+| r/Games Indie Sunday | Historical URL now public-deleted: `https://old.reddit.com/r/Games/comments/1tmhl9l/gigahrush_tenevik_games_browser_survival_horror/`; comment was edited with playable links plus media URLs during PR 13. | Do not revive or bump. Future use only in proper Indie Sunday window. |
 | r/IndieDev | Removed: `https://old.reddit.com/r/IndieDev/comments/1tmhkq5/gigahrush_a_typescriptwebgl_survival_horror_where/`. | Treat as removed; no immediate repost. |
 | r/indiegames | Not posted. | Hold unless owner requests manual media-first rewrite or modmail. |
 

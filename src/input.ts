@@ -27,7 +27,9 @@ export function createInput(): InputState {
     sleep: false,
     controls: false,
     uiSettings: false,
+    controlEdit: false,
     controlReset: false,
+    controlClose: false,
     mouse: { dx: 0, dy: 0, locked: false },
     touch: { moveX: 0, moveY: 0, lookX: 0, lookY: 0, active: false },
   };
@@ -51,6 +53,9 @@ function clearPointerState(input: InputState): void {
 
 function clearLostInputState(input: InputState, canvas: HTMLCanvasElement): void {
   clearControlInputs(input);
+  input.controlEdit = false;
+  input.controlReset = false;
+  input.controlClose = false;
   clearPointerState(input);
   input.mouse.locked = document.pointerLockElement === canvas;
 }
@@ -84,11 +89,17 @@ export function bindInput(input: InputState, canvas: HTMLCanvasElement, options:
       options.onFullscreenToggle?.();
       return;
     }
+    if (e.code === 'KeyE') input.controlEdit = true;
+    if (e.code === 'Backspace') input.controlReset = true;
+    if (e.code === 'Enter') input.controlClose = true;
     applyControlCode(input, e.code, true);
     e.preventDefault();
   };
 
   const onUp = (e: KeyboardEvent) => {
+    if (e.code === 'KeyE') input.controlEdit = false;
+    if (e.code === 'Backspace') input.controlReset = false;
+    if (e.code === 'Enter') input.controlClose = false;
     applyControlCode(input, e.code, false);
   };
 
@@ -128,6 +139,9 @@ export function bindInput(input: InputState, canvas: HTMLCanvasElement, options:
     if (!input.mouse.locked) {
       clearPointerState(input);
       clearControlInputs(input);
+      input.controlEdit = false;
+      input.controlReset = false;
+      input.controlClose = false;
     }
   };
 

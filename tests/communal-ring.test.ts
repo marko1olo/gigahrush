@@ -15,6 +15,7 @@ import {
   designFloorById,
 } from '../src/data/design_floors';
 import { designFloorPopulationProfile } from '../src/data/design_floor_population';
+import { ACTIVE_ACTOR_SOFT_LIMIT } from '../src/data/entity_limits';
 import { getSideQuestRegistrySnapshot } from '../src/data/plot';
 import { generateDesignFloor } from '../src/gen/design_floors/manifest';
 import {
@@ -75,10 +76,10 @@ test('communal_ring uses the design population field as a dense social floor', (
 
   const npcs = gen.entities.filter(entity => entity.type === EntityType.NPC);
   const monsters = gen.entities.filter(entity => entity.type === EntityType.MONSTER);
-  assert.equal(profile.npcTarget, 3800);
-  assert.equal(profile.monsterTarget, 420);
-  assert.equal(npcs.length >= 3800 && npcs.length <= 4500, true);
-  assert.equal(monsters.length >= 250 && monsters.length <= 700, true);
+  assert.equal(profile.npcTarget + profile.monsterTarget, ACTIVE_ACTOR_SOFT_LIMIT);
+  assert.equal(npcs.length + monsters.length <= ACTIVE_ACTOR_SOFT_LIMIT, true);
+  assert.equal(npcs.length >= profile.npcTarget && npcs.length <= ACTIVE_ACTOR_SOFT_LIMIT, true);
+  assert.equal(monsters.length >= 250 && monsters.length <= profile.monsterTarget, true);
   assert.equal((mappedByType.get(RoomType.CORRIDOR) ?? 0) >= 50_000, true);
   assert.equal((mappedByType.get(RoomType.COMMON) ?? 0) >= 6_000, true);
   assert.equal((mappedByType.get(RoomType.KITCHEN) ?? 0) >= 4_000, true);

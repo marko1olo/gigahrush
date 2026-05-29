@@ -277,7 +277,7 @@ test('samosbor warning publishes sound, HUD/log, hazard, and nearby NPC bark cha
   assert.match(warning.signals.audioLine, /сирена/);
   assert.match(warning.signals.hazardLine, /зона риска|зона риска рядом/);
   assert.match(warning.signals.npcLine, /соседи: 1/);
-  assert.ok(state.msgs.some(m => m.text.includes('Предупреждение принято')));
+  assert.ok(state.msgs.some(m => m.text.includes('Через 12 мин ожидается классический самосбор.')));
   assert.ok(state.msgs.some(m => m.text.includes('Соседка:')));
 
   const events = getRecentEvents(state, { type: 'samosbor_warning', tags: ['prewarning'], limit: 1 });
@@ -287,7 +287,7 @@ test('samosbor warning publishes sound, HUD/log, hazard, and nearby NPC bark cha
   assert.ok(channels.includes('audio'));
   assert.ok(channels.includes('hazard'));
   assert.ok(channels.includes('npc_barks'));
-  assert.ok(state.msgLog.some(entry => entry.text.includes('звук:') && entry.text.includes('опасность:')));
+  assert.ok(state.msgLog.some(entry => entry.text.includes('Через 12 мин ожидается классический самосбор.')));
 });
 
 test('active samosbor exposes a compact survival instruction', () => {

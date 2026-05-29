@@ -466,9 +466,6 @@ export interface AIState {
   breached?: boolean;         // room-bound actor has crossed its leash
   ambientBarkCd?: number;     // cooldown for rare generic A-Life chatter
   wanderAngle?: number;        // phasing monster drift direction
-  thinkAccum?: number;         // accumulated dt for staggered far-AI ticks
-  thinkInterval?: number;      // deterministic cadence for far-AI ticks
-  nearFrame?: number;          // transient marker for current near-player AI frame
   netPulseCd?: number;         // Chervie/net possessor local mind pulse cooldown
   netPowered?: boolean;        // last readable local NET power state
   netAnchorX?: number;         // local compromised server/terminal anchor
@@ -1221,7 +1218,9 @@ export interface InputState {
   sleep: boolean;               // Z key — hold to sleep
   controls: boolean;            // Tab by default — hotkey / rebind screen
   uiSettings: boolean;          // U key — configurable HUD element screen
-  controlReset: boolean;        // Backspace by default — clear selected binding
+  controlEdit: boolean;         // fixed E on the hotkey screen
+  controlReset: boolean;        // fixed Backspace on settings screens
+  controlClose: boolean;        // fixed Enter close/back command
   mouse: { dx: number; dy: number; locked: boolean; };
   touch: { moveX: number; moveY: number; lookX: number; lookY: number; active: boolean; };
 }

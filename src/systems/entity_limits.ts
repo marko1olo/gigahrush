@@ -1,24 +1,67 @@
 import { EntityType, type Entity } from '../core/types';
-import { ENTITY_SOFT_LIMITS } from '../data/entity_limits';
+import { ACTIVE_ACTOR_SOFT_LIMIT, ENTITY_SOFT_LIMITS, FLOOR_OBJECT_SOFT_LIMIT } from '../data/entity_limits';
 import { isNativePlayerBodyEntity, isPlayerEntity } from './player_actor';
 
 export function entitySoftLimit(type: EntityType): number | undefined {
   return ENTITY_SOFT_LIMITS[type];
 }
 
+function isSoftCappedActorType(type: EntityType): boolean {
+  return type === EntityType.NPC || type === EntityType.MONSTER;
+}
+
+function isFloorObjectType(type: EntityType): boolean {
+  return type === EntityType.ITEM_DROP || type === EntityType.PROJECTILE || type === EntityType.BILLBOARD;
+}
+
+function isSoftCappedActor(entity: Entity): boolean {
+  if (!entity.alive) return false;
+  if (!isSoftCappedActorType(entity.type)) return false;
+  if (isNativePlayerBodyEntity(entity) || isPlayerEntity(entity)) return false;
+  return true;
+}
+
 export function countLiveEntitiesOfType(entities: readonly Entity[], type: EntityType): number {
   let count = 0;
   for (const entity of entities) {
-    if (type === EntityType.NPC && (isNativePlayerBodyEntity(entity) || isPlayerEntity(entity))) continue;
+    if (isSoftCappedActorType(type) && (isNativePlayerBodyEntity(entity) || isPlayerEntity(entity))) continue;
     if (entity.alive && entity.type === type) count++;
   }
   return count;
 }
 
+export function countLiveActiveActors(entities: readonly Entity[]): number {
+  let count = 0;
+  for (const entity of entities) {
+    if (isSoftCappedActor(entity)) count++;
+  }
+  return count;
+}
+
+export function countLiveFloorObjects(entities: readonly Entity[]): number {
+  let count = 0;
+  for (const entity of entities) {
+    if (entity.alive && isFloorObjectType(entity.type)) count++;
+  }
+  return count;
+}
+
+export function remainingActiveActorSpawnSlots(entities: readonly Entity[]): number {
+  return Math.max(0, ACTIVE_ACTOR_SOFT_LIMIT - countLiveActiveActors(entities));
+}
+
+export function remainingFloorObjectSpawnSlots(entities: readonly Entity[]): number {
+  return Math.max(0, FLOOR_OBJECT_SOFT_LIMIT - countLiveFloorObjects(entities));
+}
+
 export function remainingEntitySpawnSlots(entities: readonly Entity[], type: EntityType): number {
   const limit = entitySoftLimit(type);
-  if (limit === undefined) return Number.POSITIVE_INFINITY;
-  return Math.max(0, limit - countLiveEntitiesOfType(entities, type));
+  const typeRemaining = limit === undefined
+    ? Number.POSITIVE_INFINITY
+    : Math.max(0, limit - countLiveEntitiesOfType(entities, type));
+  if (isFloorObjectType(type)) return Math.min(typeRemaining, remainingFloorObjectSpawnSlots(entities));
+  if (!isSoftCappedActorType(type)) return typeRemaining;
+  return Math.min(typeRemaining, remainingActiveActorSpawnSlots(entities));
 }
 
 export function entitySpawnSlots(entities: readonly Entity[], type: EntityType, requested: number): number {

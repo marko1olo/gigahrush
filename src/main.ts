@@ -27,7 +27,7 @@ import { generateSprites } from './render/sprites';
 import { Spr, monsterSpr } from './render/sprite_index';
 import {
   SCR_W, SCR_H, initWebGL, renderSceneGL, updateWorldData, updateDynamicData,
-  disposeWebGL, setDynamicSkyTexture, getRenderSceneDebugStats, type DynamicSkyTexture,
+  disposeWebGL, setDynamicSkyTexture, getRenderSceneDebugStats, rebuildProceduralSpriteCache, type DynamicSkyTexture,
 } from './render/webgl';
 import { drawHUD, drawPointerCaptureGate, type HudPerfDebugSnapshot } from './render/hud';
 import {
@@ -37,7 +37,7 @@ import {
 import { stampMark, MarkType } from './systems/surface_marks';
 import { containerMenuGridLayout, fullscreenInventoryLayout, tradeGridScale } from './render/ui_layout';
 import { updateNeeds } from './systems/needs';
-import { updateAI, tryMonsterProjectileStagger, getAiSchedulerStats, type AiSchedulerStats } from './systems/ai';
+import { updateAI, tryMonsterProjectileStagger, getAiStats, type AiStats } from './systems/ai';
 import { resolveBreachChargeExplosion } from './systems/breach_charge';
 import { dropMonsterRareLoot } from './systems/monster_drops';
 import { generateTalkText, generateNpcTradeItems } from './data/dialogue';
@@ -57,10 +57,9 @@ import {
   CONTROL_ACTIONS,
   beginControlCapture,
   cancelControlCapture,
-  clearControlBinding,
   clearControlInputs,
-  controlActionLocked,
   getControlCaptureAction,
+  resetAllControlBindings,
 } from './systems/controls';
 import { GAME_MENU_ITEMS } from './systems/game_menu';
 import { MOBILE_BUTTON_CONTROL_ROWS } from './systems/mobile_actions';
@@ -170,7 +169,8 @@ import {
   publishWeaponNoise,
   resetNoiseRecords,
 } from './systems/noise';
-import { entitySoftLimit, entitySpawnSlots } from './systems/entity_limits';
+import { notifyActorDamaged } from './systems/combat_stimulus';
+import { canSpawnEntityType, entitySoftLimit, entitySpawnSlots, remainingActiveActorSpawnSlots } from './systems/entity_limits';
 import { clearRoomMemory, tickRoomMemory } from './systems/room_memory';
 import { UV_SPOTLIGHT_FX_SECONDS, UV_SPOTLIGHT_ID, useUvSpotlight, uvSpotlightRenderIntensity } from './systems/uv_spotlight';
 import { CHALK_ITEM_ID, drawEquippedChalkPixel } from './systems/chalk';
@@ -1192,8 +1192,7 @@ function returnFromVoidPortalToLiving(portal: VoidReturnPortalState): void {
     resetMapForLoadedFloor(loaded);
     updateMapExploration(world, player, state);
     ensureProceduralSpriteSeeds(entities);
-    setGeneratedDynamicSky(gen);
-    updateWorldData(world);
+    finishLoadedFloorVisuals(gen);
   });
 }
 
@@ -1265,7 +1264,8 @@ interface SmokeDebugSnapshot {
   floorMemoryCount: number;
   floorMemoryCap: number;
   entityIndex: EntityIndexDebugStats;
-  aiScheduler: AiSchedulerStats;
+  ai: AiStats;
+  perf: HudPerfDebugSnapshot;
   tick: number;
   inputFwd: boolean;
   inputInv: boolean;
@@ -1383,30 +1383,33 @@ function smokeSnapshot(): SmokeDebugSnapshot {
       floorMemoryCount: memory.count,
       floorMemoryCap: memory.cap,
       entityIndex: getEntityIndex().getDebugStats(),
-      aiScheduler: getAiSchedulerStats(),
+      ai: getAiStats(),
+      perf: hudPerfDebugSnapshot(displayedFps),
   };
 }
 
 function spawnSmokeStressPopulation(count: number): void {
   if (count <= 0) return;
   const requested = Math.max(0, Math.floor(count));
-  const npcAvailable = entitySpawnSlots(entities, EntityType.NPC, requested);
-  const monsterAvailable = entitySpawnSlots(entities, EntityType.MONSTER, requested);
-  let npcBudget = Math.min(npcAvailable, Math.floor(requested * 0.7));
-  let monsterBudget = Math.min(monsterAvailable, requested - npcBudget);
-  if (npcBudget + monsterBudget < requested) {
-    const extraNpc = Math.min(npcAvailable - npcBudget, requested - npcBudget - monsterBudget);
+  const target = Math.min(requested, remainingActiveActorSpawnSlots(entities));
+  if (target <= 0) return;
+  const npcAvailable = entitySpawnSlots(entities, EntityType.NPC, target);
+  const monsterAvailable = entitySpawnSlots(entities, EntityType.MONSTER, target);
+  let npcBudget = Math.min(npcAvailable, Math.floor(target * 0.7));
+  let monsterBudget = Math.min(monsterAvailable, target - npcBudget);
+  if (npcBudget + monsterBudget < target) {
+    const extraNpc = Math.min(npcAvailable - npcBudget, target - npcBudget - monsterBudget);
     npcBudget += extraNpc;
   }
-  if (npcBudget + monsterBudget < requested) {
-    const extraMonster = Math.min(monsterAvailable - monsterBudget, requested - npcBudget - monsterBudget);
+  if (npcBudget + monsterBudget < target) {
+    const extraMonster = Math.min(monsterAvailable - monsterBudget, target - npcBudget - monsterBudget);
     monsterBudget += extraMonster;
   }
-  const target = npcBudget + monsterBudget;
-  if (target <= 0) return;
+  const spawnTarget = npcBudget + monsterBudget;
+  if (spawnTarget <= 0) return;
   const monsterKinds = [MonsterKind.ZOMBIE, MonsterKind.TVAR, MonsterKind.SBORKA, MonsterKind.SHADOW];
   let spawned = 0;
-  for (let attempt = 0; attempt < target * 24 && spawned < target; attempt++) {
+  for (let attempt = 0; attempt < spawnTarget * 24 && spawned < spawnTarget; attempt++) {
     const x = Math.floor(Math.random() * W);
     const y = Math.floor(Math.random() * W);
     const ci = world.idx(x, y);
@@ -1462,6 +1465,8 @@ function spawnSmokeStressPopulation(count: number): void {
     }
     spawned++;
   }
+  ensureProceduralSpriteSeeds(entities);
+  rebuildProceduralSpriteCache(entities);
   state.msgs.push(msg(`SMOKE stress AI: +${spawned}`, state.time, '#8ff'));
 }
 
@@ -1469,6 +1474,13 @@ function setGeneratedDynamicSky(gen?: FloorGeneration): void {
   const sky = (gen as (FloorGeneration & { skyProvider?: DynamicSkyTexture & { update(deltaSeconds: number): boolean } }) | undefined)?.skyProvider ?? null;
   activeSkyProvider = sky;
   setDynamicSkyTexture(sky);
+}
+
+function finishLoadedFloorVisuals(gen?: FloorGeneration): void {
+  ensureProceduralSpriteSeeds(entities);
+  setGeneratedDynamicSky(gen);
+  updateWorldData(world);
+  rebuildProceduralSpriteCache(entities);
 }
 
 function updateGeneratedDynamicSky(dt: number): void {
@@ -1678,8 +1690,7 @@ function initGame(runSeedOverride?: number): void {
   // Initialize / reinitialize WebGL with current world data
   disposeWebGL();
   initWebGL(canvas, textures, sprites, world);
-  setGeneratedDynamicSky(gen);
-  updateWorldData(world);
+  finishLoadedFloorVisuals(gen);
   rebuildEntityIndex(entities, 'load');
 }
 
@@ -1750,7 +1761,7 @@ function syncMsgLog(): void {
         zoneId: m.zoneId,
       };
       const resolvedDistance = m.distanceMeters ?? worldLogDistanceForLocation(location);
-      if (!worldLogLocationIsAudible(location, resolvedDistance)) continue;
+      if (!m.hud && !worldLogLocationIsAudible(location, resolvedDistance)) continue;
       const distanceMeters = resolvedDistance ?? worldLogMessageDistance(location);
       m.distanceMeters = distanceMeters;
       msgs[writeIdx++] = m;
@@ -2257,6 +2268,7 @@ function playerActions(_dt: number): void {
             applyDamageRelationPenalty(player.faction, e.faction, dmg, e, player);
             recordFactionClashPlayerHit(state, world, player, e, dmg);
           }
+          notifyActorDamaged(world, e, player, dmg, 'player_melee', state.time, state);
           // Blood splatter on hit — use player facing as velocity direction
           const meleeSpd = 6;
           const mVx = Math.cos(player.angle) * meleeSpd;
@@ -2280,7 +2292,6 @@ function playerActions(_dt: number): void {
         }
         hitSomething = true;
       }
-      if (!hitSomething) pushAttackFeedback('Взмах — мимо.', '#fc4', 0.24);
       if (player.weapon === 'chainsaw') playChainsaw(); else playAttack();
       publishWeaponNoise(state, player, player.weapon ?? '', ws);
       notifyLiftArachnaNoise(world, player, state, player.weapon ?? '');
@@ -2299,6 +2310,7 @@ function dropEntityInventory(e: Entity): void {
   if (!e.inventory || e.inventory.length === 0) return;
   for (const item of e.inventory) {
     if (!item || item.count <= 0) continue;
+    if (!canSpawnEntityType(entities, EntityType.ITEM_DROP)) break;
     entities.push({
       id: nextEntityId.v++, type: EntityType.ITEM_DROP,
       x: e.x + (Math.random() - 0.5) * 0.5,
@@ -2458,7 +2470,7 @@ function handleKill(e: Entity, killerIsPlayer: boolean, pvx = 0, pvy = 0, goreLe
     // Drop strange_clot from Shadow when plot KILL quest for shadows is active
     if (e.monsterKind === MonsterKind.SHADOW && killerIsPlayer) {
       const hasPlotShadowQuest = state.quests.some(q => !q.done && q.plotStepIndex !== undefined && q.targetMonsterKind === MonsterKind.SHADOW);
-      if (hasPlotShadowQuest) {
+      if (hasPlotShadowQuest && canSpawnEntityType(entities, EntityType.ITEM_DROP)) {
         entities.push({
           id: nextEntityId.v++, type: EntityType.ITEM_DROP,
           x: e.x + (Math.random() - 0.5) * 0.3,
@@ -2591,6 +2603,8 @@ function resolveFlameCleanup(p: Entity, x: number, y: number, radius: number): v
 
 const projectileHitQuery: Entity[] = [];
 const explosionHitQuery: Entity[] = [];
+const PROJECTILE_HIT_QUERY_CAP = 48;
+const FLAME_HIT_QUERY_CAP = 64;
 
 function projectilePathDelta(from: number, to: number): number {
   return ((to - from + W / 2) % W + W) % W - W / 2;
@@ -2691,7 +2705,7 @@ function updateProjectiles(dt: number): void {
     // Entity collision — check monsters and NPCs
     const baseDmg = p.projDmg ?? 0;
     const hitRadius = pt === ProjType.FLAME ? 0.8 : 0.6;
-    entityIndex.queryPathRadius(prevX, prevY, wx, wy, hitRadius, projectileHitQuery, ENTITY_MASK_ACTOR);
+    entityIndex.queryPathRadius(prevX, prevY, wx, wy, hitRadius, projectileHitQuery, ENTITY_MASK_ACTOR, pt === ProjType.FLAME ? FLAME_HIT_QUERY_CAP : PROJECTILE_HIT_QUERY_CAP);
     let nearestHit: Entity | undefined;
     let nearestHitT = Infinity;
     if (pt !== ProjType.FLAME) {
@@ -2741,6 +2755,7 @@ function updateProjectiles(dt: number): void {
               applyDamageRelationPenalty(player.faction, e.faction, dmg, e, player);
               recordFactionClashPlayerHit(state, world, player, e, dmg);
             }
+            notifyActorDamaged(world, e, projectileActor(p), dmg, 'projectile', state.time, state);
             const hitAngle = Math.atan2(p.vy ?? 0, p.vx ?? 0);
             spawnBloodHit(world, hitX, hitY, hitAngle, dmg, e.type === EntityType.MONSTER, p.vx ?? 0, p.vy ?? 0, hitZ);
             spawnProjectileBodyImpact(world, hitX, hitY, p.sprite, pt, hitZ);
@@ -2873,6 +2888,7 @@ function triggerExplosion(p: Entity, pt: ProjType): void {
         applyDamageRelationPenalty(player.faction, e.faction, finalDmg, e, player);
         recordFactionClashPlayerHit(state, world, player, e, finalDmg);
       }
+      notifyActorDamaged(world, e, actor, finalDmg, 'explosion', state.time, state);
       if (e.hp <= 0) {
         e.alive = false;
         handleKill(e, isPlayer, blastVx, blastVy, 3);
@@ -3312,8 +3328,7 @@ function switchFloor(
     }
 
     // Update WebGL world data after floor change
-    setGeneratedDynamicSky(gen);
-    updateWorldData(world);
+    finishLoadedFloorVisuals(gen);
   });
 }
 
@@ -3458,8 +3473,7 @@ function debugTeleportTo(target: DebugTeleportTarget): void {
     ensureProceduralSpriteSeeds(entities);
     restoreVoidReturnPortalForCurrentWorld();
     applyStoryRouteGates(world, player, state);
-    setGeneratedDynamicSky(gen);
-    updateWorldData(world);
+    finishLoadedFloorVisuals(gen);
   });
 }
 
@@ -4075,8 +4089,7 @@ function loadGame(): boolean {
       state.msgs.push(msg('Игра загружена', state.time, '#4af'));
 
       // Update WebGL world data after load
-      setGeneratedDynamicSky(gen);
-      updateWorldData(world);
+      finishLoadedFloorVisuals(gen);
     });
     return true;
   } catch {
@@ -4380,7 +4393,9 @@ let prevFactionMenu = false;
 let prevLogMenu = false;
 let prevControlsMenu = false;
 let prevUiSettingsMenu = false;
+let prevControlEdit = false;
 let prevControlReset = false;
+let prevControlClose = false;
 type MenuRepeatKey = 'up' | 'down' | 'left' | 'right';
 const MENU_REPEAT_DELAY = 0.30;
 const MENU_REPEAT_INTERVAL = 0.085;
@@ -4428,7 +4443,9 @@ function syncMenuInputBaselines(): void {
   prevLogMenu = input.logMenu;
   prevControlsMenu = input.controls;
   prevUiSettingsMenu = input.uiSettings;
+  prevControlEdit = input.controlEdit;
   prevControlReset = input.controlReset;
+  prevControlClose = input.controlClose;
   prevMap = input.map;
 }
 
@@ -5381,7 +5398,9 @@ function handleMenuInput(): void {
     prevLogMenu = input.logMenu;
     prevControlsMenu = input.controls;
     prevUiSettingsMenu = input.uiSettings;
+    prevControlEdit = input.controlEdit;
     prevControlReset = input.controlReset;
+    prevControlClose = input.controlClose;
     prevMap = input.map;
     return;
   }
@@ -5468,7 +5487,9 @@ function handleMenuInput(): void {
     prevLogMenu = input.logMenu;
     prevControlsMenu = input.controls;
     prevUiSettingsMenu = input.uiSettings;
+    prevControlEdit = input.controlEdit;
     prevControlReset = input.controlReset;
+    prevControlClose = input.controlClose;
     prevMap = input.map;
     return;
   }
@@ -5524,7 +5545,9 @@ function handleMenuInput(): void {
     prevLogMenu = input.logMenu;
     prevControlsMenu = input.controls;
     prevUiSettingsMenu = input.uiSettings;
+    prevControlEdit = input.controlEdit;
     prevControlReset = input.controlReset;
+    prevControlClose = input.controlClose;
     prevMap = input.map;
     return;
   }
@@ -5574,7 +5597,9 @@ function handleMenuInput(): void {
     prevLogMenu = input.logMenu;
     prevControlsMenu = input.controls;
     prevUiSettingsMenu = input.uiSettings;
+    prevControlEdit = input.controlEdit;
     prevControlReset = input.controlReset;
+    prevControlClose = input.controlClose;
     prevMap = input.map;
     return;
   }
@@ -5607,7 +5632,9 @@ function handleMenuInput(): void {
     prevLogMenu = input.logMenu;
     prevControlsMenu = input.controls;
     prevUiSettingsMenu = input.uiSettings;
+    prevControlEdit = input.controlEdit;
     prevControlReset = input.controlReset;
+    prevControlClose = input.controlClose;
     return;
   }
 
@@ -5624,12 +5651,17 @@ function handleMenuInput(): void {
   const logEdge = input.logMenu && !prevLogMenu;
   const controlsEdge = input.controls && !prevControlsMenu;
   const uiSettingsEdge = input.uiSettings && !prevUiSettingsMenu;
+  const controlEditEdge = input.controlEdit && !prevControlEdit;
   const controlResetEdge = input.controlReset && !prevControlReset;
+  const controlCloseEdge = input.controlClose && !prevControlClose;
   const anyRepeatMenuOpen = state.showMenu || state.showInventory || state.showQuests ||
     state.showContainerMenu || state.showNpcMenu || state.showDebug || state.showFactions || state.showLog || state.showControls || state.showUiSettings;
   if (!anyRepeatMenuOpen) resetMenuRepeats();
 
-  if (controlsEdge) {
+  const controlsWasOpen = state.showControls;
+  const controlsToggleSuppressed = controlsWasOpen && controlsEdge && (controlEditEdge || controlResetEdge);
+  const controlsOpenedThisFrame = controlsEdge && !controlsWasOpen && !controlsToggleSuppressed;
+  if (controlsEdge && !controlsToggleSuppressed) {
     if (state.showControls) closeControlsMenu();
     else openControlsMenu();
   }
@@ -5641,42 +5673,36 @@ function handleMenuInput(): void {
   // ── Hotkey / rebind screen ───────────────────────────────
   if (state.showControls) {
     if (!getControlCaptureAction()) {
-      const upNav = menuRepeatStep('up', input.invUp, upEdge);
-      const dnNav = menuRepeatStep('down', input.invDn, dnEdge);
+      const effectiveControlEditEdge = !controlsOpenedThisFrame && controlEditEdge;
+      const effectiveControlResetEdge = !controlsOpenedThisFrame && controlResetEdge;
+      const effectiveControlCloseEdge = !controlsOpenedThisFrame && controlCloseEdge;
+      const fixedControlsCommand = effectiveControlEditEdge || effectiveControlResetEdge || effectiveControlCloseEdge;
+      const upNav = !fixedControlsCommand && menuRepeatStep('up', input.invUp, upEdge);
+      const dnNav = !fixedControlsCommand && menuRepeatStep('down', input.invDn, dnEdge);
       if (upNav) state.controlSel = Math.max(0, state.controlSel - 1);
       if (dnNav) state.controlSel = Math.min(controlMenuItemCount() - 1, state.controlSel + 1);
       keepControlSelectionVisible();
       const mouseSensitivitySelected = controlMouseSensitivitySelected();
-      const leftNav = mouseSensitivitySelected ? menuRepeatStep('left', input.invLeft, leftEdge) : false;
-      const rightNav = mouseSensitivitySelected ? menuRepeatStep('right', input.invRight, rightEdge) : false;
-      if (mouseSensitivitySelected && (leftNav || rightNav || interactEdge)) {
+      const leftNav = !fixedControlsCommand && mouseSensitivitySelected ? menuRepeatStep('left', input.invLeft, leftEdge) : false;
+      const rightNav = !fixedControlsCommand && mouseSensitivitySelected ? menuRepeatStep('right', input.invRight, rightEdge) : false;
+      if (mouseSensitivitySelected && (leftNav || rightNav || effectiveControlEditEdge)) {
         const sensitivity = adjustMouseLookSensitivity(leftNav ? -1 : 1);
         state.msgs.push(msg(`Чувствительность мыши: ${Math.round(sensitivity * 100)}%`, state.time, '#8cf'));
-      } else if (interactEdge && state.controlView === 'keys') {
+      } else if (effectiveControlEditEdge && state.controlView === 'keys') {
         const action = CONTROL_ACTIONS[state.controlSel];
         if (action) {
-          if (controlActionLocked(action.id)) {
-            state.msgs.push(msg(`Клавиша зафиксирована: ${action.label}`, state.time, '#fc4'));
-          } else {
-            beginControlCapture(action.id);
-          }
+          beginControlCapture(action.id);
         }
       }
-      if (controlResetEdge && mouseSensitivitySelected) {
+      if (effectiveControlResetEdge && mouseSensitivitySelected) {
         const sensitivity = resetMouseLookSensitivity();
         state.msgs.push(msg(`Чувствительность мыши сброшена: ${Math.round(sensitivity * 100)}%`, state.time, '#8cf'));
-      } else if (controlResetEdge && state.controlView === 'keys') {
-        const action = CONTROL_ACTIONS[state.controlSel];
-        if (action) {
-          if (clearControlBinding(action.id)) {
-            state.msgs.push(msg(`Клавиши очищены: ${action.label}`, state.time, '#8cf'));
-          } else {
-            state.msgs.push(msg(`Клавиша зафиксирована: ${action.label}`, state.time, '#fc4'));
-          }
-        }
+      } else if (effectiveControlResetEdge && state.controlView === 'keys') {
+        resetAllControlBindings();
+        state.msgs.push(msg('Клавиши сброшены по умолчанию', state.time, '#8cf'));
       }
     }
-    if (escEdge) closeControlsMenu();
+    if ((controlCloseEdge && !controlsOpenedThisFrame) || (escEdge && !controlEditEdge && !controlResetEdge)) closeControlsMenu();
 
     prevEsc = input.escape;
     prevMenuUp = input.invUp;
@@ -5692,15 +5718,18 @@ function handleMenuInput(): void {
     prevLogMenu = input.logMenu;
     prevControlsMenu = input.controls;
     prevUiSettingsMenu = input.uiSettings;
+    prevControlEdit = input.controlEdit;
     prevControlReset = input.controlReset;
+    prevControlClose = input.controlClose;
     syncPauseState();
     return;
   }
 
   // ── Configurable HUD element screen ─────────────────────
   if (state.showUiSettings) {
-    const upNav = menuRepeatStep('up', input.invUp, upEdge);
-    const dnNav = menuRepeatStep('down', input.invDn, dnEdge);
+    const fixedUiCommand = controlResetEdge;
+    const upNav = !fixedUiCommand && menuRepeatStep('up', input.invUp, upEdge);
+    const dnNav = !fixedUiCommand && menuRepeatStep('down', input.invDn, dnEdge);
     if (upNav) state.uiSettingsSel = Math.max(0, state.uiSettingsSel - 1);
     if (dnNav) state.uiSettingsSel = Math.min(uiSettingsRowCount(state.uiSettingsView) - 1, state.uiSettingsSel + 1);
     keepUiSettingsSelectionVisible();
@@ -5726,12 +5755,15 @@ function handleMenuInput(): void {
     prevLogMenu = input.logMenu;
     prevControlsMenu = input.controls;
     prevUiSettingsMenu = input.uiSettings;
+    prevControlEdit = input.controlEdit;
     prevControlReset = input.controlReset;
+    prevControlClose = input.controlClose;
     syncPauseState();
     return;
   }
 
   // ── Enter: toggle game menu (or close any open menu) ─────
+  let gameMenuOpenedThisFrame = false;
   if (escEdge) {
     if (state.showNpcMenu) {
       const npc = entities.find(e => e.id === state.npcMenuTarget);
@@ -5749,9 +5781,8 @@ function handleMenuInput(): void {
     else if (state.showLog) { state.showLog = false; }
     else if (state.showUiSettings) { state.showUiSettings = false; }
     else if (state.mapMode === 2) { closeFullMapMenu(); }
-    else if (state.showMenu && state.menuSel === 1) { runGameMenuSelection(state.menuSel); }
-    else if (state.showMenu) { state.showMenu = false; }
-    else { state.showMenu = !state.showMenu; state.menuSel = 0; }
+    else if (state.showMenu && !interactEdge) { state.showMenu = false; }
+    else if (!state.showMenu) { state.showMenu = true; state.menuSel = 0; gameMenuOpenedThisFrame = true; }
   }
 
   // ── Game menu navigation ─────────────────────────────────
@@ -5760,7 +5791,7 @@ function handleMenuInput(): void {
     const dnNav = menuRepeatStep('down', input.invDn, dnEdge);
     if (upNav) state.menuSel = Math.max(0, state.menuSel - 1);
     if (dnNav) state.menuSel = Math.min(GAME_MENU_ITEMS.length - 1, state.menuSel + 1);
-    if (interactEdge) {
+    if (interactEdge && !gameMenuOpenedThisFrame) {
       runGameMenuSelection(state.menuSel);
     }
   }
@@ -6048,7 +6079,9 @@ function handleMenuInput(): void {
   prevLogMenu = input.logMenu;
   prevControlsMenu = input.controls;
   prevUiSettingsMenu = input.uiSettings;
+  prevControlEdit = input.controlEdit;
   prevControlReset = input.controlReset;
+  prevControlClose = input.controlClose;
   prevMap = input.map;
 
   // Auto-pause when any menu is open
@@ -6072,7 +6105,15 @@ let frameMsWindowMax = 0;
 let displayedFps = 0;
 let displayedFrameMsAvg = 0;
 let displayedFrameMsMax = 0;
+let lastSimUpdateMs = 0;
+let lastNeedsUpdateMs = 0;
+let lastContentHookMs = 0;
 let lastAiUpdateMs = 0;
+let lastHazardUpdateMs = 0;
+let lastSamosborUpdateMs = 0;
+let lastFactionUpdateMs = 0;
+let lastBloodUpdateMs = 0;
+let lastCleanupUpdateMs = 0;
 let lastRenderSceneMs = 0;
 let lastHudDrawMs = 0;
 
@@ -6101,26 +6142,29 @@ function updateFpsMeter(now: number, frameMs: number): number {
 }
 
 function hudPerfDebugSnapshot(fps: number): HudPerfDebugSnapshot {
-  const ai = getAiSchedulerStats();
+  const ai = getAiStats();
   const entityStats = getEntityIndex().getDebugStats();
   const renderStats = getRenderSceneDebugStats();
   return {
     fps,
     frameMsAvg: displayedFrameMsAvg,
     frameMsMax: displayedFrameMsMax,
+    simMs: lastSimUpdateMs,
+    needsMs: lastNeedsUpdateMs,
+    contentMs: lastContentHookMs,
     aiMs: lastAiUpdateMs,
+    hazardMs: lastHazardUpdateMs,
+    samosborMs: lastSamosborUpdateMs,
+    factionMs: lastFactionUpdateMs,
+    bloodMs: lastBloodUpdateMs,
+    cleanupMs: lastCleanupUpdateMs,
     renderMs: lastRenderSceneMs,
     hudMs: lastHudDrawMs,
     liveAi: entityStats.aiCount,
     visibleSprites: renderStats.visibleSprites,
     drawnSprites: renderStats.drawnSprites,
     visibleEntityQueryResults: renderStats.visibleEntityQueryResults,
-    aiHot: ai.hot,
-    aiWarm: ai.warm,
-    aiCold: ai.cold,
-    aiUpdatedHot: ai.updatedHot,
-    aiUpdatedWarm: ai.updatedWarm,
-    aiUpdatedCold: ai.updatedCold,
+    aiUpdated: ai.updated,
     aiSkipped: ai.skipped,
   };
 }
@@ -6260,6 +6304,14 @@ function gameLoop(now: number): void {
   }
 
   if (!state.paused && !state.gameOver) {
+    const simStart = performance.now();
+    lastNeedsUpdateMs = 0;
+    lastContentHookMs = 0;
+    lastHazardUpdateMs = 0;
+    lastSamosborUpdateMs = 0;
+    lastFactionUpdateMs = 0;
+    lastBloodUpdateMs = 0;
+    lastCleanupUpdateMs = 0;
     state.time += dt;
     state.tick++;
 
@@ -6282,7 +6334,7 @@ function gameLoop(now: number): void {
     }
 
     movePlayer(dt);
-    rebuildEntityIndexForSimulation(entities, entityIndexFrame);
+    rebuildEntityIndexForSimulation(entities, entityIndexFrame).beginTelemetryFrame();
     playerActions(dt);
     syncPlayerActorSwitchBaseline();
     // If switchFloor was triggered, pendingLoad is set — skip the rest of this frame
@@ -6321,9 +6373,13 @@ function gameLoop(now: number): void {
     if (needsTickAccum >= 0.25) {
       const needsDt = needsTickAccum;
       needsTickAccum = 0;
+      const needsStart = performance.now();
       updateNeeds(entities, needsDt, state.time, state.msgs, player.id, nextEntityId, state, world);
+      lastNeedsUpdateMs += performance.now() - needsStart;
     }
+    let contentStart = performance.now();
     if (updateContentRuntimeHooks({ world, entities, player, state, nextEntityId, dt, phase: 'pre_ai', gameOver: false })) updateWorldData(world);
+    lastContentHookMs += performance.now() - contentStart;
     const listener = player;
     setListenerPos(listener.x, listener.y, world);
     updateRouteCues(world, listener, state);
@@ -6332,11 +6388,18 @@ function gameLoop(now: number): void {
     updateAI(world, entities, dt, state.time, state.msgs, listener.id, state.clock, state.samosborActive, nextEntityId, state.currentFloor, state);
     lastAiUpdateMs = performance.now() - aiStart;
     updateRailTrains(world, entities, player, state, dt);
+    contentStart = performance.now();
     if (updateContentRuntimeHooks({ world, entities, player, state, nextEntityId, dt, phase: 'post_ai', gameOver: false })) updateWorldData(world);
+    lastContentHookMs += performance.now() - contentStart;
     updateCarnivorousFungus(world, entities, player, state, dt, nextEntityId);
+    const hazardStart = performance.now();
     tickCellHazards(world, entities, state, dt, player, input.fwd || input.back || input.strafeL || input.strafeR || input.touch.moveX !== 0 || input.touch.moveY !== 0);
+    lastHazardUpdateMs = performance.now() - hazardStart;
     updateProceduralAnomalies(world, player, state, dt);
-    if (updateSamosbor(world, entities, state, dt, nextEntityId, currentLocalSamosborPatchGeneration, scheduleLocalSamosborPatch)) {
+    const samosborStart = performance.now();
+    const samosborRebuild = updateSamosbor(world, entities, state, dt, nextEntityId, currentLocalSamosborPatchGeneration, scheduleLocalSamosborPatch);
+    lastSamosborUpdateMs = performance.now() - samosborStart;
+    if (samosborRebuild) {
       reportNetSphereProgressEvents();
       scheduleLoading(() => {
         restorePlayerBeforeWorldBoundary();
@@ -6357,8 +6420,7 @@ function gameLoop(now: number): void {
         clearLiftArachnaActive(state);
         restoreVoidReturnPortalForCurrentWorld();
         applyStoryRouteGates(world, player, state);
-        setGeneratedDynamicSky(replacement);
-        updateWorldData(world);
+        finishLoadedFloorVisuals(replacement);
       });
       requestAnimationFrame(gameLoop);
       return;
@@ -6366,9 +6428,13 @@ function gameLoop(now: number): void {
     if (pendingLoad) { requestAnimationFrame(gameLoop); return; }
     syncMapExplorationAfterSamosborWave(world, state);
     // Faction zone capture (cell-based territory control)
+    const factionStart = performance.now();
     updateFactionCapture(world, entities, dt);
     updateFactionActivity(world, entities, player, state, nextEntityId, dt, currentFloorAllowsNpcPopulation());
+    lastFactionUpdateMs = performance.now() - factionStart;
+    contentStart = performance.now();
     if (updateContentRuntimeHooks({ world, entities, player, state, nextEntityId, dt, phase: 'floor_activity', gameOver: false })) updateWorldData(world);
+    lastContentHookMs += performance.now() - contentStart;
     // Continuous monster spawn for Grom's defense quest (step 8)
     if (state.currentFloor === FloorLevel.MAINTENANCE) {
       updateDefenseQuestSpawn(dt);
@@ -6380,12 +6446,14 @@ function gameLoop(now: number): void {
 
     // Blood trails from wounded entities + particle physics
     bloodTrailAccum += dt;
+    const bloodStart = performance.now();
     if (bloodTrailAccum >= 0.3) {
       const bloodDt = bloodTrailAccum;
       bloodTrailAccum = 0;
       updateBloodTrails(world, entities, bloodDt);
     }
     updateParticles(world, dt);
+    lastBloodUpdateMs = performance.now() - bloodStart;
 
     // Cycle slide textures every 5 seconds — left tile=even, right tile=odd
     if (world.slideCells.length >= 2) {
@@ -6466,7 +6534,10 @@ function gameLoop(now: number): void {
     }
     reportNetSphereProgressEvents();
 
-    if (cleanupDeadEntities(dt) > 0) {
+    const cleanupStart = performance.now();
+    const removedDead = cleanupDeadEntities(dt);
+    lastCleanupUpdateMs = performance.now() - cleanupStart;
+    if (removedDead > 0) {
       // Exception to the one planned rebuild: splice cleanup changes the flat array after spawns/deaths.
       rebuildEntityIndexAfterSpawnCleanup(entities);
     }
@@ -6475,6 +6546,7 @@ function gameLoop(now: number): void {
     syncMsgLog();
     while (state.msgs.length > 50) state.msgs.shift();
     _prevMsgCount = state.msgs.length;
+    lastSimUpdateMs = performance.now() - simStart;
   }
 
   // ── World simulation continues after death (NPC, monsters, samosbor keep running) ──
@@ -6523,8 +6595,7 @@ function gameLoop(now: number): void {
         updateMapExploration(world, player, state);
         ensureProceduralSpriteSeeds(entities);
         clearLiftArachnaActive(state);
-        setGeneratedDynamicSky(replacement);
-        updateWorldData(world);
+        finishLoadedFloorVisuals(replacement);
       });
       requestAnimationFrame(gameLoop);
       return;
@@ -6639,6 +6710,9 @@ function returnToTitleScreen(): void {
   input.invRight = false;
   input.drop = false;
   input.uiSettings = false;
+  input.controlEdit = false;
+  input.controlReset = false;
+  input.controlClose = false;
   resetMenuRepeats();
   document.addEventListener('keydown', startHandler);
   showTitle();
@@ -6648,6 +6722,9 @@ function finishStartGameFromTitle(): void {
   player.name = playerDisplayName();
   started = true;
   input.escape = false;
+  input.controlEdit = false;
+  input.controlReset = false;
+  input.controlClose = false;
   document.removeEventListener('keydown', startHandler);
   bindNetSphereInput();
   requestPointerLockIfDesktop();

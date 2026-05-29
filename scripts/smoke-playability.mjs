@@ -1609,7 +1609,11 @@ async function main() {
       const liveAi = running?.liveAiCount ?? stressEntities;
       const p95Limit = liveAi >= 10000 ? 50 : 33;
       if (perf.p95Ms > p95Limit) {
-        throw new Error(`Stress perf failed: p95FrameMs=${perf.p95Ms.toFixed(2)} > ${p95Limit} for ${liveAi} live AI actors`);
+        const debug = await readGameDebug(client).catch(err => ({ error: err?.message ?? String(err) }));
+        const perfDebug = debug?.perf ? `; debugPerf=${JSON.stringify(debug.perf)}` : '';
+        const aiDebug = debug?.ai ? `; ai=${JSON.stringify(debug.ai)}` : '';
+        const indexDebug = debug?.entityIndex ? `; entityIndex=${JSON.stringify(debug.entityIndex)}` : '';
+        throw new Error(`Stress perf failed: p95FrameMs=${perf.p95Ms.toFixed(2)} > ${p95Limit} for ${liveAi} live AI actors${perfDebug}${aiDebug}${indexDebug}`);
       }
       if (perf.maxMs > 200) {
         throw new Error(`Stress perf failed: maxFrameMs=${perf.maxMs.toFixed(2)} > 200 for ${stressEntities} AI actors`);

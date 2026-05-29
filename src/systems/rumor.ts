@@ -246,9 +246,9 @@ function eventDataDedupeKey(event: RumorEventLike): string {
 }
 
 export function tickNpcRumorLowFrequency(npc: Entity, now: number, totalMinutes: number, samosborActive: boolean): boolean {
+  if (((totalMinutes | 0) + npc.id) % RUMOR_TICK_MINUTES !== 0) return false;
   const memory = getNpcMemory(npc, now);
   if (totalMinutes - memory.lastContextAt < RUMOR_TICK_MINUTES) return false;
-  if (((totalMinutes | 0) + npc.id) % RUMOR_TICK_MINUTES !== 0) return false;
 
   memory.lastContextAt = totalMinutes;
   if (samosborActive) return learnRumor(npc, 'samosbor_vent_first', now);

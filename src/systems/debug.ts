@@ -75,7 +75,7 @@ import {
   summarizeMapEditor,
 } from './map_editor';
 import { revealWholeMap } from './map_exploration';
-import { getAiSchedulerStats } from './ai';
+import { getAiStats } from './ai';
 import { canSpawnEntityType, entitySpawnSlots } from './entity_limits';
 import { CHALK_ITEM_ID } from './chalk';
 import { isPlayerEntity } from './player_actor';
@@ -2129,9 +2129,9 @@ export function drawDebugOverlay(
   row(`Комнаты: ${funcRooms}  Лифты: ${lifts} (↑${liftsUp} ↓${liftsDown})`, '#aaa');
   row(`Noclip: ${isDebugNoClipEnabled() ? 'ON' : 'OFF'}`, isDebugNoClipEnabled() ? '#ff0' : '#666');
   row(`ONEPUNCHMAN: ${isDebugOnePunchManEnabled() ? 'ON' : 'OFF'}`, isDebugOnePunchManEnabled() ? '#ff0' : '#666');
-  const ai = getAiSchedulerStats();
-  row(`AI LOD: H${ai.hot}/${ai.updatedHot} W${ai.warm}/${ai.updatedWarm} C${ai.cold}/${ai.updatedCold} skip ${ai.skipped}`, '#9cf');
-  row(`AI важн: plot ${ai.plot} boss ${ai.bosses} atk ${ai.activeAttackers} dmg ${ai.recentlyDamaged} proj ${ai.projectileOwners}/${ai.projectiles}`, '#9cf');
+  const ai = getAiStats();
+  row(`AI: live ${ai.liveAi} upd ${ai.updated} npc ${ai.updatedNpc} mob ${ai.updatedMonster} skip ${ai.skipped}`, '#9cf');
+  row(`AI факт: plot ${ai.plot} boss ${ai.bosses} atk ${ai.activeAttackers} proj ${ai.projectileOwners}/${ai.projectiles}`, '#9cf');
   for (const line of summarizeFloorRun(state).slice(0, 2)) row(`Этажи: ${line}`, '#8cf');
   const playerEntity = entities.find(e => isPlayerEntity(e));
   for (const line of summarizeRoomMemoryForRoom(state.currentFloor, playerEntity ? currentPlayerRoom(world, playerEntity) : undefined)) row(line, '#dc9');

@@ -1468,6 +1468,21 @@ function warningSignalCode(variant: ActiveSamosborVariant): string {
   }
 }
 
+function samosborWarningLogName(variant: ActiveSamosborVariant): string {
+  switch (variant.def.id) {
+    case 'classic': return 'классический самосбор';
+    case 'wet': return 'мокрый самосбор';
+    case 'electric': return 'электросбор';
+    case 'meat': return 'мясной самосбор';
+    default: return variant.def.displayName;
+  }
+}
+
+function samosborWarningLogLine(seconds: number, variant: ActiveSamosborVariant): string {
+  const minutes = Math.max(0, Math.ceil(seconds));
+  return `Через ${minutes} мин ожидается ${samosborWarningLogName(variant)}.`;
+}
+
 function warningAudioLine(variant: ActiveSamosborVariant): string {
   if (variant.def.audioCue === 'bell') return 'звук: низкий колокол вместо сирены';
   if (variant.def.audioCue === 'beep') return 'звук: высокий писк; не идти на источник';
@@ -1502,7 +1517,7 @@ function buildWarningSignals(
   barkCount: number,
   wrongDoorIdx: number,
   shelterCount: number,
-  actionLine: string,
+  seconds: number,
 ): SamosborWarningSignals {
   const audioLine = warningAudioLine(variant);
   const screenLine = screenCount > 0
@@ -1525,7 +1540,7 @@ function buildWarningSignals(
     hazardLine,
     npcLine,
     visualLine,
-    logLine: `Предупреждение принято: ${audioLine}; ${visualLine}; ${npcLine}. Решение: ${actionLine}`,
+    logLine: samosborWarningLogLine(seconds, variant),
     signalCode: warningSignalCode(variant),
     channels,
     channelLines: [audioLine, visualLine, npcLine],
@@ -1634,9 +1649,6 @@ function ensureSamosborWarning(
   const variant = getActiveSamosborVariant() ?? chooseSamosborVariant(state.currentFloor);
   const zone = chooseWarningZone(world, entities);
   const seconds = Math.max(0, Math.ceil(state.samosborTimer));
-  const floorName = floorLevelDisplayName(state.currentFloor);
-  const variantLine = `${variant.def.displayName}: ${variant.def.gameplaySignal}.`;
-  const modifierLine = variant.modifiers[0]?.warningLine;
   const istotitShelterRoomIds = prepareIstotitShelters(world, state, variant, zone.cx, zone.cy);
   const localShelterRoomIds = prepareLocalSamosborShelters(world, entities, state, variant, zone.id, zone.cx, zone.cy);
   const shelterRoomIds = mergeRoomIds(istotitShelterRoomIds, localShelterRoomIds);
@@ -1653,16 +1665,6 @@ function ensureSamosborWarning(
   );
   const maronaryClue = prepareMaronaryWarningClues(world, variant, zone.cx, zone.cy);
 
-  state.msgs.push(msg(warningLine, state.time, variant.def.tint));
-  if (warningLine !== countdownLine) state.msgs.push(msg(countdownLine, state.time, variant.def.tint));
-  state.msgs.push(msg(`${floorName}. ${variantLine}`, state.time, variant.def.tint));
-  if (modifierLine) state.msgs.push(msg(modifierLine, state.time, variant.def.tint));
-  if (shelterRoomIds.length > 0) {
-    state.msgs.push(msg('ИСТОТИТ: жёлтые гермы отмечены на карте; мест мало. Внутри нажмите E: впустить соседа или закрыться одному.', state.time, variant.def.tint));
-  }
-  if (isMaronary(variant) && (maronaryClue.greenSourceCount > 0 || maronaryClue.wrongDoorIdx >= 0)) {
-    state.msgs.push(msg('Маронарий: зелёный источник и повтор двери отмечены. Свечение жжёт; проверяй маршрут по номеру, не по зелёному свету.', state.time, variant.def.tint));
-  }
   const barkCount = pushWarningBarks(world, entities, state, variant, zone.cx, zone.cy);
   const signals = buildWarningSignals(
     variant,
@@ -1670,7 +1672,7 @@ function ensureSamosborWarning(
     barkCount,
     maronaryClue.wrongDoorIdx,
     shelterRoomIds.length,
-    actionLine,
+    seconds,
   );
   const signalMsg = msg(signals.logLine, state.time, variant.def.tint);
   const signalListener = entities.find(e => e.alive && isPlayerEntity(e));
