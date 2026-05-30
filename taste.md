@@ -1,5 +1,9 @@
 # taste.md - вкус ГИГАХРУЩА
 
+> Центральный документ вкуса.
+>
+> Роль: описывает visual/audio/UI/atmosphere taste: pixel-minimalist horror, Soviet-punk бытовой ужас, samosbor universe, concrete megastructure, procedural raycaster look, readable silhouettes and no generic fantasy/sci-fi drift. Связан с `scenarist.md`, `desdoc.md`, `items.md`, `monsters.md` and `render/`.
+
 Статус: taste bible для визуала, интерфейса, монстров и атмосферы. Это не
 факт-карта билда и не backlog. Факты проверять по `README.md`, `architecture.md`
 и текущему `src/`.

@@ -11,10 +11,11 @@ Owned file: `src/gen/design_floors/pioneer_camp.ts`. Route integration: `src/dat
 The generator builds a Soviet summer-camp pocket with generic camp grammar, not copied third-party names. It includes:
 
 - central lineup square, gate, canteen, infirmary, library, radio club, music club, stage, bathhouse, boat station, sport ground and locked old cabin;
+- an explicit loudspeaker point and camp storage shed connecting the roster, repair, canteen and old-cabin routes;
 - Tamara Smennaya, Egor Radio Club, Ira Medpost and Zoya Canteen as registered side-quest NPCs;
 - fetch quests for shelter roster, loudspeaker wire, sanitary kit and pressed sugar;
 - owned camp containers for food, medicine and radio repair supplies, plus document and old-cabin stashes;
-- a larger route expansion with trail loops, cabin rooms, posters, lights and concrete-forest decay.
+- a larger route expansion with trail loops, cabin rooms, posters, lights, Poisson-spaced concrete-forest trail points and BFS safe/buffer/wild trail shells.
 
 ## Implementation Boundary
 

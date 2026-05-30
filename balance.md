@@ -1,5 +1,9 @@
 # ГИГАХРУЩ: Баланс-Контракт
 
+> Центральный документ баланса.
+>
+> Роль: описывает численный прогресс игры: деньги, уровни, HP/XP, награды, цены, scarcity, этажную опасность, рост риска по `abs(z)`, NPC/monster level pressure and expedition reward economy. Связан с `alife.md`, `economics.md`, `items.md`, `floors.md` and `quests.md`.
+
 Дата: 2026-05-20
 Статус: релизный баланс-документ, основанный на текущих `README.md`, `architecture.md`, `alife.md`, `desdoc.md` и фактическом коде `src/`.
 
@@ -65,7 +69,7 @@
 
 ### Контракты И Награды
 
-- `src/data/contracts.ts`: 201 assignment templates.
+- `src/data/contracts.ts`: 205 assignment templates at runtime.
 - Денежные награды примерно `0..340`, median около `115`, average около `119`.
 - XP награды примерно `20..170`, median около `65`.
 - Rank `0..4`; relation delta примерно `-8..14`.
@@ -73,7 +77,7 @@
 
 ### Производство, Караваны, Банк, Рынок
 
-- `src/data/factories.ts`: 12 factories, 19 recipes.
+- `src/data/factories.ts`: 12 factories, 42 recipes.
 - Production cycles: `60..420s`.
 - Production runtime caps: rooms `64`, states `128`.
 - Caravan lanes: 6 lanes, fees `18..42`, small caravan seat fees `24..44`, risk `2..4`, cargo deltas `2..6`.
@@ -87,10 +91,10 @@
 - Ranged examples: `makarov 16/0.52`, `ppsh 6/0.07`, `shotgun 9x7/1.2`, `ak47 19/0.14`, `machinegun 10/0.05`, `grenade 90 AoE 4.5`, `gauss 150`, `bfg 230 AoE 9`, `GBE 420` deletion beam range `30`.
 - Расход патронов сейчас ровно `1` ammo item за выстрел, включая дробовик с pellets.
 - PSI stats live in `src/data/psi.ts`: cost `3..23`, projectile damage `12..96`, no passive regen.
-- Monster base stats: 25 видов, HP `8..1000`, speed `0..3.15`, damage `3..44`, attackRate `0.65..3.5`.
+- Monster base stats: 67 видов, HP `8..1000`, speed `0..3.15`.
 - Monster level scaling: HP `+12%`, damage `+10%`, speed `+2%` per zone level.
 - Floor zone bonus: Maintenance `+4`, Hell `+9`, Void `+15`.
-- Monster variants apply with about `35%` chance and use HP/speed/damage multipliers plus readability/counterplay data.
+- Mechanical monster modifier variants are removed; new creatures are standalone packages with ecology/counterplay data, and special tactics use generic bounded AI profiles.
 
 ### Самосбор
 

@@ -43,6 +43,12 @@ export const PIONEER_CAMP_DISPLAY_NAME = 'Пионерлагерь';
 const CAMP_SEED = hashSeed(PIONEER_CAMP_DESIGN_FLOOR_ID);
 const CX = W >> 1;
 const CY = W >> 1;
+const CAMP_GATE_X = CX - 34;
+const CAMP_GATE_Y = CY - 126;
+const CAMP_GATE_W = 68;
+const CAMP_GATE_H = 20;
+const CAMP_SAFE_TRAIL_STEPS = 220;
+const CAMP_BUFFER_TRAIL_STEPS = 340;
 
 const NPC_IDS = {
   shift: 'camp_shift_tamara',
@@ -56,11 +62,13 @@ type CampNpcId = (typeof NPC_IDS)[keyof typeof NPC_IDS];
 interface CampRooms {
   square: Room;
   gate: Room;
+  loudspeaker: Room;
   canteen: Room;
   infirmary: Room;
   library: Room;
   radioClub: Room;
   musicClub: Room;
+  storage: Room;
   stage: Room;
   bathhouse: Room;
   boat: Room;
@@ -268,6 +276,7 @@ export function expandPioneerCampFullFloor(world: World, rng: () => number): voi
   ] as const) {
     carveSafeLine(world, mask, ax, ay, bx, by, 3, Tex.F_WOOD);
   }
+  connectCampGateToNorthTrail(world, mask);
 
   const cabinSpecs = [
     [250, 258], [308, 238], [366, 260], [708, 252], [766, 286],
@@ -285,6 +294,8 @@ export function expandPioneerCampFullFloor(world: World, rng: () => number): voi
     setFeature(world, room.x + 7, room.y + room.h - 3, Feature.TABLE);
     if (i % 3 === 0) markPosterWall(world, room.x + 6, room.y - 1, 31 + i);
   }
+
+  scatterConcreteForestTrailPoints(world, mask, rng);
 
   for (let i = 0; i < 34; i++) {
     const x = 84 + Math.floor(rng() * 856);
@@ -305,11 +316,15 @@ export function expandPioneerCampFullFloor(world: World, rng: () => number): voi
 }
 
 export function tunePioneerCampPopulationZones(world: World): void {
+  const trailDistance = campTrailDistances(world, CX, CY);
+  const zoneBestDistance = campZoneBestTrailDistances(world, trailDistance);
+
   for (const zone of world.zones) {
     const centerD = world.dist(zone.cx, zone.cy, CX, CY);
     const oldCabinD = world.dist(zone.cx, zone.cy, CX - 197, CY - 137);
     const bathhouseD = world.dist(zone.cx, zone.cy, CX - 126, CY + 140);
     const boatD = world.dist(zone.cx, zone.cy, CX + 108, CY + 144);
+    const trailD = zoneBestDistance[zone.id] ?? -1;
     const trailEdgeD = Math.min(
       world.dist(zone.cx, zone.cy, CX, CY - 380),
       world.dist(zone.cx, zone.cy, CX, CY + 376),
@@ -317,10 +332,10 @@ export function tunePioneerCampPopulationZones(world: World): void {
       world.dist(zone.cx, zone.cy, CX + 352, CY),
     );
 
-    if (oldCabinD < 150 || centerD > 390 || trailEdgeD < 130) {
+    if (oldCabinD < 150 || trailD < 0 || trailD > CAMP_BUFFER_TRAIL_STEPS || centerD > 390 || trailEdgeD < 130) {
       zone.faction = ZoneFaction.WILD;
       zone.level = 4;
-    } else if (bathhouseD < 120 || boatD < 130 || centerD > 245) {
+    } else if (trailD > CAMP_SAFE_TRAIL_STEPS || bathhouseD < 120 || boatD < 130 || centerD > 245) {
       zone.faction = ZoneFaction.LIQUIDATOR;
       zone.level = 3;
     } else {
@@ -332,7 +347,10 @@ export function tunePioneerCampPopulationZones(world: World): void {
   }
 
   for (let i = 0; i < W * W; i++) {
-    world.factionControl[i] = world.zones[world.zoneMap[i]]?.faction ?? ZoneFaction.CITIZEN;
+    const d = trailDistance[i];
+    if (d >= 0 && d <= CAMP_SAFE_TRAIL_STEPS) world.factionControl[i] = ZoneFaction.CITIZEN;
+    else if (d >= 0 && d <= CAMP_BUFFER_TRAIL_STEPS) world.factionControl[i] = ZoneFaction.LIQUIDATOR;
+    else world.factionControl[i] = world.zones[world.zoneMap[i]]?.faction ?? ZoneFaction.CITIZEN;
   }
   stampCampFaction(world, CX, CY, 58, ZoneFaction.CITIZEN);
   stampCampFaction(world, CX - 197, CY - 137, 58, ZoneFaction.WILD);
@@ -357,6 +375,112 @@ function stampCampFaction(world: World, cx: number, cy: number, radius: number, 
   }
 }
 
+function campTrailDistances(world: World, sx: number, sy: number): Int32Array {
+  const distance = new Int32Array(W * W);
+  distance.fill(-1);
+  const seed = nearestCampWalkableCell(world, sx, sy, 18);
+  if (seed < 0) return distance;
+
+  const queue = new Int32Array(W * W);
+  let head = 0;
+  let tail = 0;
+  distance[seed] = 0;
+  queue[tail++] = seed;
+
+  while (head < tail) {
+    const ci = queue[head++];
+    const nextDistance = distance[ci] + 1;
+    const x = ci % W;
+    const y = (ci / W) | 0;
+    for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]] as const) {
+      const ni = world.idx(x + dx, y + dy);
+      if (distance[ni] >= 0 || !isCampTrailWalkableCell(world, ni)) continue;
+      distance[ni] = nextDistance;
+      queue[tail++] = ni;
+    }
+  }
+
+  return distance;
+}
+
+function nearestCampWalkableCell(world: World, x: number, y: number, radius: number): number {
+  const sx = world.wrap(Math.floor(x));
+  const sy = world.wrap(Math.floor(y));
+  const start = world.idx(sx, sy);
+  if (isCampTrailWalkableCell(world, start)) return start;
+
+  for (let r = 1; r <= radius; r++) {
+    for (let dy = -r; dy <= r; dy++) {
+      for (let dx = -r; dx <= r; dx++) {
+        if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue;
+        const ci = world.idx(sx + dx, sy + dy);
+        if (isCampTrailWalkableCell(world, ci)) return ci;
+      }
+    }
+  }
+  return -1;
+}
+
+function isCampTrailWalkableCell(world: World, ci: number): boolean {
+  const cell = world.cells[ci];
+  return cell === Cell.FLOOR || cell === Cell.DOOR || cell === Cell.LIFT;
+}
+
+function campZoneBestTrailDistances(world: World, trailDistance: Int32Array): Int32Array {
+  const out = new Int32Array(world.zones.length);
+  out.fill(-1);
+  for (let ci = 0; ci < W * W; ci++) {
+    const d = trailDistance[ci];
+    if (d < 0) continue;
+    const zoneId = world.zoneMap[ci];
+    if (zoneId < 0 || zoneId >= out.length) continue;
+    if (out[zoneId] < 0 || d < out[zoneId]) out[zoneId] = d;
+  }
+  return out;
+}
+
+function scatterConcreteForestTrailPoints(world: World, mask: Uint8Array, rng: () => number): void {
+  const candidates: number[] = [];
+  const minD2 = 26 * 26;
+  for (let ci = 0; ci < W * W; ci++) {
+    if (!isConcreteForestTrailCandidate(world, mask, ci)) continue;
+    const x = ci % W;
+    const y = (ci / W) | 0;
+    const centerD2 = world.dist2(x + 0.5, y + 0.5, CX, CY);
+    if (centerD2 < 180 * 180 || centerD2 > 470 * 470) continue;
+    candidates.push(ci);
+  }
+
+  const accepted: number[] = [];
+  for (let i = 0; i < candidates.length && accepted.length < 58; i++) {
+    const j = i + Math.floor(rng() * (candidates.length - i));
+    const picked = candidates[j];
+    candidates[j] = candidates[i];
+    candidates[i] = picked;
+    const x = picked % W;
+    const y = (picked / W) | 0;
+    let spaced = true;
+    for (const other of accepted) {
+      if (world.dist2(x, y, other % W, (other / W) | 0) < minD2) {
+        spaced = false;
+        break;
+      }
+    }
+    if (!spaced) continue;
+    accepted.push(picked);
+    world.features[picked] = Feature.SLIDE;
+    if (rng() < 0.45) world.floorTex[picked] = Tex.F_CONCRETE;
+    if (rng() < 0.5) stampSurfaceSplat(world, x, y, 0.5, 0.5, 1.2, 0.18, 5100 + accepted.length, 52, 74, 66, true);
+  }
+}
+
+function isConcreteForestTrailCandidate(world: World, mask: Uint8Array, ci: number): boolean {
+  return !mask[ci] &&
+    world.cells[ci] === Cell.FLOOR &&
+    world.roomMap[ci] < 0 &&
+    world.features[ci] === Feature.NONE;
+}
+
 function initCampWorld(world: World): void {
   for (let i = 0; i < W * W; i++) {
     world.wallTex[i] = Tex.PANEL;
@@ -367,24 +491,27 @@ function initCampWorld(world: World): void {
 
 function buildCampCore(world: World): CampRooms {
   const square = addOpenArea(world, RoomType.COMMON, CX - 45, CY - 34, 90, 68, 'Площадь обязательной линейки', Tex.F_CONCRETE);
-  const gate = addCampRoom(world, RoomType.CORRIDOR, CX - 34, CY - 126, 68, 20, 'Ворота и остановка лагеря', Tex.BRICK, Tex.F_CONCRETE);
+  const gate = addCampRoom(world, RoomType.CORRIDOR, CAMP_GATE_X, CAMP_GATE_Y, CAMP_GATE_W, CAMP_GATE_H, 'Ворота и остановка лагеря', Tex.BRICK, Tex.F_CONCRETE);
+  const loudspeaker = addOpenArea(world, RoomType.COMMON, CX - 14, CY - 74, 28, 14, 'Громкоговоритель строевого сбора', Tex.F_CONCRETE);
   const canteen = addCampRoom(world, RoomType.KITCHEN, CX + 58, CY + 40, 48, 26, 'Столовая на три бесконечных обеда', Tex.TILE_W, Tex.F_TILE);
   const infirmary = addCampRoom(world, RoomType.MEDICAL, CX - 92, CY + 42, 32, 22, 'Медпункт тихого часа', Tex.TILE_W, Tex.F_TILE);
   const library = addCampRoom(world, RoomType.COMMON, CX - 108, CY - 64, 42, 24, 'Библиотека обязательного чтения', Tex.PANEL, Tex.F_WOOD);
   const radioClub = addCampRoom(world, RoomType.PRODUCTION, CX + 62, CY - 66, 38, 24, 'Радиокружок с чужим эфиром', Tex.METAL, Tex.F_CONCRETE);
   const musicClub = addCampRoom(world, RoomType.COMMON, CX + 112, CY - 46, 32, 20, 'Музыкальный кружок без припева', Tex.PANEL, Tex.F_WOOD);
+  const storage = addCampRoom(world, RoomType.STORAGE, CX + 126, CY + 16, 30, 20, 'Склад смены с чужими бирками', Tex.BRICK, Tex.F_CONCRETE);
   const stage = addOpenArea(world, RoomType.COMMON, CX - 30, CY + 56, 60, 22, 'Сцена вечерней линейки', Tex.F_WOOD);
   const bathhouse = addCampRoom(world, RoomType.BATHROOM, CX - 142, CY + 128, 34, 22, 'Умывальники и банный ряд', Tex.TILE_W, Tex.F_WATER);
   const boat = addCampRoom(world, RoomType.STORAGE, CX + 90, CY + 128, 38, 20, 'Лодочная станция у бетонной воды', Tex.ROTTEN, Tex.F_WOOD);
   const sport = addOpenArea(world, RoomType.COMMON, CX + 132, CY + 80, 58, 34, 'Спортплощадка под сеткой труб', Tex.F_CONCRETE);
   const oldCabin = addCampRoom(world, RoomType.STORAGE, CX - 214, CY - 148, 34, 22, 'Старый корпус за лесной тропой', Tex.ROTTEN, Tex.F_WOOD);
-  return { square, gate, canteen, infirmary, library, radioClub, musicClub, stage, bathhouse, boat, sport, oldCabin };
+  return { square, gate, loudspeaker, canteen, infirmary, library, radioClub, musicClub, storage, stage, bathhouse, boat, sport, oldCabin };
 }
 
 function buildCampPaths(world: World, rooms: CampRooms): void {
   carveLineWidth(world, CX, CY - 34, CX, rooms.gate.y + rooms.gate.h + 1, 4, Tex.F_WOOD);
   carveLineWidth(world, CX - 45, CY, rooms.library.x + rooms.library.w + 1, CY - 52, 3, Tex.F_WOOD);
   carveLineWidth(world, CX + 45, CY, rooms.radioClub.x - 1, CY - 54, 3, Tex.F_WOOD);
+  carveLineWidth(world, CX + 45, CY + 4, rooms.storage.x - 1, rooms.storage.y + 10, 3, Tex.F_WOOD);
   carveLineWidth(world, CX + 45, CY + 16, rooms.canteen.x - 1, rooms.canteen.y + 13, 4, Tex.F_WOOD);
   carveLineWidth(world, CX - 45, CY + 18, rooms.infirmary.x + rooms.infirmary.w + 1, rooms.infirmary.y + 12, 3, Tex.F_WOOD);
   carveLineWidth(world, CX, CY + 34, CX, rooms.stage.y - 1, 4, Tex.F_WOOD);
@@ -397,6 +524,7 @@ function buildCampPaths(world: World, rooms: CampRooms): void {
   connectCampRoom(world, rooms.library, rooms.library.x + rooms.library.w, rooms.library.y + 12, rooms.library.x + rooms.library.w + 1, rooms.library.y + 12);
   connectCampRoom(world, rooms.radioClub, rooms.radioClub.x, rooms.radioClub.y + 12, rooms.radioClub.x - 1, rooms.radioClub.y + 12);
   connectCampRoom(world, rooms.musicClub, rooms.musicClub.x, rooms.musicClub.y + 10, rooms.musicClub.x - 1, rooms.musicClub.y + 10);
+  connectCampRoom(world, rooms.storage, rooms.storage.x, rooms.storage.y + 10, rooms.storage.x - 1, rooms.storage.y + 10);
   connectCampRoom(world, rooms.canteen, rooms.canteen.x, rooms.canteen.y + 13, rooms.canteen.x - 1, rooms.canteen.y + 13);
   connectCampRoom(world, rooms.infirmary, rooms.infirmary.x + rooms.infirmary.w, rooms.infirmary.y + 12, rooms.infirmary.x + rooms.infirmary.w + 1, rooms.infirmary.y + 12);
   connectCampRoom(world, rooms.bathhouse, rooms.bathhouse.x + rooms.bathhouse.w, rooms.bathhouse.y + 11, rooms.bathhouse.x + rooms.bathhouse.w + 1, rooms.bathhouse.y + 11);
@@ -410,6 +538,9 @@ function decorateCampCore(world: World, rooms: CampRooms): void {
   setFeature(world, CX, CY, Feature.APPARATUS);
   setFeature(world, CX - 2, CY, Feature.CANDLE);
   setFeature(world, CX + 2, CY, Feature.CANDLE);
+  setFeature(world, rooms.loudspeaker.x + 8, rooms.loudspeaker.y + 5, Feature.APPARATUS);
+  setFeature(world, rooms.loudspeaker.x + 13, rooms.loudspeaker.y + 5, Feature.SCREEN);
+  setFeature(world, rooms.loudspeaker.x + 19, rooms.loudspeaker.y + 7, Feature.LAMP);
   for (let x = rooms.square.x + 10; x < rooms.square.x + rooms.square.w - 8; x += 14) {
     setFeature(world, x, rooms.square.y + 8, Feature.CHAIR);
     setFeature(world, x, rooms.square.y + rooms.square.h - 9, Feature.CHAIR);
@@ -454,6 +585,12 @@ function decorateCampCore(world: World, rooms: CampRooms): void {
   setFeature(world, rooms.musicClub.x + 4, rooms.musicClub.y + 5, Feature.TABLE);
   setFeature(world, rooms.musicClub.x + 10, rooms.musicClub.y + 5, Feature.CHAIR);
   setFeature(world, rooms.musicClub.x + 18, rooms.musicClub.y + 6, Feature.APPARATUS);
+
+  for (let y = rooms.storage.y + 4; y < rooms.storage.y + rooms.storage.h - 3; y += 5) {
+    setFeature(world, rooms.storage.x + 4, y, Feature.SHELF);
+    setFeature(world, rooms.storage.x + rooms.storage.w - 5, y, Feature.SHELF);
+  }
+  setFeature(world, rooms.storage.x + 13, rooms.storage.y + 9, Feature.TABLE);
 
   for (let x = rooms.stage.x + 6; x < rooms.stage.x + rooms.stage.w - 5; x += 12) {
     setFeature(world, x, rooms.stage.y + 4, Feature.CANDLE);
@@ -522,6 +659,12 @@ function placeCampContainers(world: World, rooms: CampRooms, owners: Record<Camp
     { defId: 'circuit_board', count: 1 },
     { defId: 'radio', count: 1 },
   ], owners.camp_radio_egor, NPC_DEFS.camp_radio_egor.name, ['pioneer_camp', 'radio', 'repair']);
+
+  addCampContainer(world, rooms.storage, rooms.storage.x + rooms.storage.w - 5, rooms.storage.y + 10, ContainerKind.TOOL_LOCKER, 'Склад смены с проволокой и сахаром', 'room', [
+    { defId: 'wire_coil', count: 1 },
+    { defId: 'pressed_sugar', count: 1 },
+    { defId: 'blank_form', count: 1 },
+  ], undefined, undefined, ['pioneer_camp', 'storage', 'loudspeaker', 'canteen']);
 
   addCampContainer(world, rooms.library, rooms.library.x + rooms.library.w - 5, rooms.library.y + 5, ContainerKind.FILING_CABINET, 'Картотека отрядных дел', 'room', [
     { defId: 'book', count: 4 },
@@ -860,6 +1003,20 @@ function carveSafeTrailLoop(world: World, mask: Uint8Array, x: number, y: number
   carveSafeLine(world, mask, x + w, y, x + w, y + h, width, floorTex);
   carveSafeLine(world, mask, x + w, y + h, x, y + h, width, floorTex);
   carveSafeLine(world, mask, x, y + h, x, y, width, floorTex);
+}
+
+function connectCampGateToNorthTrail(world: World, mask: Uint8Array): void {
+  const gate = world.rooms.find(room =>
+    room.x === CAMP_GATE_X &&
+    room.y === CAMP_GATE_Y &&
+    room.w === CAMP_GATE_W &&
+    room.h === CAMP_GATE_H
+  );
+  if (!gate) return;
+  const doorX = gate.x + (gate.w >> 1);
+  const doorY = gate.y - 1;
+  addCampDoor(world, gate, doorX, doorY, DoorState.CLOSED);
+  carveSafeLine(world, mask, doorX, doorY - 1, doorX, CY - 380, 3, Tex.F_WOOD);
 }
 
 function carveSafeLine(world: World, mask: Uint8Array, ax: number, ay: number, bx: number, by: number, width: number, floorTex: Tex): void {

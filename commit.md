@@ -1,5 +1,9 @@
 # Commit Runbook For Agents
 
+> Центральный документ релизного цикла.
+>
+> Роль: описывает commit, validation, Cloudflare deploy, itch.io artifact, Pikabu/GamePush artifact, public build checks and release discipline. Использовать только когда пользователь явно просит commit/release/deploy/publish workflow.
+
 Эта инструкция применяется, когда пользователь дает короткую команду вроде `комить`, `сделай коммит`, `commit`, `закоммить и выложи`.
 
 Цель каждого релизного коммита для ГИГАХРУЩ:
@@ -34,7 +38,7 @@ curl -fsS "https://gigahrush.bileter.workers.dev/api/net/stats" | head -c 500
 
 Если любой обязательный шаг падает, остановись, прочитай реальную ошибку, исправь ее или явно сообщи блокер. Не объявляй релиз готовым по предположению.
 
-Перед PR/portal действиями сверяй актуальную операционную информацию с `KPI.md` и `Docs/PRCampaign/`, особенно:
+Перед PR/portal действиями сверяй актуальную операционную информацию с `Docs/PRCampaign/KPI.md` и `Docs/PRCampaign/`, особенно:
 
 - `Docs/PRCampaign/campaign_plan_ru.md`;
 - свежий `Docs/PRCampaign/kpi_report_*.md`;
@@ -129,7 +133,7 @@ unzip -l itch/gigahrush-itch.zip | sed -n '1,80p'
 
 Если пользователь просит только `комить`, не заходи в MyIndie dashboard и не обновляй страницу. В итоговом отчете достаточно указать, что MyIndie RU upload-кандидат - это свежий `itch/gigahrush-itch.zip`. Если пользователь явно просит `обновить MyIndie`, используй существующую опубликованную карточку, не создавай duplicate listing, загружай текущий ZIP, проверяй публичную страницу, Web iframe, ссылку на MyIndie в PR/KPI docs и не делай final publish/update без preview.
 
-Актуальные операционные факты для MyIndie держатся в `KPI.md`, `Docs/PRCampaign/campaign_plan_ru.md`, `Docs/PRCampaign/PR_16.md` и свежем `Docs/PRCampaign/kpi_report_*.md`.
+Актуальные операционные факты для MyIndie держатся в `Docs/PRCampaign/KPI.md`, `Docs/PRCampaign/campaign_plan_ru.md`, `Docs/PRCampaign/PR_16.md` и свежем `Docs/PRCampaign/kpi_report_*.md`.
 
 ### 3.3 Pikabu Games / GamePush ZIP
 

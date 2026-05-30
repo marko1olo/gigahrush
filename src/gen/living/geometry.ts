@@ -3,12 +3,14 @@
 import {
   W,
   Cell,
+  DoorState,
   Tex,
   Feature,
   LiftDirection,
   type Room,
 } from '../../core/types';
 import { World } from '../../core/world';
+import { ensureConnectivity, sanitizeDoors } from '../shared';
 
 interface Point { x: number; y: number; }
 interface Bounds { x: number; y: number; w: number; h: number; }
@@ -20,12 +22,23 @@ export interface LivingHubGeometryStats {
   landmarkRoutes: number;
   liftRoutes: number;
   chokepoints: number;
+  serviceRoutes: number;
+  rewardDeadEnds: number;
+  shelterShellRooms: number;
+  shelterShellCells: number;
 }
 
 const PUBLIC: CorridorStyle = { floor: Tex.F_TILE, wall: Tex.PANEL, radius: 1 };
 const HOME: CorridorStyle = { floor: Tex.F_LINO, wall: Tex.PANEL, radius: 1 };
 const MARKET: CorridorStyle = { floor: Tex.F_CONCRETE, wall: Tex.METAL, radius: 1 };
 const SHELTER: CorridorStyle = { floor: Tex.F_CONCRETE, wall: Tex.HERMO_WALL, radius: 1 };
+const SERVICE: CorridorStyle = { floor: Tex.F_CONCRETE, wall: Tex.PIPE, radius: 1 };
+
+export interface LivingShelterShellMetrics {
+  roomCount: number;
+  hermeticDoors: number;
+  shellCells: number;
+}
 
 interface LandmarkTarget {
   needle: string;
@@ -35,6 +48,8 @@ interface LandmarkTarget {
 
 const LANDMARK_TARGETS: readonly LandmarkTarget[] = [
   { needle: 'Пункт сборов вылазки', style: MARKET, route: 'east' },
+  { needle: 'Лаборатория', style: PUBLIC, route: 'north' },
+  { needle: 'Комната Ваньки', style: HOME, route: 'west' },
   { needle: 'Комната живой карты', style: PUBLIC, route: 'north' },
   { needle: 'Патронный шкаф домкома', style: MARKET, route: 'east' },
   { needle: 'Толкучка', style: MARKET, route: 'east' },
@@ -49,34 +64,73 @@ const LANDMARK_TARGETS: readonly LandmarkTarget[] = [
 ];
 
 export function buildLivingHubGeometry(world: World): LivingHubGeometryStats {
-  const hall = findRoom(world, 'Актовый зал');
-  if (!hall) return emptyStats();
-
-  const armory = findRoom(world, 'Оружейная');
-  const bounds = roomBounds(hall, armory && roomDistance2(world, hall, armory) < 900 ? armory : null);
-  const center = {
-    x: world.wrap(bounds.x + Math.floor(bounds.w / 2)),
-    y: world.wrap(bounds.y + Math.floor(bounds.h / 2)),
-  };
-  const anchors = hubAnchors(bounds, center);
+  const ctx = livingHubContext(world);
+  if (!ctx) return emptyStats();
   const stats = emptyStats();
 
-  stats.carvedCells += carveHubRing(world, bounds);
-  stats.carvedCells += carveDistrictSpokes(world, anchors);
-  stats.motifs += decorateHomeBlock(world, anchors.west, center);
-  stats.motifs += decorateMarketStrip(world, anchors.east, center);
-  stats.motifs += decoratePublicCorridor(world, anchors.north, center);
-  stats.motifs += decorateShelterRoute(world, anchors.south, center);
-  stats.chokepoints += addChokepoints(world, anchors);
-  stats.landmarkRoutes += connectLandmarks(world, anchors);
-  stats.liftRoutes += connectNearestLifts(world, anchors);
+  carveMacroRouteSkeleton(world, ctx.bounds, ctx.anchors, stats, true);
+  stats.motifs += decorateHomeBlock(world, ctx.anchors.west, ctx.center);
+  stats.motifs += decorateMarketStrip(world, ctx.anchors.east, ctx.center);
+  stats.motifs += decoratePublicCorridor(world, ctx.anchors.north, ctx.center);
+  stats.motifs += decorateShelterRoute(world, ctx.anchors.south, ctx.center);
+  stats.motifs += decorateServiceBypass(world, ctx.anchors);
+  stats.chokepoints += addChokepoints(world, ctx.anchors);
+  stats.landmarkRoutes += connectLandmarks(world, ctx.anchors);
+  stats.liftRoutes += connectNearestLifts(world, ctx.anchors);
+  ensureConnectivity(world, ctx.spawn.x + 0.5, ctx.spawn.y + 0.5);
+  sanitizeDoors(world);
+
+  const shell = markLivingShelterShells(world);
+  stats.shelterShellRooms = shell.roomCount;
+  stats.shelterShellCells = shell.shellCells;
 
   world.bakeLights();
   return stats;
 }
 
+export function seedLivingMacroRouteIntent(world: World): LivingHubGeometryStats {
+  const ctx = livingHubContext(world);
+  if (!ctx) return emptyStats();
+  const stats = emptyStats();
+  carveMacroRouteSkeleton(world, ctx.bounds, ctx.anchors, stats, false);
+  return stats;
+}
+
+export function measureLivingShelterShells(world: World): LivingShelterShellMetrics {
+  return collectLivingShelterShells(world, false);
+}
+
 function emptyStats(): LivingHubGeometryStats {
-  return { carvedCells: 0, motifs: 0, landmarkRoutes: 0, liftRoutes: 0, chokepoints: 0 };
+  return {
+    carvedCells: 0,
+    motifs: 0,
+    landmarkRoutes: 0,
+    liftRoutes: 0,
+    chokepoints: 0,
+    serviceRoutes: 0,
+    rewardDeadEnds: 0,
+    shelterShellRooms: 0,
+    shelterShellCells: 0,
+  };
+}
+
+function livingHubContext(world: World): {
+  bounds: Bounds;
+  center: Point;
+  spawn: Point;
+  anchors: Record<'north' | 'east' | 'south' | 'west', Point>;
+} | null {
+  const hall = findRoom(world, 'Актовый зал');
+  if (!hall) return null;
+
+  const armory = findRoom(world, 'Оружейная');
+  const bounds = roomBounds(hall, armory && roomDistance2(world, hall, armory) < 900 ? armory : null);
+  const spawn = roomCenter(hall);
+  const center = {
+    x: world.wrap(bounds.x + Math.floor(bounds.w / 2)),
+    y: world.wrap(bounds.y + Math.floor(bounds.h / 2)),
+  };
+  return { bounds, center, spawn, anchors: hubAnchors(bounds, center) };
 }
 
 function findRoom(world: World, needle: string): Room | null {
@@ -114,6 +168,19 @@ function hubAnchors(bounds: Bounds, center: Point): Record<'north' | 'east' | 's
   };
 }
 
+function carveMacroRouteSkeleton(
+  world: World,
+  bounds: Bounds,
+  anchors: Record<'north' | 'east' | 'south' | 'west', Point>,
+  stats: LivingHubGeometryStats,
+  finalPass: boolean,
+): void {
+  stats.carvedCells += carveHubRing(world, bounds);
+  stats.carvedCells += carveDistrictSpokes(world, anchors);
+  stats.serviceRoutes += carveServiceBypass(world, anchors);
+  stats.rewardDeadEnds += carveRewardDeadEnds(world, anchors, finalPass);
+}
+
 function carveHubRing(world: World, bounds: Bounds): number {
   const left = bounds.x - 7;
   const right = bounds.x + bounds.w + 7;
@@ -137,6 +204,45 @@ function carveDistrictSpokes(world: World, anchors: Record<'north' | 'east' | 's
   carved += carveDogleg(world, { x: anchors.west.x - 72, y: anchors.west.y }, { x: anchors.south.x, y: anchors.south.y + 72 }, HOME, 'vertical');
   carved += carveDogleg(world, { x: anchors.east.x + 84, y: anchors.east.y }, { x: anchors.north.x, y: anchors.north.y - 72 }, MARKET, 'vertical');
   return carved;
+}
+
+function carveServiceBypass(world: World, anchors: Record<'north' | 'east' | 'south' | 'west', Point>): number {
+  let routes = 0;
+  const spineX = anchors.west.x - 104;
+  const top = { x: spineX, y: anchors.north.y - 96 };
+  const mid = { x: spineX, y: anchors.west.y };
+  const bottom = { x: spineX, y: anchors.south.y + 96 };
+  if (carveLine(world, top, bottom, SERVICE) > 0) routes++;
+  if (carveDogleg(world, anchors.north, top, SERVICE, 'horizontal') > 0) routes++;
+  if (carveDogleg(world, anchors.south, bottom, SERVICE, 'horizontal') > 0) routes++;
+  if (carveLine(world, anchors.west, mid, SERVICE) > 0) routes++;
+  return routes;
+}
+
+function carveRewardDeadEnds(
+  world: World,
+  anchors: Record<'north' | 'east' | 'south' | 'west', Point>,
+  placeRewards: boolean,
+): number {
+  const bays: Array<{ x: number; y: number; w: number; h: number; style: CorridorStyle; feature: Feature }> = [
+    { x: anchors.east.x + 58, y: anchors.east.y - 14, w: 9, h: 5, style: MARKET, feature: Feature.SHELF },
+    { x: anchors.east.x + 100, y: anchors.east.y + 10, w: 8, h: 5, style: MARKET, feature: Feature.DESK },
+    { x: anchors.north.x - 18, y: anchors.north.y - 76, w: 7, h: 7, style: PUBLIC, feature: Feature.TABLE },
+    { x: anchors.south.x + 14, y: anchors.south.y + 78, w: 8, h: 5, style: SHELTER, feature: Feature.BED },
+    { x: anchors.west.x - 120, y: anchors.west.y - 36, w: 7, h: 5, style: SERVICE, feature: Feature.MACHINE },
+  ];
+
+  let made = 0;
+  for (const bay of bays) {
+    const carved = carveBlock(world, bay.x, bay.y, bay.w, bay.h, bay.style);
+    if (carved <= 0 && !placeRewards) continue;
+    if (placeRewards) {
+      placeFeature(world, bay.x + Math.floor(bay.w / 2), bay.y + Math.floor(bay.h / 2), bay.feature);
+      placeFeature(world, bay.x + 1, bay.y + 1, Feature.LAMP);
+    }
+    made++;
+  }
+  return made;
 }
 
 function decorateHomeBlock(world: World, west: Point, center: Point): number {
@@ -192,6 +298,19 @@ function decorateShelterRoute(world: World, south: Point, center: Point): number
     placeFeature(world, x + 2, y + 2, Feature.BED);
     placeFeature(world, x + 4, y + 2, Feature.SHELF);
     placeFeature(world, x + 3, y + 1, Feature.LAMP);
+    motifs++;
+  }
+  return motifs;
+}
+
+function decorateServiceBypass(world: World, anchors: Record<'north' | 'east' | 'south' | 'west', Point>): number {
+  let motifs = 0;
+  const x = anchors.west.x - 108;
+  for (let k = 0; k < 5; k++) {
+    const y = anchors.north.y - 58 + k * 34;
+    carveBlock(world, x + (k % 2 === 0 ? -5 : 3), y, 5, 8, SERVICE);
+    placeFeature(world, x + (k % 2 === 0 ? -3 : 5), y + 3, k % 2 === 0 ? Feature.MACHINE : Feature.APPARATUS);
+    placeFeature(world, x + (k % 2 === 0 ? -4 : 4), y + 1, Feature.LAMP);
     motifs++;
   }
   return motifs;
@@ -411,4 +530,51 @@ function placeFeature(world: World, x: number, y: number, feature: Feature): voi
   const i = world.idx(x, y);
   if (world.cells[i] !== Cell.FLOOR || world.features[i] !== Feature.NONE) return;
   world.features[i] = feature;
+}
+
+function markLivingShelterShells(world: World): LivingShelterShellMetrics {
+  return collectLivingShelterShells(world, true);
+}
+
+function collectLivingShelterShells(world: World, mutate: boolean): LivingShelterShellMetrics {
+  const shellSeen = new Set<number>();
+  let roomCount = 0;
+  let hermeticDoors = 0;
+  for (let ri = 0; ri < world.apartmentRoomCount; ri++) {
+    const room = world.rooms[ri];
+    if (!room || !roomHasHermeticShell(world, room)) continue;
+    roomCount++;
+    hermeticDoors += room.doors.filter(idx => {
+      const door = world.doors.get(idx);
+      return door?.state === DoorState.HERMETIC_OPEN || door?.state === DoorState.HERMETIC_CLOSED;
+    }).length;
+    for (let dy = -2; dy <= room.h + 1; dy++) {
+      for (let dx = -2; dx <= room.w + 1; dx++) {
+        if (dx >= 0 && dx < room.w && dy >= 0 && dy < room.h) continue;
+        const ci = world.idx(room.x + dx, room.y + dy);
+        if (world.aptMask[ci] || world.cells[ci] !== Cell.FLOOR) continue;
+        shellSeen.add(ci);
+        if (!mutate) continue;
+        world.floorTex[ci] = Tex.F_CONCRETE;
+        for (const [ox, oy] of [[1,0],[-1,0],[0,1],[0,-1]] as const) {
+          trimWall(world, ci % W + ox, ((ci / W) | 0) + oy, Tex.HERMO_WALL);
+        }
+      }
+    }
+  }
+  return { roomCount, hermeticDoors, shellCells: shellSeen.size };
+}
+
+function roomHasHermeticShell(world: World, room: Room): boolean {
+  for (const idx of room.doors) {
+    const door = world.doors.get(idx);
+    if (door?.state === DoorState.HERMETIC_OPEN || door?.state === DoorState.HERMETIC_CLOSED) return true;
+  }
+  for (let dy = -1; dy <= room.h; dy++) {
+    for (let dx = -1; dx <= room.w; dx++) {
+      if (dx >= 0 && dx < room.w && dy >= 0 && dy < room.h) continue;
+      if (world.hermoWall[world.idx(room.x + dx, room.y + dy)]) return true;
+    }
+  }
+  return false;
 }

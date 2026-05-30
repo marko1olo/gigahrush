@@ -21,6 +21,8 @@ import {
   placeAirlocks, ensurePermanentRoomAccess, punchThinWalls,
 } from '../shared';
 import { connectApartmentsToMaze } from './apartments';
+import { seedLivingMacroRouteIntent } from './geometry';
+import { maybePlaceBrokenFixture } from '../interactive_fixtures';
 
 /* ── Generate the volatile gigastructure ─────────────────────── */
 export function generateVolatileMaze(world: World): void {
@@ -67,6 +69,9 @@ export function generateVolatileMaze(world: World): void {
 
   const placed: Room[] = [];
   const connectable: Room[] = [];
+
+  /* ── Macro route intent: reserve readable public/service/shelter lanes before random rooms. */
+  seedLivingMacroRouteIntent(world);
 
   /* ── Architectural + functional rooms ──────────────── */
   const SGRID = 16;
@@ -272,6 +277,7 @@ export function generateVolatileMaze(world: World): void {
         const fi = world.idx(fx, fy);
         if (world.features[fi] === Feature.NONE && world.cells[fi] === Cell.FLOOR) {
           world.features[fi] = feat;
+          maybePlaceBrokenFixture(world, fx, fy, { salt: room.id * 31 + tries });
           break;
         }
       }

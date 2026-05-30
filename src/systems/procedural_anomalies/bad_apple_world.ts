@@ -18,6 +18,7 @@ import {
   BAD_APPLE_WIDTH,
   drawBadAppleFrame,
 } from '../../data/bad_apple_frames';
+import { RUNTIME_TOPOLOGY_LIMITS } from '../../data/runtime_topology';
 import { primeBadAppleProjectorAudio, updateBadAppleProjectorLoop } from '../audio';
 import { publishEvent } from '../events';
 
@@ -57,6 +58,13 @@ export interface BadApplePlacement {
   projectorY: number;
 }
 
+interface BadAppleSiteRisk {
+  hard: number;
+  apt: number;
+  protectedInside: number;
+  score: number;
+}
+
 const runtimeByWorld = new WeakMap<World, BadAppleRuntime | null>();
 
 function normFrame(frame: number): number {
@@ -84,6 +92,7 @@ function inRect(world: World, x: number, y: number, rx: number, ry: number, rw: 
 }
 
 function setBadApplePixel(world: World, ci: number, black: boolean, roomId: number): void {
+  if (isHardProtected(world, ci)) return;
   world.cells[ci] = black ? Cell.WALL : Cell.FLOOR;
   world.roomMap[ci] = roomId;
   world.setFeatureAt(ci, Feature.NONE);
@@ -107,7 +116,7 @@ function clearContainersOnTouchedCells(world: World, touched: Set<number>): void
 
 function carveDebugFloor(world: World, x: number, y: number, roomId = -1): void {
   const ci = world.idx(x, y);
-  if (world.cells[ci] === Cell.LIFT) return;
+  if (isHardProtected(world, ci)) return;
   world.cells[ci] = Cell.FLOOR;
   world.roomMap[ci] = roomId;
   world.setFeatureAt(ci, Feature.NONE);
@@ -135,6 +144,40 @@ function carveLine(world: World, ax: number, ay: number, bx: number, by: number)
   }
 }
 
+function visitLineCells(world: World, ax: number, ay: number, bx: number, by: number, visit: (ci: number) => void): void {
+  let x = world.wrap(ax);
+  let y = world.wrap(ay);
+  const ddx = world.delta(x, bx);
+  const ddy = world.delta(y, by);
+  const sx = ddx >= 0 ? 1 : -1;
+  const sy = ddy >= 0 ? 1 : -1;
+  for (let i = 0; i <= Math.abs(ddx); i++) {
+    for (let oy = -1; oy <= 1; oy++) visit(world.idx(x, y + oy));
+    if (i < Math.abs(ddx)) x = world.wrap(x + sx);
+  }
+  for (let i = 0; i <= Math.abs(ddy); i++) {
+    for (let ox = -1; ox <= 1; ox++) visit(world.idx(x + ox, y));
+    if (i < Math.abs(ddy)) y = world.wrap(y + sy);
+  }
+}
+
+function visitProjectorAccessCells(
+  world: World,
+  x: number,
+  y: number,
+  protectedX: number,
+  protectedY: number,
+  visit: (ci: number) => void,
+): void {
+  const px = world.wrap(x - 4);
+  const py = world.wrap(y + Math.floor(BAD_APPLE_HEIGHT / 2));
+  for (let dy = -2; dy <= 2; dy++) {
+    for (let dx = -2; dx <= 2; dx++) visit(world.idx(px + dx, py + dy));
+  }
+  visitLineCells(world, px + 2, py, x - 1, py, visit);
+  visitLineCells(world, Math.floor(protectedX), Math.floor(protectedY), px, py, visit);
+}
+
 function buildProjector(world: World, x: number, y: number, roomId: number): number {
   const px = world.wrap(x - 4);
   const py = world.wrap(y + Math.floor(BAD_APPLE_HEIGHT / 2));
@@ -142,7 +185,20 @@ function buildProjector(world: World, x: number, y: number, roomId: number): num
     for (let dx = -2; dx <= 2; dx++) carveDebugFloor(world, px + dx, py + dy);
   }
   carveLine(world, px + 2, py, x - 1, py);
-  const pi = world.idx(px, py);
+  let pi = world.idx(px, py);
+  if (isHardProtected(world, pi)) {
+    pi = -1;
+    for (let dy = -2; dy <= 2 && pi < 0; dy++) {
+      for (let dx = -2; dx <= 2; dx++) {
+        const candidate = world.idx(px + dx, py + dy);
+        if (!isHardProtected(world, candidate) && world.cells[candidate] === Cell.FLOOR) {
+          pi = candidate;
+          break;
+        }
+      }
+    }
+  }
+  if (pi < 0) return -1;
   world.setFeatureAt(pi, Feature.APPARATUS);
   world.floorTex[pi] = Tex.F_VOID;
   world.roomMap[pi] = roomId;
@@ -161,22 +217,53 @@ export function badAppleSiteScore(
   protectedX: number,
   protectedY: number,
 ): number {
+  return badAppleSiteRisk(world, x, y, protectedX, protectedY).score;
+}
+
+function badAppleSiteRisk(
+  world: World,
+  x: number,
+  y: number,
+  protectedX: number,
+  protectedY: number,
+): BadAppleSiteRisk {
   let hard = 0;
-  let protectedInside = inRect(world, protectedX, protectedY, x, y, BAD_APPLE_WIDTH, BAD_APPLE_HEIGHT) ? 10000 : 0;
+  let apt = 0;
+  const protectedInside = inRect(world, protectedX, protectedY, x, y, BAD_APPLE_WIDTH, BAD_APPLE_HEIGHT) ? 1 : 0;
+  const seen = new Set<number>();
+  const visit = (ci: number): void => {
+    if (seen.has(ci)) return;
+    seen.add(ci);
+    if (isHardProtected(world, ci)) hard++;
+    else if (world.aptMask[ci] !== 0) apt++;
+  };
   for (let dy = 0; dy < BAD_APPLE_HEIGHT; dy++) {
     for (let dx = 0; dx < BAD_APPLE_WIDTH; dx++) {
-      const ci = world.idx(x + dx, y + dy);
-      if (isHardProtected(world, ci)) hard += 10;
-      else if (world.aptMask[ci] !== 0) hard++;
+      visit(world.idx(x + dx, y + dy));
     }
   }
-  return hard + protectedInside;
+  visitProjectorAccessCells(world, x, y, protectedX, protectedY, visit);
+  return {
+    hard,
+    apt,
+    protectedInside,
+    score: hard * 100000 + protectedInside * 10000 + apt,
+  };
 }
 
 export function findBadAppleSiteNear(world: World, centerX: number, centerY: number): { x: number; y: number } {
   const cx = Math.floor(centerX);
   const cy = Math.floor(centerY);
-  const candidates: { x: number; y: number; score: number }[] = [];
+  const candidates: { x: number; y: number; risk: BadAppleSiteRisk }[] = [];
+  const seen = new Set<string>();
+  const addCandidate = (x: number, y: number): void => {
+    const wx = world.wrap(x);
+    const wy = world.wrap(y);
+    const key = `${wx},${wy}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    candidates.push({ x: wx, y: wy, risk: badAppleSiteRisk(world, wx, wy, cx, cy) });
+  };
   const offsets = [
     { x: 10, y: -Math.floor(BAD_APPLE_HEIGHT / 2) },
     { x: -BAD_APPLE_WIDTH - 10, y: -Math.floor(BAD_APPLE_HEIGHT / 2) },
@@ -186,11 +273,20 @@ export function findBadAppleSiteNear(world: World, centerX: number, centerY: num
     { x: -BAD_APPLE_WIDTH - 36, y: -Math.floor(BAD_APPLE_HEIGHT / 2) },
   ];
   for (const offset of offsets) {
-    const x = world.wrap(cx + offset.x);
-    const y = world.wrap(cy + offset.y);
-    candidates.push({ x, y, score: badAppleSiteScore(world, x, y, cx, cy) });
+    addCandidate(cx + offset.x, cy + offset.y);
   }
-  candidates.sort((a, b) => a.score - b.score);
+  const stepX = Math.max(24, Math.floor(BAD_APPLE_WIDTH / 3));
+  const stepY = Math.max(24, Math.floor(BAD_APPLE_HEIGHT / 3));
+  for (let ring = 1; ring <= 8; ring++) {
+    for (let gy = -ring; gy <= ring; gy++) {
+      for (let gx = -ring; gx <= ring; gx++) {
+        if (Math.max(Math.abs(gx), Math.abs(gy)) !== ring) continue;
+        addCandidate(cx - Math.floor(BAD_APPLE_WIDTH / 2) + gx * stepX, cy - Math.floor(BAD_APPLE_HEIGHT / 2) + gy * stepY);
+      }
+    }
+    if (candidates.some(candidate => candidate.risk.hard === 0 && candidate.risk.protectedInside === 0)) break;
+  }
+  candidates.sort((a, b) => a.risk.score - b.risk.score);
   return candidates[0] ?? { x: world.wrap(cx + 10), y: world.wrap(cy - Math.floor(BAD_APPLE_HEIGHT / 2)) };
 }
 
@@ -208,12 +304,13 @@ export function stampBadAppleWorld(
   drawBadAppleFrame(frame, 0);
 
   const projectorIdx = buildProjector(world, rx, ry, roomId);
-  const projectorX = projectorIdx % W;
-  const projectorY = (projectorIdx / W) | 0;
-  if (connectFrom) carveLine(world, Math.floor(connectFrom.x), Math.floor(connectFrom.y), projectorX, projectorY);
+  const projectorX = projectorIdx >= 0 ? projectorIdx % W : -1;
+  const projectorY = projectorIdx >= 0 ? (projectorIdx / W) | 0 : -1;
+  if (connectFrom && projectorIdx >= 0) carveLine(world, Math.floor(connectFrom.x), Math.floor(connectFrom.y), projectorX, projectorY);
 
   for (let i = 0; i < BAD_APPLE_PIXELS; i++) {
     const ci = world.idx(rx + localX(i), ry + localY(i));
+    if (isHardProtected(world, ci)) continue;
     touched.add(ci);
     world.removeDoorAt(ci);
     setBadApplePixel(world, ci, frame[i] !== 0, roomId);
@@ -280,6 +377,7 @@ function runtimeFor(world: World): BadAppleRuntime {
 
   const screens: BadAppleScreenRuntime[] = [];
   for (const room of world.rooms) {
+    if (screens.length >= RUNTIME_TOPOLOGY_LIMITS.badAppleMaxScreens) break;
     if (!room.name.startsWith(BAD_APPLE_ROOM_PREFIX)) continue;
     const screen = screenFromRoom(world, room);
     if (screen) screens.push(screen);

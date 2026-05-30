@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { FloorLevel, MonsterKind, QuestType } from '../src/core/types';
 import { CONTRACTS, contractToQuest, questTargetRoute } from '../src/data/contracts';
 import { isQuestTargetOnCurrentFloor } from '../src/systems/contracts';
-import { notifyKill } from '../src/systems/quests';
+import { notifyKill, notifyNpcKill } from '../src/systems/quests';
 import { makeGameState } from './helpers';
 
 test('generic kill quests count matching monsters on any current floor', () => {
@@ -51,6 +51,29 @@ test('floor-targeted kill quests do not count matching monsters on a wrong floor
   notifyKill(MonsterKind.EYE, rightFloor);
 
   assert.equal(rightFloor.quests[0].killCount, 1);
+});
+
+test('plot NPC kill quests do not count ordinary monster kills', () => {
+  const state = makeGameState({ currentFloor: FloorLevel.MINISTRY });
+  state.quests = [{
+    id: 4,
+    type: QuestType.KILL,
+    giverId: 12,
+    giverName: 'Секретарь',
+    desc: 'Убери печатееда с личным делом.',
+    targetPlotNpcId: 'plot_pechateed',
+    killCount: 0,
+    killNeeded: 1,
+    done: false,
+  }];
+
+  notifyKill(MonsterKind.TVAR, state);
+
+  assert.equal(state.quests[0].killCount, 0);
+
+  notifyNpcKill('plot_pechateed', state);
+
+  assert.equal(state.quests[0].killCount, 1);
 });
 
 test('risk-only contract route metadata does not bypass target floor checks', () => {

@@ -37,6 +37,11 @@ import {
   updateLivingTunnelsAnomaly,
 } from './procedural_anomalies/living_tunnels';
 import { updateRadioChessAnomaly, tryUseRadioChessAnomaly } from './procedural_anomalies/radio_chess';
+import {
+  sandpilePerekrytieInteractionTargetId,
+  tryUseSandpilePerekrytieAnomaly,
+  updateSandpilePerekrytieAnomaly,
+} from './procedural_anomalies/sandpile_perekrytie';
 import { updateSectionShiftAnomaly, tryUseSectionShiftAnomaly } from './procedural_anomalies/section_shift';
 import { updateWallSnakeAnomaly, tryUseWallSnakeAnomaly } from './procedural_anomalies/wall_snake';
 import { isPlayerEntity } from './player_actor';
@@ -79,6 +84,7 @@ interface DynamicTopologyTags {
   livingTunnels: boolean;
   wallSnake: boolean;
   sectionShift: boolean;
+  sandpilePerekrytie: boolean;
 }
 
 const dynamicTopologyTagsByWorld = new WeakMap<World, DynamicTopologyTags>();
@@ -86,13 +92,14 @@ const dynamicTopologyTagsByWorld = new WeakMap<World, DynamicTopologyTags>();
 function dynamicTopologyTags(world: World): DynamicTopologyTags {
   const cached = dynamicTopologyTagsByWorld.get(world);
   if (cached) return cached;
-  const tags: DynamicTopologyTags = { livingTunnels: false, wallSnake: false, sectionShift: false };
+  const tags: DynamicTopologyTags = { livingTunnels: false, wallSnake: false, sectionShift: false, sandpilePerekrytie: false };
   for (const room of world.rooms) {
     const name = room?.name ?? '';
     if (name.includes('[living_tunnel:')) tags.livingTunnels = true;
     if (name.includes('[wall_snake:')) tags.wallSnake = true;
     if (name.includes('[section_shift:')) tags.sectionShift = true;
-    if (tags.livingTunnels && tags.wallSnake && tags.sectionShift) break;
+    if (name.includes('[sandpile_perekrytie:')) tags.sandpilePerekrytie = true;
+    if (tags.livingTunnels && tags.wallSnake && tags.sectionShift && tags.sandpilePerekrytie) break;
   }
   dynamicTopologyTagsByWorld.set(world, tags);
   return tags;
@@ -118,6 +125,7 @@ function anomalyTags(spec: ProceduralFloorSpec): string[] {
   if (spec.anomalyId === 'rail_trains') tags.push('rail', 'transit', 'crush', 'industrial');
   if (spec.anomalyId === 'bad_apple_world') tags.push('video', 'screen', 'topology', 'cult_media');
   if (spec.anomalyId === 'zombie_apocalypse') tags.push('zombie', 'crowd', 'infection', 'quarantine');
+  if (spec.anomalyId === 'sandpile_perekrytie') tags.push('topology', 'collapse', 'crush', 'pressure', 'industrial');
   return tags;
 }
 
@@ -399,6 +407,7 @@ export function updateProceduralAnomalies(world: World, player: Entity, state: G
   if (topologyTags.wallSnake) updateWallSnakeAnomaly(world, player, state, dt);
   if (topologyTags.livingTunnels) updateLivingTunnelsAnomaly(world, player, state, dt);
   if (topologyTags.sectionShift) updateSectionShiftAnomaly(world, player, state, dt);
+  if (topologyTags.sandpilePerekrytie) updateSandpilePerekrytieAnomaly(world, player, state, dt);
   const spec = currentProceduralFloorSpec(state);
   if (spec?.anomalyId !== 'smog') {
     if (world.anomalySmogSource >= 0) runtimeFor(state, world).wasInside = false;
@@ -409,6 +418,7 @@ export function updateProceduralAnomalies(world: World, player: Entity, state: G
     else if (spec.anomalyId === 'wall_snake' && !topologyTags.wallSnake) updateWallSnakeAnomaly(world, player, state, dt);
     else if (spec.anomalyId === 'living_tunnels' && !topologyTags.livingTunnels) updateLivingTunnelsAnomaly(world, player, state, dt);
     else if (spec.anomalyId === 'section_shift' && !topologyTags.sectionShift) updateSectionShiftAnomaly(world, player, state, dt);
+    else if (spec.anomalyId === 'sandpile_perekrytie' && !topologyTags.sandpilePerekrytie) updateSandpilePerekrytieAnomaly(world, player, state, dt);
     else if (spec.anomalyId === 'conway_life') updateConwayLifeAnomaly(world, player, state, dt);
     return;
   }
@@ -751,6 +761,10 @@ export function proceduralAnomalyInteractionTargetId(
   const badAppleTarget = badAppleWorldInteractionTargetId(world, lookX, lookY);
   if (badAppleTarget !== null) return badAppleTarget;
   const topologyTags = dynamicTopologyTags(world);
+  if (topologyTags.sandpilePerekrytie) {
+    const sandpileTarget = sandpilePerekrytieInteractionTargetId(world, lookX, lookY);
+    if (sandpileTarget !== null) return sandpileTarget;
+  }
   if (topologyTags.livingTunnels) {
     const livingTunnelTarget = livingTunnelsInteractionTargetId(world, lookX, lookY);
     if (livingTunnelTarget !== null) return livingTunnelTarget;
@@ -788,6 +802,7 @@ export function tryUseProceduralFloorAnomaly(
   if (topologyTags.wallSnake && tryUseWallSnakeAnomaly(world, player, state, lookX, lookY)) return true;
   if (topologyTags.livingTunnels && tryUseLivingTunnelsAnomaly(world, player, state, lookX, lookY)) return true;
   if (topologyTags.sectionShift && tryUseSectionShiftAnomaly(world, player, state, lookX, lookY)) return true;
+  if (topologyTags.sandpilePerekrytie && tryUseSandpilePerekrytieAnomaly(world, player, state, lookX, lookY)) return true;
   const spec = currentProceduralFloorSpec(state);
   if (!spec) return false;
   if (spec.anomalyId === 'false_safe_block') return tryUseFalseSafeBlock(world, player, state, spec, lookX, lookY);
@@ -795,5 +810,6 @@ export function tryUseProceduralFloorAnomaly(
   if (spec.anomalyId === 'cement_memory') return tryUseCementMemoryAnomaly(world, player, state, lookX, lookY);
   if (spec.anomalyId === 'conveyor_sorter') return tryUseConveyorSorterAnomaly(world, player, state, lookX, lookY);
   if (spec.anomalyId === 'conway_life') return tryUseConwayLifeAnomaly(world, player, state, lookX, lookY);
+  if (spec.anomalyId === 'sandpile_perekrytie') return tryUseSandpilePerekrytieAnomaly(world, player, state, lookX, lookY);
   return false;
 }

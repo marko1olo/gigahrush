@@ -952,17 +952,62 @@ const MARKET88_STALL_NAMES = [
   'Склад без вывески 88',
 ] as const;
 
+export const MARKET88_HUB_DEGREE_CAP = 5;
+
+export const MARKET88_GEOMETRY_HUBS = [
+  { id: 'entry_gate', x: 392, y: 500, label: 'входная касса' },
+  { id: 'auction_pit', x: 514, y: 540, label: 'аукционная яма' },
+  { id: 'debt_court', x: 474, y: 574, label: 'долговой суд' },
+  { id: 'document_choke', x: 620, y: 444, label: 'документальный кордон' },
+  { id: 'west_smuggling', x: MARKET88_WEST + 28, y: 632, label: 'западный контрабандный ход' },
+  { id: 'east_smuggling', x: MARKET88_EAST, y: 628, label: 'восточный контрабандный ход' },
+  { id: 'cold_storage', x: 704, y: 376, label: 'холодный склад' },
+  { id: 'west_service', x: MARKET88_WEST, y: 500, label: 'западная служебная кишка' },
+  { id: 'east_service', x: MARKET88_EAST, y: 500, label: 'восточная служебная кишка' },
+] as const;
+
+export type Market88GeometryHubId = typeof MARKET88_GEOMETRY_HUBS[number]['id'];
+
+export const MARKET88_SMALL_WORLD_CHORDS: readonly {
+  from: Market88GeometryHubId;
+  to: Market88GeometryHubId;
+  floorTex: Tex;
+  width: 1 | 2;
+  hidden: boolean;
+}[] = [
+  { from: 'auction_pit', to: 'entry_gate', floorTex: Tex.F_CONCRETE, width: 2, hidden: false },
+  { from: 'auction_pit', to: 'debt_court', floorTex: Tex.F_CONCRETE, width: 2, hidden: false },
+  { from: 'auction_pit', to: 'document_choke', floorTex: Tex.F_CONCRETE, width: 2, hidden: false },
+  { from: 'auction_pit', to: 'west_smuggling', floorTex: Tex.F_LINO, width: 1, hidden: true },
+  { from: 'auction_pit', to: 'east_smuggling', floorTex: Tex.F_LINO, width: 1, hidden: true },
+  { from: 'document_choke', to: 'cold_storage', floorTex: Tex.F_TILE, width: 1, hidden: true },
+  { from: 'document_choke', to: 'east_service', floorTex: Tex.F_LINO, width: 1, hidden: true },
+  { from: 'debt_court', to: 'west_service', floorTex: Tex.F_LINO, width: 1, hidden: true },
+  { from: 'west_smuggling', to: 'west_service', floorTex: Tex.F_LINO, width: 1, hidden: true },
+  { from: 'east_smuggling', to: 'east_service', floorTex: Tex.F_LINO, width: 1, hidden: true },
+] as const;
+
+export const MARKET88_RAID_SHUTTER_GATES = [
+  { x: 392, y: 500, axis: 'east_west', bypass: { ax: 382, ay: 488, bx: 404, by: 512 } },
+  { x: 622, y: 548, axis: 'east_west', bypass: { ax: 610, ay: 536, bx: 638, by: 564 } },
+  { x: 568, y: 424, axis: 'north_south', bypass: { ax: 552, ay: 414, bx: 584, by: 438 } },
+  { x: MARKET88_WEST + 28, y: 632, axis: 'east_west', bypass: { ax: MARKET88_WEST + 18, ay: 620, bx: MARKET88_WEST + 48, by: 644 } },
+  { x: MARKET88_EAST, y: 628, axis: 'east_west', bypass: { ax: MARKET88_EAST - 18, ay: 616, bx: MARKET88_EAST + 14, by: 640 } },
+] as const;
+
 export function expandBlackMarket88Bazaar(world: World, rng: () => number): void {
   const rooms = addBazaarLandmarks(world);
   const serviceGuts = addBazaarServiceGuts(world, rng);
   const stalls = addBazaarStallRooms(world, rng);
 
   carveBazaarAlleys(world);
+  carveBazaarHubChords(world);
   connectBazaarLandmarks(world, rooms);
   connectBazaarServiceGuts(world, serviceGuts);
   connectStallsToAlleys(world, stalls);
   addRaidShutters(world);
   decorateBazaarLandmarks(world, rooms);
+  decorateBazaarHubChords(world);
   decorateBazaarServiceGuts(world, serviceGuts, rng);
   decorateSmugglingTunnels(world);
   seedBazaarCaches(world, rooms, serviceGuts);
@@ -1070,6 +1115,47 @@ function carveBazaarAlleys(world: World): void {
   carveMarketLine(world, 620, 444, 724, MARKET88_NORTH, 1, Tex.F_LINO);
 }
 
+function carveBazaarHubChords(world: World): void {
+  for (const hub of MARKET88_GEOMETRY_HUBS) {
+    carveMarketDisc(world, hub.x, hub.y, hub.id === 'auction_pit' ? 4 : 3, hub.id.includes('smuggling') ? Tex.F_LINO : Tex.F_CONCRETE);
+  }
+
+  for (const chord of MARKET88_SMALL_WORLD_CHORDS) {
+    const from = market88Hub(chord.from);
+    const to = market88Hub(chord.to);
+    carveMarketLine(world, from.x, from.y, to.x, to.y, chord.width, chord.floorTex);
+  }
+}
+
+function decorateBazaarHubChords(world: World): void {
+  for (const hub of MARKET88_GEOMETRY_HUBS) {
+    const feature = hub.id === 'auction_pit'
+      ? Feature.SCREEN
+      : hub.id.includes('smuggling')
+        ? Feature.CANDLE
+        : hub.id.includes('service')
+          ? Feature.MACHINE
+          : Feature.TABLE;
+    setMarketFeature(world, hub.x, hub.y, feature);
+    setMarketFeature(world, hub.x + 2, hub.y, hub.id.includes('smuggling') ? Feature.SHELF : Feature.LAMP);
+  }
+
+  for (const chord of MARKET88_SMALL_WORLD_CHORDS) {
+    if (!chord.hidden) continue;
+    const from = market88Hub(chord.from);
+    const to = market88Hub(chord.to);
+    const mx = world.wrap(Math.round(from.x + world.delta(from.x, to.x) * 0.5));
+    const my = world.wrap(Math.round(from.y + world.delta(from.y, to.y) * 0.5));
+    setMarketFeature(world, mx, my, Feature.CANDLE);
+  }
+}
+
+function market88Hub(id: Market88GeometryHubId): (typeof MARKET88_GEOMETRY_HUBS)[number] {
+  const hub = MARKET88_GEOMETRY_HUBS.find(candidate => candidate.id === id);
+  if (!hub) throw new Error(`Missing black market 88 hub: ${id}`);
+  return hub;
+}
+
 function connectBazaarLandmarks(world: World, rooms: Market88BazaarRooms): void {
   if (rooms.auction) {
     connectRoomToPoint(world, rooms.auction, 'north', rooms.auction.x + (rooms.auction.w >> 1), 500, DoorState.CLOSED, '');
@@ -1116,12 +1202,10 @@ function connectStallsToAlleys(world: World, placements: Market88StallPlacement[
 }
 
 function addRaidShutters(world: World): void {
-  addShutterGate(world, 392, 500, 'east_west');
-  addShutterBypass(world, 382, 488, 404, 512);
-  addShutterGate(world, 622, 548, 'east_west');
-  addShutterBypass(world, 610, 536, 638, 564);
-  addShutterGate(world, 568, 424, 'north_south');
-  addShutterBypass(world, 552, 414, 584, 438);
+  for (const gate of MARKET88_RAID_SHUTTER_GATES) {
+    addShutterGate(world, gate.x, gate.y, gate.axis);
+    addShutterBypass(world, gate.bypass.ax, gate.bypass.ay, gate.bypass.bx, gate.bypass.by);
+  }
 }
 
 function addShutterBypass(world: World, ax: number, ay: number, bx: number, by: number): void {

@@ -50,6 +50,11 @@ const DEFAULT_FOV_RADIANS = Math.PI / 2;
 const ATLAS_COLS = 8;             // 8 textures per row
 const ATLAS_TEX_SIZE = TEX;       // 64px each texture
 const PARTICLE_INSTANCE_CAP = 256;
+const PARTICLE_WORLD_SCREEN_SCALE = 0.018;
+const PARTICLE_MIN_SCREEN_SIZE = 0.55;
+const PARTICLE_MAX_SCREEN_SIZE = 4.0;
+const PARTICLE_FADE_START = 6;
+const PARTICLE_CULL_DIST = Math.min(MAX_DRAW, 16);
 const PROCEDURAL_SPRITE_CACHE_MAX = 8192;
 const PROCEDURAL_SPRITE_CACHE_TARGET = 8192;
 const ITEM_SPRITE_CACHE_MAX = 8192;
@@ -915,6 +920,7 @@ in vec4 aColor;
 uniform vec2  uResolution;
 out float vDepth;
 out vec4 vColor;
+out vec2 vLocal;
 void main() {
   float px = aParticle.x + aPos.x * aParticle.z;
   float py = aParticle.y + aPos.y * aParticle.z;
@@ -923,6 +929,7 @@ void main() {
   gl_Position = vec4(ndcX, ndcY, 0.0, 1.0);
   vDepth = aParticle.w;
   vColor = aColor;
+  vLocal = aPos;
 }
 `;
 
@@ -930,10 +937,14 @@ const PARTICLE_FRAG_SRC = /* glsl */ `#version 300 es
 precision highp float;
 in float vDepth;
 in vec4 vColor;
+in vec2 vLocal;
 out vec4 fragColor;
 void main() {
+  float d = length(vLocal);
+  if (d > 0.5) discard;
+  float edge = 1.0 - smoothstep(0.18, 0.5, d);
   gl_FragDepth = vDepth;
-  fragColor = vColor;
+  fragColor = vec4(vColor.rgb, vColor.a * edge);
 }
 `;
 
@@ -1844,7 +1855,7 @@ export function renderSceneGL(
 
   // ── Render blood particles into FBO ──
   if (bloodParticles.length > 0) {
-    renderParticlesGL(bloodParticles, px, py, pAngle, pPitch, camHeight, planeLen);
+    renderParticlesGL(bloodParticles, px, py, pAngle, pPitch, camHeight, fogDensity, purpleFog, fogRgb, planeLen);
   }
 
   gl.disable(gl.DEPTH_TEST);
@@ -2219,6 +2230,9 @@ function renderParticlesGL(
   particles: BloodParticle[],
   px: number, py: number, pAngle: number, pPitch: number,
   _camHeight: number,
+  fogDensity: number,
+  purpleFog: number,
+  activeFogRgb: readonly [number, number, number],
   planeLen: number,
 ): void {
   if (!glState || particles.length === 0) return;
@@ -2231,6 +2245,10 @@ function renderParticlesGL(
   const horizonShift = Math.floor(pPitch * SCR_H);
   const halfH = Math.floor(SCR_H / 2) + horizonShift;
   const invDet = 1.0 / (planeX * dirY - dirX * planeY);
+  const skyFog = activeDynamicSky?.fogTint;
+  const fogR = purpleFog ? activeFogRgb[0] / 255 : skyFog ? skyFog.r / 255 : 5 / 255;
+  const fogG = purpleFog ? activeFogRgb[1] / 255 : skyFog ? skyFog.g / 255 : 5 / 255;
+  const fogB = purpleFog ? activeFogRgb[2] / 255 : skyFog ? skyFog.b / 255 : 8 / 255;
 
   let visibleCount = 0;
   const instanceData = glState.particleInstanceData;
@@ -2244,26 +2262,41 @@ function renderParticlesGL(
     if (dy > W / 2) dy -= W;
     if (dy < -W / 2) dy += W;
 
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist >= PARTICLE_CULL_DIST) continue;
+
     const txf = invDet * (dirY * dx - dirX * dy);
     const tyf = invDet * (-planeY * dx + planeX * dy);
     if (tyf <= 0.1) continue;
 
     const sx = Math.floor((SCR_W / 2) * (1 + txf / tyf));
-    if (sx < -4 || sx >= SCR_W + 4) continue;
+    const screenSize = Math.min(
+      PARTICLE_MAX_SCREEN_SIZE,
+      (SCR_H / tyf) * PARTICLE_WORLD_SCREEN_SCALE * Math.max(0.5, p.size),
+    );
+    if (screenSize < PARTICLE_MIN_SCREEN_SIZE) continue;
+    const pad = Math.ceil(screenSize + 1);
+    if (sx < -pad || sx >= SCR_W + pad) continue;
 
     const sy = Math.floor(halfH + SCR_H / (tyf * 2) - p.z * SCR_H / tyf); // at impact height
-    if (sy < -4 || sy >= SCR_H + 4) continue;
+    if (sy < -pad || sy >= SCR_H + pad) continue;
 
-    const alpha = Math.min(1, p.life * 5);
+    const distFade = dist <= PARTICLE_FADE_START
+      ? 1
+      : Math.max(0, (PARTICLE_CULL_DIST - dist) / (PARTICLE_CULL_DIST - PARTICLE_FADE_START));
+    const fogF = Math.min(1, dist * fogDensity);
+    const alpha = Math.min(1, p.life * 5) * distFade * (1 - fogF * 0.75);
+    if (alpha <= 0.03) continue;
+    const invFogF = 1 - fogF;
     const normDepth = Math.min(0.999, tyf / MAX_DRAW);
     const di = visibleCount << 2;
     instanceData[di] = sx;
     instanceData[di + 1] = sy;
-    instanceData[di + 2] = p.size * 2;
+    instanceData[di + 2] = screenSize;
     instanceData[di + 3] = normDepth;
-    colorData[di] = p.r / 255;
-    colorData[di + 1] = p.g / 255;
-    colorData[di + 2] = p.b / 255;
+    colorData[di] = (p.r / 255) * invFogF + fogR * fogF;
+    colorData[di + 1] = (p.g / 255) * invFogF + fogG * fogF;
+    colorData[di + 2] = (p.b / 255) * invFogF + fogB * fogF;
     colorData[di + 3] = alpha;
     visibleCount++;
   }
@@ -2274,6 +2307,7 @@ function renderParticlesGL(
   // Depth test already enabled by caller
   gl.enable(gl.BLEND);
   gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+  gl.depthMask(false);
 
   const pu = glState.particleUniforms;
   gl.uniform2f(pu['uResolution']!, SCR_W, SCR_H);
@@ -2287,6 +2321,7 @@ function renderParticlesGL(
 
   gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, visibleCount);
 
+  gl.depthMask(true);
   gl.disable(gl.BLEND);
 }
 

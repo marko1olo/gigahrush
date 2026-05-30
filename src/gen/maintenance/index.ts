@@ -1,5 +1,5 @@
 /* ── Maintenance tunnels generator (Floor 1) — orchestrator ──── */
-/*   Randomized DFS maze (recursive backtracker) on coarse grid. */
+/*   Randomized coarse tunnel families on a service-grid base. */
 /*   1-wide tunnel passages, rooms at junctions, pipe fragments. */
 
 import {
@@ -14,13 +14,13 @@ import { randomName, freshNeeds } from '../../data/catalog';
 import { calcZoneLevel, randomRPG, scaleMonsterHp, scaleMonsterSpeed, gaussianLevel, getMaxHp } from '../../systems/rpg';
 import { runMaintenanceContent } from './content_manifest';
 import { Spr, monsterSpr } from '../../render/sprite_index';
-import { applyCollectorMacroGeometry } from './geometry';
+import { applyCollectorMacroGeometry, placeCollectorMacroPanels } from './geometry';
 import { entitySpawnSlots } from '../../systems/entity_limits';
 
 /* ── Coarse grid parameters ───────────────────────────────────── */
 const CELL = 6;                   // world-tiles per maze cell (walls between = 1-wide passage)
 const GRID = Math.floor(W / CELL);// 1024/6 = 170 coarse cells
-const EXTRA_CONN = 0.08;          // fraction of extra random connections (loops)
+const EXTRA_CONN = 0.06;          // fraction of extra random connections (loops)
 const MAINTENANCE_MONSTER_TARGET = 1000;
 const MAINTENANCE_NPC_TARGET = 500;
 
@@ -62,6 +62,73 @@ const OPP_BIT  = [DIR_L, DIR_U, DIR_R, DIR_D];
 
 function gWrap(v: number): number { return ((v % GRID) + GRID) % GRID; }
 function gIdx(gx: number, gy: number): number { return gWrap(gy) * GRID + gWrap(gx); }
+
+function openMazeEdge(mazeOpen: Uint8Array, gx: number, gy: number, d: number): void {
+  const ci = gIdx(gx, gy);
+  const nx = gWrap(gx + DX[d]);
+  const ny = gWrap(gy + DY[d]);
+  const ni = gIdx(nx, ny);
+  mazeOpen[ci] |= DIR_BIT[d];
+  mazeOpen[ni] |= OPP_BIT[d];
+}
+
+function applyCoarseTunnelFamily(mazeOpen: Uint8Array): void {
+  const roll = Math.random();
+  if (roll < 0.34) {
+    addGrowingTreeDuctFamily(mazeOpen);
+  } else if (roll < 0.67) {
+    addHuntAndKillDuctFamily(mazeOpen);
+  } else {
+    addEllerLadderFamily(mazeOpen);
+  }
+}
+
+function addGrowingTreeDuctFamily(mazeOpen: Uint8Array): void {
+  const active: number[] = [gIdx(Math.floor(GRID / 2), Math.floor(GRID / 2))];
+  const targetSteps = GRID * 3;
+  for (let step = 0; step < targetSteps && active.length > 0; step++) {
+    const newest = active.length - 1;
+    const pickIndex = Math.random() < 0.68 ? newest : rng(0, newest);
+    const cur = active[pickIndex];
+    const gx = cur % GRID;
+    const gy = (cur / GRID) | 0;
+    const d = rng(0, 3);
+    openMazeEdge(mazeOpen, gx, gy, d);
+    active.push(gIdx(gx + DX[d], gy + DY[d]));
+    if (active.length > 144 || Math.random() < 0.22) active.splice(pickIndex, 1);
+  }
+}
+
+function addHuntAndKillDuctFamily(mazeOpen: Uint8Array): void {
+  const stride = rng(5, 9);
+  for (let gy = rng(0, stride - 1); gy < GRID; gy += stride) {
+    let gx = rng(0, GRID - 1);
+    const run = rng(12, 28);
+    let d = Math.random() < 0.5 ? 0 : 2;
+    for (let step = 0; step < run; step++) {
+      openMazeEdge(mazeOpen, gx, gy, d);
+      if (Math.random() < 0.24) openMazeEdge(mazeOpen, gx, gy, Math.random() < 0.5 ? 1 : 3);
+      gx = gWrap(gx + DX[d]);
+      if (Math.random() < 0.18) d = (d + (Math.random() < 0.5 ? 1 : 3)) & 3;
+    }
+  }
+}
+
+function addEllerLadderFamily(mazeOpen: Uint8Array): void {
+  const rowStep = rng(7, 11);
+  const colStep = rng(8, 13);
+  for (let gy = rng(0, rowStep - 1); gy < GRID; gy += rowStep) {
+    for (let gx = 0; gx < GRID; gx++) {
+      if ((gx + gy) % 5 !== 0 || Math.random() < 0.78) openMazeEdge(mazeOpen, gx, gy, 0);
+      if (gx % colStep === 0) openMazeEdge(mazeOpen, gx, gy, 1);
+    }
+  }
+  for (let gx = rng(0, colStep - 1); gx < GRID; gx += colStep) {
+    for (let gy = 0; gy < GRID; gy += 2) {
+      if (Math.random() < 0.42) openMazeEdge(mazeOpen, gx, gy, 1);
+    }
+  }
+}
 
 export function generateMaintenance(): { world: World; entities: Entity[]; spawnX: number; spawnY: number } {
   const world = new World();
@@ -115,6 +182,11 @@ export function generateMaintenance(): { world: World; entities: Entity[]; spawn
     stack.push(ni);
   }
 
+  // Add a coarse service-family overlay: tree ducts, hunt-and-kill
+  // galleries, or Eller-like ladders. It only opens extra edges, so the
+  // DFS base remains connected while the floor gains distinct tunnel logic.
+  applyCoarseTunnelFamily(mazeOpen);
+
   // Add extra random connections for loops
   const totalCells = GRID * GRID;
   const extraCount = Math.floor(totalCells * EXTRA_CONN);
@@ -123,11 +195,7 @@ export function generateMaintenance(): { world: World; entities: Entity[]; spawn
     const d = rng(0, 3);
     const cx = ci % GRID;
     const cy = (ci / GRID) | 0;
-    const nx = gWrap(cx + DX[d]);
-    const ny = gWrap(cy + DY[d]);
-    const ni = gIdx(nx, ny);
-    mazeOpen[ci] |= DIR_BIT[d];
-    mazeOpen[ni] |= OPP_BIT[d];
+    openMazeEdge(mazeOpen, cx, cy, d);
   }
 
   /* ══════════════════════════════════════════════════════════════
@@ -464,6 +532,7 @@ export function generateMaintenance(): { world: World; entities: Entity[]; spawn
         const maxHp = Math.round(getMaxHp(rpg) * 1.5);
         const nm = randomName(fDef.faction);
         const hasPsi = fDef.faction === Faction.CULTIST && Math.random() < 0.4;
+        const psiWeapon = hasPsi ? pickPsi() : undefined;
         entities.push({
           id: nextId++, type: EntityType.NPC,
           x: sx + 0.5, y: sy + 0.5,
@@ -477,8 +546,8 @@ export function generateMaintenance(): { world: World; entities: Entity[]; spawn
           hp: maxHp, maxHp,
           money: rng(10, 80),
           ai: { goal: AIGoal.IDLE, tx: 0, ty: 0, path: [], pi: 0, stuck: 0, timer: 0 },
-          inventory: hasPsi ? [{ defId: pickPsi(), count: 1 }] : [],
-          weapon: hasPsi ? pickPsi() : undefined,
+          inventory: psiWeapon ? [{ defId: psiWeapon, count: 1 }] : [],
+          weapon: psiWeapon,
           faction: fDef.faction,
           occupation: fDef.occupation,
           isTraveler: true,
@@ -506,6 +575,7 @@ export function generateMaintenance(): { world: World; entities: Entity[]; spawn
      Phase 16: Rare procedural monitor/gauge walls
      ══════════════════════════════════════════════════════════════ */
   placeProceduralScreens(world, FloorLevel.MAINTENANCE);
+  placeCollectorMacroPanels(world, centerX, centerY);
 
   return { world, entities, spawnX, spawnY };
 }

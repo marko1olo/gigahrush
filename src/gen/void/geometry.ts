@@ -12,6 +12,14 @@ import {
 } from '../../core/types';
 import { World } from '../../core/world';
 import { placeDoorAt, stampRoom } from '../shared';
+import {
+  createProxyGrid,
+  extractProxyDescriptors,
+  proxyCellCenter,
+  proxyIndex,
+  worldToProxy,
+  type ProxyGrid,
+} from '../proxy_grid';
 
 export interface VoidGeometryLayout {
   spawnX: number;
@@ -19,6 +27,13 @@ export interface VoidGeometryLayout {
   bossX: number;
   bossY: number;
 }
+
+export const VOID_DEAD_LAMP_ROWS: readonly (readonly [number, number, number, number])[] = [
+  [436, 520, 474, 520],
+  [778, 528, 818, 536],
+  [922, 620, 970, 620],
+  [132, 492, 92, 492],
+] as const;
 
 interface IslandSpec {
   cx: number;
@@ -38,6 +53,16 @@ interface ChaosPocketSpec {
 
 const SPAWN_X = W >> 1;
 const SPAWN_Y = W >> 1;
+
+export const VOID_GEOMETRY_ANCHORS = {
+  spawn: [SPAWN_X, SPAWN_Y],
+  lightPocket: [SPAWN_X, SPAWN_Y - 21],
+  listeningRoute: [462, 520],
+  fastCrossing: [650, 558],
+  fallbackBridge: [948, 620],
+  protocolFrame: [602, 525],
+  boss: [684, 558],
+} as const;
 
 const ISLANDS: IslandSpec[] = [
   { cx: SPAWN_X, cy: SPAWN_Y, rx: 20, ry: 15, shardSeed: 1 },
@@ -102,6 +127,30 @@ const VOID_CHAOS_LINKS: readonly (readonly [number, number, number])[] = [
   [4, 12, 65], [5, 9, 66], [6, 11, 67], [7, 13, 68],
   [8, 14, 69], [10, 15, 70], [12, 2, 71], [15, 4, 72],
 ];
+
+const VOID_REVEAL_SHELLS: readonly (readonly [number, number, number, number])[] = [
+  [SPAWN_X, SPAWN_Y, 18, 0.34],
+  [SPAWN_X, SPAWN_Y - 21, 28, 0.56],
+  [462, 520, 22, 0.32],
+  [548, 576, 20, 0.42],
+  [602, 525, 24, 0.38],
+  [650, 558, 16, 0.26],
+  [684, 558, 26, 0.52],
+  [948, 620, 18, 0.24],
+] as const;
+
+const VOID_ROUTE_ANCHOR_POINTS: readonly (readonly [number, number])[] = [
+  VOID_GEOMETRY_ANCHORS.spawn,
+  VOID_GEOMETRY_ANCHORS.lightPocket,
+  VOID_GEOMETRY_ANCHORS.listeningRoute,
+  VOID_GEOMETRY_ANCHORS.fastCrossing,
+  VOID_GEOMETRY_ANCHORS.fallbackBridge,
+  VOID_GEOMETRY_ANCHORS.protocolFrame,
+  VOID_GEOMETRY_ANCHORS.boss,
+] as const;
+
+const VOID_PROXY_GRID_SIZE = 64;
+const VOID_PROXY_PASSABLE_RATIO = 0.012;
 
 function hash2(x: number, y: number, seed: number): number {
   let n = (Math.imul(x, 374761393) + Math.imul(y, 668265263) + Math.imul(seed, 1274126177)) | 0;
@@ -325,6 +374,253 @@ function buildVoidProtectedMask(world: World): Uint8Array {
   for (let i = 0; i < W * W; i++) if (world.cells[i] === Cell.LIFT) mask[i] = 1;
   for (let i = 0; i < W * W; i++) if (world.features[i] !== Feature.NONE) mask[i] = 1;
   return mask;
+}
+
+function isVoidGraphWalkable(world: World, idx: number): boolean {
+  const cell = world.cells[idx];
+  return cell === Cell.FLOOR || cell === Cell.DOOR || cell === Cell.WATER;
+}
+
+interface VoidComponentGraph {
+  label: Int32Array;
+  sizes: number[];
+  samples: number[][];
+  largestId: number;
+}
+
+interface VoidProxyComponentGraph {
+  grid: ProxyGrid;
+  passable: Uint8Array;
+  label: Int32Array;
+  sizes: number[];
+  samples: number[][];
+  largestId: number;
+}
+
+function extractVoidComponentGraph(world: World): VoidComponentGraph {
+  const n = W * W;
+  const label = new Int32Array(n).fill(-1);
+  const queue = new Int32Array(n);
+  const sizes: number[] = [];
+  const samples: number[][] = [];
+  let largestId = -1;
+  let largestSize = 0;
+
+  for (let i = 0; i < n; i++) {
+    if (label[i] >= 0 || !isVoidGraphWalkable(world, i)) continue;
+    const id = sizes.length;
+    const sample: number[] = [i];
+    let head = 0;
+    let tail = 0;
+    let size = 0;
+    label[i] = id;
+    queue[tail++] = i;
+
+    while (head < tail) {
+      const ci = queue[head++];
+      const x = ci % W;
+      const y = (ci / W) | 0;
+      size++;
+      if (sample.length < 48 || (size & 127) === 0) sample.push(ci);
+
+      for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]] as const) {
+        const ni = world.idx(x + dx, y + dy);
+        if (label[ni] >= 0 || !isVoidGraphWalkable(world, ni)) continue;
+        label[ni] = id;
+        queue[tail++] = ni;
+      }
+    }
+
+    sizes.push(size);
+    samples.push(sample);
+    if (size > largestSize) {
+      largestSize = size;
+      largestId = id;
+    }
+  }
+
+  return { label, sizes, samples, largestId };
+}
+
+function nearestVoidSamplePair(
+  world: World,
+  from: readonly number[],
+  to: readonly number[],
+): readonly [number, number] {
+  let bestA = from[0] ?? 0;
+  let bestB = to[0] ?? 0;
+  let bestD = Infinity;
+  for (const a of from) {
+    const ax = a % W;
+    const ay = (a / W) | 0;
+    for (const b of to) {
+      const bx = b % W;
+      const by = (b / W) | 0;
+      const d = Math.abs(world.delta(ax, bx)) + Math.abs(world.delta(ay, by));
+      if (d < bestD) {
+        bestD = d;
+        bestA = a;
+        bestB = b;
+      }
+    }
+  }
+  return [bestA, bestB];
+}
+
+function markVoidBridgeCues(world: World, ax: number, ay: number, bx: number, by: number, serial: number): void {
+  const ddx = world.delta(ax, bx);
+  const ddy = world.delta(ay, by);
+  const steps = Math.max(1, Math.abs(ddx), Math.abs(ddy));
+  const gap = 18 + (serial % 5) * 3;
+  for (let step = gap; step < steps; step += gap) {
+    const x = world.wrap(Math.round(ax + (ddx * step) / steps));
+    const y = world.wrap(Math.round(ay + (ddy * step) / steps));
+    const ci = world.idx(x, y);
+    if (world.cells[ci] !== Cell.FLOOR || world.features[ci] !== Feature.NONE) continue;
+    world.features[ci] = serial % 2 === 0 ? Feature.CANDLE : Feature.APPARATUS;
+  }
+}
+
+function extractVoidProxyPercolationGraph(world: World): VoidProxyComponentGraph {
+  const grid = createProxyGrid(VOID_PROXY_GRID_SIZE, 0x140014);
+  const total = grid.size * grid.size;
+  const passable = new Uint8Array(total);
+  const label = new Int32Array(total).fill(-1);
+  const queue = new Int32Array(total);
+  const sizes: number[] = [];
+  const samples: number[][] = [];
+  let largestId = -1;
+  let largestSize = 0;
+
+  for (const descriptor of extractProxyDescriptors(world, grid)) {
+    if (descriptor.passableRatio >= VOID_PROXY_PASSABLE_RATIO) passable[descriptor.index] = 1;
+  }
+
+  for (let i = 0; i < total; i++) {
+    if (label[i] >= 0 || !passable[i]) continue;
+    const id = sizes.length;
+    const sample: number[] = [i];
+    let head = 0;
+    let tail = 0;
+    let size = 0;
+    label[i] = id;
+    queue[tail++] = i;
+
+    while (head < tail) {
+      const ci = queue[head++];
+      const x = ci % grid.size;
+      const y = (ci / grid.size) | 0;
+      size++;
+      if (sample.length < 32 || (size & 31) === 0) sample.push(ci);
+
+      for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]] as const) {
+        const ni = proxyIndex(grid, x + dx, y + dy);
+        if (label[ni] >= 0 || !passable[ni]) continue;
+        label[ni] = id;
+        queue[tail++] = ni;
+      }
+    }
+
+    sizes.push(size);
+    samples.push(sample);
+    if (size > largestSize) {
+      largestSize = size;
+      largestId = id;
+    }
+  }
+
+  return { grid, passable, label, sizes, samples, largestId };
+}
+
+function nearestVoidProxySamplePair(
+  world: World,
+  grid: ProxyGrid,
+  from: readonly number[],
+  to: readonly number[],
+): readonly [number, number] {
+  let bestA = from[0] ?? 0;
+  let bestB = to[0] ?? 0;
+  let bestD = Infinity;
+  for (const a of from) {
+    const ac = proxyCellCenter(grid, a % grid.size, (a / grid.size) | 0);
+    for (const b of to) {
+      const bc = proxyCellCenter(grid, b % grid.size, (b / grid.size) | 0);
+      const d = world.dist2(ac.x, ac.y, bc.x, bc.y);
+      if (d < bestD) {
+        bestD = d;
+        bestA = a;
+        bestB = b;
+      }
+    }
+  }
+  return [bestA, bestB];
+}
+
+function carveVoidProxyBridge(world: World, mask: Uint8Array, graph: VoidProxyComponentGraph, from: number, to: number, serial: number): void {
+  const a = proxyCellCenter(graph.grid, from % graph.grid.size, (from / graph.grid.size) | 0);
+  const b = proxyCellCenter(graph.grid, to % graph.grid.size, (to / graph.grid.size) | 0);
+  carveVoidFoldRoute(world, mask, Math.round(a.x), Math.round(a.y), Math.round(b.x), Math.round(b.y), serial);
+  markVoidBridgeCues(world, Math.round(a.x), Math.round(a.y), Math.round(b.x), Math.round(b.y), serial);
+}
+
+function bridgeVoidProxyPercolation(world: World): void {
+  let graph = extractVoidProxyPercolationGraph(world);
+  if (graph.sizes.length <= 1 || graph.largestId < 0) return;
+
+  const mask = buildVoidProtectedMask(world);
+  const mainSamples = graph.samples[graph.largestId].slice();
+  const bridgedComponents = new Set<number>([graph.largestId]);
+
+  for (let i = 0; i < VOID_ROUTE_ANCHOR_POINTS.length; i++) {
+    const anchor = VOID_ROUTE_ANCHOR_POINTS[i];
+    const proxy = worldToProxy(graph.grid, anchor[0], anchor[1]).index;
+    const componentId = graph.label[proxy];
+    if (componentId < 0 || bridgedComponents.has(componentId)) continue;
+    const [from, to] = nearestVoidProxySamplePair(world, graph.grid, graph.samples[componentId], mainSamples);
+    carveVoidProxyBridge(world, mask, graph, from, to, 150 + i);
+    mainSamples.push(...graph.samples[componentId].slice(0, 12));
+    bridgedComponents.add(componentId);
+  }
+
+  graph = extractVoidProxyPercolationGraph(world);
+  const refreshedMainSamples = graph.largestId >= 0 ? graph.samples[graph.largestId].slice() : mainSamples;
+  const componentIds = graph.sizes
+    .map((size, id) => ({ id, size }))
+    .filter(component => component.id !== graph.largestId)
+    .sort((a, b) => b.size - a.size);
+
+  for (const component of componentIds) {
+    const [from, to] = nearestVoidProxySamplePair(world, graph.grid, graph.samples[component.id], refreshedMainSamples);
+    carveVoidProxyBridge(world, mask, graph, from, to, 170 + component.id);
+    refreshedMainSamples.push(...graph.samples[component.id].slice(0, 12));
+  }
+}
+
+function bridgeVoidPercolationComponents(world: World): void {
+  for (let pass = 0; pass < 4; pass++) {
+    const graph = extractVoidComponentGraph(world);
+    if (graph.sizes.length <= 1 || graph.largestId < 0) return;
+
+    const mask = buildVoidProtectedMask(world);
+    const mainSamples = graph.samples[graph.largestId].slice();
+    const componentIds = graph.sizes
+      .map((size, id) => ({ id, size }))
+      .filter(component => component.id !== graph.largestId)
+      .sort((a, b) => b.size - a.size);
+
+    for (const component of componentIds) {
+      const [from, to] = nearestVoidSamplePair(world, graph.samples[component.id], mainSamples);
+      const ax = from % W;
+      const ay = (from / W) | 0;
+      const bx = to % W;
+      const by = (to / W) | 0;
+      carveVoidFoldRoute(world, mask, ax, ay, bx, by, 100 + pass * 17 + component.id);
+      carveWideCell(world, ax, ay, 1);
+      carveWideCell(world, bx, by, 1);
+      markVoidBridgeCues(world, ax, ay, bx, by, component.id);
+      mainSamples.push(...graph.samples[component.id].slice(0, 16));
+    }
+  }
 }
 
 function carveVoidFootprintBand(
@@ -587,6 +883,73 @@ function expandVoidMegastructureFootprint(world: World): void {
   carveVoidFoldRoute(world, mask, last[0], last[1], SPAWN_X, SPAWN_Y, 40);
 }
 
+function addDeadLampRows(world: World): void {
+  for (const [ax, ay, bx, by] of VOID_DEAD_LAMP_ROWS) {
+    const ddx = world.delta(ax, bx);
+    const ddy = world.delta(ay, by);
+    const steps = Math.max(1, Math.abs(ddx), Math.abs(ddy));
+    for (let step = 0; step <= steps; step += 4) {
+      const x = world.wrap(Math.round(ax + (ddx * step) / steps));
+      const y = world.wrap(Math.round(ay + (ddy * step) / steps));
+      const ci = world.idx(x, y);
+      if (world.cells[ci] !== Cell.FLOOR || world.features[ci] !== Feature.NONE) continue;
+      world.features[ci] = step % 12 === 0 ? Feature.SCREEN : Feature.APPARATUS;
+    }
+  }
+}
+
+export function applyVoidRevealLighting(world: World): void {
+  const n = W * W;
+  const seen = new Uint8Array(n);
+  const depth = new Uint8Array(n);
+  const queue = new Int32Array(n);
+
+  for (const [anchorX, anchorY, radius, strength] of VOID_REVEAL_SHELLS) {
+    seen.fill(0);
+    depth.fill(0);
+    let start = world.idx(anchorX, anchorY);
+    if (!isVoidGraphWalkable(world, start)) {
+      start = -1;
+      for (let r = 1; r <= 10 && start < 0; r++) {
+        for (let dy = -r; dy <= r && start < 0; dy++) {
+          for (let dx = -r; dx <= r; dx++) {
+            if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue;
+            const ci = world.idx(anchorX + dx, anchorY + dy);
+            if (isVoidGraphWalkable(world, ci)) {
+              start = ci;
+              break;
+            }
+          }
+        }
+      }
+    }
+    if (start < 0) continue;
+
+    let head = 0;
+    let tail = 0;
+    seen[start] = 1;
+    queue[tail++] = start;
+
+    while (head < tail) {
+      const ci = queue[head++];
+      const d = depth[ci];
+      const glow = strength * (1 - d / Math.max(1, radius));
+      if (glow > world.light[ci]) world.light[ci] = glow;
+      if (d >= radius) continue;
+
+      const x = ci % W;
+      const y = (ci / W) | 0;
+      for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]] as const) {
+        const ni = world.idx(x + dx, y + dy);
+        if (seen[ni] || !isVoidGraphWalkable(world, ni)) continue;
+        seen[ni] = 1;
+        depth[ni] = d + 1;
+        queue[tail++] = ni;
+      }
+    }
+  }
+}
+
 export function paintVoidDefaults(world: World): void {
   for (let i = 0; i < W * W; i++) {
     if (world.cells[i] === Cell.FLOOR || world.cells[i] === Cell.DOOR) {
@@ -613,6 +976,9 @@ export function buildVoidGeometry(world: World): VoidGeometryLayout {
   placeVoidLifts(world);
   expandVoidMegastructureFootprint(world);
   expandVoidChaoticGeometry(world);
+  bridgeVoidProxyPercolation(world);
+  bridgeVoidPercolationComponents(world);
+  addDeadLampRows(world);
   paintVoidDefaults(world);
 
   return {

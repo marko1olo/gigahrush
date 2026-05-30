@@ -17,6 +17,10 @@ const FRESH_SECONDS = 3.5;
 const HARD_SECONDS = 9;
 const BAKE_SECONDS = 18;
 const DECAY_SECONDS = 42;
+const PASSIVE_CLEAR_RADIUS = 12;
+const PANEL_CLEAR_RADIUS = 34;
+const PANEL_CLEAR_CAP = 96;
+const RECENT_CLEAR_SECONDS = 12;
 
 interface MemoryEntry {
   idx: number;
@@ -44,7 +48,7 @@ export function updateCementMemoryAnomaly(world: World, player: Entity, state: G
   const ci = world.idx(px, py);
 
   if (isAmnesiaCell(world, ci)) {
-    coolMemory(world, runtime, state.time, 12);
+    coolLocalMemory(world, runtime, state.time, ci, PASSIVE_CLEAR_RADIUS, 12, false);
     if (state.time - runtime.lastMsgAt > 14) {
       runtime.lastMsgAt = state.time;
       state.msgs.push(msg('Цементная память здесь стирается, шаги становятся легче.', state.time, '#9cf'));
@@ -82,7 +86,7 @@ export function tryUseCementMemoryAnomaly(world: World, player: Entity, state: G
   if (world.dist2(player.x, player.y, x + 0.5, y + 0.5) > 8) return false;
 
   const runtime = runtimeFor(world, state);
-  const cleared = coolMemory(world, runtime, state.time, RING_SIZE);
+  const cleared = coolLocalMemory(world, runtime, state.time, ci, PANEL_CLEAR_RADIUS, PANEL_CLEAR_CAP, true);
   state.msgs.push(msg(cleared > 0
     ? 'Щиток амнезии сбросил свежие следы. Можно идти обратно, но недолго.'
     : 'Щиток гудит пусто: свежих цементных следов рядом нет.',
@@ -160,11 +164,21 @@ function currentStage(runtime: CementMemoryRuntime, ci: number, time: number): n
   return best;
 }
 
-function coolMemory(world: World, runtime: CementMemoryRuntime, time: number, cap: number): number {
+function coolLocalMemory(
+  world: World,
+  runtime: CementMemoryRuntime,
+  time: number,
+  centerIdx: number,
+  radius: number,
+  cap: number,
+  includeRecent: boolean,
+): number {
   let cleared = 0;
-  for (const entry of runtime.entries) {
+  for (let step = 1; step <= RING_SIZE && cleared < cap; step++) {
+    const entry = runtime.entries[(runtime.cursor - step + RING_SIZE) % RING_SIZE];
     if (cleared >= cap) break;
     if (entry.idx < 0) continue;
+    if (!entryCanBeCleared(world, entry, time, centerIdx, radius, includeRecent)) continue;
     world.fog[entry.idx] = Math.max(0, world.fog[entry.idx] - 80);
     entry.enteredAt = time - DECAY_SECONDS;
     entry.idx = -1;
@@ -173,6 +187,22 @@ function coolMemory(world: World, runtime: CementMemoryRuntime, time: number, ca
   }
   if (cleared > 0) world.markFogDirty();
   return cleared;
+}
+
+function entryCanBeCleared(
+  world: World,
+  entry: MemoryEntry,
+  time: number,
+  centerIdx: number,
+  radius: number,
+  includeRecent: boolean,
+): boolean {
+  const ex = entry.idx % W;
+  const ey = (entry.idx / W) | 0;
+  const cx = centerIdx % W;
+  const cy = (centerIdx / W) | 0;
+  if (world.dist2(ex + 0.5, ey + 0.5, cx + 0.5, cy + 0.5) <= radius * radius) return true;
+  return includeRecent && time - entry.enteredAt <= RECENT_CLEAR_SECONDS;
 }
 
 function isRecordable(world: World, ci: number): boolean {

@@ -63,6 +63,22 @@ const SKY_CELL = 16;
 const SKY_GRID_W = ROOF_SKY_WIDTH / SKY_CELL;
 const SKY_GRID_H = Math.ceil(ROOF_SKY_HEIGHT / SKY_CELL);
 const SKY_UPDATE_INTERVAL = 0.75;
+const ROOF_LOS_RAY_MAX = 64;
+const ROOF_LOS_LONG_STEPS = 24;
+const ROOF_LOS_EXPOSURE_THRESHOLD = 110;
+const ROOF_LOS_SHELTER_MIN_SPACING = 24;
+const ROOF_LOS_SHELTER_MAX_SPACING = 48;
+const ROOF_LOS_SHELTER_CAP = 256;
+const ROOF_LOS_DIRS = [
+  [1, 0],
+  [-1, 0],
+  [0, 1],
+  [0, -1],
+  [1, 1],
+  [-1, 1],
+  [1, -1],
+  [-1, -1],
+] as const;
 
 export type RoofWeatherAction =
   | 'repair_signal'
@@ -119,10 +135,26 @@ export interface RoofGeneration extends FloorGeneration {
   debug: string[];
 }
 
+export interface RoofLosExposureSummary {
+  exposedCells: number;
+  deliberateExposedCells: number;
+  unshelteredExposedCells: number;
+  shelterCells: number;
+  maxScore: number;
+}
+
 interface RoofIsland {
   room: Room;
   cx: number;
   cy: number;
+}
+
+interface RoofShelterIndex {
+  bucketSize: number;
+  radius: number;
+  side: number;
+  shelterCells: number;
+  buckets: number[][];
 }
 
 export function createRoofWeatherState(seed = 0, skyTimeOfDay = 0.42): RoofWeatherState {
@@ -466,6 +498,94 @@ export function retuneRoofPressureZones(world: World): void {
   }
 }
 
+export function buildRoofLosExposureHeatmap(world: World): Uint8Array {
+  const heat = new Uint8Array(W * W);
+  for (let y = 0; y < W; y++) {
+    for (let x = 0; x < W; x++) {
+      const ci = world.idx(x, y);
+      if (!isRoofLosOpenCell(world, ci)) continue;
+      let total = 0;
+      let longest = 0;
+      let longDirections = 0;
+      for (const [dx, dy] of ROOF_LOS_DIRS) {
+        const steps = roofVisibleSteps(world, x, y, dx, dy);
+        total += steps;
+        if (steps > longest) longest = steps;
+        if (steps >= ROOF_LOS_LONG_STEPS) longDirections++;
+      }
+      if (longest < ROOF_LOS_LONG_STEPS) continue;
+      heat[ci] = Math.min(255, longDirections * 34 + longest * 2 + Math.floor(total / 5));
+    }
+  }
+  return heat;
+}
+
+export function summarizeRoofLosExposure(
+  world: World,
+  heat = buildRoofLosExposureHeatmap(world),
+): RoofLosExposureSummary {
+  const shelterIndex = createRoofShelterIndex(world, ROOF_LOS_SHELTER_MAX_SPACING);
+  let exposedCells = 0;
+  let deliberateExposedCells = 0;
+  let unshelteredExposedCells = 0;
+  let maxScore = 0;
+
+  for (let i = 0; i < heat.length; i++) {
+    const score = heat[i];
+    if (score > maxScore) maxScore = score;
+    if (score < ROOF_LOS_EXPOSURE_THRESHOLD) continue;
+    exposedCells++;
+    const x = i % W;
+    const y = (i / W) | 0;
+    if (isDeliberateRoofExposure(world, i)) {
+      deliberateExposedCells++;
+    } else if (!hasRoofExposureShelterNear(world, shelterIndex, x, y)) {
+      unshelteredExposedCells++;
+    }
+  }
+
+  return {
+    exposedCells,
+    deliberateExposedCells,
+    unshelteredExposedCells,
+    shelterCells: shelterIndex.shelterCells,
+    maxScore,
+  };
+}
+
+export function applyRoofLosShelterPockets(world: World, rng: () => number): RoofLosExposureSummary {
+  const heat = buildRoofLosExposureHeatmap(world);
+  const shelterIndex = createRoofShelterIndex(world, ROOF_LOS_SHELTER_MAX_SPACING);
+  let placed = 0;
+  const phaseX = Math.floor(rng() * 17);
+  const phaseY = Math.floor(rng() * 19);
+
+  for (const threshold of [174, 142, ROOF_LOS_EXPOSURE_THRESHOLD]) {
+    for (let y = phaseY; y < W + phaseY && placed < ROOF_LOS_SHELTER_CAP; y++) {
+      const wy = y & (W - 1);
+      for (let x = phaseX; x < W + phaseX && placed < ROOF_LOS_SHELTER_CAP; x++) {
+        const wx = x & (W - 1);
+        const ci = world.idx(wx, wy);
+        if (heat[ci] < threshold) continue;
+        if (isDeliberateRoofExposure(world, ci)) continue;
+        if (hasRoofExposureShelterNear(world, shelterIndex, wx, wy)) continue;
+        const cells = placeRoofExposureShelterNear(world, wx, wy, rng);
+        if (!cells) continue;
+        for (const cell of cells) addRoofShelterCell(shelterIndex, cell % W, (cell / W) | 0);
+        placed++;
+      }
+    }
+  }
+
+  if (placed > 0) {
+    world.markCellsDirty();
+    world.markWallTexDirty();
+    world.markFeaturesDirty();
+    world.surfaceVersion = (world.surfaceVersion + 1) | 0;
+  }
+  return summarizeRoofLosExposure(world, heat);
+}
+
 function roofRoomPressureFaction(room: Room): ZoneFaction {
   if (room.type === RoomType.PRODUCTION) return ZoneFaction.SAMOSBOR;
   if (room.type === RoomType.HQ) return ZoneFaction.LIQUIDATOR;
@@ -514,6 +634,147 @@ function hash01(x: number, y: number, seed: number): number {
   n = (n ^ (n >> 13)) * 1103515245;
   n ^= n >> 16;
   return (n & 0x7fff) / 0x7fff;
+}
+
+function isRoofLosOpenCell(world: World, idx: number): boolean {
+  const cell = world.cells[idx];
+  return cell === Cell.FLOOR || cell === Cell.WATER;
+}
+
+function roofVisibleSteps(world: World, x: number, y: number, dx: number, dy: number): number {
+  let steps = 0;
+  for (let step = 1; step <= ROOF_LOS_RAY_MAX; step++) {
+    if (!isRoofLosOpenCell(world, world.idx(x + dx * step, y + dy * step))) break;
+    steps++;
+  }
+  return steps;
+}
+
+function isDeliberateRoofExposure(world: World, idx: number): boolean {
+  const roomId = world.roomMap[idx];
+  const room = roomId >= 0 ? world.rooms[roomId] : undefined;
+  return room?.type === RoomType.HQ || room?.name.includes('снайпер') === true;
+}
+
+function isRoofExposureShelterCell(world: World, idx: number): boolean {
+  return world.cells[idx] === Cell.WALL &&
+    world.hermoWall[idx] === 0 &&
+    (world.wallTex[idx] === Tex.PIPE ||
+      world.wallTex[idx] === Tex.HERMO_WALL ||
+      world.wallTex[idx] === Tex.METAL);
+}
+
+function createRoofShelterIndex(world: World, radius: number): RoofShelterIndex {
+  const bucketSize = Math.max(1, ROOF_LOS_SHELTER_MIN_SPACING);
+  const side = Math.ceil(W / bucketSize);
+  const index: RoofShelterIndex = {
+    bucketSize,
+    radius,
+    side,
+    shelterCells: 0,
+    buckets: Array.from({ length: side * side }, () => []),
+  };
+  for (let i = 0; i < W * W; i++) {
+    if (!isRoofExposureShelterCell(world, i)) continue;
+    addRoofShelterCell(index, i % W, (i / W) | 0);
+  }
+  return index;
+}
+
+function addRoofShelterCell(index: RoofShelterIndex, x: number, y: number): void {
+  const wx = x & (W - 1);
+  const wy = y & (W - 1);
+  const bx = Math.floor(wx / index.bucketSize);
+  const by = Math.floor(wy / index.bucketSize);
+  index.buckets[by * index.side + bx].push(wy * W + wx);
+  index.shelterCells++;
+}
+
+function hasRoofExposureShelterNear(world: World, index: RoofShelterIndex, x: number, y: number): boolean {
+  const radius = index.radius;
+  const radius2 = radius * radius;
+  const bx = Math.floor((x & (W - 1)) / index.bucketSize);
+  const by = Math.floor((y & (W - 1)) / index.bucketSize);
+  const bucketRange = Math.ceil(radius / index.bucketSize);
+  for (let dy = -bucketRange; dy <= bucketRange; dy++) {
+    const yy = (by + dy + index.side) % index.side;
+    for (let dx = -bucketRange; dx <= bucketRange; dx++) {
+      const xx = (bx + dx + index.side) % index.side;
+      const bucket = index.buckets[yy * index.side + xx];
+      for (let i = 0; i < bucket.length; i++) {
+        const cell = bucket[i];
+        const sx = cell % W;
+        const sy = (cell / W) | 0;
+        if (world.dist2(x, y, sx, sy) <= radius2) return true;
+      }
+    }
+  }
+  return false;
+}
+
+function placeRoofExposureShelterNear(world: World, x: number, y: number, rng: () => number): number[] | null {
+  for (let radius = 0; radius <= 5; radius++) {
+    for (let dy = -radius; dy <= radius; dy++) {
+      for (let dx = -radius; dx <= radius; dx++) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== radius) continue;
+        const cells = placeRoofExposureShelter(world, x + dx, y + dy, rng);
+        if (cells) return cells;
+      }
+    }
+  }
+  return null;
+}
+
+function placeRoofExposureShelter(world: World, x: number, y: number, rng: () => number): number[] | null {
+  const horizontalSight = roofVisibleSteps(world, x, y, 1, 0) + roofVisibleSteps(world, x, y, -1, 0);
+  const verticalSight = roofVisibleSteps(world, x, y, 0, 1) + roofVisibleSteps(world, x, y, 0, -1);
+  const offsets = horizontalSight >= verticalSight
+    ? [[0, -1], [0, 0], [0, 1]] as const
+    : [[-1, 0], [0, 0], [1, 0]] as const;
+  const useLine = countRoofOpenNeighbors(world, x, y, 2) >= 11;
+  const cells = useLine ? offsets : [[0, 0]] as const;
+  for (const [dx, dy] of cells) {
+    if (!canPlaceRoofExposureShelterCell(world, x + dx, y + dy)) return null;
+  }
+
+  const texRoll = rng();
+  const tex = texRoll < 0.28 ? Tex.HERMO_WALL : texRoll < 0.64 ? Tex.PIPE : Tex.METAL;
+  const placed: number[] = [];
+  for (const [dx, dy] of cells) {
+    const ci = world.idx(x + dx, y + dy);
+    world.cells[ci] = Cell.WALL;
+    world.roomMap[ci] = -1;
+    world.wallTex[ci] = tex;
+    world.features[ci] = Feature.NONE;
+    world.hermoWall[ci] = 0;
+    placed.push(ci);
+  }
+  setFeatureIfFloor(world, x + 1, y + 1, rng() < 0.5 ? Feature.MACHINE : Feature.SHELF);
+  setFeatureIfFloor(world, x - 1, y - 1, Feature.APPARATUS);
+  stampSurfaceSplat(world, x, y, 0.5, 0.5, 3.8, 0.14, Math.floor(rng() * 1_000_000), 60, 66, 72, false);
+  return placed;
+}
+
+function canPlaceRoofExposureShelterCell(world: World, x: number, y: number): boolean {
+  const ci = world.idx(x, y);
+  if (world.cells[ci] !== Cell.FLOOR) return false;
+  if (world.features[ci] !== Feature.NONE) return false;
+  if (world.doors.has(ci) || world.containerMap.has(ci)) return false;
+  if (world.hermoWall[ci] || world.aptMask[ci]) return false;
+  const roomId = world.roomMap[ci];
+  const room = roomId >= 0 ? world.rooms[roomId] : undefined;
+  if (room?.sealed || room?.type === RoomType.CORRIDOR) return false;
+  return true;
+}
+
+function countRoofOpenNeighbors(world: World, x: number, y: number, radius: number): number {
+  let count = 0;
+  for (let dy = -radius; dy <= radius; dy++) {
+    for (let dx = -radius; dx <= radius; dx++) {
+      if (isRoofLosOpenCell(world, world.idx(x + dx, y + dy))) count++;
+    }
+  }
+  return count;
 }
 
 function buildRoofKeepMask(world: World): Uint8Array {

@@ -21,14 +21,17 @@ import { monsterSpr } from '../../render/sprite_index';
 import { ensureConnectivity, generateZones, sanitizeDoors } from '../shared';
 import type { FloorGeneration } from '../floor_manifest';
 import { blackoutDarknessLights, expandDarknessRouteGeometry } from './darkness';
-import { applyFloor69AmbientSpriteTemplates, expandFloor69FullFloor } from './floor_69';
+import { applyFloor69AmbientSpriteTemplates, applyFloor69OwnershipVisibilityHeatmap, expandFloor69FullFloor } from './floor_69';
 import { expandManhattanCrossroadsRouteShell } from './manhattan_crossroads';
 import { expandServiceFloorMachineMaze, placeServiceFloorEmergencyPanels } from './service_floor';
+import { expandNumberRegistryGeometry, retuneNumberRegistryZones } from './number_registry';
 import { expandChthonicAtticRootNetwork, retuneExpandedChthonicAtticEcology } from './chthonic_attic';
 import { expandUpperBureauGeometry, retuneUpperBureauZones } from './upper_bureau';
 import { expandAntennaCourtRouteGeometry, retuneAntennaCourtRouteZones } from './antenna_court';
+import { expandAttractorDvorRouteGeometry, placeAttractorDvorEmergencyPanels, tuneAttractorDvorRouteZones } from './attractor_dvor';
 import { expandBankFloorRouteGeometry } from './bank_floor';
-import { expandRoofArchipelago, retuneRoofPressureZones } from './roof';
+import { expandBolnichnyKorpusRouteGeometry, reinforceBolnichnyKorpusGates, tuneBolnichnyKorpusRouteZones } from './bolnichny_korpus';
+import { applyRoofLosShelterPockets, expandRoofArchipelago, retuneRoofPressureZones } from './roof';
 import { expandBlackMarket88Bazaar } from './black_market_88';
 import { expandDarkMetroFullFloorGeometry, tuneDarkMetroRouteZone } from './dark_metro';
 import { expandPioneerCampFullFloor, tunePioneerCampPopulationZones } from './pioneer_camp';
@@ -37,6 +40,9 @@ import { expandRaionsovetArchiveGeometry } from './raionsovet_archive';
 import { expandRegistryMorgueGeometry } from './registry_morgue';
 import { expandSiliconNetWellRouteGeometry, tuneSiliconNetWellRouteZones } from './silicon_net_well';
 import { expandSlimeNiiRouteGeometry } from './slime_nii';
+import { reinforceSpetspriemnikRouteGates, tuneSpetspriemnikRouteZones } from './spetspriemnik';
+import { expandTuringNurseryRouteGeometry } from './turing_nursery';
+import { tuneVoronoiQuarantineRouteZones } from './voronoi_quarantine';
 import { ensureRouteWideFootprint } from './route_shell';
 import { applyDesignFloorPopulationField } from './population';
 
@@ -53,6 +59,28 @@ interface Point {
 }
 
 type CommunalSide = 'north' | 'south' | 'west' | 'east';
+
+interface CommunalServiceLoopSpec {
+  name: string;
+  type: RoomType;
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+  floorTex: Tex;
+  wallTex: Tex;
+  faction: ZoneFaction;
+  level: number;
+}
+
+const COMMUNAL_SERVICE_LOOPS: readonly CommunalServiceLoopSpec[] = [
+  { name: 'Петля кухонного кипятка', type: RoomType.KITCHEN, left: 426, top: 424, right: 596, bottom: 480, floorTex: Tex.F_TILE, wallTex: Tex.TILE_W, faction: ZoneFaction.CITIZEN, level: 2 },
+  { name: 'Петля водяной очереди', type: RoomType.BATHROOM, left: 574, top: 464, right: 660, bottom: 552, floorTex: Tex.F_WATER, wallTex: Tex.TILE_W, faction: ZoneFaction.LIQUIDATOR, level: 3 },
+  { name: 'Петля паечной кладовой', type: RoomType.STORAGE, left: 438, top: 550, right: 590, bottom: 612, floorTex: Tex.F_CONCRETE, wallTex: Tex.PANEL, faction: ZoneFaction.WILD, level: 3 },
+  { name: 'Петля курилки свидетелей', type: RoomType.SMOKING, left: 330, top: 456, right: 410, bottom: 536, floorTex: Tex.F_LINO, wallTex: Tex.PANEL, faction: ZoneFaction.WILD, level: 2 },
+  { name: 'Петля прачечной пропажи', type: RoomType.PRODUCTION, left: 396, top: 484, right: 478, bottom: 548, floorTex: Tex.F_TILE, wallTex: Tex.TILE_W, faction: ZoneFaction.SAMOSBOR, level: 3 },
+  { name: 'Петля скрытой ведомости', type: RoomType.COMMON, left: 692, top: 596, right: 804, bottom: 688, floorTex: Tex.F_LINO, wallTex: Tex.PANEL, faction: ZoneFaction.CITIZEN, level: 3 },
+];
 
 export function expandDesignFloorGeneration<T extends FloorGeneration>(
   generation: T,
@@ -77,6 +105,9 @@ export function expandDesignFloorGeneration<T extends FloorGeneration>(
       break;
     case 'dark_metro':
       expandDarkMetroFullFloorGeometry(generation.world, rng, style(route), generation.entities);
+      break;
+    case 'attractor_dvor':
+      expandAttractorDvorRouteGeometry(generation.world, rng);
       break;
     case 'production_belt':
       expandProductionBeltGeometry(generation.world, rng);
@@ -105,8 +136,14 @@ export function expandDesignFloorGeneration<T extends FloorGeneration>(
     case 'registry_morgue':
       expandRegistryMorgueGeometry(generation.world, rng);
       break;
+    case 'bolnichny_korpus':
+      expandBolnichnyKorpusRouteGeometry(generation.world, rng);
+      break;
     case 'slime_nii':
       expandSlimeNiiRouteGeometry(generation.world, rng);
+      break;
+    case 'turing_nursery':
+      expandTuringNurseryRouteGeometry(generation.world, rng);
       break;
     case 'black_market_88':
       expandBlackMarket88Bazaar(generation.world, rng);
@@ -114,14 +151,20 @@ export function expandDesignFloorGeneration<T extends FloorGeneration>(
     case 'upper_bureau':
       expandUpperBureauGeometry(generation.world, rng);
       break;
+    case 'number_registry':
+      expandNumberRegistryGeometry(generation.world, rng);
+      break;
     case 'bank_floor':
       expandBankFloorRouteGeometry(generation.world, rng);
       break;
   }
   ensureRouteWideFootprint(generation.world, route, rng);
+  if (route.id === 'roof') applyRoofLosShelterPockets(generation.world, rng);
   if (route.id === 'communal_ring') labelCommunalRingPopulationRooms(generation.world);
   finalizeExpandedFloor(generation, route, rng);
+  if (route.id === 'bolnichny_korpus') reinforceBolnichnyKorpusGates(generation.world);
   if (route.id === 'service_floor') placeServiceFloorEmergencyPanels(generation.world);
+  if (route.id === 'attractor_dvor') placeAttractorDvorEmergencyPanels(generation.world);
   if (route.id === 'chthonic_attic') retuneExpandedChthonicAtticEcology(generation.world);
   if (route.id === 'pioneer_camp') tunePioneerCampPopulationZones(generation.world);
   applyDesignFloorPopulationField(generation, route);
@@ -156,11 +199,12 @@ function finalizeExpandedFloor<T extends FloorGeneration>(
   tuneZones(generation.world, style(route), route.id);
   if (route.id === 'roof') retuneRoofPressureZones(generation.world);
   if (route.id === 'antenna_court') retuneAntennaCourtRouteZones(generation.world);
-  if (route.id !== 'roof' && route.id !== 'darkness') {
+  if (route.id !== 'roof' && route.id !== 'darkness' && route.id !== 'cantor_pustoty') {
     const lightCount = route.id === 'dark_metro' ? 130 : 260;
     scatterAmbientLights(generation.world, rng, lightCount);
   }
   ensureConnectivity(generation.world, generation.spawnX, generation.spawnY);
+  if (route.id === 'spetspriemnik') reinforceSpetspriemnikRouteGates(generation.world);
   sanitizeDoors(generation.world);
   generation.world.rebuildContainerMap();
   if (route.id === 'roof') applyUniformSkyLight(generation.world);
@@ -173,6 +217,22 @@ function tuneZones(world: World, s: FloorStyle, routeId: string): void {
     tuneSiliconNetWellRouteZones(world);
     return;
   }
+  if (routeId === 'bolnichny_korpus') {
+    tuneBolnichnyKorpusRouteZones(world);
+    return;
+  }
+  if (routeId === 'spetspriemnik') {
+    tuneSpetspriemnikRouteZones(world);
+    return;
+  }
+  if (routeId === 'voronoi_quarantine') {
+    tuneVoronoiQuarantineRouteZones(world);
+    return;
+  }
+  if (routeId === 'attractor_dvor') {
+    tuneAttractorDvorRouteZones(world);
+    return;
+  }
   for (const zone of world.zones) {
     const d = world.dist(zone.cx, zone.cy, W / 2, W / 2);
     zone.level = Math.max(1, Math.min(5, Math.round(s.danger + d / 420)));
@@ -180,11 +240,12 @@ function tuneZones(world: World, s: FloorStyle, routeId: string): void {
     if (routeId === 'floor_69' && zone.id % 9 === 0) zone.faction = ZoneFaction.LIQUIDATOR;
     if (routeId === 'black_market_88') tuneBlackMarket88Zone(world, zone, s.danger);
     if (routeId === 'slime_nii') zone.faction = d < 250 ? ZoneFaction.LIQUIDATOR : zone.id % 5 === 0 ? ZoneFaction.WILD : ZoneFaction.CITIZEN;
+    if (routeId === 'turing_nursery') {
+      zone.faction = d < 240 ? ZoneFaction.LIQUIDATOR : zone.id % 4 === 0 ? ZoneFaction.WILD : ZoneFaction.CITIZEN;
+      zone.level = Math.max(zone.level, d < 240 ? 4 : 3);
+    }
     if (routeId === 'communal_ring') {
-      if (zone.id % 31 === 0) zone.faction = ZoneFaction.SAMOSBOR;
-      else if (zone.id % 13 === 0) zone.faction = ZoneFaction.WILD;
-      else if (zone.id % 17 === 0) zone.faction = ZoneFaction.LIQUIDATOR;
-      else zone.faction = ZoneFaction.CITIZEN;
+      tuneCommunalRingZone(world, zone, s.danger);
     }
     if (routeId === 'underhell') {
       const lowerGate = zone.cy > W * 0.62;
@@ -205,7 +266,13 @@ function tuneZones(world: World, s: FloorStyle, routeId: string): void {
       }
     }
     if (routeId === 'manhattan_crossroads') tuneManhattanCrossroadsZone(world, zone, s.danger);
-    zone.fogged = false;
+    if (routeId === 'cantor_pustoty') {
+      zone.faction = ZoneFaction.SAMOSBOR;
+      zone.level = Math.max(5, zone.level);
+      zone.fogged = true;
+    } else {
+      zone.fogged = false;
+    }
   }
 
   if (routeId === 'raionsovet_archive') retuneRaionsovetArchiveZones(world);
@@ -215,10 +282,14 @@ function tuneZones(world: World, s: FloorStyle, routeId: string): void {
     return;
   }
 
+  if (routeId === 'number_registry') retuneNumberRegistryZones(world);
+
   for (let i = 0; i < W * W; i++) {
     const zone = world.zones[world.zoneMap[i]];
     world.factionControl[i] = zone?.faction ?? s.faction;
   }
+
+  if (routeId === 'floor_69') applyFloor69OwnershipVisibilityHeatmap(world);
 }
 
 function tuneManhattanCrossroadsZone(world: World, zone: Zone, baseDanger: number): void {
@@ -353,6 +424,30 @@ function tuneServiceFloorZone(world: World, zone: Zone, baseDanger: number): voi
     zone.faction = ZoneFaction.LIQUIDATOR;
     zone.level = Math.max(3, Math.min(5, zone.level));
   }
+}
+
+function tuneCommunalRingZone(world: World, zone: Zone, baseDanger: number): void {
+  let best = COMMUNAL_SERVICE_LOOPS[0]!;
+  let bestScore = Number.POSITIVE_INFINITY;
+  for (let i = 0; i < COMMUNAL_SERVICE_LOOPS.length; i++) {
+    const spec = COMMUNAL_SERVICE_LOOPS[i]!;
+    const cx = (spec.left + spec.right) / 2;
+    const cy = (spec.top + spec.bottom) / 2;
+    const rx = Math.max(1, spec.right - spec.left);
+    const ry = Math.max(1, spec.bottom - spec.top);
+    const radius = Math.max(rx, ry) * 1.35;
+    const domainJitter = (((zone.id * 1103515245 + i * 1013904223) >>> 0) % 1024) / 1024;
+    const d2 = world.dist2(zone.cx, zone.cy, cx, cy);
+    const score = d2 / (radius * radius) + domainJitter * 0.42 - spec.level * 0.1;
+    if (score < bestScore) {
+      best = spec;
+      bestScore = score;
+    }
+  }
+
+  zone.faction = best.faction;
+  zone.level = Math.max(zone.level, Math.min(5, Math.max(baseDanger, best.level)));
+  zone.hasLift = zone.hasLift || best.type === RoomType.BATHROOM || best.type === RoomType.STORAGE;
 }
 
 function protectedMask(world: World): Uint8Array {
@@ -515,6 +610,7 @@ function expandCommunalRing(world: World, rng: () => number, s: FloorStyle): voi
   carveSafeLine(world, mask, 512, 512 - 132, 512, 460, 2, s.floorTex);
   carveSafeLine(world, mask, 512, 564, 512, 512 + 132, 2, s.floorTex);
   addCommunalServiceShafts(world, mask);
+  addCommunalDomesticServiceLoops(world, mask);
   addCommunalBottlenecks(world, mask, s.wallTex);
 
   const serviceTypes = [
@@ -523,6 +619,7 @@ function expandCommunalRing(world: World, rng: () => number, s: FloorStyle): voi
     RoomType.BATHROOM,
     RoomType.PRODUCTION,
     RoomType.STORAGE,
+    RoomType.SMOKING,
     RoomType.OFFICE,
     RoomType.LIVING,
   ];
@@ -557,10 +654,27 @@ function labelCommunalRingPopulationRooms(world: World): void {
       case 'Дежурная доска':
         room.type = RoomType.OFFICE;
         break;
+      case 'Курилка у кольца':
+        room.type = RoomType.SMOKING;
+        break;
       case 'Коммунальная тесная комната':
         room.type = RoomType.LIVING;
         break;
     }
+  }
+
+  for (const spec of COMMUNAL_SERVICE_LOOPS) {
+    labelCommunalLogicalRoom(
+      world,
+      spec.type,
+      spec.name,
+      spec.left,
+      spec.top,
+      spec.right - spec.left + 1,
+      spec.bottom - spec.top + 1,
+      spec.floorTex,
+      spec.wallTex,
+    );
   }
 
   const storageLines: readonly [string, number, number, number, number][] = [
@@ -758,6 +872,7 @@ function communalKnotSize(type: RoomType, rng: () => number): { w: number; h: nu
     case RoomType.BATHROOM: return { w: 28 + Math.floor(rng() * 6), h: 15 + Math.floor(rng() * 4) };
     case RoomType.PRODUCTION: return { w: 30 + Math.floor(rng() * 8), h: 16 + Math.floor(rng() * 6) };
     case RoomType.STORAGE: return { w: 24 + Math.floor(rng() * 8), h: 14 + Math.floor(rng() * 5) };
+    case RoomType.SMOKING: return { w: 22 + Math.floor(rng() * 6), h: 12 + Math.floor(rng() * 4) };
     case RoomType.OFFICE: return { w: 24 + Math.floor(rng() * 7), h: 13 + Math.floor(rng() * 4) };
     default: return { w: 22 + Math.floor(rng() * 8), h: 13 + Math.floor(rng() * 5) };
   }
@@ -780,6 +895,7 @@ function communalKnotName(type: RoomType): string {
     case RoomType.BATHROOM: return 'Банный ряд кольца';
     case RoomType.PRODUCTION: return 'Прачечный узел';
     case RoomType.STORAGE: return 'Кладовая у спицы';
+    case RoomType.SMOKING: return 'Курилка у кольца';
     case RoomType.OFFICE: return 'Дежурная доска';
     default: return 'Коммунальная тесная комната';
   }
@@ -813,6 +929,13 @@ function decorateCommunalKnot(world: World, room: Room, rng: () => number): void
     for (let x = room.x + 5; x < room.x + room.w - 3; x += 6) setFeature(world, x, room.y + room.h - 4, Feature.SHELF);
     return;
   }
+  if (room.type === RoomType.SMOKING) {
+    setFeature(world, room.x + 3, room.y + 3, Feature.TABLE);
+    setFeature(world, room.x + 6, room.y + 3, Feature.CHAIR);
+    setFeature(world, room.x + room.w - 4, room.y + 3, Feature.CANDLE);
+    setFeature(world, room.x + room.w - 5, room.y + room.h - 4, Feature.SHELF);
+    return;
+  }
   if (room.type === RoomType.OFFICE) {
     setFeature(world, room.x + 3, room.y + 3, Feature.DESK);
     setFeature(world, room.x + 8, room.y + 3, Feature.SCREEN);
@@ -826,6 +949,64 @@ function decorateCommunalKnot(world: World, room: Room, rng: () => number): void
 function placeCommunalQueueMarker(world: World, x: number, y: number, type: RoomType): void {
   setFeature(world, x + 2, y, type === RoomType.STORAGE ? Feature.SHELF : Feature.TABLE);
   setFeature(world, x - 2, y, type === RoomType.BATHROOM ? Feature.SINK : Feature.CHAIR);
+}
+
+function addCommunalDomesticServiceLoops(world: World, mask: Uint8Array): void {
+  for (const spec of COMMUNAL_SERVICE_LOOPS) {
+    carveCommunalServiceLoop(world, mask, spec);
+    placeCommunalLoopMarkers(world, spec);
+  }
+}
+
+function carveCommunalServiceLoop(world: World, mask: Uint8Array, spec: CommunalServiceLoopSpec): void {
+  carveSafeLine(world, mask, spec.left, spec.top, spec.right, spec.top, 2, spec.floorTex);
+  carveSafeLine(world, mask, spec.right, spec.top, spec.right, spec.bottom, 2, spec.floorTex);
+  carveSafeLine(world, mask, spec.right, spec.bottom, spec.left, spec.bottom, 2, spec.floorTex);
+  carveSafeLine(world, mask, spec.left, spec.bottom, spec.left, spec.top, 2, spec.floorTex);
+}
+
+function placeCommunalLoopMarkers(world: World, spec: CommunalServiceLoopSpec): void {
+  const cx = Math.round((spec.left + spec.right) / 2);
+  const cy = Math.round((spec.top + spec.bottom) / 2);
+  if (spec.type === RoomType.KITCHEN) {
+    setFeature(world, cx - 8, spec.top, Feature.STOVE);
+    setFeature(world, cx + 8, spec.top, Feature.SINK);
+    setFeature(world, cx, spec.bottom, Feature.TABLE);
+    return;
+  }
+  if (spec.type === RoomType.BATHROOM) {
+    setFeature(world, cx, spec.top, Feature.SINK);
+    setFeature(world, spec.right, cy, Feature.TOILET);
+    const ci = world.idx(cx, spec.bottom);
+    if (world.cells[ci] === Cell.FLOOR) {
+      world.cells[ci] = Cell.WATER;
+      world.floorTex[ci] = Tex.F_WATER;
+    }
+    return;
+  }
+  if (spec.type === RoomType.STORAGE) {
+    setFeature(world, spec.left, cy, Feature.SHELF);
+    setFeature(world, spec.right, cy, Feature.SHELF);
+    setFeature(world, cx, spec.bottom, Feature.TABLE);
+    return;
+  }
+  if (spec.type === RoomType.PRODUCTION) {
+    setFeature(world, spec.left, cy, Feature.MACHINE);
+    setFeature(world, cx, spec.top, Feature.SINK);
+    setFeature(world, spec.right, cy, Feature.APPARATUS);
+    return;
+  }
+  if (spec.type === RoomType.SMOKING) {
+    setFeature(world, spec.left, cy, Feature.CHAIR);
+    setFeature(world, cx, spec.top, Feature.CANDLE);
+    setFeature(world, spec.right, cy, Feature.TABLE);
+    return;
+  }
+  if (spec.type === RoomType.COMMON) {
+    setFeature(world, spec.left, cy, Feature.TABLE);
+    setFeature(world, cx, spec.top, Feature.CHAIR);
+    setFeature(world, spec.right, cy, Feature.LAMP);
+  }
 }
 
 function addCommunalServiceShafts(world: World, mask: Uint8Array): void {

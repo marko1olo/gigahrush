@@ -13,6 +13,7 @@ import { MONSTERS } from '../../entities/monster';
 import { monsterSpr, Spr } from '../../render/sprite_index';
 import { calcZoneLevel, randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg';
 import { entitySpawnSlots } from '../../systems/entity_limits';
+import { registerRouteCue } from '../../systems/route_cues';
 import {
   carveCorridor,
   connectRoomsMST,
@@ -33,6 +34,42 @@ const LIVING_TUNNEL_TAG = '[living_tunnel:';
 const WALL_SNAKE_TAG = '[wall_snake:';
 const SECTION_SHIFT_TAG = '[section_shift:';
 const HERALD_GATE_TAG = '[herald_gate:podad]';
+const CAPILLARY_FIELD_TAG = '[podad_capillary:';
+
+export type PodadTopologyNodeId =
+  | 'entry'
+  | 'contact'
+  | 'living_tunnel'
+  | 'wall_snake'
+  | 'section_shift'
+  | 'herald_gate'
+  | 'upper_lift';
+
+export interface PodadTopologyNode {
+  id: PodadTopologyNodeId;
+  roomId: number;
+  roomName: string;
+  x: number;
+  y: number;
+  tags: readonly string[];
+}
+
+export interface PodadTopologyEdge {
+  from: PodadTopologyNodeId;
+  to: PodadTopologyNodeId;
+  score: number;
+  decision: string;
+  tags: readonly string[];
+}
+
+export interface PodadTopologyDescriptor {
+  routeId: typeof PODAD_DESIGN_FLOOR_ID;
+  capillaryCells: number;
+  nodes: readonly PodadTopologyNode[];
+  edges: readonly PodadTopologyEdge[];
+  sectionShiftChokepointScore: number;
+  movingWallChokepointScore: number;
+}
 
 interface PodadRooms {
   entry: Room;
@@ -87,11 +124,14 @@ export function generatePodadDesignFloor(seed = PODAD_DEFAULT_SEED): FloorGenera
     forceUpperLift(world, rooms.upperLift);
     ensureConnectivity(world, SPAWN_X + 0.5, SPAWN_Y + 0.5);
     sanitizeDoors(world);
+    const capillaryCells = stampPodadCapillaryField(world, rooms, seed);
+    rooms.entry.name = `${rooms.entry.name} ${CAPILLARY_FIELD_TAG}${capillaryCells}]`;
     world.bakeLights();
 
     spawnPodadPlotNpcs(world, entities, nextId, rooms);
     spawnPodadHeralds(world, entities, nextId, SPAWN_X + 0.5, SPAWN_Y + 0.5);
     seedPodadDrops(world, entities, nextId, rooms);
+    registerPodadRouteCues(world, rooms);
 
     return {
       world,
@@ -299,6 +339,64 @@ function markSectionShiftRoom(world: World, room: Room): void {
   world.features[world.idx(room.x + (room.w >> 1), room.y + (room.h >> 1))] = Feature.APPARATUS;
 }
 
+function stampPodadCapillaryField(world: World, rooms: PodadRooms, seed: number): number {
+  const marked = new Set<number>();
+  const links: readonly [Room, Room, number, number][] = [
+    [rooms.entry, rooms.contact, 1, 2],
+    [rooms.contact, rooms.threshold, 1, 3],
+    [rooms.entry, rooms.livingTunnel, 2, 5],
+    [rooms.livingTunnel, rooms.wallSnake, 2, 7],
+    [rooms.wallSnake, rooms.sectionShift, 2, 11],
+    [rooms.sectionShift, rooms.threshold, 2, 13],
+    [rooms.threshold, rooms.upperLift, 1, 17],
+  ];
+  for (const [a, b, radius, salt] of links) {
+    paintCapillaryLink(world, roomCenter(a), roomCenter(b), radius, seed + salt * 997, marked);
+  }
+  return marked.size;
+}
+
+function paintCapillaryLink(
+  world: World,
+  a: { x: number; y: number },
+  b: { x: number; y: number },
+  radius: number,
+  seed: number,
+  marked: Set<number>,
+): void {
+  const dx = world.delta(a.x, b.x);
+  const dy = world.delta(a.y, b.y);
+  const steps = Math.max(1, Math.ceil(Math.max(Math.abs(dx), Math.abs(dy))));
+  const len = Math.max(1, Math.hypot(dx, dy));
+  const px = -dy / len;
+  const py = dx / len;
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const pulse = Math.sin(t * Math.PI);
+    const jitter = (hash2(i, seed & 1023, seed) - 0.5) * 9 * pulse;
+    const x = Math.round(a.x + dx * t + px * jitter);
+    const y = Math.round(a.y + dy * t + py * jitter);
+    paintCapillaryDisc(world, x, y, radius + (i % 13 === 0 ? 1 : 0), marked);
+  }
+}
+
+function paintCapillaryDisc(world: World, x: number, y: number, r: number, marked: Set<number>): void {
+  for (let dy = -r; dy <= r; dy++) {
+    for (let dx = -r; dx <= r; dx++) {
+      if (dx * dx + dy * dy > r * r + 1) continue;
+      const ci = world.idx(x + dx, y + dy);
+      if (world.cells[ci] === Cell.LIFT || world.cells[ci] === Cell.DOOR || world.features[ci] === Feature.LIFT_BUTTON) continue;
+      if (world.cells[ci] === Cell.FLOOR || world.cells[ci] === Cell.WATER) {
+        world.floorTex[ci] = ((ci + dx + dy) & 3) === 0 ? Tex.F_MEAT : Tex.F_GUT;
+        world.fog[ci] = Math.max(world.fog[ci], 18 + (ci & 7));
+        marked.add(ci);
+      } else if (world.cells[ci] === Cell.WALL) {
+        world.wallTex[ci] = (ci & 1) === 0 ? Tex.GUT : Tex.MEAT;
+      }
+    }
+  }
+}
+
 function tunePodadZones(world: World): void {
   for (const zone of world.zones) {
     const d = world.dist(zone.cx, zone.cy, SPAWN_X, SPAWN_Y);
@@ -311,6 +409,104 @@ function tunePodadZones(world: World): void {
     world.factionControl[i] = world.zones[zid]?.faction ?? ZoneFaction.WILD;
     if (world.cells[i] === Cell.FLOOR && world.zones[zid]?.fogged) world.fog[i] = Math.max(world.fog[i], 18);
   }
+}
+
+export function extractPodadTopologyDescriptor(world: World): PodadTopologyDescriptor {
+  const nodes = podadTopologyNodes(world);
+  const nodeMap = new Map(nodes.map(node => [node.id, node]));
+  const capillaryCells = podadCapillaryCells(world);
+  const movingWallChokepointScore = topologyRoomScore(world, nodeMap.get('wall_snake')?.roomId);
+  const sectionShiftChokepointScore = topologyRoomScore(world, nodeMap.get('section_shift')?.roomId);
+  const edges: PodadTopologyEdge[] = [
+    topologyEdge('entry', 'contact', 'retreat_or_talk', nodeMap, ['podad', 'retreat', 'contact']),
+    topologyEdge('contact', 'herald_gate', 'fight_heralds', nodeMap, ['podad', 'herald', 'gate']),
+    topologyEdge('entry', 'living_tunnel', 'use_living_tunnel', nodeMap, ['podad', 'living_tunnels', 'shortcut']),
+    topologyEdge('living_tunnel', 'wall_snake', 'bait_moving_wall', nodeMap, ['podad', 'moving_walls', 'chokepoint']),
+    topologyEdge('wall_snake', 'section_shift', 'time_wall_and_section', nodeMap, ['podad', 'section_shift', 'chokepoint']),
+    topologyEdge('section_shift', 'upper_lift', 'retreat_after_shift', nodeMap, ['podad', 'retreat', 'lift']),
+  ].filter(edge => edge.score > 0);
+  return {
+    routeId: PODAD_DESIGN_FLOOR_ID,
+    capillaryCells,
+    nodes,
+    edges,
+    sectionShiftChokepointScore,
+    movingWallChokepointScore,
+  };
+}
+
+function podadTopologyNodes(world: World): PodadTopologyNode[] {
+  const specs: readonly [PodadTopologyNodeId, string, readonly string[]][] = [
+    ['entry', 'Корневая площадка Подада', ['podad', 'entry', 'capillary']],
+    ['contact', 'Обожженная сторожка Подада', ['podad', 'contact', 'retreat']],
+    ['living_tunnel', LIVING_TUNNEL_TAG, ['podad', 'living_tunnels', 'topology']],
+    ['wall_snake', WALL_SNAKE_TAG, ['podad', 'moving_walls', 'chokepoint']],
+    ['section_shift', SECTION_SHIFT_TAG, ['podad', 'section_shift', 'chokepoint']],
+    ['herald_gate', HERALD_GATE_TAG, ['podad', 'herald', 'gate']],
+    ['upper_lift', 'Верхняя створка Подада', ['podad', 'upper_lift', 'retreat']],
+  ];
+  const out: PodadTopologyNode[] = [];
+  for (const [id, marker, tags] of specs) {
+    const room = world.rooms.find(candidate => candidate.name.includes(marker));
+    if (!room) continue;
+    const c = roomCenter(room);
+    out.push({ id, roomId: room.id, roomName: room.name, x: c.x + 0.5, y: c.y + 0.5, tags });
+  }
+  return out;
+}
+
+function podadCapillaryCells(world: World): number {
+  for (const room of world.rooms) {
+    const tagAt = room.name.indexOf(CAPILLARY_FIELD_TAG);
+    if (tagAt < 0) continue;
+    const end = room.name.indexOf(']', tagAt);
+    const raw = room.name.slice(tagAt + CAPILLARY_FIELD_TAG.length, end < 0 ? undefined : end);
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) ? Math.max(0, parsed | 0) : 0;
+  }
+  return 0;
+}
+
+function topologyRoomScore(world: World, roomId: number | undefined): number {
+  if (roomId === undefined) return 0;
+  const room = world.rooms.find(candidate => candidate.id === roomId);
+  if (!room) return 0;
+  let walkable = 0;
+  let narrow = 0;
+  for (let y = 0; y < room.h; y++) {
+    for (let x = 0; x < room.w; x++) {
+      const ci = world.idx(room.x + x, room.y + y);
+      if (world.cells[ci] !== Cell.FLOOR && world.cells[ci] !== Cell.WATER) continue;
+      walkable++;
+      let exits = 0;
+      if (world.cells[world.idx(room.x + x + 1, room.y + y)] !== Cell.WALL) exits++;
+      if (world.cells[world.idx(room.x + x - 1, room.y + y)] !== Cell.WALL) exits++;
+      if (world.cells[world.idx(room.x + x, room.y + y + 1)] !== Cell.WALL) exits++;
+      if (world.cells[world.idx(room.x + x, room.y + y - 1)] !== Cell.WALL) exits++;
+      if (exits <= 2) narrow++;
+    }
+  }
+  const doorPressure = Math.max(1, 5 - Math.min(4, room.doors.length));
+  const areaPressure = Math.min(4, walkable / 130);
+  const narrowPressure = walkable > 0 ? Math.min(4, (narrow / walkable) * 5) : 0;
+  return Math.round((doorPressure + areaPressure + narrowPressure) * 10) / 10;
+}
+
+function topologyEdge(
+  from: PodadTopologyNodeId,
+  to: PodadTopologyNodeId,
+  decision: string,
+  nodes: ReadonlyMap<PodadTopologyNodeId, PodadTopologyNode>,
+  tags: readonly string[],
+): PodadTopologyEdge {
+  const a = nodes.get(from);
+  const b = nodes.get(to);
+  if (!a || !b) return { from, to, decision, tags, score: 0 };
+  const dx = Math.abs(a.x - b.x);
+  const dy = Math.abs(a.y - b.y);
+  const distanceScore = Math.max(1, Math.min(4, Math.hypot(dx, dy) / 70));
+  const topologyBonus = tags.includes('chokepoint') ? 3 : tags.includes('herald') ? 2 : 1;
+  return { from, to, decision, tags, score: Math.round((distanceScore + topologyBonus) * 10) / 10 };
 }
 
 function forceUpperLift(world: World, room: Room): void {
@@ -328,6 +524,129 @@ function forceUpperLift(world: World, room: Room): void {
   world.features[bi] = Feature.LIFT_BUTTON;
   world.liftDir[bi] = LiftDirection.UP;
   world.floorTex[bi] = Tex.F_CONCRETE;
+}
+
+function registerPodadRouteCues(world: World, rooms: PodadRooms): void {
+  const descriptor = extractPodadTopologyDescriptor(world);
+  const movingScore = descriptor.movingWallChokepointScore;
+  const shiftScore = descriptor.sectionShiftChokepointScore;
+  registerPodadCue(world, rooms.entry, rooms.livingTunnel, {
+    id: 'podad_living_tunnel_shortcut',
+    label: 'живая кишка',
+    hint: 'тоннель режет путь к стене-змейке, но зарастает за спиной',
+    targetName: 'живой тоннель',
+    color: '#d66',
+    tags: ['podad', 'living_tunnels', 'topology', 'shortcut', 'capillary'],
+    toneSeed: PODAD_DEFAULT_SEED + descriptor.capillaryCells,
+    heardText: 'Капилляры тянут к живому тоннелю: это короткий путь, если успеть вернуться до зарастания.',
+    followedText: 'Живой тоннель отмечен. Герметик или УФ даст время на отход.',
+    ignoredText: 'Живой тоннель остался сбоку. Путь к Вестникам будет длиннее и громче.',
+    decision: 'срезать путь или держать обычный коридор',
+    risk: 'тоннель закрывает старые клетки',
+    reward: 'быстрый фланг к стене-змейке',
+  });
+  registerPodadCue(world, rooms.livingTunnel, rooms.wallSnake, {
+    id: 'podad_wall_snake_chokepoint',
+    label: 'змейка стены',
+    hint: `движущаяся стена держит проход, score ${movingScore}`,
+    targetName: 'экран змейки',
+    color: '#f84',
+    tags: ['podad', 'moving_walls', 'wall_snake', 'chokepoint', 'bait'],
+    toneSeed: PODAD_DEFAULT_SEED + Math.round(movingScore * 31),
+    heardText: 'Стена-змейка шуршит по сухому желудку. Приманка, пауза или хвостовой зазор решают проход.',
+    followedText: 'Змейка найдена. Бросай железо, еду или грибную массу, если проход стал узким.',
+    ignoredText: 'Змейка продолжает резать обратный путь.',
+    decision: 'ждать хвост, кормить экран или отступить',
+    risk: 'подвижная стена сжимает узкий карман',
+    reward: 'контролируемый проход к секционному сдвигу',
+  });
+  registerPodadCue(world, rooms.wallSnake, rooms.sectionShift, {
+    id: 'podad_section_shift_chokepoint',
+    label: 'секционный сдвиг',
+    hint: `сдвиг комнаты предупреждает перед переносом, score ${shiftScore}`,
+    targetName: 'аппарат секции',
+    color: '#c8f',
+    tags: ['podad', 'section_shift', 'moving_rooms', 'chokepoint', 'freeze'],
+    toneSeed: PODAD_DEFAULT_SEED + Math.round(shiftScore * 47),
+    heardText: 'Мокрый пролет не совпадает сам с собой. Аппарат секции можно выключить почти на минуту.',
+    followedText: 'Аппарат секции отмечен. Заморозь сдвиг или проходи после предупреждения.',
+    ignoredText: 'Секционный сдвиг остался активным между тобой и порогом.',
+    decision: 'заморозить секцию, таймить рывок или заманить монстров',
+    risk: 'перенос в том же зале под давлением монстров',
+    reward: 'безопаснее вывести бой к порогу Вестников',
+  });
+  registerPodadCue(world, rooms.contact, rooms.threshold, {
+    id: 'podad_herald_gate',
+    label: 'порог Вестников',
+    hint: 'три Вестника держат нижний маршрут закрытым',
+    targetName: 'Порог Вестников',
+    color: '#f44',
+    tags: ['podad', 'herald', 'gate', 'lower_route', 'fight'],
+    toneSeed: PODAD_DEFAULT_SEED + rooms.threshold.id * 101,
+    heardText: 'Порог Вестников впереди: проверь обратный ход от контактной клетки, держи дверь между залпами и забирай награду с края, не из центра.',
+    followedText: 'Порог Вестников отмечен. Держи дверь между залпами и забирай награду с края.',
+    ignoredText: 'Порог Вестников остался впереди без проверенного отхода.',
+    decision: 'убить Вестников, открыть нижний маршрут или отступить',
+    risk: 'нижние лифты молчат до зачистки',
+    reward: 'после боя маршрут вниз становится доступен',
+  });
+}
+
+function registerPodadCue(
+  world: World,
+  source: Room,
+  target: Room,
+  cue: {
+    id: string;
+    label: string;
+    hint: string;
+    targetName: string;
+    color: string;
+    tags: readonly string[];
+    toneSeed: number;
+    heardText: string;
+    followedText: string;
+    ignoredText: string;
+    decision: string;
+    risk: string;
+    reward: string;
+  },
+): void {
+  const from = roomCenter(source);
+  const to = roomCenter(target);
+  const cell = world.idx(from.x, from.y);
+  registerRouteCue(world, {
+    id: cue.id,
+    x: from.x + 0.5,
+    y: from.y + 0.5,
+    targetX: to.x + 0.5,
+    targetY: to.y + 0.5,
+    floor: FloorLevel.HELL,
+    roomId: source.id,
+    targetRoomId: target.id,
+    zoneId: world.zoneMap[cell],
+    label: cue.label,
+    hint: cue.hint,
+    targetName: cue.targetName,
+    color: cue.color,
+    tags: cue.tags,
+    toneSeed: cue.toneSeed,
+    radius: 10,
+    targetRadius: 4,
+    cooldownSec: 40,
+    heardText: cue.heardText,
+    followedText: cue.followedText,
+    ignoredText: cue.ignoredText,
+    routeGroup: {
+      id: 'podad_topology',
+      lead: 'живое мясо помечает короткие ходы',
+      risk: cue.risk,
+      decision: cue.decision,
+      reward: cue.reward,
+      mapLabel: 'Подад: топология',
+      mapHint: 'живые тоннели, змейка стены, секционный сдвиг и порог Вестников',
+    },
+  });
 }
 
 function spawnPlotNpc(
@@ -442,6 +761,10 @@ function dropItems(
     angle: 0, pitch: 0, alive: true, speed: 0, sprite: Spr.ITEM_DROP,
     inventory,
   });
+}
+
+function roomCenter(room: Room): { x: number; y: number } {
+  return { x: room.x + (room.w >> 1), y: room.y + (room.h >> 1) };
 }
 
 function perimeterPoint(world: World, x0: number, y0: number, w: number, h: number, step: number): { x: number; y: number } {

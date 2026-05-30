@@ -9,6 +9,7 @@ import {
   type Room,
 } from '../../core/types';
 import { World } from '../../core/world';
+import { RUNTIME_TOPOLOGY_LIMITS } from '../../data/runtime_topology';
 import { consumeToolDurability, hasItem } from '../inventory';
 
 const CONWAY_LIFE_ROOM_PREFIX = 'Игра жизнь:';
@@ -43,12 +44,26 @@ export function nextLifeCell(alive: boolean, neighbors: number): boolean {
   return neighbors === 3 || (alive && neighbors === 2);
 }
 
+function hash32(v: number): number {
+  v |= 0;
+  v ^= v >>> 16;
+  v = Math.imul(v, 0x7feb352d);
+  v ^= v >>> 15;
+  v = Math.imul(v, 0x846ca68b);
+  v ^= v >>> 16;
+  return v >>> 0;
+}
+
 function isConwayRoom(room: Room): boolean {
   return room.name.startsWith(CONWAY_LIFE_ROOM_PREFIX);
 }
 
 function isDisabledRoom(room: Room): boolean {
   return room.name.includes(CONWAY_LIFE_DISABLED);
+}
+
+function enableRoomName(room: Room): void {
+  room.name = room.name.replace(`; ${CONWAY_LIFE_DISABLED}`, '');
 }
 
 function localIndex(arena: ConwayLifeArena, dx: number, dy: number): number {
@@ -88,6 +103,7 @@ function mutableRuntimeCell(world: World, room: Room, x: number, y: number): boo
 
 function buildArena(world: World, room: Room): ConwayLifeArena | null {
   const len = room.w * room.h;
+  if (len > RUNTIME_TOPOLOGY_LIMITS.conwayLifeMaxArenaCells) return null;
   const mask = new Uint8Array(len);
   const current = new Uint8Array(len);
   const next = new Uint8Array(len);
@@ -132,6 +148,7 @@ function runtimeFor(world: World): ConwayLifeRuntime {
 
   const arenas: ConwayLifeArena[] = [];
   for (const room of world.rooms) {
+    if (arenas.length >= RUNTIME_TOPOLOGY_LIMITS.conwayLifeMaxArenas) break;
     if (!isConwayRoom(room)) continue;
     const arena = buildArena(world, room);
     if (arena) arenas.push(arena);
@@ -160,6 +177,8 @@ function cellNearPlayer(world: World, player: Entity, x: number, y: number): boo
 }
 
 function commitArena(world: World, player: Entity, arena: ConwayLifeArena): number {
+  const room = world.rooms[arena.roomId];
+  if (!room) return 0;
   let changed = 0;
   let alive = 0;
   for (let dy = 0; dy < arena.h; dy++) {
@@ -169,6 +188,11 @@ function commitArena(world: World, player: Entity, arena: ConwayLifeArena): numb
       const x = world.wrap(arena.x + dx);
       const y = world.wrap(arena.y + dy);
       const ci = world.idx(x, y);
+      if (!mutableRuntimeCell(world, room, x, y)) {
+        arena.current[li] = 0;
+        arena.next[li] = 0;
+        continue;
+      }
       const wasAlive = arena.current[li] !== 0;
       let nowAlive = arena.next[li] !== 0;
       if (nowAlive && !wasAlive && cellNearPlayer(world, player, x, y)) nowAlive = false;
@@ -186,6 +210,55 @@ function commitArena(world: World, player: Entity, arena: ConwayLifeArena): numb
       }
     }
   }
+  arena.alive = alive;
+  return changed;
+}
+
+function seededAlive(arena: ConwayLifeArena, dx: number, dy: number, seed: number): boolean {
+  const edge = dx <= 2 || dy <= 2 || dx >= arena.w - 3 || dy >= arena.h - 3;
+  const h = hash32((dx * 73856093) ^ (dy * 19349663) ^ (arena.roomId * 83492791) ^ seed);
+  if (edge) return (h & 15) === 0;
+  if ((dx + seed) % 11 === 0 && dy > 3 && dy < arena.h - 4) return (h % 100) < 38;
+  if ((dy + arena.roomId) % 13 === 0 && dx > 3 && dx < arena.w - 4) return (h % 100) < 34;
+  return (h % 100) < 24;
+}
+
+function resetArena(world: World, player: Entity, arena: ConwayLifeArena, seed: number): number {
+  const room = world.rooms[arena.roomId];
+  if (!room) return 0;
+  arena.active = true;
+  arena.next.fill(0);
+  let changed = 0;
+  let alive = 0;
+
+  for (let dy = 0; dy < arena.h; dy++) {
+    for (let dx = 0; dx < arena.w; dx++) {
+      const li = localIndex(arena, dx, dy);
+      if (!arena.mask[li]) continue;
+      const x = world.wrap(arena.x + dx);
+      const y = world.wrap(arena.y + dy);
+      const ci = world.idx(x, y);
+      if (!mutableRuntimeCell(world, room, x, y)) {
+        arena.current[li] = 0;
+        continue;
+      }
+      const wasAlive = arena.current[li] !== 0;
+      const nowAlive = !cellNearPlayer(world, player, x, y) && seededAlive(arena, dx, dy, seed);
+      arena.current[li] = nowAlive ? 1 : 0;
+      if (nowAlive) {
+        alive++;
+        world.cells[ci] = Cell.WALL;
+        world.wallTex[ci] = Tex.DARK;
+        world.fog[ci] = Math.max(world.fog[ci], LIFE_WALL_FOG);
+      } else {
+        world.cells[ci] = Cell.FLOOR;
+        world.floorTex[ci] = Tex.F_CONCRETE;
+        world.fog[ci] = Math.max(4, Math.min(world.fog[ci], 22));
+      }
+      if (nowAlive !== wasAlive) changed++;
+    }
+  }
+
   arena.alive = alive;
   return changed;
 }
@@ -224,13 +297,22 @@ function arenaNearControl(world: World, runtime: ConwayLifeRuntime, player: Enti
 }
 
 function disableArena(world: World, arena: ConwayLifeArena): number {
+  const room = world.rooms[arena.roomId];
+  if (!room) return 0;
   arena.active = false;
+  arena.next.fill(0);
   let cleared = 0;
   for (let dy = 0; dy < arena.h; dy++) {
     for (let dx = 0; dx < arena.w; dx++) {
       const li = localIndex(arena, dx, dy);
       if (!arena.mask[li] || !arena.current[li]) continue;
-      const ci = world.idx(arena.x + dx, arena.y + dy);
+      const x = world.wrap(arena.x + dx);
+      const y = world.wrap(arena.y + dy);
+      const ci = world.idx(x, y);
+      if (!mutableRuntimeCell(world, room, x, y)) {
+        arena.current[li] = 0;
+        continue;
+      }
       world.cells[ci] = Cell.FLOOR;
       world.floorTex[ci] = Tex.F_CONCRETE;
       world.fog[ci] = Math.max(4, Math.min(world.fog[ci], 18));
@@ -281,7 +363,15 @@ export function tryUseConwayLifeAnomaly(
   const arena = arenaNearControl(world, runtime, player, lookX, lookY);
   if (!arena) return false;
   if (!arena.active) {
-    state.msgs.push(msg('Автомат уже заглушен. Бетон держит обычную форму.', state.time, '#888'));
+    const seed = hash32(Math.floor(state.time * 1000) ^ (state.tick | 0) ^ Math.imul(arena.roomId + 1, 0x45d9f3b));
+    const changed = resetArena(world, player, arena, seed);
+    const room = world.rooms[arena.roomId];
+    if (room && isDisabledRoom(room)) enableRoomName(room);
+    world.markCellsDirty();
+    world.markWallTexDirty();
+    world.markFloorTexDirty();
+    world.markFogDirty();
+    state.msgs.push(msg(`Автомат сбросил поле. ${changed} клеток снова вошли в ритм.`, state.time, '#8cf'));
     return true;
   }
 
@@ -292,7 +382,6 @@ export function tryUseConwayLifeAnomaly(
   const cleared = disableArena(world, arena);
   const room = world.rooms[arena.roomId];
   if (room && !isDisabledRoom(room)) room.name = `${room.name}; ${CONWAY_LIFE_DISABLED}`;
-  if (arena.controlIdx >= 0) world.setFeatureAt(arena.controlIdx, Feature.MACHINE);
   world.markCellsDirty();
   world.markWallTexDirty();
   world.markFloorTexDirty();

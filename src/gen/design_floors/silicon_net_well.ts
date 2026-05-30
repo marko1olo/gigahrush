@@ -60,6 +60,11 @@ interface SiliconRooms {
   lowerLift: Room;
 }
 
+interface SiliconPoint {
+  x: number;
+  y: number;
+}
+
 const NPC_DEFS: Record<SiliconNpcId, PlotNpcDef> = {
   silicon_cibo: {
     name: 'Сибо',
@@ -436,9 +441,15 @@ export function expandSiliconNetWellRouteGeometry(world: World, rng: () => numbe
     scatterSiliconCrystals(world, rng, p.x, p.y, 24);
   }
 
+  const radialPods = placeRadialNetPods(world, mask, rng);
+  carveVaultShell(world, mask);
+  carveHilbertCircuitTraces(world, mask, radialPods);
+  applySiliconCrystalBands(world, mask);
+
   world.markCellsDirty();
   world.markFloorTexDirty();
   world.markWallTexDirty();
+  world.markFeaturesDirty();
   world.markFogDirty();
 }
 
@@ -625,6 +636,155 @@ function decorateSiliconMacroRoom(world: World, room: Room, serial: number, rng:
     setFeature(world, x + 2, room.y + room.h - 5, serial % 2 === 0 ? Feature.MACHINE : Feature.SCREEN);
   }
   setFeature(world, room.x + room.w - 7, room.y + 5, Feature.LAMP);
+}
+
+function placeRadialNetPods(world: World, mask: Uint8Array, rng: () => number): SiliconPoint[] {
+  const centers: SiliconPoint[] = [];
+  const specs = [
+    { a: -Math.PI * 0.92, type: RoomType.PRODUCTION, w: 42, h: 22, name: 'Радиальный НЕТ-под северо-западного кристалла' },
+    { a: -Math.PI * 0.68, type: RoomType.STORAGE, w: 38, h: 22, name: 'Радиальный НЕТ-под сухих образцов' },
+    { a: -Math.PI * 0.32, type: RoomType.PRODUCTION, w: 42, h: 22, name: 'Радиальный НЕТ-под Safeguard-отсечки' },
+    { a: -Math.PI * 0.08, type: RoomType.MEDICAL, w: 36, h: 22, name: 'Радиальный НЕТ-под живого кремния' },
+    { a: Math.PI * 0.18, type: RoomType.STORAGE, w: 38, h: 22, name: 'Радиальный НЕТ-под остывших ячеек' },
+    { a: Math.PI * 0.42, type: RoomType.PRODUCTION, w: 42, h: 22, name: 'Радиальный НЕТ-под нижней ветки' },
+    { a: Math.PI * 0.66, type: RoomType.HQ, w: 40, h: 22, name: 'Радиальный НЕТ-под протокола допуска' },
+    { a: Math.PI * 0.9, type: RoomType.PRODUCTION, w: 42, h: 22, name: 'Радиальный НЕТ-под обратного эха' },
+  ];
+
+  for (let i = 0; i < specs.length; i++) {
+    const spec = specs[i];
+    const rx = Math.round(CX + Math.cos(spec.a) * 260 - spec.w / 2);
+    const ry = Math.round(CY + Math.sin(spec.a) * 198 - spec.h / 2);
+    const room = siliconMacroRoom(world, mask, spec.type, rx, ry, spec.w, spec.h, spec.name, Tex.PANEL, Tex.F_TILE, 2);
+    if (!room) continue;
+    decorateSiliconMacroRoom(world, room, i + 32, rng);
+    const center = roomCenter(room);
+    const ringTarget = {
+      x: Math.round(CX + Math.cos(spec.a) * 106),
+      y: Math.round(CY + Math.sin(spec.a) * 78),
+    };
+    connectSiliconRoomTo(world, mask, room, ringTarget, Tex.F_TILE, 30 + (i % 3) * 8);
+    centers.push(center);
+  }
+
+  return centers;
+}
+
+function carveVaultShell(world: World, mask: Uint8Array): void {
+  const shell: SiliconPoint[] = [
+    { x: CX + 70, y: CY + 62 },
+    { x: CX + 176, y: CY + 62 },
+    { x: CX + 176, y: CY + 132 },
+    { x: CX + 70, y: CY + 132 },
+    { x: CX + 70, y: CY + 62 },
+  ];
+  for (let i = 1; i < shell.length; i++) {
+    carveSiliconLine(world, mask, shell[i - 1].x, shell[i - 1].y, shell[i].x, shell[i].y, 2, Tex.F_TILE, 42);
+  }
+  for (const p of shell) {
+    setCircuitFeature(world, p.x, p.y, Feature.SCREEN);
+    setCircuitFeature(world, p.x + 2, p.y, Feature.APPARATUS);
+  }
+}
+
+function carveHilbertCircuitTraces(world: World, mask: Uint8Array, radialPods: readonly SiliconPoint[]): void {
+  const terminals: SiliconPoint[] = [
+    { x: CX - 40, y: CY - 128 },
+    { x: CX + 40, y: CY - 128 },
+    { x: CX - 140, y: CY - 67 },
+    { x: CX + 138, y: CY - 67 },
+    { x: CX - 126, y: CY + 91 },
+    { x: CX + 124, y: CY + 96 },
+    ...radialPods,
+  ];
+
+  const route = hilbertTracePoints(3, CX - 112, CY - 96, 32);
+  for (let i = 1; i < route.length; i++) {
+    carveSiliconLine(world, mask, route[i - 1].x, route[i - 1].y, route[i].x, route[i].y, 1, Tex.F_TILE, 36);
+  }
+  for (let i = 0; i < route.length; i += 3) setCircuitFeature(world, route[i].x, route[i].y, i % 2 === 0 ? Feature.SCREEN : Feature.APPARATUS);
+
+  for (let i = 0; i < terminals.length; i++) {
+    const target = terminals[i];
+    const hub = route[(i * 7 + 5) % route.length];
+    carveSiliconLine(world, mask, hub.x, hub.y, target.x, target.y, 1, Tex.F_TILE, 34 + (i % 4) * 4);
+    setCircuitFeature(world, target.x, target.y, i % 3 === 0 ? Feature.SCREEN : Feature.APPARATUS);
+  }
+}
+
+function hilbertTracePoints(order: number, x: number, y: number, step: number): SiliconPoint[] {
+  const n = 1 << order;
+  const points: SiliconPoint[] = [];
+  for (let d = 0; d < n * n; d++) {
+    const p = hilbertIndexToPoint(n, d);
+    points.push({ x: x + p.x * step, y: y + p.y * step });
+  }
+  return points;
+}
+
+function hilbertIndexToPoint(n: number, d: number): SiliconPoint {
+  let rx = 0;
+  let ry = 0;
+  let t = d;
+  let x = 0;
+  let y = 0;
+  for (let s = 1; s < n; s <<= 1) {
+    rx = 1 & (t >> 1);
+    ry = 1 & (t ^ rx);
+    if (ry === 0) {
+      if (rx === 1) {
+        x = s - 1 - x;
+        y = s - 1 - y;
+      }
+      const swap = x;
+      x = y;
+      y = swap;
+    }
+    x += s * rx;
+    y += s * ry;
+    t >>= 2;
+  }
+  return { x, y };
+}
+
+function applySiliconCrystalBands(world: World, mask: Uint8Array): void {
+  for (let y = 64; y < W - 64; y++) {
+    for (let x = 64; x < W - 64; x++) {
+      const ci = world.idx(x, y);
+      if (mask[ci] || world.cells[ci] !== Cell.FLOOR || world.features[ci] !== Feature.NONE) continue;
+      const dx = world.delta(x, CX);
+      const dy = world.delta(y, CY);
+      const d = Math.sqrt(dx * dx + dy * dy);
+      if (d < 132 || d > 470) continue;
+      const angle = Math.atan2(dy, dx);
+      const feed = Math.sin(d * 0.071 + angle * 6.0);
+      const kill = Math.sin((dx - dy) * 0.036 + Math.sin((dx + dy) * 0.011) * 2.0);
+      const noise = siliconCoordNoise(x, y);
+      const band = feed * 0.52 + kill * 0.34 + noise * 0.32;
+      if (band < 0.71) continue;
+      world.floorTex[ci] = band > 0.92 ? Tex.F_WATER : Tex.F_TILE;
+      world.fog[ci] = Math.max(world.fog[ci], band > 0.92 ? 64 : 42);
+      if (noise > 0.9) world.features[ci] = Feature.APPARATUS;
+      else if (noise < 0.08 && d > 210) world.features[ci] = Feature.SCREEN;
+    }
+  }
+}
+
+function siliconCoordNoise(x: number, y: number): number {
+  let n = Math.imul(x ^ 0x9e3779b9, 0x85ebca6b) ^ Math.imul(y ^ 0xc2b2ae35, 0x27d4eb2d);
+  n ^= n >>> 15;
+  n = Math.imul(n, 0x2c1b3c6d);
+  n ^= n >>> 12;
+  return (n >>> 0) / 0x100000000;
+}
+
+function roomCenter(room: Room): SiliconPoint {
+  return { x: room.x + (room.w >> 1), y: room.y + (room.h >> 1) };
+}
+
+function setCircuitFeature(world: World, x: number, y: number, feature: Feature): void {
+  const ci = world.idx(x, y);
+  if (world.cells[ci] === Cell.FLOOR && world.features[ci] === Feature.NONE) world.features[ci] = feature;
 }
 
 function connectSiliconRoomTo(world: World, mask: Uint8Array, room: Room, target: { x: number; y: number }, floorTex: Tex, fog: number): void {

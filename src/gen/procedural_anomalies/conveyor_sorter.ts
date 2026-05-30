@@ -3,6 +3,7 @@ import { MarkType, stampMark } from '../../systems/surface_marks';
 import {
   addItemDrop,
   randomRoomCell,
+  roomCell,
   type ProceduralAnomalyGenContext,
 } from './common';
 
@@ -23,11 +24,13 @@ export function applyConveyorSorter(ctx: ProceduralAnomalyGenContext): void {
     room.name = `${CONVEYOR_ROOM_PREFIX} ${i + 1}: ${room.name}`;
     drawConveyorLoop(ctx, room, i);
 
-    const control = randomRoomCell(ctx.world, room, true);
+    const control = roomCell(ctx.world, room, 3, Math.max(1, Math.floor(room.h / 2) - 1), true) ??
+      randomRoomCell(ctx.world, room, true);
     if (control) ctx.world.features[ctx.world.idx(control.x, control.y)] = Feature.APPARATUS;
-    const receiver = randomRoomCell(ctx.world, room, true);
+    const receiver = roomCell(ctx.world, room, room.w - 4, Math.min(room.h - 2, Math.floor(room.h / 2) + 1), true) ??
+      randomRoomCell(ctx.world, room, true);
     if (receiver) ctx.world.features[ctx.world.idx(receiver.x, receiver.y)] = Feature.SHELF;
-    const loot = randomRoomCell(ctx.world, room);
+    const loot = receiver ?? randomRoomCell(ctx.world, room);
     if (loot) addItemDrop(ctx, loot.x, loot.y, SORTER_LOOT[i % SORTER_LOOT.length], 1 + (ctx.spec.danger >= 4 ? 1 : 0));
   }
 }
@@ -37,6 +40,8 @@ function drawConveyorLoop(ctx: ProceduralAnomalyGenContext, room: { id: number; 
   const right = room.x + room.w - 3;
   const top = room.y + 2;
   const bottom = room.y + room.h - 3;
+  const midX = room.x + Math.floor(room.w / 2);
+  const midY = room.y + Math.floor(room.h / 2);
   const seed = ctx.spec.seed + room.id * 131 + order * 17;
 
   for (let x = left; x <= right; x++) {
@@ -47,8 +52,14 @@ function drawConveyorLoop(ctx: ProceduralAnomalyGenContext, room: { id: number; 
     stampConveyorCell(ctx, right, y, seed + y + 3000, 65, 91, 96);
     stampConveyorCell(ctx, left, y, seed + y + 6000, 95, 79, 54);
   }
+  for (let x = left + 1; x <= right - 1; x++) {
+    stampConveyorCell(ctx, x, midY, seed + x * 5 + 12000, 142, 126, 72);
+  }
+  for (let y = top + 1; y <= bottom - 1; y++) {
+    stampConveyorCell(ctx, midX, y, seed + y * 7 + 15000, 74, 117, 134);
+  }
 
-  const center = { x: room.x + Math.floor(room.w / 2), y: room.y + Math.floor(room.h / 2) };
+  const center = { x: midX, y: midY };
   stampMark(ctx.world, center.x, center.y, 0.5, 0.5, 0.55, MarkType.BULLET, seed ^ 0x5a17, 180, 176, 132, 130);
 }
 

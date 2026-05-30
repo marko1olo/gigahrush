@@ -2,9 +2,7 @@ import { stampSurfaceSplat } from '../../systems/surface_marks';
 import { Cell, Feature, RoomType, Tex } from '../../core/types';
 import type { Room } from '../../core/types';
 import {
-  chance,
   isProtectedCell,
-  pick,
   roomCell,
   roomCenter,
   type ProceduralAnomalyGenContext,
@@ -12,11 +10,31 @@ import {
 
 export const CONWAY_LIFE_ROOM_PREFIX = 'Игра жизнь:';
 
+function hash32(v: number): number {
+  v |= 0;
+  v ^= v >>> 16;
+  v = Math.imul(v, 0x7feb352d);
+  v ^= v >>> 15;
+  v = Math.imul(v, 0x846ca68b);
+  v ^= v >>> 16;
+  return v >>> 0;
+}
+
+function nearDoor(ctx: ProceduralAnomalyGenContext, x: number, y: number): boolean {
+  for (let dy = -1; dy <= 1; dy++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      if (ctx.world.doors.has(ctx.world.idx(x + dx, y + dy))) return true;
+    }
+  }
+  return false;
+}
+
 function isMutableLifeCell(ctx: ProceduralAnomalyGenContext, room: Room, x: number, y: number): boolean {
   const ci = ctx.world.idx(x, y);
   if (ctx.world.roomMap[ci] !== room.id) return false;
   if (ctx.world.cells[ci] !== Cell.FLOOR && ctx.world.cells[ci] !== Cell.WALL) return false;
   if (isProtectedCell(ctx.world, ci)) return false;
+  if (nearDoor(ctx, x, y)) return false;
   if (ctx.world.features[ci] !== Feature.NONE && ctx.world.features[ci] !== Feature.LAMP) return false;
   if (ctx.world.dist2(ctx.spawnX, ctx.spawnY, x + 0.5, y + 0.5) < 12 * 12) return false;
   for (const e of ctx.entities) {
@@ -28,10 +46,10 @@ function isMutableLifeCell(ctx: ProceduralAnomalyGenContext, room: Room, x: numb
 
 function seedAlive(dx: number, dy: number, room: Room, seed: number): boolean {
   const edge = dx <= 2 || dy <= 2 || dx >= room.w - 3 || dy >= room.h - 3;
-  const h = ((dx * 73856093) ^ (dy * 19349663) ^ (room.id * 83492791) ^ seed) >>> 0;
+  const h = hash32((dx * 73856093) ^ (dy * 19349663) ^ (room.id * 83492791) ^ seed);
   if (edge) return (h & 15) === 0;
-  if ((dx + seed) % 11 === 0 && dy > 3 && dy < room.h - 4) return chance(0.38);
-  if ((dy + room.id) % 13 === 0 && dx > 3 && dx < room.w - 4) return chance(0.34);
+  if ((dx + seed) % 11 === 0 && dy > 3 && dy < room.h - 4) return (h % 100) < 38;
+  if ((dy + room.id) % 13 === 0 && dx > 3 && dx < room.w - 4) return (h % 100) < 34;
   return (h % 100) < 24;
 }
 
@@ -55,7 +73,6 @@ function applyArena(ctx: ProceduralAnomalyGenContext, room: Room, arenaIndex: nu
   room.wallTex = Tex.DARK;
   room.floorTex = Tex.F_CONCRETE;
 
-  let alive = 0;
   for (let dy = 1; dy < room.h - 1; dy++) {
     for (let dx = 1; dx < room.w - 1; dx++) {
       const x = ctx.world.wrap(room.x + dx);
@@ -66,7 +83,6 @@ function applyArena(ctx: ProceduralAnomalyGenContext, room: Room, arenaIndex: nu
       if (seedAlive(dx, dy, room, ctx.spec.seed + arenaIndex * 101)) {
         ctx.world.cells[ci] = Cell.WALL;
         ctx.world.wallTex[ci] = Tex.DARK;
-        alive++;
       } else {
         ctx.world.cells[ci] = Cell.FLOOR;
       }
@@ -101,10 +117,14 @@ function applyArena(ctx: ProceduralAnomalyGenContext, room: Room, arenaIndex: nu
 function candidateRooms(ctx: ProceduralAnomalyGenContext): Room[] {
   return ctx.rooms.filter(room => {
     if (room.type === RoomType.CORRIDOR) return false;
-    if (room.w < 10 || room.h < 10 || room.w > 42 || room.h > 42) return false;
+    if (room.w < 12 || room.h < 12 || room.w > 48 || room.h > 48) return false;
     const c = roomCenter(room);
     if (ctx.world.dist2(ctx.spawnX, ctx.spawnY, c.x, c.y) < 42 * 42) return false;
     return true;
+  }).sort((a, b) => {
+    const orderA = hash32(ctx.spec.seed ^ Math.imul(a.id + 1, 0x9e3779b1) ^ Math.imul(a.w * 31 + a.h, 0x85ebca6b));
+    const orderB = hash32(ctx.spec.seed ^ Math.imul(b.id + 1, 0x9e3779b1) ^ Math.imul(b.w * 31 + b.h, 0x85ebca6b));
+    return orderA - orderB;
   });
 }
 
@@ -112,13 +132,8 @@ export function applyConwayLife(ctx: ProceduralAnomalyGenContext): void {
   const candidates = candidateRooms(ctx);
   if (candidates.length === 0) return;
 
-  const arenas = Math.min(candidates.length, ctx.spec.danger >= 4 ? 2 : 1);
-  const used = new Set<number>();
+  const arenas = Math.min(candidates.length, ctx.spec.danger >= 5 ? 3 : ctx.spec.danger >= 4 ? 2 : 1);
   for (let i = 0; i < arenas; i++) {
-    let room = pick(candidates);
-    for (let guard = 0; guard < 16 && used.has(room.id); guard++) room = pick(candidates);
-    if (used.has(room.id)) continue;
-    used.add(room.id);
-    applyArena(ctx, room, i + 1);
+    applyArena(ctx, candidates[i], i + 1);
   }
 }

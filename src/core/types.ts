@@ -522,6 +522,23 @@ export interface AIState {
   parasiteFoodScanCd?: number;  // Мухожук: throttled container appetite scan
   parasiteFoodScanOffset?: number; // Мухожук: rotating container scan start
   parasiteFoodTargetContainerId?: number;
+  tacticId?: string;             // generic actor tactic profile state, transient
+  tacticPhase?: string;          // current tactic sub-phase
+  tacticTimer?: number;          // current tactic remaining seconds
+  tacticCooldown?: number;       // cooldown before selecting another tactic
+  tacticSenseCd?: number;        // cooldown before bounded local fact refresh
+  tacticActionCd?: number;       // tactic-local action/event cooldown
+  tacticEventCd?: number;        // tactic-local readable event/message cooldown
+  tacticPressure?: number;       // last processed bounded stimulus pressure
+  tacticNearbyHostiles?: number; // cached bounded local hostile count
+  tacticNearbyActors?: number;   // cached bounded local actor count
+  tacticTargetId?: number;       // cached tactic target id
+  tacticTargetDist2?: number;    // cached squared target distance
+  tacticThreatX?: number;        // cached local pressure/centroid X
+  tacticThreatY?: number;        // cached local pressure/centroid Y
+  tacticAnchorX?: number;        // cached local terrain/anchor X
+  tacticAnchorY?: number;        // cached local terrain/anchor Y
+  tacticFlags?: number;          // compact tactic fact/debug bitset
 }
 
 export interface Entity {
@@ -796,6 +813,7 @@ export const WORLD_EVENT_TYPES = [
   'npc_take_from_container',
   'container_looted',
   'container_opened',
+  'interactive_used',
   'item_stolen',
   'item_deposited',
   'room_produced_items',

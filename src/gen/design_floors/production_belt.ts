@@ -26,6 +26,7 @@ import { ITEMS, freshNeeds } from '../../data/catalog';
 import { type PlotNpcDef, registerSideQuest } from '../../data/plot';
 import { MONSTERS } from '../../entities/monster';
 import { Spr } from '../../render/sprite_index';
+import { registerCellHazardSite } from '../../systems/cell_hazards';
 import { publishEvent } from '../../systems/events';
 import { registerRouteCue } from '../../systems/route_cues';
 import { randomRPG } from '../../systems/rpg';
@@ -768,14 +769,18 @@ export function expandProductionBeltGeometry(world: World, rng: () => number): v
 
   macroCorridor(world, mask, 72, 508, 342, 7, 'Левая подача проходной 14', Tex.F_CONCRETE);
   macroCorridor(world, mask, 586, 508, 366, 7, 'Правая выдача проходной 14', Tex.F_CONCRETE);
+  markConveyorSpine(world, 72, 511, 414, 511, 1);
+  markConveyorSpine(world, 586, 511, 952, 511, 2);
 
   for (let i = 0; i < laneYs.length; i++) {
     const y = laneYs[i];
     macroCorridor(world, mask, 56, y - 4, 912, 9, i % 2 === 0 ? 'Главный конвейерный пролет' : 'Обратная линия погрузки', Tex.F_CONCRETE);
+    markConveyorSpine(world, 56, y, 968, y, 10 + i);
   }
 
   for (const x of [128, 320, 704, 896]) {
     macroCorridor(world, mask, x - 2, 146, 5, 732, 'Вертикальный подъемник тары', Tex.F_CONCRETE);
+    markConveyorSpine(world, x, 146, x, 878, 40 + x);
   }
 
   addDockLoop(world, mask, 82, 204, 204, 214, 'Западная погрузочная петля');
@@ -814,6 +819,12 @@ export function expandProductionBeltGeometry(world: World, rng: () => number): v
   }
 
   seedExpandedProductionCaches(world, loadingRooms.filter(isRoom), hazardRooms);
+  const machineRooms = world.rooms.filter(room =>
+    room.type === RoomType.PRODUCTION ||
+    room.name.includes('Опасный карман') ||
+    room.name.includes('Безопасный машинный остров')
+  );
+  registerProductionMachineHazards(world, machineRooms, 14);
   world.markFogDirty();
 }
 
@@ -1095,8 +1106,118 @@ function createProductionBeltState(
       'production_belt_service_feed',
       'production_belt_bad_batch_warning',
       'production_belt_tracked_zhernov',
+      'production_belt_tensor_spine',
+      'production_belt_machine_shelter',
     ],
   };
+}
+
+function isPassableHazardCell(world: World, cell: number, roomId: number): boolean {
+  return world.roomMap[cell] === roomId &&
+    (world.cells[cell] === Cell.FLOOR || world.cells[cell] === Cell.WATER) &&
+    world.features[cell] !== Feature.LIFT_BUTTON &&
+    !world.containerMap.has(cell);
+}
+
+function collectMachineFieldCells(world: World, room: Room, radius: number): number[] {
+  const cells: number[] = [];
+  const seen = new Set<number>();
+  const r2 = radius * radius;
+  for (let dy = 0; dy < room.h; dy++) {
+    for (let dx = 0; dx < room.w; dx++) {
+      const x = room.x + dx;
+      const y = room.y + dy;
+      const feature = world.features[world.idx(x, y)];
+      if (feature !== Feature.MACHINE && feature !== Feature.APPARATUS) continue;
+      for (let oy = -radius; oy <= radius; oy++) {
+        for (let ox = -radius; ox <= radius; ox++) {
+          const d2 = ox * ox + oy * oy;
+          if (d2 > r2) continue;
+          const cell = world.idx(x + ox, y + oy);
+          if (seen.has(cell) || !isPassableHazardCell(world, cell, room.id)) continue;
+          seen.add(cell);
+          cells.push(cell);
+        }
+      }
+    }
+  }
+  return cells;
+}
+
+function stampMachineHazardCues(world: World, cells: readonly number[], seed: number): void {
+  if (cells.length === 0) return;
+  const step = Math.max(1, Math.floor(cells.length / 14));
+  for (let n = 0; n < cells.length; n += step) {
+    const cell = cells[n];
+    const x = cell % W;
+    const y = (cell / W) | 0;
+    stampSurfaceSplat(world, x, y, 0.5, 0.5, 0.26, 0.5, seed + n * 37, 210, 138, 44, false);
+  }
+}
+
+function registerMachineHazardSite(world: World, room: Room, serial: number): boolean {
+  const cells = collectMachineFieldCells(world, room, room.type === RoomType.PRODUCTION ? 2 : 1);
+  if (cells.length < 6) return false;
+  stampMachineHazardCues(world, cells, room.id * 9109 + serial * 131);
+  const center = cells[Math.floor(cells.length / 2)];
+  const cx = center % W;
+  const cy = (center / W) | 0;
+  const zoneId = world.zoneMap[center];
+  registerCellHazardSite(world, {
+    id: `production_belt_machine_field_${room.id}`,
+    kind: 'production_machine_field',
+    displayName: 'Опасная зона станка',
+    cells,
+    tags: ['production_belt', 'machine_hazard', 'industrial', 'static_field'],
+    sticky: false,
+    cleanable: false,
+    slowMult: 0.72,
+    activeFog: 54,
+    playerDamagePerSecond: room.type === RoomType.PRODUCTION ? 0.08 : 0,
+    monsterDamagePerSecond: 0.35,
+    messageCooldownSeconds: 3.2,
+    roomId: room.id,
+    zoneId: zoneId >= 0 ? zoneId : undefined,
+    centerX: cx + 0.5,
+    centerY: cy + 0.5,
+    warning: 'Станочная зона тянет одежду и сбивает шаг. Идите по освещенной кромке или через ремонтный мостик.',
+    warningColor: '#fd6',
+  });
+  return true;
+}
+
+function registerProductionMachineHazards(world: World, rooms: readonly Room[], limit: number): number {
+  let registered = 0;
+  for (const room of rooms) {
+    if (registered >= limit) break;
+    if (registerMachineHazardSite(world, room, registered)) registered++;
+  }
+  return registered;
+}
+
+function markConveyorSpine(world: World, x0: number, y0: number, x1: number, y1: number, serial: number): void {
+  const horizontal = Math.abs(x1 - x0) >= Math.abs(y1 - y0);
+  if (horizontal) {
+    const y = world.wrap(y0);
+    const from = Math.min(x0, x1);
+    const to = Math.max(x0, x1);
+    for (let x = from; x <= to; x++) {
+      const i = world.idx(x, y);
+      if (world.cells[i] !== Cell.FLOOR) continue;
+      world.floorTex[i] = Tex.F_TILE;
+      if ((x + serial) % 37 === 0) stampSurfaceSplat(world, x, y, 0.5, 0.5, 0.18, 0.44, serial * 7919 + x, 180, 150, 70, false);
+    }
+    return;
+  }
+  const x = world.wrap(x0);
+  const from = Math.min(y0, y1);
+  const to = Math.max(y0, y1);
+  for (let y = from; y <= to; y++) {
+    const i = world.idx(x, y);
+    if (world.cells[i] !== Cell.FLOOR) continue;
+    world.floorTex[i] = Tex.F_TILE;
+    if ((y + serial) % 37 === 0) stampSurfaceSplat(world, x, y, 0.5, 0.5, 0.18, 0.44, serial * 7919 + y, 180, 150, 70, false);
+  }
 }
 
 export function publishProductionBeltDecision(
@@ -1255,6 +1376,64 @@ function registerProductionBeltRouteCues(
     followedText: 'Вы у пломбированной тележки жернова. Можно оставить её ликвидаторам или вынести как тяжёлый финальный аргумент.',
     ignoredText: 'Скрежет жернова остался за спиной. Собранную тварь придётся добивать обычным железом.',
   });
+
+  const spineMarkerX = rooms.corridor.x + 32.5;
+  const spineMarkerY = rooms.corridor.y + 3.5;
+  const spineTargetX = rooms.exitDock.x + rooms.exitDock.w - 3.5;
+  const spineTargetY = rooms.exitDock.y + 3.5;
+  const spineCell = world.idx(Math.floor(spineMarkerX), Math.floor(spineMarkerY));
+  registerRouteCue(world, {
+    id: 'production_belt_tensor_spine',
+    x: spineMarkerX,
+    y: spineMarkerY,
+    targetX: spineTargetX,
+    targetY: spineTargetY,
+    floor: PRODUCTION_BELT_BASE_FLOOR,
+    roomId: rooms.corridor.id,
+    targetRoomId: rooms.exitDock.id,
+    zoneId: world.zoneMap[spineCell],
+    label: 'тензорная линия',
+    hint: 'светлая полоса ленты ведет от проходной к докам и обходам',
+    targetName: rooms.exitDock.name,
+    color: '#fd6',
+    tags: ['production_belt', 'conveyor_spine', 'static_route_line', 'dock_loop'],
+    toneSeed: rooms.corridor.id * 109 + rooms.exitDock.id,
+    radius: 10,
+    targetRadius: 3,
+    cooldownSec: 34,
+    heardText: 'На полу тянется светлая линия ленты: по ней можно идти к докам без живой механики конвейера.',
+    followedText: 'Вы на линии ленты. Она не двигает тело, но читает маршрут: доки, обходы, выдача.',
+    ignoredText: 'Полоса ленты ушла в шум цеха. Без нее доки придется искать по железу и лампам.',
+  });
+
+  const hazardMarkerX = rooms.chargeLine.x + 9.5;
+  const hazardMarkerY = rooms.chargeLine.y + 8.5;
+  const shelterTargetX = rooms.shelter.x + 8.5;
+  const shelterTargetY = rooms.shelter.y + 4.5;
+  const hazardCell = world.idx(Math.floor(hazardMarkerX), Math.floor(hazardMarkerY));
+  registerRouteCue(world, {
+    id: 'production_belt_machine_shelter',
+    x: hazardMarkerX,
+    y: hazardMarkerY,
+    targetX: shelterTargetX,
+    targetY: shelterTargetY,
+    floor: PRODUCTION_BELT_BASE_FLOOR,
+    roomId: rooms.chargeLine.id,
+    targetRoomId: rooms.shelter.id,
+    zoneId: world.zoneMap[hazardCell],
+    label: 'укрытие у станков',
+    hint: 'желтый туман показывает опасную кромку, освещенная бытовка дает безопасный обход',
+    targetName: rooms.shelter.name,
+    color: '#fc8',
+    tags: ['production_belt', 'machine_hazard', 'shelter', 'samosbor', 'bypass'],
+    toneSeed: rooms.chargeLine.id * 113 + rooms.shelter.id,
+    radius: 9,
+    targetRadius: 3.2,
+    cooldownSec: 38,
+    heardText: 'Зарядная линия шипит желтым полем. Сменная бытовка справа держит сухую кромку.',
+    followedText: 'Вы у безопасной кромки станков. Отсюда можно переждать такт, чинить линию или вести Егора к проходной.',
+    ignoredText: 'Станочная кромка осталась без ориентира. В шуме цеха укрытие выглядит как обычная дверь.',
+  });
 }
 
 function populateRooms(world: World, entities: Entity[], nextId: { v: number }, rooms: ProductionBeltRooms): ProductionBeltContainers {
@@ -1372,6 +1551,8 @@ export function generateProductionBeltDesignFloor(): ProductionBeltGeneration {
   const containers = populateRooms(world, entities, nextId, rooms);
   const productionState = createProductionBeltState(rooms, containers);
   registerProductionBeltRouteCues(world, rooms, containers);
+  markConveyorSpine(world, rooms.corridor.x + 1, rooms.corridor.y + 3, rooms.corridor.x + rooms.corridor.w - 2, rooms.corridor.y + 3, 91);
+  registerProductionMachineHazards(world, [rooms.metalLine, rooms.chargeLine, rooms.ammoLine, rooms.quarantine], 4);
 
   world.bakeLights();
   return { world, entities, spawnX, spawnY, productionState };

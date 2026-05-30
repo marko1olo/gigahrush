@@ -1,5 +1,9 @@
 # Agent Instructions
 
+> Центральный документ агентского поведения.
+>
+> Роль: обязательная инструкция для всех агентов, работающих с кодом, документами, PR, релизами и системными контрактами ГИГАХРУЩА. Этот файл не заменяет `README.md` и root system docs; он говорит, как безопасно читать, менять, проверять и не ломать проект.
+
 ## Operating Contract
 
 This repository rewards precise integration work, not speculative architecture. Use extra reasoning budget to read the actual code, map ownership, and check side effects before editing. Keep patches small, shipped, and verifiable.
@@ -32,17 +36,42 @@ Before changing gameplay, content, generation, systems, rendering, save/load, or
 3. Read the relevant source files under `src/`; never implement from docs alone.
 4. Check `git status --short` and do not overwrite unrelated dirty work.
 
-Read additional docs only when relevant:
+Read additional docs only when relevant to the task:
 
-- `desdoc.md`: current design direction and next-iteration priorities.
-- `plans.md`: unresolved or partial plan index.
-- `alife.md` and `scaling.md`: persistent population, high-density entity and smoke baseline contracts.
-- `Docs/ProceduralFloors/`: procedural geometry/anomaly authoring.
-- `Docs/DesignFloors/` and `Docs/Expansions/`: active design/reference packets.
-- `scenarist.md` and `Docs/ScenarioWriters/README.md`: player-facing text style/domain packets.
-- `Docs/Localization/`: localization pipeline notes.
-- `cloudflare.md`: optional Net Sphere deployment.
-- `commit.md`: release commit/deploy runbook, only for explicit commit/release tasks.
+| Task area | Read |
+| --- | --- |
+| Current shipped facts, commands, implementation map | `README.md` |
+| Shared systems, ownership, layer boundaries, integration risk | `architecture.md` |
+| Design direction, next-iteration priorities, player promise | `desdoc.md` |
+| Active-floor AI, NPC utility, pathfinding, tactics, actor cadence | `ai.md` |
+| Dynamic combat, projectiles, damage, tactical readability | `fight.md` |
+| Persistent NPC identity, deaths, relations, off-floor population | `alife.md` |
+| Samosbor warning, shelter, local rebuild, variants, aftermath | `samosbor.md` |
+| Save/load shape, `localStorage`, payload sections, sanitization | `save.md` |
+| Vertical route, route keys, floor memory, geometry ownership | `floors.md` |
+| Procedural floor anomalies, cellular-world effects, anomaly runtime | `anomalies.md`, `Docs/ProceduralFloors/` |
+| Economy, resources, factories, production, caravans, banking, markets | `economics.md` |
+| Numeric tuning, rewards, HP/XP, scarcity, progression pressure | `balance.md` |
+| Items, weapons, PSI, resources, loot, production inputs | `items.md` |
+| Monster packages, ecology, sprites, counterplay, AI tactic hooks | `monsters.md` |
+| Plot, side quests, contracts, characters, quest consequences | `quests.md` |
+| Shared `E` action layer, interactables, fixtures, terminals, containers | `interactive.md` |
+| Performance budgets, density, caches, safe optimization lanes | `optimization.md` |
+| Validation strategy, deterministic tests, cheap gates | `tests.md` |
+| Problematic non-system mechanics and consolidation targets | `problems.md` |
+| Mobile input, touch controls, viewport, mobile validation | `mobile.md` |
+| Optional online mode design boundaries; single-player remains primary | `online.md` |
+| Optional Cloudflare Net Sphere deployment, Worker/D1, network payloads | `cloudflare.md` |
+| Player-facing text, lore voice, scenario/domain packets | `scenarist.md`, `Docs/ScenarioWriters/README.md` |
+| Visual/audio/UI/atmosphere taste decisions | `taste.md` |
+| Authored route-floor briefs and expansion packets | `Docs/DesignFloors/`, `Docs/Expansions/` |
+| Cautious UX rework plans; not shipped facts until implemented | `Docs/UXRework/` |
+| Localization pipeline, generated reports, locale seeding/applying | `Docs/Localization/` |
+| PR, media, KPI monitoring, public campaign continuity | `Docs/PRCampaign/KPI.md`, `Docs/PRCampaign/campaign_plan_ru.md`, latest `Docs/PRCampaign/kpi_report_*.md` |
+| Portal/store artifact work | `Docs/PRCampaign/portal.md` |
+| Release commit/deploy runbook | `commit.md`, only for explicit commit/release tasks |
+| Historical context and archived notes | `appendix.md`; `gatbage/**` only for explicit historical comparison |
+| License/legal text changes | `LICENSE.md` |
 
 `gatbage/**` and archived root prompt/status files are historical context only. Do not recreate old agent-log or task-status directories for routine work.
 
@@ -140,7 +169,7 @@ Keep the five-layer contract intact:
 
 - `README.md` documents shipped behavior only. Update it when implementation facts change, not for intent.
 - `architecture.md` documents engineering contracts and ownership rules.
-- `desdoc.md` and `plans.md` may describe future intent; verify against current code before implementation.
+- `desdoc.md` may describe future intent; verify against current code before implementation. Archived root plans under `gatbage/` are historical comparison only.
 - Active scenario/localization docs guide text passes; they are not substitutes for source inspection.
 - Do not copy implementation counts from memory. If a count matters, verify it from source, scripts, or the current README.
 
@@ -380,10 +409,10 @@ For Net Sphere work:
 
 ## PR Campaign And KPI Continuity
 
-For PR, media, portal submission or KPI monitoring work, treat `KPI.md` and `Docs/PRCampaign/` as active operational docs, not scratch notes.
+For PR, media, portal submission or KPI monitoring work, treat `Docs/PRCampaign/KPI.md` and `Docs/PRCampaign/` as active operational docs, not scratch notes.
 
-- Before acting, read `KPI.md`, `Docs/PRCampaign/campaign_plan_ru.md`, the latest dated `Docs/PRCampaign/kpi_report_*.md`, and the current queue such as `Docs/PRCampaign/next_wave_targets_*.md` or `Docs/PRCampaign/next_wave_schedule_ru.md`.
-- After every campaign/KPI pass, update durable docs in the same turn: `KPI.md` for global surfaces/KPIs/blockers, `campaign_plan_ru.md` for campaign status and next actions, and a dated report/target file under `Docs/PRCampaign/` for fresh facts. Do not leave progress only in chat, browser state, subagent output or local memory.
+- Before acting, read `Docs/PRCampaign/KPI.md`, `Docs/PRCampaign/campaign_plan_ru.md`, the latest dated `Docs/PRCampaign/kpi_report_*.md`, and the current queue such as `Docs/PRCampaign/next_wave_targets_*.md` or `Docs/PRCampaign/next_wave_schedule_ru.md`. For portal build/submission work, also read `Docs/PRCampaign/portal.md`.
+- After every campaign/KPI pass, update durable docs in the same turn: `Docs/PRCampaign/KPI.md` for global surfaces/KPIs/blockers, `campaign_plan_ru.md` for campaign status and next actions, and a dated report/target file under `Docs/PRCampaign/` for fresh facts. Do not leave progress only in chat, browser state, subagent output or local memory.
 - Record exact dates, URLs, visible statuses, owner-needed actions, sent/submitted/live/removed states, moderation/account blockers, and what the next agent should watch or avoid.
 - Public links must be actual clickable anchors, buttons or native link fields with clear visible labels whenever the platform supports it. Check the rendered public page or DOM before marking a publication complete; if a platform strips anchors, use its native link/profile/media/comment surfaces without evading moderation.
 - Public store pages, posts, pitches, portal listings and media copy must not reveal map dimensions, topology or other implementation-geometry details. Preserve player illusion with wording such as `безграничная структура`, `безграничная бетонная структура`, `unbounded structure` or `unbounded concrete megastructure`; keep implementation geometry only in internal engineering docs.
@@ -394,9 +423,12 @@ For PR, media, portal submission or KPI monitoring work, treat `KPI.md` and `Doc
 
 Update docs only when facts change.
 
-- `README.md`: shipped behavior, commands, active implementation map.
+- `README.md`: shipped game behavior, commands and active implementation map.
 - `architecture.md`: engineering contracts and ownership rules.
-- `desdoc.md` / `plans.md`: planning and future work.
+- `desdoc.md`: planning and future work.
+- `samosbor.md`: samosbor system contract and extension rules.
+- `save.md`: save/load shape, payload and sanitization contract.
+- `problems.md`: problematic non-system mechanics and consolidation targets.
 - `appendix.md`: compact historical notes only when useful later.
 
 Do not use README to promise unfinished work. Do not bury implementation facts only in plan docs.

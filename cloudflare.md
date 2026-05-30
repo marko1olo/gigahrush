@@ -1,5 +1,9 @@
 # Cloudflare Net Sphere
 
+> Центральный документ optional online layer.
+>
+> Роль: описывает НЕТ-СФЕРУ, чат, heartbeat, cloud profile, D1/Worker deployment and current online implementation. Core single-player browser game must work without Cloudflare, D1, Worker API, market endpoint, chat or network access.
+
 НЕТ-СФЕРА добавляет к статичному Vite-билду маленький Cloudflare Worker слой:
 
 - `functions/worker.ts` - Worker entrypoint: `/api/net/*` уходит в API, остальное в Worker Assets.

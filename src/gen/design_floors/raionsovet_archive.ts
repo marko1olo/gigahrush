@@ -1,6 +1,6 @@
 /* ── Design floor: Райсовет и Живой архив ───────────────────────
- * Standalone authored-floor slice. It is intentionally not wired into
- * FloorLevel/FloorRun here; an integrator can mount this route later.
+ * Routed authored-floor package. Route data lives in data/design_floors.ts;
+ * generation is mounted through the design-floor manifest.
  */
 
 import { stampSurfaceSplat } from '../../systems/surface_marks';
@@ -632,6 +632,251 @@ function buildStackCanyon(
   return bridges;
 }
 
+interface ArchiveMacroMotif {
+  id: number;
+  weight: number;
+  east: readonly number[];
+  south: readonly number[];
+}
+
+const ARCHIVE_MACRO_MOTIFS: readonly ArchiveMacroMotif[] = [
+  { id: 0, weight: 5, east: [0, 1, 3, 4], south: [0, 2, 3, 4] },
+  { id: 1, weight: 4, east: [0, 1, 2, 4], south: [1, 2, 3, 4] },
+  { id: 2, weight: 3, east: [1, 2, 3, 4], south: [0, 1, 2, 4] },
+  { id: 3, weight: 2, east: [0, 2, 3, 4], south: [1, 2, 3, 4] },
+  { id: 4, weight: 2, east: [0, 1, 2, 3, 4], south: [0, 1, 2, 3, 4] },
+];
+
+function chooseArchiveMacroMotif(motifs: Uint8Array, gx: number, gy: number, gw: number, rng: () => number): number {
+  let total = 0;
+  const weights = new Float32Array(ARCHIVE_MACRO_MOTIFS.length);
+  const left = gx > 0 ? motifs[gy * gw + gx - 1] : 255;
+  const top = gy > 0 ? motifs[(gy - 1) * gw + gx] : 255;
+  for (let i = 0; i < ARCHIVE_MACRO_MOTIFS.length; i++) {
+    const motif = ARCHIVE_MACRO_MOTIFS[i];
+    if (left !== 255 && !ARCHIVE_MACRO_MOTIFS[left]?.east.includes(motif.id)) continue;
+    if (top !== 255 && !ARCHIVE_MACRO_MOTIFS[top]?.south.includes(motif.id)) continue;
+    total += motif.weight;
+    weights[i] = motif.weight;
+  }
+  if (total <= 0) return 4;
+  let roll = rng() * total;
+  for (let i = 0; i < weights.length; i++) {
+    roll -= weights[i];
+    if (roll <= 0) return ARCHIVE_MACRO_MOTIFS[i].id;
+  }
+  return 4;
+}
+
+function stampArchiveMacroMotif(world: World, cx: number, cy: number, motif: number): void {
+  if (motif === 0) {
+    for (let yy = -6; yy <= 6; yy++) {
+      if (Math.abs(yy) <= 1) continue;
+      setShelfWall(world, cx - 5, cy + yy);
+      setShelfWall(world, cx + 5, cy + yy);
+    }
+    setFeatureIfFloor(world, cx - 2, cy - 4, Feature.SHELF);
+    setFeatureIfFloor(world, cx + 2, cy + 4, Feature.SHELF);
+  } else if (motif === 1) {
+    for (let xx = -6; xx <= 6; xx++) {
+      if (Math.abs(xx) <= 1) continue;
+      setShelfWall(world, cx + xx, cy - 5);
+      setShelfWall(world, cx + xx, cy + 5);
+    }
+    setFeatureIfFloor(world, cx - 4, cy + 2, Feature.SHELF);
+    setFeatureIfFloor(world, cx + 4, cy - 2, Feature.SHELF);
+  } else if (motif === 2) {
+    for (let d = -5; d <= 5; d++) {
+      if (Math.abs(d) <= 1) continue;
+      setShelfWall(world, cx - 5, cy + d);
+      setShelfWall(world, cx + d, cy + 5);
+    }
+    setFeatureIfFloor(world, cx + 3, cy - 3, Feature.DESK);
+  } else if (motif === 3) {
+    for (let d = -4; d <= 4; d++) {
+      if (Math.abs(d) <= 1) continue;
+      setShelfWall(world, cx + 5, cy + d);
+    }
+    setFeatureIfFloor(world, cx - 3, cy, Feature.SCREEN);
+    setFeatureIfFloor(world, cx - 4, cy + 2, Feature.DESK);
+  } else {
+    setFeatureIfFloor(world, cx - 3, cy - 2, Feature.CHAIR);
+    setFeatureIfFloor(world, cx + 3, cy + 2, Feature.CHAIR);
+    setFeatureIfFloor(world, cx, cy - 4, Feature.LAMP);
+  }
+}
+
+function archiveMazeNeighbors(idx: number, gw: number, gh: number): number[] {
+  const gx = idx % gw;
+  const gy = Math.floor(idx / gw);
+  const out: number[] = [];
+  if (gx > 0) out.push(idx - 1);
+  if (gx < gw - 1) out.push(idx + 1);
+  if (gy > 0) out.push(idx - gw);
+  if (gy < gh - 1) out.push(idx + gw);
+  return out;
+}
+
+function connectArchiveMazeCells(edges: Uint8Array, a: number, b: number, gw: number): void {
+  if (b === a + 1) {
+    edges[a] |= 1;
+    edges[b] |= 4;
+  } else if (b === a - 1) {
+    edges[a] |= 4;
+    edges[b] |= 1;
+  } else if (b === a + gw) {
+    edges[a] |= 2;
+    edges[b] |= 8;
+  } else if (b === a - gw) {
+    edges[a] |= 8;
+    edges[b] |= 2;
+  }
+}
+
+function archiveMazeDegree(edges: Uint8Array, idx: number): number {
+  let degree = 0;
+  const bits = edges[idx];
+  if (bits & 1) degree++;
+  if (bits & 2) degree++;
+  if (bits & 4) degree++;
+  if (bits & 8) degree++;
+  return degree;
+}
+
+function buildWilsonBraidedArchiveGraph(gw: number, gh: number, rng: () => number): Uint8Array {
+  const total = gw * gh;
+  const inTree = new Uint8Array(total);
+  const edges = new Uint8Array(total);
+  let treeCount = 1;
+  inTree[Math.floor(rng() * total)] = 1;
+
+  while (treeCount < total) {
+    let start = Math.floor(rng() * total);
+    while (inTree[start]) start = (start + 1) % total;
+    const path = [start];
+    const pathIndex = new Int16Array(total);
+    pathIndex.fill(-1);
+    pathIndex[start] = 0;
+    let cur = start;
+
+    while (!inTree[cur]) {
+      const neighbors = archiveMazeNeighbors(cur, gw, gh);
+      const next = neighbors[Math.floor(rng() * neighbors.length)];
+      const seen = pathIndex[next];
+      if (seen >= 0) {
+        for (let i = seen + 1; i < path.length; i++) pathIndex[path[i]] = -1;
+        path.length = seen + 1;
+      } else {
+        pathIndex[next] = path.length;
+        path.push(next);
+      }
+      cur = next;
+    }
+
+    for (let i = 1; i < path.length; i++) connectArchiveMazeCells(edges, path[i - 1], path[i], gw);
+    for (const idx of path) {
+      if (!inTree[idx]) {
+        inTree[idx] = 1;
+        treeCount++;
+      }
+    }
+  }
+
+  for (let idx = 0; idx < total; idx++) {
+    const degree = archiveMazeDegree(edges, idx);
+    for (const next of archiveMazeNeighbors(idx, gw, gh)) {
+      if (next < idx) continue;
+      const already = next === idx + 1 ? (edges[idx] & 1) : next === idx + gw ? (edges[idx] & 2) : false;
+      if (already) continue;
+      const braidChance = degree <= 1 ? 0.5 : 0.16;
+      if (rng() < braidChance) connectArchiveMazeCells(edges, idx, next, gw);
+    }
+  }
+
+  return edges;
+}
+
+function decorateArchiveLandmark(world: World, x: number, y: number, n: number): void {
+  carveArchiveDisc(world, x, y, 4, Tex.F_MARBLE_TILE);
+  setFeatureIfFloor(world, x, y - 3, Feature.LAMP);
+  setFeatureIfFloor(world, x - 2, y, n % 2 === 0 ? Feature.SCREEN : Feature.DESK);
+  setFeatureIfFloor(world, x + 2, y, n % 3 === 0 ? Feature.APPARATUS : Feature.SHELF);
+  setFeatureIfFloor(world, x, y + 3, n % 2 === 0 ? Feature.CHAIR : Feature.CANDLE);
+}
+
+function buildBraidedArchiveStack(world: World, room: Room, rng: () => number, step = 18): ArchivePoint[] {
+  const pad = 10;
+  const gw = Math.max(5, Math.floor((room.w - pad * 2) / step));
+  const gh = Math.max(5, Math.floor((room.h - pad * 2) / step));
+  const left = room.x + Math.floor((room.w - gw * step) / 2);
+  const top = room.y + Math.floor((room.h - gh * step) / 2);
+  const motifs = new Uint8Array(gw * gh);
+  const edges = buildWilsonBraidedArchiveGraph(gw, gh, rng);
+  const landmarks: ArchivePoint[] = [];
+
+  for (let gy = 0; gy < gh; gy++) {
+    for (let gx = 0; gx < gw; gx++) {
+      const idx = gy * gw + gx;
+      motifs[idx] = chooseArchiveMacroMotif(motifs, gx, gy, gw, rng);
+      const cx = left + gx * step + Math.floor(step / 2);
+      const cy = top + gy * step + Math.floor(step / 2);
+      stampArchiveMacroMotif(world, cx, cy, motifs[idx]);
+    }
+  }
+
+  for (let gy = 0; gy < gh; gy++) {
+    for (let gx = 0; gx < gw; gx++) {
+      const idx = gy * gw + gx;
+      const cx = left + gx * step + Math.floor(step / 2);
+      const cy = top + gy * step + Math.floor(step / 2);
+      carveArchiveDisc(world, cx, cy, 2, Tex.F_PARQUET, room.id);
+      if ((edges[idx] & 1) && gx < gw - 1) carveArchiveLine(world, cx, cy, cx + step, cy, 1, Tex.F_PARQUET, room.id);
+      if ((edges[idx] & 2) && gy < gh - 1) carveArchiveLine(world, cx, cy, cx, cy + step, 1, Tex.F_PARQUET, room.id);
+    }
+  }
+
+  for (let gy = 1; gy < gh - 1; gy++) {
+    for (let gx = 1; gx < gw - 1; gx++) {
+      const idx = gy * gw + gx;
+      const degree = archiveMazeDegree(edges, idx);
+      if (degree < 3 && rng() > 0.18) continue;
+      const cx = left + gx * step + Math.floor(step / 2);
+      const cy = top + gy * step + Math.floor(step / 2);
+      if (landmarks.some(p => world.dist2(p.x, p.y, cx, cy) < 52 * 52)) continue;
+      decorateArchiveLandmark(world, cx, cy, landmarks.length);
+      landmarks.push({ x: cx, y: cy });
+      if (landmarks.length >= 8) return landmarks;
+    }
+  }
+
+  const fallback = [
+    { x: left + Math.floor(step * 1.5), y: top + Math.floor(step * 1.5) },
+    { x: left + Math.floor((gw - 1.5) * step), y: top + Math.floor(step * 1.5) },
+    { x: left + Math.floor(step * 1.5), y: top + Math.floor((gh - 1.5) * step) },
+    { x: left + Math.floor((gw - 1.5) * step), y: top + Math.floor((gh - 1.5) * step) },
+  ];
+  for (const point of fallback) {
+    if (landmarks.length >= 4) break;
+    decorateArchiveLandmark(world, point.x, point.y, landmarks.length);
+    landmarks.push(point);
+  }
+  return landmarks;
+}
+
+function decorateDocumentLane(world: World, ax: number, ay: number, bx: number, by: number): void {
+  const horizontal = ay === by;
+  const len = horizontal ? Math.abs(bx - ax) : Math.abs(by - ay);
+  const sx = bx >= ax ? 1 : -1;
+  const sy = by >= ay ? 1 : -1;
+  for (let d = 0; d <= len; d += 14) {
+    const x = horizontal ? ax + d * sx : ax;
+    const y = horizontal ? ay : ay + d * sy;
+    setFeatureIfFloor(world, x, y, d % 28 === 0 ? Feature.SCREEN : Feature.DESK);
+    setFeatureIfFloor(world, horizontal ? x : x + 2, horizontal ? y + 2 : y, Feature.SHELF);
+    setFeatureIfFloor(world, horizontal ? x : x - 2, horizontal ? y - 2 : y, Feature.CHAIR);
+  }
+}
+
 function buildArchiveLoop(world: World): ArchivePoint[] {
   const nodes: ArchivePoint[] = [
     { x: 142, y: 154 }, { x: 512, y: 154 }, { x: 884, y: 154 },
@@ -724,12 +969,24 @@ export function expandRaionsovetArchiveGeometry(world: World, rng: () => number)
     ...buildStackCanyon(world, lowerStacks, false, rng),
     ...buildStackCanyon(world, formQueue, false, rng),
   ];
+  const landmarks = [
+    ...buildBraidedArchiveStack(world, westStacks, rng),
+    ...buildBraidedArchiveStack(world, eastStacks, rng),
+    ...buildBraidedArchiveStack(world, lowerStacks, rng),
+  ];
   const loopNodes = buildArchiveLoop(world);
 
   for (let i = 1; i < bridges.length; i++) {
     if (i % 2 === 0) carveArchiveLine(world, bridges[i - 1].x, bridges[i - 1].y, bridges[i].x, bridges[i].y, 1, Tex.F_MARBLE_TILE);
   }
   for (const node of loopNodes) setFeatureIfFloor(world, node.x, node.y, Feature.LAMP);
+  for (const point of landmarks) carveArchiveLine(world, point.x, point.y, 512, point.y < 512 ? 256 : 768, 1, Tex.F_MARBLE_TILE);
+  decorateDocumentLane(world, 142, 256, 884, 256);
+  decorateDocumentLane(world, 142, 512, 884, 512);
+  decorateDocumentLane(world, 142, 768, 884, 768);
+  decorateDocumentLane(world, 256, 154, 256, 864);
+  decorateDocumentLane(world, 512, 154, 512, 864);
+  decorateDocumentLane(world, 768, 154, 768, 864);
 
   const counterHall = createArchiveRoom(world, world.rooms.length, RoomType.OFFICE, 392, 418, 242, 36, 'Мост счетных окон', Tex.MARBLE, Tex.F_RED_CARPET);
   const westVault = createArchiveRoom(world, world.rooms.length, RoomType.STORAGE, 174, 288, 76, 56, 'Запечатанный ряд квартирных прав', Tex.METAL, Tex.F_CONCRETE);

@@ -13,6 +13,7 @@ import {
   type WorldEventSeverity,
 } from '../core/types';
 import { World } from '../core/world';
+import { RUNTIME_TOPOLOGY_LIMITS } from '../data/runtime_topology';
 import { Spr } from '../render/sprite_index';
 import { publishEvent } from './events';
 import { isPlayerEntity } from './player_actor';
@@ -473,7 +474,9 @@ export function addRailTrainRoute(
   track: RailTrainTrack,
   opts: RailTrainSpawnOptions,
 ): RailTrain | null {
-  if (track.cells.length < Math.max(12, opts.length * SEGMENT_STRIDE + 2)) return null;
+  if (world.railTrains.length >= RUNTIME_TOPOLOGY_LIMITS.railTrainMaxTrains) return null;
+  const length = Math.max(1, Math.min(RUNTIME_TOPOLOGY_LIMITS.railTrainMaxLength, opts.length | 0));
+  if (track.cells.length < Math.max(12, length * SEGMENT_STRIDE + 2)) return null;
   world.railTracks.push(track);
 
   const train: RailTrain = {
@@ -482,12 +485,12 @@ export function addRailTrainRoute(
     trackId: track.id,
     offset: wrapOffset(track, opts.initialOffset ?? track.stationOffsets[0] ?? 0),
     speed: opts.speed,
-    length: opts.length,
+    length,
     direction: opts.direction ?? 1,
     stopSeconds: opts.stopSeconds ?? 4,
     stopUntil: -1,
     passengerId: -1,
-    passengerSeat: Math.max(1, Math.floor(opts.length * 0.42)),
+    passengerSeat: Math.max(1, Math.floor(length * 0.42)),
     entityIds: [],
     lastStopOffset: -1,
     nextWarnAt: 0,

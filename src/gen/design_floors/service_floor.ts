@@ -49,6 +49,50 @@ const VENT_JUNCTION = 'Вентиляционный узел над шахтой
 const STAFF_CANTEEN = 'Столовая ремонтной смены С-15';
 const CLERK_OFFICE = 'Запертая диспетчерская рейдов С-15';
 const PUMP_RESCUE_ROOM = 'Насосная ниша западного стояка С-15';
+const DRAINAGE_BASIN_NW = 'Дренажный бассейн северо-западного кабельного фронта С-15';
+const DRAINAGE_BASIN_NE = 'Дренажный бассейн северо-восточного кабельного фронта С-15';
+const DRAINAGE_BASIN_SW = 'Дренажный бассейн юго-западного кабельного фронта С-15';
+const DRAINAGE_BASIN_SE = 'Дренажный бассейн юго-восточного кабельного фронта С-15';
+
+export type ServiceUtilityDomain = 'lift' | 'power' | 'water' | 'vent';
+export type ServiceUtilityFront = 'staff_safe' | 'machine_maze' | 'pressure_basin' | 'route_transfer';
+export type ServiceUtilityEdgeKind = 'lift_cable' | 'power_cable' | 'water_pipe' | 'duct';
+
+export interface ServiceUtilityNode {
+  id: string;
+  domain: ServiceUtilityDomain;
+  front: ServiceUtilityFront;
+  roomName: string;
+  roomId: number;
+  x: number;
+  y: number;
+  panelId?: 'panel_power' | 'panel_water' | 'panel_doors' | 'panel_vent';
+}
+
+export interface ServiceUtilityEdge {
+  from: string;
+  to: string;
+  kind: ServiceUtilityEdgeKind;
+  risk: 1 | 2 | 3 | 4 | 5;
+  clue: string;
+}
+
+export interface ServiceDrainageBasin {
+  id: string;
+  roomName: string;
+  roomId: number;
+  x: number;
+  y: number;
+  waterCells: number;
+  pressure: 1 | 2 | 3 | 4 | 5;
+}
+
+export interface ServiceUtilityGraph {
+  routeId: typeof DESIGN_FLOOR_ID;
+  nodes: ServiceUtilityNode[];
+  edges: ServiceUtilityEdge[];
+  drainageBasins: ServiceDrainageBasin[];
+}
 
 export type ServiceLiftMachineState = 'faulty' | 'repaired';
 export type ServicePowerZoneId = 'machine_hall' | 'breaker_room' | 'staff_route' | 'ventilation';
@@ -143,6 +187,89 @@ export const SERVICE_TRANSFER_ROUTES: readonly ServiceTransferRoute[] = [
     clue: 'Релейная схема может уйти в поздний световой карман вместо местного комфорта.',
   },
 ];
+
+const serviceUtilityGraphs = new WeakMap<World, ServiceUtilityGraph>();
+
+export function getServiceUtilityGraph(world: World): ServiceUtilityGraph | undefined {
+  const graph = serviceUtilityGraphs.get(world);
+  if (!graph) return undefined;
+  return {
+    routeId: graph.routeId,
+    nodes: graph.nodes.map(node => ({ ...node })),
+    edges: graph.edges.map(edge => ({ ...edge })),
+    drainageBasins: graph.drainageBasins.map(basin => ({ ...basin })),
+  };
+}
+
+function ensureServiceUtilityGraph(world: World): ServiceUtilityGraph {
+  let graph = serviceUtilityGraphs.get(world);
+  if (!graph) {
+    graph = { routeId: DESIGN_FLOOR_ID, nodes: [], edges: [], drainageBasins: [] };
+    serviceUtilityGraphs.set(world, graph);
+  }
+  return graph;
+}
+
+function registerUtilityNode(
+  world: World,
+  room: Room,
+  id: string,
+  domain: ServiceUtilityDomain,
+  front: ServiceUtilityFront,
+  panelId?: ServiceUtilityNode['panelId'],
+): void {
+  const graph = ensureServiceUtilityGraph(world);
+  if (graph.nodes.some(node => node.id === id)) return;
+  graph.nodes.push({
+    id,
+    domain,
+    front,
+    roomName: room.name,
+    roomId: room.id,
+    x: room.x + room.w / 2,
+    y: room.y + room.h / 2,
+    panelId,
+  });
+}
+
+function registerUtilityEdge(
+  world: World,
+  from: string,
+  to: string,
+  kind: ServiceUtilityEdgeKind,
+  risk: ServiceUtilityEdge['risk'],
+  clue: string,
+): void {
+  const graph = ensureServiceUtilityGraph(world);
+  if (graph.edges.some(edge => edge.from === from && edge.to === to && edge.kind === kind)) return;
+  graph.edges.push({ from, to, kind, risk, clue });
+}
+
+function registerDrainageBasin(
+  world: World,
+  room: Room,
+  id: string,
+  pressure: ServiceDrainageBasin['pressure'],
+): void {
+  const graph = ensureServiceUtilityGraph(world);
+  if (graph.drainageBasins.some(basin => basin.id === id)) return;
+  let waterCells = 0;
+  for (let dy = 0; dy < room.h; dy++) {
+    for (let dx = 0; dx < room.w; dx++) {
+      const idx = world.idx(room.x + dx, room.y + dy);
+      if (world.roomMap[idx] === room.id && world.cells[idx] === Cell.WATER) waterCells++;
+    }
+  }
+  graph.drainageBasins.push({
+    id,
+    roomName: room.name,
+    roomId: room.id,
+    x: room.x + room.w / 2,
+    y: room.y + room.h / 2,
+    waterCells,
+    pressure,
+  });
+}
 
 const BORIS_DEF: PlotNpcDef = {
   name: 'Борис Лифтёр',
@@ -567,6 +694,16 @@ export function generateServiceFloorDesignFloor(): ServiceFloorGeneration {
     { id: 'ventilation', name: VENT_JUNCTION, powered: false, roomId: vent.id },
   ];
 
+  registerServiceBaseUtilityGraph(world, {
+    westLift,
+    eastLift,
+    machine,
+    breaker,
+    janitor,
+    vent,
+    canteen,
+    clerk,
+  });
   registerServiceRouteCues(world, serviceState, machine, breaker, vent, eastLift);
   placeServiceFloorEmergencyPanels(world);
 
@@ -685,6 +822,38 @@ function registerServiceRouteCues(
   }
 }
 
+function registerServiceBaseUtilityGraph(
+  world: World,
+  rooms: {
+    westLift: Room;
+    eastLift: Room;
+    machine: Room;
+    breaker: Room;
+    janitor: Room;
+    vent: Room;
+    canteen: Room;
+    clerk: Room;
+  },
+): void {
+  const graph: ServiceUtilityGraph = { routeId: DESIGN_FLOOR_ID, nodes: [], edges: [], drainageBasins: [] };
+  serviceUtilityGraphs.set(world, graph);
+  registerUtilityNode(world, rooms.westLift, 'west_service_lift', 'lift', 'staff_safe', 'panel_doors');
+  registerUtilityNode(world, rooms.eastLift, 'east_service_lift', 'lift', 'route_transfer');
+  registerUtilityNode(world, rooms.machine, 'lift_machine_front', 'lift', 'machine_maze', 'panel_doors');
+  registerUtilityNode(world, rooms.breaker, 'breaker_power_front', 'power', 'staff_safe', 'panel_power');
+  registerUtilityNode(world, rooms.vent, 'vent_signal_front', 'vent', 'route_transfer', 'panel_vent');
+  registerUtilityNode(world, rooms.janitor, 'janitor_key_front', 'lift', 'staff_safe');
+  registerUtilityNode(world, rooms.canteen, 'crew_safe_front', 'water', 'staff_safe');
+  registerUtilityNode(world, rooms.clerk, 'raid_reroute_front', 'power', 'route_transfer');
+
+  registerUtilityEdge(world, 'west_service_lift', 'lift_machine_front', 'lift_cable', 2, 'Западный лифт кормит машинный зал через открытый персональный ход.');
+  registerUtilityEdge(world, 'lift_machine_front', 'east_service_lift', 'lift_cable', 3, 'Восточный служебный лифт становится производственным обходом после ремонта.');
+  registerUtilityEdge(world, 'breaker_power_front', 'lift_machine_front', 'power_cable', 2, 'Щитовая питает реле лебедки и аварийный дверной контур.');
+  registerUtilityEdge(world, 'breaker_power_front', 'vent_signal_front', 'power_cable', 3, 'Запитанная вентиляция открывает темный сигнальный лаз.');
+  registerUtilityEdge(world, 'janitor_key_front', 'raid_reroute_front', 'duct', 2, 'Кладовая и диспетчерская входят в малый круг служебного ключа.');
+  registerUtilityEdge(world, 'crew_safe_front', 'breaker_power_front', 'water_pipe', 1, 'Столовая держит безопасный бытовой стояк рядом со щитовой.');
+}
+
 export function expandServiceFloorMachineMaze(
   world: World,
   rng: () => number,
@@ -742,6 +911,15 @@ export function expandServiceFloorMachineMaze(
   for (const pump of pumps) dressPumpAlcove(world, pump);
   if (entities) spawnServicePumpRescue(world, entities, pumps[0]);
 
+  const basins = [
+    stampPressureBasin(world, 360, 394, 54, 34, DRAINAGE_BASIN_NW, 438, 'down'),
+    stampPressureBasin(world, 610, 394, 54, 34, DRAINAGE_BASIN_NE, 438, 'down'),
+    stampPressureBasin(world, 360, 602, 54, 34, DRAINAGE_BASIN_SW, 590, 'up'),
+    stampPressureBasin(world, 610, 602, 54, 34, DRAINAGE_BASIN_SE, 590, 'up'),
+  ];
+  for (let i = 0; i < basins.length; i++) dressPressureBasin(world, basins[i], rng, i);
+  if (entities) seedServiceBasinLoot(world, entities, basins);
+
   carveDuctBypass(world, 244, 188, 430, 486, ductTex);
   carveDuctBypass(world, 780, 188, 560, 486, ductTex);
   carveDuctBypass(world, 244, 836, 430, 538, ductTex);
@@ -755,6 +933,90 @@ export function expandServiceFloorMachineMaze(
   carveCableTrench(world, 244, 590, 780, 590, rng);
 
   dressServiceRoutes(world, rng);
+  registerExpandedServiceUtilityGraph(world, cores, booths, pumps, basins);
+}
+
+function registerExpandedServiceUtilityGraph(
+  world: World,
+  cores: readonly Room[],
+  booths: readonly Room[],
+  pumps: readonly Room[],
+  basins: readonly Room[],
+): void {
+  for (let i = 0; i < cores.length; i++) {
+    const core = cores[i];
+    const nodeId = `machine_core_${i}`;
+    registerUtilityNode(world, core, nodeId, 'lift', 'machine_maze', 'panel_doors');
+    registerUtilityEdge(
+      world,
+      'lift_machine_front',
+      nodeId,
+      'lift_cable',
+      i < 2 ? 3 : 4,
+      `${core.name}: лебедка подключена к общему машинному фронту С-15.`,
+    );
+  }
+
+  for (let i = 0; i < booths.length; i++) {
+    const booth = booths[i];
+    const nodeId = `control_booth_${i}`;
+    registerUtilityNode(world, booth, nodeId, i < 4 ? 'lift' : 'power', i < 4 ? 'route_transfer' : 'machine_maze', 'panel_power');
+    registerUtilityEdge(
+      world,
+      'breaker_power_front',
+      nodeId,
+      'power_cable',
+      i < 4 ? 2 : 3,
+      `${booth.name}: пульт питается от щитовой и видит служебные обходы.`,
+    );
+    if (cores.length) {
+      registerUtilityEdge(
+        world,
+        nodeId,
+        `machine_core_${i % cores.length}`,
+        'lift_cable',
+        3,
+        `${booth.name}: ручной пульт замыкает соседнее лифтовое ядро.`,
+      );
+    }
+  }
+
+  for (let i = 0; i < pumps.length; i++) {
+    const pump = pumps[i];
+    const nodeId = `pump_front_${i}`;
+    registerUtilityNode(world, pump, nodeId, 'water', 'pressure_basin', 'panel_water');
+    registerUtilityEdge(
+      world,
+      'crew_safe_front',
+      nodeId,
+      'water_pipe',
+      i === 0 ? 3 : 4,
+      `${pump.name}: бытовой стояк уходит в напорный карман.`,
+    );
+  }
+
+  for (let i = 0; i < basins.length; i++) {
+    const basin = basins[i];
+    const nodeId = `drainage_basin_${i}`;
+    registerUtilityNode(world, basin, nodeId, 'water', 'pressure_basin', 'panel_water');
+    registerDrainageBasin(world, basin, nodeId, (3 + (i & 1)) as ServiceDrainageBasin['pressure']);
+    registerUtilityEdge(
+      world,
+      `pump_front_${i % Math.max(1, pumps.length)}`,
+      nodeId,
+      'water_pipe',
+      4,
+      `${basin.name}: кабельный фронт набирает воду через насосный обратный напор.`,
+    );
+    registerUtilityEdge(
+      world,
+      'vent_signal_front',
+      nodeId,
+      'duct',
+      3,
+      `${basin.name}: узкий тензорный лаз проходит над мокрой кабельной кромкой.`,
+    );
+  }
 }
 
 export function placeServiceFloorEmergencyPanels(world: World): number {
@@ -809,6 +1071,34 @@ function spawnServicePumpRescue(world: World, entities: Entity[], room: Room): v
     MonsterKind.LOTOCHNIK,
     MonsterKind.PAUPSINA,
   ]);
+}
+
+function seedServiceBasinLoot(world: World, entities: Entity[], basins: readonly Room[]): void {
+  const nextId = { v: nextServiceEntityId(entities) };
+  const basinDrops: readonly string[][] = [
+    ['gasmask_filter', 'sealant_tube'],
+    ['wire_coil', 'fuse'],
+    ['valve_tag', 'sealant_tube'],
+    ['ammo_energy', 'gasmask_filter'],
+  ];
+  const basinMonsters: readonly MonsterKind[][] = [
+    [MonsterKind.TUBE_EEL, MonsterKind.LOTOCHNIK],
+    [MonsterKind.TRUBNYY_AVTOMAT, MonsterKind.RZHAVNIK],
+    [MonsterKind.PAUPSINA, MonsterKind.POLZUN],
+    [MonsterKind.VODYANOY_KOSHMAR, MonsterKind.TUBE_EEL],
+  ];
+  for (let i = 0; i < basins.length; i++) {
+    const basin = basins[i];
+    dropItems(world, entities, nextId, basin, basinDrops[i % basinDrops.length]);
+    spawnMonsterPack(
+      world,
+      entities,
+      nextId,
+      basin.x + 5,
+      basin.y + 5,
+      basinMonsters[i % basinMonsters.length],
+    );
+  }
 }
 
 function nextServiceEntityId(entities: readonly Entity[]): number {
@@ -974,6 +1264,23 @@ function stampPumpAlcove(
   return room;
 }
 
+function stampPressureBasin(
+  world: World,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  name: string,
+  routeY: number,
+  side: 'up' | 'down',
+): Room {
+  const room = stampServiceRoom(world, RoomType.BATHROOM, x, y, w, h, name, Tex.PIPE, Tex.F_WATER);
+  const midX = room.x + (room.w >> 1);
+  if (side === 'up') connectRoomUp(world, room, midX, routeY, DoorState.CLOSED);
+  else connectRoomDown(world, room, midX, routeY, DoorState.CLOSED);
+  return room;
+}
+
 function setFeature(world: World, x: number, y: number, feature: Feature): void {
   const ci = world.idx(x, y);
   if (world.cells[ci] === Cell.WALL || world.cells[ci] === Cell.LIFT) return;
@@ -1116,6 +1423,36 @@ function dressPumpAlcove(world: World, room: Room): void {
     setFeature(world, room.x + room.w - 4, y, Feature.APPARATUS);
   }
   setFeature(world, room.x + (room.w >> 1), room.y + 3, Feature.SCREEN);
+}
+
+function dressPressureBasin(world: World, room: Room, rng: () => number, basinIndex: number): void {
+  const poolTop = room.y + 7;
+  const poolBottom = room.y + room.h - 7;
+  const poolLeft = room.x + 7;
+  const poolRight = room.x + room.w - 8;
+  let serial = 0;
+  for (let y = poolTop; y <= poolBottom; y++) {
+    for (let x = poolLeft; x <= poolRight; x++) {
+      const ci = world.idx(x, y);
+      if (world.roomMap[ci] !== room.id || world.cells[ci] !== Cell.FLOOR) continue;
+      const lip = x === poolLeft || x === poolRight || y === poolTop || y === poolBottom;
+      if (lip && ((x + y + basinIndex) & 3) === 0) {
+        world.floorTex[ci] = Tex.F_CONCRETE;
+        continue;
+      }
+      world.cells[ci] = Cell.WATER;
+      world.floorTex[ci] = Tex.F_WATER;
+      if (((serial++ + basinIndex) & 15) === 0) stampSurfaceSplat(world, x, y, 0.5, 0.5, 0.42, 0.2, room.id * 401 + serial, 40, 95, 105);
+    }
+  }
+  for (let x = room.x + 4; x < room.x + room.w - 4; x += 9) {
+    setFeature(world, x, room.y + 3, rng() < 0.5 ? Feature.APPARATUS : Feature.SCREEN);
+    setFeature(world, x, room.y + room.h - 4, Feature.MACHINE);
+  }
+  for (let y = room.y + 5; y < room.y + room.h - 5; y += 8) {
+    setFeature(world, room.x + 3, y, Feature.SINK);
+    setFeature(world, room.x + room.w - 4, y, Feature.APPARATUS);
+  }
 }
 
 function dressBreakerRoom(world: World, room: Room): void {

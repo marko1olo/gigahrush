@@ -4,7 +4,7 @@ import { stampSurfaceSplat } from '../../systems/surface_marks';
 import {
   AIGoal, Cell, ContainerKind, DoorState, EntityType, Faction, Feature,
   FloorLevel, LiftDirection, Occupation, QuestType, RoomType, Tex, ZoneFaction,
-  type ContainerAccess, type Entity, type Room, type WorldContainer,
+  W, type ContainerAccess, type Entity, type Room, type WorldContainer,
 } from '../../core/types';
 import { World } from '../../core/world';
 import { withSeededRandom } from '../../core/rand';
@@ -28,6 +28,12 @@ import type { FloorGeneration } from '../floor_manifest';
 export const DESIGN_FLOOR_ID = 'floor_69' as const;
 export const DESIGN_FLOOR_Z = -4;
 export const FLOOR_69_DEFAULT_SEED = 690004;
+export const FLOOR_69_RAID_SHUTTER_KEY = 'f69_raid_shutter';
+
+export const FLOOR_69_RAID_SHUTTER_GATES = [
+  { x: 620, y1: 505, y2: 519, doorY: 512, bypass: { ax: 604, ay: 552, bx: 656, by: 552 } },
+  { x: 760, y1: 505, y2: 519, doorY: 512, bypass: { ax: 736, ay: 552, bx: 904, by: 552 } },
+] as const;
 
 // Current core state still requires a FloorLevel. Future route integration should
 // adapt this string-route floor instead of adding a casual enum here.
@@ -43,6 +49,26 @@ const FLOOR_69_WORKER_OCCUPATIONS = new Set<Occupation>([
   Occupation.STOREKEEPER,
   Occupation.DIRECTOR,
 ]);
+
+const FLOOR_69_CONTROL_ANCHORS: readonly {
+  x: number;
+  y: number;
+  radius: number;
+  faction: ZoneFaction;
+  weight: number;
+  visibility: number;
+  danger: number;
+}[] = [
+  { x: 482, y: 502, radius: 82, faction: ZoneFaction.LIQUIDATOR, weight: 2.35, visibility: 1.0, danger: 2 },
+  { x: 690, y: 512, radius: 190, faction: ZoneFaction.LIQUIDATOR, weight: 2.1, visibility: 0.95, danger: 2 },
+  { x: 740, y: 584, radius: 176, faction: ZoneFaction.LIQUIDATOR, weight: 1.85, visibility: 0.78, danger: 2 },
+  { x: 538, y: 501, radius: 76, faction: ZoneFaction.CITIZEN, weight: 1.35, visibility: 0.68, danger: 0 },
+  { x: 538, y: 501, radius: 48, faction: ZoneFaction.CITIZEN, weight: 0.85, visibility: 0.34, danger: 0 },
+  { x: 506, y: 520, radius: 70, faction: ZoneFaction.CITIZEN, weight: 2.25, visibility: 0.24, danger: 0 },
+  { x: 512, y: 512, radius: 148, faction: ZoneFaction.CITIZEN, weight: 1.45, visibility: 0.72, danger: 1 },
+  { x: 510, y: 536, radius: 118, faction: ZoneFaction.WILD, weight: 0.92, visibility: 0.18, danger: 1 },
+  { x: 736, y: 812, radius: 144, faction: ZoneFaction.WILD, weight: 1.15, visibility: 0.34, danger: 1 },
+];
 
 const IRA_WORKER_LINES = [
   'Милый, смотреть можно на ценник. На дверь тоже смотри: рейд ходит тише клиентов.',
@@ -174,6 +200,96 @@ export function floor69DebugLines(state: Floor69State, seed = FLOOR_69_DEFAULT_S
     `blackmail=${s.blackmailFlags.join(',') || 'none'}`,
     'debugEntry=generateFloor69DesignFloor(seed)',
   ];
+}
+
+function floor69RoomFaction(room: Room | undefined): ZoneFaction | undefined {
+  if (!room) return undefined;
+  if (room.type === RoomType.HQ || room.name.includes('пост') || room.name.includes('Пост')) return ZoneFaction.LIQUIDATOR;
+  if (room.name.includes('Долг') || room.name.includes('долг') || room.name.includes('Картотека') || room.name.includes('распис')) return ZoneFaction.LIQUIDATOR;
+  if (room.name.includes('Клиника') || room.name.includes('тих') || room.name.includes('Тих')) return ZoneFaction.CITIZEN;
+  if (room.name.includes('Служеб') || room.name.includes('кулис') || room.name.includes('Костюмер')) return ZoneFaction.WILD;
+  return undefined;
+}
+
+function floor69ControlAt(world: World, x: number, y: number, room: Room | undefined): { faction: ZoneFaction; visibility: number; danger: number } {
+  const roomFaction = floor69RoomFaction(room);
+  const scores = new Float32Array(5);
+  scores[ZoneFaction.CITIZEN] = 0.55;
+  let visibility = 0.2;
+  let danger = 0;
+
+  for (const anchor of FLOOR_69_CONTROL_ANCHORS) {
+    const d2 = world.dist2(x, y, anchor.x, anchor.y);
+    const r2 = anchor.radius * anchor.radius;
+    if (d2 > r2) continue;
+    const t = 1 - d2 / r2;
+    scores[anchor.faction] += anchor.weight * t * t;
+    visibility += anchor.visibility * t;
+    danger = Math.max(danger, Math.round(anchor.danger * t));
+  }
+
+  if (roomFaction !== undefined) {
+    scores[roomFaction] += 2.75;
+    if (roomFaction === ZoneFaction.LIQUIDATOR) {
+      visibility += 0.8;
+      danger = Math.max(danger, 2);
+    } else if (roomFaction === ZoneFaction.WILD) {
+      visibility *= 0.55;
+      danger = Math.max(danger, 1);
+    }
+  }
+
+  let faction = ZoneFaction.CITIZEN;
+  let best = scores[faction];
+  for (const candidate of [ZoneFaction.LIQUIDATOR, ZoneFaction.WILD, ZoneFaction.CULTIST, ZoneFaction.SAMOSBOR] as const) {
+    if (scores[candidate] > best) {
+      best = scores[candidate];
+      faction = candidate;
+    }
+  }
+  return { faction, visibility, danger };
+}
+
+export function applyFloor69OwnershipVisibilityHeatmap(world: World): void {
+  if (world.zones.length > 0) {
+    for (const zone of world.zones) {
+      const samples = [
+        [zone.cx, zone.cy],
+        [zone.cx + 31, zone.cy],
+        [zone.cx - 31, zone.cy],
+        [zone.cx, zone.cy + 31],
+        [zone.cx, zone.cy - 31],
+      ] as const;
+      const counts = new Int16Array(5);
+      let visibility = 0;
+      let danger = 0;
+      for (const [sx, sy] of samples) {
+        const idx = world.idx(sx, sy);
+        const roomId = world.roomMap[idx];
+        const heat = floor69ControlAt(world, world.wrap(sx), world.wrap(sy), roomId >= 0 ? world.rooms[roomId] : undefined);
+        counts[heat.faction]++;
+        visibility += heat.visibility;
+        danger = Math.max(danger, heat.danger);
+      }
+      let faction = ZoneFaction.CITIZEN;
+      let best = counts[faction];
+      for (const candidate of [ZoneFaction.LIQUIDATOR, ZoneFaction.WILD, ZoneFaction.CULTIST, ZoneFaction.SAMOSBOR] as const) {
+        if (counts[candidate] > best) {
+          best = counts[candidate];
+          faction = candidate;
+        }
+      }
+      zone.faction = faction;
+      zone.level = Math.max(zone.level, Math.min(5, 2 + danger + (visibility / samples.length > 0.82 ? 1 : 0)));
+      zone.fogged = false;
+    }
+  }
+
+  for (let i = 0; i < W * W; i++) {
+    const roomId = world.roomMap[i];
+    const heat = floor69ControlAt(world, i % W, (i / W) | 0, roomId >= 0 ? world.rooms[roomId] : undefined);
+    world.factionControl[i] = heat.faction;
+  }
 }
 
 /*
@@ -980,9 +1096,10 @@ function buildFloor69RefugeClosets(world: World, rng: () => number, counts: Floo
 }
 
 function buildFloor69SecurityChokes(world: World, counts: Floor69MacroCounts): void {
-  addRouteGate(world, 620, 505, 519, 512, DoorState.CLOSED);
-  addRouteGate(world, 760, 505, 519, 512, DoorState.CLOSED);
-  counts.securityGates += 2;
+  for (const gate of FLOOR_69_RAID_SHUTTER_GATES) {
+    addRouteGate(world, gate.x, gate.y1, gate.y2, gate.doorY, DoorState.HERMETIC_OPEN, FLOOR_69_RAID_SHUTTER_KEY);
+  }
+  counts.securityGates += FLOOR_69_RAID_SHUTTER_GATES.length;
   setFeature(world, 624, 511, Feature.DESK);
   setFeature(world, 756, 511, Feature.DESK);
 }
@@ -1447,6 +1564,7 @@ export function generateFloor69DesignFloor(seed = FLOOR_69_DEFAULT_SEED): Floor6
     const rooms = buildLayout(world);
     decorateRooms(world, rooms, seed);
     applyZones(world);
+    applyFloor69OwnershipVisibilityHeatmap(world);
     seedContainers(world, rooms);
     spawnFloor69Npcs(world, entities, nextId, rooms);
     applyFloor69AmbientSpriteTemplates(entities);

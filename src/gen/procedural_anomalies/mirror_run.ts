@@ -1,7 +1,9 @@
 import { stampSurfaceSplat } from '../../systems/surface_marks';
-import { Cell, Feature, RoomType, Tex, type Room } from '../../core/types';
+import { registerRouteCue } from '../../systems/route_cues';
+import { canSpawnEntityType } from '../../systems/entity_limits';
+import { Cell, EntityType, Feature, RoomType, Tex, type Room } from '../../core/types';
+import { Spr } from '../../render/sprite_index';
 import {
-  addItemDrop,
   isWalkableCell,
   roomCell,
   roomCenter,
@@ -12,10 +14,18 @@ const LEFT_LOOT = ['inspection_mirror', 'seal_wax', 'blank_form', 'water_coupon'
 const RIGHT_LOOT = ['fake_pass', 'bleached_document', 'filter_receipt', 'container_key_label'] as const;
 
 type Axis = 'x' | 'y';
+type Point = { x: number; y: number };
 
 interface MirrorPair {
   a: Room;
   b: Room;
+}
+
+interface MirrorPairDecoration {
+  screenA: Point | null;
+  screenB: Point | null;
+  lightA: Point | null;
+  lightB: Point | null;
 }
 
 function hash32(v: number): number {
@@ -79,28 +89,34 @@ function choosePairs(ctx: ProceduralAnomalyGenContext, axis: Axis, axisValue: nu
   return pairs;
 }
 
-function pairCell(ctx: ProceduralAnomalyGenContext, pair: MirrorPair, axis: Axis, dx: number, dy: number): [{ x: number; y: number } | null, { x: number; y: number } | null] {
+function pairCell(ctx: ProceduralAnomalyGenContext, pair: MirrorPair, axis: Axis, dx: number, dy: number, requireEmpty = true): [Point | null, Point | null] {
   const ax = Math.max(1, Math.min(pair.a.w - 2, dx));
   const ay = Math.max(1, Math.min(pair.a.h - 2, dy));
   const bx = axis === 'x' ? pair.b.w - 1 - Math.min(pair.b.w - 2, ax) : Math.min(pair.b.w - 2, ax);
   const by = axis === 'y' ? pair.b.h - 1 - Math.min(pair.b.h - 2, ay) : Math.min(pair.b.h - 2, ay);
   return [
-    roomCell(ctx.world, pair.a, ax, ay, true),
-    roomCell(ctx.world, pair.b, bx, by, true),
+    roomCell(ctx.world, pair.a, ax, ay, requireEmpty),
+    roomCell(ctx.world, pair.b, bx, by, requireEmpty),
   ];
 }
 
-function setMirrorFeature(ctx: ProceduralAnomalyGenContext, pos: { x: number; y: number } | null, feature: Feature, seed: number): void {
+function setFeature(ctx: ProceduralAnomalyGenContext, ci: number, feature: Feature): void {
+  ctx.world.features[ci] = feature;
+  if (feature === Feature.SCREEN && !ctx.world.screenCells.includes(ci)) ctx.world.screenCells.push(ci);
+}
+
+function setMirrorFeature(ctx: ProceduralAnomalyGenContext, pos: Point | null, feature: Feature, seed: number): void {
   if (!pos) return;
   const ci = ctx.world.idx(pos.x, pos.y);
   if (!isWalkableCell(ctx.world, ci)) return;
-  ctx.world.features[ci] = feature;
+  setFeature(ctx, ci, feature);
   ctx.world.floorTex[ci] = Tex.F_TILE;
   ctx.world.fog[ci] = Math.max(ctx.world.fog[ci], 22);
+  if (feature === Feature.LAMP) ctx.world.light[ci] = Math.max(ctx.world.light[ci], 0.72);
   stampSurfaceSplat(ctx.world, pos.x, pos.y, 0.5, 0.5, 0.34, 0.58, seed ^ ci, 155, 205, 225, false);
 }
 
-function addMirrorTeleport(ctx: ProceduralAnomalyGenContext, a: { x: number; y: number } | null, b: { x: number; y: number } | null): void {
+function addMirrorTeleport(ctx: ProceduralAnomalyGenContext, a: Point | null, b: Point | null): void {
   if (!a || !b) return;
   const ai = ctx.world.idx(a.x, a.y);
   const bi = ctx.world.idx(b.x, b.y);
@@ -108,13 +124,77 @@ function addMirrorTeleport(ctx: ProceduralAnomalyGenContext, a: { x: number; y: 
   if (ctx.world.anomalyTeleports.has(ai) || ctx.world.anomalyTeleports.has(bi)) return;
   ctx.world.anomalyTeleports.set(ai, bi);
   ctx.world.anomalyTeleports.set(bi, ai);
-  ctx.world.features[ai] = Feature.SCREEN;
-  ctx.world.features[bi] = Feature.SCREEN;
+  setFeature(ctx, ai, Feature.SCREEN);
+  setFeature(ctx, bi, Feature.SCREEN);
   ctx.world.floorTex[ai] = Tex.F_VOID;
   ctx.world.floorTex[bi] = Tex.F_VOID;
 }
 
-function decoratePair(ctx: ProceduralAnomalyGenContext, pair: MirrorPair, axis: Axis, ordinal: number): void {
+function addMirrorItemDrop(ctx: ProceduralAnomalyGenContext, pos: Point | null, defId: string): void {
+  if (!pos || !canSpawnEntityType(ctx.entities, EntityType.ITEM_DROP)) return;
+  const ci = ctx.world.idx(pos.x, pos.y);
+  if (!isWalkableCell(ctx.world, ci)) return;
+  ctx.entities.push({
+    id: ctx.nextId.v++,
+    type: EntityType.ITEM_DROP,
+    x: pos.x + 0.5,
+    y: pos.y + 0.5,
+    angle: 0,
+    pitch: 0,
+    alive: true,
+    speed: 0,
+    sprite: Spr.ITEM_DROP,
+    inventory: [{ defId, count: 1 }],
+  });
+}
+
+function cuePoint(deco: MirrorPairDecoration, side: 'a' | 'b'): Point | null {
+  return side === 'a'
+    ? deco.screenA ?? deco.lightA
+    : deco.screenB ?? deco.lightB;
+}
+
+function registerMirrorCue(ctx: ProceduralAnomalyGenContext, pair: MirrorPair, deco: MirrorPairDecoration, ordinal: number): void {
+  const marker = cuePoint(deco, 'a');
+  const target = cuePoint(deco, 'b');
+  if (!marker || !target) return;
+  const markerCell = ctx.world.idx(marker.x, marker.y);
+  registerRouteCue(ctx.world, {
+    id: `procedural_${ctx.spec.key}_mirror_run_pair_${ordinal}`,
+    x: marker.x + 0.5,
+    y: marker.y + 0.5,
+    targetX: target.x + 0.5,
+    targetY: target.y + 0.5,
+    floor: ctx.spec.baseFloor,
+    roomId: pair.a.id,
+    targetRoomId: pair.b.id,
+    zoneId: ctx.world.zoneMap[markerCell],
+    label: 'зеркальная пара',
+    hint: 'две комнаты повторяют свет, экран и добычу',
+    targetName: pair.b.name,
+    color: '#9bdcff',
+    tags: ['procedural_floor', 'mirror_run', 'duality', 'teleport', 'loot', 'route_pressure', ctx.spec.geometryId, ctx.spec.majorityId],
+    toneSeed: (ctx.spec.seed ^ pair.a.id * 199 ^ pair.b.id * 331) >>> 0,
+    radius: 12,
+    targetRadius: 3,
+    cooldownSec: 32,
+    heardText: 'Экран показывает такую же комнату, только свет стоит с другой стороны.',
+    followedText: 'Зеркальная пара сверена. Перескок здесь виден заранее, без угадывания координат.',
+    ignoredText: 'Отраженная комната осталась за спиной. Маршрут не требует этого трюка.',
+    routeGroup: {
+      id: `mirror_run_${ctx.spec.key}_${ordinal}`,
+      lead: 'экран и лампа повторяются в соседней версии комнаты',
+      risk: 'перескок может сбить ориентацию',
+      decision: 'сверить пару, использовать короткий ход или идти обычным маршрутом',
+      reward: 'парная добыча и короткая проверка топологии',
+      mapLabel: 'зеркальная пара',
+      mapHint: 'видимая парная комната',
+      logLine: 'Зеркальная проводка читается по одинаковым экранам, лампам и вещам.',
+    },
+  });
+}
+
+function decoratePair(ctx: ProceduralAnomalyGenContext, pair: MirrorPair, axis: Axis, ordinal: number): MirrorPairDecoration {
   pair.a.name = `Зеркало ${ordinal + 1}A: ${pair.a.name}`;
   pair.b.name = `Зеркало ${ordinal + 1}B: ${pair.b.name}`;
 
@@ -137,12 +217,17 @@ function decoratePair(ctx: ProceduralAnomalyGenContext, pair: MirrorPair, axis: 
   setMirrorFeature(ctx, screenA, Feature.SCREEN, ctx.spec.seed + ordinal * 101);
   setMirrorFeature(ctx, screenB, Feature.SCREEN, ctx.spec.seed + ordinal * 103);
 
-  const [lootA, lootB] = pairCell(ctx, pair, axis, Math.floor(pair.a.w / 2), Math.floor(pair.a.h / 2));
+  const [lightA, lightB] = pairCell(ctx, pair, axis, pair.a.w - 2 - (ordinal % 3), pair.a.h - 2 - ((ordinal * 2) % 3));
+  setMirrorFeature(ctx, lightA, Feature.LAMP, ctx.spec.seed + ordinal * 107);
+  setMirrorFeature(ctx, lightB, Feature.LAMP, ctx.spec.seed + ordinal * 109);
+
+  const [lootA, lootB] = pairCell(ctx, pair, axis, Math.floor(pair.a.w / 2), Math.floor(pair.a.h / 2), false);
   const leftReal = (hash32(ctx.spec.seed + ordinal) & 1) === 0;
-  if (lootA) addItemDrop(ctx, lootA.x, lootA.y, leftReal ? LEFT_LOOT[ordinal % LEFT_LOOT.length] : RIGHT_LOOT[ordinal % RIGHT_LOOT.length], 1);
-  if (lootB) addItemDrop(ctx, lootB.x, lootB.y, leftReal ? RIGHT_LOOT[(ordinal + 1) % RIGHT_LOOT.length] : LEFT_LOOT[(ordinal + 1) % LEFT_LOOT.length], 1);
+  addMirrorItemDrop(ctx, lootA, leftReal ? LEFT_LOOT[ordinal % LEFT_LOOT.length] : RIGHT_LOOT[ordinal % RIGHT_LOOT.length]);
+  addMirrorItemDrop(ctx, lootB, leftReal ? RIGHT_LOOT[(ordinal + 1) % RIGHT_LOOT.length] : LEFT_LOOT[(ordinal + 1) % LEFT_LOOT.length]);
 
   if (ordinal < 3) addMirrorTeleport(ctx, screenA, screenB);
+  return { screenA, screenB, lightA, lightB };
 }
 
 function markAxis(ctx: ProceduralAnomalyGenContext, axis: Axis, axisValue: number): void {
@@ -165,8 +250,12 @@ export function applyMirrorRun(ctx: ProceduralAnomalyGenContext): void {
   if (pairs.length === 0) return;
 
   markAxis(ctx, axis, axisValue);
-  for (let i = 0; i < pairs.length; i++) decoratePair(ctx, pairs[i], axis, i);
+  for (let i = 0; i < pairs.length; i++) {
+    const deco = decoratePair(ctx, pairs[i], axis, i);
+    if (i === 0) registerMirrorCue(ctx, pairs[i], deco, i);
+  }
 
   ctx.world.markFogDirty();
   ctx.world.markFloorTexDirty();
+  ctx.world.markFeaturesDirty();
 }

@@ -8,7 +8,7 @@ import {
   type Entity, type GameState, type Item, type Room, type WorldContainer,
   type WorldEvent, type WorldEventSeverity,
 } from '../../core/types';
-import { World } from '../../core/world';
+import { auditReachability, World, type ReachabilityAudit } from '../../core/world';
 import { withSeededRandom } from '../../core/rand';
 import { freshNeeds } from '../../data/catalog';
 import { type PlotNpcDef, registerSideQuest } from '../../data/plot';
@@ -30,6 +30,7 @@ const SPAWN_X = W >> 1;
 const SPAWN_Y = W >> 1;
 const THRESHOLD_MASK = 0b0000_0000_0000_0111;
 const WITNESS_MASK = 0b0000_0000_0001_1000;
+const UNDERHELL_THRESHOLD_CHAIN_MIN_SCORE = 9;
 
 export const UNDERHELL_FLAGS = {
   THRESHOLD_HOLY_WATER: 1 << 0,
@@ -64,12 +65,20 @@ export interface UnderhellRitualState {
   z: typeof UNDERHELL_Z;
   seed: number;
   flags: number;
+  entryRoomId: number;
+  fallbackRoomId: number;
   thresholdRoomId: number;
   witnessRoomIds: number[];
   witnessDoorCells: number[];
+  lowerFallbackRoomId: number;
+  debtRoomId: number;
+  voidGateRoomId: number;
   debtWellCell: number;
   voidGateCell: number;
   voidAnchorEntityId: number;
+  capillaryCells: number;
+  tributeFrontCells: number;
+  shelterCells: number;
   lateWarningIds: UnderhellLateWarningId[];
 }
 
@@ -88,6 +97,7 @@ export interface UnderhellDesignGeneration {
   spawnX: number;
   spawnY: number;
   ritualState: UnderhellRitualState;
+  thresholdChain: UnderhellThresholdChainScore;
 }
 
 export interface UnderhellGenerationOptions {
@@ -96,6 +106,37 @@ export interface UnderhellGenerationOptions {
 }
 
 export type UnderhellThresholdCostId = 'holy_water' | 'passport_stub' | 'blood_35hp';
+
+export type UnderhellThresholdChainRole = 'entry' | 'threat' | 'fallback' | 'reward' | 'exit';
+
+export interface UnderhellThresholdChainNode {
+  role: UnderhellThresholdChainRole;
+  roomId: number;
+  roomName: string;
+  x: number;
+  y: number;
+  reachable: boolean;
+}
+
+export interface UnderhellThresholdChainScore {
+  routeId: typeof UNDERHELL_ROUTE_ID;
+  z: typeof UNDERHELL_Z;
+  score: number;
+  minScore: number;
+  nodes: readonly UnderhellThresholdChainNode[];
+  hasRetreat: boolean;
+  hasWitnessBranch: boolean;
+  hasDebtReward: boolean;
+  hasVoidExit: boolean;
+  capillaryCells: number;
+  tributeFrontCells: number;
+  shelterCells: number;
+}
+
+interface UnderhellSdfMetrics {
+  tributeFrontCells: number;
+  shelterCells: number;
+}
 
 export interface UnderhellThresholdCost {
   id: UnderhellThresholdCostId;
@@ -344,6 +385,52 @@ export function snapshotUnderhellFlags(flags: number): UnderhellRitualSnapshot {
     debtBurned: (flags & UNDERHELL_FLAGS.DEBT_BURNED) !== 0,
     voidGateState,
     flags,
+  };
+}
+
+export function scoreUnderhellThresholdChain(world: World, ritual: UnderhellRitualState): UnderhellThresholdChainScore {
+  const audit = auditReachability(world, world.idx(SPAWN_X, SPAWN_Y));
+  const reachableRooms = reachableRoomIds(world, audit);
+  const nodes: UnderhellThresholdChainNode[] = [
+    underhellChainNode(world, reachableRooms, 'entry', ritual.entryRoomId),
+    underhellChainNode(world, reachableRooms, 'threat', ritual.thresholdRoomId),
+    underhellChainNode(world, reachableRooms, 'fallback', ritual.fallbackRoomId),
+    underhellChainNode(world, reachableRooms, 'reward', ritual.debtRoomId),
+    underhellChainNode(world, reachableRooms, 'exit', ritual.voidGateRoomId),
+  ];
+  const reachableCount = nodes.reduce((sum, node) => sum + (node.reachable ? 1 : 0), 0);
+  const hasRetreat = reachableRooms.has(ritual.fallbackRoomId)
+    && reachableRooms.has(ritual.lowerFallbackRoomId)
+    && ritual.shelterCells >= 18;
+  const hasWitnessBranch = ritual.witnessRoomIds.length >= 2
+    && ritual.witnessRoomIds.some(roomId => reachableRooms.has(roomId))
+    && ritual.witnessDoorCells.some(cell => world.doors.has(cell));
+  const hasDebtReward = reachableRooms.has(ritual.debtRoomId) && ritual.debtWellCell >= 0;
+  const hasVoidExit = reachableRooms.has(ritual.voidGateRoomId)
+    && ritual.voidGateCell >= 0
+    && audit.reachable[ritual.voidGateCell] === 1;
+  const score =
+    reachableCount
+    + (hasRetreat ? 1 : 0)
+    + (hasWitnessBranch ? 1 : 0)
+    + (hasDebtReward ? 1 : 0)
+    + (hasVoidExit ? 1 : 0)
+    + (ritual.capillaryCells >= 72 ? 1 : 0)
+    + (ritual.tributeFrontCells >= 24 && ritual.shelterCells >= 18 ? 1 : 0);
+
+  return {
+    routeId: ritual.routeId,
+    z: ritual.z,
+    score,
+    minScore: UNDERHELL_THRESHOLD_CHAIN_MIN_SCORE,
+    nodes,
+    hasRetreat,
+    hasWitnessBranch,
+    hasDebtReward,
+    hasVoidExit,
+    capillaryCells: ritual.capillaryCells,
+    tributeFrontCells: ritual.tributeFrontCells,
+    shelterCells: ritual.shelterCells,
   };
 }
 
@@ -646,6 +733,8 @@ function generateUnderhellDesignFloorSeeded(seed: number, forceOpenVoidGate: boo
   decorateSacrificeGate(world, sacrifice);
   decorateFallbackLedge(world, lowerFallback);
   const voidGateCell = decorateVoidGate(world, gate);
+  const capillaryCells = measureUnderhellCapillaryCells(world);
+  const sdfMetrics = measureUnderhellSdfMetrics(world, entry, fallback, rootStair, threshold, toll, lowerFallback);
 
   ensureConnectivity(world, SPAWN_X + 0.5, SPAWN_Y + 0.5);
   generateZones(world);
@@ -690,19 +779,28 @@ function generateUnderhellDesignFloorSeeded(seed: number, forceOpenVoidGate: boo
     z: UNDERHELL_Z,
     seed,
     flags: forceOpenVoidGate ? UNDERHELL_FLAGS.THRESHOLD_HOLY_WATER | UNDERHELL_FLAGS.VOID_ANCHOR_BROKEN : 0,
+    entryRoomId: entry.id,
+    fallbackRoomId: fallback.id,
     thresholdRoomId: threshold.id,
     witnessRoomIds: [witnessA.id, witnessB.id],
     witnessDoorCells: [...witnessDoorA, ...witnessDoorB].filter(i => i >= 0),
+    lowerFallbackRoomId: lowerFallback.id,
+    debtRoomId: debt.id,
+    voidGateRoomId: gate.id,
     debtWellCell,
     voidGateCell,
     voidAnchorEntityId: anchorEntityId,
+    capillaryCells,
+    tributeFrontCells: sdfMetrics.tributeFrontCells,
+    shelterCells: sdfMetrics.shelterCells,
     lateWarningIds: UNDERHELL_LATE_WARNINGS.map(warning => warning.id),
   };
   if (forceOpenVoidGate) tryOpenUnderhellVoidGate(world, ritualState);
   registerUnderhellRouteCues(world, ritualState, entry, fallback, threshold, witnessA, toll, lowerFallback, sacrifice, gate);
+  const thresholdChain = scoreUnderhellThresholdChain(world, ritualState);
 
   world.bakeLights();
-  genLog(`[FLOOR19_UNDERHELL] generated ${UNDERHELL_ROUTE_ID} seed ${seed} rooms=${world.rooms.length} gate=${voidGateCell}`);
+  genLog(`[FLOOR19_UNDERHELL] generated ${UNDERHELL_ROUTE_ID} seed ${seed} rooms=${world.rooms.length} gate=${voidGateCell} chain=${thresholdChain.score}/${thresholdChain.minScore}`);
 
   return {
     world,
@@ -710,6 +808,7 @@ function generateUnderhellDesignFloorSeeded(seed: number, forceOpenVoidGate: boo
     spawnX: SPAWN_X + 0.5,
     spawnY: SPAWN_Y + 0.5,
     ritualState,
+    thresholdChain,
   };
 }
 
@@ -871,6 +970,37 @@ function consumeInventoryItem(entity: Entity, defId: string, count: number): boo
 
 function zoneFor(world: World, actor: Entity): number {
   return world.zoneMap[world.idx(Math.floor(actor.x), Math.floor(actor.y))];
+}
+
+function reachableRoomIds(world: World, audit: ReachabilityAudit): Set<number> {
+  const out = new Set<number>();
+  for (let i = 0; i < world.roomMap.length; i++) {
+    if (!audit.reachable[i]) continue;
+    const roomId = world.roomMap[i];
+    if (roomId >= 0) out.add(roomId);
+  }
+  return out;
+}
+
+function underhellChainNode(
+  world: World,
+  reachableRooms: ReadonlySet<number>,
+  role: UnderhellThresholdChainRole,
+  roomId: number,
+): UnderhellThresholdChainNode {
+  const room = world.rooms[roomId];
+  if (!room) {
+    return { role, roomId, roomName: '', x: -1, y: -1, reachable: false };
+  }
+  const center = roomCenter(room);
+  return {
+    role,
+    roomId,
+    roomName: room.name,
+    x: center.x + 0.5,
+    y: center.y + 0.5,
+    reachable: reachableRooms.has(roomId),
+  };
 }
 
 function paintBaseUnderhell(world: World): void {
@@ -1164,6 +1294,64 @@ function addBlackWell(world: World, cx: number, cy: number, radius: number): voi
       world.features[ci] = Feature.NONE;
     }
   }
+}
+
+function measureUnderhellCapillaryCells(world: World): number {
+  let count = 0;
+  for (let y = SPAWN_Y - 52; y <= SPAWN_Y + 284; y++) {
+    for (let x = SPAWN_X - 132; x <= SPAWN_X + 132; x++) {
+      const ci = world.idx(x, y);
+      if (!isUnderhellWalkableCell(world, ci) || world.roomMap[ci] >= 0) continue;
+      const floorTex = world.floorTex[ci];
+      if (floorTex === Tex.F_GUT || floorTex === Tex.F_MEAT || floorTex === Tex.F_CONCRETE || floorTex === Tex.F_VOID) {
+        count++;
+      }
+    }
+  }
+  return count;
+}
+
+function measureUnderhellSdfMetrics(
+  world: World,
+  entry: Room,
+  fallback: Room,
+  rootStair: Room,
+  threshold: Room,
+  toll: Room,
+  lowerFallback: Room,
+): UnderhellSdfMetrics {
+  const tributeRooms = [threshold, toll];
+  const shelterRooms = [entry, fallback, rootStair, lowerFallback];
+  let tributeFrontCells = 0;
+  let shelterCells = 0;
+
+  for (let y = SPAWN_Y - 24; y <= SPAWN_Y + 220; y++) {
+    for (let x = SPAWN_X - 96; x <= SPAWN_X + 96; x++) {
+      const ci = world.idx(x, y);
+      if (!isUnderhellWalkableCell(world, ci)) continue;
+      const tributeD2 = minRoomCenterDist2(world, x + 0.5, y + 0.5, tributeRooms);
+      const shelterD2 = minRoomCenterDist2(world, x + 0.5, y + 0.5, shelterRooms);
+      if (tributeD2 <= 32 * 32 && tributeD2 <= shelterD2 * 1.18) tributeFrontCells++;
+      if (shelterD2 <= 24 * 24 && shelterD2 < tributeD2) shelterCells++;
+    }
+  }
+
+  return { tributeFrontCells, shelterCells };
+}
+
+function minRoomCenterDist2(world: World, x: number, y: number, rooms: readonly Room[]): number {
+  let best = Number.POSITIVE_INFINITY;
+  for (const room of rooms) {
+    const center = roomCenter(room);
+    const d2 = world.dist2(x, y, center.x + 0.5, center.y + 0.5);
+    if (d2 < best) best = d2;
+  }
+  return best;
+}
+
+function isUnderhellWalkableCell(world: World, ci: number): boolean {
+  const cell = world.cells[ci];
+  return cell === Cell.FLOOR || cell === Cell.DOOR || cell === Cell.LIFT;
 }
 
 function setFeature(world: World, x: number, y: number, feature: Feature): void {

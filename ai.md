@@ -1,5 +1,9 @@
 # Active-Floor AI
 
+> Центральный документ низкоуровневого AI.
+>
+> Роль: описывает active-floor AI для NPC и монстров: локальность, изотропия, finite/state-machine execution, field/path movement, entity index, cached targets, bounded reactions and full-pass actor simulation. Связан с `fight.md` for combat feel and target pressure, and with `alife.md` for persistent identity and macro consequences.
+
 This document is the shipped contract for live NPC and monster behavior on the loaded floor.
 
 A-Life answers who exists, where that person belongs, whether they are dead, and what persistent facts fold back into the run. That contract lives in [alife.md](alife.md). This document answers how materialized live actors think, move, fight, hide, react and create readable situations on the active 1024x1024 toroidal `World`.
@@ -16,6 +20,7 @@ The current implementation has moved ordinary NPCs off the old global schedule p
 - Ministry NPCs use the same executor with a ministry profile; the old separate ministry schedule path is removed.
 - `src/systems/ai/combat.ts` gives NPC combat, fleeing, physical ranged fire and relation-aware hostility higher priority than routine behavior.
 - `src/systems/ai/pathfinding.ts` provides a toroidal baked navigation tree and cached behavior flow fields for shared targets such as kitchens, bathrooms and work rooms.
+- `src/systems/ai/tactics.ts` is the shared actor tactic runner. It is called from `updateAI()` before the ordinary NPC/monster branch only for actors with a registered profile, so unprofiled crowd AI keeps the cheap baseline path.
 - `src/systems/ai/monster.ts` contains the monster target loop and many `MonsterKind`/`aiFlags` behavior hooks.
 - `src/systems/entity_index.ts` is the runtime broadphase for AI target, threat and local actor queries.
 - `src/data/entity_limits.ts` defines one shared 4096 active NPC+monster actor soft cap for the current floor; this is a gameplay density ceiling, not an AI scheduling trick.
@@ -41,6 +46,22 @@ The short combat-step must not erase personal behavior:
 - actors do not scan noise or targets every frame; those expensive choices use local cooldowns and cached ids, while movement, cooldowns, attacks and current intents continue every frame.
 
 The result should feel like faction waves and particle pressure, not like hidden turn resolution and not like a frozen far map.
+
+## Actor Tactic Profiles
+
+Special behavior now has one generic runner instead of one-off state machines in the orchestrator. `registerActorTacticProfile()` registers a profile by `MonsterKind` or by a future actor matcher; the live loop checks whether an actor has a profile and otherwise does no local tactic sensing.
+
+A profile contains a small ordered list of tactics, a sense radius, a sense cadence and a result cap. The runner caches facts in transient `AIState` fields such as `tacticId`, `tacticPhase`, `tacticSenseCd`, `tacticTargetId`, `tacticNearbyHostiles`, `tacticThreatX/Y`, `tacticAnchorX/Y` and `tacticFlags`. These fields are not persistent save state.
+
+The shipped first profile is `slime_woman`:
+
+- passive wet/dry cues scale the sprite and publish the existing dry-counterplay fact;
+- recent hostile damage can drop a short-lived toxic slime cell hazard without a full scan;
+- a local crowd of hostile actors makes the slime woman switch to `FLEE` and move away from the capped hostile centroid;
+- dry lit concrete makes her retreat toward a nearby wet anchor sampled from local cells;
+- an isolated target lets her stalk/ambush through the same runner and leave residue on close contact.
+
+The runner reads local actors through `entity_index.queryRadiusCapped()`, uses fixed profile radii/caps and staggers expensive fact refreshes with `tacticSenseCd`. Movement reuses the existing pathfinding helpers; slime residue reuses `cell_hazards`, `surface_marks` and compact `WorldEvent`s. This is the extension point for future monster or authored NPC profiles, not a replacement for the cheap mass combat step.
 
 ## Routine Target Model
 

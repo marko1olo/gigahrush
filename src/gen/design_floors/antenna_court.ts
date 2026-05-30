@@ -115,6 +115,12 @@ interface AntennaGate {
   r: number;
 }
 
+interface AntennaSignalSite {
+  x: number;
+  y: number;
+  weight: number;
+}
+
 const SIGNAL_CLUES: Record<AntennaRouteId, SignalClueDef> = {
   roof: {
     label: 'Крыша',
@@ -512,6 +518,9 @@ export function expandAntennaCourtRouteGeometry(world: World, rng: () => number)
   carveHubRing(world, hubs, protectedCells);
   carveBypassRings(world, protectedCells);
   drawSectorFences(world, protectedCells);
+  paintWeightedAntennaCells(world, hubs, protectedCells);
+  carveTensorCableSpines(world, rng, hubX, hubY, hubs, protectedCells);
+  carveHoughSignalCorridors(world, hubX, hubY, protectedCells);
 
   for (const hub of hubs) {
     placeRepeaterTower(world, hub.x, hub.y, protectedCells);
@@ -828,6 +837,117 @@ function drawFenceLine(
   }
 }
 
+function paintWeightedAntennaCells(world: World, hubs: readonly AntennaHub[], protectedCells: Uint8Array): void {
+  const sites = antennaSignalSites(hubs);
+  for (let y = 70; y <= W - 70; y += 2) {
+    for (let x = 70; x <= W - 70; x += 2) {
+      const ci = world.idx(x, y);
+      if (protectedCells[ci] || world.cells[ci] !== Cell.FLOOR || world.roomMap[ci] >= 0) continue;
+      const owner = nearestSignalSite(world, x, y, sites);
+      const east = nearestSignalSite(world, x + 4, y, sites);
+      const south = nearestSignalSite(world, x, y + 4, sites);
+      if (owner === east && owner === south) continue;
+      for (let dy = 0; dy < 2; dy++) {
+        for (let dx = 0; dx < 2; dx++) {
+          markSignalCableCell(world, x + dx, y + dy, protectedCells, Tex.F_LINO);
+        }
+      }
+      if (((x * 19 + y * 23 + owner * 37) & 63) === 0) {
+        setFeatureIfUnprotectedFloor(world, x, y, protectedCells, owner % 2 === 0 ? Feature.APPARATUS : Feature.LAMP);
+      }
+    }
+  }
+}
+
+function antennaSignalSites(hubs: readonly AntennaHub[]): AntennaSignalSite[] {
+  return [
+    { x: CX, y: CY, weight: 2.45 },
+    ...hubs.map((hub, i) => ({
+      x: hub.x,
+      y: hub.y,
+      weight: hub.name.includes('диагонал') ? 1.38 + (i % 2) * 0.08 : 1.72,
+    })),
+  ];
+}
+
+function nearestSignalSite(world: World, x: number, y: number, sites: readonly AntennaSignalSite[]): number {
+  let best = 0;
+  let bestScore = Infinity;
+  for (let i = 0; i < sites.length; i++) {
+    const site = sites[i];
+    const score = world.dist2(x, y, site.x, site.y) / Math.max(0.1, site.weight * site.weight);
+    if (score < bestScore) {
+      bestScore = score;
+      best = i;
+    }
+  }
+  return best;
+}
+
+function carveTensorCableSpines(
+  world: World,
+  rng: () => number,
+  hubX: number,
+  hubY: number,
+  hubs: readonly AntennaHub[],
+  protectedCells: Uint8Array,
+): void {
+  for (let i = 0; i < hubs.length; i++) {
+    const hub = hubs[i];
+    for (let lane = 0; lane < 2; lane++) {
+      const spin = (i + lane) % 2 === 0 ? 1 : -1;
+      let x = hub.x + Math.round(Math.cos((i + lane * 0.45) * Math.PI / 4) * (16 + lane * 9));
+      let y = hub.y + Math.round(Math.sin((i + lane * 0.45) * Math.PI / 4) * (16 + lane * 9));
+      const steps = 54 + Math.floor(rng() * 18);
+      for (let step = 0; step < steps; step++) {
+        const rx = world.delta(x, hubX);
+        const ry = world.delta(y, hubY);
+        const len = Math.max(1, Math.hypot(rx, ry));
+        const radialX = rx / len;
+        const radialY = ry / len;
+        const curl = Math.sin((x * 0.027 + y * 0.019 + i * 0.71 + step * 0.13)) * 0.32;
+        const vx = radialX * 0.72 + (-radialY * spin) * (0.42 + curl);
+        const vy = radialY * 0.72 + (radialX * spin) * (0.42 - curl);
+        const nextX = world.wrap(Math.round(x + vx * (6 + (step % 3))));
+        const nextY = world.wrap(Math.round(y + vy * (6 + ((step + 1) % 3))));
+        carveSignalCableLine(world, x, y, nextX, nextY, 1, protectedCells, Tex.F_LINO);
+        if (step % 9 === 0) {
+          setFeatureIfUnprotectedFloor(world, nextX, nextY, protectedCells, lane === 0 ? Feature.APPARATUS : Feature.MACHINE);
+        }
+        x = nextX;
+        y = nextY;
+      }
+    }
+  }
+}
+
+function carveHoughSignalCorridors(world: World, hubX: number, hubY: number, protectedCells: Uint8Array): void {
+  const endpoints = [
+    { x: 104, y: hubY },
+    { x: W - 104, y: hubY },
+    { x: hubX, y: 104 },
+    { x: hubX, y: W - 104 },
+    { x: 136, y: 136 },
+    { x: W - 136, y: W - 136 },
+    { x: 136, y: W - 136 },
+    { x: W - 136, y: 136 },
+    { x: 282, y: 116 },
+    { x: W - 282, y: W - 116 },
+    { x: 116, y: 282 },
+    { x: W - 116, y: W - 282 },
+  ] as const;
+  for (let i = 0; i < endpoints.length; i++) {
+    const end = endpoints[i];
+    carveSignalCableLine(world, hubX, hubY, end.x, end.y, i < 4 ? 2 : 1, protectedCells, Tex.F_LINO);
+    const steps = 7;
+    for (let s = 1; s < steps; s++) {
+      const x = world.wrap(Math.round(hubX + world.delta(hubX, end.x) * s / steps));
+      const y = world.wrap(Math.round(hubY + world.delta(hubY, end.y) * s / steps));
+      setFeatureIfUnprotectedFloor(world, x, y, protectedCells, s % 2 === 0 ? Feature.LAMP : Feature.APPARATUS);
+    }
+  }
+}
+
 function carveCableLine(
   world: World,
   ax: number,
@@ -837,6 +957,19 @@ function carveCableLine(
   width: number,
   protectedCells?: Uint8Array,
 ): void {
+  carveSignalCableLine(world, ax, ay, bx, by, width, protectedCells, Tex.F_CONCRETE);
+}
+
+function carveSignalCableLine(
+  world: World,
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+  width: number,
+  protectedCells: Uint8Array | undefined,
+  floorTex: Tex,
+): void {
   const dx = world.delta(ax, bx);
   const dy = world.delta(ay, by);
   const steps = Math.max(Math.abs(dx), Math.abs(dy), 1);
@@ -844,7 +977,7 @@ function carveCableLine(
     const t = i / steps;
     const x = world.wrap(Math.round(ax + dx * t));
     const y = world.wrap(Math.round(ay + dy * t));
-    carveCableDisc(world, x, y, width, Tex.F_CONCRETE, protectedCells);
+    carveCableDisc(world, x, y, width, floorTex, protectedCells);
   }
 }
 
@@ -872,6 +1005,12 @@ function setRouteFloor(world: World, x: number, y: number, floorTex: Tex, protec
   world.roomMap[ci] = -1;
   world.floorTex[ci] = floorTex;
   if (world.features[ci] !== Feature.SCREEN) world.features[ci] = Feature.NONE;
+}
+
+function markSignalCableCell(world: World, x: number, y: number, protectedCells: Uint8Array, floorTex: Tex): void {
+  const ci = world.idx(x, y);
+  if (protectedCells[ci] || world.cells[ci] !== Cell.FLOOR || world.features[ci] === Feature.LIFT_BUTTON) return;
+  world.floorTex[ci] = floorTex;
 }
 
 function setFenceWall(world: World, x: number, y: number, protectedCells: Uint8Array): void {

@@ -11,13 +11,13 @@ import { rng, pick, ensureConnectivity, placeLifts, generateZones } from '../sha
 import { placeProceduralScreens } from '../procedural_screens';
 import { HELL_POPULATION_PROFILE, type MonsterPopulationProfile } from '../../data/population_profiles';
 import { chooseFloorMonsterKind } from '../../data/monster_ecology';
-import { sampleNaturalPopulationCells } from '../population_placement';
+import { sampleNaturalPopulationCells, type PlacementFieldAnchor } from '../population_placement';
 import { MONSTERS } from '../../entities/monster';
 import { calcZoneLevel, randomRPG, scaleMonsterHp, scaleMonsterSpeed, gaussianLevel, getMaxHp } from '../../systems/rpg';
 import { entitySpawnSlots } from '../../systems/entity_limits';
 import { Spr, monsterSpr } from '../../render/sprite_index';
 import { runHellContent } from './content_manifest';
-import { buildHellGeometry } from './geometry';
+import { buildHellGeometry, imprintHellArenaValleys, type HellGeometry } from './geometry';
 
 const PSI_IDS = ['psi_strike', 'psi_rupture', 'psi_madness', 'psi_storm', 'psi_brainburn'];
 
@@ -40,7 +40,7 @@ export function generateHell(): { world: World; entities: Entity[]; spawnX: numb
 
   const field = buildIsingCaveField();
   paintHellTerrain(world, field);
-  buildHellGeometry(world);
+  const hellGeometry = buildHellGeometry(world);
 
   const spawnCell = findNearestFloor(world, W >> 1, W >> 1) ?? world.idx(W >> 1, W >> 1);
   const spawnX = (spawnCell % W) + 0.5;
@@ -64,7 +64,7 @@ export function generateHell(): { world: World; entities: Entity[]; spawnX: numb
   }
   world.bakeLights();
 
-  seedHellPopulation(world, entities, { v: nextId }, INITIAL_MONSTER_COUNT, INITIAL_CULTIST_COUNT, INITIAL_LIQUIDATOR_COUNT, 0);
+  seedHellPopulation(world, entities, { v: nextId }, INITIAL_MONSTER_COUNT, INITIAL_CULTIST_COUNT, INITIAL_LIQUIDATOR_COUNT, 0, hellGeometry);
   nextId = entities.reduce((mx, e) => Math.max(mx, e.id), nextId) + 1;
 
   seedLoot(world, entities, { v: nextId });
@@ -88,6 +88,7 @@ function buildIsingCaveField(): Uint8Array {
       field[y * W + x] = coarse + medium + fine > 0.72 ? 1 : 0;
     }
   }
+  imprintHellArenaValleys(field);
 
   for (let iter = 0; iter < 4; iter++) {
     for (let parity = 0; parity < 2; parity++) {
@@ -106,6 +107,7 @@ function buildIsingCaveField(): Uint8Array {
   }
 
   carveOrganicBranches(field);
+  imprintHellArenaValleys(field);
 
   for (let pass = 0; pass < 2; pass++) {
     const next = field.slice();
@@ -141,6 +143,7 @@ function buildIsingCaveField(): Uint8Array {
       field[((W >> 1) + dy) * W + ((W >> 1) + dx)] = 1;
     }
   }
+  imprintHellArenaValleys(field);
 
   return field;
 }
@@ -311,10 +314,11 @@ function seedHellPopulation(
   cultists: number,
   liquidators: number,
   samosborCount: number,
+  geometry: HellGeometry,
 ): void {
-  spawnHellMonsterBatch(world, entities, nextId, monsters, samosborCount);
-  spawnFactionAgentBatch(world, entities, nextId, Faction.CULTIST, cultists);
-  spawnFactionAgentBatch(world, entities, nextId, Faction.LIQUIDATOR, liquidators);
+  spawnHellMonsterBatch(world, entities, nextId, monsters, samosborCount, geometry);
+  spawnFactionAgentBatch(world, entities, nextId, Faction.CULTIST, cultists, geometry);
+  spawnFactionAgentBatch(world, entities, nextId, Faction.LIQUIDATOR, liquidators, geometry);
 }
 
 function seedLoot(world: World, entities: Entity[], nextId: { v: number }): void {
@@ -345,9 +349,10 @@ function spawnHellMonsterBatch(
   nextId: { v: number },
   requested: number,
   samosborCount: number,
+  geometry: HellGeometry,
 ): number {
   const count = entitySpawnSlots(entities, EntityType.MONSTER, requested);
-  const cells = sampleHellPopulationCells(world, count, HELL_MONSTER_PROFILE, hellPopulationSeed(11, nextId.v));
+  const cells = sampleHellPopulationCells(world, count, HELL_MONSTER_PROFILE, hellPopulationSeed(11, nextId.v), hellPopulationAnchors(geometry, 'monster'));
   let spawned = 0;
   for (const cell of cells) {
     spawnHellMonsterAtCell(world, entities, nextId, cell, samosborCount);
@@ -374,10 +379,11 @@ function spawnFactionAgentBatch(
   nextId: { v: number },
   faction: SpawnFaction,
   requested: number,
+  geometry: HellGeometry,
 ): number {
   const count = entitySpawnSlots(entities, EntityType.NPC, requested);
   const seed = hellPopulationSeed(faction === Faction.CULTIST ? 23 : 37, nextId.v);
-  const cells = sampleHellPopulationCells(world, count, profileForFaction(faction), seed);
+  const cells = sampleHellPopulationCells(world, count, profileForFaction(faction), seed, hellPopulationAnchors(geometry, faction === Faction.CULTIST ? 'cultist' : 'liquidator'));
   let spawned = 0;
   for (const cell of cells) {
     entities.push(faction === Faction.CULTIST
@@ -397,12 +403,41 @@ function sampleHellPopulationCells(
   count: number,
   profile: MonsterPopulationProfile,
   seed: number,
+  anchors: readonly PlacementFieldAnchor[],
 ): number[] {
-  return sampleNaturalPopulationCells(world, count, profile, seed);
+  const effectiveProfile = anchors.length > 0
+    ? { ...profile, anchors, smoothingPasses: 2, smoothingBlend: 0.58 }
+    : profile;
+  return sampleNaturalPopulationCells(world, count, effectiveProfile, seed);
 }
 
 function hellPopulationSeed(kind: number, nextId: number): number {
   return 4003 + kind * 10007 + nextId * 17;
+}
+
+type HellPopulationAnchorKind = 'monster' | 'cultist' | 'liquidator';
+
+function hellPopulationAnchors(geometry: HellGeometry, kind: HellPopulationAnchorKind): PlacementFieldAnchor[] {
+  if (kind === 'monster') {
+    return [
+      ...geometry.populationAnchors.monster,
+      ...attenuatedSafeAnchors(geometry, 0.38),
+    ];
+  }
+  if (kind === 'cultist') {
+    return [
+      ...geometry.populationAnchors.cultist,
+      ...attenuatedSafeAnchors(geometry, 0.52),
+    ];
+  }
+  return [
+    ...geometry.populationAnchors.liquidator,
+    ...attenuatedSafeAnchors(geometry, 0.78),
+  ];
+}
+
+function attenuatedSafeAnchors(geometry: HellGeometry, weight: number): PlacementFieldAnchor[] {
+  return geometry.populationAnchors.safe.map(anchor => ({ ...anchor, weight }));
 }
 
 function createHellMonster(world: World, nextId: { v: number }, kind: MonsterKind, x: number, y: number): Entity {

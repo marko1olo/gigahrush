@@ -20,8 +20,10 @@ import { isPlayerEntity } from './player_actor';
 
 const HLADON_PREFIX = 'Хладон:';
 const HLADON_CLEARED = 'разморожен';
+export const HLADON_COLD_SHELL_RADIUS = 6;
 const WARM_COUNTER_ITEMS = ['boiler_water', 'asbestos_cord', 'cloth_roll', 'valve_tag', 'meat_rune'] as const;
 const FIRE_COUNTER_WEAPONS = ['flamethrower', 'fire_hook', 'chainsaw'] as const;
+const HLADON_DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]] as const;
 
 interface HladonCache {
   mask: Uint8Array;
@@ -29,6 +31,8 @@ interface HladonCache {
   roomIds: Set<number>;
   coreCells: number;
   fringeCells: number;
+  cellVersion: number;
+  roomSignature: number;
   lastLevel: 0 | 1 | 2;
   lastRoomId: number;
   countered: boolean;
@@ -54,20 +58,41 @@ function isActiveHladonRoom(room: Room): boolean {
   return isAnyHladonRoom(room) && !room.name.includes(HLADON_CLEARED);
 }
 
+function hashText(hash: number, text: string): number {
+  let out = hash | 0;
+  for (let i = 0; i < text.length; i++) out = Math.imul(out ^ text.charCodeAt(i), 16777619);
+  return out | 0;
+}
+
+function hladonRoomSignature(world: World): number {
+  let hash = Math.imul(0x6d2b79f5 ^ world.rooms.length, 16777619);
+  for (const room of world.rooms) {
+    if (!room || !isAnyHladonRoom(room)) continue;
+    hash = Math.imul(hash ^ room.id, 16777619);
+    hash = Math.imul(hash ^ room.x, 16777619);
+    hash = Math.imul(hash ^ room.y, 16777619);
+    hash = Math.imul(hash ^ room.w, 16777619);
+    hash = Math.imul(hash ^ room.h, 16777619);
+    hash = hashText(hash, room.name);
+  }
+  return hash | 0;
+}
+
 function isWalkableColdCell(cell: Cell): boolean {
   return cell !== Cell.WALL && cell !== Cell.LIFT && cell !== Cell.ABYSS;
 }
 
-function markColdMask(cache: HladonCache, ci: number, level: 1 | 2): void {
+function markColdMask(cache: HladonCache, ci: number, level: 1 | 2): boolean {
   const prev = cache.mask[ci] as 0 | 1 | 2;
-  if (prev >= level) return;
+  if (prev >= level) return false;
   if (prev === 1) cache.fringeCells--;
   if (level === 1) cache.fringeCells++;
   else cache.coreCells++;
   cache.mask[ci] = level;
+  return true;
 }
 
-function buildHladonCache(world: World): HladonCache {
+function buildHladonCache(world: World, roomSignature = hladonRoomSignature(world)): HladonCache {
   const rooms = world.rooms.filter(isActiveHladonRoom);
   const cache: HladonCache = {
     mask: rooms.length > 0 ? new Uint8Array(W * W) : new Uint8Array(0),
@@ -75,6 +100,8 @@ function buildHladonCache(world: World): HladonCache {
     roomIds: new Set(rooms.map(room => room.id)),
     coreCells: 0,
     fringeCells: 0,
+    cellVersion: world.cellVersion,
+    roomSignature,
     lastLevel: 0,
     lastRoomId: -1,
     countered: false,
@@ -82,15 +109,33 @@ function buildHladonCache(world: World): HladonCache {
   };
   if (rooms.length === 0) return cache;
 
+  const queue = new Int32Array(W * W);
+  let tail = 0;
   for (const room of rooms) {
-    for (let dy = -2; dy < room.h + 2; dy++) {
-      for (let dx = -2; dx < room.w + 2; dx++) {
+    for (let dy = 0; dy < room.h; dy++) {
+      for (let dx = 0; dx < room.w; dx++) {
         const x = world.wrap(room.x + dx);
         const y = world.wrap(room.y + dy);
         const ci = world.idx(x, y);
         if (!isWalkableColdCell(world.cells[ci] as Cell)) continue;
-        const core = dx >= 0 && dy >= 0 && dx < room.w && dy < room.h && world.roomMap[ci] === room.id;
-        markColdMask(cache, ci, core ? 2 : 1);
+        if (world.roomMap[ci] !== room.id) continue;
+        if (markColdMask(cache, ci, 2)) queue[tail++] = ci;
+      }
+    }
+  }
+
+  let head = 0;
+  for (let depth = 1; depth <= HLADON_COLD_SHELL_RADIUS; depth++) {
+    const layerEnd = tail;
+    while (head < layerEnd) {
+      const ci = queue[head++];
+      const x = ci % W;
+      const y = (ci / W) | 0;
+      for (const [dx, dy] of HLADON_DIRS) {
+        const ni = world.idx(x + dx, y + dy);
+        if (cache.mask[ni] !== 0) continue;
+        if (!isWalkableColdCell(world.cells[ni] as Cell)) continue;
+        if (markColdMask(cache, ni, 1)) queue[tail++] = ni;
       }
     }
   }
@@ -98,9 +143,10 @@ function buildHladonCache(world: World): HladonCache {
 }
 
 function getHladonCache(world: World): HladonCache {
+  const roomSignature = hladonRoomSignature(world);
   let cache = hladonCaches.get(world);
-  if (!cache) {
-    cache = buildHladonCache(world);
+  if (!cache || cache.cellVersion !== world.cellVersion || cache.roomSignature !== roomSignature) {
+    cache = buildHladonCache(world, roomSignature);
     hladonCaches.set(world, cache);
   }
   return cache;

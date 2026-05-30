@@ -54,7 +54,8 @@ export type FloorAnomalyId =
   | 'conway_life'
   | 'rail_trains'
   | 'bad_apple_world'
-  | 'zombie_apocalypse';
+  | 'zombie_apocalypse'
+  | 'sandpile_perekrytie';
 
 export const FALSE_SAFE_BLOCK_TAG = 'false_safe_block';
 export const FALSE_SAFE_BLOCK_ROOM_PREFIX = 'Тихий блок';
@@ -144,6 +145,7 @@ export const PROCEDURAL_LOOT_ANOMALY_TAGS: Readonly<Record<FloorAnomalyId, reado
   rail_trains: ['rail', 'transit_cache'],
   bad_apple_world: ['bad_apple_world', 'media_cache'],
   zombie_apocalypse: ['zombie', 'quarantine', 'contaminated'],
+  sandpile_perekrytie: ['crush_risk', 'repair_cache', 'industrial_cache'],
 };
 
 export const PROCEDURAL_LOOT_FACTION_KIND_BIAS: Readonly<Record<FloorMajorityId, readonly ContainerKind[]>> = {
@@ -174,6 +176,7 @@ export const PROCEDURAL_LOOT_ANOMALY_KIND_BIAS: Readonly<Record<FloorAnomalyId, 
   rail_trains: [ContainerKind.TOOL_LOCKER, ContainerKind.METAL_CABINET, ContainerKind.EMERGENCY_BOX],
   bad_apple_world: [ContainerKind.FILING_CABINET, ContainerKind.SECRET_STASH, ContainerKind.METAL_CABINET],
   zombie_apocalypse: [ContainerKind.MEDICAL_CABINET, ContainerKind.EMERGENCY_BOX, ContainerKind.SECRET_STASH],
+  sandpile_perekrytie: [ContainerKind.TOOL_LOCKER, ContainerKind.METAL_CABINET, ContainerKind.EMERGENCY_BOX],
 };
 
 export function proceduralLootValueCap(danger: 1 | 2 | 3 | 4 | 5, routeZ?: number): number {
@@ -249,7 +252,7 @@ export const FLOOR_GEOMETRIES: readonly FloorGeometryDef[] = [
     maxZ: 11,
     wallTex: Tex.BRICK,
     floorTex: Tex.F_LINO,
-    roomTypes: [RoomType.COMMON, RoomType.COMMON, RoomType.KITCHEN, RoomType.LIVING, RoomType.STORAGE, RoomType.SMOKING, RoomType.CORRIDOR],
+    roomTypes: [RoomType.COMMON, RoomType.COMMON, RoomType.KITCHEN, RoomType.BATHROOM, RoomType.LIVING, RoomType.STORAGE, RoomType.SMOKING, RoomType.CORRIDOR],
     tags: ['residential', 'crowd', 'queue', 'canteen', 'civil'],
   },
   {
@@ -385,7 +388,7 @@ export const FLOOR_MAJORITY_FACTIONS: readonly FloorMajorityDef[] = [
     weight: 10,
     npcFaction: Faction.SCIENTIST,
     zoneFaction: ZoneFaction.CITIZEN,
-    tags: ['lab', 'documents'],
+    tags: ['lab', 'documents', 'quarantine'],
   },
   {
     id: 'cultists',
@@ -415,12 +418,14 @@ export const FLOOR_ANOMALIES: readonly FloorAnomalyDef[] = [
   { id: 'rail_trains', title: 'поезда', weight: 8, minDanger: 2, dangerBias: 1, tags: ['rail', 'transit', 'crush', 'industrial'] },
   { id: 'bad_apple_world', title: 'bad apple!', weight: 3, minDanger: 3, dangerBias: 1, tags: ['video', 'screen', 'topology', 'cult_media'] },
   { id: 'zombie_apocalypse', title: 'зомби-апокалипсис', weight: 4, minDanger: 2, dangerBias: 2, tags: ['zombie', 'crowd', 'infection', 'quarantine', 'residential'] },
+  { id: 'sandpile_perekrytie', title: 'песчаное перекрытие', weight: 4, minDanger: 2, dangerBias: 2, tags: ['topology', 'crush', 'pressure', 'industrial', 'route_pressure'] },
   { id: 'section_shift', title: 'секционный сдвиг', weight: 4, minDanger: 3, dangerBias: 2, tags: ['topology', 'moving_rooms', 'crush', 'toroid'] },
   { id: 'conway_life', title: 'игра жизнь', weight: 3, minDanger: 3, dangerBias: 2, tags: ['cellular', 'topology', 'moving_walls', 'math'] },
   { id: 'samosbor_seed', title: 'поражение самосбором', weight: 9, minDanger: 3, dangerBias: 2, tags: ['samosbor', 'meat', 'slime'] },
 ];
 
 const LOOT_BY_TAG: Record<string, readonly string[]> = {
+  civil: ['bread', 'water', 'tea', 'cigs', 'shelter_tally', 'neighbor_complaint', 'emergency_roster'],
   residential: ['bread', 'water', 'tea', 'book', 'cigs', 'cloth_roll', 'neighbor_complaint'],
   crowd: ['ballot', 'ration_registry_extract', 'forged_ration_card', 'bandage'],
   queue: ['ballot', 'ration_registry_extract', 'forged_ration_card', 'siren_instruction'],
@@ -437,6 +442,7 @@ const LOOT_BY_TAG: Record<string, readonly string[]> = {
   abyss: ['void_archive_warrant', 'istotit_candle', 'overexposed_photo', 'psi_dust', 'losyash_rifle', 'rifle_bolt_pack'],
   admin: ['blank_form', 'temp_pass', 'official_permit_slip', 'seal_wax', 'ink_bottle'],
   documents: ['note', 'lift_scheme', 'elevator_access_order', 'missing_record_file'],
+  lab: ['nii_sample_container', 'empty_sample_jar', 'sterile_swab', 'sample_chain_form', 'nii_sample_label', 'gas_sample_ampoule', 'mutant_tissue_sample', 'antibiotic'],
   archive: ['personal_file_copy', 'record_exposure_notice', 'passport_stub', 'void_archive_warrant'],
   paper_dust: ['gasmask_filter', 'cloth_roll', 'ink_bottle', 'seal_wax'],
   roofline: ['wire_coil', 'relay_diagram', 'gasmask_filter', 'overexposed_photo'],
@@ -680,7 +686,7 @@ export function proceduralMonsterFloor(spec: Pick<ProceduralFloorSpec, 'z' | 'ba
 }
 
 export function proceduralFloorAnomalyRoutePressure(spec: Pick<ProceduralFloorSpec, 'anomalyId'>): number {
-  if (spec.anomalyId === 'samosbor_seed' || spec.anomalyId === 'wall_snake' || spec.anomalyId === 'living_tunnels' || spec.anomalyId === 'section_shift' || spec.anomalyId === 'zombie_apocalypse') return 2;
+  if (spec.anomalyId === 'samosbor_seed' || spec.anomalyId === 'wall_snake' || spec.anomalyId === 'living_tunnels' || spec.anomalyId === 'section_shift' || spec.anomalyId === 'zombie_apocalypse' || spec.anomalyId === 'sandpile_perekrytie') return 2;
   if (
     spec.anomalyId === 'smog' ||
     spec.anomalyId === 'hladon' ||

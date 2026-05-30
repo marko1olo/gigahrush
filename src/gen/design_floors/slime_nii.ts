@@ -29,6 +29,7 @@ import { freshNeeds } from '../../data/catalog';
 import { type PlotNpcDef, registerSideQuest } from '../../data/plot';
 import { MONSTERS } from '../../entities/monster';
 import { monsterSpr, Spr } from '../../render/sprite_index';
+import { placeEmergencyPanel } from '../../systems/emergency_panels';
 import { randomRPG } from '../../systems/rpg';
 import {
   ensureConnectivity,
@@ -46,6 +47,10 @@ export const SLIME_NII_CAMERA_ROOM_PREFIX = 'Гермокамера НИИ сл�
 const SEED = hashSeed(DESIGN_FLOOR_ID);
 const CX = W >> 1;
 const CY = W >> 1;
+const REACTION_GRID = 64;
+const REACTION_CELL = W / REACTION_GRID;
+const REACTION_CELLS = REACTION_GRID * REACTION_GRID;
+const REACTION_STEPS = 26;
 
 type NextId = { v: number };
 type DoorSide = 'north' | 'south' | 'west' | 'east';
@@ -259,12 +264,20 @@ export function generateSlimeNiiDesignFloor(seed = SEED): FloorGeneration {
     placeLifts(world, rooms);
     generateZones(world);
     tuneZones(world);
+    placeSlimeNiiEmergencyPanels(world, rooms);
 
     const owners = spawnNpcs(entities, nextId, rooms);
     spawnAmbientNpcs(entities, nextId, rooms);
     placeContainers(world, rooms, owners);
     placeDrops(world, entities, nextId, rooms);
     spawnThreats(world, entities, nextId, rooms);
+    stampSlimeReactionBands(world, [
+      { x: rooms.drainWard.x + 18, y: rooms.drainWard.y + 28, radius: 78, weight: 1.25 },
+      { x: rooms.cleanLab.x + 18, y: rooms.cleanLab.y + 32, radius: 54, weight: 0.52 },
+      { x: rooms.cameras[1].x + 14, y: rooms.cameras[1].y + 11, radius: 58, weight: 1.1 },
+      { x: rooms.cameras[3].x + 14, y: rooms.cameras[3].y + 11, radius: 66, weight: 1.0 },
+      { x: rooms.cameras[5].x + 14, y: rooms.cameras[5].y + 11, radius: 58, weight: 0.9 },
+    ], SEED ^ 0x51a1e);
 
     sanitizeDoors(world);
     ensureConnectivity(world, rooms.entry.x + 18.5, rooms.entry.y + 12.5);
@@ -328,12 +341,22 @@ export function expandSlimeNiiRouteGeometry(world: World, rng: () => number): vo
       Tex.F_TILE,
       true,
     );
+    shapeVoronoiSealedChamber(world, camera, i);
 
     connectRooms(world, lab, anchor.flip ? 'west' : 'east', store, anchor.flip ? 'east' : 'west', DoorState.CLOSED);
     connectRooms(world, lab, anchor.flip ? 'east' : 'west', camera, anchor.flip ? 'west' : 'east', DoorState.HERMETIC_CLOSED);
     carveLineWidth(world, lab.x + (lab.w >> 1), lab.y + (lab.h >> 1), CX, CY, 3, Tex.F_TILE);
     decorateLabAnnex(world, lab, store, camera, i);
   }
+
+  stampSlimeReactionBands(world, [
+    { x: 154, y: 162, radius: 96, weight: 0.86 },
+    { x: 812, y: 156, radius: 94, weight: 0.84 },
+    { x: 146, y: 814, radius: 100, weight: 0.92 },
+    { x: 812, y: 818, radius: 102, weight: 0.9 },
+    { x: 512, y: 142, radius: 76, weight: 0.72 },
+    { x: 512, y: 858, radius: 78, weight: 0.76 },
+  ], SEED ^ 0x7a551);
 }
 
 function initWorld(world: World): void {
@@ -414,6 +437,7 @@ function decorateRooms(world: World, rooms: SlimeNiiRooms): void {
     setFeature(world, x, rooms.cleanLab.y + 16, Feature.APPARATUS);
   }
   setFeature(world, rooms.cleanLab.x + rooms.cleanLab.w - 9, rooms.cleanLab.y + rooms.cleanLab.h - 10, Feature.SINK);
+  setFeature(world, rooms.cleanLab.x + 9, rooms.cleanLab.y + 8, Feature.APPARATUS);
 
   for (let x = rooms.coldStorage.x + 8; x < rooms.coldStorage.x + rooms.coldStorage.w - 6; x += 13) {
     setFeature(world, x, rooms.coldStorage.y + 12, Feature.SHELF);
@@ -435,6 +459,13 @@ function decorateRooms(world: World, rooms: SlimeNiiRooms): void {
   setFeature(world, rooms.bypass.x + 14, rooms.bypass.y + 14, Feature.TABLE);
 
   for (let i = 0; i < rooms.cameras.length; i++) decorateCamera(world, rooms.cameras[i], i);
+}
+
+function placeSlimeNiiEmergencyPanels(world: World, rooms: SlimeNiiRooms): void {
+  placeEmergencyPanel(world, rooms.checkpoint.x + 8, rooms.checkpoint.y + 8, 'panel_doors', SEED ^ 0xd00d);
+  placeEmergencyPanel(world, rooms.drainWard.x + 10, rooms.drainWard.y + 9, 'panel_water', SEED ^ 0xaa77);
+  placeEmergencyPanel(world, rooms.cleanLab.x + rooms.cleanLab.w - 12, rooms.cleanLab.y + 9, 'panel_vent', SEED ^ 0x71a6);
+  placeEmergencyPanel(world, rooms.liquidatorPost.x + rooms.liquidatorPost.w - 10, rooms.liquidatorPost.y + 12, 'panel_power', SEED ^ 0x9911);
 }
 
 function decorateCamera(world: World, room: Room, serial: number): void {
@@ -461,7 +492,16 @@ function decorateLabAnnex(world: World, lab: Room, store: Room, camera: Room, se
   for (let x = lab.x + 8; x < lab.x + lab.w - 8; x += 13) setFeature(world, x, lab.y + 14, Feature.APPARATUS);
   setFeature(world, store.x + 8, store.y + 8, Feature.SHELF);
   setFeature(world, store.x + store.w - 7, store.y + store.h - 7, Feature.SHELF);
+  stampDrainageCells(world, lab, serial);
   decorateCamera(world, camera, 20 + serial);
+}
+
+function stampDrainageCells(world: World, room: Room, serial: number): void {
+  const baseX = room.x + 7 + (serial % 3) * 4;
+  for (let y = room.y + 6; y < room.y + room.h - 5; y += 5) {
+    addWetCell(world, baseX, y);
+    if ((serial + y) % 2 === 0) addWetCell(world, baseX + 1, y);
+  }
 }
 
 function placeLifts(world: World, rooms: SlimeNiiRooms): void {
@@ -509,6 +549,12 @@ function spawnAmbientNpcs(entities: Entity[], nextId: NextId, rooms: SlimeNiiRoo
 }
 
 function placeContainers(world: World, rooms: SlimeNiiRooms, owners: Record<SlimeNiiNpcId, number>): void {
+  addContainer(world, rooms.cleanLab, rooms.cleanLab.x + 10, rooms.cleanLab.y + 8, ContainerKind.MEDICAL_CABINET, 'Лоток инокуляции перед гермокамерами', 'public', [
+    { defId: 'anti_spore_inhaler', count: 1 },
+    { defId: 'sterile_swab', count: 2 },
+    { defId: 'decon_fluid', count: 1 },
+  ], undefined, undefined, ['slime_nii', 'inoculation', 'medicine', 'sample']);
+
   addContainer(world, rooms.admin, rooms.admin.x + rooms.admin.w - 8, rooms.admin.y + 12, ContainerKind.FILING_CABINET, 'Картотека директора НИИ слизи', 'owner', [
     { defId: 'nii_sample_container', count: 2 },
     { defId: 'sterile_swab', count: 4 },
@@ -705,6 +751,170 @@ function openTile(world: World, x: number, y: number, floorTex: Tex, roomId: num
   if (roomId >= 0 || world.roomMap[ci] < 0) world.roomMap[ci] = roomId;
   world.floorTex[ci] = floorTex;
   if (world.features[ci] !== Feature.NONE) world.features[ci] = Feature.NONE;
+}
+
+interface ReactionSeed {
+  x: number;
+  y: number;
+  radius: number;
+  weight: number;
+}
+
+function stampSlimeReactionBands(world: World, seeds: readonly ReactionSeed[], salt: number): void {
+  const u = new Float32Array(REACTION_CELLS);
+  const v = new Float32Array(REACTION_CELLS);
+  const nextU = new Float32Array(REACTION_CELLS);
+  const nextV = new Float32Array(REACTION_CELLS);
+  u.fill(1);
+
+  for (const seed of seeds) seedReactionField(u, v, seed);
+  for (let step = 0; step < REACTION_STEPS; step++) {
+    for (let y = 0; y < REACTION_GRID; y++) {
+      for (let x = 0; x < REACTION_GRID; x++) {
+        const i = y * REACTION_GRID + x;
+        const uvv = u[i] * v[i] * v[i];
+        const feed = 0.034 + hash01(salt, x, y, 7) * 0.012;
+        const kill = 0.058 + hash01(salt, x, y, 19) * 0.012;
+        nextU[i] = clamp01(u[i] + 0.16 * laplace(u, x, y) - uvv + feed * (1 - u[i]));
+        nextV[i] = clamp01(v[i] + 0.08 * laplace(v, x, y) + uvv - (feed + kill) * v[i]);
+      }
+    }
+    u.set(nextU);
+    v.set(nextV);
+  }
+
+  let changed = 0;
+  for (let y = 0; y < REACTION_GRID; y++) {
+    for (let x = 0; x < REACTION_GRID; x++) {
+      const concentration = v[y * REACTION_GRID + x];
+      if (concentration < 0.115 || concentration > 0.46) continue;
+      const attempts = concentration > 0.24 ? 4 : 2;
+      for (let n = 0; n < attempts; n++) {
+        const wx = world.wrap(Math.floor(x * REACTION_CELL + hash01(salt, x, y, 101 + n) * REACTION_CELL));
+        const wy = world.wrap(Math.floor(y * REACTION_CELL + hash01(salt, x, y, 301 + n) * REACTION_CELL));
+        const idx = world.idx(wx, wy);
+        if (!canWetSlimeCell(world, idx)) continue;
+        world.cells[idx] = Cell.WATER;
+        world.floorTex[idx] = Tex.F_WATER;
+        if ((changed & 7) === 0) {
+          stampSurfaceSplat(world, wx, wy, 0.5, 0.5, 1.25 + concentration * 6, 0.18, salt ^ idx, 38, 154, 82, false);
+        }
+        changed++;
+        if (changed >= 1800) {
+          world.markCellsDirty();
+          world.markFloorTexDirty();
+          return;
+        }
+      }
+    }
+  }
+  if (changed > 0) {
+    world.markCellsDirty();
+    world.markFloorTexDirty();
+  }
+}
+
+function seedReactionField(u: Float32Array, v: Float32Array, seed: ReactionSeed): void {
+  const sx = Math.floor(worldToReaction(seed.x));
+  const sy = Math.floor(worldToReaction(seed.y));
+  const radius = Math.max(2, seed.radius / REACTION_CELL);
+  const r = Math.ceil(radius);
+  for (let dy = -r; dy <= r; dy++) {
+    for (let dx = -r; dx <= r; dx++) {
+      const x = reactionWrap(sx + dx);
+      const y = reactionWrap(sy + dy);
+      const d = Math.sqrt(dx * dx + dy * dy);
+      if (d > radius) continue;
+      const i = y * REACTION_GRID + x;
+      const k = (1 - d / radius) * seed.weight;
+      v[i] = Math.min(0.82, v[i] + k * 0.42);
+      u[i] = Math.max(0.18, u[i] - k * 0.24);
+    }
+  }
+}
+
+function canWetSlimeCell(world: World, idx: number): boolean {
+  if (world.cells[idx] !== Cell.FLOOR || world.hermoWall[idx]) return false;
+  if (world.features[idx] !== Feature.NONE) return false;
+  const roomId = world.roomMap[idx];
+  const room = roomId >= 0 ? world.rooms[roomId] : undefined;
+  if (!room) return true;
+  if (room.name.includes('сух') || room.name.includes('Чистая') || room.name.includes('шлюз') || room.name.includes('кабина')) return false;
+  return true;
+}
+
+function shapeVoronoiSealedChamber(world: World, room: Room, serial: number): void {
+  const sites = [
+    { x: 7 + (serial % 3), y: 6 },
+    { x: room.w - 8, y: 7 + (serial % 4) },
+    { x: room.w / 2, y: room.h - 7 },
+  ];
+  const centerX = room.x + (room.w >> 1);
+  const centerY = room.y + (room.h >> 1);
+  for (let dy = 1; dy < room.h - 1; dy++) {
+    for (let dx = 1; dx < room.w - 1; dx++) {
+      if (Math.abs(room.x + dx - centerX) <= 2 || Math.abs(room.y + dy - centerY) <= 2) continue;
+      const nearest = nearestSiteIndex(dx, dy, sites);
+      const ridge = Math.abs(siteDistance2(dx, dy, sites[nearest]) - siteDistance2(dx, dy, sites[(nearest + 1) % sites.length]));
+      if (ridge > 42 && hash01(SEED ^ serial, dx, dy, 37) > 0.22) continue;
+      const idx = world.idx(room.x + dx, room.y + dy);
+      world.cells[idx] = Cell.WALL;
+      world.wallTex[idx] = Tex.HERMO_WALL;
+      world.floorTex[idx] = Tex.F_TILE;
+      world.features[idx] = Feature.NONE;
+    }
+  }
+}
+
+function nearestSiteIndex(x: number, y: number, sites: readonly { x: number; y: number }[]): number {
+  let best = 0;
+  let bestD = Infinity;
+  for (let i = 0; i < sites.length; i++) {
+    const d = siteDistance2(x, y, sites[i]);
+    if (d < bestD) {
+      best = i;
+      bestD = d;
+    }
+  }
+  return best;
+}
+
+function siteDistance2(x: number, y: number, site: { x: number; y: number }): number {
+  const dx = x - site.x;
+  const dy = y - site.y;
+  return dx * dx + dy * dy;
+}
+
+function laplace(values: Float32Array, x: number, y: number): number {
+  const center = values[y * REACTION_GRID + x];
+  return -center
+    + (values[y * REACTION_GRID + reactionWrap(x - 1)] + values[y * REACTION_GRID + reactionWrap(x + 1)] + values[reactionWrap(y - 1) * REACTION_GRID + x] + values[reactionWrap(y + 1) * REACTION_GRID + x]) * 0.2
+    + (values[reactionWrap(y - 1) * REACTION_GRID + reactionWrap(x - 1)] + values[reactionWrap(y - 1) * REACTION_GRID + reactionWrap(x + 1)] + values[reactionWrap(y + 1) * REACTION_GRID + reactionWrap(x - 1)] + values[reactionWrap(y + 1) * REACTION_GRID + reactionWrap(x + 1)]) * 0.05;
+}
+
+function worldToReaction(value: number): number {
+  return (((value % W) + W) % W) / REACTION_CELL;
+}
+
+function reactionWrap(value: number): number {
+  return ((value % REACTION_GRID) + REACTION_GRID) % REACTION_GRID;
+}
+
+function clamp01(value: number): number {
+  return value < 0 ? 0 : value > 1 ? 1 : value;
+}
+
+function hash01(seed: number, x: number, y: number, salt: number): number {
+  let h = Math.imul(seed ^ 0x9e3779b9, 0x85ebca6b);
+  h ^= Math.imul((x + 0x632be5ab) | 0, 0x27d4eb2d);
+  h ^= Math.imul((y + 0x85157af5) | 0, 0x165667b1);
+  h ^= Math.imul((salt + 0x94d049bb) | 0, 0xd3a2646c);
+  h ^= h >>> 15;
+  h = Math.imul(h, 0x2c1b3c6d);
+  h ^= h >>> 12;
+  h = Math.imul(h, 0x297a2d39);
+  h ^= h >>> 15;
+  return (h >>> 0) / 0x100000000;
 }
 
 function addWetCell(world: World, x: number, y: number): void {

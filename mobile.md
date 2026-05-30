@@ -1,5 +1,9 @@
 # Mobile Port Guide
 
+> Центральный документ mobile/browser adaptation.
+>
+> Роль: описывает мобильный ввод, viewport, touch controls, fullscreen/direct-page behavior, interface constraints, build checks and platform-specific QA. Это параллельный документ: mobile must feed the same game systems without changing core simulation.
+
 This document is a practical checklist for adding mobile support to an already
 working browser game without breaking the desktop build.
 
@@ -91,15 +95,27 @@ For a first-person canvas game, two simple virtual pads are usually enough:
 - left pad: forward/back and strafe
 - right pad: camera rotation
 
-Keep controls as an overlay above the canvas:
+Keep controls as a plain DOM overlay above the canvas:
 
-```svelte
-{#if touchControlsEnabled}
-	<div class="mobile-controls pointer-events-none absolute inset-0">
-		<button class="mobile-pad mobile-pad--move pointer-events-auto">...</button>
-		<button class="mobile-pad mobile-pad--turn pointer-events-auto">...</button>
-	</div>
-{/if}
+```ts
+const controls = document.createElement('div');
+controls.className = 'mobile-controls';
+controls.style.pointerEvents = 'none';
+
+const movePad = document.createElement('button');
+movePad.className = 'mobile-pad mobile-pad--move';
+movePad.type = 'button';
+movePad.setAttribute('aria-label', 'Move');
+movePad.style.pointerEvents = 'auto';
+
+const turnPad = document.createElement('button');
+turnPad.className = 'mobile-pad mobile-pad--turn';
+turnPad.type = 'button';
+turnPad.setAttribute('aria-label', 'Look');
+turnPad.style.pointerEvents = 'auto';
+
+controls.append(movePad, turnPad);
+document.body.appendChild(controls);
 ```
 
 The wrapper should be `pointer-events: none`; the actual controls should be
@@ -164,8 +180,14 @@ body,
 
 Use `100dvh` for the app root when possible:
 
-```svelte
-<div class="h-screen w-screen overflow-hidden bg-black" style="height: 100dvh;">
+```ts
+const appRoot = document.getElementById('app');
+if (appRoot) {
+	appRoot.style.width = '100vw';
+	appRoot.style.height = '100dvh';
+	appRoot.style.overflow = 'hidden';
+	appRoot.style.background = '#000';
+}
 ```
 
 This avoids incorrect sizing around mobile browser address bars.
@@ -221,12 +243,10 @@ If the game has bottom subtitles or HUD text, move it above the pads on mobile:
 
 Canvas menus should use pointer events, not click-only logic:
 
-```svelte
-<canvas
-	onpointerup={onMenuClick}
-	onpointermove={onMenuMove}
-	onpointerleave={onMenuLeave}
-/>
+```ts
+canvas.addEventListener('pointerup', onMenuClick);
+canvas.addEventListener('pointermove', onMenuMove);
+canvas.addEventListener('pointerleave', onMenuLeave);
 ```
 
 Keep the same hit-test math, but make the displayed canvas responsive:

@@ -1,4 +1,4 @@
-/* ── Future design floor: Верхнее бюро ───────────────────────── */
+/* ── Design floor: Верхнее бюро ──────────────────────────────── */
 
 import {
   W,
@@ -972,6 +972,30 @@ function addArchiveBalconyTier(world: World): void {
   decorateArchiveBalcony(world, 620, 458, 890, 616);
 }
 
+function addStaffBalconyTier(world: World): void {
+  carveRibbonLine(world, 452, 586, 724, 586, 5, Tex.F_MARBLE_TILE, Tex.F_GREEN_CARPET);
+  carveBureauLine(world, 452, 508, 452, 586, 3, Tex.F_MARBLE_TILE);
+  carveBureauLine(world, 684, 540, 684, 586, 3, Tex.F_TILE);
+  carveBureauLine(world, 724, 586, 724, 616, 3, Tex.F_MARBLE_TILE);
+
+  const staffQueue = stampExpansionRoom(world, RoomType.COMMON, 'Балкон служебной очереди', 438, 590, 84, 24, Tex.F_GREEN_CARPET);
+  const backAppointment = stampExpansionRoom(world, RoomType.OFFICE, 'Окно заднего назначения', 536, 590, 44, 22, Tex.F_MARBLE_TILE);
+  const witnessPost = stampExpansionRoom(world, RoomType.HQ, 'Пост переписи сотрудников', 596, 590, 54, 22, Tex.F_RED_CARPET);
+  const bypassLedger = stampExpansionRoom(world, RoomType.STORAGE, 'Карман выданных обходов', 666, 590, 44, 22, Tex.F_TILE);
+
+  addDoor(world, staffQueue, staffQueue.x + 42, staffQueue.y - 1);
+  addDoor(world, backAppointment, backAppointment.x + 22, backAppointment.y - 1, DoorState.LOCKED, UPPER_BUREAU_DOCUMENTS.forgedAppointment, Tex.DOOR_METAL);
+  addDoor(world, witnessPost, witnessPost.x + 27, witnessPost.y - 1, DoorState.LOCKED, UPPER_BUREAU_DOCUMENTS.staffRoute, Tex.DOOR_METAL);
+  addDoor(world, bypassLedger, bypassLedger.x + 22, bypassLedger.y - 1, DoorState.LOCKED, UPPER_BUREAU_DOCUMENTS.cleanerKey, Tex.DOOR_METAL);
+
+  decorateSalon(world, staffQueue);
+  decorateClerkCage(world, backAppointment);
+  decorateOffice(world, witnessPost);
+  decorateCleanerRoom(world, bypassLedger);
+  placeFeatureRow(world, 462, 582, 712, 582, 8, Feature.CHAIR);
+  placeFeatureRow(world, 462, 588, 712, 588, 10, Feature.SHELF);
+}
+
 function addServiceTier(world: World, rng: () => number): void {
   carveBureauLine(world, 502, 540, 884, 540, 5, Tex.F_TILE);
   carveBureauLine(world, 584, 540, 584, 742, 5, Tex.F_TILE);
@@ -1010,6 +1034,7 @@ export function expandUpperBureauGeometry(world: World, rng: () => number): void
   addPublicQueueTier(world, rng);
   addPrivateOfficeTier(world, rng);
   addArchiveBalconyTier(world);
+  addStaffBalconyTier(world);
   addServiceTier(world, rng);
 }
 

@@ -33,6 +33,8 @@ function paintRoomBand(ctx: ProceduralAnomalyGenContext, room: Room, phase: numb
   const world = ctx.world;
   const maxW = Math.min(room.w - 2, 30);
   const maxH = Math.min(room.h - 2, 24);
+  const controlDx = Math.max(2, Math.min(maxW - 1, Math.floor(maxW / 2)));
+  const controlDy = Math.max(2, Math.min(maxH - 1, Math.floor(maxH / 2)));
   let marked = 0;
   let apparatus = -1;
   for (let dy = 1; dy <= maxH; dy++) {
@@ -42,12 +44,13 @@ function paintRoomBand(ctx: ProceduralAnomalyGenContext, room: Room, phase: numb
       const ci = world.idx(x, y);
       if (world.roomMap[ci] !== room.id || isProtectedCell(world, ci)) continue;
       if (world.cells[ci] !== Cell.FLOOR && world.cells[ci] !== Cell.WATER) continue;
-      if (((dx + phase * 3) % 6) === 0 || ((dy + phase * 2) % 7) === 0) {
+      if (((dx + phase * 3) % 6) === 0 || ((dy + phase * 2) % 7) === 0 || dx === controlDx || dy === controlDy) {
         world.floorTex[ci] = Tex.F_TILE;
         world.fog[ci] = Math.max(world.fog[ci], 30 + phase * 8);
         marked++;
       }
-      if (apparatus < 0 && dx > 2 && dy > 2 && dx < maxW - 1 && dy < maxH - 1) apparatus = ci;
+      if (dx === controlDx && dy === controlDy) apparatus = ci;
+      else if (apparatus < 0 && dx > 2 && dy > 2 && dx < maxW - 1 && dy < maxH - 1) apparatus = ci;
     }
   }
   if (marked <= 20 || apparatus < 0) return false;

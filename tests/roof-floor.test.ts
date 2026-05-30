@@ -5,15 +5,24 @@ import { Cell, FloorLevel, LiftDirection } from '../src/core/types';
 import { designFloorAtZ, designFloorById } from '../src/data/design_floors';
 import { generateDesignFloor } from '../src/gen/design_floors/manifest';
 import {
+  buildRoofLosExposureHeatmap,
   createRoofSkyTextureProvider,
   ROOF_BASE_FLOOR,
   ROOF_FUTURE_Z,
   ROOF_ROUTE_ID,
   ROOF_SKY_HEIGHT,
   ROOF_SKY_WIDTH,
+  summarizeRoofLosExposure,
   type RoofGeneration,
 } from '../src/gen/design_floors/roof';
 import { routeCueCount } from '../src/systems/route_cues';
+
+let cachedGeneration: RoofGeneration | undefined;
+
+function generatedRoof(): RoofGeneration {
+  cachedGeneration ??= generateDesignFloor(ROOF_ROUTE_ID) as RoofGeneration;
+  return cachedGeneration;
+}
 
 test('roof is registered as the top authored route floor', () => {
   const route = designFloorById(ROOF_ROUTE_ID);
@@ -26,7 +35,7 @@ test('roof is registered as the top authored route floor', () => {
 });
 
 test('roof generator exposes sky, shelter cue and two descent routes', () => {
-  const gen = generateDesignFloor(ROOF_ROUTE_ID) as RoofGeneration;
+  const gen = generatedRoof();
   const spawnCell = gen.world.cells[gen.world.idx(Math.floor(gen.spawnX), Math.floor(gen.spawnY))];
   const ventShelter = gen.world.rooms.find(room => room.name === 'Вентиляционное укрытие');
   let downLifts = 0;
@@ -58,4 +67,16 @@ test('roof sky provider updates bounded cloud pixels and fog tint', () => {
   sky.cycleTime(6);
   assert.equal(sky.dirty, true);
   assert.notDeepEqual(sky.fogTint, firstFog);
+});
+
+test('roof LOS exposure map keeps ordinary crossings near shelter pockets', () => {
+  const gen = generatedRoof();
+  const heat = buildRoofLosExposureHeatmap(gen.world);
+  const exposure = summarizeRoofLosExposure(gen.world, heat);
+
+  assert.equal(exposure.exposedCells > 10_000, true);
+  assert.equal(exposure.deliberateExposedCells > 0, true);
+  assert.equal(exposure.shelterCells >= 1_800, true);
+  assert.equal(exposure.unshelteredExposedCells <= 128, true);
+  assert.equal(exposure.maxScore > 140, true);
 });

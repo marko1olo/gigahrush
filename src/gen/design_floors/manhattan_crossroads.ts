@@ -21,7 +21,7 @@ import {
   type Room,
   type WorldContainer,
 } from '../../core/types';
-import { World } from '../../core/world';
+import { REACH_GATE_KEY, REACH_GATE_NONE, World, auditReachability } from '../../core/world';
 import { withSeededRandom } from '../../core/rand';
 import { freshNeeds } from '../../data/catalog';
 import { type PlotNpcDef, registerSideQuest } from '../../data/plot';
@@ -90,6 +90,13 @@ interface CrossroadsNpcIds {
   ksu: number;
 }
 
+interface AuditRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
 export interface ManhattanCrossroadsDebugInfo {
   routeId: typeof DESIGN_FLOOR_ID;
   z: number;
@@ -98,6 +105,23 @@ export interface ManhattanCrossroadsDebugInfo {
   blockers: readonly string[];
   questRooms: readonly string[];
   smokePath: string;
+}
+
+export interface ManhattanCrossroadsDecisionMetrics {
+  crosswalkStripeCells: number;
+  escortNpcPresent: boolean;
+  tollDoorLocked: boolean;
+  tollDoorRequiresKey: boolean;
+  tollKeyContainers: number;
+  tollQueueNpcs: number;
+  overpassUngatedCells: number;
+  underpassUngatedCells: number;
+  controlRoomReachableCells: number;
+  repairFuseCount: number;
+  cargoRoomReachableCells: number;
+  cargoMetalSheets: number;
+  wrongExitUngatedCells: number;
+  wrongExitMonsters: number;
 }
 
 export const MANHATTAN_CROSSROADS_DEBUG: ManhattanCrossroadsDebugInfo = {
@@ -134,6 +158,24 @@ const ROAD_SPANS: readonly RoadSpan[] = [
   { axis: 'horizontal', center: 680, from: DISTRICT_MIN, to: DISTRICT_MAX, width: STREET_WIDTH, name: 'Южная улица' },
   { axis: 'horizontal', center: 792, from: DISTRICT_MIN, to: DISTRICT_MAX, width: STREET_WIDTH, name: 'Южный объезд' },
   { axis: 'horizontal', center: 600, from: 512, to: DISTRICT_MAX, width: STREET_WIDTH, name: 'Съезд Неправильный поворот' },
+];
+
+const CENTRAL_CROSSWALK_AUDIT_RECTS: readonly AuditRect[] = [
+  { x: 480, y: 480, w: 65, h: 65 },
+  { x: 498, y: 592, w: 40, h: 20 },
+];
+
+const OVERPASS_AUDIT_RECTS: readonly AuditRect[] = [
+  { x: 548, y: 438, w: 8, h: 158 },
+  { x: 506, y: 438, w: 50, h: 8 },
+  { x: 548, y: 586, w: 92, h: 8 },
+  { x: 632, y: 586, w: 8, h: 38 },
+];
+
+const UNDERPASS_AUDIT_RECTS: readonly AuditRect[] = [
+  { x: 292, y: 620, w: 212, h: 7 },
+  { x: 494, y: 600, w: 7, h: 86 },
+  { x: 650, y: 626, w: 136, h: 7 },
 ];
 
 const TRAFFIC_MILITSIYA: PlotNpcDef = {
@@ -848,6 +890,7 @@ export function expandManhattanCrossroadsRouteShell(world: World, rng: () => num
   for (const [x, y] of [[104, 104], [920, 104], [104, 920], [920, 920], [512, 920], [920, 512]] as const) {
     placeSignalCluster(world, x, y);
   }
+  placeCentralTollGate(world);
 }
 
 function stampDistrictRooms(world: World, sidewalkRoomId: number): KeyRooms {
@@ -1390,6 +1433,124 @@ export function getManhattanCrossroadsDebugLines(): string[] {
     ...MANHATTAN_CROSSROADS_DEBUG.blockers.map(b => `[FLOOR] blocker ${b}`),
     `[FLOOR] smoke ${MANHATTAN_CROSSROADS_DEBUG.smokePath}`,
   ];
+}
+
+function rectCells(rect: AuditRect): number[] {
+  const cells: number[] = [];
+  for (let dy = 0; dy < rect.h; dy++) {
+    for (let dx = 0; dx < rect.w; dx++) {
+      cells.push((rect.y + dy) * W + rect.x + dx);
+    }
+  }
+  return cells;
+}
+
+function countUngatedRectCells(gen: FloorGeneration, rects: readonly AuditRect[], floorTex: Tex): number {
+  const audit = auditReachability(gen.world, gen.world.idx(Math.floor(gen.spawnX), Math.floor(gen.spawnY)));
+  let count = 0;
+  for (const rect of rects) {
+    for (const rawIdx of rectCells(rect)) {
+      const x = rawIdx % W;
+      const y = (rawIdx / W) | 0;
+      const ci = gen.world.idx(x, y);
+      if (gen.world.cells[ci] !== Cell.FLOOR) continue;
+      if (gen.world.floorTex[ci] !== floorTex) continue;
+      if (!audit.reachable[ci] || audit.gateMask[ci] !== REACH_GATE_NONE) continue;
+      count++;
+    }
+  }
+  return count;
+}
+
+function roomReachableCellCount(gen: FloorGeneration, roomName: string, ungatedOnly = false): number {
+  const roomIds = new Set(gen.world.rooms.filter(room => room.name === roomName).map(room => room.id));
+  if (roomIds.size === 0) return 0;
+  const audit = auditReachability(gen.world, gen.world.idx(Math.floor(gen.spawnX), Math.floor(gen.spawnY)));
+  let count = 0;
+  for (let ci = 0; ci < gen.world.cells.length; ci++) {
+    if (!roomIds.has(gen.world.roomMap[ci])) continue;
+    if (!audit.reachable[ci]) continue;
+    if (ungatedOnly && audit.gateMask[ci] !== REACH_GATE_NONE) continue;
+    count++;
+  }
+  return count;
+}
+
+function countInventoryItem(generation: FloorGeneration, defId: string, containerTag?: string): number {
+  let count = 0;
+  for (const container of generation.world.containers) {
+    if (containerTag && !container.tags.includes(containerTag)) continue;
+    for (const item of container.inventory) {
+      if (item.defId === defId) count += item.count;
+    }
+  }
+  if (containerTag) return count;
+
+  for (const entity of generation.entities) {
+    if (!entity.alive || !entity.inventory) continue;
+    for (const item of entity.inventory) {
+      if (item.defId === defId) count += item.count;
+    }
+  }
+  return count;
+}
+
+function countNpcsNear(generation: FloorGeneration, x: number, y: number, radius: number): number {
+  const r2 = radius * radius;
+  let count = 0;
+  for (const entity of generation.entities) {
+    if (!entity.alive || entity.type !== EntityType.NPC) continue;
+    if (generation.world.dist2(entity.x, entity.y, x, y) <= r2) count++;
+  }
+  return count;
+}
+
+function countMonstersInRoom(generation: FloorGeneration, roomName: string): number {
+  const roomIds = new Set(generation.world.rooms.filter(room => room.name === roomName).map(room => room.id));
+  let count = 0;
+  for (const entity of generation.entities) {
+    if (!entity.alive || entity.type !== EntityType.MONSTER) continue;
+    const ci = generation.world.idx(Math.floor(entity.x), Math.floor(entity.y));
+    if (roomIds.has(generation.world.roomMap[ci])) count++;
+  }
+  return count;
+}
+
+export function measureManhattanCrossroadsDecisionMetrics(generation: FloorGeneration): ManhattanCrossroadsDecisionMetrics {
+  const tollDoorIdx = generation.world.idx(512, 536);
+  const tollDoor = generation.world.doors.get(tollDoorIdx);
+  const audit = auditReachability(generation.world, generation.world.idx(Math.floor(generation.spawnX), Math.floor(generation.spawnY)));
+
+  let crosswalkStripeCells = 0;
+  for (const rect of CENTRAL_CROSSWALK_AUDIT_RECTS) {
+    for (const rawIdx of rectCells(rect)) {
+      const x = rawIdx % W;
+      const y = (rawIdx / W) | 0;
+      const ci = generation.world.idx(x, y);
+      if (generation.world.floorTex[ci] !== MARK_TEX) continue;
+      if (!audit.reachable[ci] || audit.gateMask[ci] !== REACH_GATE_NONE) continue;
+      crosswalkStripeCells++;
+    }
+  }
+
+  return {
+    crosswalkStripeCells,
+    escortNpcPresent: generation.entities.some(entity => entity.plotNpcId === 'crossroads_zebra_granny')
+      && generation.entities.some(entity => entity.plotNpcId === 'crossroads_courier_dima'),
+    tollDoorLocked: tollDoor?.state === DoorState.LOCKED,
+    tollDoorRequiresKey: !!tollDoor && audit.reachable[tollDoorIdx] === 1 && audit.gateMask[tollDoorIdx] === REACH_GATE_KEY,
+    tollKeyContainers: generation.world.containers.filter(container =>
+      container.tags.includes('toll') && container.inventory.some(item => item.defId === 'key')).length,
+    tollQueueNpcs: countNpcsNear(generation, 516.5, 540.5, 34),
+    overpassUngatedCells: countUngatedRectCells(generation, OVERPASS_AUDIT_RECTS, OVERPASS_TEX),
+    underpassUngatedCells: countUngatedRectCells(generation, UNDERPASS_AUDIT_RECTS, UNDERPASS_TEX),
+    controlRoomReachableCells: roomReachableCellCount(generation, CONTROL_ROOM_NAME),
+    repairFuseCount: countInventoryItem(generation, 'fuse'),
+    cargoRoomReachableCells: roomReachableCellCount(generation, CARGO_ROOM_NAME),
+    cargoMetalSheets: countInventoryItem(generation, 'metal_sheet', 'cargo'),
+    wrongExitUngatedCells: roomReachableCellCount(generation, WRONG_TURN_ROOM_NAME, true),
+    wrongExitMonsters: countMonstersInRoom(generation, WRONG_TURN_ROOM_NAME),
+  };
 }
 
 export function generateManhattanCrossroadsDesignFloor(seed = MANHATTAN_CROSSROADS_SEED): FloorGeneration {

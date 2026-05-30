@@ -14,6 +14,7 @@ import { setEntityMap, updateSimpleMonster } from './monster';
 import { setCombatContext, tryFactionCombat, tryFleeFromMonster } from './combat';
 import { primeNpcAlifeState, setNpcContext, updateNPC } from './npc_fsm';
 import { setNpcBarkLogContext } from './barks';
+import { actorHasTacticProfile, runActorTactic } from './tactics';
 import { expireMonsterBaits } from '../monster_bait';
 import { ensureEntityIndex } from '../entity_index';
 import { hearingRadiusMetersForActor } from '../hearing';
@@ -161,6 +162,7 @@ export function updateAI(world: World, entities: Entity[], dt: number, time: num
       currentMsgActor = e;
       if (e.type === EntityType.NPC) {
         aiStats.updatedNpc++;
+        if (actorHasTacticProfile(e) && runActorTactic(world, e, dt, time, msgs, player, state)) continue;
         if (!tryFactionCombat(world, entities, e, dt, time, msgs, nextId, state, player ?? null, {
           visualProjectiles: true,
           simple: true,
@@ -172,6 +174,7 @@ export function updateAI(world: World, entities: Entity[], dt: number, time: num
       }
       if (e.type === EntityType.MONSTER) {
         aiStats.updatedMonster++;
+        if (actorHasTacticProfile(e) && runActorTactic(world, e, dt, time, msgs, player, state)) continue;
         updateSimpleMonster(world, entities, e, dt, time, msgs, playerId, nextId, state);
       }
     }

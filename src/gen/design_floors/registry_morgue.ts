@@ -1,6 +1,5 @@
 /* -- Design floor: Морг регистраций ----------------------------
- * Future route id registry_morgue, z=+18. Self-contained authored
- * generator; an integrator can wire it into FloorRun later.
+ * Authored route floor registry_morgue, z=+18.
  */
 
 import { stampSurfaceSplat } from '../../systems/surface_marks';
@@ -56,6 +55,52 @@ const REGISTRY_MORGUE_TARGET_ROUTE = {
 
 type NextId = { v: number };
 type MorgueDoorSide = 'north' | 'south' | 'west' | 'east';
+type MorgueRecordDomain = 'living_record' | 'dead_record' | 'contaminated_record';
+
+interface MorgueDrawerSlot {
+  x: number;
+  y: number;
+  roomId: number;
+  hilbert: number;
+}
+
+interface MorgueRecordDomainDef {
+  label: string;
+  tag: string;
+  faction: Faction;
+  access: WorldContainer['access'];
+  items: readonly string[];
+}
+
+const MORGUE_RECORD_DOMAIN_ORDER: readonly MorgueRecordDomain[] = [
+  'living_record',
+  'dead_record',
+  'contaminated_record',
+];
+
+const MORGUE_RECORD_DOMAINS: Record<MorgueRecordDomain, MorgueRecordDomainDef> = {
+  living_record: {
+    label: 'живая запись',
+    tag: 'potts_living_record',
+    faction: Faction.SCIENTIST,
+    access: 'owner',
+    items: ['passport_stub', 'blank_form', 'sealed_complaint'],
+  },
+  dead_record: {
+    label: 'мертвая запись',
+    tag: 'potts_dead_record',
+    faction: Faction.SCIENTIST,
+    access: 'locked',
+    items: ['denunciation', 'ink_bottle', 'blank_form'],
+  },
+  contaminated_record: {
+    label: 'зараженная запись',
+    tag: 'potts_contaminated_record',
+    faction: Faction.LIQUIDATOR,
+    access: 'locked',
+    items: ['emergency_roster', 'container_key_label', 'denunciation'],
+  },
+};
 
 const NPC_DEFS: Record<string, PlotNpcDef> = {
   morgue_registrar_faina: {
@@ -229,6 +274,25 @@ registerSideQuest('morgue_relative_ira', NPC_DEFS.morgue_relative_ira, [
     eventTags: ['registry_morgue', 'identity', 'missing_record', 'name_returned'],
     eventData: { outcome: 'name_returned', routeId: REGISTRY_MORGUE_ROUTE_ID },
     eventTargetName: 'Пропавшее личное дело вернуло Ире фамилию до закрытия ящика.',
+    eventSeverity: 4,
+  },
+  {
+    id: 'morgue_relative_escort',
+    giverNpcId: 'morgue_relative_ira',
+    type: QuestType.VISIT,
+    desc: 'Ира Заименованная: «Проведите меня до книги умерших. Одной мне выдадут тишину, а при свидетеле должны назвать строку.»',
+    targetFloor: REGISTRY_MORGUE_BASE_FLOOR,
+    targetRoute: REGISTRY_MORGUE_TARGET_ROUTE,
+    targetRoomName: 'Кабинет книги умерших',
+    targetHint: 'доведите Иру от окна приема через бирочную к книге умерших; не оставляйте ее среди холодных ящиков',
+    rewardItem: 'personal_file_copy', rewardCount: 1,
+    extraRewards: [{ defId: 'water_coupon', count: 1 }],
+    relationDelta: 14, xpReward: 65, moneyReward: 25,
+    requiresSideQuestDone: 'morgue_name_return',
+    failOnNpcDeathPlotId: 'morgue_relative_ira',
+    eventTags: ['registry_morgue', 'escort', 'relative', 'identity', 'death_record'],
+    eventData: { outcome: 'relative_escorted_to_ledger', routeId: REGISTRY_MORGUE_ROUTE_ID },
+    eventTargetName: 'Иру довели до книги умерших как живого свидетеля записи.',
     eventSeverity: 4,
   },
 ]);
@@ -488,7 +552,30 @@ function dressFrostVault(world: World, room: Room): void {
   setCellFeature(world, room.x + Math.floor(room.w / 2), room.y + 2, Feature.LAMP);
 }
 
-function buildDrawerCanyon(world: World, rng: () => number): void {
+function rotateHilbertQuadrant(n: number, x: number, y: number, rx: number, ry: number): [number, number] {
+  if (ry !== 0) return [x, y];
+  if (rx !== 0) {
+    x = n - 1 - x;
+    y = n - 1 - y;
+  }
+  return [y, x];
+}
+
+function hilbertIndex1024(x: number, y: number): number {
+  let hx = Math.max(0, Math.min(W - 1, x | 0));
+  let hy = Math.max(0, Math.min(W - 1, y | 0));
+  let d = 0;
+  for (let s = W >> 1; s > 0; s >>= 1) {
+    const rx = (hx & s) > 0 ? 1 : 0;
+    const ry = (hy & s) > 0 ? 1 : 0;
+    d += s * s * ((3 * rx) ^ ry);
+    [hx, hy] = rotateHilbertQuadrant(s, hx, hy, rx, ry);
+  }
+  return d;
+}
+
+function buildDrawerCanyon(world: World, rng: () => number): MorgueDrawerSlot[] {
+  const drawerSlots: MorgueDrawerSlot[] = [];
   const rows = [
     { roomY: 282, corridorY: 298, door: 'south' as MorgueDoorSide },
     { roomY: 334, corridorY: 350, door: 'south' as MorgueDoorSide },
@@ -516,7 +603,116 @@ function buildDrawerCanyon(world: World, rng: () => number): void {
       );
       dressDrawerRoom(world, room, room.id);
       openMorgueDoor(world, room, row.door, Math.floor(room.w / 2), DoorState.CLOSED, room.x + Math.floor(room.w / 2), row.corridorY);
+      const slotX = room.x + 2 + ((room.id * 7) % Math.max(4, room.w - 5));
+      const slotY = row.door === 'south' ? room.y + 1 : room.y + room.h - 2;
+      drawerSlots.push({ x: slotX, y: slotY, roomId: room.id, hilbert: hilbertIndex1024(slotX, slotY) });
     }
+  }
+  return drawerSlots;
+}
+
+function initialMorgueRecordDomain(slot: MorgueDrawerSlot): MorgueRecordDomain {
+  const living = (slot.x - 500) * (slot.x - 500) + (slot.y - 516) * (slot.y - 516) - 16000;
+  const dead = Math.min(
+    (slot.x - 240) * (slot.x - 240) + (slot.y - 350) * (slot.y - 350),
+    (slot.x - 784) * (slot.x - 784) + (slot.y - 668) * (slot.y - 668),
+  );
+  const contaminated = (slot.x - 835) * (slot.x - 835) + (slot.y - 516) * (slot.y - 516) - 9000;
+  if (contaminated <= living && contaminated <= dead) return 'contaminated_record';
+  if (living <= dead) return 'living_record';
+  return 'dead_record';
+}
+
+function smoothMorgueRecordDomains(slots: readonly MorgueDrawerSlot[]): MorgueRecordDomain[] {
+  const domains = slots.map(initialMorgueRecordDomain);
+  const influenceRadius2 = 150 * 150;
+  for (let pass = 0; pass < 3; pass++) {
+    for (let i = 0; i < slots.length; i++) {
+      const scores: Record<MorgueRecordDomain, number> = {
+        living_record: domains[i] === 'living_record' ? 1.2 : 0,
+        dead_record: domains[i] === 'dead_record' ? 1.2 : 0,
+        contaminated_record: domains[i] === 'contaminated_record' ? 1.2 : 0,
+      };
+      for (let j = 0; j < slots.length; j++) {
+        if (i === j) continue;
+        const dx = slots[i].x - slots[j].x;
+        const dy = slots[i].y - slots[j].y;
+        const d2 = dx * dx + dy * dy;
+        if (d2 > influenceRadius2) continue;
+        scores[domains[j]] += 1.0 - d2 / influenceRadius2;
+      }
+      let best = domains[i];
+      for (const domain of MORGUE_RECORD_DOMAIN_ORDER) {
+        if (scores[domain] > scores[best]) best = domain;
+      }
+      domains[i] = best;
+    }
+  }
+  for (const domain of MORGUE_RECORD_DOMAIN_ORDER) {
+    if (domains.includes(domain)) continue;
+    let bestIdx = 0;
+    let bestScore = Number.POSITIVE_INFINITY;
+    for (let i = 0; i < slots.length; i++) {
+      const candidate = initialMorgueRecordDomain(slots[i]);
+      const penalty = candidate === domain ? -1_000_000 : 0;
+      const score = slots[i].hilbert + penalty;
+      if (score < bestScore) {
+        bestScore = score;
+        bestIdx = i;
+      }
+    }
+    domains[bestIdx] = domain;
+  }
+  return domains;
+}
+
+function nextMorgueContainerId(world: World): number {
+  let id = world.containers.length + 1;
+  while (world.containerById.has(id) || world.containers.some(container => container.id === id)) id++;
+  return id;
+}
+
+function drawerInventory(domain: MorgueRecordDomain, order: number): WorldContainer['inventory'] {
+  if (order % 4 === 0) return [];
+  const def = MORGUE_RECORD_DOMAINS[domain];
+  return [{ defId: def.items[order % def.items.length], count: 1 }];
+}
+
+function addHilbertDrawerRegistry(world: World, drawerSlots: readonly MorgueDrawerSlot[]): void {
+  const ordered = [...drawerSlots].sort((a, b) => a.hilbert - b.hilbert);
+  const domains = smoothMorgueRecordDomains(ordered);
+  for (let i = 0; i < ordered.length; i++) {
+    const slot = ordered[i];
+    if (world.containersAt(slot.x, slot.y).length > 0) continue;
+    const domain = MORGUE_RECORD_DOMAINS[domains[i]];
+    const order = i + 1;
+    const orderLabel = order.toString().padStart(2, '0');
+    world.addContainer({
+      id: nextMorgueContainerId(world),
+      x: slot.x,
+      y: slot.y,
+      floor: REGISTRY_MORGUE_BASE_FLOOR,
+      roomId: slot.roomId,
+      zoneId: world.zoneMap[world.idx(slot.x, slot.y)],
+      kind: ContainerKind.FILING_CABINET,
+      name: `Ящик H-${orderLabel}: ${domain.label}`,
+      inventory: drawerInventory(domains[i], order),
+      capacitySlots: 6,
+      faction: domain.faction,
+      access: domain.access,
+      lockDifficulty: 4,
+      discovered: true,
+      tags: [
+        REGISTRY_MORGUE_ROUTE_ID,
+        'morgue',
+        'drawer_canyon',
+        'hilbert_tag_order',
+        `hilbert_order_${orderLabel}`,
+        'potts_record_domain',
+        domain.tag,
+        'morgue_theft',
+      ],
+    });
   }
 }
 
@@ -568,7 +764,7 @@ function carveTagSwitchbacks(world: World): void {
 }
 
 export function expandRegistryMorgueGeometry(world: World, rng: () => number): void {
-  buildDrawerCanyon(world, rng);
+  const drawerSlots = buildDrawerCanyon(world, rng);
   buildAutopsyBays(world);
   buildRegistryCounters(world);
   buildFrostVaults(world);
@@ -587,6 +783,7 @@ export function expandRegistryMorgueGeometry(world: World, rng: () => number): v
   carveMorgueLine(world, 784, 260, 784, 782, 1, Tex.F_TILE, Tex.TILE_W);
   carveTagSwitchbacks(world);
   dressConveyorSpine(world);
+  addHilbertDrawerRegistry(world, drawerSlots);
 }
 
 function placeDesignLift(world: World, x: number, y: number, direction: LiftDirection): void {

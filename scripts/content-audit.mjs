@@ -295,6 +295,28 @@ function getObjectProp(obj, key) {
   return undefined;
 }
 
+function callName(expr) {
+  if (ts.isIdentifier(expr)) return expr.text;
+  if (ts.isPropertyAccessExpression(expr)) return expr.name.text;
+  return undefined;
+}
+
+function objectArgumentCallName(obj) {
+  let node = obj;
+  while (
+    node.parent
+    && (ts.isAsExpression(node.parent)
+      || ts.isSatisfiesExpression(node.parent)
+      || ts.isParenthesizedExpression(node.parent)
+      || ts.isTypeAssertionExpression(node.parent))
+  ) {
+    node = node.parent;
+  }
+  if (!node.parent || !ts.isCallExpression(node.parent)) return undefined;
+  if (!node.parent.arguments.some(arg => unwrapConstExpression(arg) === obj)) return undefined;
+  return callName(node.parent.expression);
+}
+
 function constObject(relPath, name) {
   const init = unwrapConstExpression(varInitializer(relPath, name));
   return init && ts.isObjectLiteralExpression(init) ? init : undefined;
@@ -731,13 +753,16 @@ const sideQuestNpcEntries = [];
 const sideQuestEntries = [];
 const zoneEntries = [];
 const itemRefs = [];
+const interactiveRefs = [];
 const npcRefs = [];
 const rewardTableRefs = [];
 const directItemCallRefs = [];
+const directInteractiveCallRefs = [];
 
-const knownItemProps = new Set(['defId', 'targetItem', 'rewardItem', 'itemId', 'sampleId']);
+const knownItemProps = new Set(['targetItem', 'rewardItem', 'itemId', 'sampleId']);
 const knownNpcProps = new Set(['giverNpcId', 'targetNpcId', 'targetPlotNpcId']);
 const directItemCallNames = new Set(['addItem', 'addItemDrop', 'dropItem']);
+const directInteractiveCallNames = new Set(['placeInteractiveAt', 'placeInteractiveInRoom']);
 
 for (const abs of files) {
   const rel = toRel(abs);
@@ -787,11 +812,26 @@ for (const abs of files) {
           break;
         }
       }
+      if (directInteractiveCallNames.has(node.expression.text) && (rel.startsWith('src/gen/') || rel.startsWith('src/systems/'))) {
+        const argIndex = node.expression.text === 'placeInteractiveInRoom' ? 2 : 3;
+        const id = stringValue(node.arguments[argIndex], stringConstants);
+        if (id !== undefined) {
+          directInteractiveCallRefs.push({ id, call: node.expression.text, file: rel, line: lineOf(sf, node.arguments[argIndex]) });
+        }
+      }
     }
 
     if (ts.isPropertyAssignment(node)) {
       const name = propName(node.name);
       const value = stringValue(node.initializer, stringConstants);
+      if (value && name === 'defId') {
+        const owner = node.parent;
+        if (owner && ts.isObjectLiteralExpression(owner) && objectArgumentCallName(owner) === 'placeInteractive') {
+          interactiveRefs.push({ id: value, prop: name, file: rel, line: lineOf(sf, node) });
+        } else {
+          itemRefs.push({ id: value, prop: name, file: rel, line: lineOf(sf, node) });
+        }
+      }
       if (value && knownItemProps.has(name)) itemRefs.push({ id: value, prop: name, file: rel, line: lineOf(sf, node) });
       if (value && knownNpcProps.has(name)) npcRefs.push({ id: value, prop: name, file: rel, line: lineOf(sf, node) });
       if (name === 'rewardTable' && ts.isArrayLiteralExpression(node.initializer)) {
@@ -826,6 +866,7 @@ const slimeEntries = arrayIds('src/data/slime_defs.ts', 'SLIME_DEFS');
 const slimeSampleEntries = arrayPropIds('src/data/slime_defs.ts', 'SLIME_DEFS', 'sampleId');
 const slimeTextHandleRefs = arrayPropStringRefs('src/data/slime_defs.ts', 'SLIME_DEFS', 'textHandles');
 const zhelemishEntries = arrayPropIds('src/data/zhelemish_defs.ts', 'ZHELEMISH_DEFS', 'itemId');
+const interactiveEntries = arrayIds('src/data/interactive.ts', 'INTERACTIVE_DEFS');
 const floorGeometryEntries = arrayIds('src/data/procedural_floors.ts', 'FLOOR_GEOMETRIES');
 const floorMajorityEntries = arrayIds('src/data/procedural_floors.ts', 'FLOOR_MAJORITY_FACTIONS');
 const floorAnomalyEntries = arrayIds('src/data/procedural_floors.ts', 'FLOOR_ANOMALIES');
@@ -876,6 +917,7 @@ const samosborAftermathEntries = arrayIds('src/data/samosbor_variants.ts', 'SAMO
 const samosborDirectorEntries = arrayIds('src/data/samosbor_director.ts', 'BASELINE_BEATS');
 
 const itemIds = new Set(itemEntries.map(v => v.id));
+const interactiveIds = new Set(interactiveEntries.map(v => v.id));
 const questTargetItemIds = new Set([...itemIds, 'money']);
 const itemOrMoneyIds = new Set([...itemIds, 'money']);
 const plotNpcIds = new Set([...plotNpcEntries, ...localNpcDefEntries].map(v => v.id));
@@ -1095,6 +1137,9 @@ for (const ref of itemRefs) {
   const allowed = ref.prop === 'targetItem' ? questTargetItemIds : itemIds;
   if (!allowed.has(ref.id)) errors.push(`${ref.file}:${ref.line} ${ref.prop} references missing item "${ref.id}"`);
 }
+for (const ref of interactiveRefs) {
+  if (!interactiveIds.has(ref.id)) errors.push(`${ref.file}:${ref.line} ${ref.prop} references missing interactive "${ref.id}"`);
+}
 for (const ref of [...permitItemRefs, ...permitForgeryOutputRefs, ...permitForgeryInputRefs]) {
   if (!itemIds.has(ref.id)) errors.push(`${ref.file}:${ref.line} permit registry references missing item "${ref.id}"`);
 }
@@ -1103,6 +1148,9 @@ for (const ref of rewardTableRefs) {
 }
 for (const ref of directItemCallRefs) {
   if (!itemIds.has(ref.id)) errors.push(`${ref.file}:${ref.line} ${ref.call} references missing item "${ref.id}"`);
+}
+for (const ref of directInteractiveCallRefs) {
+  if (!interactiveIds.has(ref.id)) errors.push(`${ref.file}:${ref.line} ${ref.call} references missing interactive "${ref.id}"`);
 }
 for (const ref of npcRefs) {
   if (!plotNpcIds.has(ref.id)) errors.push(`${ref.file}:${ref.line} ${ref.prop} references missing plot NPC "${ref.id}"`);
@@ -1187,6 +1235,7 @@ console.log(`- monster registry entries: ${monsterRegistryEntries.length}`);
 console.log(`- rumors: ${rumorEntries.length}`);
 console.log(`- slime defs: ${slimeEntries.length}`);
 console.log(`- zhelemish defs: ${zhelemishEntries.length}`);
+console.log(`- interactive defs: ${interactiveEntries.length}`);
 console.log(`- procedural geometries: ${floorGeometryEntries.length}`);
 console.log(`- procedural majority factions: ${floorMajorityEntries.length}`);
 console.log(`- procedural anomalies: ${floorAnomalyEntries.length}`);
@@ -1198,6 +1247,7 @@ console.log(`- permits / forgery recipes: ${permitEntries.length} / ${permitForg
 console.log(`- computers / net hack terminals / emergency panels: ${computerEntries.length} / ${netHackTerminalEntries.length} / ${emergencyPanelEntries.length}`);
 console.log(`- manifest imports checked: ${manifestImportRefs.length}`);
 console.log(`- direct item call refs checked: ${directItemCallRefs.length}`);
+console.log(`- interactive refs checked: ${interactiveRefs.length + directInteractiveCallRefs.length}`);
 for (const [floor, entries] of [...manifestEntries.entries()].sort()) {
   console.log(`- ${floor} manifest entries: ${entries.length}`);
 }

@@ -21,8 +21,120 @@ export interface MinistryMacroGeometry {
 }
 
 type RouteKind = 'public' | 'queue' | 'service' | 'authority';
+type MinistryGraphRole = 'backbone' | 'office_bsp' | 'queue_hall' | 'archive_stack' | 'staff_chord' | 'landmark';
+type LandmarkDecor = 'portrait_hall' | 'seal_cabinet' | 'clerk_cage' | 'copy_room' | 'complaint_pit';
 
 const CENTER = Math.floor(W / 2);
+
+interface ArchiveSubgraphSpec {
+  role: Extract<MinistryGraphRole, 'archive_stack'>;
+  x: number;
+  y: number;
+  cols: number;
+  rows: number;
+  cell: number;
+  entryX: number;
+  entryY: number;
+}
+
+interface LandmarkSpec {
+  role: Extract<MinistryGraphRole, 'landmark'>;
+  name: string;
+  type: RoomType;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  floorTex: Tex;
+  depth: number;
+  centrality: number;
+  decor: LandmarkDecor;
+  leaf?: {
+    doorSide: 'n' | 's' | 'e' | 'w';
+    state: DoorState;
+    keyId: string;
+    connectX: number;
+    connectY: number;
+  };
+}
+
+const ARCHIVE_SUBGRAPHS: readonly ArchiveSubgraphSpec[] = [
+  { role: 'archive_stack', x: 124, y: 256, cols: 8, rows: 10, cell: 22, entryX: 232, entryY: 384 },
+  { role: 'archive_stack', x: 724, y: 256, cols: 8, rows: 10, cell: 22, entryX: W - 232, entryY: 384 },
+  { role: 'archive_stack', x: 232, y: 700, cols: 10, rows: 6, cell: 22, entryX: 384, entryY: 640 },
+  { role: 'archive_stack', x: 572, y: 700, cols: 10, rows: 6, cell: 22, entryX: 640, entryY: 640 },
+];
+
+const LANDMARK_SPECS: readonly LandmarkSpec[] = [
+  {
+    role: 'landmark',
+    name: 'Портретный зал центральных подписей',
+    type: RoomType.CORRIDOR,
+    x: CENTER - 76,
+    y: CENTER - 252,
+    w: 153,
+    h: 29,
+    floorTex: Tex.F_PARQUET,
+    depth: 1,
+    centrality: 98,
+    decor: 'portrait_hall',
+  },
+  {
+    role: 'landmark',
+    name: 'Шкаф гербовых печатей',
+    type: RoomType.STORAGE,
+    x: CENTER + 42,
+    y: CENTER - 182,
+    w: 18,
+    h: 13,
+    floorTex: Tex.F_PARQUET,
+    depth: 3,
+    centrality: 70,
+    decor: 'seal_cabinet',
+    leaf: { doorSide: 's', state: DoorState.LOCKED, keyId: 'key', connectX: CENTER + 51, connectY: CENTER - 128 },
+  },
+  {
+    role: 'landmark',
+    name: 'Клетка клерков временной выдачи',
+    type: RoomType.OFFICE,
+    x: CENTER - 78,
+    y: CENTER - 46,
+    w: 22,
+    h: 15,
+    floorTex: Tex.F_GREEN_CARPET,
+    depth: 2,
+    centrality: 86,
+    decor: 'clerk_cage',
+    leaf: { doorSide: 'w', state: DoorState.CLOSED, keyId: '', connectX: CENTER - 96, connectY: CENTER - 44 },
+  },
+  {
+    role: 'landmark',
+    name: 'Копировальная комната мокрых справок',
+    type: RoomType.PRODUCTION,
+    x: CENTER - 76,
+    y: CENTER + 92,
+    w: 20,
+    h: 14,
+    floorTex: Tex.F_MARBLE_TILE,
+    depth: 3,
+    centrality: 74,
+    decor: 'copy_room',
+    leaf: { doorSide: 'e', state: DoorState.CLOSED, keyId: '', connectX: CENTER - 24, connectY: CENTER + 99 },
+  },
+  {
+    role: 'landmark',
+    name: 'Жалобная яма с обратной нумерацией',
+    type: RoomType.COMMON,
+    x: CENTER - 58,
+    y: CENTER + 52,
+    w: 117,
+    h: 34,
+    floorTex: Tex.F_GREEN_CARPET,
+    depth: 2,
+    centrality: 91,
+    decor: 'complaint_pit',
+  },
+];
 
 function routeFloor(kind: RouteKind): Tex {
   switch (kind) {
@@ -99,6 +211,16 @@ function carveRectLoop(
   carveLine(world, x0, y1, x0, y0, halfW, kind, carpetCells);
 }
 
+function addCarpetCellsForRoom(world: World, room: Room, carpetCells: number[]): void {
+  if (room.floorTex !== Tex.F_RED_CARPET) return;
+  for (let dy = 0; dy < room.h; dy++) {
+    for (let dx = 0; dx < room.w; dx++) {
+      const ci = world.idx(room.x + dx, room.y + dy);
+      if (world.cells[ci] === Cell.FLOOR) carpetCells.push(ci);
+    }
+  }
+}
+
 function setFeature(world: World, x: number, y: number, feature: Feature): void {
   const ci = world.idx(x, y);
   if (world.cells[ci] === Cell.FLOOR && world.features[ci] === Feature.NONE) {
@@ -167,6 +289,86 @@ function makeOpenLandmark(
   return room;
 }
 
+function makeClosedLandmarkLeaf(
+  world: World,
+  id: number,
+  spec: LandmarkSpec,
+  carpetCells: number[],
+): Room {
+  const room: Room = {
+    id,
+    type: spec.type,
+    x: spec.x,
+    y: spec.y,
+    w: spec.w,
+    h: spec.h,
+    doors: [],
+    sealed: false,
+    name: spec.name,
+    apartmentId: -1,
+    wallTex: Tex.MARBLE,
+    floorTex: spec.floorTex,
+  };
+
+  for (let dy = -1; dy <= spec.h; dy++) {
+    for (let dx = -1; dx <= spec.w; dx++) {
+      const ci = world.idx(spec.x + dx, spec.y + dy);
+      if (world.aptMask[ci]) continue;
+      world.roomMap[ci] = -1;
+      if (dx >= 0 && dx < spec.w && dy >= 0 && dy < spec.h) {
+        world.cells[ci] = Cell.FLOOR;
+        world.roomMap[ci] = id;
+        world.wallTex[ci] = Tex.MARBLE;
+        world.floorTex[ci] = spec.floorTex;
+        if (spec.floorTex === Tex.F_RED_CARPET) carpetCells.push(ci);
+        continue;
+      }
+      world.cells[ci] = Cell.WALL;
+      world.wallTex[ci] = Tex.MARBLE;
+    }
+  }
+
+  const leaf = spec.leaf;
+  if (leaf) {
+    let doorX = spec.x + Math.floor(spec.w / 2);
+    let doorY = spec.y - 1;
+    let outX = doorX;
+    let outY = doorY - 1;
+    if (leaf.doorSide === 's') {
+      doorY = spec.y + spec.h;
+      outY = doorY + 1;
+    } else if (leaf.doorSide === 'w') {
+      doorX = spec.x - 1;
+      doorY = spec.y + Math.floor(spec.h / 2);
+      outX = doorX - 1;
+      outY = doorY;
+    } else if (leaf.doorSide === 'e') {
+      doorX = spec.x + spec.w;
+      doorY = spec.y + Math.floor(spec.h / 2);
+      outX = doorX + 1;
+      outY = doorY;
+    }
+
+    const doorIdx = world.idx(doorX, doorY);
+    world.cells[doorIdx] = Cell.DOOR;
+    world.roomMap[doorIdx] = -1;
+    world.wallTex[doorIdx] = leaf.state === DoorState.LOCKED ? Tex.DOOR_METAL : Tex.DOOR_WOOD;
+    world.doors.set(doorIdx, {
+      idx: doorIdx,
+      state: leaf.state,
+      roomA: id,
+      roomB: -1,
+      keyId: leaf.keyId,
+      timer: 0,
+    });
+    room.doors.push(doorIdx);
+    carveLine(world, outX, outY, leaf.connectX, leaf.connectY, 1, 'service', carpetCells);
+  }
+
+  world.rooms[id] = room;
+  return room;
+}
+
 function addCourtyardColumns(world: World, room: Room): void {
   for (let dy = 5; dy < room.h - 4; dy += 7) {
     for (let dx = 6; dx < room.w - 5; dx += 8) {
@@ -191,6 +393,98 @@ function addArchiveShelves(world: World, x0: number, y0: number, x1: number, y1:
     setFeature(world, x0 - 2, y, Feature.SHELF);
     setFeature(world, x1 + 2, y, Feature.SHELF);
   }
+}
+
+function addArchiveNodeMarks(world: World, x: number, y: number): void {
+  for (const [dx, dy] of [[0, 0], [-1, 0], [1, 0], [0, -1], [0, 1]] as const) {
+    setFeature(world, x + dx, y + dy, Feature.SHELF);
+  }
+}
+
+function carveArchiveSubgraph(world: World, spec: ArchiveSubgraphSpec, carpetCells: number[]): void {
+  const total = spec.cols * spec.rows;
+  const visited = new Uint8Array(total);
+  const frontiers: { ax: number; ay: number; bx: number; by: number }[] = [];
+  const idx = (gx: number, gy: number): number => gy * spec.cols + gx;
+  const cx = (gx: number): number => spec.x + gx * spec.cell + Math.floor(spec.cell / 2);
+  const cy = (gy: number): number => spec.y + gy * spec.cell + Math.floor(spec.cell / 2);
+
+  function pushFrontiers(gx: number, gy: number): void {
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+      const nx = gx + dx;
+      const ny = gy + dy;
+      if (nx < 0 || ny < 0 || nx >= spec.cols || ny >= spec.rows) continue;
+      if (visited[idx(nx, ny)]) continue;
+      frontiers.push({ ax: gx, ay: gy, bx: nx, by: ny });
+    }
+  }
+
+  const startX = Math.floor(spec.cols / 2);
+  const startY = Math.floor(spec.rows / 2);
+  visited[idx(startX, startY)] = 1;
+  let visitedCount = 1;
+  pushFrontiers(startX, startY);
+  addArchiveNodeMarks(world, cx(startX), cy(startY));
+
+  while (frontiers.length > 0 && visitedCount < total) {
+    const pickIdx = Math.floor(Math.random() * frontiers.length);
+    const edge = frontiers[pickIdx];
+    frontiers[pickIdx] = frontiers[frontiers.length - 1];
+    frontiers.pop();
+    if (visited[idx(edge.bx, edge.by)]) continue;
+    carveLine(world, cx(edge.ax), cy(edge.ay), cx(edge.bx), cy(edge.by), 1, 'service', carpetCells);
+    addArchiveNodeMarks(world, cx(edge.bx), cy(edge.by));
+    visited[idx(edge.bx, edge.by)] = 1;
+    visitedCount++;
+    pushFrontiers(edge.bx, edge.by);
+  }
+
+  const extraChords = Math.max(2, Math.floor(total * 0.14));
+  for (let i = 0; i < extraChords; i++) {
+    const gx = Math.floor(Math.random() * spec.cols);
+    const gy = Math.floor(Math.random() * spec.rows);
+    const horizontal = Math.random() < 0.5;
+    const nx = gx + (horizontal ? 1 : 0);
+    const ny = gy + (horizontal ? 0 : 1);
+    if (nx >= spec.cols || ny >= spec.rows) continue;
+    carveLine(world, cx(gx), cy(gy), cx(nx), cy(ny), 1, 'service', carpetCells);
+  }
+
+  carveLine(world, spec.entryX, spec.entryY, cx(startX), cy(startY), 1, 'service', carpetCells);
+}
+
+function carveOfficeBsp(
+  world: World,
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+  depth: number,
+  carpetCells: number[],
+): void {
+  if (depth >= 3 || x1 - x0 < 96 || y1 - y0 < 96) return;
+  const vertical = (x1 - x0) >= (y1 - y0);
+  const offset = depth === 0 ? 0 : (depth % 2 === 0 ? -14 : 14);
+  if (vertical) {
+    const x = Math.floor((x0 + x1) / 2) + offset;
+    carveLine(world, x, y0, x, y1, 1, 'service', carpetCells);
+    for (let y = y0 + 18; y <= y1 - 18; y += 42) {
+      setFeature(world, x - 1, y, Feature.DESK);
+      setFeature(world, x + 1, y + 2, Feature.CHAIR);
+    }
+    carveOfficeBsp(world, x0, y0, x - 18, y1, depth + 1, carpetCells);
+    carveOfficeBsp(world, x + 18, y0, x1, y1, depth + 1, carpetCells);
+    return;
+  }
+
+  const y = Math.floor((y0 + y1) / 2) + offset;
+  carveLine(world, x0, y, x1, y, 1, 'service', carpetCells);
+  for (let x = x0 + 18; x <= x1 - 18; x += 42) {
+    setFeature(world, x, y - 1, Feature.DESK);
+    setFeature(world, x + 2, y + 1, Feature.CHAIR);
+  }
+  carveOfficeBsp(world, x0, y0, x1, y - 18, depth + 1, carpetCells);
+  carveOfficeBsp(world, x0, y + 18, x1, y1, depth + 1, carpetCells);
 }
 
 function carveQueueSerpent(
@@ -218,6 +512,75 @@ function carveQueueSerpent(
       setFeature(world, counterX + i, ly + 2, Feature.CHAIR);
     }
   }
+}
+
+function decorateLandmark(world: World, room: Room, decor: LandmarkDecor): void {
+  switch (decor) {
+    case 'portrait_hall':
+      for (let x = room.x + 4; x < room.x + room.w - 3; x += 9) {
+        setFeature(world, x, room.y + 2, Feature.LAMP);
+        setFeature(world, x, room.y + room.h - 3, Feature.LAMP);
+        const north = world.idx(x, room.y - 1);
+        const south = world.idx(x, room.y + room.h);
+        if (world.cells[north] === Cell.WALL) world.wallTex[north] = Tex.PORTRAIT_BASE + ((x + room.y) % 64);
+        if (world.cells[south] === Cell.WALL) world.wallTex[south] = Tex.PORTRAIT_BASE + ((x + room.y + 17) % 64);
+      }
+      for (let x = room.x + 12; x < room.x + room.w - 12; x += 24) {
+        setFeature(world, x, room.y + Math.floor(room.h / 2), Feature.TABLE);
+      }
+      break;
+    case 'seal_cabinet':
+      for (let x = room.x + 2; x < room.x + room.w - 1; x += 3) {
+        setFeature(world, x, room.y + 2, Feature.SHELF);
+        setFeature(world, x, room.y + room.h - 3, Feature.SHELF);
+      }
+      setFeature(world, room.x + Math.floor(room.w / 2), room.y + Math.floor(room.h / 2), Feature.APPARATUS);
+      setFeature(world, room.x + room.w - 3, room.y + Math.floor(room.h / 2), Feature.DESK);
+      break;
+    case 'clerk_cage':
+      for (let y = room.y + 2; y < room.y + room.h - 1; y += 4) {
+        for (let x = room.x + 3; x < room.x + room.w - 2; x += 5) {
+          setFeature(world, x, y, Feature.DESK);
+          setFeature(world, x, y + 1, Feature.CHAIR);
+        }
+      }
+      break;
+    case 'copy_room':
+      for (let x = room.x + 3; x < room.x + room.w - 2; x += 5) {
+        setFeature(world, x, room.y + 3, Feature.MACHINE);
+        setFeature(world, x, room.y + room.h - 3, Feature.SHELF);
+      }
+      setFeature(world, room.x + room.w - 3, room.y + Math.floor(room.h / 2), Feature.DESK);
+      break;
+    case 'complaint_pit':
+      for (let x = room.x + 8; x < room.x + room.w - 8; x += 12) {
+        setFeature(world, x, room.y + 5, Feature.CHAIR);
+        setFeature(world, x, room.y + room.h - 6, Feature.CHAIR);
+      }
+      for (let y = room.y + 9; y < room.y + room.h - 8; y += 7) {
+        setFeature(world, room.x + 6, y, Feature.DESK);
+        setFeature(world, room.x + room.w - 7, y, Feature.DESK);
+      }
+      break;
+  }
+}
+
+function addLandmarks(
+  world: World,
+  nextRoomId: number,
+  rooms: Room[],
+  carpetCells: number[],
+): number {
+  const ordered = [...LANDMARK_SPECS].sort((a, b) => b.centrality - a.centrality || a.depth - b.depth);
+  for (const spec of ordered) {
+    const room = spec.leaf
+      ? makeClosedLandmarkLeaf(world, nextRoomId++, spec, carpetCells)
+      : makeOpenLandmark(world, nextRoomId++, spec.name, spec.type, spec.x, spec.y, spec.w, spec.h, spec.floorTex);
+    decorateLandmark(world, room, spec.decor);
+    addCarpetCellsForRoom(world, room, carpetCells);
+    rooms.push(room);
+  }
+  return nextRoomId;
 }
 
 function makeShelterRoom(world: World, id: number, x: number, y: number, w: number, h: number): Room {
@@ -288,12 +651,15 @@ export function applyMinistryMacroGeometry(world: World, nextRoomId: number): Mi
   const rooms: Room[] = [];
   const carpetCells: number[] = [];
 
-  // Public axes and nested public rings.
+  // Public backbone: ungated axes and nested rings. Lifts attach to this graph later.
   carveLine(world, 112, CENTER, W - 112, CENTER, 6, 'public', carpetCells);
   carveLine(world, CENTER, 112, CENTER, W - 112, 6, 'public', carpetCells);
   carveRectLoop(world, 184, 184, W - 184, W - 184, 4, 'public', carpetCells);
   carveRectLoop(world, 304, 304, W - 304, W - 304, 3, 'public', carpetCells);
   carveRectLoop(world, 424, 424, W - 424, W - 424, 2, 'queue', carpetCells);
+
+  // Office BSP: explicit service spines that give the room grower office frontage.
+  carveOfficeBsp(world, 160, 160, W - 160, W - 160, 0, carpetCells);
 
   // Archive/service backroutes: thinner marble loops offset from the carpet graph.
   carveRectLoop(world, 232, 276, W - 232, W - 276, 1, 'service', carpetCells);
@@ -304,6 +670,9 @@ export function applyMinistryMacroGeometry(world: World, nextRoomId: number): Mi
   carveLine(world, 640, 232, 640, W - 232, 1, 'service', carpetCells);
   addArchiveShelves(world, 232, 276, W - 232, W - 276);
   addArchiveShelves(world, 276, 232, W - 276, W - 232);
+  for (const spec of ARCHIVE_SUBGRAPHS) {
+    carveArchiveSubgraph(world, spec, carpetCells);
+  }
 
   // Clerk queue switchbacks beside the central axis, plus a visible bypass.
   carveQueueSerpent(world, 232, 468, 184, 7, carpetCells);
@@ -349,6 +718,8 @@ export function applyMinistryMacroGeometry(world: World, nextRoomId: number): Mi
     rooms.push(room);
   }
 
+  nextRoomId = addLandmarks(world, nextRoomId, rooms, carpetCells);
+
   const vestibule = makeOpenLandmark(
     world,
     nextRoomId++,
@@ -360,6 +731,7 @@ export function applyMinistryMacroGeometry(world: World, nextRoomId: number): Mi
     33,
     Tex.F_RED_CARPET,
   );
+  addCarpetCellsForRoom(world, vestibule, carpetCells);
   for (let d = 4; d < vestibule.w - 3; d += 8) {
     setFeature(world, vestibule.x + d, vestibule.y + 3, Feature.LAMP);
     setFeature(world, vestibule.x + d, vestibule.y + vestibule.h - 4, Feature.LAMP);

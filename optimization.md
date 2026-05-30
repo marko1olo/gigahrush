@@ -1,8 +1,12 @@
-# Optimization Plan
+# Optimization System
+
+> Центральный документ оптимизации.
+>
+> Роль: описывает обязательные performance principles for GIGAHRUSH: universal cheap AI rules, thousands-capable NPC/monster floors, bounded procedural generation, shader/render discipline, floor-memory/save costs, browser/mobile constraints and test/runtime budget. Связан с `architecture.md`, `ai.md`, `fight.md`, `floors.md` and `tests.md`.
 
 Date: 2026-05-27.
 
-This file is a planning document, not shipped behavior. It records optimization candidates found during the May 27 FPS/bottleneck review of the current browser build of ГИГАХРУЩ. Do not treat any item here as implemented until source and validation notes say so.
+This file is the central optimization document and also preserves the full May 27 FPS/bottleneck review below. Do not treat a historical item as implemented until source and validation notes say so.
 
 ## Constraints
 

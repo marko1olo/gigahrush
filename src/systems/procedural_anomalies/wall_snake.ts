@@ -1,5 +1,6 @@
-import { Cell, msg, type Entity, type GameState } from '../../core/types';
+import { Cell, Feature, msg, type Entity, type GameState } from '../../core/types';
 import { World } from '../../core/world';
+import { RUNTIME_TOPOLOGY_LIMITS } from '../../data/runtime_topology';
 import { isPlayerEntity } from '../player_actor';
 
 interface SnakeRuntime {
@@ -29,6 +30,14 @@ function perimeterPoint(world: World, x0: number, y0: number, w: number, h: numb
   return world.idx(x0, y0 + h - 2 - t);
 }
 
+function mutableSnakeCell(world: World, ci: number): boolean {
+  const cell = world.cells[ci] as Cell;
+  if (cell !== Cell.FLOOR && cell !== Cell.WATER) return false;
+  if (world.hermoWall[ci] !== 0 || world.aptMask[ci] !== 0 || world.doors.has(ci) || world.containerMap.has(ci)) return false;
+  const feature = world.features[ci] as Feature;
+  return feature === Feature.NONE || feature === Feature.LAMP;
+}
+
 function initSnake(world: World): SnakeRuntime | null {
   const cached = snakeByWorld.get(world);
   if (cached !== undefined) return cached;
@@ -40,16 +49,21 @@ function initSnake(world: World): SnakeRuntime | null {
     const y0 = Number(match[2]);
     const w = Number(match[3]);
     const h = Number(match[4]);
-    const count = Math.max(0, Math.min(192, (w + h) * 2 - 4));
-    if (count < 18) continue;
-    const path = new Int32Array(count);
-    const base = new Uint8Array(count);
-    for (let i = 0; i < count; i++) {
+    const perimeter = Math.max(0, Math.min(RUNTIME_TOPOLOGY_LIMITS.wallSnakeMaxPathCells, (w + h) * 2 - 4));
+    if (perimeter < 18) continue;
+    const pathCells: number[] = [];
+    const baseCells: number[] = [];
+    for (let i = 0; i < perimeter; i++) {
       const ci = perimeterPoint(world, x0, y0, w, h, i);
-      path[i] = ci;
-      base[i] = world.cells[ci];
+      if (!mutableSnakeCell(world, ci)) continue;
+      pathCells.push(ci);
+      baseCells.push(world.cells[ci]);
     }
-    const body = new Int32Array(Math.min(96, Math.max(12, 8 + Math.floor(count / 5))));
+    const count = pathCells.length;
+    if (count < 18) continue;
+    const path = Int32Array.from(pathCells);
+    const base = Uint8Array.from(baseCells);
+    const body = new Int32Array(Math.min(RUNTIME_TOPOLOGY_LIMITS.wallSnakeMaxBodyCells, Math.max(12, 8 + Math.floor(count / 5))));
     const length = Math.min(body.length, 10 + Math.floor(count / 9));
     for (let i = 0; i < length; i++) {
       const pi = (count - i) % count;
@@ -113,6 +127,12 @@ function shrinkSnake(world: World, snake: SnakeRuntime, nextLength: number): voi
 function playerOnPath(world: World, snake: SnakeRuntime, player: Entity, pathIndex: number): boolean {
   const ci = snake.path[pathIndex];
   return world.idx(Math.floor(player.x), Math.floor(player.y)) === ci;
+}
+
+function wallSnakeControlAt(world: World, lookIdx: number): boolean {
+  if ((world.features[lookIdx] as Feature) !== Feature.SCREEN) return false;
+  const room = world.rooms[world.roomMap[lookIdx]];
+  return room?.name.includes('[wall_snake:') === true;
 }
 
 function hurtPlayer(player: Entity, state: GameState, amount: number): void {
@@ -183,7 +203,9 @@ export function tryUseWallSnakeAnomaly(world: World, player: Entity, state: Game
       break;
     }
   }
-  if (!nearSnake && world.dist2(player.x, player.y, lookX, lookY) > 5.8) return false;
+  const control = wallSnakeControlAt(world, lookIdx);
+  const closeEnough = world.dist2(player.x, player.y, lookX, lookY) <= 5.8;
+  if ((!nearSnake && !control) || !closeEnough) return false;
 
   const bait = removeOne(player, ['gear', 'spring', 'metal_sheet', 'bread', 'mushroom_mass']);
   if (bait) {

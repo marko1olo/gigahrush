@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { EntityType, RoomType, type Entity } from '../src/core/types';
+import { Cell, EntityType, Feature, RoomType, type Entity } from '../src/core/types';
 import { auditReachability, hasReachableAdjacentCell } from '../src/core/world';
 import { hashSeed, seededRandom } from '../src/core/rand';
 import { designFloorById } from '../src/data/design_floors';
@@ -60,4 +60,43 @@ test('raionsovet archive profile populates queues, offices, and dangerous stacks
     return hasReachableAdjacentCell(gen.world, audit, gen.world.idx(container.x, container.y));
   });
   assert.equal(reachableDecisionContainers.length >= 3, true, 'at least three document decisions are reachable');
+
+  const expandedStackRooms = gen.world.rooms.filter(room =>
+    room.name.includes('картотека') || room.name.includes('архив спорных копий'));
+  assert.equal(expandedStackRooms.length >= 3, true, 'full-floor archive stack rooms are present');
+
+  let shelfWallCount = 0;
+  let stackLandmarkCount = 0;
+  let readingPitCount = 0;
+  for (const room of gen.world.rooms) {
+    for (let y = room.y; y < room.y + room.h; y++) {
+      for (let x = room.x; x < room.x + room.w; x++) {
+        const idx = gen.world.idx(x, y);
+        if (gen.world.roomMap[idx] !== room.id) continue;
+        if (expandedStackRooms.includes(room) && gen.world.cells[idx] === Cell.WALL) shelfWallCount++;
+        if (expandedStackRooms.includes(room) && (
+          gen.world.features[idx] === Feature.LAMP ||
+          gen.world.features[idx] === Feature.SCREEN ||
+          gen.world.features[idx] === Feature.DESK ||
+          gen.world.features[idx] === Feature.APPARATUS
+        )) stackLandmarkCount++;
+        if (room.name.includes('Читальный провал') && gen.world.cells[idx] === Cell.ABYSS) readingPitCount++;
+      }
+    }
+  }
+  assert.equal(shelfWallCount >= 1800, true, 'macro shelf motifs should make real stack canyons');
+  assert.equal(stackLandmarkCount >= 16, true, 'braided stack sections should carry visible landmarks');
+  assert.equal(readingPitCount >= 900, true, 'reading pit should remain a large tactical void');
+
+  let documentLaneFixtures = 0;
+  for (let i = 0; i < gen.world.cells.length; i++) {
+    if (gen.world.roomMap[i] >= 0) continue;
+    if (
+      gen.world.features[i] === Feature.DESK ||
+      gen.world.features[i] === Feature.SCREEN ||
+      gen.world.features[i] === Feature.SHELF ||
+      gen.world.features[i] === Feature.CHAIR
+    ) documentLaneFixtures++;
+  }
+  assert.equal(documentLaneFixtures >= 180, true, 'document lanes should be legible outside room interiors');
 });

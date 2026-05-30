@@ -43,7 +43,21 @@ export const BANK_ROOM_NAMES = {
   queue: 'Очередь должников банка Б-22',
   vault: 'Хранилище кассовых ячеек Б-22',
   bypass: 'Черный служебный обход банка Б-22',
+  tellerLane: 'Кассовая змейка ожидания Б-22',
+  debtorCircuit: 'Долговая петля Б-22',
+  bribeQueue: 'Нулевая очередь подкупщиков Б-22',
+  vaultShell: 'Наружная оболочка хранилища Б-22',
+  bypassGate: 'Черный пост служебного обхода Б-22',
 } as const;
+
+export const BANK_VAULT_RISK_RADIUS = 96;
+export const BANK_VAULT_RISK_INNER_RADIUS = 10;
+
+export interface BankVaultRiskSource {
+  x: number;
+  y: number;
+  radius: number;
+}
 
 export const BANK_FLOOR_META = {
   routeId: BANK_FLOOR_ROUTE_ID,
@@ -62,8 +76,10 @@ export interface BankFloorState {
   baseFloor: typeof BANK_FLOOR_BASE_FLOOR;
   legalRooms: string[];
   riskRooms: string[];
+  debtCircuitRooms: string[];
   vaultContainerIds: number[];
   depositContainerIds: number[];
+  vaultRiskRadius: number;
   debugEntry: {
     spawnX: number;
     spawnY: number;
@@ -214,6 +230,18 @@ registerSideQuest('bank_director_zinaida', DIRECTOR_DEF, [
 
 registerSideQuest('bank_cashier_lyuba', CASHIER_DEF, [
   {
+    id: 'bank_wait_teller_lane',
+    giverNpcId: 'bank_cashier_lyuba',
+    type: QuestType.VISIT,
+    desc: 'Люба Кассир: «Встаньте в кассовую змейку Б-22. Кто дождался окна, тот уже почти внес деньги: банк любит людей, которые умеют стоять.»',
+    targetRoomName: BANK_ROOM_NAMES.tellerLane,
+    rewardItem: 'voluntary_receipt', rewardCount: 1,
+    relationDelta: 4, xpReward: 18, moneyReward: 0,
+    eventTargetName: 'Очередь кассовой змейки банка Б-22 выстояна до окна.',
+    eventTags: [...BANK_TAGS, 'wait', 'queue', 'legal'],
+    eventData: { bankingAction: 'wait_teller_lane', queueProgress: true },
+  },
+  {
     id: 'bank_cash_deposit_50',
     giverNpcId: 'bank_cashier_lyuba',
     type: QuestType.FETCH,
@@ -288,18 +316,32 @@ export function createBankFloorState(): BankFloorState {
       BANK_ROOM_NAMES.teller,
       BANK_ROOM_NAMES.deposit,
       BANK_ROOM_NAMES.credit,
+      BANK_ROOM_NAMES.tellerLane,
+      BANK_ROOM_NAMES.bribeQueue,
     ],
     riskRooms: [
       BANK_ROOM_NAMES.vault,
       BANK_ROOM_NAMES.queue,
       BANK_ROOM_NAMES.bypass,
+      BANK_ROOM_NAMES.debtorCircuit,
+      BANK_ROOM_NAMES.vaultShell,
+      BANK_ROOM_NAMES.bypassGate,
+    ],
+    debtCircuitRooms: [
+      BANK_ROOM_NAMES.tellerLane,
+      BANK_ROOM_NAMES.queue,
+      BANK_ROOM_NAMES.debtorCircuit,
+      BANK_ROOM_NAMES.bribeQueue,
+      BANK_ROOM_NAMES.bypassGate,
+      BANK_ROOM_NAMES.vaultShell,
     ],
     vaultContainerIds: [],
     depositContainerIds: [],
+    vaultRiskRadius: BANK_VAULT_RISK_RADIUS,
     debugEntry: {
       spawnX: 454.5,
       spawnY: 514.5,
-      summary: 'bank_floor z=+26 spawn at west lift; cash desks, credit window, vault and debtor queue are connected.',
+      summary: 'bank_floor z=+26 spawn at west lift; cash desks, credit window, debt loop, service bypass and vault risk shell are connected.',
     },
   };
 }
@@ -308,6 +350,8 @@ export function summarizeBankFloorState(bank: BankFloorState): string[] {
   return [
     `route=${bank.routeId} z=${bank.anchorZ} base=${FloorLevel[bank.baseFloor]}`,
     `legalRooms=${bank.legalRooms.length} riskRooms=${bank.riskRooms.length}`,
+    `debtCircuit=${bank.debtCircuitRooms.join(' -> ')}`,
+    `vaultRiskRadius=${bank.vaultRiskRadius}`,
     `vaultContainers=${bank.vaultContainerIds.join(',') || 'none'}`,
     `depositContainers=${bank.depositContainerIds.join(',') || 'none'}`,
     bank.debugEntry.summary,
@@ -357,6 +401,7 @@ export function generateBankFloorDesignFloor(): BankFloorGeneration {
   spawnBankNpc(entities, nextId, 'bank_debtor_mitya', DEBTOR_DEF, rooms.queue, 7, 5, 0);
 
   addBankContainers(world, bankState, rooms, directorId, cashierId, creditId, guardId);
+  applyBankVaultRiskSdf(world);
   world.bakeLights();
 
   return {
@@ -397,6 +442,18 @@ export function expandBankFloorRouteGeometry(world: World, rng: () => number): v
     scatterRoomFurniture(world, room, rng);
   }
 
+  const tellerLane = stampBankRoom(world, RoomType.COMMON, 306, 392, 160, 32, BANK_ROOM_NAMES.tellerLane, Tex.MARBLE, Tex.F_MARBLE_TILE);
+  const debtorCircuit = stampBankRoom(world, RoomType.COMMON, 306, 578, 160, 34, BANK_ROOM_NAMES.debtorCircuit, Tex.PANEL, Tex.F_LINO);
+  const bribeQueue = stampBankRoom(world, RoomType.OFFICE, 472, 580, 52, 30, BANK_ROOM_NAMES.bribeQueue, Tex.PANEL, Tex.F_GREEN_CARPET);
+  const vaultShell = stampBankRoom(world, RoomType.HQ, 594, 392, 104, 52, BANK_ROOM_NAMES.vaultShell, Tex.METAL, Tex.F_CONCRETE);
+  const bypassGate = stampBankRoom(world, RoomType.CORRIDOR, 692, 582, 70, 32, BANK_ROOM_NAMES.bypassGate, Tex.PANEL, Tex.F_LINO);
+  const circuitRooms = [tellerLane, debtorCircuit, bribeQueue, vaultShell, bypassGate];
+  for (const room of circuitRooms) openRoomToNearestCorridor(world, room);
+  decorateExpandedBankDecisionRooms(world, { tellerLane, debtorCircuit, bribeQueue, vaultShell, bypassGate });
+  buildDebtCircuitLoop(world);
+  addExpandedBankContainers(world, { bribeQueue, vaultShell, bypassGate });
+  applyBankVaultRiskSdf(world);
+
   for (let i = 0; i < 32; i++) {
     const x = 236 + Math.floor(rng() * 552);
     const y = rng() < 0.5 ? 318 + Math.floor(rng() * 390) : 500 + Math.floor(rng() * 28);
@@ -405,6 +462,203 @@ export function expandBankFloorRouteGeometry(world: World, rng: () => number): v
       world.features[ci] = rng() < 0.5 ? Feature.DESK : Feature.SHELF;
     }
   }
+}
+
+export function bankVaultRiskSources(world: World): BankVaultRiskSource[] {
+  const sources: BankVaultRiskSource[] = [];
+  for (const container of world.containers) {
+    if (!container.tags.includes('banking')) continue;
+    if (!container.tags.includes('vault') && !container.tags.includes('high_value')) continue;
+    sources.push({ x: container.x + 0.5, y: container.y + 0.5, radius: BANK_VAULT_RISK_INNER_RADIUS });
+  }
+  for (const room of world.rooms) {
+    if (!room) continue;
+    const isVaultRoom = room.name === BANK_ROOM_NAMES.vault || room.name === BANK_ROOM_NAMES.vaultShell;
+    if (!isVaultRoom) continue;
+    sources.push({
+      x: room.x + room.w / 2,
+      y: room.y + room.h / 2,
+      radius: Math.max(BANK_VAULT_RISK_INNER_RADIUS, Math.min(room.w, room.h) / 2),
+    });
+  }
+  return sources;
+}
+
+export function bankVaultRiskSignedDistance(world: World, x: number, y: number, sources = bankVaultRiskSources(world)): number {
+  let best = Infinity;
+  for (const source of sources) {
+    const d = Math.sqrt(world.dist2(x, y, source.x, source.y)) - source.radius;
+    if (d < best) best = d;
+  }
+  return best;
+}
+
+export function bankVaultRiskTierAt(world: World, x: number, y: number, sources = bankVaultRiskSources(world)): number {
+  const signedDistance = bankVaultRiskSignedDistance(world, x, y, sources);
+  if (!Number.isFinite(signedDistance) || signedDistance > BANK_VAULT_RISK_RADIUS) return 0;
+  const outside = Math.max(0, signedDistance);
+  return Math.max(1, Math.min(5, 1 + Math.floor((BANK_VAULT_RISK_RADIUS - outside) / (BANK_VAULT_RISK_RADIUS / 5))));
+}
+
+function decorateExpandedBankDecisionRooms(
+  world: World,
+  rooms: {
+    tellerLane: Room;
+    debtorCircuit: Room;
+    bribeQueue: Room;
+    vaultShell: Room;
+    bypassGate: Room;
+  },
+): void {
+  for (let x = rooms.tellerLane.x + 8; x < rooms.tellerLane.x + rooms.tellerLane.w - 8; x += 10) {
+    setFeature(world, x, rooms.tellerLane.y + 6, Feature.DESK);
+    setFeature(world, x, rooms.tellerLane.y + 16, Feature.CHAIR);
+    setFeature(world, x + 4, rooms.tellerLane.y + 25, Feature.CHAIR);
+  }
+  setFeature(world, rooms.tellerLane.x + 4, rooms.tellerLane.y + 4, Feature.SCREEN);
+
+  for (let x = rooms.debtorCircuit.x + 6; x < rooms.debtorCircuit.x + rooms.debtorCircuit.w - 8; x += 9) {
+    const upper = ((x - rooms.debtorCircuit.x) / 9) % 2 < 1;
+    setFeature(world, x, rooms.debtorCircuit.y + (upper ? 8 : rooms.debtorCircuit.h - 9), Feature.CHAIR);
+    setFeature(world, x + 3, rooms.debtorCircuit.y + (upper ? rooms.debtorCircuit.h - 9 : 8), Feature.CHAIR);
+  }
+  setFeature(world, rooms.debtorCircuit.x + rooms.debtorCircuit.w - 5, rooms.debtorCircuit.y + 5, Feature.SCREEN);
+
+  setFeature(world, rooms.bribeQueue.x + 6, rooms.bribeQueue.y + 6, Feature.DESK);
+  setFeature(world, rooms.bribeQueue.x + 14, rooms.bribeQueue.y + 6, Feature.SCREEN);
+  setFeature(world, rooms.bribeQueue.x + rooms.bribeQueue.w - 8, rooms.bribeQueue.y + rooms.bribeQueue.h - 7, Feature.SHELF);
+
+  for (let x = rooms.vaultShell.x + 6; x < rooms.vaultShell.x + rooms.vaultShell.w - 6; x += 12) {
+    setFeature(world, x, rooms.vaultShell.y + 6, Feature.SHELF);
+    setFeature(world, x, rooms.vaultShell.y + rooms.vaultShell.h - 7, Feature.SHELF);
+  }
+  for (let y = rooms.vaultShell.y + 12; y < rooms.vaultShell.y + rooms.vaultShell.h - 12; y += 12) {
+    setFeature(world, rooms.vaultShell.x + 5, y, Feature.LAMP);
+    setFeature(world, rooms.vaultShell.x + rooms.vaultShell.w - 6, y, Feature.SCREEN);
+  }
+
+  for (let x = rooms.bypassGate.x + 6; x < rooms.bypassGate.x + rooms.bypassGate.w - 6; x += 12) {
+    setFeature(world, x, rooms.bypassGate.y + 8, Feature.SCREEN);
+    setFeature(world, x + 4, rooms.bypassGate.y + rooms.bypassGate.h - 8, Feature.LAMP);
+  }
+}
+
+function buildDebtCircuitLoop(world: World): void {
+  const loop: [number, number][] = [
+    [386, 408],
+    [512, 408],
+    [650, 418],
+    [742, 598],
+    [498, 598],
+    [386, 594],
+    [386, 408],
+  ];
+  for (let i = 1; i < loop.length; i++) {
+    const [ax, ay] = loop[i - 1];
+    const [bx, by] = loop[i];
+    if (ax !== bx && ay !== by) {
+      carveRun(world, ax, ay, bx, ay, 3, Tex.F_GREEN_CARPET, Tex.PANEL);
+      carveRun(world, bx, ay, bx, by, 3, Tex.F_GREEN_CARPET, Tex.PANEL);
+    } else {
+      carveRun(world, ax, ay, bx, by, 3, Tex.F_GREEN_CARPET, Tex.PANEL);
+    }
+  }
+  for (const [x, y] of loop) {
+    setFeature(world, x, y, Feature.LAMP);
+    setFeature(world, x + 2, y, Feature.SCREEN);
+  }
+}
+
+function addExpandedBankContainers(
+  world: World,
+  rooms: {
+    bribeQueue: Room;
+    vaultShell: Room;
+    bypassGate: Room;
+  },
+): void {
+  addBankContainer(world, rooms.bribeQueue, rooms.bribeQueue.x + rooms.bribeQueue.w - 6, rooms.bribeQueue.y + 10, {
+    kind: ContainerKind.CASHBOX,
+    name: 'Короб нулевой очереди Б-22',
+    access: 'faction',
+    faction: Faction.CITIZEN,
+    inventory: [
+      { defId: 'voluntary_receipt', count: 1 },
+      { defId: 'forged_stamp_sheet', count: 1 },
+      { defId: 'blank_form', count: 2 },
+    ],
+    tags: ['bribe', 'buyable', 'debt_circuit', 'queue_skip', 'legal_window'],
+  });
+
+  addBankContainer(world, rooms.vaultShell, rooms.vaultShell.x + rooms.vaultShell.w - 9, rooms.vaultShell.y + 14, {
+    kind: ContainerKind.SAFE,
+    name: 'Оболочка малых сейфов Б-22',
+    access: 'locked',
+    faction: Faction.LIQUIDATOR,
+    inventory: [
+      { defId: 'debt_settlement_receipt', count: 1 },
+      { defId: 'official_permit_slip', count: 1 },
+      { defId: 'container_key_label', count: 1 },
+      { defId: 'ammo_9mm', count: 12 },
+    ],
+    tags: ['vault', 'vault_shell', 'high_value', 'theft_risk', 'liquidator_audit'],
+    lockDifficulty: 4,
+  });
+
+  addBankContainer(world, rooms.bypassGate, rooms.bypassGate.x + 8, rooms.bypassGate.y + rooms.bypassGate.h - 8, {
+    kind: ContainerKind.TOOL_LOCKER,
+    name: 'Шкаф черного служебного обхода Б-22',
+    access: 'locked',
+    faction: Faction.LIQUIDATOR,
+    inventory: [
+      { defId: 'key', count: 1 },
+      { defId: 'seal_wax', count: 1 },
+      { defId: 'ink_bottle', count: 1 },
+    ],
+    tags: ['bypass', 'service_bypass', 'escape_pressure', 'vault_risk_sdf'],
+    lockDifficulty: 3,
+  });
+}
+
+function applyBankVaultRiskSdf(world: World): void {
+  const sources = bankVaultRiskSources(world);
+  if (sources.length === 0) return;
+
+  for (const container of world.containers) {
+    if (!container.tags.includes('banking')) continue;
+    if (!container.tags.includes('vault') && !container.tags.includes('high_value')) continue;
+    const tier = bankVaultRiskTierAt(world, container.x + 0.5, container.y + 0.5, sources);
+    addBankTag(container, 'vault_risk_sdf');
+    addBankTag(container, `vault_risk_${tier}`);
+    if (tier >= 4) addBankTag(container, 'escape_pressure');
+  }
+
+  for (const source of sources) {
+    const radius = Math.ceil(source.radius + BANK_VAULT_RISK_RADIUS);
+    const minX = Math.floor(source.x - radius);
+    const maxX = Math.ceil(source.x + radius);
+    const minY = Math.floor(source.y - radius);
+    const maxY = Math.ceil(source.y + radius);
+    for (let y = minY; y <= maxY; y++) {
+      for (let x = minX; x <= maxX; x++) {
+        const wx = world.wrap(x);
+        const wy = world.wrap(y);
+        const ci = world.idx(wx, wy);
+        if (world.cells[ci] !== Cell.FLOOR || world.aptMask[ci]) continue;
+        const tier = bankVaultRiskTierAt(world, wx + 0.5, wy + 0.5, sources);
+        if (tier <= 0) continue;
+        if (tier >= 4) world.floorTex[ci] = Tex.F_RED_CARPET;
+        else if (tier >= 2 && world.roomMap[ci] < 0) world.floorTex[ci] = Tex.F_GREEN_CARPET;
+        if (tier >= 4 && world.features[ci] === Feature.NONE && ((wx * 31 + wy * 17) & 31) === 0) {
+          world.features[ci] = ((wx + wy) & 1) === 0 ? Feature.SCREEN : Feature.LAMP;
+        }
+      }
+    }
+  }
+}
+
+function addBankTag(container: WorldContainer, tag: string): void {
+  if (!container.tags.includes(tag)) container.tags.push(tag);
 }
 
 function createBankRooms(world: World): {

@@ -1,10 +1,12 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { Cell, ContainerKind, DoorState, EntityType, Feature, FloorLevel, MonsterKind, Occupation, Tex, type Entity } from '../src/core/types';
+import { Cell, ContainerKind, DoorState, EntityType, Feature, FloorLevel, LiftDirection, MonsterKind, Occupation, Tex, W, type Entity } from '../src/core/types';
+import { auditReachability } from '../src/core/world';
 import { entityUsesProceduralSprite, generateProceduralEntitySprite, isFloor69FemaleSprite } from '../src/entities/procedural_visuals';
 import { generateDesignFloor } from '../src/gen/design_floors/manifest';
 import { generateFloor, isFloorLevel } from '../src/gen/floor_manifest';
+import { measureLivingShelterShells } from '../src/gen/living/geometry';
 import { S } from '../src/render/pixutil';
 import {
   containerSpr,
@@ -18,6 +20,24 @@ import {
 import { generateSprites } from '../src/render/sprites';
 import { generateTextures } from '../src/render/textures';
 import { rebuildWorld } from '../src/systems/samosbor';
+
+const cachedFloors = new Map<string, ReturnType<typeof generateFloor>>();
+let cachedFloor69: ReturnType<typeof generateDesignFloor> | undefined;
+
+function floorForRead(floor: FloorLevel, seed?: number): ReturnType<typeof generateFloor> {
+  const key = `${floor}:${seed ?? 'default'}`;
+  let generated = cachedFloors.get(key);
+  if (!generated) {
+    generated = seed === undefined ? generateFloor(floor) : generateFloor(floor, seed);
+    cachedFloors.set(key, generated);
+  }
+  return generated;
+}
+
+function floor69ForRead(): ReturnType<typeof generateDesignFloor> {
+  cachedFloor69 ??= generateDesignFloor('floor_69');
+  return cachedFloor69;
+}
 
 function spriteHash(sprite: Uint32Array): number {
   let h = 2166136261;
@@ -220,7 +240,7 @@ test('all floor generators return playable spawn cells and live actors', () => {
   ];
 
   for (const floor of floors) {
-    const generated = generateFloor(floor);
+    const generated = floorForRead(floor);
     const sx = Math.floor(generated.spawnX);
     const sy = Math.floor(generated.spawnY);
     const spawnIdx = generated.world.idx(sx, sy);
@@ -237,7 +257,7 @@ test('all floor generators return playable spawn cells and live actors', () => {
 });
 
 test('living generation places AG89 Istotit supply cache quest content', () => {
-  const generated = generateFloor(FloorLevel.LIVING);
+  const generated = floorForRead(FloorLevel.LIVING);
   const plotNpcIds = new Set(generated.entities
     .filter(e => e.type === EntityType.NPC && e.plotNpcId)
     .map(e => e.plotNpcId));
@@ -249,7 +269,7 @@ test('living generation places AG89 Istotit supply cache quest content', () => {
 });
 
 test('living start tutorial rooms keep samosbor-proof hermowalls', () => {
-  const generated = generateFloor(FloorLevel.LIVING);
+  const generated = floorForRead(FloorLevel.LIVING);
   for (const name of ['Актовый зал', 'Оружейная']) {
     const room = generated.world.rooms.find(r => r?.name === name);
     assert.ok(room, `${name} should be generated`);
@@ -273,8 +293,76 @@ test('living start tutorial rooms keep samosbor-proof hermowalls', () => {
   }
 });
 
+test('living macro routes keep landmarks, lifts and apartment shelters reachable', () => {
+  const generated = floorForRead(FloorLevel.LIVING);
+  const { world } = generated;
+  const audit = auditReachability(world, world.idx(Math.floor(generated.spawnX), Math.floor(generated.spawnY)));
+
+  function isRoomReachable(room: NonNullable<(typeof world.rooms)[number]>): boolean {
+    for (let dy = 0; dy < room.h; dy++) {
+      for (let dx = 0; dx < room.w; dx++) {
+        if (audit.reachable[world.idx(room.x + dx, room.y + dy)]) return true;
+      }
+    }
+    return false;
+  }
+
+  function namedRoomReachable(name: string): boolean {
+    const room = world.rooms.find(r => r?.name.includes(name));
+    assert.ok(room, `${name} should be generated`);
+    return isRoomReachable(room);
+  }
+
+  for (const name of ['Актовый зал', 'Оружейная', 'Лаборатория', 'Комната Ваньки', 'Толкучка']) {
+    assert.equal(namedRoomReachable(name), true, `${name} should be reachable from living spawn`);
+  }
+
+  let upLift = false;
+  let downLift = false;
+  let publicRouteCells = 0;
+  let serviceRouteCells = 0;
+  let shelterRouteCells = 0;
+  for (let i = 0; i < world.cells.length; i++) {
+    const x = i % W;
+    const y = (i / W) | 0;
+    if (world.cells[i] === Cell.LIFT) {
+      const reachableLift = !!(
+        audit.reachable[world.idx(x + 1, y)] ||
+        audit.reachable[world.idx(x - 1, y)] ||
+        audit.reachable[world.idx(x, y + 1)] ||
+        audit.reachable[world.idx(x, y - 1)]
+      );
+      if (reachableLift && world.liftDir[i] === LiftDirection.UP) upLift = true;
+      if (reachableLift && world.liftDir[i] === LiftDirection.DOWN) downLift = true;
+      continue;
+    }
+    if (!audit.reachable[i] || world.aptMask[i] || world.roomMap[i] >= 0 || world.cells[i] !== Cell.FLOOR) continue;
+    if (world.floorTex[i] === Tex.F_TILE) publicRouteCells++;
+    for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]] as const) {
+      const ni = world.idx(x + dx, y + dy);
+      if (world.wallTex[ni] === Tex.PIPE) serviceRouteCells++;
+      if (world.wallTex[ni] === Tex.HERMO_WALL) shelterRouteCells++;
+    }
+  }
+  assert.equal(upLift, true, 'living route should expose a reachable up lift');
+  assert.equal(downLift, true, 'living route should expose a reachable down lift');
+  assert.equal(publicRouteCells > 80, true, 'public route should be visibly tiled');
+  assert.equal(serviceRouteCells > 40, true, 'service bypass should be visibly piped');
+  assert.equal(shelterRouteCells > 40, true, 'shelter route should be visibly hermetic');
+
+  for (let ri = 0; ri < world.apartmentRoomCount; ri++) {
+    const room = world.rooms[ri];
+    if (!room) continue;
+    if (room.apartmentId < 0) continue;
+    assert.equal(isRoomReachable(room), true, `permanent room ${room.id} ${room.name} should be reachable`);
+  }
+  const shell = measureLivingShelterShells(world);
+  assert.equal(shell.roomCount > 0, true, 'living generation should measure hermetic shelter shells');
+  assert.equal(shell.shellCells > 0, true, 'living generation should expose walkable shelter shell cells');
+});
+
 test('living start tutorial desks are billboards, not item drops', () => {
-  const generated = generateFloor(FloorLevel.LIVING);
+  const generated = floorForRead(FloorLevel.LIVING);
   const tutorDesks = generated.entities.filter(e =>
     e.type === EntityType.BILLBOARD &&
     e.sprite === Spr.DESK &&
@@ -289,7 +377,7 @@ test('living start tutorial desks are billboards, not item drops', () => {
 });
 
 test('living art study sprites are billboards, not empty item drops', () => {
-  const generated = generateFloor(FloorLevel.LIVING);
+  const generated = floorForRead(FloorLevel.LIVING);
   const artProps = generated.entities.filter(e =>
     e.type === EntityType.BILLBOARD &&
     e.sprite >= Spr.ART_NUDE_BASE &&
@@ -300,7 +388,7 @@ test('living art study sprites are billboards, not empty item drops', () => {
 });
 
 test('floor 69 floor screens are registered as signal screen cells', () => {
-  const generated = generateDesignFloor('floor_69');
+  const generated = floor69ForRead();
   const screenFeatureCells: number[] = [];
   for (let i = 0; i < generated.world.features.length; i++) {
     if (generated.world.features[i] === Feature.SCREEN) screenFeatureCells.push(i);

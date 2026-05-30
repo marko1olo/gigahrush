@@ -1,8 +1,12 @@
 # GIGAHRUSH Modular Architecture
 
+> Центральный документ архитектуры.
+>
+> Роль: описывает крупные системы игры и то, как они стыкуются: 1024x1024 toroidal `World`, typed arrays, flat entities, rooms, items, monsters, NPC, projectiles, traces, samosbor, path fields, save/runtime state, generation, systems and render. Главные принципы: универсальность, минимализм, модульность, процедурность, комбинаторность, оптимизация, отсутствие hardcoded content paths and honest emergence.
+
 Purpose: turn the current TypeScript/Vite raycaster game into a content factory where many agents can add rooms, NPCs, quests, events, monsters, documents, economy hooks, and floor variants without fighting over the same files.
 
-This document is based on the current code, `README.md`, `plans.md`, and `desdoc.md` as of 2026-05-24. It is not a rewrite plan. The project is already playable; architecture work must protect that.
+This document is based on the current code, `README.md`, and `desdoc.md` as of 2026-05-24, with later active system contracts split into root domain docs. It is not a rewrite plan. The project is already playable; architecture work must protect that.
 
 ## 1. Current Fact Map
 
@@ -26,16 +30,17 @@ Critical runtime facts:
 - `entities` is a flat array of plain objects with optional component fields. There are no entity subclasses.
 - The world is a 1024x1024 torus. All coordinate work must use `world.idx`, `world.wrap`, `world.delta`, or `world.dist`.
 - Floor generators return `{ world, entities, spawnX, spawnY }`.
-- Normal lift travel uses `systems/procedural_floors.ts` as a per-run vertical route across `z=-50..+50`. Existing `FloorLevel` values remain 6 story/base floors; authored design floors are 20 string-id route stops from `src/data/design_floors.ts`; unoccupied route positions are 75 seeded procedural/fallback specs with `z`, seed, geometry, main faction, anomaly and danger. Down decreases `z`; `VOID` is the final lowest stop at `z=-50`, `darkness` is the dark endgame route floor at `z=-48`, `podad` is the Herald-gated Hell route floor at `z=-40`, `underhell` is at `z=-38`, and `roof` is the highest stop at `z=+50`.
+- Normal lift travel uses `systems/procedural_floors.ts` as a per-run vertical route across `z=-50..+50`. Existing `FloorLevel` values remain 6 story/base floors; authored design floors are 41 string-id route stops from `src/data/design_floors.ts`; unoccupied route positions are 54 seeded procedural/fallback specs with `z`, seed, geometry, main faction, anomaly and danger. Down decreases `z`; `VOID` is the final lowest stop at `z=-50`, `darkness` is the dark endgame route floor at `z=-48`, `podad` is the Herald-gated Hell route floor at `z=-40`, `underhell` is at `z=-38`, and `roof` is the highest stop at `z=+50`.
 - `systems/floor_memory.ts` keeps visited route stops alive by stable floor key. Hot entries keep their own live `World` object plus non-player/non-projectile entities; older entries are packed into RLE snapshots instead of being lost, so decals, bullet/blood marks, containers, opened doors and monsters survive ordinary floor travel for that exact floor. UI-only map exploration survives while its live `World` object survives, but packed/save restoration can restart exploration for the restored world. Browser saves include the packed floor-memory section and restore it before selecting the active floor; samosbor/rebuild paths update the active `World` and drop only stale parked memory for that same key.
 - Desktop input treats `Esc` as browser/pointer-lock territory, not as a gameplay/window key. `Enter` opens the game menu only from the normal gameplay screen and otherwise acts as back/close for open canvas windows; handled window keys are consumed so they do not fall through to the game menu. `E` is the interaction/confirm/send action, including Net Sphere chat submission.
 - `main.ts` owns the game loop and calls systems in fixed order.
 - `systems/camera.ts` owns transient runtime camera modes and resolves them to `CameraView` for render. The death camera is one mode of this system; future free-camera and cinematic modes should plug into the same API.
 - `systems/events.ts` is the current EventBus analogue: fixed-size ring buffers, public event publication, and query filters.
 - Shared `E` interaction goes through `systems/interactions.ts`; generated gambling machines, local computers, NPC table-game interfaces, NET-hack terminals, emergency panels, Net Terminal Gen and special floor interactions plug into that dispatcher.
+- `systems/interactive.ts` is the generic sparse cell-bound interactive layer. Definitions live in `src/data/interactive.ts`, explicit generation helpers live in `src/gen/interactive_placement.ts`, broken fixture placement lives in `src/gen/interactive_fixtures.ts`, and one `ContentInteractionHook` exposes feature-like objects and container adapters to the shared dispatcher. Current shipped adapters are transient: lazy `Feature.SINK` drinking, lazy `Feature.TOILET` needs relief, repair-pending broken sink/toilet fixtures, explicit `workbench_basic` placement and visible `WorldContainer` delegation. The contract is feature-first: floor generators own how many visual primitives exist and where they are, while `InteractiveDef` ids own what `E` does when a matching primitive is targeted. They do not change save shape.
 - `systems/alife.ts` owns persistent procedural NPC identity. A run creates a fixed compact NPC pool of `100_000` procedural identities, materializes only the active floor into live `entities`, folds live state back on transitions/rebuilds/saves, and records permanent deaths. Browser saves keep dead procedural A-Life ids with a current cap of `65_536`. `systems/npc_relations.ts` owns compact personal relation-to-player math shared by A-Life, quests and hostility. `alife.md` is the detailed design contract for this feature.
-- Save/load uses `systems/save_runtime.ts` and `systems/save_payload.ts`. Current save shape version is `13`; old or unversioned saves are rejected rather than migrated.
-- Existing content extensibility already exists in `registerSideQuest`, `registerZoneContent`, floor content manifests, `SAMOSBOR_VARIANTS`, `getSamosborBeatDefs()`, contract/economy registries, route/design-floor ids and `publishEvent`.
+- Save/load uses `systems/save_runtime.ts` and `systems/save_payload.ts`. Current save shape version is `13`; old or unversioned saves are rejected rather than migrated. `save.md` is the detailed persistence contract.
+- Existing content extensibility already exists in `registerSideQuest`, `registerZoneContent`, floor content manifests, `SAMOSBOR_VARIANTS`, `getSamosborBeatDefs()`, contract/economy registries, route/design-floor ids and `publishEvent`. `samosbor.md` is the detailed samosbor contract.
 
 ## 1.1 Project Bible And Honest Scope
 
@@ -61,7 +66,8 @@ These are the rules every new module must preserve.
 - No coordinate math that ignores toroidal wrap.
 - No generator that seals a room without proving it is reachable.
 - No permanent POI on LIVING without `aptMask` protection and a corridor/door connection.
-- README is implementation fact. `plans.md` is the consolidated unresolved-plan index. `desdoc.md` is roadmap and tone. This file is the engineering contract.
+- Feature-like gameplay must use the feature-first overlay contract: generate/map `Feature`, `Cell`, container or billboard primitives first, then attach or lazily resolve `InteractiveDef` behavior. Do not couple the number or placement of decor fixtures to interaction action code.
+- README is implementation fact. `desdoc.md` is roadmap and tone. Root domain docs such as `samosbor.md` and `save.md` describe active systems, and `problems.md` tracks problematic non-system mechanics. This file is the engineering contract.
 - Save compatibility is not sacred. Breaking save shape changes should bump the save shape version and reject stale saves explicitly instead of carrying legacy migrations.
 
 ## 3. Layer Contract
@@ -245,8 +251,9 @@ Current examples:
 
 - Side quests: module calls `registerSideQuest()` in `src/data/plot.ts`.
 - LIVING zone POIs: module calls `registerZoneContent()` in `src/gen/living/zone_content.ts`.
-- Samosbor variants: definitions live in `src/data/samosbor_variants.ts`, system consumes active variant.
+- Samosbor variants/director: definitions live in `src/data/samosbor_variants.ts` and `src/data/samosbor_director.ts`; `systems/samosbor.ts` consumes active variants and bounded beats.
 - Events: systems call `publishEvent()`, consumers query ring buffers.
+- Interactive surfaces: definitions live in `src/data/interactive.ts`; generators call `placeInteractive()` / `placeInteractiveAt()` or fixture helpers such as `maybePlaceBrokenFixture()`; `systems/interactive.ts` owns sparse per-`World` instances and action handlers.
 
 Standard shape for new registries:
 
@@ -483,6 +490,8 @@ src/data/computers.ts          generated computer defs
 src/data/gambling.ts           generated gambling machine defs
 src/data/net_hack.ts           local NET-hack terminal defs
 src/data/emergency_panels.ts   panel defs
+src/data/samosbor_variants.ts  variants, modifiers and aftermath beats
+src/data/samosbor_director.ts  warning/active/aftermath director beats
 ```
 
 Remaining candidates for future standardization are document pools by faction/theme, a data-only event-type catalog if `systems/events.ts` needs more static validation, and richer cross-expansion director hook definitions. Do not implement all of this in one pass. Each domain gets:

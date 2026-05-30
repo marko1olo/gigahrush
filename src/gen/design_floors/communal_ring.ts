@@ -282,6 +282,7 @@ interface CommunalServiceRooms {
   shower: Room;
   pantry: Room;
   notice: Room;
+  smoking: Room;
   core: Room;
 }
 
@@ -453,11 +454,15 @@ function buildServiceRooms(world: World, ring: RingLayout): CommunalServiceRooms
   carveShortCorridor(world, notice.x + 9, ring.top + ring.width, notice.x + 9, notice.y - 2);
   connectRoomToCorridor(world, notice, notice.x + 9, notice.y - 1, DoorState.CLOSED);
 
+  const smoking = createRoom(world, id++, RoomType.SMOKING, ring.left + 9, ring.bottom + ring.width + 14, 17, 8, 'Курилка свидетелей у кольца', Tex.PANEL, Tex.F_LINO);
+  carveShortCorridor(world, smoking.x + 8, ring.bottom + ring.width, smoking.x + 8, smoking.y - 2);
+  connectRoomToCorridor(world, smoking, smoking.x + 8, smoking.y - 1, DoorState.CLOSED);
+
   const core = createRoom(world, id++, RoomType.PRODUCTION, W / 2 - 10, ring.innerBottom + 8, 20, 10, 'Сервисное ядро двора', Tex.PIPE, Tex.F_CONCRETE);
   carveLineWidth(world, core.x + 10, ring.innerBottom + 3, core.x + 10, core.y - 2, 2, Tex.F_CONCRETE);
   connectRoomToCorridor(world, core, core.x + 10, core.y - 1, DoorState.CLOSED);
 
-  return { laundry, kitchen, shower, pantry, notice, core };
+  return { laundry, kitchen, shower, pantry, notice, smoking, core };
 }
 
 interface ThroughFlatSpec {
@@ -739,6 +744,11 @@ function decorateRing(world: World, ring: RingLayout, rooms: CommunalRooms): voi
   placeFeature(world, rooms.notice.x + 9, rooms.notice.y + 2, Feature.SCREEN);
   placeFeature(world, rooms.notice.x + 14, rooms.notice.y + 5, Feature.SHELF);
 
+  placeFeature(world, rooms.smoking.x + 3, rooms.smoking.y + 2, Feature.TABLE);
+  placeFeature(world, rooms.smoking.x + 6, rooms.smoking.y + 3, Feature.CHAIR);
+  placeFeature(world, rooms.smoking.x + 10, rooms.smoking.y + 3, Feature.CANDLE);
+  placeFeature(world, rooms.smoking.x + 14, rooms.smoking.y + 5, Feature.SHELF);
+
   placeFeature(world, rooms.core.x + 3, rooms.core.y + 2, Feature.MACHINE);
   placeFeature(world, rooms.core.x + 8, rooms.core.y + 5, Feature.APPARATUS);
   placeFeature(world, rooms.core.x + 13, rooms.core.y + 3, Feature.SCREEN);
@@ -747,6 +757,7 @@ function decorateRing(world: World, ring: RingLayout, rooms: CommunalRooms): voi
   markPosterWall(world, rooms.notice.x + 7, rooms.notice.y - 1, 8);
   markPosterWall(world, rooms.kitchen.x + 8, rooms.kitchen.y + rooms.kitchen.h, 12);
   markPosterWall(world, rooms.pantry.x + 9, rooms.pantry.y - 1, 17);
+  markPosterWall(world, rooms.smoking.x + 8, rooms.smoking.y - 1, 21);
   markPosterWall(world, rooms.core.x + 4, rooms.core.y - 1, 23);
 }
 
@@ -817,6 +828,7 @@ function spawnWitnesses(entities: Entity[], nextId: { v: number }, rooms: Commun
   spawnAmbientNpc(entities, nextId, 'Очередник с тазом', Faction.CITIZEN, Occupation.TRAVELER, rooms.laundry.x + rooms.laundry.w + 3, rooms.laundry.y + 6, [{ defId: 'cloth_roll', count: 1 }]);
   spawnAmbientNpc(entities, nextId, 'Повар у второй плиты', Faction.CITIZEN, Occupation.COOK, rooms.kitchen.x + 15, rooms.kitchen.y + 5, [{ defId: 'kasha', count: 2 }], 'knife');
   spawnAmbientNpc(entities, nextId, 'Слесарь душевой очереди', Faction.LIQUIDATOR, Occupation.MECHANIC, rooms.shower.x - 3, rooms.shower.y + 7, [{ defId: 'valve_tag', count: 1 }], 'wrench');
+  spawnAmbientNpc(entities, nextId, 'Курящий свидетель', Faction.WILD, Occupation.ALCOHOLIC, rooms.smoking.x + 8, rooms.smoking.y + 4, [{ defId: 'cigs', count: 2 }, { defId: 'neighbor_complaint', count: 1 }]);
 }
 
 function spawnThroughFlatResidents(entities: Entity[], nextId: { v: number }, flats: readonly ThroughFlat[]): void {
@@ -942,13 +954,43 @@ function placeServiceContainers(
   addContainer(world, containerId, rooms.pantry, 4, 6, ContainerKind.EMERGENCY_BOX, 'Лимитированный стол пайка', [
     { defId: 'bread', count: 1 },
     { defId: 'water_coupon', count: 1 },
-  ], 'public', undefined, undefined, ['pantry', 'scarcity', 'ration_limit', 'legal_supply']);
+  ], 'public', undefined, undefined, ['pantry', 'scarcity', 'ration_limit', 'legal_supply', 'resident_relief']);
 
   addContainer(world, containerId, rooms.notice, 13, 5, ContainerKind.FILING_CABINET, 'Картотека спорных объявлений', [
     { defId: 'sealed_complaint', count: 2 },
     { defId: 'neighbor_complaint', count: 3 },
     { defId: 'samosbor_tally', count: 1 },
+    { defId: 'shelter_tally', count: 1 },
   ], 'owner', owners.tamara, NPC_DEFS.communal_notice_tamara.name, ['notice', 'paper']);
+
+  addContainer(world, containerId, rooms.notice, 5, 6, ContainerKind.FILING_CABINET, 'Щель публичной доски для улик', [], 'public', undefined, undefined, [
+    'notice',
+    'paper',
+    'evidence_drop',
+    'expose',
+    'communal_ring',
+  ]);
+
+  addContainer(world, containerId, rooms.smoking, 13, 5, ContainerKind.WOODEN_CHEST, 'Жестянка курилки с чужими жалобами', [
+    { defId: 'cigs', count: 4 },
+    { defId: 'neighbor_complaint', count: 2 },
+    { defId: 'container_key_label', count: 1 },
+  ], 'room', undefined, undefined, ['smoking', 'grievance', 'witness']);
+
+  addContainer(world, containerId, rooms.smoking, 3, 5, ContainerKind.SECRET_STASH, 'Тайник за мокрым плакатом курилки', [], 'secret', undefined, undefined, [
+    'smoking',
+    'grievance',
+    'shelter_tally',
+    'secret',
+    'hide',
+    'communal_ring',
+  ]);
+
+  addContainer(world, containerId, rooms.kitchen, 11, 7, ContainerKind.WOODEN_CHEST, 'Меновая полка общей кухни', [
+    { defId: 'bread', count: 2 },
+    { defId: 'tea', count: 2 },
+    { defId: 'water_coupon', count: 1 },
+  ], 'faction', undefined, undefined, ['kitchen', 'trade', 'buyable', 'communal_ring']);
 }
 
 function placeThroughFlatContainers(
@@ -1017,6 +1059,7 @@ function placeLooseSupplies(world: World, entities: Entity[], nextId: { v: numbe
   placeDrop(world, entities, nextId, rooms.laundry, 5, 8, 'cloth_roll', 1);
   placeDrop(world, entities, nextId, rooms.shower, 3, 9, 'toiletpaper', 1);
   placeDrop(world, entities, nextId, rooms.notice, 7, 6, 'neighbor_complaint', 1);
+  placeDrop(world, entities, nextId, rooms.smoking, 4, 4, 'cigs', 1);
   for (const flat of rooms.flats) {
     placeDrop(world, entities, nextId, flat.rooms[1], 3, 4, 'bread', 1);
     placeDrop(world, entities, nextId, flat.rooms[3], 4, 3, 'toiletpaper', 1);

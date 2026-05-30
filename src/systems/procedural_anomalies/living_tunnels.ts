@@ -9,13 +9,16 @@ import {
   type WorldEventSeverity,
 } from '../../core/types';
 import { World } from '../../core/world';
+import { RUNTIME_TOPOLOGY_LIMITS } from '../../data/runtime_topology';
 import { consumeToolDurability, hasItem, removeItem } from '../inventory';
 import { publishEvent } from '../events';
 import { isPlayerEntity } from '../player_actor';
+import { stampSurfaceSplat } from '../surface_marks';
 
 const LIVING_TUNNEL_RE = /\[living_tunnel:(-?\d+),(-?\d+),(-?\d+),(\d+)\]/g;
 const LIVING_TUNNEL_TICK_SECONDS = 0.42;
 const PLAYER_CELL_PROTECT_R2 = 1.35 * 1.35;
+const ROUTE_ANCHOR_PROTECT_RADIUS = 2;
 const DIRS = [
   { x: 1, y: 0 },
   { x: 0, y: 1 },
@@ -64,9 +67,22 @@ function hash32(v: number): number {
   return v >>> 0;
 }
 
+function routeAnchorNearby(world: World, ci: number): boolean {
+  const x = ci % W;
+  const y = (ci / W) | 0;
+  for (let dy = -ROUTE_ANCHOR_PROTECT_RADIUS; dy <= ROUTE_ANCHOR_PROTECT_RADIUS; dy++) {
+    for (let dx = -ROUTE_ANCHOR_PROTECT_RADIUS; dx <= ROUTE_ANCHOR_PROTECT_RADIUS; dx++) {
+      const ni = world.idx(x + dx, y + dy);
+      if (world.cells[ni] === Cell.LIFT || world.features[ni] === Feature.LIFT_BUTTON) return true;
+    }
+  }
+  return false;
+}
+
 function mutableTunnelCell(world: World, ci: number): boolean {
   const cell = world.cells[ci] as Cell;
   if (cell === Cell.LIFT || cell === Cell.DOOR || cell === Cell.ABYSS) return false;
+  if (routeAnchorNearby(world, ci)) return false;
   if (world.hermoWall[ci] !== 0 || world.aptMask[ci] !== 0 || world.doors.has(ci) || world.containerMap.has(ci)) return false;
   const feature = world.features[ci] as Feature;
   if (feature === Feature.LIFT_BUTTON || feature === Feature.SCREEN || feature === Feature.APPARATUS) return false;
@@ -81,10 +97,11 @@ function parseRoots(world: World): LivingTunnelRoot[] {
     LIVING_TUNNEL_RE.lastIndex = 0;
     let match: RegExpExecArray | null;
     while ((match = LIVING_TUNNEL_RE.exec(room.name))) {
+      if (roots.length >= RUNTIME_TOPOLOGY_LIMITS.livingTunnelsMaxRoots) return roots;
       const x = world.wrap(Number(match[1]));
       const y = world.wrap(Number(match[2]));
       const seed = Number(match[3]) >>> 0;
-      const maxLen = Math.max(28, Math.min(180, Number(match[4]) | 0));
+      const maxLen = Math.max(28, Math.min(RUNTIME_TOPOLOGY_LIMITS.livingTunnelsMaxTrailPatches, Number(match[4]) | 0));
       roots.push({
         x,
         y,
@@ -314,11 +331,59 @@ function rootNearControl(
   return best;
 }
 
+function rootNearActiveCut(
+  world: World,
+  runtime: LivingTunnelRuntime,
+  player: Entity,
+  lookX: number,
+  lookY: number,
+): LivingTunnelRoot | undefined {
+  let best: LivingTunnelRoot | undefined;
+  let bestD2 = 2.25;
+  for (const root of runtime.roots) {
+    for (let trailIndex = root.trail.length - 1; trailIndex >= 0; trailIndex--) {
+      const patch = root.trail[trailIndex];
+      for (const ci of patch) {
+        if (!runtime.refs.has(ci)) continue;
+        const x = ci % W;
+        const y = (ci / W) | 0;
+        if (world.dist2(player.x, player.y, x + 0.5, y + 0.5) > 9) continue;
+        const d2 = world.dist2(lookX, lookY, x + 0.5, y + 0.5);
+        if (d2 >= bestD2) continue;
+        bestD2 = d2;
+        best = root;
+      }
+    }
+  }
+  return best;
+}
+
 function clearOldTrail(world: World, player: Entity, state: GameState, runtime: LivingTunnelRuntime, root: LivingTunnelRoot, limit: number): number {
   let cleared = 0;
   const count = Math.min(root.trail.length, limit);
   for (let i = 0; i < count; i++) cleared += releasePatch(world, player, state, runtime, root.trail.shift() ?? []);
   return cleared;
+}
+
+function stampRepairScar(world: World, root: LivingTunnelRoot, state: GameState, cleared: number, method: string): void {
+  if (cleared <= 0 && method === 'bare_hands') return;
+  const x = root.controlIdx % W;
+  const y = (root.controlIdx / W) | 0;
+  const sealed = method === 'sealant_tube';
+  stampSurfaceSplat(
+    world,
+    x,
+    y,
+    0.5,
+    0.5,
+    sealed ? 0.58 : 0.42,
+    sealed ? 0.74 : 0.48,
+    root.seed ^ Math.floor(state.time * 10) ^ cleared,
+    sealed ? 174 : 128,
+    sealed ? 190 : 142,
+    sealed ? 166 : 128,
+    false,
+  );
 }
 
 export function updateLivingTunnelsAnomaly(world: World, player: Entity, state: GameState, dt: number): void {
@@ -343,6 +408,7 @@ export function updateLivingTunnelsAnomaly(world: World, player: Entity, state: 
     world.markCellsDirty();
     world.markWallTexDirty();
     world.markFloorTexDirty();
+    world.markFeaturesDirty(true);
     world.markFogDirty();
   }
 
@@ -362,6 +428,14 @@ export function livingTunnelsInteractionTargetId(world: World, lookX: number, lo
     const y = (root.controlIdx / W) | 0;
     if (world.dist2(lookX, lookY, x + 0.5, y + 0.5) <= 4) return root.controlIdx + 560000;
   }
+  const x = world.wrap(Math.floor(lookX));
+  const y = world.wrap(Math.floor(lookY));
+  for (let dy = -1; dy <= 1; dy++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      const ci = world.idx(x + dx, y + dy);
+      if (runtime.refs.has(ci)) return ci + 560000;
+    }
+  }
   return null;
 }
 
@@ -374,7 +448,7 @@ export function tryUseLivingTunnelsAnomaly(
 ): boolean {
   const runtime = runtimeFor(world);
   if (runtime.roots.length === 0) return false;
-  const root = rootNearControl(world, runtime, player, lookX, lookY);
+  const root = rootNearControl(world, runtime, player, lookX, lookY) ?? rootNearActiveCut(world, runtime, player, lookX, lookY);
   if (!root) return false;
 
   let method = 'bare_hands';
@@ -394,10 +468,12 @@ export function tryUseLivingTunnelsAnomaly(
   }
 
   const cleared = clearOldTrail(world, player, state, runtime, root, method === 'bare_hands' ? 8 : 28);
+  stampRepairScar(world, root, state, cleared, method);
   root.stoppedUntil = Math.max(root.stoppedUntil, state.time + duration);
   world.markCellsDirty();
   world.markWallTexDirty();
   world.markFloorTexDirty();
+  world.markFeaturesDirty(true);
   world.markFogDirty();
 
   if (method === 'sealant_tube') {

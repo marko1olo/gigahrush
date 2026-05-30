@@ -1,5 +1,9 @@
 # Fight AI Contract
 
+> Центральный документ боя.
+>
+> Роль: описывает динамичный бой на всем активном этаже: thousands-capable actor combat, target selection, physical projectiles, friendly fire, monster/NPC pressure, simple tactics, gore/traces and smooth emergent fight experience. Связан с `ai.md`, `monsters.md`, `items.md` and `balance.md`.
+
 Статус: рабочий контракт боевого апдейта. Текущий подход: активный этаж считается честным полным проходом live-AI акторов без player bubble, hot/cold tiers и proximity gates. Это текущая основа AI игры. Массовый бой остается живым и динамичным, потому что обычные акторы используют короткий универсальный combat-step, а дорогие вопросы вынесены в локальные cooldown/cache.
 
 ## Цель
@@ -44,6 +48,24 @@ actor -> remember current target/intent -> find hostile faction target -> move -
 - дальние акторы не заморожены и не идут по другому симуляционному правилу: они получают тот же frame pass и оставляют последствия в структурах текущего этажа;
 - фракции и личное отношение к игроку определяют враждебность; monster-vs-monster не является базовой политикой;
 - шум и witnesses вторичны и bounded; они не должны становиться every-frame классификатором для 4096 actors.
+
+## Shipped Actor Tactics Layer
+
+Поверх короткого combat-step добавлен общий профильный слой `src/systems/ai/tactics.ts`. Это не отдельная state machine на каждый монстр в цикле, а один runner с профилями:
+
+- `updateAI()` вызывает runner перед обычным NPC/monster branch только если у actor есть профиль;
+- профиль задает `senseRadius`, `senseIntervalSeconds`, `scanCap`, optional target-neighbor scan и список tactics по priority;
+- локальные факты читаются через `entity_index.queryRadiusCapped()` и кэшируются в transient `AIState`;
+- unprofiled NPC/monster не делают tactic scan и остаются на текущем дешевом combat/routine пути;
+- состояние профиля не пишется в save: это cooldowns, target ids, local counts, phase/debug flags.
+
+Первый shipped профиль: `MonsterKind.SLIME_WOMAN`.
+
+- после hostile damage профиль оставляет bounded toxic slime residue через `cell_hazards` и surface mark;
+- если рядом локальная толпа hostile NPC/player, профиль переводит монстра в `AIGoal.FLEE` и уводит от capped hostile centroid;
+- на сухом светлом бетоне профиль публикует readable dry-counterplay cue и может отступать к ближайшему мокрому anchor;
+- одиночная цель включает stalk/ambush behavior, а close isolated grab может оставить residue;
+- все это работает на текущем активном этаже без full-map scan и без контентной ветки в `main.ts`.
 
 ## Текущая Диагностика
 

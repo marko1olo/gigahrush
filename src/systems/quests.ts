@@ -655,7 +655,8 @@ export function notifyKill(kind: MonsterKind, state: GameState): void {
   for (const q of state.quests) {
     if (q.done || q.type !== QuestType.KILL) continue;
     if (!isQuestTargetOnCurrentFloor(q, state)) continue;
-    if (q.targetMonsterKind === kind || q.targetMonsterKind === undefined) {
+    const genericMonsterTarget = q.targetMonsterKind === undefined && q.targetNpcId === undefined && q.targetPlotNpcId === undefined;
+    if (q.targetMonsterKind === kind || genericMonsterTarget) {
       q.killCount = (q.killCount ?? 0) + 1;
     }
   }

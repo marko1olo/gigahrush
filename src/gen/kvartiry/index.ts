@@ -22,6 +22,7 @@ import { calcZoneLevel, randomRPG, gaussianLevel, getMaxHp } from '../../systems
 import { entitySpawnSlots } from '../../systems/entity_limits';
 import { Spr } from '../../render/sprite_index';
 import { randomOccupation } from '../../data/relations';
+import { buildKvartirySocialMacroGraph } from './social_macro_graph';
 import {
   resetKvartiryContentState,
   publishKvartiryContentUprising,
@@ -591,6 +592,9 @@ export function generateKvartiry(): { world: World; entities: Entity[]; spawnX: 
 
   // ── Phase 13: Manifest-owned permanent themed rooms ──────────
   nextId = runKvartiryPermanentContent(world, entities, nextId, spawnX, spawnY);
+
+  // ── Phase 13b: Generation-time social macro routes and debug domains
+  buildKvartirySocialMacroGraph(world, spawnX, spawnY);
 
   // ── Phase 14: Rare procedural TVs/monitors on suitable room walls
   placeProceduralScreens(world, FloorLevel.KVARTIRY);

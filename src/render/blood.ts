@@ -13,7 +13,7 @@ export interface BloodParticle {
   vx: number; vy: number;    // velocity (cells/sec)
   vz: number;                // vertical velocity (units/sec)
   life: number;              // remaining seconds
-  size: number;              // 1-3 px
+  size: number;              // emitter scale, projected by renderer
   r: number; g: number; b: number;
 }
 

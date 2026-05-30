@@ -10,13 +10,13 @@ import {
 } from '../../core/types';
 import { World } from '../../core/world';
 
-import { rng, ensureConnectivity, generateZones } from '../shared';
+import { rng, generateZones } from '../shared';
 import { VOID_POPULATION_PROFILE } from '../../data/population_profiles';
 import { calcZoneLevel, randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg';
 import { MONSTERS } from '../../entities/monster';
 import { Spr, monsterSpr } from '../../render/sprite_index';
 import { runVoidContent } from './content_manifest';
-import { buildVoidGeometry, paintVoidDefaults } from './geometry';
+import { applyVoidRevealLighting, buildVoidGeometry, paintVoidDefaults } from './geometry';
 
 export function generateVoid(): { world: World; entities: Entity[]; spawnX: number; spawnY: number } {
   const world = new World();
@@ -30,7 +30,6 @@ export function generateVoid(): { world: World; entities: Entity[]; spawnX: numb
   const spawnX = layout.spawnX;
   const spawnY = layout.spawnY;
 
-  ensureConnectivity(world, spawnX, spawnY);
   paintVoidDefaults(world);
 
   /* ══════════════════════════════════════════════════════════════
@@ -88,6 +87,7 @@ export function generateVoid(): { world: World; entities: Entity[]; spawnX: numb
     }
   }
   world.bakeLights();
+  applyVoidRevealLighting(world);
 
   /* ══════════════════════════════════════════════════════════════
      Phase 5: Guardian monsters scattered

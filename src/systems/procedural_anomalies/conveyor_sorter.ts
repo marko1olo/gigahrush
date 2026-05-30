@@ -90,6 +90,8 @@ function addRoomLoop(world: World, room: Room, cache: ConveyorCache): void {
   const right = room.x + room.w - 3;
   const top = room.y + 2;
   const bottom = room.y + room.h - 3;
+  const midX = room.x + Math.floor(room.w / 2);
+  const midY = room.y + Math.floor(room.h / 2);
 
   for (let x = left; x <= right; x++) {
     addDir(world, cache, x, top, 1);
@@ -98,6 +100,11 @@ function addRoomLoop(world: World, room: Room, cache: ConveyorCache): void {
   for (let y = top; y <= bottom; y++) {
     addDir(world, cache, right, y, 2);
     addDir(world, cache, left, y, 4);
+  }
+  for (let x = left + 1; x <= right - 1; x++) addDir(world, cache, x, midY, 1);
+  for (let y = top + 1; y <= bottom - 1; y++) {
+    if (y === midY) continue;
+    addDir(world, cache, midX, y, y < midY ? 2 : 4);
   }
 
   for (let dy = 1; dy < room.h - 1; dy++) {
@@ -112,6 +119,7 @@ function addDir(world: World, cache: ConveyorCache, x: number, y: number, dir: D
   const ci = world.idx(x, y);
   if (world.cells[ci] !== Cell.FLOOR && world.cells[ci] !== Cell.WATER) return;
   if (world.features[ci] === Feature.LIFT_BUTTON || world.doors.has(ci)) return;
+  if (world.features[ci] === Feature.APPARATUS || world.features[ci] === Feature.SHELF) return;
   cache.dirs.set(ci, dir);
 }
 

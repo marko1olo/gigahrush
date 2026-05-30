@@ -6,6 +6,8 @@ Window: 2026-05-28 22:47 UTC / 23:47 BST.
 
 Scope: owner asked to make more post material, decide where to continue publishing the game, and keep `KPI.md` updated. This pass prepared post/pitch copy and a next-surface queue. No public post, email, form submission, vote, rating, upload, portal final-click or account action was made.
 
+2026-05-29 update: for new-version posts and the owner-required Telegram link, use `Docs/PRCampaign/PR_44_new_version_posts_platform_scout_2026-05-29.md` instead of copying the drafts below verbatim. PR 44 supersedes this file for fresh DTF/Pikabu/owned-social copy because every new link-allowed post now must include `https://t.me/gigah_rush`.
+
 ## Current Verified Baseline
 
 | Surface | Fresh fact | Campaign meaning |

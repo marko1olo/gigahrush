@@ -1,5 +1,9 @@
 # scenarist.md - строгий тон-бриф ГИГАХРУЩА
 
+> Центральный документ игровых текстов.
+>
+> Роль: описывает стиль, язык, лор, tone, NPC voices, barks, rumors, notes, quest copy and UI text discipline. Связан с `quests.md`, `taste.md`, `README.md` and `Docs/ScenarioWriters/`.
+
 Этот файл - активный тон-бриф для всех игровых текстов. Он задает стиль
 player-facing строк, но не документирует shipped behavior: факты проверять по
 `README.md` и текущим исходникам. Перед любой правкой реплик, советов, слухов,

@@ -15,16 +15,164 @@ Sender/contact superseded by owner on 2026-05-26:
 
 - Sender name/nick: `Tenevik Games`
 - Contact email: `tenevik.games@gmail.com`
-- Telegram may be used in pitch copy: yes, `https://t.me/gigah_rush`
+- Telegram must be included in new post/pitch/listing copy whenever the platform allows external links: `https://t.me/gigah_rush`
 - Use MyIndie as the primary RU/CIS game page, direct build as a frictionless fallback, and itch.io as mirror/EN.
 - Do not mention `https://jirny.uk` in new posts, pitches, portal forms or support messages.
 - Historical logs still record already-sent mail from `jirnyak@gmail.com`; do not use that account for new outbound PR except to close or transfer old support threads.
+
+## 2026-05-29 PR 48 DTF/Pikabu/Gamin/Telegram Execution
+
+Full execution log: `Docs/PRCampaign/PR_48_dtf_pikabu_gamin_telegram_execution_2026-05-29.md`.
+
+Actual same-pass actions:
+
+1. DTF author update comment published and verified: `https://dtf.ru/indie/5086991-gigahrusha-novaya-versiya-myindie-i-kadry-iz-samosbora?comment=64892114`.
+2. Pikabu author correction comment published and verified: `https://pikabu.ru/story/delayu_brauzernyiy_survival_horror_pro_samosbor_alife_i_vyilazki_v_betonnoy_strukture_14010914?cid=393817860`.
+3. Gamin.me post published and verified: `https://gamin.me/posts/23350-gigahrusch-brauzernyy-survival-horror-pro-samosbor-nuzhna-proverka-pervyh-10-minut`.
+4. Telegram DM proposal sent to Evgeny Carter / `@evgenycarter` at 04:10 BST.
+5. Telegram DM proposal sent to Антон СЫЧ / `@SychDomovoi` at 04:13 BST.
+6. Public DTF/Pikabu/Gamin surfaces were rechecked with clickable MyIndie, direct build, itch and Telegram `https://t.me/gigah_rush` links.
+7. Gamin game listing was not created because `/games/new` warns standalone self-promo pages can be removed without an article; use the live Gamin article as context before any listing.
+
+Immediate queue after PR 48:
+
+1. Monitor the new DTF/Pikabu/Gamin links and Telegram replies; no duplicate update/correction comments.
+2. Pikabu caveat: first update reply `comment_393817669` was truncated without links; authoritative link-bearing comment is `393817860`.
+3. App2Top remains blocked/no composer after START; official `@gigah_rush` still needs admin compose access before owned-channel posting.
+4. IXBT/НАШЫ ИГРЫ still needs 3-5 Russian screenshots and a YouTube/VK Video trailer, then a clean restarted bot flow.
+5. Portal prep remains separate: GamePush/Pikabu legal data and sandbox QA, plus Playgama/InstGame/ИграйТут account/artifact/browser-QA.
+
+## 2026-05-29 PR 47 Reddit r/PBBG Owner Override Attempt
+
+Full attempt log: `Docs/PRCampaign/PR_47_reddit_pbbg_owner_override_attempt_2026-05-29.md`.
+
+Owner explicitly asked for one English `r/PBBG` post despite the same-day Reddit hold. This is not a general Reddit reopen. Status:
+
+1. Old Reddit `r/PBBG` submit form is open and filled under `u/Educational-Dog-230`.
+2. Draft title: `GIGAH|RUSH - single-player persistent browser survival horror / ARPG`.
+3. Body includes developer disclosure, single-player/PBBG-fit caveat, direct build, itch mirror and Telegram `https://t.me/gigah_rush`.
+4. Reddit returned `That was a tricky one. Why don't you try that again.` and showed a visible Google reCAPTCHA.
+5. Owner must solve the captcha in the open Chrome tab; then submit once, verify live URL, clickable links and `Game Advertisement` flair.
+6. Do not duplicate-submit or open another subreddit while this pending form exists.
+
+## 2026-05-29 PR 45 VK/TG/Reddit/The Indie Informer Execution
+
+Full execution log: `Docs/PRCampaign/PR_45_vk_tg_reddit_indieinformer_execution_2026-05-29.md`.
+
+Actual same-pass actions:
+
+1. VK owned profile post published: `https://vk.com/wall1116822249_1`; browser recheck showed visible body and clickable MyIndie/direct/Telegram links.
+2. Reddit `r/playmygame` published after captcha: `https://old.reddit.com/r/playmygame/comments/1tqolsz/web_gigahrush_free_browser_survival_horror_first/`; initial old Reddit recheck showed `[PC] (WEB)`, score `1`, clickable direct/itch/Telegram links and no comments yet.
+3. The Indie Informer contact form submitted, then a short Telegram correction submitted because the first form had missed `https://t.me/gigah_rush`.
+4. VK Indie Spotlight / `https://vk.com/indie` received a private Tenevik pitch after community messages were enabled.
+5. Telegram SIKRI and Indie HUB bot submissions were sent/corrected.
+6. IXBT/НАШЫ ИГРЫ bot is incomplete: it requires 3-5 Russian screenshots and a YouTube/VK Video trailer; GIF links were not accepted as a trailer.
+7. `@gigah_rush` official channel opened with 9 subscribers, but current Web Telegram session has no admin compose field.
+
+Immediate queue after PR 45:
+
+1. Monitor live Reddit/VK and private replies; no duplicate Reddit or VK text post today.
+2. Owner/admin unlock for `@gigah_rush`, then one native owned Telegram update using PR 44 copy.
+3. Prepare Russian screenshot pack plus VK Video/YouTube trailer before retrying IXBT.
+
+## 2026-05-29 PR 46 Six-Agent Target Queue
+
+Full queue: `Docs/PRCampaign/PR_46_six_agent_target_queue_2026-05-29.md`.
+
+Six read-only subagents returned target lists for VK, Telegram, Reddit, RU media, EN media and platform/store distribution. No public action was made from this queue. Use one lane at a time:
+
+1. VK: first rules-check `https://vk.com/rpg_horror_games`, `https://vk.com/gamedevinrussian`, `https://vk.com/tindie`.
+2. Telegram: use bot/admin/form routes first; App2Top, GameDev, Gamedev Star, Flynn form and VGTimes feedback bot are the next candidates.
+3. RU media: GameBomb, VGTimes, Shazoo, Мир фантастики, GameGuru, App2Top, 3DNews.
+4. EN media: Pantaloon, Indie Hive, Umigari, Horror Geek Life, IGP/KeyCreators.
+5. Reddit: no more today; future cooldown queue starts with testing communities, not promo communities.
+6. Platforms: GamePush/Pikabu, Yandex Games, VK Play, ИграйТут, InstGame, Playgama and CrazyGames are account/build/QA tasks, not quick posts.
+
+## 2026-05-29 PR 44 New-Version Posts / Platform Scout
+
+Full copy pack and scout: `Docs/PRCampaign/PR_44_new_version_posts_platform_scout_2026-05-29.md`.
+
+Owner asked for more posts after the new version release, especially Pikabu, DTF and additional platforms, and required Telegram in posts. No public post, comment, form submission, email, vote, rating, portal final-click or account action was made in PR 44.
+
+Mandatory copy rule after PR 44:
+
+1. Add `https://t.me/gigah_rush` to every new public post, pitch, portal listing and announcement when the platform allows external links.
+2. If only one body link is allowed, keep the playable/store link in the body and put Telegram in the first allowed comment, profile/contact field, native social field or portal metadata.
+3. If links are forbidden, do not evade moderation; record that Telegram could not be included.
+
+New-version immediate queue:
+
+1. Owned Telegram/VK/X/Bluesky short post with native media; use PR 44 copy and mandatory Telegram link.
+2. DTF: clean public version recheck first. Then either update/comment under the existing follow-up or publish a distinct new-version article from PR 44. Do not link-bump.
+3. Pikabu gamedev: author update comment under the live post first. A fresh longpost is second-choice and must be distinct from the 2026-05-27 post. Do not announce Pikabu Games until there is a public catalog URL.
+4. Telegram proposals from PR 39, one-by-one with native media and Telegram as project channel/contact.
+5. Gamin.me pitch from PR 44.
+6. Playgama, InstGame, Kongregate-after-approval and ИграйТут are portal-prep targets, not quick posts; run account/artifact/browser QA first.
+
+## 2026-05-29 PR 43 Pikabu/GamePush v3 Asset Follow-Up
+
+Full execution log: `Docs/PRCampaign/PR_43_pikabu_gamepush_v3_asset_followup_2026-05-29.md`.
+
+Actual same-pass actions:
+
+1. Authenticated GamePush Distribution recheck confirmed `In progress`, `Actual draft version: 3`.
+2. Hosted v3 `https://s3.eponesh.com/games/28314/v3/` returned `200`, title `ГИГАХРУЩ - САМОСБОР`, `content-length: 11246051`, `last-modified: Fri, 29 May 2026 01:53:56 GMT`, and `gigahrush-portal=pikabu`.
+3. Uploaded the local promo pack from `tmp/gamepush_promo_2026-05-28/`: icon `1024x1024`, cover `1920x1080`, and four landscape screenshots `1280x720`.
+4. Ran GamePush `Generate for all platforms` for `Pikabu`, with English and Russian selected.
+5. Distribution no longer showed the top warning panels for missing icon, cover or screenshots.
+6. Browser opened hosted v3 with visible canvases, but no full sandbox/cloud-save/mobile QA was completed.
+
+Immediate owner-unlocked queue after PR 43:
+
+1. GamePush/Pikabu: owner fills `My Company` only if comfortable providing real legal/contract data: owner name, INN, phone and date of birth/company establishment.
+2. Run GamePush `Test game` / sandbox QA for v3: launch, console, pause/audio, scaling, input, mobile and `progress` cloud-save.
+3. Watch moderator chat and Distribution status; no duplicate Pikabu submission and no public Pikabu announcement until a real catalog URL exists.
+4. Continue Telegram/VK/EN outreach only as one-by-one platform-native pitches with media; do not treat Pikabu `In progress` as a public release.
+
+## 2026-05-29 PR 41 Outbound Execution / Owner Blockers
+
+Full execution log: `Docs/PRCampaign/PR_41_outbound_execution_and_owner_blockers_2026-05-29.md`.
+
+Actual same-pass actions:
+
+1. Sent Big Boss Battle pitch to `editors@bigbossbattle.com`; Gmail Sent search confirmed one conversation.
+2. Sent Rely on Horror pitch to `Team@RelyOnHorror.com`; Gmail Sent search confirmed one conversation.
+3. Did not send The Indie Informer form because Chrome disabled JavaScript-from-Apple-Events; superseded by PR 45, where the form and a Telegram correction were submitted.
+4. Did not post to Reddit, VK, Telegram or Yandex; no community final-click, vote, rating, bot submission, portal upload or fake engagement was made.
+
+Immediate owner-unlocked queue:
+
+1. GamePush/Pikabu: superseded by PR 43. v3 is uploaded and promo icon/cover/screenshots warnings are cleared; remaining blockers are owner-only `My Company` contract data and real sandbox/cloud-save QA.
+2. Telegram: log in as Tenevik, submit exactly one clear-path proposal from PR 39, preferably Indie Spotlight / НАШЫ ИГРЫ / СИКРИ / Indie Hub, with native media and MyIndie first.
+3. VK: log in as Tenevik, try Indie Spotlight VK or a Tenevik-owned VK Video clip first; no comment-spam or stale directory blast.
+4. The Indie Informer: superseded by PR 45; monitor replies, do not submit another duplicate form.
+5. Reddit: no more posting until the owner clears captcha/checkpoint and reports `Reddit clear`.
+
+Reddit caveat: a read-only monitoring lane saw old Reddit posts as public, while PR 36/PR 39 saw deleted/historical status and main shell rechecks were blocked. Do not use this conflict as permission to bump old posts or retry new-account posting; first get a clean public recheck and clear Tenevik account trust.
+
+## 2026-05-29 PR 40 Lane 5 EN Web / Press / Communities
+
+Full research and copy pack: `Docs/PRCampaign/PR_40_lane5_en_web_press_communities_2026-05-29.md`.
+
+No public post, email, form submission, contact message, vote, rating, upload, portal final-click or account action was made in PR 40. This was a research-only lane for additional non-Reddit English web, press and community surfaces.
+
+Do not quick-follow-up already contacted outlets from 2026-05-23/24: Alpha Beta Gamer, Free Game Planet, Games Pending, Armor Games, TapCraftBox, Indie Games Plus, HorrorFam, Indie Game Buzz, Into Indie Games, Gamemoor and similar pending contacts.
+
+Fresh EN priority queue if owner chooses a new outbound batch instead of the PR 38 batch:
+
+1. Bloody Disgusting - `https://bloody-disgusting.com/contact-us/`; contact form/editorial inquiry; strongest fresh horror press fit.
+2. GameLuster - `https://gameluster.com/contact/`; contact form with editorial/press-release/interview options; good general indie coverage fit.
+3. Buried Treasure - `https://buried-treasure.org/contact/`; email/tweet route via contact page / `@game_treasure`; best overlooked-weird-indie curator fit.
+
+Verified carry-forward, not a fresh discovery: Dread Central `https://www.dreadcentral.com/contact-us/` has a news/contact form and remains a good horror press target if owner wants the older queue. Secondary non-Reddit paths: GamingOnLinux, PC Gamer tips, Hacker News Show HN, MakeWebGames, Product Hunt, Pixlland, PopularGames.io and Lemmy `indiegamedev`, each with caveats in PR 40.
 
 ## 2026-05-28 PR 38 Next Posts / Surfaces
 
 Full copy pack and scout: `Docs/PRCampaign/PR_38_next_posts_and_surfaces_2026-05-28.md`.
 
 No public post, email, form submission, vote, rating, upload, portal final-click or account action was made in PR 38. The pass prepared ready-to-use copy and re-ranked surfaces after Reddit `BAD_CAPTCHA` / removal and Pikabu GamePush moderation.
+
+2026-05-29 PR 39 update: Reddit lane 3 research only; no public Reddit action. Posting today is unsafe because PR 34 immediate removals and PR 37 `BAD_CAPTCHA` are unresolved. Exact future queue after owner clears captcha/login and warms account: profile-native-media recovery first, then one of `r/DestroyMyGame`, `r/gamedevscreens` or `r/proceduralgeneration`; keep `r/playmygame`, `r/WebGames`, `r/SurvivalGaming`, `r/playtesters`, `r/indiegames` and `r/Games` conditional/hold under the rule notes in `Docs/PRCampaign/PR_39_reddit_recovery_subreddit_research_2026-05-29.md`.
 
 Immediate queue:
 
@@ -261,6 +409,19 @@ Kongregate submission notes:
 - Do not start this until the owner is ready for an account + approval queue.
 
 ## P1: Reddit / Community Follow-Up
+
+2026-05-29 PR 39 update: do not post Reddit today. Exact researched targets:
+
+- Tenevik profile first: native GIF/screenshot, no outbound links in title/body, one link comment only after a 30-60 minute public survival check.
+- `r/DestroyMyGame`: first subreddit after profile survival; raw gameplay critique only, no release-promo body.
+- `r/gamedevscreens`: screenshot/GIF showcase for HUD/Samosbor/readability; link only if rules/comments allow or someone asks.
+- `r/proceduralgeneration`: technical procedural readability post; no player-acquisition framing and no public implementation geometry.
+- `r/SurvivalGaming`: conditional after account recovery/modmail validation; survival fit is real but PR 34 already removed a post there.
+- `r/playtesters`: conditional real unpaid playtest, text post with embedded media and exact feedback route.
+- `r/playmygame`: blocked until owner clears `BAD_CAPTCHA` and gives useful feedback on at least 3 other games.
+- `r/WebGames`: hold after old May 24 deleted post; public rule snapshot says wait 3 months unless significant update.
+- `r/Games`: only Indie Sunday, not Friday, and only after account recovery plus 60-day same-game/dev window check.
+- `r/indiegames`, `r/IndieGaming`, `r/IndieDev`: hold/modmail because broad indie promo risk is high.
 
 2026-05-28 PR 37 update: owner overrode the hold and requested the old successful subreddits again from the new Tenevik account. Only one safe attempt was made, `r/playmygame`, through old Reddit in the authenticated Chrome session. No public post was created: the form returned `That was a tricky one. Why don't you try that again.`, and same-origin `/api/submit` returned `BAD_CAPTCHA` for `captcha`. Do not retry automated Reddit submits until the owner manually clears Reddit's human challenge/account trust state.
 

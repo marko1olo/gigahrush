@@ -160,7 +160,7 @@ Update docs only for shipped facts:
 
 - `README.md` after verified behavior changes.
 - `architecture.md` only if layer contracts changed.
-- `desdoc.md` / `plans.md` only if new future debt is deliberately recorded.
+- `desdoc.md` for future direction, or `problems.md` for problematic non-system mechanics.
 
 Do not create agent-log or task-status directories. Keep durable campaign context in `Docs/UXRework/` or active planning docs.
 

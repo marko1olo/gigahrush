@@ -17,6 +17,7 @@ import { getGamblingMachineDef } from '../data/gambling';
 import { getNetHackTerminalDef } from '../data/net_hack';
 import { tryUseCarnivorousFungus } from './carnivorous_fungus';
 import { findContentInteractionTarget, tryUseContentInteraction } from './content_hooks';
+import './interactive';
 import { ensureRoomContainers } from './containers';
 import {
   clearComputers,

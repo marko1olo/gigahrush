@@ -268,6 +268,51 @@ const ATTIC_CHAMBERS: readonly AtticChamberPlan[] = [
     floorTex: Tex.F_GUT,
     feature: Feature.CANDLE,
   },
+  {
+    cx: 662, cy: 424, rx: 14, ry: 7,
+    anchor: { x: 638, y: 482 },
+    type: RoomType.CORRIDOR,
+    name: 'Сдавленная развилка ползучего графа',
+    wallTex: Tex.PANEL,
+    floorTex: Tex.F_CONCRETE,
+    feature: Feature.APPARATUS,
+  },
+  {
+    cx: 722, cy: 426, rx: 13, ry: 8,
+    anchor: { x: 662, y: 424 },
+    type: RoomType.STORAGE,
+    name: 'Ниша сухих кабельных реликвий',
+    wallTex: Tex.DARK,
+    floorTex: Tex.F_CONCRETE,
+    feature: Feature.SHELF,
+  },
+  {
+    cx: 578, cy: 522, rx: 13, ry: 8,
+    anchor: { x: 590, y: 476 },
+    type: RoomType.STORAGE,
+    name: 'Карман корневого подкорма',
+    wallTex: Tex.GUT,
+    floorTex: Tex.F_GUT,
+    feature: Feature.CANDLE,
+  },
+  {
+    cx: 126, cy: 606, rx: 12, ry: 7,
+    anchor: { x: 112, y: 530 },
+    type: RoomType.COMMON,
+    name: 'Поклонная ниша за черной ладонью',
+    wallTex: Tex.GUT,
+    floorTex: Tex.F_GUT,
+    feature: Feature.CANDLE,
+  },
+  {
+    cx: 970, cy: 548, rx: 13, ry: 8,
+    anchor: { x: 948, y: 492 },
+    type: RoomType.STORAGE,
+    name: 'Тайник под сервисным переломом',
+    wallTex: Tex.METAL,
+    floorTex: Tex.F_CONCRETE,
+    feature: Feature.SHELF,
+  },
 ];
 
 const ATTIC_ECOLOGY_ANCHORS: readonly AtticPoint[] = [
@@ -281,6 +326,65 @@ const ATTIC_ECOLOGY_ANCHORS: readonly AtticPoint[] = [
   { x: 438, y: 842 },
   { x: 820, y: 736 },
   { x: 252, y: 398 },
+  { x: 662, y: 424 },
+  { x: 722, y: 426 },
+  { x: 578, y: 522 },
+  { x: 126, y: 606 },
+  { x: 970, y: 548 },
+];
+
+interface AtticCrawlNichePlan {
+  cx: number;
+  cy: number;
+  rx: number;
+  ry: number;
+  floorTex: Tex;
+  wallTex: Tex;
+  feature: Feature;
+}
+
+interface AtticCapillarySeed {
+  x: number;
+  y: number;
+  dx: number;
+  dy: number;
+  root: boolean;
+}
+
+const ATTIC_STEALTH_CRAWL_GRAPH: readonly [AtticPoint, AtticPoint][] = [
+  [{ x: ATTIC_BASE_X + 52, y: MAIN_Y - 50 }, { x: ATTIC_BASE_X + 116, y: MAIN_Y - 72 }],
+  [{ x: ATTIC_BASE_X + 116, y: MAIN_Y - 72 }, { x: ATTIC_BASE_X + 172, y: MAIN_Y - 54 }],
+  [{ x: ATTIC_BASE_X + 172, y: MAIN_Y - 54 }, { x: ATTIC_BASE_X + 214, y: MAIN_Y - 10 }],
+  [{ x: ATTIC_BASE_X + 116, y: MAIN_Y - 72 }, { x: 458, y: 402 }],
+  [{ x: 458, y: 402 }, { x: 545, y: 458 }],
+  [{ x: 545, y: 458 }, { x: 604, y: 474 }],
+  [{ x: 604, y: 474 }, { x: 662, y: 424 }],
+  [{ x: 662, y: 424 }, { x: 722, y: 426 }],
+  [{ x: 662, y: 424 }, { x: 746, y: 500 }],
+  [{ x: 112, y: 530 }, { x: 126, y: 606 }],
+  [{ x: 126, y: 606 }, { x: 194, y: 590 }],
+  [{ x: 948, y: 492 }, { x: 970, y: 548 }],
+  [{ x: 970, y: 548 }, { x: 42, y: 548 }],
+];
+
+const ATTIC_CRAWL_NICHES: readonly AtticCrawlNichePlan[] = [
+  { cx: ATTIC_BASE_X + 116, cy: MAIN_Y - 72, rx: 4, ry: 2, floorTex: Tex.F_CONCRETE, wallTex: Tex.PANEL, feature: Feature.APPARATUS },
+  { cx: 545, cy: 458, rx: 5, ry: 2, floorTex: Tex.F_CONCRETE, wallTex: Tex.PIPE, feature: Feature.SHELF },
+  { cx: 662, cy: 424, rx: 4, ry: 2, floorTex: Tex.F_CONCRETE, wallTex: Tex.PANEL, feature: Feature.APPARATUS },
+  { cx: 722, cy: 426, rx: 4, ry: 2, floorTex: Tex.F_CONCRETE, wallTex: Tex.DARK, feature: Feature.SHELF },
+  { cx: 126, cy: 606, rx: 4, ry: 2, floorTex: Tex.F_GUT, wallTex: Tex.GUT, feature: Feature.CANDLE },
+  { cx: 970, cy: 548, rx: 5, ry: 2, floorTex: Tex.F_CONCRETE, wallTex: Tex.METAL, feature: Feature.SHELF },
+];
+
+const ATTIC_CAPILLARY_SEEDS: readonly AtticCapillarySeed[] = [
+  { x: 314, y: 548, dx: 1, dy: -1, root: true },
+  { x: 704, y: 574, dx: -1, dy: -1, root: true },
+  { x: 848, y: 466, dx: -1, dy: 1, root: true },
+  { x: 126, y: 606, dx: 1, dy: 0, root: true },
+  { x: 604, y: 474, dx: 1, dy: 0, root: false },
+  { x: 458, y: 402, dx: 1, dy: 1, root: false },
+  { x: 820, y: 736, dx: -1, dy: -1, root: false },
+  { x: 970, y: 548, dx: 1, dy: 0, root: false },
 ];
 
 const ATTIC_NPCS: Record<string, PlotNpcDef> = {
@@ -699,13 +803,17 @@ export function expandChthonicAtticRootNetwork(
   seedAtticShaftCaches(world, chambers, rng);
 
   carveAtticCrawlBypasses(world, protectedMask);
+  carveAtticStealthCrawlGraph(world, protectedMask);
   stampAtticRootStubs(world, protectedMask);
   stampAtticChokepoints(world, protectedMask);
+  stampAtticLowCeilingShells(world);
+  stampAtticCapillaryCracks(world, protectedMask, rng);
   stampAtticExitCues(world);
   spawnAtticAmbientMonsters(world, entities, rng, 28);
 
   world.markWallTexDirty();
   world.markFloorTexDirty();
+  world.markFeaturesDirty();
   world.markFogDirty();
 }
 
@@ -1000,6 +1108,40 @@ function carveAtticCrawlBypasses(world: World, protectedMask: Uint8Array): void 
   setAtticFeature(world, 42, 548, Feature.CANDLE);
 }
 
+function carveAtticStealthCrawlGraph(world: World, protectedMask: Uint8Array): void {
+  for (const [from, to] of ATTIC_STEALTH_CRAWL_GRAPH) {
+    carveAtticRootPath(world, from, to, 0, Tex.F_CONCRETE, protectedMask);
+  }
+  for (const niche of ATTIC_CRAWL_NICHES) {
+    stampAtticCrawlNiche(world, niche, protectedMask);
+  }
+}
+
+function stampAtticCrawlNiche(world: World, plan: AtticCrawlNichePlan, protectedMask: Uint8Array): void {
+  const outerRx = plan.rx + 1;
+  const outerRy = plan.ry + 1;
+  for (let dy = -outerRy; dy <= outerRy; dy++) {
+    for (let dx = -outerRx; dx <= outerRx; dx++) {
+      const inner = (dx * dx) / Math.max(1, plan.rx * plan.rx) + (dy * dy) / Math.max(1, plan.ry * plan.ry);
+      const outer = (dx * dx) / Math.max(1, outerRx * outerRx) + (dy * dy) / Math.max(1, outerRy * outerRy);
+      if (outer > 1.04) continue;
+      const idx = world.idx(plan.cx + dx, plan.cy + dy);
+      if (protectedMask[idx] || world.cells[idx] === Cell.DOOR || world.cells[idx] === Cell.LIFT) continue;
+      if (inner <= 1) {
+        world.cells[idx] = Cell.FLOOR;
+        world.roomMap[idx] = -1;
+        world.floorTex[idx] = plan.floorTex;
+        if (dx === 0 && dy === 0) world.features[idx] = plan.feature;
+      } else if (world.cells[idx] === Cell.WALL || world.cells[idx] === Cell.ABYSS) {
+        world.cells[idx] = Cell.WALL;
+        world.roomMap[idx] = -1;
+        world.wallTex[idx] = plan.wallTex;
+      }
+    }
+  }
+  stampSurfaceSplat(world, plan.cx, plan.cy, 0.5, 0.5, Math.max(plan.rx, plan.ry) * 0.42, 0.2, plan.cx * 29 ^ plan.cy * 31, 52, 43, 36, true);
+}
+
 function stampAtticRootStubs(world: World, protectedMask: Uint8Array): void {
   const stubs: readonly [AtticPoint, AtticPoint][] = [
     [{ x: 700, y: 536 }, { x: 742, y: 600 }],
@@ -1038,6 +1180,145 @@ function placeAtticRootPillar(world: World, cx: number, cy: number, radius: numb
       world.wallTex[idx] = (dx + dy) & 1 ? Tex.GUT : Tex.MEAT;
       world.features[idx] = Feature.NONE;
     }
+  }
+}
+
+function stampAtticLowCeilingShells(world: World): void {
+  for (const room of world.rooms) {
+    if (!room || !atticRoomReadsLow(room)) continue;
+    for (let dy = 1; dy < room.h - 1; dy++) {
+      for (let dx = 1; dx < room.w - 1; dx++) {
+        const x = room.x + dx;
+        const y = room.y + dy;
+        const idx = world.idx(x, y);
+        if (world.cells[idx] !== Cell.FLOOR) continue;
+        const dist = nearestAtticSolidDistance(world, x, y, 4);
+        if (dist > 3.2) continue;
+        const pressure = Math.max(0, 4 - dist);
+        const fog = Math.min(72, 12 + Math.round(pressure * 12));
+        if (world.fog[idx] < fog) world.fog[idx] = fog;
+        if (dist <= 1.45 && world.floorTex[idx] === Tex.F_CONCRETE && ((x * 13 + y * 17 + room.id) & 3) === 0) {
+          world.floorTex[idx] = room.floorTex === Tex.F_GUT ? Tex.F_GUT : Tex.F_CONCRETE;
+        }
+        if (world.features[idx] === Feature.NONE && dist <= 1.7 && ((x * 19 + y * 23 + room.id) & 31) === 0) {
+          world.features[idx] = room.floorTex === Tex.F_GUT ? Feature.CANDLE : Feature.APPARATUS;
+        }
+        if (((x * 37 + y * 41 + room.id) & 63) === 0) {
+          stampSurfaceSplat(world, x, y, 0.5, 0.5, 0.45, 0.14, room.id * 1009 + x * 7 + y, 58, 51, 45, true);
+        }
+      }
+    }
+  }
+
+  for (const point of ATTIC_SPINE) {
+    stampSurfaceSplat(world, point.x, point.y, 0.5, 0.5, 1.2, 0.11, point.x * 43 ^ point.y * 47, 44, 39, 35, true);
+  }
+}
+
+function atticRoomReadsLow(room: Room): boolean {
+  const name = room.name.toLowerCase();
+  return room.type === RoomType.CORRIDOR
+    || room.type === RoomType.STORAGE
+    || name.includes('низк')
+    || name.includes('лаз')
+    || name.includes('шахт')
+    || name.includes('карман')
+    || name.includes('корн')
+    || name.includes('ниша');
+}
+
+function nearestAtticSolidDistance(world: World, x: number, y: number, radius: number): number {
+  let best = radius + 1;
+  for (let dy = -radius; dy <= radius; dy++) {
+    for (let dx = -radius; dx <= radius; dx++) {
+      const d2 = dx * dx + dy * dy;
+      if (d2 === 0 || d2 >= best * best) continue;
+      const cell = world.cells[world.idx(x + dx, y + dy)];
+      if (cell !== Cell.WALL && cell !== Cell.ABYSS) continue;
+      best = Math.sqrt(d2);
+    }
+  }
+  return best;
+}
+
+function stampAtticCapillaryCracks(world: World, protectedMask: Uint8Array, rng: () => number): void {
+  for (let i = 0; i < ATTIC_CAPILLARY_SEEDS.length; i++) {
+    const seed = ATTIC_CAPILLARY_SEEDS[i];
+    walkAtticCapillary(world, protectedMask, seed, 44 + i * 3, rng, i * 3);
+    walkAtticCapillary(world, protectedMask, {
+      x: seed.x,
+      y: seed.y,
+      dx: -seed.dy || seed.dx,
+      dy: seed.dx || seed.dy,
+      root: seed.root,
+    }, 24 + i * 2, rng, i * 3 + 1);
+    if (i % 2 === 0) {
+      walkAtticCapillary(world, protectedMask, {
+        x: seed.x,
+        y: seed.y,
+        dx: seed.dy || -seed.dx,
+        dy: -seed.dx || seed.dy,
+        root: seed.root,
+      }, 22 + i, rng, i * 3 + 2);
+    }
+  }
+}
+
+function walkAtticCapillary(
+  world: World,
+  protectedMask: Uint8Array,
+  seed: AtticCapillarySeed,
+  length: number,
+  rng: () => number,
+  serial: number,
+): void {
+  let x = seed.x;
+  let y = seed.y;
+  let dx = seed.dx;
+  let dy = seed.dy;
+  if (dx === 0 && dy === 0) dx = 1;
+
+  for (let step = 0; step < length; step++) {
+    const idx = world.idx(x, y);
+    if (!protectedMask[idx] && world.cells[idx] !== Cell.DOOR && world.cells[idx] !== Cell.LIFT) {
+      if (world.cells[idx] === Cell.WALL) {
+        world.wallTex[idx] = seed.root
+          ? ((step + serial) & 1 ? Tex.GUT : Tex.MEAT)
+          : ((step + serial) & 1 ? Tex.PIPE : Tex.DARK);
+      } else if (world.cells[idx] === Cell.FLOOR) {
+        if (seed.root && ((step + serial) % 3 === 0)) world.floorTex[idx] = Tex.F_GUT;
+        if (world.fog[idx] < (seed.root ? 44 : 28)) world.fog[idx] = seed.root ? 44 : 28;
+        if (world.features[idx] === Feature.NONE && ((step + serial) % 19 === 0)) {
+          world.features[idx] = seed.root ? Feature.CANDLE : Feature.APPARATUS;
+        }
+      }
+      if ((step & 3) === 0) {
+        stampSurfaceSplat(
+          world,
+          x,
+          y,
+          0.5,
+          0.5,
+          seed.root ? 0.62 : 0.42,
+          seed.root ? 0.18 : 0.13,
+          (seed.x * 73856093 ^ seed.y * 19349663 ^ serial * 83492791 ^ step * 2654435761) | 0,
+          seed.root ? 62 : 46,
+          seed.root ? 39 : 43,
+          seed.root ? 28 : 47,
+          true,
+        );
+      }
+    }
+
+    if (step > 0 && step % 7 === 0 && rng() < 0.64) {
+      const turnLeft = rng() < 0.5;
+      const oldDx = dx;
+      dx = turnLeft ? -dy : dy;
+      dy = turnLeft ? oldDx : -oldDx;
+      if (dx === 0 && dy === 0) dx = 1;
+    }
+    x = world.wrap(x + dx);
+    y = world.wrap(y + dy);
   }
 }
 

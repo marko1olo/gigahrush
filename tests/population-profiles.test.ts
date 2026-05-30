@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { AIGoal, EntityType, FloorLevel, W, type Entity } from '../src/core/types';
+import { AIGoal, Cell, EntityType, Feature, FloorLevel, W, type Entity } from '../src/core/types';
 import type { World } from '../src/core/world';
 import {
   HELL_POPULATION_PROFILE,
@@ -22,6 +22,7 @@ import { generateKvartiry } from '../src/gen/kvartiry';
 import { generateFloor } from '../src/gen/floor_manifest';
 import { updateAI } from '../src/systems/ai';
 import { rebuildEntityIndexForSimulation } from '../src/systems/entity_index';
+import { getRouteCueMarkers } from '../src/systems/route_cues';
 import { makeGameState, makeTestPlayer } from './helpers';
 
 function liveActors(entities: readonly { alive: boolean; type: EntityType; ai?: unknown }[]): readonly { ai?: unknown }[] {
@@ -99,11 +100,19 @@ test('HELL starts as a power-of-two actor AI floor', () => {
   const gen = generateHell();
   const actors = liveActors(gen.entities);
   const monsters = gen.entities.filter(e => e.alive && e.type === EntityType.MONSTER);
+  const sightlineCues = getRouteCueMarkers(gen.world).filter(marker => marker.tags.includes('sightline') && marker.tags.includes('fallback'));
   assert.equal(actors.length <= ACTIVE_ACTOR_SOFT_LIMIT, true);
   assert.equal(actors.length >= ACTIVE_ACTOR_SOFT_LIMIT - 128, true);
   assert.equal(liveAiActors(gen.entities).length, actors.length);
   assert.equal(monsters.length >= HELL_POPULATION_PROFILE.monsters.initial, true);
   assert.equal(maxLiveActorsInArea(gen.entities, 32) <= 24, true);
+  assert.equal(sightlineCues.length >= 5, true);
+  for (const cue of sightlineCues) {
+    const cell = gen.world.idx(Math.floor(cue.targetX), Math.floor(cue.targetY));
+    assert.equal(gen.world.cells[cell] === Cell.FLOOR || gen.world.cells[cell] === Cell.DOOR, true);
+    assert.equal(gen.world.floorTex[cell] !== 0, true);
+  }
+  assert.equal(sightlineCues.some(cue => gen.world.features[gen.world.idx(Math.floor(cue.targetX), Math.floor(cue.targetY))] === Feature.SCREEN), true);
   tickOneAlifeFrame(gen, FloorLevel.HELL);
   assert.equal(idleMovingMonsterCount(gen.entities), 0);
 });
@@ -227,7 +236,7 @@ test('procedural population deck keeps random slots normal-density unless the ra
     }
   }
 
-  assert.equal(PROCEDURAL_FLOOR_ZS.length, 75);
+  assert.equal(new Set(PROCEDURAL_FLOOR_ZS).size, PROCEDURAL_FLOOR_ZS.length);
   assert.equal(summary.slots, PROCEDURAL_FLOOR_ZS.length * seeds.length);
   assert.equal(summary.highDensity > 0, true);
   assert.equal(summary.normal > summary.highDensity, true);

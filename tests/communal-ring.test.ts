@@ -23,6 +23,13 @@ import {
   COMMUNAL_RING_ROUTE_Z,
 } from '../src/gen/design_floors/communal_ring';
 
+let cachedGeneration: ReturnType<typeof generateDesignFloor> | undefined;
+
+function generatedCommunalRing(): ReturnType<typeof generateDesignFloor> {
+  cachedGeneration ??= generateDesignFloor(COMMUNAL_RING_DESIGN_FLOOR_ID);
+  return cachedGeneration;
+}
+
 test('communal_ring is the authored коммуналка route floor', () => {
   const route = designFloorById(COMMUNAL_RING_DESIGN_FLOOR_ID);
   assert.equal(route?.z, COMMUNAL_RING_ROUTE_Z);
@@ -32,9 +39,11 @@ test('communal_ring is the authored коммуналка route floor', () => {
 });
 
 test('communal_ring generator creates through communal flats with quest NPCs', () => {
-  const gen = generateDesignFloor(COMMUNAL_RING_DESIGN_FLOOR_ID);
+  const gen = generatedCommunalRing();
   const spawnCell = gen.world.cells[gen.world.idx(Math.floor(gen.spawnX), Math.floor(gen.spawnY))];
   const throughRooms = gen.world.rooms.filter(room => room.name.includes('сквозная коммуналка'));
+  const smokingRooms = gen.world.rooms.filter(room => room.type === RoomType.SMOKING);
+  const serviceLoops = gen.world.rooms.filter(room => room.name.startsWith('Петля '));
   const throughRoomIds = new Set(throughRooms.map(room => room.id));
   let internalThroughDoors = 0;
   let externalThroughDoors = 0;
@@ -54,7 +63,16 @@ test('communal_ring generator creates through communal flats with quest NPCs', (
   assert.equal(throughRooms.length >= 20, true);
   assert.equal(internalThroughDoors >= 16, true);
   assert.equal(externalThroughDoors >= 8, true);
+  assert.equal(smokingRooms.length >= 2, true);
+  assert.equal(serviceLoops.length >= 5, true);
+  assert.equal(serviceLoops.some(room => room.name.includes('курилки')), true);
   assert.equal(gen.world.containers.filter(container => container.tags.includes('through_flat')).length >= 4, true);
+  assert.equal(gen.world.containers.some(container => container.tags.includes('grievance')), true);
+  assert.equal(gen.world.containers.some(container => container.tags.includes('buyable') && container.tags.includes('trade')), true);
+  assert.equal(gen.world.containers.some(container => container.tags.includes('evidence_drop') && container.tags.includes('expose')), true);
+  assert.equal(gen.world.containers.some(container => container.tags.includes('secret') && container.tags.includes('hide')), true);
+  assert.equal(gen.world.containers.some(container => container.tags.includes('resident_relief')), true);
+  assert.equal(gen.world.containers.some(container => container.inventory.some(item => item.defId === 'shelter_tally')), true);
   assert.equal(gen.entities.some(e => e.type === EntityType.NPC && e.plotNpcId === 'communal_through_nina'), true);
   assert.equal(gen.entities.some(e => e.type === EntityType.NPC && e.plotNpcId === 'communal_primus_yegor'), true);
 });
@@ -63,7 +81,7 @@ test('communal_ring uses the design population field as a dense social floor', (
   const route = designFloorById(COMMUNAL_RING_DESIGN_FLOOR_ID);
   assert.ok(route);
   const profile = designFloorPopulationProfile(route);
-  const gen = generateDesignFloor(COMMUNAL_RING_DESIGN_FLOOR_ID);
+  const gen = generatedCommunalRing();
   const mappedByType = new Map<RoomType, number>();
   const zoneFactions = new Set(gen.world.zones.map(zone => zone.faction));
 
@@ -77,6 +95,8 @@ test('communal_ring uses the design population field as a dense social floor', (
   const npcs = gen.entities.filter(entity => entity.type === EntityType.NPC);
   const monsters = gen.entities.filter(entity => entity.type === EntityType.MONSTER);
   assert.equal(profile.npcTarget + profile.monsterTarget, ACTIVE_ACTOR_SOFT_LIMIT);
+  assert.equal((profile.npcPlacement.anchors?.length ?? 0) >= 5, true);
+  assert.equal((profile.monsterPlacement.anchors?.length ?? 0) >= 4, true);
   assert.equal(npcs.length + monsters.length <= ACTIVE_ACTOR_SOFT_LIMIT, true);
   assert.equal(npcs.length >= profile.npcTarget && npcs.length <= ACTIVE_ACTOR_SOFT_LIMIT, true);
   assert.equal(monsters.length >= 250 && monsters.length <= profile.monsterTarget, true);
@@ -85,6 +105,7 @@ test('communal_ring uses the design population field as a dense social floor', (
   assert.equal((mappedByType.get(RoomType.KITCHEN) ?? 0) >= 4_000, true);
   assert.equal((mappedByType.get(RoomType.BATHROOM) ?? 0) >= 2_500, true);
   assert.equal((mappedByType.get(RoomType.PRODUCTION) ?? 0) >= 2_500, true);
+  assert.equal((mappedByType.get(RoomType.SMOKING) ?? 0) >= 300, true);
   assert.equal(zoneFactions.has(ZoneFaction.WILD), true);
   assert.equal(zoneFactions.has(ZoneFaction.LIQUIDATOR), true);
   assert.equal(zoneFactions.has(ZoneFaction.SAMOSBOR), true);

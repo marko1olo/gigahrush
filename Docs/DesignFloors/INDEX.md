@@ -6,7 +6,7 @@ Status: historical planning artifact that seeded the authored-floor wave. Curren
 
 This folder turns the requested large floor wave into implementable slices for separate GPT-5.5 agents. Many `.md` files are historical floor briefs with intended TS ownership, gameplay role, NPC/quest surface, cross-floor hooks and Definition of Done. Shipped route ids and z anchors are listed below and remain subordinate to source.
 
-The current game has 6 coded base floors, 20 routed authored design floors and procedural/fallback route floors. This folder preserves original agent briefs; treat planning sections below each doc as historical when they conflict with `README.md` or shipped route data.
+The current game has 6 coded base floors, 41 routed authored design floors from `src/data/design_floors.ts` and 54 procedural/fallback route floors. This folder preserves original agent briefs; treat planning sections below each doc as historical when they conflict with `README.md` or shipped route data.
 
 ## Current Shipped Vertical Route
 
@@ -16,28 +16,48 @@ Down decreases `z`; up increases `z`. Design-floor rows mirror `src/data/design_
 | ---: | --- | --- | --- | --- | --- |
 | 50 | design | `roof` | Крыша | `MINISTRY` | [roof.md](roof.md) |
 | 46 | design | `chthonic_attic` | Чердак техслужб | `MINISTRY` | [chthonic_attic.md](chthonic_attic.md) |
+| 44 | design | `radon_exchange` | Радоновый обменник | `MINISTRY` | [candidate](../GeometryProgram/candidates/floor_074_candidate_radon_exchange.md) |
 | 42 | design | `antenna_court` | Антенный двор | `MINISTRY` | [antenna_court.md](antenna_court.md) |
+| 40 | design | `spetspriemnik` | Спецприёмник | `MINISTRY` | [candidate](../GeometryProgram/candidates/floor_084_candidate_spetspriemnik.md) |
 | 38 | design | `pioneer_camp` | Пионерлагерь | `LIVING` | [pioneer_camp.md](pioneer_camp.md) |
+| 36 | design | `cayley_byuro` | Бюро Кэли | `MINISTRY` | [candidate](../GeometryProgram/candidates/floor_090_candidate_cayley_byuro.md) |
 | 34 | design | `upper_bureau` | Верхнее бюро | `MINISTRY` | [upper_bureau.md](upper_bureau.md) |
+| 32 | design | `number_registry` | Числовой реестр | `MINISTRY` | [candidate](../GeometryProgram/candidates/floor_083_candidate_number_registry.md) |
 | 30 | story | `FloorLevel.MINISTRY` | Министерство | `MINISTRY` | [ministry.md](ministry.md) |
+| 28 | design | `istinniy_labirint` | Истинный лабиринт | `MINISTRY` | - |
 | 26 | design | `bank_floor` | Банковский этаж | `MINISTRY` | [bank_floor.md](bank_floor.md) |
+| 24 | design | `critical_leak_archive` | Архив критической протечки | `MINISTRY` | [candidate](../GeometryProgram/candidates/floor_080_candidate_critical_leak_archive.md) |
 | 22 | design | `raionsovet_archive` | Райсовет и архив картотек | `MINISTRY` | [raionsovet_archive.md](raionsovet_archive.md) |
+| 20 | design | `markov_stairwell` | Марковская лестница | `MINISTRY` | [candidate](../GeometryProgram/candidates/floor_082_candidate_markov_stairwell.md) |
 | 18 | design | `registry_morgue` | Морг регистраций | `MINISTRY` | [registry_morgue.md](registry_morgue.md) |
+| 16 | design | `bolnichny_korpus` | Больничный корпус | `KVARTIRY` | [candidate](../GeometryProgram/candidates/floor_070_candidate_bolnichny_korpus.md) |
 | 14 | story | `FloorLevel.KVARTIRY` | Квартиры | `KVARTIRY` | [kvartiry.md](kvartiry.md) |
 | 12 | design | `slime_nii` | НИИ слизи | `KVARTIRY` | [rework_floor_20_slime_nii.md](rework_floor_20_slime_nii.md) |
+| 10 | design | `turing_nursery` | Ясли Тьюринга | `KVARTIRY` | [candidate](../GeometryProgram/candidates/floor_078_candidate_turing_nursery.md) |
 | 8 | design | `manhattan_crossroads` | Перекрестки | `KVARTIRY` | [manhattan_crossroads.md](manhattan_crossroads.md) |
+| 6 | design | `voronoi_quarantine` | Вороной-карантин | `KVARTIRY` | [candidate](../GeometryProgram/candidates/floor_075_candidate_voronoi_quarantine.md) |
 | 4 | design | `communal_ring` | Коммунальное кольцо | `KVARTIRY` | [communal_ring.md](communal_ring.md) |
+| 2 | design | `moebius_podezd` | Мёбиус-подъезд | `KVARTIRY` | [moebius_podezd.md](moebius_podezd.md) |
 | 0 | story | `FloorLevel.LIVING` | Жилая зона | `LIVING` | [living.md](living.md) |
-| -4 | design | `floor_69` | Этаж 69 | `MAINTENANCE` | [floor_69.md](floor_69.md) |
-| -10 | design | `black_market_88` | Черный рынок 88 | `LIVING` | [black_market_88.md](black_market_88.md) |
+| -2 | design | `oranzhereya_betona` | Оранжерея бетона | `LIVING` | [candidate](../GeometryProgram/candidates/floor_085_candidate_oranzhereya_betona.md) |
+| -4 | design | `floor_69` | Этаж 69 | `MAINTENANCE` | [floor_026_design_floor_69.md](../GeometryProgram/floors/floor_026_design_floor_69.md) |
+| -6 | design | `obschezhitie_smeny` | Общежитие смены | `LIVING` | [candidate](../GeometryProgram/candidates/floor_086_candidate_obschezhitie_smeny.md) |
+| -10 | design | `black_market_88` | Черный рынок 88 | `LIVING` | [floor_027_design_black_market_88.md](../GeometryProgram/floors/floor_027_design_black_market_88.md) |
 | -14 | design | `production_belt` | Производственный пояс | `MAINTENANCE` | [production_belt.md](production_belt.md) |
 | -18 | design | `service_floor` | Служебный этаж | `MAINTENANCE` | [service_floor.md](service_floor.md) |
+| -20 | design | `hyperbolic_switchyard` | Гиперболическая стрелочная | `MAINTENANCE` | [candidate](../GeometryProgram/candidates/floor_079_candidate_hyperbolic_switchyard.md) |
 | -22 | design | `silicon_net_well` | Кремниевый НЕТ-колодец | `MAINTENANCE` | [silicon_net_well.md](silicon_net_well.md) |
+| -24 | design | `shahta_atrium` | Шахта-атриум | `MAINTENANCE` | [candidate](../GeometryProgram/candidates/floor_071_candidate_shahta_atrium.md) |
 | -26 | story | `FloorLevel.MAINTENANCE` | Коллекторы | `MAINTENANCE` | [collectors.md](collectors.md) |
+| -28 | design | `harmonic_bathhouse` | Гармоническая баня | `MAINTENANCE` | [candidate](../GeometryProgram/candidates/floor_077_candidate_harmonic_bathhouse.md) |
+| -30 | design | `hilbert_depot` | Склад Гильберта | `MAINTENANCE` | [candidate](../GeometryProgram/candidates/floor_076_candidate_hilbert_depot.md) |
 | -32 | design | `dark_metro` | Темная пересадка | `MAINTENANCE` | [dark_metro.md](dark_metro.md) |
+| -34 | design | `attractor_dvor` | Аттракторный двор | `MAINTENANCE` | [candidate](../GeometryProgram/candidates/floor_088_candidate_attractor_dvor.md) |
 | -36 | story | `FloorLevel.HELL` | Мясной низ | `HELL` | [hell.md](hell.md) |
 | -38 | design | `underhell` | Нижний пропускник | `HELL` | [underhell.md](underhell.md) |
 | -40 | design | `podad` | Подад | `HELL` | [podad.md](podad.md) |
+| -42 | design | `spectral_chasovnya` | Спектральная часовня | `HELL` | [spectral_chasovnya.md](spectral_chasovnya.md) |
+| -44 | design | `cantor_pustoty` | Кантор пустоты | `VOID` | [candidate](../GeometryProgram/candidates/floor_087_candidate_cantor_pustoty.md) |
 | -48 | design | `darkness` | Темный отсек | `VOID` | [darkness.md](darkness.md) |
 | -50 | story | `FloorLevel.VOID` | Пустота | `VOID` | [void.md](void.md) |
 
@@ -93,8 +113,8 @@ This completed rework batch exists as shipped-floor context and as source materi
 | 08 | `registry_morgue` | [rework_floor_08_registry_morgue.md](rework_floor_08_registry_morgue.md) |
 | 09 | `manhattan_crossroads` | [rework_floor_09_manhattan_crossroads.md](rework_floor_09_manhattan_crossroads.md) |
 | 10 | `communal_ring` | [rework_floor_10_communal_ring.md](rework_floor_10_communal_ring.md) |
-| 11 | `floor_69` | [rework_floor_11_floor_69.md](rework_floor_11_floor_69.md) |
-| 12 | `black_market_88` | [rework_floor_12_black_market_88.md](rework_floor_12_black_market_88.md) |
+| 11 | `floor_69` | [floor_026_design_floor_69.md](../GeometryProgram/floors/floor_026_design_floor_69.md) |
+| 12 | `black_market_88` | [floor_027_design_black_market_88.md](../GeometryProgram/floors/floor_027_design_black_market_88.md) |
 | 13 | `production_belt` | [rework_floor_13_production_belt.md](rework_floor_13_production_belt.md) |
 | 14 | `service_floor` | [rework_floor_14_service_floor.md](rework_floor_14_service_floor.md) |
 | 15 | `silicon_net_well` | [rework_floor_15_silicon_net_well.md](rework_floor_15_silicon_net_well.md) |

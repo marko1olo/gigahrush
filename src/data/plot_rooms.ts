@@ -54,7 +54,7 @@ export const PLOT_ROOMS: Record<string, PlotRoomDef> = {
   },
   vanka_den: {
     id: 'vanka_den',
-    name: 'Логово Банчиного',
+    name: 'Комната Ваньки Банчиного',
     w: 6, h: 5,
     wallTex: Tex.ROTTEN,
     floorTex: Tex.F_CONCRETE,

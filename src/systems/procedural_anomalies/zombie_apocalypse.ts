@@ -13,30 +13,35 @@ import { monsterSpr } from '../../render/sprite_index';
 import { publishEvent } from '../events';
 import { randomRPG } from '../rpg';
 import { currentProceduralFloorSpec } from '../procedural_floors';
+import { floorRunZAllowsNpcs } from '../../data/procedural_floors';
 import { ENTITY_MASK_ACTOR, getEntityIndex } from '../entity_index';
 import { isPlayerEntity } from '../player_actor';
 
 interface ZombieApocalypseRuntime {
   infections: number;
+  capNotified: boolean;
   lastMsgAt: number;
   lastEventAt: number;
 }
 
 const runtimeByState = new WeakMap<GameState, ZombieApocalypseRuntime>();
 const ZOMBIE_TARGET_SCAN_CAP = 80;
+const BASE_INFECTION_CAP = 96;
+const INFECTION_CAP_PER_DANGER = 64;
 const zombieTargetQuery: Entity[] = [];
 
 function runtimeFor(state: GameState): ZombieApocalypseRuntime {
   let runtime = runtimeByState.get(state);
   if (!runtime) {
-    runtime = { infections: 0, lastMsgAt: -Infinity, lastEventAt: -Infinity };
+    runtime = { infections: 0, capNotified: false, lastMsgAt: -Infinity, lastEventAt: -Infinity };
     runtimeByState.set(state, runtime);
   }
   return runtime;
 }
 
 export function isZombieApocalypseActive(state: GameState | undefined): boolean {
-  return !!state && currentProceduralFloorSpec(state)?.anomalyId === 'zombie_apocalypse';
+  const spec = state ? currentProceduralFloorSpec(state) : undefined;
+  return !!spec && spec.anomalyId === 'zombie_apocalypse' && floorRunZAllowsNpcs(spec.z);
 }
 
 function canZombieApocalypseTarget(e: Entity, zombieId: number): boolean {
@@ -95,6 +100,36 @@ function infectionHp(world: World, target: Entity): number {
   return Math.max(18, Math.round(def.hp * (0.75 + zoneLevel * 0.15)));
 }
 
+function infectionCap(state: GameState): number {
+  const spec = currentProceduralFloorSpec(state);
+  return BASE_INFECTION_CAP + (spec?.danger ?? 1) * INFECTION_CAP_PER_DANGER;
+}
+
+function publishInfectionCapEvent(world: World, zombie: Entity, target: Entity, state: GameState, runtime: ZombieApocalypseRuntime, cap: number): void {
+  if (runtime.capNotified) return;
+  runtime.capNotified = true;
+  publishEvent(state, {
+    type: 'rumor_observed',
+    zoneId: world.zoneMap[world.idx(Math.floor(target.x), Math.floor(target.y))],
+    roomId: world.roomMap[world.idx(Math.floor(target.x), Math.floor(target.y))],
+    x: target.x,
+    y: target.y,
+    actorId: zombie.id,
+    actorName: entityDisplayName(zombie),
+    targetId: target.id,
+    targetName: entityDisplayName(target),
+    monsterKind: MonsterKind.ZOMBIE,
+    severity: 4,
+    privacy: 'witnessed',
+    tags: ['procedural', 'anomaly', 'zombie_apocalypse', 'zombie', 'infection_cap', 'bounded'],
+    data: {
+      anomalyId: 'zombie_apocalypse',
+      infectionCount: runtime.infections,
+      infectionCap: cap,
+    },
+  });
+}
+
 export function tryZombieApocalypseInfection(
   world: World,
   zombie: Entity,
@@ -105,6 +140,12 @@ export function tryZombieApocalypseInfection(
 ): boolean {
   if (!state || !isZombieApocalypseActive(state)) return false;
   if (zombie.monsterKind !== MonsterKind.ZOMBIE || target.type !== EntityType.NPC || !target.alive) return false;
+  const runtime = runtimeFor(state);
+  const cap = infectionCap(state);
+  if (runtime.infections >= cap) {
+    publishInfectionCapEvent(world, zombie, target, state, runtime, cap);
+    return false;
+  }
 
   const oldName = entityDisplayName(target);
   const hp = infectionHp(world, target);
@@ -132,7 +173,6 @@ export function tryZombieApocalypseInfection(
   target.psiMadness = undefined;
   zombie.ai!.combatTargetId = undefined;
 
-  const runtime = runtimeFor(state);
   runtime.infections++;
   const shouldMsg = runtime.infections === 1 || runtime.infections % 25 === 0 || time - runtime.lastMsgAt > 10;
   if (shouldMsg) {

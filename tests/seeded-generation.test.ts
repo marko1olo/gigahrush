@@ -62,18 +62,18 @@ function generationFingerprint(gen: FloorGeneration): number {
 }
 
 test('story floor generation is reproducible from run seed', () => {
-  const a = generationFingerprint(generateFloor(FloorLevel.LIVING, 12_345));
-  const b = generationFingerprint(generateFloor(FloorLevel.LIVING, 12_345));
-  const c = generationFingerprint(generateFloor(FloorLevel.LIVING, 12_346));
+  const a = generationFingerprint(generateFloor(FloorLevel.VOID, 12_345));
+  const b = generationFingerprint(generateFloor(FloorLevel.VOID, 12_345));
+  const c = generationFingerprint(generateFloor(FloorLevel.VOID, 12_346));
 
   assert.equal(a, b);
   assert.notEqual(a, c);
 });
 
 test('design floor generation is reproducible from run seed', () => {
-  const a = generationFingerprint(generateDesignFloor('production_belt', 98_765));
-  const b = generationFingerprint(generateDesignFloor('production_belt', 98_765));
-  const c = generationFingerprint(generateDesignFloor('production_belt', 98_766));
+  const a = generationFingerprint(generateDesignFloor('darkness', 98_765));
+  const b = generationFingerprint(generateDesignFloor('darkness', 98_765));
+  const c = generationFingerprint(generateDesignFloor('darkness', 98_766));
 
   assert.equal(a, b);
   assert.notEqual(a, c);

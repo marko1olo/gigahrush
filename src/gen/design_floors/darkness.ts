@@ -46,6 +46,12 @@ type DarknessQuestChoice =
   | 'fight_shadows'
   | 'long_route'
   | 'carry_trace';
+type DarknessTopologyDecision =
+  | DarknessQuestChoice
+  | 'listen'
+  | 'follow_protocol'
+  | 'flee'
+  | 'abandon_loot';
 
 export interface DarknessRoomLabel {
   roomId: number;
@@ -74,6 +80,79 @@ export interface DarknessLateWarning {
   tags: readonly string[];
 }
 
+export interface DarknessLightGraphNode {
+  id: string;
+  roomKey: string;
+  roomId: number;
+  x: number;
+  y: number;
+  lightCost: number;
+  revealRadius: number;
+  budgetAfterReveal: number;
+  tags: string[];
+}
+
+export interface DarknessLightGraphEdge {
+  id: string;
+  fromKey: string;
+  toKey: string;
+  fromRoomId: number;
+  toRoomId: number;
+  lightCost: number;
+  decisions: DarknessTopologyDecision[];
+  tags: string[];
+}
+
+export interface DarknessRevealShell {
+  id: string;
+  roomKey: string;
+  roomId: number;
+  originX: number;
+  originY: number;
+  radius: number;
+  cellCount: number;
+  minFog: number;
+  maxFog: number;
+  lightCost: number;
+  tags: string[];
+}
+
+export interface DarknessSoundPath {
+  id: string;
+  fromKey: string;
+  toKey: string;
+  fromRoomId: number;
+  toRoomId: number;
+  cellCount: number;
+  averageFog: number;
+  cueId: string;
+  decisions: DarknessTopologyDecision[];
+  tags: string[];
+}
+
+export interface DarknessRadonSightCorridor {
+  id: string;
+  fromKey: string;
+  toKey: string;
+  fromRoomId: number;
+  toRoomId: number;
+  angleDeg: number;
+  cellCount: number;
+  coverBreaks: number;
+  minFog: number;
+  maxFog: number;
+  decisions: DarknessTopologyDecision[];
+  tags: string[];
+}
+
+export interface DarknessTopologyPlan {
+  lightGraphNodes: DarknessLightGraphNode[];
+  lightGraphEdges: DarknessLightGraphEdge[];
+  revealShells: DarknessRevealShell[];
+  soundPaths: DarknessSoundPath[];
+  radonSightCorridors: DarknessRadonSightCorridor[];
+}
+
 export interface DarknessFloorState {
   routeId: typeof DARKNESS_DESIGN_FLOOR_ID;
   z: typeof DARKNESS_FUTURE_Z;
@@ -85,6 +164,11 @@ export interface DarknessFloorState {
   quests: DarknessQuestDef[];
   lateWarnings: DarknessLateWarning[];
   shortcutCueIds: string[];
+  lightGraphNodes: DarknessLightGraphNode[];
+  lightGraphEdges: DarknessLightGraphEdge[];
+  revealShells: DarknessRevealShell[];
+  soundPaths: DarknessSoundPath[];
+  radonSightCorridors: DarknessRadonSightCorridor[];
   returnTracePublished: boolean;
 }
 
@@ -117,6 +201,7 @@ interface DarknessRoomSpec {
 
 const ROOM_ORIGIN_X = (W >> 1) - 36;
 const ROOM_ORIGIN_Y = (W >> 1) - 10;
+const DARKNESS_LIGHT_BUDGET = 8;
 
 const ROOM_SPECS: readonly DarknessRoomSpec[] = [
   {
@@ -265,6 +350,87 @@ const ROOM_SPECS: readonly DarknessRoomSpec[] = [
   },
 ];
 
+const LIGHT_GRAPH_EDGE_SPECS: readonly {
+  fromKey: string;
+  toKey: string;
+  lightCost: number;
+  decisions: readonly DarknessTopologyDecision[];
+  tags: readonly string[];
+}[] = [
+  { fromKey: 'entry', toKey: 'junction', lightCost: 0, decisions: ['listen'], tags: ['entry', 'revealed'] },
+  { fromKey: 'junction', toKey: 'lamp', lightCost: 1, decisions: ['spend_light', 'save_light'], tags: ['light_budget', 'warm_pocket'] },
+  { fromKey: 'lamp', toKey: 'generator', lightCost: 2, decisions: ['spend_light', 'listen'], tags: ['generator_hum', 'light_pocket'] },
+  { fromKey: 'generator', toKey: 'name', lightCost: 3, decisions: ['preserve_name', 'follow_protocol'], tags: ['preserved_name', 'protocol_dark'] },
+  { fromKey: 'name', toKey: 'control', lightCost: 2, decisions: ['follow_protocol'], tags: ['protocol_dark', 'route_hint'] },
+  { fromKey: 'control', toKey: 'trace', lightCost: 2, decisions: ['listen', 'carry_trace'], tags: ['return_trace', 'late_warning'] },
+  { fromKey: 'junction', toKey: 'toll', lightCost: 2, decisions: ['pay_toll', 'fight_shadows'], tags: ['shadow_toll', 'shortcut'] },
+  { fromKey: 'toll', toKey: 'toll_gate', lightCost: 3, decisions: ['pay_toll', 'flee'], tags: ['shadow_toll', 'chokepoint'] },
+  { fromKey: 'toll_gate', toKey: 'trace', lightCost: 2, decisions: ['flee', 'carry_trace'], tags: ['shortcut', 'return_trace'] },
+  { fromKey: 'lamp', toKey: 'bypass', lightCost: 1, decisions: ['save_light', 'long_route'], tags: ['long_route', 'abandon_loot'] },
+  { fromKey: 'bypass', toKey: 'emergency', lightCost: 1, decisions: ['listen', 'flee'], tags: ['fallback_route', 'sound_path'] },
+  { fromKey: 'emergency', toKey: 'trace', lightCost: 1, decisions: ['listen', 'carry_trace'], tags: ['exit', 'sound_path'] },
+];
+
+const SOUND_PATH_SPECS: readonly {
+  id: string;
+  fromKey: string;
+  toKey: string;
+  cueId: string;
+  decisions: readonly DarknessTopologyDecision[];
+  tags: readonly string[];
+}[] = [
+  {
+    id: 'darkness_sound_generator_hum',
+    fromKey: 'junction',
+    toKey: 'generator',
+    cueId: 'darkness_generator_hum',
+    decisions: ['listen', 'spend_light'],
+    tags: ['sound_path', 'generator_hum', 'light_budget'],
+  },
+  {
+    id: 'darkness_sound_toll_breath',
+    fromKey: 'toll',
+    toKey: 'toll_gate',
+    cueId: 'darkness_shadow_toll_shortcut',
+    decisions: ['listen', 'pay_toll', 'fight_shadows'],
+    tags: ['sound_path', 'shadow_toll', 'chokepoint'],
+  },
+  {
+    id: 'darkness_sound_exit_breath',
+    fromKey: 'emergency',
+    toKey: 'trace',
+    cueId: 'darkness_exit_breath',
+    decisions: ['listen', 'flee', 'carry_trace'],
+    tags: ['sound_path', 'exit', 'route_protocol'],
+  },
+];
+
+const RADON_SIGHT_SPECS: readonly {
+  id: string;
+  fromKey: string;
+  toKey: string;
+  fog: number;
+  decisions: readonly DarknessTopologyDecision[];
+  tags: readonly string[];
+}[] = [
+  {
+    id: 'darkness_radon_name_trace',
+    fromKey: 'name',
+    toKey: 'trace',
+    fog: 46,
+    decisions: ['follow_protocol', 'carry_trace', 'abandon_loot'],
+    tags: ['radon', 'sight_corridor', 'protocol_dark', 'return_trace'],
+  },
+  {
+    id: 'darkness_radon_generator_toll',
+    fromKey: 'generator',
+    toKey: 'toll_gate',
+    fog: 62,
+    decisions: ['listen', 'fight_shadows', 'flee'],
+    tags: ['radon', 'sight_corridor', 'shadow_toll', 'sound_path'],
+  },
+];
+
 const QUESTS: readonly DarknessQuestDef[] = [
   {
     id: 'darkness_keep_lamp_alive',
@@ -321,6 +487,19 @@ export const DARKNESS_LATE_WARNINGS: readonly DarknessLateWarning[] = [
 
 const darknessStateByWorld = new WeakMap<World, DarknessFloorState>();
 
+interface DarknessBfsScratch {
+  visited: Uint8Array;
+  queue: Int32Array;
+  depth: Uint16Array;
+  parent: Int32Array;
+  touched: number[];
+}
+
+interface DarknessRadonBuildResult {
+  corridor: DarknessRadonSightCorridor;
+  fogDirty: boolean;
+}
+
 export function blackoutDarknessLights(world: World): void {
   let removed = false;
   for (let i = 0; i < W * W; i++) {
@@ -331,7 +510,7 @@ export function blackoutDarknessLights(world: World): void {
     }
   }
   world.light.fill(0);
-  if (removed) world.markCellsDirty();
+  if (removed) world.markFeaturesDirty(false);
 }
 
 function centerX(room: Room): number {
@@ -344,6 +523,344 @@ function centerY(room: Room): number {
 
 function worldWrap(v: number): number {
   return ((v % W) + W) % W;
+}
+
+function darknessRoomSpecByKey(key: string): DarknessRoomSpec {
+  const spec = ROOM_SPECS.find(item => item.key === key);
+  if (!spec) throw new Error(`Unknown darkness room key: ${key}`);
+  return spec;
+}
+
+function makeDarknessBfsScratch(): DarknessBfsScratch {
+  const n = W * W;
+  const parent = new Int32Array(n);
+  parent.fill(-1);
+  return {
+    visited: new Uint8Array(n),
+    queue: new Int32Array(n),
+    depth: new Uint16Array(n),
+    parent,
+    touched: [],
+  };
+}
+
+function resetDarknessBfsScratch(scratch: DarknessBfsScratch): void {
+  for (const ci of scratch.touched) {
+    scratch.visited[ci] = 0;
+    scratch.parent[ci] = -1;
+  }
+  scratch.touched.length = 0;
+}
+
+function darknessGraphWalkable(world: World, ci: number): boolean {
+  const cell = world.cells[ci];
+  return cell === Cell.FLOOR || cell === Cell.WATER || cell === Cell.DOOR;
+}
+
+function darknessRevealRadius(spec: DarknessRoomSpec): number {
+  return Math.max(5, Math.min(14, Math.ceil(Math.max(spec.w, spec.h) / 2) + 3));
+}
+
+function darknessLightPathCosts(): Map<string, number> {
+  const costs = new Map<string, number>();
+  costs.set('entry', 0);
+  for (let pass = 0; pass < ROOM_SPECS.length; pass++) {
+    let changed = false;
+    for (const edge of LIGHT_GRAPH_EDGE_SPECS) {
+      const fromCost = costs.get(edge.fromKey);
+      if (fromCost !== undefined) {
+        const next = fromCost + edge.lightCost;
+        if (next < (costs.get(edge.toKey) ?? Number.POSITIVE_INFINITY)) {
+          costs.set(edge.toKey, next);
+          changed = true;
+        }
+      }
+      const toCost = costs.get(edge.toKey);
+      if (toCost !== undefined) {
+        const next = toCost + edge.lightCost;
+        if (next < (costs.get(edge.fromKey) ?? Number.POSITIVE_INFINITY)) {
+          costs.set(edge.fromKey, next);
+          changed = true;
+        }
+      }
+    }
+    if (!changed) break;
+  }
+  return costs;
+}
+
+function buildDarknessLightGraphNodes(
+  roomsByKey: Map<string, Room>,
+  labels: readonly DarknessRoomLabel[],
+): DarknessLightGraphNode[] {
+  const pathCosts = darknessLightPathCosts();
+  return labels.map(label => {
+    const room = roomsByKey.get(label.key)!;
+    const travelCost = pathCosts.get(label.key) ?? DARKNESS_LIGHT_BUDGET;
+    const revealSpend = label.revealedAtStart ? 0 : travelCost + label.lightCost;
+    const tags = [
+      'darkness',
+      'light_graph',
+      label.revealedAtStart ? 'revealed_start' : 'paid_reveal',
+      label.lightCost > 0 ? 'spend_light' : 'free_light',
+    ];
+    if (darknessRoomSpecByKey(label.key).lamps?.length) tags.push('light_pocket');
+    return {
+      id: `darkness_light_node_${label.key}`,
+      roomKey: label.key,
+      roomId: label.roomId,
+      x: centerX(room),
+      y: centerY(room),
+      lightCost: label.lightCost,
+      revealRadius: darknessRevealRadius(darknessRoomSpecByKey(label.key)),
+      budgetAfterReveal: Math.max(0, DARKNESS_LIGHT_BUDGET - revealSpend),
+      tags,
+    };
+  });
+}
+
+function buildDarknessLightGraphEdges(roomsByKey: Map<string, Room>): DarknessLightGraphEdge[] {
+  return LIGHT_GRAPH_EDGE_SPECS.map(spec => {
+    const from = roomsByKey.get(spec.fromKey)!;
+    const to = roomsByKey.get(spec.toKey)!;
+    return {
+      id: `darkness_light_edge_${spec.fromKey}_${spec.toKey}`,
+      fromKey: spec.fromKey,
+      toKey: spec.toKey,
+      fromRoomId: from.id,
+      toRoomId: to.id,
+      lightCost: spec.lightCost,
+      decisions: [...spec.decisions],
+      tags: ['darkness', 'light_graph_edge', ...spec.tags],
+    };
+  });
+}
+
+function buildDarknessRevealShell(
+  world: World,
+  room: Room,
+  spec: DarknessRoomSpec,
+  scratch: DarknessBfsScratch,
+): DarknessRevealShell {
+  resetDarknessBfsScratch(scratch);
+  const originX = centerX(room);
+  const originY = centerY(room);
+  const radius = darknessRevealRadius(spec);
+  const seed = world.idx(originX, originY);
+  let head = 0;
+  let tail = 0;
+  scratch.queue[tail] = seed;
+  scratch.depth[tail] = 0;
+  scratch.visited[seed] = 1;
+  scratch.parent[seed] = -1;
+  scratch.touched.push(seed);
+  tail++;
+
+  let cellCount = 0;
+  let minFog = 255;
+  let maxFog = 0;
+  while (head < tail) {
+    const ci = scratch.queue[head];
+    const depth = scratch.depth[head];
+    head++;
+    if (!darknessGraphWalkable(world, ci)) continue;
+    cellCount++;
+    const fog = world.fog[ci] ?? 0;
+    minFog = Math.min(minFog, fog);
+    maxFog = Math.max(maxFog, fog);
+    if (depth >= radius) continue;
+    const x = ci % W;
+    const y = (ci / W) | 0;
+    for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]] as const) {
+      const ni = world.idx(x + dx, y + dy);
+      if (scratch.visited[ni] || !darknessGraphWalkable(world, ni)) continue;
+      scratch.visited[ni] = 1;
+      scratch.parent[ni] = ci;
+      scratch.touched.push(ni);
+      scratch.queue[tail] = ni;
+      scratch.depth[tail] = depth + 1;
+      tail++;
+    }
+  }
+  resetDarknessBfsScratch(scratch);
+
+  return {
+    id: `darkness_reveal_shell_${spec.key}`,
+    roomKey: spec.key,
+    roomId: room.id,
+    originX,
+    originY,
+    radius,
+    cellCount,
+    minFog: cellCount > 0 ? minFog : 0,
+    maxFog: cellCount > 0 ? maxFog : 0,
+    lightCost: spec.lightCost,
+    tags: [
+      'darkness',
+      'bfs_reveal_shell',
+      spec.revealedAtStart ? 'revealed_start' : 'paid_reveal',
+      spec.lightCost > 0 ? 'spend_light' : 'free_light',
+    ],
+  };
+}
+
+function findDarknessPathCells(
+  world: World,
+  fromRoom: Room,
+  toRoom: Room,
+  scratch: DarknessBfsScratch,
+): number[] {
+  resetDarknessBfsScratch(scratch);
+  const seed = world.idx(centerX(fromRoom), centerY(fromRoom));
+  const target = world.idx(centerX(toRoom), centerY(toRoom));
+  let head = 0;
+  let tail = 0;
+  scratch.queue[tail] = seed;
+  scratch.depth[tail] = 0;
+  scratch.visited[seed] = 1;
+  scratch.parent[seed] = -1;
+  scratch.touched.push(seed);
+  tail++;
+
+  let found = seed === target;
+  while (head < tail && !found) {
+    const ci = scratch.queue[head++];
+    const x = ci % W;
+    const y = (ci / W) | 0;
+    for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]] as const) {
+      const ni = world.idx(x + dx, y + dy);
+      if (scratch.visited[ni] || !darknessGraphWalkable(world, ni)) continue;
+      scratch.visited[ni] = 1;
+      scratch.parent[ni] = ci;
+      scratch.touched.push(ni);
+      scratch.queue[tail++] = ni;
+      if (ni === target) {
+        found = true;
+        break;
+      }
+    }
+  }
+
+  const path: number[] = [];
+  if (found) {
+    for (let ci = target; ci >= 0; ci = scratch.parent[ci]) {
+      path.push(ci);
+      if (ci === seed) break;
+    }
+    path.reverse();
+  }
+  resetDarknessBfsScratch(scratch);
+  return path;
+}
+
+function averageFogForCells(world: World, cells: readonly number[]): number {
+  if (cells.length === 0) return 0;
+  let fog = 0;
+  for (const ci of cells) fog += world.fog[ci] ?? 0;
+  return Math.round(fog / cells.length);
+}
+
+function buildDarknessSoundPath(
+  world: World,
+  roomsByKey: Map<string, Room>,
+  spec: (typeof SOUND_PATH_SPECS)[number],
+  scratch: DarknessBfsScratch,
+): DarknessSoundPath {
+  const from = roomsByKey.get(spec.fromKey)!;
+  const to = roomsByKey.get(spec.toKey)!;
+  const path = findDarknessPathCells(world, from, to, scratch);
+  return {
+    id: spec.id,
+    fromKey: spec.fromKey,
+    toKey: spec.toKey,
+    fromRoomId: from.id,
+    toRoomId: to.id,
+    cellCount: path.length,
+    averageFog: averageFogForCells(world, path),
+    cueId: spec.cueId,
+    decisions: [...spec.decisions],
+    tags: ['darkness', ...spec.tags],
+  };
+}
+
+function buildDarknessRadonSightCorridor(
+  world: World,
+  roomsByKey: Map<string, Room>,
+  spec: (typeof RADON_SIGHT_SPECS)[number],
+): DarknessRadonBuildResult {
+  const from = roomsByKey.get(spec.fromKey)!;
+  const to = roomsByKey.get(spec.toKey)!;
+  const ax = centerX(from);
+  const ay = centerY(from);
+  const dx = world.delta(ax, centerX(to));
+  const dy = world.delta(ay, centerY(to));
+  const steps = Math.max(1, Math.abs(dx), Math.abs(dy));
+  let previous = -1;
+  let cellCount = 0;
+  let coverBreaks = 0;
+  let minFog = 255;
+  let maxFog = 0;
+  let fogDirty = false;
+
+  for (let i = 0; i <= steps; i++) {
+    const x = world.wrap(Math.round(ax + (dx * i) / steps));
+    const y = world.wrap(Math.round(ay + (dy * i) / steps));
+    const ci = world.idx(x, y);
+    if (ci === previous) continue;
+    previous = ci;
+    if (!darknessGraphWalkable(world, ci)) {
+      coverBreaks++;
+      continue;
+    }
+    cellCount++;
+    if (world.fog[ci] < spec.fog) {
+      world.fog[ci] = spec.fog;
+      fogDirty = true;
+    }
+    const fog = world.fog[ci] ?? 0;
+    minFog = Math.min(minFog, fog);
+    maxFog = Math.max(maxFog, fog);
+  }
+
+  return {
+    corridor: {
+      id: spec.id,
+      fromKey: spec.fromKey,
+      toKey: spec.toKey,
+      fromRoomId: from.id,
+      toRoomId: to.id,
+      angleDeg: Math.round((Math.atan2(dy, dx) * 180) / Math.PI),
+      cellCount,
+      coverBreaks,
+      minFog: cellCount > 0 ? minFog : 0,
+      maxFog: cellCount > 0 ? maxFog : 0,
+      decisions: [...spec.decisions],
+      tags: ['darkness', ...spec.tags],
+    },
+    fogDirty,
+  };
+}
+
+function buildDarknessTopologyPlan(
+  world: World,
+  roomsByKey: Map<string, Room>,
+  labels: readonly DarknessRoomLabel[],
+): DarknessTopologyPlan {
+  const scratch = makeDarknessBfsScratch();
+  const revealShells = labels.map(label => {
+    const room = roomsByKey.get(label.key)!;
+    return buildDarknessRevealShell(world, room, darknessRoomSpecByKey(label.key), scratch);
+  });
+  const soundPaths = SOUND_PATH_SPECS.map(spec => buildDarknessSoundPath(world, roomsByKey, spec, scratch));
+  const radonResults = RADON_SIGHT_SPECS.map(spec => buildDarknessRadonSightCorridor(world, roomsByKey, spec));
+  if (radonResults.some(result => result.fogDirty)) world.markFogDirty();
+  return {
+    lightGraphNodes: buildDarknessLightGraphNodes(roomsByKey, labels),
+    lightGraphEdges: buildDarknessLightGraphEdges(roomsByKey),
+    revealShells,
+    soundPaths,
+    radonSightCorridors: radonResults.map(result => result.corridor),
+  };
 }
 
 function applyRoomLook(world: World, room: Room, wallTex: Tex, floorTex: Tex, fog: number): void {
@@ -505,7 +1022,7 @@ function addDeadLampRow(world: World, a: Room, b: Room): void {
     const y = world.wrap(Math.round(ay + (ddy * i) / steps));
     const ci = world.idx(x, y);
     if (world.cells[ci] === Cell.FLOOR && world.features[ci] === Feature.NONE) {
-      world.features[ci] = i % 12 === 3 ? Feature.CANDLE : Feature.APPARATUS;
+      world.features[ci] = Feature.APPARATUS;
     }
   }
 }
@@ -887,11 +1404,11 @@ function applyDarknessZones(world: World): void {
   }
 }
 
-function initialState(labels: DarknessRoomLabel[]): DarknessFloorState {
+function initialState(labels: DarknessRoomLabel[], topology: DarknessTopologyPlan): DarknessFloorState {
   return {
     routeId: DARKNESS_DESIGN_FLOOR_ID,
     z: DARKNESS_FUTURE_Z,
-    lightBudget: 8,
+    lightBudget: DARKNESS_LIGHT_BUDGET,
     revealedRoomIds: labels.filter(label => label.revealedAtStart).map(label => label.roomId),
     preservedNameId: null,
     shadowTollState: 'unpaid',
@@ -899,6 +1416,11 @@ function initialState(labels: DarknessRoomLabel[]): DarknessFloorState {
     quests: QUESTS.map(q => ({ ...q, choices: [...q.choices] })),
     lateWarnings: DARKNESS_LATE_WARNINGS.map(warning => ({ ...warning, tags: [...warning.tags] })),
     shortcutCueIds: ['darkness_shadow_toll_shortcut', 'darkness_return_trace_warning'],
+    lightGraphNodes: topology.lightGraphNodes,
+    lightGraphEdges: topology.lightGraphEdges,
+    revealShells: topology.revealShells,
+    soundPaths: topology.soundPaths,
+    radonSightCorridors: topology.radonSightCorridors,
     returnTracePublished: false,
   };
 }
@@ -1140,9 +1662,10 @@ export function generateDarknessDesignFloor(): DarknessDesignGeneration {
   placeContent(world, entities, nextId, roomsByKey);
   registerDarknessRouteCues(world, roomsByKey);
   ensureConnectivity(world, spawnX, spawnY);
+  const topology = buildDarknessTopologyPlan(world, roomsByKey, labels);
   blackoutDarknessLights(world);
 
-  const darknessState = initialState(labels);
+  const darknessState = initialState(labels, topology);
   darknessStateByWorld.set(world, darknessState);
 
   return { world, entities, spawnX, spawnY, darknessState };

@@ -15,8 +15,12 @@ import { World } from '../../core/world';
 import {
   rng, shuffle, stampRoom, placeDoor,
 } from '../shared';
+import { maybePlaceBrokenFixture } from '../interactive_fixtures';
 
 export interface AptPlan { rooms: Room[]; living: Room; }
+
+const CONNECTOR_MAX_COST = 180;
+const CONNECTOR_DIRS = [[1,0],[-1,0],[0,1],[0,-1]] as const;
 
 /* ── Layout variants ─────────────────────────────────────────────
    Classic:     жилая + кухня + санузел  (35%)
@@ -169,6 +173,7 @@ export function generateApartments(world: World): AptPlan[] {
           const fi = world.idx(fx, fy);
           if (world.features[fi] === Feature.NONE && world.cells[fi] === Cell.FLOOR) {
             world.features[fi] = feat;
+            maybePlaceBrokenFixture(world, fx, fy, { salt: room.apartmentId * 257 + room.id * 17 + tries });
             break;
           }
         }
@@ -195,9 +200,13 @@ export function connectApartmentsToMaze(world: World): void {
     clusters.get(aid)!.push(room);
   }
 
-  for (const [, rooms] of clusters) {
-    if (connectClusterDirect(world, rooms, aptCount)) continue;
-    connectClusterCarve(world, rooms, aptCount);
+  for (const [aptId, rooms] of clusters) {
+    const groups = aptId < 0 ? rooms.map(room => [room]) : [rooms];
+    for (const group of groups) {
+      if (connectClusterDirect(world, group, aptCount)) continue;
+      if (connectClusterWeightedPath(world, group)) continue;
+      connectClusterCarve(world, group, aptCount);
+    }
   }
 }
 
@@ -242,6 +251,191 @@ function connectClusterDirect(world: World, rooms: Room[], aptCount: number): bo
     }
   }
   return false;
+}
+
+interface DoorCandidate {
+  doorIdx: number;
+  outIdx: number;
+  room: Room;
+}
+
+interface HeapNode {
+  idx: number;
+  cost: number;
+}
+
+function connectClusterWeightedPath(world: World, rooms: Room[]): boolean {
+  const candidates = collectDoorCandidates(world, rooms);
+  if (candidates.length === 0) return false;
+
+  const costs = new Map<number, number>();
+  const prev = new Map<number, number>();
+  const source = new Map<number, number>();
+  const heap: HeapNode[] = [];
+
+  for (let i = 0; i < candidates.length; i++) {
+    const outIdx = candidates[i].outIdx;
+    if (!canUseConnectorCell(world, outIdx)) continue;
+    costs.set(outIdx, 0);
+    source.set(outIdx, i);
+    heapPush(heap, { idx: outIdx, cost: 0 });
+  }
+
+  while (heap.length > 0) {
+    const node = heapPop(heap)!;
+    if (node.cost !== costs.get(node.idx)) continue;
+    if (node.cost > CONNECTOR_MAX_COST) continue;
+    if (isPublicConnectorTarget(world, node.idx)) {
+      carveWeightedConnector(world, candidates[source.get(node.idx)!], node.idx, prev);
+      return true;
+    }
+
+    const x = node.idx % W;
+    const y = (node.idx / W) | 0;
+    for (const [dx, dy] of CONNECTOR_DIRS) {
+      const ni = world.idx(x + dx, y + dy);
+      if (!canUseConnectorCell(world, ni)) continue;
+      if (world.cells[ni] === Cell.WALL && touchesRoomInterior(world, ni)) continue;
+      const nextCost = node.cost + connectorStepCost(world, ni);
+      if (nextCost > CONNECTOR_MAX_COST) continue;
+      const oldCost = costs.get(ni);
+      if (oldCost !== undefined && oldCost <= nextCost) continue;
+      costs.set(ni, nextCost);
+      prev.set(ni, node.idx);
+      source.set(ni, source.get(node.idx)!);
+      heapPush(heap, { idx: ni, cost: nextCost });
+    }
+  }
+
+  return false;
+}
+
+function collectDoorCandidates(world: World, rooms: Room[]): DoorCandidate[] {
+  const candidates: DoorCandidate[] = [];
+  const seen = new Set<number>();
+  for (const room of rooms) {
+    for (let dy = -1; dy <= room.h; dy++) {
+      for (let dx = -1; dx <= room.w; dx++) {
+        if (dx >= 0 && dx < room.w && dy >= 0 && dy < room.h) continue;
+        const wx = world.wrap(room.x + dx);
+        const wy = world.wrap(room.y + dy);
+        const wi = world.idx(wx, wy);
+        if (world.cells[wi] !== Cell.WALL || seen.has(wi)) continue;
+
+        for (const [ddx, ddy] of CONNECTOR_DIRS) {
+          const inside = world.idx(wx - ddx, wy - ddy);
+          if (world.roomMap[inside] !== room.id) continue;
+          const outIdx = world.idx(wx + ddx, wy + ddy);
+          if (!canUseConnectorCell(world, outIdx)) continue;
+          const flankA = world.idx(wx + ddy, wy + ddx);
+          const flankB = world.idx(wx - ddy, wy - ddx);
+          if (world.cells[flankA] !== Cell.WALL || world.cells[flankB] !== Cell.WALL) continue;
+          candidates.push({ doorIdx: wi, outIdx, room });
+          seen.add(wi);
+          break;
+        }
+      }
+    }
+  }
+  return candidates;
+}
+
+function canUseConnectorCell(world: World, idx: number): boolean {
+  if (world.aptMask[idx] || world.hermoWall[idx]) return false;
+  if (world.roomMap[idx] >= 0) return false;
+  const cell = world.cells[idx];
+  return cell === Cell.WALL || cell === Cell.FLOOR || (cell === Cell.DOOR && world.doors.has(idx));
+}
+
+function isPublicConnectorTarget(world: World, idx: number): boolean {
+  if (world.aptMask[idx] || world.hermoWall[idx]) return false;
+  if (world.roomMap[idx] >= 0) return false;
+  const cell = world.cells[idx];
+  return cell === Cell.FLOOR || (cell === Cell.DOOR && world.doors.has(idx));
+}
+
+function touchesRoomInterior(world: World, idx: number): boolean {
+  const x = idx % W;
+  const y = (idx / W) | 0;
+  for (const [dx, dy] of CONNECTOR_DIRS) {
+    if (world.roomMap[world.idx(x + dx, y + dy)] >= 0) return true;
+  }
+  return false;
+}
+
+function connectorStepCost(world: World, idx: number): number {
+  if (world.cells[idx] === Cell.FLOOR) {
+    if (world.floorTex[idx] === Tex.F_TILE || world.floorTex[idx] === Tex.F_CONCRETE || world.floorTex[idx] === Tex.F_LINO) return 1;
+    return 2;
+  }
+  if (world.cells[idx] === Cell.DOOR) return 2;
+  return 6;
+}
+
+function carveWeightedConnector(world: World, candidate: DoorCandidate, targetIdx: number, prev: Map<number, number>): void {
+  const path: number[] = [];
+  let cursor = targetIdx;
+  path.push(cursor);
+  while (cursor !== candidate.outIdx) {
+    const next = prev.get(cursor);
+    if (next === undefined) break;
+    cursor = next;
+    path.push(cursor);
+  }
+  const floorTex = world.floorTex[targetIdx] || Tex.F_LINO;
+  for (const ci of path) {
+    if (world.aptMask[ci] || world.hermoWall[ci]) continue;
+    if (world.cells[ci] === Cell.DOOR && world.doors.has(ci)) continue;
+    world.cells[ci] = Cell.FLOOR;
+    world.roomMap[ci] = -1;
+    world.floorTex[ci] = floorTex;
+    if (world.features[ci] !== Feature.LIFT_BUTTON) world.features[ci] = Feature.NONE;
+  }
+  world.cells[candidate.doorIdx] = Cell.DOOR;
+  world.wallTex[candidate.doorIdx] = Tex.DOOR_METAL;
+  world.floorTex[candidate.doorIdx] = floorTex;
+  world.doors.set(candidate.doorIdx, {
+    idx: candidate.doorIdx,
+    state: DoorState.HERMETIC_OPEN,
+    roomA: candidate.room.id,
+    roomB: -1,
+    keyId: '',
+    timer: 0,
+  });
+  if (!candidate.room.doors.includes(candidate.doorIdx)) candidate.room.doors.push(candidate.doorIdx);
+}
+
+function heapPush(heap: HeapNode[], node: HeapNode): void {
+  heap.push(node);
+  for (let i = heap.length - 1; i > 0;) {
+    const p = (i - 1) >> 1;
+    if (heap[p].cost <= node.cost) break;
+    heap[i] = heap[p];
+    i = p;
+    heap[i] = node;
+  }
+}
+
+function heapPop(heap: HeapNode[]): HeapNode | undefined {
+  if (heap.length === 0) return undefined;
+  const out = heap[0];
+  const last = heap.pop()!;
+  if (heap.length > 0) {
+    heap[0] = last;
+    for (let i = 0;;) {
+      const l = i * 2 + 1;
+      const r = l + 1;
+      if (l >= heap.length) break;
+      let c = l;
+      if (r < heap.length && heap[r].cost < heap[l].cost) c = r;
+      if (heap[i].cost <= heap[c].cost) break;
+      const tmp = heap[i];
+      heap[i] = heap[c];
+      heap[c] = tmp;
+      i = c;
+    }
+  }
+  return out;
 }
 
 function connectClusterCarve(world: World, rooms: Room[], _aptCount: number): void {

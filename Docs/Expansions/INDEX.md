@@ -1,11 +1,11 @@
 # Expansion Index
 
 Статус: рабочий индекс для разработки  
-Связанные файлы: `../../expansion.md`, `../../plans.md`, `../../desdoc.md`, `../../README.md`
+Связанные файлы: `../../README.md`, `../../desdoc.md`, `../../architecture.md`; старые root `expansion.md` и `plans.md` архивированы в `../../gatbage/`.
 
 ## Назначение
 
-Этот каталог содержит 11 самостоятельных technical design documents и один mandatory foundation-layer. Каждый `expansion.md` должен читаться как dev-epic/reference packet: что добавляем, зачем это нужно игре, какие системы трогаем, как не ломаем производительность и как проверяем минимальный playable slice. Краткая сводка того, что осталось не полностью реализованным, живет в `../../plans.md`.
+Этот каталог содержит 11 самостоятельных technical design documents и один mandatory foundation-layer. Каждый `expansion.md` должен читаться как dev-epic/reference packet: что добавляем, зачем это нужно игре, какие системы трогаем, как не ломаем производительность и как проверяем минимальный playable slice. Текущие shipped-факты живут в `../../README.md` и root system docs; архивная сводка старых хвостов лежит в `../../gatbage/plans.md`.
 
 ## Документы
 

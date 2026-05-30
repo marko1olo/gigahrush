@@ -14,12 +14,32 @@ import {
 import { World } from '../../core/world';
 import { registerRouteCue } from '../../systems/route_cues';
 import { protectRoom, stampRoom } from '../shared';
+import type { PlacementFieldAnchor } from '../population_placement';
 
 export interface HellGeometry {
   monsterCells: number[];
   cultistCells: number[];
   liquidatorCells: number[];
   safeCells: number[];
+  sightlineCells: number[];
+  populationAnchors: {
+    monster: PlacementFieldAnchor[];
+    cultist: PlacementFieldAnchor[];
+    liquidator: PlacementFieldAnchor[];
+    safe: PlacementFieldAnchor[];
+  };
+  chainScores: HellArenaChainScore[];
+}
+
+export interface HellArenaChainScore {
+  id: string;
+  entry: number;
+  threat: number;
+  fallback: number;
+  reward: number;
+  exit: number;
+  sightline: number;
+  total: number;
 }
 
 export interface HellPos {
@@ -39,6 +59,17 @@ interface ChainSpec {
   reward: Pos;
   faction: 'monster' | 'cultist' | 'liquidator';
   motif: 'meat' | 'bone' | 'vent' | 'barricade' | 'scar';
+}
+
+interface ChainPlan {
+  spec: ChainSpec;
+  entry: Pos;
+  arena: Pos;
+  exit: Pos;
+  fallback: Pos;
+  reward: Pos;
+  sightline: Pos;
+  score: HellArenaChainScore;
 }
 
 const CHAINS: readonly ChainSpec[] = [
@@ -99,12 +130,41 @@ const CHAINS: readonly ChainSpec[] = [
   },
 ];
 
+export function imprintHellArenaValleys(field: Uint8Array): void {
+  if (field.length < W * W) return;
+  const origin = { x: W >> 1, y: W >> 1 };
+  carveFieldDisc(field, origin, 8);
+
+  for (const plan of planArenaChains(origin)) {
+    const mainRadius = plan.score.threat > 0.7 ? 3 : 2;
+    const loopRadius = plan.score.fallback > 0.7 ? 2 : 1;
+    carveFieldRibbon(field, origin, plan.entry, 2);
+    carveFieldRibbon(field, plan.entry, plan.arena, mainRadius);
+    carveFieldRibbon(field, plan.arena, plan.exit, mainRadius);
+    carveFieldRibbon(field, plan.entry, plan.fallback, loopRadius);
+    carveFieldRibbon(field, plan.fallback, plan.exit, loopRadius);
+    carveFieldRibbon(field, plan.fallback, plan.sightline, 1);
+    carveFieldRibbon(field, plan.sightline, plan.arena, 1);
+    carveFieldDisc(field, plan.arena, 10 + Math.round(plan.score.threat * 5));
+    carveFieldDisc(field, plan.fallback, 5 + Math.round(plan.score.fallback * 3));
+    carveFieldDisc(field, plan.reward, 4 + Math.round(plan.score.reward * 3));
+  }
+}
+
 export function buildHellGeometry(world: World): HellGeometry {
   const geometry: HellGeometry = {
     monsterCells: [],
     cultistCells: [],
     liquidatorCells: [],
     safeCells: [],
+    sightlineCells: [],
+    populationAnchors: {
+      monster: [],
+      cultist: [],
+      liquidator: [],
+      safe: [],
+    },
+    chainScores: [],
   };
   const origin = { x: W >> 1, y: W >> 1 };
 
@@ -112,9 +172,9 @@ export function buildHellGeometry(world: World): HellGeometry {
   decorateSpawnFork(world, origin);
 
   const exits: Pos[] = [];
-  for (const spec of CHAINS) {
-    buildArenaChain(world, origin, spec, geometry);
-    exits.push(add(origin, spec.exit));
+  for (const plan of planArenaChains(origin)) {
+    buildArenaChain(world, plan, geometry);
+    exits.push(plan.exit);
   }
   for (let i = 0; i < exits.length; i++) {
     carveMeatTunnel(world, exits[i], exits[(i + 1) % exits.length], 1, Tex.F_GUT);
@@ -143,12 +203,10 @@ export function carveHellSafeShortcut(world: World, a: HellPos, b: HellPos, radi
   return cells;
 }
 
-function buildArenaChain(world: World, origin: Pos, spec: ChainSpec, geometry: HellGeometry): void {
-  const entry = add(origin, spec.entry);
-  const arena = add(origin, spec.arena);
-  const exit = add(origin, spec.exit);
-  const fallback = add(origin, spec.fallback);
-  const reward = add(origin, spec.reward);
+function buildArenaChain(world: World, plan: ChainPlan, geometry: HellGeometry): void {
+  const { spec, entry, arena, exit, fallback, reward, sightline, score } = plan;
+  geometry.chainScores.push(score);
+  registerHellPopulationAnchors(plan, geometry);
 
   if (spec.motif === 'bone') {
     carveBoneBridge(world, entry, arena);
@@ -161,15 +219,19 @@ function buildArenaChain(world: World, origin: Pos, spec: ChainSpec, geometry: H
   carveThreatPocket(world, arena, spec, geometry);
   carveMeatTunnel(world, arena, exit, 2, spec.motif === 'scar' ? Tex.F_CONCRETE : Tex.F_MEAT);
   carveFallbackLoop(world, entry, fallback, exit, spec, geometry);
+  carveAlternateSightline(world, fallback, sightline, arena, spec, geometry);
   stampRitualRoom(world, reward, arena, spec);
-  registerHellThresholdCue(world, spec, entry, fallback, reward);
+  applyReactionDiffusionOverlay(world, plan, geometry);
+  registerHellThresholdCue(world, plan, entry, fallback, reward);
+  registerHellSightlineCue(world, plan, fallback, sightline, arena);
 
   if (spec.motif === 'barricade') {
     stampCultBarricade(world, midpoint(entry, arena), fallback, geometry);
   }
 }
 
-function registerHellThresholdCue(world: World, spec: ChainSpec, entry: Pos, fallback: Pos, reward: Pos): void {
+function registerHellThresholdCue(world: World, plan: ChainPlan, entry: Pos, fallback: Pos, reward: Pos): void {
+  const { spec, score } = plan;
   setFeature(world, entry.x, entry.y, Feature.SCREEN);
   setFeature(world, reward.x, reward.y, Feature.SHELF);
   registerRouteCue(world, {
@@ -183,14 +245,55 @@ function registerHellThresholdCue(world: World, spec: ChainSpec, entry: Pos, fal
     hint: 'перед карманом есть петля отхода и отдельная полка награды',
     targetName: `${spec.name}: обратная петля`,
     color: spec.motif === 'scar' ? '#9cf' : spec.motif === 'barricade' ? '#fc8' : '#f88',
-    tags: ['hell', 'threshold', 'retreat', 'reward', spec.id, spec.faction],
+    tags: ['hell', 'threshold', 'retreat', 'reward', 'sightline', spec.id, spec.faction],
     toneSeed: spec.id.length * 451 + entry.x * 7 + entry.y,
     radius: 10,
     targetRadius: 4,
     cooldownSec: 48,
-    heardText: `${spec.name}: у входа видна обратная петля. Проверь отход до боя.`,
+    heardText: `${spec.name}: у входа видна обратная петля и боковой обзор. Проверь отход до боя.`,
     followedText: `${spec.name}: петля отхода найдена. Наградная полка стоит отдельно от мясного кармана.`,
     ignoredText: `${spec.name}: порог остался без проверенного отхода.`,
+    routeGroup: {
+      id: `hell_chain_${spec.id}`,
+      lead: `${spec.name}: порог`,
+      risk: score.threat > 0.72 ? 'тяжелый мясной карман' : 'средний мясной карман',
+      decision: 'зайти прямо, обойти через петлю или снять цель с бокового обзора',
+      reward: 'отдельная полка после выхода из кармана',
+      mapLabel: spec.name,
+      mapHint: 'порог, отход, обзор и награда читаются как одна арена',
+    },
+  });
+}
+
+function registerHellSightlineCue(world: World, plan: ChainPlan, fallback: Pos, sightline: Pos, arena: Pos): void {
+  const { spec, score } = plan;
+  setFeature(world, sightline.x, sightline.y, Feature.SCREEN);
+  registerRouteCue(world, {
+    id: `hell_threshold_${spec.id}_sightline`,
+    x: fallback.x + 0.5,
+    y: fallback.y + 0.5,
+    targetX: sightline.x + 0.5,
+    targetY: sightline.y + 0.5,
+    floor: FloorLevel.HELL,
+    label: `${spec.name}: боковой обзор`,
+    hint: 'узкий бетонный рубец выводит к линии обзора на арену без входа в центр',
+    targetName: `${spec.name}: обзор на карман`,
+    color: spec.motif === 'scar' ? '#9cf' : '#fbb',
+    tags: ['hell', 'fallback', 'sightline', 'retreat', spec.id, spec.faction],
+    toneSeed: spec.id.length * 911 + sightline.x * 5 + sightline.y,
+    radius: 8,
+    targetRadius: 3,
+    cooldownSec: 38,
+    heardText: `${spec.name}: из петли слышен боковой обзор. Можно проверить карман без прямого входа.`,
+    followedText: `${spec.name}: боковой обзор открыт. Центр арены виден через мясной просвет.`,
+    ignoredText: `${spec.name}: боковой обзор остался за спиной.`,
+    routeGroup: {
+      id: `hell_chain_${spec.id}_sightline`,
+      lead: `${spec.name}: петля`,
+      risk: 'узкий проход, но меньше прямого давления',
+      decision: score.sightline > 0.7 ? 'снять угрозы с рубца или отступить к петле' : 'коротко проверить рубец и не задерживаться',
+      reward: `вид на ${arena.x}:${arena.y} до входа в мясной карман`,
+    },
   });
 }
 
@@ -223,6 +326,24 @@ function carveFallbackLoop(world: World, entry: Pos, fallback: Pos, exit: Pos, s
   carveMeatTunnel(world, fallback, exit, 1, tex);
   carveSafeScar(world, fallback, 5, 3, geometry.safeCells);
   setFeature(world, fallback.x, fallback.y, spec.motif === 'scar' ? Feature.LAMP : Feature.CANDLE);
+}
+
+function carveAlternateSightline(
+  world: World,
+  fallback: Pos,
+  sightline: Pos,
+  arena: Pos,
+  spec: ChainSpec,
+  geometry: HellGeometry,
+): void {
+  const first = carveHellSafeShortcut(world, fallback, sightline, spec.motif === 'scar' ? 2 : 1);
+  const edge = pointToward(sightline, arena, 8);
+  const second = carveHellSafeShortcut(world, sightline, edge, 1);
+  geometry.safeCells.push(...first, ...second);
+  geometry.sightlineCells.push(...first, ...second);
+  paintWallRing(world, sightline, 4, 3, spec.motif === 'scar' ? Tex.CONCRETE : Tex.GUT);
+  setFeature(world, sightline.x, sightline.y, Feature.SCREEN);
+  setFeature(world, sightline.x + 2, sightline.y, Feature.LAMP);
 }
 
 function carveBoneBridge(world: World, a: Pos, b: Pos): void {
@@ -484,10 +605,216 @@ function setFeature(world: World, x: number, y: number, feature: Feature): void 
   world.features[ci] = feature;
 }
 
+function registerHellPopulationAnchors(plan: ChainPlan, geometry: HellGeometry): void {
+  const { spec, arena, fallback, reward, sightline, score } = plan;
+  addPopulationAnchor(geometry.populationAnchors.monster, arena, 42, 1.34 + score.threat * 0.34);
+  addPopulationAnchor(geometry.populationAnchors.monster, reward, 18, 0.72);
+  addPopulationAnchor(geometry.populationAnchors.safe, fallback, 26, 0.34 + (1 - score.fallback) * 0.14);
+  addPopulationAnchor(geometry.populationAnchors.safe, sightline, 18, 0.46);
+  if (spec.faction === 'cultist') addPopulationAnchor(geometry.populationAnchors.cultist, arena, 34, 1.38 + score.entry * 0.24);
+  else if (spec.faction === 'liquidator') addPopulationAnchor(geometry.populationAnchors.liquidator, fallback, 30, 1.22 + score.fallback * 0.22);
+}
+
+function addPopulationAnchor(out: PlacementFieldAnchor[], pos: Pos, radius: number, weight: number): void {
+  out.push({ x: pos.x + 0.5, y: pos.y + 0.5, radius, weight });
+}
+
+function applyReactionDiffusionOverlay(world: World, plan: ChainPlan, geometry: HellGeometry): void {
+  stampReactionBloom(world, plan, plan.arena, 26, 19, 'threat', geometry);
+  stampReactionBloom(world, plan, plan.fallback, 17, 11, 'fallback', geometry);
+  stampReactionBloom(world, plan, plan.sightline, 13, 9, 'sightline', geometry);
+  stampReactionBloom(world, plan, plan.reward, 12, 9, 'reward', geometry);
+}
+
+type ReactionRole = 'threat' | 'fallback' | 'sightline' | 'reward';
+
+function stampReactionBloom(
+  world: World,
+  plan: ChainPlan,
+  center: Pos,
+  rx: number,
+  ry: number,
+  role: ReactionRole,
+  geometry: HellGeometry,
+): void {
+  const seed = plan.spec.id.length * 379 + center.x * 13 + center.y * 17 + rx * 5 + ry;
+  for (let dy = -ry; dy <= ry; dy++) {
+    for (let dx = -rx; dx <= rx; dx++) {
+      const n = (dx * dx) / (rx * rx) + (dy * dy) / (ry * ry);
+      if (n > 1.18) continue;
+      const x = wrap(center.x + dx);
+      const y = wrap(center.y + dy);
+      const ci = world.idx(x, y);
+      if (world.aptMask[ci] || world.cells[ci] === Cell.LIFT) continue;
+
+      const activator = valueNoise(x + 0.5, y + 0.5, 9 + rx * 0.25, seed);
+      const inhibitor = valueNoise(x + 0.5, y + 0.5, 24 + ry * 0.4, seed + 41);
+      const edge = 1 - Math.min(1, Math.sqrt(Math.max(0, n)));
+      const rd = activator * 0.9 - inhibitor * 0.62 + edge * 0.52;
+
+      if (world.cells[ci] === Cell.WALL) {
+        if (rd > 0.18 || (n > 0.9 && n < 1.18)) world.wallTex[ci] = reactionWallTex(plan.spec, role, rd);
+        continue;
+      }
+      if (world.cells[ci] !== Cell.FLOOR || world.roomMap[ci] >= 0) continue;
+
+      if (rd > -0.08) world.floorTex[ci] = reactionFloorTex(plan.spec, role, rd);
+      if (role === 'threat' && rd > 0.22) pushPressureCell(geometry, plan.spec.faction, ci);
+      else if ((role === 'fallback' || role === 'sightline') && rd > 0.08) geometry.safeCells.push(ci);
+
+      if (world.features[ci] === Feature.NONE && rd > 0.36 && hash3(x, y, seed + 79) > 0.975) {
+        world.features[ci] = reactionFeature(role);
+      }
+      if (rd > 0.46 && hash3(x, y, seed + 101) > 0.992) {
+        stampSurfaceSplat(world, x, y, 0.5, 0.5, 1.8 + edge * 1.6, 96, seed + ci, 120, 22, 28);
+      }
+    }
+  }
+}
+
+function reactionFloorTex(spec: ChainSpec, role: ReactionRole, value: number): Tex {
+  if (role === 'fallback' || role === 'sightline') return value > 0.28 || spec.motif === 'scar' ? Tex.F_CONCRETE : Tex.F_GUT;
+  if (role === 'reward') return spec.motif === 'scar' ? Tex.F_CONCRETE : value > 0.32 ? Tex.F_GUT : Tex.F_MEAT;
+  return value > 0.28 || spec.motif === 'vent' ? Tex.F_GUT : Tex.F_MEAT;
+}
+
+function reactionWallTex(spec: ChainSpec, role: ReactionRole, value: number): Tex {
+  if (role === 'fallback' || role === 'sightline' || spec.motif === 'scar') return value > 0.24 ? Tex.CONCRETE : Tex.GUT;
+  return value > 0.25 || spec.motif === 'bone' ? Tex.GUT : Tex.MEAT;
+}
+
+function reactionFeature(role: ReactionRole): Feature {
+  if (role === 'threat') return Feature.CANDLE;
+  if (role === 'reward') return Feature.SHELF;
+  if (role === 'sightline') return Feature.SCREEN;
+  return Feature.LAMP;
+}
+
 function pushPressureCell(geometry: HellGeometry, faction: ChainSpec['faction'], ci: number): void {
   geometry.monsterCells.push(ci);
   if (faction === 'cultist') geometry.cultistCells.push(ci);
   else if (faction === 'liquidator') geometry.liquidatorCells.push(ci);
+}
+
+function planArenaChains(origin: Pos): ChainPlan[] {
+  return CHAINS.map(spec => {
+    const entry = add(origin, spec.entry);
+    const arena = add(origin, spec.arena);
+    const exit = add(origin, spec.exit);
+    const fallback = add(origin, spec.fallback);
+    const reward = add(origin, spec.reward);
+    const sightline = pointToward(arena, fallback, 20);
+    const score = scoreArenaChain(spec, origin, entry, arena, exit, fallback, reward, sightline);
+    return { spec, entry, arena, exit, fallback, reward, sightline, score };
+  });
+}
+
+function scoreArenaChain(
+  spec: ChainSpec,
+  origin: Pos,
+  entry: Pos,
+  arena: Pos,
+  exit: Pos,
+  fallback: Pos,
+  reward: Pos,
+  sightline: Pos,
+): HellArenaChainScore {
+  const entryScore = scoreDistance(dist(origin, entry), 28, 78);
+  const threatScore = scoreDistance(dist(entry, arena), 42, 118);
+  const fallbackScore = Math.min(
+    scoreDistance(dist(entry, fallback) + dist(fallback, exit), 54, 150),
+    scoreDistance(dist(fallback, arena), 22, 88),
+  );
+  const rewardScore = Math.min(scoreDistance(dist(reward, arena), 24, 84), scoreDistance(dist(reward, exit), 16, 70));
+  const exitScore = scoreDistance(dist(arena, exit), 42, 126);
+  const sightlineScore = Math.min(scoreDistance(dist(fallback, sightline), 18, 78), scoreDistance(dist(sightline, arena), 12, 36));
+  const total = (
+    entryScore * 0.14 +
+    threatScore * 0.2 +
+    fallbackScore * 0.24 +
+    rewardScore * 0.15 +
+    exitScore * 0.14 +
+    sightlineScore * 0.13
+  );
+  return {
+    id: spec.id,
+    entry: entryScore,
+    threat: threatScore,
+    fallback: fallbackScore,
+    reward: rewardScore,
+    exit: exitScore,
+    sightline: sightlineScore,
+    total,
+  };
+}
+
+function scoreDistance(value: number, min: number, max: number): number {
+  if (value <= min || value >= max) return 0.35;
+  const mid = (min + max) * 0.5;
+  const half = (max - min) * 0.5;
+  return 0.35 + 0.65 * (1 - Math.abs(value - mid) / half);
+}
+
+function dist(a: Pos, b: Pos): number {
+  const dx = shortestDelta(a.x, b.x);
+  const dy = shortestDelta(a.y, b.y);
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+function pointToward(a: Pos, b: Pos, distance: number): Pos {
+  const dx = shortestDelta(a.x, b.x);
+  const dy = shortestDelta(a.y, b.y);
+  const len = Math.max(1, Math.sqrt(dx * dx + dy * dy));
+  return {
+    x: wrap(a.x + Math.round(dx * distance / len)),
+    y: wrap(a.y + Math.round(dy * distance / len)),
+  };
+}
+
+function carveFieldRibbon(field: Uint8Array, a: Pos, b: Pos, radius: number): void {
+  forEachLine(a, b, 1, (x, y) => carveFieldDisc(field, { x, y }, radius));
+}
+
+function carveFieldDisc(field: Uint8Array, center: Pos, radius: number): void {
+  for (let dy = -radius; dy <= radius; dy++) {
+    for (let dx = -radius; dx <= radius; dx++) {
+      if (dx * dx + dy * dy > radius * radius + 1) continue;
+      field[wrap(center.y + dy) * W + wrap(center.x + dx)] = 1;
+    }
+  }
+}
+
+function valueNoise(x: number, y: number, scale: number, seed: number): number {
+  const period = Math.max(1, Math.round(W / Math.max(1, scale)));
+  const actualScale = W / period;
+  const gx = Math.floor(x / actualScale);
+  const gy = Math.floor(y / actualScale);
+  const fx = x / actualScale - gx;
+  const fy = y / actualScale - gy;
+  const x0 = wrap(gx);
+  const y0 = wrap(gy);
+  const x1 = wrap(gx + 1);
+  const y1 = wrap(gy + 1);
+  const sx = smooth(fx);
+  const sy = smooth(fy);
+  const a = lerp(hash3(x0, y0, seed), hash3(x1, y0, seed), sx);
+  const b = lerp(hash3(x0, y1, seed), hash3(x1, y1, seed), sx);
+  return lerp(a, b, sy);
+}
+
+function smooth(t: number): number {
+  return t * t * (3 - 2 * t);
+}
+
+function lerp(a: number, b: number, t: number): number {
+  return a + (b - a) * t;
+}
+
+function hash3(a: number, b: number, c: number): number {
+  let n = Math.imul(a | 0, 374761393) ^ Math.imul(b | 0, 668265263) ^ Math.imul(c | 0, 1274126177);
+  n = Math.imul(n ^ (n >>> 13), 1274126177);
+  n ^= n >>> 16;
+  return (n >>> 0) / 0xffffffff;
 }
 
 function forEachLine(a: Pos, b: Pos, stepMul: number, visit: (x: number, y: number, step: number) => void): void {

@@ -1,11 +1,12 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { EntityType, Faction, MonsterKind, Occupation, RoomType } from '../src/core/types';
+import { EntityType, Faction, MonsterKind, Occupation, RoomType, Tex, type Entity } from '../src/core/types';
 import { designFloorById } from '../src/data/design_floors';
 import { designFloorPopulationProfile } from '../src/data/design_floor_population';
 import { generateDesignFloor } from '../src/gen/design_floors/manifest';
 import type { ProductionBeltGeneration } from '../src/gen/design_floors/production_belt';
+import { getCellHazardMoveMultiplier } from '../src/systems/cell_hazards';
 import { getRouteCueMarkers } from '../src/systems/route_cues';
 
 function roomTypeForEntity(gen: ProductionBeltGeneration, entity: { x: number; y: number }): RoomType | undefined {
@@ -58,6 +59,25 @@ test('production belt generation exposes repair, theft, bad batch and industrial
   assert.equal(cues.some(cue => cue.tags.includes('repair')), true);
   assert.equal(cues.some(cue => cue.tags.includes('transfer')), true);
   assert.equal(cues.some(cue => cue.tags.includes('bad_batch')), true);
+  assert.equal(cues.some(cue => cue.tags.includes('conveyor_spine')), true);
+  assert.equal(cues.some(cue => cue.tags.includes('machine_hazard') && cue.tags.includes('shelter')), true);
+
+  const machineShelterCue = cues.find(cue => cue.id === 'production_belt_machine_shelter');
+  assert.ok(machineShelterCue);
+  assert.equal(gen.world.rooms[machineShelterCue.targetRoomId!]?.type, RoomType.COMMON);
+  const hazardProbe = {
+    id: -707,
+    type: EntityType.NPC,
+    x: machineShelterCue.x,
+    y: machineShelterCue.y,
+  } as Entity;
+  assert.equal(getCellHazardMoveMultiplier(gen.world, hazardProbe) < 1, true);
+
+  let spineTiles = 0;
+  for (let i = 0; i < gen.world.floorTex.length; i++) {
+    if (gen.world.floorTex[i] === Tex.F_TILE) spineTiles++;
+  }
+  assert.equal(spineTiles >= 1200, true, `spine tile cells ${spineTiles}`);
 
   const productionOutputs = gen.world.containers.filter(container => container.tags.includes('production_output'));
   const industrialCaches = gen.world.containers.filter(container => container.tags.includes('industrial_cache'));

@@ -1,5 +1,9 @@
 # A-Life Population
 
+> Центральный документ живого мира.
+>
+> Роль: описывает persistent NPC identity, deaths, foldback, off-floor records, macro consequences, faction/economy/quest context and future migration/resettlement rules. Связан с `ai.md` for live active-floor behavior, `economics.md` for resources and wealth, and `balance.md` for progression pressure.
+
 Persistent A-Life is a central game feature of ГИГАХРУЩ: the building is not a spawn faucet, it is inhabited.
 
 The player does not enter an empty procedural map that slowly fills itself. The population already exists. Entering a floor activates the slice of that population assigned to that floor; leaving the floor freezes it. Killing someone removes that person from the global population forever.

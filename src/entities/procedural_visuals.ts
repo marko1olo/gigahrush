@@ -409,20 +409,11 @@ function mutateMonsterSprite(base: Uint32Array, kind: MonsterKind, seed: number)
   return out;
 }
 
-function addMonsterEyes(t: Uint32Array, kind: MonsterKind, seed: number): void {
-  const baseCount =
-    kind === MonsterKind.EYE ? 1 :
-    kind === MonsterKind.KHOROVAYA_MATKA ? 7 :
-    kind === MonsterKind.MATKA || kind === MonsterKind.MANCOBUS ? 5 :
-    kind === MonsterKind.SHADOW || kind === MonsterKind.SPIRIT ? 2 :
-    1 + Math.floor(rnd(seed, 500) * 4);
-  const eyeColor: RGB =
-    kind === MonsterKind.SPIRIT ? [156, 214, 242] :
-    kind === MonsterKind.ROBOT ? [70, 220, 255] :
-    kind === MonsterKind.SHADOW ? [172, 62, 210] :
-    [235, 54, 42];
+function addFalseHumanEyes(t: Uint32Array, seed: number): void {
+  const eyeColor: RGB = [235, 54, 42];
+  const count = 1 + Math.floor(rnd(seed, 500) * 4);
 
-  for (let i = 0; i < baseCount; i++) {
+  for (let i = 0; i < count; i++) {
     const ex = 22 + Math.floor(rnd(seed, 501 + i) * 21);
     const ey = 12 + Math.floor(rnd(seed, 521 + i) * 28);
     const rx = 1 + Math.floor(rnd(seed, 541 + i) * 3);
@@ -466,7 +457,7 @@ function addZakalennayaArmorChips(t: Uint32Array, seed: number, armorStacks: num
 
 function corruptFalseHuman(seed: number): Uint32Array {
   const t = generateProceduralNpcSprite(seed, Occupation.TRAVELER, Faction.WILD, rnd(seed, 710) > 0.5, Occupation.TRAVELER);
-  addMonsterEyes(t, MonsterKind.NELYUD, seed ^ 0xa771);
+  addFalseHumanEyes(t, seed ^ 0xa771);
   paintLine(t, 28, 16, 36 + Math.floor(rnd(seed, 711) * 8), 42, [130, 20, 34], seed + 712, 0);
   paintLine(t, 36, 17, 24 - Math.floor(rnd(seed, 713) * 6), 39, [90, 16, 24], seed + 714, 0);
   return t;
@@ -488,7 +479,6 @@ export function generateProceduralMonsterSprite(kind: MonsterKind, seed: number,
   const out = mutateMonsterSprite(special ?? gen(), kind, seed);
   addMonsterMarks(out, kind, seed);
   if (kind === MonsterKind.ZAKALENNAYA_ARMATURA) addZakalennayaArmorChips(out, seed, armorStacks);
-  addMonsterEyes(out, kind, seed);
   return out;
 }
 

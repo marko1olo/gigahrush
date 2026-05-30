@@ -1,6 +1,10 @@
-# Mechanics Audit
+# Problems Audit
 
-Актуально на 2026-05-28. Файл фиксирует разрозненные механики, которые уже создают лишние частные связки между системами, картой и UI. Цель: резать map-only сигналы, оставлять только работающие игровые контуры и приводить похожие случаи к одному универсальному правилу.
+> Центральный документ проблемных механик.
+>
+> Роль: сюда попадает все, что уже существует, но еще не встроено чисто в один из центральных системных документов: `ai.md`, `alife.md`, `anomalies.md`, `floors.md`, `fight.md`, `economics.md`, `items.md`, `monsters.md`, `quests.md`, `architecture.md` or `balance.md`. Это список целей для будущего рефакторинга, консолидации или удаления частных связок.
+
+Актуально на 2026-05-30. Файл фиксирует разрозненные механики, которые уже создают лишние частные связки между системами, картой и UI. Цель: резать map-only сигналы, оставлять только работающие игровые контуры и приводить похожие случаи к одному универсальному правилу.
 
 ## Правило карты
 
@@ -22,6 +26,10 @@
 | Слухи и платные картографические раскрытия в full map | `src/systems/npc_memory.ts`, `src/systems/route_cues.ts`, раньше `src/render/map_ui.ts` | Полноэкранная карта показывала нижние текстовые строки, не связанные с самой геометрией карты. | Убрать строки и специальные cartographer map-иконки. Текстовая причина раскрытия живет в слухах/журнале/сообщениях. |
 | Серобурмалиновые источники на карте | `src/systems/seroburmaline.ts`, раньше `src/render/map_ui.ts` | Источник рисовался отдельным pulsing circle-слоем только на карте. | Убрать специальный map overlay. Если источник важен, он должен читаться в мире, через hazard feedback или квестовую цель. |
 | Маронарная стружка | раньше `src/render/map_ui.ts` | Частный круг предметного следа на карте конкурировал с обычными item dots и FETCH-маркерами. | Убрать специальный круг. Предмет остается обычной точкой, а квестовый предмет получает универсальный FETCH-маркер. |
+| НЕТ-ТЕРМИНАЛ ГЕН как игровой редактор карты | `src/data/net_terminal_gen.ts`, `src/systems/net_terminal_gen.ts`, `src/systems/map_editor.ts`, `src/render/map_editor_ui.ts`, `src/render/net_terminal_gen_ui.ts`, debug hooks | Механика из старого expansion-пакета уже живая, но находится на границе shipped gameplay и diegetic debug. Она может стать обходом нормальных генераторов, если патчи карты начнут считаться обычным progression-контентом. | Держать как явный редактор текущего этажа с отдельным unlock/debug статусом, patch replay и validation affordances. Не использовать как замену route/floor generator; новые gameplay-модутации должны идти через `gen`/`systems`, а редактор только применяет компактный current-floor patch. |
+| Номерные лифтовые инстансы | `src/data/floor_instances.ts`, `src/systems/floor_instances.ts`, `src/systems/floor_keys.ts`, `src/main.ts`, `src/render/hud.ts`, debug `arm_floor_instance` | Планы `elevator_loop_404` частично стали runtime-механикой. Риск - превратить каждый номер в скрытый отдельный floor enum или набор частных переходов, которые живут вне route/memory contract. | Сохранять `floor_instance:<id>` как route key, не добавлять `FloorLevel`, не хардкодить координаты лифтов в контенте. Уникальные pocket-правила должны быть data/generator packages с floor memory, слухами и debug path. |
+| Сюжетные спец-ситуации в `main.ts` | `src/main.ts`, `src/data/plot.ts`, `src/systems/quests.ts` | Линейный сюжет и authored quest-сцены могут честно создавать ограниченные волны/актеров и превышать soft cap по явному условию, но часть таких триггеров сейчас живет как content-specific runtime logic в `main.ts`. | При следующем касании переносить описание спец-ситуаций в plot/quest metadata или контентные hooks, а исполнение держать через универсальный bounded quest/event system. Soft cap можно превышать только явно, ограниченно и по состоянию квеста, без бесконечного refill. |
+| Пакетные item-хвосты от старого оркестратора | `src/data/resources.ts`, `src/data/factories.ts`, `src/data/container_defs.ts` (`ITEM5_*`, `ITEM79_*`, `ITEM68_*`, `ITEM69_*`, `ITEM173_*`, `ITEM159_*`) | Код уже содержит добавки, названные по архивным item-пакетам, а не по домену. Это не ломает runtime, но оставляет planning-batch идентичность в системных registries и мешает понимать владельца ресурса/рецепта/контейнерного пула. | При следующем касании этих регистров переименовать blocks по домену (`contraband_resource_items`, `weapon_factory_recipes`, `sampleware_recipes`) или сложить в настоящие domain packs. Не добавлять новые `ITEM_N` appender blocks. |
 
 ## Следующий проход
 

@@ -180,7 +180,11 @@ function industrialStyle(route: DesignFloorRouteDef): ShellStyle {
     fog: route.id === 'dark_metro' ? 18 : 8,
     featureA: Feature.MACHINE,
     featureB: Feature.APPARATUS,
-    roomPrefix: route.id === 'production_belt' ? 'Производственный узел' : 'Служебный узел',
+    roomPrefix: route.id === 'production_belt'
+      ? 'Производственный узел'
+      : route.id === 'attractor_dvor'
+        ? 'Аттракторный двор'
+        : 'Служебный узел',
   };
 }
 

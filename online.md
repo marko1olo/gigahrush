@@ -1,5 +1,9 @@
 # ГИГАХРУЩ Online Mode Plan
 
+> Центральный документ будущего online mode.
+>
+> Роль: описывает optional future multiplayer/online mode, Cloudflare/Durable Object direction, relaxed trust, shared facts and budget constraints. It must not affect the core single-player browser game, which remains primary and fully playable offline.
+
 Status: feasibility roadmap and implementation decision, not shipped behavior and not a public promise. Created 2026-05-24, revised 2026-05-25 after second architecture review, no-anti-cheat correction and critical host-AOI review.
 
 Scope: полноценный опциональный online mode через Cloudflare Workers/Durable Objects, где Cloudflare является sync/interaction authority для shared facts, а не полной удаленной копией offline-симуляции. Локальная single-player игра, `npm run dev`, single-file build и local save остаются полностью playable без Cloudflare, WebSocket, D1 и сети.
@@ -447,7 +451,7 @@ Relevant shipped architecture:
 - `src/systems/procedural_floors.ts`: per-run vertical route uses `runSeed`, route ids and `z=-50..+50`.
 - `src/systems/floor_memory.ts`: visited floors persist as live or packed snapshots keyed by route floor identity.
 - `src/systems/alife.ts`: persistent ordinary NPC identity is compact and only materializes on the active floor.
-- `src/systems/save_runtime.ts`: current local save shape version is `9`; old shapes are rejected, not migrated.
+- `src/systems/save_runtime.ts`: current local save shape version is `13`; old shapes are rejected, not migrated.
 - `src/systems/save_payload.ts`: local save caps inventory, containers, quests, status, event data and avoids full live entity serialization.
 - `src/systems/interactions.ts`: shared `E` dispatcher owns doors, lifts, NPCs, containers, terminals and generated interactables.
 - `src/systems/events.ts`: bounded public/private event buffers already provide compact cross-system facts.

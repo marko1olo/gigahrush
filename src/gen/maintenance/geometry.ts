@@ -2,12 +2,19 @@
 
 import { Cell, Tex, RoomType, Feature, type Room } from '../../core/types';
 import { World } from '../../core/world';
+import { placeEmergencyPanel } from '../../systems/emergency_panels';
 
 const PIPE_WALL = Tex.PIPE;
 const DRY_FLOOR = Tex.F_CONCRETE;
 const WATER_FLOOR = Tex.F_WATER;
+const PANEL_POWER_ROOM = 'Щитовая хорда: световой автомат';
+const PANEL_WATER_ROOM = 'Щитовая хорда: водяной байпас';
+const PANEL_DOORS_ROOM = 'Щитовая хорда: дверной обход';
+const PANEL_VENT_ROOM = 'Щитовая хорда: вентиляционный сброс';
+const REPAIR_CHORD_ROOM = 'Ремонтная обходная хорда: сухой склад';
 
 type Dir = 'n' | 's' | 'w' | 'e';
+type PanelId = 'panel_power' | 'panel_water' | 'panel_doors' | 'panel_vent';
 
 export function applyCollectorMacroGeometry(
   world: World,
@@ -16,15 +23,18 @@ export function applyCollectorMacroGeometry(
   centerX: number,
   centerY: number,
 ): number {
-  carveDrySpines(world, centerX, centerY);
-  carvePressureArteries(world, centerX, centerY);
-  carveCulvertShortcuts(world, centerX, centerY);
+  carveServiceSpineLayer(world, centerX, centerY);
+  carvePipeLabyrinthLayer(world, centerX, centerY);
+  carveDrainageProxyLayer(world, centerX, centerY);
 
   nextRoomId = stampPumpStation(world, rooms, nextRoomId, centerX - 12, centerY - 9);
   nextRoomId = stampValveCross(world, rooms, nextRoomId, centerX + 72, centerY - 74);
   nextRoomId = stampFloodedBasin(world, rooms, nextRoomId, centerX - 166, centerY + 96);
+  nextRoomId = stampDrainageProxyField(world, rooms, nextRoomId, centerX - 284, centerY - 10);
   nextRoomId = stampHeatlineBridge(world, rooms, nextRoomId, centerX + 120, centerY + 104);
   nextRoomId = stampOutpostMouth(world, rooms, nextRoomId, centerX - 178, centerY - 128);
+  nextRoomId = stampServiceDuctChord(world, rooms, nextRoomId, centerX + 196, centerY - 188);
+  nextRoomId = stampEmergencyPanelChordLayer(world, rooms, nextRoomId, centerX, centerY);
 
   const locks: [number, number, boolean, string][] = [
     [centerX - 118, centerY + 7, true, 'Шлюз давления: западный сброс'],
@@ -39,6 +49,31 @@ export function applyCollectorMacroGeometry(
   }
 
   return nextRoomId;
+}
+
+export function placeCollectorMacroPanels(world: World, _centerX: number, _centerY: number): number {
+  const placements: readonly { roomName: string; dx: number; dy: number; panelId: PanelId; seed: number }[] = [
+    { roomName: PANEL_POWER_ROOM, dx: 3, dy: 3, panelId: 'panel_power', seed: 0x4d01 },
+    { roomName: PANEL_WATER_ROOM, dx: 8, dy: 3, panelId: 'panel_water', seed: 0x4d02 },
+    { roomName: PANEL_DOORS_ROOM, dx: 7, dy: 3, panelId: 'panel_doors', seed: 0x4d03 },
+    { roomName: PANEL_VENT_ROOM, dx: 4, dy: 3, panelId: 'panel_vent', seed: 0x4d04 },
+  ];
+
+  let placed = 0;
+  for (const item of placements) {
+    const room = roomsByName(world, item.roomName);
+    if (!room) continue;
+    const x = world.wrap(room.x + Math.max(1, Math.min(room.w - 2, item.dx)));
+    const y = world.wrap(room.y + Math.max(1, Math.min(room.h - 2, item.dy)));
+    const idx = world.idx(x, y);
+    if (world.cells[idx] !== Cell.FLOOR && world.cells[idx] !== Cell.WATER) setFloor(world, x, y, room.id);
+    if (placeEmergencyPanel(world, x, y, item.panelId, item.seed ^ room.id * 197)) placed++;
+  }
+  return placed;
+}
+
+function roomsByName(world: World, name: string): Room | undefined {
+  return world.rooms.find(room => room?.name === name);
 }
 
 function stampMacroRoom(
@@ -149,13 +184,18 @@ function carveWaterV(world: World, x: number, y0: number, y1: number, halfWidth 
   carveDryV(world, x + halfWidth + 2, lo, hi);
 }
 
-function carveDrySpines(world: World, cx: number, cy: number): void {
+function carveServiceSpineLayer(world: World, cx: number, cy: number): void {
   carveDryH(world, cx - 220, cx + 230, cy, 1);
   carveDryV(world, cx, cy - 210, cy + 230, 1);
   carveDryH(world, cx - 212, cx - 46, cy - 42, 1);
   carveDryV(world, cx - 212, cy - 42, cy + 126, 1);
   carveDryH(world, cx + 38, cx + 230, cy + 58, 1);
   carveDryV(world, cx + 230, cy - 90, cy + 58, 1);
+  carveDryH(world, cx - 316, cx - 96, cy - 104, 0);
+  carveDryV(world, cx - 316, cy - 104, cy + 42, 0);
+  carveDryH(world, cx + 112, cx + 304, cy - 142, 0);
+  carveDryV(world, cx + 304, cy - 142, cy + 92, 0);
+  carveDryH(world, cx - 20, cx + 304, cy + 92, 0);
 
   for (const [x, y] of [
     [cx - 80, cy],
@@ -164,18 +204,24 @@ function carveDrySpines(world: World, cx: number, cy: number): void {
     [cx, cy + 96],
     [cx - 212, cy + 42],
     [cx + 230, cy - 22],
+    [cx - 316, cy - 32],
+    [cx + 304, cy + 38],
   ] as const) {
     setFeature(world, x, y, Feature.LAMP);
     setFeature(world, x + 2, y, Feature.MACHINE);
   }
 }
 
-function carvePressureArteries(world: World, cx: number, cy: number): void {
+function carvePipeLabyrinthLayer(world: World, cx: number, cy: number): void {
   carveWaterH(world, cx - 278, cx + 286, cy + 11, 1);
   carveWaterV(world, cx - 12, cy - 278, cy + 286, 1);
   carveWaterH(world, cx - 236, cx + 238, cy - 66, 1);
   carveWaterV(world, cx + 74, cy - 220, cy + 238, 1);
   carveWaterH(world, cx - 238, cx + 156, cy + 172, 1);
+  carveDoglegDuct(world, cx - 154, cy - 172, cx - 70, cy - 66, false);
+  carveDoglegDuct(world, cx + 74, cy - 18, cx + 184, cy + 58, true);
+  carveDoglegDuct(world, cx - 12, cy + 116, cx - 134, cy + 172, true);
+  carveDoglegDuct(world, cx + 166, cy - 66, cx + 232, cy - 18, false);
 
   for (const [x, y] of [
     [cx - 190, cy + 11],
@@ -193,6 +239,21 @@ function carvePressureArteries(world: World, cx: number, cy: number): void {
   }
 }
 
+function carveDoglegDuct(world: World, x0: number, y0: number, x1: number, y1: number, waterFirst: boolean): void {
+  const mx = Math.round((x0 + x1) / 2);
+  if (waterFirst) {
+    carveWaterH(world, x0, mx, y0, 0);
+    carveDryV(world, mx, y0, y1, 0);
+    carveWaterH(world, mx, x1, y1, 0);
+  } else {
+    carveDryH(world, x0, mx, y0, 0);
+    carveWaterV(world, mx, y0, y1, 0);
+    carveDryH(world, mx, x1, y1, 0);
+  }
+  setFeature(world, mx, y0, Feature.APPARATUS);
+  setFeature(world, mx, y1, Feature.LAMP);
+}
+
 function carveBridge(world: World, x: number, y: number): void {
   for (let dy = -2; dy <= 2; dy++) {
     for (let dx = -2; dx <= 2; dx++) {
@@ -204,7 +265,7 @@ function carveBridge(world: World, x: number, y: number): void {
   setFeature(world, x + 2, y + 2, Feature.APPARATUS);
 }
 
-function carveCulvertShortcuts(world: World, cx: number, cy: number): void {
+function carveDrainageProxyLayer(world: World, cx: number, cy: number): void {
   carveBentWater(world, cx - 250, cy + 11, cx - 212, cy - 42);
   carveBentWater(world, cx - 146, cy + 172, cx - 212, cy + 126);
   carveBentWater(world, cx + 74, cy - 202, cx + 166, cy - 66);
@@ -213,6 +274,23 @@ function carveCulvertShortcuts(world: World, cx: number, cy: number): void {
   carveBentWater(world, cx - 12, cy - 250, cx - 108, cy - 66);
   carveBentWater(world, cx - 238, cy + 172, cx - 166, cy + 120);
   carveBentWater(world, cx + 120, cy + 104, cx + 74, cy + 154);
+  carveDrainageFan(world, cx - 304, cy + 46, 54, 34);
+  carveDrainageFan(world, cx + 178, cy - 196, 48, 30);
+}
+
+function carveDrainageFan(world: World, x: number, y: number, w: number, h: number): void {
+  for (let dy = 0; dy < h; dy++) {
+    for (let dx = 0; dx < w; dx++) {
+      const edge = dy === 0 || dy === h - 1 || dx === 0 || dx === w - 1;
+      const dryRail = dx % 9 === 4 || dy % 8 === 3;
+      if (edge || dryRail) setFloor(world, x + dx, y + dy);
+      else setWater(world, x + dx, y + dy);
+    }
+  }
+  carveDryH(world, x, x + w, y + Math.floor(h / 2), 0);
+  carveDryV(world, x + Math.floor(w / 2), y, y + h, 0);
+  setFeature(world, x + 2, y + 2, Feature.LAMP);
+  setFeature(world, x + w - 3, y + h - 3, Feature.APPARATUS);
 }
 
 function carveBentWater(world: World, x0: number, y0: number, x1: number, y1: number): void {
@@ -325,6 +403,26 @@ function stampFloodedBasin(world: World, rooms: Room[], id: number, x: number, y
   return id + 1;
 }
 
+function stampDrainageProxyField(world: World, rooms: Room[], id: number, x: number, y: number): number {
+  const room = stampMacroRoom(world, rooms, id, RoomType.COMMON, x, y, 32, 18, 'Дренажное поле: сухие рейки');
+  for (let dy = 2; dy < room.h - 2; dy++) {
+    for (let dx = 2; dx < room.w - 2; dx++) {
+      const dryRail = dx === 8 || dx === 19 || dy === 7 || dy === 12;
+      if (dryRail) setFloor(world, room.x + dx, room.y + dy, room.id);
+      else setWater(world, room.x + dx, room.y + dy, room.id);
+    }
+  }
+  for (let dx = 3; dx < room.w - 3; dx += 7) {
+    setFeature(world, room.x + dx, room.y + 2, Feature.LAMP);
+    setFeature(world, room.x + dx + 1, room.y + room.h - 3, Feature.APPARATUS);
+  }
+  openGate(world, room, 'e', 8, 3, false);
+  openGate(world, room, 's', 15, 3, true);
+  carveDryH(world, room.x + room.w, room.x + room.w + 78, room.y + 8, 1);
+  carveWaterV(world, room.x + 15, room.y + room.h, room.y + room.h + 62, 1);
+  return id + 1;
+}
+
 function stampHeatlineBridge(world: World, rooms: Room[], id: number, x: number, y: number): number {
   const room = stampMacroRoom(world, rooms, id, RoomType.CORRIDOR, x, y, 44, 15, 'Теплотрасса: мост давления');
   const bridgeY = room.y + 7;
@@ -358,6 +456,66 @@ function stampOutpostMouth(world: World, rooms: Room[], id: number, x: number, y
   openGate(world, room, 's', 11, 3, true);
   carveDryH(world, room.x + room.w, room.x + room.w + 84, room.y + 7, 1);
   carveWaterV(world, room.x + 11, room.y + room.h, room.y + room.h + 76, 1);
+  return id + 1;
+}
+
+function stampServiceDuctChord(world: World, rooms: Room[], id: number, x: number, y: number): number {
+  const room = stampMacroRoom(world, rooms, id, RoomType.CORRIDOR, x, y, 48, 9, 'Сервисный воздуховод: сухой обход');
+  const cy = room.y + 4;
+  for (let dx = 1; dx < room.w - 1; dx++) {
+    if (dx % 6 === 0) setFeature(world, room.x + dx, cy - 2, Feature.APPARATUS);
+    if (dx % 9 === 2) setFeature(world, room.x + dx, cy + 2, Feature.LAMP);
+    if (dx % 11 === 5) setWater(world, room.x + dx, cy + 1, room.id);
+  }
+  openGate(world, room, 'w', 4, 3, false);
+  openGate(world, room, 'e', 4, 3, false);
+  openGate(world, room, 's', 24, 3, false);
+  carveDryH(world, room.x - 96, room.x, cy, 0);
+  carveDryH(world, room.x + room.w, room.x + room.w + 88, cy, 0);
+  carveDryV(world, room.x + 24, cy, cy + 104, 0);
+  return id + 1;
+}
+
+function stampEmergencyPanelChordLayer(world: World, rooms: Room[], id: number, cx: number, cy: number): number {
+  carveDryH(world, cx - 108, cx + 178, cy + 36, 1);
+  carveDryV(world, cx + 34, cy - 130, cy + 152, 1);
+
+  id = stampPanelChordRoom(world, rooms, id, cx - 118, cy + 26, PANEL_POWER_ROOM, 'w');
+  id = stampPanelChordRoom(world, rooms, id, cx - 22, cy + 26, PANEL_WATER_ROOM, 's');
+  id = stampPanelChordRoom(world, rooms, id, cx + 74, cy + 26, PANEL_DOORS_ROOM, 'n');
+  id = stampPanelChordRoom(world, rooms, id, cx + 162, cy + 26, PANEL_VENT_ROOM, 'e');
+
+  const repair = stampMacroRoom(world, rooms, id, RoomType.STORAGE, cx + 20, cy + 134, 28, 11, REPAIR_CHORD_ROOM);
+  for (let dx = 2; dx < repair.w - 2; dx += 5) {
+    setFeature(world, repair.x + dx, repair.y + 2, Feature.SHELF);
+    setFeature(world, repair.x + dx + 1, repair.y + repair.h - 3, Feature.MACHINE);
+  }
+  openGate(world, repair, 'n', 14, 3, false);
+  openGate(world, repair, 'w', 5, 3, false);
+  carveDryV(world, repair.x + 14, repair.y - 72, repair.y, 1);
+  carveDryH(world, repair.x - 64, repair.x, repair.y + 5, 0);
+  return id + 1;
+}
+
+function stampPanelChordRoom(
+  world: World,
+  rooms: Room[],
+  id: number,
+  x: number,
+  y: number,
+  name: string,
+  gate: Dir,
+): number {
+  const room = stampMacroRoom(world, rooms, id, RoomType.PRODUCTION, x, y, 13, 7, name);
+  for (let dx = 2; dx < room.w - 2; dx += 3) {
+    setFeature(world, room.x + dx, room.y + 2, Feature.APPARATUS);
+    setFeature(world, room.x + dx, room.y + 4, Feature.MACHINE);
+  }
+  setFeature(world, room.x + Math.floor(room.w / 2), room.y + 1, Feature.SCREEN);
+  setFeature(world, room.x + Math.floor(room.w / 2), room.y + room.h - 2, Feature.LAMP);
+  openGate(world, room, gate, gate === 'n' || gate === 's' ? 6 : 3, 3, false);
+  if (gate !== 'w') openGate(world, room, 'w', 3, 2, false);
+  if (gate !== 'e') openGate(world, room, 'e', 3, 2, false);
   return id + 1;
 }
 

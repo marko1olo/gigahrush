@@ -31,8 +31,18 @@ import {
   BANK_FLOOR_ROUTE_ID,
   BANK_FLOOR_Z,
   BANK_ROOM_NAMES,
+  BANK_VAULT_RISK_RADIUS,
+  bankVaultRiskSources,
+  bankVaultRiskTierAt,
 } from '../src/gen/design_floors/bank_floor';
 import { makeGameState, makeTestPlayer } from './helpers';
+
+let cachedReadOnlyGeneration: ReturnType<typeof generateDesignFloor> | undefined;
+
+function bankFloorForRead(): ReturnType<typeof generateDesignFloor> {
+  cachedReadOnlyGeneration ??= generateDesignFloor(BANK_FLOOR_ROUTE_ID);
+  return cachedReadOnlyGeneration;
+}
 
 function countEntitiesNear(
   gen: ReturnType<typeof generateDesignFloor>,
@@ -64,7 +74,17 @@ test('normal lift route reaches bank_floor between Ministry and Raionsovet archi
   const state = makeGameState({ currentFloor: FloorLevel.MINISTRY });
   setFloorRunState(state, { runSeed: 2214, currentZ: 30, specs: {}, visited: {} }, FloorLevel.MINISTRY);
 
-  for (const expectedZ of [29, 28, 27]) {
+  const upperGap = resolveFloorRunRoute(state, LiftDirection.DOWN);
+  assert.equal(upperGap?.z, 29);
+  assert.equal(upperGap?.procedural, true);
+  commitFloorRunEntry(state, upperGap!);
+
+  const labyrinth = resolveFloorRunRoute(state, LiftDirection.DOWN);
+  assert.equal(labyrinth?.z, 28);
+  assert.equal(labyrinth?.designFloorId, 'istinniy_labirint');
+  commitFloorRunEntry(state, labyrinth!);
+
+  for (const expectedZ of [27]) {
     const gap = resolveFloorRunRoute(state, LiftDirection.DOWN);
     assert.equal(gap?.z, expectedZ);
     assert.equal(gap?.procedural, true);
@@ -77,7 +97,18 @@ test('normal lift route reaches bank_floor between Ministry and Raionsovet archi
   assert.equal(bank?.baseFloor, BANK_FLOOR_BASE_FLOOR);
   commitFloorRunEntry(state, bank!);
 
-  for (const expectedZ of [25, 24, 23]) {
+  const firstGap = resolveFloorRunRoute(state, LiftDirection.DOWN);
+  assert.equal(firstGap?.z, 25);
+  assert.equal(firstGap?.procedural, true);
+  commitFloorRunEntry(state, firstGap!);
+
+  const leakArchive = resolveFloorRunRoute(state, LiftDirection.DOWN);
+  assert.equal(leakArchive?.z, 24);
+  assert.equal(leakArchive?.designFloorId, 'critical_leak_archive');
+  assert.equal(leakArchive?.baseFloor, FloorLevel.MINISTRY);
+  commitFloorRunEntry(state, leakArchive!);
+
+  for (const expectedZ of [23]) {
     const nextGap = resolveFloorRunRoute(state, LiftDirection.DOWN);
     assert.equal(nextGap?.z, expectedZ);
     assert.equal(nextGap?.procedural, true);
@@ -106,7 +137,7 @@ test('bank_floor population profile targets bank crowds, guards and paper monste
 });
 
 test('bank_floor generator creates named banking rooms, NPCs, containers and passable spawn', () => {
-  const gen = generateDesignFloor(BANK_FLOOR_ROUTE_ID);
+  const gen = bankFloorForRead();
   const spawnCell = gen.world.cells[gen.world.idx(Math.floor(gen.spawnX), Math.floor(gen.spawnY))];
   const names = new Set(gen.world.rooms.map(room => room.name));
   const npcs = gen.entities.filter(e => e.type === EntityType.NPC);
@@ -124,6 +155,11 @@ test('bank_floor generator creates named banking rooms, NPCs, containers and pas
     BANK_ROOM_NAMES.vault,
     BANK_ROOM_NAMES.queue,
     BANK_ROOM_NAMES.bypass,
+    BANK_ROOM_NAMES.tellerLane,
+    BANK_ROOM_NAMES.debtorCircuit,
+    BANK_ROOM_NAMES.bribeQueue,
+    BANK_ROOM_NAMES.vaultShell,
+    BANK_ROOM_NAMES.bypassGate,
     'Очередной зал вкладчиков Б-22',
     'Очередной зал должников Б-22',
     'Сейфовый пост ликвидаторов Б-22',
@@ -137,10 +173,11 @@ test('bank_floor generator creates named banking rooms, NPCs, containers and pas
   assert.equal(npcs.some(e => e.plotNpcId === 'bank_credit_prokhor'), true);
   assert.equal(gen.world.containers.some(c => c.tags.includes('banking') && c.tags.includes('deposit')), true);
   assert.equal(gen.world.containers.some(c => c.tags.includes('banking') && c.tags.includes('vault')), true);
+  assert.equal(gen.world.containers.some(c => c.tags.includes('banking') && c.tags.includes('bribe') && c.tags.includes('buyable')), true);
 });
 
 test('bank_floor full route keeps crowd density and guarded vault pressure in playable bands', () => {
-  const gen = generateDesignFloor(BANK_FLOOR_ROUTE_ID);
+  const gen = bankFloorForRead();
   const npcs = gen.entities.filter(e => e.type === EntityType.NPC);
   const monsters = gen.entities.filter(e => e.type === EntityType.MONSTER);
   const vaultContainers = gen.world.containers.filter(c => c.tags.includes('banking') && c.tags.includes('vault'));
@@ -154,6 +191,22 @@ test('bank_floor full route keeps crowd density and guarded vault pressure in pl
   assert.equal(countEntitiesNear(gen, EntityType.MONSTER, 573, 540, 80) >= 16, true);
   assert.equal(vaultContainers.length >= 2, true);
   assert.equal(vaultContainers.every(c => c.access !== 'public' && (c.lockDifficulty ?? 0) >= 4), true);
+});
+
+test('bank_floor marks vault risk SDF around high-value rooms and escape pressure', () => {
+  const gen = bankFloorForRead();
+  const vaultSources = bankVaultRiskSources(gen.world);
+  const highValueVault = gen.world.containers.find(c => c.tags.includes('banking') && c.tags.includes('high_value'));
+  const vault = gen.world.containers.find(c => c.tags.includes('banking') && c.tags.includes('vault'));
+
+  assert.equal(BANK_VAULT_RISK_RADIUS >= 80, true);
+  assert.equal(vaultSources.length >= 4, true);
+  assert.ok(highValueVault);
+  assert.ok(vault);
+  assert.equal(highValueVault.tags.includes('vault_risk_sdf'), true);
+  assert.equal(highValueVault.tags.includes('escape_pressure'), true);
+  assert.equal(bankVaultRiskTierAt(gen.world, vault.x + 0.5, vault.y + 0.5) >= 4, true);
+  assert.equal(bankVaultRiskTierAt(gen.world, 300.5, 300.5), 0);
 });
 
 test('bank_floor exposes legal deposit and risky vault interactions through existing systems', () => {
@@ -191,6 +244,7 @@ test('bank_floor exposes legal deposit and risky vault interactions through exis
 test('bank_floor registers banking side quests for deposit, loan, repayment and forged paper choices', () => {
   const ids = new Set(getSideQuestRegistrySnapshot().map(q => q.id));
   for (const id of [
+    'bank_wait_teller_lane',
     'bank_cash_deposit_50',
     'bank_take_corridor_loan',
     'bank_repay_corridor_loan',

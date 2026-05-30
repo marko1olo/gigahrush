@@ -272,7 +272,7 @@ export function proceduralPopulationProfileId(anomalyId: string): ProceduralPopu
 }
 
 export function proceduralAnomalyPressure(anomalyId: string): number {
-  if (anomalyId === 'samosbor_seed' || anomalyId === 'wall_snake' || anomalyId === 'living_tunnels' || anomalyId === 'section_shift' || anomalyId === 'zombie_apocalypse') return 2;
+  if (anomalyId === 'samosbor_seed' || anomalyId === 'wall_snake' || anomalyId === 'living_tunnels' || anomalyId === 'section_shift' || anomalyId === 'zombie_apocalypse' || anomalyId === 'sandpile_perekrytie') return 2;
   if (
     anomalyId === 'smog' ||
     anomalyId === 'hladon' ||

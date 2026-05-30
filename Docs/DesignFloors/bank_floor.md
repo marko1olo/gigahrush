@@ -11,9 +11,11 @@ Owned file: `src/gen/design_floors/bank_floor.ts`. Route integration: `src/data/
 The generator builds Bank B-22 with:
 
 - lift lobby, main cash hall, teller line, deposit row, credit window, debtor queue, vault and black service bypass;
+- expanded teller waiting lanes, the debtor circuit loop, a bribe/queue-skip room, an outer vault shell and a black service bypass post;
 - Zinaida Balansovna, Lyuba Cashier, Prokhor Credit, Semen Collector-Guard and Mitya Overdue as registered side-quest NPCs;
-- deposit, loan, repayment, forged debt paper and vault-theft event tags through the existing quest, container and `rumor_observed` event systems;
-- owner, locked and faction containers for deposits, debt paperwork, cashier cash, credit papers and vault boxes;
+- wait, deposit, loan, repayment, forged debt paper and vault-theft event tags through the existing quest, container and `rumor_observed` event systems;
+- owner, locked, faction and buyable containers for deposits, debt paperwork, cashier cash, credit papers, queue bribes and vault boxes;
+- a bounded generation-time vault-risk SDF around vault rooms and high-value containers, expressed as red/green floor pressure, audit tags and escape-pressure container tags;
 - route expansion corridors, annex accounting rooms, overdue-deposit archive, intake post and lower bank bypass.
 
 ## Implementation Boundary

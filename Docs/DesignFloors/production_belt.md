@@ -13,6 +13,8 @@ Primary decisions: repair, sabotage, work a shift, steal output, reroute supply,
 ## Generation
 
 - Factory lines, press rooms, loading docks, locker rooms, foreman office, broken conveyor corridors.
+- Full-floor expansion paints static tensor conveyor spines as floor route lines through the dock loops and vertical tare lifts.
+- Machine clusters register bounded static hazard fields with visible yellow fog/scorch cues and route cues back to lit shelter/bypass rooms.
 - Output containers must be physically reachable and contested.
 - Machines are static/interactive features, not simulated belts per frame.
 - Use production/storage/office/corridor room types.

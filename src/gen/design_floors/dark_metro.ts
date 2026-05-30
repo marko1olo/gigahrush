@@ -490,6 +490,15 @@ interface DarkMetroFullFloorStyle {
 }
 
 const DARK_METRO_FULL_LINE_YS = [118, 260, 402, 642, 786, 920] as const;
+const DARK_METRO_SAFETY_SHELL_RADIUS = 18;
+
+const DARK_METRO_TRANSFER_NODES = [
+  { x: 524, y: 184, w: 18, h: 14, name: 'Пересадочный узел линий 1-2', a: [580, 133], b: [484, 246] },
+  { x: 338, y: 324, w: 18, h: 14, name: 'Пересадочный узел линий 2-3', a: [304, 275], b: [390, 388] },
+  { x: 676, y: 516, w: 18, h: 16, name: 'Пересадочный узел линий 3-4', a: [684, 432], b: [684, 630] },
+  { x: 338, y: 706, w: 18, h: 14, name: 'Пересадочный узел линий 4-5', a: [304, 657], b: [390, 772] },
+  { x: 524, y: 846, w: 18, h: 14, name: 'Пересадочный узел линий 5-6', a: [580, 801], b: [484, 906] },
+] as const;
 
 function axisDistance(a: number, b: number): number {
   const d = Math.abs(a - b);
@@ -583,7 +592,10 @@ export function expandDarkMetroFullFloorGeometry(
   addDarkMetroTicketHalls(world, protectedCells, style);
   addDarkMetroServiceRoutes(world, protectedCells, style, rng);
   addDarkMetroTransferWeb(world, protectedCells, style);
+  addDarkMetroTransferNodes(world, protectedCells, style);
+  addDarkMetroRailBaitEdges(world, style);
   addDarkMetroDefendedPlatforms(world, protectedCells, style);
+  applyDarkMetroPlatformSafetyShells(world);
   linkDarkMetroCoreToInterchange(world, style);
   if (entities) seedFullFloorMetroTrains(world, entities);
   world.markFogDirty();
@@ -739,6 +751,85 @@ function addDarkMetroTransferWeb(world: World, mask: Uint8Array, style: DarkMetr
   }
 }
 
+function addDarkMetroTransferNodes(world: World, mask: Uint8Array, style: DarkMetroFullFloorStyle): void {
+  for (const node of DARK_METRO_TRANSFER_NODES) {
+    const room = addDarkMetroOpenNodeRoom(world, node.x, node.y, node.w, node.h, node.name, Tex.F_TILE, RoomType.CORRIDOR);
+    markMetroMask(mask, world, node.x - 1, node.y - 1, node.w + 2, node.h + 2);
+    const cx = room.x + (room.w >> 1);
+    const cy = room.y + (room.h >> 1);
+    carveMetroLine(world, null, cx, cy, node.a[0], node.a[1], 2, style.floorTex);
+    carveMetroLine(world, null, cx, cy, node.b[0], node.b[1], 2, style.floorTex);
+    setFeature(world, cx - 5, cy, Feature.LAMP);
+    setFeature(world, cx, cy, Feature.SCREEN);
+    setFeature(world, cx + 5, cy, Feature.LAMP);
+    setFeature(world, cx, cy + 3, Feature.CHAIR);
+    for (let y = room.y; y < room.y + room.h; y++) {
+      for (let x = room.x; x < room.x + room.w; x++) {
+        const ci = world.idx(x, y);
+        if (world.cells[ci] !== Cell.WALL && world.cells[ci] !== Cell.LIFT) world.fog[ci] = Math.min(world.fog[ci], 6);
+      }
+    }
+  }
+}
+
+function addDarkMetroRailBaitEdges(world: World, style: DarkMetroFullFloorStyle): void {
+  for (let line = 0; line < DARK_METRO_FULL_LINE_YS.length; line++) {
+    const lineY = DARK_METRO_FULL_LINE_YS[line];
+    const platformY = darkMetroPlatformY(lineY, line);
+    const stations = darkMetroStationXs(line);
+    const x = stations[line % 2 === 0 ? 2 : 1];
+    const room = addDarkMetroOpenNodeRoom(
+      world,
+      x - 14,
+      platformY - 1,
+      28,
+      3,
+      `Приманочная кромка линии ${line + 1}`,
+      style.floorTex,
+      RoomType.CORRIDOR,
+    );
+    setFeature(world, room.x + 6, room.y + 1, Feature.CANDLE);
+    setFeature(world, room.x + 14, room.y + 1, Feature.SCREEN);
+    setFeature(world, room.x + 22, room.y + 1, Feature.CANDLE);
+    stampSurfaceSplat(world, room.x + 14, room.y + 1, 0.5, 0.5, 2.1, 0.2, hashSeed(`dark_metro_bait.${line}`), 72, 54, 38, false);
+  }
+}
+
+function addDarkMetroOpenNodeRoom(
+  world: World,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  name: string,
+  floorTex: Tex,
+  type: RoomType,
+): Room {
+  const room: Room = {
+    id: world.rooms.length,
+    type,
+    x: world.wrap(x),
+    y: world.wrap(y),
+    w,
+    h,
+    doors: [],
+    sealed: false,
+    name,
+    apartmentId: -1,
+    wallTex: Tex.METAL,
+    floorTex,
+  };
+  world.rooms.push(room);
+  for (let dy = 0; dy < h; dy++) {
+    for (let dx = 0; dx < w; dx++) {
+      openMetroTile(world, null, x + dx, y + dy, floorTex);
+      const ci = world.idx(x + dx, y + dy);
+      if (world.cells[ci] !== Cell.LIFT) world.roomMap[ci] = room.id;
+    }
+  }
+  return room;
+}
+
 function addDarkMetroDefendedPlatforms(world: World, mask: Uint8Array, style: DarkMetroFullFloorStyle): void {
   for (let line = 0; line < DARK_METRO_FULL_LINE_YS.length; line++) {
     const lineY = DARK_METRO_FULL_LINE_YS[line];
@@ -792,6 +883,81 @@ function addDarkMetroDefendedPlatforms(world: World, mask: Uint8Array, style: Da
       addDarkMetroTransitCache(world, room, room.x + room.w - 5, room.y + room.h - 3, line, i);
     }
   }
+}
+
+function applyDarkMetroPlatformSafetyShells(world: World): void {
+  const seedCells: number[] = [];
+  for (const room of world.rooms) {
+    if (!room) continue;
+    if (
+      !room.name.startsWith('Пост белой лампы') &&
+      !room.name.startsWith('Обороняемая кромка') &&
+      !room.name.startsWith('Пересадочный узел')
+    ) continue;
+    for (let y = room.y; y < room.y + room.h; y++) {
+      for (let x = room.x; x < room.x + room.w; x++) {
+        const ci = world.idx(x, y);
+        if (darkMetroSafetyShellPassable(world, ci)) seedCells.push(ci);
+      }
+    }
+  }
+  if (seedCells.length === 0) return;
+
+  const dist = new Int16Array(W * W).fill(-1);
+  const queue = new Int32Array(W * W);
+  let head = 0;
+  let tail = 0;
+  for (const ci of seedCells) {
+    if (dist[ci] >= 0) continue;
+    dist[ci] = 0;
+    queue[tail++] = ci;
+  }
+
+  let lamps = 0;
+  const maxLamps = 96;
+  while (head < tail) {
+    const ci = queue[head++];
+    const d = dist[ci];
+    const x = ci % W;
+    const y = (ci / W) | 0;
+    world.fog[ci] = Math.min(world.fog[ci], d <= 9 ? 0 : 10);
+    if (
+      d >= 5 &&
+      lamps < maxLamps &&
+      world.cells[ci] === Cell.FLOOR &&
+      world.features[ci] === Feature.NONE &&
+      (Math.imul(ci ^ 0x51f0_0d31, 1103515245) >>> 0) % 83 === 0
+    ) {
+      world.features[ci] = Feature.LAMP;
+      lamps++;
+    }
+    if (d >= DARK_METRO_SAFETY_SHELL_RADIUS) continue;
+    if (enqueueDarkMetroSafetyNeighbor(world, dist, queue, tail, x + 1, y, d + 1)) tail++;
+    if (enqueueDarkMetroSafetyNeighbor(world, dist, queue, tail, x - 1, y, d + 1)) tail++;
+    if (enqueueDarkMetroSafetyNeighbor(world, dist, queue, tail, x, y + 1, d + 1)) tail++;
+    if (enqueueDarkMetroSafetyNeighbor(world, dist, queue, tail, x, y - 1, d + 1)) tail++;
+  }
+}
+
+function enqueueDarkMetroSafetyNeighbor(
+  world: World,
+  dist: Int16Array,
+  queue: Int32Array,
+  tail: number,
+  x: number,
+  y: number,
+  d: number,
+): boolean {
+  const ci = world.idx(x, y);
+  if (dist[ci] >= 0 || !darkMetroSafetyShellPassable(world, ci)) return false;
+  dist[ci] = d;
+  queue[tail] = ci;
+  return true;
+}
+
+function darkMetroSafetyShellPassable(world: World, ci: number): boolean {
+  const cell = world.cells[ci];
+  return cell === Cell.FLOOR || cell === Cell.DOOR;
 }
 
 function addDarkMetroOpenPlatformRoom(world: World, x: number, y: number, w: number, h: number, name: string, floorTex: Tex): Room {

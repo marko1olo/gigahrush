@@ -1,43 +1,11 @@
-/* ── NPC dialogue & trade generation ──────────────────────────── */
-/* Generic talk pools + trade item pools. Story NPC dialogue       */
-/* lives in plot.ts — this module handles the dispatch.            */
+/* ── NPC dialogue & trade data ───────────────────────────────── */
+/* Generic talk pools + trade item pools. Runtime dialogue dispatch */
+/* lives in systems/dialogue.ts.                                  */
 
-import { Faction, FloorLevel, type Entity, Occupation, RoomType } from '../core/types';
-import { PLOT_CHAIN, getPlotDef } from './plot';
-import { getNpcStateText } from '../systems/ai';
-import { buildContextSnapshot, type ContextBuildOptions, type ContextSnapshot } from '../systems/context';
-import { markNpcSpokenTo, type NpcMemory } from '../systems/npc_memory';
-import { observeRecentRumorEventsForNpc, selectRumorForNpc } from '../systems/rumor';
-import {
-  CONTEXT_DANGEROUS_ZONE_LINES,
-  CONTEXT_ACTIVE_CONTRACT_LINES,
-  CONTEXT_FACTION_LINES,
-  CONTEXT_FACTION_EVENT_FACTION_LINES,
-  CONTEXT_FACTION_EVENT_LINES,
-  CONTEXT_HIGH_TRUST_LINES,
-  CONTEXT_HUNGER_LINES,
-  CONTEXT_LIFT_ANOMALY_FLOOR_LINES,
-  CONTEXT_LIFT_ANOMALY_LINES,
-  CONTEXT_LOW_TRUST_LINES,
-  CONTEXT_MONSTER_KILL_FLOOR_LINES,
-  CONTEXT_MONSTER_KILL_LINES,
-  CONTEXT_NEAR_CONTAINER_LINES,
-  CONTEXT_OCCUPATION_LINES,
-  CONTEXT_PRODUCTION_LINES,
-  CONTEXT_PRODUCTION_OUTPUT_LINES,
-  CONTEXT_PRODUCTION_SHORTAGE_LINES,
-  CONTEXT_REPEATED_HELP_LINES,
-  CONTEXT_SAFE_OWN_ZONE_LINES,
-  CONTEXT_SAMOSBOR_AFTER_LINES,
-  CONTEXT_SAMOSBOR_WARNING_LINES,
-  CONTEXT_STOLEN_GOODS_LINES,
-  CONTEXT_THIRST_LINES,
-  CONTEXT_THEFT_FEAR_LINES,
-  CONTEXT_WOUND_LINES,
-} from './context_lines';
+import { Faction, type Entity, Occupation } from '../core/types';
 
 /* ── Generic talk pools ──────────────────────────────────────── */
-const GENERAL_LINES = [
+export const GENERAL_LINES = [
   'Я за водой стоял, а очередь в другую сторону переставили. Теперь я вроде первый, но не там.',
   'У кухни не говори, что у тебя патроны. У окна повариха сдачу слухами даёт.',
   'Сосед после сирены стучал. Фамилию назвал правильно, а про общий ящик не вспомнил.',
@@ -59,7 +27,7 @@ const GENERAL_LINES = [
   'Санитарка грубит, потому что у неё журнал, очередь и один бинт на двоих.',
 ];
 
-const OLD_WORLD_MEMORY_LINES = [
+export const OLD_WORLD_MEMORY_LINES = [
   'Ты не веришь, молодой, а я помню двор. Там дверь была одна, и та на улицу.',
   'Снег раньше не из вентиляции падал. Холодный был, без запаха трубы.',
   'Ключ от старой квартиры ношу. Квартиры нет, а ключ всё ещё честнее людей.',
@@ -78,37 +46,37 @@ const OLD_WORLD_MEMORY_LINES = [
   'Если найдёшь фото с небом, не показывай толпе. Начнут спорить, чей потолок подделали.',
 ];
 
-const ROOM_MEMORY_THEFT_LINES = [
+export const ROOM_MEMORY_THEFT_LINES = [
   'В этой комнате после пропажи даже кружку берут двумя руками и при свидетелях.',
   'Тут уже считали чужие карманы. Если полезешь в шкаф, услышит весь подъезд.',
   'После тихой руки здесь разговор начинается с пустых ладоней и свидетеля у двери.',
 ];
 
-const ROOM_MEMORY_HELP_LINES = [
+export const ROOM_MEMORY_HELP_LINES = [
   'Здесь помнят, кто принёс пользу, а не только шум. Спросишь тихо - покажут запас.',
   'После твоей помощи тут не улыбаются, но цену называют мягче.',
   'Комната запомнила добро. Тайники от этого не становятся честными, зато становятся ближе.',
 ];
 
-const ROOM_MEMORY_COMBAT_LINES = [
+export const ROOM_MEMORY_COMBAT_LINES = [
   'После драки здесь дверь слушает громче людей.',
   'Тут недавно стреляли или били. Соседи теперь говорят коротко и из-за угла.',
   'После боя даже табуретку ставят ближе к выходу, чтобы не падать через неё второй раз.',
 ];
 
-const ROOM_MEMORY_REPAIR_LINES = [
+export const ROOM_MEMORY_REPAIR_LINES = [
   'Ремонт тут заметили. За сухой шов иногда платят не деньгами, а подсказкой.',
   'Если чинил здесь, не стесняйся спросить про ящик. Мастера помнят лучше героев.',
   'Комната держится лучше после ремонта. Люди тоже чуть меньше держат зубы.',
 ];
 
-const ROOM_MEMORY_SAMOSBOR_LINES = [
+export const ROOM_MEMORY_SAMOSBOR_LINES = [
   'После самосбора тут сначала считают дыхание, потом людей, потом долги.',
   'Эта комната пережила герму. Теперь каждый знает, кто стоял у двери.',
   'Список укрытых тут не бумага, а память. Не шуми рядом с ней.',
 ];
 
-const FACTION_LINES: Record<number, string[]> = {
+export const FACTION_LINES: Record<number, string[]> = {
   0: [
     'Главное - не открывать во время сирены, даже если зовут голосом мамы.',
     'Когда ел нормально? Нет, чай с хлебом не считается.',
@@ -209,7 +177,7 @@ export const HOUSEWIFE_OCCUPATION_LINES = [
   'Не веришь про небо - и не надо. Мне самой иногда кажется, что это чужая вставка.',
 ] as const;
 
-const OCC_LINES: Record<number, string[]> = {
+export const OCC_LINES: Record<number, string[]> = {
   [Occupation.HOUSEWIFE]:   [...HOUSEWIFE_OCCUPATION_LINES],
   [Occupation.COOK]:        ['Плита ещё работает. Это не утешение, это график.', 'Запасы тают. Тушёнка теперь звучит как запись в журнале выдачи.', 'Ешь, пока тёплое. Холодный беляк честнее, но хуже лезет.', 'Не нюхай концентрат. Если запах важнее нормы, акт брака уже опоздал.', 'Ложку верни. Ложки тут пропадают чаще людей, но людей хотя бы ищут.', 'Красняк сладкий. От этого слухи про него только хуже.', 'Черняк в котёл не сыплют. Черняк идёт тем, кто потом делает вид, что не голодал.', 'Серый брикет в кашу не крошить. Он и целым плохо расходится.'],
   [Occupation.DOCTOR]:      [
@@ -406,7 +374,7 @@ const OCC_LINES: Record<number, string[]> = {
   ],
 };
 
-const MINISTRY_CLERK_LINES = [
+export const MINISTRY_CLERK_LINES = [
   'Форма заполняется синими чернилами. Черные чернила у нас для некрологов и исправлений.',
   'Окно сегодня принимает живых до отбоя, пропавших - после инвентаризации.',
   'Справка мокрая. Мокрые справки принимаются только от утопших и начальства.',
@@ -421,7 +389,7 @@ const MINISTRY_CLERK_LINES = [
   'Отказ можно обжаловать в соседнем окне. Соседнее окно сегодня принимает по прошлогоднему списку.',
 ] as const;
 
-const MEDICAL_ROOM_LINES = [
+export const MEDICAL_ROOM_LINES = [
   'Кто последний к журналу? Мне не к врачу, мне печать на живого.',
   'Санитарка сказала не кашлять на журнал. Пятна потом примут за диагноз.',
   'Талон не туда, рана сюда. Очередь теперь решает, что важнее.',
@@ -430,7 +398,7 @@ const MEDICAL_ROOM_LINES = [
   'Без очереди только мёртвые. И начальство, но это почти одно окно.',
 ] as const;
 
-const MINISTRY_OCC_LINES: Record<number, readonly string[]> = {
+export const MINISTRY_OCC_LINES: Record<number, readonly string[]> = {
   [Occupation.SECRETARY]: [
     'Я могу вам сочувствовать только между строками. В графе сочувствия места нет.',
     'Не шепчите в окно: окно записывает громче меня.',
@@ -464,132 +432,6 @@ const MINISTRY_OCC_LINES: Record<number, readonly string[]> = {
     'Есть поддельный лист. Не показывайте его под лампой и клерку, который не ел.',
   ],
 };
-
-/* ── Talk text (called from NPC menu "Talk" tab) ─────────────── */
-export function generateTalkText(npc: Entity, options: ContextBuildOptions = {}): string {
-  // ── Plot NPC dialogue ──
-  const def = getPlotDef(npc);
-  if (def) {
-    const plotPostUnlocked = isPlotNpcPostUnlocked(npc, options.state?.quests);
-    if ((npc.plotDone || plotPostUnlocked) && def.talkLinesPost.length > 0 && Math.random() < 0.75) {
-      return def.talkLinesPost[Math.floor(Math.random() * def.talkLinesPost.length)];
-    }
-    // Sequential lines before plotDone
-    if (!npc.plotDone && !plotPostUnlocked && def.talkLines.length > 0) {
-      const idx = (npc._plotTalkIdx ?? 0) % def.talkLines.length;
-      npc._plotTalkIdx = idx + 1;
-      return def.talkLines[idx];
-    }
-    // Post-plot random lines (or fall through to generic)
-    if (def.talkLinesPost.length > 0 && Math.random() < 0.75) {
-      return def.talkLinesPost[Math.floor(Math.random() * def.talkLinesPost.length)];
-    }
-  }
-
-  const now = options.time ?? performanceNowSeconds();
-  const snapshot = buildContextSnapshot(npc, options);
-  const memory = markNpcSpokenTo(npc, now);
-  observeRecentRumorEventsForNpc(npc, snapshot, now);
-  const contextLine = pickContextLine(snapshot, memory);
-  if (contextLine) return contextLine;
-
-  const rumorLine = selectRumorForNpc(npc, snapshot, now);
-  if (rumorLine) return rumorLine;
-
-  // NPC's current activity sometimes shows through
-  if (npc.ai?.npcState !== undefined && Math.random() < 0.4) {
-    return getNpcStateText(npc.ai.npcState);
-  }
-
-  const lines: string[] = [...GENERAL_LINES];
-  if (snapshot.floor === FloorLevel.MINISTRY) {
-    lines.push(...MINISTRY_CLERK_LINES);
-    if (npc.occupation !== undefined) lines.push(...(MINISTRY_OCC_LINES[npc.occupation] ?? []));
-  }
-  if (npc.faction !== undefined) lines.push(...(FACTION_LINES[npc.faction] ?? []));
-  if (npc.occupation !== undefined) lines.push(...(OCC_LINES[npc.occupation] ?? []));
-  if (shouldUseOldWorldMemoryLines(npc) && Math.random() < 0.18) {
-    lines.push(...OLD_WORLD_MEMORY_LINES);
-  }
-  return lines[Math.floor(Math.random() * lines.length)];
-}
-
-function shouldUseOldWorldMemoryLines(npc: Entity): boolean {
-  return npc.occupation !== Occupation.CHILD && (
-    npc.faction === Faction.CITIZEN ||
-    npc.occupation === Occupation.HOUSEWIFE ||
-    npc.occupation === Occupation.DIRECTOR ||
-    npc.occupation === Occupation.TRAVELER
-  );
-}
-
-function isPlotNpcPostUnlocked(npc: Entity, quests: readonly { plotStepIndex?: number; done?: boolean }[] | undefined): boolean {
-  const plotId = npc.plotNpcId;
-  if (!plotId || !quests) return false;
-  let hasStep = false;
-  for (let i = 0; i < PLOT_CHAIN.length; i++) {
-    if (PLOT_CHAIN[i].giverNpcId !== plotId) continue;
-    hasStep = true;
-    if (!quests.some(q => q.plotStepIndex === i && q.done)) return false;
-  }
-  return hasStep;
-}
-
-function pickContextLine(snapshot: ContextSnapshot, memory: NpcMemory): string | undefined {
-  if (memory.hurtByPlayer > 0 && memory.fear > 35) return pickContext(CONTEXT_THEFT_FEAR_LINES, memory);
-  if (memory.trustPlayer < -25) return pickContext(CONTEXT_LOW_TRUST_LINES, memory);
-  if (snapshot.isCritical || snapshot.isWounded) return pickContext(CONTEXT_WOUND_LINES, memory);
-  if (snapshot.isHungry) return pickContext(CONTEXT_HUNGER_LINES, memory);
-  if (snapshot.isThirsty) return pickContext(CONTEXT_THIRST_LINES, memory);
-  if (snapshot.samosborActive === true || snapshot.hasRecentSamosborWarning) return pickContext(CONTEXT_SAMOSBOR_WARNING_LINES, memory);
-  if (snapshot.samosborActive === false && (memory.fear > 60 || snapshot.hasRecentSamosborAftermath)) return pickContext(CONTEXT_SAMOSBOR_AFTER_LINES, memory);
-  if (snapshot.isDangerousZone) return pickContext(CONTEXT_DANGEROUS_ZONE_LINES, memory);
-  if (snapshot.isSafeOwnZone) return pickContext(CONTEXT_SAFE_OWN_ZONE_LINES, memory);
-  if (memory.helpedByPlayer >= 2 && memory.trustPlayer > 25) return pickContext(CONTEXT_REPEATED_HELP_LINES, memory);
-  if (snapshot.hasActiveContract && Math.random() < 0.45) return pickContext(CONTEXT_ACTIVE_CONTRACT_LINES, memory);
-  if (snapshot.roomMemorySeverity >= 3 && (snapshot.hasRoomMemoryTheft || snapshot.hasRoomMemoryCombat)) {
-    return pickContext(snapshot.hasRoomMemoryTheft ? ROOM_MEMORY_THEFT_LINES : ROOM_MEMORY_COMBAT_LINES, memory);
-  }
-  if (snapshot.roomMemorySeverity >= 3 && snapshot.hasRoomMemoryRepair) return pickContext(ROOM_MEMORY_REPAIR_LINES, memory);
-  if (snapshot.roomMemorySeverity >= 3 && snapshot.hasRoomMemoryHelp) return pickContext(ROOM_MEMORY_HELP_LINES, memory);
-  if (snapshot.roomMemorySeverity >= 3 && snapshot.hasRoomMemorySamosbor) return pickContext(ROOM_MEMORY_SAMOSBOR_LINES, memory);
-  if (snapshot.hasRecentPlayerTheft) return pickContext(CONTEXT_STOLEN_GOODS_LINES, memory);
-  if (snapshot.hasRecentProductionShortage && Math.random() < 0.55) return pickContext(CONTEXT_PRODUCTION_SHORTAGE_LINES, memory);
-  if (snapshot.hasRecentProductionOutput && Math.random() < 0.45) return pickContext(CONTEXT_PRODUCTION_OUTPUT_LINES, memory);
-  if (snapshot.hasRecentLiftAnomaly) return pickContext(floorPool(CONTEXT_LIFT_ANOMALY_FLOOR_LINES, snapshot.floor, CONTEXT_LIFT_ANOMALY_LINES), memory);
-  if (snapshot.hasRecentFactionClash) return pickContext(factionPool(snapshot, CONTEXT_FACTION_EVENT_FACTION_LINES, CONTEXT_FACTION_EVENT_LINES), memory);
-  if (snapshot.hasRecentMonsterKill) return pickContext(floorPool(CONTEXT_MONSTER_KILL_FLOOR_LINES, snapshot.floor, CONTEXT_MONSTER_KILL_LINES), memory);
-  if (snapshot.roomType === RoomType.MEDICAL && Math.random() < 0.55) return pickContext(MEDICAL_ROOM_LINES, memory);
-  if (snapshot.nearbyProduction && Math.random() < 0.35) return pickContext(CONTEXT_PRODUCTION_LINES, memory);
-  if (snapshot.nearbyContainer && Math.random() < 0.35) return pickContext(CONTEXT_NEAR_CONTAINER_LINES, memory);
-  if (memory.trustPlayer > 45) return pickContext(CONTEXT_HIGH_TRUST_LINES, memory);
-  if (snapshot.npcOccupation !== undefined && Math.random() < 0.35) {
-    const pool = CONTEXT_OCCUPATION_LINES[snapshot.npcOccupation];
-    if (pool) return pickContext(pool, memory);
-  }
-  if (snapshot.npcFaction !== undefined && Math.random() < 0.25) {
-    const pool = CONTEXT_FACTION_LINES[snapshot.npcFaction];
-    if (pool) return pickContext(pool, memory);
-  }
-  return undefined;
-}
-
-function floorPool(pools: Record<number, readonly string[]>, floor: number | undefined, fallback: readonly string[]): readonly string[] {
-  return floor !== undefined ? pools[floor] ?? fallback : fallback;
-}
-
-function factionPool(snapshot: ContextSnapshot, pools: Record<number, readonly string[]>, fallback: readonly string[]): readonly string[] {
-  return snapshot.npcFaction !== undefined ? pools[snapshot.npcFaction] ?? fallback : fallback;
-}
-
-function pickContext(pool: readonly string[], memory: NpcMemory): string {
-  return pool[Math.abs((memory.entityId + memory.knownRumorIds.length + memory.helpedByPlayer - memory.hurtByPlayer) | 0) % pool.length];
-}
-
-function performanceNowSeconds(): number {
-  if (typeof performance !== 'undefined') return performance.now() / 1000;
-  return Date.now() / 1000;
-}
 
 /* ── Trade item pools by occupation ──────────────────────────── */
 const OCC_TRADE_ITEMS: Record<number, string[]> = {

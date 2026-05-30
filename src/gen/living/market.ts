@@ -3,7 +3,7 @@
 /* в обмен на патроны. Self-contained: NPC + FETCH quest + room.   */
 
 import {
-  Cell, Tex, Feature, RoomType,
+  Cell, DoorState, Tex, Feature, RoomType,
   type Room, type Entity, EntityType, AIGoal, Faction, Occupation, QuestType,
 } from '../../core/types';
 import { World } from '../../core/world';
@@ -129,6 +129,9 @@ function generateMarket(
   const doorS = world.idx(rx + Math.floor(MKT_W / 2), ry + MKT_H);
   world.cells[doorN] = Cell.DOOR; world.aptMask[doorN] = 1;
   world.cells[doorS] = Cell.DOOR; world.aptMask[doorS] = 1;
+  world.doors.set(doorN, { idx: doorN, state: DoorState.CLOSED, roomA: roomId, roomB: -1, keyId: '', timer: 0 });
+  world.doors.set(doorS, { idx: doorS, state: DoorState.CLOSED, roomA: roomId, roomB: -1, keyId: '', timer: 0 });
+  room.doors.push(doorN, doorS);
 
   // Phase 6: connect to maze (south)
   {

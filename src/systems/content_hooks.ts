@@ -1,6 +1,7 @@
 import {
   type Entity,
   type GameState,
+  type WorldContainer,
 } from '../core/types';
 import { type World } from '../core/world';
 
@@ -50,6 +51,7 @@ export interface ContentInteractionContext {
   nextEntityId: { v: number };
   lookX: number;
   lookY: number;
+  openContainerMenu?: (container: WorldContainer) => void;
 }
 
 export interface ContentInteractionTarget {
