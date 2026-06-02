@@ -10,7 +10,7 @@ import {
 } from '../../core/types';
 import { World } from '../../core/world';
 import { setPathContext } from './pathfinding';
-import { setEntityMap, updateSimpleMonster } from './monster';
+import { setEntityMap, updateMonster } from './monster';
 import { setCombatContext, tryFactionCombat, tryFleeFromMonster } from './combat';
 import { primeNpcAlifeState, setNpcContext, updateNPC } from './npc_fsm';
 import { setNpcBarkLogContext } from './barks';
@@ -175,7 +175,7 @@ export function updateAI(world: World, entities: Entity[], dt: number, time: num
       if (e.type === EntityType.MONSTER) {
         aiStats.updatedMonster++;
         if (actorHasTacticProfile(e) && runActorTactic(world, e, dt, time, msgs, player, state)) continue;
-        updateSimpleMonster(world, entities, e, dt, time, msgs, playerId, nextId, state);
+        updateMonster(world, entities, e, dt, time, msgs, playerId, nextId, state);
       }
     }
   } finally {

@@ -29,6 +29,8 @@ import { publishEvent } from './events';
 const OWNER_BUCKETS = 8;
 const HQ_PATCH_RADIUS = 5;
 const HQ_PATCH_MAX_CELLS = 96;
+const AUTO_HQ_MAX_ROOM_SPAN = 96;
+const AUTO_HQ_MAX_DOORS = 12;
 const TERRITORY_BUCKET_SIZE = 32;
 const TERRITORY_BUCKET_SIDE = W / TERRITORY_BUCKET_SIZE;
 const ZONE_SAMPLE_RADIUS = 60;
@@ -205,6 +207,18 @@ function roomArea(room: Room): number {
   return room.w * room.h;
 }
 
+function autoHqRoomSpanEligible(room: Room): boolean {
+  return room.w > 1 && room.h > 1 && room.w <= AUTO_HQ_MAX_ROOM_SPAN && room.h <= AUTO_HQ_MAX_ROOM_SPAN;
+}
+
+function autoHqDoorEligible(room: Room): boolean {
+  return room.doors.length > 0 && room.doors.length <= AUTO_HQ_MAX_DOORS;
+}
+
+function hqRoomGeometrySane(room: Room): boolean {
+  return room.w > 1 && room.h > 1 && room.w < W && room.h < W;
+}
+
 function forEachMappedRoomCell(world: World, room: Room, visit: (idx: number) => void): number {
   let count = 0;
   for (let dy = 0; dy < room.h; dy++) {
@@ -254,6 +268,16 @@ function roomMappedAptCells(world: World, room: Room): number {
 
 function hqAnchorEligible(world: World, room: Room): boolean {
   return room.apartmentId < 0 &&
+    hqRoomGeometrySane(room) &&
+    roomHasMappedCell(world, room) &&
+    roomMappedAptCells(world, room) === 0 &&
+    hqShellCapacity(world, room) > 0;
+}
+
+function autoHqCandidateEligible(world: World, room: Room): boolean {
+  return room.apartmentId < 0 &&
+    autoHqRoomSpanEligible(room) &&
+    autoHqDoorEligible(room) &&
     roomHasMappedCell(world, room) &&
     roomMappedAptCells(world, room) === 0 &&
     hqShellCapacity(world, room) > 0;
@@ -268,6 +292,7 @@ function roomHasHermeticDoor(world: World, room: Room): boolean {
 
 function authoredHqAnchorEligible(world: World, room: Room): boolean {
   return room.apartmentId < 0 &&
+    hqRoomGeometrySane(room) &&
     roomHasMappedCell(world, room) &&
     roomHasHermeticDoor(world, room);
 }
@@ -313,11 +338,8 @@ function chooseAnchorRoom(world: World, owner: TerritoryOwner, usedRooms: Set<nu
     if (!room) continue;
     if (room.id === 0) continue;
     if (usedRooms.has(room.id)) continue;
-    if (room.w <= 1 || room.h <= 1) continue;
     if (roomArea(room) > 4096) continue;
-    if (!roomHasMappedCell(world, room)) continue;
-    if (hqShellCapacity(world, room) <= 0) continue;
-    if (roomMappedAptCells(world, room) > 0) continue;
+    if (!autoHqCandidateEligible(world, room)) continue;
     const hint = roomOwnerHint(world, room);
     const score = roomPreference(owner, room)
       + (hint === owner ? 60 : 0)
@@ -414,6 +436,12 @@ function paintOwnerPatch(world: World, x: number, y: number, owner: TerritoryOwn
 }
 
 function hardenHqRoom(world: World, room: Room, owner: TerritoryOwner): void {
+  const existingHq = room.type === RoomType.HQ;
+  if ((existingHq && !hqRoomGeometrySane(room)) || (!existingHq && !autoHqCandidateEligible(world, room))) {
+    room.sealed = false;
+    paintRoomOwner(world, room, owner, { includeDoors: false });
+    return;
+  }
   room.type = RoomType.HQ;
   room.sealed = true;
   if (!room.name || room.name.startsWith('Комната') || room.name.startsWith('Миништаб')) {
@@ -454,6 +482,7 @@ function reinforceHqSupportRooms(world: World, hq: Room, owner: TerritoryOwner):
       room &&
       room.id !== hq.id &&
       room.apartmentId < 0 &&
+      autoHqRoomSpanEligible(room) &&
       room.w > 2 &&
       room.h > 2 &&
       roomArea(room) <= 4096 &&
@@ -517,7 +546,7 @@ export function territoryHqAnchors(world: World): TerritoryHqAnchor[] {
     if (seen.has(owner)) continue;
     const room = world.rooms.find(candidate => (
       candidate !== undefined &&
-      hqAnchorEligible(world, candidate) &&
+      autoHqCandidateEligible(world, candidate) &&
       roomOwnerHint(world, candidate) === owner
     ));
     if (!room) continue;

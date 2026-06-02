@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { AIGoal, Cell, EntityType, Feature, FloorLevel, MonsterKind, RoomType, type Entity, type Msg } from '../src/core/types';
+import { AIGoal, Cell, EntityType, Faction, Feature, FloorLevel, MonsterKind, RoomType, type Entity, type Msg } from '../src/core/types';
 import { World } from '../src/core/world';
 import { getMonsterEcology } from '../src/data/monster_ecology';
 import { RUMORS } from '../src/data/rumors';
@@ -35,6 +35,25 @@ function player(x: number, y: number): Entity {
     hp: 100,
     maxHp: 100,
     name: 'Вы',
+  };
+}
+
+function npcTarget(id: number, x: number, y: number): Entity {
+  return {
+    id,
+    type: EntityType.NPC,
+    x,
+    y,
+    angle: 0,
+    pitch: 0,
+    alive: true,
+    speed: 1,
+    sprite: 0,
+    hp: 100,
+    maxHp: 100,
+    faction: Faction.CITIZEN,
+    ai: { goal: AIGoal.IDLE, tx: x, ty: y, path: [], pi: 0, stuck: 0, timer: 0 },
+    name: 'Сосед',
   };
 }
 
@@ -159,6 +178,33 @@ test('treskotnik straight sprint damages the target and itself', () => {
   assert.equal(threat.ai?.sprintTimer, undefined);
   assert.equal(
     getRecentEvents(state, { type: 'monster_sighted', tags: ['treskotnik', 'fracture_sprint', 'hit'], limit: 1 }).length,
+    1,
+  );
+});
+
+test('treskotnik fracture sprint works against a non-player target', () => {
+  const world = openWorld();
+  setListenerPos(512, 512, world.dist2.bind(world));
+  const distantPlayer = player(80, 80);
+  const target = npcTarget(2, 13.2, 10.5);
+  const threat = treskotnik(10.5, 10.5);
+  const entities = [distantPlayer, target, threat];
+  const msgs: Msg[] = [];
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING, worldEvents: createWorldEventState() });
+
+  syncEntities(entities);
+  updateMonster(world, entities, threat, 0.1, 5, msgs, distantPlayer.id, { v: 100 }, state);
+  assert.equal(threat.ai?.windupTargetId, target.id);
+
+  syncEntities(entities);
+  updateMonster(world, entities, threat, TRESKOTNIK_WINDUP_SEC + 0.01, 5.4, msgs, distantPlayer.id, { v: 100 }, state);
+
+  syncEntities(entities);
+  updateMonster(world, entities, threat, 0.2, 5.6, msgs, distantPlayer.id, { v: 100 }, state);
+
+  assert.equal((target.hp ?? 100) < 100, true, 'NPC target should take the same readable sprint hit');
+  assert.equal(
+    getRecentEvents(state, { type: 'monster_sighted', tags: ['treskotnik', 'fracture_sprint', 'hit'], targetId: target.id, limit: 1 }).length,
     1,
   );
 });

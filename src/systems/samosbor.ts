@@ -1881,7 +1881,7 @@ export function updateSamosbor(
     }
 
     // NPCs hide (citizens/scientists only — handled by forceHide)
-    forceHide(entities, state.msgs, state.time, world, state.clock);
+    forceHide(entities, state.msgs, state.time, world, state.clock, getSamosborShelterRoomIds(state));
 
     // Capture a zone with фиолетовый туман + spawn fog boss
     activeSamosborZoneId = captureZone(

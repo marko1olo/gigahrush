@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { AIGoal, Cell, EntityType, FloorLevel, MonsterKind, RoomType, type Entity, type Msg } from '../src/core/types';
+import { AIGoal, Cell, EntityType, Faction, FloorLevel, MonsterKind, RoomType, type Entity, type Msg } from '../src/core/types';
 import { World } from '../src/core/world';
 import { MONSTERS } from '../src/entities/monster';
 import { DEF as TONKAYA_TEN_DEF, generateSprite } from '../src/entities/tonkaya_ten';
@@ -32,6 +32,24 @@ function player(x: number, y: number): Entity {
     hp: 100,
     maxHp: 100,
     name: 'Вы',
+  };
+}
+
+function npcTarget(x: number, y: number): Entity {
+  return {
+    id: 7,
+    type: EntityType.NPC,
+    x,
+    y,
+    angle: 0,
+    pitch: 0,
+    alive: true,
+    speed: 3,
+    sprite: 0,
+    hp: 100,
+    maxHp: 100,
+    faction: Faction.CITIZEN,
+    name: 'Случайный жилец',
   };
 }
 
@@ -136,4 +154,29 @@ test('tonkaya ten loses nerve when ignored instead of getting the flank hit', ()
 
   assert.equal(threat.ai?.baitLine, undefined);
   assert.equal(target.hp, 100);
+});
+
+test('tonkaya ten bait line can punish an NPC target that follows the silhouette', () => {
+  const world = openDarkWorld();
+  setListenerPos(512, 512, world.dist2.bind(world));
+  const target = npcTarget(18.5, 10.5);
+  const threat = tonkaya(10.5, 10.5);
+  const entities = [target, threat];
+
+  syncEntities(entities);
+  updateMonster(world, entities, threat, 0.2, 30, [], 1, { v: 100 });
+  const line = threat.ai?.baitLine;
+  assert.ok(line, 'local bait-line selection should not depend on player identity');
+
+  threat.x = line.x + 0.5;
+  threat.y = line.y + 0.5;
+  line.armed = true;
+  line.nerve = 5;
+  target.x = world.wrap(line.x + line.dx * 2) + 0.5;
+  target.y = world.wrap(line.y + line.dy * 2) + 0.5;
+  syncEntities(entities);
+  updateMonster(world, entities, threat, 0.2, 31, [], 1, { v: 100 });
+
+  assert.equal((target.hp ?? 100) < 100, true);
+  assert.equal(threat.ai?.baitLine, undefined);
 });

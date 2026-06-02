@@ -156,6 +156,51 @@ test('shelter scoring respects faction ownership without scanning all rooms', ()
   );
 });
 
+test('samosbor shelter scans rotate per NPC instead of using one shared prefix', () => {
+  const world = new World();
+  const shelterIds: number[] = [];
+  for (let i = 0; i < 12; i++) {
+    const angle = (i / 12) * Math.PI * 2;
+    const room = addTestRoom(world, {
+      id: 100 + i,
+      x: 80 + Math.round(Math.cos(angle) * 32),
+      y: 80 + Math.round(Math.sin(angle) * 32),
+      w: 5,
+      h: 5,
+      type: RoomType.LIVING,
+      zoneId: i,
+      zoneFaction: ZoneFaction.CITIZEN,
+    });
+    addDoor(world, room, DoorState.HERMETIC_OPEN);
+    shelterIds.push(room.id);
+  }
+
+  const candidateSets = new Set<string>();
+  const targetRooms = new Set<number>();
+  for (let i = 0; i < 8; i++) {
+    const npc = makeTestNpc({
+      id: 500 + i * 37,
+      x: 80,
+      y: 80,
+      faction: Faction.CITIZEN,
+      ai: makeAi(),
+    });
+    const options = {
+      phase: 'active' as const,
+      shelterRoomIds: shelterIds,
+      shelterScanCap: 3,
+      candidateCap: 3,
+      includeNearbyRooms: false,
+      seedSalt: 77,
+    };
+    candidateSets.add(collectNpcEmergencyShelterCandidates(world, npc, options).map(candidate => candidate.roomId).join(','));
+    targetRooms.add(chooseNpcEmergencyDecision(world, npc, options).targetRoomId);
+  }
+
+  assert.equal(candidateSets.size > 1, true, `candidate sets ${[...candidateSets].join(' | ')}`);
+  assert.equal(targetRooms.size > 1, true, `target rooms ${[...targetRooms].join(',')}`);
+});
+
 test('shelter crowd penalty counts room actors after unrelated local actors', () => {
   const world = new World();
   const crowded = addTestRoom(world, { id: 11, x: 22, y: 10, w: 5, h: 5, type: RoomType.LIVING, zoneFaction: ZoneFaction.CITIZEN });

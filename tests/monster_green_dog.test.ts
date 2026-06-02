@@ -5,10 +5,10 @@ import { AIGoal, Cell, EntityType, Faction, FloorLevel, MonsterKind, type Entity
 import { World } from '../src/core/world';
 import { DEF, generateSprite } from '../src/entities/green_dog';
 import { getMonsterEcology } from '../src/data/monster_ecology';
-import { updateMonster, setEntityMap } from '../src/systems/ai/monster';
+import { GREEN_DOG_PACK_CAP, updateMonster, setEntityMap } from '../src/systems/ai/monster';
 import { createWorldEventState, getRecentEvents, publishEvent } from '../src/systems/events';
 import { publishNoise, resetNoiseRecords } from '../src/systems/noise';
-import { rebuildEntityIndex } from '../src/systems/entity_index';
+import { getEntityIndex, rebuildEntityIndex } from '../src/systems/entity_index';
 import { setListenerPos } from '../src/systems/audio';
 import { monsterSpr } from '../src/render/sprite_index';
 import { S } from '../src/render/pixutil';
@@ -70,6 +70,7 @@ function greenDog(id: number, x: number, y: number): Entity {
 
 function prime(entities: Entity[]): void {
   rebuildEntityIndex(entities);
+  getEntityIndex().beginTelemetryFrame();
   setEntityMap(new Map(entities.map(e => [e.id, e])));
 }
 
@@ -117,6 +118,41 @@ test('green dog howl shares target only through a bounded pack radius query', ()
   const howl = getRecentEvents(state, { type: 'green_dog_howl', tags: ['green_dog'], limit: 1 })[0];
   assert.ok(howl);
   assert.equal(howl.data?.shared, 1);
+});
+
+test('green dog pack share is capped and cooldown-gated', () => {
+  resetNoiseRecords();
+  const world = openWorld();
+  setListenerPos(512, 512, world.dist2.bind(world));
+  const target = player(10, 10);
+  const caller = greenDog(2, 12, 10);
+  caller.ai!.combatTargetId = target.id;
+  caller.ai!.combatScanCd = 99;
+  const pack = Array.from({ length: 18 }, (_, i) => {
+    const dog = greenDog(3 + i, 12.4 + (i % 6) * 0.25, 10.4 + Math.floor(i / 6) * 0.25);
+    dog.ai!.combatScanCd = 99;
+    return dog;
+  });
+  const entities = [target, caller, ...pack];
+  const state = makeGameState({ worldEvents: createWorldEventState() });
+  const msgs: Msg[] = [];
+
+  prime(entities);
+  updateMonster(world, entities, caller, 0.1, 5, msgs, target.id, { v: 40 }, state);
+
+  const firstShared = pack.filter(dog => dog.ai?.combatTargetId === target.id).length;
+  const howl = getRecentEvents(state, { type: 'green_dog_howl', tags: ['green_dog'], limit: 1 })[0];
+  assert.ok(howl);
+  assert.equal(firstShared > 0, true);
+  assert.equal(firstShared <= GREEN_DOG_PACK_CAP, true);
+  assert.equal(howl.data?.shared, firstShared);
+
+  for (const dog of pack) dog.ai!.combatTargetId = undefined;
+  prime(entities);
+  updateMonster(world, entities, caller, 0.1, 5.25, msgs, target.id, { v: 40 }, state);
+
+  assert.equal(pack.filter(dog => dog.ai?.combatTargetId === target.id).length, 0);
+  assert.equal(getRecentEvents(state, { type: 'green_dog_howl', tags: ['green_dog'], limit: 4 }).length, 1);
 });
 
 test('green dog drops target and flees from shotgun or loud metal noise', () => {

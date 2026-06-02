@@ -19,6 +19,7 @@ import { entityInActiveCellHazard, registerCellHazardSite } from '../cell_hazard
 import { ENTITY_MASK_ACTOR, getEntityIndex } from '../entity_index';
 import { publishEvent } from '../events';
 import { isHostile } from '../factions';
+import { findLocalWetAnchor, wetTerrainCell } from '../monster_terrain';
 import { isPlayerEntity } from '../player_actor';
 import { MarkType, stampMark } from '../surface_marks';
 import { followPath, tryAssignPathToCell } from './pathfinding';
@@ -181,11 +182,6 @@ function walkableCell(world: World, x: number, y: number): boolean {
   return cell === Cell.FLOOR || cell === Cell.WATER || cell === Cell.DOOR || cell === Cell.LIFT;
 }
 
-function wetTerrainCell(world: World, x: number, y: number): boolean {
-  const ci = world.idx(x, y);
-  return world.cells[ci] === Cell.WATER || world.features[ci] === Feature.SINK || world.features[ci] === Feature.TOILET;
-}
-
 function nearFeature(world: World, actor: Entity, feature: Feature, radius: number): boolean {
   const cx = Math.floor(actor.x);
   const cy = Math.floor(actor.y);
@@ -210,14 +206,7 @@ function slimeWomanDryCounterCell(world: World, actor: Entity): boolean {
 }
 
 function findWetAnchor(world: World, actor: Entity): { x: number; y: number } | undefined {
-  const baseX = Math.floor(actor.x);
-  const baseY = Math.floor(actor.y);
-  for (const [dx, dy] of WET_ANCHOR_OFFSETS) {
-    const x = world.wrap(baseX + dx);
-    const y = world.wrap(baseY + dy);
-    if (wetTerrainCell(world, x, y) && walkableCell(world, x, y)) return { x, y };
-  }
-  return undefined;
+  return findLocalWetAnchor(world, actor, WET_ANCHOR_OFFSETS);
 }
 
 function setFactsCache(actor: Entity, facts: ActorTacticFacts): void {

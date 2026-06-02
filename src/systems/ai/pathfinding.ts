@@ -27,6 +27,11 @@ const FLOW_UNREACHED = -1;
 const FLOW_BLOCKED = -2;
 const PATH_CHUNK_LIMIT = 256;
 const PATH_DESCEND_SEARCH_LIMIT = 2048;
+const PATH_LOOKAHEAD_CELLS = 6;
+const PATH_DIRECT_GOAL_RANGE = 12;
+const PATH_LINE_SAMPLE_STEP = 0.35;
+const PATH_WAYPOINT_REACH = 0.34;
+const PATH_WAYPOINT_OFFSET = 0.18;
 const BEHAVIOR_FLOW_FIELD_CACHE_MAX = 16;
 const ROUTINE_WANDER_ATTEMPTS = 4;
 const ROUTINE_FAR_ATTEMPTS = 5;
@@ -88,6 +93,25 @@ interface SteeringPathAssignment {
   pi: number;
 }
 
+interface PathWaypoint {
+  cell: number;
+  index: number;
+  x: number;
+  y: number;
+}
+
+interface PathWaypointCache {
+  world: World;
+  cellVersion: number;
+  path: readonly number[];
+  pathLength: number;
+  pi: number;
+  sourceCell: number;
+  goalCell: number;
+  radius: number;
+  waypoint: PathWaypoint;
+}
+
 export interface PathfindingStats {
   routineUsed: number;
   routineDenied: number;
@@ -106,6 +130,7 @@ type AssignPathStatus = 'assigned' | 'same' | 'not_found';
 const _behaviorFlowFields = new Map<string, BehaviorFlowField>();
 const _flowPathAssignments = new WeakMap<Entity, FlowPathAssignment>();
 const _steeringPathAssignments = new WeakMap<Entity, SteeringPathAssignment>();
+const _pathWaypointCache = new WeakMap<Entity, PathWaypointCache>();
 const _roomTypeSourceProviders = new Map<string, BehaviorFlowFieldSourceProvider>();
 
 function beginPathFrame(time: number): void {
@@ -635,6 +660,121 @@ function canActorOccupy(world: World, x: number, y: number, r: number): boolean 
     !world.solid(Math.floor(x - r), Math.floor(y - r));
 }
 
+function actorRadius(e: Entity): number {
+  return e.type === EntityType.MONSTER ? 0.18 : 0.16;
+}
+
+function wrapFloat(v: number): number {
+  return ((v % W) + W) % W;
+}
+
+function pathNoiseUnit(id: number, cell: number, salt: number): number {
+  let h = Math.imul(id | 0, 374761393) ^ Math.imul(cell | 0, 668265263) ^ Math.imul(salt, 2246822519);
+  h = Math.imul(h ^ (h >>> 16), 2246822519);
+  h = Math.imul(h ^ (h >>> 13), 3266489917);
+  return ((h ^ (h >>> 16)) >>> 0) / 0x100000000;
+}
+
+function centeredPathWaypoint(cell: number, index: number): PathWaypoint {
+  const baseX = (cell % W) + 0.5;
+  const baseY = ((cell / W) | 0) + 0.5;
+  return { cell, index, x: baseX, y: baseY };
+}
+
+function pathWaypointForCell(world: World, e: Entity, cell: number, index: number, r: number): PathWaypoint {
+  const center = centeredPathWaypoint(cell, index);
+  if (world.cells[cell] === Cell.DOOR) return center;
+
+  const ox = (pathNoiseUnit(e.id, cell, 1) - 0.5) * PATH_WAYPOINT_OFFSET * 2;
+  const oy = (pathNoiseUnit(e.id, cell, 2) - 0.5) * PATH_WAYPOINT_OFFSET * 2;
+  const x = center.x + ox;
+  const y = center.y + oy;
+  if (canActorOccupy(world, x, y, r)) return { cell, index, x, y };
+  return center;
+}
+
+function pathSegmentClear(world: World, x1: number, y1: number, x2: number, y2: number, r: number): boolean {
+  const dx = world.delta(x1, x2);
+  const dy = world.delta(y1, y2);
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  if (dist < 0.01) return true;
+
+  const steps = Math.max(1, Math.ceil(dist / PATH_LINE_SAMPLE_STEP));
+  for (let step = 1; step <= steps; step++) {
+    const t = step / steps;
+    const x = wrapFloat(x1 + dx * t);
+    const y = wrapFloat(y1 + dy * t);
+    if (!canActorOccupy(world, x, y, r)) return false;
+  }
+  return true;
+}
+
+function computePathWaypoint(world: World, e: Entity, r: number, goalCell: number): PathWaypoint {
+  const ai = e.ai!;
+  let fallback = pathWaypointForCell(world, e, ai.path[ai.pi], ai.pi, r);
+  const goal = pathWaypointForCell(world, e, goalCell, ai.path.length - 1, r);
+  if (
+    world.dist2(e.x, e.y, goal.x, goal.y) <= PATH_DIRECT_GOAL_RANGE * PATH_DIRECT_GOAL_RANGE &&
+    pathSegmentClear(world, e.x, e.y, goal.x, goal.y, r)
+  ) {
+    return goal;
+  }
+  const centeredGoal = centeredPathWaypoint(goalCell, ai.path.length - 1);
+  if (
+    world.dist2(e.x, e.y, centeredGoal.x, centeredGoal.y) <= PATH_DIRECT_GOAL_RANGE * PATH_DIRECT_GOAL_RANGE &&
+    pathSegmentClear(world, e.x, e.y, centeredGoal.x, centeredGoal.y, r)
+  ) {
+    return centeredGoal;
+  }
+
+  const last = Math.min(ai.path.length - 1, ai.pi + PATH_LOOKAHEAD_CELLS);
+
+  for (let index = last; index > ai.pi; index--) {
+    const waypoint = pathWaypointForCell(world, e, ai.path[index], index, r);
+    if (pathSegmentClear(world, e.x, e.y, waypoint.x, waypoint.y, r)) return waypoint;
+    const centered = centeredPathWaypoint(ai.path[index], index);
+    if (pathSegmentClear(world, e.x, e.y, centered.x, centered.y, r)) return centered;
+  }
+
+  if (pathSegmentClear(world, e.x, e.y, fallback.x, fallback.y, r)) return fallback;
+  return centeredPathWaypoint(ai.path[ai.pi], ai.pi);
+}
+
+function selectPathWaypoint(world: World, e: Entity, r: number): PathWaypoint {
+  const ai = e.ai!;
+  const sourceCell = world.idx(Math.floor(e.x), Math.floor(e.y));
+  const goalCell = world.idx(Math.floor(ai.tx), Math.floor(ai.ty));
+  const cellVersion = navigationCacheCellVersion(world);
+  const cached = _pathWaypointCache.get(e);
+  if (
+    cached &&
+    cached.world === world &&
+    cached.cellVersion === cellVersion &&
+    cached.path === ai.path &&
+    cached.pathLength === ai.path.length &&
+    cached.pi === ai.pi &&
+    cached.sourceCell === sourceCell &&
+    cached.goalCell === goalCell &&
+    cached.radius === r
+  ) {
+    return cached.waypoint;
+  }
+
+  const waypoint = computePathWaypoint(world, e, r, goalCell);
+  _pathWaypointCache.set(e, {
+    world,
+    cellVersion,
+    path: ai.path,
+    pathLength: ai.path.length,
+    pi: ai.pi,
+    sourceCell,
+    goalCell,
+    radius: r,
+    waypoint,
+  });
+  return waypoint;
+}
+
 /* ── Follow path ──────────────────────────────────────────────── */
 export function followPath(world: World, e: Entity, dt: number): void {
   const ai = e.ai!;
@@ -666,29 +806,39 @@ export function followPath(world: World, e: Entity, dt: number): void {
     return;
   }
 
-  const target = ai.path[ai.pi];
-  const tx = (target % W) + 0.5;
-  const ty = Math.floor(target / W) + 0.5;
+  const r = actorRadius(e);
 
-  let dx = world.delta(e.x, tx);
-  let dy = world.delta(e.y, ty);
+  while (ai.pi < ai.path.length) {
+    const cell = ai.path[ai.pi];
+    const cx = (cell % W) + 0.5;
+    const cy = ((cell / W) | 0) + 0.5;
+    if (world.dist(e.x, e.y, cx, cy) >= PATH_WAYPOINT_REACH) break;
+    ai.pi++;
+    ai.stuck = 0;
+  }
+
+  if (ai.pi >= ai.path.length) return;
+
+  openPathDoor(world, ai.path[ai.pi]);
+  const waypoint = selectPathWaypoint(world, e, r);
+
+  let dx = world.delta(e.x, waypoint.x);
+  let dy = world.delta(e.y, waypoint.y);
   const dist = Math.sqrt(dx * dx + dy * dy);
 
-  if (dist < 0.3) {
-    ai.pi++;
+  if (dist < PATH_WAYPOINT_REACH) {
+    ai.pi = Math.max(ai.pi + 1, waypoint.index + 1);
     ai.stuck = 0;
     return;
   }
 
   // Open doors in the way (never open hermetic doors — they protect apartments during samosbor)
-  const nextCellI = world.idx(Math.floor(tx), Math.floor(ty));
-  openPathDoor(world, nextCellI);
+  openPathDoor(world, waypoint.cell);
 
   // Move toward target
   const speed = e.speed * getCellHazardMoveMultiplier(world, e) * dt;
   const nx = e.x + (dx / dist) * speed;
   const ny = e.y + (dy / dist) * speed;
-  const r = e.type === EntityType.MONSTER ? 0.18 : 0.16;
   let moved = false;
 
   if (canActorOccupy(world, nx, e.y, r)) {

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { AIGoal, Cell, EntityType, FloorLevel, Faction, MonsterKind, Occupation, type Entity, type GameClock, type Msg } from '../src/core/types';
+import { AIGoal, Cell, EntityType, FloorLevel, Faction, MonsterKind, Occupation, ZoneFaction, type Entity, type GameClock, type Msg } from '../src/core/types';
 import { World } from '../src/core/world';
 import { updateAI, getAiStats } from '../src/systems/ai';
 import { rebuildEntityIndexForSimulation } from '../src/systems/entity_index';
@@ -215,7 +215,7 @@ test('monster target acquisition works during scan cooldown', () => {
   assert.equal(m.ai?.goal, AIGoal.HUNT);
 });
 
-test('simple monster combat fires physical projectiles without full monster AI', () => {
+test('monster combat fires physical projectiles through the full AI pass', () => {
   const world = makeOpenWorld();
   const clock = { hour: 8, minute: 0, totalMinutes: 0 };
   const p = player();
@@ -224,10 +224,47 @@ test('simple monster combat fires physical projectiles without full monster AI',
   eye.attackCd = 0;
   const entities = [p, eye];
 
-  tick(world, entities, 1 / 60, 0, clock);
+  for (let i = 0; i < 90 && !entities.some(e => e.type === EntityType.PROJECTILE && e.ownerId === eye.id); i++) {
+    tick(world, entities, 1 / 30, i / 30, clock);
+  }
 
   assert.equal(eye.ai?.combatTargetId, p.id);
   assert.equal(entities.some(e => e.type === EntityType.PROJECTILE && e.ownerId === eye.id), true);
+});
+
+test('live AI pass reaches monster ecology source updates', () => {
+  const world = makeOpenWorld();
+  world.zoneMap.fill(0);
+  world.zones[0] = {
+    id: 0,
+    cx: 32,
+    cy: 10,
+    faction: ZoneFaction.WILD,
+    hasLift: false,
+    fogged: false,
+    level: 2,
+    hqRoomId: -1,
+  };
+  const clock = { hour: 8, minute: 0, totalMinutes: 0 };
+  const p = player();
+  p.x = 240;
+  p.y = 240;
+  const source = monster(2, 32.5, MonsterKind.MATKA);
+  source.y = 10.5;
+  source.speed = 0.4;
+  source.matkaTimer = 0.01;
+  const entities = [p, source];
+  const state = makeGameState({ currentFloor: FloorLevel.HELL, worldEvents: createWorldEventState(), time: 1, clock });
+  const nextId = { v: 20 };
+  const msgs: Msg[] = state.msgs;
+
+  rebuildEntityIndexForSimulation(entities, 1000);
+  updateAI(world, entities, 0.02, 1, msgs, p.id, clock, false, nextId, FloorLevel.HELL, state);
+
+  const children = entities.filter(e => e.type === EntityType.MONSTER && e.ai?.sourceEntityId === source.id);
+  assert.equal(children.length, 1);
+  assert.deepEqual(source.ai?.sourceChildIds, [children[0].id]);
+  assert.equal(getRecentEvents(state, { type: 'matka_child_spawned', limit: 1 })[0]?.targetId, children[0].id);
 });
 
 test('combat NPC acquires nearby monster even during scan cooldown', () => {

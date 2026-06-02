@@ -334,7 +334,7 @@ test('new-kind floor manifests stay data-driven', () => {
 
 });
 
-test('bait-attracted monster list is narrow and backed by foodBait AI flags', () => {
+test('bait-attracted monster list is narrow and backed by explicit scent AI flags', () => {
   assert.deepEqual(BAIT_ATTRACTED_MONSTER_KINDS, [
     MonsterKind.KRYSNOZHKA,
     MonsterKind.POMOYNY_ROY,
@@ -347,7 +347,9 @@ test('bait-attracted monster list is narrow and backed by foodBait AI flags', ()
     MonsterKind.OLGOY,
     MonsterKind.SLIMEVIK,
     MonsterKind.GREEN_DOG,
+    MonsterKind.PECHATEED,
     MonsterKind.KONTORSHCHIK,
+    MonsterKind.PROTOKOLNIK,
   ]);
 
   for (const kind of BAIT_ATTRACTED_MONSTER_KINDS) {
@@ -360,7 +362,9 @@ test('bait-attracted monster list is narrow and backed by foodBait AI flags', ()
         flags.includes('slimeScavenger') ||
         flags.includes('packHowl') ||
         flags.includes('meatWorm') ||
-        flags.includes('documentScent'),
+        flags.includes('documentHunter') ||
+        flags.includes('documentScent') ||
+        flags.includes('protocolPressure'),
       true,
       `${MonsterKind[kind]} bait tag must be backed by an explicit movement/cue flag`,
     );

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { AIGoal, Cell, EntityType, FloorLevel, MonsterKind, RoomType, type Entity, type Msg } from '../src/core/types';
+import { AIGoal, Cell, EntityType, Faction, FloorLevel, MonsterKind, RoomType, type Entity, type Msg } from '../src/core/types';
 import { World } from '../src/core/world';
 import { getMonsterEcology } from '../src/data/monster_ecology';
 import { RUMORS } from '../src/data/rumors';
@@ -36,6 +36,24 @@ function player(x: number, y: number): Entity {
     hp: 100,
     maxHp: 100,
     name: 'Вы',
+  };
+}
+
+function npcTarget(x: number, y: number): Entity {
+  return {
+    id: 7,
+    type: EntityType.NPC,
+    x,
+    y,
+    angle: 0,
+    pitch: 0,
+    alive: true,
+    speed: 3,
+    sprite: 0,
+    hp: 100,
+    maxHp: 100,
+    faction: Faction.CITIZEN,
+    name: 'Случайный жилец',
   };
 }
 
@@ -159,4 +177,24 @@ test('Tumannik can hit from the displaced fog origin before its real body reache
   assert.equal(threat.ai?.fogOffsetX, undefined, 'the real body commits after the side hit');
   assert.equal(msgs.some(m => m.text.includes('не из центра силуэта')), true);
   assert.equal(getRecentEvents(state, { type: 'monster_sighted', tags: ['tumannik', 'side_hit'], limit: 1 }).length, 1);
+});
+
+test('Tumannik fog offset collapses for a lit NPC target too', () => {
+  const world = fogWorld();
+  setListenerPos(512, 512, world.dist2.bind(world));
+  const target = npcTarget(16.5, 10.5);
+  const threat = tumannik(10.5, 10.5);
+  const entities = [target, threat];
+  const state = makeGameState({ currentFloor: FloorLevel.HELL, worldEvents: createWorldEventState() });
+
+  sync(entities);
+  updateMonster(world, entities, threat, 0.1, 5, [], 1, { v: 100 }, state);
+  assert.equal(Math.abs(threat.ai?.fogOffsetX ?? 0) > 0.5, true);
+
+  world.light[world.idx(Math.floor(target.x), Math.floor(target.y))] = 0.72;
+  sync(entities);
+  updateMonster(world, entities, threat, 0.1, 5.2, [], 1, { v: 100 }, state);
+
+  assert.equal(threat.ai?.fogOffsetX, undefined);
+  assert.equal(getRecentEvents(state, { type: 'monster_windup_interrupted', tags: ['tumannik', 'light'], limit: 1 }).length, 1);
 });

@@ -50,6 +50,7 @@ Active docs are the project monument. Use them by role:
 - `items.md`: item, weapon, PSI, resource, loot and production system contract.
 - `kraft.md`: player-facing crafting system contract: materials, item composition, recipes, stations, recipe knowledge, UI/save/runtime rules.
 - `monsters.md`: monster package, ecology, sprite and AI tactic system contract.
+- `ecology.md`: monster ecology ownership: data, generation, AI/A-Life boundary, stimuli, counterplay, samosbor reactions, caps and tests.
 - `quests.md`: story, side quests, contracts, characters and quest consequences.
 - `optimization.md`: performance principles, runtime budgets and safe optimization lanes.
 - `tests.md`: validation strategy and cheap deterministic test rules.
@@ -78,6 +79,8 @@ Archived root planning and item-orchestration documents, including old `expansio
 Root `genfix_*.md` and `architecture_fix_*.md` batch/orchestration notes now live under `gatbage/history/batches/genfix/` and `gatbage/history/batches/architecture_fix/`. Verify archived notes against active docs and current `src/` before using them.
 
 Root `kraft_0.md`..`kraft_7.md` were orchestration prompts for the crafting implementation batch. They now live under `gatbage/history/batches/kraft/`. Use active [kraft.md](kraft.md), README and current `src/` instead of those archived prompts for shipped crafting facts.
+
+Root `ecology_0.md`..`ecology_11.md` were orchestration prompts for the monster ecology implementation batch. They now live under `gatbage/history/batches/ecology/`. Use active [ecology.md](ecology.md), [monsters.md](monsters.md), README and current `src/` instead of those archived prompts for shipped ecology facts.
 
 Root `MACRO2_*.md` files were orchestration prompts, not documentation source of truth. They now live under `gatbage/history/batches/macro2/` with the old parallel contract. Verify any archived prompt against the active docs and current `src/` before implementation.
 

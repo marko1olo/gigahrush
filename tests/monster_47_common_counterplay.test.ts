@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { AIGoal, Cell, EntityType, Feature, FloorLevel, MonsterKind, RoomType, type Entity, type Msg } from '../src/core/types';
+import { AIGoal, Cell, EntityType, Faction, Feature, FloorLevel, MonsterKind, RoomType, type Entity, type Msg } from '../src/core/types';
 import { World } from '../src/core/world';
 import { DEF as SBORKA_DEF } from '../src/entities/sborka';
 import { DEF as TVAR_DEF } from '../src/entities/tvar';
@@ -11,6 +11,8 @@ import { getMonsterEcology } from '../src/data/monster_ecology';
 import { setEntityMap, updateMonster } from '../src/systems/ai/monster';
 import { setListenerPos } from '../src/systems/audio';
 import { rebuildEntityIndex } from '../src/systems/entity_index';
+import { getRecentEvents } from '../src/systems/events';
+import { makeGameState } from './helpers';
 
 function openWorld(): World {
   const world = new World();
@@ -55,6 +57,24 @@ function monster(kind: MonsterKind, x: number, y: number): Entity {
   };
 }
 
+function bystander(id: number, x: number, y: number, faction: Faction = Faction.CITIZEN): Entity {
+  return {
+    id,
+    type: EntityType.NPC,
+    x,
+    y,
+    angle: 0,
+    pitch: 0,
+    alive: true,
+    speed: 1,
+    sprite: 0,
+    hp: 40,
+    maxHp: 40,
+    faction,
+    ai: { goal: AIGoal.IDLE, tx: 0, ty: 0, path: [], pi: 0, stuck: 0, timer: 0 },
+  };
+}
+
 function runMonsterHit(kind: MonsterKind, dist: number, setup?: (world: World) => void): number {
   const world = openWorld();
   setup?.(world);
@@ -67,6 +87,22 @@ function runMonsterHit(kind: MonsterKind, dist: number, setup?: (world: World) =
   const msgs: Msg[] = [];
 
   updateMonster(world, entities, threat, 0.2, 10, msgs, target.id, { v: 100 });
+  return target.hp ?? 0;
+}
+
+function runZombieHitWithCrowd(crowd: number, setup?: (world: World) => void): number {
+  const world = openWorld();
+  setup?.(world);
+  setListenerPos(512, 512, world.dist2.bind(world));
+  const target = player(11.1, 10);
+  const threat = monster(MonsterKind.ZOMBIE, 10, 10);
+  const entities = [target, threat];
+  for (let i = 0; i < crowd; i++) {
+    entities.push(bystander(20 + i, 10.35 + (i % 5) * 0.22, 9.65 + ((i / 5) | 0) * 0.22, Faction.CULTIST));
+  }
+  rebuildEntityIndex(entities);
+  setEntityMap(new Map(entities.map(e => [e.id, e])));
+  updateMonster(world, entities, threat, 0.2, 10, [], target.id, { v: 100 });
   return target.hp ?? 0;
 }
 
@@ -114,6 +150,28 @@ test('generic melee monsters keep hunting past the old twenty-cell leash', () =>
   assert.equal(threat.ai?.goal, AIGoal.HUNT);
 });
 
+test('sborka first sight is a cue, not a custom brain', () => {
+  const world = openWorld();
+  setListenerPos(512, 512, world.dist2.bind(world));
+  const target = player(16, 10);
+  const threat = monster(MonsterKind.SBORKA, 10, 10);
+  const entities = [target, threat];
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING });
+  const msgs: Msg[] = [];
+
+  rebuildEntityIndex(entities);
+  setEntityMap(new Map(entities.map(e => [e.id, e])));
+  updateMonster(world, entities, threat, 0.2, 10, msgs, target.id, { v: 100 }, state);
+  updateMonster(world, entities, threat, 0.2, 10.2, msgs, target.id, { v: 100 }, state);
+
+  assert.equal(threat.ai?.combatTargetId, target.id);
+  assert.equal(msgs.filter(m => m.text.includes('Сборка щелкнула проволокой')).length, 1);
+  assert.equal(
+    getRecentEvents(state, { type: 'monster_sighted', tags: ['sborka', 'cheap_chaser', 'first_sight'], limit: 4 }).length,
+    1,
+  );
+});
+
 test('ranged monsters keep their bounded search radius', () => {
   const threat = runMonsterTargeting(MonsterKind.EYE, 21);
 
@@ -149,4 +207,21 @@ test('polzun stays slow but becomes nastier in doors, bathrooms, and water', () 
   assert.equal(tightHp < openHp, true, 'tight cells should be bad polzun terrain');
   assert.equal(bathroomHp < openHp, true, 'bathroom fixtures should mark polzun terrain');
   assert.equal(waterHp < openHp, true, 'water should mark polzun terrain');
+});
+
+test('zombie crowd and door pressure is local and capped', () => {
+  const openHp = runZombieHitWithCrowd(0);
+  const crowdHp = runZombieHitWithCrowd(1);
+  const cappedHp = runZombieHitWithCrowd(24, world => {
+    world.cells[world.idx(9, 10)] = Cell.WALL;
+    world.cells[world.idx(10, 9)] = Cell.WALL;
+  });
+  const hugeCrowdHp = runZombieHitWithCrowd(48, world => {
+    world.cells[world.idx(9, 10)] = Cell.WALL;
+    world.cells[world.idx(10, 9)] = Cell.WALL;
+  });
+
+  assert.equal(openHp, 92, 'one open-floor zombie grab keeps baseline damage');
+  assert.equal(crowdHp < openHp, true, 'one nearby body should make the grab more dangerous');
+  assert.equal(cappedHp, hugeCrowdHp, 'extra bodies beyond the local cap should not increase damage again');
 });

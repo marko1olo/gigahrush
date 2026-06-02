@@ -1847,6 +1847,7 @@ const input = createInput();
 bindInput(input, canvas, {
   onFullscreenToggle: toggleGameFullscreen,
   shouldRequestPointerLock: () => started,
+  shouldHandleGameplayPointer: () => started && typeof state !== 'undefined' && !pendingLoad && !state.paused && !state.gameOver && !pointerCaptureGateVisible(),
 });
 mobileControls = createMobileControls(input, {
   onGesture: mobileGestureUnlock,
@@ -2476,6 +2477,7 @@ function playerActions(_dt: number): void {
               player.weapon,
               player,
               (target, vx, vy, gore) => handleKill(target, true, vx, vy, gore),
+              entities,
             );
           }
         }
@@ -2963,6 +2965,7 @@ function updateProjectiles(dt: number): void {
               p,
               projectileActor(p),
               (target, vx, vy, gore) => handleKill(target, isPlayerOwnedProjectile(p), vx, vy, gore),
+              entities,
             );
           }
         }
@@ -4811,11 +4814,26 @@ function mobileGestureUnlock(): void {
   if (started) startAmbientDrone();
 }
 
+function clearPausedPointerGameplayInputs(): void {
+  input.mouseAttack = false;
+  input.mouseUse = false;
+  input.mouse.dx = 0;
+  input.mouse.dy = 0;
+  input.touch.moveX = 0;
+  input.touch.moveY = 0;
+  input.touch.lookX = 0;
+  input.touch.lookY = 0;
+  input.touch.active = false;
+}
+
 function syncPauseState(): void {
   if (typeof state === 'undefined') return;
-  state.paused = pointerCaptureGateVisible() || pageHiddenPause || platformPause || state.showMenu || state.showInventory || state.showNpcMenu || state.showContainerMenu || state.showCraftMenu ||
+  const wasPaused = state.paused;
+  const nextPaused = pointerCaptureGateVisible() || pageHiddenPause || platformPause || state.showMenu || state.showInventory || state.showNpcMenu || state.showContainerMenu || state.showCraftMenu ||
     state.showQuests || state.showDebug || state.showFactions || state.showLog || state.showControls || state.showUiSettings || state.showMapLegend ||
     isNetSphereOpen() || isNetTerminalGenOpen() || isInteractableOverlayOpen() || isEmergencyPanelMenuOpen() || isMapEditorOpen();
+  state.paused = nextPaused;
+  if (wasPaused || nextPaused) clearPausedPointerGameplayInputs();
   syncPointerCursorClasses();
   syncPlatformGameplayState();
 }

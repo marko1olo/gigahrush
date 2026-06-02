@@ -68,7 +68,30 @@ test('food drops and govnyak use are explicit bait inputs', () => {
   assert.equal(isBaitAttractedMonster(MonsterKind.KRYSNOZHKA), true);
   assert.equal(isBaitAttractedMonster(MonsterKind.SBORKA), true);
   assert.equal(isBaitAttractedMonster(MonsterKind.TUBE_EEL), true);
+  assert.equal(isBaitAttractedMonster(MonsterKind.PECHATEED), true);
+  assert.equal(isBaitAttractedMonster(MonsterKind.PROTOKOLNIK), true);
   assert.equal(isBaitAttractedMonster(MonsterKind.EYE), false);
+});
+
+test('dropped documents are bounded bait for document predators', () => {
+  resetMonsterBaits();
+  const world = openWorld();
+  const state = makeGameState({ time: 8, currentFloor: FloorLevel.MINISTRY });
+
+  assert.equal(isMonsterBaitItem('blank_form'), true);
+  assert.equal(placeMonsterBait(state, world, actor(), 12, 10, 'blank_form', 1, 'drop', 301), true);
+
+  const pechateed = monster(MonsterKind.PECHATEED, 10, 10);
+  const pechateedBait = findMonsterBaitTarget(world, pechateed, 0.2, state.time, state);
+  assert.equal(pechateedBait?.kind, 'document');
+  assert.equal(pechateedBait?.itemId, 'blank_form');
+
+  resetMonsterBaits();
+  assert.equal(placeMonsterBait(state, world, actor(), 12, 10, 'blank_form', 1, 'drop', 302), true);
+  const protokolnik = monster(MonsterKind.PROTOKOLNIK, 10, 10);
+  const protokolnikBait = findMonsterBaitTarget(world, protokolnik, 0.2, state.time, state);
+  assert.equal(protokolnikBait?.kind, 'document');
+  assert.equal(protokolnikBait?.itemId, 'blank_form');
 });
 
 test('bait profile uses item tags, item cost caps, and risky event tags', () => {

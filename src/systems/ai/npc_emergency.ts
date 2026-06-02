@@ -227,8 +227,20 @@ export function collectNpcEmergencyShelterCandidates(world: World, npc: Entity, 
   if (validRoomId(npc.assignedRoomId)) addDraft(drafts, npc.assignedRoomId!, 'assigned_room');
   if (validRoomId(options.homeRoomId)) addDraft(drafts, options.homeRoomId!, 'home_room');
   addRoomIds(drafts, options.preferredRoomIds, 'home_room', options.localShelterScanCap ?? NPC_EMERGENCY_DEFAULT_LOCAL_SHELTER_SCAN_CAP);
-  addRoomIds(drafts, options.localShelterRoomIds, 'local_shelter', options.localShelterScanCap ?? NPC_EMERGENCY_DEFAULT_LOCAL_SHELTER_SCAN_CAP);
-  addRoomIds(drafts, options.shelterRoomIds, 'samosbor_shelter', options.shelterScanCap ?? NPC_EMERGENCY_DEFAULT_SHELTER_SCAN_CAP);
+  addRoomIds(
+    drafts,
+    options.localShelterRoomIds,
+    'local_shelter',
+    options.localShelterScanCap ?? NPC_EMERGENCY_DEFAULT_LOCAL_SHELTER_SCAN_CAP,
+    npcEmergencyJitter(npc, (options.seedSalt ?? 0) ^ 0x1c0a15),
+  );
+  addRoomIds(
+    drafts,
+    options.shelterRoomIds,
+    'samosbor_shelter',
+    options.shelterScanCap ?? NPC_EMERGENCY_DEFAULT_SHELTER_SCAN_CAP,
+    npcEmergencyJitter(npc, (options.seedSalt ?? 0) ^ 0x5afe),
+  );
 
   if (options.includeNearbyRooms !== false) {
     collectNearbyRooms(world, npc, drafts, options.nearbyRadius, options.nearbyRoomCap);
@@ -435,10 +447,13 @@ function addRoomIds(
   roomIds: readonly number[] | undefined,
   source: NpcEmergencyShelterSource,
   scanCap: number,
+  offset01 = 0,
 ): void {
   if (!roomIds || roomIds.length === 0) return;
   const cap = clampInt(scanCap, 0, 128);
-  for (let i = 0; i < roomIds.length && i < cap; i++) addDraft(drafts, roomIds[i], source);
+  const count = Math.min(roomIds.length, cap);
+  const start = roomIds.length > 0 ? Math.floor(Math.max(0, Math.min(0.999999, offset01)) * roomIds.length) % roomIds.length : 0;
+  for (let i = 0; i < count; i++) addDraft(drafts, roomIds[(start + i) % roomIds.length], source);
 }
 
 function addDraft(drafts: Map<number, CandidateDraft>, roomId: number, source: NpcEmergencyShelterSource): void {

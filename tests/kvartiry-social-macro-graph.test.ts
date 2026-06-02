@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { EntityType, Faction, FloorLevel, ZoneFaction, type TerritoryOwner } from '../src/core/types';
+import { Cell, DoorState, EntityType, Faction, FloorLevel, RoomType, W, ZoneFaction, type TerritoryOwner } from '../src/core/types';
 import { factionToTerritoryOwner } from '../src/data/factions';
 import { generateFloor } from '../src/gen/floor_manifest';
 import {
@@ -68,6 +68,45 @@ test('Kvartiry generation exposes a social macro graph with domain descriptors a
   assert.equal(cueRoutes.has('apartment_cut'), true);
   assert.equal(cueRoutes.has('service_detour'), true);
   assert.equal(cueRoutes.has('risky_shortcut'), true);
+});
+
+test('Kvartiry auto shelter HQs use linked doors and do not create full-map hermoseams', () => {
+  const gen = kvartiry();
+  const hqRooms = gen.world.rooms.filter(room => room?.type === RoomType.HQ);
+  assert.equal(hqRooms.length >= 5, true, `HQ rooms ${hqRooms.length}`);
+
+  for (const room of hqRooms) {
+    assert.equal(room.w <= 96 && room.h <= 96, true, `HQ room ${room.id} span ${room.w}x${room.h}`);
+    assert.equal(room.doors.length > 0, true, `HQ room ${room.id} should have linked doors`);
+    assert.equal(room.doors.length <= 12, true, `HQ room ${room.id} has too many doors: ${room.doors.length}`);
+    assert.equal(room.doors.some(doorIdx => {
+      const door = gen.world.doors.get(doorIdx);
+      return !!door &&
+        (door.roomA === room.id || door.roomB === room.id) &&
+        (door.state === DoorState.HERMETIC_OPEN || door.state === DoorState.HERMETIC_CLOSED);
+    }), true, `HQ room ${room.id} should expose a hermetic door`);
+  }
+
+  let maxColumn = 0;
+  let maxRow = 0;
+  for (let x = 0; x < W; x++) {
+    let column = 0;
+    for (let y = 0; y < W; y++) {
+      const idx = gen.world.idx(x, y);
+      if (gen.world.hermoWall[idx] && gen.world.cells[idx] === Cell.WALL) column++;
+    }
+    maxColumn = Math.max(maxColumn, column);
+  }
+  for (let y = 0; y < W; y++) {
+    let row = 0;
+    for (let x = 0; x < W; x++) {
+      const idx = gen.world.idx(x, y);
+      if (gen.world.hermoWall[idx] && gen.world.cells[idx] === Cell.WALL) row++;
+    }
+    maxRow = Math.max(maxRow, row);
+  }
+  assert.equal(maxColumn < 160, true, `hermoseam column too long: ${maxColumn}`);
+  assert.equal(maxRow < 160, true, `hermoseam row too long: ${maxRow}`);
 });
 
 test('Kvartiry social macro anchors stay reachable and do not leave large isolated regions', () => {

@@ -55,7 +55,7 @@ Read additional docs only when relevant to the task:
 | Economy, resources, factories, production, caravans, banking, markets | `economics.md` |
 | Numeric tuning, rewards, HP/XP, scarcity, progression pressure | `balance.md` |
 | Items, weapons, PSI, resources, loot, production inputs | `items.md` |
-| Monster packages, ecology, sprites, counterplay, AI tactic hooks | `monsters.md` |
+| Monster packages, ecology, sprites, counterplay, AI tactic hooks | `monsters.md`, `ecology.md` |
 | Plot, side quests, contracts, characters, quest consequences | `quests.md` |
 | Shared `E` action layer, interactables, fixtures, terminals, containers | `interactive.md` |
 | Performance budgets, density, caches, safe optimization lanes | `optimization.md` |

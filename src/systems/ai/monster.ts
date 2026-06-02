@@ -23,7 +23,7 @@ import {
   playSoundAt,
 } from '../audio';
 import { isHostile } from '../factions';
-import { scaleMonsterDmg, strMeleeDmgMult, scaleMonsterHp, scaleMonsterSpeed, randomRPG } from '../rpg';
+import { scaleMonsterDmg, strMeleeDmgMult } from '../rpg';
 import { applySporeHaze, hasSporeHazeProtection, zhelemishIncomingMeleeDamage } from '../status';
 import { spawnBloodHit, spawnDeathPool } from '../../render/blood';
 import { MarkType, stampMark } from '../surface_marks';
@@ -43,7 +43,7 @@ import {
 } from '../monster_bait';
 import { entityInActiveCellHazard, registerCellHazardSite } from '../cell_hazards';
 import { isDebugOnePunchManEnabled, keepDebugOnePunchManAlive } from '../debug_cheats';
-import { ENTITY_MASK_ACTOR, ENTITY_MASK_ITEM_DROP, ENTITY_MASK_MONSTER, ENTITY_MASK_NPC, ensureEntityIndex, getEntityIndex } from '../entity_index';
+import { ENTITY_MASK_ACTOR, ENTITY_MASK_ITEM_DROP, ENTITY_MASK_NPC, ensureEntityIndex, getEntityIndex } from '../entity_index';
 import { notifyActorDamaged } from '../combat_stimulus';
 import { updateSlimevikMonster } from '../slimevik';
 import { updateGnilushkaMonster } from '../gnilushka';
@@ -55,8 +55,9 @@ import {
   isZombieApocalypseActive,
   tryZombieApocalypseInfection,
 } from '../procedural_anomalies/zombie_apocalypse';
-import { canSpawnEntityType, entitySpawnSlots } from '../entity_limits';
+import { entitySpawnSlots } from '../entity_limits';
 import { documentScentStrength, hasDocumentScent, markNoisyDocument } from '../document_scent';
+import { drainLineCell, getBoundedWetConnection, wetTerrainAtEntity, wetTerrainCell, wetWaterCell } from '../monster_terrain';
 import { isPlayerEntity } from '../player_actor';
 import { damageBorshchevikRootSite, releaseBorshchevikSeedPuff } from '../borshchevik';
 import {
@@ -66,14 +67,17 @@ import {
   healBloodPlantFromRedMold,
   traceBloodPlantTendrilCells,
 } from '../blood_plant';
+import { updateMatkaSource } from '../matka_source';
 import {
   CHERVIE_NET_SOURCE_RADIUS,
   PANELNIK_OPEN_SLOW_MULT,
   PANELNIK_OPEN_SLOW_SEC,
   findChervieNetSource,
+  monsterWallContext,
   panelnikOpenFloor,
   panelnikWallBraceActive,
 } from '../monster_traits';
+import { shareLocalTarget } from './monster_pack';
 
 /* ── Shared combat target finder ──────────────────────────────── */
 const MONSTER_DETECT = 20;
@@ -90,7 +94,6 @@ const DOCUMENT_HUNTER_SCAN_CAP = 72;
 const SLEPOGLAZ_BEAM_SCAN_CAP = 96;
 const PREFER_PLAYER = 15;
 const PREFER_SQ = PREFER_PLAYER * PREFER_PLAYER;
-const MATKA_MAX_CHILDREN = 100;
 const PECHATEED_DETECT_SQ = 24 * 24;
 const PECHATEED_FALLBACK_SQ = 10 * 10;
 const KONTORSHCHIK_DETECT_SQ = 28 * 28;
@@ -150,8 +153,13 @@ const DIKIY_SHOVE_TRIGGER = 1.0;
 const DIKIY_SHOVE_COOLDOWN_SEC = 2.4;
 const DIKIY_SHOVE_STAGGER_SEC = 0.55;
 const DIKIY_SHOVE_FLEE_SEC = 0.9;
+const ZOMBIE_CROWD_PRESSURE_RADIUS = 2.35;
+const ZOMBIE_CROWD_PRESSURE_SCAN_CAP = 10;
+const ZOMBIE_CROWD_DAMAGE_BONUS = 0.12;
+const ZOMBIE_DOOR_DAMAGE_BONUS = 0.2;
+const ZOMBIE_CROWD_DAMAGE_CAP = 1.32;
 const GREEN_DOG_PACK_RADIUS = 11;
-const GREEN_DOG_PACK_CAP = 8;
+export const GREEN_DOG_PACK_CAP = 8;
 const GREEN_DOG_HOWL_COOLDOWN_SEC = 8;
 const GREEN_DOG_SHARE_COOLDOWN_SEC = 0.75;
 const GREEN_DOG_FEAR_SEC = 4.6;
@@ -192,6 +200,12 @@ const POMOYNY_ROY_MAX_SCENT_DETECT = 34;
 const POMOYNY_ROY_SLOT_RADIUS = 1.65;
 const POMOYNY_ROY_SLOT_ANGLES = [Math.PI / 2, -Math.PI / 2, Math.PI * 0.78, -Math.PI * 0.78, Math.PI, Math.PI * 0.35, -Math.PI * 0.35, 0] as const;
 const SWARM_DETECT_SQ = 20 * 20;
+const NIGHTMARE_PRESSURE_RANGE = 7.5;
+const NIGHTMARE_PRESSURE_MAX = 4;
+const NIGHTMARE_PRESSURE_GAIN = 0.74;
+const NIGHTMARE_PRESSURE_DECAY = 2.1;
+const NIGHTMARE_HEAVY_DAMAGE_BREAK = 34;
+const NIGHTMARE_HEAVY_DAMAGE_RATIO = 0.12;
 const KOSTOREZ_DETECT_SQ = MONSTER_MELEE_DETECT_SQ;
 const KOSTOREZ_WINDUP_RANGE = 2.25;
 const KOSTOREZ_BURST_RANGE = 2.85;
@@ -250,6 +264,8 @@ const CHERNOSLIZ_LIGHT_RANGE_SQ = CHERNOSLIZ_LIGHT_RANGE * CHERNOSLIZ_LIGHT_RANG
 const CHERNOSLIZ_WATER_DETECT_SQ = 18 * 18;
 const CHERNOSLIZ_DRY_DETECT_SQ = 10 * 10;
 const CHERNOSLIZ_WINDUP_SEC = 0.55;
+const WATER_STRIDER_RIPPLE_SEC = 0.75;
+const LOTOCHNIK_WET_REGEN_PER_SEC = 1.35;
 const EYE_MIN_RANGE = 1.5;
 const EYE_WINDUP_SEC = 0.85;
 const RANGED_SHOT_RANGE = 15;
@@ -346,6 +362,7 @@ const RZHAVNIK_FRAGILE_DMG_MULT = 0.72;
 const PANELNIK_BRACE_REACH = 1.75;
 const PANELNIK_OPEN_REACH = 1.16;
 const PANELNIK_BRACE_CUE_COOLDOWN_SEC = 4.2;
+const WALL_BIAS_CUE_COOLDOWN_SEC = 5.2;
 const SLIME_WOMAN_RESIDUE_COOLDOWN_SEC = 2.4;
 const SLIME_WOMAN_RESIDUE_DURATION_SEC = 18;
 const SLIME_WOMAN_DRY_EVENT_COOLDOWN_SEC = 7;
@@ -363,13 +380,24 @@ const SAFEGUARD_RUMOR_IDS = [
 const EYE_RUMOR_IDS = ['monster_eye_lamps', 'ecology_eye_line'] as const;
 const CHERNOSLIZ_RUMOR_IDS = ['ecology_chernosliz_wake'] as const;
 const VODYANOY_KOSHMAR_RUMOR_IDS = ['ecology_vodyanoy_koshmar_line'] as const;
+const TVAR_RUMOR_IDS = ['monster_tvar_walls', 'ecology_tvar_wall'] as const;
+const SHOVNIK_RUMOR_IDS = ['ecology_shovnik_seams'] as const;
+const REBAR_RUMOR_IDS = ['monster_rebar_metal', 'ecology_rebar_still'] as const;
+const BETONOED_RUMOR_IDS = ['monster_betonoed_weak_wall', 'ecology_betonoed_shortcut'] as const;
 const PANELNIK_RUMOR_IDS = ['ecology_panelnik_wall'] as const;
 const SLEPOGLAZ_RUMOR_IDS = ['ecology_slepoglaz_last_sound'] as const;
 const LAMPOGLAZ_RUMOR_IDS = ['monster_lampoglaz_hum', 'ecology_lampoglaz_light_lock'] as const;
 const GREEN_DOG_RUMOR_IDS = ['monster_green_dog_door', 'ecology_green_dog_noise'] as const;
 const FOG_SHARK_RUMOR_IDS = ['monster_fog_shark_fog', 'ecology_fog_shark_fire'] as const;
+const SBORKA_RUMOR_IDS = ['monster_sborka_fast', 'ecology_sborka_swarm'] as const;
+const ZOMBIE_RUMOR_IDS = ['monster_zombie_human', 'ecology_zombie_neighbor'] as const;
+const DIKIY_MERTVYAK_RUMOR_IDS = ['monster_dikiy_mertvyak_shove'] as const;
 const POMOYNY_ROY_RUMOR_IDS = ['monster_pomoyny_roy'] as const;
 const SWARM_RUMOR_IDS = ['monster_swarm_source'] as const;
+const NIGHTMARE_RUMOR_IDS = ['ecology_nightmare_pressure'] as const;
+const MANCOBUS_RUMOR_IDS = ['ecology_mancobus_orders'] as const;
+const HERALD_RUMOR_IDS = ['ecology_herald_ceiling'] as const;
+const CREATOR_RUMOR_IDS = ['ecology_creator_white'] as const;
 const PARAGRAPH_RUMOR_IDS = ['ecology_paragraph_clause'] as const;
 const PROTOKOLNIK_RUMOR_IDS = ['ecology_protokolnik_protocol'] as const;
 const IDOL_RUMOR_IDS = ['monster_idol_static', 'ecology_idol_stares'] as const;
@@ -384,6 +412,7 @@ const TUMANNIK_RUMOR_IDS = ['monster_tumannik_side_sound', 'ecology_tumannik_lig
 const LOZHNYY_DUKH_RUMOR_IDS = ['ecology_lozhnyy_dukh_door'] as const;
 const RZHAVNIK_RUMOR_IDS = ['monster_rzhavnik_scrap', 'ecology_rzhavnik_first_leap'] as const;
 const TRESKOTNIK_RUMOR_IDS = ['monster_treskotnik_crack_pulse', 'ecology_treskotnik_corner'] as const;
+const NELYUD_RUMOR_IDS = ['ecology_nelyud_close'] as const;
 const BLACK_LIQUIDATOR_RUMOR_IDS = ['monster_black_liquidator_wrong_count', 'ecology_black_liquidator_masks', 'samosbor_false_cleanup_patrol'] as const;
 const MUKHOZHUK_RUMOR_IDS = ['monster_mukhozhuk_host_command', 'ecology_mukhozhuk_quarantine'] as const;
 const CHERVIE_RUMOR_IDS = ['monster_chervie_avatar_screen', 'ecology_chervie_avatar_disconnect'] as const;
@@ -435,8 +464,8 @@ const chernoslizTargetQuery: Entity[] = [];
 const zhornayaCarrierQuery: Entity[] = [];
 const zhornayaDropQuery: Entity[] = [];
 const slepoglazBeamQuery: Entity[] = [];
-const matkaChildrenQuery: Entity[] = [];
 const dikiyCrowdQuery: Entity[] = [];
+const zombieCrowdQuery: Entity[] = [];
 const greenDogPackQuery: Entity[] = [];
 const fogSharkPackQuery: Entity[] = [];
 const headSlugHostQuery: Entity[] = [];
@@ -445,6 +474,7 @@ const cherviePulseQuery: Entity[] = [];
 const sporeCarpetPuffQuery: Entity[] = [];
 const lishennyyLightQuery: Entity[] = [];
 const olgoyFedCorpses = new WeakSet<Entity>();
+const lampPoweredRuntime = new WeakMap<Entity, boolean>();
 
 interface SobrannyyRuntime {
   lastHp: number;
@@ -459,6 +489,14 @@ interface SobrannyyRuntime {
 
 const sobrannyyRuntime = new WeakMap<Entity, SobrannyyRuntime>();
 const SOBRANNYY_SLIME_TAGS = ['slime', 'toxic', 'acid', 'red_slime', 'black_slime', 'brown_slime'] as const;
+
+interface NightmareRuntime {
+  lastHp: number;
+  pressure: number;
+  lastBreakAt: number;
+}
+
+const nightmareRuntime = new WeakMap<Entity, NightmareRuntime>();
 
 interface SlimeWomanRuntime {
   lastHp: number;
@@ -575,6 +613,10 @@ function fogSharkChaseCell(world: World, e: Entity, target: Entity): { x: number
   return { x: Math.floor(target.x), y: Math.floor(target.y) };
 }
 
+function fogSharkPackMember(candidate: Entity): boolean {
+  return candidate.monsterKind === MonsterKind.FOG_SHARK;
+}
+
 function updateFogSharkPack(
   world: World,
   e: Entity,
@@ -589,21 +631,13 @@ function updateFogSharkPack(
   let shared = 0;
   if (runtime.nextShareAt <= time) {
     runtime.nextShareAt = time + FOG_SHARK_SHARE_COOLDOWN_SEC;
-    getEntityIndex().queryRadiusCapped(
-      e.x,
-      e.y,
-      FOG_SHARK_PACK_RADIUS,
-      fogSharkPackQuery,
-      ENTITY_MASK_MONSTER,
-      FOG_SHARK_PACK_CAP,
-    );
-    for (const shark of fogSharkPackQuery) {
-      if (shark.id === e.id || !shark.alive || shark.monsterKind !== MonsterKind.FOG_SHARK || !shark.ai) continue;
-      shark.ai.combatTargetId = target.id;
-      shark.ai.goal = AIGoal.HUNT;
-      shark.ai.timer = Math.min(shark.ai.timer, 0.1);
-      shared++;
-    }
+    shared = shareLocalTarget(e, target, {
+      radius: FOG_SHARK_PACK_RADIUS,
+      cap: FOG_SHARK_PACK_CAP,
+      scratch: fogSharkPackQuery,
+      context: undefined,
+      predicate: fogSharkPackMember,
+    });
   }
 
   if (runtime.nextSightAt > time) return;
@@ -753,24 +787,17 @@ function shareGreenDogTarget(e: Entity, target: Entity, time: number): number {
   const runtime = greenDogState(e);
   if (runtime.nextShareAt > time) return 0;
   runtime.nextShareAt = time + GREEN_DOG_SHARE_COOLDOWN_SEC;
-  getEntityIndex().queryRadiusCapped(
-    e.x,
-    e.y,
-    GREEN_DOG_PACK_RADIUS,
-    greenDogPackQuery,
-    ENTITY_MASK_MONSTER,
-    GREEN_DOG_PACK_CAP,
-  );
-  let shared = 0;
-  for (const dog of greenDogPackQuery) {
-    if (dog.id === e.id || !dog.alive || dog.monsterKind !== MonsterKind.GREEN_DOG || !dog.ai) continue;
-    if (greenDogState(dog).fearUntil > time) continue;
-    dog.ai.combatTargetId = target.id;
-    dog.ai.goal = AIGoal.HUNT;
-    dog.ai.timer = Math.min(dog.ai.timer, 0.1);
-    shared++;
-  }
-  return shared;
+  return shareLocalTarget(e, target, {
+    radius: GREEN_DOG_PACK_RADIUS,
+    cap: GREEN_DOG_PACK_CAP,
+    scratch: greenDogPackQuery,
+    context: time,
+    predicate: greenDogPackMember,
+  });
+}
+
+function greenDogPackMember(dog: Entity, _actor: Entity, _target: Entity, time: number): boolean {
+  return dog.monsterKind === MonsterKind.GREEN_DOG && greenDogState(dog).fearUntil <= time;
 }
 
 function publishGreenDogHowl(
@@ -1497,6 +1524,7 @@ function growSobrannyy(
   publishSobrannyyEvent(state, world, e, target, 'composite_growth', 5, ['growth', reason], {
     reason,
     stacks: runtime.stacks,
+    maxStacks: SOBRANNYY_MAX_STACKS,
     stackSeconds: SOBRANNYY_STACK_SEC,
   });
 }
@@ -1975,6 +2003,10 @@ function monsterReadabilityRumorIds(kind: MonsterKind | undefined): readonly str
     case MonsterKind.EYE: return EYE_RUMOR_IDS;
     case MonsterKind.CHERNOSLIZ: return CHERNOSLIZ_RUMOR_IDS;
     case MonsterKind.VODYANOY_KOSHMAR: return VODYANOY_KOSHMAR_RUMOR_IDS;
+    case MonsterKind.TVAR: return TVAR_RUMOR_IDS;
+    case MonsterKind.SHOVNIK: return SHOVNIK_RUMOR_IDS;
+    case MonsterKind.REBAR: return REBAR_RUMOR_IDS;
+    case MonsterKind.BETONOED: return BETONOED_RUMOR_IDS;
     case MonsterKind.PANELNIK: return PANELNIK_RUMOR_IDS;
     case MonsterKind.SLEPOGLAZ: return SLEPOGLAZ_RUMOR_IDS;
     case MonsterKind.LAMPOGLAZ: return LAMPOGLAZ_RUMOR_IDS;
@@ -1985,8 +2017,15 @@ function monsterReadabilityRumorIds(kind: MonsterKind | undefined): readonly str
     case MonsterKind.ROBOT: return ROBOT_RUMOR_IDS;
     case MonsterKind.TRUBNYY_AVTOMAT: return TRUBNYY_AVTOMAT_RUMOR_IDS;
     case MonsterKind.GREEN_DOG: return GREEN_DOG_RUMOR_IDS;
+    case MonsterKind.SBORKA: return SBORKA_RUMOR_IDS;
+    case MonsterKind.ZOMBIE: return ZOMBIE_RUMOR_IDS;
+    case MonsterKind.DIKIY_MERTVYAK: return DIKIY_MERTVYAK_RUMOR_IDS;
     case MonsterKind.POMOYNY_ROY: return POMOYNY_ROY_RUMOR_IDS;
     case MonsterKind.SWARM: return SWARM_RUMOR_IDS;
+    case MonsterKind.NIGHTMARE: return NIGHTMARE_RUMOR_IDS;
+    case MonsterKind.MANCOBUS: return MANCOBUS_RUMOR_IDS;
+    case MonsterKind.HERALD: return HERALD_RUMOR_IDS;
+    case MonsterKind.CREATOR: return CREATOR_RUMOR_IDS;
     case MonsterKind.SHADOW: return SHADOW_RUMOR_IDS;
     case MonsterKind.TONKAYA_TEN: return TONKAYA_TEN_RUMOR_IDS;
     case MonsterKind.GLUBINNAYA_TEN: return GLUBINNAYA_TEN_RUMOR_IDS;
@@ -1995,6 +2034,7 @@ function monsterReadabilityRumorIds(kind: MonsterKind | undefined): readonly str
     case MonsterKind.LOZHNYY_DUKH: return LOZHNYY_DUKH_RUMOR_IDS;
     case MonsterKind.RZHAVNIK: return RZHAVNIK_RUMOR_IDS;
     case MonsterKind.TRESKOTNIK: return TRESKOTNIK_RUMOR_IDS;
+    case MonsterKind.NELYUD: return NELYUD_RUMOR_IDS;
     case MonsterKind.CHERVIE_AVATAR: return CHERVIE_RUMOR_IDS;
     case MonsterKind.SPORE_CARPET: return SPORE_CARPET_RUMOR_IDS;
     default: return [];
@@ -2037,6 +2077,112 @@ function publishMonsterReadabilityEvent(
     tags: ['monster', ...tags],
     data: monsterReadabilityEventData(e.monsterKind, data),
   });
+}
+
+function nightmareState(e: Entity): NightmareRuntime {
+  const hp = Math.max(1, e.hp ?? e.maxHp ?? 1);
+  let state = nightmareRuntime.get(e);
+  if (!state) {
+    state = { lastHp: hp, pressure: 0, lastBreakAt: -Infinity };
+    nightmareRuntime.set(e, state);
+  }
+  return state;
+}
+
+function nightmareSamePressureSpace(world: World, e: Entity, target: Entity): boolean {
+  const a = world.roomAt(e.x, e.y)?.id;
+  const b = world.roomAt(target.x, target.y)?.id;
+  return a === b;
+}
+
+function publishNightmarePressureBreak(
+  world: World,
+  e: Entity,
+  target: Entity | undefined,
+  time: number,
+  msgs: Msg[],
+  playerId: number,
+  state: GameState | undefined,
+  reason: string,
+): void {
+  const runtime = nightmareState(e);
+  if (runtime.lastBreakAt > time - 1.2) return;
+  runtime.lastBreakAt = time;
+  if (target?.id === playerId) {
+    msgs.push(msg(
+      reason === 'burst_damage'
+        ? 'Кошмарище потеряло темп от тяжелого урона. Сейчас решай: добивать или выйти.'
+        : 'Дверь, угол или дистанция разорвали давление Кошмарища.',
+      time,
+      '#9cf',
+    ));
+  }
+  publishMonsterReadabilityEvent(state, world, e, target, 'monster_windup_interrupted', 4, ['nightmare', 'pressure', reason], {
+    reason,
+    pressure: Math.round(runtime.pressure * 100) / 100,
+    pressureCap: NIGHTMARE_PRESSURE_MAX,
+    counterplay: 'burst_damage_or_leave_room_before_pressure_caps',
+  });
+}
+
+function updateNightmarePressure(
+  world: World,
+  e: Entity,
+  target: Entity | null,
+  dt: number,
+  time: number,
+  msgs: Msg[],
+  playerId: number,
+  state?: GameState,
+): void {
+  if (e.monsterKind !== MonsterKind.NIGHTMARE) return;
+  if (!e.alive || (e.hp ?? 1) <= 0) {
+    nightmareRuntime.delete(e);
+    return;
+  }
+
+  const runtime = nightmareState(e);
+  const hp = e.hp ?? runtime.lastHp;
+  const hpLoss = Math.max(0, runtime.lastHp - hp);
+  const heavyDamage = hpLoss >= Math.max(NIGHTMARE_HEAVY_DAMAGE_BREAK, (e.maxHp ?? hp) * NIGHTMARE_HEAVY_DAMAGE_RATIO);
+  if (heavyDamage && runtime.pressure > 0) {
+    runtime.pressure = Math.max(0, runtime.pressure - 2.5);
+    e.attackCd = Math.max(e.attackCd ?? 0, 0.55);
+    e.spriteScale = 0.92;
+    publishNightmarePressureBreak(world, e, target ?? undefined, time, msgs, playerId, state, 'burst_damage');
+  }
+  runtime.lastHp = hp;
+
+  const closeTarget = !!target?.alive &&
+    world.dist2(e.x, e.y, target.x, target.y) <= NIGHTMARE_PRESSURE_RANGE * NIGHTMARE_PRESSURE_RANGE &&
+    nightmareSamePressureSpace(world, e, target);
+
+  const before = runtime.pressure;
+  if (closeTarget) {
+    runtime.pressure = Math.min(NIGHTMARE_PRESSURE_MAX, runtime.pressure + dt * NIGHTMARE_PRESSURE_GAIN);
+    if (target?.id === playerId && e.ai?.lastSeenTargetId !== playerId) {
+      e.ai!.lastSeenTargetId = playerId;
+      msgs.push(msg('Кошмарище давит комнату. Длинный бой кормит его: тяжелый урон или выход.', time, '#fa4'));
+      publishMonsterReadabilityEvent(state, world, e, target, 'monster_sighted', 4, ['nightmare', 'pressure', 'warning'], {
+        pressureCap: NIGHTMARE_PRESSURE_MAX,
+        counterplay: 'burst_damage_or_leave_room',
+      });
+    }
+  } else {
+    runtime.pressure = Math.max(0, runtime.pressure - dt * NIGHTMARE_PRESSURE_DECAY);
+    if (before >= 1 && runtime.pressure <= 0.2) {
+      publishNightmarePressureBreak(world, e, target ?? undefined, time, msgs, playerId, state, 'left_room_or_range');
+    }
+    if (target?.id !== playerId) e.ai!.lastSeenTargetId = undefined;
+  }
+
+  if (runtime.pressure > 0) {
+    e.monsterDmgMult = 1 + runtime.pressure * 0.1;
+    e.spriteScale = 1 + runtime.pressure * 0.035;
+  } else {
+    e.monsterDmgMult = undefined;
+    if (e.spriteScale !== 0.92) e.spriteScale = undefined;
+  }
 }
 
 function publishBladeEliteEvent(
@@ -2100,6 +2246,40 @@ function hasClearLine(world: World, e: Entity, target: Entity, maxDist: number):
 
 export function hasClearLineOfFire(world: World, e: Entity, target: Entity, maxDist: number): boolean {
   return traceClearLine(world, e, target, maxDist, true);
+}
+
+export interface LineThreatContext {
+  distance: number;
+  inRange: boolean;
+  los: boolean;
+  coverBroken: boolean;
+  targetLight: number;
+  litTarget: boolean;
+}
+
+export function lineThreatContext(
+  world: World,
+  e: Entity,
+  target: Entity,
+  maxRange: number,
+  minRange = 0,
+): LineThreatContext {
+  const dx = world.delta(e.x, target.x);
+  const dy = world.delta(e.y, target.y);
+  const distance = Math.sqrt(dx * dx + dy * dy);
+  const inRange = distance <= maxRange && distance > minRange;
+  const los = inRange && hasClearLineOfFire(world, e, target, maxRange);
+  let targetLight = entityLight(world, target);
+  if (nearFeature(world, target, Feature.LAMP, 1)) targetLight = Math.max(targetLight, 0.62);
+  if (nearFeature(world, target, Feature.CANDLE, 1)) targetLight = Math.max(targetLight, 0.48);
+  return {
+    distance,
+    inRange,
+    los,
+    coverBroken: inRange && !los,
+    targetLight,
+    litTarget: targetLight >= LAMPOGLAZ_LIGHT_LOCK,
+  };
 }
 
 function isDocumentPressureHunter(e: Entity): boolean {
@@ -2467,6 +2647,29 @@ function revealFalseLiquidator(
   publishFalseLiquidatorRevealed(state, world, e, player, reason);
 }
 
+function updateNelyudCloseReveal(
+  world: World,
+  e: Entity,
+  target: Entity,
+  time: number,
+  msgs: Msg[],
+  state?: GameState,
+): void {
+  if (!hasAIFlag(e, 'closeReveal') || e.monsterKind !== MonsterKind.NELYUD || !e.ai) return;
+  if (e.ai.lastSeenTargetId === target.id) return;
+  if (world.dist2(e.x, e.y, target.x, target.y) > NELYUD_REVEAL_SQ) return;
+
+  e.ai.lastSeenTargetId = target.id;
+  if (isPlayerEntity(target)) {
+    msgs.push(msg('Сосед перестал моргать. Нелюдь раскрылась слишком близко; держите свет, свидетеля и выход.', time, '#f84'));
+  }
+  publishMonsterReadabilityEvent(state, world, e, target, 'monster_sighted', isPlayerEntity(target) ? 4 : 3, ['nelyud', 'close_reveal', 'mimic_threshold'], {
+    reason: 'close_distance_reveal',
+    light: Math.round(Math.max(entityLight(world, e), entityLight(world, target)) * 100) / 100,
+    counterplay: 'distance_light_witness_exit',
+  });
+}
+
 function updateFalseLiquidatorPatrol(
   world: World,
   e: Entity,
@@ -2660,11 +2863,6 @@ function fixedScanCd(e: Entity): number | undefined {
 export function deterministicScanCd(id: number, base: number, spread: number): number {
   const h = Math.imul(id ^ 0x9E3779B9, 0x85EBCA6B) >>> 0;
   return base + ((h & 1023) / 1023) * spread;
-}
-
-function monsterHashUnit(id: number, salt: number): number {
-  const h = Math.imul(id ^ salt, 0x85ebca6b) >>> 0;
-  return (h & 1023) / 1023;
 }
 
 function hasDocumentLikeItem(e: Entity): boolean {
@@ -3368,15 +3566,6 @@ function nearFeature(world: World, e: Entity, feature: Feature, radius: number):
   return false;
 }
 
-function adjacentWall(world: World, e: Entity): boolean {
-  const x = Math.floor(e.x);
-  const y = Math.floor(e.y);
-  return world.cells[world.idx(x - 1, y)] === Cell.WALL ||
-    world.cells[world.idx(x + 1, y)] === Cell.WALL ||
-    world.cells[world.idx(x, y - 1)] === Cell.WALL ||
-    world.cells[world.idx(x, y + 1)] === Cell.WALL;
-}
-
 function nearDebrisFeature(world: World, e: Entity, radius: number): boolean {
   const ex = Math.floor(e.x);
   const ey = Math.floor(e.y);
@@ -3391,9 +3580,114 @@ function nearDebrisFeature(world: World, e: Entity, radius: number): boolean {
 }
 
 function inDebrisCover(world: World, e: Entity): boolean {
-  if (adjacentWall(world, e) || nearDebrisFeature(world, e, 2)) return true;
-  const room = world.roomAt(e.x, e.y);
-  return room?.type === RoomType.STORAGE || room?.type === RoomType.PRODUCTION;
+  const ctx = monsterWallContext(world, e);
+  return ctx.adjacentWall || ctx.narrowDoorOrCorner || ctx.debrisNearby;
+}
+
+function wallTerrainPressureActive(world: World, e: Entity, target?: Entity): boolean {
+  const actorCtx = monsterWallContext(world, e);
+  if (hasAIFlag(e, 'debrisLurker') && (actorCtx.debrisNearby || actorCtx.adjacentWall || actorCtx.narrowDoorOrCorner)) return true;
+  if (!hasAIFlag(e, 'wallBias')) return false;
+  if (actorCtx.adjacentWall || actorCtx.narrowDoorOrCorner) return true;
+  if (!target) return false;
+  const targetCtx = monsterWallContext(world, target);
+  return targetCtx.adjacentWall || targetCtx.narrowDoorOrCorner;
+}
+
+function wallTerrainOpenBreak(world: World, e: Entity, target?: Entity): boolean {
+  const actorCtx = monsterWallContext(world, e);
+  if (actorCtx.openFloorScore < 0.98) return false;
+  if (hasAIFlag(e, 'debrisLurker') && actorCtx.debrisNearby) return false;
+  if (!target) return true;
+  const targetCtx = monsterWallContext(world, target);
+  if (targetCtx.openFloorScore < 0.98) return false;
+  return !hasAIFlag(e, 'debrisLurker') || !targetCtx.debrisNearby;
+}
+
+function wallTerrainTag(kind: MonsterKind | undefined): string {
+  switch (kind) {
+    case MonsterKind.TVAR: return 'tvar';
+    case MonsterKind.SHOVNIK: return 'shovnik';
+    case MonsterKind.REBAR: return 'rebar';
+    case MonsterKind.BETONOED: return 'betonoed';
+    default: return 'wall_terrain';
+  }
+}
+
+function wallTerrainCueText(kind: MonsterKind | undefined, debris: boolean): string {
+  switch (kind) {
+    case MonsterKind.TVAR:
+      return 'Тварь царапает панель: у стены лапа достает дальше. Центр комнаты режет давление.';
+    case MonsterKind.SHOVNIK:
+      return 'Шовник скользит по шву. У стены он быстрее и больнее; выводите в центр.';
+    case MonsterKind.REBAR:
+      return debris
+        ? 'Арматура звенит в складском мусоре. Держите открытый бетон и дистанцию.'
+        : 'Арматура цепляет стену прутьями. Уводите ее от кромки.';
+    case MonsterKind.BETONOED:
+      return 'Бетоноед ведет челюсть вдоль бетонного шва. Шум, огонь или герметик решают темп.';
+    default:
+      return 'Монстр получил упор от стены. Открытый пол ломает преимущество.';
+  }
+}
+
+function wallTerrainOpenText(kind: MonsterKind | undefined): string {
+  switch (kind) {
+    case MonsterKind.TVAR: return 'Тварь потеряла панель. В центре комнаты ее хват стал честнее.';
+    case MonsterKind.SHOVNIK: return 'Шовник вышел с шва на открытый пол и потерял ход.';
+    case MonsterKind.REBAR: return 'Арматура вышла из железного мусора: прутья читаются, темп просел.';
+    case MonsterKind.BETONOED: return 'Бетоноед потерял бетонный шов и сбился с короткого выхода.';
+    default: return 'Открытый пол снял стенное преимущество.';
+  }
+}
+
+function updateWallTerrainReadability(
+  world: World,
+  e: Entity,
+  target: Entity | null,
+  time: number,
+  msgs: Msg[],
+  state: GameState | undefined,
+): void {
+  if (!e.ai || (!hasAIFlag(e, 'wallBias') && !hasAIFlag(e, 'debrisLurker'))) return;
+  const localTarget = target?.alive && world.dist2(e.x, e.y, target.x, target.y) <= 16 * 16 ? target : undefined;
+  const active = wallTerrainPressureActive(world, e, localTarget);
+  const openBreak = !active && e.ai.wallBiasWasActive === true && wallTerrainOpenBreak(world, e, localTarget);
+  if (!active && !openBreak) return;
+
+  const canCue = time >= (e.ai.wallBiasCueAt ?? -Infinity);
+  if (active) {
+    e.ai.wallBiasWasActive = true;
+    e.spriteScale = Math.max(e.spriteScale ?? 1, e.monsterKind === MonsterKind.REBAR ? 1.05 : 1.03);
+    if (!localTarget || !canCue) return;
+    e.ai.wallBiasCueAt = time + WALL_BIAS_CUE_COOLDOWN_SEC;
+    const actorCtx = monsterWallContext(world, e);
+    if (isPlayerEntity(localTarget)) msgs.push(msg(wallTerrainCueText(e.monsterKind, actorCtx.debrisNearby), time, '#ca6'));
+    publishMonsterReadabilityEvent(state, world, e, localTarget, 'monster_sighted', isPlayerEntity(localTarget) ? 4 : 3, [
+      wallTerrainTag(e.monsterKind),
+      hasAIFlag(e, 'debrisLurker') ? 'debris_lurker' : 'wall_bias',
+      actorCtx.debrisNearby ? 'debris' : 'wall_edge',
+    ], monsterReadabilityEventData(e.monsterKind, {
+      actorAdjacentWall: actorCtx.adjacentWall,
+      actorNarrowDoorOrCorner: actorCtx.narrowDoorOrCorner,
+      actorOpenFloorScore: Math.round(actorCtx.openFloorScore * 100) / 100,
+      counterplay: 'open_floor_center_room_distance',
+    }));
+    return;
+  }
+
+  e.ai.wallBiasWasActive = false;
+  if (!localTarget || !canCue) return;
+  e.ai.wallBiasCueAt = time + WALL_BIAS_CUE_COOLDOWN_SEC;
+  e.spriteScale = e.monsterKind === MonsterKind.REBAR ? 0.94 : 0.96;
+  if (isPlayerEntity(localTarget)) msgs.push(msg(wallTerrainOpenText(e.monsterKind), time, '#9cf'));
+  publishMonsterReadabilityEvent(state, world, e, localTarget, 'monster_windup_interrupted', 3, [
+    wallTerrainTag(e.monsterKind),
+    'open_floor',
+    'wall_advantage_broken',
+  ], monsterReadabilityEventData(e.monsterKind, {
+    counterplay: 'open_floor',
+  }));
 }
 
 function wallNeighborCount(world: World, x: number, y: number): number {
@@ -3403,6 +3697,37 @@ function wallNeighborCount(world: World, x: number, y: number): number {
   if (world.solid(x, y - 1)) n++;
   if (world.solid(x, y + 1)) n++;
   return n;
+}
+
+interface CheapCrowdPressure {
+  crowd: number;
+  capped: boolean;
+  choke: boolean;
+}
+
+function cheapCrowdPressure(
+  world: World,
+  e: Entity,
+  target: Entity,
+  radius: number,
+  cap: number,
+  out: Entity[],
+): CheapCrowdPressure {
+  const found = getEntityIndex().queryRadiusCapped(e.x, e.y, radius, out, ENTITY_MASK_ACTOR, cap);
+  let crowd = 0;
+  for (const other of out) {
+    if (!other.alive || other.id === e.id || other.id === target.id) continue;
+    crowd++;
+  }
+  const ex = Math.floor(e.x);
+  const ey = Math.floor(e.y);
+  const tx = Math.floor(target.x);
+  const ty = Math.floor(target.y);
+  const choke = wallNeighborCount(world, ex, ey) >= 2 ||
+    wallNeighborCount(world, tx, ty) >= 2 ||
+    world.cells[world.idx(ex, ey)] === Cell.DOOR ||
+    world.cells[world.idx(tx, ty)] === Cell.DOOR;
+  return { crowd, capped: found >= cap, choke };
 }
 
 function inPolzunKillCell(world: World, e: Entity): boolean {
@@ -4217,10 +4542,7 @@ function applyLishennyyContactDecay(
 }
 
 function isSlimeWomanWetCell(world: World, e: Entity): boolean {
-  const ci = world.idx(Math.floor(e.x), Math.floor(e.y));
-  return world.cells[ci] === Cell.WATER ||
-    world.features[ci] === Feature.SINK ||
-    world.features[ci] === Feature.TOILET ||
+  return wetTerrainAtEntity(world, e) ||
     entityInActiveCellHazard(world, e, SLIME_WOMAN_HAZARD_TAGS);
 }
 
@@ -4467,11 +4789,12 @@ function shadowCanDarkAmbush(world: World, shadow: Entity, target: Entity): bool
 }
 
 function isBlackWaterWakeCell(world: World, e: Entity): boolean {
-  return world.cells[world.idx(Math.floor(e.x), Math.floor(e.y))] === Cell.WATER;
+  return wetWaterCell(world, Math.floor(e.x), Math.floor(e.y));
 }
 
 export function isChernoSlizHidden(world: World, e: Entity, target?: Entity): boolean {
   if (e.monsterKind !== MonsterKind.CHERNOSLIZ) return false;
+  if (e.monsterStage === 1) return false;
   if (!isBlackWaterWakeCell(world, e)) return false;
   const maxHp = e.maxHp ?? e.hp ?? 1;
   if ((e.hp ?? maxHp) < maxHp) return false;
@@ -4491,6 +4814,52 @@ function chernoslizCanTarget(world: World, e: Entity, target: Entity): boolean {
   if (!target.alive || !canBeMonsterTarget(target) || !isHostile(e, target)) return false;
   if (isChernoSlizHidden(world, e, target)) return false;
   return world.dist2(e.x, e.y, target.x, target.y) < chernoslizDetectSq(world, e);
+}
+
+function chernoslizRevealNoise(noise: NoiseRecord): boolean {
+  if (noise.source === 'decoy' || noise.source === 'explosion') return true;
+  if (noise.source === 'weapon_fire' && noise.severity >= 2) return true;
+  if (noise.source === 'melee' && (noise.tags.includes('metal') || noise.tags.includes('pipe'))) return true;
+  return noise.itemId === 'noise_can' || noise.tags.includes('counterplay') || noise.tags.includes('probe');
+}
+
+function revealChernoSlizByNoise(
+  world: World,
+  e: Entity,
+  noise: NoiseRecord,
+  time: number,
+  msgs: Msg[],
+  state?: GameState,
+): void {
+  if (e.monsterStage === 1) return;
+  e.monsterStage = 1;
+  e.spriteScale = undefined;
+  stampChernoSlizWake(world, e, time);
+  const target = noise.actorId !== undefined ? _entityById.get(noise.actorId) : undefined;
+  msgs.push(msg('Шум вскрыл черную воду: чернослиз дернулся и потерял первый скрытый залп.', time, '#7f9'));
+  publishMonsterReadabilityEvent(state, world, e, target, 'monster_sighted', 3, ['chernosliz', 'black_water', 'noise_reveal', 'counterplay'], {
+    noiseId: noise.id,
+    noiseSource: noise.source,
+    itemId: noise.itemId,
+    counterplay: 'light_noise_probe_or_dry_edge',
+  });
+}
+
+function tryRevealChernoSlizByNoise(
+  world: World,
+  e: Entity,
+  time: number,
+  msgs: Msg[],
+  state?: GameState,
+): boolean {
+  if (e.monsterKind !== MonsterKind.CHERNOSLIZ || e.monsterStage === 1) return false;
+  if (!isChernoSlizHidden(world, e)) return false;
+  const ai = e.ai!;
+  const noise = findNoiseForActor(world, state, e, time, { minSeverity: 2, scanInterval: 0.65, hearingMult: 1.24 });
+  if (!noise || noise.id === ai.lastNoiseId || !chernoslizRevealNoise(noise)) return false;
+  ai.lastNoiseId = noise.id;
+  revealChernoSlizByNoise(world, e, noise, time, msgs, state);
+  return true;
 }
 
 function findChernoSlizTarget(world: World, e: Entity, dt: number): Entity | null {
@@ -4528,6 +4897,32 @@ function stampChernoSlizWake(world: World, e: Entity, time: number): void {
   stampMark(world, x, y, fx, fy, 0.18, MarkType.PSI, seed ^ 0x5a17, 58, 210, 82, 95);
 }
 
+function stampWetStriderRipple(world: World, e: Entity, time: number): void {
+  const x = Math.floor(e.x);
+  const y = Math.floor(e.y);
+  const fx = ((e.x % 1) + 1) % 1;
+  const fy = ((e.y % 1) + 1) % 1;
+  const seed = Math.imul(e.id, 1229) ^ Math.floor(time * 8);
+  stampMark(world, x, y, fx, fy, e.monsterKind === MonsterKind.TUBE_EEL ? 0.36 : 0.42, MarkType.SPLAT, seed, 42, 120, 138, 110);
+}
+
+function updateWaterStriderState(world: World, e: Entity, dt: number, time: number): void {
+  if (!hasAIFlag(e, 'waterStrider')) return;
+  const wet = wetTerrainAtEntity(world, e);
+  if (wet && time - (e.monsterArmorLastMsgAt ?? -Infinity) >= WATER_STRIDER_RIPPLE_SEC) {
+    e.monsterArmorLastMsgAt = time;
+    stampWetStriderRipple(world, e, time);
+  }
+  if (e.monsterKind !== MonsterKind.LOTOCHNIK) return;
+  const maxHp = e.maxHp ?? e.hp ?? MONSTERS[MonsterKind.LOTOCHNIK].hp;
+  if (wet) {
+    if ((e.hp ?? maxHp) < maxHp) e.hp = Math.min(maxHp, (e.hp ?? maxHp) + dt * LOTOCHNIK_WET_REGEN_PER_SEC);
+    e.spriteScale = Math.max(e.spriteScale ?? 1, 1.04);
+  } else if (e.spriteScale !== undefined && e.spriteScale > 1.02 && e.spriteScale < 1.08) {
+    e.spriteScale = undefined;
+  }
+}
+
 function monsterMoveMult(world: World, e: Entity, target?: Entity): number {
   if (e.monsterKind === MonsterKind.LOZHNYY_DUKH && (e.ai?.falsePhaseActive ?? 0) > 0) return FALSE_PHASE_WEAK_MOVE_MULT;
   if (hasAIFlag(e, 'netPossessor')) return e.ai?.netPowered ? CHERVIE_POWERED_MOVE_MULT : CHERVIE_CUT_MOVE_MULT;
@@ -4549,7 +4944,7 @@ function monsterMoveMult(world: World, e: Entity, target?: Entity): number {
       return 1;
     }
     case MonsterKind.TVAR:
-      return adjacentWall(world, e) ? 1.12 : 0.96;
+      return monsterWallContext(world, e).adjacentWall ? 1.12 : 0.96;
     case MonsterKind.CHERNOSLIZ:
       return isBlackWaterWakeCell(world, e) ? 1.0 : 0.46;
     case MonsterKind.HEAD_SLUG:
@@ -4562,12 +4957,15 @@ function monsterMoveMult(world: World, e: Entity, target?: Entity): number {
 	    default:
 	      break;
 	  }
-  if (hasAIFlag(e, 'wallBias')) return adjacentWall(world, e) ? 1.18 : 0.92;
+  if (hasAIFlag(e, 'wallBias')) {
+    const ctx = monsterWallContext(world, e);
+    return ctx.adjacentWall || ctx.narrowDoorOrCorner ? 1.18 : 0.92;
+  }
   if (hasAIFlag(e, 'waterPressureLine')) {
     return isVodyanoyWetLineCell(world, Math.floor(e.x), Math.floor(e.y)) ? 1.16 : 0.86;
   }
   if (hasAIFlag(e, 'waterStrider')) {
-    return world.cells[world.idx(Math.floor(e.x), Math.floor(e.y))] === Cell.WATER ? 1.45 : 0.72;
+    return wetTerrainAtEntity(world, e) ? 1.45 : 0.72;
   }
   if (hasAIFlag(e, 'slimeStrider')) {
     if (isSlimeWomanWetCell(world, e)) return 1.48;
@@ -4588,7 +4986,16 @@ function monsterDmgMult(world: World, e: Entity, target?: Entity): number {
       return 1;
     }
     case MonsterKind.TVAR:
-      return adjacentWall(world, e) || (target !== undefined && adjacentWall(world, target)) ? 1.22 : 1;
+      return wallTerrainPressureActive(world, e, target) ? 1.22 : 1;
+    case MonsterKind.ZOMBIE: {
+      if (!target) return 1;
+      const pressure = cheapCrowdPressure(world, e, target, ZOMBIE_CROWD_PRESSURE_RADIUS, ZOMBIE_CROWD_PRESSURE_SCAN_CAP, zombieCrowdQuery);
+      const bonus = Math.min(
+        ZOMBIE_CROWD_DAMAGE_CAP - 1,
+        pressure.crowd * ZOMBIE_CROWD_DAMAGE_BONUS + (pressure.choke ? ZOMBIE_DOOR_DAMAGE_BONUS : 0),
+      );
+      return 1 + Math.max(0, bonus);
+    }
     case MonsterKind.POLZUN:
       return inPolzunKillCell(world, e) || (target !== undefined && inPolzunKillCell(world, target)) ? 1.35 : 1;
     case MonsterKind.CHERNOSLIZ:
@@ -4599,19 +5006,56 @@ function monsterDmgMult(world: World, e: Entity, target?: Entity): number {
       return isHeadSlugDetached(e) ? 0.55 : 1;
     case MonsterKind.OLGOY:
       return olgoyTerrainDmgMult(world, e, target);
+    case MonsterKind.ROBOT:
+      return robotPlasmaWetRiskMult(world, e, target);
     default:
       break;
   }
-  if (hasAIFlag(e, 'wallBias')) return adjacentWall(world, e) ? 1.2 : 1;
+  if (hasAIFlag(e, 'wallBias')) return wallTerrainPressureActive(world, e, target) ? 1.2 : 1;
   if (hasAIFlag(e, 'lampPowered')) return nearFeature(world, e, Feature.LAMP, 3) ? 1.35 : 0.9;
   if (hasAIFlag(e, 'documentScent')) return documentScentStrength(target) > 0 ? 1.14 : 0.82;
   if (hasAIFlag(e, 'fogSwimmer')) return fogSharkHasFogPressure(world, e) ? FOG_SHARK_FOG_DAMAGE_MULT : FOG_SHARK_DRY_DAMAGE_MULT;
   if (hasAIFlag(e, 'officeField')) return officeFieldPressure(world, e, target);
+  if (hasAIFlag(e, 'waterStrider')) return wetTerrainAtEntity(world, e) ? 1.18 : 0.78;
   if (hasAIFlag(e, 'slimeStrider')) {
     if (isSlimeWomanWetCell(world, e)) return 1.12;
     return isSlimeWomanDryCounterCell(world, e) ? 0.7 : 0.9;
   }
   return 1;
+}
+
+function robotPlasmaWetRiskMult(world: World, e: Entity, target?: Entity): number {
+  if (!target) return 1;
+  const ex = Math.floor(e.x);
+  const ey = Math.floor(e.y);
+  const tx = Math.floor(target.x);
+  const ty = Math.floor(target.y);
+  return isDrainLineCell(world, ex, ey) || isDrainLineCell(world, tx, ty) ? 1.16 : 1;
+}
+
+function updateLampPoweredReadability(
+  world: World,
+  e: Entity,
+  target: Entity | null,
+  time: number,
+  msgs: Msg[],
+  playerId: number,
+  state?: GameState,
+): void {
+  if (!hasAIFlag(e, 'lampPowered')) return;
+  const powered = target?.alive === true && nearFeature(world, e, Feature.LAMP, 3);
+  const wasPowered = lampPoweredRuntime.get(e) === true;
+  lampPoweredRuntime.set(e, powered);
+  if (!powered || wasPowered || !target) return;
+
+  if (target.id === playerId) {
+    msgs.push(msg('Ламповый зазвенел под лампой: свет усилил удар. Отводите его на три клетки или за угол.', time, '#fd6'));
+  }
+  publishMonsterReadabilityEvent(state, world, e, target, 'monster_sighted', isPlayerEntity(target) ? 4 : 3, ['lampovy', 'lamp_powered', 'light', 'warning'], {
+    lampRadius: 3,
+    damageMult: 1.35,
+    counterplay: 'leave_lamp_cluster_or_break_line',
+  });
 }
 
 function monsterDetectSq(world: World, e: Entity, fallback: number): number {
@@ -4644,22 +5088,8 @@ function dikiyMertvyakDamagedEarly(e: Entity): boolean {
 }
 
 function dikiyMertvyakCrowdPressure(world: World, e: Entity, target: Entity): { crowd: number; choke: boolean } {
-  let crowd = 0;
-  getEntityIndex().queryRadiusCapped(e.x, e.y, DIKIY_SHOVE_RADIUS, dikiyCrowdQuery, ENTITY_MASK_ACTOR, DIKIY_SHOVE_SCAN_CAP);
-  for (const other of dikiyCrowdQuery) {
-    if (!other.alive || other.id === e.id) continue;
-    if (other.type === EntityType.MONSTER) continue;
-    crowd++;
-  }
-  const ex = Math.floor(e.x);
-  const ey = Math.floor(e.y);
-  const tx = Math.floor(target.x);
-  const ty = Math.floor(target.y);
-  const choke = wallNeighborCount(world, ex, ey) >= 2 ||
-    wallNeighborCount(world, tx, ty) >= 2 ||
-    world.cells[world.idx(ex, ey)] === Cell.DOOR ||
-    world.cells[world.idx(tx, ty)] === Cell.DOOR;
-  return { crowd, choke };
+  const pressure = cheapCrowdPressure(world, e, target, DIKIY_SHOVE_RADIUS, DIKIY_SHOVE_SCAN_CAP, dikiyCrowdQuery);
+  return { crowd: pressure.crowd, choke: pressure.choke };
 }
 
 function updateDikiyMertvyakCrowdShove(
@@ -4684,7 +5114,7 @@ function updateDikiyMertvyakCrowdShove(
   ai.shoveCooldown = Math.max(0, (ai.shoveCooldown ?? 0) - dt);
   const pressure = dikiyMertvyakCrowdPressure(world, e, target);
   if (pressure.choke || pressure.crowd >= 2) {
-    ai.shoveCharge = Math.min(1.35, (ai.shoveCharge ?? 0) + dt * (pressure.choke ? 1.45 : 0.85) + Math.max(0, pressure.crowd - 1) * 0.12);
+    ai.shoveCharge = Math.min(1.35, (ai.shoveCharge ?? 0) + dt * (pressure.choke ? 1.45 : 1.0) + Math.max(0, pressure.crowd - 1) * 0.12);
   } else {
     ai.shoveCharge = Math.max(0, (ai.shoveCharge ?? 0) - dt * 0.9);
   }
@@ -4900,7 +5330,7 @@ function tryFollowMonsterBait(
 ): boolean {
   const combatLockSq = e.monsterKind === MonsterKind.OLGOY ? OLGOY_COMBAT_LOCK_SQ : MONSTER_BAIT_COMBAT_LOCK_SQ;
   if (target && !hasAIFlag(e, 'garbageSurround') && !hasAIFlag(e, 'sourceSwarm') && world.dist2(e.x, e.y, target.x, target.y) <= combatLockSq) {
-    if (!hasAIFlag(e, 'documentScent') || hasDocumentLikeItem(target)) return false;
+    if (!isDocumentPressureHunter(e) || hasDocumentLikeItem(target)) return false;
   }
   const bait = findMonsterBaitTarget(world, e, dt, time, state);
   if (!bait) return false;
@@ -4972,6 +5402,50 @@ function tryFollowNoise(
   if (ai.path.length === 0) return false;
   followMonsterPath(world, e, dt);
   return true;
+}
+
+function updateSborkaReadability(
+  world: World,
+  e: Entity,
+  target: Entity | null,
+  time: number,
+  msgs: Msg[],
+  playerId: number,
+  state?: GameState,
+): void {
+  if (e.monsterKind !== MonsterKind.SBORKA || !target || e.ai?.lastSeenTargetId === target.id) return;
+  e.ai!.lastSeenTargetId = target.id;
+  if (target.id === playerId) {
+    msgs.push(msg('Сборка щелкнула проволокой и пошла первой. Широкий проход и дешевый выстрел решают до касания.', time, '#f86'));
+  }
+  publishMonsterReadabilityEvent(state, world, e, target, 'monster_sighted', target.id === playerId ? 4 : 3, ['sborka', 'cheap_chaser', 'first_sight'], {
+    counterplay: 'wide_floor_early_shot_or_bait_before_combat_lock',
+  });
+}
+
+function updateZombieCrowdReadability(
+  world: World,
+  e: Entity,
+  target: Entity,
+  time: number,
+  msgs: Msg[],
+  playerId: number,
+  state?: GameState,
+): void {
+  if (e.monsterKind !== MonsterKind.ZOMBIE || e.ai?.lastSeenTargetId === target.id) return;
+  const pressure = cheapCrowdPressure(world, e, target, ZOMBIE_CROWD_PRESSURE_RADIUS, ZOMBIE_CROWD_PRESSURE_SCAN_CAP, zombieCrowdQuery);
+  if (!pressure.choke && pressure.crowd <= 0) return;
+  e.ai!.lastSeenTargetId = target.id;
+  if (target.id === playerId) {
+    msgs.push(msg('Мертвяк хватил из дверной толпы. Выводи его на пустой проход до первого касания.', time, '#f87'));
+  }
+  publishMonsterReadabilityEvent(state, world, e, target, 'monster_sighted', target.id === playerId ? 4 : 3, ['zombie', 'crowd_chaser', 'door_pressure'], {
+    crowd: pressure.crowd,
+    capped: pressure.capped,
+    choke: pressure.choke,
+    damageCap: ZOMBIE_CROWD_DAMAGE_CAP,
+    counterplay: 'wide_floor_early_hits_before_door_or_crowd_contact',
+  });
 }
 
 function updatePomoynyRoyReadability(
@@ -6114,6 +6588,8 @@ function monsterProjectileSound(kind: MonsterKind | undefined, sprite: number): 
 }
 
 function rangedMonsterWindupSec(kind: MonsterKind | undefined): number {
+  const boss = kind === undefined ? undefined : MONSTERS[kind]?.boss;
+  if (boss) return boss.windupSec;
   switch (kind) {
     case MonsterKind.PAUPSINA: return PAUPSINA_WEB_WINDUP_SEC;
     case MonsterKind.EYE: return EYE_WINDUP_SEC;
@@ -6131,6 +6607,8 @@ function rangedMonsterWindupSec(kind: MonsterKind | undefined): number {
 }
 
 function rangedMonsterMinRange(kind: MonsterKind | undefined): number {
+  const boss = kind === undefined ? undefined : MONSTERS[kind]?.boss;
+  if (boss) return boss.minRange;
   if (kind === MonsterKind.PAUPSINA) return PAUPSINA_WEB_MIN_RANGE;
   if (kind === MonsterKind.CHERNOSLIZ) return 0.75;
   if (kind === MonsterKind.IDOL) return 1.25;
@@ -6139,6 +6617,8 @@ function rangedMonsterMinRange(kind: MonsterKind | undefined): number {
 }
 
 function rangedMonsterShotRange(kind: MonsterKind | undefined): number {
+  const boss = kind === undefined ? undefined : MONSTERS[kind]?.boss;
+  if (boss) return boss.range;
   return kind === MonsterKind.PAUPSINA ? PAUPSINA_WEB_SHOT_RANGE : RANGED_SHOT_RANGE;
 }
 
@@ -6176,6 +6656,9 @@ function rangedMonsterColor(kind: MonsterKind | undefined): string {
     case MonsterKind.IDOL: return '#c8f';
     case MonsterKind.KANTSELYARSKIY_IDOL: return '#fd6';
     case MonsterKind.ROBOT: return '#6cf';
+    case MonsterKind.MANCOBUS: return '#fa4';
+    case MonsterKind.HERALD: return '#c8f';
+    case MonsterKind.CREATOR: return '#9f8';
     default: return '#fc6';
   }
 }
@@ -6186,10 +6669,13 @@ function rangedMonsterTag(kind: MonsterKind | undefined): string {
 
 function rangedMonsterTags(kind: MonsterKind | undefined, ...tags: string[]): string[] {
   const base = rangedMonsterTag(kind);
+  if (kind !== undefined && MONSTERS[kind]?.boss) return [base, 'boss_line_controller', ...tags];
   return kind === MonsterKind.KANTSELYARSKIY_IDOL ? [base, 'office_field', ...tags] : [base, ...tags];
 }
 
 function rangedMonsterWindupMessage(kind: MonsterKind | undefined, name: string): string {
+  const boss = kind === undefined ? undefined : MONSTERS[kind]?.boss;
+  if (boss) return boss.windupLine;
   switch (kind) {
     case MonsterKind.PAUPSINA: return 'Паупсина присела на передние лапы: сейчас плюнет сетью. Шкаф, дверь или ближний напор срывают плевок.';
     case MonsterKind.EYE: return 'Глаз разогревает зелёную линию огня. Угол, дверь или шкаф сорвут выстрел.';
@@ -6203,6 +6689,8 @@ function rangedMonsterWindupMessage(kind: MonsterKind | undefined, name: string)
 }
 
 function rangedMonsterSightMessage(kind: MonsterKind | undefined, name: string): string {
+  const boss = kind === undefined ? undefined : MONSTERS[kind]?.boss;
+  if (boss) return boss.warningLine;
   switch (kind) {
     case MonsterKind.PAUPSINA: return 'Паупсина держит липкую прямую. Сеть не убивает, но ловит ноги на несколько секунд.';
     case MonsterKind.EYE: return 'Глаз держит прямую линию. Зеленый разогрев читается до выстрела.';
@@ -6216,6 +6704,8 @@ function rangedMonsterSightMessage(kind: MonsterKind | undefined, name: string):
 }
 
 function rangedMonsterInterruptedMessage(kind: MonsterKind | undefined, reason: string): string {
+  const boss = kind === undefined ? undefined : MONSTERS[kind]?.boss;
+  if (boss) return boss.interruptLine;
   if (reason === 'range') return 'Дистанция сломала выстрел: источник потерял линию.';
   switch (kind) {
     case MonsterKind.PAUPSINA: return 'Плевок Паупсины сорвался о бетон или мебель. Давите дистанцию, пока она переставляет лапы.';
@@ -6229,6 +6719,39 @@ function rangedMonsterInterruptedMessage(kind: MonsterKind | undefined, reason: 
   }
 }
 
+function rangedMonsterCounterplay(kind: MonsterKind | undefined, fallback: string): string {
+  return kind === undefined ? fallback : MONSTERS[kind]?.boss?.counterplay ?? fallback;
+}
+
+function updateRangedBossPhaseCue(
+  world: World,
+  e: Entity,
+  target: Entity,
+  def: MonsterDef,
+  time: number,
+  msgs: Msg[],
+  playerId: number,
+  state?: GameState,
+): void {
+  const boss = def.boss;
+  if (!boss || boss.phases.length === 0 || !e.ai) return;
+  const maxHp = Math.max(1, e.maxHp ?? def.hp);
+  const hpPct = Math.max(0, Math.min(1, (e.hp ?? maxHp) / maxHp));
+  const nextIndex = (e.ai.bossPhaseIndex ?? -1) + 1;
+  const phase = boss.phases[nextIndex];
+  if (!phase || hpPct > phase.hpPct) return;
+
+  e.ai.bossPhaseIndex = nextIndex;
+  if (target.id === playerId) msgs.push(msg(phase.line, time, rangedMonsterColor(e.monsterKind)));
+  publishMonsterReadabilityEvent(state, world, e, target, 'monster_sighted', target.id === playerId ? 4 : 3, rangedMonsterTags(e.monsterKind, 'boss_phase', phase.tag), {
+    phaseIndex: nextIndex,
+    phaseTag: phase.tag,
+    hpPct: Math.round(hpPct * 100) / 100,
+    thresholdHpPct: phase.hpPct,
+    counterplay: boss.counterplay,
+  });
+}
+
 export interface TrubnyyWetLineShot {
   stepX: number;
   stepY: number;
@@ -6238,14 +6761,7 @@ export interface TrubnyyWetLineShot {
 }
 
 function isDrainLineCell(world: World, x: number, y: number): boolean {
-  const ci = world.idx(x, y);
-  if (world.cells[ci] === Cell.WATER || world.floorTex[ci] === Tex.F_WATER) return true;
-  const feature = world.features[ci];
-  if (feature === Feature.SINK || feature === Feature.TOILET) return true;
-  return world.cells[world.idx(x - 1, y)] === Cell.WATER ||
-    world.cells[world.idx(x + 1, y)] === Cell.WATER ||
-    world.cells[world.idx(x, y - 1)] === Cell.WATER ||
-    world.cells[world.idx(x, y + 1)] === Cell.WATER;
+  return drainLineCell(world, x, y);
 }
 
 export interface VodyanoyWaterPressureLine {
@@ -6254,61 +6770,12 @@ export interface VodyanoyWaterPressureLine {
   distance: number;
 }
 
-let vodyanoyVisitId = 1;
-const vodyanoyVisited = new Uint32Array(W * W);
-const vodyanoyQueue = new Int32Array(VODYANOY_WET_LINE_MAX_CELLS);
-
 function isVodyanoyWetLineCell(world: World, x: number, y: number): boolean {
-  const ci = world.idx(x, y);
-  if (world.cells[ci] === Cell.WATER || world.floorTex[ci] === Tex.F_WATER) return true;
-  const feature = world.features[ci];
-  return feature === Feature.SINK || feature === Feature.TOILET;
+  return wetTerrainCell(world, x, y);
 }
 
 export function getVodyanoyWaterPressureLine(world: World, e: Entity, target: Entity): VodyanoyWaterPressureLine | undefined {
-  const maxDistSq = VODYANOY_WET_LINE_MAX_DIST * VODYANOY_WET_LINE_MAX_DIST;
-  if (world.dist2(e.x, e.y, target.x, target.y) > maxDistSq) return undefined;
-
-  const sx = Math.floor(e.x);
-  const sy = Math.floor(e.y);
-  const tx = Math.floor(target.x);
-  const ty = Math.floor(target.y);
-  if (!isVodyanoyWetLineCell(world, sx, sy) || !isVodyanoyWetLineCell(world, tx, ty)) return undefined;
-
-  const targetIdx = world.idx(tx, ty);
-  const scanId = ++vodyanoyVisitId || 1;
-  if (scanId === 1) vodyanoyVisited.fill(0);
-
-  let head = 0;
-  let tail = 0;
-  let waterCells = 0;
-  const startIdx = world.idx(sx, sy);
-  vodyanoyVisited[startIdx] = scanId;
-  vodyanoyQueue[tail++] = startIdx;
-
-  while (head < tail && head < VODYANOY_WET_LINE_MAX_CELLS) {
-    const ci = vodyanoyQueue[head++];
-    const x = ci & (W - 1);
-    const y = (ci / W) | 0;
-    if (world.cells[ci] === Cell.WATER) waterCells++;
-    if (ci === targetIdx) {
-      const dx = world.delta(e.x, target.x);
-      const dy = world.delta(e.y, target.y);
-      return { cells: head, waterCells, distance: Math.sqrt(dx * dx + dy * dy) };
-    }
-
-    for (let dir = 0; dir < 4; dir++) {
-      const nx = world.wrap(x + (dir === 0 ? 1 : dir === 1 ? -1 : 0));
-      const ny = world.wrap(y + (dir === 2 ? 1 : dir === 3 ? -1 : 0));
-      const ni = world.idx(nx, ny);
-      if (vodyanoyVisited[ni] === scanId) continue;
-      if (!isVodyanoyWetLineCell(world, nx, ny) || world.solid(nx, ny)) continue;
-      vodyanoyVisited[ni] = scanId;
-      if (tail < VODYANOY_WET_LINE_MAX_CELLS) vodyanoyQueue[tail++] = ni;
-    }
-  }
-
-  return undefined;
+  return getBoundedWetConnection(world, e, target, VODYANOY_WET_LINE_MAX_CELLS, VODYANOY_WET_LINE_MAX_DIST);
 }
 
 function stampVodyanoyWetLineCue(world: World, e: Entity, target: Entity, time: number, pressure: number): void {
@@ -6600,8 +7067,8 @@ function updateLampoglazLightLock(
   const targetLight = lampoglazTargetLight(world, target);
   const hasLock = targetLight >= LAMPOGLAZ_LIGHT_LOCK;
   const hardLock = targetLight >= LAMPOGLAZ_HARD_LOCK;
-  const inShotRange = bestDist < LAMPOGLAZ_SHOT_RANGE && bestDist > LAMPOGLAZ_MIN_RANGE;
-  const lineClear = inShotRange && target.alive && hasClearLineOfFire(world, e, target, LAMPOGLAZ_SHOT_RANGE);
+  const line = lineThreatContext(world, e, target, LAMPOGLAZ_SHOT_RANGE, LAMPOGLAZ_MIN_RANGE);
+  const lineClear = target.alive && line.los;
   const currentTarget = ai.windupTargetId === undefined || ai.windupTargetId === target.id;
 
   if ((ai.windupTimer ?? 0) > 0) {
@@ -6612,7 +7079,7 @@ function updateLampoglazLightLock(
       e.spriteScale = undefined;
       e.attackCd = Math.max(e.attackCd ?? 0, RANGED_LOS_BREAK_COOLDOWN);
       if (target.id === playerId) {
-        const reason = !hasLock ? 'darkness' : !inShotRange ? 'range' : 'line_of_sight';
+        const reason = !hasLock ? 'darkness' : !line.inRange ? 'range' : 'line_of_sight';
         msgs.push(msg(
           reason === 'darkness'
             ? 'Лампоглаз потерял световой захват. Темный угол держит паузу.'
@@ -6702,23 +7169,24 @@ function updateReadableMonsterRanged(
   const shotRange = hasAIFlag(e, 'officeField') ? officeFieldShotRange(world, e, target) : rangedMonsterShotRange(e.monsterKind);
   const minRange = rangedMonsterMinRange(e.monsterKind);
   const windupSec = rangedMonsterWindupSec(e.monsterKind);
-  const inShotRange = bestDist < shotRange && bestDist > minRange;
+  const line = lineThreatContext(world, e, target, shotRange, minRange);
   const currentTarget = ai.windupTargetId === undefined || ai.windupTargetId === target.id;
+  updateRangedBossPhaseCue(world, e, target, def, time, msgs, playerId, state);
 
   if ((ai.windupTimer ?? 0) > 0) {
     ai.windupTimer = Math.max(0, (ai.windupTimer ?? 0) - dt);
-    const lineClear = currentTarget && inShotRange && target.alive && hasClearLineOfFire(world, e, target, shotRange);
+    const lineClear = currentTarget && target.alive && line.los;
     if (!lineClear) {
       ai.windupTimer = undefined;
       ai.windupTargetId = undefined;
       e.spriteScale = undefined;
       e.attackCd = Math.max(e.attackCd ?? 0, RANGED_LOS_BREAK_COOLDOWN);
       if (target.id === playerId) {
-        const reason = !inShotRange ? 'range' : 'line_of_sight';
+        const reason = !line.inRange ? 'range' : 'line_of_sight';
         msgs.push(msg(rangedMonsterInterruptedMessage(e.monsterKind, reason), time, '#9cf'));
         publishMonsterReadabilityEvent(state, world, e, target, 'monster_windup_interrupted', 3, rangedMonsterTags(e.monsterKind, 'windup', 'line_of_sight', 'interrupted'), {
           reason,
-          counterplay: 'break_line_before_bolt',
+          counterplay: rangedMonsterCounterplay(e.monsterKind, 'break_line_before_bolt'),
           ...officeFieldEventData(world, e, target),
         });
       }
@@ -6738,11 +7206,11 @@ function updateReadableMonsterRanged(
     return true;
   }
 
-  if (!inShotRange) {
+  if (!line.inRange) {
     if (bestDist <= minRange && tryPaupsinaRangeStep(world, e, target, bestDist, dt)) return true;
     return false;
   }
-  if (!hasClearLineOfFire(world, e, target, shotRange)) return false;
+  if (!line.los) return false;
 
   if (target.id === playerId && ai.lastSeenTargetId !== playerId) {
     ai.lastSeenTargetId = playerId;
@@ -6750,7 +7218,8 @@ function updateReadableMonsterRanged(
     publishMonsterReadabilityEvent(state, world, e, target, 'monster_sighted', 4, rangedMonsterTags(e.monsterKind, 'ranged', 'line_of_sight', 'warning'), {
       windupSec,
       shotRange: Math.round(shotRange * 10) / 10,
-      counterplay: 'corner_or_door_breaks_line',
+      minRange: Math.round(minRange * 10) / 10,
+      counterplay: rangedMonsterCounterplay(e.monsterKind, 'corner_or_door_breaks_line'),
       ...officeFieldEventData(world, e, target),
     });
   }
@@ -6911,9 +7380,8 @@ function acquireSlepoglazAim(
   }
 
   if (!target || !target.alive) return undefined;
-  const d2 = world.dist2(e.x, e.y, target.x, target.y);
-  if (d2 <= SLEPOGLAZ_MIN_RANGE * SLEPOGLAZ_MIN_RANGE || d2 > SLEPOGLAZ_SHOT_RANGE * SLEPOGLAZ_SHOT_RANGE) return undefined;
-  if (!hasClearLineOfFire(world, e, target, SLEPOGLAZ_SHOT_RANGE)) return undefined;
+  const line = lineThreatContext(world, e, target, SLEPOGLAZ_SHOT_RANGE, SLEPOGLAZ_MIN_RANGE);
+  if (!line.los) return undefined;
   return { x: target.x, y: target.y, target, source: 'sight' };
 }
 
@@ -8130,109 +8598,6 @@ export function dropNpcInventory(e: Entity, entities: Entity[], nextId: { v: num
   e.inventory = [];
 }
 
-export function updateSimpleMonster(world: World, entities: Entity[], e: Entity, dt: number, time: number, msgs: Msg[], playerId: number, nextId: { v: number }, state?: GameState): void {
-  const ai = e.ai!;
-  const def = e.monsterKind !== undefined ? MONSTERS[e.monsterKind] : null;
-  if (!def) return;
-
-  const player = _entityById.get(playerId);
-  const detectSq = def.speed > 0 && !def.isRanged ? MONSTER_MELEE_DETECT_SQ : MONSTER_DETECT_SQ;
-  let target = findCombatTarget(world, entities, e, dt, detectSq, fixedScanCd(e) ?? deterministicScanCd(e.id, 1.0, 0.5), canBeMonsterTarget);
-
-  if (player?.alive && target?.id !== playerId) {
-    const pd2 = world.dist2(e.x, e.y, player.x, player.y);
-    if ((!target || pd2 < world.dist2(e.x, e.y, target.x, target.y)) && pd2 < Math.min(PREFER_SQ, detectSq)) {
-      target = player;
-      ai.combatTargetId = player.id;
-    }
-  }
-
-  if (!target) {
-    if (def.speed === 0) return;
-    ai.goal = AIGoal.WANDER;
-    ai.combatTargetId = undefined;
-    ai.timer -= dt;
-    if (ai.path.length === 0 || ai.pi >= ai.path.length || ai.timer <= 0) {
-      if (e.phasing) {
-        ai.timer = 2 + monsterHashUnit(e.id, 0x51a7) * 3;
-        ai.wanderAngle = monsterHashUnit(e.id + Math.floor(time * 0.25), 0x7d13) * Math.PI * 2;
-      } else {
-        wanderNearby(world, e);
-        ai.timer = 1.5 + monsterHashUnit(e.id, 0x5a31) * 2.5;
-      }
-    }
-    if (e.phasing) {
-      const a = ai.wanderAngle ?? 0;
-      const spd = e.speed * 0.4 * dt;
-      e.x = ((e.x + Math.cos(a) * spd) % W + W) % W;
-      e.y = ((e.y + Math.sin(a) * spd) % W + W) % W;
-    } else {
-      followMonsterPath(world, e, dt);
-    }
-    return;
-  }
-
-  ai.combatTargetId = target.id;
-  ai.goal = AIGoal.HUNT;
-  const bestDist = Math.sqrt(world.dist2(e.x, e.y, target.x, target.y));
-  if (def.isRanged && bestDist < rangedMonsterShotRange(e.monsterKind) && bestDist > rangedMonsterMinRange(e.monsterKind)) {
-    e.attackCd = (e.attackCd ?? 0) - dt;
-    if (e.attackCd! <= 0) {
-      fireMonsterProjectile(world, entities, e, target, def, nextId);
-    }
-    return;
-  }
-  if (bestDist < monsterMeleeRange(world, e)) {
-    e.attackCd = (e.attackCd ?? 0) - dt;
-    if (e.attackCd! <= 0) {
-      const level = e.rpg?.level ?? 1;
-      const strMult = e.rpg ? strMeleeDmgMult(e.rpg) : 1;
-      const rawDmg = Math.round(scaleMonsterDmg(def.dmg, level) * strMult * monsterDmgMult(world, e, target) * (e.monsterDmgMult ?? 1));
-      const dmg = zhelemishIncomingMeleeDamage(target, time, rawDmg);
-      if (tryZombieApocalypseInfection(world, e, target, state, msgs, time)) {
-        e.attackCd = def.attackRate;
-        return;
-      }
-      if (target.hp !== undefined) {
-        const debugImmortalPlayerHit = target.id === playerId && isDebugOnePunchManEnabled();
-        if (debugImmortalPlayerHit) keepDebugOnePunchManAlive(target);
-        else {
-          target.hp -= dmg;
-          notifyActorDamaged(world, target, e, dmg, 'monster_melee', time, state);
-          if (target.id === playerId) recordPlayerDamage(state, e, dmg, `${entityDisplayName(e)} задел тебя: -${dmg}`);
-          if (target.hp <= 0) {
-            target.alive = false;
-            target.hp = 0;
-            spawnDeathPool(world, target.x, target.y, target.type === EntityType.MONSTER);
-            if (target.type === EntityType.NPC) dropNpcInventory(target, entities, nextId);
-          }
-        }
-      }
-      e.attackCd = def.attackRate;
-    }
-    return;
-  }
-
-  if (def.speed === 0) return;
-  ai.timer -= dt;
-  if (ai.path.length === 0 || ai.timer <= 0) {
-    tryAssignPathToCell(world, e, Math.floor(target.x), Math.floor(target.y));
-    ai.timer = 2;
-  }
-  if (e.phasing) {
-    const ddx = world.delta(e.x, target.x);
-    const ddy = world.delta(e.y, target.y);
-    const dd = Math.sqrt(ddx * ddx + ddy * ddy);
-    if (dd > 0.1) {
-      const spd = e.speed * dt;
-      e.x = ((e.x + (ddx / dd) * spd) % W + W) % W;
-      e.y = ((e.y + (ddy / dd) * spd) % W + W) % W;
-    }
-    return;
-  }
-  followMonsterPath(world, e, dt, target);
-}
-
 /* ── Monster AI update ────────────────────────────────────────── */
 export function updateMonster(world: World, entities: Entity[], e: Entity, dt: number, time: number, msgs: Msg[], playerId: number, nextId: { v: number }, state?: GameState): void {
   const ai = e.ai!;
@@ -8242,50 +8607,9 @@ export function updateMonster(world: World, entities: Entity[], e: Entity, dt: n
     updateKhorovayaMatka(world, entities, e, dt, time, msgs, playerId, nextId, _entityById, state);
   }
 
-  // Матка: spawn a random monster every 60 real seconds (1 game hour)
   if (e.monsterKind === MonsterKind.MATKA) {
-    e.matkaTimer = (e.matkaTimer ?? 60) - dt;
-    if (e.matkaTimer <= 0) {
-      e.matkaTimer = 60;
-      let nearby = 0;
-      getEntityIndex().queryRadiusCapped(e.x, e.y, 20, matkaChildrenQuery, ENTITY_MASK_MONSTER, MATKA_MAX_CHILDREN + 1);
-      for (const o of matkaChildrenQuery) {
-        if (o.type === EntityType.MONSTER && o.alive && o.id !== e.id && world.dist2(e.x, e.y, o.x, o.y) < 400) nearby++;
-      }
-      if (nearby < MATKA_MAX_CHILDREN && canSpawnEntityType(entities, EntityType.MONSTER)) {
-        const spawnKinds = [MonsterKind.SBORKA, MonsterKind.TVAR, MonsterKind.ZOMBIE, MonsterKind.SHADOW, MonsterKind.POLZUN];
-        const kind = spawnKinds[Math.floor(Math.random() * spawnKinds.length)];
-        const def = MONSTERS[kind];
-        const zid = world.zoneMap[world.idx(Math.floor(e.x), Math.floor(e.y))];
-        const zoneLevel = (zid >= 0 && world.zones[zid]) ? (world.zones[zid].level ?? 1) : 1;
-        const rpg = randomRPG(zoneLevel);
-        const hpBase = scaleMonsterHp(def.hp, zoneLevel);
-        const hpFinal = Math.round(hpBase * (1 + 0.1 * rpg.str));
-        const ox = (Math.random() - 0.5) * 2;
-        const oy = (Math.random() - 0.5) * 2;
-        const sx = ((e.x + ox) % W + W) % W;
-        const sy = ((e.y + oy) % W + W) % W;
-        if (!world.solid(Math.floor(sx), Math.floor(sy))) {
-          entities.push({
-            id: nextId.v++,
-            type: EntityType.MONSTER,
-            x: sx, y: sy,
-            angle: Math.random() * Math.PI * 2,
-            pitch: 0,
-            alive: true,
-            speed: scaleMonsterSpeed(def.speed, zoneLevel),
-            sprite: def.sprite,
-
-            hp: hpFinal, maxHp: hpFinal,
-            monsterKind: kind,
-            attackCd: def.attackRate,
-            ai: { goal: AIGoal.HUNT, tx: 0, ty: 0, path: [], pi: 0, stuck: 0, timer: 0 },
-            rpg,
-          });
-          msgs.push(msg(`Матка родила ${def.name}!`, time, '#f4a'));
-        }
-      }
-    }
+    if (!e.alive) return;
+    updateMatkaSource(world, entities, e, dt, time, msgs, nextId, _entityById, state);
   }
 
   const player = _entityById.get(playerId);
@@ -8300,6 +8624,7 @@ export function updateMonster(world: World, entities: Entity[], e: Entity, dt: n
   tickLozhnyyDukhFalsePhase(e, dt);
   if (updateGreenDogNoiseFear(world, e, dt, time, msgs, state)) return;
   updateSlimeWomanState(world, e, time, msgs, state);
+  updateWaterStriderState(world, e, dt, time);
   updatePanelnikWallBrace(world, e, dt, time, msgs, player, state);
   if (updateSporeCarpetLurkingFurniture(world, entities, e, dt, time, msgs, playerId, state)) return;
 
@@ -8373,11 +8698,13 @@ export function updateMonster(world: World, entities: Entity[], e: Entity, dt: n
   if (lishennyyLightTarget && followLishennyyLightTarget(world, e, lishennyyLightTarget, dt)) return;
   target = updateSobrannyyTarget(world, e, target, time, msgs, state);
   target = updateObzhivalshchikTarget(world, e, target, dt, time, msgs, state);
+  updateNightmarePressure(world, e, target, dt, time, msgs, playerId, state);
   updateMukhozhukLeader(world, e, target, dt, time, msgs, state);
   if (updateBloodPlantRootHive(world, e, target, dt, time, msgs, playerId, state)) return;
   if (updateBorshchevikRootedPlant(world, e, target, dt, time, msgs, playerId, state)) return;
   updateProtokolnikProtocolPressure(world, e, target, dt, time, msgs, playerId, state);
   if (target && !target.alive) return;
+  updateWallTerrainReadability(world, e, target, time, msgs, state);
   if (updateZhornayaTvar(world, entities, e, target, dt, time, msgs, playerId, nextId, state)) return;
   if (updateSlepoglaz(world, entities, e, target, dt, time, msgs, playerId, nextId, state)) return;
   if (updateTreskotnikFractureSprint(world, entities, e, target, dt, time, msgs, playerId, nextId, state)) return;
@@ -8400,9 +8727,16 @@ export function updateMonster(world: World, entities: Entity[], e: Entity, dt: n
     }
     if (tryMukhozhukFoodAppetite(world, e, dt, time, msgs, state)) return;
     if (e.monsterKind === MonsterKind.CHERNOSLIZ && isChernoSlizHidden(world, e, player)) {
-      if (tryFollowNoise(world, e, dt, time, state)) return;
-      e.spriteScale = 0.58;
-      return;
+      const revealedByNoise = tryRevealChernoSlizByNoise(world, e, time, msgs, state);
+      if (revealedByNoise) {
+        if (tryFollowNoise(world, e, dt, time, state)) return;
+      } else if (tryFollowNoise(world, e, dt, time, state)) {
+        return;
+      }
+      if (isChernoSlizHidden(world, e, player)) {
+        e.spriteScale = 0.58;
+        return;
+      }
     }
     if (tryFollowNoise(world, e, dt, time, state)) return;
     const tuning = bladeEliteTuning(e.monsterKind);
@@ -8438,6 +8772,9 @@ export function updateMonster(world: World, entities: Entity[], e: Entity, dt: n
   ai.goal = AIGoal.HUNT;
 
   const bestDist = Math.sqrt(world.dist2(e.x, e.y, target.x, target.y));
+  updateNelyudCloseReveal(world, e, target, time, msgs, state);
+  updateSborkaReadability(world, e, target, time, msgs, playerId, state);
+  updateLampPoweredReadability(world, e, target, time, msgs, playerId, state);
   updateOlgoyReadability(world, e, target, time, msgs, playerId, state);
   updateDikiyMertvyakCrowdShove(world, e, target, dt, time, msgs, playerId, state);
   if (updateLozhnyyDukhFalsePhase(world, e, target, dt, time, msgs, playerId, state)) return;
@@ -8490,6 +8827,7 @@ export function updateMonster(world: World, entities: Entity[], e: Entity, dt: n
   if (bestDist < monsterMeleeRange(world, e)) {
     e.attackCd = (e.attackCd ?? 0) - dt;
     if (e.attackCd! <= 0) {
+      updateZombieCrowdReadability(world, e, target, time, msgs, playerId, state);
       const baseDmg = def?.dmg ?? 10;
       const level = e.rpg?.level ?? 1;
       const strMult = e.rpg ? strMeleeDmgMult(e.rpg) : 1;

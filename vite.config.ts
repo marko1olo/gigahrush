@@ -9,6 +9,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const root = __dirname;
 const CYRILLIC_RE = /[А-Яа-яЁё]/;
+const TEMPLATE_PLACEHOLDER_RE = /\$\{[^}]+\}|\{[A-Za-z_][A-Za-z0-9_]*\}/;
 
 type RuntimeLocaleCatalog = [
   [string, string][],
@@ -96,7 +97,7 @@ function runtimeEnglishLocale(): RuntimeLocaleCatalog {
     const source = normalizeText(record.source);
     const translation = normalizeText(record.translation);
     if (!source || !translation || !CYRILLIC_RE.test(source)) continue;
-    if (source.includes("${")) {
+    if (TEMPLATE_PLACEHOLDER_RE.test(source)) {
       templates.push([source, translation]);
       continue;
     }

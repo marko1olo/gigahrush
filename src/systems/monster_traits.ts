@@ -1,8 +1,9 @@
 /* ── Standalone monster trait helpers ────────────────────────── */
 
-import { Cell, EntityType, Feature, MonsterKind, type Entity } from '../core/types';
+import { Cell, EntityType, Feature, MonsterKind, RoomType, type Entity } from '../core/types';
 import { World } from '../core/world';
 import { MONSTERS } from '../entities/monster';
+import { wetTerrainAtEntity } from './monster_terrain';
 
 const DEFENSIVE_NEUTRAL_HOSTILE_STAGE = 1;
 export const PANELNIK_WALL_BRACE_DAMAGE_MULT = 0.58;
@@ -18,36 +19,91 @@ export interface ChervieNetSource {
   dist2: number;
 }
 
-function wallCell(world: World, x: number, y: number): boolean {
-  return world.cells[world.idx(x, y)] === Cell.WALL;
+export interface MonsterWallContext {
+  adjacentWall: boolean;
+  narrowDoorOrCorner: boolean;
+  openFloorScore: number;
+  debrisNearby: boolean;
+  weakWallNearby?: { idx: number; x: number; y: number };
+}
+
+function debrisFeature(feature: Feature): boolean {
+  return feature === Feature.SHELF || feature === Feature.MACHINE || feature === Feature.APPARATUS;
+}
+
+function passableNeighbor(world: World, x: number, y: number): boolean {
+  return !world.solid(x, y);
+}
+
+function weakWallCandidate(world: World, x: number, y: number, idx: number): boolean {
+  if (world.cells[idx] !== Cell.WALL) return false;
+  if (world.hermoWall[idx] !== 0 || world.aptMask[idx] !== 0) return false;
+  const horizontal = passableNeighbor(world, x - 1, y) && passableNeighbor(world, x + 1, y);
+  const vertical = passableNeighbor(world, x, y - 1) && passableNeighbor(world, x, y + 1);
+  return horizontal || vertical;
+}
+
+export function monsterWallContext(world: World, e: Entity): MonsterWallContext {
+  const x = Math.floor(e.x);
+  const y = Math.floor(e.y);
+  const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]] as const;
+  let adjacentWall = false;
+  let adjacentDoor = false;
+  let cardinalSolids = 0;
+
+  for (const [dx, dy] of dirs) {
+    const cell = world.cells[world.idx(x + dx, y + dy)];
+    if (cell === Cell.WALL) adjacentWall = true;
+    if (cell === Cell.DOOR) adjacentDoor = true;
+    if (world.solid(x + dx, y + dy)) cardinalSolids++;
+  }
+
+  let localWalls = 0;
+  let closeWalls = 0;
+  let debrisNearby = false;
+  let weakWallNearby: MonsterWallContext['weakWallNearby'];
+  for (let dy = -2; dy <= 2; dy++) {
+    for (let dx = -2; dx <= 2; dx++) {
+      const r2 = dx * dx + dy * dy;
+      if (r2 > 4) continue;
+      const wx = world.wrap(x + dx);
+      const wy = world.wrap(y + dy);
+      const idx = world.idx(wx, wy);
+      if (world.cells[idx] === Cell.WALL) {
+        localWalls++;
+        if (r2 <= 1) closeWalls++;
+        if (!weakWallNearby && weakWallCandidate(world, wx, wy, idx)) weakWallNearby = { idx, x: wx, y: wy };
+      }
+      if (debrisFeature(world.features[idx] as Feature)) debrisNearby = true;
+    }
+  }
+
+  const roomType = world.roomAt(e.x, e.y)?.type;
+  if (roomType === RoomType.STORAGE || roomType === RoomType.PRODUCTION) debrisNearby = true;
+  const narrowDoorOrCorner = adjacentDoor || cardinalSolids >= 2;
+  const wallPressure = Math.min(1, localWalls / 7 + closeWalls * 0.18 + (narrowDoorOrCorner ? 0.14 : 0));
+  return {
+    adjacentWall,
+    narrowDoorOrCorner,
+    openFloorScore: Math.max(0, Math.min(1, 1 - wallPressure)),
+    debrisNearby,
+    weakWallNearby,
+  };
 }
 
 export function panelnikWallBraceActive(world: World, e: Entity): boolean {
   if (e.type !== EntityType.MONSTER || e.monsterKind !== MonsterKind.PANELNIK) return false;
-  const x = Math.floor(e.x);
-  const y = Math.floor(e.y);
-  return wallCell(world, x - 1, y) ||
-    wallCell(world, x + 1, y) ||
-    wallCell(world, x, y - 1) ||
-    wallCell(world, x, y + 1);
+  return monsterWallContext(world, e).adjacentWall;
 }
 
 export function panelnikOpenFloor(world: World, e: Entity): boolean {
   if (e.type !== EntityType.MONSTER || e.monsterKind !== MonsterKind.PANELNIK) return false;
-  const x = Math.floor(e.x);
-  const y = Math.floor(e.y);
-  for (let dy = -2; dy <= 2; dy++) {
-    for (let dx = -2; dx <= 2; dx++) {
-      if (dx * dx + dy * dy > 4) continue;
-      if (wallCell(world, x + dx, y + dy)) return false;
-    }
-  }
-  return true;
+  return monsterWallContext(world, e).openFloorScore >= 0.98;
 }
 
 export function lotochnikDrainArmorActive(world: World, e: Entity): boolean {
   if (e.type !== EntityType.MONSTER || e.monsterKind !== MonsterKind.LOTOCHNIK) return false;
-  return world.cells[world.idx(Math.floor(e.x), Math.floor(e.y))] === Cell.WATER;
+  return wetTerrainAtEntity(world, e);
 }
 
 function isChervieNetSourceFeature(feature: Feature): feature is Feature.SCREEN | Feature.APPARATUS {

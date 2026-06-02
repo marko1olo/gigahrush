@@ -115,7 +115,9 @@ export const BAIT_ATTRACTED_MONSTER_KINDS: readonly MonsterKind[] = [
   MonsterKind.OLGOY,
   MonsterKind.SLIMEVIK,
   MonsterKind.GREEN_DOG,
+  MonsterKind.PECHATEED,
   MonsterKind.KONTORSHCHIK,
+  MonsterKind.PROTOKOLNIK,
 ];
 
 export function isBaitAttractedMonster(kind: MonsterKind | undefined): boolean {

@@ -41,13 +41,18 @@ export function createInput(): InputState {
 interface InputBindOptions {
   onFullscreenToggle?: () => void;
   shouldRequestPointerLock?: () => boolean;
+  shouldHandleGameplayPointer?: () => boolean;
 }
 
-function clearPointerState(input: InputState): void {
+function clearMouseGameplayState(input: InputState): void {
   input.mouse.dx = 0;
   input.mouse.dy = 0;
   input.mouseAttack = false;
   input.mouseUse = false;
+}
+
+function clearPointerState(input: InputState): void {
+  clearMouseGameplayState(input);
   input.touch.moveX = 0;
   input.touch.moveY = 0;
   input.touch.lookX = 0;
@@ -133,9 +138,13 @@ export function bindInput(input: InputState, canvas: HTMLCanvasElement, options:
 
   const onMouse = (e: MouseEvent) => {
     if (document.pointerLockElement === canvas) {
+      input.mouse.locked = true;
+      if (options.shouldHandleGameplayPointer?.() === false) {
+        clearMouseGameplayState(input);
+        return;
+      }
       input.mouse.dx += e.movementX;
       input.mouse.dy += e.movementY;
-      input.mouse.locked = true;
     }
   };
 
@@ -152,9 +161,11 @@ export function bindInput(input: InputState, canvas: HTMLCanvasElement, options:
     if (e.button === 0) {
       pointerLockClickStarted = true;
       pointerLockAllowedAtMouseDown = options.shouldRequestPointerLock?.() !== false;
-      if (document.pointerLockElement === canvas) input.mouseAttack = true;
+      if (document.pointerLockElement === canvas && options.shouldHandleGameplayPointer?.() !== false) input.mouseAttack = true;
+      else input.mouseAttack = false;
     } else if (e.button === 2) {
-      if (document.pointerLockElement === canvas) input.mouseUse = true;
+      if (document.pointerLockElement === canvas && options.shouldHandleGameplayPointer?.() !== false) input.mouseUse = true;
+      else input.mouseUse = false;
       e.preventDefault();
     }
   };
@@ -180,6 +191,8 @@ export function bindInput(input: InputState, canvas: HTMLCanvasElement, options:
       input.controlEdit = false;
       input.controlReset = false;
       input.controlClose = false;
+    } else if (options.shouldHandleGameplayPointer?.() === false) {
+      clearMouseGameplayState(input);
     }
   };
 

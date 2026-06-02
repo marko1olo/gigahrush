@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { AIGoal, Cell, EntityType, Feature, FloorLevel, MonsterKind, RoomType, type Entity, type Msg } from '../src/core/types';
+import { AIGoal, Cell, EntityType, Faction, Feature, FloorLevel, MonsterKind, RoomType, type Entity, type Msg } from '../src/core/types';
 import { World } from '../src/core/world';
 import { getMonsterEcology } from '../src/data/monster_ecology';
 import { RUMORS } from '../src/data/rumors';
@@ -38,6 +38,25 @@ function player(x: number, y: number, tool = ''): Entity {
     maxHp: 100,
     name: 'Вы',
     tool,
+    needs: { food: 70, water: 70, sleep: 70, pee: 0, poo: 0 },
+  };
+}
+
+function npcTarget(x: number, y: number): Entity {
+  return {
+    id: 7,
+    type: EntityType.NPC,
+    x,
+    y,
+    angle: 0,
+    pitch: 0,
+    alive: true,
+    speed: 3,
+    sprite: 0,
+    hp: 100,
+    maxHp: 100,
+    faction: Faction.CITIZEN,
+    name: 'Случайный жилец',
     needs: { food: 70, water: 70, sleep: 70, pee: 0, poo: 0 },
   };
 }
@@ -167,4 +186,24 @@ test('Lishennyy contact applies decay while the player stands in light', () => {
   assert.equal(target.needs?.water, 66);
   assert.equal(msgs.some(m => m.text.includes('Лишенный коснулся света')), true);
   assert.equal(getRecentEvents(state, { type: 'lishennyy_contact_decay', tags: ['contact_decay'], limit: 1 })[0]?.monsterKind, MonsterKind.LISHENNYY);
+});
+
+test('Lishennyy contact decay applies to lit NPC targets', () => {
+  const world = openDarkWorld();
+  setListenerPos(512, 512, world.dist2.bind(world));
+  const target = npcTarget(10.5, 10.5);
+  world.light[world.idx(10, 10)] = 0.72;
+  const threat = lishennyy(11.15, 10.5);
+  const entities = [target, threat];
+  const state = makeGameState({ currentFloor: FloorLevel.HELL, worldEvents: createWorldEventState() });
+
+  sync(entities);
+  updateMonster(world, entities, threat, 0.2, 6, [], 1, { v: 20 }, state);
+
+  assert.equal((target.hp ?? 100) < 100, true);
+  assert.equal(target.needs?.food, 66);
+  assert.equal(target.needs?.water, 66);
+  const event = getRecentEvents(state, { type: 'lishennyy_contact_decay', tags: ['contact_decay'], limit: 1 })[0];
+  assert.equal(event?.targetId, target.id);
+  assert.equal(event?.privacy, 'witnessed');
 });

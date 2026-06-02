@@ -95,11 +95,15 @@ test('dikiy mertvyak is a standalone fragile crowd-runner, not the old zombie va
 test('dikiy mertvyak shoves a crowded doorway panic cluster', () => {
   const world = openWorld();
   setListenerPos(512, 512, world.dist2.bind(world));
-  const player = makeTestPlayer({ id: 1, x: 11.5, y: 10, hp: 100, maxHp: 100 });
+  const player = makeTestPlayer({ id: 1, x: 10.45, y: 10, hp: 100, maxHp: 100 });
   const threat = dikiy();
-  const npcA = crowdNpc(3, 10.8, 10.45);
-  const npcB = crowdNpc(4, 10.6, 9.45);
-  const entities = [player, threat, npcA, npcB];
+  const crowd = [
+    crowdNpc(3, 10.8, 10.45),
+    crowdNpc(4, 10.6, 9.45),
+    crowdNpc(5, 10.95, 9.9),
+    crowdNpc(6, 10.9, 10.25),
+  ];
+  const entities = [player, threat, ...crowd];
   const state = makeGameState({ worldEvents: createWorldEventState() });
   const msgs: Msg[] = [];
 
@@ -107,15 +111,40 @@ test('dikiy mertvyak shoves a crowded doorway panic cluster', () => {
   setEntityMap(new Map(entities.map(e => [e.id, e])));
   updateMonster(world, entities, threat, 0.9, 1, msgs, player.id, { v: 10 }, state);
 
-  assert.equal(npcA.ai?.goal, AIGoal.FLEE);
-  assert.equal(npcB.ai?.goal, AIGoal.FLEE);
-  assert.equal((npcA.ai?.staggerTimer ?? 0) > 0, true);
-  assert.equal((npcB.ai?.staggerTimer ?? 0) > 0, true);
+  const shoved = crowd.filter(e => e.ai?.goal === AIGoal.FLEE && (e.ai?.staggerTimer ?? 0) > 0);
+  assert.equal(shoved.length >= 2, true, 'crowd shove should stagger multiple nearby bodies');
   assert.equal(msgs.some(m => m.text.includes('Открытый пол')), true);
   const shoveEvent = getRecentEvents(state, { type: 'monster_sighted', tags: ['dikiy_mertvyak', 'crowd_shove'], limit: 1 })[0];
   assert.ok(shoveEvent);
   assert.equal(shoveEvent.monsterKind, MonsterKind.DIKIY_MERTVYAK);
   assert.equal(shoveEvent.data?.counterplay, 'open_floor_or_early_damage_before_crowd_contact');
+});
+
+test('dikiy mertvyak crowd shove can target NPCs and remains locally capped', () => {
+  const world = openWorld();
+  setListenerPos(512, 512, world.dist2.bind(world));
+  const player = makeTestPlayer({ id: 1, x: 80, y: 80, hp: 100, maxHp: 100 });
+  const target = crowdNpc(3, 10.65, 10);
+  const threat = dikiy();
+  const entities = [player, target, threat];
+  for (let i = 0; i < 24; i++) {
+    const body = crowdNpc(10 + i, 11.05 + (i % 6) * 0.18, 9.55 + ((i / 6) | 0) * 0.22);
+    body.faction = Faction.CULTIST;
+    entities.push(body);
+  }
+  const state = makeGameState({ worldEvents: createWorldEventState() });
+  const msgs: Msg[] = [];
+
+  rebuildEntityIndex(entities);
+  setEntityMap(new Map(entities.map(e => [e.id, e])));
+  updateMonster(world, entities, threat, 0.9, 1, msgs, player.id, { v: 10 }, state);
+
+  assert.equal(threat.ai?.combatTargetId, target.id);
+  assert.equal(target.ai?.goal, AIGoal.FLEE);
+  const shoveEvent = getRecentEvents(state, { type: 'monster_sighted', tags: ['dikiy_mertvyak', 'crowd_shove'], limit: 1 })[0];
+  assert.ok(shoveEvent);
+  assert.equal(shoveEvent.targetId, target.id);
+  assert.equal(Number(shoveEvent.data?.crowd) <= 12, true, 'shove event crowd should reflect the capped local query');
 });
 
 test('early damage cancels dikiy mertvyak shove momentum', () => {

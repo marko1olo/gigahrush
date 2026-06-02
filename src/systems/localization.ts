@@ -26,11 +26,9 @@ const CYRILLIC_RE = /[А-Яа-яЁё]/;
 const CYRILLIC_GLOBAL_RE = /[А-Яа-яЁё]/g;
 const CYRILLIC_LETTER_RE = /[А-Яа-яЁё]/;
 const LETTER_RE = /[A-Za-zА-Яа-яЁё]/;
-const TEMPLATE_PLACEHOLDER_RE = /\$\{[^}]+\}|\{[A-Za-z_][A-Za-z0-9_]*\}/g;
 const TRANSLATION_CACHE_LIMIT = 8192;
-const COMPOSED_TEXT_MAX_LENGTH = 96;
-const COMPOSED_MATCH_MAX_LENGTH = 48;
-const COMPOSED_UNKNOWN_WORD_MAX = 28;
+const COMPOSED_TEXT_MAX_LENGTH = 180;
+const COMPOSED_MATCH_MAX_LENGTH = 160;
 const FALLBACK_EN_LOCALE: RuntimeLocaleCatalogData = [
   [
     ['1kpmy5f', 'Continue'],
@@ -58,15 +56,40 @@ function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+function readDollarPlaceholder(source: string, start: number): string | null {
+  if (source[start] !== '$' || source[start + 1] !== '{') return null;
+  let depth = 1;
+  for (let i = start + 2; i < source.length; i++) {
+    const ch = source[i] ?? '';
+    if (ch === '{') depth++;
+    else if (ch === '}') {
+      depth--;
+      if (depth === 0) return source.slice(start, i + 1);
+    }
+  }
+  return null;
+}
+
+function readBracePlaceholder(source: string, start: number): string | null {
+  if (source[start] !== '{') return null;
+  const match = /^\{[A-Za-z_][A-Za-z0-9_]*\}/.exec(source.slice(start));
+  return match?.[0] ?? null;
+}
+
 function splitTemplateSource(source: string): { parts: string[]; placeholders: string[] } {
   const parts: string[] = [];
   const placeholders: string[] = [];
   let last = 0;
-  TEMPLATE_PLACEHOLDER_RE.lastIndex = 0;
-  for (const match of source.matchAll(TEMPLATE_PLACEHOLDER_RE)) {
-    parts.push(source.slice(last, match.index));
-    placeholders.push(match[0]);
-    last = (match.index ?? 0) + match[0].length;
+  for (let i = 0; i < source.length;) {
+    const placeholder = readDollarPlaceholder(source, i) ?? readBracePlaceholder(source, i);
+    if (!placeholder) {
+      i++;
+      continue;
+    }
+    parts.push(source.slice(last, i));
+    placeholders.push(placeholder);
+    i += placeholder.length;
+    last = i;
   }
   parts.push(source.slice(last));
   return { parts, placeholders };
@@ -107,7 +130,8 @@ function runtimeEnglishLocaleData(): RuntimeLocaleCatalogData {
 
 function buildEnglishCatalog(): RuntimeCatalog {
   const data = runtimeEnglishLocaleData();
-  const exact = new Map<string, string>(data[0]);
+  const exact = new Map<string, string>();
+  for (const [key, translation] of data[0]) exact.set(key, translation);
   const templates: TemplateRule[] = [];
   const templateData = data[1];
 
@@ -127,7 +151,15 @@ function catalogForActiveLanguage(): RuntimeCatalog | null {
 }
 
 function applyTemplateRule(text: string, rule: TemplateRule, catalog: RuntimeCatalog): string | null {
-  if (!text.includes(rule.anchor)) return null;
+  const anchorIndex = text.indexOf(rule.anchor);
+  if (anchorIndex < 0) return null;
+  if (
+    rule.anchor.length === 1
+    && CYRILLIC_LETTER_RE.test(rule.anchor)
+    && CYRILLIC_LETTER_RE.test(text[anchorIndex + 1] ?? '')
+  ) {
+    return null;
+  }
   const match = rule.regex.exec(text);
   if (!match) return null;
 
@@ -139,7 +171,7 @@ function applyTemplateRule(text: string, rule: TemplateRule, catalog: RuntimeCat
       : value;
     out = out.split(rule.placeholders[i]).join(translatedValue);
   }
-  return out;
+  return CYRILLIC_RE.test(out) ? null : out;
 }
 
 function isWordBoundary(text: string, index: number): boolean {
@@ -148,61 +180,20 @@ function isWordBoundary(text: string, index: number): boolean {
 }
 
 function exactTranslation(text: string, catalog: RuntimeCatalog): string | null {
-  return catalog.exact.get(sourceKey(text)) ?? null;
-}
+  const exact = catalog.exact.get(sourceKey(text));
+  if (exact !== undefined) return exact;
 
-function transliterateRussianWord(word: string): string {
-  const pairs: Record<string, string> = {
-    А: 'A', а: 'a',
-    Б: 'B', б: 'b',
-    В: 'V', в: 'v',
-    Г: 'G', г: 'g',
-    Д: 'D', д: 'd',
-    Е: 'E', е: 'e',
-    Ё: 'Yo', ё: 'yo',
-    Ж: 'Zh', ж: 'zh',
-    З: 'Z', з: 'z',
-    И: 'I', и: 'i',
-    Й: 'Y', й: 'y',
-    К: 'K', к: 'k',
-    Л: 'L', л: 'l',
-    М: 'M', м: 'm',
-    Н: 'N', н: 'n',
-    О: 'O', о: 'o',
-    П: 'P', п: 'p',
-    Р: 'R', р: 'r',
-    С: 'S', с: 's',
-    Т: 'T', т: 't',
-    У: 'U', у: 'u',
-    Ф: 'F', ф: 'f',
-    Х: 'Kh', х: 'kh',
-    Ц: 'Ts', ц: 'ts',
-    Ч: 'Ch', ч: 'ch',
-    Ш: 'Sh', ш: 'sh',
-    Щ: 'Shch', щ: 'shch',
-    Ы: 'Y', ы: 'y',
-    Э: 'E', э: 'e',
-    Ю: 'Yu', ю: 'yu',
-    Я: 'Ya', я: 'ya',
-    Ь: '', ь: '',
-    Ъ: '', ъ: '',
-  };
-  let out = '';
-  for (const ch of Array.from(word)) out += pairs[ch] ?? ch;
-  return out;
-}
-
-function canTransliterateUnknowns(text: string): boolean {
-  if (text.length > 64 || /[,;:!?]/.test(text)) return false;
-  const words = text.match(/[А-Яа-яЁё]+/g) ?? [];
-  if (words.length === 0 || words.length > 5) return false;
-  return words.every(word => /^[А-ЯЁ][А-Яа-яЁё]*$/.test(word));
+  const first = text[0] ?? '';
+  const lowered = first.toLocaleLowerCase('ru-RU');
+  if (first === lowered) return null;
+  const fallback = catalog.exact.get(sourceKey(`${lowered}${text.slice(1)}`));
+  if (fallback === undefined) return null;
+  return fallback.replace(/[A-Za-z]/, ch => ch.toUpperCase());
 }
 
 function translateComposedText(text: string, catalog: RuntimeCatalog): string | null {
   if (text.length > COMPOSED_TEXT_MAX_LENGTH || !CYRILLIC_RE.test(text)) return null;
 
-  const allowTransliteration = canTransliterateUnknowns(text);
   let out = '';
   let changed = false;
   let unresolvedCyrillic = false;
@@ -239,20 +230,55 @@ function translateComposedText(text: string, catalog: RuntimeCatalog): string | 
 
     let wordEnd = i + 1;
     while (wordEnd < text.length && CYRILLIC_LETTER_RE.test(text[wordEnd] ?? '')) wordEnd++;
-    const word = text.slice(i, wordEnd);
-    if (allowTransliteration && word.length <= COMPOSED_UNKNOWN_WORD_MAX) {
-      out += transliterateRussianWord(word);
-      changed = true;
-    } else {
-      out += word;
-      unresolvedCyrillic = true;
-    }
+    out += text.slice(i, wordEnd);
+    unresolvedCyrillic = true;
     i = wordEnd;
   }
 
   if (!changed) return null;
   if (unresolvedCyrillic && CYRILLIC_RE.test(out)) return null;
   return out;
+}
+
+function translateDelimitedText(text: string, catalog: RuntimeCatalog): string | null {
+  if (!CYRILLIC_RE.test(text) || text.length > COMPOSED_TEXT_MAX_LENGTH) return null;
+  const parts: string[] = [];
+  let start = 0;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i] ?? '';
+    const isDecimalPoint = ch === '.'
+      && /\d/.test(text[i - 1] ?? '')
+      && /\d/.test(text[i + 1] ?? '');
+    if ((!':;.!?'.includes(ch) || isDecimalPoint)) continue;
+    let end = i + 1;
+    while (end < text.length && /\s/.test(text[end] ?? '')) end++;
+    parts.push(text.slice(start, i));
+    parts.push(text.slice(i, end));
+    start = end;
+  }
+  parts.push(text.slice(start));
+  if (parts.length <= 1) return null;
+
+  let out = '';
+  let changed = false;
+  for (const part of parts) {
+    if (!part || !CYRILLIC_RE.test(part) || /^[:;.!?]\s*$/.test(part)) {
+      out += part;
+      continue;
+    }
+    const leading = part.match(/^\s*/)?.[0] ?? '';
+    const trailing = part.match(/\s*$/)?.[0] ?? '';
+    const core = part.slice(leading.length, part.length - trailing.length);
+    const translated = exactTranslation(core, catalog) ?? translateComposedText(core, catalog);
+    if (translated === null) {
+      out += part;
+      continue;
+    }
+    out += `${leading}${translated}${trailing}`;
+    changed = true;
+  }
+
+  return changed && !CYRILLIC_RE.test(out) ? out : null;
 }
 
 function translateTemplateText(text: string, catalog: RuntimeCatalog): string | null {
@@ -292,6 +318,7 @@ function translateWithCatalog(text: string, catalog: RuntimeCatalog | null, dept
   return exactTranslation(text, catalog)
     ?? translateDecoratedText(text, catalog, false)
     ?? translateTemplateText(text, catalog)
+    ?? translateDelimitedText(text, catalog)
     ?? translateDecoratedText(text, catalog, true)
     ?? (depth < 2 ? translateComposedText(text, catalog) : null);
 }

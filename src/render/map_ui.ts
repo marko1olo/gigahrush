@@ -1472,5 +1472,6 @@ export function drawFullMap(
 
   ctx.fillStyle = '#666';
   ctx.font = `${8 * sy}px monospace`;
-  ctx.fillText(`${menuCloseHint()} закрыть`, pad + 4, pad + mapH - 4);
+  const hint = `${controlHint('map')} закрыть карту  |  ${controlHint('mapLegend')} легенда/настройка карты  |  ${menuCloseHint()} закрыть`;
+  ctx.fillText(fitTextStable(ctx, hint, mapW - 8 * sx), pad + 4, pad + mapH - 4);
 }

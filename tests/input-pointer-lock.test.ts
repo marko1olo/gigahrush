@@ -69,9 +69,11 @@ function installInputDom(): { canvas: FakeCanvas; document: FakeDocument; restor
   };
 }
 
-function mouseEvent(type: string, button = 0): MouseEvent {
+function mouseEvent(type: string, button = 0, movementX = 0, movementY = 0): MouseEvent {
   const event = new Event(type, { cancelable: true }) as MouseEvent;
   Object.defineProperty(event, 'button', { value: button });
+  Object.defineProperty(event, 'movementX', { value: movementX });
+  Object.defineProperty(event, 'movementY', { value: movementY });
   return event;
 }
 
@@ -147,6 +149,64 @@ test('right mouse button drives equipped tool input under pointer lock', () => {
     env.document.dispatch('mouseup', up);
     assert.equal(input.mouseUse, false);
     assert.equal(up.defaultPrevented, true);
+    unbind();
+  } finally {
+    env.restore();
+  }
+});
+
+test('mouse look is ignored while gameplay pointer input is blocked', () => {
+  const env = installInputDom();
+  try {
+    let gameplayPointerActive = false;
+    const input = createInput();
+    const unbind = bindInput(input, env.canvas as unknown as HTMLCanvasElement, {
+      shouldRequestPointerLock: () => true,
+      shouldHandleGameplayPointer: () => gameplayPointerActive,
+    });
+
+    env.document.pointerLockElement = env.canvas as unknown as Element;
+    input.mouse.dx = 12;
+    input.mouse.dy = -8;
+    env.document.dispatch('mousemove', mouseEvent('mousemove', 0, 30, -20));
+    assert.equal(input.mouse.locked, true);
+    assert.equal(input.mouse.dx, 0);
+    assert.equal(input.mouse.dy, 0);
+
+    gameplayPointerActive = true;
+    env.document.dispatch('mousemove', mouseEvent('mousemove', 0, 4, 5));
+    assert.equal(input.mouse.dx, 4);
+    assert.equal(input.mouse.dy, 5);
+    unbind();
+  } finally {
+    env.restore();
+  }
+});
+
+test('mouse buttons are ignored while gameplay pointer input is blocked', () => {
+  const env = installInputDom();
+  try {
+    let gameplayPointerActive = false;
+    const input = createInput();
+    const unbind = bindInput(input, env.canvas as unknown as HTMLCanvasElement, {
+      shouldRequestPointerLock: () => true,
+      shouldHandleGameplayPointer: () => gameplayPointerActive,
+    });
+
+    env.document.pointerLockElement = env.canvas as unknown as Element;
+    env.canvas.dispatch('mousedown', mouseEvent('mousedown'));
+    assert.equal(input.mouseAttack, false);
+    const blockedTool = mouseEvent('mousedown', 2);
+    env.canvas.dispatch('mousedown', blockedTool);
+    assert.equal(input.mouseUse, false);
+    assert.equal(blockedTool.defaultPrevented, true);
+
+    gameplayPointerActive = true;
+    env.canvas.dispatch('mousedown', mouseEvent('mousedown'));
+    assert.equal(input.mouseAttack, true);
+    input.mouseAttack = false;
+    env.canvas.dispatch('mousedown', mouseEvent('mousedown', 2));
+    assert.equal(input.mouseUse, true);
     unbind();
   } finally {
     env.restore();

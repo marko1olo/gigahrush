@@ -78,7 +78,9 @@ const BAIT_TRAITS_BY_ECOLOGY_TAG: Record<string, readonly string[]> = {
   monster_polzun: ['bait_fungal', 'bait_wet', 'bait_govnyak', 'govnyak'],
   monster_tube_eel: ['bait_meat', 'bait_wet', 'bait_fungal', 'bait_govnyak', 'govnyak'],
   monster_olgoy: ['bait_meat', 'bait_wet', 'bait_risky', 'bait_govnyak', 'govnyak'],
+  monster_pechateed: ['bait_document', 'document', 'paper', 'forms', 'permit', 'stamp'],
   monster_kontorshchik: ['bait_document', 'document', 'paper', 'forms', 'permit', 'stamp'],
+  monster_protokolnik: ['bait_document', 'document', 'paper', 'official', 'permit', 'protocol'],
 };
 const activeBaits: MonsterBaitMarker[] = [];
 let nextBaitId = 1;

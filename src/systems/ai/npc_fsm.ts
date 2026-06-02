@@ -126,7 +126,13 @@ function preferredEmergencyRoomId(world: World, e: Entity): number | undefined {
   return undefined;
 }
 
-function tryAssignEmergencyShelterPath(world: World, _entities: readonly Entity[], e: Entity, clock?: GameClock): boolean {
+function tryAssignEmergencyShelterPath(
+  world: World,
+  _entities: readonly Entity[],
+  e: Entity,
+  clock?: GameClock,
+  shelterRoomIds?: readonly number[],
+): boolean {
   const ai = e.ai!;
   const homeRoomId = preferredEmergencyRoomId(world, e);
   const assignedRoomId = e.assignedRoomId !== undefined && e.assignedRoomId >= 0 ? e.assignedRoomId : undefined;
@@ -139,6 +145,7 @@ function tryAssignEmergencyShelterPath(world: World, _entities: readonly Entity[
     preferredRoomIds,
     localActors: emergencyLocalActors,
     localActorCap: 16,
+    shelterRoomIds,
     candidateCap: 8,
     nearbyRadius,
     nearbyRoomCap: 8,
@@ -915,7 +922,14 @@ function handleHiding(
 }
 
 /* ── Force NPCs to hide (called by samosbor) ─────────────────── */
-export function forceHide(entities: Entity[], msgs?: Msg[], time?: number, world?: World, clock?: GameClock): void {
+export function forceHide(
+  entities: Entity[],
+  msgs?: Msg[],
+  time?: number,
+  world?: World,
+  clock?: GameClock,
+  shelterRoomIds?: readonly number[],
+): void {
   for (const e of entities) {
     if (e.type === EntityType.NPC && e.alive && e.ai) {
       if (e.faction === Faction.LIQUIDATOR || e.faction === Faction.CULTIST || e.faction === Faction.WILD) continue;
@@ -927,7 +941,7 @@ export function forceHide(entities: Entity[], msgs?: Msg[], time?: number, world
       e.ai.path = [];
       e.ai.pi = 0;
       e.ai.timer = 0;
-      if (world) tryAssignEmergencyShelterPath(world, entities, e, clock);
+      if (world) tryAssignEmergencyShelterPath(world, entities, e, clock, shelterRoomIds);
       utilityNextDecisionAtByNpc.set(e, (time ?? _barkTime) + utilityRethinkInterval(e));
     }
   }

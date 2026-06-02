@@ -12,7 +12,7 @@ import { S } from '../src/render/pixutil';
 import { rebuildEntityIndex } from '../src/systems/entity_index';
 import { getRecentEvents, publishEvent } from '../src/systems/events';
 import { tryUseSlimevikInteraction, updateSlimevikMonster } from '../src/systems/slimevik';
-import { addTestRoom, makeGameState, makeTestPlayer } from './helpers';
+import { addTestRoom, makeGameState, makeTestNpc, makeTestPlayer } from './helpers';
 
 function openSlimeRoom(): World {
   const world = new World();
@@ -116,6 +116,23 @@ test('Slimevik barter consumes food or medicine and marks a sample', () => {
   assert.equal(entities.some(e => e.type === EntityType.ITEM_DROP && e.inventory?.[0]?.defId === 'slime_sample_brown'), true);
   assert.equal(getRecentEvents(state, { type: 'slimevik_bargain', limit: 1 })[0]?.itemId, 'pills');
   assert.equal(getRecentEvents(state, { type: 'slimevik_harvested', limit: 1 })[0]?.itemId, 'slime_sample_brown');
+});
+
+test('Hurt Slimevik flees from nearby actors through bounded broadphase', () => {
+  const world = openSlimeRoom();
+  const state = makeGameState({ time: 21, currentFloor: FloorLevel.MAINTENANCE });
+  const player = makeTestPlayer({ id: 1, x: 80, y: 80 });
+  const neighbor = makeTestNpc({ id: 3, x: 12.8, y: 10.5, faction: Faction.CITIZEN });
+  const threat = slimevik({ id: 2, hp: DEF.hp - 4 });
+  const entities = [player, neighbor, threat];
+  const msgs: Msg[] = [];
+
+  rebuildEntityIndex(entities);
+  assert.equal(updateSlimevikMonster(world, entities, threat, 0.2, state.time, msgs, player, state), true);
+
+  assert.equal(threat.ai?.goal, AIGoal.FLEE);
+  assert.equal(threat.ai?.combatTargetId, neighbor.id);
+  assert.equal(neighbor.hp, undefined, 'hurt slimevik should flee before attacking in open floor');
 });
 
 test('Slimevik kill events publish the standalone slimevik_killed fact', () => {

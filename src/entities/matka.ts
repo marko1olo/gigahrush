@@ -1,6 +1,6 @@
 /* ── Матка — warm-wall crawler, slow spawner ──────────────────── */
 
-import { MonsterKind } from '../core/types';
+import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
 import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
@@ -12,6 +12,7 @@ export const DEF: MonsterDef = {
   dmg: 12,
   attackRate: 3.5,
   sprite: 0,   // auto-assigned by generateSprites() // will shift others
+  floors: [FloorLevel.MAINTENANCE, FloorLevel.HELL, FloorLevel.VOID],
   counterplay: 'Решите сразу: убить матку до нового приплода, расчистить детей или уйти с добычей. Смешанный план быстро делает комнату тесной.',
   lootHint: 'маточный узел, теплая слизь, редкая мясная руна после зачистки приплода',
 };

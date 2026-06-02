@@ -6,6 +6,7 @@ import { World } from '../src/core/world';
 import {
   bfsPath,
   freezeNavigationCacheForWorld,
+  followPath,
   getPathfindingStats,
   gotoNearestRoomType,
   gotoRoom,
@@ -45,6 +46,16 @@ function makeCornerWorld(): World {
   const world = new World();
   for (let x = 0; x <= 10; x++) world.set(x, 10, Cell.FLOOR);
   for (let y = 10; y <= 14; y++) world.set(10, y, Cell.FLOOR);
+  return world;
+}
+
+function makeOpenPlazaWorld(): World {
+  const world = new World();
+  for (let y = 10; y <= 16; y++) {
+    for (let x = 0; x <= 8; x++) {
+      world.set(x, y, Cell.FLOOR);
+    }
+  }
   return world;
 }
 
@@ -246,4 +257,68 @@ test('path steering follows baked path chunks instead of the final point vector'
   assert.equal(steering.nextCell, world.idx(1, 10));
   assert.equal(steering.x > 0.99, true);
   assert.equal(Math.abs(steering.y) < 0.01, true);
+});
+
+test('followPath string-pulls visible path cells into organic diagonal movement', () => {
+  const world = makeOpenPlazaWorld();
+  const actor = npc(200, 0.5);
+  actor.y = 10.5;
+  actor.ai!.path = [
+    world.idx(1, 10),
+    world.idx(1, 11),
+    world.idx(2, 11),
+    world.idx(2, 12),
+    world.idx(3, 12),
+    world.idx(3, 13),
+    world.idx(4, 13),
+  ];
+
+  followPath(world, actor, 1);
+
+  assert.equal(actor.x > 0.55, true);
+  assert.equal(actor.y > 10.55, true);
+});
+
+test('followPath keeps corner safety while smoothing a grid path', () => {
+  const world = makeCornerWorld();
+  const actor = npc(201, 6.5);
+  actor.y = 10.5;
+  actor.ai!.path = [
+    world.idx(7, 10),
+    world.idx(8, 10),
+    world.idx(9, 10),
+    world.idx(10, 10),
+    world.idx(10, 11),
+    world.idx(10, 12),
+    world.idx(10, 13),
+    world.idx(10, 14),
+  ];
+
+  followPath(world, actor, 1);
+
+  assert.equal(actor.x > 7.0, true);
+  assert.equal(Math.abs(actor.y - 10.5) < 0.08, true);
+});
+
+test('followPath prefers a visible final goal over a baked tree detour', () => {
+  const world = makeOpenPlazaWorld();
+  const actor = npc(202, 0.5);
+  actor.y = 10.5;
+  actor.ai!.tx = 4;
+  actor.ai!.ty = 10;
+  actor.ai!.path = [
+    world.idx(0, 11),
+    world.idx(0, 12),
+    world.idx(1, 12),
+    world.idx(2, 12),
+    world.idx(3, 12),
+    world.idx(4, 12),
+    world.idx(4, 11),
+    world.idx(4, 10),
+  ];
+
+  followPath(world, actor, 1);
+
+  assert.equal(actor.x > 1.0, true);
+  assert.equal(Math.abs(actor.y - 10.5) < 0.12, true);
 });

@@ -21,7 +21,7 @@ import { MONSTERS, entityDisplayName } from '../entities/monster';
 import { Spr } from '../render/sprite_index';
 import { cleanCellHazardsNear } from './cell_hazards';
 import { recordPlayerDamage } from './damage';
-import { ENTITY_MASK_MONSTER, ensureEntityIndex } from './entity_index';
+import { ENTITY_MASK_ACTOR, ENTITY_MASK_MONSTER, ensureEntityIndex } from './entity_index';
 import { publishEvent, registerWorldEventObserver } from './events';
 import { isDebugOnePunchManEnabled, keepDebugOnePunchManAlive } from './debug_cheats';
 import { scaleMonsterDmg, strMeleeDmgMult } from './rpg';
@@ -40,6 +40,7 @@ const FLEE_SECONDS = 2.2;
 const FLEE_DISTANCE = 8;
 const LASH_RANGE = 1.35;
 const slimevikQuery: Entity[] = [];
+const slimevikActorQuery: Entity[] = [];
 
 registerWorldEventObserver((state, event) => {
   if (
@@ -164,7 +165,8 @@ function wallNeighborCount(world: World, e: Entity): number {
 function nearestActor(world: World, entities: readonly Entity[], e: Entity): Entity | null {
   let best: Entity | null = null;
   let bestD2 = FLEE_DISTANCE * FLEE_DISTANCE;
-  for (const other of entities) {
+  ensureEntityIndex(entities).queryRadiusCapped(e.x, e.y, FLEE_DISTANCE, slimevikActorQuery, ENTITY_MASK_ACTOR, INTERACTION_QUERY_CAP);
+  for (const other of slimevikActorQuery) {
     if (!other.alive || other.id === e.id || (!isPlayerEntity(other) && other.type !== EntityType.NPC)) continue;
     const d2 = world.dist2(e.x, e.y, other.x, other.y);
     if (d2 < bestD2) {
@@ -284,7 +286,7 @@ export function updateSlimevikMonster(
 
   const hurt = (e.hp ?? 1) < (e.maxHp ?? e.hp ?? 1);
   if (hurt) {
-    const threat = player?.alive ? player : nearestActor(world, entities, e);
+    const threat = nearestActor(world, entities, e);
     if (threat) {
       lashIfCornered(world, e, threat, dt, time, msgs, state);
       fleeFrom(world, e, threat, dt);

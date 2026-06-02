@@ -43,6 +43,7 @@ export function recordMonsterProjectileDeath(
   projectile: Entity,
   actor?: Entity,
   onKill?: FogSharkCollateralKillHandler,
+  _entities?: readonly Entity[],
 ): void {
   if (target.monsterKind === MonsterKind.BORSHCHEVIK && isBorshchevikFireProjectile(projectile)) {
     recordBorshchevikBurned(world, state, target, actor);
@@ -65,6 +66,7 @@ export function recordMonsterMeleeDeath(
   weaponId: string | undefined,
   actor?: Entity,
   onKill?: FogSharkCollateralKillHandler,
+  _entities?: readonly Entity[],
 ): void {
   if (target.monsterKind === MonsterKind.BORSHCHEVIK && isBorshchevikCuttingWeapon(weaponId)) {
     recordBorshchevikCut(world, state, target, actor);

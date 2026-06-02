@@ -450,6 +450,9 @@ export interface AIState {
   choirSpawnedChildren?: number;
   choirVulnerableTimer?: number;
   choirLastHp?: number;       // damage gate memory while membranes are closed
+  sourceChildIds?: number[];  // generic source/hive-owned children, cleaned when source resolves
+  sourceEntityId?: number;    // child backlink to its source entity
+  sourceSpawnedChildren?: number; // deterministic spawn slot cursor for source/hive children
   protocolPressure?: number;  // Протокольник PSI pressure, capped and HUD-readable
   protocolExposure?: number;  // seconds spent in the current protocol chase
   protocolPressurePulseCd?: number;
@@ -495,6 +498,8 @@ export interface AIState {
   wallBraceWasActive?: boolean; // Panelnik touched a wall on a previous brace tick
   wallBraceSlowTimer?: number;  // brief slowdown after wall-brace is broken in open floor
   wallBraceCueAt?: number;      // next allowed wall-brace readability message time
+  wallBiasWasActive?: boolean;  // wall-edge monsters had a wall/corner advantage recently
+  wallBiasCueAt?: number;       // next allowed wall-edge readability message time
   scrapWake?: number;           // Rzhavnik: 0 dormant, 1 first leap, 2 fragile walker
   scrapWakeTimer?: number;      // Rzhavnik first-leap timebox
   plantPuffCd?: number;         // rooted plant seed/sap burst cooldown
@@ -991,6 +996,7 @@ export const WORLD_EVENT_TYPES = [
   'obzhivalshchik_scratched',
   'obzhivalshchik_calmed',
   'obzhivalshchik_breached',
+  'matka_child_spawned',
   'swarm_source_sealed',
   'swarm_source_burned',
   'death_seen',

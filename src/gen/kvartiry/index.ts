@@ -47,6 +47,8 @@ const AMBIENT_UPRISING_CHANCE = KV_POPULATION.uprising.ambientChance;
 const AMBIENT_UPRISING_MIN_CITIZENS = KV_POPULATION.uprising.minCitizens;
 const AMBIENT_UPRISING_MAX_CONVERTED = KV_POPULATION.uprising.maxConverted;
 const AMBIENT_UPRISING_MAX_RESPONDERS = KV_POPULATION.uprising.maxResponders;
+const KV_DOOR_LINK_DX = [1, -1, 0, 0] as const;
+const KV_DOOR_LINK_DY = [0, 0, 1, -1] as const;
 
 let kvUprisingAccum = 0;
 
@@ -121,6 +123,24 @@ function placeRoomFeatures(world: World, room: Room): void {
         break;
       }
     }
+  }
+}
+
+function linkKvartiryDoorsToRooms(world: World): void {
+  for (const [doorIdx, door] of world.doors) {
+    const x = doorIdx % W;
+    const y = (doorIdx / W) | 0;
+    const adjacentRooms: number[] = [];
+    for (let i = 0; i < KV_DOOR_LINK_DX.length; i++) {
+      const roomId = world.roomMap[world.idx(x + KV_DOOR_LINK_DX[i], y + KV_DOOR_LINK_DY[i])];
+      if (roomId < 0 || adjacentRooms.includes(roomId)) continue;
+      adjacentRooms.push(roomId);
+      const room = world.rooms[roomId];
+      if (room && !room.doors.includes(doorIdx)) room.doors.push(doorIdx);
+      if (adjacentRooms.length >= 2) break;
+    }
+    door.roomA = adjacentRooms[0] ?? -1;
+    door.roomB = adjacentRooms[1] ?? -1;
   }
 }
 
@@ -506,6 +526,7 @@ export function generateKvartiry(territorySeed = 0): { world: World; entities: E
 
     roomN++;
   }
+  linkKvartiryDoorsToRooms(world);
 
   // ── Phase 6: Zones (64 macro-regions) ─────────────────────────
   generateZones(world);
