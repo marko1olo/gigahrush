@@ -102,6 +102,8 @@ Every major public fact should use `publishEvent()`:
 
 The HUD should stay short. Detailed variant lore belongs in logs, rumors, NPC barks, documents or aftermath traces, not in a large blocking prewarning panel.
 
+Active samosbor HUD text is a known hot path. The previous FPS regression came from Canvas2D `shadowBlur` on fullscreen moving samosbor title/crawl text, not from the local rebuild wave. Keep the active title/crawl readable with cheap duplicate text, alpha, jitter and bounded line counts. Do not recover performance by disabling samosbor phases such as fog effects, monster pressure, local wave or rebuild stitching; those are gameplay contract, not visual fluff.
+
 ## Adding New Samosbor Content
 
 Preferred addition shape:

@@ -32,9 +32,11 @@ import { RESOURCES, resourceForItem } from '../src/data/resources';
 import { RUMORS, type RumorReveal } from '../src/data/rumors';
 import { getSamosborBeatDefs } from '../src/data/samosbor_director';
 import {
+  SAMOSBOR_BASE_SUBSYSTEMS,
   SAMOSBOR_AFTERMATH_BEATS,
   SAMOSBOR_MODIFIERS,
   SAMOSBOR_VARIANTS,
+  buildActiveSamosborVariant,
   getSamosborAftermathBeats,
   getSamosborVariantWeight,
 } from '../src/data/samosbor_variants';
@@ -501,6 +503,52 @@ test('samosbor variants, director beats, and aftermath stay coherent', () => {
   }
 
   assert.deepEqual(missing, [], 'samosbor data references must resolve');
+});
+
+test('samosbor variants keep the universal active pipeline and variant fog semantics', () => {
+  const requiredBaseSubsystems = [
+    'warning',
+    'audio',
+    'fog_tint',
+    'fog_spread',
+    'seal',
+    'monster_pressure',
+    'random_transfer',
+    'room_sirens',
+    'local_wave',
+    'aftermath',
+  ] as const;
+  assert.deepEqual(SAMOSBOR_BASE_SUBSYSTEMS, requiredBaseSubsystems);
+
+  const specialFogSubsystems = ['fog_rewrite', 'fog_create', 'fog_delete'] as const;
+  const requiredVariantSubsystems = new Map([
+    ['classic', []],
+    ['wet', []],
+    ['electric', []],
+    ['meat', ['hell_meat_walls']],
+    ['maronary', ['maronary_sources', 'wrong_door', 'source_glow', 'fog_rewrite']],
+    ['istotit', ['istotit_shelters', 'bell_compulsion', 'fog_create']],
+    ['veretar', ['veretar_area_leak', 'fog_delete']],
+  ]);
+
+  const missing: string[] = [];
+  for (const def of SAMOSBOR_VARIANTS) {
+    const active = buildActiveSamosborVariant(def);
+    for (const subsystem of requiredBaseSubsystems) {
+      if (!active.subsystems.includes(subsystem)) missing.push(`samosborVariant:${def.id}:base:${subsystem}`);
+    }
+    for (const subsystem of requiredVariantSubsystems.get(def.id) ?? []) {
+      if (!active.subsystems.includes(subsystem)) missing.push(`samosborVariant:${def.id}:variant:${subsystem}`);
+    }
+
+    const activeSpecialFog = specialFogSubsystems.filter(subsystem => active.subsystems.includes(subsystem));
+    if (def.id === 'maronary') assert.deepEqual(activeSpecialFog, ['fog_rewrite']);
+    else if (def.id === 'istotit') assert.deepEqual(activeSpecialFog, ['fog_create']);
+    else if (def.id === 'veretar') assert.deepEqual(activeSpecialFog, ['fog_delete']);
+    else assert.deepEqual(activeSpecialFog, [], `${def.id} should keep default monster-spawning fog`);
+  }
+
+  assert.deepEqual(missing, [], 'samosbor active pipeline subsystems must stay data-driven and complete');
 });
 
 test('samosbor floor families expose warning and aftermath identities', () => {

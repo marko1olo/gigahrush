@@ -246,15 +246,15 @@ function drawSamosborActiveInstruction(
 
   ctx.save();
   ctx.textAlign = 'center';
-  ctx.shadowColor = active.tint;
-  ctx.shadowBlur = 12;
   ctx.fillStyle = active.tint;
   ctx.font = `bold ${16 * sy}px monospace`;
   const fittedTitle = fitHudText(ctx, title, w - 16 * sx);
+  ctx.fillStyle = 'rgba(0,0,0,0.62)';
+  ctx.fillText(fittedTitle, w * 0.5 + sj.dx * 3 + 1, y + 8 * sy + sj.dy * 2 + 1);
+  ctx.fillStyle = active.tint;
   ctx.fillText(fittedTitle, w * 0.5 + sj.dx * 3, y + 8 * sy + sj.dy * 2);
   ctx.fillStyle = `rgba(0,255,200,${sAlpha * 0.2})`;
   ctx.fillText(fittedTitle, w * 0.5 + sj.dx * 3 + 2, y + 8 * sy + sj.dy * 2 + 1);
-  ctx.shadowBlur = 0;
   ctx.textAlign = 'left';
   ctx.restore();
 }
@@ -649,7 +649,7 @@ function drawSamosborCrawl(
   ctx.save();
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  const slots = Math.max(8, Math.min(16, Math.round(w / 120)));
+  const slots = Math.max(4, Math.min(7, Math.round(w / 220)));
   for (let i = 0; i < slots; i++) {
     const phase = time * 0.12 + i / slots;
     const cycle = Math.floor(phase);
@@ -660,7 +660,7 @@ function drawSamosborCrawl(
     const spinUnit = samosborCrawlUnit(variantId, i, cycle, 4);
     const y = h * 1.12 - travel * h * 1.38;
     const x = w * (0.06 + xUnit * 0.88);
-    const size = (5.5 + Math.pow(travel, 1.25) * 17.5) * sy * (0.72 + sizeUnit * 0.72);
+    const size = (5.5 + Math.pow(travel, 1.25) * 11.5) * sy * (0.72 + sizeUnit * 0.62);
     const spin = -0.45 + spinUnit * 0.9;
     const angle = -0.28 + angleUnit * 0.56 + (time * 0.35 + travel * 1.8) * spin;
     const enter = Math.max(0, Math.min(1, (travel - 0.035) / 0.12));
@@ -674,9 +674,10 @@ function drawSamosborCrawl(
     ctx.save();
     ctx.translate(x + jitter.dx * 1.5, y + jitter.dy);
     ctx.rotate(angle);
-    ctx.globalAlpha = alpha * 0.76;
-    ctx.shadowColor = tint;
-    ctx.shadowBlur = 9 * Math.min(sx, sy);
+    ctx.globalAlpha = alpha * 0.52;
+    ctx.fillStyle = 'rgba(0,0,0,0.72)';
+    ctx.fillText(line, 1.5 * sx, 1.5 * sy, maxLineW);
+    ctx.globalAlpha = alpha * 0.62;
     ctx.fillStyle = tint;
     ctx.fillText(line, 0, 0, maxLineW);
     ctx.restore();
