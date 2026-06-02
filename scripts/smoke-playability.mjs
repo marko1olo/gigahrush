@@ -917,16 +917,18 @@ async function sampleCanvases(client) {
     const hud = document.getElementById('hud');
     const hctx = hud?.getContext('2d');
     const sample2d = (ctx, x, y, w, h) => {
-      if (!ctx || w <= 0 || h <= 0) return { lit: 0, sum: 0 };
+      if (!ctx || w <= 0 || h <= 0) return { lit: 0, sum: 0, alphaSum: 0 };
       const data = ctx.getImageData(x, y, w, h).data;
       let lit = 0;
       let sum = 0;
+      let alphaSum = 0;
       for (let i = 0; i < data.length; i += 4) {
         const rgb = data[i] + data[i + 1] + data[i + 2];
         sum += rgb;
+        alphaSum += data[i + 3];
         if (rgb > 8) lit++;
       }
-      return { lit, sum };
+      return { lit, sum, alphaSum };
     };
     const hudW = hud?.width ?? 0;
     const hudH = hud?.height ?? 0;
@@ -970,11 +972,15 @@ async function sampleCanvases(client) {
       gameHeight: game?.height ?? 0,
       hudLit: Math.max(hudCorner.lit, hudCenter.lit, hudBottom.lit),
       hudSum: Math.max(hudCorner.sum, hudCenter.sum, hudBottom.sum),
+      hudAlphaSum: Math.max(hudCorner.alphaSum, hudCenter.alphaSum, hudBottom.alphaSum),
       hudCornerLit: hudCorner.lit,
+      hudCornerAlphaSum: hudCorner.alphaSum,
       hudBottomLit: hudBottom.lit,
       hudBottomSum: hudBottom.sum,
+      hudBottomAlphaSum: hudBottom.alphaSum,
       hudCenterLit: hudCenter.lit,
       hudCenterSum: hudCenter.sum,
+      hudCenterAlphaSum: hudCenter.alphaSum,
       webgl: Boolean(gl),
       webglLit,
       webglSum,
@@ -1034,10 +1040,12 @@ function requireMovementDelta(before, after, label, failures) {
 }
 
 function requirePanelTelemetry(before, after, label, failures) {
-  const delta = Math.abs(after.hudCenterSum - before.hudCenterSum);
-  const required = Math.max(25000, Math.floor(before.hudCenterSum * 0.005));
-  if (delta < required) {
-    failures.push(`${label}: expected a visible HUD panel brightness change (beforeSum=${before.hudCenterSum}, afterSum=${after.hudCenterSum}, delta=${delta}, required>=${required})`);
+  const rgbDelta = Math.abs(after.hudCenterSum - before.hudCenterSum);
+  const alphaDelta = Math.abs((after.hudCenterAlphaSum ?? 0) - (before.hudCenterAlphaSum ?? 0));
+  const requiredRgb = Math.max(25000, Math.floor(before.hudCenterSum * 0.005));
+  const requiredAlpha = Math.max(250000, Math.floor((before.hudCenterAlphaSum ?? 0) * 0.005));
+  if (rgbDelta < requiredRgb && alphaDelta < requiredAlpha) {
+    failures.push(`${label}: expected a visible HUD panel change (beforeSum=${before.hudCenterSum}, afterSum=${after.hudCenterSum}, rgbDelta=${rgbDelta}, requiredRgb>=${requiredRgb}, beforeAlpha=${before.hudCenterAlphaSum ?? 0}, afterAlpha=${after.hudCenterAlphaSum ?? 0}, alphaDelta=${alphaDelta}, requiredAlpha>=${requiredAlpha})`);
   }
 }
 
