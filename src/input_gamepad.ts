@@ -47,6 +47,14 @@ const BUTTON_HOLD_ACTIONS: ActionMap = {
   6: 'useTool',
   7: 'attack',
   10: 'sprint',
+  // D-pad mirrors keyboard arrow keys: held → menu navigation boolean true,
+  // release → false. Without this, `setMenuNav` would set `input.invDn = true`
+  // on the press edge and never clear it, causing menus to auto-scroll forever
+  // after a single D-pad nudge.
+  12: 'menuUp',
+  13: 'menuDown',
+  14: 'menuLeft',
+  15: 'menuRight',
 };
 
 const BUTTON_EDGE_ACTIONS: ActionMap = {

@@ -7178,8 +7178,23 @@ function gameLoop(now: number): void {
     requestAnimationFrame(gameLoop);
     return;
   }
+
+  // ── Gamepad / universal input frame ───────────────────────
+  // Polled before the title-screen early return so the title menu and
+  // pause/inventory menus alike see fresh per-frame intent. Keyboard and
+  // mouse stay the default; the resolver only writes when the adapter
+  // reports actual input. `writeMenuEdgesFromActions` is gated on
+  // `started` so the title bridge owns its own accept/close mapping.
+  beginInputFrame(inputFrame);
+  gamepadAdapter.poll(inputFrame);
+  resolveInputFrameToInputState(inputFrame, input, {
+    writeMenuEdgesFromActions: started,
+  });
+
   if (!started) {
+    handleTitleGamepadInput(inputFrame);
     showTitle();
+    requestAnimationFrame(gameLoop);
     return;
   }
 
@@ -7200,18 +7215,6 @@ function gameLoop(now: number): void {
   uiTime += frameDt;
   let dt = frameDt;
   tickNetSphere(state, player);
-
-  // ── Gamepad / universal input frame ───────────────────────
-  // Poll physical gamepad early so sleep latch, menu handler and
-  // movement/look read consistent per-frame intent. Touch/mobile
-  // write `input.touch.*` directly via DOM events; gamepad axes are
-  // read from `inputFrame.axes` alongside `input.touch.*` so the two
-  // device classes don't fight over the same fields.
-  beginInputFrame(inputFrame);
-  gamepadAdapter.poll(inputFrame);
-  resolveInputFrameToInputState(inputFrame, input, {
-    writeMenuEdgesFromActions: true,
-  });
 
   // ── Sleep: hold Z to sleep (time acceleration ×10) ───────
   const SLEEP_TIME_MULT = 10;
@@ -7813,3 +7816,64 @@ function startHandler(e: KeyboardEvent): void {
 }
 
 document.addEventListener('keydown', startHandler);
+
+/* ── Title screen: physical gamepad bridge ─────────────────────
+ *
+ * Mirrors the keyboard `startHandler` for a `standard`-mapped controller.
+ * Reads edges from the universal `InputFrame` so the same code path that
+ * drives in-game menus also drives the title screen. Keyboard/mouse stay
+ * the default; this only fires when the player actually moves a stick or
+ * presses a button.
+ */
+function handleTitleGamepadInput(frame: InputFrame): void {
+  if (started || pendingLoad || pointerCaptureGateVisible()) return;
+
+  // Edges produced by D-pad presses (one frame per press, regardless of how
+  // long the button is held). Sticks would route through `frame.axes` and
+  // are intentionally not wired here yet — the title screen is short and
+  // analog repeat would overshoot tiny field lists.
+  const navUp = frame.menuNav.up;
+  const navDown = frame.menuNav.down;
+  const navLeft = frame.menuNav.left;
+  const navRight = frame.menuNav.right;
+  const acceptEdge = frame.pressedActions.has('interact') || frame.pressedActions.has('gameMenu');
+  const closeEdge = frame.pressedActions.has('menuClose');
+
+  if (titleMode === 'language') {
+    if (navLeft) { cycleTitleLanguage(-1); return; }
+    if (navRight) { cycleTitleLanguage(1); return; }
+    if (acceptEdge || navDown) { openTitleSetupMenu(); return; }
+    return;
+  }
+
+  if (closeEdge) {
+    titleMode = 'language';
+    setTitleSelection('start');
+    showTitle();
+    return;
+  }
+
+  if (navUp) { moveTitleSelection(-1); return; }
+  if (navDown) { moveTitleSelection(1); return; }
+
+  if (navLeft || navRight) {
+    const dir = navRight ? 1 : -1;
+    if (titleInputField === 'language') cycleTitleLanguage(dir);
+    else if (titleInputField === 'actorCap') adjustTitleActiveActorSoftLimit(dir);
+    else if (titleInputField === 'age') {
+      titlePlayerAgeText = String(clampCharacterAge(Number(titlePlayerAgeText || DEFAULT_PLAYER_AGE) + dir, DEFAULT_PLAYER_AGE));
+      showTitle();
+    }
+    else if (titleInputField === 'sex') cyclePlayerSex();
+    else showTitle();
+    return;
+  }
+
+  if (acceptEdge) {
+    if (titleInputField === 'start') startGameFromTitle();
+    else if (titleInputField === 'language') cycleTitleLanguage(1);
+    else if (titleInputField === 'actorCap') adjustTitleActiveActorSoftLimit(1);
+    else if (titleInputField === 'sex') cyclePlayerSex();
+    else moveTitleSelection(1);
+  }
+}

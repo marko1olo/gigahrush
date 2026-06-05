@@ -17,7 +17,7 @@
 | Physical gamepad adapter (Gamepad API, standard mapping, edge detection) | [src/input_gamepad.ts](src/input_gamepad.ts) | shipped |
 | Game-loop integration (poll → resolve → movement/look read) | [src/main.ts](src/main.ts) | shipped |
 | Touch DOM controls (existing mobile overlay) | [src/mobile.ts](src/mobile.ts) | unchanged |
-| Title screen gamepad bridge | [src/main.ts](src/main.ts) | not shipped (keyboard-only title) |
+| Title screen gamepad bridge | [src/main.ts](src/main.ts) | shipped (D-pad nav, A/Start accept, B back) |
 | Net Sphere gamepad routing | — | not shipped |
 | Gamepad UI / hints / remap screen | — | not shipped |
 | Haptics | [src/input_gamepad.ts](src/input_gamepad.ts) | not shipped |
@@ -181,7 +181,7 @@ Behaviour:
 | Button 9 (Start / Menu) | press → `gameMenu` edge | `input.escape`, `menuAccept` latch |
 | Button 10 (L3) | hold → `sprint` | `input.sprint` |
 | Button 11 (R3) | reserved, no-op |  |
-| Buttons 12–15 (D-pad) | press → menu nav up/down/left/right | `input.invUp/Dn/Left/Right` |
+| Buttons 12–15 (D-pad) | press → menu nav edge **and** held → `menuUp/Dn/Left/Right` action | `input.invUp/Dn/Left/Right` |
 | Button 16 (Guide) | unused |  |
 
 Menu accept on A is intentionally **not** wired in the v1 adapter — menus
@@ -305,27 +305,48 @@ input plumbing.
 
 Tracked here so future passes do not duplicate work:
 
-1. **Title screen gamepad bridge.** The title currently uses a raw
-   `keydown` listener. Without a small `TitleInputIntent` adapter, a
-   controller-only player cannot start a run.
-2. **Pointer-lock override for gamepad mode.** Bypass the desktop
+1. **Pointer-lock override for gamepad mode.** Bypass the desktop
    capture gate after a real pad input; revert to keyboard/mouse mode
    on the first mouse/keyboard movement event.
-3. **Controls / settings UI for gamepad.** Three-view controls screen
+2. **Controls / settings UI for gamepad.** Three-view controls screen
    (`keys` / `gamepad` / `buttons`), inline status of the active pad,
    deadzone / invert / sensitivity tuning,
    `controlHintForActiveDevice()` helper for HUD hints.
-4. **Net Sphere gamepad routing.** A select / B back / X erase / D-pad
+3. **Net Sphere gamepad routing.** A select / B back / X erase / D-pad
    scroll, all gated by chat input focus state.
-5. **Mobile virtual gamepad overlay.** Replace the current rail mental
+4. **Mobile virtual gamepad overlay.** Replace the current rail mental
    model with sticks + ABXY + RT cluster while keeping the existing
    `FULL/PAGE` fullscreen behaviour, safe-area integration and compact
    rail for rare actions.
-6. **Haptics.** Optional `playGamepadHaptic(kind)` with capability
+5. **Haptics.** Optional `playGamepadHaptic(kind)` with capability
    detection, short pulses on hit and death, gated by `settings.haptics`.
-7. **Browser smoke hook.** Synthetic `navigator.getGamepads()` injection
+6. **Browser smoke hook.** Synthetic `navigator.getGamepads()` injection
    behind a test flag so `scripts/smoke-playability.mjs` can assert
    gamepad start/move without a physical pad.
+
+## Recent fixes
+
+- **D-pad release semantics.** `BUTTON_HOLD_ACTIONS` in
+  [src/input_gamepad.ts](src/input_gamepad.ts) now includes
+  `menuUp/menuDown/menuLeft/menuRight`. The existing one-frame
+  `setMenuNav` edge still fires for title-screen consumers, but the
+  resolver also sees `heldActions` and the matching `releasedActions`,
+  so `input.invDn` (etc.) is cleared the moment the D-pad goes back to
+  rest. Without this, a single D-pad nudge would leave `input.invDn`
+  stuck `true` and `menuRepeatStep` would auto-scroll menus forever.
+- **Title screen gamepad bridge.** `gameLoop` now polls the gamepad
+  before the `!started` early-return and calls
+  `handleTitleGamepadInput(frame)`, which mirrors `startHandler`
+  semantics from D-pad / A / B / Start. The title branch also schedules
+  `requestAnimationFrame(gameLoop)` so polling keeps running while the
+  player is on the title.
+- **Mobile fullscreen on iOS.** `canUseMobileFullscreen()` in
+  [src/fullscreen.ts](src/fullscreen.ts) no longer hides the button on
+  iPad (which actually supports
+  `documentElement.requestFullscreen`). On iPhone, the button stays
+  visible and `enterMobileFullscreen()` falls back to a soft
+  `window.scrollTo(0, 1)` URL-bar shrink trick when `requestFullscreen`
+  is unavailable.
 
 ## Anti-patterns to keep rejecting
 

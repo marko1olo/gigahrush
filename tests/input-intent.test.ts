@@ -155,3 +155,25 @@ test('resolver routes menu navigation edges into invUp/Dn/Left/Right', () => {
   assert.equal(input.invLeft, false);
   assert.equal(input.invRight, true);
 });
+
+test('resolver clears invDn when a held menuDown action releases', () => {
+  // Regression: D-pad press would set `input.invDn = true` but the boolean
+  // was never cleared, causing menus to auto-scroll forever. The adapter
+  // now routes D-pad through `setActionHeld('menuDown')`, so the release
+  // edge must mirror back into `input.invDn = false`.
+  const frame = createInputFrame();
+  const input = createInput();
+  setActionHeld(frame, 'menuDown', true);
+  resolveInputFrameToInputState(frame, input, { writeMenuEdgesFromActions: false });
+  assert.equal(input.invDn, true);
+
+  beginInputFrame(frame);
+  setActionHeld(frame, 'menuDown', true);
+  resolveInputFrameToInputState(frame, input, { writeMenuEdgesFromActions: false });
+  assert.equal(input.invDn, true);
+
+  beginInputFrame(frame);
+  releaseAction(frame, 'menuDown');
+  resolveInputFrameToInputState(frame, input, { writeMenuEdgesFromActions: false });
+  assert.equal(input.invDn, false);
+});
