@@ -57,6 +57,13 @@ import {
 } from './systems/inventory';
 import { createInput, bindInput } from './input';
 import { createMobileControls, type MobileControls, type MobileMenuId } from './mobile';
+import { createGamepadAdapter, type GamepadAdapter } from './input_gamepad';
+import {
+  createInputFrame,
+  beginInputFrame,
+  resolveInputFrameToInputState,
+  type InputFrame,
+} from './systems/input_intent';
 import { isNativeFullscreenActive, toggleNativeFullscreen } from './fullscreen';
 import {
   CONTROL_ACTIONS,
@@ -1980,6 +1987,8 @@ mobileControls = createMobileControls(input, {
   onConfirm: confirmActiveMobileSelection,
   onClose: closeActiveMobileMenu,
 });
+const gamepadAdapter: GamepadAdapter = createGamepadAdapter();
+const inputFrame: InputFrame = createInputFrame();
 document.addEventListener('pointerlockchange', () => {
   input.mouse.locked = canvasHasPointerLock();
   if (input.mouse.locked) {
@@ -2194,10 +2203,19 @@ function movePlayer(dt: number): void {
   // Keyboard turn
   if (input.left)  actor.angle -= 2.5 * dt;
   if (input.right) actor.angle += 2.5 * dt;
-  const touchLookSensitivity = (input.touch.lookX !== 0 || input.touch.lookY !== 0) ? mobileLookSensitivity() : 0;
+  const padLookX = inputFrame.axes.lookX;
+  const padLookY = inputFrame.axes.lookY;
+  const touchLookActive = input.touch.lookX !== 0 || input.touch.lookY !== 0;
+  const padLookActive = padLookX !== 0 || padLookY !== 0;
+  const touchLookSensitivity = touchLookActive ? mobileLookSensitivity() : 0;
+  const padLookSensitivity = padLookActive ? mobileLookSensitivity() : 0;
   if (input.touch.lookX !== 0) actor.angle += input.touch.lookX * 3.0 * touchLookSensitivity * dt;
   if (input.touch.lookY !== 0) {
     actor.pitch = Math.max(-PLAYER_PITCH_LIMIT, Math.min(PLAYER_PITCH_LIMIT, actor.pitch - input.touch.lookY * 1.6 * touchLookSensitivity * dt));
+  }
+  if (padLookX !== 0) actor.angle += padLookX * 3.0 * padLookSensitivity * dt;
+  if (padLookY !== 0) {
+    actor.pitch = Math.max(-PLAYER_PITCH_LIMIT, Math.min(PLAYER_PITCH_LIMIT, actor.pitch - padLookY * 1.6 * padLookSensitivity * dt));
   }
   actor.pitch = Math.max(-PLAYER_PITCH_LIMIT, Math.min(PLAYER_PITCH_LIMIT, actor.pitch));
   if (actor.id === player.id && isRidingRailTrain(world, player)) return;
@@ -2206,8 +2224,8 @@ function movePlayer(dt: number): void {
   // Movement
   const cos = Math.cos(actor.angle);
   const sin = Math.sin(actor.angle);
-  const fwdAxis = Math.max(-1, Math.min(1, (input.fwd ? 1 : 0) - (input.back ? 1 : 0) + input.touch.moveY));
-  const strafeAxis = Math.max(-1, Math.min(1, (input.strafeR ? 1 : 0) - (input.strafeL ? 1 : 0) + input.touch.moveX));
+  const fwdAxis = Math.max(-1, Math.min(1, (input.fwd ? 1 : 0) - (input.back ? 1 : 0) + input.touch.moveY + inputFrame.axes.moveY));
+  const strafeAxis = Math.max(-1, Math.min(1, (input.strafeR ? 1 : 0) - (input.strafeL ? 1 : 0) + input.touch.moveX + inputFrame.axes.moveX));
   let mx = cos * fwdAxis - sin * strafeAxis;
   let my = sin * fwdAxis + cos * strafeAxis;
   const processionPull = actor.id === player.id ? updateCultProcessionCompulsion(state, world, player, input.interactHeld) : null;
@@ -7182,6 +7200,18 @@ function gameLoop(now: number): void {
   uiTime += frameDt;
   let dt = frameDt;
   tickNetSphere(state, player);
+
+  // ── Gamepad / universal input frame ───────────────────────
+  // Poll physical gamepad early so sleep latch, menu handler and
+  // movement/look read consistent per-frame intent. Touch/mobile
+  // write `input.touch.*` directly via DOM events; gamepad axes are
+  // read from `inputFrame.axes` alongside `input.touch.*` so the two
+  // device classes don't fight over the same fields.
+  beginInputFrame(inputFrame);
+  gamepadAdapter.poll(inputFrame);
+  resolveInputFrameToInputState(inputFrame, input, {
+    writeMenuEdgesFromActions: true,
+  });
 
   // ── Sleep: hold Z to sleep (time acceleration ×10) ───────
   const SLEEP_TIME_MULT = 10;
