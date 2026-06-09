@@ -608,13 +608,13 @@ function claimSmallCaravanMember(
   usedIds: Set<number>,
 ): Entity | null {
   let best: Entity | null = null;
-  let bestD2 = Infinity;
+  let bestScore = Infinity;
   for (const npc of entities) {
     if (!smallCaravanMemberEligible(state, npc, template, usedIds)) continue;
-    const d2 = world.dist2(run.x, run.y, npc.x, npc.y);
-    if (d2 >= bestD2) continue;
+    const score = world.dist2(run.x, run.y, npc.x, npc.y) + ((npc.id * 137) % 100) * 0.001;
+    if (score >= bestScore) continue;
     best = npc;
-    bestD2 = d2;
+    bestScore = score;
   }
   if (!best) return null;
   const alifeId = ensureSmallCaravanMemberAlifeId(state, entities, best, run);

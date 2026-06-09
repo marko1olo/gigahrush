@@ -273,7 +273,7 @@ interface PipeNetworkCandidate {
   d2: number;
 }
 
-type FloorScatterPackage = 'collector' | 'linoleum';
+type FloorScatterPackage = 'collector' | 'linoleum' | 'organic';
 
 interface FloorScatterCandidate {
   modelId: VisualModelId;
@@ -1248,7 +1248,7 @@ function weightedCorridorWallModel(covering: VisualCorridorCoveringDef, h: numbe
 
 function corridorReliefVariant(covering: VisualCorridorCoveringDef, h: number): VisualModelId {
   const selector = (h >>> 21) & 15;
-  if (covering.id === 'technical' || covering.id === 'collector') {
+  if (covering.id === 'technical') {
     if (selector <= 3) return 'wall_panel_flat';
     if (selector <= 5) return 'wall_panel_screen';
     if (selector <= 7) return 'button_panel';
@@ -1765,6 +1765,7 @@ function floorScatterPackageForField(
 ): FloorScatterPackage | null {
   if (!profile.includeCorridorVolumes || profile.corridorVolumeDetail <= 0) return null;
   if (covering.id === 'collector') return 'collector';
+  if (covering.style === 'organic') return 'organic';
   const cx = Math.floor(context.camera.x);
   const cy = Math.floor(context.camera.y);
   const cameraIdx = context.world.idx(cx, cy);
@@ -1783,18 +1784,26 @@ function floorScatterGate(
   pkg: FloorScatterPackage,
   detail: number,
 ): boolean {
-  const salt = pkg === 'collector' ? 0x636c75 : 0x6c696e;
+  const salt = pkg === 'collector' ? 0x636c75 : pkg === 'organic' ? 0x6f7267 : 0x6c696e;
   const noise = valueNoise2d(context.seed, x + 0.41, y + 0.73, roomId, corridorContextSalt(context, salt), 5.5);
   const grain = hashUnit(context.seed, x, y, roomId, salt ^ 0x66736c);
   const density = pkg === 'collector'
     ? 0.09 + detail * 0.24
-    : 0.12 + detail * 0.28;
+    : pkg === 'organic'
+      ? 0.14 + detail * 0.32
+      : 0.12 + detail * 0.28;
   return noise * 0.46 + grain * 0.54 < density;
 }
 
 function floorScatterModelId(context: MeshPassContext, x: number, y: number, roomId: number, pkg: FloorScatterPackage): VisualModelId {
-  const h = mixHash(context.seed, x, y, roomId, pkg === 'collector' ? 0x636d6f : 0x6c6d6f);
+  const h = mixHash(context.seed, x, y, roomId, pkg === 'collector' ? 0x636d6f : pkg === 'organic' ? 0x6f726d : 0x6c6d6f);
   const roll = (h >>> 12) & 255;
+  if (pkg === 'organic') {
+    if (roll < 90) return 'organic_meat_lump';
+    if (roll < 160) return 'organic_bone_shard';
+    if (roll < 210) return 'organic_pustule';
+    return 'organic_rib_cage';
+  }
   if (pkg === 'linoleum') {
     if (roll < 92) return 'linoleum_peel';
     if (roll < 150) return 'linoleum_scrap';
@@ -1813,6 +1822,14 @@ function floorScatterModelId(context: MeshPassContext, x: number, y: number, roo
 
 function floorScatterScale(modelId: VisualModelId, h: number): { x: number; y: number; z: number } {
   switch (modelId) {
+    case 'organic_meat_lump':
+      return { x: 0.7 + ((h >>> 8) & 7) * 0.06, y: 0.7 + ((h >>> 12) & 7) * 0.06, z: 0.8 + ((h >>> 14) & 3) * 0.1 };
+    case 'organic_bone_shard':
+      return { x: 0.8 + ((h >>> 8) & 7) * 0.06, y: 0.8 + ((h >>> 12) & 7) * 0.06, z: 0.9 + ((h >>> 14) & 3) * 0.15 };
+    case 'organic_pustule':
+      return { x: 0.8 + ((h >>> 8) & 7) * 0.08, y: 0.8 + ((h >>> 12) & 7) * 0.08, z: 0.8 + ((h >>> 14) & 3) * 0.08 };
+    case 'organic_rib_cage':
+      return { x: 0.8 + ((h >>> 8) & 7) * 0.05, y: 0.8 + ((h >>> 12) & 7) * 0.05, z: 0.8 + ((h >>> 14) & 3) * 0.05 };
     case 'collector_floor_pipe':
       return { x: 0.72 + ((h >>> 8) & 7) * 0.08, y: 0.65 + ((h >>> 12) & 3) * 0.06, z: 0.75 };
     case 'floor_tile_shard':
@@ -1848,7 +1865,8 @@ function addFloorScatterCandidate(
 ): void {
   const detail = profile.corridorVolumeDetail;
   if (!floorScatterGate(context, x, y, fieldSalt, pkg, detail)) return;
-  const h = mixHash(context.seed, x, y, fieldSalt, pkg === 'collector' ? 0x66636f : 0x666c69);
+  const salt = pkg === 'collector' ? 0x66636f : pkg === 'organic' ? 0x6f7267 : 0x666c69;
+  const h = mixHash(context.seed, x, y, fieldSalt, salt);
   const ix = wrapFloat(x + 0.12 + hashUnit(context.seed, x, y, fieldSalt, h ^ 0x7866) * 0.76);
   const iy = wrapFloat(y + 0.12 + hashUnit(context.seed, x, y, fieldSalt, h ^ 0x7966) * 0.76);
   const dx = wrappedDelta(centerX, ix);
@@ -1865,7 +1883,7 @@ function addFloorScatterCandidate(
     scaleX: scale.x,
     scaleY: scale.y,
     scaleZ: scale.z,
-    seed: meshInstanceSeed(context.seed, x, y, pkg === 'collector' ? 0x66636f : 0x666c69, modelId, fieldSalt),
+    seed: meshInstanceSeed(context.seed, x, y, salt, modelId, fieldSalt),
     d2,
   });
 }
@@ -1879,7 +1897,8 @@ function collectProceduralFloorScatter(
   if (!profile.includeCorridorVolumes || profile.corridorVolumeDetail <= 0) return;
   const pkg = floorScatterPackageForField(context, profile, covering);
   if (!pkg) return;
-  const fieldSalt = corridorContextSalt(context, pkg === 'collector' ? 0x66636f : 0x666c69);
+  const salt = pkg === 'collector' ? 0x66636f : pkg === 'organic' ? 0x6f7267 : 0x666c69;
+  const fieldSalt = corridorContextSalt(context, salt);
   const radius = Math.max(2, Math.ceil(profile.proceduralFieldRadius));
   const cx = Math.floor(context.camera.x);
   const cy = Math.floor(context.camera.y);

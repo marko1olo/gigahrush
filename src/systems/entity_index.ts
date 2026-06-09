@@ -538,7 +538,15 @@ export class EntityIndex {
         return;
       }
       let pos = distances.length;
-      while (pos > 0 && (d2 < distances[pos - 1] || (d2 === distances[pos - 1] && e.id < ids[pos - 1]))) pos--;
+      while (pos > 0) {
+        if (d2 < distances[pos - 1]) {
+          pos--;
+        } else if (d2 === distances[pos - 1] && e.id < ids[pos - 1]) {
+          pos--;
+        } else {
+          break;
+        }
+      }
       if (pos >= cap) return;
       distances.splice(pos, 0, d2);
       ids.splice(pos, 0, e.id);

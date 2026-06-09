@@ -1758,7 +1758,7 @@ function pickSystemQuest(
   const scored = CONTRACTS
     .filter(c => !isContractHiddenForAssignment(c))
     .filter(c => !state.quests.some(q => q.contractId === c.id))
-    .map(def => ({ def, score: contractScore(def, npc, ctx) }))
+    .map(def => ({ def, score: contractScore(def, npc, ctx) + Math.random() * 0.01 }))
     .filter(row => row.score > 0)
     .sort((a, b) => b.score - a.score);
   if (scored.length === 0) return null;
@@ -1992,12 +1992,12 @@ function monsterQuestName(kind: MonsterKind): string {
 function pickTalkTarget(npc: Entity, world: World, entities: Entity[]): Entity | null {
   const candidates = entities
     .filter(e => e.type === EntityType.NPC && e.alive && e.id !== npc.id)
-    .sort((a, b) => {
-      const af = a.faction === npc.faction ? -30 : 0;
-      const bf = b.faction === npc.faction ? -30 : 0;
-      return world.dist2(npc.x, npc.y, a.x, a.y) + af - (world.dist2(npc.x, npc.y, b.x, b.y) + bf);
-    });
+    .map(e => {
+      const f = e.faction === npc.faction ? -30 : 0;
+      return { e, score: world.dist2(npc.x, npc.y, e.x, e.y) + f + Math.random() * 0.99 };
+    })
+    .sort((a, b) => a.score - b.score);
   if (candidates.length === 0) return null;
-  const top = candidates.slice(0, Math.min(12, candidates.length));
+  const top = candidates.slice(0, Math.min(12, candidates.length)).map(c => c.e);
   return top[Math.floor(Math.random() * top.length)];
 }

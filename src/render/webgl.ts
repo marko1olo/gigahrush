@@ -1108,8 +1108,9 @@ void main() {
             if (feat == ${Feature.LAMP}u) {
               vec3 cc;
               if (organicLightCell(cCell)) {
-                cc = sampleAtlas(${Tex.CEIL}u, ftx, fty).rgb;
-                cc = shadePlane(${Tex.CEIL}u, cc, cCell, ftx, fty, currentDist, cLit, toolBeam, true, false);
+                cc = sampleAtlas(${Tex.CEIL}u, ftx, fty).rgb * (0.25 + cLit * 0.35);
+                cc = applyHellLamp(cc, ftx, fty, cCell.x, cCell.y, currentDist);
+                cc = applyToolBeamTint(cc, toolBeam);
               } else {
                 if (uUseDynamicSky == 1) {
                   vec2 skyUv = wrapF(vec2(floorX, floorY)) / float(W_SIZE);
@@ -1119,15 +1120,15 @@ void main() {
                   cc = sampleAtlas(${Tex.CEIL}u, ftx, fty).rgb;
                   cc = shadePlane(${Tex.CEIL}u, cc, cCell, ftx, fty, currentDist, cLit, toolBeam, true, false);
                 }
+                vec2 lampUv = (vec2(float(ftx), float(fty)) + 0.5) / TEX_F - vec2(0.5);
+                float lampR = length(lampUv);
+                float spot = 1.0 - smoothstep(0.045, 0.16, lampR);
+                float halo = 1.0 - smoothstep(0.10, 0.34, lampR);
+                float distGlow = max(0.0, 1.0 - currentDist * 0.16);
+                vec3 lampTint = vec3(1.0, 190.0/255.0, 74.0/255.0);
+                cc = min(cc + lampTint * distGlow * (spot * 0.34 + halo * 0.075), vec3(1.0));
+                if (uUseDynamicSky == 1) cc = applyToolBeamTint(cc, toolBeam);
               }
-              vec2 lampUv = (vec2(float(ftx), float(fty)) + 0.5) / TEX_F - vec2(0.5);
-              float lampR = length(lampUv);
-              float spot = 1.0 - smoothstep(0.045, 0.16, lampR);
-              float halo = 1.0 - smoothstep(0.10, 0.34, lampR);
-              float distGlow = max(0.0, 1.0 - currentDist * 0.16);
-              vec3 lampTint = organicLightCell(cCell) ? vec3(1.0, 80.0/255.0, 34.0/255.0) : vec3(1.0, 190.0/255.0, 74.0/255.0);
-              cc = min(cc + lampTint * distGlow * (spot * 0.34 + halo * 0.075), vec3(1.0));
-              if (uUseDynamicSky == 1) cc = applyToolBeamTint(cc, toolBeam);
               pixel = applyLocalFog(cc, cCell, ff);
               pixelDepth = min(1.0, currentDist / MAX_DIST);
             } else if (feat == ${Feature.CANDLE}u) {

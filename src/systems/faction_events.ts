@@ -1339,18 +1339,20 @@ function nearbyNpcsByDistance(
       world.zoneMap[world.idx(Math.floor(e.x), Math.floor(e.y))] === zoneId &&
       world.dist2(x, y, e.x, e.y) <= maxDist2
     ))
-    .sort((a, b) => world.dist2(x, y, a.x, a.y) - world.dist2(x, y, b.x, b.y) || a.id - b.id);
+    .map(e => ({ e, score: world.dist2(x, y, e.x, e.y) + ((e.id * 137) % 100) * 0.001 }))
+    .sort((a, b) => a.score - b.score)
+    .map(c => c.e);
 }
 
 function nearestStagedOpponent(world: World, npc: Entity, staged: readonly Entity[], faction: Faction): Entity | undefined {
   let best: Entity | undefined;
-  let bestD2 = Infinity;
+  let bestScore = Infinity;
   for (const other of staged) {
     if (other.faction !== faction) continue;
-    const d2 = world.dist2(npc.x, npc.y, other.x, other.y);
-    if (d2 > bestD2 || (d2 === bestD2 && best !== undefined && other.id >= best.id)) continue;
+    const score = world.dist2(npc.x, npc.y, other.x, other.y) + ((other.id * 137) % 100) * 0.001;
+    if (score >= bestScore) continue;
     best = other;
-    bestD2 = d2;
+    bestScore = score;
   }
   return best;
 }
@@ -1716,17 +1718,17 @@ function claimFactionEventNpc(
   claimedIds: Set<number>,
 ): Entity | null {
   let best: Entity | null = null;
-  let bestD2 = Infinity;
+  let bestScore = Infinity;
   for (const npc of entities) {
     if (!npc.alive || npc.type !== EntityType.NPC || !npc.ai) continue;
     if (claimedIds.has(npc.id)) continue;
     if (npc.plotNpcId || npc.canGiveQuest || (npc.questId !== undefined && npc.questId !== -1)) continue;
     if (npc.faction !== faction) continue;
     if (world.zoneMap[world.idx(Math.floor(npc.x), Math.floor(npc.y))] !== zoneId) continue;
-    const d2 = world.dist2(x, y, npc.x, npc.y);
-    if (d2 >= bestD2) continue;
+    const score = world.dist2(x, y, npc.x, npc.y) + ((npc.id * 137) % 100) * 0.001;
+    if (score >= bestScore) continue;
     best = npc;
-    bestD2 = d2;
+    bestScore = score;
   }
   if (!best) return null;
   const ai = best.ai;

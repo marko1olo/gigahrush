@@ -75,7 +75,9 @@ function arrivalCellNearLift(
     const lx = i % W;
     const ly = (i / W) | 0;
     const stand = nearestStandCell(world, i);
-    const score = world.dist2(targetX, targetY, lx + 0.5, ly + 0.5) + (preferredDirection === undefined || dir === preferredDirection ? 0 : 64);
+    const baseScore = world.dist2(targetX, targetY, lx + 0.5, ly + 0.5) + (preferredDirection === undefined || dir === preferredDirection ? 0 : 64);
+    const jitter = ((lx * 11 + ly * 13) % 100) * 0.001;
+    const score = baseScore + jitter;
     if (score < bestScore) {
       best = stand;
       bestScore = score;

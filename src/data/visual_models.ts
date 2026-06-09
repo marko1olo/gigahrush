@@ -67,7 +67,11 @@ export type VisualModelId =
   | 'meat_wall_fold'
   | 'meat_floor_fold'
   | 'collector_gutter'
-  | 'billboard_prop';
+  | 'billboard_prop'
+  | 'organic_meat_lump'
+  | 'organic_bone_shard'
+  | 'organic_pustule'
+  | 'organic_rib_cage';
 
 export type VisualModelAnchor = 'center' | 'wall' | 'corner' | 'ceiling' | 'floor' | 'volume';
 export type VisualModelAxis = 'x' | 'y' | 'z';
@@ -870,6 +874,54 @@ export const VISUAL_MODELS: readonly VisualModelDef[] = [
     parts: [
       { kind: 'crossPlane', position: [0, 0, 0.42], size: [0.62, 0.82], material: 'cloth', color: [118, 112, 96] },
       { kind: 'slab', position: [0, 0, 0.04], size: [0.52, 0.18, 0.08], material: 'dark_concrete' },
+    ],
+  },
+  {
+    id: 'organic_meat_lump',
+    tags: ['organic', 'meat', 'floor', 'clutter'],
+    bounds: { x: 0.32, y: 0.28, z: 0.18 },
+    anchor: 'floor',
+    variantSalt: 311,
+    parts: [
+      { kind: 'cylinder', position: [0, 0, 0.06], radius: 0.16, height: 0.12, segments: 8, material: 'cloth', color: [108, 28, 36] },
+      { kind: 'cylinder', position: [-0.08, 0.05, 0.04], radius: 0.1, height: 0.08, segments: 6, material: 'cloth', color: [132, 42, 48] },
+      { kind: 'cylinder', position: [0.06, -0.06, 0.03], radius: 0.08, height: 0.06, segments: 6, material: 'cloth', color: [88, 18, 24] },
+    ],
+  },
+  {
+    id: 'organic_bone_shard',
+    tags: ['organic', 'bone', 'floor', 'clutter'],
+    bounds: { x: 0.24, y: 0.2, z: 0.28 },
+    anchor: 'floor',
+    variantSalt: 313,
+    parts: [
+      { kind: 'box', position: [0, 0, 0.14], size: [0.08, 0.06, 0.28], material: 'plastic', color: [180, 175, 150] },
+      { kind: 'slab', position: [0, 0, 0.04], size: [0.18, 0.14, 0.08], material: 'cloth', color: [112, 36, 42] },
+    ],
+  },
+  {
+    id: 'organic_pustule',
+    tags: ['organic', 'pustule', 'floor', 'clutter'],
+    bounds: { x: 0.22, y: 0.22, z: 0.16 },
+    anchor: 'floor',
+    variantSalt: 317,
+    parts: [
+      { kind: 'cylinder', position: [0, 0, 0.04], radius: 0.11, height: 0.08, segments: 8, material: 'cloth', color: [92, 22, 28] },
+      { kind: 'cylinder', position: [0, 0, 0.1], radius: 0.08, height: 0.06, segments: 8, material: 'glass_dim', color: [210, 180, 60] },
+    ],
+  },
+  {
+    id: 'organic_rib_cage',
+    tags: ['organic', 'bone', 'rib', 'floor', 'clutter'],
+    bounds: { x: 0.46, y: 0.36, z: 0.22 },
+    anchor: 'floor',
+    variantSalt: 319,
+    parts: [
+      { kind: 'slab', position: [0, 0, 0.02], size: [0.42, 0.28, 0.04], material: 'cloth', color: [92, 22, 28] },
+      { kind: 'cylinder', position: [0, 0, 0.08], radius: 0.04, height: 0.46, axis: 'x', segments: 6, material: 'plastic', color: [160, 155, 135] },
+      { kind: 'cylinder', position: [-0.12, 0, 0.11], radius: 0.025, height: 0.32, axis: 'y', segments: 5, material: 'plastic', color: [170, 165, 145] },
+      { kind: 'cylinder', position: [0, 0, 0.12], radius: 0.025, height: 0.36, axis: 'y', segments: 5, material: 'plastic', color: [170, 165, 145] },
+      { kind: 'cylinder', position: [0.12, 0, 0.11], radius: 0.025, height: 0.32, axis: 'y', segments: 5, material: 'plastic', color: [170, 165, 145] },
     ],
   },
 ] as const;
