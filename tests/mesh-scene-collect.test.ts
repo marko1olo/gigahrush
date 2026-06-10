@@ -504,6 +504,70 @@ test('service corridor volume emits small infrastructure panels and controls', (
   }
 });
 
+test('collector corridor wall volume uses pipe relief instead of service panels', () => {
+  const world = corridorWorld(RoomType.CORRIDOR, 80);
+
+  const instances = collectMeshScene(context(world, 30.5, 10.5, 0x7788, {
+    floorKey: 'story:maintenance',
+    profile: {
+      radius: 28,
+      instanceCap: 260,
+      includeVisualSlots: false,
+      includeFeatures: false,
+      includeContainers: false,
+      ceilingDetail: 0,
+      furnitureDetail: 0,
+      includeCorridorVolumes: true,
+      corridorVolumeDetail: 1,
+      organicVolumeDetail: 0,
+      corridorVolumeStyle: 'service',
+      corridorCoveringId: 'collector',
+    },
+  }));
+
+  const wallVolumes = instances.filter(instance => (instance.flags & MeshInstanceFlag.CorridorVolume) !== 0);
+  assert.equal(wallVolumes.length > 0, true);
+  assert.equal(instances.some(instance =>
+    instance.modelId === 'wall_panel_flat' ||
+    instance.modelId === 'wall_panel_screen' ||
+    instance.modelId === 'button_panel',
+  ), false);
+  assert.equal(instances.some(instance => instance.modelId === 'pipe_wall_large'), true);
+});
+
+test('meat corridor wall volume uses organic relief instead of service panels', () => {
+  const world = corridorWorld(RoomType.CORRIDOR, 80);
+
+  const instances = collectMeshScene(context(world, 30.5, 10.5, 0x7799, {
+    floorKey: 'story:hell',
+    profile: {
+      radius: 28,
+      instanceCap: 260,
+      includeVisualSlots: false,
+      includeFeatures: false,
+      includeContainers: false,
+      ceilingDetail: 0,
+      furnitureDetail: 0,
+      includeCorridorVolumes: true,
+      corridorVolumeDetail: 1,
+      organicVolumeDetail: 1,
+      corridorVolumeStyle: 'organic',
+      corridorCoveringId: 'meat',
+    },
+  }));
+
+  const wallVolumes = instances.filter(instance => (instance.flags & MeshInstanceFlag.CorridorVolume) !== 0);
+  assert.equal(wallVolumes.length > 0, true);
+  assert.equal(instances.some(instance =>
+    instance.modelId === 'wall_panel_flat' ||
+    instance.modelId === 'wall_panel_screen' ||
+    instance.modelId === 'button_panel',
+  ), false);
+  assert.equal(instances.some(instance =>
+    instance.modelId === 'meat_wall_fold' || instance.modelId === 'organic_wall_bulge',
+  ), true);
+});
+
 test('corridor wall volume stays micro-local on wall edges', () => {
   const world = corridorWorld(RoomType.CORRIDOR, 64);
 

@@ -7,8 +7,7 @@ const netDatabaseName = 'gigahrush-net';
 const netBinding = 'GIGA_NET';
 const npcDatabaseName = 'gigahrush-npc-intake';
 const npcBinding = 'NPC_DB';
-const npcBucketName = 'gigahrush-npc-submissions';
-const npcBucketBinding = 'NPC_SUBMISSIONS';
+
 const netSchemaFiles = [
   { path: 'cloudflare/d1/net_sphere.sql', mode: 'execute' },
   { path: 'cloudflare/d1/net_sphere_names.sql', mode: 'guarded' },
@@ -95,41 +94,7 @@ function ensureD1Binding(binding, databaseName, id) {
   writeConfig(config);
 }
 
-function listR2Buckets() {
-  let out = '';
-  try {
-    out = run(['r2', 'bucket', 'list', '--json']);
-  } catch {
-    console.error('Could not list R2 buckets. Check Cloudflare auth: `npx wrangler login` or CLOUDFLARE_API_TOKEN.');
-    process.exit(1);
-  }
-  const data = JSON.parse(out);
-  return Array.isArray(data) ? data : [];
-}
 
-function bucketName(row) {
-  if (!row || typeof row !== 'object') return '';
-  return String(row.name ?? row.bucket_name ?? '');
-}
-
-function ensureR2Bucket(bucketNameValue) {
-  const existing = listR2Buckets().find(row => bucketName(row) === bucketNameValue);
-  if (existing) return;
-  console.log(`Creating R2 bucket ${bucketNameValue}...`);
-  run(['r2', 'bucket', 'create', bucketNameValue], { stdio: 'inherit' });
-}
-
-function ensureR2Binding(binding, bucketNameValue) {
-  const config = readConfig();
-  const r2 = Array.isArray(config.r2_buckets) ? config.r2_buckets : [];
-  const next = r2.filter(row => row && row.binding !== binding);
-  next.push({
-    binding,
-    bucket_name: bucketNameValue,
-  });
-  config.r2_buckets = next;
-  writeConfig(config);
-}
 
 function applySchema(databaseName, schemaFiles) {
   for (const schema of schemaFiles) {
@@ -195,11 +160,10 @@ if (!schemaOnly) {
   ensureD1Binding(netBinding, netDatabaseName, netId);
   npcId = ensureDatabase(npcDatabaseName);
   ensureD1Binding(npcBinding, npcDatabaseName, npcId);
-  ensureR2Bucket(npcBucketName);
-  ensureR2Binding(npcBucketBinding, npcBucketName);
+
 }
 applySchema(netDatabaseName, netSchemaFiles);
 applySchema(npcDatabaseName, npcSchemaFiles);
 console.log(schemaOnly
   ? `Cloudflare schemas are ready: ${netDatabaseName}, ${npcDatabaseName}`
-  : `Cloudflare is ready: ${netBinding} -> ${netDatabaseName} (${netId}), ${npcBinding} -> ${npcDatabaseName} (${npcId}), ${npcBucketBinding} -> ${npcBucketName}`);
+  : `Cloudflare is ready: ${netBinding} -> ${netDatabaseName} (${netId}), ${npcBinding} -> ${npcDatabaseName} (${npcId})`);

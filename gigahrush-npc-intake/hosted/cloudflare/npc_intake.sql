@@ -32,3 +32,11 @@ CREATE TABLE IF NOT EXISTS npc_intake_rate_limits (
 
 CREATE INDEX IF NOT EXISTS npc_intake_rate_limits_updated_idx
   ON npc_intake_rate_limits (updated_at);
+
+CREATE TABLE IF NOT EXISTS npc_submission_files (
+  submission_id TEXT NOT NULL,
+  file_name TEXT NOT NULL,
+  mime_type TEXT NOT NULL,
+  file_data BLOB NOT NULL,
+  PRIMARY KEY (submission_id, file_name)
+);

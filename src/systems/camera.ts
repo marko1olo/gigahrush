@@ -13,6 +13,7 @@ export interface CameraSubject {
   angle: number;
   pitch?: number;
   alive?: boolean;
+  age?: number;
 }
 
 export interface CameraPose {
@@ -222,7 +223,7 @@ export function runtimeCameraView(camera: RuntimeCamera, subject: CameraSubject,
     y: subject.y,
     angle: subject.angle,
     pitch: subject.pitch ?? 0,
-    height: playerCameraHeight(camera.bob),
+    height: playerCameraHeight(camera.bob, subject),
     fovRadians,
   };
 }
@@ -278,8 +279,13 @@ function approach(current: number, target: number, rate: number, dt: number): nu
   return current + (target - current) * t;
 }
 
-function playerCameraHeight(bob: CameraBobState): number {
-  return CAMERA_STANDING_HEIGHT + bob.offset;
+function playerCameraHeight(bob: CameraBobState, subject?: CameraSubject): number {
+  let baseHeight = CAMERA_STANDING_HEIGHT;
+  if (subject && subject.age !== undefined && subject.age < 16) {
+    const ageT = Math.max(0, subject.age) / 16;
+    baseHeight = 0.1 + (CAMERA_STANDING_HEIGHT - 0.1) * ageT;
+  }
+  return baseHeight + bob.offset;
 }
 
 function createDeathCameraState(px: number, py: number, pAngle: number, random: () => number): DeathCameraState {

@@ -6,6 +6,7 @@ import { FACTION_NAMES, OCCUPATION_NAMES } from '../data/relations';
 import { controlBindingLabel, controlHint, menuCloseHint } from '../systems/controls';
 import { getDiceSnapshot } from '../systems/dice';
 import { getDominoSnapshot } from '../systems/domino';
+import { getCheckersSnapshot } from '../systems/checkers';
 import { getDurakSnapshot } from '../systems/durak';
 import {
   getNpcInteractionInterfaceSnapshot,
@@ -19,6 +20,7 @@ import { drawCenteredWrappedText, drawWrappedText, fitText } from './ui_text';
 import { drawDurakInterface } from './durak_ui';
 import { drawDiceInterface } from './dice_ui';
 import { drawDominoInterface } from './domino_ui';
+import { drawCheckersInterface } from './checkers_ui';
 import {
   questItemStateColor,
   questItemStateLabel,
@@ -157,6 +159,11 @@ export function drawNpcMenu(
     const domino = getDominoSnapshot();
     if (domino.open && domino.npcId === npc.id) {
       drawDominoInterface(ctx, domino, px, py, pw, ph, sx, sy, time);
+      return;
+    }
+    const checkers = getCheckersSnapshot();
+    if (checkers.open && checkers.npcId === npc.id) {
+      drawCheckersInterface(ctx, checkers, px, py, pw, ph, sx, sy, time);
       return;
     }
     const snapshot = getNpcInteractionInterfaceSnapshot();

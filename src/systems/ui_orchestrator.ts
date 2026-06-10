@@ -83,8 +83,6 @@ export const MAP_LEGEND_TOGGLE_DEFS = [
   { id: 'map_quests', group: 'Маркеры', label: 'Задания и цели', defaultEnabled: true },
   { id: 'map_lifts', group: 'Маркеры', label: 'Лифты', defaultEnabled: true },
   { id: 'map_surface_marks', group: 'Маркеры', label: 'Меловые пометки', defaultEnabled: true },
-  { id: 'map_room_labels', group: 'Подписи', label: 'Названия комнат', defaultEnabled: false },
-  { id: 'map_npc_labels', group: 'Подписи', label: 'Имена NPC', defaultEnabled: false },
 ] as const satisfies readonly MapLegendToggleDef[];
 
 export type MapLegendToggleId = typeof MAP_LEGEND_TOGGLE_DEFS[number]['id'];

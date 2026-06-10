@@ -366,6 +366,7 @@ export const ITEM_TAGS: Record<string, readonly string[]> = {
   party_portrait_pin: ['bureaucracy', 'resident_good', 'bribe', 'trade'],
   card_deck: ['cards', 'durak', 'resident_good', 'trade'],
   domino_box: ['domino', 'table_game', 'resident_good', 'trade'],
+  checkers_board: ['checkers', 'table_game', 'resident_good', 'trade'],
   ...CHERNOBOG_DOCKET_ITEM_TAGS,
 };
 
@@ -625,6 +626,7 @@ export const ITEMS: Record<string, ItemDef> = {
   dice_bone:{ id:'dice_bone', name:'Игральные кости', type:ItemType.MISC, desc:'Пара костей с разными углами честности. У автомата звенят громче талона.', spawnRooms:[RoomType.COMMON,RoomType.SMOKING,RoomType.LIVING], spawnW:0.65, value:16, tags:['gambling','resident_good','trade'], stack:4 },
   card_deck:{ id:'card_deck', name:'Колода карт', type:ItemType.MISC, desc:'Засаленная колода для кухонного дурака, долговой паузы и разговора, который проще вести через козыри.', spawnRooms:[RoomType.COMMON,RoomType.SMOKING,RoomType.LIVING,RoomType.KITCHEN], spawnW:0.55, value:22, tags:[...ITEM_TAGS.card_deck], stack:1 },
   domino_box:{ id:'domino_box', name:'Коробка домино', type:ItemType.MISC, desc:'Пластмассовые костяшки в мягкой коробке. За столом слышно не спор, а сухой щелчок счета.', spawnRooms:[RoomType.COMMON,RoomType.SMOKING,RoomType.LIVING,RoomType.KITCHEN], spawnW:0.48, value:24, tags:[...ITEM_TAGS.domino_box], stack:1 },
+  checkers_board:{ id:'checkers_board', name:'Шашки', type:ItemType.MISC, desc:'Стертая деревянная доска с набором шашек. Коробка не сохранилась, шашки перетянуты канцелярской резинкой.', spawnRooms:[RoomType.COMMON,RoomType.LIVING,RoomType.KITCHEN,RoomType.SMOKING], spawnW:0.44, value:30, tags:[...ITEM_TAGS.checkers_board], stack:1 },
   resident_trinket_box:{ id:'resident_trinket_box', name:'Коробка жильцовых мелочей', type:ItemType.MISC, desc:'Пуговицы, значки, чужой ключ без двери. Небольшая ценность, если не думать, чья.', spawnRooms:[RoomType.LIVING,RoomType.STORAGE,RoomType.COMMON], spawnW:0.45, value:34, tags:[...ITEM_TAGS.resident_trinket_box], stack:3 },
   party_portrait_pin:{ id:'party_portrait_pin', name:'Значок с портрета партии', type:ItemType.MISC, desc:'Малый значок с большой уверенностью. Бюро любит такие мелочи, пока не спрашивают год выпуска.', spawnRooms:[RoomType.OFFICE,RoomType.COMMON,RoomType.LIVING], spawnW:0.55, value:22, tags:[...ITEM_TAGS.party_portrait_pin], stack:6 },
   stolen_terminal_stamp:{ id:'stolen_terminal_stamp', name:'Украденная печать терминала', type:ItemType.MISC, desc:'Служебная печать с терминального стола. Очередь подделывает легко, память камер - хуже.', spawnRooms:[RoomType.OFFICE,RoomType.SMOKING,RoomType.STORAGE], spawnW:0.16, value:155, tags:[...ITEM_TAGS.stolen_terminal_stamp], stack:1 },

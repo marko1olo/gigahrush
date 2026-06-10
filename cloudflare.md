@@ -41,7 +41,7 @@ npx wrangler login
 npm run cf:setup
 ```
 
-Скрипт требует Cloudflare auth/Wrangler, сам создаст или найдет D1 `gigahrush-net`, D1 `gigahrush-npc-intake` и R2 bucket `gigahrush-npc-submissions`, пропишет bindings `GIGA_NET`, `NPC_DB` и `NPC_SUBMISSIONS` в `wrangler.jsonc` с реальными ids/names и применит SQL-схемы. `net_sphere_names.sql` исполняется через PRAGMA guards, чтобы старые базы получили недостающие колонки, а свежие базы не падали на duplicate column.
+Скрипт требует Cloudflare auth/Wrangler, сам создаст или найдет D1 `gigahrush-net`, D1 `gigahrush-npc-intake`, пропишет bindings `GIGA_NET` и `NPC_DB` в `wrangler.jsonc` с реальными ids/names и применит SQL-схемы. `net_sphere_names.sql` исполняется через PRAGMA guards, чтобы старые базы получили недостающие колонки, а свежие базы не падали на duplicate column.
 
 4. Если Cloudflare Workers уже привязан к GitHub, просто redeploy Worker. `wrangler.jsonc` теперь источник правды: `name`, `main`, `assets`, `compatibility_date`, D1 binding.
 
@@ -110,15 +110,13 @@ The form can still export a local ZIP, but its primary online path is:
 ```txt
 /npc-intake/
   -> POST /api/npc-intake/submit
-  -> R2 NPC_SUBMISSIONS stores the ZIP/source/preview files
-  -> D1 NPC_DB stores private contact, metadata, status and review pointers
+  -> D1 NPC_DB stores private contact, metadata, status, review pointers, and the ZIP/source/preview files as BLOBs
   -> /api/npc-intake/review/* lets TENEVIK download/export accepted submissions
 ```
 
 Required optional bindings for online submission:
 
 ```txt
-NPC_SUBMISSIONS  R2 bucket, for example gigahrush-npc-submissions
 NPC_DB           D1 database with gigahrush-npc-intake/hosted/cloudflare/npc_intake.sql applied
 TENEVIK_REVIEW_TOKEN  private review secret
 TURNSTILE_SECRET_KEY  leave unset for the main game form until a client Turnstile token UI exists

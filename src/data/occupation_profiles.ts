@@ -268,7 +268,7 @@ export const OCCUPATION_PROFILES: Readonly<Record<Occupation, OccupationProfile>
     sleepScoreBonus: 0,
     healIdleScoreBonus: 0,
     interests: ['кладовая', 'накладная', 'остатки'],
-    tradeItems: ['bread', 'water', 'cigs', 'toiletpaper', 'import_toiletpaper', 'bandage', 'sleeping_pills', 'ammo_shells', 'cleaning_kit', 'chalk', 'soap_72', 'lice_shampoo', 'krona_battery', 'zhelemish_raw', 'govnyak_roll', 'govnyak_brick', 'grey_briquette', 'green_briquette', 'red_concentrate', 'liquidator_ration', 'concentrate_coupon', 'dice_bone', 'domino_box', 'cardboard_stack', 'roller_brush', 'plastic_sheet', 'ceramic_shards_pack'],
+    tradeItems: ['bread', 'water', 'cigs', 'toiletpaper', 'import_toiletpaper', 'bandage', 'sleeping_pills', 'ammo_shells', 'cleaning_kit', 'chalk', 'soap_72', 'lice_shampoo', 'krona_battery', 'zhelemish_raw', 'govnyak_roll', 'govnyak_brick', 'grey_briquette', 'green_briquette', 'red_concentrate', 'liquidator_ration', 'concentrate_coupon', 'dice_bone', 'domino_box', 'checkers_board', 'cardboard_stack', 'roller_brush', 'plastic_sheet', 'ceramic_shards_pack'],
     tradeTags: ['store', 'black_market'],
     craftTags: ['market_lesson'],
     routineTags: ['trader', 'black_market', 'supply'],

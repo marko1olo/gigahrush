@@ -14114,6 +14114,35 @@ function drawDiceBoneSprite(t: Uint32Array, seed: number): void {
   drawNoiseDust(t, seed + 954, grime, 11);
 }
 
+function drawCheckersBoardSprite(t: Uint32Array, seed: number): void {
+  const boardDark: [number, number, number] = [36, 42, 38];
+  const boardLight: [number, number, number] = [186, 154, 94];
+  const boardWood: [number, number, number] = [120, 80, 50];
+  const pieceDark: [number, number, number] = [110, 116, 110];
+  const pieceLight: [number, number, number] = [210, 180, 120];
+  const string: [number, number, number] = [200, 70, 60];
+  const grime: [number, number, number] = [62, 70, 54];
+
+  ellipse(t, 33, 53, 20, 4.5, [14, 15, 13], seed + 1000, 86);
+  rect(t, 14, 16, 52, 50, boardWood, seed + 1001, 240);
+  outlineRect(t, 14, 16, 52, 50, [24, 20, 18]);
+  for (let y = 0; y < 8; y++) {
+    for (let x = 0; x < 8; x++) {
+      const c = (x + y) % 2 === 1 ? boardDark : boardLight;
+      rect(t, 16 + x * 4, 17 + y * 4, 19 + x * 4, 20 + y * 4, c, seed + x + y, 220);
+    }
+  }
+  for (let i = 0; i < 6; i++) {
+    const x = 24 + Math.floor(noise(i, 8, seed) * 18);
+    const y = 24 + Math.floor(noise(i, 9, seed) * 18);
+    ellipse(t, x, y, 4, 2.5, i % 2 === 0 ? pieceDark : pieceLight, seed + 1005 + i, 240);
+    ellipse(t, x, y, 2.5, 1.5, [40, 40, 40], seed + 1015 + i, 100);
+  }
+  line(t, 12, 28, 54, 38, 1.5, string, seed + 1008, 180);
+  line(t, 12, 36, 54, 28, 1.5, string, seed + 1009, 180);
+  drawNoiseDust(t, seed + 1010, grime, 15);
+}
+
 function drawDominoBoxSprite(t: Uint32Array, seed: number): void {
   const box: [number, number, number] = [96, 42, 32];
   const boxLight: [number, number, number] = [154, 70, 48];
@@ -15684,6 +15713,11 @@ function drawMiscSprite(t: Uint32Array, seed: number, p: Palette, defId: string)
     drawDiceBoneSprite(t, seed);
     return;
   }
+  if (defId === 'checkers_board') {
+    drawCheckersBoardSprite(t, seed);
+    return;
+  }
+
   if (defId === 'domino_box') {
     drawDominoBoxSprite(t, seed);
     return;
@@ -15883,13 +15917,13 @@ export function drawItemGridIcon(
   sy: number,
   selected = false,
   alpha = 1,
-  options: { nameYUnits?: number; iconTopUnits?: number; bottomReserveUnits?: number } = {},
+  options: { nameYUnits?: number; iconTopUnits?: number; bottomReserveUnits?: number; maxIconUnits?: number } = {},
 ): void {
   const nameY = y + (options.nameYUnits ?? 5.4) * sy;
   const iconTop = y + (options.iconTopUnits ?? 6.4) * sy;
   const bottomReserve = (options.bottomReserveUnits ?? 5.2) * sy;
   const maxIcon = Math.max(8 * sx, cellSize - (iconTop - y) - bottomReserve);
-  const iconSize = Math.max(8 * sx, Math.min(maxIcon, 13 * sx));
+  const iconSize = Math.max(8 * sx, Math.min(maxIcon, (options.maxIconUnits ?? 13) * sx));
   const iconX = x + (cellSize - iconSize) / 2;
 
   ctx.save();

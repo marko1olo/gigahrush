@@ -43,6 +43,7 @@ class FakeStatement implements D1Statement {
 class FakeD1 {
   submissions = new Map<string, Record<string, unknown>>();
   rateLimits = new Map<string, { count: number; updated_at: number }>();
+  files = new Map<string, unknown>();
 
   prepare(query: string): D1Statement {
     return new FakeStatement(this, query);
@@ -56,6 +57,11 @@ class FakeD1 {
     }
     if (query.includes('FROM npc_submissions WHERE submission_id = ?')) {
       return this.submissions.get(String(values[0])) ?? null;
+    }
+    if (query.includes('FROM npc_submission_files')) {
+      const key = `${values[0]}:${values[1]}`;
+      const fileData = this.files.get(key);
+      return fileData ? { file_data: fileData, mime_type: 'application/zip' } : null;
     }
     throw new Error(`Unhandled first query: ${query}`);
   }
@@ -111,6 +117,11 @@ class FakeD1 {
         row.updated_at = Number(values[2]);
       }
       return { meta: { changes: row ? 1 : 0 } };
+    }
+    if (query.includes('INSERT INTO npc_submission_files')) {
+      const key = `${values[0]}:${values[1]}`;
+      this.files.set(key, values[3]);
+      return { meta: { changes: 1 } };
     }
     throw new Error(`Unhandled run query: ${query}`);
   }
@@ -193,7 +204,7 @@ async function submitValid(env = makeEnv(), bytes = zipBytes()) {
 test('hosted NPC intake accepts a valid ZIP submission', async () => {
   const { env, data } = await submitValid();
   assert.match(data.submissionId, /^npc_slesar_ivanov_/);
-  assert.equal(env.NPC_SUBMISSIONS.objects.has(data.fileKeys.packageZip), true);
+  assert.equal(env.NPC_DB.files.has(`${data.submissionId}:packageZip`), true);
   const row = env.NPC_DB.submissions.get(data.submissionId);
   assert.equal(row?.status, 'submitted');
   assert.equal(row?.author_contact_private, 'author@example.test');

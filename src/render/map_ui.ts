@@ -66,8 +66,6 @@ const MAP_AUTHORED_IDLE_NPC_MARKER = { stroke: '#064225', fill: '#35d072' };
 const MAP_AUTHORED_ACTIVE_NPC_MARKER = { stroke: '#8a5c00', fill: '#ffd21f' };
 const MAP_PROCEDURAL_NPC_MARKER = { stroke: '#04375c', fill: '#49b8ff' };
 const MAP_UNEXPLORED_FADE_RADIUS = 3;
-const MAP_LABEL_ROOM_CAP = 56;
-const MAP_LABEL_NPC_CAP = 80;
 const MAP_OVERVIEW_SIZE = W;
 const mapCrowdHashKeys = new Int32Array(MAP_CROWD_BIN_HASH_CAP);
 const mapCrowdHashBins = new Int16Array(MAP_CROWD_BIN_HASH_CAP);
@@ -160,11 +158,6 @@ function roomTypeRgb(type: RoomType | undefined, highContrast = false): [number,
   return (highContrast ? ROOM_TYPE_RGB_CONTRAST[type] : ROOM_TYPE_RGB[type]) ?? (highContrast ? [120, 132, 144] : [51, 51, 51]);
 }
 
-function shortMapLabel(text: string, max = 22): string {
-  const clean = text.replace(/\s+/g, ' ').trim();
-  if (clean.length <= max) return clean;
-  return `${clean.slice(0, Math.max(1, max - 1))}.`;
-}
 
 export function mapEntityDotBudget(mapW: number, mapH: number, radius: number): number {
   if (radius <= 48 || mapW <= 180 || mapH <= 180) return MAP_MINIMAP_ENTITY_DOT_BUDGET;
@@ -938,83 +931,6 @@ function drawSurfaceMapMarks(
   ctx.restore();
 }
 
-function drawMapRoomLabels(
-  ctx: CanvasRenderingContext2D,
-  world: World,
-  pxI: number,
-  pyI: number,
-  mapX: number,
-  mapY: number,
-  radius: number,
-  cellW: number,
-  cellH: number,
-): void {
-  let drawn = 0;
-  ctx.save();
-  ctx.font = '9px monospace';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.lineWidth = 3;
-  for (const room of world.rooms) {
-    if (!room || !room.name) continue;
-    const cx = world.wrap(Math.floor(room.x + room.w / 2));
-    const cy = world.wrap(Math.floor(room.y + room.h / 2));
-    const ci = world.idx(cx, cy);
-    if (!isMapCellExplored(world, ci)) continue;
-    const dx = world.delta(pxI, cx);
-    const dy = world.delta(pyI, cy);
-    if (Math.abs(dx) > radius || Math.abs(dy) > radius) continue;
-    const x = mapX + (dx + radius) * cellW;
-    const y = mapY + (dy + radius) * cellH;
-    const label = shortMapLabel(room.name);
-    ctx.strokeStyle = 'rgba(0,0,0,0.82)';
-    ctx.strokeText(label, x, y);
-    ctx.fillStyle = '#d8e2cc';
-    ctx.fillText(label, x, y);
-    drawn++;
-    if (drawn >= MAP_LABEL_ROOM_CAP) break;
-  }
-  ctx.restore();
-}
-
-function drawMapNpcLabels(
-  ctx: CanvasRenderingContext2D,
-  world: World,
-  player: Entity,
-  pxI: number,
-  pyI: number,
-  mapX: number,
-  mapY: number,
-  radius: number,
-  cellW: number,
-  cellH: number,
-): void {
-  let drawn = 0;
-  ctx.save();
-  ctx.font = '9px monospace';
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'middle';
-  ctx.lineWidth = 3;
-  for (const e of mapEntityQuery) {
-    if (!e.alive || e.type !== EntityType.NPC || isPlayerEntity(e)) continue;
-    const eCell = world.idx(Math.floor(e.x), Math.floor(e.y));
-    if (!mapCellShowsLiveMarkers(world, eCell)) continue;
-    const edx = world.delta(pxI, Math.floor(e.x));
-    const edy = world.delta(pyI, Math.floor(e.y));
-    if (Math.abs(edx) > radius || Math.abs(edy) > radius) continue;
-    const x = mapX + (edx + radius) * cellW + 5;
-    const y = mapY + (edy + radius) * cellH - 5;
-    const label = shortMapLabel(e.name || 'NPC', 18);
-    ctx.strokeStyle = 'rgba(0,0,0,0.86)';
-    ctx.strokeText(label, x, y);
-    ctx.fillStyle = isHostile(e, player) ? '#ff9a8a' : '#d6f3e5';
-    ctx.fillText(label, x, y);
-    drawn++;
-    if (drawn >= MAP_LABEL_NPC_CAP) break;
-  }
-  ctx.restore();
-}
-
 function mapActorLooksLikeCombat(e: Entity): boolean {
   const ai = e.ai;
   if (ai?.combatTargetId === undefined) return false;
@@ -1127,7 +1043,7 @@ function drawMap(
   const showItems = mapLegendToggleEnabled('map_items');
   const showQuests = mapLegendToggleEnabled('map_quests');
   const showSurfaceMarks = mapLegendToggleEnabled('map_surface_marks');
-  const fullMap = state?.mapMode === 2;
+
   prepareMapExploredGrid(world, pxI, pyI, radius);
   const questLiftDir = showQuests ? activeVisitLiftDirection(quests, currentFloor, state) : undefined;
   drawnTargetRooms.clear();
@@ -1295,12 +1211,6 @@ function drawMap(
     pcy + Math.sin(player.angle) * 4 * cellH,
   );
   ctx.stroke();
-  if (fullMap && mapLegendToggleEnabled('map_room_labels')) {
-    drawMapRoomLabels(ctx, world, pxI, pyI, mapX, mapY, radius, cellW, cellH);
-  }
-  if (fullMap && showNpcs && mapLegendToggleEnabled('map_npc_labels')) {
-    drawMapNpcLabels(ctx, world, player, pxI, pyI, mapX, mapY, radius, cellW, cellH);
-  }
 }
 
 function overviewSignature(world: World, highContrast: boolean): string {
@@ -1395,7 +1305,7 @@ function drawMapLegendSwatches(ctx: CanvasRenderingContext2D, x: number, y: numb
   ctx.save();
   ctx.font = `${7 * sy}px monospace`;
   ctx.textBaseline = 'middle';
-  let cx = x;
+  let cx = x + 14 * sy;
   let cy = y;
   for (const row of rows) {
     const swatch = 7 * sy;

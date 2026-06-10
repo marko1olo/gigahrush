@@ -23,7 +23,7 @@ import { Spr, hostileProjectileSprite } from '../../render/sprite_index';
 import { findCombatTarget, dropNpcInventory, deterministicScanCd, hasClearLineOfFire } from './monster';
 import { recordEntityKill } from '../alife_rating';
 import { recordPlayerDamage } from '../damage';
-import { ENTITY_MASK_MONSTER, getEntityIndex } from '../entity_index';
+import { ENTITY_MASK_MONSTER, ENTITY_MASK_ACTOR, getEntityIndex } from '../entity_index';
 import { applyMonsterIncomingDamage } from '../monster_traits';
 import { publishWeaponNoise } from '../noise';
 import { getCurrentPlayerEntity, isPlayerEntity } from '../player_actor';
@@ -37,6 +37,7 @@ import {
   BARK_FLEE, BARK_FLEE_F, BARK_CHANCE_FLEE,
   pushNpcLogMessage,
 } from './barks';
+import { selectMeleeTarget } from '../melee_targeting';
 
 /* ── Module-level bark refs (set each frame) ─────────────────── */
 let _barkMsgs: Msg[] = [];
@@ -51,6 +52,7 @@ const NPC_FLEE_DETECT_SQ = 10 * 10;
 const NPC_FLEE_SCAN_CD = 1.5;
 const NPC_FLEE_MONSTER_SCAN_CAP = 32;
 const fleeMonsterQuery: Entity[] = [];
+const npcMeleeHitQuery: Entity[] = [];
 
 export function tryFleeFromMonster(
   world: World, _entities: Entity[], e: Entity, dt: number, time = _barkTime,
@@ -351,35 +353,46 @@ export function tryFactionCombat(
   // Melee attack
   e.attackCd = (e.attackCd ?? 0) - dt;
   if (e.attackCd! <= 0) {
-    const baseDmg = meleeWs.dmg > 0 ? meleeWs.dmg : (5 + Math.floor(Math.random() * 8));
-    const rawDmg = meleeDamage(e.rpg, weaponId, baseDmg);
-    let dmg = zhelemishIncomingMeleeDamage(target, _time, rawDmg);
-    if (target.type === EntityType.MONSTER) dmg = applyMonsterIncomingDamage(world, target, dmg);
-    if (target.hp !== undefined) {
-      const debugImmortalPlayerHit = isPlayerEntity(target) && isDebugOnePunchManEnabled();
-      if (debugImmortalPlayerHit) {
-        keepDebugOnePunchManAlive(target);
-      } else {
-        target.hp -= dmg;
-        notifyActorDamaged(world, target, e, dmg, 'npc_melee', _time, state);
-        if (isPlayerEntity(target)) recordPlayerDamage(state, e, dmg, `${entityDisplayName(e)} задел тебя: -${dmg}`);
-        if (target.type === EntityType.NPC) {
-          applyDamageRelationPenalty(e.faction, target.faction, dmg, target, e, state);
-          if (target.hp > 0 && target.hp < (target.maxHp ?? 100) * 0.5) {
-            bark(target, msgs, _time, BARK_WOUNDED, BARK_WOUNDED_F, BARK_CHANCE_WOUNDED, '#f88');
+    const dx = world.delta(e.x, target.x);
+    const dy = world.delta(e.y, target.y);
+    e.angle = Math.atan2(dy, dx); // ensure we face target before swinging
+    
+    const ax = e.x + Math.cos(e.angle) * meleeRange;
+    const ay = e.y + Math.sin(e.angle) * meleeRange;
+    getEntityIndex().queryRadius(ax, ay, Math.max(1.2, meleeWs.hitRadius ?? 0.6), npcMeleeHitQuery, ENTITY_MASK_ACTOR);
+    const hitTarget = selectMeleeTarget(world, e, npcMeleeHitQuery, meleeRange, weaponId);
+    
+    if (hitTarget) {
+      const baseDmg = meleeWs.dmg > 0 ? meleeWs.dmg : (5 + Math.floor(Math.random() * 8));
+      const rawDmg = meleeDamage(e.rpg, weaponId, baseDmg);
+      let dmg = zhelemishIncomingMeleeDamage(hitTarget, _time, rawDmg);
+      if (hitTarget.type === EntityType.MONSTER) dmg = applyMonsterIncomingDamage(world, hitTarget, dmg);
+      if (hitTarget.hp !== undefined) {
+        const debugImmortalPlayerHit = isPlayerEntity(hitTarget) && isDebugOnePunchManEnabled();
+        if (debugImmortalPlayerHit) {
+          keepDebugOnePunchManAlive(hitTarget);
+        } else {
+          hitTarget.hp -= dmg;
+          notifyActorDamaged(world, hitTarget, e, dmg, 'npc_melee', _time, state);
+          if (isPlayerEntity(hitTarget)) recordPlayerDamage(state, e, dmg, `${entityDisplayName(e)} задел тебя: -${dmg}`);
+          if (hitTarget.type === EntityType.NPC) {
+            applyDamageRelationPenalty(e.faction, hitTarget.faction, dmg, hitTarget, e, state);
+            if (hitTarget.hp > 0 && hitTarget.hp < (hitTarget.maxHp ?? 100) * 0.5) {
+              bark(hitTarget, msgs, _time, BARK_WOUNDED, BARK_WOUNDED_F, BARK_CHANCE_WOUNDED, '#f88');
+            }
           }
-        }
-        const hitAng = Math.atan2(target.y - e.y, target.x - e.x);
-        spawnBloodHit(world, target.x, target.y, hitAng, dmg, target.type === EntityType.MONSTER);
-        applyMeleeKnockback(world, e, target, meleeWs);
-        if (target.hp <= 0) {
-          recordEntityKill(e, target);
-          target.alive = false;
-          spawnDeathPool(world, target.x, target.y, target.type === EntityType.MONSTER);
-          if (target.type === EntityType.NPC) dropNpcInventory(target, entities, nextId);
-          bark(e, msgs, _time, BARK_KILL, BARK_KILL_F, BARK_CHANCE_KILL, '#da4');
-          if (target.isFogBoss && target.fogBossZone !== undefined) {
-            clearFogInZone(world, target.fogBossZone, msgs, _time);
+          const hitAng = Math.atan2(hitTarget.y - e.y, hitTarget.x - e.x);
+          spawnBloodHit(world, hitTarget.x, hitTarget.y, hitAng, dmg, hitTarget.type === EntityType.MONSTER);
+          applyMeleeKnockback(world, e, hitTarget, meleeWs);
+          if (hitTarget.hp <= 0) {
+            recordEntityKill(e, hitTarget);
+            hitTarget.alive = false;
+            spawnDeathPool(world, hitTarget.x, hitTarget.y, hitTarget.type === EntityType.MONSTER);
+            if (hitTarget.type === EntityType.NPC) dropNpcInventory(hitTarget, entities, nextId);
+            bark(e, msgs, _time, BARK_KILL, BARK_KILL_F, BARK_CHANCE_KILL, '#da4');
+            if (hitTarget.isFogBoss && hitTarget.fogBossZone !== undefined) {
+              clearFogInZone(world, hitTarget.fogBossZone, msgs, _time);
+            }
           }
         }
       }

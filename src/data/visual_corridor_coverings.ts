@@ -8,6 +8,9 @@ export type VisualCorridorCoveringId =
   | 'meat'
   | 'void';
 
+export type FloorScatterPackage = 'collector' | 'linoleum' | 'organic';
+export type WallReliefSet = 'concrete' | 'technical' | 'organic' | 'pipe';
+
 export interface VisualCorridorCoveringWeights {
   relief: number;
   ledge: number;
@@ -26,6 +29,8 @@ export interface VisualCorridorCoveringDef {
   detailMul: number;
   organicMul: number;
   smoothness: number;
+  floorScatter?: FloorScatterPackage;
+  wallReliefSet?: WallReliefSet;
   weights: VisualCorridorCoveringWeights;
 }
 
@@ -45,6 +50,7 @@ export const VISUAL_CORRIDOR_COVERINGS: readonly VisualCorridorCoveringDef[] = [
     detailMul: 1,
     organicMul: 0.25,
     smoothness: 0.22,
+    wallReliefSet: 'concrete',
     weights: {
       relief: 0.46,
       ledge: 0.22,
@@ -63,6 +69,7 @@ export const VISUAL_CORRIDOR_COVERINGS: readonly VisualCorridorCoveringDef[] = [
     detailMul: 1.18,
     organicMul: 0.12,
     smoothness: 0.16,
+    wallReliefSet: 'technical',
     weights: {
       relief: 0.25,
       ledge: 0.14,
@@ -81,11 +88,13 @@ export const VISUAL_CORRIDOR_COVERINGS: readonly VisualCorridorCoveringDef[] = [
     detailMul: 1.42,
     organicMul: 0.08,
     smoothness: 0.12,
+    floorScatter: 'collector',
+    wallReliefSet: 'pipe',
     weights: {
-      relief: 0.14,
+      relief: 0,
       ledge: 0.1,
       threshold: 0.1,
-      pipe: 0.3,
+      pipe: 0.44,
       cable: 0.1,
       gutter: 0.34,
       stalactite: 0,
@@ -99,6 +108,8 @@ export const VISUAL_CORRIDOR_COVERINGS: readonly VisualCorridorCoveringDef[] = [
     detailMul: 1.22,
     organicMul: 1.1,
     smoothness: 0.38,
+    floorScatter: 'organic',
+    wallReliefSet: 'organic',
     weights: {
       relief: 0,
       ledge: 0,
@@ -117,6 +128,8 @@ export const VISUAL_CORRIDOR_COVERINGS: readonly VisualCorridorCoveringDef[] = [
     detailMul: 1.24,
     organicMul: 2,
     smoothness: 0.78,
+    floorScatter: 'organic',
+    wallReliefSet: 'organic',
     weights: {
       relief: 0,
       ledge: 0,
@@ -135,6 +148,7 @@ export const VISUAL_CORRIDOR_COVERINGS: readonly VisualCorridorCoveringDef[] = [
     detailMul: 0.65,
     organicMul: 0.18,
     smoothness: 0.52,
+    wallReliefSet: 'concrete',
     weights: {
       relief: 0.38,
       ledge: 0.12,

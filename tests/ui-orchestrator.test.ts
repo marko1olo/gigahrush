@@ -93,8 +93,6 @@ test('UI orchestrator defaults to the novice-safe HUD enabled', () => {
       ['map_quests', true],
       ['map_lifts', true],
       ['map_surface_marks', true],
-      ['map_room_labels', false],
-      ['map_npc_labels', false],
     ],
   );
 });
@@ -106,17 +104,14 @@ test('map legend settings are local toggles outside HUD presets', () => {
   assert.equal(mapLegendRowAt(1)?.kind, 'map_contrast');
   assert.equal(toggleMapHighContrast(), true);
   assert.equal(toggleMapLegendToggle('map_items'), false);
-  assert.equal(toggleMapLegendToggle('map_room_labels'), true);
   assert.equal(applyUiPreset('off'), true);
   assert.equal(mapColorMode(), 'rooms');
   assert.equal(mapHighContrastEnabled(), true);
   assert.equal(mapLegendToggleEnabled('map_items'), false);
-  assert.equal(mapLegendToggleEnabled('map_room_labels'), true);
   resetMapLegendSettings();
   assert.equal(mapColorMode(), 'rooms');
   assert.equal(mapHighContrastEnabled(), false);
   assert.equal(mapLegendToggleEnabled('map_items'), true);
-  assert.equal(mapLegendToggleEnabled('map_room_labels'), false);
 });
 
 test('UI orchestrator treats minimap as an ordinary interface surface', () => {

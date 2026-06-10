@@ -17,6 +17,11 @@
       "binding": "GIGA_NET",
       "database_name": "gigahrush-net",
       "database_id": "1dfe42b8-45a3-4cc9-a7ca-c2032358e460"
+    },
+    {
+      "binding": "NPC_DB",
+      "database_name": "gigahrush-npc-intake",
+      "database_id": "f4a9d06f-66f2-4335-8a9f-b2008c7f9c8c"
     }
   ]
 }

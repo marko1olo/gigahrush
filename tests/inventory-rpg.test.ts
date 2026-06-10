@@ -267,7 +267,7 @@ test('ammo and durability consumption update equipped combat state', () => {
   readiness = getWeaponReadiness(player);
   assert.equal(readiness.range, WEAPON_STATS.knife.range);
   assert.equal(readiness.knockback, WEAPON_STATS.knife.knockback);
-  assert.equal(readiness.reachLabel, 'дист 1.4');
+  assert.equal(readiness.reachLabel, 'дист 0.5');
   assert.equal(readiness.controlLabel, 'стоп 0.1');
   const before = getEquippedDurability(player);
   assert.equal(before?.max, WEAPON_STATS.knife.durability);

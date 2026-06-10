@@ -422,6 +422,6 @@ export function craftMenuLayout(canvasW: number, canvasH: number): CraftMenuLayo
     close: r(248, 5, 64, 14),
     rowH: 12 * scale,
     materialRowH: 12 * scale,
-    icon: r(111, 32, 38, 38),
+    icon: r(137, 26, 56, 56),
   };
 }

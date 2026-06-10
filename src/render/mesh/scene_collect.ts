@@ -26,6 +26,7 @@ import {
 } from '../../data/visual_cell_slots';
 import {
   visualCorridorCoveringById,
+  type FloorScatterPackage,
   type VisualCorridorCoveringDef,
   type VisualCorridorCoveringId,
   type VisualCorridorVolumeStyle,
@@ -273,7 +274,7 @@ interface PipeNetworkCandidate {
   d2: number;
 }
 
-type FloorScatterPackage = 'collector' | 'linoleum' | 'organic';
+
 
 interface FloorScatterCandidate {
   modelId: VisualModelId;
@@ -1231,29 +1232,38 @@ function corridorVolumeCellEligible(context: MeshPassContext, idx: number, x: nu
 function weightedCorridorWallModel(covering: VisualCorridorCoveringDef, h: number): VisualModelId {
   const weights = covering.weights;
   const total = weights.relief + weights.ledge + weights.pipe + weights.cable + weights.bulge + weights.fold;
-  if (total <= 0) return covering.id === 'cave' ? 'cave_wall_protrusion' : 'corridor_wall_relief';
+  
+  if (total <= 0) {
+    return corridorReliefVariant(covering, h);
+  }
+  
   let roll = (((h >>> 9) & 1023) / 1023) * total;
-  roll -= weights.fold;
-  if (roll <= 0) return 'meat_wall_fold';
-  roll -= weights.bulge;
-  if (roll <= 0) return covering.id === 'cave' ? 'cave_wall_protrusion' : 'organic_wall_bulge';
-  roll -= weights.pipe;
-  if (roll <= 0) return 'pipe_wall_large';
-  roll -= weights.cable;
-  if (roll <= 0) return 'cable_wall_loose';
-  roll -= weights.ledge;
-  if (roll <= 0) return 'corridor_side_ledge';
+  
+  if (weights.fold > 0) { roll -= weights.fold; if (roll <= 0.0001) return 'meat_wall_fold'; }
+  if (weights.bulge > 0) { roll -= weights.bulge; if (roll <= 0.0001) return covering.id === 'cave' ? 'cave_wall_protrusion' : 'organic_wall_bulge'; }
+  if (weights.pipe > 0) { roll -= weights.pipe; if (roll <= 0.0001) return 'pipe_wall_large'; }
+  if (weights.cable > 0) { roll -= weights.cable; if (roll <= 0.0001) return 'cable_wall_loose'; }
+  if (weights.ledge > 0) { roll -= weights.ledge; if (roll <= 0.0001) return 'corridor_side_ledge'; }
+  
   return corridorReliefVariant(covering, h);
 }
 
 function corridorReliefVariant(covering: VisualCorridorCoveringDef, h: number): VisualModelId {
   const selector = (h >>> 21) & 15;
-  if (covering.id === 'technical') {
+  const reliefSet = covering.wallReliefSet ?? 'concrete';
+  
+  if (reliefSet === 'organic') {
+    return covering.id === 'cave' ? 'cave_wall_protrusion' : 'organic_wall_bulge';
+  }
+  if (reliefSet === 'pipe') {
+    return 'pipe_wall_large';
+  }
+  if (reliefSet === 'technical') {
     if (selector <= 3) return 'wall_panel_flat';
     if (selector <= 5) return 'wall_panel_screen';
     if (selector <= 7) return 'button_panel';
   }
-  if (covering.id === 'concrete' && selector <= 2) return 'wall_panel_flat';
+  if (reliefSet === 'concrete' && selector <= 2) return 'wall_panel_flat';
   return 'corridor_wall_relief';
 }
 
@@ -1764,8 +1774,7 @@ function floorScatterPackageForField(
   covering: VisualCorridorCoveringDef,
 ): FloorScatterPackage | null {
   if (!profile.includeCorridorVolumes || profile.corridorVolumeDetail <= 0) return null;
-  if (covering.id === 'collector') return 'collector';
-  if (covering.style === 'organic') return 'organic';
+  if (covering.floorScatter) return covering.floorScatter;
   const cx = Math.floor(context.camera.x);
   const cy = Math.floor(context.camera.y);
   const cameraIdx = context.world.idx(cx, cy);

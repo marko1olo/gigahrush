@@ -93,9 +93,11 @@ function boardWindow(board: readonly DominoBoardTile[], maxTiles: number): reado
 
 function drawBoard(ctx: CanvasRenderingContext2D, snapshot: DominoSnapshot, x: number, y: number, w: number, h: number, s: number): void {
   rect(ctx, x, y, w, h, 'rgba(4,7,6,0.56)', '#2c3732');
-  const tileW = clamp(w / 8.8, 34 * s, 48 * s);
-  const tileH = clamp(h * 0.28, 18 * s, 28 * s);
-  const gap = 3 * s;
+  const count = Math.max(1, snapshot.board.length);
+  const targetW = (w - 12 * s) / (count + Math.max(0, count - 1) * 0.1);
+  const tileW = clamp(targetW, 16 * s, clamp(w / 8.8, 34 * s, 48 * s));
+  const tileH = clamp(tileW * 0.58, 10 * s, clamp(h * 0.28, 18 * s, 28 * s));
+  const gap = tileW * 0.1;
   const maxTiles = Math.max(1, Math.floor((w - 12 * s) / (tileW + gap)));
   const visible = boardWindow(snapshot.board, maxTiles);
   let tx = x + (w - visible.length * tileW - Math.max(0, visible.length - 1) * gap) * 0.5;

@@ -7,6 +7,7 @@ export interface WeaponStats {
   dmg: number;
   durability: number;   // max durability for melee (0 = infinite/fists)
   range: number;        // melee reach in cells
+  hitRadius?: number;   // melee hit capsule radius (e.g. 0.5 for fists, wider for large weapons)
   speed: number;        // attack cooldown seconds
   isRanged: boolean;
   ammoType?: string;    // item def id for ammo
@@ -61,10 +62,10 @@ export const WEAPON_ROLE_LABELS: Record<WeaponRoleTier, string> = {
 };
 
 export const PHYS_WEAPON_STATS: Record<string, WeaponStats> = {
-  '':       { dmg: 3,  durability: 0,   range: 1.35, speed: 0.34, isRanged: false, knockback: 0.06 },
-  knife:    { dmg: 7,  durability: 32,  range: 1.35, speed: 0.20, isRanged: false, knockback: 0.10 },
+  '':       { dmg: 3,  durability: 0,   range: 0.5, speed: 0.34, isRanged: false, knockback: 0.06, hitRadius: 0.5 },
+  knife:    { dmg: 7,  durability: 32,  range: 0.5, speed: 0.20, isRanged: false, knockback: 0.10, hitRadius: 0.5 },
   wrench:   { dmg: 12, durability: 115, range: 1.45, speed: 0.43, isRanged: false, knockback: 0.20 },
-  pipe:     { dmg: 19, durability: 60,  range: 1.85, speed: 0.64, isRanged: false, knockback: 0.36 },
+  pipe:     { dmg: 19, durability: 60,  range: 1.85, speed: 0.64, isRanged: false, knockback: 0.36, hitRadius: 0.7 },
   rebar:    { dmg: 24, durability: 95,  range: 2.1,  speed: 0.82, isRanged: false, knockback: 0.42 },
   axe:      { dmg: 34, durability: 65,  range: 1.5,  speed: 0.94, isRanged: false, knockback: 0.34 },
   chainsaw: { dmg: 42, durability: 14,  range: 1.35, speed: 0.21, isRanged: false, soundId: 'chainsaw', knockback: 0.18 },
@@ -94,9 +95,9 @@ export const PHYS_WEAPON_STATS: Record<string, WeaponStats> = {
   homemade_pistol:{ dmg: 27, durability: 0, range: 0, speed: 0.92, isRanged: true, ammoType: 'ammo_9mm', projSpeed: 15, pellets: 1, spread: 0.20, projSprite: Spr.BULLET },
   toz_shotgun:{ dmg: 11, durability: 0, range: 0, speed: 1.6, isRanged: true, ammoType: 'ammo_shells', projSpeed: 20, pellets: 8, spread: 0.13, projSprite: Spr.PELLET, soundId: 'shotgun' },
   harpoon_gun:{ dmg: 88, durability: 0, range: 0, speed: 2.35, isRanged: true, ammoType: 'ammo_harpoon', projSpeed: 18, pellets: 1, spread: 0.003, projSprite: Spr.NAIL, soundId: 'nailgun' },
-  rusty_rake:{ dmg: 10, durability: 28, range: 2.15, speed: 0.92, isRanged: false, knockback: 0.22 },
-  liquidator_rake:{ dmg: 11, durability: 70, range: 2.2, speed: 0.68, isRanged: false, knockback: 0.26 },
-  rake_bayonet:{ dmg: 14, durability: 55, range: 2.0, speed: 0.38, isRanged: false, knockback: 0.12 },
+  rusty_rake:{ dmg: 10, durability: 28, range: 2.15, speed: 0.92, isRanged: false, knockback: 0.22, hitRadius: 0.9 },
+  liquidator_rake:{ dmg: 11, durability: 70, range: 2.2, speed: 0.68, isRanged: false, knockback: 0.26, hitRadius: 0.9 },
+  rake_bayonet:{ dmg: 14, durability: 55, range: 2.0, speed: 0.38, isRanged: false, knockback: 0.12, hitRadius: 0.9 },
   liquidator_axe:{ dmg: 38, durability: 110, range: 1.5, speed: 1.08, isRanged: false, knockback: 0.42 },
   shock_baton:{ dmg: 9, durability: 80, range: 1.4, speed: 0.30, isRanged: false, knockback: 0.48 },
   rubber_club:{ dmg: 8, durability: 90, range: 1.5, speed: 0.42, isRanged: false, knockback: 0.55 },

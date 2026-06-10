@@ -8,6 +8,7 @@ import {
 import { craftRecipeLearnedMessage, isCraftRecipeKnown, learnCraftRecipe } from './crafting';
 import { closeDiceGame, diceStakeFromNpc, startDiceGame } from './dice';
 import { closeDominoGame, dominoStakeFromNpc, startDominoGame } from './domino';
+import { closeCheckersGame, checkersStakeFromNpc, startCheckersGame } from './checkers';
 import { closeDurakGame, durakStakeFromNpc, startDurakGame } from './durak';
 import { canOpenDemosProfileForNpc, demosCursorForNpcProfile } from './demos_profiles';
 import { portalAllowsCasinoLikeContent } from './platform_bridge';
@@ -18,6 +19,7 @@ import { controlBindingLabel } from './controls';
 export const CARD_DECK_ITEM_ID = 'card_deck';
 export const DICE_BONE_ITEM_ID = 'dice_bone';
 export const DOMINO_BOX_ITEM_ID = 'domino_box';
+export const CHECKERS_BOARD_ITEM_ID = 'checkers_board';
 export const NPC_MENU_INTERFACE_TAB = 'interface';
 
 export interface NpcInteractionContext {
@@ -75,6 +77,7 @@ const BUILTIN_MENU_OPTIONS = [
   { id: 'talk', label: 'Говорить', order: 0 },
   { id: 'quest', label: 'Задание', questMarkerLabel: 'Задание !', order: 10 },
   { id: 'trade', label: 'Торг', order: 20 },
+  { id: 'leave', label: 'Уйти', order: 9000 },
 ] as const;
 
 const runtime: NpcInteractionInterfaceSnapshot = {
@@ -112,6 +115,10 @@ function hasDominoBox(ctx: NpcInteractionContext): boolean {
   return countItem(ctx.player, DOMINO_BOX_ITEM_ID) > 0 || countItem(ctx.npc, DOMINO_BOX_ITEM_ID) > 0;
 }
 
+function hasCheckersBoard(ctx: NpcInteractionContext): boolean {
+  return countItem(ctx.player, CHECKERS_BOARD_ITEM_ID) > 0 || countItem(ctx.npc, CHECKERS_BOARD_ITEM_ID) > 0;
+}
+
 function durakStake(ctx: NpcInteractionContext): number {
   return durakStakeFromNpc(ctx.npc);
 }
@@ -122,6 +129,10 @@ function diceStake(ctx: NpcInteractionContext): number {
 
 function dominoStake(ctx: NpcInteractionContext): number {
   return dominoStakeFromNpc(ctx.npc);
+}
+
+function checkersStake(ctx: NpcInteractionContext): number {
+  return checkersStakeFromNpc(ctx.npc);
 }
 
 function currentDesignRouteId(state: GameState): string {
@@ -287,6 +298,7 @@ export function closeNpcInteractionInterface(state?: GameState): void {
   closeDurakGame();
   closeDiceGame();
   closeDominoGame();
+  closeCheckersGame();
   runtime.open = false;
   runtime.id = '';
   runtime.title = '';
@@ -461,6 +473,37 @@ registerNpcInteractionOption({
   },
 });
 
+registerNpcInteractionOption({
+  id: 'checkers',
+  order: 33,
+  label: ctx => `Играть в шашки (₽${checkersStake(ctx)})`,
+  visible: ctx => portalAllowsCasinoLikeContent() && hasCheckersBoard(ctx),
+  disabledReason: ctx => {
+    const stake = checkersStake(ctx);
+    if (stake <= 0) return 'У NPC нет денег для ставки.';
+    if (cleanMoney(ctx.player) < stake) return `Нужно ₽${stake} для ставки в шашки.`;
+    return undefined;
+  },
+  activate: ctx => {
+    const stake = checkersStake(ctx);
+    if (!startCheckersGame(ctx)) {
+      ctx.state.msgs.push(msg('Шашки не удалось разложить.', ctx.state.time, '#f84'));
+      return;
+    }
+    openNpcInteractionInterface(ctx, {
+      id: 'checkers',
+      title: 'ШАШКИ',
+      stakeRubles: stake,
+      lines: [
+        `${ctx.npc.name ?? 'NPC'} достает стертую доску и деревянные шашки.`,
+        `Ставка зафиксирована: 10% от денег NPC, сейчас ₽${stake}.`,
+        'Ходят по диагонали вперед, дамка ходит назад. Взятие обязательно.',
+      ],
+      message: `${controlBindingLabel('gameMenu')} выбрать/ходить, ${controlBindingLabel('drop')} отмена.`,
+    });
+  },
+});
+
 for (const profile of allDesignFloorProfiles()) {
   for (const option of profile.npcInteractions ?? []) {
     registerNpcInteractionOption({
@@ -473,3 +516,14 @@ for (const profile of allDesignFloorProfiles()) {
     });
   }
 }
+
+registerNpcInteractionOption({
+  id: 'exit',
+  order: 9000,
+  label: () => 'Уйти',
+  visible: () => true,
+  activate: ctx => {
+    closeNpcInteractionInterface(ctx.state);
+    ctx.state.showNpcMenu = false;
+  },
+});

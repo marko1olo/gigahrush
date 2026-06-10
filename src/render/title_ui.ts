@@ -79,32 +79,34 @@ export function drawTitleScreen(ctx: CanvasRenderingContext2D, options: DrawTitl
   ctx.fillText(lang.subtitle, cx, subtitleY);
 
   const hits = options.mode === 'setup'
-    ? drawSetupMenu(ctx, cx, cy - (options.setupRows.length > 7 ? 104 : options.setupRows.length > 5 ? 88 : 48) * s, s, options)
+    ? drawSetupMenu(ctx, cx, cy - (options.setupRows.length > 7 ? 124 : options.setupRows.length > 5 ? 104 : 48) * s, s, options)
     : drawLanguageMenu(ctx, cx, cy - 44 * s, s, options.languageId);
 
   ctx.fillStyle = '#555';
   ctx.font = `${Math.round(12 * s)}px monospace`;
   ctx.textAlign = 'center';
-  if (options.mode === 'setup') {
-    ctx.fillText(fitText(ctx, lang.setupControlHint, w * 0.92), cx, Math.min(h - 16 * s, cy + 226 * s));
-  } else if (options.mobile) {
-    ctx.fillText(fitText(ctx, lang.mobileHint, w * 0.92), cx, cy + 118 * s);
-  } else {
-    ctx.fillText(fitText(ctx, lang.desktopHint(
-      controlBindingLabel('moveForward'),
-      controlBindingLabel('interact'),
-    ), w * 0.92), cx, cy + 116 * s);
-    ctx.fillText(fitText(ctx, lang.desktopCombatHint(
-      controlBindingLabel('attack'),
-      controlBindingLabel('fullscreen'),
-      controlBindingLabel('controlsMenu'),
-      controlBindingLabel('uiSettings'),
-    ), w * 0.92), cx, cy + 130 * s);
+  if (options.mode === 'language') {
+    if (options.mobile) {
+      const hintY = Math.max(cy + 80 * s, h - 30 * s);
+      ctx.fillText(fitText(ctx, lang.mobileHint, w * 0.92), cx, hintY);
+    } else {
+      const hintY = Math.max(cy + 80 * s, h - 40 * s);
+      ctx.fillText(fitText(ctx, lang.desktopHint(
+        controlBindingLabel('moveForward'),
+        controlBindingLabel('interact'),
+      ), w * 0.92), cx, hintY);
+      ctx.fillText(fitText(ctx, lang.desktopCombatHint(
+        controlBindingLabel('attack'),
+        controlBindingLabel('fullscreen'),
+        controlBindingLabel('controlsMenu'),
+        controlBindingLabel('uiSettings'),
+      ), w * 0.92), cx, hintY + 14 * s);
+    }
   }
 
   ctx.fillStyle = '#705858';
   ctx.font = `${Math.round(11 * s)}px monospace`;
-  if (options.mode !== 'setup') ctx.fillText(fitText(ctx, lang.languageHint, w * 0.9), cx, cy + 150 * s);
+  if (options.mode !== 'setup') ctx.fillText(fitText(ctx, lang.languageHint, w * 0.9), cx, h - 12 * s);
 
   ctx.textAlign = 'left';
   return hits;
@@ -191,6 +193,12 @@ function drawSetupMenu(
     hits.push({ field: row.field, x: x + 10 * s, y: rowY, w: panelW - 20 * s, h: rowH });
     rowY += rowH + gap;
   }
+
+  ctx.fillStyle = '#555';
+  ctx.font = `${Math.round(12 * s)}px monospace`;
+  ctx.textAlign = 'center';
+  ctx.fillText(fitText(ctx, lang.setupControlHint, w * 0.92), cx, Math.max(y + panelH + 24 * s, w * 0.05 > 40 ? ctx.canvas.height - 30 * s : y + panelH + 24 * s));
+
   return hits;
 }
 

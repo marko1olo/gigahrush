@@ -178,6 +178,7 @@ import {
 import { applyPickedStoryItemOutcomes, applyStoryItemOutcomes, spawnStoryDeathDrops } from './systems/story_outcomes';
 import { handleDiceInput, isDiceGameOpen } from './systems/dice';
 import { handleDominoInput, isDominoGameOpen } from './systems/domino';
+import { handleCheckersInput, isCheckersGameOpen } from './systems/checkers';
 import { handleDurakInput, isDurakGameOpen } from './systems/durak';
 import {
   activateNpcCustomMenuOption,
@@ -616,7 +617,11 @@ function savePlayerNickname(value: string): string {
 
 function loadPlayerAge(): number {
   try {
-    return clampCharacterAge(Number(localStorage.getItem(PLAYER_AGE_KEY)), DEFAULT_PLAYER_AGE);
+    const stored = localStorage.getItem(PLAYER_AGE_KEY);
+    if (!stored) return DEFAULT_PLAYER_AGE;
+    const num = Number(stored);
+    if (num <= 1) return DEFAULT_PLAYER_AGE;
+    return clampCharacterAge(num, DEFAULT_PLAYER_AGE);
   } catch {
     return DEFAULT_PLAYER_AGE;
   }
@@ -2859,7 +2864,7 @@ function playerActions(_dt: number): void {
         : false;
       const entityIndex = getEntityIndex();
       entityIndex.queryRadius(ax, ay, 1.2, meleeHitQuery, ENTITY_MASK_ACTOR);
-      const meleeTarget = selectMeleeTarget(world, player, meleeHitQuery, range);
+      const meleeTarget = selectMeleeTarget(world, player, meleeHitQuery, range, weaponId);
       if (meleeTarget) {
         const e = meleeTarget;
         if (e.hp !== undefined) {
@@ -3204,7 +3209,7 @@ function updateProjectiles(dt: number): void {
       nextSpriteZ = 1.0;
       floorHitT = Number.POSITIVE_INFINITY;
       p.vz = 0;
-      if (pt === ProjType.GRENADE || pt === ProjType.BFG) {
+      if (pt === ProjType.BFG) {
         triggerExplosion(p, pt);
         p.alive = false;
         continue;
@@ -3309,11 +3314,15 @@ function updateProjectiles(dt: number): void {
             );
           }
         }
-        if (pt === ProjType.GRENADE || pt === ProjType.BFG) {
+        if (pt === ProjType.BFG) {
           p.x = hitX;
           p.y = hitY;
           p.spriteZ = hitZ;
           triggerExplosion(p, pt);
+        } else if (pt === ProjType.GRENADE) {
+          p.vx = -(p.vx ?? 0) * 0.4;
+          p.vy = -(p.vy ?? 0) * 0.4;
+          p.vz = (p.vz ?? 0) * 0.4;
         } else if (p.aoeRadius) {
           p.x = hitX;
           p.y = hitY;
@@ -3321,8 +3330,10 @@ function updateProjectiles(dt: number): void {
           psiAoeExplosion(p, entities, world, state.msgs, state.time, (e2) => handleKill(e2, isPlayerOwnedProjectile(p)));
         }
         // Flame projectiles pierce through (don't die on hit)
-        if (pt !== ProjType.FLAME) {
+        if (pt !== ProjType.FLAME && pt !== ProjType.GRENADE) {
           p.alive = false;
+          break;
+        } else if (pt === ProjType.GRENADE) {
           break;
         }
       }
@@ -3335,14 +3346,21 @@ function updateProjectiles(dt: number): void {
       p.x = wallHit.x;
       p.y = wallHit.y;
       p.spriteZ = impactZ;
-      if (pt === ProjType.GRENADE || pt === ProjType.BFG) {
+      if (pt === ProjType.BFG) {
         triggerExplosion(p, pt);
+      } else if (pt === ProjType.GRENADE) {
+        p.vx = wallHit.axis === 'x' ? -(p.vx ?? 0) * 0.5 : (p.vx ?? 0) * 0.8;
+        p.vy = wallHit.axis === 'y' ? -(p.vy ?? 0) * 0.5 : (p.vy ?? 0) * 0.8;
+        p.x = wrapWorld(wallHit.x + (wallHit.axis === 'x' ? -wallHit.stepX * 0.02 : 0));
+        p.y = wrapWorld(wallHit.y + (wallHit.axis === 'y' ? -wallHit.stepY * 0.02 : 0));
+        playProjectileImpactCue(p, wallHit.x, wallHit.y);
+        continue;
       } else {
         if (pt === ProjType.FLAME) resolveFlameCleanup(p, wallHit.x, wallHit.y, 1.0);
         spawnProjectileWallImpact(world, wallHit.cellX, wallHit.cellY, wallHit.u, impactV, p.sprite, pt, wallHit.x, wallHit.y);
         playProjectileImpactCue(p, wallHit.x, wallHit.y);
       }
-      if (p.aoeRadius && pt !== ProjType.GRENADE && pt !== ProjType.BFG)
+      if (p.aoeRadius && pt !== ProjType.BFG)
         psiAoeExplosion(p, entities, world, state.msgs, state.time, (e) => handleKill(e, isPlayerOwnedProjectile(p)));
       p.alive = false;
       continue;
@@ -3354,8 +3372,15 @@ function updateProjectiles(dt: number): void {
       p.x = floorX;
       p.y = floorY;
       p.spriteZ = 0;
-      if (pt === ProjType.GRENADE || pt === ProjType.BFG) {
+      if (pt === ProjType.BFG) {
         triggerExplosion(p, pt);
+      } else if (pt === ProjType.GRENADE) {
+        p.vz = -(p.vz ?? 0) * 0.6;
+        p.vx = (p.vx ?? 0) * 0.8;
+        p.vy = (p.vy ?? 0) * 0.8;
+        p.spriteZ = 0.02;
+        if (p.vz > 0.5) playProjectileImpactCue(p, floorX, floorY);
+        continue;
       } else {
         if (pt === ProjType.FLAME) resolveFlameCleanup(p, floorX, floorY, 1.0);
         spawnProjectileFloorImpact(world, floorX, floorY, p.sprite, pt);
@@ -5432,6 +5457,9 @@ function confirmActiveMobileSelection(): void {
       } else if (npc && isDominoGameOpen()) {
         const result = handleDominoInput({ state, player, npc, input: { interactEdge: true } });
         if (result.closeInterface) closeNpcInteractionInterface(state);
+      } else if (npc && isCheckersGameOpen()) {
+        const result = handleCheckersInput({ state, player, npc, input: { interactEdge: true } });
+        if (result.closeInterface) closeNpcInteractionInterface(state);
       } else {
         closeNpcInteractionInterface(state);
       }
@@ -5709,6 +5737,12 @@ function activateNpcMainSelection(npc: Entity | undefined): void {
       state.tradeCursorY = 0;
       state.tradeSide = 'npc';
       if (npc) primeTradePriceCache(state, [npc.inventory, player.inventory]);
+      break;
+    case 'leave':
+      clearTradeOffers(state);
+      closeNpcInteractionInterface(state);
+      state.showNpcMenu = false;
+      syncPauseState();
       break;
     default:
       activateNpcCustomMenuOption({ state, player, npc, entities }, option.id);
@@ -6300,6 +6334,9 @@ function handleMobileHudTap(x: number, y: number): void {
         } else if (isDominoGameOpen()) {
           const result = handleDominoInput({ state, player, npc, input: { escEdge: true } });
           if (result.closeInterface) closeNpcInteractionInterface(state);
+        } else if (isCheckersGameOpen()) {
+          const result = handleCheckersInput({ state, player, npc, input: { escEdge: true } });
+          if (result.closeInterface) closeNpcInteractionInterface(state);
         } else {
           closeNpcInteractionInterface(state);
         }
@@ -6831,6 +6868,7 @@ function handleMenuInput(): void {
       if (npc && isDurakGameOpen()) handleDurakInput({ state, player, npc, input: { escEdge: true } });
       else if (npc && isDiceGameOpen()) handleDiceInput({ state, player, npc, input: { escEdge: true } });
       else if (npc && isDominoGameOpen()) handleDominoInput({ state, player, npc, input: { escEdge: true } });
+      else if (npc && isCheckersGameOpen()) handleCheckersInput({ state, player, npc, input: { escEdge: true } });
       clearTradeOffers(state);
       closeNpcInteractionInterface();
       state.showNpcMenu = false;
@@ -7093,6 +7131,18 @@ function handleMenuInput(): void {
           player,
           npc,
           input: { leftNav, rightNav, interactEdge: acceptEdge, dropEdge },
+        });
+        if (result.closeInterface) closeNpcInteractionInterface(state);
+      } else if (npc && isCheckersGameOpen()) {
+        const leftNav = menuRepeatStep('left', input.invLeft, leftEdge);
+        const rightNav = menuRepeatStep('right', input.invRight, rightEdge);
+        const upNav = menuUpNav();
+        const downNav = menuDownNav();
+        const result = handleCheckersInput({
+          state,
+          player,
+          npc,
+          input: { leftNav, rightNav, upNav, downNav, interactEdge: acceptEdge, dropEdge },
         });
         if (result.closeInterface) closeNpcInteractionInterface(state);
       } else if (acceptEdge || closeEdge) {

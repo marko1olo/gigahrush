@@ -296,11 +296,12 @@ export function drawCraftMenu(
   if (entry) {
     const iconSize = Math.min(layout.icon.w, layout.icon.h);
     drawItemGridIcon(ctx, entry.itemId, entry.name, layout.icon.x, layout.icon.y, iconSize, sx, sy, true, 1, {
-      nameYUnits: 5.4,
-      iconTopUnits: 11,
+      nameYUnits: 7,
+      iconTopUnits: 12,
       bottomReserveUnits: 2,
+      maxIconUnits: 48,
     });
-    let y = layout.detail.y + 51 * sy;
+    let y = layout.detail.y + 61 * sy;
     ctx.fillStyle = entryColor(entry, true);
     ctx.font = `${7.8 * sy}px monospace`;
     ctx.fillText(fitTextStable(ctx, entryName(entry), layout.detail.w - 10 * sx), layout.detail.x + 5 * sx, y);
@@ -308,7 +309,7 @@ export function drawCraftMenu(
     const desc = entry.description || ITEMS[entry.itemId]?.desc || 'Описание отсутствует.';
     ctx.fillStyle = '#9aa';
     ctx.font = `${6.2 * sy}px monospace`;
-    y = drawWrappedText(ctx, desc, layout.detail.x + 5 * sx, y, layout.detail.w - 10 * sx, 8 * sy, 3);
+    y = drawWrappedText(ctx, desc, layout.detail.x + 5 * sx, y, layout.detail.w - 10 * sx, 8 * sy, 2);
     y += 3 * sy;
     ctx.fillStyle = '#8cf';
     ctx.fillText(vectorHeading(entry), layout.detail.x + 5 * sx, y);

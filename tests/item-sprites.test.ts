@@ -70,7 +70,7 @@ function rowOpaquePixels(sprite: Uint32Array, y: number): number {
 
 test('procedural item sprites cover the complete item registry', () => {
   const ids = Object.keys(ITEMS).sort();
-  assert.equal(ids.length, 434);
+  assert.equal(ids.length, 435);
 
   const hashes = new Set<number>();
   for (const id of ids) {

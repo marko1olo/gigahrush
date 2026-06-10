@@ -163,7 +163,6 @@ async function sha256Text(text) {
 
 function requireEnv(env) {
   if (!env?.NPC_DB) badRequest('D1 binding NPC_DB is not configured', 503);
-  if (!env?.NPC_SUBMISSIONS) badRequest('R2 binding NPC_SUBMISSIONS is not configured', 503);
 }
 
 function getFormFile(formData, name, required = false) {
@@ -295,25 +294,21 @@ async function handleSubmit(request, env) {
     packageZip: `${baseKey}/${metadata.packageId}.zip`,
   };
 
-  await env.NPC_SUBMISSIONS.put(fileKeys.packageZip, zipBytes, {
-    httpMetadata: { contentType: 'application/zip' },
-    customMetadata: {
-      submissionId,
-      packageId: metadata.packageId,
-      packageHash: metadata.packageHash,
-      schemaVersion: String(metadata.schemaVersion),
-    },
-  });
+  await env.NPC_DB.prepare(
+    'INSERT INTO npc_submission_files (submission_id, file_name, mime_type, file_data) VALUES (?, ?, ?, ?)'
+  ).bind(submissionId, 'packageZip', 'application/zip', zipBytes.buffer).run();
 
   if (sourceSprite) {
     fileKeys.sourceSprite = `${baseKey}/source_sprite`;
-    await env.NPC_SUBMISSIONS.put(fileKeys.sourceSprite, sourceSprite);
+    await env.NPC_DB.prepare(
+      'INSERT INTO npc_submission_files (submission_id, file_name, mime_type, file_data) VALUES (?, ?, ?, ?)'
+    ).bind(submissionId, 'sourceSprite', 'image/png', sourceSprite.buffer).run();
   }
   if (previewPng) {
     fileKeys.previewPng = `${baseKey}/preview.png`;
-    await env.NPC_SUBMISSIONS.put(fileKeys.previewPng, previewPng, {
-      httpMetadata: { contentType: 'image/png' },
-    });
+    await env.NPC_DB.prepare(
+      'INSERT INTO npc_submission_files (submission_id, file_name, mime_type, file_data) VALUES (?, ?, ?, ?)'
+    ).bind(submissionId, 'previewPng', 'image/png', previewPng.buffer).run();
   }
 
   await env.NPC_DB
@@ -399,15 +394,16 @@ async function updateStatus(request, env, submissionId) {
 async function downloadSubmission(request, env, submissionId) {
   requireReviewAuth(request, env);
   const row = await getSubmission(env, submissionId);
-  const fileKeys = jsonFileKeys(row.file_keys);
-  const key = fileKeys.packageZip;
-  if (!key) badRequest('submission ZIP missing', 404);
-  const object = await env.NPC_SUBMISSIONS.get(key);
-  if (!object) badRequest('submission ZIP missing', 404);
-  return new Response(object.body, {
+  
+  const file = await env.NPC_DB.prepare(
+    'SELECT file_data, mime_type FROM npc_submission_files WHERE submission_id = ? AND file_name = ?'
+  ).bind(submissionId, 'packageZip').first();
+
+  if (!file || !file.file_data) badRequest('submission ZIP missing', 404);
+  return new Response(file.file_data, {
     headers: {
       'Cache-Control': 'no-store',
-      'Content-Type': 'application/zip',
+      'Content-Type': file.mime_type || 'application/zip',
       'Content-Disposition': `attachment; filename="${row.package_id}.zip"`,
     },
   });
