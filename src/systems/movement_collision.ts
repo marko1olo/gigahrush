@@ -103,6 +103,9 @@ export function unstuckActorFromBlockers(
   e: Entity,
   options: ActorUnstuckOptions = {},
 ): boolean {
+  // If the entity is directly inside a solid block, do not unstuck so it takes crush damage
+  if (world.solid(Math.floor(e.x), Math.floor(e.y))) return false;
+
   const radius = options.radius ?? actorOccupyRadius(e);
   if (canActorOccupy(world, e.x, e.y, radius)) return false;
 

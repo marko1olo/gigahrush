@@ -2,7 +2,7 @@
 
 import {
   type Entity, type GameState, type Quest, EntityType, Cell, RoomType, W, QuestType,
-  LiftDirection, MonsterKind, FloorLevel,
+  LiftDirection, MonsterKind, FloorLevel, DoorState,
 } from '../core/types';
 import { SURFACE_FLAG_CHALK_MAP, World } from '../core/world';
 import {
@@ -769,9 +769,17 @@ function drawMapBaseRaster(
             }
           }
           if (cell === Cell.DOOR) {
-            cr = highContrast ? 226 : 136;
-            cg = highContrast ? 180 : 100;
-            cb = highContrast ? 86 : 68;
+            const state = world.doors.get(ci)?.state;
+            const isHermetic = state === DoorState.HERMETIC_CLOSED || state === DoorState.HERMETIC_OPEN;
+            if (isHermetic) {
+              cr = highContrast ? 88 : 42;
+              cg = highContrast ? 180 : 102;
+              cb = highContrast ? 222 : 130;
+            } else {
+              cr = highContrast ? 226 : 136;
+              cg = highContrast ? 180 : 100;
+              cb = highContrast ? 86 : 68;
+            }
           }
 
           if (world.fog[ci] > 50) {
@@ -1238,7 +1246,13 @@ function overviewCellRgb(world: World, ci: number, highContrast: boolean): [numb
   } else if (cell === Cell.LIFT) {
     rgb = highContrast ? [245, 224, 48] : [92, 160, 210];
   } else if (cell === Cell.DOOR) {
-    rgb = highContrast ? [226, 180, 86] : [190, 150, 68];
+    const state = world.doors.get(ci)?.state;
+    const isHermetic = state === DoorState.HERMETIC_CLOSED || state === DoorState.HERMETIC_OPEN;
+    if (isHermetic) {
+      rgb = highContrast ? [88, 180, 222] : [42, 102, 130];
+    } else {
+      rgb = highContrast ? [226, 180, 86] : [190, 150, 68];
+    }
   } else if (cell === Cell.WATER) {
     rgb = highContrast ? [46, 128, 190] : [32, 78, 96];
   } else {

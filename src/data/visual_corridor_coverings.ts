@@ -2,6 +2,8 @@ export type VisualCorridorVolumeStyle = 'concrete' | 'service' | 'organic' | 'vo
 
 export type VisualCorridorCoveringId =
   | 'concrete'
+  | 'residential'
+  | 'ministry'
   | 'technical'
   | 'collector'
   | 'cave'
@@ -10,18 +12,8 @@ export type VisualCorridorCoveringId =
 
 export type FloorScatterPackage = 'collector' | 'linoleum' | 'organic';
 export type WallReliefSet = 'concrete' | 'technical' | 'organic' | 'pipe';
-
-export interface VisualCorridorCoveringWeights {
-  relief: number;
-  ledge: number;
-  threshold: number;
-  pipe: number;
-  cable: number;
-  gutter: number;
-  stalactite: number;
-  bulge: number;
-  fold: number;
-}
+export type WallBaseSet = 'none' | 'panels' | 'pipes' | 'cables' | 'technical' | 'organic';
+export type CeilingSet = 'service' | 'organic';
 
 export interface VisualCorridorCoveringDef {
   id: VisualCorridorCoveringId;
@@ -29,9 +21,21 @@ export interface VisualCorridorCoveringDef {
   detailMul: number;
   organicMul: number;
   smoothness: number;
+
   floorScatter?: FloorScatterPackage;
+
   wallReliefSet?: WallReliefSet;
-  weights: VisualCorridorCoveringWeights;
+  wallReliefDensity: number;
+
+  wallBaseSet?: WallBaseSet;
+  wallBaseDensity: number;
+
+  ceilingSet?: CeilingSet;
+  ceilingDensity: number;
+
+  floorGutterDensity: number;
+  floorThresholdDensity: number;
+  floorOrganicDensity: number;
 }
 
 export interface VisualCorridorCoveringRule {
@@ -51,17 +55,44 @@ export const VISUAL_CORRIDOR_COVERINGS: readonly VisualCorridorCoveringDef[] = [
     organicMul: 0.25,
     smoothness: 0.22,
     wallReliefSet: 'concrete',
-    weights: {
-      relief: 0.46,
-      ledge: 0.22,
-      threshold: 0.24,
-      pipe: 0.04,
-      cable: 0.04,
-      gutter: 0,
-      stalactite: 0,
-      bulge: 0,
-      fold: 0,
-    },
+    wallReliefDensity: 0.46,
+    wallBaseSet: 'none',
+    wallBaseDensity: 0,
+    ceilingDensity: 0,
+    floorGutterDensity: 0,
+    floorThresholdDensity: 0.24,
+    floorOrganicDensity: 0,
+  },
+  {
+    id: 'residential',
+    style: 'concrete',
+    detailMul: 1,
+    organicMul: 0.15,
+    smoothness: 0.28,
+    floorScatter: 'linoleum',
+    wallReliefSet: 'concrete',
+    wallReliefDensity: 0.46,
+    wallBaseSet: 'panels',
+    wallBaseDensity: 0.26,
+    ceilingDensity: 0,
+    floorGutterDensity: 0,
+    floorThresholdDensity: 0.24,
+    floorOrganicDensity: 0,
+  },
+  {
+    id: 'ministry',
+    style: 'concrete',
+    detailMul: 1,
+    organicMul: 0.15,
+    smoothness: 0.32,
+    wallReliefSet: 'concrete',
+    wallReliefDensity: 0.46,
+    wallBaseSet: 'panels',
+    wallBaseDensity: 0.22,
+    ceilingDensity: 0,
+    floorGutterDensity: 0,
+    floorThresholdDensity: 0.24,
+    floorOrganicDensity: 0,
   },
   {
     id: 'technical',
@@ -70,17 +101,14 @@ export const VISUAL_CORRIDOR_COVERINGS: readonly VisualCorridorCoveringDef[] = [
     organicMul: 0.12,
     smoothness: 0.16,
     wallReliefSet: 'technical',
-    weights: {
-      relief: 0.25,
-      ledge: 0.14,
-      threshold: 0.16,
-      pipe: 0.26,
-      cable: 0.19,
-      gutter: 0,
-      stalactite: 0,
-      bulge: 0,
-      fold: 0,
-    },
+    wallReliefDensity: 0.25,
+    wallBaseSet: 'technical',
+    wallBaseDensity: 0.33,
+    ceilingSet: 'service',
+    ceilingDensity: 0.45,
+    floorGutterDensity: 0,
+    floorThresholdDensity: 0.16,
+    floorOrganicDensity: 0,
   },
   {
     id: 'collector',
@@ -90,17 +118,14 @@ export const VISUAL_CORRIDOR_COVERINGS: readonly VisualCorridorCoveringDef[] = [
     smoothness: 0.12,
     floorScatter: 'collector',
     wallReliefSet: 'pipe',
-    weights: {
-      relief: 0,
-      ledge: 0.1,
-      threshold: 0.1,
-      pipe: 0.44,
-      cable: 0.1,
-      gutter: 0.34,
-      stalactite: 0,
-      bulge: 0,
-      fold: 0,
-    },
+    wallReliefDensity: 0,
+    wallBaseSet: 'pipes',
+    wallBaseDensity: 0.44,
+    ceilingSet: 'service',
+    ceilingDensity: 0.54,
+    floorGutterDensity: 0.34,
+    floorThresholdDensity: 0.1,
+    floorOrganicDensity: 0,
   },
   {
     id: 'cave',
@@ -110,17 +135,14 @@ export const VISUAL_CORRIDOR_COVERINGS: readonly VisualCorridorCoveringDef[] = [
     smoothness: 0.38,
     floorScatter: 'organic',
     wallReliefSet: 'organic',
-    weights: {
-      relief: 0,
-      ledge: 0,
-      threshold: 0.08,
-      pipe: 0,
-      cable: 0,
-      gutter: 0,
-      stalactite: 0.4,
-      bulge: 0.52,
-      fold: 0,
-    },
+    wallReliefDensity: 0,
+    wallBaseSet: 'organic',
+    wallBaseDensity: 0.52,
+    ceilingSet: 'organic',
+    ceilingDensity: 0.4,
+    floorGutterDensity: 0,
+    floorThresholdDensity: 0.08,
+    floorOrganicDensity: 0.52,
   },
   {
     id: 'meat',
@@ -130,17 +152,14 @@ export const VISUAL_CORRIDOR_COVERINGS: readonly VisualCorridorCoveringDef[] = [
     smoothness: 0.78,
     floorScatter: 'organic',
     wallReliefSet: 'organic',
-    weights: {
-      relief: 0,
-      ledge: 0,
-      threshold: 0.05,
-      pipe: 0,
-      cable: 0,
-      gutter: 0,
-      stalactite: 0.18,
-      bulge: 0.2,
-      fold: 0.82,
-    },
+    wallReliefDensity: 0,
+    wallBaseSet: 'organic',
+    wallBaseDensity: 1.02,
+    ceilingSet: 'organic',
+    ceilingDensity: 0.18,
+    floorGutterDensity: 0,
+    floorThresholdDensity: 0.05,
+    floorOrganicDensity: 1.02,
   },
   {
     id: 'void',
@@ -149,17 +168,14 @@ export const VISUAL_CORRIDOR_COVERINGS: readonly VisualCorridorCoveringDef[] = [
     organicMul: 0.18,
     smoothness: 0.52,
     wallReliefSet: 'concrete',
-    weights: {
-      relief: 0.38,
-      ledge: 0.12,
-      threshold: 0.1,
-      pipe: 0.04,
-      cable: 0.18,
-      gutter: 0,
-      stalactite: 0,
-      bulge: 0.18,
-      fold: 0,
-    },
+    wallReliefDensity: 0.38,
+    wallBaseSet: 'panels',
+    wallBaseDensity: 0.12,
+    ceilingSet: 'service',
+    ceilingDensity: 0.22,
+    floorGutterDensity: 0,
+    floorThresholdDensity: 0.1,
+    floorOrganicDensity: 0.18,
   },
 ] as const;
 
@@ -168,6 +184,7 @@ export const VISUAL_CORRIDOR_COVERING_RULES: readonly VisualCorridorCoveringRule
   { id: 'finale_void', coveringId: 'void', priority: 98, requiredTags: ['finale'] },
   { id: 'story_meat', coveringId: 'meat', priority: 92, requiredTags: ['meat'] },
   { id: 'samosbor_meat', coveringId: 'meat', priority: 90, requiredTags: ['samosbor'] },
+  { id: 'hell_meat', coveringId: 'meat', priority: 88, requiredTags: ['hell'] },
   { id: 'living_tunnel_cave', coveringId: 'cave', priority: 86, requiredTags: ['living_tunnels'] },
   { id: 'mycelium_cave', coveringId: 'cave', priority: 78, requiredTags: ['mushroom'] },
   { id: 'collector_geometry', coveringId: 'collector', priority: 74, requiredTags: ['collectors'] },
@@ -177,6 +194,8 @@ export const VISUAL_CORRIDOR_COVERING_RULES: readonly VisualCorridorCoveringRule
   { id: 'power_technical', coveringId: 'technical', priority: 64, requiredTags: ['power'] },
   { id: 'workshop_technical', coveringId: 'technical', priority: 62, requiredTags: ['workshop'] },
   { id: 'industrial_technical', coveringId: 'technical', priority: 58, requiredTags: ['industrial'], blockedTags: ['collectors', 'sump', 'blackwater'] },
+  { id: 'residential', coveringId: 'residential', priority: 50, requiredTags: ['residential'] },
+  { id: 'ministry', coveringId: 'ministry', priority: 48, requiredTags: ['ministry'] },
 ] as const;
 
 const VISUAL_CORRIDOR_COVERING_BY_ID = new Map<VisualCorridorCoveringId, VisualCorridorCoveringDef>(

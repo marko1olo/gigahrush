@@ -317,8 +317,11 @@ export function updateWallSnakeAnomaly(world: World, player: Entity, state: Game
     if (state.time < snake.stoppedUntil) continue;
     for (let i = 0; i < snake.length; i++) {
       if (playerOnPath(world, snake, player, snake.body[i])) {
-        if (state.time >= snake.warnedUntil) hurtPlayer(player, state, 3);
-        return;
+        if (state.time >= snake.warnedUntil) {
+          hurtPlayer(player, state, 3);
+          snake.warnedUntil = state.time + 1.0;
+        }
+        break;
       }
     }
   }
@@ -341,17 +344,14 @@ export function updateWallSnakeAnomaly(world: World, player: Entity, state: Game
     }
 
     if (playerOnPath(world, snake, player, nextHead)) {
-      if (state.time < snake.warnedUntil) {
+      if (state.time >= snake.warnedUntil) {
         hurtPlayer(player, state, 9);
-      } else {
-        snake.warnedUntil = state.time + snake.stepSeconds * 1.8;
+        snake.warnedUntil = state.time + 1.0;
         if (state.time - snake.lastMsgTime > 3) {
           snake.lastMsgTime = state.time;
-          state.msgs.push(msg('Черная голова личинки смотрит прямо сюда. Есть один шаг, чтобы уйти.', state.time, '#fa4'));
+          state.msgs.push(msg('Черная голова личинки сминает вас на ходу.', state.time, '#fa4'));
         }
       }
-      if (changed) markWallSnakeCellsDirty(world);
-      return;
     }
 
     pushHead(world, snake, nextHead);

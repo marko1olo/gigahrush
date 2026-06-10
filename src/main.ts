@@ -220,7 +220,7 @@ import {
   type DebugCommandAction,
 } from './systems/debug';
 import { debugOnePunchMeleeDamage, isDebugOnePunchManEnabled, keepDebugOnePunchManAlive } from './systems/debug_cheats';
-import { formatLastPlayerDamageCause, hasFreshPlayerDamageRecord, recordPlayerDamage } from './systems/damage';
+import { formatLastPlayerDamageCause, hasFreshPlayerDamageRecord, recordPlayerDamage, updateBlockCrushDamage } from './systems/damage';
 import { createWorldEventState, normalizeWorldEventState, publishEvent } from './systems/events';
 import {
   craftKnownRecipe,
@@ -7537,6 +7537,7 @@ function gameLoop(now: number): void {
     const hazardStart = performance.now();
     tickCellHazards(world, entities, state, dt, player, input.fwd || input.back || input.strafeL || input.strafeR || input.touch.moveX !== 0 || input.touch.moveY !== 0);
     lastHazardUpdateMs = performance.now() - hazardStart;
+    updateBlockCrushDamage(world, entities, state, dt);
     updateProceduralAnomalies(world, player, state, dt);
     const samosborStart = performance.now();
     const samosborRebuild = updateSamosbor(world, entities, state, dt, nextEntityId, currentLocalSamosborPatchGeneration, scheduleLocalSamosborPatch);

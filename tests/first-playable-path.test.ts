@@ -34,7 +34,7 @@ test('fresh run exposes Olga as the first soft objective', () => {
 
   const objective = getCurrentObjective(state, [olga, barni]);
 
-  assert.equal(objective?.line, 'Цель: поговорить с Ольгой Дмитриевной в актовом зале.');
+  assert.equal(objective?.line, 'Вводная Ольги');
   assert.equal(objective?.source, 'plot_offer');
   assert.equal(objective?.targetEntityId, olga.id);
   assert.equal(nextAvailablePlotStepForNpc(olga, state)?.index, 0);
@@ -65,7 +65,7 @@ test('accepted first plot step points to Sergeant Barinov and the armory range',
 
   const objective = getCurrentObjective(state, [olga, barni]);
 
-  assert.equal(objective?.line, 'Цель: поговорить с сержантом Бариновым в оружейной/стрельбище.');
+  assert.equal(objective?.line, 'Найти сержанта Баринова в оружейной и получить табельное.');
   assert.equal(objective?.targetEntityId, barni.id);
   assert.equal(npcHasImportantQuestAction(barni, state), true);
   assert.equal(npcCanGiveQuestNow(barni, state), false);

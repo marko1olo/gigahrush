@@ -183,13 +183,15 @@ export function drawNetSphereMenu(
   const maxChatScroll = Math.max(0, net.chat.length - 1);
   const chatScroll = Math.max(0, Math.min(maxChatScroll, Math.floor(net.chatScroll)));
   const anchorMessage = Math.max(0, net.chat.length - 1 - chatScroll);
-  const topLocked = chatScroll >= maxChatScroll && maxChatScroll > 0;
-  const endLine = topLocked
-    ? Math.min(vlines.length, visibleLines)
-    : Math.max(0, messageEnds[anchorMessage] ?? vlines.length);
-  const startLine = topLocked ? 0 : Math.max(0, endLine - visibleLines);
+
+  let endLine = Math.max(0, messageEnds[anchorMessage] ?? vlines.length);
+  let startLine = Math.max(0, endLine - visibleLines);
+  if (startLine === 0) {
+    endLine = Math.min(vlines.length, visibleLines);
+  }
+
   const drawnLines = Math.max(0, endLine - startLine);
-  const firstLineY = topLocked ? msgTop : Math.max(msgTop, msgBottom - drawnLines * lineH);
+  const firstLineY = Math.max(msgTop, msgBottom - drawnLines * lineH);
 
   ctx.save();
   ctx.beginPath();

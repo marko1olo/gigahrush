@@ -2858,7 +2858,7 @@ function collectStaticObjectSprites(world: World, px: number, py: number, count:
       const x = world.wrap(cx + ox);
       const idx = world.idx(x, y);
       const feature = world.features[idx] as Feature;
-      if (feature === Feature.NONE || feature === Feature.LAMP || feature === Feature.CANDLE) continue;
+      if (feature === Feature.NONE || feature === Feature.CANDLE) continue;
       const cell = world.cells[idx];
       if (cell !== Cell.FLOOR && cell !== Cell.WATER) continue;
       const off = featureOffset(feature, x, y);

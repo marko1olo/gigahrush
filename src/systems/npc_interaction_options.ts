@@ -517,13 +517,4 @@ for (const profile of allDesignFloorProfiles()) {
   }
 }
 
-registerNpcInteractionOption({
-  id: 'exit',
-  order: 9000,
-  label: () => 'Уйти',
-  visible: () => true,
-  activate: ctx => {
-    closeNpcInteractionInterface(ctx.state);
-    ctx.state.showNpcMenu = false;
-  },
-});
+

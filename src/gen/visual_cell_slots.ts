@@ -80,7 +80,7 @@ const FEATURE_VISUAL_IDS: Partial<Record<Feature, readonly string[]>> = {
   [Feature.SCREEN]: ['wall_panel_screen', 'cable_wall_loose'],
 };
 
-const LAMP_FEATURE_VISUAL_IDS = ['ceiling_bulb', 'ceiling_light_panel'] as const;
+
 
 function hash32(seed: number, a: number, b = 0, c = 0): number {
   let h = (seed ^ 0x9e3779b9) >>> 0;
@@ -177,20 +177,18 @@ export function addVisualSlotByPriority(world: World, cellIdx: number, code: num
 }
 
 export function featureVisualCellIds(feature: Feature): readonly string[] {
-  if (feature === Feature.LAMP) return LAMP_FEATURE_VISUAL_IDS;
   return FEATURE_VISUAL_IDS[feature] ?? [];
 }
 
-function featureVisualCellIdsForFill(feature: Feature, seed: number, cellIdx: number): readonly string[] {
-  if (feature !== Feature.LAMP) return featureVisualCellIds(feature);
-  return [(hash32(seed, cellIdx, 0x6c616d70) & 3) === 0 ? 'ceiling_light_panel' : 'ceiling_bulb'];
+function featureVisualCellIdsForFill(feature: Feature): readonly string[] {
+  return featureVisualCellIds(feature);
 }
 
 export function fillVisualSlotsFromFeature(world: World, cellIdx: number, seed: number): number {
   const feature = world.features[cellIdx] as Feature;
   let placed = 0;
   let ordinal = 0;
-  for (const id of featureVisualCellIdsForFill(feature, seed, cellIdx)) {
+  for (const id of featureVisualCellIdsForFill(feature)) {
     const code = visualCodeForId(id);
     if (cellHasVisualCode(world, cellIdx, code)) {
       ordinal++;
@@ -346,33 +344,98 @@ function collectRoomFloorDecorCandidates(
   return out;
 }
 
+// ── Floor-class decor tables ──────────────────────────────────────
+// Each floor class defines which wall, ceiling and column models it uses.
+// Adding a new class: append a row here and a matching branch in
+// visualDecorCaps if density needs adjustment.
+
+interface FloorDecorClass {
+  wallIds: readonly string[];
+  ceilingIds: readonly string[];
+  columnId: string;
+}
+
+const FLOOR_DECOR_CLASSES: readonly {
+  tags: readonly string[];
+  decor: FloorDecorClass;
+}[] = [
+  // Industrial / maintenance / collectors
+  {
+    tags: ['maintenance', 'collectors', 'industrial', 'pump'],
+    decor: {
+      wallIds: ['pipe_wall_large', 'cable_wall_loose', 'pipe_wall_small', 'pipe_wall_small'],
+      ceilingIds: ['ceiling_pipe_bundle', 'ceiling_cable_bundle'],
+      columnId: 'column_concrete_round',
+    },
+  },
+  // Ministry / bureaucratic
+  {
+    tags: ['ministry', 'bureaucratic', 'paper', 'office'],
+    decor: {
+      wallIds: ['button_panel', 'wall_panel_flat', 'cable_wall_loose', 'wall_panel_flat'],
+      ceilingIds: ['ceiling_light_panel'],
+      columnId: 'column_concrete_square',
+    },
+  },
+  // Residential / kvartiry / living
+  {
+    tags: ['residential', 'kvartiry', 'living', 'public'],
+    decor: {
+      wallIds: ['button_panel', 'wall_panel_flat', 'cable_wall_loose', 'wall_panel_flat'],
+      ceilingIds: ['ceiling_light_panel'],
+      columnId: 'column_concrete_square',
+    },
+  },
+  // Void / protocol
+  {
+    tags: ['void', 'protocol'],
+    decor: {
+      wallIds: ['wall_panel_screen', 'wall_panel_flat', 'wall_panel_flat', 'wall_panel_flat'],
+      ceilingIds: ['ceiling_light_panel'],
+      columnId: 'column_concrete_square',
+    },
+  },
+  // Hell / meat — organic horror
+  {
+    tags: ['hell', 'meat_low', 'gut', 'ritual', 'samosbor', 'meat', 'underhell'],
+    decor: {
+      wallIds: ['organic_wall_ribs', 'organic_wall_veins', 'cable_wall_loose', 'organic_wall_veins'],
+      ceilingIds: ['organic_ceiling_tendrils'],
+      columnId: 'organic_column_bone',
+    },
+  },
+  // Cave / mushroom / living tunnels
+  {
+    tags: ['cave', 'mushroom', 'living_tunnels'],
+    decor: {
+      wallIds: ['cave_wall_protrusion', 'organic_wall_veins', 'cable_wall_loose', 'cave_wall_protrusion'],
+      ceilingIds: ['cave_stalactite', 'organic_ceiling_tendrils'],
+      columnId: 'column_concrete_round',
+    },
+  },
+];
+
+const DEFAULT_FLOOR_DECOR: FloorDecorClass = {
+  wallIds: ['cable_wall_loose'],
+  ceilingIds: ['ceiling_light_panel'],
+  columnId: 'column_concrete_square',
+};
+
+function floorDecorClass(tags: ReadonlySet<string>): FloorDecorClass {
+  for (const entry of FLOOR_DECOR_CLASSES) {
+    if (hasAnyTag(tags, entry.tags)) return entry.decor;
+  }
+  return DEFAULT_FLOOR_DECOR;
+}
+
 function visualWallDecorCode(tags: ReadonlySet<string>, hash: number): number {
-  if (hasAnyTag(tags, ['maintenance', 'collectors', 'industrial', 'pump'])) {
-    if ((hash & 7) === 0) return visualCodeForId('pipe_wall_large');
-    if ((hash & 3) === 0) return visualCodeForId('cable_wall_loose');
-    return visualCodeForId('pipe_wall_small');
-  }
-  if (hasAnyTag(tags, ['ministry', 'bureaucratic', 'paper', 'office'])) {
-    if ((hash & 5) === 0) return visualCodeForId('button_panel');
-    return visualCodeForId((hash & 1) === 0 ? 'wall_panel_flat' : 'cable_wall_loose');
-  }
-  if (hasAnyTag(tags, ['void', 'protocol'])) {
-    return visualCodeForId((hash & 3) === 0 ? 'wall_panel_screen' : 'wall_panel_flat');
-  }
-  if (hasAnyTag(tags, ['hell', 'meat_low', 'gut', 'ritual'])) {
-    return visualCodeForId((hash & 1) === 0 ? 'cable_wall_loose' : 'pipe_wall_small');
-  }
-  return visualCodeForId((hash & 3) === 0 ? 'wall_panel_flat' : 'cable_wall_loose');
+  const decor = floorDecorClass(tags);
+  return visualCodeForId(decor.wallIds[hash & (decor.wallIds.length - 1)] ?? decor.wallIds[0]);
 }
 
 function visualCeilingDecorCode(tags: ReadonlySet<string>, hash: number): number {
-  if (hasAnyTag(tags, ['maintenance', 'collectors', 'industrial', 'pump'])) {
-    return visualCodeForId((hash & 1) === 0 ? 'ceiling_pipe_bundle' : 'ceiling_cable_bundle');
-  }
-  if (hasAnyTag(tags, ['void', 'protocol'])) {
-    return visualCodeForId((hash & 1) === 0 ? 'ceiling_cable_bundle' : 'ceiling_beam');
-  }
-  return visualCodeForId((hash & 1) === 0 ? 'ceiling_beam' : 'ceiling_cable');
+  const decor = floorDecorClass(tags);
+  return visualCodeForId(decor.ceilingIds[hash & (decor.ceilingIds.length - 1)] ?? decor.ceilingIds[0]);
 }
 
 function ceilingRunTangent(room: Room, hash: number): readonly [number, number] {
@@ -413,9 +476,11 @@ function visualDecorCaps(
   const ministry = hasAnyTag(tags, ['ministry', 'bureaucratic', 'paper', 'office']);
   const residential = hasAnyTag(tags, ['residential', 'kvartiry', 'living', 'public']);
   const sparse = hasAnyTag(tags, ['void', 'protocol']);
-  const wallMul = industrial ? 2.6 : ministry ? 2.0 : residential ? 1.45 : sparse ? 0.8 : 1.05;
-  const ceilingMul = industrial ? 1.9 : ministry ? 1.25 : residential ? 0.85 : sparse ? 0.45 : 0.9;
-  const columnMul = ministry ? 0.8 : industrial ? 0.5 : residential ? 0.25 : sparse ? 0.12 : 0.35;
+  const organic = hasAnyTag(tags, ['hell', 'meat_low', 'gut', 'ritual', 'samosbor', 'meat', 'underhell']);
+  const cave = hasAnyTag(tags, ['cave', 'mushroom', 'living_tunnels']);
+  const wallMul = industrial ? 2.6 : organic ? 2.2 : cave ? 1.8 : ministry ? 2.0 : residential ? 1.45 : sparse ? 0.8 : 1.05;
+  const ceilingMul = industrial ? 1.9 : organic ? 1.5 : cave ? 1.4 : ministry ? 1.25 : residential ? 0.85 : sparse ? 0.45 : 0.9;
+  const columnMul = ministry ? 0.8 : industrial ? 0.5 : organic ? 0.4 : cave ? 0.35 : residential ? 0.25 : sparse ? 0.12 : 0.35;
   return {
     wall: Math.max(0, Math.min(160, Math.floor(options.wallCap ?? roomCount * wallMul))),
     ceiling: Math.max(0, Math.min(128, Math.floor(options.ceilingCap ?? roomCount * ceilingMul))),
@@ -547,7 +612,9 @@ function placeColumnVisualDecor(
     }
   }
   candidates.sort((a, b) => b.score - a.score || a.idx - b.idx);
-  const code = visualCodeForId('column_concrete_square');
+  const tags = new Set(options.tags ?? []);
+  const decor = floorDecorClass(tags);
+  const code = visualCodeForId(decor.columnId);
   let placed = 0;
   for (const candidate of candidates) {
     if (placed >= cap) break;

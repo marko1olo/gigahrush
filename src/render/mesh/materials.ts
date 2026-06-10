@@ -83,6 +83,20 @@ export const MESH_MATERIALS: Readonly<Record<MeshMaterialId, MeshMaterialDef>> =
     emissive: 0.85,
     variation: 8,
   },
+  meat: {
+    id: 'meat',
+    baseRgb: [136, 46, 52],
+    roughness: 0.82,
+    emissive: 0,
+    variation: 22,
+  },
+  bone: {
+    id: 'bone',
+    baseRgb: [204, 198, 172],
+    roughness: 0.68,
+    emissive: 0,
+    variation: 12,
+  },
 };
 
 function clampByte(value: number): number {

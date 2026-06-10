@@ -8,7 +8,9 @@ export type MeshMaterialId =
   | 'cloth'
   | 'glass_dim'
   | 'emissive_lamp'
-  | 'emissive_screen';
+  | 'emissive_screen'
+  | 'meat'
+  | 'bone';
 
 export type VisualModelId =
   | 'pipe_wall_small'
@@ -18,9 +20,12 @@ export type VisualModelId =
   | 'ceiling_cable'
   | 'wall_panel_flat'
   | 'wall_panel_screen'
+  | 'organic_wall_veins'
+  | 'organic_wall_ribs'
   | 'ceiling_beam'
   | 'ceiling_bulb'
   | 'ceiling_light_panel'
+  | 'organic_ceiling_tendrils'
   | 'meat_ceiling_lamp'
   | 'column_hint'
   | 'furniture_table_hint'
@@ -39,6 +44,7 @@ export type VisualModelId =
   | 'organic_thread'
   | 'column_concrete_square'
   | 'column_concrete_round'
+  | 'organic_column_bone'
   | 'table_slab'
   | 'desk_slab'
   | 'chair_simple'
@@ -264,6 +270,18 @@ export const VISUAL_MODELS: readonly VisualModelDef[] = [
     parts: [
       { kind: 'slab', position: [0, 0, -0.026], size: [0.42, 0.22, 0.028], material: 'painted_metal' },
       { kind: 'plane', position: [0, 0, -0.042], size: [0.32, 0.15], orientation: 'xy', normal: -1, material: 'emissive_lamp' },
+    ],
+  },
+  {
+    id: 'organic_ceiling_tendrils',
+    tags: ['ceiling', 'organic', 'meat', 'samosbor'],
+    bounds: { x: 0.6, y: 0.6, z: 0.3 },
+    anchor: 'ceiling',
+    variantSalt: 313,
+    parts: [
+      { kind: 'cylinder', position: [0, 0, -0.15], radius: 0.06, height: 0.3, axis: 'z', segments: 6, material: 'meat' },
+      { kind: 'cylinder', position: [0.1, 0.1, -0.2], radius: 0.04, height: 0.4, axis: 'z', segments: 5, material: 'meat' },
+      { kind: 'cylinder', position: [-0.1, -0.05, -0.18], radius: 0.03, height: 0.35, axis: 'z', segments: 5, material: 'meat' },
     ],
   },
   {
@@ -922,6 +940,46 @@ export const VISUAL_MODELS: readonly VisualModelDef[] = [
       { kind: 'cylinder', position: [-0.12, 0, 0.11], radius: 0.025, height: 0.32, axis: 'y', segments: 5, material: 'plastic', color: [170, 165, 145] },
       { kind: 'cylinder', position: [0, 0, 0.12], radius: 0.025, height: 0.36, axis: 'y', segments: 5, material: 'plastic', color: [170, 165, 145] },
       { kind: 'cylinder', position: [0.12, 0, 0.11], radius: 0.025, height: 0.32, axis: 'y', segments: 5, material: 'plastic', color: [170, 165, 145] },
+    ],
+  },
+  {
+    id: 'organic_wall_veins',
+    tags: ['wall', 'organic', 'giger', 'meat', 'samosbor'],
+    bounds: { x: 0.12, y: 1.0, z: 1.0 },
+    anchor: 'wall',
+    variantSalt: 311,
+    parts: [
+      { kind: 'cylinder', position: [0.03, -0.2, 0.4], radius: 0.04, height: 1.2, axis: 'y', segments: 6, material: 'meat' },
+      { kind: 'cylinder', position: [0.04, 0.15, 0.6], radius: 0.035, height: 1.1, axis: 'y', segments: 6, material: 'meat' },
+      { kind: 'cylinder', position: [0.02, 0.0, 0.2], radius: 0.05, height: 1.3, axis: 'y', segments: 6, material: 'meat' },
+    ],
+  },
+  {
+    id: 'organic_wall_ribs',
+    tags: ['wall', 'organic', 'bone', 'scorn', 'samosbor'],
+    bounds: { x: 0.2, y: 1.0, z: 1.0 },
+    anchor: 'wall',
+    variantSalt: 312,
+    parts: [
+      { kind: 'slab', position: [0.06, 0, 0.2], size: [0.12, 0.8, 0.08], material: 'bone' },
+      { kind: 'slab', position: [0.06, 0, 0.5], size: [0.12, 0.8, 0.08], material: 'bone' },
+      { kind: 'slab', position: [0.06, 0, 0.8], size: [0.12, 0.8, 0.08], material: 'bone' },
+      { kind: 'slab', position: [0.02, -0.3, 0.5], size: [0.06, 0.1, 0.9], material: 'meat' },
+      { kind: 'slab', position: [0.02, 0.3, 0.5], size: [0.06, 0.1, 0.9], material: 'meat' },
+    ],
+  },
+  {
+    id: 'organic_column_bone',
+    tags: ['column', 'organic', 'bone', 'scorn', 'samosbor', 'floor'],
+    bounds: { x: 0.5, y: 0.5, z: 1.0 },
+    anchor: 'floor',
+    variantSalt: 314,
+    parts: [
+      { kind: 'cylinder', position: [0, 0, 0.5], radius: 0.18, height: 1.0, axis: 'z', segments: 8, material: 'bone' },
+      { kind: 'cylinder', position: [0, 0, 0.1], radius: 0.24, height: 0.2, axis: 'z', segments: 8, material: 'meat' },
+      { kind: 'cylinder', position: [0, 0, 0.9], radius: 0.24, height: 0.2, axis: 'z', segments: 8, material: 'meat' },
+      { kind: 'box', position: [0.12, 0.12, 0.5], size: [0.08, 0.08, 0.8], material: 'meat' },
+      { kind: 'box', position: [-0.12, -0.12, 0.5], size: [0.08, 0.08, 0.8], material: 'meat' },
     ],
   },
 ] as const;

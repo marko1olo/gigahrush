@@ -170,10 +170,11 @@ test('visual geometry theme modulation is data-only and deterministic', () => {
   }
   for (const row of VISUAL_CORRIDOR_COVERINGS) {
     assert.match(row.id, ID_RE, `${row.id} must stay snake_case`);
-    assert.equal(['concrete', 'technical', 'collector', 'cave', 'meat', 'void'].includes(row.id), true);
-    for (const value of Object.values(row.weights)) {
-      assert.equal(Number.isFinite(value), true, `${row.id} weight must be finite`);
-      assert.equal(value >= 0, true, `${row.id} weight must be non-negative`);
+    assert.equal(['concrete', 'residential', 'ministry', 'technical', 'collector', 'cave', 'meat', 'void'].includes(row.id), true);
+    for (const key of ['wallReliefDensity', 'wallBaseDensity', 'ceilingDensity', 'floorGutterDensity', 'floorThresholdDensity', 'floorOrganicDensity'] as const) {
+      const value = row[key];
+      assert.equal(Number.isFinite(value), true, `${row.id}.${key} must be finite`);
+      assert.equal(value >= 0, true, `${row.id}.${key} must be non-negative`);
     }
   }
   for (const row of VISUAL_CORRIDOR_COVERING_RULES) {
@@ -204,7 +205,9 @@ test('visual geometry resolves generator corridor coverings from floor tags', ()
     { tags: ['collectors', 'industrial', 'water', 'pipes'], expected: 'collector' },
     { tags: ['service', 'industrial', 'power', 'maintenance'], expected: 'technical' },
     { tags: ['void', 'finale'], expected: 'void' },
-    { tags: ['residential', 'civil'], expected: 'concrete' },
+    { tags: ['residential', 'civil'], expected: 'residential' },
+    { tags: ['ministry', 'bureaucratic'], expected: 'ministry' },
+    { tags: ['plain', 'civil'], expected: 'concrete' },
   ];
 
   for (const row of cases) {

@@ -409,7 +409,9 @@ export function findInteractionTarget(ctx: InteractionContext): InteractionTarge
   }
 
   if (cell === Cell.DOOR && ctx.world.doors.has(idx)) {
-    return target('door', idx + 100000, 'door', idx % W, (idx / W) | 0, 100, ' дверь');
+    const door = ctx.world.doors.get(idx);
+    const isHermetic = door?.state === DoorState.HERMETIC_CLOSED || door?.state === DoorState.HERMETIC_OPEN;
+    return target('door', idx + 100000, 'door', idx % W, (idx / W) | 0, 100, isHermetic ? ' гермодверь' : ' дверь');
   }
 
   const container = findContainer(ctx, false);

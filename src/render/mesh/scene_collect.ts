@@ -577,12 +577,19 @@ function emitInstance(out: MeshInstance[], instance: MeshInstance): void {
   out.push(instance);
 }
 
-function contextualVisualModelId(context: MeshPassContext, modelId: string): string {
-  if (
-    (modelId === 'ceiling_bulb' || modelId === 'ceiling_light_panel') &&
-    context.profile?.corridorCoveringId === 'meat'
-  ) {
-    return 'meat_ceiling_lamp';
+function contextualVisualModelId(context: MeshPassContext, modelId: string, cellX?: number, cellY?: number): string {
+  if (modelId === 'ceiling_bulb' || modelId === 'ceiling_light_panel') {
+    let isOrganic = context.profile?.corridorCoveringId === 'meat';
+    if (!isOrganic && cellX !== undefined && cellY !== undefined) {
+      const idx = context.world.idx(cellX, cellY);
+      const wallTex = context.world.wallTex[idx];
+      const floorTex = context.world.floorTex[idx];
+      isOrganic = wallTex === 20 /* Tex.MEAT */ || wallTex === 41 /* Tex.GUT */ || wallTex === 5 /* Tex.ROTTEN */ ||
+                  floorTex === 21 /* Tex.F_MEAT */ || floorTex === 42 /* Tex.F_GUT */;
+    }
+    if (isOrganic) {
+      return 'meat_ceiling_lamp';
+    }
   }
   return modelId;
 }
@@ -619,7 +626,7 @@ function emitVisualInstance(
     sourceY?: number;
   } = {},
 ): void {
-  const modelId = contextualVisualModelId(context, def.modelId ?? def.id);
+  const modelId = contextualVisualModelId(context, def.modelId ?? def.id, Math.floor(options.sourceX ?? x), Math.floor(options.sourceY ?? y));
   const face = options.face;
   const length = Math.max(1, options.length ?? 1);
   const axis = options.axis;
@@ -1229,21 +1236,25 @@ function corridorVolumeCellEligible(context: MeshPassContext, idx: number, x: nu
   return (room.w <= 3 || room.h <= 3) && counts.wallLike >= 1;
 }
 
-function weightedCorridorWallModel(covering: VisualCorridorCoveringDef, h: number): VisualModelId {
-  const weights = covering.weights;
-  const total = weights.relief + weights.ledge + weights.pipe + weights.cable + weights.bulge + weights.fold;
-  
-  if (total <= 0) {
-    return corridorReliefVariant(covering, h);
+function weightedCorridorWallModel(context: MeshPassContext, covering: VisualCorridorCoveringDef, x: number, y: number, h: number): VisualModelId {
+  const idx = context.world.idx(x, y);
+  const wallTex = context.world.wallTex[idx];
+  let wallBaseSet = covering.wallBaseSet ?? 'none';
+  if (wallTex === 20 /* Tex.MEAT */ || wallTex === 41 /* Tex.GUT */ || wallTex === 5 /* Tex.ROTTEN */) {
+    wallBaseSet = 'organic';
+  } else if (wallTex === 18 /* Tex.PIPE */) {
+    wallBaseSet = 'none';
   }
-  
-  let roll = (((h >>> 9) & 1023) / 1023) * total;
-  
-  if (weights.fold > 0) { roll -= weights.fold; if (roll <= 0.0001) return 'meat_wall_fold'; }
-  if (weights.bulge > 0) { roll -= weights.bulge; if (roll <= 0.0001) return covering.id === 'cave' ? 'cave_wall_protrusion' : 'organic_wall_bulge'; }
-  if (weights.pipe > 0) { roll -= weights.pipe; if (roll <= 0.0001) return 'pipe_wall_large'; }
-  if (weights.cable > 0) { roll -= weights.cable; if (roll <= 0.0001) return 'cable_wall_loose'; }
-  if (weights.ledge > 0) { roll -= weights.ledge; if (roll <= 0.0001) return 'corridor_side_ledge'; }
+  if (wallBaseSet !== 'none' && covering.wallBaseDensity > 0) {
+    const roll = ((h >>> 9) & 1023) / 1023;
+    if (roll < covering.wallBaseDensity) {
+      if (wallBaseSet === 'panels') return 'corridor_side_ledge';
+      if (wallBaseSet === 'pipes') return 'pipe_wall_large';
+      if (wallBaseSet === 'cables') return 'cable_wall_loose';
+      if (wallBaseSet === 'technical') return ((h >>> 14) & 1) ? 'pipe_wall_large' : 'cable_wall_loose';
+      if (wallBaseSet === 'organic') return covering.id === 'cave' ? 'cave_wall_protrusion' : (((h >>> 15) & 3) === 0 ? 'organic_wall_bulge' : 'meat_wall_fold');
+    }
+  }
   
   return corridorReliefVariant(covering, h);
 }
@@ -1302,11 +1313,12 @@ function emitCorridorWallVolume(
   if (faces.length <= 0) return;
   const roomId = world.roomMap[idx] ?? -1;
   const h = mixHash(context.seed, x, y, roomId, 0x766f6c);
-  const wallWeight = covering.weights.relief + covering.weights.ledge + covering.weights.pipe + covering.weights.cable + covering.weights.bulge + covering.weights.fold;
+  const wallWeight = covering.wallReliefDensity + covering.wallBaseDensity;
   if (!corridorCoverageGate(context.seed, x, y, roomId, 0x77616c, detail, style === 'organic' ? wallWeight * 0.8 : wallWeight * 0.58)) return;
   const face = faces[h % faces.length];
-  const organic = style === 'organic' || covering.id === 'meat' || covering.id === 'cave';
-  const modelId = weightedCorridorWallModel(covering, h);
+  const isOrganicTex = world.wallTex[idx] === 20 /* Tex.MEAT */ || world.wallTex[idx] === 41 /* Tex.GUT */ || world.wallTex[idx] === 5 /* Tex.ROTTEN */;
+  const organic = style === 'organic' || covering.id === 'meat' || covering.id === 'cave' || isOrganicTex;
+  const modelId = weightedCorridorWallModel(context, covering, x, y, h);
   const tangentJitter = signedHash(context.seed, x, y, roomId, 0x6a6974 ^ h) * (organic ? 0.14 : 0.11);
   const ix = wrapFloat(face.x + face.tangentDx * tangentJitter);
   const iy = wrapFloat(face.y + face.tangentDy * tangentJitter);
@@ -1356,10 +1368,10 @@ function emitCorridorThreshold(
   const world = context.world;
   const roomId = world.roomMap[idx] ?? -1;
   const h = mixHash(context.seed, x, y, roomId, 0x746872);
-  const gutter = corridorCoverageGate(context.seed, x, y, roomId, 0x677574, detail, covering.weights.gutter * 0.72);
-  const threshold = corridorCoverageGate(context.seed, x, y, roomId, 0x746872, detail, covering.weights.threshold * 0.9);
+  const gutter = corridorCoverageGate(context.seed, x, y, roomId, 0x677574, detail, covering.floorGutterDensity * 0.72);
+  const threshold = corridorCoverageGate(context.seed, x, y, roomId, 0x746872, detail, covering.floorThresholdDensity * 0.9);
   const organicFloor = covering.style === 'organic' &&
-    corridorCoverageGate(context.seed, x, y, roomId, 0x666c64, organicDetail, (covering.weights.fold + covering.weights.bulge) * 0.72);
+    corridorCoverageGate(context.seed, x, y, roomId, 0x666c64, organicDetail, covering.floorOrganicDensity * 0.72);
   if (!gutter && !threshold && !organicFloor) return;
   const axis = openAxis(world, x, y);
   const modelId = organicFloor ? 'meat_floor_fold' : gutter ? 'collector_gutter' : 'corridor_floor_threshold';
@@ -1383,12 +1395,7 @@ function emitCorridorThreshold(
   });
 }
 
-function serviceCeilingWeight(covering: VisualCorridorCoveringDef): number {
-  const base = covering.weights.pipe + covering.weights.cable;
-  if (covering.id === 'collector') return base * 1.65;
-  if (covering.id === 'technical') return base * 1.15;
-  return base * 0.45;
-}
+
 
 function isServiceCeilingModel(modelId: string): boolean {
   return modelId === 'ceiling_pipe_bundle' ||
@@ -1411,7 +1418,8 @@ function serviceCeilingGate(
   if (covering.id === 'collector') return detail > 0;
   const roomId = context.world.roomMap[idx] ?? -1;
   const salt = corridorContextSalt(context, 0x636570 ^ (axis === 'x' ? 0x7811 : 0x7911));
-  return corridorRunCoverageGate(context.seed, x, y, roomId, salt, detail, serviceCeilingWeight(covering));
+  const weight = covering.ceilingSet === 'service' ? covering.ceilingDensity : 0;
+  return corridorRunCoverageGate(context.seed, x, y, roomId, salt, detail, weight);
 }
 
 function serviceCeilingRunLength(
@@ -1575,7 +1583,7 @@ function emitCorridorCeilingVolume(
     return;
   }
 
-  const organicCeilingWeight = covering.weights.stalactite * 0.9 + covering.weights.fold * 0.14;
+  const organicCeilingWeight = covering.ceilingSet === 'organic' ? covering.ceilingDensity : 0;
   const organicCeiling = corridorCoverageGate(context.seed, x, y, roomId, 0x737461, organicDetail, organicCeilingWeight);
   if (!organicCeiling) return;
   const modelId: VisualModelId = organicCeiling
@@ -2220,7 +2228,8 @@ export const visualSlotSourceAdapter: MeshSourceAdapter = {
   collect(context, out) {
     const profile = resolveMeshSceneProfile(context);
     if (!profile.enabled || !profile.includeVisualSlots) return;
-    scanLocalRadiusCells(context, { ...profile, includeFeatures: false, includeContainers: false, includeCorridorVolumes: false }, out);
+    const resolvedContext = { ...context, profile };
+    scanLocalRadiusCells(resolvedContext, { ...profile, includeFeatures: false, includeContainers: false, includeCorridorVolumes: false }, out);
   },
 };
 
@@ -2228,7 +2237,8 @@ export const featureSourceAdapter: MeshSourceAdapter = {
   collect(context, out) {
     const profile = resolveMeshSceneProfile(context);
     if (!profile.enabled || !profile.includeFeatures) return;
-    scanLocalRadiusCells(context, { ...profile, includeVisualSlots: false, includeContainers: false, includeCorridorVolumes: false }, out);
+    const resolvedContext = { ...context, profile };
+    scanLocalRadiusCells(resolvedContext, { ...profile, includeVisualSlots: false, includeContainers: false, includeCorridorVolumes: false }, out);
   },
 };
 
@@ -2236,7 +2246,8 @@ export const containerSourceAdapter: MeshSourceAdapter = {
   collect(context, out) {
     const profile = resolveMeshSceneProfile(context);
     if (!profile.enabled || !profile.includeContainers) return;
-    scanLocalRadiusCells(context, { ...profile, includeVisualSlots: false, includeFeatures: false, includeCorridorVolumes: false }, out);
+    const resolvedContext = { ...context, profile };
+    scanLocalRadiusCells(resolvedContext, { ...profile, includeVisualSlots: false, includeFeatures: false, includeCorridorVolumes: false }, out);
   },
 };
 
@@ -2251,13 +2262,14 @@ export function collectMeshSceneWithStats(context: MeshPassContext, out: MeshIns
   const profile = resolveMeshSceneProfile(context);
   const stats = newStats();
   if (!profile.enabled) return { instances: out, stats };
+  const resolvedContext = { ...context, profile };
   const raw: MeshInstance[] = [];
-  scanLocalRadiusCells(context, profile, raw, stats);
-  collectProceduralCeilingPipeNetwork(context, profile, raw);
-  collectProceduralFloorScatter(context, profile, raw);
-  collectStaticEntityMeshes(context, raw);
+  scanLocalRadiusCells(resolvedContext, profile, raw, stats);
+  collectProceduralCeilingPipeNetwork(resolvedContext, profile, raw);
+  collectProceduralFloorScatter(resolvedContext, profile, raw);
+  collectStaticEntityMeshes(resolvedContext, raw);
   stats.instancesBeforeCap = raw.length;
-  capMeshInstances(context, raw, out, profile);
+  capMeshInstances(resolvedContext, raw, out, profile);
   stats.instancesAfterCap = out.length;
   return { instances: out, stats };
 }
