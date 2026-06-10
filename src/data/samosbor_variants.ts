@@ -280,7 +280,7 @@ export const SAMOSBOR_MODIFIERS: Record<SamosborModifierId, SamosborModifierDef>
 export const SAMOSBOR_VARIANTS: readonly SamosborVariantDef[] = [
   {
     id: 'classic',
-    displayName: 'Классический',
+    displayName: 'Типовой (ГОСТ-С)',
     floors: ALL_FLOORS,
     weight: 60,
     subsystems: [],
@@ -298,7 +298,7 @@ export const SAMOSBOR_VARIANTS: readonly SamosborVariantDef[] = [
   },
   {
     id: 'wet',
-    displayName: 'Мокрый',
+    displayName: 'Тяжелый влажный',
     floors: [FloorLevel.KVARTIRY, FloorLevel.LIVING, FloorLevel.MAINTENANCE, FloorLevel.HELL],
     weight: 20,
     subsystems: [],
@@ -316,7 +316,7 @@ export const SAMOSBOR_VARIANTS: readonly SamosborVariantDef[] = [
   },
   {
     id: 'electric',
-    displayName: 'Электрический',
+    displayName: 'Озоновый пробой',
     floors: [FloorLevel.MINISTRY, FloorLevel.KVARTIRY, FloorLevel.LIVING, FloorLevel.MAINTENANCE],
     weight: 16,
     subsystems: [],
@@ -334,7 +334,7 @@ export const SAMOSBOR_VARIANTS: readonly SamosborVariantDef[] = [
   },
   {
     id: 'meat',
-    displayName: 'Мясной',
+    displayName: 'Красный биологический',
     floors: [FloorLevel.KVARTIRY, FloorLevel.LIVING, FloorLevel.MAINTENANCE, FloorLevel.HELL],
     weight: 14,
     subsystems: ['hell_meat_walls'],

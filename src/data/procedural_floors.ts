@@ -215,7 +215,7 @@ export const PROCEDURAL_FLOOR_COUNT = PROCEDURAL_FLOOR_ZS.length;
 export const FLOOR_GEOMETRIES: readonly FloorGeometryDef[] = [
   {
     id: 'living_blocks',
-    title: 'жилая нарезка',
+    title: 'типовой жилой блок (класс Г)',
     baseFloor: FloorLevel.LIVING,
     weight: 42,
     roomCount: 86,
@@ -229,7 +229,7 @@ export const FLOOR_GEOMETRIES: readonly FloorGeometryDef[] = [
   },
   {
     id: 'apartment_pressure',
-    title: 'плотные квартиры',
+    title: 'уплотненный сектор Квартир',
     baseFloor: FloorLevel.KVARTIRY,
     weight: 30,
     roomCount: 104,
@@ -243,7 +243,7 @@ export const FLOOR_GEOMETRIES: readonly FloorGeometryDef[] = [
   },
   {
     id: 'communal_knots',
-    title: 'коммунальные узлы',
+    title: 'коммунально-бытовые узлы',
     baseFloor: FloorLevel.KVARTIRY,
     weight: 26,
     roomCount: 112,
@@ -257,7 +257,7 @@ export const FLOOR_GEOMETRIES: readonly FloorGeometryDef[] = [
   },
   {
     id: 'attic_weatherworks',
-    title: 'чердачные венткамеры',
+    title: 'камеры воздухозабора и вентиляции',
     baseFloor: FloorLevel.MINISTRY,
     weight: 30,
     roomCount: 360,
@@ -271,7 +271,7 @@ export const FLOOR_GEOMETRIES: readonly FloorGeometryDef[] = [
   },
   {
     id: 'archive_warrens',
-    title: 'архивные норы',
+    title: 'архивы забытых нормативов',
     baseFloor: FloorLevel.MINISTRY,
     weight: 28,
     roomCount: 92,
@@ -285,7 +285,7 @@ export const FLOOR_GEOMETRIES: readonly FloorGeometryDef[] = [
   },
   {
     id: 'collectors',
-    title: 'коллекторы',
+    title: 'технические коллекторы',
     baseFloor: FloorLevel.MAINTENANCE,
     weight: 32,
     roomCount: 72,
@@ -299,7 +299,7 @@ export const FLOOR_GEOMETRIES: readonly FloorGeometryDef[] = [
   },
   {
     id: 'workshops',
-    title: 'цеховой этаж',
+    title: 'уровень производственных цехов',
     baseFloor: FloorLevel.MAINTENANCE,
     weight: 26,
     roomCount: 64,
@@ -313,7 +313,7 @@ export const FLOOR_GEOMETRIES: readonly FloorGeometryDef[] = [
   },
   {
     id: 'service_spines',
-    title: 'сервисные штреки',
+    title: 'магистральные сервисные штреки',
     baseFloor: FloorLevel.MAINTENANCE,
     weight: 24,
     roomCount: 176,
@@ -327,7 +327,7 @@ export const FLOOR_GEOMETRIES: readonly FloorGeometryDef[] = [
   },
   {
     id: 'sump_causeways',
-    title: 'затопленные эстакады',
+    title: 'нижние затопленные эстакады',
     baseFloor: FloorLevel.MAINTENANCE,
     weight: 34,
     roomCount: 56,
@@ -341,7 +341,7 @@ export const FLOOR_GEOMETRIES: readonly FloorGeometryDef[] = [
   },
   {
     id: 'admin_pockets',
-    title: 'административные карманы',
+    title: 'канцелярские лабиринты',
     baseFloor: FloorLevel.MINISTRY,
     weight: 16,
     roomCount: 240,
@@ -358,7 +358,7 @@ export const FLOOR_GEOMETRIES: readonly FloorGeometryDef[] = [
 export const FLOOR_MAJORITY_FACTIONS: readonly FloorMajorityDef[] = [
   {
     id: 'citizens',
-    title: 'гражданский этаж',
+    title: 'заселённый сектор',
     weight: 58,
     npcFaction: Faction.CITIZEN,
     zoneFaction: ZoneFaction.CITIZEN,
@@ -366,7 +366,7 @@ export const FLOOR_MAJORITY_FACTIONS: readonly FloorMajorityDef[] = [
   },
   {
     id: 'liquidators',
-    title: 'этаж ликвидаторов',
+    title: 'зона контроля Ликвидаторов',
     weight: 22,
     npcFaction: Faction.LIQUIDATOR,
     zoneFaction: ZoneFaction.LIQUIDATOR,
@@ -375,7 +375,7 @@ export const FLOOR_MAJORITY_FACTIONS: readonly FloorMajorityDef[] = [
   },
   {
     id: 'wild',
-    title: 'дикий этаж',
+    title: 'дикий брошенный сектор',
     weight: 14,
     npcFaction: Faction.WILD,
     zoneFaction: ZoneFaction.WILD,
@@ -384,7 +384,7 @@ export const FLOOR_MAJORITY_FACTIONS: readonly FloorMajorityDef[] = [
   },
   {
     id: 'scientists',
-    title: 'научная смена',
+    title: 'экспериментальная зона НИИ',
     weight: 10,
     npcFaction: Faction.SCIENTIST,
     zoneFaction: ZoneFaction.SCIENTIST,
@@ -392,7 +392,7 @@ export const FLOOR_MAJORITY_FACTIONS: readonly FloorMajorityDef[] = [
   },
   {
     id: 'cultists',
-    title: 'культовый этаж',
+    title: 'заражённый сектор (очаг сектантов)',
     weight: 7,
     npcFaction: Faction.CULTIST,
     zoneFaction: ZoneFaction.CULTIST,
@@ -402,26 +402,26 @@ export const FLOOR_MAJORITY_FACTIONS: readonly FloorMajorityDef[] = [
 ];
 
 export const FLOOR_ANOMALIES: readonly FloorAnomalyDef[] = [
-  { id: 'none', title: 'без аномалии', weight: 54, minDanger: 1, dangerBias: 0, tags: [] },
-  { id: 'smog', title: 'говнячный смог', weight: 18, minDanger: 1, dangerBias: 1, tags: ['fog', 'visibility', 'smog', 'govnyak', 'contraband'] },
-  { id: 'teleport_cells', title: 'перескоки клеток', weight: 10, minDanger: 2, dangerBias: 1, tags: ['topology'] },
-  { id: 'mushroom_mycelium', title: 'грибница', weight: 14, minDanger: 2, dangerBias: 0, tags: ['mushroom', 'food', 'slime'] },
-  { id: 'hladon', title: 'хладон', weight: 11, minDanger: 2, dangerBias: 1, tags: ['cold', 'heat_counter', 'route_pressure'] },
-  { id: 'false_safe_block', title: 'тихий блок', weight: 5, minDanger: 2, dangerBias: 1, tags: ['cult', 'shelter', FALSE_SAFE_BLOCK_TAG] },
-  { id: 'mirror_run', title: 'зеркальная проводка', weight: 8, minDanger: 2, dangerBias: 1, tags: ['mirror', 'duality', 'teleport', 'loot'] },
-  { id: 'radio_chess', title: 'радио-шахматы', weight: 8, minDanger: 2, dangerBias: 1, tags: ['pattern', 'radio', 'timing', 'movement'] },
-  { id: 'conveyor_sorter', title: 'сортировочный конвейер', weight: 7, minDanger: 2, dangerBias: 1, tags: ['conveyor', 'items', 'industrial', 'movement'] },
-  { id: 'fractal_floor', title: 'фрактал', weight: 6, minDanger: 3, dangerBias: 1, tags: ['fractal', 'maze', 'topology', 'documents'] },
-  { id: 'cement_memory', title: 'цементная память', weight: 6, minDanger: 3, dangerBias: 1, tags: ['trail', 'pressure', 'no_backtracking', 'samosbor'] },
-  { id: 'wall_snake', title: 'змейка', weight: 4, minDanger: 2, dangerBias: 2, tags: ['moving_walls', 'predator', 'crush', 'loot_sink'] },
-  { id: 'living_tunnels', title: 'живые тоннели', weight: 4, minDanger: 2, dangerBias: 2, tags: ['living_tunnels', 'topology', 'moving_walls', 'repair', 'route_pressure'] },
-  { id: 'rail_trains', title: 'поезда', weight: 8, minDanger: 2, dangerBias: 1, tags: ['rail', 'transit', 'crush', 'industrial'] },
-  { id: 'bad_apple_world', title: 'bad apple! (эксперимент отключён)', weight: 0, minDanger: 3, dangerBias: 1, tags: ['video', 'screen', 'topology', 'cult_media'] },
-  { id: 'zombie_apocalypse', title: 'зомби-апокалипсис', weight: 4, minDanger: 2, dangerBias: 2, tags: ['zombie', 'crowd', 'infection', 'quarantine', 'residential'] },
-  { id: 'sandpile_perekrytie', title: 'песчаное перекрытие', weight: 4, minDanger: 2, dangerBias: 2, tags: ['topology', 'crush', 'pressure', 'industrial', 'route_pressure'] },
-  { id: 'section_shift', title: 'секционный сдвиг', weight: 4, minDanger: 3, dangerBias: 2, tags: ['topology', 'moving_rooms', 'crush', 'toroid'] },
-  { id: 'conway_life', title: 'игра жизнь', weight: 3, minDanger: 3, dangerBias: 2, tags: ['cellular', 'topology', 'moving_walls', 'math'] },
-  { id: 'samosbor_seed', title: 'поражение самосбором', weight: 9, minDanger: 3, dangerBias: 2, tags: ['samosbor', 'meat', 'slime'] },
+  { id: 'none', title: 'аномалий нет', weight: 54, minDanger: 1, dangerBias: 0, tags: [] },
+  { id: 'smog', title: 'взвесь говняка в воздухе', weight: 18, minDanger: 1, dangerBias: 1, tags: ['fog', 'visibility', 'smog', 'govnyak', 'contraband'] },
+  { id: 'teleport_cells', title: 'пространственные разрывы', weight: 10, minDanger: 2, dangerBias: 1, tags: ['topology'] },
+  { id: 'mushroom_mycelium', title: 'прорастание слизевика', weight: 14, minDanger: 2, dangerBias: 0, tags: ['mushroom', 'food', 'slime'] },
+  { id: 'hladon', title: 'протечка магистрального хладона', weight: 11, minDanger: 2, dangerBias: 1, tags: ['cold', 'heat_counter', 'route_pressure'] },
+  { id: 'false_safe_block', title: 'ложный гермоблок', weight: 5, minDanger: 2, dangerBias: 1, tags: ['cult', 'shelter', FALSE_SAFE_BLOCK_TAG] },
+  { id: 'mirror_run', title: 'пространственное дублирование', weight: 8, minDanger: 2, dangerBias: 1, tags: ['mirror', 'duality', 'teleport', 'loot'] },
+  { id: 'radio_chess', title: 'радиоактивные прострелы', weight: 8, minDanger: 2, dangerBias: 1, tags: ['pattern', 'radio', 'timing', 'movement'] },
+  { id: 'conveyor_sorter', title: 'индустриальный сортировщик', weight: 7, minDanger: 2, dangerBias: 1, tags: ['conveyor', 'items', 'industrial', 'movement'] },
+  { id: 'fractal_floor', title: 'фрактальное замыкание', weight: 6, minDanger: 3, dangerBias: 1, tags: ['fractal', 'maze', 'topology', 'documents'] },
+  { id: 'cement_memory', title: 'маршрутная память бетона', weight: 6, minDanger: 3, dangerBias: 1, tags: ['trail', 'pressure', 'no_backtracking', 'samosbor'] },
+  { id: 'wall_snake', title: 'блуждающие перекрытия', weight: 4, minDanger: 2, dangerBias: 2, tags: ['moving_walls', 'predator', 'crush', 'loot_sink'] },
+  { id: 'living_tunnels', title: 'биологическое сужение стен', weight: 4, minDanger: 2, dangerBias: 2, tags: ['living_tunnels', 'topology', 'moving_walls', 'repair', 'route_pressure'] },
+  { id: 'rail_trains', title: 'рабочие технические дрезины', weight: 8, minDanger: 2, dangerBias: 1, tags: ['rail', 'transit', 'crush', 'industrial'] },
+  { id: 'bad_apple_world', title: 'эксперимент BAD_APPLE (отключен)', weight: 0, minDanger: 3, dangerBias: 1, tags: ['video', 'screen', 'topology', 'cult_media'] },
+  { id: 'zombie_apocalypse', title: 'массовое психотропное заражение', weight: 4, minDanger: 2, dangerBias: 2, tags: ['zombie', 'crowd', 'infection', 'quarantine', 'residential'] },
+  { id: 'sandpile_perekrytie', title: 'оползень песчаных перекрытий', weight: 4, minDanger: 2, dangerBias: 2, tags: ['topology', 'crush', 'pressure', 'industrial', 'route_pressure'] },
+  { id: 'section_shift', title: 'сейсмический сдвиг секции', weight: 4, minDanger: 3, dangerBias: 2, tags: ['topology', 'moving_rooms', 'crush', 'toroid'] },
+  { id: 'conway_life', title: 'клеточный распад материи', weight: 3, minDanger: 3, dangerBias: 2, tags: ['cellular', 'topology', 'moving_walls', 'math'] },
+  { id: 'samosbor_seed', title: 'свежий осадок самосбора', weight: 9, minDanger: 3, dangerBias: 2, tags: ['samosbor', 'meat', 'slime'] },
 ];
 
 const LOOT_BY_TAG: Record<string, readonly string[]> = {
