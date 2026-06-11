@@ -117,8 +117,8 @@ test('visual geometry base modes resolve with safe caps', () => {
   assert.deepEqual(modeIds, ['off', 'low', 'medium', 'high']);
   assert.deepEqual(Object.keys(VISUAL_GEOMETRY_BASE_PROFILES).sort(), [...modeIds].sort());
   assert.equal(normalizeVisualGeometryMode('medium'), 'medium');
-  assert.equal(normalizeVisualGeometryMode('bad'), 'low');
-  assert.equal(normalizeVisualGeometryMode(undefined), 'low');
+  assert.equal(normalizeVisualGeometryMode('bad'), 'high');
+  assert.equal(normalizeVisualGeometryMode(undefined), 'high');
 
   assertOffCaps(resolveVisualGeometryProfile('off', 'story:living', ['living', 'residential']));
   for (const mode of ['low', 'medium', 'high'] as const satisfies readonly VisualGeometryMode[]) {

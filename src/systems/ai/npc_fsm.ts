@@ -607,6 +607,15 @@ function handleSleeping(world: World, e: Entity, dt: number, profile: NpcAiProfi
     }
     ai.timer = stableTimer(e, 'sleep_rethink', 8, 5);
   }
+
+  if (ai.goal === AIGoal.SLEEP && ai.path.length === 0) {
+    const cr = world.roomAt(e.x, e.y);
+    if (cr && (cr.type === RoomType.LIVING || cr.type === RoomType.OFFICE)) {
+      wanderInRoom(world, e);
+      ai.timer = stableTimer(e, 'sleep_in_room', 8, 12);
+    }
+  }
+
   followPath(world, e, dt);
 }
 
@@ -663,6 +672,15 @@ function handleToilet(world: World, e: Entity, dt: number, time: number): void {
       ai.timer = 0.5;
     }
   }
+
+  if (ai.goal === AIGoal.TOILET && ai.path.length === 0) {
+    const cr = world.roomAt(e.x, e.y);
+    if (cr && cr.type === RoomType.BATHROOM) {
+      wanderInRoom(world, e);
+      ai.timer = stableTimer(e, 'toilet_in_room', 6, 10);
+    }
+  }
+
   followPath(world, e, dt);
 }
 
@@ -681,6 +699,15 @@ function handleDrink(world: World, e: Entity, dt: number): void {
       ai.timer = 0.5;
     }
   }
+
+  if (ai.goal === AIGoal.DRINK && ai.path.length === 0) {
+    const cr = world.roomAt(e.x, e.y);
+    if (cr && (cr.type === RoomType.KITCHEN || cr.type === RoomType.BATHROOM)) {
+      wanderInRoom(world, e);
+      ai.timer = stableTimer(e, 'drink_in_room', 6, 10);
+    }
+  }
+
   followPath(world, e, dt);
 }
 
@@ -699,6 +726,15 @@ function handleEat(world: World, e: Entity, dt: number): void {
       ai.timer = 0.5;
     }
   }
+
+  if (ai.goal === AIGoal.EAT && ai.path.length === 0) {
+    const cr = world.roomAt(e.x, e.y);
+    if (cr && (cr.type === RoomType.KITCHEN || cr.type === RoomType.COMMON)) {
+      wanderInRoom(world, e);
+      ai.timer = stableTimer(e, 'eat_in_room', 8, 12);
+    }
+  }
+
   followPath(world, e, dt);
 }
 
@@ -764,6 +800,15 @@ function handleHeal(world: World, e: Entity, dt: number): void {
     if (!gotoRoutineRoomOfTypes(world, e, [RoomType.MEDICAL], 'heal', { allowTrespassFallback: true })) wanderNearby(world, e);
     ai.timer = stableTimer(e, 'heal_rethink', 9, 8);
   }
+
+  if (ai.goal === AIGoal.GOTO && ai.path.length === 0) {
+    const cr = world.roomAt(e.x, e.y);
+    if (cr && cr.type === RoomType.MEDICAL) {
+      wanderInRoom(world, e);
+      ai.timer = stableTimer(e, 'heal_in_room', 8, 12);
+    }
+  }
+
   followPath(world, e, dt);
 }
 
@@ -944,18 +989,35 @@ function compareRoutineRoomCandidates(a: NpcUtilityTargetCandidate, b: NpcUtilit
 
 function tryAssignRoutineRoomCandidate(world: World, e: Entity, candidates: readonly NpcUtilityTargetCandidate[]): boolean {
   const limit = Math.min(candidates.length, ROUTINE_ROOM_CANDIDATE_CAP);
+  const currentRoom = world.roomAt(e.x, e.y);
   for (let i = 0; i < limit; i++) {
     const candidate = candidates[i];
     if (candidate.x === undefined || candidate.y === undefined) continue;
+    if (currentRoom && currentRoom.id === candidate.roomId) {
+      const ai = e.ai!;
+      ai.path = [];
+      ai.pi = 0;
+      ai.stuck = 0;
+      return true;
+    }
     if (tryAssignPathToCell(world, e, candidate.x, candidate.y) !== 'not_found') return true;
   }
   return false;
 }
 
 function tryAssignPathToRoomCenter(world: World, e: Entity, room: Room) {
-  const tx = room.x + Math.floor(room.w / 2);
-  const ty = room.y + Math.floor(room.h / 2);
-  return tryAssignPathToCell(world, e, tx, ty);
+  const currentRoom = world.roomAt(e.x, e.y);
+  if (currentRoom && currentRoom.id === room.id) {
+    const ai = e.ai!;
+    ai.path = [];
+    ai.pi = 0;
+    ai.stuck = 0;
+    return 'same';
+  }
+  return tryAssignPathToCell(world, e,
+    room.x + Math.floor(room.w / 2),
+    room.y + Math.floor(room.h / 2),
+  );
 }
 
 function patrolCorridor(world: World, e: Entity): void {

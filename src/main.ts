@@ -5968,7 +5968,7 @@ function applyUiSettingsSelection(index: number): void {
   }
   if (row.kind === 'reset_graphics') {
     resetGraphicsSettings();
-    state.msgs.push(msg('Графика сброшена: FOV 90°, помехи критично, HUD меньше движения, 3D низкая', state.time, '#8cf'));
+    state.msgs.push(msg('Графика сброшена: FOV 90°, помехи критично, HUD меньше движения, 3D высокая', state.time, '#8cf'));
     return;
   }
   if (row.kind === 'preset') {

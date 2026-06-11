@@ -16,7 +16,7 @@ export const VISUAL_GEOMETRY_MODES = [
 
 export type VisualGeometryMode = typeof VISUAL_GEOMETRY_MODES[number]['id'];
 
-export const VISUAL_GEOMETRY_DEFAULT_MODE: VisualGeometryMode = 'low';
+export const VISUAL_GEOMETRY_DEFAULT_MODE: VisualGeometryMode = 'high';
 
 export interface VisualGeometryModeBudget {
   radius: number;

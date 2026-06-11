@@ -80,7 +80,7 @@ test('UI orchestrator defaults to the novice-safe HUD enabled', () => {
   assert.equal(cameraFovDegrees(), CAMERA_FOV_DEFAULT_DEGREES);
   assert.equal(screenInterferenceMode(), SCREEN_INTERFERENCE_DEFAULT);
   assert.equal(hudMotionMode(), HUD_MOTION_DEFAULT);
-  assert.equal(visualGeometryMode(), 'low');
+  assert.equal(visualGeometryMode(), 'high');
   assert.equal(autoPickupEnabled(), true);
   assert.equal(mapColorMode(), 'rooms');
   assert.equal(mapHighContrastEnabled(), MAP_HIGH_CONTRAST_DEFAULT);
@@ -232,16 +232,16 @@ test('UI orchestrator stores camera FOV as a graphics setting outside presets', 
 
 test('UI orchestrator stores visual geometry mode as a graphics setting outside presets', () => {
   resetUiSettings();
-  assert.equal(visualGeometryMode(), 'low');
-  assert.equal(visualGeometryModeLabel(), 'Низкая');
+  assert.equal(visualGeometryMode(), 'high');
+  assert.equal(visualGeometryModeLabel(), 'Высокая');
   assert.equal(VISUAL_GEOMETRY_MODE_LABELS.high, 'Высокая');
-  assert.equal(cycleVisualGeometryMode(1), 'medium');
-  assert.equal(cycleVisualGeometryMode(1), 'high');
   assert.equal(cycleVisualGeometryMode(1), 'off');
+  assert.equal(cycleVisualGeometryMode(1), 'low');
+  assert.equal(cycleVisualGeometryMode(1), 'medium');
   assert.equal(applyUiPreset('full'), true);
-  assert.equal(visualGeometryMode(), 'off');
+  assert.equal(visualGeometryMode(), 'medium');
   resetGraphicsSettings();
-  assert.equal(visualGeometryMode(), 'low');
+  assert.equal(visualGeometryMode(), 'high');
   const row = uiSettingsRowAt(3, 'graphics');
   assert.equal(row?.kind, 'visual_geometry');
 });
@@ -250,19 +250,19 @@ test('UI orchestrator keeps graphics fatigue settings outside interface presets'
   resetUiSettings();
   assert.equal(screenInterferenceMode(), 'critical');
   assert.equal(hudMotionMode(), 'reduced');
-  assert.equal(visualGeometryMode(), 'low');
+  assert.equal(visualGeometryMode(), 'high');
   assert.equal(cycleScreenInterferenceMode(1), 'full');
   assert.equal(cycleHudMotionMode(), 'normal');
-  assert.equal(cycleVisualGeometryMode(1), 'medium');
+  assert.equal(cycleVisualGeometryMode(1), 'off');
   assert.equal(applyUiPreset('off'), true);
   assert.equal(screenInterferenceMode(), 'full');
   assert.equal(hudMotionMode(), 'normal');
-  assert.equal(visualGeometryMode(), 'medium');
+  assert.equal(visualGeometryMode(), 'off');
   resetGraphicsSettings();
   assert.equal(cameraFovDegrees(), 90);
   assert.equal(screenInterferenceMode(), 'critical');
   assert.equal(hudMotionMode(), 'reduced');
-  assert.equal(visualGeometryMode(), 'low');
+  assert.equal(visualGeometryMode(), 'high');
   assert.equal(uiSettingsRowAt(1, 'graphics')?.kind, 'screen_interference');
   assert.equal(uiSettingsRowAt(2, 'graphics')?.kind, 'hud_motion');
   assert.equal(uiSettingsRowAt(3, 'graphics')?.kind, 'visual_geometry');
