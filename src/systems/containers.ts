@@ -148,6 +148,78 @@ function seedInventory(kind: ContainerKind, roomId: number): Item[] {
   return inv;
 }
 
+/* ── Generic feature-loot containers ──────────────────────────────
+ * Bare decorative `Feature` cells (table, shelf, desk, machine, ...) that have
+ * no explicit interaction lazily become lootable containers when the player
+ * interacts with them (see `ensureFeatureLootContainer` in systems/interactive).
+ * Container kind comes from the feature type; deeper/higher-level cells lean
+ * toward richer loot kinds, so loot scales with floor level. These are tagged
+ * `feature_loot` and excluded from save serialization (regenerated determ. each
+ * session), so they never consume the persistent container budget. */
+export const FEATURE_LOOT_TAG = 'feature_loot';
+
+const FEATURE_LOOT_BASE_KIND: Partial<Record<Feature, ContainerKind>> = {
+  [Feature.STOVE]: ContainerKind.FRIDGE,
+  [Feature.SHELF]: ContainerKind.METAL_CABINET,
+  [Feature.DESK]: ContainerKind.FILING_CABINET,
+  [Feature.MACHINE]: ContainerKind.TOOL_LOCKER,
+  [Feature.APPARATUS]: ContainerKind.TOOL_LOCKER,
+  [Feature.TABLE]: ContainerKind.WOODEN_CHEST,
+  [Feature.CHAIR]: ContainerKind.WOODEN_CHEST,
+  [Feature.BED]: ContainerKind.WOODEN_CHEST,
+};
+
+const FEATURE_LOOT_UPGRADE_KINDS = [
+  ContainerKind.MEDICAL_CABINET,
+  ContainerKind.WEAPON_CRATE,
+  ContainerKind.SAFE,
+] as const;
+
+export function featureLootContainerKind(feature: Feature, level: number, seed: number): ContainerKind | null {
+  const base = FEATURE_LOOT_BASE_KIND[feature];
+  if (base === undefined) return null;
+  // Floor-level scaling: deeper/edge cells (higher zone level) lean toward richer loot.
+  const upgradeChance = Math.max(0, Math.min(0.5, 0.06 + level * 0.03));
+  if ((seed % 1000) / 1000 < upgradeChance) {
+    return FEATURE_LOOT_UPGRADE_KINDS[(seed >>> 7) % FEATURE_LOOT_UPGRADE_KINDS.length];
+  }
+  return base;
+}
+
+export function makeFeatureLootContainer(
+  id: number,
+  world: World,
+  x: number,
+  y: number,
+  floor: FloorLevel,
+  feature: Feature,
+  level: number,
+  seed: number,
+): WorldContainer | null {
+  const kind = featureLootContainerKind(feature, level, seed);
+  if (kind === null) return null;
+  const def = CONTAINER_DEFS[kind];
+  const idx = world.idx(x, y);
+  return {
+    id,
+    x,
+    y,
+    floor,
+    // roomId -1: a transient feature-loot layer that never matches a real room,
+    // so it cannot suppress a room's normal container seeding and is pruned on
+    // floor transition/samosbor (then lazily recreated). Never saved.
+    roomId: -1,
+    zoneId: world.zoneMap[idx],
+    kind,
+    name: def.name,
+    inventory: seedInventory(kind, seed),
+    capacitySlots: def.capacitySlots,
+    access: 'public',
+    discovered: true,
+    tags: [...def.tags, FEATURE_LOOT_TAG],
+  };
+}
+
 function tallyFloorAllowsStaticSeed(floor: FloorLevel): boolean {
   return floor === FloorLevel.LIVING || floor === FloorLevel.KVARTIRY || floor === FloorLevel.MINISTRY;
 }

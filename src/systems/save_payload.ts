@@ -246,6 +246,10 @@ export function containersForSave(
   const out: WorldContainer[] = [];
   for (const container of containers) {
     if (out.length >= cap) break;
+    // Generic feature-loot containers are transient: they regenerate
+    // deterministically each session, so they are never persisted and never
+    // spend the bounded container budget.
+    if (container.tags.includes('feature_loot')) continue;
     out.push({
       ...container,
       x: Math.floor(container.x),

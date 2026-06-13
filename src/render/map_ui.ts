@@ -1,7 +1,7 @@
 /* ── Map rendering (minimap, full map) ────────────────────────── */
 
 import {
-  type Entity, type GameState, type Quest, EntityType, Cell, RoomType, W, QuestType,
+  type Entity, type GameState, type Quest, EntityType, Cell, Feature, RoomType, W, QuestType,
   LiftDirection, MonsterKind, FloorLevel, DoorState,
 } from '../core/types';
 import { SURFACE_FLAG_CHALK_MAP, World } from '../core/world';
@@ -95,6 +95,7 @@ const mapLiftX: number[] = [];
 const mapLiftY: number[] = [];
 const mapLiftUp: number[] = [];
 const mapLiftQuest: number[] = [];
+const mapLiftFast: number[] = [];
 
 const QUEST_KIND_PRIORITY: Record<QuestKind, number> = { plot: 3, side: 2, system: 1 };
 const QUEST_MARKERS: Record<QuestKind, MapMarkerStyle> = {
@@ -632,14 +633,31 @@ function mapRasterBufferFor(ctx: CanvasRenderingContext2D, width: number, height
   return buffer;
 }
 
-function recordMapLiftMarker(x: number, y: number, isUp: boolean, isQuestLift: boolean): void {
+function recordMapLiftMarker(x: number, y: number, isUp: boolean, isQuestLift: boolean, isFast: boolean): void {
   mapLiftX.push(x);
   mapLiftY.push(y);
   mapLiftUp.push(isUp ? 1 : 0);
   mapLiftQuest.push(isQuestLift ? 1 : 0);
+  mapLiftFast.push(isFast ? 1 : 0);
 }
 
-function drawMapLiftArrow(ctx: CanvasRenderingContext2D, x: number, y: number, isUp: boolean, isQuestLift: boolean): void {
+function drawMapLiftArrow(ctx: CanvasRenderingContext2D, x: number, y: number, isUp: boolean, isQuestLift: boolean, isFast: boolean): void {
+  if (isFast) {
+    // Fast elevator: cyan diamond, distinct from the yellow route-lift arrows.
+    const r = 6;
+    ctx.strokeStyle = '#0a3';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x, y - r);
+    ctx.lineTo(x + r, y);
+    ctx.lineTo(x, y + r);
+    ctx.lineTo(x - r, y);
+    ctx.closePath();
+    ctx.fillStyle = '#4cf';
+    ctx.fill();
+    ctx.stroke();
+    return;
+  }
   const ah = 7;
   const aw = 5;
   ctx.strokeStyle = isQuestLift ? '#fff' : '#440';
@@ -662,7 +680,7 @@ function drawMapLiftArrow(ctx: CanvasRenderingContext2D, x: number, y: number, i
 
 function drawRecordedMapLiftArrows(ctx: CanvasRenderingContext2D): void {
   for (let i = 0; i < mapLiftX.length; i++) {
-    drawMapLiftArrow(ctx, mapLiftX[i], mapLiftY[i], mapLiftUp[i] !== 0, mapLiftQuest[i] !== 0);
+    drawMapLiftArrow(ctx, mapLiftX[i], mapLiftY[i], mapLiftUp[i] !== 0, mapLiftQuest[i] !== 0, mapLiftFast[i] !== 0);
   }
 }
 
@@ -688,6 +706,7 @@ function drawMapBaseRaster(
   mapLiftY.length = 0;
   mapLiftUp.length = 0;
   mapLiftQuest.length = 0;
+  mapLiftFast.length = 0;
 
   const buffer = mapRasterBufferFor(ctx, cols, rows);
   if (!buffer) return;
@@ -737,9 +756,17 @@ function drawMapBaseRaster(
           cg = highContrast ? 18 : 8;
           cb = highContrast ? 34 : 16;
         } else if (cell === Cell.LIFT) {
-          cr = highContrast ? 245 : 204;
-          cg = highContrast ? 224 : 204;
-          cb = highContrast ? 48 : 0;
+          const isFastElevator = world.features[ci] === Feature.MACHINE;
+          if (isFastElevator) {
+            // Fast-elevator cabin: cyan tint, distinct from yellow route lifts.
+            cr = highContrast ? 96 : 60;
+            cg = highContrast ? 210 : 150;
+            cb = highContrast ? 255 : 220;
+          } else {
+            cr = highContrast ? 245 : 204;
+            cg = highContrast ? 224 : 204;
+            cb = highContrast ? 48 : 0;
+          }
           const liftDir = world.liftDir[ci];
           if (mapLegendToggleEnabled('map_lifts')) {
             recordMapLiftMarker(
@@ -747,6 +774,7 @@ function drawMapBaseRaster(
               mapY + gy * cellH,
               liftDir === LiftDirection.UP,
               questLiftDir !== undefined && liftDir === questLiftDir,
+              isFastElevator,
             );
           }
         } else if (cell === Cell.WATER) {

@@ -158,3 +158,71 @@ test('feature-backed interactives reject blocked cells', () => {
   assert.equal(placed, null);
   assert.equal(world.features[world.idx(1, 1)], Feature.NONE);
 });
+
+test('bare decorative features become lazy loot containers on interaction', () => {
+  const world = new World();
+  const room = addTestRoom(world);
+  const fx = room.x + 2;
+  const fy = room.y + 2;
+  const idx = world.idx(fx, fy);
+  world.features[idx] = Feature.SHELF;
+
+  const state = makeGameState({
+    currentFloor: FloorLevel.LIVING,
+    worldEvents: createWorldEventState(),
+  });
+  const player = makeTestPlayer({ id: 1, x: fx - 0.5, y: fy });
+  let opened = -1;
+  const ctx = {
+    world,
+    state,
+    player,
+    entities: [player],
+    nextEntityId: { v: 2 },
+    lookX: fx,
+    lookY: fy,
+    openContainerMenu: (target: { id: number }) => { opened = target.id; },
+  };
+
+  // No persistent container exists yet, but the aim prompt previews the loot
+  // container, and using it creates and opens a real container.
+  assert.equal(world.containersAt(fx, fy).length, 0);
+  assert.equal(findInteractionTarget(ctx)?.defId, 'container_adapter');
+
+  const result = activateInteraction(ctx);
+  assert.equal(result.handled, true);
+  assert.equal(result.openedOverlay, true);
+
+  const containers = world.containersAt(fx, fy);
+  assert.equal(containers.length, 1, 'a loot container is attached to the bare feature');
+  assert.equal(containers[0].tags.includes('feature_loot'), true, 'tagged feature_loot so it is excluded from save');
+  assert.equal(opened, containers[0].id);
+
+  // Idempotent: a second interaction does not stack another container.
+  activateInteraction(ctx);
+  assert.equal(world.containersAt(fx, fy).length, 1);
+});
+
+test('features that already carry an interaction do not get a loot container', () => {
+  const world = new World();
+  const room = addTestRoom(world);
+  // A craft station occupies the cell (sets a surface flag + MACHINE feature).
+  assert.ok(placeInteractiveAt(world, room.x + 2, room.y + 2, 'workbench_basic'));
+
+  const state = makeGameState({
+    currentFloor: FloorLevel.LIVING,
+    worldEvents: createWorldEventState(),
+  });
+  const player = makeTestPlayer({ id: 1, x: room.x + 1.5, y: room.y + 2 });
+  activateInteraction({
+    world,
+    state,
+    player,
+    entities: [player],
+    nextEntityId: { v: 2 },
+    lookX: room.x + 2,
+    lookY: room.y + 2,
+  });
+
+  assert.equal(world.containersAt(room.x + 2, room.y + 2).length, 0, 'craft-station cell stays a craft station, no loot container');
+});

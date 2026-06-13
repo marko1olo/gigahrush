@@ -4,6 +4,7 @@ import {
   W,
   msg,
   type Faction,
+  type FloorLevel,
   type GameState,
   type WorldContainer,
 } from '../core/types';
@@ -15,6 +16,8 @@ import {
   type InteractiveDef,
   type InteractiveSurfaceLayer,
 } from '../data/interactive';
+import { makeFeatureLootContainer } from './containers';
+import { calcZoneLevel } from './rpg';
 import {
   registerContentInteractionHook,
   type ContentInteractionContext,
@@ -83,6 +86,43 @@ const autoFeatureDefs = new Map<Feature, string>([
   [Feature.SINK, 'sink_drink'],
   [Feature.TOILET, 'toilet_relief'],
 ]);
+
+// Decorative features that lazily become lootable containers when nothing else
+// is bound to them. Excludes structural/light/interactive features (lamp,
+// candle, lift button, slide, sink, toilet, screen).
+const LOOTABLE_DECOR_FEATURES: ReadonlySet<Feature> = new Set<Feature>([
+  Feature.TABLE,
+  Feature.CHAIR,
+  Feature.BED,
+  Feature.STOVE,
+  Feature.SHELF,
+  Feature.MACHINE,
+  Feature.APPARATUS,
+  Feature.DESK,
+]);
+
+// A bare decorative feature has a lootable type, sits on ordinary floor (so a
+// fast-elevator MACHINE on a LIFT cell is excluded), carries no flagged or
+// instanced interactive (craft station / broken fixture), is not a sink/toilet,
+// and has no container yet.
+function isBareLootableFeature(world: World, idx: number, feature: Feature): boolean {
+  if (!LOOTABLE_DECOR_FEATURES.has(feature)) return false;
+  if (world.cells[idx] !== Cell.FLOOR) return false;
+  if ((world.surfaceFlags[idx] ?? 0) !== 0) return false;
+  if (autoFeatureDefs.has(feature)) return false;
+  if (world.containersAt(idx % W, (idx / W) | 0).length > 0) return false;
+  // Any non-container interactive instance (craft station, recipe billboard,
+  // broken fixture, authored device) means the feature already has an action.
+  const instances = states.get(world)?.byIdx.get(idx);
+  if (instances && instances.some(inst => inst.defId !== 'container_adapter')) return false;
+  return true;
+}
+
+function featureLootSeed(idx: number, floor: FloorLevel): number {
+  let s = (((idx + 1) * 2654435761) ^ ((floor + 1) * 40503)) >>> 0;
+  s = (s ^ (s >>> 15)) >>> 0;
+  return s;
+}
 
 function worldState(world: World): InteractiveWorldState {
   let state = states.get(world);
@@ -228,6 +268,25 @@ function ensureContainerInstance(ctx: ContentInteractionContext, idx: number): v
   });
 }
 
+// Lazily attach a deterministic, floor-level-scaled loot container to a bare
+// decorative feature so it becomes lootable through the existing container
+// adapter. The container is tagged `feature_loot` and excluded from save, so it
+// regenerates deterministically each session and never spends the persistent
+// container budget.
+function ensureFeatureLootContainer(ctx: ContentInteractionContext, idx: number): void {
+  const world = ctx.world;
+  const feature = world.features[idx] as Feature;
+  if (!isBareLootableFeature(world, idx, feature)) return;
+  const x = idx % W;
+  const y = (idx / W) | 0;
+  const floor = ctx.state.currentFloor;
+  const level = calcZoneLevel(x, y, floor);
+  const seed = featureLootSeed(idx, floor);
+  const id = world.containers.reduce((mx, c) => Math.max(mx, c.id), 0) + 1;
+  const container = makeFeatureLootContainer(id, world, x, y, floor, feature, level, seed);
+  if (container) world.addContainer(container);
+}
+
 function containerForInstance(world: World, instance: InteractiveInstance): WorldContainer | undefined {
   if (instance.containerId === undefined) return undefined;
   const container = world.containerById.get(instance.containerId);
@@ -288,6 +347,20 @@ function readOnlyResolved(ctx: ContentInteractionContext, idx: number): Resolved
   if (container && !existingAt(ctx.world, idx, 'container_adapter', container.id)) {
     const def = getInteractiveDef('container_adapter');
     if (def) candidates.push({ instance: transientInstance(ctx.world, idx, def, container), def, container });
+  } else if (!container && isBareLootableFeature(ctx.world, idx, ctx.world.features[idx] as Feature)) {
+    // Preview a lazy feature-loot container so the aim prompt shows on bare
+    // decorative features before the real container is created on use.
+    const def = getInteractiveDef('container_adapter');
+    if (def) {
+      const x = idx % W;
+      const y = (idx / W) | 0;
+      const floor = ctx.state.currentFloor;
+      const preview = makeFeatureLootContainer(
+        -1, ctx.world, x, y, floor, ctx.world.features[idx] as Feature,
+        calcZoneLevel(x, y, floor), featureLootSeed(idx, floor),
+      );
+      if (preview) candidates.push({ instance: transientInstance(ctx.world, idx, def, preview), def, container: preview });
+    }
   }
 
   let best: ResolvedInteractive | null = null;
@@ -304,6 +377,7 @@ function resolveInteractive(ctx: ContentInteractionContext): ResolvedInteractive
   const idx = ctx.world.idx(x, y);
   if (!ctx.readOnly) {
     ensureAutoFeatureInstance(ctx.world, idx);
+    ensureFeatureLootContainer(ctx, idx);
     ensureContainerInstance(ctx, idx);
   }
 
