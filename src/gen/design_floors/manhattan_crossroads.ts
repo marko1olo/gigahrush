@@ -2183,6 +2183,10 @@ export function generateManhattanCrossroadsDesignFloor(seed = MANHATTAN_CROSSROA
     const sidewalkRoom = addLogicalRoom(world, 'Бордюры и служебные края', RoomType.COMMON, DISTRICT_MIN, DISTRICT_MIN, DISTRICT_MAX - DISTRICT_MIN, DISTRICT_MAX - DISTRICT_MIN, SIDEWALK_TEX);
     const markRoom = addLogicalRoom(world, CROSSWALK_ROOM_NAME, RoomType.MEDICAL, DISTRICT_MIN, DISTRICT_MIN, DISTRICT_MAX - DISTRICT_MIN, DISTRICT_MAX - DISTRICT_MIN, MARK_TEX);
 
+    roadRoom.ceilingTier = 198;
+    sidewalkRoom.ceilingTier = 198;
+    markRoom.ceilingTier = 198;
+
     carveStreetGrid(world, roadRoom.id, sidewalkRoom.id, markRoom.id);
     const rooms = stampDistrictRooms(world, sidewalkRoom.id);
     placeDistrictLifts(world);
@@ -2198,6 +2202,11 @@ export function generateManhattanCrossroadsDesignFloor(seed = MANHATTAN_CROSSROA
     spawnRoadHazards(world, entities, nextId, rooms);
 
     world.bakeLights();
+
+    for (const room of world.rooms) {
+      if (room) room.ceilingTier = 198;
+    }
+
     return { world, entities, spawnX, spawnY };
   });
 }

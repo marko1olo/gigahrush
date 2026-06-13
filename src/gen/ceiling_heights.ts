@@ -37,6 +37,7 @@ const GRAND_AREA = 150;  // ...and a grand hall
 const MASK = W - 1;      // W is a power of two, so wrap == & MASK
 
 function ceilingTierForRoom(room: Room): number {
+  if (room.ceilingTier !== undefined) return room.ceilingTier;
   if (room.type === RoomType.CORRIDOR) return TIER_CORRIDOR;
   const area = room.w * room.h;
   if (area >= GRAND_AREA) return TIER_GRAND;

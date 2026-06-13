@@ -131,6 +131,7 @@ export interface Room {
   apartmentId: number;      // -1 = not apartment
   wallTex: Tex;
   floorTex: Tex;
+  ceilingTier?: number;     // optional custom ceiling tier
 }
 
 // ── Cell features (one per cell) ─────────────────────────────────

@@ -1207,15 +1207,18 @@ void main() {
         float dEnter = 0.0;
         float currentDist = -1.0;
         bool isRiser = false;
+        int cside = 0;
         float marchHc = 1.0;
+        float prevHc = 1.0 + float(texelFetch(uCeil, ivec2(wrapI(int(floor(uPos.x))), wrapI(int(floor(uPos.y)))), 0).r) * 0.5;
         for (int cs = 0; cs < 16; cs++) {
           ivec2 mc = ivec2(wrapI(cmx), wrapI(cmy));
           marchHc = 1.0 + float(texelFetch(uCeil, mc, 0).r) * 0.5;
           if (uCamHeight + slope * dEnter >= marchHc) { currentDist = dEnter + 0.001; isRiser = true; break; }
           float dExit = min(csdx, csdy);
           if (uCamHeight + slope * dExit >= marchHc) { currentDist = (marchHc - uCamHeight) / slope; break; }
-          if (csdx < csdy) { dEnter = csdx; csdx += ddx; cmx += stepX; }
-          else             { dEnter = csdy; csdy += ddy; cmy += stepY; }
+          prevHc = marchHc;
+          if (csdx < csdy) { dEnter = csdx; csdx += ddx; cmx += stepX; cside = 0; }
+          else             { dEnter = csdy; csdy += ddy; cmy += stepY; cside = 1; }
           if (dEnter > MAX_DIST) break;
         }
         if (currentDist < 0.0) currentDist = (marchHc - uCamHeight) / slope;
@@ -1233,7 +1236,17 @@ void main() {
 
           if (isRiser) {
             // Vertical concrete soffit between two ceiling heights.
-            vec3 rc = sampleAtlas(${Tex.CEIL}u, ftx, fty).rgb * (0.40 + cLit * 0.42);
+            float wallHitX;
+            if (cside == 0) wallHitX = uPos.y + rayDY * currentDist;
+            else            wallHitX = uPos.x + rayDX * currentDist;
+            wallHitX -= floor(wallHitX);
+            int rtx = int(floor(wallHitX * TEX_F)) & (TEX_I - 1);
+            if (cside == 0 && rayDX < 0.0) rtx = TEX_I - 1 - rtx;
+            if (cside == 1 && rayDY > 0.0) rtx = TEX_I - 1 - rtx;
+            float z = uCamHeight + slope * currentDist;
+            int rty = int(floor((prevHc - z) * TEX_F)) & (TEX_I - 1);
+
+            vec3 rc = sampleAtlas(${Tex.CEIL}u, rtx, rty).rgb * (0.40 + cLit * 0.42);
             rc = applyToolBeamTint(rc, toolBeam);
             pixel = applyLocalFog(rc, cCell, ff);
             pixelDepth = min(1.0, currentDist / MAX_DIST);
