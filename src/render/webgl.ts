@@ -169,6 +169,7 @@ uniform float uToolBeam;         // directed tool pulse, 0..1.05
 uniform float uToolBeamRange;    // directed tool reach in cells
 uniform float uAmbient;          // floor ambient light
 uniform float uTime;
+uniform int   uLightQuality;     // 0=off,1=low,2=medium,3=high,4=experimental
 uniform int   uPurpleFog;        // 1 if player is in fogged area
 uniform vec3  uFogColor;         // active samosbor variant fog tint
 
@@ -272,6 +273,30 @@ float organicLightPulse(ivec2 p) {
 float sampleLight(ivec2 p) {
   ivec2 wp = ivec2(wrapI(p.x), wrapI(p.y));
   return texelFetch(uLight, wp, 0).r * organicLightPulse(wp);
+}
+
+// Fast power-of-two wrap (W_SIZE is a power of two).
+int wrapFast(int v) { return v & (W_SIZE - 1); }
+float bakedLightRaw(int x, int y) { return texelFetch(uLight, ivec2(wrapFast(x), wrapFast(y)), 0).r; }
+
+// Bilinear baked light + analytic gradient at a continuous world position.
+// .x = smooth light value, .yz = horizontal light gradient (toward brighter light).
+// The flesh pulse is applied once at the sampled cell, not per tap (cheap).
+vec3 sampleLightSmooth(vec2 pos) {
+  vec2 p = pos - 0.5;            // cell i center sits at i+0.5
+  ivec2 c = ivec2(floor(p));
+  vec2 f = p - vec2(c);
+  float l00 = bakedLightRaw(c.x,     c.y);
+  float l10 = bakedLightRaw(c.x + 1, c.y);
+  float l01 = bakedLightRaw(c.x,     c.y + 1);
+  float l11 = bakedLightRaw(c.x + 1, c.y + 1);
+  float lx0 = mix(l00, l10, f.x);
+  float lx1 = mix(l01, l11, f.x);
+  float v   = mix(lx0, lx1, f.y);
+  float gx  = mix(l10 - l00, l11 - l01, f.y);
+  float gy  = lx1 - lx0;
+  v *= organicLightPulse(ivec2(int(floor(pos.x)), int(floor(pos.y))));
+  return vec3(v, gx, gy);
 }
 
 uint sampleFog(ivec2 p) {
@@ -400,12 +425,73 @@ vec3 materialResponse(uint texId, vec3 base, int tx, int ty, ivec2 cell, float l
   return clamp(color, 0.0, 1.0);
 }
 
+// Render-only shine layer: hard directional diffuse shaping + specular glints
+// driven by the player's light, plus a soft bump from the baked-light gradient.
+// Sits on top of materialResponse and is gated by the lighting quality setting.
+//   ndl      = surface-facing factor toward the light (walls: N路L; floors: ~0)
+//   drive    = player light strength reaching this surface (0..1)
+//   grad     = baked-light gradient (.x horizontal, .y vertical)
+//   dirShape = how much hard directional diffuse to apply (walls 1.0, floors 0.0)
+vec3 applyLightFX(vec3 color, uint texId, float ndl, float drive, vec2 grad, float dirShape) {
+  if (uLightQuality < 2) return color;
+
+  float shininess; vec3 specTint = vec3(1.0);
+  if (texId == ${Tex.F_WATER}u) { shininess = 1.0; specTint = vec3(0.72, 0.90, 1.0); }
+  else if (texId == ${Tex.TILE_W}u || texId == ${Tex.METAL}u || texId == ${Tex.PIPE}u ||
+           texId == ${Tex.F_TILE}u || texId == ${Tex.F_MARBLE_TILE}u || texId == ${Tex.MARBLE}u) { shininess = 0.85; specTint = vec3(0.82, 0.90, 1.0); }
+  else if (texId == ${Tex.MEAT}u || texId == ${Tex.GUT}u || texId == ${Tex.LARVA_BODY}u ||
+           texId == ${Tex.F_MEAT}u || texId == ${Tex.F_GUT}u) { shininess = 0.66; specTint = vec3(1.0, 0.52, 0.46); }
+  else { shininess = 0.12; }
+
+  float pl = clamp(drive, 0.0, 1.0);
+  float nl = clamp(ndl, 0.0, 1.0);
+
+  // Directional diffuse (walls): faced surfaces brighten, grazing fall to shadow.
+  float diffuse = mix(0.52, 1.30, nl);
+  color *= mix(1.0, diffuse, pl * dirShape);
+
+  // Specular glint driven directly by the player light (not by baked light).
+  // Kept moderate so wet/metal reads as a soft sheen, not a plastic mirror.
+  if (pl > 0.001 && shininess > 0.0) {
+    float spec;
+    if (dirShape > 0.5) {
+      float specExp = mix(6.0, 40.0, shininess);   // matte = broad, metal = tighter
+      spec = pow(nl, specExp) * (0.10 + shininess * 0.55);
+    } else {
+      // Floor / wet sheen: strongest near light and at light-pool edges.
+      float edge = clamp(0.18 + length(grad) * 5.0, 0.0, 1.0);
+      spec = edge * shininess * shininess * 0.7;
+    }
+    color += specTint * spec * pl * 0.5;
+  }
+
+  // Soft directional bump from the baked-light gradient (lamp pools), high+.
+  if (uLightQuality >= 3) {
+    float bump = clamp((grad.x + grad.y) * 0.5, -0.5, 0.5);
+    color *= 1.0 + bump * 0.18;
+  }
+
+  return clamp(color, 0.0, 1.0);
+}
+
 float flashlightBoost(float dist) {
   if (uFlashlight <= 0.0) return 0.0;
   float radius = 8.5;
   if (dist >= radius) return 0.0;
   float t = 1.0 - dist / radius;
   return uFlashlight * t * t * 0.95;
+}
+
+// Always-on soft near-player light so material shaping / glints stay visible even
+// without an equipped flashlight. Render-only; fades out with distance.
+float eyeLight(float dist) {
+  return (1.0 - smoothstep(0.5, 11.0, dist)) * 0.22;
+}
+
+// Shadow-deepening contrast curve: pulls low/mid light down while keeping
+// highlights, so the scene reads dark and atmospheric instead of flat/washed.
+float shadeCurve(float lit) {
+  return pow(clamp(lit, 0.0, 1.0), 1.32);
 }
 
 float toolBeamBoost(float dist, float rayDX, float rayDY) {
@@ -908,7 +994,7 @@ vec3 shadeWall(uint texId, vec3 base, ivec2 cell, int side, int texX, int texY, 
     color = applyHellEye(color, texX, texY, cell.x, cell.y);
   }
   color *= contactAoWall(cell, side, texY);
-  color *= lit;
+  color *= shadeCurve(lit);
   return applyToolBeamTint(color, beam);
 }
 
@@ -925,7 +1011,9 @@ vec3 shadePlane(uint texId, vec3 base, ivec2 cell, int tx, int ty, float dist, f
   if (surface) color = blendSurface(color, cell, tx >> 2, ty >> 2);
   float ao = contactAoFloor(cell);
   if (ceiling) ao = mix(1.0, ao, 0.45);
-  color *= ao * lit;
+  float litC = shadeCurve(lit);
+  if (surface) litC *= 0.78;   // floors get less light -> read darker than walls (atmosphere)
+  color *= ao * litC;
   return applyToolBeamTint(color, beam);
 }
 
@@ -1029,7 +1117,12 @@ void main() {
       // ── Wall ──
       ivec2 hitCell = ivec2(wrapI(mapX), wrapI(mapY));
       float toolBeam = toolBeamBoost(dist, rayDX, rayDY);
-      float cellLit = min(1.0, uAmbient + sampleLight(hitCell) * (1.0 - uAmbient) + flashlightBoost(dist) + toolBeam * 0.82);
+      float fbWall = flashlightBoost(dist);
+      vec2 lgradWall = vec2(0.0);
+      float baseLitWall;
+      if (uLightQuality > 0) { vec3 ls = sampleLightSmooth(uPos + vec2(rayDX, rayDY) * dist); baseLitWall = ls.x; lgradWall = ls.yz; }
+      else baseLitWall = sampleLight(hitCell);
+      float cellLit = min(1.0, uAmbient + baseLitWall * (1.0 - uAmbient) + fbWall + toolBeam * 0.82);
       float d = row - (HALF_H - lineH * (1.0 - uCamHeight));
       int texYi = int(floor(d / lineH * TEX_F)) & (TEX_I - 1);
       vec3 c = sampleAtlas(wallTexId, texXi, texYi).rgb;
@@ -1041,6 +1134,12 @@ void main() {
         c = mix(dark, cut, scan * (0.35 + glitch * 0.45));
       }
       c = shadeWall(wallTexId, c, hitCell, side, texXi, texYi, dist, cellLit, toolBeam);
+      // Wall face normal (XY, pointing back toward the viewer) for directional light.
+      vec2 wN = side == 0 ? vec2(rayDX < 0.0 ? 1.0 : -1.0, 0.0)
+                          : vec2(0.0, rayDY < 0.0 ? 1.0 : -1.0);
+      float ndlWall = max(dot(wN, normalize(-vec2(rayDX, rayDY))), 0.0);
+      float driveWall = clamp(fbWall + toolBeam + eyeLight(dist), 0.0, 1.0);
+      c = applyLightFX(c, wallTexId, ndlWall, driveWall, lgradWall, 1.0);
       pixel = applyLocalFog(c, hitCell, fogF);
       pixelDepth = min(1.0, dist / MAX_DIST);
   } else if (row > (hit ? drawEnd : HALF_H)) {
@@ -1057,7 +1156,12 @@ void main() {
           int fty = int(floor(floorY * TEX_F)) & (TEX_I - 1);
           float ff = distanceFog(currentDist);
           float toolBeam = toolBeamBoost(currentDist, rayDX, rayDY);
-          float fLit = min(1.0, uAmbient + sampleLight(fCell) * (1.0 - uAmbient) + flashlightBoost(currentDist) + toolBeam * 0.82);
+          float fbFloor = flashlightBoost(currentDist);
+          vec2 lgradFloor = vec2(0.0);
+          float baseLitFloor;
+          if (uLightQuality > 0) { vec3 ls = sampleLightSmooth(vec2(floorX, floorY)); baseLitFloor = ls.x; lgradFloor = ls.yz; }
+          else baseLitFloor = sampleLight(fCell);
+          float fLit = min(1.0, uAmbient + baseLitFloor * (1.0 - uAmbient) + fbFloor + toolBeam * 0.82);
 
           uint fCellType = texelFetch(uCells, fCell, 0).r;
           if (fCellType == ${Cell.ABYSS}u) {
@@ -1074,6 +1178,8 @@ void main() {
             if (floorTexId == 0u) floorTexId = ${Tex.F_CONCRETE}u;
             vec3 fc = sampleAtlas(floorTexId, ftx, fty).rgb;
             fc = shadePlane(floorTexId, fc, fCell, ftx, fty, currentDist, fLit, toolBeam, false, true);
+            float driveFloor = clamp(fbFloor + toolBeam + eyeLight(currentDist), 0.0, 1.0);
+            fc = applyLightFX(fc, floorTexId, 0.0, driveFloor, lgradFloor, 0.0);
             pixel = applyLocalFog(fc, fCell, ff);
             pixelDepth = min(1.0, currentDist / MAX_DIST);
           }
@@ -1093,7 +1199,8 @@ void main() {
           int fty = int(floor(floorY * TEX_F)) & (TEX_I - 1);
           float ff = distanceFog(currentDist);
           float toolBeam = toolBeamBoost(currentDist, rayDX, rayDY);
-          float cLit = min(1.0, uAmbient + sampleLight(cCell) * (1.0 - uAmbient) + flashlightBoost(currentDist) + toolBeam * 0.82);
+          float baseLitCeil = uLightQuality > 0 ? sampleLightSmooth(vec2(floorX, floorY)).x : sampleLight(cCell);
+          float cLit = min(1.0, uAmbient + baseLitCeil * (1.0 - uAmbient) + flashlightBoost(currentDist) + toolBeam * 0.82);
 
           uint cCellType = texelFetch(uCells, cCell, 0).r;
           if (cCellType == ${Cell.ABYSS}u) {
@@ -1312,6 +1419,8 @@ uniform int uSamosborStyle; // data-driven SamosborScreenFxId code
 uniform float uSamosborPost;
 uniform vec3 uSamosborTint;
 uniform float uScreenInterference;
+uniform sampler2D uBloomTex;   // blurred bright-pass glow (additive)
+uniform float uBloomStrength;  // 0 disables bloom entirely
 out vec4 fragColor;
 
 /* ── Noise helpers ────────────────────────────────────────────── */
@@ -1331,7 +1440,9 @@ void main() {
   float postStrength = max(max(glitchStrength, samosborStrength), baselineStrength);
 
   if (postStrength <= 0.001) {
-    fragColor = texture(uTex, vUV);
+    vec3 baseColor = texture(uTex, vUV).rgb;
+    baseColor += texture(uBloomTex, vUV).rgb * uBloomStrength;
+    fragColor = vec4(clamp(baseColor, 0.0, 1.0), 1.0);
     return;
   }
 
@@ -1408,7 +1519,56 @@ void main() {
     color += uSamosborTint * (gridNoise * 0.08 + scanPulse * 0.045 * stylePulse) * post;
   }
 
+  color += texture(uBloomTex, vUV).rgb * uBloomStrength;
   fragColor = vec4(clamp(color, 0.0, 1.0), 1.0);
+}
+`;
+
+/* ── Bloom prefilter: extract bright pixels (soft-knee bright pass) ─ */
+const BLOOM_PREFILTER_FRAG_SRC = /* glsl */ `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D uTex;     // full-res scene color (LDR)
+uniform vec2 uTexel;        // 1.0 / sceneResolution
+uniform float uThreshold;   // luminance threshold for glow
+out vec4 fragColor;
+
+void main() {
+  // 4-tap box downsample reduces shimmer/fireflies before blurring.
+  vec3 c = texture(uTex, vUV + uTexel * vec2(-1.0, -1.0)).rgb
+         + texture(uTex, vUV + uTexel * vec2( 1.0, -1.0)).rgb
+         + texture(uTex, vUV + uTexel * vec2(-1.0,  1.0)).rgb
+         + texture(uTex, vUV + uTexel * vec2( 1.0,  1.0)).rgb;
+  c *= 0.25;
+  float luma = dot(c, vec3(0.2126, 0.7152, 0.0722));
+  // Soft knee so glow ramps in smoothly rather than hard-clipping.
+  float knee = 0.18;
+  float soft = clamp((luma - uThreshold + knee) / (2.0 * knee), 0.0, 1.0);
+  float contrib = max(soft * soft, max(luma - uThreshold, 0.0) / max(luma, 1e-4));
+  fragColor = vec4(c * contrib, 1.0);
+}
+`;
+
+/* ── Bloom blur: separable 9-tap Gaussian (ping-pong H then V) ─── */
+const BLOOM_BLUR_FRAG_SRC = /* glsl */ `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D uTex;
+uniform vec2 uDir;   // (texel,0) horizontal or (0,texel) vertical, in bloom resolution
+out vec4 fragColor;
+
+void main() {
+  float w0 = 0.227027;
+  float w1 = 0.1945946;
+  float w2 = 0.1216216;
+  float w3 = 0.054054;
+  float w4 = 0.016216;
+  vec3 result = texture(uTex, vUV).rgb * w0;
+  result += (texture(uTex, vUV + uDir * 1.0).rgb + texture(uTex, vUV - uDir * 1.0).rgb) * w1;
+  result += (texture(uTex, vUV + uDir * 2.0).rgb + texture(uTex, vUV - uDir * 2.0).rgb) * w2;
+  result += (texture(uTex, vUV + uDir * 3.0).rgb + texture(uTex, vUV - uDir * 3.0).rgb) * w3;
+  result += (texture(uTex, vUV + uDir * 4.0).rgb + texture(uTex, vUV - uDir * 4.0).rgb) * w4;
+  fragColor = vec4(result, 1.0);
 }
 `;
 
@@ -1461,6 +1621,17 @@ interface GLState {
   // Blit
   blitProgram: WebGLProgram;
   blitVAO: WebGLVertexArrayObject;
+  // Bloom (additive screen-space glow)
+  bloomPrefilterProgram: WebGLProgram;
+  bloomPrefilterUniforms: Record<string, WebGLUniformLocation | null>;
+  bloomBlurProgram: WebGLProgram;
+  bloomBlurUniforms: Record<string, WebGLUniformLocation | null>;
+  bloomVAOPrefilter: WebGLVertexArrayObject;
+  bloomVAOBlur: WebGLVertexArrayObject;
+  bloomTexA: WebGLTexture;
+  bloomFBO_A: WebGLFramebuffer;
+  bloomTexB: WebGLTexture;
+  bloomFBO_B: WebGLFramebuffer;
   // Particle rendering
   particleProgram: WebGLProgram;
   particleVAO: WebGLVertexArrayObject;
@@ -1659,6 +1830,8 @@ function meshPassContext(
   fogDensity: number,
   fogColor: readonly [number, number, number],
   profile: ResolvedVisualGeometryProfile,
+  ambient: number,
+  lightTex: WebGLTexture | null,
 ): MeshPassContext {
   return {
     world,
@@ -1668,6 +1841,8 @@ function meshPassContext(
     time,
     fogDensity,
     fogColor,
+    ambient,
+    lightTex,
     mode: profile.mode,
     profile,
   };
@@ -1681,9 +1856,10 @@ function updateAndRenderMeshPass(
   fogDensity: number,
   fogColor: readonly [number, number, number],
   profile: ResolvedVisualGeometryProfile,
+  ambient: number,
 ): void {
   if (!state.meshPass) return;
-  const context = meshPassContext(world, camera, time, fogDensity, fogColor, profile);
+  const context = meshPassContext(world, camera, time, fogDensity, fogColor, profile, ambient, state.lightTex);
   const stats = state.meshPass.update(context);
   lastRenderSceneDebugStats.meshEnabled = stats.enabled;
   lastRenderSceneDebugStats.meshInstances = stats.visibleInstances;
@@ -2238,7 +2414,7 @@ export function initWebGL(
   const rayVAO = createQuadVAO(gl, rayProgram);
   const rayUniforms = getUniforms(gl, rayProgram, [
     'uResolution', 'uPos', 'uAngle', 'uPitch', 'uFogDensity',
-    'uGlitch', 'uPlaneLen', 'uCamHeight', 'uFlashlight', 'uToolBeam', 'uToolBeamRange', 'uAmbient', 'uTime', 'uPurpleFog', 'uFogColor',
+    'uGlitch', 'uPlaneLen', 'uCamHeight', 'uFlashlight', 'uToolBeam', 'uToolBeamRange', 'uAmbient', 'uTime', 'uLightQuality', 'uPurpleFog', 'uFogColor',
     'uCells', 'uWallTex', 'uFloorTex', 'uFeatures', 'uLight', 'uFog',
     'uDoorStates', 'uAtlas', 'uAtlasSize', 'uUseDynamicSky', 'uDynamicSky',
     'uDynamicSkyTint', 'uBaseFogColor', 'uSurfaceAtlas', 'uSurfaceIdx',
@@ -2251,7 +2427,15 @@ export function initWebGL(
   // ── Blit program ──
   const blitProgram = createProgram(gl, BLIT_VERT_SRC, BLIT_FRAG_SRC);
   const blitVAO = createQuadVAO(gl, blitProgram);
-  const blitUniforms = getUniforms(gl, blitProgram, ['uTex', 'uGlitch', 'uTime', 'uSamosborActive', 'uSamosborStyle', 'uSamosborPost', 'uSamosborTint', 'uScreenInterference']);
+  const blitUniforms = getUniforms(gl, blitProgram, ['uTex', 'uGlitch', 'uTime', 'uSamosborActive', 'uSamosborStyle', 'uSamosborPost', 'uSamosborTint', 'uScreenInterference', 'uBloomTex', 'uBloomStrength']);
+
+  // ── Bloom programs (bright-pass prefilter + separable blur) ──
+  const bloomPrefilterProgram = createProgram(gl, BLIT_VERT_SRC, BLOOM_PREFILTER_FRAG_SRC);
+  const bloomVAOPrefilter = createQuadVAO(gl, bloomPrefilterProgram);
+  const bloomPrefilterUniforms = getUniforms(gl, bloomPrefilterProgram, ['uTex', 'uTexel', 'uThreshold']);
+  const bloomBlurProgram = createProgram(gl, BLIT_VERT_SRC, BLOOM_BLUR_FRAG_SRC);
+  const bloomVAOBlur = createQuadVAO(gl, bloomBlurProgram);
+  const bloomBlurUniforms = getUniforms(gl, bloomBlurProgram, ['uTex', 'uDir']);
 
   // ── Sprite program ──
   const spriteProgram = createProgram(gl, SPRITE_VERT_SRC, SPRITE_FRAG_SRC);
@@ -2283,6 +2467,26 @@ export function initWebGL(
   gl.bindFramebuffer(gl.FRAMEBUFFER, rayFBO);
   gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, rayColorTex, 0);
   gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, rayDepthBuf);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+  // ── Bloom FBOs (half-res, linear-filtered ping-pong targets) ──
+  const BLOOM_W = Math.max(1, SCR_W >> 1);
+  const BLOOM_H = Math.max(1, SCR_H >> 1);
+  const makeBloomTarget = (): { tex: WebGLTexture; fbo: WebGLFramebuffer } => {
+    const tex = gl.createTexture()!;
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, BLOOM_W, BLOOM_H, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    const fbo = gl.createFramebuffer()!;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+    return { tex, fbo };
+  };
+  const bloomA = makeBloomTarget();
+  const bloomB = makeBloomTarget();
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
   // ── Data textures ──
@@ -2320,6 +2524,11 @@ export function initWebGL(
     gl,
     rayProgram, rayVAO, rayFBO, rayColorTex, rayDepthBuf,
     blitProgram, blitVAO,
+    bloomPrefilterProgram, bloomPrefilterUniforms,
+    bloomBlurProgram, bloomBlurUniforms,
+    bloomVAOPrefilter, bloomVAOBlur,
+    bloomTexA: bloomA.tex, bloomFBO_A: bloomA.fbo,
+    bloomTexB: bloomB.tex, bloomFBO_B: bloomB.fbo,
     particleProgram,
     particleVAO: particleBuffers.vao,
     particleInstanceBuffer: particleBuffers.instanceBuffer,
@@ -2556,6 +2765,7 @@ export function renderSceneGL(
   visualDetailProfile: ResolvedVisualDetailProfile = EMPTY_RESOLVED_VISUAL_DETAIL_PROFILE,
   visualGeometryProfile: ResolvedVisualGeometryProfile = EMPTY_RESOLVED_VISUAL_GEOMETRY_PROFILE,
   visualSurfaceProfile: ResolvedVisualSurfaceProfile = EMPTY_RESOLVED_VISUAL_SURFACE_PROFILE,
+  lightingQuality = 4,
 ): void {
   lastRenderSceneDebugStats.meshEnabled = visualGeometryProfile.enabled;
   lastRenderSceneDebugStats.meshInstances = 0;
@@ -2609,6 +2819,7 @@ export function renderSceneGL(
   gl.uniform1f(ru['uToolBeamRange']!, toolBeamRange);
   gl.uniform1f(ru['uAmbient']!, ambientLight);
   gl.uniform1f(ru['uTime']!, time);
+  gl.uniform1i(ru['uLightQuality']!, lightingQuality);
   gl.uniform1i(ru['uPurpleFog']!, purpleFog);
   gl.uniform3f(ru['uFogColor']!, fogRgb[0] / 255, fogRgb[1] / 255, fogRgb[2] / 255);
   const skyTint = activeDynamicSky?.ambientTint;
@@ -2657,7 +2868,7 @@ export function renderSceneGL(
 
   // ── Render sprites into FBO (with depth test against raycaster) ──
   gl.depthFunc(gl.LESS);
-  updateAndRenderMeshPass(glState, world, camera, time, fogDensity, meshFogRgb, visualGeometryProfile);
+  updateAndRenderMeshPass(glState, world, camera, time, fogDensity, meshFogRgb, visualGeometryProfile, ambientLight);
   renderSpritesGL(
     world,
     sprites,
@@ -2683,6 +2894,44 @@ export function renderSceneGL(
 
   gl.disable(gl.DEPTH_TEST);
 
+  // ── Pass 1.5: Bloom (bright-pass prefilter + separable Gaussian blur) ──
+  // Render-only glow; gated to high/experimental lighting quality. Result lands in bloomTexA.
+  let bloomStrength = 0;
+  if (lightingQuality >= 3) {
+    bloomStrength = lightingQuality >= 4 ? 0.5 : 0.32;
+    const bw = Math.max(1, SCR_W >> 1);
+    const bh = Math.max(1, SCR_H >> 1);
+    gl.viewport(0, 0, bw, bh);
+
+    // Bright-pass: scene color → bloomFBO_A
+    gl.bindFramebuffer(gl.FRAMEBUFFER, glState.bloomFBO_A);
+    gl.useProgram(glState.bloomPrefilterProgram);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, glState.rayColorTex);
+    gl.uniform1i(glState.bloomPrefilterUniforms['uTex']!, 0);
+    gl.uniform2f(glState.bloomPrefilterUniforms['uTexel']!, 1 / SCR_W, 1 / SCR_H);
+    gl.uniform1f(glState.bloomPrefilterUniforms['uThreshold']!, 0.74);
+    gl.bindVertexArray(glState.bloomVAOPrefilter);
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+    // Separable blur (horizontal A→B, then vertical B→A)
+    gl.useProgram(glState.bloomBlurProgram);
+    gl.bindVertexArray(glState.bloomVAOBlur);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, glState.bloomFBO_B);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, glState.bloomTexA);
+    gl.uniform1i(glState.bloomBlurUniforms['uTex']!, 0);
+    gl.uniform2f(glState.bloomBlurUniforms['uDir']!, 1 / bw, 0);
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+    gl.bindFramebuffer(gl.FRAMEBUFFER, glState.bloomFBO_A);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, glState.bloomTexB);
+    gl.uniform1i(glState.bloomBlurUniforms['uTex']!, 0);
+    gl.uniform2f(glState.bloomBlurUniforms['uDir']!, 0, 1 / bh);
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+  }
+
   // ── Pass 2: Blit FBO to screen with glitch ──
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
@@ -2691,6 +2940,10 @@ export function renderSceneGL(
   gl.activeTexture(gl.TEXTURE0);
   gl.bindTexture(gl.TEXTURE_2D, glState.rayColorTex);
   gl.uniform1i(glState.blitUniforms['uTex']!, 0);
+  gl.activeTexture(gl.TEXTURE1);
+  gl.bindTexture(gl.TEXTURE_2D, glState.bloomTexA);
+  gl.uniform1i(glState.blitUniforms['uBloomTex']!, 1);
+  gl.uniform1f(glState.blitUniforms['uBloomStrength']!, bloomStrength);
   gl.uniform1f(glState.blitUniforms['uGlitch']!, glitch);
   gl.uniform1f(glState.blitUniforms['uTime']!, time);
   gl.uniform1f(glState.blitUniforms['uSamosborActive']!, samosborActive ? 1.0 : 0.0);
@@ -3198,11 +3451,17 @@ export function disposeWebGL(): void {
   glState.meshPass?.dispose(gl);
   gl.deleteProgram(glState.rayProgram);
   gl.deleteProgram(glState.blitProgram);
+  gl.deleteProgram(glState.bloomPrefilterProgram);
+  gl.deleteProgram(glState.bloomBlurProgram);
   gl.deleteProgram(glState.spriteProgram);
   gl.deleteProgram(glState.particleProgram);
   gl.deleteFramebuffer(glState.rayFBO);
   gl.deleteRenderbuffer(glState.rayDepthBuf);
   gl.deleteTexture(glState.rayColorTex);
+  gl.deleteFramebuffer(glState.bloomFBO_A);
+  gl.deleteFramebuffer(glState.bloomFBO_B);
+  gl.deleteTexture(glState.bloomTexA);
+  gl.deleteTexture(glState.bloomTexB);
   gl.deleteTexture(glState.cellsTex);
   gl.deleteTexture(glState.wallTexTex);
   gl.deleteTexture(glState.floorTexTex);

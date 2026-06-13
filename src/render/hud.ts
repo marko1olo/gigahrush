@@ -32,6 +32,7 @@ import { drawComputerOverlay } from './computer_ui';
 import { drawGamblingOverlay } from './gambling_ui';
 import { drawNetSphereMenu } from './net_sphere_ui';
 import { drawNetHackOverlay } from './net_hack_ui';
+import { drawFastElevatorOverlay } from './fast_elevator_ui';
 import { drawNetTerminalBank } from './net_terminal_bank_ui';
 import { drawNetTerminalGenDenied } from './net_terminal_gen_ui';
 import { drawMapEditor } from './map_editor_ui';
@@ -74,6 +75,7 @@ import { getGamblingOverlaySnapshot, isGamblingOverlayOpen } from '../systems/ga
 import { findInteractionTarget } from '../systems/interactions';
 import { getCurrentObjective, npcQuestMarkerState, type CurrentObjective, type NpcQuestMarkerTone } from '../systems/quests';
 import { getNetHackOverlaySnapshot, isNetHackOverlayOpen } from '../systems/net_hack';
+import { getFastElevatorOverlaySnapshot, isFastElevatorOverlayOpen } from '../systems/fast_elevator';
 import { getMapEditorSnapshot, isMapEditorOpen } from '../systems/map_editor';
 import { isEmergencyPanelMenuOpen } from '../systems/emergency_panels';
 import {
@@ -1307,11 +1309,12 @@ export function drawHUD(
   const gamblingOpen = isGamblingOverlayOpen();
   const computerOpen = isComputerOverlayOpen();
   const hackOpen = isNetHackOverlayOpen();
+  const fastElevatorOpen = isFastElevatorOverlayOpen();
   const centerModalOpen = state.showInventory || state.showQuests || state.showLog ||
     state.showFactions || state.showDemos || state.showMenu || state.showHelp || state.showControls || state.showUiSettings ||
     state.showNpcMenu || state.showContainerMenu || state.showCraftMenu || netSphereOpen || netTerminalGenOpen ||
     emergencyPanelOpen || mapEditorOpen || gamblingOpen || computerOpen || hackOpen ||
-    netTerminalGenDeniedOpen || netTerminalBankOpen;
+    netTerminalGenDeniedOpen || netTerminalBankOpen || fastElevatorOpen;
   const quietHud = centerModalOpen || state.mapMode === 2;
   const showCompactPanels = !quietHud;
   const screenFxVisible = !quietHud && showScreenFx && interferenceMode !== 'off';
@@ -1923,6 +1926,10 @@ export function drawHUD(
   if (hackOpen) {
     const hack = getNetHackOverlaySnapshot(world, state, player);
     drawNetHackOverlay(ctx, msx, msy, time, hack);
+  }
+
+  if (fastElevatorOpen) {
+    drawFastElevatorOverlay(ctx, msx, msy, time, getFastElevatorOverlaySnapshot(player), player);
   }
 
   if (netTerminalGenDeniedOpen) {

@@ -69,15 +69,12 @@ const FEATURE_VISUAL_IDS: Partial<Record<Feature, readonly string[]>> = {
   [Feature.CHAIR]: ['furniture_chair_hint'],
   [Feature.BED]: ['furniture_bed_hint'],
   [Feature.STOVE]: ['machine_body'],
-  [Feature.SINK]: ['machine_panel'],
-  [Feature.TOILET]: ['machine_panel'],
   [Feature.MACHINE]: ['machine_body', 'machine_panel', 'ceiling_pipe_bundle'],
   [Feature.APPARATUS]: ['apparatus_frame', 'ceiling_cable_bundle'],
   [Feature.LIFT_BUTTON]: ['button_panel'],
   [Feature.DESK]: ['furniture_desk_hint'],
   [Feature.CANDLE]: ['candle_stub_hint'],
   [Feature.SCREEN]: ['wall_panel_screen', 'cable_wall_loose'],
-  [Feature.SHELF]: ['furniture_shelf_hint'],
 };
 
 

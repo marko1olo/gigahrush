@@ -19,6 +19,7 @@ out vec3 vColor;
 out vec3 vNormal;
 out float vForward;
 out float vDistance;
+out vec2 vWorldXY;
 
 float torusDelta(float value, float origin) {
   float d = value - origin;
@@ -40,6 +41,7 @@ void main() {
   vNormal = normalize(aNormal);
   vForward = ty;
   vDistance = length(vec2(dx, dy));
+  vWorldXY = aWorld.xy;
 }
 `;
 
@@ -50,6 +52,7 @@ in vec3 vColor;
 in vec3 vNormal;
 in float vForward;
 in float vDistance;
+in vec2 vWorldXY;
 
 uniform vec3 uFogColor;
 uniform float uFogDensity;
@@ -57,18 +60,51 @@ uniform float uAmbient;
 uniform float uTime;
 uniform float uMaxDraw;
 uniform float uMeshRadius;
+uniform float uWorldSize;
+uniform sampler2D uLight;
+uniform float uLightOn;     // 1.0 when the baked lightmap is bound
 
 out vec4 fragColor;
 
 const float MESH_NEAR = 0.1;
 const float MESH_DEPTH_BIAS = 0.015;
 
+float bakedLightAt(int x, int y, int wmask) {
+  return texelFetch(uLight, ivec2(x & wmask, y & wmask), 0).r;
+}
+
 void main() {
   if (vForward <= MESH_NEAR) discard;
-  vec3 lightDir = normalize(vec3(-0.42, 0.58, 0.72));
-  float diffuse = max(0.0, dot(normalize(vNormal), lightDir));
-  float side = 0.78 + 0.08 * sin(uTime * 0.7 + vColor.r * 6.2831);
-  float shade = clamp(uAmbient + diffuse * 0.58 + side * 0.18, 0.12, 1.0);
+  vec3 nrm = normalize(vNormal);
+  float fakeDiffuse = max(0.0, dot(nrm, normalize(vec3(-0.42, 0.58, 0.72))));
+
+  float shade;
+  if (uLightOn > 0.5) {
+    // Same baked lightmap the raycaster uses: meshes sit in the real lamp light,
+    // so an object in an unlit cell stays dark (grounded contact shadow).
+    int wmask = int(uWorldSize) - 1;
+    int cx = int(floor(vWorldXY.x));
+    int cy = int(floor(vWorldXY.y));
+    float baked = bakedLightAt(cx, cy, wmask);
+    // Light gradient -> direction toward the nearest lamp for self-shadowing:
+    // the mesh side facing the lamp is lit, the far side falls into shadow.
+    float lxp = bakedLightAt(cx + 1, cy, wmask);
+    float lxm = bakedLightAt(cx - 1, cy, wmask);
+    float lyp = bakedLightAt(cx, cy + 1, wmask);
+    float lym = bakedLightAt(cx, cy - 1, wmask);
+    vec2 grad = vec2(lxp - lxm, lyp - lym);
+    float ndl = 0.0;
+    if (dot(grad, grad) > 1e-6) ndl = max(dot(nrm.xy, normalize(grad)), 0.0);
+    float eye = (1.0 - smoothstep(0.5, 11.0, vDistance)) * 0.22;
+    float litBase = clamp(uAmbient + baked * (1.0 - uAmbient) + eye, 0.0, 1.2);
+    litBase = pow(clamp(litBase, 0.0, 1.0), 1.32);
+    float dirShade = 0.6 + 0.4 * ndl;
+    shade = clamp(litBase * dirShade + fakeDiffuse * 0.08, 0.05, 1.25);
+  } else {
+    float side = 0.78 + 0.08 * sin(uTime * 0.7 + vColor.r * 6.2831);
+    shade = clamp(uAmbient + fakeDiffuse * 0.58 + side * 0.18, 0.12, 1.0);
+  }
+
   float fogBase = max(0.0, vForward * max(0.02, uFogDensity));
   float fog = clamp(1.0 - exp(-fogBase * fogBase * 1.15), 0.0, 0.92);
   float fadeWidth = clamp(uMeshRadius * 0.22, 1.0, 3.0);

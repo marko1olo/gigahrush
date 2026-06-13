@@ -916,6 +916,7 @@ export function collectFloorLiftAnchors(
   const out: FloorLiftAnchor[] = [];
   for (let i = 0; i < world.cells.length; i++) {
     if (world.cells[i] !== Cell.LIFT || world.liftDir[i] !== direction) continue;
+    if (world.features[i] === Feature.MACHINE) continue; // skip fast-elevator cabins
     out.push({
       liftIdx: i,
       liftX: i % W,
@@ -951,6 +952,7 @@ function adjacentToLift(world: World, idx: number): boolean {
 
 function demoteRouteLiftCell(world: World, idx: number, floorTex: Tex): boolean {
   if (world.cells[idx] !== Cell.LIFT) return false;
+  if (world.features[idx] === Feature.MACHINE) return false; // never demote fast-elevator cabins
   clearAdjacentLiftButtons(world, idx);
   world.cells[idx] = Cell.FLOOR;
   world.roomMap[idx] = -1;
@@ -1311,7 +1313,7 @@ function fillRouteLift(
 function routeLiftCount(world: World, direction: LiftDirection): number {
   let count = 0;
   for (let i = 0; i < world.cells.length; i++) {
-    if (world.cells[i] === Cell.LIFT && world.liftDir[i] === direction) count++;
+    if (world.cells[i] === Cell.LIFT && world.liftDir[i] === direction && world.features[i] !== Feature.MACHINE) count++;
   }
   return count;
 }
@@ -1344,7 +1346,7 @@ export function ensureFloorRouteLiftLayout(
 
   for (let i = 0; i < world.cells.length; i++) {
     const dir = world.liftDir[i] as LiftDirection;
-    if (world.cells[i] === Cell.LIFT && !expected.has(dir)) {
+    if (world.cells[i] === Cell.LIFT && world.features[i] !== Feature.MACHINE && !expected.has(dir)) {
       if (demoteRouteLiftCell(world, i, floorTex)) {
         demoted++;
         changed = true;

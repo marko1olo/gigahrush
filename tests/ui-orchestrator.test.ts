@@ -18,6 +18,10 @@ import {
   cycleHudMotionMode,
   cycleScreenInterferenceMode,
   cycleVisualGeometryMode,
+  cycleLightingQualityMode,
+  lightingQualityMode,
+  lightingQualityModeLabel,
+  lightingQualityIndex,
   adjustMobileLookSensitivity,
   adjustMouseLookSensitivity,
   activeUiPresetId,
@@ -176,7 +180,7 @@ test('UI orchestrator presets cover minimal and full player-safe modes', () => {
   }
   assert.equal(uiElementEnabled('fps_counter'), false);
   assert.equal(uiSettingsRowCount('interface'), UI_PRESETS.length + UI_ELEMENT_DEFS.length + 3);
-  assert.equal(uiSettingsRowCount('graphics'), 6);
+  assert.equal(uiSettingsRowCount('graphics'), 7);
   assert.equal(uiSettingsRowAt(0, 'interface')?.kind, 'reset_interface');
   assert.equal(uiSettingsRowAt(0, 'graphics')?.kind, 'reset_graphics');
 });
@@ -226,7 +230,7 @@ test('UI orchestrator stores camera FOV as a graphics setting outside presets', 
   assert.equal(applyUiPreset('off'), true);
   assert.equal(cameraFovDegrees(), 60);
   assert.equal(resetCameraFov(), 90);
-  const row = uiSettingsRowAt(4, 'graphics');
+  const row = uiSettingsRowAt(5, 'graphics');
   assert.equal(row?.kind, 'camera_fov');
 });
 
@@ -244,6 +248,22 @@ test('UI orchestrator stores visual geometry mode as a graphics setting outside 
   assert.equal(visualGeometryMode(), 'high');
   const row = uiSettingsRowAt(3, 'graphics');
   assert.equal(row?.kind, 'visual_geometry');
+});
+
+test('UI orchestrator stores lighting quality as a graphics setting defaulting to max', () => {
+  resetUiSettings();
+  assert.equal(lightingQualityMode(), 'experimental');
+  assert.equal(lightingQualityModeLabel(), 'Максимум');
+  assert.equal(lightingQualityIndex(), 4);
+  assert.equal(cycleLightingQualityMode(1), 'off');
+  assert.equal(lightingQualityIndex(), 0);
+  assert.equal(cycleLightingQualityMode(1), 'low');
+  assert.equal(cycleLightingQualityMode(1), 'medium');
+  assert.equal(applyUiPreset('full'), true);
+  assert.equal(lightingQualityMode(), 'medium');
+  resetGraphicsSettings();
+  assert.equal(lightingQualityMode(), 'experimental');
+  assert.equal(uiSettingsRowAt(4, 'graphics')?.kind, 'lighting_quality');
 });
 
 test('UI orchestrator keeps graphics fatigue settings outside interface presets', () => {
@@ -266,5 +286,6 @@ test('UI orchestrator keeps graphics fatigue settings outside interface presets'
   assert.equal(uiSettingsRowAt(1, 'graphics')?.kind, 'screen_interference');
   assert.equal(uiSettingsRowAt(2, 'graphics')?.kind, 'hud_motion');
   assert.equal(uiSettingsRowAt(3, 'graphics')?.kind, 'visual_geometry');
-  assert.equal(uiSettingsRowAt(5, 'graphics')?.kind, 'map_contrast');
+  assert.equal(uiSettingsRowAt(4, 'graphics')?.kind, 'lighting_quality');
+  assert.equal(uiSettingsRowAt(6, 'graphics')?.kind, 'map_contrast');
 });

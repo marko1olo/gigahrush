@@ -154,6 +154,8 @@ function getUniforms(gl: WebGL2RenderingContext, program: WebGLProgram): Record<
     'uFogDensity',
     'uAmbient',
     'uTime',
+    'uLight',
+    'uLightOn',
   ];
   const out: Record<string, WebGLUniformLocation | null> = {};
   for (const name of names) out[name] = gl.getUniformLocation(program, name);
@@ -287,8 +289,17 @@ class MeshPass implements MeshPassHandle {
     gl.uniform1f(uniforms.uMeshRadius, Math.max(0.1, context.profile.radius));
     gl.uniform3f(uniforms.uFogColor, fog[0] / 255, fog[1] / 255, fog[2] / 255);
     gl.uniform1f(uniforms.uFogDensity, fogDensity);
-    gl.uniform1f(uniforms.uAmbient, 0.18);
+    gl.uniform1f(uniforms.uAmbient, context.ambient ?? 0.18);
     gl.uniform1f(uniforms.uTime, context.time);
+    // Bind the same baked lightmap the raycaster uses so meshes share scene lighting.
+    if (context.lightTex) {
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, context.lightTex);
+      gl.uniform1i(uniforms.uLight, 0);
+      gl.uniform1f(uniforms.uLightOn, 1.0);
+    } else {
+      gl.uniform1f(uniforms.uLightOn, 0.0);
+    }
 
     gl.disable(gl.BLEND);
     gl.disable(gl.CULL_FACE);

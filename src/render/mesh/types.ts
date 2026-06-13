@@ -15,6 +15,8 @@ export interface MeshPassContext {
   time: number;
   fogDensity?: number;
   fogColor?: readonly [number, number, number];
+  ambient?: number;
+  lightTex?: WebGLTexture | null;
   mode: MeshGraphicsMode;
   profile: ResolvedVisualGeometryProfile;
 }

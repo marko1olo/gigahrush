@@ -48,6 +48,9 @@ export interface FloorRunState {
   currentZ: number;
   specs: Record<string, ProceduralFloorSpec>;
   visited: Record<string, boolean>;
+  // Floors the player has personally unlocked for fast-elevator travel. A floor
+  // is added when the player opens a fast elevator standing on it. Saved per run.
+  unlockedZs: number[];
 }
 
 export interface FloorRunEntry {
@@ -327,11 +330,13 @@ export function normalizeFloorRunEntrySnapshot(input: unknown): FloorRunEntrySna
 
 export function createFloorRunState(currentFloor = FloorLevel.LIVING): FloorRunState {
   const runSeed = randomRunSeed();
+  const startZ = zForStoryFloor(currentFloor);
   const run: FloorRunState = {
     runSeed,
-    currentZ: zForStoryFloor(currentFloor),
+    currentZ: startZ,
     specs: createSpecDeck(runSeed),
     visited: {},
+    unlockedZs: [startZ],
   };
   normalizedFloorRuns.add(run);
   return run;
@@ -342,11 +347,13 @@ export function normalizeFloorRunState(
   currentFloor = FloorLevel.LIVING,
 ): FloorRunState {
   const runSeed = normalizeRunSeed(input?.runSeed);
+  const currentZ = normalizeZ(input?.currentZ, currentFloor);
   const out: FloorRunState = {
     runSeed,
-    currentZ: normalizeZ(input?.currentZ, currentFloor),
+    currentZ,
     specs: createSpecDeck(runSeed),
     visited: {},
+    unlockedZs: sanitizeUnlockedZs(input?.unlockedZs, currentZ),
   };
   const savedSpecs = input?.specs ?? {};
   for (const z of PROCEDURAL_FLOOR_ZS) {
@@ -366,6 +373,35 @@ export function floorRunSaveHasRestorableRoute(input: unknown): boolean {
   if (!isRecord(input)) return false;
   const z = input.currentZ;
   return typeof z === 'number' && Number.isFinite(z) && z >= FLOOR_RUN_MIN_Z && z <= FLOOR_RUN_MAX_Z;
+}
+
+function sanitizeUnlockedZs(input: unknown, currentZ: number): number[] {
+  const set = new Set<number>([currentZ]);
+  if (Array.isArray(input)) {
+    for (const value of input) {
+      if (typeof value !== 'number' || !Number.isFinite(value)) continue;
+      const z = Math.trunc(value);
+      if ((z >= FLOOR_RUN_MIN_Z && z <= FLOOR_RUN_MAX_Z) || z === FLOOR_RUN_VOID_Z) set.add(z);
+    }
+  }
+  return [...set].sort((a, b) => b - a);
+}
+
+export function isFloorZUnlocked(state: GameState, z: number): boolean {
+  return ensureFloorRunState(state).unlockedZs.includes(z);
+}
+
+export function unlockFloorZ(state: GameState, z: number): boolean {
+  if (z < FLOOR_RUN_MIN_Z || z > FLOOR_RUN_MAX_Z) return false;
+  const run = ensureFloorRunState(state);
+  if (run.unlockedZs.includes(z)) return false;
+  run.unlockedZs.push(z);
+  run.unlockedZs.sort((a, b) => b - a);
+  return true;
+}
+
+export function unlockedFloorZs(state: GameState): readonly number[] {
+  return ensureFloorRunState(state).unlockedZs;
 }
 
 export function ensureFloorRunState(state: GameState, currentFloor = state.currentFloor): FloorRunState {
@@ -437,6 +473,10 @@ function entryForZ(state: GameState, z: number): FloorRunEntry | null {
     label: `Этаж ${formatFloorZ(z)}: ${spec.title}`,
     color: spec.anomalyId === 'none' ? '#8cf' : '#c8f',
   };
+}
+
+export function floorRunEntryForZ(state: GameState, z: number): FloorRunEntry | null {
+  return entryForZ(state, z);
 }
 
 export function floorRunEntryForDesignFloor(state: GameState, designFloorId: DesignFloorId): FloorRunEntry | null {

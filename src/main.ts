@@ -17,6 +17,7 @@ import { selectMeleeTarget } from './systems/melee_targeting';
 import { updateProceduralScreens } from './gen/procedural_screens';
 import { generateProceduralFloor } from './gen/procedural_floor';
 import { generateDesignFloor, isDesignFloorId } from './gen/design_floors/manifest';
+import { injectFastElevators } from './gen/fast_elevators';
 import {
   floorInstanceGenerationExtrasForKey,
   floorInstanceSamosborReplacementAllowed,
@@ -90,6 +91,7 @@ import {
   cycleHudMotionMode,
   cycleScreenInterferenceMode,
   cycleVisualGeometryMode,
+  cycleLightingQualityMode,
   adjustMobileLookSensitivity,
   adjustMouseLookSensitivity,
   applyUiPreset,
@@ -108,6 +110,8 @@ import {
   uiElementEnabled,
   visualGeometryMode,
   visualGeometryModeLabel,
+  lightingQualityModeLabel,
+  lightingQualityIndex,
   type UiSettingsView,
   mapLegendRowAt,
   mapLegendRowCount,
@@ -311,6 +315,7 @@ import {
   floorRunArrivalLead,
   floorRunEntryDanger,
   floorRunEntryForFloorKey,
+  floorRunEntryForZ,
   floorRunSaveHasRestorableRoute,
   floorRunEntryAllowsNpcs,
   floorRunEntryFloorKey,
@@ -3667,6 +3672,12 @@ function captureFloorMemoryByKey(key: string): void {
 }
 
 function generateFloorForTarget(floor: FloorLevel, entry: FloorRunEntry | null | undefined): FloorGeneration {
+  const gen = generateFloorForTargetInner(floor, entry);
+  injectFastElevators(gen.world);
+  return gen;
+}
+
+function generateFloorForTargetInner(floor: FloorLevel, entry: FloorRunEntry | null | undefined): FloorGeneration {
   const activeInstance = getActiveFloorInstance(state);
   if (!entry && activeInstance?.baseFloor === floor) {
     return generateFloorInstance(activeInstance.id, ensureFloorRunState(state).runSeed, activeInstance.seed);
@@ -3696,7 +3707,12 @@ function floorMemoryGenerationExtrasForKey(key: string): Record<string, unknown>
 function loadFloorForTarget(floor: FloorLevel, entry: FloorRunEntry | null | undefined): FloorMemoryLoad {
   const memoryKey = floorMemoryKeyForTarget(floor, entry);
   const restored = takeFloorMemory(memoryKey);
-  if (restored) return restored;
+  if (restored) {
+    // The fast-elevator grid is absolute and deterministic, so re-stamp it on
+    // memory-restored floors too (idempotent: same fixed cells every load).
+    injectFastElevators(restored.generation.world);
+    return restored;
+  }
   return {
     fromMemory: false,
     generation: generateFloorForTarget(floor, entry),
@@ -3712,17 +3728,25 @@ function switchFloor(
   overrideArrivalText?: string,
   overrideArrivalColor?: string,
   allowElevatorAnomaly = true,
+  targetZ?: number,
 ): void {
   closeCraftMenu();
   restorePlayerBeforeWorldBoundary();
   const fromFloor = state.currentFloor;
   captureCurrentAlifeFloor();
   const departingMemoryKey = currentFloorMemoryKey();
+  // Fast elevator: jump straight to an arbitrary route floor, bypassing the
+  // single-step route resolution and elevator anomaly machinery.
+  const directTargetEntry = targetZ !== undefined ? floorRunEntryForZ(state, targetZ) : null;
+  if (targetZ !== undefined && !directTargetEntry) return;
+  const fastTravel = directTargetEntry !== null;
   let nextFloor: FloorLevel;
-  const activeFloorInstance = allowElevatorAnomaly ? getActiveFloorInstance(state) : null;
-  let runEntry = allowElevatorAnomaly
-    ? (activeFloorInstance ? currentFloorRunEntry(state) : resolveFloorRunRoute(state, direction))
-    : null;
+  const activeFloorInstance = (allowElevatorAnomaly && !fastTravel) ? getActiveFloorInstance(state) : null;
+  let runEntry = fastTravel
+    ? directTargetEntry
+    : allowElevatorAnomaly
+      ? (activeFloorInstance ? currentFloorRunEntry(state) : resolveFloorRunRoute(state, direction))
+      : null;
 
   if (runEntry) {
     nextFloor = runEntry.baseFloor;
@@ -3739,11 +3763,11 @@ function switchFloor(
   resolveLiftArachnaDeparture(world, player, state);
   clearPseudoliftActive(state, entities);
   const liftZoneId = world.zoneMap[world.idx(Math.floor(player.x), Math.floor(player.y))];
-  const route = allowElevatorAnomaly
+  const route = (allowElevatorAnomaly && !fastTravel)
     ? resolveElevatorRoute(state, fromFloor, nextFloor, direction, liftZoneId)
     : { targetFloor: nextFloor, activeInstance: null, anomaly: false, leavingInstance: false, exitedInstance: null };
   nextFloor = route.targetFloor;
-  if (allowElevatorAnomaly && runEntry) {
+  if (runEntry && (allowElevatorAnomaly || fastTravel)) {
     commitFloorRunEntry(state, runEntry);
   }
   const generatedRunEntry = route.activeInstance ? null : runEntry;
@@ -6003,6 +6027,11 @@ function applyUiSettingsSelection(index: number): void {
     state.msgs.push(msg(`3D детализация: ${visualGeometryModeLabel(mode).toLowerCase()}`, state.time, mode === 'off' ? '#fc8' : '#8cf'));
     return;
   }
+  if (row.kind === 'lighting_quality') {
+    const mode = cycleLightingQualityMode(1);
+    state.msgs.push(msg(`Качество света: ${lightingQualityModeLabel(mode).toLowerCase()}`, state.time, mode === 'off' ? '#fc8' : '#8cf'));
+    return;
+  }
   if (row.kind === 'map_contrast') {
     const enabled = toggleMapHighContrast();
     state.msgs.push(msg(`Карта: контраст ${enabled ? 'вкл' : 'выкл'}`, state.time, enabled ? '#8cf' : '#fc8'));
@@ -6650,7 +6679,7 @@ function handleMenuInput(): void {
       dnNav,
       leftNav,
       rightNav,
-    }, { world, state, player });
+    }, { world, state, player, switchFloor });
     if (result.worldChanged) updateWorldData(world);
     if (!isInteractableOverlayOpen()) syncPauseState();
 
@@ -7838,7 +7867,7 @@ function gameLoop(now: number): void {
   const renderSceneStart = performance.now();
   renderSceneGL(world, textures, sprites, entities,
     cameraView,
-    fogDensity, glitch, flashlight, uiTime, particles, state.samosborActive, ambientLight, toolBeam, state.uvBeamLen, screenInterference, visualDetailProfile, visualGeometryProfile, visualSurfaceProfile);
+    fogDensity, glitch, flashlight, uiTime, particles, state.samosborActive, ambientLight, toolBeam, state.uvBeamLen, screenInterference, visualDetailProfile, visualGeometryProfile, visualSurfaceProfile, lightingQualityIndex());
   lastRenderSceneMs = performance.now() - renderSceneStart;
 
   // Draw HUD on 2D overlay canvas

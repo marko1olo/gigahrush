@@ -67,6 +67,25 @@ export const VISUAL_GEOMETRY_MODE_LABELS: Readonly<Record<VisualGeometryMode, st
   high: 'Высокая',
 };
 
+// Render-only lighting quality (browser-local, outside the game save). Higher
+// modes enable smooth baked-light sampling, gradient bump and specular glints in
+// the WebGL raycaster. Default is the maximum tier.
+export const LIGHTING_QUALITY_MODES = ['off', 'low', 'medium', 'high', 'experimental'] as const;
+export type LightingQualityMode = typeof LIGHTING_QUALITY_MODES[number];
+export const LIGHTING_QUALITY_DEFAULT_MODE: LightingQualityMode = 'experimental';
+export const LIGHTING_QUALITY_MODE_LABELS: Readonly<Record<LightingQualityMode, string>> = {
+  off: 'Выкл',
+  low: 'Низкое',
+  medium: 'Среднее',
+  high: 'Высокое',
+  experimental: 'Максимум',
+};
+export function normalizeLightingQualityMode(value: unknown): LightingQualityMode {
+  return (LIGHTING_QUALITY_MODES as readonly string[]).includes(value as string)
+    ? value as LightingQualityMode
+    : LIGHTING_QUALITY_DEFAULT_MODE;
+}
+
 export type MapColorMode = 'rooms';
 
 export interface MapLegendToggleDef {
@@ -97,6 +116,7 @@ type UiSettings = Record<UiElementId, boolean> & {
   screenInterferenceMode: ScreenInterferenceMode;
   hudMotionMode: HudMotionMode;
   visualGeometryMode: VisualGeometryMode;
+  lightingQualityMode: LightingQualityMode;
 } & Record<MapLegendToggleId, boolean>;
 
 export type MapLegendRow =
@@ -223,6 +243,7 @@ const GRAPHICS_SETTINGS_ROWS = [
   { kind: 'screen_interference', id: 'screen_interference', group: 'Экран', label: 'Помехи экрана' },
   { kind: 'hud_motion', id: 'hud_motion', group: 'HUD', label: 'Движение HUD' },
   { kind: 'visual_geometry', id: 'visual_geometry', group: 'Графика', label: '3D детализация' },
+  { kind: 'lighting_quality', id: 'lighting_quality', group: 'Графика', label: 'Качество света' },
   { kind: 'camera_fov', id: 'camera_fov', group: 'Графика', label: 'FOV / угол обзора' },
   { kind: 'map_contrast', id: 'map_contrast', group: 'Карта', label: 'Контраст карты' },
 ] as const;
@@ -272,6 +293,7 @@ function settingsFromEnabledIds(enabledIds: readonly UiElementId[]): UiSettings 
   out.screenInterferenceMode = SCREEN_INTERFERENCE_DEFAULT;
   out.hudMotionMode = HUD_MOTION_DEFAULT;
   out.visualGeometryMode = VISUAL_GEOMETRY_DEFAULT_MODE;
+  out.lightingQualityMode = LIGHTING_QUALITY_DEFAULT_MODE;
   for (const def of MAP_LEGEND_TOGGLE_DEFS) out[def.id] = def.defaultEnabled;
   return out;
 }
@@ -301,6 +323,7 @@ function normalizeUiSettings(raw: unknown): UiSettings {
   out.screenInterferenceMode = normalizeScreenInterferenceMode(src.screenInterferenceMode);
   out.hudMotionMode = normalizeHudMotionMode(src.hudMotionMode);
   out.visualGeometryMode = normalizeVisualGeometryMode(src.visualGeometryMode);
+  out.lightingQualityMode = normalizeLightingQualityMode(src.lightingQualityMode);
   for (const def of MAP_LEGEND_TOGGLE_DEFS) {
     const value = src[def.id];
     if (typeof value === 'boolean') out[def.id] = value;
@@ -430,6 +453,7 @@ export function applyUiPreset(id: UiPresetId): boolean {
   const interference = screenInterferenceMode();
   const hudMotion = hudMotionMode();
   const geometryMode = visualGeometryMode();
+  const lightingMode = lightingQualityMode();
   const mapToggles = MAP_LEGEND_TOGGLE_DEFS.map(def => [def.id, mapLegendToggleEnabled(def.id)] as const);
   settings = settingsFromEnabledIds(preset.enabled);
   settings.mouseLookSensitivity = mouseSensitivity;
@@ -441,6 +465,7 @@ export function applyUiPreset(id: UiPresetId): boolean {
   settings.screenInterferenceMode = interference;
   settings.hudMotionMode = hudMotion;
   settings.visualGeometryMode = geometryMode;
+  settings.lightingQualityMode = lightingMode;
   for (const [id, enabled] of mapToggles) settings[id] = enabled;
   saveUiSettings();
   return true;
@@ -558,11 +583,34 @@ export function cycleVisualGeometryMode(deltaSteps: number): VisualGeometryMode 
   return settings.visualGeometryMode;
 }
 
+export function lightingQualityMode(): LightingQualityMode {
+  settings.lightingQualityMode = normalizeLightingQualityMode(settings.lightingQualityMode);
+  return settings.lightingQualityMode;
+}
+
+export function lightingQualityModeLabel(mode = lightingQualityMode()): string {
+  return LIGHTING_QUALITY_MODE_LABELS[mode];
+}
+
+export function lightingQualityIndex(mode = lightingQualityMode()): number {
+  return Math.max(0, LIGHTING_QUALITY_MODES.indexOf(mode));
+}
+
+export function cycleLightingQualityMode(deltaSteps: number): LightingQualityMode {
+  const current = LIGHTING_QUALITY_MODES.indexOf(lightingQualityMode());
+  const steps = LIGHTING_QUALITY_MODES.length;
+  const next = (Math.max(0, current) + Math.trunc(deltaSteps) + steps) % steps;
+  settings.lightingQualityMode = LIGHTING_QUALITY_MODES[next];
+  saveUiSettings();
+  return settings.lightingQualityMode;
+}
+
 export function resetGraphicsSettings(): void {
   settings.cameraFovDegrees = CAMERA_FOV_DEFAULT_DEGREES;
   settings.screenInterferenceMode = SCREEN_INTERFERENCE_DEFAULT;
   settings.hudMotionMode = HUD_MOTION_DEFAULT;
   settings.visualGeometryMode = VISUAL_GEOMETRY_DEFAULT_MODE;
+  settings.lightingQualityMode = LIGHTING_QUALITY_DEFAULT_MODE;
   saveUiSettings();
 }
 

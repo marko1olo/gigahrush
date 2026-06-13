@@ -168,6 +168,8 @@ interface MeshPassContext {
   time: number;
   fogDensity?: number;
   fogColor?: readonly [number, number, number];
+  ambient?: number;
+  lightTex?: WebGLTexture | null;
   mode: VisualGeometryMode;
   profile: ResolvedVisualGeometryProfile;
 }
@@ -610,10 +612,22 @@ Uniforms:
 - max draw distance;
 - fog color/density;
 - ambient term;
-- time.
+- time;
+- `uLight` baked lightmap sampler and `uLightOn` flag.
 
 The shader projects world-space triangles into the same low-res render target as
 the raycaster and writes compatible depth. Fog is simple distance-based tinting.
+
+Lighting shares the raycaster system: when `uLightOn` is set, the fragment shader
+samples the same baked `world.light` lightmap by fragment world position
+(`vWorldXY`), so a mesh in an unlit cell stays dark (grounded contact shading),
+and a 4-tap light gradient gives lamp-relative directional self-shadowing (the
+mesh side facing a lamp is lit, the far side falls into shadow). The scene
+`ambient` and a soft near-player term match the raycaster, so meshes sit in the
+same brightness as floors and walls. This is render-only baked/self-shadow, not
+shadow-mapped cast shadows. `MeshPassContext` carries `ambient` and `lightTex`;
+when no lightmap is bound the shader falls back to the legacy fixed-direction
+shading.
 
 ## Voxel Branch
 

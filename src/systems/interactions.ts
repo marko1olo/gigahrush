@@ -55,6 +55,13 @@ import { tryUseHeatlinePressure } from './heatline';
 import { tryRepairHermodoorBorerDamage } from './hermodoor_borer';
 import { hladonInteractionTargetId, tryUseHladonColdPocketCounter } from './hladon';
 import { getEmergencyPanelAt, tryUseEmergencyPanel } from './emergency_panels';
+import {
+  activateFastElevator,
+  closeFastElevator,
+  isFastElevatorOverlayOpen,
+  moveFastElevatorSelection,
+  openFastElevator,
+} from './fast_elevator';
 import { ENTITY_MASK_ITEM_DROP, ENTITY_MASK_NPC, ensureEntityIndex } from './entity_index';
 import { pickupDrop } from './inventory';
 import { tryUseMetroRoute } from './metro';
@@ -111,7 +118,7 @@ export interface InteractionContext {
   lookX: number;
   lookY: number;
   readOnly?: boolean;
-  switchFloor?: (direction: LiftDirection, message?: string, color?: string, allowElevatorAnomaly?: boolean) => void;
+  switchFloor?: (direction: LiftDirection, message?: string, color?: string, allowElevatorAnomaly?: boolean, targetZ?: number) => void;
   movePlayerToMetroRoom?: (roomName: string) => boolean;
   openNpcMenu?: (npc: Entity) => void;
   openContainerMenu?: (container: WorldContainer) => void;
@@ -156,7 +163,7 @@ export interface InteractableOverlayInput {
   rightNav: boolean;
 }
 
-export type InteractableOverlayKind = 'none' | 'gambling' | 'computer' | 'net_hack' | 'net_terminal';
+export type InteractableOverlayKind = 'none' | 'gambling' | 'computer' | 'net_hack' | 'net_terminal' | 'fast_elevator';
 
 export interface InteractableOverlaySnapshot {
   open: boolean;
@@ -392,6 +399,9 @@ export function findInteractionTarget(ctx: InteractionContext): InteractionTarge
   if (pseudoLift) return target('lift', idx + 205000, 'pseudolift', idx % W, (idx / W) | 0, 58, pseudoLift);
 
   const cell = ctx.world.cells[idx];
+  if (cell === Cell.LIFT && ctx.world.features[idx] === Feature.MACHINE) {
+    return target('instant', idx + 975000, 'fast_elevator', idx % W, (idx / W) | 0, 60, ' скоростной лифт');
+  }
   if (cell === Cell.LIFT) {
     return target('lift', idx + 200000, 'lift', idx % W, (idx / W) | 0, 60, liftPrompt(ctx, idx));
   }
@@ -533,6 +543,11 @@ export function activateInteraction(ctx: InteractionContext): InteractionResult 
     return { handled: true, worldChanged: true };
   }
 
+  if (ctx.world.cells[idx] === Cell.LIFT && ctx.world.features[idx] === Feature.MACHINE) {
+    openFastElevator(ctx.state, ctx.player);
+    return { handled: true, openedOverlay: true };
+  }
+
   if (ctx.world.cells[idx] === Cell.LIFT) {
     ctx.switchFloor?.(ctx.world.liftDir[idx] as LiftDirection);
     return { handled: true, worldChanged: true };
@@ -574,7 +589,8 @@ export function isInteractableOverlayOpen(): boolean {
     || isComputerOverlayOpen()
     || isNetHackOverlayOpen()
     || isNetTerminalBankOpen()
-    || isNetTerminalGenDeniedOpen();
+    || isNetTerminalGenDeniedOpen()
+    || isFastElevatorOverlayOpen();
 }
 
 export function getInteractableOverlaySnapshot(): InteractableOverlaySnapshot {
@@ -582,6 +598,7 @@ export function getInteractableOverlaySnapshot(): InteractableOverlaySnapshot {
   if (isComputerOverlayOpen()) return { open: true, kind: 'computer' };
   if (isNetHackOverlayOpen()) return { open: true, kind: 'net_hack' };
   if (isNetTerminalBankOpen() || isNetTerminalGenDeniedOpen()) return { open: true, kind: 'net_terminal' };
+  if (isFastElevatorOverlayOpen()) return { open: true, kind: 'fast_elevator' };
   return { open: false, kind: 'none' };
 }
 
@@ -590,11 +607,19 @@ export function closeInteractableOverlay(): void {
   closeComputer();
   closeNetHackTerminal();
   closeNetTerminalGen();
+  closeFastElevator();
 }
 
-export function handleInteractableOverlayInput(input: InteractableOverlayInput, ctx: Pick<InteractionContext, 'world' | 'state' | 'player'>): InteractionResult {
+export function handleInteractableOverlayInput(input: InteractableOverlayInput, ctx: Pick<InteractionContext, 'world' | 'state' | 'player' | 'switchFloor'>): InteractionResult {
   if (input.escEdge) {
     closeInteractableOverlay();
+    return { handled: true };
+  }
+
+  if (isFastElevatorOverlayOpen()) {
+    if (input.upNav || input.leftNav) moveFastElevatorSelection(-1);
+    if (input.dnNav || input.rightNav) moveFastElevatorSelection(1);
+    if (input.interactEdge && ctx.switchFloor) activateFastElevator(ctx.world, ctx.state, ctx.player, ctx.switchFloor);
     return { handled: true };
   }
 

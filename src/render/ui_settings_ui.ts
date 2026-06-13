@@ -12,6 +12,7 @@ import {
   uiSettingsRowAt,
   uiSettingsRowCount,
   visualGeometryMode,
+  lightingQualityMode,
 } from '../systems/ui_orchestrator';
 import { drawNeuroPanel, flicker } from './hud_fx';
 import { fitTextStable } from './ui_text';
@@ -47,6 +48,10 @@ export function drawUiSettingsMenu(
     if (kind === 'visual_geometry') {
       const mode = visualGeometryMode();
       return mode === 'off' ? 'ВЫКЛ' : mode === 'low' ? 'НИЗК' : mode === 'medium' ? 'СРЕД' : 'ВЫС';
+    }
+    if (kind === 'lighting_quality') {
+      const mode = lightingQualityMode();
+      return mode === 'off' ? 'ВЫКЛ' : mode === 'low' ? 'НИЗК' : mode === 'medium' ? 'СРЕД' : mode === 'high' ? 'ВЫС' : 'МАКС';
     }
     if (kind === 'map_contrast') return mapHighContrastEnabled() ? 'ВКЛ' : 'ВЫКЛ';
     if (kind === 'camera_fov') {
@@ -105,7 +110,7 @@ export function drawUiSettingsMenu(
     if (isSel) {
       ctx.fillStyle = `rgba(0,90,78,${0.46 + 0.12 * flicker(time, 1245 + i)})`;
       ctx.fillRect(x - 2 * sx, rowY, w - x * 2 + 4 * sx, rowH);
-      ctx.strokeStyle = isReset || isPreset || item.kind === 'mobile_sensitivity' || item.kind === 'camera_fov' || item.kind === 'visual_geometry' || (item.kind === 'element' && item.element.locked) ? '#fd6' : 'rgba(0,255,190,0.46)';
+      ctx.strokeStyle = isReset || isPreset || item.kind === 'mobile_sensitivity' || item.kind === 'camera_fov' || item.kind === 'visual_geometry' || item.kind === 'lighting_quality' || (item.kind === 'element' && item.element.locked) ? '#fd6' : 'rgba(0,255,190,0.46)';
       ctx.strokeRect(x - 2 * sx + 0.5, rowY + 0.5, w - x * 2 + 4 * sx - 1, rowH - 1);
     }
 
