@@ -394,8 +394,8 @@ function themeTags(theme: FloorThemeProfile): Set<string> {
   const tags = new Set<string>();
   tags.add(theme.kind);
   tags.add(`kind_${theme.kind}`);
-  tags.add(floorTag(theme.baseFloor));
-  tags.add(`floor_${floorTag(theme.baseFloor)}`);
+  tags.add(floorTag(theme.themeClass));
+  tags.add(`floor_${floorTag(theme.themeClass)}`);
   tags.add(`danger_${theme.danger}`);
   if (theme.routeId) tags.add(String(theme.routeId));
   if (theme.routeZ !== undefined) {
@@ -408,13 +408,13 @@ function themeTags(theme: FloorThemeProfile): Set<string> {
   for (const tag of theme.monsterPressureTags) tags.add(tag);
   for (const tag of theme.economyTags) tags.add(tag);
   for (const tag of theme.specialContentTags) tags.add(tag);
-  if (theme.baseFloor === FloorLevel.HELL) tags.add('meat');
-  if (theme.baseFloor === FloorLevel.MINISTRY) tags.add('documents');
-  if (theme.baseFloor === FloorLevel.VOID) {
+  if (theme.themeClass === FloorLevel.HELL) tags.add('meat');
+  if (theme.themeClass === FloorLevel.MINISTRY) tags.add('documents');
+  if (theme.themeClass === FloorLevel.VOID) {
     tags.add('void');
     tags.add('proof');
   }
-  if (theme.baseFloor === FloorLevel.MAINTENANCE) {
+  if (theme.themeClass === FloorLevel.MAINTENANCE) {
     tags.add('industrial');
     tags.add('water');
   }
@@ -440,7 +440,7 @@ function hasBlockedTag(tags: ReadonlySet<string>, blocked: readonly string[] | u
 
 function rowMatches(row: VisualDetailProfileRow, theme: FloorThemeProfile, tags: ReadonlySet<string>): boolean {
   if (row.kinds && !row.kinds.includes(theme.kind)) return false;
-  if (row.baseFloors && !row.baseFloors.includes(theme.baseFloor)) return false;
+  if (row.baseFloors && !row.baseFloors.includes(theme.themeClass)) return false;
   if (row.routeIds && (!theme.routeId || !row.routeIds.includes(String(theme.routeId)))) return false;
   if (row.minDanger !== undefined && theme.danger < row.minDanger) return false;
   if (row.maxDanger !== undefined && theme.danger > row.maxDanger) return false;

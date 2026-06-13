@@ -3,6 +3,7 @@ import { floorObjectProfileForDesignFloor, floorObjectProfileForProceduralFloor,
 import { designFloorPopulationProfile } from './design_floor_population';
 import {
   DESIGN_FLOOR_ROUTES,
+  designFloorThemeClass,
   type DesignFloorId,
   type DesignFloorRouteDef,
 } from './design_floors';
@@ -27,6 +28,13 @@ import {
 export interface FloorThemeProfile {
   floorKey: string;
   baseFloor: FloorLevel;
+  /**
+   * Content/visual/population class. Equals `baseFloor` for story/procedural
+   * floors and for design floors that do not override it, but a design floor
+   * can declare a different `themeClass` to own its look and population mix
+   * independently of the engine save bucket (`baseFloor`).
+   */
+  themeClass: FloorLevel;
   routeId?: DesignFloorId | string;
   routeZ?: number;
   kind: 'story' | 'design' | 'procedural' | 'floor_instance';
@@ -105,6 +113,7 @@ export function themeForStoryFloor(floor: FloorLevel): FloorThemeProfile {
   return {
     floorKey: storyFloorKey(floor),
     baseFloor: floor,
+    themeClass: floor,
     routeZ: z,
     kind: 'story',
     danger: STORY_DANGER[floor],
@@ -128,9 +137,11 @@ export function themeForDesignRoute(route: DesignFloorRouteDef): FloorThemeProfi
   const population = designFloorPopulationProfile(route);
   const objectProfile = floorObjectProfileForDesignFloor(route);
   const territoryShares = territorySharesForDesignFloor(route.id);
+  const themeClass = designFloorThemeClass(route);
   return {
     floorKey: designFloorKey(route.id),
     baseFloor: route.baseFloor,
+    themeClass,
     routeId: route.id,
     routeZ: route.z,
     kind: 'design',
@@ -141,7 +152,7 @@ export function themeForDesignRoute(route: DesignFloorRouteDef): FloorThemeProfi
     majorityOwner: dominantTerritoryShareOwner(territoryShares),
     objectProfileTags: nonEmptyTags(objectProfile?.tags),
     monsterPressureTags: uniqueTags(population.monsterTags),
-    economyTags: uniqueTags([route.id, FloorLevel[route.baseFloor]?.toLowerCase() ?? 'design', ...(objectProfile?.tags ?? [])]),
+    economyTags: uniqueTags([route.id, FloorLevel[themeClass]?.toLowerCase() ?? 'design', ...(objectProfile?.tags ?? [])]),
     specialContentTags: uniqueTags([route.id, `danger_${route.danger}`]),
   };
 }
@@ -155,6 +166,7 @@ export function themeForProceduralSpec(spec: ProceduralFloorSpec): FloorThemePro
   return {
     floorKey: proceduralFloorKey(spec.key),
     baseFloor: spec.baseFloor,
+    themeClass: spec.baseFloor,
     routeId: spec.key,
     routeZ: spec.z,
     kind: 'procedural',

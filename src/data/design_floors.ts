@@ -47,10 +47,37 @@ export interface DesignFloorRouteDef {
   id: DesignFloorId;
   z: number;
   displayName: string;
+  /**
+   * Low-level engine save/instance bucket: which of the 6 story `FloorLevel`
+   * classes this design floor occupies for `state.currentFloor`, save payload,
+   * floor-instance state and VOID endgame checks. This is an implementation
+   * detail of the runtime, NOT the floor's content identity.
+   *
+   * Content identity (visual palette, population mix, monster/economy mood) is
+   * the floor's own `themeClass` below, so a design floor can look and play
+   * unlike its save bucket without a save-shape change.
+   */
   baseFloor: FloorLevel;
+  /**
+   * Content/visual/population class this design floor declares for itself.
+   * Drives the visual palette tags, NPC density/faction/occupation mix and
+   * economy mood through `FloorThemeProfile.themeClass`. Defaults to
+   * `baseFloor` when omitted, so each floor owns its look/feel independently of
+   * the engine save bucket. Set this to make a floor present as a different
+   * class than its `baseFloor` save bucket.
+   */
+  themeClass?: FloorLevel;
   color: string;
   role: string;
   danger: 1 | 2 | 3 | 4 | 5;
+}
+
+/**
+ * The content/visual/population class a design floor declares for itself,
+ * falling back to its engine save bucket (`baseFloor`) when not overridden.
+ */
+export function designFloorThemeClass(route: DesignFloorRouteDef): FloorLevel {
+  return route.themeClass ?? route.baseFloor;
 }
 
 export const DESIGN_FLOOR_ROUTES: readonly DesignFloorRouteDef[] = [

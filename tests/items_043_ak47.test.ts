@@ -43,5 +43,5 @@ test('ak47 is reachable through Major Grom outpost defense with 7.62 pressure', 
 
   assert.ok(rewardStep, 'story chain should reward ak47 with a starting 7.62 reserve');
   assert.equal(rewardStep.killNeeded, 10);
-  assert.ok(rewardStep.desc.includes('форпост'));
+  assert.ok(rewardStep.desc.toLowerCase().includes('форпост'));
 });

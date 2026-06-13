@@ -290,7 +290,7 @@ export function visualGeometryThemeTags(theme: FloorThemeProfile): readonly stri
   const tags = new Set<string>();
   tags.add(theme.kind);
   tags.add(`kind_${theme.kind}`);
-  const floorName = (FloorLevel[theme.baseFloor] ?? 'floor').toLowerCase();
+  const floorName = (FloorLevel[theme.themeClass] ?? 'floor').toLowerCase();
   tags.add(floorName);
   tags.add(`floor_${floorName}`);
   tags.add(`danger_${theme.danger}`);
@@ -305,15 +305,15 @@ export function visualGeometryThemeTags(theme: FloorThemeProfile): readonly stri
     else if (depth >= 12) tags.add('mid_route');
     else tags.add('near_route');
   }
-  if (theme.baseFloor === FloorLevel.LIVING || theme.baseFloor === FloorLevel.KVARTIRY) tags.add('residential');
-  if (theme.baseFloor === FloorLevel.MINISTRY) tags.add('documents');
-  if (theme.baseFloor === FloorLevel.MAINTENANCE) {
+  if (theme.themeClass === FloorLevel.LIVING || theme.themeClass === FloorLevel.KVARTIRY) tags.add('residential');
+  if (theme.themeClass === FloorLevel.MINISTRY) tags.add('documents');
+  if (theme.themeClass === FloorLevel.MAINTENANCE) {
     tags.add('maintenance');
     tags.add('industrial');
     tags.add('water');
   }
-  if (theme.baseFloor === FloorLevel.HELL) tags.add('meat');
-  if (theme.baseFloor === FloorLevel.VOID) tags.add('void');
+  if (theme.themeClass === FloorLevel.HELL) tags.add('meat');
+  if (theme.themeClass === FloorLevel.VOID) tags.add('void');
   return [...tags].sort();
 }
 

@@ -8,6 +8,7 @@ import {
   W,
   ZoneFaction,
 } from '../core/types';
+import { designFloorThemeClass } from './design_floors';
 import type { DesignFloorId, DesignFloorRouteDef } from './design_floors';
 import {
   DEFAULT_ACTIVE_ACTOR_SOFT_LIMIT,
@@ -2056,53 +2057,59 @@ function depth01(z: number): number {
 
 function baseNpcTarget(route: DesignFloorRouteDef): number {
   if (route.z <= -48 || Math.abs(route.z) >= 44) return 0;
+  const cls = designFloorThemeClass(route);
   const habitation = Math.pow(Math.max(0, 1 - Math.abs(route.z) / 44), 1.7);
-  const baseFloorMult = route.baseFloor === FloorLevel.KVARTIRY ? 1.18
-    : route.baseFloor === FloorLevel.LIVING ? 1.08
-      : route.baseFloor === FloorLevel.MINISTRY ? 0.74
-        : route.baseFloor === FloorLevel.MAINTENANCE ? 0.54
-          : route.baseFloor === FloorLevel.HELL ? 0.16
+  const baseFloorMult = cls === FloorLevel.KVARTIRY ? 1.18
+    : cls === FloorLevel.LIVING ? 1.08
+      : cls === FloorLevel.MINISTRY ? 0.74
+        : cls === FloorLevel.MAINTENANCE ? 0.54
+          : cls === FloorLevel.HELL ? 0.16
             : 0;
   return clampInt((260 + habitation * 4200) * baseFloorMult, 0, DEFAULT_ACTIVE_ACTOR_SOFT_LIMIT);
 }
 
 function baseMonsterTarget(route: DesignFloorRouteDef): number {
+  const cls = designFloorThemeClass(route);
   const edgePressure = Math.pow(depth01(route.z), 2.2);
-  const baseFloorBonus = route.baseFloor === FloorLevel.HELL ? 1600
-    : route.baseFloor === FloorLevel.VOID ? 1900
-      : route.baseFloor === FloorLevel.MAINTENANCE ? 420
-        : route.baseFloor === FloorLevel.KVARTIRY ? -180
-          : route.baseFloor === FloorLevel.LIVING ? -120
+  const baseFloorBonus = cls === FloorLevel.HELL ? 1600
+    : cls === FloorLevel.VOID ? 1900
+      : cls === FloorLevel.MAINTENANCE ? 420
+        : cls === FloorLevel.KVARTIRY ? -180
+          : cls === FloorLevel.LIVING ? -120
             : 0;
   return clampInt(220 + route.danger * 120 + edgePressure * 7200 + baseFloorBonus, 0, DEFAULT_ACTIVE_ACTOR_SOFT_LIMIT);
 }
 
 function defaultNpcFactions(route: DesignFloorRouteDef): readonly WeightedDesignValue<Faction>[] {
-  if (route.baseFloor === FloorLevel.MAINTENANCE) return INDUSTRIAL_MIX;
-  if (route.baseFloor === FloorLevel.HELL) return VETERAN_MIX;
-  if (route.baseFloor === FloorLevel.MINISTRY) return ADMIN_MIX;
+  const cls = designFloorThemeClass(route);
+  if (cls === FloorLevel.MAINTENANCE) return INDUSTRIAL_MIX;
+  if (cls === FloorLevel.HELL) return VETERAN_MIX;
+  if (cls === FloorLevel.MINISTRY) return ADMIN_MIX;
   return CITIZEN_MIX;
 }
 
 function defaultNpcOccupations(route: DesignFloorRouteDef): readonly WeightedDesignValue<Occupation>[] {
-  if (route.baseFloor === FloorLevel.MAINTENANCE) return INDUSTRIAL_OCCUPATIONS;
-  if (route.baseFloor === FloorLevel.HELL) return VETERAN_OCCUPATIONS;
-  if (route.baseFloor === FloorLevel.MINISTRY) return ADMIN_OCCUPATIONS;
+  const cls = designFloorThemeClass(route);
+  if (cls === FloorLevel.MAINTENANCE) return INDUSTRIAL_OCCUPATIONS;
+  if (cls === FloorLevel.HELL) return VETERAN_OCCUPATIONS;
+  if (cls === FloorLevel.MINISTRY) return ADMIN_OCCUPATIONS;
   return SOCIAL_OCCUPATIONS;
 }
 
 function defaultNpcNoun(route: DesignFloorRouteDef): string {
-  if (route.baseFloor === FloorLevel.MAINTENANCE) return 'работник';
-  if (route.baseFloor === FloorLevel.HELL) return 'паломник';
-  if (route.baseFloor === FloorLevel.MINISTRY) return 'служащий';
+  const cls = designFloorThemeClass(route);
+  if (cls === FloorLevel.MAINTENANCE) return 'работник';
+  if (cls === FloorLevel.HELL) return 'паломник';
+  if (cls === FloorLevel.MINISTRY) return 'служащий';
   return 'житель';
 }
 
 function defaultPlacementKind(route: DesignFloorRouteDef): PlacementKind {
-  if (route.baseFloor === FloorLevel.MAINTENANCE) return 'industrial';
-  if (route.baseFloor === FloorLevel.HELL) return 'hell';
-  if (route.baseFloor === FloorLevel.VOID) return 'void';
-  if (route.baseFloor === FloorLevel.MINISTRY) return 'admin';
+  const cls = designFloorThemeClass(route);
+  if (cls === FloorLevel.MAINTENANCE) return 'industrial';
+  if (cls === FloorLevel.HELL) return 'hell';
+  if (cls === FloorLevel.VOID) return 'void';
+  if (cls === FloorLevel.MINISTRY) return 'admin';
   return 'social';
 }
 
