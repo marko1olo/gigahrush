@@ -31,7 +31,7 @@ import { placeProceduralScreens } from '../procedural_screens';
 import { genLog } from '../log';
 import {
   type NextId, addItemDrop, setFeature, spawnAdminMonster, spawnAdminNpc, spawnNamedCivilian,
-} from '../ministry/admin_common';
+} from '../admin_common';
 
 const DESIGN_NPC_HOME_FLOOR_KEY = designNpcFloorKey('upper_bureau');
 

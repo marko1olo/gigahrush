@@ -14,7 +14,7 @@ import {
 import { World } from '../../core/world';
 import {
   type NextId, addItemDrop, createAdminRoom, setFeature, spawnAdminMonster,
-} from './admin_common';
+} from '../admin_common';
 import { genLog } from '../log';
 
 function nextContainerId(world: World): number {

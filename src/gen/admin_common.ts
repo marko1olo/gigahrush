@@ -3,15 +3,15 @@
 import {
   W, Cell, Tex, Feature, RoomType, EntityType, AIGoal, Faction, Occupation,
   type Room, type Entity, type MonsterKind,
-} from '../../core/types';
-import { World } from '../../core/world';
-import { freshNeeds } from '../../data/catalog';
-import { type PlotNpcDef } from '../../data/plot';
-import { stampRoom, protectRoom, connectProtectedRoom, findClearArea } from '../shared';
-import { Spr, monsterSpr } from '../../render/sprite_index';
-import { randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg';
-import { MONSTERS } from '../../entities/monster';
-import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
+} from '../core/types';
+import { World } from '../core/world';
+import { freshNeeds } from '../data/catalog';
+import { type PlotNpcDef } from '../data/plot';
+import { stampRoom, protectRoom, connectProtectedRoom, findClearArea } from './shared';
+import { Spr, monsterSpr } from '../render/sprite_index';
+import { randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../systems/rpg';
+import { MONSTERS } from '../entities/monster';
+import { requireSpawnedPlotNpcFromPackage } from './plot_npc_spawn';
 
 export type NextId = { v: number };
 

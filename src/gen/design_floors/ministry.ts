@@ -11,7 +11,7 @@ import { Spr } from '../../render/sprite_index';
 import {
   type NextId, addItemDrop, createAdminRoom, setFeature, spawnAdminMonster,
   spawnAdminNpc,
-} from '../ministry/admin_common';
+} from '../admin_common';
 import { genLog } from '../log';
 
 const STORY_MINISTRY_NPC_HOME_FLOOR_KEY = storyNpcFloorKey(FloorLevel.MINISTRY);

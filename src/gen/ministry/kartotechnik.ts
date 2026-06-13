@@ -12,7 +12,7 @@ import { Spr } from '../../render/sprite_index';
 import { getRecentEvents, publishEvent, registerWorldEventObserver } from '../../systems/events';
 import {
   type NextId, addItemDrop, createAdminRoom, setFeature, spawnAdminMonster, spawnAdminNpc,
-} from './admin_common';
+} from '../admin_common';
 import { genLog } from '../log';
 
 const ROOM_NAME = 'Картотека невозможного алфавита';

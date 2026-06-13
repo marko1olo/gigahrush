@@ -16,7 +16,7 @@ import { World } from '../../core/world';
 import { type PlotNpcDef, registerAuthoredNpc, registerFloorSideQuest, storyNpcFloorKey } from '../../data/plot';
 import {
   type NextId, createAdminRoom, setFeature, addItemDrop, spawnAdminNpc,
-} from './admin_common';
+} from '../admin_common';
 import { genLog } from '../log';
 
 const ROOM_NAME = 'Пропускное бюро';

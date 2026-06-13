@@ -4,7 +4,7 @@ import { Feature, MonsterKind, RoomType, Tex, type Entity } from '../../core/typ
 import { World } from '../../core/world';
 import {
   type NextId, addItemDrop, createAdminRoom, setFeature, spawnAdminMonster,
-} from './admin_common';
+} from '../admin_common';
 import { genLog } from '../log';
 
 export function generateLampoglazLine(

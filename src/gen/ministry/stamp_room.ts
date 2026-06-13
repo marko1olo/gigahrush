@@ -21,7 +21,7 @@ import { addFactionRelMutual } from '../../data/relations';
 import { publishEvent, registerWorldEventObserver } from '../../systems/events';
 import {
   type NextId, createAdminRoom, setFeature, addItemDrop, spawnAdminNpc,
-} from './admin_common';
+} from '../admin_common';
 import { genLog } from '../log';
 
 const QUEST_WITNESSED_FORGERY = 'stamp_room_witnessed_forgery';

@@ -23,7 +23,7 @@ import { publishEvent } from '../../systems/events';
 import { addItem, registerInventoryUseHandler, removeItem, type InventoryUseHandlerContext } from '../../systems/inventory';
 import {
   type NextId, addItemDrop, createAdminRoom, setFeature, spawnAdminMonster, spawnAdminNpc,
-} from './admin_common';
+} from '../admin_common';
 import { genLog } from '../log';
 
 const LIQUIDATOR_ISSUE_CARD = 'liquidator_issue_card';

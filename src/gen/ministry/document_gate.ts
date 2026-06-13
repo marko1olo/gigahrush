@@ -20,7 +20,7 @@ import { recordPermitAccess, recordPermitExposure } from '../../systems/permits'
 import { setDoorState } from '../../systems/door_state';
 import {
   type NextId, addItemDrop, setFeature, spawnAdminMonster, spawnAdminNpc,
-} from './admin_common';
+} from '../admin_common';
 import { carveCorridor, findClearArea, protectRoom, stampRoom } from '../shared';
 import { genLog } from '../log';
 import { spawnChernobogDocketHandlers } from './chernobog_archive_docket';

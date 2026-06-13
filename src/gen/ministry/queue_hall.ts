@@ -16,7 +16,7 @@ import { World } from '../../core/world';
 import { type PlotNpcDef, registerAuthoredNpc, registerSideQuest, storyNpcFloorKey } from '../../data/plot';
 import {
   type NextId, createAdminRoom, setFeature, addItemDrop, spawnAdminNpc,
-} from './admin_common';
+} from '../admin_common';
 import { genLog } from '../log';
 
 const HOME_FLOOR_KEY = storyNpcFloorKey(FloorLevel.MINISTRY);

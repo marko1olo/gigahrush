@@ -24,7 +24,7 @@ import { addFactionRelMutual } from '../../data/relations';
 import { publishEvent, registerWorldEventObserver } from '../../systems/events';
 import {
   type NextId, addItemDrop, createAdminRoom, setFeature, spawnAdminNpc,
-} from './admin_common';
+} from '../admin_common';
 import { genLog } from '../log';
 
 const ROOM_NAME = 'Ревизионная НИИ: утечка проб';

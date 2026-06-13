@@ -16,7 +16,7 @@ import { type PlotNpcDef, registerAuthoredNpc, registerSideQuest, storyNpcFloorK
 import {
   type NextId, createAdminRoom, setFeature, addItemDrop, spawnAdminNpc,
   spawnAdminMonster,
-} from './admin_common';
+} from '../admin_common';
 import { genLog } from '../log';
 
 const HOME_FLOOR_KEY = storyNpcFloorKey(FloorLevel.MINISTRY);

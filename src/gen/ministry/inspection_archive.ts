@@ -19,7 +19,7 @@ import { World } from '../../core/world';
 import { type PlotNpcDef, registerSideQuest } from '../../data/plot';
 import {
   type NextId, createAdminRoom, setFeature, addItemDrop, spawnAdminNpc, spawnAdminMonster,
-} from './admin_common';
+} from '../admin_common';
 import { genLog } from '../log';
 
 const INSPECTION_ARCHIVE_ROUTE_TAGS = [

@@ -16,7 +16,7 @@ import { publishEvent, registerWorldEventObserver } from '../../systems/events';
 import { randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg';
 import {
   type NextId, addItemDrop, createAdminRoom, setFeature, spawnAdminNpc,
-} from './admin_common';
+} from '../admin_common';
 import { genLog } from '../log';
 
 export const MATKA_DOKUMENTOV_ID = 'matka_dokumentov';
