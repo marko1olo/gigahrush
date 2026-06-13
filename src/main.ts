@@ -18,6 +18,7 @@ import { updateProceduralScreens } from './gen/procedural_screens';
 import { generateProceduralFloor } from './gen/procedural_floor';
 import { generateDesignFloor, isDesignFloorId } from './gen/design_floors/manifest';
 import { injectFastElevators } from './gen/fast_elevators';
+import { stampCeilingHeights } from './gen/ceiling_heights';
 import {
   floorInstanceGenerationExtrasForKey,
   floorInstanceSamosborReplacementAllowed,
@@ -3674,6 +3675,7 @@ function captureFloorMemoryByKey(key: string): void {
 function generateFloorForTarget(floor: FloorLevel, entry: FloorRunEntry | null | undefined): FloorGeneration {
   const gen = generateFloorForTargetInner(floor, entry);
   injectFastElevators(gen.world);
+  stampCeilingHeights(gen.world);
   return gen;
 }
 

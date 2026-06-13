@@ -178,6 +178,7 @@ uniform highp usampler2D uCells;      // W×W: cell type (uint8)
 uniform highp usampler2D uWallTex;    // W×W: wall texture id
 uniform highp usampler2D uFloorTex;   // W×W: floor texture id
 uniform highp usampler2D uFeatures;   // W×W: features
+uniform highp usampler2D uCeil;        // W×W: render-only ceiling-height tiers
 uniform sampler2D uLight;             // W×W: lightmap (float)
 uniform highp usampler2D uFog;        // W×W: fog density
 uniform highp usampler2D uDoorStates; // W×W: door states (0=open, 1=closed, 2=locked, 3=hopen, 4=hclosed)
@@ -1098,7 +1099,10 @@ void main() {
   if (dist < 0.001) dist = 0.001;
 
   float lineH = uResolution.y / dist;
-  float drawStart = max(0.0, HALF_H - lineH * (1.0 - uCamHeight));
+  // Render-only per-cell ceiling height: tier t → wall top reaches (1 + t*0.5).
+  // Floor contact (drawEnd) and the walk level never move; only the top rises.
+  float ceilH = 1.0 + float(texelFetch(uCeil, ivec2(wrapI(mapX), wrapI(mapY)), 0).r) * 0.5;
+  float drawStart = max(0.0, HALF_H - lineH * (ceilH - uCamHeight));
   float drawEnd   = min(uResolution.y - 1.0, HALF_H + lineH * uCamHeight);
 
   // Texture X coordinate
@@ -1123,7 +1127,7 @@ void main() {
       if (uLightQuality > 0) { vec3 ls = sampleLightSmooth(uPos + vec2(rayDX, rayDY) * dist); baseLitWall = ls.x; lgradWall = ls.yz; }
       else baseLitWall = sampleLight(hitCell);
       float cellLit = min(1.0, uAmbient + baseLitWall * (1.0 - uAmbient) + fbWall + toolBeam * 0.82);
-      float d = row - (HALF_H - lineH * (1.0 - uCamHeight));
+      float d = row - (HALF_H - lineH * (ceilH - uCamHeight));
       int texYi = int(floor(d / lineH * TEX_F)) & (TEX_I - 1);
       vec3 c = sampleAtlas(wallTexId, texXi, texYi).rgb;
       if (texelFetch(uCells, hitCell, 0).r == ${Cell.ABYSS}u) {
@@ -1645,6 +1649,7 @@ interface GLState {
   wallTexTex: WebGLTexture;
   floorTexTex: WebGLTexture;
   featuresTex: WebGLTexture;
+  ceilTex: WebGLTexture;
   lightTex: WebGLTexture;
   fogTex: WebGLTexture;
   doorStatesTex: WebGLTexture;
@@ -1676,6 +1681,7 @@ interface GLState {
   wallTexVersion: number;
   floorTexVersion: number;
   featureVersion: number;
+  ceilHeightVersion: number;
   lightVersion: number;
   fogVersion: number;
   doorStatesData: Uint8Array;
@@ -2415,7 +2421,7 @@ export function initWebGL(
   const rayUniforms = getUniforms(gl, rayProgram, [
     'uResolution', 'uPos', 'uAngle', 'uPitch', 'uFogDensity',
     'uGlitch', 'uPlaneLen', 'uCamHeight', 'uFlashlight', 'uToolBeam', 'uToolBeamRange', 'uAmbient', 'uTime', 'uLightQuality', 'uPurpleFog', 'uFogColor',
-    'uCells', 'uWallTex', 'uFloorTex', 'uFeatures', 'uLight', 'uFog',
+    'uCells', 'uWallTex', 'uFloorTex', 'uFeatures', 'uCeil', 'uLight', 'uFog',
     'uDoorStates', 'uAtlas', 'uAtlasSize', 'uUseDynamicSky', 'uDynamicSky',
     'uDynamicSkyTint', 'uBaseFogColor', 'uSurfaceAtlas', 'uSurfaceIdx',
     'uDetailFloorCount', 'uDetailFloor0', 'uDetailFloor1', 'uDetailFloorColor0', 'uDetailFloorColor1',
@@ -2494,6 +2500,7 @@ export function initWebGL(
   const wallTexTex = createDataTexR8UI(gl, W, W, world.wallTex);
   const floorTexTex = createDataTexR8UI(gl, W, W, world.floorTex);
   const featuresTex = createDataTexR8UI(gl, W, W, world.features);
+  const ceilTex = createDataTexR8UI(gl, W, W, world.ceilHeight);
   const lightTex = createDataTexR32F(gl, W, W, world.light);
   const fogTex = createDataTexR8UI(gl, W, W, world.fog);
   const doorStatesData = rebuildDoorStates(world);
@@ -2536,7 +2543,7 @@ export function initWebGL(
     particleInstanceData: particleBuffers.instanceData,
     particleColorData: particleBuffers.colorData,
     particleUniforms,
-    cellsTex, wallTexTex, floorTexTex, featuresTex, lightTex, fogTex,
+    cellsTex, wallTexTex, floorTexTex, featuresTex, ceilTex, lightTex, fogTex,
     doorStatesTex, atlasTex,
     dynamicSkyTex,
     dynamicSkyW: 1,
@@ -2559,6 +2566,7 @@ export function initWebGL(
     wallTexVersion: world.wallTexVersion,
     floorTexVersion: world.floorTexVersion,
     featureVersion: world.featureVersion,
+    ceilHeightVersion: world.ceilHeightVersion,
     lightVersion: world.lightVersion,
     fogVersion: world.fogVersion,
     doorStatesData,
@@ -2684,6 +2692,10 @@ export function updateDynamicData(world: World, camX = 0, camY = 0): void {
     glState.featureVersion = world.featureVersion;
   }
 
+  if (world.ceilHeightVersion !== glState.ceilHeightVersion) {
+    uploadGridTexture(gl, glState.ceilTex, gl.RED_INTEGER, gl.UNSIGNED_BYTE, world.ceilHeight, null);
+    glState.ceilHeightVersion = world.ceilHeightVersion;
+  }
   if (world.lightVersion !== glState.lightVersion) {
     gl.bindTexture(gl.TEXTURE_2D, glState.lightTex);
     gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, W, W, gl.RED, gl.FLOAT, world.light);
@@ -2855,6 +2867,7 @@ export function renderSceneGL(
   bindTextureUnit(gl, glState.surfaceAtlasTex, ru['uSurfaceAtlas']!, 8);
   bindTextureUnit(gl, glState.surfaceIdxTex, ru['uSurfaceIdx']!, 9);
   bindTextureUnit(gl, glState.dynamicSkyTex, ru['uDynamicSky']!, 10);
+  bindTextureUnit(gl, glState.ceilTex, ru['uCeil']!, 11);
 
   // Atlas size
   const atlasRows = Math.ceil(textures.length / ATLAS_COLS);
@@ -3466,6 +3479,7 @@ export function disposeWebGL(): void {
   gl.deleteTexture(glState.wallTexTex);
   gl.deleteTexture(glState.floorTexTex);
   gl.deleteTexture(glState.featuresTex);
+  gl.deleteTexture(glState.ceilTex);
   gl.deleteTexture(glState.lightTex);
   gl.deleteTexture(glState.fogTex);
   gl.deleteTexture(glState.doorStatesTex);

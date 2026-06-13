@@ -189,6 +189,7 @@ export class World {
   wallTexVersion = 0;              // bumped when runtime wall texture data changes
   floorTexVersion = 0;             // bumped when runtime floor texture data changes
   featureVersion = 0;              // bumped when runtime feature data changes
+  ceilHeightVersion = 0;           // bumped when render-only ceiling-height tiers change
   lightVersion = 0;                // bumped when baked feature light changes
   fogVersion = 0;                  // bumped when runtime fog data changes
   visualSlotVersion = 0;           // bumped when render-only visual slot data changes
@@ -196,6 +197,7 @@ export class World {
   pathBlockerVersion = 0;          // bumped when path blocker masks change
   pathBlockerDirtyVersion = 0;     // conservative whole-layer path blocker invalidation marker
   liftDir:   Uint8Array;           // LiftDirection per cell (only meaningful where cells[i] === Cell.LIFT)
+  ceilHeight: Uint8Array;          // render-only ceiling-height tier per cell (0 = standard)
   containers: WorldContainer[] = [];
   containerMap: Map<number, number[]> = new Map(); // cell idx -> container ids
   containerById: Map<number, WorldContainer> = new Map();
@@ -224,6 +226,7 @@ export class World {
     this.fog      = new Uint8Array(n);              // fog density
     this.liftDir  = new Uint8Array(n);              // LiftDirection (0=DOWN, 1=UP)
     this.surfaceFlags = new Uint8Array(n);
+    this.ceilHeight = new Uint8Array(n);            // 0 = standard ceiling height
   }
 
   addContainer(container: WorldContainer): void {
@@ -437,6 +440,10 @@ export class World {
   markFogDirty(rects?: GridDirtyRectsInput): void {
     this.fogVersion = (this.fogVersion + 1) | 0;
     this.fogDirtyRects = appendGridDirtyRects(this.fogDirtyRects, rects);
+  }
+
+  markCeilHeightDirty(): void {
+    this.ceilHeightVersion = (this.ceilHeightVersion + 1) | 0;
   }
 
   markVisualSlotsDirty(): void {
