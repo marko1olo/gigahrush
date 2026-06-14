@@ -575,11 +575,11 @@ test('container take/put refuses full targets without changing source counts', (
   assert.equal(fullPlayer.inventory?.length, MAX_INVENTORY_SLOTS);
 
   const donor = makeTestEntity({ inventory: [{ defId: 'water', count: 1 }] });
-  const fullBox = makeTestContainer({ inventory: [{ defId: 'bread', count: getStack(ITEMS.bread) }] });
+  const fullBox = makeTestContainer({ inventory: Array.from({ length: MAX_INVENTORY_SLOTS }, () => ({ defId: 'bread', count: getStack(ITEMS.bread) })) });
 
   assert.equal(putIntoContainer(fullBox, donor, 0, 1), false);
   assert.deepEqual(donor.inventory, [{ defId: 'water', count: 1 }]);
-  assert.deepEqual(fullBox.inventory, [{ defId: 'bread', count: getStack(ITEMS.bread) }]);
+  assert.deepEqual(fullBox.inventory, Array.from({ length: MAX_INVENTORY_SLOTS }, () => ({ defId: 'bread', count: getStack(ITEMS.bread) })));
 });
 
 test('container put moves exactly one selected stack unit', () => {

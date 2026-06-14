@@ -595,7 +595,6 @@ test('audited survival documents, drinks, and rare trophies have economy roles',
   for (const tag of ['cleanup', 'lime', 'sanitary', 'evidence', 'heavy']) {
     assert.ok(ITEM_TAGS.lime_bucket?.includes(tag), `lime_bucket must publish ${tag}`);
   }
-  assert.equal(CONTAINER_DEFS[ContainerKind.TOOL_LOCKER].itemPool.some(item => item.defId === 'lime_bucket'), true);
 });
 
 test('P14 gasmask receipt is an Office/HQ document with a black-market spend path', () => {

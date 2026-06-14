@@ -58,6 +58,7 @@ export function generateTextures(): TexData[] {
   generatePosterTextures(textures);
   generateProceduralScreenTextures(textures);
   gen_larvaBody(textures[Tex.LARVA_BODY]);
+  gen_doorHermetic(textures[Tex.DOOR_HERMETIC]);
 
   return textures;
 }
@@ -216,6 +217,52 @@ function gen_doorMetal(t: TexData) {
     const n = noise(x, y, 130) * 15;
     const lock = (x > 48 && x < 56 && y > 28 && y < 36) ? 40 : 0;
     t[y * S + x] = rgba(clamp(80 + border + n + lock), clamp(85 + border + n + lock), clamp(90 + border + n + lock));
+  }
+}
+
+function gen_doorHermetic(t: TexData) {
+  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+    const n = noise(x, y, 135) * 15;
+    // Heavy steel frame
+    const frame = (x < 6 || x > S - 7 || y < 6 || y > S - 7);
+    // Inner bevel
+    const bevel = !frame && (x < 10 || x > S - 11 || y < 10 || y > S - 11);
+    // Warning stripes on the frame
+    const stripe = frame && ((x + y) % 12 < 6);
+    
+    // Central wheel valve
+    const cx = S / 2, cy = S / 2;
+    const dx = x - cx, dy = y - cy;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const isWheelRing = dist > 10 && dist < 14;
+    const isWheelSpoke = dist <= 14 && (Math.abs(dx) < 2 || Math.abs(dy) < 2 || Math.abs(dx - dy) < 2 || Math.abs(dx + dy) < 2);
+    const isWheelCenter = dist < 4;
+    const valve = isWheelRing || isWheelSpoke || isWheelCenter;
+    
+    // Rivets on the corners of the inner panel
+    const rx = Math.abs(x - cx);
+    const ry = Math.abs(y - cy);
+    const rivet = !frame && !bevel && ((rx === 16 && ry === 16) || (rx === 16 && ry === 8) || (rx === 8 && ry === 16));
+    
+    let r: number, g: number, b: number;
+    if (stripe) {
+      r = 180 + n; g = 150 + n; b = 20 + n; // yellow
+    } else if (frame) {
+      r = 30 + n; g = 30 + n; b = 35 + n; // dark frame
+    } else if (bevel) {
+      r = 50 + n; g = 50 + n; b = 55 + n; // transition
+    } else if (valve) {
+      r = 160 + n; g = 40 + n; b = 40 + n; // red valve wheel
+    } else if (rivet) {
+      r = 100 + n; g = 100 + n; b = 110 + n;
+    } else {
+      // Main heavy metal surface
+      r = 65 + n; g = 70 + n; b = 75 + n;
+      // Horizontal reinforced beams
+      if (y > 20 && y < 24) { r -= 10; g -= 10; b -= 10; }
+      if (y > S - 25 && y < S - 21) { r -= 10; g -= 10; b -= 10; }
+    }
+    t[y * S + x] = rgba(clamp(r), clamp(g), clamp(b));
   }
 }
 

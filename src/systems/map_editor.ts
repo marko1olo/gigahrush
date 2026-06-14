@@ -719,7 +719,7 @@ function removeEditorDoorAt(world: World, idx: number): boolean {
     world.cells[idx] = Cell.FLOOR;
     changed = true;
   }
-  if (world.wallTex[idx] === Tex.DOOR_WOOD || world.wallTex[idx] === Tex.DOOR_METAL) {
+  if (world.wallTex[idx] === Tex.DOOR_WOOD || world.wallTex[idx] === Tex.DOOR_METAL || world.wallTex[idx] === Tex.DOOR_HERMETIC) {
     world.wallTex[idx] = Tex.CONCRETE;
     changed = true;
   }
@@ -1114,7 +1114,7 @@ export function createCurrentMapEditorOp(world: World, entities: Entity[]): MapE
       const containerId = nearestContainerId(world, x, y);
       return containerId === null ? null : { kind: 'delete_container', containerId };
     }
-    const seedItem = CONTAINER_DEFS[brush.kind]?.itemPool.find(item => ITEMS[item.defId])?.defId ?? 'water';
+    const seedItem = 'water';
     return { kind: 'spawn_container', x, y, def: { kind: brush.kind, itemId: seedItem, count: 1 } };
   }
   return null;

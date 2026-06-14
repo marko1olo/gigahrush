@@ -1130,7 +1130,7 @@ void main() {
       // 0=OPEN, 3=HERMETIC_OPEN — these are passable
       if (doorState != 0u && doorState != 3u) {
         dist = stepDist;
-        wallTexId = doorState == 2u ? ${Tex.DOOR_METAL}u : ${Tex.DOOR_WOOD}u;
+        wallTexId = doorState == 4u ? ${Tex.DOOR_HERMETIC}u : (doorState == 2u ? ${Tex.DOOR_METAL}u : ${Tex.DOOR_WOOD}u);
         hit = true;
         break;
       }
@@ -1448,6 +1448,18 @@ uniform int   uIsShadow;      // 1 = shadow mode: sprite silhouette as floor sha
 uniform float uShadowFloorH;  // camHeight * halfH — for per-pixel floor depth in shadow mode
 uniform vec2  uResolution;
 
+// Scene Lighting Uniforms
+uniform sampler2D uLight;
+uniform highp usampler2D uLightBlinks;
+uniform float uAmbient;
+uniform float uFlashlight;
+uniform float uToolBeam;
+uniform float uToolBeamRange;
+uniform vec2 uPos;
+uniform float uAngle;
+uniform int uSamosborAlert;
+uniform int uLightQuality;
+
 // Dynamic lights and shadows
 uniform highp usampler2D uCells;
 uniform highp usampler2D uDoorStates;
@@ -1462,6 +1474,49 @@ int wrapI(int v) {
 uint sampleCell(ivec2 p) {
   ivec2 wp = ivec2(wrapI(p.x), wrapI(p.y));
   return texelFetch(uCells, wp, 0).r;
+}
+
+float getBlinkPulse(ivec2 p) {
+  uint freqU = texelFetch(uLightBlinks, p, 0).r;
+  float freq = float(freqU);
+  if (uSamosborAlert == 1) freq = 3.0; // override for red alert
+  if (freq <= 0.0) return 1.0;
+  
+  float h = fract(sin(float(p.x) * 12.9898 + float(p.y) * 78.233) * 43758.5453);
+  
+  if (uSamosborAlert == 1) {
+    float t = fract(uTime * 1.5 - h * 0.2); // slight stagger, sharp strobe
+    return (t < 0.4) ? 1.0 : 0.2;
+  }
+  
+  // Broken fluorescent stutter
+  float t = uTime * freq * 4.0 + h * 100.0;
+  float n = fract(sin(floor(t)) * 137.5453);
+  return (n > 0.3) ? 1.0 : 0.1;
+}
+
+float flashlightBoost(float dist) {
+  if (uFlashlight <= 0.0) return 0.0;
+  float t = max(0.0, 1.0 - dist / 11.5);
+  return uFlashlight * t * t * 0.95;
+}
+
+float toolBeamBoost(float dist, float rayDX, float rayDY) {
+  if (uToolBeam <= 0.0 || uToolBeamRange <= 0.0) return 0.0;
+  vec2 forward = vec2(cos(uAngle), sin(uAngle));
+  vec2 delta = vec2(rayDX, rayDY) * dist;
+  float along = dot(delta, forward);
+  if (along <= 0.35 || along > uToolBeamRange) return 0.0;
+  float side = abs(dot(delta, vec2(-forward.y, forward.x)));
+  float halfWidth = min(1.05, 0.36 + along * 0.055);
+  float edge = 1.0 - smoothstep(halfWidth * 0.68, halfWidth, side);
+  float falloff = 1.0 - along / uToolBeamRange;
+  float flicker = 0.94 + 0.06 * sin(uTime * 57.0 + along * 3.1);
+  return uToolBeam * edge * (0.24 + falloff * 0.76) * flicker;
+}
+
+float eyeLight(float dist) {
+  return (1.0 - smoothstep(0.5, 11.0, dist)) * 0.22;
 }
 
 uint sampleDoor(ivec2 p) {
@@ -1601,6 +1656,28 @@ void main() {
     // Pre-multiplied additive: write bright color with full alpha
     fragColor = vec4(rgb, 1.0);
   } else {
+    // 1. Calculate lighting at base of sprite
+    ivec2 baseCell = ivec2(wrapI(int(floor(vWorldPos.x))), wrapI(int(floor(vWorldPos.y))));
+    float baseLight = texelFetch(uLight, baseCell, 0).r * getBlinkPulse(baseCell);
+    
+    vec2 delta = vWorldPos - uPos;
+    float dist = length(delta);
+    float rayDX = dist > 0.0 ? delta.x / dist : 0.0;
+    float rayDY = dist > 0.0 ? delta.y / dist : 0.0;
+    
+    float fb = flashlightBoost(dist);
+    float tb = toolBeamBoost(dist, rayDX, rayDY);
+    float el = eyeLight(dist);
+    
+    // 2. Combine into cellLit
+    float cellLit = min(1.0, uAmbient + baseLight * (1.0 - uAmbient) + fb + tb * 0.82 + el);
+    
+    // Apply shadeCurve (from webgl.ts)
+    cellLit = pow(clamp(cellLit, 0.0, 1.0), 1.32);
+    
+    // 3. Modulate RGB
+    rgb *= cellLit;
+
     rgb = mix(rgb, uFogColor, uFogF);
     
     // Normal for sprite: we assume it faces the camera, but since lighting is 2D-ish
@@ -2695,7 +2772,9 @@ export function initWebGL(
   const spriteUniforms = getUniforms(gl, spriteProgram, [
     'uResolution', 'uScreenX', 'uShearX', 'uSpriteW', 'uSpriteH', 'uStartY', 'uDepth',
     'uSpriteTex', 'uFogColor', 'uFogF', 'uIsShadow', 'uShadowFloorH', 'uIsProjectile', 'uTime', 'uSeed', 'uSpriteWorldPos',
-    'uCells', 'uDoorStates', 'uDynamicLightCount', 'uShadowTip'
+    'uCells', 'uDoorStates', 'uDynamicLightCount', 'uShadowTip',
+    'uPos', 'uAngle', 'uLight', 'uLightBlinks', 'uAmbient', 'uSamosborAlert',
+    'uFlashlight', 'uToolBeam', 'uToolBeamRange', 'uLightQuality'
   ]);
   for (let i = 0; i < 8; i++) {
     spriteUniforms[`uDynamicLights[${i}].pos`] = gl.getUniformLocation(spriteProgram, `uDynamicLights[${i}].pos`);
@@ -3275,6 +3354,12 @@ export function renderSceneGL(
     true,
     visualGeometryProfile.enabled && visualGeometryProfile.includeEntities,
     visualGeometryProfile.enabled,
+    ambientLight,
+    flashlight,
+    toolBeam,
+    toolBeamRange,
+    samosborActive,
+    lightingQuality,
   );
 
   // ── Render transient particles into FBO ──
@@ -3546,6 +3631,12 @@ function renderSpritesGL(
   renderStaticObjectSprites: boolean,
   meshBackedBillboardSprites: boolean,
   meshBackedFeatures: boolean = false,
+  ambientLight: number = 0.12,
+  flashlight: number = 0,
+  toolBeam: number = 0,
+  toolBeamRange: number = 0,
+  samosborActive: boolean = false,
+  lightingQuality: number = 4,
 ): void {
   if (!glState) return;
   const { gl } = glState;
@@ -3651,6 +3742,16 @@ function renderSpritesGL(
   gl.bindVertexArray(glState.spriteVAO);
   gl.uniform1i(su['uIsShadow']!, 0);
 
+  // Scene Lighting Uniforms for Sprites
+  gl.uniform2f(su['uPos']!, px, py);
+  gl.uniform1f(su['uAngle']!, pAngle);
+  gl.uniform1f(su['uAmbient']!, ambientLight);
+  gl.uniform1f(su['uFlashlight']!, flashlight);
+  gl.uniform1f(su['uToolBeam']!, toolBeam);
+  gl.uniform1f(su['uToolBeamRange']!, toolBeamRange);
+  gl.uniform1i(su['uSamosborAlert']!, samosborActive ? 1 : 0);
+  gl.uniform1i(su['uLightQuality']!, lightingQuality);
+
   // Dynamic Lights (Framework)
   gl.uniform1i(su['uDynamicLightCount']!, glState.dynamicLightCount);
   if (glState.dynamicLightCount > 0) {
@@ -3667,9 +3768,11 @@ function renderSpritesGL(
     if (loc) gl.uniform4fv(loc, glState.shadowCasters.subarray(0, glState.shadowCasterCount * 4));
   }
 
-  // Bind data textures for shadows
+  // Bind data textures for shadows and lighting
   bindTextureUnit(gl, glState.cellsTex, su['uCells']!, 1);
   bindTextureUnit(gl, glState.doorStatesTex, su['uDoorStates']!, 2);
+  bindTextureUnit(gl, glState.lightTex, su['uLight']!, 3);
+  bindTextureUnit(gl, glState.lightBlinksTex, su['uLightBlinks']!, 4);
 
   let drawnSprites = 0;
   for (let oi = 0; oi < visibleCount; oi++) {

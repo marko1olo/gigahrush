@@ -23,6 +23,7 @@ import { changeResourceStock, getEconomyQuote, type EconomyQuote } from './econo
 import { controlHint } from './controls';
 import { publishEvent } from './events';
 import { CHALK_ITEM_ID, createChalkItemData } from './chalk';
+import { generateContainerLoot } from './procedural_loot';
 import { recordPermitAccess } from './permits';
 import { applyRoomMemoryRelationPenalty, applyTheftRelationPenalty } from './factions';
 import { addKarma } from './alife_rating';
@@ -112,10 +113,6 @@ function containerSeed(roomId: number, kind: ContainerKind, n: number): number {
   return x >>> 0;
 }
 
-function roll(seed: number, max: number): number {
-  return max <= 0 ? 0 : (seed % max);
-}
-
 function findContainerCell(world: World, room: Room, n: number): { x: number; y: number } | null {
   for (let a = 0; a < 16; a++) {
     const x = world.wrap(room.x + 1 + ((n * 3 + a * 5) % Math.max(1, room.w - 2)));
@@ -126,24 +123,35 @@ function findContainerCell(world: World, room: Room, n: number): { x: number; y:
   return null;
 }
 
-function seedInventory(kind: ContainerKind, roomId: number): Item[] {
+function seedInventory(kind: ContainerKind, roomId: number, level = 0): Item[] {
   const def = CONTAINER_DEFS[kind];
   const inv: Item[] = [];
-  let slot = 0;
-  for (const item of def.itemPool) {
-    if (!ITEMS[item.defId]) continue;
-    const seed = containerSeed(roomId, kind, slot);
-    if (item.chance !== undefined) {
-      const chance = Math.max(0, Math.min(1, item.chance));
-      if ((seed % 10_000) / 10_000 >= chance) {
-        slot++;
-        continue;
-      }
+  const rollItems: number[] = [];
+  let numItems = 1;
+  const Z = Math.abs(level);
+  let n = 0;
+  while (true) {
+    const seed = containerSeed(roomId, kind, n++);
+    const r = (seed % 100_000) / 100_000;
+    if (r < (Z + 1) / (Z + 1 + numItems)) {
+      numItems++;
+    } else {
+      break;
     }
-    const count = item.min + roll(seed >>> 8, item.max - item.min + 1);
-    if (count > 0) inv.push({ defId: item.defId, count: Math.min(count, getStack(ITEMS[item.defId])) });
-    slot++;
-    if (inv.length >= def.capacitySlots) break;
+  }
+
+  for (let i = 0; i < numItems; i++) {
+    const seed = containerSeed(roomId, kind, n + i);
+    rollItems.push((seed % 10_000) / 10_000);
+  }
+  const proceduralItems = generateContainerLoot(def.tags, def.proceduralValueCap, level, rollItems);
+  for (const item of proceduralItems) {
+    const existing = inv.find(i => i.defId === item.defId && i.count < getStack(ITEMS[item.defId]));
+    if (existing) {
+      existing.count++;
+    } else if (inv.length < MAX_INVENTORY_SLOTS) {
+      inv.push(item);
+    }
   }
   return inv;
 }
@@ -212,7 +220,7 @@ export function makeFeatureLootContainer(
     zoneId: world.zoneMap[idx],
     kind,
     name: def.name,
-    inventory: seedInventory(kind, seed),
+    inventory: seedInventory(kind, seed, level),
     capacitySlots: def.capacitySlots,
     access: 'public',
     discovered: true,
@@ -458,7 +466,7 @@ export function ensureRoomContainers(world: World, floor: FloorLevel, maxContain
         zoneId: world.zoneMap[world.idx(pos.x, pos.y)],
         kind,
         name: `${def.name}: ${room.name}`,
-        inventory: seedInventory(kind, room.id),
+        inventory: seedInventory(kind, room.id, floor),
         capacitySlots: def.capacitySlots,
         faction: factionForRoom(world, room),
         access: accessForRoom(room, kind),
@@ -639,7 +647,7 @@ export function containerTheftStatus(container: WorldContainer): ContainerTheftS
   };
 }
 
-function inventoryFitCount(inv: Item[], defId: string, capacitySlots: number): number {
+function inventoryFitCount(inv: Item[], defId: string, _capacitySlots: number): number {
   const def = ITEMS[defId];
   if (!def) return 0;
   const maxStack = getStack(def);
@@ -647,15 +655,15 @@ function inventoryFitCount(inv: Item[], defId: string, capacitySlots: number): n
   for (const slot of inv) {
     if (slot.defId === defId && slot.count < maxStack) free += maxStack - slot.count;
   }
-  free += Math.max(0, capacitySlots - inv.length) * maxStack;
+  free += Math.max(0, MAX_INVENTORY_SLOTS - inv.length) * maxStack;
   return free;
 }
 
-function addToInventory(inv: Item[], item: Item, count: number, capacitySlots: number): number {
+function addToInventory(inv: Item[], item: Item, count: number, _capacitySlots: number): number {
   const def = ITEMS[item.defId];
   if (!def || count <= 0) return 0;
   const maxStack = getStack(def);
-  let left = Math.min(count, inventoryFitCount(inv, item.defId, capacitySlots));
+  let left = Math.min(count, inventoryFitCount(inv, item.defId, MAX_INVENTORY_SLOTS));
   const moved = left;
   for (const slot of inv) {
     if (left <= 0) break;
@@ -664,7 +672,7 @@ function addToInventory(inv: Item[], item: Item, count: number, capacitySlots: n
     slot.count += add;
     left -= add;
   }
-  while (left > 0 && inv.length < capacitySlots) {
+  while (left > 0 && inv.length < MAX_INVENTORY_SLOTS) {
     const add = Math.min(left, maxStack);
     const data = item.data ?? (item.defId === CHALK_ITEM_ID ? createChalkItemData(def.durability ?? 0) : undefined);
     inv.push({ defId: item.defId, count: add, data });

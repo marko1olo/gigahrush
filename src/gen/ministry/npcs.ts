@@ -12,6 +12,7 @@ import { characterSexFromFemale } from '../../data/demographics';
 import { activeActorCountAtDefaultSoftLimit } from '../../data/entity_limits';
 import { rng } from '../shared';
 import { gaussianLevel, randomRPG, getMaxHp } from '../../systems/rpg';
+import { generateNpcLoadout } from '../../systems/procedural_loot';
 import { canSpawnEntityType, entitySpawnSlots } from '../../systems/entity_limits';
 import { type PlotNpcDef, registerAuthoredNpc, storyNpcFloorKey } from '../../data/plot';
 import { spawnArkhivariusKafkin } from './arkhivarius';
@@ -22,18 +23,16 @@ import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
 const MINISTRY_NPC_TARGET_AT_DEFAULT_CAP = 1000;
 
 /* ── Weapon loadout for ministry NPCs ─────────────────────────── */
-function ministryWeaponLoadout(faction: Faction, occupation: Occupation): { weapon: string; inv: { defId: string; count: number }[] } {
-  if (faction === Faction.LIQUIDATOR) {
-    const roll = Math.random();
-    if (roll < 0.30) return { weapon: 'makarov', inv: [{ defId: 'makarov', count: 1 }, { defId: 'ammo_9mm', count: rng(6, 16) }] };
-    if (roll < 0.45) return { weapon: 'ppsh', inv: [{ defId: 'ppsh', count: 1 }, { defId: 'ammo_9mm', count: rng(20, 40) }] };
-    if (roll < 0.65) return { weapon: 'axe', inv: [{ defId: 'axe', count: 1 }] };
-    return { weapon: 'pipe', inv: [{ defId: 'pipe', count: 1 }] };
+function ministryWeaponLoadout(faction: Faction, occupation: Occupation, level: number): { weapon?: string; inv: { defId: string; count: number }[] } {
+  // Use procedural loot generator. We pass random rolls to let it build the loadout.
+  const loadout = generateNpcLoadout(faction, level, 1, Math.random(), [Math.random(), Math.random()]);
+  
+  if (occupation === Occupation.DIRECTOR && Math.random() > 0.3) {
+    // Directors have 70% chance to be unarmed despite faction
+    return { weapon: undefined, inv: [] };
   }
-  if (occupation === Occupation.DIRECTOR) {
-    return Math.random() < 0.3 ? { weapon: 'makarov', inv: [{ defId: 'makarov', count: 1 }, { defId: 'ammo_9mm', count: rng(4, 8) }] } : { weapon: '', inv: [] };
-  }
-  return { weapon: '', inv: [] };
+  
+  return { weapon: loadout.weapon, inv: loadout.inventory ?? [] };
 }
 
 /* ── Special NPCs definitions ─────────────────────────────────── */
@@ -182,7 +181,7 @@ export function spawnMinistryNpcs(
         const maxHp = Math.round(getMaxHp(rpg) * 1.5);
         const nm = randomName(fDef.faction);
         const sex = characterSexFromFemale(nm.female);
-        const loadout = ministryWeaponLoadout(fDef.faction, fDef.occupation);
+        const loadout = ministryWeaponLoadout(fDef.faction, fDef.occupation, npcLevel);
         entities.push({
           id: nextId.v++, type: EntityType.NPC,
           x: sx + 0.5, y: sy + 0.5,

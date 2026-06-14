@@ -58,7 +58,7 @@ export function drawContainerMenu(
   const columnW = gridTotal;
   const containerName = fitText(ctx, container.name, columnW * 0.85);
   ctx.fillStyle = access.color;
-  ctx.fillText(`${containerName}: ${containerInv.length}/${container.capacitySlots}`, containerX, startY - 9 * sy);
+  ctx.fillText(`${containerName}: ${containerInv.length}`, containerX, startY - 9 * sy);
   ctx.fillStyle = access.color;
   ctx.font = `${6.4 * sy}px monospace`;
   ctx.fillText(fitText(ctx, access.label, columnW), containerX, startY - 18 * sy);

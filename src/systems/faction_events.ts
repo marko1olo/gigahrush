@@ -24,6 +24,7 @@ import { getStack } from '../data/items';
 import { addFactionRelMutual } from '../data/relations';
 import { stampMark, MarkType } from './surface_marks';
 import { Spr } from '../render/sprite_index';
+import { MAX_INVENTORY_SLOTS } from '../data/inventory_limits';
 import { ensureRoomContainers } from './containers';
 import { controlHint } from './controls';
 import { changeResourceStock } from './economy';
@@ -1880,7 +1881,7 @@ function applyConsequences(state: GameState, world: World, zoneId: number, def: 
   const container = visibleContainer ?? fallbackContainer;
   if (!container) return { deposited: 0, containersTouched: 0, economyDeltas };
   for (const item of def.containerDrops) {
-    if (addContainerItem(container.inventory, container.capacitySlots, item)) deposited++;
+    if (addContainerItem(container.inventory, MAX_INVENTORY_SLOTS, item)) deposited++;
   }
   if (deposited > 0) {
     container.lastAuditAt = state.time;

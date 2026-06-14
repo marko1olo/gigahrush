@@ -3167,11 +3167,7 @@ function seedProceduralLootInventory(room: Room, kind: ContainerKind, spec: Proc
     addCappedItem(inv, { defId: picked.id, count }, valueCap, def.capacitySlots);
   }
 
-  for (const item of def.itemPool) {
-    if (inv.length > 0) break;
-    if (item.chance !== undefined && !chance(item.chance)) continue;
-    addCappedItem(inv, { defId: item.defId, count: Math.max(1, item.min) }, valueCap, def.capacitySlots);
-  }
+
   return inv;
 }
 

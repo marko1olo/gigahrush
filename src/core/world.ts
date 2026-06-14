@@ -547,7 +547,7 @@ export class World {
       this.markCellsDirty();
       changed = true;
     }
-    if (this.wallTex[idx] === Tex.DOOR_WOOD || this.wallTex[idx] === Tex.DOOR_METAL) {
+    if (this.wallTex[idx] === Tex.DOOR_WOOD || this.wallTex[idx] === Tex.DOOR_METAL || this.wallTex[idx] === Tex.DOOR_HERMETIC) {
       this.wallTex[idx] = Tex.CONCRETE;
       this.markWallTexDirty();
       changed = true;

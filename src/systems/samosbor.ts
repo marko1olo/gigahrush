@@ -5,13 +5,14 @@
 import {
   W, Cell, DoorState, ZoneFaction, FloorLevel, RoomType, Tex, Feature, ContainerKind, Faction,
   type Entity, type GameState, type Msg, type Room, type WorldContainer, type WorldEventType,
-  EntityType, AIGoal, MonsterKind, Occupation, ItemType,
+  EntityType, AIGoal, MonsterKind, Occupation,
   msg,
 } from '../core/types';
 import { World, replaceWorldFromGeneration, type WorldGridDirtyRect } from '../core/world';
 import { ITEMS, NOTES, freshNeeds, randomName } from '../data/catalog';
+import { MAX_INVENTORY_SLOTS } from '../data/inventory_limits';
 import { addFactionRelMutual } from '../data/relations';
-import { getStack, itemEquipSlot, spawnCount } from '../data/items';
+import { getStack, spawnCount } from '../data/items';
 import { chooseFloorMonsterKind } from '../data/monster_ecology';
 import { MONSTERS } from '../entities/monster';
 import { Spr } from '../render/sprite_index';
@@ -37,6 +38,7 @@ import { flashSamosborWarningScreens } from '../gen/procedural_screens';
 import { rng, pick, weightedPick } from '../gen/shared';
 import { getMaxHp, scaleMonsterHp, scaleMonsterSpeed, randomRPG } from './rpg';
 import { publishEvent } from './events';
+import { generateNpcLoadout } from './procedural_loot';
 import { setDoorState } from './door_state';
 import {
   ensureFloorRunState,
@@ -260,20 +262,20 @@ interface SamosborFront {
   visited: Set<number>;     // persistent BFS visited set — avoids O(N) rebuild per tick
 }
 
-const FRONT_MIN_COUNT = 3;
-const FRONT_MAX_COUNT = 8;
-const FRONT_BUDGET_CRACK   = 6;     // narrow, fast
-const FRONT_BUDGET_WAVE    = 18;    // wide, steady
-const FRONT_BUDGET_TENDRIL = 4;     // long, winding
-const FRONT_BUDGET_FLASH   = 48;    // instant burst, short-lived
+const FRONT_MIN_COUNT = 6;
+const FRONT_MAX_COUNT = 14;
+const FRONT_BUDGET_CRACK   = 16;     // narrow, fast
+const FRONT_BUDGET_WAVE    = 36;    // wide, steady
+const FRONT_BUDGET_TENDRIL = 12;     // long, winding
+const FRONT_BUDGET_FLASH   = 96;    // instant burst, short-lived
 const FRONT_MAX_AGE_CRACK   = 300;
 const FRONT_MAX_AGE_WAVE    = 500;
 const FRONT_MAX_AGE_TENDRIL = 400;
 const FRONT_MAX_AGE_FLASH   = 30;   // flashes die fast
-const FRONT_MONSTER_CELL_INTERVAL = 20; // spawn 1 monster per N processed cells
+const FRONT_MONSTER_CELL_INTERVAL = 30; // spawn 1 monster per N processed cells
 const FRONT_TYPES: SamosborFrontType[] = ['crack', 'wave', 'tendril', 'flash'];
 const FRONT_TYPE_WEIGHTS: Record<SamosborFrontType, number> = {
-  crack: 35, wave: 30, tendril: 25, flash: 10,
+  crack: 45, wave: 25, tendril: 20, flash: 10,
 };
 
 let activeSamosborFronts: SamosborFront[] = [];
@@ -411,7 +413,7 @@ function mutateFrontCell(
   if (cell === Cell.WALL) {
     if (frontAdjacentLiftOrProtected(world, ci)) return FRONT_DIRTY_NONE;
     if (frontWalkableNeighborCount(world, ci) < 1) return FRONT_DIRTY_NONE;
-    if (Math.random() < 0.40) {
+    if (Math.random() < 0.60) {
       if (world.cells[ci] === Cell.DOOR) world.removeDoorAt(ci);
       world.cells[ci] = Cell.FLOOR;
       world.floorTex[ci] = RANDOM_FLOOR_TEX[(Math.random() * RANDOM_FLOOR_TEX.length) | 0];
@@ -430,8 +432,8 @@ function mutateFrontCell(
 
   // ── Floor/Water/Door cells ──
 
-  // Floor → Wall: grow wall (~12% — block passages, create chaos)
-  if (cell === Cell.FLOOR && Math.random() < 0.12) {
+  // Floor → Wall: grow wall (~22% — block passages, create chaos)
+  if (cell === Cell.FLOOR && Math.random() < 0.22) {
     if (!frontAdjacentLiftOrProtected(world, ci) && frontWalkableNeighborCount(world, ci) >= 3) {
       if (world.cells[ci] === Cell.DOOR) world.removeDoorAt(ci);
       if (world.features[ci] !== Feature.NONE) world.features[ci] = Feature.NONE;
@@ -459,14 +461,14 @@ function mutateFrontCell(
     flags |= FRONT_DIRTY_FOG;
   }
 
-  // Floor texture mutation (~35%)
-  if (cell === Cell.FLOOR && Math.random() < 0.35) {
+  // Floor texture mutation (~55%)
+  if (cell === Cell.FLOOR && Math.random() < 0.55) {
     world.floorTex[ci] = RANDOM_FLOOR_TEX[(Math.random() * RANDOM_FLOOR_TEX.length) | 0];
     flags |= FRONT_DIRTY_FLOOR_TX | FRONT_DIRTY_SURFACE;
   }
 
-  // Wall texture on adjacent walls (~20%)
-  if (Math.random() < 0.20) {
+  // Wall texture on adjacent walls (~35%)
+  if (Math.random() < 0.35) {
     const x = ci % W;
     const y = (ci / W) | 0;
     for (let d = 0; d < 4; d++) {
@@ -479,8 +481,8 @@ function mutateFrontCell(
     }
   }
 
-  // Feature mutation (~12%)
-  if (Math.random() < 0.12 && cell === Cell.FLOOR) {
+  // Feature mutation (~22%)
+  if (Math.random() < 0.22 && cell === Cell.FLOOR) {
     world.features[ci] = RANDOM_FEATURES[(Math.random() * RANDOM_FEATURES.length) | 0];
     flags |= FRONT_DIRTY_SURFACE;
   }
@@ -3330,7 +3332,7 @@ function canReceiveContainerItem(container: WorldContainer, itemId: string): boo
   if (!def) return false;
   const stackMax = getStack(def);
   return container.inventory.some(item => item.defId === itemId && item.data === undefined && item.count < stackMax)
-    || container.inventory.length < container.capacitySlots;
+    || container.inventory.length < MAX_INVENTORY_SLOTS;
 }
 
 function addOneContainerItem(container: WorldContainer, itemId: string, data?: unknown): boolean {
@@ -3342,7 +3344,7 @@ function addOneContainerItem(container: WorldContainer, itemId: string, data?: u
     item.count++;
     return true;
   }
-  if (container.inventory.length >= container.capacitySlots) return false;
+  if (container.inventory.length >= MAX_INVENTORY_SLOTS) return false;
   container.inventory.push({ defId: itemId, count: 1, data });
   return true;
 }
@@ -3604,23 +3606,17 @@ function randomNpcLevel(): number {
 }
 
 function randomNpcInventory(faction: Faction, level: number): { inventory: { defId: string; count: number; data?: unknown }[]; weapon?: string; tool?: string } {
-  const inventory: { defId: string; count: number; data?: unknown }[] = [];
-  let weapon: string | undefined;
-  let tool: string | undefined;
-  const weaponIds = Object.values(ITEMS).filter(def => def.type === ItemType.WEAPON).map(def => def.id);
-  if (weaponIds.length > 0 && Math.random() < 0.62) {
-    const picked = weaponIds[Math.floor(Math.random() * weaponIds.length)];
-    const slot = itemEquipSlot(ITEMS[picked]);
-    if (slot === 'tool') tool = picked;
-    else weapon = picked;
-    inventory.push({ defId: picked, count: 1 });
-  }
-  if (faction === Faction.LIQUIDATOR && Math.random() < 0.5) inventory.push({ defId: 'ammo_9mm', count: 12 + Math.floor(level / 4) });
-  if (faction === Faction.SCIENTIST && Math.random() < 0.45) inventory.push({ defId: 'nii_sample_container', count: 1 });
-  if (faction === Faction.CULTIST && Math.random() < 0.5) inventory.push({ defId: 'istotit_candle', count: 1 });
-  const extra = 1 + Math.floor(Math.random() * 4);
-  for (let i = 0; i < extra && inventory.length < 8; i++) inventory.push(randomItemStack(randomItemIdDifferent()));
-  return { inventory: inventory.slice(0, 8), weapon, tool };
+  const rollWeapon = Math.random();
+  const numPockets = 1 + Math.floor(Math.random() * 4);
+  const rollPockets = Array.from({ length: numPockets }, () => Math.random());
+  
+  const loadout = generateNpcLoadout(faction, level, 3, rollWeapon, rollPockets);
+  
+  return {
+    inventory: loadout.inventory ?? [],
+    weapon: loadout.weapon,
+    tool: loadout.tool,
+  };
 }
 
 function rewriteActorAsRandomNpc(state: GameState, entity: Entity, variant: ActiveSamosborVariant): void {

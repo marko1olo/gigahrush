@@ -24,6 +24,7 @@ import {
   type FactoryRecipeDef,
   type ItemStackDef,
 } from '../data/factories';
+import { MAX_INVENTORY_SLOTS } from '../data/inventory_limits';
 import { ITEMS } from '../data/catalog';
 import { CONTAINER_DEFS } from '../data/container_defs';
 import { getStack } from '../data/items';
@@ -297,7 +298,7 @@ function canFitOutputs(
       left -= add;
     }
     while (left > 0) {
-      if (slots.length >= container.capacitySlots) return false;
+      if (slots.length >= MAX_INVENTORY_SLOTS) return false;
       const add = Math.min(left, stackMax);
       slots.push({ defId: out.defId, count: add, data: undefined });
       left -= add;
@@ -528,7 +529,7 @@ function addOutputStacks(container: WorldContainer, outputs: readonly ItemStackD
       item.count += add;
       left -= add;
     }
-    while (left > 0 && container.inventory.length < container.capacitySlots) {
+    while (left > 0 && container.inventory.length < MAX_INVENTORY_SLOTS) {
       const add = Math.min(left, stackMax);
       container.inventory.push({ defId: out.defId, count: add });
       left -= add;

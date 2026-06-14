@@ -255,7 +255,7 @@ export function containersForSave(
       x: Math.floor(container.x),
       y: Math.floor(container.y),
       name: container.name.slice(0, 96),
-      inventory: inventoryForSave(container.inventory, Math.max(1, Math.min(MAX_INVENTORY_SLOTS, container.capacitySlots))) ?? [],
+      inventory: inventoryForSave(container.inventory, Math.max(1, Math.min(MAX_INVENTORY_SLOTS, MAX_INVENTORY_SLOTS))) ?? [],
       ownerName: container.ownerName?.slice(0, 64),
       stolenItemIds: container.stolenItemIds?.slice(0, SAVE_CONTAINER_STOLEN_ITEM_CAP).map(id => id.slice(0, 64)),
       tags: container.tags.slice(0, SAVE_CONTAINER_TAG_CAP).map(tag => tag.slice(0, 48)),

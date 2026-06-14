@@ -24,7 +24,6 @@ import {
 } from '../data/alife_population_plan';
 import { DESIGN_FLOOR_ROUTES } from '../data/design_floors';
 import {
-  ALIFE_COMMON_POCKETS,
   ALIFE_FACTION_PROFILES,
   ALIFE_MAX_LEVEL,
   type AlifeFactionProfile,
@@ -56,6 +55,9 @@ import {
   floorRunEntryForDesignFloor,
 } from './procedural_floors';
 import { cleanFloorKey, floorKeyForDesign, floorKeyForProcedural, floorKeyForStory } from './floor_keys';
+import { generateNpcLoadout, generateMerchantStock } from './procedural_loot';
+import { ITEMS } from '../data/catalog';
+import { getStack } from '../data/items';
 import { getFactionRel } from '../data/relations';
 import { HUMANOID_BASE_MOVE_SPEED, getMaxHp, getMaxPsi } from './rpg';
 import {
@@ -1013,67 +1015,40 @@ function wealthForRecord(plan: AlifeFloorPlan, profile: AlifeFactionProfile, lev
   return Math.max(0, Math.min(ALIFE_MONEY_CAP, money));
 }
 
-function loadoutForRecord(faction: Faction, danger: number, level: number, seed: number, index: number): { weapon?: string; tool?: string; inventory?: Item[] } {
-  const roll = unit(seed, index, 51);
-  if (faction === Faction.LIQUIDATOR) {
-    if ((danger >= 4 || level >= 35) && roll < 0.2) return { weapon: 'ak47', inventory: [{ defId: 'ak47', count: 1 }, { defId: 'ammo_762', count: 24 }] };
-    if (level >= 18 && roll < 0.42) return { weapon: 'shotgun', inventory: [{ defId: 'shotgun', count: 1 }, { defId: 'ammo_shells', count: 8 }] };
-    if (roll < 0.68) return { weapon: 'makarov', inventory: [{ defId: 'makarov', count: 1 }, { defId: 'ammo_9mm', count: 18 }] };
-    return { weapon: 'pipe', inventory: [{ defId: 'pipe', count: 1 }] };
-  }
-  if (faction === Faction.CULTIST) {
-    if (roll < 0.28 + Math.min(0.22, level * 0.004)) {
-      return { weapon: 'knife', tool: 'psi_strike', inventory: [{ defId: 'knife', count: 1 }, { defId: 'psi_strike', count: 1 }] };
-    }
-    return { weapon: 'knife', inventory: [{ defId: 'knife', count: 1 }] };
-  }
-  if (faction === Faction.WILD) {
-    if (level >= 22 && roll < 0.16) return { weapon: 'homemade_pistol', inventory: [{ defId: 'homemade_pistol', count: 1 }, { defId: 'ammo_9mm', count: 5 }] };
-    return { weapon: 'pipe', inventory: [{ defId: 'pipe', count: 1 }] };
-  }
-  if (roll < 0.12 + danger * 0.02 + Math.min(0.1, level * 0.002)) return { weapon: 'knife', inventory: [{ defId: 'knife', count: 1 }] };
-  return {};
-}
-
-function mergeInventory(...parts: Array<readonly Item[] | undefined>): Item[] | undefined {
-  const out: Item[] = [];
-  for (const part of parts) {
-    if (!part) continue;
-    for (const item of part) {
-      const existing = out.find(candidate => candidate.defId === item.defId && candidate.data === item.data);
-      if (existing) existing.count = Math.min(MAX_ITEM_STACK, existing.count + item.count);
-      else if (out.length < 8) out.push({ ...item });
-    }
-  }
-  return out.length > 0 ? out : undefined;
-}
-
-function pocketItemsForRecord(faction: Faction, occupation: Occupation, danger: number, seed: number, index: number): Item[] | undefined {
-  const out: Item[] = [];
-  for (let i = 0; i < ALIFE_COMMON_POCKETS.length; i++) {
-    const profile = ALIFE_COMMON_POCKETS[i];
-    if (profile.faction !== undefined && profile.faction !== faction) continue;
-    if (profile.occupation !== undefined && profile.occupation !== occupation) continue;
-    if (profile.minDanger !== undefined && danger < profile.minDanger) continue;
-    if (unit(seed, index, 700 + i) > profile.chance) continue;
-    out.push({ ...pickWeighted(profile.items, seed, index, 760 + i) });
-    if (out.length >= 4) break;
-  }
-  return out.length > 0 ? out : undefined;
-}
-
 function defaultLoadoutForRecord(alife: AlifeState, record: AlifeNpcRecord): { weapon?: string; tool?: string; inventory?: Item[] } {
   const faction = recordFaction(alife, record);
-  const occupation = recordOccupation(alife, record);
   const danger = recordDanger(alife, record);
   const level = recordLevel(alife, record);
-  const loadout = loadoutForRecord(faction, danger, level, alife.seed, record.id);
-  const pockets = pocketItemsForRecord(faction, occupation, danger, alife.seed, record.id);
-  return {
-    weapon: loadout.weapon,
-    tool: loadout.tool,
-    inventory: mergeInventory(loadout.inventory, pockets),
-  };
+  
+  const rollWeapon = unit(alife.seed, record.id, 51);
+  const rollPockets = [
+    unit(alife.seed, record.id, 700),
+    unit(alife.seed, record.id, 701),
+    unit(alife.seed, record.id, 702),
+  ];
+
+  const loadout = generateNpcLoadout(faction, level, danger, rollWeapon, rollPockets);
+  
+  const occupation = recordOccupation(alife, record);
+  if (occupation === Occupation.STOREKEEPER) {
+    const rollStock: number[] = [];
+    for (let i = 0; i < 15; i++) {
+      rollStock.push(unit(alife.seed, record.id, 800 + i));
+    }
+    const stock = generateMerchantStock(faction, level, danger, rollStock);
+    if (!loadout.inventory) loadout.inventory = [];
+    for (const item of stock) {
+      if (!ITEMS[item.defId]) continue;
+      const existing = loadout.inventory.find(i => i.defId === item.defId && i.count < getStack(ITEMS[item.defId]));
+      if (existing) {
+        existing.count += item.count;
+      } else {
+        loadout.inventory.push(item);
+      }
+    }
+  }
+
+  return loadout;
 }
 
 function playerRelationForRecord(faction: Faction, recordId: number, seed: number): number {

@@ -19,6 +19,7 @@ import {
 import { CONTAINER_DEFS } from '../../data/container_defs';
 import { activeActorSoftLimit } from '../../data/entity_limits';
 import { freshNeeds, randomName } from '../../data/catalog';
+import { generateContainerLoot } from '../../systems/procedural_loot';
 import { floorRunZAllowsNpcs, type ProceduralFloorSpec } from '../../data/procedural_floors';
 import { MONSTERS } from '../../entities/monster';
 import { HEAD_SLUG_HOSTED_STAGE } from '../../entities/head_slug';
@@ -692,7 +693,7 @@ function spawnCrowdNpc(ctx: ProceduralAnomalyGenContext, room: Room, occupied: S
     occupation,
     questId: -1,
     inventory: Math.random() < 0.16
-      ? [{ defId: Math.random() < 0.5 ? 'bread' : 'cigs', count: 1 }]
+      ? generateContainerLoot(['food', 'trash'], 15, zoneLevel, [Math.random()])
       : [],
   };
 

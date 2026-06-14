@@ -87,7 +87,8 @@ export const enum Tex {
   SCREEN_BASE     = 197, // 32 variants: 197..228
   // wall-snake larva body block
   LARVA_BODY      = 229,
-  COUNT           = 230,
+  DOOR_HERMETIC   = 230,
+  COUNT           = 231,
 }
 
 // ── Floor levels (Z-axis) ────────────────────────────────────────
