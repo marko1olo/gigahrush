@@ -122,6 +122,7 @@ export interface VisualModelPlanePart extends VisualModelPartBase {
   orientation: VisualModelPlaneOrientation;
   normal?: 1 | -1;
   doubleSided?: boolean;
+  jitter?: number;
 }
 
 export interface VisualModelCrossPlanePart extends VisualModelPartBase {
@@ -422,8 +423,7 @@ export const VISUAL_MODELS: readonly VisualModelDef[] = [
     anchor: 'floor',
     variantSalt: 78,
     parts: [
-      { kind: 'plane', position: [0, 0, 0.012], size: [0.9, 0.52], orientation: 'xy', normal: 1, doubleSided: true, material: 'plastic', color: [58, 116, 72] },
-      { kind: 'plane', position: [0.03, -0.02, 0.014], size: [0.66, 0.34], orientation: 'xy', normal: 1, doubleSided: true, material: 'plastic', color: [70, 132, 82] },
+      { kind: 'plane', position: [0, 0, 0.012], size: [0.86, 0.46], orientation: 'xy', normal: 1, doubleSided: false, material: 'plastic', color: [135, 128, 92], jitter: 0.16 },
     ],
   },
   {
@@ -433,7 +433,7 @@ export const VISUAL_MODELS: readonly VisualModelDef[] = [
     anchor: 'floor',
     variantSalt: 80,
     parts: [
-      { kind: 'plane', position: [-0.02, 0.02, 0.012], size: [0.4, 0.22], orientation: 'xy', normal: 1, doubleSided: true, material: 'plastic', color: [56, 118, 70] },
+      { kind: 'plane', position: [-0.02, 0.02, 0.012], size: [0.4, 0.22], orientation: 'xy', normal: 1, doubleSided: false, material: 'plastic', color: [128, 120, 85], jitter: 0.08 },
     ],
   },
   {
@@ -443,7 +443,7 @@ export const VISUAL_MODELS: readonly VisualModelDef[] = [
     anchor: 'floor',
     variantSalt: 82,
     parts: [
-      { kind: 'plane', position: [0, 0, 0.011], size: [0.32, 0.22], orientation: 'xy', normal: 1, doubleSided: true, material: 'cloth', color: [174, 174, 156] },
+      { kind: 'plane', position: [0, 0, 0.011], size: [0.32, 0.22], orientation: 'xy', normal: 1, doubleSided: false, material: 'cloth', color: [174, 174, 156], jitter: 0.04 },
     ],
   },
   {
@@ -453,7 +453,7 @@ export const VISUAL_MODELS: readonly VisualModelDef[] = [
     anchor: 'floor',
     variantSalt: 84,
     parts: [
-      { kind: 'plane', position: [0, 0, 0.011], size: [0.44, 0.28], orientation: 'xy', normal: 1, doubleSided: true, material: 'cloth', color: [146, 148, 132] },
+      { kind: 'plane', position: [-0.04, 0.02, 0.011], size: [0.42, 0.3], orientation: 'xy', normal: 1, doubleSided: false, material: 'cloth', color: [142, 142, 128], jitter: 0.05 },
       { kind: 'rail', from: [-0.16, -0.08, 0.018], to: [0.16, -0.08, 0.018], width: 0.004, segments: 4, gap: 0.03, material: 'dark_concrete', color: [66, 68, 62] },
       { kind: 'rail', from: [-0.17, 0.045, 0.018], to: [0.17, 0.045, 0.018], width: 0.004, segments: 5, gap: 0.026, material: 'dark_concrete', color: [72, 74, 68] },
     ],

@@ -1356,7 +1356,7 @@ void main() {
   // Encode depth into alpha for CPU readback (sprite clipping)
   float normDist = dist / MAX_DIST;
   fragColor = vec4(pixel, normDist);
-  gl_FragDepth = pixelDepth;
+  gl_FragDepth = clamp(1.0 - 0.1 / max(0.001, pixelDepth * MAX_DIST), 0.0, 1.0);
 }
 `;
 
@@ -1486,7 +1486,7 @@ void main() {
     float belowHorizon = raycasterRow - vDepth;
     if (belowHorizon <= 0.5) discard;
     float floorDist = uShadowFloorH / belowHorizon;
-    gl_FragDepth = min(0.999, floorDist / ${MAX_DRAW.toFixed(1)}) - 0.0004;
+    gl_FragDepth = clamp(1.0 - 0.1 / max(0.1, floorDist), 0.0, 1.0) - 0.0004;
     float fade = smoothstep(1.0, 0.0, vTexCoord.y);
     float a = uSeed * fade * (1.0 - uFogF * 0.85);
     vec3 tintColor = mix(sc.rgb, vec3(0.05, 0.1, 0.15), 0.6);
@@ -1514,7 +1514,7 @@ void main() {
     float belowHorizon = raycasterRow - vDepth;
     if (belowHorizon <= 0.5) discard;
     float floorDist = uShadowFloorH / belowHorizon;
-    gl_FragDepth = min(0.999, floorDist / ${MAX_DRAW.toFixed(1)}) - 0.0004;
+    gl_FragDepth = clamp(1.0 - 0.1 / max(0.1, floorDist), 0.0, 1.0) - 0.0004;
     float fade = smoothstep(0.0, 0.9, vTexCoord.y); // fade out towards tip (y=0)
     fragColor = vec4(0.0, 0.0, 0.0, uSeed * sc.a * fade * (1.0 - uFogF * 0.85));
     return;
@@ -3250,7 +3250,7 @@ export function renderSceneGL(
   // Render-only glow; gated to high/experimental lighting quality. Result lands in bloomTexA.
   let bloomStrength = 0;
   if (lightingQuality >= 3) {
-    bloomStrength = lightingQuality >= 4 ? 0.5 : 0.32;
+    bloomStrength = lightingQuality >= 4 ? 0.3 : 0.2;
     const bw = Math.max(1, SCR_W >> 1);
     const bh = Math.max(1, SCR_H >> 1);
     gl.viewport(0, 0, bw, bh);
@@ -3262,7 +3262,7 @@ export function renderSceneGL(
     gl.bindTexture(gl.TEXTURE_2D, glState.rayColorTex);
     gl.uniform1i(glState.bloomPrefilterUniforms['uTex']!, 0);
     gl.uniform2f(glState.bloomPrefilterUniforms['uTexel']!, 1 / SCR_W, 1 / SCR_H);
-    gl.uniform1f(glState.bloomPrefilterUniforms['uThreshold']!, 0.74);
+    gl.uniform1f(glState.bloomPrefilterUniforms['uThreshold']!, 0.85);
     gl.bindVertexArray(glState.bloomVAOPrefilter);
     gl.drawArrays(gl.TRIANGLES, 0, 6);
 
@@ -3661,7 +3661,7 @@ function renderSpritesGL(
 
     const ff = distanceFogFactor(Math.sqrt(dist), fogDensity);
     const isProjectile = visibleProjectile[vi];
-    const normDepth = Math.min(1.0, tyf / MAX_DRAW);
+    const normDepth = Math.max(0.0, Math.min(1.0, 1.0 - 0.1 / Math.max(0.1, tyf)));
 
     // Bind sprite texture. Item drops, animated frames and procedural actors
     // can override the shared atlas without changing saved entity payloads.
@@ -3894,7 +3894,7 @@ function renderParticlesGL(
     const alpha = Math.min(1, p.life * 5) * (p.alpha ?? 1) * distFade * (1 - fogF * 0.75);
     if (alpha <= 0.03) continue;
     const invFogF = 1 - fogF;
-    const normDepth = Math.min(0.999, tyf / MAX_DRAW);
+    const normDepth = Math.max(0.0, Math.min(0.999, 1.0 - 0.1 / Math.max(0.1, tyf)));
     const di = visibleCount << 2;
     instanceData[di] = sx;
     instanceData[di + 1] = sy;

@@ -337,11 +337,14 @@ class MeshPass implements MeshPassHandle {
     gl.disable(gl.CULL_FACE);
     gl.depthMask(true);
     gl.depthFunc(gl.LEQUAL);
+    gl.enable(gl.POLYGON_OFFSET_FILL);
+    gl.polygonOffset(-1.0, -2.0);
     gl.bindVertexArray(vao);
     gl.drawArrays(gl.TRIANGLES, 0, this.vertexCount);
     gl.bindVertexArray(null);
     gl.bindBuffer(gl.ARRAY_BUFFER, null);
     gl.useProgram(null);
+    gl.disable(gl.POLYGON_OFFSET_FILL);
     gl.disable(gl.BLEND);
     gl.disable(gl.CULL_FACE);
     gl.depthMask(true);

@@ -786,7 +786,7 @@ Avoid:
   names like `коллектор`, `пещера` or other player-facing text;
 - adding runtime dependencies;
 - putting gameplay state in mesh caches;
-- writing full `visualSlots` into save/floor memory;
+- using `doubleSided: true` for flat floor decals (like `plane` primitives facing up); the mesh pass disables backface culling, so double-sided floor planes will generate two exactly coplanar quads that self-Z-fight and flicker chaotically along their diagonals. Use `doubleSided: false` for anything lying flat on the floor;
 - making camera direction decide stable model placement;
 - widening caps without browser smoke validation.
 

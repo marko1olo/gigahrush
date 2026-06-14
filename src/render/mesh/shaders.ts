@@ -37,9 +37,8 @@ void main() {
   float dy = torusDelta(aWorld.y, uCam.y);
   float tx = uInvDet * (uDir.y * dx - uDir.x * dy);
   float ty = uInvDet * (-uPlane.y * dx + uPlane.x * dy);
-  float depth = clamp(ty / uMaxDraw, 0.0, 1.0);
   float clipY = 2.0 * (aWorld.z - uPitchHeight.y) - 2.0 * uPitchHeight.x * ty;
-  gl_Position = vec4(tx, clipY, (depth * 2.0 - 1.0) * ty, ty);
+  gl_Position = vec4(tx, clipY, ty - 0.2, ty);
   vColor = aColor;
   vNormal = normalize(aNormal);
   vForward = ty;
@@ -97,10 +96,26 @@ bool lightBoundaryAt(ivec2 p) {
 ${COMMON_LIGHTING_SRC}
 
 const float MESH_NEAR = 0.1;
-const float MESH_DEPTH_BIAS = 0.015;
+
 
 float bakedLightAt(int x, int y, int wmask) {
   return texelFetch(uLight, ivec2(x & wmask, y & wmask), 0).r;
+}
+
+vec3 sampleLightSmooth(vec2 pos, int wmask) {
+  vec2 p = pos - 0.5;
+  ivec2 c = ivec2(floor(p));
+  vec2 f = p - vec2(c);
+  float l00 = bakedLightAt(c.x,     c.y,     wmask);
+  float l10 = bakedLightAt(c.x + 1, c.y,     wmask);
+  float l01 = bakedLightAt(c.x,     c.y + 1, wmask);
+  float l11 = bakedLightAt(c.x + 1, c.y + 1, wmask);
+  float lx0 = mix(l00, l10, f.x);
+  float lx1 = mix(l01, l11, f.x);
+  float v   = mix(lx0, lx1, f.y);
+  float gx  = mix(l10 - l00, l11 - l01, f.y);
+  float gy  = lx1 - lx0;
+  return vec3(v, gx, gy);
 }
 
 void main() {
@@ -113,16 +128,9 @@ void main() {
     // Same baked lightmap the raycaster uses: meshes sit in the real lamp light,
     // so an object in an unlit cell stays dark (grounded contact shadow).
     int wmask = int(uWorldSize) - 1;
-    int cx = int(floor(vWorldXY.x));
-    int cy = int(floor(vWorldXY.y));
-    float baked = bakedLightAt(cx, cy, wmask);
-    // Light gradient -> direction toward the nearest lamp for self-shadowing:
-    // the mesh side facing the lamp is lit, the far side falls into shadow.
-    float lxp = bakedLightAt(cx + 1, cy, wmask);
-    float lxm = bakedLightAt(cx - 1, cy, wmask);
-    float lyp = bakedLightAt(cx, cy + 1, wmask);
-    float lym = bakedLightAt(cx, cy - 1, wmask);
-    vec2 grad = vec2(lxp - lxm, lyp - lym);
+    vec3 ls = sampleLightSmooth(vWorldXY, wmask);
+    float baked = ls.x;
+    vec2 grad = ls.yz;
     float ndl = 0.0;
     if (dot(grad, grad) > 1e-6) ndl = max(dot(nrm.xy, normalize(grad)), 0.0);
     float eye = (1.0 - smoothstep(0.5, 11.0, vDistance)) * 0.22;
@@ -145,7 +153,6 @@ void main() {
   float edgeFade = smoothstep(max(0.0, uMeshRadius - fadeWidth), uMeshRadius, vDistance);
   vec3 color = mix(vColor * shade, uFogColor, max(fog, edgeFade * 0.86));
   fragColor = vec4(color, 1.0);
-  gl_FragDepth = clamp((vForward - MESH_DEPTH_BIAS) / max(1.0, uMaxDraw), 0.0, 1.0);
 }
 `;
 

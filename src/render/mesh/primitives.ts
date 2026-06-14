@@ -1,4 +1,4 @@
-import { hashSeed } from '../../core/rand';
+import { hashSeed, xorshift32 } from '../../core/rand';
 import type {
   MeshVec2,
   MeshVec3,
@@ -175,15 +175,29 @@ function addPlane(
   normalSign: 1 | -1,
   doubleSided: boolean,
   color: Rgba,
+  jitter = 0,
+  variantSeed = 0,
 ): void {
   if (!finitePositive(size[0]) || !finitePositive(size[1])) return;
   const basis = planeBasis(orientation, normalSign);
   const hu = size[0] * 0.5;
   const hv = size[1] * 0.5;
-  const a = addScaled3(position, basis.u, -hu, basis.v, -hv);
-  const b = addScaled3(position, basis.u, hu, basis.v, -hv);
-  const c = addScaled3(position, basis.u, hu, basis.v, hv);
-  const d = addScaled3(position, basis.u, -hu, basis.v, hv);
+
+  let a = addScaled3(position, basis.u, -hu, basis.v, -hv);
+  let b = addScaled3(position, basis.u, hu, basis.v, -hv);
+  let c = addScaled3(position, basis.u, hu, basis.v, hv);
+  let d = addScaled3(position, basis.u, -hu, basis.v, hv);
+
+  if (jitter > 0) {
+    const r = xorshift32(variantSeed ^ 0xbadc0de);
+    const jx = () => (r() / 4294967296 - 0.5) * 2 * jitter;
+    const jy = () => (r() / 4294967296 - 0.5) * 2 * jitter;
+    a = addScaled3(a, basis.u, jx(), basis.v, jy());
+    b = addScaled3(b, basis.u, jx(), basis.v, jy());
+    c = addScaled3(c, basis.u, jx(), basis.v, jy());
+    d = addScaled3(d, basis.u, jx(), basis.v, jy());
+  }
+
   pushQuad(draft, a, b, c, d, basis.n, color);
   if (doubleSided) pushQuad(draft, d, c, b, a, scale3(basis.n, -1), color);
 }
@@ -266,7 +280,7 @@ function addVisualModelPart(draft: MeshDraft, modelId: VisualModelId, part: Visu
       );
       break;
     case 'plane':
-      addPlane(draft, part.position, part.size, part.orientation, part.normal ?? 1, part.doubleSided ?? false, color);
+      addPlane(draft, part.position, part.size, part.orientation, part.normal ?? 1, part.doubleSided ?? false, color, part.jitter ?? 0, variantSeed);
       break;
     case 'crossPlane':
       addCrossPlane(draft, part.position, part.size, color);

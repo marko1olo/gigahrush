@@ -271,8 +271,6 @@ interface PipeNetworkCandidate {
   d2: number;
 }
 
-
-
 interface FloorScatterCandidate {
   modelId: VisualModelId;
   x: number;
@@ -1406,8 +1404,6 @@ function emitCorridorThreshold(
     flags: MeshInstanceFlag.CorridorVolume,
   });
 }
-
-
 
 function isServiceCeilingModel(modelId: string): boolean {
   return modelId === 'ceiling_pipe_bundle' ||
