@@ -65,8 +65,8 @@ test('passive health regen scales with current food', () => {
   rebuildEntityIndex([player]);
   updateNeeds([player], 10, 10, [], player.id);
 
-  assert.ok(Math.abs((player.hp ?? 0) - 90.082) < 0.000001);
-  assert.ok(Math.abs((player.needs?.food ?? 0) - 49.036) < 0.000001);
+  assert.ok(Math.abs((player.hp ?? 0) - 90.492) < 0.000001);
+  assert.ok(Math.abs((player.needs?.food ?? 0) - 48.872) < 0.000001);
 });
 
 test('passive health regen can stay on real time during accelerated simulation', () => {
@@ -80,6 +80,6 @@ test('passive health regen can stay on real time during accelerated simulation',
   rebuildEntityIndex([player]);
   updateNeeds([player], 10, 10, [], player.id, undefined, undefined, undefined, 0.1);
 
-  assert.ok(Math.abs((player.hp ?? 0) - 90.0082) < 0.000001);
-  assert.ok(Math.abs((player.needs?.food ?? 0) - 49.1836) < 0.000001);
+  assert.ok(Math.abs((player.hp ?? 0) - 90.0492) < 0.000001);
+  assert.ok(Math.abs((player.needs?.food ?? 0) - 49.1672) < 0.000001);
 });

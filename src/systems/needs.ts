@@ -28,8 +28,8 @@ const HOT_NEEDS_RADIUS = 42;
 const COLD_NEEDS_BUDGET = 192;
 const COLD_NEEDS_MAX_DT = 30;
 const NEEDS_TOUCH_MAX = 16_384;
-const PASSIVE_HP_REGEN_FRACTION_PER_MINUTE = 0.01;
-const PASSIVE_HP_REGEN_FOOD_PER_MINUTE = 2;
+const PASSIVE_HP_REGEN_FRACTION_PER_MINUTE = 0.06; // 0.1% max per second
+const PASSIVE_HP_REGEN_FOOD_PER_MINUTE = 4;
 
 function needFraction(value: number): number {
   return Math.max(0, Math.min(1, value / 100));

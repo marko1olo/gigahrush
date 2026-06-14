@@ -85,6 +85,7 @@ export function generateFloor(floor: FloorLevel, runSeed = DEFAULT_STORY_FLOOR_S
   });
   rebuildGeneratedFloorPathBlockers(generation.world, seed, generation.spawnX, generation.spawnY);
   fillVisualSlotsForWorldFeatures(generation.world, seed);
+  generation.world.initializeLampBlinks(seed);
   stampCeilingHeights(generation.world);
   return floor === FloorLevel.VOID ? withoutNpcEntities(generation) : generation;
 }

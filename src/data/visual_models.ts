@@ -27,6 +27,7 @@ export type VisualModelId =
   | 'ceiling_light_panel'
   | 'organic_ceiling_tendrils'
   | 'meat_ceiling_lamp'
+  | 'chandelier_ornate'
   | 'column_hint'
   | 'furniture_table_hint'
   | 'furniture_shelf_hint'
@@ -297,6 +298,23 @@ export const VISUAL_MODELS: readonly VisualModelDef[] = [
       { kind: 'cylinder', position: [0.018, -0.012, -0.122], radius: 0.058, height: 0.038, segments: 8, material: 'emissive_lamp', color: [255, 96, 40] },
       { kind: 'crossPlane', position: [0.018, -0.012, -0.126], size: [0.22, 0.1], material: 'emissive_lamp', color: [255, 126, 58] },
       { kind: 'rail', from: [-0.12, 0.1, -0.04], to: [0.12, -0.08, -0.102], width: 0.01, segments: 3, gap: 0.025, material: 'cloth', color: [154, 54, 48] },
+    ],
+  },
+  {
+    id: 'chandelier_ornate',
+    tags: ['ceiling', 'lamp', 'light', 'chandelier', 'ministry'],
+    bounds: { x: 0.6, y: 0.6, z: 0.65 },
+    anchor: 'ceiling',
+    variantSalt: 314,
+    parts: [
+      { kind: 'cylinder', position: [0, 0, -0.05], radius: 0.08, height: 0.1, segments: 12, material: 'rust_metal' },
+      { kind: 'cylinder', position: [0, 0, -0.3], radius: 0.02, height: 0.4, segments: 8, material: 'rust_metal' },
+      { kind: 'cylinder', position: [0, 0, -0.5], radius: 0.4, height: 0.04, segments: 16, material: 'rust_metal' },
+      { kind: 'box', position: [0.3, 0, -0.45], size: [0.16, 0.16, 0.16], material: 'emissive_lamp', color: [255, 230, 200] },
+      { kind: 'box', position: [-0.3, 0, -0.45], size: [0.16, 0.16, 0.16], material: 'emissive_lamp', color: [255, 230, 200] },
+      { kind: 'box', position: [0, 0.3, -0.45], size: [0.16, 0.16, 0.16], material: 'emissive_lamp', color: [255, 230, 200] },
+      { kind: 'box', position: [0, -0.3, -0.45], size: [0.16, 0.16, 0.16], material: 'emissive_lamp', color: [255, 230, 200] },
+      { kind: 'cylinder', position: [0, 0, -0.58], radius: 0.1, height: 0.1, segments: 8, material: 'rust_metal' },
     ],
   },
   {

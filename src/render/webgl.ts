@@ -182,6 +182,8 @@ uniform highp usampler2D uFloorTex;   // W×W: floor texture id
 uniform highp usampler2D uFeatures;   // W×W: features
 uniform highp usampler2D uCeil;        // W×W: render-only ceiling-height tiers
 uniform sampler2D uLight;             // W×W: lightmap (float)
+uniform highp usampler2D uLightBlinks; // W×W: light blink frequency (uint8)
+uniform int uSamosborAlert;           // 1 if samosbor red alert is active
 uniform highp usampler2D uFog;        // W×W: fog density
 uniform highp usampler2D uDoorStates; // W×W: door states (0=open, 1=closed, 2=locked, 3=hopen, 4=hclosed)
 
@@ -274,9 +276,28 @@ float organicLightPulse(ivec2 p) {
   return 0.78 + 0.22 * (0.5 + 0.5 * sin(uTime * 0.72 + phase));
 }
 
+float getBlinkPulse(ivec2 p) {
+  uint freqU = texelFetch(uLightBlinks, p, 0).r;
+  float freq = float(freqU);
+  if (uSamosborAlert == 1) freq = 3.0; // override for red alert
+  if (freq <= 0.0) return 1.0;
+  
+  float h = fract(sin(float(p.x) * 12.9898 + float(p.y) * 78.233) * 43758.5453);
+  
+  if (uSamosborAlert == 1) {
+    float t = fract(uTime * 1.5 - h * 0.2); // slight stagger, sharp strobe
+    return (t < 0.4) ? 1.0 : 0.2;
+  }
+  
+  // Broken fluorescent stutter
+  float t = uTime * freq * 4.0 + h * 100.0;
+  float n = fract(sin(floor(t)) * 137.5453);
+  return (n > 0.3) ? 1.0 : 0.1;
+}
+
 float sampleLight(ivec2 p) {
   ivec2 wp = ivec2(wrapI(p.x), wrapI(p.y));
-  return texelFetch(uLight, wp, 0).r * organicLightPulse(wp);
+  return texelFetch(uLight, wp, 0).r * organicLightPulse(wp) * getBlinkPulse(wp);
 }
 
 // Fast power-of-two wrap (W_SIZE is a power of two).
@@ -299,7 +320,8 @@ vec3 sampleLightSmooth(vec2 pos) {
   float v   = mix(lx0, lx1, f.y);
   float gx  = mix(l10 - l00, l11 - l01, f.y);
   float gy  = lx1 - lx0;
-  v *= organicLightPulse(ivec2(int(floor(pos.x)), int(floor(pos.y))));
+  ivec2 baseCell = ivec2(int(floor(pos.x)), int(floor(pos.y)));
+  v *= organicLightPulse(baseCell) * getBlinkPulse(baseCell);
   return vec3(v, gx, gy);
 }
 
@@ -1318,7 +1340,7 @@ void main() {
                 float spot = 1.0 - smoothstep(0.045, 0.16, lampR);
                 float halo = 1.0 - smoothstep(0.10, 0.34, lampR);
                 float distGlow = max(0.0, 1.0 - currentDist * 0.16);
-                vec3 lampTint = vec3(1.0, 190.0/255.0, 74.0/255.0);
+                vec3 lampTint = uSamosborAlert == 1 ? vec3(1.0, 0.1, 0.1) : vec3(1.0, 190.0/255.0, 74.0/255.0);
                 cc = min(cc + lampTint * distGlow * (spot * 0.34 + halo * 0.075), vec3(1.0));
                 if (uUseDynamicSky == 1) cc = applyToolBeamTint(cc, toolBeam);
               }
@@ -1843,6 +1865,7 @@ interface GLState {
   featuresTex: WebGLTexture;
   ceilTex: WebGLTexture;
   lightTex: WebGLTexture;
+  lightBlinksTex: WebGLTexture;
   fogTex: WebGLTexture;
   doorStatesTex: WebGLTexture;
   atlasTex: WebGLTexture;
@@ -1875,6 +1898,7 @@ interface GLState {
   featureVersion: number;
   ceilHeightVersion: number;
   lightVersion: number;
+  lightBlinksVersion: number;
   fogVersion: number;
   doorStatesData: Uint8Array;
   // Uniforms cache
@@ -2039,6 +2063,7 @@ function meshPassContext(
   profile: ResolvedVisualGeometryProfile,
   ambient: number,
   state: GLState,
+  samosborActive: boolean,
 ): MeshPassContext {
   return {
     world,
@@ -2050,6 +2075,8 @@ function meshPassContext(
     fogColor,
     ambient,
     lightTex: state.lightTex,
+    lightBlinksTex: state.lightBlinksTex,
+    samosborAlert: samosborActive,
     cellsTex: state.cellsTex,
     doorStatesTex: state.doorStatesTex,
     dynamicLightCount: state.dynamicLightCount,
@@ -2070,9 +2097,10 @@ function updateAndRenderMeshPass(
   fogColor: readonly [number, number, number],
   profile: ResolvedVisualGeometryProfile,
   ambient: number,
+  samosborActive: boolean,
 ): void {
   if (!state.meshPass) return;
-  const context = meshPassContext(world, camera, time, fogDensity, fogColor, profile, ambient, state);
+  const context = meshPassContext(world, camera, time, fogDensity, fogColor, profile, ambient, state, samosborActive);
   const stats = state.meshPass.update(context);
   lastRenderSceneDebugStats.meshEnabled = stats.enabled;
   lastRenderSceneDebugStats.meshInstances = stats.visibleInstances;
@@ -2634,7 +2662,8 @@ export function initWebGL(
     'uDetailFloorCount', 'uDetailFloor0', 'uDetailFloor1', 'uDetailFloorColor0', 'uDetailFloorColor1',
     'uDetailWallCount', 'uDetailWall0', 'uDetailWall1', 'uDetailWallColor0', 'uDetailWallColor1',
     'uDetailLightDust', 'uDetailLightDustColor',
-    'uSurfaceProfileA', 'uSurfaceProfileB', 'uSurfaceProfileSeed', 'uDynamicLightCount'
+    'uSurfaceProfileA', 'uSurfaceProfileB', 'uSurfaceProfileSeed', 'uDynamicLightCount',
+    'uLightBlinks', 'uSamosborAlert'
   ]);
   
   for (let i = 0; i < 8; i++) {
@@ -2733,6 +2762,7 @@ export function initWebGL(
   const featuresTex = createDataTexR8UI(gl, W, W, world.features);
   const ceilTex = createDataTexR8UI(gl, W, W, world.ceilHeight);
   const lightTex = createDataTexR32F(gl, W, W, world.light);
+  const lightBlinksTex = createDataTexR8UI(gl, W, W, world.lightBlinks);
   const fogTex = createDataTexR8UI(gl, W, W, world.fog);
   const doorStatesData = rebuildDoorStates(world);
   const doorStatesTex = createDataTexR8UI(gl, W, W, doorStatesData);
@@ -2774,7 +2804,7 @@ export function initWebGL(
     particleInstanceData: particleBuffers.instanceData,
     particleColorData: particleBuffers.colorData,
     particleUniforms,
-    cellsTex, wallTexTex, floorTexTex, featuresTex, ceilTex, lightTex, fogTex,
+    cellsTex, wallTexTex, floorTexTex, featuresTex, ceilTex, lightTex, lightBlinksTex, fogTex,
     doorStatesTex, atlasTex,
     dynamicSkyTex,
     dynamicSkyW: 1,
@@ -2799,6 +2829,7 @@ export function initWebGL(
     featureVersion: world.featureVersion,
     ceilHeightVersion: world.ceilHeightVersion,
     lightVersion: world.lightVersion,
+    lightBlinksVersion: world.lightVersion,
     fogVersion: world.fogVersion,
     doorStatesData,
     rayUniforms, blitUniforms, spriteUniforms,
@@ -2894,9 +2925,13 @@ export function updateWorldData(world: World): void {
   gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, W, W, gl.RED_INTEGER, gl.UNSIGNED_BYTE, world.features);
   glState.featureVersion = world.featureVersion;
   glState.lightVersion = world.lightVersion;
+  glState.lightBlinksVersion = world.lightVersion;
 
   gl.bindTexture(gl.TEXTURE_2D, glState.lightTex);
   gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, W, W, gl.RED, gl.FLOAT, world.light);
+  
+  gl.bindTexture(gl.TEXTURE_2D, glState.lightBlinksTex);
+  gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, W, W, gl.RED_INTEGER, gl.UNSIGNED_BYTE, world.lightBlinks);
 
   gl.bindTexture(gl.TEXTURE_2D, glState.fogTex);
   gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, W, W, gl.RED_INTEGER, gl.UNSIGNED_BYTE, world.fog);
@@ -3206,6 +3241,9 @@ export function renderSceneGL(
   bindTextureUnit(gl, glState.surfaceIdxTex, ru['uSurfaceIdx']!, 9);
   bindTextureUnit(gl, glState.dynamicSkyTex, ru['uDynamicSky']!, 10);
   bindTextureUnit(gl, glState.ceilTex, ru['uCeil']!, 11);
+  bindTextureUnit(gl, glState.lightBlinksTex, ru['uLightBlinks']!, 12);
+  
+  gl.uniform1i(ru['uSamosborAlert']!, samosborActive ? 1 : 0);
 
   // Atlas size
   const atlasRows = Math.ceil(textures.length / ATLAS_COLS);
@@ -3219,7 +3257,7 @@ export function renderSceneGL(
 
   // ── Render sprites into FBO (with depth test against raycaster) ──
   gl.depthFunc(gl.LESS);
-  updateAndRenderMeshPass(glState, world, camera, time, fogDensity, meshFogRgb, visualGeometryProfile, ambientLight);
+  updateAndRenderMeshPass(glState, world, camera, time, fogDensity, meshFogRgb, visualGeometryProfile, ambientLight, samosborActive);
   renderSpritesGL(
     world,
     sprites,
@@ -3250,7 +3288,7 @@ export function renderSceneGL(
   // Render-only glow; gated to high/experimental lighting quality. Result lands in bloomTexA.
   let bloomStrength = 0;
   if (lightingQuality >= 3) {
-    bloomStrength = lightingQuality >= 4 ? 0.3 : 0.2;
+    bloomStrength = lightingQuality >= 4 ? 0.15 : 0.08;
     const bw = Math.max(1, SCR_W >> 1);
     const bh = Math.max(1, SCR_H >> 1);
     gl.viewport(0, 0, bw, bh);
@@ -3262,7 +3300,7 @@ export function renderSceneGL(
     gl.bindTexture(gl.TEXTURE_2D, glState.rayColorTex);
     gl.uniform1i(glState.bloomPrefilterUniforms['uTex']!, 0);
     gl.uniform2f(glState.bloomPrefilterUniforms['uTexel']!, 1 / SCR_W, 1 / SCR_H);
-    gl.uniform1f(glState.bloomPrefilterUniforms['uThreshold']!, 0.85);
+    gl.uniform1f(glState.bloomPrefilterUniforms['uThreshold']!, 0.95);
     gl.bindVertexArray(glState.bloomVAOPrefilter);
     gl.drawArrays(gl.TRIANGLES, 0, 6);
 

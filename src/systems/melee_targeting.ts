@@ -13,11 +13,10 @@ export function selectMeleeTarget(
   weaponId?: string,
 ): Entity | undefined {
   const hitRadius = WEAPON_STATS[weaponId || '']?.hitRadius ?? 0.6;
-  const dirX = Math.cos(attacker.angle);
-  const dirY = Math.sin(attacker.angle);
-  const hitRadius2 = hitRadius * hitRadius;
+  const effectiveReach = reach + hitRadius;
+  const effectiveReach2 = effectiveReach * effectiveReach;
   let best: Entity | undefined;
-  let bestScore = Number.POSITIVE_INFINITY;
+  let bestDist2 = Number.POSITIVE_INFINITY;
   let bestId = Number.MAX_SAFE_INTEGER;
 
   for (const candidate of candidates) {
@@ -26,23 +25,15 @@ export function selectMeleeTarget(
 
     const dx = world.delta(attacker.x, candidate.x);
     const dy = world.delta(attacker.y, candidate.y);
-    const forward = dx * dirX + dy * dirY;
-    if (forward < -0.2) continue;
+    const dist2 = dx * dx + dy * dy;
 
-    const closestT = Math.max(0, Math.min(reach, forward));
-    const distDx = dx - dirX * closestT;
-    const distDy = dy - dirY * closestT;
-    const dist2 = distDx * distDx + distDy * distDy;
-    if (dist2 >= hitRadius2) continue;
-
-    const lateral = Math.abs(dx * dirY - dy * dirX);
-    const forwardMiss = Math.abs(reach - forward);
-    const score = lateral * 64 + forwardMiss * 8 + dist2;
-    if (score + MELEE_TARGET_EPSILON < bestScore
-      || (Math.abs(score - bestScore) <= MELEE_TARGET_EPSILON && candidate.id < bestId)) {
-      best = candidate;
-      bestScore = score;
-      bestId = candidate.id;
+    if (dist2 <= effectiveReach2) {
+      if (dist2 + MELEE_TARGET_EPSILON < bestDist2
+        || (Math.abs(dist2 - bestDist2) <= MELEE_TARGET_EPSILON && candidate.id < bestId)) {
+        best = candidate;
+        bestDist2 = dist2;
+        bestId = candidate.id;
+      }
     }
   }
 

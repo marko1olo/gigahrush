@@ -158,6 +158,8 @@ function getUniforms(gl: WebGL2RenderingContext, program: WebGLProgram): Record<
     'uLightOn',
     'uCells',
     'uDoorStates',
+    'uLightBlinks',
+    'uSamosborAlert',
     'uDynamicLightCount',
   ];
   const out: Record<string, WebGLUniformLocation | null> = {};
@@ -319,6 +321,8 @@ class MeshPass implements MeshPassHandle {
       }
     }
     
+    gl.uniform1i(uniforms.uSamosborAlert, context.samosborAlert ? 1 : 0);
+    
     // Helper function to bind texture units cleanly
     let texUnit = 1; // 0 is uLight
     const bindTex = (tex: WebGLTexture | null | undefined, unif: WebGLUniformLocation | null) => {
@@ -332,6 +336,7 @@ class MeshPass implements MeshPassHandle {
     
     bindTex(context.cellsTex, uniforms.uCells);
     bindTex(context.doorStatesTex, uniforms.uDoorStates);
+    bindTex(context.lightBlinksTex, uniforms.uLightBlinks);
 
     gl.disable(gl.BLEND);
     gl.disable(gl.CULL_FACE);

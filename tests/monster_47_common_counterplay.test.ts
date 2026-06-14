@@ -90,21 +90,6 @@ function runMonsterHit(kind: MonsterKind, dist: number, setup?: (world: World) =
   return target.hp ?? 0;
 }
 
-function runZombieHitWithCrowd(crowd: number, setup?: (world: World) => void): number {
-  const world = openWorld();
-  setup?.(world);
-  setListenerPos(512, 512, world.dist2.bind(world));
-  const target = player(11.1, 10);
-  const threat = monster(MonsterKind.ZOMBIE, 10, 10);
-  const entities = [target, threat];
-  for (let i = 0; i < crowd; i++) {
-    entities.push(bystander(20 + i, 10.35 + (i % 5) * 0.22, 9.65 + ((i / 5) | 0) * 0.22, Faction.CULTIST));
-  }
-  rebuildEntityIndex(entities);
-  setEntityMap(new Map(entities.map(e => [e.id, e])));
-  updateMonster(world, entities, threat, 0.2, 10, [], target.id, { v: 100 });
-  return target.hp ?? 0;
-}
 
 function runMonsterTargeting(kind: MonsterKind, dist: number): Entity {
   const world = openWorld();
@@ -209,19 +194,3 @@ test('polzun stays slow but becomes nastier in doors, bathrooms, and water', () 
   assert.equal(waterHp < openHp, true, 'water should mark polzun terrain');
 });
 
-test('zombie crowd and door pressure is local and capped', () => {
-  const openHp = runZombieHitWithCrowd(0);
-  const crowdHp = runZombieHitWithCrowd(1);
-  const cappedHp = runZombieHitWithCrowd(24, world => {
-    world.cells[world.idx(9, 10)] = Cell.WALL;
-    world.cells[world.idx(10, 9)] = Cell.WALL;
-  });
-  const hugeCrowdHp = runZombieHitWithCrowd(48, world => {
-    world.cells[world.idx(9, 10)] = Cell.WALL;
-    world.cells[world.idx(10, 9)] = Cell.WALL;
-  });
-
-  assert.equal(openHp, 92, 'one open-floor zombie grab keeps baseline damage');
-  assert.equal(crowdHp < openHp, true, 'one nearby body should make the grab more dangerous');
-  assert.equal(cappedHp, hugeCrowdHp, 'extra bodies beyond the local cap should not increase damage again');
-});

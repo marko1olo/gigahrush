@@ -15659,6 +15659,7 @@ export function generateProceduralFloor(spec: ProceduralFloorSpec): FloorGenerat
     syncZoneMetadataFromTerritory(world);
     rebuildGeneratedFloorPathBlockers(world, spec.seed, spawn.spawnX, spawn.spawnY);
     fillVisualSlotsForWorldFeatures(world, spec.seed);
+    world.initializeLampBlinks(spec.seed);
 
     world.bakeLights();
     relightBadAppleWorld(world);

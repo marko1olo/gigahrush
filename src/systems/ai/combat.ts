@@ -341,7 +341,8 @@ export function tryFactionCombat(
   // Move toward target if too far for melee
   const meleeWs = ws;
   const meleeRange = meleeWs.range || NPC_ATTACK_RANGE;
-  if (bestDist > meleeRange) {
+  const effectiveReach = meleeRange + (meleeWs.hitRadius ?? 0.6);
+  if (bestDist > effectiveReach) {
     if (ai.path.length === 0 || ai.timer <= 0) {
       tryAssignPathToCell(world, e, Math.floor(target.x), Math.floor(target.y));
       ai.timer = 2;
@@ -357,9 +358,7 @@ export function tryFactionCombat(
     const dy = world.delta(e.y, target.y);
     e.angle = Math.atan2(dy, dx); // ensure we face target before swinging
     
-    const ax = e.x + Math.cos(e.angle) * meleeRange;
-    const ay = e.y + Math.sin(e.angle) * meleeRange;
-    getEntityIndex().queryRadius(ax, ay, Math.max(1.2, meleeWs.hitRadius ?? 0.6), npcMeleeHitQuery, ENTITY_MASK_ACTOR);
+    getEntityIndex().queryRadius(e.x, e.y, effectiveReach, npcMeleeHitQuery, ENTITY_MASK_ACTOR);
     const hitTarget = selectMeleeTarget(world, e, npcMeleeHitQuery, meleeRange, weaponId);
     
     if (hitTarget) {

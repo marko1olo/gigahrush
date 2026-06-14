@@ -69,6 +69,8 @@ uniform float uLightOn;     // 1.0 when the baked lightmap is bound
 // Add dynamic lighting arrays
 uniform highp usampler2D uCells;
 uniform highp usampler2D uDoorStates;
+uniform highp usampler2D uLightBlinks; // W×W: light blink frequency (uint8)
+uniform int uSamosborAlert;            // 1 if samosbor red alert is active
 
 out vec4 fragColor;
 
@@ -102,6 +104,25 @@ float bakedLightAt(int x, int y, int wmask) {
   return texelFetch(uLight, ivec2(x & wmask, y & wmask), 0).r;
 }
 
+float getBlinkPulse(ivec2 p) {
+  uint freqU = texelFetch(uLightBlinks, p, 0).r;
+  float freq = float(freqU);
+  if (uSamosborAlert == 1) freq = 3.0; // override for red alert
+  if (freq <= 0.0) return 1.0;
+  
+  float h = fract(sin(float(p.x) * 12.9898 + float(p.y) * 78.233) * 43758.5453);
+  
+  if (uSamosborAlert == 1) {
+    float t = fract(uTime * 1.5 - h * 0.2); // slight stagger, sharp strobe
+    return (t < 0.4) ? 1.0 : 0.2;
+  }
+  
+  // Broken fluorescent stutter
+  float t = uTime * freq * 4.0 + h * 100.0;
+  float n = fract(sin(floor(t)) * 137.5453);
+  return (n > 0.3) ? 1.0 : 0.1;
+}
+
 vec3 sampleLightSmooth(vec2 pos, int wmask) {
   vec2 p = pos - 0.5;
   ivec2 c = ivec2(floor(p));
@@ -115,6 +136,7 @@ vec3 sampleLightSmooth(vec2 pos, int wmask) {
   float v   = mix(lx0, lx1, f.y);
   float gx  = mix(l10 - l00, l11 - l01, f.y);
   float gy  = lx1 - lx0;
+  v *= getBlinkPulse(c);
   return vec3(v, gx, gy);
 }
 
@@ -151,7 +173,15 @@ void main() {
   float fog = clamp(1.0 - exp(-fogBase * fogBase * 1.15), 0.0, 0.92);
   float fadeWidth = clamp(uMeshRadius * 0.22, 1.0, 3.0);
   float edgeFade = smoothstep(max(0.0, uMeshRadius - fadeWidth), uMeshRadius, vDistance);
-  vec3 color = mix(vColor * shade, uFogColor, max(fog, edgeFade * 0.86));
+  vec3 finalColor = vColor * shade;
+  
+  // Basic heuristic for emissive meshes: very bright yellow colors or when samosbor alert is active
+  if (vColor.r > 0.9 && vColor.g > 0.7 && vColor.b < 0.5 && shade > 0.8) {
+    if (uSamosborAlert == 1) finalColor = mix(finalColor, vec3(1.0, 0.1, 0.1) * getBlinkPulse(ivec2(int(wPos.x), int(wPos.y))), 0.8);
+    else finalColor *= getBlinkPulse(ivec2(int(wPos.x), int(wPos.y)));
+  }
+  
+  vec3 color = mix(finalColor, uFogColor, max(fog, edgeFade * 0.86));
   fragColor = vec4(color, 1.0);
 }
 `;

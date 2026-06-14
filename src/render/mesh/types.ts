@@ -20,6 +20,8 @@ export interface MeshPassContext {
   cellsTex?: WebGLTexture | null;
   doorStatesTex?: WebGLTexture | null;
   doorTimersTex?: WebGLTexture | null;
+  lightBlinksTex?: WebGLTexture | null;
+  samosborAlert?: boolean;
   dynamicLightCount?: number;
   dynamicLightsPos?: Float32Array;
   dynamicLightsColor?: Float32Array;

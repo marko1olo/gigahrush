@@ -161,8 +161,10 @@ export class World {
   wallTex:   Uint8Array;
   floorTex:  Uint8Array;
   features:  Uint8Array;   // Feature enum per cell
+  lampBlinks: Uint8Array;  // Blink frequency (0 = solid) per cell for lamps
   light:     Float32Array; // lightmap 0..1 per cell
-  visualSlots: Uint8Array; // render-only micro-decoration codes, 16 bytes per cell
+  lightBlinks: Uint8Array; // light blink frequency (propagated with light)
+  visualSlots: Uint8Array; // render-only visual slots
   pathBlockers: Uint8Array; // gameplay path blocker row masks, 8 bytes per cell
   rooms:     Room[]  = [];
   doors:     Map<number, Door> = new Map();
@@ -219,7 +221,9 @@ export class World {
     this.wallTex  = new Uint8Array(n);
     this.floorTex = new Uint8Array(n);
     this.features = new Uint8Array(n);              // Feature.NONE = 0
+    this.lampBlinks = new Uint8Array(n);            // 0 = no blink
     this.light    = new Float32Array(n);            // 0 = dark
+    this.lightBlinks = new Uint8Array(n);           // 0 = no blink
     this.visualSlots = new Uint8Array(n * VISUAL_SLOTS_PER_CELL);
     this.pathBlockers = new Uint8Array(n * PATH_BLOCKER_ROWS_PER_CELL);
     this.aptMask  = new Uint8Array(n);              // 0 = volatile, 1 = apartment-protected
@@ -265,9 +269,30 @@ export class World {
     return out;
   }
 
+  initializeLampBlinks(seed: number): void {
+    const hash = (x: number, y: number, s: number) => {
+      let h = s ^ x ^ (y * 31);
+      h = Math.imul(h ^ (h >>> 16), 0x85ebca6b);
+      h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35);
+      return ((h ^ (h >>> 16)) >>> 0) / 4294967296.0;
+    };
+
+    for (let i = 0; i < W * W; i++) {
+      if (this.features[i] === Feature.LAMP && this.lampBlinks[i] === 0) {
+        const x = i % W;
+        const y = Math.floor(i / W);
+        // ~12% chance for a lamp to be broken/blinking
+        if (hash(x, y, seed + 1234) < 0.12) {
+          this.lampBlinks[i] = 1 + Math.floor(hash(x, y, seed + 5678) * 3); // 1, 2, or 3 frequency
+        }
+      }
+    }
+  }
+
   /* rebuild lightmap from local feature light sources */
   bakeLights(): void {
     this.light.fill(0);
+    this.lightBlinks.fill(0);
     for (let i = 0; i < W * W; i++) {
       const params = featureLightParams(this.features[i] as Feature);
       if (!params) continue;
@@ -285,7 +310,11 @@ export class World {
       LIGHT_SEEN[localLightIndex(0, 0)] = 1;
 
       const sourceBrightness = params.intensity;
-      if (sourceBrightness > this.light[i]) this.light[i] = sourceBrightness;
+      const sourceBlink = this.features[i] === Feature.LAMP ? this.lampBlinks[i] : 0;
+      if (sourceBrightness > this.light[i]) {
+        this.light[i] = sourceBrightness;
+        this.lightBlinks[i] = sourceBlink;
+      }
 
       while (head < tail) {
         const dx = LIGHT_QUEUE_DX[head];
@@ -309,7 +338,10 @@ export class World {
           const candleSoftness = params.intensity < 1 ? 0.75 + falloff * 0.25 : 1;
           const passable = lightPassesCell(this, ti);
           const brightness = sourceBrightness * falloff * candleSoftness * (passable ? 1 : 0.46);
-          if (brightness > this.light[ti]) this.light[ti] = brightness;
+          if (brightness > this.light[ti]) {
+            this.light[ti] = brightness;
+            this.lightBlinks[ti] = sourceBlink;
+          }
           if (!passable || tail >= LIGHT_QUEUE_CAP) continue;
           LIGHT_QUEUE_DX[tail] = ndx;
           LIGHT_QUEUE_DY[tail] = ndy;

@@ -183,6 +183,7 @@ const FEATURE_PRIMARY_VISUAL_CODES: Partial<Record<Feature, readonly number[]>> 
   [Feature.LIFT_BUTTON]: [VISUAL_CELL_CODES.BUTTON_PANEL],
   [Feature.DESK]: [VISUAL_CELL_CODES.FURNITURE_DESK_HINT],
   [Feature.SCREEN]: [VISUAL_CELL_CODES.WALL_PANEL_SCREEN],
+  [Feature.LAMP]: [VISUAL_CELL_CODES.CEILING_BULB],
 };
 
 interface FeatureMeshDef {
@@ -210,6 +211,7 @@ const FEATURE_MESH_DEFS: Partial<Record<Feature, FeatureMeshDef>> = {
   [Feature.LIFT_BUTTON]: { modelId: 'button_panel', priority: 98, z: zForBand('midWall'), scaleX: 0.3, scaleY: 0.2, scaleZ: 0.3, yawSalt: 30, flags: MeshInstanceFlag.WallMount },
   [Feature.DESK]: { modelId: 'desk_slab', priority: 62, z: 0, scaleX: 0.88, scaleY: 0.58, scaleZ: 0.48, yawSalt: 31 },
   [Feature.SCREEN]: { modelId: 'wall_panel_screen', priority: 92, z: zForBand('midWall'), scaleX: 0.52, scaleY: 0.08, scaleZ: 0.42, yawSalt: 33, flags: MeshInstanceFlag.WallMount | MeshInstanceFlag.Emissive },
+  [Feature.LAMP]: { modelId: 'ceiling_bulb', priority: 94, z: zForBand('ceiling'), scaleX: 1, scaleY: 1, scaleZ: 1, yawSalt: 13, flags: MeshInstanceFlag.Emissive },
 };
 
 export const MESH_FEATURE_MODEL_IDS: Readonly<Partial<Record<Feature, string>>> = Object.freeze(
@@ -574,7 +576,9 @@ function emitInstance(out: MeshInstance[], instance: MeshInstance): void {
 
 function contextualVisualModelId(context: MeshPassContext, modelId: string, cellX?: number, cellY?: number): string {
   if (modelId === 'ceiling_bulb' || modelId === 'ceiling_light_panel') {
-    let isOrganic = context.profile?.corridorCoveringId === 'meat';
+    const coveringId = context.profile?.corridorCoveringId;
+    let isOrganic = coveringId === 'meat' || coveringId === 'cave';
+
     if (!isOrganic && cellX !== undefined && cellY !== undefined) {
       const idx = context.world.idx(cellX, cellY);
       const wallTex = context.world.wallTex[idx];
@@ -582,9 +586,26 @@ function contextualVisualModelId(context: MeshPassContext, modelId: string, cell
       isOrganic = wallTex === 20 /* Tex.MEAT */ || wallTex === 41 /* Tex.GUT */ || wallTex === 5 /* Tex.ROTTEN */ ||
                   floorTex === 21 /* Tex.F_MEAT */ || floorTex === 42 /* Tex.F_GUT */;
     }
+
     if (isOrganic) {
       return 'meat_ceiling_lamp';
     }
+
+    if (coveringId === 'ministry') {
+      return 'chandelier_ornate';
+    }
+
+    const hash = (cellX !== undefined && cellY !== undefined) ? ((cellX * 73856093) ^ (cellY * 19349663)) : 0;
+
+    if (coveringId === 'residential') {
+      return (hash & 1) === 0 ? 'ceiling_bulb' : 'ceiling_light_panel';
+    }
+
+    if (coveringId === 'technical' || coveringId === 'collector') {
+      return 'ceiling_bulb';
+    }
+
+    return (hash & 3) === 0 ? 'ceiling_light_panel' : 'ceiling_bulb';
   }
   return modelId;
 }
@@ -2192,13 +2213,13 @@ const CEILING_SPAN_MODELS = new Set<string>(['column_hint', 'column_concrete_squ
 // raycaster). Standard cells (tier 0) are untouched.
 function applyCeilingHeight(world: World, instance: MeshInstance): void {
   const tier = world.ceilHeight[world.idx(world.wrap(Math.floor(instance.x)), world.wrap(Math.floor(instance.y)))];
-  if (tier <= 0) return;
-  const ceilZ = 1 + tier * 0.5;
+  const ceilZ = 1 + Math.max(0, tier) * 0.5;
   if (instance.z >= 0.9) {
     // Nudge ceiling-mounted meshes slightly below the raycaster ceiling plane
     // so they reliably pass the depth test after the variable-height ceiling march.
+    // This must happen even on standard tier=0 ceilings to avoid Z-fighting/depth culling.
     instance.z += ceilZ - 1 - 0.02;
-  } else if (CEILING_SPAN_MODELS.has(instance.modelId)) {
+  } else if (tier > 0 && CEILING_SPAN_MODELS.has(instance.modelId)) {
     instance.scaleZ *= ceilZ;
   }
 }
