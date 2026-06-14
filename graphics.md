@@ -145,11 +145,10 @@ Lighting:
 
 Dynamic entity drop shadows and reflections:
 
-- NPC and monster entities cast simple drop shadows on regular floors, and full silhouette reflections on glossy floors (water, tile, marble).
+- NPC and monster entities cast true 3D-projected dynamic drop shadows from nearby light sources (flashlight, lamps, candles) and full silhouette reflections on glossy floors (water, tile, marble).
 - The reflection uses the sprite texture rendered at the entity's foot position as a dark semi-transparent overlay, colored with a dark blueish tint and fading out toward the top. It uses the exact same `raycasterRow` floor-depth projection as the raycaster, creating a perfect perspective-correct reflection that clips correctly against walls.
-- The drop shadow is a procedurally generated soft ellipse drawn beneath the entity's feet.
-- Shadow X position is offset opposite to the local `world.light` gradient, projected onto the camera right axis, so shadows point away from light sources. Reflections are always centered beneath the entity.
-- Shadow intensity scales with local light level: stronger under lamps, invisible in darkness (< 0.04 light).
+- The dynamic drop shadow is rendered via `uIsShadow == 3`, projecting the sprite's inverted silhouette onto the floor grid, syncing perfectly with the raycaster's Z-buffer to lay flat on the floor and occlude behind walls. Legacy procedural blob shadows have been completely removed.
+- Shadows are cast away from the closest unoccluded dynamic light source. `webgl.ts` collects up to 8 nearby stationary lights per frame and uploads them to the GPU.
 - Both shadows and reflections use `depthMask(false)` — they darken the floor but don't write depth, so the entity sprite drawn afterward still passes depth test normally.
 - Shadow fog fadeout: `alpha * (1 - fogFactor * 0.85)`.
 - This is render-only; shadows and reflections do not affect gameplay, AI or save data.

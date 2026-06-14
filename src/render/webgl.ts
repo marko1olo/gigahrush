@@ -3110,6 +3110,56 @@ export function renderSceneGL(
     
     dynLightCount++;
   }
+
+  const maxDrawGrid = Math.ceil(MAX_DRAW);
+  const cx = Math.floor(px);
+  const cy = Math.floor(py);
+  const lightCandidates: { lx: number, ly: number, lz: number, r: number, g: number, b: number, radius: number, dist2: number }[] = [];
+
+  for (let dy = -maxDrawGrid; dy <= maxDrawGrid; dy++) {
+    for (let dx = -maxDrawGrid; dx <= maxDrawGrid; dx++) {
+      const dist2 = dx * dx + dy * dy;
+      if (dist2 > MAX_DRAW * MAX_DRAW) continue;
+
+      const wx = world.wrap(cx + dx);
+      const wy = world.wrap(cy + dy);
+      const feat = world.features[world.idx(wx, wy)];
+      
+      let lr = 0, lg = 0, lb = 0, lrad = 0;
+      if (feat === Feature.LAMP) {
+        lr = 1.0; lg = 0.9; lb = 0.8; lrad = 8.0;
+      } else if (feat === Feature.CANDLE) {
+        lr = 0.8; lg = 0.5; lb = 0.2; lrad = 5.0;
+      }
+      
+      if (lrad > 0) {
+        const lx = cx + dx + 0.5;
+        const ly = cy + dy + 0.5;
+        const lz = (feat === Feature.LAMP) ? 0.9 : 0.4;
+        lightCandidates.push({ lx, ly, lz, r: lr, g: lg, b: lb, radius: lrad, dist2 });
+      }
+    }
+  }
+
+  lightCandidates.sort((A, B) => A.dist2 - B.dist2);
+
+  for (const c of lightCandidates) {
+    if (dynLightCount >= 8) break;
+    gl.uniform3f(ru[`uDynamicLights[${dynLightCount}].pos`]!, c.lx, c.ly, c.lz);
+    gl.uniform3f(ru[`uDynamicLights[${dynLightCount}].color`]!, c.r, c.g, c.b);
+    gl.uniform1f(ru[`uDynamicLights[${dynLightCount}].radius`]!, c.radius);
+    
+    glState.dynamicLightsPos[dynLightCount * 3 + 0] = c.lx;
+    glState.dynamicLightsPos[dynLightCount * 3 + 1] = c.ly;
+    glState.dynamicLightsPos[dynLightCount * 3 + 2] = c.lz;
+    glState.dynamicLightsColor[dynLightCount * 3 + 0] = c.r;
+    glState.dynamicLightsColor[dynLightCount * 3 + 1] = c.g;
+    glState.dynamicLightsColor[dynLightCount * 3 + 2] = c.b;
+    glState.dynamicLightsRadius[dynLightCount] = c.radius;
+    
+    dynLightCount++;
+  }
+
   gl.uniform1i(ru['uDynamicLightCount']!, dynLightCount);
   glState.dynamicLightCount = dynLightCount; // Save for mesh and sprites
 
@@ -3658,8 +3708,6 @@ function renderSpritesGL(
       }
 
       // 2) Drop shadow blob (for ambient lighting)
-      let lgx = 0;
-      let lgy = 0;
       let shadowIntensity = eLight;
 
       let bestLight: { x: number, y: number, r: number, g: number, b: number } | null = null;
@@ -3730,37 +3778,8 @@ function renderSpritesGL(
           gl.depthMask(false);
           gl.drawArrays(gl.TRIANGLES, 0, 6);
         }
-      } else if (eLight > 0.02) {
-        // Fallback to baked ambient lighting gradient blob shadow
-        const lr = world.light[world.idx(ex + 1, ey)] ?? 0;
-        const ll = world.light[world.idx(ex - 1, ey)] ?? 0;
-        const lu = world.light[world.idx(ex, ey + 1)] ?? 0;
-        const ld = world.light[world.idx(ex, ey - 1)] ?? 0;
-        lgx = lr - ll;
-        lgy = lu - ld;
-
-        const shadowRight = -(lgx * planeX + lgy * planeY) / (planeLen * planeLen);
-        const stretchAmount = Math.min(2.5, Math.hypot(lgx, lgy) * 3.0);
-        const shadowOffX = Math.round(shadowRight * rawH * 0.7 * (1.0 + stretchAmount));
-        const shadowW = Math.max(6, Math.floor(spriteW * (1.1 + stretchAmount * 0.3)));
-        const shadowH = Math.max(3, Math.floor(spriteW * 0.35));
-        const shadowAlpha = Math.min(0.55, 0.25 + shadowIntensity * 0.35);
-
-        gl.uniform1i(su['uIsShadow']!, 2);
-        gl.uniform1f(su['uShadowFloorH']!, camHeight * planeLen * SCR_H);
-        gl.uniform1f(su['uScreenX']!, spriteScreenX + shadowOffX);
-        gl.uniform1f(su['uShearX']!, 0);
-        gl.uniform1f(su['uSpriteW']!, shadowW);
-        gl.uniform1f(su['uSpriteH']!, shadowH);
-        gl.uniform1f(su['uStartY']!, footY - shadowH * 0.5);
-        gl.uniform1f(su['uDepth']!, normDepth);
-        gl.uniform1f(su['uFogF']!, ff);
-        gl.uniform1i(su['uIsProjectile']!, 0);
-        gl.uniform1f(su['uSeed']!, shadowAlpha);
-        gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-        gl.depthMask(false);
-        gl.drawArrays(gl.TRIANGLES, 0, 6);
       }
+
 
       gl.depthMask(true);
       gl.uniform1i(su['uIsShadow']!, 0);
