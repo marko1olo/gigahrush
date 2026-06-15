@@ -244,8 +244,14 @@ function callOptional(target: unknown, method: string): void {
 
 async function waitForGamePushReady(gp: GamePushSdk): Promise<void> {
   try {
-    await gp.ready;
-    await gp.player?.ready;
+    const promises: Promise<unknown>[] = [];
+    if (gp.ready) promises.push(gp.ready);
+    if (gp.player?.ready) promises.push(gp.player.ready);
+    if (promises.length === 0) return;
+    await Promise.race([
+      Promise.all(promises),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('GP timeout')), 8000))
+    ]);
   } catch {
     // GamePush readiness must never break the standalone browser build.
   }
@@ -469,7 +475,6 @@ export function markPlatformReady(): void {
   void gamePushSdkAsync().then(async gp => {
     if (!gp) return;
     bindGamePushEvents(gp);
-    await waitForGamePushReady(gp);
     if (gamePushReadySent) return;
     gamePushReadySent = true;
     callOptional(gp, 'gameStart');
@@ -486,7 +491,6 @@ export function markPlatformGameplayStart(): void {
   void gamePushSdkAsync().then(async gp => {
     if (!gp) return;
     bindGamePushEvents(gp);
-    await waitForGamePushReady(gp);
     if (gamePushGameplayActive) return;
     gamePushGameplayActive = true;
     callOptional(gp, 'gameplayStart');
@@ -503,7 +507,6 @@ export function markPlatformGameplayStop(): void {
   void gamePushSdkAsync().then(async gp => {
     if (!gp) return;
     bindGamePushEvents(gp);
-    await waitForGamePushReady(gp);
     if (!gamePushGameplayActive) return;
     gamePushGameplayActive = false;
     callOptional(gp, 'gameplayStop');
