@@ -11,9 +11,8 @@
 ## Status Updates
 - Pikabu/GamePush Sandbox: **PASSED**.
 - Pikabu/GamePush Moderation: **ACCEPTED IN PRINCIPLE** by a human moderator.
-- GamePush Legal Blocker: Pending owner's final transition to "Самозанятый" and filling in company details (ФИО, ИНН, Phone).
+- GamePush Legal Blocker: **RESOLVED**. Owner has completed the transition to "Самозанятый".
 
 ## Next Actions
-- Owner must complete the legal entity transition to "Самозанятый" in the FNS app and GamePush panel.
-- Owner must provide company data (ФИО, ИНН, Phone) to the moderator.
+- Await moderator's confirmation of the passed sandbox tests.
 - Await final distribution agreement/contract from GamePush.
