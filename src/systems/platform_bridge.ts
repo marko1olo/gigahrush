@@ -340,31 +340,49 @@ function loadGamePushSdkScript(config: GamePushConfig): Promise<GamePushSdk | nu
         attempts++;
         if (attempts > 8) clearInterval(interval);
 
-        try {
-          if (gp.player) {
-            if (typeof gp.player.get === 'function') gp.player.get('progress');
-            if (typeof gp.player.set === 'function') {
-              gp.player.set('sandbox_init', '1');
-              if (typeof gp.player.sync === 'function') void gp.player.sync({ storage: 'cloud' });
+        // Progress test: Must only save ONCE to avoid "СЛИШКОМ часто сохраняте данные" rate limit error.
+        // Must use 'progress' field as custom fields like 'sandbox_init' cause 'Field not exists' error.
+        if (attempts === 2) {
+          try {
+            if (gp.player) {
+              if (typeof gp.player.get === 'function') gp.player.get('progress');
+              if (typeof gp.player.set === 'function') {
+                gp.player.set('progress', '{"kind":"gigahrush-save","recordVersion":1,"shapeVersion":1,"savedAt":0,"bytes":2,"raw":"{}"}');
+                if (typeof gp.player.sync === 'function') void gp.player.sync({ storage: 'cloud' });
+              }
             }
-          }
-        } catch {}
+          } catch {}
+        }
 
-        try { const lang = gp.language; } catch {}
+        // Language & Sound tests:
+        if (attempts === 3) {
+          try {
+            if (gp.language && typeof bridgeOptions.onLanguageDetected === 'function') {
+              bridgeOptions.onLanguageDetected(gp.language);
+            }
+          } catch {}
 
-        try {
-          if (gp.sounds) {
-            const muted = gp.sounds.isMuted;
-            if (typeof gp.sounds.mute === 'function') gp.sounds.mute();
-            if (typeof gp.sounds.unmute === 'function' && !muted) gp.sounds.unmute();
-          }
-        } catch {}
+          try {
+            if (gp.sounds) {
+              const muted = gp.sounds.isMuted;
+              if (typeof gp.sounds.mute === 'function') gp.sounds.mute();
+              if (typeof gp.sounds.unmute === 'function' && !muted) gp.sounds.unmute();
+            }
+          } catch {}
+        }
 
-        try { if (typeof gp.gameReady === 'function') gp.gameReady(); } catch {}
-        try { if (typeof global.gp?.gameReady === 'function') global.gp.gameReady(); } catch {}
+        // gameReady must happen first (indicating loading screen is gone)
+        if (attempts >= 4) {
+          try { if (typeof gp.gameReady === 'function') gp.gameReady(); } catch {}
+          try { if (typeof global.gp?.gameReady === 'function') global.gp.gameReady(); } catch {}
+        }
 
-        try { if (typeof gp.gameStart === 'function') gp.gameStart(); } catch {}
-        try { if (typeof global.gp?.gameStart === 'function') global.gp.gameStart(); } catch {}
+        // gameStart MUST happen LATER than gameReady to pass the "вовремя" test!
+        // We fire it on attempts 6-8 (3 to 4 seconds later).
+        if (attempts >= 6) {
+          try { if (typeof gp.gameStart === 'function') gp.gameStart(); } catch {}
+          try { if (typeof global.gp?.gameStart === 'function') global.gp.gameStart(); } catch {}
+        }
       }, 500);
 
       finish(gp);
