@@ -74,6 +74,8 @@ interface GamePushSdk {
   language?: string;
   sounds?: GamePushSounds;
   gameStart?(): void | Promise<void>;
+  gameReady?(): void;
+  changeLanguage?(lang: string): void;
   gameplayStart?(): void | Promise<void>;
   gameplayStop?(): void | Promise<void>;
   on?(event: 'pause' | 'resume', handler: () => void): void;
