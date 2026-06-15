@@ -477,11 +477,6 @@ export function markPlatformReady(): void {
     if (!gp) return;
     bindGamePushEvents(gp);
     
-    // Wait for SDK to be internally ready before sending gameStart so GamePush registers it
-    if (gp.ready) {
-      try { await gp.ready; } catch {}
-    }
-
     if (!gamePushReadySent) {
       gamePushReadySent = true;
 
