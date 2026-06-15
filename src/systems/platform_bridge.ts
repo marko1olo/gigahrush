@@ -479,10 +479,8 @@ export function markPlatformReady(): void {
     
     if (!gamePushReadySent) {
       gamePushReadySent = true;
-      try {
-        if (typeof gp.gameStart === 'function') gp.gameStart();
-        else callOptional(gp, 'gameStart');
-      } catch {}
+      // Actual gameplay handles gameStart, but just in case for older platforms:
+      // callOptional(gp, 'gameReady');
     }
   });
 }
