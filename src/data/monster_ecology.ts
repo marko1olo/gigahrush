@@ -1337,6 +1337,23 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     rumorIds: ['monster_treskotnik_crack_pulse', 'ecology_treskotnik_corner'],
     rareDrops: [{ itemId: 'rebar', chance: 0.04 }, { itemId: 'psi_concrete_splinter', chance: 0.015 }],
   },
+  {
+    kind: MonsterKind.SCULPTURE,
+    role: 'Бетонная аномалия, которая движется с огромной скоростью, когда на нее никто не смотрит.',
+    cue: 'Шорох бетона, когда вы отворачиваетесь. Необычно гладкая статуя.',
+    rule: 'Не движется, если любой актор (игрок или НПЦ) смотрит на нее (находится в угле обзора и есть прямая видимость). Смертельно опасна вблизи.',
+    floorFit: 'Глубокие и безлюдные уровни: техобслуживание, ад, пустота.',
+    floors: [FloorLevel.MAINTENANCE, FloorLevel.HELL, FloorLevel.VOID],
+    rooms: [RoomType.CORRIDOR, RoomType.STORAGE, RoomType.PRODUCTION],
+    spawnWeight: 0.05,
+    minSamosborCount: 2,
+    rare: true,
+    lootHint: 'редкая арматура, изолента, странные бетонные фрагменты',
+    counterplay: 'Скульптура. Двигается только в слепых зонах. Держите зрительный контакт и медленно отходите.',
+    deathLogHint: 'Смерть от скульптуры: отвернулся, моргнул, или зашел в темный угол без прямой видимости.',
+    rumorIds: ['monster_sculpture_angel', 'ecology_sculpture_stare'],
+    rareDrops: [{ itemId: 'rebar', chance: 0.1 }, { itemId: 'psi_concrete_splinter', chance: 0.1 }],
+  },
 ];
 
 export const MONSTER_ECOLOGY_BY_KIND: Partial<Record<MonsterKind, MonsterEcologyDef>> = {};

@@ -217,6 +217,7 @@ type BaseDebugCommandId =
   | 'teleport_conway_life'
   | 'teleport_rail_trains'
   | 'spawn_bad_apple_world'
+  | 'spawn_sculpture'
   | 'verification_contract_route'
   | 'publish_verification_event'
   | 'route_floor_summary'
@@ -1760,6 +1761,24 @@ export function execDebugCommand(
       state.msgs.push(msg(`[DEBUG] ${spawnDebugItemDropsAroundPlayer(world, player, entities, nextEntityId, debugToolDrops(), 'инструменты')}`, state.time, '#ff0'));
       break;
     }
+    case 89: {
+      const def = MONSTERS[MonsterKind.SCULPTURE];
+      const ang = player.angle;
+      entities.push({
+        id: nextEntityId.v++, type: EntityType.MONSTER,
+        x: player.x + Math.cos(ang) * 4,
+        y: player.y + Math.sin(ang) * 4,
+        angle: ang + Math.PI, pitch: 0, alive: true,
+        speed: def.speed, sprite: def.sprite,
+        hp: def.hp, maxHp: def.hp,
+        monsterKind: MonsterKind.SCULPTURE, attackCd: 0,
+        ai: { goal: AIGoal.IDLE, tx: 0, ty: 0, path: [], pi: 0, stuck: 0, timer: 0 },
+        rpg: randomRPG(player.rpg?.level ?? 1),
+        phasing: false,
+      });
+      state.msgs.push(msg('[DEBUG] Скульптура заспавнена перед игроком', state.time, '#ff0'));
+      break;
+    }
   }
   return null;
 }
@@ -1865,6 +1884,7 @@ const BASE_CMD_DEFS = [
   { id: 'spawn_chalk', label: 'DEBUG: спавн мелка' },
   { id: 'spawn_all_psi', label: 'Все ПСИ-сгустки' },
   { id: 'spawn_all_tools', label: 'Все инструменты' },
+  { id: 'spawn_sculpture', label: 'Спавн Скульптуры' },
 ] as const satisfies readonly DebugCommandDef[];
 
 const BASE_CMD_VISUAL_BEFORE_DESIGN = [
@@ -1960,6 +1980,7 @@ const BASE_CMD_VISUAL_AFTER_DESIGN = [
   'grant_maronary_shaving',
   'force_pneumomail_capsule',
   'force_hermodoor_borer',
+  'spawn_sculpture',
 ] as const satisfies readonly BaseDebugCommandId[];
 
 function designFloorCommandId(id: DesignFloorId): DebugCommandId {

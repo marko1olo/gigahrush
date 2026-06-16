@@ -103,6 +103,7 @@ export const MONSTER_VISUALS: Record<MonsterKind, MonsterVisualDef> = {
   [MonsterKind.SWARM]: { family: 'low_swarm_garbage', evidence: 'source_spore_thread' },
   [MonsterKind.SPORE_CARPET]: { family: 'source_hive_static', evidence: 'source_spore_thread' },
   [MonsterKind.LISHENNYY]: { family: 'dark_fog_phase', evidence: 'light_line_lock' },
+  [MonsterKind.SCULPTURE]: { family: 'wall_concrete_metal', evidence: 'scrape_dust_crack' },
 };
 
 export function monsterVisual(kind: MonsterKind | undefined): MonsterVisualDef | undefined {

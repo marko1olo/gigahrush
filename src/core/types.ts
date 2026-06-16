@@ -248,6 +248,7 @@ export enum MonsterKind {
   LOZHNYY_DUKH, // door phaser            — ложный дух (один проход через дверь)
   CHERVIE_AVATAR, // net-borne AI avatar  — Червие (экранный импульс)
   POMOYNY_ROY, // food-attracted garbage swarm — помойный рой (окружает по запаху)
+  SCULPTURE, // SCP-173 weeping angel
   TRUBNYY_AVTOMAT, // wet-line machine    — трубный автомат (заряжает мокрую прямую)
   LOTOCHNIK,  // wet-service crawler      — лоточник (броня в воде)
   TRESKOTNIK, // brittle crack sprinter    — трескотник (сбиваемый рывок)

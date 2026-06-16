@@ -50,6 +50,7 @@ export type MonsterAIFlag =
   | 'rootHive'
   | 'fractureSprint'
   | 'lurkingFurniture'
+  | 'weepingAngel'
   | 'lightFollower';
 
 export interface MonsterDef {
@@ -157,6 +158,7 @@ import { DEF as BLOOD_PLANT_DEF, generateSprite as genBloodPlant } from './blood
 import { DEF as SPORE_CARPET_DEF, generateSprite as genSporeCarpet } from './spore_carpet';
 import { DEF as SWARM_DEF, generateSprite as genSwarm } from './swarm_mass';
 import { DEF as LISHENNYY_DEF, generateSprite as genLishennyy } from './lishennyy';
+import { DEF as SCULPTURE_DEF, generateSprite as genSculpture } from './sculpture';
 
 export const MONSTERS: Record<MonsterKind, MonsterDef> = {
   [MonsterKind.SBORKA]:    SBORKA_DEF,
@@ -226,6 +228,7 @@ export const MONSTERS: Record<MonsterKind, MonsterDef> = {
   [MonsterKind.SWARM]: SWARM_DEF,
   [MonsterKind.SPORE_CARPET]: SPORE_CARPET_DEF,
   [MonsterKind.LISHENNYY]: LISHENNYY_DEF,
+  [MonsterKind.SCULPTURE]: SCULPTURE_DEF,
 };
 
 export const MONSTER_SPRITES: Record<MonsterKind, () => Uint32Array> = {
@@ -296,6 +299,7 @@ export const MONSTER_SPRITES: Record<MonsterKind, () => Uint32Array> = {
   [MonsterKind.SWARM]: genSwarm,
   [MonsterKind.SPORE_CARPET]: genSporeCarpet,
   [MonsterKind.LISHENNYY]: genLishennyy,
+  [MonsterKind.SCULPTURE]: genSculpture,
 };
 
 export const EYE_BOLT_SPRITE: () => Uint32Array = genEyeBolt;

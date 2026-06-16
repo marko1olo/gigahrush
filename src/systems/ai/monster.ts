@@ -8789,9 +8789,42 @@ export function dropNpcInventory(e: Entity, entities: Entity[], nextId: { v: num
   e.inventory = [];
 }
 
+function isWeepingAngelFrozen(world: World, e: Entity): boolean {
+  if (!hasAIFlag(e, 'weepingAngel')) return false;
+
+  const index = getEntityIndex();
+  const radius = 25;
+  const out: Entity[] = [];
+  index.queryRadius(e.x, e.y, radius, out, ENTITY_MASK_ACTOR);
+
+  for (let i = 0; i < out.length; i++) {
+    const actor = out[i];
+    if (actor.id === e.id || !actor.alive) continue;
+    if (!hasClearLine(world, actor, e, radius)) continue;
+
+    const dx = e.x - actor.x;
+    const dy = e.y - actor.y;
+    const angleToSculpture = Math.atan2(dy, dx);
+
+    let diff = Math.abs(angleToSculpture - actor.angle);
+    while (diff > Math.PI) diff -= Math.PI * 2;
+    diff = Math.abs(diff);
+
+    // 45 degrees field of view
+    if (diff <= Math.PI / 4) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /* ── Monster AI update ────────────────────────────────────────── */
 export function updateMonster(world: World, entities: Entity[], e: Entity, dt: number, time: number, msgs: Msg[], playerId: number, nextId: { v: number }, state?: GameState): void {
   const ai = e.ai!;
+  if (isWeepingAngelFrozen(world, e)) {
+    return;
+  }
+
   if (updateZakalennayaArmorStagger(e, dt)) return;
 
   if (e.monsterKind === MonsterKind.KHOROVAYA_MATKA) {

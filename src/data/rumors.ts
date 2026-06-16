@@ -882,6 +882,8 @@ const BASE_RUMORS: readonly RumorDef[] = [
   { id: 'event_floor_transition', topic: 'floor', minTrust: -10, floors: ALL_FLOORS, text: ['Лифт недавно принес чужой этажный запах: озон, мокрая куртка и чья-то схема в руке.', 'Кто сменил этаж, принес не беду вообще, а новый список дверей, где его теперь спросят.'], reveals: { kind: 'warning', tag: 'floor_transition', confidence: 3 } },
   { id: 'event_factory_output', topic: 'economy', minTrust: -5, floors: ALL_FLOORS, text: ['Где-то цех снова выдал партию. Значит, сырьё ещё не кончилось.', 'Если станки шумят, рядом скоро появятся руки у контейнера.'], reveals: { kind: 'room', roomType: RoomType.PRODUCTION, confidence: 3 } },
   { id: 'event_factory_shortage', topic: 'economy', minTrust: -20, floors: ALL_FLOORS, text: ['Цех встал не от усталости. Ему не хватает сырья или места.', 'Когда производство молчит, цены начинают говорить громче.'], reveals: { kind: 'warning', tag: 'production_shortage', confidence: 3 } },
+  { id: 'monster_sculpture_angel', topic: 'monster', minTrust: 15, floors: DEEP_FLOORS, text: ['Гладкий бетон не скрипит, когда двигается.', 'Если слышишь шорох только когда моргаешь, не поворачивайся спиной.'], reveals: { kind: 'monster', monsterKind: MonsterKind.SCULPTURE, confidence: 4 } },
+  { id: 'ecology_sculpture_stare', topic: 'monster', minTrust: 20, floors: DEEP_FLOORS, text: ['Скульптура боится только взгляда.', 'Иди спиной вперед. Если отвернешься - она сломает шею.'], reveals: { kind: 'monster', monsterKind: MonsterKind.SCULPTURE, confidence: 4 } },
 ];
 
 const RUMOR_LEAD_OVERRIDES: Partial<Record<string, RumorLead>> = {
