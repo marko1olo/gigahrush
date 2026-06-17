@@ -29,7 +29,7 @@ const NAV_UNKNOWN = -3;
 const NAV_BLOCKED = -2;
 const FLOW_UNREACHED = -1;
 const FLOW_BLOCKED = -2;
-const PATH_CHUNK_LIMIT = 256;
+const PATH_CHUNK_LIMIT = 1024;
 const PATH_DESCEND_SEARCH_LIMIT = 2048;
 const PATH_LOOKAHEAD_CELLS = 6;
 const PATH_DIRECT_GOAL_RANGE = 12;
@@ -275,11 +275,38 @@ function isSubcellNavPassable(world: World, si: number): boolean {
   const cellI = cellY * W + cellX;
   const cell = world.cells[cellI];
 
-  if (cell !== Cell.FLOOR && cell !== Cell.WATER && cell !== Cell.DOOR) return false;
-  if (cell === Cell.DOOR) {
-    const door = world.doors.get(cellI);
-    if (door && (door.state === DoorState.LOCKED || door.state === DoorState.HERMETIC_CLOSED)) return false;
+  const isMacroCellPassable = (ci: number, c: number): boolean => {
+    if (c !== Cell.FLOOR && c !== Cell.WATER && c !== Cell.DOOR) return false;
+    if (c === Cell.DOOR) {
+      const door = world.doors.get(ci);
+      if (door && (door.state === DoorState.LOCKED || door.state === DoorState.HERMETIC_CLOSED)) return false;
+    }
+    return true;
+  };
+
+  if (!isMacroCellPassable(cellI, cell)) return false;
+
+  // Add subcell clearance: NPCs have 0.16m radius, but subcell center is only 0.125m from the macro cell edge.
+  // Therefore, subcells touching an impassable macro cell boundary must be marked impassable to prevent corner snags.
+  const rx = sx % PATH_BLOCKER_SUBDIV;
+  const ry = sy % PATH_BLOCKER_SUBDIV;
+
+  if (rx === 0) {
+    const nx = world.wrap(cellX - 1);
+    if (!isMacroCellPassable(cellY * W + nx, world.cells[cellY * W + nx])) return false;
+  } else if (rx === PATH_BLOCKER_SUBDIV - 1) {
+    const nx = world.wrap(cellX + 1);
+    if (!isMacroCellPassable(cellY * W + nx, world.cells[cellY * W + nx])) return false;
   }
+
+  if (ry === 0) {
+    const ny = world.wrap(cellY - 1);
+    if (!isMacroCellPassable(ny * W + cellX, world.cells[ny * W + cellX])) return false;
+  } else if (ry === PATH_BLOCKER_SUBDIV - 1) {
+    const ny = world.wrap(cellY + 1);
+    if (!isMacroCellPassable(ny * W + cellX, world.cells[ny * W + cellX])) return false;
+  }
+
   return !pathBlockedAt(world, sx / PATH_BLOCKER_SUBDIV + 0.5 / PATH_BLOCKER_SUBDIV, sy / PATH_BLOCKER_SUBDIV + 0.5 / PATH_BLOCKER_SUBDIV);
 }
 
@@ -327,14 +354,20 @@ function bakeNavigationTree(
       const nSW = (cy === SW - 1 ? 0 : cy + 1) * SW + (cx === 0 ? SW - 1 : cx - 1);
       const nSE = (cy === SW - 1 ? 0 : cy + 1) * SW + (cx === SW - 1 ? 0 : cx + 1);
 
-      tail = visitNavNeighbor(world, nW, cur, componentId, tail);
-      tail = visitNavNeighbor(world, nE, cur, componentId, tail);
-      tail = visitNavNeighbor(world, nN, cur, componentId, tail);
-      tail = visitNavNeighbor(world, nS, cur, componentId, tail);
-      tail = visitNavNeighbor(world, nNW, cur, componentId, tail);
-      tail = visitNavNeighbor(world, nNE, cur, componentId, tail);
-      tail = visitNavNeighbor(world, nSW, cur, componentId, tail);
-      tail = visitNavNeighbor(world, nSE, cur, componentId, tail);
+      const passW = isSubcellNavPassable(world, nW);
+      const passE = isSubcellNavPassable(world, nE);
+      const passN = isSubcellNavPassable(world, nN);
+      const passS = isSubcellNavPassable(world, nS);
+
+      if (passW) tail = visitNavNeighbor(world, nW, cur, componentId, tail);
+      if (passE) tail = visitNavNeighbor(world, nE, cur, componentId, tail);
+      if (passN) tail = visitNavNeighbor(world, nN, cur, componentId, tail);
+      if (passS) tail = visitNavNeighbor(world, nS, cur, componentId, tail);
+      
+      if (passW && passN) tail = visitNavNeighbor(world, nNW, cur, componentId, tail);
+      if (passE && passN) tail = visitNavNeighbor(world, nNE, cur, componentId, tail);
+      if (passW && passS) tail = visitNavNeighbor(world, nSW, cur, componentId, tail);
+      if (passE && passS) tail = visitNavNeighbor(world, nSE, cur, componentId, tail);
     }
     _navReachable += tail;
   }
@@ -417,14 +450,20 @@ function ensureBehaviorFlowField(
     const nSW = (cy === SW - 1 ? 0 : cy + 1) * SW + (cx === 0 ? SW - 1 : cx - 1);
     const nSE = (cy === SW - 1 ? 0 : cy + 1) * SW + (cx === SW - 1 ? 0 : cx + 1);
 
-    tail = visitFlowNeighbor(world, next, nW, cur, tail);
-    tail = visitFlowNeighbor(world, next, nE, cur, tail);
-    tail = visitFlowNeighbor(world, next, nN, cur, tail);
-    tail = visitFlowNeighbor(world, next, nS, cur, tail);
-    tail = visitFlowNeighbor(world, next, nNW, cur, tail);
-    tail = visitFlowNeighbor(world, next, nNE, cur, tail);
-    tail = visitFlowNeighbor(world, next, nSW, cur, tail);
-    tail = visitFlowNeighbor(world, next, nSE, cur, tail);
+    const passW = isSubcellNavPassable(world, nW);
+    const passE = isSubcellNavPassable(world, nE);
+    const passN = isSubcellNavPassable(world, nN);
+    const passS = isSubcellNavPassable(world, nS);
+
+    if (passW) tail = visitFlowNeighbor(world, next, nW, cur, tail);
+    if (passE) tail = visitFlowNeighbor(world, next, nE, cur, tail);
+    if (passN) tail = visitFlowNeighbor(world, next, nN, cur, tail);
+    if (passS) tail = visitFlowNeighbor(world, next, nS, cur, tail);
+    
+    if (passW && passN) tail = visitFlowNeighbor(world, next, nNW, cur, tail);
+    if (passE && passN) tail = visitFlowNeighbor(world, next, nNE, cur, tail);
+    if (passW && passS) tail = visitFlowNeighbor(world, next, nSW, cur, tail);
+    if (passE && passS) tail = visitFlowNeighbor(world, next, nSE, cur, tail);
   }
 
   _bfsCalls++;

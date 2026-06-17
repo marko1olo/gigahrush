@@ -28,7 +28,7 @@ export const UI_ELEMENT_DEFS = [
   { id: 'anomaly_hints', group: 'Аномалии', label: 'Смог и аномальные индикаторы', defaultEnabled: false, locked: false },
   { id: 'fps_counter', group: 'Отладка', label: 'FPS в левом углу', defaultEnabled: false, locked: false },
   { id: 'screen_fx', group: 'Экран', label: 'Нейрошум и помехи', defaultEnabled: true, locked: false },
-  { id: 'npc_barks', group: 'Экран', label: 'Реплики в мире', defaultEnabled: true, locked: false },
+  { id: 'npc_barks', group: 'Экран', label: 'Реплики NPC (баблы)', defaultEnabled: true, locked: false },
   { id: 'samosbor_text', group: 'Системное', label: 'Текст самосбора', defaultEnabled: true, locked: true },
   { id: 'credits', group: 'Системное', label: 'Титры и финальные экраны', defaultEnabled: true, locked: true },
 ] as const satisfies readonly UiElementDef[];

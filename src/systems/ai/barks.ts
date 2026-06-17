@@ -17,7 +17,7 @@ export const BARK_CHANCE_FLEE = 0.08;
 export const BARK_CHANCE_KILL = 0.12;
 export const BARK_CHANCE_ARRIVE = 0.008;
 export const BARK_CHANCE_HIDE = 0.03;
-export const BARK_CHANCE_GENERIC = 0.002;
+export const BARK_CHANCE_GENERIC = 0.01;
 
 /* ── Helpers ──────────────────────────────────────────────────── */
 
@@ -119,7 +119,7 @@ export function emitMarkovBark(e: Entity, msgs: Msg[], time: number, signal: str
   if (!e.name) return;
   const last = lastBarkByEntity.get(e.id);
   if (last && time - last.time < BARK_ENTITY_COOLDOWN_S && last.text === fallback) return;
-  
+
   const pack = resolveNpcPackageForEntity(e);
   const seed = e.alifeId ?? e.id;
   const packageFallback = pack && !isUnsafeMarkovBarkSignal(signal)
@@ -139,7 +139,7 @@ export function emitMarkovBark(e: Entity, msgs: Msg[], time: number, signal: str
     tags: pack ? npcPackageSpeechContextTags(pack, e, 'bark') : undefined,
     routeSpeech: routeBarkSpeech,
   });
-  
+
   const text = routed?.text ?? fallback;
   const heard = pushNpcBarkMessage(e, msgs, time, text, color, { signal: signal as any });
   if (heard) {

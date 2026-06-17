@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { World } from '../src/core/world';
-import { bark, pushNpcBarkMessage, setNpcBarkLogContext } from '../src/systems/ai/barks';
+import { emitMarkovBark, pushNpcBarkMessage, setNpcBarkLogContext } from '../src/systems/ai/barks';
 import { offerQuest } from '../src/systems/quests';
 import { makeGameState, makeTestNpc, makeTestPlayer } from './helpers';
 import type { Msg } from '../src/core/types';
@@ -60,13 +60,13 @@ test('out-of-radius bark attempts do not consume heard cooldown', () => {
 
   try {
     Math.random = () => 0;
-    bark(npc, msgs, 1, ['Шов держит.'], ['Шов держит.'], 1);
+    emitMarkovBark(npc, msgs, 1, 'ambient', 'Шов держит.', 1);
     assert.equal(msgs.length, 0);
 
     npc.x = 30;
-    bark(npc, msgs, 2, ['Шов держит.'], ['Шов держит.'], 1);
+    emitMarkovBark(npc, msgs, 2, 'ambient', 'Шов держит.', 1);
     assert.equal(msgs.length, 1);
-    assert.equal(msgs[0].text, 'Слесарь: Шов держит.');
+    assert.equal(msgs[0].text, 'Слесарь: Ведро у двери пустое. Значит, хозяин рядом.');
     assert.equal(msgs[0].distanceMeters, 20);
   } finally {
     Math.random = savedRandom;

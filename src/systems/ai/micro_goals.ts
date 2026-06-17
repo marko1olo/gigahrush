@@ -8,6 +8,9 @@ import { aiPathMoveSpeed } from '../rpg';
 import { canActorOccupy, actorOccupyRadius } from '../movement_collision';
 import { findNoiseInvestigationTarget } from '../noise';
 import { pickupDrop } from '../inventory';
+import { getEntityIndex, ENTITY_MASK_NPC, ENTITY_MASK_ITEM_DROP } from '../entity_index';
+
+const _microQueryOut: Entity[] = new Array(32);
 
 export interface MicroGoalOpts {
   targetX?: number;
@@ -85,19 +88,6 @@ export function tickMicroGoal(world: World, entities: Entity[], e: Entity, dt: n
   
   // Execution logic based on the specific micro-goal
   switch (ai.microGoalId) {
-    case 'greet': {
-      // Just stop and face the target entity
-      if (ai.microSourceId !== undefined) {
-        const source = entities.find(x => x.id === ai.microSourceId);
-        if (source) {
-          const dx = world.delta(e.x, source.x);
-          const dy = world.delta(e.y, source.y);
-          e.angle = Math.atan2(dy, dx);
-        }
-      }
-      return true; // consumed tick, no movement
-    }
-    
     case 'investigate_noise':
     case 'search_lkp':
     case 'reposition':
@@ -132,9 +122,36 @@ export function tickMicroGoal(world: World, entities: Entity[], e: Entity, dt: n
   return true;
 }
 
-export function evaluateMicroStimuli(world: World, entities: Entity[], e: Entity, time: number, msgs: Msg[]): void {
+export function evaluateMicroStimuli(world: World, e: Entity, time: number, msgs: Msg[]): void {
   const ai = e.ai;
   if (!ai || hasMicroGoal(e) || ai.combatTargetId !== undefined || ai.goal === AIGoal.FLEE || ai.goal === AIGoal.HIDE) {
+    return;
+  }
+  
+  // Bounded scan for greet (can happen while walking)
+  if (e.type === EntityType.NPC) {
+    const index = getEntityIndex();
+    const count = index.queryRadiusCapped(e.x, e.y, 4, _microQueryOut, ENTITY_MASK_NPC, 16);
+    for (let i = 0; i < count; i++) {
+      const near = _microQueryOut[i];
+      if (!near.alive) continue;
+      
+      const dx = near.x - e.x;
+      const dy = near.y - e.y;
+      const dist2 = dx * dx + dy * dy;
+      
+      if (dist2 < 9 && dist2 > 0) { // 3 cells squared
+        if ((ai.microCooldowns?.['greet'] ?? 0) <= 0) {
+          ai.microCooldowns = ai.microCooldowns || {};
+          ai.microCooldowns['greet'] = 120; // 2 minutes before greeting anyone again
+          emitMarkovBark(e, msgs, time, 'ambient', 'Привет.', 1.0, '#aac');
+        }
+      }
+    }
+  }
+
+  // Suppress blocking micro-goals if NPC is traveling a long distance to avoid massive pathing churn
+  if (ai.path && (ai.path.length - (ai.pi ?? 0)) > 5) {
     return;
   }
   
@@ -149,33 +166,23 @@ export function evaluateMicroStimuli(world: World, entities: Entity[], e: Entity
     }
   }
 
-  // Bounded scan for greet and loot
+  // 2. Loot items
   if (e.type === EntityType.NPC) {
-    for (let i = 0; i < entities.length; i++) {
-      const near = entities[i];
+    const index = getEntityIndex();
+    const count = index.queryRadiusCapped(e.x, e.y, 4, _microQueryOut, ENTITY_MASK_ITEM_DROP, 16);
+    for (let i = 0; i < count; i++) {
+      const near = _microQueryOut[i];
       if (!near.alive) continue;
       
-      const dist2 = world.dist2(e.x, e.y, near.x, near.y);
-      if (dist2 > 16) continue; // 4 cells squared max
+      const dx = near.x - e.x;
+      const dy = near.y - e.y;
+      const dist2 = dx * dx + dy * dy;
       
-      // 2. Greet
-      if (near.id !== e.id && near.type === EntityType.NPC && dist2 < 9) { // 3 cells squared
-        if ((ai.microCooldowns?.['greet'] ?? 0) <= 0) {
-          if (trySetMicroGoal(e, 'greet', { timer: 2, sourceId: near.id })) {
-            ai.microCooldowns = ai.microCooldowns || {};
-            ai.microCooldowns['greet'] = 120; // 2 minutes before greeting anyone again
-            emitMarkovBark(e, msgs, time, 'ambient', 'Привет.', 1.0, '#aac');
-            return;
-          }
-        }
-      }
-      
-      // 3. Loot nearby (within 3 cells)
-      if (near.type === EntityType.ITEM_DROP && dist2 < 9) {
+      if (dist2 < 4) {
         if ((ai.microCooldowns?.['loot_nearby'] ?? 0) <= 0) {
           if (trySetMicroGoal(e, 'loot_nearby', { targetX: near.x, targetY: near.y, timer: 5, sourceId: near.id })) {
             ai.microCooldowns = ai.microCooldowns || {};
-            ai.microCooldowns['loot_nearby'] = 45; // 45 seconds cooldown for generic loot scan
+            ai.microCooldowns['loot_nearby'] = 45; // 45 sec cooldown
             return;
           }
         }

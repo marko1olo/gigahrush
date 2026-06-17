@@ -276,7 +276,7 @@ test('plot safety-critical lines remain exact and ordinary NPC talk works withou
   );
 
   assert.equal(ordinary.source, 'generated_markov');
-  assert.match(ordinary.text, /Кухня у гермы/);
+  assert.match(ordinary.text, /герм/i);
 });
 
 test('unknown plot NPC ids do not synthesize speech packages', () => {

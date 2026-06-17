@@ -94,12 +94,7 @@ const IMMEDIATE_THREAT_RADIUS = 10;
 const IMMEDIATE_THREAT_RADIUS_SQ = IMMEDIATE_THREAT_RADIUS * IMMEDIATE_THREAT_RADIUS;
 const COMBAT_TARGET_SCAN_CAP = 80;
 const IMMEDIATE_THREAT_SCAN_CAP = 40;
-const IMMEDIATE_CACHE_BUCKET_SHIFT = 4;
-const IMMEDIATE_CACHE_BUCKET_SIZE = 1 << IMMEDIATE_CACHE_BUCKET_SHIFT;
-const IMMEDIATE_CACHE_BUCKETS_PER_AXIS = W >> IMMEDIATE_CACHE_BUCKET_SHIFT;
-const IMMEDIATE_CACHE_BUCKET_MASK = IMMEDIATE_CACHE_BUCKETS_PER_AXIS - 1;
-const IMMEDIATE_CACHE_BUCKET_CENTER_OFFSET = IMMEDIATE_CACHE_BUCKET_SIZE * 0.5;
-const IMMEDIATE_CACHE_BUCKET_EXTRA_RADIUS = Math.SQRT2 * IMMEDIATE_CACHE_BUCKET_CENTER_OFFSET;
+
 const OLGOY_SCENT_SCAN_CAP = 64;
 const LISHENNYY_LIGHT_SCAN_CAP = 72;
 const CHERNOSLIZ_SCAN_CAP = 64;
@@ -473,11 +468,8 @@ let _entityById = new Map<number, Entity>();
 export function setEntityMap(m: Map<number, Entity>): void { _entityById = m; }
 
 const combatQuery: Entity[] = [];
-const immediateCacheQuery: Entity[] = [];
 const monsterMeleeHitQuery: Entity[] = [];
 const immediateTopCandidates: Entity[] = [];
-const immediateTopDists: number[] = [];
-const immediateTopIds: number[] = [];
 const documentHunterQuery: Entity[] = [];
 const chernoslizTargetQuery: Entity[] = [];
 const zhornayaCarrierQuery: Entity[] = [];
@@ -495,12 +487,7 @@ const lishennyyLightQuery: Entity[] = [];
 const olgoyFedCorpses = new WeakSet<Entity>();
 const lampPoweredRuntime = new WeakMap<Entity, boolean>();
 
-interface ImmediateCombatCacheEntry {
-  candidates: Entity[];
-}
 
-const immediateCombatCache = new Map<string, ImmediateCombatCacheEntry>();
-let immediateCombatCacheVersion = -1;
 
 interface ZhornayaScentRuntime {
   nextScanAt: number;
@@ -2854,9 +2841,11 @@ function findImmediateCombatTarget(
   let target: Entity | null = null;
   let best = rangeSq;
   const queryMask = combatTargetQueryMask(typeFilter);
-  const candidates = immediateCombatCandidates(e, rangeSq, queryMask);
-  collectImmediateTopCandidates(world, e, candidates, rangeSq);
-  for (const other of immediateTopCandidates) {
+  const count = getEntityIndex().queryRadiusCapped(
+    e.x, e.y, Math.sqrt(rangeSq), immediateTopCandidates, queryMask, IMMEDIATE_THREAT_SCAN_CAP
+  );
+  for (let i = 0; i < count; i++) {
+    const other = immediateTopCandidates[i];
     if (!other.alive || other.id === e.id) continue;
     if (!typeFilter(other)) continue;
     if (!isHostile(e, other)) continue;
@@ -2868,71 +2857,7 @@ function findImmediateCombatTarget(
   return target;
 }
 
-function immediateCacheBucketCoord(v: number): number {
-  return ((Math.floor(v) & (W - 1)) >> IMMEDIATE_CACHE_BUCKET_SHIFT) & IMMEDIATE_CACHE_BUCKET_MASK;
-}
 
-function immediateCombatCandidates(e: Entity, rangeSq: number, queryMask: number): readonly Entity[] {
-  const index = getEntityIndex();
-  const version = index.getVersion();
-  if (version !== immediateCombatCacheVersion) {
-    immediateCombatCache.clear();
-    immediateCombatCacheVersion = version;
-  }
-  const bx = immediateCacheBucketCoord(e.x);
-  const by = immediateCacheBucketCoord(e.y);
-  const bucketIndex = by * IMMEDIATE_CACHE_BUCKETS_PER_AXIS + bx;
-  const key = `${bucketIndex}:${queryMask}:${rangeSq}`;
-  const cached = immediateCombatCache.get(key);
-  if (cached) return cached.candidates;
-
-  const cx = bx * IMMEDIATE_CACHE_BUCKET_SIZE + IMMEDIATE_CACHE_BUCKET_CENTER_OFFSET;
-  const cy = by * IMMEDIATE_CACHE_BUCKET_SIZE + IMMEDIATE_CACHE_BUCKET_CENTER_OFFSET;
-  index.queryRadius(cx, cy, Math.sqrt(rangeSq) + IMMEDIATE_CACHE_BUCKET_EXTRA_RADIUS, immediateCacheQuery, queryMask);
-  const entry = { candidates: immediateCacheQuery.slice() };
-  immediateCombatCache.set(key, entry);
-  return entry.candidates;
-}
-
-function collectImmediateTopCandidates(
-  world: World,
-  e: Entity,
-  candidates: readonly Entity[],
-  rangeSq: number,
-): void {
-  immediateTopCandidates.length = 0;
-  immediateTopDists.length = 0;
-  immediateTopIds.length = 0;
-  let count = 0;
-  for (const other of candidates) {
-    if (!other.alive) continue;
-    const d2 = world.dist2(e.x, e.y, other.x, other.y);
-    if (d2 > rangeSq) continue;
-    const full = count >= IMMEDIATE_THREAT_SCAN_CAP;
-    if (
-      full &&
-      (d2 > immediateTopDists[IMMEDIATE_THREAT_SCAN_CAP - 1] ||
-        (d2 === immediateTopDists[IMMEDIATE_THREAT_SCAN_CAP - 1] && other.id >= immediateTopIds[IMMEDIATE_THREAT_SCAN_CAP - 1]))
-    ) {
-      continue;
-    }
-    let pos = count;
-    while (pos > 0 && (d2 < immediateTopDists[pos - 1] || (d2 === immediateTopDists[pos - 1] && other.id < immediateTopIds[pos - 1]))) pos--;
-    const writeEnd = full ? IMMEDIATE_THREAT_SCAN_CAP - 1 : count;
-    for (let i = writeEnd; i > pos; i--) {
-      immediateTopDists[i] = immediateTopDists[i - 1];
-      immediateTopIds[i] = immediateTopIds[i - 1];
-      immediateTopCandidates[i] = immediateTopCandidates[i - 1];
-    }
-    immediateTopDists[pos] = d2;
-    immediateTopIds[pos] = other.id;
-    immediateTopCandidates[pos] = other;
-    if (!full) count++;
-  }
-  immediateTopCandidates.length = count;
-  immediateTopDists.length = count;
-  immediateTopIds.length = count;
-}
 
 function canBeMonsterTarget(other: Entity): boolean {
   return isPlayerEntity(other) || other.type === EntityType.NPC;
@@ -8828,7 +8753,7 @@ export function updateMonster(world: World, entities: Entity[], e: Entity, dt: n
 
   if (updateZakalennayaArmorStagger(e, dt)) return;
 
-  evaluateMicroStimuli(world, entities, e, time, msgs);
+  evaluateMicroStimuli(world, e, time, msgs);
   if (tickMicroGoal(world, entities, e, dt, time, msgs)) return;
 
   if (e.monsterKind === MonsterKind.KHOROVAYA_MATKA) {

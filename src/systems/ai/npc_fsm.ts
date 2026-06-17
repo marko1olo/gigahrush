@@ -323,7 +323,7 @@ export function updateNPC(
     return;
   }
 
-  evaluateMicroStimuli(world, entities, e, time, _barkMsgs);
+  evaluateMicroStimuli(world, e, time, _barkMsgs);
   if (tickMicroGoal(world, entities, e, dt, time, _barkMsgs)) {
     return;
   }

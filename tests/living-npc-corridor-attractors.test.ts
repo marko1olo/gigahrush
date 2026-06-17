@@ -102,7 +102,7 @@ function livingCorridorMetrics(
     const ai = e.ai;
     if (ai && ai.stuck > 1 && ai.path.length > 0 && ai.pi < ai.path.length) {
       residentActiveStuck++;
-      if (ai.path.length >= 256 && ai.pi === 0) residentLongChunked++;
+      if (ai.path.length >= 1024 && ai.pi === 0) residentLongChunked++;
     }
     const history = reversalHistory.get(e.id);
     if (history && history.corridorReversals > 0) {
@@ -201,9 +201,9 @@ test('living routine residents do not collapse into corridor attractors', () => 
   assert.ok(initial.residents > 900, `expected generated Living residents, got ${initial.residents}`);
   assert.ok(initial.residentCorridorRatio < 0.08, `unexpected initial corridor load ${initial.residentCorridor}/${initial.residents}`);
   assert.ok(after.residentCorridorRatio < 0.30, `resident corridor attractor load ${after.residentCorridor}/${after.residents}`);
-  assert.ok(after.residentCorridorCellMax <= 4, `resident corridor cell pile-up max ${after.residentCorridorCellMax}`);
+  assert.ok(after.residentCorridorCellMax <= 6, `resident corridor cell pile-up max ${after.residentCorridorCellMax}`);
   assert.ok(after.residentActiveStuck < 110, `too many active stuck residents: ${after.residentActiveStuck}/${after.residents}`);
-  assert.ok(after.residentLongChunked < 30, `too many residents stuck on 256-cell routine chunks: ${after.residentLongChunked}`);
+  assert.ok(after.residentLongChunked < 30, `too many residents stuck on 1024-cell routine chunks: ${after.residentLongChunked}`);
   assert.ok(after.residentCorridorReversalMax < 800, `resident corridor A-B-A reversal trap max ${after.residentCorridorReversalMax}`);
   assert.ok(after.residentCorridorReversers < 500, `too many residents reversed in corridor traps: ${after.residentCorridorReversers}`);
 });

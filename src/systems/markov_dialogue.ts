@@ -79,6 +79,8 @@ export interface MarkovDialogueOptions {
 
 const DEFAULT_MAX_TALK_CHARS = 140;
 
+import { routeAdapterSpeech } from './markov_router_adapters';
+
 export function renderMarkovDialogueTalk(
   npc: Entity,
   snapshot: ContextSnapshot,
@@ -103,6 +105,7 @@ export function renderMarkovDialogueTalk(
   const exactFallback = cleanLine(options.exactFallback) ?? packageFallback;
   const context = dialogueContext(npc, snapshot, memory, pack);
   const maxChars = options.maxChars ?? DEFAULT_MAX_TALK_CHARS;
+  const router = options.routeSpeech ?? routeAdapterSpeech;
   
   const request: MarkovAdapterSpeechRequest = {
     intent,
@@ -114,7 +117,7 @@ export function renderMarkovDialogueTalk(
     seed,
   };
 
-  const routed = options.routeSpeech?.(request);
+  const routed = router?.(request);
   if (routed && validDialogueText(routed.text, context, maxChars)) {
     return { ...routed, intent, tags: routed.tags.length ? routed.tags : context.tags, fallbackUsed: routed.fallbackUsed };
   }
