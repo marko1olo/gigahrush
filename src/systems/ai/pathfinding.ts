@@ -11,7 +11,7 @@ import { getCellHazardMoveMultiplier } from '../cell_hazards';
 import { actorOccupyRadius, canActorOccupy } from '../movement_collision';
 import { setDoorState } from '../door_state';
 import { aiPathMoveSpeed } from '../rpg';
-import { bark, BARK_ARRIVE, BARK_ARRIVE_F, BARK_CHANCE_ARRIVE } from './barks';
+import { emitMarkovBark, BARK_CHANCE_ARRIVE } from './barks';
 
 let _barkMsgs: Msg[] = [];
 let _barkTime = 0;
@@ -864,7 +864,7 @@ export function followPath(world: World, e: Entity, dt: number): void {
       }
       // Bark: arrived at destination (very rare)
       if (e.type === EntityType.NPC && ai.goal === AIGoal.WORK) {
-        bark(e, _barkMsgs, _barkTime, BARK_ARRIVE, BARK_ARRIVE_F, BARK_CHANCE_ARRIVE, '#aac');
+        emitMarkovBark(e, _barkMsgs, _barkTime, 'ambient', 'Пришли.', BARK_CHANCE_ARRIVE, '#aac');
       }
     }
     if (e.type === EntityType.NPC && ai.goal !== AIGoal.HIDE && ai.goal !== AIGoal.FLEE) {

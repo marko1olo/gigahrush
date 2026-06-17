@@ -54,7 +54,7 @@ import { updateNeeds } from './systems/needs';
 import { updateAI, tryMonsterProjectileStagger, getAiStats, type AiStats } from './systems/ai';
 import { resolveBreachChargeExplosion } from './systems/breach_charge';
 import { dropMonsterRareLoot } from './systems/monster_drops';
-import { generateNpcTradeItems } from './data/dialogue';
+import { generateNpcTradeItems } from './data/occupation_profiles';
 import { generateTalkText } from './systems/dialogue';
 import { updateSamosbor, rebuildWorld, clearFogInZone, updateIstotitBellCompulsion } from './systems/samosbor';
 import { getActiveSamosborVariant } from './systems/samosbor_variants_runtime';

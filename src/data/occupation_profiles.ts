@@ -1,4 +1,4 @@
-import { Occupation, RoomType } from '../core/types';
+import { Occupation, RoomType, Faction, type Entity } from '../core/types';
 
 export interface OccupationProfile {
   id: string;
@@ -642,4 +642,47 @@ export function occupationIdsWithCraftTag(tag: string): Occupation[] {
   return allOccupationProfiles()
     .filter(profile => profile.craftTags.includes(tag))
     .map(profile => profile.occupation);
+}
+
+interface FactionTradeOffer {
+  faction: Faction;
+  minRank: number;
+  occupation?: Occupation;
+  defId: string;
+  count: number;
+}
+
+const FACTION_TRADE_OFFERS: readonly FactionTradeOffer[] = [
+  { faction: Faction.LIQUIDATOR, occupation: Occupation.HUNTER, minRank: 3, defId: 'moskvin_rifle', count: 1 },
+  { faction: Faction.LIQUIDATOR, occupation: Occupation.HUNTER, minRank: 3, defId: 'ammo_762', count: 6 },
+];
+
+function tradeRankForNpc(npc: Entity): number {
+  const level = Math.max(1, Math.floor(npc.rpg?.level ?? 1));
+  if (level >= 35) return 4;
+  if (level >= 18) return 3;
+  if (level >= 8) return 2;
+  return 1;
+}
+
+function appendFactionTradeOffers(npc: Entity, items: { defId: string; count: number }[]): void {
+  const rank = tradeRankForNpc(npc);
+  for (const offer of FACTION_TRADE_OFFERS) {
+    if (npc.faction !== offer.faction) continue;
+    if (offer.occupation !== undefined && npc.occupation !== offer.occupation) continue;
+    if (rank < offer.minRank) continue;
+    items.push({ defId: offer.defId, count: offer.count });
+  }
+}
+
+export function generateNpcTradeItems(npc: Entity): { defId: string; count: number }[] {
+  const items: { defId: string; count: number }[] = [];
+  const pool = occupationTradeItems(npc.occupation);
+  const count = 2 + Math.floor(Math.random() * 3);
+  for (let i = 0; i < count; i++) {
+    const defId = pool[Math.floor(Math.random() * pool.length)];
+    items.push({ defId, count: 1 + Math.floor(Math.random() * 3) });
+  }
+  appendFactionTradeOffers(npc, items);
+  return items;
 }

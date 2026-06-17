@@ -63,7 +63,7 @@ export {
   type PlotStep,
 } from './plot';
 export { PLOT_ROOMS, type PlotRoomDef } from './plot_rooms';
-export { generateNpcTradeItems } from './dialogue';
+export { generateNpcTradeItems } from './occupation_profiles';
 export {
   allNpcPackages,
   compileNpcPackageForEditor,

@@ -3,7 +3,7 @@ import * as assert from 'node:assert/strict';
 
 import { EntityType, Faction, ItemType, Occupation, RoomType, type Entity } from '../src/core/types';
 import { ITEM_TAGS, ITEMS } from '../src/data/items';
-import { generateNpcTradeItems } from '../src/data/dialogue';
+import { generateNpcTradeItems } from '../src/data/occupation_profiles';
 import { resourceForItem } from '../src/data/resources';
 import { PHYS_WEAPON_ROLE_TIERS, PHYS_WEAPON_STATS } from '../src/data/weapons';
 import { freshRPG } from '../src/systems/rpg';

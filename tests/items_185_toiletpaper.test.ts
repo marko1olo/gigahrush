@@ -3,7 +3,7 @@ import * as assert from 'node:assert/strict';
 
 import { ContainerKind, ItemType, Occupation, RoomType } from '../src/core/types';
 import { CONTAINER_DEFS } from '../src/data/container_defs';
-import { generateNpcTradeItems } from '../src/data/dialogue';
+import { generateNpcTradeItems } from '../src/data/occupation_profiles';
 import { ITEM_TAGS, ITEMS, getStack } from '../src/data/items';
 import { RESOURCES, resourceForItem } from '../src/data/resources';
 import { addItem, getInventorySlotActionInfo, inventoryItemCategory } from '../src/systems/inventory';

@@ -30,11 +30,11 @@ import { getCurrentPlayerEntity, isPlayerEntity } from '../player_actor';
 import { getRecentCombatThreat, notifyActorDamaged, npcCombatProfile } from '../combat_stimulus';
 import { canActorOccupy } from '../movement_collision';
 import {
-  bark,
-  BARK_COMBAT_START, BARK_COMBAT_START_F, BARK_CHANCE_COMBAT,
-  BARK_WOUNDED, BARK_WOUNDED_F, BARK_CHANCE_WOUNDED,
-  BARK_KILL, BARK_KILL_F, BARK_CHANCE_KILL,
-  BARK_FLEE, BARK_FLEE_F, BARK_CHANCE_FLEE,
+  emitMarkovBark,
+  BARK_CHANCE_COMBAT,
+  BARK_CHANCE_FLEE,
+  BARK_CHANCE_KILL,
+  BARK_CHANCE_WOUNDED,
   pushNpcLogMessage,
 } from './barks';
 import { selectMeleeTarget } from '../melee_targeting';
@@ -140,7 +140,7 @@ function continueFlee(world: World, e: Entity, dt: number): boolean {
 
 function startFleeFromThreat(world: World, e: Entity, threat: Entity, dt: number): boolean {
   const ai = e.ai!;
-  bark(e, _barkMsgs, _barkTime, BARK_FLEE, BARK_FLEE_F, BARK_CHANCE_FLEE, '#ff8');
+  emitMarkovBark(e, _barkMsgs, _barkTime, 'flee', 'Отходим!', BARK_CHANCE_FLEE, '#ff8');
   ai.goal = AIGoal.FLEE;
   const dx = world.delta(threat.x, e.x);
   const dy = world.delta(threat.y, e.y);
@@ -267,7 +267,7 @@ export function tryFactionCombat(
     return startFleeFromThreat(world, e, target, dt);
   }
   if (ai.combatTargetId !== target.id || prevTarget === undefined) {
-    bark(e, msgs, _time, BARK_COMBAT_START, BARK_COMBAT_START_F, BARK_CHANCE_COMBAT, '#fa8');
+    emitMarkovBark(e, msgs, _time, 'combat', 'В бой!', BARK_CHANCE_COMBAT, '#fa8');
   }
   ai.combatTargetId = target.id;
   ai.goal = AIGoal.HUNT;
@@ -377,7 +377,7 @@ export function tryFactionCombat(
           if (hitTarget.type === EntityType.NPC) {
             applyDamageRelationPenalty(e.faction, hitTarget.faction, dmg, hitTarget, e, state);
             if (hitTarget.hp > 0 && hitTarget.hp < (hitTarget.maxHp ?? 100) * 0.5) {
-              bark(hitTarget, msgs, _time, BARK_WOUNDED, BARK_WOUNDED_F, BARK_CHANCE_WOUNDED, '#f88');
+              emitMarkovBark(hitTarget, msgs, _time, 'wounded', 'Задело!', BARK_CHANCE_WOUNDED, '#f88');
             }
           }
           const hitAng = Math.atan2(hitTarget.y - e.y, hitTarget.x - e.x);
@@ -388,7 +388,7 @@ export function tryFactionCombat(
             hitTarget.alive = false;
             spawnDeathPool(world, hitTarget.x, hitTarget.y, hitTarget.type === EntityType.MONSTER);
             if (hitTarget.type === EntityType.NPC) dropNpcInventory(hitTarget, entities, nextId);
-            bark(e, msgs, _time, BARK_KILL, BARK_KILL_F, BARK_CHANCE_KILL, '#da4');
+            emitMarkovBark(e, msgs, _time, 'combat', 'Готов.', BARK_CHANCE_KILL, '#da4');
             if (hitTarget.isFogBoss && hitTarget.fogBossZone !== undefined) {
               clearFogInZone(world, hitTarget.fogBossZone, msgs, _time);
             }

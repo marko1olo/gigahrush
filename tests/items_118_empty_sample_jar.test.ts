@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
 import { ItemType, Occupation, RoomType } from '../src/core/types';
-import { generateNpcTradeItems } from '../src/data/dialogue';
+import { generateNpcTradeItems } from '../src/data/occupation_profiles';
 import { ITEM_TAGS, ITEMS, getStack } from '../src/data/items';
 import { RESOURCES, resourceForItem } from '../src/data/resources';
 import { addItem, getInventorySlotActionInfo, inventoryItemCategory } from '../src/systems/inventory';

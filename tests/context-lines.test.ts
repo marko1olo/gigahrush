@@ -10,14 +10,7 @@ import {
   type Entity,
   type WorldEvent,
 } from '../src/core/types';
-import {
-  CONTEXT_FACTION_EVENT_FACTION_LINES,
-  CONTEXT_LIFT_ANOMALY_FLOOR_LINES,
-  CONTEXT_MONSTER_KILL_FLOOR_LINES,
-  CONTEXT_PRODUCTION_SHORTAGE_LINES,
-  CONTEXT_SAMOSBOR_WARNING_LINES,
-  CONTEXT_STOLEN_GOODS_LINES,
-} from '../src/data/context_lines';
+
 import { RUMORS, type RumorDef, type RumorReveal } from '../src/data/rumors';
 import { SCREEN_SIGNAL_DEFS } from '../src/data/screen_signals';
 import { buildContextSnapshot } from '../src/systems/context';
@@ -35,14 +28,7 @@ test('recent event context flags are derived from bounded world event history', 
   assert.equal(snapshotFor('player_kill_monster', { monsterKind: MonsterKind.TVAR }).hasRecentMonsterKill, true);
 });
 
-test('context line pools cover recent event floors and factions', () => {
-  assert.ok(CONTEXT_SAMOSBOR_WARNING_LINES.length >= 4);
-  assert.ok(CONTEXT_STOLEN_GOODS_LINES.length >= 5);
-  assert.ok(CONTEXT_PRODUCTION_SHORTAGE_LINES.length >= 5);
-  assert.ok(CONTEXT_LIFT_ANOMALY_FLOOR_LINES[FloorLevel.LIVING]?.length);
-  assert.ok(CONTEXT_FACTION_EVENT_FACTION_LINES[Faction.LIQUIDATOR]?.length);
-  assert.ok(CONTEXT_MONSTER_KILL_FLOOR_LINES[FloorLevel.HELL]?.length);
-});
+
 
 test('screen signal rumor pools point to gameplay surfaces', () => {
   const rumors = new Map(RUMORS.map(rumor => [rumor.id, rumor]));

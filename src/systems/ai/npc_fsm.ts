@@ -23,9 +23,9 @@ import {
 } from './pathfinding';
 import { evaluateMicroStimuli, tickMicroGoal } from './micro_goals';
 import {
-  bark,
-  BARK_HIDE, BARK_HIDE_F, BARK_CHANCE_HIDE,
-  BARK_GENERIC, BARK_GENERIC_F, BARK_CHANCE_GENERIC,
+  emitMarkovBark,
+  BARK_CHANCE_HIDE,
+  BARK_CHANCE_GENERIC,
 } from './barks';
 import { chooseNpcEmergencyDecision } from './npc_emergency';
 import { tickNpcMemoryLowFrequency } from '../npc_memory';
@@ -592,7 +592,7 @@ function tryAmbientBark(e: Entity, dt: number, samosborActive: boolean): void {
   if (ai.npcState === NpcState.SLEEPING || ai.npcState === NpcState.HIDING) return;
   if (ai.goal === AIGoal.FLEE || ai.goal === AIGoal.HIDE || ai.goal === AIGoal.HUNT) return;
 
-  bark(e, _barkMsgs, _barkTime, BARK_GENERIC, BARK_GENERIC_F, BARK_CHANCE_GENERIC, '#9ba');
+  emitMarkovBark(e, _barkMsgs, _barkTime, 'ambient', '...', BARK_CHANCE_GENERIC, '#9ba');
 }
 
 /* ── Intent handlers ─────────────────────────────────────────── */
@@ -1084,7 +1084,7 @@ export function forceHide(
   for (const e of entities) {
     if (e.type === EntityType.NPC && e.alive && e.ai) {
       if (e.faction === Faction.LIQUIDATOR || e.faction === Faction.CULTIST || e.faction === Faction.WILD) continue;
-      if (msgs) bark(e, msgs, time ?? 0, BARK_HIDE, BARK_HIDE_F, BARK_CHANCE_HIDE, '#ff4');
+      if (msgs) emitMarkovBark(e, msgs, time ?? 0, 'alert', 'Тихо...', BARK_CHANCE_HIDE, '#ff4');
       utilityIntentByNpc.set(e, 'safety');
       utilityScoreByNpc.set(e, UTILITY_EMERGENCY_SCORE);
       e.ai.npcState = NpcState.HIDING;

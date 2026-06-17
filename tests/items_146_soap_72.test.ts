@@ -4,7 +4,7 @@ import * as assert from 'node:assert/strict';
 import { EntityType, ItemType, Occupation, RoomType, type Entity } from '../src/core/types';
 import { ITEM_TAGS, ITEMS } from '../src/data/items';
 import { RESOURCES, resourceForItem } from '../src/data/resources';
-import { generateNpcTradeItems } from '../src/data/dialogue';
+import { generateNpcTradeItems } from '../src/data/occupation_profiles';
 import { inventoryItemCategory } from '../src/systems/inventory';
 
 const ID = 'soap_72';
