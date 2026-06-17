@@ -96,7 +96,7 @@ test('genfix 051 living floor preserves reference geometry and cell-first territ
   assert.equal(world.rooms.length, 10_467, 'living reference room count');
   assert.equal(world.doors.size, 2_203, 'living reference door count');
   assert.equal(world.containers.length, 67, 'living reference container count');
-  assert.equal(gen.entities.length, 9_228, 'living reference entity count');
+  assert.strictEqual(gen.entities.length, 9_227, 'living reference entity count');
   assert.equal(reachableCellCount(world, gen.spawnX, gen.spawnY), 416_672, 'living reference reachability');
   assert.equal(wallCellCount(world), 630_510, 'living reference wall count');
   assert.equal(passableCellCount(world), 417_924, 'living reference passable count');

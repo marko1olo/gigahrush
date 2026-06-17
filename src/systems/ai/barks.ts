@@ -854,6 +854,39 @@ export function bark(e: Entity, msgs: Msg[], time: number, pool: string[], poolF
   if (lastBarkByEntity.size > MAX_BARK_COOLDOWNS) pruneBarkCooldowns();
 }
 
+export function emitMarkovBark(e: Entity, msgs: Msg[], time: number, signal: string, fallback: string, chance: number = 1.0, color = '#cca'): void {
+  if (Math.random() > chance) return;
+  if (!e.name) return;
+  const last = lastBarkByEntity.get(e.id);
+  if (last && time - last.time < BARK_ENTITY_COOLDOWN_S && last.text === fallback) return;
+  
+  const pack = resolveNpcPackageForEntity(e);
+  const seed = e.alifeId ?? e.id;
+  const packageFallback = pack && !isUnsafeMarkovBarkSignal(signal)
+    ? selectNpcCuratedFallback(pack, 'bark_ambient', seed)
+    : undefined;
+  const routed = generateMarkovBark({
+    actor: {
+      id: e.id,
+      name: e.name,
+      faction: e.faction,
+      occupation: e.occupation,
+    },
+    signal,
+    exactFallback: packageFallback ?? fallback,
+    seed,
+    repeatIndex: Math.floor(time),
+    tags: pack ? npcPackageSpeechContextTags(pack, e, 'bark') : undefined,
+    routeSpeech: routeBarkSpeech,
+  });
+  
+  const text = routed?.text ?? fallback;
+  const heard = pushNpcBarkMessage(e, msgs, time, text, color, { signal: signal as any });
+  if (!heard) return;
+  lastBarkByEntity.set(e.id, { time, text: fallback });
+  if (lastBarkByEntity.size > MAX_BARK_COOLDOWNS) pruneBarkCooldowns();
+}
+
 function barkSignalShowsHud(signal: NpcBarkSignal): boolean {
   return signal === 'alert' || signal === 'witness';
 }

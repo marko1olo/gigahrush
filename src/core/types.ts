@@ -559,6 +559,13 @@ export interface AIState {
   tacticAnchorX?: number;        // cached local terrain/anchor X
   tacticAnchorY?: number;        // cached local terrain/anchor Y
   tacticFlags?: number;          // compact tactic fact/debug bitset
+  // ── Micro-goal (temporary interruption of macro routine) ──────
+  microGoalId?: string;            // active micro-goal: 'greet', 'investigate_noise', 'search_lkp', 'pack_pulse', 'reposition'
+  microTargetX?: number;           // local target world coordinate
+  microTargetY?: number;
+  microTimer?: number;             // remaining seconds; when ≤ 0, micro-goal is cleared
+  microSourceId?: number;          // optional: entity id that triggered the micro-goal
+  microCooldowns?: Record<string, number>; // remaining seconds before a micro-goal type can trigger again
 }
 
 export interface Entity {

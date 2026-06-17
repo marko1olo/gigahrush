@@ -135,7 +135,7 @@ test('pomoyny roy follows dropped bait even while close to the player', () => {
   updateMonster(world, entities, threat, 0.1, 1.1, msgs, target.id, { v: 10 }, state);
 
   assert.equal(threat.ai?.combatTargetId, undefined);
-  assert.deepEqual([threat.ai?.tx, threat.ai?.ty], [20, 15]);
+  assert.deepEqual([threat.ai?.tx, threat.ai?.ty], [20.5, 15.5]);
   const baited = getRecentEvents(state, { type: 'monster_bait_attracted', limit: 1 })[0];
   assert.ok(baited);
   assert.equal(baited.monsterKind, MonsterKind.POMOYNY_ROY);

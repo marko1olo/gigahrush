@@ -313,8 +313,8 @@ test('active departure assigns GOTO to a lift anchor', () => {
 
   assert.equal(npc.isTraveler, true);
   assert.equal(npc.ai?.goal, AIGoal.GOTO);
-  assert.equal(npc.ai?.tx, 22);
-  assert.equal(npc.ai?.ty, 22);
+  assert.equal(npc.ai?.tx, 22.5);
+  assert.equal(npc.ai?.ty, 22.5);
   assert.ok((npc.ai?.path.length ?? 0) > 0);
   assert.ok((npc.ai?.timer ?? 0) > 0);
   assert.equal(migrationState(state)?.activeDepartures.length, 1);

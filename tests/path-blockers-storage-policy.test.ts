@@ -18,7 +18,7 @@ function blockerWorld(): World {
   const world = new World();
   const idx = world.idx(12, 13);
   world.cells[idx] = Cell.FLOOR;
-  assert.equal(setPathBlockerRow(world, idx, 4, 0b1111_0000), true);
+  assert.equal(setPathBlockerRow(world, idx, 2, 0b1111), true);
   return world;
 }
 

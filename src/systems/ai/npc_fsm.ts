@@ -21,6 +21,7 @@ import {
   wanderFar,
   wanderInRoom,
 } from './pathfinding';
+import { evaluateMicroStimuli, tickMicroGoal } from './micro_goals';
 import {
   bark,
   BARK_HIDE, BARK_HIDE_F, BARK_CHANCE_HIDE,
@@ -319,6 +320,11 @@ export function updateNPC(
     clearUtilityState(e);
   }
   if (special.held) {
+    return;
+  }
+
+  evaluateMicroStimuli(world, entities, e, time, _barkMsgs);
+  if (tickMicroGoal(world, entities, e, dt, time, _barkMsgs)) {
     return;
   }
 

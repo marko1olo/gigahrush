@@ -2163,7 +2163,7 @@ function pickupDropItems(
       onPickedDrop?.(drop, pickedItems);
       drop.alive = false;
     }
-    playPickup();
+    if (player.faction === Faction.PLAYER) playPickup();
   } else if (manual && blockedByCapacity) {
     handled = true;
     msgs.push(msg(`Нет места: ${blockedName}`, time, '#f84'));

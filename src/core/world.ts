@@ -165,7 +165,7 @@ export class World {
   light:     Float32Array; // lightmap 0..1 per cell
   lightBlinks: Uint8Array; // light blink frequency (propagated with light)
   visualSlots: Uint8Array; // render-only visual slots
-  pathBlockers: Uint8Array; // gameplay path blocker row masks, 8 bytes per cell
+  pathBlockers: Uint8Array; // gameplay path blocker row masks, 4 bytes per cell
   rooms:     Room[]  = [];
   doors:     Map<number, Door> = new Map();
   apartmentRoomCount = 0;          // first N rooms are permanent apartments

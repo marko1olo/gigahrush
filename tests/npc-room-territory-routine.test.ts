@@ -82,8 +82,8 @@ test('routine thirst prefers a friendly kitchen over a closer hostile kitchen', 
 
   assert.equal(npc.ai?.goal, AIGoal.DRINK);
   assert.equal(npc.ai?.npcState, NpcState.LUNCH);
-  assert.equal(npc.ai?.tx, friendly.x + Math.floor(friendly.w / 2));
-  assert.equal(npc.ai?.ty, friendly.y + Math.floor(friendly.h / 2));
+  assert.equal(npc.ai?.tx, friendly.x + Math.floor(friendly.w / 2) + 0.5);
+  assert.equal(npc.ai?.ty, friendly.y + Math.floor(friendly.h / 2) + 0.5);
 });
 
 test('routine toilet pressure avoids hostile bathroom when a friendly bathroom is reachable', () => {
@@ -95,8 +95,8 @@ test('routine toilet pressure avoids hostile bathroom when a friendly bathroom i
   tickNpc(world, npc);
 
   assert.equal(npc.ai?.goal, AIGoal.TOILET);
-  assert.equal(npc.ai?.tx, friendly.x + Math.floor(friendly.w / 2));
-  assert.equal(npc.ai?.ty, friendly.y + Math.floor(friendly.h / 2));
+  assert.equal(npc.ai?.tx, friendly.x + Math.floor(friendly.w / 2) + 0.5);
+  assert.equal(npc.ai?.ty, friendly.y + Math.floor(friendly.h / 2) + 0.5);
 });
 
 test('routine work uses an assigned work room only when the room is friendly', () => {
@@ -113,8 +113,8 @@ test('routine work uses an assigned work room only when the room is friendly', (
 
   assert.equal(npc.ai?.goal, AIGoal.WORK);
   assert.equal(npc.ai?.npcState, NpcState.WORKING);
-  assert.equal(npc.ai?.tx, friendly.x + Math.floor(friendly.w / 2));
-  assert.equal(npc.ai?.ty, friendly.y + Math.floor(friendly.h / 2));
+  assert.equal(npc.ai?.tx, friendly.x + Math.floor(friendly.w / 2) + 0.5);
+  assert.equal(npc.ai?.ty, friendly.y + Math.floor(friendly.h / 2) + 0.5);
 });
 
 test('routine work keeps a friendly assigned work room as the strongest anchor', () => {
@@ -130,8 +130,8 @@ test('routine work keeps a friendly assigned work room as the strongest anchor',
   tickNpc(world, npc);
 
   assert.equal(npc.ai?.goal, AIGoal.WORK);
-  assert.equal(npc.ai?.tx, assigned.x + Math.floor(assigned.w / 2));
-  assert.equal(npc.ai?.ty, assigned.y + Math.floor(assigned.h / 2));
+  assert.equal(npc.ai?.tx, assigned.x + Math.floor(assigned.w / 2) + 0.5);
+  assert.equal(npc.ai?.ty, assigned.y + Math.floor(assigned.h / 2) + 0.5);
 });
 
 test('cleaner work routine wipes nearby friendly surface marks without scanning the floor', () => {
@@ -180,8 +180,8 @@ test('routine work can target an assigned room beyond the first scan window', ()
   tickNpc(world, npc);
 
   assert.equal(npc.ai?.goal, AIGoal.WORK);
-  assert.equal(npc.ai?.tx, assigned.x + Math.floor(assigned.w / 2));
-  assert.equal(npc.ai?.ty, assigned.y + Math.floor(assigned.h / 2));
+  assert.equal(npc.ai?.tx, assigned.x + Math.floor(assigned.w / 2) + 0.5);
+  assert.equal(npc.ai?.ty, assigned.y + Math.floor(assigned.h / 2) + 0.5);
 });
 
 test('local family anchor suppresses traveler occupation routine', () => {
@@ -208,8 +208,8 @@ test('local family anchor suppresses traveler occupation routine', () => {
 
   assert.equal(npc.ai?.goal, AIGoal.SLEEP);
   assert.equal(npc.ai?.npcState, NpcState.SLEEPING);
-  assert.equal(npc.ai?.tx, home.x + Math.floor(home.w / 2));
-  assert.equal(npc.ai?.ty, home.y + Math.floor(home.h / 2));
+  assert.equal(npc.ai?.tx, home.x + Math.floor(home.w / 2) + 0.5);
+  assert.equal(npc.ai?.ty, home.y + Math.floor(home.h / 2) + 0.5);
 });
 
 test('survival need can trespass only after no friendly room candidate exists', () => {
@@ -220,6 +220,6 @@ test('survival need can trespass only after no friendly room candidate exists', 
   tickNpc(world, npc);
 
   assert.equal(npc.ai?.goal, AIGoal.DRINK);
-  assert.equal(npc.ai?.tx, hostileKitchen.x + Math.floor(hostileKitchen.w / 2));
-  assert.equal(npc.ai?.ty, hostileKitchen.y + Math.floor(hostileKitchen.h / 2));
+  assert.equal(npc.ai?.tx, hostileKitchen.x + Math.floor(hostileKitchen.w / 2) + 0.5);
+  assert.equal(npc.ai?.ty, hostileKitchen.y + Math.floor(hostileKitchen.h / 2) + 0.5);
 });

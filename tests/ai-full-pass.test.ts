@@ -100,7 +100,7 @@ function projectile(id: number, ownerId: number): Entity {
 
 function blockCellFully(world: World, x: number, y: number): void {
   const cell = world.idx(x, y);
-  for (let row = 0; row < PATH_BLOCKER_ROWS_PER_CELL; row++) setPathBlockerRow(world, cell, row, 0xff);
+  for (let row = 0; row < PATH_BLOCKER_ROWS_PER_CELL; row++) setPathBlockerRow(world, cell, row, 0x0f);
 }
 
 function tick(world: World, entities: Entity[], dt: number, time: number, clock: GameClock, msgs: Msg[] = []): void {
@@ -210,8 +210,8 @@ test('ordinary NPCs all run personal utility instead of an empty placeholder rou
   const residents: Entity[] = [];
   const entities = [p];
   for (let i = 0; i < 40; i++) {
-    const resident = npc(20 + i, 200 + (i % 20), {
-      y: 30 + Math.floor(i / 20),
+    const resident = npc(20 + i, 200 + (i % 20) * 10, {
+      y: 30 + Math.floor(i / 20) * 10,
       occupation: Occupation.COOK,
       weapon: undefined,
       inventory: [],

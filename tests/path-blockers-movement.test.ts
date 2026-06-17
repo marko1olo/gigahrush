@@ -17,7 +17,7 @@ import {
 } from '../src/systems/movement_collision';
 
 const HUMAN_R = 0.16;
-const TABLE_CENTER_MASK = 0b00111100;
+const TABLE_CENTER_MASK = 0b0110;
 
 function makeOpenWorld(cx: number, cy: number, radius: number): World {
   const world = new World();
@@ -31,14 +31,14 @@ function makeOpenWorld(cx: number, cy: number, radius: number): World {
 
 function stampTableLikeMask(world: World, x: number, y: number): void {
   const cell = world.idx(x, y);
-  for (let row = 2; row <= 5; row++) {
+  for (let row = 1; row <= 2; row++) {
     setPathBlockerRow(world, cell, row, TABLE_CENTER_MASK);
   }
 }
 
 function blockCellFully(world: World, x: number, y: number): void {
   const cell = world.idx(x, y);
-  for (let row = 0; row < PATH_BLOCKER_ROWS_PER_CELL; row++) setPathBlockerRow(world, cell, row, 0xff);
+  for (let row = 0; row < PATH_BLOCKER_ROWS_PER_CELL; row++) setPathBlockerRow(world, cell, row, 0x0f);
 }
 
 function npcInside(x: number, y: number): Entity {
@@ -61,13 +61,13 @@ test('path blocker rows are eight consecutive bytes per world cell', () => {
   const cell = world.idx(7, 9);
 
   assert.equal(world.pathBlockers.length, W * W * PATH_BLOCKER_ROWS_PER_CELL);
-  assert.equal(pathBlockerRowOffset(cell, 7) - pathBlockerRowOffset(cell, 0), 7);
+  assert.equal(pathBlockerRowOffset(cell, 3) - pathBlockerRowOffset(cell, 0), 3);
 
   const before = world.pathBlockerVersion;
-  assert.equal(setPathBlockerRow(world, cell, 4, 1 << 4), true);
+  assert.equal(setPathBlockerRow(world, cell, 2, 1 << 2), true);
   assert.equal(world.pathBlockerVersion, (before + 1) | 0);
   assert.equal(world.pathBlockerDirtyVersion, world.pathBlockerVersion);
-  assert.equal(setPathBlockerRow(world, cell, 4, 1 << 4), false);
+  assert.equal(setPathBlockerRow(world, cell, 2, 1 << 2), false);
   assert.equal(world.pathBlockerDirtyVersion, world.pathBlockerVersion);
 });
 
@@ -125,7 +125,7 @@ test('movement occupancy samples blocker masks across the torus edge', () => {
       world.set(x, y, Cell.FLOOR);
     }
   }
-  setPathBlockerRow(world, world.idx(W - 1, W - 1), 7, 1 << 7);
+  setPathBlockerRow(world, world.idx(W - 1, W - 1), 3, 1 << 3);
 
   assert.equal(pathBlockedAt(world, -0.01, -0.01), true);
   assert.equal(canActorOccupy(world, -0.01, -0.01, 0.005), false);

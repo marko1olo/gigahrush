@@ -1067,8 +1067,8 @@ function canStartDeparture(state: GameState, entity: Entity, reason: AlifeMigrat
 }
 
 function assignActiveDepartureGoal(world: World, entity: Entity, anchorX: number, anchorY: number, force = false): boolean {
-  const tx = Math.floor(anchorX);
-  const ty = Math.floor(anchorY);
+  const tx = anchorX;
+  const ty = anchorY;
   const ai = entity.ai;
   if (!force && ai && ai.tx === tx && ai.ty === ty && (ai.path.length > ai.pi || world.dist2(entity.x, entity.y, anchorX, anchorY) <= DEPARTURE_REACHED_DIST2)) {
     entity.isTraveler = true;

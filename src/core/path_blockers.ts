@@ -1,7 +1,7 @@
 import { W } from './types';
 
-export const PATH_BLOCKER_SUBDIV = 8;
-export const PATH_BLOCKER_ROWS_PER_CELL = 8;
+export const PATH_BLOCKER_SUBDIV = 4;
+export const PATH_BLOCKER_ROWS_PER_CELL = 4;
 export const PATH_BLOCKER_BYTES_PER_CELL = PATH_BLOCKER_ROWS_PER_CELL;
 export const EMPTY_PATH_BLOCKER_ROW = 0;
 
@@ -31,8 +31,8 @@ function assertPathBlockerRow(row: number): number {
 
 function assertPathBlockerMask(mask: number): number {
   const normalized = Math.floor(mask);
-  if (!Number.isFinite(mask) || normalized !== mask || normalized < 0 || normalized > 0xff) {
-    throw new RangeError(`path blocker row mask out of byte range: ${mask}`);
+  if (!Number.isFinite(mask) || normalized !== mask || normalized < 0 || normalized > 0x0f) {
+    throw new RangeError(`path blocker row mask out of nibble range: ${mask}`);
   }
   return normalized;
 }

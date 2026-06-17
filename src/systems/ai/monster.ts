@@ -29,6 +29,7 @@ import { applySporeHaze, hasSporeHazeProtection, zhelemishIncomingMeleeDamage } 
 import { spawnBloodHit, spawnDeathPool } from '../blood_fx';
 import { MarkType, stampMark } from '../surface_marks';
 import { followPath, tryAssignPathToCell, wanderNearby } from './pathfinding';
+import { evaluateMicroStimuli, tickMicroGoal } from './micro_goals';
 import { Spr } from '../../render/sprite_index';
 import { getRecentEvents, publishEvent } from '../events';
 import { recordPlayerDamage } from '../damage';
@@ -8826,6 +8827,9 @@ export function updateMonster(world: World, entities: Entity[], e: Entity, dt: n
   }
 
   if (updateZakalennayaArmorStagger(e, dt)) return;
+
+  evaluateMicroStimuli(world, entities, e, time, msgs);
+  if (tickMicroGoal(world, entities, e, dt, time, msgs)) return;
 
   if (e.monsterKind === MonsterKind.KHOROVAYA_MATKA) {
     updateKhorovayaMatka(world, entities, e, dt, time, msgs, playerId, nextId, _entityById, state);
