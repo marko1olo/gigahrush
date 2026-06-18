@@ -68,10 +68,9 @@ export interface MarketSnapshotPayload {
 const ONLINE_WINDOW_MS = 90_000;
 const NET_PRUNE_INTERVAL_MS = 60 * 60 * 1000;
 const SESSION_RETENTION_MS = 24 * 60 * 60 * 1000;
-const CHAT_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 const EVENT_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 const MARKET_RETENTION_MS = 14 * 24 * 60 * 60 * 1000;
-const CHAT_LIMIT = 60;
+const CHAT_LIMIT = 300;
 const JSON_BODY_LIMIT_BYTES = 4096;
 const NET_GEN_NICK_RE = /^NET-[A-Z0-9-]{4,28}$/;
 const MARKET_MAX_IMPULSES = 16;
@@ -395,7 +394,6 @@ export async function maybePruneNetStorage(db: D1Database, now: number): Promise
   lastPruneAttemptAt = now;
   await Promise.all([
     runPrune(db, 'DELETE FROM net_sessions WHERE last_seen_at < ?', now - SESSION_RETENTION_MS),
-    runPrune(db, 'DELETE FROM net_chat WHERE created_at < ?', now - CHAT_RETENTION_MS),
     runPrune(db, 'DELETE FROM net_events WHERE created_at < ?', now - EVENT_RETENTION_MS),
     runPrune(db, 'DELETE FROM net_market_impulses WHERE created_at < ?', now - MARKET_RETENTION_MS),
     runPrune(db, 'DELETE FROM net_market_budgets WHERE updated_at < ?', now - MARKET_RETENTION_MS),

@@ -150,7 +150,7 @@ const HEARTBEAT_MS = 30_000;
 const OPEN_POLL_MS = 5_000;
 const MARKET_POLL_MS = 30_000;
 const NET_FETCH_TIMEOUT_MS = 10_000;
-const CHAT_LIMIT = 60;
+const CHAT_LIMIT = 300;
 const DRAFT_LIMIT = 160;
 const MARKET_IMPULSE_LIMIT = 16;
 const FLOOR_NAMES: Record<FloorLevel, string> = {
@@ -456,6 +456,7 @@ function applyServerPayload(payload: unknown): void {
     runtime.market = normalizeMarketSnapshot(data.market);
   }
   if (Array.isArray(data.chat)) {
+    let added = 0;
     for (const line of data.chat) {
       if (!line || typeof line.id !== 'number' || typeof line.body !== 'string') continue;
       if (runtime.chat.some(existing => existing.id === line.id)) continue;
@@ -466,12 +467,16 @@ function applyServerPayload(payload: unknown): void {
         createdAt: typeof line.createdAt === 'number' ? line.createdAt : 0,
       });
       runtime.lastChatId = Math.max(runtime.lastChatId, line.id);
+      added++;
     }
-    if (runtime.chat.length > CHAT_LIMIT) {
-      const removed = runtime.chat.length - CHAT_LIMIT;
-      runtime.chat.splice(0, removed);
-      setChatScroll(runtime.chatScroll - removed);
-    } else {
+    if (added > 0) {
+      if (runtime.chatScroll > 0) {
+        runtime.chatScroll += added;
+      }
+      if (runtime.chat.length > CHAT_LIMIT) {
+        const removed = runtime.chat.length - CHAT_LIMIT;
+        runtime.chat.splice(0, removed);
+      }
       setChatScroll(runtime.chatScroll);
     }
   }
