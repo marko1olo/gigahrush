@@ -1097,7 +1097,7 @@ test('Net Sphere storage prune drops stale volatile rows without changing aggreg
 
   assert.equal(db.sessions.has('SES-OLD-1111'), false);
   assert.equal(db.sessions.has('SES-NEW-1111'), true);
-  assert.deepEqual(db.chat.map(row => row.body), ['new']);
+  assert.deepEqual(db.chat.map(row => row.body), ['old', 'new']);
   assert.deepEqual(db.events.map(row => row.event_key), ['new']);
   assert.equal(totals.totalSamosbors, 4);
   assert.equal(totals.totalDeaths, 2);

@@ -8,9 +8,12 @@ function two(value: number): string {
 }
 
 function timeLabel(epochMs: number): string {
-  if (!epochMs) return '--:--';
+  if (!epochMs) return '--/--/---- --:--';
   const date = new Date(epochMs);
-  return `${two(date.getHours())}:${two(date.getMinutes())}`;
+  const day = two(date.getDate());
+  const month = two(date.getMonth() + 1);
+  const year = date.getFullYear();
+  return `${day}/${month}/${year} ${two(date.getHours())}:${two(date.getMinutes())}`;
 }
 
 function statLine(
