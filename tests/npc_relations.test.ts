@@ -3,8 +3,9 @@ import assert from 'node:assert/strict';
 
 import { EntityType, Faction, QuestType } from '../src/core/types';
 import { World } from '../src/core/world';
-import { getFactionRel, initFactionRelations } from '../src/data/relations';
+import { getFactionRel, initFactionRelations, setFactionRel } from '../src/data/relations';
 import { applyDamageRelationPenalty, isHostile } from '../src/systems/factions';
+import { getFactionPlayerRelation } from '../src/systems/npc_relations';
 import { getRecentEvents } from '../src/systems/events';
 import { checkQuests } from '../src/systems/quests';
 import { makeGameState, makeTestEntity } from './helpers';
@@ -26,6 +27,20 @@ test('player attack lowers personal NPC relation and can make that NPC hostile',
   assert.equal(player.karma, -1);
   assert.equal(getFactionRel(Faction.CITIZEN, Faction.PLAYER), 48);
   assert.equal(isHostile(npc, player), true);
+});
+
+test('getFactionPlayerRelation correctly resolves faction vs player relationships', () => {
+  initFactionRelations();
+
+  // Test 1: undefined defaults to Faction.CITIZEN
+  assert.equal(getFactionPlayerRelation(undefined), getFactionRel(Faction.CITIZEN, Faction.PLAYER));
+
+  // Test 2: explicit faction
+  assert.equal(getFactionPlayerRelation(Faction.SCIENTIST), getFactionRel(Faction.SCIENTIST, Faction.PLAYER));
+
+  // Test 3: mutability - change relation and verify it reflects
+  setFactionRel(Faction.CULTIST, Faction.PLAYER, -80);
+  assert.equal(getFactionPlayerRelation(Faction.CULTIST), -80);
 });
 
 test('quest completion gives small faction gain and stronger giver relation gain', () => {
