@@ -332,20 +332,19 @@ class MeshPass implements MeshPassHandle {
     
     gl.uniform1i(uniforms.uSamosborAlert, context.samosborAlert ? 1 : 0);
     
-    // Helper function to bind texture units cleanly
-    let texUnit = 1; // 0 is uLight
-    const bindTex = (tex: WebGLTexture | null | undefined, unif: WebGLUniformLocation | null) => {
-      if (tex && unif) {
-        gl.activeTexture(gl.TEXTURE0 + texUnit);
-        gl.bindTexture(gl.TEXTURE_2D, tex);
-        gl.uniform1i(unif, texUnit);
-        texUnit++;
-      }
+    // Bind data textures to fixed units so sampler types always match.
+    // Units must be assigned unconditionally — inactive uniforms must not
+    // shift subsequent bindings, otherwise usampler2D may receive a float
+    // texture and cause GL_INVALID_OPERATION on drawArrays.
+    const bindTexAt = (unit: number, tex: WebGLTexture | null | undefined, unif: WebGLUniformLocation | null) => {
+      gl.activeTexture(gl.TEXTURE0 + unit);
+      if (tex) gl.bindTexture(gl.TEXTURE_2D, tex);
+      if (unif !== null) gl.uniform1i(unif, unit);
     };
-    
-    bindTex(context.cellsTex, uniforms.uCells);
-    bindTex(context.doorStatesTex, uniforms.uDoorStates);
-    bindTex(context.lightBlinksTex, uniforms.uLightBlinks);
+
+    bindTexAt(1, context.cellsTex, uniforms.uCells);
+    bindTexAt(2, context.doorStatesTex, uniforms.uDoorStates);
+    bindTexAt(3, context.lightBlinksTex, uniforms.uLightBlinks);
 
     gl.disable(gl.BLEND);
     gl.disable(gl.CULL_FACE);

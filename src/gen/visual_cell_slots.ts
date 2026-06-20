@@ -174,12 +174,15 @@ export function findMeatChunkCell(world: World, cx: number, cy: number, maxRadiu
   let best: { x: number, y: number } | null = null;
   let bestD2 = maxD2;
   
+  const cxInt = Math.floor(cx);
+  const cyInt = Math.floor(cy);
+
   for (let dy = -r; dy <= r; dy++) {
     for (let dx = -r; dx <= r; dx++) {
       const d2 = dx * dx + dy * dy;
       if (d2 >= bestD2) continue;
-      const x = world.wrap(cx + dx);
-      const y = world.wrap(cy + dy);
+      const x = world.wrap(cxInt + dx);
+      const y = world.wrap(cyInt + dy);
       const idx = world.idx(x, y);
       if (hasVisualSlotCode(world, idx, 34)) { // 34 = organic_meat_lump
         best = { x, y };

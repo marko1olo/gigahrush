@@ -342,7 +342,7 @@ export class World {
   wrap(v: number): number { return ((v % W) + W) % W; }
 
   idx(x: number, y: number): number {
-    return this.wrap(y) * W + this.wrap(x);
+    return this.wrap(y | 0) * W + this.wrap(x | 0);
   }
 
   get(x: number, y: number): number {
