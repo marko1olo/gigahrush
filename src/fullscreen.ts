@@ -11,12 +11,8 @@ type PrefixedFullscreenDocument = Document & {
   msExitFullscreen?: () => Promise<void> | void;
 };
 
-function fullscreenDocument(): PrefixedFullscreenDocument {
-  return document as PrefixedFullscreenDocument;
-}
-
 function fullscreenElement(): Element | null {
-  const doc = fullscreenDocument();
+  const doc = document as PrefixedFullscreenDocument;
   return document.fullscreenElement || doc.webkitFullscreenElement || doc.msFullscreenElement || null;
 }
 
@@ -104,7 +100,7 @@ export async function enterNativeFullscreen(target: HTMLElement = document.docum
 }
 
 export async function exitNativeFullscreen(): Promise<void> {
-  const doc = fullscreenDocument();
+  const doc = document as PrefixedFullscreenDocument;
   try {
     if (document.fullscreenElement) {
       await document.exitFullscreen();
