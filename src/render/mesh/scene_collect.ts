@@ -216,6 +216,19 @@ const FEATURE_MESH_DEFS: Partial<Record<Feature, FeatureMeshDef>> = {
   [Feature.LAMP]: { modelId: 'ceiling_bulb', priority: 94, z: zForBand('ceiling'), scaleX: 1, scaleY: 1, scaleZ: 1, yawSalt: 13, flags: MeshInstanceFlag.Emissive },
 };
 
+const MODEL_PRIORITY_CACHE = new Map<string, number>();
+
+for (const def of VISUAL_CELL_DEFS) {
+  if (!MODEL_PRIORITY_CACHE.has(def.modelId)) MODEL_PRIORITY_CACHE.set(def.modelId, def.priority);
+  if (!MODEL_PRIORITY_CACHE.has(def.id)) MODEL_PRIORITY_CACHE.set(def.id, def.priority);
+}
+
+for (const def of Object.values(FEATURE_MESH_DEFS)) {
+  if (def?.modelId && !MODEL_PRIORITY_CACHE.has(def.modelId)) {
+    MODEL_PRIORITY_CACHE.set(def.modelId, def.priority);
+  }
+}
+
 export const MESH_FEATURE_MODEL_IDS: Readonly<Partial<Record<Feature, string>>> = Object.freeze(
   Object.fromEntries(Object.entries(FEATURE_MESH_DEFS).map(([feature, def]) => [feature, def?.modelId])),
 );
@@ -2210,11 +2223,10 @@ function priorityForModel(modelId: string, flags: number): number {
     modelId === 'brick_fragment' ||
     modelId === 'rubble_chunk'
   ) return 96;
-  const visualDef = VISUAL_CELL_DEFS.find(def => def.modelId === modelId || def.id === modelId);
-  if (visualDef) return visualDef.priority;
-  for (const def of Object.values(FEATURE_MESH_DEFS)) {
-    if (def?.modelId === modelId) return def.priority;
-  }
+
+  const priority = MODEL_PRIORITY_CACHE.get(modelId);
+  if (priority !== undefined) return priority;
+
   if ((flags & MeshInstanceFlag.Container) !== 0) return 64;
   if ((flags & MeshInstanceFlag.CorridorVolume) !== 0) return modelId.includes('organic') ? 66 : 58;
   if ((flags & MeshInstanceFlag.Entity) !== 0) return 54;
