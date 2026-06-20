@@ -85,7 +85,7 @@ const RUBBER_DOOR_WEDGE_ID = 'rubber_door_wedge';
 
 const stores = new WeakMap<World, BorerStore>();
 
-function storeFor(world: World): BorerStore {
+export function storeFor(world: World): BorerStore {
   let store = stores.get(world);
   if (!store) {
     store = {
