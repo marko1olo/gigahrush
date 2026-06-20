@@ -1,6 +1,7 @@
 import { type DominoBoardTile, type DominoSnapshot, type DominoTile } from '../systems/domino';
 import { controlBindingLabel, controlHint, menuCloseHint } from '../systems/controls';
 import { fitText } from './ui_text';
+import { clamp, rect, drawBadge } from './ui_utils';
 
 const PIPS: Record<number, readonly [number, number][]> = {
   0: [],
@@ -11,37 +12,6 @@ const PIPS: Record<number, readonly [number, number][]> = {
   5: [[0.28, 0.28], [0.72, 0.28], [0.5, 0.5], [0.28, 0.72], [0.72, 0.72]],
   6: [[0.28, 0.24], [0.72, 0.24], [0.28, 0.5], [0.72, 0.5], [0.28, 0.76], [0.72, 0.76]],
 };
-
-function clamp(v: number, lo: number, hi: number): number {
-  return Math.max(lo, Math.min(hi, v));
-}
-
-function snap(v: number): number {
-  return Math.round(v) + 0.5;
-}
-
-function rect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, fill: string, stroke?: string): void {
-  const xx = Math.round(x);
-  const yy = Math.round(y);
-  const ww = Math.round(w);
-  const hh = Math.round(h);
-  ctx.fillStyle = fill;
-  ctx.fillRect(xx, yy, ww, hh);
-  if (stroke) {
-    ctx.strokeStyle = stroke;
-    ctx.lineWidth = 1;
-    ctx.strokeRect(snap(xx), snap(yy), Math.max(0, ww - 1), Math.max(0, hh - 1));
-  }
-}
-
-function drawBadge(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, w: number, h: number, s: number, color: string): void {
-  rect(ctx, x, y, w, h, '#090d0d', '#303936');
-  ctx.fillStyle = color;
-  ctx.font = `${Math.max(7, Math.round(h * 0.52))}px monospace`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(fitText(ctx, text, w - 5 * s), Math.round(x + w * 0.5), Math.round(y + h * 0.53));
-}
 
 function drawPips(ctx: CanvasRenderingContext2D, value: number, x: number, y: number, w: number, h: number, s: number): void {
   const pipR = Math.max(1.05 * s, Math.min(w, h) * 0.055);
