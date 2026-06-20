@@ -916,10 +916,12 @@ function findAimTarget(world: World, player: Entity, state: GameState): CombatTa
   let bestDist = 0;
   let checked = 0;
 
+  const maxD = Math.sqrt(COMBAT_TARGET_MAX_D2);
+
   getEntityIndex().queryRadiusCapped(
     player.x,
     player.y,
-    Math.sqrt(COMBAT_TARGET_MAX_D2),
+    maxD,
     aimTargetQuery,
     ENTITY_MASK_ACTOR,
     COMBAT_TARGET_QUERY_CAP,
@@ -927,7 +929,13 @@ function findAimTarget(world: World, player: Entity, state: GameState): CombatTa
   for (const e of aimTargetQuery) {
     if (!e.alive || e.id === player.id) continue;
     if (e.type !== EntityType.MONSTER && e.type !== EntityType.NPC) continue;
-    if (world.dist2(player.x, player.y, e.x, e.y) > COMBAT_TARGET_MAX_D2) continue;
+
+    const dx = world.delta(player.x, e.x);
+    if (Math.abs(dx) > maxD) continue;
+    const dy = world.delta(player.y, e.y);
+    if (Math.abs(dy) > maxD) continue;
+    if (dx * dx + dy * dy > COMBAT_TARGET_MAX_D2) continue;
+
     checked++;
     const hit = aimTargetHit(world, player, e, ca, sa);
     if (hit) {
