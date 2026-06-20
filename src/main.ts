@@ -4324,9 +4324,17 @@ function activateCraftSelection(): void {
 }
 
 function questLogEntries(): Quest[] {
-  const active = state.quests.filter(q => !q.done);
-  const done = state.quests.filter(q => q.done);
-  return [...active, ...done];
+  const active: Quest[] = [];
+  const done: Quest[] = [];
+  for (let i = 0; i < state.quests.length; i++) {
+    const q = state.quests[i];
+    if (q.done) {
+      done.push(q);
+    } else {
+      active.push(q);
+    }
+  }
+  return active.concat(done);
 }
 
 function selectedQuestLogQuest(): Quest | undefined {
