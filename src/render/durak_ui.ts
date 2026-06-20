@@ -5,7 +5,7 @@ import {
   type DurakSuit,
 } from '../systems/durak';
 import { controlBindingLabel, controlHint, menuCloseHint } from '../systems/controls';
-import { fitText } from './ui_text';
+import { fitText, drawBadge, drawRect } from './ui_text';
 
 const CARD_ASPECT = 0.70;
 const MAX_VISIBLE_NPC_BACKS = 8;
@@ -228,29 +228,11 @@ function clamp(v: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, v));
 }
 
-function snap(v: number): number {
-  return Math.round(v) + 0.5;
-}
-
-function rect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, fill: string, stroke?: string): void {
-  const xx = Math.round(x);
-  const yy = Math.round(y);
-  const ww = Math.round(w);
-  const hh = Math.round(h);
-  ctx.fillStyle = fill;
-  ctx.fillRect(xx, yy, ww, hh);
-  if (stroke) {
-    ctx.strokeStyle = stroke;
-    ctx.lineWidth = 1;
-    ctx.strokeRect(snap(xx), snap(yy), Math.max(0, ww - 1), Math.max(0, hh - 1));
-  }
-}
-
 function drawCardBack(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, s: number, alpha = 1): void {
   ctx.save();
   ctx.globalAlpha *= alpha;
-  rect(ctx, x, y, w, h, '#111817', '#55615a');
-  rect(ctx, x + 2 * s, y + 2 * s, w - 4 * s, h - 4 * s, '#182321', '#2f403b');
+  drawRect(ctx, x, y, w, h, '#111817', '#55615a');
+  drawRect(ctx, x + 2 * s, y + 2 * s, w - 4 * s, h - 4 * s, '#182321', '#2f403b');
 
   ctx.fillStyle = '#61736b';
   const step = Math.max(3, Math.round(4 * s));
@@ -270,7 +252,7 @@ function drawCardBack(ctx: CanvasRenderingContext2D, x: number, y: number, w: nu
 }
 
 function drawCardSlot(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, s: number): void {
-  rect(ctx, x, y, w, h, 'rgba(7,10,10,0.58)', '#353b39');
+  drawRect(ctx, x, y, w, h, 'rgba(7,10,10,0.58)', '#353b39');
   const tick = Math.max(2, Math.round(3 * s));
   ctx.fillStyle = '#59615a';
   const ix = Math.round(x + 4 * s);
@@ -300,8 +282,8 @@ function drawPlayingCard(
   ctx.save();
   ctx.globalAlpha *= options.dimmed ? 0.66 : 1;
   const border = options.selected ? '#d6b15d' : options.playable ? '#6fbf7d' : options.trump ? '#a88639' : '#2f2b22';
-  rect(ctx, x, y, w, h, '#c7bea1', border);
-  rect(ctx, x + 2 * s, y + 2 * s, w - 4 * s, h - 4 * s, '#d2c8aa', '#8b826d');
+  drawRect(ctx, x, y, w, h, '#c7bea1', border);
+  drawRect(ctx, x + 2 * s, y + 2 * s, w - 4 * s, h - 4 * s, '#d2c8aa', '#8b826d');
 
   const style = suitStyle(card.suit);
   const rank = RANK_LABELS[card.rank];
@@ -326,29 +308,20 @@ function drawPlayingCard(
   if (options.selected) {
     const b = Math.max(2, Math.round(2 * s));
     const len = Math.max(8 * s, Math.min(w, h) * 0.22);
-    rect(ctx, x - b, y - b, len, b, '#d6b15d');
-    rect(ctx, x - b, y - b, b, len, '#d6b15d');
-    rect(ctx, x + w - len + b, y - b, len, b, '#d6b15d');
-    rect(ctx, x + w, y - b, b, len, '#d6b15d');
-    rect(ctx, x - b, y + h, len, b, '#d6b15d');
-    rect(ctx, x - b, y + h - len + b, b, len, '#d6b15d');
-    rect(ctx, x + w - len + b, y + h, len, b, '#d6b15d');
-    rect(ctx, x + w, y + h - len + b, b, len, '#d6b15d');
+    drawRect(ctx, x - b, y - b, len, b, '#d6b15d');
+    drawRect(ctx, x - b, y - b, b, len, '#d6b15d');
+    drawRect(ctx, x + w - len + b, y - b, len, b, '#d6b15d');
+    drawRect(ctx, x + w, y - b, b, len, '#d6b15d');
+    drawRect(ctx, x - b, y + h, len, b, '#d6b15d');
+    drawRect(ctx, x - b, y + h - len + b, b, len, '#d6b15d');
+    drawRect(ctx, x + w - len + b, y + h, len, b, '#d6b15d');
+    drawRect(ctx, x + w, y + h - len + b, b, len, '#d6b15d');
   }
   if (options.playable && !options.selected) {
-    rect(ctx, x + 2 * s, y + 2 * s, 7 * s, 2 * s, '#b79851');
-    rect(ctx, x + 2 * s, y + 2 * s, 2 * s, 7 * s, '#b79851');
+    drawRect(ctx, x + 2 * s, y + 2 * s, 7 * s, 2 * s, '#b79851');
+    drawRect(ctx, x + 2 * s, y + 2 * s, 2 * s, 7 * s, '#b79851');
   }
   ctx.restore();
-}
-
-function drawBadge(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, w: number, h: number, s: number, color: string): void {
-  rect(ctx, x, y, w, h, '#090d0d', '#303936');
-  ctx.fillStyle = color;
-  ctx.font = `${Math.max(7, Math.round(h * 0.52))}px monospace`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(fitText(ctx, text, w - 5 * s), Math.round(x + w * 0.5), Math.round(y + h * 0.53));
 }
 
 function drawNpcHand(ctx: CanvasRenderingContext2D, snapshot: DurakSnapshot, x: number, y: number, maxW: number, cardW: number, cardH: number, s: number): void {
@@ -406,7 +379,7 @@ function tableStatus(snapshot: DurakSnapshot): string {
 }
 
 function drawTablePairs(ctx: CanvasRenderingContext2D, snapshot: DurakSnapshot, x: number, y: number, w: number, h: number, s: number): void {
-  rect(ctx, x, y, w, h, 'rgba(6,9,9,0.62)', '#343c38');
+  drawRect(ctx, x, y, w, h, 'rgba(6,9,9,0.62)', '#343c38');
   drawBadge(ctx, 'ВЫЛОЖЕНО', x + 5 * s, y + 4 * s, 72 * s, 13 * s, s, '#79847d');
 
   if (snapshot.table.length <= 0) {
@@ -491,7 +464,7 @@ export function drawDurakInterface(
   const tableW = pw - pad * 2;
 
   ctx.save();
-  rect(ctx, px + 4 * sx, py + 32 * sy, pw - 8 * sx, ph - 43 * sy, 'rgba(2,5,5,0.74)', '#27312f');
+  drawRect(ctx, px + 4 * sx, py + 32 * sy, pw - 8 * sx, ph - 43 * sy, 'rgba(2,5,5,0.74)', '#27312f');
 
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';

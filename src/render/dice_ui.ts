@@ -1,6 +1,6 @@
 import { type DiceRoll, type DiceSnapshot } from '../systems/dice';
 import { controlBindingLabel, controlHint, menuCloseHint } from '../systems/controls';
-import { fitText } from './ui_text';
+import { fitText, drawBadge, drawRect } from './ui_text';
 
 const PIPS: Record<number, readonly [number, number][]> = {
   1: [[0.5, 0.5]],
@@ -15,37 +15,10 @@ function clamp(v: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, v));
 }
 
-function snap(v: number): number {
-  return Math.round(v) + 0.5;
-}
-
-function rect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, fill: string, stroke?: string): void {
-  const xx = Math.round(x);
-  const yy = Math.round(y);
-  const ww = Math.round(w);
-  const hh = Math.round(h);
-  ctx.fillStyle = fill;
-  ctx.fillRect(xx, yy, ww, hh);
-  if (stroke) {
-    ctx.strokeStyle = stroke;
-    ctx.lineWidth = 1;
-    ctx.strokeRect(snap(xx), snap(yy), Math.max(0, ww - 1), Math.max(0, hh - 1));
-  }
-}
-
-function drawBadge(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, w: number, h: number, s: number, color: string): void {
-  rect(ctx, x, y, w, h, '#090d0d', '#303936');
-  ctx.fillStyle = color;
-  ctx.font = `${Math.max(7, Math.round(h * 0.52))}px monospace`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(fitText(ctx, text, w - 5 * s), Math.round(x + w * 0.5), Math.round(y + h * 0.53));
-}
-
 function drawDie(ctx: CanvasRenderingContext2D, value: number, x: number, y: number, size: number, s: number, active: boolean): void {
   const border = active ? '#d6b15d' : '#2f2b22';
-  rect(ctx, x, y, size, size, '#c7bea1', border);
-  rect(ctx, x + 2 * s, y + 2 * s, size - 4 * s, size - 4 * s, '#d7caa9', '#8b826d');
+  drawRect(ctx, x, y, size, size, '#c7bea1', border);
+  drawRect(ctx, x + 2 * s, y + 2 * s, size - 4 * s, size - 4 * s, '#d7caa9', '#8b826d');
   const pipR = Math.max(1.3 * s, size * 0.052);
   ctx.fillStyle = '#101613';
   for (const [px, py] of PIPS[value] ?? PIPS[1]) {
@@ -94,7 +67,7 @@ function drawSide(
   s: number,
   active: boolean,
 ): void {
-  rect(ctx, x, y, w, h, 'rgba(6,9,9,0.62)', active ? '#d6b15d' : '#343c38');
+  drawRect(ctx, x, y, w, h, 'rgba(6,9,9,0.62)', active ? '#d6b15d' : '#343c38');
   ctx.fillStyle = active ? '#d6b15d' : '#8d9690';
   ctx.font = `bold ${9 * s}px monospace`;
   ctx.textAlign = 'left';
@@ -140,7 +113,7 @@ export function drawDiceInterface(
   const sideW = (pw - pad * 2 - gap) * 0.5;
 
   ctx.save();
-  rect(ctx, px + 4 * sx, py + 32 * sy, pw - 8 * sx, ph - 43 * sy, 'rgba(2,5,5,0.74)', '#27312f');
+  drawRect(ctx, px + 4 * sx, py + 32 * sy, pw - 8 * sx, ph - 43 * sy, 'rgba(2,5,5,0.74)', '#27312f');
 
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
