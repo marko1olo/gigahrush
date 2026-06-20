@@ -915,13 +915,13 @@ export const VISUAL_MODELS: readonly VisualModelDef[] = [
   {
     id: 'organic_meat_lump',
     tags: ['organic', 'meat', 'floor', 'clutter'],
-    bounds: { x: 0.32, y: 0.28, z: 0.18 },
+    bounds: { x: 0.18, y: 0.18, z: 0.14 },
     anchor: 'floor',
     variantSalt: 311,
     parts: [
-      { kind: 'cylinder', position: [0, 0, 0.06], radius: 0.16, height: 0.12, segments: 8, material: 'cloth', color: [108, 28, 36] },
-      { kind: 'cylinder', position: [-0.08, 0.05, 0.04], radius: 0.1, height: 0.08, segments: 6, material: 'cloth', color: [132, 42, 48] },
-      { kind: 'cylinder', position: [0.06, -0.06, 0.03], radius: 0.08, height: 0.06, segments: 6, material: 'cloth', color: [88, 18, 24] },
+      { kind: 'cylinder', position: [0, 0, 0.03], radius: 0.08, height: 0.06, segments: 7, material: 'cloth', color: [108, 28, 36] },
+      { kind: 'cylinder', position: [0.02, -0.02, 0.07], radius: 0.06, height: 0.05, segments: 6, material: 'cloth', color: [132, 42, 48] },
+      { kind: 'cylinder', position: [-0.01, 0.01, 0.10], radius: 0.04, height: 0.04, segments: 5, material: 'cloth', color: [88, 18, 24] },
     ],
   },
   {

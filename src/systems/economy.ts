@@ -20,7 +20,6 @@ import {
   type EconomyFloorRef,
   type EconomyTradeSpreadRule,
 } from '../data/economy_rules';
-import { isSilverSlimeItem, SILVER_SLIME_SEALED_ID } from '../data/items';
 import { RESOURCES, RESOURCE_BY_ID, type ResourceDef, resourceForItem, resourceForItemType } from '../data/resources';
 import {
   publishEvent,
@@ -28,7 +27,6 @@ import {
   type ResourceScarcityBand,
   type ResourceScarcityTrend,
 } from './events';
-import { isGovnyakItem } from './govnyak';
 import { intContractRewardMult } from './rpg';
 
 type EconomyGameState = GameState & { economy?: EconomyState };
@@ -524,30 +522,57 @@ export function recordPlayerItemSale(
   opts: PlayerItemSaleRecordOptions = {},
 ): void {
   const def = ITEMS[defId];
-  const silver = isSilverSlimeItem(defId);
-  const govnyak = isGovnyakItem(defId);
+  if (!def) return;
+
+  const scienceValue = def.scienceValue ?? 0;
+  const contrabandScore = def.contrabandScore ?? 0;
+  const deceptiveScore = def.deceptiveScore ?? 0;
+
   const scienceBuyer = buyer.faction === Faction.SCIENTIST || occupationHasTradeTag(buyer.occupation, 'science');
   const blackMarketBuyer = occupationHasTradeTag(buyer.occupation, 'black_market')
     || buyer.faction === Faction.WILD
     || buyer.faction === Faction.CULTIST;
-  const liquidatorConfiscation = govnyak && buyer.faction === Faction.LIQUIDATOR;
-  const sealedScienceHandoff = silver && defId === SILVER_SLIME_SEALED_ID && scienceBuyer;
-  const outcome = sealedScienceHandoff
-    ? 'science_handoff'
-    : silver && blackMarketBuyer ? 'black_market_sale'
-      : silver ? 'cash_sale'
-        : liquidatorConfiscation ? 'confiscation'
-          : govnyak && blackMarketBuyer ? 'contraband_sale'
-            : govnyak ? 'pressure_sale'
-              : 'sale';
-  const tags = silver
-    ? ['player', 'trade', 'slime', 'silver_slime', sealedScienceHandoff ? 'science' : blackMarketBuyer ? 'black_market' : 'cash', outcome]
-    : govnyak
-      ? ['player', 'trade', 'govnyak', 'contraband', liquidatorConfiscation ? 'confiscation' : blackMarketBuyer ? 'black_market' : 'cash', outcome]
-      : ['player', 'trade', 'sale'];
+
+  const isContraband = contrabandScore > 50;
+  const liquidatorConfiscation = isContraband && buyer.faction === Faction.LIQUIDATOR;
+
+  let outcome = 'sale';
+
+  if (scienceValue >= 50 && scienceBuyer) {
+    outcome = 'science_handoff';
+  } else if (isContraband && blackMarketBuyer) {
+    outcome = 'contraband_sale';
+  } else if (liquidatorConfiscation) {
+    outcome = 'confiscation';
+  } else if (isContraband || deceptiveScore >= 50) {
+    outcome = 'pressure_sale';
+  }
+
+  let severity: WorldEventSeverity = 1;
+  let privacy: 'private' | 'local' | 'witnessed' = 'private';
+
+  if (deceptiveScore >= 80) {
+    severity = 4;
+    privacy = 'witnessed';
+  } else if (liquidatorConfiscation) {
+    severity = 4;
+    privacy = 'local';
+  } else if (isContraband) {
+    severity = 3;
+    privacy = 'local';
+  }
+
+  const tags = ['player', 'trade', outcome];
+  if (def.tags) pushTags(tags, def.tags);
+  if (isContraband) pushTags(tags, ['contraband', blackMarketBuyer ? 'black_market' : 'cash']);
+  else pushTags(tags, [blackMarketBuyer ? 'black_market' : 'cash']);
+  
+  if (scienceBuyer) pushTags(tags, ['science']);
+  if (liquidatorConfiscation) pushTags(tags, ['confiscation']);
   pushTags(tags, opts.tags);
+
   publishEvent(state, {
-    type: sealedScienceHandoff || liquidatorConfiscation ? 'player_handoff_item' : 'player_sell_item',
+    type: (outcome === 'science_handoff' || liquidatorConfiscation) ? 'player_handoff_item' : 'player_sell_item',
     zoneId,
     actorId: seller.id,
     actorName: seller.name ?? 'Вы',
@@ -556,11 +581,11 @@ export function recordPlayerItemSale(
     targetName: buyer.name,
     targetFaction: buyer.faction,
     itemId: defId,
-    itemName: def?.name ?? defId,
+    itemName: def.name,
     itemCount: count,
-    itemValue: def?.value ?? 0,
-    severity: silver ? 4 : govnyak ? liquidatorConfiscation ? 4 : 3 : 1,
-    privacy: silver ? 'witnessed' : govnyak ? 'local' : 'private',
+    itemValue: def.value,
+    severity,
+    privacy,
     tags,
     data: {
       unitPrice,
@@ -568,11 +593,7 @@ export function recordPlayerItemSale(
       price: unitPrice,
       direction: 'player_to_npc',
       outcome,
-      rumorIds: silver
-        ? [sealedScienceHandoff ? 'silver_slime_science_handoff' : 'silver_slime_sale_suspicion']
-        : govnyak
-          ? [liquidatorConfiscation ? 'govnyak_confiscation' : 'govnyak_trade']
-        : undefined,
+      deceptiveScore: deceptiveScore > 0 ? deceptiveScore : undefined,
       ...opts.data,
     },
   });

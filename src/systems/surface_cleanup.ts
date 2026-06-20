@@ -24,6 +24,12 @@ export function cleanSurfaceArea(
       const wy = world.wrap(y);
       const ci = world.idx(wx, wy);
       if (options.shouldCleanCell && !options.shouldCleanCell(ci)) continue;
+      
+      // Clean danger/blood field
+      if (world.dangerField[ci] > 0) {
+        world.dangerField[ci] = Math.max(0, world.dangerField[ci] - 50);
+      }
+
       const cell = world.surfaceMap.get(ci);
       if (!cell) continue;
 

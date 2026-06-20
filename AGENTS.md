@@ -472,6 +472,7 @@ Before finishing, answer these for any source change:
 Reject these:
 
 - Content-specific logic in `main.ts`, `core/world.ts`, `render/webgl.ts` or broad AI.
+- Raw `Math.random()` in procedural generation, visual effects or runtime logic. The project relies on deterministic physics and tests. Always use `SeedRng`, `xorshift32`, or `seededRandom` from `src/core/rand.ts` to ensure repeatable execution and avoid desyncing AI/tests.
 - A new `FloorLevel` for a design-floor route stop, catalog entry or lift anomaly.
 - Runtime population refill that replaces killed ordinary NPCs.
 - Per-frame full-world scans.

@@ -774,6 +774,10 @@ function eventToStaticRumorId(event: RumorEventLike): string | undefined {
   if (type === 'item_deposited' && (event.tags?.includes('evidence') || event.tags?.includes('sabotage'))) return 'faction_cultist_after_fog';
   if (type === 'item_stolen' || event.tags?.includes('theft')) return 'container_theft_seen';
   if (type === 'container_opened' || type === 'container_looted') return 'container_safe_whispers';
+  if (type === 'player_sell_item' || type === 'player_handoff_item') {
+    const tradeRumor = tradeEventRumorId(event);
+    if (tradeRumor) return tradeRumor;
+  }
   const itemRumor = event.itemId ? itemEventRumorId(event.itemId) : undefined;
   if (itemRumor) return itemRumor;
   if (type === 'quest_completed' || (type.includes('contract') && type.includes('complete'))) return 'contract_completed';
@@ -864,6 +868,29 @@ function resourceScarcityEventRumorId(event: RumorEventLike): string | undefined
     case 'paper': return 'contract_admin_papers';
     default: return 'economy_resource_pressure';
   }
+}
+
+function tradeEventRumorId(event: RumorEventLike): string | undefined {
+  const itemId = event.itemId;
+  if (!itemId) return undefined;
+  const outcome = typeof event.data?.outcome === 'string' ? event.data.outcome : '';
+  
+  if (isSilverSlimeItem(itemId)) {
+    if (outcome === 'science_handoff') return 'silver_slime_science_handoff';
+    if (outcome === 'pressure_sale' || outcome === 'confiscation') return 'silver_slime_sale_suspicion';
+  }
+  
+  if (itemId === 'govnyak_roll' || itemId === 'govnyak_brick' || itemId === 'govnyak_sample') {
+    if (outcome === 'confiscation') return 'govnyak_confiscation';
+    if (outcome === 'contraband_sale') return 'govnyak_trade';
+  }
+  
+  if (outcome === 'science_handoff') return 'science_handoff';
+  if (outcome === 'contraband_sale') return 'contraband_trade';
+  if (outcome === 'confiscation') return 'contraband_confiscation';
+  if (outcome === 'pressure_sale' && event.data?.deceptiveScore && Number(event.data.deceptiveScore) >= 50) return 'deceptive_item_sale_suspicion';
+
+  return undefined;
 }
 
 function itemEventRumorId(itemId: string): string | undefined {

@@ -915,7 +915,7 @@ function gotoRoutineRoomOfTypes(
     const cy = room.y + room.h / 2;
     const distance = Math.sqrt(world.dist2(e.x, e.y, cx, cy));
     if (distance > routineRoomDistanceLimit(e, room, intent, options.preferredRoomId)) return;
-    const target = routineRoomTargetCandidate(e, room, intent, friendly, options.preferredRoomId, distance);
+    const target = routineRoomTargetCandidate(world, e, room, intent, friendly, options.preferredRoomId, distance);
     pushRoutineRoomCandidate(friendly ? routineFriendlyRoomCandidates : routineFallbackRoomCandidates, target);
   };
 
@@ -939,6 +939,7 @@ function gotoRoutineRoomOfTypes(
 }
 
 function routineRoomTargetCandidate(
+  world: World,
   e: Entity,
   room: Room,
   intent: NpcUtilityIntentId,
@@ -956,6 +957,7 @@ function routineRoomTargetCandidate(
     utility: assignedBonus + preferredBonus + territoryUtility,
     distance,
     factionPenalty: friendly ? 0 : 18,
+    danger: world.dangerField[Math.floor(room.y + room.h/2) * 1024 + Math.floor(room.x + room.w/2)] / 255,
   }, {
     identity: npcUtilityIdentityFromEntity(e),
     intent,

@@ -176,6 +176,7 @@ export class World {
   factionControl: Uint8Array;      // per-cell faction control (ZoneFaction enum)
   fog:       Uint8Array;           // purple fog density per cell (0 = clear, 255 = full)
   tissue:    Uint8Array;           // samosbor tissue overlay per cell (0 = clean, 255 = full infection)
+  dangerField: Uint8Array;         // fluid dynamic danger/blood vector field (0-255)
   slideCells: number[] = [];       // cell indices of slide walls (cycle textures)
   screenCells: number[] = [];      // cell indices of procedural screen/TV walls
   surfaceMap: Map<number, Uint8Array> = new Map(); // sparse RGBA canvas, 16×16×4 per cell (floors + walls)
@@ -232,6 +233,7 @@ export class World {
     this.factionControl = new Uint8Array(n);        // per-cell faction (ZoneFaction)
     this.fog      = new Uint8Array(n);              // fog density
     this.tissue   = new Uint8Array(n);              // samosbor tissue overlay
+    this.dangerField = new Uint8Array(n);           // fluid dynamic danger/blood
     this.liftDir  = new Uint8Array(n);              // LiftDirection (0=DOWN, 1=UP)
     this.surfaceFlags = new Uint8Array(n);
     this.ceilHeight = new Uint8Array(n);            // 0 = standard ceiling height
@@ -791,6 +793,7 @@ export function replaceWorldFromGeneration(target: World | null | undefined, gen
   target.factionControl.set(source.factionControl);
   target.fog.set(source.fog);
   target.tissue.set(source.tissue);
+  target.dangerField.set(source.dangerField);
   target.liftDir.set(source.liftDir);
 
   target.rooms = source.rooms.slice();

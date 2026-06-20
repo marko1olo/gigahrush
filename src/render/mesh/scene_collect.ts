@@ -697,6 +697,16 @@ function emitVisualInstance(
       scaleX = 0.45 + (h & 7) * 0.035;
       scaleY = 0.45 + ((h >>> 4) & 7) * 0.035;
       scaleZ = 0.18 + ((h >>> 8) & 3) * 0.04;
+    } else if (def.family === 'clutter') {
+      const h = mixHash(context.seed, x, y, slot, def.code);
+      const ox = (((h >>> 12) & 255) / 255 - 0.5) * 0.75;
+      const oy = (((h >>> 20) & 255) / 255 - 0.5) * 0.75;
+      ix += ox;
+      iy += oy;
+      yaw = (((h >>> 28) & 7) * Math.PI) / 4;
+      scaleX = 0.8 + (h & 7) * 0.05;
+      scaleY = 0.8 + ((h >>> 4) & 7) * 0.05;
+      scaleZ = 0.8 + ((h >>> 8) & 3) * 0.05;
     }
   }
   emitInstance(out, {

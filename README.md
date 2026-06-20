@@ -1189,6 +1189,7 @@ Do not add a new `FloorLevel` for a catalog entry or numbered lift instance.
 - Keep Russian player-facing text unless there is a specific reason.
 - Use existing ids, registries and events before adding new global state.
 - Publish meaningful facts through `systems/events.ts`.
+- **Never use raw `Math.random()` in procedural generation or runtime simulation.** It breaks deterministic physics and unit tests. Always use `SeedRng`, `xorshift32`, or `seededRandom` from `src/core/rand.ts`.
 - For systems/render/save/load/generation changes, run `npm run check` unless blocked; it writes `dist/`.
 - For browser/render smoke coverage, run `npm run check:browser` or `npm run check:full`; both need Chrome or `CHROME_BIN`.
 - For narrow data/content changes, run `npm run check:readonly` when possible, or at least `npm run typecheck`.

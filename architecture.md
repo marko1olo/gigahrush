@@ -443,6 +443,7 @@ Avoid:
 - JSON parse/stringify in the game loop.
 - DOM work in systems.
 - Renderer-side gameplay state, including camera mode ownership.
+- Raw `Math.random()` in generation or runtime. It breaks deterministic simulation and unit tests. Always use `src/core/rand.ts` (`SeedRng`, `xorshift32`, `seededRandom`).
 - **Real-time BFS or O(W²) recomputation during active gameplay.** Navigation tree, flow fields, light maps, path blockers and connectivity are baked at floor load and after samosbor stitch — never during active simulation. During samosbor the navigation cache must be frozen; no system may unfreeze or invalidate it until samosbor ends. See `optimization.md` Iron Law section.
 
 Default budgets:

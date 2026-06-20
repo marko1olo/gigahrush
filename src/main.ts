@@ -263,6 +263,7 @@ import { updateCarnivorousFungus } from './systems/carnivorous_fungus';
 import { hladonColdMoveMultiplier, updateHladonColdPocket } from './systems/hladon';
 import { tryCoverSeroburmalineSource, updateSeroburmalineExposure } from './systems/seroburmaline';
 import { updateRouteCues } from './systems/route_cues';
+import { updateDangerField } from './systems/danger_field';
 import {
   resetMapExploration,
   syncMapExplorationAfterSamosborWave,
@@ -7654,6 +7655,7 @@ function gameLoop(now: number): void {
       updateBloodTrails(world, entities, bloodDt);
     }
     updateParticles(world, dt);
+    updateDangerField(world, dt);
     lastBloodUpdateMs = performance.now() - bloodStart;
 
     // Cycle slide textures every 5 seconds — left tile=even, right tile=odd
@@ -7818,6 +7820,7 @@ function gameLoop(now: number): void {
       updateBloodTrails(world, entities, bloodDt);
     }
     updateParticles(world, dt);
+    updateDangerField(world, dt);
     if (cleanupDeadEntities(dt) > 0) {
       // Exception to the one planned rebuild: splice cleanup changes the flat array after spawns/deaths.
       rebuildEntityIndexAfterSpawnCleanup(entities);

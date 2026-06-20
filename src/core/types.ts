@@ -656,6 +656,9 @@ export interface ItemDef {
   spawnW: number;             // spawn weight
   value: number;              // price in рубли (0 = worthless)
   tags?: readonly string[];   // small content labels for events/economy hooks
+  scienceValue?: number;      // 0-100: value to NII/scientists; scales special handoff interactions
+  contrabandScore?: number;   // 0-100: degree of illegality; scales liquidator confiscation chance/severity
+  deceptiveScore?: number;    // 0-100: how dangerous/fake the item looks (e.g. silver slime); creates suspicion
   stack?: number;             // override max stack size
   durability?: number;        // max durability for tools/consumable kits
   use?: (e: Entity) => string; // returns message

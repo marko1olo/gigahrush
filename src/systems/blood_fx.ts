@@ -5,6 +5,8 @@ import { World } from '../core/world';
 import { stampLocalMark, stampMark, MarkType } from './surface_marks';
 import { Spr } from '../render/sprite_index';
 import { ensureEntityIndex } from './entity_index';
+import { addVisualSlotByPriority } from '../gen/visual_cell_slots';
+import { SeedRng } from '../core/rand';
 
 /* ── Transient world-space particles ──────────────────────────── */
 export type ParticleKind =
@@ -392,30 +394,50 @@ export function spawnDeathPool(world: World, ex: number, ey: number, gore = fals
   // Pool size scales with gore level
   const poolRadius = 0.35 + goreLevel * 0.08;
   stampMark(world, cx, cy, fx, fy, poolRadius, MarkType.POOL, seed, sr, sg, sb, 255);
+  
+  // Danger/Blood vector field impulse
+  const fieldIdx = cy * 1024 + cx;
+  world.dangerField[fieldIdx] = Math.min(255, world.dangerField[fieldIdx] + 50);
+
+  const rng = new SeedRng(seed);
+
   // Directional wall splatter at mid-body height
   splatAdjacentWalls(world, ex, ey, 0.25 + goreLevel * 0.05, 200, seed, sr, sg, sb, pvx, pvy, 0.5);
+  
   // Large gore splatters spraying outward across multiple cells
   const splatCount = 3 + goreLevel * 3;
   for (let i = 0; i < splatCount; i++) {
-    const ang = (i / splatCount) * Math.PI * 2 + (Math.random() - 0.5) * 1.2;
+    const ang = (i / splatCount) * Math.PI * 2 + (rng.random() - 0.5) * 1.2;
     // Spray distance: 0.5 to 2.5 cells from center, further with higher gore
-    const dist = 0.3 + Math.random() * (0.6 + goreLevel * 0.5);
+    const dist = 0.3 + rng.random() * (0.6 + goreLevel * 0.5);
     // Bias toward projectile direction
     const biasX = dirX * 0.4, biasY = dirY * 0.4;
     const sx = ex + Math.cos(ang) * dist + biasX;
     const sy = ey + Math.sin(ang) * dist + biasY;
-    const scx = Math.floor(((sx % W) + W) % W);
-    const scy = Math.floor(((sy % W) + W) % W);
+    const scx = Math.floor(((sx % 1024) + 1024) % 1024);
+    const scy = Math.floor(((sy % 1024) + 1024) % 1024);
     if (world.solid(scx, scy)) continue;
-    const splatRadius = 0.12 + goreLevel * 0.06 + Math.random() * 0.08;
-    const splatIntensity = 160 + Math.floor(Math.random() * 60);
+    const splatRadius = 0.12 + goreLevel * 0.06 + rng.random() * 0.08;
+    const splatIntensity = 160 + rng.int(0, 60);
     stampMark(world, scx, scy, ((sx % 1) + 1) % 1, ((sy % 1) + 1) % 1, splatRadius, MarkType.SPLAT, seed + i + 1, sr, sg, sb, splatIntensity);
     // Wall splats at spray endpoints
-    if (goreLevel >= 2 && Math.random() < 0.5) {
-      splatAdjacentWalls(world, sx, sy, splatRadius * 0.5, splatIntensity - 40, seed + i + 50, sr, sg, sb, Math.cos(ang), Math.sin(ang), 0.3 + Math.random() * 0.5);
+    if (goreLevel >= 2 && rng.chance(0.5)) {
+      splatAdjacentWalls(world, sx, sy, splatRadius * 0.5, splatIntensity - 40, seed + i + 50, sr, sg, sb, Math.cos(ang), Math.sin(ang), 0.3 + rng.random() * 0.5);
     }
   }
-  // Gore spray particles for messy deaths (shotgun / explosion)
+
+  // Central procedural mesh chunk
+  if (goreLevel >= 1) {
+    addVisualSlotByPriority(world, cy * 1024 + cx, 34, seed);
+    // Add one scattered chunk at a random adjacent open cell
+    const scx = Math.floor(((cx + Math.round(rng.random() * 2 - 1)) % 1024 + 1024) % 1024);
+    const scy = Math.floor(((cy + Math.round(rng.random() * 2 - 1)) % 1024 + 1024) % 1024);
+    if (!world.solid(scx, scy) && (scx !== cx || scy !== cy)) {
+      addVisualSlotByPriority(world, scy * 1024 + scx, 34, seed + 1);
+    }
+  }
+
+  // Gore spray particles for messy deaths (shotgun / explosion) - transient, uses Math.random
   if (goreLevel >= 2) {
     const particleCount = Math.min(48, goreLevel * 12);
     for (let i = 0; i < particleCount && particles.length < MAX_PARTICLES; i++) {

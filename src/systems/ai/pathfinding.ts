@@ -3,7 +3,7 @@
 import {
   W, Cell, DoorState,
   type Entity, type Msg,
-  EntityType, AIGoal, RoomType,
+  EntityType,  AIGoal, RoomType,
 } from '../../core/types';
 import { World } from '../../core/world';
 import { PATH_BLOCKER_SUBDIV, pathBlockedAt } from '../../core/path_blockers';
@@ -1075,6 +1075,7 @@ export function gotoRoom(world: World, e: Entity, targetRoomType: RoomType): Ass
 }
 
 /* ── Helper: wander randomly nearby ───────────────────────────── */
+
 export function wanderNearby(world: World, e: Entity): void {
   const ai = e.ai!;
   for (let attempt = 0; attempt < ROUTINE_WANDER_ATTEMPTS; attempt++) {
