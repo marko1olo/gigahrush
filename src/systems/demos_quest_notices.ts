@@ -449,10 +449,12 @@ export function getDemosQuestBoardView(
   const acceptFloorKey = opts.floorKey ? cleanFloorKey(opts.floorKey) : currentRouteFloorKey(state);
   const limit = clampInt(opts.limit, 1, DEMOS_QUEST_NOTICE_CAP, DEMOS_QUEST_NOTICES_PER_PROFILE);
   const notices = noticeStore(state)
-    .filter(notice => opts.alifeId === undefined || notice.giverAlifeId === opts.alifeId)
-    .filter(notice => opts.includeAccepted || notice.acceptedQuestId === undefined)
-    .filter(notice => opts.includeFailed || notice.failedReason === undefined)
-    .filter(notice => notice.expiresAtMinutes === undefined || notice.expiresAtMinutes > now)
+    .filter(notice =>
+      (opts.alifeId === undefined || notice.giverAlifeId === opts.alifeId) &&
+      (opts.includeAccepted || notice.acceptedQuestId === undefined) &&
+      (opts.includeFailed || notice.failedReason === undefined) &&
+      (notice.expiresAtMinutes === undefined || notice.expiresAtMinutes > now)
+    )
     .sort(sortNotices);
   return {
     notices: notices.slice(0, limit).map(notice => noticeView(state, notice, acceptFloorKey)),
