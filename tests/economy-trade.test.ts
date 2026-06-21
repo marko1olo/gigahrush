@@ -3,7 +3,7 @@ import test from 'node:test';
 import { FloorLevel, type GameState } from '../src/core/types';
 import { createEconomyFloorState } from '../src/data/economy';
 import { MAX_INVENTORY_SLOTS, MAX_ITEM_STACK } from '../src/data/inventory_limits';
-import { ensureEconomyState, getEconomyQuote } from '../src/systems/economy';
+import { ensureEconomyState, getEconomyQuote, primeTradePriceCache, getAdjustedItemPrice } from '../src/systems/economy';
 import { buyFromNpc, sellToNpc } from '../src/systems/trade';
 import { getRecentEvents } from '../src/systems/events';
 import { makeGameState, makeTestNpc, makeTestPlayer } from './helpers';
@@ -130,4 +130,59 @@ test('failed trades do not mutate money, inventories or resource stock', () => {
   assert.equal(fullNpc.money, 20);
   assert.equal(fullNpc.inventory?.length, MAX_INVENTORY_SLOTS);
   assert.equal(resourceStock(noSpaceState, FloorLevel.LIVING, 'drink_water'), stockBeforeSell);
+});
+
+test('primeTradePriceCache handles empty and undefined inventories safely', () => {
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING });
+  resetFloor(state, FloorLevel.LIVING);
+
+  // Should not throw
+  assert.doesNotThrow(() => {
+    primeTradePriceCache(state, []);
+    primeTradePriceCache(state, [undefined, undefined]);
+    primeTradePriceCache(state, [[]]);
+  });
+});
+
+test('primeTradePriceCache correctly caches prices for valid items', () => {
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING });
+  resetFloor(state, FloorLevel.LIVING);
+
+  const inv = [
+    { defId: 'water', count: 1 },
+    { defId: 'metal_sheet', count: 2 },
+    { defId: 'unknown_item_xyz', count: 1 }
+  ];
+
+  // Should process without throwing
+  primeTradePriceCache(state, [inv]);
+
+  // We can't inspect the internal cache directly, but we can verify that
+  // retrieving the price for primed items returns the expected valid numbers.
+  const waterPrice = getAdjustedItemPrice(state, 'water');
+  assert.ok(waterPrice > 0, 'water price should be greater than 0');
+
+  const metalPrice = getAdjustedItemPrice(state, 'metal_sheet');
+  assert.ok(metalPrice > 0, 'metal_sheet price should be greater than 0');
+
+  // Unknown item should fallback gracefully (typically returning 0 base price)
+  const unknownPrice = getAdjustedItemPrice(state, 'unknown_item_xyz');
+  assert.equal(typeof unknownPrice, 'number');
+});
+
+test('primeTradePriceCache enforces max cache limit without crashing', () => {
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING });
+  resetFloor(state, FloorLevel.LIVING);
+
+  const MAX_PRICE_CACHE_ITEMS = 256;
+  const largeInv = Array.from({ length: MAX_PRICE_CACHE_ITEMS + 50 }, (_, i) => ({
+    defId: `item_${i}`,
+    count: 1
+  }));
+
+  // It should iterate past the cache limit and clear/overwrite the cache
+  // without throwing an exception.
+  assert.doesNotThrow(() => {
+    primeTradePriceCache(state, [largeInv]);
+  });
 });
