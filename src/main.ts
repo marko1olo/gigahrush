@@ -3100,11 +3100,19 @@ function burnCollateralNearFlame(x: number, y: number, radius: number, actor: En
     const inv = drop.inventory;
     if (!drop.alive || drop.type !== EntityType.ITEM_DROP || !inv?.length) continue;
     if (world.dist2(x, y, drop.x, drop.y) > r2) continue;
-    const slot = inv.find(item => FLAME_COLLATERAL_ITEMS.has(item.defId));
-    if (!slot) continue;
+    let slotIdx = -1;
+    let slot: typeof inv[0] | undefined;
+    for (let i = 0; i < inv.length; i++) {
+      if (FLAME_COLLATERAL_ITEMS.has(inv[i].defId)) {
+        slotIdx = i;
+        slot = inv[i];
+        break;
+      }
+    }
+    if (slotIdx === -1 || !slot) continue;
     const def = ITEMS[slot.defId];
     slot.count--;
-    if (slot.count <= 0) inv.splice(inv.indexOf(slot), 1);
+    if (slot.count <= 0) inv.splice(slotIdx, 1);
     if (inv.length === 0) drop.alive = false;
     publishEvent(state, {
       type: 'collateral_damage',
