@@ -1424,7 +1424,7 @@ setWorldLogSpatialContextProvider(() => {
     audibleRadiusMeters: hearingRadiusMetersForActor(player, state.npcLogRadiusMeters),
     dist2: (ax, ay, bx, by) => world.dist2(ax, ay, bx, by),
     entityPosition: entityId => {
-      const entity = getEntityIndex().byId.get(entityId) ?? entities.find(e => e.id === entityId);
+      const entity = getEntityIndex().byId.get(entityId);
       return entity ? { x: entity.x, y: entity.y } : undefined;
     },
     roomCenter: roomId => {
