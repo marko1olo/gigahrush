@@ -79,10 +79,8 @@ function clearLostInputState(input: InputState, canvas: HTMLCanvasElement): void
 
 function requestPointerLockSafe(canvas: HTMLCanvasElement): void {
   if (document.pointerLockElement === canvas) return;
-  const requestPointerLock = canvas.requestPointerLock;
-  if (typeof requestPointerLock !== 'function') return;
   try {
-    const result = requestPointerLock.call(canvas) as Promise<void> | void;
+    const result = canvas.requestPointerLock?.() as Promise<void> | void;
     result?.catch?.(() => {
       // Pointer lock may be denied outside a user-activation window.
     });
