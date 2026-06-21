@@ -5729,8 +5729,20 @@ function activateNpcQuest(npc: Entity | undefined): void {
   if (!npc) return;
   checkTalkQuest(npc, player, world, entities, state, state.msgs);
   offerQuest(npc, player, world, entities, state, state.msgs, nextEntityId);
-  const active = state.quests.filter(q => !q.done);
-  const npcQIdx = active.findIndex(q => q.giverId === npc.id);
+
+  let npcQIdx = -1;
+  let activeCount = 0;
+  for (let i = 0; i < state.quests.length; i++) {
+    const q = state.quests[i];
+    if (!q.done) {
+      if (q.giverId === npc.id) {
+        npcQIdx = activeCount;
+        break;
+      }
+      activeCount++;
+    }
+  }
+
   if (npcQIdx >= 0) {
     state.npcMenuTab = 'quest';
     state.questPage = npcQIdx;
