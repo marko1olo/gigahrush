@@ -1,10 +1,7 @@
 import { type CheckersSnapshot, type CheckersPiece } from '../systems/checkers';
 import { controlBindingLabel, controlHint, menuCloseHint } from '../systems/controls';
+import { snap } from './ui_layout';
 import { fitText } from './ui_text';
-
-function snap(v: number): number {
-  return Math.round(v) + 0.5;
-}
 
 function rect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, fill: string, stroke?: string): void {
   const xx = Math.round(x);
