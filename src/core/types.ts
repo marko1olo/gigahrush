@@ -425,6 +425,7 @@ export interface AIState {
   windupStartHp?: number;     // HP snapshot for interruptible windups
   staggerTimer?: number;      // temporary interrupt / stagger lockout
   lastSeenTargetId?: number;  // event throttle for first sight / escape beats
+  ammoConsumedCounter?: number; // tracks virtual ammo consumption
   sprintTimer?: number;       // straight-line special burst countdown
   sprintDx?: number;          // normalized burst direction X
   sprintDy?: number;          // normalized burst direction Y
