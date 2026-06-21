@@ -488,6 +488,28 @@ function npcCanStartRangedWindup(e: Entity, ws: WeaponStats): boolean {
   return e.inventory?.some(slot => slot.defId === ws.ammoType && slot.count > 0) === true;
 }
 
+function npcConsumeAmmo(e: Entity, ws: WeaponStats): boolean {
+  if (!ws.ammoType) return true;
+  if (!e.inventory) return false;
+
+  const idx = e.inventory.findIndex(s => s.defId === ws.ammoType && s.count > 0);
+  if (idx < 0) return false;
+
+  // Separate AI logic for ammo: to prevent NPCs from burning through their entire ammo supply,
+  // they only consume 1 actual ammo item every few shots.
+  if (e.ai) {
+    e.ai.ammoConsumedCounter = (e.ai.ammoConsumedCounter ?? 0) + 1;
+    if (e.ai.ammoConsumedCounter >= 4) {
+      e.ai.ammoConsumedCounter = 0;
+      e.inventory[idx].count--;
+      if (e.inventory[idx].count <= 0) {
+        e.inventory.splice(idx, 1);
+      }
+    }
+  }
+  return true;
+}
+
 function npcCommitRangedShot(
   world: World,
   e: Entity,
@@ -516,8 +538,7 @@ function npcCommitRangedShot(
     e.ai!.windupTargetId = undefined;
     return true;
   }
-  // TODO: [TEMPORARY SOLUTION] NPCs need ammo to shoot but they do not consume it, to prevent burning through their supply.
-  if (ws.ammoType && e.inventory?.some(s => s.defId === ws.ammoType && s.count > 0) !== true) return false;
+  if (!npcConsumeAmmo(e, ws)) return false;
   if (visualProjectiles) {
     npcFireProjectile(world, e, target, weaponId, ws, entities, nextId);
     playSoundAt(hostileWeaponSound(weaponId), e.x, e.y);
