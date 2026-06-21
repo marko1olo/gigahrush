@@ -8,6 +8,7 @@ import { DEF, generateSprite } from '../src/entities/blood_plant';
 import { generateBloodPlantDen } from '../src/gen/living/blood_plant_den';
 import { S } from '../src/render/pixutil';
 import { Spr } from '../src/render/sprite_index';
+import { MONSTER_SPRITES } from '../src/entities/monster';
 import { setEntityMap, updateMonster } from '../src/systems/ai/monster';
 import {
   BLOOD_PLANT_HEAL_PER_SOURCE,
@@ -232,4 +233,36 @@ test('living blood plant den spawns a reachable source, red mold choice, witness
   const player = makeTestPlayer({ id: 99, x: plants[0].x - 1, y: plants[0].y, weapon: 'axe' });
   recordMonsterMeleeDeath(world, state, plants[0], 'axe', player);
   assert.equal(world.cells[rootCell], Cell.FLOOR);
+});
+
+test('blood plant sprite generation is registered in MONSTER_SPRITES', () => {
+  assert.equal(MONSTER_SPRITES[MonsterKind.BLOOD_PLANT], generateSprite);
+});
+
+test('blood plant sprite visual characteristics describe a rooted mass with red tendrils', () => {
+  const sprite = generateSprite();
+  let rootPillars = 0;
+  let redTendrils = 0;
+  let brightDots = 0;
+
+  for (const px of sprite) {
+    if ((px >>> 24) === 0) continue;
+    const r = px & 0xff;
+    const g = (px >>> 8) & 0xff;
+    const b = (px >>> 16) & 0xff;
+
+    // Grey/dark low root lines
+    if (r < 120 && g < 120 && b < 120) rootPillars++;
+    // Red veins
+    if (r > 100 && g < 30 && b < 40) redTendrils++;
+    // Bright seed dots (high R and somewhat high G/B like 226,190,168 or 255,116,124)
+    if (r > 200 && g > 100 && b > 100) brightDots++;
+    if (r === 255 && g === 116 && b === 124) brightDots++;
+    if (r === 226 && g === 190 && b === 168) brightDots++;
+  }
+
+  assert.equal(sprite.length, S * S);
+  assert.ok(rootPillars > 100, 'sprite should have dark root foundation pixels');
+  assert.ok(redTendrils > 30, 'sprite should have vivid red walks');
+  assert.ok(brightDots > 5, 'sprite should contain bright flower/seed dots near the crown');
 });
