@@ -58,6 +58,47 @@ function nonEmptyVisualSlots(world: World): Array<readonly [number, number]> {
   return out;
 }
 
+
+test('visual slot bounds validation handles edge cases', () => {
+  const world = new World();
+  const validCell = 0;
+  const validSlot = 0;
+  const validCode = 0;
+
+  // assertVisualSlotCell
+  assert.throws(() => visualSlotOffset(-1, validSlot), RangeError);
+  assert.throws(() => visualSlotOffset(W * W, validSlot), RangeError);
+  assert.throws(() => visualSlotOffset(1.5, validSlot), RangeError);
+  assert.throws(() => visualSlotOffset(NaN, validSlot), RangeError);
+  assert.throws(() => visualSlotOffset(Infinity, validSlot), RangeError);
+  assert.throws(() => visualSlotOffset(-Infinity, validSlot), RangeError);
+  // Valid extremes for cell
+  assert.ok(visualSlotOffset(0, validSlot) >= 0);
+  assert.ok(visualSlotOffset(W * W - 1, validSlot) >= 0);
+
+  // assertVisualSlotIndex
+  assert.throws(() => visualSlotOffset(validCell, -1), RangeError);
+  assert.throws(() => visualSlotOffset(validCell, VISUAL_SLOTS_PER_CELL), RangeError);
+  assert.throws(() => visualSlotOffset(validCell, 1.5), RangeError);
+  assert.throws(() => visualSlotOffset(validCell, NaN), RangeError);
+  assert.throws(() => visualSlotOffset(validCell, Infinity), RangeError);
+  assert.throws(() => visualSlotOffset(validCell, -Infinity), RangeError);
+  // Valid extremes for slot
+  assert.ok(visualSlotOffset(validCell, 0) >= 0);
+  assert.ok(visualSlotOffset(validCell, VISUAL_SLOTS_PER_CELL - 1) >= 0);
+
+  // assertVisualCellCode
+  assert.throws(() => setVisualSlot(world, validCell, validSlot, -1), RangeError);
+  assert.throws(() => setVisualSlot(world, validCell, validSlot, 256), RangeError);
+  assert.throws(() => setVisualSlot(world, validCell, validSlot, 1.5), RangeError);
+  assert.throws(() => setVisualSlot(world, validCell, validSlot, NaN), RangeError);
+  assert.throws(() => setVisualSlot(world, validCell, validSlot, Infinity), RangeError);
+  assert.throws(() => setVisualSlot(world, validCell, validSlot, -Infinity), RangeError);
+  // Valid extremes for code
+  assert.doesNotThrow(() => setVisualSlot(world, validCell, validSlot, 0));
+  assert.doesNotThrow(() => setVisualSlot(world, validCell, validSlot, 255));
+});
+
 test('world visual slots are a flat 16-byte-per-cell layer', () => {
   const world = new World();
   const cellIdx = 7;
