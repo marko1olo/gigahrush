@@ -69,6 +69,22 @@ test('world visual slots are a flat 16-byte-per-cell layer', () => {
   assert.throws(() => visualSlotOffset(cellIdx, VISUAL_SLOTS_PER_CELL), RangeError);
   assert.throws(() => setVisualSlot(world, cellIdx, 0, 256), RangeError);
 
+  // Validation edge cases
+  assert.throws(() => visualSlotOffset(-1, 0), RangeError);
+  assert.throws(() => visualSlotOffset(W * W, 0), RangeError);
+  assert.throws(() => visualSlotOffset(NaN, 0), RangeError);
+  assert.throws(() => visualSlotOffset(Infinity, 0), RangeError);
+  assert.throws(() => visualSlotOffset(1.5, 0), RangeError);
+
+  assert.throws(() => visualSlotOffset(cellIdx, NaN), RangeError);
+  assert.throws(() => visualSlotOffset(cellIdx, Infinity), RangeError);
+  assert.throws(() => visualSlotOffset(cellIdx, 1.5), RangeError);
+
+  assert.throws(() => setVisualSlot(world, cellIdx, 0, -1), RangeError);
+  assert.throws(() => setVisualSlot(world, cellIdx, 0, NaN), RangeError);
+  assert.throws(() => setVisualSlot(world, cellIdx, 0, Infinity), RangeError);
+  assert.throws(() => setVisualSlot(world, cellIdx, 0, 1.5), RangeError);
+
   const before = world.visualSlotVersion;
   assert.equal(setVisualSlot(world, cellIdx, 3, code('pipe_wall_small')), true);
   assert.equal(getVisualSlot(world, cellIdx, 3), code('pipe_wall_small'));
