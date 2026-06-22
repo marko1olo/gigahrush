@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { canUseMobileFullscreen, canUseNativeFullscreen } from '../src/fullscreen';
+import { canUseMobileFullscreen, canUseNativeFullscreen, standaloneLaunchUrl } from '../src/fullscreen';
 
 interface FullscreenEnvOptions {
   userAgent: string;
@@ -9,6 +9,7 @@ interface FullscreenEnvOptions {
   maxTouchPoints?: number;
   embedded?: boolean;
   requestFullscreen?: boolean;
+  href?: string;
 }
 
 function installFullscreenEnv(options: FullscreenEnvOptions): () => void {
@@ -35,7 +36,7 @@ function installFullscreenEnv(options: FullscreenEnvOptions): () => void {
   });
   Object.defineProperty(globalThis, 'window', {
     configurable: true,
-    value: { self, top },
+    value: { self, top, location: { href: options.href || 'https://example.com/' } },
   });
 
   return () => {
@@ -81,6 +82,39 @@ test('mobile fullscreen remains available for compatible direct pages and hidden
   try {
     assert.equal(canUseNativeFullscreen(), true);
     assert.equal(canUseMobileFullscreen(), false);
+  } finally {
+    restore();
+  }
+});
+
+
+test('standaloneLaunchUrl appends standalone query parameter', () => {
+  let restore = installFullscreenEnv({
+    userAgent: 'Mozilla/5.0',
+    href: 'https://example.com/game',
+  });
+  try {
+    assert.equal(standaloneLaunchUrl(), 'https://example.com/game?standalone=1');
+  } finally {
+    restore();
+  }
+
+  restore = installFullscreenEnv({
+    userAgent: 'Mozilla/5.0',
+    href: 'https://example.com/game?foo=bar',
+  });
+  try {
+    assert.equal(standaloneLaunchUrl(), 'https://example.com/game?foo=bar&standalone=1');
+  } finally {
+    restore();
+  }
+
+  restore = installFullscreenEnv({
+    userAgent: 'Mozilla/5.0',
+    href: 'https://example.com/game?standalone=0',
+  });
+  try {
+    assert.equal(standaloneLaunchUrl(), 'https://example.com/game?standalone=1');
   } finally {
     restore();
   }
