@@ -108,6 +108,26 @@ function statusEvent(
   });
 }
 
+
+export function clonePlayerStatuses(statuses: readonly PlayerStatus[] | undefined): PlayerStatus[] | undefined {
+  if (!statuses) return undefined;
+  const len = statuses.length;
+  if (len === 0) return [];
+  const out = new Array<PlayerStatus>(len);
+  for (let i = 0; i < len; i++) {
+    const s = statuses[i];
+    out[i] = {
+      id: s.id,
+      source: s.source,
+      startedAt: s.startedAt,
+      expiresAt: s.expiresAt,
+      intensity: s.intensity,
+      badReaction: s.badReaction,
+    };
+  }
+  return out;
+}
+
 export function normalizePlayerStatuses(input: unknown): PlayerStatus[] | undefined {
   if (!Array.isArray(input)) return undefined;
   const out: PlayerStatus[] = [];
