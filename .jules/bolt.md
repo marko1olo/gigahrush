@@ -1,0 +1,3 @@
+## 2024-06-22 - Proper Patch Implementation
+**Learning:** Using regex replacements on whole files without careful context can lead to duplicated functions and corrupt source files, especially when running the patch repeatedly. Also, introducing unrelated dependency changes or unrelated test files into a PR during the exploration phase creates a messy, un-mergeable diff.
+**Action:** Always create targeted, context-aware patches. Clean the git working tree (using `git reset HEAD --hard` and `git clean -fd`) and ensure only the relevant, modified files are staged before submitting a pull request or requesting a review.
