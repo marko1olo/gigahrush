@@ -197,8 +197,18 @@ function hasTag(event: WorldEvent, tag: string): boolean {
   return event.tags.includes(tag);
 }
 
-function activeThreatIds(ctx: MatkaDokumentovContext): number[] {
-  return ctx.threatIds.filter(id => ctx.entities.some(e => e.id === id && e.alive));
+function getActiveThreats(ctx: MatkaDokumentovContext): Entity[] {
+  const threats: Entity[] = [];
+  let foundCount = 0;
+  for (let i = 0; i < ctx.entities.length; i++) {
+    const e = ctx.entities[i];
+    if (ctx.threatIds.includes(e.id)) {
+      if (e.alive) threats.push(e);
+      foundCount++;
+      if (foundCount === ctx.threatIds.length) break;
+    }
+  }
+  return threats;
 }
 
 function nextEntityId(entities: Entity[]): number {
@@ -238,7 +248,7 @@ function publishMatkaEvent(
     data: {
       sourceEventId: source.id,
       roomName: room?.name,
-      activeThreats: activeThreatIds(ctx).length,
+      activeThreats: getActiveThreats(ctx).length,
       totalSpawned: ctx.totalSpawned,
       cap: MATKA_DOKUMENTOV_THREAT_CAP,
       decoyForms: ctx.decoyForms,
@@ -275,7 +285,7 @@ function findThreatSpawnCell(ctx: MatkaDokumentovContext, slot: number): { x: nu
 
 function spawnPaperThreats(ctx: MatkaDokumentovContext, desired: number): number {
   if (ctx.cleared) return 0;
-  const active = activeThreatIds(ctx).length;
+  const active = getActiveThreats(ctx).length;
   const availableActive = Math.max(0, MATKA_DOKUMENTOV_THREAT_CAP - active);
   const availableTotal = Math.max(0, MAX_TOTAL_SPAWNS - ctx.totalSpawned);
   const count = Math.min(desired, availableActive, availableTotal);
@@ -319,16 +329,14 @@ function spawnPaperThreats(ctx: MatkaDokumentovContext, desired: number): number
 
 function empowerPaperThreats(ctx: MatkaDokumentovContext): number {
   if (ctx.cleared || ctx.empowerments >= MAX_EMPOWERMENTS) return 0;
-  const ids = activeThreatIds(ctx).slice(0, 2);
-  for (const id of ids) {
-    const threat = ctx.entities.find(e => e.id === id);
-    if (!threat) continue;
+  const threats = getActiveThreats(ctx).slice(0, 2);
+  for (const threat of threats) {
     threat.monsterDmgMult = Math.min(1.25, (threat.monsterDmgMult ?? 1) + 0.12);
     threat.speed *= 1.04;
     if (threat.hp !== undefined && threat.maxHp !== undefined) threat.hp = Math.min(threat.maxHp, threat.hp + 4);
   }
-  if (ids.length > 0) ctx.empowerments++;
-  return ids.length;
+  if (threats.length > 0) ctx.empowerments++;
+  return threats.length;
 }
 
 function dropSealReward(ctx: MatkaDokumentovContext): void {
@@ -352,9 +360,7 @@ function dropSealReward(ctx: MatkaDokumentovContext): void {
 }
 
 function neutralizeOneThreat(ctx: MatkaDokumentovContext): number {
-  const id = activeThreatIds(ctx)[0];
-  if (id === undefined) return 0;
-  const threat = ctx.entities.find(e => e.id === id);
+  const threat = getActiveThreats(ctx)[0];
   if (!threat) return 0;
   threat.alive = false;
   threat.hp = 0;
@@ -422,9 +428,7 @@ function clearAnchor(
 
   let neutralized = 0;
   if (killActive) {
-    for (const id of activeThreatIds(ctx)) {
-      const threat = ctx.entities.find(e => e.id === id);
-      if (!threat) continue;
+    for (const threat of getActiveThreats(ctx)) {
       threat.alive = false;
       threat.hp = 0;
       neutralized++;
@@ -527,7 +531,7 @@ function handleKillEvent(state: GameState, event: WorldEvent): void {
   if (event.type !== 'player_kill_monster') return;
   const ctx = findContextByThreat(event);
   if (!ctx) return;
-  const remaining = activeThreatIds(ctx).length;
+  const remaining = getActiveThreats(ctx).length;
   publishMatkaEvent(
     state,
     ctx,
