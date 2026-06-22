@@ -89,6 +89,16 @@
         return data;
       }
 
+      function escapeHtml(value) {
+        return String(value ?? '').replace(/[&<>"']/g, ch => ({
+          '&': '&amp;',
+          '<': '&lt;',
+          '>': '&gt;',
+          '"': '&quot;',
+          "'": '&#39;',
+        })[ch]);
+      }
+
       function render(submissions) {
         list.innerHTML = '';
         for (const sub of submissions) {
@@ -96,21 +106,21 @@
           const preview = sub.preview || {};
           article.innerHTML = `
             <div class="top">
-              <strong>${sub.packageId}</strong>
-              <span>${sub.status}</span>
+              <strong>${escapeHtml(sub.packageId)}</strong>
+              <span>${escapeHtml(sub.status)}</span>
             </div>
-            <div class="muted">${sub.submissionId}</div>
-            <div class="muted">contact: ${sub.authorContactPrivate || 'not provided'}</div>
-            <div>${preview.publicLine || 'Нет публичной строки'}</div>
-            <div class="muted">${preview.samplePost || ''}</div>
+            <div class="muted">${escapeHtml(sub.submissionId)}</div>
+            <div class="muted">contact: ${escapeHtml(sub.authorContactPrivate || 'not provided')}</div>
+            <div>${escapeHtml(preview.publicLine || 'Нет публичной строки')}</div>
+            <div class="muted">${escapeHtml(preview.samplePost || '')}</div>
             <div class="actions">
-              <button data-download="${sub.submissionId}">ZIP</button>
-              <button data-export="${sub.submissionId}">Export</button>
-              <select data-status="${sub.submissionId}">
-                ${['submitted', 'needs_review', 'accepted', 'rejected', 'imported'].map(status => `<option ${status === sub.status ? 'selected' : ''}>${status}</option>`).join('')}
+              <button data-download="${escapeHtml(sub.submissionId)}">ZIP</button>
+              <button data-export="${escapeHtml(sub.submissionId)}">Export</button>
+              <select data-status="${escapeHtml(sub.submissionId)}">
+                ${['submitted', 'needs_review', 'accepted', 'rejected', 'imported'].map(status => `<option ${status === sub.status ? 'selected' : ''}>${escapeHtml(status)}</option>`).join('')}
               </select>
-              <button data-save="${sub.submissionId}">Save</button>
-              <textarea data-notes="${sub.submissionId}" placeholder="moderator notes">${sub.moderatorNotes || ''}</textarea>
+              <button data-save="${escapeHtml(sub.submissionId)}">Save</button>
+              <textarea data-notes="${escapeHtml(sub.submissionId)}" placeholder="moderator notes">${escapeHtml(sub.moderatorNotes || '')}</textarea>
             </div>
           `;
           list.appendChild(article);
