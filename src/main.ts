@@ -179,6 +179,7 @@ import {
   resetNonStoryQuestsForNewPlayer,
   toggleActiveQuest,
   updateKillQuestPressure,
+  getActiveQuestCount,
 } from './systems/quests';
 import { applyPickedStoryItemOutcomes, applyStoryItemOutcomes, spawnStoryDeathDrops } from './systems/story_outcomes';
 import { handleDiceInput, isDiceGameOpen } from './systems/dice';
@@ -6363,7 +6364,7 @@ function handleMobileHudTap(x: number, y: number): void {
         state.npcMenuTab = 'main';
       }
     } else if (state.npcMenuTab === 'quest') {
-      const total = state.quests.filter(q => !q.done).length;
+      const total = getActiveQuestCount(state.quests);
       if (y > h - 40 * sy) {
         state.npcMenuTab = 'main';
       } else if (total > 1) {
@@ -7086,7 +7087,7 @@ function handleMenuInput(): void {
     } else if (state.npcMenuTab === 'talk') {
       if (acceptEdge || closeEdge) state.npcMenuTab = 'main';
     } else if (state.npcMenuTab === 'quest') {
-      const totalQ = state.quests.filter(q => !q.done).length;
+      const totalQ = getActiveQuestCount(state.quests);
       const upNav = menuUpNav();
       const dnNav = menuDownNav();
       const leftNav = menuRepeatStep('left', input.invLeft, leftEdge);

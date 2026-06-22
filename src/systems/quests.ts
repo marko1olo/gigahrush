@@ -2001,3 +2001,11 @@ function pickTalkTarget(npc: Entity, world: World, entities: Entity[]): Entity |
   const top = candidates.slice(0, Math.min(12, candidates.length)).map(c => c.e);
   return top[Math.floor(Math.random() * top.length)];
 }
+
+export function getActiveQuestCount(quests: Quest[]): number {
+  let count = 0;
+  for (let i = 0; i < quests.length; i++) {
+    if (!quests[i].done) count++;
+  }
+  return count;
+}
