@@ -39,6 +39,29 @@ test('platform bridge detects explicit portal query safely', () => {
   assert.equal(gamePushConfigFromSearch('?gpProjectId=123'), null);
 });
 
+test('platform bridge handles URL parameter parsing errors safely', () => {
+  const originalURLSearchParams = globalThis.URLSearchParams;
+
+  // Intentionally break URLSearchParams
+  Object.defineProperty(globalThis, 'URLSearchParams', {
+    configurable: true,
+    value: class {
+      constructor() {
+        throw new Error('Simulated URL parsing error');
+      }
+    }
+  });
+
+  try {
+    assert.equal(requestedPortalFromSearch('?portal=yandex'), '');
+  } finally {
+    Object.defineProperty(globalThis, 'URLSearchParams', {
+      configurable: true,
+      value: originalURLSearchParams
+    });
+  }
+});
+
 test('portal compact save keeps a current-shape resume profile without heavy floor memory', () => {
   const payload: SavePayload & { version: number } = {
     version: SAVE_SHAPE_VERSION,
