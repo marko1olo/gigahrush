@@ -40,7 +40,7 @@ interface VentshunContext {
   valveContainerId: number;
   rewardContainerId: number;
   ventCells: number[];
-  threatIds: number[];
+  threats: Entity[];
   warned: boolean;
   triggered: boolean;
   sealed: boolean;
@@ -121,7 +121,7 @@ function findContextByContainer(event: WorldEvent): VentshunContext | undefined 
 function findContextByThreat(event: WorldEvent): VentshunContext | undefined {
   if (event.targetId === undefined) return undefined;
   for (let i = contexts.length - 1; i >= 0; i--) {
-    if (contexts[i].threatIds.includes(event.targetId)) return contexts[i];
+    if (contexts[i].threats.some(t => t.id === event.targetId)) return contexts[i];
   }
   return undefined;
 }
@@ -173,7 +173,7 @@ function publishVentshunEvent(
       sourceEventId: source.id,
       roomName: room?.name,
       cueId: CUE_ID,
-      spawnedThreats: ctx.threatIds.length,
+      spawnedThreats: ctx.threats.length,
       cap: MAX_THREATS,
       sealed: ctx.sealed,
       cleared: ctx.cleared,
@@ -219,7 +219,7 @@ function thickenVentSmog(ctx: VentshunContext): void {
 }
 
 function spawnVentshunThreats(ctx: VentshunContext, source: WorldEvent): number {
-  if (ctx.threatIds.length > 0 || ctx.ventCells.length === 0) return 0;
+  if (ctx.threats.length > 0 || ctx.ventCells.length === 0) return 0;
   const kinds = [MonsterKind.TUBE_EEL, MonsterKind.SBORKA, MonsterKind.SBORKA];
   const count = 2 + ((source.id + ctx.roomId) % 2);
   let nextId = nextEntityId(ctx.entities);
@@ -253,7 +253,7 @@ function spawnVentshunThreats(ctx: VentshunContext, source: WorldEvent): number 
       spriteScale: kind === MonsterKind.SBORKA ? 0.72 : 0.95,
     };
     ctx.entities.push(threat);
-    ctx.threatIds.push(threat.id);
+    ctx.threats.push(threat);
     spawned++;
   }
   return spawned;
@@ -280,9 +280,8 @@ function sealVentshun(state: GameState, ctx: VentshunContext, event: WorldEvent,
   if (ctx.cleared) return;
   ctx.sealed = true;
   let stopped = 0;
-  for (const id of ctx.threatIds) {
-    const threat = ctx.entities.find(e => e.id === id);
-    if (threat?.alive) {
+  for (const threat of ctx.threats) {
+    if (threat.alive) {
       threat.alive = false;
       threat.hp = 0;
       stopped++;
@@ -357,7 +356,7 @@ function handleKillEvent(state: GameState, event: WorldEvent): void {
   if (event.type !== 'player_kill_monster') return;
   const ctx = findContextByThreat(event);
   if (!ctx || ctx.cleared) return;
-  const remaining = ctx.threatIds.filter(id => ctx.entities.some(e => e.id === id && e.alive)).length;
+  const remaining = ctx.threats.filter(t => t.alive).length;
   if (remaining > 0) {
     publishVentshunEvent(
       state,
@@ -514,7 +513,7 @@ export function generateVentshun(ctx: MaintContentCtx): void {
     valveContainerId,
     rewardContainerId,
     ventCells,
-    threatIds: [],
+    threats: [],
     warned: false,
     triggered: false,
     sealed: false,
