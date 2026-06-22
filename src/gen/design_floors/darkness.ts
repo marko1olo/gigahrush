@@ -1637,13 +1637,20 @@ function hardenDarknessHqRoom(world: World, room: Room, owner: TerritoryOwner): 
 }
 
 export function reinforceDarknessAuthoredHqTerritory(world: World): void {
+  const roomsByName = new Map<string, Room>();
+  for (const room of world.rooms) {
+    if (room.name && !roomsByName.has(room.name)) {
+      roomsByName.set(room.name, room);
+    }
+  }
+
   for (const compound of DARKNESS_HQ_COMPOUNDS) {
-    const hq = world.rooms.find(room => room.name === compound.hqName);
+    const hq = roomsByName.get(compound.hqName);
     if (!hq) continue;
     hardenDarknessHqRoom(world, hq, compound.owner);
     paintDarknessRoomOwner(world, hq, compound.owner);
     for (const support of compound.support) {
-      const room = world.rooms.find(candidate => candidate.name === support.name);
+      const room = roomsByName.get(support.name);
       if (!room) continue;
       room.type = support.type;
       paintDarknessRoomOwner(world, room, compound.owner);

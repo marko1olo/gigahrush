@@ -1,0 +1,3 @@
+## 2024-05-14 - Map Lookup Array Find Optimization
+**Learning:** Array.prototype.find inside nested loops can turn O(N) operations into O(N^2) or worse, causing significant performance overhead in highly populated environments. Using a Map can easily convert nested lookups into O(1) operations. It's also important not to commit scratchpad benchmark scripts to the root of the repository.
+**Action:** When creating maps to mimic `.find`, ensure uniqueness mapping uses `!map.has(key)` to capture the first entry found rather than the last. Always clean up benchmark and scratch files before marking pre-commit complete.
