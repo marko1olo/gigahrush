@@ -78,6 +78,28 @@ test('world visual slots are a flat 16-byte-per-cell layer', () => {
   assert.equal(getVisualSlot(world, cellIdx, 3), EMPTY_VISUAL_CELL_CODE);
 });
 
+
+test('setVisualSlot rejects invalid visual cell codes', () => {
+  const world = new World();
+  const cellIdx = 7;
+
+  // valid bounds
+  assert.equal(setVisualSlot(world, cellIdx, 0, 0), false); // 0 is EMPTY_VISUAL_CELL_CODE, so it returns false since it is already 0
+  assert.equal(setVisualSlot(world, cellIdx, 1, 255), true);
+
+  // out of bounds
+  assert.throws(() => setVisualSlot(world, cellIdx, 0, -1), RangeError);
+  assert.throws(() => setVisualSlot(world, cellIdx, 0, 256), RangeError);
+
+  // non-integers
+  assert.throws(() => setVisualSlot(world, cellIdx, 0, 128.5), RangeError);
+
+  // non-finite
+  assert.throws(() => setVisualSlot(world, cellIdx, 0, Infinity), RangeError);
+  assert.throws(() => setVisualSlot(world, cellIdx, 0, -Infinity), RangeError);
+  assert.throws(() => setVisualSlot(world, cellIdx, 0, NaN), RangeError);
+});
+
 test('visual cell slot registry uses unique non-empty byte codes', () => {
   const ids = new Set<string>();
   const codes = new Set<number>();
