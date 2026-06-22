@@ -258,191 +258,11 @@ function seedNpcPopulation(
    World starts as FLOOR; walls grow from a regular grid of sources.
    Each source grows exactly 2 wall segments, creating small rooms.
    ══════════════════════════════════════════════════════════════════ */
-export function generateKvartiry(territorySeed = 0): { world: World; entities: Entity[]; spawnX: number; spawnY: number } {
-  const world = new World();
-  const entities: Entity[] = [];
-  let nextId = 1;
-  let nextRoomId = 0;
-  lastPickedIdx = -1; // reset room type picker
-  resetKvartiryContentState();
 
-  const DX = [1, 0, -1, 0];
-  const DY = [0, 1, 0, -1];
+/* ── Generator Helper Functions ───────────────────────────────── */
 
-  // ── Phase 0: All cells start as FLOOR (empty space) ───────────
-  for (let i = 0; i < W * W; i++) {
-    world.cells[i] = Cell.FLOOR;
-    world.wallTex[i] = Tex.PANEL;
-    world.floorTex[i] = Tex.F_LINO;
-  }
-
-  // ── Phase 1: Place source grid points ─────────────────────────
-  // Sources are on a regular WALL_L grid. They are marked via isSource
-  // but kept as FLOOR so they don't interfere with wallSum checks.
-  const sources: number[] = [];
-  const isSource = new Uint8Array(W * W);
-  for (let y = 0; y < W; y++) {
-    for (let x = 0; x < W; x++) {
-      if (x % WALL_L === 0 && y % WALL_L === 0) {
-        const ci = world.idx(x, y);
-        sources.push(ci);
-        isSource[ci] = 1;
-      }
-    }
-  }
-
-  // ── Phase 2: Build walls from sources ─────────────────────────
-  // Each source grows wall segments until it has 2+ WALL neighbors.
-  // Doors are placed at the midpoint of each segment.
-  let activeSources = [...sources];
-  while (activeSources.length > 0) {
-    const nextSources: number[] = [];
-    for (const idx of activeSources) {
-      const sx = idx % W;
-      const sy = (idx / W) | 0;
-      // Count WALL neighbors (sources don't count as WALL)
-      let wallSum = 0;
-      for (let s = 0; s < 4; s++) {
-        const ni = world.idx(world.wrap(sx + DX[s]), world.wrap(sy + DY[s]));
-        if (world.cells[ni] === Cell.WALL) wallSum++;
-      }
-      if (wallSum < 2) {
-        let drop = rng(0, 3);
-        // If chosen direction already has a wall, rotate
-        const nCheck = world.idx(world.wrap(sx + DX[drop]), world.wrap(sy + DY[drop]));
-        if (world.cells[nCheck] === Cell.WALL) drop = (drop + 1) & 3;
-
-        let cx = sx, cy = sy;
-        for (let j = 0; j < WALL_L - 1; j++) {
-          cx = world.wrap(cx + DX[drop]);
-          cy = world.wrap(cy + DY[drop]);
-          const ni = world.idx(cx, cy);
-          // Don't overwrite another source
-          if (isSource[ni]) continue;
-          if (j + 1 === Math.floor(WALL_L / 2) && Math.random() < KV_SEGMENT_DOOR_CANDIDATE_CHANCE) {
-            world.cells[ni] = Cell.DOOR;
-          } else {
-            world.cells[ni] = Cell.WALL;
-          }
-        }
-        nextSources.push(idx);
-      }
-    }
-    activeSources = nextSources;
-  }
-
-  // Convert source positions to WALL
-  for (const idx of sources) {
-    world.cells[idx] = Cell.WALL;
-  }
-
-  // ── Phase 3: C++ door connectivity — flood-fill + open candidate doors ──
-  // Candidate midpoint doors are barriers here. Connectivity opens a sparse
-  // subset, then all unopened candidates collapse back into walls.
-  let startCell = -1;
-  for (let i = 0; i < W * W; i++) {
-    if (world.cells[i] === Cell.FLOOR) { startCell = i; break; }
-  }
-
-  if (startCell >= 0) {
-    const visited = new Uint8Array(W * W);
-    const queue: number[] = [startCell];
-    visited[startCell] = 1;
-    let head = 0;
-    const candidates: number[] = [];
-
-    const floodFloors = (): void => {
-      while (head < queue.length) {
-        const ci = queue[head++];
-        const cx = ci % W, cy = (ci / W) | 0;
-        for (let s = 0; s < 4; s++) {
-          const ni = world.idx(world.wrap(cx + DX[s]), world.wrap(cy + DY[s]));
-          if (visited[ni]) continue;
-          if (world.cells[ni] === Cell.FLOOR) {
-            visited[ni] = 1;
-            queue.push(ni);
-          }
-        }
-      }
-    };
-
-    const addConnectorCandidates = (): void => {
-      candidates.length = 0;
-      for (let i = 0; i < W * W; i++) {
-        if (world.cells[i] !== Cell.DOOR) continue;
-        const x = i % W, y = (i / W) | 0;
-        for (let s = 0; s < 4; s++) {
-          const ai = world.idx(world.wrap(x - DX[s]), world.wrap(y - DY[s]));
-          const bi = world.idx(world.wrap(x + DX[s]), world.wrap(y + DY[s]));
-          if (
-            (visited[ai] && world.cells[bi] === Cell.FLOOR && !visited[bi]) ||
-            (visited[bi] && world.cells[ai] === Cell.FLOOR && !visited[ai])
-          ) {
-            candidates.push(i);
-            break;
-          }
-        }
-      }
-    };
-
-    floodFloors();
-    while (true) {
-      addConnectorCandidates();
-      if (candidates.length === 0) break;
-      let opened = 0;
-      for (const idx of candidates) {
-        if (Math.random() >= KV_CONNECTOR_DOOR_OPEN_CHANCE) continue;
-        world.cells[idx] = Cell.FLOOR;
-        visited[idx] = 1;
-        queue.push(idx);
-        opened++;
-      }
-      if (opened === 0) {
-        const idx = candidates[rng(0, candidates.length - 1)];
-        world.cells[idx] = Cell.FLOOR;
-        visited[idx] = 1;
-        queue.push(idx);
-      }
-      floodFloors();
-    }
-
-    // C++ cleanup: convert remaining candidate DOORs to WALL.
-    for (let i = 0; i < W * W; i++) {
-      if (world.cells[i] === Cell.DOOR) world.cells[i] = Cell.WALL;
-    }
-  }
-
-  // ── Phase 4: Additional doors — FLOOR between opposite walls ──
-  for (let i = 0; i < W * W; i++) {
-    if (world.cells[i] !== Cell.FLOOR) continue;
-    const x = i % W, y = (i / W) | 0;
-    const northIdx = world.idx(x, world.wrap(y - 1));
-    const southIdx = world.idx(x, world.wrap(y + 1));
-    const eastIdx  = world.idx(world.wrap(x + 1), y);
-    const westIdx  = world.idx(world.wrap(x - 1), y);
-    const ns = world.cells[northIdx] === Cell.WALL && world.cells[southIdx] === Cell.WALL;
-    const ew = world.cells[eastIdx] === Cell.WALL && world.cells[westIdx] === Cell.WALL;
-    if (ns || ew) {
-      world.cells[i] = Cell.DOOR;
-    }
-  }
-
-  // Register all doors in world.doors map
-  for (let i = 0; i < W * W; i++) {
-    if (world.cells[i] === Cell.DOOR) {
-      world.doors.set(i, {
-        idx: i,
-        state: DoorState.CLOSED,
-        roomA: -1,
-        roomB: -1,
-        keyId: '',
-        timer: 0,
-      });
-      world.wallTex[i] = Tex.DOOR_WOOD;
-    }
-  }
-
-  // ── Phase 5: Fill rooms (BFS flood-fill) ──────────────────────
+function fillRooms(world: World, DX: number[], DY: number[], nextRoomId: number): number {
+  // Phase 5: Fill rooms (BFS flood-fill)
   const roomZones = new Int32Array(W * W).fill(-1);
   let roomN = 0;
 
@@ -518,20 +338,11 @@ export function generateKvartiry(territorySeed = 0): { world: World; entities: E
     roomN++;
   }
   linkKvartiryDoorsToRooms(world);
+  return nextRoomId;
+}
 
-  // ── Phase 6: Zones (64 macro-regions) ─────────────────────────
-  generateZones(world);
-  for (const z of world.zones) z.level = calcZoneLevel(z.cx, z.cy, FloorLevel.KVARTIRY);
-
-  // ── Phase 6b: Ensure connectivity ─────────────────────────────
-  const spawnCenterX = W / 2, spawnCenterY = W / 2;
-  ensureConnectivity(world, spawnCenterX, spawnCenterY);
-
-  // ── Phase 7: Lifts (BEFORE room assignment eats all floor cells) ──
-  // placeLifts requires roomMap[ci] < 0, so we place them early and
-  // clear roomMap around lifts to satisfy the check.
-  // Actually we must clear roomMap for cells we want lifts on:
-  // Reset roomMap to -1 for corridor-type rooms (to allow lift placement)
+function setupLifts(world: World, DX: number[], DY: number[]): void {
+  // Phase 7: Lifts (BEFORE room assignment eats all floor cells)
   for (let i = 0; i < W * W; i++) {
     const rid = world.roomMap[i];
     if (rid >= 0) {
@@ -557,24 +368,18 @@ export function generateKvartiry(territorySeed = 0): { world: World; entities: E
       }
     }
   }
+}
 
-  // ── Phase 8: Light map ────────────────────────────────────────
-  world.bakeLights();
 
-  // ── Phase 8b: Cell territory before population placement ─────
-  initializeCellTerritory(world, {
-    seed: territorySeed,
-    targetShares: territorySharesForStoryFloor(FloorLevel.KVARTIRY),
-  });
-
-  // ── Phase 9: Spawn NPCs (whole-floor natural baseline)
+function populateEntities(world: World, entities: Entity[], nextId: number): number {
+  // Phase 9: Spawn NPCs (whole-floor natural baseline)
   const nid = { v: nextId };
   seedNpcPopulation(world, entities, nid, Faction.CITIZEN, CITIZEN_PROFILE);
   seedNpcPopulation(world, entities, nid, Faction.WILD, WILD_PROFILE);
   seedNpcPopulation(world, entities, nid, Faction.LIQUIDATOR, LIQUIDATOR_PROFILE, Occupation.HUNTER);
   nextId = nid.v;
 
-  // ── Phase 10: Spawn items (ballots scattered everywhere) ─────
+  // Phase 10: Spawn items (ballots scattered everywhere)
   for (let i = 0; i < 500; i++) {
     for (let attempt = 0; attempt < 50; attempt++) {
       const x = Math.floor(Math.random() * W);
@@ -591,10 +396,13 @@ export function generateKvartiry(territorySeed = 0): { world: World; entities: E
     }
   }
 
-  // ── Phase 11: Manifest-owned named NPCs ──────────────────────
+  // Phase 11: Manifest-owned named NPCs
   nextId = spawnKvartiryNamedNpcs(world, entities, nextId);
+  return nextId;
+}
 
-  // ── Phase 12: Find spawn point ────────────────────────────────
+function locateSpawnPoint(world: World): { spawnX: number; spawnY: number } {
+  // Phase 12: Find spawn point
   let spawnX = W / 2 + 0.5, spawnY = W / 2 + 0.5;
   for (let r = 0; r < 50; r++) {
     for (let dy = -r; dy <= r; dy++) {
@@ -610,6 +418,223 @@ export function generateKvartiry(territorySeed = 0): { world: World; entities: E
       }
     }
   }
+  return { spawnX, spawnY };
+}
+
+function initBaseGrid(world: World): { sources: number[]; isSource: Uint8Array } {
+  const sources: number[] = [];
+  const isSource = new Uint8Array(W * W);
+
+  // Phase 0: All cells start as FLOOR
+  for (let i = 0; i < W * W; i++) {
+    world.cells[i] = Cell.FLOOR;
+    world.wallTex[i] = Tex.PANEL;
+    world.floorTex[i] = Tex.F_LINO;
+  }
+
+  // Phase 1: Place source grid points
+  for (let y = 0; y < W; y++) {
+    for (let x = 0; x < W; x++) {
+      if (x % WALL_L === 0 && y % WALL_L === 0) {
+        const ci = world.idx(x, y);
+        sources.push(ci);
+        isSource[ci] = 1;
+      }
+    }
+  }
+  return { sources, isSource };
+}
+
+function buildMazeWalls(world: World, sources: number[], isSource: Uint8Array, DX: number[], DY: number[]): void {
+  // Phase 2: Build walls from sources
+  let activeSources = [...sources];
+  while (activeSources.length > 0) {
+    const nextSources: number[] = [];
+    for (const idx of activeSources) {
+      const sx = idx % W;
+      const sy = (idx / W) | 0;
+      let wallSum = 0;
+      for (let s = 0; s < 4; s++) {
+        const ni = world.idx(world.wrap(sx + DX[s]), world.wrap(sy + DY[s]));
+        if (world.cells[ni] === Cell.WALL) wallSum++;
+      }
+      if (wallSum < 2) {
+        let drop = rng(0, 3);
+        const nCheck = world.idx(world.wrap(sx + DX[drop]), world.wrap(sy + DY[drop]));
+        if (world.cells[nCheck] === Cell.WALL) drop = (drop + 1) & 3;
+
+        let cx = sx, cy = sy;
+        for (let j = 0; j < WALL_L - 1; j++) {
+          cx = world.wrap(cx + DX[drop]);
+          cy = world.wrap(cy + DY[drop]);
+          const ni = world.idx(cx, cy);
+          if (isSource[ni]) continue;
+          if (j + 1 === Math.floor(WALL_L / 2) && Math.random() < KV_SEGMENT_DOOR_CANDIDATE_CHANCE) {
+            world.cells[ni] = Cell.DOOR;
+          } else {
+            world.cells[ni] = Cell.WALL;
+          }
+        }
+        nextSources.push(idx);
+      }
+    }
+    activeSources = nextSources;
+  }
+
+  for (const idx of sources) {
+    world.cells[idx] = Cell.WALL;
+  }
+}
+
+function connectDoors(world: World, DX: number[], DY: number[]): void {
+  // Phase 3: C++ door connectivity
+  let startCell = -1;
+  for (let i = 0; i < W * W; i++) {
+    if (world.cells[i] === Cell.FLOOR) { startCell = i; break; }
+  }
+
+  if (startCell >= 0) {
+    const visited = new Uint8Array(W * W);
+    const queue: number[] = [startCell];
+    visited[startCell] = 1;
+    let head = 0;
+    const candidates: number[] = [];
+
+    const floodFloors = (): void => {
+      while (head < queue.length) {
+        const ci = queue[head++];
+        const cx = ci % W, cy = (ci / W) | 0;
+        for (let s = 0; s < 4; s++) {
+          const ni = world.idx(world.wrap(cx + DX[s]), world.wrap(cy + DY[s]));
+          if (visited[ni]) continue;
+          if (world.cells[ni] === Cell.FLOOR) {
+            visited[ni] = 1;
+            queue.push(ni);
+          }
+        }
+      }
+    };
+
+    const addConnectorCandidates = (): void => {
+      candidates.length = 0;
+      for (let i = 0; i < W * W; i++) {
+        if (world.cells[i] !== Cell.DOOR) continue;
+        const x = i % W, y = (i / W) | 0;
+        for (let s = 0; s < 4; s++) {
+          const ai = world.idx(world.wrap(x - DX[s]), world.wrap(y - DY[s]));
+          const bi = world.idx(world.wrap(x + DX[s]), world.wrap(y + DY[s]));
+          if (
+            (visited[ai] && world.cells[bi] === Cell.FLOOR && !visited[bi]) ||
+            (visited[bi] && world.cells[ai] === Cell.FLOOR && !visited[ai])
+          ) {
+            candidates.push(i);
+            break;
+          }
+        }
+      }
+    };
+
+    floodFloors();
+    while (true) {
+      addConnectorCandidates();
+      if (candidates.length === 0) break;
+      let opened = 0;
+      for (const idx of candidates) {
+        if (Math.random() >= KV_CONNECTOR_DOOR_OPEN_CHANCE) continue;
+        world.cells[idx] = Cell.FLOOR;
+        visited[idx] = 1;
+        queue.push(idx);
+        opened++;
+      }
+      if (opened === 0) {
+        const idx = candidates[rng(0, candidates.length - 1)];
+        world.cells[idx] = Cell.FLOOR;
+        visited[idx] = 1;
+        queue.push(idx);
+      }
+      floodFloors();
+    }
+
+    for (let i = 0; i < W * W; i++) {
+      if (world.cells[i] === Cell.DOOR) world.cells[i] = Cell.WALL;
+    }
+  }
+}
+
+function addExtraDoors(world: World): void {
+  // Phase 4: Additional doors
+  for (let i = 0; i < W * W; i++) {
+    if (world.cells[i] !== Cell.FLOOR) continue;
+    const x = i % W, y = (i / W) | 0;
+    const northIdx = world.idx(x, world.wrap(y - 1));
+    const southIdx = world.idx(x, world.wrap(y + 1));
+    const eastIdx  = world.idx(world.wrap(x + 1), y);
+    const westIdx  = world.idx(world.wrap(x - 1), y);
+    const ns = world.cells[northIdx] === Cell.WALL && world.cells[southIdx] === Cell.WALL;
+    const ew = world.cells[eastIdx] === Cell.WALL && world.cells[westIdx] === Cell.WALL;
+    if (ns || ew) {
+      world.cells[i] = Cell.DOOR;
+    }
+  }
+
+  // Register all doors
+  for (let i = 0; i < W * W; i++) {
+    if (world.cells[i] === Cell.DOOR) {
+      world.doors.set(i, {
+        idx: i,
+        state: DoorState.CLOSED,
+        roomA: -1,
+        roomB: -1,
+        keyId: '',
+        timer: 0,
+      });
+      world.wallTex[i] = Tex.DOOR_WOOD;
+    }
+  }
+}
+
+export function generateKvartiry(territorySeed = 0): { world: World; entities: Entity[]; spawnX: number; spawnY: number } {
+  const world = new World();
+  const entities: Entity[] = [];
+  let nextId = 1;
+  let nextRoomId = 0;
+  lastPickedIdx = -1; // reset room type picker
+  resetKvartiryContentState();
+
+  const DX = [1, 0, -1, 0];
+  const DY = [0, 1, 0, -1];
+
+  const { sources, isSource } = initBaseGrid(world);
+  buildMazeWalls(world, sources, isSource, DX, DY);
+  connectDoors(world, DX, DY);
+  addExtraDoors(world);
+
+  nextRoomId = fillRooms(world, DX, DY, nextRoomId);
+
+  // ── Phase 6: Zones (64 macro-regions) ─────────────────────────
+  generateZones(world);
+  for (const z of world.zones) z.level = calcZoneLevel(z.cx, z.cy, FloorLevel.KVARTIRY);
+
+  // ── Phase 6b: Ensure connectivity ─────────────────────────────
+  const spawnCenterX = W / 2, spawnCenterY = W / 2;
+  ensureConnectivity(world, spawnCenterX, spawnCenterY);
+
+  setupLifts(world, DX, DY);
+
+  // ── Phase 8: Light map ────────────────────────────────────────
+  world.bakeLights();
+
+  // ── Phase 8b: Cell territory before population placement ─────
+  initializeCellTerritory(world, {
+    seed: territorySeed,
+    targetShares: territorySharesForStoryFloor(FloorLevel.KVARTIRY),
+  });
+
+  nextId = populateEntities(world, entities, nextId);
+
+  const spawnPt = locateSpawnPoint(world);
+  let spawnX = spawnPt.spawnX;
+  let spawnY = spawnPt.spawnY;
 
   // ── Phase 13: Manifest-owned permanent themed rooms ──────────
   nextId = runKvartiryPermanentContent(world, entities, nextId, spawnX, spawnY);
