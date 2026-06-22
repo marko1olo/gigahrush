@@ -25,6 +25,29 @@ test('World wraps coordinates and measures toroidal distance', () => {
   assert.equal(world.dist2(0, 0, W - 1, W - 1), 2);
 });
 
+test('World get() and set() correctly handle out-of-bounds coordinates via toroidal wrap', () => {
+  const world = new World();
+  const testVal = Cell.WALL;
+
+  // Set at normalized coords
+  world.set(W - 1, W - 1, testVal);
+  world.set(0, 0, Cell.WATER);
+
+  // Get via out of bounds negative coords
+  assert.equal(world.get(-1, -1), testVal);
+
+  // Get via out of bounds large coords
+  assert.equal(world.get(W, W), Cell.WATER);
+
+  // Set via out of bounds negative coords
+  world.set(-2, -2, Cell.DOOR);
+  assert.equal(world.get(W - 2, W - 2), Cell.DOOR);
+
+  // Set via out of bounds large coords
+  world.set(W + 5, W + 5, Cell.LIFT);
+  assert.equal(world.get(5, 5), Cell.LIFT);
+});
+
 test('World solid() respects door states and passable cells', () => {
   const world = new World();
   const i = world.idx(10, 10);
