@@ -4031,7 +4031,11 @@ function debugTeleportTo(target: DebugTeleportTarget): void {
 
     world = replaceWorldFromGeneration(null, gen);
     entities = gen.entities;
-    nextEntityId.v = entities.reduce((mx, e) => Math.max(mx, e.id), 0) + 1;
+    let maxId = 0;
+    for (let i = 0; i < entities.length; i++) {
+      if (entities[i].id > maxId) maxId = entities[i].id;
+    }
+    nextEntityId.v = maxId + 1;
     materializeCurrentAlifeFloor();
 
     player = {
