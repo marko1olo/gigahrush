@@ -3,6 +3,7 @@
  * manifests; keep mechanics in content modules.
  */
 
+import { getNextEntityId } from '../systems/entity_index';
 import { EntityType, type Entity } from '../core/types';
 import { type World } from '../core/world';
 
@@ -43,7 +44,7 @@ export type PoiGenerationMetadataDef = Omit<PoiGenerationMetadata, 'roomIds' | '
 const poiGenerationMetadataByWorld = new WeakMap<World, PoiGenerationMetadata[]>();
 
 export function syncNextEntityId(entities: Entity[], nextId: number): number {
-  return entities.reduce((mx, e) => Math.max(mx, e.id), nextId) + 1;
+  return getNextEntityId(entities, nextId) + 1;
 }
 
 function uniqueNumbers(values: readonly number[]): number[] {

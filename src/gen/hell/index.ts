@@ -1,5 +1,6 @@
 /* ── Hell level generator (Floor 2) — organic ising caves ────── */
 
+import { getNextEntityId } from '../../systems/entity_index';
 import {
   W, Cell, Tex, Feature, Faction, Occupation, LiftDirection,
   type Entity,
@@ -78,7 +79,7 @@ export function generateHell(generationSeed = 0x4d594153): { world: World; entit
     0,
     hellGeometry,
   );
-  nextId = entities.reduce((mx, e) => Math.max(mx, e.id), nextId) + 1;
+  nextId = getNextEntityId(entities, nextId) + 1;
 
   seedLoot(world, entities, { v: nextId });
 

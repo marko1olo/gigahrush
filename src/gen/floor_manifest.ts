@@ -24,6 +24,7 @@ export interface FloorGeneration {
   entities: Entity[];
   spawnX: number;
   spawnY: number;
+  nextEntityId?: number;
 }
 
 export const FLOOR_NAMES: Record<FloorLevel, string> = {

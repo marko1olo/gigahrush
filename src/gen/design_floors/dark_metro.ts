@@ -1,5 +1,6 @@
 /* ── Design floor: dark_metro / Темная пересадка ─────────────── */
 
+import { getNextEntityId } from '../../systems/entity_index';
 import { stampSurfaceSplat } from '../../systems/surface_marks';
 import {
   AIGoal,
@@ -1777,7 +1778,7 @@ function dressDarkMetro(ctx: BuildCtx, layout: DarkMetroLayout): void {
 }
 
 function nextTrainEntityId(entities: Entity[]): { v: number } {
-  return { v: entities.reduce((mx, e) => Math.max(mx, e.id), 0) + 1 };
+  return { v: getNextEntityId(entities, 0) + 1 };
 }
 
 function addPlatformCells(world: World, out: number[], x0: number, x1: number, y: number): void {
