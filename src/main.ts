@@ -7388,6 +7388,10 @@ function clearExternalPauseInputsOnce(): void {
   if (platformPause) clearPlatformPauseInputsOnce();
 }
 
+// Restore rate: 100 sleep in 5 game-hours (300 game-min = 300 real-sec at 1x)
+// → 100/300 ≈ 0.333 per real-sec at 1x, but with 10x accel → ~30 real-sec full restore
+const SLEEP_RESTORE_RATE = 100 / 300; // per simulated second
+
 function gameLoop(now: number): void {
   // Two-phase deferred loading:
   // Phase 1: pendingLoad exists but not drawn yet → draw loading screen, yield to browser
@@ -7460,9 +7464,6 @@ function gameLoop(now: number): void {
 
   // ── Sleep: hold Z to sleep (time acceleration ×10) ───────
   const SLEEP_TIME_MULT = 10;
-  // Restore rate: 100 sleep in 5 game-hours (300 game-min = 300 real-sec at 1x)
-  // → 100/300 ≈ 0.333 per real-sec at 1x, but with 10x accel → ~30 real-sec full restore
-  const SLEEP_RESTORE_RATE = 100 / 300; // per simulated second
   const wantSleep = input.sleep && !state.paused && !state.gameOver
     && player.alive && player.needs !== undefined;
   state.sleeping = wantSleep && (player.needs?.sleep ?? 100) < 100;
@@ -7495,7 +7496,28 @@ function gameLoop(now: number): void {
   }
 
   if (!state.paused && !state.gameOver) {
-    const simStart = performance.now();
+    if (tickActiveSimulation(dt, frameDt)) { requestAnimationFrame(gameLoop); return; }
+  }
+
+  // ── World simulation continues after death (NPC, monsters, samosbor keep running) ──
+  if (!state.paused && state.gameOver) {
+    if (tickGameOverSimulation(dt, frameDt)) { requestAnimationFrame(gameLoop); return; }
+  }
+
+  if (!state.gameOver) updateRuntimeCamera(runtimeCamera, world, dt, player);
+  checkRestart();
+  if (pendingLoad) { requestAnimationFrame(gameLoop); return; }
+  updateMobileContext();
+  const currentFps = updateFpsMeter(now, rawDt * 1000);
+
+  // ── Render ───────────────────────────────────────────────
+  renderGameFrame(dt, currentFps);
+
+  requestAnimationFrame(gameLoop);
+}
+
+function tickActiveSimulation(dt: number, frameDt: number): boolean {
+  const simStart = performance.now();
     lastNeedsUpdateMs = 0;
     lastContentHookMs = 0;
     lastHazardUpdateMs = 0;
@@ -7529,7 +7551,7 @@ function gameLoop(now: number): void {
     playerActions(dt);
     syncPlayerActorSwitchBaseline();
     // If switchFloor was triggered, pendingLoad is set — skip the rest of this frame
-    if (pendingLoad) { requestAnimationFrame(gameLoop); return; }
+    if (pendingLoad) { return true; }
     updateLiftArachnaEncounter(world, entities, player, state, dt, nextEntityId);
     updatePseudolifts(world, entities, player, state);
     updateEquippedTool(dt, player);
@@ -7618,10 +7640,9 @@ function gameLoop(now: number): void {
         applyStoryRouteGates(world, player, state);
         finishLoadedFloorVisuals(replacement);
       });
-      requestAnimationFrame(gameLoop);
-      return;
+      return true;
     }
-    if (pendingLoad) { requestAnimationFrame(gameLoop); return; }
+    if (pendingLoad) { return true; }
     syncMapExplorationAfterSamosborWave(world, state);
     // Faction cell capture
     const factionStart = performance.now();
@@ -7688,8 +7709,7 @@ function gameLoop(now: number): void {
       const pci = world.idx(Math.floor(player.x), Math.floor(player.y));
       if (tryUseVoidReturnPortal(pci)) {
         syncMsgLog();
-        requestAnimationFrame(gameLoop);
-        return;
+        return true;
       }
     }
 
@@ -7751,11 +7771,11 @@ function gameLoop(now: number): void {
     while (state.msgs.length > 50) state.msgs.shift();
     _prevMsgCount = state.msgs.length;
     lastSimUpdateMs = performance.now() - simStart;
-  }
+  return false;
+}
 
-  // ── World simulation continues after death (NPC, monsters, samosbor keep running) ──
-  if (!state.paused && state.gameOver) {
-    state.time += dt;
+function tickGameOverSimulation(dt: number, frameDt: number): boolean {
+  state.time += dt;
     state.tick++;
     state.clock.totalMinutes += dt;
     const totalMins = Math.floor(state.clock.totalMinutes);
@@ -7805,10 +7825,9 @@ function gameLoop(now: number): void {
         clearLiftArachnaActive(state);
         finishLoadedFloorVisuals(replacement);
       });
-      requestAnimationFrame(gameLoop);
-      return;
+      return true;
     }
-    if (pendingLoad) { requestAnimationFrame(gameLoop); return; }
+    if (pendingLoad) { return true; }
     syncMapExplorationAfterSamosborWave(world, state);
     updateFactionCapture(world, entities, dt, state);
     updateFactionActivity(world, entities, player, state, nextEntityId, dt, currentFloorAllowsNpcPopulation());
@@ -7828,16 +7847,11 @@ function gameLoop(now: number): void {
     syncMsgLog();
     while (state.msgs.length > 50) state.msgs.shift();
     _prevMsgCount = state.msgs.length;
-  }
+  return false;
+}
 
-  if (!state.gameOver) updateRuntimeCamera(runtimeCamera, world, dt, player);
-  checkRestart();
-  if (pendingLoad) { requestAnimationFrame(gameLoop); return; }
-  updateMobileContext();
-  const currentFps = updateFpsMeter(now, rawDt * 1000);
-
-  // ── Render ───────────────────────────────────────────────
-  // Fog density varies by floor level
+function renderGameFrame(dt: number, currentFps: number): void {
+// Fog density varies by floor level
   let baseFog = 0.065;
   if (state.currentFloor === FloorLevel.MAINTENANCE) baseFog = 0.08;
   if (state.currentFloor === FloorLevel.HELL) baseFog = 0.05; // less fog, more horror visibility
@@ -7911,9 +7925,9 @@ function gameLoop(now: number): void {
     pointerCaptureGate: pointerCaptureGateVisible(),
   });
   lastHudDrawMs = performance.now() - hudDrawStart;
-
-  requestAnimationFrame(gameLoop);
 }
+
+
 
 /* ── Title screen ─────────────────────────────────────────────── */
 function showTitle(): void {
