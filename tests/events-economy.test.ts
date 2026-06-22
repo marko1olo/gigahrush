@@ -257,6 +257,40 @@ test('world event observers dispatch from a snapshot and isolate failures', () =
   assert.equal(warnCount, 1);
 });
 
+test('world event observers gracefully handle missing console.warn', () => {
+  const state = makeGameState({ worldEvents: createWorldEventState() });
+  const originalWarn = console.warn;
+  let observedCount = 0;
+
+  // @ts-expect-error Mocking console.warn as undefined for testing fallback
+  console.warn = undefined;
+
+  const throwingObserver = (): void => {
+    throw new Error('observer failed');
+  };
+  const healthyObserver = (): void => {
+    observedCount++;
+  };
+
+  try {
+    registerWorldEventObserver(throwingObserver);
+    registerWorldEventObserver(healthyObserver);
+
+    publishEvent(state, {
+      type: 'faction_event',
+      severity: 3,
+      privacy: 'public',
+      tags: ['fallback_test'],
+    });
+  } finally {
+    unregisterWorldEventObserver(throwingObserver);
+    unregisterWorldEventObserver(healthyObserver);
+    console.warn = originalWarn;
+  }
+
+  assert.equal(observedCount, 1);
+});
+
 test('world event observer error logging is bounded per publication', () => {
   const state = makeGameState({ worldEvents: createWorldEventState() });
   const originalWarn = console.warn;
