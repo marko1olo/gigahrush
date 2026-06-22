@@ -1,3 +1,4 @@
+import { encryptSaveData, decryptSaveData } from './save_crypto.js';
 import { SAVE_SHAPE_VERSION, saveShapeVersionStatus } from './save_runtime';
 import { designFloorProfile } from '../data/design_floor_profiles';
 
@@ -678,14 +679,16 @@ export async function loadPlatformRawGameSave(localRaw?: string | null): Promise
 
 export async function hydratePlatformSaveFromCloud(): Promise<PlatformLoadResult> {
   if (typeof localStorage === 'undefined') return { status: 'no-sdk' };
-  const localRaw = localStorage.getItem(LOCAL_SAVE_KEY);
+  const localEncrypted = localStorage.getItem(LOCAL_SAVE_KEY);
+  const localRaw = localEncrypted ? await decryptSaveData(localEncrypted) : null;
   const result = await loadPlatformRawGameSave(localRaw);
   if (result.status !== 'loaded' || !result.raw) return result;
   try {
-    if (localStorage.getItem(LOCAL_SAVE_KEY) !== localRaw) {
+    if (localStorage.getItem(LOCAL_SAVE_KEY) !== localEncrypted) {
       return { status: 'local-present', source: result.source };
     }
-    localStorage.setItem(LOCAL_SAVE_KEY, result.raw);
+    const resultEncrypted = await encryptSaveData(result.raw);
+    localStorage.setItem(LOCAL_SAVE_KEY, resultEncrypted);
     rememberLocalPortalSaveTime(Date.now());
     return result;
   } catch {
