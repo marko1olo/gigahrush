@@ -131,22 +131,8 @@ function addEllerLadderFamily(mazeOpen: Uint8Array): void {
   }
 }
 
-export function generateMaintenance(generationSeed = MAINTENANCE_TERRITORY_SEED): { world: World; entities: Entity[]; spawnX: number; spawnY: number } {
-  const world = new World();
-  const entities: Entity[] = [];
-  let nextId = 1;
-  let nextRoomId = 0;
-
-  // Default wall texture = pipe
-  for (let i = 0; i < W * W; i++) world.wallTex[i] = Tex.PIPE;
-
-  /* ══════════════════════════════════════════════════════════════
-     Phase 1: Randomized DFS maze on coarse GRID×GRID torus
-     ══════════════════════════════════════════════════════════════ */
-  const mazeOpen = new Uint8Array(GRID * GRID); // bitmask of open passages per cell
+function generateMaze(mazeOpen: Uint8Array): void {
   const visited = new Uint8Array(GRID * GRID);
-
-  // Iterative DFS (recursive backtracker)
   const stack: number[] = [];
   const startG = gIdx(Math.floor(GRID / 2), Math.floor(GRID / 2));
   visited[startG] = 1;
@@ -157,7 +143,6 @@ export function generateMaintenance(generationSeed = MAINTENANCE_TERRITORY_SEED)
     const cx = cur % GRID;
     const cy = (cur / GRID) | 0;
 
-    // Collect unvisited neighbors (shuffled)
     const nbrs: number[] = [];
     for (let d = 0; d < 4; d++) {
       const nx = gWrap(cx + DX[d]);
@@ -170,25 +155,19 @@ export function generateMaintenance(generationSeed = MAINTENANCE_TERRITORY_SEED)
       continue;
     }
 
-    // Pick random unvisited neighbor
     const d = nbrs[Math.floor(Math.random() * nbrs.length)];
     const nx = gWrap(cx + DX[d]);
     const ny = gWrap(cy + DY[d]);
     const ni = gIdx(nx, ny);
 
-    // Open passage between cur and neighbor
     mazeOpen[cur] |= DIR_BIT[d];
     mazeOpen[ni] |= OPP_BIT[d];
     visited[ni] = 1;
     stack.push(ni);
   }
 
-  // Add a coarse service-family overlay: tree ducts, hunt-and-kill
-  // galleries, or Eller-like ladders. It only opens extra edges, so the
-  // DFS base remains connected while the floor gains distinct tunnel logic.
   applyCoarseTunnelFamily(mazeOpen);
 
-  // Add extra random connections for loops
   const totalCells = GRID * GRID;
   const extraCount = Math.floor(totalCells * EXTRA_CONN);
   for (let i = 0; i < extraCount; i++) {
@@ -198,41 +177,22 @@ export function generateMaintenance(generationSeed = MAINTENANCE_TERRITORY_SEED)
     const cy = (ci / GRID) | 0;
     openMazeEdge(mazeOpen, cx, cy, d);
   }
+}
 
-  /* ══════════════════════════════════════════════════════════════
-     Phase 2: Carve 1-wide passages into the world grid
-     Each coarse cell center = (gx*CELL + CELL/2, gy*CELL + CELL/2).
-     Between connected cells we carve a 1-wide corridor.
-     ══════════════════════════════════════════════════════════════ */
-  const half = Math.floor(CELL / 2); // 3
-  const centerX = Math.floor(GRID / 2) * CELL + half;
-  const centerY = Math.floor(GRID / 2) * CELL + half;
-
-  // Helper: carve one world-tile
-  function carve(x: number, y: number): void {
-    const ci = world.idx(x, y);
-    if (world.cells[ci] === Cell.WALL) {
-      world.cells[ci] = Cell.FLOOR;
-      world.floorTex[ci] = Tex.F_CONCRETE;
-    }
-  }
-
+function carvePassages(world: World, mazeOpen: Uint8Array, half: number, carve: (x: number, y: number) => void): void {
   for (let gy = 0; gy < GRID; gy++) {
     for (let gx = 0; gx < GRID; gx++) {
-      const ox = gx * CELL + half; // center of coarse cell in world coords
+      const ox = gx * CELL + half;
       const oy = gy * CELL + half;
       const bits = mazeOpen[gIdx(gx, gy)];
 
-      // Carve the center tile of each cell
       carve(world.wrap(ox), world.wrap(oy));
 
-      // Carve passage to the right neighbor (+x)
       if (bits & DIR_R) {
         for (let s = 0; s <= CELL; s++) {
           carve(world.wrap(ox + s), world.wrap(oy));
         }
       }
-      // Carve passage to the bottom neighbor (+y)
       if (bits & DIR_D) {
         for (let s = 0; s <= CELL; s++) {
           carve(world.wrap(ox), world.wrap(oy + s));
@@ -240,16 +200,14 @@ export function generateMaintenance(generationSeed = MAINTENANCE_TERRITORY_SEED)
       }
     }
   }
+}
 
-  /* ══════════════════════════════════════════════════════════════
-     Phase 3: Pipe-like dead-end fragments (short stubs off tunnels)
-     ══════════════════════════════════════════════════════════════ */
+function carveDeadEnds(world: World, mazeOpen: Uint8Array, half: number, carve: (x: number, y: number) => void): void {
   for (let i = 0; i < 600; i++) {
     const gx = rng(0, GRID - 1);
     const gy = rng(0, GRID - 1);
     const ox = gx * CELL + half;
     const oy = gy * CELL + half;
-    // Pick a direction that is NOT open (goes into wall)
     const bits = mazeOpen[gIdx(gx, gy)];
     const closed: number[] = [];
     for (let d = 0; d < 4; d++) {
@@ -257,18 +215,16 @@ export function generateMaintenance(generationSeed = MAINTENANCE_TERRITORY_SEED)
     }
     if (closed.length === 0) continue;
     const d = closed[Math.floor(Math.random() * closed.length)];
-    const len = rng(1, half); // short stub (1-3 tiles)
+    const len = rng(1, half);
     for (let s = 1; s <= len; s++) {
       carve(world.wrap(ox + DX[d] * s), world.wrap(oy + DY[d] * s));
     }
   }
+}
 
-  /* ══════════════════════════════════════════════════════════════
-     Phase 4: Rooms at maze junctions (3+ connections) & random spots
-     ══════════════════════════════════════════════════════════════ */
-  const rooms: Room[] = [];
+function generateRooms(world: World, mazeOpen: Uint8Array, half: number, rooms: Room[], startRoomId: number): number {
+  let nextRoomId = startRoomId;
 
-  // Count connections per coarse cell
   function connCount(gi: number): number {
     let c = 0, b = mazeOpen[gi];
     while (b) { c += b & 1; b >>= 1; }
@@ -279,7 +235,6 @@ export function generateMaintenance(generationSeed = MAINTENANCE_TERRITORY_SEED)
     for (let gx = 0; gx < GRID; gx++) {
       const gi = gIdx(gx, gy);
       const conns = connCount(gi);
-      // Place room at 3-4 way junctions (50%) or random (3%)
       const isJunction = conns >= 3 && Math.random() < 0.5;
       const isRandom = Math.random() < 0.03;
       if (!isJunction && !isRandom) continue;
@@ -301,7 +256,6 @@ export function generateMaintenance(generationSeed = MAINTENANCE_TERRITORY_SEED)
         floorTex: Tex.F_CONCRETE,
       };
 
-      // Carve room interior + walls around it
       for (let dy = -1; dy <= rh; dy++) {
         for (let dx = -1; dx <= rw; dx++) {
           const ci = world.idx(room.x + dx, room.y + dy);
@@ -310,7 +264,6 @@ export function generateMaintenance(generationSeed = MAINTENANCE_TERRITORY_SEED)
             world.floorTex[ci] = Tex.F_CONCRETE;
             world.roomMap[ci] = nextRoomId;
           } else {
-            // Only wall-ify if not already a floor (don't block tunnels)
             if (world.cells[ci] !== Cell.FLOOR) {
               world.cells[ci] = Cell.WALL;
               world.wallTex[ci] = Tex.PIPE;
@@ -319,8 +272,6 @@ export function generateMaintenance(generationSeed = MAINTENANCE_TERRITORY_SEED)
         }
       }
 
-      // Ensure room connects to adjacent tunnels: punch openings where
-      // existing floor cells are adjacent to room walls
       for (let dy = -1; dy <= rh; dy++) {
         for (let dx = -1; dx <= rw; dx++) {
           if (dx >= 0 && dx < rw && dy >= 0 && dy < rh) continue;
@@ -328,13 +279,11 @@ export function generateMaintenance(generationSeed = MAINTENANCE_TERRITORY_SEED)
           const wy = world.wrap(room.y + dy);
           const ci = world.idx(wx, wy);
           if (world.cells[ci] !== Cell.WALL) continue;
-          // Check if an outside floor cell is adjacent
           for (const [odx, ody] of [[1,0],[-1,0],[0,1],[0,-1]] as const) {
             const nx = world.wrap(wx + odx);
             const ny = world.wrap(wy + ody);
             const ni = world.idx(nx, ny);
             if (world.cells[ni] === Cell.FLOOR && world.roomMap[ni] !== nextRoomId) {
-              // Check the opposite side is inside the room
               const ix = world.wrap(wx - odx);
               const iy = world.wrap(wy - ody);
               const ii = world.idx(ix, iy);
@@ -347,7 +296,6 @@ export function generateMaintenance(generationSeed = MAINTENANCE_TERRITORY_SEED)
         }
       }
 
-      // Features based on room type
       const ccx = room.x + Math.floor(rw / 2);
       const ccy = room.y + Math.floor(rh / 2);
       const fci = world.idx(ccx, ccy);
@@ -361,10 +309,10 @@ export function generateMaintenance(generationSeed = MAINTENANCE_TERRITORY_SEED)
       nextRoomId++;
     }
   }
+  return nextRoomId;
+}
 
-  /* ══════════════════════════════════════════════════════════════
-     Phase 5: Water canals
-     ══════════════════════════════════════════════════════════════ */
+function generateCanals(world: World): void {
   for (let canal = 0; canal < 30; canal++) {
     const horiz = Math.random() < 0.5;
     const pos = rng(10, W - 10);
@@ -386,40 +334,15 @@ export function generateMaintenance(generationSeed = MAINTENANCE_TERRITORY_SEED)
       }
     }
   }
+}
 
-  nextRoomId = applyCollectorMacroGeometry(world, rooms, nextRoomId, centerX, centerY);
-
-  /* ══════════════════════════════════════════════════════════════
-     Phase 6: Spawn point (center of the maze)
-     ══════════════════════════════════════════════════════════════ */
-  // Ensure spawn cell is floor
-  carve(world.wrap(centerX), world.wrap(centerY));
-  const spawnX = world.wrap(centerX) + 0.5;
-  const spawnY = world.wrap(centerY) + 0.5;
-
-  /* ══════════════════════════════════════════════════════════════
-     Phase 7: Lifts
-     ══════════════════════════════════════════════════════════════ */
-  placeLifts(world, 8, LiftDirection.UP);
-  placeLifts(world, 8, LiftDirection.DOWN);
-
-  /* ══════════════════════════════════════════════════════════════
-     Phase 8: Zones + zone levels
-     ══════════════════════════════════════════════════════════════ */
-  generateZones(world);
-  for (const z of world.zones) z.level = calcZoneLevel(z.cx, z.cy, FloorLevel.MAINTENANCE);
-
-  /* ══════════════════════════════════════════════════════════════
-     Phase 9: Lights (sparse — at room centers + rare tunnel lamps)
-     ══════════════════════════════════════════════════════════════ */
-  // Room lamps
+function placeLights(world: World, rooms: Room[], half: number): void {
   for (const room of rooms) {
     const cx = room.x + Math.floor(room.w / 2);
     const cy = room.y + Math.floor(room.h / 2);
     const ci = world.idx(cx, cy);
     if (world.cells[ci] === Cell.FLOOR) world.features[ci] = Feature.LAMP;
   }
-  // Sparse tunnel lamps at coarse cell centers
   for (let gy = 0; gy < GRID; gy++) {
     for (let gx = 0; gx < GRID; gx++) {
       if (Math.random() < 0.06) {
@@ -430,10 +353,10 @@ export function generateMaintenance(generationSeed = MAINTENANCE_TERRITORY_SEED)
     }
   }
   world.bakeLights();
+}
 
-  /* ══════════════════════════════════════════════════════════════
-     Phase 10: Items (in rooms)
-     ══════════════════════════════════════════════════════════════ */
+function placeItems(entities: Entity[], rooms: Room[], startId: number): number {
+  let nextId = startId;
   for (const room of rooms) {
     const numItems = rng(0, 3);
     for (let n = 0; n < numItems; n++) {
@@ -449,10 +372,11 @@ export function generateMaintenance(generationSeed = MAINTENANCE_TERRITORY_SEED)
       });
     }
   }
+  return nextId;
+}
 
-  /* ══════════════════════════════════════════════════════════════
-     Phase 11: Monsters
-     ══════════════════════════════════════════════════════════════ */
+function placeMonsters(world: World, entities: Entity[], startId: number): number {
+  let nextId = startId;
   let monsterCount = 0;
   const monsterTarget = entitySpawnSlots(entities, EntityType.MONSTER, activeActorCountAtDefaultSoftLimit(MAINTENANCE_MONSTER_TARGET_AT_DEFAULT_CAP));
   for (let attempt = 0; attempt < 50_000 && monsterCount < monsterTarget; attempt++) {
@@ -496,6 +420,93 @@ export function generateMaintenance(generationSeed = MAINTENANCE_TERRITORY_SEED)
     });
     monsterCount++;
   }
+  return nextId;
+}
+
+export function generateMaintenance(generationSeed = MAINTENANCE_TERRITORY_SEED): { world: World; entities: Entity[]; spawnX: number; spawnY: number } {
+  const world = new World();
+  const entities: Entity[] = [];
+  let nextId = 1;
+  let nextRoomId = 0;
+
+  // Default wall texture = pipe
+  for (let i = 0; i < W * W; i++) world.wallTex[i] = Tex.PIPE;
+
+  const half = Math.floor(CELL / 2); // 3
+  const centerX = Math.floor(GRID / 2) * CELL + half;
+  const centerY = Math.floor(GRID / 2) * CELL + half;
+  const mazeOpen = new Uint8Array(GRID * GRID); // bitmask of open passages per cell
+
+  function carve(x: number, y: number): void {
+    const ci = world.idx(x, y);
+    if (world.cells[ci] === Cell.WALL) {
+      world.cells[ci] = Cell.FLOOR;
+      world.floorTex[ci] = Tex.F_CONCRETE;
+    }
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     Phase 1: Randomized DFS maze on coarse GRID×GRID torus
+     ══════════════════════════════════════════════════════════════ */
+  generateMaze(mazeOpen);
+
+  /* ══════════════════════════════════════════════════════════════
+     Phase 2: Carve 1-wide passages into the world grid
+     ══════════════════════════════════════════════════════════════ */
+  carvePassages(world, mazeOpen, half, carve);
+
+  /* ══════════════════════════════════════════════════════════════
+     Phase 3: Pipe-like dead-end fragments (short stubs off tunnels)
+     ══════════════════════════════════════════════════════════════ */
+  carveDeadEnds(world, mazeOpen, half, carve);
+
+  /* ══════════════════════════════════════════════════════════════
+     Phase 4: Rooms at maze junctions (3+ connections) & random spots
+     ══════════════════════════════════════════════════════════════ */
+  const rooms: Room[] = [];
+  nextRoomId = generateRooms(world, mazeOpen, half, rooms, nextRoomId);
+
+  /* ══════════════════════════════════════════════════════════════
+     Phase 5: Water canals
+     ══════════════════════════════════════════════════════════════ */
+  generateCanals(world);
+
+  nextRoomId = applyCollectorMacroGeometry(world, rooms, nextRoomId, centerX, centerY);
+
+  /* ══════════════════════════════════════════════════════════════
+     Phase 6: Spawn point (center of the maze)
+     ══════════════════════════════════════════════════════════════ */
+  // Ensure spawn cell is floor
+  carve(world.wrap(centerX), world.wrap(centerY));
+  const spawnX = world.wrap(centerX) + 0.5;
+  const spawnY = world.wrap(centerY) + 0.5;
+
+  /* ══════════════════════════════════════════════════════════════
+     Phase 7: Lifts
+     ══════════════════════════════════════════════════════════════ */
+  placeLifts(world, 8, LiftDirection.UP);
+  placeLifts(world, 8, LiftDirection.DOWN);
+
+  /* ══════════════════════════════════════════════════════════════
+     Phase 8: Zones + zone levels
+     ══════════════════════════════════════════════════════════════ */
+  generateZones(world);
+  for (const z of world.zones) z.level = calcZoneLevel(z.cx, z.cy, FloorLevel.MAINTENANCE);
+
+  /* ══════════════════════════════════════════════════════════════
+     Phase 9: Lights (sparse — at room centers + rare tunnel lamps)
+     ══════════════════════════════════════════════════════════════ */
+  placeLights(world, rooms, half);
+
+  /* ══════════════════════════════════════════════════════════════
+     Phase 10: Items (in rooms)
+     ══════════════════════════════════════════════════════════════ */
+  nextId = placeItems(entities, rooms, nextId);
+
+  /* ══════════════════════════════════════════════════════════════
+     Phase 11: Monsters
+     ══════════════════════════════════════════════════════════════ */
+  nextId = placeMonsters(world, entities, nextId);
 
   /* ══════════════════════════════════════════════════════════════
      Phase 12-14e: Manifest-owned maintenance content
