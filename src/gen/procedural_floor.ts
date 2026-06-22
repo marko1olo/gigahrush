@@ -14202,9 +14202,26 @@ function spawnWildMajorityAmbushes(
 
 function registerWildMajorityRewardCues(world: World, spec: ProceduralFloorSpec, sites: readonly WildRewardSite[]): void {
   if (spec.majorityId !== 'wild' || sites.length === 0) return;
+
+  const siteContainerIds = new Set<number>();
+  for (let i = 0; i < sites.length; i++) {
+    if (sites[i].containerId !== undefined) {
+      siteContainerIds.add(sites[i].containerId!);
+    }
+  }
+
+  const containerMap = new Map<number, typeof world.containers[0]>();
+  for (let i = 0; i < world.containers.length; i++) {
+    const c = world.containers[i];
+    if (siteContainerIds.has(c.id)) {
+      containerMap.set(c.id, c);
+      if (containerMap.size === siteContainerIds.size) break;
+    }
+  }
+
   for (let i = 0; i < sites.length; i++) {
     const site = sites[i];
-    const container = world.containers.find(c => c.id === site.containerId);
+    const container = site.containerId !== undefined ? containerMap.get(site.containerId) : undefined;
     if (!container) continue;
     registerRouteCue(world, {
       id: `procedural_${spec.key}_wild_reward_${container.id}`,
