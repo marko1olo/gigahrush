@@ -1,12 +1,19 @@
 import { Faction, Occupation } from '../core/types';
 import {
-  NPC_VISUAL_ALCOHOLIC_MALE,
+  ART_SPRITE_MANIFEST,
   NPC_VISUAL_CULTIST_MALE,
   NPC_VISUAL_LIQUIDATOR_MALE,
   NPC_VISUAL_OLGA_DMITRIEVNA,
   NPC_VISUAL_SCIENTIST_FEMALE,
   NPC_VISUAL_SCIENTIST_MALE,
   NPC_VISUAL_WILD_MALE,
+  NPC_VISUAL_WORKER69,
+  NPC_VISUAL_CITIZEN_MALE,
+  NPC_VISUAL_CITIZEN_FEMALE,
+  NPC_VISUAL_CITIZEN_OLD_MALE,
+  NPC_VISUAL_CITIZEN_OLD_FEMALE,
+  NPC_VISUAL_CITIZEN_CHILD_MALE,
+  NPC_VISUAL_CITIZEN_CHILD_FEMALE,
   artSpriteManifestRow,
 } from '../data/art_sprite_manifest';
 import { NPC_VISUAL_FLOOR69_FEMALE_ID } from '../data/design_floor_profiles';
@@ -35,13 +42,19 @@ export const NPC_READABILITY_VISUAL_IDS = [
   NPC_VISUAL_NET_OPERATOR,
 ] as const;
 export {
-  NPC_VISUAL_ALCOHOLIC_MALE,
   NPC_VISUAL_CULTIST_MALE,
   NPC_VISUAL_LIQUIDATOR_MALE,
   NPC_VISUAL_OLGA_DMITRIEVNA,
   NPC_VISUAL_SCIENTIST_FEMALE,
   NPC_VISUAL_SCIENTIST_MALE,
   NPC_VISUAL_WILD_MALE,
+  NPC_VISUAL_WORKER69,
+  NPC_VISUAL_CITIZEN_MALE,
+  NPC_VISUAL_CITIZEN_FEMALE,
+  NPC_VISUAL_CITIZEN_OLD_MALE,
+  NPC_VISUAL_CITIZEN_OLD_FEMALE,
+  NPC_VISUAL_CITIZEN_CHILD_MALE,
+  NPC_VISUAL_CITIZEN_CHILD_FEMALE,
 };
 
 export interface NpcVisualContext {
@@ -50,6 +63,7 @@ export interface NpcVisualContext {
   occupation?: Occupation;
   faction?: Faction;
   isFemale?: boolean;
+  age?: number;
 }
 
 export type NpcVisualSource = 'procedural' | 'first_party_art' | 'community_art';
@@ -93,24 +107,65 @@ function firstPartyNpcArt(manifestId: string): Uint32Array | undefined {
   return getGeneratedArtSprite(row.id);
 }
 
-function fixedArtFamily(visualId: string, manifestId = visualId): NpcVisualFamily {
-  return {
+const manifestFamilies: Record<string, string[]> = {};
+for (const row of ART_SPRITE_MANIFEST) {
+  for (const mapping of row.intendedMappings) {
+    if (mapping.type === 'npc_exact' || mapping.type === 'npc_family') {
+      if (!manifestFamilies[mapping.visualId]) {
+        manifestFamilies[mapping.visualId] = [];
+      }
+      manifestFamilies[mapping.visualId].push(row.id);
+    }
+  }
+}
+
+const GENERATED_ART_FAMILIES: NpcVisualFamily[] = Object.entries(manifestFamilies)
+  .filter(([visualId]) => visualId !== NPC_VISUAL_WORKER69)
+  .map(([visualId, manifestIds]) => ({
     id: visualId,
     source: 'first_party_art',
     usesDynamicTexture: true,
     worldSpriteScale: FIRST_PARTY_NPC_ART_WORLD_SPRITE_SCALE,
     procedural: false,
-    generate: () => firstPartyNpcArt(manifestId) ?? new Uint32Array(0),
-    textureKey: () => `first_party_art:${manifestId}`,
-  };
-}
+    generate: ctx => {
+      const seed = mix32((ctx.seed || 1) ^ Math.imul((ctx.sprite ?? 0) + 1, 0x51ed270b));
+      const manifestId = manifestIds[seed % manifestIds.length];
+      return firstPartyNpcArt(manifestId) ?? new Uint32Array(0);
+    },
+    textureKey: ctx => {
+      const seed = mix32((ctx.seed || 1) ^ Math.imul((ctx.sprite ?? 0) + 1, 0x51ed270b));
+      const manifestId = manifestIds[seed % manifestIds.length];
+      return `first_party_art:${manifestId}`;
+    },
+  }));
 
-const LIQUIDATOR_MALE_ART_VARIANTS = ['liquidator_m_1', 'liquidator_m_2'] as const;
-
-function liquidatorMaleArtVariant(ctx: NpcVisualContext): (typeof LIQUIDATOR_MALE_ART_VARIANTS)[number] {
-  const seed = mix32((ctx.seed || 1) ^ Math.imul((ctx.sprite ?? 0) + 1, 0x51ed270b));
-  return LIQUIDATOR_MALE_ART_VARIANTS[seed % LIQUIDATOR_MALE_ART_VARIANTS.length];
-}
+const worker69Family: NpcVisualFamily = {
+  id: NPC_VISUAL_WORKER69,
+  source: 'first_party_art',
+  usesDynamicTexture: true,
+  worldSpriteScale: FIRST_PARTY_NPC_ART_WORLD_SPRITE_SCALE,
+  procedural: true,
+  generate: ctx => {
+    const seed = mix32((ctx.seed || 1) ^ Math.imul((ctx.sprite ?? 0) + 1, 0x51ed270b));
+    const choice = seed % 10;
+    if (choice < 2) {
+      const manifestIds = manifestFamilies[NPC_VISUAL_WORKER69] || [];
+      const manifestId = manifestIds[choice % manifestIds.length];
+      return firstPartyNpcArt(manifestId) ?? generateFloor69FemaleNpcSprite(floor69Variant(ctx));
+    }
+    return generateFloor69FemaleNpcSprite(floor69Variant(ctx));
+  },
+  textureKey: ctx => {
+    const seed = mix32((ctx.seed || 1) ^ Math.imul((ctx.sprite ?? 0) + 1, 0x51ed270b));
+    const choice = seed % 10;
+    if (choice < 2) {
+      const manifestIds = manifestFamilies[NPC_VISUAL_WORKER69] || [];
+      const manifestId = manifestIds[choice % manifestIds.length];
+      return `first_party_art:${manifestId}`;
+    }
+    return `procedural_f69:${floor69Variant(ctx)}`;
+  }
+};
 
 type Rgb = readonly [number, number, number];
 
@@ -255,21 +310,8 @@ export const NPC_VISUAL_FAMILIES: readonly NpcVisualFamily[] = [
     procedural: true,
     generate: ctx => generateFloor69FemaleNpcSprite(floor69Variant(ctx)),
   },
-  fixedArtFamily(NPC_VISUAL_OLGA_DMITRIEVNA),
-  fixedArtFamily(NPC_VISUAL_ALCOHOLIC_MALE, 'citizen_m_alcoholic'),
-  fixedArtFamily(NPC_VISUAL_WILD_MALE, 'bandit_m_1'),
-  fixedArtFamily(NPC_VISUAL_CULTIST_MALE, 'cultist_m_1'),
-  {
-    id: NPC_VISUAL_LIQUIDATOR_MALE,
-    source: 'first_party_art',
-    usesDynamicTexture: true,
-    worldSpriteScale: FIRST_PARTY_NPC_ART_WORLD_SPRITE_SCALE,
-    procedural: false,
-    generate: ctx => firstPartyNpcArt(liquidatorMaleArtVariant(ctx)) ?? new Uint32Array(0),
-    textureKey: ctx => `first_party_art:${liquidatorMaleArtVariant(ctx)}`,
-  },
-  fixedArtFamily(NPC_VISUAL_SCIENTIST_MALE, 'scientist_m_1'),
-  fixedArtFamily(NPC_VISUAL_SCIENTIST_FEMALE, 'scientist_f_1'),
+  worker69Family,
+  ...GENERATED_ART_FAMILIES,
   ...ROLE_NPC_VISUALS.map(profile => ({
     id: profile.id,
     source: 'procedural' as const,

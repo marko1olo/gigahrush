@@ -475,8 +475,9 @@ export function generateNpcProfileSprite(
   isFemale: boolean | undefined,
   spriteHint: number | undefined,
   npcVisualId?: string,
+  age?: number,
 ): Uint32Array {
-  const special = generateNpcVisualSprite(npcVisualId, { seed, occupation, faction, isFemale, sprite: spriteHint });
+  const special = generateNpcVisualSprite(npcVisualId, { seed, occupation, faction, isFemale, age, sprite: spriteHint });
   if (special) return special;
   if (spriteHint !== undefined) {
     const authoredOffset = authoredNpcSpriteGeneratorOffset(spriteHint);
@@ -484,11 +485,11 @@ export function generateNpcProfileSprite(
     if (authored) return authored.generate();
   }
   if (spriteHint !== undefined && isFloor69FemaleSprite(spriteHint)) {
-    return generateNpcVisualSprite(NPC_VISUAL_FLOOR69_FEMALE, { seed, occupation, faction, isFemale, sprite: spriteHint })
+    return generateNpcVisualSprite(NPC_VISUAL_FLOOR69_FEMALE, { seed, occupation, faction, isFemale, age, sprite: spriteHint })
       ?? generateProceduralNpcSprite(seed, occupation, faction, isFemale, spriteHint);
   }
-  const artVisualId = resolveNpcArtVisualId({ faction, occupation, isFemale });
-  const art = generateNpcVisualSprite(artVisualId, { seed, occupation, faction, isFemale, sprite: spriteHint });
+  const artVisualId = resolveNpcArtVisualId({ faction, occupation, isFemale, age });
+  const art = generateNpcVisualSprite(artVisualId, { seed, occupation, faction, isFemale, age, sprite: spriteHint });
   if (art) return art;
   return generateProceduralNpcSprite(seed, occupation, faction, isFemale, spriteHint);
 }
@@ -663,12 +664,14 @@ export function proceduralEntitySpriteKey(e: Entity): number {
       faction: e.faction,
       occupation: e.occupation,
       isFemale: e.isFemale,
+      age: e.age,
     });
     const key = npcVisualTextureKey(visualId, {
       seed: h,
       occupation: e.occupation,
       faction: e.faction,
       isFemale: e.isFemale,
+      age: e.age,
       sprite: e.sprite,
     });
     if (key) return hashText(`npc_visual:${key}`, 0x6a09e667) || 1;
@@ -688,6 +691,7 @@ function npcEntityVisualId(e: Entity): string | undefined {
     faction: e.faction,
     occupation: e.occupation,
     isFemale: e.isFemale,
+    age: e.age,
   });
 }
 
@@ -712,12 +716,14 @@ export function generateProceduralEntitySprite(e: Entity): Uint32Array | null {
       faction: e.faction,
       occupation: e.occupation,
       isFemale: e.isFemale,
+      age: e.age,
     });
     const visualSeed = npcVisualTextureKey(visualId, {
       seed: deriveEntitySpriteSeed(e),
       occupation: e.occupation,
       faction: e.faction,
       isFemale: e.isFemale,
+      age: e.age,
       sprite: e.sprite,
     })
       ? deriveEntitySpriteSeed(e)
@@ -727,6 +733,7 @@ export function generateProceduralEntitySprite(e: Entity): Uint32Array | null {
       occupation: e.occupation,
       faction: e.faction,
       isFemale: e.isFemale,
+      age: e.age,
       sprite: e.sprite,
     });
     if (special) return special;

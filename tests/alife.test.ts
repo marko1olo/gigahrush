@@ -341,6 +341,7 @@ test('A-Life ordinary materialization assigns faction art visual ids without ove
         name: 'Ликвидатор без портрета',
         faction: Faction.LIQUIDATOR,
         occupation: Occupation.HUNTER,
+        female: false,
       }],
     }],
   });
@@ -350,6 +351,7 @@ test('A-Life ordinary materialization assigns faction art visual ids without ove
   template.faction = Faction.LIQUIDATOR;
   template.occupation = Occupation.HUNTER;
   template.sprite = Occupation.HUNTER;
+  template.isFemale = false;
   const entities = [template];
 
   materializeAlifeFloorPopulation(state, world, entities, { v: 20 }, 'story:living');

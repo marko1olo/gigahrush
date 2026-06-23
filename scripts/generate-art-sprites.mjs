@@ -13,7 +13,7 @@ const CLEAR = 0x00000000;
 
 function parseManifestRows() {
   const src = readFileSync(MANIFEST_PATH, 'utf8');
-  const rowRe = /\{\s*id: '([^']+)'[\s\S]*?sourcePath: '([^']+)'[\s\S]*?sha256: '([0-9a-f]{64})'[\s\S]*?width: (\d+),\s*height: (\d+),/g;
+  const rowRe = /\{\s*id: '([^']+)'[\s\S]*?sourcePath: '([^']+)'[\s\S]*?sha256: '([0-9a-f]{0,64})'[\s\S]*?width: (\d+),\s*height: (\d+),/g;
   const rows = [];
   let match;
   while ((match = rowRe.exec(src)) !== null) {
@@ -252,7 +252,7 @@ function syncManifestSourceFacts(rows, facts) {
     if (rowStart < 0 || rowEnd < 0) throw new Error(`Cannot isolate manifest row for ${row.id}`);
     const before = src.slice(0, rowStart);
     const rowBlock = src.slice(rowStart, rowEnd)
-      .replace(/sha256: '[0-9a-f]{64}'/, `sha256: '${fact.sha256}'`)
+      .replace(/sha256: '[0-9a-f]{0,64}'/, `sha256: '${fact.sha256}'`)
       .replace(/width: \d+,\s*\n\s*height: \d+,/, `width: ${fact.width},\n    height: ${fact.height},`);
     const after = src.slice(rowEnd);
     src = `${before}${rowBlock}${after}`;

@@ -8,7 +8,8 @@ import { fileURLToPath } from 'node:url';
 import { EntityType, Faction, MonsterKind, Occupation, type Entity } from '../src/core/types';
 import {
   ART_SPRITE_MANIFEST,
-  NPC_VISUAL_ALCOHOLIC_MALE,
+  NPC_VISUAL_CITIZEN_MALE,
+  NPC_VISUAL_CULTIST_FEMALE,
   NPC_VISUAL_CULTIST_MALE,
   NPC_VISUAL_LIQUIDATOR_MALE,
   NPC_VISUAL_OLGA_DMITRIEVNA,
@@ -103,7 +104,7 @@ function makeNpc(id: number, visualId: string, spriteSeed: number): Entity {
 test('first-party art sprite manifest validates source files and generated pixels', () => {
   const ids = new Set<string>();
   const generatedIds = new Set(GENERATED_ART_SPRITE_IDS);
-  assert.equal(ART_SPRITE_MANIFEST.length, 9);
+  assert.equal(ART_SPRITE_MANIFEST.length, 21);
 
   for (const row of ART_SPRITE_MANIFEST) {
     assert.match(row.id, /^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/);
@@ -131,7 +132,7 @@ test('first-party art sprite manifest validates source files and generated pixel
 test('first-party NPC art resolves through visual ids while unknown ids fall back procedurally', () => {
   const expectedVisualIds = [
     NPC_VISUAL_OLGA_DMITRIEVNA,
-    NPC_VISUAL_ALCOHOLIC_MALE,
+    NPC_VISUAL_CITIZEN_MALE,
     NPC_VISUAL_WILD_MALE,
     NPC_VISUAL_CULTIST_MALE,
     NPC_VISUAL_LIQUIDATOR_MALE,
@@ -189,6 +190,7 @@ test('fixed art visual families reuse texture keys by visual id and variant', ()
   assert.deepEqual([...variantKeys].sort(), [
     'first_party_art:liquidator_m_1',
     'first_party_art:liquidator_m_2',
+    'first_party_art:liquidator_m_3',
   ]);
 
   const liquidator = makeNpc(3, NPC_VISUAL_LIQUIDATOR_MALE, 303);
@@ -201,21 +203,22 @@ test('fixed art visual families reuse texture keys by visual id and variant', ()
   const liquidatorHashes = new Set([
     spriteHash(getGeneratedArtSprite('liquidator_m_1')!),
     spriteHash(getGeneratedArtSprite('liquidator_m_2')!),
+    spriteHash(getGeneratedArtSprite('liquidator_m_3')!),
   ]);
   assert.equal(liquidatorHashes.has(spriteHash(liquidatorSprite)), true);
 });
 
 test('ordinary NPC art auto-selects occupation before faction and preserves sexed scientist art', () => {
-  const alcoholic = makeNpc(4, '', 404);
-  alcoholic.npcVisualId = undefined;
-  alcoholic.faction = Faction.WILD;
-  alcoholic.occupation = Occupation.ALCOHOLIC;
-  alcoholic.sprite = Occupation.ALCOHOLIC;
-  alcoholic.isFemale = false;
-  assert.equal(spriteHash(generateProceduralEntitySprite(alcoholic)!), spriteHash(getGeneratedArtSprite('citizen_m_alcoholic')!));
-  assert.equal(entityWorldSpriteScale(alcoholic), FIRST_PARTY_NPC_ART_WORLD_SPRITE_SCALE);
-  alcoholic.spriteScale = 1;
-  assert.equal(entityWorldSpriteScale(alcoholic), FIRST_PARTY_NPC_ART_WORLD_SPRITE_SCALE);
+  const citizen = makeNpc(4, '', 404);
+  citizen.npcVisualId = undefined;
+  citizen.faction = Faction.CITIZEN;
+  citizen.occupation = Occupation.TURNER;
+  citizen.sprite = Occupation.TURNER;
+  citizen.isFemale = false;
+  assert.equal(spriteHash(generateProceduralEntitySprite(citizen)!), spriteHash(getGeneratedArtSprite('citizen_m_1')!));
+  assert.equal(entityWorldSpriteScale(citizen), FIRST_PARTY_NPC_ART_WORLD_SPRITE_SCALE);
+  citizen.spriteScale = 1;
+  assert.equal(entityWorldSpriteScale(citizen), FIRST_PARTY_NPC_ART_WORLD_SPRITE_SCALE);
 
   const scientist = makeNpc(5, '', 505);
   scientist.npcVisualId = undefined;
