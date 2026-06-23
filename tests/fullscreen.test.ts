@@ -85,3 +85,32 @@ test('mobile fullscreen remains available for compatible direct pages and hidden
     restore();
   }
 });
+
+test('canUseNativeFullscreen detects standard and vendor-prefixed properties', () => {
+  const restore = installFullscreenEnv({
+    userAgent: 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/125 Mobile Safari/537.36',
+    platform: 'Linux armv8l',
+    requestFullscreen: false,
+  });
+  try {
+    const noFullscreen = {} as HTMLElement;
+    assert.equal(canUseNativeFullscreen(noFullscreen), false);
+
+    const standardFullscreen = { requestFullscreen: async () => {} } as any as HTMLElement;
+    assert.equal(canUseNativeFullscreen(standardFullscreen), true);
+
+    const webkitFullscreen = { webkitRequestFullscreen: async () => {} } as any as HTMLElement;
+    assert.equal(canUseNativeFullscreen(webkitFullscreen), true);
+
+    const webkitFullscreenAlt = { webkitRequestFullScreen: async () => {} } as any as HTMLElement;
+    assert.equal(canUseNativeFullscreen(webkitFullscreenAlt), true);
+
+    const mozFullscreen = { mozRequestFullScreen: async () => {} } as any as HTMLElement;
+    assert.equal(canUseNativeFullscreen(mozFullscreen), true);
+
+    const msFullscreen = { msRequestFullscreen: async () => {} } as any as HTMLElement;
+    assert.equal(canUseNativeFullscreen(msFullscreen), true);
+  } finally {
+    restore();
+  }
+});
