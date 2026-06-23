@@ -1,0 +1,6 @@
+
+> gigahrush@1.0.0 test:unit
+> node scripts/run-unit-tests.mjs
+
+Unit test selection: 187 files; 296 generation/content files reserved for npm run test:generation.
+TAP version 13
