@@ -2715,12 +2715,17 @@ export function initWebGL(
   sprites: SpriteData[],
   world: World,
 ): WebGL2RenderingContext {
-  const gl = canvas.getContext('webgl2', {
-    alpha: false,
-    antialias: false,
-    premultipliedAlpha: false,
-    preserveDrawingBuffer: false,
-  })!;
+  let gl: WebGL2RenderingContext | null = null;
+  try {
+    gl = canvas.getContext('webgl2', {
+      alpha: false,
+      antialias: false,
+      premultipliedAlpha: false,
+      preserveDrawingBuffer: false,
+    }) as WebGL2RenderingContext | null;
+  } catch (e) {
+    console.error('WebGL context creation failed', e);
+  }
   if (!gl) throw new Error('WebGL2 not supported');
 
   // Enable float textures
