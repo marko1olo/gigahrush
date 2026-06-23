@@ -85,3 +85,20 @@ test('mobile fullscreen remains available for compatible direct pages and hidden
     restore();
   }
 });
+
+test('canUseNativeFullscreen checks for vendor-prefixed properties', () => {
+  const restore = installFullscreenEnv({
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+    platform: 'Win32',
+  });
+  try {
+    assert.equal(canUseNativeFullscreen({ requestFullscreen: () => {} } as unknown as HTMLElement), true);
+    assert.equal(canUseNativeFullscreen({ webkitRequestFullscreen: () => {} } as unknown as HTMLElement), true);
+    assert.equal(canUseNativeFullscreen({ webkitRequestFullScreen: () => {} } as unknown as HTMLElement), true);
+    assert.equal(canUseNativeFullscreen({ msRequestFullscreen: () => {} } as unknown as HTMLElement), true);
+    assert.equal(canUseNativeFullscreen({ mozRequestFullScreen: () => {} } as unknown as HTMLElement), true);
+    assert.equal(canUseNativeFullscreen({} as unknown as HTMLElement), false);
+  } finally {
+    restore();
+  }
+});
