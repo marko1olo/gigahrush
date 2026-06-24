@@ -43,7 +43,11 @@ export type PoiGenerationMetadataDef = Omit<PoiGenerationMetadata, 'roomIds' | '
 const poiGenerationMetadataByWorld = new WeakMap<World, PoiGenerationMetadata[]>();
 
 export function syncNextEntityId(entities: Entity[], nextId: number): number {
-  return entities.reduce((mx, e) => Math.max(mx, e.id), nextId) + 1;
+  let max = nextId;
+  for (let i = 0; i < entities.length; i++) {
+    if (entities[i].id >= max) max = entities[i].id + 1;
+  }
+  return max;
 }
 
 function uniqueNumbers(values: readonly number[]): number[] {
