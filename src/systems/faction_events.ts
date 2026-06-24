@@ -1148,14 +1148,23 @@ function seedClashOutcomeRumors(
 }
 
 function countAliveIds(entities: Entity[], ids: readonly number[]): number {
+  if (ids.length === 0) return 0;
   let alive = 0;
-  for (const id of ids) {
-    for (const e of entities) {
-      if (e.id === id) {
-        if (e.alive) alive++;
-        break;
-      }
+  const searchIds = new Set(ids);
+  const foundAlive = new Set<number>();
+  let foundCount = 0;
+  const target = searchIds.size;
+
+  for (const e of entities) {
+    if (searchIds.has(e.id)) {
+      foundCount++;
+      if (e.alive) foundAlive.add(e.id);
+      if (foundCount === target) break;
     }
+  }
+
+  for (const id of ids) {
+    if (foundAlive.has(id)) alive++;
   }
   return alive;
 }
@@ -1601,12 +1610,7 @@ function recordCultProcessionPlayerHit(state: GameState, target: Entity, damage:
 }
 
 function aliveProcessionNpcs(p: ActiveCultProcession, entities: Entity[]): number {
-  let alive = 0;
-  for (const id of p.npcIds) {
-    const e = entities.find(ent => ent.id === id);
-    if (e?.alive) alive++;
-  }
-  return alive;
+  return countAliveIds(entities, p.npcIds);
 }
 
 function applyProcessionFearTick(
