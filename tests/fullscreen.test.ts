@@ -1,13 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { canUseMobileFullscreen, canUseNativeFullscreen } from '../src/fullscreen';
+import { canUseMobileFullscreen, canUseNativeFullscreen, isEmbeddedViewport } from '../src/fullscreen.js';
 
 interface FullscreenEnvOptions {
   userAgent: string;
   platform?: string;
   maxTouchPoints?: number;
   embedded?: boolean;
+  crossOriginError?: boolean;
   requestFullscreen?: boolean;
 }
 
@@ -33,9 +34,21 @@ function installFullscreenEnv(options: FullscreenEnvOptions): () => void {
       maxTouchPoints: options.maxTouchPoints ?? 0,
     },
   });
+  const mockWindow = { self, top };
+  if (!options.embedded) {
+    mockWindow.self = mockWindow;
+    mockWindow.top = mockWindow;
+  }
+  if (options.crossOriginError) {
+    Object.defineProperty(mockWindow, 'top', {
+      get() {
+        throw new Error('SecurityError: Blocked a frame with origin from accessing a cross-origin frame.');
+      }
+    });
+  }
   Object.defineProperty(globalThis, 'window', {
     configurable: true,
-    value: { self, top },
+    value: mockWindow,
   });
 
   return () => {
@@ -81,6 +94,42 @@ test('mobile fullscreen remains available for compatible direct pages and hidden
   try {
     assert.equal(canUseNativeFullscreen(), true);
     assert.equal(canUseMobileFullscreen(), false);
+  } finally {
+    restore();
+  }
+});
+
+test('isEmbeddedViewport returns true when accessing top throws a SecurityError', () => {
+  const restore = installFullscreenEnv({
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+    crossOriginError: true,
+  });
+  try {
+    assert.equal(isEmbeddedViewport(), true);
+  } finally {
+    restore();
+  }
+});
+
+test('isEmbeddedViewport returns true when embedded', () => {
+  const restore = installFullscreenEnv({
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+    embedded: true,
+  });
+  try {
+    assert.equal(isEmbeddedViewport(), true);
+  } finally {
+    restore();
+  }
+});
+
+test('isEmbeddedViewport returns false when not embedded', () => {
+  const restore = installFullscreenEnv({
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+    embedded: false,
+  });
+  try {
+    assert.equal(isEmbeddedViewport(), false);
   } finally {
     restore();
   }
