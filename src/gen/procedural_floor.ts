@@ -10708,14 +10708,59 @@ function placeServiceMicroBays(world: World, rooms: Room[], spec: ProceduralFloo
 
 function sortedServiceJunctions(world: World, junctions: readonly ServiceSpineJunction[], seed: number): ServiceSpineJunction[] {
   const out: ServiceSpineJunction[] = [];
+
+  // W = 1024, cell size = 32 guarantees cells >= 26 and a perfect 32x32 grid
+  const cellSize = 32;
+  const gridW = 32;
+  const grid = new Array<number[]>(gridW * gridW);
+
   for (const j of junctions) {
-    const existing = out.find(item => world.dist2(item.x + 0.5, item.y + 0.5, j.x + 0.5, j.y + 0.5) < 26 * 26);
-    if (existing) {
-      existing.score = Math.max(existing.score, j.score);
+    let existingIndex = -1;
+    let jx = j.x % 1024; if (jx < 0) jx += 1024;
+    let jy = j.y % 1024; if (jy < 0) jy += 1024;
+
+    const cellX = Math.floor(jx / cellSize);
+    const cellY = Math.floor(jy / cellSize);
+
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        let cx = (cellX + dx) % gridW;
+        if (cx < 0) cx += gridW;
+        let cy = (cellY + dy) % gridW;
+        if (cy < 0) cy += gridW;
+
+        const key = cy * gridW + cx;
+        const itemsInCell = grid[key];
+        if (itemsInCell) {
+          for (let i = 0; i < itemsInCell.length; i++) {
+            const idx = itemsInCell[i];
+            const item = out[idx];
+            if (world.dist2(item.x + 0.5, item.y + 0.5, j.x + 0.5, j.y + 0.5) < 676) { // 26 * 26
+              if (existingIndex === -1 || idx < existingIndex) {
+                existingIndex = idx;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    if (existingIndex !== -1) {
+      out[existingIndex].score = Math.max(out[existingIndex].score, j.score);
       continue;
     }
+
+    const newIdx = out.length;
     out.push({ ...j });
+
+    const key = cellY * gridW + cellX;
+    let cell = grid[key];
+    if (!cell) {
+      cell = grid[key] = [];
+    }
+    cell.push(newIdx);
   }
+
   out.sort((a, b) => (b.score + serviceHash01(seed, b.x, b.y, 91)) - (a.score + serviceHash01(seed, a.x, a.y, 91)));
   return out;
 }
