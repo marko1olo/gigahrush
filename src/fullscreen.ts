@@ -2,6 +2,7 @@ type PrefixedFullscreenElement = HTMLElement & {
   webkitRequestFullscreen?: () => Promise<void> | void;
   webkitRequestFullScreen?: () => Promise<void> | void;
   msRequestFullscreen?: () => Promise<void> | void;
+  mozRequestFullScreen?: () => Promise<void> | void;
 };
 
 type PrefixedFullscreenDocument = Document & {
@@ -22,7 +23,7 @@ function fullscreenElement(): Element | null {
 
 function canRequestFullscreen(target: HTMLElement): boolean {
   const prefixed = target as PrefixedFullscreenElement;
-  return Boolean(target.requestFullscreen || prefixed.webkitRequestFullscreen || prefixed.webkitRequestFullScreen || prefixed.msRequestFullscreen);
+  return Boolean(target.requestFullscreen || prefixed.webkitRequestFullscreen || prefixed.webkitRequestFullScreen || prefixed.msRequestFullscreen || prefixed.mozRequestFullScreen);
 }
 
 function lockLandscape(): void {
@@ -53,7 +54,7 @@ async function requestNativeFullscreen(target: HTMLElement): Promise<boolean> {
       return true;
     }
     const prefixed = target as PrefixedFullscreenElement;
-    const request = prefixed.webkitRequestFullscreen || prefixed.webkitRequestFullScreen || prefixed.msRequestFullscreen;
+    const request = prefixed.webkitRequestFullscreen || prefixed.webkitRequestFullScreen || prefixed.msRequestFullscreen || prefixed.mozRequestFullScreen;
     if (!request) return false;
     await request.call(prefixed);
     lockLandscape();
