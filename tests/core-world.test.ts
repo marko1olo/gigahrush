@@ -23,6 +23,7 @@ test('World wraps coordinates and measures toroidal distance', () => {
   assert.equal(world.delta(W - 1, 0), 1);
   assert.equal(world.dist(0, 0, W - 1, 0), 1);
   assert.equal(world.dist2(0, 0, W - 1, W - 1), 2);
+  assert.equal(world.dist2(1, 1, 1023, 1023), 8);
 });
 
 test('World solid() respects door states and passable cells', () => {
