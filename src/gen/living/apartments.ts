@@ -29,118 +29,100 @@ const CONNECTOR_DIRS = [[1,0],[-1,0],[0,1],[0,-1]] as const;
    Extended:    жилая + кухня + санузел + жилая  (15%)
    Barrack:     3-5 маленьких жилых в ряд + санузел (15%)
    ──────────────────────────────────────────────────────────────── */
-export function generateApartments(world: World): AptPlan[] {
-  let nextRoomId = 0;
-  const apartments: AptPlan[] = [];
+function generateApartmentLayout(world: World, bx: number, by: number, a: number, startRoomId: number, roll: number): { rooms: Room[], primary: Room, nextRoomId: number } {
+  let nextRoomId = startRoomId;
+  const allRooms: Room[] = [];
+  let primary: Room;
 
-  const SGRID = 16;
-  const SCELL = Math.floor(W / SGRID);
-  const superCells: [number, number][] = [];
-  for (let sx = 0; sx < SGRID; sx++)
-    for (let sy = 0; sy < SGRID; sy++)
-      superCells.push([sx, sy]);
-  shuffle(superCells);
+  if (roll < 0.35) {
+    /* ── Classic: жилая + кухня + санузел ────────── */
+    const lw = rng(5, 8), lh = rng(5, 7);
+    primary = stampRoom(world, nextRoomId++, RoomType.LIVING, bx, by, lw, lh, a);
+    allRooms.push(primary);
+    const kw = rng(4, 6), kh = rng(4, 5);
+    const kr = stampRoom(world, nextRoomId++, RoomType.KITCHEN, bx + lw + 1, by, kw, kh, a);
+    allRooms.push(kr);
+    const bww = rng(3, 4), bhh = rng(3, 4);
+    const br = stampRoom(world, nextRoomId++, RoomType.BATHROOM, bx, by + lh + 1, bww, bhh, a);
+    allRooms.push(br);
+    placeDoor(world, primary, kr, '', true);
+    placeDoor(world, primary, br, '', true);
 
-  for (let a = 0; a < 128 && a < superCells.length; a++) {
-    const [sx, sy] = superCells[a];
-    const bx = sx * SCELL + rng(4, SCELL - 24);
-    const by = sy * SCELL + rng(4, SCELL - 20);
-
-    const roll = Math.random();
-    const allRooms: Room[] = [];
-    let primary: Room;
-
-    if (roll < 0.35) {
-      /* ── Classic: жилая + кухня + санузел ────────── */
-      const lw = rng(5, 8), lh = rng(5, 7);
-      primary = stampRoom(world, nextRoomId++, RoomType.LIVING, bx, by, lw, lh, a);
-      allRooms.push(primary);
-      const kw = rng(4, 6), kh = rng(4, 5);
-      const kr = stampRoom(world, nextRoomId++, RoomType.KITCHEN, bx + lw + 1, by, kw, kh, a);
-      allRooms.push(kr);
-      const bww = rng(3, 4), bhh = rng(3, 4);
-      const br = stampRoom(world, nextRoomId++, RoomType.BATHROOM, bx, by + lh + 1, bww, bhh, a);
-      allRooms.push(br);
-      placeDoor(world, primary, kr, '', true);
-      placeDoor(world, primary, br, '', true);
-
-    } else if (roll < 0.55) {
-      /* ── Communal: 2-4 жилых в ряд + общий санузел ── */
-      const count = rng(2, 4);
-      let cx = bx;
-      for (let c = 0; c < count; c++) {
-        const lw = rng(4, 6), lh = rng(4, 6);
-        const lr = stampRoom(world, nextRoomId++, RoomType.LIVING, cx, by, lw, lh, a);
-        allRooms.push(lr);
-        if (c === 0) primary = lr;
-        if (c > 0) placeDoor(world, allRooms[c - 1], lr, '', true);
-        cx += lw + 1;
-      }
-      primary = allRooms[0];
-      const bww = rng(3, 5), bhh = rng(3, 4);
-      const br = stampRoom(world, nextRoomId++, RoomType.BATHROOM, bx, by + allRooms[0].h + 1, bww, bhh, a);
-      allRooms.push(br);
-      placeDoor(world, allRooms[0], br, '', true);
-
-    } else if (roll < 0.70) {
-      /* ── Studio: одна жилая ──────────────────────── */
-      const lw = rng(5, 9), lh = rng(5, 8);
-      primary = stampRoom(world, nextRoomId++, RoomType.LIVING, bx, by, lw, lh, a);
-      allRooms.push(primary);
-
-    } else if (roll < 0.85) {
-      /* ── Extended: жилая + кухня + санузел + жилая ── */
-      const lw = rng(5, 7), lh = rng(5, 7);
-      primary = stampRoom(world, nextRoomId++, RoomType.LIVING, bx, by, lw, lh, a);
-      allRooms.push(primary);
-      const kw = rng(4, 6), kh = rng(4, 5);
-      const kr = stampRoom(world, nextRoomId++, RoomType.KITCHEN, bx + lw + 1, by, kw, kh, a);
-      allRooms.push(kr);
-      const bww = rng(3, 4), bhh = rng(3, 4);
-      const br = stampRoom(world, nextRoomId++, RoomType.BATHROOM, bx, by + lh + 1, bww, bhh, a);
-      allRooms.push(br);
-      const lw2 = rng(4, 6), lh2 = rng(4, 6);
-      const lr2 = stampRoom(world, nextRoomId++, RoomType.LIVING, bx + lw + 1, by + kh + 1, lw2, lh2, a);
-      allRooms.push(lr2);
-      placeDoor(world, primary, kr, '', true);
-      placeDoor(world, primary, br, '', true);
-      placeDoor(world, kr, lr2, '', true);
-
-    } else {
-      /* ── Barrack: 3-5 маленьких жилых + санузел ──── */
-      const count = rng(3, 5);
-      let cy = by;
-      for (let c = 0; c < count; c++) {
-        const lw = rng(4, 5), lh = rng(3, 5);
-        const lr = stampRoom(world, nextRoomId++, RoomType.LIVING, bx, cy, lw, lh, a);
-        allRooms.push(lr);
-        if (c > 0) placeDoor(world, allRooms[c - 1], lr, '', true);
-        cy += lh + 1;
-      }
-      primary = allRooms[0];
-      const bww = rng(3, 5), bhh = rng(3, 4);
-      const br = stampRoom(world, nextRoomId++, RoomType.BATHROOM, bx + allRooms[0].w + 1, by, bww, bhh, a);
-      allRooms.push(br);
-      placeDoor(world, allRooms[0], br, '', true);
+  } else if (roll < 0.55) {
+    /* ── Communal: 2-4 жилых в ряд + общий санузел ── */
+    const count = rng(2, 4);
+    let cx = bx;
+    for (let c = 0; c < count; c++) {
+      const lw = rng(4, 6), lh = rng(4, 6);
+      const lr = stampRoom(world, nextRoomId++, RoomType.LIVING, cx, by, lw, lh, a);
+      allRooms.push(lr);
+      if (c === 0) primary = lr;
+      if (c > 0) placeDoor(world, allRooms[c - 1], lr, '', true);
+      cx += lw + 1;
     }
+    primary = allRooms[0];
+    const bww = rng(3, 5), bhh = rng(3, 4);
+    const br = stampRoom(world, nextRoomId++, RoomType.BATHROOM, bx, by + allRooms[0].h + 1, bww, bhh, a);
+    allRooms.push(br);
+    placeDoor(world, allRooms[0], br, '', true);
 
-    apartments.push({ rooms: allRooms, living: primary! });
+  } else if (roll < 0.70) {
+    /* ── Studio: одна жилая ──────────────────────── */
+    const lw = rng(5, 9), lh = rng(5, 8);
+    primary = stampRoom(world, nextRoomId++, RoomType.LIVING, bx, by, lw, lh, a);
+    allRooms.push(primary);
+
+  } else if (roll < 0.85) {
+    /* ── Extended: жилая + кухня + санузел + жилая ── */
+    const lw = rng(5, 7), lh = rng(5, 7);
+    primary = stampRoom(world, nextRoomId++, RoomType.LIVING, bx, by, lw, lh, a);
+    allRooms.push(primary);
+    const kw = rng(4, 6), kh = rng(4, 5);
+    const kr = stampRoom(world, nextRoomId++, RoomType.KITCHEN, bx + lw + 1, by, kw, kh, a);
+    allRooms.push(kr);
+    const bww = rng(3, 4), bhh = rng(3, 4);
+    const br = stampRoom(world, nextRoomId++, RoomType.BATHROOM, bx, by + lh + 1, bww, bhh, a);
+    allRooms.push(br);
+    const lw2 = rng(4, 6), lh2 = rng(4, 6);
+    const lr2 = stampRoom(world, nextRoomId++, RoomType.LIVING, bx + lw + 1, by + kh + 1, lw2, lh2, a);
+    allRooms.push(lr2);
+    placeDoor(world, primary, kr, '', true);
+    placeDoor(world, primary, br, '', true);
+    placeDoor(world, kr, lr2, '', true);
+
+  } else {
+    /* ── Barrack: 3-5 маленьких жилых + санузел ──── */
+    const count = rng(3, 5);
+    let cy = by;
+    for (let c = 0; c < count; c++) {
+      const lw = rng(4, 5), lh = rng(3, 5);
+      const lr = stampRoom(world, nextRoomId++, RoomType.LIVING, bx, cy, lw, lh, a);
+      allRooms.push(lr);
+      if (c > 0) placeDoor(world, allRooms[c - 1], lr, '', true);
+      cy += lh + 1;
+    }
+    primary = allRooms[0];
+    const bww = rng(3, 5), bhh = rng(3, 4);
+    const br = stampRoom(world, nextRoomId++, RoomType.BATHROOM, bx + allRooms[0].w + 1, by, bww, bhh, a);
+    allRooms.push(br);
+    placeDoor(world, allRooms[0], br, '', true);
   }
 
-  world.apartmentRoomCount = nextRoomId;
+  return { rooms: allRooms, primary: primary!, nextRoomId };
+}
 
-  // Build apartment protection mask (interior + 1-cell wall ring)
-  for (let i = 0; i < nextRoomId; i++) {
+function buildApartmentProtectionMask(world: World, maxRoomId: number): void {
+  for (let i = 0; i < maxRoomId; i++) {
     const room = world.rooms[i];
     if (!room) continue;
     for (let dy = -1; dy <= room.h; dy++)
       for (let dx = -1; dx <= room.w; dx++)
         world.aptMask[world.idx(room.x + dx, room.y + dy)] = 1;
   }
+}
 
-  // Mark shelter walls for living rooms as unbreakable hermetic walls.
-  // These are the walls where residents hide behind hermetic doors during samosbor.
-  for (let i = 0; i < nextRoomId; i++) {
+function markShelterWalls(world: World, maxRoomId: number): void {
+  for (let i = 0; i < maxRoomId; i++) {
     const room = world.rooms[i];
     if (!room) continue;
     if (room.type !== RoomType.LIVING) continue;
@@ -154,8 +136,9 @@ export function generateApartments(world: World): AptPlan[] {
       }
     }
   }
+}
 
-  // Place apartment features (permanent furniture)
+function placeApartmentFeatures(world: World, apartments: AptPlan[]): void {
   const APT_FEATURES: Partial<Record<RoomType, Feature[]>> = {
     [RoomType.LIVING]:   [Feature.LAMP, Feature.BED, Feature.TABLE, Feature.CHAIR, Feature.SHELF],
     [RoomType.KITCHEN]:  [Feature.LAMP, Feature.STOVE, Feature.TABLE, Feature.SINK, Feature.SHELF],
@@ -183,6 +166,36 @@ export function generateApartments(world: World): AptPlan[] {
           world.floorTex[world.idx(room.x + dx, room.y + dy)] = room.floorTex;
     }
   }
+}
+
+export function generateApartments(world: World): AptPlan[] {
+  let nextRoomId = 0;
+  const apartments: AptPlan[] = [];
+
+  const SGRID = 16;
+  const SCELL = Math.floor(W / SGRID);
+  const superCells: [number, number][] = [];
+  for (let sx = 0; sx < SGRID; sx++)
+    for (let sy = 0; sy < SGRID; sy++)
+      superCells.push([sx, sy]);
+  shuffle(superCells);
+
+  for (let a = 0; a < 128 && a < superCells.length; a++) {
+    const [sx, sy] = superCells[a];
+    const bx = sx * SCELL + rng(4, SCELL - 24);
+    const by = sy * SCELL + rng(4, SCELL - 20);
+    const roll = Math.random();
+
+    const result = generateApartmentLayout(world, bx, by, a, nextRoomId, roll);
+    nextRoomId = result.nextRoomId;
+    apartments.push({ rooms: result.rooms, living: result.primary });
+  }
+
+  world.apartmentRoomCount = nextRoomId;
+
+  buildApartmentProtectionMask(world, nextRoomId);
+  markShelterWalls(world, nextRoomId);
+  placeApartmentFeatures(world, apartments);
 
   return apartments;
 }
