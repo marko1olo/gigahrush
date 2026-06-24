@@ -226,6 +226,14 @@ function checkVisitQuestAtPlayer(q: Quest, player: Entity, world: World, state: 
 }
 
 /* ── Assign a contextual slice of living NPCs as quest givers ─── */
+export function getActiveQuestsCount(quests: Quest[]): number {
+  let count = 0;
+  for (let i = 0; i < quests.length; i++) {
+    if (!quests[i].done) count++;
+  }
+  return count;
+}
+
 export function reassignQuestGivers(entities: Entity[]): void {
   for (const e of entities) {
     if (e.type !== EntityType.NPC || !e.alive) continue;
