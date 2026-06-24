@@ -3921,12 +3921,16 @@ function switchFloor(
         ? floorRunArrivalLead(generatedRunEntry, returnDirection)
         : undefined;
     if (arrivalLead) state.msgs.push(msg(arrivalLead, state.time, route.activeInstance ? '#f4a' : generatedRunEntry?.color ?? '#8cf'));
-    const transitionTags = ['floor', 'floor_transition', 'lift', route.activeInstance ? 'elevator_anomaly' : 'normal'];
-    if (generatedRunEntry?.designFloorId) transitionTags.push('design_floor', generatedRunEntry.designFloorId);
-    if (generatedRunEntry?.spec) transitionTags.push('procedural');
-    for (const tag of proceduralAnomalyEventTags(generatedRunEntry?.spec)) {
-      if (!transitionTags.includes(tag)) transitionTags.push(tag);
+    const transitionTagsSet = new Set(['floor', 'floor_transition', 'lift', route.activeInstance ? 'elevator_anomaly' : 'normal']);
+    if (generatedRunEntry?.designFloorId) {
+      transitionTagsSet.add('design_floor');
+      transitionTagsSet.add(generatedRunEntry.designFloorId);
     }
+    if (generatedRunEntry?.spec) transitionTagsSet.add('procedural');
+    for (const tag of proceduralAnomalyEventTags(generatedRunEntry?.spec)) {
+      transitionTagsSet.add(tag);
+    }
+    const transitionTags = Array.from(transitionTagsSet);
     const anomalyData = proceduralAnomalyEventData(generatedRunEntry?.spec);
     publishEvent(state, {
       type: 'floor_transition',
@@ -4093,10 +4097,11 @@ function debugTeleportTo(target: DebugTeleportTarget): void {
     clearLiftArachnaActive(state);
 
     state.msgs.push(msg(`[DEBUG] Телепорт: ${target.label}`, state.time, target.color));
-    const transitionTags = ['floor', 'floor_transition', 'debug', target.spec ? 'procedural' : target.designFloorId ? 'design_floor' : 'story'];
+    const transitionTagsSet = new Set(['floor', 'floor_transition', 'debug', target.spec ? 'procedural' : target.designFloorId ? 'design_floor' : 'story']);
     for (const tag of proceduralAnomalyEventTags(target.spec)) {
-      if (!transitionTags.includes(tag)) transitionTags.push(tag);
+      transitionTagsSet.add(tag);
     }
+    const transitionTags = Array.from(transitionTagsSet);
     const anomalyData = proceduralAnomalyEventData(target.spec);
     publishEvent(state, {
       type: 'floor_transition',
