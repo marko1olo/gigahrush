@@ -3086,10 +3086,10 @@ function handleKill(e: Entity, killerIsPlayer: boolean, pvx = 0, pvy = 0, goreLe
   if (contentDeath.worldChanged) updateWorldData(world);
 }
 
-const FLAME_COLLATERAL_ITEMS = new Set([
-  'bread', 'canned', 'rawmeat', 'mushroom_mass', 'infected_mushroom',
-  'cloth_roll', 'note', 'book', 'water_coupon', 'filter_layer',
-]);
+const FLAME_COLLATERAL_MAP: Record<string, boolean> = {
+  'bread': true, 'canned': true, 'rawmeat': true, 'mushroom_mass': true, 'infected_mushroom': true,
+  'cloth_roll': true, 'note': true, 'book': true, 'water_coupon': true, 'filter_layer': true,
+};
 
 function projectileActor(p: Entity): Entity | undefined {
   if (p.ownerId === player.id) return player;
@@ -3122,11 +3122,20 @@ function burnCollateralNearFlame(x: number, y: number, radius: number, actor: En
     const inv = drop.inventory;
     if (!drop.alive || drop.type !== EntityType.ITEM_DROP || !inv?.length) continue;
     if (world.dist2(x, y, drop.x, drop.y) > r2) continue;
-    const slot = inv.find(item => FLAME_COLLATERAL_ITEMS.has(item.defId));
-    if (!slot) continue;
+    let targetIdx = -1;
+    let slot;
+    for (let i = 0; i < inv.length; i++) {
+      const item = inv[i];
+      if (FLAME_COLLATERAL_MAP[item.defId]) {
+        targetIdx = i;
+        slot = item;
+        break;
+      }
+    }
+    if (targetIdx === -1 || !slot) continue;
     const def = ITEMS[slot.defId];
     slot.count--;
-    if (slot.count <= 0) inv.splice(inv.indexOf(slot), 1);
+    if (slot.count <= 0) inv.splice(targetIdx, 1);
     if (inv.length === 0) drop.alive = false;
     publishEvent(state, {
       type: 'collateral_damage',
