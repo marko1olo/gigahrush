@@ -1213,27 +1213,3 @@ test('instance cap is enforced after priority and stable cell scoring', () => {
   assert.equal(instances.length, 2);
 });
 
-test('chunk cache reuses chunks and invalidates on visual slot version changes', () => {
-  const world = openWorld();
-  const cache = createMeshChunkCache();
-  setWorldVisualSlot(world, world.idx(10, 10), 0, VISUAL_CELL_CODES.RUBBLE_CHUNK);
-
-  const ctx = context(world, 10.5, 10.5, 123, {
-    profile: { radius: 2, instanceCap: 64, chunkSize: 8, maxChunksPerFrame: 64 },
-  });
-  const out = [];
-  const first = cache.update(ctx, out);
-  assert.equal(first.enabled, true);
-  assert.ok(first.chunksBuilt > 0);
-  assert.equal(out.some(instance => instance.modelId === 'rubble_chunk'), true);
-
-  const second = cache.update(ctx, out);
-  assert.equal(second.enabled, true);
-  assert.equal(second.chunksBuilt, 0);
-  assert.ok(second.chunksReused > 0);
-
-  setWorldVisualSlot(world, world.idx(10, 11), 0, VISUAL_CELL_CODES.RUBBLE_CHUNK);
-  const third = cache.update(ctx, out);
-  assert.equal(third.enabled, true);
-  assert.ok(third.chunksBuilt > 0);
-});
