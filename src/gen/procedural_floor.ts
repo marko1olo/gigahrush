@@ -7022,7 +7022,7 @@ function decorateScientistSampleCorridors(world: World, rooms: Room[], spec: Pro
   const corridorRooms = rooms
     .filter(room => room.type === RoomType.CORRIDOR && room.w >= 5 && room.h >= 5)
     .sort((a, b) => (b.w * b.h) - (a.w * a.h));
-  const fallbackRooms = rooms
+  const corridors = corridorRooms.length > 0 ? corridorRooms : rooms
     .filter(room =>
       room.id !== 0 &&
       !room.name.includes('НИИ') &&
@@ -7032,7 +7032,6 @@ function decorateScientistSampleCorridors(world: World, rooms: Room[], spec: Pro
       room.type !== RoomType.BATHROOM,
     )
     .sort((a, b) => Math.max(b.w, b.h) - Math.max(a.w, a.h));
-  const corridors = corridorRooms.length > 0 ? corridorRooms : fallbackRooms;
   const count = Math.min(corridors.length, 2 + Math.floor(spec.danger / 2));
 
   for (let i = 0; i < count; i++) {
