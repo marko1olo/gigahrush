@@ -17,11 +17,11 @@ import {
 import { World } from '../src/core/world';
 import { SAMOSBOR_VARIANTS, type ActiveSamosborVariant } from '../src/data/samosbor_variants';
 import { registerCellHazardSite, tickCellHazards, clearCellHazards } from '../src/systems/cell_hazards';
-import { formatLastPlayerDamageCause, recordPlayerDamage } from '../src/systems/damage';
+import { formatLastPlayerDamageCause, recordPlayerDamage, hasFreshPlayerDamageRecord, updateBlockCrushDamage } from '../src/systems/damage';
 import { ENTITY_MASK_ACTOR, EntityIndex } from '../src/systems/entity_index';
 import { updateNeeds } from '../src/systems/needs';
 import { resetSamosborRuntimeForTests, resolvePlayerShelterAtSealForTests } from '../src/systems/samosbor';
-import { makeGameState, makeTestEntity, makeTestPlayer } from './helpers';
+import { makeGameState, makeTestEntity, makeTestPlayer, makeTestNpc } from './helpers';
 
 test('last player damage keeps monster source for death cause', () => {
   const state = makeGameState({ time: 42, tick: 123 });
@@ -219,4 +219,103 @@ test('toroidal edge projectile swept query finds player across wrap', () => {
   index.queryPathRadius(projectile.x, projectile.y, nextX, projectile.y, 0.6, out, ENTITY_MASK_ACTOR);
 
   assert.deepEqual(out.map(e => e.id), [1]);
+});
+
+test('hasFreshPlayerDamageRecord returns true for fresh damage within threshold', () => {
+  const state = makeGameState({ time: 50.0, tick: 100 });
+  recordPlayerDamage(state, undefined, 10, 'Тестовый урон');
+
+  assert.equal(hasFreshPlayerDamageRecord(state, 100, 50.0), true);
+  assert.equal(hasFreshPlayerDamageRecord(state, 100, 50.05), true);
+  assert.equal(hasFreshPlayerDamageRecord(state, 100, 49.95), true);
+});
+
+test('hasFreshPlayerDamageRecord returns false if damage is outside threshold or tick differs', () => {
+  const state = makeGameState({ time: 50.0, tick: 100 });
+  recordPlayerDamage(state, undefined, 10, 'Тестовый урон');
+
+  assert.equal(hasFreshPlayerDamageRecord(state, 100, 50.06), false);
+  assert.equal(hasFreshPlayerDamageRecord(state, 100, 49.94), false);
+  assert.equal(hasFreshPlayerDamageRecord(state, 101, 50.0), false);
+});
+
+test('hasFreshPlayerDamageRecord returns false if there is no damage record', () => {
+  const state = makeGameState();
+  assert.equal(hasFreshPlayerDamageRecord(state, 100, 50.0), false);
+});
+
+test('updateBlockCrushDamage damages player inside a solid cell and creates a record', () => {
+  const world = new World();
+  world.set(5, 5, Cell.WALL);
+  const state = makeGameState({ time: 10, tick: 20 });
+  const player = makeTestPlayer({ id: 1, x: 5.5, y: 5.5, hp: 20, maxHp: 20 });
+
+  updateBlockCrushDamage(world, [player], state, 0.5);
+
+  assert.equal(player.hp, 15); // 20 - (10 * 0.5)
+  assert.equal(state.lastDamage?.sourceKind, 'hazard');
+  assert.equal(state.lastDamage?.amount, 5);
+  assert.equal(state.lastDamage?.detail, 'Раздавлен в структуре');
+});
+
+test('updateBlockCrushDamage does not damage player if phasing is active', () => {
+  const world = new World();
+  world.set(5, 5, Cell.WALL);
+  const state = makeGameState({ time: 10, tick: 20 });
+  const player = makeTestPlayer({ id: 1, x: 5.5, y: 5.5, hp: 20, maxHp: 20, phasing: true });
+
+  updateBlockCrushDamage(world, [player], state, 0.5);
+
+  assert.equal(player.hp, 20);
+  assert.equal(state.lastDamage, undefined);
+});
+
+test('updateBlockCrushDamage damages and can kill NPCs/monsters inside a solid cell', () => {
+  const world = new World();
+  world.set(5, 5, Cell.WALL);
+  const state = makeGameState({ time: 10, tick: 20 });
+  const npc = makeTestNpc({ id: 2, x: 5.5, y: 5.5, hp: 4 });
+  const monster = makeTestEntity({ id: 3, type: EntityType.MONSTER, x: 5.5, y: 5.5, hp: 6 });
+
+  updateBlockCrushDamage(world, [npc, monster], state, 0.5);
+
+  assert.equal(npc.hp, -1);
+  assert.equal(npc.alive, false);
+  assert.equal(monster.hp, 1);
+  assert.equal(monster.alive, true);
+});
+
+test('updateBlockCrushDamage skips dead entities', () => {
+  const world = new World();
+  world.set(5, 5, Cell.WALL);
+  const state = makeGameState({ time: 10, tick: 20 });
+  const player = makeTestPlayer({ id: 1, x: 5.5, y: 5.5, hp: 0, maxHp: 20, alive: false });
+
+  updateBlockCrushDamage(world, [player], state, 0.5);
+
+  assert.equal(player.hp, 0);
+  assert.equal(state.lastDamage, undefined);
+});
+
+test('updateBlockCrushDamage does not damage entities outside of solid cells', () => {
+  const world = new World();
+  world.set(5, 5, Cell.FLOOR);
+  const state = makeGameState({ time: 10, tick: 20 });
+  const player = makeTestPlayer({ id: 1, x: 5.5, y: 5.5, hp: 20, maxHp: 20 });
+
+  updateBlockCrushDamage(world, [player], state, 0.5);
+
+  assert.equal(player.hp, 20);
+  assert.equal(state.lastDamage, undefined);
+});
+
+test('updateBlockCrushDamage skips LOZHNYY_DUKH if falsePhaseActive is > 0', () => {
+  const world = new World();
+  world.set(5, 5, Cell.WALL);
+  const state = makeGameState({ time: 10, tick: 20 });
+  const monster = makeTestEntity({ id: 3, type: EntityType.MONSTER, monsterKind: MonsterKind.LOZHNYY_DUKH, x: 5.5, y: 5.5, hp: 10, ai: { falsePhaseActive: 1 } as any });
+
+  updateBlockCrushDamage(world, [monster], state, 0.5);
+
+  assert.equal(monster.hp, 10);
 });
