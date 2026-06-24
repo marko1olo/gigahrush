@@ -344,13 +344,25 @@ async function handleSubmit(request, env) {
   });
 }
 
+function timingSafeEqual(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  let mismatch = a.length === b.length ? 0 : 1;
+  if (mismatch === 1) {
+    b = a;
+  }
+  for (let i = 0; i < a.length; i++) {
+    mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return mismatch === 0;
+}
+
 function requireReviewAuth(request, env) {
   const expected = env.TENEVIK_REVIEW_TOKEN;
   if (!expected) badRequest('TENEVIK_REVIEW_TOKEN is not configured', 503);
   const auth = request.headers.get('Authorization') || '';
   const bearer = auth.startsWith('Bearer ') ? auth.slice(7) : '';
   const header = request.headers.get('X-Tenevik-Review-Token') || '';
-  if (bearer !== expected && header !== expected) badRequest('review authorization required', 401);
+  if (!timingSafeEqual(bearer, expected) && !timingSafeEqual(header, expected)) badRequest('review authorization required', 401);
 }
 
 async function readJsonBody(request, limit = 4096) {
