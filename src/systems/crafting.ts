@@ -18,7 +18,7 @@ import {
   type CraftVector,
 } from '../data/craft_materials';
 import {
-  CRAFT_RECIPES,
+  CRAFT_RECIPE_LIST,
   craftRecipeById,
   craftRecipeByItemId,
   type CraftRecipeDef,
@@ -183,7 +183,7 @@ function sanitizeMaterialVector(input: unknown): MutableCraftVector {
 
 function defaultKnownRecipes(): Record<string, true> {
   const out: Record<string, true> = {};
-  for (const recipe of Object.values(CRAFT_RECIPES)) {
+  for (const recipe of CRAFT_RECIPE_LIST) {
     if (recipe.knownByDefault) out[recipe.id] = true;
   }
   return out;
@@ -523,7 +523,7 @@ export function craftMenuSnapshot(ctx: CraftMenuSnapshotContext): CraftMenuSnaps
   const inventory: CraftMenuDisassembleEntry[] = [];
   const filter = ctx.filter;
 
-  for (const recipe of Object.values(CRAFT_RECIPES)) {
+  for (const recipe of CRAFT_RECIPE_LIST) {
     if (!crafting.knownRecipes[recipe.id]) continue;
     const itemDef = ITEMS[recipe.itemId];
     if (!itemDef) continue;
