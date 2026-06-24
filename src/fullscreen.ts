@@ -95,7 +95,13 @@ export function openStandalonePage(): void {
 
 export function canUseNativeFullscreen(target: HTMLElement = document.documentElement): boolean {
   if (isIosWebKit()) return false;
-  return canRequestFullscreen(target);
+  return !!(
+    target.requestFullscreen ||
+    (target as any).webkitRequestFullscreen ||
+    (target as any).webkitRequestFullScreen ||
+    (target as any).mozRequestFullScreen ||
+    (target as any).msRequestFullscreen
+  );
 }
 
 export async function enterNativeFullscreen(target: HTMLElement = document.documentElement): Promise<boolean> {
