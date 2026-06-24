@@ -10708,13 +10708,48 @@ function placeServiceMicroBays(world: World, rooms: Room[], spec: ProceduralFloo
 
 function sortedServiceJunctions(world: World, junctions: readonly ServiceSpineJunction[], seed: number): ServiceSpineJunction[] {
   const out: ServiceSpineJunction[] = [];
+  const cellSize = 26;
+  const grid = new Map<string, ServiceSpineJunction[]>();
+
   for (const j of junctions) {
-    const existing = out.find(item => world.dist2(item.x + 0.5, item.y + 0.5, j.x + 0.5, j.y + 0.5) < 26 * 26);
+    let existing: ServiceSpineJunction | undefined;
+    const jx = j.x + 0.5;
+    const jy = j.y + 0.5;
+
+    const cx = Math.floor(jx / cellSize);
+    const cy = Math.floor(jy / cellSize);
+
+    search: for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        const key = `${cx + dx},${cy + dy}`;
+        const cell = grid.get(key);
+        if (cell) {
+          for (let i = 0; i < cell.length; i++) {
+            const item = cell[i];
+            if (world.dist2(item.x + 0.5, item.y + 0.5, jx, jy) < 26 * 26) {
+              existing = item;
+              break search;
+            }
+          }
+        }
+      }
+    }
+
     if (existing) {
       existing.score = Math.max(existing.score, j.score);
       continue;
     }
-    out.push({ ...j });
+
+    const newItem = { ...j };
+    out.push(newItem);
+
+    const key = `${cx},${cy}`;
+    let cell = grid.get(key);
+    if (!cell) {
+      cell = [];
+      grid.set(key, cell);
+    }
+    cell.push(newItem);
   }
   out.sort((a, b) => (b.score + serviceHash01(seed, b.x, b.y, 91)) - (a.score + serviceHash01(seed, a.x, a.y, 91)));
   return out;
