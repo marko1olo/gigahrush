@@ -294,6 +294,7 @@ export function generateKvartiry(territorySeed = 0): { world: World; entities: E
   // ── Phase 2: Build walls from sources ─────────────────────────
   // Each source grows wall segments until it has 2+ WALL neighbors.
   // Doors are placed at the midpoint of each segment.
+  const W_MASK = W - 1;
   let activeSources = [...sources];
   while (activeSources.length > 0) {
     const nextSources: number[] = [];
@@ -302,21 +303,24 @@ export function generateKvartiry(territorySeed = 0): { world: World; entities: E
       const sy = (idx / W) | 0;
       // Count WALL neighbors (sources don't count as WALL)
       let wallSum = 0;
-      for (let s = 0; s < 4; s++) {
-        const ni = world.idx(world.wrap(sx + DX[s]), world.wrap(sy + DY[s]));
-        if (world.cells[ni] === Cell.WALL) wallSum++;
-      }
+      if (world.cells[((sy - 1) & W_MASK) * W + sx] === Cell.WALL) wallSum++;
+      if (world.cells[sy * W + ((sx + 1) & W_MASK)] === Cell.WALL) wallSum++;
+      if (world.cells[((sy + 1) & W_MASK) * W + sx] === Cell.WALL) wallSum++;
+      if (world.cells[sy * W + ((sx - 1) & W_MASK)] === Cell.WALL) wallSum++;
+
       if (wallSum < 2) {
         let drop = rng(0, 3);
         // If chosen direction already has a wall, rotate
-        const nCheck = world.idx(world.wrap(sx + DX[drop]), world.wrap(sy + DY[drop]));
+        const nx = (sx + DX[drop]) & W_MASK;
+        const ny = (sy + DY[drop]) & W_MASK;
+        const nCheck = ny * W + nx;
         if (world.cells[nCheck] === Cell.WALL) drop = (drop + 1) & 3;
 
         let cx = sx, cy = sy;
         for (let j = 0; j < WALL_L - 1; j++) {
-          cx = world.wrap(cx + DX[drop]);
-          cy = world.wrap(cy + DY[drop]);
-          const ni = world.idx(cx, cy);
+          cx = (cx + DX[drop]) & W_MASK;
+          cy = (cy + DY[drop]) & W_MASK;
+          const ni = cy * W + cx;
           // Don't overwrite another source
           if (isSource[ni]) continue;
           if (j + 1 === Math.floor(WALL_L / 2) && Math.random() < KV_SEGMENT_DOOR_CANDIDATE_CHANCE) {
