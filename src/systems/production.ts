@@ -679,6 +679,251 @@ export function ensureProductionRooms(state: GameState, world: World): number {
   return added;
 }
 
+function handleMissingContainer(state: GameState, world: World, p: ProductionState, factory: FactoryDef, recipe: FactoryRecipeDef, observer?: Entity): void {
+  p.blockedReason = 'no_container';
+  const severity = productionSeverity(world, observer, undefined, factory, recipe, 2);
+  publishEvent(state, {
+    type: 'room_blocked_production',
+    zoneId: roomZoneId(world, p.roomId),
+    roomId: p.roomId,
+    targetName: `${factory.name}: ${recipe.name}`,
+    severity,
+    privacy: productionPrivacy(factory, recipe, severity),
+    tags: ['production', 'blocked', factory.id, 'no_container'],
+    data: productionEventData(factory, recipe, undefined, { blockedReason: 'no_container' }),
+  });
+  p.nextTickAt = state.time + 60;
+}
+
+function handleJammedProduction(
+  state: GameState,
+  world: World,
+  p: ProductionState,
+  factory: FactoryDef,
+  recipe: FactoryRecipeDef,
+  container: WorldContainer,
+  observer?: Entity,
+): boolean {
+  if (!p.jammed) return false;
+  const badBatch = recipe.badBatch;
+  if (!badBatch) {
+    p.jammed = false;
+    return false;
+  }
+  const repairOutputs = badBatch.repairOutputs ?? [];
+  const missingRepairItems = missingItemStackIds(container, badBatch.repairItems);
+  if (missingRepairItems.length === 0 && canFitOutputs(container, repairOutputs, badBatch.repairItems)) {
+    consumeItemStacks(container, badBatch.repairItems);
+    addOutputStacks(container, repairOutputs);
+    container.factoryId = factory.id;
+    container.lastProducedAt = state.time;
+    container.lastProducedItemId = repairOutputs[0]?.defId;
+    container.lastProducedCount = repairOutputs[0]?.count;
+    container.productionBlockedReason = undefined;
+    p.progressSec = 0;
+    p.blockedReason = undefined;
+    p.jammed = false;
+    p.nextTickAt = state.time + Math.max(30, badBatch.jammedCycleSec);
+    publishProductionOutput(
+      state,
+      world,
+      p,
+      factory,
+      recipe,
+      container,
+      repairOutputs,
+      badBatchTags(['production', 'output', factory.id, 'repair', 'jam_repaired'], recipe, badBatch),
+      { action: 'repair_jam', repairItems: badBatch.repairItems, outputs: repairOutputs.slice(0, 4) },
+      observer,
+      3,
+    );
+    return true; // was repaired, treated as a successful production action
+  }
+  p.blockedReason = 'no_inputs';
+  container.productionBlockedReason = 'no_inputs';
+  const nearObserver = observerNearContainer(world, observer, container);
+  publishEvent(state, {
+    type: 'room_blocked_production',
+    zoneId: container.zoneId,
+    roomId: p.roomId,
+    containerId: container.id,
+    severity: nearObserver ? 4 : 3,
+    privacy: 'local',
+    tags: badBatchTags(
+      nearObserver ? ['production', 'blocked', 'near_player', factory.id, 'bad_batch', 'jammed'] : ['production', 'blocked', factory.id, 'bad_batch', 'jammed'],
+      recipe,
+      badBatch,
+    ),
+    data: {
+      recipeId: recipe.id,
+      blockedReason: 'jammed',
+      repairItems: badBatch.repairItems,
+      repairOutputs,
+      missingRepairItems,
+    },
+  });
+  p.nextTickAt = state.time + Math.max(30, badBatch.jammedCycleSec);
+  return false; // Still jammed
+}
+
+function handleMissingInputs(
+  state: GameState,
+  world: World,
+  p: ProductionState,
+  factory: FactoryDef,
+  recipe: FactoryRecipeDef,
+  container: WorldContainer,
+  observer?: Entity,
+): boolean {
+  const missingResources = missingResourceIds(state, recipe, p.floor);
+  const missingItems = missingInputItemIds(container, recipe);
+  if (missingResources.length > 0 || missingItems.length > 0) {
+    p.blockedReason = 'no_inputs';
+    container.productionBlockedReason = 'no_inputs';
+    const nearObserver = observerNearContainer(world, observer, container);
+    const missingTags = [
+      ...missingResources.map(id => `${id}_missing`),
+      ...missingItems.map(id => `${id}_missing`),
+    ];
+    publishEvent(state, {
+      type: 'room_lacked_resources',
+      zoneId: container.zoneId,
+      roomId: p.roomId,
+      containerId: container.id,
+      severity: nearObserver ? 3 : 2,
+      privacy: 'local',
+      tags: productionTags(
+        nearObserver ? ['production', 'shortage', 'near_player', factory.id] : ['production', 'shortage', factory.id],
+        recipe,
+        missingTags,
+      ),
+      data: {
+        recipeId: recipe.id,
+        blockedReason: 'no_inputs',
+        inputs: recipe.inputs,
+        inputItems: recipe.inputItems,
+        inputItemIds: stackItemIds(recipe.inputItems),
+        missingResources,
+        missingItems,
+      },
+    });
+    p.nextTickAt = state.time + Math.max(30, recipe.cycleSec / 2);
+    return true; // Inputs missing, tick delayed
+  }
+  return false;
+}
+
+function handleFullContainer(
+  state: GameState,
+  world: World,
+  p: ProductionState,
+  factory: FactoryDef,
+  recipe: FactoryRecipeDef,
+  container: WorldContainer,
+  outputs: readonly ItemStackDef[],
+  badBatch: FactoryBadBatchDef | undefined,
+  observer?: Entity,
+): boolean {
+  if (!canFitOutputs(container, outputs, recipe.inputItems, badBatch ? undefined : recipe.maxOutputItemCount)) {
+    p.blockedReason = 'container_full';
+    container.productionBlockedReason = 'container_full';
+    const nearObserver = observerNearContainer(world, observer, container);
+    publishEvent(state, {
+      type: 'room_blocked_production',
+      zoneId: container.zoneId,
+      roomId: p.roomId,
+      containerId: container.id,
+      severity: nearObserver ? 3 : 2,
+      privacy: 'local',
+      tags: productionTags(
+        nearObserver ? ['production', 'blocked', 'near_player', factory.id, 'container_full'] : ['production', 'blocked', factory.id, 'container_full'],
+        recipe,
+        badBatch ? ['bad_batch'] : [],
+      ),
+      data: {
+        recipeId: recipe.id,
+        blockedReason: 'container_full',
+        outputs: outputs.slice(0, 4),
+        outputItemIds: stackItemIds(outputs),
+      },
+    });
+    p.nextTickAt = state.time + 60;
+    return true; // Container full, tick delayed
+  }
+  return false;
+}
+
+function processSuccessfulProduction(
+  state: GameState,
+  world: World,
+  p: ProductionState,
+  factory: FactoryDef,
+  recipe: FactoryRecipeDef,
+  container: WorldContainer,
+  outputs: readonly ItemStackDef[],
+  badBatch: FactoryBadBatchDef | undefined,
+  observer?: Entity,
+): void {
+  spendResources(state, recipe.inputs, p.floor);
+  consumeInputItems(container, recipe);
+  addOutputStacks(container, outputs);
+  container.factoryId = factory.id;
+  container.lastProducedAt = state.time;
+  container.lastProducedItemId = outputs[0]?.defId;
+  container.lastProducedCount = outputs[0]?.count;
+  container.productionBlockedReason = badBatch ? 'no_inputs' : undefined;
+  p.progressSec = 0;
+  p.cycleCount = (p.cycleCount ?? 0) + 1;
+  p.blockedReason = badBatch ? 'no_inputs' : undefined;
+  p.jammed = !!badBatch;
+  p.nextTickAt = state.time + Math.max(30, badBatch?.jammedCycleSec ?? recipe.cycleSec);
+
+  const nearObserver = observerNearContainer(world, observer, container);
+  publishProductionOutput(
+    state,
+    world,
+    p,
+    factory,
+    recipe,
+    container,
+    outputs,
+    badBatch
+      ? badBatchTags(nearObserver ? ['production', 'output', 'near_player', factory.id, 'bad_batch'] : ['production', 'output', factory.id, 'bad_batch'], recipe, badBatch)
+      : productionTags(nearObserver ? ['production', 'output', 'near_player', factory.id] : ['production', 'output', factory.id], recipe),
+    {
+      inputItems: recipe.inputItems,
+      inputItemIds: stackItemIds(recipe.inputItems),
+      outputs: outputs.slice(0, 4),
+      outputItemIds: stackItemIds(outputs),
+      cycleCount: p.cycleCount,
+    },
+    observer,
+    badBatch ? 4 : 2,
+  );
+  if (badBatch) {
+    publishEvent(state, {
+      type: 'room_blocked_production',
+      zoneId: container.zoneId,
+      roomId: p.roomId,
+      containerId: container.id,
+      severity: nearObserver ? 4 : 3,
+      privacy: 'local',
+      tags: badBatchTags(
+        nearObserver ? ['production', 'blocked', 'near_player', factory.id, 'bad_batch', 'jammed'] : ['production', 'blocked', factory.id, 'bad_batch', 'jammed'],
+        recipe,
+        badBatch,
+      ),
+      data: {
+        recipeId: recipe.id,
+        blockedReason: 'jammed',
+        repairItems: badBatch.repairItems,
+        repairOutputs: badBatch.repairOutputs,
+        cycleCount: p.cycleCount,
+      },
+    });
+  }
+}
+
 export function tickProduction(state: GameState, world: World, force = false, observer?: Entity): number {
   ensureProductionRooms(state, world);
   let made = 0;
@@ -690,204 +935,21 @@ export function tickProduction(state: GameState, world: World, force = false, ob
     if (!factory || !recipe) continue;
     const container = outputContainer(world, p.outputContainerId);
     if (!container) {
-      p.blockedReason = 'no_container';
-      const severity = productionSeverity(world, observer, undefined, factory, recipe, 2);
-      publishEvent(state, {
-        type: 'room_blocked_production',
-        zoneId: roomZoneId(world, p.roomId),
-        roomId: p.roomId,
-        targetName: `${factory.name}: ${recipe.name}`,
-        severity,
-        privacy: productionPrivacy(factory, recipe, severity),
-        tags: ['production', 'blocked', factory.id, 'no_container'],
-        data: productionEventData(factory, recipe, undefined, { blockedReason: 'no_container' }),
-      });
-      p.nextTickAt = state.time + 60;
+      handleMissingContainer(state, world, p, factory, recipe, observer);
       continue;
     }
     if (p.jammed) {
-      const badBatch = recipe.badBatch;
-      if (!badBatch) {
-        p.jammed = false;
-      } else {
-        const repairOutputs = badBatch.repairOutputs ?? [];
-        const missingRepairItems = missingItemStackIds(container, badBatch.repairItems);
-        if (missingRepairItems.length === 0 && canFitOutputs(container, repairOutputs, badBatch.repairItems)) {
-          consumeItemStacks(container, badBatch.repairItems);
-          addOutputStacks(container, repairOutputs);
-          container.factoryId = factory.id;
-          container.lastProducedAt = state.time;
-          container.lastProducedItemId = repairOutputs[0]?.defId;
-          container.lastProducedCount = repairOutputs[0]?.count;
-          container.productionBlockedReason = undefined;
-          p.progressSec = 0;
-          p.blockedReason = undefined;
-          p.jammed = false;
-          p.nextTickAt = state.time + Math.max(30, badBatch.jammedCycleSec);
-          made++;
-          publishProductionOutput(
-            state,
-            world,
-            p,
-            factory,
-            recipe,
-            container,
-            repairOutputs,
-            badBatchTags(['production', 'output', factory.id, 'repair', 'jam_repaired'], recipe, badBatch),
-            { action: 'repair_jam', repairItems: badBatch.repairItems, outputs: repairOutputs.slice(0, 4) },
-            observer,
-            3,
-          );
-          continue;
-        }
-        p.blockedReason = 'no_inputs';
-        container.productionBlockedReason = 'no_inputs';
-        const nearObserver = observerNearContainer(world, observer, container);
-        publishEvent(state, {
-          type: 'room_blocked_production',
-          zoneId: container.zoneId,
-          roomId: p.roomId,
-          containerId: container.id,
-          severity: nearObserver ? 4 : 3,
-          privacy: 'local',
-          tags: badBatchTags(
-            nearObserver ? ['production', 'blocked', 'near_player', factory.id, 'bad_batch', 'jammed'] : ['production', 'blocked', factory.id, 'bad_batch', 'jammed'],
-            recipe,
-            badBatch,
-          ),
-          data: {
-            recipeId: recipe.id,
-            blockedReason: 'jammed',
-            repairItems: badBatch.repairItems,
-            repairOutputs,
-            missingRepairItems,
-          },
-        });
-        p.nextTickAt = state.time + Math.max(30, badBatch.jammedCycleSec);
-        continue;
-      }
-    }
-    const missingResources = missingResourceIds(state, recipe, p.floor);
-    const missingItems = missingInputItemIds(container, recipe);
-    if (missingResources.length > 0 || missingItems.length > 0) {
-      p.blockedReason = 'no_inputs';
-      container.productionBlockedReason = 'no_inputs';
-      const nearObserver = observerNearContainer(world, observer, container);
-      const missingTags = [
-        ...missingResources.map(id => `${id}_missing`),
-        ...missingItems.map(id => `${id}_missing`),
-      ];
-      publishEvent(state, {
-        type: 'room_lacked_resources',
-        zoneId: container.zoneId,
-        roomId: p.roomId,
-        containerId: container.id,
-        severity: nearObserver ? 3 : 2,
-        privacy: 'local',
-        tags: productionTags(
-          nearObserver ? ['production', 'shortage', 'near_player', factory.id] : ['production', 'shortage', factory.id],
-          recipe,
-          missingTags,
-        ),
-        data: {
-          recipeId: recipe.id,
-          blockedReason: 'no_inputs',
-          inputs: recipe.inputs,
-          inputItems: recipe.inputItems,
-          inputItemIds: stackItemIds(recipe.inputItems),
-          missingResources,
-          missingItems,
-        },
-      });
-      p.nextTickAt = state.time + Math.max(30, recipe.cycleSec / 2);
+      if (handleJammedProduction(state, world, p, factory, recipe, container, observer)) made++;
       continue;
     }
+    if (handleMissingInputs(state, world, p, factory, recipe, container, observer)) continue;
+
     const badBatch = shouldMakeBadBatch(p, recipe);
     const outputs = badBatch ? badBatch.outputs : recipe.outputs;
-    if (!canFitOutputs(container, outputs, recipe.inputItems, badBatch ? undefined : recipe.maxOutputItemCount)) {
-      p.blockedReason = 'container_full';
-      container.productionBlockedReason = 'container_full';
-      const nearObserver = observerNearContainer(world, observer, container);
-      publishEvent(state, {
-        type: 'room_blocked_production',
-        zoneId: container.zoneId,
-        roomId: p.roomId,
-        containerId: container.id,
-        severity: nearObserver ? 3 : 2,
-        privacy: 'local',
-        tags: productionTags(
-          nearObserver ? ['production', 'blocked', 'near_player', factory.id, 'container_full'] : ['production', 'blocked', factory.id, 'container_full'],
-          recipe,
-          badBatch ? ['bad_batch'] : [],
-        ),
-        data: {
-          recipeId: recipe.id,
-          blockedReason: 'container_full',
-          outputs: outputs.slice(0, 4),
-          outputItemIds: stackItemIds(outputs),
-        },
-      });
-      p.nextTickAt = state.time + 60;
-      continue;
-    }
-    spendResources(state, recipe.inputs, p.floor);
-    consumeInputItems(container, recipe);
-    addOutputStacks(container, outputs);
-    container.factoryId = factory.id;
-    container.lastProducedAt = state.time;
-    container.lastProducedItemId = outputs[0]?.defId;
-    container.lastProducedCount = outputs[0]?.count;
-    container.productionBlockedReason = badBatch ? 'no_inputs' : undefined;
-    p.progressSec = 0;
-    p.cycleCount = (p.cycleCount ?? 0) + 1;
-    p.blockedReason = badBatch ? 'no_inputs' : undefined;
-    p.jammed = !!badBatch;
-    p.nextTickAt = state.time + Math.max(30, badBatch?.jammedCycleSec ?? recipe.cycleSec);
+    if (handleFullContainer(state, world, p, factory, recipe, container, outputs, badBatch, observer)) continue;
+
+    processSuccessfulProduction(state, world, p, factory, recipe, container, outputs, badBatch, observer);
     made++;
-    const nearObserver = observerNearContainer(world, observer, container);
-    publishProductionOutput(
-      state,
-      world,
-      p,
-      factory,
-      recipe,
-      container,
-      outputs,
-      badBatch
-        ? badBatchTags(nearObserver ? ['production', 'output', 'near_player', factory.id, 'bad_batch'] : ['production', 'output', factory.id, 'bad_batch'], recipe, badBatch)
-        : productionTags(nearObserver ? ['production', 'output', 'near_player', factory.id] : ['production', 'output', factory.id], recipe),
-      {
-        inputItems: recipe.inputItems,
-        inputItemIds: stackItemIds(recipe.inputItems),
-        outputs: outputs.slice(0, 4),
-        outputItemIds: stackItemIds(outputs),
-        cycleCount: p.cycleCount,
-      },
-      observer,
-      badBatch ? 4 : 2,
-    );
-    if (badBatch) {
-      publishEvent(state, {
-        type: 'room_blocked_production',
-        zoneId: container.zoneId,
-        roomId: p.roomId,
-        containerId: container.id,
-        severity: nearObserver ? 4 : 3,
-        privacy: 'local',
-        tags: badBatchTags(
-          nearObserver ? ['production', 'blocked', 'near_player', factory.id, 'bad_batch', 'jammed'] : ['production', 'blocked', factory.id, 'bad_batch', 'jammed'],
-          recipe,
-          badBatch,
-        ),
-        data: {
-          recipeId: recipe.id,
-          blockedReason: 'jammed',
-          repairItems: badBatch.repairItems,
-          repairOutputs: badBatch.repairOutputs,
-          cycleCount: p.cycleCount,
-        },
-      });
-    }
   }
   if (force) state.msgs.push(msg(`[PROD] тик: партий ${made}`, state.time, made > 0 ? '#4f4' : '#888'));
   return made;
