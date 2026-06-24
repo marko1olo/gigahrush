@@ -617,7 +617,7 @@ export function npcPackageLookupHints(context?: NpcPackageValidationContext): Np
     occupations: enumNames(Occupation),
     itemIds: Object.keys(ITEMS).sort(),
     floorKeys: [...new Set(floorKeys)],
-    visualIds: [...NPC_VISUAL_FAMILIES.map(family => family.id), ...stringListFromSetOrList(context?.extraVisualIds)].sort(),
+    visualIds: [...new Set([...NPC_VISUAL_FAMILIES.map(family => family.id), ...stringListFromSetOrList(context?.extraVisualIds)])].sort(),
     perkIds: [...new Set([...allNpcPerks().map(perk => perk.id), ...stringListFromSetOrList(context?.extraPerkIds)])].sort(),
     demosRelationRoles: enumNames(DemosSocialRoleId),
     demosEdgeFlags: Object.keys(SOCIAL_FLAGS).sort(),

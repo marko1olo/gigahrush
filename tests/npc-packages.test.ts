@@ -18,6 +18,7 @@ import {
   NPC_PACKAGE_SOCIAL_LINK_CAP,
   validateCommunityNpcPackageFolder,
   validateNpcPackage,
+  npcPackageLookupHints,
   type NpcCommunityPackageFolder,
   type NpcSpriteRlePayload,
 } from '../src/data/npc_package_schema';
@@ -466,4 +467,44 @@ test('community validation does not load original source image fields', () => {
   const validation = validateCommunityNpcPackageFolder(folder);
   assert.equal(validation.valid, true, validation.errors.join('; '));
   assert.equal(sourceImageRead, false);
+});
+
+test('npcPackageLookupHints provides expected arrays and merges context extras', () => {
+  const defaultHints = npcPackageLookupHints();
+
+  // Basic validation that properties exist and contain expected values
+  assert.ok(defaultHints.factions.includes('CITIZEN'));
+  assert.ok(defaultHints.occupations.includes('DOCTOR'));
+  assert.ok(defaultHints.itemIds.includes('bandage'));
+  assert.ok(defaultHints.floorKeys.includes('story:living'));
+  assert.ok(defaultHints.visualIds.includes(NPC_VISUAL_FLOOR69_FEMALE));
+  assert.ok(defaultHints.perkIds.includes('tool_hands'));
+  assert.ok(defaultHints.demosRelationRoles.includes('FRIEND'));
+  assert.ok(defaultHints.demosEdgeFlags.includes('friend'));
+
+  // Arrays without context should not have duplicate entries or unexpected undefined entries
+  assert.equal(new Set(defaultHints.floorKeys).size, defaultHints.floorKeys.length);
+  assert.equal(new Set(defaultHints.visualIds).size, defaultHints.visualIds.length);
+  assert.equal(new Set(defaultHints.perkIds).size, defaultHints.perkIds.length);
+
+  const hintsWithContext = npcPackageLookupHints({
+    extraKnownKeys: ['extra_floor_1', 'extra_floor_2', 'story:living'], // includes duplicate
+    extraVisualIds: ['custom_visual_1', NPC_VISUAL_FLOOR69_FEMALE], // includes duplicate
+    extraPerkIds: ['custom_perk_1', 'tool_hands'], // includes duplicate
+  });
+
+  // Verify that extras are added
+  assert.ok(hintsWithContext.floorKeys.includes('extra_floor_1'));
+  assert.ok(hintsWithContext.visualIds.includes('custom_visual_1'));
+  assert.ok(hintsWithContext.perkIds.includes('custom_perk_1'));
+
+  // Verify that uniqueness/deduplication works
+  assert.equal(hintsWithContext.floorKeys.filter(k => k === 'story:living').length, 1);
+  assert.equal(hintsWithContext.visualIds.filter(v => v === NPC_VISUAL_FLOOR69_FEMALE).length, 1);
+  assert.equal(hintsWithContext.perkIds.filter(p => p === 'tool_hands').length, 1);
+
+  // Verify that the lengths match deduplicated logic
+  assert.equal(hintsWithContext.floorKeys.length, defaultHints.floorKeys.length + 2);
+  assert.equal(hintsWithContext.visualIds.length, defaultHints.visualIds.length + 1);
+  assert.equal(hintsWithContext.perkIds.length, defaultHints.perkIds.length + 1);
 });
