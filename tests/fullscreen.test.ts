@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { canUseMobileFullscreen, canUseNativeFullscreen } from '../src/fullscreen';
+import { canUseMobileFullscreen, canUseNativeFullscreen, isEmbeddedViewport } from '../src/fullscreen';
 
 interface FullscreenEnvOptions {
   userAgent: string;
@@ -83,5 +83,28 @@ test('mobile fullscreen remains available for compatible direct pages and hidden
     assert.equal(canUseMobileFullscreen(), false);
   } finally {
     restore();
+  }
+});
+
+test('isEmbeddedViewport handles cross-origin access errors gracefully', () => {
+  const previousWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
+
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      get top() {
+        throw new Error('SecurityError');
+      },
+      get self() {
+        return this;
+      }
+    }
+  });
+
+  try {
+    assert.equal(isEmbeddedViewport(), true);
+  } finally {
+    if (previousWindow) Object.defineProperty(globalThis, 'window', previousWindow);
+    else Reflect.deleteProperty(globalThis, 'window');
   }
 });
