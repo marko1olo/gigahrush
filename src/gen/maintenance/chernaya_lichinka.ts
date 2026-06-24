@@ -256,12 +256,21 @@ function isWitnessAlive(ctx: LichinkaContext): boolean {
 
 function killSpawnedThreats(ctx: LichinkaContext): number {
   let killed = 0;
-  for (const id of ctx.threatIds) {
-    const threat = ctx.entities.find(e => e.id === id);
-    if (!threat?.alive) continue;
-    threat.alive = false;
-    threat.hp = 0;
-    killed++;
+  if (ctx.threatIds.length === 0) return 0;
+
+  const threatSet = new Set(ctx.threatIds);
+  let remaining = threatSet.size;
+
+  for (const e of ctx.entities) {
+    if (threatSet.has(e.id)) {
+      if (e.alive) {
+        e.alive = false;
+        e.hp = 0;
+        killed++;
+      }
+      remaining--;
+      if (remaining === 0) break;
+    }
   }
   return killed;
 }
