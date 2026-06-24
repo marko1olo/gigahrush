@@ -588,19 +588,49 @@ export function protectRoom(world: World, rx: number, ry: number, w: number, h: 
 export function connectProtectedRoom(world: World, rx: number, ry: number, w: number, h: number): void {
   // Phase 1: find border wall cells adjacent to non-protected FLOOR (maze passages)
   const openings: number[] = [];
-  for (let dy = -1; dy <= h; dy++) {
-    for (let dx = -1; dx <= w; dx++) {
-      if (dx >= 0 && dx < w && dy >= 0 && dy < h) continue; // skip interior
-      const bx = world.wrap(rx + dx);
-      const by = world.wrap(ry + dy);
-      const bi = world.idx(bx, by);
-      if (world.cells[bi] !== Cell.WALL) continue;
-      for (const [ox, oy] of [[1,0],[-1,0],[0,1],[0,-1]] as const) {
-        const ni = world.idx(world.wrap(bx + ox), world.wrap(by + oy));
-        if (world.cells[ni] === Cell.FLOOR && !world.aptMask[ni]) { openings.push(bi); break; }
-      }
-    }
+  const cells = world.cells;
+  const aptMask = world.aptMask;
+
+  const checkOpening = (dx: number, dy: number) => {
+    let bx = rx + dx;
+    if (bx < 0 || bx >= W) bx = ((bx % W) + W) % W;
+
+    let by = ry + dy;
+    if (by < 0 || by >= W) by = ((by % W) + W) % W;
+
+    const bi = by * W + bx;
+    if (cells[bi] !== Cell.WALL) return;
+
+    // Fast check for neighbors in specific order: [1,0], [-1,0], [0,1], [0,-1]
+    const bx_plus = bx === W - 1 ? 0 : bx + 1;
+    const n1 = by * W + bx_plus;
+    if (cells[n1] === Cell.FLOOR && !aptMask[n1]) { openings.push(bi); return; }
+
+    const bx_minus = bx === 0 ? W - 1 : bx - 1;
+    const n2 = by * W + bx_minus;
+    if (cells[n2] === Cell.FLOOR && !aptMask[n2]) { openings.push(bi); return; }
+
+    const by_plus = by === W - 1 ? 0 : by + 1;
+    const n3 = by_plus * W + bx;
+    if (cells[n3] === Cell.FLOOR && !aptMask[n3]) { openings.push(bi); return; }
+
+    const by_minus = by === 0 ? W - 1 : by - 1;
+    const n4 = by_minus * W + bx;
+    if (cells[n4] === Cell.FLOOR && !aptMask[n4]) { openings.push(bi); return; }
+  };
+
+  // Top edge (dy = -1)
+  for (let dx = -1; dx <= w; dx++) checkOpening(dx, -1);
+
+  // Middle edges (dy = 0 to h-1)
+  for (let dy = 0; dy < h; dy++) {
+    checkOpening(-1, dy);
+    checkOpening(w, dy);
   }
+
+  // Bottom edge (dy = h)
+  for (let dx = -1; dx <= w; dx++) checkOpening(dx, h);
+
   if (openings.length > 0) {
     const bi = openings[Math.floor(Math.random() * openings.length)];
     world.cells[bi] = Cell.FLOOR;
