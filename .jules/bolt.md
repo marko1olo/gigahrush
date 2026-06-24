@@ -1,0 +1,4 @@
+
+## 2024-11-20 - Safe large-scale function refactoring in TypeScript
+**Learning:** Extracting an extremely long, closure-heavy function into a typed class and a factory method significantly improves cyclomatic complexity and readability. Ensuring type-checking passes and Arrow functions are used for class methods preserves `this` context binding for event handlers and callbacks, avoiding regressions. Use python scripts or similar to construct complex replacements accurately rather than struggling with multi-line `sed` replacements or diffs.
+**Action:** When a function grows too large by acting as a giant closure for UI state/events, plan to refactor it by explicitly defining interface/DOM models and creating a class-based implementation. Also, when modifying a large block of code entirely, consider writing a short script to reconstruct the file cleanly instead of risking malformed diffs.
