@@ -212,6 +212,7 @@ import {
 import {
   applyPaupsinaWeb,
   isPaupsinaWebCuttingWeapon,
+  clonePlayerStatuses,
   normalizePlayerStatuses,
   reducePaupsinaWeb,
   updateZhelemishSkinStatus,
@@ -1682,7 +1683,7 @@ function returnFromVoidPortalToLiving(portal: VoidReturnPortalState): void {
   const savedWeapon = player.weapon ?? '';
   const savedTool = player.tool ?? '';
   const savedRpg = player.rpg ? { ...player.rpg } : freshRPG(1);
-  const savedStatuses = player.statuses?.map(s => ({ ...s }));
+  const savedStatuses = clonePlayerStatuses(player.statuses);
   const savedMoney = player.money ?? 100;
   const savedAngle = player.angle;
   const portalCell = portal.cell;
@@ -3837,7 +3838,7 @@ function switchFloor(
   const savedWeapon = player.weapon ?? '';
   const savedTool = player.tool ?? '';
   const savedRpg = player.rpg ? { ...player.rpg } : freshRPG(1);
-  const savedStatuses = player.statuses?.map(s => ({ ...s }));
+  const savedStatuses = clonePlayerStatuses(player.statuses);
   const savedMoney = player.money ?? 100;
   captureFloorMemoryByKey(departingMemoryKey);
 
@@ -4019,7 +4020,7 @@ function debugTeleportTo(target: DebugTeleportTarget): void {
   const savedWeapon = player.weapon ?? '';
   const savedTool = player.tool ?? '';
   const savedRpg = player.rpg ? { ...player.rpg } : freshRPG(1);
-  const savedStatuses = player.statuses?.map(s => ({ ...s }));
+  const savedStatuses = clonePlayerStatuses(player.statuses);
   const savedMoney = player.money ?? 100;
   const savedAngle = player.angle;
   captureCurrentFloorMemory();
