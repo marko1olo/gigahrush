@@ -421,9 +421,10 @@ export function generateMaintenance(generationSeed = MAINTENANCE_TERRITORY_SEED)
   }
   // Sparse tunnel lamps at coarse cell centers
   for (let gy = 0; gy < GRID; gy++) {
+    const cyOffset = (gy * CELL + half) * W;
     for (let gx = 0; gx < GRID; gx++) {
       if (Math.random() < 0.06) {
-        const ci = world.idx(world.wrap(gx * CELL + half), world.wrap(gy * CELL + half));
+        const ci = cyOffset + (gx * CELL + half);
         if (world.cells[ci] === Cell.FLOOR && world.features[ci] === 0)
           world.features[ci] = Feature.LAMP;
       }
