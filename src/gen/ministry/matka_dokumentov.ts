@@ -198,7 +198,18 @@ function hasTag(event: WorldEvent, tag: string): boolean {
 }
 
 function activeThreatIds(ctx: MatkaDokumentovContext): number[] {
-  return ctx.threatIds.filter(id => ctx.entities.some(e => e.id === id && e.alive));
+  const threatSet = new Set(ctx.threatIds);
+  const entityMap = new Map<number, Entity>();
+  for (const e of ctx.entities) {
+    if (threatSet.has(e.id)) {
+      entityMap.set(e.id, e);
+      if (entityMap.size === threatSet.size) break;
+    }
+  }
+  return ctx.threatIds.filter(id => {
+    const e = entityMap.get(id);
+    return e && e.alive;
+  });
 }
 
 function nextEntityId(entities: Entity[]): number {
@@ -320,8 +331,18 @@ function spawnPaperThreats(ctx: MatkaDokumentovContext, desired: number): number
 function empowerPaperThreats(ctx: MatkaDokumentovContext): number {
   if (ctx.cleared || ctx.empowerments >= MAX_EMPOWERMENTS) return 0;
   const ids = activeThreatIds(ctx).slice(0, 2);
+
+  const threatSet = new Set(ctx.threatIds);
+  const entityMap = new Map<number, Entity>();
+  for (const e of ctx.entities) {
+    if (threatSet.has(e.id)) {
+      entityMap.set(e.id, e);
+      if (entityMap.size === threatSet.size) break;
+    }
+  }
+
   for (const id of ids) {
-    const threat = ctx.entities.find(e => e.id === id);
+    const threat = entityMap.get(id);
     if (!threat) continue;
     threat.monsterDmgMult = Math.min(1.25, (threat.monsterDmgMult ?? 1) + 0.12);
     threat.speed *= 1.04;
@@ -422,8 +443,17 @@ function clearAnchor(
 
   let neutralized = 0;
   if (killActive) {
+    const threatSet = new Set(ctx.threatIds);
+    const entityMap = new Map<number, Entity>();
+    for (const e of ctx.entities) {
+      if (threatSet.has(e.id)) {
+        entityMap.set(e.id, e);
+        if (entityMap.size === threatSet.size) break;
+      }
+    }
+
     for (const id of activeThreatIds(ctx)) {
-      const threat = ctx.entities.find(e => e.id === id);
+      const threat = entityMap.get(id);
       if (!threat) continue;
       threat.alive = false;
       threat.hp = 0;
