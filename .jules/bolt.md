@@ -1,0 +1,3 @@
+## 2024-06-22 - Safely Handling Unused Parameters in Refactoring
+**Learning:** When refactoring large blocks into function mappings, TypeScript checks like `tsc --noEmit` will flag unused parameters (TS6133). Prefixing unused parameters with an underscore (e.g., `_target`) is the cleanest way to suppress these without changing the function signature or adding unnecessary `// @ts-ignore` comments. The code review tool may incorrectly claim parameters are entirely unused across all instances, so independent verification is essential.
+**Action:** Always parse the body of extracted functions to correctly determine parameter usage and apply the `_` prefix selectively to safely satisfy TypeScript.
