@@ -1007,13 +1007,17 @@ function consumeInventoryItem(entity: Entity, defId: string, count: number): boo
   if (remaining > 0) return false;
 
   let need = count;
+  let removedAny = false;
   for (let i = entity.inventory.length - 1; i >= 0 && need > 0; i--) {
     const item = entity.inventory[i];
     if (item.defId !== defId) continue;
     const take = Math.min(item.count, need);
     item.count -= take;
     need -= take;
-    if (item.count <= 0) entity.inventory.splice(i, 1);
+    if (item.count <= 0) removedAny = true;
+  }
+  if (removedAny) {
+    entity.inventory = entity.inventory.filter(item => item.count > 0);
   }
   return true;
 }
