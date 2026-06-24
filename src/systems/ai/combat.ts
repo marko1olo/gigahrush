@@ -15,7 +15,7 @@ import { clearFogInZone } from '../samosbor';
 import { agiAttackSpeedMult, meleeDamage } from '../rpg';
 import { zhelemishIncomingMeleeDamage } from '../status';
 import { spawnBloodHit, spawnDeathPool } from '../blood_fx';
-import { consumeDurability, getWeaponStats } from '../inventory';
+import { consumeDurability, getWeaponStats, consumeAmmo } from '../inventory';
 import { isDebugOnePunchManEnabled, keepDebugOnePunchManAlive } from '../debug_cheats';
 import { entityDisplayName } from '../../entities/monster';
 import { followPath, tryAssignPathToCell } from './pathfinding';
@@ -516,8 +516,7 @@ function npcCommitRangedShot(
     e.ai!.windupTargetId = undefined;
     return true;
   }
-  // TODO: [TEMPORARY SOLUTION] NPCs need ammo to shoot but they do not consume it, to prevent burning through their supply.
-  if (ws.ammoType && e.inventory?.some(s => s.defId === ws.ammoType && s.count > 0) !== true) return false;
+  if (ws.ammoType && !consumeAmmo(e, state, weaponId)) return false;
   if (visualProjectiles) {
     npcFireProjectile(world, e, target, weaponId, ws, entities, nextId);
     playSoundAt(hostileWeaponSound(weaponId), e.x, e.y);
