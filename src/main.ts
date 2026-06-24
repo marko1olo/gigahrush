@@ -3118,11 +3118,18 @@ function applyFlameBackdraft(x: number, y: number, actor: Entity | undefined): v
 function burnCollateralNearFlame(x: number, y: number, radius: number, actor: Entity | undefined): boolean {
   const r2 = radius * radius;
   getEntityIndex().queryRadius(x, y, radius, flameCollateralQuery, ENTITY_MASK_ITEM_DROP);
-  for (const drop of flameCollateralQuery) {
+  for (let i = 0; i < flameCollateralQuery.length; i++) {
+    const drop = flameCollateralQuery[i];
     const inv = drop.inventory;
     if (!drop.alive || drop.type !== EntityType.ITEM_DROP || !inv?.length) continue;
     if (world.dist2(x, y, drop.x, drop.y) > r2) continue;
-    const slot = inv.find(item => FLAME_COLLATERAL_ITEMS.has(item.defId));
+    let slot = undefined;
+    for (let j = 0; j < inv.length; j++) {
+      if (FLAME_COLLATERAL_ITEMS.has(inv[j].defId)) {
+        slot = inv[j];
+        break;
+      }
+    }
     if (!slot) continue;
     const def = ITEMS[slot.defId];
     slot.count--;
