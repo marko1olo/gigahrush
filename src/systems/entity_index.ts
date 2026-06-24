@@ -794,3 +794,12 @@ export function ensureEntityIndex(entities: readonly Entity[]): EntityIndex {
 export function getEntityIndex(): EntityIndex {
   return runtimeEntityIndex;
 }
+
+export function getNextEntityId(entities: readonly Entity[], startId = 0): number {
+  let mx = startId;
+  for (let i = 0; i < entities.length; i++) {
+    const id = entities[i].id;
+    if (id > mx) mx = id;
+  }
+  return mx + 1;
+}

@@ -1,3 +1,4 @@
+import { getNextEntityId } from '../../systems/entity_index';
 import {
   AIGoal,
   Cell,
@@ -2398,7 +2399,7 @@ function spawnAmbientMonsters(
   count: number,
   kinds: MonsterKind[],
 ): void {
-  let nextId = entities.reduce((mx, e) => Math.max(mx, e.id), 0) + 1;
+  let nextId = getNextEntityId(entities, 0) + 1;
   for (let i = 0; i < count; i++) {
     const p = randomFloorCell(world, rng);
     if (!p) break;

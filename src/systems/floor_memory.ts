@@ -27,6 +27,7 @@ import { cleanFloorKey, floorKeyForStory, floorKeyKnown, type FloorKeyResolveCon
 import { isNativePlayerBodyEntity } from './player_actor';
 
 export interface FloorMemoryEntry {
+  nextEntityId: number;
   key: string;
   world: World;
   entities: Entity[];
@@ -106,6 +107,7 @@ interface FloorMemoryWorldSave {
 }
 
 export interface FloorMemorySaveEntry {
+  nextEntityId?: number;
   key: string;
   spawnX: number;
   spawnY: number;
@@ -1455,6 +1457,7 @@ export function captureFloorMemory(
   capturedAt: number,
   samosborCount: number,
   generationExtras?: FloorMemoryGenerationExtras,
+  nextEntityId: number = 0,
 ): boolean {
   const key = cleanFloorKey(keyInput);
   if (!key) return false;
@@ -1471,6 +1474,7 @@ export function captureFloorMemory(
     capturedAt,
     samosborCount,
     estimatedBytes,
+    nextEntityId,
     generationExtras,
   });
   floorMemoryBytes += estimatedBytes;
@@ -1491,6 +1495,7 @@ export function takeFloorMemory(keyInput: string): FloorMemoryLoad | null {
         entities: entry.entities,
         spawnX: entry.spawnX,
         spawnY: entry.spawnY,
+        nextEntityId: entry.nextEntityId,
         ...(entry.generationExtras ?? {}),
       } as FloorGeneration,
     };
@@ -1507,6 +1512,7 @@ export function takeFloorMemory(keyInput: string): FloorMemoryLoad | null {
       entities: restoreEntities(packed.save.entities),
       spawnX: packed.save.spawnX,
       spawnY: packed.save.spawnY,
+      nextEntityId: packed.save.nextEntityId,
       ...(resolvePackedGenerationExtras(key, packed) ?? {}),
     } as FloorGeneration,
   };
@@ -1522,6 +1528,7 @@ function entryForSave(entry: FloorMemoryEntry): FloorMemorySaveEntry {
     world: worldForSave(entry.world),
     entities: cloneJson(entry.entities),
     estimatedBytes: entry.estimatedBytes,
+    nextEntityId: entry.nextEntityId,
   };
 }
 
@@ -1684,6 +1691,7 @@ function sanitizedSaveEntry(raw: Partial<FloorMemorySaveEntry>): FloorMemorySave
     world,
     entities,
     estimatedBytes: finiteNonNegativeInt(raw.estimatedBytes),
+    nextEntityId: typeof raw.nextEntityId === 'number' ? Math.max(0, raw.nextEntityId) : 0,
   };
 }
 

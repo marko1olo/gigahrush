@@ -7,6 +7,7 @@
 /*   maze corridors and stamp their own rooms / NPCs / items.    */
 /*   Created rooms get aptMask → survive samosbor.               */
 
+import { getNextEntityId } from '../../systems/entity_index';
 import { type Entity } from '../../core/types';
 import { World } from '../../core/world';
 import { genLog } from '../log';
@@ -94,7 +95,7 @@ export function runZoneContentModules(
       zone.cx, zone.cy,
     );
     // Update nextId from entities array
-    nextId.v = entities.reduce((mx, e) => Math.max(mx, e.id), nextId.v - 1) + 1;
+    nextId.v = getNextEntityId(entities, nextId.v - 1) + 1;
     // Protect new rooms from volatile wipe
     world.apartmentRoomCount = Math.max(world.apartmentRoomCount, result.nextRoomId);
   }
