@@ -256,8 +256,13 @@ function isWitnessAlive(ctx: LichinkaContext): boolean {
 
 function killSpawnedThreats(ctx: LichinkaContext): number {
   let killed = 0;
+  const entityMap = new Map<number, Entity>();
+  for (let i = 0; i < ctx.entities.length; i++) {
+    const e = ctx.entities[i];
+    entityMap.set(e.id, e);
+  }
   for (const id of ctx.threatIds) {
-    const threat = ctx.entities.find(e => e.id === id);
+    const threat = entityMap.get(id);
     if (!threat?.alive) continue;
     threat.alive = false;
     threat.hp = 0;
