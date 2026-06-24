@@ -106,8 +106,7 @@ function hardenMaintenanceHqSeed(world: World, room: Room, owner: TerritoryOwner
   }
 }
 
-function claimMaintenanceHqRoomByName(world: World, name: string, owner: TerritoryOwner): boolean {
-  const room = world.rooms.find(candidate => candidate?.name === name);
+function claimMaintenanceHqRoom(world: World, room: Room | undefined, owner: TerritoryOwner): boolean {
   if (!room || mappedRoomCells(world, room).length === 0) return false;
   hardenMaintenanceHqSeed(world, room, owner);
   return true;
@@ -129,10 +128,31 @@ function chooseMaintenanceHqFallbackRoom(world: World, targetX: number, targetY:
   return best;
 }
 
+const SECONDARY_HQ_NAMES = [
+  'Форпост ликвидаторов',
+  'Слепой пост охотника на угрей',
+  'Сломанный пост караула: Митькина смена',
+  'Проваленный пост зачистки: неверный код',
+];
+
+const HQ_TARGET_NAMES = [
+  ...MAINTENANCE_HQ_SEEDS.map(s => s.roomName),
+  ...SECONDARY_HQ_NAMES,
+];
+
 function seedMaintenanceHqTerritory(world: World): void {
   const usedRooms = new Set<number>();
+
+  const roomsByName = new Map<string, Room>();
+  for (const room of world.rooms) {
+    if (room?.name && HQ_TARGET_NAMES.includes(room.name)) {
+      roomsByName.set(room.name, room);
+      if (roomsByName.size === HQ_TARGET_NAMES.length) break;
+    }
+  }
+
   for (const seed of MAINTENANCE_HQ_SEEDS) {
-    const room = world.rooms.find(candidate => candidate?.name === seed.roomName);
+    const room = roomsByName.get(seed.roomName);
     const picked = room && mappedRoomCells(world, room).length > 0
       ? room
       : chooseMaintenanceHqFallbackRoom(world, seed.fallbackX, seed.fallbackY, usedRooms);
@@ -141,13 +161,8 @@ function seedMaintenanceHqTerritory(world: World): void {
     hardenMaintenanceHqSeed(world, picked, seed.owner);
   }
 
-  for (const name of [
-    'Форпост ликвидаторов',
-    'Слепой пост охотника на угрей',
-    'Сломанный пост караула: Митькина смена',
-    'Проваленный пост зачистки: неверный код',
-  ]) {
-    claimMaintenanceHqRoomByName(world, name, ZoneFaction.LIQUIDATOR);
+  for (const name of SECONDARY_HQ_NAMES) {
+    claimMaintenanceHqRoom(world, roomsByName.get(name), ZoneFaction.LIQUIDATOR);
   }
   world.markWallTexDirty();
   world.markFeaturesDirty(false);
