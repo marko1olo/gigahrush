@@ -11,6 +11,8 @@ import {
   openMapEditor,
   replayMapEditorPatchForCurrentFloor,
   setMapEditorPatchState,
+  ensureMapEditorPatchState,
+  isMapEditorOpen,
 } from '../src/systems/map_editor';
 import { addTestRoom, makeGameState, makeTestPlayer } from './helpers';
 
@@ -150,4 +152,23 @@ test('map editor patch replay sanitizes malformed ops and commits restored edits
   assert.equal(world.doors.get(doorIdx)?.keyId.length, 96);
   assert.equal(world.wallTex[cellIdx], Tex.CONCRETE);
   assert.equal(world.cellVersion > beforeCellVersion, true);
+});
+
+test('ensureMapEditorPatchState initializes and returns valid patch state', () => {
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING, time: 10 });
+  const patchState = ensureMapEditorPatchState(state);
+  assert.ok(patchState);
+  assert.ok(patchState.patches);
+  assert.ok(Array.isArray(patchState.skipped));
+});
+
+test('isMapEditorOpen returns true when editor is open and false when closed', () => {
+  const { world, state, player } = makeEditorFixture();
+  assert.equal(isMapEditorOpen(), false, 'should be initially closed');
+
+  openMapEditor(world, player, state);
+  assert.equal(isMapEditorOpen(), true, 'should be open after openMapEditor');
+
+  closeMapEditor();
+  assert.equal(isMapEditorOpen(), false, 'should be closed after closeMapEditor');
 });
