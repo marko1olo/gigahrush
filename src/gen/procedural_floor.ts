@@ -8300,15 +8300,17 @@ function applyAdminPockets(world: World, rooms: Room[], spec: ProceduralFloorSpe
   const queueRooms = adminRooms
     .filter(room => room.type === RoomType.COMMON || room.type === RoomType.CORRIDOR || room.type === RoomType.SMOKING)
     .slice(0, desiredQueueRooms);
+  const queueRoomsSet = new Set(queueRooms);
   if (queueRooms.length < 2) {
     for (const room of adminRooms) {
-      if (queueRooms.includes(room)) continue;
+      if (queueRoomsSet.has(room)) continue;
       queueRooms.push(room);
+      queueRoomsSet.add(room);
       if (queueRooms.length >= Math.min(2, desiredQueueRooms)) break;
     }
   }
   const officeRooms = adminRooms
-    .filter(room => !queueRooms.includes(room))
+    .filter(room => !queueRoomsSet.has(room))
     .filter(room => room.type === RoomType.OFFICE || room.type === RoomType.STORAGE)
     .slice(0, 12 + spec.danger * 2);
 
