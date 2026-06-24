@@ -81,6 +81,16 @@
       const list = document.getElementById('list');
       const headers = () => ({ 'X-Tenevik-Review-Token': token.value });
 
+      function escapeHTML(str) {
+        if (str === null || str === undefined) return '';
+        return String(str)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      }
+
       async function api(path, init = {}) {
         const response = await fetch(path, { ...init, headers: { ...headers(), ...(init.headers || {}) } });
         const type = response.headers.get('Content-Type') || '';
@@ -96,21 +106,21 @@
           const preview = sub.preview || {};
           article.innerHTML = `
             <div class="top">
-              <strong>${sub.packageId}</strong>
-              <span>${sub.status}</span>
+              <strong>${escapeHTML(sub.packageId)}</strong>
+              <span>${escapeHTML(sub.status)}</span>
             </div>
-            <div class="muted">${sub.submissionId}</div>
-            <div class="muted">contact: ${sub.authorContactPrivate || 'not provided'}</div>
-            <div>${preview.publicLine || 'Нет публичной строки'}</div>
-            <div class="muted">${preview.samplePost || ''}</div>
+            <div class="muted">${escapeHTML(sub.submissionId)}</div>
+            <div class="muted">contact: ${escapeHTML(sub.authorContactPrivate || 'not provided')}</div>
+            <div>${escapeHTML(preview.publicLine || 'Нет публичной строки')}</div>
+            <div class="muted">${escapeHTML(preview.samplePost || '')}</div>
             <div class="actions">
-              <button data-download="${sub.submissionId}">ZIP</button>
-              <button data-export="${sub.submissionId}">Export</button>
-              <select data-status="${sub.submissionId}">
-                ${['submitted', 'needs_review', 'accepted', 'rejected', 'imported'].map(status => `<option ${status === sub.status ? 'selected' : ''}>${status}</option>`).join('')}
+              <button data-download="${escapeHTML(sub.submissionId)}">ZIP</button>
+              <button data-export="${escapeHTML(sub.submissionId)}">Export</button>
+              <select data-status="${escapeHTML(sub.submissionId)}">
+                ${['submitted', 'needs_review', 'accepted', 'rejected', 'imported'].map(status => `<option ${status === sub.status ? 'selected' : ''}>${escapeHTML(status)}</option>`).join('')}
               </select>
-              <button data-save="${sub.submissionId}">Save</button>
-              <textarea data-notes="${sub.submissionId}" placeholder="moderator notes">${sub.moderatorNotes || ''}</textarea>
+              <button data-save="${escapeHTML(sub.submissionId)}">Save</button>
+              <textarea data-notes="${escapeHTML(sub.submissionId)}" placeholder="moderator notes">${escapeHTML(sub.moderatorNotes || '')}</textarea>
             </div>
           `;
           list.appendChild(article);
