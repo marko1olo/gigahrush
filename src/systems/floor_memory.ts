@@ -271,7 +271,7 @@ function estimateFloorMemoryEntryBytes(world: World, entities: readonly Entity[]
 }
 
 function cloneJson<T>(value: T): T {
-  return JSON.parse(JSON.stringify(value)) as T;
+  return structuredClone(value);
 }
 
 function bytesToBase64(bytes: Uint8Array): string {
