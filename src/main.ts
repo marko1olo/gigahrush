@@ -6492,7 +6492,240 @@ canvas.addEventListener('click', e => {
   e.stopImmediatePropagation();
 }, true);
 
+
+function handleInventoryMenuInput(upNav: boolean, dnNav: boolean, leftNav: boolean, rightNav: boolean, acceptEdge: boolean, dropEdge: boolean): void {
+  if (upNav) state.invSel = wrapMenuIndex(state.invSel - INVENTORY_GRID_COLS, MAX_INVENTORY_SLOTS);
+  if (dnNav) state.invSel = wrapMenuIndex(state.invSel + INVENTORY_GRID_COLS, MAX_INVENTORY_SLOTS);
+  if (leftNav) state.invSel = wrapMenuIndex(state.invSel - 1, MAX_INVENTORY_SLOTS);
+  if (rightNav) state.invSel = wrapMenuIndex(state.invSel + 1, MAX_INVENTORY_SLOTS);
+  if (acceptEdge) useInventorySelection();
+  if (dropEdge) dropItem(player, state.invSel, entities, state.msgs, state.time, nextEntityId, state, world);
+  // Attribute spending (1=STR, 2=AGI, 3=INT)
+  if (input.attrStr && player.rpg && player.rpg.attrPoints > 0) {
+    if (spendAttrPoint(player, 'str'))
+      state.msgs.push(msg(`Сила +1 (${player.rpg.str})`, state.time, '#f84'));
+    input.attrStr = false;
+  }
+  if (input.attrAgi && player.rpg && player.rpg.attrPoints > 0) {
+    if (spendAttrPoint(player, 'agi'))
+      state.msgs.push(msg(`Ловкость +1 (${player.rpg.agi})`, state.time, '#4af'));
+    input.attrAgi = false;
+  }
+  if (input.attrInt && player.rpg && player.rpg.attrPoints > 0) {
+    if (spendAttrPoint(player, 'int'))
+      state.msgs.push(msg(`Интеллект +1 (${player.rpg.int})`, state.time, '#a4f'));
+    input.attrInt = false;
+  }
+}
+
+function handleCraftMenuInput(upNav: boolean, dnNav: boolean, acceptEdge: boolean, closeEdge: boolean): void {
+  if (closeEdge) {
+    closeCraftMenu();
+    syncPauseState();
+    updateMobileContext(true);
+  } else {
+    const snapshot = craftMenuSnapshot({
+      actor: player,
+      state,
+      mode: state.craftMode,
+      stationKind: state.craftStationKind,
+      filter: state.craftFilter,
+    });
+    const count = craftMenuEntries(snapshot).length;
+    if (upNav) state.craftCursor = Math.max(0, state.craftCursor - 1);
+    if (dnNav) state.craftCursor = Math.min(Math.max(0, count - 1), state.craftCursor + 1);
+    if (count === 0) state.craftCursor = 0;
+    if (acceptEdge) {
+      activateCraftSelection();
+    }
+  }
+}
+
+function handleQuestsMenuInput(upNav: boolean, dnNav: boolean, acceptEdge: boolean): void {
+  const totalQ = questLogEntries().length;
+  if (upNav) state.questPage = Math.max(0, state.questPage - 1);
+  if (dnNav) state.questPage = Math.min(Math.max(0, totalQ - 1), state.questPage + 1);
+  if (acceptEdge) {
+    toggleSelectedQuestActive();
+  }
+}
+
+function handleContainerMenuInput(upNav: boolean, dnNav: boolean, leftNav: boolean, rightNav: boolean, acceptEdge: boolean): void {
+  const container = world.containerById.get(state.containerMenuTarget);
+  if (!container) {
+    closeContainerMenu();
+  } else {
+    if (upNav) state.containerCursorY = Math.max(0, state.containerCursorY - 1);
+    if (dnNav) state.containerCursorY = Math.min(INVENTORY_GRID_ROWS - 1, state.containerCursorY + 1);
+    if (leftNav) {
+      if (state.containerCursorX > 0) {
+        state.containerCursorX--;
+      } else if (state.containerSide === 'container') {
+        state.containerSide = 'player';
+        state.containerCursorX = INVENTORY_GRID_COLS - 1;
+      }
+    }
+    if (rightNav) {
+      if (state.containerCursorX < INVENTORY_GRID_COLS - 1) {
+        state.containerCursorX++;
+      } else if (state.containerSide === 'player') {
+        state.containerSide = 'container';
+        state.containerCursorX = 0;
+      }
+    }
+    if (acceptEdge) {
+      const idx = state.containerCursorY * INVENTORY_GRID_COLS + state.containerCursorX;
+      const access = containerAccessInfo(container, player, state);
+      if (state.containerSide === 'container') {
+        const slot = container.inventory[idx];
+        const itemName = slot ? ITEMS[slot.defId]?.name ?? slot.defId : '';
+        if (!access.canTake) {
+          state.msgs.push(msg(access.label === 'ЗАПЕРТО' ? 'Заперто.' : 'Нет доступа.', state.time, '#f84'));
+        } else if (slot && takeFromContainer(container, player, idx, 1, { state, world, entities })) {
+          state.msgs.push(msg(`${access.theft ? 'Украдено' : 'Взято'}: ${itemName}`, state.time, access.theft ? '#f84' : '#8f8'));
+        } else {
+          state.msgs.push(msg(slot ? 'Нет места.' : 'Пустой слот.', state.time, '#888'));
+        }
+      } else {
+        const slot = player.inventory?.[idx];
+        if (!access.canPut) {
+          state.msgs.push(msg('Нет доступа.', state.time, '#f84'));
+        } else if (slot && putIntoContainer(container, player, idx, 1, { state, world, entities })) {
+          state.msgs.push(msg(`Положено: ${ITEMS[slot.defId]?.name ?? slot.defId}`, state.time, '#8cf'));
+        } else {
+          state.msgs.push(msg(slot ? 'Контейнер полон.' : 'Пустой слот.', state.time, '#888'));
+        }
+      }
+    }
+  }
+}
+
+function handleNpcMenuInput(upNav: boolean, dnNav: boolean, leftNav: boolean, rightNav: boolean, acceptEdge: boolean, closeEdge: boolean, dropEdge: boolean): void {
+  const npc = entities.find(e => e.id === state.npcMenuTarget);
+  if (state.npcMenuTab === 'main') {
+    const options = npc ? getNpcMenuOptions({ state, player, npc, entities }) : [];
+    clampNpcMenuSelection(state, options);
+    if (upNav) state.npcMenuSel = Math.max(0, state.npcMenuSel - 1);
+    if (dnNav) state.npcMenuSel = Math.min(Math.max(0, options.length - 1), state.npcMenuSel + 1);
+    if (acceptEdge) activateNpcMainSelection(npc);
+  } else if (state.npcMenuTab === 'talk') {
+    if (acceptEdge || closeEdge) state.npcMenuTab = 'main';
+  } else if (state.npcMenuTab === 'quest') {
+    const totalQ = state.quests.filter(q => !q.done).length;
+    if (upNav || leftNav) state.questPage = Math.max(0, state.questPage - 1);
+    if (dnNav || rightNav) state.questPage = Math.min(Math.max(0, totalQ - 1), state.questPage + 1);
+    if (acceptEdge || closeEdge) state.npcMenuTab = 'main';
+  } else if (state.npcMenuTab === 'trade') {
+    if (npc) {
+      const panels = ['player', 'player_offer', 'npc_offer', 'npc'] as const;
+      if (state.tradeSide === 'deal') {
+        if (upNav) {
+          state.tradeSide = 'player_offer';
+          state.tradeCursorX = INVENTORY_GRID_COLS - 1;
+          state.tradeCursorY = INVENTORY_GRID_ROWS - 1;
+        }
+        if (leftNav) state.tradeSide = 'player_offer';
+        if (rightNav) state.tradeSide = 'npc_offer';
+        state.tradeCursorX = Math.max(0, Math.min(INVENTORY_GRID_COLS - 1, state.tradeCursorX));
+        state.tradeCursorY = Math.max(0, Math.min(INVENTORY_GRID_ROWS - 1, state.tradeCursorY));
+      } else {
+        let panelIndex = panels.indexOf(state.tradeSide as typeof panels[number]);
+        if (panelIndex < 0) panelIndex = 3;
+        if (upNav) state.tradeCursorY = Math.max(0, state.tradeCursorY - 1);
+        if (dnNav) {
+          if (state.tradeCursorY >= INVENTORY_GRID_ROWS - 1) {
+            state.tradeSide = 'deal';
+            state.tradeCursorX = 0;
+            state.tradeCursorY = 0;
+          } else {
+            state.tradeCursorY++;
+          }
+        }
+        if (state.tradeSide !== 'deal' && leftNav) {
+          if (state.tradeCursorX > 0) {
+            state.tradeCursorX--;
+          } else if (panelIndex > 0) {
+            state.tradeSide = panels[panelIndex - 1];
+            state.tradeCursorX = INVENTORY_GRID_COLS - 1;
+          }
+        }
+        if (state.tradeSide !== 'deal' && rightNav) {
+          if (state.tradeCursorX < INVENTORY_GRID_COLS - 1) {
+            state.tradeCursorX++;
+          } else if (panelIndex < panels.length - 1) {
+            state.tradeSide = panels[panelIndex + 1];
+            state.tradeCursorX = 0;
+          }
+        }
+        if (state.tradeSide !== 'deal') {
+          state.tradeCursorX = Math.max(0, Math.min(INVENTORY_GRID_COLS - 1, state.tradeCursorX));
+          state.tradeCursorY = Math.max(0, Math.min(INVENTORY_GRID_ROWS - 1, state.tradeCursorY));
+        }
+      }
+      // Enter stages inventory items, removes basket items, or commits the centered deal.
+      if (acceptEdge) {
+        activateTradeSelection(npc);
+      }
+    }
+    if (closeEdge) {
+      clearTradeOffers(state);
+      state.npcMenuTab = 'main';
+    }
+  } else if (state.npcMenuTab === NPC_MENU_INTERFACE_TAB) {
+    if (npc && isDurakGameOpen()) {
+      const result = handleDurakInput({
+        state,
+        player,
+        npc,
+        input: { leftNav, rightNav, interactEdge: acceptEdge, dropEdge },
+      });
+      if (result.closeInterface) closeNpcInteractionInterface(state);
+    } else if (npc && isDiceGameOpen()) {
+      const result = handleDiceInput({
+        state,
+        player,
+        npc,
+        input: { leftNav, rightNav, interactEdge: acceptEdge, dropEdge },
+      });
+      if (result.closeInterface) closeNpcInteractionInterface(state);
+    } else if (npc && isDominoGameOpen()) {
+      const result = handleDominoInput({
+        state,
+        player,
+        npc,
+        input: { leftNav, rightNav, interactEdge: acceptEdge, dropEdge },
+      });
+      if (result.closeInterface) closeNpcInteractionInterface(state);
+    } else if (npc && isCheckersGameOpen()) {
+      const result = handleCheckersInput({
+        state,
+        player,
+        npc,
+        input: { leftNav, rightNav, upNav, downNav: dnNav, interactEdge: acceptEdge, dropEdge },
+      });
+      if (result.closeInterface) closeNpcInteractionInterface(state);
+    } else if (acceptEdge || closeEdge) {
+      closeNpcInteractionInterface(state);
+    }
+  }
+}
+
+function handleDebugMenuInput(upNav: boolean, dnNav: boolean, leftNav: boolean, rightNav: boolean, acceptEdge: boolean, closeEdge: boolean): void {
+  if (closeEdge) { state.showDebug = false; }
+  else {
+    if (upNav) state.debugSel = Math.max(0, state.debugSel - 1);
+    if (dnNav) state.debugSel = Math.min(DEBUG_COMMAND_COUNT - 1, state.debugSel + 1);
+    if (leftNav) moveDebugInfoPage(-1);
+    if (rightNav) moveDebugInfoPage(1);
+    if (acceptEdge) {
+      const action = execDebugCommand(state.debugSel, world, player, entities, state, nextEntityId);
+      if (action) handleDebugCommandAction(action);
+    }
+  }
+}
+
 function handleMenuInput(): void {
+
   // ── On death: lock out all menus / inventory / interactions ──
   // Only the restart prompt (checkRestart) responds to input.
   if (state.gameOver) {
@@ -6977,270 +7210,64 @@ function handleMenuInput(): void {
   }
   // ── Inventory toggle + navigation ────────────────────────
   else if (state.showInventory) {
-    const upNav = menuUpNav();
-    const dnNav = menuDownNav();
-    const leftNav = menuRepeatStep('left', input.invLeft, leftEdge);
-    const rightNav = menuRepeatStep('right', input.invRight, rightEdge);
-    if (upNav) state.invSel = wrapMenuIndex(state.invSel - INVENTORY_GRID_COLS, MAX_INVENTORY_SLOTS);
-    if (dnNav) state.invSel = wrapMenuIndex(state.invSel + INVENTORY_GRID_COLS, MAX_INVENTORY_SLOTS);
-    if (leftNav) state.invSel = wrapMenuIndex(state.invSel - 1, MAX_INVENTORY_SLOTS);
-    if (rightNav) state.invSel = wrapMenuIndex(state.invSel + 1, MAX_INVENTORY_SLOTS);
-    if (acceptEdge) useInventorySelection();
-    if (dropEdge) dropItem(player, state.invSel, entities, state.msgs, state.time, nextEntityId, state, world);
-    // Attribute spending (1=STR, 2=AGI, 3=INT)
-    if (input.attrStr && player.rpg && player.rpg.attrPoints > 0) {
-      if (spendAttrPoint(player, 'str'))
-        state.msgs.push(msg(`Сила +1 (${player.rpg.str})`, state.time, '#f84'));
-      input.attrStr = false;
-    }
-    if (input.attrAgi && player.rpg && player.rpg.attrPoints > 0) {
-      if (spendAttrPoint(player, 'agi'))
-        state.msgs.push(msg(`Ловкость +1 (${player.rpg.agi})`, state.time, '#4af'));
-      input.attrAgi = false;
-    }
-    if (input.attrInt && player.rpg && player.rpg.attrPoints > 0) {
-      if (spendAttrPoint(player, 'int'))
-        state.msgs.push(msg(`Интеллект +1 (${player.rpg.int})`, state.time, '#a4f'));
-      input.attrInt = false;
-    }
+    handleInventoryMenuInput(
+      menuUpNav(),
+      menuDownNav(),
+      menuRepeatStep('left', input.invLeft, leftEdge),
+      menuRepeatStep('right', input.invRight, rightEdge),
+      acceptEdge,
+      dropEdge
+    );
   }
   // ── Craft / disassembly menu navigation ──────────────────
   else if (state.showCraftMenu) {
-    if (closeEdge) {
-      closeCraftMenu();
-      syncPauseState();
-      updateMobileContext(true);
-    } else {
-      const upNav = menuUpNav();
-      const dnNav = menuDownNav();
-      const snapshot = craftMenuSnapshot({
-        actor: player,
-        state,
-        mode: state.craftMode,
-        stationKind: state.craftStationKind,
-        filter: state.craftFilter,
-      });
-      const count = craftMenuEntries(snapshot).length;
-      if (upNav) state.craftCursor = Math.max(0, state.craftCursor - 1);
-      if (dnNav) state.craftCursor = Math.min(Math.max(0, count - 1), state.craftCursor + 1);
-      if (count === 0) state.craftCursor = 0;
-      if (acceptEdge) {
-        activateCraftSelection();
-      }
-    }
+    handleCraftMenuInput(
+      menuUpNav(),
+      menuDownNav(),
+      acceptEdge,
+      closeEdge
+    );
   }
   // ── Quest log toggle ─────────────────────────────────────
   else if (state.showQuests) {
-    const totalQ = questLogEntries().length;
-    const upNav = menuUpNav();
-    const dnNav = menuDownNav();
-    if (upNav) state.questPage = Math.max(0, state.questPage - 1);
-    if (dnNav) state.questPage = Math.min(Math.max(0, totalQ - 1), state.questPage + 1);
-    if (acceptEdge) {
-      toggleSelectedQuestActive();
-    }
+    handleQuestsMenuInput(
+      menuUpNav(),
+      menuDownNav(),
+      acceptEdge
+    );
   }
   // ── Container menu navigation ────────────────────────────
   else if (state.showContainerMenu) {
-    const container = world.containerById.get(state.containerMenuTarget);
-    if (!container) {
-      closeContainerMenu();
-    } else {
-      const upNav = menuUpNav();
-      const dnNav = menuDownNav();
-      const leftNav = menuRepeatStep('left', input.invLeft, leftEdge);
-      const rightNav = menuRepeatStep('right', input.invRight || input.drop, rightEdge || dropEdge);
-      if (upNav) state.containerCursorY = Math.max(0, state.containerCursorY - 1);
-      if (dnNav) state.containerCursorY = Math.min(INVENTORY_GRID_ROWS - 1, state.containerCursorY + 1);
-      if (leftNav) {
-        if (state.containerCursorX > 0) {
-          state.containerCursorX--;
-        } else if (state.containerSide === 'container') {
-          state.containerSide = 'player';
-          state.containerCursorX = INVENTORY_GRID_COLS - 1;
-        }
-      }
-      if (rightNav) {
-        if (state.containerCursorX < INVENTORY_GRID_COLS - 1) {
-          state.containerCursorX++;
-        } else if (state.containerSide === 'player') {
-          state.containerSide = 'container';
-          state.containerCursorX = 0;
-        }
-      }
-      if (acceptEdge) {
-        const idx = state.containerCursorY * INVENTORY_GRID_COLS + state.containerCursorX;
-        const access = containerAccessInfo(container, player, state);
-        if (state.containerSide === 'container') {
-          const slot = container.inventory[idx];
-          const itemName = slot ? ITEMS[slot.defId]?.name ?? slot.defId : '';
-          if (!access.canTake) {
-            state.msgs.push(msg(access.label === 'ЗАПЕРТО' ? 'Заперто.' : 'Нет доступа.', state.time, '#f84'));
-          } else if (slot && takeFromContainer(container, player, idx, 1, { state, world, entities })) {
-            state.msgs.push(msg(`${access.theft ? 'Украдено' : 'Взято'}: ${itemName}`, state.time, access.theft ? '#f84' : '#8f8'));
-          } else {
-            state.msgs.push(msg(slot ? 'Нет места.' : 'Пустой слот.', state.time, '#888'));
-          }
-        } else {
-          const slot = player.inventory?.[idx];
-          if (!access.canPut) {
-            state.msgs.push(msg('Нет доступа.', state.time, '#f84'));
-          } else if (slot && putIntoContainer(container, player, idx, 1, { state, world, entities })) {
-            state.msgs.push(msg(`Положено: ${ITEMS[slot.defId]?.name ?? slot.defId}`, state.time, '#8cf'));
-          } else {
-            state.msgs.push(msg(slot ? 'Контейнер полон.' : 'Пустой слот.', state.time, '#888'));
-          }
-        }
-      }
-    }
+    handleContainerMenuInput(
+      menuUpNav(),
+      menuDownNav(),
+      menuRepeatStep('left', input.invLeft, leftEdge),
+      menuRepeatStep('right', input.invRight || input.drop, rightEdge || dropEdge),
+      acceptEdge
+    );
   }
   // ── NPC menu navigation ──────────────────────────────────
   else if (state.showNpcMenu) {
-    const npc = entities.find(e => e.id === state.npcMenuTarget);
-    if (state.npcMenuTab === 'main') {
-      const upNav = menuUpNav();
-      const dnNav = menuDownNav();
-      const options = npc ? getNpcMenuOptions({ state, player, npc, entities }) : [];
-      clampNpcMenuSelection(state, options);
-      if (upNav) state.npcMenuSel = Math.max(0, state.npcMenuSel - 1);
-      if (dnNav) state.npcMenuSel = Math.min(Math.max(0, options.length - 1), state.npcMenuSel + 1);
-      if (acceptEdge) activateNpcMainSelection(npc);
-    } else if (state.npcMenuTab === 'talk') {
-      if (acceptEdge || closeEdge) state.npcMenuTab = 'main';
-    } else if (state.npcMenuTab === 'quest') {
-      const totalQ = state.quests.filter(q => !q.done).length;
-      const upNav = menuUpNav();
-      const dnNav = menuDownNav();
-      const leftNav = menuRepeatStep('left', input.invLeft, leftEdge);
-      const rightNav = menuRepeatStep('right', input.invRight || input.drop, rightEdge || dropEdge);
-      if (upNav || leftNav) state.questPage = Math.max(0, state.questPage - 1);
-      if (dnNav || rightNav) state.questPage = Math.min(Math.max(0, totalQ - 1), state.questPage + 1);
-      if (acceptEdge || closeEdge) state.npcMenuTab = 'main';
-    } else if (state.npcMenuTab === 'trade') {
-      if (npc) {
-        const upNav = menuUpNav();
-        const dnNav = menuDownNav();
-        const leftNav = menuRepeatStep('left', input.invLeft, leftEdge);
-        const rightNav = menuRepeatStep('right', input.invRight || input.drop, rightEdge || dropEdge);
-        const panels = ['player', 'player_offer', 'npc_offer', 'npc'] as const;
-        if (state.tradeSide === 'deal') {
-          if (upNav) {
-            state.tradeSide = 'player_offer';
-            state.tradeCursorX = INVENTORY_GRID_COLS - 1;
-            state.tradeCursorY = INVENTORY_GRID_ROWS - 1;
-          }
-          if (leftNav) state.tradeSide = 'player_offer';
-          if (rightNav) state.tradeSide = 'npc_offer';
-          state.tradeCursorX = Math.max(0, Math.min(INVENTORY_GRID_COLS - 1, state.tradeCursorX));
-          state.tradeCursorY = Math.max(0, Math.min(INVENTORY_GRID_ROWS - 1, state.tradeCursorY));
-        } else {
-          let panelIndex = panels.indexOf(state.tradeSide as typeof panels[number]);
-          if (panelIndex < 0) panelIndex = 3;
-          if (upNav) state.tradeCursorY = Math.max(0, state.tradeCursorY - 1);
-          if (dnNav) {
-            if (state.tradeCursorY >= INVENTORY_GRID_ROWS - 1) {
-              state.tradeSide = 'deal';
-              state.tradeCursorX = 0;
-              state.tradeCursorY = 0;
-            } else {
-              state.tradeCursorY++;
-            }
-          }
-          if (state.tradeSide !== 'deal' && leftNav) {
-            if (state.tradeCursorX > 0) {
-              state.tradeCursorX--;
-            } else if (panelIndex > 0) {
-              state.tradeSide = panels[panelIndex - 1];
-              state.tradeCursorX = INVENTORY_GRID_COLS - 1;
-            }
-          }
-          if (state.tradeSide !== 'deal' && rightNav) {
-            if (state.tradeCursorX < INVENTORY_GRID_COLS - 1) {
-              state.tradeCursorX++;
-            } else if (panelIndex < panels.length - 1) {
-              state.tradeSide = panels[panelIndex + 1];
-              state.tradeCursorX = 0;
-            }
-          }
-          if (state.tradeSide !== 'deal') {
-            state.tradeCursorX = Math.max(0, Math.min(INVENTORY_GRID_COLS - 1, state.tradeCursorX));
-            state.tradeCursorY = Math.max(0, Math.min(INVENTORY_GRID_ROWS - 1, state.tradeCursorY));
-          }
-        }
-        // Enter stages inventory items, removes basket items, or commits the centered deal.
-        if (acceptEdge) {
-          activateTradeSelection(npc);
-        }
-      }
-      if (closeEdge) {
-        clearTradeOffers(state);
-        state.npcMenuTab = 'main';
-      }
-    } else if (state.npcMenuTab === NPC_MENU_INTERFACE_TAB) {
-      if (npc && isDurakGameOpen()) {
-        const leftNav = menuRepeatStep('left', input.invLeft, leftEdge);
-        const rightNav = menuRepeatStep('right', input.invRight, rightEdge);
-        const result = handleDurakInput({
-          state,
-          player,
-          npc,
-          input: { leftNav, rightNav, interactEdge: acceptEdge, dropEdge },
-        });
-        if (result.closeInterface) closeNpcInteractionInterface(state);
-      } else if (npc && isDiceGameOpen()) {
-        const leftNav = menuRepeatStep('left', input.invLeft, leftEdge);
-        const rightNav = menuRepeatStep('right', input.invRight, rightEdge);
-        const result = handleDiceInput({
-          state,
-          player,
-          npc,
-          input: { leftNav, rightNav, interactEdge: acceptEdge, dropEdge },
-        });
-        if (result.closeInterface) closeNpcInteractionInterface(state);
-      } else if (npc && isDominoGameOpen()) {
-        const leftNav = menuRepeatStep('left', input.invLeft, leftEdge);
-        const rightNav = menuRepeatStep('right', input.invRight, rightEdge);
-        const result = handleDominoInput({
-          state,
-          player,
-          npc,
-          input: { leftNav, rightNav, interactEdge: acceptEdge, dropEdge },
-        });
-        if (result.closeInterface) closeNpcInteractionInterface(state);
-      } else if (npc && isCheckersGameOpen()) {
-        const leftNav = menuRepeatStep('left', input.invLeft, leftEdge);
-        const rightNav = menuRepeatStep('right', input.invRight, rightEdge);
-        const upNav = menuUpNav();
-        const downNav = menuDownNav();
-        const result = handleCheckersInput({
-          state,
-          player,
-          npc,
-          input: { leftNav, rightNav, upNav, downNav, interactEdge: acceptEdge, dropEdge },
-        });
-        if (result.closeInterface) closeNpcInteractionInterface(state);
-      } else if (acceptEdge || closeEdge) {
-        closeNpcInteractionInterface(state);
-      }
-    }
+    handleNpcMenuInput(
+      menuUpNav(),
+      menuDownNav(),
+      menuRepeatStep('left', input.invLeft, leftEdge),
+      menuRepeatStep('right', input.invRight || input.drop, rightEdge || dropEdge),
+      acceptEdge,
+      closeEdge,
+      dropEdge
+    );
   }
   // ── Debug menu navigation ────────────────────────────────
   else if (state.showDebug) {
-    if (closeEdge) { state.showDebug = false; }
-    else {
-      const upNav = menuUpNav();
-      const dnNav = menuDownNav();
-      const leftNav = menuRepeatStep('left', input.invLeft, leftEdge);
-      const rightNav = menuRepeatStep('right', input.invRight, rightEdge);
-      if (upNav) state.debugSel = Math.max(0, state.debugSel - 1);
-      if (dnNav) state.debugSel = Math.min(DEBUG_COMMAND_COUNT - 1, state.debugSel + 1);
-      if (leftNav) moveDebugInfoPage(-1);
-      if (rightNav) moveDebugInfoPage(1);
-      if (acceptEdge) {
-        const action = execDebugCommand(state.debugSel, world, player, entities, state, nextEntityId);
-        if (action) handleDebugCommandAction(action);
-      }
-    }
+    handleDebugMenuInput(
+      menuUpNav(),
+      menuDownNav(),
+      menuRepeatStep('left', input.invLeft, leftEdge),
+      menuRepeatStep('right', input.invRight, rightEdge),
+      acceptEdge,
+      closeEdge
+    );
   }
   // ── Faction relations menu ───────────────────────────────
   else if (state.showFactions) {
