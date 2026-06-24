@@ -53,7 +53,7 @@ import {
   uiSettingsRowAt,
   uiSettingsRowCount,
   visualGeometryMode,
-  visualGeometryModeLabel,
+  visualGeometryModeLabel, normalizeLightingQualityMode, cameraFovRadians, cameraPlaneLen, setAutoPickupEnabled, setMapColorMode, setMapHighContrastEnabled, setMapLegendToggleEnabled,
 } from '../src/systems/ui_orchestrator';
 
 test('UI orchestrator defaults to the novice-safe HUD enabled', () => {
@@ -289,4 +289,57 @@ test('UI orchestrator keeps graphics fatigue settings outside interface presets'
   assert.equal(uiSettingsRowAt(3, 'graphics')?.kind, 'visual_geometry');
   assert.equal(uiSettingsRowAt(4, 'graphics')?.kind, 'lighting_quality');
   assert.equal(uiSettingsRowAt(6, 'graphics')?.kind, 'map_contrast');
+});
+
+test('UI orchestrator setAutoPickupEnabled works explicitly', () => {
+  resetUiSettings();
+  assert.equal(autoPickupEnabled(), true);
+  assert.equal(setAutoPickupEnabled(false), false);
+  assert.equal(autoPickupEnabled(), false);
+  assert.equal(setAutoPickupEnabled(true), true);
+  assert.equal(autoPickupEnabled(), true);
+});
+
+test('UI orchestrator map color mode setter works explicitly', () => {
+  resetUiSettings();
+  assert.equal(mapColorMode(), 'rooms');
+  assert.equal(setMapColorMode('rooms'), 'rooms');
+  assert.equal(mapColorMode(), 'rooms');
+});
+
+test('UI orchestrator map high contrast setter works explicitly', () => {
+  resetUiSettings();
+  assert.equal(mapHighContrastEnabled(), false);
+  assert.equal(setMapHighContrastEnabled(true), true);
+  assert.equal(mapHighContrastEnabled(), true);
+  assert.equal(setMapHighContrastEnabled(false), false);
+  assert.equal(mapHighContrastEnabled(), false);
+});
+
+test('UI orchestrator map legend toggle setter works explicitly', () => {
+  resetUiSettings();
+  assert.equal(mapLegendToggleEnabled('map_items'), true);
+  assert.equal(setMapLegendToggleEnabled('map_items', false), false);
+  assert.equal(mapLegendToggleEnabled('map_items'), false);
+  assert.equal(setMapLegendToggleEnabled('map_items', true), true);
+  assert.equal(mapLegendToggleEnabled('map_items'), true);
+
+  // @ts-ignore - intentional invalid ID for test
+  assert.equal(setMapLegendToggleEnabled('invalid_id', true), false);
+});
+
+test('UI orchestrator camera FOV conversions work', () => {
+  resetUiSettings();
+  // default is 90
+  assert.equal(cameraFovDegrees(), 90);
+  assert.equal(cameraFovRadians(), 90 * Math.PI / 180);
+  assert.equal(cameraPlaneLen(), Math.tan(90 * Math.PI / 180 * 0.5));
+});
+
+test('UI orchestrator lighting quality normalizer handles invalid inputs', () => {
+
+  assert.equal(normalizeLightingQualityMode('experimental'), 'experimental');
+  assert.equal(normalizeLightingQualityMode('low'), 'low');
+  assert.equal(normalizeLightingQualityMode('invalid_mode'), 'experimental');
+  assert.equal(normalizeLightingQualityMode(null), 'experimental');
 });
