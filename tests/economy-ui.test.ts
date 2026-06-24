@@ -7,6 +7,7 @@ import {
   financeDetailLines,
   hasInventoryRoom,
   readFinanceSnapshot,
+  scarcityBand,
   tradePriceDisplay,
 } from '../src/render/economy_ui';
 
@@ -87,4 +88,48 @@ test('trade price display includes fallback price reason and affordability statu
 test('inventory room check treats existing stacks as space', () => {
   assert.equal(hasInventoryRoom([{ defId: 'water', count: 1 }], 'water'), true);
   assert.equal(hasInventoryRoom(Array.from({ length: MAX_INVENTORY_SLOTS }, (_, i) => ({ defId: `missing_${i}`, count: 1 })), 'water'), false);
+});
+
+test('scarcityBand calculations', async (t) => {
+  await t.test('handles non-finite numbers', () => {
+    assert.equal(scarcityBand(NaN).label, 'НОРМА');
+    assert.equal(scarcityBand(Infinity).label, 'НОРМА');
+    assert.equal(scarcityBand(-Infinity).label, 'НОРМА');
+  });
+
+  await t.test('handles КРИЗИС band (m >= 2.05)', () => {
+    assert.equal(scarcityBand(2.05).label, 'КРИЗИС');
+    assert.equal(scarcityBand(3.0).label, 'КРИЗИС');
+  });
+
+  await t.test('handles ДЕФИЦИТ band (m >= 1.35)', () => {
+    assert.equal(scarcityBand(1.35).label, 'ДЕФИЦИТ');
+    assert.equal(scarcityBand(1.5).label, 'ДЕФИЦИТ');
+    assert.equal(scarcityBand(2.04).label, 'ДЕФИЦИТ');
+  });
+
+  await t.test('handles НАПРЯЖ. band (m >= 1.12)', () => {
+    assert.equal(scarcityBand(1.12).label, 'НАПРЯЖ.');
+    assert.equal(scarcityBand(1.2).label, 'НАПРЯЖ.');
+    assert.equal(scarcityBand(1.34).label, 'НАПРЯЖ.');
+  });
+
+  await t.test('handles ИЗБЫТОК band (m <= 0.72)', () => {
+    assert.equal(scarcityBand(0.72).label, 'ИЗБЫТОК');
+    assert.equal(scarcityBand(0.5).label, 'ИЗБЫТОК');
+    assert.equal(scarcityBand(0.0).label, 'ИЗБЫТОК');
+    assert.equal(scarcityBand(-1.0).label, 'ИЗБЫТОК');
+  });
+
+  await t.test('handles ЗАПАС band (m <= 0.88)', () => {
+    assert.equal(scarcityBand(0.88).label, 'ЗАПАС');
+    assert.equal(scarcityBand(0.8).label, 'ЗАПАС');
+    assert.equal(scarcityBand(0.73).label, 'ЗАПАС');
+  });
+
+  await t.test('handles НОРМА band (0.88 < m < 1.12)', () => {
+    assert.equal(scarcityBand(1).label, 'НОРМА');
+    assert.equal(scarcityBand(0.89).label, 'НОРМА');
+    assert.equal(scarcityBand(1.11).label, 'НОРМА');
+  });
 });
