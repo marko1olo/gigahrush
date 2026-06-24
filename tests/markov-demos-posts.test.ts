@@ -287,3 +287,44 @@ test('Demos feed view stores rendered rows outside the transient queue only', ()
 test('Demos persistent social batch owns the current save shape', () => {
   assert.equal(currentSaveShapeVersion(), 21);
 });
+
+test('Demos enqueue ignores private/secret events by default, but allows them if requested', () => {
+  const queue = createDemosPostQueue();
+
+  const ignoredPrivate = enqueueDemosPostFromEvent(queue, worldEvent({
+    id: 12,
+    type: 'room_lacked_resources',
+    privacy: 'private',
+    data: { actorAlifeId: 1 },
+  }));
+  assert.equal(ignoredPrivate, undefined);
+  assert.equal(queue.posts.length, 0);
+
+  const allowedPrivate = enqueueDemosPostFromEvent(queue, worldEvent({
+    id: 13,
+    type: 'room_lacked_resources',
+    privacy: 'private',
+    data: { actorAlifeId: 1 },
+  }), { allowPrivateEvents: true });
+  assert.ok(allowedPrivate);
+  assert.equal(queue.posts.length, 1);
+  assert.equal(queue.posts[0].sourceEventId, 13);
+});
+
+test('Demos enqueue ignores events authored by dead npcs', () => {
+  const queue = createDemosPostQueue();
+  const ignoredDeadAuthor = enqueueDemosPostFromEvent(queue, worldEvent({
+    id: 14,
+    type: 'samosbor_warning',
+  }), {
+    fallbackAuthorAlifeIds: [1],
+    snapshotForAlifeId: alifeId => {
+      const snap = demosPostAuthorFactFromSnapshot(snapshot(alifeId, `Житель ${alifeId}`));
+      snap.dead = true;
+      return snap;
+    },
+  });
+
+  assert.equal(ignoredDeadAuthor, undefined);
+  assert.equal(queue.posts.length, 0);
+});
