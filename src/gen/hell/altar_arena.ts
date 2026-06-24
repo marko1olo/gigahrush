@@ -780,8 +780,13 @@ function aliveHostileCount(site: AltarArenaSite): number {
   const entities = activeEntities;
   if (!entities) return 0;
   let count = 0;
+  const entityMap = new Map<number, Entity>();
+  for (let i = 0, len = entities.length; i < len; i++) {
+    const entity = entities[i];
+    entityMap.set(entity.id, entity);
+  }
   for (const id of site.hostileIds) {
-    const hostile = entities.find(entity => entity.id === id);
+    const hostile = entityMap.get(id);
     if (hostile?.alive) count++;
   }
   return count;
