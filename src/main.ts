@@ -6938,7 +6938,7 @@ function handleMenuInput(): void {
   let gameMenuOpenedThisFrame = false;
   if (closeEdge) {
     if (state.showNpcMenu) {
-      const npc = entities.find(e => e.id === state.npcMenuTarget);
+      const npc = getEntityIndex().byId.get(state.npcMenuTarget);
       if (npc && isDurakGameOpen()) handleDurakInput({ state, player, npc, input: { escEdge: true } });
       else if (npc && isDiceGameOpen()) handleDiceInput({ state, player, npc, input: { escEdge: true } });
       else if (npc && isDominoGameOpen()) handleDominoInput({ state, player, npc, input: { escEdge: true } });
