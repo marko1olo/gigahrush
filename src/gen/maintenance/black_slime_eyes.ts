@@ -284,12 +284,24 @@ function sealBlackSlime(state: GameState, ctx: BlackSlimeContext, event: WorldEv
   if (room) room.sealed = true;
 
   let sealedEyes = 0;
-  for (const id of ctx.eyeIds) {
-    const eye = ctx.entities.find(e => e.id === id);
-    if (eye?.alive) {
-      eye.alive = false;
-      eye.hp = 0;
-      sealedEyes++;
+  if (ctx.eyeIds.length > 0) {
+    const eyeIds = new Set(ctx.eyeIds);
+    const eyeMap = new Map();
+    for (let i = 0; i < ctx.entities.length; i++) {
+      const e = ctx.entities[i];
+      if (eyeIds.has(e.id)) {
+        eyeMap.set(e.id, e);
+        if (eyeMap.size === eyeIds.size) break;
+      }
+    }
+
+    for (const id of ctx.eyeIds) {
+      const eye = eyeMap.get(id);
+      if (eye?.alive) {
+        eye.alive = false;
+        eye.hp = 0;
+        sealedEyes++;
+      }
     }
   }
 
