@@ -226,10 +226,6 @@ let maronaryGlowCells: number[] = [];
 let playerPressureSpawnAccum = 0;
 let activeSamosborScale: 'full' = 'full';
 
-/** @deprecated Scale is always 'full' now. Kept for debug command compatibility. */
-export function forceNextSamosborScale(_scale: string): void {
-  // no-op: scale is always 'full'
-}
 let istotitShelterRoomIds: number[] = [];
 let istotitShelterCycle = -1;
 let istotitShelterFloor = FloorLevel.LIVING;
