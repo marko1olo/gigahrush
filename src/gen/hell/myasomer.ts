@@ -692,8 +692,12 @@ function findThreatSpawn(world: World, site: MyasomerSite, order: number): { x: 
 
 function maybePublishLoudClear(state: GameState, entities: readonly Entity[], site: MyasomerSite, event: WorldEvent): void {
   if (site.loudCleared || site.spawned <= 0 || !site.threatIds.includes(event.targetId ?? -1)) return;
+  const entityMap = new Map<number, Entity>();
+  for (let i = 0; i < entities.length; i++) {
+    entityMap.set(entities[i].id, entities[i]);
+  }
   for (const id of site.threatIds) {
-    const threat = entities.find(entity => entity.id === id);
+    const threat = entityMap.get(id);
     if (threat?.alive) return;
   }
   site.loudCleared = true;
