@@ -562,7 +562,7 @@ function hasValidSaveGame(): boolean {
   try {
     const raw = localStorage.getItem(SAVE_KEY);
     if (!raw) return false;
-    const parsed = JSON.parse(raw);
+    const parsed = JSON.parse(deobfuscateSaveData(raw));
     return saveShapeVersionStatus(parsed) === 'current';
   } catch {
     return false;
@@ -4692,6 +4692,34 @@ function normalizeQuestList(input: unknown, nextQuestIdInput: unknown, nowMinute
   return { quests, nextQuestId };
 }
 
+function obfuscateSaveData(raw: string): string {
+  try {
+    const bytes = new TextEncoder().encode(raw);
+    let binary = '';
+    const chunk = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunk) {
+      binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+    }
+    return btoa(binary);
+  } catch {
+    return raw;
+  }
+}
+
+function deobfuscateSaveData(data: string): string {
+  if (!data || data.startsWith('{')) return data;
+  try {
+    const binary = atob(data);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return new TextDecoder().decode(bytes);
+  } catch {
+    return data;
+  }
+}
+
 function saveGame(): void {
   try {
     makeCurrentPlayer(endPsiPossession(entities, player, state.msgs, state.time, 'cancelled'));
@@ -4707,7 +4735,7 @@ function saveGame(): void {
     const compactRaw = JSON.stringify(compactData);
     const rawBytes = new TextEncoder().encode(raw).length;
     const compactBytes = new TextEncoder().encode(compactRaw).length;
-    localStorage.setItem(SAVE_KEY, raw);
+    localStorage.setItem(SAVE_KEY, obfuscateSaveData(raw));
     void savePlatformRawGameSave(raw, rawBytes, {
       raw: compactRaw,
       bytes: compactBytes,
@@ -4726,7 +4754,7 @@ function loadGame(): boolean {
       state.msgs.push(msg('Нет сохранения', state.time, '#f84'));
       return false;
     }
-    const parsed = JSON.parse(raw);
+    const parsed = JSON.parse(deobfuscateSaveData(raw));
     const versionStatus = saveShapeVersionStatus(parsed);
     if (versionStatus !== 'current') {
       const text = versionStatus === 'newer'
