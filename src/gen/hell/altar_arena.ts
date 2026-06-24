@@ -708,8 +708,14 @@ function maybeClearArena(
   source: WorldEvent,
 ): void {
   if (site.cleared || site.phase < 2) return;
+
+  const entitiesById = new Map<number, Entity>();
+  for (const entity of entities) {
+    entitiesById.set(entity.id, entity);
+  }
+
   for (const id of site.hostileIds) {
-    const hostile = entities.find(entity => entity.id === id);
+    const hostile = entitiesById.get(id);
     if (hostile?.alive) return;
   }
   site.cleared = true;
