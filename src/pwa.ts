@@ -1,6 +1,6 @@
 export function registerPwaServiceWorker(): void {
   if (!('serviceWorker' in navigator)) return;
-  if (import.meta.env.DEV) {
+  if (import.meta.env?.DEV) {
     window.addEventListener('load', () => {
       const cacheStorage = 'caches' in window ? window.caches : undefined;
       void navigator.serviceWorker.getRegistrations()
