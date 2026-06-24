@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { AIGoal, NpcState } from '../src/core/types';
 import { getNpcPackageByPlotNpcId, npcPackageDisplayName } from '../src/data/npc_packages';
 import { tickNpcSpecialRoutine } from '../src/systems/npc_special_routines';
+import { getNpcSpecialRoutine } from '../src/data/npc_special_routines';
 import { makeTestNpc } from './helpers';
 
 function plotNpcName(plotNpcId: string): string {
@@ -51,6 +52,16 @@ test('Olga tutorial lock is selected from package data and expires to ordinary A
     expired: false,
     clearUtility: false,
   });
+});
+
+test('getNpcSpecialRoutine returns the correct routine or undefined', () => {
+  const routine = getNpcSpecialRoutine('tutorial_lock_one_hour');
+  assert.ok(routine);
+  assert.equal(routine.id, 'tutorial_lock_one_hour');
+  assert.equal(routine.holdGoal, AIGoal.IDLE);
+
+  assert.equal(getNpcSpecialRoutine(undefined), undefined);
+  assert.equal(getNpcSpecialRoutine('unknown_id'), undefined);
 });
 
 test('Barinov uses the starter range lock from package data', () => {
