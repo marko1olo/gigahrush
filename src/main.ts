@@ -4534,11 +4534,15 @@ function normalizeEventSeverity(value: unknown): WorldEventSeverity | undefined 
 function normalizeStringArray(value: unknown, maxItems = 8, maxLen = 48): string[] | undefined {
   if (!Array.isArray(value)) return undefined;
   const out: string[] = [];
+  const seen = new Set<string>();
   for (const raw of value) {
     if (out.length >= maxItems) break;
     if (typeof raw !== 'string') continue;
     const clean = raw.slice(0, maxLen);
-    if (clean && !out.includes(clean)) out.push(clean);
+    if (clean && !seen.has(clean)) {
+      seen.add(clean);
+      out.push(clean);
+    }
   }
   return out.length > 0 ? out : undefined;
 }
