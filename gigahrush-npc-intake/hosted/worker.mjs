@@ -344,13 +344,27 @@ async function handleSubmit(request, env) {
   });
 }
 
+function timingSafeStringEqual(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  let mismatch = a.length === b.length ? 0 : 1;
+  const len = Math.max(a.length, b.length);
+  for (let i = 0; i < len; i++) {
+    const charA = i < a.length ? a.charCodeAt(i) : 0;
+    const charB = i < b.length ? b.charCodeAt(i) : 0;
+    mismatch |= (charA ^ charB);
+  }
+  return mismatch === 0;
+}
+
 function requireReviewAuth(request, env) {
   const expected = env.TENEVIK_REVIEW_TOKEN;
   if (!expected) badRequest('TENEVIK_REVIEW_TOKEN is not configured', 503);
   const auth = request.headers.get('Authorization') || '';
   const bearer = auth.startsWith('Bearer ') ? auth.slice(7) : '';
   const header = request.headers.get('X-Tenevik-Review-Token') || '';
-  if (bearer !== expected && header !== expected) badRequest('review authorization required', 401);
+  if (!timingSafeStringEqual(bearer, expected) && !timingSafeStringEqual(header, expected)) {
+    badRequest('review authorization required', 401);
+  }
 }
 
 async function readJsonBody(request, limit = 4096) {
