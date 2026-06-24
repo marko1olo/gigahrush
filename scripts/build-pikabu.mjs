@@ -13,8 +13,13 @@ const outHtml = path.resolve(outDir, 'index.html');
 const outZip = path.resolve(outDir, 'gigahrush-pikabu.zip');
 const outNotes = path.resolve(outDir, 'PIKABU_UPLOAD_NOTES.txt');
 
-const projectId = process.env.GAMEPUSH_PROJECT_ID || process.env.GP_PROJECT_ID || '28314';
-const publicToken = process.env.GAMEPUSH_PUBLIC_TOKEN || process.env.GP_PUBLIC_TOKEN || 'FU2KD6CeH84MGmGTk6wxhILIlbiPgdsq';
+const projectId = process.env.GAMEPUSH_PROJECT_ID || process.env.GP_PROJECT_ID;
+const publicToken = process.env.GAMEPUSH_PUBLIC_TOKEN || process.env.GP_PUBLIC_TOKEN;
+
+if (!projectId || !publicToken) {
+  console.error('Error: GAMEPUSH_PROJECT_ID and GAMEPUSH_PUBLIC_TOKEN must be provided to build the Pikabu portal.');
+  process.exit(1);
+}
 
 function run(command, args) {
   return new Promise((resolve, reject) => {
@@ -35,11 +40,11 @@ function escapeAttr(value) {
 }
 
 function portalMetaBlock() {
-  const lines = ['<meta name="gigahrush-portal" content="pikabu">'];
-  if (projectId && publicToken) {
-    lines.push(`<meta name="gamepush-project-id" content="${escapeAttr(projectId)}">`);
-    lines.push(`<meta name="gamepush-public-token" content="${escapeAttr(publicToken)}">`);
-  }
+  const lines = [
+    '<meta name="gigahrush-portal" content="pikabu">',
+    `<meta name="gamepush-project-id" content="${escapeAttr(projectId)}">`,
+    `<meta name="gamepush-public-token" content="${escapeAttr(publicToken)}">`
+  ];
   return `<!-- GIGAH|RUSH Pikabu/GamePush portal mode: injected by npm run pikabu:build -->\n${lines.join('\n')}`;
 }
 
@@ -168,7 +173,7 @@ Upload archive: pikabu/gigahrush-pikabu.zip
 The archive root contains index.html. The injected meta tag enables strict portal mode without changing the canonical dist/ build.
 
 GamePush credentials:
-- ${projectId && publicToken ? 'Embedded from GAMEPUSH_PROJECT_ID/GP_PROJECT_ID and GAMEPUSH_PUBLIC_TOKEN/GP_PUBLIC_TOKEN environment variables.' : 'Not embedded. Rebuild with GAMEPUSH_PROJECT_ID and GAMEPUSH_PUBLIC_TOKEN, or inject equivalent private meta tags before uploading.'}
+- Embedded from GAMEPUSH_PROJECT_ID/GP_PROJECT_ID and GAMEPUSH_PUBLIC_TOKEN/GP_PUBLIC_TOKEN environment variables.
 
 Before final submit:
 - Create the GamePush player field named progress.
@@ -193,4 +198,4 @@ console.log('Pikabu/GamePush build ready:');
 console.log(`- ${path.relative(root, outHtml)} (${htmlSize} bytes)`);
 console.log(`- ${path.relative(root, outZip)} (${zipSize} bytes, upload this ZIP)`);
 console.log(`- ${path.relative(root, outNotes)} (private setup notes)`);
-console.log(`- GamePush credentials embedded: ${projectId && publicToken ? 'yes' : 'no'}`);
+console.log(`- GamePush credentials embedded: yes`);
