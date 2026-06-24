@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { Feature, RoomType } from '../src/core/types';
 import {
   ROOM_AFFORDANCES,
+  roomAffordanceDef,
   roomAffordanceTags,
   roomAffordanceWeight,
   roomExpectedFeatures,
@@ -62,4 +63,12 @@ test('routine safety keeps its narrower pre-registry room scoring', () => {
   assert.equal(npcUtilityRoomTypeWeightForIntent('safety', RoomType.STORAGE), 0);
   assert.equal(npcUtilityRoomTypeWeightForIntent('flee', RoomType.MEDICAL), 0);
   assert.equal(npcUtilityRoomTypeWeightForIntent('flee', RoomType.OFFICE), 0);
+});
+
+test('room affordance def returns the full definition for a room type', () => {
+  const livingDef = roomAffordanceDef(RoomType.LIVING);
+  assert.deepEqual(livingDef, ROOM_AFFORDANCES[RoomType.LIVING]);
+
+  const hqDef = roomAffordanceDef(RoomType.HQ);
+  assert.deepEqual(hqDef, ROOM_AFFORDANCES[RoomType.HQ]);
 });
