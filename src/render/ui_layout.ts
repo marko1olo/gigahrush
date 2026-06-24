@@ -13,6 +13,10 @@ function clamp(v: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, v));
 }
 
+export function snap(v: number): number {
+  return Math.round(v) + 0.5;
+}
+
 export interface UiRect {
   x: number;
   y: number;

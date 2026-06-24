@@ -5,6 +5,7 @@ import {
   type DurakSuit,
 } from '../systems/durak';
 import { controlBindingLabel, controlHint, menuCloseHint } from '../systems/controls';
+import { snap } from './ui_layout';
 import { fitText } from './ui_text';
 
 const CARD_ASPECT = 0.70;
@@ -226,10 +227,6 @@ function drawCardCenter(ctx: CanvasRenderingContext2D, card: DurakCard, x: numbe
 
 function clamp(v: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, v));
-}
-
-function snap(v: number): number {
-  return Math.round(v) + 0.5;
 }
 
 function rect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, fill: string, stroke?: string): void {
