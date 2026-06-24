@@ -368,3 +368,25 @@ test('mouse buttons are ignored while gameplay pointer input is blocked', () => 
     env.restore();
   }
 });
+
+test('synchronous error during requestPointerLock is caught silently', () => {
+  const env = installInputDom();
+  try {
+    const unbind = bindInput(createInput(), env.canvas as unknown as HTMLCanvasElement, {
+      shouldRequestPointerLock: () => true,
+    });
+    env.canvas.requestPointerLock = () => {
+      throw new Error('Simulated synchronous error');
+    };
+
+    // Attempt to trigger a requestPointerLock
+    assert.doesNotThrow(() => {
+      env.canvas.dispatch('mousedown', mouseEvent('mousedown'));
+      env.canvas.dispatch('click');
+    });
+
+    unbind();
+  } finally {
+    env.restore();
+  }
+});
