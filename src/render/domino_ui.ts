@@ -1,6 +1,6 @@
 import { type DominoBoardTile, type DominoSnapshot, type DominoTile } from '../systems/domino';
 import { controlBindingLabel, controlHint, menuCloseHint } from '../systems/controls';
-import { fitText } from './ui_text';
+import { fitText, drawBadge, drawRect } from './ui_text';
 
 const PIPS: Record<number, readonly [number, number][]> = {
   0: [],
@@ -14,33 +14,6 @@ const PIPS: Record<number, readonly [number, number][]> = {
 
 function clamp(v: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, v));
-}
-
-function snap(v: number): number {
-  return Math.round(v) + 0.5;
-}
-
-function rect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, fill: string, stroke?: string): void {
-  const xx = Math.round(x);
-  const yy = Math.round(y);
-  const ww = Math.round(w);
-  const hh = Math.round(h);
-  ctx.fillStyle = fill;
-  ctx.fillRect(xx, yy, ww, hh);
-  if (stroke) {
-    ctx.strokeStyle = stroke;
-    ctx.lineWidth = 1;
-    ctx.strokeRect(snap(xx), snap(yy), Math.max(0, ww - 1), Math.max(0, hh - 1));
-  }
-}
-
-function drawBadge(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, w: number, h: number, s: number, color: string): void {
-  rect(ctx, x, y, w, h, '#090d0d', '#303936');
-  ctx.fillStyle = color;
-  ctx.font = `${Math.max(7, Math.round(h * 0.52))}px monospace`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(fitText(ctx, text, w - 5 * s), Math.round(x + w * 0.5), Math.round(y + h * 0.53));
 }
 
 function drawPips(ctx: CanvasRenderingContext2D, value: number, x: number, y: number, w: number, h: number, s: number): void {
@@ -67,9 +40,9 @@ function drawDominoTile(
   const fill = muted ? '#2d332f' : '#d9d2b8';
   const inner = muted ? '#373f3a' : '#eee4c6';
   const stroke = selected ? '#d6b15d' : muted ? '#697069' : '#3b3327';
-  rect(ctx, x, y, w, h, fill, stroke);
-  rect(ctx, x + 2 * s, y + 2 * s, w - 4 * s, h - 4 * s, inner, muted ? '#59615c' : '#8b826d');
-  rect(ctx, x + w * 0.5 - 0.5, y + 4 * s, 1, h - 8 * s, muted ? '#59615c' : '#504638');
+  drawRect(ctx, x, y, w, h, fill, stroke);
+  drawRect(ctx, x + 2 * s, y + 2 * s, w - 4 * s, h - 4 * s, inner, muted ? '#59615c' : '#8b826d');
+  drawRect(ctx, x + w * 0.5 - 0.5, y + 4 * s, 1, h - 8 * s, muted ? '#59615c' : '#504638');
   if (!muted) {
     drawPips(ctx, tile.a, x + 3 * s, y + 3 * s, w * 0.5 - 6 * s, h - 6 * s, s);
     drawPips(ctx, tile.b, x + w * 0.5 + 3 * s, y + 3 * s, w * 0.5 - 6 * s, h - 6 * s, s);
@@ -92,7 +65,7 @@ function boardWindow(board: readonly DominoBoardTile[], maxTiles: number): reado
 }
 
 function drawBoard(ctx: CanvasRenderingContext2D, snapshot: DominoSnapshot, x: number, y: number, w: number, h: number, s: number): void {
-  rect(ctx, x, y, w, h, 'rgba(4,7,6,0.56)', '#2c3732');
+  drawRect(ctx, x, y, w, h, 'rgba(4,7,6,0.56)', '#2c3732');
   const count = Math.max(1, snapshot.board.length);
   const targetW = (w - 12 * s) / (count + Math.max(0, count - 1) * 0.1);
   const tileW = clamp(targetW, 16 * s, clamp(w / 8.8, 34 * s, 48 * s));
@@ -163,7 +136,7 @@ export function drawDominoInterface(
   const boardH = Math.max(64 * sy, statusY - boardY - 8 * sy);
 
   ctx.save();
-  rect(ctx, px + 4 * sx, py + 32 * sy, pw - 8 * sx, ph - 43 * sy, 'rgba(2,5,5,0.74)', '#27312f');
+  drawRect(ctx, px + 4 * sx, py + 32 * sy, pw - 8 * sx, ph - 43 * sy, 'rgba(2,5,5,0.74)', '#27312f');
 
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';

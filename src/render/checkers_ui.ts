@@ -1,33 +1,6 @@
 import { type CheckersSnapshot, type CheckersPiece } from '../systems/checkers';
 import { controlBindingLabel, controlHint, menuCloseHint } from '../systems/controls';
-import { fitText } from './ui_text';
-
-function snap(v: number): number {
-  return Math.round(v) + 0.5;
-}
-
-function rect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, fill: string, stroke?: string): void {
-  const xx = Math.round(x);
-  const yy = Math.round(y);
-  const ww = Math.round(w);
-  const hh = Math.round(h);
-  ctx.fillStyle = fill;
-  ctx.fillRect(xx, yy, ww, hh);
-  if (stroke) {
-    ctx.strokeStyle = stroke;
-    ctx.lineWidth = 1;
-    ctx.strokeRect(snap(xx), snap(yy), Math.max(0, ww - 1), Math.max(0, hh - 1));
-  }
-}
-
-function drawBadge(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, w: number, h: number, s: number, color: string): void {
-  rect(ctx, x, y, w, h, '#090d0d', '#303936');
-  ctx.fillStyle = color;
-  ctx.font = `${Math.max(7, Math.round(h * 0.52))}px monospace`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(fitText(ctx, text, w - 5 * s), Math.round(x + w * 0.5), Math.round(y + h * 0.53));
-}
+import { fitText, drawBadge, drawRect } from './ui_text';
 
 function resultText(snapshot: CheckersSnapshot): string {
   if (snapshot.phase !== 'finished') {
@@ -80,7 +53,7 @@ export function drawCheckersInterface(
   const controlsY = py + ph - 17 * sy;
   
   ctx.save();
-  rect(ctx, px + 4 * sx, py + 32 * sy, pw - 8 * sx, ph - 43 * sy, 'rgba(2,5,5,0.74)', '#27312f');
+  drawRect(ctx, px + 4 * sx, py + 32 * sy, pw - 8 * sx, ph - 43 * sy, 'rgba(2,5,5,0.74)', '#27312f');
 
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
@@ -99,17 +72,17 @@ export function drawCheckersInterface(
   const boardY = headerY + 30 * sy;
   const cellSize = boardSize / 8;
 
-  rect(ctx, boardX - 2, boardY - 2, boardSize + 4, boardSize + 4, '#1c2422', '#343c38');
+  drawRect(ctx, boardX - 2, boardY - 2, boardSize + 4, boardSize + 4, '#1c2422', '#343c38');
 
   for (let y = 0; y < 8; y++) {
     for (let x = 0; x < 8; x++) {
       const isDark = (x + y) % 2 === 1;
       const cellFill = isDark ? '#27312f' : '#3a4441';
-      rect(ctx, boardX + x * cellSize, boardY + y * cellSize, cellSize, cellSize, cellFill);
+      drawRect(ctx, boardX + x * cellSize, boardY + y * cellSize, cellSize, cellSize, cellFill);
       
       // Cursor
       if (snapshot.phase === 'player_turn' && snapshot.cursorX === x && snapshot.cursorY === y) {
-        rect(ctx, boardX + x * cellSize, boardY + y * cellSize, cellSize, cellSize, 'rgba(214, 177, 93, 0.3)', '#d6b15d');
+        drawRect(ctx, boardX + x * cellSize, boardY + y * cellSize, cellSize, cellSize, 'rgba(214, 177, 93, 0.3)', '#d6b15d');
       }
 
       const piece = snapshot.pieces.find(p => p.x === x && p.y === y);
