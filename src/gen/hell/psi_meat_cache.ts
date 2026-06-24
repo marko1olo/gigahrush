@@ -308,6 +308,7 @@ function spawnCacheBranchBacklash(
   kinds: readonly MonsterKind[],
 ): number {
   let spawned = 0;
+  const player = entities.find(entity => isPlayerEntity(entity) && entity.alive);
   for (const kind of kinds) {
     if (site.backlashSpawned >= AG54_PSI_CACHE_BACKLASH_CAP) break;
     const pos = findCacheBranchSpawn(world, site, site.backlashSpawned + spawned);
@@ -317,7 +318,6 @@ function spawnCacheBranchBacklash(
     const zoneLevel = world.zones[site.zoneId]?.level ?? 10;
     const level = zoneLevel + (kind === MonsterKind.POLZUN ? 3 : 2);
     const hp = Math.max(1, Math.round(scaleMonsterHp(def.hp, level)));
-    const player = entities.find(entity => isPlayerEntity(entity) && entity.alive);
     const monster: Entity = {
       id,
       type: EntityType.MONSTER,
