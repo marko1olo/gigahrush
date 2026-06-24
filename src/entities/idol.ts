@@ -28,31 +28,23 @@ export function generateSprite(): Uint32Array {
   return generateIdolSprite(13666);
 }
 
-/* ── Procedural sprite from seed — each idol unique ────────────── */
-export function generateIdolSprite(seed: number): Uint32Array {
-  const t = new Uint32Array(S * S).fill(CLEAR);
-  const cx = S / 2;
+interface IdolCtx {
+  t: Uint32Array;
+  seed: number;
+  cx: number;
+  lean: number;
+  baseW: number;
+  topW: number;
+  height: number;
+  topY: number;
+  botY: number;
+  bR: number;
+  bG: number;
+  bB: number;
+}
 
-  // Hash-derived shape parameters
-  const lean      = (noise(0, 0, seed + 10) - 0.5) * 6;       // slight tilt
-  const baseW     = 10 + Math.floor(noise(0, 1, seed + 11) * 6); // 10-15 base width
-  const topW      = 2 + Math.floor(noise(1, 0, seed + 12) * 3);  // 2-4 top width
-  const height    = 50 + Math.floor(noise(1, 1, seed + 13) * 8); // 50-57 height
-  const topY      = S - 2 - height;                               // top of spire
-  const botY      = S - 3;                                        // bottom
-  const numEyes   = 4 + (seed % 6);                               // 4-9 eyes
-  const numCracks = 3 + (seed % 5);                               // 3-7 cracks
-  const hue       = seed % 4;                                     // color variation
-
-  // Color palettes — all dark, eldritch
-  const palettes: [number, number, number][] = [
-    [35, 30, 40],    // dark violet-black stone
-    [30, 35, 30],    // dark mossy stone
-    [40, 28, 28],    // dark reddish stone
-    [28, 28, 35],    // blue-black obsidian
-  ];
-  const [bR, bG, bB] = palettes[hue];
-
+function drawMainSpire(ctx: IdolCtx) {
+  const { t, seed, cx, lean, baseW, topW, topY, botY, bR, bG, bB } = ctx;
   // ── Main spire body — irregular tapered column ──
   for (let y = topY; y <= botY; y++) {
     const t01 = (y - topY) / (botY - topY); // 0 at top, 1 at bottom
@@ -93,7 +85,10 @@ export function generateIdolSprite(seed: number): Uint32Array {
       );
     }
   }
+}
 
+function drawJaggedCrown(ctx: IdolCtx) {
+  const { t, seed, cx, lean, topW, topY, bR, bG, bB } = ctx;
   // ── Jagged crown at top — broken stone fragments ──
   for (let i = -3; i <= 3; i++) {
     const fragH = 2 + Math.floor(noise(i + 4, 0, seed + 30) * 6);
@@ -109,7 +104,10 @@ export function generateIdolSprite(seed: number): Uint32Array {
       }
     }
   }
+}
 
+function drawCracks(ctx: IdolCtx, numCracks: number) {
+  const { t, seed, cx, lean, baseW, height, topY } = ctx;
   // ── Cracks — deep dark fissures ──
   for (let i = 0; i < numCracks; i++) {
     let cy2 = Math.floor(topY + 8 + noise(i, 0, seed + 40) * (height - 16));
@@ -125,7 +123,10 @@ export function generateIdolSprite(seed: number): Uint32Array {
       cy2 += 1;
     }
   }
+}
 
+function drawEyes(ctx: IdolCtx, numEyes: number) {
+  const { t, seed, cx, lean, baseW, topW, height, topY } = ctx;
   // ── Eyes — scattered across the surface, staring ──
   for (let i = 0; i < numEyes; i++) {
     const et = 0.15 + noise(i, 0, seed + 50) * 0.7; // vertical position 15%-85%
@@ -176,7 +177,10 @@ export function generateIdolSprite(seed: number): Uint32Array {
       }
     }
   }
+}
 
+function drawOoze(ctx: IdolCtx) {
+  const { t, seed, cx, lean, baseW, height, topY } = ctx;
   // ── Oozing dark substance from cracks (dripping) ──
   for (let i = 0; i < 4; i++) {
     const dx2 = Math.floor(cx + lean * 0.5 + (noise(i, 3, seed + 60) - 0.5) * baseW);
@@ -193,7 +197,10 @@ export function generateIdolSprite(seed: number): Uint32Array {
       );
     }
   }
+}
 
+function drawRunes(ctx: IdolCtx) {
+  const { t, seed, cx, lean, height, topY } = ctx;
   // ── Faint glowing runes/symbols etched into surface ──
   const numRunes = 2 + (seed % 3);
   for (let i = 0; i < numRunes; i++) {
@@ -228,6 +235,43 @@ export function generateIdolSprite(seed: number): Uint32Array {
       }
     }
   }
+}
+
+/* ── Procedural sprite from seed — each idol unique ────────────── */
+export function generateIdolSprite(seed: number): Uint32Array {
+  const t = new Uint32Array(S * S).fill(CLEAR);
+  const cx = S / 2;
+
+  // Hash-derived shape parameters
+  const lean      = (noise(0, 0, seed + 10) - 0.5) * 6;       // slight tilt
+  const baseW     = 10 + Math.floor(noise(0, 1, seed + 11) * 6); // 10-15 base width
+  const topW      = 2 + Math.floor(noise(1, 0, seed + 12) * 3);  // 2-4 top width
+  const height    = 50 + Math.floor(noise(1, 1, seed + 13) * 8); // 50-57 height
+  const topY      = S - 2 - height;                               // top of spire
+  const botY      = S - 3;                                        // bottom
+  const numEyes   = 4 + (seed % 6);                               // 4-9 eyes
+  const numCracks = 3 + (seed % 5);                               // 3-7 cracks
+  const hue       = seed % 4;                                     // color variation
+
+  // Color palettes — all dark, eldritch
+  const palettes: [number, number, number][] = [
+    [35, 30, 40],    // dark violet-black stone
+    [30, 35, 30],    // dark mossy stone
+    [40, 28, 28],    // dark reddish stone
+    [28, 28, 35],    // blue-black obsidian
+  ];
+  const [bR, bG, bB] = palettes[hue];
+
+  const ctx: IdolCtx = {
+    t, seed, cx, lean, baseW, topW, height, topY, botY, bR, bG, bB,
+  };
+
+  drawMainSpire(ctx);
+  drawJaggedCrown(ctx);
+  drawCracks(ctx, numCracks);
+  drawEyes(ctx, numEyes);
+  drawOoze(ctx);
+  drawRunes(ctx);
 
   return t;
 }
