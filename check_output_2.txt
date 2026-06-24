@@ -1,0 +1,18 @@
+
+> gigahrush@1.0.0 check:full
+> npm run check && npm run smoke
+
+
+> gigahrush@1.0.0 check
+> npm run typecheck && npm run test:unit && npm run content:audit && npm run build
+
+
+> gigahrush@1.0.0 typecheck
+> tsc --noEmit
+
+
+> gigahrush@1.0.0 test:unit
+> node scripts/run-unit-tests.mjs
+
+Unit test selection: 187 files; 296 generation/content files reserved for npm run test:generation.
+TAP version 13

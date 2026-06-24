@@ -1043,6 +1043,17 @@ let world: World;
 let entities: Entity[];
 let player: Entity;
 let state: GameState;
+
+function computeNextEntityId(entities: Entity[]): number {
+  let maxId = 0;
+  for (let i = 0; i < entities.length; i++) {
+    if (entities[i].id > maxId) {
+      maxId = entities[i].id;
+    }
+  }
+  return maxId + 1;
+}
+
 let nextEntityId = { v: 1 };
 let prevPlayerActorId = -1;
 let prevPlayerActorHp = 100; // track current player actor HP changes for damage flash
@@ -1280,7 +1291,7 @@ function continueDeathAsAlifePopulationNpc(): boolean {
 
     world = replaceWorldFromGeneration(null, gen);
     entities = gen.entities;
-    nextEntityId.v = entities.reduce((mx, e) => Math.max(mx, e.id), 0) + 1;
+    nextEntityId.v = computeNextEntityId(entities);
     materializeCurrentAlifeFloor(snapshot.floorKey);
 
     let host = entities.find(e => e.type === EntityType.NPC && e.alifeId === snapshot.id && e.alive);
@@ -1699,7 +1710,7 @@ function returnFromVoidPortalToLiving(portal: VoidReturnPortalState): void {
     const gen = loaded.generation;
     world = replaceWorldFromGeneration(null, gen);
     entities = gen.entities;
-    nextEntityId.v = entities.reduce((mx, e) => Math.max(mx, e.id), 0) + 1;
+    nextEntityId.v = computeNextEntityId(entities);
     materializeCurrentAlifeFloor(currentFloorMemoryKey());
 
     player = {
@@ -2146,7 +2157,7 @@ function initGame(runSeedOverride?: number): void {
   stampCeilingHeights(gen.world);
   world = replaceWorldFromGeneration(null, gen);
   entities = gen.entities;
-  nextEntityId.v = entities.reduce((mx, e) => Math.max(mx, e.id), 0) + 1;
+  nextEntityId.v = computeNextEntityId(entities);
 
   player = {
     id: nextEntityId.v++,
@@ -3832,7 +3843,7 @@ function switchFloor(
 
     world = replaceWorldFromGeneration(null, gen);
     entities = gen.entities;
-    nextEntityId.v = entities.reduce((mx, e) => Math.max(mx, e.id), 0) + 1;
+    nextEntityId.v = computeNextEntityId(entities);
     materializeCurrentAlifeFloor(currentFloorMemoryKey());
 
     const routeLiftMirror = !activeFloorInstance && !route.activeInstance && generatedRunEntry && departureLiftAnchors.length > 0
@@ -4031,7 +4042,7 @@ function debugTeleportTo(target: DebugTeleportTarget): void {
 
     world = replaceWorldFromGeneration(null, gen);
     entities = gen.entities;
-    nextEntityId.v = entities.reduce((mx, e) => Math.max(mx, e.id), 0) + 1;
+    nextEntityId.v = computeNextEntityId(entities);
     materializeCurrentAlifeFloor();
 
     player = {
@@ -4769,7 +4780,7 @@ function loadGame(): boolean {
 
       world = replaceWorldFromGeneration(null, gen);
       entities = gen.entities;
-      nextEntityId.v = entities.reduce((mx, e) => Math.max(mx, e.id), 0) + 1;
+      nextEntityId.v = computeNextEntityId(entities);
       materializeCurrentAlifeFloor(generatedRunEntry ? floorRunEntryFloorKey(generatedRunEntry) : currentFloorMemoryKey());
       const spawn = safeSpawnNear(
         finiteNumber(dataPlayer.x, gen.spawnX),
