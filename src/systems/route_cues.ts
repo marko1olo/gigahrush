@@ -186,11 +186,12 @@ export function pruneRouteCuesInCells(world: World, cells: readonly number[] | S
   state.markers = state.markers.filter(marker => !markerHitsCell(marker));
   const removed = beforeMarkers - state.markers.length;
   if (removed > 0) {
-    if (activeHud && !state.markers.some(marker => marker.id === activeHud?.id)) activeHud = null;
-    for (const id of Array.from(state.heardAt.keys())) if (!state.markers.some(marker => marker.id === id)) state.heardAt.delete(id);
-    for (const id of Array.from(state.lastPlayedAt.keys())) if (!state.markers.some(marker => marker.id === id)) state.lastPlayedAt.delete(id);
-    for (const id of Array.from(state.followed.values())) if (!state.markers.some(marker => marker.id === id)) state.followed.delete(id);
-    for (const id of Array.from(state.ignored.values())) if (!state.markers.some(marker => marker.id === id)) state.ignored.delete(id);
+    const validIds = new Set(state.markers.map(marker => marker.id));
+    if (activeHud && !validIds.has(activeHud.id)) activeHud = null;
+    for (const id of state.heardAt.keys()) if (!validIds.has(id)) state.heardAt.delete(id);
+    for (const id of state.lastPlayedAt.keys()) if (!validIds.has(id)) state.lastPlayedAt.delete(id);
+    for (const id of state.followed) if (!validIds.has(id)) state.followed.delete(id);
+    for (const id of state.ignored) if (!validIds.has(id)) state.ignored.delete(id);
   }
   return removed;
 }
