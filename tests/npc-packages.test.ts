@@ -11,6 +11,8 @@ import {
   registerCommunityNpcPackageFolders,
   registerNpcPackage,
   validateNpcPackages,
+  allNpcPackages,
+  clearNpcPackagesForTests,
   type NpcPackageDef,
 } from '../src/data/npc_packages';
 import {
@@ -252,6 +254,24 @@ test('NPC package registry rejects duplicate ids', () => {
   registerNpcPackage(pack);
   assert.throws(() => registerNpcPackage({ ...pack }), /duplicate id/);
   assert.deepEqual(validateNpcPackages(), []);
+});
+
+test('clearNpcPackagesForTests clears registered packages', () => {
+  const pack1 = minimalNpcPackage('clear_test_npc_1');
+  const pack2 = minimalNpcPackage('clear_test_npc_2');
+
+  registerNpcPackage(pack1);
+  registerNpcPackage(pack2);
+
+  assert.ok(allNpcPackages().length >= 2);
+  assert.ok(getNpcPackage('clear_test_npc_1'));
+  assert.ok(getNpcPackage('clear_test_npc_2'));
+
+  clearNpcPackagesForTests();
+
+  assert.equal(allNpcPackages().length, 0);
+  assert.equal(getNpcPackage('clear_test_npc_1'), undefined);
+  assert.equal(getNpcPackage('clear_test_npc_2'), undefined);
 });
 
 test('NPC package validator rejects bad floor keys', () => {
