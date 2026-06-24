@@ -3924,8 +3924,12 @@ function switchFloor(
     const transitionTags = ['floor', 'floor_transition', 'lift', route.activeInstance ? 'elevator_anomaly' : 'normal'];
     if (generatedRunEntry?.designFloorId) transitionTags.push('design_floor', generatedRunEntry.designFloorId);
     if (generatedRunEntry?.spec) transitionTags.push('procedural');
+    const tagSet1 = new Set(transitionTags);
     for (const tag of proceduralAnomalyEventTags(generatedRunEntry?.spec)) {
-      if (!transitionTags.includes(tag)) transitionTags.push(tag);
+      if (!tagSet1.has(tag)) {
+        tagSet1.add(tag);
+        transitionTags.push(tag);
+      }
     }
     const anomalyData = proceduralAnomalyEventData(generatedRunEntry?.spec);
     publishEvent(state, {
@@ -4094,8 +4098,12 @@ function debugTeleportTo(target: DebugTeleportTarget): void {
 
     state.msgs.push(msg(`[DEBUG] Телепорт: ${target.label}`, state.time, target.color));
     const transitionTags = ['floor', 'floor_transition', 'debug', target.spec ? 'procedural' : target.designFloorId ? 'design_floor' : 'story'];
+    const tagSet2 = new Set(transitionTags);
     for (const tag of proceduralAnomalyEventTags(target.spec)) {
-      if (!transitionTags.includes(tag)) transitionTags.push(tag);
+      if (!tagSet2.has(tag)) {
+        tagSet2.add(tag);
+        transitionTags.push(tag);
+      }
     }
     const anomalyData = proceduralAnomalyEventData(target.spec);
     publishEvent(state, {
