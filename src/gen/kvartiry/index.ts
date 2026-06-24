@@ -350,19 +350,25 @@ export function generateKvartiry(territorySeed = 0): { world: World; entities: E
     visited[startCell] = 1;
     let head = 0;
     const candidates: number[] = [];
+    const WMASK = W - 1;
 
     const floodFloors = (): void => {
       while (head < queue.length) {
         const ci = queue[head++];
         const cx = ci % W, cy = (ci / W) | 0;
-        for (let s = 0; s < 4; s++) {
-          const ni = world.idx(world.wrap(cx + DX[s]), world.wrap(cy + DY[s]));
-          if (visited[ni]) continue;
-          if (world.cells[ni] === Cell.FLOOR) {
-            visited[ni] = 1;
-            queue.push(ni);
-          }
-        }
+        const cyW = cy * W;
+
+        let ni = cyW + ((cx + 1) & WMASK);
+        if (!visited[ni] && world.cells[ni] === Cell.FLOOR) { visited[ni] = 1; queue.push(ni); }
+
+        ni = (((cy + 1) & WMASK) * W) + cx;
+        if (!visited[ni] && world.cells[ni] === Cell.FLOOR) { visited[ni] = 1; queue.push(ni); }
+
+        ni = cyW + ((cx - 1) & WMASK);
+        if (!visited[ni] && world.cells[ni] === Cell.FLOOR) { visited[ni] = 1; queue.push(ni); }
+
+        ni = (((cy - 1) & WMASK) * W) + cx;
+        if (!visited[ni] && world.cells[ni] === Cell.FLOOR) { visited[ni] = 1; queue.push(ni); }
       }
     };
 
@@ -371,16 +377,27 @@ export function generateKvartiry(territorySeed = 0): { world: World; entities: E
       for (let i = 0; i < W * W; i++) {
         if (world.cells[i] !== Cell.DOOR) continue;
         const x = i % W, y = (i / W) | 0;
-        for (let s = 0; s < 4; s++) {
-          const ai = world.idx(world.wrap(x - DX[s]), world.wrap(y - DY[s]));
-          const bi = world.idx(world.wrap(x + DX[s]), world.wrap(y + DY[s]));
-          if (
-            (visited[ai] && world.cells[bi] === Cell.FLOOR && !visited[bi]) ||
-            (visited[bi] && world.cells[ai] === Cell.FLOOR && !visited[ai])
-          ) {
-            candidates.push(i);
-            break;
-          }
+        const cyW = y * W;
+
+        const hl = cyW + ((x - 1) & WMASK);
+        const hr = cyW + ((x + 1) & WMASK);
+
+        if (
+          (visited[hl] && world.cells[hr] === Cell.FLOOR && !visited[hr]) ||
+          (visited[hr] && world.cells[hl] === Cell.FLOOR && !visited[hl])
+        ) {
+          candidates.push(i);
+          continue;
+        }
+
+        const vu = (((y - 1) & WMASK) * W) + x;
+        const vd = (((y + 1) & WMASK) * W) + x;
+
+        if (
+          (visited[vu] && world.cells[vd] === Cell.FLOOR && !visited[vd]) ||
+          (visited[vd] && world.cells[vu] === Cell.FLOOR && !visited[vu])
+        ) {
+          candidates.push(i);
         }
       }
     };
