@@ -677,27 +677,55 @@ export function carveCorridor(world: World, ax: number, ay: number, bx: number, 
     // Find adjacent rooms, distinguishing crossing vs alongside
     let crossingRoom = -1;   // room in movement direction (corridor enters room)
     let alongsideRoom = -1;  // room perpendicular to movement (corridor runs along wall)
-    for (const [ox, oy] of [[1,0],[-1,0],[0,1],[0,-1]] as const) {
-      const ni = world.idx(world.wrap(x + ox), world.wrap(y + oy));
-      if (world.roomMap[ni] < 0) continue;
-      const dot = ox * dirX + oy * dirY;
-      if (dot !== 0) {
-        crossingRoom = world.roomMap[ni];
-      } else {
-        alongsideRoom = world.roomMap[ni];
-      }
+
+    const leftX = x === 0 ? W - 1 : x - 1;
+    const rightX = x === W - 1 ? 0 : x + 1;
+    const upY = y === 0 ? W - 1 : y - 1;
+    const downY = y === W - 1 ? 0 : y + 1;
+
+    const yW = y * W;
+    const rightI = yW + rightX;
+    const leftI = yW + leftX;
+    const downI = downY * W + x;
+    const upI = upY * W + x;
+
+    if (world.roomMap[rightI] >= 0) {
+      if (dirX !== 0) crossingRoom = world.roomMap[rightI];
+      else alongsideRoom = world.roomMap[rightI];
+    }
+    if (world.roomMap[leftI] >= 0) {
+      if (-dirX !== 0) crossingRoom = world.roomMap[leftI];
+      else alongsideRoom = world.roomMap[leftI];
+    }
+    if (world.roomMap[downI] >= 0) {
+      if (dirY !== 0) crossingRoom = world.roomMap[downI];
+      else alongsideRoom = world.roomMap[downI];
+    }
+    if (world.roomMap[upI] >= 0) {
+      if (-dirY !== 0) crossingRoom = world.roomMap[upI];
+      else alongsideRoom = world.roomMap[upI];
     }
 
     if (crossingRoom >= 0) {
       // Corridor crosses a room wall — place a door (if none nearby)
       let nearbyDoor = false;
-      for (const [ox, oy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
-        const ni = world.idx(world.wrap(x + ox), world.wrap(y + oy));
-        if (world.cells[ni] === Cell.DOOR) {
-          const d = world.doors.get(ni);
-          if (d && (d.roomA === crossingRoom || d.roomB === crossingRoom)) { nearbyDoor = true; break; }
-        }
+      if (world.cells[rightI] === Cell.DOOR) {
+        const d = world.doors.get(rightI);
+        if (d && (d.roomA === crossingRoom || d.roomB === crossingRoom)) nearbyDoor = true;
       }
+      if (!nearbyDoor && world.cells[leftI] === Cell.DOOR) {
+        const d = world.doors.get(leftI);
+        if (d && (d.roomA === crossingRoom || d.roomB === crossingRoom)) nearbyDoor = true;
+      }
+      if (!nearbyDoor && world.cells[downI] === Cell.DOOR) {
+        const d = world.doors.get(downI);
+        if (d && (d.roomA === crossingRoom || d.roomB === crossingRoom)) nearbyDoor = true;
+      }
+      if (!nearbyDoor && world.cells[upI] === Cell.DOOR) {
+        const d = world.doors.get(upI);
+        if (d && (d.roomA === crossingRoom || d.roomB === crossingRoom)) nearbyDoor = true;
+      }
+
       if (nearbyDoor) {
         // Don't place another door, but open the wall so the corridor
         // connects to the existing nearby door instead of dead-ending
