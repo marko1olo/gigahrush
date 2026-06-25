@@ -41,6 +41,7 @@ import {
   floorRunEntryMapLabel,
   floorRunEntryRouteCard,
   floorRunStateForSave,
+  normalizeFloorRunSeed,
   resolveFloorRunRoute,
   setFloorRunState,
 } from '../src/systems/procedural_floors';
@@ -563,6 +564,44 @@ test('procedural route deck keeps broad geometry and anomaly diversity', () => {
   assert.equal(maxGeometryShare < 0.34, true, `dominant geometry share ${maxGeometryShare}`);
   assert.equal(summary.anomalyCounts.size >= 12, true, `anomaly ids ${[...summary.anomalyCounts.keys()].join(',')}`);
   assert.equal(noneAnomalyShare < 0.45, true, `none anomaly share ${noneAnomalyShare}`);
+});
+
+test('normalizeFloorRunSeed returns deterministic valid run seeds', () => {
+  // Pass valid integer
+  assert.equal(normalizeFloorRunSeed(123456789), 123456789);
+
+  // Absolute truncation of floats and negatives
+  assert.equal(normalizeFloorRunSeed(123.45), 123);
+  assert.equal(normalizeFloorRunSeed(-678), 678);
+  assert.equal(normalizeFloorRunSeed(-999.99), 999);
+
+  // Wrapping for numbers larger than MAX_RUN_SEED (0x7fffffff = 2147483647)
+  const MAX_RUN_SEED = 0x7fffffff;
+  assert.equal(normalizeFloorRunSeed(MAX_RUN_SEED + 5), 5);
+
+  // Fallbacks to random seed for non-number or non-finite
+  const checkRandomFallback = (value: unknown) => {
+    const seed = normalizeFloorRunSeed(value);
+    assert.equal(typeof seed, 'number');
+    assert.equal(Number.isFinite(seed), true);
+    assert.equal(seed >= 0, true);
+    assert.equal(seed <= MAX_RUN_SEED, true);
+    assert.equal(Math.trunc(seed), seed);
+  };
+
+  checkRandomFallback('123');
+  checkRandomFallback(NaN);
+  checkRandomFallback(Infinity);
+  checkRandomFallback(-Infinity);
+  checkRandomFallback({ seed: 123 });
+  checkRandomFallback(null);
+  checkRandomFallback(undefined);
+
+  // Verify it's actually generating different seeds (stochastic, might rarely match, but generally should differ)
+  const s1 = normalizeFloorRunSeed(NaN);
+  const s2 = normalizeFloorRunSeed(NaN);
+  const s3 = normalizeFloorRunSeed(NaN);
+  assert.ok(s1 !== s2 || s2 !== s3, 'Fallback should generate pseudo-random distinct seeds');
 });
 
 test('floor run reaches the next lower authored floor through procedural gaps', () => {
