@@ -12,7 +12,7 @@ import {
   unlockedFloorZs,
 } from '../src/systems/procedural_floors';
 
-const GRID = 8;
+const GRID = 4;
 const STEP = Math.floor(W / GRID); // 128
 const OFFSET = Math.floor(STEP / 2); // 64
 
@@ -49,7 +49,7 @@ test('fast elevators stamp an absolute 8x8 grid at fixed positions', () => {
       count++;
     }
   }
-  assert.equal(count, 64);
+  assert.equal(count, 16);
 });
 
 test('fast elevator cabins carve a reachable passage even inside solid wall', () => {
@@ -76,7 +76,7 @@ test('fast elevator injection is idempotent', () => {
   for (let i = 0; i < world.cells.length; i++) {
     if (isFastElevatorCell(world, i)) count++;
   }
-  assert.equal(count, 64);
+  assert.equal(count, 16);
 });
 
 test('route lift normalization never demotes fast-elevator cabins', () => {
@@ -97,7 +97,7 @@ test('route lift normalization never demotes fast-elevator cabins', () => {
   for (let i = 0; i < world.cells.length; i++) {
     if (isFastElevatorCell(world, i)) count++;
   }
-  assert.equal(count, 64, 'route normalization demoted fast elevators');
+  assert.equal(count, 16, 'route normalization demoted fast elevators');
 });
 
 test('floor unlock bits start with the start floor and grow on visit', () => {

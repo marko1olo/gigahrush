@@ -419,31 +419,7 @@ function decorateVentshunRoom(ctx: MaintContentCtx, room: Room): number[] {
   return vents;
 }
 
-export function generateVentshun(ctx: MaintContentCtx): void {
-  const pos = findMaintArea(
-    ctx.world,
-    Math.floor(ctx.spawnX),
-    Math.floor(ctx.spawnY),
-    ROOM_W,
-    ROOM_H,
-    90,
-    190,
-  );
-
-  const room = stampMaintRoom(
-    ctx.world,
-    ctx.world.rooms.length,
-    RoomType.CORRIDOR,
-    pos.x,
-    pos.y,
-    ROOM_W,
-    ROOM_H,
-    'Вентшун: кашляющие решетки и безопасная полоса у клапана',
-    Tex.PIPE,
-    Tex.F_CONCRETE,
-  );
-  const ventCells = decorateVentshunRoom(ctx, room);
-
+function setupVentshunContainers(ctx: MaintContentCtx, room: Room): { valveContainerId: number; rewardContainerId: number } {
   const valveContainerId = addVentshunContainer(
     ctx,
     room,
@@ -475,6 +451,16 @@ export function generateVentshun(ctx: MaintContentCtx): void {
     [TAG_REWARD, 'trace', 'loot'],
   );
 
+  return { valveContainerId, rewardContainerId };
+}
+
+function registerVentshunTriggers(
+  ctx: MaintContentCtx,
+  room: Room,
+  ventCells: number[],
+  valveContainerId: number,
+  rewardContainerId: number,
+): void {
   const warningX = room.x + 4.5;
   const warningY = room.y + room.h - 4.5;
   const targetX = room.x + 11.5;
@@ -520,4 +506,39 @@ export function generateVentshun(ctx: MaintContentCtx): void {
     sealed: false,
     cleared: false,
   });
+}
+
+export function generateVentshun(ctx: MaintContentCtx): void {
+  const pos = findMaintArea(
+    ctx.world,
+    Math.floor(ctx.spawnX),
+    Math.floor(ctx.spawnY),
+    ROOM_W,
+    ROOM_H,
+    90,
+    190,
+  );
+
+  const room = stampMaintRoom(
+    ctx.world,
+    ctx.world.rooms.length,
+    RoomType.CORRIDOR,
+    pos.x,
+    pos.y,
+    ROOM_W,
+    ROOM_H,
+    'Вентшун: кашляющие решетки и безопасная полоса у клапана',
+    Tex.PIPE,
+    Tex.F_CONCRETE,
+  );
+  const ventCells = decorateVentshunRoom(ctx, room);
+  const { valveContainerId, rewardContainerId } = setupVentshunContainers(ctx, room);
+
+  registerVentshunTriggers(
+    ctx,
+    room,
+    ventCells,
+    valveContainerId,
+    rewardContainerId,
+  );
 }
