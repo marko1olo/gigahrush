@@ -101,6 +101,21 @@ test('locked author text returns exact text and locked source', () => {
   assert.equal(result.fallbackUsed, false);
 });
 
+test('locked_author_text intent routes to locked author text directly without explicit source', () => {
+  const context = finalizeMarkovContext({ tags: [] });
+  const lockedText = 'Locked by intent.';
+
+  const result = routeSpeech({
+    intent: 'locked_author_text',
+    context,
+    lockedText,
+  });
+
+  assert.equal(result.text, lockedText);
+  assert.equal(result.source, 'locked_author_text');
+  assert.equal(result.fallbackUsed, false);
+});
+
 test('blocked tags prevent generated template usage', () => {
   const context = finalizeMarkovContext({ tags: ['markov.blocked', 'room.kitchen'] });
   let calls = 0;
@@ -227,4 +242,48 @@ test('router returns exact fallback when generation is unavailable', () => {
   assert.equal(result.text, 'Пока скажу так, без украшений.');
   assert.equal(result.source, 'curated_pool');
   assert.equal(result.fallbackUsed, true);
+});
+
+test('curated_pool source routes to curated pool result directly', () => {
+  const context = finalizeMarkovContext({ tags: ['room.common'] });
+
+  const result = routeSpeech({
+    intent: 'talk_ambient',
+    source: 'curated_pool',
+    context,
+  });
+
+  assert.equal(result.source, 'curated_pool');
+  assert.equal(result.intent, 'talk_ambient');
+  // It either falls back to curated fallback or gives curated pool result, both with source 'curated_pool'
+});
+
+test('routeSpeech without source uses generateMarkovText and generator when available', () => {
+  const context = finalizeMarkovContext({ tags: ['room.common'] });
+  let generatorCalled = false;
+
+  setSpeechRouterGenerator(request => {
+    generatorCalled = true;
+    return {
+      text: 'Generator says hi.',
+      source: 'generated_markov',
+      intent: request.intent,
+      tags: request.context.tags,
+      fallbackUsed: false,
+    };
+  });
+
+  try {
+    const result = routeSpeech({
+      intent: 'talk_ambient',
+      context,
+    });
+
+    assert.equal(generatorCalled, true);
+    assert.equal(result.text, 'Generator says hi.');
+    assert.equal(result.source, 'generated_markov');
+    assert.equal(result.fallbackUsed, false);
+  } finally {
+    setSpeechRouterGenerator(undefined);
+  }
 });
