@@ -371,16 +371,31 @@ export function generateKvartiry(territorySeed = 0): { world: World; entities: E
       for (let i = 0; i < W * W; i++) {
         if (world.cells[i] !== Cell.DOOR) continue;
         const x = i % W, y = (i / W) | 0;
-        for (let s = 0; s < 4; s++) {
-          const ai = world.idx(world.wrap(x - DX[s]), world.wrap(y - DY[s]));
-          const bi = world.idx(world.wrap(x + DX[s]), world.wrap(y + DY[s]));
-          if (
-            (visited[ai] && world.cells[bi] === Cell.FLOOR && !visited[bi]) ||
-            (visited[bi] && world.cells[ai] === Cell.FLOOR && !visited[ai])
-          ) {
-            candidates.push(i);
-            break;
-          }
+
+        let ax = x - 1; if (ax < 0) ax += W;
+        let bx = x + 1; if (bx >= W) bx -= W;
+        let ai = y * W + ax;
+        let bi = y * W + bx;
+
+        if (
+          (visited[ai] && world.cells[bi] === Cell.FLOOR && !visited[bi]) ||
+          (visited[bi] && world.cells[ai] === Cell.FLOOR && !visited[ai])
+        ) {
+          candidates.push(i);
+          continue;
+        }
+
+        let ay = y - 1; if (ay < 0) ay += W;
+        let by = y + 1; if (by >= W) by -= W;
+        ai = ay * W + x;
+        bi = by * W + x;
+
+        if (
+          (visited[ai] && world.cells[bi] === Cell.FLOOR && !visited[bi]) ||
+          (visited[bi] && world.cells[ai] === Cell.FLOOR && !visited[ai])
+        ) {
+          candidates.push(i);
+          continue;
         }
       }
     };
