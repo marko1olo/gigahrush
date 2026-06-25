@@ -6,6 +6,7 @@ import {
   MonsterKind, ContainerKind,
   type Entity, type Room, type Item, type WorldContainer,
   type GameState, type WorldEvent, type TerritoryOwner,
+  findMaxEntityId,
 } from '../../core/types';
 import { World } from '../../core/world';
 import { MONSTERS } from '../../entities/monster';
@@ -1899,7 +1900,7 @@ export function expandDarknessRouteGeometry(world: World, entities: Entity[], rn
   addDeadLampRow(world, junction, tollGate);
   expandDarknessMidMicroLayer(world, rng);
 
-  const nextId = { v: entities.reduce((mx, e) => Math.max(mx, e.id), 0) + 1 };
+  const nextId = { v: findMaxEntityId(entities) + 1 };
   const shadowCount = 4 + Math.floor(rng() * 3);
   for (let i = 0; i < shadowCount; i++) {
     const x = i % 2 === 0 ? southPocket.x + Math.floor(rng() * 5) - 2 : tollGate.x + 2 + Math.floor(rng() * 6);

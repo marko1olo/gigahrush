@@ -14,6 +14,7 @@ import {
   type Room,
   type TerritoryOwner,
   type Zone,
+  findMaxEntityId,
 } from '../../core/types';
 import { World } from '../../core/world';
 import { hashSeed, seededRandom } from '../../core/rand';
@@ -2398,7 +2399,7 @@ function spawnAmbientMonsters(
   count: number,
   kinds: MonsterKind[],
 ): void {
-  let nextId = entities.reduce((mx, e) => Math.max(mx, e.id), 0) + 1;
+  let nextId = findMaxEntityId(entities) + 1;
   for (let i = 0; i < count; i++) {
     const p = randomFloorCell(world, rng);
     if (!p) break;
