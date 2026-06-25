@@ -3079,11 +3079,28 @@ function randomRoomCell(room: Room): { x: number; y: number } {
   };
 }
 
+let itemsByRoomType: Map<number, ItemDef[]> | null = null;
+function getItemsForRoomType(type: number): ItemDef[] {
+  if (!itemsByRoomType) {
+    itemsByRoomType = new Map();
+    for (const def of Object.values(ITEMS)) {
+      for (const rt of def.spawnRooms) {
+        let list = itemsByRoomType.get(rt);
+        if (!list) {
+          list = [];
+          itemsByRoomType.set(rt, list);
+        }
+        list.push(def);
+      }
+    }
+  }
+  return itemsByRoomType.get(type) || [];
+}
+
 function chooseItem(room: Room, spec: ProceduralFloorSpec, maxValue = Number.POSITIVE_INFINITY): ItemDef | null {
   let total = 0;
   const weighted: { def: ItemDef; weight: number }[] = [];
-  for (const def of Object.values(ITEMS)) {
-    if (!def.spawnRooms.includes(room.type)) continue;
+  for (const def of getItemsForRoomType(room.type)) {
     if (def.value > maxValue) continue;
     let weight = def.spawnW * (1000 / (def.value + 10));
     if (spec.lootBiasIds.includes(def.id)) weight *= 4.5;
