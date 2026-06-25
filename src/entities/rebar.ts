@@ -20,18 +20,11 @@ export const DEF: MonsterDef = {
   lootHint: 'тяжелый металл, витая проволока, редкий годный прут арматуры',
 };
 
-export function generateSprite(): Uint32Array {
-  const t = new Uint32Array(S * S).fill(CLEAR);
-  const cx = Math.floor(S / 2);
+type PutFn = (x: number, y: number, color: number) => void;
+type MetalFn = (x: number, y: number, bright?: number) => number;
 
-  const put = (x: number, y: number, color: number): void => {
-    const px = Math.floor(x);
-    const py = Math.floor(y);
-    if (px < 0 || px >= S || py < 0 || py >= S) return;
-    t[py * S + px] = color;
-  };
-
-  const metal = (x: number, y: number, bright = 0): number => {
+function getMetalFn(): MetalFn {
+  return (x: number, y: number, bright = 0): number => {
     const n = noise(x * 3, y * 2, 1201) * 28;
     const rust = noise(x * 5, y * 3, 1202) > 0.66 ? 48 : 0;
     return rgba(
@@ -40,7 +33,9 @@ export function generateSprite(): Uint32Array {
       clamp(55 + n + bright * 0.35 - rust * 0.45),
     );
   };
+}
 
+function drawBase(cx: number, put: PutFn): void {
   // Broad dark scrap base keeps the threat from reading as a thin harmless line.
   for (let y = 47; y < 61; y++) {
     for (let x = cx - 17; x <= cx + 18; x++) {
@@ -50,7 +45,9 @@ export function generateSprite(): Uint32Array {
       put(x, y, rgba(36, 32, 29));
     }
   }
+}
 
+function drawConcreteKnots(cx: number, put: PutFn): void {
   // Concrete knots on the frame: readable storage/production debris, not corpse loot.
   const chunks = [
     { x: cx - 9, y: 15, r: 4 },
@@ -59,16 +56,20 @@ export function generateSprite(): Uint32Array {
     { x: cx + 7, y: 45, r: 4 },
   ];
   for (const chunk of chunks) {
-    for (let dy = -chunk.r; dy <= chunk.r; dy++) for (let dx = -chunk.r; dx <= chunk.r; dx++) {
-      if (dx * dx + dy * dy > chunk.r * chunk.r || noise(dx, dy, 1207) < 0.08) continue;
-      const px = chunk.x + dx;
-      const py = chunk.y + dy;
-      const n = noise(px, py, 1208) * 26;
-      const crack = noise(px * 3, py * 3, 1209) > 0.78 ? -34 : 0;
-      put(px, py, rgba(clamp(106 + n + crack), clamp(101 + n + crack), clamp(95 + n + crack)));
+    for (let dy = -chunk.r; dy <= chunk.r; dy++) {
+      for (let dx = -chunk.r; dx <= chunk.r; dx++) {
+        if (dx * dx + dy * dy > chunk.r * chunk.r || noise(dx, dy, 1207) < 0.08) continue;
+        const px = chunk.x + dx;
+        const py = chunk.y + dy;
+        const n = noise(px, py, 1208) * 26;
+        const crack = noise(px * 3, py * 3, 1209) > 0.78 ? -34 : 0;
+        put(px, py, rgba(clamp(106 + n + crack), clamp(101 + n + crack), clamp(95 + n + crack)));
+      }
     }
   }
+}
 
+function drawMainRods(cx: number, put: PutFn, metal: MetalFn): void {
   // Main vertical rods: four jagged bars with exposed bright edges.
   const rods = [cx - 9, cx - 3, cx + 3, cx + 9];
   for (const rx of rods) {
@@ -80,7 +81,9 @@ export function generateSprite(): Uint32Array {
       if (noise(x, y, 1213) > 0.72) put(x - 1, y, rgba(31, 28, 25));
     }
   }
+}
 
+function drawCrossBraces(cx: number, put: PutFn, metal: MetalFn): void {
   // Cross-braces and shelf-flat bars sell the "do not step on/punch iron" cue.
   for (let y = 11; y < 55; y += 7) {
     const lean = y % 14 === 0 ? -1 : 1;
@@ -96,7 +99,9 @@ export function generateSprite(): Uint32Array {
       put(x, y, metal(x, y, x % 7 === 0 ? 18 : 0));
     }
   }
+}
 
+function drawWireWrapping(cx: number, put: PutFn, metal: MetalFn): void {
   // Twisted wire wrapping and loose hooks.
   for (let y = 7; y < 57; y++) {
     const waveX = cx + Math.sin(y * 0.48) * 11;
@@ -107,7 +112,9 @@ export function generateSprite(): Uint32Array {
     put(cx - 18 + y * 0.22, y, metal(cx - 18 + y * 0.22, y, 12));
     put(cx + 18 - y * 0.18, y + 4, metal(cx + 18 - y * 0.18, y + 4, 12));
   }
+}
 
+function drawEyes(cx: number, put: PutFn): void {
   // Sparking eyes/glints in the top gaps, small but hot against cold metal.
   const eyeY = 9;
   for (const ex of [cx - 4, cx + 4]) {
@@ -117,13 +124,37 @@ export function generateSprite(): Uint32Array {
   }
   put(cx - 12, 27, rgba(242, 92, 36));
   put(cx + 12, 35, rgba(246, 128, 42));
+}
 
+function drawProtrudingTips(cx: number, put: PutFn, metal: MetalFn): void {
   // Protruding rebar tips at head height.
   for (let y = 0; y < 7; y++) {
     put(cx - 7, y, metal(cx - 7, y, 16));
     put(cx + 8, y, metal(cx + 8, y, 16));
     if (y > 2) put(cx, y - 1, metal(cx, y - 1, 10));
   }
+}
+
+export function generateSprite(): Uint32Array {
+  const t = new Uint32Array(S * S).fill(CLEAR);
+  const cx = Math.floor(S / 2);
+
+  const put = (x: number, y: number, color: number): void => {
+    const px = Math.floor(x);
+    const py = Math.floor(y);
+    if (px < 0 || px >= S || py < 0 || py >= S) return;
+    t[py * S + px] = color;
+  };
+
+  const metal = getMetalFn();
+
+  drawBase(cx, put);
+  drawConcreteKnots(cx, put);
+  drawMainRods(cx, put, metal);
+  drawCrossBraces(cx, put, metal);
+  drawWireWrapping(cx, put, metal);
+  drawEyes(cx, put);
+  drawProtrudingTips(cx, put, metal);
 
   return t;
 }
