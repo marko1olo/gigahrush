@@ -945,7 +945,7 @@ export function decorateRoom(world: World, room: Room): void {
       const c1 = Math.floor(w / 3), c2 = w - 1 - c1;
       for (let dy = 2; dy < h - 1; dy += 2) { placeWall(c1, dy); placeWall(c2, dy); }
     } else if (decor === 2 && w >= 10 && h >= 10) {
-      if (Math.random() < 0.5) {
+      if (rng(0, 1) === 0) {
         const wy = Math.floor(h / 2), gap = Math.floor(w / 2);
         for (let dx = 2; dx < w - 2; dx++) { if (Math.abs(dx - gap) > 1) placeWall(dx, wy); }
       } else {
