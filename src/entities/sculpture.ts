@@ -22,6 +22,15 @@ export function generateSprite(): Uint32Array {
   const t = new Uint32Array(S * S).fill(CLEAR);
   const cx = S / 2;
 
+  drawBody(t, cx);
+  drawLegs(t, cx);
+  drawArms(t, cx);
+  drawFacialMarkings(t, cx);
+
+  return t;
+}
+
+function drawBody(t: Uint32Array, cx: number): void {
   // Peanut-shaped concrete body
   for (let y = 6; y < 52; y++) {
     let r = 0;
@@ -50,8 +59,9 @@ export function generateSprite(): Uint32Array {
       }
     }
   }
+}
 
-  // Legs
+function drawLegs(t: Uint32Array, cx: number): void {
   for (let y = 52; y < 62; y++) {
     const dy = y - 52;
     const r = 2.5 - dy * 0.1;
@@ -69,8 +79,9 @@ export function generateSprite(): Uint32Array {
       }
     }
   }
+}
 
-  // Arms
+function drawArms(t: Uint32Array, cx: number): void {
   for (let y = 35; y < 41; y++) {
     const dy = y - 38;
     const armR = 2.5 - Math.abs(dy) * 0.4;
@@ -87,8 +98,9 @@ export function generateSprite(): Uint32Array {
       }
     }
   }
+}
 
-  // Facial markings
+function drawFacialMarkings(t: Uint32Array, cx: number): void {
   // 1) Central Red/Rust streak
   for (let y = 10; y <= 24; y++) {
     let width = 1;
@@ -130,6 +142,4 @@ export function generateSprite(): Uint32Array {
       t[idx] = rgba(50, 50, 40);
     }
   }
-
-  return t;
 }
