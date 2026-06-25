@@ -80,34 +80,19 @@ function rectOutline(
   }
 }
 
-/* ── Procedural sprite from seed — each robot unique ──────────── */
-export function generateRobotSprite(seed: number): Uint32Array {
-  const t = new Uint32Array(S * S).fill(CLEAR);
-  const cx = S / 2;
+export interface RobotCtx {
+  t: Uint32Array;
+  seed: number;
+  cx: number;
+  chX: number; chY: number; chW: number; chH: number;
+  headX: number; headY: number; headW: number; headH: number;
+  pr: number; pg: number; pb: number;
+  ar: number; ag: number; ab: number;
+  hr: number; hg: number; hb: number;
+}
 
-  // Seed-derived parameters
-  const hueType    = seed % 3;           // 0=gunmetal, 1=rust-orange, 2=military-green
-  const numModules = 2 + (seed % 3);     // 2-4 side modules
-  const numSensors = 2 + (seed % 4);     // 2-5 sensor lights
-  const hasTreads  = (seed % 2) === 0;   // treads or legs
-  const hasAntenna = (seed % 3) === 0;   // antenna on top
-
-  const palettes: [number, number, number][] = [
-    [80, 85, 90],    // gunmetal grey
-    [110, 70, 45],   // rust orange
-    [65, 80, 55],    // military olive
-  ];
-  const [pr, pg, pb] = palettes[hueType];
-  // Darker accent
-  const [ar, ag, ab] = [pr - 20, pg - 20, pb - 15];
-  // Bright highlight for edges/rivets
-  const [hr, hg, hb] = [pr + 30, pg + 30, pb + 25];
-
-  // ── Main chassis — central block ────────────────────────────
-  const chW = 16 + (seed % 6);          // 16-21
-  const chH = 20 + (seed % 8);          // 20-27
-  const chX = cx - Math.floor(chW / 2);
-  const chY = 18;
+function drawChassis(ctx: RobotCtx) {
+  const { t, seed, chX, chY, chW, chH, pr, pg, pb, ar, ag, ab, hr, hg, hb } = ctx;
   rect(t, chX, chY, chW, chH, pr, pg, pb, seed + 10);
   rectOutline(t, chX, chY, chW, chH, ar, ag, ab);
 
@@ -127,8 +112,10 @@ export function generateRobotSprite(seed: number): Uint32Array {
     if (rx >= 0 && rx < S && ry >= 0 && ry < S)
       t[ry * S + rx] = rgba(hr, hg, hb);
   }
+}
 
-  // ── Side modules — smaller blocks attached to chassis ───────
+function drawSideModules(ctx: RobotCtx, numModules: number) {
+  const { t, seed, chX, chY, chW, chH, pr, pg, pb, ar, ag, ab } = ctx;
   for (let i = 0; i < numModules; i++) {
     const side = (noise(i, 2, seed + 40) > 0.5) ? 1 : -1;
     const mW = 5 + Math.floor(noise(i, 3, seed + 41) * 5);
@@ -138,20 +125,20 @@ export function generateRobotSprite(seed: number): Uint32Array {
     rect(t, mX, mY, mW, mH, ar, ag, ab, seed + 44 + i);
     rectOutline(t, mX, mY, mW, mH, pr - 30, pg - 30, pb - 25);
   }
+}
 
-  // ── Head / turret block on top ──────────────────────────────
-  const headW = 10 + (seed % 5);
-  const headH = 6 + (seed % 4);
-  const headX = cx - Math.floor(headW / 2);
-  const headY = chY - headH + 1;
+function drawHead(ctx: RobotCtx) {
+  const { t, seed, headX, headY, headW, headH, pr, pg, pb, ar, ag, ab } = ctx;
   rect(t, headX, headY, headW, headH, pr + 5, pg + 5, pb + 5, seed + 50);
   rectOutline(t, headX, headY, headW, headH, ar, ag, ab);
   const opticY = headY + Math.floor(headH / 2);
   for (let x = headX + 2; x < headX + headW - 2; x++) {
     if (x >= 0 && x < S && opticY >= 0 && opticY < S) t[opticY * S + x] = rgba(50, 220, 255);
   }
+}
 
-  // ── Sensor lights / eyes — glowing dots on head or chassis ──
+function drawSensors(ctx: RobotCtx, numSensors: number) {
+  const { t, seed, chX, chY, chW, chH, headX, headY, headW, headH } = ctx;
   for (let i = 0; i < numSensors; i++) {
     const onHead = noise(i, 5, seed + 60) > 0.4;
     const sx = (onHead ? headX : chX) + 2 + Math.floor(noise(i, 6, seed + 61) *
@@ -179,8 +166,10 @@ export function generateRobotSprite(seed: number): Uint32Array {
         );
     }
   }
+}
 
-  // ── Gun barrel — extends from one side ──────────────────────
+function drawGunBarrel(ctx: RobotCtx) {
+  const { t, seed, chX, chY, chW, chH, ar, ag, ab } = ctx;
   const gunSide = noise(0, 7, seed + 70) > 0.5 ? 1 : -1;
   const gunY = chY + Math.floor(chH * 0.4);
   const gunLen = 6 + Math.floor(noise(7, 0, seed + 71) * 6);
@@ -201,8 +190,10 @@ export function generateRobotSprite(seed: number): Uint32Array {
     t[(gunY + 1) * S + muzzX] = rgba(100, 200, 240);
     t[(gunY + 2) * S + muzzX] = rgba(80, 180, 220);
   }
+}
 
-  // ── Treads or legs at bottom ────────────────────────────────
+function drawLocomotion(ctx: RobotCtx, hasTreads: boolean) {
+  const { t, seed, cx, chX, chY, chW, chH } = ctx;
   const baseY = chY + chH;
   if (hasTreads) {
     // Rectangular treads on both sides
@@ -227,20 +218,23 @@ export function generateRobotSprite(seed: number): Uint32Array {
       rect(t, lx - 1, baseY + 5 + (seed % 3), 5, 2, 50, 50, 50, seed + 83);
     }
   }
+}
 
-  // ── Antenna (optional) ──────────────────────────────────────
-  if (hasAntenna) {
-    const ax = cx + Math.floor((noise(0, 8, seed + 90) - 0.5) * 6);
-    for (let y = headY - 6; y < headY; y++) {
-      if (y >= 0 && ax >= 0 && ax < S)
-        t[y * S + ax] = rgba(100, 100, 110);
-    }
-    // Tip light
-    if (headY - 7 >= 0 && ax >= 0 && ax < S)
-      t[(headY - 7) * S + ax] = rgba(255, 50, 30);
+function drawAntenna(ctx: RobotCtx, hasAntenna: boolean) {
+  if (!hasAntenna) return;
+  const { t, seed, cx, headY } = ctx;
+  const ax = cx + Math.floor((noise(0, 8, seed + 90) - 0.5) * 6);
+  for (let y = headY - 6; y < headY; y++) {
+    if (y >= 0 && ax >= 0 && ax < S)
+      t[y * S + ax] = rgba(100, 100, 110);
   }
+  // Tip light
+  if (headY - 7 >= 0 && ax >= 0 && ax < S)
+    t[(headY - 7) * S + ax] = rgba(255, 50, 30);
+}
 
-  // ── Exhaust / vent grill on back ────────────────────────────
+function drawExhaust(ctx: RobotCtx) {
+  const { t, chX, chY, chW, chH, pr, pg, pb } = ctx;
   const ventY = chY + chH - 5;
   const ventX = chX + 2;
   for (let i = 0; i < 3; i++) {
@@ -251,6 +245,58 @@ export function generateRobotSprite(seed: number): Uint32Array {
         t[vy * S + x] = rgba(clamp(pr - 35), clamp(pg - 35), clamp(pb - 30));
     }
   }
+}
+
+/* ── Procedural sprite from seed — each robot unique ──────────── */
+export function generateRobotSprite(seed: number): Uint32Array {
+  const t = new Uint32Array(S * S).fill(CLEAR);
+  const cx = S / 2;
+
+  // Seed-derived parameters
+  const hueType    = seed % 3;           // 0=gunmetal, 1=rust-orange, 2=military-green
+  const numModules = 2 + (seed % 3);     // 2-4 side modules
+  const numSensors = 2 + (seed % 4);     // 2-5 sensor lights
+  const hasTreads  = (seed % 2) === 0;   // treads or legs
+  const hasAntenna = (seed % 3) === 0;   // antenna on top
+
+  const palettes: [number, number, number][] = [
+    [80, 85, 90],    // gunmetal grey
+    [110, 70, 45],   // rust orange
+    [65, 80, 55],    // military olive
+  ];
+  const [pr, pg, pb] = palettes[hueType];
+  // Darker accent
+  const [ar, ag, ab] = [pr - 20, pg - 20, pb - 15];
+  // Bright highlight for edges/rivets
+  const [hr, hg, hb] = [pr + 30, pg + 30, pb + 25];
+
+  const chW = 16 + (seed % 6);          // 16-21
+  const chH = 20 + (seed % 8);          // 20-27
+  const chX = cx - Math.floor(chW / 2);
+  const chY = 18;
+
+  const headW = 10 + (seed % 5);
+  const headH = 6 + (seed % 4);
+  const headX = cx - Math.floor(headW / 2);
+  const headY = chY - headH + 1;
+
+  const ctx: RobotCtx = {
+    t, seed, cx,
+    chX, chY, chW, chH,
+    headX, headY, headW, headH,
+    pr, pg, pb,
+    ar, ag, ab,
+    hr, hg, hb,
+  };
+
+  drawChassis(ctx);
+  drawSideModules(ctx, numModules);
+  drawHead(ctx);
+  drawSensors(ctx, numSensors);
+  drawGunBarrel(ctx);
+  drawLocomotion(ctx, hasTreads);
+  drawAntenna(ctx, hasAntenna);
+  drawExhaust(ctx);
 
   return t;
 }
