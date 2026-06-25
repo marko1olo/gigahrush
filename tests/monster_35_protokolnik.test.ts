@@ -5,7 +5,7 @@ import { AIGoal, Cell, EntityType, FloorLevel, MonsterKind, RoomType, type Entit
 import { World } from '../src/core/world';
 import { getMonsterEcology } from '../src/data/monster_ecology';
 import { RUMORS } from '../src/data/rumors';
-import { DEF, generateProtokolnikSprite } from '../src/entities/protokolnik';
+import { DEF, generateProtokolnikSprite, generateSprite } from '../src/entities/protokolnik';
 import { MONSTERS, NEW_MONSTERS_BY_FLOOR } from '../src/entities/monster';
 import { createWorldEventState, getRecentEvents } from '../src/systems/events';
 import { setEntityMap } from '../src/systems/ai/monster';
@@ -110,6 +110,29 @@ test('protokolnik sprite reads as paper robe, red stamps, and blank stamp face',
   assert.equal(darkInk > 90, true);
   assert.equal(yellowPaper > 180, true);
   assert.equal(redStamps > 25, true);
+});
+
+test('generateSprite calls generateProtokolnikSprite with default parameters', () => {
+  const defaultSprite = generateSprite();
+  const explicitSprite = generateProtokolnikSprite();
+  assert.deepEqual(defaultSprite, explicitSprite);
+});
+
+test('visual intensity of sprite scales with pressure tier', () => {
+  const lowPressure = generateProtokolnikSprite(1234, 0);
+  const highPressure = generateProtokolnikSprite(1234, 4);
+
+  let lowOpaque = 0;
+  for (const px of lowPressure) {
+    if ((px >>> 24) !== 0) lowOpaque++;
+  }
+
+  let highOpaque = 0;
+  for (const px of highPressure) {
+    if ((px >>> 24) !== 0) highOpaque++;
+  }
+
+  assert.equal(highOpaque > lowOpaque, true, 'High pressure should have more opaque pixels due to more flying pages');
 });
 
 test('protocol pressure grows from carried documents, caps, and eases after papers are dropped', () => {
