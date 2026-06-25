@@ -373,7 +373,7 @@ test('contract, resource, factory, and container ids stay coherent', () => {
     if (def.capacitySlots <= 0) missing.push(dataRef('container', def.kind, 'capacitySlots', def.capacitySlots));
     if (def.roomTypes.length === 0) missing.push(dataRef('container', def.kind, 'roomTypes', 'empty'));
     for (const roomType of def.roomTypes) if (!ROOM_TYPE_IDS.has(roomType)) missing.push(dataRef('container', def.kind, 'roomTypes', roomType));
-    def.itemPool.forEach((item, index) => {
+    (def.itemPool ?? []).forEach((item, index) => {
       pushItemRef(missing, 'container', def.kind, `itemPool[${index}].defId`, item.defId);
       if (item.min < 0) missing.push(dataRef('container', def.kind, `itemPool[${index}].min`, item.min));
       if (item.max < item.min) missing.push(dataRef('container', def.kind, `itemPool[${index}].max`, item.max));
