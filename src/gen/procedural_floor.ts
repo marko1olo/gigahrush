@@ -3079,24 +3079,46 @@ function randomRoomCell(room: Room): { x: number; y: number } {
   };
 }
 
+let ITEMS_ARRAY: ItemDef[] | null = null;
+const ITEMS_BY_ROOM_CACHE = new Map<RoomType, ItemDef[]>();
+
+function getItemsForRoom(roomType: RoomType): ItemDef[] {
+  if (!ITEMS_ARRAY) ITEMS_ARRAY = Object.values(ITEMS);
+  let cached = ITEMS_BY_ROOM_CACHE.get(roomType);
+  if (!cached) {
+    cached = ITEMS_ARRAY.filter(def => def.spawnRooms.includes(roomType));
+    ITEMS_BY_ROOM_CACHE.set(roomType, cached);
+  }
+  return cached;
+}
+
 function chooseItem(room: Room, spec: ProceduralFloorSpec, maxValue = Number.POSITIVE_INFINITY): ItemDef | null {
   let total = 0;
   const weighted: { def: ItemDef; weight: number }[] = [];
-  for (const def of Object.values(ITEMS)) {
-    if (!def.spawnRooms.includes(room.type)) continue;
+
+  const roomItems = getItemsForRoom(room.type);
+  const biasList = spec.lootBiasIds;
+  const isHighDanger = spec.danger >= 4;
+  const len = roomItems.length;
+
+  for (let i = 0; i < len; i++) {
+    const def = roomItems[i];
     if (def.value > maxValue) continue;
+
     let weight = def.spawnW * (1000 / (def.value + 10));
-    if (spec.lootBiasIds.includes(def.id)) weight *= 4.5;
-    if (spec.danger >= 4 && def.value > 80) weight *= 1.5;
+    if (biasList.includes(def.id)) weight *= 4.5;
+    if (isHighDanger && def.value > 80) weight *= 1.5;
     if (weight <= 0) continue;
+
     weighted.push({ def, weight });
     total += weight;
   }
+
   if (weighted.length === 0 || total <= 0) return null;
   let roll = Math.random() * total;
-  for (const item of weighted) {
-    roll -= item.weight;
-    if (roll <= 0) return item.def;
+  for (let i = 0; i < weighted.length; i++) {
+    roll -= weighted[i].weight;
+    if (roll <= 0) return weighted[i].def;
   }
   return weighted[weighted.length - 1].def;
 }
