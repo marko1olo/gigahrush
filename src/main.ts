@@ -1446,7 +1446,7 @@ setWorldLogSpatialContextProvider(() => {
     audibleRadiusMeters: hearingRadiusMetersForActor(player, state.npcLogRadiusMeters),
     dist2: (ax, ay, bx, by) => world.dist2(ax, ay, bx, by),
     entityPosition: entityId => {
-      const entity = getEntityIndex().byId.get(entityId) ?? entities.find(e => e.id === entityId);
+      const entity = getEntityIndex().byId.get(entityId);
       return entity ? { x: entity.x, y: entity.y } : undefined;
     },
     roomCenter: roomId => {
@@ -5508,7 +5508,7 @@ function confirmActiveMobileSelection(): void {
   } else if (state.showCraftMenu) {
     activateCraftSelection();
   } else if (state.showNpcMenu) {
-    const npc = entities.find(e => e.id === state.npcMenuTarget);
+    const npc = getEntityIndex().byId.get(state.npcMenuTarget);
     if (state.npcMenuTab === 'main') {
       activateNpcMainSelection(npc);
     } else if (state.npcMenuTab === 'talk' || state.npcMenuTab === 'quest') {
@@ -6331,7 +6331,7 @@ function handleMobileHudTap(x: number, y: number): void {
       syncPauseState();
     }
   } else if (state.showNpcMenu) {
-    const npc = entities.find(e => e.id === state.npcMenuTarget);
+    const npc = getEntityIndex().byId.get(state.npcMenuTarget);
     if (!npc) return;
     if (state.npcMenuTab === 'main') {
       const pw = Math.min(440 * sx, w - 24 * sx);
@@ -6938,7 +6938,7 @@ function handleMenuInput(): void {
   let gameMenuOpenedThisFrame = false;
   if (closeEdge) {
     if (state.showNpcMenu) {
-      const npc = entities.find(e => e.id === state.npcMenuTarget);
+      const npc = getEntityIndex().byId.get(state.npcMenuTarget);
       if (npc && isDurakGameOpen()) handleDurakInput({ state, player, npc, input: { escEdge: true } });
       else if (npc && isDiceGameOpen()) handleDiceInput({ state, player, npc, input: { escEdge: true } });
       else if (npc && isDominoGameOpen()) handleDominoInput({ state, player, npc, input: { escEdge: true } });
@@ -7096,7 +7096,7 @@ function handleMenuInput(): void {
   }
   // ── NPC menu navigation ──────────────────────────────────
   else if (state.showNpcMenu) {
-    const npc = entities.find(e => e.id === state.npcMenuTarget);
+    const npc = getEntityIndex().byId.get(state.npcMenuTarget);
     if (state.npcMenuTab === 'main') {
       const upNav = menuUpNav();
       const dnNav = menuDownNav();
