@@ -172,7 +172,12 @@ function removeOneRedMold(items: { defId: string; count: number }[]): boolean {
     const item = items[i];
     if (item.defId !== RED_MOLD_SAMPLE_ID || item.count <= 0) continue;
     item.count--;
-    if (item.count <= 0) items.splice(i, 1);
+    if (item.count <= 0) {
+      const last = items.pop();
+      if (last !== undefined && i < items.length) {
+        items[i] = last;
+      }
+    }
     return true;
   }
   return false;
@@ -355,7 +360,12 @@ function consumeInventorySlot(actor: Entity, slotIdx: number): void {
   const inventory = actor.inventory;
   if (!inventory || slotIdx < 0 || slotIdx >= inventory.length) return;
   inventory[slotIdx].count--;
-  if (inventory[slotIdx].count <= 0) inventory.splice(slotIdx, 1);
+  if (inventory[slotIdx].count <= 0) {
+    const last = inventory.pop();
+    if (last !== undefined && slotIdx < inventory.length) {
+      inventory[slotIdx] = last;
+    }
+  }
 }
 
 function handleBloodPlantInventoryUse(ctx: InventoryUseHandlerContext): boolean {
