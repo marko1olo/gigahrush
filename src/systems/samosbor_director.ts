@@ -18,6 +18,7 @@ import { type SamosborVariantId, type ActiveSamosborVariant } from '../data/samo
 import { freshNeeds, ITEMS, randomName } from '../data/catalog';
 import { MONSTERS } from '../entities/monster';
 import { getMaxHp, randomRPG, scaleMonsterHp, scaleMonsterSpeed } from './rpg';
+import { SeedRng, hashSeed } from '../core/rand';
 import { changeResourceStock } from './economy';
 import { setDoorState } from './door_state';
 import { publishEvent, getRecentEvents } from './events';
@@ -226,6 +227,7 @@ function rejectDirectorTick(
 function pickBeat(
   snapshot: SamosborDirectorSnapshot,
   director: SamosborDirectorState,
+  rng: SeedRng,
 ): { beat: SamosborBeatDef | null; rejectedTop?: SamosborBeatDef; rejectedReason?: string; legalCount: number } {
   let total = 0;
   const legal: SamosborBeatDef[] = [];
@@ -248,7 +250,7 @@ function pickBeat(
 
   if (legal.length === 0 || total <= 0) return { beat: null, rejectedTop, rejectedReason, legalCount: legal.length };
 
-  let roll = Math.random() * total;
+  let roll = rng.random() * total;
   for (const beat of legal) {
     roll -= Math.max(0, beat.weight);
     if (roll <= 0) return { beat, rejectedTop, rejectedReason, legalCount: legal.length };
@@ -378,12 +380,12 @@ function publishDirectorBeatEvent(
   });
 }
 
-function findWalkableNear(world: World, x: number, y: number, minR: number, maxR: number): { x: number; y: number } | null {
+function findWalkableNear(world: World, x: number, y: number, minR: number, maxR: number, rng: SeedRng): { x: number; y: number } | null {
   const bx = Math.floor(x);
   const by = Math.floor(y);
   for (let attempt = 0; attempt < 80; attempt++) {
-    const r = minR + Math.floor(Math.random() * Math.max(1, maxR - minR + 1));
-    const a = Math.random() * Math.PI * 2;
+    const r = minR + Math.floor(rng.random() * Math.max(1, maxR - minR + 1));
+    const a = rng.random() * Math.PI * 2;
     const sx = world.wrap(bx + Math.round(Math.cos(a) * r));
     const sy = world.wrap(by + Math.round(Math.sin(a) * r));
     if (world.cells[world.idx(sx, sy)] === Cell.FLOOR && !world.solid(sx, sy)) return { x: sx, y: sy };
@@ -425,6 +427,7 @@ function spawnPatrol(
   state: GameState,
   nextId: { v: number },
   snapshot: SamosborDirectorSnapshot,
+  rng: SeedRng,
 ): { spawned: number; alifeIds: number[]; toFloorKey: string; fromFloorKey: string } {
   const toFloorKey = currentAlifeFloorKey(state);
   const fromFloorKey = 'story:ministry';
@@ -434,7 +437,7 @@ function spawnPatrol(
   let spawned = 0;
   const alifeIds: number[] = [];
   for (let i = 0; i < slots; i++) {
-    const pos = findWalkableNear(world, snapshot.playerX, snapshot.playerY, 5, 12);
+    const pos = findWalkableNear(world, snapshot.playerX, snapshot.playerY, 5, 12, rng);
     if (!pos) continue;
     const rpg = randomRPG(Math.max(1, snapshot.zoneLevel));
     const maxHp = Math.round(getMaxHp(rpg) * 1.2);
@@ -444,7 +447,7 @@ function spawnPatrol(
       type: EntityType.NPC,
       x: pos.x + 0.5,
       y: pos.y + 0.5,
-      angle: Math.random() * Math.PI * 2,
+      angle: rng.random() * Math.PI * 2,
       pitch: 0,
       alive: true,
       speed: 1.25,
@@ -456,9 +459,9 @@ function spawnPatrol(
       needs: freshNeeds(),
       hp: maxHp,
       maxHp,
-      money: 10 + Math.floor(Math.random() * 30),
+      money: 10 + Math.floor(rng.random() * 30),
       ai: { goal: AIGoal.IDLE, tx: 0, ty: 0, path: [], pi: 0, stuck: 0, timer: 0 },
-      inventory: [{ defId: 'ammo_9mm', count: 3 + Math.floor(Math.random() * 5) }],
+      inventory: [{ defId: 'ammo_9mm', count: 3 + Math.floor(rng.random() * 5) }],
       faction: Faction.LIQUIDATOR,
       occupation: Occupation.HUNTER,
       isTraveler: true,
@@ -567,12 +570,13 @@ function spawnAftershockMonster(
   entities: Entity[],
   nextId: { v: number },
   snapshot: SamosborDirectorSnapshot,
+  rng: SeedRng,
 ): number {
   if (!canSpawnEntityType(entities, EntityType.MONSTER)) return 0;
-  const pos = findWalkableNear(world, snapshot.playerX, snapshot.playerY, 7, 14);
+  const pos = findWalkableNear(world, snapshot.playerX, snapshot.playerY, 7, 14, rng);
   if (!pos) return 0;
   const kinds = [MonsterKind.SBORKA, MonsterKind.POLZUN, MonsterKind.SHADOW];
-  const kind = kinds[Math.floor(Math.random() * kinds.length)];
+  const kind = kinds[Math.floor(rng.random() * kinds.length)];
   const def = MONSTERS[kind];
   const rpg = randomRPG(Math.max(1, snapshot.zoneLevel));
   const hpBase = scaleMonsterHp(def.hp, Math.max(1, snapshot.zoneLevel));
@@ -582,7 +586,7 @@ function spawnAftershockMonster(
     type: EntityType.MONSTER,
     x: pos.x + 0.5,
     y: pos.y + 0.5,
-    angle: Math.random() * Math.PI * 2,
+    angle: rng.random() * Math.PI * 2,
     pitch: 0,
     alive: true,
     speed: scaleMonsterSpeed(def.speed, Math.max(1, snapshot.zoneLevel)),
@@ -606,6 +610,7 @@ function applyBeat(
   state: GameState,
   nextId: { v: number },
   snapshot: SamosborDirectorSnapshot,
+  rng: SeedRng,
 ): { ok: boolean; extra?: Record<string, unknown> } {
   switch (beat.effectId) {
     case 'warning_line':
@@ -617,7 +622,7 @@ function applyBeat(
       return { ok };
     }
     case 'extra_patrol': {
-      const patrol = spawnPatrol(world, entities, state, nextId, snapshot);
+      const patrol = spawnPatrol(world, entities, state, nextId, snapshot, rng);
       if (patrol.spawned > 0) pushDirectorLine(state, beat);
       return {
         ok: patrol.spawned > 0,
@@ -651,7 +656,7 @@ function applyBeat(
       return { ok: theft.ok, extra: theft };
     }
     case 'monster_aftershock': {
-      const spawned = spawnAftershockMonster(world, entities, nextId, snapshot);
+      const spawned = spawnAftershockMonster(world, entities, nextId, snapshot, rng);
       if (spawned > 0) pushDirectorLine(state, beat);
       return { ok: spawned > 0, extra: { spawned } };
     }
@@ -669,6 +674,8 @@ export function tickSamosborDirector(
   const director = ensureSamosborDirectorState(state);
   resetCycleIfNeeded(director, state.samosborCount);
   const snapshot = buildSnapshot(world, entities, state, variant, reason);
+  const rngSeed = hashSeed(`${snapshot.cycle}:${snapshot.time}:${snapshot.floor}:samosbor`);
+  const rng = new SeedRng(rngSeed);
   const tickReject = rejectDirectorTick(snapshot, director);
   if (tickReject) {
     recordTrace(director, snapshot, reason, tickReject.reasonCode, undefined, undefined, {
@@ -678,7 +685,7 @@ export function tickSamosborDirector(
   }
 
   markDirectorAttempt(director, snapshot);
-  const { beat, rejectedTop, rejectedReason, legalCount } = pickBeat(snapshot, director);
+  const { beat, rejectedTop, rejectedReason, legalCount } = pickBeat(snapshot, director, rng);
   if (!beat) {
     recordTrace(
       director,
@@ -692,7 +699,7 @@ export function tickSamosborDirector(
     return { fired: false, reasonCode: 'no_legal_beat' };
   }
 
-  const effect = applyBeat(beat, world, entities, state, nextId, snapshot);
+  const effect = applyBeat(beat, world, entities, state, nextId, snapshot, rng);
   if (!effect.ok) {
     director.cooldowns[beat.id] = state.time + SAMOSBOR_DIRECTOR_EFFECT_FAIL_COOLDOWN;
     recordTrace(director, snapshot, reason, 'effect_failed', beat.id, rejectedTop?.id, {
@@ -721,12 +728,14 @@ export function forceNextSamosborDirectorBeat(
   const director = ensureSamosborDirectorState(state);
   resetCycleIfNeeded(director, state.samosborCount);
   const snapshot = buildSnapshot(world, entities, state, variant, 'debug_force');
+  const rngSeed = hashSeed(`${snapshot.cycle}:${snapshot.time}:${snapshot.floor}:samosbor_force`);
+  const rng = new SeedRng(rngSeed);
   const beats = getSamosborBeatDefs();
   for (let i = 0; i < beats.length; i++) {
     const idx = (director.forceCursor + i) % beats.length;
     const beat = beats[idx];
     if (beat.phase !== snapshot.phase || !beat.floors.includes(snapshot.floor) || !beat.variants.includes(snapshot.variantId)) continue;
-    const effect = applyBeat(beat, world, entities, state, nextId, snapshot);
+    const effect = applyBeat(beat, world, entities, state, nextId, snapshot, rng);
     director.forceCursor = (idx + 1) % beats.length;
     if (!effect.ok) {
       recordTrace(director, snapshot, 'debug_force', 'effect_failed', beat.id);
