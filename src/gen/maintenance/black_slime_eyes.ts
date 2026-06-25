@@ -284,12 +284,18 @@ function sealBlackSlime(state: GameState, ctx: BlackSlimeContext, event: WorldEv
   if (room) room.sealed = true;
 
   let sealedEyes = 0;
-  for (const id of ctx.eyeIds) {
-    const eye = ctx.entities.find(e => e.id === id);
-    if (eye?.alive) {
-      eye.alive = false;
-      eye.hp = 0;
-      sealedEyes++;
+  if (ctx.eyeIds.length > 0) {
+    const entityMap = new Map();
+    for (const e of ctx.entities) {
+      entityMap.set(e.id, e);
+    }
+    for (const id of ctx.eyeIds) {
+      const eye = entityMap.get(id);
+      if (eye?.alive) {
+        eye.alive = false;
+        eye.hp = 0;
+        sealedEyes++;
+      }
     }
   }
 
@@ -341,7 +347,14 @@ function handleKillEvent(state: GameState, event: WorldEvent): void {
   if (event.type !== 'player_kill_monster' || event.monsterKind !== MonsterKind.CHERNOSLIZ) return;
   const ctx = findContextByEye(event);
   if (!ctx) return;
-  const remaining = ctx.eyeIds.filter(id => ctx.entities.some(e => e.id === id && e.alive)).length;
+  const entityMap = new Map();
+  for (const e of ctx.entities) {
+    entityMap.set(e.id, e);
+  }
+  const remaining = ctx.eyeIds.filter(id => {
+    const e = entityMap.get(id);
+    return e && e.alive;
+  }).length;
   publishBlackSlimeEvent(
     state,
     ctx,
