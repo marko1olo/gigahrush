@@ -1491,10 +1491,10 @@ export function openVolatileDoors(world: World): void {
 }
 
 /* ── Weighted random pick ────────────────────────────────────── */
-export function weightedPick<T extends { spawnW: number }>(defs: T[]): T | null {
+export function weightedPick<T extends { spawnW: number }>(defs: T[], rand: RandomSource): T | null {
   const total = defs.reduce((s, d) => s + d.spawnW, 0);
   if (total <= 0) return null;
-  let r = Math.random() * total;
+  let r = rand() * total;
   for (const d of defs) { r -= d.spawnW; if (r <= 0) return d; }
   return defs[defs.length - 1];
 }

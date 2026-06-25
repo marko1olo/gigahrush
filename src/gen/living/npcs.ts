@@ -71,7 +71,7 @@ export function spawnRoomItems(
       .filter(it => it.spawnW >= 0.01);
     const numItems = rng(0, 2);  // slightly rarer (was 0-3)
     for (let n = 0; n < numItems; n++) {
-      const def = weightedPick(adjusted);
+      const def = weightedPick(adjusted, Math.random);
       if (!def) continue;
       const ix = room.x + rng(1, Math.max(1, room.w - 2));
       const iy = room.y + rng(1, Math.max(1, room.h - 2));

@@ -351,10 +351,10 @@ const MARKOV_HQ_SPECS: readonly HqSpec[] = [
 
 const markovMetrics = new WeakMap<World, MarkovStairwellMetrics>();
 
-function weightedPick(options: readonly WeightedMotif[]): MotifId {
+function weightedPick(options: readonly WeightedMotif[], rand: () => number): MotifId {
   let total = 0;
   for (const option of options) total += option.weight;
-  let roll = Math.random() * total;
+  let roll = rand() * total;
   for (const option of options) {
     roll -= option.weight;
     if (roll <= 0) return option.id;
@@ -362,14 +362,14 @@ function weightedPick(options: readonly WeightedMotif[]): MotifId {
   return options[options.length - 1]?.id ?? 'landing';
 }
 
-function buildSequence(): MotifId[] {
+function buildSequence(rand: () => number): MotifId[] {
   const out: MotifId[] = ['landing'];
   let current: MotifId = 'landing';
   for (let i = 1; i < LANDING_COUNT; i++) {
-    current = weightedPick(TRANSITIONS[current]);
+    current = weightedPick(TRANSITIONS[current], rand);
     out.push(current);
   }
-  const rareStep = RARE_STEP_MIN + Math.floor(Math.random() * RARE_STEP_SPAN);
+  const rareStep = RARE_STEP_MIN + Math.floor(rand() * RARE_STEP_SPAN);
   out[rareStep] = 'rare';
   if (rareStep > 1) out[rareStep - 2] = 'kitchen';
   if (rareStep > 0) out[rareStep - 1] = 'bath';
@@ -377,12 +377,12 @@ function buildSequence(): MotifId[] {
   return out;
 }
 
-function hiddenState(motif: MotifId, step: number, previous: MotifId): HiddenState {
+function hiddenState(motif: MotifId, step: number, previous: MotifId, rand: () => number): HiddenState {
   if (motif === 'rare') return 'rare';
   if (motif === previous && step > 0) return 'hunting';
   if ((motif === 'registry' && step % 3 === 1) || (motif === 'service' && step % 4 === 2)) return 'watched';
-  if ((motif === 'bath' || motif === 'storage') && Math.random() < 0.28) return 'hunting';
-  if (Math.random() < 0.18) return 'watched';
+  if ((motif === 'bath' || motif === 'storage') && rand() < 0.28) return 'hunting';
+  if (rand() < 0.18) return 'watched';
   return 'quiet';
 }
 
@@ -1022,7 +1022,7 @@ export function reinforceMarkovStairwellAuthoredHqTerritory(world: World): void 
 
 function buildGeometry(world: World): { chain: ChainRoom[]; watcherRoom: Room; patternRoom: Room; rareRoom: Room; tellCells: number; serviceCells: number; lockedDoors: number } {
   const spine = addRoom(world, RoomType.CORRIDOR, SPINE_X, SPINE_Y, SPINE_W, SPINE_H, 'Марковская лестница: основной марш', Tex.PANEL, Tex.F_LINO);
-  const sequence = buildSequence();
+  const sequence = buildSequence(Math.random);
   const chain: ChainRoom[] = [];
   let tellCells = 0;
   let patternRoom: Room | undefined;
@@ -1036,7 +1036,7 @@ function buildGeometry(world: World): { chain: ChainRoom[]; watcherRoom: Room; p
   for (let step = 0; step < LANDING_COUNT; step++) {
     const motifId = sequence[step];
     const motif = MOTIFS[motifId];
-    const state = hiddenState(motifId, step, previous);
+    const state = hiddenState(motifId, step, previous, Math.random);
     previous = motifId;
 
     const y = LANDING_Y0 + step * LANDING_STEP;
