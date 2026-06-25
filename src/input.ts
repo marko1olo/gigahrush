@@ -55,13 +55,17 @@ function clearMouseGameplayState(input: InputState): void {
   for (let button = 0; button <= 4; button++) applyControlCode(input, mouseButtonCode(button), false);
 }
 
-function clearPointerState(input: InputState): void {
-  clearMouseGameplayState(input);
+function clearTouchState(input: InputState): void {
   input.touch.moveX = 0;
   input.touch.moveY = 0;
   input.touch.lookX = 0;
   input.touch.lookY = 0;
   input.touch.active = false;
+}
+
+function clearPointerState(input: InputState): void {
+  clearMouseGameplayState(input);
+  clearTouchState(input);
 }
 
 function clearLostInputState(input: InputState, canvas: HTMLCanvasElement): void {
