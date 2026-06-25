@@ -131,6 +131,7 @@ export function controlActionLocked(actionId: ControlActionId): boolean {
 function codeAssignableTo(actionId: ControlActionId, code: string): boolean {
   if (!actionDef(actionId)) return false;
   if (typeof code !== 'string' || code.length < 2 || code.length > 32) return false;
+  if (code === '__proto__' || code === 'constructor' || code === 'prototype') return false;
   return true;
 }
 
@@ -163,8 +164,10 @@ function normalizeBindings(raw: unknown): ControlBindings {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
   const src = raw as Record<string, unknown>;
   for (const action of CONTROL_ACTIONS) {
-    const codes = src[action.id];
-    if (Array.isArray(codes)) out[action.id] = sanitizeCodesForAction(action.id, codes);
+    if (Object.prototype.hasOwnProperty.call(src, action.id)) {
+      const codes = src[action.id];
+      if (Array.isArray(codes)) out[action.id] = sanitizeCodesForAction(action.id, codes);
+    }
   }
   return out;
 }
@@ -190,7 +193,7 @@ function saveControlBindings(): void {
 }
 
 export function keyCodeLabel(code: string): string {
-  if (CODE_LABELS[code]) return CODE_LABELS[code];
+  if (Object.prototype.hasOwnProperty.call(CODE_LABELS, code)) return CODE_LABELS[code];
   if (code.startsWith('Key') && code.length === 4) return code.slice(3);
   if (code.startsWith('Digit') && code.length === 6) return code.slice(5);
   if (code.startsWith('Numpad')) return `Num ${code.slice(6)}`;
