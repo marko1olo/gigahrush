@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { canUseMobileFullscreen, canUseNativeFullscreen } from '../src/fullscreen';
+import { canUseMobileFullscreen, canUseNativeFullscreen, isEmbeddedViewport } from '../src/fullscreen';
 
 interface FullscreenEnvOptions {
   userAgent: string;
@@ -58,6 +58,46 @@ test('mobile fullscreen is hidden for direct iPhone WebKit pages', () => {
     assert.equal(canUseMobileFullscreen(), false);
   } finally {
     restore();
+  }
+});
+
+test('isEmbeddedViewport returns false when self is top', () => {
+  const restore = installFullscreenEnv({ userAgent: '', embedded: false });
+  try {
+    assert.equal(isEmbeddedViewport(), false);
+  } finally {
+    restore();
+  }
+});
+
+test('isEmbeddedViewport returns true when self is not top', () => {
+  const restore = installFullscreenEnv({ userAgent: '', embedded: true });
+  try {
+    assert.equal(isEmbeddedViewport(), true);
+  } finally {
+    restore();
+  }
+});
+
+test('isEmbeddedViewport returns true when accessing top throws cross-origin error', () => {
+  const previousWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
+  const self = {};
+
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      self,
+      get top() {
+        throw new Error('Blocked a frame with origin "https://example.com" from accessing a cross-origin frame.');
+      }
+    },
+  });
+
+  try {
+    assert.equal(isEmbeddedViewport(), true);
+  } finally {
+    if (previousWindow) Object.defineProperty(globalThis, 'window', previousWindow);
+    else Reflect.deleteProperty(globalThis, 'window');
   }
 });
 
