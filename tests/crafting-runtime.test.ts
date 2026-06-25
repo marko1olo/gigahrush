@@ -21,6 +21,7 @@ import {
   hasCraftRecipe,
   learnCraftRecipe,
   restoreCraftingState,
+  sanitizeCraftingState,
 } from '../src/systems/crafting';
 import { countInventoryItem, makeGameState, makeTestPlayer } from './helpers';
 
@@ -39,6 +40,27 @@ test('empty crafting state starts with nine zero material counters', () => {
   const crafting = createCraftingState();
   assert.equal(crafting.materials.length, 9);
   assert.deepEqual(crafting.materials, [0, 0, 0, 0, 0, 0, 0, 0, 0]);
+});
+
+test('createCraftingState initializes fields to defaults', () => {
+  const crafting = createCraftingState();
+  assert.deepEqual(crafting.materials, [0, 0, 0, 0, 0, 0, 0, 0, 0]);
+  assert.equal(typeof crafting.knownRecipes, 'object');
+  assert.equal(crafting.learnedCount, Object.keys(crafting.knownRecipes).length);
+  assert.equal(crafting.lastChangedAt, 0);
+  assert.ok(crafting.knownRecipes['craft_item_bread']);
+  assert.ok(crafting.knownRecipes['craft_item_bandage']);
+});
+
+test('sanitizeCraftingState with non-record input creates default state', () => {
+  const defaultState = createCraftingState();
+  const stringState = sanitizeCraftingState('not a record');
+  const numberState = sanitizeCraftingState(123);
+  const nullState = sanitizeCraftingState(null);
+
+  assert.deepEqual(stringState, defaultState);
+  assert.deepEqual(numberState, defaultState);
+  assert.deepEqual(nullState, defaultState);
 });
 
 test('adding crafting materials clamps to the material bank cap', () => {
