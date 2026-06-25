@@ -170,7 +170,10 @@ export function spawnTravelers(
 
   for (const def of TRAVELER_DEFS) {
     for (let i = 0; i < def.count && corridorSpawns.length > 0; i++) {
-      const ci = corridorSpawns.splice(Math.floor(Math.random() * corridorSpawns.length), 1)[0];
+      const idx = Math.floor(Math.random() * corridorSpawns.length);
+      const ci = corridorSpawns[idx];
+      corridorSpawns[idx] = corridorSpawns[corridorSpawns.length - 1];
+      corridorSpawns.pop();
       const sx = (ci % W) + 0.5;
       const sy = Math.floor(ci / W) + 0.5;
       const zoneId = world.zoneMap[ci];
