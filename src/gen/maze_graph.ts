@@ -173,6 +173,67 @@ function neighbors(width: number, height: number, id: number): number[] {
   return out;
 }
 
+
+class FastActiveSet {
+  private prev: Int32Array;
+  private next: Int32Array;
+  private active: Int32Array;
+  private activePos: Int32Array;
+  private head: number = -1;
+  private tail: number = -1;
+  public count: number = 0;
+
+  constructor(maxSize: number) {
+    this.prev = new Int32Array(maxSize).fill(-1);
+    this.next = new Int32Array(maxSize).fill(-1);
+    this.active = new Int32Array(maxSize);
+    this.activePos = new Int32Array(maxSize).fill(-1);
+  }
+
+  add(id: number) {
+    if (this.activePos[id] !== -1) return;
+
+    if (this.tail === -1) {
+      this.head = id;
+      this.tail = id;
+    } else {
+      this.next[this.tail] = id;
+      this.prev[id] = this.tail;
+      this.tail = id;
+    }
+
+    this.active[this.count] = id;
+    this.activePos[id] = this.count;
+    this.count++;
+  }
+
+  remove(id: number) {
+    const pos = this.activePos[id];
+    if (pos === -1) return;
+
+    const p = this.prev[id];
+    const n = this.next[id];
+    if (p !== -1) this.next[p] = n; else this.head = n;
+    if (n !== -1) this.prev[n] = p; else this.tail = p;
+    this.prev[id] = -1;
+    this.next[id] = -1;
+
+    const lastId = this.active[this.count - 1];
+    this.active[pos] = lastId;
+    this.activePos[lastId] = pos;
+    this.activePos[id] = -1;
+    this.count--;
+  }
+
+  select(rand: RandomSource, weights: Required<MazeSelectionWeights>): number {
+    const total = weights.newest + weights.oldest + weights.random;
+    const roll = rand() * total;
+    if (roll < weights.newest) return this.tail;
+    if (roll < weights.newest + weights.oldest) return this.head;
+    return this.active[Math.floor(rand() * this.count)];
+  }
+}
+
 function normalizeSelectionWeights(weights: MazeSelectionWeights | undefined): Required<MazeSelectionWeights> {
   const newest = Math.max(0, weights?.newest ?? DEFAULT_SELECTION_WEIGHTS.newest);
   const oldest = Math.max(0, weights?.oldest ?? DEFAULT_SELECTION_WEIGHTS.oldest);
@@ -181,13 +242,6 @@ function normalizeSelectionWeights(weights: MazeSelectionWeights | undefined): R
   return { newest, oldest, random };
 }
 
-function selectActive(active: readonly number[], rand: RandomSource, weights: Required<MazeSelectionWeights>): number {
-  const total = weights.newest + weights.oldest + weights.random;
-  const roll = rand() * total;
-  if (roll < weights.newest) return active.length - 1;
-  if (roll < weights.newest + weights.oldest) return 0;
-  return pickIndex(active, rand);
-}
 
 function edgeSeamAxis(width: number, height: number, a: number, b: number): MazeSeamAxis | undefined {
   const ax = a % width;
@@ -459,23 +513,23 @@ export function generateGrowingTreeMaze(options: GrowingTreeMazeOptions): MazeGr
   const context = normalizeContext(options);
   const weights = normalizeSelectionWeights(options.selectionWeights);
   const visited = new Uint8Array(context.n);
-  const active: number[] = [context.startId];
+  const activeSet = new FastActiveSet(context.n);
+  activeSet.add(context.startId);
   const edges: MazeGraphEdge[] = [];
   const edgeSet = new Set<string>();
   visited[context.startId] = 1;
 
-  while (active.length > 0) {
-    const activeIndex = selectActive(active, rand, weights);
-    const id = active[activeIndex];
+  while (activeSet.count > 0) {
+    const id = activeSet.select(rand, weights);
     const unvisited = neighbors(context.width, context.height, id).filter(next => visited[next] === 0);
     if (unvisited.length === 0) {
-      active.splice(activeIndex, 1);
+      activeSet.remove(id);
       continue;
     }
     const next = unvisited[pickIndex(unvisited, rand)];
     visited[next] = 1;
     addEdge(edges, edgeSet, context.width, context.height, id, next, 'backbone');
-    active.push(next);
+    activeSet.add(next);
   }
 
   return finalizeMazeGraph(context, edges, options, rand);
