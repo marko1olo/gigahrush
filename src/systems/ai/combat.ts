@@ -191,8 +191,13 @@ function npcCombatItemScore(e: Entity, itemId: string | undefined): number {
   const ws = getWeaponStats(e, id);
   if (!ws) return 0;
   if (ws.psiCost && (!e.rpg || e.rpg.psi < ws.psiCost)) return 0;
-  if (ws.isRanged && ws.ammoType && e.inventory?.some(slot => slot.defId === ws.ammoType && slot.count > 0) !== true) return 0;
+  if (ws.isRanged && !npcHasAmmo(e, ws)) return 0;
   return ws.isRanged ? ws.dmg * (ws.pellets ?? 1) * 1.6 + (ws.aoeRadius ? 30 : 0) : ws.dmg;
+}
+
+function npcHasAmmo(e: Entity, ws: WeaponStats): boolean {
+  if (!ws.ammoType) return true;
+  return e.inventory?.some(slot => slot.defId === ws.ammoType && slot.count > 0) === true;
 }
 
 function npcCombatItemId(e: Entity): string {
@@ -484,8 +489,7 @@ function npcRangedCueColor(ws: WeaponStats): string {
 
 function npcCanStartRangedWindup(e: Entity, ws: WeaponStats): boolean {
   if (ws.psiCost) return !!e.rpg && e.rpg.psi >= ws.psiCost;
-  if (!ws.ammoType) return true;
-  return e.inventory?.some(slot => slot.defId === ws.ammoType && slot.count > 0) === true;
+  return npcHasAmmo(e, ws);
 }
 
 function npcCommitRangedShot(
@@ -516,8 +520,8 @@ function npcCommitRangedShot(
     e.ai!.windupTargetId = undefined;
     return true;
   }
-  // TODO: [TEMPORARY SOLUTION] NPCs need ammo to shoot but they do not consume it, to prevent burning through their supply.
-  if (ws.ammoType && e.inventory?.some(s => s.defId === ws.ammoType && s.count > 0) !== true) return false;
+  // Note: NPCs need ammo to shoot but they do not consume it, to prevent burning through their supply.
+  if (!npcHasAmmo(e, ws)) return false;
   if (visualProjectiles) {
     npcFireProjectile(world, e, target, weaponId, ws, entities, nextId);
     playSoundAt(hostileWeaponSound(weaponId), e.x, e.y);
@@ -635,8 +639,7 @@ function npcAutoEquipBestWeapon(e: Entity): void {
     const w = getWeaponStats(e, slot.defId);
     if (!w) continue;
     if (w.isRanged && w.ammoType) {
-      const hasAmmo = e.inventory.some(s => s.defId === w.ammoType && s.count > 0);
-      if (!hasAmmo) continue;
+      if (!npcHasAmmo(e, w)) continue;
     }
     if (w.psiCost && (!e.rpg || e.rpg.psi < w.psiCost)) continue;
     const effectiveDmg = w.isRanged ? w.dmg * (w.pellets ?? 1) * 2 : w.dmg;
