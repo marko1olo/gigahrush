@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { canUseMobileFullscreen, canUseNativeFullscreen } from '../src/fullscreen';
+import { canUseMobileFullscreen, canUseNativeFullscreen, enterNativeFullscreen } from '../src/fullscreen';
 
 interface FullscreenEnvOptions {
   userAgent: string;
@@ -9,6 +9,7 @@ interface FullscreenEnvOptions {
   maxTouchPoints?: number;
   embedded?: boolean;
   requestFullscreen?: boolean;
+  rejectFullscreen?: boolean;
 }
 
 function installFullscreenEnv(options: FullscreenEnvOptions): () => void {
@@ -17,7 +18,9 @@ function installFullscreenEnv(options: FullscreenEnvOptions): () => void {
   const previousWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
   const documentElement = options.requestFullscreen === false
     ? {}
-    : { requestFullscreen: async () => {} };
+    : { requestFullscreen: async () => {
+        if (options.rejectFullscreen) throw new Error('Fullscreen request denied');
+      } };
   const top = {};
   const self = options.embedded ? {} : top;
 
@@ -81,6 +84,20 @@ test('mobile fullscreen remains available for compatible direct pages and hidden
   try {
     assert.equal(canUseNativeFullscreen(), true);
     assert.equal(canUseMobileFullscreen(), false);
+  } finally {
+    restore();
+  }
+});
+
+test('native fullscreen handles rejection gracefully', async () => {
+  const restore = installFullscreenEnv({
+    userAgent: 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/125 Mobile Safari/537.36',
+    platform: 'Linux armv8l',
+    rejectFullscreen: true,
+  });
+  try {
+    const result = await enterNativeFullscreen();
+    assert.equal(result, false);
   } finally {
     restore();
   }
