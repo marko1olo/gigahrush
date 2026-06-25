@@ -11,6 +11,15 @@ let activeVariant: ActiveSamosborVariant | null = null;
 let forcedNextVariant: SamosborVariantId | null = null;
 let lastVariant: SamosborVariantId | null = null;
 
+function secureRandom(): number {
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+    const arr = new Uint32Array(1);
+    crypto.getRandomValues(arr);
+    return arr[0] / 4294967296;
+  }
+  return Math.random();
+}
+
 export function chooseSamosborVariant(floor: FloorLevel): ActiveSamosborVariant {
   if (forcedNextVariant) {
     const forced = SAMOSBOR_VARIANTS.find(v => v.id === forcedNextVariant);
@@ -22,9 +31,11 @@ export function chooseSamosborVariant(floor: FloorLevel): ActiveSamosborVariant 
     }
   }
 
+
+
   let total = 0;
   for (const def of SAMOSBOR_VARIANTS) total += getSamosborVariantWeight(def.id, floor);
-  let roll = Math.random() * Math.max(1, total);
+  let roll = secureRandom() * Math.max(1, total);
   for (const def of SAMOSBOR_VARIANTS) {
     roll -= getSamosborVariantWeight(def.id, floor);
     if (roll <= 0) {
