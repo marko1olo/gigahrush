@@ -88,8 +88,6 @@ export const SCR_W = 320;
 export const SCR_H = 200;
 const DEFAULT_FOV_RADIANS = Math.PI / 2;
 
-/** Per-column depth buffer — unused (GPU depth test handles sprite clipping) */
-
 /* ── Texture atlas layout ─────────────────────────────────────── *
  * All game textures (64×64 each) are packed into a single 2D     *
  * texture atlas. Layout: ATLAS_COLS textures per row.             */
