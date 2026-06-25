@@ -10712,14 +10712,63 @@ function placeServiceMicroBays(world: World, rooms: Room[], spec: ProceduralFloo
 
 function sortedServiceJunctions(world: World, junctions: readonly ServiceSpineJunction[], seed: number): ServiceSpineJunction[] {
   const out: ServiceSpineJunction[] = [];
+  const cellSize = 32;
+  const gridW = W / cellSize; // 32
+  const grid = new Map<number, ServiceSpineJunction[]>();
+
   for (const j of junctions) {
-    const existing = out.find(item => world.dist2(item.x + 0.5, item.y + 0.5, j.x + 0.5, j.y + 0.5) < 26 * 26);
+    // The coordinate system wraps over W
+    let jx = j.x % W;
+    if (jx < 0) jx += W;
+    let jy = j.y % W;
+    if (jy < 0) jy += W;
+
+    const gx = Math.floor(jx / cellSize);
+    const gy = Math.floor(jy / cellSize);
+
+    let existing: ServiceSpineJunction | undefined;
+
+    outer: for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        let nx = gx + dx;
+        let ny = gy + dy;
+
+        // Wrap around
+        if (nx < 0) nx += gridW;
+        else if (nx >= gridW) nx -= gridW;
+        if (ny < 0) ny += gridW;
+        else if (ny >= gridW) ny -= gridW;
+
+        const key = ny * gridW + nx;
+        const cellItems = grid.get(key);
+        if (cellItems) {
+          for (const item of cellItems) {
+            if (world.dist2(item.x + 0.5, item.y + 0.5, j.x + 0.5, j.y + 0.5) < 676) { // 26 * 26
+              existing = item;
+              break outer;
+            }
+          }
+        }
+      }
+    }
+
     if (existing) {
       existing.score = Math.max(existing.score, j.score);
       continue;
     }
-    out.push({ ...j });
+
+    const newItem = { ...j };
+    out.push(newItem);
+
+    const key = gy * gridW + gx;
+    let cellItems = grid.get(key);
+    if (!cellItems) {
+      cellItems = [];
+      grid.set(key, cellItems);
+    }
+    cellItems.push(newItem);
   }
+
   out.sort((a, b) => (b.score + serviceHash01(seed, b.x, b.y, 91)) - (a.score + serviceHash01(seed, a.x, a.y, 91)));
   return out;
 }
