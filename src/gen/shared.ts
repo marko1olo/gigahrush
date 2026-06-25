@@ -546,7 +546,7 @@ export function pickWalkablePlacement(
   let bestScore = Infinity;
 
   for (let a = 0; a < attempts; a++) {
-    const ci = source[Math.floor(Math.random() * source.length)];
+    const ci = source[rng(0, source.length - 1)];
     if (!isValidWalkablePlacementCell(world, placement, ci, opts)) continue;
     if (bias === 'any') return { x: ci % W, y: (ci / W) | 0 };
     const score = placementScore(world, placement, ci, opts);
@@ -602,7 +602,7 @@ export function connectProtectedRoom(world: World, rx: number, ry: number, w: nu
     }
   }
   if (openings.length > 0) {
-    const bi = openings[Math.floor(Math.random() * openings.length)];
+    const bi = openings[rng(0, openings.length - 1)];
     world.cells[bi] = Cell.FLOOR;
     world.aptMask[bi] = 0;
     return;
@@ -638,10 +638,10 @@ export function findClearArea(
   minDist: number, maxDist: number,
 ): { x: number; y: number } | null {
   for (let attempt = 0; attempt < 400; attempt++) {
-    const angle = Math.random() * Math.PI * 2;
+    const angle = (rng(0, 10000) / 10000) * Math.PI * 2;
     const lo = attempt < 200 ? minDist : 0;
     const hi = attempt < 200 ? maxDist : W / 4;
-    const dist = lo + Math.random() * (hi - lo);
+    const dist = lo + (rng(0, 10000) / 10000) * (hi - lo);
     const tx = (cx + Math.round(Math.cos(angle) * dist) + W) % W;
     const ty = (cy + Math.round(Math.sin(angle) * dist) + W) % W;
     let ok = true;
@@ -661,7 +661,7 @@ export function carveCorridor(world: World, ax: number, ay: number, bx: number, 
   const ddy = world.delta(ay, by);
   const stepX = ddx > 0 ? 1 : -1;
   const stepY = ddy > 0 ? 1 : -1;
-  const horizFirst = Math.random() < 0.5;
+  const horizFirst = rng(0, 1000) < 500;
   let cx = ax, cy = ay;
 
   // dirX/dirY: current movement direction of the corridor leg.
@@ -945,7 +945,7 @@ export function decorateRoom(world: World, room: Room): void {
       const c1 = Math.floor(w / 3), c2 = w - 1 - c1;
       for (let dy = 2; dy < h - 1; dy += 2) { placeWall(c1, dy); placeWall(c2, dy); }
     } else if (decor === 2 && w >= 10 && h >= 10) {
-      if (Math.random() < 0.5) {
+      if (rng(0, 1000) < 500) {
         const wy = Math.floor(h / 2), gap = Math.floor(w / 2);
         for (let dx = 2; dx < w - 2; dx++) { if (Math.abs(dx - gap) > 1) placeWall(dx, wy); }
       } else {
@@ -1494,7 +1494,7 @@ export function openVolatileDoors(world: World): void {
 export function weightedPick<T extends { spawnW: number }>(defs: T[]): T | null {
   const total = defs.reduce((s, d) => s + d.spawnW, 0);
   if (total <= 0) return null;
-  let r = Math.random() * total;
+  let r = (rng(0, 10000) / 10000) * total;
   for (const d of defs) { r -= d.spawnW; if (r <= 0) return d; }
   return defs[defs.length - 1];
 }
@@ -1854,7 +1854,7 @@ export function generateZones(world: World): void {
       const cy = world.wrap(zy * ZONE_CELL + Math.floor(ZONE_CELL / 2) + rng(-20, 20));
 
       // Faction distribution: 30% citizen, 20% liquidator, 20% cultist, 15% wild, 15% samosbor-free
-      const roll = Math.random();
+      const roll = rng(0, 10000) / 10000;
       let faction: ZoneFaction;
       if (roll < 0.30) faction = ZoneFaction.CITIZEN;
       else if (roll < 0.50) faction = ZoneFaction.LIQUIDATOR;
@@ -1866,7 +1866,7 @@ export function generateZones(world: World): void {
       zones.push({
         id, cx, cy,
         faction,
-        hasLift: Math.random() < 0.10,
+        hasLift: rng(0, 100) < 10,
         fogged: false,
         level: 1, // computed later per floor via assignZoneLevels
         hqRoomId: -1,
@@ -1928,7 +1928,7 @@ export function placeAirlocks(world: World): void {
 
         // Zone boundary OR 1% chance in any corridor (rare inter-room airlocks)
         const crossesZone = world.zoneMap[pi] !== world.zoneMap[ni];
-        if (!crossesZone && Math.random() > 0.01) continue;
+        if (!crossesZone && rng(0, 100) > 1) continue;
 
         // Corridor check: perpendicular walls on all 3 cells
         let corridor = true;
@@ -2004,7 +2004,7 @@ export function punchThinWalls(world: World, chance: number = 0.12): void {
         }
         if (nearby) continue;
 
-        if (Math.random() < chance) {
+        if ((rng(0, 10000) / 10000) < chance) {
           world.cells[mi] = Cell.FLOOR;
           punched.add(mi);
         }
