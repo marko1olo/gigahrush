@@ -510,9 +510,8 @@ export class World {
     const removeFromRoom = (roomId: number): void => {
       const room = roomId >= 0 ? this.rooms[roomId] : undefined;
       if (!room) return;
-      const next = room.doors.filter(i => i !== idx);
-      if (next.length !== room.doors.length) {
-        room.doors = next;
+      if (room.doors.includes(idx)) {
+        room.doors = room.doors.filter(i => i !== idx);
         changed = true;
       }
     };
@@ -521,11 +520,11 @@ export class World {
       removeFromRoom(door.roomB);
     }
     if (this.doors.delete(idx)) changed = true;
-    for (const room of this.rooms) {
+    for (let i = 0; i < this.rooms.length; i++) {
+      const room = this.rooms[i];
       if (!room) continue;
-      const next = room.doors.filter(i => i !== idx);
-      if (next.length !== room.doors.length) {
-        room.doors = next;
+      if (room.doors.includes(idx)) {
+        room.doors = room.doors.filter(i => i !== idx);
         changed = true;
       }
     }
