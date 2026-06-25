@@ -8772,6 +8772,280 @@ export function updateMonster(world: World, entities: Entity[], e: Entity, dt: n
   const def = e.monsterKind !== undefined ? MONSTERS[e.monsterKind] : null;
   if (updateRzhavnikScrapWake(world, entities, e, dt, time, msgs, playerId, nextId, state)) return;
   if (player?.alive && updateBezekhiyDeadEcho(world, e, player, dt, time, msgs, state)) return;
+  let { target, lishennyyLightTarget } = findMonsterCombatTargetWrapper(
+    world, entities, e, def, dt, time, playerId, player, state
+  );
+
+  updateGreenDogPackHowl(world, e, target, time, msgs, playerId, state);
+  if (lishennyyLightTarget && followLishennyyLightTarget(world, e, lishennyyLightTarget, dt)) return;
+  target = updateSobrannyyTarget(world, e, target, time, msgs, state);
+  target = updateObzhivalshchikTarget(world, e, target, dt, time, msgs, state);
+  updateNightmarePressure(world, e, target, dt, time, msgs, playerId, state);
+  updateMukhozhukLeader(world, e, target, dt, time, msgs, state);
+  if (updateBloodPlantRootHive(world, e, target, dt, time, msgs, playerId, state)) return;
+  if (updateBorshchevikRootedPlant(world, e, target, dt, time, msgs, playerId, state)) return;
+  updateProtokolnikProtocolPressure(world, e, target, dt, time, msgs, playerId, state);
+  if (target && !target.alive) return;
+  updateWallTerrainReadability(world, e, target, time, msgs, state);
+  if (updateZhornayaTvar(world, entities, e, target, dt, time, msgs, playerId, nextId, state)) return;
+  if (updateSlepoglaz(world, entities, e, target, dt, time, msgs, playerId, nextId, state)) return;
+  if (updateTreskotnikFractureSprint(world, entities, e, target, dt, time, msgs, playerId, nextId, state)) return;
+  if (target) updateVodyanoyWaterPressureLine(world, e, target, dt, time, msgs, playerId, state);
+  updatePomoynyRoyReadability(world, e, target, time, msgs, playerId, state);
+
+  if (!hasAIFlag(e, 'scentOvercommit') && tryFollowMonsterBait(world, e, target, dt, time, msgs, state)) return;
+  if (tryConsumeMeatChunk(world, e, target, dt, time, msgs, state)) return;
+
+  if (!target) {
+    updateMonsterWander(world, e, def, dt, time, msgs, playerId, player, state);
+    return;
+  }
+  ai.combatTargetId = target.id;
+  ai.goal = AIGoal.HUNT;
+
+  const bestDist = Math.sqrt(world.dist2(e.x, e.y, target.x, target.y));
+  updateNelyudCloseReveal(world, e, target, time, msgs, state);
+  updateSborkaReadability(world, e, target, time, msgs, playerId, state);
+  updateLampPoweredReadability(world, e, target, time, msgs, playerId, state);
+  updateOlgoyReadability(world, e, target, time, msgs, playerId, state);
+  updateDikiyMertvyakCrowdShove(world, e, target, dt, time, msgs, playerId, state);
+  if (updateLozhnyyDukhFalsePhase(world, e, target, dt, time, msgs, playerId, state)) return;
+
+  if (e.monsterKind === MonsterKind.SOBRANNYY && trySobrannyyBreakWeakDoor(world, e, target, time, msgs, state)) return;
+
+  if (bladeEliteTuning(e.monsterKind)) {
+    updateBladeElite(world, entities, e, target, dt, time, msgs, playerId, nextId, state);
+    return;
+  }
+
+  if (e.monsterKind === MonsterKind.GLUBINNAYA_TEN &&
+      updateGlubinnayaTenSecondBeat(world, entities, e, target, bestDist, dt, time, msgs, playerId, nextId, state)) {
+    return;
+  }
+
+  if (e.monsterKind === MonsterKind.TONKAYA_TEN &&
+      updateTonkayaTenBaitLine(world, entities, e, target, dt, time, msgs, playerId, nextId, state)) {
+    return;
+  }
+
+  if (e.monsterKind === MonsterKind.SHADOW &&
+      updateShadowAmbushReadability(world, e, target, bestDist, dt, time, msgs, playerId, state)) {
+    return;
+  }
+
+  if (updateTumannikFogOffset(world, entities, e, target, dt, time, msgs, playerId, nextId, state)) {
+    return;
+  }
+
+  if (e.monsterKind === MonsterKind.FOG_SHARK) {
+    updateFogSharkTurn(world, e, target, dt);
+    updateFogSharkPack(world, e, target, time, msgs, playerId, state);
+  }
+
+  if (e.monsterKind === MonsterKind.LAMPOGLAZ && def) {
+    updateLampoglazLightLock(world, entities, e, target, def, bestDist, dt, time, msgs, playerId, nextId, state);
+    return;
+  }
+
+  // Ranged monsters telegraph, require a clear toroidal line of fire, and can be denied by cover.
+  if (e.monsterKind === MonsterKind.TRUBNYY_AVTOMAT && def) {
+    if (updateTrubnyyWetLineShot(world, entities, e, target, def, dt, time, msgs, playerId, nextId, state)) return;
+  } else if (def?.isRanged && updateReadableMonsterRanged(world, entities, e, target, def, bestDist, dt, time, msgs, playerId, nextId, state)) return;
+
+  // Immobile monsters don't pathfind or melee: once their line/source is denied, they are disabled until it opens again.
+  if (def?.speed === 0) return;
+
+  // Melee attack if close enough
+  const mRange = monsterMeleeRange(world, e);
+  if (bestDist < mRange) {
+    performMonsterMeleeAttack(world, entities, e, target, def, mRange, dt, time, msgs, playerId, nextId, state);
+    return;
+  }
+
+  // Hunt: pathfind to target
+  ai.timer -= dt;
+  if (ai.path.length === 0 || ai.timer <= 0) {
+    const chase = e.monsterKind === MonsterKind.VODYANOY_KOSHMAR
+      ? vodyanoyChaseCell(world, e, target)
+      : e.monsterKind === MonsterKind.FOG_SHARK
+        ? fogSharkChaseCell(world, e, target)
+        : e.monsterKind === MonsterKind.MUKHOZHUK_HOST
+          ? mukhozhukChaseCell(world, e, target)
+          : greenDogChaseCell(world, e, target);
+    tryAssignPathToCell(world, e, chase.x, chase.y);
+    ai.timer = 2;
+  }
+
+  // Phasing monsters (Spirit) move directly through walls
+  if (e.phasing) {
+    const ddx = world.delta(e.x, target.x);
+    const ddy = world.delta(e.y, target.y);
+    const dd = Math.sqrt(ddx * ddx + ddy * ddy);
+    if (dd > 0.1) {
+      const spd = e.speed * dt;
+      e.x = ((e.x + (ddx / dd) * spd) % W + W) % W;
+      e.y = ((e.y + (ddy / dd) * spd) % W + W) % W;
+    }
+    return;
+  }
+
+  followMonsterPath(world, e, dt, target);
+}
+
+function performMonsterMeleeAttack(
+  world: World,
+  entities: Entity[],
+  e: Entity,
+  target: Entity,
+  def: MonsterDef | null,
+  mRange: number,
+  dt: number,
+  time: number,
+  msgs: Msg[],
+  playerId: number,
+  nextId: { v: number },
+  state?: GameState
+): void {
+  e.attackCd = (e.attackCd ?? 0) - dt;
+  if (e.attackCd! <= 0) {
+    const dx = world.delta(e.x, target.x);
+    const dy = world.delta(e.y, target.y);
+    e.angle = Math.atan2(dy, dx);
+
+    const ax = e.x + Math.cos(e.angle) * mRange;
+    const ay = e.y + Math.sin(e.angle) * mRange;
+    getEntityIndex().queryRadius(ax, ay, 1.2, monsterMeleeHitQuery, ENTITY_MASK_ACTOR);
+    const hitTarget = selectMeleeTarget(world, e, monsterMeleeHitQuery, mRange);
+
+    if (hitTarget) {
+      updateZombieCrowdReadability(world, e, hitTarget, time, msgs, playerId, state);
+      const baseDmg = def?.dmg ?? 10;
+      const level = e.rpg?.level ?? 1;
+      const strMult = e.rpg ? strMeleeDmgMult(e.rpg) : 1;
+      const rawDmg = Math.round(scaleMonsterDmg(baseDmg, level) * strMult * monsterDmgMult(world, e, hitTarget) * (e.monsterDmgMult ?? 1));
+      const dmg = zhelemishIncomingMeleeDamage(hitTarget, time, rawDmg);
+      if (tryZombieApocalypseInfection(world, e, hitTarget, state, msgs, time)) {
+        const hitAng = Math.atan2(hitTarget.y - e.y, hitTarget.x - e.x);
+        spawnBloodHit(world, hitTarget.x, hitTarget.y, hitAng, Math.max(2, Math.round(dmg * 0.35)), false);
+        playSoundAt(e.monsterKind === MonsterKind.FOG_SHARK ? playFogSharkBite : playGrowl, e.x, e.y);
+        e.attackCd = def?.attackRate ?? 1;
+        return;
+      }
+      if (hitTarget.hp !== undefined) {
+        const debugImmortalPlayerHit = hitTarget.id === playerId && isDebugOnePunchManEnabled();
+        if (debugImmortalPlayerHit) {
+          keepDebugOnePunchManAlive(hitTarget);
+        } else {
+          hitTarget.hp -= dmg;
+          notifyActorDamaged(world, hitTarget, e, dmg, 'monster_melee', time, state);
+          applyLishennyyContactDecay(state, world, e, hitTarget, dmg, time, msgs, playerId);
+          applyKontorshchikGrab(state, world, e, hitTarget, time, msgs);
+          dropSlimeWomanResidue(world, e, hitTarget, time, state, 'grab');
+          if (hitTarget.id === playerId) {
+            const verb = e.monsterKind === MonsterKind.KONTORSHCHIK
+              ? 'схватил за бумаги'
+              : e.monsterKind === MonsterKind.SLIME_WOMAN
+                ? 'схватила жижевой рукой'
+                : e.monsterKind === MonsterKind.LISHENNYY
+                  ? 'коснулся распадом'
+                  : 'задел';
+            recordPlayerDamage(state, e, dmg, `${entityDisplayName(e)} ${verb} тебя: -${dmg}`);
+          }
+          if (hitTarget.hp <= 0) { hitTarget.alive = false; hitTarget.hp = 0; }
+          const hitAng = Math.atan2(hitTarget.y - e.y, hitTarget.x - e.x);
+          spawnBloodHit(world, hitTarget.x, hitTarget.y, hitAng, dmg, hitTarget.type === EntityType.MONSTER);
+          if (hitTarget.hp <= 0) {
+            spawnDeathPool(world, hitTarget.x, hitTarget.y, hitTarget.type === EntityType.MONSTER);
+            if (hitTarget.type === EntityType.NPC) dropNpcInventory(hitTarget, entities, nextId);
+            msgs.push(msg(`${entityDisplayName(e)} убил ${entityDisplayName(hitTarget)}`, time, '#f44'));
+            if (e.monsterKind === MonsterKind.SOBRANNYY) growSobrannyy(world, e, hitTarget, time, msgs, state, 'kill');
+          }
+        }
+      }
+      playSoundAt(e.monsterKind === MonsterKind.FOG_SHARK ? playFogSharkBite : playGrowl, e.x, e.y);
+      tryOlgoyDragTarget(world, e, hitTarget, time, msgs, state);
+      e.attackCd = def?.attackRate ?? 1;
+    }
+  }
+}
+
+function updateMonsterWander(
+  world: World,
+  e: Entity,
+  def: MonsterDef | null,
+  dt: number,
+  time: number,
+  msgs: Msg[],
+  playerId: number,
+  player?: Entity,
+  state?: GameState
+): void {
+  const ai = e.ai!;
+  cancelLozhnyyDukhFalsePhase(e);
+  if (e.monsterKind === MonsterKind.TUMANNIK) clearTumannikFogOffset(e);
+  if (e.monsterKind === MonsterKind.OBZHIVALSHCHIK) {
+    const room = obzhivalshchikHomeRoom(world, e);
+    if (room && idleObzhivalshchikInRoom(world, e, room, dt, time)) return;
+  }
+  if (e.monsterKind === MonsterKind.SOBRANNYY) {
+    const runtime = sobrannyyState(e);
+    if (runtime.dormant || runtime.isolatedUntil > time) return;
+  }
+  if (tryMukhozhukFoodAppetite(world, e, dt, time, msgs, state)) return;
+  if (e.monsterKind === MonsterKind.CHERNOSLIZ && player && isChernoSlizHidden(world, e, player)) {
+    const revealedByNoise = tryRevealChernoSlizByNoise(world, e, time, msgs, state);
+    if (revealedByNoise) {
+      if (tryFollowNoise(world, e, dt, time, state)) return;
+    } else if (tryFollowNoise(world, e, dt, time, state)) {
+      return;
+    }
+    if (isChernoSlizHidden(world, e, player)) {
+      e.spriteScale = 0.58;
+      return;
+    }
+  }
+  if (tryFollowNoise(world, e, dt, time, state)) return;
+  const tuning = bladeEliteTuning(e.monsterKind);
+  if (tuning && player && ai.lastSeenTargetId === playerId) {
+    publishBladeEliteEscape(tuning, world, e, player, playerId, state, 'lost_target');
+  }
+  // Immobile monsters (Idol) just idle — no wandering
+  if (def?.speed === 0) return;
+  ai.goal = AIGoal.WANDER;
+  ai.combatTargetId = undefined;
+  ai.timer -= dt;
+  if (ai.path.length === 0 || ai.pi >= ai.path.length || ai.timer <= 0) {
+    // Phasing monsters: random direction wander
+    if (e.phasing) {
+      ai.timer = 2 + Math.random() * 3;
+      ai.wanderAngle = Math.random() * Math.PI * 2;
+    } else {
+      wanderNearby(world, e);
+    }
+    ai.timer = 1.5 + Math.random() * 2.5;
+  }
+  if (e.phasing) {
+    const a = ai.wanderAngle ?? 0;
+    const spd = e.speed * 0.4 * dt;
+    e.x = ((e.x + Math.cos(a) * spd) % W + W) % W;
+    e.y = ((e.y + Math.sin(a) * spd) % W + W) % W;
+  } else {
+    followMonsterPath(world, e, dt);
+  }
+}
+
+function findMonsterCombatTargetWrapper(
+  world: World,
+  entities: Entity[],
+  e: Entity,
+  def: MonsterDef | null,
+  dt: number,
+  time: number,
+  playerId: number,
+  player?: Entity,
+  state?: GameState
+): { target: Entity | null, lishennyyLightTarget: LishennyyLightTarget | null } {
+  const ai = e.ai!;
   const baseDetectSq = def && !def.isRanged && def.speed > 0 ? MONSTER_MELEE_DETECT_SQ : MONSTER_DETECT_SQ;
   let detectSq = monsterDetectSq(world, e, baseDetectSq);
   detectSq = pomoynyRoyDetectSq(e, player, detectSq);
@@ -8835,228 +9109,5 @@ export function updateMonster(world: World, entities: Entity[], e: Entity, dt: n
     }
   }
 
-  updateGreenDogPackHowl(world, e, target, time, msgs, playerId, state);
-  if (lishennyyLightTarget && followLishennyyLightTarget(world, e, lishennyyLightTarget, dt)) return;
-  target = updateSobrannyyTarget(world, e, target, time, msgs, state);
-  target = updateObzhivalshchikTarget(world, e, target, dt, time, msgs, state);
-  updateNightmarePressure(world, e, target, dt, time, msgs, playerId, state);
-  updateMukhozhukLeader(world, e, target, dt, time, msgs, state);
-  if (updateBloodPlantRootHive(world, e, target, dt, time, msgs, playerId, state)) return;
-  if (updateBorshchevikRootedPlant(world, e, target, dt, time, msgs, playerId, state)) return;
-  updateProtokolnikProtocolPressure(world, e, target, dt, time, msgs, playerId, state);
-  if (target && !target.alive) return;
-  updateWallTerrainReadability(world, e, target, time, msgs, state);
-  if (updateZhornayaTvar(world, entities, e, target, dt, time, msgs, playerId, nextId, state)) return;
-  if (updateSlepoglaz(world, entities, e, target, dt, time, msgs, playerId, nextId, state)) return;
-  if (updateTreskotnikFractureSprint(world, entities, e, target, dt, time, msgs, playerId, nextId, state)) return;
-  if (target) updateVodyanoyWaterPressureLine(world, e, target, dt, time, msgs, playerId, state);
-  updatePomoynyRoyReadability(world, e, target, time, msgs, playerId, state);
-
-  if (!hasAIFlag(e, 'scentOvercommit') && tryFollowMonsterBait(world, e, target, dt, time, msgs, state)) return;
-  if (tryConsumeMeatChunk(world, e, target, dt, time, msgs, state)) return;
-
-  if (!target) {
-    cancelLozhnyyDukhFalsePhase(e);
-    if (e.monsterKind === MonsterKind.TUMANNIK) clearTumannikFogOffset(e);
-    if (e.monsterKind === MonsterKind.OBZHIVALSHCHIK) {
-      const room = obzhivalshchikHomeRoom(world, e);
-      if (room && idleObzhivalshchikInRoom(world, e, room, dt, time)) return;
-    }
-    if (e.monsterKind === MonsterKind.SOBRANNYY) {
-      const runtime = sobrannyyState(e);
-      if (runtime.dormant || runtime.isolatedUntil > time) return;
-    }
-    if (tryMukhozhukFoodAppetite(world, e, dt, time, msgs, state)) return;
-    if (e.monsterKind === MonsterKind.CHERNOSLIZ && isChernoSlizHidden(world, e, player)) {
-      const revealedByNoise = tryRevealChernoSlizByNoise(world, e, time, msgs, state);
-      if (revealedByNoise) {
-        if (tryFollowNoise(world, e, dt, time, state)) return;
-      } else if (tryFollowNoise(world, e, dt, time, state)) {
-        return;
-      }
-      if (isChernoSlizHidden(world, e, player)) {
-        e.spriteScale = 0.58;
-        return;
-      }
-    }
-    if (tryFollowNoise(world, e, dt, time, state)) return;
-    const tuning = bladeEliteTuning(e.monsterKind);
-    if (tuning && ai.lastSeenTargetId === playerId) {
-      publishBladeEliteEscape(tuning, world, e, player, playerId, state, 'lost_target');
-    }
-    // Immobile monsters (Idol) just idle — no wandering
-    if (def?.speed === 0) return;
-    ai.goal = AIGoal.WANDER;
-    ai.combatTargetId = undefined;
-    ai.timer -= dt;
-    if (ai.path.length === 0 || ai.pi >= ai.path.length || ai.timer <= 0) {
-      // Phasing monsters: random direction wander
-      if (e.phasing) {
-        ai.timer = 2 + Math.random() * 3;
-        ai.wanderAngle = Math.random() * Math.PI * 2;
-      } else {
-        wanderNearby(world, e);
-      }
-      ai.timer = 1.5 + Math.random() * 2.5;
-    }
-    if (e.phasing) {
-      const a = ai.wanderAngle ?? 0;
-      const spd = e.speed * 0.4 * dt;
-      e.x = ((e.x + Math.cos(a) * spd) % W + W) % W;
-      e.y = ((e.y + Math.sin(a) * spd) % W + W) % W;
-    } else {
-      followMonsterPath(world, e, dt);
-    }
-    return;
-  }
-  ai.combatTargetId = target.id;
-  ai.goal = AIGoal.HUNT;
-
-  const bestDist = Math.sqrt(world.dist2(e.x, e.y, target.x, target.y));
-  updateNelyudCloseReveal(world, e, target, time, msgs, state);
-  updateSborkaReadability(world, e, target, time, msgs, playerId, state);
-  updateLampPoweredReadability(world, e, target, time, msgs, playerId, state);
-  updateOlgoyReadability(world, e, target, time, msgs, playerId, state);
-  updateDikiyMertvyakCrowdShove(world, e, target, dt, time, msgs, playerId, state);
-  if (updateLozhnyyDukhFalsePhase(world, e, target, dt, time, msgs, playerId, state)) return;
-
-  if (e.monsterKind === MonsterKind.SOBRANNYY && trySobrannyyBreakWeakDoor(world, e, target, time, msgs, state)) return;
-
-  if (bladeEliteTuning(e.monsterKind)) {
-    updateBladeElite(world, entities, e, target, dt, time, msgs, playerId, nextId, state);
-    return;
-  }
-
-  if (e.monsterKind === MonsterKind.GLUBINNAYA_TEN &&
-      updateGlubinnayaTenSecondBeat(world, entities, e, target, bestDist, dt, time, msgs, playerId, nextId, state)) {
-    return;
-  }
-
-  if (e.monsterKind === MonsterKind.TONKAYA_TEN &&
-      updateTonkayaTenBaitLine(world, entities, e, target, dt, time, msgs, playerId, nextId, state)) {
-    return;
-  }
-
-  if (e.monsterKind === MonsterKind.SHADOW &&
-      updateShadowAmbushReadability(world, e, target, bestDist, dt, time, msgs, playerId, state)) {
-    return;
-  }
-
-  if (updateTumannikFogOffset(world, entities, e, target, dt, time, msgs, playerId, nextId, state)) {
-    return;
-  }
-
-  if (e.monsterKind === MonsterKind.FOG_SHARK) {
-    updateFogSharkTurn(world, e, target, dt);
-    updateFogSharkPack(world, e, target, time, msgs, playerId, state);
-  }
-
-  if (e.monsterKind === MonsterKind.LAMPOGLAZ && def) {
-    updateLampoglazLightLock(world, entities, e, target, def, bestDist, dt, time, msgs, playerId, nextId, state);
-    return;
-  }
-
-  // Ranged monsters telegraph, require a clear toroidal line of fire, and can be denied by cover.
-  if (e.monsterKind === MonsterKind.TRUBNYY_AVTOMAT && def) {
-    if (updateTrubnyyWetLineShot(world, entities, e, target, def, dt, time, msgs, playerId, nextId, state)) return;
-  } else if (def?.isRanged && updateReadableMonsterRanged(world, entities, e, target, def, bestDist, dt, time, msgs, playerId, nextId, state)) return;
-
-  // Immobile monsters don't pathfind or melee: once their line/source is denied, they are disabled until it opens again.
-  if (def?.speed === 0) return;
-
-  // Melee attack if close enough
-  const mRange = monsterMeleeRange(world, e);
-  if (bestDist < mRange) {
-    e.attackCd = (e.attackCd ?? 0) - dt;
-    if (e.attackCd! <= 0) {
-      const dx = world.delta(e.x, target.x);
-      const dy = world.delta(e.y, target.y);
-      e.angle = Math.atan2(dy, dx);
-      
-      const ax = e.x + Math.cos(e.angle) * mRange;
-      const ay = e.y + Math.sin(e.angle) * mRange;
-      getEntityIndex().queryRadius(ax, ay, 1.2, monsterMeleeHitQuery, ENTITY_MASK_ACTOR);
-      const hitTarget = selectMeleeTarget(world, e, monsterMeleeHitQuery, mRange);
-      
-      if (hitTarget) {
-        updateZombieCrowdReadability(world, e, hitTarget, time, msgs, playerId, state);
-        const baseDmg = def?.dmg ?? 10;
-        const level = e.rpg?.level ?? 1;
-        const strMult = e.rpg ? strMeleeDmgMult(e.rpg) : 1;
-        const rawDmg = Math.round(scaleMonsterDmg(baseDmg, level) * strMult * monsterDmgMult(world, e, hitTarget) * (e.monsterDmgMult ?? 1));
-        const dmg = zhelemishIncomingMeleeDamage(hitTarget, time, rawDmg);
-        if (tryZombieApocalypseInfection(world, e, hitTarget, state, msgs, time)) {
-          const hitAng = Math.atan2(hitTarget.y - e.y, hitTarget.x - e.x);
-          spawnBloodHit(world, hitTarget.x, hitTarget.y, hitAng, Math.max(2, Math.round(dmg * 0.35)), false);
-          playSoundAt(e.monsterKind === MonsterKind.FOG_SHARK ? playFogSharkBite : playGrowl, e.x, e.y);
-          e.attackCd = def?.attackRate ?? 1;
-          return;
-        }
-        if (hitTarget.hp !== undefined) {
-          const debugImmortalPlayerHit = hitTarget.id === playerId && isDebugOnePunchManEnabled();
-          if (debugImmortalPlayerHit) {
-            keepDebugOnePunchManAlive(hitTarget);
-          } else {
-            hitTarget.hp -= dmg;
-            notifyActorDamaged(world, hitTarget, e, dmg, 'monster_melee', time, state);
-            applyLishennyyContactDecay(state, world, e, hitTarget, dmg, time, msgs, playerId);
-            applyKontorshchikGrab(state, world, e, hitTarget, time, msgs);
-            dropSlimeWomanResidue(world, e, hitTarget, time, state, 'grab');
-            if (hitTarget.id === playerId) {
-              const verb = e.monsterKind === MonsterKind.KONTORSHCHIK
-                ? 'схватил за бумаги'
-                : e.monsterKind === MonsterKind.SLIME_WOMAN
-                  ? 'схватила жижевой рукой'
-                  : e.monsterKind === MonsterKind.LISHENNYY
-                    ? 'коснулся распадом'
-                    : 'задел';
-              recordPlayerDamage(state, e, dmg, `${entityDisplayName(e)} ${verb} тебя: -${dmg}`);
-            }
-            if (hitTarget.hp <= 0) { hitTarget.alive = false; hitTarget.hp = 0; }
-            const hitAng = Math.atan2(hitTarget.y - e.y, hitTarget.x - e.x);
-            spawnBloodHit(world, hitTarget.x, hitTarget.y, hitAng, dmg, hitTarget.type === EntityType.MONSTER);
-            if (hitTarget.hp <= 0) {
-              spawnDeathPool(world, hitTarget.x, hitTarget.y, hitTarget.type === EntityType.MONSTER);
-              if (hitTarget.type === EntityType.NPC) dropNpcInventory(hitTarget, entities, nextId);
-              msgs.push(msg(`${entityDisplayName(e)} убил ${entityDisplayName(hitTarget)}`, time, '#f44'));
-              if (e.monsterKind === MonsterKind.SOBRANNYY) growSobrannyy(world, e, hitTarget, time, msgs, state, 'kill');
-            }
-          }
-        }
-        playSoundAt(e.monsterKind === MonsterKind.FOG_SHARK ? playFogSharkBite : playGrowl, e.x, e.y);
-        tryOlgoyDragTarget(world, e, hitTarget, time, msgs, state);
-        e.attackCd = def?.attackRate ?? 1;
-      }
-    }
-    return;
-  }
-
-  // Hunt: pathfind to target
-  ai.timer -= dt;
-  if (ai.path.length === 0 || ai.timer <= 0) {
-    const chase = e.monsterKind === MonsterKind.VODYANOY_KOSHMAR
-      ? vodyanoyChaseCell(world, e, target)
-      : e.monsterKind === MonsterKind.FOG_SHARK
-        ? fogSharkChaseCell(world, e, target)
-        : e.monsterKind === MonsterKind.MUKHOZHUK_HOST
-          ? mukhozhukChaseCell(world, e, target)
-          : greenDogChaseCell(world, e, target);
-    tryAssignPathToCell(world, e, chase.x, chase.y);
-    ai.timer = 2;
-  }
-
-  // Phasing monsters (Spirit) move directly through walls
-  if (e.phasing) {
-    const ddx = world.delta(e.x, target.x);
-    const ddy = world.delta(e.y, target.y);
-    const dd = Math.sqrt(ddx * ddx + ddy * ddy);
-    if (dd > 0.1) {
-      const spd = e.speed * dt;
-      e.x = ((e.x + (ddx / dd) * spd) % W + W) % W;
-      e.y = ((e.y + (ddy / dd) * spd) % W + W) % W;
-    }
-    return;
-  }
-
-  followMonsterPath(world, e, dt, target);
+  return { target, lishennyyLightTarget };
 }
