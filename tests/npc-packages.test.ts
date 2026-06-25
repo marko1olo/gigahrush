@@ -12,6 +12,8 @@ import {
   registerNpcPackage,
   validateNpcPackages,
   type NpcPackageDef,
+  clearNpcPackagesForTests,
+  allNpcPackages,
 } from '../src/data/npc_packages';
 import {
   NPC_SPRITE_RLE_MAX_BYTES,
@@ -251,7 +253,33 @@ test('NPC package registry rejects duplicate ids', () => {
   const pack = minimalNpcPackage('registry_duplicate_npc');
   registerNpcPackage(pack);
   assert.throws(() => registerNpcPackage({ ...pack }), /duplicate id/);
+
+  // Clean up global state if `validateNpcPackages` isn't tested here for global errors
+  // Actually validateNpcPackages on valid registered packages should return []
   assert.deepEqual(validateNpcPackages(), []);
+});
+
+test('validateNpcPackages catches invalid packages and duplicates bypassing registry', () => {
+  clearNpcPackagesForTests();
+  const packs = allNpcPackages() as any[];
+
+  const validPack = minimalNpcPackage('bulk_valid_npc');
+
+  const invalidPack = {
+    ...minimalNpcPackage('bulk_invalid_npc'),
+    placement: { homeFloorKey: 'story:not_a_floor', presence: 'population' as const },
+  };
+
+  packs.push(validPack);
+  packs.push(validPack); // Push exact same package to trigger duplicate error
+  packs.push(invalidPack);
+
+  const errors = validateNpcPackages();
+  assert.equal(errors.length, 2);
+  assert.ok(errors.includes('bulk_valid_npc:duplicate'));
+  assert.ok(errors.some(e => e.includes('bulk_invalid_npc:placement.homeFloorKey')));
+
+  clearNpcPackagesForTests();
 });
 
 test('NPC package validator rejects bad floor keys', () => {
