@@ -170,33 +170,25 @@ test('samosbor wave cleanup keeps player standing in an open door cell', () => {
 });
 
 test('samosbor scale can be local or full depending on roll', () => {
-  const originalRandom = Math.random;
   // High roll (> 0.4) → local wave (small or medium)
-  Math.random = () => 0.999999;
-  try {
-    for (const floor of [
-      FloorLevel.MINISTRY,
-      FloorLevel.KVARTIRY,
-      FloorLevel.LIVING,
-      FloorLevel.MAINTENANCE,
-      FloorLevel.HELL,
-      FloorLevel.VOID,
-    ]) {
-      const state = makeGameState({ currentFloor: floor });
-      assert.equal(canRunSamosborWave(state), true);
-      assert.notEqual(chooseSamosborScale(state), 'full');
-    }
-  } finally {
-    Math.random = originalRandom;
+  // Time = 0 leads to roll = 0.877...
+  for (const floor of [
+    FloorLevel.MINISTRY,
+    FloorLevel.KVARTIRY,
+    FloorLevel.LIVING,
+    FloorLevel.MAINTENANCE,
+    FloorLevel.HELL,
+    FloorLevel.VOID,
+  ]) {
+    const state = makeGameState({ currentFloor: floor, time: 0 });
+    assert.equal(canRunSamosborWave(state), true);
+    assert.notEqual(chooseSamosborScale(state), 'full');
   }
+
   // Low roll (< 0.4) → full (global fronts only)
-  Math.random = () => 0.1;
-  try {
-    const state = makeGameState({ currentFloor: FloorLevel.LIVING });
-    assert.equal(chooseSamosborScale(state), 'full');
-  } finally {
-    Math.random = originalRandom;
-  }
+  // Time = 136 leads to roll = 0.395...
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING, time: 136 });
+  assert.equal(chooseSamosborScale(state), 'full');
 });
 
 test('samosbor duration grows and cooldown shrinks by absolute route z', () => {

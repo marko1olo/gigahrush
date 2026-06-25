@@ -18,6 +18,7 @@ import { VISUAL_SLOTS_PER_CELL } from '../core/world';
 import type { World, WorldGridDirtyRect } from '../core/world';
 import type { FloorGeneration } from '../gen/floor_manifest';
 import { rebuildPathBlockersFromWorldObjects } from '../gen/path_blockers';
+import { xorshift32 } from '../core/rand';
 import { freezeNavigationCacheForWorld, unfreezeNavigationCacheForWorld } from './ai/pathfinding';
 import { publishEvent } from './events';
 import { hideMapExplorationCells } from './map_exploration';
@@ -284,13 +285,16 @@ export function canRunSamosborWave(_state: GameState): boolean {
 
 export function chooseSamosborScale(state: GameState): SamosborWaveScale {
   if (!canRunSamosborWave(state)) return 'full';
+  const seed = ((state.samosborCount + 1) * 1_000_003 + Math.floor(state.time * 60)) | 0;
+  const rng = xorshift32(seed);
+
   // ~40% full (global fronts only), ~30% small, ~30% medium
-  const roll = Math.random();
+  const roll = rng();
   if (roll < 0.4) return 'full';
   const defs = [SAMOSBOR_WAVE_SCALE_DEFS.small, SAMOSBOR_WAVE_SCALE_DEFS.medium];
   let total = 0;
   for (const def of defs) total += def.weight;
-  let localRoll = Math.random() * total;
+  let localRoll = rng() * total;
   for (const def of defs) {
     localRoll -= def.weight;
     if (localRoll <= 0) return def.scale;
@@ -1211,7 +1215,8 @@ export function applyFrontFieldStitch(
 
   refreshPassiveFeatureLists(world, source, mask);
   clearFieldSideEffects(world, mask);
-  rebuildPathBlockersFromWorldObjects(world, (Math.random() * 0xffffffff) | 0, allIndices);
+  const patchSeed = ((state.samosborCount + 1) * 1_000_003 + Math.floor(state.time * 60)) | 0;
+  rebuildPathBlockersFromWorldObjects(world, hash32(patchSeed ^ 0xbadc0de) >>> 0, allIndices);
   pruneRouteCuesInCells(world, fieldSet);
 
   // Re-fog stitched areas so player must re-explore the changed geometry
