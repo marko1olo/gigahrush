@@ -12,6 +12,12 @@ import { activateInteraction, findInteractionTarget } from '../src/systems/inter
 import { createWorldEventState, getRecentEvents } from '../src/systems/events';
 import { interactiveAt } from '../src/systems/interactive';
 import {
+  type InteractiveDef,
+  registerInteractiveDef,
+  getInteractiveDef,
+  allInteractiveDefs,
+} from '../src/data/interactive';
+import {
   addTestRoom,
   makeGameState,
   makeTestContainer,
@@ -50,6 +56,41 @@ test('existing sink features become lazy interactive water sources', () => {
   assert.equal(player.needs?.water, 63);
   assert.equal(player.needs?.pendingPee, 8);
   assert.equal(getRecentEvents(state, { tags: ['interactive'], limit: 1 })[0]?.data?.interactiveDefId, 'sink_drink');
+});
+
+test('registerInteractiveDef correctly adds definitions to the registry', () => {
+  const customDefId = 'test_custom_interactive';
+  const mockDef: InteractiveDef = {
+    id: customDefId,
+    layer: 'feature',
+    label: 'Test Interactive',
+    prompt: ' test',
+    tags: ['test'],
+    visual: { kind: 'feature', feature: Feature.NONE },
+    target: { range: 2.25, priority: 1 },
+    actions: [
+      {
+        id: 'test_action',
+        label: 'Test Action',
+        kind: 'message',
+        message: 'Test message',
+      }
+    ],
+  };
+
+  const initialCount = allInteractiveDefs().length;
+  assert.equal(getInteractiveDef(customDefId), undefined, 'Custom def should not exist initially');
+
+  registerInteractiveDef(mockDef);
+
+  const registeredDef = getInteractiveDef(customDefId);
+  assert.notEqual(registeredDef, undefined, 'Custom def should be retrievable after registration');
+  assert.equal(registeredDef?.id, customDefId, 'Retrieved def should have the correct id');
+  assert.equal(registeredDef?.label, 'Test Interactive', 'Retrieved def should have the correct label');
+
+  const allDefs = allInteractiveDefs();
+  assert.equal(allDefs.length, initialCount + 1, 'Registry length should increase by 1');
+  assert.ok(allDefs.find(def => def.id === customDefId), 'Custom def should be in the list of all defs');
 });
 
 test('broken fixtures override lazy working fixtures until repaired', () => {
