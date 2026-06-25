@@ -43,6 +43,7 @@ import {
   floorRunStateForSave,
   resolveFloorRunRoute,
   setFloorRunState,
+  snapshotFloorRunEntry,
 } from '../src/systems/procedural_floors';
 import {
   floorInstanceStateForSave,
@@ -6695,4 +6696,42 @@ testGenerationMatrix('zombie apocalypse anomaly seeds a dense crowd and patient 
   assert.equal(tryZombieApocalypseInfection(gen.world, patientZero!, cappedTarget, state, state.msgs, state.time + 9), false);
   assert.equal(cappedTarget.type, EntityType.NPC);
   assert.equal(getRecentEvents(state, { tags: ['infection_cap'] }).length, 1);
+});
+
+test('snapshotFloorRunEntry serializes entry and clones spec', () => {
+  const entryWithoutSpec = {
+    z: 10,
+    baseFloor: FloorLevel.LIVING,
+    storyFloor: FloorLevel.LIVING,
+    procedural: false,
+    label: 'Test Label',
+    color: '#ff0000',
+  };
+
+  const snapWithoutSpec = snapshotFloorRunEntry(entryWithoutSpec);
+  assert.equal(snapWithoutSpec.z, 10);
+  assert.equal(snapWithoutSpec.baseFloor, FloorLevel.LIVING);
+  assert.equal(snapWithoutSpec.storyFloor, FloorLevel.LIVING);
+  assert.equal(snapWithoutSpec.procedural, false);
+  assert.equal(snapWithoutSpec.spec, undefined);
+  assert.equal(snapWithoutSpec.key, 'story:living');
+
+  const dummySpec = makeProceduralFloorSpec(12345, 10);
+
+  const entryWithSpec = {
+    z: 10,
+    baseFloor: FloorLevel.LIVING,
+    spec: dummySpec,
+    procedural: true,
+    label: 'Procedural Level',
+    color: '#00ff00',
+  };
+
+  const snapWithSpec = snapshotFloorRunEntry(entryWithSpec);
+  assert.equal(snapWithSpec.z, 10);
+  assert.equal(snapWithSpec.baseFloor, FloorLevel.LIVING);
+  assert.equal(snapWithSpec.procedural, true);
+  assert.deepEqual(snapWithSpec.spec, dummySpec);
+  assert.notEqual(snapWithSpec.spec, dummySpec, 'The spec should be a cloned reference, not the original object');
+  assert.equal(snapWithSpec.key, `procedural:${dummySpec.key}`);
 });
