@@ -2522,12 +2522,8 @@ function consumePlayerSprintWater(actor: Entity, dt: number, sprintMod: number):
   needs.water = Math.max(0, needs.water - PLAYER_SPRINT_WATER_RATE * sprintLoad * dt);
 }
 
-function movePlayer(dt: number): void {
-  const actor = player;
-  if (!actor.alive) return;
-  if (state.sleeping) return; // no movement while sleeping
-  floorTeleportCd = Math.max(0, floorTeleportCd - dt);
 
+function applyPlayerLook(actor: Entity, dt: number): void {
   // Mouse look
   if (input.mouse.locked) {
     const mouseSensitivity = mouseLookSensitivity();
@@ -2555,10 +2551,9 @@ function movePlayer(dt: number): void {
     actor.pitch = Math.max(-PLAYER_PITCH_LIMIT, Math.min(PLAYER_PITCH_LIMIT, actor.pitch - padLookY * 1.6 * padLookSensitivity * dt));
   }
   actor.pitch = Math.max(-PLAYER_PITCH_LIMIT, Math.min(PLAYER_PITCH_LIMIT, actor.pitch));
-  if (actor.id === player.id && isRidingRailTrain(world, player)) return;
-  nudgeBlockedPlayerToFloor(actor);
+}
 
-  // Movement
+function calculatePlayerMoveVector(actor: Entity): { mx: number, my: number } {
   const cos = Math.cos(actor.angle);
   const sin = Math.sin(actor.angle);
   const fwdAxis = Math.max(-1, Math.min(1, (input.fwd ? 1 : 0) - (input.back ? 1 : 0) + input.touch.moveY + inputFrame.axes.moveY));
@@ -2575,63 +2570,91 @@ function movePlayer(dt: number): void {
     mx += bellPull.x * bellPull.strength;
     my += bellPull.y * bellPull.strength;
   }
+  return { mx, my };
+}
 
-  // Normalize
+function applyPlayerMovement(actor: Entity, mx: number, my: number, dt: number): { speed: number, moveMod: number, len: number } | null {
   const len = Math.sqrt(mx * mx + my * my);
-  if (len > 0) {
-    const speed = actorMoveSpeed(actor) * dt;
-    // Sleep exhaustion reduces speed
-    const sleepMod = actor.needs && actor.needs.sleep < 10 ? 0.5 : 1;
-    const hazardMod = getCellHazardMoveMultiplier(world, actor);
-    const statusMod = zhelemishMoveMult(actor, state.time);
-    const coldMod = hladonColdMoveMultiplier(world, actor);
-    const toolLightMod = passiveToolLightMoveMultiplier(actor.tool) *
-      ((input.use || input.mouseUse) ? activeToolLightMoveMultiplier(actor.tool) : 1);
-    const sprintMod = playerSprintMoveMultiplier(actor);
-    const moveMod = sleepMod * hazardMod * statusMod * coldMod * toolLightMod * sprintMod;
-    mx = mx / len * speed * moveMod;
-    my = my / len * speed * moveMod;
+  if (len <= 0) return null;
 
-    const r = PLAYER_COLLISION_R; // small enough to slide along tight concrete corners
-    const canClip = isNoClipActive();
-    const beforeX = actor.x;
-    const beforeY = actor.y;
-    // X/Y are checked separately so fine blockers still allow sliding.
-    const nx = actor.x + mx;
-    if (canClip || canActorOccupy(world, nx, actor.y, r)) {
-      actor.x = ((nx % W) + W) % W;
-    }
-    const ny = actor.y + my;
-    if (canClip || canActorOccupy(world, actor.x, ny, r)) {
-      actor.y = ((ny % W) + W) % W;
-    }
+  const speed = actorMoveSpeed(actor) * dt;
+  // Sleep exhaustion reduces speed
+  const sleepMod = actor.needs && actor.needs.sleep < 10 ? 0.5 : 1;
+  const hazardMod = getCellHazardMoveMultiplier(world, actor);
+  const statusMod = zhelemishMoveMult(actor, state.time);
+  const coldMod = hladonColdMoveMultiplier(world, actor);
+  const toolLightMod = passiveToolLightMoveMultiplier(actor.tool) *
+    ((input.use || input.mouseUse) ? activeToolLightMoveMultiplier(actor.tool) : 1);
+  const sprintMod = playerSprintMoveMultiplier(actor);
+  const moveMod = sleepMod * hazardMod * statusMod * coldMod * toolLightMod * sprintMod;
+  mx = mx / len * speed * moveMod;
+  my = my / len * speed * moveMod;
 
-    if (sprintMod > 1 && (actor.x !== beforeX || actor.y !== beforeY)) consumePlayerSprintWater(actor, dt, sprintMod);
+  const r = PLAYER_COLLISION_R; // small enough to slide along tight concrete corners
+  const canClip = isNoClipActive();
+  const beforeX = actor.x;
+  const beforeY = actor.y;
+  // X/Y are checked separately so fine blockers still allow sliding.
+  const nx = actor.x + mx;
+  if (canClip || canActorOccupy(world, nx, actor.y, r)) {
+    actor.x = ((nx % W) + W) % W;
+  }
+  const ny = actor.y + my;
+  if (canClip || canActorOccupy(world, actor.x, ny, r)) {
+    actor.y = ((ny % W) + W) % W;
+  }
 
-    if (actor.id === player.id && floorTeleportCd <= 0 && world.anomalyTeleports.size > 0) {
-      const from = world.idx(Math.floor(player.x), Math.floor(player.y));
-      if (tryUseWrongDoorRemap(world, state, player)) {
+  if (sprintMod > 1 && (actor.x !== beforeX || actor.y !== beforeY)) consumePlayerSprintWater(actor, dt, sprintMod);
+
+  return { speed, moveMod, len };
+}
+
+function checkPlayerFloorTeleport(actor: Entity): void {
+  if (actor.id === player.id && floorTeleportCd <= 0 && world.anomalyTeleports.size > 0) {
+    const from = world.idx(Math.floor(player.x), Math.floor(player.y));
+    if (tryUseWrongDoorRemap(world, state, player)) {
+      floorTeleportCd = 1.25;
+    } else {
+      const to = world.anomalyTeleports.get(from);
+      if (to !== undefined) {
+        player.x = (to % W) + 0.5;
+        player.y = ((to / W) | 0) + 0.5;
         floorTeleportCd = 1.25;
-      } else {
-        const to = world.anomalyTeleports.get(from);
-        if (to !== undefined) {
-          player.x = (to % W) + 0.5;
-          player.y = ((to / W) | 0) + 0.5;
-          floorTeleportCd = 1.25;
-          state.msgs.push(msg('Клетка перескочила на другой участок этажа.', state.time, '#c8f'));
-        }
+        state.msgs.push(msg('Клетка перескочила на другой участок этажа.', state.time, '#c8f'));
       }
-    }
-
-    // Footstep sound
-    stepAccum += speed * moveMod;
-    if (stepAccum > 1.8) {
-      stepAccum = 0;
-      playFootstep();
-      publishFootstepNoise(state, actor, moveMod * len > 1.08);
     }
   }
 }
+
+function updatePlayerFootstep(actor: Entity, speed: number, moveMod: number, len: number): void {
+  stepAccum += speed * moveMod;
+  if (stepAccum > 1.8) {
+    stepAccum = 0;
+    playFootstep();
+    publishFootstepNoise(state, actor, moveMod * len > 1.08);
+  }
+}
+
+function movePlayer(dt: number): void {
+  const actor = player;
+  if (!actor.alive) return;
+  if (state.sleeping) return; // no movement while sleeping
+  floorTeleportCd = Math.max(0, floorTeleportCd - dt);
+
+  applyPlayerLook(actor, dt);
+
+  if (actor.id === player.id && isRidingRailTrain(world, player)) return;
+  nudgeBlockedPlayerToFloor(actor);
+
+  const { mx, my } = calculatePlayerMoveVector(actor);
+  const moveResult = applyPlayerMovement(actor, mx, my, dt);
+
+  if (moveResult) {
+    checkPlayerFloorTeleport(actor);
+    updatePlayerFootstep(actor, moveResult.speed, moveResult.moveMod, moveResult.len);
+  }
+}
+
 
 /* ── Weapon sound dispatch ─────────────────────────────────────── */
 function playWeaponSound(weaponId: string, ws: import('./data/weapons').WeaponStats): void {
