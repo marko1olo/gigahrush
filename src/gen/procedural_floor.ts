@@ -2125,13 +2125,30 @@ function placeArchiveFactionHqClusters(
       configureArchiveSupportRoom(world, supports[i], owner, i, spec.seed ^ node.id * 307 ^ owner * 571);
     }
   }
-  const majorityNodes = graph.nodes
-    .filter(node => !used.has(node.id) && !landmarks.has(node.id))
-    .sort((a, b) => {
-      const ac = world.dist2(a.gx, a.gy, ARCHIVE_WARREN_HQ_TARGETS[majorityOwner].gx, ARCHIVE_WARREN_HQ_TARGETS[majorityOwner].gy);
-      const bc = world.dist2(b.gx, b.gy, ARCHIVE_WARREN_HQ_TARGETS[majorityOwner].gx, ARCHIVE_WARREN_HQ_TARGETS[majorityOwner].gy);
-      return ac - bc;
-    });
+  let best1: MazeGraphNode | null = null;
+  let best2: MazeGraphNode | null = null;
+  let dist1 = Infinity;
+  let dist2 = Infinity;
+  const target = ARCHIVE_WARREN_HQ_TARGETS[majorityOwner];
+
+  for (let i = 0; i < graph.nodes.length; i++) {
+    const node = graph.nodes[i];
+    if (used.has(node.id) || landmarks.has(node.id)) continue;
+    const d2 = world.dist2(node.gx, node.gy, target.gx, target.gy);
+    if (d2 < dist1) {
+      best2 = best1;
+      dist2 = dist1;
+      best1 = node;
+      dist1 = d2;
+    } else if (d2 < dist2) {
+      best2 = node;
+      dist2 = d2;
+    }
+  }
+
+  const majorityNodes: MazeGraphNode[] = [];
+  if (best1) majorityNodes.push(best1);
+  if (best2) majorityNodes.push(best2);
   for (let i = 0; i < Math.min(2, majorityNodes.length); i++) {
     const room = roomsByNode[majorityNodes[i].id];
     if (!room) continue;
