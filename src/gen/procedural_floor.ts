@@ -10219,14 +10219,23 @@ function chooseServiceSpineTargets(world: World, rooms: Room[], sx: number, sy: 
   const window = candidates.slice(0, Math.min(candidates.length, 18));
   const targetCount = Math.min(window.length, 6 + spec.danger);
   const picked: Room[] = [];
+  const pickedCenters: {x: number, y: number}[] = [];
 
   for (let attempt = 0; attempt < targetCount * 10 && picked.length < targetCount; attempt++) {
     const candidate = pick(window).room;
     if (picked.includes(candidate)) continue;
     const c = roomCenter(candidate);
-    const tooClose = picked.some(room => world.dist2(c.x, c.y, roomCenter(room).x, roomCenter(room).y) < 80 * 80);
+    let tooClose = false;
+    for (let i = 0; i < pickedCenters.length; i++) {
+      const pc = pickedCenters[i];
+      if (world.dist2(c.x, c.y, pc.x, pc.y) < 80 * 80) {
+        tooClose = true;
+        break;
+      }
+    }
     if (tooClose && attempt < targetCount * 6) continue;
     picked.push(candidate);
+    pickedCenters.push(c);
   }
 
   for (const item of window) {
