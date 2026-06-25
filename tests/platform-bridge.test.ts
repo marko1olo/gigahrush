@@ -18,6 +18,12 @@ import {
   requestedPortalFromSearch,
   resetPlatformBridgeForTests,
   savePlatformRawGameSave,
+  isPlatformAudioMuted,
+  togglePlatformAudioMuted,
+  initPlatformBridge,
+  markPlatformReady,
+  markPlatformGameplayStart,
+  markPlatformGameplayStop,
 } from '../src/systems/platform_bridge';
 import { SAVE_SHAPE_VERSION } from '../src/systems/save_runtime';
 import { createPortalCompactSavePayload, summarizeSavePayload, type SavePayload } from '../src/systems/save_payload';
@@ -390,5 +396,193 @@ test('platform cloud hydration does not overwrite a newer localStorage change', 
     else delete globals.gp;
     if (originalStorage) Object.defineProperty(globalThis, 'localStorage', originalStorage);
     else delete globals.localStorage;
+  }
+});
+
+test('platform audio is correctly tracked via local fallback when SDK is absent', () => {
+  resetPlatformBridgeForTests();
+  // By default local audio should not be muted, but we can't assert the initial state cleanly if it leaks
+  // We'll toggle it twice to check if it flipped back and forth
+  let muteFiredCount = 0;
+  let lastMuteState = false;
+  initPlatformBridge({
+    onAudioMuteChange(muted) {
+      muteFiredCount++;
+      lastMuteState = muted;
+    }
+  });
+
+  const initialState = isPlatformAudioMuted();
+  togglePlatformAudioMuted();
+  assert.equal(isPlatformAudioMuted(), !initialState);
+  assert.equal(lastMuteState, !initialState);
+  assert.equal(muteFiredCount, 1);
+
+  togglePlatformAudioMuted();
+  assert.equal(isPlatformAudioMuted(), initialState);
+  assert.equal(lastMuteState, initialState);
+  assert.equal(muteFiredCount, 2);
+});
+
+test('platform audio is tracked and toggled via GamePush SDK if present', () => {
+  resetPlatformBridgeForTests();
+  let gamepushMuted = false;
+  const globals = globalThis as typeof globalThis & {
+    gp?: { sounds: { isMuted: boolean; mute(): void; unmute(): void } };
+  };
+  const originalGamePush = globals.gp;
+  globals.gp = {
+    sounds: {
+      get isMuted() { return gamepushMuted; },
+      mute() { gamepushMuted = true; },
+      unmute() { gamepushMuted = false; },
+    }
+  };
+
+  try {
+    assert.equal(isPlatformAudioMuted(), false);
+    togglePlatformAudioMuted();
+    assert.equal(isPlatformAudioMuted(), true);
+    assert.equal(gamepushMuted, true);
+    togglePlatformAudioMuted();
+    assert.equal(isPlatformAudioMuted(), false);
+    assert.equal(gamepushMuted, false);
+  } finally {
+    resetPlatformBridgeForTests();
+    if (originalGamePush) globals.gp = originalGamePush;
+    else delete globals.gp;
+  }
+});
+
+test('platform bridge correctly resolves yandex sdk load script if document is present', async () => {
+  resetPlatformBridgeForTests();
+  const globals = globalThis as typeof globalThis & {
+    location?: Location;
+    document?: Document;
+  };
+  const originalLocation = Object.getOwnPropertyDescriptor(globalThis, 'location');
+  const originalDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
+
+  // Trigger shouldInitYandex = true without YaGames global
+  Object.defineProperty(globalThis, 'location', {
+    configurable: true,
+    value: { search: '?portal=yandex' },
+  });
+
+  const scripts: Array<{ src?: string; dataset: Record<string, string>; onload?: () => void }> = [];
+
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: {
+      querySelector() { return null; },
+      createElement(tag: string) {
+        if (tag === 'script') {
+          const script = { dataset: {} };
+          scripts.push(script);
+          return script;
+        }
+        return {};
+      },
+      head: {
+        appendChild(script: { onload?: () => void }) {
+          // Resolve onload to simulate successful load
+          queueMicrotask(() => script.onload?.());
+        },
+      },
+    },
+  });
+
+  try {
+    // Calling markPlatformReady invokes yandexSdk() internally, triggering script load
+    markPlatformReady();
+    await new Promise(resolve => setTimeout(resolve, 10)); // Allow microtasks to process
+    assert.equal(scripts.length, 1);
+    assert.equal(scripts[0]?.src, '/sdk.js');
+    assert.equal(scripts[0]?.dataset.gigahrushYandexSdk, '1');
+  } finally {
+    resetPlatformBridgeForTests();
+    if (originalLocation) Object.defineProperty(globalThis, 'location', originalLocation);
+    else delete globals.location;
+    if (originalDocument) Object.defineProperty(globalThis, 'document', originalDocument);
+    else delete globals.document;
+  }
+});
+
+test('platform bridge lifecycle markers safely interact with mocked Yandex and GamePush SDKs', async () => {
+  resetPlatformBridgeForTests();
+  const globals = globalThis as typeof globalThis & {
+    location?: Location;
+    YaGames?: { init(): Promise<any> };
+    gp?: any;
+  };
+  const originalLocation = Object.getOwnPropertyDescriptor(globalThis, 'location');
+  const originalYandex = globals.YaGames;
+  const originalGamePush = globals.gp;
+
+  // Pretend we are loaded in Yandex and GamePush contexts
+  Object.defineProperty(globalThis, 'location', {
+    configurable: true,
+    value: { search: '?portal=yandex&gpProjectId=123&gpPublicToken=pub' },
+  });
+
+  let yandexReadyCalled = false;
+  let yandexGameplayStartCalled = false;
+  let yandexGameplayStopCalled = false;
+
+  globals.YaGames = {
+    init: async () => ({
+      features: {
+        LoadingAPI: {
+          ready() { yandexReadyCalled = true; },
+        },
+        GameplayAPI: {
+          start() { yandexGameplayStartCalled = true; },
+          stop() { yandexGameplayStopCalled = true; },
+        },
+      },
+      on() {},
+    }),
+  };
+
+  let gpGameReadyCalled = false;
+  let gpGameStartCalled = false;
+  let gpGameplayStartCalled = false;
+  let gpGameplayStopCalled = false;
+
+  globals.gp = {
+    gameReady() { gpGameReadyCalled = true; },
+    gameStart() { gpGameStartCalled = true; },
+    gameplayStart() { gpGameplayStartCalled = true; },
+    gameplayStop() { gpGameplayStopCalled = true; },
+    on() {},
+  };
+
+  try {
+    initPlatformBridge();
+
+    markPlatformReady();
+    // Allow async promises inside markPlatformReady to tick
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.equal(yandexReadyCalled, true);
+    assert.equal(gpGameReadyCalled, true);
+    assert.equal(gpGameStartCalled, true);
+
+    markPlatformGameplayStart();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.equal(yandexGameplayStartCalled, true);
+    assert.equal(gpGameplayStartCalled, true);
+
+    markPlatformGameplayStop();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.equal(yandexGameplayStopCalled, true);
+    assert.equal(gpGameplayStopCalled, true);
+  } finally {
+    resetPlatformBridgeForTests();
+    if (originalLocation) Object.defineProperty(globalThis, 'location', originalLocation);
+    else delete globals.location;
+    if (originalYandex) globals.YaGames = originalYandex;
+    else delete globals.YaGames;
+    if (originalGamePush) globals.gp = originalGamePush;
+    else delete globals.gp;
   }
 });
