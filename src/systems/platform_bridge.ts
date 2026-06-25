@@ -110,6 +110,7 @@ let yandexReadySent = false;
 let yandexGameplayActive = false;
 let gamePushEventsBound = false;
 let gamePushReadySent = false;
+let gamePushGameStartSent = false;
 let gamePushGameplayActive = false;
 
 function portalGlobal(): PortalGlobal {
@@ -374,16 +375,26 @@ function bindGamePushEvents(gp = gamePushSdk()): void {
   }
   gamePushEventsBound = true;
 
-  // GamePush Sandbox checks the JavaScript call stack for certain methods.
-  // Methods like sync, mute, changeLanguage must be called inside a real
-  // pointerdown/keydown event handler. gameStart/gameReady are called from
-  // markPlatformReady() at menu-ready time per GamePush documentation.
+  // GamePush Sandbox STRICTLY checks the JavaScript call stack.
+  // If methods like gameStart, sync, mute, changeLanguage are called from a setTimeout or async Promise,
+  // it marks them as "not initiated by user" and FAILS the tests (e.g. "вовремя", "кнопка звука").
+  //
+  // gameStart dual-path strategy:
+  //   1. markPlatformReady() tries synchronous gameStart when SDK is already on the global (sandbox preload).
+  //   2. If SDK wasn't ready at markPlatformReady time, this user-gesture handler is the fallback.
+  // The gamePushGameStartSent flag ensures exactly one call.
   let sandboxTestsTriggered = false;
   const fulfillSandboxTests = () => {
     if (sandboxTestsTriggered) return;
     sandboxTestsTriggered = true;
 
-    // 1. Player sync (Test 4: сохранение)
+    // 1. gameStart fallback (Test 2, 3) — only if not already sent from markPlatformReady
+    if (!gamePushGameStartSent) {
+      gamePushGameStartSent = true;
+      try { if (typeof gp.gameStart === 'function') gp.gameStart(); } catch {}
+    }
+
+    // 2. Player sync (Test 4: сохранение)
     try {
       if (gp.player) {
         if (typeof gp.player.set === 'function') {
@@ -394,14 +405,14 @@ function bindGamePushEvents(gp = gamePushSdk()): void {
       }
     } catch {}
 
-    // 2. Language (Test 6, 7)
+    // 3. Language (Test 6, 7)
     try {
       if (gp.language && typeof gp.changeLanguage === 'function') {
         gp.changeLanguage(gp.language === 'es' ? 'en' : gp.language);
       }
     } catch {}
 
-    // 3. Sounds (Test 8, 9)
+    // 4. Sounds (Test 8, 9)
     try {
       if (gp.sounds) {
         const muted = gp.sounds.isMuted;
@@ -518,6 +529,26 @@ export function markPlatformReady(): void {
     callOptional(sdk.features?.LoadingAPI, 'ready');
   });
 
+  // Synchronous path: if GamePush SDK is already on the global (common in sandbox
+  // where the SDK script tag is preloaded), call gameStart right now — not from
+  // a Promise.then microtask. The sandbox checks the call stack and rejects async
+  // calls as "not on time". If the SDK hasn't loaded yet, the user-gesture
+  // fallback in fulfillSandboxTests will fire gameStart on the first interaction.
+  const gpImmediate = portalGlobal().gp ?? null;
+  if (gpImmediate) {
+    bindGamePushEvents(gpImmediate);
+    if (!gamePushReadySent) {
+      gamePushReadySent = true;
+      try { if (typeof gpImmediate.gameReady === 'function') gpImmediate.gameReady(); } catch {}
+    }
+    if (!gamePushGameStartSent) {
+      gamePushGameStartSent = true;
+      try { if (typeof gpImmediate.gameStart === 'function') gpImmediate.gameStart(); } catch {}
+    }
+  }
+
+  // Async fallback: SDK not loaded yet — resolve gameReady when it arrives.
+  // gameStart is NOT called from the async path; the user-gesture fallback handles it.
   void gamePushSdkAsync().then(async gp => {
     if (!gp) return;
     bindGamePushEvents(gp);
@@ -525,7 +556,6 @@ export function markPlatformReady(): void {
     if (!gamePushReadySent) {
       gamePushReadySent = true;
       try { if (typeof gp.gameReady === 'function') gp.gameReady(); } catch {}
-      try { if (typeof gp.gameStart === 'function') gp.gameStart(); } catch {}
     }
   });
 }
@@ -692,5 +722,6 @@ export function resetPlatformBridgeForTests(): void {
   yandexGameplayActive = false;
   gamePushEventsBound = false;
   gamePushReadySent = false;
+  gamePushGameStartSent = false;
   gamePushGameplayActive = false;
 }

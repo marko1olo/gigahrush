@@ -346,6 +346,14 @@ function lookIdx(ctx: InteractionContext): number {
   return ctx.world.idx(Math.floor(ctx.lookX), Math.floor(ctx.lookY));
 }
 
+/** Near-look: sample at 0.7 cells ahead to catch doors when the player is very close. */
+function nearLookIdx(ctx: InteractionContext): number {
+  const angle = Math.atan2(ctx.lookY - ctx.player.y, ctx.lookX - ctx.player.x);
+  const nx = ctx.player.x + Math.cos(angle) * 0.7;
+  const ny = ctx.player.y + Math.sin(angle) * 0.7;
+  return ctx.world.idx(Math.floor(nx), Math.floor(ny));
+}
+
 export function findInteractionTarget(ctx: InteractionContext): InteractionTarget | null {
   const idx = lookIdx(ctx);
   const processionHint = getCultProcessionPrompt(ctx.world, ctx.state, ctx.player);
@@ -422,6 +430,18 @@ export function findInteractionTarget(ctx: InteractionContext): InteractionTarge
     const door = ctx.world.doors.get(idx);
     const isHermetic = door?.state === DoorState.HERMETIC_CLOSED || door?.state === DoorState.HERMETIC_OPEN;
     return target('door', idx + 100000, 'door', idx % W, (idx / W) | 0, 100, isHermetic ? ' гермодверь' : ' дверь');
+  }
+
+  // Fallback: when standing very close to a door, the 1.5-cell look ray overshoots it.
+  // Check a nearer point (0.7 cells ahead) to catch doors the primary lookIdx missed.
+  const nearIdx = nearLookIdx(ctx);
+  if (nearIdx !== idx) {
+    const nearCell = ctx.world.cells[nearIdx];
+    if (nearCell === Cell.DOOR && ctx.world.doors.has(nearIdx)) {
+      const door = ctx.world.doors.get(nearIdx);
+      const isHermetic = door?.state === DoorState.HERMETIC_CLOSED || door?.state === DoorState.HERMETIC_OPEN;
+      return target('door', nearIdx + 100000, 'door', nearIdx % W, (nearIdx / W) | 0, 100, isHermetic ? ' гермодверь' : ' дверь');
+    }
   }
 
   const container = findContainer(ctx, false);
@@ -571,6 +591,13 @@ export function activateInteraction(ctx: InteractionContext): InteractionResult 
 
   if (ctx.world.cells[idx] === Cell.DOOR) {
     const door = activateDoor(ctx, idx);
+    if (door.handled) return door;
+  }
+
+  // Fallback: near-look door activation when standing very close
+  const activateNearIdx = nearLookIdx(ctx);
+  if (activateNearIdx !== idx && ctx.world.cells[activateNearIdx] === Cell.DOOR) {
+    const door = activateDoor(ctx, activateNearIdx);
     if (door.handled) return door;
   }
 

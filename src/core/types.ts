@@ -1144,6 +1144,7 @@ export interface GameState {
   samosborCount: number;
   paused: boolean;
   gameOver: boolean;
+  trailerMode?: boolean;
   showInventory: boolean;
   mapMode: number;          // 0=closed, 2=full map overlay; minimap is a UI setting
   fullMapRadius?: number;   // transient full-map zoom radius in cells; not part of save shape

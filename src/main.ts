@@ -496,7 +496,7 @@ import {
   savePlatformRawGameSave,
 } from './systems/platform_bridge';
 import { addFactionRel, addFactionRelMutual, initFactionRelations } from './data/relations';
-import { createRuntimeCamera, resetRuntimeCamera, runtimeCameraView, startDeathCamera, updateRuntimeCamera } from './systems/camera';
+import { createRuntimeCamera, resetRuntimeCamera, runtimeCameraView, startDeathCamera, updateRuntimeCamera, startTrailerCamera, updateTrailerCamera } from './systems/camera';
 import { onHeraldKilled, onCreatorKilled, onHellArrival, tryCreateVoiceQuest, onVoidEntry } from './data/plot_events';
 import { randomTip } from './data/tips';
 import {
@@ -554,7 +554,7 @@ const FULL_MAP_RADIUS_DEFAULT = 200;
 const FULL_MAP_RADIUS_MIN = 48;
 const FULL_MAP_RADIUS_MAX = W / 2;
 const FULL_MAP_ZOOM_STEP = 1.18;
-type TitleInputField = Extract<TitleHitField, 'language' | 'name' | 'age' | 'sex' | 'seed' | 'actorCap' | 'addNpc' | 'start' | 'continue'>;
+type TitleInputField = Extract<TitleHitField, 'language' | 'name' | 'age' | 'sex' | 'seed' | 'actorCap' | 'addNpc' | 'start' | 'continue' | 'trailer'>;
 const NPC_INTAKE_ENABLED = Boolean((globalThis as { __GIGAHRUSH_NPC_INTAKE_ENABLED__?: boolean }).__GIGAHRUSH_NPC_INTAKE_ENABLED__);
 const smokeDebug = new URLSearchParams(window.location.search).has('smoke');
 
@@ -574,6 +574,7 @@ function getTitleSetupFields(): readonly TitleInputField[] {
   if (hasValidSaveGame()) fields.push('continue');
   fields.push('start');
   if (NPC_INTAKE_ENABLED) fields.push('addNpc');
+  fields.push('trailer');
   fields.push('language', 'name', 'age', 'sex', 'seed', 'actorCap');
   return fields;
 }
@@ -583,6 +584,9 @@ let playerAge = loadPlayerAge();
 let playerSex = loadPlayerSex();
 let titlePlayerAgeText = String(playerAge);
 let titleRunSeedText = '';
+const TRAILER_FLOORS = [2, 1, 3, 4, 0, 5]; // LIVING, KVARTIRY, MAINTENANCE, HELL, MINISTRY, VOID
+const TRAILER_FLOOR_NAMES = ['LIVING', 'KVARTIRY', 'MAINTENANCE', 'HELL', 'MINISTRY', 'VOID'];
+let titleTrailerFloorIdx = 0;
 let titleStartNeedsInit = true;
 let titleMode: TitleScreenMode = 'setup';
 let titleSetupSel = 0;
@@ -867,6 +871,7 @@ function titleSetupRows(cursorOn: boolean): TitleSetupRowView[] {
     });
   }
   rows.push(
+    { field: 'trailer', label: 'РЕЖИМ ТРЕЙЛЕРА', value: TRAILER_FLOOR_NAMES[titleTrailerFloorIdx], hint: 'Технический демо-режим. Enter: запуск, Влево/Вправо: карта', selected: selected('trailer') },
     { field: 'language', label: lang.setupLanguageLabel, value: titleLanguageDef(titleLanguageId).name, hint: lang.setupLanguageHint, selected: selected('language') },
     { field: 'name', label: lang.nameLabel, value: `${shownName}${nameCursor}`, hint: lang.setupNameHint, selected: selected('name') },
     { field: 'age', label: lang.ageLabel, value: `${shownAge}${ageCursor}`, hint: lang.setupAgeHint, selected: selected('age') },
@@ -2525,7 +2530,7 @@ function consumePlayerSprintWater(actor: Entity, dt: number, sprintMod: number):
 function movePlayer(dt: number): void {
   const actor = player;
   if (!actor.alive) return;
-  if (state.sleeping) return; // no movement while sleeping
+  if (state.sleeping || state.trailerMode) return; // no movement while sleeping or in trailer mode
   floorTeleportCd = Math.max(0, floorTeleportCd - dt);
 
   // Mouse look
@@ -7852,9 +7857,19 @@ function gameLoop(now: number): void {
     _prevMsgCount = state.msgs.length;
   }
 
-  if (!state.gameOver) updateRuntimeCamera(runtimeCamera, world, dt, player);
-  checkRestart();
   if (pendingLoad) { requestAnimationFrame(gameLoop); return; }
+
+  if (!state.gameOver) {
+    if (state.trailerMode) {
+      if (runtimeCamera.mode !== 'trailer') {
+        startTrailerCamera(runtimeCamera, player.x, player.y);
+      }
+      updateTrailerCamera(runtimeCamera, world, dt);
+    } else {
+      updateRuntimeCamera(runtimeCamera, world, dt, player);
+    }
+  }
+  checkRestart();
   updateMobileContext();
   const currentFps = updateFpsMeter(now, rawDt * 1000);
 
@@ -7926,12 +7941,14 @@ function gameLoop(now: number): void {
   });
   ctx.clearRect(0, 0, hudCanvas.width, hudCanvas.height);
   const hudDrawStart = performance.now();
-  drawHUD(ctx, hudCanvas.width / SCR_W, hudCanvas.height / SCR_H, renderActor, state, world, entities, uiTime, {
-    fps: currentFps,
-    perf: uiElementEnabled('fps_counter') ? hudPerfDebugSnapshot(currentFps) : undefined,
-    pointerLockHint: !mobileControls?.isEnabled() && !input.mouse.locked && !pointerCaptureGateVisible(),
-    pointerCaptureGate: pointerCaptureGateVisible(),
-  });
+  if (!state.trailerMode) {
+    drawHUD(ctx, hudCanvas.width / SCR_W, hudCanvas.height / SCR_H, renderActor, state, world, entities, uiTime, {
+      fps: currentFps,
+      perf: uiElementEnabled('fps_counter') ? hudPerfDebugSnapshot(currentFps) : undefined,
+      pointerLockHint: !mobileControls?.isEnabled() && !input.mouse.locked && !pointerCaptureGateVisible(),
+      pointerCaptureGate: pointerCaptureGateVisible(),
+    });
+  }
   lastHudDrawMs = performance.now() - hudDrawStart;
 
   requestAnimationFrame(gameLoop);
@@ -8008,10 +8025,16 @@ function startGameFromTitle(): void {
   savePlayerAge(Number(titlePlayerAgeText));
   savePlayerSex(playerSex);
   const seedOverride = titleRunSeedOverride();
-  if (seedOverride !== undefined || titleStartNeedsInit) {
+  const trailerSelected = titleInputField === 'trailer';
+  
+  if (seedOverride !== undefined || titleStartNeedsInit || trailerSelected) {
     scheduleLoading(() => {
       initGame(seedOverride);
       titleStartNeedsInit = false;
+      if (trailerSelected) {
+        state.trailerMode = true;
+        state.currentFloor = TRAILER_FLOORS[titleTrailerFloorIdx] as FloorLevel;
+      }
       finishStartGameFromTitle();
     });
     return;
@@ -8064,6 +8087,10 @@ function startHandler(e: KeyboardEvent): void {
   }
   if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
     if (titleInputField === 'language') cycleTitleLanguage(e.code === 'ArrowRight' ? 1 : -1);
+    else if (titleInputField === 'trailer') {
+      titleTrailerFloorIdx = (titleTrailerFloorIdx + (e.code === 'ArrowRight' ? 1 : TRAILER_FLOORS.length - 1)) % TRAILER_FLOORS.length;
+      showTitle();
+    }
     else if (titleInputField === 'actorCap') adjustTitleActiveActorSoftLimit(e.code === 'ArrowRight' ? 1 : -1);
     else if (titleInputField === 'age') {
       titlePlayerAgeText = String(clampCharacterAge(Number(titlePlayerAgeText || DEFAULT_PLAYER_AGE) + (e.code === 'ArrowRight' ? 1 : -1), DEFAULT_PLAYER_AGE));
@@ -8077,7 +8104,7 @@ function startHandler(e: KeyboardEvent): void {
   if (e.code === 'Enter') {
     e.preventDefault();
     if (titleInputField === 'continue') continueGameFromTitle();
-    else if (titleInputField === 'start') startGameFromTitle();
+    else if (titleInputField === 'start' || titleInputField === 'trailer') startGameFromTitle();
     else if (titleInputField === 'addNpc') openNpcIntakePage();
     else if (titleInputField === 'language') cycleTitleLanguage(1);
     else if (titleInputField === 'actorCap') adjustTitleActiveActorSoftLimit(1);

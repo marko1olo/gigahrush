@@ -1,10 +1,22 @@
 # Замечание 3: Вызов GameReady (GameStart)
 
 ## Проблема
-Метод GameReady вызывается в неверный момент — при первом действии игрока. Модерация требует, чтобы метод вызывался в тот момент, когда игра *впервые становится интерактивной* (обычно это момент, когда полностью загружено главное меню и можно кликать).
+Метод GameStart вызывается не вовремя — одновременно с GameplayStart, на первый клик пользователя. По документации GamePush:
+- `gameStart` — «после загрузки игры», т.е. когда меню готово
+- `gameplayStart` — когда начинается активный геймплей
 
-## Решение:
-1. Вызов метода `gp.gameStart()` был удалён из обработчика первого пользовательского взаимодействия (`fulfillSandboxTests`, привязанного к `pointerdown`/`keydown`).
-2. Вызовы обоих методов (`gp.gameReady()` и `gp.gameStart()`) размещены в функции `markPlatformReady()`.
-3. Поскольку `markPlatformReady()` вызывается из `bootInitialGameOrTitle()` (в `src/main.ts`) сразу после инициализации WebGL, загрузки всех ресурсов и вызова `showTitle()` (отрисовки главного меню), платформа теперь получает сигнал `gameReady`/`gameStart` ровно в тот момент, когда меню полностью готово к первому клику игрока. Это соответствует [документации GamePush](https://docs.gamepush.com/ru/docs/get-start/common-features/#старт-игры): «Вызов должен происходить после загрузки игры».
-4. Остальные sandbox-тесты (player sync, language, sounds) **остаются** в `fulfillSandboxTests` — они действительно требуют вызова из user gesture handler (`pointerdown`/`keydown`).
+## Ограничение sandbox
+GamePush Sandbox СТРОГО проверяет call stack. Вызов `gameStart` из `Promise.then()` или `setTimeout` — помечается "не инициирован пользователем" и проваливает Test 3 ("вовремя"). Перенос в async `markPlatformReady()` ломает тест — проверено экспериментально.
+
+## Решение: двойной путь (dual-path)
+
+1. **Синхронный путь (primary)**: В `markPlatformReady()` проверяем, доступен ли SDK на глобале **синхронно** (`portalGlobal().gp`). Если да — вызываем `gameStart` прямо здесь, без Promise chain. Это работает в sandbox, где SDK-скрипт уже preloaded.
+
+2. **User-gesture fallback**: Если SDK ещё не загрузился к моменту `markPlatformReady()`, вызов `gameStart` произойдёт из `fulfillSandboxTests` по первому `pointerdown`/`keydown` — как было раньше.
+
+3. **Флаг `gamePushGameStartSent`** гарантирует однократный вызов — какой путь сработает первым, тот и сделает вызов.
+
+## Что нужно проверить в sandbox
+- Test 3 ("Метод GameStart должен вызываться вовремя") — должен пройти
+- Если в sandbox SDK preloaded: `gameStart` вызывается из `markPlatformReady` синхронно → ДО первого клика
+- Если SDK не preloaded: `gameStart` вызывается на первый клик → как раньше (рабочий вариант)

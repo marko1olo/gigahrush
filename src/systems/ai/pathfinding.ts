@@ -288,6 +288,17 @@ function isSubcellNavPassable(world: World, si: number): boolean {
     return true;
   };
 
+  // Openable doors should not block adjacent subcell clearance — NPCs open them on approach.
+  const isClearanceBlocker = (ci: number, c: number): boolean => {
+    if (isMacroCellPassable(ci, c)) return false;
+    // Ordinary closed doors are not clearance blockers: NPC will open them.
+    if (c === Cell.DOOR) {
+      const door = world.doors.get(ci);
+      if (door && door.state === DoorState.CLOSED) return false;
+    }
+    return true;
+  };
+
   if (!isMacroCellPassable(cellI, cell)) return false;
 
   // Add subcell clearance: NPCs have 0.16m radius, but subcell center is only 0.125m from the macro cell edge.
@@ -297,18 +308,22 @@ function isSubcellNavPassable(world: World, si: number): boolean {
 
   if (rx === 0) {
     const nx = world.wrap(cellX - 1);
-    if (!isMacroCellPassable(cellY * W + nx, world.cells[cellY * W + nx])) return false;
+    const nci = cellY * W + nx;
+    if (isClearanceBlocker(nci, world.cells[nci])) return false;
   } else if (rx === PATH_BLOCKER_SUBDIV - 1) {
     const nx = world.wrap(cellX + 1);
-    if (!isMacroCellPassable(cellY * W + nx, world.cells[cellY * W + nx])) return false;
+    const nci = cellY * W + nx;
+    if (isClearanceBlocker(nci, world.cells[nci])) return false;
   }
 
   if (ry === 0) {
     const ny = world.wrap(cellY - 1);
-    if (!isMacroCellPassable(ny * W + cellX, world.cells[ny * W + cellX])) return false;
+    const nci = ny * W + cellX;
+    if (isClearanceBlocker(nci, world.cells[nci])) return false;
   } else if (ry === PATH_BLOCKER_SUBDIV - 1) {
     const ny = world.wrap(cellY + 1);
-    if (!isMacroCellPassable(ny * W + cellX, world.cells[ny * W + cellX])) return false;
+    const nci = ny * W + cellX;
+    if (isClearanceBlocker(nci, world.cells[nci])) return false;
   }
 
   return !pathBlockedAt(world, sx / PATH_BLOCKER_SUBDIV + 0.5 / PATH_BLOCKER_SUBDIV, sy / PATH_BLOCKER_SUBDIV + 0.5 / PATH_BLOCKER_SUBDIV);
@@ -682,9 +697,21 @@ export function tryAssignPathToCell(world: World, e: Entity, tx: number, ty: num
   return 'assigned';
 }
 
-function openPathDoor(world: World, cell: number): void {
-  if (world.cells[cell] !== Cell.DOOR) return;
-  const door = world.doors.get(cell);
+function openPathDoor(world: World, subcell: number): void {
+  const ci = subcellToCell(subcell);
+  if (world.cells[ci] !== Cell.DOOR) return;
+  const door = world.doors.get(ci);
+  if (door && door.state === DoorState.CLOSED) {
+    setDoorState(world, door, DoorState.OPEN);
+    door.timer = 5;
+  }
+}
+
+/** Open a door at world coordinates (not subcell). Used proactively during movement. */
+function openPathDoorAtWorld(world: World, wx: number, wy: number): void {
+  const ci = world.idx(Math.floor(wx), Math.floor(wy));
+  if (world.cells[ci] !== Cell.DOOR) return;
+  const door = world.doors.get(ci);
   if (door && door.state === DoorState.CLOSED) {
     setDoorState(world, door, DoorState.OPEN);
     door.timer = 5;
@@ -904,8 +931,11 @@ export function followPath(world: World, e: Entity, dt: number): void {
     }
     if (e.type === EntityType.NPC && ai.goal !== AIGoal.HIDE && ai.goal !== AIGoal.FLEE) {
       ai.stuck += dt;
-      if (ai.stuck > 1.5 + Math.random() * 2) {
+      // Higher threshold reduces corridor ping-pong: NPCs linger longer before re-wandering
+      if (ai.stuck > 3 + Math.random() * 2) {
         wanderInRoom(world, e);
+        // Fallback: if wanderInRoom found nothing (no room or tiny room), try wanderNearby
+        if (ai.path.length === 0) wanderNearby(world, e);
         ai.stuck = 0;
       }
     }
@@ -924,6 +954,8 @@ export function followPath(world: World, e: Entity, dt: number): void {
 
   if (ai.pi >= ai.path.length) return;
 
+  // Proactively open doors: current cell, next path cell, and waypoint cell
+  openPathDoorAtWorld(world, e.x, e.y);
   openPathDoor(world, ai.path[ai.pi]);
   const waypoint = selectPathWaypoint(world, e, r);
 
@@ -947,6 +979,9 @@ export function followPath(world: World, e: Entity, dt: number): void {
   const nx = e.x + (dx / dist) * speed;
   const ny = e.y + (dy / dist) * speed;
   let moved = false;
+
+  // Open door ahead of movement if the next position is on a door cell
+  openPathDoorAtWorld(world, nx, ny);
 
   if (canActorOccupy(world, nx, e.y, r)) {
     e.x = ((nx % W) + W) % W;
