@@ -130,6 +130,92 @@ function getButton(pad: Gamepad, idx: number): { pressed: boolean; value: number
   return { pressed: !!btn.pressed, value: typeof btn.value === 'number' ? btn.value : (btn.pressed ? 1 : 0) };
 }
 
+
+function handleGamepadDisconnect(state: GamepadAdapterState, frame: InputFrame): void {
+  let cleared = false;
+  for (let i = 0; i < state.prevButtons.length; i++) {
+    if (!state.prevButtons[i]) continue;
+    const holdId = BUTTON_HOLD_ACTIONS[i];
+    if (holdId) releaseAction(frame, holdId);
+    const edgeId = BUTTON_EDGE_ACTIONS[i];
+    if (edgeId) releaseAction(frame, edgeId);
+    state.prevButtons[i] = false;
+    cleared = true;
+  }
+  state.lastConnected = false;
+  state.lastMappingStandard = false;
+  frame.hardware.gamepadConnected = false;
+  frame.hardware.gamepadMappingStandard = false;
+  frame.hardware.gamepadLabel = state.lastLabel;
+  if (cleared) setActiveDevice(frame, 'gamepad');
+}
+
+function pollSticks(pad: Gamepad, frame: InputFrame, settings: GamepadSettings): boolean {
+  let anyInput = false;
+  const axes = pad.axes;
+  if (axes.length >= 2) {
+    const move = applyStickDeadzone(axes[0] ?? 0, axes[1] ?? 0, settings.moveDeadzone, settings.moveCurve);
+    if (move.x !== 0) {
+      mergeAxis(frame, 'moveX', move.x);
+      anyInput = true;
+    }
+    if (move.y !== 0) {
+      mergeAxis(frame, 'moveY', -move.y); // gameplay treats moveY positive = forward
+      anyInput = true;
+    }
+  }
+  if (axes.length >= 4) {
+    const look = applyStickDeadzone(axes[2] ?? 0, axes[3] ?? 0, settings.lookDeadzone, settings.lookCurve);
+    if (look.x !== 0) {
+      mergeAxis(frame, 'lookX', look.x * settings.lookSensitivity);
+      anyInput = true;
+    }
+    if (look.y !== 0) {
+      const sign = settings.invertLookY ? -1 : 1;
+      mergeAxis(frame, 'lookY', sign * look.y * settings.lookSensitivity);
+      anyInput = true;
+    }
+  }
+  return anyInput;
+}
+
+function pollButtons(pad: Gamepad, frame: InputFrame, state: GamepadAdapterState, settings: GamepadSettings): boolean {
+  let anyInput = false;
+  const ltCurve = applyTriggerCurve(getButton(pad, 6).value, settings.triggerThreshold, Math.min(0.95, settings.triggerThreshold + 0.2));
+  const rtCurve = applyTriggerCurve(getButton(pad, 7).value, settings.triggerThreshold, Math.min(0.95, settings.triggerThreshold + 0.2));
+
+  for (let i = 0; i < STANDARD_BUTTON_COUNT; i++) {
+    let pressedNow = getButton(pad, i).pressed;
+    if (i === 6) pressedNow = ltCurve.held;
+    if (i === 7) pressedNow = rtCurve.held;
+    const wasPressed = state.prevButtons[i];
+
+    const holdId = BUTTON_HOLD_ACTIONS[i];
+    if (holdId && pressedNow) setActionHeld(frame, holdId, true);
+
+    const edgeId = BUTTON_EDGE_ACTIONS[i];
+    if (edgeId) {
+      if (pressedNow && !wasPressed) pressAction(frame, edgeId);
+      else if (!pressedNow && wasPressed) releaseAction(frame, edgeId);
+      else if (pressedNow) setActionHeld(frame, edgeId, true);
+    } else if (holdId) {
+      if (!pressedNow && wasPressed) releaseAction(frame, holdId);
+    }
+
+    // D-pad → menu nav edges (12 up, 13 down, 14 left, 15 right)
+    if (i >= 12 && i <= 15 && pressedNow && !wasPressed) {
+      if (i === 12) setMenuNav(frame, 'up', true);
+      if (i === 13) setMenuNav(frame, 'down', true);
+      if (i === 14) setMenuNav(frame, 'left', true);
+      if (i === 15) setMenuNav(frame, 'right', true);
+    }
+
+    if (pressedNow !== wasPressed) anyInput = true;
+    state.prevButtons[i] = pressedNow;
+  }
+  return anyInput;
+}
+
 export function createGamepadAdapter(): GamepadAdapter {
   const state: GamepadAdapterState = {
     attached: false,
@@ -170,23 +256,7 @@ export function createGamepadAdapter(): GamepadAdapter {
     }
     const pad = pickActivePad(state);
     if (!pad) {
-      // Clear holds on disconnect: emit releases for any previously held button.
-      let cleared = false;
-      for (let i = 0; i < state.prevButtons.length; i++) {
-        if (!state.prevButtons[i]) continue;
-        const holdId = BUTTON_HOLD_ACTIONS[i];
-        if (holdId) releaseAction(frame, holdId);
-        const edgeId = BUTTON_EDGE_ACTIONS[i];
-        if (edgeId) releaseAction(frame, edgeId);
-        state.prevButtons[i] = false;
-        cleared = true;
-      }
-      state.lastConnected = false;
-      state.lastMappingStandard = false;
-      frame.hardware.gamepadConnected = false;
-      frame.hardware.gamepadMappingStandard = false;
-      frame.hardware.gamepadLabel = state.lastLabel;
-      if (cleared) setActiveDevice(frame, 'gamepad');
+      handleGamepadDisconnect(state, frame);
       return;
     }
 
@@ -204,66 +274,8 @@ export function createGamepadAdapter(): GamepadAdapter {
 
     let anyInput = false;
 
-    // ── Sticks ──────────────────────────────────────────────
-    const axes = pad.axes;
-    if (axes.length >= 2) {
-      const move = applyStickDeadzone(axes[0] ?? 0, axes[1] ?? 0, settings.moveDeadzone, settings.moveCurve);
-      if (move.x !== 0) {
-        mergeAxis(frame, 'moveX', move.x);
-        anyInput = true;
-      }
-      if (move.y !== 0) {
-        mergeAxis(frame, 'moveY', -move.y); // gameplay treats moveY positive = forward
-        anyInput = true;
-      }
-    }
-    if (axes.length >= 4) {
-      const look = applyStickDeadzone(axes[2] ?? 0, axes[3] ?? 0, settings.lookDeadzone, settings.lookCurve);
-      if (look.x !== 0) {
-        mergeAxis(frame, 'lookX', look.x * settings.lookSensitivity);
-        anyInput = true;
-      }
-      if (look.y !== 0) {
-        const sign = settings.invertLookY ? -1 : 1;
-        mergeAxis(frame, 'lookY', sign * look.y * settings.lookSensitivity);
-        anyInput = true;
-      }
-    }
-
-    // ── Triggers (LT/RT analog → held semantics) ────────────
-    const ltCurve = applyTriggerCurve(getButton(pad, 6).value, settings.triggerThreshold, Math.min(0.95, settings.triggerThreshold + 0.2));
-    const rtCurve = applyTriggerCurve(getButton(pad, 7).value, settings.triggerThreshold, Math.min(0.95, settings.triggerThreshold + 0.2));
-
-    // ── Buttons & edges ─────────────────────────────────────
-    for (let i = 0; i < STANDARD_BUTTON_COUNT; i++) {
-      let pressedNow = getButton(pad, i).pressed;
-      if (i === 6) pressedNow = ltCurve.held;
-      if (i === 7) pressedNow = rtCurve.held;
-      const wasPressed = state.prevButtons[i];
-
-      const holdId = BUTTON_HOLD_ACTIONS[i];
-      if (holdId && pressedNow) setActionHeld(frame, holdId, true);
-
-      const edgeId = BUTTON_EDGE_ACTIONS[i];
-      if (edgeId) {
-        if (pressedNow && !wasPressed) pressAction(frame, edgeId);
-        else if (!pressedNow && wasPressed) releaseAction(frame, edgeId);
-        else if (pressedNow) setActionHeld(frame, edgeId, true);
-      } else if (holdId) {
-        if (!pressedNow && wasPressed) releaseAction(frame, holdId);
-      }
-
-      // D-pad → menu nav edges (12 up, 13 down, 14 left, 15 right)
-      if (i >= 12 && i <= 15 && pressedNow && !wasPressed) {
-        if (i === 12) setMenuNav(frame, 'up', true);
-        if (i === 13) setMenuNav(frame, 'down', true);
-        if (i === 14) setMenuNav(frame, 'left', true);
-        if (i === 15) setMenuNav(frame, 'right', true);
-      }
-
-      if (pressedNow !== wasPressed) anyInput = true;
-      state.prevButtons[i] = pressedNow;
-    }
+    if (pollSticks(pad, frame, settings)) anyInput = true;
+    if (pollButtons(pad, frame, state, settings)) anyInput = true;
 
     if (anyInput) {
       state.hadAnyInput = true;
