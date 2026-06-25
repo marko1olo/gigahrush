@@ -6045,10 +6045,14 @@ function chooseRoofDuctTargets(world: World, rooms: Room[], sx: number, sy: numb
   const window = candidates.slice(0, Math.min(candidates.length, 14));
   const targetCount = Math.min(window.length, 4 + Math.floor(spec.danger / 2));
   const picked: Room[] = [];
+  const pickedSet = new Set<Room>();
   for (let i = 0; i < window.length && picked.length < targetCount; i++) {
     const index = (spec.seed + i * 5) % window.length;
     const room = window[index].room;
-    if (!picked.includes(room)) picked.push(room);
+    if (!pickedSet.has(room)) {
+      picked.push(room);
+      pickedSet.add(room);
+    }
   }
   return picked;
 }
