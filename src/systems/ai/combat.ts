@@ -516,7 +516,8 @@ function npcCommitRangedShot(
     e.ai!.windupTargetId = undefined;
     return true;
   }
-  // TODO: [TEMPORARY SOLUTION] NPCs need ammo to shoot but they do not consume it, to prevent burning through their supply.
+  // DESIGN DECISION: NPCs must have ammo to shoot, but they intentionally do not consume it.
+  // This maintains NPC combat balance and economy without requiring a complex resupply mechanic.
   if (ws.ammoType && e.inventory?.some(s => s.defId === ws.ammoType && s.count > 0) !== true) return false;
   if (visualProjectiles) {
     npcFireProjectile(world, e, target, weaponId, ws, entities, nextId);
