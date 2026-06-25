@@ -36,6 +36,7 @@ const REPAIR_ITEMS = new Set(['sealant_tube', 'hermo_gasket']);
 interface PlombContext {
   world: World;
   entities: Entity[];
+  entitiesMap?: Map<number, Entity>;
   roomId: number;
   bypassRoomId: number;
   sealedDoorIdx: number;
@@ -55,6 +56,7 @@ function registerContext(ctx: PlombContext): void {
   const existing = contexts.find(item => item.world === ctx.world && item.roomId === ctx.roomId);
   if (existing) {
     existing.entities = ctx.entities;
+    existing.entitiesMap = ctx.entitiesMap;
     existing.sealedDoorIdx = ctx.sealedDoorIdx;
     existing.alternateDoorIdx = ctx.alternateDoorIdx;
     existing.sealContainerId = ctx.sealContainerId;
@@ -360,9 +362,23 @@ function contextByMonster(event: WorldEvent): PlombContext | undefined {
 function nearestActiveContextToPlayer(): PlombContext | undefined {
   for (let i = contexts.length - 1; i >= 0; i--) {
     const ctx = contexts[i];
-    const monster = ctx.entities.find(e => e.id === ctx.monsterId);
+    if (!ctx.entitiesMap) {
+      ctx.entitiesMap = new Map();
+      for (let j = 0; j < ctx.entities.length; j++) {
+        ctx.entitiesMap.set(ctx.entities[j].id, ctx.entities[j]);
+      }
+    }
+    const monster = ctx.entitiesMap.get(ctx.monsterId);
     if (!monster?.alive || ctx.shotHandled || ctx.routeOpened) continue;
-    const player = ctx.entities.find(e => isPlayerEntity(e) && e.alive);
+
+    let player = undefined;
+    for (let j = ctx.entities.length - 1; j >= 0; j--) {
+      const e = ctx.entities[j];
+      if (isPlayerEntity(e) && e.alive) {
+        player = e;
+        break;
+      }
+    }
     if (!player) continue;
     const dDoor = ctx.world.dist2(player.x, player.y, doorX(ctx.sealedDoorIdx) + 0.5, doorY(ctx.sealedDoorIdx) + 0.5);
     const dMonster = ctx.world.dist2(player.x, player.y, monster.x, monster.y);
@@ -411,7 +427,13 @@ function handleKillEvent(state: GameState, event: WorldEvent): void {
   if (!ctx || ctx.killHandled) return;
   ctx.killHandled = true;
 
-  const killed = ctx.entities.find(e => e.id === ctx.monsterId);
+  if (!ctx.entitiesMap) {
+    ctx.entitiesMap = new Map();
+    for (let j = 0; j < ctx.entities.length; j++) {
+      ctx.entitiesMap.set(ctx.entities[j].id, ctx.entities[j]);
+    }
+  }
+  const killed = ctx.entitiesMap.get(ctx.monsterId);
   const ex = event.x ?? killed?.x ?? doorX(ctx.sealedDoorIdx) + 0.5;
   const ey = event.y ?? killed?.y ?? doorY(ctx.sealedDoorIdx) + 0.5;
   const d2 = ctx.world.dist2(ex, ey, doorX(ctx.sealedDoorIdx) + 0.5, doorY(ctx.sealedDoorIdx) + 0.5);
