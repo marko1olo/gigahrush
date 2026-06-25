@@ -18,11 +18,11 @@ export const DEF: MonsterDef = {
   lootHint: 'серебряный зуб, сине-черная чешуя, газовый пузырь, редкая акулья чешуя',
 };
 
-function put(t: Uint32Array, x: number, y: number, color: number): void {
+export function put(t: Uint32Array, x: number, y: number, color: number): void {
   if (x >= 0 && x < S && y >= 0 && y < S) t[y * S + x] = color;
 }
 
-function line(t: Uint32Array, x0: number, y0: number, x1: number, y1: number, color: number, width = 0): void {
+export function line(t: Uint32Array, x0: number, y0: number, x1: number, y1: number, color: number, width = 0): void {
   const steps = Math.max(1, Math.ceil(Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0))));
   for (let i = 0; i <= steps; i++) {
     const u = i / steps;
@@ -34,7 +34,7 @@ function line(t: Uint32Array, x0: number, y0: number, x1: number, y1: number, co
   }
 }
 
-function ellipse(
+export function ellipse(
   t: Uint32Array,
   cx: number,
   cy: number,
@@ -52,7 +52,7 @@ function ellipse(
   }
 }
 
-function triangle(t: Uint32Array, ax: number, ay: number, bx: number, by: number, cx: number, cy: number, color: number): void {
+export function triangle(t: Uint32Array, ax: number, ay: number, bx: number, by: number, cx: number, cy: number, color: number): void {
   const minX = Math.max(0, Math.floor(Math.min(ax, bx, cx)));
   const maxX = Math.min(S - 1, Math.ceil(Math.max(ax, bx, cx)));
   const minY = Math.max(0, Math.floor(Math.min(ay, by, cy)));

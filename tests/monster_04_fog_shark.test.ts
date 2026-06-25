@@ -5,7 +5,7 @@ import { AIGoal, Cell, EntityType, Faction, FloorLevel, MonsterKind, ProjType, R
 import { World } from '../src/core/world';
 import { getMonsterEcology } from '../src/data/monster_ecology';
 import { RUMORS } from '../src/data/rumors';
-import { DEF, generateSprite } from '../src/entities/fog_shark';
+import { DEF, generateSprite, put, line, ellipse, triangle } from '../src/entities/fog_shark';
 import { MONSTERS, MONSTER_SPRITES, NEW_MONSTERS_BY_FLOOR } from '../src/entities/monster';
 import { S } from '../src/render/pixutil';
 import {
@@ -73,6 +73,51 @@ function fogShark(id: number, x: number, y: number, hp = DEF.hp): Entity {
     ai: { goal: AIGoal.IDLE, tx: 0, ty: 0, path: [], pi: 0, stuck: 0, timer: 0 },
   };
 }
+
+test('fog shark drawing helpers: put, line, ellipse, triangle', () => {
+  const t = new Uint32Array(S * S).fill(0);
+
+  // Test put
+  put(t, 10, 10, 1234);
+  assert.equal(t[10 * S + 10], 1234, 'put should draw a pixel');
+
+  // Test out-of-bounds put
+  put(t, -1, -1, 5678);
+  put(t, S, S, 5678);
+  assert.equal(t.includes(5678), false, 'put should drop out of bounds');
+
+  // Test line
+  t.fill(0);
+  line(t, 5, 5, 5, 10, 9999);
+  assert.equal(t[5 * S + 5], 9999);
+  assert.equal(t[10 * S + 5], 9999);
+  assert.equal(t[7 * S + 5], 9999);
+
+  // Test line with width
+  t.fill(0);
+  line(t, 10, 10, 10, 10, 8888, 1);
+  assert.equal(t[10 * S + 11], 8888, 'line with width should draw around center');
+
+  // Test ellipse
+  t.fill(0);
+  ellipse(t, 20, 20, 2, 2, (x, y, d) => 7777);
+  assert.equal(t[20 * S + 20], 7777, 'center of ellipse should be drawn');
+  assert.equal(t[22 * S + 20], 7777, 'edge of ellipse should be drawn');
+  assert.equal(t[23 * S + 20], 0, 'outside of ellipse should be clear');
+
+  // Test triangle
+  t.fill(0);
+  triangle(t, 30, 30, 35, 30, 30, 35, 6666);
+  assert.equal(t[30 * S + 30], 6666, 'corner of triangle should be drawn');
+  assert.equal(t[30 * S + 34], 6666, 'edge of triangle should be drawn');
+  assert.equal(t[34 * S + 30], 6666, 'edge of triangle should be drawn');
+
+  // Test degenerate triangle
+  t.fill(0);
+  triangle(t, 40, 40, 40, 40, 40, 40, 5555);
+  triangle(t, 40, 40, 45, 40, 50, 40, 5555);
+  assert.equal(t.includes(5555), false, 'collinear points should be rejected by the area threshold');
+});
 
 test('fog shark is standalone fog-pack content with sprite, ecology, and rumors', () => {
   const ecology = getMonsterEcology(MonsterKind.FOG_SHARK);
