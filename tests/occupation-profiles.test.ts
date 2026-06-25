@@ -9,6 +9,7 @@ import {
   occupationHasProfileTag,
   occupationIdsWithCraftTag,
   occupationTradeItems,
+  occupationHasTradeTag,
   occupationWorkRoomTypeWeight,
   occupationWorkRoomTypes,
   sanitizeOccupation,
@@ -71,6 +72,19 @@ test('occupation profile tags drive cross-system matching aliases', () => {
   assert.equal(occupationHasProfileTag(Occupation.CHILD, 'combat'), false);
   assert.equal(sanitizeOccupation(Occupation.PERFORMER), Occupation.PERFORMER);
   assert.equal(sanitizeOccupation(999, Occupation.TRAVELER), Occupation.TRAVELER);
+});
+
+test('occupationHasTradeTag correctly identifies trade tags for occupations', () => {
+  // Check known truthy values
+  assert.equal(occupationHasTradeTag(Occupation.LOCKSMITH, 'tools'), true);
+  assert.equal(occupationHasTradeTag(Occupation.LOCKSMITH, 'repair'), true);
+  assert.equal(occupationHasTradeTag(Occupation.SECRETARY, 'documents'), true);
+
+  // Check known falsy values (tags not on the occupation)
+  assert.equal(occupationHasTradeTag(Occupation.LOCKSMITH, 'medical'), false);
+
+  // Check undefined occupation returns false
+  assert.equal(occupationHasTradeTag(undefined, 'tools'), false);
 });
 
 test('Floor 69 worker role promotes candidate jobs into systemic occupation', () => {
