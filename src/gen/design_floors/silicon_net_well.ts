@@ -280,8 +280,18 @@ let contentRegistered = false;
 
 export function registerSiliconNetWellContent(): void {
   if (contentRegistered) return;
+
+  const questsByGiver: Record<string, SideQuestStep[]> = {};
+  for (const q of SIDE_QUESTS) {
+    if (!q.giverNpcId) continue;
+    if (!questsByGiver[q.giverNpcId]) {
+      questsByGiver[q.giverNpcId] = [];
+    }
+    questsByGiver[q.giverNpcId].push(q);
+  }
+
   for (const npcId of Object.keys(NPC_DEFS) as SiliconNpcId[]) {
-    registerFloorSideQuest(DESIGN_NPC_HOME_FLOOR_KEY, npcId, NPC_DEFS[npcId], SIDE_QUESTS.filter(q => q.giverNpcId === npcId));
+    registerFloorSideQuest(DESIGN_NPC_HOME_FLOOR_KEY, npcId, NPC_DEFS[npcId], questsByGiver[npcId] ?? []);
   }
   contentRegistered = true;
 }
