@@ -34,7 +34,7 @@ import { publishMaronaryShavingAcquired } from './maronary_shaving';
 import { spawnContract, spawnContractById, spawnGovnyakCourierContract, summarizeContracts } from './contracts';
 import { debugForcePneumomailCapsule } from './pneumomail';
 import { populationItemSummary } from './balance';
-import { getSamosborDebugLines, forceNextSamosborScale } from './samosbor';
+import { getSamosborDebugLines } from './samosbor';
 import { territoryOwnerAtIndex } from './territory';
 import { floorCatalogDebugLines } from './floor_catalog';
 import { summarizeHeatline } from './heatline';
@@ -1330,7 +1330,6 @@ export function execDebugCommand(
     }
     case 5: { // Cycle forced samosbor variant + start (full scale = global fronts)
       const variantId = cycleForcedSamosborVariant();
-      forceNextSamosborScale('full');
       state.samosborTimer = 0;
       state.msgs.push(msg(`[DEBUG] Следующий самосбор: ${variantId} (глобальный)`, state.time, '#ff0'));
       break;
@@ -1488,7 +1487,6 @@ export function execDebugCommand(
     }
     case 30: { // Force Veretar variant + start (full scale)
       forceNextSamosborVariant('veretar');
-      forceNextSamosborScale('full');
       if (!state.samosborActive) state.samosborTimer = 0;
       if (isSmokeDebugRun()) stabilizeSmokeRecovery(world, player, entities);
       state.msgs.push(msg(
@@ -1502,7 +1500,6 @@ export function execDebugCommand(
     }
     case 31: { // Force Maronary variant + start (full scale)
       forceNextSamosborVariant('maronary');
-      forceNextSamosborScale('full');
       state.samosborTimer = 0;
       state.msgs.push(msg('[DEBUG] Следующий самосбор: Маронарий (глобальный)', state.time, '#35ff66'));
       break;
@@ -1532,7 +1529,6 @@ export function execDebugCommand(
     }
     case 35: { // Force Istotit variant + start (full scale)
       forceNextSamosborVariant('istotit');
-      forceNextSamosborScale('full');
       state.samosborTimer = 0;
       state.msgs.push(msg('[DEBUG] Следующий самосбор: Истотит (глобальный)', state.time, '#d6a64b'));
       break;

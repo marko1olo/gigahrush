@@ -224,12 +224,6 @@ let randomEntityTransferAccum = 0;
 let maronaryGlowNoticeAt = -Infinity;
 let maronaryGlowCells: number[] = [];
 let playerPressureSpawnAccum = 0;
-let activeSamosborScale: 'full' = 'full';
-
-/** @deprecated Scale is always 'full' now. Kept for debug command compatibility. */
-export function forceNextSamosborScale(_scale: string): void {
-  // no-op: scale is always 'full'
-}
 let istotitShelterRoomIds: number[] = [];
 let istotitShelterCycle = -1;
 let istotitShelterFloor = FloorLevel.LIVING;
@@ -907,7 +901,6 @@ export function resetSamosborRuntimeForTests(): void {
   istotitBellFollowNoticeAt = -Infinity;
   istotitBellResistNoticeAt = -Infinity;
   fogSpawnAccum = 0;
-  activeSamosborScale = 'full';
   clearSamosborRoomSirens();
   clearSamosborFronts();
   frontTouchedCells.clear();
@@ -2259,7 +2252,6 @@ export function updateSamosbor(
   state.samosborTimer -= dt;
   if (!state.samosborActive && isSamosborWaveActive() && !isSamosborWaveDebugActive()) {
     cancelSamosborWave();
-    activeSamosborScale = 'full';
   }
 
   if (!state.samosborActive && state.samosborTimer > SAMOSBOR_WARNING_WINDOW + 0.5 && samosborWarning) {
@@ -2290,7 +2282,6 @@ export function updateSamosbor(
     activeSamosborPreviousZoneFaction = null;
     activeSamosborPreviousTerritory = [];
     activeSamosborPreviousZoneFogged = false;
-    activeSamosborScale = 'full';
     samosborDirectorAccum = 0;
     maronaryPingAccum = 0;
     randomEntityTransferAccum = 0;
@@ -2336,7 +2327,6 @@ export function updateSamosbor(
       warning.greenSourceCount,
       warning.wrongDoorIdx,
     );
-    activeSamosborScale = 'full';
     clearSamosborWarning(false, false);
 
     // Spawn the first pressure pulse. These monsters are born from samosbor,
@@ -2506,8 +2496,6 @@ export function updateSamosbor(
     queuePostSamosborHermodoorBorer(world, state);
     restoreCapturedSamosborZone(world);
     unfreezeNavigationCacheForWorld(world);
-
-    activeSamosborScale = 'full';
 
     // Full-scale fronts already mutated geometry in real-time.
     // Now stitch: generate a fresh floor and sew it into the world at touched cells.
@@ -3502,7 +3490,7 @@ export function getSamosborDebugLines(): string[] {
   const totalMonstersFromFronts = activeSamosborFronts.reduce((s, f) => s + f.monstersSpawned, 0);
 
   return [
-    `Самосбор: ${active ? active.def.displayName : '-'} | scale=${activeSamosborScale} zone=${activeSamosborZoneId >= 0 ? activeSamosborZoneId + 1 : '-'} sealed=${samosborSealed ? 'Y' : 'N'}`,
+    `Самосбор: ${active ? active.def.displayName : '-'} | scale=full zone=${activeSamosborZoneId >= 0 ? activeSamosborZoneId + 1 : '-'} sealed=${samosborSealed ? 'Y' : 'N'}`,
     `Предупреждение: ${warning ? `${warning.variantName} ${warningZone} ${warning.secondsLeft}s` : '-'}`,
     `Прошлый: ${getSamosborVariantName(last)} | Следующий: ${getSamosborVariantName(forced)}`,
     istotitLine,
