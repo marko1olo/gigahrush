@@ -290,3 +290,28 @@ test('UI orchestrator keeps graphics fatigue settings outside interface presets'
   assert.equal(uiSettingsRowAt(4, 'graphics')?.kind, 'lighting_quality');
   assert.equal(uiSettingsRowAt(6, 'graphics')?.kind, 'map_contrast');
 });
+
+test('UI orchestrator handles invalid element IDs defensively', () => {
+  resetUiSettings();
+  // @ts-expect-error - Testing invalid ID fallback logic
+  assert.equal(uiElementEnabled('non_existent_element'), false);
+  // @ts-expect-error - Testing invalid ID fallback logic
+  assert.equal(setUiElementEnabled('non_existent_element', true), false);
+  // @ts-expect-error - Testing invalid ID fallback logic
+  assert.equal(toggleUiElement('non_existent_element'), false);
+});
+
+test('UI orchestrator handles normal element toggling correctly', () => {
+  resetUiSettings();
+  // Test fallback to defaultEnabled
+  assert.equal(uiElementEnabled('messages'), false);
+
+  // Test overrides via settings dict
+  assert.equal(setUiElementEnabled('messages', true), true);
+  assert.equal(uiElementEnabled('messages'), true);
+
+  // Test locked element behavior (always returns true)
+  assert.equal(uiElementEnabled('damage_feedback'), true);
+  assert.equal(setUiElementEnabled('damage_feedback', false), true);
+  assert.equal(uiElementEnabled('damage_feedback'), true);
+});
