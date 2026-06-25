@@ -15,6 +15,7 @@ import {
   floorRunZAllowsNpcs,
   makeProceduralFloorSpec,
   type ProceduralFloorSpec,
+  storyFloorAtZ,
   zForStoryFloor,
 } from '../src/data/procedural_floors';
 import { DESIGN_FLOOR_ROUTES } from '../src/data/design_floors';
@@ -6695,4 +6696,20 @@ testGenerationMatrix('zombie apocalypse anomaly seeds a dense crowd and patient 
   assert.equal(tryZombieApocalypseInfection(gen.world, patientZero!, cappedTarget, state, state.msgs, state.time + 9), false);
   assert.equal(cappedTarget.type, EntityType.NPC);
   assert.equal(getRecentEvents(state, { tags: ['infection_cap'] }).length, 1);
+});
+
+test('storyFloorAtZ returns correct FloorLevel or undefined', () => {
+  // Known story floors
+  assert.equal(storyFloorAtZ(30), FloorLevel.MINISTRY);
+  assert.equal(storyFloorAtZ(14), FloorLevel.KVARTIRY);
+  assert.equal(storyFloorAtZ(0), FloorLevel.LIVING);
+  assert.equal(storyFloorAtZ(-26), FloorLevel.MAINTENANCE);
+  assert.equal(storyFloorAtZ(-36), FloorLevel.HELL);
+  assert.equal(storyFloorAtZ(FLOOR_RUN_VOID_Z), FloorLevel.VOID);
+
+  // Z values that are not story floors
+  assert.equal(storyFloorAtZ(100), undefined);
+  assert.equal(storyFloorAtZ(1), undefined);
+  assert.equal(storyFloorAtZ(-1), undefined);
+  assert.equal(storyFloorAtZ(-51), undefined);
 });
