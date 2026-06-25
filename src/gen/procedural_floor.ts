@@ -747,21 +747,19 @@ function applyProceduralMacroNetwork(world: World, rooms: Room[], spec: Procedur
 
   const hallIds = new Set(halls.map(room => room.id));
   const localRooms = rooms.filter(room => !hallIds.has(room.id) && room.w >= 4 && room.h >= 4);
-  const usedLocal = new Set<number>();
   for (let i = 0; i < profile.branchCount && localRooms.length > 0; i++) {
     const hall = halls[i % halls.length];
     const candidates = localRooms
-      .filter(room => !usedLocal.has(room.id))
-      .map(room => ({ room, d: macroRoomDistance(world, hall, room) }))
+      .map((room, idx) => ({ room, d: macroRoomDistance(world, hall, room), idx }))
       .sort((a, b) => a.d - b.d);
-    const picked = candidates[(spec.seed + i * 7) % Math.min(candidates.length, 6)]?.room;
+    const picked = candidates[(spec.seed + i * 7) % Math.min(candidates.length, 6)];
     if (!picked) continue;
-    usedLocal.add(picked.id);
+    localRooms.splice(picked.idx, 1);
     connectProceduralMacroPoints(
       world,
       profile,
-      roomMacroAnchor(world, hall, picked),
-      roomMacroAnchor(world, picked, hall),
+      roomMacroAnchor(world, hall, picked.room),
+      roomMacroAnchor(world, picked.room, hall),
       profile.branchWidth,
       spec.seed ^ (0xb41 + i * 101),
     );
