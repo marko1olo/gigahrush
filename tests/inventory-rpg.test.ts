@@ -43,6 +43,7 @@ import {
   scaleMonsterHp,
   spendAttrPoint,
   strHeavyWeaponSpeedMult,
+  totalXpForLevel,
   xpForLevel,
   xpForMonsterKill,
 } from '../src/systems/rpg';
@@ -678,6 +679,22 @@ test('RPG rewards, attribute spend, and scaling formulas remain stable', () => {
   assert.equal(questXpReward(difficulty), 160);
   assert.equal(questMoneyReward(difficulty), 40);
   assert.equal(ITEMS.water.type, ItemType.DRINK);
+});
+
+test('totalXpForLevel correctly computes cumulative xp', () => {
+  // xpForLevel(1) = 0
+  assert.equal(totalXpForLevel(1), 0);
+  // clamped to 1
+  assert.equal(totalXpForLevel(-5), 0);
+
+  // xpForLevel(1) + xpForLevel(2) = 0 + 100 = 100
+  assert.equal(totalXpForLevel(2), 100);
+
+  // xpForLevel(1) + xpForLevel(2) + xpForLevel(3) = 0 + 100 + 145 = 245
+  assert.equal(totalXpForLevel(3), 245);
+
+  // clamp level
+  assert.equal(totalXpForLevel(RPG_LEVEL_CAP + 10), totalXpForLevel(RPG_LEVEL_CAP));
 });
 
 test('RPG progression clamps runtime levels and attributes to the shared cap', () => {
