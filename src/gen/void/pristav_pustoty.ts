@@ -269,7 +269,7 @@ function taxSmallSafeItem(player: Entity): { itemId?: string; itemName?: string;
     if (!SAFE_TAX_IDS.has(slot.defId)) continue;
     if (def.type === ItemType.WEAPON || def.type === ItemType.TOOL || def.type === ItemType.KEY || def.type === ItemType.NOTE) continue;
     slot.count--;
-    if (slot.count <= 0) player.inventory.splice(i, 1);
+    if (slot.count <= 0) player.inventory = player.inventory.filter((_, index) => index !== i);
     return { itemId: def.id, itemName: def.name };
   }
   if (player.money !== undefined && player.money > 0) {
