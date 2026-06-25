@@ -6,6 +6,7 @@ import { World } from '../src/core/world';
 import { getFactionRel, initFactionRelations } from '../src/data/relations';
 import { applyDamageRelationPenalty, isHostile } from '../src/systems/factions';
 import { getRecentEvents } from '../src/systems/events';
+import { addNpcPlayerRelation } from '../src/systems/npc_relations';
 import { checkQuests } from '../src/systems/quests';
 import { makeGameState, makeTestEntity } from './helpers';
 
@@ -64,4 +65,53 @@ test('quest completion gives small faction gain and stronger giver relation gain
   assert.equal(getFactionRel(Faction.CITIZEN, Faction.PLAYER), 51);
   assert.equal(giver.playerRelation, 15);
   assert.equal(getRecentEvents(state, { type: 'quest_completed', limit: 1 })[0]?.data?.factionRelationDelta, 1);
+});
+
+test('addNpcPlayerRelation modifies existing personal relation', () => {
+  const npc = makeTestEntity({
+    id: 1,
+    type: EntityType.NPC,
+    faction: Faction.CITIZEN,
+    playerRelation: 10,
+  });
+
+  const newRel = addNpcPlayerRelation(npc, 15);
+  assert.equal(newRel, 25);
+  assert.equal(npc.playerRelation, 25);
+
+  const newRel2 = addNpcPlayerRelation(npc, -30);
+  assert.equal(newRel2, -5);
+  assert.equal(npc.playerRelation, -5);
+});
+
+test('addNpcPlayerRelation initializes from faction relation if not set', () => {
+  initFactionRelations();
+  const npc = makeTestEntity({
+    id: 2,
+    type: EntityType.NPC,
+    faction: Faction.CITIZEN,
+  });
+
+  const baseRel = getFactionRel(Faction.CITIZEN, Faction.PLAYER);
+
+  const newRel = addNpcPlayerRelation(npc, 10);
+  assert.equal(newRel, baseRel + 10);
+  assert.equal(npc.playerRelation, baseRel + 10);
+});
+
+test('addNpcPlayerRelation clamps the relation within [-100, 100]', () => {
+  const npc = makeTestEntity({
+    id: 3,
+    type: EntityType.NPC,
+    faction: Faction.CITIZEN,
+    playerRelation: 90,
+  });
+
+  const newRel = addNpcPlayerRelation(npc, 50);
+  assert.equal(newRel, 100);
+  assert.equal(npc.playerRelation, 100);
+
+  const newRel2 = addNpcPlayerRelation(npc, -250);
+  assert.equal(newRel2, -100);
+  assert.equal(npc.playerRelation, -100);
 });
