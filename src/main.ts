@@ -3304,79 +3304,7 @@ function updateProjectiles(dt: number): void {
       if (pt !== ProjType.FLAME && e !== nearestHit) continue;
       const hitT = pt === ProjType.FLAME ? projectilePathHitT(prevX, prevY, wx, wy, e, hitRadius) : nearestHitT;
       if (hitT <= blockingT + 0.000001) {
-        const hitX = projectilePathPoint(prevX, wx, hitT);
-        const hitY = projectilePathPoint(prevY, wy, hitT);
-        const hitZ = prevSpriteZ + (nextSpriteZ - prevSpriteZ) * hitT;
-        if (pt === ProjType.WEB) {
-          applyPaupsinaWeb(e, state.time, state.msgs, state, projectileActor(p));
-          spawnProjectileBodyImpact(world, hitX, hitY, p.sprite, pt, hitZ);
-          playProjectileBodyHitCue(p, e.x, e.y, isPlayerEntity(e));
-          p.alive = false;
-          break;
-        }
-        if (pt === ProjType.FLAME) reducePaupsinaWeb(e, state.time, state.msgs, state, projectileActor(p), 'fire');
-        if (e.hp !== undefined) {
-          const counterplayDmg = adjustMonsterProjectileDamage(e, p, baseDmg);
-          const armor = applyMonsterArmorHit(world, state, e, {
-            damage: counterplayDmg,
-            attacker: projectileActor(p),
-            weaponId: p.weapon,
-            projectileType: pt,
-          });
-          const dmg = armor.damage;
-          const debugImmortalPlayerHit = isPlayerEntity(e) && isDebugOnePunchManEnabled();
-          if (debugImmortalPlayerHit) {
-            keepDebugOnePunchManAlive(e);
-          } else {
-            e.hp -= dmg;
-            tryMonsterProjectileStagger(world, state, e, p, player.id);
-            if (e.type === EntityType.NPC && isPlayerOwnedProjectile(p)) {
-              applyDamageRelationPenalty(player.faction, e.faction, dmg, e, player, state);
-              recordFactionClashPlayerHit(state, world, player, e, dmg);
-            }
-            notifyActorDamaged(world, e, projectileActor(p), dmg, 'projectile', state.time, state);
-            const hitAngle = Math.atan2(p.vy ?? 0, p.vx ?? 0);
-            spawnBloodHit(world, hitX, hitY, hitAngle, dmg, e.type === EntityType.MONSTER, p.vx ?? 0, p.vy ?? 0, hitZ);
-            spawnProjectileBodyImpact(world, hitX, hitY, p.sprite, pt, hitZ);
-          }
-          const playerHit = isPlayerEntity(e);
-          if (playerHit && !debugImmortalPlayerHit) reportPlayerProjectileHit(p, dmg);
-          playProjectileBodyHitCue(p, e.x, e.y, playerHit);
-          if (!debugImmortalPlayerHit && e.hp <= 0) {
-            e.alive = false;
-            e.hp = 0;
-            handleKill(e, isPlayerOwnedProjectile(p), p.vx ?? 0, p.vy ?? 0, p.projGore ?? 1);
-            recordMonsterProjectileDeath(
-              world,
-              state,
-              e,
-              p,
-              projectileActor(p),
-              (target, vx, vy, gore) => handleKill(target, isPlayerOwnedProjectile(p), vx, vy, gore),
-              entities,
-            );
-          }
-        }
-        if (pt === ProjType.BFG) {
-          p.x = hitX;
-          p.y = hitY;
-          p.spriteZ = hitZ;
-          triggerExplosion(p, pt);
-        } else if (pt === ProjType.GRENADE) {
-          p.vx = -(p.vx ?? 0) * 0.4;
-          p.vy = -(p.vy ?? 0) * 0.4;
-          p.vz = (p.vz ?? 0) * 0.4;
-        } else if (p.aoeRadius) {
-          p.x = hitX;
-          p.y = hitY;
-          p.spriteZ = hitZ;
-          psiAoeExplosion(p, entities, world, state.msgs, state.time, (e2) => handleKill(e2, isPlayerOwnedProjectile(p)));
-        }
-        // Flame projectiles pierce through (don't die on hit)
-        if (pt !== ProjType.FLAME && pt !== ProjType.GRENADE) {
-          p.alive = false;
-          break;
-        } else if (pt === ProjType.GRENADE) {
+        if (processProjectileEntityCollision(p, e, pt, hitT, prevX, wx, prevY, wy, prevSpriteZ, nextSpriteZ, baseDmg)) {
           break;
         }
       }
@@ -3438,6 +3366,97 @@ function updateProjectiles(dt: number): void {
     p.x = wx;
     p.y = wy;
   }
+}
+
+function processProjectileEntityCollision(
+  p: Entity,
+  e: Entity,
+  pt: ProjType,
+  hitT: number,
+  prevX: number,
+  wx: number,
+  prevY: number,
+  wy: number,
+  prevSpriteZ: number,
+  nextSpriteZ: number,
+  baseDmg: number,
+): boolean {
+  const hitX = projectilePathPoint(prevX, wx, hitT);
+  const hitY = projectilePathPoint(prevY, wy, hitT);
+  const hitZ = prevSpriteZ + (nextSpriteZ - prevSpriteZ) * hitT;
+  if (pt === ProjType.WEB) {
+    applyPaupsinaWeb(e, state.time, state.msgs, state, projectileActor(p));
+    spawnProjectileBodyImpact(world, hitX, hitY, p.sprite, pt, hitZ);
+    playProjectileBodyHitCue(p, e.x, e.y, isPlayerEntity(e));
+    p.alive = false;
+    return true; // break
+  }
+  if (pt === ProjType.FLAME) reducePaupsinaWeb(e, state.time, state.msgs, state, projectileActor(p), 'fire');
+  if (e.hp !== undefined) {
+    const counterplayDmg = adjustMonsterProjectileDamage(e, p, baseDmg);
+    const armor = applyMonsterArmorHit(world, state, e, {
+      damage: counterplayDmg,
+      attacker: projectileActor(p),
+      weaponId: p.weapon,
+      projectileType: pt,
+    });
+    const dmg = armor.damage;
+    const debugImmortalPlayerHit = isPlayerEntity(e) && isDebugOnePunchManEnabled();
+    if (debugImmortalPlayerHit) {
+      keepDebugOnePunchManAlive(e);
+    } else {
+      e.hp -= dmg;
+      tryMonsterProjectileStagger(world, state, e, p, player.id);
+      if (e.type === EntityType.NPC && isPlayerOwnedProjectile(p)) {
+        applyDamageRelationPenalty(player.faction, e.faction, dmg, e, player, state);
+        recordFactionClashPlayerHit(state, world, player, e, dmg);
+      }
+      notifyActorDamaged(world, e, projectileActor(p), dmg, 'projectile', state.time, state);
+      const hitAngle = Math.atan2(p.vy ?? 0, p.vx ?? 0);
+      spawnBloodHit(world, hitX, hitY, hitAngle, dmg, e.type === EntityType.MONSTER, p.vx ?? 0, p.vy ?? 0, hitZ);
+      spawnProjectileBodyImpact(world, hitX, hitY, p.sprite, pt, hitZ);
+    }
+    const playerHit = isPlayerEntity(e);
+    if (playerHit && !debugImmortalPlayerHit) reportPlayerProjectileHit(p, dmg);
+    playProjectileBodyHitCue(p, e.x, e.y, playerHit);
+    if (!debugImmortalPlayerHit && e.hp <= 0) {
+      e.alive = false;
+      e.hp = 0;
+      handleKill(e, isPlayerOwnedProjectile(p), p.vx ?? 0, p.vy ?? 0, p.projGore ?? 1);
+      recordMonsterProjectileDeath(
+        world,
+        state,
+        e,
+        p,
+        projectileActor(p),
+        (target, vx, vy, gore) => handleKill(target, isPlayerOwnedProjectile(p), vx, vy, gore),
+        entities,
+      );
+    }
+  }
+  if (pt === ProjType.BFG) {
+    p.x = hitX;
+    p.y = hitY;
+    p.spriteZ = hitZ;
+    triggerExplosion(p, pt);
+  } else if (pt === ProjType.GRENADE) {
+    p.vx = -(p.vx ?? 0) * 0.4;
+    p.vy = -(p.vy ?? 0) * 0.4;
+    p.vz = (p.vz ?? 0) * 0.4;
+  } else if (p.aoeRadius) {
+    p.x = hitX;
+    p.y = hitY;
+    p.spriteZ = hitZ;
+    psiAoeExplosion(p, entities, world, state.msgs, state.time, (e2) => handleKill(e2, isPlayerOwnedProjectile(p)));
+  }
+  // Flame projectiles pierce through (don't die on hit)
+  if (pt !== ProjType.FLAME && pt !== ProjType.GRENADE) {
+    p.alive = false;
+    return true; // break
+  } else if (pt === ProjType.GRENADE) {
+    return true; // break
+  }
+  return false;
 }
 
 /* ── Explosion (grenade / BFG) — AoE damage + scorch decals ──── */
