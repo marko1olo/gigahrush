@@ -1305,7 +1305,10 @@ function chooseIstotitShelterRooms(world: World, cx: number, cy: number, count: 
   const ids: number[] = [];
   while (ids.length < count && pool.length > 0) {
     const i = Math.floor(Math.random() * pool.length);
-    ids.push(pool.splice(i, 1)[0].id);
+    const item = pool[i];
+    pool[i] = pool[pool.length - 1];
+    pool.pop();
+    ids.push(item.id);
   }
   return ids;
 }
@@ -4231,7 +4234,10 @@ function spawnMonsters(
   const count = Math.max(1, Math.round((MONSTERS_PER_SAMOSBOR + Math.floor(samosborCount * 1.5)) * variant.spawnMult));
   const slots = entitySpawnSlots(entities, EntityType.MONSTER, count);
   for (let i = 0; i < slots && corridorCells.length > 0; i++) {
-    const ci = corridorCells.splice(Math.floor(Math.random() * corridorCells.length), 1)[0];
+    const spliceIdx = Math.floor(Math.random() * corridorCells.length);
+    const ci = corridorCells[spliceIdx];
+    corridorCells[spliceIdx] = corridorCells[corridorCells.length - 1];
+    corridorCells.pop();
     const kind = pickMonsterKindForWave(floor, samosborCount);
     entities.push(createMonster(world, nextId, kind, (ci % W) + 0.5, Math.floor(ci / W) + 0.5, floor));
   }
@@ -4358,7 +4364,8 @@ function pickSamosborPlayerPressureCell(world: World, entities: Entity[], player
     const poolIdx = Math.floor(Math.random() * pool.length);
     const ci = pool[poolIdx];
     if (samosborPressureCellOccupied(entities, ci)) {
-      pool.splice(poolIdx, 1);
+      pool[poolIdx] = pool[pool.length - 1];
+      pool.pop();
       continue;
     }
     return ci;
@@ -4454,9 +4461,15 @@ function stampVeretarAreaLeak(world: World, cx: number, cy: number, radius: numb
   const maxRadius = Math.max(4, radius + 4);
   const candidates = collectVeretarLeakCandidates(world, cx, cy, maxRadius);
   for (let attempt = 0; attempt < 96 && placed < target; attempt++) {
-    const ci = candidates.length > 0
-      ? candidates.splice(Math.floor(Math.random() * candidates.length), 1)[0]
-      : world.idx(world.wrap(cx + rng(-maxRadius, maxRadius)), world.wrap(cy + rng(-maxRadius, maxRadius)));
+    let ci: number;
+    if (candidates.length > 0) {
+      const idx = Math.floor(Math.random() * candidates.length);
+      ci = candidates[idx];
+      candidates[idx] = candidates[candidates.length - 1];
+      candidates.pop();
+    } else {
+      ci = world.idx(world.wrap(cx + rng(-maxRadius, maxRadius)), world.wrap(cy + rng(-maxRadius, maxRadius)));
+    }
     const x = ci % W;
     const y = (ci / W) | 0;
     if (world.aptMask[ci]) continue;
