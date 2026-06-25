@@ -879,10 +879,10 @@ function updateActiveFactionClashes(
   entities: Entity[],
   nextId: { v: number },
 ): void {
-  for (let i = activeFactionClashes.length - 1; i >= 0; i--) {
+  let keepCount = 0;
+  for (let i = 0; i < activeFactionClashes.length; i++) {
     const clash = activeFactionClashes[i];
     if (clash.floor !== state.currentFloor) {
-      activeFactionClashes.splice(i, 1);
       continue;
     }
 
@@ -900,11 +900,14 @@ function updateActiveFactionClashes(
     const liquidatorsAlive = countAliveIds(entities, clash.liquidatorIds);
     const cultistsAlive = countAliveIds(entities, clash.cultistIds);
     const timedOut = state.time - clash.startedAt >= CLASH_TIMEOUT_SEC;
-    if (liquidatorsAlive > 0 && cultistsAlive > 0 && !timedOut) continue;
+    if (liquidatorsAlive > 0 && cultistsAlive > 0 && !timedOut) {
+      activeFactionClashes[keepCount++] = clash;
+      continue;
+    }
 
     finishFactionClash(state, world, entities, nextId, clash, liquidatorsAlive, cultistsAlive);
-    activeFactionClashes.splice(i, 1);
   }
+  activeFactionClashes.length = keepCount;
 }
 
 function finishFactionClash(
