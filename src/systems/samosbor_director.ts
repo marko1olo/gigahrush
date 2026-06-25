@@ -6,6 +6,7 @@ import {
   msg,
 } from '../core/types';
 import { World } from '../core/world';
+import { seededRandom } from '../core/rand';
 import {
   SAMOSBOR_DIRECTOR_EFFECT_FAIL_COOLDOWN,
   SAMOSBOR_DIRECTOR_MIN_INTERVAL,
@@ -248,7 +249,8 @@ function pickBeat(
 
   if (legal.length === 0 || total <= 0) return { beat: null, rejectedTop, rejectedReason, legalCount: legal.length };
 
-  let roll = Math.random() * total;
+  const rng = seededRandom(snapshot.time ^ snapshot.cycle);
+  let roll = rng() * total;
   for (const beat of legal) {
     roll -= Math.max(0, beat.weight);
     if (roll <= 0) return { beat, rejectedTop, rejectedReason, legalCount: legal.length };
@@ -378,12 +380,13 @@ function publishDirectorBeatEvent(
   });
 }
 
-function findWalkableNear(world: World, x: number, y: number, minR: number, maxR: number): { x: number; y: number } | null {
+function findWalkableNear(world: World, snapshot: SamosborDirectorSnapshot, x: number, y: number, minR: number, maxR: number): { x: number; y: number } | null {
   const bx = Math.floor(x);
   const by = Math.floor(y);
   for (let attempt = 0; attempt < 80; attempt++) {
-    const r = minR + Math.floor(Math.random() * Math.max(1, maxR - minR + 1));
-    const a = Math.random() * Math.PI * 2;
+    const rng = seededRandom(snapshot.time ^ Math.floor(x * 10) ^ Math.floor(y * 10) ^ attempt);
+    const r = minR + Math.floor(rng() * Math.max(1, maxR - minR + 1));
+    const a = rng() * Math.PI * 2;
     const sx = world.wrap(bx + Math.round(Math.cos(a) * r));
     const sy = world.wrap(by + Math.round(Math.sin(a) * r));
     if (world.cells[world.idx(sx, sy)] === Cell.FLOOR && !world.solid(sx, sy)) return { x: sx, y: sy };
@@ -434,7 +437,8 @@ function spawnPatrol(
   let spawned = 0;
   const alifeIds: number[] = [];
   for (let i = 0; i < slots; i++) {
-    const pos = findWalkableNear(world, snapshot.playerX, snapshot.playerY, 5, 12);
+    const rng = seededRandom(snapshot.time ^ snapshot.cycle ^ i);
+    const pos = findWalkableNear(world, snapshot, snapshot.playerX, snapshot.playerY, 5, 12);
     if (!pos) continue;
     const rpg = randomRPG(Math.max(1, snapshot.zoneLevel));
     const maxHp = Math.round(getMaxHp(rpg) * 1.2);
@@ -444,7 +448,7 @@ function spawnPatrol(
       type: EntityType.NPC,
       x: pos.x + 0.5,
       y: pos.y + 0.5,
-      angle: Math.random() * Math.PI * 2,
+      angle: rng() * Math.PI * 2,
       pitch: 0,
       alive: true,
       speed: 1.25,
@@ -454,9 +458,9 @@ function spawnPatrol(
       needs: freshNeeds(),
       hp: maxHp,
       maxHp,
-      money: 10 + Math.floor(Math.random() * 30),
+      money: 10 + Math.floor(rng() * 30),
       ai: { goal: AIGoal.IDLE, tx: 0, ty: 0, path: [], pi: 0, stuck: 0, timer: 0 },
-      inventory: [{ defId: 'ammo_9mm', count: 3 + Math.floor(Math.random() * 5) }],
+      inventory: [{ defId: 'ammo_9mm', count: 3 + Math.floor(rng() * 5) }],
       faction: Faction.LIQUIDATOR,
       occupation: Occupation.HUNTER,
       isTraveler: true,
@@ -567,10 +571,11 @@ function spawnAftershockMonster(
   snapshot: SamosborDirectorSnapshot,
 ): number {
   if (!canSpawnEntityType(entities, EntityType.MONSTER)) return 0;
-  const pos = findWalkableNear(world, snapshot.playerX, snapshot.playerY, 7, 14);
+  const pos = findWalkableNear(world, snapshot, snapshot.playerX, snapshot.playerY, 7, 14);
   if (!pos) return 0;
+  const rng = seededRandom(snapshot.time ^ snapshot.cycle ^ nextId.v);
   const kinds = [MonsterKind.SBORKA, MonsterKind.POLZUN, MonsterKind.SHADOW];
-  const kind = kinds[Math.floor(Math.random() * kinds.length)];
+  const kind = kinds[Math.floor(rng() * kinds.length)];
   const def = MONSTERS[kind];
   const rpg = randomRPG(Math.max(1, snapshot.zoneLevel));
   const hpBase = scaleMonsterHp(def.hp, Math.max(1, snapshot.zoneLevel));
@@ -580,7 +585,7 @@ function spawnAftershockMonster(
     type: EntityType.MONSTER,
     x: pos.x + 0.5,
     y: pos.y + 0.5,
-    angle: Math.random() * Math.PI * 2,
+    angle: rng() * Math.PI * 2,
     pitch: 0,
     alive: true,
     speed: scaleMonsterSpeed(def.speed, Math.max(1, snapshot.zoneLevel)),
