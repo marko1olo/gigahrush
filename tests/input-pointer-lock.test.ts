@@ -125,6 +125,48 @@ test('canvas click requests pointer lock only when gameplay capture is allowed',
   }
 });
 
+test('synchronous requestPointerLock exceptions are caught silently', () => {
+  const env = installInputDom();
+  try {
+    env.canvas.requestPointerLock = () => {
+      throw new Error('sync error');
+    };
+    const unbind = bindInput(createInput(), env.canvas as unknown as HTMLCanvasElement, {
+      shouldRequestPointerLock: () => true,
+    });
+
+    assert.doesNotThrow(() => {
+      env.canvas.dispatch('click');
+    });
+
+    unbind();
+  } finally {
+    env.restore();
+  }
+});
+
+test('asynchronous requestPointerLock rejections are caught silently', async () => {
+  const env = installInputDom();
+  try {
+    env.canvas.requestPointerLock = () => Promise.reject(new Error('async error')) as any;
+
+    const unbind = bindInput(createInput(), env.canvas as unknown as HTMLCanvasElement, {
+      shouldRequestPointerLock: () => true,
+    });
+
+    assert.doesNotThrow(() => {
+      env.canvas.dispatch('click');
+    });
+
+    // Wait a tick to ensure the unhandled rejection hook would fire if uncaught
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    unbind();
+  } finally {
+    env.restore();
+  }
+});
+
 test('canvas click does not request pointer lock after a menu click closes the menu', () => {
   const env = installInputDom();
   try {
