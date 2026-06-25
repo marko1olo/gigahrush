@@ -203,15 +203,15 @@ uniform highp usampler2D uSurfaceIdx; // W×W: cell → atlas slot (0=none, 1+ =
 uniform int uDetailFloorCount;
 uniform vec4 uDetailFloor0;      // family code, density 0..1, scale, seed
 uniform vec4 uDetailFloor1;
-uniform vec4 uDetailFloorColor0; // RGB color, unused alpha
-uniform vec4 uDetailFloorColor1;
+uniform vec3 uDetailFloorColor0; // RGB color
+uniform vec3 uDetailFloorColor1;
 uniform int uDetailWallCount;
 uniform vec4 uDetailWall0;
 uniform vec4 uDetailWall1;
-uniform vec4 uDetailWallColor0;
-uniform vec4 uDetailWallColor1;
+uniform vec3 uDetailWallColor0;
+uniform vec3 uDetailWallColor1;
 uniform vec4 uDetailLightDust;
-uniform vec4 uDetailLightDustColor;
+uniform vec3 uDetailLightDustColor;
 
 /* ── Room-scale surface material profile ─────────────────────── */
 uniform vec4 uSurfaceProfileA;   // floor pattern, wall band, ceiling pattern, trim
@@ -901,7 +901,7 @@ float detailMaterialBoost(int family, uint texId, bool floorSurface) {
   return 0.0;
 }
 
-vec3 applyMicroDetailSlot(vec3 base, vec4 slot, vec4 slotColor, bool floorSurface, uint texId, ivec2 cell, int tx, int ty) {
+vec3 applyMicroDetailSlot(vec3 base, vec4 slot, vec3 slotColor, bool floorSurface, uint texId, ivec2 cell, int tx, int ty) {
   int family = int(slot.x + 0.5);
   float density = clamp(slot.y, 0.0, 1.0);
   if (family <= 0 || density <= 0.0) return base;
@@ -912,7 +912,7 @@ vec3 applyMicroDetailSlot(vec3 base, vec4 slot, vec4 slotColor, bool floorSurfac
   int seed = int(slot.w);
   float cellRoll = noiseI(cell.x + family * 23, cell.y - family * 31, seed + 17);
   float local = noiseI(cell.x * 7 + tx * 13, cell.y * 11 + ty * 5, seed + family * 41);
-  vec3 detail = slotColor.rgb;
+  vec3 detail = slotColor;
   float scale = max(0.25, slot.z);
   float a = 0.0;
 
@@ -1010,7 +1010,7 @@ vec3 applyLightDust(vec3 base, vec2 fragCoord, float dist, float rayDX, float ra
   float fogFade = 1.0 - smoothstep(0.18, 0.82, fogF);
   float sparkle = step(1.0 - density * 0.13, noiseI(int(fragCoord.x) * 5, int(fragCoord.y) * 7, int(uDetailLightDust.w) + 601));
   float a = sparkle * beam * nearFade * fogFade * density * 0.55;
-  return min(base + uDetailLightDustColor.rgb * a, vec3(1.0));
+  return min(base + uDetailLightDustColor * a, vec3(1.0));
 }
 
 vec3 shadeWall(uint texId, vec3 base, ivec2 cell, int side, int texX, int texY, float dist, float lit, float beam) {
@@ -2077,7 +2077,7 @@ function uploadVisualDetailSlot(
 ): void {
   if (!row) {
     gl.uniform4f(uniforms[slotName], 0, 0, 1, 0);
-    gl.uniform4f(uniforms[colorName], 0, 0, 0, 0);
+    gl.uniform3f(uniforms[colorName], 0, 0, 0);
     return;
   }
   gl.uniform4f(
@@ -2087,12 +2087,11 @@ function uploadVisualDetailSlot(
     Math.max(0.1, Math.min(4, row.scale)),
     row.seed & 0xffff,
   );
-  gl.uniform4f(
+  gl.uniform3f(
     uniforms[colorName],
     row.color[0] / 255,
     row.color[1] / 255,
     row.color[2] / 255,
-    1,
   );
 }
 
