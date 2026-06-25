@@ -4008,27 +4008,42 @@ function formatFloorZ(z: number): string {
   return z > 0 ? `+${z}` : `${z}`;
 }
 
-function debugTeleportTo(target: DebugTeleportTarget): void {
-  restorePlayerBeforeWorldBoundary();
-  const fromFloor = state.currentFloor;
-  captureCurrentAlifeFloor();
-  const savedInventory = player.inventory ? [...player.inventory] : [];
-  const savedNeeds = player.needs ? { ...player.needs } : freshNeeds();
-  const savedHp = player.hp ?? 100;
-  const savedMaxHp = player.maxHp ?? 100;
-  const savedWeapon = player.weapon ?? '';
-  const savedTool = player.tool ?? '';
-  const savedRpg = player.rpg ? { ...player.rpg } : freshRPG(1);
-  const savedStatuses = player.statuses?.map(s => ({ ...s }));
-  const savedMoney = player.money ?? 100;
-  const savedAngle = player.angle;
-  captureCurrentFloorMemory();
+interface SavedPlayerTeleportState {
+  inventory: Item[];
+  needs: Needs;
+  hp: number;
+  maxHp: number;
+  weapon: string;
+  tool: string;
+  rpg: RPGStats;
+  statuses: any[] | undefined;
+  money: number;
+  angle: number;
+}
 
+function savePlayerStateForTeleport(): SavedPlayerTeleportState {
+  return {
+    inventory: player.inventory ? [...player.inventory] : [],
+    needs: player.needs ? { ...player.needs } : freshNeeds(),
+    hp: player.hp ?? 100,
+    maxHp: player.maxHp ?? 100,
+    weapon: player.weapon ?? '',
+    tool: player.tool ?? '',
+    rpg: player.rpg ? { ...player.rpg } : freshRPG(1),
+    statuses: player.statuses?.map(s => ({ ...s })),
+    money: player.money ?? 100,
+    angle: player.angle,
+  };
+}
+
+function updateStateForTeleportTarget(target: DebugTeleportTarget, fromFloor: FloorLevel): void {
   state.showDebug = false;
   state.currentFloor = target.floor;
   clearPseudoliftActive(state, entities);
+
   if (target.floor === FloorLevel.VOID) setVoidEntryFromFloor(state, fromFloor);
   else setVoidEntryFromFloor(state, undefined);
+
   if (target.spec) {
     const run = ensureFloorRunState(state, target.floor);
     run.currentZ = target.spec.z;
@@ -4039,9 +4054,78 @@ function debugTeleportTo(target: DebugTeleportTarget): void {
   } else {
     forceFloorRunStory(state, target.floor);
   }
+
   const floorInstances = ensureFloorInstanceState(state, target.floor);
   floorInstances.current = null;
   floorInstances.lastStableFloor = target.floor;
+}
+
+function restorePlayerAfterTeleport(gen: FloorGeneration, savedState: SavedPlayerTeleportState): Entity {
+  return {
+    id: nextEntityId.v++,
+    type: EntityType.NPC,
+    x: gen.spawnX,
+    y: gen.spawnY,
+    angle: savedState.angle,
+    pitch: 0,
+    alive: true,
+    speed: HUMANOID_BASE_MOVE_SPEED,
+    sprite: 0,
+    needs: savedState.needs,
+    hp: savedState.hp,
+    maxHp: savedState.maxHp,
+    inventory: savedState.inventory,
+    weapon: savedState.weapon,
+    tool: savedState.tool,
+    money: savedState.money,
+    rpg: savedState.rpg,
+    statuses: savedState.statuses,
+    name: playerDisplayName(),
+    faction: Faction.PLAYER,
+    ...playerAlifeFields(player),
+  };
+}
+
+function publishDebugTeleportEvent(target: DebugTeleportTarget, fromFloor: FloorLevel): void {
+  state.msgs.push(msg(`[DEBUG] Телепорт: ${target.label}`, state.time, target.color));
+  const transitionTags = ['floor', 'floor_transition', 'debug', target.spec ? 'procedural' : target.designFloorId ? 'design_floor' : 'story'];
+  for (const tag of proceduralAnomalyEventTags(target.spec)) {
+    if (!transitionTags.includes(tag)) transitionTags.push(tag);
+  }
+  const anomalyData = proceduralAnomalyEventData(target.spec);
+  publishEvent(state, {
+    type: 'floor_transition',
+    zoneId: world.zoneMap[world.idx(Math.floor(player.x), Math.floor(player.y))],
+    x: player.x,
+    y: player.y,
+    actorId: player.id,
+    actorName: player.name,
+    actorFaction: player.faction,
+    severity: 3,
+    privacy: 'local',
+    tags: transitionTags,
+    data: {
+      fromFloor,
+      toFloor: target.floor,
+      debugTeleport: true,
+      floorZ: target.spec?.z ?? target.z,
+      designFloor: target.designFloorId,
+      proceduralFloor: target.spec?.key,
+      proceduralSeed: target.spec?.seed,
+      proceduralDanger: target.spec?.danger,
+      ...anomalyData,
+    },
+  });
+}
+
+function debugTeleportTo(target: DebugTeleportTarget): void {
+  restorePlayerBeforeWorldBoundary();
+  const fromFloor = state.currentFloor;
+  captureCurrentAlifeFloor();
+  const savedState = savePlayerStateForTeleport();
+  captureCurrentFloorMemory();
+
+  updateStateForTeleportTarget(target, fromFloor);
 
   scheduleLoading(() => {
     resetGeneratedFloorPopulationState();
@@ -4056,29 +4140,7 @@ function debugTeleportTo(target: DebugTeleportTarget): void {
     nextEntityId.v = entities.reduce((mx, e) => Math.max(mx, e.id), 0) + 1;
     materializeCurrentAlifeFloor();
 
-    player = {
-      id: nextEntityId.v++,
-      type: EntityType.NPC,
-      x: gen.spawnX,
-      y: gen.spawnY,
-      angle: savedAngle,
-      pitch: 0,
-      alive: true,
-      speed: HUMANOID_BASE_MOVE_SPEED,
-      sprite: 0,
-      needs: savedNeeds,
-      hp: savedHp,
-      maxHp: savedMaxHp,
-      inventory: savedInventory,
-      weapon: savedWeapon,
-      tool: savedTool,
-      money: savedMoney,
-      rpg: savedRpg,
-      statuses: savedStatuses,
-      name: playerDisplayName(),
-      faction: Faction.PLAYER,
-      ...playerAlifeFields(player),
-    };
+    player = restorePlayerAfterTeleport(gen, savedState);
     entities.push(player);
     applyContractFloorHooks(state, world, entities, nextEntityId, player);
     syncPlayerRuntimeBaselines();
@@ -4092,35 +4154,7 @@ function debugTeleportTo(target: DebugTeleportTarget): void {
     resetPsiState();
     clearLiftArachnaActive(state);
 
-    state.msgs.push(msg(`[DEBUG] Телепорт: ${target.label}`, state.time, target.color));
-    const transitionTags = ['floor', 'floor_transition', 'debug', target.spec ? 'procedural' : target.designFloorId ? 'design_floor' : 'story'];
-    for (const tag of proceduralAnomalyEventTags(target.spec)) {
-      if (!transitionTags.includes(tag)) transitionTags.push(tag);
-    }
-    const anomalyData = proceduralAnomalyEventData(target.spec);
-    publishEvent(state, {
-      type: 'floor_transition',
-      zoneId: world.zoneMap[world.idx(Math.floor(player.x), Math.floor(player.y))],
-      x: player.x,
-      y: player.y,
-      actorId: player.id,
-      actorName: player.name,
-      actorFaction: player.faction,
-      severity: 3,
-      privacy: 'local',
-      tags: transitionTags,
-      data: {
-        fromFloor,
-        toFloor: target.floor,
-        debugTeleport: true,
-        floorZ: target.spec?.z ?? target.z,
-        designFloor: target.designFloorId,
-        proceduralFloor: target.spec?.key,
-        proceduralSeed: target.spec?.seed,
-        proceduralDanger: target.spec?.danger,
-        ...anomalyData,
-      },
-    });
+    publishDebugTeleportEvent(target, fromFloor);
 
     if (!target.spec && !target.designFloorId && target.floor === FloorLevel.HELL) {
       onHellArrival(player, state);
