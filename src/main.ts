@@ -1573,12 +1573,15 @@ function isVoidReturnPortalFloor(targetState: GameState = state): boolean {
 function removeCreatorFromResolvedVoid(): void {
   const portal = getVoidReturnPortalState();
   if (!portal?.active || portal.used || !isVoidReturnPortalFloor()) return;
-  for (let i = entities.length - 1; i >= 0; i--) {
+  let writeIdx = 0;
+  for (let i = 0; i < entities.length; i++) {
     const e = entities[i];
     if (e.type === EntityType.MONSTER && e.monsterKind === MonsterKind.CREATOR) {
-      entities.splice(i, 1);
+      continue;
     }
+    entities[writeIdx++] = e;
   }
+  entities.length = writeIdx;
 }
 
 function restoreVoidReturnPortalForCurrentWorld(): boolean {
@@ -7446,14 +7449,17 @@ function cleanupDeadEntities(dt: number): number {
   if (deadCleanupAccum < 0.5) return 0;
   deadCleanupAccum = 0;
   let removed = 0;
-  for (let i = entities.length - 1; i >= 0; i--) {
+  let writeIdx = 0;
+  for (let i = 0; i < entities.length; i++) {
     const e = entities[i];
     if (!e.alive && !isNativePlayerBodyEntity(e)) {
       if (e.type === EntityType.NPC) recordAlifeNpcDeath(state, e);
-      entities.splice(i, 1);
       removed++;
+    } else {
+      entities[writeIdx++] = e;
     }
   }
+  entities.length = writeIdx;
   return removed;
 }
 
