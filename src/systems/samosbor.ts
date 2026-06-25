@@ -2669,19 +2669,21 @@ export function rebuildWorld(
   const aptCount = world.apartmentRoomCount;
 
   // Kill projectiles and remove loose visible props outside apartments
-  for (let i = entities.length - 1; i >= 0; i--) {
+  let writeIdx = 0;
+  for (let i = 0; i < entities.length; i++) {
     const e = entities[i];
     if (e.type === EntityType.PROJECTILE) {
-      entities.splice(i, 1);
       continue;
     }
     if (e.type === EntityType.ITEM_DROP || e.type === EntityType.BILLBOARD) {
       const rid = world.roomMap[world.idx(Math.floor(e.x), Math.floor(e.y))];
       if (rid < 0 || rid >= aptCount) {
-        entities.splice(i, 1);
+        continue;
       }
     }
+    entities[writeIdx++] = e;
   }
+  entities.length = writeIdx;
 
   // Regenerate the entire volatile maze
   replaceRouteCueStateForRebuild(world);
