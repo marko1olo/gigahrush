@@ -274,25 +274,22 @@ function placeVoronoiDoors<T>(
     .sort((a, b) => a.parentId - b.parentId || a.score - b.score);
   const parent = new Int32Array(sites.length);
   for (let i = 0; i < parent.length; i++) parent[i] = i;
-  const find = (v: number): number => {
-    let p = v;
-    while (parent[p] !== p) p = parent[p];
-    while (parent[v] !== v) {
-      const n = parent[v];
-      parent[v] = p;
-      v = n;
-    }
-    return p;
-  };
 
-  const selected = new Set<string>();
+  const selected = new Set<number>();
   const ordered: VoronoiRidgeCandidate[] = [];
   for (const candidate of candidates) {
-    const a = find(candidate.a);
-    const b = find(candidate.b);
+    let a = candidate.a;
+    let b = candidate.b;
+
+    while (a !== parent[a]) a = parent[a] = parent[parent[a]];
+    while (b !== parent[b]) b = parent[b] = parent[parent[b]];
+
     if (a === b) continue;
     parent[a] = b;
-    selected.add(pairKey(candidate.a, candidate.b));
+
+    const ca = candidate.a;
+    const cb = candidate.b;
+    selected.add(ca < cb ? (ca << 16) | cb : (cb << 16) | ca);
     ordered.push(candidate);
   }
 
@@ -300,7 +297,11 @@ function placeVoronoiDoors<T>(
   let extras = 0;
   for (const candidate of candidates) {
     if (extras >= extraTarget) break;
-    const key = pairKey(candidate.a, candidate.b);
+
+    const ca = candidate.a;
+    const cb = candidate.b;
+    const key = ca < cb ? (ca << 16) | cb : (cb << 16) | ca;
+
     if (selected.has(key)) continue;
     selected.add(key);
     ordered.push(candidate);
@@ -312,10 +313,6 @@ function placeVoronoiDoors<T>(
     if (placeVoronoiDoor(world, candidate, roomIdBySite, options)) doors++;
   }
   return doors;
-}
-
-function pairKey(a: number, b: number): string {
-  return a < b ? `${a}:${b}` : `${b}:${a}`;
 }
 
 function voronoiDoorCandidateOpenable(world: World, candidate: VoronoiRidgeCandidate, roomIdBySite: Int32Array): boolean {
