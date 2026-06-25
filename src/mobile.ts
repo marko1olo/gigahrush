@@ -110,7 +110,23 @@ function makeButton(className: string, label: string, ariaLabel: string): HTMLBu
   return button;
 }
 
-export function createMobileControls(input: InputState, options: MobileControlsOptions): MobileControls {
+interface MobileDomElements {
+  root: HTMLDivElement;
+  rotate: HTMLDivElement;
+  movePad: HTMLButtonElement;
+  moveThumb: HTMLSpanElement;
+  lookPad: HTMLButtonElement;
+  lookThumb: HTMLSpanElement;
+  interact: HTMLButtonElement;
+  fire: HTMLButtonElement;
+  fullscreen: HTMLButtonElement;
+  actionRail: HTMLDivElement;
+  actionUp: HTMLButtonElement;
+  actionSelect: HTMLButtonElement;
+  actionDown: HTMLButtonElement;
+}
+
+function buildMobileDom(): MobileDomElements {
   const root = document.createElement('div');
   root.className = 'mobile-controls';
   root.setAttribute('aria-hidden', 'false');
@@ -142,6 +158,30 @@ export function createMobileControls(input: InputState, options: MobileControlsO
 
   root.append(rotate, fire, fullscreen, movePad, lookPad, interact, actionRail);
   document.body.append(root);
+
+  return {
+    root,
+    rotate,
+    movePad,
+    moveThumb,
+    lookPad,
+    lookThumb,
+    interact,
+    fire,
+    fullscreen,
+    actionRail,
+    actionUp,
+    actionSelect,
+    actionDown,
+  };
+}
+
+export function createMobileControls(input: InputState, options: MobileControlsOptions): MobileControls {
+  const dom = buildMobileDom();
+  const {
+    root, rotate, movePad, moveThumb, lookPad, lookThumb,
+    interact, fire, fullscreen, actionUp, actionSelect, actionDown
+  } = dom;
 
   let enabled = false;
   let selectedAction = 0;
