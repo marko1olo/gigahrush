@@ -1,0 +1,16 @@
+- What changed and why?
+Extracted phases of `generateKvartiry` into discrete helper functions to improve maintainability and simplify a 365+ line generation function without changing external behavior.
+- Where is the new gameplay visible or which debug path reaches it?
+No new gameplay, this is purely a code health cleanup. The behavior of Kvartiry floor generation should remain identical.
+- Which floor, route, zone, room or system verifies it?
+Kvartiry floor generation tests and runtime systems using it.
+- How does it react to samosbor, or why is it exempt?
+Exempt: this is floor initialization code only.
+- Does it touch A-Life, factions, economy, quests, events, save/load, localization or render?
+It shifts around the startup instantiation code for A-Life/Items/Entities on the Kvartiry floor but does not change the systems.
+- What cap, cadence, cache, dirty flag or placement-time work prevents frame-time growth?
+N/A. This runs once during floor generation.
+- Were docs updated only for shipped facts?
+No docs required updates.
+- Which checks passed, or why were checks skipped?
+Typecheck, Unit tests (specifically matching "kvartiry" logic), and Content Audit passed.
