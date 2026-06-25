@@ -6,6 +6,7 @@
 import { EntityType, type Entity } from '../core/types';
 import { type World } from '../core/world';
 
+import { getMaxEntityId } from '../core/world';
 export type PoiDecisionHookKind =
   | 'quest'
   | 'contract'
@@ -43,7 +44,7 @@ export type PoiGenerationMetadataDef = Omit<PoiGenerationMetadata, 'roomIds' | '
 const poiGenerationMetadataByWorld = new WeakMap<World, PoiGenerationMetadata[]>();
 
 export function syncNextEntityId(entities: Entity[], nextId: number): number {
-  return entities.reduce((mx, e) => Math.max(mx, e.id), nextId) + 1;
+  return getMaxEntityId(entities, nextId) + 1;
 }
 
 function uniqueNumbers(values: readonly number[]): number[] {

@@ -23,6 +23,7 @@ import {
 } from '../shared';
 import type { FloorGeneration } from '../floor_manifest';
 
+import { getMaxEntityId } from '../../core/world';
 export const DARKNESS_DESIGN_FLOOR_ID = 'darkness' as const;
 export const DARKNESS_FUTURE_Z = -48;
 export const DARKNESS_PRESERVED_NAME_ID = 'tamara_belova' as const;
@@ -1899,7 +1900,7 @@ export function expandDarknessRouteGeometry(world: World, entities: Entity[], rn
   addDeadLampRow(world, junction, tollGate);
   expandDarknessMidMicroLayer(world, rng);
 
-  const nextId = { v: entities.reduce((mx, e) => Math.max(mx, e.id), 0) + 1 };
+  const nextId = { v: getMaxEntityId(entities, 0) + 1 };
   const shadowCount = 4 + Math.floor(rng() * 3);
   for (let i = 0; i < shadowCount; i++) {
     const x = i % 2 === 0 ? southPocket.x + Math.floor(rng() * 5) - 2 : tollGate.x + 2 + Math.floor(rng() * 6);

@@ -22,6 +22,7 @@ import { Spr, monsterSpr } from '../../render/sprite_index';
 import { runHellContent } from './content_manifest';
 import { buildHellGeometry, imprintHellArenaValleys, type HellGeometry } from './geometry';
 
+import { getMaxEntityId } from '../../core/world';
 const PSI_IDS = ['psi_strike', 'psi_rupture', 'psi_madness', 'psi_storm', 'psi_brainburn'];
 
 const HELL_POPULATION = HELL_POPULATION_PROFILE;
@@ -78,7 +79,7 @@ export function generateHell(generationSeed = 0x4d594153): { world: World; entit
     0,
     hellGeometry,
   );
-  nextId = entities.reduce((mx, e) => Math.max(mx, e.id), nextId) + 1;
+  nextId = getMaxEntityId(entities, nextId) + 1;
 
   seedLoot(world, entities, { v: nextId });
 

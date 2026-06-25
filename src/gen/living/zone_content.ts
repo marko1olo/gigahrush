@@ -11,6 +11,7 @@ import { type Entity } from '../../core/types';
 import { World } from '../../core/world';
 import { genLog } from '../log';
 
+import { getMaxEntityId } from '../../core/world';
 /* ── Generator function signature ────────────────────────────── */
 export type ZoneContentGenerator = (
   world: World,
@@ -94,7 +95,7 @@ export function runZoneContentModules(
       zone.cx, zone.cy,
     );
     // Update nextId from entities array
-    nextId.v = entities.reduce((mx, e) => Math.max(mx, e.id), nextId.v - 1) + 1;
+    nextId.v = getMaxEntityId(entities, nextId.v - 1) + 1;
     // Protect new rooms from volatile wipe
     world.apartmentRoomCount = Math.max(world.apartmentRoomCount, result.nextRoomId);
   }

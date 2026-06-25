@@ -538,6 +538,7 @@ import {
   sanitizeCharacterSex,
 } from './data/demographics';
 
+import { getMaxEntityId } from './core/world';
 /* ── Canvas setup ─────────────────────────────────────────────── */
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const hudCanvas = document.getElementById('hud') as HTMLCanvasElement;
@@ -1302,7 +1303,7 @@ function continueDeathAsAlifePopulationNpc(): boolean {
 
     world = replaceWorldFromGeneration(null, gen);
     entities = gen.entities;
-    nextEntityId.v = entities.reduce((mx, e) => Math.max(mx, e.id), 0) + 1;
+    nextEntityId.v = getMaxEntityId(entities, 0) + 1;
     materializeCurrentAlifeFloor(snapshot.floorKey);
 
     let host = entities.find(e => e.type === EntityType.NPC && e.alifeId === snapshot.id && e.alive);
@@ -1721,7 +1722,7 @@ function returnFromVoidPortalToLiving(portal: VoidReturnPortalState): void {
     const gen = loaded.generation;
     world = replaceWorldFromGeneration(null, gen);
     entities = gen.entities;
-    nextEntityId.v = entities.reduce((mx, e) => Math.max(mx, e.id), 0) + 1;
+    nextEntityId.v = getMaxEntityId(entities, 0) + 1;
     materializeCurrentAlifeFloor(currentFloorMemoryKey());
 
     player = {
@@ -2168,7 +2169,7 @@ function initGame(runSeedOverride?: number): void {
   stampCeilingHeights(gen.world);
   world = replaceWorldFromGeneration(null, gen);
   entities = gen.entities;
-  nextEntityId.v = entities.reduce((mx, e) => Math.max(mx, e.id), 0) + 1;
+  nextEntityId.v = getMaxEntityId(entities, 0) + 1;
 
   player = {
     id: nextEntityId.v++,
@@ -3854,7 +3855,7 @@ function switchFloor(
 
     world = replaceWorldFromGeneration(null, gen);
     entities = gen.entities;
-    nextEntityId.v = entities.reduce((mx, e) => Math.max(mx, e.id), 0) + 1;
+    nextEntityId.v = getMaxEntityId(entities, 0) + 1;
     materializeCurrentAlifeFloor(currentFloorMemoryKey());
 
     const routeLiftMirror = !activeFloorInstance && !route.activeInstance && generatedRunEntry && departureLiftAnchors.length > 0
@@ -4053,7 +4054,7 @@ function debugTeleportTo(target: DebugTeleportTarget): void {
 
     world = replaceWorldFromGeneration(null, gen);
     entities = gen.entities;
-    nextEntityId.v = entities.reduce((mx, e) => Math.max(mx, e.id), 0) + 1;
+    nextEntityId.v = getMaxEntityId(entities, 0) + 1;
     materializeCurrentAlifeFloor();
 
     player = {
@@ -4791,7 +4792,7 @@ function loadGame(): boolean {
 
       world = replaceWorldFromGeneration(null, gen);
       entities = gen.entities;
-      nextEntityId.v = entities.reduce((mx, e) => Math.max(mx, e.id), 0) + 1;
+      nextEntityId.v = getMaxEntityId(entities, 0) + 1;
       materializeCurrentAlifeFloor(generatedRunEntry ? floorRunEntryFloorKey(generatedRunEntry) : currentFloorMemoryKey());
       const spawn = safeSpawnNear(
         finiteNumber(dataPlayer.x, gen.spawnX),
