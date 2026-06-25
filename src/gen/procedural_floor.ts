@@ -3179,8 +3179,10 @@ function seedProceduralLootInventory(room: Room, kind: ContainerKind, spec: Proc
 
 function uniqueTags(tags: readonly string[]): string[] {
   const out: string[] = [];
+  const seen = new Set<string>();
   for (const tag of tags) {
-    if (!tag || out.includes(tag)) continue;
+    if (!tag || seen.has(tag)) continue;
+    seen.add(tag);
     out.push(tag);
   }
   return out;
