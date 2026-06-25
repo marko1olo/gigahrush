@@ -4962,6 +4962,168 @@ function cleanSurfaceArea(cx: number, cy: number, radiusCells: number): number {
   return cleanWorldSurfaceArea(world, cx, cy, radiusCells);
 }
 
+function handleUvSpotlightTool(toolId: string, wantsToolUse: boolean, player: any): boolean {
+  if (toolId !== UV_SPOTLIGHT_ID) return false;
+  if (!wantsToolUse || _toolActionCd > 0) return true;
+  const result = useUvSpotlight(world, entities, player, state);
+  if (result) {
+    state.uvBeamFx = UV_SPOTLIGHT_FX_SECONDS;
+    state.uvBeamLen = result.beamLen;
+    playSoundAt(playEnergyImpact, player.x, player.y);
+    _toolActionCd = 0.28;
+  } else {
+    _toolActionCd = 0.35;
+  }
+  return true;
+}
+
+function handleChalkTool(toolId: string, wantsToolUse: boolean, player: any): boolean {
+  if (toolId !== CHALK_ITEM_ID) return false;
+  if (!wantsToolUse || _toolActionCd > 0) return true;
+  const def = ITEMS[CHALK_ITEM_ID];
+  if (drawEquippedChalkPixel(world, player, def?.durability ?? 0)) {
+    consumeToolDurability(player, 0.1, state.msgs, state.time, state);
+    _toolActionCd = 0.04;
+  } else {
+    _toolActionCd = 0.12;
+  }
+  return true;
+}
+
+function handleJackhammerTool(toolId: string, wantsToolUse: boolean, cx: number, cy: number, ci: number, player: any): boolean {
+  if (toolId !== 'jackhammer') return false;
+  if (!wantsToolUse || _toolActionCd > 0) return true;
+  if (world.hermoWall[ci] || world.aptMask[ci]) {
+    state.msgs.push(msg('Гермостена неразрушима', state.time, '#f44'));
+    _toolActionCd = 0.2;
+    return true;
+  }
+  if (world.cells[ci] !== Cell.WALL) {
+    state.msgs.push(msg('Отбойнику нужна стена перед вами', state.time, '#f84'));
+    _toolActionCd = 0.25;
+    return true;
+  }
+  setCellToFloor(cx, cy);
+  updateWorldData(world);
+  consumeToolDurability(player, 1, state.msgs, state.time, state);
+  state.msgs.push(msg('Стена разрушена', state.time, '#fc4'));
+  playBreak();
+  notifyLiftArachnaNoise(world, player, state, 'jackhammer');
+  _toolActionCd = 0.2;
+  return true;
+}
+
+function handleDoorKitTool(toolId: string, useEdge: boolean, cx: number, cy: number, ci: number, player: any): boolean {
+  if (toolId !== 'door_kit') return false;
+  if (!useEdge) return true;
+  if (world.aptMask[ci]) {
+    state.msgs.push(msg('В защищенных укрытиях строительство запрещено', state.time, '#f44'));
+    return true;
+  }
+  if (world.cells[ci] !== Cell.FLOOR) {
+    state.msgs.push(msg('Дверь ставится на проход (пол)', state.time, '#f84'));
+    return true;
+  }
+  const l = world.cells[world.idx(cx - 1, cy)];
+  const r = world.cells[world.idx(cx + 1, cy)];
+  const u = world.cells[world.idx(cx, cy - 1)];
+  const d = world.cells[world.idx(cx, cy + 1)];
+  const horizontal = (l === Cell.WALL && r === Cell.WALL && u !== Cell.WALL && d !== Cell.WALL);
+  const vertical = (u === Cell.WALL && d === Cell.WALL && l !== Cell.WALL && r !== Cell.WALL);
+  if (!horizontal && !vertical) {
+    state.msgs.push(msg('Нужен проход между двумя стенами', state.time, '#f84'));
+    return true;
+  }
+  const roomA = world.roomMap[world.idx(cx - 1, cy)] >= 0 ? world.roomMap[world.idx(cx - 1, cy)] : world.roomMap[world.idx(cx, cy - 1)];
+  const roomB = world.roomMap[world.idx(cx + 1, cy)] >= 0 ? world.roomMap[world.idx(cx + 1, cy)] : world.roomMap[world.idx(cx, cy + 1)];
+  world.cells[ci] = Cell.DOOR;
+  world.markCellsDirty();
+  world.doors.set(ci, { idx: ci, state: DoorState.CLOSED, roomA, roomB, keyId: '', timer: 0 });
+  addRuntimeDoorToRoom(roomA, ci);
+  addRuntimeDoorToRoom(roomB, ci);
+  updateWorldData(world);
+  consumeToolDurability(player, 1, state.msgs, state.time, state);
+  state.msgs.push(msg('Дверь установлена', state.time, '#6cf'));
+  playDoor();
+  return true;
+}
+
+function handleBlockKitTool(toolId: string, useEdge: boolean, ci: number, player: any): boolean {
+  if (toolId !== 'block_kit') return false;
+  if (!useEdge) return true;
+  const pci = world.idx(Math.floor(player.x), Math.floor(player.y));
+  if (ci === pci) {
+    state.msgs.push(msg('Нельзя замуровать себя', state.time, '#f84'));
+    return true;
+  }
+  if (world.cells[ci] !== Cell.FLOOR && world.cells[ci] !== Cell.DOOR) {
+    state.msgs.push(msg('Блок ставится на пол/дверь', state.time, '#f84'));
+    return true;
+  }
+  if (world.aptMask[ci] || world.hermoWall[ci]) {
+    state.msgs.push(msg('В защищенных укрытиях строительство запрещено', state.time, '#f44'));
+    return true;
+  }
+  if (world.cells[ci] === Cell.DOOR) world.removeDoorAt(ci);
+  world.cells[ci] = Cell.WALL;
+  world.markCellsDirty();
+  const room = world.roomAt(player.x, player.y);
+  world.wallTex[ci] = room?.wallTex ?? Tex.CONCRETE;
+  world.markWallTexDirty();
+  updateWorldData(world);
+  consumeToolDurability(player, 1, state.msgs, state.time, state);
+  state.msgs.push(msg('Блок стены установлен', state.time, '#6cf'));
+  return true;
+}
+
+function handleVacuumTool(toolId: string, wantsToolUse: boolean, player: any): boolean {
+  if (toolId !== 'vacuum') return false;
+  if (!wantsToolUse || _toolActionCd > 0) return true;
+  const pcx = Math.floor(player.x);
+  const pcy = Math.floor(player.y);
+  let clearedFog = 0;
+  for (let oy = -1; oy <= 1; oy++) {
+    for (let ox = -1; ox <= 1; ox++) {
+      const fi = world.idx(pcx + ox, pcy + oy);
+      if (world.fog[fi] <= 0) continue;
+      world.fog[fi] = 0;
+      clearedFog++;
+    }
+  }
+  if (clearedFog > 0) {
+    world.markFogDirty();
+    consumeToolDurability(player, 1, state.msgs, state.time, state);
+    state.msgs.push(msg(`Пылесос втянул туман рядом: ${clearedFog} кл.`, state.time, '#c8f'));
+  } else {
+    state.msgs.push(msg('Рядом нет тумана', state.time, '#888'));
+  }
+  _toolActionCd = 0.15;
+  return true;
+}
+
+function handleCleanupTool(toolId: string, wantsToolUse: boolean, tx: number, ty: number, player: any): boolean {
+  const cleanupTool = cleanupToolProfile(toolId);
+  if (!cleanupTool) return false;
+  if (!wantsToolUse || _toolActionCd > 0) return true;
+  const cleaned = cleanSurfaceArea(tx, ty, cleanupTool.surfaceRadius);
+  const cleanedHazards = cleanCellHazardsNear(world, tx, ty, cleanupTool.hazardRadius, state, player, cleanupTool.hazardReason);
+  consumeToolDurability(player, cleanupTool.wear, state.msgs, state.time, state);
+  if (cleaned > 0 || cleanedHazards > 0) {
+    notifyCleanupToolUse(player, world, state, tx, ty, cleaned, cleanedHazards);
+    if (cleanupTool.relationEvery > 0) _cleanRelAccum += 1;
+    if (cleanupTool.relationEvery > 0 && _cleanRelAccum >= cleanupTool.relationEvery) {
+      _cleanRelAccum = 0;
+      const owner = territoryFactionAt(world, player.x, player.y);
+      if (owner !== null) {
+        addFactionRelMutual(Faction.PLAYER, owner, 1);
+        state.msgs.push(msg('Местные ценят вашу уборку (+отношения)', state.time, '#8f8'));
+      }
+    }
+  }
+  _toolActionCd = cleanupTool.cooldown;
+  return true;
+}
+
 function updateEquippedTool(dt: number, actor = player): void {
   if (!actor.alive) {
     _prevToolUse = input.use || input.mouseUse;
@@ -4997,31 +5159,8 @@ function updateEquippedTool(dt: number, actor = player): void {
     return;
   }
 
-  if (toolId === UV_SPOTLIGHT_ID) {
-    if (!wantsToolUse || _toolActionCd > 0) return;
-    const result = useUvSpotlight(world, entities, player, state);
-    if (result) {
-      state.uvBeamFx = UV_SPOTLIGHT_FX_SECONDS;
-      state.uvBeamLen = result.beamLen;
-      playSoundAt(playEnergyImpact, player.x, player.y);
-      _toolActionCd = 0.28;
-    } else {
-      _toolActionCd = 0.35;
-    }
-    return;
-  }
-
-  if (toolId === CHALK_ITEM_ID) {
-    if (!wantsToolUse || _toolActionCd > 0) return;
-    const def = ITEMS[CHALK_ITEM_ID];
-    if (drawEquippedChalkPixel(world, player, def?.durability ?? 0)) {
-      consumeToolDurability(player, 0.1, state.msgs, state.time, state);
-      _toolActionCd = 0.04;
-    } else {
-      _toolActionCd = 0.12;
-    }
-    return;
-  }
+  if (handleUvSpotlightTool(toolId, wantsToolUse, player)) return;
+  if (handleChalkTool(toolId, wantsToolUse, player)) return;
 
   const lookRange = 1.4;
   const tx = player.x + Math.cos(player.angle) * lookRange;
@@ -5038,133 +5177,11 @@ function updateEquippedTool(dt: number, actor = player): void {
     }
   }
 
-  if (toolId === 'jackhammer') {
-    if (!wantsToolUse || _toolActionCd > 0) return;
-    if (world.hermoWall[ci] || world.aptMask[ci]) {
-      state.msgs.push(msg('Гермостена неразрушима', state.time, '#f44'));
-      _toolActionCd = 0.2;
-      return;
-    }
-    if (world.cells[ci] !== Cell.WALL) {
-      state.msgs.push(msg('Отбойнику нужна стена перед вами', state.time, '#f84'));
-      _toolActionCd = 0.25;
-      return;
-    }
-    setCellToFloor(cx, cy);
-    updateWorldData(world);
-    consumeToolDurability(player, 1, state.msgs, state.time, state);
-    state.msgs.push(msg('Стена разрушена', state.time, '#fc4'));
-    playBreak();
-    notifyLiftArachnaNoise(world, player, state, 'jackhammer');
-    _toolActionCd = 0.2;
-    return;
-  }
-
-  if (toolId === 'door_kit') {
-    if (!useEdge) return;
-    if (world.aptMask[ci]) {
-      state.msgs.push(msg('В защищенных укрытиях строительство запрещено', state.time, '#f44'));
-      return;
-    }
-    if (world.cells[ci] !== Cell.FLOOR) {
-      state.msgs.push(msg('Дверь ставится на проход (пол)', state.time, '#f84'));
-      return;
-    }
-    const l = world.cells[world.idx(cx - 1, cy)];
-    const r = world.cells[world.idx(cx + 1, cy)];
-    const u = world.cells[world.idx(cx, cy - 1)];
-    const d = world.cells[world.idx(cx, cy + 1)];
-    const horizontal = (l === Cell.WALL && r === Cell.WALL && u !== Cell.WALL && d !== Cell.WALL);
-    const vertical = (u === Cell.WALL && d === Cell.WALL && l !== Cell.WALL && r !== Cell.WALL);
-    if (!horizontal && !vertical) {
-      state.msgs.push(msg('Нужен проход между двумя стенами', state.time, '#f84'));
-      return;
-    }
-    const roomA = world.roomMap[world.idx(cx - 1, cy)] >= 0 ? world.roomMap[world.idx(cx - 1, cy)] : world.roomMap[world.idx(cx, cy - 1)];
-    const roomB = world.roomMap[world.idx(cx + 1, cy)] >= 0 ? world.roomMap[world.idx(cx + 1, cy)] : world.roomMap[world.idx(cx, cy + 1)];
-    world.cells[ci] = Cell.DOOR;
-    world.markCellsDirty();
-    world.doors.set(ci, { idx: ci, state: DoorState.CLOSED, roomA, roomB, keyId: '', timer: 0 });
-    addRuntimeDoorToRoom(roomA, ci);
-    addRuntimeDoorToRoom(roomB, ci);
-    updateWorldData(world);
-    consumeToolDurability(player, 1, state.msgs, state.time, state);
-    state.msgs.push(msg('Дверь установлена', state.time, '#6cf'));
-    playDoor();
-    return;
-  }
-
-  if (toolId === 'block_kit') {
-    if (!useEdge) return;
-    const pci = world.idx(Math.floor(player.x), Math.floor(player.y));
-    if (ci === pci) {
-      state.msgs.push(msg('Нельзя замуровать себя', state.time, '#f84'));
-      return;
-    }
-    if (world.cells[ci] !== Cell.FLOOR && world.cells[ci] !== Cell.DOOR) {
-      state.msgs.push(msg('Блок ставится на пол/дверь', state.time, '#f84'));
-      return;
-    }
-    if (world.aptMask[ci] || world.hermoWall[ci]) {
-      state.msgs.push(msg('В защищенных укрытиях строительство запрещено', state.time, '#f44'));
-      return;
-    }
-    if (world.cells[ci] === Cell.DOOR) world.removeDoorAt(ci);
-    world.cells[ci] = Cell.WALL;
-    world.markCellsDirty();
-    const room = world.roomAt(player.x, player.y);
-    world.wallTex[ci] = room?.wallTex ?? Tex.CONCRETE;
-    world.markWallTexDirty();
-    updateWorldData(world);
-    consumeToolDurability(player, 1, state.msgs, state.time, state);
-    state.msgs.push(msg('Блок стены установлен', state.time, '#6cf'));
-    return;
-  }
-
-  const cleanupTool = cleanupToolProfile(toolId);
-  if (cleanupTool) {
-    if (!wantsToolUse || _toolActionCd > 0) return;
-    const cleaned = cleanSurfaceArea(tx, ty, cleanupTool.surfaceRadius);
-    const cleanedHazards = cleanCellHazardsNear(world, tx, ty, cleanupTool.hazardRadius, state, player, cleanupTool.hazardReason);
-    consumeToolDurability(player, cleanupTool.wear, state.msgs, state.time, state);
-    if (cleaned > 0 || cleanedHazards > 0) {
-      notifyCleanupToolUse(player, world, state, tx, ty, cleaned, cleanedHazards);
-      if (cleanupTool.relationEvery > 0) _cleanRelAccum += 1;
-      if (cleanupTool.relationEvery > 0 && _cleanRelAccum >= cleanupTool.relationEvery) {
-        _cleanRelAccum = 0;
-        const owner = territoryFactionAt(world, player.x, player.y);
-        if (owner !== null) {
-          addFactionRelMutual(Faction.PLAYER, owner, 1);
-          state.msgs.push(msg('Местные ценят вашу уборку (+отношения)', state.time, '#8f8'));
-        }
-      }
-    }
-    _toolActionCd = cleanupTool.cooldown;
-    return;
-  }
-
-  if (toolId === 'vacuum') {
-    if (!wantsToolUse || _toolActionCd > 0) return;
-    const pcx = Math.floor(player.x);
-    const pcy = Math.floor(player.y);
-    let clearedFog = 0;
-    for (let oy = -1; oy <= 1; oy++) {
-      for (let ox = -1; ox <= 1; ox++) {
-        const fi = world.idx(pcx + ox, pcy + oy);
-        if (world.fog[fi] <= 0) continue;
-        world.fog[fi] = 0;
-        clearedFog++;
-      }
-    }
-    if (clearedFog > 0) {
-      world.markFogDirty();
-      consumeToolDurability(player, 1, state.msgs, state.time, state);
-      state.msgs.push(msg(`Пылесос втянул туман рядом: ${clearedFog} кл.`, state.time, '#c8f'));
-    } else {
-      state.msgs.push(msg('Рядом нет тумана', state.time, '#888'));
-    }
-    _toolActionCd = 0.15;
-  }
+  if (handleJackhammerTool(toolId, wantsToolUse, cx, cy, ci, player)) return;
+  if (handleDoorKitTool(toolId, useEdge, cx, cy, ci, player)) return;
+  if (handleBlockKitTool(toolId, useEdge, ci, player)) return;
+  if (handleCleanupTool(toolId, wantsToolUse, tx, ty, player)) return;
+  if (handleVacuumTool(toolId, wantsToolUse, player)) return;
 }
 
 /* ── Menu input handling (runs regardless of pause state) ─────── */
