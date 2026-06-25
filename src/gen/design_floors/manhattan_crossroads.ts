@@ -23,7 +23,7 @@ import {
   type WorldContainer,
 } from '../../core/types';
 import { REACH_GATE_KEY, REACH_GATE_NONE, World, auditReachability } from '../../core/world';
-import { withSeededRandom } from '../../core/rand';
+import { withSeededRandom, SeedRng } from '../../core/rand';
 import { freshNeeds } from '../../data/catalog';
 import { designNpcFloorKey, type PlotNpcDef, registerFloorSideQuest } from '../../data/plot';
 import { MONSTERS } from '../../entities/monster';
@@ -1662,6 +1662,7 @@ function spawnPlotNpc(
 }
 
 function spawnAmbientNpc(
+  rng: SeedRng,
   entities: Entity[],
   nextId: { v: number },
   name: string,
@@ -1677,7 +1678,7 @@ function spawnAmbientNpc(
     type: EntityType.NPC,
     x: x + 0.5,
     y: y + 0.5,
-    angle: Math.random() * Math.PI * 2,
+    angle: rng.random() * Math.PI * 2,
     pitch: 0,
     alive: true,
     speed: occupation === Occupation.HUNTER ? 1.15 : 1.0,
@@ -1687,7 +1688,7 @@ function spawnAmbientNpc(
     needs: freshNeeds(),
     hp: faction === Faction.LIQUIDATOR ? 135 : 85,
     maxHp: faction === Faction.LIQUIDATOR ? 135 : 85,
-    money: 10 + Math.floor(Math.random() * 35),
+    money: 10 + Math.floor(rng.random() * 35),
     ai: { goal: AIGoal.WANDER, tx: x, ty: y, path: [], pi: 0, stuck: 0, timer: 0 },
     inventory: inventory.map(i => ({ ...i })),
     weapon,
@@ -1698,7 +1699,7 @@ function spawnAmbientNpc(
   });
 }
 
-function spawnCrossroadsNpcs(world: World, entities: Entity[], nextId: { v: number }, rooms: KeyRooms): CrossroadsNpcIds {
+function spawnCrossroadsNpcs(rng: SeedRng, world: World, entities: Entity[], nextId: { v: number }, rooms: KeyRooms): CrossroadsNpcIds {
   const militsiya = spawnPlotNpc(
     entities,
     nextId,
@@ -1739,26 +1740,26 @@ function spawnCrossroadsNpcs(world: World, entities: Entity[], nextId: { v: numb
     { weapon: 'knife' },
   );
 
-  spawnAmbientNpc(entities, nextId, 'Патрульный у делителя', 512, 486, Faction.LIQUIDATOR, Occupation.HUNTER, [
+  spawnAmbientNpc(rng, entities, nextId, 'Патрульный у делителя', 512, 486, Faction.LIQUIDATOR, Occupation.HUNTER, [
     { defId: 'ammo_9mm', count: 5 },
   ]);
-  spawnAmbientNpc(entities, nextId, 'Патрульная у южной зебры', 528, 538, Faction.LIQUIDATOR, Occupation.HUNTER, [
+  spawnAmbientNpc(rng, entities, nextId, 'Патрульная у южной зебры', 528, 538, Faction.LIQUIDATOR, Occupation.HUNTER, [
     { defId: 'bandage', count: 1 },
   ]);
-  spawnAmbientNpc(entities, nextId, 'Торговец с бордюра', 398, 520, Faction.CITIZEN, Occupation.STOREKEEPER, [
+  spawnAmbientNpc(rng, entities, nextId, 'Торговец с бордюра', 398, 520, Faction.CITIZEN, Occupation.STOREKEEPER, [
     { defId: 'water', count: 1 },
     { defId: 'bread', count: 2 },
   ]);
-  spawnAmbientNpc(entities, nextId, 'Дорожный бродяга', 690, 600, Faction.WILD, Occupation.TRAVELER, [
+  spawnAmbientNpc(rng, entities, nextId, 'Дорожный бродяга', 690, 600, Faction.WILD, Occupation.TRAVELER, [
     { defId: 'pipe', count: 1 },
   ]);
-  spawnTollCrowd(entities, nextId);
-  spawnTrafficBands(world, entities, nextId);
+  spawnTollCrowd(rng, entities, nextId);
+  spawnTrafficBands(rng, world, entities, nextId);
 
   return { militsiya, granny, dima, ksu };
 }
 
-function spawnTollCrowd(entities: Entity[], nextId: { v: number }): void {
+function spawnTollCrowd(rng: SeedRng, entities: Entity[], nextId: { v: number }): void {
   const spots: readonly [number, number, Faction, Occupation, string][] = [
     [506, 542, Faction.CITIZEN, Occupation.TRAVELER, 'Очередник у платной зебры'],
     [509, 545, Faction.CITIZEN, Occupation.HOUSEWIFE, 'Женщина с талоном перехода'],
@@ -1775,13 +1776,14 @@ function spawnTollCrowd(entities: Entity[], nextId: { v: number }): void {
   ];
   for (let i = 0; i < Math.min(CROSSROADS_TOLL_CROWD_CAP, spots.length); i++) {
     const [x, y, faction, occupation, name] = spots[i];
-    spawnAmbientNpc(entities, nextId, name, x, y, faction, occupation, [
+    spawnAmbientNpc(rng, entities, nextId, name, x, y, faction, occupation, [
       { defId: i % 3 === 0 ? 'water_coupon' : 'bread', count: 1 },
     ], faction === Faction.LIQUIDATOR ? 'makarov' : undefined);
   }
 }
 
 function spawnTrafficBandNpc(
+  rng: SeedRng,
   world: World,
   entities: Entity[],
   nextId: { v: number },
@@ -1794,10 +1796,10 @@ function spawnTrafficBandNpc(
   weapon?: string,
 ): void {
   const pos = nearestFloorCell(world, x, y);
-  spawnAmbientNpc(entities, nextId, name, pos.x, pos.y, faction, occupation, [{ defId: item, count: 1 }], weapon);
+  spawnAmbientNpc(rng, entities, nextId, name, pos.x, pos.y, faction, occupation, [{ defId: item, count: 1 }], weapon);
 }
 
-function spawnTrafficBands(world: World, entities: Entity[], nextId: { v: number }): void {
+function spawnTrafficBands(rng: SeedRng, world: World, entities: Entity[], nextId: { v: number }): void {
   const spots: readonly [string, number, number, Faction, Occupation, string, string?][] = [
     ['Дикий с неверного съезда', 684, 596, Faction.WILD, Occupation.ALCOHOLIC, 'pipe', 'pipe'],
     ['Бетонный счетчик поворота', 690, 604, Faction.WILD, Occupation.TRAVELER, 'cigs', 'knife'],
@@ -1836,7 +1838,7 @@ function spawnTrafficBands(world: World, entities: Entity[], nextId: { v: number
   ];
   for (let i = 0; i < Math.min(CROSSROADS_TRAFFIC_BAND_CAP, spots.length); i++) {
     const [name, x, y, faction, occupation, item, weapon] = spots[i];
-    spawnTrafficBandNpc(world, entities, nextId, name, x, y, faction, occupation, item, weapon);
+    spawnTrafficBandNpc(rng, world, entities, nextId, name, x, y, faction, occupation, item, weapon);
   }
 }
 
@@ -1854,7 +1856,7 @@ function nearestFloorCell(world: World, x: number, y: number): { x: number; y: n
   return { x: world.wrap(x), y: world.wrap(y) };
 }
 
-function spawnMonster(world: World, entities: Entity[], nextId: { v: number }, kind: MonsterKind, x: number, y: number, level: number): void {
+function spawnMonster(rng: SeedRng, world: World, entities: Entity[], nextId: { v: number }, kind: MonsterKind, x: number, y: number, level: number): void {
   const pos = nearestFloorCell(world, x, y);
   const def = MONSTERS[kind];
   const hp = scaleMonsterHp(def.hp, level);
@@ -1863,7 +1865,7 @@ function spawnMonster(world: World, entities: Entity[], nextId: { v: number }, k
     type: EntityType.MONSTER,
     x: pos.x + 0.5,
     y: pos.y + 0.5,
-    angle: Math.random() * Math.PI * 2,
+    angle: rng.random() * Math.PI * 2,
     pitch: 0,
     alive: true,
     speed: scaleMonsterSpeed(def.speed, level),
@@ -1878,12 +1880,12 @@ function spawnMonster(world: World, entities: Entity[], nextId: { v: number }, k
   entities.push(monster);
 }
 
-function spawnRoadHazards(world: World, entities: Entity[], nextId: { v: number }, rooms: KeyRooms): void {
-  spawnMonster(world, entities, nextId, MonsterKind.REBAR, rooms.cargo.x + rooms.cargo.w - 7, rooms.cargo.y + 8, 4);
-  spawnMonster(world, entities, nextId, MonsterKind.REBAR, rooms.cargo.x + 8, rooms.cargo.y + rooms.cargo.h - 7, 4);
-  spawnMonster(world, entities, nextId, MonsterKind.SHADOW, rooms.wrongTurn.x + rooms.wrongTurn.w - 12, rooms.wrongTurn.y + 8, 5);
-  spawnMonster(world, entities, nextId, MonsterKind.NELYUD, 704, 602, 4);
-  spawnMonster(world, entities, nextId, MonsterKind.EYE, 512, 600, 4);
+function spawnRoadHazards(rng: SeedRng, world: World, entities: Entity[], nextId: { v: number }, rooms: KeyRooms): void {
+  spawnMonster(rng, world, entities, nextId, MonsterKind.REBAR, rooms.cargo.x + rooms.cargo.w - 7, rooms.cargo.y + 8, 4);
+  spawnMonster(rng, world, entities, nextId, MonsterKind.REBAR, rooms.cargo.x + 8, rooms.cargo.y + rooms.cargo.h - 7, 4);
+  spawnMonster(rng, world, entities, nextId, MonsterKind.SHADOW, rooms.wrongTurn.x + rooms.wrongTurn.w - 12, rooms.wrongTurn.y + 8, 5);
+  spawnMonster(rng, world, entities, nextId, MonsterKind.NELYUD, 704, 602, 4);
+  spawnMonster(rng, world, entities, nextId, MonsterKind.EYE, 512, 600, 4);
 }
 
 function dropItem(entities: Entity[], nextId: { v: number }, x: number, y: number, defId: string, count = 1): void {
@@ -2176,6 +2178,7 @@ export function measureManhattanCrossroadsDecisionMetrics(generation: FloorGener
 
 export function generateManhattanCrossroadsDesignFloor(seed = MANHATTAN_CROSSROADS_SEED): FloorGeneration {
   return withSeededRandom(seed, () => {
+    const rng = new SeedRng(seed);
     const world = new World();
     const entities: Entity[] = [];
     const nextId = { v: 1 };
@@ -2197,9 +2200,9 @@ export function generateManhattanCrossroadsDesignFloor(seed = MANHATTAN_CROSSROA
     sanitizeDoors(world);
     applyZones(world);
 
-    const npcIds = spawnCrossroadsNpcs(world, entities, nextId, rooms);
+    const npcIds = spawnCrossroadsNpcs(rng, world, entities, nextId, rooms);
     seedContainersAndDrops(world, entities, nextId, rooms, npcIds);
-    spawnRoadHazards(world, entities, nextId, rooms);
+    spawnRoadHazards(rng, world, entities, nextId, rooms);
 
     world.bakeLights();
 
