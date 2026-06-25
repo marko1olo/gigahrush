@@ -6398,21 +6398,40 @@ function carveCommunalChord(world: World, spec: ProceduralFloorSpec, a: Room, b:
 function pickCommunalServiceRooms(rooms: Room[]): Room[] {
   const used = new Set<number>();
   const out: Room[] = [];
-  for (const type of [RoomType.KITCHEN, RoomType.BATHROOM, RoomType.STORAGE, RoomType.SMOKING, RoomType.COMMON] as const) {
-    const room = rooms
-      .filter(candidate => candidate.type === type && candidate.w >= 4 && candidate.h >= 4 && !used.has(candidate.id))
-      .sort((a, b) => (b.w * b.h) - (a.w * a.h))[0];
-    if (room) {
+
+  let bestByType: Partial<Record<RoomType, Room>> = {};
+
+  for (let i = 0; i < rooms.length; i++) {
+    const r = rooms[i];
+    if (r.w >= 4 && r.h >= 4) {
+      const existing = bestByType[r.type];
+      if (!existing || (r.w * r.h) > (existing.w * existing.h)) {
+        bestByType[r.type] = r;
+      }
+    }
+  }
+
+  const typesToFind = [RoomType.KITCHEN, RoomType.BATHROOM, RoomType.STORAGE, RoomType.SMOKING, RoomType.COMMON];
+  for (let i = 0; i < typesToFind.length; i++) {
+    const type = typesToFind[i];
+    const room = bestByType[type];
+    if (room && !used.has(room.id)) {
       used.add(room.id);
       out.push(room);
     }
   }
-  for (const room of [...rooms].sort((a, b) => (b.w * b.h) - (a.w * a.h))) {
-    if (out.length >= 5) break;
-    if (used.has(room.id) || room.type === RoomType.CORRIDOR) continue;
-    used.add(room.id);
-    out.push(room);
+
+  if (out.length < 5) {
+    const sortedRooms = [...rooms].sort((a, b) => (b.w * b.h) - (a.w * a.h));
+    for (let i = 0; i < sortedRooms.length; i++) {
+      if (out.length >= 5) break;
+      const room = sortedRooms[i];
+      if (used.has(room.id) || room.type === RoomType.CORRIDOR) continue;
+      used.add(room.id);
+      out.push(room);
+    }
   }
+
   return out;
 }
 
