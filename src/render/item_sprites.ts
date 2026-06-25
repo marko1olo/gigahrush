@@ -15533,270 +15533,206 @@ function drawSubstrateSackSprite(t: Uint32Array, seed: number): void {
 }
 
 function drawMiscSprite(t: Uint32Array, seed: number, p: Palette, defId: string): void {
-  if (defId === 'strange_clot') {
-    drawStrangeClotSprite(t, seed);
-    return;
-  }
-  if (defId === 'substrate_sack') {
-    drawSubstrateSackSprite(t, seed);
-    return;
-  }
-  if (defId === 'unsigned_order') {
-    drawUnsignedOrderSprite(t, seed);
-    return;
-  }
-  if (defId === 'valve_tag') {
-    drawValveTagSprite(t, seed);
-    return;
-  }
-  if (defId === 'spore_print') {
-    drawSporePrintSprite(t, seed);
-    return;
-  }
-  if (defId === 'spring') {
-    drawSpringSprite(t, seed);
-    return;
-  }
-  if (defId === 'zhek_seal') {
-    drawZhekSealSprite(t, seed);
-    return;
-  }
-  if (defId === 'voluntary_receipt') {
-    drawVoluntaryReceiptSprite(t, seed);
-    return;
-  }
-  if (defId === 'soap_72') {
-    drawSoap72Sprite(t, seed);
-    return;
-  }
-  if (defId === 'rubber_strip') {
-    drawRubberStripSprite(t, seed);
-    return;
-  }
-  if (defId === 'seal_wax') {
-    drawSealWaxSprite(t, seed);
-    return;
-  }
-  if (defId === 'sealed_complaint') {
-    drawSealedComplaintSprite(t, seed);
-    return;
-  }
-  if (defId === 'siren_instruction') {
-    drawSirenInstructionSprite(t, seed);
-    return;
-  }
-  if (defId === 'pressure_logbook') {
-    drawPressureLogbookSprite(t, seed);
-    return;
-  }
-  if (defId === 'samosbor_tally') {
-    drawSamosborTallySprite(t, seed);
-    return;
-  }
-  if (defId === 'record_exposure_notice') {
-    drawRecordExposureNoticeSprite(t, seed);
-    return;
-  }
-  if (defId === 'relay_diagram') {
-    drawRelayDiagramSprite(t, seed);
-    return;
-  }
-  if (defId === 'resident_trinket_box') {
-    drawResidentTrinketBoxSprite(t, seed);
-    return;
-  }
-  if (defId === 'psychiatrist_referral') {
-    drawPsychiatristReferralSprite(t, seed);
-    return;
-  }
-  if (defId === 'pump_passport') {
-    drawPumpPassportSprite(t, seed);
-    return;
-  }
-  if (defId === 'neighbor_complaint') {
-    drawNeighborComplaintSprite(t, seed);
-    return;
-  }
-  if (defId === 'meat_rune') {
-    drawMeatRuneSprite(t, seed);
-    return;
-  }
-  if (defId === 'metal_sheet') {
-    drawMetalSheetSprite(t, seed);
-    return;
-  }
-  if (defId === 'metro_ticket') {
-    drawMetroTicketSprite(t, seed);
-    return;
-  }
-  if (defId === 'missing_record_file') {
-    drawMissingRecordFileSprite(t, seed);
-    return;
-  }
-  if (defId === 'liquidator_token') {
-    drawLiquidatorTokenSprite(t, seed);
-    return;
-  }
-  if (defId === 'market_weight_scale') {
-    drawMarketWeightScaleSprite(t, seed);
-    return;
-  }
-  if (defId === 'lamp_bulb') {
-    drawLampBulbSprite(t, seed);
-    return;
-  }
-  if (defId === 'lift_scheme') {
-    drawLiftSchemeSprite(t, seed);
-    return;
-  }
-  if (defId === 'party_portrait_pin') {
-    drawPartyPortraitPinSprite(t, seed);
-    return;
-  }
-  if (defId === 'personal_file_copy') {
-    drawPersonalFileCopyDocumentSprite(t, seed);
-    return;
-  }
-  if (defId === 'ink_bottle') {
-    drawInkBottleSprite(t, seed);
-    return;
-  }
-  if (defId === 'inspection_mirror') {
-    drawInspectionMirrorSprite(t, seed);
-    return;
-  }
-  if (defId === 'alcohol_bottle') {
-    drawAlcoholBottleSprite(t, seed);
-    return;
-  }
-  if (defId === 'acid_bottle') {
-    drawAcidBottleSprite(t, seed);
-    return;
-  }
-  if (defId === 'book') {
-    drawBookSprite(t, seed);
-    return;
-  }
-  if (defId === 'borrowed_kitchen_key') {
-    drawBorrowedKitchenKeySprite(t, seed);
-    return;
-  }
-  if (defId === 'container_key_label') {
-    drawContainerKeyLabelSprite(t, seed);
-    return;
-  }
-  if (defId === 'ballot') {
-    drawBallotSprite(t, seed);
-    return;
-  }
-  if (defId === 'blank_form') {
-    drawBlankFormSprite(t, seed);
-    return;
-  }
-  if (defId === 'brown_slime_cleanup_act') {
-    drawBrownSlimeCleanupActSprite(t, seed);
-    return;
-  }
-  if (defId === 'caravan_route') {
-    drawCaravanRouteSprite(t, seed);
-    return;
-  }
-  if (defId === 'cult_supply_list') {
-    drawCultSupplyListSprite(t, seed);
-    return;
-  }
-  if (defId === 'denunciation') {
-    drawDenunciationSprite(t, seed);
-    return;
-  }
-  if (defId === 'dice_bone') {
-    drawDiceBoneSprite(t, seed);
-    return;
-  }
-  if (defId === 'checkers_board') {
-    drawCheckersBoardSprite(t, seed);
-    return;
-  }
-
-  if (defId === 'domino_box') {
-    drawDominoBoxSprite(t, seed);
-    return;
-  }
-  if (defId === 'fuse') {
-    drawFuseSprite(t, seed);
-    return;
-  }
-  if (defId === 'gear') {
-    drawGearSprite(t, seed);
-    return;
-  }
-  if (defId === 'glass_shard') {
-    drawGlassShardSprite(t, seed);
-    return;
-  }
-  if (defId === 'child_map') {
-    drawChildMapSprite(t, seed);
-    return;
-  }
-  if (defId === 'cigs') {
-    drawCigsSprite(t, seed);
-    return;
-  }
-  if (defId === 'circuit_board') {
-    drawCircuitBoardSprite(t, seed);
-    return;
-  }
-  if (defId === 'govnyak_courier_package') {
-    drawGovnyakCourierPackageSprite(t, seed);
-    return;
-  }
-  if (defId === 'gunstock') {
-    drawGunstockSprite(t, seed);
-    return;
-  }
-  if (defId === 'filter_layer') {
-    drawFilterLayerSprite(t, seed);
-    return;
-  }
-  if (defId === 'filter_receipt') {
-    drawFilterReceiptSprite(t, seed);
-    return;
-  }
-  if (defId === 'idol_chernobog') {
-    drawIdolChernobogSprite(t, seed);
-    return;
-  }
-  if (defId === 'import_toiletpaper') {
-    drawImportToiletpaperSprite(t, seed);
-    return;
-  }
-  if (defId === 'toiletpaper') {
-    drawToiletpaperSprite(t, seed);
-    return;
-  }
   if (defId.includes('card_deck')) {
     drawCardDeckSprite(t, seed);
     return;
   }
-  if (defId === 'diver_route_tag') {
-    drawDiverRouteTagSprite(t, seed);
-    return;
-  }
-  if (defId === 'duct_tape') {
-    drawDuctTapeSprite(t, seed);
-    return;
-  }
-  if (defId === 'elevator_override_form') {
-    drawElevatorOverrideFormSprite(t, seed);
-    return;
-  }
-  if (defId === 'emergency_roster') {
-    drawEmergencyRosterSprite(t, seed);
-    return;
-  }
-  if (defId === 'empty_roks_tank') {
-    drawEmptyRoksTankSprite(t, seed);
-    return;
+  switch (defId) {
+    case 'strange_clot':
+      drawStrangeClotSprite(t, seed);
+      return;
+    case 'substrate_sack':
+      drawSubstrateSackSprite(t, seed);
+      return;
+    case 'unsigned_order':
+      drawUnsignedOrderSprite(t, seed);
+      return;
+    case 'valve_tag':
+      drawValveTagSprite(t, seed);
+      return;
+    case 'spore_print':
+      drawSporePrintSprite(t, seed);
+      return;
+    case 'spring':
+      drawSpringSprite(t, seed);
+      return;
+    case 'zhek_seal':
+      drawZhekSealSprite(t, seed);
+      return;
+    case 'voluntary_receipt':
+      drawVoluntaryReceiptSprite(t, seed);
+      return;
+    case 'soap_72':
+      drawSoap72Sprite(t, seed);
+      return;
+    case 'rubber_strip':
+      drawRubberStripSprite(t, seed);
+      return;
+    case 'seal_wax':
+      drawSealWaxSprite(t, seed);
+      return;
+    case 'sealed_complaint':
+      drawSealedComplaintSprite(t, seed);
+      return;
+    case 'siren_instruction':
+      drawSirenInstructionSprite(t, seed);
+      return;
+    case 'pressure_logbook':
+      drawPressureLogbookSprite(t, seed);
+      return;
+    case 'samosbor_tally':
+      drawSamosborTallySprite(t, seed);
+      return;
+    case 'record_exposure_notice':
+      drawRecordExposureNoticeSprite(t, seed);
+      return;
+    case 'relay_diagram':
+      drawRelayDiagramSprite(t, seed);
+      return;
+    case 'resident_trinket_box':
+      drawResidentTrinketBoxSprite(t, seed);
+      return;
+    case 'psychiatrist_referral':
+      drawPsychiatristReferralSprite(t, seed);
+      return;
+    case 'pump_passport':
+      drawPumpPassportSprite(t, seed);
+      return;
+    case 'neighbor_complaint':
+      drawNeighborComplaintSprite(t, seed);
+      return;
+    case 'meat_rune':
+      drawMeatRuneSprite(t, seed);
+      return;
+    case 'metal_sheet':
+      drawMetalSheetSprite(t, seed);
+      return;
+    case 'metro_ticket':
+      drawMetroTicketSprite(t, seed);
+      return;
+    case 'missing_record_file':
+      drawMissingRecordFileSprite(t, seed);
+      return;
+    case 'liquidator_token':
+      drawLiquidatorTokenSprite(t, seed);
+      return;
+    case 'market_weight_scale':
+      drawMarketWeightScaleSprite(t, seed);
+      return;
+    case 'lamp_bulb':
+      drawLampBulbSprite(t, seed);
+      return;
+    case 'lift_scheme':
+      drawLiftSchemeSprite(t, seed);
+      return;
+    case 'party_portrait_pin':
+      drawPartyPortraitPinSprite(t, seed);
+      return;
+    case 'personal_file_copy':
+      drawPersonalFileCopyDocumentSprite(t, seed);
+      return;
+    case 'ink_bottle':
+      drawInkBottleSprite(t, seed);
+      return;
+    case 'inspection_mirror':
+      drawInspectionMirrorSprite(t, seed);
+      return;
+    case 'alcohol_bottle':
+      drawAlcoholBottleSprite(t, seed);
+      return;
+    case 'acid_bottle':
+      drawAcidBottleSprite(t, seed);
+      return;
+    case 'book':
+      drawBookSprite(t, seed);
+      return;
+    case 'borrowed_kitchen_key':
+      drawBorrowedKitchenKeySprite(t, seed);
+      return;
+    case 'container_key_label':
+      drawContainerKeyLabelSprite(t, seed);
+      return;
+    case 'ballot':
+      drawBallotSprite(t, seed);
+      return;
+    case 'blank_form':
+      drawBlankFormSprite(t, seed);
+      return;
+    case 'brown_slime_cleanup_act':
+      drawBrownSlimeCleanupActSprite(t, seed);
+      return;
+    case 'caravan_route':
+      drawCaravanRouteSprite(t, seed);
+      return;
+    case 'cult_supply_list':
+      drawCultSupplyListSprite(t, seed);
+      return;
+    case 'denunciation':
+      drawDenunciationSprite(t, seed);
+      return;
+    case 'dice_bone':
+      drawDiceBoneSprite(t, seed);
+      return;
+    case 'checkers_board':
+      drawCheckersBoardSprite(t, seed);
+      return;
+    case 'domino_box':
+      drawDominoBoxSprite(t, seed);
+      return;
+    case 'fuse':
+      drawFuseSprite(t, seed);
+      return;
+    case 'gear':
+      drawGearSprite(t, seed);
+      return;
+    case 'glass_shard':
+      drawGlassShardSprite(t, seed);
+      return;
+    case 'child_map':
+      drawChildMapSprite(t, seed);
+      return;
+    case 'cigs':
+      drawCigsSprite(t, seed);
+      return;
+    case 'circuit_board':
+      drawCircuitBoardSprite(t, seed);
+      return;
+    case 'govnyak_courier_package':
+      drawGovnyakCourierPackageSprite(t, seed);
+      return;
+    case 'gunstock':
+      drawGunstockSprite(t, seed);
+      return;
+    case 'filter_layer':
+      drawFilterLayerSprite(t, seed);
+      return;
+    case 'filter_receipt':
+      drawFilterReceiptSprite(t, seed);
+      return;
+    case 'idol_chernobog':
+      drawIdolChernobogSprite(t, seed);
+      return;
+    case 'import_toiletpaper':
+      drawImportToiletpaperSprite(t, seed);
+      return;
+    case 'toiletpaper':
+      drawToiletpaperSprite(t, seed);
+      return;
+    case 'diver_route_tag':
+      drawDiverRouteTagSprite(t, seed);
+      return;
+    case 'duct_tape':
+      drawDuctTapeSprite(t, seed);
+      return;
+    case 'elevator_override_form':
+      drawElevatorOverrideFormSprite(t, seed);
+      return;
+    case 'emergency_roster':
+      drawEmergencyRosterSprite(t, seed);
+      return;
+    case 'empty_roks_tank':
+      drawEmptyRoksTankSprite(t, seed);
+      return;
   }
   rect(t, 18, 25, 46, 49, p.body, seed + 193);
   rect(t, 21, 19, 43, 27, p.light, seed + 194);
