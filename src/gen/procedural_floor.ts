@@ -3456,13 +3456,40 @@ function pickReachableLootCell(cells: readonly ReachableLootCell[], used: Set<nu
 }
 
 function chooseProceduralContainerKind(room: Room, spec: ProceduralFloorSpec, index: number): ContainerKind {
-  const preferred = [
-    ...PROCEDURAL_LOOT_ANOMALY_KIND_BIAS[spec.anomalyId],
-    ...PROCEDURAL_LOOT_FACTION_KIND_BIAS[spec.majorityId],
-    ...containerKindsForRoom(room.type),
-  ];
-  const fitting = preferred.filter(kind => CONTAINER_DEFS[kind].roomTypes.includes(room.type));
-  const pool = fitting.length > 0 ? fitting : containerKindsForRoom(room.type);
+  const roomType = room.type;
+  const anomalyBias = PROCEDURAL_LOOT_ANOMALY_KIND_BIAS[spec.anomalyId];
+  const factionBias = PROCEDURAL_LOOT_FACTION_KIND_BIAS[spec.majorityId];
+  const roomKinds = containerKindsForRoom(roomType);
+
+  const fitting: ContainerKind[] = [];
+
+  for (let i = 0; i < anomalyBias.length; i++) {
+    const kind = anomalyBias[i];
+    const roomTypes = CONTAINER_DEFS[kind].roomTypes;
+    for (let j = 0; j < roomTypes.length; j++) {
+      if (roomTypes[j] === roomType) {
+        fitting.push(kind);
+        break;
+      }
+    }
+  }
+
+  for (let i = 0; i < factionBias.length; i++) {
+    const kind = factionBias[i];
+    const roomTypes = CONTAINER_DEFS[kind].roomTypes;
+    for (let j = 0; j < roomTypes.length; j++) {
+      if (roomTypes[j] === roomType) {
+        fitting.push(kind);
+        break;
+      }
+    }
+  }
+
+  for (let i = 0; i < roomKinds.length; i++) {
+    fitting.push(roomKinds[i]);
+  }
+
+  const pool = fitting.length > 0 ? fitting : roomKinds;
   return pool[(spec.seed + room.id * 17 + index * 7) % pool.length];
 }
 
