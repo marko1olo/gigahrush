@@ -54,7 +54,23 @@ import {
   uiSettingsRowCount,
   visualGeometryMode,
   visualGeometryModeLabel,
+  normalizeLightingQualityMode,
+  LIGHTING_QUALITY_MODES,
+  LIGHTING_QUALITY_DEFAULT_MODE,
 } from '../src/systems/ui_orchestrator';
+
+test('normalizeLightingQualityMode validates lighting modes and falls back to default', () => {
+  for (const mode of LIGHTING_QUALITY_MODES) {
+    assert.equal(normalizeLightingQualityMode(mode), mode);
+  }
+
+  assert.equal(normalizeLightingQualityMode('invalid'), LIGHTING_QUALITY_DEFAULT_MODE);
+  assert.equal(normalizeLightingQualityMode(''), LIGHTING_QUALITY_DEFAULT_MODE);
+  assert.equal(normalizeLightingQualityMode(null), LIGHTING_QUALITY_DEFAULT_MODE);
+  assert.equal(normalizeLightingQualityMode(undefined), LIGHTING_QUALITY_DEFAULT_MODE);
+  assert.equal(normalizeLightingQualityMode(123), LIGHTING_QUALITY_DEFAULT_MODE);
+  assert.equal(normalizeLightingQualityMode({}), LIGHTING_QUALITY_DEFAULT_MODE);
+});
 
 test('UI orchestrator defaults to the novice-safe HUD enabled', () => {
   resetUiSettings();
