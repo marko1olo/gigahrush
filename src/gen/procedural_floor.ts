@@ -3079,14 +3079,36 @@ function randomRoomCell(room: Room): { x: number; y: number } {
   };
 }
 
+const ITEMS_BY_ROOM = new Map<RoomType, ItemDef[]>();
+for (const def of Object.values(ITEMS)) {
+  for (const rType of def.spawnRooms) {
+    let arr = ITEMS_BY_ROOM.get(rType);
+    if (!arr) {
+      arr = [];
+      ITEMS_BY_ROOM.set(rType, arr);
+    }
+    arr.push(def);
+  }
+}
+
+const lootBiasCache = new WeakMap<string[], Set<string>>();
+
 function chooseItem(room: Room, spec: ProceduralFloorSpec, maxValue = Number.POSITIVE_INFINITY): ItemDef | null {
   let total = 0;
   const weighted: { def: ItemDef; weight: number }[] = [];
-  for (const def of Object.values(ITEMS)) {
-    if (!def.spawnRooms.includes(room.type)) continue;
+  const roomItems = ITEMS_BY_ROOM.get(room.type);
+  if (!roomItems) return null;
+
+  let biasSet = lootBiasCache.get(spec.lootBiasIds);
+  if (!biasSet) {
+    biasSet = new Set(spec.lootBiasIds);
+    lootBiasCache.set(spec.lootBiasIds, biasSet);
+  }
+
+  for (const def of roomItems) {
     if (def.value > maxValue) continue;
     let weight = def.spawnW * (1000 / (def.value + 10));
-    if (spec.lootBiasIds.includes(def.id)) weight *= 4.5;
+    if (biasSet.has(def.id)) weight *= 4.5;
     if (spec.danger >= 4 && def.value > 80) weight *= 1.5;
     if (weight <= 0) continue;
     weighted.push({ def, weight });
