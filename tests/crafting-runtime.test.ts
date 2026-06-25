@@ -35,10 +35,16 @@ function firstMaterial(vector: CraftVector): CraftMaterialId {
   return CRAFT_MATERIAL_IDS[idx];
 }
 
-test('empty crafting state starts with nine zero material counters', () => {
+test('createCraftingState initializes materials, default recipes, and metadata', () => {
   const crafting = createCraftingState();
+
   assert.equal(crafting.materials.length, 9);
   assert.deepEqual(crafting.materials, [0, 0, 0, 0, 0, 0, 0, 0, 0]);
+
+  assert.equal(crafting.knownRecipes.craft_item_bread, true);
+  assert.equal(Object.keys(crafting.knownRecipes).length > 0, true);
+  assert.equal(crafting.learnedCount, Object.keys(crafting.knownRecipes).length);
+  assert.equal(crafting.lastChangedAt, 0);
 });
 
 test('adding crafting materials clamps to the material bank cap', () => {
