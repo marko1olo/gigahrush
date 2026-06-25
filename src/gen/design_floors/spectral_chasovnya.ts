@@ -1118,12 +1118,9 @@ export function alignSpectralChasovnyaAmbientNpcTerritory(world: World, entities
   }
 }
 
-function registerSpectralRouteCues(world: World, rooms: SpectralRooms, state: SpectralChasovnyaState): void {
+function registerQuietShadowRouteCue(world: World, rooms: SpectralRooms): void {
   const entry = roomCenter(rooms.entry);
   const quiet = roomCenter(rooms.quietSouth);
-  const focus = roomCenter(rooms.focusArch);
-  const radio = roomCenter(rooms.radioSacristy);
-  const bell = state.bellNodes[0];
 
   registerRouteCue(world, {
     id: 'spectral_quiet_shadow_route',
@@ -1152,6 +1149,10 @@ function registerSpectralRouteCues(world: World, rooms: SpectralRooms, state: Sp
       mapLabel: 'тихий обход',
     },
   });
+}
+
+function registerMainBellRouteCue(world: World, rooms: SpectralRooms, state: SpectralChasovnyaState): void {
+  const bell = state.bellNodes[0];
 
   registerRouteCue(world, {
     id: 'spectral_main_bell_route',
@@ -1180,6 +1181,10 @@ function registerSpectralRouteCues(world: World, rooms: SpectralRooms, state: Sp
       mapLabel: 'колокол',
     },
   });
+}
+
+function registerFocusWarningRouteCue(world: World, rooms: SpectralRooms): void {
+  const focus = roomCenter(rooms.focusArch);
 
   registerRouteCue(world, {
     id: 'spectral_focus_warning_route',
@@ -1200,6 +1205,10 @@ function registerSpectralRouteCues(world: World, rooms: SpectralRooms, state: Sp
     followedText: 'Линия фокуса видна по мокрым ребрам пола. Двигайся боком или шуми не здесь.',
     ignoredText: 'Фокусирующая арка осталась на прямой. Слепые любят прямые.',
   });
+}
+
+function registerRadioSacristyRouteCue(world: World, rooms: SpectralRooms): void {
+  const radio = roomCenter(rooms.radioSacristy);
 
   registerRouteCue(world, {
     id: 'spectral_radio_sacristy_route',
@@ -1220,6 +1229,13 @@ function registerSpectralRouteCues(world: World, rooms: SpectralRooms, state: Sp
     followedText: 'Радиоризница найдена. Гарнитура здесь полезнее громкого героизма.',
     ignoredText: 'Радиотреск уходит за свечи. Без него придется слушать своими ушами.',
   });
+}
+
+function registerSpectralRouteCues(world: World, rooms: SpectralRooms, state: SpectralChasovnyaState): void {
+  registerQuietShadowRouteCue(world, rooms);
+  registerMainBellRouteCue(world, rooms, state);
+  registerFocusWarningRouteCue(world, rooms);
+  registerRadioSacristyRouteCue(world, rooms);
 }
 
 function findBellNodeForLook(world: World, player: Entity, lookX: number, lookY: number): SpectralBellNode | undefined {
