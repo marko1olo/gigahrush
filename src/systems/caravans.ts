@@ -700,12 +700,12 @@ export function spawnSmallCaravanNear(
   return run;
 }
 
-function updateSmallCaravanPosition(run: SmallCaravanRunState, entities: Entity[]): boolean {
+function updateSmallCaravanPosition(run: SmallCaravanRunState, entityMap: Map<number, Entity>): boolean {
   let count = 0;
   let x = 0;
   let y = 0;
   for (const id of run.memberIds) {
-    const member = entities.find(e => e.id === id);
+    const member = entityMap.get(id);
     if (!member?.alive) continue;
     x += member.x;
     y += member.y;
@@ -796,9 +796,13 @@ function updateSmallCaravans(
   const caravans = ensureCaravanState(state);
   pruneSmallCaravans(caravans, state.time);
   if (entities) {
+    const entityMap = new Map<number, Entity>();
+    for (const e of entities) {
+      entityMap.set(e.id, e);
+    }
     for (const run of Object.values(caravans.active)) {
       if (!activeStatus(run.status)) continue;
-      if (!updateSmallCaravanPosition(run, entities)) {
+      if (!updateSmallCaravanPosition(run, entityMap)) {
         markSmallCaravanLost(state, run, 'raided');
         continue;
       }
