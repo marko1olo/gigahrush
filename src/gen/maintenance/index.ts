@@ -85,7 +85,7 @@ function applyCoarseTunnelFamily(mazeOpen: Uint8Array): void {
 }
 
 function addGrowingTreeDuctFamily(mazeOpen: Uint8Array): void {
-  const active: number[] = [gIdx(Math.floor(GRID / 2), Math.floor(GRID / 2))];
+  let active: number[] = [gIdx(Math.floor(GRID / 2), Math.floor(GRID / 2))];
   const targetSteps = GRID * 3;
   for (let step = 0; step < targetSteps && active.length > 0; step++) {
     const newest = active.length - 1;
@@ -96,7 +96,7 @@ function addGrowingTreeDuctFamily(mazeOpen: Uint8Array): void {
     const d = rng(0, 3);
     openMazeEdge(mazeOpen, gx, gy, d);
     active.push(gIdx(gx + DX[d], gy + DY[d]));
-    if (active.length > 144 || Math.random() < 0.22) active.splice(pickIndex, 1);
+    if (active.length > 144 || Math.random() < 0.22) active = active.filter((_, i) => i !== pickIndex);
   }
 }
 
