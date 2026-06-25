@@ -1305,7 +1305,9 @@ function chooseIstotitShelterRooms(world: World, cx: number, cy: number, count: 
   const ids: number[] = [];
   while (ids.length < count && pool.length > 0) {
     const i = Math.floor(Math.random() * pool.length);
-    ids.push(pool.splice(i, 1)[0].id);
+    ids.push(pool[i].id);
+    pool[i] = pool[pool.length - 1];
+    pool.pop();
   }
   return ids;
 }
