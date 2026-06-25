@@ -683,8 +683,13 @@ let contentRegistered = false;
 
 export function registerBlackMarket88DesignFloorContent(): void {
   if (contentRegistered) return;
+  const questsByNpcId: Record<string, typeof SIDE_QUESTS[number][]> = {};
+  for (const q of SIDE_QUESTS) {
+    if (!questsByNpcId[q.giverNpcId]) questsByNpcId[q.giverNpcId] = [];
+    questsByNpcId[q.giverNpcId].push(q);
+  }
   for (const npcId of Object.keys(NPC_DEFS)) {
-    const quests = SIDE_QUESTS.filter(q => q.giverNpcId === npcId);
+    const quests = questsByNpcId[npcId] || [];
     registerFloorSideQuest(DESIGN_NPC_HOME_FLOOR_KEY, npcId, NPC_DEFS[npcId], quests);
   }
   contentRegistered = true;
