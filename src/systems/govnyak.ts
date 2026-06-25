@@ -295,15 +295,25 @@ export function govnyakAimSpreadMult(e: Entity): number {
 export function updateGovnyakConditions(e: Entity, state: GameState): void {
   if (!e.statuses || e.statuses.length === 0) return;
   const now = state.time;
-  for (let i = e.statuses.length - 1; i >= 0; i--) {
+  const originalLength = e.statuses.length;
+  let writeIdx = 0;
+
+  for (let i = 0; i < originalLength; i++) {
     const status = e.statuses[i];
-    if (!status.id.startsWith('govnyak_') || status.expiresAt > now) continue;
-    e.statuses.splice(i, 1);
-    if (status.id === 'govnyak_debt') {
-      publishGovnyakStatusEvent(state, e, 'player_status_cured', status, 3, ['recovery', 'debt_clear']);
-    } else if (status.id === 'govnyak_cough') {
-      publishGovnyakStatusEvent(state, e, 'player_status_expired', status, 2, ['recovery', 'cough_clear']);
+    if (status.id.startsWith('govnyak_') && status.expiresAt <= now) {
+      if (status.id === 'govnyak_debt') {
+        publishGovnyakStatusEvent(state, e, 'player_status_cured', status, 3, ['recovery', 'debt_clear']);
+      } else if (status.id === 'govnyak_cough') {
+        publishGovnyakStatusEvent(state, e, 'player_status_expired', status, 2, ['recovery', 'cough_clear']);
+      }
+    } else {
+      if (writeIdx !== i) e.statuses[writeIdx] = status;
+      writeIdx++;
     }
   }
-  if (e.statuses.length === 0) e.statuses = undefined;
+
+  if (writeIdx !== originalLength) {
+    e.statuses.length = writeIdx;
+    if (writeIdx === 0) e.statuses = undefined;
+  }
 }
