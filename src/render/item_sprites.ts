@@ -8684,301 +8684,91 @@ function drawTanevSvt40Sprite(t: Uint32Array, seed: number): void {
   drawNoiseDust(t, seed + 2648, edge, 7);
 }
 
+const weaponSpriteHandlers: Record<string, (t: Uint32Array, seed: number, p: Palette, defId: string) => void> = {
+  'tanev_svt40': (t, seed, _p, _defId) => drawTanevSvt40Sprite(t, seed),
+  'weapon_blueprint_t2': (t, seed, _p, _defId) => drawWeaponBlueprintT2Sprite(t, seed),
+  'weapon_checkout_tag': (t, seed, _p, _defId) => drawWeaponCheckoutTagSprite(t, seed),
+  'wrench': (t, seed, _p, _defId) => drawWrenchSprite(t, seed),
+  'scrubbed_serial_plate': (t, seed, _p, _defId) => drawScrubbedSerialPlateSprite(t, seed),
+  'shmk_disposable': (t, seed, _p, _defId) => drawShmkDisposableSprite(t, seed),
+  'shock_baton': (t, seed, _p, _defId) => drawShockBatonSprite(t, seed),
+  'shotgun': (t, seed, _p, _defId) => drawSawedOffShotgunSprite(t, seed),
+  'toz_shotgun': (t, seed, _p, _defId) => drawTozShotgunSprite(t, seed),
+  'pushkin_shotgun': (t, seed, _p, _defId) => drawPushkinShotgunSprite(t, seed),
+  'ptrs_liquidator': (t, seed, _p, _defId) => drawPtrsLiquidatorSprite(t, seed),
+  'rpl23_lmg': (t, seed, _p, _defId) => drawRpl23LmgSprite(t, seed),
+  'roks47_flamethrower': (t, seed, _p, _defId) => drawRoks47FlamethrowerSprite(t, seed),
+  'rubber_club': (t, seed, _p, _defId) => drawRubberClubSprite(t, seed),
+  'rb91_auto_shotgun': (t, seed, _p, _defId) => drawRb91AutoShotgunSprite(t, seed),
+  'rebar': (t, seed, _p, _defId) => drawRebarSprite(t, seed),
+  'p41_heavy_mg': (t, seed, _p, _defId) => drawP41HeavyMgSprite(t, seed),
+  'agnia_a130': (t, seed, _p, _defId) => drawAgniaA130Sprite(t, seed),
+  'ato41_atomic_flamer': (t, seed, _p, _defId) => drawAto41AtomicFlamerSprite(t, seed),
+  'ak47': (t, seed, _p, _defId) => drawAk47Sprite(t, seed, _p),
+  'axe': (t, seed, _p, _defId) => drawAxeSprite(t, seed),
+  'liquidator_axe': (t, seed, _p, _defId) => drawLiquidatorAxeSprite(t, seed),
+  'rusty_rake': (t, seed, _p, _defId) => drawRustyRakeSprite(t, seed),
+  'liquidator_rake': (t, seed, _p, _defId) => drawLiquidatorRakeSprite(t, seed),
+  'bayonet': (t, seed, _p, _defId) => drawBayonetSprite(t, seed),
+  'rake_bayonet': (t, seed, _p, _defId) => drawRakeBayonetSprite(t, seed),
+  'bfg': (t, seed, _p, _defId) => drawBfgSprite(t, seed),
+  'chain': (t, seed, _p, _defId) => drawChainSprite(t, seed),
+  'chainsaw': (t, seed, _p, _defId) => drawChainsawSprite(t, seed),
+  'chest_failsafe_charge': (t, seed, _p, _defId) => drawChestFailsafeChargeSprite(t, seed),
+  'chizh3_shotgun': (t, seed, _p, _defId) => drawChizh3ShotgunSprite(t, seed),
+  'conscripts_doublebarrel': (t, seed, _p, _defId) => drawConscriptsDoublebarrelSprite(t, seed),
+  'breach_charge': (t, seed, _p, _defId) => drawBreachChargeSprite(t, seed),
+  'brt2_foam_projector': (t, seed, _p, _defId) => drawBrt2FoamProjectorSprite(t, seed),
+  'pbrog1_foam_launcher': (t, seed, _p, _defId) => drawPbrog1FoamLauncherSprite(t, seed),
+  'party_might_launcher': (t, seed, _p, _defId) => drawPartyMightLauncherSprite(t, seed),
+  'concrete_breaker_grenade': (t, seed, _p, _defId) => drawConcreteBreakerGrenadeSprite(t, seed),
+  'crowbar': (t, seed, _p, _defId) => drawCrowbarSprite(t, seed),
+  'entrenching_spade': (t, seed, _p, _defId) => drawEntrenchingSpadeSprite(t, seed),
+  'eralashnikov_auto': (t, seed, _p, _defId) => drawEralashnikovAutoSprite(t, seed),
+  'fire_hook': (t, seed, _p, _defId) => drawFireHookSprite(t, seed),
+  'nosin_rifle': (t, seed, _p, _defId) => drawNosinRifleSprite(t, seed),
+  'moskvin_rifle': (t, seed, _p, _defId) => drawMoskvinRifleSprite(t, seed),
+  'nagant': (t, seed, _p, _defId) => drawNagantSprite(t, seed),
+  'nailgun': (t, seed, _p, _defId) => drawNailgunSprite(t, seed),
+  'o15_multijet_flamer': (t, seed, _p, _defId) => drawO15MultijetFlamerSprite(t, seed),
+  'flamethrower': (t, seed, _p, _defId) => drawFlamethrowerSprite(t, seed),
+  'foam_grenade_6p10': (t, seed, _p, _defId) => drawFoamGrenade6p10Sprite(t, seed),
+  'g41_grenade_launcher': (t, seed, _p, _defId) => drawG41GrenadeLauncherSprite(t, seed),
+  'gauss': (t, seed, _p, _defId) => drawGaussRifleSprite(t, seed),
+  'homemade_pistol': (t, seed, _p, _defId) => drawHomemadePistolSprite(t, seed),
+  'granit4u_belt_shotgun': (t, seed, _p, _defId) => drawGranit4uBeltShotgunSprite(t, seed),
+  'gravity_beam_emitter': (t, seed, _p, _defId) => drawGravityBeamEmitterSprite(t, seed),
+  'grn420_gravizhernov': (t, seed, _p, _defId) => drawGrn420GravizhernovSprite(t, seed),
+  'tracked_zhernov': (t, seed, _p, _defId) => drawTrackedZhernovSprite(t, seed),
+  'gusl_index_fragment': (t, seed, _p, _defId) => drawGuslIndexFragmentSprite(t, seed),
+  'grenade': (t, seed, _p, _defId) => drawGrenadeSprite(t, seed),
+  'hammer': (t, seed, _p, _defId) => drawHammerSprite(t, seed),
+  'sledgehammer': (t, seed, _p, _defId) => drawSledgehammerSprite(t, seed),
+  'harpoon_gun': (t, seed, _p, _defId) => drawHarpoonGunSprite(t, seed),
+  'losyash_rifle': (t, seed, _p, _defId) => drawLosyashRifleSprite(t, seed),
+  'machinegun': (t, seed, _p, _defId) => drawMachinegunSprite(t, seed),
+  'makarov': (t, seed, _p, _defId) => drawMakarovSprite(t, seed),
+  'tt_pistol': (t, seed, _p, _defId) => drawTtPistolSprite(t, seed),
+  'karkarov_pistol': (t, seed, _p, _defId) => drawKarkarovPistolSprite(t, seed),
+  'zatychkin_pistol': (t, seed, _p, _defId) => drawZatychkinPistolSprite(t, seed),
+  'knife': (t, seed, _p, _defId) => drawKnifeSprite(t, seed),
+  'metal_chair': (t, seed, _p, _defId) => drawMetalChairSprite(t, seed),
+  'pipe': (t, seed, _p, _defId) => drawPipeSprite(t, seed),
+  'pistol_grenade_launcher': (t, seed, _p, _defId) => drawPistolGrenadeLauncherSprite(t, seed),
+  'plasma': (t, seed, _p, _defId) => drawPlasmaSprite(t, seed),
+  'ppsh': (t, seed, _p, _defId) => drawPpshSprite(t, seed),
+  'slyoznev_pps41': (t, seed, _p, _defId) => drawSlyoznevPps41Sprite(t, seed),
+};
+
 function drawWeaponSprite(t: Uint32Array, seed: number, p: Palette, defId: string): void {
-  if (defId === 'tanev_svt40') {
-    drawTanevSvt40Sprite(t, seed);
+  const handler = weaponSpriteHandlers[defId];
+  if (handler) {
+    handler(t, seed, p, defId);
     return;
   }
-  if (defId === 'weapon_blueprint_t2') {
-    drawWeaponBlueprintT2Sprite(t, seed);
-    return;
-  }
-  if (defId === 'weapon_checkout_tag') {
-    drawWeaponCheckoutTagSprite(t, seed);
-    return;
-  }
-  if (defId === 'wrench') {
-    drawWrenchSprite(t, seed);
-    return;
-  }
-  if (defId === 'scrubbed_serial_plate') {
-    drawScrubbedSerialPlateSprite(t, seed);
-    return;
-  }
-  if (defId === 'shmk_disposable') {
-    drawShmkDisposableSprite(t, seed);
-    return;
-  }
-  if (defId === 'shock_baton') {
-    drawShockBatonSprite(t, seed);
-    return;
-  }
-  if (defId === 'shotgun') {
-    drawSawedOffShotgunSprite(t, seed);
-    return;
-  }
-  if (defId === 'toz_shotgun') {
-    drawTozShotgunSprite(t, seed);
-    return;
-  }
-  if (defId === 'pushkin_shotgun') {
-    drawPushkinShotgunSprite(t, seed);
-    return;
-  }
+
   if (defId.startsWith('psi_')) {
     drawPsiWeaponSprite(t, seed, defId);
-    return;
-  }
-  if (defId === 'ptrs_liquidator') {
-    drawPtrsLiquidatorSprite(t, seed);
-    return;
-  }
-  if (defId === 'rpl23_lmg') {
-    drawRpl23LmgSprite(t, seed);
-    return;
-  }
-  if (defId === 'roks47_flamethrower') {
-    drawRoks47FlamethrowerSprite(t, seed);
-    return;
-  }
-  if (defId === 'rubber_club') {
-    drawRubberClubSprite(t, seed);
-    return;
-  }
-  if (defId === 'rb91_auto_shotgun') {
-    drawRb91AutoShotgunSprite(t, seed);
-    return;
-  }
-  if (defId === 'rebar') {
-    drawRebarSprite(t, seed);
-    return;
-  }
-  if (defId === 'p41_heavy_mg') {
-    drawP41HeavyMgSprite(t, seed);
-    return;
-  }
-  if (defId === 'agnia_a130') {
-    drawAgniaA130Sprite(t, seed);
-    return;
-  }
-  if (defId === 'ato41_atomic_flamer') {
-    drawAto41AtomicFlamerSprite(t, seed);
-    return;
-  }
-  if (defId === 'ak47') {
-    drawAk47Sprite(t, seed, p);
-    return;
-  }
-  if (defId === 'axe') {
-    drawAxeSprite(t, seed);
-    return;
-  }
-  if (defId === 'liquidator_axe') {
-    drawLiquidatorAxeSprite(t, seed);
-    return;
-  }
-  if (defId === 'rusty_rake') {
-    drawRustyRakeSprite(t, seed);
-    return;
-  }
-  if (defId === 'liquidator_rake') {
-    drawLiquidatorRakeSprite(t, seed);
-    return;
-  }
-  if (defId === 'bayonet') {
-    drawBayonetSprite(t, seed);
-    return;
-  }
-  if (defId === 'rake_bayonet') {
-    drawRakeBayonetSprite(t, seed);
-    return;
-  }
-  if (defId === 'bfg') {
-    drawBfgSprite(t, seed);
-    return;
-  }
-  if (defId === 'chain') {
-    drawChainSprite(t, seed);
-    return;
-  }
-  if (defId === 'chainsaw') {
-    drawChainsawSprite(t, seed);
-    return;
-  }
-  if (defId === 'chest_failsafe_charge') {
-    drawChestFailsafeChargeSprite(t, seed);
-    return;
-  }
-  if (defId === 'chizh3_shotgun') {
-    drawChizh3ShotgunSprite(t, seed);
-    return;
-  }
-  if (defId === 'conscripts_doublebarrel') {
-    drawConscriptsDoublebarrelSprite(t, seed);
-    return;
-  }
-  if (defId === 'breach_charge') {
-    drawBreachChargeSprite(t, seed);
-    return;
-  }
-  if (defId === 'brt2_foam_projector') {
-    drawBrt2FoamProjectorSprite(t, seed);
-    return;
-  }
-  if (defId === 'pbrog1_foam_launcher') {
-    drawPbrog1FoamLauncherSprite(t, seed);
-    return;
-  }
-  if (defId === 'party_might_launcher') {
-    drawPartyMightLauncherSprite(t, seed);
-    return;
-  }
-  if (defId === 'concrete_breaker_grenade') {
-    drawConcreteBreakerGrenadeSprite(t, seed);
-    return;
-  }
-  if (defId === 'crowbar') {
-    drawCrowbarSprite(t, seed);
-    return;
-  }
-  if (defId === 'entrenching_spade') {
-    drawEntrenchingSpadeSprite(t, seed);
-    return;
-  }
-  if (defId === 'eralashnikov_auto') {
-    drawEralashnikovAutoSprite(t, seed);
-    return;
-  }
-  if (defId === 'fire_hook') {
-    drawFireHookSprite(t, seed);
-    return;
-  }
-  if (defId === 'nosin_rifle') {
-    drawNosinRifleSprite(t, seed);
-    return;
-  }
-  if (defId === 'moskvin_rifle') {
-    drawMoskvinRifleSprite(t, seed);
-    return;
-  }
-  if (defId === 'nagant') {
-    drawNagantSprite(t, seed);
-    return;
-  }
-  if (defId === 'nailgun') {
-    drawNailgunSprite(t, seed);
-    return;
-  }
-  if (defId === 'o15_multijet_flamer') {
-    drawO15MultijetFlamerSprite(t, seed);
-    return;
-  }
-  if (defId === 'flamethrower') {
-    drawFlamethrowerSprite(t, seed);
-    return;
-  }
-  if (defId === 'foam_grenade_6p10') {
-    drawFoamGrenade6p10Sprite(t, seed);
-    return;
-  }
-  if (defId === 'g41_grenade_launcher') {
-    drawG41GrenadeLauncherSprite(t, seed);
-    return;
-  }
-  if (defId === 'gauss') {
-    drawGaussRifleSprite(t, seed);
-    return;
-  }
-  if (defId === 'homemade_pistol') {
-    drawHomemadePistolSprite(t, seed);
-    return;
-  }
-  if (defId === 'granit4u_belt_shotgun') {
-    drawGranit4uBeltShotgunSprite(t, seed);
-    return;
-  }
-  if (defId === 'gravity_beam_emitter') {
-    drawGravityBeamEmitterSprite(t, seed);
-    return;
-  }
-  if (defId === 'grn420_gravizhernov') {
-    drawGrn420GravizhernovSprite(t, seed);
-    return;
-  }
-  if (defId === 'tracked_zhernov') {
-    drawTrackedZhernovSprite(t, seed);
-    return;
-  }
-  if (defId === 'gusl_index_fragment') {
-    drawGuslIndexFragmentSprite(t, seed);
-    return;
-  }
-  if (defId === 'grenade') {
-    drawGrenadeSprite(t, seed);
-    return;
-  }
-  if (defId === 'hammer') {
-    drawHammerSprite(t, seed);
-    return;
-  }
-  if (defId === 'sledgehammer') {
-    drawSledgehammerSprite(t, seed);
-    return;
-  }
-  if (defId === 'harpoon_gun') {
-    drawHarpoonGunSprite(t, seed);
-    return;
-  }
-  if (defId === 'losyash_rifle') {
-    drawLosyashRifleSprite(t, seed);
-    return;
-  }
-  if (defId === 'machinegun') {
-    drawMachinegunSprite(t, seed);
-    return;
-  }
-  if (defId === 'makarov') {
-    drawMakarovSprite(t, seed);
-    return;
-  }
-  if (defId === 'tt_pistol') {
-    drawTtPistolSprite(t, seed);
-    return;
-  }
-  if (defId === 'karkarov_pistol') {
-    drawKarkarovPistolSprite(t, seed);
-    return;
-  }
-  if (defId === 'zatychkin_pistol') {
-    drawZatychkinPistolSprite(t, seed);
-    return;
-  }
-  if (defId === 'knife') {
-    drawKnifeSprite(t, seed);
-    return;
-  }
-  if (defId === 'metal_chair') {
-    drawMetalChairSprite(t, seed);
-    return;
-  }
-  if (defId === 'pipe') {
-    drawPipeSprite(t, seed);
-    return;
-  }
-  if (defId === 'pistol_grenade_launcher') {
-    drawPistolGrenadeLauncherSprite(t, seed);
-    return;
-  }
-  if (defId === 'plasma') {
-    drawPlasmaSprite(t, seed);
-    return;
-  }
-  if (defId === 'ppsh') {
-    drawPpshSprite(t, seed);
-    return;
-  }
-  if (defId === 'slyoznev_pps41') {
-    drawSlyoznevPps41Sprite(t, seed);
     return;
   }
   if (defId.includes('grenade') || defId.includes('charge')) {
@@ -8999,6 +8789,7 @@ function drawWeaponSprite(t: Uint32Array, seed: number, p: Palette, defId: strin
   rect(t, 33, 30, 42, 36, p.body, seed + 60);
   if (defId.includes('flame') || defId.includes('roks') || defId.includes('agnia')) ellipse(t, 49, 22, 5, 3, [230, 92, 38], seed + 61, 220);
 }
+
 
 function drawChemicalShellSprite(t: Uint32Array, seed: number, p: Palette): void {
   const hull: [number, number, number] = [32, 52, 42];
