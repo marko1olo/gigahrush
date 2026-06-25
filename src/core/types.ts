@@ -644,6 +644,16 @@ export interface Entity {
   activeBark?: { text: string; until: number; color: string; }; // UI: active world speech bubble
 }
 
+export function findMaxEntityId(entities: Pick<Entity, 'id'>[]): number {
+  let maxId = 0;
+  for (let i = 0; i < entities.length; i++) {
+    if (entities[i].id > maxId) {
+      maxId = entities[i].id;
+    }
+  }
+  return maxId;
+}
+
 // ── Items ────────────────────────────────────────────────────────
 export enum ItemType { FOOD, DRINK, MEDICINE, WEAPON, TOOL, KEY, NOTE, MISC, AMMO }
 

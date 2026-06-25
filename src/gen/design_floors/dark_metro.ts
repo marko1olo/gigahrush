@@ -25,6 +25,7 @@ import {
   type TerritoryOwner,
   type Zone,
   type WorldContainer,
+  findMaxEntityId,
 } from '../../core/types';
 import { World } from '../../core/world';
 import { hashSeed, withSeededRandom } from '../../core/rand';
@@ -1777,7 +1778,7 @@ function dressDarkMetro(ctx: BuildCtx, layout: DarkMetroLayout): void {
 }
 
 function nextTrainEntityId(entities: Entity[]): { v: number } {
-  return { v: entities.reduce((mx, e) => Math.max(mx, e.id), 0) + 1 };
+  return { v: findMaxEntityId(entities) + 1 };
 }
 
 function addPlatformCells(world: World, out: number[], x0: number, x1: number, y: number): void {
