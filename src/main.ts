@@ -4573,23 +4573,7 @@ function normalizeQuestTargetRoute(value: unknown): Quest['targetRoute'] | undef
   return Object.keys(out).length > 0 ? out : undefined;
 }
 
-function normalizeQuest(raw: unknown, nowMinutes: number): Quest | null {
-  if (!isRecord(raw)) return null;
-  const type = normalizeQuestType(raw.type);
-  if (type === undefined) return null;
-  const desc = cleanSaveText(raw.desc);
-  if (!desc) return null;
-  const id = clampInt(raw.id, 0, 1, 1_000_000);
-  const done = raw.done === true || raw.failed === true;
-  const q: Quest = {
-    id,
-    type,
-    giverId: clampInt(raw.giverId, -1, -1, 1_000_000),
-    giverName: cleanSaveText(raw.giverName, '???', 96),
-    desc,
-    done,
-  };
-
+function normalizeQuestTargets(q: Quest, raw: Record<string, unknown>): void {
   const targetItem = cleanSaveText(raw.targetItem, '', 64);
   if (targetItem === 'money' || ITEMS[targetItem]) q.targetItem = targetItem;
   if (raw.targetCount !== undefined) q.targetCount = clampInt(raw.targetCount, 1, 1, 999);
@@ -4617,6 +4601,9 @@ function normalizeQuest(raw: unknown, nowMinutes: number): Quest | null {
   if (targetNpcName) q.targetNpcName = targetNpcName;
   const targetPlotNpcId = cleanSaveText(raw.targetPlotNpcId, '', 64);
   if (targetPlotNpcId) q.targetPlotNpcId = targetPlotNpcId;
+}
+
+function normalizeQuestRewards(q: Quest, raw: Record<string, unknown>): void {
   const rewardItem = cleanSaveText(raw.rewardItem, '', 64);
   if (ITEMS[rewardItem]) q.rewardItem = rewardItem;
   if (raw.rewardCount !== undefined) q.rewardCount = clampInt(raw.rewardCount, 1, 1, 999);
@@ -4625,6 +4612,9 @@ function normalizeQuest(raw: unknown, nowMinutes: number): Quest | null {
   if (raw.difficulty !== undefined) q.difficulty = clampNumber(raw.difficulty, 1, 0, 10);
   if (raw.xpReward !== undefined) q.xpReward = clampInt(raw.xpReward, 0, 0, 100_000);
   if (raw.moneyReward !== undefined) q.moneyReward = clampInt(raw.moneyReward, 0, 0, MAX_SAVE_MONEY);
+}
+
+function normalizeQuestMeta(q: Quest, raw: Record<string, unknown>): void {
   if (typeof raw.plotStepIndex === 'number' && Number.isFinite(raw.plotStepIndex)) {
     q.plotStepIndex = clampInt(raw.plotStepIndex, 0, 0, 10_000);
   }
@@ -4636,6 +4626,9 @@ function normalizeQuest(raw: unknown, nowMinutes: number): Quest | null {
   if (contractFaction !== undefined) q.contractFaction = contractFaction;
   if (raw.contractRank !== undefined) q.contractRank = clampInt(raw.contractRank, 0, 0, 10);
   if (isFloorLevel(raw.visitFloor)) q.visitFloor = raw.visitFloor;
+}
+
+function normalizeQuestHold(q: Quest, raw: Record<string, unknown>): void {
   if (raw.holdSeconds !== undefined) q.holdSeconds = clampInt(raw.holdSeconds, 0, 1, 3600);
   if (raw.holdProgressSeconds !== undefined) q.holdProgressSeconds = clampNumber(raw.holdProgressSeconds, 0, 0, 3600);
   if (raw.holdLastTime !== undefined) q.holdLastTime = clampNumber(raw.holdLastTime, 0, 0, 1_000_000_000);
@@ -4644,6 +4637,9 @@ function normalizeQuest(raw: unknown, nowMinutes: number): Quest | null {
   if (raw.holdSpawnIntervalSeconds !== undefined) q.holdSpawnIntervalSeconds = clampNumber(raw.holdSpawnIntervalSeconds, 1, 1, 600);
   if (raw.holdSpawnMaxAlive !== undefined) q.holdSpawnMaxAlive = clampInt(raw.holdSpawnMaxAlive, 1, 1, 64);
   if (raw.holdSpawnLastTime !== undefined) q.holdSpawnLastTime = clampNumber(raw.holdSpawnLastTime, 0, 0, 1_000_000_000);
+}
+
+function normalizeQuestEvents(q: Quest, raw: Record<string, unknown>): void {
   q.eventTags = normalizeStringArray(raw.eventTags);
   const eventData = compactSaveData(raw.eventData);
   if (isRecord(eventData)) q.eventData = eventData;
@@ -4654,7 +4650,9 @@ function normalizeQuest(raw: unknown, nowMinutes: number): Quest | null {
   const failOnNpcDeathPlotId = cleanSaveText(raw.failOnNpcDeathPlotId, '', 64);
   if (failOnNpcDeathPlotId) q.failOnNpcDeathPlotId = failOnNpcDeathPlotId;
   q.abandonsSideQuestIds = normalizeStringArray(raw.abandonsSideQuestIds, 12, 96);
+}
 
+function normalizeQuestTimeLimit(q: Quest, raw: Record<string, unknown>, nowMinutes: number): void {
   const timeLimit = raw.timeLimitMinutes === undefined
     ? undefined
     : clampInt(raw.timeLimitMinutes, 0, 1, MAX_QUEST_TIME_LIMIT_MINUTES);
@@ -4663,17 +4661,47 @@ function normalizeQuest(raw: unknown, nowMinutes: number): Quest | null {
     : clampInt(raw.expiresAtMinutes, 0, 0, nowMinutes + MAX_QUEST_TIME_LIMIT_MINUTES);
   if (timeLimit !== undefined) {
     q.timeLimitMinutes = timeLimit;
-    if (expiresAt === undefined && !done) expiresAt = Math.ceil(nowMinutes + timeLimit);
+    if (expiresAt === undefined && !q.done) expiresAt = Math.ceil(nowMinutes + timeLimit);
   }
   if (expiresAt !== undefined) q.expiresAtMinutes = expiresAt;
   if (raw.failed === true) q.failed = true;
+}
 
+function isQuestValid(q: Quest): boolean {
   if (!q.done) {
-    if (type === QuestType.FETCH && !q.targetItem) return null;
-    if (type === QuestType.VISIT && q.targetRoom === undefined && q.targetRoomName === undefined && q.targetRoute === undefined && q.visitFloor === undefined) return null;
-    if (type === QuestType.KILL && q.targetMonsterKind === undefined && !q.targetPlotNpcId && q.killNeeded === undefined) return null;
-    if (type === QuestType.TALK && q.targetNpcId === undefined && !q.targetPlotNpcId) return null;
+    if (q.type === QuestType.FETCH && !q.targetItem) return false;
+    if (q.type === QuestType.VISIT && q.targetRoom === undefined && q.targetRoomName === undefined && q.targetRoute === undefined && q.visitFloor === undefined) return false;
+    if (q.type === QuestType.KILL && q.targetMonsterKind === undefined && !q.targetPlotNpcId && q.killNeeded === undefined) return false;
+    if (q.type === QuestType.TALK && q.targetNpcId === undefined && !q.targetPlotNpcId) return false;
   }
+  return true;
+}
+
+function normalizeQuest(raw: unknown, nowMinutes: number): Quest | null {
+  if (!isRecord(raw)) return null;
+  const type = normalizeQuestType(raw.type);
+  if (type === undefined) return null;
+  const desc = cleanSaveText(raw.desc);
+  if (!desc) return null;
+  const id = clampInt(raw.id, 0, 1, 1_000_000);
+  const done = raw.done === true || raw.failed === true;
+  const q: Quest = {
+    id,
+    type,
+    giverId: clampInt(raw.giverId, -1, -1, 1_000_000),
+    giverName: cleanSaveText(raw.giverName, '???', 96),
+    desc,
+    done,
+  };
+
+  normalizeQuestTargets(q, raw);
+  normalizeQuestRewards(q, raw);
+  normalizeQuestMeta(q, raw);
+  normalizeQuestHold(q, raw);
+  normalizeQuestEvents(q, raw);
+  normalizeQuestTimeLimit(q, raw, nowMinutes);
+
+  if (!isQuestValid(q)) return null;
 
   return q;
 }
