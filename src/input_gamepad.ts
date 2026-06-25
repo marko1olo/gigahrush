@@ -171,7 +171,6 @@ export function createGamepadAdapter(): GamepadAdapter {
     const pad = pickActivePad(state);
     if (!pad) {
       // Clear holds on disconnect: emit releases for any previously held button.
-      let cleared = false;
       for (let i = 0; i < state.prevButtons.length; i++) {
         if (!state.prevButtons[i]) continue;
         const holdId = BUTTON_HOLD_ACTIONS[i];
@@ -179,14 +178,12 @@ export function createGamepadAdapter(): GamepadAdapter {
         const edgeId = BUTTON_EDGE_ACTIONS[i];
         if (edgeId) releaseAction(frame, edgeId);
         state.prevButtons[i] = false;
-        cleared = true;
       }
       state.lastConnected = false;
       state.lastMappingStandard = false;
       frame.hardware.gamepadConnected = false;
       frame.hardware.gamepadMappingStandard = false;
       frame.hardware.gamepadLabel = state.lastLabel;
-      if (cleared) setActiveDevice(frame, 'gamepad');
       return;
     }
 
