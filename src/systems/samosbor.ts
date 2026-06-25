@@ -4358,7 +4358,8 @@ function pickSamosborPlayerPressureCell(world: World, entities: Entity[], player
     const poolIdx = Math.floor(Math.random() * pool.length);
     const ci = pool[poolIdx];
     if (samosborPressureCellOccupied(entities, ci)) {
-      pool.splice(poolIdx, 1);
+      pool[poolIdx] = pool[pool.length - 1];
+      pool.pop();
       continue;
     }
     return ci;
