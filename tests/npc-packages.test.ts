@@ -467,3 +467,31 @@ test('community validation does not load original source image fields', () => {
   assert.equal(validation.valid, true, validation.errors.join('; '));
   assert.equal(sourceImageRead, false);
 });
+
+test('validateNpcPackages returns errors for invalid global packages', () => {
+  const pack1 = minimalNpcPackage('global_validation_invalid_npc');
+  registerNpcPackage(pack1);
+
+  const registeredPack = getNpcPackage('global_validation_invalid_npc');
+  assert.ok(registeredPack);
+
+  // Mutate it to bypass register validation and simulate bad state
+  registeredPack.placement.presence = 'invalid_presence_type' as any;
+
+  const duplicatePack = minimalNpcPackage('global_validation_duplicate_npc');
+  registerNpcPackage(duplicatePack);
+
+  const registeredDuplicate = getNpcPackage('global_validation_duplicate_npc');
+  assert.ok(registeredDuplicate);
+  // Introduce duplicate id issue
+  registeredDuplicate.id = 'global_validation_invalid_npc';
+
+  const errors = validateNpcPackages();
+
+  assert.ok(errors.some(e => e.includes('global_validation_invalid_npc:duplicate')));
+  assert.ok(errors.some(e => e.includes('global_validation_invalid_npc:placement.presence must be')));
+
+  // Cleanup to avoid affecting other tests in global runner
+  registeredPack.placement.presence = 'population';
+  registeredDuplicate.id = 'global_validation_duplicate_npc';
+});
