@@ -8325,6 +8325,9 @@ function applyAdminPockets(world: World, rooms: Room[], spec: ProceduralFloorSpe
       if (queueRooms.length >= Math.min(2, desiredQueueRooms)) break;
     }
   }
+
+  const queueRoomsSet = new Set(queueRooms);
+
   const officeRooms = adminRooms
     .filter(room => !queueRoomsSet.has(room))
     .filter(room => room.type === RoomType.OFFICE || room.type === RoomType.STORAGE)
@@ -8340,7 +8343,7 @@ function applyAdminPockets(world: World, rooms: Room[], spec: ProceduralFloorSpe
   for (let i = 0; i < queueRooms.length; i++) decorateAdminQueueRoom(world, queueRooms[i], i, spec);
 
   const staffCandidates = adminRooms
-    .filter(room => !queueRooms.includes(room))
+    .filter(room => !queueRoomsSet.has(room))
     .filter(room => room.type === RoomType.OFFICE || room.type === RoomType.STORAGE || room.type === RoomType.CORRIDOR)
     .filter(room => world.dist2(spawnX, spawnY, roomCenter(room).x, roomCenter(room).y) > 46 * 46);
   const chordCount = Math.min(3, Math.floor(staffCandidates.length / 2));
