@@ -3047,17 +3047,17 @@ function placeProceduralMiniHqClusters(world: World, rooms: Room[], spec: Proced
   const dominantOwner = factionToTerritoryOwner(majorityById(spec.majorityId).npcFaction);
   const existingOwners = existingProceduralHqOwners(world);
   const placed: Room[] = [];
+  const clusterIds = new Set<number>();
   for (const owner of PROCEDURAL_HQ_OWNERS) {
     if (existingOwners.has(owner)) continue;
     const dominant = owner === dominantOwner;
     const origin = findProceduralHqOrigin(world, owner, dominant, spec, spawnX, spawnY);
     if (!origin) continue;
-    const beforeIds = new Set(placed.map(room => room.id));
     const cluster = stampProceduralHqCluster(world, rooms, spec, owner, dominant, origin);
     placed.push(...cluster);
     const hq = cluster[0];
     if (!hq) continue;
-    const clusterIds = new Set([...beforeIds, ...cluster.map(room => room.id)]);
+    for (const room of cluster) clusterIds.add(room.id);
     const nearest = nearestExistingRoom(world, rooms, hq, clusterIds);
     if (nearest) connectRoomsMST(world, [hq, nearest]);
     else connectToNetwork(world, hq);
