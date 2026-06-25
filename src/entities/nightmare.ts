@@ -38,30 +38,9 @@ function ellipse(
     }
 }
 
-/* ── Procedural sprite from name hash — each nightmare unique ── */
-export function generateNightmareSprite(seed: number): Uint32Array {
-  const t = new Uint32Array(S * S).fill(CLEAR);
-  const cx = S / 2;
-
-  // Hash-derived parameters
-  const numStalks = 3 + (seed % 5);           // 3-7 eye stalks
-  const numMouths = 2 + (seed % 3);           // 2-4 mouths
-  const bodyHue   = seed % 3;                 // 0=brown, 1=dark-red, 2=grey-flesh
-  const numBumps  = 2 + (seed % 4);           // organic lumps on trunk
-
-  const bodyColors: [number, number, number][] = [
-    [100, 60, 45],   // reddish brown flesh
-    [90, 40, 40],    // dark crimson
-    [85, 75, 70],    // grey-flesh
-  ];
-  const [br, bg, bb] = bodyColors[bodyHue];
-
-  // ── Thick trunk (wide bottom, narrows towards top) ──────────
-  const trunkTop = 18, trunkBot = 58;
-  const trunkCy = (trunkTop + trunkBot) / 2;
+function drawTrunk(t: Uint32Array, seed: number, cx: number, trunkTop: number, trunkBot: number, br: number, bg: number, bb: number) {
   for (let y = trunkTop; y < trunkBot; y++) {
-    // Wider at bottom, narrower at top — organic taper
-    const t0 = (y - trunkTop) / (trunkBot - trunkTop); // 0 top .. 1 bottom
+    const t0 = (y - trunkTop) / (trunkBot - trunkTop);
     const halfW = 8 + Math.floor(t0 * 12) + Math.floor(noise(y, 0, seed) * 4);
     for (let x = cx - halfW; x <= cx + halfW; x++) {
       if (x < 0 || x >= S) continue;
@@ -76,8 +55,9 @@ export function generateNightmareSprite(seed: number): Uint32Array {
       );
     }
   }
+}
 
-  // ── Organic bumps / blisters on trunk ───────────────────────
+function drawBumps(t: Uint32Array, seed: number, cx: number, trunkTop: number, trunkBot: number, numBumps: number, br: number, bg: number, bb: number) {
   for (let i = 0; i < numBumps; i++) {
     const bx = cx + Math.floor((noise(i, 5, seed + 110) - 0.5) * 18);
     const by = trunkTop + 8 + Math.floor(noise(5, i, seed + 111) * (trunkBot - trunkTop - 16));
@@ -87,13 +67,12 @@ export function generateNightmareSprite(seed: number): Uint32Array {
       return rgba(clamp(br + 20 + n - d * 15), clamp(bg + 10 + n - d * 15), clamp(bb + 5 + n));
     });
   }
+}
 
-  // ── Eye-stalks growing from the top ─────────────────────────
+function drawEyeStalks(t: Uint32Array, seed: number, cx: number, trunkTop: number, numStalks: number, br: number, bg: number, bb: number) {
   for (let i = 0; i < numStalks; i++) {
-    // Base position along upper trunk
     const baseX = cx + Math.floor((noise(i, 0, seed + 200) - 0.5) * 16);
     const baseY = trunkTop + Math.floor(noise(0, i, seed + 201) * 6);
-    // Stalk curves upward with slight random lean
     const lean = (noise(i, 1, seed + 202) - 0.5) * 1.5;
     const stalkLen = 10 + Math.floor(noise(1, i, seed + 203) * 8);
     let sx = baseX, sy = baseY;
@@ -102,38 +81,34 @@ export function generateNightmareSprite(seed: number): Uint32Array {
       sx += Math.floor(lean + (noise(j, i, seed + 204) - 0.5) * 1.6);
       if (sx < 1 || sx >= S - 1 || sy < 0) break;
       const n = noise(sx, sy, seed + 205) * 15;
-      // Thick stalk (2-3 px wide)
       t[sy * S + sx] = rgba(clamp(br - 5 + n), clamp(bg - 5 + n), clamp(bb - 5 + n));
       t[sy * S + sx + 1] = rgba(clamp(br - 10 + n), clamp(bg - 10 + n), clamp(bb - 10 + n));
       if (noise(j, i, seed + 206) > 0.5)
         t[sy * S + sx - 1] = rgba(clamp(br - 12 + n), clamp(bg - 12 + n), clamp(bb - 12 + n));
     }
-    // Eyeball at tip
     const eyeR = 3 + Math.floor(noise(i, i, seed + 210) * 2);
     ellipse(t, sx, sy, eyeR, eyeR, (d) =>
       d < 0.45 ? (noise(i, 3, seed + 211) > 0.5 ? rgba(10, 5, 5) : rgba(180, 20, 20))
                : rgba(220, 215, 180));
-    // Glow ring around eye (reddish)
     ellipse(t, sx, sy, eyeR + 1, eyeR + 1, (d, px, py) => {
-      if (d < 0.7) return t[py * S + px]; // keep inner pixels
+      if (d < 0.7) return t[py * S + px];
       return rgba(clamp(br + 40), clamp(bg - 10), clamp(bb - 10));
     });
   }
+}
 
-  // ── Mouths — gaping dark holes with teeth on the trunk ──────
+function drawMouths(t: Uint32Array, seed: number, cx: number, trunkCy: number, numMouths: number) {
   for (let i = 0; i < numMouths; i++) {
     const my = trunkCy + Math.floor((noise(i, 1, seed + 300) - 0.3) * 18);
     const mw = 4 + Math.floor(noise(1, i, seed + 301) * 6);
     const mh = 2 + Math.floor(noise(i, 2, seed + 302) * 2);
     const mx = Math.floor(cx + (noise(i, 3, seed + 303) - 0.5) * 14 - mw / 2);
-    // Dark mouth interior
     for (let dy = 0; dy < mh; dy++) for (let x = mx; x < mx + mw; x++) {
       const py = my + dy;
       if (x < 0 || x >= S || py < 0 || py >= S) continue;
       if (t[py * S + x] === CLEAR) continue;
       t[py * S + x] = rgba(25, 8, 12);
     }
-    // Teeth — top row
     for (let x = mx; x < mx + mw; x++) {
       if (x < 0 || x >= S || my - 1 < 0) continue;
       if (t[my * S + x] === CLEAR) continue;
@@ -143,7 +118,6 @@ export function generateNightmareSprite(seed: number): Uint32Array {
           t[(my - 2) * S + x] = rgba(200, 190, 160);
       }
     }
-    // Teeth — bottom row
     for (let x = mx; x < mx + mw; x++) {
       const py = my + mh;
       if (x < 0 || x >= S || py >= S) continue;
@@ -152,9 +126,9 @@ export function generateNightmareSprite(seed: number): Uint32Array {
       }
     }
   }
+}
 
-  // ── Small tentacle / root tendrils at the very bottom ───────
-  const tendrils = 3 + (seed % 4);
+function drawTendrils(t: Uint32Array, seed: number, cx: number, trunkBot: number, tendrils: number, br: number, bg: number, bb: number) {
   for (let i = 0; i < tendrils; i++) {
     let tx = cx + Math.floor((noise(i, 4, seed + 400) - 0.5) * 20);
     let ty = trunkBot - 1;
@@ -168,6 +142,35 @@ export function generateNightmareSprite(seed: number): Uint32Array {
       if (tx + 1 < S) t[ty * S + tx + 1] = rgba(clamp(br - 20 + n), clamp(bg - 20 + n), clamp(bb - 20 + n));
     }
   }
+}
+
+/* ── Procedural sprite from name hash — each nightmare unique ── */
+export function generateNightmareSprite(seed: number): Uint32Array {
+  const t = new Uint32Array(S * S).fill(CLEAR);
+  const cx = S / 2;
+
+  // Hash-derived parameters
+  const numStalks = 3 + (seed % 5);           // 3-7 eye stalks
+  const numMouths = 2 + (seed % 3);           // 2-4 mouths
+  const bodyHue   = seed % 3;                 // 0=brown, 1=dark-red, 2=grey-flesh
+  const numBumps  = 2 + (seed % 4);           // organic lumps on trunk
+  const tendrils  = 3 + (seed % 4);           // 3-6 tendrils
+
+  const bodyColors: [number, number, number][] = [
+    [100, 60, 45],   // reddish brown flesh
+    [90, 40, 40],    // dark crimson
+    [85, 75, 70],    // grey-flesh
+  ];
+  const [br, bg, bb] = bodyColors[bodyHue];
+
+  const trunkTop = 18, trunkBot = 58;
+  const trunkCy = (trunkTop + trunkBot) / 2;
+
+  drawTrunk(t, seed, cx, trunkTop, trunkBot, br, bg, bb);
+  drawBumps(t, seed, cx, trunkTop, trunkBot, numBumps, br, bg, bb);
+  drawEyeStalks(t, seed, cx, trunkTop, numStalks, br, bg, bb);
+  drawMouths(t, seed, cx, trunkCy, numMouths);
+  drawTendrils(t, seed, cx, trunkBot, tendrils, br, bg, bb);
 
   return t;
 }
