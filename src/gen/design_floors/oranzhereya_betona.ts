@@ -1410,5 +1410,5 @@ function cloneInventory(items: readonly Item[]): Item[] {
 }
 
 function uniqueTags(tags: readonly string[]): string[] {
-  return tags.filter((tag, index) => tags.indexOf(tag) === index).slice(0, 12);
+  return Array.from(new Set(tags)).slice(0, 12);
 }
