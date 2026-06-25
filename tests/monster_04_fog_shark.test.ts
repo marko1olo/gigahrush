@@ -9,17 +9,21 @@ import { DEF, generateSprite } from '../src/entities/fog_shark';
 import { MONSTERS, MONSTER_SPRITES, NEW_MONSTERS_BY_FLOOR } from '../src/entities/monster';
 import { S } from '../src/render/pixutil';
 import {
+  FOG_SHARK_PACK_CAP,
+  setEntityMap,
+  updateMonster,
   FOG_SHARK_DRY_SPEED_MULT,
   FOG_SHARK_FOG_SPEED_MULT,
   fogSharkMoveMultiplierForTests,
 } from '../src/systems/ai/monster';
-import { rebuildEntityIndex } from '../src/systems/entity_index';
-import { createWorldEventState, getRecentEvents } from '../src/systems/events';
+import { rebuildEntityIndex, getEntityIndex } from '../src/systems/entity_index';
+import { createWorldEventState, getRecentEvents, publishEvent } from '../src/systems/events';
 import {
   FOG_SHARK_IGNITION_TARGET_CAP,
 } from '../src/systems/fog_shark';
 import { adjustMonsterProjectileDamage, recordMonsterProjectileDeath } from '../src/systems/monster_counterplay';
 import { makeGameState, makeTestNpc, makeTestPlayer } from './helpers';
+import type { Msg } from '../src/core/types';
 
 function openWorld(): World {
   const world = new World();
@@ -89,6 +93,14 @@ test('fog shark is standalone fog-pack content with sprite, ecology, and rumors'
   }
 
   assert.equal(DEF.kind, MonsterKind.FOG_SHARK);
+  assert.equal(DEF.name, 'Туманная акула');
+  assert.equal(DEF.hp, 18);
+  assert.equal(DEF.speed, 2.85);
+  assert.equal(DEF.dmg, 12);
+  assert.equal(DEF.attackRate, 0.78);
+  assert.equal(DEF.sprite, 0);
+  assert.equal(DEF.lootHint, 'серебряный зуб, сине-черная чешуя, газовый пузырь, редкая акулья чешуя');
+
   assert.equal(MONSTERS[MonsterKind.FOG_SHARK], DEF);
   assert.equal(MONSTER_SPRITES[MonsterKind.FOG_SHARK], generateSprite);
   assert.deepEqual(DEF.aiFlags, ['fogSwimmer']);
@@ -164,4 +176,60 @@ test('fog shark flame kill is lethal and ignition burst is bounded to one event'
   assert.equal(events[0].data?.cap, FOG_SHARK_IGNITION_TARGET_CAP);
   assert.equal(events[0].data?.killCount, collateralKills);
   assert.equal(events[0].data?.sharkHits !== undefined, true);
+});
+
+function prime(entities: Entity[]): void {
+  rebuildEntityIndex(entities);
+  getEntityIndex().beginTelemetryFrame();
+  setEntityMap(new Map(entities.map(e => [e.id, e])));
+}
+
+test('fog shark shares target only through a bounded pack radius query', () => {
+  const world = openWorld();
+  const target = makeTestPlayer({ id: 1, x: 10, y: 10, hp: 100, maxHp: 100, faction: Faction.PLAYER });
+  const caller = fogShark(2, 12, 10);
+  const packmate = fogShark(3, 22, 10);
+  packmate.ai!.combatScanCd = 99;
+  const entities = [target, caller, packmate];
+  const state = makeGameState({ currentFloor: FloorLevel.MAINTENANCE, worldEvents: createWorldEventState() });
+  const msgs: Msg[] = [];
+
+  prime(entities);
+  updateMonster(world, entities, caller, 0.1, 1, msgs, target.id, { v: 10 }, state);
+
+  assert.equal(caller.ai?.combatTargetId, target.id);
+  assert.equal(packmate.ai?.combatTargetId, target.id);
+  const event = getRecentEvents(state, { type: 'fog_shark_pack_sighted', limit: 1 })[0];
+  assert.ok(event);
+});
+
+test('fog shark pack share is capped and cooldown-gated', () => {
+  const world = openWorld();
+  const target = makeTestPlayer({ id: 1, x: 10, y: 10, hp: 100, maxHp: 100, faction: Faction.PLAYER });
+  const caller = fogShark(2, 12, 10);
+  caller.ai!.combatTargetId = target.id;
+  caller.ai!.combatScanCd = 99;
+  const pack = Array.from({ length: 18 }, (_, i) => {
+    const shark = fogShark(3 + i, 12.4 + (i % 6) * 0.25, 10.4 + Math.floor(i / 6) * 0.25);
+    shark.ai!.combatScanCd = 99;
+    return shark;
+  });
+  const entities = [target, caller, ...pack];
+  const state = makeGameState({ currentFloor: FloorLevel.MAINTENANCE, worldEvents: createWorldEventState() });
+  const msgs: Msg[] = [];
+
+  prime(entities);
+  updateMonster(world, entities, caller, 0.1, 5, msgs, target.id, { v: 40 }, state);
+
+  const firstShared = pack.filter(shark => shark.ai?.combatTargetId === target.id).length;
+  const event = getRecentEvents(state, { type: 'fog_shark_pack_sighted', limit: 1 })[0];
+  assert.ok(event);
+  assert.equal(firstShared > 0, true);
+  assert.equal(firstShared <= FOG_SHARK_PACK_CAP, true);
+
+  for (const shark of pack) shark.ai!.combatTargetId = undefined;
+  prime(entities);
+  updateMonster(world, entities, caller, 0.1, 5.25, msgs, target.id, { v: 40 }, state);
+
+  assert.equal(pack.filter(shark => shark.ai?.combatTargetId === target.id).length, 0);
 });
