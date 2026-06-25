@@ -2709,27 +2709,7 @@ function createParticleVAO(
 }
 
 /* ── Initialize WebGL ─────────────────────────────────────────── */
-export function initWebGL(
-  canvas: HTMLCanvasElement,
-  textures: TexData[],
-  sprites: SpriteData[],
-  world: World,
-): WebGL2RenderingContext {
-  const gl = canvas.getContext('webgl2', {
-    alpha: false,
-    antialias: false,
-    premultipliedAlpha: false,
-    preserveDrawingBuffer: false,
-  })!;
-  if (!gl) throw new Error('WebGL2 not supported');
-
-  // Enable float textures
-  const floatExt = gl.getExtension('EXT_color_buffer_float');
-  if (!floatExt) {
-    // Fallback: we can still work without it, will use RGBA8 readback
-    console.warn('EXT_color_buffer_float not available — depth readback via RGBA');
-  }
-
+function initWebGLPrograms(gl: WebGL2RenderingContext) {
   // ── Raycaster program ──
   const rayProgram = createProgram(gl, VERT_SRC, FRAG_SRC);
   const rayVAO = createQuadVAO(gl, rayProgram);
@@ -2794,6 +2774,17 @@ export function initWebGL(
   const particleBuffers = createParticleVAO(gl, particleProgram, PARTICLE_INSTANCE_CAP);
   const particleUniforms = getUniforms(gl, particleProgram, ['uResolution']);
 
+  return {
+    rayProgram, rayVAO, rayUniforms,
+    blitProgram, blitVAO, blitUniforms,
+    bloomPrefilterProgram, bloomPrefilterUniforms, bloomVAOPrefilter,
+    bloomBlurProgram, bloomBlurUniforms, bloomVAOBlur,
+    spriteProgram, spriteVAO, spriteUniforms,
+    particleProgram, particleBuffers, particleUniforms
+  };
+}
+
+function initWebGLFBOs(gl: WebGL2RenderingContext) {
   // ── FBO for low-res raycaster output ──
   const rayColorTex = gl.createTexture()!;
   gl.bindTexture(gl.TEXTURE_2D, rayColorTex);
@@ -2837,6 +2828,10 @@ export function initWebGL(
   const bloomB = makeBloomTarget();
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
+  return { rayColorTex, rayDepthTex, rayFBO, bloomA, bloomB };
+}
+
+function initWebGLDataTextures(gl: WebGL2RenderingContext, world: World) {
   // ── Data textures ──
   const cellsTex = createDataTexR8UI(gl, W, W, world.cells);
   const wallTexTex = createDataTexR8UI(gl, W, W, world.wallTex);
@@ -2861,6 +2856,37 @@ export function initWebGL(
     gl.RGBA, gl.UNSIGNED_BYTE, surfData.pixels);
   const surfaceIdxTex = createDataTexR16UI(gl, W, W, surfData.index);
 
+  return {
+    cellsTex, wallTexTex, floorTexTex, featuresTex, ceilTex, lightTex, lightBlinksTex, fogTex,
+    doorStatesData, doorStatesTex, surfData, surfaceAtlasTex, surfaceIdxTex
+  };
+}
+
+export function initWebGL(
+  canvas: HTMLCanvasElement,
+  textures: TexData[],
+  sprites: SpriteData[],
+  world: World,
+): WebGL2RenderingContext {
+  const gl = canvas.getContext('webgl2', {
+    alpha: false,
+    antialias: false,
+    premultipliedAlpha: false,
+    preserveDrawingBuffer: false,
+  })!;
+  if (!gl) throw new Error('WebGL2 not supported');
+
+  // Enable float textures
+  const floatExt = gl.getExtension('EXT_color_buffer_float');
+  if (!floatExt) {
+    // Fallback: we can still work without it, will use RGBA8 readback
+    console.warn('EXT_color_buffer_float not available — depth readback via RGBA');
+  }
+
+  const programs = initWebGLPrograms(gl);
+  const fbos = initWebGLFBOs(gl);
+  const dataTextures = initWebGLDataTextures(gl, world);
+
   // ── Texture atlas ──
   const atlasTex = buildAtlas(gl, textures);
   const dynamicSkyTex = createDynamicSkyTex(gl);
@@ -2872,34 +2898,34 @@ export function initWebGL(
 
   glState = {
     gl,
-    rayProgram, rayVAO, rayFBO, rayColorTex, rayDepthTex,
-    blitProgram, blitVAO,
-    bloomPrefilterProgram, bloomPrefilterUniforms,
-    bloomBlurProgram, bloomBlurUniforms,
-    bloomVAOPrefilter, bloomVAOBlur,
-    bloomTexA: bloomA.tex, bloomFBO_A: bloomA.fbo,
-    bloomTexB: bloomB.tex, bloomFBO_B: bloomB.fbo,
-    particleProgram,
-    particleVAO: particleBuffers.vao,
-    particleInstanceBuffer: particleBuffers.instanceBuffer,
-    particleColorBuffer: particleBuffers.colorBuffer,
-    particleInstanceData: particleBuffers.instanceData,
-    particleColorData: particleBuffers.colorData,
-    particleUniforms,
-    cellsTex, wallTexTex, floorTexTex, featuresTex, ceilTex, lightTex, lightBlinksTex, fogTex,
-    doorStatesTex, atlasTex,
+    rayProgram: programs.rayProgram, rayVAO: programs.rayVAO, rayFBO: fbos.rayFBO, rayColorTex: fbos.rayColorTex, rayDepthTex: fbos.rayDepthTex,
+    blitProgram: programs.blitProgram, blitVAO: programs.blitVAO,
+    bloomPrefilterProgram: programs.bloomPrefilterProgram, bloomPrefilterUniforms: programs.bloomPrefilterUniforms,
+    bloomBlurProgram: programs.bloomBlurProgram, bloomBlurUniforms: programs.bloomBlurUniforms,
+    bloomVAOPrefilter: programs.bloomVAOPrefilter, bloomVAOBlur: programs.bloomVAOBlur,
+    bloomTexA: fbos.bloomA.tex, bloomFBO_A: fbos.bloomA.fbo,
+    bloomTexB: fbos.bloomB.tex, bloomFBO_B: fbos.bloomB.fbo,
+    particleProgram: programs.particleProgram,
+    particleVAO: programs.particleBuffers.vao,
+    particleInstanceBuffer: programs.particleBuffers.instanceBuffer,
+    particleColorBuffer: programs.particleBuffers.colorBuffer,
+    particleInstanceData: programs.particleBuffers.instanceData,
+    particleColorData: programs.particleBuffers.colorData,
+    particleUniforms: programs.particleUniforms,
+    cellsTex: dataTextures.cellsTex, wallTexTex: dataTextures.wallTexTex, floorTexTex: dataTextures.floorTexTex, featuresTex: dataTextures.featuresTex, ceilTex: dataTextures.ceilTex, lightTex: dataTextures.lightTex, lightBlinksTex: dataTextures.lightBlinksTex, fogTex: dataTextures.fogTex,
+    doorStatesTex: dataTextures.doorStatesTex, atlasTex,
     dynamicSkyTex,
     dynamicSkyW: 1,
     dynamicSkyH: 1,
-    spriteProgram, spriteVAO, spriteTextures, spriteGroundInsets,
+    spriteProgram: programs.spriteProgram, spriteVAO: programs.spriteVAO, spriteTextures, spriteGroundInsets,
     proceduralSpriteTextures: new Map(),
     itemSpriteTextures: new Map(),
     proceduralSpriteUseTick: 0,
-    surfaceAtlasTex, surfaceIdxTex,
-    surfacePixels: surfData.pixels,
-    surfaceIndex: surfData.index,
-    surfaceSlotByCell: surfData.slotByCell,
-    surfaceCellBySlot: surfData.cellBySlot,
+    surfaceAtlasTex: dataTextures.surfaceAtlasTex, surfaceIdxTex: dataTextures.surfaceIdxTex,
+    surfacePixels: dataTextures.surfData.pixels,
+    surfaceIndex: dataTextures.surfData.index,
+    surfaceSlotByCell: dataTextures.surfData.slotByCell,
+    surfaceCellBySlot: dataTextures.surfData.cellBySlot,
     surfaceIndexPatch: new Uint16Array(1),
     surfaceVersion: world.surfaceVersion,
     surfaceUploadMs: 0,
@@ -2913,8 +2939,8 @@ export function initWebGL(
     lightVersion: world.lightVersion,
     lightBlinksVersion: world.lightVersion,
     fogVersion: world.fogVersion,
-    doorStatesData,
-    rayUniforms, blitUniforms, spriteUniforms,
+    doorStatesData: dataTextures.doorStatesData,
+    rayUniforms: programs.rayUniforms, blitUniforms: programs.blitUniforms, spriteUniforms: programs.spriteUniforms,
     dynamicLightCount: 0,
     dynamicLightsPos: new Float32Array(8 * 3),
     dynamicLightsColor: new Float32Array(8 * 3),
