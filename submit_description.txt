@@ -1,0 +1,7 @@
+🎯 **What:** The `poll` method inside `createGamepadAdapter` in `src/input_gamepad.ts` was very long and complex. It has been refactored by extracting three smaller helper functions: `handleGamepadDisconnect`, `pollSticks`, and `pollButtons`.
+
+💡 **Why:** This improves readability, maintainability, and logically separates the tasks of handling disconnect events, reading analog sticks, and processing standard buttons/triggers. The main `poll` function now simply delegates work.
+
+✅ **Verification:** I ran the unit tests specifically targeting "gamepad" and "input" logic (`npm run test:unit -- --test-name-pattern="gamepad|input"`). All 191 unit tests passed with no regressions. Type checking and content audit both pass.
+
+✨ **Result:** The `createGamepadAdapter` function is now much cleaner, significantly shorter, and adheres better to Single Responsibility constraints without altering any existing behavior.
