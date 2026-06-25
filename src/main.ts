@@ -6492,478 +6492,295 @@ canvas.addEventListener('click', e => {
   e.stopImmediatePropagation();
 }, true);
 
-function handleMenuInput(): void {
-  // ── On death: lock out all menus / inventory / interactions ──
-  // Only the restart prompt (checkRestart) responds to input.
-  if (state.gameOver) {
-    state.showMenu = false;
-    state.showInventory = false;
-    state.showQuests = false;
-    state.showNpcMenu = false;
-    closeContainerMenu();
-    closeCraftMenu();
-    state.showFactions = false;
-    state.showDemos = false;
-    state.demosSearchActive = false;
-    state.showLog = false;
-    state.showHelp = false;
-    state.showControls = false;
-    state.showUiSettings = false;
-    state.showMapLegend = false;
-    cancelControlCapture();
-    closeNetSphere();
-    closeNetTerminalGen();
-    closeInteractableOverlay();
-    closeEmergencyPanelMenu();
+
+interface MenuNavEdges {
+  acceptEdge: boolean;
+  closeEdge: boolean;
+  resetEdge: boolean;
+  leftEdge: boolean;
+  rightEdge: boolean;
+  upEdge: boolean;
+  dnEdge: boolean;
+  dropEdge: boolean;
+  pointerWheel: number;
+  pointerCloseEdge: boolean;
+  menuUpNav: () => boolean;
+  menuDownNav: () => boolean;
+}
+
+function handleDemosMenuInputLayer(edges: MenuNavEdges): void {
+  const { closeEdge, acceptEdge, leftEdge, rightEdge, dropEdge, menuUpNav, menuDownNav } = edges;
+  if (input.textInput) {
+    const nextSearch = applyDemosSearchText(state.demosSearch, input.textInput);
+    input.textInput = '';
+    if (nextSearch !== state.demosSearch) {
+      state.demosSearch = nextSearch;
+    }
+  }
+  if (closeEdge) {
+    closeDemosMenu();
+  } else if (acceptEdge) {
+    state.demosSearch = cleanDemosSearchQuery(state.demosSearch);
+    if (state.demosSearchActive) {
+      state.demosCursor = findDemosCursor(state, state.demosSearch, state.demosCursor, 1);
+      state.demosSearchActive = false;
+    } else {
+      state.demosSearchActive = true;
+    }
+    input.textInput = '';
+  } else if (!state.demosSearchActive) {
+    const upNav = menuUpNav();
+    const dnNav = menuDownNav();
+    const leftNav = menuRepeatStep('left', input.invLeft, leftEdge);
+    const rightNav = menuRepeatStep('right', input.invRight || input.drop, rightEdge || dropEdge);
+    if (leftNav) {
+      shiftDemosTab(-1);
+      clampDemosPanelState();
+    }
+    if (rightNav) {
+      shiftDemosTab(1);
+      clampDemosPanelState();
+    }
+    if (upNav) moveDemosPanelCursor(-1);
+    if (dnNav) moveDemosPanelCursor(1);
+  }
+
+  syncMenuInputBaselines();
+  syncPauseState();
+}
+
+function handleMapEditorMenuInputLayer(edges: MenuNavEdges): void {
+  const { closeEdge, acceptEdge, leftEdge, rightEdge, dropEdge, upEdge, dnEdge, pointerWheel, menuUpNav, menuDownNav } = edges;
+  state.showMenu = false;
+  state.showInventory = false;
+  state.showQuests = false;
+  state.showNpcMenu = false;
+  closeContainerMenu();
+  closeCraftMenu();
+  state.showFactions = false;
+  state.showDemos = false;
+  state.demosSearchActive = false;
+  state.showLog = false;
+  state.showHelp = false;
+  state.showDebug = false;
+  state.showControls = false;
+  state.showUiSettings = false;
+  cancelControlCapture();
+  closeNetSphere();
+  state.paused = true;
+
+  const mapMode = isMapEditorMapMode();
+  const wheelZoom = mapMode ? Math.max(-4, Math.min(4, -pointerWheel)) : 0;
+  const upNav = mapMode ? menuRepeatStep('up', input.invUp, upEdge) : menuUpNav();
+  const dnNav = mapMode ? menuRepeatStep('down', input.invDn, dnEdge) : menuDownNav();
+  const leftNav = menuRepeatStep('left', input.invLeft, leftEdge);
+  const rightNav = menuRepeatStep('right', input.invRight || input.drop, rightEdge || dropEdge);
+
+  const closeEditor = () => {
     closeMapEditorAndRefreshWorld();
-    resetMenuRepeats();
-    // Keep edge-detection prev states in sync so first frame after
-    // respawn doesn't fire a stale edge.
-    syncMenuInputBaselines();
-    input.menuAccept = false;
-    input.menuClose = false;
-    input.menuWheel = 0;
-    input.textInput = '';
-    return;
-  }
-
-  if (pointerCaptureGateVisible()) {
-    input.menuAccept = false;
-    input.menuClose = false;
-    input.menuWheel = 0;
-    input.textInput = '';
-    resetMenuRepeats();
-    syncMenuInputBaselines();
+    closeNetTerminalGen();
     syncPauseState();
-    return;
+  };
+
+  if (closeEdge) {
+    const action = backMapEditorMode();
+    if (action === 'close') closeEditor();
+  } else {
+    if (upNav) moveMapEditorMode(world, 0, -1);
+    if (dnNav) moveMapEditorMode(world, 0, 1);
+    if (leftNav) moveMapEditorMode(world, -1, 0);
+    if (rightNav) moveMapEditorMode(world, 1, 0);
+    if (wheelZoom !== 0) adjustMapEditorZoom(wheelZoom);
+    if (acceptEdge) {
+      const action = activateMapEditorMode();
+      if (action === 'apply') {
+        applyCurrentMapEditorBrush(world, entities, player, state, nextEntityId);
+      } else if (action === 'close') {
+        closeEditor();
+      }
+    }
   }
 
-  const pointerAcceptEdge = input.menuAccept;
-  const pointerCloseEdge = input.menuClose;
-  const pointerWheel = input.menuWheel;
-  input.menuAccept = false;
-  input.menuClose = false;
-  input.menuWheel = 0;
-  const wheelUpEdge = pointerWheel < 0;
-  const wheelDnEdge = pointerWheel > 0;
-  const acceptEdge = (input.escape && !prevEsc) || pointerAcceptEdge;
-  const closeEdge = (input.controlClose && !prevControlClose) || pointerCloseEdge;
-  const resetEdge = input.controlReset && !prevControlReset;
-  const upEdge = input.invUp && !prevMenuUp;
-  const dnEdge = input.invDn && !prevMenuDn;
-  const leftEdge = input.invLeft && !prevMenuLeft;
-  const rightEdge = input.invRight && !prevMenuRight;
-  const dropEdge = input.drop && !prevDrop;
+  syncMenuInputBaselines();
+}
+
+function handleInteractableOverlayMenuInputLayer(edges: MenuNavEdges): void {
+  const { closeEdge, acceptEdge, leftEdge, rightEdge, dropEdge, menuUpNav, menuDownNav } = edges;
+  state.showMenu = false;
+  state.showInventory = false;
+  state.showQuests = false;
+  state.showNpcMenu = false;
+  closeContainerMenu();
+  closeCraftMenu();
+  state.showFactions = false;
+  state.showDemos = false;
+  state.demosSearchActive = false;
+  state.showLog = false;
+  state.showHelp = false;
+  state.showDebug = false;
+  state.showControls = false;
+  state.showUiSettings = false;
+  cancelControlCapture();
+  closeNetSphere();
+  state.paused = true;
+
+  const upNav = menuUpNav();
+  const dnNav = menuDownNav();
+  const leftNav = menuRepeatStep('left', input.invLeft, leftEdge);
+  const rightNav = menuRepeatStep('right', input.invRight || input.drop, rightEdge || dropEdge);
+  const result = handleInteractableOverlayInput({
+    escEdge: closeEdge,
+    interactEdge: acceptEdge,
+    upNav,
+    dnNav,
+    leftNav,
+    rightNav,
+  }, { world, state, player, switchFloor });
+  if (result.worldChanged) updateWorldData(world);
+  if (!isInteractableOverlayOpen()) syncPauseState();
+
+  syncMenuInputBaselines();
+}
+
+function handleEmergencyPanelMenuInputLayer(edges: MenuNavEdges): void {
+  const { closeEdge, acceptEdge, menuUpNav, menuDownNav } = edges;
+  state.showMenu = false;
+  state.showInventory = false;
+  state.showQuests = false;
+  state.showNpcMenu = false;
+  closeContainerMenu();
+  closeCraftMenu();
+  state.showFactions = false;
+  state.showDemos = false;
+  state.demosSearchActive = false;
+  state.showLog = false;
+  state.showHelp = false;
+  state.showDebug = false;
+  state.showControls = false;
+  state.showUiSettings = false;
+  cancelControlCapture();
+  closeNetSphere();
+  state.paused = true;
+
+  const upNav = menuUpNav();
+  const dnNav = menuDownNav();
+  const result = handleEmergencyPanelMenuInput({
+    up: upNav,
+    down: dnNav,
+    confirm: acceptEdge,
+    close: closeEdge,
+  }, world, player, entities, state, nextEntityId);
+  if (result.worldChanged) updateWorldData(world);
+  if (!isEmergencyPanelMenuOpen()) syncPauseState();
+
+  syncMenuInputBaselines();
+}
+
+function handleNetSphereMenuInputLayer(edges: MenuNavEdges): void {
+  const { closeEdge, pointerCloseEdge } = edges;
+  state.showMenu = false;
+  state.showInventory = false;
+  state.showQuests = false;
+  state.showNpcMenu = false;
+  closeContainerMenu();
+  closeCraftMenu();
+  state.showFactions = false;
+  state.showDemos = false;
+  state.demosSearchActive = false;
+  state.showLog = false;
+  state.showHelp = false;
+  state.showDebug = false;
+  state.showControls = false;
+  state.showUiSettings = false;
+  cancelControlCapture();
+  state.paused = true;
+  if (pointerCloseEdge || (closeEdge && !isNetSphereChatInputActive())) {
+    closeNetSphere();
+    syncPauseState();
+    updateMobileContext(true);
+  }
+  resetMenuRepeats();
+  syncMenuInputBaselines();
+}
+
+function handleControlsMenuInputLayer(edges: MenuNavEdges, controlsOpenedThisFrame: boolean): void {
+  const { closeEdge, acceptEdge, leftEdge, rightEdge, resetEdge, menuUpNav, menuDownNav } = edges;
+  if (!getControlCaptureAction()) {
+    const effectiveAcceptEdge = !controlsOpenedThisFrame && acceptEdge;
+    const fixedControlsCommand = effectiveAcceptEdge || closeEdge || resetEdge;
+    const upNav = !fixedControlsCommand && menuUpNav();
+    const dnNav = !fixedControlsCommand && menuDownNav();
+    if (upNav) state.controlSel = Math.max(0, state.controlSel - 1);
+    if (dnNav) state.controlSel = Math.min(controlMenuItemCount() - 1, state.controlSel + 1);
+    keepControlSelectionVisible();
+    const mouseSensitivitySelected = controlMouseSensitivitySelected();
+    const leftNav = !fixedControlsCommand && mouseSensitivitySelected ? menuRepeatStep('left', input.invLeft, leftEdge) : false;
+    const rightNav = !fixedControlsCommand && mouseSensitivitySelected ? menuRepeatStep('right', input.invRight, rightEdge) : false;
+    if (resetEdge && state.controlView === 'keys') {
+      const action = selectedControlAction();
+      if (action && clearControlBinding(action.id)) {
+        state.msgs.push(msg(`Клавиши очищены: ${action.label}`, state.time, '#8cf'));
+      }
+    } else if (mouseSensitivitySelected && (leftNav || rightNav || effectiveAcceptEdge)) {
+      const sensitivity = adjustMouseLookSensitivity(leftNav ? -1 : 1);
+      state.msgs.push(msg(`Чувствительность мыши: ${Math.round(sensitivity * 100)}%`, state.time, '#8cf'));
+    } else if (effectiveAcceptEdge && controlResetSelected()) {
+      resetAllControlBindings();
+      state.msgs.push(msg('Клавиши сброшены по умолчанию', state.time, '#8cf'));
+    } else if (effectiveAcceptEdge && state.controlView === 'keys') {
+      const action = selectedControlAction();
+      if (action) {
+        beginControlCapture(action.id);
+      }
+    }
+  }
+  if (closeEdge && !controlsOpenedThisFrame) closeControlsMenu();
+
+  syncMenuInputBaselines();
+  syncPauseState();
+}
+
+function handleMapLegendMenuInputLayer(edges: MenuNavEdges): void {
+  const { closeEdge, acceptEdge, menuUpNav, menuDownNav } = edges;
+  const fixedLegendCommand = acceptEdge || closeEdge;
+  const upNav = !fixedLegendCommand && menuUpNav();
+  const dnNav = !fixedLegendCommand && menuDownNav();
+  if (upNav) state.mapLegendSel = Math.max(0, state.mapLegendSel - 1);
+  if (dnNav) state.mapLegendSel = Math.min(mapLegendRowCount() - 1, state.mapLegendSel + 1);
+  keepMapLegendSelectionVisible();
+  if (acceptEdge) applyMapLegendSelection(state.mapLegendSel);
+  if (closeEdge) closeMapLegendMenu();
+
+  syncMenuInputBaselines();
+  syncPauseState();
+}
+
+function handleUiSettingsMenuInputLayer(edges: MenuNavEdges): void {
+  const { closeEdge, acceptEdge, menuUpNav, menuDownNav } = edges;
+  const fixedUiCommand = acceptEdge || closeEdge;
+  const upNav = !fixedUiCommand && menuUpNav();
+  const dnNav = !fixedUiCommand && menuDownNav();
+  if (upNav) state.uiSettingsSel = Math.max(0, state.uiSettingsSel - 1);
+  if (dnNav) state.uiSettingsSel = Math.min(uiSettingsRowCount(state.uiSettingsView) - 1, state.uiSettingsSel + 1);
+  keepUiSettingsSelectionVisible();
+  if (acceptEdge) {
+    applyUiSettingsSelection(state.uiSettingsSel);
+  }
+  if (closeEdge) closeUiSettingsMenu();
+
+  syncMenuInputBaselines();
+  syncPauseState();
+}
+
+function handleMainMenuNavigationLayer(edges: MenuNavEdges, gameMenuOpenedThisFrame: boolean, canOpenShortcutMenu: boolean): void {
+  const { closeEdge, acceptEdge, leftEdge, rightEdge, dropEdge, menuUpNav, menuDownNav } = edges;
+  const pointerWheel = edges.pointerWheel;
+  const dbgEdge = input.debugScreen && !prevDebug;
   const invEdge = input.inv && !prevInvMenu;
   const questEdge = input.questLog && !prevQuestMenu;
   const factionEdge = input.factionMenu && !prevFactionMenu;
   const logEdge = input.logMenu && !prevLogMenu;
   const helpEdge = input.help && !prevHelpMenu;
-  const controlsEdge = input.controls && !prevControlsMenu;
-  const uiSettingsEdge = input.uiSettings && !prevUiSettingsMenu;
-  const dbgEdge = input.debugScreen && !prevDebug;
-  const menuUpNav = () => menuRepeatStep('up', input.invUp, upEdge) || wheelUpEdge;
-  const menuDownNav = () => menuRepeatStep('down', input.invDn, dnEdge) || wheelDnEdge;
-
-  if (state.showDemos) {
-    if (input.textInput) {
-      const nextSearch = applyDemosSearchText(state.demosSearch, input.textInput);
-      input.textInput = '';
-      if (nextSearch !== state.demosSearch) {
-        state.demosSearch = nextSearch;
-      }
-    }
-    if (closeEdge) {
-      closeDemosMenu();
-    } else if (acceptEdge) {
-      state.demosSearch = cleanDemosSearchQuery(state.demosSearch);
-      if (state.demosSearchActive) {
-        state.demosCursor = findDemosCursor(state, state.demosSearch, state.demosCursor, 1);
-        state.demosSearchActive = false;
-      } else {
-        state.demosSearchActive = true;
-      }
-      input.textInput = '';
-    } else if (!state.demosSearchActive) {
-      const upNav = menuUpNav();
-      const dnNav = menuDownNav();
-      const leftNav = menuRepeatStep('left', input.invLeft, leftEdge);
-      const rightNav = menuRepeatStep('right', input.invRight || input.drop, rightEdge || dropEdge);
-      if (leftNav) {
-        shiftDemosTab(-1);
-        clampDemosPanelState();
-      }
-      if (rightNav) {
-        shiftDemosTab(1);
-        clampDemosPanelState();
-      }
-      if (upNav) moveDemosPanelCursor(-1);
-      if (dnNav) moveDemosPanelCursor(1);
-    }
-
-    syncMenuInputBaselines();
-    syncPauseState();
-    return;
-  }
-
-  const canOpenShortcutMenu = canOpenMenuFromGameplay();
-  const shortcutInputActive = menuShortcutInputActive();
-  const globalMapEdge = input.map && !prevMap;
-  const globalMapLegendEdge = input.mapLegend && !prevMapLegendMenu;
-  if (globalMapLegendEdge) {
-    if (state.showMapLegend && !shortcutInputActive) {
-      closeMapLegendMenu();
-      syncMenuInputBaselines();
-      return;
-    }
-    if (canOpenShortcutMenu) {
-      openMapLegendMenu();
-      syncMenuInputBaselines();
-      return;
-    }
-  }
-  if (globalMapEdge) {
-    if (state.mapMode === 2 && !shortcutInputActive) {
-      closeFullMapMenu();
-      syncMenuInputBaselines();
-      return;
-    }
-    if (canOpenShortcutMenu) {
-      openFullMapMenu();
-      syncMenuInputBaselines();
-      return;
-    }
-  }
-
-  if (isMapEditorOpen()) {
-    state.showMenu = false;
-    state.showInventory = false;
-    state.showQuests = false;
-    state.showNpcMenu = false;
-    closeContainerMenu();
-    closeCraftMenu();
-    state.showFactions = false;
-    state.showDemos = false;
-    state.demosSearchActive = false;
-    state.showLog = false;
-    state.showHelp = false;
-    state.showDebug = false;
-    state.showControls = false;
-    state.showUiSettings = false;
-    cancelControlCapture();
-    closeNetSphere();
-    state.paused = true;
-
-    const leftEdge = input.invLeft && !prevMenuLeft;
-    const rightEdge = (input.invRight && !prevMenuRight) || (input.drop && !prevDrop);
-    const mapMode = isMapEditorMapMode();
-    const wheelZoom = mapMode ? Math.max(-4, Math.min(4, -pointerWheel)) : 0;
-    const upNav = mapMode ? menuRepeatStep('up', input.invUp, upEdge) : menuUpNav();
-    const dnNav = mapMode ? menuRepeatStep('down', input.invDn, dnEdge) : menuDownNav();
-    const leftNav = menuRepeatStep('left', input.invLeft, leftEdge);
-    const rightNav = menuRepeatStep('right', input.invRight || input.drop, rightEdge);
-
-    const closeEditor = () => {
-      closeMapEditorAndRefreshWorld();
-      closeNetTerminalGen();
-      syncPauseState();
-    };
-
-    if (closeEdge) {
-      const action = backMapEditorMode();
-      if (action === 'close') closeEditor();
-    } else {
-      if (upNav) moveMapEditorMode(world, 0, -1);
-      if (dnNav) moveMapEditorMode(world, 0, 1);
-      if (leftNav) moveMapEditorMode(world, -1, 0);
-      if (rightNav) moveMapEditorMode(world, 1, 0);
-      if (wheelZoom !== 0) adjustMapEditorZoom(wheelZoom);
-      if (acceptEdge) {
-        const action = activateMapEditorMode();
-        if (action === 'apply') {
-          applyCurrentMapEditorBrush(world, entities, player, state, nextEntityId);
-        } else if (action === 'close') {
-          closeEditor();
-        }
-      }
-    }
-
-    syncMenuInputBaselines();
-    return;
-  }
-
-  if (isInteractableOverlayOpen()) {
-    state.showMenu = false;
-    state.showInventory = false;
-    state.showQuests = false;
-    state.showNpcMenu = false;
-    closeContainerMenu();
-    closeCraftMenu();
-    state.showFactions = false;
-    state.showDemos = false;
-    state.demosSearchActive = false;
-    state.showLog = false;
-    state.showHelp = false;
-    state.showDebug = false;
-    state.showControls = false;
-    state.showUiSettings = false;
-    cancelControlCapture();
-    closeNetSphere();
-    state.paused = true;
-
-    const leftEdge = input.invLeft && !prevMenuLeft;
-    const rightEdge = (input.invRight && !prevMenuRight) || (input.drop && !prevDrop);
-    const upNav = menuUpNav();
-    const dnNav = menuDownNav();
-    const leftNav = menuRepeatStep('left', input.invLeft, leftEdge);
-    const rightNav = menuRepeatStep('right', input.invRight || input.drop, rightEdge);
-    const result = handleInteractableOverlayInput({
-      escEdge: closeEdge,
-      interactEdge: acceptEdge,
-      upNav,
-      dnNav,
-      leftNav,
-      rightNav,
-    }, { world, state, player, switchFloor });
-    if (result.worldChanged) updateWorldData(world);
-    if (!isInteractableOverlayOpen()) syncPauseState();
-
-    syncMenuInputBaselines();
-    return;
-  }
-
-  if (isEmergencyPanelMenuOpen()) {
-    state.showMenu = false;
-    state.showInventory = false;
-    state.showQuests = false;
-    state.showNpcMenu = false;
-    closeContainerMenu();
-    closeCraftMenu();
-    state.showFactions = false;
-    state.showDemos = false;
-    state.demosSearchActive = false;
-    state.showLog = false;
-    state.showHelp = false;
-    state.showDebug = false;
-    state.showControls = false;
-    state.showUiSettings = false;
-    cancelControlCapture();
-    closeNetSphere();
-    state.paused = true;
-
-    const upNav = menuUpNav();
-    const dnNav = menuDownNav();
-    const result = handleEmergencyPanelMenuInput({
-      up: upNav,
-      down: dnNav,
-      confirm: acceptEdge,
-      close: closeEdge,
-    }, world, player, entities, state, nextEntityId);
-    if (result.worldChanged) updateWorldData(world);
-    if (!isEmergencyPanelMenuOpen()) syncPauseState();
-
-    syncMenuInputBaselines();
-    return;
-  }
-
-  if (isNetSphereOpen()) {
-    state.showMenu = false;
-    state.showInventory = false;
-    state.showQuests = false;
-    state.showNpcMenu = false;
-    closeContainerMenu();
-    closeCraftMenu();
-    state.showFactions = false;
-    state.showDemos = false;
-    state.demosSearchActive = false;
-    state.showLog = false;
-    state.showHelp = false;
-    state.showDebug = false;
-    state.showControls = false;
-    state.showUiSettings = false;
-    cancelControlCapture();
-    state.paused = true;
-    if (pointerCloseEdge || (closeEdge && !isNetSphereChatInputActive())) {
-      closeNetSphere();
-      syncPauseState();
-      updateMobileContext(true);
-    }
-    resetMenuRepeats();
-    syncMenuInputBaselines();
-    return;
-  }
-
-  const anyRepeatMenuOpen = state.showMenu || state.showInventory || state.showQuests ||
-    state.showContainerMenu || state.showCraftMenu || state.showNpcMenu || state.showDebug || state.showFactions || state.showDemos || state.showLog || state.showHelp || state.showControls || state.showUiSettings || state.showMapLegend;
-  if (!anyRepeatMenuOpen) resetMenuRepeats();
-
-  const helpOpenedThisFrame = helpEdge && canOpenShortcutMenu;
-  const controlsOpenedThisFrame = controlsEdge && canOpenShortcutMenu && !helpOpenedThisFrame;
-  const uiSettingsOpenedThisFrame = uiSettingsEdge && canOpenShortcutMenu && !helpOpenedThisFrame && !controlsOpenedThisFrame;
-  if (helpOpenedThisFrame) openHelpMenu();
-  if (controlsOpenedThisFrame) openControlsMenu();
-  if (uiSettingsOpenedThisFrame) openUiSettingsMenu();
-
-  const finishSameShortcutClose = (): void => {
-    resetMenuRepeats();
-    syncMenuInputBaselines();
-    syncPauseState();
-    updateMobileContext(true);
-  };
-
-  if (!shortcutInputActive) {
-    if (state.showHelp && helpEdge && !helpOpenedThisFrame) {
-      closeHelpMenu();
-      finishSameShortcutClose();
-      return;
-    }
-    if (state.showControls && controlsEdge && !controlsOpenedThisFrame) {
-      closeControlsMenu();
-      finishSameShortcutClose();
-      return;
-    }
-    if (state.showUiSettings && uiSettingsEdge && !uiSettingsOpenedThisFrame) {
-      closeUiSettingsMenu();
-      finishSameShortcutClose();
-      return;
-    }
-    if (state.showInventory && invEdge) {
-      state.showInventory = false;
-      finishSameShortcutClose();
-      return;
-    }
-    if (state.showQuests && questEdge) {
-      state.showQuests = false;
-      finishSameShortcutClose();
-      return;
-    }
-    if (state.showDebug && dbgEdge) {
-      state.showDebug = false;
-      finishSameShortcutClose();
-      return;
-    }
-    if (state.showFactions && factionEdge) {
-      state.showFactions = false;
-      finishSameShortcutClose();
-      return;
-    }
-    if (state.showLog && logEdge) {
-      state.showLog = false;
-      finishSameShortcutClose();
-      return;
-    }
-  }
-
-  // ── One-page HELP poster ─────────────────────────────────
-  if (state.showHelp) {
-    if ((acceptEdge && !helpOpenedThisFrame) || closeEdge) closeHelpMenu();
-    syncMenuInputBaselines();
-    syncPauseState();
-    return;
-  }
-
-  // ── Hotkey / rebind screen ───────────────────────────────
-  if (state.showControls) {
-    if (!getControlCaptureAction()) {
-      const effectiveAcceptEdge = !controlsOpenedThisFrame && acceptEdge;
-      const fixedControlsCommand = effectiveAcceptEdge || closeEdge || resetEdge;
-      const upNav = !fixedControlsCommand && menuUpNav();
-      const dnNav = !fixedControlsCommand && menuDownNav();
-      if (upNav) state.controlSel = Math.max(0, state.controlSel - 1);
-      if (dnNav) state.controlSel = Math.min(controlMenuItemCount() - 1, state.controlSel + 1);
-      keepControlSelectionVisible();
-      const mouseSensitivitySelected = controlMouseSensitivitySelected();
-      const leftNav = !fixedControlsCommand && mouseSensitivitySelected ? menuRepeatStep('left', input.invLeft, leftEdge) : false;
-      const rightNav = !fixedControlsCommand && mouseSensitivitySelected ? menuRepeatStep('right', input.invRight, rightEdge) : false;
-      if (resetEdge && state.controlView === 'keys') {
-        const action = selectedControlAction();
-        if (action && clearControlBinding(action.id)) {
-          state.msgs.push(msg(`Клавиши очищены: ${action.label}`, state.time, '#8cf'));
-        }
-      } else if (mouseSensitivitySelected && (leftNav || rightNav || effectiveAcceptEdge)) {
-        const sensitivity = adjustMouseLookSensitivity(leftNav ? -1 : 1);
-        state.msgs.push(msg(`Чувствительность мыши: ${Math.round(sensitivity * 100)}%`, state.time, '#8cf'));
-      } else if (effectiveAcceptEdge && controlResetSelected()) {
-        resetAllControlBindings();
-        state.msgs.push(msg('Клавиши сброшены по умолчанию', state.time, '#8cf'));
-      } else if (effectiveAcceptEdge && state.controlView === 'keys') {
-        const action = selectedControlAction();
-        if (action) {
-          beginControlCapture(action.id);
-        }
-      }
-    }
-    if (closeEdge && !controlsOpenedThisFrame) closeControlsMenu();
-
-    syncMenuInputBaselines();
-    syncPauseState();
-    return;
-  }
-
-  // ── Full-map legend/settings screen ─────────────────────
-  if (state.showMapLegend) {
-    const fixedLegendCommand = acceptEdge || closeEdge;
-    const upNav = !fixedLegendCommand && menuUpNav();
-    const dnNav = !fixedLegendCommand && menuDownNav();
-    if (upNav) state.mapLegendSel = Math.max(0, state.mapLegendSel - 1);
-    if (dnNav) state.mapLegendSel = Math.min(mapLegendRowCount() - 1, state.mapLegendSel + 1);
-    keepMapLegendSelectionVisible();
-    if (acceptEdge) applyMapLegendSelection(state.mapLegendSel);
-    if (closeEdge) closeMapLegendMenu();
-
-    syncMenuInputBaselines();
-    syncPauseState();
-    return;
-  }
-
-  // ── Configurable HUD element screen ─────────────────────
-  if (state.showUiSettings) {
-    const fixedUiCommand = acceptEdge || closeEdge;
-    const upNav = !fixedUiCommand && menuUpNav();
-    const dnNav = !fixedUiCommand && menuDownNav();
-    if (upNav) state.uiSettingsSel = Math.max(0, state.uiSettingsSel - 1);
-    if (dnNav) state.uiSettingsSel = Math.min(uiSettingsRowCount(state.uiSettingsView) - 1, state.uiSettingsSel + 1);
-    keepUiSettingsSelectionVisible();
-    if (acceptEdge) {
-      applyUiSettingsSelection(state.uiSettingsSel);
-    }
-    if (closeEdge) closeUiSettingsMenu();
-
-    syncMenuInputBaselines();
-    syncPauseState();
-    return;
-  }
-
-  // ── Enter accepts menu rows; Backspace/Delete closes them ─────
-  let gameMenuOpenedThisFrame = false;
-  if (closeEdge) {
-    if (state.showNpcMenu) {
-      const npc = entities.find(e => e.id === state.npcMenuTarget);
-      if (npc && isDurakGameOpen()) handleDurakInput({ state, player, npc, input: { escEdge: true } });
-      else if (npc && isDiceGameOpen()) handleDiceInput({ state, player, npc, input: { escEdge: true } });
-      else if (npc && isDominoGameOpen()) handleDominoInput({ state, player, npc, input: { escEdge: true } });
-      else if (npc && isCheckersGameOpen()) handleCheckersInput({ state, player, npc, input: { escEdge: true } });
-      clearTradeOffers(state);
-      closeNpcInteractionInterface();
-      state.showNpcMenu = false;
-    }
-    else if (state.showContainerMenu) { closeContainerMenu(); }
-    else if (state.showCraftMenu) { closeCraftMenu(); syncPauseState(); updateMobileContext(true); }
-    else if (state.showInventory) { state.showInventory = false; }
-    else if (state.showQuests) { state.showQuests = false; }
-    else if (state.showDebug) { state.showDebug = false; }
-    else if (state.showFactions) { state.showFactions = false; }
-    else if (state.showDemos) { closeDemosMenu(); }
-    else if (state.showLog) { state.showLog = false; }
-    else if (state.showHelp) { closeHelpMenu(); }
-    else if (state.showUiSettings) { state.showUiSettings = false; }
-    else if (state.mapMode === 2) { closeFullMapMenu(); }
-    else if (state.showMenu) { state.showMenu = false; }
-  } else if (acceptEdge && canOpenShortcutMenu) {
-    state.showMenu = true;
-    state.menuSel = 0;
-    gameMenuOpenedThisFrame = true;
-  }
 
   // ── Game menu navigation ─────────────────────────────────
   if (state.showMenu) {
@@ -7274,6 +7091,271 @@ function handleMenuInput(): void {
       if (helpEdge) { openHelpMenu(); }
     }
   }
+}
+
+function handleMenuInput(): void {
+  // ── On death: lock out all menus / inventory / interactions ──
+  // Only the restart prompt (checkRestart) responds to input.
+  if (state.gameOver) {
+    state.showMenu = false;
+    state.showInventory = false;
+    state.showQuests = false;
+    state.showNpcMenu = false;
+    closeContainerMenu();
+    closeCraftMenu();
+    state.showFactions = false;
+    state.showDemos = false;
+    state.demosSearchActive = false;
+    state.showLog = false;
+    state.showHelp = false;
+    state.showControls = false;
+    state.showUiSettings = false;
+    state.showMapLegend = false;
+    cancelControlCapture();
+    closeNetSphere();
+    closeNetTerminalGen();
+    closeInteractableOverlay();
+    closeEmergencyPanelMenu();
+    closeMapEditorAndRefreshWorld();
+    resetMenuRepeats();
+    // Keep edge-detection prev states in sync so first frame after
+    // respawn doesn't fire a stale edge.
+    syncMenuInputBaselines();
+    input.menuAccept = false;
+    input.menuClose = false;
+    input.menuWheel = 0;
+    input.textInput = '';
+    return;
+  }
+
+  if (pointerCaptureGateVisible()) {
+    input.menuAccept = false;
+    input.menuClose = false;
+    input.menuWheel = 0;
+    input.textInput = '';
+    resetMenuRepeats();
+    syncMenuInputBaselines();
+    syncPauseState();
+    return;
+  }
+
+  const pointerAcceptEdge = input.menuAccept;
+  const pointerCloseEdge = input.menuClose;
+  const pointerWheel = input.menuWheel;
+  input.menuAccept = false;
+  input.menuClose = false;
+  input.menuWheel = 0;
+  const wheelUpEdge = pointerWheel < 0;
+  const wheelDnEdge = pointerWheel > 0;
+  const acceptEdge = (input.escape && !prevEsc) || pointerAcceptEdge;
+  const closeEdge = (input.controlClose && !prevControlClose) || pointerCloseEdge;
+  const resetEdge = input.controlReset && !prevControlReset;
+  const upEdge = input.invUp && !prevMenuUp;
+  const dnEdge = input.invDn && !prevMenuDn;
+  const leftEdge = input.invLeft && !prevMenuLeft;
+  const rightEdge = input.invRight && !prevMenuRight;
+  const dropEdge = input.drop && !prevDrop;
+  const invEdge = input.inv && !prevInvMenu;
+  const questEdge = input.questLog && !prevQuestMenu;
+  const factionEdge = input.factionMenu && !prevFactionMenu;
+  const logEdge = input.logMenu && !prevLogMenu;
+  const helpEdge = input.help && !prevHelpMenu;
+  const controlsEdge = input.controls && !prevControlsMenu;
+  const uiSettingsEdge = input.uiSettings && !prevUiSettingsMenu;
+  const dbgEdge = input.debugScreen && !prevDebug;
+  const menuUpNav = () => menuRepeatStep('up', input.invUp, upEdge) || wheelUpEdge;
+  const menuDownNav = () => menuRepeatStep('down', input.invDn, dnEdge) || wheelDnEdge;
+
+  const edges: MenuNavEdges = {
+    acceptEdge,
+    closeEdge,
+    resetEdge,
+    leftEdge,
+    rightEdge,
+    upEdge,
+    dnEdge,
+    dropEdge,
+    pointerWheel,
+    pointerCloseEdge,
+    menuUpNav,
+    menuDownNav,
+  };
+
+
+  if (state.showDemos) {
+    handleDemosMenuInputLayer(edges);
+    return;
+  }
+
+  const canOpenShortcutMenu = canOpenMenuFromGameplay();
+  const shortcutInputActive = menuShortcutInputActive();
+  const globalMapEdge = input.map && !prevMap;
+  const globalMapLegendEdge = input.mapLegend && !prevMapLegendMenu;
+  if (globalMapLegendEdge) {
+    if (state.showMapLegend && !shortcutInputActive) {
+      closeMapLegendMenu();
+      syncMenuInputBaselines();
+      return;
+    }
+    if (canOpenShortcutMenu) {
+      openMapLegendMenu();
+      syncMenuInputBaselines();
+      return;
+    }
+  }
+  if (globalMapEdge) {
+    if (state.mapMode === 2 && !shortcutInputActive) {
+      closeFullMapMenu();
+      syncMenuInputBaselines();
+      return;
+    }
+    if (canOpenShortcutMenu) {
+      openFullMapMenu();
+      syncMenuInputBaselines();
+      return;
+    }
+  }
+
+  if (isMapEditorOpen()) {
+    handleMapEditorMenuInputLayer(edges);
+    return;
+  }
+
+  if (isInteractableOverlayOpen()) {
+    handleInteractableOverlayMenuInputLayer(edges);
+    return;
+  }
+
+  if (isEmergencyPanelMenuOpen()) {
+    handleEmergencyPanelMenuInputLayer(edges);
+    return;
+  }
+
+  if (isNetSphereOpen()) {
+    handleNetSphereMenuInputLayer(edges);
+    return;
+  }
+
+  const anyRepeatMenuOpen = state.showMenu || state.showInventory || state.showQuests ||
+    state.showContainerMenu || state.showCraftMenu || state.showNpcMenu || state.showDebug || state.showFactions || state.showDemos || state.showLog || state.showHelp || state.showControls || state.showUiSettings || state.showMapLegend;
+  if (!anyRepeatMenuOpen) resetMenuRepeats();
+
+  const helpOpenedThisFrame = helpEdge && canOpenShortcutMenu;
+  const controlsOpenedThisFrame = controlsEdge && canOpenShortcutMenu && !helpOpenedThisFrame;
+  const uiSettingsOpenedThisFrame = uiSettingsEdge && canOpenShortcutMenu && !helpOpenedThisFrame && !controlsOpenedThisFrame;
+  if (helpOpenedThisFrame) openHelpMenu();
+  if (controlsOpenedThisFrame) openControlsMenu();
+  if (uiSettingsOpenedThisFrame) openUiSettingsMenu();
+
+  const finishSameShortcutClose = (): void => {
+    resetMenuRepeats();
+    syncMenuInputBaselines();
+    syncPauseState();
+    updateMobileContext(true);
+  };
+
+  if (!shortcutInputActive) {
+    if (state.showHelp && helpEdge && !helpOpenedThisFrame) {
+      closeHelpMenu();
+      finishSameShortcutClose();
+      return;
+    }
+    if (state.showControls && controlsEdge && !controlsOpenedThisFrame) {
+      closeControlsMenu();
+      finishSameShortcutClose();
+      return;
+    }
+    if (state.showUiSettings && uiSettingsEdge && !uiSettingsOpenedThisFrame) {
+      closeUiSettingsMenu();
+      finishSameShortcutClose();
+      return;
+    }
+    if (state.showInventory && invEdge) {
+      state.showInventory = false;
+      finishSameShortcutClose();
+      return;
+    }
+    if (state.showQuests && questEdge) {
+      state.showQuests = false;
+      finishSameShortcutClose();
+      return;
+    }
+    if (state.showDebug && dbgEdge) {
+      state.showDebug = false;
+      finishSameShortcutClose();
+      return;
+    }
+    if (state.showFactions && factionEdge) {
+      state.showFactions = false;
+      finishSameShortcutClose();
+      return;
+    }
+    if (state.showLog && logEdge) {
+      state.showLog = false;
+      finishSameShortcutClose();
+      return;
+    }
+  }
+
+  // ── One-page HELP poster ─────────────────────────────────
+  if (state.showHelp) {
+    if ((acceptEdge && !helpOpenedThisFrame) || closeEdge) closeHelpMenu();
+    syncMenuInputBaselines();
+    syncPauseState();
+    return;
+  }
+
+  // ── Hotkey / rebind screen ───────────────────────────────
+  if (state.showControls) {
+    handleControlsMenuInputLayer(edges, controlsOpenedThisFrame);
+    return;
+  }
+
+  // ── Full-map legend/settings screen ─────────────────────
+  if (state.showMapLegend) {
+    handleMapLegendMenuInputLayer(edges);
+    return;
+  }
+
+  // ── Configurable HUD element screen ─────────────────────
+  if (state.showUiSettings) {
+    handleUiSettingsMenuInputLayer(edges);
+    return;
+  }
+
+  // ── Enter accepts menu rows; Backspace/Delete closes them ─────
+  let gameMenuOpenedThisFrame = false;
+  if (closeEdge) {
+    if (state.showNpcMenu) {
+      const npc = entities.find(e => e.id === state.npcMenuTarget);
+      if (npc && isDurakGameOpen()) handleDurakInput({ state, player, npc, input: { escEdge: true } });
+      else if (npc && isDiceGameOpen()) handleDiceInput({ state, player, npc, input: { escEdge: true } });
+      else if (npc && isDominoGameOpen()) handleDominoInput({ state, player, npc, input: { escEdge: true } });
+      else if (npc && isCheckersGameOpen()) handleCheckersInput({ state, player, npc, input: { escEdge: true } });
+      clearTradeOffers(state);
+      closeNpcInteractionInterface();
+      state.showNpcMenu = false;
+    }
+    else if (state.showContainerMenu) { closeContainerMenu(); }
+    else if (state.showCraftMenu) { closeCraftMenu(); syncPauseState(); updateMobileContext(true); }
+    else if (state.showInventory) { state.showInventory = false; }
+    else if (state.showQuests) { state.showQuests = false; }
+    else if (state.showDebug) { state.showDebug = false; }
+    else if (state.showFactions) { state.showFactions = false; }
+    else if (state.showDemos) { closeDemosMenu(); }
+    else if (state.showLog) { state.showLog = false; }
+    else if (state.showHelp) { closeHelpMenu(); }
+    else if (state.showUiSettings) { state.showUiSettings = false; }
+    else if (state.mapMode === 2) { closeFullMapMenu(); }
+    else if (state.showMenu) { state.showMenu = false; }
+  } else if (acceptEdge && canOpenShortcutMenu) {
+    state.showMenu = true;
+    state.menuSel = 0;
+    gameMenuOpenedThisFrame = true;
+  }
+
+  // ── Main menu logic extraction ─────────────────────────────────
+  handleMainMenuNavigationLayer(edges, gameMenuOpenedThisFrame, canOpenShortcutMenu);
 
   syncMenuInputBaselines();
 
