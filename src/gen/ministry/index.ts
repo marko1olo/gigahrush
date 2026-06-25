@@ -9,7 +9,7 @@ import {
   EntityType, AIGoal, FloorLevel,
 } from '../../core/types';
 import { World } from '../../core/world';
-import { rng, pick, placeLifts, generateZones, ensureConnectivity } from '../shared';
+import { rng, pick, shuffle, placeLifts, generateZones, ensureConnectivity } from '../shared';
 import { placeProceduralScreens } from '../procedural_screens';
 import { calcZoneLevel, randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg';
 import { Spr, monsterSpr } from '../../render/sprite_index';
@@ -65,7 +65,7 @@ function pickRoomType(forceHall = false): typeof MINISTRY_ROOM_TYPES[0] {
   const pool = forceHall ? MINISTRY_ROOM_TYPES.filter(r => r.isHall) : MINISTRY_ROOM_TYPES;
   let total = 0;
   for (const r of pool) total += r.weight;
-  let roll = Math.random() * total;
+  let roll = rng(1, total);
   for (const r of pool) { roll -= r.weight; if (roll <= 0) return r; }
   return pool[0];
 }
@@ -120,7 +120,7 @@ export function generateMinistry(): { world: World; entities: Entity[]; spawnX: 
         if (!visited[gIdx(nx, ny)]) neighbors.push([nx, ny]);
       }
       if (neighbors.length === 0) { stack.pop(); continue; }
-      const [nx, ny] = neighbors[Math.floor(Math.random() * neighbors.length)];
+      const [nx, ny] = pick(neighbors);
       visited[gIdx(nx, ny)] = 1;
       edges.add(edgeKey(cx, cy, nx, ny));
       connections[gIdx(cx, cy)]++;
@@ -411,16 +411,13 @@ export function generateMinistry(): { world: World; entities: Entity[]; spawnX: 
   }
 
   // Shuffle candidates
-  for (let i = wallCandidates.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [wallCandidates[i], wallCandidates[j]] = [wallCandidates[j], wallCandidates[i]];
-  }
+  shuffle(wallCandidates);
 
   // Pass 1: Large halls (8-14 wide)
   let roomsPlaced = 0;
   for (const cand of wallCandidates) {
     if (roomsPlaced >= 80) break;
-    if (Math.random() > 0.015) continue;
+    if (rng(1, 1000) > 15) continue;
     const rt = pickRoomType(true);
     const rw = rng(8, 14), rh = rng(7, 12);
     if (tryGrowRoom(cand.x, cand.y, cand.cdx, cand.cdy, rw, rh, rt)) roomsPlaced++;
@@ -430,7 +427,7 @@ export function generateMinistry(): { world: World; entities: Entity[]; spawnX: 
   roomsPlaced = 0;
   for (const cand of wallCandidates) {
     if (roomsPlaced >= 320) break;
-    if (Math.random() > 0.04) continue;
+    if (rng(1, 100) > 4) continue;
     const rt = pickRoomType();
     const rw = rng(4, 9), rh = rng(3, 7);
     if (tryGrowRoom(cand.x, cand.y, cand.cdx, cand.cdy, rw, rh, rt)) roomsPlaced++;
@@ -441,8 +438,8 @@ export function generateMinistry(): { world: World; entities: Entity[]; spawnX: 
   roomsPlaced = 0;
   for (const cand of wallCandidates) {
     if (roomsPlaced >= 180) break;
-    if (Math.random() > 0.03) continue;
-    const rt = smallTypes[Math.floor(Math.random() * smallTypes.length)];
+    if (rng(1, 100) > 3) continue;
+    const rt = pick(smallTypes);
     const rw = rng(3, 5), rh = rng(3, 5);
     if (tryGrowRoom(cand.x, cand.y, cand.cdx, cand.cdy, rw, rh, rt)) roomsPlaced++;
   }
@@ -459,7 +456,7 @@ export function generateMinistry(): { world: World; entities: Entity[]; spawnX: 
       if (world.cells[ni] === Cell.FLOOR && world.roomMap[ni] < 0) { facesCorr = true; break; }
     }
     if (!facesCorr) continue;
-    if (Math.random() < 0.05) {
+    if (rng(1, 100) <= 5) {
       world.wallTex[ci] = pickPosterTex(x, y);
     }
   }
@@ -506,9 +503,9 @@ export function generateMinistry(): { world: World; entities: Entity[]; spawnX: 
   generateZones(world);
   for (const z of world.zones) {
     z.level = calcZoneLevel(z.cx, z.cy, FloorLevel.MINISTRY);
-    const roll = Math.random();
-    if (roll < 0.45) z.faction = 0;       // CITIZEN
-    else if (roll < 0.75) z.faction = 1;  // LIQUIDATOR
+    const roll = rng(1, 100);
+    if (roll <= 45) z.faction = 0;       // CITIZEN
+    else if (roll <= 75) z.faction = 1;  // LIQUIDATOR
     else z.faction = 0;                   // CITIZEN
   }
 
@@ -572,7 +569,7 @@ export function generateMinistry(): { world: World; entities: Entity[]; spawnX: 
     const rpg = randomRPG(zoneLevel);
     entities.push({
       id: nextId++, type: EntityType.MONSTER,
-      x: mx, y: my, angle: Math.random() * Math.PI * 2, pitch: 0,
+      x: mx, y: my, angle: rng(0, 360) * Math.PI / 180, pitch: 0,
       alive: true, speed: scaleMonsterSpeed(2.8, zoneLevel), sprite: monsterSpr(MonsterKind.SBORKA),
       hp: scaleMonsterHp(5, zoneLevel), maxHp: scaleMonsterHp(5, zoneLevel),
       monsterKind: kind, attackCd: 0,
@@ -625,7 +622,7 @@ function connectRoomToCorridor(world: World, room: Room): void {
   }
   if (wallCells.length > 0) {
     // Shuffle and pick first
-    const chosen = wallCells[Math.floor(Math.random() * wallCells.length)];
+    const chosen = pick(wallCells);
     world.cells[chosen.ci] = Cell.DOOR;
     world.doors.set(chosen.ci, {
       idx: chosen.ci, state: DoorState.CLOSED,
@@ -670,10 +667,7 @@ function placePortraitsOnWalls(world: World, room: Room, rt: typeof MINISTRY_ROO
     : rt.isHall ? rng(2, 5)
     : rt.type === RoomType.OFFICE ? rng(1, 3)
     : rng(0, 2);
-  for (let i = candidates.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
-  }
+  shuffle(candidates);
   for (let p = 0; p < count && p < candidates.length; p++) {
     const { ci, x, y } = candidates[p];
     world.wallTex[ci] = pickPortraitTex(x, y);
