@@ -2158,18 +2158,7 @@ function scheduleLoading(fn: () => void): void {
   pendingLoadDrawn = false;
 }
 
-function initGame(runSeedOverride?: number): void {
-  resetRuntimeCamera(runtimeCamera);
-  clearFloorMemory();
-  resetNoiseRecords();
-  const initialRunSeed = normalizeFloorRunSeed(runSeedOverride);
-  const gen = generateFloor(FloorLevel.LIVING, initialRunSeed);
-  injectFastElevators(gen.world);
-  stampCeilingHeights(gen.world);
-  world = replaceWorldFromGeneration(null, gen);
-  entities = gen.entities;
-  nextEntityId.v = entities.reduce((mx, e) => Math.max(mx, e.id), 0) + 1;
-
+function setupInitialPlayer(gen: FloorGeneration): void {
   player = {
     id: nextEntityId.v++,
     type: EntityType.NPC,
@@ -2193,14 +2182,10 @@ function initGame(runSeedOverride?: number): void {
   };
   entities.push(player);
   syncPlayerRuntimeBaselines();
+}
 
-  // Initialize faction relations and per-cell faction control
-  initFactionRelations();
-  initFactionControl(world);
-  resetGeneratedFloorPopulationState();
-  clearRoomMemory();
-
-  state = {
+function createInitialGameState(): GameState {
+  return {
     tick: 0,
     time: 0,
     clock: { hour: 8, minute: 0, totalMinutes: 0 },
@@ -2281,6 +2266,29 @@ function initGame(runSeedOverride?: number): void {
     crafting: createCraftingState(),
     worldEvents: createWorldEventState(),
   };
+}
+
+function initGame(runSeedOverride?: number): void {
+  resetRuntimeCamera(runtimeCamera);
+  clearFloorMemory();
+  resetNoiseRecords();
+  const initialRunSeed = normalizeFloorRunSeed(runSeedOverride);
+  const gen = generateFloor(FloorLevel.LIVING, initialRunSeed);
+  injectFastElevators(gen.world);
+  stampCeilingHeights(gen.world);
+  world = replaceWorldFromGeneration(null, gen);
+  entities = gen.entities;
+  nextEntityId.v = entities.reduce((mx, e) => Math.max(mx, e.id), 0) + 1;
+
+  setupInitialPlayer(gen);
+
+  // Initialize faction relations and per-cell faction control
+  initFactionRelations();
+  initFactionControl(world);
+  resetGeneratedFloorPopulationState();
+  clearRoomMemory();
+
+  state = createInitialGameState();
   clearVoidReturnPortalState(state);
   setVoidEntryFromFloor(state, undefined);
   netReportedSamosborCount = state.samosborCount;
