@@ -1118,12 +1118,9 @@ export function alignSpectralChasovnyaAmbientNpcTerritory(world: World, entities
   }
 }
 
-function registerSpectralRouteCues(world: World, rooms: SpectralRooms, state: SpectralChasovnyaState): void {
+function registerQuietShadowRoute(world: World, rooms: SpectralRooms): void {
   const entry = roomCenter(rooms.entry);
   const quiet = roomCenter(rooms.quietSouth);
-  const focus = roomCenter(rooms.focusArch);
-  const radio = roomCenter(rooms.radioSacristy);
-  const bell = state.bellNodes[0];
 
   registerRouteCue(world, {
     id: 'spectral_quiet_shadow_route',
@@ -1152,6 +1149,10 @@ function registerSpectralRouteCues(world: World, rooms: SpectralRooms, state: Sp
       mapLabel: 'тихий обход',
     },
   });
+}
+
+function registerMainBellRoute(world: World, rooms: SpectralRooms, state: SpectralChasovnyaState): void {
+  const bell = state.bellNodes[0];
 
   registerRouteCue(world, {
     id: 'spectral_main_bell_route',
@@ -1180,6 +1181,10 @@ function registerSpectralRouteCues(world: World, rooms: SpectralRooms, state: Sp
       mapLabel: 'колокол',
     },
   });
+}
+
+function registerFocusWarningRoute(world: World, rooms: SpectralRooms): void {
+  const focus = roomCenter(rooms.focusArch);
 
   registerRouteCue(world, {
     id: 'spectral_focus_warning_route',
@@ -1200,6 +1205,10 @@ function registerSpectralRouteCues(world: World, rooms: SpectralRooms, state: Sp
     followedText: 'Линия фокуса видна по мокрым ребрам пола. Двигайся боком или шуми не здесь.',
     ignoredText: 'Фокусирующая арка осталась на прямой. Слепые любят прямые.',
   });
+}
+
+function registerRadioSacristyRoute(world: World, rooms: SpectralRooms): void {
+  const radio = roomCenter(rooms.radioSacristy);
 
   registerRouteCue(world, {
     id: 'spectral_radio_sacristy_route',
@@ -1221,6 +1230,15 @@ function registerSpectralRouteCues(world: World, rooms: SpectralRooms, state: Sp
     ignoredText: 'Радиотреск уходит за свечи. Без него придется слушать своими ушами.',
   });
 }
+
+function registerSpectralRouteCues(world: World, rooms: SpectralRooms, state: SpectralChasovnyaState): void {
+  registerQuietShadowRoute(world, rooms);
+  registerMainBellRoute(world, rooms, state);
+  registerFocusWarningRoute(world, rooms);
+  registerRadioSacristyRoute(world, rooms);
+}
+
+
 
 function findBellNodeForLook(world: World, player: Entity, lookX: number, lookY: number): SpectralBellNode | undefined {
   const state = ensureSpectralChasovnyaState(world);
