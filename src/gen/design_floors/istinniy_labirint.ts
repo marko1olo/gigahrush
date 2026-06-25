@@ -312,7 +312,11 @@ function buildGrowingTreeMaze(): MazeGraph {
       if (!visited[next]) candidates.push({ dir, next });
     }
     if (candidates.length === 0) {
-      active.splice(ai, 1);
+      const last = active.length - 1;
+      if (ai !== last) {
+        active[ai] = active[last];
+      }
+      active.pop();
       continue;
     }
     const pick = candidates[randInt(candidates.length)];
