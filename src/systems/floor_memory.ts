@@ -294,7 +294,7 @@ function base64ToBytes(data: string): Uint8Array {
   return out;
 }
 
-function tryBase64ToBytes(data: unknown): Uint8Array | null {
+export function tryBase64ToBytes(data: unknown): Uint8Array | null {
   if (typeof data !== 'string') return null;
   try {
     return base64ToBytes(data);

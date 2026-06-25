@@ -32,6 +32,7 @@ import {
   setFloorMemoryByteBudgetForTests,
   setFloorMemorySaveByteBudgetForTests,
   takeFloorMemory,
+  tryBase64ToBytes,
 } from '../src/systems/floor_memory';
 import { canActorOccupy } from '../src/systems/movement_collision';
 
@@ -667,4 +668,13 @@ test('route lift layout forces mirrored anchors by carving bounded access', () =
     ].some(idx => target.cells[idx] === Cell.FLOOR),
     true,
   );
+});
+test('tryBase64ToBytes handles invalid base64 by returning null', () => {
+  const originalBuffer = globalThis.Buffer;
+  (globalThis as any).Buffer = undefined;
+  try {
+    assert.equal(tryBase64ToBytes('%%%'), null);
+  } finally {
+    globalThis.Buffer = originalBuffer;
+  }
 });
