@@ -889,6 +889,22 @@ function playerDemographicSex(source: Partial<Entity>): CharacterSex {
   return playerSex;
 }
 
+
+function extractTransferablePlayerState(p: Entity) {
+  return {
+    inventory: p.inventory ? [...p.inventory] : [],
+    needs: p.needs ? { ...p.needs } : freshNeeds(),
+    hp: p.hp ?? 100,
+    maxHp: p.maxHp ?? 100,
+    weapon: p.weapon ?? '',
+    tool: p.tool ?? '',
+    rpg: p.rpg ? { ...p.rpg } : freshRPG(1),
+    statuses: p.statuses?.map(s => ({ ...s })),
+    money: p.money ?? 100,
+    angle: p.angle,
+  };
+}
+
 function playerAlifeFields(source: Partial<Entity> = {}): Pick<Entity, 'persistentNpcId' | 'age' | 'sex' | 'isFemale' | 'playerRelation' | 'karma' | 'kills' | 'npcKills' | 'monsterKills'> {
   const age = clampCharacterAge(source.age, playerAge);
   const sex = playerDemographicSex(source);
@@ -1675,16 +1691,7 @@ function returnFromVoidPortalToLiving(portal: VoidReturnPortalState): void {
 
   const fromFloor = state.currentFloor;
   captureCurrentAlifeFloor();
-  const savedInventory = player.inventory ? [...player.inventory] : [];
-  const savedNeeds = player.needs ? { ...player.needs } : freshNeeds();
-  const savedHp = player.hp ?? 100;
-  const savedMaxHp = player.maxHp ?? 100;
-  const savedWeapon = player.weapon ?? '';
-  const savedTool = player.tool ?? '';
-  const savedRpg = player.rpg ? { ...player.rpg } : freshRPG(1);
-  const savedStatuses = player.statuses?.map(s => ({ ...s }));
-  const savedMoney = player.money ?? 100;
-  const savedAngle = player.angle;
+  const extractedState = extractTransferablePlayerState(player);
   const portalCell = portal.cell;
   const openedAt = portal.openedAt;
   const openedTick = portal.openedTick;
@@ -1729,20 +1736,11 @@ function returnFromVoidPortalToLiving(portal: VoidReturnPortalState): void {
       type: EntityType.NPC,
       x: gen.spawnX,
       y: gen.spawnY,
-      angle: savedAngle,
+      ...extractedState,
       pitch: 0,
       alive: true,
       speed: HUMANOID_BASE_MOVE_SPEED,
       sprite: 0,
-      needs: savedNeeds,
-      hp: savedHp,
-      maxHp: savedMaxHp,
-      inventory: savedInventory,
-      weapon: savedWeapon,
-      tool: savedTool,
-      money: savedMoney,
-      rpg: savedRpg,
-      statuses: savedStatuses,
       name: playerDisplayName(),
       faction: Faction.PLAYER,
       ...playerAlifeFields(player),
@@ -3827,18 +3825,9 @@ function switchFloor(
   // Save player position for same-xy spawn
   const savedX = player.x;
   const savedY = player.y;
-  const savedAngle = player.angle;
 
   // Save player state
-  const savedInventory = player.inventory ? [...player.inventory] : [];
-  const savedNeeds = player.needs ? { ...player.needs } : freshNeeds();
-  const savedHp = player.hp ?? 100;
-  const savedMaxHp = player.maxHp ?? 100;
-  const savedWeapon = player.weapon ?? '';
-  const savedTool = player.tool ?? '';
-  const savedRpg = player.rpg ? { ...player.rpg } : freshRPG(1);
-  const savedStatuses = player.statuses?.map(s => ({ ...s }));
-  const savedMoney = player.money ?? 100;
+  const extractedState = extractTransferablePlayerState(player);
   captureFloorMemoryByKey(departingMemoryKey);
 
   state.currentFloor = nextFloor;
@@ -3872,20 +3861,11 @@ function switchFloor(
       type: EntityType.NPC,
       x: spawn.x,
       y: spawn.y,
-      angle: savedAngle,
+      ...extractedState,
       pitch: 0,
       alive: true,
       speed: HUMANOID_BASE_MOVE_SPEED,
       sprite: 0,
-      needs: savedNeeds,
-      hp: savedHp,
-      maxHp: savedMaxHp,
-      inventory: savedInventory,
-      weapon: savedWeapon,
-      tool: savedTool,
-      money: savedMoney,
-      rpg: savedRpg,
-      statuses: savedStatuses,
       name: playerDisplayName(),
       faction: Faction.PLAYER,
       ...playerAlifeFields(player),
@@ -4012,16 +3992,7 @@ function debugTeleportTo(target: DebugTeleportTarget): void {
   restorePlayerBeforeWorldBoundary();
   const fromFloor = state.currentFloor;
   captureCurrentAlifeFloor();
-  const savedInventory = player.inventory ? [...player.inventory] : [];
-  const savedNeeds = player.needs ? { ...player.needs } : freshNeeds();
-  const savedHp = player.hp ?? 100;
-  const savedMaxHp = player.maxHp ?? 100;
-  const savedWeapon = player.weapon ?? '';
-  const savedTool = player.tool ?? '';
-  const savedRpg = player.rpg ? { ...player.rpg } : freshRPG(1);
-  const savedStatuses = player.statuses?.map(s => ({ ...s }));
-  const savedMoney = player.money ?? 100;
-  const savedAngle = player.angle;
+  const extractedState = extractTransferablePlayerState(player);
   captureCurrentFloorMemory();
 
   state.showDebug = false;
@@ -4061,20 +4032,11 @@ function debugTeleportTo(target: DebugTeleportTarget): void {
       type: EntityType.NPC,
       x: gen.spawnX,
       y: gen.spawnY,
-      angle: savedAngle,
+      ...extractedState,
       pitch: 0,
       alive: true,
       speed: HUMANOID_BASE_MOVE_SPEED,
       sprite: 0,
-      needs: savedNeeds,
-      hp: savedHp,
-      maxHp: savedMaxHp,
-      inventory: savedInventory,
-      weapon: savedWeapon,
-      tool: savedTool,
-      money: savedMoney,
-      rpg: savedRpg,
-      statuses: savedStatuses,
       name: playerDisplayName(),
       faction: Faction.PLAYER,
       ...playerAlifeFields(player),
