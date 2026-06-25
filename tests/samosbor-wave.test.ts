@@ -169,34 +169,30 @@ test('samosbor wave cleanup keeps player standing in an open door cell', () => {
   assert.equal(player.y, 24.5);
 });
 
-test('samosbor scale can be local or full depending on roll', () => {
-  const originalRandom = Math.random;
-  // High roll (> 0.4) → local wave (small or medium)
-  Math.random = () => 0.999999;
-  try {
-    for (const floor of [
-      FloorLevel.MINISTRY,
-      FloorLevel.KVARTIRY,
-      FloorLevel.LIVING,
-      FloorLevel.MAINTENANCE,
-      FloorLevel.HELL,
-      FloorLevel.VOID,
-    ]) {
-      const state = makeGameState({ currentFloor: floor });
-      assert.equal(canRunSamosborWave(state), true);
-      assert.notEqual(chooseSamosborScale(state), 'full');
+test('samosbor scale can be local or full depending on deterministic seed state', () => {
+  // chooseSamosborScale uses state.time and state.samosborCount to generate a seed.
+  // Test distinct state combinations to observe both local and full scales.
+  let fullCount = 0;
+  let localCount = 0;
+
+  for (let i = 0; i < 50; i++) {
+    const state = makeGameState({
+      currentFloor: FloorLevel.LIVING,
+      time: i * 60,
+      samosborCount: i,
+    });
+
+    assert.equal(canRunSamosborWave(state), true);
+    const scale = chooseSamosborScale(state);
+    if (scale === 'full') {
+      fullCount++;
+    } else {
+      localCount++;
     }
-  } finally {
-    Math.random = originalRandom;
   }
-  // Low roll (< 0.4) → full (global fronts only)
-  Math.random = () => 0.1;
-  try {
-    const state = makeGameState({ currentFloor: FloorLevel.LIVING });
-    assert.equal(chooseSamosborScale(state), 'full');
-  } finally {
-    Math.random = originalRandom;
-  }
+
+  assert.ok(fullCount > 0, 'Should generate at least some full waves');
+  assert.ok(localCount > 0, 'Should generate at least some local waves');
 });
 
 test('samosbor duration grows and cooldown shrinks by absolute route z', () => {
