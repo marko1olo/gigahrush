@@ -6390,7 +6390,10 @@ function handleMobileHudTap(x: number, y: number): void {
         state.npcMenuTab = 'main';
       }
     } else if (state.npcMenuTab === 'quest') {
-      const total = state.quests.filter(q => !q.done).length;
+      let total = 0;
+      for (let i = 0; i < state.quests.length; i++) {
+        if (!state.quests[i].done) total++;
+      }
       if (y > h - 40 * sy) {
         state.npcMenuTab = 'main';
       } else if (total > 1) {
@@ -7113,7 +7116,10 @@ function handleMenuInput(): void {
     } else if (state.npcMenuTab === 'talk') {
       if (acceptEdge || closeEdge) state.npcMenuTab = 'main';
     } else if (state.npcMenuTab === 'quest') {
-      const totalQ = state.quests.filter(q => !q.done).length;
+      let totalQ = 0;
+      for (let i = 0; i < state.quests.length; i++) {
+        if (!state.quests[i].done) totalQ++;
+      }
       const upNav = menuUpNav();
       const dnNav = menuDownNav();
       const leftNav = menuRepeatStep('left', input.invLeft, leftEdge);
