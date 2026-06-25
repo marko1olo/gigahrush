@@ -18,7 +18,7 @@ import type { AptPlan } from './apartments';
 function npcWeaponLoadout(faction: Faction, occupation: Occupation): { weapon: string; inv: { defId: string; count: number }[] } {
   // Liquidators and hunters get better gear
   if (faction === Faction.LIQUIDATOR || occupation === Occupation.HUNTER) {
-    const roll = Math.random();
+    const roll = rng(0, 1000) / 1000;
     if (roll < 0.20) return { weapon: 'makarov', inv: [{ defId: 'makarov', count: 1 }, { defId: 'ammo_9mm', count: rng(6, 16) }] };
     if (roll < 0.32) return { weapon: 'shotgun', inv: [{ defId: 'shotgun', count: 1 }, { defId: 'ammo_shells', count: rng(4, 8) }] };
     if (roll < 0.40) return { weapon: 'ppsh', inv: [{ defId: 'ppsh', count: 1 }, { defId: 'ammo_9mm', count: rng(20, 40) }] };
@@ -28,7 +28,7 @@ function npcWeaponLoadout(faction: Faction, occupation: Occupation): { weapon: s
   }
   // Wild faction: always armed
   if (faction === Faction.WILD) {
-    const roll = Math.random();
+    const roll = rng(0, 1000) / 1000;
     if (roll < 0.15) return { weapon: 'makarov', inv: [{ defId: 'makarov', count: 1 }, { defId: 'ammo_9mm', count: rng(4, 10) }] };
     if (roll < 0.35) return { weapon: 'rebar', inv: [{ defId: 'rebar', count: 1 }] };
     if (roll < 0.55) return { weapon: 'pipe', inv: [{ defId: 'pipe', count: 1 }] };
@@ -37,17 +37,17 @@ function npcWeaponLoadout(faction: Faction, occupation: Occupation): { weapon: s
   }
   // Workers with tools
   if (occupation === Occupation.LOCKSMITH || occupation === Occupation.MECHANIC) {
-    return Math.random() < 0.6 ? { weapon: 'wrench', inv: [{ defId: 'wrench', count: 1 }] } : { weapon: 'pipe', inv: [{ defId: 'pipe', count: 1 }] };
+    return rng(0, 1000) / 1000 < 0.6 ? { weapon: 'wrench', inv: [{ defId: 'wrench', count: 1 }] } : { weapon: 'pipe', inv: [{ defId: 'pipe', count: 1 }] };
   }
   if (occupation === Occupation.ELECTRICIAN || occupation === Occupation.TURNER) {
-    return Math.random() < 0.5 ? { weapon: 'pipe', inv: [{ defId: 'pipe', count: 1 }] } : { weapon: '', inv: [] };
+    return rng(0, 1000) / 1000 < 0.5 ? { weapon: 'pipe', inv: [{ defId: 'pipe', count: 1 }] } : { weapon: '', inv: [] };
   }
   if (occupation === Occupation.COOK) {
-    return Math.random() < 0.5 ? { weapon: 'knife', inv: [{ defId: 'knife', count: 1 }] } : { weapon: '', inv: [] };
+    return rng(0, 1000) / 1000 < 0.5 ? { weapon: 'knife', inv: [{ defId: 'knife', count: 1 }] } : { weapon: '', inv: [] };
   }
   // Citizens: small chance of having a knife or nothing
   if (faction === Faction.CITIZEN) {
-    if (Math.random() < 0.15) return { weapon: 'knife', inv: [{ defId: 'knife', count: 1 }] };
+    if (rng(0, 1000) / 1000 < 0.15) return { weapon: 'knife', inv: [{ defId: 'knife', count: 1 }] };
   }
   return { weapon: '', inv: [] };
 }
@@ -87,7 +87,7 @@ export function spawnRoomItems(
   const eligibleRooms = world.rooms.filter(r => r && r.w >= 3 && r.h >= 3 &&
     [RoomType.COMMON, RoomType.STORAGE, RoomType.OFFICE, RoomType.SMOKING].includes(r.type));
   for (let i = 0; i < 128 && eligibleRooms.length > 0; i++) {
-    const room = eligibleRooms[Math.floor(Math.random() * eligibleRooms.length)];
+    const room = pick(eligibleRooms);
     const ix = room.x + rng(1, Math.max(1, room.w - 2));
     const iy = room.y + rng(1, Math.max(1, room.h - 2));
     entities.push({
@@ -112,7 +112,7 @@ export function spawnFamilies(
     const familyFaction = randomFaction();
     for (let f = 0; f < familySize; f++) {
       const room = apt.living;
-      const faction = f === 0 ? familyFaction : (Math.random() < 0.8 ? familyFaction : randomFaction());
+      const faction = f === 0 ? familyFaction : (rng(0, 1000) / 1000 < 0.8 ? familyFaction : randomFaction());
       const occupation = randomOccupation(faction);
       // NPC level based on zone level (Gaussian)
       const ci = world.idx(room.x + Math.floor(room.w / 2), room.y + Math.floor(room.h / 2));
@@ -126,7 +126,7 @@ export function spawnFamilies(
         id: nextId++, type: EntityType.NPC,
         x: room.x + rng(1, Math.max(1, room.w - 2)) + 0.5,
         y: room.y + rng(1, Math.max(1, room.h - 2)) + 0.5,
-        angle: Math.random() * Math.PI * 2,
+        angle: (rng(0, 359) * Math.PI) / 180,
         pitch: 0,
         alive: true,
         speed: occupation === Occupation.CHILD ? 0.8 : occupation === Occupation.ALCOHOLIC ? 0.9 : 1.2,
@@ -147,7 +147,7 @@ export function spawnFamilies(
 }
 
 const _PSI_IDS = ['psi_strike','psi_rupture','psi_madness','psi_storm','psi_brainburn'];
-function _pickPsi(): string { return _PSI_IDS[Math.floor(Math.random() * _PSI_IDS.length)]; }
+function _pickPsi(): string { return pick(_PSI_IDS); }
 
 /* ── Spawn traveler NPCs — путники, паломники, охотники ──────── */
 export function spawnTravelers(
@@ -163,14 +163,14 @@ export function spawnTravelers(
 
   const corridorSpawns: number[] = [];
   for (let i = 0; i < 10000; i++) {
-    const ci = Math.floor(Math.random() * W * W);
+    const ci = rng(0, W * W - 1);
     if (world.cells[ci] === Cell.FLOOR) corridorSpawns.push(ci);
     if (corridorSpawns.length >= 500) break;
   }
 
   for (const def of TRAVELER_DEFS) {
     for (let i = 0; i < def.count && corridorSpawns.length > 0; i++) {
-      const ci = corridorSpawns.splice(Math.floor(Math.random() * corridorSpawns.length), 1)[0];
+      const ci = corridorSpawns.splice(rng(0, corridorSpawns.length - 1), 1)[0];
       const sx = (ci % W) + 0.5;
       const sy = Math.floor(ci / W) + 0.5;
       const zoneId = world.zoneMap[ci];
@@ -182,7 +182,7 @@ export function spawnTravelers(
       entities.push({
         id: nextId++, type: EntityType.NPC,
         x: sx, y: sy,
-        angle: Math.random() * Math.PI * 2,
+        angle: (rng(0, 359) * Math.PI) / 180,
         pitch: 0,
         alive: true, speed: 1.4, sprite: def.occupation,
         name: nm.name, isFemale: nm.female, needs: freshNeeds(),
@@ -190,7 +190,7 @@ export function spawnTravelers(
         money: rng(10, 80),
         ai: { goal: AIGoal.IDLE, tx: 0, ty: 0, path: [], pi: 0, stuck: 0, timer: 0 },
         ...(() => {
-          if (def.faction === Faction.CULTIST && Math.random() < 0.3) {
+          if (def.faction === Faction.CULTIST && rng(0, 1000) / 1000 < 0.3) {
             const psi = _pickPsi();
             return { inventory: [{ defId: 'knife', count: 1 }, { defId: psi, count: 1 }], weapon: 'knife', tool: psi };
           }
