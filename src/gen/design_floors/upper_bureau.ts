@@ -1673,10 +1673,29 @@ export function reinforceUpperBureauAuthoredHqTerritory(world: World): void {
   applyUpperBureauSamosborZoneOverlay(world);
 }
 
-export function generateUpperBureauDesignFloor(): { world: World; entities: Entity[]; spawnX: number; spawnY: number } {
-  const world = new World();
-  const entities: Entity[] = [];
-  const nextId: NextId = { v: 1 };
+
+interface UpperBureauRooms {
+  salon: Room;
+  executive: Room;
+  files: Room;
+  audit: Room;
+  cleaner: Room;
+  staffDesk: Room;
+  shelter: Room;
+  archiveToll: Room;
+  permitAmbush: Room;
+}
+
+interface UpperBureauNpcIds {
+  iskraId: number;
+  levId: number;
+  tolikId: number;
+  tollKeeperId: number;
+  ambushId: number;
+}
+
+
+function buildUpperBureauArchitecture(world: World): UpperBureauRooms {
   let nextRoomId = 0;
   fillDefaultTextures(world);
 
@@ -1729,6 +1748,11 @@ export function generateUpperBureauDesignFloor(): { world: World; entities: Enti
 
   setAdministrativeZones(world);
 
+  return { salon, executive, files, audit, cleaner, staffDesk, shelter, archiveToll, permitAmbush };
+}
+
+function spawnUpperBureauNpcs(entities: Entity[], nextId: NextId, rooms: UpperBureauRooms): UpperBureauNpcIds {
+  const { salon, audit, cleaner, archiveToll, permitAmbush } = rooms;
   const iskraId = nextId.v;
   spawnAdminNpc(entities, nextId, ISKRA_DEF, 'bureau_madam_iskra', salon.x + 6, salon.y + 3);
   const levId = nextId.v;
@@ -1757,6 +1781,12 @@ export function generateUpperBureauDesignFloor(): { world: World; entities: Enti
     [{ defId: 'denunciation', count: 1 }, { defId: 'ammo_9mm', count: 6 }],
     'makarov',
   );
+  return { iskraId, levId, tolikId, tollKeeperId, ambushId };
+}
+
+function spawnUpperBureauItemsAndContainers(world: World, entities: Entity[], nextId: NextId, rooms: UpperBureauRooms, npcIds: UpperBureauNpcIds) {
+  const { salon, executive, files, audit, cleaner, archiveToll, permitAmbush } = rooms;
+  const { iskraId, levId, tolikId, tollKeeperId, ambushId } = npcIds;
 
   addItemDrop(entities, nextId, salon.x + 4, salon.y + salon.h - 3, 'blank_form', 1);
   addItemDrop(entities, nextId, salon.x + 8, salon.y + salon.h - 3, 'official_permit_slip', 1);
@@ -1861,6 +1891,18 @@ export function generateUpperBureauDesignFloor(): { world: World; entities: Enti
     ],
     ['public', 'salon'],
   );
+}
+
+export function generateUpperBureauDesignFloor(): { world: World; entities: Entity[]; spawnX: number; spawnY: number } {
+  const world = new World();
+  const entities: Entity[] = [];
+  const nextId: NextId = { v: 1 };
+
+  const rooms = buildUpperBureauArchitecture(world);
+  const npcIds = spawnUpperBureauNpcs(entities, nextId, rooms);
+  spawnUpperBureauItemsAndContainers(world, entities, nextId, rooms, npcIds);
+
+  const { salon, files } = rooms;
 
   spawnAdminMonster(world, entities, nextId, files.x + files.w - 4, files.y + files.h - 3, MonsterKind.PARAGRAPH);
 
