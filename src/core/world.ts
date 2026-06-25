@@ -817,3 +817,11 @@ export function replaceWorldFromGeneration(target: World | null | undefined, gen
   markWorldReplaced(target, versions);
   return target;
 }
+
+export function getMaxEntityId(entities: { id: number }[], startId: number = 0): number {
+  let mx = startId;
+  for (let i = 0; i < entities.length; i++) {
+    if (entities[i].id > mx) mx = entities[i].id;
+  }
+  return mx;
+}

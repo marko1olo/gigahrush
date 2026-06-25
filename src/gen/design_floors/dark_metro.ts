@@ -41,6 +41,7 @@ import { ensureConnectivity, generateZones, sanitizeDoors, stampRoom } from '../
 import type { FloorGeneration } from '../floor_manifest';
 import { setTerritoryOwnerAtIndex, syncZoneMetadataFromTerritory, territoryOwnerAtIndex } from '../../systems/territory';
 
+import { getMaxEntityId } from '../../core/world';
 const DESIGN_NPC_HOME_FLOOR_KEY = designNpcFloorKey('dark_metro');
 
 export const DESIGN_FLOOR_ID = 'dark_metro' as const;
@@ -1777,7 +1778,7 @@ function dressDarkMetro(ctx: BuildCtx, layout: DarkMetroLayout): void {
 }
 
 function nextTrainEntityId(entities: Entity[]): { v: number } {
-  return { v: entities.reduce((mx, e) => Math.max(mx, e.id), 0) + 1 };
+  return { v: getMaxEntityId(entities, 0) + 1 };
 }
 
 function addPlatformCells(world: World, out: number[], x0: number, x1: number, y: number): void {

@@ -39,6 +39,7 @@ import { buildLivingHubGeometry } from './geometry';
 import { spawnRoomItems, spawnFamilies, spawnTravelers } from './npcs';
 import { spawnSideQuestNpcs } from './side_quests';
 
+import { getMaxEntityId } from '../../core/world';
 export { generateSlideTextures } from './slides';
 export { generateHintTextures } from '../../render/hint_textures';
 export { generatePosterTextures, pickPosterTex } from './posters';
@@ -54,15 +55,15 @@ export function generateWorld(): { world: World; entities: Entity[]; spawnX: num
 
   /* ── A1: Start room (briefing hall) ─────────────── */
   const startRoom = generateTutorRoom(world, world.rooms.length, entities, { v: nextId });
-  nextId = entities.reduce((mx, e) => Math.max(mx, e.id), nextId) + 1;
+  nextId = getMaxEntityId(entities, nextId) + 1;
 
   /* ── A1b: Yakov's lab (at distance from spawn) ──── */
   generateYakovLab(world, world.rooms.length, entities, { v: nextId }, startRoom.spawnX, startRoom.spawnY);
-  nextId = entities.reduce((mx, e) => Math.max(mx, e.id), nextId) + 1;
+  nextId = getMaxEntityId(entities, nextId) + 1;
 
   /* ── A1c: Vanka's den (cultist zone) ────────── */
   generateVankaDen(world, world.rooms.length, entities, { v: nextId }, startRoom.spawnX, startRoom.spawnY);
-  nextId = entities.reduce((mx, e) => Math.max(mx, e.id), nextId) + 1;
+  nextId = getMaxEntityId(entities, nextId) + 1;
 
   world.apartmentRoomCount = world.rooms.length;
 
@@ -91,11 +92,11 @@ export function generateWorld(): { world: World; entities: Entity[]; spawnX: num
 
   /* ── B2: Shadows near Vanka (needs corridors to exist) */
   spawnVankaShadows(world, entities, { v: nextId });
-  nextId = entities.reduce((mx, e) => Math.max(mx, e.id), nextId) + 1;
+  nextId = getMaxEntityId(entities, nextId) + 1;
 
   /* ── B3: Side quest NPCs (random encounters, need FLOOR cells) */
   spawnSideQuestNpcs(world, entities, { v: nextId });
-  nextId = entities.reduce((mx, e) => Math.max(mx, e.id), nextId) + 1;
+  nextId = getMaxEntityId(entities, nextId) + 1;
 
   /* ── B4: Rare procedural TV/monitor walls in suitable rooms ─── */
   placeProceduralScreens(world, FloorLevel.LIVING);
