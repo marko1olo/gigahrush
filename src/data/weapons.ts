@@ -1,10 +1,11 @@
 /* ── Weapon stats registry — melee & ranged physical weapons ─── */
 
 import { Spr } from '../render/sprite_index';
-import { ProjType } from '../core/types';
+import { ProjType, DamageType } from '../core/types';
 
 export interface WeaponStats {
   dmg: number;
+  damageType?: DamageType;
   durability: number;   // max durability for melee (0 = infinite/fists)
   range: number;        // melee reach in cells
   hitRadius?: number;   // melee hit capsule radius (e.g. 0.5 for fists, wider for large weapons)

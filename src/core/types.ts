@@ -194,6 +194,8 @@ export enum ProjType {
   WEB,          // sticky monster shot, applies bounded web slow/root
 }
 
+export enum DamageType { KINETIC = 0, BUCKSHOT = 1, ENERGY = 2, FIRE = 3, PSI = 4 }
+
 export enum MonsterKind {
   SBORKA,     // fast, weak               — бегает быстро
   TVAR,       // medium                   — ходит за стенами
@@ -599,6 +601,7 @@ export interface Entity {
   attackCd?: number;
   familyId?: number;
   weapon?: string;            // equipped item def id
+  armorDefId?: string;        // equipped armor def id
   tool?: string;              // equipped tool def id
   faction?: Faction;
   occupation?: Occupation;
@@ -657,6 +660,7 @@ export interface ItemDef {
   spawnRooms: RoomType[];
   spawnW: number;             // spawn weight
   value: number;              // price in рубли (0 = worthless)
+  resistances?: Partial<Record<DamageType, number>>;
   tags?: readonly string[];   // small content labels for events/economy hooks
   scienceValue?: number;      // 0-100: value to NII/scientists; scales special handoff interactions
   contrabandScore?: number;   // 0-100: degree of illegality; scales liquidator confiscation chance/severity

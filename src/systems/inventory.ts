@@ -2527,3 +2527,38 @@ export function getWeaponReadiness(e: Entity, itemId = equippedCombatItemId(e)):
     warning: cannotFireReason !== '' || lowResource,
   };
 }
+
+
+export function equipArmor(state: GameState, e: Entity, defId: string): Msg | undefined {
+  if (!e.inventory) return;
+  const itemIdx = e.inventory.findIndex(i => i.defId === defId);
+  if (itemIdx === -1) return;
+
+  if (e.armorDefId) {
+    if (e.inventory.length >= MAX_INVENTORY_SLOTS) {
+      return msg('Инвентарь полон, некуда снять текущую броню', state.time, '#f84');
+    }
+    e.inventory.push({ defId: e.armorDefId, count: 1 });
+  }
+
+  e.armorDefId = defId;
+  const it = e.inventory[itemIdx];
+  if (it.count > 1) {
+    it.count--;
+  } else {
+    e.inventory.splice(itemIdx, 1);
+  }
+  return msg(`Надета броня: ${ITEMS[defId]?.name || defId}`, state.time, '#9d9');
+}
+
+export function unequipArmor(state: GameState, e: Entity): Msg | undefined {
+  if (!e.armorDefId) return;
+  if (!e.inventory) e.inventory = [];
+  if (e.inventory.length >= MAX_INVENTORY_SLOTS) {
+    return msg('Инвентарь полон, некуда снять броню', state.time, '#f84');
+  }
+  e.inventory.push({ defId: e.armorDefId, count: 1 });
+  const name = ITEMS[e.armorDefId]?.name || e.armorDefId;
+  e.armorDefId = undefined;
+  return msg(`Броня снята: ${name}`, state.time, '#9d9');
+}

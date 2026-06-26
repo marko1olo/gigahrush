@@ -1,6 +1,6 @@
 /* ── Inventory panel (fullscreen) ──────────────────────────────── */
 
-import { type Entity, type GameState, ItemType } from '../core/types';
+import { type Entity, type GameState, ItemType, DamageType } from '../core/types';
 import { ITEMS } from '../data/catalog';
 import { getEquippedToolDurability, getWeaponReadiness } from '../systems/inventory';
 import { controlHint, menuCloseHint } from '../systems/controls';
@@ -257,7 +257,22 @@ function inventoryEquipmentLines(player: Entity): EquipmentLine[] {
   const toolName = player.tool ? (ITEMS[player.tool]?.name ?? player.tool) : 'нет';
   const toolDur = getEquippedToolDurability(player);
   const toolDurLabel = toolDur ? `${Math.max(0, Math.ceil(toolDur.cur))}/${toolDur.max}` : '--';
+
+  const armorName = player.armorDefId ? (ITEMS[player.armorDefId]?.name ?? player.armorDefId) : 'нет';
+  let armorResists = '';
+  if (player.armorDefId && ITEMS[player.armorDefId]?.resistances) {
+    const res = ITEMS[player.armorDefId].resistances;
+    const parts = [];
+    if (res![DamageType.KINETIC]) parts.push(`КИН:${res![DamageType.KINETIC]}%`);
+    if (res![DamageType.BUCKSHOT]) parts.push(`ДРБ:${res![DamageType.BUCKSHOT]}%`);
+    if (res![DamageType.ENERGY]) parts.push(`ЭНР:${res![DamageType.ENERGY]}%`);
+    if (res![DamageType.FIRE]) parts.push(`ОГН:${res![DamageType.FIRE]}%`);
+    if (res![DamageType.PSI]) parts.push(`ПСИ:${res![DamageType.PSI]}%`);
+    if (parts.length > 0) armorResists = ` Защита: ${parts.join(' ')}`;
+  }
+
   const lines: EquipmentLine[] = [
+    { text: `Броня: ${armorName}${armorResists}`, color: '#fff' },
     { text: `Оружие: ${weapon.name}`, color: '#ccc' },
     { text: `${weapon.role}  ур.${weapon.damageLabel}  ${weaponState}`, color: weapon.warning ? '#f84' : '#9d9' },
     { text: `Инструмент: ${toolName}`, color: '#8cf' },
@@ -265,7 +280,7 @@ function inventoryEquipmentLines(player: Entity): EquipmentLine[] {
   ];
   const weaponExtra = weapon.statLabel || [weapon.reachLabel, weapon.controlLabel].filter(Boolean).join('  ');
   if (weaponExtra) {
-    lines.splice(2, 0, { text: weaponExtra, color: '#8ad' });
+    lines.splice(3, 0, { text: weaponExtra, color: '#8ad' });
   }
   return lines;
 }
