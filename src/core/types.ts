@@ -602,6 +602,8 @@ export interface Entity {
   tool?: string;              // equipped tool def id
   faction?: Faction;
   occupation?: Occupation;
+  hidden?: boolean;
+  hiddenUntil?: number;
   age?: number;                // compact character age; cold A-Life stores it as one byte
   sex?: CharacterSex;          // social/gameplay sex code; isFemale remains the grammar mirror
   playerRelation?: number;    // personal attitude to player, -100..100; below hostile threshold attacks

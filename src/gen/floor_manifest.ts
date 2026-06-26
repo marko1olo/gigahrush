@@ -13,6 +13,7 @@ import { generateWorld } from './living';
 import { generateMaintenance } from './maintenance';
 import { generateHell } from './hell';
 import { generateVoid } from './void';
+import { generateHorrorFloor } from './design_floors/horrorfloor';
 import { withoutNpcEntities } from './entity_filters';
 import { applyStoryFloorObjectProfile } from './floor_object_placement';
 import { fillVisualSlotsForWorldFeatures } from './visual_cell_slots';
@@ -25,6 +26,10 @@ export interface FloorGeneration {
   spawnX: number;
   spawnY: number;
 }
+
+export const CUSTOM_FLOORS: Record<string, () => FloorGeneration> = {
+  'horrorfloor': generateHorrorFloor
+};
 
 export const FLOOR_NAMES: Record<FloorLevel, string> = {
   [FloorLevel.MINISTRY]: 'Министерство',
