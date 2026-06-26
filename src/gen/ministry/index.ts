@@ -250,6 +250,7 @@ function growMinistryRooms(world: World, rooms: Room[], nextRoomId: number): num
       apartmentId: -1,
       wallTex: Tex.MARBLE,
       floorTex,
+      ceilingTier: (rw * rh >= 80) ? 2 : (rt.type === RoomType.CORRIDOR ? 1 : 0),
     };
 
     for (let dy = -1; dy <= rh; dy++) {
