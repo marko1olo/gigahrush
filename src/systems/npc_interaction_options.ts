@@ -1,3 +1,4 @@
+import { openArena } from './arena';
 import { EntityType, msg, type Entity, type GameState } from '../core/types';
 import { craftRecipeSourcesForNpc, type CraftRecipeSourceDef } from '../data/craft_recipe_sources';
 import {
@@ -518,3 +519,13 @@ for (const profile of allDesignFloorProfiles()) {
 }
 
 
+
+registerNpcInteractionOption({
+  id: 'arena',
+  order: 5,
+  label: () => 'Арена',
+  visible: ctx => ctx.npc.name === 'Мастер Арены',
+  activate: ctx => {
+    openArena(ctx);
+  },
+});

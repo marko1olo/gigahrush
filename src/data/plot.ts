@@ -33,6 +33,7 @@ import {
   type NpcPackageDef,
 } from './npc_packages';
 
+
 /* ── Story NPC definition ─────────────────────────────────────── */
 export interface PlotNpcDef {
   name: string;
@@ -800,3 +801,17 @@ export function hasAvailableQuest(plotNpcId: string, quests: Quest[]): boolean {
   }
   return false;
 }
+
+/* ── Arena Master ─────────────────────────────────────────────── */
+registerSideQuest('arena_master', {
+  name: 'Мастер Арены',
+  isFemale: false,
+  age: 45,
+  faction: Faction.LIQUIDATOR,
+  occupation: Occupation.DIRECTOR,
+  sprite: Occupation.DIRECTOR,
+  hp: 100, maxHp: 100, level: 10, money: 500, speed: 1.0,
+  inventory: [],
+  talkLines: ['Готов сделать ставку?'],
+  talkLinesPost: []
+}, [], { tags: ['arena'] });

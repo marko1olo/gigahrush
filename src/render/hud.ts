@@ -1,3 +1,5 @@
+import { drawArenaOverlay } from './arenaui';
+import { isArenaOverlayOpen, getArenaOverlaySnapshot } from '../systems/arena';
 /* ── HUD overlay: needs bars, minimap, messages, inventory ───── */
 
 import { SCR_W, SCR_H } from './webgl';
@@ -1382,11 +1384,12 @@ export function drawHUD(
   const computerOpen = isComputerOverlayOpen();
   const hackOpen = isNetHackOverlayOpen();
   const fastElevatorOpen = isFastElevatorOverlayOpen();
+  const arenaOpen = isArenaOverlayOpen();
   const centerModalOpen = state.showInventory || state.showQuests || state.showLog ||
     state.showFactions || state.showDemos || state.showMenu || state.showHelp || state.showControls || state.showUiSettings ||
     state.showNpcMenu || state.showContainerMenu || state.showCraftMenu || netSphereOpen || netTerminalGenOpen ||
     emergencyPanelOpen || mapEditorOpen || gamblingOpen || computerOpen || hackOpen ||
-    netTerminalGenDeniedOpen || netTerminalBankOpen || fastElevatorOpen;
+    netTerminalGenDeniedOpen || netTerminalBankOpen || fastElevatorOpen || arenaOpen;
   const quietHud = centerModalOpen || state.mapMode === 2;
   const showCompactPanels = !quietHud;
   const screenFxVisible = !quietHud && showScreenFx && interferenceMode !== 'off';
@@ -1987,6 +1990,12 @@ export function drawHUD(
   // ── NET Sphere terminal (N) ──────────────────────────────
   if (netSphereOpen) {
     drawNetSphereMenu(ctx, msx, msy, time, getNetSphereSnapshot());
+  }
+
+
+  if (arenaOpen) {
+    const arena = getArenaOverlaySnapshot();
+    drawArenaOverlay(ctx, msx, msy, time, arena);
   }
 
   if (gamblingOpen) {
