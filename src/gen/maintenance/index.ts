@@ -299,6 +299,7 @@ export function generateMaintenance(generationSeed = MAINTENANCE_TERRITORY_SEED)
         apartmentId: -1,
         wallTex: Tex.PIPE,
         floorTex: Tex.F_CONCRETE,
+        ceilingTier: (rw * rh >= 80) ? 2 : (rt.type === RoomType.CORRIDOR ? 1 : 0),
       };
 
       // Carve room interior + walls around it

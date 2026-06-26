@@ -368,6 +368,7 @@ function makeClosedRoomWithDoor(
     apartmentId: -1,
     wallTex,
     floorTex: spec.floorTex,
+    ceilingTier: (spec.w * spec.h >= 80) ? 2 : (spec.type === RoomType.CORRIDOR ? 1 : 0),
   };
 
   for (let dy = -1; dy <= spec.h; dy++) {
@@ -437,6 +438,7 @@ function makeOpenLandmark(
     apartmentId: -1,
     wallTex: Tex.MARBLE,
     floorTex,
+    ceilingTier: (w * h >= 80) ? 2 : (type === RoomType.CORRIDOR ? 1 : 0),
   };
   for (let dy = 0; dy < h; dy++) {
     for (let dx = 0; dx < w; dx++) {
@@ -471,6 +473,7 @@ function makeClosedLandmarkLeaf(
     apartmentId: -1,
     wallTex: Tex.MARBLE,
     floorTex: spec.floorTex,
+    ceilingTier: (spec.w * spec.h >= 80) ? 2 : (spec.type === RoomType.CORRIDOR ? 1 : 0),
   };
 
   for (let dy = -1; dy <= spec.h; dy++) {
@@ -915,6 +918,7 @@ function makeShelterRoom(world: World, id: number, x: number, y: number, w: numb
     apartmentId: -1,
     wallTex: Tex.HERMO_WALL,
     floorTex: Tex.F_MARBLE_TILE,
+    ceilingTier: (w * h >= 80) ? 2 : 0,
   };
 
   for (let dy = -1; dy <= h; dy++) {

@@ -100,6 +100,7 @@ function stampMacroRoom(
     apartmentId: -1,
     wallTex: PIPE_WALL,
     floorTex: DRY_FLOOR,
+    ceilingTier: (w * h >= 80) ? 2 : (type === RoomType.CORRIDOR ? 1 : 0),
   };
 
   for (let dy = -1; dy <= h; dy++) {

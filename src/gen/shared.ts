@@ -905,6 +905,7 @@ export function stampRoom(world: World, id: number, type: RoomType, x: number, y
     apartmentId: aptId,
     wallTex: def.wallTex,
     floorTex: def.floorTex,
+    ceilingTier: (w * h >= 80) ? 2 : (type === RoomType.CORRIDOR ? 1 : 0),
   };
   for (let dy = -1; dy <= h; dy++) {
     for (let dx = -1; dx <= w; dx++) {
