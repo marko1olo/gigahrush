@@ -8,6 +8,8 @@ import {
   msg,
 } from '../../core/types';
 import { World } from '../../core/world';
+import { calculateDamage } from '../combat';
+import { DamageType } from '../../core/types';
 import { MONSTERS, entityDisplayName, type MonsterAIFlag, type MonsterDef } from '../../entities/monster';
 import { ITEMS, ITEM_TAGS, getStack } from '../../data/items';
 import { occupationHasProfileTag } from '../../data/occupation_profiles';
@@ -2416,7 +2418,7 @@ function applyProtokolnikPulse(
   if (isDebugOnePunchManEnabled()) {
     keepDebugOnePunchManAlive(target);
   } else {
-    target.hp -= dmg;
+    target.hp -= calculateDamage(dmg, DamageType.KINETIC, target);
     if (target.hp <= 0) {
       target.alive = false;
       target.hp = 0;
@@ -3992,7 +3994,7 @@ function finishBezekhiyLunge(
     damage = zhelemishIncomingMeleeDamage(player, time, Math.round(scaleMonsterDmg(def.dmg, level) * strMult * BEZEKHIY_LUNGE_DAMAGE_MULT));
     if (isDebugOnePunchManEnabled()) keepDebugOnePunchManAlive(player);
     else {
-      player.hp -= damage;
+      player.hp -= calculateDamage(damage, DamageType.KINETIC, player);
       recordPlayerDamage(state, e, damage, `${entityDisplayName(e)} ударил из мертвого эха: -${damage}`);
       if (player.hp <= 0) {
         player.alive = false;
@@ -5316,7 +5318,7 @@ function updateBloodPlantRootHive(
     if (target.id === playerId && isDebugOnePunchManEnabled()) {
       keepDebugOnePunchManAlive(target);
     } else {
-      target.hp -= dmg;
+      target.hp -= calculateDamage(dmg, DamageType.KINETIC, target);
       notifyActorDamaged(world, target, e, dmg, 'monster_special', time, state);
       if (target.id === playerId) recordPlayerDamage(state, e, dmg, `${entityDisplayName(e)} ударило корнем: -${dmg}`);
       if (target.hp <= 0) {
@@ -5389,7 +5391,7 @@ function updateBorshchevikRootedPlant(
       if (target.id === playerId && isDebugOnePunchManEnabled()) {
         keepDebugOnePunchManAlive(target);
       } else {
-        target.hp -= dmg;
+        target.hp -= calculateDamage(dmg, DamageType.KINETIC, target);
         notifyActorDamaged(world, target, e, dmg, 'monster_special', time, state);
         if (target.id === playerId) recordPlayerDamage(state, e, dmg, `${entityDisplayName(e)} обжег кожу соком: -${dmg}`);
         if (target.hp <= 0) {
@@ -5683,7 +5685,7 @@ function finishRzhavnikLeap(
     if (target.id === playerId && isDebugOnePunchManEnabled()) {
       keepDebugOnePunchManAlive(target);
     } else {
-      target.hp -= damage;
+      target.hp -= calculateDamage(damage, DamageType.KINETIC, target);
       notifyActorDamaged(world, target, e, damage, 'monster_special', time, state);
       if (target.id === playerId) recordPlayerDamage(state, e, damage, `Ржавник ударил первым рывком: -${damage}`);
       if (target.hp <= 0) {
@@ -5838,7 +5840,7 @@ function damageZhornayaTarget(
   if (debugImmortalPlayerHit) {
     keepDebugOnePunchManAlive(target);
   } else {
-    target.hp -= dmg;
+    target.hp -= calculateDamage(dmg, DamageType.KINETIC, target);
     notifyActorDamaged(world, target, e, dmg, 'monster_special', time, state);
     if (target.id === playerId) recordPlayerDamage(state, e, dmg, `${entityDisplayName(e)} врезалась в тебя на запах: -${dmg}`);
     if (target.hp <= 0) { target.alive = false; target.hp = 0; }
@@ -6109,7 +6111,7 @@ function finishBladeEliteWindup(
     if (debugImmortalPlayerHit) {
       keepDebugOnePunchManAlive(target);
     } else {
-      target.hp -= dmg;
+      target.hp -= calculateDamage(dmg, DamageType.KINETIC, target);
       notifyActorDamaged(world, target, e, dmg, 'monster_special', time, state);
       if (target.id === playerId) recordPlayerDamage(state, e, dmg, `${entityDisplayName(e)} ${tuning.strikeVerb} тебя: -${dmg}`);
       if (target.hp <= 0) {
@@ -6405,7 +6407,7 @@ function applySporeCarpetPuff(
       if (target.id === playerId && isDebugOnePunchManEnabled()) {
         keepDebugOnePunchManAlive(target);
       } else {
-        target.hp -= dmg;
+        target.hp -= calculateDamage(dmg, DamageType.KINETIC, target);
         notifyActorDamaged(world, target, e, dmg, 'monster_special', time, state);
         if (target.hp <= 0) {
           target.hp = 0;
@@ -6996,7 +6998,7 @@ export function updateVodyanoyWaterPressureLine(
   if (ai.waterLinePulseCd <= 0 && target.hp !== undefined) {
     ai.waterLinePulseCd = VODYANOY_WET_LINE_PULSE_SEC;
     const dmg = Math.max(1, Math.round(1 + ai.waterPressure * 0.62));
-    target.hp = Math.max(0, target.hp - dmg);
+    target.hp -= calculateDamage(dmg, DamageType.KINETIC, target);
     notifyActorDamaged(world, target, e, dmg, 'monster_special', time, state);
     if (target.rpg) target.rpg.psi = Math.max(0, target.rpg.psi - Math.max(1, Math.round(2 + ai.waterPressure)));
     if (target.hp <= 0) {
@@ -7430,7 +7432,7 @@ function fireSlepoglazBeam(
     if (debugImmortalPlayerHit) {
       keepDebugOnePunchManAlive(target);
     } else {
-      target.hp -= dmg;
+      target.hp -= calculateDamage(dmg, DamageType.KINETIC, target);
       notifyActorDamaged(world, target, e, dmg, 'monster_special', time, state);
       if (target.id === playerId) {
         hitPlayer = true;
@@ -7517,7 +7519,7 @@ function updateSlepoglazCloseDefense(
   if (debugImmortalPlayerHit) {
     keepDebugOnePunchManAlive(target);
   } else {
-    target.hp -= dmg;
+    target.hp -= calculateDamage(dmg, DamageType.KINETIC, target);
     notifyActorDamaged(world, target, e, dmg, 'monster_special', time, state);
     if (target.id === playerId) recordPlayerDamage(state, e, dmg, `${entityDisplayName(e)} слепо дернул нервом: -${dmg}`);
     if (target.hp <= 0) {
@@ -7834,7 +7836,7 @@ function damageTumannikOffsetStrike(
   if (debugImmortalPlayerHit) {
     keepDebugOnePunchManAlive(target);
   } else {
-    target.hp -= dmg;
+    target.hp -= calculateDamage(dmg, DamageType.KINETIC, target);
     notifyActorDamaged(world, target, e, dmg, 'monster_special', time, state);
     if (target.id === playerId) recordPlayerDamage(state, e, dmg, `${entityDisplayName(e)} ударил сбоку из тумана: -${dmg}`);
     if (target.hp <= 0) { target.alive = false; target.hp = 0; }
@@ -8050,7 +8052,7 @@ function damageGlubinnayaSecondBeat(
   if (debugImmortalPlayerHit) {
     keepDebugOnePunchManAlive(target);
   } else {
-    target.hp -= dmg;
+    target.hp -= calculateDamage(dmg, DamageType.KINETIC, target);
     notifyActorDamaged(world, target, e, dmg, 'monster_special', time, state);
     if (target.id === playerId) recordPlayerDamage(state, e, dmg, 'Глубинная Тень ударила вторым телом: -' + dmg);
     if (target.hp <= 0) {
@@ -8301,7 +8303,7 @@ function damageTonkayaTenStrike(
   if (debugImmortalPlayerHit) {
     keepDebugOnePunchManAlive(target);
   } else {
-    target.hp -= dmg;
+    target.hp -= calculateDamage(dmg, DamageType.KINETIC, target);
     notifyActorDamaged(world, target, e, dmg, 'monster_special', time, state);
     if (target.id === playerId) recordPlayerDamage(state, e, dmg, `${entityDisplayName(e)} ударила с темной линии: -${dmg}`);
     if (target.hp <= 0) { target.alive = false; target.hp = 0; }
@@ -8504,7 +8506,7 @@ function damageTreskotnikTarget(
     if (debugImmortalPlayerHit) {
       keepDebugOnePunchManAlive(target);
     } else {
-      target.hp -= dmg;
+      target.hp -= calculateDamage(dmg, DamageType.KINETIC, target);
       notifyActorDamaged(world, target, e, dmg, 'monster_special', time, state);
       if (target.id === playerId) recordPlayerDamage(state, e, dmg, `${entityDisplayName(e)} влетел в тебя по красной трещине: -${dmg}`);
       if (target.hp <= 0) {
@@ -8778,7 +8780,7 @@ export function tryPerformMonsterMeleeAttack(
           if (debugImmortalPlayerHit) {
             keepDebugOnePunchManAlive(hitTarget);
           } else {
-            hitTarget.hp -= dmg;
+            hitTarget.hp -= calculateDamage(dmg, DamageType.KINETIC, hitTarget);
             notifyActorDamaged(world, hitTarget, e, dmg, 'monster_melee', time, state);
             applyLishennyyContactDecay(state, world, e, hitTarget, dmg, time, msgs, playerId);
             applyKontorshchikGrab(state, world, e, hitTarget, time, msgs);

@@ -1,6 +1,6 @@
 /* ── Item definitions — еда, напитки, медицина, оружие, амуниция, разное ── */
 
-import { RoomType, ItemType, type ItemDef, type Entity } from '../core/types';
+import { RoomType, ItemType, type ItemDef, type Entity, DamageType } from '../core/types';
 import { CHERNOBOG_DOCKET_ITEMS, CHERNOBOG_DOCKET_ITEM_TAGS } from './chernobog_docket';
 import { DOCUMENT_ACCESS_ITEMS, DOCUMENT_ACCESS_ITEM_TAGS } from './documents_access';
 import { MAX_INVENTORY_SLOTS, MAX_ITEM_STACK } from './inventory_limits';
@@ -371,6 +371,14 @@ export const ITEM_TAGS: Record<string, readonly string[]> = {
 };
 
 export const ITEMS: Record<string, ItemDef> = {
+
+  // ── Armor ────────────────────────────────────────────────────────
+  armor_light: { id: 'armor_light', name: 'Лёгкая броня', type: ItemType.MISC, desc: 'Базовая защита от кинетического урона и дроби.', spawnRooms: [RoomType.COMMON, RoomType.PRODUCTION], spawnW: 50, value: 500, resistances: { [DamageType.KINETIC]: 20, [DamageType.BUCKSHOT]: 30, [DamageType.FIRE]: 5 } },
+  armor_medium: { id: 'armor_medium', name: 'Средняя броня', type: ItemType.MISC, desc: 'Надежная защита для патрулей. Тяжеловата.', spawnRooms: [RoomType.MEDICAL, RoomType.PRODUCTION], spawnW: 30, value: 1200, resistances: { [DamageType.KINETIC]: 40, [DamageType.BUCKSHOT]: 50, [DamageType.ENERGY]: 15, [DamageType.FIRE]: 10 } },
+  armor_heavy: { id: 'armor_heavy', name: 'Тяжёлая броня', type: ItemType.MISC, desc: 'Толстые пластины, способные выдержать сильный урон.', spawnRooms: [RoomType.PRODUCTION], spawnW: 10, value: 3000, resistances: { [DamageType.KINETIC]: 60, [DamageType.BUCKSHOT]: 70, [DamageType.ENERGY]: 30, [DamageType.FIRE]: 20 } },
+  armor_liquidator: { id: 'armor_liquidator', name: 'Броня Ликвидатора', type: ItemType.MISC, desc: 'Высочайшая защита от пуль и картечи, создана для штурмов.', spawnRooms: [RoomType.PRODUCTION], spawnW: 5, value: 4500, resistances: { [DamageType.KINETIC]: 80, [DamageType.BUCKSHOT]: 85, [DamageType.ENERGY]: 20, [DamageType.FIRE]: 15, [DamageType.PSI]: 5 } },
+  armor_cultist: { id: 'armor_cultist', name: 'Ряса Культиста', type: ItemType.MISC, desc: 'Странная ткань, пропитанная неизвестным составом. Защищает от ПСИ-воздействия.', spawnRooms: [RoomType.COMMON, RoomType.MEDICAL], spawnW: 15, value: 2000, resistances: { [DamageType.KINETIC]: 10, [DamageType.BUCKSHOT]: 10, [DamageType.ENERGY]: 40, [DamageType.PSI]: 75 } },
+
   // ── Еда (дешёвая, частая) ──
   bread:     { id:'bread',     name:'Хлеб',         type:ItemType.FOOD,     desc:'Чёрствый пайковый ломоть. Сухой настолько, что им можно подпереть жалобу.',          spawnRooms:[RoomType.KITCHEN,RoomType.STORAGE], spawnW:1, value:3, use:feed(15) },
   canned:    { id:'canned',    name:'Тушёнка',      type:ItemType.FOOD,     desc:'Мясная консерва без лишних вопросов к мясу. Крышка честнее этикетки.',        spawnRooms:[RoomType.KITCHEN,RoomType.STORAGE], spawnW:1, value:10, use:feed(30) },

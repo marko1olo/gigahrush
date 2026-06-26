@@ -77,6 +77,7 @@ export interface SavePayload {
     needs?: Needs;
     inventory?: Item[];
     weapon?: string;
+    armorDefId?: string;
     tool?: string;
     rpg?: RPGStats;
     statuses?: PlayerStatus[];
@@ -276,6 +277,7 @@ export function buildSavePayload(input: SavePayloadBuildInput): SavePayload {
       needs: player.needs ? { ...player.needs } : undefined,
       inventory: inventoryForSave(player.inventory),
       weapon: player.weapon,
+      armorDefId: player.armorDefId,
       tool: player.tool,
       rpg: player.rpg ? { ...player.rpg } : undefined,
       statuses: statusesForSave(player.statuses),
