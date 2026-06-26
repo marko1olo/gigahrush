@@ -171,6 +171,8 @@ export interface Door {
   roomB: number;
   keyId: string;           // item def id needed ("" = no key)
   timer: number;           // auto-close timer
+  hp?: number;
+  maxHp?: number;
 }
 
 // ── Entities ─────────────────────────────────────────────────────

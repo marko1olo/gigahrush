@@ -611,6 +611,8 @@ function sanitizeDoorEntries(input: unknown, rooms: readonly Room[], world?: Wor
       timer: typeof raw.timer === 'number' && Number.isFinite(raw.timer)
         ? Math.max(0, Math.min(3600, raw.timer))
         : 0,
+      hp: typeof raw.hp === 'number' && Number.isFinite(raw.hp) ? raw.hp : undefined,
+      maxHp: typeof raw.maxHp === 'number' && Number.isFinite(raw.maxHp) ? raw.maxHp : undefined,
     }]);
     seen.add(idx);
   }

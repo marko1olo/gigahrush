@@ -200,7 +200,7 @@ import { cleanupToolProfile } from './systems/liquidator_cleanup_items';
 import { cleanSurfaceArea as cleanWorldSurfaceArea } from './systems/surface_cleanup';
 import { updateScriptedArrivals } from './systems/scripted_arrivals';
 import { applyStoryRouteGates } from './systems/story_route_gates';
-import { setDoorState } from './systems/door_state';
+import { setDoorState, damageDoor } from './systems/door_state';
 import {
   freshRPG, awardXP, xpForMonsterKill, xpForNpcKill,
   meleeDamage, actorMoveSpeed, agiAttackSpeedMult,
@@ -2979,6 +2979,17 @@ function playerActions(_dt: number): void {
         }
         hitSomething = true;
       }
+
+      if (!hitSomething) {
+        const attackIdx = world.idx(Math.floor(ax), Math.floor(ay));
+        if (world.cells[attackIdx] === Cell.DOOR && world.doors.has(attackIdx)) {
+          const door = world.doors.get(attackIdx)!;
+          const broke = damageDoor(world, door, normalDmg);
+          state.msgs.push(msg(broke ? 'Дверь выбита!' : `Удар по двери! -${normalDmg}`, state.time, broke ? '#4a4' : '#aaa'));
+          hitSomething = true;
+        }
+      }
+
       if (weaponId === 'chainsaw') playChainsaw(); else playAttack();
       publishWeaponNoise(state, player, weaponId, ws);
       notifyLiftArachnaNoise(world, player, state, weaponId);

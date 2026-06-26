@@ -1,32 +1,32 @@
-1.  **Analyze the Optimization Opportunity**
-    -   The task highlights `const totalQ = state.quests.filter(q => !q.done).length;` in `src/main.ts` at line 7089.
-    -   There is another identical line at 6366: `const total = state.quests.filter(q => !q.done).length;`.
-    -   These lines are called inside the game loop when `state.npcMenuTab === 'quest'`.
-    -   The inefficiency is creating a whole new array with `filter` every frame just to get its length.
+1. **Add `hp` and `maxHp` to `Door` interface in `src/core/types.ts`**:
+   - Add `hp?: number;` and `maxHp?: number;` to the `Door` interface (around line 173).
 
-2.  **Establish a Baseline & Benchmark**
-    -   I created a benchmark script (`test_perf_2.mjs`) to compare `quests.filter(q => !q.done).length` with a simple loop.
-    -   The benchmark showed a reduction from ~300ms to ~170ms for 1,000,000 iterations over an array of 50 items. This proves that manual iteration is ~40-50% faster and avoids garbage collection overhead by not allocating temporary arrays.
-    -   Since this is run inside `src/main.ts` (the game loop, typically 60fps), avoiding allocations here is highly beneficial to avoid garbage collector pauses and frame drops.
+2. **Handle saving/loading `hp` and `maxHp` in `src/systems/floor_memory.ts`**:
+   - Modify `sanitizeDoorEntries` to parse `hp` and `maxHp` from the `raw` object, validating they are finite numbers (or undefined). `hp` can be <= 0 if destroyed (though it should be open then, but just in case), and `maxHp` > 0.
 
-3.  **Implement Optimization**
-    -   Add a new utility function `countActiveQuests(quests: readonly Quest[]): number` in `src/systems/quests.ts`.
-    -   ```typescript
-        export function countActiveQuests(quests: readonly Quest[]): number {
-          let count = 0;
-          for (let i = 0; i < quests.length; i++) {
-            if (!quests[i].done) count++;
-          }
-          return count;
-        }
-        ```
-    -   Update `src/main.ts` line 7089: `const totalQ = countActiveQuests(state.quests);`.
-    -   Update `src/main.ts` line 6366: `const total = countActiveQuests(state.quests);`.
-    -   Update `src/render/quest_ui.ts` line 254 and `src/render/npc_ui.ts` line 104 where `active.length` is needed, or potentially optimize the retrieval of active quests there too if it's purely for counting. However, those files actually *use* the `active` array (`all = [...active, ...done]`, `active[page]`), so `filter` is necessary there unless we rewrite their logic entirely. The task only requested optimizing the array filter that is *only* used for `.length`, specifically `src/main.ts:7089`. I will stick to `main.ts` lines 7089 and 6366.
+3. **Implement `damageDoor` logic in a new export or existing file (e.g. `src/systems/door_state.ts`)**:
+   - Create a `damageDoor(world: World, door: Door, amount: number, msgs: any[], time: number, state: GameState)` function.
+   - If `door.maxHp` is undefined, initialize it based on the door type (HERMETIC=500, LOCKED/METAL=150, WOOD/others=50). Set `door.hp` = `door.maxHp`.
+   - Subtract `amount` from `door.hp`.
+   - If `door.hp <= 0`, set state to `DoorState.OPEN`, `world.cellVersion++` (to trigger nav tree rebuild), and call `world.markCellsDirty()`. Also push a message to `msgs` like `"Дверь выбита!"`.
 
-4.  **Verify Impact**
-    -   Run tests (`npm run check:full`).
-    -   Run `npx tsx test_perf_2.mjs` locally again.
+4. **Add melee hit detection for doors in `src/main.ts`**:
+   - In the melee attack logic (around line 2980), after checking for `meleeTarget`, if no entity is hit (`!hitSomething`), calculate the cell index the player is facing (using `ax, ay`).
+   - If that cell is `Cell.DOOR`, retrieve the door from `world.doors`.
+   - Call `damageDoor` with the melee damage (`normalDmg`). Play a hit sound (e.g., `playBreak` or generic hit). Set `hitSomething = true` so durability is consumed.
 
-5.  **Submit PR**
-    -   Format PR with baseline info and performance improvement metrics.
+5. **Add E action (interact) bash for locked/hermetic doors in `src/systems/interactions.ts`**:
+   - In `activateDoor`, when the door is `HERMETIC_CLOSED` and locked by Samosbor, or `LOCKED` and the player doesn't have the key, apply a small amount of damage (e.g. 5) by calling `damageDoor`.
+   - E.g., player kicks the door when interacting without a key.
+
+6. **Visuals in `src/render/webgl.ts` (Cracks on low HP)**:
+   - "при door.hp < door.maxHp * 0.5 — рисовать текстуру с трещинами (модифицировать UV или overlay)".
+   - Update `rebuildDoorStates` to pack the "cracked" state into the highest bit of the 8-bit integer:
+     `const isCracked = door.hp !== undefined && door.maxHp !== undefined && door.hp < door.maxHp * 0.5;`
+     `out[ci] = door.state | (isCracked ? 128 : 0);`
+   - In the shader, unpack it in `sampleDoor` and `lightBoundary` using `& 127u`.
+   - In the rendering loop (DDA), read the top bit to determine `isCracked`. Pass this information along, or recalculate it. Actually, `uDoorStates` is read during DDA and `wallTexId` is assigned. We can also set a boolean `crackedDoor = (rawDoorState & 128u) != 0u;`.
+   - In the fragment coloring section, if `crackedDoor` is true, mix the texture color `c` with a darker color based on a procedural noise pattern (e.g. `noiseI` or `fract`) to simulate cracks.
+
+7. **Pre-commit step**:
+   - Complete pre-commit steps to ensure proper testing, verification, review, and reflection are done.

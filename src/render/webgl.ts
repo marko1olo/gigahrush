@@ -381,9 +381,10 @@ vec3 applyLocalFog(vec3 c, ivec2 p, float baseF) {
   return mix(outColor, uFogColor, f);
 }
 
-bool lightBoundary(uint cell, uint doorState) {
+bool lightBoundary(uint cell, uint rawDoorState) {
   if (cell == ${Cell.WALL}u || cell == ${Cell.LIFT}u || cell == ${Cell.ABYSS}u) return true;
   if (cell != ${Cell.DOOR}u) return false;
+  uint doorState = rawDoorState & 127u;
   return doorState != 0u && doorState != 3u;
 }
 
@@ -1124,7 +1125,8 @@ void main() {
       break;
     }
     if (cell == ${Cell.DOOR}u) {
-      uint doorState = texelFetch(uDoorStates, wp, 0).r;
+      uint rawDoorState = texelFetch(uDoorStates, wp, 0).r;
+      uint doorState = rawDoorState & 127u;
       // 0=OPEN, 3=HERMETIC_OPEN — these are passable
       if (doorState != 0u && doorState != 3u) {
         dist = stepDist;
@@ -1176,7 +1178,20 @@ void main() {
       float d = row - rawDrawStart;
       int texYi = int(floor(d / lineH * TEX_F)) & (TEX_I - 1);
       vec3 c = sampleAtlas(wallTexId, texXi, texYi).rgb;
-      if (texelFetch(uCells, hitCell, 0).r == ${Cell.ABYSS}u) {
+
+      uint hitCellType = texelFetch(uCells, hitCell, 0).r;
+      if (hitCellType == ${Cell.DOOR}u) {
+        uint rawDoorState = texelFetch(uDoorStates, hitCell, 0).r;
+        bool cracked = (rawDoorState & 128u) != 0u;
+        if (cracked) {
+          float glitch = noiseI(hitCell.x * 10 + texXi, hitCell.y * 10 + texYi, 42);
+          if (glitch > 0.6) {
+            c *= 0.3;
+          }
+        }
+      }
+
+      if (hitCellType == ${Cell.ABYSS}u) {
         float glitch = noiseI(hitCell.x + texYi, hitCell.y + texXi, int(floor(uTime * 18.0)) + 1337);
         float scan = step(0.72, fract((float(texYi) + uTime * 38.0) * 0.19 + glitch));
         vec3 dark = vec3(3.0/255.0, 5.0/255.0, 8.0/255.0);
@@ -1527,7 +1542,8 @@ uint sampleDoor(ivec2 p) {
 
 bool lightBoundaryAt(ivec2 p) {
   uint cell = sampleCell(p);
-  uint doorState = cell == ${Cell.DOOR}u ? sampleDoor(p) : 0u;
+  uint rawDoorState = cell == ${Cell.DOOR}u ? sampleDoor(p) : 0u;
+  uint doorState = rawDoorState & 127u;
   // Wall, Lift, Abyss, or closed door block light
   if (cell == ${Cell.WALL}u || cell == ${Cell.LIFT}u || cell == ${Cell.ABYSS}u) return true;
   if (cell != ${Cell.DOOR}u) return false;
@@ -2494,7 +2510,8 @@ function rebuildDoorStates(world: World, out?: Uint8Array): Uint8Array {
   const ds = out ?? new Uint8Array(W * W);
   ds.fill(0);
   for (const [ci, door] of world.doors) {
-    ds[ci] = door.state;
+    const isCracked = door.hp !== undefined && door.maxHp !== undefined && door.hp < door.maxHp * 0.5;
+    ds[ci] = door.state | (isCracked ? 128 : 0);
   }
   return ds;
 }
@@ -2502,7 +2519,8 @@ function rebuildDoorStates(world: World, out?: Uint8Array): Uint8Array {
 function syncDoorStates(world: World, out: Uint8Array): boolean {
   let dirty = false;
   for (const [ci, door] of world.doors) {
-    const state = door.state;
+    const isCracked = door.hp !== undefined && door.maxHp !== undefined && door.hp < door.maxHp * 0.5;
+    const state = door.state | (isCracked ? 128 : 0);
     if (out[ci] !== state) {
       out[ci] = state;
       dirty = true;

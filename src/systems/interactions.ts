@@ -38,7 +38,7 @@ import {
 } from './computers';
 import { getCultProcessionPrompt, tryInteractCultProcession } from './faction_events';
 import { isHostile } from './factions';
-import { setDoorState } from './door_state';
+import { setDoorState, damageDoor } from './door_state';
 import { getActiveFloorInstance } from './floor_instances';
 import { findGnilushkaInteractionTarget, tryUseGnilushkaInteraction } from './gnilushka';
 import {
@@ -458,7 +458,12 @@ function activateDoor(ctx: InteractionContext, idx: number): InteractionResult {
   const hermeticDoor = door.state === DoorState.HERMETIC_CLOSED || door.state === DoorState.HERMETIC_OPEN;
   if (door.state === DoorState.CLOSED || door.state === DoorState.HERMETIC_CLOSED) {
     if (door.state === DoorState.HERMETIC_CLOSED && ctx.state.samosborActive) {
-      ctx.state.msgs.push(msg('Дверь герметично заперта!', ctx.state.time, '#f44'));
+      const broke = damageDoor(ctx.world, door, 5);
+      if (broke) {
+        ctx.state.msgs.push(msg('Дверь выбита!', ctx.state.time, '#4a4'));
+      } else {
+        ctx.state.msgs.push(msg('Дверь герметично заперта! (Удар -5)', ctx.state.time, '#f44'));
+      }
     } else {
       const quietDoor = consumeQuietDoorCharge(ctx.player, ctx.state.time);
       setDoorState(ctx.world, door, door.state === DoorState.HERMETIC_CLOSED ? DoorState.HERMETIC_OPEN : DoorState.OPEN);
@@ -481,7 +486,12 @@ function activateDoor(ctx: InteractionContext, idx: number): InteractionResult {
       ctx.state.msgs.push(msg(quietDoor ? 'Дверь отперта тихо' : 'Дверь отперта ключом', ctx.state.time, quietDoor ? '#8cf' : '#4a4'));
       publishDoorNoise(ctx.state, ctx.player, idx, false, quietDoor);
     } else {
-      ctx.state.msgs.push(msg('Заперто. Нужен ключ.', ctx.state.time, '#f84'));
+      const broke = damageDoor(ctx.world, door, 5);
+      if (broke) {
+        ctx.state.msgs.push(msg('Дверь выбита!', ctx.state.time, '#4a4'));
+      } else {
+        ctx.state.msgs.push(msg('Заперто. Нужен ключ. (Удар -5)', ctx.state.time, '#f84'));
+      }
     }
   }
   return { handled: true };
