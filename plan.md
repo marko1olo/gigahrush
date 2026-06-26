@@ -1,32 +1,24 @@
-1.  **Analyze the Optimization Opportunity**
-    -   The task highlights `const totalQ = state.quests.filter(q => !q.done).length;` in `src/main.ts` at line 7089.
-    -   There is another identical line at 6366: `const total = state.quests.filter(q => !q.done).length;`.
-    -   These lines are called inside the game loop when `state.npcMenuTab === 'quest'`.
-    -   The inefficiency is creating a whole new array with `filter` every frame just to get its length.
-
-2.  **Establish a Baseline & Benchmark**
-    -   I created a benchmark script (`test_perf_2.mjs`) to compare `quests.filter(q => !q.done).length` with a simple loop.
-    -   The benchmark showed a reduction from ~300ms to ~170ms for 1,000,000 iterations over an array of 50 items. This proves that manual iteration is ~40-50% faster and avoids garbage collection overhead by not allocating temporary arrays.
-    -   Since this is run inside `src/main.ts` (the game loop, typically 60fps), avoiding allocations here is highly beneficial to avoid garbage collector pauses and frame drops.
-
-3.  **Implement Optimization**
-    -   Add a new utility function `countActiveQuests(quests: readonly Quest[]): number` in `src/systems/quests.ts`.
-    -   ```typescript
-        export function countActiveQuests(quests: readonly Quest[]): number {
-          let count = 0;
-          for (let i = 0; i < quests.length; i++) {
-            if (!quests[i].done) count++;
-          }
-          return count;
-        }
-        ```
-    -   Update `src/main.ts` line 7089: `const totalQ = countActiveQuests(state.quests);`.
-    -   Update `src/main.ts` line 6366: `const total = countActiveQuests(state.quests);`.
-    -   Update `src/render/quest_ui.ts` line 254 and `src/render/npc_ui.ts` line 104 where `active.length` is needed, or potentially optimize the retrieval of active quests there too if it's purely for counting. However, those files actually *use* the `active` array (`all = [...active, ...done]`, `active[page]`), so `filter` is necessary there unless we rewrite their logic entirely. The task only requested optimizing the array filter that is *only* used for `.length`, specifically `src/main.ts:7089`. I will stick to `main.ts` lines 7089 and 6366.
-
-4.  **Verify Impact**
-    -   Run tests (`npm run check:full`).
-    -   Run `npx tsx test_perf_2.mjs` locally again.
-
-5.  **Submit PR**
-    -   Format PR with baseline info and performance improvement metrics.
+1.  **Create `src/render/critters.ts`**:
+    *   Implement an interface `Critter` (x, y, kind: 'rat' | 'roach' | 'fly', life, vx, vy, originX, originY).
+    *   Maintain a module-level array `const activeCritters: Critter[] = []`.
+    *   Implement `updateCritters(world: World, camera: CameraView, dt: number, time: number, entities: Entity[]): BloodParticle[]`. We can compute `dt` if we store `lastTime`, or just accept `dt` if we change `renderSceneGL` signature to include `dt`. Wait, `renderSceneGL` has `time` but not `dt`. Let's just track `lastTime` inside `critters.ts`.
+    *   Initialize `xorshift32` using `Math.floor(time * 10)` as seed to get deterministic visual critters without using `Math.random()`. Cap to 30.
+    *   Every update interval (e.g. 0.1s to save cycles), scan up to 10 random cells within radius 15 from `camera.x, camera.y`.
+        *   Rats: Check if `room.type === RoomType.STORAGE | KITCHEN` (using `world.roomMap[ci]` to get `roomId`, then `world.rooms[roomId]`). Or near a container (`world.containers`).
+        *   Cockroaches: Check if `room.type === RoomType.BATHROOM` or `world.light[ci] < 0.3`.
+        *   Flies: Check if `world.surfaceMap.has(ci)` or if near a dead entity (`hp !== undefined && hp <= 0` in `entities`).
+        *   Do not spawn in clean, well-lit rooms (`world.light[ci] >= 0.3` unless fly).
+    *   Update positions based on `dt`.
+    *   Map `Critter` instances to `BloodParticle` (`kind: 'debris'`, specific colors/sizes).
+    *   Verify the newly created file using `cat src/render/critters.ts`.
+2.  **Modify `src/render/webgl.ts`**:
+    *   Import `updateCritters` from `./critters`.
+    *   In `renderSceneGL`, call `const critterParticles = updateCritters(world, camera, time, entities);` to get critter particles. (We will change the signature of `updateCritters` to only take `time` and derive `dt`).
+    *   Call `renderParticlesGL` with `critterParticles` after the main `renderParticlesGL` call.
+    *   Verify modifications using `cat src/render/webgl.ts`.
+3.  **Run Compilation & Tests**:
+    *   Run `npm run typecheck` to ensure the logic compiles perfectly.
+    *   Run `npm run test:unit` to ensure no game logic regressions.
+4.  **Complete pre commit steps**:
+    *   Complete pre-commit steps to ensure proper testing, verification, review, and reflection are done.
+5.  **Submit the change** with a descriptive commit message.
