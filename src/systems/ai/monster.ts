@@ -8824,7 +8824,7 @@ export function updateMonster(world: World, entities: Entity[], e: Entity, dt: n
   if (updateZakalennayaArmorStagger(e, dt)) return;
 
   evaluateMicroStimuli(world, e, time, msgs);
-  if (tickMicroGoal(world, entities, e, dt, time, msgs)) return;
+  if (tickMicroGoal(world, entities, e, dt, time, msgs, nextId)) return;
 
   if (e.monsterKind === MonsterKind.KHOROVAYA_MATKA) {
     updateKhorovayaMatka(world, entities, e, dt, time, msgs, playerId, nextId, _entityById, state);

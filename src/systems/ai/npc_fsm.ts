@@ -314,6 +314,7 @@ export function updateNPC(
   clock: GameClock,
   samosborActive: boolean,
   profile: NpcAiProfile = 'default',
+  nextId?: { v: number },
 ): void {
   const ai = e.ai!;
 
@@ -327,7 +328,7 @@ export function updateNPC(
   }
 
   evaluateMicroStimuli(world, e, time, _barkMsgs);
-  if (tickMicroGoal(world, entities, e, dt, time, _barkMsgs)) {
+  if (tickMicroGoal(world, entities, e, dt, time, _barkMsgs, nextId)) {
     return;
   }
 
