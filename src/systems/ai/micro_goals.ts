@@ -7,8 +7,9 @@ import { steerEntityTowardCell, clearEntitySteeringPath } from './pathfinding';
 import { aiPathMoveSpeed } from '../rpg';
 import { canActorOccupy, actorOccupyRadius } from '../movement_collision';
 import { findNoiseInvestigationTarget } from '../noise';
-import { pickupDrop } from '../inventory';
+import { pickupDrop, dropItem } from '../inventory';
 import { getEntityIndex, ENTITY_MASK_NPC, ENTITY_MASK_ITEM_DROP } from '../entity_index';
+import { WEAPON_STATS } from '../../data/catalog';
 
 const _microQueryOut: Entity[] = new Array(32);
 
@@ -26,6 +27,7 @@ const MICRO_GOAL_PRIORITIES: Record<string, number> = {
   'greet': 20,
   'reposition': 10,
   'loot_nearby': 5,
+  'loot_upgrade': 4,
 };
 
 export function hasMicroGoal(e: Entity): boolean {
@@ -67,7 +69,7 @@ export function trySetMicroGoal(e: Entity, id: string, opts: MicroGoalOpts): boo
   return true;
 }
 
-export function tickMicroGoal(world: World, entities: Entity[], e: Entity, dt: number, _time: number, _msgs: Msg[]): boolean {
+export function tickMicroGoal(world: World, entities: Entity[], e: Entity, dt: number, _time: number, _msgs: Msg[], nextId?: { v: number }): boolean {
   const ai = e.ai;
   if (!ai) return false;
   
@@ -92,6 +94,7 @@ export function tickMicroGoal(world: World, entities: Entity[], e: Entity, dt: n
     case 'search_lkp':
     case 'reposition':
     case 'loot_nearby':
+    case 'loot_upgrade':
     case 'pack_pulse': {
       if (ai.microTargetX !== undefined && ai.microTargetY !== undefined) {
         const steer = steerEntityTowardCell(world, e, ai.microTargetX, ai.microTargetY);
@@ -104,9 +107,25 @@ export function tickMicroGoal(world: World, entities: Entity[], e: Entity, dt: n
           if (canActorOccupy(world, e.x, ny, r)) e.y = world.wrap(ny);
           e.angle = Math.atan2(steer.y, steer.x);
         } else {
-          if (ai.microGoalId === 'loot_nearby' && ai.microSourceId !== undefined) {
+          if ((ai.microGoalId === 'loot_nearby' || ai.microGoalId === 'loot_upgrade') && ai.microSourceId !== undefined) {
             const item = entities.find(x => x.id === ai.microSourceId);
             if (item && item.type === EntityType.ITEM_DROP && item.alive) {
+              if (ai.microGoalId === 'loot_upgrade') {
+                const curWeaponDmg = WEAPON_STATS[e.weapon ?? '']?.dmg ?? 0;
+                let isBetter = false;
+                for (const dropSlot of (item.inventory || [])) {
+                  const dropWs = WEAPON_STATS[dropSlot.defId];
+                  if (dropWs && dropWs.dmg > curWeaponDmg) {
+                    isBetter = true;
+                  }
+                }
+                if (isBetter && e.weapon) {
+                  const slotIdx = e.inventory?.findIndex(s => s.defId === e.weapon);
+                  if (slotIdx !== undefined && slotIdx >= 0 && nextId) {
+                    dropItem(e, slotIdx, entities, _msgs, _time, nextId, undefined, world);
+                  }
+                }
+              }
               pickupDrop(world, item, e, _msgs, _time, undefined);
             }
           }
@@ -179,7 +198,25 @@ export function evaluateMicroStimuli(world: World, e: Entity, time: number, msgs
       const dist2 = dx * dx + dy * dy;
       
       if (dist2 < 4) {
-        if ((ai.microCooldowns?.['loot_nearby'] ?? 0) <= 0) {
+        // Upgrade weapon?
+        const curWeaponDmg = WEAPON_STATS[e.weapon ?? '']?.dmg ?? 0;
+        let bestWeaponDmg = curWeaponDmg;
+        for (const dropSlot of (near.inventory || [])) {
+          const dropWs = WEAPON_STATS[dropSlot.defId];
+          if (dropWs && dropWs.dmg > bestWeaponDmg) {
+            bestWeaponDmg = dropWs.dmg;
+          }
+        }
+
+        if (bestWeaponDmg > curWeaponDmg) {
+          if ((ai.microCooldowns?.['loot_upgrade'] ?? 0) <= 0) {
+            if (trySetMicroGoal(e, 'loot_upgrade', { targetX: near.x, targetY: near.y, timer: 5, sourceId: near.id })) {
+              ai.microCooldowns = ai.microCooldowns || {};
+              ai.microCooldowns['loot_upgrade'] = 30; // 30 sec cooldown
+              return;
+            }
+          }
+        } else if ((ai.microCooldowns?.['loot_nearby'] ?? 0) <= 0) {
           if (trySetMicroGoal(e, 'loot_nearby', { targetX: near.x, targetY: near.y, timer: 5, sourceId: near.id })) {
             ai.microCooldowns = ai.microCooldowns || {};
             ai.microCooldowns['loot_nearby'] = 45; // 45 sec cooldown
