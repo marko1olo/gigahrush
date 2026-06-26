@@ -67,7 +67,9 @@ import {
   consumeDurability, consumeAmmo, consumeToolDurability, getEquippedToolDurability,
   updateInventoryConditions,
 } from './systems/inventory';
+import { TutorialStep } from './core/types';
 import { createInput, bindInput } from './input';
+import { initTutorial } from './systems/tutorial';
 import { createMobileControls, type MobileControls, type MobileMenuId } from './mobile';
 import { createGamepadAdapter, type GamepadAdapter } from './input_gamepad';
 import {
@@ -2204,7 +2206,7 @@ function initGame(runSeedOverride?: number, initialFloor: FloorLevel = FloorLeve
     alive: true,
     speed: HUMANOID_BASE_MOVE_SPEED,
     sprite: 0,
-    needs: freshNeeds(),
+    needs: { ...freshNeeds(), water: 20 },
     hp: 100, maxHp: 100,
     money: 100,
     inventory: [],
@@ -2238,7 +2240,11 @@ function initGame(runSeedOverride?: number, initialFloor: FloorLevel = FloorLeve
     fullMapRadius: FULL_MAP_RADIUS_DEFAULT,
     showQuests: false,
     invSel: 0,
-    msgs: [msg('Добро пожаловать в ГИГАХРУЩ. Закройте дверь.', 0, '#aaa', 0)],
+    msgs: [
+      msg('Добро пожаловать в ГИГАХРУЩ. Закройте дверь.', 0, '#aaa', 0),
+      msg('Хочется пить. Найди раковину или кулер.', 0, '#ff0', 0),
+    ],
+    tutorialStep: TutorialStep.DRINK,
     quests: [],
     activeQuestId: undefined,
     nextQuestId: 1,
@@ -7412,6 +7418,7 @@ function handleMenuInput(): void {
 }
 
 /* ── Game loop ────────────────────────────────────────────────── */
+initTutorial();
 let lastTime = performance.now();
 let uiTime = 0;
 let lastSlidePair = -1;

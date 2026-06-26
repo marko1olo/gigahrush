@@ -143,6 +143,10 @@ export function generateTutorRoom(
   world.features[world.idx(hallX + Math.floor(hallW / 2), hallY + Math.floor(hallH / 2))] = Feature.LAMP;
   world.features[world.idx(hallX + 2, hallY + 2)] = Feature.LAMP;
   world.features[world.idx(hallX + hallW - 3, hallY + 2)] = Feature.LAMP;
+
+  // Tutorial sink (Water tap)
+  world.features[world.idx(hallX + 1, hallY + 2)] = Feature.SINK;
+
   addStarterLocker(world, room, hallX + 1, hallY + hallH - 2);
 
   requireSpawnedPlotNpcFromPackage(entities, nextId, 'olga',
@@ -177,7 +181,7 @@ export function generateTutorRoom(
   world.hermoWall[hallArmoryDoor] = 1;
   world.doors.set(hallArmoryDoor, {
     idx: hallArmoryDoor,
-    state: DoorState.HERMETIC_OPEN,
+    state: DoorState.CLOSED,
     roomA: room.id,
     roomB: armory.id,
     keyId: '',

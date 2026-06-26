@@ -1,0 +1,37 @@
+<<<<<<< SEARCH
+        const px = Math.floor(ctx.player.x);
+        const py = Math.floor(ctx.player.y);
+        for (const door of ctx.world.doors.values()) {
+          if (door.state === DoorState.CLOSED || door.state === DoorState.HERMETIC_CLOSED) {
+             const doorX = door.idx % 256;
+             const doorY = (door.idx / 256) | 0;
+             const dist = Math.abs(doorX - px) + Math.abs(doorY - py);
+             if (dist <= 15) { // it's in the same room bounds usually
+                setDoorState(ctx.world, door, DoorState.OPEN);
+                opened = true;
+                break; // only open ONE door
+             }
+          }
+        }
+=======
+        const px = Math.floor(ctx.player.x);
+        const py = Math.floor(ctx.player.y);
+        for (const door of ctx.world.doors.values()) {
+          if (door.state === DoorState.CLOSED || door.state === DoorState.HERMETIC_CLOSED) {
+             // W is exported from core/types as W. But let's use the world property or just x/y.
+             // We can find the door X/Y by checking the door index. Wait, W is in `core/types` ? Let me import it.
+             // A better way is to use the room data. We can open doors of the room the player is in.
+             const doorRoomA = door.roomA >= 0 ? ctx.world.rooms[door.roomA] : null;
+             const doorRoomB = door.roomB >= 0 ? ctx.world.rooms[door.roomB] : null;
+             const playerZone = ctx.world.zoneMap[ctx.world.idx(px, py)];
+             // Actually, if we just find a door attached to the tutorial room (room ID is probably low, or has tags, but let's just open adjacent).
+             // Since we have `door.roomA` and `door.roomB`, we can check if either room contains the player.
+             const playerRoom = ctx.world.rooms.find(r => r.x <= px && px < r.x + r.w && r.y <= py && py < r.y + r.h);
+             if (playerRoom && (door.roomA === playerRoom.id || door.roomB === playerRoom.id)) {
+                setDoorState(ctx.world, door, DoorState.OPEN);
+                opened = true;
+                break;
+             }
+          }
+        }
+>>>>>>> REPLACE
