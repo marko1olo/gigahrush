@@ -6802,6 +6802,61 @@ function decorateCitizenWitnessPocket(world: World, room: Room, index: number, s
   stampSurfaceSplat(world, center.x, center.y, 0.5, 0.5, 0.26, 0.44, spec.seed + room.id * 131, 132, 116, 96, false);
 }
 
+
+function applyVoidFillers(world: World, rooms: Room[]): void {
+  const blockSize = 11;
+  const roomW = 7;
+  const roomH = 7;
+  const step = 8;
+  const maxVoids = 30;
+  let filled = 0;
+
+  for (let y = 10; y < W - 10 - blockSize; y += step) {
+    for (let x = 10; x < W - 10 - blockSize; x += step) {
+      if (filled >= maxVoids) return;
+
+      let isVoid = true;
+      for (let dy = 0; dy < blockSize; dy++) {
+        for (let dx = 0; dx < blockSize; dx++) {
+          const ci = world.idx(x + dx, y + dy);
+          if (world.cells[ci] !== Cell.WALL || world.aptMask[ci] || world.roomMap[ci] !== -1) {
+            isVoid = false;
+            break;
+          }
+        }
+        if (!isVoid) break;
+      }
+
+      if (isVoid) {
+        const cx = x + Math.floor(blockSize / 2);
+        const cy = y + Math.floor(blockSize / 2);
+
+        let nearestRoom: Room | null = null;
+        let bestDist = Infinity;
+        for (const room of rooms) {
+          const rx = room.x + Math.floor(room.w / 2);
+          const ry = room.y + Math.floor(room.h / 2);
+          const d = Math.abs(cx - rx) + Math.abs(cy - ry);
+          if (d < bestDist) {
+            bestDist = d;
+            nearestRoom = room;
+          }
+        }
+
+        if (nearestRoom && bestDist < W / 2) {
+          const rx = x + Math.floor((blockSize - roomW) / 2);
+          const ry = y + Math.floor((blockSize - roomH) / 2);
+          const roomType = chance(0.5) ? RoomType.STORAGE : RoomType.CORRIDOR;
+          const room = stampRoom(world, rooms.length, roomType, rx, ry, roomW, roomH, -1);
+          rooms.push(room);
+          carveCorridor(world, cx, cy, nearestRoom.x + Math.floor(nearestRoom.w / 2), nearestRoom.y + Math.floor(nearestRoom.h / 2));
+          filled++;
+        }
+      }
+    }
+  }
+}
+
 function applyCitizenMajorityPublicLayer(world: World, rooms: Room[], spec: ProceduralFloorSpec): void {
   if (spec.majorityId !== 'citizens') return;
   const candidates = citizenMajorityCandidates(rooms);
@@ -15701,6 +15756,7 @@ export function generateProceduralFloor(spec: ProceduralFloorSpec): FloorGenerat
     applyScientistMajority(world, rooms, spec, spawnX, spawnY);
     const wildLayout = applyWildMajorityGeometry(world, rooms, spec, spawnX, spawnY);
     placeProceduralMiniHqClusters(world, rooms, spec, spawnX, spawnY);
+    applyVoidFillers(world, rooms);
     generateZones(world);
     applyZones(world, spec);
     applyWaterAndMachines(world, rooms, spec, spawnX, spawnY);
