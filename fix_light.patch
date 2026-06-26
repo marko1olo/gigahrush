@@ -1,0 +1,10 @@
+--- src/render/critters.ts
++++ src/render/critters.ts
+@@ -62,7 +62,7 @@
+       const ci = world.idx(cx, cy);
+
+       const light = world.light[ci] ?? 0;
+-      const isDark = light < 0.3;
++      const isDark = light < 0.3; // world.light is a Float32Array 0..1 in gigahrush
+
+       // Determine room

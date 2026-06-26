@@ -20,6 +20,7 @@ import {
 import type { TexData } from './textures';
 import type { SpriteData } from './sprites';
 import type { BloodParticle } from './blood';
+import { updateCritters } from './critters';
 import { containerSpr, featureSpr } from './sprite_index';
 import { generateItemSprite, itemDropDefId, itemSpriteKey } from './item_sprites';
 import {
@@ -3370,6 +3371,11 @@ export function renderSceneGL(
   // ── Render transient particles into FBO ──
   if (bloodParticles.length > 0) {
     renderParticlesGL(bloodParticles, px, py, pAngle, pPitch, camHeight, fogDensity, purpleFog, fogRgb, planeLen);
+  }
+
+  const critterParticles = updateCritters(world, camera, time, entities);
+  if (critterParticles.length > 0) {
+    renderParticlesGL(critterParticles, px, py, pAngle, pPitch, camHeight, fogDensity, purpleFog, fogRgb, planeLen);
   }
 
   gl.disable(gl.DEPTH_TEST);
