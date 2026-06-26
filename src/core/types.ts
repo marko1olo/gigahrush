@@ -263,6 +263,7 @@ export enum MonsterKind {
   SWARM,      // vent/void source swarm   — рой (источник в щели или вентиляции)
   SPORE_CARPET, // lurking domestic spore rug — ковер (просыпается у лута)
   LISHENNYY,  // deep light-following shadow guardian — лишенный
+  GNOME,      // small fast humanoid mutant — гном
 }
 
 export type CharacterSex = 'male' | 'female';
