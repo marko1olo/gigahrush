@@ -22,7 +22,8 @@ export type FactionEventKind =
   | 'wild_looters'
   | 'liquidator_sweep'
   | 'nii_sample_audit'
-  | 'ministerial_recount';
+  | 'ministerial_recount'
+  | 'factionassault';
 
 export type FactionResidueMarkKind =
   | 'blood'
@@ -188,6 +189,27 @@ const THEFT_RESIDUE_CHOICES = [
 ] as const satisfies readonly FactionResidueChoiceDef[];
 
 export const FACTION_EVENT_DEFS: readonly FactionEventDef[] = [
+  {
+    id: 'factionassault',
+    name: 'Атака фракции',
+    zoneFactions: [], // handled by macro goal logic directly
+    occupation: Occupation.TRAVELER,
+    weight: 0, // not rolled randomly via events
+    cooldownSec: 0,
+    minGroup: 2,
+    maxGroup: 5,
+    weapons: [],
+    npcInventory: [],
+    drops: [],
+    marks: [],
+    pressure: { radius: 1, strength: 0, text: '' },
+    residueText: 'следы макро-события',
+    residueChoices: [],
+    message: 'Отряд начал движение.',
+    severity: 4,
+    privacy: 'public',
+    tags: ['faction', 'macro_goal', 'assault'],
+  },
   {
     id: 'patrol',
     name: 'Патруль зоны',

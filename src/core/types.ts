@@ -1220,6 +1220,8 @@ export interface GameState {
   gameWon: boolean;          // end-screen victory flag; return portal now continues freeplay
   crafting: CraftingState;    // persistent player craft materials and known recipes
   worldEvents?: WorldEventState; // bounded structured event history; old saves may omit it
+  activeMacroGoals?: import('../systems/factions').FactionMacroGoal[]; // transient/savable macro-goals state
+  macroGoalTimer?: number;
 }
 
 export interface MsgLocation {
