@@ -6,6 +6,7 @@ export const MAX_ACTIVE_ACTOR_SOFT_LIMIT = 16_384;
 export const ACTIVE_ACTOR_SOFT_LIMIT_STEP = 1_024;
 export let ACTIVE_ACTOR_SOFT_LIMIT = DEFAULT_ACTIVE_ACTOR_SOFT_LIMIT;
 export const FLOOR_OBJECT_SOFT_LIMIT = 65_536;
+export const MAX_ACTIVE_MACRO_GOALS = 3;
 
 export const ENTITY_SOFT_LIMITS: Partial<Record<EntityType, number>> = {
   [EntityType.NPC]: ACTIVE_ACTOR_SOFT_LIMIT,

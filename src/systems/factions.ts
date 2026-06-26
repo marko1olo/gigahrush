@@ -9,6 +9,7 @@ import {
 } from '../core/types';
 import { World } from '../core/world';
 import { ITEMS } from '../data/catalog';
+import { MAX_ACTIVE_MACRO_GOALS } from '../data/entity_limits';
 import { occupationHasAnyProfileTag, occupationHasProfileTag } from '../data/occupation_profiles';
 import {
   HUMAN_TERRITORY_OWNERS,
@@ -364,6 +365,7 @@ export function updateFactionActivity(
   const elapsed = activityAccum;
   activityAccum = 0;
   updateNoisePatrolResponse(world, entities, state);
+  evaluateMacroGoalsGC(state, elapsed, entities);
   updateFactionEvents(state, world, player, entities, nextId, elapsed, allowSpawns);
   tickCaravans(state, elapsed, false, MAX_CARAVAN_LANES_PER_TICK, world, entities, player, nextId);
   factionUiSnapshotAccum += elapsed;
@@ -520,4 +522,37 @@ export function applyInfrastructureRelationResponse(
         : -4;
   if (delta !== 0) addFactionRelMutual(Faction.PLAYER, ownerFaction, delta);
   return delta;
+}
+
+export function canCreateMacroGoal(state: GameState): boolean {
+  return (state.factionGoals?.length ?? 0) < MAX_ACTIVE_MACRO_GOALS;
+}
+
+export function evaluateMacroGoalsGC(state: GameState, dt: number, entities: Entity[]): void {
+  if (state.factionGoalsTimer === undefined) state.factionGoalsTimer = 0;
+  state.factionGoalsTimer += dt;
+  if (state.factionGoalsTimer < 60) return;
+  state.factionGoalsTimer = 0;
+
+  if (!state.factionGoals) return;
+
+  const activeGoals = [];
+  const entitiesById = new Map<number, Entity>();
+  for (let i = 0; i < entities.length; i++) {
+    entitiesById.set(entities[i].id, entities[i]);
+  }
+  for (const goal of state.factionGoals) {
+    let hasAliveMembers = false;
+    for (const memberId of goal.members) {
+      const e = entitiesById.get(memberId);
+      if (e && e.alive) {
+        hasAliveMembers = true;
+        break;
+      }
+    }
+    if (hasAliveMembers) {
+      activeGoals.push(goal);
+    }
+  }
+  state.factionGoals = activeGoals;
 }
