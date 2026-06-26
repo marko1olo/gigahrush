@@ -848,6 +848,10 @@ export const WORLD_EVENT_ZONE_CAPACITY = 32;
 export const WORLD_EVENT_ZONE_COUNT = 64;
 
 export const WORLD_EVENT_TYPES = [
+  'arenabetplaced',
+  'arenabetwon',
+  'arenabetlost',
+
   'npc_enter_zone',
   'npc_leave_zone',
   'npc_enter_room',

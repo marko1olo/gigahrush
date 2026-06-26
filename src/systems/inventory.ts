@@ -2527,3 +2527,14 @@ export function getWeaponReadiness(e: Entity, itemId = equippedCombatItemId(e)):
     warning: cannotFireReason !== '' || lowResource,
   };
 }
+
+export function transferMoney(from: Entity, to: Entity, amount: number): boolean {
+  const cleanAmount = Math.max(0, Math.floor(amount));
+  if (cleanAmount === 0) return true;
+  const fromMoney = Math.max(0, Math.floor(from.money ?? 0));
+  if (fromMoney < cleanAmount) return false;
+
+  from.money = fromMoney - cleanAmount;
+  to.money = Math.max(0, Math.floor(to.money ?? 0)) + cleanAmount;
+  return true;
+}
