@@ -1027,6 +1027,7 @@ export const WORLD_EVENT_TYPES = [
   'swarm_source_sealed',
   'swarm_source_burned',
   'death_seen',
+  'outskirts_resolved',
 ] as const;
 
 export type WorldEventType = typeof WORLD_EVENT_TYPES[number];

@@ -371,6 +371,7 @@ export const ITEM_TAGS: Record<string, readonly string[]> = {
 };
 
 export const ITEMS: Record<string, ItemDef> = {
+  outskirts_pass: { id:'outskirts_pass', name:'Пропуск Окраины', type:ItemType.KEY, desc:'Электронный пропуск, позволяющий разблокировать лифты на этаже Окраина для спуска в Коллекторы.', spawnRooms:[], spawnW:0, value:150 },
   // ── Еда (дешёвая, частая) ──
   bread:     { id:'bread',     name:'Хлеб',         type:ItemType.FOOD,     desc:'Чёрствый пайковый ломоть. Сухой настолько, что им можно подпереть жалобу.',          spawnRooms:[RoomType.KITCHEN,RoomType.STORAGE], spawnW:1, value:3, use:feed(15) },
   canned:    { id:'canned',    name:'Тушёнка',      type:ItemType.FOOD,     desc:'Мясная консерва без лишних вопросов к мясу. Крышка честнее этикетки.',        spawnRooms:[RoomType.KITCHEN,RoomType.STORAGE], spawnW:1, value:10, use:feed(30) },
