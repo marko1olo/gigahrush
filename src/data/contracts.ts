@@ -919,6 +919,13 @@ export const CONTRACTS: ContractDef[] = [
   ...EXPEDITION_CONTRACTS,
   ...CARAVAN_CONTRACTS,
   {
+    id: 'lostchildescort', title: 'Потерявшийся ребенок', issuer: 'Ребенок',
+    faction: Faction.CITIZEN, rank: 1, type: QuestType.TALK,
+    desc: 'Ребенок отбился от родителей. Нужно отвести его к семье, пока сборки не учуяли запах.',
+    target: { floor: FloorLevel.LIVING, hint: 'Помочь ребенку найти маму.' },
+    moneyReward: 50, xpReward: 30, relationDelta: 10, tags: ['child', 'escort', 'family'],
+  },
+  {
     id: 'bm88_medicine_bid', title: 'Ставка на антибиотик', issuer: 'Счетная 88',
     faction: Faction.CITIZEN, rank: 1, type: QuestType.FETCH,
     desc: 'Счётная 88 ставит на антибиотик для закрытого покупателя. Чем хуже дефицит, тем жирнее плата и тише вопросы; медпункту об этом не рассказывают.',

@@ -67,6 +67,7 @@ import { ITEMS } from '../data/catalog';
 import { getStack } from '../data/items';
 import { getFactionRel } from '../data/relations';
 import { HUMANOID_BASE_MOVE_SPEED, getMaxHp, getMaxPsi } from './rpg';
+import { CONTRACTS, contractToQuest } from '../data/contracts';
 import {
   NPC_PLAYER_RELATION_FLUCTUATION,
   clampRelation,
@@ -2298,6 +2299,40 @@ export function materializeAlifeFloorPopulation(
     const entity = materializeEntity(record, template, world, alife, nextId);
     if (!entity) continue;
     entities.push(entity);
+  }
+
+  // Dynamic Event: Lost Child
+  for (const child of entities) {
+    if (child.type !== EntityType.NPC) continue;
+    if (child.age === undefined || child.age >= 16) {
+      if (child.occupation !== Occupation.CHILD) continue;
+    }
+    const familyId = child.familyId;
+    if (!familyId) continue;
+
+    // Find parent
+    const parent = entities.find(e =>
+      e.type === EntityType.NPC &&
+      e.id !== child.id &&
+      e.familyId === familyId &&
+      (e.age === undefined || e.age >= 16) &&
+      e.occupation !== Occupation.CHILD
+    );
+
+    if (parent) {
+      const dist2 = world.dist2(child.x, child.y, parent.x, parent.y);
+      if (dist2 > 400) { // far away
+        const hasQuest = state.quests.some(q => q.giverId === child.id && !q.done);
+        if (!hasQuest) {
+          const contract = CONTRACTS.find(c => c.id === 'lostchildescort');
+          if (contract) {
+            const quest = contractToQuest(contract, state.nextQuestId++, { id: child.id, name: child.name });
+            quest.targetNpcId = parent.id;
+            state.quests.push(quest);
+          }
+        }
+      }
+    }
   }
 }
 
