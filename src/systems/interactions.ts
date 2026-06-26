@@ -1,3 +1,4 @@
+import { isArenaOverlayOpen, closeArena, moveArenaSelection, activateArenaSelection } from './arena';
 import {
   Cell,
   DoorState,
@@ -163,7 +164,7 @@ export interface InteractableOverlayInput {
   rightNav: boolean;
 }
 
-export type InteractableOverlayKind = 'none' | 'gambling' | 'computer' | 'net_hack' | 'net_terminal' | 'fast_elevator';
+export type InteractableOverlayKind = 'none' | 'gambling' | 'computer' | 'net_hack' | 'net_terminal' | 'fast_elevator' | 'arena';
 
 export interface InteractableOverlaySnapshot {
   open: boolean;
@@ -612,6 +613,7 @@ export function activateInteraction(ctx: InteractionContext): InteractionResult 
 }
 
 export function isInteractableOverlayOpen(): boolean {
+  if (isArenaOverlayOpen()) return true;
   return isGamblingOverlayOpen()
     || isComputerOverlayOpen()
     || isNetHackOverlayOpen()
@@ -626,6 +628,7 @@ export function getInteractableOverlaySnapshot(): InteractableOverlaySnapshot {
   if (isNetHackOverlayOpen()) return { open: true, kind: 'net_hack' };
   if (isNetTerminalBankOpen() || isNetTerminalGenDeniedOpen()) return { open: true, kind: 'net_terminal' };
   if (isFastElevatorOverlayOpen()) return { open: true, kind: 'fast_elevator' };
+  if (isArenaOverlayOpen()) return { open: true, kind: 'arena' };
   return { open: false, kind: 'none' };
 }
 
@@ -635,11 +638,20 @@ export function closeInteractableOverlay(): void {
   closeNetHackTerminal();
   closeNetTerminalGen();
   closeFastElevator();
+  closeArena();
 }
 
 export function handleInteractableOverlayInput(input: InteractableOverlayInput, ctx: Pick<InteractionContext, 'world' | 'state' | 'player' | 'switchFloor'>): InteractionResult {
   if (input.escEdge) {
     closeInteractableOverlay();
+    return { handled: true };
+  }
+
+
+  if (isArenaOverlayOpen()) {
+    if (input.upNav || input.leftNav) moveArenaSelection(-1);
+    if (input.dnNav || input.rightNav) moveArenaSelection(1);
+    if (input.interactEdge) activateArenaSelection(ctx);
     return { handled: true };
   }
 
