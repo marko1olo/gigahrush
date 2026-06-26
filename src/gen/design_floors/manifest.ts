@@ -34,6 +34,7 @@ import { generateMarkovStairwellDesignFloor, reinforceMarkovStairwellAuthoredHqT
 import { alignMoebiusPodezdAmbientNpcTerritory, generateMoebiusPodezdDesignFloor } from './moebius_podezd';
 import { generateNumberRegistryDesignFloor } from './number_registry';
 import { generateObschezhitieSmenyDesignFloor } from './obschezhitie_smeny';
+import { generateOutskirtsDesignFloor } from './outskirts';
 import { alignOranzhereyaBetonaAmbientNpcTerritory, generateOranzhereyaBetonaDesignFloor } from './oranzhereya_betona';
 import { generatePenroseLaundryDesignFloor, reinforcePenroseLaundryAuthoredHqTerritory } from './penrose_laundry';
 import { generatePioneerCampDesignFloor } from './pioneer_camp';
@@ -87,6 +88,7 @@ const DESIGN_FLOOR_GENERATORS: Record<DesignFloorId, () => FloorGeneration> = {
   obschezhitie_smeny: generateObschezhitieSmenyDesignFloor,
   penrose_laundry: generatePenroseLaundryDesignFloor,
   black_market_88: generateBlackMarket88DesignFloor,
+  outskirts: generateOutskirtsDesignFloor,
   production_belt: generateProductionBeltDesignFloor,
   service_floor: generateServiceFloorDesignFloor,
   silicon_net_well: generateSiliconNetWellDesignFloor,

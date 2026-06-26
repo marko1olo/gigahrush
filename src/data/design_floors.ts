@@ -28,6 +28,7 @@ export type DesignFloorId =
   | 'obschezhitie_smeny'
   | 'penrose_laundry'
   | 'black_market_88'
+  | 'outskirts'
   | 'production_belt'
   | 'service_floor'
   | 'silicon_net_well'
@@ -108,6 +109,7 @@ export const DESIGN_FLOOR_ROUTES: readonly DesignFloorRouteDef[] = [
   { id: 'obschezhitie_smeny', z: -6, displayName: 'Общежитие смены', baseFloor: FloorLevel.LIVING, color: '#d6b37a', role: 'сон, тихая кража, свидетели и укрытие', danger: 2 },
   { id: 'penrose_laundry', z: -8, displayName: 'Прачечная Пенроуза', baseFloor: FloorLevel.LIVING, color: '#9ef', role: 'апериодичная прачечная, пар, тайники', danger: 3 },
   { id: 'black_market_88', z: -10, displayName: 'Черный рынок 88', baseFloor: FloorLevel.LIVING, color: '#fd4', role: 'торговля, контрабанда, долги', danger: 3 },
+  { id: 'outskirts', z: -12, displayName: 'Окраина', baseFloor: FloorLevel.KVARTIRY, color: '#a89', role: 'переходная зона, баррикады, фракции', danger: 3 },
   { id: 'production_belt', z: -14, displayName: 'Производственный пояс', baseFloor: FloorLevel.MAINTENANCE, color: '#fd6', role: 'хабар и ремонт', danger: 4 },
   { id: 'service_floor', z: -18, displayName: 'Служебный этаж', baseFloor: FloorLevel.MAINTENANCE, color: '#8cf', role: 'служебный обход и ремонт', danger: 3 },
   { id: 'hyperbolic_switchyard', z: -20, displayName: 'Гиперболическая стрелочная', baseFloor: FloorLevel.MAINTENANCE, color: '#7ff0b8', role: 'дуги, ложные платформы, стрелочные семейства', danger: 4 },

@@ -1276,6 +1276,15 @@ const DESIGN_FLOOR_POPULATION_OVERRIDES: Readonly<Record<DesignFloorId, DesignFl
       ],
     },
   },
+  outskirts: {
+    npcTarget: 1800,
+    monsterTarget: 900,
+    npcFactions: [{ value: Faction.CITIZEN, weight: 30 }, { value: Faction.WILD, weight: 35 }, { value: Faction.LIQUIDATOR, weight: 35 }],
+    npcOccupations: SOCIAL_OCCUPATIONS,
+    monsterBiasKinds: [MonsterKind.POMOYNY_ROY, MonsterKind.NELYUD, MonsterKind.BEZEKHIY],
+    monsterTags: ['maintenance_border', 'apartment_trash'],
+    monsterPlacementKind: 'industrial',
+  },
   black_market_88: {
     npcTarget: 2200,
     monsterTarget: 700,
