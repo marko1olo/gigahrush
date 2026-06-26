@@ -108,6 +108,16 @@ export const enum LiftDirection {
 }
 
 // ── Rooms ────────────────────────────────────────────────────────
+export enum TutorialStep {
+  DRINK = 0,
+  TOILET = 1,
+  EAT = 2,
+  WORK = 3,
+  SAMOSBOR = 4,
+  ESCAPE = 5,
+  DONE = 6,
+}
+
 export enum RoomType {
   LIVING,      // personal room — sleep, hide
   KITCHEN,     // eat, drink
@@ -1220,6 +1230,7 @@ export interface GameState {
   gameWon: boolean;          // end-screen victory flag; return portal now continues freeplay
   crafting: CraftingState;    // persistent player craft materials and known recipes
   worldEvents?: WorldEventState; // bounded structured event history; old saves may omit it
+  tutorialStep?: TutorialStep; // current step in the tutorial sequence
 }
 
 export interface MsgLocation {
