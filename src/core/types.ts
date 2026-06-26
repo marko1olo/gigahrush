@@ -425,6 +425,7 @@ export interface AIState {
   windupStartHp?: number;     // HP snapshot for interruptible windups
   staggerTimer?: number;      // temporary interrupt / stagger lockout
   lastSeenTargetId?: number;  // event throttle for first sight / escape beats
+  lastSeenUrinationId?: number;
   sprintTimer?: number;       // straight-line special burst countdown
   sprintDx?: number;          // normalized burst direction X
   sprintDy?: number;          // normalized burst direction Y
@@ -878,6 +879,7 @@ export const WORLD_EVENT_TYPES = [
   'player_sell_item',
   'player_handoff_item',
   'player_destroy_item',
+  'player_urinated',
   'permit_forged',
   'permit_exposed',
   'access_granted',

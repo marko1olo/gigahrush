@@ -4995,19 +4995,40 @@ let _cleanRelAccum = 0;
 
 function applyUrinationPenalty(dt: number): void {
   const room = world.roomAt(player.x, player.y);
-  if (room && room.type === RoomType.BATHROOM) return; // toilet — no penalty
-
-  const ownerFaction = territoryFactionAt(world, player.x, player.y);
-  if (ownerFaction === null) return;
 
   // Immediate penalty when urination starts
   if (!_urinePenaltyStarted) {
     _urinePenaltyStarted = true;
-    addFactionRel(ownerFaction, Faction.PLAYER, -1);
-    addFactionRel(Faction.PLAYER, ownerFaction, -1);
-    addKarma(player, -1);
-    state.msgs.push(msg('Местные недовольны...', state.time, '#f84'));
+
+    // Publish the world event immediately, regardless of where they are.
+    publishEvent(state, {
+      type: 'player_urinated',
+      actorId: player.id,
+      x: player.x,
+      y: player.y,
+      roomId: room?.id,
+      severity: 1,
+      privacy: 'witnessed',
+      tags: ['urination'],
+    });
+
+    if (!room || room.type !== RoomType.BATHROOM) {
+      const ownerFaction = territoryFactionAt(world, player.x, player.y);
+      if (ownerFaction !== null) {
+        addFactionRel(ownerFaction, Faction.PLAYER, -1);
+        addFactionRel(Faction.PLAYER, ownerFaction, -1);
+        addKarma(player, -2);
+        state.msgs.push(msg('Местные недовольны...', state.time, '#f84'));
+      } else {
+        addKarma(player, -1);
+      }
+    }
   }
+
+  if (room && room.type === RoomType.BATHROOM) return; // toilet — no ongoing penalty
+
+  const ownerFaction = territoryFactionAt(world, player.x, player.y);
+  if (ownerFaction === null) return;
 
   // Ongoing penalty: -1 per game minute (= per real second)
   _urinePenaltyAccum += dt;

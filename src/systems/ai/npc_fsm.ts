@@ -29,6 +29,7 @@ import {
   BARK_CHANCE_HIDE,
   BARK_CHANCE_GENERIC,
 } from './barks';
+import { getRecentEvents } from '../events';
 import { chooseNpcEmergencyDecision } from './npc_emergency';
 import { tickNpcMemoryLowFrequency } from '../npc_memory';
 import { tickNpcRumorLowFrequency } from '../rumor';
@@ -314,6 +315,7 @@ export function updateNPC(
   clock: GameClock,
   samosborActive: boolean,
   profile: NpcAiProfile = 'default',
+  state?: import('../../core/types').GameState,
 ): void {
   const ai = e.ai!;
 
@@ -321,6 +323,26 @@ export function updateNPC(
   if (special.clearUtility) {
     ai.stateTimer = 0;
     clearUtilityState(e);
+  }
+
+  if (state) {
+    const sinceId = ai.lastSeenUrinationId ?? 0;
+    const events = getRecentEvents(state, { type: 'player_urinated', sinceId, limit: 1 });
+    if (events.length > 0) {
+      const event = events[0];
+      if (event.id > sinceId) {
+        ai.lastSeenUrinationId = event.id;
+        if (event.x !== undefined && event.y !== undefined) {
+          const dist2 = world.dist2(e.x, e.y, event.x, event.y);
+          if (dist2 <= 64 && e.faction !== Faction.WILD) {
+            const isBathroom = event.roomId !== undefined && world.rooms[event.roomId]?.type === RoomType.BATHROOM;
+            if (!isBathroom) {
+              e.playerRelation = (e.playerRelation ?? 0) - 15;
+            }
+          }
+        }
+      }
+    }
   }
   if (special.held) {
     return;

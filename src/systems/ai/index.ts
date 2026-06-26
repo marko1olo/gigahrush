@@ -172,7 +172,7 @@ export function updateAI(world: World, entities: Entity[], dt: number, time: num
           simple: true,
         })) {
           if (!tryFleeFromMonster(world, entities, e, dt, time)) {
-            updateNPC(world, entities, e, dt, time, clock, samosborActive, isMinistry ? 'ministry' : 'default');
+            updateNPC(world, entities, e, dt, time, clock, samosborActive, isMinistry ? 'ministry' : 'default', state);
           }
         }
       }
