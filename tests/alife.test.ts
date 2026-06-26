@@ -28,12 +28,14 @@ import {
   moveAlifeNpcRecord,
   packageIdFromReservedIdentityId,
   recordAlifeNpcDeath,
+  selectCinematicExtras,
   resetAlifePlayerRelationsForNewPlayer,
   sampleAlifeFloorRecordIds,
   setAlifeState,
   type AlifePopulationPlan,
 } from '../src/systems/alife';
 import { setFloorRunState } from '../src/systems/procedural_floors';
+import { getEntityIndex, rebuildEntityIndexForSimulation } from '../src/systems/entity_index';
 import { getFactionRel, initFactionRelations } from '../src/data/relations';
 import { freshRPG, RPG_LEVEL_CAP } from '../src/systems/rpg';
 import { NPC_VISUAL_FLOOR69_FEMALE, NPC_VISUAL_LIQUIDATOR_MALE } from '../src/entities/npc_visuals';
@@ -919,4 +921,24 @@ test('A-Life leaderboard cache respects requested limits', () => {
 
   assert.equal(getAlifeLeaderboardSnapshot(state, player, 5).entries.length, 5);
   assert.equal(getAlifeLeaderboardSnapshot(state, player, 10).entries.length, 10);
+});
+
+test('A-Life selectCinematicExtras retrieves correct live NPCs', () => {
+  const world = new World();
+  const index = getEntityIndex();
+
+  const entities: Entity[] = [
+    { id: 1, type: EntityType.NPC, x: 10, y: 10, alive: true, angle: 0, pitch: 0, speed: 1, sprite: 0 },
+    { id: 2, type: EntityType.NPC, x: 12, y: 10, alive: true, angle: 0, pitch: 0, speed: 1, sprite: 0 },
+    { id: 3, type: EntityType.NPC, x: 10, y: 12, alive: false, angle: 0, pitch: 0, speed: 1, sprite: 0 },
+    { id: 4, type: EntityType.NPC, x: 100, y: 100, alive: true, angle: 0, pitch: 0, speed: 1, sprite: 0 },
+  ];
+  rebuildEntityIndexForSimulation(entities, 1);
+
+  const extras = selectCinematicExtras(world, 2, 10, 10, 10);
+  assert.equal(extras.length, 2);
+  assert.ok(extras.some(e => e.id === 1));
+  assert.ok(extras.some(e => e.id === 2));
+  assert.ok(!extras.some(e => e.id === 3)); // Dead
+  assert.ok(!extras.some(e => e.id === 4)); // Out of radius
 });

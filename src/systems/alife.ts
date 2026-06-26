@@ -79,6 +79,7 @@ import {
   rankScore,
   type RankStats,
 } from './alife_rating';
+import { getEntityIndex, ENTITY_MASK_NPC } from './entity_index';
 
 const ALIFE_VERSION = 2;
 const ALIFE_POPULATION = ALIFE_POPULATION_CAPACITY;
@@ -2599,4 +2600,28 @@ export function getAlifeLeaderboardSnapshot(state: GameState, player: Entity, li
   };
   alife.leaderboardCache = snapshot;
   return snapshot;
+}
+
+export function selectCinematicExtras(
+  _world: World,
+  count: number,
+  nearX: number,
+  nearY: number,
+  radius: number,
+): Entity[] {
+  if (count <= 0) return [];
+  const queryLimit = count * 3;
+  const raw: Entity[] = [];
+  getEntityIndex().queryRadiusCapped(nearX, nearY, radius, raw, ENTITY_MASK_NPC, queryLimit);
+
+  const extras: Entity[] = [];
+  for (const e of raw) {
+    if (e.alive) {
+      extras.push(e);
+      if (extras.length >= count) {
+        break;
+      }
+    }
+  }
+  return extras;
 }
