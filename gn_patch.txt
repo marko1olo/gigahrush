@@ -1,0 +1,6 @@
+--- src/core/types.ts
++++ src/core/types.ts
+@@ -244,2 +244,3 @@
+   KONTORSHCHIK, // document-scent undead  — конторщик (идет на бумаги)
++  GNOME,      // small agile dweller      — гном (мелкие, шустрые)
+   TONKAYA_TEN, // bait-line shadow lure   — тонкая тень (отступает к темной линии)

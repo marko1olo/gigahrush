@@ -243,7 +243,6 @@ export enum MonsterKind {
   PROTOKOLNIK, // document-pressure horror — протокольник (давит бумагами)
   DIKIY_MERTVYAK, // fragile crowd-runner — дикий мертвяк (дверной затор)
   KONTORSHCHIK, // document-scent undead  — конторщик (идет на бумаги)
-  GNOME,      // small agile dweller      — гном (мелкие, шустрые)
   TONKAYA_TEN, // bait-line shadow lure   — тонкая тень (отступает к темной линии)
   KANTSELYARSKIY_IDOL, // office-field psi hazard — канцелярский идол
   LOZHNYY_DUKH, // door phaser            — ложный дух (один проход через дверь)
