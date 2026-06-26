@@ -12,6 +12,8 @@ import { ITEMS } from '../data/catalog';
 import { occupationHasAnyProfileTag, occupationHasProfileTag } from '../data/occupation_profiles';
 import {
   HUMAN_TERRITORY_OWNERS,
+  factionToTerritoryOwner,
+  territoryOwnerToFaction,
 } from '../data/factions';
 import { getFactionRel, addFactionRelMutual } from '../data/relations';
 import { isPsiMad, isPsiAlly } from './psi';
@@ -38,6 +40,14 @@ import {
 import { applyDemosRelationDelta } from './demos_social';
 import { addKarma } from './alife_rating';
 import { isPassiveDefensiveNeutralMonster } from './monster_traits';
+
+/* ── Macro-goals ──────────────────────────────────────────────── */
+export interface FactionMacroGoal {
+  type: 'attack' | 'defend';
+  targetZone: number;
+  members: number[];
+  factionId: Faction;
+}
 
 /* ── Faction relation accessors (dynamic — reads live matrix) ─── */
 // Monsters use a fixed attitude, not tracked in the matrix
@@ -372,6 +382,123 @@ export function updateFactionActivity(
     factionUiSnapshotAccum = 0;
     refreshFactionUiSnapshot(world, state);
   }
+
+  state.macroGoalTimer = (state.macroGoalTimer ?? 0) + elapsed;
+  if (state.macroGoalTimer >= 60) {
+    state.macroGoalTimer = 0;
+    evaluateMacroGoals(world, entities, state);
+  }
+}
+
+function evaluateMacroGoals(world: World, entities: Entity[], state: GameState): void {
+  if (!state.activeMacroGoals) state.activeMacroGoals = [];
+
+  // Clean up dead/invalid members and empty goals
+  for (let i = state.activeMacroGoals.length - 1; i >= 0; i--) {
+    const goal = state.activeMacroGoals[i];
+    goal.members = goal.members.filter(id => {
+      const npc = getEntityIndex().byId.get(id);
+      return npc && npc.alive && npc.type === EntityType.NPC && npc.faction === goal.factionId;
+    });
+    if (goal.members.length === 0) {
+      state.activeMacroGoals.splice(i, 1);
+    }
+  }
+
+  // Limitation: Maximum 3 active macro-goals per floor
+  if (state.activeMacroGoals.length >= 3) return;
+
+  const validFactions = [Faction.LIQUIDATOR, Faction.CULTIST, Faction.WILD, Faction.CITIZEN];
+  // Deterministic faction pick based on state.time
+  const faction = validFactions[Math.floor(state.time) % validFactions.length];
+  const zf = factionToTerritoryOwner(faction);
+
+  // Find an idle squad of 2-5 NPCs of this faction
+  const candidates = entities.filter(e =>
+    e.alive &&
+    e.type === EntityType.NPC &&
+    e.faction === faction &&
+    e.ai &&
+    (e.ai.goal === AIGoal.IDLE || e.ai.goal === AIGoal.WANDER || e.ai.goal === AIGoal.SLEEP || e.ai.goal === AIGoal.WORK) &&
+    !state.activeMacroGoals!.some(g => g.members.includes(e.id))
+  );
+
+  if (candidates.length < 2) return;
+  const squadSize = Math.min(5, candidates.length);
+  const squad = candidates.slice(0, squadSize);
+
+  // Find nearest enemy zone with fewest defenders
+  let bestZoneId = -1;
+  let bestScore = Infinity; // Lower is better (fewest defenders + distance penalty)
+
+  const squadCx = squad[0].x;
+  const squadCy = squad[0].y;
+
+  // Count defenders per zone quickly
+  const defendersPerZone = new Map<number, number>();
+  for (const e of entities) {
+    if (e.alive && e.type === EntityType.NPC) {
+      const zId = currentTerritoryZoneId(world, e.x, e.y);
+      defendersPerZone.set(zId, (defendersPerZone.get(zId) || 0) + 1);
+    }
+  }
+
+  for (const zone of world.zones) {
+    const owner = territoryOwnerAtIndex(world, world.idx(Math.floor(zone.cx), Math.floor(zone.cy)));
+    if (owner === zf || owner === ZoneFaction.SAMOSBOR) continue;
+
+    // Check hostility
+    const zoneFaction = territoryOwnerToFaction(owner);
+    if (!zoneFaction || !areFactionsHostile(faction, zoneFaction)) continue;
+
+    const dist2 = world.dist2(squadCx, squadCy, zone.cx, zone.cy);
+    const defenders = defendersPerZone.get(zone.id) || 0;
+
+    // Score based on fewest defenders primarily, breaking ties with distance
+    const score = defenders * 1000000 + dist2;
+    if (score < bestScore) {
+      bestScore = score;
+      bestZoneId = zone.id;
+    }
+  }
+
+  if (bestZoneId === -1) return;
+
+  const targetZone = world.zones.find(z => z.id === bestZoneId);
+  if (!targetZone) return;
+
+  const newGoal: FactionMacroGoal = {
+    type: 'attack',
+    targetZone: bestZoneId,
+    members: squad.map(e => e.id),
+    factionId: faction,
+  };
+  state.activeMacroGoals!.push(newGoal);
+
+  // Assign path to target zone
+  for (const e of squad) {
+    e.ai!.goal = AIGoal.HUNT; // Use HUNT or GOTO to move them
+    e.ai!.timer = 300; // 5 minutes to complete
+    tryAssignPathToCell(world, e, targetZone.cx, targetZone.cy);
+  }
+
+  publishEvent(state, {
+    type: 'faction_event',
+    zoneId: bestZoneId,
+    x: targetZone.cx,
+    y: targetZone.cy,
+    actorFaction: faction,
+    severity: 4,
+    privacy: 'public',
+    tags: ['faction_event', 'macro_goal', 'assault'],
+    data: {
+      name: 'Атака фракции',
+      phase: 'assault',
+      text: 'Отряд начал движение.',
+      squadSize: squad.length,
+      targetZone: bestZoneId,
+    },
+  });
 }
 
 function canRespondToNoise(e: Entity): boolean {
