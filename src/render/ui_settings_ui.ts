@@ -13,6 +13,7 @@ import {
   uiSettingsRowCount,
   visualGeometryMode,
   lightingQualityMode,
+  crittersEnabled,
 } from '../systems/ui_orchestrator';
 import { drawNeuroPanel, flicker } from './hud_fx';
 import { fitTextStable } from './ui_text';
@@ -45,6 +46,7 @@ export function drawUiSettingsMenu(
       return mode === 'off' ? 'ВЫКЛ' : mode === 'full' ? 'ПОЛН' : 'СЛАБ';
     }
     if (kind === 'hud_motion') return hudMotionMode() === 'reduced' ? 'МЕНЬШЕ' : 'НОРМ';
+    if (kind === 'critters') return crittersEnabled() ? 'ВКЛ' : 'ВЫКЛ';
     if (kind === 'visual_geometry') {
       const mode = visualGeometryMode();
       return mode === 'off' ? 'ВЫКЛ' : mode === 'low' ? 'НИЗК' : mode === 'medium' ? 'СРЕД' : 'ВЫС';

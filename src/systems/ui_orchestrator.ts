@@ -75,6 +75,7 @@ export const VISUAL_GEOMETRY_MODE_LABELS: Readonly<Record<VisualGeometryMode, st
 export const LIGHTING_QUALITY_MODES = ['off', 'low', 'medium', 'high', 'experimental'] as const;
 export type LightingQualityMode = typeof LIGHTING_QUALITY_MODES[number];
 export const LIGHTING_QUALITY_DEFAULT_MODE: LightingQualityMode = 'experimental';
+export const CRITTERS_ENABLED_DEFAULT = true;
 export const LIGHTING_QUALITY_MODE_LABELS: Readonly<Record<LightingQualityMode, string>> = {
   off: 'Выкл',
   low: 'Низкое',
@@ -119,6 +120,7 @@ type UiSettings = Record<UiElementId, boolean> & {
   hudMotionMode: HudMotionMode;
   visualGeometryMode: VisualGeometryMode;
   lightingQualityMode: LightingQualityMode;
+  crittersEnabled: boolean;
 } & Record<MapLegendToggleId, boolean>;
 
 export type MapLegendRow =
@@ -253,6 +255,7 @@ const GRAPHICS_SETTINGS_ROWS = [
   { kind: 'lighting_quality', id: 'lighting_quality', group: 'Графика', label: 'Качество света' },
   { kind: 'camera_fov', id: 'camera_fov', group: 'Графика', label: 'FOV / угол обзора' },
   { kind: 'map_contrast', id: 'map_contrast', group: 'Карта', label: 'Контраст карты' },
+  { kind: 'critters', id: 'critters', group: 'Графика', label: 'Живность (мухи)' },
 ] as const;
 
 const UI_RESET_ROWS = {
@@ -301,6 +304,7 @@ function settingsFromEnabledIds(enabledIds: readonly UiElementId[]): UiSettings 
   out.hudMotionMode = HUD_MOTION_DEFAULT;
   out.visualGeometryMode = VISUAL_GEOMETRY_DEFAULT_MODE;
   out.lightingQualityMode = LIGHTING_QUALITY_DEFAULT_MODE;
+  out.crittersEnabled = CRITTERS_ENABLED_DEFAULT;
   for (const def of MAP_LEGEND_TOGGLE_DEFS) out[def.id] = def.defaultEnabled;
   return out;
 }
@@ -331,6 +335,7 @@ function normalizeUiSettings(raw: unknown): UiSettings {
   out.hudMotionMode = normalizeHudMotionMode(src.hudMotionMode);
   out.visualGeometryMode = normalizeVisualGeometryMode(src.visualGeometryMode);
   out.lightingQualityMode = normalizeLightingQualityMode(src.lightingQualityMode);
+  out.crittersEnabled = typeof src.crittersEnabled === 'boolean' ? src.crittersEnabled : CRITTERS_ENABLED_DEFAULT;
   for (const def of MAP_LEGEND_TOGGLE_DEFS) {
     const value = src[def.id];
     if (typeof value === 'boolean') out[def.id] = value;
@@ -461,6 +466,7 @@ export function applyUiPreset(id: UiPresetId): boolean {
   const hudMotion = hudMotionMode();
   const geometryMode = visualGeometryMode();
   const lightingMode = lightingQualityMode();
+  const critters = crittersEnabled();
   const mapToggles = MAP_LEGEND_TOGGLE_DEFS.map(def => [def.id, mapLegendToggleEnabled(def.id)] as const);
   settings = settingsFromEnabledIds(preset.enabled);
   settings.mouseLookSensitivity = mouseSensitivity;
@@ -473,6 +479,7 @@ export function applyUiPreset(id: UiPresetId): boolean {
   settings.hudMotionMode = hudMotion;
   settings.visualGeometryMode = geometryMode;
   settings.lightingQualityMode = lightingMode;
+  settings.crittersEnabled = critters;
   for (const [id, enabled] of mapToggles) settings[id] = enabled;
   saveUiSettings();
   return true;
@@ -619,6 +626,22 @@ export function resetGraphicsSettings(): void {
   settings.visualGeometryMode = VISUAL_GEOMETRY_DEFAULT_MODE;
   settings.lightingQualityMode = LIGHTING_QUALITY_DEFAULT_MODE;
   saveUiSettings();
+}
+
+
+export function crittersEnabled(): boolean {
+  if (typeof settings.crittersEnabled !== 'boolean') settings.crittersEnabled = CRITTERS_ENABLED_DEFAULT;
+  return settings.crittersEnabled;
+}
+
+export function setCrittersEnabled(enabled: boolean): boolean {
+  settings.crittersEnabled = enabled;
+  saveUiSettings();
+  return settings.crittersEnabled;
+}
+
+export function toggleCrittersEnabled(): boolean {
+  return setCrittersEnabled(!crittersEnabled());
 }
 
 export function autoPickupEnabled(): boolean {

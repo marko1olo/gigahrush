@@ -197,7 +197,7 @@ test('UI orchestrator presets cover minimal and full player-safe modes', () => {
   }
   assert.equal(uiElementEnabled('fps_counter'), false);
   assert.equal(uiSettingsRowCount('interface'), UI_PRESETS.length + UI_ELEMENT_DEFS.length + 3);
-  assert.equal(uiSettingsRowCount('graphics'), 7);
+  assert.equal(uiSettingsRowCount('graphics'), 8);
   assert.equal(uiSettingsRowAt(0, 'interface')?.kind, 'reset_interface');
   assert.equal(uiSettingsRowAt(0, 'graphics')?.kind, 'reset_graphics');
 });

@@ -106,6 +106,7 @@ import {
   resetUiSettings,
   screenInterferenceMode,
   toggleAutoPickup,
+  toggleCrittersEnabled,
   toggleMapHighContrast,
   toggleUiElement,
   toggleMapLegendToggle,
@@ -6211,7 +6212,12 @@ function applyUiSettingsSelection(index: number): void {
     state.msgs.push(msg(`Автоподбор предметов: ${enabled ? 'вкл' : 'выкл'}`, state.time, enabled ? '#8cf' : '#fc8'));
     return;
   }
-  toggleUiElement(row.element.id);
+  if (row.kind === 'critters') {
+    const enabled = toggleCrittersEnabled();
+    state.msgs.push(msg(`Живность: ${enabled ? 'вкл' : 'выкл'}`, state.time, enabled ? '#8cf' : '#fc8'));
+    return;
+  }
+  if (row.kind === 'element') toggleUiElement(row.element.id);
 }
 
 function applyMapLegendSelection(index: number): void {
@@ -8050,7 +8056,7 @@ function gameLoop(now: number): void {
   const renderSceneStart = performance.now();
   renderSceneGL(world, textures, sprites, entities,
     cameraView,
-    fogDensity, glitch, flashlight, uiTime, particles, state.samosborActive, ambientLight, toolBeam, state.uvBeamLen, screenInterference, visualDetailProfile, visualGeometryProfile, visualSurfaceProfile, lightingQualityIndex());
+    fogDensity, glitch, flashlight, uiTime, particles, state.samosborActive, ambientLight, toolBeam, state.uvBeamLen, screenInterference, visualDetailProfile, visualGeometryProfile, visualSurfaceProfile, lightingQualityIndex(), currentFps);
   lastRenderSceneMs = performance.now() - renderSceneStart;
 
   // Draw HUD on 2D overlay canvas
