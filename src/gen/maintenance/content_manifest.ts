@@ -38,6 +38,7 @@ import { generateDefectorLiquidator } from './defector_liquidator';
 import { generateParitelSteamBridge } from './paritel_steam_bridge';
 import { generateCultHeldWorkshop } from './cult_held_workshop';
 import { generateSlimeSamplePost } from './slime_sample_post';
+import { generateLiquidatorBaseArena } from './liquidatorbase';
 import { generateBlueGlowSample } from './blue_glow_sample';
 import { generateGreenAcidRoom } from './green_acid_room';
 import { generateBrownSlimeCleanup } from './brown_slime_cleanup';
@@ -201,6 +202,7 @@ export function runMaintenanceContent(
   nextId = syncNextEntityId(entities, nextId);
 
   generateSlimeSamplePost({ world, entities, nextId: { v: nextId }, spawnX, spawnY });
+  nextId = generateLiquidatorBaseArena(world, entities, nextId);
   nextId = syncNextEntityId(entities, nextId);
 
   generateSlimeSingingVents({ world, entities, nextId: { v: nextId }, spawnX, spawnY });
