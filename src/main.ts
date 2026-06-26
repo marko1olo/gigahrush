@@ -57,7 +57,7 @@ import { resolveBreachChargeExplosion } from './systems/breach_charge';
 import { dropMonsterRareLoot } from './systems/monster_drops';
 import { generateNpcTradeItems } from './data/occupation_profiles';
 import { generateTalkText } from './systems/dialogue';
-import { updateSamosbor, rebuildWorld, clearFogInZone, updateIstotitBellCompulsion } from './systems/samosbor';
+import { updateSamosbor, rebuildWorld, clearFogInZone, updateIstotitBellCompulsion, getSamosborWarningSnapshot } from './systems/samosbor';
 import { getActiveSamosborVariant } from './systems/samosbor_variants_runtime';
 import { cleanCellHazardsNear, getCellHazardMoveMultiplier, tickCellHazards } from './systems/cell_hazards';
 import { adjustMonsterProjectileDamage, recordMonsterMeleeDeath, recordMonsterProjectileDeath } from './systems/monster_counterplay';
@@ -8003,7 +8003,17 @@ function gameLoop(now: number): void {
   const samosborVariant = state.samosborActive ? getActiveSamosborVariant() : null;
   const samosborVisual = samosborVariant?.visual;
   const samosborGlitchPulse = 0.85 + ((Math.sin(uiTime * 5) + 1) * 0.5) * 0.15;
-  const fogDensity = baseFog + smogFogBonus + (state.samosborActive ? (samosborVisual?.fogDensityBonus ?? 0.02) : 0);
+  const warningSnapshot = getSamosborWarningSnapshot(state);
+  let fogDensity = baseFog + smogFogBonus;
+  if (state.samosborActive) {
+    fogDensity = (baseFog + smogFogBonus + (samosborVisual?.fogDensityBonus ?? 0.02)) * 3.0;
+  } else if (warningSnapshot && warningSnapshot.secondsLeft >= 0 && warningSnapshot.secondsLeft <= 30) {
+    const p = 1.0 - (warningSnapshot.secondsLeft / 30);
+    // Smoothly transition base density + bonus to 0.15
+    const targetFog = 0.15;
+    const initialFog = baseFog + smogFogBonus + (samosborVisual?.fogDensityBonus ?? 0.02);
+    fogDensity = initialFog + (targetFog - initialFog) * p;
+  }
   const interferenceMode = screenInterferenceMode();
   const neuroScreenFx = uiElementEnabled('screen_fx');
   const criticalInterference = state.samosborActive || state.gameOver;

@@ -368,7 +368,8 @@ vec3 applyFogV(vec3 c, float f) {
 float distanceFog(float dist) {
   if (uFogDensity <= 0.0) return 0.0;
   float x = max(0.0, dist * uFogDensity);
-  return clamp(1.0 - exp(-x * x * 1.35), 0.0, 0.985);
+  // Linear/exponential fog as specified
+  return clamp(1.0 - exp(-x), 0.0, 0.985);
 }
 
 vec3 applyLocalFog(vec3 c, ivec2 p, float baseF) {
@@ -3162,7 +3163,7 @@ export function renderSceneGL(
   const pci = world.idx(Math.floor(px), Math.floor(py));
   const purpleFog = world.fog[pci] > 50 ? 1 : 0;
   const activeVariant = getActiveSamosborVariant();
-  const defaultFogRgb: [number, number, number] = [80, 20, 120];
+  const defaultFogRgb: [number, number, number] = [80, 0, 120];
   const fogRgb: readonly [number, number, number] = activeVariant?.fogColor ?? defaultFogRgb;
   const samosborStyle = samosborScreenFxCode(activeVariant?.visual.screenFx);
   const samosborPost = samosborActive ? activeVariant?.visual.postIntensity ?? 0 : 0;
@@ -3450,7 +3451,9 @@ function wrapWorldFloat(v: number): number {
 function distanceFogFactor(dist: number, fogDensity: number): number {
   if (fogDensity <= 0 || dist <= 0) return 0;
   const x = dist * fogDensity;
-  return Math.min(0.985, Math.max(0, 1 - Math.exp(-x * x * 1.35)));
+  // Linear/exponential fog as specified: visibility = exp(-fogDensity * distance)
+  // Distance factor will use inverse: factor = 1.0 - visibility
+  return Math.min(0.985, Math.max(0, 1.0 - Math.exp(-x)));
 }
 
 
