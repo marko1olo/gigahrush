@@ -2000,7 +2000,7 @@ interface ProceduralSpriteCacheEntry {
   usedAt: number;
 }
 
-let glState: GLState | null = null;
+export let glState: GLState | null = null;
 let activeDynamicSky: DynamicSkyTexture | null = null;
 const visibleEntities: (Entity | null)[] = [];
 const visibleDx: number[] = [];

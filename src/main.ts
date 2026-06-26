@@ -3044,6 +3044,7 @@ function handleKill(e: Entity, killerIsPlayer: boolean, pvx = 0, pvy = 0, goreLe
     const hpBefore = e.id === prevPlayerActorId ? prevPlayerActorHp : (e.maxHp ?? e.hp ?? 100);
     if (absorbPsiShieldDamage(e, hpBefore, state.msgs, state.time) > 0) return;
   }
+  if (e.deathTime === undefined) e.deathTime = state.time;
   // Death blood pool — directional + gore-scaled
   spawnDeathPool(world, e.x, e.y, e.type === EntityType.MONSTER, goreLevel, pvx, pvy);
   if (killerIsPlayer) {

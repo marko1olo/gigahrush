@@ -619,6 +619,7 @@ export interface Entity {
   accountRubles?: number;     // банковский счет; у игрока основной счет хранится в GameState.banking
   spriteScale?: number;       // sprite size multiplier (child = 0.6)
   spriteZ?: number;           // vertical offset: 0=ground, 0.5=eye level (projectiles)
+  deathTime?: number;         // world time when this entity died
   plotNpcId?: string;         // story NPC key (e.g. 'olga', 'barni', 'yakov') — see data/plot.ts
   plotDone?: boolean;         // story phase ended, NPC switches to post-plot dialogue
   _plotTalkIdx?: number;      // internal: sequential dialogue line counter
