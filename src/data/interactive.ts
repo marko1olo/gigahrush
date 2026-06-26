@@ -25,7 +25,8 @@ export type InteractiveActionKind =
   | 'open_container'
   | 'open_craft_menu'
   | 'open_disassembly_menu'
-  | 'learn_recipe';
+  | 'learn_recipe'
+  | 'hide';
 
 export type InteractiveVisualDef =
   | { kind: 'feature'; feature: Feature }
@@ -97,6 +98,26 @@ export function interactiveDefIdForSurfaceFlags(flags: number): string | undefin
 }
 
 export const INTERACTIVE_DEFS = [
+  {
+    id: 'hiding_spot',
+    layer: 'feature',
+    label: 'Укрытие',
+    prompt: 'Спрятаться',
+    tags: [],
+    visual: { kind: 'feature', feature: Feature.SHELF },
+    target: { range: 2.25, priority: 80 },
+    actions: [
+      {
+        id: 'hide',
+        label: 'Спрятаться',
+        kind: 'hide',
+        cooldownSeconds: 10,
+        message: 'Вы прячетесь в укрытии. Монстры вас не видят.',
+        color: '#888',
+        eventType: 'interactive_used',
+      }
+    ]
+  },
   {
     id: 'sink_drink',
     layer: 'feature',
