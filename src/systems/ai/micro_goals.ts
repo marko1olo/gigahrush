@@ -5,7 +5,7 @@ import { World } from '../../core/world';
 import { emitMarkovBark } from './barks';
 import { steerEntityTowardCell, clearEntitySteeringPath } from './pathfinding';
 import { aiPathMoveSpeed } from '../rpg';
-import { canActorOccupy, actorOccupyRadius } from '../movement_collision';
+import { canActorOccupy, actorOccupyRadius, entityIgnoresFineBlockers } from '../movement_collision';
 import { findNoiseInvestigationTarget } from '../noise';
 import { pickupDrop } from '../inventory';
 import { getEntityIndex, ENTITY_MASK_NPC, ENTITY_MASK_ITEM_DROP } from '../entity_index';
@@ -100,8 +100,9 @@ export function tickMicroGoal(world: World, entities: Entity[], e: Entity, dt: n
           const r = actorOccupyRadius(e);
           const nx = e.x + steer.x * speed;
           const ny = e.y + steer.y * speed;
-          if (canActorOccupy(world, nx, e.y, r)) e.x = world.wrap(nx);
-          if (canActorOccupy(world, e.x, ny, r)) e.y = world.wrap(ny);
+          const ignoreFineBlockers = entityIgnoresFineBlockers(e);
+          if (canActorOccupy(world, nx, e.y, r, { ignoreFineBlockers })) e.x = world.wrap(nx);
+          if (canActorOccupy(world, e.x, ny, r, { ignoreFineBlockers })) e.y = world.wrap(ny);
           e.angle = Math.atan2(steer.y, steer.x);
         } else {
           if (ai.microGoalId === 'loot_nearby' && ai.microSourceId !== undefined) {

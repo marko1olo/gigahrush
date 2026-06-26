@@ -16,6 +16,7 @@ export const DEF: MonsterDef = {
   isRanged: true,
   projSpeed: 8,
   projSprite: 0,        // auto-assigned to Spr.EYE_BOLT
+  aiFlags: ['flying'],
   floors: [FloorLevel.MINISTRY, FloorLevel.LIVING, FloorLevel.MAINTENANCE, FloorLevel.HELL, FloorLevel.VOID],
   counterplay: 'Зеленый разогрев значит залп: ломайте линию огня углом или дверью до вспышки, затем сближайтесь, пока глаз перезаряжается.',
   lootHint: 'перегоревшая нить, стеклянная пыль, редкая лампа или ПСИ-пыль',

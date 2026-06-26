@@ -42,6 +42,8 @@ export type MonsterAIFlag =
   | 'defensiveNeutral'
   | 'webSpitter'
   | 'falsePhase'
+  | 'flying'
+  | 'noclip'
   | 'wetLineShot'
   | 'packHowl'
   | 'noiseFear'
