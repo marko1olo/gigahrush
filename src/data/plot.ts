@@ -464,6 +464,31 @@ export interface SideQuestStep extends PlotStep {
 /* ── Built-in side branches for story items; content modules append more below. */
 export const SIDE_QUESTS: SideQuestStep[] = [
   {
+    id: 'outskirts_wild_path',
+    giverNpcId: 'wild_brigadier',
+    type: QuestType.KILL,
+    desc: 'Убей патруль Ликвидаторов. Их слишком много развелось на нашей территории.',
+    killNeeded: 5,
+    rewardItem: 'outskirts_pass', rewardCount: 1,
+    relationDelta: 20, xpReward: 150,
+    eventTags: ['outskirts_resolved', 'faction_event'],
+    eventData: { method: 'wild', relationDeltaFaction: Faction.LIQUIDATOR, relationDeltaValue: -30 },
+    eventTargetName: 'Патруль ликвидаторов уничтожен.',
+  },
+  {
+    id: 'outskirts_liquidator_path',
+    giverNpcId: 'outskirts_captain',
+    type: QuestType.KILL,
+    desc: 'Зачисти мутантов у западного КПП. Нам нужен чистый периметр.',
+    targetMonsterKind: MonsterKind.TVAR,
+    killNeeded: 5,
+    rewardItem: 'outskirts_pass', rewardCount: 1,
+    relationDelta: 20, xpReward: 150,
+    eventTags: ['outskirts_resolved', 'faction_event'],
+    eventData: { method: 'liquidator', relationDeltaFaction: Faction.WILD, relationDeltaValue: -30 },
+    eventTargetName: 'Гнездо мутантов зачищено.',
+  },
+  {
     id: 'idol_ministry_registration',
     giverNpcId: 'vera_propuskova',
     type: QuestType.FETCH,

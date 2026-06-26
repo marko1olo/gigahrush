@@ -115,6 +115,50 @@ function plotNpcPackage(input: MainPlotNpcPackageInput): NpcPackageDef {
 
 export const MAIN_PLOT_NPC_PACKAGES = [
   plotNpcPackage({
+    id: 'wild_brigadier',
+    displayName: 'Бригадир',
+    publicLine: 'Лидер фракции Диких на Окраине, контролирующий западный сектор.',
+    sex: 'male',
+    age: 45,
+    faction: Faction.WILD,
+    occupation: Occupation.TURNER,
+    sprite: Occupation.TURNER,
+    homeFloorKey: floorKeyForStory(FloorLevel.MAINTENANCE),
+    hp: 200, maxHp: 200, money: 100, speed: 1.1,
+    inventory: [
+      { defId: 'chizh3_shotgun', count: 1 },
+      { defId: 'ammo_shells', count: 12 },
+      { defId: 'outskirts_pass', count: 1 },
+    ],
+    talkLines: ['Чего надо?', 'Ликвидаторы совсем оборзели.'],
+    talkLinesPost: ['Спасибо за помощь.', 'Проход свободен.'],
+    talkQuestResponse: 'Помоги нам зачистить патруль Ликвидаторов, и я дам тебе пропуск.',
+    voiceTags: ['wild', 'command'],
+  }),
+
+  plotNpcPackage({
+    id: 'outskirts_captain',
+    displayName: 'Капитан',
+    publicLine: 'Командир заставы Ликвидаторов на Окраине, держащий порядок в восточном секторе.',
+    sex: 'male',
+    age: 50,
+    faction: Faction.LIQUIDATOR,
+    occupation: Occupation.HUNTER,
+    sprite: Occupation.HUNTER,
+    homeFloorKey: floorKeyForStory(FloorLevel.MAINTENANCE),
+    hp: 250, maxHp: 250, money: 150, speed: 1.0,
+    inventory: [
+      { defId: 'ak47', count: 1 },
+      { defId: 'ammo_762', count: 30 },
+      { defId: 'outskirts_pass', count: 1 },
+    ],
+    talkLines: ['Стой, кто идет?', 'Дикие - это раковая опухоль.'],
+    talkLinesPost: ['Вольно, гражданский.', 'Порядок восстановлен.'],
+    talkQuestResponse: 'Мутанты прут со стороны КПП. Зачисти их гнездо, и получишь пропуск.',
+    voiceTags: ['liquidator', 'command'],
+  }),
+
+  plotNpcPackage({
     id: 'olga',
     displayName: 'Ольга Дмитриевна',
     publicLine: 'Врач жилой зоны, подписывающая новичкам допуск на вылазки и списывающая бинты.',

@@ -1204,6 +1204,24 @@ function completeQuest(
     },
   });
 
+  if (q.eventData?.method === 'wild' || q.eventData?.method === 'liquidator') {
+    const opposingFaction = q.eventData?.relationDeltaFaction as Faction | undefined;
+    const penalty = q.eventData?.relationDeltaValue as number | undefined;
+    if (opposingFaction !== undefined && penalty !== undefined) {
+      addFactionRelMutual(Faction.PLAYER, opposingFaction, penalty);
+      publishEvent(state, {
+        type: 'outskirts_resolved',
+        actorId: player.id,
+        actorName: player.name ?? 'Вы',
+        actorFaction: player.faction,
+        severity: 4,
+        privacy: 'public',
+        tags: ['outskirts_resolved', 'reputation_penalty'],
+        data: { penalty, method: q.eventData?.method },
+      });
+    }
+  }
+
   if (q.type === QuestType.FETCH && q.targetItem && isSilverSlimeItem(q.targetItem)) {
     const itemDef = ITEMS[q.targetItem];
     const sealed = q.targetItem === SILVER_SLIME_SEALED_ID;
