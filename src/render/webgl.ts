@@ -3242,7 +3242,8 @@ export function renderSceneGL(
 
       const wx = world.wrap(cx + dx);
       const wy = world.wrap(cy + dy);
-      const feat = world.features[world.idx(wx, wy)];
+      const idx = world.idx(wx, wy);
+      const feat = world.features[idx];
       
       let lr = 0, lg = 0, lb = 0, lrad = 0;
       if (feat === Feature.LAMP) {
@@ -3254,7 +3255,7 @@ export function renderSceneGL(
       if (lrad > 0) {
         const lx = cx + dx + 0.5;
         const ly = cy + dy + 0.5;
-        const lz = (feat === Feature.LAMP) ? 0.9 : 0.4;
+        const lz = (feat === Feature.LAMP) ? (1.0 + Math.max(0, world.ceilHeight[idx]) * 0.5) - 0.1 : 0.4;
         lightCandidates.push({ lx, ly, lz, r: lr, g: lg, b: lb, radius: lrad, dist2 });
       }
     }
@@ -3523,12 +3524,12 @@ function featureSpriteScale(feature: Feature): number {
   }
 }
 
-function featureSpriteZ(feature: Feature): number {
+function featureSpriteZ(feature: Feature, tier: number = 0): number {
   switch (feature) {
     case Feature.LIFT_BUTTON:
     case Feature.SCREEN:
     case Feature.SLIDE: return 0.22;
-    case Feature.LAMP: return 0.12;
+    case Feature.LAMP: return (1.0 + Math.max(0, tier) * 0.5) - 0.88;
     default: return 0;
   }
 }
@@ -3611,7 +3612,7 @@ function collectStaticObjectSprites(world: World, px: number, py: number, count:
         dist,
         featureSpr(feature),
         featureSpriteScale(feature),
-        featureSpriteZ(feature),
+        featureSpriteZ(feature, world.ceilHeight[idx]),
         0,
         idx,
         VisibleSpriteSource.FEATURE,
