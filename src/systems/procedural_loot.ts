@@ -1,4 +1,4 @@
-import { Faction, type ItemDef, ItemType, type Item } from '../core/types';
+import { Faction, type ItemDef, ItemType, type Item, RoomType, FloorLevel } from '../core/types';
 import { ITEMS, itemEquipSlot, itemDefHasTag } from '../data/items';
 
 export interface LootProfile {
@@ -94,15 +94,20 @@ export function generateNpcLoadout(faction: Faction, level: number, danger: numb
   let toolId: string | undefined;
   const inventory: Item[] = [];
 
+  // Scarcity-driven ammo multiplier
+  let ammoAmountMult = 1;
+  if (level <= 1) ammoAmountMult = 0.3;
+  if (level >= 4 || faction === Faction.LIQUIDATOR) ammoAmountMult = 1.5;
+
   if (weaponDef) {
     if (itemEquipSlot(weaponDef) === 'tool') toolId = weaponDef.id;
     else weaponId = weaponDef.id;
     
     inventory.push({ defId: weaponDef.id, count: 1 });
     
-    if (itemDefHasTag(weaponDef, 'ammo_9mm')) inventory.push({ defId: 'ammo_9mm', count: 10 + Math.floor(rollWeapon * 20) });
-    else if (itemDefHasTag(weaponDef, 'ammo_762')) inventory.push({ defId: 'ammo_762', count: 10 + Math.floor(rollWeapon * 20) });
-    else if (itemDefHasTag(weaponDef, 'ammo_shells')) inventory.push({ defId: 'ammo_shells', count: 4 + Math.floor(rollWeapon * 8) });
+    if (itemDefHasTag(weaponDef, 'ammo_9mm')) inventory.push({ defId: 'ammo_9mm', count: Math.max(1, Math.floor((10 + rollWeapon * 20) * ammoAmountMult)) });
+    else if (itemDefHasTag(weaponDef, 'ammo_762')) inventory.push({ defId: 'ammo_762', count: Math.max(1, Math.floor((10 + rollWeapon * 20) * ammoAmountMult)) });
+    else if (itemDefHasTag(weaponDef, 'ammo_shells')) inventory.push({ defId: 'ammo_shells', count: Math.max(1, Math.floor((4 + rollWeapon * 8) * ammoAmountMult)) });
   }
 
   // 2. Pick pockets
@@ -120,7 +125,7 @@ export function generateNpcLoadout(faction: Faction, level: number, danger: numb
   return { weapon: weaponId, tool: toolId, inventory: inventory.length > 0 ? inventory : undefined };
 }
 
-export function generateContainerLoot(tags: readonly string[], proceduralValueCap: number | undefined, level: number, rollItems: number[]): Item[] {
+export function generateContainerLoot(tags: readonly string[], proceduralValueCap: number | undefined, level: number, rollItems: number[], context?: { roomType?: RoomType; floorLevel?: FloorLevel; hasBeenSearched?: boolean }): Item[] {
   const profile: LootProfile = { tagWeights: {} };
   
   if (tags.includes('food')) { profile.foodMult = 3; profile.drinkMult = 2; }
@@ -129,19 +134,62 @@ export function generateContainerLoot(tags: readonly string[], proceduralValueCa
   if (tags.includes('ammo')) { profile.ammoMult = 4; }
   if (tags.includes('tools')) { profile.toolMult = 4; }
   if (tags.includes('paper') || tags.includes('valuable')) { profile.miscMult = 3; }
+
+  // Apply roomType context modifiers
+  if (context?.roomType !== undefined) {
+    if (context.roomType === RoomType.KITCHEN) { profile.foodMult = (profile.foodMult || 1) * 2; profile.drinkMult = (profile.drinkMult || 1) * 1.5; }
+    if (context.roomType === RoomType.MEDICAL) { profile.medicineMult = (profile.medicineMult || 1) * 2.5; }
+    if (context.roomType === RoomType.STORAGE) { profile.toolMult = (profile.toolMult || 1) * 2; profile.miscMult = (profile.miscMult || 1) * 1.5; }
+    if (context.roomType === RoomType.PRODUCTION) { profile.toolMult = (profile.toolMult || 1) * 2; profile.miscMult = (profile.miscMult || 1) * 1.5; }
+    if (context.roomType === RoomType.OFFICE) { profile.miscMult = (profile.miscMult || 1) * 2; }
+  }
+
+  // Apply floorLevel context modifiers (scarcity and logic)
+  if (context?.floorLevel !== undefined) {
+    if (context.floorLevel === FloorLevel.HELL) {
+      profile.weaponMult = (profile.weaponMult || 1) * 2.5;
+      profile.ammoMult = (profile.ammoMult || 1) * 3;
+      profile.foodMult = (profile.foodMult || 1) * 0.5;
+    }
+    if (context.floorLevel === FloorLevel.MINISTRY) {
+      profile.miscMult = (profile.miscMult || 1) * 2;
+    }
+    if (context.floorLevel === FloorLevel.KVARTIRY || context.floorLevel === FloorLevel.LIVING) {
+      profile.foodMult = (profile.foodMult || 1) * 1.5;
+      profile.drinkMult = (profile.drinkMult || 1) * 1.5;
+      profile.miscMult = (profile.miscMult || 1) * 1.5;
+      // Scarcity of ammo on early floors
+      profile.ammoMult = (profile.ammoMult || 1) * 0.2;
+      profile.weaponMult = (profile.weaponMult || 1) * 0.3;
+    }
+  } else {
+    // Fallback based on raw level number if floorLevel is absent
+    if (level <= 1) {
+      profile.ammoMult = (profile.ammoMult || 1) * 0.3;
+      profile.weaponMult = (profile.weaponMult || 1) * 0.3;
+    } else if (level >= 4) {
+      profile.ammoMult = (profile.ammoMult || 1) * 2;
+    }
+  }
   
   for (const tag of tags) {
     if (!profile.tagWeights) profile.tagWeights = {};
     profile.tagWeights[tag] = 5;
   }
 
-  const maxVal = proceduralValueCap ?? (10 + level * 10);
+  let maxVal = proceduralValueCap ?? (10 + level * 10);
+
+  // Diminishing returns if room has been searched
+  if (context?.hasBeenSearched) {
+    maxVal *= 0.2;
+  }
+
   const pool = buildLootPool(profile, maxVal);
   
   const inventory: Item[] = [];
   for (const r of rollItems) {
     const itemDef = pickLootFromPool(pool, r);
-    if (itemDef) {
+    if (itemDef && !itemDefHasTag(itemDef, 'plot')) {
       inventory.push({ defId: itemDef.id, count: 1 });
     }
   }
