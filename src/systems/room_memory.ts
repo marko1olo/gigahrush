@@ -16,6 +16,7 @@ export const ROOM_MEMORY_BITS = {
   COMBAT: 1 << 3,
   REPAIR: 1 << 4,
   SAMOSBOR: 1 << 5,
+  SEARCH: 1 << 6,
 } as const;
 
 export const ROOM_MEMORY_ACTOR_PLAYER = 1 << 0;
@@ -103,6 +104,9 @@ function roomMemoryBitsForEvent(event: WorldEvent): number {
   }
   if (type === 'hermodoor_borer_repaired' || type.endsWith('_repaired') || hasAnyTag(event, ['repair', 'repaired'])) {
     bits |= ROOM_MEMORY_BITS.REPAIR;
+  }
+  if (type === 'container_opened' || type === 'container_looted') {
+    bits |= ROOM_MEMORY_BITS.SEARCH;
   }
   if (
     type === 'shelter_tally_handled'

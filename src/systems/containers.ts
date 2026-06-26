@@ -32,7 +32,7 @@ import { territoryOwnerToFaction } from '../data/factions';
 import { territoryRoomOwner } from './territory';
 import {
   ROOM_MEMORY_BITS,
-  getRoomMemoryForContainer,
+  getRoomMemory, getRoomMemoryForContainer,
   roomMemoryHas,
   roomMemoryIsHelpful,
   roomMemoryPriceMultiplier,
@@ -123,7 +123,7 @@ function findContainerCell(world: World, room: Room, n: number): { x: number; y:
   return null;
 }
 
-function seedInventory(kind: ContainerKind, roomId: number, level = 0): Item[] {
+function seedInventory(kind: ContainerKind, roomId: number, level = 0, context?: { roomType?: RoomType; floorLevel?: FloorLevel; hasBeenSearched?: boolean }): Item[] {
   const def = CONTAINER_DEFS[kind];
   const inv: Item[] = [];
   const rollItems: number[] = [];
@@ -144,7 +144,7 @@ function seedInventory(kind: ContainerKind, roomId: number, level = 0): Item[] {
     const seed = containerSeed(roomId, kind, n + i);
     rollItems.push((seed % 10_000) / 10_000);
   }
-  const proceduralItems = generateContainerLoot(def.tags, def.proceduralValueCap, level, rollItems);
+  const proceduralItems = generateContainerLoot(def.tags, def.proceduralValueCap, level, rollItems, context);
   for (const item of proceduralItems) {
     const existing = inv.find(i => i.defId === item.defId && i.count < getStack(ITEMS[item.defId]));
     if (existing) {
@@ -466,7 +466,11 @@ export function ensureRoomContainers(world: World, floor: FloorLevel, maxContain
         zoneId: world.zoneMap[world.idx(pos.x, pos.y)],
         kind,
         name: `${def.name}: ${room.name}`,
-        inventory: seedInventory(kind, room.id, floor),
+        inventory: seedInventory(kind, room.id, floor, {
+          roomType: room.type,
+          floorLevel: floor,
+          hasBeenSearched: roomMemoryHas(getRoomMemory(floor, room.id), ROOM_MEMORY_BITS.SEARCH)
+        }),
         capacitySlots: def.capacitySlots,
         faction: factionForRoom(world, room),
         access: accessForRoom(room, kind),

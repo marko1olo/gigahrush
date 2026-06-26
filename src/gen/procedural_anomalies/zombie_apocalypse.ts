@@ -695,7 +695,7 @@ function spawnCrowdNpc(ctx: ProceduralAnomalyGenContext, room: Room, occupied: S
     occupation,
     questId: -1,
     inventory: Math.random() < 0.16
-      ? generateContainerLoot(['food', 'trash'], 15, zoneLevel, [Math.random()])
+      ? generateContainerLoot(['food', 'trash'], 15, zoneLevel, [Math.random()], {})
       : [],
   };
 
