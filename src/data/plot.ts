@@ -297,7 +297,16 @@ export const PLOT_CHAIN: PlotStep[] = [
     eventData: { routeId: 'story:hell', floorZ: -36, holdSeconds: 300 },
     eventTargetName: 'Зона закрепления в Мясном низу удержана.',
   },
-  // Step 11: Major Grom → go to Podad
+  // Step 11: Major Grom → go to Ministry for ammo
+  {
+    giverNpcId: 'major_grom',
+    type: QuestType.VISIT,
+    desc: 'Нужны патроны. Иди в Министерство, запроси снабжение.',
+    targetFloor: FloorLevel.MINISTRY,
+    rewardItem: 'ammo_762', rewardCount: 30,
+    relationDelta: 20, xpReward: 100,
+  },
+  // Step 12: Major Grom → go to Podad
   {
     giverNpcId: 'major_grom',
     type: QuestType.VISIT,
@@ -560,7 +569,7 @@ export const SIDE_QUESTS: SideQuestStep[] = [
     rewardItem: 'idol_chernobog', rewardCount: 1,
     extraRewards: [{ defId: 'meat_rune', count: 1 }, { defId: 'holy_water', count: 1 }],
     relationDelta: 5, xpReward: 80, moneyReward: 0,
-    requiresPlotStepDone: 11,
+    requiresPlotStepDone: 12,
     eventTargetName: 'Никанор проверил идол Чернобога как культовую улику и вернул его для цепочки Якова.',
     eventSeverity: 4,
     eventPrivacy: 'local',
