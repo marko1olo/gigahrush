@@ -1,4 +1,5 @@
-import { Faction, type ItemDef, ItemType, type Item } from '../core/types';
+import { Faction, type ItemDef, ItemType, type Item, type MonsterKind } from '../core/types';
+import { MONSTER_ECOLOGY_BY_KIND } from '../data/monster_ecology';
 import { ITEMS, itemEquipSlot, itemDefHasTag } from '../data/items';
 
 export interface LootProfile {
@@ -163,4 +164,16 @@ export function generateMerchantStock(faction: Faction | undefined, level: numbe
     }
   }
   return inventory;
+}
+
+export function generateMonsterLoot(kind: MonsterKind, rand: () => number): Item[] {
+  const ecology = MONSTER_ECOLOGY_BY_KIND[kind];
+  if (!ecology || !ecology.lootTable) return [];
+  const items: Item[] = [];
+  for (const entry of ecology.lootTable) {
+    if (rand() < entry.chance) {
+      items.push({ defId: entry.defId, count: 1 });
+    }
+  }
+  return items;
 }

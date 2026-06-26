@@ -24,6 +24,7 @@ export interface MonsterEcologyDef {
   deathLogHint?: string;
   rumorIds: readonly string[];
   rareDrops: readonly MonsterRareDrop[];
+  lootTable?: { defId: string, chance: number }[];
 }
 
 export type MonsterCueTaskChannel = 'data' | 'text' | 'sprite' | 'audio';
@@ -231,6 +232,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     deathLogHint: 'Смерть от туманника должна читать ожидание чистого силуэта вместо угла, света или отхода из тумана.',
     rumorIds: ['monster_tumannik_side_sound', 'ecology_tumannik_light_commit'],
     rareDrops: [{ itemId: 'filter_layer', chance: 0.035 }, { itemId: 'psi_dust', chance: 0.015 }],
+    lootTable: [{ defId: 'filter_layer', chance: 0.1 }],
   },
   {
     kind: MonsterKind.KRYSNOZHKA,
@@ -265,6 +267,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     deathLogHint: 'Смерть от зеленой собаки должна читать открытую дверь на жалобный звук, бой в узком проходе или забытый шумовой инструмент.',
     rumorIds: ['monster_green_dog_door', 'ecology_green_dog_noise'],
     rareDrops: [{ itemId: 'rawmeat', chance: 0.045 }],
+    lootTable: [{ defId: 'rawmeat', chance: 0.08 }],
   },
   {
     kind: MonsterKind.POMOYNY_ROY,
@@ -282,6 +285,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     deathLogHint: 'Смерть от помойного роя должна читать открытую еду в кармане, приманку у ног или бой без узкого выхода.',
     rumorIds: ['monster_pomoyny_roy'],
     rareDrops: [{ itemId: 'rawmeat', chance: 0.03 }, { itemId: 'duct_tape', chance: 0.025 }],
+    lootTable: [{ defId: 'rawmeat', chance: 0.08 }],
   },
   {
     kind: MonsterKind.SWARM,
@@ -299,6 +303,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     deathLogHint: 'Смерть от роя должна читать бой с телами вместо поиска источника, позднее заклеивание или стояние у активной вентиляции.',
     rumorIds: ['monster_swarm_source'],
     rareDrops: [{ itemId: 'duct_tape', chance: 0.035 }, { itemId: 'rawmeat', chance: 0.018 }],
+    lootTable: [{ defId: 'wire_coil', chance: 0.1 }, { defId: 'duct_tape', chance: 0.05 }],
   },
   {
     kind: MonsterKind.TVAR,
@@ -350,6 +355,7 @@ export const MONSTER_ECOLOGY: readonly MonsterEcologyDef[] = [
     deathLogHint: 'Смерть от паупсины должна читать вход в уже оплетенную комнату, открытую прямую или отказ разрезать сеть.',
     rumorIds: ['monster_paupsina_web', 'ecology_paupsina_cut_fire'],
     rareDrops: [{ itemId: 'wire_coil', chance: 0.045 }, { itemId: 'duct_tape', chance: 0.025 }],
+    lootTable: [{ defId: 'wire_coil', chance: 0.1 }, { defId: 'duct_tape', chance: 0.05 }],
   },
   {
     kind: MonsterKind.ZHORNAYA_TVAR,

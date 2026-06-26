@@ -1,3 +1,4 @@
+import { xorshift32 } from './core/rand';
 /* ── ГИГАХРУЩ — main entry point ──────────────────────────────── */
 import './index.css';
 import './systems/demos_runtime';
@@ -54,7 +55,7 @@ import { containerMenuGridLayout, craftMenuLayout, fullscreenInventoryLayout, tr
 import { updateNeeds } from './systems/needs';
 import { updateAI, tryMonsterProjectileStagger, getAiStats, type AiStats } from './systems/ai';
 import { resolveBreachChargeExplosion } from './systems/breach_charge';
-import { dropMonsterRareLoot } from './systems/monster_drops';
+import { dropMonsterRareLoot, dropMonsterCommonLoot } from './systems/monster_drops';
 import { generateNpcTradeItems } from './data/occupation_profiles';
 import { generateTalkText } from './systems/dialogue';
 import { updateSamosbor, rebuildWorld, clearFogInZone, updateIstotitBellCompulsion } from './systems/samosbor';
@@ -3084,6 +3085,8 @@ function handleKill(e: Entity, killerIsPlayer: boolean, pvx = 0, pvy = 0, goreLe
   }
   if (e.monsterKind !== undefined) {
     if (killerIsPlayer) notifyKill(e.monsterKind, state);
+    const dropRng = xorshift32((e.id * 31337) ^ Math.floor(e.x * 100));
+    dropMonsterCommonLoot(e, entities, nextEntityId, dropRng);
     const rareLoot = killerIsPlayer ? dropMonsterRareLoot(e, entities, nextEntityId) : undefined;
     if (rareLoot) {
       const def = ITEMS[rareLoot.itemId];
