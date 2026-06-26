@@ -1,3 +1,4 @@
+import { xorshift32 } from '../core/rand';
 /* ── САМОСБОР — the maze restructures itself ─────────────────── */
 /*   Every floor runs a local wave from a random mutable map point. */
 /*   Protected rooms, hermowalls and lifts are preserved.           */
@@ -4101,6 +4102,47 @@ function spawnOneFogMonsterAtCell(
   return true;
 }
 
+function applyWetFogEffectAtCell(
+  world: World,
+  entities: Entity[],
+  nextId: { v: number },
+  samosborCount: number,
+  variant: ActiveSamosborVariant,
+  floor: FloorLevel,
+  ci: number,
+): boolean {
+  if (world.aptMask[ci]) return false;
+  const currentCell = world.cells[ci];
+  if (currentCell !== Cell.FLOOR && currentCell !== Cell.WATER) return false;
+
+  const rand = xorshift32((nextId.v + ci) ^ samosborCount);
+
+  // Wet samosbor converts some floor to water
+  if (currentCell === Cell.FLOOR && rand() < 0.15) {
+    world.cells[ci] = Cell.WATER;
+    world.markCellsDirty(cellDirtyRect(ci));
+    return true; // We performed a world alteration
+  }
+
+  if (!canSpawnEntityType(entities, EntityType.MONSTER)) return false;
+
+  const isWater = world.cells[ci] === Cell.WATER;
+  // If it's water, very high chance to spawn fog shark. If floor, moderate chance.
+  let kind: MonsterKind;
+  if (isWater && rand() < 0.8) {
+    kind = MonsterKind.FOG_SHARK;
+  } else if (!isWater && rand() < 0.4) {
+    kind = MonsterKind.FOG_SHARK;
+  } else if (variant.extraEyes > 0 && rand() < 0.25) {
+    kind = MonsterKind.EYE;
+  } else {
+    kind = pickMonsterKindForWave(floor, samosborCount);
+  }
+
+  entities.push(createMonster(world, nextId, kind, (ci % W) + 0.5, ((ci / W) | 0) + 0.5, floor));
+  return true;
+}
+
 function applySamosborFogEffectAtCell(
   world: World,
   entities: Entity[],
@@ -4115,6 +4157,7 @@ function applySamosborFogEffectAtCell(
   if (hasSamosborSubsystem(variant, 'fog_rewrite')) return applyMaronaryFogEffectAtCell(world, entities, state, variant, floor, samosborCount, ci);
   if (hasSamosborSubsystem(variant, 'fog_delete')) return applyVeretarFogEffectAtCell(world, entities, state, variant, ci);
   if (hasSamosborSubsystem(variant, 'fog_create')) return applyIstotitFogEffectAtCell(world, entities, state, nextId, variant, floor, samosborCount, ci);
+  if (hasSamosborSubsystem(variant, 'wet_spawn_shark')) return applyWetFogEffectAtCell(world, entities, nextId, samosborCount, variant, floor, ci);
   return spawnOneFogMonsterAtCell(world, entities, nextId, samosborCount, variant, floor, ci);
 }
 

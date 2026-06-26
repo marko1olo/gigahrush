@@ -31,7 +31,8 @@ export type SamosborSubsystemId =
   | 'bell_compulsion'
   | 'fog_create'
   | 'veretar_area_leak'
-  | 'fog_delete';
+  | 'fog_delete'
+  | 'wet_spawn_shark';
 
 export type SamosborAftermathEffectId =
   | 'fog_residue'
@@ -301,7 +302,7 @@ export const SAMOSBOR_VARIANTS: readonly SamosborVariantDef[] = [
     displayName: 'Тяжелый влажный',
     floors: [FloorLevel.KVARTIRY, FloorLevel.LIVING, FloorLevel.MAINTENANCE, FloorLevel.HELL],
     weight: 20,
-    subsystems: [],
+    subsystems: ['wet_spawn_shark'],
     visual: { screenFx: 'wet_noise', fogDensityBonus: 0.024, glitchIntensity: 0.055, postIntensity: 0.52 },
     fogColor: [44, 116, 156],
     tint: '#44a6d8',
