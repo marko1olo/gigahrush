@@ -8,7 +8,7 @@ import {
 import { World } from '../../core/world';
 import { PATH_BLOCKER_SUBDIV, pathBlockedAt } from '../../core/path_blockers';
 import { getCellHazardMoveMultiplier } from '../cell_hazards';
-import { actorOccupyRadius, canActorOccupy } from '../movement_collision';
+import { actorOccupyRadius, canActorOccupy, entityIgnoresFineBlockers } from '../movement_collision';
 import { setDoorState } from '../door_state';
 import { aiPathMoveSpeed } from '../rpg';
 import { emitMarkovBark, BARK_CHANCE_ARRIVE } from './barks';
@@ -807,7 +807,7 @@ function centeredPathWaypoint(si: number, index: number): PathWaypoint {
   return { cell: si, index, x, y };
 }
 
-function pathWaypointForCell(world: World, e: Entity, si: number, index: number, r: number): PathWaypoint {
+function pathWaypointForCell(world: World, e: Entity, si: number, index: number, r: number, ignoreFineBlockers: boolean): PathWaypoint {
   const center = centeredPathWaypoint(si, index);
   const dx = world.delta(e.x, center.x);
   const dy = world.delta(e.y, center.y);
@@ -819,11 +819,11 @@ function pathWaypointForCell(world: World, e: Entity, si: number, index: number,
   const oy = (pathNoiseUnit(e.id, si, 2) - 0.5) * PATH_WAYPOINT_OFFSET * 2;
   const x = center.x + ox;
   const y = center.y + oy;
-  if (canActorOccupy(world, x, y, r)) return { cell: si, index, x, y };
+  if (canActorOccupy(world, x, y, r, { ignoreFineBlockers })) return { cell: si, index, x, y };
   return center;
 }
 
-function pathSegmentClear(world: World, x1: number, y1: number, x2: number, y2: number, r: number): boolean {
+function pathSegmentClear(world: World, x1: number, y1: number, x2: number, y2: number, r: number, ignoreFineBlockers: boolean): boolean {
   const dx = world.delta(x1, x2);
   const dy = world.delta(y1, y2);
   const dist = Math.sqrt(dx * dx + dy * dy);
@@ -834,25 +834,26 @@ function pathSegmentClear(world: World, x1: number, y1: number, x2: number, y2: 
     const t = step / steps;
     const x = wrapFloat(x1 + dx * t);
     const y = wrapFloat(y1 + dy * t);
-    if (!canActorOccupy(world, x, y, r)) return false;
+    if (!canActorOccupy(world, x, y, r, { ignoreFineBlockers })) return false;
   }
   return true;
 }
 
 function computePathWaypoint(world: World, e: Entity, r: number, goalCell: number): PathWaypoint {
   const ai = e.ai!;
-  let fallback = pathWaypointForCell(world, e, ai.path[ai.pi], ai.pi, r);
-  const goal = pathWaypointForCell(world, e, goalCell, ai.path.length - 1, r);
+  const ignoreFineBlockers = entityIgnoresFineBlockers(e);
+  let fallback = pathWaypointForCell(world, e, ai.path[ai.pi], ai.pi, r, ignoreFineBlockers);
+  const goal = pathWaypointForCell(world, e, goalCell, ai.path.length - 1, r, ignoreFineBlockers);
   if (
     world.dist2(e.x, e.y, goal.x, goal.y) <= PATH_DIRECT_GOAL_RANGE * PATH_DIRECT_GOAL_RANGE &&
-    pathSegmentClear(world, e.x, e.y, goal.x, goal.y, r)
+    pathSegmentClear(world, e.x, e.y, goal.x, goal.y, r, ignoreFineBlockers)
   ) {
     return goal;
   }
   const centeredGoal = centeredPathWaypoint(goalCell, ai.path.length - 1);
   if (
     world.dist2(e.x, e.y, centeredGoal.x, centeredGoal.y) <= PATH_DIRECT_GOAL_RANGE * PATH_DIRECT_GOAL_RANGE &&
-    pathSegmentClear(world, e.x, e.y, centeredGoal.x, centeredGoal.y, r)
+    pathSegmentClear(world, e.x, e.y, centeredGoal.x, centeredGoal.y, r, ignoreFineBlockers)
   ) {
     return centeredGoal;
   }
@@ -860,13 +861,13 @@ function computePathWaypoint(world: World, e: Entity, r: number, goalCell: numbe
   const last = Math.min(ai.path.length - 1, ai.pi + PATH_LOOKAHEAD_CELLS);
 
   for (let index = last; index > ai.pi; index--) {
-    const waypoint = pathWaypointForCell(world, e, ai.path[index], index, r);
-    if (pathSegmentClear(world, e.x, e.y, waypoint.x, waypoint.y, r)) return waypoint;
+    const waypoint = pathWaypointForCell(world, e, ai.path[index], index, r, ignoreFineBlockers);
+    if (pathSegmentClear(world, e.x, e.y, waypoint.x, waypoint.y, r, ignoreFineBlockers)) return waypoint;
     const centered = centeredPathWaypoint(ai.path[index], index);
-    if (pathSegmentClear(world, e.x, e.y, centered.x, centered.y, r)) return centered;
+    if (pathSegmentClear(world, e.x, e.y, centered.x, centered.y, r, ignoreFineBlockers)) return centered;
   }
 
-  if (pathSegmentClear(world, e.x, e.y, fallback.x, fallback.y, r)) return fallback;
+  if (pathSegmentClear(world, e.x, e.y, fallback.x, fallback.y, r, ignoreFineBlockers)) return fallback;
   return centeredPathWaypoint(ai.path[ai.pi], ai.pi);
 }
 
@@ -983,11 +984,12 @@ export function followPath(world: World, e: Entity, dt: number): void {
   // Open door ahead of movement if the next position is on a door cell
   openPathDoorAtWorld(world, nx, ny);
 
-  if (canActorOccupy(world, nx, e.y, r)) {
+  const ignoreFineBlockers = entityIgnoresFineBlockers(e);
+  if (canActorOccupy(world, nx, e.y, r, { ignoreFineBlockers })) {
     e.x = ((nx % W) + W) % W;
     moved = true;
   }
-  if (canActorOccupy(world, e.x, ny, r)) {
+  if (canActorOccupy(world, e.x, ny, r, { ignoreFineBlockers })) {
     e.y = ((ny % W) + W) % W;
     moved = true;
   }

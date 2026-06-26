@@ -29,7 +29,7 @@ import { applyMonsterIncomingDamage } from '../monster_traits';
 import { publishWeaponNoise } from '../noise';
 import { getCurrentPlayerEntity, isPlayerEntity } from '../player_actor';
 import { getRecentCombatThreat, notifyActorDamaged, npcCombatProfile } from '../combat_stimulus';
-import { canActorOccupy } from '../movement_collision';
+import { canActorOccupy, entityIgnoresFineBlockers } from '../movement_collision';
 import {
   emitMarkovBark,
   BARK_CHANCE_COMBAT,
@@ -190,9 +190,10 @@ function startFleeFromThreat(world: World, e: Entity, threat: Entity, dt: number
   const sx = world.wrap(e.x + nx * step);
   const sy = world.wrap(e.y + ny * step);
   let moved = false;
-  if (canActorOccupy(world, sx, e.y, KNOCKBACK_BODY_R)) e.x = sx;
+  const ignoreFineBlockers = entityIgnoresFineBlockers(e);
+  if (canActorOccupy(world, sx, e.y, KNOCKBACK_BODY_R, { ignoreFineBlockers })) e.x = sx;
   if (e.x === sx) moved = true;
-  if (canActorOccupy(world, e.x, sy, KNOCKBACK_BODY_R)) {
+  if (canActorOccupy(world, e.x, sy, KNOCKBACK_BODY_R, { ignoreFineBlockers })) {
     e.y = sy;
     moved = true;
   }
@@ -442,9 +443,10 @@ function applyMeleeKnockback(world: World, source: Entity, target: Entity, ws: W
   }
 
   const nx = world.wrap(target.x + dx / len * force);
-  if (canActorOccupy(world, nx, target.y, KNOCKBACK_BODY_R)) target.x = nx;
+  const targetIgnoreFineBlockers = entityIgnoresFineBlockers(target);
+  if (canActorOccupy(world, nx, target.y, KNOCKBACK_BODY_R, { ignoreFineBlockers: targetIgnoreFineBlockers })) target.x = nx;
   const ny = world.wrap(target.y + dy / len * force);
-  if (canActorOccupy(world, target.x, ny, KNOCKBACK_BODY_R)) target.y = ny;
+  if (canActorOccupy(world, target.x, ny, KNOCKBACK_BODY_R, { ignoreFineBlockers: targetIgnoreFineBlockers })) target.y = ny;
 
   const stagger = Math.min(MELEE_STAGGER_CAP, 0.08 + force * 0.35);
   if (target.ai) target.ai.staggerTimer = Math.max(target.ai.staggerTimer ?? 0, stagger);

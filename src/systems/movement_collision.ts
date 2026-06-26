@@ -1,5 +1,6 @@
 import type { World } from '../core/world';
 import { EntityType, W, type Entity } from '../core/types';
+import { MONSTERS } from '../entities/monster';
 import { pathBlockedAt } from '../core/path_blockers';
 
 export interface ActorOccupyOptions {
@@ -28,6 +29,12 @@ const ACTOR_UNSTUCK_OFFSETS = [
   [0.25, 0.75],
   [0.75, 0.75],
 ] as const;
+
+export function entityIgnoresFineBlockers(e: Pick<Entity, 'type' | 'monsterKind'>): boolean {
+  if (e.type !== EntityType.MONSTER || e.monsterKind === undefined) return false;
+  const flags = MONSTERS[e.monsterKind]?.aiFlags;
+  return flags !== undefined && (flags.includes('flying') || flags.includes('noclip') || flags.includes('falsePhase'));
+}
 
 export function actorOccupyRadius(e: Pick<Entity, 'type'>): number {
   return e.type === EntityType.MONSTER ? 0.18 : 0.16;
@@ -63,9 +70,10 @@ export function findNearestActorOccupyPosition(
   y: number,
   radius: number,
   maxCellRadius = 6,
+  options: ActorOccupyOptions = {},
 ): ActorOccupyPosition | null {
   if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
-  if (canActorOccupy(world, x, y, radius)) return { x: world.wrap(x), y: world.wrap(y) };
+  if (canActorOccupy(world, x, y, radius, options)) return { x: world.wrap(x), y: world.wrap(y) };
 
   const baseX = Math.floor(x);
   const baseY = Math.floor(y);
@@ -83,7 +91,7 @@ export function findNearestActorOccupyPosition(
         for (const [ox, oy] of ACTOR_UNSTUCK_OFFSETS) {
           const px = cellX + ox;
           const py = cellY + oy;
-          if (!canActorOccupy(world, px, py, radius)) continue;
+          if (!canActorOccupy(world, px, py, radius, options)) continue;
           const d2 = world.dist2(x, y, px, py);
           if (d2 >= bestD2) continue;
           bestD2 = d2;
@@ -107,9 +115,10 @@ export function unstuckActorFromBlockers(
   if (world.solid(Math.floor(e.x), Math.floor(e.y))) return false;
 
   const radius = options.radius ?? actorOccupyRadius(e);
-  if (canActorOccupy(world, e.x, e.y, radius)) return false;
+  const ignoreFineBlockers = entityIgnoresFineBlockers(e);
+  if (canActorOccupy(world, e.x, e.y, radius, { ignoreFineBlockers })) return false;
 
-  const pos = findNearestActorOccupyPosition(world, e.x, e.y, radius, options.maxCellRadius);
+  const pos = findNearestActorOccupyPosition(world, e.x, e.y, radius, options.maxCellRadius, { ignoreFineBlockers });
   if (!pos) return false;
 
   e.x = pos.x;
