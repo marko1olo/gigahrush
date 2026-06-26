@@ -41,7 +41,8 @@ export type DesignFloorId =
   | 'podad'
   | 'spectral_chasovnya'
   | 'cantor_pustoty'
-  | 'darkness';
+  | 'darkness'
+  | 'horrorfloor';
 
 export interface DesignFloorRouteDef {
   id: DesignFloorId;
@@ -122,6 +123,7 @@ export const DESIGN_FLOOR_ROUTES: readonly DesignFloorRouteDef[] = [
   { id: 'spectral_chasovnya', z: -42, displayName: 'Спектральная часовня', baseFloor: FloorLevel.HELL, color: '#d6a64b', role: 'звук, культ, слуховая геометрия', danger: 5 },
   { id: 'cantor_pustoty', z: -44, displayName: 'Кантор пустоты', baseFloor: FloorLevel.VOID, color: '#9cf', role: 'рекурсивные разрывы, мосты и пыльные острова', danger: 5 },
   { id: 'darkness', z: -48, displayName: 'Темный отсек', baseFloor: FloorLevel.VOID, color: '#88f', role: 'позднее давление', danger: 5 },
+  { id: 'horrorfloor', z: -16, displayName: 'Хоррор-этаж', baseFloor: FloorLevel.VOID, color: '#222', role: 'лабиринт, прятки', danger: 5 },
 ];
 
 export const DESIGN_FLOOR_ZS: readonly number[] = DESIGN_FLOOR_ROUTES.map(def => def.z);

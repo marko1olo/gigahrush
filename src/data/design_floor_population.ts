@@ -2018,6 +2018,13 @@ const DESIGN_FLOOR_POPULATION_OVERRIDES: Readonly<Record<DesignFloorId, DesignFl
       maxPerBucket: 8,
     },
   },
+  horrorfloor: {
+    npcTarget: 0,
+    monsterTarget: 0,
+    monsterBiasKinds: [MonsterKind.GLUBINNAYA_TEN],
+    monsterTags: ['dark', 'void'],
+    monsterPlacementKind: 'void',
+  },
   darkness: {
     npcTarget: 0,
     monsterTarget: 'active_actor_cap',
