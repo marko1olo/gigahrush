@@ -371,6 +371,11 @@ export const ITEM_TAGS: Record<string, readonly string[]> = {
 };
 
 export const ITEMS: Record<string, ItemDef> = {
+
+  arenatrophy: { id:'arenatrophy', name:'Трофей чемпиона', type:ItemType.MISC, desc:'Редкий трофей за выживание. Ликвидаторы много дадут за этот символ.', spawnRooms:[], spawnW:0, value:500, tags:['rare_trophy'] },
+  arenabronze: { id:'arenabronze', name:'Бронза арены', type:ItemType.MISC, desc:'Бронзовый знак. Память о первых волнах.', spawnRooms:[], spawnW:0, value:250, tags:['rare_trophy'] },
+  arenasilver: { id:'arenasilver', name:'Серебро арены', type:ItemType.MISC, desc:'Серебряный знак. Память о тяжелом бое.', spawnRooms:[], spawnW:0, value:600, tags:['rare_trophy'] },
+  arenagold:   { id:'arenagold', name:'Золото арены', type:ItemType.MISC, desc:'Золотой знак чемпиона. За него платят огромные деньги.', spawnRooms:[], spawnW:0, value:1200, tags:['rare_trophy'] },
   // ── Еда (дешёвая, частая) ──
   bread:     { id:'bread',     name:'Хлеб',         type:ItemType.FOOD,     desc:'Чёрствый пайковый ломоть. Сухой настолько, что им можно подпереть жалобу.',          spawnRooms:[RoomType.KITCHEN,RoomType.STORAGE], spawnW:1, value:3, use:feed(15) },
   canned:    { id:'canned',    name:'Тушёнка',      type:ItemType.FOOD,     desc:'Мясная консерва без лишних вопросов к мясу. Крышка честнее этикетки.',        spawnRooms:[RoomType.KITCHEN,RoomType.STORAGE], spawnW:1, value:10, use:feed(30) },
