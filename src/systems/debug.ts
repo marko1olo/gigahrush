@@ -218,6 +218,7 @@ type BaseDebugCommandId =
   | 'teleport_rail_trains'
   | 'spawn_bad_apple_world'
   | 'spawn_sculpture'
+  | 'debug_arena_match'
   | 'verification_contract_route'
   | 'publish_verification_event'
   | 'route_floor_summary'
@@ -254,7 +255,7 @@ export type DebugCommandAction =
   | { type: 'teleport_random_procedural_floor' }
   | { type: 'teleport_procedural_anomaly'; anomalyId: FloorAnomalyId }
   | { type: 'teleport_design_floor'; id: DesignFloorId; floor: FloorLevel; z: number; label: string; color: string }
-  | { type: 'refresh_world_data' };
+  | { type: 'refresh_world_data' } | { type: 'debug_arena_match' };
 
 function movePlayerToSmokeLift(world: World, player: Entity, entities: Entity[]): boolean {
   let fallback: { x: number; y: number; angle: number } | null = null;
@@ -1264,6 +1265,8 @@ export function execDebugCommand(
     }
   }
 
+  const cmdId = CMD_DEFS[execIdx]?.id;
+  if (cmdId === 'debug_arena_match') return { type: 'debug_arena_match' } as any;
   switch (execIdx) {
     case 0: { // All physical weapons + ammo — spawn as drops around player
       state.msgs.push(msg(`[DEBUG] ${spawnDebugItemDropsAroundPlayer(world, player, entities, nextEntityId, debugWeaponAndAmmoDrops(), 'оружие+патроны')}`, state.time, '#ff0'));
@@ -1881,6 +1884,7 @@ const BASE_CMD_DEFS = [
   { id: 'spawn_all_psi', label: 'Все ПСИ-сгустки' },
   { id: 'spawn_all_tools', label: 'Все инструменты' },
   { id: 'spawn_sculpture', label: 'Спавн Скульптуры' },
+  { id: 'debug_arena_match', label: 'Арена: запустить симуляцию боя' },
 ] as const satisfies readonly DebugCommandDef[];
 
 const BASE_CMD_VISUAL_BEFORE_DESIGN = [
@@ -1977,6 +1981,7 @@ const BASE_CMD_VISUAL_AFTER_DESIGN = [
   'force_pneumomail_capsule',
   'force_hermodoor_borer',
   'spawn_sculpture',
+  'debug_arena_match',
 ] as const satisfies readonly BaseDebugCommandId[];
 
 function designFloorCommandId(id: DesignFloorId): DebugCommandId {

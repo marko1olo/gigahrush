@@ -947,6 +947,7 @@ export const WORLD_EVENT_TYPES = [
   'emergency_panel_used',
   'gambling_bet',
   'gambling_win',
+  'arena_match_ended',
   'gambling_loss',
   'computer_data_stolen',
   'net_terminal_hacked',
@@ -1135,7 +1136,15 @@ export interface GameClock {
 export type CraftMenuMode = 'craft' | 'disassemble';
 export type CraftStationKind = 'any' | 'workbench' | 'lathe' | 'lab' | 'net_terminal';
 
+export interface ArenaMatchState {
+  active: boolean;
+  fighter1Id: number;
+  fighter2Id: number;
+  roomId: number;
+}
+
 export interface GameState {
+  arenaMatch?: ArenaMatchState;
   tick: number;
   time: number;
   clock: GameClock;
