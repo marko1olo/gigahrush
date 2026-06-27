@@ -600,6 +600,7 @@ export interface Entity {
   familyId?: number;
   weapon?: string;            // equipped item def id
   tool?: string;              // equipped tool def id
+  armorDefId?: string;        // equipped armor def id
   faction?: Faction;
   occupation?: Occupation;
   age?: number;                // compact character age; cold A-Life stores it as one byte
@@ -647,6 +648,8 @@ export interface Entity {
 }
 
 // ── Items ────────────────────────────────────────────────────────
+export enum DamageType { KINETIC = 0, BUCKSHOT = 1, ENERGY = 2, FIRE = 3, PSI = 4 }
+
 export enum ItemType { FOOD, DRINK, MEDICINE, WEAPON, TOOL, KEY, NOTE, MISC, AMMO }
 
 export interface ItemDef {
@@ -664,6 +667,7 @@ export interface ItemDef {
   stack?: number;             // override max stack size
   durability?: number;        // max durability for tools/consumable kits
   use?: (e: Entity) => string; // returns message
+  resistances?: Partial<Record<DamageType, number>>;
 }
 
 export interface Item {
