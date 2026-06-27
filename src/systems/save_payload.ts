@@ -88,6 +88,7 @@ export interface SavePayload {
     kills?: number;
     npcKills?: number;
     monsterKills?: number;
+    armorDefId?: string;
   };
   state: {
     time: number;
@@ -287,6 +288,7 @@ export function buildSavePayload(input: SavePayloadBuildInput): SavePayload {
       kills: player.kills,
       npcKills: player.npcKills,
       monsterKills: player.monsterKills,
+      armorDefId: player.armorDefId,
     },
     state: {
       time: state.time,
@@ -319,6 +321,7 @@ export function buildSavePayload(input: SavePayloadBuildInput): SavePayload {
       stockMarket: sections.stockMarket,
       production: normalizeProductionStateList(sections.production, state.currentFloor),
       containers: containersForSave(input.containers),
+      // wallHp is in floorMemory now, no need to include it in GameState payload directly.
     },
   };
 }

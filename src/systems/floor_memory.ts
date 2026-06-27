@@ -104,6 +104,7 @@ interface FloorMemoryWorldSave {
   railTrainCells: Array<[number, number]>;
   slideCells: number[];
   screenCells: number[];
+  wallHp: Array<[number, number]>;
 }
 
 export interface FloorMemorySaveEntry {
@@ -440,6 +441,7 @@ function worldForSave(world: World): FloorMemoryWorldSave {
     railTrainCells: numberEntryListForSave(world.railTrainCells.entries()),
     slideCells: numberListForSave(world.slideCells),
     screenCells: numberListForSave(world.screenCells),
+    wallHp: [...world.wallHp.entries()],
   };
 }
 
@@ -611,6 +613,8 @@ function sanitizeDoorEntries(input: unknown, rooms: readonly Room[], world?: Wor
       timer: typeof raw.timer === 'number' && Number.isFinite(raw.timer)
         ? Math.max(0, Math.min(3600, raw.timer))
         : 0,
+      hp: typeof raw.hp === 'number' ? raw.hp : typeof raw.maxHp === 'number' ? raw.maxHp : 50,
+      maxHp: typeof raw.maxHp === 'number' ? raw.maxHp : 50,
     }]);
     seen.add(idx);
   }
@@ -753,6 +757,7 @@ function sanitizedWorldSave(input: unknown): FloorMemoryWorldSave | null {
     zones,
     doors: sanitizeDoorEntries(input.doors, rooms),
     containers: sanitizeContainers(input.containers, rooms, zones),
+    wallHp: Array.isArray(input.wallHp) ? input.wallHp : [],
     surfaceMap,
     anomalyTeleports: restoreNumberEntries(input.anomalyTeleports)
       .filter(([a, b]) => a >= 0 && a < W * W && b >= 0 && b < W * W),
@@ -800,6 +805,7 @@ function worldFromSave(input: unknown, spawnX?: number, spawnY?: number): World 
   world.railTrainCells = new Map(savedWorld.railTrainCells);
   world.slideCells = savedWorld.slideCells;
   world.screenCells = savedWorld.screenCells;
+  world.wallHp = new Map(savedWorld.wallHp);
   world.markCellsDirty();
   world.markSurfaceDirty();
   world.markWallTexDirty();
@@ -1648,6 +1654,7 @@ function sanitizeRestoredEntity(entity: Entity): Entity | null {
   entity.sprite = finiteNonNegativeInt(entity.sprite, 0);
   if (entity.spriteScale !== undefined) entity.spriteScale = finiteCoord(entity.spriteScale, 1);
   if (entity.spriteZ !== undefined) entity.spriteZ = finiteCoord(entity.spriteZ, 0);
+  if (entity.armorDefId !== undefined && typeof entity.armorDefId !== 'string') entity.armorDefId = undefined;
   if (typeof entity.alive !== 'boolean') entity.alive = true;
   if (entity.type === EntityType.BILLBOARD) entity.inventory = undefined;
   return entity;

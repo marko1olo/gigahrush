@@ -895,7 +895,8 @@ function playerDemographicSex(source: Partial<Entity>): CharacterSex {
   return playerSex;
 }
 
-function playerAlifeFields(source: Partial<Entity> = {}): Pick<Entity, 'persistentNpcId' | 'age' | 'sex' | 'isFemale' | 'playerRelation' | 'karma' | 'kills' | 'npcKills' | 'monsterKills'> {
+function playerAlifeFields(source: Partial<Entity> = {}): Pick<Entity, 'persistentNpcId' | 'age' | 'sex' | 'isFemale' | 'playerRelation' | 'karma' | 'kills' | 'npcKills' | 'monsterKills' | 'armorDefId'> {
+  const armorDefId = typeof source.armorDefId === 'string' ? source.armorDefId.slice(0, 64) : undefined;
   const age = clampCharacterAge(source.age, playerAge);
   const sex = playerDemographicSex(source);
   return {
@@ -908,6 +909,7 @@ function playerAlifeFields(source: Partial<Entity> = {}): Pick<Entity, 'persiste
     kills: clampInt(source.kills, 0, 0, 1_000_000),
     npcKills: clampInt(source.npcKills, 0, 0, 1_000_000),
     monsterKills: clampInt(source.monsterKills, 0, 0, 1_000_000),
+    armorDefId,
   };
 }
 
@@ -4628,6 +4630,25 @@ function normalizeRewardList(value: unknown): Quest['extraRewards'] | undefined 
   return out.length > 0 ? out : undefined;
 }
 
+function normalizeQuestTargetMarker(value: unknown): Quest['targetMarker'] | undefined {
+  if (!isRecord(value)) return undefined;
+  const out: NonNullable<Quest['targetMarker']> = {};
+  if (isFloorLevel(value.floor)) out.floor = value.floor;
+  const roomType = normalizeRoomType(value.roomType);
+  if (roomType !== undefined) out.roomType = roomType;
+  const roomName = cleanSaveText(value.roomName, '', 96);
+  if (roomName) out.roomName = roomName;
+  const zoneTag = cleanSaveText(value.zoneTag, '', 48);
+  if (zoneTag) out.zoneTag = zoneTag;
+  const designFloorId = cleanSaveText(value.designFloorId, '', 64);
+  if (designFloorId) out.designFloorId = designFloorId;
+  const proceduralTag = cleanSaveText(value.proceduralTag, '', 64);
+  if (proceduralTag) out.proceduralTag = proceduralTag;
+  if (typeof value.routeZ === 'number' && Number.isFinite(value.routeZ)) out.routeZ = clampInt(value.routeZ, 0, -50, 50);
+  if (typeof value.risk === 'number' && Number.isFinite(value.risk)) out.risk = clampInt(value.risk, 1, 1, 5);
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
 function normalizeQuestTargetRoute(value: unknown): Quest['targetRoute'] | undefined {
   if (!isRecord(value)) return undefined;
   const out: NonNullable<Quest['targetRoute']> = {};
@@ -4676,6 +4697,7 @@ function normalizeQuest(raw: unknown, nowMinutes: number): Quest | null {
   if (targetRoomName) q.targetRoomName = targetRoomName;
   const targetZoneTag = cleanSaveText(raw.targetZoneTag, '', 48);
   if (targetZoneTag) q.targetZoneTag = targetZoneTag;
+  q.targetMarker = normalizeQuestTargetMarker(raw.targetMarker);
   q.targetRoute = normalizeQuestTargetRoute(raw.targetRoute);
   const targetHint = cleanSaveText(raw.targetHint);
   if (targetHint) q.targetHint = targetHint;
