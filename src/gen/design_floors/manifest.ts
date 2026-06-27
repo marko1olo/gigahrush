@@ -1,3 +1,4 @@
+import { generateLiquidatorBaseDesignFloor } from './liquidatorbase';
 import {
   DESIGN_FLOOR_ROUTES,
   designFloorById,
@@ -60,6 +61,7 @@ import { alignVoronoiQuarantineAmbientNpcTerritory, generateVoronoiQuarantineDes
 import { expandDesignFloorGeneration, retuneDesignFloorAfterCellTerritory } from './full_floor';
 
 const DESIGN_FLOOR_GENERATORS: Record<DesignFloorId, () => FloorGeneration> = {
+  liquidatorbase: generateLiquidatorBaseDesignFloor,
   roof: generateRoofDesignFloor,
   chthonic_attic: generateChthonicAtticDesignFloor,
   radon_exchange: generateRadonExchangeDesignFloor,

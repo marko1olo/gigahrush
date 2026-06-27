@@ -114,6 +114,67 @@ function plotNpcPackage(input: MainPlotNpcPackageInput): NpcPackageDef {
 }
 
 export const MAIN_PLOT_NPC_PACKAGES = [
+
+  plotNpcPackage({
+    id: 'liquidator_armorer',
+    displayName: 'Оружейник форпоста',
+    publicLine: 'Ликвидатор, ответственный за учет и выдачу стволов и патронов.',
+    sex: 'male',
+    age: 45,
+    faction: Faction.LIQUIDATOR,
+    occupation: Occupation.HUNTER,
+    sprite: Occupation.HUNTER,
+    homeFloorKey: floorKeyForDesign('liquidatorbase'),
+    hp: 4000, maxHp: 4000, level: 12, money: 350, speed: 1.2,
+    inventory: [],
+    talkLines: [
+      'Пустой ствол — мёртвый ствол. Бери патроны.',
+      'Каждый выстрел под протокол, но для своих найдём исключения.',
+    ],
+    talkLinesPost: [],
+    voiceTags: ['liquidator', 'terse'],
+  }),
+
+  plotNpcPackage({
+    id: 'liquidator_medic',
+    displayName: 'Медик ликвидаторов',
+    publicLine: 'Врач, выдающий аптечки, бинты и антидепрессанты перед и после рейдов.',
+    sex: 'female',
+    age: 38,
+    faction: Faction.LIQUIDATOR,
+    occupation: Occupation.DOCTOR,
+    sprite: Occupation.DOCTOR,
+    homeFloorKey: floorKeyForDesign('liquidatorbase'),
+    hp: 1200, maxHp: 1200, level: 10, money: 200, speed: 1.1,
+    inventory: [],
+    talkLines: [
+      'Если кашляешь пылью — бери антидеп, пока не поздно.',
+      'Аптечек мало, расходуй с умом.',
+    ],
+    talkLinesPost: [],
+    voiceTags: ['medical', 'liquidator'],
+  }),
+
+  plotNpcPackage({
+    id: 'liquidator_quartermaster',
+    displayName: 'Квартирмейстер',
+    publicLine: 'Инженер-снабженец, у которого можно выменять броню, снаряжение и взрывчатку.',
+    sex: 'male',
+    age: 52,
+    faction: Faction.LIQUIDATOR,
+    occupation: Occupation.ENGINEER,
+    sprite: Occupation.ELECTRICIAN,
+    homeFloorKey: floorKeyForDesign('liquidatorbase'),
+    hp: 2000, maxHp: 2000, level: 15, money: 500, speed: 1.0,
+    inventory: [],
+    talkLines: [
+      'Снаряжение не казённое, береги как зеницу ока.',
+      'Если пойдёшь в глухой обход, бери шашку на всякий случай.',
+    ],
+    talkLinesPost: [],
+    voiceTags: ['liquidator', 'technical'],
+  }),
+
   plotNpcPackage({
     id: 'olga',
     displayName: 'Ольга Дмитриевна',

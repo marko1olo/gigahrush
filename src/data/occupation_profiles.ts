@@ -441,7 +441,7 @@ export const OCCUPATION_PROFILES: Readonly<Record<Occupation, OccupationProfile>
     sleepScoreBonus: 0,
     healIdleScoreBonus: 0,
     interests: ['патроны', 'следы', 'дверной клин'],
-    tradeItems: ['knife', 'canned', 'rawmeat', 'ammo_9mm', 'ammo_shells', 'gasmask_filter', 'ip4_gasmask', 'filtered_water', 'radio_headset_liquidator'],
+    tradeItems: ['knife', 'canned', 'rawmeat', 'ammo_9mm', 'ammo_shells', 'gasmask_filter', 'ip4_gasmask', 'filtered_water', 'radio_headset_liquidator', 'chizh3_shotgun', 'rb91_auto_shotgun', 'makarov'],
     tradeTags: ['weapon', 'patrol'],
     craftTags: [],
     routineTags: ['traveler', 'combat', 'patrol'],
@@ -556,6 +556,34 @@ export const OCCUPATION_PROFILES: Readonly<Record<Occupation, OccupationProfile>
     preferredVisitRooms: [RoomType.COMMON, RoomType.LIVING, RoomType.OFFICE],
     demosTraits: { work: 'work_pride', taste: 'taste_documents', quest: 'quest_fetch' },
   }),
+  [Occupation.ENGINEER]: p({
+    id: 'engineer',
+    occupation: Occupation.ENGINEER,
+    label: 'Инженер',
+    demosLabel: 'инженер',
+    workLabel: 'работает со снаряжением',
+    workRoomTypes: [RoomType.PRODUCTION, RoomType.STORAGE],
+    workRoomWeights: { [RoomType.PRODUCTION]: 25, [RoomType.STORAGE]: 25 },
+    defaultGenerationWeight: 0,
+    workDrive: 0.8,
+    duty: 0.8,
+    sociability: 0.5,
+    riskTolerance: 0.6,
+    karmaOffset: 0,
+    kitchenFoodRestore: 3.5,
+    medicalRecoveryMultiplier: 1,
+    sleepScoreBonus: 0,
+    healIdleScoreBonus: 0,
+    interests: ['схемы', 'фильтры', 'защита'],
+    tradeItems: ['ip4_gasmask', 'gasmask_filter', 'liquidator_armor', 'liquidator_helmet', 'geiger_counter'],
+    tradeTags: ['armor', 'tools', 'repair'],
+    craftTags: ['mechanic_lesson'],
+    routineTags: ['technical', 'maintenance'],
+    questFetchItems: ['metal', 'tools', 'pipe', 'duct_tape'],
+    questRewardItems: ['gasmask_filter', 'liquidator_armor'],
+    preferredVisitRooms: [RoomType.PRODUCTION, RoomType.STORAGE, RoomType.HQ],
+    demosTraits: { work: 'tool_hands', taste: 'taste_tools', quest: 'quest_repair' },
+  }),
 };
 
 const OCCUPATION_VALUE_SET = new Set<Occupation>(
@@ -653,8 +681,29 @@ interface FactionTradeOffer {
 }
 
 const FACTION_TRADE_OFFERS: readonly FactionTradeOffer[] = [
+  // Armorer (HUNTER)
+  { faction: Faction.LIQUIDATOR, occupation: Occupation.HUNTER, minRank: 1, defId: 'ammo_9mm', count: 18 },
+  { faction: Faction.LIQUIDATOR, occupation: Occupation.HUNTER, minRank: 2, defId: 'ammo_shells', count: 8 },
+  { faction: Faction.LIQUIDATOR, occupation: Occupation.HUNTER, minRank: 2, defId: 'makarov', count: 1 },
+  { faction: Faction.LIQUIDATOR, occupation: Occupation.HUNTER, minRank: 3, defId: 'chizh3_shotgun', count: 1 },
   { faction: Faction.LIQUIDATOR, occupation: Occupation.HUNTER, minRank: 3, defId: 'moskvin_rifle', count: 1 },
-  { faction: Faction.LIQUIDATOR, occupation: Occupation.HUNTER, minRank: 3, defId: 'ammo_762', count: 6 },
+  { faction: Faction.LIQUIDATOR, occupation: Occupation.HUNTER, minRank: 3, defId: 'ammo_762', count: 12 },
+  { faction: Faction.LIQUIDATOR, occupation: Occupation.HUNTER, minRank: 4, defId: 'rb91_auto_shotgun', count: 1 },
+  { faction: Faction.LIQUIDATOR, occupation: Occupation.HUNTER, minRank: 4, defId: 'pushkin_shotgun', count: 1 },
+  // Medic (MEDIC)
+  { faction: Faction.LIQUIDATOR, occupation: Occupation.DOCTOR, minRank: 1, defId: 'bandage', count: 4 },
+  { faction: Faction.LIQUIDATOR, occupation: Occupation.DOCTOR, minRank: 2, defId: 'antidep', count: 2 },
+  { faction: Faction.LIQUIDATOR, occupation: Occupation.DOCTOR, minRank: 2, defId: 'iodine', count: 2 },
+  { faction: Faction.LIQUIDATOR, occupation: Occupation.DOCTOR, minRank: 3, defId: 'medkit', count: 1 },
+  { faction: Faction.LIQUIDATOR, occupation: Occupation.DOCTOR, minRank: 4, defId: 'medkit', count: 2 },
+  { faction: Faction.LIQUIDATOR, occupation: Occupation.DOCTOR, minRank: 4, defId: 'post_samosbor_probe_kit', count: 1 },
+  // Quartermaster (ENGINEER)
+  { faction: Faction.LIQUIDATOR, occupation: Occupation.ENGINEER, minRank: 1, defId: 'gasmask_filter', count: 2 },
+  { faction: Faction.LIQUIDATOR, occupation: Occupation.ENGINEER, minRank: 2, defId: 'ip4_gasmask', count: 1 },
+  { faction: Faction.LIQUIDATOR, occupation: Occupation.ENGINEER, minRank: 3, defId: 'liquidator_armor', count: 1 },
+  { faction: Faction.LIQUIDATOR, occupation: Occupation.ENGINEER, minRank: 3, defId: 'liquidator_helmet', count: 1 },
+  { faction: Faction.LIQUIDATOR, occupation: Occupation.ENGINEER, minRank: 4, defId: 'geiger_counter', count: 1 },
+  { faction: Faction.LIQUIDATOR, occupation: Occupation.ENGINEER, minRank: 4, defId: 'breach_charge', count: 2 },
 ];
 
 function tradeRankForNpc(npc: Entity): number {

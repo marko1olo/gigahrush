@@ -336,6 +336,7 @@ export enum Occupation {
   PERFORMER,   // перформер — сцена, слухи, служебные двери
   CLEANER,     // уборщица — чистит следы и быт
   WORKER69,    // работница этажа 69 — служебные комнаты, долги, сцена
+  ENGINEER,    // инженер
 }
 
 export interface Needs {
