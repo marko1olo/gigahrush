@@ -25,6 +25,7 @@ import {
   type ContentInteractionTarget,
 } from './content_hooks';
 import { publishEvent } from './events';
+import { handleToiletTutorial, handleDrinkTutorial } from './tutorial';
 
 export interface InteractiveInstanceState {
   status?: string;
@@ -477,6 +478,11 @@ function runDrinkWater(ctx: ContentInteractionContext, resolved: ResolvedInterac
     before >= 98 ? '#888' : action.color,
   );
   publishInteractiveEvent(ctx, resolved, action);
+
+  if (resolved.def.id === 'sink_drink') {
+    handleDrinkTutorial(ctx.state, ctx.world, ctx.player);
+  }
+
   return { handled: true };
 }
 
@@ -491,6 +497,11 @@ function runRelieve(ctx: ContentInteractionContext, resolved: ResolvedInteractiv
   needs.poo = Math.max(0, needs.poo + Math.min(0, action.pooDelta ?? 0));
   pushMsg(ctx.state, action.message ?? 'Стало легче.', action.color);
   publishInteractiveEvent(ctx, resolved, action);
+
+  if (resolved.def.id === 'toilet_relief') {
+    handleToiletTutorial(ctx.state, ctx.world);
+  }
+
   return { handled: true };
 }
 

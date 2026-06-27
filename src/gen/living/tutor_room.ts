@@ -78,6 +78,8 @@ export function generateTutorRoom(
    * ================================================================ */
   const hallW = 11, hallH = 9;
   const armW = 7, armH = 14;
+  const cafeW = 8, cafeH = 8;
+  const bathW = 5, bathH = 5;
 
   // Find clear position near center — never overwrite apartments (aptMask)
   let hallX = 512 - Math.floor(hallW / 2);
@@ -88,7 +90,7 @@ export function generateTutorRoom(
         if (world.aptMask[world.idx((bx + dx + W) % W, (by + dy + W) % W)]) return false;
     return true;
   }
-  if (!areaClear(hallX, hallY, hallW + 1 + armW, Math.max(hallH, armH + 1))) {
+  if (!areaClear(hallX, hallY, hallW + 1 + armW, Math.max(hallH, armH + 1) + cafeH + bathH)) {
     // Spiral search outward from center for a clear spot
     let found = false;
     for (let r = 1; r < 200 && !found; r++)
@@ -97,7 +99,7 @@ export function generateTutorRoom(
           if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue;
           const tx = (512 - Math.floor(hallW / 2) + dx + W) % W;
           const ty = (512 - Math.floor(hallH / 2) + dy + W) % W;
-          if (areaClear(tx, ty, hallW + 1 + armW, Math.max(hallH, armH + 1))) {
+          if (areaClear(tx, ty, hallW + 1 + armW, Math.max(hallH, armH + 1) + cafeH + bathH)) {
             hallX = tx; hallY = ty; found = true;
           }
         }
@@ -152,6 +154,68 @@ export function generateTutorRoom(
       angle: Math.PI / 2,
       spriteSeed: 90,
     });
+
+  /* ================================================================
+   *  C. Cafeteria + Bathroom (tutorial steps)
+   * ================================================================ */
+  const cafeX = hallX + Math.floor(hallW / 2) - Math.floor(cafeW / 2);
+  const cafeY = hallY - cafeH - 1;
+  const cafeteria = stampRoom(world, nextRoomId++, RoomType.COMMON, cafeX, cafeY, cafeW, cafeH, -1);
+  cafeteria.name = 'Столовая';
+  cafeteria.wallTex = Tex.PANEL;
+  cafeteria.floorTex = Tex.F_LINO;
+  protectRoom(world, cafeX, cafeY, cafeW, cafeH, Tex.PANEL, Tex.F_LINO);
+  protectTutorialWallsAsHermetic(world, cafeX, cafeY, cafeW, cafeH);
+
+  // Door to cafeteria starts locked
+  const hallCafeDoor = world.idx(hallX + Math.floor(hallW / 2), hallY - 1);
+  world.cells[hallCafeDoor] = Cell.DOOR;
+  world.wallTex[hallCafeDoor] = Tex.DOOR_METAL;
+  world.floorTex[hallCafeDoor] = Tex.F_LINO;
+  world.aptMask[hallCafeDoor] = 1;
+  world.hermoWall[hallCafeDoor] = 1;
+  world.doors.set(hallCafeDoor, {
+    idx: hallCafeDoor,
+    state: DoorState.LOCKED,
+    roomA: room.id,
+    roomB: cafeteria.id,
+    keyId: 'tut_cafe_key',
+    timer: 0,
+  });
+  room.doors.push(hallCafeDoor);
+  cafeteria.doors.push(hallCafeDoor);
+  world.aptMask[world.idx(hallX + Math.floor(hallW / 2) - 1, hallY - 1)] = 1;
+  world.aptMask[world.idx(hallX + Math.floor(hallW / 2) + 1, hallY - 1)] = 1;
+
+  const bathX = cafeX - bathW - 1;
+  const bathY = cafeY;
+  const bathroom = stampRoom(world, nextRoomId++, RoomType.BATHROOM, bathX, bathY, bathW, bathH, -1);
+  bathroom.name = 'Уборная';
+  bathroom.wallTex = Tex.TILE_W;
+  bathroom.floorTex = Tex.F_TILE;
+  protectRoom(world, bathX, bathY, bathW, bathH, Tex.TILE_W, Tex.F_TILE);
+  protectTutorialWallsAsHermetic(world, bathX, bathY, bathW, bathH);
+
+  const cafeBathDoor = world.idx(cafeX - 1, cafeY + Math.floor(bathH / 2));
+  world.cells[cafeBathDoor] = Cell.DOOR;
+  world.wallTex[cafeBathDoor] = Tex.DOOR_WOOD;
+  world.floorTex[cafeBathDoor] = Tex.F_LINO;
+  world.aptMask[cafeBathDoor] = 1;
+  world.hermoWall[cafeBathDoor] = 1;
+  world.doors.set(cafeBathDoor, {
+    idx: cafeBathDoor,
+    state: DoorState.HERMETIC_OPEN,
+    roomA: cafeteria.id,
+    roomB: bathroom.id,
+    keyId: '',
+    timer: 0,
+  });
+  cafeteria.doors.push(cafeBathDoor);
+  bathroom.doors.push(cafeBathDoor);
+  world.aptMask[world.idx(cafeX - 1, cafeY + Math.floor(bathH / 2) - 1)] = 1;
+  world.aptMask[world.idx(cafeX - 1, cafeY + Math.floor(bathH / 2) + 1)] = 1;
+
+  world.features[world.idx(bathX + Math.floor(bathW / 2), bathY + bathH - 2)] = Feature.TOILET;
 
   /* ================================================================
    *  B. Оружейная / Стрельбище (armory + shooting range)

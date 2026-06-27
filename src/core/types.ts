@@ -864,6 +864,7 @@ export const WORLD_EVENT_TYPES = [
   'room_produced_items',
   'room_lacked_resources',
   'room_blocked_production',
+  'urination_public',
   'npc_kill_monster',
   'npc_kill_npc',
   'player_kill_monster',
