@@ -154,6 +154,33 @@ const HUD_MESSAGE_FADE_START_SECONDS = 6;
 const HUD_MINIMAP_UNITS = 68;
 const HUD_SUMMARY_MAX_LINES_PER_MSG = 3;
 
+export interface SpeechBubble {
+  entityId: number;
+  text: string;
+  startTime: number;
+  duration: number;
+}
+
+export const activeBubbles: SpeechBubble[] = [];
+
+export function showSpeechBubble(entityId: number, text: string, duration: number): void {
+  const now = performance.now() / 1000;
+  let startTime = now;
+  for (let i = activeBubbles.length - 1; i >= 0; i--) {
+    if (activeBubbles[i].entityId === entityId) {
+      const lastEnd = activeBubbles[i].startTime + activeBubbles[i].duration;
+      if (lastEnd > startTime) {
+        startTime = lastEnd;
+      }
+      break;
+    }
+  }
+  activeBubbles.push({ entityId, text, startTime, duration });
+  if (activeBubbles.length > 8) {
+    activeBubbles.shift();
+  }
+}
+
 export interface HudPerfDebugSnapshot {
   fps?: number;
   frameMsAvg?: number;
@@ -1228,6 +1255,81 @@ function drawCombatSightFeedback(
   }
 }
 
+function drawCinematicSpeechBubbles(
+  ctx: CanvasRenderingContext2D,
+  world: World,
+  player: Entity,
+  entities: Entity[],
+  sx: number,
+  sy: number,
+): void {
+  const now = performance.now() / 1000;
+  const ca = Math.cos(player.angle);
+  const sa = Math.sin(player.angle);
+  const s = Math.max(1, Math.min(sx, sy));
+
+  for (let i = activeBubbles.length - 1; i >= 0; i--) {
+    const bubble = activeBubbles[i];
+    if (now < bubble.startTime) continue;
+    if (now > bubble.startTime + bubble.duration) {
+      activeBubbles.splice(i, 1);
+      continue;
+    }
+
+    const e = entities.find(ent => ent.id === bubble.entityId);
+    if (!e || !e.alive) continue;
+
+    const dx = world.delta(player.x, e.x);
+    const dy = world.delta(player.y, e.y);
+    const forward = dx * ca + dy * sa;
+    if (forward <= 0.35) continue;
+
+    const side = -dx * sa + dy * ca;
+    const projection = combatSpriteProjection(e, forward, side, player.pitch);
+    if (!projection) continue;
+
+    const elapsed = now - bubble.startTime;
+    let alpha = 1;
+    if (elapsed < 0.3) alpha = elapsed / 0.3;
+    else if (elapsed > bubble.duration - 0.3) alpha = (bubble.duration - elapsed) / 0.3;
+    alpha = Math.max(0, Math.min(1, alpha));
+
+    ctx.font = `${6 * s}px monospace`;
+    const lines = wrapHudText(ctx, bubble.text, 120 * s, 2);
+    const lh = 7.5 * s;
+    const padding = 4 * s;
+    const tw = Math.max(...lines.map(l => ctx.measureText(l).width));
+    const th = lines.length * lh;
+
+    const bx = projection.screenX * sx - tw / 2 - padding;
+    const by = projection.headY * sy - th - padding * 2 - 8 * s;
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.roundRect(bx, by, tw + padding * 2, th + padding * 2, 4 * s);
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.moveTo(bx + tw / 2 + padding - 3 * s, by + th + padding * 2);
+    ctx.lineTo(bx + tw / 2 + padding + 3 * s, by + th + padding * 2);
+    ctx.lineTo(bx + tw / 2 + padding, by + th + padding * 2 + 5 * s);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = '#000000';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    for (let j = 0; j < lines.length; j++) {
+      ctx.fillText(lines[j], bx + padding, by + padding + j * lh);
+    }
+
+    ctx.restore();
+  }
+}
+
 function drawWorldSpeechBubbles(
   ctx: CanvasRenderingContext2D,
   world: World,
@@ -1717,6 +1819,7 @@ export function drawHUD(
 
   if (!quietHud && uiElementEnabled('npc_barks')) {
     drawWorldSpeechBubbles(ctx, world, player, entities, sx, sy, time);
+    drawCinematicSpeechBubbles(ctx, world, player, entities, sx, sy);
   }
 
   // ── Zone info + time + room (neuro-interface left panel) ──
