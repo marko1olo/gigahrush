@@ -69,7 +69,16 @@ function gen_concrete(t: TexData, br: number, bg: number, bb: number, seed: numb
   for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
     const n = noise(x, y, seed) * 30 - 15;
     const crack = (noise(x * 3, y * 3, seed + 7) > 0.92) ? -40 : 0;
-    t[y * S + x] = rgba(clamp(br + n + crack), clamp(bg + n + crack), clamp(bb + n + crack));
+    // Moisture spots (low frequency noise)
+    const moisture = (noise(Math.floor(x / 4), Math.floor(y / 4), seed + 8) > 0.7) ? -15 : 0;
+    // Vertical streaks (drips/stains)
+    const streak = Math.sin(y * 0.1) * noise(Math.floor(x / 2), 0, seed + 9) * 10 - 5;
+
+    t[y * S + x] = rgba(
+      clamp(br + n + crack + moisture + streak),
+      clamp(bg + n + crack + moisture + streak),
+      clamp(bb + n + crack + moisture + streak)
+    );
   }
 }
 
@@ -82,10 +91,19 @@ function gen_brick(t: TexData) {
     const mortar = bx < 1 || by < 1;
     const n = noise(x, y, 11) * 20 - 10;
     if (mortar) {
-      t[y * S + x] = rgba(clamp(100 + n), clamp(95 + n), clamp(85 + n));
+      // Weathering on mortar
+      const weathering = noise(x, y, 12) > 0.8 ? -15 : 0;
+      t[y * S + x] = rgba(clamp(100 + n + weathering), clamp(95 + n + weathering), clamp(85 + n + weathering));
     } else {
       const shade = noise(Math.floor((x + offset) / 32), row, 33) * 30;
-      t[y * S + x] = rgba(clamp(140 + shade + n), clamp(60 + shade / 2 + n), clamp(50 + shade / 3 + n));
+      // Dark spots and minor cracks on bricks
+      const spot = noise(x * 2, y * 2, 34) > 0.85 ? -20 : 0;
+      const streak = Math.sin(y * 0.2 + noise(x, 0, 35) * 5) * 5;
+      t[y * S + x] = rgba(
+        clamp(140 + shade + n + spot + streak),
+        clamp(60 + shade / 2 + n + spot + streak),
+        clamp(50 + shade / 3 + n + spot + streak)
+      );
     }
   }
 }
@@ -94,7 +112,19 @@ function gen_panel(t: TexData) {
   for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
     const seam = (x % 32 < 1 || y % 32 < 1) ? -30 : 0;
     const n = noise(x, y, 22) * 16 - 8;
-    t[y * S + x] = rgba(clamp(170 + n + seam), clamp(165 + n + seam), clamp(150 + n + seam));
+
+    // Grime accumulation near seams
+    const nearSeam = (x % 32 < 4 || x % 32 > 28 || y % 32 < 4 || y % 32 > 28);
+    const grime = nearSeam ? noise(x, y, 23) * -15 : 0;
+
+    // Subtle surface dents
+    const dent = noise(x, y, 24) > 0.9 ? -20 : 0;
+
+    t[y * S + x] = rgba(
+      clamp(170 + n + seam + grime + dent),
+      clamp(165 + n + seam + grime + dent),
+      clamp(150 + n + seam + grime + dent)
+    );
   }
 }
 
@@ -110,8 +140,17 @@ function gen_metal(t: TexData) {
   for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
     const n = noise(x, y, 44) * 25 - 12;
     const rivet = (x % 16 === 8 && y % 16 === 8) ? 40 : 0;
-    const streak = Math.sin(y * 0.5 + noise(x, 0, 44) * 4) * 10;
-    t[y * S + x] = rgba(clamp(90 + n + rivet + streak), clamp(95 + n + rivet + streak), clamp(105 + n + rivet + streak));
+    // Enhanced vertical streaks (drips/liquid)
+    const streak = Math.sin(y * 0.2 + noise(x, 0, 45) * 5) * 15;
+
+    // Localized rust spots
+    const rust = noise(x, y, 46) > 0.8 ? 20 : 0;
+
+    t[y * S + x] = rgba(
+      clamp(90 + n + rivet + streak + rust),
+      clamp(95 + n + rivet + streak + (rust * 0.5)),
+      clamp(105 + n + rivet + streak - rust)
+    );
   }
 }
 
