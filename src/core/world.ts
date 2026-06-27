@@ -186,6 +186,7 @@ export class World {
   anomalySmogCells: number[] = []; // bounded cells affected by procedural smog
   anomalySmogHandled = false;
   railTracks: RailTrainTrack[] = [];
+  wallHp: Map<number, number> = new Map();
   railTrains: RailTrain[] = [];
   railTrainCells: Map<number, number> = new Map(); // cell idx -> train index
   cellVersion = 0;                 // bumped when runtime cell solidity changes
@@ -777,6 +778,9 @@ export function replaceWorldFromGeneration(target: World | null | undefined, gen
     visualSlotVersion: target.visualSlotVersion,
     pathBlockerVersion: target.pathBlockerVersion,
   };
+
+  target.wallHp.clear();
+  for (const [k, v] of source.wallHp) target.wallHp.set(k, v);
 
   target.cells.set(source.cells);
   target.roomMap.set(source.roomMap);

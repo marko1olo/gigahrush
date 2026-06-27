@@ -171,6 +171,8 @@ export interface Door {
   roomB: number;
   keyId: string;           // item def id needed ("" = no key)
   timer: number;           // auto-close timer
+  hp?: number;
+  maxHp?: number;
 }
 
 // ── Entities ─────────────────────────────────────────────────────
@@ -595,6 +597,7 @@ export interface Entity {
   monsterArmorLastStripAt?: number;
   monsterArmorLastMsgAt?: number;
   monsterStage?: number;       // monster-specific compact stage/state
+  armorDefId?: string;
   parasiteHostSkill?: number;  // Head slug copied host movement skill
   attackCd?: number;
   familyId?: number;
