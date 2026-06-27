@@ -24,6 +24,7 @@ import { generateCommunalRingDesignFloor } from './communal_ring';
 import { generateCriticalLeakArchiveDesignFloor } from './critical_leak_archive';
 import { alignDarkMetroAmbientNpcTerritory, generateDarkMetroDesignFloor } from './dark_metro';
 import { generateDarknessDesignFloor } from './darkness';
+import { generateOutskirtsDesignFloor } from './outskirts';
 import { generateFloor69DesignFloor } from './floor_69';
 import { alignHarmonicBathhouseAmbientNpcTerritory, generateHarmonicBathhouseDesignFloor } from './harmonic_bathhouse';
 import { alignHilbertDepotAmbientNpcTerritory, generateHilbertDepotDesignFloor } from './hilbert_depot';
@@ -101,6 +102,7 @@ const DESIGN_FLOOR_GENERATORS: Record<DesignFloorId, () => FloorGeneration> = {
   spectral_chasovnya: generateSpectralChasovnyaDesignFloor,
   cantor_pustoty: generateCantorPustotyDesignFloor,
   darkness: generateDarknessDesignFloor,
+  outskirts: generateOutskirtsDesignFloor,
 };
 
 const DEFAULT_DESIGN_FLOOR_SEED = 0x4453474e;
