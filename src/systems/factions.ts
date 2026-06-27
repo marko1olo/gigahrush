@@ -27,7 +27,6 @@ import {
   currentTerritoryZoneId,
   initializeCellTerritory,
   territoryOwnerAt,
-  territoryOwnerAtIndex,
   updateTerritoryCapture,
 } from './territory';
 import {
@@ -174,14 +173,11 @@ const ZONE_UI_FACTIONS = [
   ZoneFaction.WILD,
   ZoneFaction.SAMOSBOR,
 ] as const;
-const UI_ZONE_SAMPLE_RADIUS = 56;
-const UI_ZONE_SAMPLE_STEP = 8;
 const UI_CONTESTED_PRESSURE = 0.22;
 const UI_DOMINANT_CONTESTED_SHARE = 0.28;
 const UI_RECENT_EVENT_LIMIT = 8;
 const UI_IDLE_REFRESH_SEC = 4;
 const UI_OPEN_REFRESH_SEC = 1;
-const uiSampleCounts = new Uint16Array(8);
 let factionUiSnapshot: FactionUiSnapshot | undefined;
 let factionUiSnapshotAccum = 0;
 
@@ -221,47 +217,41 @@ function refreshFactionUiSnapshot(world: World, state: GameState): void {
   }
   for (const zone of world.zones) {
     if (!zone) continue;
-    uiSampleCounts.fill(0);
-    let sampled = 0;
-    for (let dy = -UI_ZONE_SAMPLE_RADIUS; dy <= UI_ZONE_SAMPLE_RADIUS; dy += UI_ZONE_SAMPLE_STEP) {
-      for (let dx = -UI_ZONE_SAMPLE_RADIUS; dx <= UI_ZONE_SAMPLE_RADIUS; dx += UI_ZONE_SAMPLE_STEP) {
-        const i = world.idx(world.wrap(zone.cx + dx), world.wrap(zone.cy + dy));
-        if (world.zoneMap[i] !== zone.id) continue;
-        const zf = territoryOwnerAtIndex(world, i);
-        if (zf < uiSampleCounts.length) {
-          uiSampleCounts[zf]++;
-          sampled++;
-        }
-      }
-    }
 
+    const counts = zone.territoryCounts;
     let owner = territoryOwnerAt(world, zone.cx, zone.cy);
-    let ownerCount = owner < uiSampleCounts.length ? uiSampleCounts[owner] : 0;
+    let ownerCount = counts && owner < counts.length ? counts[owner] : 0;
     let strongest = owner;
     let strongestCount = ownerCount;
     let pressureOwner = owner;
     let pressureCount = 0;
-    for (let i = 0; i < uiSampleCounts.length; i++) {
-      const count = uiSampleCounts[i];
-      if (count > strongestCount) {
-        strongestCount = count;
-        strongest = i as ZoneFaction;
-      }
-      if (i !== owner && count > pressureCount) {
-        pressureCount = count;
-        pressureOwner = i as ZoneFaction;
-      }
-    }
-    if (sampled > 0 && ownerCount === 0) {
-      owner = strongest;
-      ownerCount = strongestCount;
-      pressureOwner = owner;
-      pressureCount = 0;
-      for (let i = 0; i < uiSampleCounts.length; i++) {
-        const count = uiSampleCounts[i];
+    let sampled = 0;
+
+    if (counts) {
+      for (let i = 0; i < counts.length; i++) {
+        const count = counts[i];
+        sampled += count;
+        if (count > strongestCount) {
+          strongestCount = count;
+          strongest = i as ZoneFaction;
+        }
         if (i !== owner && count > pressureCount) {
           pressureCount = count;
           pressureOwner = i as ZoneFaction;
+        }
+      }
+
+      if (sampled > 0 && ownerCount === 0) {
+        owner = strongest;
+        ownerCount = strongestCount;
+        pressureOwner = owner;
+        pressureCount = 0;
+        for (let i = 0; i < counts.length; i++) {
+          const count = counts[i];
+          if (i !== owner && count > pressureCount) {
+            pressureCount = count;
+            pressureOwner = i as ZoneFaction;
+          }
         }
       }
     }
@@ -272,6 +262,7 @@ function refreshFactionUiSnapshot(world: World, state: GameState): void {
     const contested = owner !== ZoneFaction.SAMOSBOR
       && sampled > 0
       && (pressure >= UI_CONTESTED_PRESSURE || (pressureOwner !== owner && dominantShare >= UI_DOMINANT_CONTESTED_SHARE));
+
     const row: FactionZoneUiSnapshot = {
       zoneId: zone.id,
       x: zone.cx,

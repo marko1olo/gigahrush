@@ -768,6 +768,7 @@ export function syncZoneMetadataFromTerritory(world: World, zoneIds?: Iterable<n
         zoneCountsScratch[territoryOwnerAtIndex(world, idx)]++;
       }
     }
+    zone.territoryCounts = new Uint16Array(zoneCountsScratch);
     zone.faction = dominantOwnerFromCounts(zoneCountsScratch, zone.faction);
     const hq = nearestZoneHqRoom(world, zone);
     zone.hqRoomId = hq?.id ?? zone.hqRoomId;
