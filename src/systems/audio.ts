@@ -178,7 +178,11 @@ function ensureContext(): AudioContext {
   if (!ctx) {
     const Ctor = audioContextCtor();
     if (!Ctor) throw new Error('AudioContext is unavailable');
-    ctx = new Ctor();
+    const globalState = globalThis as typeof globalThis & { __gigahrushAudioCtx?: AudioContext };
+    if (!globalState.__gigahrushAudioCtx) {
+      globalState.__gigahrushAudioCtx = new Ctor();
+    }
+    ctx = globalState.__gigahrushAudioCtx;
     mainGain = ctx.createGain();
     mainGain.gain.value = 0.3;
     mainGain.connect(ctx.destination);

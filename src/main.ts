@@ -1307,7 +1307,7 @@ function continueDeathAsAlifePopulationNpc(): boolean {
     const gen = loaded.generation;
 
     world = replaceWorldFromGeneration(null, gen);
-    entities = gen.entities;
+    if (entities) entities.length = 0; entities = gen.entities;
     let __maxId = 0;
     for (let i = 0; i < entities.length; i++) {
       const id = entities[i].id;
@@ -1734,7 +1734,7 @@ function returnFromVoidPortalToLiving(portal: VoidReturnPortalState): void {
     const loaded = loadFloorForTarget(FloorLevel.LIVING, null);
     const gen = loaded.generation;
     world = replaceWorldFromGeneration(null, gen);
-    entities = gen.entities;
+    if (entities) entities.length = 0; entities = gen.entities;
     let __maxId = 0;
     for (let i = 0; i < entities.length; i++) {
       const id = entities[i].id;
@@ -2186,7 +2186,7 @@ function initGame(runSeedOverride?: number, initialFloor: FloorLevel = FloorLeve
   injectFastElevators(gen.world);
   stampCeilingHeights(gen.world);
   world = replaceWorldFromGeneration(null, gen);
-  entities = gen.entities;
+  if (entities) entities.length = 0; entities = gen.entities;
   let __maxId = 0;
   for (let i = 0; i < entities.length; i++) {
     const id = entities[i].id;
@@ -3890,7 +3890,7 @@ function switchFloor(
     const gen = loaded.generation;
 
     world = replaceWorldFromGeneration(null, gen);
-    entities = gen.entities;
+    if (entities) entities.length = 0; entities = gen.entities;
     let __maxId = 0;
     for (let i = 0; i < entities.length; i++) {
       const id = entities[i].id;
@@ -4101,7 +4101,7 @@ function debugTeleportTo(target: DebugTeleportTarget): void {
     const gen = loaded.generation;
 
     world = replaceWorldFromGeneration(null, gen);
-    entities = gen.entities;
+    if (entities) entities.length = 0; entities = gen.entities;
     let __maxId = 0;
     for (let i = 0; i < entities.length; i++) {
       const id = entities[i].id;
@@ -4863,7 +4863,7 @@ function loadGame(): boolean {
       const gen = loaded.generation;
 
       world = replaceWorldFromGeneration(null, gen);
-      entities = gen.entities;
+      if (entities) entities.length = 0; entities = gen.entities;
       let __maxId = 0;
       for (let i = 0; i < entities.length; i++) {
         const id = entities[i].id;
