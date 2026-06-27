@@ -1,7 +1,7 @@
 /* ── Inventory panel (fullscreen) ──────────────────────────────── */
 
-import { type Entity, type GameState, ItemType } from '../core/types';
-import { ITEMS } from '../data/catalog';
+import { type Entity, type GameState, ItemType, DamageType } from '../core/types';
+import { ITEMS, WEAPON_STATS } from '../data/catalog';
 import { getEquippedToolDurability, getWeaponReadiness } from '../systems/inventory';
 import { controlHint, menuCloseHint } from '../systems/controls';
 import {
@@ -17,6 +17,18 @@ import { fitText as fitStatText, formatUiNumber, wrapTextLines } from './ui_text
 import { drawInventoryFinanceBlock, readFinanceSnapshot } from './economy_ui';
 import { fullscreenInventoryLayout } from './ui_layout';
 import { drawItemGridIcon } from './item_sprites';
+
+export function getDamageTypeIconAndColor(damageType?: DamageType): { icon: string, color: string } {
+  switch (damageType) {
+    case DamageType.FIRE: return { icon: '🔴', color: '#f55' };
+    case DamageType.ENERGY: return { icon: '🔵', color: '#55f' };
+    case DamageType.PSI: return { icon: '🟣', color: '#a5f' };
+    case DamageType.BUCKSHOT: return { icon: '🟡', color: '#fd5' };
+    case DamageType.KINETIC:
+    default:
+      return { icon: '⚫', color: '#aaa' };
+  }
+}
 
 export function drawInventory(
   ctx: CanvasRenderingContext2D,
@@ -88,16 +100,39 @@ export function drawInventory(
     }
   }
 
+  // Draw Armor Slot
+  const armorRect = layout.armorSlot;
+  const isArmorSelected = state.invSel === gridRows * gridCols; // Assign the first index after the grid to the armor slot
+  ctx.fillStyle = isArmorSelected ? 'rgba(0,60,50,0.6)' : 'rgba(5,15,20,0.8)';
+  ctx.fillRect(armorRect.x, armorRect.y, armorRect.w, armorRect.h);
+  ctx.strokeStyle = isArmorSelected ? 'rgba(0,255,200,0.6)' : 'rgba(0,100,80,0.25)';
+  ctx.strokeRect(armorRect.x, armorRect.y, armorRect.w, armorRect.h);
+
+  ctx.fillStyle = '#555';
+  ctx.font = `${4.5 * sy}px monospace`;
+  ctx.textAlign = 'center';
+  ctx.fillText('БРОНЯ', armorRect.x + armorRect.w / 2, armorRect.y + armorRect.h - 4 * sy);
+  ctx.textAlign = 'left';
+
+  if (player.armorDefId) {
+    const armorDef = ITEMS[player.armorDefId];
+    drawItemGridIcon(ctx, player.armorDefId, armorDef?.name ?? player.armorDefId, armorRect.x + armorRect.w * 0.1, armorRect.y + armorRect.h * 0.1, armorRect.w * 0.8, sx, sy, isArmorSelected, isArmorSelected ? 1 : 0.86);
+  }
+
   // Selected item details live in the right column so the 8x8 grid keeps the left side.
   const details = layout.details;
   ctx.textAlign = 'left';
-  if (state.invSel < inv.length) {
-    const item = inv[state.invSel];
-    const def = ITEMS[item.defId];
+  const isArmorSlot = state.invSel === gridRows * gridCols;
+  const isItemHovered = state.invSel < inv.length;
+
+  if (isItemHovered || (isArmorSlot && player.armorDefId)) {
+    const defId = isArmorSlot ? player.armorDefId! : inv[state.invSel].defId;
+    const count = isArmorSlot ? 1 : inv[state.invSel].count;
+    const def = ITEMS[defId];
     if (def) {
       ctx.fillStyle = '#ccc';
       ctx.font = `${6.2 * ts}px monospace`;
-      ctx.fillText(fitStatText(ctx, `${def.name} ×${item.count}`, details.w), details.x, details.y);
+      ctx.fillText(fitStatText(ctx, `${def.name} ×${count}`, details.w), details.x, details.y);
       ctx.fillStyle = '#888';
       ctx.font = `${4.8 * ts}px monospace`;
       let infoY = details.y + 7.5 * ts;
@@ -106,16 +141,52 @@ export function drawInventory(
         ctx.fillText(line, details.x, infoY);
         infoY += 5.8 * ts;
       }
+
+      // Draw weapon damage type or armor resistances
+      if (def.type === ItemType.WEAPON) {
+        const wStats = WEAPON_STATS[defId];
+        if (wStats) {
+          const dmgTypeInfo = getDamageTypeIconAndColor(wStats.damageType);
+          ctx.fillStyle = dmgTypeInfo.color;
+          ctx.font = `${5.1 * ts}px monospace`;
+          ctx.fillText(`Урон: ${dmgTypeInfo.icon} ${wStats.dmg}`, details.x, infoY + 1.4 * ts);
+          infoY += 5.8 * ts;
+        }
+      } else if (def.resistances) {
+        let resistsLine = 'Резисты: ';
+        for (const key of Object.keys(def.resistances)) {
+          const dmgType = Number(key) as DamageType;
+          const val = def.resistances[dmgType];
+          if (val) {
+             const dmgTypeInfo = getDamageTypeIconAndColor(dmgType);
+             resistsLine += `${dmgTypeInfo.icon}${val}% `;
+          }
+        }
+        ctx.fillStyle = '#acf';
+        ctx.font = `${4.8 * ts}px monospace`;
+        ctx.fillText(fitStatText(ctx, resistsLine, details.w), details.x, infoY + 1.4 * ts);
+        infoY += 5.8 * ts;
+      }
+
       ctx.fillStyle = '#da4';
       ctx.font = `${5.1 * ts}px monospace`;
       ctx.fillText(fitStatText(ctx, `Цена: ${def.value ?? 0}₽`, details.w), details.x, infoY + 1.4 * ts);
-      if (def.use || def.type === ItemType.WEAPON || def.type === ItemType.TOOL) {
-        ctx.fillStyle = '#6a6';
-        ctx.fillText(fitStatText(ctx, `${controlHint('gameMenu')} использовать`, layout.use.w), layout.use.x, layout.use.y + 7.4 * ts);
+      if (!isArmorSlot) {
+        if (def.use || def.type === ItemType.WEAPON || def.type === ItemType.TOOL) {
+          ctx.fillStyle = '#6a6';
+          ctx.fillText(fitStatText(ctx, `${controlHint('gameMenu')} использовать`, layout.use.w), layout.use.x, layout.use.y + 7.4 * ts);
+        }
+        ctx.fillStyle = '#a86';
+        ctx.fillText(fitStatText(ctx, `${controlHint('drop')} выкинуть`, layout.drop.w), layout.drop.x, layout.drop.y + 7.4 * ts);
+      } else {
+        ctx.fillStyle = '#a86';
+        ctx.fillText(fitStatText(ctx, `${controlHint('gameMenu')} снять`, layout.use.w), layout.use.x, layout.use.y + 7.4 * ts);
       }
-      ctx.fillStyle = '#a86';
-      ctx.fillText(fitStatText(ctx, `${controlHint('drop')} выкинуть`, layout.drop.w), layout.drop.x, layout.drop.y + 7.4 * ts);
     }
+  } else if (isArmorSlot) {
+    ctx.fillStyle = '#555';
+    ctx.font = `${5.2 * ts}px monospace`;
+    ctx.fillText('Слот брони', details.x, details.y + 6.5 * ts);
   } else {
     ctx.fillStyle = '#555';
     ctx.font = `${5.2 * ts}px monospace`;
