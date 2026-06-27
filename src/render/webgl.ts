@@ -2289,6 +2289,14 @@ function buildAtlas(gl: WebGL2RenderingContext, textures: TexData[]): WebGLTextu
   const rows = Math.ceil(count / ATLAS_COLS);
   const atlasW = ATLAS_COLS * ATLAS_TEX_SIZE;
   const atlasH = rows * ATLAS_TEX_SIZE;
+  const maxTexSize = gl.getParameter(gl.MAX_TEXTURE_SIZE);
+  if (atlasW > maxTexSize || atlasH > maxTexSize) {
+    console.error(`CRITICAL: Atlas size (${atlasW}x${atlasH}) exceeds MAX_TEXTURE_SIZE (${maxTexSize})`);
+    const mem = (performance as any).memory;
+    if (mem) {
+      console.error(`Memory at atlas creation failure: ${Math.round(mem.usedJSHeapSize / 1024 / 1024)}MB / ${Math.round(mem.jsHeapSizeLimit / 1024 / 1024)}MB`);
+    }
+  }
   // TexData is Uint32Array in 0xAABBGGRR format — need to convert to RGBA8
   const pixels = new Uint8Array(atlasW * atlasH * 4);
 
@@ -2314,7 +2322,15 @@ function buildAtlas(gl: WebGL2RenderingContext, textures: TexData[]): WebGLTextu
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, atlasW, atlasH, 0, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+  try {
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, atlasW, atlasH, 0, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+  } catch (e) {
+    console.error(`CRITICAL: texImage2D failed for atlas size ${atlasW}x${atlasH}`, e);
+    const mem = (performance as any).memory;
+    if (mem) {
+      console.error(`Memory at texImage2D failure: ${Math.round(mem.usedJSHeapSize / 1024 / 1024)}MB / ${Math.round(mem.jsHeapSizeLimit / 1024 / 1024)}MB`);
+    }
+  }
   return tex;
 }
 
@@ -2333,8 +2349,12 @@ function createSpriteTexture(gl: WebGL2RenderingContext, spr: SpriteData): WebGL
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, ATLAS_TEX_SIZE, ATLAS_TEX_SIZE, 0,
-    gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+  try {
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, ATLAS_TEX_SIZE, ATLAS_TEX_SIZE, 0,
+      gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+  } catch (e) {
+    console.error(`CRITICAL: texImage2D failed for sprite texture size ${ATLAS_TEX_SIZE}x${ATLAS_TEX_SIZE}`, e);
+  }
   return tex;
 }
 
@@ -2725,6 +2745,24 @@ export function initWebGL(
   }
   if (!gl) throw new Error('WebGL2 not supported');
 
+  canvas.addEventListener('webglcontextlost', (e) => {
+    e.preventDefault();
+    console.error('CRITICAL: WebGL context lost!');
+    const mem = (performance as any).memory;
+    if (mem) {
+      console.error(`Memory at context loss: ${Math.round(mem.usedJSHeapSize / 1024 / 1024)}MB / ${Math.round(mem.jsHeapSizeLimit / 1024 / 1024)}MB`);
+    }
+  }, false);
+
+  canvas.addEventListener('webglcontextrestored', () => {
+    console.warn('WebGL context restored - reload required to rebuild state');
+    window.location.reload();
+  }, false);
+
+  const maxTexSize = gl.getParameter(gl.MAX_TEXTURE_SIZE);
+  console.log(`WebGL INIT: MAX_TEXTURE_SIZE = ${maxTexSize}`);
+
+
   // Enable float textures
   const floatExt = gl.getExtension('EXT_color_buffer_float');
   if (!floatExt) {
@@ -2859,8 +2897,16 @@ export function initWebGL(
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, SURF_ATLAS_SIZE, SURF_ATLAS_SIZE, 0,
-    gl.RGBA, gl.UNSIGNED_BYTE, surfData.pixels);
+  try {
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, SURF_ATLAS_SIZE, SURF_ATLAS_SIZE, 0,
+      gl.RGBA, gl.UNSIGNED_BYTE, surfData.pixels);
+  } catch (e) {
+    console.error(`CRITICAL: texImage2D failed for surface atlas size ${SURF_ATLAS_SIZE}x${SURF_ATLAS_SIZE}`, e);
+    const mem = (performance as any).memory;
+    if (mem) {
+      console.error(`Memory at surface atlas creation failure: ${Math.round(mem.usedJSHeapSize / 1024 / 1024)}MB / ${Math.round(mem.jsHeapSizeLimit / 1024 / 1024)}MB`);
+    }
+  }
   const surfaceIdxTex = createDataTexR16UI(gl, W, W, surfData.index);
 
   // ── Texture atlas ──

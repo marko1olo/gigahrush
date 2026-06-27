@@ -174,6 +174,17 @@ export function playSoundAt(fn: () => void, x: number, y: number): void {
   }, 4000);
 }
 
+export function cleanupAudioContext(): void {
+  if (ctx) {
+    if (ctx.state !== 'closed') {
+      void ctx.close();
+    }
+    ctx = null;
+    mainGain = null;
+    scopedGain = null;
+  }
+}
+
 function ensureContext(): AudioContext {
   if (!ctx) {
     const Ctor = audioContextCtor();
