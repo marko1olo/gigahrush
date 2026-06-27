@@ -312,6 +312,7 @@ export interface Zone {
   fogged: boolean;            // фиолетовый туман active
   level: number;              // zone danger level (scales monsters & loot)
   hqRoomId: number;           // room id of faction HQ in this zone (-1 = none)
+  territoryCounts?: Uint16Array;
 }
 
 // ── Occupations ──────────────────────────────────────────────────
