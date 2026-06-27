@@ -1,11 +1,11 @@
 import fs from 'fs';
 
 // 1. Fix tutorial room connection
-let tut = `import { RoomType, Tex, type Entity, EntityType, Faction, Occupation } from '../../core/types';
+let tut = `import { RoomType, Tex, type Entity, EntityType, Faction, Occupation, Cell } from '../../core/types';
 import { World } from '../../core/world';
 import { stampRoom, protectRoom } from '../shared';
 
-export function generateTutorialApartmentsDesignFloor(world: import('../../core/world').World, entities: Entity[], nextId: {v: number}, startX: number, startY: number) {
+export function generateTutorialApartmentsDesignFloor(world: World, entities: Entity[], nextId: {v: number}, startX: number, startY: number) {
   let nextRoomId = world.rooms.length;
 
   const aptW = 12;
@@ -44,7 +44,7 @@ export function generateTutorialApartmentsDesignFloor(world: import('../../core/
 
   // Door connecting roughly to outside
   const doorIdx = world.idx(aptX, aptY + Math.floor(aptH / 2));
-  world.cells[doorIdx] = import('../../core/types').Cell.DOOR;
+  world.cells[doorIdx] = Cell.DOOR;
   world.wallTex[doorIdx] = Tex.DOOR_WOOD;
   world.floorTex[doorIdx] = Tex.F_CONCRETE;
 
@@ -144,4 +144,3 @@ const mainStr = `function applyUrinationPenalty(dt: number): void {
 }`;
 main = main.replace(/function applyUrinationPenalty\(dt: number\): void \{[\s\S]*?addFactionRel\(Faction.PLAYER, ownerFaction, -1\);\n  \}\n\}/, mainStr);
 fs.writeFileSync('src/main.ts', main);
-
