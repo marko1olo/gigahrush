@@ -1,32 +1,47 @@
-1.  **Analyze the Optimization Opportunity**
-    -   The task highlights `const totalQ = state.quests.filter(q => !q.done).length;` in `src/main.ts` at line 7089.
-    -   There is another identical line at 6366: `const total = state.quests.filter(q => !q.done).length;`.
-    -   These lines are called inside the game loop when `state.npcMenuTab === 'quest'`.
-    -   The inefficiency is creating a whole new array with `filter` every frame just to get its length.
+1. **Detect iOS and implement scrollTo trick in src/main.ts**:
+   - In `src/main.ts`, add the import statement `import { isStandaloneDisplay } from './pwa';`.
+   - Add a global variable `const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);`.
+   - Inside `bootInitialGameOrTitle()`, add:
+     ```typescript
+     if (isIOS && !isStandaloneDisplay()) {
+       window.scrollTo(0, 1);
+     }
+     ```
 
-2.  **Establish a Baseline & Benchmark**
-    -   I created a benchmark script (`test_perf_2.mjs`) to compare `quests.filter(q => !q.done).length` with a simple loop.
-    -   The benchmark showed a reduction from ~300ms to ~170ms for 1,000,000 iterations over an array of 50 items. This proves that manual iteration is ~40-50% faster and avoids garbage collection overhead by not allocating temporary arrays.
-    -   Since this is run inside `src/main.ts` (the game loop, typically 60fps), avoiding allocations here is highly beneficial to avoid garbage collector pauses and frame drops.
+2. **Handle WebGL Context Loss in src/main.ts**:
+   - Re-evaluate where `webglcontextlost` logic should be added since `textures`, `sprites`, `world` are not accessible before initialization and tests will complain if variables are potentially uninitialized.
+   - We can place the listeners in `src/main.ts` near the bottom of file setup, or add `?` guards for safety:
+     ```typescript
+     canvas.addEventListener('webglcontextlost', (e) => {
+       e.preventDefault();
+     });
+     canvas.addEventListener('webglcontextrestored', () => {
+       if (started && typeof state !== 'undefined' && typeof world !== 'undefined') {
+         disposeWebGL();
+         initWebGL(canvas, textures, sprites, world);
+       }
+     });
+     ```
 
-3.  **Implement Optimization**
-    -   Add a new utility function `countActiveQuests(quests: readonly Quest[]): number` in `src/systems/quests.ts`.
-    -   ```typescript
-        export function countActiveQuests(quests: readonly Quest[]): number {
-          let count = 0;
-          for (let i = 0; i < quests.length; i++) {
-            if (!quests[i].done) count++;
-          }
-          return count;
-        }
-        ```
-    -   Update `src/main.ts` line 7089: `const totalQ = countActiveQuests(state.quests);`.
-    -   Update `src/main.ts` line 6366: `const total = countActiveQuests(state.quests);`.
-    -   Update `src/render/quest_ui.ts` line 254 and `src/render/npc_ui.ts` line 104 where `active.length` is needed, or potentially optimize the retrieval of active quests there too if it's purely for counting. However, those files actually *use* the `active` array (`all = [...active, ...done]`, `active[page]`), so `filter` is necessary there unless we rewrite their logic entirely. The task only requested optimizing the array filter that is *only* used for `.length`, specifically `src/main.ts:7089`. I will stick to `main.ts` lines 7089 and 6366.
+3. **Update CSS for Safe Area in src/index.css**:
+   - Add `padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);` to the `body` block in `src/index.css`.
 
-4.  **Verify Impact**
-    -   Run tests (`npm run check:full`).
-    -   Run `npx tsx test_perf_2.mjs` locally again.
+4. **Update Fullscreen Fallback Logic in src/mobile.ts and src/fullscreen.ts**:
+   - In `src/fullscreen.ts`, change `function isIosWebKit(): boolean {` to `export function isIosWebKit(): boolean {`.
+   - In `src/mobile.ts`, add `isIosWebKit` to the import from `./fullscreen`.
+   - Modify `updateFullscreenUi` in `src/mobile.ts`: change `fullscreen.hidden = standalone || (!embedded && !nativeFullscreen);` to `fullscreen.hidden = standalone || (!embedded && !nativeFullscreen && !isIosWebKit());`.
+   - Modify `fullscreen.addEventListener('pointerdown', e => { ... })` in `src/mobile.ts`: replace `if (!canUseMobileFullscreen()) return;` with:
+     ```typescript
+     if (!canUseMobileFullscreen()) {
+       if (isIosWebKit()) {
+         alert(mobileText({ ru: 'Для полного экрана добавьте игру на экран «Домой» (Поделиться -> На экран «Домой»)', en: 'For fullscreen, add the game to your Home Screen (Share -> Add to Home Screen)' }));
+       }
+       return;
+     }
+     ```
 
-5.  **Submit PR**
-    -   Format PR with baseline info and performance improvement metrics.
+5. **Run tests**:
+   - Run `npm run typecheck` to verify the changes compile correctly.
+   - Run unit tests using `npx tsx --test scripts/run-unit-tests.mjs`.
+
+6. **Complete pre-commit steps to ensure proper testing, verification, review, and reflection are done.**

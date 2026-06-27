@@ -1,7 +1,7 @@
 /* ── ГИГАХРУЩ — main entry point ──────────────────────────────── */
 import './index.css';
 import './systems/demos_runtime';
-import { registerPwaServiceWorker } from './pwa';
+import { registerPwaServiceWorker, isStandaloneDisplay } from './pwa';
 
 import {
   W, Cell, DoorState, FloorLevel, Tex, RoomType, LiftDirection,
@@ -541,6 +541,15 @@ import {
 
 /* ── Canvas setup ─────────────────────────────────────────────── */
 const canvas = document.getElementById('game') as HTMLCanvasElement;
+canvas.addEventListener('webglcontextlost', (e) => {
+  e.preventDefault();
+});
+canvas.addEventListener('webglcontextrestored', () => {
+  if (started && typeof state !== 'undefined' && typeof world !== 'undefined') {
+    disposeWebGL();
+    initWebGL(canvas, textures, sprites, world);
+  }
+});
 const hudCanvas = document.getElementById('hud') as HTMLCanvasElement;
 const ctx = hudCanvas.getContext('2d')!;
 registerPwaServiceWorker();
@@ -2383,7 +2392,12 @@ let netReportedSamosborCount = 0;
 let netDeathReported = false;
 const MSG_LOG_SYNC_DEDUPE_SCAN = 32;
 
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+
 function bootInitialGameOrTitle(): void {
+  if (isIOS && !isStandaloneDisplay()) {
+    window.scrollTo(0, 1);
+  }
   scheduleLoading(() => {
     const floor = TRAILER_FLOORS[titleTrailerFloorIdx] as FloorLevel;
     initGame(undefined, floor);
