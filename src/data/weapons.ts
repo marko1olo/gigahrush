@@ -1,7 +1,7 @@
 /* ── Weapon stats registry — melee & ranged physical weapons ─── */
 
 import { Spr } from '../render/sprite_index';
-import { ProjType } from '../core/types';
+import { ProjType, DamageType } from '../core/types';
 
 export interface WeaponStats {
   dmg: number;
@@ -10,6 +10,7 @@ export interface WeaponStats {
   hitRadius?: number;   // melee hit capsule radius (e.g. 0.5 for fists, wider for large weapons)
   speed: number;        // attack cooldown seconds
   isRanged: boolean;
+  damageType?: DamageType;
   ammoType?: string;    // item def id for ammo
   projSpeed?: number;   // projectile speed (cells/sec)
   pellets?: number;     // projectiles per shot (shotgun)

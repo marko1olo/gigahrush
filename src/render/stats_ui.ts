@@ -1,8 +1,9 @@
 /* ── Inventory panel (fullscreen) ──────────────────────────────── */
 
-import { type Entity, type GameState, ItemType } from '../core/types';
-import { ITEMS } from '../data/catalog';
+import { type Entity, type GameState, ItemType, DamageType } from '../core/types';
+import { ITEMS, WEAPON_STATS } from '../data/catalog';
 import { getEquippedToolDurability, getWeaponReadiness } from '../systems/inventory';
+import { MAX_INVENTORY_SLOTS } from '../data/inventory_limits';
 import { controlHint, menuCloseHint } from '../systems/controls';
 import {
   rpgStatEffects,
@@ -61,6 +62,25 @@ export function drawInventory(
   const gridX = layout.grid.x;
   const gridY = layout.grid.y;
 
+  // Armor slot
+  const armorRect = layout.armor;
+  const armorSelected = state.invSel === MAX_INVENTORY_SLOTS;
+  ctx.fillStyle = armorSelected ? 'rgba(0,60,50,0.6)' : 'rgba(5,15,20,0.8)';
+  ctx.fillRect(armorRect.x, armorRect.y, armorRect.w - 2, armorRect.h - 2);
+  ctx.strokeStyle = armorSelected ? 'rgba(0,255,200,0.6)' : 'rgba(0,100,80,0.25)';
+  ctx.strokeRect(armorRect.x, armorRect.y, armorRect.w - 2, armorRect.h - 2);
+
+  ctx.fillStyle = '#888';
+  ctx.font = `${5 * sy}px monospace`;
+  ctx.textAlign = 'center';
+  ctx.fillText('БРОНЯ', armorRect.x + armorRect.w / 2, armorRect.y - 4 * sy);
+  ctx.textAlign = 'left';
+
+  if (player.armorDefId) {
+    const armorDef = ITEMS[player.armorDefId];
+    drawItemGridIcon(ctx, player.armorDefId, armorDef?.name ?? player.armorDefId, armorRect.x, armorRect.y, armorRect.w, sx * 2, sy * 2, armorSelected, armorSelected ? 1 : 0.86);
+  }
+
   for (let row = 0; row < gridRows; row++) {
     for (let col = 0; col < gridCols; col++) {
       const idx = row * gridCols + col;
@@ -88,11 +108,27 @@ export function drawInventory(
     }
   }
 
+  const damageTypeLabel = (dt: DamageType | undefined) => {
+    switch (dt) {
+      case DamageType.FIRE: return { text: '🔴 огонь', color: '#f64' };
+      case DamageType.ENERGY: return { text: '🔵 энерго', color: '#4cf' };
+      case DamageType.PSI: return { text: '🟣 пси', color: '#c6f' };
+      case DamageType.BUCKSHOT: return { text: '🟡 дробь', color: '#ec4' };
+      case DamageType.KINETIC:
+      default: return { text: '⚫ кинетика', color: '#aaa' };
+    }
+  };
+
   // Selected item details live in the right column so the 8x8 grid keeps the left side.
   const details = layout.details;
   ctx.textAlign = 'left';
-  if (state.invSel < inv.length) {
-    const item = inv[state.invSel];
+
+  const isArmorSelected = state.invSel === MAX_INVENTORY_SLOTS;
+  const validArmorSelection = isArmorSelected && player.armorDefId;
+  const validInvSelection = !isArmorSelected && state.invSel < inv.length;
+
+  if (validInvSelection || validArmorSelection) {
+    const item = validInvSelection ? inv[state.invSel] : { defId: player.armorDefId!, count: 1 };
     const def = ITEMS[item.defId];
     if (def) {
       ctx.fillStyle = '#ccc';
@@ -106,10 +142,39 @@ export function drawInventory(
         ctx.fillText(line, details.x, infoY);
         infoY += 5.8 * ts;
       }
+      if (def.type === ItemType.WEAPON) {
+        const ws = WEAPON_STATS[def.id];
+        if (ws) {
+          const dt = damageTypeLabel(ws.damageType);
+          ctx.fillStyle = dt.color;
+          ctx.fillText(`Урон: ${dt.text}`, details.x, infoY);
+          infoY += 5.8 * ts;
+        }
+      }
+
+      if (def.resistances) {
+        ctx.fillStyle = '#8cf';
+        ctx.fillText('Сопротивления:', details.x, infoY);
+        infoY += 5.8 * ts;
+        for (const [dtStr, val] of Object.entries(def.resistances)) {
+          const dt = parseInt(dtStr, 10) as DamageType;
+          if (!isNaN(dt) && val) {
+            const dtInfo = damageTypeLabel(dt);
+            ctx.fillStyle = dtInfo.color;
+            ctx.fillText(`  ${dtInfo.text}: ${val}%`, details.x, infoY);
+            infoY += 5.8 * ts;
+          }
+        }
+      }
+
       ctx.fillStyle = '#da4';
       ctx.font = `${5.1 * ts}px monospace`;
       ctx.fillText(fitStatText(ctx, `Цена: ${def.value ?? 0}₽`, details.w), details.x, infoY + 1.4 * ts);
-      if (def.use || def.type === ItemType.WEAPON || def.type === ItemType.TOOL) {
+
+      if (isArmorSelected) {
+        ctx.fillStyle = '#a86';
+        ctx.fillText(fitStatText(ctx, `${controlHint('gameMenu')} снять броню`, layout.use.w), layout.use.x, layout.use.y + 7.4 * ts);
+      } else if (def.use || def.type === ItemType.WEAPON || def.type === ItemType.TOOL) {
         ctx.fillStyle = '#6a6';
         ctx.fillText(fitStatText(ctx, `${controlHint('gameMenu')} использовать`, layout.use.w), layout.use.x, layout.use.y + 7.4 * ts);
       }

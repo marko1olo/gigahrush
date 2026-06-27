@@ -91,6 +91,7 @@ export interface FullscreenInventoryLayout {
   use: UiRect;
   drop: UiRect;
   attr: UiRect;
+  armor: UiRect;
 }
 
 export interface ContainerMenuGridLayout {
@@ -313,6 +314,9 @@ export function fullscreenInventoryLayout(canvasW: number, canvasH: number, sx: 
   const actionW = Math.min(82 * textScale, rightW);
   const actionY = detailsY + 37 * textScale;
   const grid = { x: gridX, y: gridY, w: gridW, h: gridH, cell, cols: GRID_COLS, rows: GRID_ROWS };
+  const armorCell = cell * 2;
+  const armorX = gridX + gridW - armorCell;
+  const armorY = gridY + gridH + 8 * scale;
   return {
     scale,
     textScale,
@@ -322,6 +326,7 @@ export function fullscreenInventoryLayout(canvasW: number, canvasH: number, sx: 
     use: { x: stX, y: actionY, w: actionW, h: 12 * textScale },
     drop: { x: stX + actionW + 6 * textScale, y: actionY, w: actionW, h: 12 * textScale },
     attr: { x: stX, y: detailsY + detailsH + 4 * textScale, w: rightW, h: 14 * textScale },
+    armor: { x: armorX, y: armorY, w: armorCell, h: armorCell },
   };
 }
 
