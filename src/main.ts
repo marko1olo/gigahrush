@@ -53,6 +53,7 @@ import { stampUrineTrace } from './systems/urination';
 import { containerMenuGridLayout, craftMenuLayout, fullscreenInventoryLayout, tradeMenuGridLayout } from './render/ui_layout';
 import { updateNeeds } from './systems/needs';
 import { updateAI, tryMonsterProjectileStagger, getAiStats, type AiStats } from './systems/ai';
+import { startArenaMatch, updateArenaMatch } from './systems/arena';
 import { resolveBreachChargeExplosion } from './systems/breach_charge';
 import { dropMonsterRareLoot } from './systems/monster_drops';
 import { generateNpcTradeItems } from './data/occupation_profiles';
@@ -2553,6 +2554,7 @@ function consumePlayerSprintWater(actor: Entity, dt: number, sprintMod: number):
 }
 
 function movePlayer(dt: number): void {
+  if (state.arenaMatch?.active) return;
   const actor = player;
   if (!actor.alive) return;
   if (state.sleeping || state.trailerMode) return; // no movement while sleeping or in trailer mode
@@ -2807,6 +2809,7 @@ function castPlayerPsi(psiId: string, ws: WeaponStats): boolean {
 
 /* ── Player actions ───────────────────────────────────────────── */
 function playerActions(_dt: number): void {
+  if (state.arenaMatch?.active) return;
   if (!player.alive) return;
   if (state.sleeping) return; // no actions while sleeping
 
@@ -4250,6 +4253,11 @@ function handleDebugCommandAction(action: DebugCommandAction): void {
         z: action.z,
         designFloorId: action.id,
       });
+      break;
+    case 'debug_arena_match':
+      const roomId = world.roomMap[world.idx(Math.floor(player.x), Math.floor(player.y))];
+      startArenaMatch(world, entities, state, nextEntityId, runtimeCamera, roomId);
+      state.showDebug = false;
       break;
     case 'refresh_world_data':
       updateWorldData(world);
@@ -7727,6 +7735,7 @@ function gameLoop(now: number): void {
     updateRouteCues(world, listener, state);
     updateMapExploration(world, listener, state);
     const aiStart = performance.now();
+    if (state.arenaMatch?.active) updateArenaMatch(world, entities, state, runtimeCamera, player);
     updateAI(world, entities, dt, state.time, state.msgs, listener.id, state.clock, state.samosborActive, nextEntityId, state.currentFloor, state);
     lastAiUpdateMs = performance.now() - aiStart;
     updateRailTrains(world, entities, player, state, dt);
