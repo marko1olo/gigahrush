@@ -297,22 +297,31 @@ export function inventoryPanelLayout(canvasW: number, canvasH: number): Inventor
 
 export function fullscreenInventoryLayout(canvasW: number, canvasH: number, sx: number, sy: number): FullscreenInventoryLayout {
   const base = Math.min(sx, sy);
-  const fitW = canvasW / (8 + GRID_CELL_UNITS * GRID_COLS + 132);
-  const fitH = canvasH / (14 + GRID_CELL_UNITS * GRID_ROWS + 8);
+  const dpr = typeof window !== 'undefined' ? (window.devicePixelRatio || 1) : 1;
+  const isSmallScreen = (canvasW / dpr) <= 375;
+  let displayCols = GRID_COLS;
+  let displayRows = GRID_ROWS;
+  if (isSmallScreen) {
+    displayCols = 4;
+    displayRows = (GRID_COLS * GRID_ROWS) / 4;
+  }
+
+  const fitW = canvasW / (8 + GRID_CELL_UNITS * displayCols + 132);
+  const fitH = canvasH / (14 + GRID_CELL_UNITS * displayRows + 8);
   const scale = Math.max(0.72, Math.min(4.2, base, fitW, fitH));
   const textScale = scale <= 1.2 ? scale : Math.max(1.05, scale * 0.72);
   const cell = GRID_CELL_UNITS * scale;
   const gridX = 8 * scale;
   const gridY = 14 * scale;
-  const gridW = GRID_COLS * cell;
-  const gridH = GRID_ROWS * cell;
+  const gridW = displayCols * cell;
+  const gridH = displayRows * cell;
   const stX = gridX + gridW + 12 * scale;
   const rightW = Math.max(72 * scale, canvasW - stX - 8 * scale);
   const detailsY = Math.max(8 * scale, gridY - 4 * scale);
   const detailsH = 58 * textScale;
   const actionW = Math.min(82 * textScale, rightW);
   const actionY = detailsY + 37 * textScale;
-  const grid = { x: gridX, y: gridY, w: gridW, h: gridH, cell, cols: GRID_COLS, rows: GRID_ROWS };
+  const grid = { x: gridX, y: gridY, w: gridW, h: gridH, cell, cols: displayCols, rows: displayRows };
   return {
     scale,
     textScale,

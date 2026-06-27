@@ -1022,8 +1022,9 @@ function resize() {
   }
   document.documentElement.style.setProperty('--app-viewport-width', `${cssWidth}px`);
   document.documentElement.style.setProperty('--app-viewport-height', `${cssHeight}px`);
-  const width = cssWidth;
-  const height = cssHeight;
+  const dpr = typeof window !== 'undefined' ? (window.devicePixelRatio || 1) : 1;
+  const width = Math.min(1920, Math.floor(cssWidth * dpr));
+  const height = Math.min(1920, Math.floor(cssHeight * dpr));
   if (canvas.width !== width) canvas.width = width;
   if (canvas.height !== height) canvas.height = height;
   if (hudCanvas.width !== width) hudCanvas.width = width;

@@ -1330,21 +1330,26 @@ export function drawHUD(
   const sx = w / SCR_W;
   const sy = h / SCR_H;
   const menuScale = Math.max(0.72, Math.min(1.68, Math.min(sx, sy)));
-  const msx = menuScale;
-  const msy = menuScale;
+  const uiScale = Math.min(1, w / 800);
+  const scaledSx = sx * uiScale;
+  const scaledSy = sy * uiScale;
 
-  ctx.font = `${10 * sy}px monospace`;
+  const msx = menuScale * uiScale;
+  const msy = menuScale * uiScale;
+
+  ctx.font = `${Math.max(12, 10 * scaledSy)}px monospace`;
   ctx.textBaseline = 'top';
 
   const time = uiTime;
   const gameTime = Number.isFinite(state.time) ? state.time : time;
   setUiTextTime(time);
   const mobileHud = getMobileHudSafeContext();
-  const slots = createHudSlots(w, h, sx, sy, {
+  const aspectSplit = (w / h) < 0.5;
+  const slots = createHudSlots(w, h, scaledSx, scaledSy, {
     mobileControls: mobileHud.enabled,
     safeInsets: mobileHud.safeInsets,
-    bottomVitalsHeight: NEEDS_PANEL_H * sy,
-    topRightWidth: 212 * sx,
+    bottomVitalsHeight: aspectSplit ? NEEDS_PANEL_H * scaledSy * 1.5 : NEEDS_PANEL_H * scaledSy,
+    topRightWidth: 212 * scaledSx,
   });
   if (typeof window !== 'undefined' && window.location.search.includes('smoke')) {
     window.__gigahrushLastHudLayout = {
@@ -1355,19 +1360,23 @@ export function drawHUD(
       centerInteraction: { ...slots.centerInteraction },
     };
   }
+
+  const dpr = typeof window !== 'undefined' ? (window.devicePixelRatio || 1) : 1;
+  const isEmergencyMobile = (w / dpr) <= 320;
+
   const showBottomTabs = uiElementEnabled('bottom_tabs');
   const showWeaponPanel = uiElementEnabled('weapon_panel');
   const showCrosshair = uiElementEnabled('crosshair');
   const showInteractionPrompt = uiElementEnabled('interaction_prompt');
   const showDamageFeedback = uiElementEnabled('damage_feedback');
   const showHazardWarning = uiElementEnabled('hazard_warning');
-  const showMessages = uiElementEnabled('messages');
-  const showLocationPanel = uiElementEnabled('location_panel');
+  const showMessages = isEmergencyMobile ? false : uiElementEnabled('messages');
+  const showLocationPanel = isEmergencyMobile ? false : uiElementEnabled('location_panel');
   const showMinimap = uiElementEnabled('minimap');
-  const showRouteHints = uiElementEnabled('route_hints');
-  const showCaravanHints = uiElementEnabled('caravan_hints');
-  const showStatusHints = uiElementEnabled('status_hints');
-  const showAnomalyHints = uiElementEnabled('anomaly_hints');
+  const showRouteHints = isEmergencyMobile ? false : uiElementEnabled('route_hints');
+  const showCaravanHints = isEmergencyMobile ? false : uiElementEnabled('caravan_hints');
+  const showStatusHints = isEmergencyMobile ? false : uiElementEnabled('status_hints');
+  const showAnomalyHints = isEmergencyMobile ? false : uiElementEnabled('anomaly_hints');
   const showScreenFx = uiElementEnabled('screen_fx');
   const showSamosborText = uiElementEnabled('samosbor_text');
   const reducedHudMotion = hudMotionMode() === 'reduced';
