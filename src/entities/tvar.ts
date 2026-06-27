@@ -2,7 +2,7 @@
 
 import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
-import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
+import { S, rgba, noise, clamp, CLEAR, outline } from '../render/pixutil';
 
 export const DEF: MonsterDef = {
   kind: MonsterKind.TVAR,
@@ -20,44 +20,46 @@ export const DEF: MonsterDef = {
 
 export function generateSprite(): Uint32Array {
   const t = new Uint32Array(S * S).fill(CLEAR);
+  const sc = S / 64;
   const cx = S / 2;
   // Hunched mass
-  for (let y = 8; y < 55; y++) for (let x = cx - 14; x < cx + 14; x++) {
+  for (let y = 8 * sc; y < 55 * sc; y++) for (let x = cx - 14 * sc; x < cx + 14 * sc; x++) {
     if (x < 0 || x >= S) continue;
-    const dx = (x - cx) / 14, dy = (y - 32) / 24;
+    const dx = (x - cx) / (14 * sc), dy = (y - 32 * sc) / (24 * sc);
     if (dx * dx + dy * dy < 1) {
       const n = noise(x, y, 555) * 20;
-      const dark = y > 40 ? 15 : 0;
+      const dark = y > 40 * sc ? 15 : 0;
       t[y * S + x] = rgba(clamp(45 + n - dark), clamp(40 + n - dark), clamp(50 + n - dark));
     }
   }
   // Panel scars across the shoulders make the wall-born silhouette readable.
-  for (let y = 21; y < 47; y += 7) {
-    const lean = Math.sin(y * 0.31) * 2;
-    for (let dx = -10; dx <= 10; dx++) {
+  for (let y = 21 * sc; y < 47 * sc; y += 7 * sc) {
+    const lean = Math.sin(y / sc * 0.31) * 2 * sc;
+    for (let dx = -10 * sc; dx <= 10 * sc; dx++) {
       const x = Math.floor(cx + dx + lean);
       if (x < 0 || x >= S) continue;
-      if (Math.abs(dx) > 8 && y < 30) continue;
+      if (Math.abs(dx) > 8 && y < 30 * sc) continue;
       const n = noise(x, y, 558) * 14;
       t[y * S + x] = rgba(clamp(82 + n), clamp(80 + n), clamp(76 + n));
     }
   }
   // Wall-scraping forelimbs
-  for (let y = 25; y < 50; y += 2) {
-    const reach = (y - 25) * 0.24;
-    const lx = Math.floor(cx - 12 - reach);
-    const rx = Math.floor(cx + 12 + reach);
+  for (let y = 25 * sc; y < 50 * sc; y += 2 * sc) {
+    const reach = (y - 25 * sc) * 0.24;
+    const lx = Math.floor(cx - 12 * sc - reach);
+    const rx = Math.floor(cx + 12 * sc + reach);
     const n = noise(y, 0, 559) * 16;
     if (lx >= 0 && lx < S) t[y * S + lx] = rgba(clamp(86 + n), clamp(82 + n), clamp(78 + n));
     if (rx >= 0 && rx < S) t[y * S + rx] = rgba(clamp(86 + n), clamp(82 + n), clamp(78 + n));
   }
   // Multiple eyes
   for (const [ex, ey] of [[-5,16],[-2,14],[2,14],[5,16],[0,18]]) {
-    const px = cx + ex, py = ey;
+    const px = Math.floor(cx + ex * sc), py = Math.floor(ey * sc);
     if (px >= 0 && px < S && py >= 0 && py < S) {
       t[py * S + px] = rgba(180, 255, 180);
       if (py + 1 < S) t[(py + 1) * S + px] = rgba(80, 170, 90);
     }
   }
+  outline(t, rgba(10, 10, 10));
   return t;
 }
