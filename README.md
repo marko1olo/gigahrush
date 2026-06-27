@@ -10,6 +10,12 @@ Procedural textures, procedural sprites, procedural sound, WebGL raycasting, can
 
 Core engineering taste: no hardcoding, no crutches. Keep systems elegant, universal, minimal, modular, data-oriented and emergent. Наш долгосрочный фокус — довести симуляцию до состояния «генератора историй» (как Dwarf Fortress или Space Station 13), где A-Life, процедурная генерация и Самосбор постоянно создают непредсказуемые ситуации, о которых игроки будут рассказывать байки.
 
+**GIGAHRUSH MEGA-UPDATE Features:**
+- New Liquidator Base (База Ликвидаторов)
+- New Armor items and Damage type system
+- New immersive Tutorial sequence
+- Expanded Horror Floors and cinematic encounters
+
 Storage order is never world physics. Array/index order inside `world.rooms`, `entities`, zones, anchors, factories, resources or any other runtime collection is an implementation detail, not a gameplay rule. Bounded optimization must preserve isotropy through actor-local cursors, deterministic rotated windows, spatial queries, scoring before truncation or explicit authored priority. A stable first-prefix scan such as "first 96 rooms" is hardcoding by storage accident and is forbidden for gameplay-visible decisions.
 
 This README is the factual implementation map. Design priorities for the next iteration are in [desdoc.md](desdoc.md). Engineering ownership and module rules are in [architecture.md](architecture.md).
