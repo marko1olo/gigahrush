@@ -68,8 +68,20 @@ export function generateTextures(): TexData[] {
 function gen_concrete(t: TexData, br: number, bg: number, bb: number, seed: number) {
   for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
     const n = noise(x, y, seed) * 30 - 15;
-    const crack = (noise(x * 3, y * 3, seed + 7) > 0.92) ? -40 : 0;
-    t[y * S + x] = rgba(clamp(br + n + crack), clamp(bg + n + crack), clamp(bb + n + crack));
+
+    // Cracks (dark lines 1-2px)
+    const nX = noise(x * 1.5, y * 1.5, seed + 7);
+    const nY = noise(x * 1.5 + 50, y * 1.5 + 50, seed + 8);
+    const crack = (Math.abs(nX - 0.5) < 0.05 && Math.abs(nY - 0.5) < 0.3) ? -40 : 0;
+
+    // Moisture spots (subtle dark patches)
+    const moisture = noise(x * 0.1, y * 0.1, seed + 13) > 0.65 ? -20 : 0;
+
+    // Streaks (vertical gradient)
+    const streakMask = noise(x * 0.3, 0, seed + 21);
+    const streak = (streakMask > 0.7) ? (noise(x * 0.5, y * 0.1, seed + 25) * 15 * (y / S)) : 0;
+
+    t[y * S + x] = rgba(clamp(br + n + crack + moisture - streak), clamp(bg + n + crack + moisture - streak), clamp(bb + n + crack + moisture - streak));
   }
 }
 
@@ -81,20 +93,44 @@ function gen_brick(t: TexData) {
     const by = y % 8;
     const mortar = bx < 1 || by < 1;
     const n = noise(x, y, 11) * 20 - 10;
+
+    // Moisture spots (subtle dark patches)
+    const moisture = noise(x * 0.1, y * 0.1, 14) > 0.6 ? -15 : 0;
+
+    // Streaks (vertical gradient)
+    const streakMask = noise(x * 0.4, 0, 15);
+    const streak = (streakMask > 0.75) ? (noise(x, y * 0.1, 16) * 12 * (y / S)) : 0;
+
     if (mortar) {
-      t[y * S + x] = rgba(clamp(100 + n), clamp(95 + n), clamp(85 + n));
+      const gap = (noise(x * 2, y * 2, 12) > 0.8) ? -15 : 0;
+      t[y * S + x] = rgba(clamp(100 + n + gap + moisture - streak), clamp(95 + n + gap + moisture - streak), clamp(85 + n + gap + moisture - streak));
     } else {
       const shade = noise(Math.floor((x + offset) / 32), row, 33) * 30;
-      t[y * S + x] = rgba(clamp(140 + shade + n), clamp(60 + shade / 2 + n), clamp(50 + shade / 3 + n));
+
+      // Cracks on bricks
+      const bxCrack = (Math.abs(noise(x * 2, y * 2, 17) - 0.5) < 0.04) ? -25 : 0;
+
+      t[y * S + x] = rgba(clamp(140 + shade + n + bxCrack + moisture - streak), clamp(60 + shade / 2 + n + bxCrack + moisture - streak), clamp(50 + shade / 3 + n + bxCrack + moisture - streak));
     }
   }
 }
 
 function gen_panel(t: TexData) {
   for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
-    const seam = (x % 32 < 1 || y % 32 < 1) ? -30 : 0;
+    const seam = (x % 32 < 1 || y % 32 < 1) ? -40 : 0;
+    const highlight = (x % 32 === 1 || y % 32 === 1) ? 15 : 0;
     const n = noise(x, y, 22) * 16 - 8;
-    t[y * S + x] = rgba(clamp(170 + n + seam), clamp(165 + n + seam), clamp(150 + n + seam));
+
+    // Stains (metallic/rusty)
+    const stain = noise(x * 0.2, y * 0.2, 23) > 0.7 ? -20 : 0;
+    const rustR = stain ? 20 : 0;
+
+    // Streaks originating from top seams
+    const distFromTopSeam = y % 32;
+    const streakMask = noise(x * 0.5, 0, 24);
+    const streak = (streakMask > 0.6) ? Math.max(0, 15 - distFromTopSeam * 0.5) * noise(x, y * 0.1, 25) : 0;
+
+    t[y * S + x] = rgba(clamp(170 + n + seam + highlight + stain + rustR - streak), clamp(165 + n + seam + highlight + stain - streak), clamp(150 + n + seam + highlight + stain - streak));
   }
 }
 
@@ -110,8 +146,19 @@ function gen_metal(t: TexData) {
   for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
     const n = noise(x, y, 44) * 25 - 12;
     const rivet = (x % 16 === 8 && y % 16 === 8) ? 40 : 0;
-    const streak = Math.sin(y * 0.5 + noise(x, 0, 44) * 4) * 10;
-    t[y * S + x] = rgba(clamp(90 + n + rivet + streak), clamp(95 + n + rivet + streak), clamp(105 + n + rivet + streak));
+    const rivetShadow = (x % 16 === 9 && y % 16 === 9) ? -20 : 0;
+
+    // Vertical streaks of rust/grime
+    const streakMask = noise(x * 0.2, 0, 45);
+    const streak = (streakMask > 0.5) ? (noise(x, y * 0.05, 46) * 20) : 0;
+
+    // Rust/moisture patches
+    const rustPatch = noise(x * 0.1, y * 0.1, 47) > 0.65;
+    const rDiff = rustPatch ? 25 : 0;
+    const gDiff = rustPatch ? -10 : 0;
+    const bDiff = rustPatch ? -20 : 0;
+
+    t[y * S + x] = rgba(clamp(90 + n + rivet + rivetShadow - streak + rDiff), clamp(95 + n + rivet + rivetShadow - streak + gDiff), clamp(105 + n + rivet + rivetShadow - streak + bDiff));
   }
 }
 
