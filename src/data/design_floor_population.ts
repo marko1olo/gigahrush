@@ -2018,6 +2018,7 @@ const DESIGN_FLOOR_POPULATION_OVERRIDES: Readonly<Record<DesignFloorId, DesignFl
       maxPerBucket: 8,
     },
   },
+  outskirts: { npcTarget: 30, monsterTarget: 10 },
   darkness: {
     npcTarget: 0,
     monsterTarget: 'active_actor_cap',
