@@ -896,6 +896,7 @@ export const WORLD_EVENT_TYPES = [
   'monster_bait_consumed',
   'monster_bait_expired',
   'samosbor_warning',
+  'arena_champion',
   'samosbor_started',
   'samosbor_zone_captured',
   'samosbor_ended',

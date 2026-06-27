@@ -9,7 +9,8 @@ import {
 import { World } from '../../core/world';
 import { freshNeeds, randomName } from '../../data/catalog';
 import { MONSTERS } from '../../entities/monster';
-import { getMaxHp, gaussianLevel, randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg';
+import { getMaxHp, gaussianLevel, randomRPG, scaleMonsterHp, scaleMonsterSpeed, awardXP } from '../../systems/rpg';
+import { addNpcPlayerRelation } from '../../systems/npc_relations';
 import { Spr } from '../../render/sprite_index';
 import { MarkType, stampMark } from '../../systems/surface_marks';
 import { playRouteCueTone, playSoundAt } from '../../systems/audio';
@@ -558,6 +559,8 @@ function dropArenaReward(world: World, room: ArenaRoomRef, entities: Entity[], n
       { defId: 'psi_meat_hook', count: 1 },
       { defId: 'meat_rune', count: 1 },
       { defId: 'ammo_energy', count: 2 },
+      { defId: 'arenatrophy', count: 1 },
+      { defId: 'arenagold', count: 1 },
     ],
   });
 }
@@ -724,6 +727,30 @@ function maybeClearArena(
   if (!site.rewardSpawned) {
     dropArenaReward(world, siteRoom(site), entities, { v: nextEntityId(entities) });
     site.rewardSpawned = true;
+
+    // Awards XP, Relationship, and Event
+    const player = findPlayer(entities);
+    if (player) {
+      awardXP(player, 500, state.msgs, state.time);
+    }
+
+    for (const entity of entities) {
+      if (entity.type === EntityType.NPC && entity.faction === Faction.LIQUIDATOR) {
+        addNpcPlayerRelation(entity, 20);
+      }
+    }
+
+    publishEvent(state, {
+      type: 'arena_champion',
+      floor: site.floor,
+      zoneId: site.zoneId,
+      roomId: site.roomId,
+      x: site.x,
+      y: site.y,
+      severity: 5,
+      privacy: 'public',
+      tags: ['arena', 'champion'],
+    });
   }
   publishArenaEvent(
     state,

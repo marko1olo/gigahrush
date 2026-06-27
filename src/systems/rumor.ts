@@ -761,6 +761,7 @@ function eventToStaticRumorId(event: RumorEventLike): string | undefined {
   if (event.tags?.includes('samosbor_maronary')) return 'samosbor_maronary_variant';
   if (event.tags?.includes('wrong_door')) return 'samosbor_maronary_door';
   if (event.tags?.includes('samosbor_veretar')) return 'samosbor_veretar_variant';
+  if (type === 'arena_champion') return 'event_arena_champion';
   if (type === 'samosbor_zone_captured') return 'event_samosbor_zone_captured';
   if (type === 'fog_boss_spawned') return 'samosbor_electric_variant';
   if (type === 'fog_boss_killed') return 'event_fog_boss_killed';
@@ -802,6 +803,7 @@ function isHighSignalRumorEvent(event: RumorEventLike): boolean {
   if (type === 'metro_wrong_stop' || type === 'elevator_anomaly' || type === 'elevator_loop_exit') return true;
   if (event.tags?.includes('false_safe_block')) return (event.severity ?? 0) >= 3;
   if ((event.severity ?? 0) < 3) return false;
+  if (type === 'arena_champion') return true;
   if (type === 'samosbor_zone_captured' || type === 'fog_boss_spawned' || type === 'fog_boss_killed' || type.startsWith('smog_') || type.startsWith('fog_shark_') || type === 'item_stolen') return true;
   if (type === 'item_deposited') return true;
   if (type === 'container_opened' || type === 'container_looted') return true;
