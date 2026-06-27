@@ -1133,7 +1133,7 @@ function drawCombatWeaponPanel(
   ctx.fillText(fitHudText(ctx, lines.resource, panelW - 51 * s), panelX + panelW - 4.5 * s, panelY + 16 * s);
   ctx.textAlign = 'left';
 
-  drawHoloBar(ctx, panelX + 4.5 * s, panelY + panelH - 3.2 * s, panelW - 9 * s, 1.8 * s, weapon.cannotFireReason ? 0 : weapon.readyPct * 100, statusColor, time, 193);
+  drawHoloBar(ctx, panelX + 4.5 * s, panelY + panelH - 3.2 * s, panelW - 9 * s, 1.8 * s, weapon.reloading ? weapon.reloadPct * 100 : (weapon.cannotFireReason ? 0 : weapon.readyPct * 100), statusColor, time, 193);
   return { x: panelX, y: panelY, w: panelW };
 }
 

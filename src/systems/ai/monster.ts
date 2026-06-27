@@ -8746,6 +8746,19 @@ export function tryPerformMonsterMeleeAttack(
   bestDist: number,
   state?: GameState
 ): boolean {
+  if (e.reloading) {
+    e.reloadTimer = Math.max(0, (e.reloadTimer ?? 0) - dt);
+    if (e.reloadTimer <= 0) {
+      e.currentMag = 1; // Melee attacks are treated as mag=1
+      e.reloading = false;
+    }
+    return true; // Block attack while reloading
+  }
+  if ((e.currentMag ?? 0) <= 0) {
+    e.reloading = true;
+    e.reloadTimer = (def?.attackRate ?? 1) / (e.rpg ? (1 + e.rpg.agi * 0.05) : 1); // fallback if reloadTime not available directly here
+    return true;
+  }
   const mRange = monsterMeleeRange(world, e);
   if (bestDist < mRange) {
     e.attackCd = (e.attackCd ?? 0) - dt;
@@ -8770,6 +8783,7 @@ export function tryPerformMonsterMeleeAttack(
           const hitAng = Math.atan2(hitTarget.y - e.y, hitTarget.x - e.x);
           spawnBloodHit(world, hitTarget.x, hitTarget.y, hitAng, Math.max(2, Math.round(dmg * 0.35)), false);
           playSoundAt(e.monsterKind === MonsterKind.FOG_SHARK ? playFogSharkBite : playGrowl, e.x, e.y);
+          e.currentMag = 0;
           e.attackCd = def?.attackRate ?? 1;
           return true;
         }

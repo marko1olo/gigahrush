@@ -1,3 +1,4 @@
+import { countAmmo, removeItem, publishPlayerItemEvent } from './systems/inventory';
 /* ── ГИГАХРУЩ — main entry point ──────────────────────────────── */
 import './index.css';
 import './systems/demos_runtime';
@@ -2851,9 +2852,61 @@ function playerActions(_dt: number): void {
   const wantsAttack = input.attack || input.mouseAttack;
   player.attackCd = Math.max(0, (player.attackCd ?? 0) - _dt);
 
-  if (wantsAttack && player.attackCd! <= 0) {
-    const weaponId = equippedCombatItemId(player);
-    const ws = getWeaponStats(player, weaponId);
+  const weaponId = equippedCombatItemId(player);
+  const ws = getWeaponStats(player, weaponId);
+
+  // Calculate reload speed mod (agility)
+  const reloadSpeedMod = player.rpg ? (1 + (player.rpg.agi * 0.05)) : 1;
+
+  // Reload Logic
+  if (player.reloading) {
+    player.reloadTimer = Math.max(0, (player.reloadTimer ?? 0) - _dt);
+    if (player.reloadTimer <= 0) {
+      if (ws.magazineSize !== Infinity && ws.ammoType) {
+        const needed = (ws.magazineSize ?? 1) - (player.currentMag ?? 0);
+        if (needed > 0) {
+          const available = countAmmo(player, weaponId);
+          const actual = Math.min(needed, available);
+          if (actual > 0) {
+            removeItem(player, ws.ammoType, actual);
+            player.currentMag = (player.currentMag ?? 0) + actual;
+            publishPlayerItemEvent(state, player, 'ammo_consumed', ws.ammoType, actual, 0);
+          }
+        }
+      } else if (ws.magazineSize === Infinity) {
+        player.currentMag = Infinity;
+      } else {
+        player.currentMag = ws.magazineSize ?? 1; // Melee/Tools
+      }
+      player.reloading = false;
+    }
+  }
+
+  // Manual Reload
+  if (input.reload && !player.reloading && ((player.currentMag ?? 0) < (ws.magazineSize ?? 1))) {
+    if (ws.magazineSize !== Infinity && countAmmo(player, weaponId) > 0) {
+      player.reloading = true;
+      player.reloadTimer = (ws.reloadTime ?? 1) / reloadSpeedMod;
+    } else if (ws.magazineSize === 1) { // melee weapons
+      player.reloading = true;
+      player.reloadTimer = (ws.reloadTime ?? 1) / reloadSpeedMod;
+    }
+  }
+
+  // Auto Reload check
+  if (wantsAttack && !player.reloading && player.attackCd! <= 0) {
+    if (!ws.psiCost && (player.currentMag ?? 0) <= 0 && ws.magazineSize !== Infinity) {
+      if (countAmmo(player, weaponId) > 0 || ws.magazineSize === 1) {
+        player.reloading = true;
+        player.reloadTimer = (ws.reloadTime ?? 1) / reloadSpeedMod;
+      } else {
+        // can't reload, no ammo
+        player.attackCd = 0.5; // stop spam
+      }
+    }
+  }
+
+  if (wantsAttack && player.attackCd! <= 0 && !player.reloading && (ws.psiCost || ws.magazineSize === Infinity || (player.currentMag ?? 0) > 0)) {
     // AGI reduces attack cooldown
     const atkSpeedMod = player.rpg ? agiAttackSpeedMult(player.rpg) : 1;
 
@@ -2931,6 +2984,8 @@ function playerActions(_dt: number): void {
       const range = ws.range;
       const ax = player.x + Math.cos(player.angle) * range;
       const ay = player.y + Math.sin(player.angle) * range;
+
+      player.currentMag = 0; // Empty mag for melee
 
       let hitSomething = isPaupsinaWebCuttingWeapon(weaponId)
         ? reducePaupsinaWeb(player, state.time, state.msgs, state, player, 'cut')
