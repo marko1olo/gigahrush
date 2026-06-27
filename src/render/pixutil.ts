@@ -21,3 +21,28 @@ export const clamp = (v: number) => v < 0 ? 0 : v > 255 ? 255 : v;
 
 /** Transparent pixel */
 export const CLEAR = rgba(0, 0, 0, 0);
+
+/** Automatically add a solid outline around non-clear pixels */
+export function outline(t: Uint32Array, color: number) {
+  const edge = new Uint8Array(S * S);
+  for (let y = 0; y < S; y++) {
+    for (let x = 0; x < S; x++) {
+      const idx = y * S + x;
+      if (t[idx] === CLEAR) {
+        if ((x > 0 && t[idx - 1] !== CLEAR) ||
+            (x < S - 1 && t[idx + 1] !== CLEAR) ||
+            (y > 0 && t[idx - S] !== CLEAR) ||
+            (y < S - 1 && t[idx + S] !== CLEAR) ||
+            (x > 0 && y > 0 && t[idx - S - 1] !== CLEAR) ||
+            (x < S - 1 && y > 0 && t[idx - S + 1] !== CLEAR) ||
+            (x > 0 && y < S - 1 && t[idx + S - 1] !== CLEAR) ||
+            (x < S - 1 && y < S - 1 && t[idx + S + 1] !== CLEAR)) {
+          edge[idx] = 1;
+        }
+      }
+    }
+  }
+  for (let i = 0; i < S * S; i++) {
+    if (edge[i]) t[i] = color;
+  }
+}

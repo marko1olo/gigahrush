@@ -3,7 +3,7 @@
 
 import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
-import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
+import { S, rgba, noise, clamp, CLEAR, outline } from '../render/pixutil';
 
 export const DEF: MonsterDef = {
   kind: MonsterKind.EYE,
@@ -23,10 +23,11 @@ export const DEF: MonsterDef = {
 
 export function generateSprite(): Uint32Array {
   const t = new Uint32Array(S * S).fill(CLEAR);
+  const sc = S / 64;
   const cx = S / 2, cy = S / 2;
   // Spherical body — fleshy red-pink
-  for (let y = 8; y < 56; y++) for (let x = 8; x < 56; x++) {
-    const dx = (x - cx) / 22, dy = (y - cy) / 22;
+  for (let y = 8 * sc; y < 56 * sc; y++) for (let x = 8 * sc; x < 56 * sc; x++) {
+    const dx = (x - cx) / (22 * sc), dy = (y - cy) / (22 * sc);
     const d2 = dx * dx + dy * dy;
     if (d2 < 1) {
       const n = noise(x, y, 1001) * 20;
@@ -41,7 +42,7 @@ export function generateSprite(): Uint32Array {
   // Veins — darker red lines radiating from center
   for (let i = 0; i < 8; i++) {
     const ang = i * Math.PI / 4 + noise(i, 0, 1002) * 0.5;
-    for (let r = 8; r < 20; r++) {
+    for (let r = 8 * sc; r < 20 * sc; r++) {
       const vx = Math.floor(cx + Math.cos(ang) * r + noise(r, i, 1003) * 2);
       const vy = Math.floor(cy + Math.sin(ang) * r + noise(i, r, 1004) * 2);
       if (vx >= 0 && vx < S && vy >= 0 && vy < S && t[vy * S + vx] !== CLEAR) {
@@ -50,37 +51,38 @@ export function generateSprite(): Uint32Array {
     }
   }
   // Giant central eye — white sclera
-  for (let y = cy - 10; y < cy + 10; y++) for (let x = cx - 12; x < cx + 12; x++) {
-    const dx = (x - cx) / 12, dy = (y - cy) / 10;
+  for (let y = cy - 10 * sc; y < cy + 10 * sc; y++) for (let x = cx - 12 * sc; x < cx + 12 * sc; x++) {
+    const dx = (x - cx) / (12 * sc), dy = (y - cy) / (10 * sc);
     if (dx * dx + dy * dy < 1) {
       t[y * S + x] = rgba(230, 225, 210);
     }
   }
   // Iris — sickly yellow-green
-  for (let y = cy - 6; y < cy + 6; y++) for (let x = cx - 6; x < cx + 6; x++) {
-    const dx = (x - cx) / 6, dy = (y - cy) / 6;
+  for (let y = cy - 6 * sc; y < cy + 6 * sc; y++) for (let x = cx - 6 * sc; x < cx + 6 * sc; x++) {
+    const dx = (x - cx) / (6 * sc), dy = (y - cy) / (6 * sc);
     if (dx * dx + dy * dy < 1) {
       const n = noise(x, y, 1005) * 30;
       t[y * S + x] = rgba(clamp(180 + n), clamp(200 + n), clamp(40 + n));
     }
   }
   // Pupil — vertical slit (reptilian)
-  for (let y = cy - 5; y < cy + 5; y++) {
-    const slitW = Math.max(1, 2 - Math.abs(y - cy) * 0.3);
+  for (let y = cy - 5 * sc; y < cy + 5 * sc; y++) {
+    const slitW = Math.max(1 * sc, 2 * sc - Math.abs(y - cy) * 0.3);
     for (let x = Math.floor(cx - slitW); x <= Math.floor(cx + slitW); x++) {
       if (x >= 0 && x < S) t[y * S + x] = rgba(5, 5, 5);
     }
   }
   // Small tentacles hanging below
   for (let i = -2; i <= 2; i++) {
-    const tx = cx + i * 4;
-    for (let y = cy + 20; y < cy + 20 + 4 + Math.floor(noise(i + 3, 0, 1006) * 6); y++) {
+    const tx = Math.floor(cx + i * 4 * sc);
+    for (let y = cy + 20 * sc; y < cy + 24 * sc + Math.floor(noise(i + 3, 0, 1006) * 6 * sc); y++) {
       if (y < S && tx >= 0 && tx < S) {
         const n = noise(tx, y, 1007) * 15;
         t[y * S + tx] = rgba(clamp(120 + n), clamp(40 + n), clamp(45 + n));
       }
     }
   }
+    outline(t, rgba(20, 5, 5));
   return t;
 }
 
@@ -112,5 +114,6 @@ export function generateBoltSprite(): Uint32Array {
       a,
     );
   }
+  outline(t, rgba(20, 5, 5));
   return t;
 }

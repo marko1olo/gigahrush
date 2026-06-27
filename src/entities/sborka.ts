@@ -2,7 +2,7 @@
 
 import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
-import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
+import { S, rgba, noise, clamp, CLEAR, outline } from '../render/pixutil';
 
 export const DEF: MonsterDef = {
   kind: MonsterKind.SBORKA,
@@ -20,12 +20,13 @@ export const DEF: MonsterDef = {
 
 export function generateSprite(): Uint32Array {
   const t = new Uint32Array(S * S).fill(CLEAR);
+  const sc = S / 64;
   const cx = S / 2;
 
   // Compact jagged body: weak, fast, made from scraps.
-  for (let y = 16; y < 50; y++) {
-    const lean = Math.sin(y * 0.33) * 2;
-    const halfW = y < 28 ? 5 + Math.sin(y * 0.7) * 2 : 7 + Math.sin(y * 0.45) * 3;
+  for (let y = 16 * sc; y < 50 * sc; y++) {
+    const lean = Math.sin(y / sc * 0.33) * 2;
+    const halfW = y < 28 * sc ? (5 + Math.sin(y / sc * 0.7) * 2) * sc : (7 + Math.sin(y / sc * 0.45) * 3) * sc;
     for (let x = Math.floor(cx - halfW + lean); x <= Math.ceil(cx + halfW + lean); x++) {
       if (x < 0 || x >= S) continue;
       const dx = (x - cx - lean) / Math.max(1, halfW);
@@ -36,36 +37,37 @@ export function generateSprite(): Uint32Array {
     }
   }
 
-  for (let y = 20; y < 48; y += 6) {
-    const shift = Math.floor(Math.sin(y * 0.6) * 3);
-    for (let dx = -10; dx <= 10; dx += 4) {
-      const px = cx + dx + shift;
+  for (let y = 20 * sc; y < 48 * sc; y += 6 * sc) {
+    const shift = Math.floor(Math.sin(y / sc * 0.6) * 3 * sc);
+    for (let dx = -10 * sc; dx <= 10 * sc; dx += 4 * sc) {
+      const px = Math.floor(cx + dx + shift);
       if (px >= 0 && px < S) t[y * S + px] = rgba(35, 28, 32);
     }
   }
 
-  for (let y = 27; y < 53; y += 5) {
-    const spread = 6 + (y - 27) * 0.28;
+  for (let y = 27 * sc; y < 53 * sc; y += 5 * sc) {
+    const spread = (6 + (y / sc - 27) * 0.28) * sc;
     for (let side = -1; side <= 1; side += 2) {
       for (let i = 0; i < 5; i++) {
         const x = Math.floor(cx + side * (spread + i));
-        const yy = y + Math.floor(i * 0.4);
+        const yy = y + Math.floor(i * 0.4 * sc);
         if (x >= 0 && x < S && yy >= 0 && yy < S) t[yy * S + x] = rgba(72, 45, 38);
       }
     }
   }
 
-  t[18 * S + (cx - 3)] = rgba(255, 100, 100);
-  t[18 * S + (cx + 3)] = rgba(255, 100, 100);
-  t[19 * S + (cx - 3)] = rgba(255, 80, 80);
-  t[19 * S + (cx + 3)] = rgba(255, 80, 80);
+  t[Math.floor(18 * sc) * S + (Math.floor(cx - 3 * sc))] = rgba(255, 100, 100);
+  t[Math.floor(18 * sc) * S + (Math.floor(cx + 3 * sc))] = rgba(255, 100, 100);
+  t[Math.floor(19 * sc) * S + (Math.floor(cx - 3 * sc))] = rgba(255, 80, 80);
+  t[Math.floor(19 * sc) * S + (Math.floor(cx + 3 * sc))] = rgba(255, 80, 80);
 
-  for (let y = 50; y < 58; y++) {
+  for (let y = 50 * sc; y < 58 * sc; y++) {
     const n = noise(cx, y, 446) * 18;
-    const lx = Math.floor(cx - 5 - (y - 50) * 0.45);
-    const rx = Math.floor(cx + 4 + (y - 50) * 0.25);
+    const lx = Math.floor(cx - 5 * sc - (y - 50 * sc) * 0.45);
+    const rx = Math.floor(cx + 4 * sc + (y - 50 * sc) * 0.25);
     if (lx >= 0) t[y * S + lx] = rgba(clamp(78 + n), clamp(45 + n), clamp(42 + n));
     if (rx < S) t[y * S + rx] = rgba(clamp(78 + n), clamp(45 + n), clamp(42 + n));
   }
+  outline(t, rgba(20, 20, 20));
   return t;
 }
