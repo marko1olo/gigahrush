@@ -5007,6 +5007,18 @@ function applyUrinationPenalty(dt: number): void {
     addFactionRel(Faction.PLAYER, ownerFaction, -1);
     addKarma(player, -1);
     state.msgs.push(msg('Местные недовольны...', state.time, '#f84'));
+
+    // Apply specific penalty (-5) to nearby NPCs manually since urination_public is not a registered event.
+    for (const e of entities) {
+      if (!e.alive || e.type !== EntityType.NPC) continue;
+      const dx = e.x - player.x;
+      const dy = e.y - player.y;
+      if (dx * dx + dy * dy < 25 * 25) { // Radius 25
+        if (e.playerRelation !== undefined) {
+          e.playerRelation -= 5;
+        }
+      }
+    }
   }
 
   // Ongoing penalty: -1 per game minute (= per real second)

@@ -31,6 +31,8 @@ import { placeProceduralScreens } from '../procedural_screens';
 import { generateApartments } from './apartments';
 import { generateVolatileMaze, wipeVolatile } from './volatile';
 import { generateTutorRoom } from './tutor_room';
+import { generateTutorialApartmentsDesignFloor } from '../design_floors/tutorialapartments';
+
 import { generateYakovLab } from './yakov_lab';
 import { generateVankaDen, spawnVankaShadows } from './vanka_den';
 import './content_manifest';
@@ -54,6 +56,14 @@ export function generateWorld(): { world: World; entities: Entity[]; spawnX: num
 
   /* ── A1: Start room (briefing hall) ─────────────── */
   const startRoom = generateTutorRoom(world, world.rooms.length, entities, { v: nextId });
+  nextId = entities.reduce((mx, e) => Math.max(mx, e.id), nextId) + 1;
+
+  /* ── A1_c: Tutorial Residents ─────────────── */
+  generateTutorialApartmentsDesignFloor(world, entities, { v: nextId }, startRoom.spawnX, startRoom.spawnY);
+  nextId = entities.reduce((mx, e) => Math.max(mx, e.id), nextId) + 1;
+
+  /* ── A1_c: Tutorial Residents ─────────────── */
+  generateTutorialApartmentsDesignFloor(world, entities, { v: nextId }, startRoom.spawnX, startRoom.spawnY);
   nextId = entities.reduce((mx, e) => Math.max(mx, e.id), nextId) + 1;
 
   /* ── A1b: Yakov's lab (at distance from spawn) ──── */
