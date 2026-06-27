@@ -17,6 +17,7 @@ import {
   EntityType,
 } from '../../core/types';
 import { World } from '../../core/world';
+import { placeInteractiveAt } from '../interactive_placement';
 import { stampRoom, protectRoom } from '../shared';
 import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
 import { Spr } from '../../render/sprite_index';
@@ -209,6 +210,23 @@ export function generateTutorRoom(
   world.features[world.idx(armX + armW - 2, armY + 7)] = Feature.LAMP;
 
   // ── Item drops: ammo on counter ──
+
+  // ── Workbench & Crafting materials ──
+  // Placing a workbench (machine)
+  placeInteractiveAt(world, armX + 2, armY + 3, 'craft_lathe');
+
+  // Resources for crafting
+  entities.push({
+    id: nextId.v++, type: EntityType.ITEM_DROP,
+    x: armX + 2 + 0.5, y: armY + 2 + 0.5,
+    angle: 0, pitch: 0, alive: true, speed: 0,
+    sprite: Spr.ITEM_DROP, spriteScale: 1.0,
+    inventory: [
+      { defId: 'metal_sheet', count: 2 },
+      { defId: 'cloth_roll', count: 1 }
+    ],
+  });
+
   entities.push({
     id: nextId.v++, type: EntityType.ITEM_DROP,
     x: armX + 3 + 0.5, y: armY + 1 + 0.5,

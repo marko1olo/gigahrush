@@ -1,7 +1,7 @@
 import { Cell, Feature, Tex, W } from '../core/types';
 import type { World } from '../core/world';
 
-const GRID = 4;
+const GRID = 8;
 const STEP = Math.floor(W / GRID); // 256 on a 1024 torus
 const OFFSET = Math.floor(STEP / 2); // 128
 const CARVE_SEARCH_RADIUS = 40;
