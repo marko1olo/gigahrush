@@ -282,7 +282,15 @@ export function tryFactionCombat(
       o => o.type === EntityType.NPC || o.type === EntityType.MONSTER || isPlayerEntity(o),
     );
 
-  if (!target) return false;
+  if (!target) {
+    if (ai.combatTargetId !== undefined) {
+      ai.combatTargetId = undefined;
+      ai.goal = AIGoal.WANDER;
+      ai.timer = 5;
+      ai.combatScanCd = 5; // Suppress combat scanning briefly while searching
+    }
+    return false;
+  }
   if (damageThreat?.reaction === 'flee' || (damageThreat?.reaction !== 'fight' && npcShouldFleeTarget(e, target))) {
     ai.combatTargetId = target.id;
     return startFleeFromThreat(world, e, target, dt);
@@ -330,6 +338,15 @@ export function tryFactionCombat(
         if (isPlayerEntity(target)) {
           pushNpcLogMessage(e, msgs, _time, `${entityDisplayName(e)} потерял линию огня. Укрытие сработало.`, '#9cf');
         }
+
+        // If we lose line of sight, try to find a cover position or slightly adjust angle instead of just walking into them
+        // We can't do full navigation easily here, so we will assign a path, but the existing pathfinding handles doors/corridors
+        if (ai.path.length === 0 || ai.timer <= 0) {
+          tryAssignPathToCell(world, e, target.x, target.y);
+          ai.timer = 2;
+        }
+        followPath(world, e, dt);
+
         return true;
       }
 
