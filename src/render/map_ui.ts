@@ -31,6 +31,9 @@ import {
 import { type UiRect } from './ui_layout';
 import { isPlayerEntity } from '../systems/player_actor';
 import { fitTextStable } from './ui_text';
+import { drawShadowText, getUiFont } from './ui_font';
+
+
 
 const MAP_SIZE = 80;
 const FULL_MAP_RADIUS_DEFAULT = 200;
@@ -1356,7 +1359,7 @@ function drawMapLegendSwatches(ctx: CanvasRenderingContext2D, x: number, y: numb
     { label: 'Штаб', rgb: roomTypeRgb(RoomType.HQ, highContrast) },
   ];
   ctx.save();
-  ctx.font = `${7 * sy}px monospace`;
+  ctx.font = getUiFont(7 * sy, false);
   ctx.textBaseline = 'middle';
   let cx = x + 14 * sy;
   let cy = y;
@@ -1371,7 +1374,7 @@ function drawMapLegendSwatches(ctx: CanvasRenderingContext2D, x: number, y: numb
     ctx.fillStyle = `rgb(${row.rgb[0]},${row.rgb[1]},${row.rgb[2]})`;
     ctx.fillRect(cx, cy - 4 * sy, swatch, swatch);
     ctx.fillStyle = '#789';
-    ctx.fillText(row.label, cx + swatch + gap, cy);
+    drawShadowText(ctx, row.label, cx + swatch + gap, cy);
     cx += swatch + gap + labelW + 12 * sy;
   }
   ctx.restore();
@@ -1398,7 +1401,7 @@ function drawLegendMenuRow(
     ctx.strokeRect(x - 2 * sx + 0.5, y + 0.5, w + 4 * sx - 1, rowH - 1);
   }
   ctx.fillStyle = selected ? '#0fa' : '#6a8';
-  ctx.fillText(selected ? '>' : ' ', x, textY);
+  drawShadowText(ctx, selected ? '>' : ' ', x, textY);
 
   let group = '';
   let label = '';
@@ -1425,11 +1428,11 @@ function drawLegendMenuRow(
   const valueW = Math.min(98 * sx, w * 0.33);
   const labelW = Math.max(40 * sx, w - groupW - valueW - 24 * sx);
   ctx.fillStyle = '#689';
-  ctx.fillText(fitTextStable(ctx, group, groupW - 10 * sx), x + 14 * sx, textY);
+  drawShadowText(ctx, fitTextStable(ctx, group, groupW - 10 * sx), x + 14 * sx, textY);
   ctx.fillStyle = selected ? '#dff' : '#9bb';
-  ctx.fillText(fitTextStable(ctx, label, labelW), x + groupW + 16 * sx, textY);
+  drawShadowText(ctx, fitTextStable(ctx, label, labelW), x + groupW + 16 * sx, textY);
   ctx.fillStyle = valueColor;
-  ctx.fillText(fitTextStable(ctx, value, valueW), x + groupW + labelW + 20 * sx, textY);
+  drawShadowText(ctx, fitTextStable(ctx, value, valueW), x + groupW + labelW + 20 * sx, textY);
 }
 
 export function drawMapLegendMenu(
@@ -1467,22 +1470,22 @@ export function drawMapLegendMenu(
 
   ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = '#6cf';
-  ctx.font = `${13 * s}px monospace`;
-  ctx.fillText('ЛЕГЕНДА КАРТЫ', leftX, 26 * s);
-  ctx.font = `${7 * s}px monospace`;
+  ctx.font = getUiFont(13 * s, false);
+  drawShadowText(ctx, 'ЛЕГЕНДА КАРТЫ', leftX, 26 * s);
+  ctx.font = getUiFont(7 * s, false);
   ctx.fillStyle = '#577';
-  ctx.fillText(
+  drawShadowText(ctx,
     fitTextStable(ctx, `${controlHint('mapLegend')} открыть/закрыть  |  ${controlHint('gameMenu')} переключить  |  ${menuCloseHint()} закрыть`, leftW),
     leftX,
     43 * s,
   );
 
   ctx.textBaseline = 'middle';
-  ctx.font = `${7 * s}px monospace`;
+  ctx.font = getUiFont(7 * s, false);
   ctx.fillStyle = '#345';
-  ctx.fillText('РАЗДЕЛ', leftX + 14 * s, top - 10 * s);
-  ctx.fillText('СЛОЙ', leftX + Math.min(72 * s, leftW * 0.24) + 16 * s, top - 10 * s);
-  ctx.fillText('СТАТУС', leftX + leftW - 86 * s, top - 10 * s);
+  drawShadowText(ctx, 'РАЗДЕЛ', leftX + 14 * s, top - 10 * s);
+  drawShadowText(ctx, 'СЛОЙ', leftX + Math.min(72 * s, leftW * 0.24) + 16 * s, top - 10 * s);
+  drawShadowText(ctx, 'СТАТУС', leftX + leftW - 86 * s, top - 10 * s);
   for (let i = 0; i < visibleRows; i++) {
     const rowIndex = scroll + i;
     if (rowIndex >= rowCount) break;
@@ -1501,8 +1504,8 @@ export function drawMapLegendMenu(
   ctx.strokeRect(rightX + 0.5, overviewTop + 0.5, rightW - 1, overviewSide + 24 * s - 1);
   ctx.fillStyle = '#7aa';
   ctx.textBaseline = 'alphabetic';
-  ctx.font = `${8 * s}px monospace`;
-  ctx.fillText('СХЕМА ВСЕГО ЭТАЖА', overviewX, overviewTop + 11 * s);
+  ctx.font = getUiFont(8 * s, false);
+  drawShadowText(ctx, 'СХЕМА ВСЕГО ЭТАЖА', overviewX, overviewTop + 11 * s);
   const overview = floorOverviewCanvas(ctx, world, highContrast);
   if (overview) {
     ctx.save();

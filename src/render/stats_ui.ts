@@ -17,6 +17,9 @@ import { fitText as fitStatText, formatUiNumber, wrapTextLines } from './ui_text
 import { drawInventoryFinanceBlock, readFinanceSnapshot } from './economy_ui';
 import { fullscreenInventoryLayout } from './ui_layout';
 import { drawItemGridIcon } from './item_sprites';
+import { drawShadowText, getUiFont } from './ui_font';
+
+
 
 export function drawInventory(
   ctx: CanvasRenderingContext2D,
@@ -42,18 +45,18 @@ export function drawInventory(
 
   // Title + money + close hint
   drawGlitchText(ctx, 'ИНВЕНТАРЬ', 8 * sx, 9 * ts, time, 800, '#6cf', 7.2 * ts);
-  ctx.font = `${7.2 * ts}px monospace`;
+  ctx.font = getUiFont(7.2 * ts, false);
   const finance = readFinanceSnapshot(player, state);
   const mj = textJitter(time, 801);
   ctx.fillStyle = `rgba(238,238,68,${flicker(time, 802)})`;
   const titleMoney = finance.hasBanking
     ? `₽${Math.round(finance.cash)} сч ${Math.round(finance.accountRubles)}`
     : `₽${Math.round(finance.cash)}`;
-  ctx.fillText(fitStatText(ctx, titleMoney, 92 * ts), 96 * ts + mj.dx, 9 * ts + mj.dy);
+  drawShadowText(ctx, fitStatText(ctx, titleMoney, 92 * ts), 96 * ts + mj.dx, 9 * ts + mj.dy);
   ctx.fillStyle = '#456';
-  ctx.font = `${5.8 * ts}px monospace`;
+  ctx.font = getUiFont(5.8 * ts, false);
   ctx.textAlign = 'right';
-  ctx.fillText(`${menuCloseHint()} закрыть`, cw - 8 * ts, 9 * ts);
+  drawShadowText(ctx, `${menuCloseHint()} закрыть`, cw - 8 * ts, 9 * ts);
   ctx.textAlign = 'left';
 
   // ── LEFT COLUMN: grid + item desc + weapon + money ───────
@@ -79,9 +82,9 @@ export function drawInventory(
         drawItemGridIcon(ctx, item.defId, def?.name ?? item.defId, cx, cy, cellSz, sx, sy, selected, selected ? 1 : 0.86);
         if (item.count > 1) {
           ctx.fillStyle = '#6a8';
-          ctx.font = `${5 * sy}px monospace`;
+          ctx.font = getUiFont(5 * sy, false);
           ctx.textAlign = 'center';
-          ctx.fillText(`×${item.count}`, cx + cellSz / 2, cy + cellSz - 5 * sy);
+          drawShadowText(ctx, `×${item.count}`, cx + cellSz / 2, cy + cellSz - 5 * sy);
           ctx.textAlign = 'left';
         }
       }
@@ -96,30 +99,30 @@ export function drawInventory(
     const def = ITEMS[item.defId];
     if (def) {
       ctx.fillStyle = '#ccc';
-      ctx.font = `${6.2 * ts}px monospace`;
-      ctx.fillText(fitStatText(ctx, `${def.name} ×${item.count}`, details.w), details.x, details.y);
+      ctx.font = getUiFont(6.2 * ts, false);
+      drawShadowText(ctx, fitStatText(ctx, `${def.name} ×${item.count}`, details.w), details.x, details.y);
       ctx.fillStyle = '#888';
-      ctx.font = `${4.8 * ts}px monospace`;
+      ctx.font = getUiFont(4.8 * ts, false);
       let infoY = details.y + 7.5 * ts;
       const descLines = wrapTextLines(ctx, def.desc, details.w, 2, { stable: true, mode: 'clip' });
       for (const line of descLines) {
-        ctx.fillText(line, details.x, infoY);
+        drawShadowText(ctx, line, details.x, infoY);
         infoY += 5.8 * ts;
       }
       ctx.fillStyle = '#da4';
-      ctx.font = `${5.1 * ts}px monospace`;
-      ctx.fillText(fitStatText(ctx, `Цена: ${def.value ?? 0}₽`, details.w), details.x, infoY + 1.4 * ts);
+      ctx.font = getUiFont(5.1 * ts, false);
+      drawShadowText(ctx, fitStatText(ctx, `Цена: ${def.value ?? 0}₽`, details.w), details.x, infoY + 1.4 * ts);
       if (def.use || def.type === ItemType.WEAPON || def.type === ItemType.TOOL) {
         ctx.fillStyle = '#6a6';
-        ctx.fillText(fitStatText(ctx, `${controlHint('gameMenu')} использовать`, layout.use.w), layout.use.x, layout.use.y + 7.4 * ts);
+        drawShadowText(ctx, fitStatText(ctx, `${controlHint('gameMenu')} использовать`, layout.use.w), layout.use.x, layout.use.y + 7.4 * ts);
       }
       ctx.fillStyle = '#a86';
-      ctx.fillText(fitStatText(ctx, `${controlHint('drop')} выкинуть`, layout.drop.w), layout.drop.x, layout.drop.y + 7.4 * ts);
+      drawShadowText(ctx, fitStatText(ctx, `${controlHint('drop')} выкинуть`, layout.drop.w), layout.drop.x, layout.drop.y + 7.4 * ts);
     }
   } else {
     ctx.fillStyle = '#555';
-    ctx.font = `${5.2 * ts}px monospace`;
-    ctx.fillText('Пустой слот', details.x, details.y + 6.5 * ts);
+    ctx.font = getUiFont(5.2 * ts, false);
+    drawShadowText(ctx, 'Пустой слот', details.x, details.y + 6.5 * ts);
   }
 
   // ── RIGHT COLUMN: stats ──────────────────────────────────
@@ -130,10 +133,10 @@ export function drawInventory(
 
   // Name + Level + Attributes on same row
   ctx.fillStyle = '#ee4';
-  ctx.font = `${6.4 * ts}px monospace`;
+  ctx.font = getUiFont(6.4 * ts, false);
   const nameStr = player.name ?? 'Вы';
   const titleLine = player.rpg ? `${nameStr}  Ур.${player.rpg.level}` : nameStr;
-  ctx.fillText(fitStatText(ctx, titleLine, barW), stX, stY);
+  drawShadowText(ctx, fitStatText(ctx, titleLine, barW), stX, stY);
   stY += 8.2 * ts;
 
   // Attributes in their own compact row to avoid name/level overlap.
@@ -141,17 +144,17 @@ export function drawInventory(
     const rpg = player.rpg;
     const apLabel = rpg.attrPoints > 0 ? `  +${rpg.attrPoints}` : '';
     const attrLine = `${controlHint('attrStr')}СИЛ:${rpg.str}  ${controlHint('attrAgi')}ЛОВ:${rpg.agi}  ${controlHint('attrInt')}ИНТ:${rpg.int}${apLabel}`;
-    ctx.font = `${5.3 * ts}px monospace`;
+    ctx.font = getUiFont(5.3 * ts, false);
     ctx.fillStyle = '#e84';
-    ctx.fillText(fitStatText(ctx, attrLine, barW), stX, stY);
+    drawShadowText(ctx, fitStatText(ctx, attrLine, barW), stX, stY);
     stY += 7.2 * ts;
   }
 
   // Attribute points (always visible)
   if (player.rpg) {
     ctx.fillStyle = player.rpg.attrPoints > 0 ? '#ee4' : '#888';
-    ctx.font = `${5.1 * ts}px monospace`;
-    ctx.fillText(`Очков характеристик: ${player.rpg.attrPoints}`, stX, stY);
+    ctx.font = getUiFont(5.1 * ts, false);
+    drawShadowText(ctx, `Очков характеристик: ${player.rpg.attrPoints}`, stX, stY);
     stY += 6.4 * ts;
     stY = drawRpgEffectBlock(ctx, player, stX, stY, barW, ts);
   }
@@ -226,8 +229,8 @@ export function drawInventory(
   if (zhelemishLine && stY + 6 * ts <= columnsY - 1 * ts) {
     stY += 2 * ts;
     ctx.fillStyle = '#9c6';
-    ctx.font = `${5 * ts}px monospace`;
-    ctx.fillText(fitStatText(ctx, zhelemishLine, barW), stX, stY);
+    ctx.font = getUiFont(5 * ts, false);
+    drawShadowText(ctx, fitStatText(ctx, zhelemishLine, barW), stX, stY);
     stY += 6 * ts;
   }
 
@@ -238,9 +241,9 @@ export function drawInventory(
   const statsY = stY + 3 * ts;
   if (statsY + 4.8 * ts <= columnsY - 1 * ts) {
     ctx.fillStyle = '#888';
-    ctx.font = `${4.5 * ts}px monospace`;
+    ctx.font = getUiFont(4.5 * ts, false);
     const day = Math.floor(state.clock.totalMinutes / 1440);
-    ctx.fillText(fitStatText(ctx, `Выжил дней: ${day}  |  Самосборов: ${state.samosborCount}`, barW), stX, statsY);
+    drawShadowText(ctx, fitStatText(ctx, `Выжил дней: ${day}  |  Самосборов: ${state.samosborCount}`, barW), stX, statsY);
   }
 }
 
@@ -287,12 +290,12 @@ function drawInventoryEquipmentBlock(
   if (y + 8.2 * sy > maxBottom) return y;
   drawGlitchText(ctx, 'ЭКИПИРОВКА', x, y, time, 840, '#6cf', 5.8 * sy);
   let cy = y + 8.2 * sy;
-  ctx.font = `${4.7 * sy}px monospace`;
+  ctx.font = getUiFont(4.7 * sy, false);
   const lineH = 6.2 * sy;
   for (const line of lines) {
     if (cy + lineH * 0.35 > maxBottom) break;
     ctx.fillStyle = line.color;
-    ctx.fillText(fitStatText(ctx, line.text, w), x, cy);
+    drawShadowText(ctx, fitStatText(ctx, line.text, w), x, cy);
     cy += lineH;
   }
   return cy + 2.2 * sy;
@@ -345,10 +348,10 @@ function drawRpgEffectBlock(
     ],
   ];
 
-  ctx.font = `${5.5 * sy}px monospace`;
+  ctx.font = getUiFont(5.5 * sy, false);
   for (const [color, line] of lines) {
     ctx.fillStyle = color;
-    ctx.fillText(fitStatText(ctx, line, w), x, y);
+    drawShadowText(ctx, fitStatText(ctx, line, w), x, y);
     y += 6.2 * sy;
   }
   return y + 1.5 * sy;
@@ -366,8 +369,8 @@ function drawCompactMeter(
   labelColor: string,
 ): number {
   ctx.fillStyle = labelColor;
-  ctx.font = `${4.5 * sy}px monospace`;
-  ctx.fillText(fitStatText(ctx, label, w), x, y);
+  ctx.font = getUiFont(4.5 * sy, false);
+  drawShadowText(ctx, fitStatText(ctx, label, w), x, y);
   y += 6.4 * sy;
   drawStatBar(ctx, x, y, w, 1.8 * sy, pct, color);
   return y + 7.4 * sy;

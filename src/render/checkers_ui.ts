@@ -2,6 +2,9 @@ import { type CheckersSnapshot, type CheckersPiece } from '../systems/checkers';
 import { controlBindingLabel, controlHint, menuCloseHint } from '../systems/controls';
 import { fitText } from './ui_text';
 import { rect, drawBadge } from './ui_utils';
+import { drawShadowText, getUiFont } from './ui_font';
+
+
 
 function resultText(snapshot: CheckersSnapshot): string {
   if (snapshot.phase !== 'finished') {
@@ -59,13 +62,13 @@ export function drawCheckersInterface(
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
   ctx.fillStyle = '#d1aa54';
-  ctx.font = `bold ${10 * sy}px monospace`;
-  ctx.fillText(fitText(ctx, 'ШАШКИ', pw * 0.22), px + pad, headerY);
+  ctx.font = getUiFont(10 * sy, true);
+  drawShadowText(ctx, fitText(ctx, 'ШАШКИ', pw * 0.22), px + pad, headerY);
 
   ctx.fillStyle = '#8d9690';
-  ctx.font = `${7.2 * sy}px monospace`;
+  ctx.font = getUiFont(7.2 * sy, false);
   const turn = snapshot.phase === 'npc_turn' ? `${snapshot.npcName} ДУМАЕТ` : snapshot.phase === 'finished' ? resultText(snapshot) : 'ВАШ ХОД';
-  ctx.fillText(fitText(ctx, `СТАВКА ${snapshot.stakeRubles}Р | ${turn}`, pw - pad * 2), px + pad, headerY + 13 * sy);
+  drawShadowText(ctx, fitText(ctx, `СТАВКА ${snapshot.stakeRubles}Р | ${turn}`, pw - pad * 2), px + pad, headerY + 13 * sy);
 
   // Draw Board
   const boardSize = Math.min(pw - pad * 2, ph - 120 * sy);
@@ -102,9 +105,9 @@ export function drawCheckersInterface(
     ? `${controlHint('gameMenu')} ЗАКРЫТЬ  ${menuCloseHint()} ВЫЙТИ`
     : `${controlHint('gameMenu')} ВЫБРАТЬ/ХОДИТЬ  ${controlBindingLabel('drop')} ОТМЕНА/СТОП  ${menuCloseHint()} СДАТЬСЯ`;
   ctx.fillStyle = '#59615d';
-  ctx.font = `${7 * sy}px monospace`;
+  ctx.font = getUiFont(7 * sy, false);
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
-  ctx.fillText(fitText(ctx, action, pw - pad * 2), Math.round(px + pw * 0.5), controlsY);
+  drawShadowText(ctx, fitText(ctx, action, pw - pad * 2), Math.round(px + pw * 0.5), controlsY);
   ctx.restore();
 }

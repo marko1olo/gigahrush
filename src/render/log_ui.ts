@@ -4,6 +4,9 @@ import { type GameState } from '../core/types';
 import { controlBindingLabel, controlHint, menuCloseHint } from '../systems/controls';
 import { drawNeuroPanel } from './hud_fx';
 import { fitTextStable, wrapTextLines } from './ui_text';
+import { drawShadowText, getUiFont } from './ui_font';
+
+
 
 export function drawLogMenu(
   ctx: CanvasRenderingContext2D,
@@ -19,15 +22,15 @@ export function drawLogMenu(
   ctx.textBaseline = 'middle';
 
   // Fullscreen neuro-panel background
-  ctx.fillStyle = '#00040a';
+  ctx.fillStyle = 'rgba(0, 4, 10, 0.85)';
   ctx.fillRect(0, 0, w, h);
   drawNeuroPanel(ctx, 4 * sx, 4 * sy, w - 8 * sx, h - 8 * sy, time, 60);
 
   // Title
   ctx.fillStyle = '#6cf';
-  ctx.font = `${10 * sy}px monospace`;
-  ctx.fillText(fitTextStable(ctx, `СТЕНОГРАФИЧЕСКАЯ СВОДКА ${controlHint('log')}`, w - 24 * sx), 12 * sx, 14 * sy);
-  ctx.font = `${10 * sy}px monospace`;
+  ctx.font = getUiFont(10 * sy, false);
+  drawShadowText(ctx, fitTextStable(ctx, `СТЕНОГРАФИЧЕСКАЯ СВОДКА ${controlHint('log')}`, w - 24 * sx), 12 * sx, 14 * sy);
+  ctx.font = getUiFont(10 * sy, false);
 
   // Separator
   ctx.strokeStyle = 'rgba(0,180,160,0.2)';
@@ -39,16 +42,16 @@ export function drawLogMenu(
   const log = state.msgLog;
   if (log.length === 0) {
     ctx.fillStyle = '#666';
-    ctx.font = `${8 * sy}px monospace`;
-    ctx.fillText('Пусто.', 12 * sx, 34 * sy);
+    ctx.font = getUiFont(8 * sy, false);
+    drawShadowText(ctx, 'Пусто.', 12 * sx, 34 * sy);
     return;
   }
 
-  const lineH = 11 * sy;
+  const lineH = 14 * sy;
   const topY = 28 * sy;
   const bottomY = h - 18 * sy;
   const maxW = w - 24 * sx;
-  ctx.font = `${8 * sy}px monospace`;
+  ctx.font = getUiFont(8 * sy, false);
 
   // Pre-compute stamp width for wrapping
   const sampleStamp = '[Д00 00:00 999м]  ';
@@ -87,11 +90,11 @@ export function drawLogMenu(
 
     if (vl.stamp) {
       ctx.fillStyle = '#666';
-      ctx.fillText(vl.stamp, 12 * sx, y);
+      drawShadowText(ctx, vl.stamp, 12 * sx, y);
     }
     ctx.fillStyle = vl.color;
     const textX = 12 * sx + stampW;
-    ctx.fillText(vl.text, vl.isWrap ? textX : textX, y);
+    drawShadowText(ctx, vl.text, vl.isWrap ? textX : textX, y);
   }
 
   // Scrollbar indicator
@@ -111,8 +114,8 @@ export function drawLogMenu(
 
   // Bottom hint
   ctx.fillStyle = '#555';
-  ctx.font = `${7 * sy}px monospace`;
-  ctx.fillText(
+  ctx.font = getUiFont(7 * sy, false);
+  drawShadowText(ctx,
     fitTextStable(ctx, `${controlBindingLabel('menuUp')}/${controlBindingLabel('menuDown')} листать  |  ${log.length} зап.  |  ${menuCloseHint()} закрыть`, w - 24 * sx),
     12 * sx,
     h - 8 * sy,

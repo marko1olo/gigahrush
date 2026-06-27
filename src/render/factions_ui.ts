@@ -7,6 +7,9 @@ import { getAlifeLeaderboardSnapshot, type AlifeLeaderboardEntry, type AlifeLead
 import { menuCloseHint } from '../systems/controls';
 import { drawNeuroPanel, drawGlitchText } from './hud_fx';
 import { fitText } from './ui_text';
+import { drawShadowText, getUiFont } from './ui_font';
+
+
 
 const MATRIX_LABELS = ['Игрок', 'Граждане', 'Ликвид.', 'Культ.', 'Учёные', 'Дикие'];
 const MATRIX_FACTIONS = [Faction.PLAYER, Faction.CITIZEN, Faction.LIQUIDATOR, Faction.CULTIST, Faction.SCIENTIST, Faction.WILD];
@@ -55,14 +58,14 @@ function drawRelationMatrix(
 
   ctx.strokeStyle = 'rgba(100,100,100,0.3)';
   ctx.lineWidth = 1;
-  ctx.font = `bold ${labelFontSize}px monospace`;
+  ctx.font = getUiFont(labelFontSize, true);
   for (let c = 0; c < cols; c++) {
     const cx = x + (c + 1) * cellW + cellW / 2;
     const cy = y + cellH / 2;
     ctx.fillStyle = c === 0 ? '#fff' : '#ccc';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(fitText(ctx, MATRIX_LABELS[c], cellW * 0.95), cx, cy);
+    drawShadowText(ctx, fitText(ctx, MATRIX_LABELS[c], cellW * 0.95), cx, cy);
   }
 
   for (let r = 0; r < cols; r++) {
@@ -70,19 +73,19 @@ function drawRelationMatrix(
     ctx.fillStyle = r === 0 ? '#fff' : '#ccc';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.font = `bold ${labelFontSize}px monospace`;
-    ctx.fillText(fitText(ctx, MATRIX_LABELS[r], cellW * 0.95), x + cellW / 2, ry);
+    ctx.font = getUiFont(labelFontSize, true);
+    drawShadowText(ctx, fitText(ctx, MATRIX_LABELS[r], cellW * 0.95), x + cellW / 2, ry);
 
-    ctx.font = `${fontSize}px monospace`;
+    ctx.font = getUiFont(fontSize, false);
     for (let c = 0; c < cols; c++) {
       const v = getFactionRel(MATRIX_FACTIONS[r], MATRIX_FACTIONS[c]);
       const cx = x + (c + 1) * cellW + cellW / 2;
       if (r === c) {
         ctx.fillStyle = '#555';
-        ctx.fillText('-', cx, ry);
+        drawShadowText(ctx, '-', cx, ry);
       } else {
         ctx.fillStyle = v >= 50 ? '#4f4' : v >= 0 ? '#cc4' : v >= -50 ? '#f84' : '#f44';
-        ctx.fillText(String(v), cx, ry);
+        drawShadowText(ctx, String(v), cx, ry);
       }
     }
 
@@ -117,20 +120,20 @@ function drawFactionSnapshotPanel(
   ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
-  ctx.font = `bold ${9 * sy}px monospace`;
+  ctx.font = getUiFont(9 * sy, true);
   ctx.fillStyle = '#0ca';
-  ctx.fillText('ТЕРРИТОРИИ И СОБЫТИЯ', x + 6, y + 5);
+  drawShadowText(ctx, 'ТЕРРИТОРИИ И СОБЫТИЯ', x + 6, y + 5);
 
-  ctx.font = `${8 * sy}px monospace`;
+  ctx.font = getUiFont(8 * sy, false);
   if (!snapshot) {
     ctx.fillStyle = '#777';
-    ctx.fillText(fitText(ctx, 'Нет снимка: подождите тик симуляции.', w - 12), x + 6, y + 20 * sy);
+    drawShadowText(ctx, fitText(ctx, 'Нет снимка: подождите тик симуляции.', w - 12), x + 6, y + 20 * sy);
     return;
   }
 
   let yy = y + 19 * sy;
   ctx.fillStyle = snapshot.contestedZones > 0 ? '#ffd36a' : '#688';
-  ctx.fillText(`Спорные фронты: ${snapshot.contestedZones}`, x + 6, yy);
+  drawShadowText(ctx, `Спорные фронты: ${snapshot.contestedZones}`, x + 6, yy);
   yy += 11 * sy;
 
   for (const owner of snapshot.owners) {
@@ -139,13 +142,13 @@ function drawFactionSnapshotPanel(
     ctx.fillRect(x + 7, yy + 2, 6, 6);
     ctx.fillStyle = owner.fronts > 0 ? '#ffd36a' : '#bbb';
     const line = `${ZONE_FACTION_NAMES[owner.faction]}: ${Math.round(owner.cells / 1000)}k кл.${owner.fronts > 0 ? `, фронт ${owner.fronts}` : ''}`;
-    ctx.fillText(fitText(ctx, line, w - 20), x + 17, yy);
+    drawShadowText(ctx, fitText(ctx, line, w - 20), x + 17, yy);
     yy += 10 * sy;
   }
 
   yy += 3 * sy;
   ctx.fillStyle = '#8ac';
-  ctx.fillText('Давление', x + 6, yy);
+  drawShadowText(ctx, 'Давление', x + 6, yy);
   yy += 10 * sy;
   let drawnContested = 0;
   for (const zone of snapshot.zones) {
@@ -153,23 +156,23 @@ function drawFactionSnapshotPanel(
     if (drawnContested >= 4 || yy > y + h - 54 * sy) break;
     const line = `С${zone.zoneId + 1}: ${ZONE_FACTION_NAMES[zone.owner]} / ${ZONE_FACTION_NAMES[zone.dominant]} ${Math.round(zone.pressure * 100)}%`;
     ctx.fillStyle = '#ffd36a';
-    ctx.fillText(fitText(ctx, line, w - 12), x + 6, yy);
+    drawShadowText(ctx, fitText(ctx, line, w - 12), x + 6, yy);
     yy += 10 * sy;
     drawnContested++;
   }
   if (drawnContested === 0) {
     ctx.fillStyle = '#666';
-    ctx.fillText('Границы устойчивы.', x + 6, yy);
+    drawShadowText(ctx, 'Границы устойчивы.', x + 6, yy);
     yy += 10 * sy;
   }
 
   yy += 3 * sy;
   ctx.fillStyle = '#8ac';
-  ctx.fillText('Недавнее', x + 6, yy);
+  drawShadowText(ctx, 'Недавнее', x + 6, yy);
   yy += 10 * sy;
   if (snapshot.recentEvents.length === 0) {
     ctx.fillStyle = '#666';
-    ctx.fillText('Фракционных событий пока нет.', x + 6, yy);
+    drawShadowText(ctx, 'Фракционных событий пока нет.', x + 6, yy);
     return;
   }
   for (const event of snapshot.recentEvents) {
@@ -179,7 +182,7 @@ function drawFactionSnapshotPanel(
     const phase = event.phase === 'aftermath' ? ' итог' : event.phase === 'start' ? ' старт' : '';
     const name = event.name || String(event.type);
     ctx.fillStyle = eventColor(event.severity);
-    ctx.fillText(fitText(ctx, `${age}s ${zone}: ${name}${phase}`, w - 12), x + 6, yy);
+    drawShadowText(ctx, fitText(ctx, `${age}s ${zone}: ${name}${phase}`, w - 12), x + 6, yy);
     yy += 10 * sy;
   }
 }
@@ -201,21 +204,21 @@ function drawRankRow(
     ctx.fillStyle = 'rgba(30,120,105,0.28)';
     ctx.fillRect(x + 3, y - 1, w - 6, rowH);
   }
-  ctx.font = `${7.5 * sy}px monospace`;
+  ctx.font = getUiFont(7.5 * sy, false);
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
   ctx.fillStyle = entry.player ? '#fff' : '#bbb';
   const prefix = `${String(entry.rank).padStart(3, ' ')} ${FACTION_SHORT[entry.faction]} L${String(entry.level).padStart(2, '0')}`;
-  ctx.fillText(prefix, x + 6, y);
+  drawShadowText(ctx, prefix, x + 6, y);
   ctx.fillStyle = karmaColor(entry.karma);
-  ctx.fillText(`K${entry.karma}`, x + Math.min(w - 42 * sy, 76 * sy), y);
+  drawShadowText(ctx, `K${entry.karma}`, x + Math.min(w - 42 * sy, 76 * sy), y);
   ctx.fillStyle = entry.player ? '#eff' : '#9ab';
   const nameX = x + 112 * sy;
   const nameW = Math.max(24, w - (nameX - x) - 58 * sy);
-  ctx.fillText(fitText(ctx, entry.name, nameW), nameX, y);
+  drawShadowText(ctx, fitText(ctx, entry.name, nameW), nameX, y);
   ctx.textAlign = 'right';
   ctx.fillStyle = '#edb';
-  ctx.fillText(String(entry.score), x + w - 6, y);
+  drawShadowText(ctx, String(entry.score), x + w - 6, y);
   ctx.textAlign = 'left';
 }
 
@@ -236,14 +239,14 @@ function drawAlifeRankPanel(
 
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
-  ctx.font = `bold ${9 * sy}px monospace`;
+  ctx.font = getUiFont(9 * sy, true);
   ctx.fillStyle = '#0d9';
-  ctx.fillText('A-LIFE РЕЙТИНГ ТОП 100', x + 6, y + 5);
+  drawShadowText(ctx, 'A-LIFE РЕЙТИНГ ТОП 100', x + 6, y + 5);
 
-  ctx.font = `${7.5 * sy}px monospace`;
+  ctx.font = getUiFont(7.5 * sy, false);
   ctx.fillStyle = '#9ab';
   const self = snapshot.player;
-  ctx.fillText(fitText(ctx, `Вы #${self.rank}/${snapshot.totalAlive} score ${self.score} karma ${self.karma}`, w - 12), x + 6, y + 18 * sy);
+  drawShadowText(ctx, fitText(ctx, `Вы #${self.rank}/${snapshot.totalAlive} score ${self.score} karma ${self.karma}`, w - 12), x + 6, y + 18 * sy);
 
   const rowH = 10 * sy;
   const listY = y + 32 * sy;
@@ -282,7 +285,7 @@ export function drawFactionMenu(
   drawNeuroPanel(ctx, 0, 0, w, h, time, 95);
 
   // Title
-  ctx.font = `bold ${12 * sy}px monospace`;
+  ctx.font = getUiFont(12 * sy, true);
   ctx.textAlign = 'center';
   drawGlitchText(ctx, fitText(ctx, 'ОТНОШЕНИЯ И A-LIFE РЕЙТИНГ', w - 16 * sx), w / 2, 20 * sy, time, 950, '#0ca', 12 * sy);
 
@@ -320,10 +323,10 @@ export function drawFactionMenu(
 
   // Hint
   ctx.fillStyle = '#555';
-  ctx.font = `${8 * sy}px monospace`;
+  ctx.font = getUiFont(8 * sy, false);
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
-  ctx.fillText(fitText(ctx, `${menuCloseHint()} закрыть  ↑↓ рейтинг`, w - 16 * sx), w / 2, botY + 2 * sy);
+  drawShadowText(ctx, fitText(ctx, `${menuCloseHint()} закрыть  ↑↓ рейтинг`, w - 16 * sx), w / 2, botY + 2 * sy);
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
 }

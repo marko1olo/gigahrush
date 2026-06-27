@@ -2,6 +2,9 @@ import { type ComputerOverlaySnapshot } from '../systems/computers';
 import { controlBindingLabel, controlHint, menuCloseHint } from '../systems/controls';
 import { drawGlitchText, drawNeuroPanel, drawStaticNoise } from './hud_fx';
 import { fitText, wrapTextLines } from './ui_text';
+import { drawShadowText, getUiFont } from './ui_font';
+
+
 
 export function drawComputerOverlay(
   ctx: CanvasRenderingContext2D,
@@ -29,16 +32,16 @@ export function drawComputerOverlay(
   ctx.textBaseline = 'top';
   drawGlitchText(ctx, computer.label, x + pad, y + 10 * s, time, 1621, '#7ee8ff', 12 * s);
   ctx.textAlign = 'right';
-  ctx.font = `${7 * s}px monospace`;
+  ctx.font = getUiFont(7 * s, false);
   ctx.fillStyle = '#607880';
-  ctx.fillText(`${computer.pageIndex + 1}/${computer.pageCount}`, x + panelW - pad, y + 14 * s);
+  drawShadowText(ctx, `${computer.pageIndex + 1}/${computer.pageCount}`, x + panelW - pad, y + 14 * s);
   ctx.textAlign = 'left';
 
-  ctx.font = `bold ${10 * s}px monospace`;
+  ctx.font = getUiFont(10 * s, true);
   ctx.fillStyle = '#d8f7ff';
-  ctx.fillText(fitText(ctx, computer.title, maxW), x + pad, y + 38 * s);
+  drawShadowText(ctx, fitText(ctx, computer.title, maxW), x + pad, y + 38 * s);
 
-  ctx.font = `${8 * s}px monospace`;
+  ctx.font = getUiFont(8 * s, false);
   ctx.fillStyle = '#9fb8bd';
   let ly = y + 58 * s;
   const lineH = 11 * s;
@@ -46,7 +49,7 @@ export function drawComputerOverlay(
   let rows = 0;
   for (const line of computer.lines) {
     for (const wrapped of wrapTextLines(ctx, line, maxW, maxRows - rows)) {
-      ctx.fillText(wrapped, x + pad, ly);
+      drawShadowText(ctx, wrapped, x + pad, ly);
       ly += lineH;
       rows++;
       if (rows >= maxRows) break;
@@ -55,17 +58,17 @@ export function drawComputerOverlay(
   }
 
   ctx.fillStyle = computer.copied ? '#888' : '#6cf';
-  ctx.fillText(
+  drawShadowText(ctx,
     fitText(ctx, computer.copied ? 'Данные уже скопированы.' : `${controlHint('gameMenu')} скопировать: ${computer.copyLabel} +${computer.rewardRubles} руб.`, maxW),
     x + pad,
     y + panelH - 34 * s,
   );
   if (computer.message) {
     ctx.fillStyle = '#d7f7ff';
-    ctx.fillText(fitText(ctx, computer.message, maxW), x + pad, y + panelH - 24 * s);
+    drawShadowText(ctx, fitText(ctx, computer.message, maxW), x + pad, y + panelH - 24 * s);
   }
   ctx.fillStyle = '#547078';
-  ctx.font = `${7 * s}px monospace`;
-  ctx.fillText(fitText(ctx, `${controlBindingLabel('menuUp')}/${controlBindingLabel('menuDown')} страницы  ${controlHint('gameMenu')} копия  ${menuCloseHint()} закрыть`, maxW), x + pad, y + panelH - 14 * s);
+  ctx.font = getUiFont(7 * s, false);
+  drawShadowText(ctx, fitText(ctx, `${controlBindingLabel('menuUp')}/${controlBindingLabel('menuDown')} страницы  ${controlHint('gameMenu')} копия  ${menuCloseHint()} закрыть`, maxW), x + pad, y + panelH - 14 * s);
   ctx.restore();
 }

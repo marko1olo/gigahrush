@@ -6,6 +6,9 @@ import { isPlatformAudioMuted } from '../systems/platform_bridge';
 import { controlBindingLabel, menuCloseHint } from '../systems/controls';
 import { drawNeuroPanel, textJitter, flicker } from './hud_fx';
 import { fitText } from './ui_text';
+import { drawShadowText, getUiFont } from './ui_font';
+
+
 
 export function drawGameMenu(
   ctx: CanvasRenderingContext2D,
@@ -35,14 +38,14 @@ export function drawGameMenu(
   ctx.shadowBlur = 10;
   const tj = textJitter(time, 700);
   ctx.fillStyle = `rgba(200,0,0,${flicker(time, 701)})`;
-  ctx.font = `bold ${20 * sy}px monospace`;
+  ctx.font = getUiFont(20 * sy, true);
   ctx.textAlign = 'center';
-  ctx.fillText('ГИГАХРУЩ', w / 2 + tj.dx, py + 20 * sy + tj.dy);
+  drawShadowText(ctx, 'ГИГАХРУЩ', w / 2 + tj.dx, py + 20 * sy + tj.dy);
   ctx.shadowBlur = 0;
   ctx.restore();
 
   // Menu items
-  ctx.font = `${9 * sy}px monospace`;
+  ctx.font = getUiFont(9 * sy, false);
   ctx.textAlign = 'center';
   for (let i = 0; i < GAME_MENU_ITEMS.length; i++) {
     const selected = i === state.menuSel;
@@ -54,12 +57,12 @@ export function drawGameMenu(
       label = isPlatformAudioMuted() ? 'Звук: Выкл' : 'Звук: Вкл';
     }
     ctx.fillStyle = selected ? `rgba(0,255,170,${alpha})` : `rgba(100,136,136,${alpha})`;
-    ctx.fillText(`${selected ? '▶ ' : '  '}${label}`, w / 2 + mj.dx, yy + mj.dy);
+    drawShadowText(ctx, `${selected ? '▶ ' : '  '}${label}`, w / 2 + mj.dx, yy + mj.dy);
   }
 
   ctx.fillStyle = '#456';
-  ctx.font = `${7 * sy}px monospace`;
-  ctx.fillText(
+  ctx.font = getUiFont(7 * sy, false);
+  drawShadowText(ctx,
     fitText(ctx, `${controlBindingLabel('controlsMenu')} — клавиши  |  ${controlBindingLabel('menuUp')}/${controlBindingLabel('menuDown')} — выбор  |  ${controlBindingLabel('gameMenu')} — подтвердить  |  ${menuCloseHint()} — закрыть`, pw - 12 * _sx),
     w / 2,
     py + ph - 10 * sy,

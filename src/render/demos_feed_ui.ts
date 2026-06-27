@@ -1,5 +1,8 @@
 import type { DemosFeedView, DemosRenderedReaction } from '../systems/demos_posts';
 import { fitText, wrapTextLines } from './ui_text';
+import { drawShadowText, getUiFont } from './ui_font';
+
+
 
 export interface DrawDemosFeedOptions {
   title?: string;
@@ -22,7 +25,7 @@ function drawTag(
   ctx.strokeStyle = 'rgba(40,210,190,0.32)';
   ctx.strokeRect(x + 0.5, y + 0.5, w - 1, 10 * sy - 1);
   ctx.fillStyle = '#8fe';
-  ctx.fillText(label, x + 4 * sy, y + 2 * sy);
+  drawShadowText(ctx, label, x + 4 * sy, y + 2 * sy);
   return w;
 }
 
@@ -45,22 +48,22 @@ export function drawDemosFeedPanel(
   const pad = 7 * sx;
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
-  ctx.font = `bold ${9 * sy}px monospace`;
+  ctx.font = getUiFont(9 * sy, true);
   ctx.fillStyle = '#25ffd0';
-  ctx.fillText(fitText(ctx, opts.title ?? 'ЛЕНТА ДЕМОСА', w - pad * 2), x + pad, y + 6 * sy);
+  drawShadowText(ctx, fitText(ctx, opts.title ?? 'ЛЕНТА ДЕМОСА', w - pad * 2), x + pad, y + 6 * sy);
 
-  ctx.font = `${7 * sy}px monospace`;
+  ctx.font = getUiFont(7 * sy, false);
   ctx.fillStyle = '#587';
-  ctx.fillText(`${view.total}/${view.capacity}`, x + w - pad - 40 * sx, y + 7 * sy);
+  drawShadowText(ctx, `${view.total}/${view.capacity}`, x + w - pad - 40 * sx, y + 7 * sy);
 
   const rowX = x + pad;
   let rowY = y + 23 * sy - Math.max(0, Math.floor(opts.scroll ?? 0)) * 18 * sy;
   const bottom = y + h - 6 * sy;
   const rowW = w - pad * 2;
   if (view.posts.length === 0) {
-    ctx.font = `${8 * sy}px monospace`;
+    ctx.font = getUiFont(8 * sy, false);
     ctx.fillStyle = '#789';
-    ctx.fillText(fitText(ctx, view.emptyLabel, rowW), rowX, rowY);
+    drawShadowText(ctx, fitText(ctx, view.emptyLabel, rowW), rowX, rowY);
     return;
   }
 
@@ -75,9 +78,9 @@ export function drawDemosFeedPanel(
       ctx.strokeStyle = 'rgba(0,140,130,0.25)';
       ctx.strokeRect(rowX + 0.5, rowY + 0.5, rowW - 1, rowH - 1);
 
-      ctx.font = `${7 * sy}px monospace`;
+      ctx.font = getUiFont(7 * sy, false);
       ctx.fillStyle = '#6a9';
-      ctx.fillText(
+      drawShadowText(ctx,
         fitText(ctx, `post:${post.id}  alife:${post.authorAlifeId}  ${Math.floor(post.createdAt)}s`, rowW - 10 * sx),
         rowX + 5 * sx,
         rowY + 4 * sy,
@@ -91,18 +94,18 @@ export function drawDemosFeedPanel(
         if (tagX > rowX + rowW - 20 * sx) break;
       }
 
-      ctx.font = `${8 * sy}px monospace`;
+      ctx.font = getUiFont(8 * sy, false);
       ctx.fillStyle = '#d9f1ed';
       let textY = rowY + 27 * sy;
       for (const line of textLines) {
-        ctx.fillText(line, rowX + 5 * sx, textY);
+        drawShadowText(ctx, line, rowX + 5 * sx, textY);
         textY += 9 * sy;
       }
 
-      ctx.font = `${7 * sy}px monospace`;
+      ctx.font = getUiFont(7 * sy, false);
       for (const reaction of reactions.slice(0, 2)) {
         ctx.fillStyle = reaction.relation < 0 ? '#e99' : '#9dc';
-        ctx.fillText(
+        drawShadowText(ctx,
           fitText(ctx, `alife:${reaction.reactorAlifeId}: ${reaction.text}`, rowW - 12 * sx),
           rowX + 8 * sx,
           textY,

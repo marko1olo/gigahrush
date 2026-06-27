@@ -7,6 +7,9 @@ import { drawGlitchText, drawNeuroPanel, drawStaticNoise } from './hud_fx';
 import { fitText } from './ui_text';
 import { menuCloseHint } from '../systems/controls';
 import { isPlayerEntity } from '../systems/player_actor';
+import { drawShadowText, getUiFont } from './ui_font';
+
+
 
 export type MapEditorToolId = 'cell' | 'door' | 'texture' | 'feature' | 'entity' | 'container' | 'inspect' | string;
 export type MapEditorDirtyCell = number | { x: number; y: number; idx?: number };
@@ -439,9 +442,9 @@ function drawToolStrip(ctx: CanvasRenderingContext2D, layout: Layout, state: Map
   const w = Math.max(1, layout.leftW - layout.pad * 1.4);
   const rowH = 16 * s;
 
-  ctx.font = `${7 * s}px monospace`;
+  ctx.font = getUiFont(7 * s, false);
   ctx.fillStyle = '#607080';
-  ctx.fillText('ИНСТРУМЕНТ', x, y - 10 * s);
+  drawShadowText(ctx, 'ИНСТРУМЕНТ', x, y - 10 * s);
   for (const tool of tools) {
     const active = tool.active === true || entryIdText(tool) === activeTool;
     ctx.fillStyle = active ? 'rgba(80,220,230,0.20)' : 'rgba(0,0,0,0.28)';
@@ -449,7 +452,7 @@ function drawToolStrip(ctx: CanvasRenderingContext2D, layout: Layout, state: Map
     ctx.strokeStyle = active ? 'rgba(99,246,255,0.75)' : 'rgba(80,110,120,0.28)';
     ctx.strokeRect(x + 0.5, y + 0.5, w - 1, rowH - 2 * s - 1);
     ctx.fillStyle = tool.disabled ? '#46545c' : active ? (tool.color ?? '#63f6ff') : '#7f9298';
-    ctx.fillText(fitText(ctx, tool.label, w - 6 * s), x + 3 * s, y + 4 * s);
+    drawShadowText(ctx, fitText(ctx, tool.label, w - 6 * s), x + 3 * s, y + 4 * s);
     y += rowH;
     if (y > layout.y + layout.h - layout.bottomH - rowH) break;
   }
@@ -470,9 +473,9 @@ function drawPalette(ctx: CanvasRenderingContext2D, layout: Layout, state: MapEd
   const start = scrollStartFor(activeIdx, visibleRows, entries.length);
   const end = Math.min(entries.length, start + visibleRows);
 
-  ctx.font = `${7 * s}px monospace`;
+  ctx.font = getUiFont(7 * s, false);
   ctx.fillStyle = '#607080';
-  ctx.fillText('ПАЛИТРА', x, y - 10 * s);
+  drawShadowText(ctx, 'ПАЛИТРА', x, y - 10 * s);
   for (let i = start; i < end; i++) {
     const entry = entries[i];
     const id = entryIdText(entry);
@@ -484,7 +487,7 @@ function drawPalette(ctx: CanvasRenderingContext2D, layout: Layout, state: MapEd
     ctx.fillStyle = entry.color ?? (active ? '#9fdbc6' : '#7f9298');
     ctx.fillRect(x + 3 * s, y + 4 * s, 5 * s, 5 * s);
     ctx.fillStyle = entry.disabled ? '#46545c' : active ? '#dff' : '#93a4aa';
-    ctx.fillText(fitText(ctx, entry.label, w - 14 * s), x + 11 * s, y + 3 * s);
+    drawShadowText(ctx, fitText(ctx, entry.label, w - 14 * s), x + 11 * s, y + 3 * s);
     y += rowH;
   }
 }
@@ -810,9 +813,9 @@ function drawLabelValue(
 ): void {
   const split = Math.min(52 * s, w * 0.43);
   ctx.fillStyle = '#607080';
-  ctx.fillText(fitText(ctx, label, split - 2 * s), x, y);
+  drawShadowText(ctx, fitText(ctx, label, split - 2 * s), x, y);
   ctx.fillStyle = color;
-  ctx.fillText(fitText(ctx, value, w - split), x + split, y);
+  drawShadowText(ctx, fitText(ctx, value, w - split), x + split, y);
 }
 
 function drawInspector(
@@ -832,9 +835,9 @@ function drawInspector(
   let y = layout.y + layout.h - layout.bottomH - 82 * s;
   const lineH = 9 * s;
 
-  ctx.font = `${7 * s}px monospace`;
+  ctx.font = getUiFont(7 * s, false);
   ctx.fillStyle = '#607080';
-  ctx.fillText('ИНСПЕКТОР', x, y);
+  drawShadowText(ctx, 'ИНСПЕКТОР', x, y);
   y += 10 * s;
   drawLabelValue(ctx, 'xy', `${details.x},${details.y}`, x, y, w, s, '#dff'); y += lineH;
   drawLabelValue(ctx, 'idx', String(details.idx), x, y, w, s); y += lineH;
@@ -874,7 +877,7 @@ function drawModePanel(
   drawStaticNoise(ctx, x, y, panelW, panelH, time, 0.014);
   drawGlitchText(ctx, state.menuTitle ?? String(mode).toUpperCase(), x + pad, y + 8 * s, time, 1251, '#63f6ff', 9 * s);
 
-  ctx.font = `${7 * s}px monospace`;
+  ctx.font = getUiFont(7 * s, false);
   if (mode === 'details') {
     const lines = [
       `xy ${Math.floor(Number(state.cursorX ?? 0))},${Math.floor(Number(state.cursorY ?? 0))}`,
@@ -885,7 +888,7 @@ function drawModePanel(
     let ly = y + 27 * s;
     for (const line of lines) {
       ctx.fillStyle = '#9fb8bd';
-      ctx.fillText(fitText(ctx, line, panelW - pad * 2), x + pad, ly);
+      drawShadowText(ctx, fitText(ctx, line, panelW - pad * 2), x + pad, ly);
       ly += 14 * s;
     }
     return;
@@ -907,7 +910,7 @@ function drawModePanel(
     ctx.strokeStyle = active ? 'rgba(99,246,255,0.72)' : 'rgba(90,120,130,0.25)';
     ctx.strokeRect(x + pad + 0.5, ly - 2 * s + 0.5, panelW - pad * 2 - 1, 13 * s - 1);
     ctx.fillStyle = active ? (entry.color ?? '#dff') : '#8aa0a6';
-    ctx.fillText(fitText(ctx, `${active ? '>' : ' '} ${entry.label}`, panelW - pad * 2 - 4 * s), x + pad + 3 * s, ly + 1 * s);
+    drawShadowText(ctx, fitText(ctx, `${active ? '>' : ' '} ${entry.label}`, panelW - pad * 2 - 4 * s), x + pad + 3 * s, ly + 1 * s);
     ly += rowH;
   }
 }
@@ -933,20 +936,20 @@ function drawStatus(
   const x = layout.x + layout.pad;
   const y = layout.y + layout.h - layout.bottomH + 5 * s;
   const w = layout.w - layout.pad * 2;
-  ctx.font = `${7 * s}px monospace`;
+  ctx.font = getUiFont(7 * s, false);
   const status = state.error
     ? state.error
     : state.status
     ?? `${statusParts(state).join('  |  ')}  |  xy:${cursorX},${cursorY}`;
   ctx.fillStyle = state.error ? '#ff5868' : '#668090';
-  ctx.fillText(fitText(ctx, status, w), x, y);
+  drawShadowText(ctx, fitText(ctx, status, w), x, y);
 
   const hints = state.hints && state.hints.length > 0
     ? state.hints.join('  |  ')
     : `${menuCloseHint()} закрыть  |  WASD/стрелки карта  |  wheel масштаб`;
   ctx.textAlign = 'right';
   ctx.fillStyle = '#4f6470';
-  ctx.fillText(fitText(ctx, hints, w * 0.48), layout.x + layout.w - layout.pad, y);
+  drawShadowText(ctx, fitText(ctx, hints, w * 0.48), layout.x + layout.w - layout.pad, y);
   ctx.textAlign = 'left';
 }
 
@@ -973,10 +976,10 @@ export function drawMapEditor(
 
   ctx.textBaseline = 'top';
   drawGlitchText(ctx, 'НЕТ-ТЕРМИНАЛ ГЕН: РЕДАКТОР КАРТЫ', layout.x + layout.pad, layout.y + 8 * s, time, 1231, '#63f6ff', 10 * s);
-  ctx.font = `${7 * s}px monospace`;
+  ctx.font = getUiFont(7 * s, false);
   ctx.fillStyle = '#607080';
   const subtitle = state.mode ? `режим: ${state.mode}` : 'снимок этажа';
-  ctx.fillText(fitText(ctx, subtitle, layout.w * 0.36), layout.x + layout.w - layout.pad - 128 * s, layout.y + 10 * s);
+  drawShadowText(ctx, fitText(ctx, subtitle, layout.w * 0.36), layout.x + layout.w - layout.pad - 128 * s, layout.y + 10 * s);
 
   drawToolStrip(ctx, layout, state, s);
   drawPalette(ctx, layout, state, s);

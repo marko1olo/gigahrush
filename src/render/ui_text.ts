@@ -1,4 +1,6 @@
 import { translateText } from '../systems/localization';
+import { drawShadowText } from './ui_font';
+
 
 let uiTextTime = 0;
 const fitTextSeenAt = new Map<string, number>();
@@ -221,7 +223,7 @@ export function drawWrappedText(
   maxLines = 64,
 ): number {
   const lines = wrapTextLines(ctx, text, maxW, maxLines);
-  for (let i = 0; i < lines.length; i++) ctx.fillText(lines[i], x, y + i * lineH);
+  for (let i = 0; i < lines.length; i++) drawShadowText(ctx, lines[i], x, y + i * lineH);
   return y + lines.length * lineH;
 }
 
@@ -237,7 +239,7 @@ export function drawCenteredWrappedText(
   const lines = wrapTextLines(ctx, text, maxW, maxLines);
   const prevAlign = ctx.textAlign;
   ctx.textAlign = 'center';
-  for (let i = 0; i < lines.length; i++) ctx.fillText(lines[i], x, y + i * lineH);
+  for (let i = 0; i < lines.length; i++) drawShadowText(ctx, lines[i], x, y + i * lineH);
   ctx.textAlign = prevAlign;
   return y + lines.length * lineH;
 }

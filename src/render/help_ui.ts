@@ -4,6 +4,9 @@ import { type GameState } from '../core/types';
 import { controlBindingLabel, controlHint, menuCloseHint } from '../systems/controls';
 import { drawGlitchText, drawNeuroPanel, flicker, textJitter } from './hud_fx';
 import { fitTextStable, wrapTextLines } from './ui_text';
+import { drawShadowText, getUiFont } from './ui_font';
+
+
 
 interface HelpLine {
   key: string;
@@ -92,15 +95,15 @@ function drawHelpLine(
   lineH: number,
   s: number,
 ): number {
-  ctx.font = `bold ${6.5 * s}px monospace`;
+  ctx.font = getUiFont(6.5 * s, true);
   ctx.fillStyle = '#0fa';
-  ctx.fillText(fitTextStable(ctx, line.key, keyW), x, y);
-  ctx.font = `${6.5 * s}px monospace`;
+  drawShadowText(ctx, fitTextStable(ctx, line.key, keyW), x, y);
+  ctx.font = getUiFont(6.5 * s, false);
   ctx.fillStyle = '#b9d6d0';
   const lines = wrapTextLines(ctx, line.text, Math.max(24 * s, w - keyW - 6 * s), 2, { stable: true });
   const textX = x + keyW + 6 * s;
   for (let i = 0; i < lines.length; i++) {
-    ctx.fillText(lines[i], textX, y + i * lineH);
+    drawShadowText(ctx, lines[i], textX, y + i * lineH);
   }
   return Math.max(1, lines.length) * lineH;
 }
@@ -119,9 +122,9 @@ function drawHelpSection(
   const lineH = 8.6 * s;
   const keyW = Math.min(84 * s, Math.max(48 * s, w * 0.34));
   const titleJ = textJitter(time * 0.9, seed);
-  ctx.font = `bold ${8 * s}px monospace`;
+  ctx.font = getUiFont(8 * s, true);
   ctx.fillStyle = '#6cf';
-  ctx.fillText(fitTextStable(ctx, section.title, w), x + titleJ.dx, y + titleJ.dy);
+  drawShadowText(ctx, fitTextStable(ctx, section.title, w), x + titleJ.dx, y + titleJ.dy);
   y += 11 * s;
   ctx.strokeStyle = `rgba(0,255,190,${0.22 + 0.12 * flicker(time, seed + 1)})`;
   ctx.beginPath();
@@ -171,10 +174,10 @@ export function drawHelpMenu(
   ctx.textBaseline = 'alphabetic';
   const titleJ = textJitter(uiTime, 1211);
   drawGlitchText(ctx, 'F1 // HELP', panelX + pad + titleJ.dx, panelY + pad + 11 * s + titleJ.dy, uiTime, 1212, '#0fa', 14 * s);
-  ctx.font = `${6.6 * s}px monospace`;
+  ctx.font = getUiFont(6.6 * s, false);
   ctx.fillStyle = '#789';
   const subtitle = 'одностраничный плакат выживания: клавиши, экраны, HUD и браузерные правила';
-  ctx.fillText(fitTextStable(ctx, subtitle, panelW - pad * 2), panelX + pad, panelY + pad + 24 * s);
+  drawShadowText(ctx, fitTextStable(ctx, subtitle, panelW - pad * 2), panelX + pad, panelY + pad + 24 * s);
 
   for (let col = 0; col < columns; col++) {
     let y = contentTop;
@@ -186,9 +189,9 @@ export function drawHelpMenu(
     }
   }
 
-  ctx.font = `${6.5 * s}px monospace`;
+  ctx.font = getUiFont(6.5 * s, false);
   ctx.fillStyle = '#567';
   const footer = `${controlHint('help')} закрыть HELP  |  ${menuCloseHint()} назад  |  ${controlHint('controlsMenu')} все бинды`;
-  ctx.fillText(fitTextStable(ctx, footer, panelW - pad * 2), panelX + pad, panelY + panelH - pad);
+  drawShadowText(ctx, fitTextStable(ctx, footer, panelW - pad * 2), panelX + pad, panelY + panelH - pad);
   ctx.restore();
 }

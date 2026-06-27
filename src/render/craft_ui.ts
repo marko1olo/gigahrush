@@ -17,6 +17,9 @@ import { drawGlitchText, drawNeuroPanel, drawStaticNoise } from './hud_fx';
 import { drawItemGridIcon } from './item_sprites';
 import { craftMenuLayout } from './ui_layout';
 import { drawWrappedText, fitTextStable } from './ui_text';
+import { drawShadowText, getUiFont } from './ui_font';
+
+
 
 export type CraftEntry =
   | CraftMenuRecipeEntry
@@ -129,9 +132,9 @@ export function craftEntryCanAct(entry: CraftEntry): boolean {
 }
 
 function drawPanelTitle(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, w: number, sy: number, color: string): void {
-  ctx.font = `${6.4 * sy}px monospace`;
+  ctx.font = getUiFont(6.4 * sy, false);
   ctx.fillStyle = color;
-  ctx.fillText(fitTextStable(ctx, text, w), x, y);
+  drawShadowText(ctx, fitTextStable(ctx, text, w), x, y);
 }
 
 function materialColor(materialId: CraftMaterialId): string {
@@ -151,7 +154,7 @@ function drawTextSegment(
   const fitted = fitTextStable(ctx, text, maxW);
   if (!fitted) return 0;
   ctx.fillStyle = color;
-  ctx.fillText(fitted, x, y);
+  drawShadowText(ctx, fitted, x, y);
   return ctx.measureText(fitted).width;
 }
 
@@ -194,7 +197,7 @@ function drawPrefixedMaterialParts(
     return;
   }
   ctx.fillStyle = prefixColor;
-  ctx.fillText(prefixText, x, y);
+  drawShadowText(ctx, prefixText, x, y);
   drawColoredMaterialParts(ctx, parts, x + prefixW, y, maxW - prefixW, emptyText);
 }
 
@@ -252,10 +255,10 @@ export function drawCraftMenu(
   drawStaticNoise(ctx, layout.originX, layout.originY, 320 * s, 200 * s, uiTime, 0.012);
 
   drawGlitchText(ctx, menuTitle(snapshot.mode), layout.title.x, layout.title.y, uiTime, 931, '#6cf', 9 * sy);
-  ctx.font = `${6.2 * sy}px monospace`;
+  ctx.font = getUiFont(6.2 * sy, false);
   ctx.textAlign = 'right';
   ctx.fillStyle = '#567';
-  ctx.fillText(fitTextStable(ctx, `${menuCloseHint()} закрыть`, layout.close.w), layout.close.x + layout.close.w, layout.close.y);
+  drawShadowText(ctx, fitTextStable(ctx, `${menuCloseHint()} закрыть`, layout.close.w), layout.close.x + layout.close.w, layout.close.y);
   ctx.textAlign = 'left';
 
   for (const rect of [layout.list, layout.detail, layout.materials, layout.bottom]) {
@@ -266,7 +269,7 @@ export function drawCraftMenu(
   }
 
   drawPanelTitle(ctx, snapshot.mode === 'craft' ? 'РЕЦЕПТЫ' : 'ИНВЕНТАРЬ', layout.list.x + 5 * sx, layout.list.y + 4 * sy, layout.list.w - 10 * sx, sy, '#8cf');
-  ctx.font = `${7 * sy}px monospace`;
+  ctx.font = getUiFont(7 * sy, false);
   const listTop = layout.list.y + 16 * sy;
   const visibleRows = Math.max(1, Math.floor((layout.list.h - 20 * sy) / layout.rowH));
   const first = Math.max(0, Math.min(Math.max(0, entries.length - visibleRows), cursor - Math.floor(visibleRows * 0.5)));
@@ -287,7 +290,7 @@ export function drawCraftMenu(
         ctx.strokeRect(layout.list.x + 3 * sx + 0.5, y - 2 * sy + 0.5, layout.list.w - 6 * sx - 1, layout.rowH - 1);
       }
       ctx.fillStyle = entryColor(entry, selected);
-      ctx.fillText(fitTextStable(ctx, entryName(entry), layout.list.w - 12 * sx), layout.list.x + 6 * sx, y);
+      drawShadowText(ctx, fitTextStable(ctx, entryName(entry), layout.list.w - 12 * sx), layout.list.x + 6 * sx, y);
     }
   }
 
@@ -303,16 +306,16 @@ export function drawCraftMenu(
     });
     let y = layout.detail.y + 61 * sy;
     ctx.fillStyle = entryColor(entry, true);
-    ctx.font = `${7.8 * sy}px monospace`;
-    ctx.fillText(fitTextStable(ctx, entryName(entry), layout.detail.w - 10 * sx), layout.detail.x + 5 * sx, y);
+    ctx.font = getUiFont(7.8 * sy, false);
+    drawShadowText(ctx, fitTextStable(ctx, entryName(entry), layout.detail.w - 10 * sx), layout.detail.x + 5 * sx, y);
     y += 10 * sy;
     const desc = entry.description || ITEMS[entry.itemId]?.desc || 'Описание отсутствует.';
     ctx.fillStyle = '#9aa';
-    ctx.font = `${6.2 * sy}px monospace`;
+    ctx.font = getUiFont(6.2 * sy, false);
     y = drawWrappedText(ctx, desc, layout.detail.x + 5 * sx, y, layout.detail.w - 10 * sx, 8 * sy, 2);
     y += 3 * sy;
     ctx.fillStyle = '#8cf';
-    ctx.fillText(vectorHeading(entry), layout.detail.x + 5 * sx, y);
+    drawShadowText(ctx, vectorHeading(entry), layout.detail.x + 5 * sx, y);
     y += 8 * sy;
     drawColoredMaterialParts(ctx, craftMaterialTextParts(entry.components), layout.detail.x + 5 * sx, y, layout.detail.w - 10 * sx);
     y += 10 * sy;
@@ -320,10 +323,10 @@ export function drawCraftMenu(
     y += 10 * sy;
     ctx.fillStyle = '#778';
     const station = entry.kind === 'recipe' ? entry.station : snapshot.stationKind;
-    ctx.fillText(fitTextStable(ctx, `СТАНЦИЯ: ${station}`, layout.detail.w - 10 * sx), layout.detail.x + 5 * sx, y);
+    drawShadowText(ctx, fitTextStable(ctx, `СТАНЦИЯ: ${station}`, layout.detail.w - 10 * sx), layout.detail.x + 5 * sx, y);
   } else {
     ctx.fillStyle = '#667';
-    ctx.font = `${7 * sy}px monospace`;
+    ctx.font = getUiFont(7 * sy, false);
     drawWrappedText(ctx, craftMenuFallbackText(snapshot.mode), layout.detail.x + 8 * sx, layout.detail.y + 28 * sy, layout.detail.w - 16 * sx, 9 * sy, 4);
   }
 
@@ -336,17 +339,17 @@ export function drawCraftMenu(
   for (let i = 0; i < rows.length; i++) {
     const y = layout.materials.y + 18 * sy + i * layout.materialRowH;
     const row = rows[i];
-    ctx.font = `${7 * sy}px monospace`;
+    ctx.font = getUiFont(7 * sy, false);
     ctx.fillStyle = row.color;
-    ctx.fillText(fitTextStable(ctx, row.code, codeW), codeX, y);
-    ctx.font = `${4 * sy}px monospace`;
+    drawShadowText(ctx, fitTextStable(ctx, row.code, codeW), codeX, y);
+    ctx.font = getUiFont(4 * sy, false);
     ctx.fillStyle = row.color;
-    ctx.fillText(fitTextStable(ctx, row.name, nameW), nameX, y - 0.7 * sy);
+    drawShadowText(ctx, fitTextStable(ctx, row.name, nameW), nameX, y - 0.7 * sy);
   }
 
-  ctx.font = `${6.2 * sy}px monospace`;
+  ctx.font = getUiFont(6.2 * sy, false);
   ctx.fillStyle = '#789';
   const hints = `${controlBindingLabel('menuUp')}/${controlBindingLabel('menuDown')} выбор  |  ${controlBindingLabel('gameMenu')} ${snapshot.mode === 'craft' ? 'собрать' : 'разобрать'}  |  ${menuCloseHint()} назад`;
-  ctx.fillText(fitTextStable(ctx, hints, layout.bottom.w - 10 * sx), layout.bottom.x + 5 * sx, layout.bottom.y + 6 * sy);
+  drawShadowText(ctx, fitTextStable(ctx, hints, layout.bottom.w - 10 * sx), layout.bottom.x + 5 * sx, layout.bottom.y + 6 * sy);
   ctx.restore();
 }

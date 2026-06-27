@@ -2,6 +2,9 @@ import { type DiceRoll, type DiceSnapshot } from '../systems/dice';
 import { controlBindingLabel, controlHint, menuCloseHint } from '../systems/controls';
 import { fitText } from './ui_text';
 import { clamp, rect, drawBadge } from './ui_utils';
+import { drawShadowText, getUiFont } from './ui_font';
+
+
 
 const PIPS: Record<number, readonly [number, number][]> = {
   1: [[0.5, 0.5]],
@@ -66,10 +69,10 @@ function drawSide(
 ): void {
   rect(ctx, x, y, w, h, 'rgba(6,9,9,0.62)', active ? '#d6b15d' : '#343c38');
   ctx.fillStyle = active ? '#d6b15d' : '#8d9690';
-  ctx.font = `bold ${9 * s}px monospace`;
+  ctx.font = getUiFont(9 * s, true);
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
-  ctx.fillText(fitText(ctx, label, w - 8 * s), x + 5 * s, y + 5 * s);
+  drawShadowText(ctx, fitText(ctx, label, w - 8 * s), x + 5 * s, y + 5 * s);
 
   const roll = lastRoll(rolls);
   const dieSize = clamp(Math.min(w * 0.32, h * 0.40), 22 * s, 48 * s);
@@ -115,13 +118,13 @@ export function drawDiceInterface(
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
   ctx.fillStyle = '#d1aa54';
-  ctx.font = `bold ${10 * sy}px monospace`;
-  ctx.fillText(fitText(ctx, 'КОСТИ', pw * 0.22), px + pad, headerY);
+  ctx.font = getUiFont(10 * sy, true);
+  drawShadowText(ctx, fitText(ctx, 'КОСТИ', pw * 0.22), px + pad, headerY);
 
   ctx.fillStyle = '#8d9690';
-  ctx.font = `${7.2 * sy}px monospace`;
+  ctx.font = getUiFont(7.2 * sy, false);
   const turn = snapshot.phase === 'npc_turn' ? `${snapshot.npcName} БРОСАЕТ` : snapshot.finished ? resultText(snapshot) : 'ВАШ БРОСОК';
-  ctx.fillText(fitText(ctx, `СТАВКА ${snapshot.stakeRubles}Р | ЦЕЛЬ ДО 21 | ${turn}`, pw - pad * 2), px + pad, headerY + 13 * sy);
+  drawShadowText(ctx, fitText(ctx, `СТАВКА ${snapshot.stakeRubles}Р | ЦЕЛЬ ДО 21 | ${turn}`, pw - pad * 2), px + pad, headerY + 13 * sy);
 
   drawSide(ctx, 'ВЫ', snapshot.playerScore, snapshot.playerRolls, px + pad, sideY, sideW, sideH, s, snapshot.phase === 'player_turn' && !snapshot.finished);
   drawSide(ctx, snapshot.npcName, snapshot.npcScore, snapshot.npcRolls, px + pad + sideW + gap, sideY, sideW, sideH, s, snapshot.phase === 'npc_turn');
@@ -133,9 +136,9 @@ export function drawDiceInterface(
     ? `${controlHint('gameMenu')} ЗАКРЫТЬ  ${menuCloseHint()} ВЫЙТИ`
     : `${controlHint('gameMenu')} БРОСИТЬ  ${controlBindingLabel('drop')} СТОП  ${menuCloseHint()} СДАТЬСЯ`;
   ctx.fillStyle = '#59615d';
-  ctx.font = `${7 * sy}px monospace`;
+  ctx.font = getUiFont(7 * sy, false);
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
-  ctx.fillText(fitText(ctx, action, pw - pad * 2), Math.round(px + pw * 0.5), controlsY);
+  drawShadowText(ctx, fitText(ctx, action, pw - pad * 2), Math.round(px + pw * 0.5), controlsY);
   ctx.restore();
 }

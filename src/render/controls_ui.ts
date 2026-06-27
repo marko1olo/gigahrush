@@ -14,6 +14,9 @@ import {
 } from '../systems/ui_orchestrator';
 import { drawNeuroPanel, drawGlitchText, flicker, textJitter } from './hud_fx';
 import { fitText } from './ui_text';
+import { drawShadowText, getUiFont } from './ui_font';
+
+
 
 function mouseSensitivitySliderText(): string {
   const value = mouseLookSensitivity();
@@ -53,13 +56,12 @@ export function drawControlsMenu(
   ctx.textBaseline = 'alphabetic';
   const titleJ = textJitter(time, 1141);
   drawGlitchText(ctx, isButtons ? 'КНОПКИ' : 'ГОРЯЧИЕ КЛАВИШИ', 12 * sx + titleJ.dx, 12 * sy + titleJ.dy, time, 1142, '#6cf', 11 * sy);
-  ctx.font = `${7 * sy}px monospace`;
+  ctx.font = getUiFont(7 * sy, false);
   ctx.fillStyle = '#577';
-  ctx.fillText(
+  drawShadowText(ctx,
     fitText(ctx, isButtons
       ? `${menuCloseHint()} закрыть`
-      : `${controlHint('gameMenu')} принять/изменить  |  ${menuCloseHint()} закрыть  |  Backspace очистить строку  |  ←/→ слайдер`,
-    w - 24 * sx),
+      : `${controlHint('gameMenu')} принять/изменить  |  ${menuCloseHint()} закрыть  |  Backspace очистить строку  |  ←/→ слайдер`, w - 24 * sx),
     12 * sx,
     26 * sy,
   );
@@ -69,11 +71,11 @@ export function drawControlsMenu(
   const keyW = Math.min(150 * sx, w * 0.38);
   const labelW = Math.max(40 * sx, w - x * 2 - groupW - keyW - 12 * sx);
 
-  ctx.font = `${7 * sy}px monospace`;
+  ctx.font = getUiFont(7 * sy, false);
   ctx.fillStyle = '#345';
-  ctx.fillText('РАЗДЕЛ', x + 14 * sx, top - 7 * sy);
-  ctx.fillText('ДЕЙСТВИЕ', x + groupW + 18 * sx, top - 7 * sy);
-  ctx.fillText(isButtons ? 'КНОПКА' : 'КЛАВИШИ / ЗНАЧЕНИЕ', x + groupW + labelW + 20 * sx, top - 7 * sy);
+  drawShadowText(ctx, 'РАЗДЕЛ', x + 14 * sx, top - 7 * sy);
+  drawShadowText(ctx, 'ДЕЙСТВИЕ', x + groupW + 18 * sx, top - 7 * sy);
+  drawShadowText(ctx, isButtons ? 'КНОПКА' : 'КЛАВИШИ / ЗНАЧЕНИЕ', x + groupW + labelW + 20 * sx, top - 7 * sy);
 
   ctx.textBaseline = 'middle';
   for (let row = 0; row < visible; row++) {
@@ -101,13 +103,13 @@ export function drawControlsMenu(
     }
 
     ctx.fillStyle = isSel ? '#0fa' : '#6a8';
-    ctx.fillText(isSel ? '▶' : ' ', x, textY);
+    drawShadowText(ctx, isSel ? '▶' : ' ', x, textY);
     ctx.fillStyle = '#689';
     const group = isButtons ? button?.group ?? '' : isReset ? 'Сервис' : isMouseSensitivity ? 'Мышь' : action?.group ?? '';
     const label = isButtons ? button?.label ?? '' : isReset ? 'Вернуть дефолты' : isMouseSensitivity ? 'Чувствительность мыши' : action?.label ?? '';
-    ctx.fillText(fitText(ctx, group, groupW - 10 * sx), x + 14 * sx, textY);
+    drawShadowText(ctx, fitText(ctx, group, groupW - 10 * sx), x + 14 * sx, textY);
     ctx.fillStyle = isSel ? '#dff' : '#9bb';
-    ctx.fillText(fitText(ctx, label, labelW - 8 * sx), x + groupW + 18 * sx, textY);
+    drawShadowText(ctx, fitText(ctx, label, labelW - 8 * sx), x + groupW + 18 * sx, textY);
     ctx.fillStyle = isCapture || isMouseSensitivity ? '#fd6' : isSel ? '#fff' : '#9cb';
     const keys = isButtons
       ? button?.binding ?? ''
@@ -118,7 +120,7 @@ export function drawControlsMenu(
         : isCapture
           ? 'НАЖМИТЕ КЛАВИШУ...'
           : action ? controlBindingLabel(action.id) : '';
-    ctx.fillText(fitText(ctx, keys, keyW - 4 * sx), x + groupW + labelW + 20 * sx, textY);
+    drawShadowText(ctx, fitText(ctx, keys, keyW - 4 * sx), x + groupW + labelW + 20 * sx, textY);
   }
 
   if (rowCount > visible) {
@@ -134,15 +136,14 @@ export function drawControlsMenu(
   }
 
   ctx.fillStyle = capture ? '#fd6' : '#456';
-  ctx.font = `${7 * sy}px monospace`;
+  ctx.font = getUiFont(7 * sy, false);
   ctx.textBaseline = 'alphabetic';
-  ctx.fillText(
+  drawShadowText(ctx,
     capture
       ? 'Нажатая клавиша или кнопка мыши добавится к действию. Space, Backspace и Esc тоже назначаются.'
       : isButtons
         ? 'Экранные кнопки и мобильная рельса живут отдельно от клавиатурных биндов.'
-        : 'Клавиши можно повторять между действиями. Backspace очищает выбранное действие; верхняя строка Enter возвращает дефолты.',
-    12 * sx,
+        : 'Клавиши можно повторять между действиями. Backspace очищает выбранное действие; верхняя строка Enter возвращает дефолты.', 12 * sx,
     h - 10 * sy,
   );
   ctx.textBaseline = prevTextBaseline;

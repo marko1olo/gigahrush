@@ -1,6 +1,9 @@
 import { TITLE_LANGUAGES, type TitleLanguageId, type TitleFlagKind, titleLanguageDef } from '../data/languages';
 import { controlBindingLabel } from '../systems/controls';
 import { fitText } from './ui_text';
+import { drawShadowText, getUiFont } from './ui_font';
+
+
 
 export type TitleScreenMode = 'language' | 'setup';
 export type TitleHitField = 'language' | 'name' | 'age' | 'sex' | 'seed' | 'actorCap' | 'addNpc' | 'trailer' | 'start' | 'continue';
@@ -70,34 +73,32 @@ export function drawTitleScreen(ctx: CanvasRenderingContext2D, options: DrawTitl
 
   ctx.textAlign = 'center';
   ctx.fillStyle = '#c00';
-  ctx.font = `bold ${Math.round(48 * s)}px monospace`;
+  ctx.font = getUiFont(Math.round(48 * s), true);
   const titleY = options.mode === 'setup' ? cy - 160 * s : cy - 122 * s;
   const subtitleY = options.mode === 'setup' ? cy - 118 * s : cy - 76 * s;
-  ctx.fillText(lang.title, cx, titleY);
+  drawShadowText(ctx, lang.title, cx, titleY);
   ctx.fillStyle = '#666';
-  ctx.font = `${Math.round(16 * s)}px monospace`;
-  ctx.fillText(lang.subtitle, cx, subtitleY);
+  ctx.font = getUiFont(Math.round(16 * s), false);
+  drawShadowText(ctx, lang.subtitle, cx, subtitleY);
 
   const hits = options.mode === 'setup'
     ? drawSetupMenu(ctx, cx, cy - (options.setupRows.length > 7 ? 124 : options.setupRows.length > 5 ? 104 : 48) * s, s, options)
     : drawLanguageMenu(ctx, cx, cy - 44 * s, s, options.languageId);
 
   ctx.fillStyle = '#555';
-  ctx.font = `${Math.round(12 * s)}px monospace`;
+  ctx.font = getUiFont(Math.round(12 * s), false);
   ctx.textAlign = 'center';
   if (options.mode === 'language') {
     if (options.mobile) {
       const hintY = Math.max(cy + 80 * s, h - 30 * s);
-      ctx.fillText(fitText(ctx, lang.mobileHint, w * 0.92), cx, hintY);
+      drawShadowText(ctx, fitText(ctx, lang.mobileHint, w * 0.92), cx, hintY);
     } else {
       const hintY = Math.max(cy + 80 * s, h - 40 * s);
-      ctx.fillText(fitText(ctx, lang.desktopHint(
-        controlBindingLabel('moveForward'),
-        controlBindingLabel('interact'),
+      drawShadowText(ctx, fitText(ctx, lang.desktopHint(
+        controlBindingLabel('moveForward'), controlBindingLabel('interact'),
       ), w * 0.92), cx, hintY);
-      ctx.fillText(fitText(ctx, lang.desktopCombatHint(
-        controlBindingLabel('attack'),
-        controlBindingLabel('fullscreen'),
+      drawShadowText(ctx, fitText(ctx, lang.desktopCombatHint(
+        controlBindingLabel('attack'), controlBindingLabel('fullscreen'),
         controlBindingLabel('controlsMenu'),
         controlBindingLabel('uiSettings'),
       ), w * 0.92), cx, hintY + 14 * s);
@@ -105,8 +106,8 @@ export function drawTitleScreen(ctx: CanvasRenderingContext2D, options: DrawTitl
   }
 
   ctx.fillStyle = '#705858';
-  ctx.font = `${Math.round(11 * s)}px monospace`;
-  if (options.mode !== 'setup') ctx.fillText(fitText(ctx, lang.languageHint, w * 0.9), cx, h - 12 * s);
+  ctx.font = getUiFont(Math.round(11 * s), false);
+  if (options.mode !== 'setup') drawShadowText(ctx, fitText(ctx, lang.languageHint, w * 0.9), cx, h - 12 * s);
 
   ctx.textAlign = 'left';
   return hits;
@@ -124,9 +125,9 @@ function drawLanguageMenu(
   const w = ctx.canvas.width;
   const fieldW = Math.min(w * 0.9, 460 * s);
   ctx.fillStyle = '#888';
-  ctx.font = `${Math.round(16 * s)}px monospace`;
+  ctx.font = getUiFont(Math.round(16 * s), false);
   ctx.textAlign = 'center';
-  ctx.fillText(fitText(ctx, lang.startPrompt, w * 0.9), cx, y + 94 * s);
+  drawShadowText(ctx, fitText(ctx, lang.startPrompt, w * 0.9), cx, y + 94 * s);
   hits.push({ field: 'start', x: cx - fieldW / 2, y: y + 68 * s, w: fieldW, h: 40 * s });
   return hits;
 }
@@ -156,11 +157,11 @@ function drawSetupMenu(
 
   ctx.textAlign = 'center';
   ctx.fillStyle = '#d6b24c';
-  ctx.font = `bold ${Math.round(18 * s)}px monospace`;
-  ctx.fillText(fitText(ctx, lang.setupTitle, panelW - 24 * s), cx, y + 24 * s);
+  ctx.font = getUiFont(Math.round(18 * s), true);
+  drawShadowText(ctx, fitText(ctx, lang.setupTitle, panelW - 24 * s), cx, y + 24 * s);
   ctx.fillStyle = '#667';
-  ctx.font = `${Math.round(10 * s)}px monospace`;
-  ctx.fillText(fitText(ctx, lang.setupSubtitle, panelW - 24 * s), cx, y + 40 * s);
+  ctx.font = getUiFont(Math.round(10 * s), false);
+  drawShadowText(ctx, fitText(ctx, lang.setupSubtitle, panelW - 24 * s), cx, y + 40 * s);
 
   let rowY = y + 56 * s;
   for (const row of options.setupRows) {
@@ -172,22 +173,22 @@ function drawSetupMenu(
 
     ctx.textAlign = 'left';
     ctx.fillStyle = selected ? '#d8ffe8' : '#7b9a9a';
-    ctx.font = `bold ${Math.round(11 * s)}px monospace`;
-    ctx.fillText(fitText(ctx, `${selected ? '> ' : '  '}${row.label}`, panelW * 0.4), x + 18 * s, rowY + 13 * s);
+    ctx.font = getUiFont(Math.round(11 * s), true);
+    drawShadowText(ctx, fitText(ctx, `${selected ? '> ' : '  '}${row.label}`, panelW * 0.4), x + 18 * s, rowY + 13 * s);
 
     const commandRow = row.field === 'start' || row.field === 'addNpc';
     ctx.textAlign = commandRow ? 'center' : 'right';
     ctx.fillStyle = commandRow ? (selected ? '#ffd46a' : '#9a7b44') : (selected ? '#8fffd2' : '#698b88');
-    ctx.font = `${Math.round(11 * s)}px monospace`;
+    ctx.font = getUiFont(Math.round(11 * s), false);
     const valueMaxW = commandRow ? panelW - 52 * s : panelW * 0.48;
     const valueX = commandRow ? cx : x + panelW - 18 * s;
-    ctx.fillText(fitText(ctx, row.value, valueMaxW), valueX, rowY + 13 * s);
+    drawShadowText(ctx, fitText(ctx, row.value, valueMaxW), valueX, rowY + 13 * s);
 
     if (row.hint) {
       ctx.textAlign = 'left';
       ctx.fillStyle = selected ? '#668' : '#465';
-      ctx.font = `${Math.round(8 * s)}px monospace`;
-      ctx.fillText(fitText(ctx, row.hint, panelW - 40 * s), x + 18 * s, rowY + 24 * s);
+      ctx.font = getUiFont(Math.round(8 * s), false);
+      drawShadowText(ctx, fitText(ctx, row.hint, panelW - 40 * s), x + 18 * s, rowY + 24 * s);
     }
 
     hits.push({ field: row.field, x: x + 10 * s, y: rowY, w: panelW - 20 * s, h: rowH });
@@ -195,9 +196,9 @@ function drawSetupMenu(
   }
 
   ctx.fillStyle = '#555';
-  ctx.font = `${Math.round(12 * s)}px monospace`;
+  ctx.font = getUiFont(Math.round(12 * s), false);
   ctx.textAlign = 'center';
-  ctx.fillText(fitText(ctx, lang.setupControlHint, w * 0.92), cx, Math.max(y + panelH + 24 * s, w * 0.05 > 40 ? ctx.canvas.height - 30 * s : y + panelH + 24 * s));
+  drawShadowText(ctx, fitText(ctx, lang.setupControlHint, w * 0.92), cx, Math.max(y + panelH + 24 * s, w * 0.05 > 40 ? ctx.canvas.height - 30 * s : y + panelH + 24 * s));
 
   return hits;
 }
@@ -229,11 +230,11 @@ function drawLanguageSwitch(
     drawFlag(ctx, def.flag, x + 7 * s, y + 7 * s, 42 * s, 28 * s);
     ctx.textAlign = 'left';
     ctx.fillStyle = active ? '#ffd46a' : '#86a9ad';
-    ctx.font = `bold ${Math.round(12 * s)}px monospace`;
-    ctx.fillText(def.code, x + 56 * s, y + 18 * s);
+    ctx.font = getUiFont(Math.round(12 * s), true);
+    drawShadowText(ctx, def.code, x + 56 * s, y + 18 * s);
     ctx.fillStyle = active ? '#d8c68a' : '#60777a';
-    ctx.font = `${Math.round(9 * s)}px monospace`;
-    ctx.fillText(fitText(ctx, def.name, chipW - 62 * s), x + 56 * s, y + 32 * s);
+    ctx.font = getUiFont(Math.round(9 * s), false);
+    drawShadowText(ctx, fitText(ctx, def.name, chipW - 62 * s), x + 56 * s, y + 32 * s);
     hits.push({ id: def.id, x, y, w: chipW, h: chipH });
   }
 
@@ -261,7 +262,7 @@ function drawSovietFlag(ctx: CanvasRenderingContext2D, x: number, y: number, w: 
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.font = `bold ${Math.round(h * 0.74)}px "Arial Unicode MS", "Apple Symbols", "Noto Sans Symbols", sans-serif`;
-  ctx.fillText('☭', x + w * 0.47, y + h * 0.61);
+  drawShadowText(ctx, '☭', x + w * 0.47, y + h * 0.61);
   ctx.restore();
 }
 
