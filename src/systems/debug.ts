@@ -238,7 +238,8 @@ type BaseDebugCommandId =
   | 'check_permit_access'
   | 'spoil_permit'
   | 'force_pseudolift'
-  | 'debug_samosbor_small_wave';
+  | 'debug_samosbor_small_wave'
+  | 'teleport_liquidator_base';
 
 const DESIGN_FLOOR_COMMAND_ID_PREFIX = 'teleport_design_floor:';
 
@@ -1775,6 +1776,7 @@ export function execDebugCommand(
       state.msgs.push(msg('[DEBUG] Скульптура заспавнена перед игроком', state.time, '#ff0'));
       break;
     }
+    case 90: return { type: 'teleport_design_floor', id: 'liquidatorbase', floor: FloorLevel.MINISTRY, z: 30, label: 'База Ликвидаторов', color: '#aaa' };
   }
   return null;
 }
@@ -1881,6 +1883,7 @@ const BASE_CMD_DEFS = [
   { id: 'spawn_all_psi', label: 'Все ПСИ-сгустки' },
   { id: 'spawn_all_tools', label: 'Все инструменты' },
   { id: 'spawn_sculpture', label: 'Спавн Скульптуры' },
+  { id: 'teleport_liquidator_base', label: '/tp liquidator_base' },
 ] as const satisfies readonly DebugCommandDef[];
 
 const BASE_CMD_VISUAL_BEFORE_DESIGN = [
@@ -1977,6 +1980,7 @@ const BASE_CMD_VISUAL_AFTER_DESIGN = [
   'force_pneumomail_capsule',
   'force_hermodoor_borer',
   'spawn_sculpture',
+  'teleport_liquidator_base',
 ] as const satisfies readonly BaseDebugCommandId[];
 
 function designFloorCommandId(id: DesignFloorId): DebugCommandId {
