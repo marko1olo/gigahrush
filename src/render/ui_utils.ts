@@ -1,4 +1,7 @@
 import { fitText } from './ui_text';
+import { drawShadowText, getUiFont } from './ui_font';
+
+
 
 export function clamp(v: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, v));
@@ -25,8 +28,8 @@ export function rect(ctx: CanvasRenderingContext2D, x: number, y: number, w: num
 export function drawBadge(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, w: number, h: number, s: number, color: string): void {
   rect(ctx, x, y, w, h, '#090d0d', '#303936');
   ctx.fillStyle = color;
-  ctx.font = `${Math.max(7, Math.round(h * 0.52))}px monospace`;
+  ctx.font = getUiFont(Math.max(7, Math.round(h * 0.52)), false);
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(fitText(ctx, text, w - 5 * s), Math.round(x + w * 0.5), Math.round(y + h * 0.53));
+  drawShadowText(ctx, fitText(ctx, text, w - 5 * s), Math.round(x + w * 0.5), Math.round(y + h * 0.53));
 }

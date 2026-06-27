@@ -30,6 +30,9 @@ import {
 } from './demos_profile_ui';
 import { drawDemosSocialLinksPanel } from './demos_social_ui';
 import { fitText } from './ui_text';
+import { drawShadowText, getUiFont } from './ui_font';
+
+
 
 const PORTRAIT_CACHE_MAX = 24;
 const portraitCache = new Map<string, HTMLCanvasElement>();
@@ -155,12 +158,12 @@ function drawLine(
 ): void {
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
-  ctx.font = `${7.5 * sy}px monospace`;
+  ctx.font = getUiFont(7.5 * sy, false);
   ctx.fillStyle = '#668f91';
   const labelW = Math.min(84 * sy, w * 0.42);
-  ctx.fillText(fitText(ctx, label, labelW), x, y);
+  drawShadowText(ctx, fitText(ctx, label, labelW), x, y);
   ctx.fillStyle = color;
-  ctx.fillText(fitText(ctx, value, Math.max(16, w - labelW - 4 * sy)), x + labelW, y);
+  drawShadowText(ctx, fitText(ctx, value, Math.max(16, w - labelW - 4 * sy)), x + labelW, y);
 }
 
 function demosSocialState(state: GameState): DemosSocialSaveState | undefined {
@@ -213,11 +216,11 @@ function drawDemosEmptyPanel(
   ctx.fillRect(x, y, w, h);
   ctx.strokeStyle = 'rgba(0,220,190,0.34)';
   ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
-  ctx.font = `${8 * sy}px monospace`;
+  ctx.font = getUiFont(8 * sy, false);
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
   ctx.fillStyle = '#789';
-  ctx.fillText(fitText(ctx, text, w - 14 * sx), x + 7 * sx, y + 8 * sy);
+  drawShadowText(ctx, fitText(ctx, text, w - 14 * sx), x + 7 * sx, y + 8 * sy);
 }
 
 function drawDemosPostPanel(
@@ -246,38 +249,38 @@ function drawDemosPostPanel(
   const rendered = renderDemosMarkovPostText(postAsMarkov(post), { routeSpeech: routeDemosSpeech });
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
-  ctx.font = `bold ${9 * sy}px monospace`;
+  ctx.font = getUiFont(9 * sy, true);
   ctx.fillStyle = '#25ffd0';
-  ctx.fillText(fitText(ctx, `post:${post.id}  alife:${post.authorAlifeId}`, rowW), x + pad, rowY);
+  drawShadowText(ctx, fitText(ctx, `post:${post.id}  alife:${post.authorAlifeId}`, rowW), x + pad, rowY);
   rowY += 15 * sy;
 
-  ctx.font = `${7 * sy}px monospace`;
+  ctx.font = getUiFont(7 * sy, false);
   ctx.fillStyle = '#6a9';
   const parent = post.parentPostId !== undefined ? `  parent:post:${post.parentPostId}` : '';
-  ctx.fillText(fitText(ctx, `${Math.floor(post.createdAt)}s${parent}  ${post.privacy}`, rowW), x + pad, rowY);
+  drawShadowText(ctx, fitText(ctx, `${Math.floor(post.createdAt)}s${parent}  ${post.privacy}`, rowW), x + pad, rowY);
   rowY += 12 * sy;
 
-  ctx.font = `${8 * sy}px monospace`;
+  ctx.font = getUiFont(8 * sy, false);
   ctx.fillStyle = '#d9f1ed';
   const text = fitText(ctx, rendered.text, rowW);
-  ctx.fillText(text, x + pad, rowY);
+  drawShadowText(ctx, text, x + pad, rowY);
   rowY += 16 * sy;
 
-  ctx.font = `${7 * sy}px monospace`;
+  ctx.font = getUiFont(7 * sy, false);
   ctx.fillStyle = '#789';
   const mentions = post.mentionedAlifeIds?.length ? post.mentionedAlifeIds.map(id => `alife:${id}`).join(', ') : 'нет';
-  ctx.fillText(fitText(ctx, `упоминания: ${mentions}`, rowW), x + pad, rowY);
+  drawShadowText(ctx, fitText(ctx, `упоминания: ${mentions}`, rowW), x + pad, rowY);
   rowY += 11 * sy;
-  ctx.fillText(fitText(ctx, `теги: ${post.tags.slice(0, 6).join(', ') || 'нет'}`, rowW), x + pad, rowY);
+  drawShadowText(ctx, fitText(ctx, `теги: ${post.tags.slice(0, 6).join(', ') || 'нет'}`, rowW), x + pad, rowY);
   rowY += 15 * sy;
 
   ctx.fillStyle = '#25ffd0';
-  ctx.fillText('реакции', x + pad, rowY);
+  drawShadowText(ctx, 'реакции', x + pad, rowY);
   rowY += 11 * sy;
   const reactions = reactionsForPost(state, post.id);
   if (reactions.length === 0) {
     ctx.fillStyle = '#789';
-    ctx.fillText(fitText(ctx, 'Реакций пока нет.', rowW), x + pad, rowY);
+    drawShadowText(ctx, fitText(ctx, 'Реакций пока нет.', rowW), x + pad, rowY);
     return;
   }
   const bottom = y + h - 6 * sy;
@@ -285,7 +288,7 @@ function drawDemosPostPanel(
     if (rowY + 10 * sy > bottom) break;
     const delta = reaction.relationDelta !== undefined ? ` ${reaction.relationDelta > 0 ? '+' : ''}${reaction.relationDelta}` : '';
     ctx.fillStyle = (reaction.relationDelta ?? 0) < 0 ? '#e99' : '#9dc';
-    ctx.fillText(fitText(ctx, `alife:${reaction.reactorAlifeId} ${reaction.kind}${delta}`, rowW), x + pad, rowY);
+    drawShadowText(ctx, fitText(ctx, `alife:${reaction.reactorAlifeId} ${reaction.kind}${delta}`, rowW), x + pad, rowY);
     rowY += 10 * sy;
   }
 }
@@ -307,19 +310,19 @@ function drawDemosQuestPanel(
   const pad = 7 * sx;
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
-  ctx.font = `bold ${9 * sy}px monospace`;
+  ctx.font = getUiFont(9 * sy, true);
   ctx.fillStyle = '#25ffd0';
-  ctx.fillText(fitText(ctx, 'ЗАЯВКИ ДЕМОСА', w - pad * 2), x + pad, y + 6 * sy);
+  drawShadowText(ctx, fitText(ctx, 'ЗАЯВКИ ДЕМОСА', w - pad * 2), x + pad, y + 6 * sy);
   let rowY = y + 24 * sy;
   const rowW = w - pad * 2;
-  ctx.font = `${7.2 * sy}px monospace`;
+  ctx.font = getUiFont(7.2 * sy, false);
   ctx.fillStyle = '#89a';
-  ctx.fillText(fitText(ctx, 'Чтобы принять дело, нужно найти человека на этаже и поговорить лично.', rowW), x + pad, rowY);
+  drawShadowText(ctx, fitText(ctx, 'Чтобы принять дело, нужно найти человека на этаже и поговорить лично.', rowW), x + pad, rowY);
   rowY += 14 * sy;
   const notices = profile?.questNotices ?? [];
   if (notices.length === 0) {
     ctx.fillStyle = '#789';
-    ctx.fillText(fitText(ctx, 'У выбранного профиля нет активных заявок.', rowW), x + pad, rowY);
+    drawShadowText(ctx, fitText(ctx, 'У выбранного профиля нет активных заявок.', rowW), x + pad, rowY);
     return;
   }
   const bottom = y + h - 6 * sy;
@@ -330,9 +333,9 @@ function drawDemosQuestPanel(
     ctx.strokeStyle = notice.canAcceptHere ? 'rgba(70,220,130,0.34)' : 'rgba(0,140,130,0.22)';
     ctx.strokeRect(x + pad + 0.5, rowY + 0.5, rowW - 1, 25 * sy - 1);
     ctx.fillStyle = notice.canAcceptHere ? '#9fd' : '#d9f1ed';
-    ctx.fillText(fitText(ctx, `${notice.urgencyLabel}: ${notice.label}`, rowW - 8 * sx), x + pad + 4 * sx, rowY + 3 * sy);
+    drawShadowText(ctx, fitText(ctx, `${notice.urgencyLabel}: ${notice.label}`, rowW - 8 * sx), x + pad + 4 * sx, rowY + 3 * sy);
     ctx.fillStyle = '#89a';
-    ctx.fillText(fitText(ctx, `${notice.floorLabel} / ${notice.detail}`, rowW - 8 * sx), x + pad + 4 * sx, rowY + 14 * sy);
+    drawShadowText(ctx, fitText(ctx, `${notice.floorLabel} / ${notice.detail}`, rowW - 8 * sx), x + pad + 4 * sx, rowY + 14 * sy);
     rowY += 29 * sy;
   }
 }
@@ -369,12 +372,12 @@ export function drawDemosMenu(
   ctx.fillRect(searchX, searchY, searchW, searchH);
   ctx.strokeStyle = state.demosSearchActive ? 'rgba(40,255,210,0.85)' : 'rgba(0,150,140,0.35)';
   ctx.strokeRect(searchX + 0.5, searchY + 0.5, searchW - 1, searchH - 1);
-  ctx.font = `${8 * sy}px monospace`;
+  ctx.font = getUiFont(8 * sy, false);
   ctx.textAlign = 'left';
   ctx.fillStyle = '#5e8';
   const cursor = state.demosSearchActive && Math.floor(uiTime * 2) % 2 === 0 ? '_' : '';
   const query = state.demosSearch || 'alife:ID / имя / plot:ID';
-  ctx.fillText(fitText(ctx, `поиск: ${query}${cursor}`, searchW - 10 * sx), searchX + 5 * sx, searchY + 4 * sy);
+  drawShadowText(ctx, fitText(ctx, `поиск: ${query}${cursor}`, searchW - 10 * sx), searchX + 5 * sx, searchY + 4 * sy);
 
   const tabLabels = DEMOS_TAB_ORDER.map(tab => DEMOS_TAB_LABELS[tab]);
   const selectedTab = DEMOS_TAB_LABELS[state.demosTab] ?? DEMOS_TAB_LABELS.profile;
@@ -401,14 +404,14 @@ export function drawDemosMenu(
       const infoX = portraitX;
       let y = portraitY + portraitH + 6 * sy;
       const infoW = portraitW;
-      ctx.font = `bold ${8.5 * sy}px monospace`;
+      ctx.font = getUiFont(8.5 * sy, true);
       ctx.textAlign = 'left';
       ctx.fillStyle = p.dead ? '#a77' : '#eff';
-      ctx.fillText(fitText(ctx, p.name, infoW), infoX, y); y += 12 * sy;
-      ctx.font = `${7 * sy}px monospace`;
+      drawShadowText(ctx, fitText(ctx, p.name, infoW), infoX, y); y += 12 * sy;
+      ctx.font = getUiFont(7 * sy, false);
       ctx.fillStyle = '#789';
       const ids = [p.idLabel, p.packageIdLabel, p.plotIdLabel].filter((item): item is string => !!item).join(' ');
-      ctx.fillText(fitText(ctx, ids, infoW), infoX, y); y += 12 * sy;
+      drawShadowText(ctx, fitText(ctx, ids, infoW), infoX, y); y += 12 * sy;
       drawLine(ctx, 'фракция', p.factionLabel, infoX, y, infoW, sy); y += 11 * sy;
       drawLine(ctx, 'где', p.locationLabel, infoX, y, infoW, sy, p.dead ? '#b77' : '#9cf');
 
@@ -463,13 +466,13 @@ export function drawDemosMenu(
     }
   }
 
-  ctx.font = `${7 * sy}px monospace`;
+  ctx.font = getUiFont(7 * sy, false);
   ctx.textAlign = 'center';
   ctx.fillStyle = '#456';
   const searchHint = state.demosSearchActive
     ? 'печать — фильтр  |  Backspace — стереть  |  Del — очистить  |  Enter — применить'
     : `${controlBindingLabel('menuLeft')}/${controlBindingLabel('menuRight')} — вкладки  |  ${controlBindingLabel('menuUp')}/${controlBindingLabel('menuDown')} или колесо — листать  |  Enter — поиск`;
-  ctx.fillText(
+  drawShadowText(ctx,
     fitText(ctx, `${searchHint}  |  ${menuCloseHint()} — закрыть`, panelW - 18 * sx),
     px + panelW / 2,
     py + panelH - 18 * sy,

@@ -19,6 +19,9 @@ import { formatQuestMinutes, questDeadlineText, questHasDeadline, questRemaining
 import { getActiveQuest, isQuestSelectableAsActive, type CurrentObjective } from '../systems/quests';
 import { drawNeuroPanel, drawGlitchText } from './hud_fx';
 import { drawWrappedText, fitText } from './ui_text';
+import { drawShadowText, getUiFont } from './ui_font';
+
+
 
 const FLOOR_NAMES: Record<FloorLevel, string> = {
   [FloorLevel.MINISTRY]: 'Министерство',
@@ -143,7 +146,7 @@ function drawLabelCell(
   ctx.fillStyle = color;
   const oldBaseline = ctx.textBaseline;
   ctx.textBaseline = 'middle';
-  ctx.fillText(fitText(ctx, text, Math.max(0, w - 4)), x + 2, y + h * 0.5);
+  drawShadowText(ctx, fitText(ctx, text, Math.max(0, w - 4)), x + 2, y + h * 0.5);
   ctx.textBaseline = oldBaseline;
 }
 
@@ -174,7 +177,7 @@ function drawObjectiveRow(
     ctx.fillRect(x - 2 * sx, y - sy, maxW + 4 * sx, h + 2 * sy);
   }
 
-  ctx.font = `${7 * sy}px monospace`;
+  ctx.font = getUiFont(7 * sy, false);
   let lx = x;
   drawLabelCell(ctx, kind.label, lx, y, kindW, h, kind.stroke, kind.fill, kind.text);
   lx += kindW + gap;
@@ -249,7 +252,7 @@ export function drawQuestLog(
   drawNeuroPanel(ctx, px, py, pw, ph, time, 50);
 
   drawGlitchText(ctx, `ЗАДАНИЯ ${controlHint('quests')}`, px + 8 * sx, py + 6 * sy, time, 500, '#6cf', 9 * sy);
-  ctx.font = `${9 * sy}px monospace`;
+  ctx.font = getUiFont(9 * sy, false);
 
   const active = state.quests.filter(q => !q.done);
   const done = state.quests.filter(q => q.done);
@@ -257,9 +260,9 @@ export function drawQuestLog(
 
   if (all.length === 0) {
     ctx.fillStyle = '#666';
-    ctx.font = `${8 * sy}px monospace`;
+    ctx.font = getUiFont(8 * sy, false);
     const emptyLine = currentObjective?.line ?? `Нет заданий. Поговорите с жильцами ${controlHint('interact')}.`;
-    ctx.fillText(fitText(ctx, emptyLine, pw - 16 * sx), px + 8 * sx, py + 24 * sy);
+    drawShadowText(ctx, fitText(ctx, emptyLine, pw - 16 * sx), px + 8 * sx, py + 24 * sy);
     return;
   }
 
@@ -271,17 +274,17 @@ export function drawQuestLog(
 
   // Page indicator
   ctx.fillStyle = '#888';
-  ctx.font = `${7 * sy}px monospace`;
-  ctx.fillText(`${page + 1} / ${all.length}`, px + pw - 40 * sx, py + 6 * sy);
+  ctx.font = getUiFont(7 * sy, false);
+  drawShadowText(ctx, `${page + 1} / ${all.length}`, px + pw - 40 * sx, py + 6 * sy);
   if (isActiveQuest) {
     drawLabelCell(ctx, 'АКТИВНО', px + pw - 98 * sx, py + 5 * sy, 50 * sx, 10 * sy, '#8a5c00', '#2a2107', '#ffd21f');
   }
 
   // Quest giver
   ctx.fillStyle = '#8af';
-  ctx.font = `${8 * sy}px monospace`;
+  ctx.font = getUiFont(8 * sy, false);
   let ly = py + 32 * sy;
-  ctx.fillText(fitText(ctx, `От: ${q.giverName ?? '???'}`, maxW), px + 8 * sx, ly);
+  drawShadowText(ctx, fitText(ctx, `От: ${q.giverName ?? '???'}`, maxW), px + 8 * sx, ly);
   ly += 8 * sy;
   drawObjectiveRow(ctx, q, state, px + 8 * sx, ly, maxW, sx, sy, isActiveQuest);
 
@@ -289,7 +292,7 @@ export function drawQuestLog(
   const isFailed = q.failed === true;
   const isDone = q.done && !isFailed;
   ctx.fillStyle = isFailed ? '#f66' : isDone ? '#484' : '#dda';
-  ctx.font = `${8 * sy}px monospace`;
+  ctx.font = getUiFont(8 * sy, false);
 
   // Word-wrapped description
   const prefix = isFailed ? '× ' : isDone ? '✓ ' : '• ';
@@ -308,34 +311,34 @@ export function drawQuestLog(
   if (!q.done && q.killNeeded !== undefined && ly < contentBottom) {
     ly += 4 * sy;
     ctx.fillStyle = '#aaa';
-    ctx.fillText(`Прогресс: ${q.killCount ?? 0}/${q.killNeeded}`, px + 8 * sx, ly);
+    drawShadowText(ctx, `Прогресс: ${q.killCount ?? 0}/${q.killNeeded}`, px + 8 * sx, ly);
   }
   if (!q.done && q.holdSeconds !== undefined && ly < contentBottom) {
     ly += 4 * sy;
     ctx.fillStyle = '#aaa';
     const have = Math.floor(q.holdProgressSeconds ?? 0);
     const need = Math.floor(q.holdSeconds);
-    ctx.fillText(`Удержание: ${have}/${need} сек`, px + 8 * sx, ly);
+    drawShadowText(ctx, `Удержание: ${have}/${need} сек`, px + 8 * sx, ly);
   }
 
   const remaining = questRemainingMinutes(q, state.clock.totalMinutes);
   if (!q.done && remaining !== undefined && ly < contentBottom) {
     ly += 12 * sy;
     ctx.fillStyle = remaining <= 120 ? '#f66' : remaining <= 360 ? '#fa6' : '#8cf';
-    ctx.font = `${7 * sy}px monospace`;
-    ctx.fillText(fitText(ctx, `Срок: ${questDeadlineText(q, state.clock.totalMinutes)}`, maxW), px + 8 * sx, ly);
+    ctx.font = getUiFont(7 * sy, false);
+    drawShadowText(ctx, fitText(ctx, `Срок: ${questDeadlineText(q, state.clock.totalMinutes)}`, maxW), px + 8 * sx, ly);
   } else if (isFailed && ly < contentBottom) {
     ly += 12 * sy;
     ctx.fillStyle = '#f66';
-    ctx.font = `${7 * sy}px monospace`;
-    ctx.fillText(fitText(ctx, failedQuestText(q, state), maxW), px + 8 * sx, ly);
+    ctx.font = getUiFont(7 * sy, false);
+    drawShadowText(ctx, fitText(ctx, failedQuestText(q, state), maxW), px + 8 * sx, ly);
   }
 
   const routeHint = questRouteHint(q, state);
   if (routeHint && ly < contentBottom) {
     ly += 12 * sy;
     ctx.fillStyle = '#8cf';
-    ctx.font = `${7 * sy}px monospace`;
+    ctx.font = getUiFont(7 * sy, false);
     ly = drawWrappedText(
       ctx,
       routeHint,
@@ -349,23 +352,23 @@ export function drawQuestLog(
   if (ly < contentBottom) {
     ly += 8 * sy;
     ctx.fillStyle = '#7ad';
-    ctx.font = `${7 * sy}px monospace`;
-    ctx.fillText(fitText(ctx, `Маршрут: ${floorRunEntryMapLabel(currentFloorRunEntry(state))}`, maxW), px + 8 * sx, ly);
+    ctx.font = getUiFont(7 * sy, false);
+    drawShadowText(ctx, fitText(ctx, `Маршрут: ${floorRunEntryMapLabel(currentFloorRunEntry(state))}`, maxW), px + 8 * sx, ly);
   }
 
   const rumorLead = getRecentRumorLead(state.time);
   if (rumorLead && ly < py + ph - 28 * sy) {
     ly += 8 * sy;
     ctx.fillStyle = '#d9a';
-    ctx.font = `${7 * sy}px monospace`;
+    ctx.font = getUiFont(7 * sy, false);
     drawWrappedText(ctx, `Слух: ${rumorLead.text}`, px + 8 * sx, ly, maxW, 9 * sy, Math.max(1, Math.floor((contentBottom - ly) / (9 * sy))));
   }
 
   // Bottom hint
   ctx.fillStyle = '#555';
-  ctx.font = `${7 * sy}px monospace`;
+  ctx.font = getUiFont(7 * sy, false);
   const pageHint = all.length > 1 ? `${controlBindingLabel('menuUp')}/${controlBindingLabel('menuDown')} листать` : '';
   const activeHint = isQuestSelectableAsActive(q) ? `${controlHint('gameMenu')} ${isActiveQuest ? 'снять цель' : 'цель на карте'}` : '';
   const hint = [pageHint, activeHint, `${menuCloseHint()} закрыть`].filter(Boolean).join('  |  ');
-  ctx.fillText(fitText(ctx, hint, maxW), px + 8 * sx, py + ph - 8 * sy);
+  drawShadowText(ctx, fitText(ctx, hint, maxW), px + 8 * sx, py + ph - 8 * sy);
 }

@@ -1,5 +1,8 @@
 import type { DemosSocialLinkView } from '../systems/demos_profiles';
 import { fitText } from './ui_text';
+import { drawShadowText, getUiFont } from './ui_font';
+
+
 
 export interface DrawDemosSocialLinksOptions {
   title?: string;
@@ -25,17 +28,17 @@ export function drawDemosSocialLinksPanel(
   const pad = 7 * sx;
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
-  ctx.font = `bold ${9 * sy}px monospace`;
+  ctx.font = getUiFont(9 * sy, true);
   ctx.fillStyle = '#25ffd0';
-  ctx.fillText(fitText(ctx, opts.title ?? 'СВЯЗИ', w - pad * 2), x + pad, y + 6 * sy);
+  drawShadowText(ctx, fitText(ctx, opts.title ?? 'СВЯЗИ', w - pad * 2), x + pad, y + 6 * sy);
 
   const rowH = 16 * sy;
   const maxRowsByHeight = Math.max(0, Math.floor((h - 28 * sy) / rowH));
   const maxRows = Math.min(opts.maxRows ?? 9, maxRowsByHeight);
   if (links.length === 0 || maxRows <= 0) {
-    ctx.font = `${8 * sy}px monospace`;
+    ctx.font = getUiFont(8 * sy, false);
     ctx.fillStyle = '#789';
-    ctx.fillText(fitText(ctx, 'Связей в исходящих слотах нет.', w - pad * 2), x + pad, y + 25 * sy);
+    drawShadowText(ctx, fitText(ctx, 'Связей в исходящих слотах нет.', w - pad * 2), x + pad, y + 25 * sy);
     return;
   }
 
@@ -47,16 +50,16 @@ export function drawDemosSocialLinksPanel(
     ctx.strokeStyle = link.dead ? 'rgba(180,70,82,0.28)' : 'rgba(0,140,130,0.22)';
     ctx.strokeRect(x + pad + 0.5, rowY + 0.5, rowW - 1, rowH - 3 * sy - 1);
 
-    ctx.font = `${7.2 * sy}px monospace`;
+    ctx.font = getUiFont(7.2 * sy, false);
     ctx.fillStyle = link.dead ? '#b77' : link.relationColor;
-    ctx.fillText(fitText(ctx, link.roleLabel, 50 * sx), x + pad + 5 * sx, rowY + 3 * sy);
+    drawShadowText(ctx, fitText(ctx, link.roleLabel, 50 * sx), x + pad + 5 * sx, rowY + 3 * sy);
 
     ctx.fillStyle = link.dead ? '#a88' : '#d9f1ed';
-    ctx.fillText(fitText(ctx, link.targetLabel, Math.max(20, rowW - 122 * sx)), x + pad + 58 * sx, rowY + 3 * sy);
+    drawShadowText(ctx, fitText(ctx, link.targetLabel, Math.max(20, rowW - 122 * sx)), x + pad + 58 * sx, rowY + 3 * sy);
 
     ctx.textAlign = 'right';
     ctx.fillStyle = link.relationColor;
-    ctx.fillText(fitText(ctx, `${link.relation} ${link.relationLabel}`, 60 * sx), x + pad + rowW - 5 * sx, rowY + 3 * sy);
+    drawShadowText(ctx, fitText(ctx, `${link.relation} ${link.relationLabel}`, 60 * sx), x + pad + rowW - 5 * sx, rowY + 3 * sy);
     ctx.textAlign = 'left';
     rowY += rowH;
   }

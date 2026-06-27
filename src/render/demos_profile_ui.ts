@@ -1,5 +1,8 @@
 import type { DemosProfileDetails, DemosProfileFeedEntry } from '../systems/demos_profiles';
 import { fitText, wrapTextLines } from './ui_text';
+import { drawShadowText, getUiFont } from './ui_font';
+
+
 
 export interface DrawDemosProfilePanelOptions {
   title?: string;
@@ -18,13 +21,13 @@ function drawRow(
   color = '#cbd7d7',
 ): void {
   const labelW = Math.min(82 * sy, w * 0.42);
-  ctx.font = `${7.2 * sy}px monospace`;
+  ctx.font = getUiFont(7.2 * sy, false);
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
   ctx.fillStyle = '#668f91';
-  ctx.fillText(fitText(ctx, label, labelW), x, y);
+  drawShadowText(ctx, fitText(ctx, label, labelW), x, y);
   ctx.fillStyle = color;
-  ctx.fillText(fitText(ctx, value, Math.max(16, w - labelW - 4 * sy)), x + labelW, y);
+  drawShadowText(ctx, fitText(ctx, value, Math.max(16, w - labelW - 4 * sy)), x + labelW, y);
 }
 
 function drawChip(
@@ -43,7 +46,7 @@ function drawChip(
   ctx.strokeStyle = dead ? 'rgba(190,70,82,0.34)' : 'rgba(40,210,190,0.34)';
   ctx.strokeRect(x + 0.5, y + 0.5, chipW - 1, 10 * sy - 1);
   ctx.fillStyle = dead ? '#d99' : '#9fe';
-  ctx.fillText(label, x + 4 * sy, y + 2 * sy);
+  drawShadowText(ctx, label, x + 4 * sy, y + 2 * sy);
   return chipW;
 }
 
@@ -63,7 +66,7 @@ export function drawDemosTabsHeader(
   if (tabs.length === 0) return;
   const gap = 3 * sy;
   const tabW = Math.max(22 * sy, (w - gap * (tabs.length - 1)) / tabs.length);
-  ctx.font = `${7.4 * sy}px monospace`;
+  ctx.font = getUiFont(7.4 * sy, false);
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
   for (let i = 0; i < tabs.length; i++) {
@@ -74,7 +77,7 @@ export function drawDemosTabsHeader(
     ctx.strokeStyle = active ? 'rgba(42,255,210,0.62)' : 'rgba(0,120,116,0.28)';
     ctx.strokeRect(tx + 0.5, y + 0.5, tabW - 1, 12 * sy - 1);
     ctx.fillStyle = active ? '#25ffd0' : '#668f91';
-    ctx.fillText(fitText(ctx, tabs[i], tabW - 6 * sy), tx + tabW / 2, y + 2 * sy);
+    drawShadowText(ctx, fitText(ctx, tabs[i], tabW - 6 * sy), tx + tabW / 2, y + 2 * sy);
   }
   ctx.textAlign = 'left';
 }
@@ -98,9 +101,9 @@ export function drawDemosProfilePanel(
   const pad = 7 * sx;
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
-  ctx.font = `bold ${9 * sy}px monospace`;
+  ctx.font = getUiFont(9 * sy, true);
   ctx.fillStyle = details.dead ? '#d98' : '#25ffd0';
-  ctx.fillText(fitText(ctx, opts.title ?? `ПРОФИЛЬ alife:${details.alifeId}`, w - pad * 2), x + pad, y + 6 * sy);
+  drawShadowText(ctx, fitText(ctx, opts.title ?? `ПРОФИЛЬ alife:${details.alifeId}`, w - pad * 2), x + pad, y + 6 * sy);
 
   let rowY = y + 23 * sy;
   if (opts.tabs && opts.tabs.length > 0) {
@@ -142,7 +145,7 @@ export function drawDemosProfilePanel(
   }
   drawRow(ctx, 'лента', details.lastPostId ? `post:${details.lastPostId}, упоминаний ${details.mentionsRecent}` : `упоминаний ${details.mentionsRecent}`, x + pad, rowY, rowW, sy); rowY += 15 * sy;
 
-  ctx.font = `${7 * sy}px monospace`;
+  ctx.font = getUiFont(7 * sy, false);
   let chipX = x + pad;
   for (const trait of details.traits.slice(0, 4)) {
     const used = drawChip(ctx, trait.label, chipX, rowY, Math.min(86 * sx, x + w - pad - chipX), sy, details.dead);
@@ -185,17 +188,17 @@ export function drawDemosProfileFeedPanel(
   const pad = 7 * sx;
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
-  ctx.font = `bold ${8.5 * sy}px monospace`;
+  ctx.font = getUiFont(8.5 * sy, true);
   ctx.fillStyle = '#25ffd0';
-  ctx.fillText(fitText(ctx, title, w - pad * 2), x + pad, y + 6 * sy);
+  drawShadowText(ctx, fitText(ctx, title, w - pad * 2), x + pad, y + 6 * sy);
 
   let rowY = y + 22 * sy;
   const bottom = y + h - 6 * sy;
   const rowW = w - pad * 2;
   if (feed.length === 0) {
-    ctx.font = `${8 * sy}px monospace`;
+    ctx.font = getUiFont(8 * sy, false);
     ctx.fillStyle = '#789';
-    ctx.fillText(fitText(ctx, 'Свежих записей нет.', rowW), x + pad, rowY);
+    drawShadowText(ctx, fitText(ctx, 'Свежих записей нет.', rowW), x + pad, rowY);
     return;
   }
 
@@ -206,13 +209,13 @@ export function drawDemosProfileFeedPanel(
     if (rowY + rowH > bottom) break;
     ctx.fillStyle = 'rgba(2,18,22,0.72)';
     ctx.fillRect(x + pad, rowY, rowW, rowH);
-    ctx.font = `${7 * sy}px monospace`;
+    ctx.font = getUiFont(7 * sy, false);
     ctx.fillStyle = '#6a9';
-    ctx.fillText(fitText(ctx, `post:${entry.postId} ${entry.label}`, rowW - 8 * sx), x + pad + 4 * sx, rowY + 3 * sy);
+    drawShadowText(ctx, fitText(ctx, `post:${entry.postId} ${entry.label}`, rowW - 8 * sx), x + pad + 4 * sx, rowY + 3 * sy);
     ctx.fillStyle = '#d9f1ed';
     let textY = rowY + 13 * sy;
     for (const line of lines) {
-      ctx.fillText(line, x + pad + 4 * sx, textY);
+      drawShadowText(ctx, line, x + pad + 4 * sx, textY);
       textY += 9 * sy;
     }
     rowY += rowH + 4 * sy;

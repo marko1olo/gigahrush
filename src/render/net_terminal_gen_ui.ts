@@ -1,6 +1,9 @@
 import { menuCloseHint } from '../systems/controls';
 import { drawGlitchText, drawNeuroPanel, drawStaticNoise, textJitter } from './hud_fx';
 import { fitText, wrapTextLines } from './ui_text';
+import { drawShadowText, getUiFont } from './ui_font';
+
+
 
 export type NetTerminalGenDeniedStatus = 'missing' | 'denied' | 'offline' | 'searching' | 'locked' | string;
 
@@ -67,8 +70,8 @@ export function drawNetTerminalGenDenied(
   ctx.shadowColor = 'rgba(255,60,80,0.55)';
   ctx.shadowBlur = 12 * s;
   ctx.fillStyle = '#ff5868';
-  ctx.font = `bold ${13 * s}px monospace`;
-  ctx.fillText(fitText(ctx, status, maxTextW), x + pad + jitter.dx, warnY + jitter.dy);
+  ctx.font = getUiFont(13 * s, true);
+  drawShadowText(ctx, fitText(ctx, status, maxTextW), x + pad + jitter.dx, warnY + jitter.dy);
   ctx.shadowBlur = 0;
   ctx.restore();
 
@@ -79,7 +82,7 @@ export function drawNetTerminalGenDenied(
   ctx.lineTo(x + panelW - pad, warnY + 21 * s);
   ctx.stroke();
 
-  ctx.font = `${8 * s}px monospace`;
+  ctx.font = getUiFont(8 * s, false);
   let ly = warnY + 33 * s;
   const lineH = 10 * s;
   ctx.fillStyle = '#9fb8bd';
@@ -87,7 +90,7 @@ export function drawNetTerminalGenDenied(
   let rows = 0;
   for (const line of lines) {
     for (const wrapped of wrapTextLines(ctx, line, maxTextW, maxRows - rows)) {
-      ctx.fillText(wrapped, x + pad, ly);
+      drawShadowText(ctx, wrapped, x + pad, ly);
       ly += lineH;
       rows++;
       if (rows >= maxRows) break;
@@ -96,13 +99,13 @@ export function drawNetTerminalGenDenied(
   }
 
   ctx.fillStyle = '#4f6470';
-  ctx.font = `${7 * s}px monospace`;
+  ctx.font = getUiFont(7 * s, false);
   const footer = denied.footer ?? `${menuCloseHint()} закрыть  |  нужен НЕТ-ГЕН`;
-  ctx.fillText(fitText(ctx, footer, maxTextW), x + pad, y + panelH - 16 * s);
+  drawShadowText(ctx, fitText(ctx, footer, maxTextW), x + pad, y + panelH - 16 * s);
   if (denied.code) {
     ctx.textAlign = 'right';
     ctx.fillStyle = '#70505a';
-    ctx.fillText(fitText(ctx, denied.code, 90 * s), x + panelW - pad, y + panelH - 16 * s);
+    drawShadowText(ctx, fitText(ctx, denied.code, 90 * s), x + panelW - pad, y + panelH - 16 * s);
     ctx.textAlign = 'left';
   }
 

@@ -2,6 +2,9 @@ import { type NetSphereSnapshot } from '../systems/net_sphere';
 import { controlHint } from '../systems/controls';
 import { drawGlitchText, drawNeuroPanel, drawStaticNoise } from './hud_fx';
 import { fitText, wrapTextLines } from './ui_text';
+import { drawShadowText, getUiFont } from './ui_font';
+
+
 
 function two(value: number): string {
   return String(value).padStart(2, '0');
@@ -28,9 +31,9 @@ function statLine(
 ): void {
   const valueX = x + valueOffset;
   ctx.fillStyle = '#6f7d88';
-  ctx.fillText(fitText(ctx, label, valueOffset - 4), x, y);
+  drawShadowText(ctx, fitText(ctx, label, valueOffset - 4), x, y);
   ctx.fillStyle = tint;
-  ctx.fillText(fitText(ctx, value, w - valueOffset), valueX, y);
+  drawShadowText(ctx, fitText(ctx, value, w - valueOffset), valueX, y);
 }
 
 type ChatVisualLine = {
@@ -75,14 +78,14 @@ export function drawNetSphereMenu(
   ctx.clip();
 
   ctx.textBaseline = 'top';
-  ctx.font = `bold ${12 * s}px monospace`;
+  ctx.font = getUiFont(12 * s, true);
   drawGlitchText(ctx, 'НЕТ-СФЕРА', x + pad, headerY, time, 821, '#63f6ff', 12 * s);
-  ctx.font = `${7 * s}px monospace`;
+  ctx.font = getUiFont(7 * s, false);
   ctx.fillStyle = net.status === 'online' ? '#7f8' : net.status === 'syncing' ? '#fd6' : '#f86';
-  ctx.fillText(net.statusText, x + pad, headerY + 16 * s);
+  drawShadowText(ctx, net.statusText, x + pad, headerY + 16 * s);
   if (net.busy) {
     ctx.fillStyle = '#89a';
-    ctx.fillText('пакет', x + pad + 75 * s, headerY + 16 * s);
+    drawShadowText(ctx, 'пакет', x + pad + 75 * s, headerY + 16 * s);
   }
 
   const leftX = x + pad;
@@ -91,7 +94,7 @@ export function drawNetSphereMenu(
   ctx.beginPath();
   ctx.rect(leftX, ly - 2 * s, Math.max(1, leftW), Math.max(1, commandY + 22 * s - ly));
   ctx.clip();
-  ctx.font = `${8 * s}px monospace`;
+  ctx.font = getUiFont(8 * s, false);
   statLine(ctx, 'НЕТ-ИМЯ', net.nickname, leftX, ly, leftW, valueOffset, '#d8f6ff'); ly += 12 * s;
   statLine(ctx, 'НЕТ-ГЕН', net.netGen, leftX, ly, leftW, valueOffset, '#7da3ad'); ly += 10 * s;
   statLine(ctx, 'СЕССИЯ', net.sessionId, leftX, ly, leftW, valueOffset, '#6f8792'); ly += 14 * s;
@@ -111,13 +114,13 @@ export function drawNetSphereMenu(
   statLine(ctx, 'мои смерти', String(profile?.deaths ?? '-'), leftX, ly, leftW, valueOffset, '#f98'); ly += 16 * s;
 
   ctx.fillStyle = '#9cf';
-  ctx.fillText('СВОДКА', leftX, ly);
+  drawShadowText(ctx, 'СВОДКА', leftX, ly);
   ly += 10 * s;
   const maxEventRows = Math.max(0, Math.min(5, Math.floor((commandY - ly - 18 * s) / lineH)));
   for (const event of net.events.slice(0, maxEventRows)) {
     const color = event.type === 'death' ? '#f98' : '#f6c';
     ctx.fillStyle = color;
-    ctx.fillText(fitText(ctx, event.summary, leftW - 8 * s), leftX, ly);
+    drawShadowText(ctx, fitText(ctx, event.summary, leftW - 8 * s), leftX, ly);
     ly += lineH;
   }
 
@@ -126,15 +129,15 @@ export function drawNetSphereMenu(
     ctx.fillStyle = '#f86';
     const maxErrorRows = Math.max(0, Math.floor((commandY - ly) / lineH));
     for (const line of wrapTextLines(ctx, net.error, leftW - pad, Math.min(4, maxErrorRows))) {
-      ctx.fillText(line, leftX, ly);
+      drawShadowText(ctx, line, leftX, ly);
       ly += lineH;
     }
   }
 
   ctx.fillStyle = '#607080';
-  ctx.fillText(fitText(ctx, '/netgen NET-...  /new  /clear', leftW), leftX, commandY);
+  drawShadowText(ctx, fitText(ctx, '/netgen NET-...  /new  /clear', leftW), leftX, commandY);
   ctx.fillStyle = '#607080';
-  ctx.fillText(fitText(ctx, `${controlHint('netSphere')} открыть/закрыть  ПКМ/${controlHint('netClose')} закрыть  ${controlHint('netSubmit')} чат/отправить  ${controlHint('netErase')} стереть`, leftW), leftX, commandY + 10 * s);
+  drawShadowText(ctx, fitText(ctx, `${controlHint('netSphere')} открыть/закрыть  ПКМ/${controlHint('netClose')} закрыть  ${controlHint('netSubmit')} чат/отправить  ${controlHint('netErase')} стереть`, leftW), leftX, commandY + 10 * s);
   ctx.restore();
 
   ctx.strokeStyle = 'rgba(92,246,255,0.34)';
@@ -142,20 +145,20 @@ export function drawNetSphereMenu(
   ctx.fillStyle = 'rgba(3,18,24,0.58)';
   ctx.fillRect(chatX + 1, chatY + 1, chatW - 2, chatH - 2);
 
-  ctx.font = `${8 * s}px monospace`;
+  ctx.font = getUiFont(8 * s, false);
   ctx.fillStyle = '#9cf';
-  ctx.fillText('ТЕРМИНАЛ', chatX + 6 * s, chatY + 5 * s);
+  drawShadowText(ctx, 'ТЕРМИНАЛ', chatX + 6 * s, chatY + 5 * s);
   ctx.fillStyle = '#607080';
-  ctx.font = `${6 * s}px monospace`;
+  ctx.font = getUiFont(6 * s, false);
   const scrollHint = net.chat.length > 1
     ? `колесо PgUp/PgDn листать ${Math.min(net.chatScroll, Math.max(0, net.chat.length - 1)) + 1}/${net.chat.length}`
     : 'история пуста';
-  ctx.fillText(fitText(ctx, scrollHint, Math.max(20 * s, chatW - 78 * s)), chatX + 72 * s, chatY + 6 * s);
+  drawShadowText(ctx, fitText(ctx, scrollHint, Math.max(20 * s, chatW - 78 * s)), chatX + 72 * s, chatY + 6 * s);
 
   const promptH = Math.min(18 * s, Math.max(10 * s, chatH * 0.42));
   const msgTop = chatY + 20 * s;
   const msgBottom = Math.max(msgTop, chatY + chatH - promptH - 4 * s);
-  ctx.font = `${7 * s}px monospace`;
+  ctx.font = getUiFont(7 * s, false);
   const compactChat = chatW < 180 * s;
   const messageEnds: number[] = [];
   const vlines: ChatVisualLine[] = [];
@@ -202,27 +205,27 @@ export function drawNetSphereMenu(
   ctx.clip();
   if (vlines.length === 0) {
     ctx.fillStyle = '#51616b';
-    ctx.fillText('Линия молчит.', chatX + 8 * s, msgTop + 2 * s);
+    drawShadowText(ctx, 'Линия молчит.', chatX + 8 * s, msgTop + 2 * s);
   }
   for (let i = startLine; i < endLine; i++) {
     const line = vlines[i];
     const yLine = firstLineY + (i - startLine) * lineH;
     if (line.kind === 'compact_label') {
       ctx.fillStyle = '#6b7f8a';
-      ctx.fillText(line.label, chatX + 6 * s, yLine);
+      drawShadowText(ctx, line.label, chatX + 6 * s, yLine);
       continue;
     }
     if (line.kind === 'compact_body') {
       ctx.fillStyle = '#d6f6ee';
-      ctx.fillText(line.body, chatX + 10 * s, yLine);
+      drawShadowText(ctx, line.body, chatX + 10 * s, yLine);
       continue;
     }
     if (line.label) {
       ctx.fillStyle = '#6b7f8a';
-      ctx.fillText(line.label, chatX + 6 * s, yLine);
+      drawShadowText(ctx, line.label, chatX + 6 * s, yLine);
     }
     ctx.fillStyle = '#d6f6ee';
-    ctx.fillText(line.body, chatX + 9 * s + line.labelW, yLine);
+    drawShadowText(ctx, line.body, chatX + 9 * s + line.labelW, yLine);
   }
 
   if (maxChatScroll > 0) {
@@ -251,7 +254,7 @@ export function drawNetSphereMenu(
   ctx.fillStyle = net.chatInputActive ? '#63f6ff' : '#54727d';
   const cursor = net.chatInputActive && Math.floor(time * 2) % 2 === 0 ? '_' : '';
   const draft = net.chatInputActive || net.draft ? net.draft + cursor : `${controlHint('netSubmit')} выбрать чат`;
-  ctx.fillText(`> ${fitText(ctx, draft, chatW - 14 * s)}`, chatX + 6 * s, promptY + 5 * s);
+  drawShadowText(ctx, `> ${fitText(ctx, draft, chatW - 14 * s)}`, chatX + 6 * s, promptY + 5 * s);
   ctx.restore();
 
   ctx.restore();

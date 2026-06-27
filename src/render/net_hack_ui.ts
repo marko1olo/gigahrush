@@ -2,6 +2,9 @@ import { type NetHackOverlaySnapshot } from '../systems/net_hack';
 import { controlHint, menuCloseHint } from '../systems/controls';
 import { drawGlitchText, drawNeuroPanel, drawStaticNoise, textJitter } from './hud_fx';
 import { fitText } from './ui_text';
+import { drawShadowText, getUiFont } from './ui_font';
+
+
 
 export function drawNetHackOverlay(
   ctx: CanvasRenderingContext2D,
@@ -29,27 +32,27 @@ export function drawNetHackOverlay(
 
   ctx.textBaseline = 'top';
   drawGlitchText(ctx, hack.label, x + pad, y + 10 * s, time, 1682, '#63f6ff', 12 * s);
-  ctx.font = `${8 * s}px monospace`;
+  ctx.font = getUiFont(8 * s, false);
   ctx.fillStyle = '#8ca0a8';
-  ctx.fillText(fitText(ctx, `Навык ${hack.skill} / сложность ${hack.difficulty}`, maxW), x + pad, y + 38 * s);
+  drawShadowText(ctx, fitText(ctx, `Навык ${hack.skill} / сложность ${hack.difficulty}`, maxW), x + pad, y + 38 * s);
 
-  ctx.font = `bold ${15 * s}px monospace`;
+  ctx.font = getUiFont(15 * s, true);
   ctx.fillStyle = hack.locked ? '#ff7860' : hack.solved ? '#8f8' : '#63f6ff';
   const status = hack.locked ? 'БЛОКИРОВКА' : hack.solved ? 'ДОСТУП ОТКРЫТ' : `ШАНС ${hack.chancePercent}%`;
-  ctx.fillText(fitText(ctx, status, maxW), x + pad + jitter.dx, y + 66 * s + jitter.dy);
+  drawShadowText(ctx, fitText(ctx, status, maxW), x + pad + jitter.dx, y + 66 * s + jitter.dy);
 
-  ctx.font = `${8 * s}px monospace`;
+  ctx.font = getUiFont(8 * s, false);
   ctx.fillStyle = '#9fb8bd';
-  ctx.fillText(fitText(ctx, `Успех: деньги, архивный доступ, координатный след. Награда ${hack.rewardRubles} руб.`, maxW), x + pad, y + 98 * s);
+  drawShadowText(ctx, fitText(ctx, `Успех: деньги, архивный доступ, координатный след. Награда ${hack.rewardRubles} руб.`, maxW), x + pad, y + 98 * s);
   ctx.fillStyle = '#b88';
-  ctx.fillText(fitText(ctx, 'Ошибка: ПСИ-удар, тревожный сигнал и временная блокировка.', maxW), x + pad, y + 113 * s);
+  drawShadowText(ctx, fitText(ctx, 'Ошибка: ПСИ-удар, тревожный сигнал и временная блокировка.', maxW), x + pad, y + 113 * s);
   if (hack.message) {
     ctx.fillStyle = '#d7f7ff';
-    ctx.fillText(fitText(ctx, hack.message, maxW), x + pad, y + 134 * s);
+    drawShadowText(ctx, fitText(ctx, hack.message, maxW), x + pad, y + 134 * s);
   }
 
   ctx.fillStyle = '#547078';
-  ctx.font = `${7 * s}px monospace`;
-  ctx.fillText(fitText(ctx, `${controlHint('gameMenu')} взломать  ${menuCloseHint()} закрыть`, maxW), x + pad, y + panelH - 16 * s);
+  ctx.font = getUiFont(7 * s, false);
+  drawShadowText(ctx, fitText(ctx, `${controlHint('gameMenu')} взломать  ${menuCloseHint()} закрыть`, maxW), x + pad, y + panelH - 16 * s);
   ctx.restore();
 }

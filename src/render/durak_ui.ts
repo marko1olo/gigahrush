@@ -7,6 +7,9 @@ import {
 import { controlBindingLabel, controlHint, menuCloseHint } from '../systems/controls';
 import { fitText } from './ui_text';
 import { clamp, rect, drawBadge } from './ui_utils';
+import { drawShadowText, getUiFont } from './ui_font';
+
+
 
 const CARD_ASPECT = 0.70;
 const MAX_VISIBLE_NPC_BACKS = 8;
@@ -241,10 +244,10 @@ function drawCardBack(ctx: CanvasRenderingContext2D, x: number, y: number, w: nu
   for (let xx = left; xx < right; xx += step) ctx.fillRect(xx, top, 1, Math.max(1, bottom - top));
 
   ctx.fillStyle = '#b79851';
-  ctx.font = `bold ${Math.max(6, Math.round(h * 0.16))}px monospace`;
+  ctx.font = getUiFont(Math.max(6, Math.round(h * 0.16)), true);
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('ГХ', Math.round(x + w * 0.5), Math.round(y + h * 0.52));
+  drawShadowText(ctx, 'ГХ', Math.round(x + w * 0.5), Math.round(y + h * 0.52));
   ctx.restore();
 }
 
@@ -286,10 +289,10 @@ function drawPlayingCard(
   const rank = RANK_LABELS[card.rank];
   const font = Math.max(7, Math.round(h * 0.15));
   ctx.fillStyle = style.primary;
-  ctx.font = `bold ${font}px monospace`;
+  ctx.font = getUiFont(font, true);
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
-  ctx.fillText(rank, Math.round(x + 5 * s), Math.round(y + 4 * s));
+  drawShadowText(ctx, rank, Math.round(x + 5 * s), Math.round(y + 4 * s));
 
   const cornerCell = Math.max(1, Math.round(h * 0.017));
   const cornerW = maskWidth(SUIT_MASKS[card.suit]) * cornerCell;
@@ -299,7 +302,7 @@ function drawPlayingCard(
 
   ctx.textAlign = 'right';
   ctx.textBaseline = 'bottom';
-  ctx.fillText(rank, Math.round(x + w - 5 * s), Math.round(y + h - 4 * s));
+  drawShadowText(ctx, rank, Math.round(x + w - 5 * s), Math.round(y + h - 4 * s));
   drawPixelSuit(ctx, card.suit, x + w - 5 * s - cornerW, y + h - 6 * s - font - cornerH, cornerCell);
 
   if (options.selected) {
@@ -381,10 +384,10 @@ function drawTablePairs(ctx: CanvasRenderingContext2D, snapshot: DurakSnapshot, 
 
   if (snapshot.table.length <= 0) {
     ctx.fillStyle = '#4d5752';
-    ctx.font = `${Math.max(8, Math.round(8 * s))}px monospace`;
+    ctx.font = getUiFont(Math.max(8, Math.round(8 * s)), false);
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('ПУСТО', Math.round(x + w * 0.5), Math.round(y + h * 0.53));
+    drawShadowText(ctx, 'ПУСТО', Math.round(x + w * 0.5), Math.round(y + h * 0.53));
     return;
   }
 
@@ -466,14 +469,14 @@ export function drawDurakInterface(
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
   ctx.fillStyle = '#d1aa54';
-  ctx.font = `bold ${10 * sy}px monospace`;
-  ctx.fillText(fitText(ctx, 'ДУРАК', pw * 0.22), px + pad, headerY);
+  ctx.font = getUiFont(10 * sy, true);
+  drawShadowText(ctx, fitText(ctx, 'ДУРАК', pw * 0.22), px + pad, headerY);
 
   ctx.fillStyle = '#8d9690';
-  ctx.font = `${7.2 * sy}px monospace`;
+  ctx.font = getUiFont(7.2 * sy, false);
   const turn = snapshot.attacker === 'player' ? 'ВЫ ХОДИТЕ' : `${snapshot.npcName} ХОДИТ`;
   const meta = `СТАВКА ${snapshot.stakeRubles}Р | КОЗЫРЬ ${formatDurakSuit(snapshot.trumpSuit)} | ${turn}`;
-  ctx.fillText(fitText(ctx, meta, pw - pad * 2 - 58 * s), px + pad, headerY + 13 * sy);
+  drawShadowText(ctx, fitText(ctx, meta, pw - pad * 2 - 58 * s), px + pad, headerY + 13 * sy);
 
   const npcW = Math.min(pw * 0.38, Math.max(92 * s, pw - pad * 2 - 108 * s));
   drawNpcHand(ctx, snapshot, px + pad, topY, npcW, topCardW, topCardH, s);
@@ -488,9 +491,9 @@ export function drawDurakInterface(
     ? `${controlHint('gameMenu')} ЗАКРЫТЬ  ${menuCloseHint()} ВЫЙТИ`
     : `${controlBindingLabel('menuLeft')}/${controlBindingLabel('menuRight')} КАРТА  ${controlHint('gameMenu')} СЫГРАТЬ  ${controlBindingLabel('drop')} ВЗЯТЬ/СТОП  ${menuCloseHint()} СДАТЬСЯ`;
   ctx.fillStyle = '#59615d';
-  ctx.font = `${7 * sy}px monospace`;
+  ctx.font = getUiFont(7 * sy, false);
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
-  ctx.fillText(fitText(ctx, action, pw - pad * 2), Math.round(px + pw * 0.5), controlsY);
+  drawShadowText(ctx, fitText(ctx, action, pw - pad * 2), Math.round(px + pw * 0.5), controlsY);
   ctx.restore();
 }

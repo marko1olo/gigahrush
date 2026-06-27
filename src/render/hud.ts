@@ -88,6 +88,9 @@ import { allocateHudSlot, createHudSlots, getMobileHudSafeContext, type UiRect }
 import { autoPickupEnabled, cameraPlaneLen, hudMotionMode, screenInterferenceMode, uiElementEnabled } from '../systems/ui_orchestrator';
 import { titleLanguageDef } from '../data/languages';
 import { getLocalizationLanguage } from '../systems/localization';
+import { drawShadowText, getUiFont } from './ui_font';
+
+
 
 const BAR_W = 50, BAR_H = 4;
 const VITAL_LABEL_FONT = 6;
@@ -134,8 +137,8 @@ function drawRoutineHudText(
   ctx.save();
   ctx.globalAlpha = 0.94;
   ctx.fillStyle = color;
-  ctx.font = `${fontSize}px monospace`;
-  ctx.fillText(text, x, y);
+  ctx.font = getUiFont(fontSize, false);
+  drawShadowText(ctx, text, x, y);
   ctx.restore();
 }
 
@@ -281,14 +284,14 @@ function drawSamosborActiveInstruction(
   ctx.save();
   ctx.textAlign = 'center';
   ctx.fillStyle = active.tint;
-  ctx.font = `bold ${16 * sy}px monospace`;
+  ctx.font = getUiFont(16 * sy, true);
   const fittedTitle = fitHudText(ctx, title, w - 16 * sx);
   ctx.fillStyle = 'rgba(0,0,0,0.62)';
-  ctx.fillText(fittedTitle, w * 0.5 + sj.dx * 3 + 1, y + 8 * sy + sj.dy * 2 + 1);
+  drawShadowText(ctx, fittedTitle, w * 0.5 + sj.dx * 3 + 1, y + 8 * sy + sj.dy * 2 + 1);
   ctx.fillStyle = active.tint;
-  ctx.fillText(fittedTitle, w * 0.5 + sj.dx * 3, y + 8 * sy + sj.dy * 2);
+  drawShadowText(ctx, fittedTitle, w * 0.5 + sj.dx * 3, y + 8 * sy + sj.dy * 2);
   ctx.fillStyle = `rgba(0,255,200,${sAlpha * 0.2})`;
-  ctx.fillText(fittedTitle, w * 0.5 + sj.dx * 3 + 2, y + 8 * sy + sj.dy * 2 + 1);
+  drawShadowText(ctx, fittedTitle, w * 0.5 + sj.dx * 3 + 2, y + 8 * sy + sj.dy * 2 + 1);
   ctx.textAlign = 'left';
   ctx.restore();
 }
@@ -311,19 +314,19 @@ function drawSamosborWarningInstruction(
 
   ctx.save();
   ctx.textAlign = 'center';
-  ctx.font = `bold ${titleSize}px monospace`;
+  ctx.font = getUiFont(titleSize, true);
   const fittedTitle = fitHudText(ctx, title, w - 16 * sx);
   ctx.fillStyle = 'rgba(0,0,0,0.72)';
-  ctx.fillText(fittedTitle, w * 0.5 + sj.dx * 2.2 + 1, y + 8 * sy + sj.dy * 1.4 + 1);
+  drawShadowText(ctx, fittedTitle, w * 0.5 + sj.dx * 2.2 + 1, y + 8 * sy + sj.dy * 1.4 + 1);
   ctx.fillStyle = '#ff3030';
-  ctx.fillText(fittedTitle, w * 0.5 + sj.dx * 2.2, y + 8 * sy + sj.dy * 1.4);
+  drawShadowText(ctx, fittedTitle, w * 0.5 + sj.dx * 2.2, y + 8 * sy + sj.dy * 1.4);
 
-  ctx.font = `${detailSize}px monospace`;
+  ctx.font = getUiFont(detailSize, false);
   const fittedDetail = fitHudText(ctx, detail, w - 18 * sx);
   ctx.fillStyle = 'rgba(0,0,0,0.72)';
-  ctx.fillText(fittedDetail, w * 0.5 + 1, y + 22 * sy + 1);
+  drawShadowText(ctx, fittedDetail, w * 0.5 + 1, y + 22 * sy + 1);
   ctx.fillStyle = '#ff6b6b';
-  ctx.fillText(fittedDetail, w * 0.5, y + 22 * sy);
+  drawShadowText(ctx, fittedDetail, w * 0.5, y + 22 * sy);
   ctx.textAlign = 'left';
   ctx.restore();
 }
@@ -395,12 +398,12 @@ function drawSmogIndicator(
   ctx.lineWidth = 1;
   ctx.strokeRect(x + 0.5, y + 0.5, panelW - 1, panelH - 1);
   drawStaticNoise(ctx, x, y, panelW, panelH, time, status.handled ? 0.008 : 0.018);
-  ctx.font = `${8 * sy}px monospace`;
+  ctx.font = getUiFont(8 * sy, false);
   ctx.fillStyle = status.handled ? '#8cf' : '#d8b56a';
-  ctx.fillText(fitHudText(ctx, title, panelW - 12 * sx), x + 6 * sx, y + 5 * sy);
-  ctx.font = `${7 * sy}px monospace`;
+  drawShadowText(ctx, fitHudText(ctx, title, panelW - 12 * sx), x + 6 * sx, y + 5 * sy);
+  ctx.font = getUiFont(7 * sy, false);
   ctx.fillStyle = '#d7d0bd';
-  ctx.fillText(fitHudText(ctx, action, panelW - 12 * sx), x + 6 * sx, y + 17 * sy);
+  drawShadowText(ctx, fitHudText(ctx, action, panelW - 12 * sx), x + 6 * sx, y + 17 * sy);
   ctx.restore();
 }
 
@@ -433,14 +436,14 @@ function drawRouteCueHint(
   drawNeuroPanel(ctx, x, y, panelW, panelH, animationTime, 760);
   drawRouteCueWave(ctx, x + 6 * sx, y + 4 * sy, panelW - 12 * sx, 7 * sy, Math.max(0, gameTime - cue.startedAt), cue.color);
   ctx.textAlign = 'left';
-  ctx.font = `${7 * sy}px monospace`;
+  ctx.font = getUiFont(7 * sy, false);
   ctx.fillStyle = cue.color;
-  ctx.fillText(fitHudText(ctx, cue.label, panelW - 12 * sx), x + 6 * sx, y + 12 * sy);
+  drawShadowText(ctx, fitHudText(ctx, cue.label, panelW - 12 * sx), x + 6 * sx, y + 12 * sy);
   ctx.fillStyle = '#ddd';
-  ctx.fillText(fitHudText(ctx, `${arrow} ${cue.targetName} ${dist}м`, panelW - 12 * sx), x + 6 * sx, y + 21 * sy);
-  ctx.font = `${6 * sy}px monospace`;
+  drawShadowText(ctx, fitHudText(ctx, `${arrow} ${cue.targetName} ${dist}м`, panelW - 12 * sx), x + 6 * sx, y + 21 * sy);
+  ctx.font = getUiFont(6 * sy, false);
   ctx.fillStyle = '#9a8';
-  ctx.fillText(fitHudText(ctx, cue.hint, panelW - 12 * sx), x + 6 * sx, y + 29 * sy);
+  drawShadowText(ctx, fitHudText(ctx, cue.hint, panelW - 12 * sx), x + 6 * sx, y + 29 * sy);
   ctx.restore();
 }
 
@@ -460,17 +463,17 @@ function drawObjectiveRouteHint(
   ctx.save();
   drawNeuroPanel(ctx, x, y, panelW, panelH, time, 784);
   ctx.textAlign = 'left';
-  ctx.font = `${8 * sy}px monospace`;
+  ctx.font = getUiFont(8 * sy, false);
   ctx.fillStyle = objective.color;
-  ctx.fillText(fitHudText(ctx, objective.title, panelW - 12 * sx), x + 6 * sx, y + 5 * sy);
-  ctx.font = `${7 * sy}px monospace`;
+  drawShadowText(ctx, fitHudText(ctx, objective.title, panelW - 12 * sx), x + 6 * sx, y + 5 * sy);
+  ctx.font = getUiFont(7 * sy, false);
   ctx.fillStyle = '#ddd';
-  ctx.fillText(fitHudText(ctx, objective.target, panelW - 12 * sx), x + 6 * sx, y + 16 * sy);
+  drawShadowText(ctx, fitHudText(ctx, objective.target, panelW - 12 * sx), x + 6 * sx, y + 16 * sy);
   ctx.fillStyle = '#9cf';
-  ctx.fillText(fitHudText(ctx, objective.lift, panelW - 12 * sx), x + 6 * sx, y + 27 * sy);
-  ctx.font = `${6 * sy}px monospace`;
+  drawShadowText(ctx, fitHudText(ctx, objective.lift, panelW - 12 * sx), x + 6 * sx, y + 27 * sy);
+  ctx.font = getUiFont(6 * sy, false);
   ctx.fillStyle = '#9a8';
-  ctx.fillText(fitHudText(ctx, `${objective.risk} / ${objective.returnPath}`, panelW - 12 * sx), x + 6 * sx, y + 37 * sy);
+  drawShadowText(ctx, fitHudText(ctx, `${objective.risk} / ${objective.returnPath}`, panelW - 12 * sx), x + 6 * sx, y + 37 * sy);
   ctx.restore();
 }
 
@@ -490,12 +493,12 @@ function drawCurrentObjectiveHint(
   ctx.save();
   drawNeuroPanel(ctx, x, y, panelW, panelH, time, 812);
   ctx.textAlign = 'left';
-  ctx.font = `${6.4 * sy}px monospace`;
+  ctx.font = getUiFont(6.4 * sy, false);
   ctx.fillStyle = objective.color;
-  ctx.fillText('ЦЕЛЬ', x + 6 * sx, y + 4 * sy);
-  ctx.font = `${7 * sy}px monospace`;
+  drawShadowText(ctx, 'ЦЕЛЬ', x + 6 * sx, y + 4 * sy);
+  ctx.font = getUiFont(7 * sy, false);
   ctx.fillStyle = '#ddd';
-  ctx.fillText(fitHudText(ctx, objective.line, panelW - 12 * sx), x + 6 * sx, y + 14 * sy);
+  drawShadowText(ctx, fitHudText(ctx, objective.line, panelW - 12 * sx), x + 6 * sx, y + 14 * sy);
   ctx.restore();
 }
 
@@ -514,15 +517,15 @@ function drawSmallCaravanHint(
   ctx.save();
   drawNeuroPanel(ctx, x, y, panelW, panelH, time, 815);
   ctx.textAlign = 'left';
-  ctx.font = `${8 * sy}px monospace`;
+  ctx.font = getUiFont(8 * sy, false);
   ctx.fillStyle = caravan.color;
-  ctx.fillText(fitHudText(ctx, `КАРАВАН ${caravan.statusText}`, panelW - 12 * sx), x + 6 * sx, y + 5 * sy);
-  ctx.font = `${7 * sy}px monospace`;
+  drawShadowText(ctx, fitHudText(ctx, `КАРАВАН ${caravan.statusText}`, panelW - 12 * sx), x + 6 * sx, y + 5 * sy);
+  ctx.font = getUiFont(7 * sy, false);
   ctx.fillStyle = '#ddd';
-  ctx.fillText(fitHudText(ctx, `${caravan.name} ${caravan.dist}м`, panelW - 12 * sx), x + 6 * sx, y + 15 * sy);
-  ctx.font = `${6 * sy}px monospace`;
+  drawShadowText(ctx, fitHudText(ctx, `${caravan.name} ${caravan.dist}м`, panelW - 12 * sx), x + 6 * sx, y + 15 * sy);
+  ctx.font = getUiFont(6 * sy, false);
   ctx.fillStyle = '#9a8';
-  ctx.fillText(fitHudText(ctx, caravan.detail, panelW - 12 * sx), x + 6 * sx, y + 23 * sy);
+  drawShadowText(ctx, fitHudText(ctx, caravan.detail, panelW - 12 * sx), x + 6 * sx, y + 23 * sy);
   ctx.restore();
 }
 
@@ -586,7 +589,7 @@ function drawFpsCounter(ctx: CanvasRenderingContext2D, perf: HudPerfDebugSnapsho
   const padY = 2 * s;
   const lineH = 8 * s;
   ctx.save();
-  ctx.font = `${7 * s}px monospace`;
+  ctx.font = getUiFont(7 * s, false);
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
   const textW = Math.max(...lines.map(line => ctx.measureText(line).width));
@@ -598,7 +601,7 @@ function drawFpsCounter(ctx: CanvasRenderingContext2D, perf: HudPerfDebugSnapsho
   ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, boxW - 1, boxH - 1);
   ctx.fillStyle = fps >= 50 ? '#8fffd0' : fps >= 30 ? '#ffd36a' : '#ff8a6a';
   for (let i = 0; i < lines.length; i++) {
-    ctx.fillText(fitHudText(ctx, lines[i], boxW - padX * 2), rect.x + padX, rect.y + padY + i * lineH);
+    drawShadowText(ctx, fitHudText(ctx, lines[i], boxW - padX * 2), rect.x + padX, rect.y + padY + i * lineH);
   }
   ctx.restore();
 }
@@ -642,16 +645,16 @@ function drawItemPickupPanel(
   ctx.globalAlpha = 1;
   ctx.textAlign = 'left';
   ctx.textBaseline = 'alphabetic';
-  ctx.font = `${8 * sy}px monospace`;
+  ctx.font = getUiFont(8 * sy, false);
   ctx.fillStyle = '#dff';
-  ctx.fillText(fitHudText(ctx, title, panelW - 12 * sx), x + 6 * sx, y + 10 * sy);
-  ctx.font = `${6 * sy}px monospace`;
+  drawShadowText(ctx, fitHudText(ctx, title, panelW - 12 * sx), x + 6 * sx, y + 10 * sy);
+  ctx.font = getUiFont(6 * sy, false);
   ctx.fillStyle = '#9bb';
   for (let i = 0; i < descLines.length; i++) {
-    ctx.fillText(descLines[i], x + 6 * sx, y + (20 + i * 8) * sy);
+    drawShadowText(ctx, descLines[i], x + 6 * sx, y + (20 + i * 8) * sy);
   }
   ctx.fillStyle = '#fd6';
-  ctx.fillText(fitHudText(ctx, `${interactionPromptHint()} поднять${value > 0 ? ` / ${value} руб.` : ''}`, panelW - 12 * sx), x + 6 * sx, y + panelH - 5 * s);
+  drawShadowText(ctx, fitHudText(ctx, `${interactionPromptHint()} поднять${value > 0 ? ` / ${value} руб.` : ''}`, panelW - 12 * sx), x + 6 * sx, y + panelH - 5 * s);
   ctx.restore();
 }
 
@@ -763,17 +766,17 @@ function drawSamosborCrawl(
     if (alpha <= 0.02) continue;
     const line = lines[samosborCrawlLineIndex(variantId, i, cycle, lines.length)];
     const jitter = textJitter(time * 2.5, 1800 + i * 17);
-    ctx.font = `bold ${size}px monospace`;
+    ctx.font = getUiFont(size, true);
     const maxLineW = Math.max(72 * sx, w * (0.28 + travel * 0.18));
     ctx.save();
     ctx.translate(x + jitter.dx * 1.5, y + jitter.dy);
     ctx.rotate(angle);
     ctx.globalAlpha = alpha * 0.52;
     ctx.fillStyle = 'rgba(0,0,0,0.72)';
-    ctx.fillText(line, 1.5 * sx, 1.5 * sy, maxLineW);
+    drawShadowText(ctx, line, 1.5 * sx, 1.5 * sy, maxLineW);
     ctx.globalAlpha = alpha * 0.62;
     ctx.fillStyle = tint;
-    ctx.fillText(line, 0, 0, maxLineW);
+    drawShadowText(ctx, line, 0, 0, maxLineW);
     ctx.restore();
   }
   ctx.restore();
@@ -1041,23 +1044,23 @@ export function drawPointerCaptureGate(ctx: CanvasRenderingContext2D, time = 0):
   ctx.shadowColor = '#6cf';
   ctx.shadowBlur = 10 * s;
   ctx.fillStyle = '#bff';
-  ctx.font = `bold ${Math.round(17 * s)}px monospace`;
-  ctx.fillText(fitHudText(ctx, lang.pointerGateTitle, panelW - 18 * s), w * 0.5, y + 18 * s);
-  ctx.font = `bold ${Math.round(12 * s)}px monospace`;
-  ctx.fillText(fitHudText(ctx, lang.pointerGateSubtitle, panelW - 18 * s), w * 0.5, y + 39 * s);
+  ctx.font = getUiFont(Math.round(17 * s), true);
+  drawShadowText(ctx, fitHudText(ctx, lang.pointerGateTitle, panelW - 18 * s), w * 0.5, y + 18 * s);
+  ctx.font = getUiFont(Math.round(12 * s), true);
+  drawShadowText(ctx, fitHudText(ctx, lang.pointerGateSubtitle, panelW - 18 * s), w * 0.5, y + 39 * s);
 
   ctx.shadowBlur = 0;
   ctx.fillStyle = '#c8d0d0';
-  ctx.font = `${Math.round(9 * s)}px monospace`;
-  ctx.fillText(fitHudText(ctx, lang.pointerGateWarning1, panelW - 24 * s), w * 0.5, y + 61 * s);
-  ctx.fillText(fitHudText(ctx, lang.pointerGateWarning2, panelW - 24 * s), w * 0.5, y + 75 * s);
+  ctx.font = getUiFont(Math.round(9 * s), false);
+  drawShadowText(ctx, fitHudText(ctx, lang.pointerGateWarning1, panelW - 24 * s), w * 0.5, y + 61 * s);
+  drawShadowText(ctx, fitHudText(ctx, lang.pointerGateWarning2, panelW - 24 * s), w * 0.5, y + 75 * s);
   ctx.fillStyle = '#9ab';
-  ctx.fillText(fitHudText(ctx, lang.pointerGateControls1, panelW - 24 * s), w * 0.5, y + 91 * s);
-  ctx.fillText(fitHudText(ctx, lang.pointerGateControls2, panelW - 24 * s), w * 0.5, y + 105 * s);
+  drawShadowText(ctx, fitHudText(ctx, lang.pointerGateControls1, panelW - 24 * s), w * 0.5, y + 91 * s);
+  drawShadowText(ctx, fitHudText(ctx, lang.pointerGateControls2, panelW - 24 * s), w * 0.5, y + 105 * s);
 
   ctx.fillStyle = '#708888';
-  ctx.font = `${Math.round(7 * s)}px monospace`;
-  ctx.fillText(fitHudText(ctx, lang.pointerGateResume, panelW - 24 * s), w * 0.5, y + 120 * s);
+  ctx.font = getUiFont(Math.round(7 * s), false);
+  drawShadowText(ctx, fitHudText(ctx, lang.pointerGateResume, panelW - 24 * s), w * 0.5, y + 120 * s);
   ctx.textAlign = 'left';
   ctx.restore();
 }
@@ -1082,14 +1085,14 @@ function drawPointerLockPrompt(
   ctx.textAlign = 'center';
   ctx.shadowColor = '#6cf';
   ctx.shadowBlur = 7;
-  ctx.font = `${8 * sy}px monospace`;
+  ctx.font = getUiFont(8 * sy, false);
   ctx.fillStyle = '#9df';
-  ctx.fillText(fitHudText(ctx, lang.pointerLockPrompt, panelW - 14 * sx), w * 0.5, y + 6 * sy);
+  drawShadowText(ctx, fitHudText(ctx, lang.pointerLockPrompt, panelW - 14 * sx), w * 0.5, y + 6 * sy);
   ctx.shadowBlur = 0;
-  ctx.font = `${7 * sy}px monospace`;
+  ctx.font = getUiFont(7 * sy, false);
   ctx.fillStyle = '#9ab';
-  ctx.fillText(fitHudText(ctx, lang.pointerLockControls1(controlHint('gameMenu')), panelW - 14 * sx), w * 0.5, y + 20 * sy);
-  ctx.fillText(fitHudText(ctx, lang.pointerLockControls2(menuCloseHint(), controlHint('interact')), panelW - 14 * sx), w * 0.5, y + 32 * sy);
+  drawShadowText(ctx, fitHudText(ctx, lang.pointerLockControls1(controlHint('gameMenu')), panelW - 14 * sx), w * 0.5, y + 20 * sy);
+  drawShadowText(ctx, fitHudText(ctx, lang.pointerLockControls2(menuCloseHint(), controlHint('interact')), panelW - 14 * sx), w * 0.5, y + 32 * sy);
   ctx.textAlign = 'left';
   ctx.restore();
 }
@@ -1117,20 +1120,20 @@ function drawCombatWeaponPanel(
 
   const lines = combatWeaponHudLines(weapon);
   ctx.textAlign = 'left';
-  ctx.font = `${6.2 * s}px monospace`;
+  ctx.font = getUiFont(6.2 * s, false);
   ctx.fillStyle = '#dcefff';
-  ctx.fillText(fitHudText(ctx, lines.title, panelW - 9 * s), panelX + 4.5 * s, panelY + 2 * s);
+  drawShadowText(ctx, fitHudText(ctx, lines.title, panelW - 9 * s), panelX + 4.5 * s, panelY + 2 * s);
 
-  ctx.font = `${5.2 * s}px monospace`;
+  ctx.font = getUiFont(5.2 * s, false);
   ctx.fillStyle = '#8cf';
-  ctx.fillText(fitHudText(ctx, lines.fact, panelW - 9 * s), panelX + 4.5 * s, panelY + 9.5 * s);
+  drawShadowText(ctx, fitHudText(ctx, lines.fact, panelW - 9 * s), panelX + 4.5 * s, panelY + 9.5 * s);
 
-  ctx.font = `${6.4 * s}px monospace`;
+  ctx.font = getUiFont(6.4 * s, false);
   ctx.fillStyle = statusColor;
-  ctx.fillText(fitHudText(ctx, lines.state, 42 * s), panelX + 4.5 * s, panelY + 16 * s);
+  drawShadowText(ctx, fitHudText(ctx, lines.state, 42 * s), panelX + 4.5 * s, panelY + 16 * s);
   ctx.textAlign = 'right';
   ctx.fillStyle = weapon.cannotFireReason ? '#f84' : weapon.lowResource ? '#fc4' : '#d7ffd7';
-  ctx.fillText(fitHudText(ctx, lines.resource, panelW - 51 * s), panelX + panelW - 4.5 * s, panelY + 16 * s);
+  drawShadowText(ctx, fitHudText(ctx, lines.resource, panelW - 51 * s), panelX + panelW - 4.5 * s, panelY + 16 * s);
   ctx.textAlign = 'left';
 
   drawHoloBar(ctx, panelX + 4.5 * s, panelY + panelH - 3.2 * s, panelW - 9 * s, 1.8 * s, weapon.cannotFireReason ? 0 : weapon.readyPct * 100, statusColor, time, 193);
@@ -1176,7 +1179,7 @@ function drawCombatSightFeedback(
     const s = Math.max(1, Math.min(sx, sy));
     const palette = combatTargetPalette(target.attitude);
     const label = `${target.name} ${target.dist}м`;
-    ctx.font = `${6.5 * s}px monospace`;
+    ctx.font = getUiFont(6.5 * s, false);
     const hasQuestMarker = target.questMarkerTone !== null;
     const minW = (hasQuestMarker ? 88 : 72) * s;
     const maxW = Math.min(ctx.canvas.width - 8 * s, 124 * s);
@@ -1206,18 +1209,18 @@ function drawCombatSightFeedback(
       ctx.strokeRect(markX + 0.5, markY + 0.5, markW - 1, markH - 1);
       ctx.shadowColor = questColor.shadow;
       ctx.shadowBlur = 8;
-      ctx.font = `bold ${10 * s}px monospace`;
+      ctx.font = getUiFont(10 * s, true);
       ctx.fillStyle = questColor.text;
-      ctx.fillText('!', markX + 2.2 * s, ty + 0.5 * s);
+      drawShadowText(ctx, '!', markX + 2.2 * s, ty + 0.5 * s);
       ctx.shadowBlur = 0;
-      ctx.font = `${6.5 * s}px monospace`;
+      ctx.font = getUiFont(6.5 * s, false);
       ctx.fillStyle = palette.text;
       textX = tx + 18 * s;
       textW = tw - 23 * s;
     }
     ctx.shadowColor = palette.glow;
     ctx.shadowBlur = 5;
-    ctx.fillText(fitHudText(ctx, label, textW), textX, ty + 3 * s);
+    drawShadowText(ctx, fitHudText(ctx, label, textW), textX, ty + 3 * s);
     ctx.shadowBlur = 0;
     const hpTrackW = tw - 10 * s;
     const hpW = hpTrackW * Math.max(0, Math.min(1, target.hpPct / 100));
@@ -1260,7 +1263,7 @@ function drawWorldSpeechBubbles(
     const text = e.activeBark.text;
     const color = e.activeBark.color;
     
-    ctx.font = `${6 * s}px monospace`;
+    ctx.font = getUiFont(6 * s, false);
     const lines = wrapHudText(ctx, text, 120 * s, 4);
     const lh = 7.5 * s;
     const padding = 4 * s;
@@ -1303,7 +1306,7 @@ function drawWorldSpeechBubbles(
     ctx.shadowColor = color;
     ctx.shadowBlur = 4;
     for (let i = 0; i < lines.length; i++) {
-      ctx.fillText(lines[i], bx + padding, by + padding + i * lh);
+      drawShadowText(ctx, lines[i], bx + padding, by + padding + i * lh);
     }
     
     ctx.restore();
@@ -1333,7 +1336,7 @@ export function drawHUD(
   const msx = menuScale;
   const msy = menuScale;
 
-  ctx.font = `${10 * sy}px monospace`;
+  ctx.font = getUiFont(10 * sy, false);
   ctx.textBaseline = 'top';
 
   const time = uiTime;
@@ -1435,7 +1438,7 @@ export function drawHUD(
       ctx.textAlign = 'right';
       drawRoutineHudText(ctx, formatVitalPercent(pct), bx + barW, by + 0.6 * sy, time, i * 19 + 101, '#9ac', percentFont, reducedHudMotion);
       ctx.restore();
-      ctx.font = `${labelFont}px monospace`;
+      ctx.font = getUiFont(labelFont, false);
       // Holo bar
       drawHoloBar(ctx, bx, by + 9 * sy, barW, BAR_H * sy, pct, color, time, i);
     });
@@ -1451,9 +1454,9 @@ export function drawHUD(
     const panelX = bottomVitals.x + 4 * sx;
     const panelY = barY - panelH - 4 * sy;
     drawNeuroPanel(ctx, panelX, panelY, panelW, panelH, time, 185);
-    ctx.font = `${7 * sy}px monospace`;
+    ctx.font = getUiFont(7 * sy, false);
     ctx.fillStyle = '#9c6';
-    ctx.fillText(fitHudText(ctx, zhelemishLine, panelW - 10 * sx), panelX + 5 * sx, panelY + 4 * sy);
+    drawShadowText(ctx, fitHudText(ctx, zhelemishLine, panelW - 10 * sx), panelX + 5 * sx, panelY + 4 * sy);
   }
 
   const routeCue = getActiveRouteCueHud(state.time, state.currentFloor);
@@ -1500,7 +1503,7 @@ export function drawHUD(
     }> = [];
     const scanStart = Math.max(0, state.msgs.length - MSG_SCAN_MAX);
     ctx.save();
-    ctx.font = `${5.8 * s}px monospace`;
+    ctx.font = getUiFont(5.8 * s, false);
     const bodyW = Math.max(1, summaryW - pad * 2);
     let usedH = 0;
     for (let i = state.msgs.length - 1; i >= scanStart && plannedMsgs.length < MSG_MAX; i--) {
@@ -1542,13 +1545,13 @@ export function drawHUD(
       ctx.save();
       ctx.textAlign = 'left';
       ctx.shadowBlur = 0;
-      ctx.font = `${6.2 * s}px monospace`;
+      ctx.font = getUiFont(6.2 * s, false);
       const titleY = rect.y + pad + 2.5 * s;
       ctx.fillStyle = 'rgba(130,235,230,0.88)';
-      ctx.fillText(fitHudText(ctx, 'СТЕНОСВОДКА', 78 * s), rect.x + pad, titleY);
-      ctx.font = `${5.4 * s}px monospace`;
+      drawShadowText(ctx, fitHudText(ctx, 'СТЕНОСВОДКА', 78 * s), rect.x + pad, titleY);
+      ctx.font = getUiFont(5.4 * s, false);
       ctx.fillStyle = 'rgba(82,110,126,0.84)';
-      ctx.fillText(fitHudText(ctx, 'последние сообщения', Math.max(16 * s, rect.w - 92 * s)), rect.x + pad + 82 * s, titleY + 0.4 * s);
+      drawShadowText(ctx, fitHudText(ctx, 'последние сообщения', Math.max(16 * s, rect.w - 92 * s)), rect.x + pad + 82 * s, titleY + 0.4 * s);
       ctx.strokeStyle = 'rgba(70,220,255,0.25)';
       ctx.beginPath();
       ctx.moveTo(rect.x + pad, rect.y + pad + headerH);
@@ -1565,15 +1568,15 @@ export function drawHUD(
         const rowJitter = routineJitter(reducedHudMotion, time, item.index * 17 + 300);
         const rowY = my + rowJitter.dy * 0.28;
         ctx.globalAlpha = alpha * flicker(time, item.index + 300);
-        ctx.font = `${5.3 * s}px monospace`;
+        ctx.font = getUiFont(5.3 * s, false);
         ctx.fillStyle = 'rgba(120,145,160,0.82)';
-        ctx.fillText(fitHudText(ctx, item.stamp, item.stampW - 4 * s), rect.x + pad + rowJitter.dx * 0.28, rowY);
+        drawShadowText(ctx, fitHudText(ctx, item.stamp, item.stampW - 4 * s), rect.x + pad + rowJitter.dx * 0.28, rowY);
         ctx.fillStyle = m.color;
-        ctx.font = `${5.8 * s}px monospace`;
+        ctx.font = getUiFont(5.8 * s, false);
         const textX = rect.x + pad + item.stampW;
         const textW = Math.max(32 * s, rect.x + rect.w - pad - textX);
         for (let line = 0; line < item.lines.length; line++) {
-          ctx.fillText(fitHudText(ctx, item.lines[line], textW), textX + rowJitter.dx * 0.28, rowY + line * rowH);
+          drawShadowText(ctx, fitHudText(ctx, item.lines[line], textW), textX + rowJitter.dx * 0.28, rowY + line * rowH);
         }
         my += item.h;
       }
@@ -1620,7 +1623,7 @@ export function drawHUD(
       ctx.fillStyle = '#8cf';
       if (weaponPanel.y > 14 * sy) {
         const s = Math.max(1, Math.min(sx, sy));
-        ctx.fillText(fitHudText(ctx, toolLabel, weaponPanel.w), weaponPanel.x + weaponPanel.w - 2 * s, weaponPanel.y - 8 * s);
+        drawShadowText(ctx, fitHudText(ctx, toolLabel, weaponPanel.w), weaponPanel.x + weaponPanel.w - 2 * s, weaponPanel.y - 8 * s);
       }
       ctx.fillStyle = '#ccc';
     }
@@ -1661,13 +1664,13 @@ export function drawHUD(
         const eb = Math.round(200 + 55 * Math.cos((h0 + 240) * Math.PI / 180));
         const eAlpha = flicker(time, targetId + 500);
         ctx.fillStyle = `rgba(${er},${eg},${eb},${eAlpha})`;
-        ctx.font = `${9 * sy}px monospace`;
+        ctx.font = getUiFont(9 * sy, false);
         ctx.textAlign = 'center';
         // Subtle glow behind
         ctx.shadowColor = `rgba(${er},${eg},${eb},0.4)`;
         ctx.shadowBlur = 6;
         const prompt = fitHudText(ctx, `${interactionPromptHint()}${interaction.prompt}`, slots.centerInteraction.w);
-        ctx.fillText(prompt, slots.centerInteraction.x + slots.centerInteraction.w * 0.5, slots.centerInteraction.y);
+        drawShadowText(ctx, prompt, slots.centerInteraction.x + slots.centerInteraction.w * 0.5, slots.centerInteraction.y);
         ctx.shadowBlur = 0;
         ctx.textAlign = 'left';
       }
@@ -1738,7 +1741,7 @@ export function drawHUD(
       drawRoutineHudText(ctx, fitHudText(ctx, `Лифт ${floorInstance}`, leftInfoW), leftX, barY - 52 * sy, time, 404, '#f4a', 8 * sy, reducedHudMotion);
     }
     drawRoutineHudText(ctx, `День ${day}  ${hh}:${mm}`, leftX, barY - 42 * sy, time, 400, '#8ac', 9 * sy, reducedHudMotion);
-    ctx.font = `${9 * sy}px monospace`;
+    ctx.font = getUiFont(9 * sy, false);
 
     // Zone
     if (zone) {
@@ -1746,18 +1749,18 @@ export function drawHUD(
       const fLabel = ZONE_FACTION_NAMES[territoryOwner];
       const zj = routineJitter(reducedHudMotion, time, 410);
       ctx.fillStyle = `rgba(${zr},${zg},${zb},${flicker(time, 411)})`;
-      ctx.font = `${8 * sy}px monospace`;
-      ctx.fillText(fitHudText(ctx, `■ Сектор ${zid + 1}  Ур.${zone.level ?? 1}`, leftInfoW), leftX + zj.dx, barY - 32 * sy + zj.dy);
+      ctx.font = getUiFont(8 * sy, false);
+      drawShadowText(ctx, fitHudText(ctx, `■ Сектор ${zid + 1}  Ур.${zone.level ?? 1}`, leftInfoW), leftX + zj.dx, barY - 32 * sy + zj.dy);
       const fColor = territoryOwner === ZoneFaction.SAMOSBOR ? '#c4f' : '#7aa';
       drawRoutineHudText(ctx, fitHudText(ctx, `Терр. ${fLabel}`, leftInfoW), leftX, barY - 22 * sy, time, 412, fColor, 7 * sy, reducedHudMotion);
-      ctx.font = `${7 * sy}px monospace`;
+      ctx.font = getUiFont(7 * sy, false);
     }
 
     // Room info
     const room = world.roomAt(player.x, player.y);
     if (room) {
       drawRoutineHudText(ctx, fitHudText(ctx, room.name, leftInfoW), leftX, barY - 13 * sy, time, 420, '#688', 7 * sy, reducedHudMotion);
-      ctx.font = `${7 * sy}px monospace`;
+      ctx.font = getUiFont(7 * sy, false);
     }
     drawRoutineHudText(
       ctx,
@@ -1877,9 +1880,9 @@ export function drawHUD(
     ctx.shadowBlur = hazardWarning.trapped ? 9 : 4;
     drawGlitchText(ctx, hazardWarning.title, rect.x + rect.w * 0.5, rect.y + 4 * sy, time * 2, 521, hazardWarning.color, 10 * sy);
     ctx.shadowBlur = 0;
-    ctx.font = `${7 * sy}px monospace`;
+    ctx.font = getUiFont(7 * sy, false);
     ctx.fillStyle = '#f0c8c8';
-    ctx.fillText(fitHudText(ctx, hazardWarning.detail, rect.w - 12 * sx), rect.x + rect.w * 0.5, rect.y + 17 * sy);
+    drawShadowText(ctx, fitHudText(ctx, hazardWarning.detail, rect.w - 12 * sx), rect.x + rect.w * 0.5, rect.y + 17 * sy);
     ctx.textAlign = 'left';
   }
   if (showSamosborText && state.samosborActive) {
@@ -1929,15 +1932,15 @@ export function drawHUD(
       ctx.shadowColor = 'rgba(0,255,128,0.4)';
       ctx.shadowBlur = 20;
       ctx.fillStyle = `rgba(200,255,200,${textAlpha})`;
-      ctx.font = `bold ${28 * sy}px monospace`;
-      ctx.fillText('КОНЕЦ ИГРЫ', w / 2 + dj.dx, h / 2 - 20 * sy + dj.dy);
+      ctx.font = getUiFont(28 * sy, true);
+      drawShadowText(ctx, 'КОНЕЦ ИГРЫ', w / 2 + dj.dx, h / 2 - 20 * sy + dj.dy);
       ctx.fillStyle = `rgba(0,200,100,${textAlpha * 0.15})`;
-      ctx.fillText('КОНЕЦ ИГРЫ', w / 2 + dj.dx + 3, h / 2 - 20 * sy + dj.dy + 1);
+      drawShadowText(ctx, 'КОНЕЦ ИГРЫ', w / 2 + dj.dx + 3, h / 2 - 20 * sy + dj.dy + 1);
       ctx.shadowBlur = 0;
       ctx.fillStyle = `rgba(136,170,136,${Math.min(1, (state.deathTimer - 2) * 0.4)})`;
-      ctx.font = `${10 * sy}px monospace`;
-      ctx.fillText(fitHudText(ctx, voidReturnVictoryLine(state), w * 0.82), w / 2, h / 2 + 10 * sy);
-      ctx.fillText('[R] — заново', w / 2, h / 2 + 30 * sy);
+      ctx.font = getUiFont(10 * sy, false);
+      drawShadowText(ctx, fitHudText(ctx, voidReturnVictoryLine(state), w * 0.82), w / 2, h / 2 + 10 * sy);
+      drawShadowText(ctx, '[R] — заново', w / 2, h / 2 + 30 * sy);
       ctx.textAlign = 'left';
       ctx.restore();
     }
@@ -1958,23 +1961,23 @@ export function drawHUD(
     ctx.shadowColor = 'rgba(255,0,0,0.5)';
     ctx.shadowBlur = 15;
     ctx.fillStyle = `rgba(200,0,0,${textAlpha})`;
-    ctx.font = `bold ${24 * sy}px monospace`;
+    ctx.font = getUiFont(24 * sy, true);
     ctx.textAlign = 'center';
-    ctx.fillText('ВЫ ПОГИБЛИ', w / 2 + dj.dx * 2, h / 2 - 20 * sy + dj.dy);
+    drawShadowText(ctx, 'ВЫ ПОГИБЛИ', w / 2 + dj.dx * 2, h / 2 - 20 * sy + dj.dy);
     // RGB split ghost
     ctx.fillStyle = `rgba(0,200,200,${textAlpha * 0.15})`;
-    ctx.fillText('ВЫ ПОГИБЛИ', w / 2 + dj.dx * 2 + 3, h / 2 - 20 * sy + dj.dy + 1);
+    drawShadowText(ctx, 'ВЫ ПОГИБЛИ', w / 2 + dj.dx * 2 + 3, h / 2 - 20 * sy + dj.dy + 1);
     ctx.shadowBlur = 0;
     ctx.fillStyle = `rgba(136,136,136,${Math.min(1, state.deathTimer * 0.5)})`;
     const deathCause = inferDeathCause(state, player, world);
-    ctx.font = `${10 * sy}px monospace`;
-    ctx.fillText(deathCause.title, w / 2, h / 2 + 10 * sy);
-    ctx.font = `${8 * sy}px monospace`;
-    ctx.fillText(fitHudText(ctx, deathCause.detail, w * 0.82), w / 2, h / 2 + 24 * sy);
-    ctx.font = `${10 * sy}px monospace`;
-    ctx.fillText('[R] — заново', w / 2, h / 2 + 44 * sy);
-    ctx.fillText('[Enter] — продолжить путь', w / 2, h / 2 + 60 * sy);
-    ctx.fillText('за случайного человека', w / 2, h / 2 + 74 * sy);
+    ctx.font = getUiFont(10 * sy, false);
+    drawShadowText(ctx, deathCause.title, w / 2, h / 2 + 10 * sy);
+    ctx.font = getUiFont(8 * sy, false);
+    drawShadowText(ctx, fitHudText(ctx, deathCause.detail, w * 0.82), w / 2, h / 2 + 24 * sy);
+    ctx.font = getUiFont(10 * sy, false);
+    drawShadowText(ctx, '[R] — заново', w / 2, h / 2 + 44 * sy);
+    drawShadowText(ctx, '[Enter] — продолжить путь', w / 2, h / 2 + 60 * sy);
+    drawShadowText(ctx, 'за случайного человека', w / 2, h / 2 + 74 * sy);
     ctx.textAlign = 'left';
     ctx.restore();
   }
@@ -2037,13 +2040,13 @@ export function drawHUD(
     ctx.fillStyle = 'rgba(0,0,0,0.7)';
     ctx.fillRect(0, 0, w, h);
     ctx.fillStyle = '#a8f';
-    ctx.font = `bold ${16 * sy}px monospace`;
+    ctx.font = getUiFont(16 * sy, true);
     ctx.textAlign = 'center';
     const sleepPct = Math.floor(player.needs?.sleep ?? 0);
-    ctx.fillText(`Сон: ${sleepPct}%`, w / 2, h / 2 - 10 * sy);
+    drawShadowText(ctx, `Сон: ${sleepPct}%`, w / 2, h / 2 - 10 * sy);
     ctx.fillStyle = '#666';
-    ctx.font = `${8 * sy}px monospace`;
-    ctx.fillText('[Z] — отпустите чтобы проснуться', w / 2, h / 2 + 10 * sy);
+    ctx.font = getUiFont(8 * sy, false);
+    drawShadowText(ctx, '[Z] — отпустите чтобы проснуться', w / 2, h / 2 + 10 * sy);
     ctx.textAlign = 'left';
   }
 

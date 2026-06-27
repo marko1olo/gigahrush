@@ -9,6 +9,9 @@ import { getAdjustedItemPrice, getEconomyQuote, getItemPriceMultiplier, getResou
 import { stockMarketSnapshot } from '../systems/stock_market';
 import { drawGlitchText, drawNeuroPanel } from './hud_fx';
 import { fitText } from './ui_text';
+import { drawShadowText, getUiFont } from './ui_font';
+
+
 
 type LooseRecord = Record<string, unknown>;
 
@@ -349,11 +352,11 @@ export function drawHudFinanceCompact(
 
   ctx.save();
   drawNeuroPanel(ctx, x, y, panelW, panelH, time, 280);
-  ctx.font = `${7 * sy}px monospace`;
+  ctx.font = getUiFont(7 * sy, false);
   ctx.textAlign = 'left';
   for (let i = 0; i < lines.length; i++) {
     ctx.fillStyle = lines[i].color;
-    ctx.fillText(fitText(ctx, lines[i].text, panelW - 10 * sx), x + 5 * sx, y + (4 * sy) + i * lineH);
+    drawShadowText(ctx, fitText(ctx, lines[i].text, panelW - 10 * sx), x + 5 * sx, y + (4 * sy) + i * lineH);
   }
   ctx.restore();
 }
@@ -377,10 +380,10 @@ export function drawInventoryFinanceBlock(
 
   drawGlitchText(ctx, 'ФИНАНСЫ', x, y, time, 830, '#6cf', 6 * sy);
   let cy = y + 8.4 * sy;
-  ctx.font = `${5.8 * sy}px monospace`;
+  ctx.font = getUiFont(5.8 * sy, false);
   for (const line of visible) {
     ctx.fillStyle = line.color;
-    ctx.fillText(fitText(ctx, line.text, w), x, cy);
+    drawShadowText(ctx, fitText(ctx, line.text, w), x, cy);
     cy += lineH;
   }
   return cy + 2.2 * sy;
