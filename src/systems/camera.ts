@@ -6,7 +6,7 @@ import { W } from '../core/types';
 import { World } from '../core/world';
 import { bfsPath, subcellToWorld } from './ai/pathfinding';
 
-export type CameraMode = 'player' | 'free' | 'death' | 'trailer';
+export type CameraMode = 'player' | 'free' | 'death' | 'trailer' | 'cinematic';
 
 export interface CameraSubject {
   x: number;
@@ -40,11 +40,21 @@ export interface TrailerCameraState {
   flySpeed: number;
 }
 
+export interface CinematicCameraState {
+  path: number[][];
+  targetNodeIndex: number;
+  active: boolean;
+  time: number;
+  angleTarget: number;
+  flySpeed: number;
+}
+
 export interface RuntimeCamera {
   mode: CameraMode;
   free: CameraPose;
   bob: CameraBobState;
   trailer?: TrailerCameraState;
+  cinematic?: CinematicCameraState;
 }
 
 export interface FreeCameraMove {
@@ -206,6 +216,82 @@ export function startDeathCamera(
   deathCameraStates.set(camera, createDeathCameraState(px, py, pAngle, random));
 }
 
+export function startCinematicCamera(
+  camera: RuntimeCamera,
+  px: number,
+  py: number,
+  waypoints: number[][],
+): void {
+  camera.mode = 'cinematic';
+  resetCameraBob(camera.bob);
+  camera.free = {
+    x: wrapCoord(px),
+    y: wrapCoord(py),
+    angle: 0,
+    pitch: 0,
+    height: CAMERA_STANDING_HEIGHT,
+    fovRadians: camera.free.fovRadians,
+  };
+  camera.cinematic = {
+    path: waypoints,
+    targetNodeIndex: 0,
+    active: true,
+    time: 0,
+    angleTarget: 0,
+    flySpeed: 2.5,
+  };
+}
+
+export function updateCinematicCamera(camera: RuntimeCamera, world: World, dt: number): void {
+  if (camera.mode !== 'cinematic' || !camera.cinematic) return;
+  const ts = camera.cinematic;
+  ts.time += dt;
+  ts.flySpeed = 4.0;
+
+  if (ts.path.length === 0 || ts.targetNodeIndex >= ts.path.length) {
+    camera.mode = 'player';
+    return;
+  }
+
+  while (ts.targetNodeIndex < ts.path.length) {
+    const waypoint = ts.path[ts.targetNodeIndex];
+    const tx = waypoint[0];
+    const ty = waypoint[1];
+    const dx = world.delta(camera.free.x, tx);
+    const dy = world.delta(camera.free.y, ty);
+    const dist2 = dx * dx + dy * dy;
+
+    if (dist2 < 0.64) {
+      ts.targetNodeIndex++;
+    } else {
+      ts.angleTarget = Math.atan2(dy, dx);
+      break;
+    }
+  }
+
+  if (ts.targetNodeIndex >= ts.path.length) {
+    camera.mode = 'player';
+    return;
+  }
+
+  let vx = Math.cos(camera.free.angle) * ts.flySpeed * dt;
+  let vy = Math.sin(camera.free.angle) * ts.flySpeed * dt;
+
+  const nx = wrapCoord(camera.free.x + vx);
+  const ny = wrapCoord(camera.free.y + vy);
+
+  camera.free.x = nx;
+  camera.free.y = ny;
+
+  let diff = ts.angleTarget - camera.free.angle;
+  while (diff > Math.PI) diff -= Math.PI * 2;
+  while (diff < -Math.PI) diff += Math.PI * 2;
+  camera.free.angle += diff * Math.min(1, dt * 6.0);
+
+  camera.free.height = CAMERA_STANDING_HEIGHT + Math.sin(ts.time * 0.7) * 0.15;
+  camera.free.pitch = Math.sin(ts.time * 1.1) * 0.1;
+}
+
 export function startTrailerCamera(
   camera: RuntimeCamera,
   px: number,
@@ -306,6 +392,7 @@ export function updateRuntimeCamera(camera: RuntimeCamera, world: World, dt: num
   if (camera.mode === 'death' && deathCamera) updateDeathCamera(deathCamera, world, dt);
   if (camera.mode === 'player' && subject) updatePlayerCameraBob(camera.bob, world, subject, dt);
   if (camera.mode === 'trailer') updateTrailerCamera(camera, world, dt);
+  if (camera.mode === 'cinematic') updateCinematicCamera(camera, world, dt);
 }
 
 export function runtimeCameraView(camera: RuntimeCamera, subject: CameraSubject, fovRadians = DEFAULT_CAMERA_FOV_RADIANS): CameraView {
@@ -321,7 +408,7 @@ export function runtimeCameraView(camera: RuntimeCamera, subject: CameraSubject,
       fovRadians,
     };
   }
-  if (camera.mode === 'free' || camera.mode === 'trailer') {
+  if (camera.mode === 'free' || camera.mode === 'trailer' || camera.mode === 'cinematic') {
     return { mode: camera.mode, ...camera.free, fovRadians: camera.free.fovRadians ?? fovRadians };
   }
   return {
