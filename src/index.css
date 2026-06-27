@@ -100,7 +100,7 @@ canvas {
 .mobile-fullscreen {
   border: 1px solid rgba(80, 220, 190, 0.45);
   color: #9ef;
-  background: rgba(3, 12, 14, 0.42);
+  background: rgba(3, 12, 14, 0.65);
   box-shadow: 0 0 14px rgba(0, 255, 200, 0.1), inset 0 0 16px rgba(0, 255, 200, 0.08);
   font: 700 14px 'Courier New', monospace;
   text-align: center;
@@ -164,7 +164,7 @@ canvas {
   height: 34%;
   border: 1px solid rgba(255, 240, 150, 0.65);
   border-radius: 50%;
-  background: rgba(255, 230, 120, 0.16);
+  background: rgba(255, 230, 120, 0.35);
   transform: translate(0, 0);
   translate: -50% -50%;
 }
@@ -173,10 +173,10 @@ canvas {
   position: absolute;
   right: max(86px, calc(env(safe-area-inset-right) + 86px));
   top: 50%;
-  width: 70px;
-  height: 46px;
+  width: 90px;
+  height: 60px;
   border-radius: 10px;
-  font-size: clamp(10px, 2.8dvh, 12px);
+  font-size: clamp(14px, 3.5dvh, 16px);
   opacity: 0;
   pointer-events: none;
   transform: translate(10px, -50%);
@@ -205,12 +205,12 @@ canvas {
   position: absolute;
   right: max(86px, calc(env(safe-area-inset-right) + 86px));
   top: 28%;
-  width: min(26vw, 180px);
-  height: 36%;
+  width: min(30vw, 220px);
+  height: 40%;
   min-width: 104px;
   min-height: 86px;
   border-radius: 999px;
-  opacity: 0.18;
+  opacity: 0.35;
 }
 
 .mobile-fire-zone::after {

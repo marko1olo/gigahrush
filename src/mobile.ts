@@ -321,9 +321,18 @@ export function createMobileControls(input: InputState, options: MobileControlsO
     const dx = e.clientX - (rect.left + rect.width * 0.5);
     const dy = e.clientY - (rect.top + rect.height * 0.5);
     const len = Math.hypot(dx, dy);
-    const scale = len > radius ? radius / len : 1;
-    const nx = (dx * scale) / radius;
-    const ny = (dy * scale) / radius;
+
+    const deadzone = 0.15;
+    const scaledLen = len / radius;
+    let nx = 0;
+    let ny = 0;
+
+    if (scaledLen > deadzone) {
+      const t = Math.min(1, (scaledLen - deadzone) / (1 - deadzone));
+      nx = (dx / len) * t;
+      ny = (dy / len) * t;
+    }
+
     thumb.style.transform = `translate(${nx * 34}%, ${ny * 34}%)`;
     if (kind === 'move') {
       input.touch.moveX = nx;
@@ -343,6 +352,7 @@ export function createMobileControls(input: InputState, options: MobileControlsO
       e.preventDefault();
       e.stopPropagation();
       options.onGesture();
+      navigator.vibrate?.(10);
       if (kind === 'move') movePointer = e.pointerId; else lookPointer = e.pointerId;
       capturePointer(el, e.pointerId);
       updatePad(el, thumb, kind, e);
@@ -375,6 +385,7 @@ export function createMobileControls(input: InputState, options: MobileControlsO
       e.preventDefault();
       e.stopPropagation();
       options.onGesture();
+      navigator.vibrate?.(10);
       if (context.menuOpen) {
         options.onConfirm();
         return;
@@ -457,6 +468,7 @@ export function createMobileControls(input: InputState, options: MobileControlsO
     e.preventDefault();
     e.stopPropagation();
     options.onGesture();
+    navigator.vibrate?.(10);
     firePointer = e.pointerId;
     capturePointer(fire, e.pointerId);
     input.mouseAttack = true;
@@ -476,18 +488,21 @@ export function createMobileControls(input: InputState, options: MobileControlsO
     if (!enabled || !context.started) return;
     e.preventDefault();
     e.stopPropagation();
+    navigator.vibrate?.(10);
     actionNav(-1);
   });
   actionDown.addEventListener('pointerdown', e => {
     if (!enabled || !context.started) return;
     e.preventDefault();
     e.stopPropagation();
+    navigator.vibrate?.(10);
     actionNav(1);
   });
   actionSelect.addEventListener('pointerdown', e => {
     if (!enabled || !context.started) return;
     e.preventDefault();
     e.stopPropagation();
+    navigator.vibrate?.(10);
     actionConfirm(e);
   });
   const actionEnd = (e: PointerEvent): void => {
