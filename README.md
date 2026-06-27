@@ -575,6 +575,11 @@ These are routed string-id floors, not new `FloorLevel` enum values. Each one is
 | -42 | `spectral_chasovnya` | Спектральная часовня | `HELL` |
 | -44 | `cantor_pustoty` | Кантор пустоты | `VOID` |
 | -48 | `darkness` | Темный отсек | `VOID` |
+| 0 | `tutorial_apartments` | Обучающие квартиры | `LIVING` |
+| -22 | `collapsed_sector` | Обрушенный сектор | `MAINTENANCE` |
+| -38 | `liquidatorbase` | База ликвидаторов | `HELL` |
+| -40 | `horrorfloor` | Ужасный этаж | `HELL` |
+| -44 | `cavefloor` | Пещерный этаж | `VOID` |
 
 ### Procedural Floor Combinatorics
 
@@ -866,7 +871,9 @@ Profiled special behavior runs through `systems/ai/tactics.ts`: `updateAI()` cal
 - medicine: bandage, pills, antidepressant, antibiotic, morphine, PSI stabilizer, sanitary kit, sleeping pills and route-risk treatments.
 - weapons as items: knives, pipes, pistols, shotguns, rifles, tools, energy weapons, PSI clots.
 - ammo: 9mm, shells, nails, 7.62, belt, energy cells, fuel, special ammo.
-- tools: flashlight, repair kits, cleaning kit, vacuum, radio, fog detector, unpeople detector.
+- tools: flashlight, repair kits, cleaning kit, vacuum, radio, fog detector, unpeople detector, pickaxe, jackhammer.
+- armor: light/medium/heavy armor, faction armor, gas mask.
+- materials: construction materials, collector key, minerals.
 - documents and components: permits, forms, denunciations, seals, tickets, manometer, filters, wire, metal, electronics.
 - plot and rare items: idol, strange clot, bottled voice, void spike, Maronary shaving, Veretar sand, overexposed photo and govnyak contraband.
 
@@ -878,7 +885,7 @@ PSI does not regenerate passively. It is restored by medicine/items and scales w
 
 `src/entities/monster.ts` currently registers 67 standalone `MonsterKind` packages. The legacy starting set includes:
 
-`SBORKA`, `TVAR`, `POLZUN`, `BETONNIK`, `ZOMBIE`, `EYE`, `NIGHTMARE`, `SHADOW`, `REBAR`, `MATKA`, `IDOL`, `MANCOBUS`, `HERALD`, `CREATOR`, `SPIRIT`, `ROBOT`, `SHOVNIK`, `LAMPOVY`, `PECHATEED`, `TUBE_EEL`, `PARAGRAPH`, `NELYUD`, `KRYSNOZHKA`, `KOSTOREZ`, `SAFEGUARD`.
+`SBORKA`, `TVAR`, `POLZUN`, `BETONNIK`, `ZOMBIE`, `EYE`, `NIGHTMARE`, `SHADOW`, `REBAR`, `MATKA`, `IDOL`, `MANCOBUS`, `HERALD`, `CREATOR`, `SPIRIT`, `ROBOT`, `SHOVNIK`, `LAMPOVY`, `PECHATEED`, `TUBE_EEL`, `PARAGRAPH`, `NELYUD`, `KRYSNOZHKA`, `KOSTOREZ`, `SAFEGUARD`, `GNOMES` (стайные мутанты), `STALKER_HUNTER` (живучий преследователь).
 
 Standalone monster packages extend that registry. `LAMPOGLAZ` is a Living/Ministry light-linked turret: it shoots harder and faster when the target stands in lit cells or near lamps, and loses its windup when the target cuts line of sight or moves into darkness. `DIKIY_MERTVYAK` is a Kvartiry/Living fragile crowd-runner: early damage cancels its shove momentum, while door jams, queues and dense actors let it stagger/panic nearby NPCs. `VODYANOY_KOSHMAR` is a Maintenance water-line PSI predator: bounded slow wet-connectivity checks ramp pressure while the target stays on a connected wet line, and dry concrete creates a short interruption window. `TRUBNYY_AVTOMAT` is a Maintenance wet-line machine: it charges only along bounded wet/drain lines, can be denied by stepping dry or flanking, and has a long recovery after firing. `OLGOY` is a Maintenance/Hell meat worm: raw meat and corpses distract it, dry floor slows it, and water/pipe/abyss cells let it bite harder and drag targets. `GLUBINNAYA_TEN` is a Hell/Void delayed-shadow predator: chasing its dark afterimage triggers a second-beat strike, while holding position or using light collapses the bait. `SLIME_WOMAN` uses the shared actor tactic profile for residue, wet/dry counterplay, crowd flee and isolated-target ambush. `SPORE_CARPET` is a Ministry/Kvartiry/Living/Maintenance dormant floor ambusher: proximity, opened containers, noise and fire wake it; close puffs apply `spore_haze`, while flame burns delay the next puff and publish a route clue.
 
@@ -960,6 +967,9 @@ Rendering:
 
 - WebGL DDA raycaster.
 - Procedural texture atlas.
+- 128x128 sprites.
+- Critters (rats/roaches/flies).
+- Speech bubbles.
 - Procedural sprite atlas for fixed props/projectiles plus seed-generated per-entity NPC/monster sprite textures. The renderer rebuilds 8192-entry procedural actor and current-floor item-drop texture caches at floor/game load boundaries so procedural visuals are generated before play resumes, not during hot frames.
 - Item drops use procedural item-specific textures derived from the drop's `defId`; the same generator draws inventory/container icons without adding save payload fields.
 - Per-cell wall/floor textures.
@@ -1043,6 +1053,18 @@ Only the current save shape version is accepted. Current-version sections are sa
 - Render reads resolved state such as `CameraView`; gameplay and camera-mode decisions stay in systems.
 
 Current optimizations include baked whole-floor navigation, cached combat target scans, `dist2` range checks, entity id maps and bounded event/ring buffers.
+
+
+## Systems
+
+- **Damage Types:** 5 damage types (physical, energy, psi, acid, radiation).
+- **Armor System:** light, medium, heavy, and faction-specific armor.
+- **Crafting:** Unified `CraftRecipe` system.
+- **Environment:** Wall/Object destruction, Barricades.
+- **AI:** Squad macro-goals, Faction skirmishes, Smart inventory, Hide mechanics.
+- **Arena:** Arena betting system.
+- **Cinematics:** Cinematic cutscenes.
+- **Mobile/Adaptive:** OOM fixes, Adaptive UI, Critter toggle.
 
 ## Content Extension Guide
 
