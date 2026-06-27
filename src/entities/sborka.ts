@@ -2,7 +2,7 @@
 
 import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
-import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
+import { S, rgba, noise, clamp, CLEAR, outline } from '../render/pixutil';
 
 export const DEF: MonsterDef = {
   kind: MonsterKind.SBORKA,
@@ -21,33 +21,39 @@ export const DEF: MonsterDef = {
 export function generateSprite(): Uint32Array {
   const t = new Uint32Array(S * S).fill(CLEAR);
   const cx = S / 2;
+  const sc = S / 64; // scale multiplier
 
   // Compact jagged body: weak, fast, made from scraps.
-  for (let y = 16; y < 50; y++) {
-    const lean = Math.sin(y * 0.33) * 2;
-    const halfW = y < 28 ? 5 + Math.sin(y * 0.7) * 2 : 7 + Math.sin(y * 0.45) * 3;
+  for (let y = Math.floor(16 * sc); y < Math.floor(50 * sc); y++) {
+    const lean = Math.sin(y * 0.33 / sc) * 2 * sc;
+    const halfW = y < 28 * sc ? (5 + Math.sin(y * 0.7 / sc) * 2) * sc : (7 + Math.sin(y * 0.45 / sc) * 3) * sc;
     for (let x = Math.floor(cx - halfW + lean); x <= Math.ceil(cx + halfW + lean); x++) {
       if (x < 0 || x >= S) continue;
       const dx = (x - cx - lean) / Math.max(1, halfW);
       if (dx * dx > 1.1) continue;
       const n = noise(x, y, 444) * 30;
       const crack = noise(x * 3, y * 2, 445) > 0.82 ? -35 : 0;
-      t[y * S + x] = rgba(clamp(82 + n + crack), clamp(45 + n + crack), clamp(54 + n + crack));
+      const depth = Math.abs(x - cx - lean) * 3 / sc; // shading
+      t[y * S + x] = rgba(
+        clamp(82 + n + crack - depth),
+        clamp(45 + n + crack - depth),
+        clamp(54 + n + crack - depth)
+      );
     }
   }
 
-  for (let y = 20; y < 48; y += 6) {
-    const shift = Math.floor(Math.sin(y * 0.6) * 3);
-    for (let dx = -10; dx <= 10; dx += 4) {
+  for (let y = Math.floor(20 * sc); y < Math.floor(48 * sc); y += Math.max(1, Math.floor(6 * sc))) {
+    const shift = Math.floor(Math.sin(y * 0.6 / sc) * 3 * sc);
+    for (let dx = Math.floor(-10 * sc); dx <= Math.floor(10 * sc); dx += Math.max(1, Math.floor(4 * sc))) {
       const px = cx + dx + shift;
       if (px >= 0 && px < S) t[y * S + px] = rgba(35, 28, 32);
     }
   }
 
-  for (let y = 27; y < 53; y += 5) {
-    const spread = 6 + (y - 27) * 0.28;
+  for (let y = Math.floor(27 * sc); y < Math.floor(53 * sc); y += Math.max(1, Math.floor(5 * sc))) {
+    const spread = (6 + (y / sc - 27) * 0.28) * sc;
     for (let side = -1; side <= 1; side += 2) {
-      for (let i = 0; i < 5; i++) {
+      for (let i = 0; i < 5 * sc; i++) {
         const x = Math.floor(cx + side * (spread + i));
         const yy = y + Math.floor(i * 0.4);
         if (x >= 0 && x < S && yy >= 0 && yy < S) t[yy * S + x] = rgba(72, 45, 38);
@@ -55,17 +61,29 @@ export function generateSprite(): Uint32Array {
     }
   }
 
-  t[18 * S + (cx - 3)] = rgba(255, 100, 100);
-  t[18 * S + (cx + 3)] = rgba(255, 100, 100);
-  t[19 * S + (cx - 3)] = rgba(255, 80, 80);
-  t[19 * S + (cx + 3)] = rgba(255, 80, 80);
+  const ex1 = Math.floor(cx - 3 * sc);
+  const ex2 = Math.floor(cx + 3 * sc);
+  const ey1 = Math.floor(18 * sc);
+  const ey2 = Math.floor(19 * sc);
 
-  for (let y = 50; y < 58; y++) {
+  // Eyes with pupils
+  for (let dy = 0; dy < Math.max(1, Math.floor(2 * sc)); dy++) {
+    for (let dx = 0; dx < Math.max(1, Math.floor(2 * sc)); dx++) {
+      t[(ey1 + dy) * S + (ex1 + dx)] = rgba(255, 100, 100);
+      t[(ey1 + dy) * S + (ex2 + dx)] = rgba(255, 100, 100);
+      t[(ey2 + dy) * S + (ex1 + dx)] = rgba(255, 80, 80);
+      t[(ey2 + dy) * S + (ex2 + dx)] = rgba(255, 80, 80);
+    }
+  }
+
+  for (let y = Math.floor(50 * sc); y < Math.floor(58 * sc); y++) {
     const n = noise(cx, y, 446) * 18;
-    const lx = Math.floor(cx - 5 - (y - 50) * 0.45);
-    const rx = Math.floor(cx + 4 + (y - 50) * 0.25);
+    const lx = Math.floor(cx - (5 + (y / sc - 50) * 0.45) * sc);
+    const rx = Math.floor(cx + (4 + (y / sc - 50) * 0.25) * sc);
     if (lx >= 0) t[y * S + lx] = rgba(clamp(78 + n), clamp(45 + n), clamp(42 + n));
     if (rx < S) t[y * S + rx] = rgba(clamp(78 + n), clamp(45 + n), clamp(42 + n));
   }
+
+  outline(t, rgba(20, 10, 15));
   return t;
 }
