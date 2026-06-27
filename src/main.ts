@@ -165,6 +165,7 @@ import {
   playProjectileImpact, playEnergyImpact, playProjectileBodyHit,
   startAmbientDrone, setListenerPos, playSoundAt, playHudBarChange,
   setAudioSuspendedForPage, setAudioSuspendedForPlatform,
+  cleanupAudioContext,
   type HudBarAudioId,
 } from './systems/audio';
 import {
@@ -3809,6 +3810,7 @@ function switchFloor(
   allowElevatorAnomaly = true,
   targetZ?: number,
 ): void {
+  cleanupAudioContext();
   closeCraftMenu();
   restorePlayerBeforeWorldBoundary();
   const fromFloor = state.currentFloor;
@@ -4780,7 +4782,16 @@ function saveGame(): void {
     const compactRaw = JSON.stringify(compactData);
     const rawBytes = new TextEncoder().encode(raw).length;
     const compactBytes = new TextEncoder().encode(compactRaw).length;
-    localStorage.setItem(SAVE_KEY, raw);
+    try {
+      localStorage.setItem(SAVE_KEY, raw);
+    } catch (e) {
+      console.error(`CRITICAL: localStorage.setItem failed! Save size: ${rawBytes} bytes (${Math.round(rawBytes/1024)}KB)`, e);
+      const mem = (performance as any).memory;
+      if (mem) {
+        console.error(`Memory at save failure: ${Math.round(mem.usedJSHeapSize / 1024 / 1024)}MB / ${Math.round(mem.jsHeapSizeLimit / 1024 / 1024)}MB`);
+      }
+      throw e; // re-throw to be caught by the outer catch and show the UI message
+    }
     void savePlatformRawGameSave(raw, rawBytes, {
       raw: compactRaw,
       bytes: compactBytes,
@@ -7542,6 +7553,22 @@ function clearExternalPauseInputsOnce(): void {
   if (pageHiddenPause) clearPagePauseInputsOnce();
   if (platformPause) clearPlatformPauseInputsOnce();
 }
+
+window.addEventListener('error', (event) => {
+  console.error('Global unhandled error:', event.error || event.message);
+  const mem = (performance as any).memory;
+  if (mem) {
+    console.error(`Memory at crash: ${Math.round(mem.usedJSHeapSize / 1024 / 1024)}MB / ${Math.round(mem.jsHeapSizeLimit / 1024 / 1024)}MB`);
+  }
+});
+
+window.addEventListener('unhandledrejection', (event) => {
+  console.error('Unhandled promise rejection:', event.reason);
+  const mem = (performance as any).memory;
+  if (mem) {
+    console.error(`Memory at unhandled rejection: ${Math.round(mem.usedJSHeapSize / 1024 / 1024)}MB / ${Math.round(mem.jsHeapSizeLimit / 1024 / 1024)}MB`);
+  }
+});
 
 function gameLoop(now: number): void {
   // Two-phase deferred loading:
