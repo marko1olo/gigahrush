@@ -2,6 +2,7 @@
 import './index.css';
 import './systems/demos_runtime';
 import { registerPwaServiceWorker } from './pwa';
+import { initTutorialSystem } from './systems/tutorial';
 
 import {
   W, Cell, DoorState, FloorLevel, Tex, RoomType, LiftDirection,
@@ -2394,6 +2395,7 @@ function bootInitialGameOrTitle(): void {
   requestAnimationFrame(gameLoop);
 }
 
+initTutorialSystem();
 bootInitialGameOrTitle();
 
 function sameOptionalNumber(a: number | undefined, b: number | undefined, scale = 1): boolean {
