@@ -2018,6 +2018,7 @@ const DESIGN_FLOOR_POPULATION_OVERRIDES: Readonly<Record<DesignFloorId, DesignFl
       maxPerBucket: 8,
     },
   },
+  liquidatorbase: { npcTarget: 8, monsterTarget: 'active_actor_cap', monsterBiasKinds: [], monsterTags: [], monsterPlacementKind: 'admin' },
   darkness: {
     npcTarget: 0,
     monsterTarget: 'active_actor_cap',

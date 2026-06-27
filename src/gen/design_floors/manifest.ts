@@ -29,6 +29,7 @@ import { alignHarmonicBathhouseAmbientNpcTerritory, generateHarmonicBathhouseDes
 import { alignHilbertDepotAmbientNpcTerritory, generateHilbertDepotDesignFloor } from './hilbert_depot';
 import { alignHyperbolicSwitchyardAmbientNpcTerritory, generateHyperbolicSwitchyardDesignFloor } from './hyperbolic_switchyard';
 import { generateIstinniyLabirintDesignFloor } from './istinniy_labirint';
+import { generateLiquidatorBaseDesignFloor } from './liquidatorbase';
 import { generateManhattanCrossroadsDesignFloor } from './manhattan_crossroads';
 import { generateMarkovStairwellDesignFloor, reinforceMarkovStairwellAuthoredHqTerritory } from './markov_stairwell';
 import { alignMoebiusPodezdAmbientNpcTerritory, generateMoebiusPodezdDesignFloor } from './moebius_podezd';
@@ -77,6 +78,7 @@ const DESIGN_FLOOR_GENERATORS: Record<DesignFloorId, () => FloorGeneration> = {
   bolnichny_korpus: generateBolnichnyKorpusDesignFloor,
   slime_nii: generateSlimeNiiDesignFloor,
   turing_nursery: generateTuringNurseryDesignFloor,
+  liquidatorbase: generateLiquidatorBaseDesignFloor,
   manhattan_crossroads: generateManhattanCrossroadsDesignFloor,
   voronoi_quarantine: generateVoronoiQuarantineDesignFloor,
   communal_ring: generateCommunalRingDesignFloor,

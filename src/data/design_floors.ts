@@ -11,6 +11,7 @@ export type DesignFloorId =
   | 'number_registry'
   | 'istinniy_labirint'
   | 'bank_floor'
+  | 'liquidatorbase'
   | 'critical_leak_archive'
   | 'raionsovet_archive'
   | 'markov_stairwell'
@@ -91,6 +92,7 @@ export const DESIGN_FLOOR_ROUTES: readonly DesignFloorRouteDef[] = [
   { id: 'upper_bureau', z: 34, displayName: 'Верхнее бюро', baseFloor: FloorLevel.MINISTRY, color: '#fc4', role: 'документы и доступ', danger: 3 },
   { id: 'number_registry', z: 32, displayName: 'Числовой реестр', baseFloor: FloorLevel.MINISTRY, color: '#fe8', role: 'остатки, модули, простые коридоры', danger: 3 },
   { id: 'istinniy_labirint', z: 28, displayName: 'Истинный лабиринт', baseFloor: FloorLevel.MINISTRY, color: '#edc', role: 'путь, метки, отступление', danger: 4 },
+  { id: 'liquidatorbase', z: 30, displayName: 'База Ликвидаторов', baseFloor: FloorLevel.MINISTRY, themeClass: FloorLevel.MINISTRY, color: '#aaa', role: 'оружие, снаряжение, документы', danger: 4 },
   { id: 'bank_floor', z: 26, displayName: 'Банковский этаж', baseFloor: FloorLevel.MINISTRY, color: '#fd6', role: 'деньги, долги, сейфы', danger: 3 },
   { id: 'critical_leak_archive', z: 24, displayName: 'Архив критической протечки', baseFloor: FloorLevel.MINISTRY, color: '#7bc', role: 'вода, документы, шлюзы', danger: 4 },
   { id: 'raionsovet_archive', z: 22, displayName: 'Райсовет и архив картотек', baseFloor: FloorLevel.MINISTRY, color: '#fc4', role: 'архивы, картотеки, пропуска', danger: 3 },

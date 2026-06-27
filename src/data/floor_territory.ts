@@ -84,6 +84,7 @@ const DESIGN_TERRITORY: Readonly<Record<DesignFloorId, readonly FloorTerritorySh
   podad: shares(6, 9, 38, 5, 28, 14),
   spectral_chasovnya: shares(10, 8, 46, 6, 22, 8),
   cantor_pustoty: shares(6, 8, 24, 8, 34, 20),
+  liquidatorbase: shares(0, 80, 0, 10, 10, 0),
   darkness: shares(6, 8, 24, 8, 36, 18),
 };
 
