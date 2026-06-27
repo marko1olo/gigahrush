@@ -138,7 +138,7 @@ export interface FloorMemoryRestoreOptions {
   isKnownFloorKey?: (key: string) => boolean;
 }
 
-const MAX_FLOOR_MEMORY_ENTRIES = 128;
+const MAX_FLOOR_MEMORY_ENTRIES = 24;
 const MAX_FLOOR_MEMORY_SAVE_ENTRIES = 24;
 const MAX_FLOOR_MEMORY_RESTORE_SCAN_ENTRIES = MAX_FLOOR_MEMORY_SAVE_ENTRIES * 4;
 const BYTES_PER_MIB = 1024 * 1024;
