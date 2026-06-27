@@ -9,6 +9,8 @@ export interface WeaponStats {
   range: number;        // melee reach in cells
   hitRadius?: number;   // melee hit capsule radius (e.g. 0.5 for fists, wider for large weapons)
   speed: number;        // attack cooldown seconds
+  magazineSize?: number;
+  reloadTime?: number;
   isRanged: boolean;
   ammoType?: string;    // item def id for ammo
   projSpeed?: number;   // projectile speed (cells/sec)

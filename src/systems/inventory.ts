@@ -212,6 +212,8 @@ export interface WeaponReadiness {
   cooldownMax: number;
   cooldownPct: number;
   readyPct: number;
+  reloadPct: number;
+  reloading: boolean;
   cooldownLabel: string;
   resourceKind: 'none' | 'ammo' | 'psi' | 'durability';
   resourceName: string;
@@ -557,7 +559,7 @@ function handleVeretarSandUse(e: Entity, slotIdx: number, msgs: Msg[], time: num
   return true;
 }
 
-function publishPlayerItemEvent(
+export function publishPlayerItemEvent(
   state: GameState | undefined,
   actor: Entity,
   type: 'player_pick_item' | 'player_drop_item' | 'player_use_item' | 'tool_broke' | 'ammo_consumed',
@@ -2337,9 +2339,16 @@ export function consumeToolDurability(e: Entity, amount: number, msgs: Msg[], ti
 export function consumeAmmo(e: Entity, state?: GameState, itemId = equippedCombatItemId(e)): boolean {
   const ws = WEAPON_STATS[itemId];
   if (!ws || !ws.isRanged || !ws.ammoType) return false;
-  const consumed = removeItem(e, ws.ammoType, 1);
-  if (consumed) publishPlayerItemEvent(state, e, 'ammo_consumed', ws.ammoType, 1, 0);
-  return consumed;
+  if (ws.magazineSize === Infinity) {
+    const consumed = removeItem(e, ws.ammoType, 1);
+    if (consumed) publishPlayerItemEvent(state, e, 'ammo_consumed', ws.ammoType, 1, 0);
+    return consumed;
+  }
+  if ((e.currentMag ?? 0) > 0) {
+    e.currentMag = (e.currentMag ?? 0) - 1;
+    return true;
+  }
+  return false;
 }
 
 /* ── Count ammo for current ranged weapon ─────────────────────── */
@@ -2458,6 +2467,7 @@ export function getWeaponReadiness(e: Entity, itemId = equippedCombatItemId(e)):
   let resourceLabel = 'без расхода';
   let cannotFireReason = '';
   let lowResource = false;
+  let reloadPct = e.reloading ? (1 - Math.max(0, e.reloadTimer ?? 0) / (ws.reloadTime || 1)) : 0;
 
   if (ws.psiCost) {
     const cost = ws.psiCost;
@@ -2478,9 +2488,18 @@ export function getWeaponReadiness(e: Entity, itemId = equippedCombatItemId(e)):
     resourceName = compactAmmoName(ws.ammoType);
     resourceCurrent = ammo;
     resourceCost = 1;
-    resourceLabel = `${resourceName} ${ammo}`;
-    if (!ws.ammoType || ammo <= 0) cannotFireReason = 'нет патронов';
-    lowResource = ammo <= 3;
+    if (ws.magazineSize === Infinity) {
+      resourceLabel = `${resourceName} ${ammo}`;
+      if (!ws.ammoType || ammo <= 0) cannotFireReason = 'нет патронов';
+      lowResource = ammo <= 3;
+    } else {
+      const mag = e.currentMag ?? 0;
+      resourceLabel = `${resourceName} ${mag}/${ammo}`;
+      if (mag <= 0 && ammo <= 0) cannotFireReason = 'нет патронов';
+      else if (mag <= 0) cannotFireReason = 'нужна перезарядка';
+      lowResource = mag <= Math.ceil((ws.magazineSize ?? 1) * 0.25) || ammo <= 0;
+    }
+    if (e.reloading) cannotFireReason = 'ПЕРЕЗАРЯДКА';
   } else {
     const dur = getEquippedDurability(e, id);
     resourceKind = 'durability';
@@ -2515,6 +2534,8 @@ export function getWeaponReadiness(e: Entity, itemId = equippedCombatItemId(e)):
     cooldownMax,
     cooldownPct,
     readyPct: 1 - cooldownPct,
+    reloadPct,
+    reloading: !!e.reloading,
     cooldownLabel: cooldown > 0.05 ? `КД ${cooldown.toFixed(1)}с` : 'ГОТОВ',
     resourceKind,
     resourceName,

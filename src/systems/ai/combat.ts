@@ -296,6 +296,20 @@ export function tryFactionCombat(
   const bestDist = Math.sqrt(world.dist2(e.x, e.y, target.x, target.y));
   const atkSpeedMod = e.rpg ? agiAttackSpeedMult(e.rpg) : 1;
 
+  // Reload logic for NPC
+  if (e.reloading) {
+    e.reloadTimer = Math.max(0, (e.reloadTimer ?? 0) - dt);
+    if (e.reloadTimer <= 0) {
+      e.currentMag = ws.magazineSize ?? 1;
+      e.reloading = false;
+    }
+    return true; // Block actions while reloading
+  }
+  if (!ws.psiCost && (e.currentMag ?? 0) <= 0 && ws.magazineSize !== Infinity) {
+    e.reloading = true;
+    e.reloadTimer = (ws.reloadTime ?? 1) / (e.rpg ? (1 + e.rpg.agi * 0.05) : 1);
+    return true;
+  }
   if (
     simple &&
     ws.isRanged &&
@@ -539,6 +553,9 @@ function npcCommitRangedShot(
   }
   if (ws.ammoType) {
     if (!removeItem(e, ws.ammoType, 1)) return false;
+  }
+  if (ws.magazineSize !== Infinity) {
+    e.currentMag = Math.max(0, (e.currentMag ?? 0) - 1);
   }
   if (visualProjectiles) {
     npcFireProjectile(world, e, target, weaponId, ws, entities, nextId);
