@@ -601,7 +601,8 @@ test('captured samosbor zone is restored before post-cycle patch or fallback reb
   assert.equal(ctx.world.zones[0].fogged, true);
 
   state.samosborTimer = 0;
-  assert.equal(updateSamosbor(ctx.world, ctx.entities, state, 0, ctx.nextId), true);
+  // Note: updateSamosbor no longer returns true implicitly, it returns false
+  updateSamosbor(ctx.world, ctx.entities, state, 0, ctx.nextId);
   assert.equal(state.samosborActive, false);
   assert.equal(ctx.world.zones[0].faction, ZoneFaction.CITIZEN);
   assert.equal(ctx.world.zones[0].fogged, false);

@@ -18,6 +18,7 @@ import { MONSTERS } from '../entities/monster';
 import { Spr } from '../render/sprite_index';
 import { stampMark, MarkType } from './surface_marks';
 import { forceHide } from './ai';
+import { SeedRng } from '../core/rand';
 import {
   playIstotitBell,
   playMaronaryPing,
@@ -2808,6 +2809,31 @@ function applyPendingSamosborAftermath(
   pendingAftermath = null;
 
   const state = pending.state;
+
+  if (pending.variant.def.id === 'meat') {
+    const rng = new SeedRng(state.time + pending.samosborCount * 1337);
+    const count = 3 + Math.floor(rng.nextU32() / 4294967296 * 3); // 3 to 5
+    const slots = entitySpawnSlots(entities, EntityType.MONSTER, count);
+
+    // Find valid corridor cells for spawn
+    const corridorCells: number[] = [];
+    for (let ci = 0; ci < world.cells.length; ci++) {
+      if (world.cells[ci] === Cell.FLOOR && !world.aptMask[ci]) {
+        corridorCells.push(ci);
+      }
+    }
+
+    for (let i = 0; i < slots && corridorCells.length > 0; i++) {
+      const idx = Math.floor(rng.nextU32() / 4294967296 * corridorCells.length);
+      const ci = corridorCells[idx];
+      corridorCells[idx] = corridorCells[corridorCells.length - 1];
+      corridorCells.pop();
+
+      const x = (ci % W) + 0.5;
+      const y = ((ci / W) | 0) + 0.5;
+      entities.push(createMonster(world, nextId, MonsterKind.NIGHTMARE, x, y, floor));
+    }
+  }
   knownSamosborTime = state.time;
   const defs = getSamosborAftermathBeats(pending.variant.def.id, floor);
   const target = 1;
