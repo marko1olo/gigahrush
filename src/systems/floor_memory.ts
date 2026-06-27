@@ -1479,6 +1479,12 @@ export function captureFloorMemory(
   return true;
 }
 
+export function hasFloorMemory(keyInput: string): boolean {
+  const key = cleanFloorKey(keyInput);
+  if (!key) return false;
+  return floorMemory.has(key) || packedFloorMemory.has(key);
+}
+
 export function takeFloorMemory(keyInput: string): FloorMemoryLoad | null {
   const key = cleanFloorKey(keyInput);
   if (!key) return null;
