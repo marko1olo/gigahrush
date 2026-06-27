@@ -24,6 +24,11 @@ import { generateCommunalRingDesignFloor } from './communal_ring';
 import { generateCriticalLeakArchiveDesignFloor } from './critical_leak_archive';
 import { alignDarkMetroAmbientNpcTerritory, generateDarkMetroDesignFloor } from './dark_metro';
 import { generateDarknessDesignFloor } from './darkness';
+import {
+  alignLiquidatorbaseAmbientNpcTerritory,
+  generateLiquidatorbaseDesignFloor,
+  reinforceLiquidatorbaseAuthoredHqTerritory,
+} from './liquidatorbase';
 import { generateFloor69DesignFloor } from './floor_69';
 import { alignHarmonicBathhouseAmbientNpcTerritory, generateHarmonicBathhouseDesignFloor } from './harmonic_bathhouse';
 import { alignHilbertDepotAmbientNpcTerritory, generateHilbertDepotDesignFloor } from './hilbert_depot';
@@ -87,6 +92,7 @@ const DESIGN_FLOOR_GENERATORS: Record<DesignFloorId, () => FloorGeneration> = {
   obschezhitie_smeny: generateObschezhitieSmenyDesignFloor,
   penrose_laundry: generatePenroseLaundryDesignFloor,
   black_market_88: generateBlackMarket88DesignFloor,
+  liquidatorbase: generateLiquidatorbaseDesignFloor,
   production_belt: generateProductionBeltDesignFloor,
   service_floor: generateServiceFloorDesignFloor,
   silicon_net_well: generateSiliconNetWellDesignFloor,
@@ -136,6 +142,7 @@ export function generateDesignFloor(id: DesignFloorId, runSeed = DEFAULT_DESIGN_
     retuneDesignFloorAfterCellTerritory(expanded.world, id);
     if (id === 'attractor_dvor') alignAttractorDvorAmbientNpcTerritory(expanded.world, expanded.entities);
     if (id === 'black_market_88') reinforceBlackMarket88AuthoredHqTerritory(expanded.world);
+    if (id === 'liquidatorbase') reinforceLiquidatorbaseAuthoredHqTerritory(expanded.world);
     if (id === 'shahta_atrium') reinforceShahtaAtriumAuthoredHqTerritory(expanded.world);
     if (id === 'oranzhereya_betona') alignOranzhereyaBetonaAmbientNpcTerritory(expanded.world, expanded.entities);
     if (id === 'slime_nii') alignSlimeNiiAmbientNpcTerritory(expanded.world, expanded.entities);
@@ -146,6 +153,7 @@ export function generateDesignFloor(id: DesignFloorId, runSeed = DEFAULT_DESIGN_
     if (id === 'hilbert_depot') alignHilbertDepotAmbientNpcTerritory(expanded.world, expanded.entities);
     if (id === 'hyperbolic_switchyard') alignHyperbolicSwitchyardAmbientNpcTerritory(expanded.world, expanded.entities);
     if (id === 'black_market_88') alignBlackMarket88AmbientNpcTerritory(expanded.world, expanded.entities);
+    if (id === 'liquidatorbase') alignLiquidatorbaseAmbientNpcTerritory(expanded.world, expanded.entities);
     if (id === 'service_floor') alignServiceFloorAmbientNpcTerritory(expanded.world, expanded.entities);
     if (id === 'dark_metro') alignDarkMetroAmbientNpcTerritory(expanded.world, expanded.entities);
     if (id === 'silicon_net_well') alignSiliconNetWellAmbientNpcTerritory(expanded.world, expanded.entities);

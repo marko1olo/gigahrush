@@ -1350,7 +1350,26 @@ const DESIGN_FLOOR_POPULATION_OVERRIDES: Readonly<Record<DesignFloorId, DesignFl
       ],
     },
   },
+
+
+
+  liquidatorbase: {
+    npcTarget: 1200,
+    monsterTarget: 600,
+    npcFactions: [{ value: Faction.LIQUIDATOR, weight: 80 }, { value: Faction.CITIZEN, weight: 15 }, { value: Faction.SCIENTIST, weight: 5 }],
+    npcOccupations: [
+      { value: Occupation.MECHANIC, weight: 30 },
+      { value: Occupation.DIRECTOR, weight: 20 },
+      { value: Occupation.STOREKEEPER, weight: 10 },
+      { value: Occupation.DOCTOR, weight: 5 },
+    ],
+    monsterBiasKinds: [MonsterKind.REBAR, MonsterKind.ROBOT],
+    monsterTags: ['military', 'armory', 'guard_dog'],
+    monsterPlacementKind: 'industrial',
+  },
   production_belt: {
+
+
     npcTarget: 1300,
     monsterTarget: 1250,
     npcFactions: [{ value: Faction.CITIZEN, weight: 48 }, { value: Faction.LIQUIDATOR, weight: 34 }, { value: Faction.WILD, weight: 12 }, { value: Faction.SCIENTIST, weight: 6 }],
