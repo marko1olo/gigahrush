@@ -1,6 +1,8 @@
 import { Faction, type ItemDef, ItemType, type Item } from '../core/types';
 import { ITEMS, itemEquipSlot, itemDefHasTag } from '../data/items';
 
+const ITEM_VALUES = Object.freeze(Object.values(ITEMS));
+
 export interface LootProfile {
   weaponMult?: number;
   ammoMult?: number;
@@ -30,8 +32,7 @@ export function calculateMaxLootValue(level: number, danger: number, faction: Fa
 
 export function buildLootPool(profile: LootProfile, maxAllowedValue: number): { item: ItemDef, weight: number }[] {
   const pool: { item: ItemDef, weight: number }[] = [];
-  for (const id in ITEMS) {
-    const item = ITEMS[id];
+  for (const item of ITEM_VALUES) {
     if (item.value > maxAllowedValue) continue;
 
     let baseWeight = item.spawnW || 0;
