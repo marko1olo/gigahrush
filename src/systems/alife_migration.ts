@@ -434,15 +434,33 @@ function intentScore(intent: AlifeMigrationIntentDef, record: AlifeNpcSnapshot):
 }
 
 function pickIntent(seed: number, time: number, record: AlifeNpcSnapshot, cursor: number): AlifeMigrationIntentDef | undefined {
-  const scored = ALIFE_MIGRATION_INTENTS.map(intent => ({ intent, weight: intentScore(intent, record) })).filter(row => row.weight > 0);
-  const total = scored.reduce((sum, row) => sum + row.weight, 0);
-  if (total <= 0) return undefined;
-  let roll = unit(seed, record.id, Math.floor(time) ^ cursor) * total;
-  for (const row of scored) {
-    roll -= row.weight;
-    if (roll <= 0) return row.intent;
+  let total = 0;
+  const len = ALIFE_MIGRATION_INTENTS.length;
+  const scores = new Array<number>(len);
+
+  for (let i = 0; i < len; i++) {
+    const w = intentScore(ALIFE_MIGRATION_INTENTS[i], record);
+    scores[i] = w;
+    if (w > 0) {
+      total += w;
+    }
   }
-  return scored[scored.length - 1]?.intent;
+
+  if (total <= 0) return undefined;
+
+  let roll = unit(seed, record.id, Math.floor(time) ^ cursor) * total;
+  let lastValidIntent: AlifeMigrationIntentDef | undefined = undefined;
+
+  for (let i = 0; i < len; i++) {
+    const w = scores[i];
+    if (w > 0) {
+      roll -= w;
+      lastValidIntent = ALIFE_MIGRATION_INTENTS[i];
+      if (roll <= 0) return lastValidIntent;
+    }
+  }
+
+  return lastValidIntent;
 }
 
 function selectorMatches(route: RouteInfo, selector: AlifeDestinationSelector): boolean {
