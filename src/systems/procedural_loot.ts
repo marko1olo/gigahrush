@@ -28,10 +28,11 @@ export function calculateMaxLootValue(level: number, danger: number, faction: Fa
   return base;
 }
 
+const ITEMS_ARRAY = Object.freeze(Object.values(ITEMS));
+
 export function buildLootPool(profile: LootProfile, maxAllowedValue: number): { item: ItemDef, weight: number }[] {
   const pool: { item: ItemDef, weight: number }[] = [];
-  for (const id in ITEMS) {
-    const item = ITEMS[id];
+  for (const item of ITEMS_ARRAY) {
     if (item.value > maxAllowedValue) continue;
 
     let baseWeight = item.spawnW || 0;
