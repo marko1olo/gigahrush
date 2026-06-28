@@ -5204,6 +5204,46 @@ function handleVacuumTool(player: Entity, wantsToolUse: boolean): void {
   _toolActionCd = 0.15;
 }
 
+function handlePsiTool(player: Entity, toolId: string, wantsToolUse: boolean): boolean {
+  const psiToolStats = WEAPON_STATS[toolId]?.psiCost ? getWeaponStats(player, toolId) : undefined;
+  if (psiToolStats) {
+    if (!wantsToolUse || _toolActionCd > 0) return true;
+    const atkSpeedMod = player.rpg ? agiAttackSpeedMult(player.rpg) : 1;
+    _toolActionCd = castPlayerPsi(toolId, psiToolStats) ? psiToolStats.speed * atkSpeedMod : 0.5;
+    return true;
+  }
+  return false;
+}
+
+function handleLightDrain(player: Entity, toolId: string, wantsToolUse: boolean, dt: number): boolean {
+  const passiveLightDrain = passiveToolLightDrainPerSecond(toolId);
+  if (passiveLightDrain > 0) {
+    consumeToolDurability(player, dt * passiveLightDrain, state.msgs, state.time, state);
+    return true;
+  }
+  const activeLightDrain = activeToolLightDrainPerSecond(toolId);
+  if (activeLightDrain > 0) {
+    if (wantsToolUse) consumeToolDurability(player, dt * activeLightDrain, state.msgs, state.time, state);
+    return true;
+  }
+  return false;
+}
+
+function handleTargetedTool(player: Entity, toolId: string, wantsToolUse: boolean, useEdge: boolean): void {
+  const lookRange = 1.4;
+  const tx = player.x + Math.cos(player.angle) * lookRange;
+  const ty = player.y + Math.sin(player.angle) * lookRange;
+  const cx = Math.floor(tx);
+  const cy = Math.floor(ty);
+  const ci = world.idx(cx, cy);
+
+  if (handleCoverSeroburmaline(player, toolId, tx, ty, useEdge)) return;
+  if (toolId === 'jackhammer') return handleJackhammerTool(player, wantsToolUse, cx, cy, ci);
+  if (toolId === 'door_kit') return handleDoorKitTool(player, useEdge, cx, cy, ci);
+  if (toolId === 'block_kit') return handleBlockKitTool(player, useEdge, ci);
+  if (handleCleanupProfileTool(player, toolId, wantsToolUse, tx, ty)) return;
+}
+
 function updateEquippedTool(dt: number, actor = player): void {
   if (!actor.alive) {
     _prevToolUse = input.use || input.mouseUse;
@@ -5220,63 +5260,14 @@ function updateEquippedTool(dt: number, actor = player): void {
   const hasTool = (player.inventory ?? []).some(s => s.defId === toolId);
   if (!hasTool) { player.tool = ''; return; }
 
-  const psiToolStats = WEAPON_STATS[toolId]?.psiCost ? getWeaponStats(player, toolId) : undefined;
-  if (psiToolStats) {
-    if (!wantsToolUse || _toolActionCd > 0) return;
-    const atkSpeedMod = player.rpg ? agiAttackSpeedMult(player.rpg) : 1;
-    _toolActionCd = castPlayerPsi(toolId, psiToolStats) ? psiToolStats.speed * atkSpeedMod : 0.5;
-    return;
-  }
+  if (handlePsiTool(player, toolId, wantsToolUse)) return;
+  if (handleLightDrain(player, toolId, wantsToolUse, dt)) return;
 
-  const passiveLightDrain = passiveToolLightDrainPerSecond(toolId);
-  if (passiveLightDrain > 0) {
-    consumeToolDurability(player, dt * passiveLightDrain, state.msgs, state.time, state);
-    return;
-  }
-  const activeLightDrain = activeToolLightDrainPerSecond(toolId);
-  if (activeLightDrain > 0) {
-    if (wantsToolUse) consumeToolDurability(player, dt * activeLightDrain, state.msgs, state.time, state);
-    return;
-  }
+  if (toolId === UV_SPOTLIGHT_ID) return handleUvSpotlightTool(player, wantsToolUse);
+  if (toolId === CHALK_ITEM_ID) return handleChalkTool(player, wantsToolUse);
+  if (toolId === 'vacuum') return handleVacuumTool(player, wantsToolUse);
 
-  if (toolId === UV_SPOTLIGHT_ID) {
-    return handleUvSpotlightTool(player, wantsToolUse);
-  }
-
-  if (toolId === CHALK_ITEM_ID) {
-    return handleChalkTool(player, wantsToolUse);
-  }
-
-  const lookRange = 1.4;
-  const tx = player.x + Math.cos(player.angle) * lookRange;
-  const ty = player.y + Math.sin(player.angle) * lookRange;
-  const cx = Math.floor(tx);
-  const cy = Math.floor(ty);
-  const ci = world.idx(cx, cy);
-
-  if (handleCoverSeroburmaline(player, toolId, tx, ty, useEdge)) {
-    return;
-  }
-
-  if (toolId === 'jackhammer') {
-    return handleJackhammerTool(player, wantsToolUse, cx, cy, ci);
-  }
-
-  if (toolId === 'door_kit') {
-    return handleDoorKitTool(player, useEdge, cx, cy, ci);
-  }
-
-  if (toolId === 'block_kit') {
-    return handleBlockKitTool(player, useEdge, ci);
-  }
-
-  if (handleCleanupProfileTool(player, toolId, wantsToolUse, tx, ty)) {
-    return;
-  }
-
-  if (toolId === 'vacuum') {
-    return handleVacuumTool(player, wantsToolUse);
-  }
+  handleTargetedTool(player, toolId, wantsToolUse, useEdge);
 }
 
 /* ── Menu input handling (runs regardless of pause state) ─────── */
