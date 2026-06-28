@@ -1761,12 +1761,24 @@ function pickSystemQuest(
     });
   }
 
-  const scored = CONTRACTS
-    .filter(c => !isContractHiddenForAssignment(c))
-    .filter(c => !state.quests.some(q => q.contractId === c.id))
-    .map(def => ({ def, score: contractScore(def, npc, ctx) + Math.random() * 0.01 }))
-    .filter(row => row.score > 0)
-    .sort((a, b) => b.score - a.score);
+  const assignedContracts = new Set<string>();
+  for (let i = 0; i < state.quests.length; i++) {
+    const q = state.quests[i];
+    if (q.contractId) assignedContracts.add(q.contractId);
+  }
+
+  const scored: { def: ContractDef; score: number }[] = [];
+  for (let i = 0; i < CONTRACTS.length; i++) {
+    const c = CONTRACTS[i];
+    if (isContractHiddenForAssignment(c)) continue;
+    if (assignedContracts.has(c.id)) continue;
+
+    const score = contractScore(c, npc, ctx) + Math.random() * 0.01;
+    if (score > 0) {
+      scored.push({ def: c, score });
+    }
+  }
+  scored.sort((a, b) => b.score - a.score);
   if (scored.length === 0) return null;
   const top = scored.slice(0, Math.min(3, scored.length));
   const quest = questFromSystemContract(top[Math.floor(Math.random() * top.length)].def, npc, player, state);
