@@ -8,7 +8,7 @@ import {
   type MarkovSpeechRouterRequest,
   type MarkovSpeechRouterResult,
 } from '../src/systems/markov_barks';
-import { generateMarkovLogSpeech } from '../src/systems/markov_log_speech';
+import { generateMarkovLogSpeech, logSpeechEventIsUnsafe } from '../src/systems/markov_log_speech';
 
 function routedText(request: MarkovSpeechRouterRequest, text: string): MarkovSpeechRouterResult {
   return {
@@ -175,4 +175,30 @@ test('lightweight bark path does not require a full ContextSnapshot', () => {
   });
 
   assert.equal(result?.text, 'Повар');
+});
+
+test('logSpeechEventIsUnsafe correctly identifies unsafe events and tags', () => {
+  // Unsafe bark signals via tags
+  assert.equal(logSpeechEventIsUnsafe({ type: 'door_opened', tags: ['alert'] }), true);
+  assert.equal(logSpeechEventIsUnsafe({ type: 'door_opened', tags: ['combat'] }), true);
+
+  // Samosbor events
+  assert.equal(logSpeechEventIsUnsafe({ type: 'samosbor_warning', tags: [] }), true);
+  assert.equal(logSpeechEventIsUnsafe({ type: 'samosbor_started', tags: [] }), true);
+
+  // Player killing monsters/NPCs
+  assert.equal(logSpeechEventIsUnsafe({ type: 'player_kill_monster', tags: [] }), true);
+  assert.equal(logSpeechEventIsUnsafe({ type: 'player_kill_npc', tags: [] }), true);
+
+  // NPC killing monsters/NPCs with combat tags
+  assert.equal(logSpeechEventIsUnsafe({ type: 'npc_kill_monster', tags: ['combat'] }), true);
+  assert.equal(logSpeechEventIsUnsafe({ type: 'npc_kill_npc', tags: ['combat', 'something_else'] }), true);
+
+  // NPC killing monsters/NPCs without combat tags (safe)
+  assert.equal(logSpeechEventIsUnsafe({ type: 'npc_kill_monster', tags: ['scripted'] }), false);
+  assert.equal(logSpeechEventIsUnsafe({ type: 'npc_kill_npc', tags: ['accident'] }), false);
+
+  // Generic safe events
+  assert.equal(logSpeechEventIsUnsafe({ type: 'door_opened', tags: [] }), false);
+  assert.equal(logSpeechEventIsUnsafe({ type: 'item_stolen', tags: ['theft'] }), false);
 });
