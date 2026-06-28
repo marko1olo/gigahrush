@@ -8,7 +8,7 @@ import {
   type MarkovSpeechRouterRequest,
   type MarkovSpeechRouterResult,
 } from '../src/systems/markov_barks';
-import { generateMarkovLogSpeech } from '../src/systems/markov_log_speech';
+import { eventIsMarkedNpcSpeech, generateMarkovLogSpeech, type MarkovLogSpeechEventFacts } from '../src/systems/markov_log_speech';
 
 function routedText(request: MarkovSpeechRouterRequest, text: string): MarkovSpeechRouterResult {
   return {
@@ -175,4 +175,29 @@ test('lightweight bark path does not require a full ContextSnapshot', () => {
   });
 
   assert.equal(result?.text, 'Повар');
+});
+
+test('eventIsMarkedNpcSpeech evaluates speech tags and overrides correctly', () => {
+  const baseEvent: MarkovLogSpeechEventFacts = {
+    id: 1,
+    type: 'rumor_spread',
+    tags: [],
+  };
+
+  // 1. isSpeech param overrides everything
+  assert.equal(eventIsMarkedNpcSpeech(baseEvent, true), true);
+
+  // 2. Explicit speech tags
+  assert.equal(eventIsMarkedNpcSpeech({ ...baseEvent, tags: ['npc_speech'] }), true);
+  assert.equal(eventIsMarkedNpcSpeech({ ...baseEvent, tags: ['log_speech'] }), true);
+  assert.equal(eventIsMarkedNpcSpeech({ ...baseEvent, tags: ['spoken'] }), true);
+
+  // 3. Event data properties
+  assert.equal(eventIsMarkedNpcSpeech({ ...baseEvent, data: { npcSpeech: true } }), true);
+  assert.equal(eventIsMarkedNpcSpeech({ ...baseEvent, data: { speech: true } }), true);
+
+  // 4. Negative cases
+  assert.equal(eventIsMarkedNpcSpeech(baseEvent), false);
+  assert.equal(eventIsMarkedNpcSpeech({ ...baseEvent, tags: ['combat', 'rumor'] }), false);
+  assert.equal(eventIsMarkedNpcSpeech({ ...baseEvent, data: { npcSpeech: false, speech: false } }), false);
 });
