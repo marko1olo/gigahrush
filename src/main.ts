@@ -6235,13 +6235,345 @@ function pointInRect(x: number, y: number, rx: number, ry: number, rw: number, r
   return x >= rx && x <= rx + rw && y >= ry && y <= ry + rh;
 }
 
-function handleMobileHudTap(x: number, y: number): void {
-  if (typeof state === 'undefined' || typeof player === 'undefined') return;
+function handleMobileHelpTap(_x: number, _y: number): void {
+  closeHelpMenu();
+}
+
+function handleMobileControlsTap(_x: number, y: number): void {
+  const h = hudCanvas.height;
+  const { sy } = menuScale();
+  const top = 34 * sy;
+  const rowH = 12 * sy;
+  const visible = controlsVisibleRows();
+  const relRow = Math.floor((y - top) / rowH);
+  if (y > h - 22 * sy) {
+    closeControlsMenu();
+    return;
+  }
+  if (relRow >= 0 && relRow < visible) {
+    const idx = state.controlScroll + relRow;
+    if (idx >= 0 && idx < controlMenuItemCount()) {
+      const wasSelected = state.controlSel === idx;
+      state.controlSel = idx;
+      keepControlSelectionVisible();
+      if (wasSelected && controlResetSelected()) {
+        resetAllControlBindings();
+        state.msgs.push(msg('Клавиши сброшены по умолчанию', state.time, '#8cf'));
+      } else if (wasSelected && controlMouseSensitivitySelected()) {
+        const sensitivity = adjustMouseLookSensitivity(1);
+        state.msgs.push(msg(`Чувствительность мыши: ${Math.round(sensitivity * 100)}%`, state.time, '#8cf'));
+      }
+    }
+  }
+}
+
+function handleMobileUiSettingsTap(_x: number, y: number): void {
+  const h = hudCanvas.height;
+  const { sy } = menuScale();
+  const top = 34 * sy;
+  const rowH = 12 * sy;
+  const visible = uiSettingsVisibleRows();
+  const relRow = Math.floor((y - top) / rowH);
+  if (y > h - 22 * sy) {
+    closeUiSettingsMenu();
+    return;
+  }
+  if (relRow >= 0 && relRow < visible) {
+    const idx = state.uiSettingsScroll + relRow;
+    if (idx >= 0 && idx < uiSettingsRowCount(state.uiSettingsView)) {
+      state.uiSettingsSel = idx;
+      keepUiSettingsSelectionVisible();
+      applyUiSettingsSelection(idx);
+    }
+  }
+}
+
+function handleMobileGameMenuTap(x: number, y: number): void {
+  const w = hudCanvas.width;
+  const h = hudCanvas.height;
+  const { sx, sy } = menuScale();
+  const menuStep = 16 * sy;
+  const menuPanelH = Math.min(h - 16 * sy, Math.max(160 * sy, 80 * sy + GAME_MENU_ITEMS.length * menuStep));
+  const menuTop = (h - menuPanelH) / 2;
+  for (let i = 0; i < GAME_MENU_ITEMS.length; i++) {
+    const yy = menuTop + 52 * sy + i * menuStep;
+    if (pointInRect(x, y, w / 2 - 90 * sx, yy - 6 * sy, 180 * sx, 16 * sy)) {
+      state.menuSel = i;
+      runGameMenuSelection(i);
+      return;
+    }
+  }
+}
+
+function handleMobileInventoryTap(x: number, y: number): void {
   const w = hudCanvas.width;
   const h = hudCanvas.height;
   const baseSx = w / SCR_W;
   const baseSy = h / SCR_H;
+  const layout = fullscreenInventoryLayout(w, h, baseSx, baseSy);
+  const GRID = layout.grid.cols;
+  const cellSz = layout.grid.cell;
+  const gridX = layout.grid.x;
+  const gridY = layout.grid.y;
+  if (pointInRect(x, y, layout.close.x, layout.close.y, layout.close.w, layout.close.h)) {
+    state.showInventory = false;
+    syncPauseState();
+    return;
+  }
+  for (let row = 0; row < GRID; row++) {
+    for (let col = 0; col < GRID; col++) {
+      const cx = gridX + col * cellSz;
+      const cy = gridY + row * cellSz;
+      if (pointInRect(x, y, cx, cy, cellSz, cellSz)) {
+        state.invSel = row * GRID + col;
+        return;
+      }
+    }
+  }
+  if (pointInRect(x, y, layout.use.x, layout.use.y, layout.use.w, layout.use.h)) {
+    useInventorySelection();
+    return;
+  }
+  if (pointInRect(x, y, layout.drop.x, layout.drop.y, layout.drop.w, layout.drop.h)) {
+    dropInventorySelection();
+    return;
+  }
+  if (player.rpg && player.rpg.attrPoints > 0 && pointInRect(x, y, layout.attr.x, layout.attr.y, layout.attr.w, layout.attr.h)) {
+    const rel = (x - layout.attr.x) / Math.max(1, layout.attr.w);
+    spendMobileAttr(rel < 0.34 ? 'str' : rel < 0.67 ? 'agi' : 'int');
+    return;
+  }
+}
+
+function handleMobileCraftMenuTap(x: number, y: number): void {
+  const w = hudCanvas.width;
+  const h = hudCanvas.height;
+  const layout = craftMenuLayout(w, h);
+  if (pointInRect(x, y, layout.close.x, layout.close.y, layout.close.w, layout.close.h)
+    || pointInRect(x, y, layout.bottom.x, layout.bottom.y, layout.bottom.w, layout.bottom.h)) {
+    closeCraftMenu();
+    syncPauseState();
+    updateMobileContext(true);
+    return;
+  }
+  const snapshot = craftMenuSnapshot({
+    actor: player,
+    state,
+    mode: state.craftMode,
+    stationKind: state.craftStationKind,
+    filter: state.craftFilter,
+  });
+  const entries = craftMenuEntries(snapshot);
+  const visibleRows = Math.max(1, Math.floor((layout.list.h - 20 * layout.scale) / layout.rowH));
+  const cursor = entries.length === 0 ? 0 : Math.max(0, Math.min(entries.length - 1, state.craftCursor));
+  const first = Math.max(0, Math.min(Math.max(0, entries.length - visibleRows), cursor - Math.floor(visibleRows * 0.5)));
+  const listTop = layout.list.y + 16 * layout.scale;
+  for (let row = 0; row < visibleRows; row++) {
+    const index = first + row;
+    if (index >= entries.length) break;
+    const rowY = listTop + row * layout.rowH - 3 * layout.scale;
+    if (pointInRect(x, y, layout.list.x, rowY, layout.list.w, layout.rowH)) {
+      const wasSelected = state.craftCursor === index;
+      state.craftCursor = index;
+      if (wasSelected) activateCraftSelection();
+      return;
+    }
+  }
+  if (entries.length > 0 && pointInRect(x, y, layout.detail.x, layout.detail.y, layout.detail.w, layout.detail.h)) {
+    activateCraftSelection();
+    return;
+  }
+}
+
+function handleMobileQuestsTap(x: number, y: number): void {
+  const w = hudCanvas.width;
+  const h = hudCanvas.height;
   const { sx, sy } = menuScale();
+  const pw = Math.min(400 * sx, w - 24 * sx);
+  const ph = Math.min(320 * sy, h - 24 * sy);
+  const px = (w - pw) / 2;
+  const py = (h - ph) / 2;
+  const total = questLogEntries().length;
+  if (pointInRect(x, y, px, py + ph - 22 * sy, pw, 22 * sy)) {
+    state.showQuests = false;
+    syncPauseState();
+    return;
+  }
+  if (pointInRect(x, y, px, py + ph - 44 * sy, pw, 22 * sy)) {
+    toggleSelectedQuestActive();
+    return;
+  }
+  if (total > 1) {
+    state.questPage = x < w / 2
+      ? Math.max(0, state.questPage - 1)
+      : Math.min(total - 1, state.questPage + 1);
+  }
+}
+
+function handleMobileLogTap(_x: number, y: number): void {
+  const h = hudCanvas.height;
+  const { sy } = menuScale();
+  if (y > h - 24 * sy || y < 28 * sy) {
+    state.showLog = false;
+    syncPauseState();
+    return;
+  }
+  const maxScroll = Math.max(0, state.msgLog.length * 3);
+  state.logScroll = y < h / 2
+    ? Math.min(maxScroll, state.logScroll + 3)
+    : Math.max(0, state.logScroll - 3);
+}
+
+function handleMobileDemosTap(x: number, y: number): void {
+  const w = hudCanvas.width;
+  const h = hudCanvas.height;
+  const { sy } = menuScale();
+  if (y > h - 28 * sy) {
+    closeDemosMenu();
+    updateMobileContext(true);
+    return;
+  }
+  state.demosSearchActive = false;
+  shiftDemosTab(x < w / 2 ? -1 : 1);
+  clampDemosPanelState();
+}
+
+function handleMobileFactionsTap(_x: number, _y: number): void {
+  state.showFactions = false;
+  syncPauseState();
+}
+
+function handleMobileContainerMenuTap(x: number, y: number): void {
+  const w = hudCanvas.width;
+  const h = hudCanvas.height;
+  const container = world.containerById.get(state.containerMenuTarget);
+  if (!container) {
+    closeContainerMenu();
+    return;
+  }
+  const layout = containerMenuGridLayout(w, h);
+  const cellSz = layout.cell;
+  const startX = layout.startX;
+  const startY = layout.startY;
+  const containerX = layout.containerX;
+  for (const side of ['player', 'container'] as const) {
+    const gx = side === 'player' ? startX : containerX;
+    for (let row = 0; row < layout.rows; row++) {
+      for (let col = 0; col < layout.cols; col++) {
+        if (pointInRect(x, y, gx + col * cellSz, startY + row * cellSz, cellSz, cellSz)) {
+          state.containerSide = side;
+          state.containerCursorX = col;
+          state.containerCursorY = row;
+          activateContainerSelection(container);
+          return;
+        }
+      }
+    }
+  }
+  if (pointInRect(x, y, layout.close.x, layout.close.y, layout.close.w, layout.close.h)) {
+    closeContainerMenu();
+    syncPauseState();
+  }
+}
+
+function handleMobileNpcMenuTap(x: number, y: number): void {
+  const w = hudCanvas.width;
+  const h = hudCanvas.height;
+  const { sx, sy } = menuScale();
+  const npc = getEntityIndex().byId.get(state.npcMenuTarget) ?? entities.find(e => e.id === state.npcMenuTarget);
+  if (!npc) return;
+  if (state.npcMenuTab === 'main') {
+    const pw = Math.min(440 * sx, w - 24 * sx);
+    const ph = Math.min(320 * sy, h - 24 * sy);
+    const px = (w - pw) / 2;
+    const py = (h - ph) / 2;
+    const options = getNpcMenuOptions({ state, player, npc, entities });
+    clampNpcMenuSelection(state, options);
+    for (let i = 0; i < options.length; i++) {
+      const yy = py + 42 * sy + i * 17 * sy;
+      if (pointInRect(x, y, px + 8 * sx, yy - 6 * sy, 220 * sx, 16 * sy)) {
+        state.npcMenuSel = i;
+        activateNpcMainSelection(npc);
+        return;
+      }
+    }
+    if (pointInRect(x, y, px, py + ph - 22 * sy, pw, 22 * sy)) {
+      state.showNpcMenu = false;
+      syncPauseState();
+    }
+  } else if (state.npcMenuTab === 'trade') {
+    const layout = tradeMenuGridLayout(w, h);
+    const cellSz = layout.cell;
+    for (const panel of [
+      { side: 'player', x: layout.startX },
+      { side: 'player_offer', x: layout.playerOfferX },
+      { side: 'npc_offer', x: layout.npcOfferX },
+      { side: 'npc', x: layout.npcX },
+    ] as const) {
+      for (let row = 0; row < layout.rows; row++) {
+        for (let col = 0; col < layout.cols; col++) {
+          if (pointInRect(x, y, panel.x + col * cellSz, layout.startY + row * cellSz, cellSz, cellSz)) {
+            state.tradeSide = panel.side;
+            state.tradeCursorX = col;
+            state.tradeCursorY = row;
+            activateTradeSelection(npc);
+            return;
+          }
+        }
+      }
+    }
+    if (pointInRect(x, y, layout.dealX, layout.dealY, layout.dealW, layout.dealH + 10 * layout.scale)) {
+      state.tradeSide = 'deal';
+      state.tradeCursorX = 0;
+      state.tradeCursorY = 0;
+      activateTradeSelection(npc);
+      return;
+    }
+    if (y > h - 32 * sy) {
+      clearTradeOffers(state);
+      state.npcMenuTab = 'main';
+    }
+  } else if (state.npcMenuTab === 'quest') {
+    let total = 0;
+    for (let i = 0; i < state.quests.length; i++) {
+      if (!state.quests[i].done) total++;
+    }
+    if (y > h - 40 * sy) {
+      state.npcMenuTab = 'main';
+    } else if (total > 1) {
+      state.questPage = x < w / 2
+        ? Math.max(0, state.questPage - 1)
+        : Math.min(total - 1, state.questPage + 1);
+    }
+  } else if (state.npcMenuTab === NPC_MENU_INTERFACE_TAB) {
+    const pw = Math.min(440 * sx, w - 24 * sx);
+    const ph = Math.min(320 * sy, h - 24 * sy);
+    const px = (w - pw) / 2;
+    const py = (h - ph) / 2;
+    if (pointInRect(x, y, px, py + ph - 22 * sy, pw, 22 * sy)) {
+      if (isDurakGameOpen()) {
+        const result = handleDurakInput({ state, player, npc, input: { escEdge: true } });
+        if (result.closeInterface) closeNpcInteractionInterface(state);
+      } else if (isDiceGameOpen()) {
+        const result = handleDiceInput({ state, player, npc, input: { escEdge: true } });
+        if (result.closeInterface) closeNpcInteractionInterface(state);
+      } else if (isDominoGameOpen()) {
+        const result = handleDominoInput({ state, player, npc, input: { escEdge: true } });
+        if (result.closeInterface) closeNpcInteractionInterface(state);
+      } else if (isCheckersGameOpen()) {
+        const result = handleCheckersInput({ state, player, npc, input: { escEdge: true } });
+        if (result.closeInterface) closeNpcInteractionInterface(state);
+      } else {
+        closeNpcInteractionInterface(state);
+      }
+    }
+  } else {
+    state.npcMenuTab = 'main';
+  }
+}
+
+function handleMobileHudTap(x: number, y: number): void {
+  if (typeof state === 'undefined' || typeof player === 'undefined') return;
 
   if (state.mapMode === 2 && !state.showInventory && !state.showQuests && !state.showLog && !state.showFactions && !state.showDemos && !state.showMenu && !state.showHelp && !state.showControls && !state.showUiSettings && !state.showNpcMenu && !state.showContainerMenu && !state.showCraftMenu) {
     state.mapMode = 0;
@@ -6253,299 +6585,18 @@ function handleMobileHudTap(x: number, y: number): void {
     return;
   }
 
-  if (state.showHelp) {
-    closeHelpMenu();
-    return;
-  }
-
-  if (state.showControls) {
-    const { sy } = menuScale();
-    const top = 34 * sy;
-    const rowH = 12 * sy;
-    const visible = controlsVisibleRows();
-    const relRow = Math.floor((y - top) / rowH);
-    if (y > h - 22 * sy) {
-      closeControlsMenu();
-      return;
-    }
-    if (relRow >= 0 && relRow < visible) {
-      const idx = state.controlScroll + relRow;
-      if (idx >= 0 && idx < controlMenuItemCount()) {
-        const wasSelected = state.controlSel === idx;
-        state.controlSel = idx;
-        keepControlSelectionVisible();
-        if (wasSelected && controlResetSelected()) {
-          resetAllControlBindings();
-          state.msgs.push(msg('Клавиши сброшены по умолчанию', state.time, '#8cf'));
-        } else if (wasSelected && controlMouseSensitivitySelected()) {
-          const sensitivity = adjustMouseLookSensitivity(1);
-          state.msgs.push(msg(`Чувствительность мыши: ${Math.round(sensitivity * 100)}%`, state.time, '#8cf'));
-        }
-      }
-    }
-  } else if (state.showUiSettings) {
-    const { sy } = menuScale();
-    const top = 34 * sy;
-    const rowH = 12 * sy;
-    const visible = uiSettingsVisibleRows();
-    const relRow = Math.floor((y - top) / rowH);
-    if (y > h - 22 * sy) {
-      closeUiSettingsMenu();
-      return;
-    }
-    if (relRow >= 0 && relRow < visible) {
-      const idx = state.uiSettingsScroll + relRow;
-      if (idx >= 0 && idx < uiSettingsRowCount(state.uiSettingsView)) {
-        state.uiSettingsSel = idx;
-        keepUiSettingsSelectionVisible();
-        applyUiSettingsSelection(idx);
-      }
-    }
-  } else if (state.showMenu) {
-    const menuStep = 16 * sy;
-    const menuPanelH = Math.min(h - 16 * sy, Math.max(160 * sy, 80 * sy + GAME_MENU_ITEMS.length * menuStep));
-    const menuTop = (h - menuPanelH) / 2;
-    for (let i = 0; i < GAME_MENU_ITEMS.length; i++) {
-      const yy = menuTop + 52 * sy + i * menuStep;
-      if (pointInRect(x, y, w / 2 - 90 * sx, yy - 6 * sy, 180 * sx, 16 * sy)) {
-        state.menuSel = i;
-        runGameMenuSelection(i);
-        return;
-      }
-    }
-  } else if (state.showInventory) {
-    const layout = fullscreenInventoryLayout(w, h, baseSx, baseSy);
-    const GRID = layout.grid.cols;
-    const cellSz = layout.grid.cell;
-    const gridX = layout.grid.x;
-    const gridY = layout.grid.y;
-    if (pointInRect(x, y, layout.close.x, layout.close.y, layout.close.w, layout.close.h)) {
-      state.showInventory = false;
-      syncPauseState();
-      return;
-    }
-    for (let row = 0; row < GRID; row++) {
-      for (let col = 0; col < GRID; col++) {
-        const cx = gridX + col * cellSz;
-        const cy = gridY + row * cellSz;
-        if (pointInRect(x, y, cx, cy, cellSz, cellSz)) {
-          state.invSel = row * GRID + col;
-          return;
-        }
-      }
-    }
-    if (pointInRect(x, y, layout.use.x, layout.use.y, layout.use.w, layout.use.h)) {
-      useInventorySelection();
-      return;
-    }
-    if (pointInRect(x, y, layout.drop.x, layout.drop.y, layout.drop.w, layout.drop.h)) {
-      dropInventorySelection();
-      return;
-    }
-    if (player.rpg && player.rpg.attrPoints > 0 && pointInRect(x, y, layout.attr.x, layout.attr.y, layout.attr.w, layout.attr.h)) {
-      const rel = (x - layout.attr.x) / Math.max(1, layout.attr.w);
-      spendMobileAttr(rel < 0.34 ? 'str' : rel < 0.67 ? 'agi' : 'int');
-      return;
-    }
-  } else if (state.showCraftMenu) {
-    const layout = craftMenuLayout(w, h);
-    if (pointInRect(x, y, layout.close.x, layout.close.y, layout.close.w, layout.close.h)
-      || pointInRect(x, y, layout.bottom.x, layout.bottom.y, layout.bottom.w, layout.bottom.h)) {
-      closeCraftMenu();
-      syncPauseState();
-      updateMobileContext(true);
-      return;
-    }
-    const snapshot = craftMenuSnapshot({
-      actor: player,
-      state,
-      mode: state.craftMode,
-      stationKind: state.craftStationKind,
-      filter: state.craftFilter,
-    });
-    const entries = craftMenuEntries(snapshot);
-    const visibleRows = Math.max(1, Math.floor((layout.list.h - 20 * layout.scale) / layout.rowH));
-    const cursor = entries.length === 0 ? 0 : Math.max(0, Math.min(entries.length - 1, state.craftCursor));
-    const first = Math.max(0, Math.min(Math.max(0, entries.length - visibleRows), cursor - Math.floor(visibleRows * 0.5)));
-    const listTop = layout.list.y + 16 * layout.scale;
-    for (let row = 0; row < visibleRows; row++) {
-      const index = first + row;
-      if (index >= entries.length) break;
-      const rowY = listTop + row * layout.rowH - 3 * layout.scale;
-      if (pointInRect(x, y, layout.list.x, rowY, layout.list.w, layout.rowH)) {
-        const wasSelected = state.craftCursor === index;
-        state.craftCursor = index;
-        if (wasSelected) activateCraftSelection();
-        return;
-      }
-    }
-    if (entries.length > 0 && pointInRect(x, y, layout.detail.x, layout.detail.y, layout.detail.w, layout.detail.h)) {
-      activateCraftSelection();
-      return;
-    }
-  } else if (state.showQuests) {
-    const pw = Math.min(400 * sx, w - 24 * sx);
-    const ph = Math.min(320 * sy, h - 24 * sy);
-    const px = (w - pw) / 2;
-    const py = (h - ph) / 2;
-    const total = questLogEntries().length;
-    if (pointInRect(x, y, px, py + ph - 22 * sy, pw, 22 * sy)) {
-      state.showQuests = false;
-      syncPauseState();
-      return;
-    }
-    if (pointInRect(x, y, px, py + ph - 44 * sy, pw, 22 * sy)) {
-      toggleSelectedQuestActive();
-      return;
-    }
-    if (total > 1) {
-      state.questPage = x < w / 2
-        ? Math.max(0, state.questPage - 1)
-        : Math.min(total - 1, state.questPage + 1);
-    }
-  } else if (state.showLog) {
-    if (y > h - 24 * sy || y < 28 * sy) {
-      state.showLog = false;
-      syncPauseState();
-      return;
-    }
-    const maxScroll = Math.max(0, state.msgLog.length * 3);
-    state.logScroll = y < h / 2
-      ? Math.min(maxScroll, state.logScroll + 3)
-      : Math.max(0, state.logScroll - 3);
-  } else if (state.showDemos) {
-    if (y > h - 28 * sy) {
-      closeDemosMenu();
-      updateMobileContext(true);
-      return;
-    }
-    state.demosSearchActive = false;
-    shiftDemosTab(x < w / 2 ? -1 : 1);
-    clampDemosPanelState();
-  } else if (state.showFactions) {
-    state.showFactions = false;
-    syncPauseState();
-  } else if (state.showContainerMenu) {
-    const container = world.containerById.get(state.containerMenuTarget);
-    if (!container) {
-      closeContainerMenu();
-      return;
-    }
-    const layout = containerMenuGridLayout(w, h);
-    const cellSz = layout.cell;
-    const startX = layout.startX;
-    const startY = layout.startY;
-    const containerX = layout.containerX;
-    for (const side of ['player', 'container'] as const) {
-      const gx = side === 'player' ? startX : containerX;
-      for (let row = 0; row < layout.rows; row++) {
-        for (let col = 0; col < layout.cols; col++) {
-          if (pointInRect(x, y, gx + col * cellSz, startY + row * cellSz, cellSz, cellSz)) {
-            state.containerSide = side;
-            state.containerCursorX = col;
-            state.containerCursorY = row;
-            activateContainerSelection(container);
-            return;
-          }
-        }
-      }
-    }
-    if (pointInRect(x, y, layout.close.x, layout.close.y, layout.close.w, layout.close.h)) {
-      closeContainerMenu();
-      syncPauseState();
-    }
-  } else if (state.showNpcMenu) {
-    const npc = getEntityIndex().byId.get(state.npcMenuTarget) ?? entities.find(e => e.id === state.npcMenuTarget);
-    if (!npc) return;
-    if (state.npcMenuTab === 'main') {
-      const pw = Math.min(440 * sx, w - 24 * sx);
-      const ph = Math.min(320 * sy, h - 24 * sy);
-      const px = (w - pw) / 2;
-      const py = (h - ph) / 2;
-      const options = getNpcMenuOptions({ state, player, npc, entities });
-      clampNpcMenuSelection(state, options);
-      for (let i = 0; i < options.length; i++) {
-        const yy = py + 42 * sy + i * 17 * sy;
-        if (pointInRect(x, y, px + 8 * sx, yy - 6 * sy, 220 * sx, 16 * sy)) {
-          state.npcMenuSel = i;
-          activateNpcMainSelection(npc);
-          return;
-      }
-    }
-    if (pointInRect(x, y, px, py + ph - 22 * sy, pw, 22 * sy)) {
-        state.showNpcMenu = false;
-        syncPauseState();
-      }
-    } else if (state.npcMenuTab === 'trade') {
-      const layout = tradeMenuGridLayout(w, h);
-      const cellSz = layout.cell;
-      for (const panel of [
-        { side: 'player', x: layout.startX },
-        { side: 'player_offer', x: layout.playerOfferX },
-        { side: 'npc_offer', x: layout.npcOfferX },
-        { side: 'npc', x: layout.npcX },
-      ] as const) {
-        for (let row = 0; row < layout.rows; row++) {
-          for (let col = 0; col < layout.cols; col++) {
-            if (pointInRect(x, y, panel.x + col * cellSz, layout.startY + row * cellSz, cellSz, cellSz)) {
-              state.tradeSide = panel.side;
-              state.tradeCursorX = col;
-              state.tradeCursorY = row;
-              activateTradeSelection(npc);
-              return;
-            }
-          }
-        }
-      }
-      if (pointInRect(x, y, layout.dealX, layout.dealY, layout.dealW, layout.dealH + 10 * layout.scale)) {
-        state.tradeSide = 'deal';
-        state.tradeCursorX = 0;
-        state.tradeCursorY = 0;
-        activateTradeSelection(npc);
-        return;
-      }
-      if (y > h - 32 * sy) {
-        clearTradeOffers(state);
-        state.npcMenuTab = 'main';
-      }
-    } else if (state.npcMenuTab === 'quest') {
-      let total = 0;
-      for (let i = 0; i < state.quests.length; i++) {
-        if (!state.quests[i].done) total++;
-      }
-      if (y > h - 40 * sy) {
-        state.npcMenuTab = 'main';
-      } else if (total > 1) {
-        state.questPage = x < w / 2
-          ? Math.max(0, state.questPage - 1)
-          : Math.min(total - 1, state.questPage + 1);
-      }
-    } else if (state.npcMenuTab === NPC_MENU_INTERFACE_TAB) {
-      const pw = Math.min(440 * sx, w - 24 * sx);
-      const ph = Math.min(320 * sy, h - 24 * sy);
-      const px = (w - pw) / 2;
-      const py = (h - ph) / 2;
-      if (pointInRect(x, y, px, py + ph - 22 * sy, pw, 22 * sy)) {
-        if (isDurakGameOpen()) {
-          const result = handleDurakInput({ state, player, npc, input: { escEdge: true } });
-          if (result.closeInterface) closeNpcInteractionInterface(state);
-        } else if (isDiceGameOpen()) {
-          const result = handleDiceInput({ state, player, npc, input: { escEdge: true } });
-          if (result.closeInterface) closeNpcInteractionInterface(state);
-        } else if (isDominoGameOpen()) {
-          const result = handleDominoInput({ state, player, npc, input: { escEdge: true } });
-          if (result.closeInterface) closeNpcInteractionInterface(state);
-        } else if (isCheckersGameOpen()) {
-          const result = handleCheckersInput({ state, player, npc, input: { escEdge: true } });
-          if (result.closeInterface) closeNpcInteractionInterface(state);
-        } else {
-          closeNpcInteractionInterface(state);
-        }
-      }
-    } else {
-      state.npcMenuTab = 'main';
-    }
-  }
+  if (state.showHelp) handleMobileHelpTap(x, y);
+  else if (state.showControls) handleMobileControlsTap(x, y);
+  else if (state.showUiSettings) handleMobileUiSettingsTap(x, y);
+  else if (state.showMenu) handleMobileGameMenuTap(x, y);
+  else if (state.showInventory) handleMobileInventoryTap(x, y);
+  else if (state.showCraftMenu) handleMobileCraftMenuTap(x, y);
+  else if (state.showQuests) handleMobileQuestsTap(x, y);
+  else if (state.showLog) handleMobileLogTap(x, y);
+  else if (state.showDemos) handleMobileDemosTap(x, y);
+  else if (state.showFactions) handleMobileFactionsTap(x, y);
+  else if (state.showContainerMenu) handleMobileContainerMenuTap(x, y);
+  else if (state.showNpcMenu) handleMobileNpcMenuTap(x, y);
 }
 
 function handleHudPointerUp(e: PointerEvent): void {
