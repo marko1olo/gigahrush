@@ -72,9 +72,25 @@ export function tickMicroGoal(world: World, entities: Entity[], e: Entity, dt: n
   if (!ai) return false;
   
   if (ai.microCooldowns) {
-    for (const key in ai.microCooldowns) {
-      ai.microCooldowns[key] -= dt;
-      if (ai.microCooldowns[key] <= 0) delete ai.microCooldowns[key];
+    let hasDeletes = false;
+    const keys = Object.keys(ai.microCooldowns);
+    for (let i = 0; i < keys.length; i++) {
+      const key = keys[i];
+      const val = ai.microCooldowns[key] - dt;
+      ai.microCooldowns[key] = val;
+      if (val <= 0) {
+        hasDeletes = true;
+      }
+    }
+
+    if (hasDeletes) {
+      const newObj: Record<string, number> = {};
+      for (let i = 0; i < keys.length; i++) {
+        const key = keys[i];
+        const val = ai.microCooldowns[key];
+        if (val > 0) newObj[key] = val;
+      }
+      ai.microCooldowns = newObj;
     }
   }
 
