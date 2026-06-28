@@ -46,9 +46,9 @@ export function buildLootPool(profile: LootProfile, maxAllowedValue: number): { 
     if (profile.miscMult && item.type === ItemType.MISC) baseWeight *= profile.miscMult;
 
     if (profile.tagWeights) {
-      for (const tag in profile.tagWeights) {
+      for (const [tag, weight] of Object.entries(profile.tagWeights)) {
         if (itemDefHasTag(item, tag)) {
-          baseWeight *= profile.tagWeights[tag];
+          baseWeight *= weight;
         }
       }
     }
