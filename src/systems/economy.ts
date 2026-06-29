@@ -12,6 +12,7 @@ import {
 import { ITEMS } from '../data/catalog';
 import { type EconomyState, createEconomyFloorState, createEconomyState, normalizeEconomyState } from '../data/economy';
 import { occupationHasTradeTag } from '../data/occupation_profiles';
+import { clamp } from '../core/math';
 import {
   DEFAULT_TRADE_SPREAD,
   ECONOMY_DEMAND_RULES,
@@ -117,10 +118,6 @@ function floorMatches(ruleFloor: EconomyFloorRef | undefined, floor: EconomyFloo
 
 function clampRuleMultiplier(value: number): number {
   return Number.isFinite(value) ? Math.max(0.1, Math.min(6, value)) : 1;
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
 }
 
 function smooth01(value: number): number {
