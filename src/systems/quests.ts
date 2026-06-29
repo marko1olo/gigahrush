@@ -1,3 +1,4 @@
+import { ensureEntityIndex } from './entity_index';
 /* ── Procedural quest system ──────────────────────────────────── */
 
 import {
@@ -404,11 +405,16 @@ function questObjectiveLine(q: Quest): string {
 }
 
 function objectiveTargetEntity(q: Quest, entities: readonly Entity[]): Entity | undefined {
+  if (entities.length === 0) return undefined;
+  const index = ensureEntityIndex(entities);
   if (q.targetNpcId !== undefined) {
-    const byLiveId = entities.find(e => e.id === q.targetNpcId && e.alive);
-    if (byLiveId) return byLiveId;
+    const byLiveId = index.byId.get(q.targetNpcId);
+    if (byLiveId && byLiveId.alive) return byLiveId;
   }
-  if (q.targetPlotNpcId) return entities.find(e => e.plotNpcId === q.targetPlotNpcId && e.alive);
+  if (q.targetPlotNpcId) {
+    const byPlotNpcId = index.byPlotNpcId.get(q.targetPlotNpcId);
+    if (byPlotNpcId && byPlotNpcId.alive) return byPlotNpcId;
+  }
   return undefined;
 }
 
