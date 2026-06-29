@@ -1,32 +1,90 @@
-1.  **Analyze the Optimization Opportunity**
-    -   The task highlights `const totalQ = state.quests.filter(q => !q.done).length;` in `src/main.ts` at line 7089.
-    -   There is another identical line at 6366: `const total = state.quests.filter(q => !q.done).length;`.
-    -   These lines are called inside the game loop when `state.npcMenuTab === 'quest'`.
-    -   The inefficiency is creating a whole new array with `filter` every frame just to get its length.
+1. **Goal**: Refactor the overly long `gameLoop` function in `src/main.ts` by extracting logical blocks into smaller, cohesive functions to improve code health and readability, without changing the observable behavior.
 
-2.  **Establish a Baseline & Benchmark**
-    -   I created a benchmark script (`test_perf_2.mjs`) to compare `quests.filter(q => !q.done).length` with a simple loop.
-    -   The benchmark showed a reduction from ~300ms to ~170ms for 1,000,000 iterations over an array of 50 items. This proves that manual iteration is ~40-50% faster and avoids garbage collection overhead by not allocating temporary arrays.
-    -   Since this is run inside `src/main.ts` (the game loop, typically 60fps), avoiding allocations here is highly beneficial to avoid garbage collector pauses and frame drops.
+2. **Analysis**:
+   - `gameLoop` is ~500 lines long (lines 7546 to 8079).
+   - It performs several major tasks:
+     1. Deferred Loading checks (`pendingLoad`).
+     2. Input parsing (gamepad, keyboard, external pause handling).
+     3. Main "Alive" simulation loop (when `!state.paused && !state.gameOver`), managing game clock, systems updates (needs, AI, Samosbor, collisions), and state changes.
+     4. "Dead" simulation loop (when `!state.paused && state.gameOver`), allowing the world to continue simulating while the player is dead.
+     5. Camera and rendering updates (WebGL, HUD).
 
-3.  **Implement Optimization**
-    -   Add a new utility function `countActiveQuests(quests: readonly Quest[]): number` in `src/systems/quests.ts`.
-    -   ```typescript
-        export function countActiveQuests(quests: readonly Quest[]): number {
-          let count = 0;
-          for (let i = 0; i < quests.length; i++) {
-            if (!quests[i].done) count++;
-          }
-          return count;
-        }
-        ```
-    -   Update `src/main.ts` line 7089: `const totalQ = countActiveQuests(state.quests);`.
-    -   Update `src/main.ts` line 6366: `const total = countActiveQuests(state.quests);`.
-    -   Update `src/render/quest_ui.ts` line 254 and `src/render/npc_ui.ts` line 104 where `active.length` is needed, or potentially optimize the retrieval of active quests there too if it's purely for counting. However, those files actually *use* the `active` array (`all = [...active, ...done]`, `active[page]`), so `filter` is necessary there unless we rewrite their logic entirely. The task only requested optimizing the array filter that is *only* used for `.length`, specifically `src/main.ts:7089`. I will stick to `main.ts` lines 7089 and 6366.
+3. **Refactoring Steps**:
+   I will create helper functions in `src/main.ts` just above `gameLoop` (around line 7546):
 
-4.  **Verify Impact**
-    -   Run tests (`npm run check:full`).
-    -   Run `npx tsx test_perf_2.mjs` locally again.
+   - **`updateSimulationAlive(dt: number, frameDt: number): boolean`**
+     This will encapsulate the contents of `if (!state.paused && !state.gameOver) { ... }`.
+     It will return `true` if `pendingLoad` was set (meaning we need to bail out of the frame early by calling `requestAnimationFrame(gameLoop); return;`).
+     This requires moving variables like `lastNeedsUpdateMs`, `lastContentHookMs`, `lastSamosborUpdateMs` inside or modifying global ones since they are module-level `let`s. Wait, `lastNeedsUpdateMs` etc are already module-level `let`s! (Lines 7432-7442). We can just access them. `bloodTrailAccum`, `deadCleanupAccum`, `needsTickAccum` are also module-level! This makes extraction very easy.
 
-5.  **Submit PR**
-    -   Format PR with baseline info and performance improvement metrics.
+   - **`updateSimulationDead(dt: number, frameDt: number): boolean`**
+     This will encapsulate the contents of `if (!state.paused && state.gameOver) { ... }`.
+     It will also return `true` if a pending load was triggered.
+
+   - **`renderGame(dt: number, rawDt: number, currentFps: number): void`**
+     This will encapsulate the rendering logic at the end of `gameLoop` (Fog calculation, `renderSceneGL`, `drawHUD`). Wait, this relies on `now`, `uiTime`, `cameraFovRadians()`, `world`, `player`, `state`, etc. Since `world`, `player`, `state` are module-level, we only need to pass `dt`, `rawDt` (if needed for FPS), `now` (for HUD or FPS), and `currentFps`. Actually, `currentFps` is calculated just before rendering.
+     We'll extract `renderGameFrame(now: number, dt: number, rawDt: number, currentFps: number)`.
+
+4. **Integration in `gameLoop`**:
+   The new `gameLoop` will look roughly like:
+   ```typescript
+   function gameLoop(now: number): void {
+     if (handleDeferredLoading(now)) return;
+     if (handleInputFrame(now)) return;
+
+     const rawDt = (now - lastTime) / 1000;
+     lastTime = now;
+     const frameDt = Math.min(rawDt, 0.05); // cap delta
+     uiTime += frameDt;
+     let dt = frameDt;
+
+     // ... Sleep modifier ...
+     if (state.sleeping) dt *= SLEEP_TIME_MULT;
+
+     handleMenuInput();
+     if (pendingLoad) { requestAnimationFrame(gameLoop); return; }
+
+     if (!state.paused) {
+       entityIndexFrame = (entityIndexFrame + 1) & 0x3fffffff;
+     }
+
+     // Visual decays
+     if (state.dmgFlash > 0) state.dmgFlash = Math.max(0, state.dmgFlash - dt * 1.2);
+     if (state.beamFx > 0) state.beamFx = Math.max(0, state.beamFx - dt * 2.5);
+     if (state.uvBeamFx > 0) state.uvBeamFx = Math.max(0, state.uvBeamFx - dt);
+
+     if (state.gameOver && runtimeCamera.mode === 'death') {
+       state.deathTimer += dt;
+       updateRuntimeCamera(runtimeCamera, world, dt);
+     }
+
+     if (!state.paused && !state.gameOver) {
+       if (updateSimulationAlive(dt, frameDt)) return;
+     }
+
+     if (!state.paused && state.gameOver) {
+       if (updateSimulationDead(dt, frameDt)) return;
+     }
+
+     if (pendingLoad) { requestAnimationFrame(gameLoop); return; }
+
+     if (!state.gameOver) {
+       // camera updates
+     }
+
+     checkRestart();
+     updateMobileContext();
+     const currentFps = updateFpsMeter(now, rawDt * 1000);
+
+     renderGameFrame(now, dt, currentFps);
+     requestAnimationFrame(gameLoop);
+   }
+   ```
+
+5. **Testing & Pre-commit**:
+   - Run typecheck (`npm run typecheck`).
+   - Run unit tests (`npm run test:unit`).
+   - Call `pre_commit_instructions` as required by the directives to ensure testing, verifications, review, and reflection are done.
+
+6. **Submit**:
+   Create a branch, commit with an appropriate title and body.
