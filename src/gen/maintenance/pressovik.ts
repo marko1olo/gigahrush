@@ -215,9 +215,11 @@ registerWorldEventObserver((state, event) => {
 });
 
 function nextContainerId(ctx: MaintContentCtx): number {
-  let id = ctx.world.containers.length + 1;
-  while (ctx.world.containerById.has(id) || ctx.world.containers.some(c => c.id === id)) id++;
-  return id;
+  let max = 0;
+  for (const c of ctx.world.containers) {
+    if (c.id > max) max = c.id;
+  }
+  return Math.max(ctx.world.containers.length, max) + 1;
 }
 
 function addContainer(
