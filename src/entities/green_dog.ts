@@ -2,7 +2,7 @@
 
 import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
-import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
+import { S, rgba, noise, clamp, CLEAR, put, line } from '../render/pixutil';
 
 export const DEF: MonsterDef = {
   kind: MonsterKind.GREEN_DOG,
@@ -17,18 +17,6 @@ export const DEF: MonsterDef = {
   counterplay: 'Не открывайте дверь на жалобный вой. Громкий металл, шумовая банка, вентиль или дробовик пугают стаю и рвут цель на несколько секунд.',
   lootHint: 'грязная шерсть, зеленый мох, черная слюна, редкий сырой кусок',
 };
-
-function dot(t: Uint32Array, x: number, y: number, color: number): void {
-  if (x >= 0 && x < S && y >= 0 && y < S) t[y * S + x] = color;
-}
-
-function line(t: Uint32Array, x0: number, y0: number, x1: number, y1: number, color: number): void {
-  const steps = Math.max(1, Math.ceil(Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0))));
-  for (let i = 0; i <= steps; i++) {
-    const u = i / steps;
-    dot(t, Math.round(x0 + (x1 - x0) * u), Math.round(y0 + (y1 - y0) * u), color);
-  }
-}
 
 export function generateSprite(): Uint32Array {
   const t = new Uint32Array(S * S).fill(CLEAR);
@@ -68,8 +56,8 @@ export function generateSprite(): Uint32Array {
   line(t, 48, 22, 51, 12, dark);
   line(t, 49, 32, 58, 34, rgba(18, 14, 12));
   line(t, 50, 33, 57, 35, rgba(102, 18, 18));
-  dot(t, 51, 25, rgba(242, 210, 72));
-  dot(t, 52, 25, rgba(242, 210, 72));
+  put(t, 51, 25, rgba(242, 210, 72));
+  put(t, 52, 25, rgba(242, 210, 72));
 
   const leg = rgba(46, 48, 42);
   line(t, 18, 42, 15, 57, leg);
@@ -95,7 +83,7 @@ export function generateSprite(): Uint32Array {
 
   line(t, 7, 47, 14, 50, rgba(36, 38, 34, 210));
   line(t, 14, 50, 20, 48, rgba(36, 38, 34, 210));
-  for (let x = 19; x < 43; x += 3) dot(t, x, 22 + (x % 5), mossBright);
+  for (let x = 19; x < 43; x += 3) put(t, x, 22 + (x % 5), mossBright);
 
   return t;
 }

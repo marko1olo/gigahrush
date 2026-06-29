@@ -2,7 +2,7 @@
 
 import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
-import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
+import { S, rgba, noise, clamp, CLEAR, put, line } from '../render/pixutil';
 
 export const DEF: MonsterDef = {
   kind: MonsterKind.VODYANOY_KOSHMAR,
@@ -17,10 +17,6 @@ export const DEF: MonsterDef = {
   counterplay: 'Сухой бетон рвет мокрую ПСИ-линию: не пятитесь по воде, переходите на сухую кромку и бейте коротким burst, пока давление сбито.',
   lootHint: 'мокрый ПСИ-налет, вода с привкусом металла, редкая ПСИ-пыль из сливного лица',
 };
-
-function put(t: Uint32Array, x: number, y: number, c: number): void {
-  if (x >= 0 && x < S && y >= 0 && y < S) t[y * S + x] = c;
-}
 
 function ellipse(
   t: Uint32Array,
@@ -44,15 +40,6 @@ function ellipse(
       const n = noise(x, y, seed) * 24 - 7;
       t[y * S + x] = rgba(clamp(r + n - edge), clamp(g + n - edge), clamp(b + n - edge), alpha);
     }
-  }
-}
-
-function line(t: Uint32Array, x0: number, y0: number, x1: number, y1: number, c: number): void {
-  const steps = Math.max(1, Math.abs(x1 - x0), Math.abs(y1 - y0));
-  for (let i = 0; i <= steps; i++) {
-    const x = Math.round(x0 + (x1 - x0) * i / steps);
-    const y = Math.round(y0 + (y1 - y0) * i / steps);
-    put(t, x, y, c);
   }
 }
 

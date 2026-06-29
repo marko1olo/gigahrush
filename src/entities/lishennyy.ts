@@ -2,7 +2,7 @@
 
 import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
-import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
+import { S, rgba, noise, clamp, CLEAR, put, line } from '../render/pixutil';
 
 export const DEF: MonsterDef = {
   kind: MonsterKind.LISHENNYY,
@@ -17,19 +17,6 @@ export const DEF: MonsterDef = {
   counterplay: 'Свет ведет Лишенного к вам: бросайте фонарь или свечу как приманку, выключайте луч перед поворотом и не держите контакт.',
   lootHint: 'пепельная пыль, черный след, редкий странный сгусток',
 };
-
-function put(t: Uint32Array, x: number, y: number, c: number): void {
-  if (x >= 0 && x < S && y >= 0 && y < S) t[y * S + x] = c;
-}
-
-function line(t: Uint32Array, x0: number, y0: number, x1: number, y1: number, c: number): void {
-  const steps = Math.max(1, Math.abs(x1 - x0), Math.abs(y1 - y0));
-  for (let i = 0; i <= steps; i++) {
-    const x = Math.round(x0 + (x1 - x0) * i / steps);
-    const y = Math.round(y0 + (y1 - y0) * i / steps);
-    put(t, x, y, c);
-  }
-}
 
 function eatEdge(x: number, y: number, seed: number): boolean {
   return noise(x * 2, y * 3, seed) > 0.78 || noise(x, y, seed + 19) < 0.08;

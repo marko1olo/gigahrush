@@ -2,7 +2,7 @@
 
 import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
-import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
+import { S, rgba, noise, clamp, CLEAR, put, line } from '../render/pixutil';
 
 export const DEF: MonsterDef = {
   kind: MonsterKind.GLUBINNAYA_TEN,
@@ -17,10 +17,6 @@ export const DEF: MonsterDef = {
   counterplay: 'Не догоняйте первый силуэт в темноту: стойте на месте, держите светлый выход за спиной или вскройте настоящее тело фонарем до второго удара.',
   lootHint: 'холодная пыль, темный след, редкий странный сгусток из второго силуэта',
 };
-
-function put(t: Uint32Array, x: number, y: number, c: number): void {
-  if (x >= 0 && x < S && y >= 0 && y < S) t[y * S + x] = c;
-}
 
 function strip(
   t: Uint32Array,
@@ -46,15 +42,6 @@ function strip(
       const a = clamp(alpha * (1 - edge * 0.34) + noise(x, y, seed + 41) * 22);
       put(t, x, y, rgba(clamp(r + n), clamp(g + n), clamp(b + n), a));
     }
-  }
-}
-
-function line(t: Uint32Array, x0: number, y0: number, x1: number, y1: number, c: number): void {
-  const steps = Math.max(1, Math.abs(x1 - x0), Math.abs(y1 - y0));
-  for (let i = 0; i <= steps; i++) {
-    const x = Math.round(x0 + (x1 - x0) * i / steps);
-    const y = Math.round(y0 + (y1 - y0) * i / steps);
-    put(t, x, y, c);
   }
 }
 
