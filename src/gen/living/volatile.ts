@@ -45,7 +45,7 @@ function cleanupOldVolatileRooms(world: World): void {
       const door = world.doors.get(di);
       if (!door) {
         // Door data already removed (by volatile room cleanup) — fix cell
-        if (world.cells[di] === Cell.DOOR) {
+        if (world.cells[di] === Cell.DOOR || world.cells[di] === Cell.FLOOR) {
           world.cells[di] = Cell.WALL;
           world.wallTex[di] = room.wallTex;
         }
