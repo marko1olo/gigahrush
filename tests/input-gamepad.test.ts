@@ -64,6 +64,15 @@ afterEach(() => {
   Object.defineProperty(global, 'localStorage', { value: originalLocalStorage, writable: true, configurable: true });
 });
 
+test('adapter returns initial state when created', () => {
+  const adapter = createGamepadAdapter();
+  assert.equal(adapter.isConnected(), false);
+  assert.equal(adapter.hadAnyInput(), false);
+  assert.ok(adapter.settings());
+  assert.equal(typeof adapter.poll, 'function');
+  assert.equal(typeof adapter.detach, 'function');
+});
+
 test('adapter attaches to window events on creation and removes on detach', () => {
   const adapter = createGamepadAdapter();
   assert.equal(listeners['gamepadconnected']?.length, 1);
@@ -264,4 +273,41 @@ test('adapter maps D-pad to menu navigation edges', () => {
   // D-pad also maps to held actions for menuUp/menuDown/menuLeft/menuRight
   assert.ok(frame.heldActions.has('menuUp'));
   assert.ok(frame.heldActions.has('menuRight'));
+});
+
+test('adapter handles missing window/navigator gracefully', () => {
+  const currentWindow = (global as any).window;
+  const currentNavigator = (global as any).navigator;
+  try {
+    Object.defineProperty(global, 'window', { value: undefined, writable: true, configurable: true });
+    Object.defineProperty(global, 'navigator', { value: undefined, writable: true, configurable: true });
+
+    const adapter = createGamepadAdapter();
+    const frame = createInputFrame();
+
+    assert.doesNotThrow(() => adapter.poll(frame));
+    assert.doesNotThrow(() => adapter.detach());
+
+    assert.equal(adapter.isConnected(), false);
+  } finally {
+    Object.defineProperty(global, 'window', { value: currentWindow, writable: true, configurable: true });
+    Object.defineProperty(global, 'navigator', { value: currentNavigator, writable: true, configurable: true });
+  }
+});
+
+test('adapter handles navigator.getGamepads throwing or being missing', () => {
+  const currentNavigator = (global as any).navigator;
+  try {
+    Object.defineProperty(global, 'navigator', { value: { getGamepads: undefined }, writable: true, configurable: true });
+    const adapter = createGamepadAdapter();
+    const frame = createInputFrame();
+    assert.doesNotThrow(() => adapter.poll(frame));
+    assert.equal(adapter.isConnected(), false);
+
+    Object.defineProperty(global, 'navigator', { value: { getGamepads: () => { throw new Error('Not allowed'); } }, writable: true, configurable: true });
+    assert.doesNotThrow(() => adapter.poll(frame));
+    assert.equal(adapter.isConnected(), false);
+  } finally {
+    Object.defineProperty(global, 'navigator', { value: currentNavigator, writable: true, configurable: true });
+  }
 });
