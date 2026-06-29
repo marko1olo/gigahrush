@@ -366,8 +366,9 @@ function castPossession(player: Entity, entities: Entity[], world: World, msgs: 
 
 export function getPsiPossessionTarget(entities: readonly Entity[]): Entity | null {
   if (!possession) return null;
-  const target = entities.find(e => e.id === possession!.targetId);
-  const body = entities.find(e => e.id === possession!.previousPlayerId);
+  const byId = ensureEntityIndex(entities).byId;
+  const target = byId.get(possession.targetId);
+  const body = byId.get(possession.previousPlayerId);
   if (!target?.alive || !body?.alive) return null;
   return target;
 }
@@ -384,8 +385,9 @@ export function endPsiPossession(
   reason: 'expired' | 'broken' | 'cancelled' | 'reset' = 'cancelled',
 ): Entity | undefined {
   if (!possession) return currentPlayer;
-  const previous = entities.find(e => e.id === possession!.previousPlayerId);
-  const target = entities.find(e => e.id === possession!.targetId);
+  const byId = ensureEntityIndex(entities).byId;
+  const previous = byId.get(possession.previousPlayerId);
+  const target = byId.get(possession.targetId);
   if (target) {
     target.psiControlledBy = undefined;
     if (target.ai) target.ai.combatTargetId = undefined;
