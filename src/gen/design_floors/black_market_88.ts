@@ -3,6 +3,7 @@
  * FloorLevel; route integration belongs to the floor manifest owner.
  */
 
+import { clamp } from '../../render/ui_utils';
 import { stampSurfaceSplat } from '../../systems/surface_marks';
 import {
   AIGoal,
@@ -2475,8 +2476,4 @@ export function alignBlackMarket88AmbientNpcTerritory(world: World, entities: En
       entity.ai.stuck = 0;
     }
   }
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
 }
