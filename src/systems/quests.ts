@@ -405,8 +405,8 @@ function questObjectiveLine(q: Quest): string {
 
 function objectiveTargetEntity(q: Quest, entities: readonly Entity[]): Entity | undefined {
   if (q.targetNpcId !== undefined) {
-    const byLiveId = entities.find(e => e.id === q.targetNpcId && e.alive);
-    if (byLiveId) return byLiveId;
+    const byLiveId = getEntityIndex().byId.get(q.targetNpcId);
+    if (byLiveId?.alive) return byLiveId;
   }
   if (q.targetPlotNpcId) return entities.find(e => e.plotNpcId === q.targetPlotNpcId && e.alive);
   return undefined;
@@ -945,7 +945,7 @@ export function applyStoryQuestOutcome(
 
 function failQuest(
   q: Quest,
-  entities: Entity[],
+  _entities: Entity[],
   state: GameState,
   msgs: Msg[] | undefined,
   reason: string,
@@ -956,7 +956,7 @@ function failQuest(
 
   q.done = true;
   q.failed = true;
-  const giver = entities.find(e => e.id === q.giverId);
+  const giver = getEntityIndex().byId.get(q.giverId);
   if (giver?.questId === q.id) giver.questId = -1;
   const contractDef = q.contractId ? CONTRACTS.find(c => c.id === q.contractId) : undefined;
 
@@ -1146,7 +1146,7 @@ function completeQuest(
 
   learnQuestCraftRecipeRewards(q, state, msgs);
 
-  const giver = entities.find(e => e.id === q.giverId);
+  const giver = getEntityIndex().byId.get(q.giverId);
   const giverFaction = giver?.faction ?? q.contractFaction ?? Faction.CITIZEN;
   const factionRelationDelta = completedQuestFactionRelationDelta(q.relationDelta);
   if (factionRelationDelta !== 0) addFactionRelMutual(Faction.PLAYER, giverFaction, factionRelationDelta);
@@ -1254,12 +1254,12 @@ function abandonSideQuests(
   }
 }
 
-function expireQuestIfNeeded(q: Quest, player: Entity, entities: Entity[], state: GameState, msgs: Msg[]): boolean {
+function expireQuestIfNeeded(q: Quest, player: Entity, _entities: Entity[], state: GameState, msgs: Msg[]): boolean {
   if (!questDeadlineExpired(q, state.clock.totalMinutes)) return false;
 
   q.done = true;
   q.failed = true;
-  const giver = entities.find(e => e.id === q.giverId);
+  const giver = getEntityIndex().byId.get(q.giverId);
   if (giver?.questId === q.id) giver.questId = -1;
   const contractDef = q.contractId ? CONTRACTS.find(c => c.id === q.contractId) : undefined;
   if (isGovnyakCourierContractId(q.contractId)) removeItem(player, GOVNYAK_COURIER_PACKAGE_ITEM, 1);
