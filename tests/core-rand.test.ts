@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { xorshift32 } from '../src/core/rand';
+import { xorshift32, withSeededRandom } from '../src/core/rand';
 
 test('xorshift32 produces deterministic sequence for a given seed', () => {
   const rng1 = xorshift32(12345);
@@ -57,4 +57,44 @@ test('xorshift32 produces the known exact sequence for seed 1', () => {
     const intVal = Math.round(val * 4294967296); // Reverse the division
     assert.equal(intVal, expectedInts[i]);
   }
+});
+
+test('withSeededRandom returns the result of the callback', () => {
+  const result = withSeededRandom(123, () => 'success');
+  assert.equal(result, 'success');
+});
+
+test('withSeededRandom deterministically substitutes Math.random and restores it', () => {
+  const originalMathRandom = Math.random;
+  const seed = 12345;
+  const expectedRng = xorshift32(seed);
+
+  const generatedValues: number[] = [];
+
+  withSeededRandom(seed, () => {
+    assert.notEqual(Math.random, originalMathRandom);
+    for (let i = 0; i < 5; i++) {
+      generatedValues.push(Math.random());
+    }
+  });
+
+  assert.equal(Math.random, originalMathRandom);
+
+  for (const val of generatedValues) {
+    assert.equal(val, expectedRng());
+  }
+});
+
+test('withSeededRandom restores Math.random even if callback throws', () => {
+  const originalMathRandom = Math.random;
+  const seed = 999;
+
+  assert.throws(() => {
+    withSeededRandom(seed, () => {
+      assert.notEqual(Math.random, originalMathRandom);
+      throw new Error('Test error');
+    });
+  }, { message: 'Test error' });
+
+  assert.equal(Math.random, originalMathRandom);
 });
