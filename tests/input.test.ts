@@ -31,3 +31,12 @@ test('createInput returns an initial InputState with correct default values', ()
     touch: { moveX: 0, moveY: 0, lookX: 0, lookY: 0, active: false },
   });
 });
+
+test('createInput returns a fresh instance each time', () => {
+  const input1 = createInput();
+  const input2 = createInput();
+
+  assert.notEqual(input1, input2);
+  assert.notEqual(input1.mouse, input2.mouse);
+  assert.notEqual(input1.touch, input2.touch);
+});
