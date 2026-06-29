@@ -197,6 +197,11 @@ const STORY_Z_BY_FLOOR: Readonly<Record<FloorLevel, number>> = {
   [FloorLevel.VOID]: FLOOR_RUN_VOID_Z,
 };
 
+const STORY_FLOOR_BY_Z = new Map<number, FloorLevel>(
+  (Object.values(FloorLevel).filter(v => typeof v === 'number') as FloorLevel[])
+    .map(floor => [STORY_Z_BY_FLOOR[floor], floor])
+);
+
 export function floorRunProfileZ(z: number): number {
   return Math.round(z >= 0 ? z * -44 / 50 : z * -40 / 50);
 }
@@ -636,10 +641,7 @@ function collectTagged<T>(tags: readonly string[], table: Record<string, readonl
 }
 
 export function storyFloorAtZ(z: number): FloorLevel | undefined {
-  for (const floor of Object.values(FloorLevel).filter(v => typeof v === 'number') as FloorLevel[]) {
-    if (STORY_Z_BY_FLOOR[floor] === z) return floor;
-  }
-  return undefined;
+  return STORY_FLOOR_BY_Z.get(z);
 }
 
 export function zForStoryFloor(floor: FloorLevel): number {
