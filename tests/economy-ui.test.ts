@@ -90,6 +90,51 @@ test('inventory room check treats existing stacks as space', () => {
   assert.equal(hasInventoryRoom(Array.from({ length: MAX_INVENTORY_SLOTS }, (_, i) => ({ defId: `missing_${i}`, count: 1 })), 'water'), false);
 });
 
+
+test('inventory room check handles undefined and empty inventories', () => {
+  assert.equal(hasInventoryRoom(undefined, 'water'), true);
+  assert.equal(hasInventoryRoom([], 'water'), true);
+});
+
+test('inventory room check handles missing or invalid item definitions', () => {
+  assert.equal(hasInventoryRoom([], 'non_existent_item_id_123'), false);
+});
+
+test('inventory room check respects stack limits and custom data', () => {
+  const fullInv = Array.from({ length: MAX_INVENTORY_SLOTS }, (_, i) => ({ defId: `junk_${i}`, count: 1 }));
+
+  // Full inventory, no water
+  assert.equal(hasInventoryRoom(fullInv, 'water'), false);
+
+  // Full inventory, but one slot is a full water stack (255)
+  const invWithFullWater = [...fullInv];
+  invWithFullWater[0] = { defId: 'water', count: 255 };
+  assert.equal(hasInventoryRoom(invWithFullWater, 'water'), false);
+
+  // Full inventory, one slot is water but has custom data
+  const invWithCustomWater = [...fullInv];
+  invWithCustomWater[0] = { defId: 'water', count: 1, data: { custom: true } };
+  assert.equal(hasInventoryRoom(invWithCustomWater, 'water'), false);
+
+  // Full inventory, one slot is available water stack
+  const invWithAvailableWater = [...fullInv];
+  invWithAvailableWater[0] = { defId: 'water', count: 10 };
+  assert.equal(hasInventoryRoom(invWithAvailableWater, 'water'), true);
+});
+
+test('inventory room check handles items with explicit small stack limits', () => {
+  // water_filter_regulator has stack: 3
+  const fullInv = Array.from({ length: MAX_INVENTORY_SLOTS }, (_, i) => ({ defId: `junk_${i}`, count: 1 }));
+
+  const invWithFilter = [...fullInv];
+  invWithFilter[0] = { defId: 'water_filter_regulator', count: 2 };
+  assert.equal(hasInventoryRoom(invWithFilter, 'water_filter_regulator'), true);
+
+  const invWithFullFilter = [...fullInv];
+  invWithFullFilter[0] = { defId: 'water_filter_regulator', count: 3 };
+  assert.equal(hasInventoryRoom(invWithFullFilter, 'water_filter_regulator'), false);
+});
+
 test('trade UI gracefully falls back when economy quote system throws error', () => {
   const s = state({ quests: [] });
   const player = entity();
