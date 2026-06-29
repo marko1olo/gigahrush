@@ -103,11 +103,30 @@ function captureTextInput(input: InputState, e: KeyboardEvent): void {
   input.textInput = (input.textInput + text).slice(-64);
 }
 
-export function bindInput(input: InputState, canvas: HTMLCanvasElement, options: InputBindOptions = {}): () => void {
-  let pointerLockClickStarted = false;
-  let pointerLockAllowedAtMouseDown = false;
+class InputBinder {
+  private pointerLockClickStarted = false;
+  private pointerLockAllowedAtMouseDown = false;
 
-  const onDown = (e: KeyboardEvent) => {
+  constructor(
+    private input: InputState,
+    private canvas: HTMLCanvasElement,
+    private options: InputBindOptions = {}
+  ) {
+    this.onDown = this.onDown.bind(this);
+    this.onUp = this.onUp.bind(this);
+    this.onMouse = this.onMouse.bind(this);
+    this.onClick = this.onClick.bind(this);
+    this.onMenuMouseDown = this.onMenuMouseDown.bind(this);
+    this.onMouseDown = this.onMouseDown.bind(this);
+    this.onMouseUp = this.onMouseUp.bind(this);
+    this.onContextMenu = this.onContextMenu.bind(this);
+    this.onWheel = this.onWheel.bind(this);
+    this.onLockChange = this.onLockChange.bind(this);
+    this.onBlur = this.onBlur.bind(this);
+    this.onVisibilityChange = this.onVisibilityChange.bind(this);
+  }
+
+  private onDown(e: KeyboardEvent) {
     if (getControlCaptureAction()) {
       consumeControlCaptureCode(e.code);
       e.preventDefault();
@@ -115,159 +134,166 @@ export function bindInput(input: InputState, canvas: HTMLCanvasElement, options:
     }
     if (matchesControlAction('fullscreen', e.code)) {
       e.preventDefault();
-      options.onFullscreenToggle?.();
+      this.options.onFullscreenToggle?.();
     }
-    if (options.shouldCaptureTextInput?.() === true) captureTextInput(input, e);
-    applyControlCode(input, e.code, true);
+    if (this.options.shouldCaptureTextInput?.() === true) captureTextInput(this.input, e);
+    applyControlCode(this.input, e.code, true);
     e.preventDefault();
-  };
+  }
 
-  const onUp = (e: KeyboardEvent) => {
-    applyControlCode(input, e.code, false);
-  };
+  private onUp(e: KeyboardEvent) {
+    applyControlCode(this.input, e.code, false);
+  }
 
-  const onMouse = (e: MouseEvent) => {
-    if (document.pointerLockElement === canvas) {
-      input.mouse.locked = true;
-      if (options.shouldHandleGameplayPointer?.() === false) {
-        clearMouseGameplayState(input);
+  private onMouse(e: MouseEvent) {
+    if (document.pointerLockElement === this.canvas) {
+      this.input.mouse.locked = true;
+      if (this.options.shouldHandleGameplayPointer?.() === false) {
+        clearMouseGameplayState(this.input);
         return;
       }
-      input.mouse.dx += e.movementX;
-      input.mouse.dy += e.movementY;
+      this.input.mouse.dx += e.movementX;
+      this.input.mouse.dy += e.movementY;
     }
-  };
+  }
 
-  const onClick = () => {
-    const allowedAtMouseDown = pointerLockClickStarted ? pointerLockAllowedAtMouseDown : true;
-    pointerLockClickStarted = false;
-    pointerLockAllowedAtMouseDown = false;
+  private onClick() {
+    const allowedAtMouseDown = this.pointerLockClickStarted ? this.pointerLockAllowedAtMouseDown : true;
+    this.pointerLockClickStarted = false;
+    this.pointerLockAllowedAtMouseDown = false;
     if (!allowedAtMouseDown) return;
-    if (options.shouldRequestPointerLock?.() === false) return;
-    requestPointerLockSafe(canvas);
-  };
+    if (this.options.shouldRequestPointerLock?.() === false) return;
+    requestPointerLockSafe(this.canvas);
+  }
 
-  const onMenuMouseDown = (e: MouseEvent) => {
+  private onMenuMouseDown(e: MouseEvent) {
     if (getControlCaptureAction()) {
       consumeControlCaptureCode(mouseButtonCode(e.button));
-      pointerLockClickStarted = true;
-      pointerLockAllowedAtMouseDown = false;
+      this.pointerLockClickStarted = true;
+      this.pointerLockAllowedAtMouseDown = false;
       e.preventDefault();
       e.stopImmediatePropagation();
       return;
     }
-    if (options.shouldHandleMenuPointer?.() === true) {
+    if (this.options.shouldHandleMenuPointer?.() === true) {
       if (e.button === 0) {
-        input.menuAccept = true;
+        this.input.menuAccept = true;
       } else if (e.button === 2) {
-        input.menuClose = true;
+        this.input.menuClose = true;
       } else {
         return;
       }
-      pointerLockClickStarted = true;
-      pointerLockAllowedAtMouseDown = false;
+      this.pointerLockClickStarted = true;
+      this.pointerLockAllowedAtMouseDown = false;
       e.preventDefault();
       e.stopImmediatePropagation();
       return;
     }
-  };
+  }
 
-  const onMouseDown = (e: MouseEvent) => {
+  private onMouseDown(e: MouseEvent) {
     if (getControlCaptureAction()) {
       consumeControlCaptureCode(mouseButtonCode(e.button));
-      pointerLockClickStarted = true;
-      pointerLockAllowedAtMouseDown = false;
+      this.pointerLockClickStarted = true;
+      this.pointerLockAllowedAtMouseDown = false;
       e.preventDefault();
       return;
     }
     const code = mouseButtonCode(e.button);
     if (e.button === 0) {
-      pointerLockClickStarted = true;
-      pointerLockAllowedAtMouseDown = options.shouldRequestPointerLock?.() !== false;
+      this.pointerLockClickStarted = true;
+      this.pointerLockAllowedAtMouseDown = this.options.shouldRequestPointerLock?.() !== false;
     }
-    if (document.pointerLockElement === canvas && options.shouldHandleGameplayPointer?.() !== false) {
-      applyControlCode(input, code, true);
+    if (document.pointerLockElement === this.canvas && this.options.shouldHandleGameplayPointer?.() !== false) {
+      applyControlCode(this.input, code, true);
     } else {
-      applyControlCode(input, code, false);
+      applyControlCode(this.input, code, false);
     }
     if (e.button === 2) {
       e.preventDefault();
     }
-  };
+  }
 
-  const onMouseUp = (e: MouseEvent) => {
-    applyControlCode(input, mouseButtonCode(e.button), false);
+  private onMouseUp(e: MouseEvent) {
+    applyControlCode(this.input, mouseButtonCode(e.button), false);
     if (e.button === 2) {
       e.preventDefault();
     }
-  };
+  }
 
-  const onContextMenu = (e: MouseEvent) => {
+  private onContextMenu(e: MouseEvent) {
     e.preventDefault();
-  };
+  }
 
-  const onWheel = (e: WheelEvent) => {
-    const shouldHandle = options.shouldHandleMenuWheel ?? options.shouldHandleMenuPointer;
+  private onWheel(e: WheelEvent) {
+    const shouldHandle = this.options.shouldHandleMenuWheel ?? this.options.shouldHandleMenuPointer;
     if (shouldHandle?.() !== true) return;
     const dy = Number(e.deltaY);
     if (Number.isFinite(dy) && dy !== 0) {
-      input.menuWheel += dy < 0 ? -1 : 1;
+      this.input.menuWheel += dy < 0 ? -1 : 1;
     }
     e.preventDefault();
     e.stopImmediatePropagation();
-  };
+  }
 
-  const onLockChange = () => {
-    input.mouse.locked = document.pointerLockElement === canvas;
-    if (!input.mouse.locked) {
-      clearPointerState(input);
-      input.controlEdit = false;
-      input.controlReset = false;
-      input.controlClose = false;
-      input.menuAccept = false;
-      input.menuClose = false;
-      input.menuWheel = 0;
-      input.textInput = '';
-    } else if (options.shouldHandleGameplayPointer?.() === false) {
-      clearMouseGameplayState(input);
+  private onLockChange() {
+    this.input.mouse.locked = document.pointerLockElement === this.canvas;
+    if (!this.input.mouse.locked) {
+      clearPointerState(this.input);
+      this.input.controlEdit = false;
+      this.input.controlReset = false;
+      this.input.controlClose = false;
+      this.input.menuAccept = false;
+      this.input.menuClose = false;
+      this.input.menuWheel = 0;
+      this.input.textInput = '';
+    } else if (this.options.shouldHandleGameplayPointer?.() === false) {
+      clearMouseGameplayState(this.input);
     }
-  };
+  }
 
-  const onBlur = () => {
-    clearLostInputState(input, canvas);
-  };
+  private onBlur() {
+    clearLostInputState(this.input, this.canvas);
+  }
 
-  const onVisibilityChange = () => {
-    if (document.hidden) clearLostInputState(input, canvas);
-  };
+  private onVisibilityChange() {
+    if (document.hidden) clearLostInputState(this.input, this.canvas);
+  }
 
-  document.addEventListener('keydown', onDown);
-  document.addEventListener('keyup', onUp);
-  document.addEventListener('mousemove', onMouse);
-  document.addEventListener('mousedown', onMenuMouseDown, { capture: true });
-  canvas.addEventListener('click', onClick);
-  canvas.addEventListener('mousedown', onMouseDown);
-  document.addEventListener('mouseup', onMouseUp);
-  document.addEventListener('wheel', onWheel, { capture: true, passive: false });
-  canvas.addEventListener('contextmenu', onContextMenu);
-  document.addEventListener('pointerlockchange', onLockChange);
-  window.addEventListener('blur', onBlur);
-  document.addEventListener('blur', onBlur, true);
-  document.addEventListener('visibilitychange', onVisibilityChange);
+  public bind(): () => void {
+    document.addEventListener('keydown', this.onDown);
+    document.addEventListener('keyup', this.onUp);
+    document.addEventListener('mousemove', this.onMouse);
+    document.addEventListener('mousedown', this.onMenuMouseDown, { capture: true });
+    this.canvas.addEventListener('click', this.onClick);
+    this.canvas.addEventListener('mousedown', this.onMouseDown);
+    document.addEventListener('mouseup', this.onMouseUp);
+    document.addEventListener('wheel', this.onWheel, { capture: true, passive: false });
+    this.canvas.addEventListener('contextmenu', this.onContextMenu);
+    document.addEventListener('pointerlockchange', this.onLockChange);
+    window.addEventListener('blur', this.onBlur);
+    document.addEventListener('blur', this.onBlur, true);
+    document.addEventListener('visibilitychange', this.onVisibilityChange);
 
-  return () => {
-    document.removeEventListener('keydown', onDown);
-    document.removeEventListener('keyup', onUp);
-    document.removeEventListener('mousemove', onMouse);
-    document.removeEventListener('mousedown', onMenuMouseDown, { capture: true });
-    canvas.removeEventListener('click', onClick);
-    canvas.removeEventListener('mousedown', onMouseDown);
-    document.removeEventListener('mouseup', onMouseUp);
-    document.removeEventListener('wheel', onWheel, { capture: true });
-    canvas.removeEventListener('contextmenu', onContextMenu);
-    document.removeEventListener('pointerlockchange', onLockChange);
-    window.removeEventListener('blur', onBlur);
-    document.removeEventListener('blur', onBlur, true);
-    document.removeEventListener('visibilitychange', onVisibilityChange);
-  };
+    return () => {
+      document.removeEventListener('keydown', this.onDown);
+      document.removeEventListener('keyup', this.onUp);
+      document.removeEventListener('mousemove', this.onMouse);
+      document.removeEventListener('mousedown', this.onMenuMouseDown, { capture: true });
+      this.canvas.removeEventListener('click', this.onClick);
+      this.canvas.removeEventListener('mousedown', this.onMouseDown);
+      document.removeEventListener('mouseup', this.onMouseUp);
+      document.removeEventListener('wheel', this.onWheel, { capture: true });
+      this.canvas.removeEventListener('contextmenu', this.onContextMenu);
+      document.removeEventListener('pointerlockchange', this.onLockChange);
+      window.removeEventListener('blur', this.onBlur);
+      document.removeEventListener('blur', this.onBlur, true);
+      document.removeEventListener('visibilitychange', this.onVisibilityChange);
+    };
+  }
+}
+
+export function bindInput(input: InputState, canvas: HTMLCanvasElement, options: InputBindOptions = {}): () => void {
+  const binder = new InputBinder(input, canvas, options);
+  return binder.bind();
 }
