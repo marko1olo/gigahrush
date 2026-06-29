@@ -202,9 +202,16 @@ export function slimeRoomAttractionWeight(roomName: string, roomType: RoomType):
 }
 
 function duplicateStrings(values: readonly string[]): string[] {
-  const counts = new Map<string, number>();
-  for (const value of values) counts.set(value, (counts.get(value) ?? 0) + 1);
-  return [...counts.entries()].filter(([, count]) => count > 1).map(([value]) => value).sort();
+  const seen = new Set<string>();
+  const duplicates = new Set<string>();
+  for (const value of values) {
+    if (seen.has(value)) {
+      duplicates.add(value);
+    } else {
+      seen.add(value);
+    }
+  }
+  return [...duplicates].sort();
 }
 
 export function getSlimeDef(id: string): SlimeDef | undefined {
@@ -217,7 +224,7 @@ export function getSlimeDefBySampleId(sampleId: string): SlimeDef | undefined {
 
 export function validateSlimeDefs(): string[] {
   const problems: string[] = [];
-  for (const id of duplicateStrings(SLIME_DEFS.map(def => def.id))) problems.push(`duplicate slime id:${id}`);
+  for (const id of duplicateStrings(SLIME_IDS)) problems.push(`duplicate slime id:${id}`);
   for (const id of duplicateStrings(SLIME_SAMPLE_IDS)) problems.push(`duplicate slime sample id:${id}`);
 
   for (const def of SLIME_DEFS) {
