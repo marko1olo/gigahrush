@@ -2,7 +2,20 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { FloorLevel } from '../src/core/types';
 import { FLOOR_CATALOG } from '../src/data/floor_catalog';
-import { queryFloorCatalog } from '../src/systems/floor_catalog';
+import { queryFloorCatalog, getFloorCatalogDef } from '../src/systems/floor_catalog';
+
+test('getFloorCatalogDef returns the correct definition for a valid ID', () => {
+  const target = FLOOR_CATALOG[0];
+  const result = getFloorCatalogDef(target.id);
+  assert.ok(result);
+  assert.equal(result.id, target.id);
+  assert.equal(result.displayName, target.displayName);
+});
+
+test('getFloorCatalogDef returns undefined for an invalid ID', () => {
+  const result = getFloorCatalogDef('non_existent_invalid_id_12345');
+  assert.equal(result, undefined);
+});
 
 test('queryFloorCatalog returns all items when no query is provided', () => {
   const result = queryFloorCatalog();
