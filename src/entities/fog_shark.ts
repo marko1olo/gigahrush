@@ -2,7 +2,7 @@
 
 import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
-import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
+import { S, rgba, noise, clamp, CLEAR, put, line, ellipse, triangle } from '../render/pixutil';
 
 export const DEF: MonsterDef = {
   kind: MonsterKind.FOG_SHARK,
@@ -17,57 +17,6 @@ export const DEF: MonsterDef = {
   counterplay: 'В тумане стая быстрая и кусает рывком: выходите на сухой воздух, закрывайте двери и углы, а огонь убивает надежно, но взрывает газовое брюхо рядом.',
   lootHint: 'серебряный зуб, сине-черная чешуя, газовый пузырь, редкая акулья чешуя',
 };
-
-export function put(t: Uint32Array, x: number, y: number, color: number): void {
-  if (x >= 0 && x < S && y >= 0 && y < S) t[y * S + x] = color;
-}
-
-export function line(t: Uint32Array, x0: number, y0: number, x1: number, y1: number, color: number, width = 0): void {
-  const steps = Math.max(1, Math.ceil(Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0))));
-  for (let i = 0; i <= steps; i++) {
-    const u = i / steps;
-    const x = Math.round(x0 + (x1 - x0) * u);
-    const y = Math.round(y0 + (y1 - y0) * u);
-    for (let oy = -width; oy <= width; oy++) {
-      for (let ox = -width; ox <= width; ox++) put(t, x + ox, y + oy, color);
-    }
-  }
-}
-
-export function ellipse(
-  t: Uint32Array,
-  cx: number,
-  cy: number,
-  rx: number,
-  ry: number,
-  color: (x: number, y: number, d: number) => number,
-): void {
-  for (let y = Math.floor(cy - ry); y <= Math.ceil(cy + ry); y++) {
-    for (let x = Math.floor(cx - rx); x <= Math.ceil(cx + rx); x++) {
-      const dx = (x - cx) / rx;
-      const dy = (y - cy) / ry;
-      const d = dx * dx + dy * dy;
-      if (d <= 1) put(t, x, y, color(x, y, d));
-    }
-  }
-}
-
-export function triangle(t: Uint32Array, ax: number, ay: number, bx: number, by: number, cx: number, cy: number, color: number): void {
-  const minX = Math.max(0, Math.floor(Math.min(ax, bx, cx)));
-  const maxX = Math.min(S - 1, Math.ceil(Math.max(ax, bx, cx)));
-  const minY = Math.max(0, Math.floor(Math.min(ay, by, cy)));
-  const maxY = Math.min(S - 1, Math.ceil(Math.max(ay, by, cy)));
-  const area = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax);
-  if (Math.abs(area) < 0.001) return;
-  for (let y = minY; y <= maxY; y++) {
-    for (let x = minX; x <= maxX; x++) {
-      const w0 = (bx - ax) * (y - ay) - (by - ay) * (x - ax);
-      const w1 = (cx - bx) * (y - by) - (cy - by) * (x - bx);
-      const w2 = (ax - cx) * (y - cy) - (ay - cy) * (x - cx);
-      if ((w0 >= 0 && w1 >= 0 && w2 >= 0) || (w0 <= 0 && w1 <= 0 && w2 <= 0)) put(t, x, y, color);
-    }
-  }
-}
 
 export function generateSprite(): Uint32Array {
   const t = new Uint32Array(S * S).fill(CLEAR);

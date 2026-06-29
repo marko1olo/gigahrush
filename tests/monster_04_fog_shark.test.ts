@@ -5,9 +5,9 @@ import { AIGoal, Cell, EntityType, Faction, FloorLevel, MonsterKind, ProjType, R
 import { World } from '../src/core/world';
 import { getMonsterEcology } from '../src/data/monster_ecology';
 import { RUMORS } from '../src/data/rumors';
-import { DEF, generateSprite, put, line, ellipse, triangle } from '../src/entities/fog_shark';
+import { DEF, generateSprite } from '../src/entities/fog_shark';
 import { MONSTERS, MONSTER_SPRITES, NEW_MONSTERS_BY_FLOOR } from '../src/entities/monster';
-import { S } from '../src/render/pixutil';
+import { S, put, line, ellipse, triangle } from '../src/render/pixutil';
 import {
   FOG_SHARK_PACK_CAP,
   setEntityMap,
