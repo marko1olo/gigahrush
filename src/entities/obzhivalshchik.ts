@@ -2,7 +2,7 @@
 
 import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
-import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
+import { S, rgba, noise, clamp, CLEAR, put } from '../render/pixutil';
 
 export const DEF: MonsterDef = {
   kind: MonsterKind.OBZHIVALSHCHIK,
@@ -17,10 +17,6 @@ export const DEF: MonsterDef = {
   counterplay: 'Не шумите у двери и не тащите бой в квартиру: обживальщик держится своей комнаты, злится от кражи и шума, а спокойный доклад сбивает рост.',
   lootHint: 'домовой мусор, куски мебели, слизь со стены, редкая жалоба соседа',
 };
-
-function put(t: Uint32Array, x: number, y: number, c: number): void {
-  if (x >= 0 && x < S && y >= 0 && y < S) t[y * S + x] = c;
-}
 
 function bodyColor(x: number, y: number, seed: number, shade = 0): number {
   const n = Math.floor((noise(x, y, seed) - 0.5) * 28 + shade);

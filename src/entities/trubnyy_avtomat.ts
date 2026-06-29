@@ -2,7 +2,7 @@
 
 import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
-import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
+import { S, noise, clamp, CLEAR, putRGB as put } from '../render/pixutil';
 
 export const DEF: MonsterDef = {
   kind: MonsterKind.TRUBNYY_AVTOMAT,
@@ -20,11 +20,6 @@ export const DEF: MonsterDef = {
   counterplay: 'Сойдите с мокрой прямой до окончания заряда: автомат бьет только по водной линии, долго остывает после залпа и плохо держит фланг в упоре.',
   lootHint: 'мокрая плата, синие трубные кольца, обожженный манометр, редкая энергоячейка',
 };
-
-function put(t: Uint32Array, x: number, y: number, r: number, g: number, b: number, a = 255): void {
-  if (x < 0 || x >= S || y < 0 || y >= S) return;
-  t[y * S + x] = rgba(r, g, b, a);
-}
 
 function rect(t: Uint32Array, x0: number, y0: number, w: number, h: number, r: number, g: number, b: number, seed = 0): void {
   for (let y = y0; y < y0 + h; y++) {

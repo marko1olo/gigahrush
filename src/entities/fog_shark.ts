@@ -2,7 +2,7 @@
 
 import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
-import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
+import { S, rgba, noise, clamp, CLEAR, put } from '../render/pixutil';
 
 export const DEF: MonsterDef = {
   kind: MonsterKind.FOG_SHARK,
@@ -17,10 +17,6 @@ export const DEF: MonsterDef = {
   counterplay: 'В тумане стая быстрая и кусает рывком: выходите на сухой воздух, закрывайте двери и углы, а огонь убивает надежно, но взрывает газовое брюхо рядом.',
   lootHint: 'серебряный зуб, сине-черная чешуя, газовый пузырь, редкая акулья чешуя',
 };
-
-export function put(t: Uint32Array, x: number, y: number, color: number): void {
-  if (x >= 0 && x < S && y >= 0 && y < S) t[y * S + x] = color;
-}
 
 export function line(t: Uint32Array, x0: number, y0: number, x1: number, y1: number, color: number, width = 0): void {
   const steps = Math.max(1, Math.ceil(Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0))));

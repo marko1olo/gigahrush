@@ -2,7 +2,7 @@
 
 import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
-import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
+import { S, rgba, noise, clamp, CLEAR, put } from '../render/pixutil';
 
 export const DEF: MonsterDef = {
   kind: MonsterKind.KONTORSHCHIK,
@@ -17,10 +17,6 @@ export const DEF: MonsterDef = {
   counterplay: 'Конторщик медленный без бумажного следа: сложите бланки, пропуска и печати в ящик или бросьте дешевую форму как приманку. У шкафов и столов рвите хват, пока бумага перестает шуметь.',
   lootHint: 'желтая папка, красная печать на рукаве, редкий пустой бланк',
 };
-
-function put(t: Uint32Array, x: number, y: number, c: number): void {
-  if (x >= 0 && x < S && y >= 0 && y < S) t[y * S + x] = c;
-}
 
 function rect(t: Uint32Array, x0: number, y0: number, w: number, h: number, c: number): void {
   for (let y = y0; y < y0 + h; y++) {

@@ -21,3 +21,13 @@ export const clamp = (v: number) => v < 0 ? 0 : v > 255 ? 255 : v;
 
 /** Transparent pixel */
 export const CLEAR = rgba(0, 0, 0, 0);
+
+/** Place a colored pixel at (x, y) if within bounds */
+export function put(t: Uint32Array, x: number, y: number, color: number): void {
+  if (x >= 0 && x < S && y >= 0 && y < S) t[y * S + x] = color;
+}
+
+/** Place an RGBA pixel at (x, y) if within bounds */
+export function putRGB(t: Uint32Array, x: number, y: number, r: number, g: number, b: number, a = 255): void {
+  if (x >= 0 && x < S && y >= 0 && y < S) t[y * S + x] = rgba(r, g, b, a);
+}

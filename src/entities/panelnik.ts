@@ -2,7 +2,7 @@
 
 import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
-import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
+import { S, rgba, noise, clamp, CLEAR, put } from '../render/pixutil';
 
 export const DEF: MonsterDef = {
   kind: MonsterKind.PANELNIK,
@@ -17,13 +17,6 @@ export const DEF: MonsterDef = {
   counterplay: 'Выманивайте от стены в центр комнаты: у панели он держит броню и достает плитной рукой, в открытом полу замедляется.',
   lootHint: 'бетонная пыль, ржавые царапины арматуры, редкий герметик из плитного шва',
 };
-
-function put(t: Uint32Array, x: number, y: number, color: number): void {
-  const px = Math.floor(x);
-  const py = Math.floor(y);
-  if (px < 0 || px >= S || py < 0 || py >= S) return;
-  t[py * S + px] = color;
-}
 
 function panelColor(x: number, y: number, seed: number, bright = 0): number {
   const n = noise(x * 2, y * 2, seed) * 30 - 10;
@@ -41,7 +34,7 @@ function rect(t: Uint32Array, x0: number, y0: number, x1: number, y1: number, se
     for (let x = x0; x <= x1; x++) {
       const edgeChip = (x === x0 || x === x1 || y === y0 || y === y1) && noise(x, y, seed + 31) > 0.72;
       if (edgeChip) continue;
-      put(t, x, y, panelColor(x, y, seed, bright));
+      put(t, Math.floor(x), Math.floor(y), panelColor(x, y, seed, bright));
     }
   }
 }
@@ -58,7 +51,7 @@ export function generateSprite(): Uint32Array {
       const dx = (x - (cx + sway)) / halfW;
       const dy = (y - 34) / 25;
       if (dx * dx + dy * dy > 1.05) continue;
-      put(t, x, y, organicColor(x, y));
+      put(t, Math.floor(x), Math.floor(y), organicColor(x, y));
     }
   }
 
@@ -72,19 +65,19 @@ export function generateSprite(): Uint32Array {
     const x0 = cx - 23 + Math.floor(Math.sin(y * 0.11) * 2);
     for (let w = 0; w < 6; w++) {
       const bright = w <= 1 ? 54 : 10;
-      put(t, x0 + w, y, panelColor(x0 + w, y, 12600, bright));
+      put(t, Math.floor(x0 + w), Math.floor(y), panelColor(x0 + w, y, 12600, bright));
     }
     if (y % 6 === 0) {
-      put(t, x0 - 2, y, rgba(214, 204, 172));
-      put(t, x0 + 7, y + 1, rgba(92, 74, 58));
+      put(t, Math.floor(x0 - 2), Math.floor(y), rgba(214, 204, 172));
+      put(t, Math.floor(x0 + 7), Math.floor(y + 1), rgba(92, 74, 58));
     }
   }
 
   // Shorter meat arm, kept dark so the fused slab reads first.
   for (let y = 24; y < 48; y++) {
     const x = cx + 15 + Math.floor(Math.sin(y * 0.24) * 2);
-    put(t, x, y, organicColor(x, y));
-    put(t, x + 1, y, organicColor(x + 1, y));
+    put(t, Math.floor(x), Math.floor(y), organicColor(x, y));
+    put(t, Math.floor(x + 1), Math.floor(y), organicColor(x + 1, y));
   }
 
   // Rebar scratches and wall-facing scrape marks.
@@ -93,32 +86,32 @@ export function generateSprite(): Uint32Array {
     const startX = cx - 16 + (i % 3) * 5;
     for (let k = 0; k < 10; k++) {
       const x = startX + k;
-      put(t, x, y + Math.floor(k * 0.25), rgba(72, 58, 48));
+      put(t, Math.floor(x), Math.floor(y + Math.floor(k * 0.25)), rgba(72, 58, 48));
     }
   }
   for (let y = 21; y < 52; y += 5) {
-    for (let k = 0; k < 8; k++) put(t, cx - 27 + k, y + (k & 1), rgba(196, 184, 150));
+    for (let k = 0; k < 8; k++) put(t, Math.floor(cx - 27 + k), Math.floor(y + (k & 1)), rgba(196, 184, 150));
   }
 
   // Chipped panel corners and rusty rebar darks.
   for (const [x, y] of [[cx - 17, 16], [cx + 14, 25], [cx - 13, 36], [cx + 8, 49]] as const) {
-    put(t, x, y, CLEAR);
-    put(t, x + 1, y, rgba(58, 47, 41));
-    put(t, x, y + 1, rgba(62, 50, 43));
+    put(t, Math.floor(x), Math.floor(y), CLEAR);
+    put(t, Math.floor(x + 1), Math.floor(y), rgba(58, 47, 41));
+    put(t, Math.floor(x), Math.floor(y + 1), rgba(62, 50, 43));
   }
   for (const x of [cx - 11, cx - 2, cx + 7]) {
     for (let y = 14; y < 52; y += 3) {
-      if (noise(x, y, 12650) > 0.42) put(t, x, y, rgba(86, 52, 38));
+      if (noise(x, y, 12650) > 0.42) put(t, Math.floor(x), Math.floor(y), rgba(86, 52, 38));
     }
   }
 
   // Raw red mouth seam under the concrete brow.
   for (let x = cx - 6; x <= cx + 5; x++) {
-    put(t, x, 28, rgba(146, 22, 24));
-    if ((x - cx) % 3 === 0) put(t, x, 29, rgba(214, 42, 36));
+    put(t, Math.floor(x), Math.floor(28), rgba(146, 22, 24));
+    if ((x - cx) % 3 === 0) put(t, Math.floor(x), Math.floor(29), rgba(214, 42, 36));
   }
-  put(t, cx - 4, 18, rgba(244, 226, 172));
-  put(t, cx + 5, 18, rgba(244, 226, 172));
+  put(t, Math.floor(cx - 4), Math.floor(18), rgba(244, 226, 172));
+  put(t, Math.floor(cx + 5), Math.floor(18), rgba(244, 226, 172));
 
   return t;
 }

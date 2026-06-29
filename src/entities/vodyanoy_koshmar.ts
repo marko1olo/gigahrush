@@ -2,7 +2,7 @@
 
 import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
-import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
+import { S, rgba, noise, clamp, CLEAR, put } from '../render/pixutil';
 
 export const DEF: MonsterDef = {
   kind: MonsterKind.VODYANOY_KOSHMAR,
@@ -17,10 +17,6 @@ export const DEF: MonsterDef = {
   counterplay: 'Сухой бетон рвет мокрую ПСИ-линию: не пятитесь по воде, переходите на сухую кромку и бейте коротким burst, пока давление сбито.',
   lootHint: 'мокрый ПСИ-налет, вода с привкусом металла, редкая ПСИ-пыль из сливного лица',
 };
-
-function put(t: Uint32Array, x: number, y: number, c: number): void {
-  if (x >= 0 && x < S && y >= 0 && y < S) t[y * S + x] = c;
-}
 
 function ellipse(
   t: Uint32Array,

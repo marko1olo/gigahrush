@@ -2,7 +2,7 @@
 
 import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
-import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
+import { S, noise, clamp, CLEAR, putRGB as put } from '../render/pixutil';
 
 export const DEF: MonsterDef = {
   kind: MonsterKind.TUMANNIK,
@@ -17,11 +17,6 @@ export const DEF: MonsterDef = {
   counterplay: 'Не гонитесь за силуэтом в тумане: держите угол и слушайте боковой шаг, а свет, огонь или выход из fog-пятна возвращают удар к настоящему телу.',
   lootHint: 'серый влажный след, холодная пыль, редкий фильтрующий слой',
 };
-
-function put(t: Uint32Array, x: number, y: number, r: number, g: number, b: number, a = 255): void {
-  if (x < 0 || x >= S || y < 0 || y >= S) return;
-  t[y * S + x] = rgba(r, g, b, a);
-}
 
 function fogEllipse(
   t: Uint32Array,

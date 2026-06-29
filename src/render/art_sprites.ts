@@ -1,6 +1,6 @@
 /* Procedural non-explicit adult art-study sprites. */
 
-import { S, rgba, noise, clamp, CLEAR } from './pixutil';
+import { S, rgba, noise, clamp, CLEAR, put } from './pixutil';
 
 export const ART_NUDE_VARIANTS = 4;
 export const F69_FEMALE_NPC_VARIANTS = 8;
@@ -82,12 +82,6 @@ function jitterColor(c: [number, number, number], seed: number, salt: number, am
   ];
 }
 
-function put(t: Uint32Array, x: number, y: number, c: number): void {
-  x = Math.round(x);
-  y = Math.round(y);
-  if (x >= 0 && x < S && y >= 0 && y < S) t[y * S + x] = c;
-}
-
 function shade(p: Palette, x: number, y: number, seed: number, edge = 0): number {
   const key = seed * 97 + 31;
   const n = noise(x, y, key) * 12 - 6;
@@ -114,7 +108,7 @@ function fillEllipse(
       const nx = (x - cx) / rx;
       const ny = (y - cy) / ry;
       const d = nx * nx + ny * ny;
-      if (d <= 1) put(t, x, y, shade(p, x, y, seed, d));
+      if (d <= 1) put(t, Math.round(x), Math.round(y), shade(p, x, y, seed, d));
     }
   }
 }
@@ -128,7 +122,7 @@ function fillHair(t: Uint32Array, cx: number, cy: number, rx: number, ry: number
       const lower = y > cy && Math.abs(x - cx) < rx * 0.45;
       if (d <= 1 || lower) {
         const n = noise(x, y, seed + 701) * 18 - 9;
-        put(t, x, y, rgba(clamp(p.hairR + n), clamp(p.hairG + n), clamp(p.hairB + n)));
+        put(t, Math.round(x), Math.round(y), rgba(clamp(p.hairR + n), clamp(p.hairG + n), clamp(p.hairB + n)));
       }
     }
   }
@@ -160,7 +154,7 @@ function fillCapsule(
       const dx = x - px;
       const dy = y - py;
       const d = Math.sqrt(dx * dx + dy * dy);
-      if (d <= r) put(t, x, y, shade(p, x, y, seed, d / r));
+      if (d <= r) put(t, Math.round(x), Math.round(y), shade(p, x, y, seed, d / r));
     }
   }
 }
@@ -171,7 +165,7 @@ function drawPedestal(t: Uint32Array, seed: number): void {
     for (let x = inset; x < S - inset; x++) {
       const n = noise(x, y, seed + 1400) * 18 - 9;
       const edge = x < inset + 2 || x > S - inset - 3 ? -18 : 0;
-      put(t, x, y, rgba(clamp(126 + n + edge), clamp(118 + n + edge), clamp(108 + n + edge)));
+      put(t, Math.round(x), Math.round(y), rgba(clamp(126 + n + edge), clamp(118 + n + edge), clamp(108 + n + edge)));
     }
   }
 }
@@ -194,7 +188,7 @@ function drawHighlights(t: Uint32Array, variant: number): void {
   const rows = variant === 1
     ? [[29, 25, 34], [39, 28, 36], [47, 26, 33]]
     : [[28, 27, 34], [38, 26, 36], [46, 27, 35]];
-  for (const [y, x0, x1] of rows) for (let x = x0; x <= x1; x += 2) put(t, x, y, c);
+  for (const [y, x0, x1] of rows) for (let x = x0; x <= x1; x += 2) put(t, Math.round(x), Math.round(y), c);
 }
 
 function putColorEllipse(
@@ -238,7 +232,7 @@ function putColorShade(
 ): void {
   const n = noise(x, y, seed) * 12 - 6;
   const light = (S - x) * 0.18 - y * 0.035;
-  put(t, x, y, rgba(clamp(r + n + light - edge), clamp(g + n + light - edge), clamp(b + n + light - edge)));
+  put(t, Math.round(x), Math.round(y), rgba(clamp(r + n + light - edge), clamp(g + n + light - edge), clamp(b + n + light - edge)));
 }
 
 function putColorCapsule(
@@ -271,7 +265,7 @@ function putColorCapsule(
       if (d <= rad) {
         const n = noise(x, y, seed) * 10 - 5;
         const edge = d / rad * 20;
-        put(t, x, y, rgba(clamp(r + n - edge), clamp(g + n - edge), clamp(b + n - edge)));
+        put(t, Math.round(x), Math.round(y), rgba(clamp(r + n - edge), clamp(g + n - edge), clamp(b + n - edge)));
       }
     }
   }
@@ -294,8 +288,8 @@ function drawRibbon(
     const p = Math.max(0, Math.min(1, (y - legTop) / Math.max(1, legBot - legTop)));
     const lx = Math.round(leftLegTopX + (leftFootX - leftLegTopX) * p);
     const rx = Math.round(rightLegTopX + (rightFootX - rightLegTopX) * p);
-    for (let x = lx - 2; x <= lx + 1; x++) put(t, x, y, rgba(clamp(r + shine), clamp(g + shine), clamp(b + shine)));
-    for (let x = rx - 1; x <= rx + 2; x++) put(t, x, y, rgba(clamp(r + shine), clamp(g + shine), clamp(b + shine)));
+    for (let x = lx - 2; x <= lx + 1; x++) put(t, Math.round(x), Math.round(y), rgba(clamp(r + shine), clamp(g + shine), clamp(b + shine)));
+    for (let x = rx - 1; x <= rx + 2; x++) put(t, Math.round(x), Math.round(y), rgba(clamp(r + shine), clamp(g + shine), clamp(b + shine)));
   }
 }
 
@@ -347,11 +341,11 @@ function drawVaseTorso(
 function drawSoftHighlights(t: Uint32Array, cx: number, lean: number, r: number, g: number, b: number, seed: number): void {
   const hi = rgba(clamp(r + 28), clamp(g + 24), clamp(b + 22), 205);
   const lo = rgba(clamp(r - 34), clamp(g - 24), clamp(b - 18), 190);
-  for (let y = 28; y < 38; y += 2) put(t, cx + lean - 2, y, hi);
-  for (let y = 32; y < 42; y += 3) put(t, cx + lean + 3, y, lo);
+  for (let y = 28; y < 38; y += 2) put(t, Math.round(cx + lean - 2), Math.round(y), hi);
+  for (let y = 32; y < 42; y += 3) put(t, Math.round(cx + lean + 3), Math.round(y), lo);
   if ((seed & 1) === 0) {
-    put(t, cx + lean - 3, 30, hi);
-    put(t, cx + lean + 3, 30, hi);
+    put(t, Math.round(cx + lean - 3), Math.round(30), hi);
+    put(t, Math.round(cx + lean + 3), Math.round(30), hi);
   }
 }
 
@@ -373,11 +367,11 @@ function drawFigureStudyDetails(
   const [pr, pg, pb] = blush[variant % blush.length];
   for (const side of [-1, 1]) {
     const x = cx + lean + side * 3;
-    put(t, x, chestY, rgba(pr, pg, pb, 235));
-    put(t, x + side, chestY, rgba(clamp(pr + 22), clamp(pg + 16), clamp(pb + 14), 190));
+    put(t, Math.round(x), Math.round(chestY), rgba(pr, pg, pb, 235));
+    put(t, Math.round(x + side), Math.round(chestY), rgba(clamp(pr + 22), clamp(pg + 16), clamp(pb + 14), 190));
   }
 
-  put(t, cx + lean, 36 + (variant & 1), rgba(clamp(r - 42), clamp(g - 32), clamp(b - 26)));
+  put(t, Math.round(cx + lean), Math.round(36 + (variant & 1)), rgba(clamp(r - 42), clamp(g - 32), clamp(b - 26)));
 
   const lowerR = clamp(hairR * 0.48 + noise(variant, 0, seed) * 24);
   const lowerG = clamp(hairG * 0.48 + noise(variant, 1, seed) * 20);
@@ -410,7 +404,7 @@ function drawFigureStudyDetails(
 
 function drawHairPixel(t: Uint32Array, x: number, y: number, r: number, g: number, b: number, seed: number, edge = 0): void {
   const n = noise(x, y, seed) * 22 - 11;
-  put(t, x, y, rgba(clamp(r + n - edge), clamp(g + n - edge), clamp(b + n - edge)));
+  put(t, Math.round(x), Math.round(y), rgba(clamp(r + n - edge), clamp(g + n - edge), clamp(b + n - edge)));
 }
 
 function drawLowerHair(t: Uint32Array, cx: number, lean: number, variant: number, r: number, g: number, b: number, seed: number, hairScale: number): void {
@@ -505,12 +499,12 @@ function drawTopHair(t: Uint32Array, cx: number, lean: number, variant: number, 
 }
 
 function drawAnimeFace(t: Uint32Array, cx: number, lean: number, skinR: number, skinG: number, skinB: number): void {
-  put(t, cx + lean - 4, 20, rgba(230, 116, 126, 150));
-  put(t, cx + lean + 4, 20, rgba(230, 116, 126, 150));
-  put(t, cx + lean, 20, rgba(clamp(skinR - 36), clamp(skinG - 28), clamp(skinB - 24)));
-  put(t, cx + lean - 1, 22, rgba(150, 58, 62));
-  put(t, cx + lean, 22, rgba(204, 82, 82));
-  put(t, cx + lean + 1, 22, rgba(150, 58, 62));
+  put(t, Math.round(cx + lean - 4), Math.round(20), rgba(230, 116, 126, 150));
+  put(t, Math.round(cx + lean + 4), Math.round(20), rgba(230, 116, 126, 150));
+  put(t, Math.round(cx + lean), Math.round(20), rgba(clamp(skinR - 36), clamp(skinG - 28), clamp(skinB - 24)));
+  put(t, Math.round(cx + lean - 1), Math.round(22), rgba(150, 58, 62));
+  put(t, Math.round(cx + lean), Math.round(22), rgba(204, 82, 82));
+  put(t, Math.round(cx + lean + 1), Math.round(22), rgba(150, 58, 62));
 }
 
 function drawFigure(t: Uint32Array, variant: number, p: Palette, seed: number): void {
@@ -551,7 +545,7 @@ export function generateArtNudeSprite(variant: number): Uint32Array {
   for (let y = 58; y < 63; y++) {
     for (let x = 16; x < 49; x++) {
       const falloff = Math.abs(x - 32) / 18;
-      if (falloff < 1) put(t, x, y, rgba(20, 18, 18, Math.floor(65 * (1 - falloff))));
+      if (falloff < 1) put(t, Math.round(x), Math.round(y), rgba(20, 18, 18, Math.floor(65 * (1 - falloff))));
     }
   }
   drawFigure(t, v, p, seed);
@@ -588,7 +582,7 @@ export function generateFloor69FemaleNpcSprite(variant: number): Uint32Array {
   for (let y = 57; y < 62; y++) {
     for (let x = 18; x < 47; x++) {
       const f = 1 - Math.abs(x - 32) / 16;
-      if (f > 0) put(t, x, y, rgba(16, 14, 16, Math.floor(55 * f)));
+      if (f > 0) put(t, Math.round(x), Math.round(y), rgba(16, 14, 16, Math.floor(55 * f)));
     }
   }
 

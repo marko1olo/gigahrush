@@ -2,7 +2,7 @@
 
 import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
-import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
+import { S, rgba, noise, clamp, CLEAR, put } from '../render/pixutil';
 
 export const DEF: MonsterDef = {
   kind: MonsterKind.SPORE_CARPET,
@@ -17,10 +17,6 @@ export const DEF: MonsterDef = {
   counterplay: 'Смотрите на поднятые углы и зеленые жилы: обходите проем, жгите с дистанции или держите фильтр до пересечения ковра.',
   lootHint: 'плесневелая бахрома, споровый отпечаток, редкий фильтрующий слой из старой подкладки',
 };
-
-function put(t: Uint32Array, x: number, y: number, color: number): void {
-  if (x >= 0 && x < S && y >= 0 && y < S) t[y * S + x] = color;
-}
 
 function drawVein(t: Uint32Array, sx: number, sy: number, len: number, seed: number): void {
   let x = sx;

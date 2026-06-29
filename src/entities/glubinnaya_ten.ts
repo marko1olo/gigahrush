@@ -2,7 +2,7 @@
 
 import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
-import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
+import { S, rgba, noise, clamp, CLEAR, put } from '../render/pixutil';
 
 export const DEF: MonsterDef = {
   kind: MonsterKind.GLUBINNAYA_TEN,
@@ -17,10 +17,6 @@ export const DEF: MonsterDef = {
   counterplay: 'Не догоняйте первый силуэт в темноту: стойте на месте, держите светлый выход за спиной или вскройте настоящее тело фонарем до второго удара.',
   lootHint: 'холодная пыль, темный след, редкий странный сгусток из второго силуэта',
 };
-
-function put(t: Uint32Array, x: number, y: number, c: number): void {
-  if (x >= 0 && x < S && y >= 0 && y < S) t[y * S + x] = c;
-}
 
 function strip(
   t: Uint32Array,

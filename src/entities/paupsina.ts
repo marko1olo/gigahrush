@@ -2,7 +2,7 @@
 
 import { FloorLevel, MonsterKind, ProjType } from '../core/types';
 import type { MonsterDef } from './monster';
-import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
+import { S, noise, clamp, CLEAR, putRGB as put } from '../render/pixutil';
 
 export const PAUPSINA_WEB_COOLDOWN_SEC = 2.65;
 
@@ -22,11 +22,6 @@ export const DEF: MonsterDef = {
   counterplay: 'Сеть летит по прямой и держит недолго: ломайте линию дверью или стеллажом, режьте ножом/пилой, жгите огнем или наказывайте дробью вблизи.',
   lootHint: 'бледные нитки, обломки сбруи, липкий мешок, редкий моток проволоки',
 };
-
-function put(t: Uint32Array, x: number, y: number, r: number, g: number, b: number, a = 255): void {
-  if (x < 0 || x >= S || y < 0 || y >= S) return;
-  t[y * S + x] = rgba(r, g, b, a);
-}
 
 function ell(t: Uint32Array, cx: number, cy: number, rx: number, ry: number, r: number, g: number, b: number, seed: number, a = 255): void {
   const x0 = Math.max(0, Math.floor(cx - rx));
