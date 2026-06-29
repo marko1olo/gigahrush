@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import { AIGoal, Cell, EntityType, Faction, MonsterKind, Occupation, QuestType, type Entity, type Quest } from '../src/core/types';
 import { World } from '../src/core/world';
+import { rebuildEntityIndex } from '../src/systems/entity_index';
 import { PLOT_CHAIN } from '../src/data/plot';
 import { updateKillQuestPressure } from '../src/systems/quests';
 import { makeGameState } from './helpers';
@@ -59,6 +60,7 @@ test('authored kill pressure waits for its interval and spawns from plot data', 
   state.quests = [quest];
   const world = floorWorld();
   const entities: Entity[] = [major()];
+  rebuildEntityIndex(entities);
   const nextId = { v: 1000 };
 
   assert.equal(updateKillQuestPressure(world, entities, state, state.msgs, nextId), false);

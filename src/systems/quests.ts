@@ -673,9 +673,10 @@ function plotStepKillPressure(q: Quest): KillPressureDef | undefined {
   return q.plotStepIndex === undefined ? undefined : PLOT_CHAIN[q.plotStepIndex]?.killPressure;
 }
 
-function resolveKillPressureAnchor(def: KillPressureDef, entities: readonly Entity[]): Entity | undefined {
+function resolveKillPressureAnchor(def: KillPressureDef): Entity | undefined {
   if (def.anchor.kind === 'plot_npc') {
-    return entities.find(e => e.type === EntityType.NPC && e.alive && e.plotNpcId === def.anchor.plotNpcId);
+    const e = getEntityIndex().byPlotNpcId.get(def.anchor.plotNpcId);
+    return e && e.type === EntityType.NPC && e.alive ? e : undefined;
   }
   return undefined;
 }
@@ -750,7 +751,7 @@ export function updateKillQuestPressure(
     const pressure = plotStepKillPressure(q);
     if (!pressure || pressure.monsterKinds.length <= 0) continue;
     activeQuestIds.add(q.id);
-    const anchor = resolveKillPressureAnchor(pressure, entities);
+    const anchor = resolveKillPressureAnchor(pressure);
     if (!anchor) continue;
     const last = killPressureLastSpawnAt.get(q.id);
     if (last === undefined) {
