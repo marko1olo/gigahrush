@@ -62,9 +62,14 @@ function registerBlackSlimeContext(ctx: BlackSlimeContext): void {
 }
 
 function nextContainerId(world: World): number {
-  let id = world.containers.length + 1;
-  while (world.containerById.has(id) || world.containers.some(c => c.id === id)) id++;
-  return id;
+  let maxId = 0;
+  for (let i = 0; i < world.containers.length; i++) {
+    if (world.containers[i].id > maxId) maxId = world.containers[i].id;
+  }
+  for (const id of world.containerById.keys()) {
+    if (id > maxId) maxId = id;
+  }
+  return maxId + 1;
 }
 
 function addBlackSlimeContainer(
