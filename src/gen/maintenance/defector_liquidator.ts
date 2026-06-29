@@ -414,10 +414,14 @@ function handleAg81Event(state: GameState, event: WorldEvent): void {
 
 registerWorldEventObserver(handleAg81Event);
 
-function nextContainerId(ctx: MaintContentCtx): number {
-  let id = ctx.world.containers.length + 1;
-  while (ctx.world.containerById.has(id) || ctx.world.containers.some(c => c.id === id)) id++;
-  return id;
+function nextContainerId(ctx: MaintContentCtx & { _maxContainerId?: number }): number {
+  if (ctx._maxContainerId === undefined) {
+    let max = 0;
+    for (const c of ctx.world.containers) if (c.id > max) max = c.id;
+    for (const id of ctx.world.containerById.keys()) if (id > max) max = id;
+    ctx._maxContainerId = max;
+  }
+  return ++ctx._maxContainerId;
 }
 
 function addContainer(
