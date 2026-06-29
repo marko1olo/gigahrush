@@ -266,11 +266,12 @@ function roomCenter(room: Room): { x: number; y: number } {
 
 function findSpectralRooms(world: World): SpectralRooms | undefined {
   const rooms: Partial<SpectralRooms> = {};
-  for (const key of Object.keys(SPECTRAL_CHASOVNYA_ROOM_NAMES) as SpectralRoomKey[]) {
-    const roomName = SPECTRAL_CHASOVNYA_ROOM_NAMES[key];
+  for (const key in SPECTRAL_CHASOVNYA_ROOM_NAMES) {
+    const typedKey = key as SpectralRoomKey;
+    const roomName = SPECTRAL_CHASOVNYA_ROOM_NAMES[typedKey];
     const room = world.rooms.find(candidate => candidate?.name === roomName);
     if (!room) return undefined;
-    rooms[key] = room;
+    rooms[typedKey] = room;
   }
   return rooms as SpectralRooms;
 }
