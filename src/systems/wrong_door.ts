@@ -4,7 +4,7 @@ import { stampSurfaceSplat } from './surface_marks';
 import { W, Cell, DoorState, type Entity, type GameState } from '../core/types';
 import { World } from '../core/world';
 import { publishEvent } from './events';
-import { isPlayerEntity } from './player_actor';
+import { getCurrentPlayerEntity } from './player_actor';
 import { territoryOwnerAtIndex } from './territory';
 
 export { ContainerKind, Faction, FloorLevel, Occupation } from '../core/types';
@@ -393,7 +393,7 @@ export function createMaronaryWrongDoorRemap(
   reason: string,
   preferredSourceIdx?: number,
 ): boolean {
-  const player = entities.find(e => isPlayerEntity(e) && e.alive);
+  const player = getCurrentPlayerEntity(entities);
   const cue = createWrongDoorRemap(world, state, player?.x ?? W / 2, player?.y ?? W / 2, reason, false, preferredSourceIdx);
   return cue !== null;
 }
