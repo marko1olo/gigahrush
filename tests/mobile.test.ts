@@ -72,6 +72,51 @@ test('shouldUseTouchControls: Mobile user agent always returns true', () => {
   }
 });
 
+test('shouldUseTouchControls: Android user agent returns true', () => {
+  const restore = installMobileEnv({
+    userAgent: 'Mozilla/5.0 (Linux; Android 10; SM-G981B)',
+    maxTouchPoints: 0,
+    hasOntouchstart: false,
+    innerWidth: 1920,
+    innerHeight: 1080,
+  });
+  try {
+    assert.equal(shouldUseTouchControls(), true);
+  } finally {
+    restore();
+  }
+});
+
+test('shouldUseTouchControls: iPad user agent (case-insensitive) returns true', () => {
+  const restore = installMobileEnv({
+    userAgent: 'Mozilla/5.0 (IPAD; CPU OS 13_3 like Mac OS X)',
+    maxTouchPoints: 0,
+    hasOntouchstart: false,
+    innerWidth: 1920,
+    innerHeight: 1080,
+  });
+  try {
+    assert.equal(shouldUseTouchControls(), true);
+  } finally {
+    restore();
+  }
+});
+
+test('shouldUseTouchControls: Generic mobile user agent returns true', () => {
+  const restore = installMobileEnv({
+    userAgent: 'Mozilla/5.0 (Mobile; rv:78.0)',
+    maxTouchPoints: 0,
+    hasOntouchstart: false,
+    innerWidth: 1920,
+    innerHeight: 1080,
+  });
+  try {
+    assert.equal(shouldUseTouchControls(), true);
+  } finally {
+    restore();
+  }
+});
+
 test('shouldUseTouchControls: Desktop with touch and compact viewport returns true', () => {
   const restore = installMobileEnv({
     userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
@@ -87,6 +132,36 @@ test('shouldUseTouchControls: Desktop with touch and compact viewport returns tr
   }
 });
 
+test('shouldUseTouchControls: Desktop with touch and compact width but large height returns true', () => {
+  const restore = installMobileEnv({
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+    maxTouchPoints: 10,
+    hasOntouchstart: false,
+    innerWidth: 800,
+    innerHeight: 1200,
+  });
+  try {
+    assert.equal(shouldUseTouchControls(), true);
+  } finally {
+    restore();
+  }
+});
+
+test('shouldUseTouchControls: Desktop with touch and large width but compact height returns true', () => {
+  const restore = installMobileEnv({
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+    maxTouchPoints: 10,
+    hasOntouchstart: false,
+    innerWidth: 1200,
+    innerHeight: 800,
+  });
+  try {
+    assert.equal(shouldUseTouchControls(), true);
+  } finally {
+    restore();
+  }
+});
+
 test('shouldUseTouchControls: Desktop with touch but large viewport returns false', () => {
   const restore = installMobileEnv({
     userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
@@ -94,6 +169,36 @@ test('shouldUseTouchControls: Desktop with touch but large viewport returns fals
     hasOntouchstart: false,
     innerWidth: 1920,
     innerHeight: 1080,
+  });
+  try {
+    assert.equal(shouldUseTouchControls(), false);
+  } finally {
+    restore();
+  }
+});
+
+test('shouldUseTouchControls: Touch capable and exact 900px boundary viewport returns false', () => {
+  const restore = installMobileEnv({
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+    maxTouchPoints: 10,
+    hasOntouchstart: false,
+    innerWidth: 900,
+    innerHeight: 1080,
+  });
+  try {
+    assert.equal(shouldUseTouchControls(), false);
+  } finally {
+    restore();
+  }
+});
+
+test('shouldUseTouchControls: Touch capable and exact 900px boundary on height returns false', () => {
+  const restore = installMobileEnv({
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+    maxTouchPoints: 10,
+    hasOntouchstart: false,
+    innerWidth: 1080,
+    innerHeight: 900,
   });
   try {
     assert.equal(shouldUseTouchControls(), false);
