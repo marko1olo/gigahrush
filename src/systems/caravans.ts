@@ -321,7 +321,8 @@ function addPlayerRelation(faction: Faction, delta: number): void {
 function markActiveRunOutcome(state: GameState, laneId: string, status: SmallCaravanStatus): void {
   const caravans = ensureCaravanState(state);
   let selected: SmallCaravanRunState | undefined;
-  for (const run of Object.values(caravans.active)) {
+  for (const id in caravans.active) {
+    const run = caravans.active[id];
     if (run.laneId !== laneId || run.expiresAt <= state.time) continue;
     if (!selected || (activeStatus(run.status) && !activeStatus(selected.status))) selected = run;
   }
@@ -651,7 +652,8 @@ function spawnSmallCaravanMembers(
 
 function currentFloorActiveSmallCaravanCount(caravans: CaravanState, floor: FloorLevel, now: number): number {
   let count = 0;
-  for (const run of Object.values(caravans.active)) {
+  for (const id in caravans.active) {
+    const run = caravans.active[id];
     if (run.floor === floor && run.expiresAt > now && activeStatus(run.status)) count++;
   }
   return count;
@@ -800,7 +802,8 @@ function updateSmallCaravans(
     for (const e of entities) {
       entityMap.set(e.id, e);
     }
-    for (const run of Object.values(caravans.active)) {
+    for (const id in caravans.active) {
+      const run = caravans.active[id];
       if (!activeStatus(run.status)) continue;
       if (!updateSmallCaravanPosition(run, entityMap)) {
         markSmallCaravanLost(state, run, 'raided');
@@ -1057,7 +1060,8 @@ export function getNearestSmallCaravan(
   const caravans = ensureCaravanState(state);
   let best: SmallCaravanRunState | undefined;
   let bestD2 = maxDist * maxDist;
-  for (const run of Object.values(caravans.active)) {
+  for (const id in caravans.active) {
+    const run = caravans.active[id];
     if (run.floor !== state.currentFloor || run.expiresAt <= state.time) continue;
     if (terminalStatus(run.status) && run.updatedAt + SMALL_CARAVAN_TERMINAL_SECONDS < state.time) continue;
     const d2 = world.dist2(player.x, player.y, run.x, run.y);
