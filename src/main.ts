@@ -3773,11 +3773,13 @@ function floorMemoryGenerationExtrasForKey(key: string): Record<string, unknown>
   if (!isDesignFloorId(designId)) return undefined;
   const gen = generateDesignFloor(designId, ensureFloorRunState(state).runSeed) as FloorGeneration & Record<string, unknown>;
   const extras: Record<string, unknown> = {};
-  for (const [extraKey, value] of Object.entries(gen)) {
+  let hasExtras = false;
+  for (const extraKey in gen) {
     if (extraKey === 'world' || extraKey === 'entities' || extraKey === 'spawnX' || extraKey === 'spawnY') continue;
-    extras[extraKey] = value;
+    extras[extraKey] = gen[extraKey];
+    hasExtras = true;
   }
-  return Object.keys(extras).length > 0 ? extras : undefined;
+  return hasExtras ? extras : undefined;
 }
 
 function loadFloorForTarget(floor: FloorLevel, entry: FloorRunEntry | null | undefined): FloorMemoryLoad {
