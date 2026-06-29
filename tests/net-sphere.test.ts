@@ -1305,3 +1305,42 @@ test('Net Sphere does not expose NET-GEN-shaped legacy nicknames as public names
   assert.equal(String(events[0].eventKey).includes('NET-LEAK-1234'), false);
   assert.equal(events[0].summary, 'Жилец умер. Последний сигнал: 2026-05-18 02:42 UTC.');
 });
+
+test('Net Sphere market polling handles fetch errors and resets busy flag', async () => {
+  const browser = installNetSphereBrowser();
+  const realFetch = globalThis.fetch;
+  const requests: string[] = [];
+
+  globalThis.fetch = ((input: RequestInfo | URL) => {
+    requests.push(String(input));
+    return Promise.reject(new Error('Market network failure mock'));
+  }) as typeof fetch;
+
+  try {
+    const net = await import('../src/systems/net_sphere');
+    net.closeNetSphere();
+    const unbind = net.bindNetSphereInput();
+
+    // Setup initial open state so market polling can proceed
+    net.openNetSphere();
+
+    // Trigger the market polling directly
+    net.pollNetMarketSnapshot();
+
+    // Wait for microtasks (the fetch rejection to be caught)
+    await new Promise<void>(resolve => setImmediate(resolve));
+    await new Promise<void>(resolve => setImmediate(resolve));
+
+    const snapshot = net.getNetSphereSnapshot();
+    assert.equal(snapshot.status, 'offline');
+    assert.equal(snapshot.error, 'Маркет offline. Игра локальна.');
+    assert.equal(snapshot.busy, false);
+    assert.equal(requests.some(url => url.endsWith('/market')), true);
+
+    unbind();
+    net.closeNetSphere();
+  } finally {
+    globalThis.fetch = realFetch;
+    browser.restore();
+  }
+});
