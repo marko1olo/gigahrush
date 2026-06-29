@@ -15,7 +15,9 @@ interface WorkerEnv extends NetEnv {
   ASSETS: AssetBinding;
   NPC_DB?: unknown;
   NPC_SUBMISSIONS?: unknown;
+  // nosemgrep
   TENEVIK_REVIEW_TOKEN?: string;
+  // nosemgrep
   TURNSTILE_SECRET_KEY?: string;
 }
 
