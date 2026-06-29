@@ -109,3 +109,73 @@ test('trade UI gracefully falls back when economy quote system throws error', ()
   assert.equal(typeof tradeDisplay.line, 'string');
   assert.ok(tradeDisplay.line.includes('Цена:'));
 });
+
+test('readFinanceSnapshot clamps missing or negative money to 0', () => {
+  const snapshotUndefined = readFinanceSnapshot(entity({ money: undefined }), state());
+  assert.equal(snapshotUndefined.cash, 0);
+
+  const snapshotNegative = readFinanceSnapshot(entity({ money: -500 }), state());
+  assert.equal(snapshotNegative.cash, 0);
+});
+
+test('readFinanceSnapshot correctly aggregates basic banking and stock state', () => {
+  const player = entity({ money: 1000 });
+  const s = state({
+    banking: { accountRubles: 500, creditLimit: 2000, depositPrincipal: 100, depositYield: 10 },
+    stockMarket: { portfolioValue: 3000, portfolioPL: 500 },
+  });
+
+  const snapshot = readFinanceSnapshot(player, s);
+
+  assert.equal(snapshot.cash, 1000);
+  assert.equal(snapshot.hasBanking, true);
+  assert.equal(snapshot.accountRubles, 500);
+  assert.equal(snapshot.creditLimit, 2000);
+  assert.equal(snapshot.depositPrincipal, 100);
+  // Deposit yield relies on time and summary, but without time elapsed it's usually just checking defensive reads
+
+  assert.equal(snapshot.hasStock, true);
+});
+test('readFinanceSnapshot fully integrates banking and stock properties', () => {
+  const player = entity({ money: 1200 });
+  const s = state({
+    time: 60 * 60 * 24, // 1 day
+    banking: {
+      accountRubles: 300,
+      creditLimit: 5000,
+      loanPrincipal: 1000,
+      loanAccrued: 50,
+      depositPrincipal: 2000,
+      depositRate: 0.1,
+      depositOpenedAt: 0,
+    },
+    stockMarket: {
+      quotes: { corpA: { price: 100, shares: 10, avgPrice: 90 } },
+      portfolio: { corpA: { shares: 10, avgPrice: 90 } }
+    },
+  });
+
+  const snapshot = readFinanceSnapshot(player, s);
+
+  assert.equal(snapshot.cash, 1200);
+  assert.equal(snapshot.hasBanking, true);
+  assert.equal(snapshot.accountRubles, 300);
+  assert.equal(snapshot.creditLimit, 5000);
+  assert.equal(snapshot.debtRubles, 1050); // principal + accrued
+  assert.ok(snapshot.depositPrincipal === 2000);
+
+  assert.equal(snapshot.hasStock, true);
+  assert.equal(snapshot.portfolioValue, 1000); // 10 shares * 100 price
+  assert.equal(snapshot.portfolioPL, 100); // (10 * 100) - (10 * 90)
+});
+test('readFinanceSnapshot handles null player and missing state safely', () => {
+  // @ts-expect-error Intentionally passing invalid player object to test missing properties
+  const snapshot = readFinanceSnapshot({}, state());
+
+  assert.equal(snapshot.cash, 0);
+  assert.equal(snapshot.hasBanking, false);
+  assert.equal(snapshot.hasStock, false);
+});
+
+// Since financeDetailLines and inventoryFinanceLines heavily rely on the output of readFinanceSnapshot,
+// we ensure its determinism with boundary and error conditions directly mapped.
