@@ -68,7 +68,7 @@ import {
   updateInventoryConditions,
 } from './systems/inventory';
 import { createInput, bindInput } from './input';
-import { createMobileControls, type MobileControls, type MobileMenuId } from './mobile';
+import { createMobileControls, type MobileControls } from './mobile';
 import { createGamepadAdapter, type GamepadAdapter } from './input_gamepad';
 import {
   createInputFrame,
@@ -87,7 +87,7 @@ import {
   resetAllControlBindings,
 } from './systems/controls';
 import { GAME_MENU_ITEMS } from './systems/game_menu';
-import { MOBILE_BUTTON_CONTROL_ROWS } from './systems/mobile_actions';
+import { MOBILE_BUTTON_CONTROL_ROWS, type MobileMenuId } from './systems/mobile_actions';
 import {
   adjustCameraFov,
   cycleHudMotionMode,
