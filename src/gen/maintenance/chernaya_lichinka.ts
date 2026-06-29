@@ -77,8 +77,9 @@ function registerLichinkaContext(ctx: LichinkaContext): void {
 }
 
 function nextContainerId(world: World): number {
-  let id = world.containers.length + 1;
-  while (world.containerById.has(id) || world.containers.some(c => c.id === id)) id++;
+  let id = 1;
+  for (const c of world.containers) id = Math.max(id, c.id + 1);
+  for (const cid of world.containerById.keys()) id = Math.max(id, cid + 1);
   return id;
 }
 
