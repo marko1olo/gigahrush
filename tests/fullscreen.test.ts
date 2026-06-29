@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { canUseMobileFullscreen, canUseNativeFullscreen, standaloneLaunchUrl } from '../src/fullscreen';
+import { canUseMobileFullscreen, canUseNativeFullscreen, standaloneLaunchUrl, enterNativeFullscreen } from '../src/fullscreen';
 
 interface FullscreenEnvOptions {
   userAgent: string;
@@ -116,6 +116,110 @@ test('standaloneLaunchUrl appends standalone query parameter', () => {
   try {
     assert.equal(standaloneLaunchUrl(), 'https://example.com/game?standalone=1');
   } finally {
+    restore();
+  }
+});
+
+test('enterNativeFullscreen returns false when requestFullscreen throws', async () => {
+  const restore = installFullscreenEnv({
+    userAgent: 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/125 Mobile Safari/537.36',
+    platform: 'Linux armv8l',
+  });
+  const previousScreen = Object.getOwnPropertyDescriptor(globalThis, 'screen');
+  Object.defineProperty(globalThis, 'screen', {
+    configurable: true,
+    value: { orientation: {} },
+  });
+
+  try {
+    const mockTarget = {
+      requestFullscreen: async () => {
+        throw new Error('Fullscreen request denied');
+      }
+    } as unknown as HTMLElement;
+
+    const result = await enterNativeFullscreen(mockTarget);
+    assert.equal(result, false);
+  } finally {
+    if (previousScreen) Object.defineProperty(globalThis, 'screen', previousScreen);
+    else Reflect.deleteProperty(globalThis, 'screen');
+    restore();
+  }
+});
+
+test('enterNativeFullscreen returns false when prefixed requestFullscreen throws', async () => {
+  const restore = installFullscreenEnv({
+    userAgent: 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/125 Mobile Safari/537.36',
+    platform: 'Linux armv8l',
+  });
+  const previousScreen = Object.getOwnPropertyDescriptor(globalThis, 'screen');
+  Object.defineProperty(globalThis, 'screen', {
+    configurable: true,
+    value: { orientation: {} },
+  });
+
+  try {
+    const mockTarget = {
+      webkitRequestFullscreen: async () => {
+        throw new Error('Prefixed fullscreen request denied');
+      }
+    } as unknown as HTMLElement;
+
+    const result = await enterNativeFullscreen(mockTarget);
+    assert.equal(result, false);
+  } finally {
+    if (previousScreen) Object.defineProperty(globalThis, 'screen', previousScreen);
+    else Reflect.deleteProperty(globalThis, 'screen');
+    restore();
+  }
+});
+
+test('enterNativeFullscreen returns true when requestFullscreen succeeds', async () => {
+  const restore = installFullscreenEnv({
+    userAgent: 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/125 Mobile Safari/537.36',
+    platform: 'Linux armv8l',
+  });
+  const previousScreen = Object.getOwnPropertyDescriptor(globalThis, 'screen');
+  Object.defineProperty(globalThis, 'screen', {
+    configurable: true,
+    value: { orientation: {} },
+  });
+
+  try {
+    const mockTarget = {
+      requestFullscreen: async () => {}
+    } as unknown as HTMLElement;
+
+    const result = await enterNativeFullscreen(mockTarget);
+    assert.equal(result, true);
+  } finally {
+    if (previousScreen) Object.defineProperty(globalThis, 'screen', previousScreen);
+    else Reflect.deleteProperty(globalThis, 'screen');
+    restore();
+  }
+});
+
+test('enterNativeFullscreen returns true when prefixed requestFullscreen succeeds', async () => {
+  const restore = installFullscreenEnv({
+    userAgent: 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/125 Mobile Safari/537.36',
+    platform: 'Linux armv8l',
+  });
+  const previousScreen = Object.getOwnPropertyDescriptor(globalThis, 'screen');
+  Object.defineProperty(globalThis, 'screen', {
+    configurable: true,
+    value: { orientation: {} },
+  });
+
+  try {
+    const mockTarget = {
+      webkitRequestFullscreen: async () => {}
+    } as unknown as HTMLElement;
+
+    const result = await enterNativeFullscreen(mockTarget);
+    assert.equal(result, true);
+  } finally {
+    if (previousScreen) Object.defineProperty(globalThis, 'screen', previousScreen);
+    else Reflect.deleteProperty(globalThis, 'screen');
     restore();
   }
 });
