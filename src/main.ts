@@ -2806,14 +2806,7 @@ function castPlayerPsi(psiId: string, ws: WeaponStats): boolean {
 }
 
 /* ── Player actions ───────────────────────────────────────────── */
-function playerActions(_dt: number): void {
-  if (!player.alive) return;
-  if (state.sleeping) return; // no actions while sleeping
-
-  // Pickup (on interact key E, if looking at item drop)
-  // Auto-pickup handles walking over items (see tick%15 below)
-
-  // Interact (doors + NPCs)
+function handlePlayerInteract(): boolean {
   if (input.interact) {
     const lookX = player.x + Math.cos(player.angle) * 1.5;
     const lookY = player.y + Math.sin(player.angle) * 1.5;
@@ -2844,10 +2837,12 @@ function playerActions(_dt: number): void {
     if (result.worldChanged) updateWorldData(world);
     if (result.openedOverlay) syncPauseState();
     input.interact = false;
-    return;
+    return true;
   }
+  return false;
+}
 
-  // Attack (cooldown-based: hold to auto-fire)
+function handlePlayerAttack(_dt: number): void {
   const wantsAttack = input.attack || input.mouseAttack;
   player.attackCd = Math.max(0, (player.attackCd ?? 0) - _dt);
 
@@ -2990,6 +2985,20 @@ function playerActions(_dt: number): void {
       player.attackCd = ws.speed * atkSpeedMod;
     }
   }
+}
+
+function playerActions(_dt: number): void {
+  if (!player.alive) return;
+  if (state.sleeping) return; // no actions while sleeping
+
+  // Pickup (on interact key E, if looking at item drop)
+  // Auto-pickup handles walking over items (see tick%15 below)
+
+  // Interact (doors + NPCs)
+  if (handlePlayerInteract()) return;
+
+  // Attack (cooldown-based: hold to auto-fire)
+  handlePlayerAttack(_dt);
 }
 
 /* ── Drop inventory as ITEM_DROP entities at death position ──── */
