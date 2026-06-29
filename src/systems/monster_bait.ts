@@ -15,6 +15,7 @@ import { isDocumentScentItem } from './document_scent';
 import { publishEvent } from './events';
 import { activeFloorInstanceWorldKey } from './floor_instances';
 import { currentFloorRunEntry, floorRunEntryFloorKey } from './procedural_floors';
+import { clamp } from '../core/math';
 
 export type MonsterBaitKind = 'food' | 'meat' | 'fungal' | 'govnyak' | 'document';
 export type MonsterBaitSource = 'drop' | 'use';
@@ -119,9 +120,7 @@ export function isMonsterBaitUseItem(defId: string): boolean {
   return baitKindForItem(defId, 'use') !== null;
 }
 
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
-}
+
 
 function addUnique(tags: string[], tag: string): void {
   if (tag.length > 0 && !tags.includes(tag)) tags.push(tag);

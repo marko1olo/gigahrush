@@ -7,6 +7,7 @@ import { drawGlitchText, drawNeuroPanel, drawStaticNoise } from './hud_fx';
 import { fitText } from './ui_text';
 import { menuCloseHint } from '../systems/controls';
 import { isPlayerEntity } from '../systems/player_actor';
+import { clamp } from '../core/math';
 
 export type MapEditorToolId = 'cell' | 'door' | 'texture' | 'feature' | 'entity' | 'container' | 'inspect' | string;
 export type MapEditorDirtyCell = number | { x: number; y: number; idx?: number };
@@ -493,9 +494,7 @@ function finiteNumber(value: number | undefined, fallback: number): number {
   return value !== undefined && Number.isFinite(value) ? value : fallback;
 }
 
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
-}
+
 
 function drawMapTiles(
   ctx: CanvasRenderingContext2D,

@@ -1,4 +1,5 @@
 import { safeParseJson } from '../core/json';
+import { clamp } from '../core/math';
 
 /* ── Gamepad settings (browser-local, not part of save) ──────────
  *
@@ -63,10 +64,9 @@ function storage(): Storage | null {
   }
 }
 
-function clamp(v: unknown, min: number, max: number, fallback: number): number {
+function cleanNumber(v: unknown, fallback: number): number {
   const n = typeof v === 'number' ? v : Number(v);
-  if (!Number.isFinite(n)) return fallback;
-  return Math.max(min, Math.min(max, n));
+  return Number.isFinite(n) ? n : fallback;
 }
 
 function boolOr(v: unknown, fallback: boolean): boolean {
@@ -90,17 +90,17 @@ export function sanitizeGamepadSettings(raw: unknown): GamepadSettings {
     enabled: boolOr(src.enabled, d.enabled),
     profile: pickEnum(src.profile, KNOWN_PROFILES, d.profile),
     invertLookY: boolOr(src.invertLookY, d.invertLookY),
-    moveDeadzone: clamp(src.moveDeadzone, 0, 0.6, d.moveDeadzone),
-    lookDeadzone: clamp(src.lookDeadzone, 0, 0.6, d.lookDeadzone),
-    triggerThreshold: clamp(src.triggerThreshold, 0.05, 0.95, d.triggerThreshold),
-    moveCurve: clamp(src.moveCurve, 0.5, 4, d.moveCurve),
-    lookCurve: clamp(src.lookCurve, 0.5, 4, d.lookCurve),
-    lookSensitivity: clamp(src.lookSensitivity, 0.1, 4, d.lookSensitivity),
+    moveDeadzone: clamp(cleanNumber(src.moveDeadzone, d.moveDeadzone), 0, 0.6),
+    lookDeadzone: clamp(cleanNumber(src.lookDeadzone, d.lookDeadzone), 0, 0.6),
+    triggerThreshold: clamp(cleanNumber(src.triggerThreshold, d.triggerThreshold), 0.05, 0.95),
+    moveCurve: clamp(cleanNumber(src.moveCurve, d.moveCurve), 0.5, 4),
+    lookCurve: clamp(cleanNumber(src.lookCurve, d.lookCurve), 0.5, 4),
+    lookSensitivity: clamp(cleanNumber(src.lookSensitivity, d.lookSensitivity), 0.1, 4),
     haptics: boolOr(src.haptics, d.haptics),
     virtualGamepad: {
       enabled: boolOr(vg.enabled, d.virtualGamepad.enabled),
       layout: pickEnum(vg.layout, KNOWN_LAYOUTS, d.virtualGamepad.layout),
-      opacity: clamp(vg.opacity, 0.1, 1, d.virtualGamepad.opacity),
+      opacity: clamp(cleanNumber(vg.opacity, d.virtualGamepad.opacity), 0.1, 1),
     },
   };
 }

@@ -16,6 +16,7 @@ import {
 import { isStandaloneDisplay } from './pwa';
 import { getLocalizationLanguage } from './systems/localization';
 import { setMobileHudSafeContext, type HudSafeInsets } from './render/ui_layout';
+import { clamp } from './core/math';
 
 export type { MobileMenuId } from './systems/mobile_actions';
 
@@ -49,9 +50,7 @@ function mobileInteractLabel(): string {
   return mobileText({ ru: 'ДЕЙСТ', en: 'ACT' });
 }
 
-function clamp(v: number, lo: number, hi: number): number {
-  return Math.max(lo, Math.min(hi, v));
-}
+
 
 export function shouldUseTouchControls(): boolean {
   const ua = navigator.userAgent;

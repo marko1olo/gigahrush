@@ -26,6 +26,7 @@ import {
 import { changeResourceStock, invalidateEconomyPrices, registerEconomyTariffProvider } from './economy';
 import { publishEvent, registerWorldEventObserver } from './events';
 import { cleanFloorKey, floorKeyForStory } from './floor_keys';
+import { clamp } from '../core/math';
 
 export const CARAVAN_TICK_SECONDS = 30;
 export const MAX_CARAVAN_LANES_PER_TICK = 2;
@@ -108,9 +109,7 @@ const CARAVAN_CONTRACT_OUTCOMES: Record<string, { action: 'escort' | 'raid' | 'r
   caravan_reroute_net_signalers: { action: 'reroute', laneId: 'net_exchange_data' },
 };
 
-function clamp(value: number, lo: number, hi: number): number {
-  return Math.max(lo, Math.min(hi, value));
-}
+
 
 function laneInterval(def: CaravanLaneDef): number {
   let hash = 0;

@@ -14,6 +14,7 @@ import { getEntityIndex } from './entity_index';
 import { publishEvent } from './events';
 import { isHostile } from './factions';
 import { isPlayerEntity } from './player_actor';
+import { clamp } from '../core/math';
 
 export type CombatStimulusSource =
   | 'player_melee'
@@ -63,9 +64,7 @@ let threatMemory = new WeakMap<Entity, CombatThreatMemory>();
 const recentEventTimes = new Map<string, number>();
 let killedEventTargets = new WeakSet<Entity>();
 
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
-}
+
 
 function eventLocation(world: World, entity: Entity): { zoneId: number; roomId?: number } {
   const cell = world.idx(Math.floor(entity.x), Math.floor(entity.y));

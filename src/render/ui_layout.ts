@@ -1,4 +1,5 @@
 import { INVENTORY_GRID_COLS, INVENTORY_GRID_ROWS } from '../data/inventory_limits';
+import { clamp } from '../core/math';
 
 const GRID_COLS = INVENTORY_GRID_COLS;
 const GRID_ROWS = INVENTORY_GRID_ROWS;
@@ -9,9 +10,7 @@ const GRID_SCREEN_H = 0.82;
 const GRID_SCALE_MAX = 4;
 const GRID_SCALE_TARGET_MIN = 2.2;
 
-function clamp(v: number, lo: number, hi: number): number {
-  return Math.max(lo, Math.min(hi, v));
-}
+
 
 export interface UiRect {
   x: number;

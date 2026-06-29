@@ -11,6 +11,7 @@ import { getNetHackTerminalDef, NET_HACK_TERMINALS, type NetHackTerminalDef, typ
 import { publishEvent } from './events';
 import { floorKeyForStory } from './floor_keys';
 import { currentFloorRunEntry, floorRunEntryFloorKey } from './procedural_floors';
+import { clamp } from '../core/math';
 
 export interface NetHackTerminal {
   idx: number;
@@ -66,9 +67,7 @@ const runtime = {
   message: '',
 };
 
-function clamp(min: number, max: number, value: number): number {
-  return Math.max(min, Math.min(max, value));
-}
+
 
 function cleanMoney(actor: Entity): number {
   const money = actor.money ?? 0;
@@ -135,7 +134,7 @@ export function netHackSkill(level: number, int: number): number {
 export function netHackChance(input: NetHackChanceInput): number {
   const difficulty = netHackDifficultyTotal(input);
   const skill = netHackSkill(input.level, input.int);
-  return clamp(0.08, 0.92, 0.45 + (skill - difficulty) * 0.035);
+  return clamp(0.45 + (skill - difficulty) * 0.035, 0.08, 0.92);
 }
 
 export function clearNetHackTerminals(): void {
