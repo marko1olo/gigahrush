@@ -4,12 +4,14 @@ import { FloorLevel, MonsterKind, QuestType, RoomType, type Quest } from '../cor
 import { ITEMS } from '../data/items';
 import type { ContractDef } from '../data/contracts';
 import { monsterTypeName } from '../entities/monster';
+import type { ContextSnapshot } from './context';
 import {
   cleanLine,
   type MarkovAdapterSpeechRequest,
   type MarkovAdapterSpeechResult,
   type MarkovRouteSpeech,
 } from './markov_dialogue';
+import { markovContextFromSnapshot } from './markov_context';
 
 export type ProceduralQuestSpeechPhase = 'offer' | 'reminder' | 'completion' | 'failure';
 
@@ -36,6 +38,7 @@ export interface ProceduralQuestSpeechOptions {
   nowMinutes?: number;
   maxChars?: number;
   routeSpeech?: MarkovRouteSpeech;
+  snapshot?: ContextSnapshot;
 }
 
 export interface ProceduralQuestFactSummary {
@@ -75,14 +78,17 @@ export function renderProceduralQuestSpeech(options: ProceduralQuestSpeechOption
 
   const fallback = cleanLine(options.exactFallback) ?? options.contractDef?.desc ?? q.desc;
   const maxChars = options.maxChars ?? DEFAULT_MAX_QUEST_CHARS;
+  const snapshotContext = options.snapshot ? markovContextFromSnapshot(options.snapshot, { timeMinutes: options.nowMinutes }) : undefined;
+
   const request: MarkovAdapterSpeechRequest = {
     intent: 'procedural_quest',
     source: 'generated_markov',
     context: {
+      ...snapshotContext,
       targetId: q.targetNpcId,
-      floor: q.targetFloor ?? q.visitFloor ?? options.contractDef?.target.floor,
-      roomName: q.targetRoomName ?? options.contractDef?.target.roomName,
-      roomType: q.targetRoomType ?? options.contractDef?.target.roomType,
+      floor: q.targetFloor ?? q.visitFloor ?? options.contractDef?.target.floor ?? snapshotContext?.floor,
+      roomName: q.targetRoomName ?? options.contractDef?.target.roomName ?? snapshotContext?.roomName,
+      roomType: q.targetRoomType ?? options.contractDef?.target.roomType ?? snapshotContext?.roomType,
       itemId: q.targetItem,
       itemName: q.targetItem ? itemName(q.targetItem) : undefined,
       monsterKind: q.targetMonsterKind,
@@ -96,6 +102,7 @@ export function renderProceduralQuestSpeech(options: ProceduralQuestSpeechOption
         ...(q.contractId ? [`contract.${q.contractId}`] : []),
         ...(options.contractDef?.tags ?? []),
         ...(q.eventTags ?? []),
+        ...(snapshotContext?.tags ?? []),
       ],
     },
     exactFallback: fallback,
