@@ -403,12 +403,15 @@ function questObjectiveLine(q: Quest): string {
   return withObjectivePrefix(q.desc);
 }
 
-function objectiveTargetEntity(q: Quest, entities: readonly Entity[]): Entity | undefined {
+function objectiveTargetEntity(q: Quest, _entities: readonly Entity[]): Entity | undefined {
   if (q.targetNpcId !== undefined) {
-    const byLiveId = entities.find(e => e.id === q.targetNpcId && e.alive);
-    if (byLiveId) return byLiveId;
+    const byLiveId = getEntityIndex().byId.get(q.targetNpcId ?? -1);
+    if (byLiveId?.alive) return byLiveId;
   }
-  if (q.targetPlotNpcId) return entities.find(e => e.plotNpcId === q.targetPlotNpcId && e.alive);
+  if (q.targetPlotNpcId) {
+    const e = getEntityIndex().byPlotNpcId.get(q.targetPlotNpcId);
+    if (e?.alive) return e;
+  }
   return undefined;
 }
 
@@ -439,7 +442,7 @@ export function getCurrentObjective(state: Pick<GameState, 'quests' | 'activeQue
   const available = nextAvailablePlotStep(state.quests);
   if (!available) return null;
   const giverName = plotNpcDisplayName(available.step.giverNpcId) ?? available.step.giverNpcId;
-  const target = entities.find(e => e.plotNpcId === available.step.giverNpcId && e.alive);
+  const target = getEntityIndex().byPlotNpcId.get(available.step.giverNpcId);
   return {
     line: available.step.offerObjective ?? `Цель: поговорить с ${giverName}.`,
     detail: available.step.offerObjective ? undefined : available.step.desc,
@@ -673,9 +676,10 @@ function plotStepKillPressure(q: Quest): KillPressureDef | undefined {
   return q.plotStepIndex === undefined ? undefined : PLOT_CHAIN[q.plotStepIndex]?.killPressure;
 }
 
-function resolveKillPressureAnchor(def: KillPressureDef, entities: readonly Entity[]): Entity | undefined {
+function resolveKillPressureAnchor(def: KillPressureDef, _entities: readonly Entity[]): Entity | undefined {
   if (def.anchor.kind === 'plot_npc') {
-    return entities.find(e => e.type === EntityType.NPC && e.alive && e.plotNpcId === def.anchor.plotNpcId);
+    const e = getEntityIndex().byPlotNpcId.get(def.anchor.plotNpcId);
+    return e?.type === EntityType.NPC && e.alive ? e : undefined;
   }
   return undefined;
 }
@@ -813,10 +817,11 @@ function updateHoldoutQuest(
   return q.holdProgressSeconds >= q.holdSeconds;
 }
 
-function plotTalkTargetIsDead(q: Quest, entities: readonly Entity[], state: GameState): boolean {
+function plotTalkTargetIsDead(q: Quest, _entities: readonly Entity[], state: GameState): boolean {
   if (q.plotStepIndex === undefined || q.type !== QuestType.TALK || !q.targetPlotNpcId) return false;
-  const target = entities.find(e => e.type === EntityType.NPC && e.plotNpcId === q.targetPlotNpcId);
-  if (target) return !target.alive;
+  const target = getEntityIndex().byPlotNpcId.get(q.targetPlotNpcId);
+  const targetIsNpc = target?.type === EntityType.NPC ? target : undefined;
+  if (targetIsNpc) return !targetIsNpc.alive;
   return isPlotNpcDeadKnown(state, q.targetPlotNpcId);
 }
 
@@ -945,7 +950,7 @@ export function applyStoryQuestOutcome(
 
 function failQuest(
   q: Quest,
-  entities: Entity[],
+  _entities: Entity[],
   state: GameState,
   msgs: Msg[] | undefined,
   reason: string,
@@ -956,7 +961,7 @@ function failQuest(
 
   q.done = true;
   q.failed = true;
-  const giver = entities.find(e => e.id === q.giverId);
+  const giver = getEntityIndex().byId.get(q.giverId ?? -1);
   if (giver?.questId === q.id) giver.questId = -1;
   const contractDef = q.contractId ? CONTRACTS.find(c => c.id === q.contractId) : undefined;
 
@@ -1146,7 +1151,7 @@ function completeQuest(
 
   learnQuestCraftRecipeRewards(q, state, msgs);
 
-  const giver = entities.find(e => e.id === q.giverId);
+  const giver = getEntityIndex().byId.get(q.giverId ?? -1);
   const giverFaction = giver?.faction ?? q.contractFaction ?? Faction.CITIZEN;
   const factionRelationDelta = completedQuestFactionRelationDelta(q.relationDelta);
   if (factionRelationDelta !== 0) addFactionRelMutual(Faction.PLAYER, giverFaction, factionRelationDelta);
@@ -1254,12 +1259,12 @@ function abandonSideQuests(
   }
 }
 
-function expireQuestIfNeeded(q: Quest, player: Entity, entities: Entity[], state: GameState, msgs: Msg[]): boolean {
+function expireQuestIfNeeded(q: Quest, player: Entity, _entities: Entity[], state: GameState, msgs: Msg[]): boolean {
   if (!questDeadlineExpired(q, state.clock.totalMinutes)) return false;
 
   q.done = true;
   q.failed = true;
-  const giver = entities.find(e => e.id === q.giverId);
+  const giver = getEntityIndex().byId.get(q.giverId ?? -1);
   if (giver?.questId === q.id) giver.questId = -1;
   const contractDef = q.contractId ? CONTRACTS.find(c => c.id === q.contractId) : undefined;
   if (isGovnyakCourierContractId(q.contractId)) removeItem(player, GOVNYAK_COURIER_PACKAGE_ITEM, 1);
@@ -1384,7 +1389,8 @@ function generatePlotQuest(
     let desc = step.desc;
 
     if (step.type === QuestType.TALK && step.targetNpcId) {
-      const target = entities.find(e => e.plotNpcId === step.targetNpcId && e.alive);
+      const target = getEntityIndex().byPlotNpcId.get(step.targetNpcId);
+      if (!target || !target.alive) continue;
       if (target && desc.includes('{dir}')) {
         desc = desc.replace('{dir}', toroidalDirection(world, npc.x, npc.y, target.x, target.y));
       } else if (!target) {
@@ -1884,7 +1890,7 @@ function generateQuest(
   }
 
   const target = pickTalkTarget(npc, world, entities);
-  if (!target) return null;
+  if (!target || !target.alive) return null;
   const dist = world.dist(npc.x, npc.y, target.x, target.y);
   const rewardCalc = proceduralReward('talk', npc, player, state, ctx, {
     distance: dist,
