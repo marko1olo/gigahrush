@@ -9,6 +9,7 @@ import {
   msg,
 } from '../core/types';
 import { World, replaceWorldFromGeneration, type WorldGridDirtyRect } from '../core/world';
+import { secureRandom } from "../core/rand";
 import { ITEMS, NOTES, freshNeeds, randomName } from '../data/catalog';
 import { MAX_INVENTORY_SLOTS } from '../data/inventory_limits';
 import { addFactionRelMutual } from '../data/relations';
@@ -3649,7 +3650,7 @@ function rewriteActorAsRandomNpc(state: GameState, entity: Entity, variant: Acti
   entity.ai = wasPlayer ? entity.ai : { goal: AIGoal.WANDER, tx: 0, ty: 0, path: [], pi: 0, stuck: 0, timer: 0 };
   entity.questId = -1;
   entity.canGiveQuest = !wasPlayer && Math.random() < 0.10;
-  entity.familyId = Math.floor(Math.random() * 1_000_000_000);
+  entity.familyId = Math.floor(secureRandom() * 1_000_000_000);
   if (entity.type === EntityType.NPC && entity.alifeId !== undefined) rewriteAlifeNpcIdentityFromEntity(state, entity);
   if (wasPlayer) {
     state.dmgFlash = Math.max(state.dmgFlash, 0.25);
@@ -4021,7 +4022,7 @@ function createIstotitThingAtCell(
       rpg,
       questId: -1,
       canGiveQuest: Math.random() < 0.10,
-      familyId: Math.floor(Math.random() * 1_000_000_000),
+      familyId: Math.floor(secureRandom() * 1_000_000_000),
       money: Math.floor(Math.random() * (40 + rpg.level * 8)),
     };
     // Истотит is the diegetic non-natural human creation path; the new body
