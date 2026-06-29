@@ -9,6 +9,7 @@ import {
   readFinanceSnapshot,
   tradePriceDisplay,
   tradeCellPriceDisplay,
+  questItemState,
 } from '../src/render/economy_ui';
 
 function state(extra: Partial<GameState> & Record<string, unknown> = {}): GameState {
@@ -108,4 +109,41 @@ test('trade UI gracefully falls back when economy quote system throws error', ()
   const tradeDisplay = tradePriceDisplay(s, player, badNpc, 'water', 'buy');
   assert.equal(typeof tradeDisplay.line, 'string');
   assert.ok(tradeDisplay.line.includes('Цена:'));
+});
+
+
+test('questItemState identifies active quest target and reward items', () => {
+  const s = state({
+    quests: [
+      { id: 1, done: false, failed: false, targetItem: 'water' },
+      { id: 2, done: false, failed: false, rewardItem: 'bread' },
+      { id: 3, done: true, failed: false, targetItem: 'done_target', rewardItem: 'done_reward' },
+      { id: 4, done: false, failed: true, targetItem: 'fail_target', rewardItem: 'fail_reward' },
+      { id: 5, done: false, failed: false, extraRewards: [{ defId: 'apple', count: 1 }] }
+    ]
+  });
+
+  assert.equal(questItemState(s, 'water'), 'target');
+  assert.equal(questItemState(s, 'bread'), 'reward');
+  assert.equal(questItemState(s, 'apple'), 'reward');
+
+  assert.equal(questItemState(s, 'done_target'), '');
+  assert.equal(questItemState(s, 'done_reward'), '');
+  assert.equal(questItemState(s, 'fail_target'), '');
+  assert.equal(questItemState(s, 'fail_reward'), '');
+
+  assert.equal(questItemState(s, 'random_junk'), '');
+});
+
+test('questItemState prioritizes target over reward if both exist', () => {
+  const s = state({
+    quests: [
+      { id: 1, done: false, failed: false, targetItem: 'water', rewardItem: 'water' },
+      { id: 2, done: false, failed: false, rewardItem: 'bread' },
+      { id: 3, done: false, failed: false, targetItem: 'bread' },
+    ]
+  });
+
+  assert.equal(questItemState(s, 'water'), 'target');
+  assert.equal(questItemState(s, 'bread'), 'target');
 });
