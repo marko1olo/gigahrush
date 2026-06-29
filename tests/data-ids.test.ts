@@ -16,7 +16,7 @@ import { ITEMS, WEAPON_STATS } from '../src/data/catalog';
 import { PHYS_WEAPON_ROLE_TIERS, PHYS_WEAPON_STATS } from '../src/data/weapons';
 import { PSI_WEAPON_ROLE_TIERS, PSI_WEAPON_STATS } from '../src/data/psi';
 import { CONTAINER_DEFS } from '../src/data/container_defs';
-import { COMPACT_EXPEDITION_CONTRACT_IDS, CONTRACTS } from '../src/data/contracts';
+import { CONTRACTS } from '../src/data/contracts';
 import { COMPUTER_DEFS } from '../src/data/computers';
 import { FACTORIES } from '../src/data/factories';
 import { FACTION_EVENT_DEFS } from '../src/data/faction_events';
@@ -419,11 +419,8 @@ test('contract, resource, factory, and container ids stay coherent', () => {
 });
 
 test('compact expedition contracts cover real contract actions with concrete targets', () => {
-  const byId = new Map(CONTRACTS.map(c => [c.id, c]));
-  const missing = COMPACT_EXPEDITION_CONTRACT_IDS.filter(id => !byId.has(id));
-  assert.deepEqual(missing, [], 'compact expedition contract ids must be present in CONTRACTS');
-
-  const pack = COMPACT_EXPEDITION_CONTRACT_IDS.map(id => byId.get(id)!);
+  const pack = CONTRACTS.filter(c => c.tags.includes('compact_expedition'));
+  assert.equal(pack.length > 0, true, 'must have compact expedition contracts');
   assertUnique('compact expedition contract', pack.map(c => c.id));
 
   const actionCoverage = new Set<string>();

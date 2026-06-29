@@ -152,17 +152,6 @@ export function contractTargetMarker(def: ContractDef): QuestTargetMarker {
   };
 }
 
-export const COMPACT_EXPEDITION_CONTRACT_IDS = [
-  'compact_living_shelter_retrieve',
-  'compact_kvartiry_water_delivery',
-  'compact_maint_sluice_repair',
-  'compact_maint_major_dispatch',
-  'compact_ministry_archive_visit',
-  'compact_ministry_pechateed_kill',
-  'compact_hell_voice_retrieve',
-  'compact_void_protocol_visit',
-] as const;
-
 const EXPEDITION_CONTRACTS: ContractDef[] = [
   {
     id: 'nii_zhelemish_pure_sample', title: 'Чистый желемыш для НИИ', issuer: 'НИИ слизи, окно проб',
