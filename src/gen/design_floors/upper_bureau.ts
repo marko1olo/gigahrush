@@ -1673,13 +1673,31 @@ export function reinforceUpperBureauAuthoredHqTerritory(world: World): void {
   applyUpperBureauSamosborZoneOverlay(world);
 }
 
-export function generateUpperBureauDesignFloor(): { world: World; entities: Entity[]; spawnX: number; spawnY: number } {
-  const world = new World();
-  const entities: Entity[] = [];
-  const nextId: NextId = { v: 1 };
-  let nextRoomId = 0;
-  fillDefaultTextures(world);
+type UpperBureauRooms = {
+  salon: Room;
+  executive: Room;
+  files: Room;
+  audit: Room;
+  cleaner: Room;
+  staffDesk: Room;
+  shelter: Room;
+  archiveToll: Room;
+  permitAmbush: Room;
+};
 
+type UpperBureauNpcs = {
+  iskraId: number;
+  levId: number;
+  tolikId: number;
+  tollKeeperId: number;
+  ambushId: number;
+};
+
+
+
+
+function stampUpperBureauRooms(world: World): UpperBureauRooms {
+  let nextRoomId = 0;
   const salon = stampBureauRoom(world, nextRoomId++, RoomType.COMMON, 'Салон ожидания верхнего бюро', 486, 497, 31, 21, Tex.F_RED_CARPET);
   const executive = stampBureauRoom(world, nextRoomId++, RoomType.OFFICE, 'Кабинет предварительных решений', 544, 493, 20, 14, Tex.F_PARQUET);
   const files = stampBureauRoom(world, nextRoomId++, RoomType.STORAGE, 'Нулевая картотека стертых имен', 568, 493, 18, 14, Tex.F_MARBLE_TILE);
@@ -1690,6 +1708,10 @@ export function generateUpperBureauDesignFloor(): { world: World; entities: Enti
   const archiveToll = stampBureauRoom(world, nextRoomId++, RoomType.OFFICE, 'Платный архивный проход', 588, 526, 22, 12, Tex.F_GREEN_CARPET);
   const permitAmbush = stampBureauRoom(world, nextRoomId++, RoomType.HQ, 'Засада поддельных корешков', 520, 548, 24, 12, Tex.F_RED_CARPET);
 
+  return { salon, executive, files, audit, cleaner, staffDesk, shelter, archiveToll, permitAmbush };
+}
+
+function carveUpperBureauCorridors(world: World): void {
   carveFloorRect(world, 476, 506, 10, 5, Tex.F_RED_CARPET);
   carveFloorRect(world, 517, 506, 72, 5, Tex.F_RED_CARPET);
   carveFloorRect(world, 545, 487, 5, 19, Tex.F_GREEN_CARPET);
@@ -1699,47 +1721,52 @@ export function generateUpperBureauDesignFloor(): { world: World; entities: Enti
   carveFloorRect(world, 480, 503, 6, 6, Tex.F_RED_CARPET);
   carveFloorRect(world, 583, 531, 5, 5, Tex.F_GREEN_CARPET);
   carveFloorRect(world, 530, 542, 5, 6, Tex.F_MARBLE_TILE);
+}
 
-  addDoor(world, salon, 485, 508);
-  addDoor(world, salon, 517, 508);
-  addDoor(world, shelter, 480, 503, DoorState.HERMETIC_CLOSED, '', Tex.DOOR_METAL);
-  addDoor(world, executive, 552, 507);
-  addDoor(world, files, 576, 507, DoorState.CLOSED, '', Tex.DOOR_METAL);
-  addDoor(world, audit, 546, 487);
-  addDoor(world, cleaner, 502, 525, DoorState.CLOSED, '', Tex.DOOR_METAL);
-  addDoor(world, cleaner, 502, 536, DoorState.CLOSED, '', Tex.DOOR_METAL);
-  addDoor(world, staffDesk, 560, 525);
-  addDoor(world, archiveToll, 587, 532, DoorState.CLOSED, '', Tex.DOOR_METAL);
-  addDoor(world, permitAmbush, 532, 547, DoorState.CLOSED, '', Tex.DOOR_METAL);
+function addUpperBureauDoorsAndLifts(world: World, rooms: UpperBureauRooms): void {
+  addDoor(world, rooms.salon, 485, 508);
+  addDoor(world, rooms.salon, 517, 508);
+  addDoor(world, rooms.shelter, 480, 503, DoorState.HERMETIC_CLOSED, '', Tex.DOOR_METAL);
+  addDoor(world, rooms.executive, 552, 507);
+  addDoor(world, rooms.files, 576, 507, DoorState.CLOSED, '', Tex.DOOR_METAL);
+  addDoor(world, rooms.audit, 546, 487);
+  addDoor(world, rooms.cleaner, 502, 525, DoorState.CLOSED, '', Tex.DOOR_METAL);
+  addDoor(world, rooms.cleaner, 502, 536, DoorState.CLOSED, '', Tex.DOOR_METAL);
+  addDoor(world, rooms.staffDesk, 560, 525);
+  addDoor(world, rooms.archiveToll, 587, 532, DoorState.CLOSED, '', Tex.DOOR_METAL);
+  addDoor(world, rooms.permitAmbush, 532, 547, DoorState.CLOSED, '', Tex.DOOR_METAL);
   addGatePartition(world, 532, 504, 512, 508, UPPER_BUREAU_DOCUMENTS.cleanerKey);
   addGatePartition(world, 522, 536, 543, 540, UPPER_BUREAU_DOCUMENTS.cleanerKey);
 
   placeLiftCell(world, 477, 508, 478, 508, LiftDirection.UP);
   placeLiftCell(world, 586, 540, 584, 540, LiftDirection.DOWN);
+}
 
-  decorateSalon(world, salon);
-  decorateOffice(world, executive);
-  decorateOffice(world, audit);
-  decorateOffice(world, staffDesk);
-  decorateFileRoom(world, files);
-  decorateCleanerRoom(world, cleaner);
-  decorateSalon(world, shelter);
-  decorateOffice(world, archiveToll);
-  decorateOffice(world, permitAmbush);
+function decorateUpperBureauRooms(world: World, rooms: UpperBureauRooms): void {
+  decorateSalon(world, rooms.salon);
+  decorateOffice(world, rooms.executive);
+  decorateOffice(world, rooms.audit);
+  decorateOffice(world, rooms.staffDesk);
+  decorateFileRoom(world, rooms.files);
+  decorateCleanerRoom(world, rooms.cleaner);
+  decorateSalon(world, rooms.shelter);
+  decorateOffice(world, rooms.archiveToll);
+  decorateOffice(world, rooms.permitAmbush);
+}
 
-  setAdministrativeZones(world);
-
+function spawnUpperBureauNpcsAndDrops(entities: Entity[], nextId: NextId, rooms: UpperBureauRooms): UpperBureauNpcs {
   const iskraId = nextId.v;
-  spawnAdminNpc(entities, nextId, ISKRA_DEF, 'bureau_madam_iskra', salon.x + 6, salon.y + 3);
+  spawnAdminNpc(entities, nextId, ISKRA_DEF, 'bureau_madam_iskra', rooms.salon.x + 6, rooms.salon.y + 3);
   const levId = nextId.v;
-  spawnAdminNpc(entities, nextId, LEV_DEF, 'bureau_auditor_lev', audit.x + 10, audit.y + 3, true, 'makarov');
+  spawnAdminNpc(entities, nextId, LEV_DEF, 'bureau_auditor_lev', rooms.audit.x + 10, rooms.audit.y + 3, true, 'makarov');
   const tolikId = nextId.v;
-  spawnAdminNpc(entities, nextId, TOLIK_DEF, 'bureau_cleaner_tolik', cleaner.x + 4, cleaner.y + 4);
-  spawnAdminNpc(entities, nextId, ANNA_DEF, 'bureau_visitor_anna', salon.x + 21, salon.y + 13);
+  spawnAdminNpc(entities, nextId, TOLIK_DEF, 'bureau_cleaner_tolik', rooms.cleaner.x + 4, rooms.cleaner.y + 4);
+  spawnAdminNpc(entities, nextId, ANNA_DEF, 'bureau_visitor_anna', rooms.salon.x + 21, rooms.salon.y + 13);
   const tollKeeperId = nextId.v;
-  spawnAdminNpc(entities, nextId, TOLL_KEEPER_DEF, 'bureau_archive_toll_keeper', archiveToll.x + 4, archiveToll.y + 4);
+  spawnAdminNpc(entities, nextId, TOLL_KEEPER_DEF, 'bureau_archive_toll_keeper', rooms.archiveToll.x + 4, rooms.archiveToll.y + 4);
   const ambushId = nextId.v;
-  spawnAdminNpc(entities, nextId, AMBUSH_DEF, 'bureau_permit_ambush_guard', permitAmbush.x + 5, permitAmbush.y + 4, true, 'makarov');
+  spawnAdminNpc(entities, nextId, AMBUSH_DEF, 'bureau_permit_ambush_guard', rooms.permitAmbush.x + 5, rooms.permitAmbush.y + 4, true, 'makarov');
+
   spawnNamedCivilian(
     entities, nextId, 'Инспектор Главного Поста', false,
     530, 510, Occupation.HUNTER, Faction.LIQUIDATOR,
@@ -1748,26 +1775,30 @@ export function generateUpperBureauDesignFloor(): { world: World; entities: Enti
   );
   spawnNamedCivilian(
     entities, nextId, 'Понятая у ковра', true,
-    salon.x + 9, salon.y + 12, Occupation.SECRETARY, Faction.CITIZEN,
+    rooms.salon.x + 9, rooms.salon.y + 12, Occupation.SECRETARY, Faction.CITIZEN,
     [{ defId: 'sealed_complaint', count: 1 }, { defId: 'tea', count: 1 }],
   );
   spawnNamedCivilian(
     entities, nextId, 'Младший Засадный', false,
-    permitAmbush.x + permitAmbush.w - 5, permitAmbush.y + 7, Occupation.HUNTER, Faction.LIQUIDATOR,
+    rooms.permitAmbush.x + rooms.permitAmbush.w - 5, rooms.permitAmbush.y + 7, Occupation.HUNTER, Faction.LIQUIDATOR,
     [{ defId: 'denunciation', count: 1 }, { defId: 'ammo_9mm', count: 6 }],
     'makarov',
   );
 
-  addItemDrop(entities, nextId, salon.x + 4, salon.y + salon.h - 3, 'blank_form', 1);
-  addItemDrop(entities, nextId, salon.x + 8, salon.y + salon.h - 3, 'official_permit_slip', 1);
-  addItemDrop(entities, nextId, cleaner.x + cleaner.w - 3, cleaner.y + 2, 'cleaning_kit', 1);
-  addItemDrop(entities, nextId, files.x + 3, files.y + 2, 'missing_record_file', 1);
-  addItemDrop(entities, nextId, files.x + files.w - 4, files.y + 2, 'record_exposure_notice', 1);
-  addItemDrop(entities, nextId, audit.x + 3, audit.y + audit.h - 3, 'denunciation', 1);
-  addItemDrop(entities, nextId, permitAmbush.x + 3, permitAmbush.y + permitAmbush.h - 3, 'forged_permit_slip', 1);
+  addItemDrop(entities, nextId, rooms.salon.x + 4, rooms.salon.y + rooms.salon.h - 3, 'blank_form', 1);
+  addItemDrop(entities, nextId, rooms.salon.x + 8, rooms.salon.y + rooms.salon.h - 3, 'official_permit_slip', 1);
+  addItemDrop(entities, nextId, rooms.cleaner.x + rooms.cleaner.w - 3, rooms.cleaner.y + 2, 'cleaning_kit', 1);
+  addItemDrop(entities, nextId, rooms.files.x + 3, rooms.files.y + 2, 'missing_record_file', 1);
+  addItemDrop(entities, nextId, rooms.files.x + rooms.files.w - 4, rooms.files.y + 2, 'record_exposure_notice', 1);
+  addItemDrop(entities, nextId, rooms.audit.x + 3, rooms.audit.y + rooms.audit.h - 3, 'denunciation', 1);
+  addItemDrop(entities, nextId, rooms.permitAmbush.x + 3, rooms.permitAmbush.y + rooms.permitAmbush.h - 3, 'forged_permit_slip', 1);
 
+  return { iskraId, levId, tolikId, tollKeeperId, ambushId };
+}
+
+function addUpperBureauContainers(world: World, rooms: UpperBureauRooms, npcs: UpperBureauNpcs): void {
   addBureauContainer(
-    world, executive, executive.x + executive.w - 3, executive.y + 2,
+    world, rooms.executive, rooms.executive.x + rooms.executive.w - 3, rooms.executive.y + 2,
     ContainerKind.SAFE,
     'Сейф предварительных назначений',
     'locked',
@@ -1778,10 +1809,10 @@ export function generateUpperBureauDesignFloor(): { world: World; entities: Enti
       { defId: 'elevator_access_order', count: 1 },
     ],
     ['appointment', 'locked', 'paper'],
-    { id: iskraId, name: ISKRA_DEF.name, faction: Faction.CITIZEN },
+    { id: npcs.iskraId, name: ISKRA_DEF.name, faction: Faction.CITIZEN },
   );
   addBureauContainer(
-    world, files, files.x + 2, files.y + 2,
+    world, rooms.files, rooms.files.x + 2, rooms.files.y + 2,
     ContainerKind.FILING_CABINET,
     'Нулевая картотека',
     'faction',
@@ -1792,10 +1823,10 @@ export function generateUpperBureauDesignFloor(): { world: World; entities: Enti
       { defId: 'stolen_archive_card', count: 1 },
     ],
     ['record_edit', 'name_erasure', 'audit', 'theft'],
-    { id: levId, name: LEV_DEF.name, faction: Faction.LIQUIDATOR },
+    { id: npcs.levId, name: LEV_DEF.name, faction: Faction.LIQUIDATOR },
   );
   addBureauContainer(
-    world, cleaner, cleaner.x + 2, cleaner.y + cleaner.h - 3,
+    world, rooms.cleaner, rooms.cleaner.x + 2, rooms.cleaner.y + rooms.cleaner.h - 3,
     ContainerKind.TOOL_LOCKER,
     'Связка служебных ключей Толика',
     'owner',
@@ -1805,10 +1836,10 @@ export function generateUpperBureauDesignFloor(): { world: World; entities: Enti
       { defId: 'cigs', count: 2 },
     ],
     ['staff_route', 'key', 'theft'],
-    { id: tolikId, name: TOLIK_DEF.name, faction: Faction.CITIZEN },
+    { id: npcs.tolikId, name: TOLIK_DEF.name, faction: Faction.CITIZEN },
   );
   addBureauContainer(
-    world, audit, audit.x + audit.w - 3, audit.y + audit.h - 3,
+    world, rooms.audit, rooms.audit.x + rooms.audit.w - 3, rooms.audit.y + rooms.audit.h - 3,
     ContainerKind.FILING_CABINET,
     'Папка аудита рынка 88',
     'owner',
@@ -1819,10 +1850,10 @@ export function generateUpperBureauDesignFloor(): { world: World; entities: Enti
       { defId: 'confiscation_warrant', count: 1 },
     ],
     ['audit', 'black_market_88', 'paper'],
-    { id: levId, name: LEV_DEF.name, faction: Faction.LIQUIDATOR },
+    { id: npcs.levId, name: LEV_DEF.name, faction: Faction.LIQUIDATOR },
   );
   addBureauContainer(
-    world, archiveToll, archiveToll.x + archiveToll.w - 3, archiveToll.y + 3,
+    world, rooms.archiveToll, rooms.archiveToll.x + rooms.archiveToll.w - 3, rooms.archiveToll.y + 3,
     ContainerKind.CASHBOX,
     'Касса архивной пошлины',
     'owner',
@@ -1833,10 +1864,10 @@ export function generateUpperBureauDesignFloor(): { world: World; entities: Enti
       { defId: 'blank_form', count: 2 },
     ],
     ['archive_toll', 'route_clue', 'paper'],
-    { id: tollKeeperId, name: TOLL_KEEPER_DEF.name, faction: Faction.CITIZEN },
+    { id: npcs.tollKeeperId, name: TOLL_KEEPER_DEF.name, faction: Faction.CITIZEN },
   );
   addBureauContainer(
-    world, permitAmbush, permitAmbush.x + permitAmbush.w - 4, permitAmbush.y + permitAmbush.h - 3,
+    world, rooms.permitAmbush, rooms.permitAmbush.x + rooms.permitAmbush.w - 4, rooms.permitAmbush.y + rooms.permitAmbush.h - 3,
     ContainerKind.FILING_CABINET,
     'Папка подставных корешков',
     'faction',
@@ -1847,10 +1878,10 @@ export function generateUpperBureauDesignFloor(): { world: World; entities: Enti
       { defId: 'denunciation', count: 1 },
     ],
     ['permit_ambush', 'exposure', 'audit', 'theft'],
-    { id: ambushId, name: AMBUSH_DEF.name, faction: Faction.LIQUIDATOR },
+    { id: npcs.ambushId, name: AMBUSH_DEF.name, faction: Faction.LIQUIDATOR },
   );
   addBureauContainer(
-    world, salon, salon.x + 3, salon.y + salon.h - 4,
+    world, rooms.salon, rooms.salon.x + 3, rooms.salon.y + rooms.salon.h - 4,
     ContainerKind.EMERGENCY_BOX,
     'Чайный стол ожидания',
     'public',
@@ -1861,9 +1892,9 @@ export function generateUpperBureauDesignFloor(): { world: World; entities: Enti
     ],
     ['public', 'salon'],
   );
+}
 
-  spawnAdminMonster(world, entities, nextId, files.x + files.w - 4, files.y + files.h - 3, MonsterKind.PARAGRAPH);
-
+function decorateUpperBureauLighting(world: World): void {
   for (const room of world.rooms) {
     if (!room) continue;
     for (let dy = 1; dy < room.h - 1; dy += 5) {
@@ -1873,13 +1904,33 @@ export function generateUpperBureauDesignFloor(): { world: World; entities: Enti
       }
     }
   }
+}
 
-  ensureConnectivity(world, salon.x + 8.5, salon.y + 10.5);
+export function generateUpperBureauDesignFloor(): { world: World; entities: Entity[]; spawnX: number; spawnY: number } {
+  const world = new World();
+  const entities: Entity[] = [];
+  const nextId: NextId = { v: 1 };
+  fillDefaultTextures(world);
+
+  const rooms = stampUpperBureauRooms(world);
+  carveUpperBureauCorridors(world);
+  addUpperBureauDoorsAndLifts(world, rooms);
+  decorateUpperBureauRooms(world, rooms);
+
+  setAdministrativeZones(world);
+
+  const npcs = spawnUpperBureauNpcsAndDrops(entities, nextId, rooms);
+  addUpperBureauContainers(world, rooms, npcs);
+  spawnAdminMonster(world, entities, nextId, rooms.files.x + rooms.files.w - 4, rooms.files.y + rooms.files.h - 3, MonsterKind.PARAGRAPH);
+
+  decorateUpperBureauLighting(world);
+
+  ensureConnectivity(world, rooms.salon.x + 8.5, rooms.salon.y + 10.5);
   placeProceduralScreens(world, UPPER_BUREAU_BASE_FLOOR);
   world.bakeLights();
 
-  const spawnX = salon.x + 8.5;
-  const spawnY = salon.y + 10.5;
+  const spawnX = rooms.salon.x + 8.5;
+  const spawnY = rooms.salon.y + 10.5;
   genLog(`[UPPER_BUREAU] ${UPPER_BUREAU_DISPLAY_NAME} ${UPPER_BUREAU_ROUTE_ID} z=${UPPER_BUREAU_ANCHOR_Z} spawn=(${spawnX}, ${spawnY})`);
   return { world, entities, spawnX, spawnY };
 }
