@@ -3320,185 +3320,87 @@ function drawTrackDiagramScrapSprite(t: Uint32Array, seed: number): void {
   drawNoiseDust(t, seed + 2734, rust, 12);
 }
 
+type DocumentSpriteRenderer = (t: Uint32Array, seed: number) => void;
+
+const documentSpriteRenderers: Record<string, DocumentSpriteRenderer> = {
+  'terminal_order_receipt': drawTerminalOrderReceiptSprite,
+  'track_diagram_scrap': drawTrackDiagramScrapSprite,
+  'temp_pass': drawTempPassSprite,
+  'void_archive_warrant': drawVoidArchiveWarrantSprite,
+  'stolen_archive_card': drawStolenArchiveCardSprite,
+  'stolen_filter_pack': drawStolenFilterPackSprite,
+  'used_gasmask_filter': drawUsedGasmaskFilterSprite,
+  'stolen_terminal_stamp': drawStolenTerminalStampSprite,
+  'weapon_permit_forged': drawWeaponPermitForgedSprite,
+  'weapon_permit_signed': drawWeaponPermitSignedSprite,
+  'quarantine_breach_notice': drawQuarantineBreachNoticeSprite,
+  'rail_depot_pass': drawRailDepotPassSprite,
+  'shelter_seat_card': drawShelterSeatCardSprite,
+  'shelter_seat_forgery': drawShelterSeatForgerySprite,
+  'shelter_tally': drawShelterTallySprite,
+  'samosbor_alarm_schedule': drawSamosborAlarmScheduleSprite,
+  'sample_chain_form': drawSampleChainFormSprite,
+  'resident_identity_stub': drawResidentIdentityStubSprite,
+  'note': drawNoteSprite,
+  'nii_contraband_manifest': drawNiiContrabandManifestSprite,
+  'nii_forged_audit': drawNiiForgedAuditSprite,
+  'nii_market_receipt': drawNiiMarketReceiptSprite,
+  'nii_sample_container': drawNiiSampleContainerSprite,
+  'nii_sample_label': drawNiiSampleLabelSprite,
+  'liquidator_field_roster': drawLiquidatorFieldRosterSprite,
+  'liquidator_issue_card': drawLiquidatorIssueCardSprite,
+  'passport_stub': drawPassportStubSprite,
+  'permanent_pass': drawPermanentPassSprite,
+  'cardboard_stack': drawCardboardStackSprite,
+  'fuel_issue_stamp': drawFuelIssueStampSprite,
+  'elevator_access_order': drawElevatorAccessOrderSprite,
+  'gusl_index_page': drawGuslIndexPageSprite,
+  'hazard_shift_extension': drawHazardShiftExtensionSprite,
+  'blueprint_t1_folder': drawBlueprintT1FolderSprite,
+  'blueprint_t2_folder': drawBlueprintT2FolderSprite,
+  'blueprint_t3_folder': drawBlueprintT3FolderSprite,
+  'forged_bank_debt_paper': drawForgedBankDebtPaperSprite,
+  'forged_permit_slip': drawForgedPermitSlipSprite,
+  'forged_quarantine_clearance': drawForgedQuarantineClearanceSprite,
+  'forged_raionsovet_pass': drawForgedRaionsovetPassSprite,
+  'forged_shelter_tally': drawForgedShelterTallySprite,
+  'forged_stamp_sheet': drawForgedStampSheetSprite,
+  'ministry_audit_forgery': drawMinistryAuditForgerySprite,
+  'ministry_clean_stamp': drawMinistryCleanStampSprite,
+  'debt_settlement_receipt': drawDebtSettlementReceiptSprite,
+  'official_permit_slip': drawOfficialPermitSlipSprite,
+  'rail_switch_order': drawRailSwitchOrderSprite,
+  'raionsovet_floor_pass': drawRaionsovetFloorPassSprite,
+  'ovb_search_warrant': drawOvbSearchWarrantSprite,
+  'p14_gasmask_receipt': drawP14GasmaskReceiptSprite,
+  'part_ticket': drawPartTicketSprite,
+  'clean_health_cert': drawCleanHealthCertSprite,
+  'hermodoor_journal': drawHermodoorJournalSprite,
+  'cleanup_order_stub': drawCleanupOrderStubSprite,
+  'decon_completion_stamp': drawDeconCompletionStampSprite,
+  'confiscation_tag': drawConfiscationTagSprite,
+  'confiscation_warrant': drawConfiscationWarrantSprite,
+  'contaminated_gloves': drawContaminatedGlovesSprite,
+  'contaminated_sample_act': drawContaminatedSampleActSprite,
+  'contaminated_swab': drawContaminatedSwabSprite,
+  'contraband_receipt_blank': drawContrabandReceiptBlankSprite,
+  'corpse_number_tag': drawCorpseNumberTagSprite,
+  'fake_pass': drawFakePassSprite,
+  'foam_grenade_act': drawFoamGrenadeActSprite,
+  'mail_intercept_slip': drawMailInterceptSlipSprite,
+  'pneumomail_capsule': drawPneumomailCapsuleSprite,
+  'scrubbed_weapon_tag': drawScrubbedWeaponTagSprite,
+  'labor_shift_card': drawLaborShiftCardSprite,
+};
+
 function drawDocumentSprite(t: Uint32Array, seed: number, p: Palette, defId: string, def?: ItemDef): void {
-  if (defId === 'terminal_order_receipt') {
-    drawTerminalOrderReceiptSprite(t, seed);
-    return;
-  }
-  if (defId === 'track_diagram_scrap') {
-    drawTrackDiagramScrapSprite(t, seed);
-    return;
-  }
-  if (defId === 'temp_pass') {
-    drawTempPassSprite(t, seed);
-    return;
-  }
-  if (defId === 'void_archive_warrant') {
-    drawVoidArchiveWarrantSprite(t, seed);
-    return;
-  }
-  if (defId === 'stolen_archive_card') {
-    drawStolenArchiveCardSprite(t, seed);
-    return;
-  }
-  if (defId === 'stolen_filter_pack') {
-    drawStolenFilterPackSprite(t, seed);
-    return;
-  }
-  if (defId === 'used_gasmask_filter') {
-    drawUsedGasmaskFilterSprite(t, seed);
-    return;
-  }
-  if (defId === 'stolen_terminal_stamp') {
-    drawStolenTerminalStampSprite(t, seed);
-    return;
-  }
-  if (defId === 'weapon_permit_forged') {
-    drawWeaponPermitForgedSprite(t, seed);
-    return;
-  }
-  if (defId === 'weapon_permit_signed') {
-    drawWeaponPermitSignedSprite(t, seed);
+  const renderer = documentSpriteRenderers[defId];
+  if (renderer) {
+    renderer(t, seed);
     return;
   }
   if (isSlimeAgeLabel(defId)) {
     drawSlimeAgeLabelSprite(t, seed, defId);
-    return;
-  }
-  if (defId === 'quarantine_breach_notice') {
-    drawQuarantineBreachNoticeSprite(t, seed);
-    return;
-  }
-  if (defId === 'rail_depot_pass') {
-    drawRailDepotPassSprite(t, seed);
-    return;
-  }
-  if (defId === 'shelter_seat_card') {
-    drawShelterSeatCardSprite(t, seed);
-    return;
-  }
-  if (defId === 'shelter_seat_forgery') {
-    drawShelterSeatForgerySprite(t, seed);
-    return;
-  }
-  if (defId === 'shelter_tally') {
-    drawShelterTallySprite(t, seed);
-    return;
-  }
-  if (defId === 'samosbor_alarm_schedule') {
-    drawSamosborAlarmScheduleSprite(t, seed);
-    return;
-  }
-  if (defId === 'sample_chain_form') {
-    drawSampleChainFormSprite(t, seed);
-    return;
-  }
-  if (defId === 'resident_identity_stub') {
-    drawResidentIdentityStubSprite(t, seed);
-    return;
-  }
-  if (defId === 'note') {
-    drawNoteSprite(t, seed);
-    return;
-  }
-  if (defId === 'nii_contraband_manifest') {
-    drawNiiContrabandManifestSprite(t, seed);
-    return;
-  }
-  if (defId === 'nii_forged_audit') {
-    drawNiiForgedAuditSprite(t, seed);
-    return;
-  }
-  if (defId === 'nii_market_receipt') {
-    drawNiiMarketReceiptSprite(t, seed);
-    return;
-  }
-  if (defId === 'nii_sample_container') {
-    drawNiiSampleContainerSprite(t, seed);
-    return;
-  }
-  if (defId === 'nii_sample_label') {
-    drawNiiSampleLabelSprite(t, seed);
-    return;
-  }
-  if (defId === 'liquidator_field_roster') {
-    drawLiquidatorFieldRosterSprite(t, seed);
-    return;
-  }
-  if (defId === 'liquidator_issue_card') {
-    drawLiquidatorIssueCardSprite(t, seed);
-    return;
-  }
-  if (defId === 'passport_stub') {
-    drawPassportStubSprite(t, seed);
-    return;
-  }
-  if (defId === 'permanent_pass') {
-    drawPermanentPassSprite(t, seed);
-    return;
-  }
-  if (defId === 'cardboard_stack') {
-    drawCardboardStackSprite(t, seed);
-    return;
-  }
-  if (defId === 'fuel_issue_stamp') {
-    drawFuelIssueStampSprite(t, seed);
-    return;
-  }
-  if (defId === 'elevator_access_order') {
-    drawElevatorAccessOrderSprite(t, seed);
-    return;
-  }
-  if (defId === 'gusl_index_page') {
-    drawGuslIndexPageSprite(t, seed);
-    return;
-  }
-  if (defId === 'hazard_shift_extension') {
-    drawHazardShiftExtensionSprite(t, seed);
-    return;
-  }
-  if (defId === 'blueprint_t1_folder') {
-    drawBlueprintT1FolderSprite(t, seed);
-    return;
-  }
-  if (defId === 'blueprint_t2_folder') {
-    drawBlueprintT2FolderSprite(t, seed);
-    return;
-  }
-  if (defId === 'blueprint_t3_folder') {
-    drawBlueprintT3FolderSprite(t, seed);
-    return;
-  }
-  if (defId === 'forged_bank_debt_paper') {
-    drawForgedBankDebtPaperSprite(t, seed);
-    return;
-  }
-  if (defId === 'forged_permit_slip') {
-    drawForgedPermitSlipSprite(t, seed);
-    return;
-  }
-  if (defId === 'forged_quarantine_clearance') {
-    drawForgedQuarantineClearanceSprite(t, seed);
-    return;
-  }
-  if (defId === 'forged_raionsovet_pass') {
-    drawForgedRaionsovetPassSprite(t, seed);
-    return;
-  }
-  if (defId === 'forged_shelter_tally') {
-    drawForgedShelterTallySprite(t, seed);
-    return;
-  }
-  if (defId === 'forged_stamp_sheet') {
-    drawForgedStampSheetSprite(t, seed);
-    return;
-  }
-  if (defId === 'ministry_audit_forgery') {
-    drawMinistryAuditForgerySprite(t, seed);
-    return;
-  }
-  if (defId === 'ministry_clean_stamp') {
-    drawMinistryCleanStampSprite(t, seed);
     return;
   }
   if (isPaintAuditDocument(defId, def)) {
@@ -3509,104 +3411,8 @@ function drawDocumentSprite(t: Uint32Array, seed: number, p: Palette, defId: str
     drawBankDebtPaperSprite(t, seed);
     return;
   }
-  if (defId === 'debt_settlement_receipt') {
-    drawDebtSettlementReceiptSprite(t, seed);
-    return;
-  }
   if (isOfficialArchivePermit(defId, def)) {
     drawArchiveAccessPermitSprite(t, seed);
-    return;
-  }
-  if (defId === 'official_permit_slip') {
-    drawOfficialPermitSlipSprite(t, seed);
-    return;
-  }
-  if (defId === 'rail_switch_order') {
-    drawRailSwitchOrderSprite(t, seed);
-    return;
-  }
-  if (defId === 'raionsovet_floor_pass') {
-    drawRaionsovetFloorPassSprite(t, seed);
-    return;
-  }
-  if (defId === 'ovb_search_warrant') {
-    drawOvbSearchWarrantSprite(t, seed);
-    return;
-  }
-  if (defId === 'p14_gasmask_receipt') {
-    drawP14GasmaskReceiptSprite(t, seed);
-    return;
-  }
-  if (defId === 'part_ticket') {
-    drawPartTicketSprite(t, seed);
-    return;
-  }
-  if (defId === 'clean_health_cert') {
-    drawCleanHealthCertSprite(t, seed);
-    return;
-  }
-  if (defId === 'hermodoor_journal') {
-    drawHermodoorJournalSprite(t, seed);
-    return;
-  }
-  if (defId === 'cleanup_order_stub') {
-    drawCleanupOrderStubSprite(t, seed);
-    return;
-  }
-  if (defId === 'decon_completion_stamp') {
-    drawDeconCompletionStampSprite(t, seed);
-    return;
-  }
-  if (defId === 'confiscation_tag') {
-    drawConfiscationTagSprite(t, seed);
-    return;
-  }
-  if (defId === 'confiscation_warrant') {
-    drawConfiscationWarrantSprite(t, seed);
-    return;
-  }
-  if (defId === 'contaminated_gloves') {
-    drawContaminatedGlovesSprite(t, seed);
-    return;
-  }
-  if (defId === 'contaminated_sample_act') {
-    drawContaminatedSampleActSprite(t, seed);
-    return;
-  }
-  if (defId === 'contaminated_swab') {
-    drawContaminatedSwabSprite(t, seed);
-    return;
-  }
-  if (defId === 'contraband_receipt_blank') {
-    drawContrabandReceiptBlankSprite(t, seed);
-    return;
-  }
-  if (defId === 'corpse_number_tag') {
-    drawCorpseNumberTagSprite(t, seed);
-    return;
-  }
-  if (defId === 'fake_pass') {
-    drawFakePassSprite(t, seed);
-    return;
-  }
-  if (defId === 'foam_grenade_act') {
-    drawFoamGrenadeActSprite(t, seed);
-    return;
-  }
-  if (defId === 'mail_intercept_slip') {
-    drawMailInterceptSlipSprite(t, seed);
-    return;
-  }
-  if (defId === 'pneumomail_capsule') {
-    drawPneumomailCapsuleSprite(t, seed);
-    return;
-  }
-  if (defId === 'scrubbed_weapon_tag') {
-    drawScrubbedWeaponTagSprite(t, seed);
-    return;
-  }
-  if (defId === 'labor_shift_card') {
-    drawLaborShiftCardSprite(t, seed);
     return;
   }
   const tags = tagSet(defId, def);
