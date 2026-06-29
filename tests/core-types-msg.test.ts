@@ -1,7 +1,7 @@
 import { test, describe } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { msgAt, type MsgLocation } from '../src/core/types';
+import { msgAt, msg, setMsgClock, setMsgLocationProvider, type MsgLocation } from '../src/core/types';
 
 describe('msgAt edge cases', () => {
   test('handles valid input properties correctly', () => {
@@ -106,5 +106,54 @@ describe('msgAt edge cases', () => {
     assert.equal(m.targetId, -8);
     assert.equal(m.roomId, -42);
     assert.equal(m.zoneId, -3);
+  });
+});
+
+
+describe('msg factory functions', () => {
+  // Save original state if it mattered, but these are module globals that we can just set/reset
+  test('setMsgClock updates time correctly', () => {
+    // 1440 mins = 1 day, plus 120 mins = 2 hours
+    setMsgClock({ totalMinutes: 1560, hour: 2, minute: 0 });
+    const m = msg('Hello Clock', 123, '#fff');
+    assert.equal(m.day, 1);
+    assert.equal(m.hour, 2);
+    assert.equal(m.minute, 0);
+
+    // Reset to defaults or 0s
+    setMsgClock({ totalMinutes: 0, hour: 0, minute: 0 });
+  });
+
+  test('setMsgLocationProvider supplies location to msg', () => {
+    setMsgLocationProvider(() => ({
+      roomId: 99,
+      zoneId: 5,
+      floor: 'residential'
+    }));
+
+    const m = msg('Hello Location', 123, '#fff');
+    assert.equal(m.roomId, 99);
+    assert.equal(m.zoneId, 5);
+    assert.equal(m.floor, 'residential');
+
+    // Test unset provider
+    setMsgLocationProvider(undefined);
+    const m2 = msg('Hello No Location', 123, '#fff');
+    assert.equal(m2.roomId, undefined);
+    assert.equal(m2.zoneId, undefined);
+    assert.equal(m2.floor, undefined);
+  });
+
+  test('msg distanceMeters is rounded and clamped correctly', () => {
+    // Rounds and clamps to >= 0
+    assert.equal(msg('T', 1, 'c', 10.4).distanceMeters, 10);
+    assert.equal(msg('T', 1, 'c', 10.6).distanceMeters, 11);
+    assert.equal(msg('T', 1, 'c', -5.5).distanceMeters, 0);
+
+    // Invalid/undefined distances
+    assert.equal(msg('T', 1, 'c', undefined).distanceMeters, undefined);
+    assert.equal(msg('T', 1, 'c', Infinity).distanceMeters, undefined);
+    assert.equal(msg('T', 1, 'c', -Infinity).distanceMeters, undefined);
+    assert.equal(msg('T', 1, 'c', NaN).distanceMeters, undefined);
   });
 });
