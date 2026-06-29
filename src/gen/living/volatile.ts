@@ -27,6 +27,14 @@ import { maybePlaceBrokenFixture } from '../interactive_fixtures';
 /* ── Generate the volatile gigastructure ─────────────────────── */
 function cleanupOldVolatileRooms(world: World): void {
   const aptCount = world.apartmentRoomCount;
+
+  // Snapshot apartment doors before volatile doors are removed,
+  // because world.removeDoorAt mutates room.doors arrays globally.
+  const aptOldDoors: number[][] = [];
+  for (let i = 0; i < aptCount; i++) {
+    const room = world.rooms[i];
+    aptOldDoors[i] = room ? room.doors.slice() : [];
+  }
   // Remove any old volatile rooms & their doors
   for (let i = aptCount; i < world.rooms.length; i++) {
     const room = world.rooms[i];
@@ -41,7 +49,7 @@ function cleanupOldVolatileRooms(world: World): void {
     if (!room) continue;
     const keepDoors: number[] = [];
     const removeDoors: number[] = [];
-    for (const di of room.doors) {
+    for (const di of aptOldDoors[i]) {
       const door = world.doors.get(di);
       if (!door) {
         // Door data already removed (by volatile room cleanup) — fix cell
