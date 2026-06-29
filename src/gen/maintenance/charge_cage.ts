@@ -92,10 +92,13 @@ registerSideQuest('ag41_charge_ada', ADA_DEF, [{
   relationDelta: 10, xpReward: 55, moneyReward: 45,
 }]);
 
-function nextContainerId(ctx: MaintContentCtx): number {
-  let id = ctx.world.containers.length + 1;
-  while (ctx.world.containerById.has(id) || ctx.world.containers.some(c => c.id === id)) id++;
-  return id;
+function nextContainerId(ctx: MaintContentCtx & { _maxContainerId?: number }): number {
+  if (ctx._maxContainerId === undefined) {
+    ctx._maxContainerId = ctx.world.containers.reduce((m, c) => Math.max(m, c.id), 0);
+  }
+  ctx._maxContainerId++;
+  while (ctx.world.containerById.has(ctx._maxContainerId)) ctx._maxContainerId++;
+  return ctx._maxContainerId;
 }
 
 function addOutputLocker(ctx: MaintContentCtx, room: Room, ownerNpcId: number): void {
