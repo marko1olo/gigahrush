@@ -122,9 +122,12 @@ registerSideQuest('ag71_furnace_claimant', CLAIMANT_DEF, [{
   eventTags: ['slime_chain', 'black_market', 'sell', 'furnace', 'brown_slime', 'contraband'],
 }]);
 
+let _lastContainerId = 0;
+
 function nextContainerId(ctx: MaintContentCtx): number {
-  let id = ctx.world.containers.length + 1;
-  while (ctx.world.containerById.has(id) || ctx.world.containers.some(c => c.id === id)) id++;
+  let id = Math.max(_lastContainerId + 1, ctx.world.containers.length + 1);
+  while (ctx.world.containerById.has(id)) id++;
+  _lastContainerId = id;
   return id;
 }
 
