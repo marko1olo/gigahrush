@@ -17,6 +17,7 @@ import { World } from '../../core/world';
 import { registerRouteCue } from '../../systems/route_cues';
 import { protectRoom, stampRoom } from '../shared';
 import type { PlacementFieldAnchor } from '../population_placement';
+import { lerp } from '../../core/math';
 
 export interface HellGeometry {
   monsterCells: number[];
@@ -1230,10 +1231,6 @@ function valueNoise(x: number, y: number, scale: number, seed: number): number {
 
 function smooth(t: number): number {
   return t * t * (3 - 2 * t);
-}
-
-function lerp(a: number, b: number, t: number): number {
-  return a + (b - a) * t;
 }
 
 function hash3(a: number, b: number, c: number): number {
