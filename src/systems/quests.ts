@@ -100,6 +100,53 @@ import {
 } from './crafting';
 import { territoryOwnerAtIndex } from './territory';
 
+type EntityIndex = {
+  byId: Map<number, Entity>;
+  byPlotLive: Map<string, Entity>;
+  byPlotAll: Map<string, Entity>;
+  byMonLive: Map<MonsterKind, Entity>;
+};
+
+let _currentIndex: EntityIndex | undefined = undefined;
+
+function buildEntityIndex(entities: readonly Entity[]): EntityIndex {
+  const index = {
+    byId: new Map<number, Entity>(),
+    byPlotLive: new Map<string, Entity>(),
+    byPlotAll: new Map<string, Entity>(),
+    byMonLive: new Map<MonsterKind, Entity>()
+  };
+  for (const e of entities) {
+    index.byId.set(e.id, e);
+    if (e.type === EntityType.NPC && e.plotNpcId) {
+      if (!index.byPlotAll.has(e.plotNpcId)) index.byPlotAll.set(e.plotNpcId, e);
+      if (e.alive && !index.byPlotLive.has(e.plotNpcId)) index.byPlotLive.set(e.plotNpcId, e);
+    }
+    if (e.type === EntityType.MONSTER && e.alive && e.monsterKind !== undefined && !index.byMonLive.has(e.monsterKind)) {
+      index.byMonLive.set(e.monsterKind, e);
+    }
+  }
+  return index;
+}
+
+function findById(entities: readonly Entity[], id: number) {
+  if (_currentIndex) return _currentIndex.byId.get(id);
+  return entities.find(e => e.id === id);
+}
+function findByPlotLive(entities: readonly Entity[], plotId: string) {
+  if (_currentIndex) return _currentIndex.byPlotLive.get(plotId);
+  return entities.find(e => e.type === EntityType.NPC && e.plotNpcId === plotId && e.alive);
+}
+function findByPlotAll(entities: readonly Entity[], plotId: string) {
+  if (_currentIndex) return _currentIndex.byPlotAll.get(plotId);
+  return entities.find(e => e.type === EntityType.NPC && e.plotNpcId === plotId);
+}
+function findMonLive(entities: readonly Entity[], kind: MonsterKind) {
+  if (_currentIndex) return _currentIndex.byMonLive.get(kind);
+  return entities.find(e => e.type === EntityType.MONSTER && e.monsterKind === kind && e.alive);
+}
+
+
 const PROCEDURAL_QUEST_GIVER_CHANCE = 0.10;
 
 export interface CurrentObjective {
@@ -405,10 +452,10 @@ function questObjectiveLine(q: Quest): string {
 
 function objectiveTargetEntity(q: Quest, entities: readonly Entity[]): Entity | undefined {
   if (q.targetNpcId !== undefined) {
-    const byLiveId = entities.find(e => e.id === q.targetNpcId && e.alive);
-    if (byLiveId) return byLiveId;
+    const byLiveId = findById(entities, q.targetNpcId);
+    if (byLiveId && byLiveId.alive) return byLiveId;
   }
-  if (q.targetPlotNpcId) return entities.find(e => e.plotNpcId === q.targetPlotNpcId && e.alive);
+  if (q.targetPlotNpcId) return findByPlotLive(entities, q.targetPlotNpcId);
   return undefined;
 }
 
@@ -439,7 +486,7 @@ export function getCurrentObjective(state: Pick<GameState, 'quests' | 'activeQue
   const available = nextAvailablePlotStep(state.quests);
   if (!available) return null;
   const giverName = plotNpcDisplayName(available.step.giverNpcId) ?? available.step.giverNpcId;
-  const target = entities.find(e => e.plotNpcId === available.step.giverNpcId && e.alive);
+  const target = findByPlotLive(entities, available.step.giverNpcId);
   return {
     line: available.step.offerObjective ?? `Цель: поговорить с ${giverName}.`,
     detail: available.step.offerObjective ? undefined : available.step.desc,
@@ -675,7 +722,7 @@ function plotStepKillPressure(q: Quest): KillPressureDef | undefined {
 
 function resolveKillPressureAnchor(def: KillPressureDef, entities: readonly Entity[]): Entity | undefined {
   if (def.anchor.kind === 'plot_npc') {
-    return entities.find(e => e.type === EntityType.NPC && e.alive && e.plotNpcId === def.anchor.plotNpcId);
+    return findByPlotLive(entities, def.anchor.plotNpcId);
   }
   return undefined;
 }
@@ -815,7 +862,7 @@ function updateHoldoutQuest(
 
 function plotTalkTargetIsDead(q: Quest, entities: readonly Entity[], state: GameState): boolean {
   if (q.plotStepIndex === undefined || q.type !== QuestType.TALK || !q.targetPlotNpcId) return false;
-  const target = entities.find(e => e.type === EntityType.NPC && e.plotNpcId === q.targetPlotNpcId);
+  const target = findByPlotAll(entities, q.targetPlotNpcId);
   if (target) return !target.alive;
   return isPlotNpcDeadKnown(state, q.targetPlotNpcId);
 }
@@ -825,6 +872,8 @@ export function checkQuests(
   player: Entity, world: World, entities: Entity[],
   state: GameState, msgs: Msg[], nextEntityId?: { v: number },
 ): void {
+  const previousIndex = _currentIndex;
+  _currentIndex = buildEntityIndex(entities);
   for (const q of state.quests) {
     if (q.done) continue;
     ensureQuestDeadline(q, state.clock.totalMinutes, questDeadlineContext(q, player, world, state));
@@ -871,6 +920,7 @@ export function checkQuests(
 
     if (complete) completeQuest(q, player, entities, state, msgs);
   }
+  _currentIndex = previousIndex;
 }
 
 /* ── Notify kill for KILL quests ──────────────────────────────── */
@@ -956,7 +1006,7 @@ function failQuest(
 
   q.done = true;
   q.failed = true;
-  const giver = entities.find(e => e.id === q.giverId);
+  const giver = findById(entities, q.giverId);
   if (giver?.questId === q.id) giver.questId = -1;
   const contractDef = q.contractId ? CONTRACTS.find(c => c.id === q.contractId) : undefined;
 
@@ -1146,7 +1196,7 @@ function completeQuest(
 
   learnQuestCraftRecipeRewards(q, state, msgs);
 
-  const giver = entities.find(e => e.id === q.giverId);
+  const giver = findById(entities, q.giverId);
   const giverFaction = giver?.faction ?? q.contractFaction ?? Faction.CITIZEN;
   const factionRelationDelta = completedQuestFactionRelationDelta(q.relationDelta);
   if (factionRelationDelta !== 0) addFactionRelMutual(Faction.PLAYER, giverFaction, factionRelationDelta);
@@ -1259,7 +1309,7 @@ function expireQuestIfNeeded(q: Quest, player: Entity, entities: Entity[], state
 
   q.done = true;
   q.failed = true;
-  const giver = entities.find(e => e.id === q.giverId);
+  const giver = findById(entities, q.giverId);
   if (giver?.questId === q.id) giver.questId = -1;
   const contractDef = q.contractId ? CONTRACTS.find(c => c.id === q.contractId) : undefined;
   if (isGovnyakCourierContractId(q.contractId)) removeItem(player, GOVNYAK_COURIER_PACKAGE_ITEM, 1);
@@ -1384,7 +1434,7 @@ function generatePlotQuest(
     let desc = step.desc;
 
     if (step.type === QuestType.TALK && step.targetNpcId) {
-      const target = entities.find(e => e.plotNpcId === step.targetNpcId && e.alive);
+      const target = findByPlotLive(entities, step.targetNpcId);
       if (target && desc.includes('{dir}')) {
         desc = desc.replace('{dir}', toroidalDirection(world, npc.x, npc.y, target.x, target.y));
       } else if (!target) {
@@ -1426,7 +1476,7 @@ function generatePlotQuest(
 
     if (step.type === QuestType.KILL) {
       if (desc.includes('{dir}') && step.targetMonsterKind !== undefined) {
-        const targetMon = entities.find(e => e.type === EntityType.MONSTER && e.alive && e.monsterKind === step.targetMonsterKind);
+        const targetMon = findMonLive(entities, step.targetMonsterKind);
         desc = desc.replace('{dir}', targetMon
           ? toroidalDirection(world, npc.x, npc.y, targetMon.x, targetMon.y)
           : 'где-то в глубине');
@@ -1528,7 +1578,7 @@ function generatePlotQuest(
       const targetPlotNpcId = sq.targetNpcId ?? sq.targetPlotNpcId;
       if (!targetPlotNpcId) continue;
       const id = state.nextQuestId++;
-      const target = entities.find(e => e.plotNpcId === targetPlotNpcId && e.alive);
+      const target = findByPlotLive(entities, targetPlotNpcId);
       const targetName = plotNpcDisplayName(targetPlotNpcId);
       let desc = sq.desc;
       if (desc.includes('{dir}')) {
