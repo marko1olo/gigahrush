@@ -415,8 +415,7 @@ function handleAg81Event(state: GameState, event: WorldEvent): void {
 registerWorldEventObserver(handleAg81Event);
 
 function nextContainerId(ctx: MaintContentCtx): number {
-  let id = ctx.world.containers.length + 1;
-  while (ctx.world.containerById.has(id) || ctx.world.containers.some(c => c.id === id)) id++;
+  let id = ctx.world.nextContainerId();
   return id;
 }
 

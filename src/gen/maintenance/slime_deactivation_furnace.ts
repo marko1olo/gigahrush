@@ -123,8 +123,7 @@ registerSideQuest('ag71_furnace_claimant', CLAIMANT_DEF, [{
 }]);
 
 function nextContainerId(ctx: MaintContentCtx): number {
-  let id = ctx.world.containers.length + 1;
-  while (ctx.world.containerById.has(id) || ctx.world.containers.some(c => c.id === id)) id++;
+  let id = ctx.world.nextContainerId();
   return id;
 }
 

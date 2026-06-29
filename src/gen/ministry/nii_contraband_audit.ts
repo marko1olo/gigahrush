@@ -319,8 +319,7 @@ function addLockedEvidenceGate(world: World, room: Room, gateX: number, doorY: n
 }
 
 function nextContainerId(world: World): number {
-  let id = world.containers.reduce((mx, c) => Math.max(mx, c.id), 0) + 1;
-  while (world.containerById.has(id) || world.containers.some(c => c.id === id)) id++;
+  let id = world.nextContainerId();
   return id;
 }
 
