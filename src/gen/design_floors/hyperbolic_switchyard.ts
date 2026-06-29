@@ -24,6 +24,7 @@ import {
 } from '../../core/types';
 import { World } from '../../core/world';
 import { hashSeed, withSeededRandom } from '../../core/rand';
+import { clamp } from '../../core/math';
 import { HUMAN_TERRITORY_OWNERS, factionToTerritoryOwner } from '../../data/factions';
 import { designNpcFloorKey, type PlotNpcDef, registerFloorSideQuest } from '../../data/plot';
 import { MONSTERS } from '../../entities/monster';
@@ -840,10 +841,6 @@ function oppositeSide(side: SwitchyardDoorSide): SwitchyardDoorSide {
   if (side === 'south') return 'north';
   if (side === 'west') return 'east';
   return 'west';
-}
-
-function clamp(value: number, lo: number, hi: number): number {
-  return Math.max(lo, Math.min(hi, value));
 }
 
 function connectRoomToPoint(

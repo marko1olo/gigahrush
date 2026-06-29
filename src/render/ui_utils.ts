@@ -1,8 +1,7 @@
+import { clamp } from '../core/math';
 import { fitText } from './ui_text';
 
-export function clamp(v: number, lo: number, hi: number): number {
-  return Math.max(lo, Math.min(hi, v));
-}
+export { clamp };
 
 export function snap(v: number): number {
   return Math.round(v) + 0.5;
