@@ -562,8 +562,7 @@ function spawnGuard(
 }
 
 function nextContainerId(world: World): number {
-  let id = world.containers.length + 1;
-  while (world.containerById.has(id) || world.containers.some(c => c.id === id)) id++;
+  let id = world.nextContainerId();
   return id;
 }
 

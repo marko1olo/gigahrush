@@ -206,6 +206,7 @@ export class World {
   containers: WorldContainer[] = [];
   containerMap: Map<number, number[]> = new Map(); // cell idx -> container ids
   containerById: Map<number, WorldContainer> = new Map();
+  private _nextContainerId = 1;
   private cellDirtyRects: PendingGridDirtyRects = [];
   private wallTexDirtyRects: PendingGridDirtyRects = [];
   private floorTexDirtyRects: PendingGridDirtyRects = [];
@@ -240,6 +241,9 @@ export class World {
   }
 
   addContainer(container: WorldContainer): void {
+    if (container.id >= this._nextContainerId) {
+      this._nextContainerId = container.id + 1;
+    }
     this.containers.push(container);
     this.containerById.set(container.id, container);
     const i = this.idx(container.x, container.y);
@@ -249,10 +253,14 @@ export class World {
   }
 
   rebuildContainerMap(): void {
+    this._nextContainerId = 1;
     this.containerMap.clear();
     this.containerById.clear();
     for (const c of this.containers) {
       this.containerById.set(c.id, c);
+      if (c.id >= this._nextContainerId) {
+        this._nextContainerId = c.id + 1;
+      }
       const i = this.idx(c.x, c.y);
       const ids = this.containerMap.get(i);
       if (ids) ids.push(c.id);
@@ -269,6 +277,11 @@ export class World {
       if (c) out.push(c);
     }
     return out;
+  }
+
+
+  nextContainerId(): number {
+    return this._nextContainerId++;
   }
 
   initializeLampBlinks(_seed: number): void {

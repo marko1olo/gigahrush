@@ -88,8 +88,7 @@ function carveFungusRoom(world: World, roomId: number, rx: number, ry: number): 
 }
 
 function nextContainerId(world: World): number {
-  let id = world.containers.reduce((mx, c) => Math.max(mx, c.id), 0) + 1;
-  while (world.containerById.has(id)) id++;
+  let id = world.nextContainerId();
   return id;
 }
 

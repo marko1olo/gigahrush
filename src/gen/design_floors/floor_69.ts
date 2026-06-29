@@ -1614,8 +1614,7 @@ function addItemDrop(entities: Entity[], nextId: { v: number }, x: number, y: nu
 }
 
 function nextContainerId(world: World): number {
-  let id = world.containers.length + 1;
-  while (world.containerById.has(id)) id++;
+  let id = world.nextContainerId();
   return id;
 }
 

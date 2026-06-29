@@ -17,8 +17,7 @@ const BRIDGE_W = 31;
 const BRIDGE_H = 15;
 
 function nextContainerId(ctx: MaintContentCtx): number {
-  let id = ctx.world.containers.length + 1;
-  while (ctx.world.containerById.has(id) || ctx.world.containers.some(c => c.id === id)) id++;
+  let id = ctx.world.nextContainerId();
   return id;
 }
 
