@@ -3230,7 +3230,8 @@ function projectilePathPoint(from: number, to: number, t: number): number {
   return ((from + projectilePathDelta(from, to) * t) % W + W) % W;
 }
 
-function projectilePathHitT(x0: number, y0: number, x1: number, y1: number, e: Entity, radius: number): number {
+function projectilePathHitT(args: { x0: number; y0: number; x1: number; y1: number; e: Entity; radius: number }): number {
+  const { x0, y0, x1, y1, e, radius } = args;
   const dx = projectilePathDelta(x0, x1);
   const dy = projectilePathDelta(y0, y1);
   const len2 = dx * dx + dy * dy;
@@ -3328,7 +3329,7 @@ function updateProjectiles(dt: number): void {
       for (const e of projectileHitQuery) {
         if (!e.alive || e.id === p.ownerId) continue;
         if (e.type !== EntityType.MONSTER && e.type !== EntityType.NPC) continue;
-        const hitT = projectilePathHitT(prevX, prevY, wx, wy, e, hitRadius);
+        const hitT = projectilePathHitT({ x0: prevX, y0: prevY, x1: wx, y1: wy, e, radius: hitRadius });
         if (hitT <= blockingT + 0.000001 && hitT < nearestHitT) {
           nearestHit = e;
           nearestHitT = hitT;
@@ -3339,7 +3340,7 @@ function updateProjectiles(dt: number): void {
       if (!e.alive || e.id === p.ownerId) continue;
       if (e.type !== EntityType.MONSTER && e.type !== EntityType.NPC) continue;
       if (pt !== ProjType.FLAME && e !== nearestHit) continue;
-      const hitT = pt === ProjType.FLAME ? projectilePathHitT(prevX, prevY, wx, wy, e, hitRadius) : nearestHitT;
+      const hitT = pt === ProjType.FLAME ? projectilePathHitT({ x0: prevX, y0: prevY, x1: wx, y1: wy, e, radius: hitRadius }) : nearestHitT;
       if (hitT <= blockingT + 0.000001) {
         const hitX = projectilePathPoint(prevX, wx, hitT);
         const hitY = projectilePathPoint(prevY, wy, hitT);
