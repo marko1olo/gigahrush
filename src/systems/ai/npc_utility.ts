@@ -249,32 +249,23 @@ export function npcUtilityRhythmBias(
   return phase * scale;
 }
 
-export function scoreNpcUtilities(context: NpcUtilityScoreContext, out: NpcUtilityScoreBuffer = createNpcUtilityScoreBuffer()): NpcUtilityScoreBuffer {
-  const identity = context.identity;
-  const minute = context.minuteOfDay ?? context.totalMinutes ?? 0;
-  const needs = context.needs;
-  const role = context.role;
+function scoreSurvivalIntents(
+  context: NpcUtilityScoreContext,
+  out: NpcUtilityScoreBuffer,
+  threatPressure: number,
+  visibleHostilePressure: number,
+  closeThreatPressure: number,
+  armed: boolean,
+  risk: number,
+  duty: number,
+  hpPressure: number,
+  panic: number,
+  strongerHostile: boolean,
+  stickiness: number,
+  occupation: Occupation | undefined
+): void {
   const threat = context.threat;
-  const faction = role?.faction;
-  const occupation = role?.occupation;
-  const duty = unitTrait(role?.duty, defaultDuty(faction, occupation));
-  const sociability = unitTrait(role?.sociability, defaultSociability(faction, occupation));
-  const risk = unitTrait(role?.riskTolerance, defaultRiskTolerance(faction, occupation));
-  const panic = unitTrait(role?.panicBias, defaultPanicBias(faction));
-  const hpPressure = healthPressure(context.hp, context.maxHp);
-  const threatPressure = computeThreatPressure(threat);
-  const visibleHostilePressure = clamp01((threat?.visibleHostiles ?? 0) / 4);
-  const closeThreatPressure = threat?.distance === undefined ? 0 : clamp01((18 - threat.distance) / 18);
-  const hostilePower = positive(threat?.hostilePower);
-  const allyPower = positive(threat?.allyPower);
-  const strongerHostile = threat?.strongerHostile === true || hostilePower > allyPower + 0.15;
-  const armed = role?.armed === true || role?.hasRangedWeapon === true;
-  const toiletPressure = Math.max(highNeedPressure(needs?.pee), highNeedPressure(needs?.poo));
-  const drinkPressure = lowNeedPressure(needs?.water);
-  const eatPressure = lowNeedPressure(needs?.food);
-  const sleepPressure = lowNeedPressure(needs?.sleep);
-  const urgentNeed = Math.max(toiletPressure, drinkPressure, eatPressure, sleepPressure, hpPressure);
-  const stickiness = context.currentIntentStickiness ?? 0;
+  const role = context.role;
 
   setScore(out, 'safety', clampScore(
     (context.samosborActive ? 72 : 0) +
@@ -319,6 +310,29 @@ export function scoreNpcUtilities(context: NpcUtilityScoreContext, out: NpcUtili
     targetPenalty(context, 'flee')
   ));
 
+  setScore(out, 'heal', clampScore(
+    hpPressure * 105 +
+    (hpPressure < 0.01 ? (occupationProfile(occupation)?.healIdleScoreBonus ?? 0) : 0) +
+    localScore(context, 'heal') +
+    currentStickiness(context, 'heal', stickiness) -
+    threatPressure * 10 -
+    targetPenalty(context, 'heal')
+  ));
+}
+
+function scoreNeedsIntents(
+  context: NpcUtilityScoreContext,
+  out: NpcUtilityScoreBuffer,
+  minute: number,
+  identity: NpcUtilityIdentity | undefined,
+  toiletPressure: number,
+  drinkPressure: number,
+  eatPressure: number,
+  sleepPressure: number,
+  threatPressure: number,
+  stickiness: number,
+  occupation: Occupation | undefined
+): void {
   setScore(out, 'toilet', clampScore(
     toiletPressure * 92 +
     npcUtilityRhythmBias('toilet', minute, identity, 8) +
@@ -356,6 +370,22 @@ export function scoreNpcUtilities(context: NpcUtilityScoreContext, out: NpcUtili
     (context.samosborActive ? 18 : 0) -
     targetPenalty(context, 'sleep')
   ));
+}
+
+function scoreActivityIntents(
+  context: NpcUtilityScoreContext,
+  out: NpcUtilityScoreBuffer,
+  minute: number,
+  identity: NpcUtilityIdentity | undefined,
+  duty: number,
+  sociability: number,
+  urgentNeed: number,
+  threatPressure: number,
+  stickiness: number,
+  faction: Faction | undefined,
+  occupation: Occupation | undefined
+): void {
+  const role = context.role;
 
   setScore(out, 'work', clampScore(
     duty * 34 +
@@ -367,15 +397,6 @@ export function scoreNpcUtilities(context: NpcUtilityScoreContext, out: NpcUtili
     threatPressure * 42 -
     (context.samosborActive ? 45 : 0) -
     targetPenalty(context, 'work')
-  ));
-
-  setScore(out, 'heal', clampScore(
-    hpPressure * 105 +
-    (hpPressure < 0.01 ? (occupationProfile(occupation)?.healIdleScoreBonus ?? 0) : 0) +
-    localScore(context, 'heal') +
-    currentStickiness(context, 'heal', stickiness) -
-    threatPressure * 10 -
-    targetPenalty(context, 'heal')
   ));
 
   setScore(out, 'social', clampScore(
@@ -412,6 +433,49 @@ export function scoreNpcUtilities(context: NpcUtilityScoreContext, out: NpcUtili
     threatPressure * 22 -
     targetPenalty(context, 'wander')
   ));
+}
+
+export function scoreNpcUtilities(context: NpcUtilityScoreContext, out: NpcUtilityScoreBuffer = createNpcUtilityScoreBuffer()): NpcUtilityScoreBuffer {
+  const identity = context.identity;
+  const minute = context.minuteOfDay ?? context.totalMinutes ?? 0;
+  const needs = context.needs;
+  const role = context.role;
+  const threat = context.threat;
+  const faction = role?.faction;
+  const occupation = role?.occupation;
+  const duty = unitTrait(role?.duty, defaultDuty(faction, occupation));
+  const sociability = unitTrait(role?.sociability, defaultSociability(faction, occupation));
+  const risk = unitTrait(role?.riskTolerance, defaultRiskTolerance(faction, occupation));
+  const panic = unitTrait(role?.panicBias, defaultPanicBias(faction));
+  const hpPressure = healthPressure(context.hp, context.maxHp);
+  const threatPressure = computeThreatPressure(threat);
+  const visibleHostilePressure = clamp01((threat?.visibleHostiles ?? 0) / 4);
+  const closeThreatPressure = threat?.distance === undefined ? 0 : clamp01((18 - threat.distance) / 18);
+  const hostilePower = positive(threat?.hostilePower);
+  const allyPower = positive(threat?.allyPower);
+  const strongerHostile = threat?.strongerHostile === true || hostilePower > allyPower + 0.15;
+  const armed = role?.armed === true || role?.hasRangedWeapon === true;
+  const toiletPressure = Math.max(highNeedPressure(needs?.pee), highNeedPressure(needs?.poo));
+  const drinkPressure = lowNeedPressure(needs?.water);
+  const eatPressure = lowNeedPressure(needs?.food);
+  const sleepPressure = lowNeedPressure(needs?.sleep);
+  const urgentNeed = Math.max(toiletPressure, drinkPressure, eatPressure, sleepPressure, hpPressure);
+  const stickiness = context.currentIntentStickiness ?? 0;
+
+  scoreSurvivalIntents(
+    context, out, threatPressure, visibleHostilePressure, closeThreatPressure,
+    armed, risk, duty, hpPressure, panic, strongerHostile, stickiness, occupation
+  );
+
+  scoreNeedsIntents(
+    context, out, minute, identity, toiletPressure, drinkPressure, eatPressure,
+    sleepPressure, threatPressure, stickiness, occupation
+  );
+
+  scoreActivityIntents(
+    context, out, minute, identity, duty, sociability, urgentNeed,
+    threatPressure, stickiness, faction, occupation
+  );
 
   addIdentityJitter(out, identity);
   return out;
