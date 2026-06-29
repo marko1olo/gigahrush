@@ -646,6 +646,8 @@ export interface Entity {
   activeBark?: { text: string; until: number; color: string; }; // UI: active world speech bubble
 }
 
+export type PlayerAlife = Pick<Entity, 'persistentNpcId' | 'age' | 'sex' | 'isFemale' | 'playerRelation' | 'karma' | 'kills' | 'npcKills' | 'monsterKills'>;
+
 // ── Items ────────────────────────────────────────────────────────
 export enum ItemType { FOOD, DRINK, MEDICINE, WEAPON, TOOL, KEY, NOTE, MISC, AMMO }
 

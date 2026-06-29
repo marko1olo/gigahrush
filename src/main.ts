@@ -6,7 +6,7 @@ import { registerPwaServiceWorker } from './pwa';
 import {
   W, Cell, DoorState, FloorLevel, Tex, RoomType, LiftDirection,
   type CharacterSex, type Entity, type GameClock, type GameState, type Item, type Needs, type Quest, type RPGStats, type WorldContainer,
-  type PlayerDamageSourceKind, type WorldEventPrivacy, type WorldEventSeverity,
+  type PlayerDamageSourceKind, type WorldEventPrivacy, type WorldEventSeverity, type PlayerAlife,
   EntityType, Faction, MonsterKind, Occupation, ProjType, QuestType, AIGoal,
   msg, setMsgClock,
 } from './core/types';
@@ -895,7 +895,7 @@ function playerDemographicSex(source: Partial<Entity>): CharacterSex {
   return playerSex;
 }
 
-function playerAlifeFields(source: Partial<Entity> = {}): Pick<Entity, 'persistentNpcId' | 'age' | 'sex' | 'isFemale' | 'playerRelation' | 'karma' | 'kills' | 'npcKills' | 'monsterKills'> {
+function playerAlifeFields(source: Partial<Entity> = {}): PlayerAlife {
   const age = clampCharacterAge(source.age, playerAge);
   const sex = playerDemographicSex(source);
   return {
