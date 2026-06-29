@@ -9237,6 +9237,128 @@ function drawRifleBoltPackSprite(t: Uint32Array, seed: number): void {
 
 
 
+function drawEnergyAmmoSprite(t: Uint32Array, seed: number, p: Palette): void {
+  const graphite: [number, number, number] = [34, 42, 38];
+  const graphiteLight: [number, number, number] = [74, 86, 76];
+  const brass: [number, number, number] = [186, 142, 58];
+  const brassLight: [number, number, number] = [230, 184, 82];
+  const charge: [number, number, number] = [68, 186, 132];
+  const chargeLight: [number, number, number] = [108, 226, 166];
+  const sealRed: [number, number, number] = [188, 52, 42];
+
+  rect(t, 28, 13, 39, 18, brassLight, seed + 70);
+  rect(t, 25, 18, 42, 47, graphite, seed + 71);
+  ellipse(t, 33.5, 18, 9, 4, graphiteLight, seed + 72);
+  ellipse(t, 33.5, 47, 9, 4, brass, seed + 73);
+  outlineRect(t, 25, 18, 42, 47, p.dark);
+  rect(t, 30, 22, 37, 41, charge, seed + 74, 235);
+  rect(t, 31, 24, 35, 38, chargeLight, seed + 75, 210);
+  line(t, 39, 22, 43, 26, 1.1, brass, seed + 76, 210);
+  line(t, 39, 39, 44, 43, 1.1, brass, seed + 77, 210);
+  rect(t, 24, 29, 43, 33, sealRed, seed + 78, 218);
+  rect(t, 27, 35, 40, 37, brass, seed + 79, 180);
+  drawNoiseDust(t, seed + 80, [126, 78, 42], 12);
+  px(t, 27, 20, rgba(224, 206, 120, 150));
+  px(t, 37, 15, rgba(120, 236, 174, 140));
+}
+
+function draw762AmmoSprite(t: Uint32Array, seed: number): void {
+  const brass: [number, number, number] = [170, 126, 54];
+  const brassLight: [number, number, number] = [232, 182, 78];
+  const darkCase: [number, number, number] = [64, 52, 34];
+  const copper: [number, number, number] = [136, 62, 42];
+  const codeRed: [number, number, number] = [178, 54, 46];
+  const codeGreen: [number, number, number] = [70, 128, 76];
+  const codeOrange: [number, number, number] = [210, 124, 44];
+  rect(t, 18, 23, 47, 50, [18, 16, 14], seed + 68, 72);
+  rect(t, 21, 43, 45, 45, codeOrange, 0, 210);
+  for (let i = 0; i < 4; i++) {
+    const x = 19 + i * 7;
+    const y = 14 + (i & 1) * 2;
+    const bottom = 49 - (i & 1) * 2;
+    line(t, x + 3, y + 9, x + 3, bottom - 3, 3.1, darkCase, seed + 69 + i, 235);
+    ellipse(t, x + 3, y + 8, 2.8, 5.6, copper, seed + 73 + i);
+    rect(t, x + 1, y + 13, x + 5, bottom - 4, brass, seed + 77 + i);
+    rect(t, x + 2, y + 13, x + 2, bottom - 5, brassLight, seed + 81 + i, 230);
+    rect(t, x + 1, bottom - 4, x + 5, bottom - 1, darkCase, seed + 85 + i);
+    rect(t, x + 1, y + 27, x + 5, y + 29, (i & 1) === 0 ? codeRed : codeGreen);
+  }
+  rect(t, 22, 18, 27, 19, darkCase, 0, 190);
+  rect(t, 38, 20, 44, 21, darkCase, 0, 170);
+  drawNoiseDust(t, seed + 90, [82, 54, 36], 10);
+}
+
+function draw9mmAmmoSprite(t: Uint32Array, seed: number, p: Palette): void {
+  rect(t, 17, 42, 49, 48, [58, 42, 30], seed + 56, 230);
+  rect(t, 19, 40, 47, 45, [92, 70, 42], seed + 57, 225);
+  for (let i = 0; i < 5; i++) {
+    const x = 20 + i * 6;
+    const y0 = 18 + (i & 1);
+    const y1 = 42 + ((i + 1) & 1);
+    rect(t, x, y0 + 3, x + 3, y1, [154, 104, 54], seed + 58 + i);
+    rect(t, x, y0, x + 3, y0 + 4, [220, 172, 82], seed + 63 + i);
+    rect(t, x + 1, y0 + 5, x + 2, y1 - 5, [112, 78, 44], seed + 68 + i, 160);
+    rect(t, x, y1 - 2, x + 3, y1, [48, 36, 28], seed + 73 + i, 230);
+  }
+  rect(t, 18, 46, 47, 48, p.dark, seed + 78, 190);
+  rect(t, 23, 25, 40, 27, [176, 48, 42], seed + 79, 210);
+  rect(t, 27, 30, 36, 31, [70, 126, 82], seed + 80, 160);
+  drawNoiseDust(t, seed + 81, [86, 66, 44], 10);
+}
+
+function draw762ttAmmoSprite(t: Uint32Array, seed: number): void {
+  rect(t, 17, 37, 48, 50, [50, 40, 32], seed + 62, 215);
+  rect(t, 20, 40, 45, 44, [118, 48, 38], seed + 63, 230);
+  rect(t, 21, 46, 43, 47, [64, 88, 58], seed + 64, 205);
+  for (let i = 0; i < 4; i++) {
+    const x = 21 + i * 6;
+    const top = 21 + (i & 1) * 2;
+    const bottom = 46 + ((i + 1) & 1);
+    rect(t, x, top + 7, x + 3, bottom, [168, 122, 54], seed + 65 + i);
+    rect(t, x + 1, top + 8, x + 1, bottom - 2, [226, 176, 82], seed + 69 + i, 210);
+    ellipse(t, x + 1.5, top + 6, 2.1, 3.6, [48, 48, 42], seed + 73 + i);
+    rect(t, x, top + 18, x + 3, top + 20, [154, 44, 38], seed + 77 + i, 235);
+    rect(t, x, bottom - 2, x + 3, bottom, [76, 54, 32], seed + 81 + i);
+  }
+  line(t, 19, 28, 45, 25, 0.8, [36, 30, 26], seed + 86, 140);
+}
+
+function drawSlugSprite(t: Uint32Array, seed: number, p: Palette): void {
+  const hull: [number, number, number] = [54, 46, 40];
+  const brass: [number, number, number] = [174, 128, 58];
+  const brassLight: [number, number, number] = [224, 174, 82];
+  const band: [number, number, number] = [188, 58, 42];
+  rect(t, 23, 20, 41, 49, hull, seed + 63);
+  outlineRect(t, 23, 20, 41, 49, p.dark);
+  ellipse(t, 32, 20, 9, 5, brassLight, seed + 64);
+  rect(t, 24, 18, 40, 23, brass, seed + 65);
+  ellipse(t, 32, 18, 7, 4, brassLight, seed + 66);
+  rect(t, 25, 35, 39, 40, band, seed + 67, 245);
+  rect(t, 27, 42, 37, 47, brass, seed + 68);
+  line(t, 25, 24, 39, 24, 0.9, p.light, seed + 69, 130);
+  line(t, 28, 28, 28, 46, 0.8, p.light, seed + 71, 95);
+  for (let i = 0; i < 5; i++) {
+    const x = 27 + i * 2;
+    rect(t, x, 37, x, 38, p.light, 0, 145);
+  }
+  drawNoiseDust(t, seed + 72, [118, 78, 48], 9);
+}
+
+function drawAmmoBeltSprite(t: Uint32Array, seed: number, p: Palette): void {
+  line(t, 15, 30, 49, 35, 2.2, [34, 32, 28], seed + 73, 230);
+  line(t, 15, 37, 49, 42, 1.4, p.dark, seed + 74, 210);
+  for (let i = 0; i < 5; i++) {
+    const x = 17 + i * 7;
+    const y = 18 + (i & 1) * 2;
+    rect(t, x, y + 8, x + 4, y + 32, p.body, seed + 75 + i);
+    ellipse(t, x + 2, y + 7, 2.7, 4.2, p.light, seed + 85 + i);
+    rect(t, x, y + 15, x + 4, y + 18, p.accent, seed + 95 + i, 230);
+    rect(t, x - 1, y + 23, x + 5, y + 27, p.dark, seed + 105 + i, 215);
+    rect(t, x + 1, y + 30, x + 3, y + 33, [70, 48, 32], seed + 115 + i);
+  }
+  drawNoiseDust(t, seed + 125, [88, 58, 34], 12);
+}
+
 function drawAmmoSprite(t: Uint32Array, seed: number, p: Palette, defId: string): void {
   if (defId === 'rifle_bolt_pack') {
     drawRifleBoltPackSprite(t, seed);
@@ -9291,127 +9413,29 @@ function drawAmmoSprite(t: Uint32Array, seed: number, p: Palette, defId: string)
     return;
   }
   if (defId === 'ammo_energy') {
-    const graphite: [number, number, number] = [34, 42, 38];
-    const graphiteLight: [number, number, number] = [74, 86, 76];
-    const brass: [number, number, number] = [186, 142, 58];
-    const brassLight: [number, number, number] = [230, 184, 82];
-    const charge: [number, number, number] = [68, 186, 132];
-    const chargeLight: [number, number, number] = [108, 226, 166];
-    const sealRed: [number, number, number] = [188, 52, 42];
-
-    rect(t, 28, 13, 39, 18, brassLight, seed + 70);
-    rect(t, 25, 18, 42, 47, graphite, seed + 71);
-    ellipse(t, 33.5, 18, 9, 4, graphiteLight, seed + 72);
-    ellipse(t, 33.5, 47, 9, 4, brass, seed + 73);
-    outlineRect(t, 25, 18, 42, 47, p.dark);
-    rect(t, 30, 22, 37, 41, charge, seed + 74, 235);
-    rect(t, 31, 24, 35, 38, chargeLight, seed + 75, 210);
-    line(t, 39, 22, 43, 26, 1.1, brass, seed + 76, 210);
-    line(t, 39, 39, 44, 43, 1.1, brass, seed + 77, 210);
-    rect(t, 24, 29, 43, 33, sealRed, seed + 78, 218);
-    rect(t, 27, 35, 40, 37, brass, seed + 79, 180);
-    drawNoiseDust(t, seed + 80, [126, 78, 42], 12);
-    px(t, 27, 20, rgba(224, 206, 120, 150));
-    px(t, 37, 15, rgba(120, 236, 174, 140));
+    drawEnergyAmmoSprite(t, seed, p);
     return;
   }
 
   if (defId === 'ammo_762') {
-    const brass: [number, number, number] = [170, 126, 54];
-    const brassLight: [number, number, number] = [232, 182, 78];
-    const darkCase: [number, number, number] = [64, 52, 34];
-    const copper: [number, number, number] = [136, 62, 42];
-    const codeRed: [number, number, number] = [178, 54, 46];
-    const codeGreen: [number, number, number] = [70, 128, 76];
-    const codeOrange: [number, number, number] = [210, 124, 44];
-    rect(t, 18, 23, 47, 50, [18, 16, 14], seed + 68, 72);
-    rect(t, 21, 43, 45, 45, codeOrange, 0, 210);
-    for (let i = 0; i < 4; i++) {
-      const x = 19 + i * 7;
-      const y = 14 + (i & 1) * 2;
-      const bottom = 49 - (i & 1) * 2;
-      line(t, x + 3, y + 9, x + 3, bottom - 3, 3.1, darkCase, seed + 69 + i, 235);
-      ellipse(t, x + 3, y + 8, 2.8, 5.6, copper, seed + 73 + i);
-      rect(t, x + 1, y + 13, x + 5, bottom - 4, brass, seed + 77 + i);
-      rect(t, x + 2, y + 13, x + 2, bottom - 5, brassLight, seed + 81 + i, 230);
-      rect(t, x + 1, bottom - 4, x + 5, bottom - 1, darkCase, seed + 85 + i);
-      rect(t, x + 1, y + 27, x + 5, y + 29, (i & 1) === 0 ? codeRed : codeGreen);
-    }
-    rect(t, 22, 18, 27, 19, darkCase, 0, 190);
-    rect(t, 38, 20, 44, 21, darkCase, 0, 170);
-    drawNoiseDust(t, seed + 90, [82, 54, 36], 10);
+    draw762AmmoSprite(t, seed);
     return;
   }
 
   if (defId === 'ammo_9mm') {
-    rect(t, 17, 42, 49, 48, [58, 42, 30], seed + 56, 230);
-    rect(t, 19, 40, 47, 45, [92, 70, 42], seed + 57, 225);
-    for (let i = 0; i < 5; i++) {
-      const x = 20 + i * 6;
-      const y0 = 18 + (i & 1);
-      const y1 = 42 + ((i + 1) & 1);
-      rect(t, x, y0 + 3, x + 3, y1, [154, 104, 54], seed + 58 + i);
-      rect(t, x, y0, x + 3, y0 + 4, [220, 172, 82], seed + 63 + i);
-      rect(t, x + 1, y0 + 5, x + 2, y1 - 5, [112, 78, 44], seed + 68 + i, 160);
-      rect(t, x, y1 - 2, x + 3, y1, [48, 36, 28], seed + 73 + i, 230);
-    }
-    rect(t, 18, 46, 47, 48, p.dark, seed + 78, 190);
-    rect(t, 23, 25, 40, 27, [176, 48, 42], seed + 79, 210);
-    rect(t, 27, 30, 36, 31, [70, 126, 82], seed + 80, 160);
-    drawNoiseDust(t, seed + 81, [86, 66, 44], 10);
+    draw9mmAmmoSprite(t, seed, p);
     return;
   }
   if (defId === 'ammo_762tt') {
-    rect(t, 17, 37, 48, 50, [50, 40, 32], seed + 62, 215);
-    rect(t, 20, 40, 45, 44, [118, 48, 38], seed + 63, 230);
-    rect(t, 21, 46, 43, 47, [64, 88, 58], seed + 64, 205);
-    for (let i = 0; i < 4; i++) {
-      const x = 21 + i * 6;
-      const top = 21 + (i & 1) * 2;
-      const bottom = 46 + ((i + 1) & 1);
-      rect(t, x, top + 7, x + 3, bottom, [168, 122, 54], seed + 65 + i);
-      rect(t, x + 1, top + 8, x + 1, bottom - 2, [226, 176, 82], seed + 69 + i, 210);
-      ellipse(t, x + 1.5, top + 6, 2.1, 3.6, [48, 48, 42], seed + 73 + i);
-      rect(t, x, top + 18, x + 3, top + 20, [154, 44, 38], seed + 77 + i, 235);
-      rect(t, x, bottom - 2, x + 3, bottom, [76, 54, 32], seed + 81 + i);
-    }
-    line(t, 19, 28, 45, 25, 0.8, [36, 30, 26], seed + 86, 140);
+    draw762ttAmmoSprite(t, seed);
     return;
   }
   if (defId.includes('slug')) {
-    const hull: [number, number, number] = [54, 46, 40];
-    const brass: [number, number, number] = [174, 128, 58];
-    const brassLight: [number, number, number] = [224, 174, 82];
-    const band: [number, number, number] = [188, 58, 42];
-    rect(t, 23, 20, 41, 49, hull, seed + 63);
-    outlineRect(t, 23, 20, 41, 49, p.dark);
-    ellipse(t, 32, 20, 9, 5, brassLight, seed + 64);
-    rect(t, 24, 18, 40, 23, brass, seed + 65);
-    ellipse(t, 32, 18, 7, 4, brassLight, seed + 66);
-    rect(t, 25, 35, 39, 40, band, seed + 67, 245);
-    rect(t, 27, 42, 37, 47, brass, seed + 68);
-    line(t, 25, 24, 39, 24, 0.9, p.light, seed + 69, 130);
-    line(t, 28, 28, 28, 46, 0.8, p.light, seed + 71, 95);
-    for (let i = 0; i < 5; i++) {
-      const x = 27 + i * 2;
-      rect(t, x, 37, x, 38, p.light, 0, 145);
-    }
-    drawNoiseDust(t, seed + 72, [118, 78, 48], 9);
+    drawSlugSprite(t, seed, p);
     return;
   }
   if (defId === 'ammo_belt') {
-    line(t, 15, 30, 49, 35, 2.2, [34, 32, 28], seed + 73, 230);
-    line(t, 15, 37, 49, 42, 1.4, p.dark, seed + 74, 210);
-    for (let i = 0; i < 5; i++) {
-      const x = 17 + i * 7;
-      const y = 18 + (i & 1) * 2;
-      rect(t, x, y + 8, x + 4, y + 32, p.body, seed + 75 + i);
-      ellipse(t, x + 2, y + 7, 2.7, 4.2, p.light, seed + 85 + i);
-      rect(t, x, y + 15, x + 4, y + 18, p.accent, seed + 95 + i, 230);
-      rect(t, x - 1, y + 23, x + 5, y + 27, p.dark, seed + 105 + i, 215);
-      rect(t, x + 1, y + 30, x + 3, y + 33, [70, 48, 32], seed + 115 + i);
-    }
-    drawNoiseDust(t, seed + 125, [88, 58, 34], 12);
+    drawAmmoBeltSprite(t, seed, p);
     return;
   }
   const shells = defId.includes('shell') || defId.includes('12g');
