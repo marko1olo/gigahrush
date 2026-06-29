@@ -1092,6 +1092,53 @@ test('Net Sphere heartbeat handles fetch errors and goes offline', async () => {
   }
 });
 
+test('Net Sphere sendNetMarketImpulses handles fetch errors and goes offline', async () => {
+  const browser = installNetSphereBrowser();
+  const realFetch = globalThis.fetch;
+  const requests: string[] = [];
+
+  globalThis.fetch = ((input: RequestInfo | URL) => {
+    requests.push(String(input));
+    return Promise.reject(new Error('Network failure mock'));
+  }) as typeof fetch;
+
+  try {
+    const net = await import('../src/systems/net_sphere');
+    net.closeNetSphere();
+    const unbind = net.bindNetSphereInput();
+
+    // Setup initial open state so tickNetSphere can proceed
+    net.openNetSphere();
+    browser.document.dispatch('keydown', new FakeKeyboardEvent('Enter', 'Enter'));
+    browser.document.dispatch('keydown', new FakeKeyboardEvent('Slash', '/'));
+    browser.document.dispatch('keydown', new FakeKeyboardEvent('KeyN', 'n'));
+    browser.document.dispatch('keydown', new FakeKeyboardEvent('KeyE', 'e'));
+    browser.document.dispatch('keydown', new FakeKeyboardEvent('KeyW', 'w'));
+    browser.document.dispatch('keydown', new FakeKeyboardEvent('Enter', 'Enter'));
+    net.openNetSphere();
+
+    // Send the impulses
+    const testImpulses = [{ eventKey: 'test_event', corpId: 'GIGA', kind: 'buy', magnitude: 10 }];
+    net.sendNetMarketImpulses(testImpulses as any, minimalNetSphereState(), minimalNetSpherePlayer());
+
+    // Wait for microtasks (the fetch rejection to be caught)
+    await new Promise<void>(resolve => setImmediate(resolve));
+    await new Promise<void>(resolve => setImmediate(resolve));
+
+    const snapshot = net.getNetSphereSnapshot();
+    assert.equal(snapshot.busy, false);
+    assert.equal(snapshot.status, 'offline');
+    assert.equal(snapshot.error.startsWith('Маркет'), true);
+    assert.equal(requests.some(url => url.endsWith('/market')), true);
+
+    unbind();
+    net.closeNetSphere();
+  } finally {
+    globalThis.fetch = realFetch;
+    browser.restore();
+  }
+});
+
 test('Net Sphere hello upserts presence and returns profile stats with fake D1', async () => {
   const db = new FakeD1();
   const response = await postHello({ request: postRequest(identityBody()), env: { GIGA_NET: db } });
