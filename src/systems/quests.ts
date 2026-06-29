@@ -19,7 +19,7 @@ import {
 } from '../data/occupation_profiles';
 
 import { addFactionRelMutual, getFactionRel } from '../data/relations';
-import { ENTITY_MASK_MONSTER, getEntityIndex } from './entity_index';
+import { ENTITY_MASK_MONSTER, getEntityIndex, ensureEntityIndex } from './entity_index';
 import {
   PLOT_CHAIN,
   SIDE_QUESTS,
@@ -404,11 +404,15 @@ function questObjectiveLine(q: Quest): string {
 }
 
 function objectiveTargetEntity(q: Quest, entities: readonly Entity[]): Entity | undefined {
+  const index = ensureEntityIndex(entities);
   if (q.targetNpcId !== undefined) {
-    const byLiveId = entities.find(e => e.id === q.targetNpcId && e.alive);
-    if (byLiveId) return byLiveId;
+    const byLiveId = index.byId.get(q.targetNpcId);
+    if (byLiveId && byLiveId.alive) return byLiveId;
   }
-  if (q.targetPlotNpcId) return entities.find(e => e.plotNpcId === q.targetPlotNpcId && e.alive);
+  if (q.targetPlotNpcId) {
+    const byPlotNpcId = index.byPlotNpcId.get(q.targetPlotNpcId);
+    if (byPlotNpcId && byPlotNpcId.alive) return byPlotNpcId;
+  }
   return undefined;
 }
 
