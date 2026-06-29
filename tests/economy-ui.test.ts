@@ -108,4 +108,10 @@ test('trade UI gracefully falls back when economy quote system throws error', ()
   const tradeDisplay = tradePriceDisplay(s, player, badNpc, 'water', 'buy');
   assert.equal(typeof tradeDisplay.line, 'string');
   assert.ok(tradeDisplay.line.includes('Цена:'));
+  // Ensure default variables are used when getEconomyQuote throws
+  assert.match(tradeDisplay.line, /спрос x1/);
+  assert.match(tradeDisplay.detail, /База 2₽/); // 'water' has value 2
+  assert.ok(!tradeDisplay.line.includes('тариф'));
+  assert.equal(tradeDisplay.detail.includes('Ресурс:'), false); // resourceId should be undefined, so it just says Base Price...
+
 });
