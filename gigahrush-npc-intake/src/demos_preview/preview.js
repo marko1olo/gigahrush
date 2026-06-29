@@ -94,7 +94,7 @@ export function renderDemosPreview(container, { pack, portraitUrl, validation })
     ? `<p class="error">${validation.errors.length} error(s), export blocked</p>`
     : '<p class="ok">package validates</p>';
   const portrait = portraitUrl
-    ? `<img class="portrait" src="${portraitUrl}" alt="">`
+    ? `<img class="portrait" src="${escapeHtml(portraitUrl)}" alt="">`
     : visualId
       ? `<div class="portrait preset-portrait"><span>game visual</span><strong>${escapeHtml(visualId)}</strong></div>`
       : '<div class="portrait"></div>';
