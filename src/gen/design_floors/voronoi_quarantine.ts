@@ -36,6 +36,7 @@ import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
 import { ensureConnectivity, generateZones, sanitizeDoors } from '../shared';
 import type { FloorGeneration } from '../floor_manifest';
 import { buildVoronoiRoomCells, type VoronoiRoomSite } from '../voronoi_cells';
+import { clamp } from '../../core/math';
 
 const DESIGN_NPC_HOME_FLOOR_KEY = designNpcFloorKey('voronoi_quarantine');
 
@@ -1789,9 +1790,7 @@ function setFeature(world: World, x: number, y: number, feature: Feature): void 
   if (world.cells[idx] === Cell.FLOOR || world.cells[idx] === Cell.WATER) world.features[idx] = feature;
 }
 
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
-}
+
 
 function hash01(seed: number, a: number, b: number, c: number): number {
   let x = Math.imul(seed ^ 0x9e3779b9, 0x85ebca6b) ^ Math.imul(a + 0x632be5ab, 0x27d4eb2d);

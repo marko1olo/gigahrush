@@ -28,6 +28,7 @@ import {
   type ResourceScarcityTrend,
 } from './events';
 import { intContractRewardMult } from './rpg';
+import { clamp } from '../core/math';
 
 type EconomyGameState = GameState & { economy?: EconomyState };
 type CachedPrice = { price: number; multiplier: number };
@@ -119,9 +120,7 @@ function clampRuleMultiplier(value: number): number {
   return Number.isFinite(value) ? Math.max(0.1, Math.min(6, value)) : 1;
 }
 
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
-}
+
 
 function smooth01(value: number): number {
   const t = clamp(value, 0, 1);

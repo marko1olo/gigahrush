@@ -34,6 +34,7 @@ import { randomRPG } from '../../systems/rpg';
 import { ensureConnectivity, generateZones, sanitizeDoors, stampRoom } from '../shared';
 import type { FloorGeneration } from '../floor_manifest';
 import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
+import { clamp } from '../../core/math';
 
 const DESIGN_NPC_HOME_FLOOR_KEY = designNpcFloorKey('hyperbolic_switchyard');
 
@@ -842,9 +843,7 @@ function oppositeSide(side: SwitchyardDoorSide): SwitchyardDoorSide {
   return 'west';
 }
 
-function clamp(value: number, lo: number, hi: number): number {
-  return Math.max(lo, Math.min(hi, value));
-}
+
 
 function connectRoomToPoint(
   world: World,

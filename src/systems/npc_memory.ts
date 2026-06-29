@@ -1,6 +1,7 @@
 /* ── Bounded module-level NPC memory store ────────────────────── */
 
 import { Faction, MonsterKind, type Entity, type FloorLevel } from '../core/types';
+import { clamp } from '../core/math';
 
 export type NpcObservedFactKind =
   | 'theft'
@@ -605,6 +606,3 @@ function trimObservedFacts(memory: NpcMemory, now: number): void {
   }
 }
 
-function clamp(v: number, lo: number, hi: number): number {
-  return Math.max(lo, Math.min(hi, v));
-}

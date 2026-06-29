@@ -1,5 +1,6 @@
 import { FloorLevel } from '../core/types';
 import { RESOURCES } from './resources';
+import { clamp } from '../core/math';
 
 export interface ResourceStock {
   stock: number;
@@ -66,9 +67,7 @@ export function createEconomyRouteState(routeId: string): EconomyRouteState {
   };
 }
 
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
-}
+
 
 function finiteOr(value: number | undefined, fallback: number): number {
   return value !== undefined && Number.isFinite(value) ? value : fallback;

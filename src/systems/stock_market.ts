@@ -16,6 +16,7 @@ import {
 import { ensureBankingState } from './banking';
 import { getRecentEvents, publishEvent } from './events';
 import { getNetMarketSnapshot, type NetMarketSnapshot } from './net_sphere';
+import { clamp } from '../core/math';
 
 export interface StockQuote {
   price: number;
@@ -88,9 +89,7 @@ export interface StockMarketSnapshot {
 
 type StockMarketHost = GameState & { stockMarket?: StockMarketState };
 
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
-}
+
 
 function cleanNumber(value: unknown, fallback: number): number {
   const n = Number(value);

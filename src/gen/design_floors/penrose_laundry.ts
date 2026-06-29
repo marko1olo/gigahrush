@@ -30,6 +30,7 @@ import { registerRouteCue } from '../../systems/route_cues';
 import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
 import { ensureConnectivity, generateZones, sanitizeDoors, stampRoom } from '../shared';
 import type { FloorGeneration } from '../floor_manifest';
+import { clamp } from '../../core/math';
 
 const DESIGN_NPC_HOME_FLOOR_KEY = designNpcFloorKey('penrose_laundry');
 
@@ -1441,6 +1442,3 @@ function countFogCells(world: World, min: number): number {
   return count;
 }
 
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
-}

@@ -35,6 +35,7 @@ import { syncZoneMetadataFromTerritory } from '../../systems/territory';
 import { generateZones, sanitizeDoors, stampRoom } from '../shared';
 import type { FloorGeneration } from '../floor_manifest';
 import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
+import { clamp } from '../../core/math';
 
 const DESIGN_NPC_HOME_FLOOR_KEY = designNpcFloorKey('black_market_88');
 
@@ -2477,6 +2478,3 @@ export function alignBlackMarket88AmbientNpcTerritory(world: World, entities: En
   }
 }
 
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
-}

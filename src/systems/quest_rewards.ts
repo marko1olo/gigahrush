@@ -1,4 +1,5 @@
 import { Faction } from '../core/types';
+import { clamp } from '../core/math';
 import {
   ECONOMY_MONEY_BANDS,
   economyProgressBandForRoute,
@@ -53,9 +54,7 @@ const OBJECTIVE_BASE: Record<QuestRewardObjectiveKind, number> = {
 export const QUEST_REWARD_MONEY_MULTIPLIER = 2;
 export const QUEST_REWARD_XP_MULTIPLIER = 2;
 
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
-}
+
 
 function roundCash(value: number): number {
   if (value >= 10_000) return Math.round(value / 500) * 500;
