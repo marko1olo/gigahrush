@@ -1,5 +1,6 @@
 import { type CharacterSex, Faction, FloorLevel, Occupation, type Item } from '../core/types';
 import { NPC_VISUAL_OLGA_DMITRIEVNA } from './art_sprite_manifest';
+import { NPC_VISUAL_CULT_HOOD, NPC_VISUAL_LIQUIDATOR_MASKED } from '../entities/npc_visuals';
 import { floorKeyForDesign, floorKeyForStory } from './floor_keys';
 import { getStack, ITEMS } from './items';
 import { NPC_PACKAGE_INVENTORY_CAP } from './npc_package_schema';
@@ -461,5 +462,41 @@ export const MAIN_PLOT_NPC_PACKAGES = [
     talkLines: [],
     talkLinesPost: [],
     voiceTags: ['story_voice'],
+  }),
+
+  plotNpcPackage({
+    id: 'villain',
+    displayName: 'Злодей',
+    publicLine: '',
+    sex: 'male',
+    age: 50,
+    faction: Faction.CULTIST,
+    occupation: Occupation.PRIEST,
+    sprite: Occupation.PRIEST,
+    npcVisualId: NPC_VISUAL_CULT_HOOD,
+    homeFloorKey: floorKeyForStory(FloorLevel.HELL),
+    hp: 2000, maxHp: 2000, level: 30, money: 500, speed: 1.5,
+    weapon: 'plasma',
+    inventory: [],
+    talkLines: [],
+    talkLinesPost: [],
+  }),
+
+  plotNpcPackage({
+    id: 'hero',
+    displayName: 'Герой',
+    publicLine: '',
+    sex: 'male',
+    age: 35,
+    faction: Faction.LIQUIDATOR,
+    occupation: Occupation.HUNTER,
+    sprite: Occupation.HUNTER,
+    npcVisualId: NPC_VISUAL_LIQUIDATOR_MASKED,
+    homeFloorKey: floorKeyForStory(FloorLevel.KVARTIRY),
+    hp: 1500, maxHp: 1500, level: 25, money: 200, speed: 1.3,
+    weapon: 'ak47',
+    inventory: [],
+    talkLines: [],
+    talkLinesPost: [],
   }),
 ] as const satisfies readonly NpcPackageDef[];
