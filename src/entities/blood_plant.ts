@@ -2,7 +2,7 @@
 
 import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
-import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
+import { S, noise, clamp, CLEAR, putRGB as put } from '../render/pixutil';
 
 export const DEF: MonsterDef = {
   kind: MonsterKind.BLOOD_PLANT,
@@ -17,11 +17,6 @@ export const DEF: MonsterDef = {
   counterplay: 'Не входите в красный центр без соли, огня или режущего инструмента: корни бьют только в коротком радиусе, красная плесень рядом медленно лечит источник.',
   lootHint: 'красная плесень, влажная кора, редкий живой корень для НИИ или культа',
 };
-
-function put(t: Uint32Array, x: number, y: number, r: number, g: number, b: number, a = 255): void {
-  if (x < 0 || x >= S || y < 0 || y >= S) return;
-  t[y * S + x] = rgba(r, g, b, a);
-}
 
 function line(t: Uint32Array, x0: number, y0: number, x1: number, y1: number, r: number, g: number, b: number, a = 255): void {
   const steps = Math.max(1, Math.abs(x1 - x0), Math.abs(y1 - y0));

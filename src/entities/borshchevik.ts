@@ -2,7 +2,7 @@
 
 import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
-import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
+import { S, noise, clamp, CLEAR, putRGB as put } from '../render/pixutil';
 
 export const DEF: MonsterDef = {
   kind: MonsterKind.BORSHCHEVIK,
@@ -17,11 +17,6 @@ export const DEF: MonsterDef = {
   counterplay: 'Держите дистанцию от сока и зонтика семян: рубка открывает путь без дыма, огонь убивает быстро, но дает короткую споровую вспышку.',
   lootHint: 'семена борщевика, желтый фототоксичный сок, редкий противогрибковый расходник',
 };
-
-function put(t: Uint32Array, x: number, y: number, r: number, g: number, b: number, a = 255): void {
-  if (x < 0 || x >= S || y < 0 || y >= S) return;
-  t[y * S + x] = rgba(r, g, b, a);
-}
 
 function line(t: Uint32Array, x0: number, y0: number, x1: number, y1: number, r: number, g: number, b: number, a = 255): void {
   const steps = Math.max(1, Math.abs(x1 - x0), Math.abs(y1 - y0));

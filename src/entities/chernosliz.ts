@@ -2,7 +2,7 @@
 
 import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
-import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
+import { S, rgba, noise, clamp, CLEAR, putRGB as put } from '../render/pixutil';
 
 export const DEF: MonsterDef = {
   kind: MonsterKind.CHERNOSLIZ,
@@ -20,11 +20,6 @@ export const DEF: MonsterDef = {
   counterplay: 'Не входите лицом в черную воду: подсветите лоток, киньте шумовую банку или дайте пробный выстрел, потом тяните чернослиз на сухую кромку.',
   lootHint: 'проба черной слизи, стеклянная пыль, редкий мутный зрачок из коллектора',
 };
-
-function put(t: Uint32Array, x: number, y: number, r: number, g: number, b: number, a = 255): void {
-  if (x < 0 || x >= S || y < 0 || y >= S) return;
-  t[y * S + x] = rgba(r, g, b, a);
-}
 
 export function generateSprite(): Uint32Array {
   const t = new Uint32Array(S * S).fill(CLEAR);

@@ -2,7 +2,7 @@
 
 import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
-import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
+import { S, rgba, noise, clamp, CLEAR, put } from '../render/pixutil';
 
 export const DEF: MonsterDef = {
   kind: MonsterKind.KANTSELYARSKIY_IDOL,
@@ -21,18 +21,11 @@ export const DEF: MonsterDef = {
   lootHint: 'желтая бумажная пыль, грязный латунный уголок, обломок красной печати',
 };
 
-function put(t: Uint32Array, x: number, y: number, color: number): void {
-  const px = Math.floor(x);
-  const py = Math.floor(y);
-  if (px < 0 || px >= S || py < 0 || py >= S) return;
-  t[py * S + px] = color;
-}
-
 function rect(t: Uint32Array, x0: number, y0: number, x1: number, y1: number, r: number, g: number, b: number, seed = 0): void {
   for (let y = Math.max(0, Math.floor(y0)); y <= Math.min(S - 1, Math.floor(y1)); y++) {
     for (let x = Math.max(0, Math.floor(x0)); x <= Math.min(S - 1, Math.floor(x1)); x++) {
       const n = seed === 0 ? 0 : noise(x, y, seed) * 16 - 8;
-      put(t, x, y, rgba(clamp(r + n), clamp(g + n), clamp(b + n)));
+      put(t, Math.floor(x), Math.floor(y), rgba(clamp(r + n), clamp(g + n), clamp(b + n)));
     }
   }
 }
@@ -44,7 +37,7 @@ function ellipse(t: Uint32Array, cx: number, cy: number, rx: number, ry: number,
       const dy = (y - cy) / ry;
       if (dx * dx + dy * dy > 1) continue;
       const n = seed === 0 ? 0 : noise(x, y, seed) * 14 - 7;
-      put(t, x, y, rgba(clamp(r + n), clamp(g + n), clamp(b + n)));
+      put(t, Math.floor(x), Math.floor(y), rgba(clamp(r + n), clamp(g + n), clamp(b + n)));
     }
   }
 }
@@ -53,7 +46,7 @@ function line(t: Uint32Array, x0: number, y0: number, x1: number, y1: number, r:
   const steps = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0), 1);
   for (let i = 0; i <= steps; i++) {
     const u = i / steps;
-    put(t, Math.round(x0 + (x1 - x0) * u), Math.round(y0 + (y1 - y0) * u), rgba(r, g, b));
+    put(t, Math.floor(Math.round(x0 + (x1 - x0) * u)), Math.floor(Math.round(y0 + (y1 - y0) * u)), rgba(r, g, b));
   }
 }
 
@@ -96,11 +89,11 @@ export function generateKantselyarskiyIdolSprite(seed: number): Uint32Array {
 
   // Red stamp marks align into a false face.
   for (let dx = -4; dx <= 4; dx++) {
-    if (Math.abs(dx) !== 1) put(t, cx + dx, 17, rgba(152, 18, 24));
-    if (dx % 2 === 0) put(t, cx + dx, 23, rgba(178, 24, 28));
+    if (Math.abs(dx) !== 1) put(t, Math.floor(cx + dx), Math.floor(17), rgba(152, 18, 24));
+    if (dx % 2 === 0) put(t, Math.floor(cx + dx), Math.floor(23), rgba(178, 24, 28));
   }
-  put(t, cx - 3, 15, rgba(210, 28, 32));
-  put(t, cx + 3, 15, rgba(210, 28, 32));
+  put(t, Math.floor(cx - 3), Math.floor(15), rgba(210, 28, 32));
+  put(t, Math.floor(cx + 3), Math.floor(15), rgba(210, 28, 32));
   line(t, cx - 5, 27, cx + 5, 27, 116, 12, 18);
   line(t, cx - 4, 31, cx + 4, 33, 144, 18, 24);
 
@@ -110,8 +103,8 @@ export function generateKantselyarskiyIdolSprite(seed: number): Uint32Array {
   }
   for (let i = 0; i < 11; i++) {
     const x = 15 + i * 3;
-    put(t, x, 39, rgba(155, 22, 28));
-    if (i % 3 === 0) put(t, x + 1, 40, rgba(180, 30, 34));
+    put(t, Math.floor(x), Math.floor(39), rgba(155, 22, 28));
+    if (i % 3 === 0) put(t, Math.floor(x + 1), Math.floor(40), rgba(180, 30, 34));
   }
 
   return t;

@@ -2,7 +2,7 @@
 
 import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
-import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
+import { S, rgba, noise, clamp, CLEAR, put } from '../render/pixutil';
 
 export const DEF: MonsterDef = {
   kind: MonsterKind.GNILUSHKA,
@@ -17,10 +17,6 @@ export const DEF: MonsterDef = {
   counterplay: 'Не загоняйте в угол и не начинайте первым: спокойный разговор или тара НИИ закрывают встречу без боя, а раненая Гнилушка делает короткий опасный рывок только в тесноте.',
   lootHint: 'серо-зеленый соскоб, старая записка, редкий мутный образец после добровольной передачи НИИ',
 };
-
-function put(t: Uint32Array, x: number, y: number, color: number): void {
-  if (x >= 0 && x < S && y >= 0 && y < S) t[y * S + x] = color;
-}
 
 function ellipse(t: Uint32Array, cx: number, cy: number, rx: number, ry: number, r: number, g: number, b: number, seed: number, alpha = 255): void {
   const x0 = Math.max(0, Math.floor(cx - rx));

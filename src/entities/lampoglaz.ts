@@ -2,7 +2,7 @@
 
 import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
-import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
+import { S, rgba, noise, clamp, CLEAR, put } from '../render/pixutil';
 
 export const DEF: MonsterDef = {
   kind: MonsterKind.LAMPOGLAZ,
@@ -20,10 +20,6 @@ export const DEF: MonsterDef = {
   counterplay: 'Не стойте в светлой полосе: темный угол, выключенная линия или шкаф между вами срывают зеленый захват.',
   lootHint: 'ламповая линза, фарфоровый ободок, стеклянная пыль, редкий предохранитель',
 };
-
-function put(t: Uint32Array, x: number, y: number, c: number): void {
-  if (x >= 0 && x < S && y >= 0 && y < S) t[y * S + x] = c;
-}
 
 function ellipse(
   t: Uint32Array,

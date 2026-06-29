@@ -2,7 +2,7 @@
 
 import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
-import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
+import { S, rgba, noise, clamp, CLEAR, put } from '../render/pixutil';
 
 export const DEF: MonsterDef = {
   kind: MonsterKind.PROTOKOLNIK,
@@ -18,15 +18,9 @@ export const DEF: MonsterDef = {
   lootHint: 'испорченный протокол, сургучная крошка и бумага с пустым местом для вашей фамилии',
 };
 
-function put(t: Uint32Array, x: number, y: number, c: number): void {
-  const px = Math.floor(x);
-  const py = Math.floor(y);
-  if (px >= 0 && px < S && py >= 0 && py < S) t[py * S + px] = c;
-}
-
 function rect(t: Uint32Array, x0: number, y0: number, w: number, h: number, c: number): void {
   for (let y = y0; y < y0 + h; y++) {
-    for (let x = x0; x < x0 + w; x++) put(t, x, y, c);
+    for (let x = x0; x < x0 + w; x++) put(t, Math.floor(x), Math.floor(y), c);
   }
 }
 
@@ -36,7 +30,7 @@ function stampCircle(t: Uint32Array, cx: number, cy: number, r: number, c: numbe
       const dx = (x - cx) / r;
       const dy = (y - cy) / r;
       const d2 = dx * dx + dy * dy;
-      if (d2 < 1 && d2 > 0.42) put(t, x, y, c);
+      if (d2 < 1 && d2 > 0.42) put(t, Math.floor(x), Math.floor(y), c);
     }
   }
 }
@@ -92,14 +86,14 @@ export function generateProtokolnikSprite(seed = 3535, pressureTier = 0): Uint32
   for (let y = 18; y < 57; y += 6) {
     const len = 7 + Math.floor(noise(y, 0, seed + 300) * 17);
     const x0 = Math.floor(cx - 12 + noise(y, 1, seed + 301) * 8);
-    for (let x = x0; x < x0 + len; x++) put(t, x, y, rgba(18, 15, 18));
+    for (let x = x0; x < x0 + len; x++) put(t, Math.floor(x), Math.floor(y), rgba(18, 15, 18));
   }
 
   const violet = rgba(70, 44, 96);
   for (let y = 25; y < 58; y++) {
     if (y % 2 === 0) {
-      put(t, cx - 21 + Math.sin(y * 0.3) * 2, y, violet);
-      put(t, cx + 21 + Math.cos(y * 0.27) * 2, y, violet);
+      put(t, Math.floor(cx - 21 + Math.sin(y * 0.3) * 2), Math.floor(y), violet);
+      put(t, Math.floor(cx + 21 + Math.cos(y * 0.27) * 2), Math.floor(y), violet);
     }
   }
 
