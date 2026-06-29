@@ -348,6 +348,27 @@ test('NPC package validator rejects remote image URLs and public geometry leaks'
   assert.ok(result.errors.some(error => error.includes('implementation geometry')));
 });
 
+
+test('NPC package validator catches errors in visual configuration', () => {
+  const pack = {
+    ...minimalNpcPackage('bad_visual_npc'),
+    visual: {
+      sprite: -1,
+      spriteScale: 2.0,
+      spriteSeed: -1,
+      npcVisualId: 'unknown_visual_family_123',
+      portraitHint: 'a'.repeat(121),
+    },
+  };
+  const result = validateNpcPackage(pack);
+
+  assert.ok(result.errors.some(error => error.includes('visual.sprite must be 0..8191')));
+  assert.ok(result.errors.some(error => error.includes('visual.spriteScale must be 0.25..1.6')));
+  assert.ok(result.errors.some(error => error.includes('visual.spriteSeed must be 0..4294967295')));
+  assert.ok(result.errors.some(error => error.includes('visual.npcVisualId references unknown visual family "unknown_visual_family_123"')));
+  assert.ok(result.errors.some(error => error.includes('visual.portraitHint exceeds 120 chars')));
+});
+
 test('editor document exposes validation state and registry-derived lookup hints', () => {
   const pack = minimalNpcPackage('editor_lookup_npc');
   registerNpcPackage(pack);
