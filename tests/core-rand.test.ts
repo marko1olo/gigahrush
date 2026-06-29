@@ -1,7 +1,42 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { xorshift32 } from '../src/core/rand';
+import { xorshift32, irandFrom } from '../src/core/rand';
+
+test('irandFrom returns lower bound when RandomSource returns 0', () => {
+  const randZero = () => 0;
+  assert.equal(irandFrom(randZero, 1, 10), 1);
+  assert.equal(irandFrom(randZero, 5, 20), 5);
+});
+
+test('irandFrom returns upper bound when RandomSource returns almost 1', () => {
+  const randAlmostOne = () => 0.999999999999999;
+  assert.equal(irandFrom(randAlmostOne, 1, 10), 10);
+  assert.equal(irandFrom(randAlmostOne, 5, 20), 20);
+});
+
+test('irandFrom handles negative ranges correctly', () => {
+  const randZero = () => 0;
+  const randAlmostOne = () => 0.999999999999999;
+  const randHalf = () => 0.5;
+  assert.equal(irandFrom(randZero, -10, -1), -10);
+  assert.equal(irandFrom(randAlmostOne, -10, -1), -1);
+  assert.equal(irandFrom(randHalf, -10, -1), -5);
+
+  assert.equal(irandFrom(randZero, -5, 5), -5);
+  assert.equal(irandFrom(randAlmostOne, -5, 5), 5);
+  assert.equal(irandFrom(randHalf, -5, 5), 0);
+});
+
+test('irandFrom handles equal bounds correctly', () => {
+  const randZero = () => 0;
+  const randAlmostOne = () => 0.999999999999999;
+  const randHalf = () => 0.5;
+
+  assert.equal(irandFrom(randZero, 5, 5), 5);
+  assert.equal(irandFrom(randAlmostOne, 5, 5), 5);
+  assert.equal(irandFrom(randHalf, 5, 5), 5);
+});
 
 test('xorshift32 produces deterministic sequence for a given seed', () => {
   const rng1 = xorshift32(12345);
