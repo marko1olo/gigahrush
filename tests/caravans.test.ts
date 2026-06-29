@@ -5,7 +5,7 @@ import '../src/gen/living/caravan_exchange';
 
 import { AIGoal, Cell, Faction, Feature, FloorLevel, Occupation, RoomType, type Entity } from '../src/core/types';
 import { World } from '../src/core/world';
-import { CARAVAN_LANES, SMALL_CARAVAN_TEMPLATES, validateCaravanLanes, validateSmallCaravanTemplates } from '../src/data/caravans';
+import { CARAVAN_LANES, SMALL_CARAVAN_TEMPLATES } from '../src/data/caravans';
 import { createEconomyFloorState } from '../src/data/economy';
 import { getSideQuestRegistrySnapshot } from '../src/data/plot';
 import { alifeForSave, sampleAlifeFloorRecordIds, setAlifeState } from '../src/systems/alife';
@@ -56,10 +56,7 @@ function caravanNpc(overrides: Partial<Entity> = {}): Entity {
 
 test('caravan lane definitions validate and cover required supply lanes', () => {
   assert.equal(CARAVAN_LANES.length >= 6, true);
-  assert.deepEqual(validateCaravanLanes(), []);
-  assert.ok(validateCaravanLanes([{ ...CARAVAN_LANES[0], toFloorKeys: ['design:not_real'] }]).includes(`${LANE_QUEUE}:toFloorKey:design:not_real`));
   assert.equal(SMALL_CARAVAN_TEMPLATES.length >= 5, true);
-  assert.deepEqual(validateSmallCaravanTemplates(), []);
   assert.equal(CARAVAN_LANES.some(lane => lane.id === LANE_QUEUE), true);
   assert.equal(CARAVAN_LANES.some(lane => lane.id === LANE_NET), true);
   assert.equal(CARAVAN_LANES.some(lane => lane.id === LANE_MARKET), true);

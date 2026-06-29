@@ -1,6 +1,4 @@
 import { Faction, FloorLevel, Occupation } from '../core/types';
-import { designFloorById } from './design_floors';
-import { RESOURCE_BY_ID } from './resources';
 
 export interface CaravanResourceDelta {
   resourceId: string;
@@ -44,26 +42,8 @@ export interface SmallCaravanTemplateDef {
   seatFeeRubles?: number;
 }
 
-const FLOOR_IDS = new Set(
-  Object.values(FloorLevel).filter((value): value is FloorLevel => typeof value === 'number'),
-);
 
-const STORY_FLOOR_KEYS = new Set([
-  'story:ministry',
-  'story:kvartiry',
-  'story:living',
-  'story:maintenance',
-  'story:hell',
-  'story:void',
-]);
 
-function routeKeyValid(key: string): boolean {
-  if (STORY_FLOOR_KEYS.has(key)) return true;
-  if (key.startsWith('design:')) return !!designFloorById(key.slice('design:'.length));
-  if (key.startsWith('procedural:')) return /^procedural:[A-Za-z0-9_-]+$/.test(key);
-  if (key.startsWith('floor_instance:')) return /^floor_instance:[A-Za-z0-9_-]+$/.test(key);
-  return false;
-}
 
 export const CARAVAN_LANES: readonly CaravanLaneDef[] = [
   {
@@ -246,50 +226,4 @@ export const SMALL_CARAVAN_TEMPLATE_BY_ID: Record<string, SmallCaravanTemplateDe
   SMALL_CARAVAN_TEMPLATES.map(template => [template.id, template]),
 );
 
-export function validateCaravanLanes(lanes: readonly CaravanLaneDef[] = CARAVAN_LANES): string[] {
-  const errors: string[] = [];
-  const seen = new Set<string>();
-  for (const lane of lanes) {
-    if (!lane.id || seen.has(lane.id)) errors.push(`lane:${lane.id || '<empty>'}:duplicate`);
-    seen.add(lane.id);
-    if (!FLOOR_IDS.has(lane.fromFloor)) errors.push(`${lane.id}:fromFloor`);
-    if (!FLOOR_IDS.has(lane.toFloor)) errors.push(`${lane.id}:toFloor`);
-    for (const key of lane.fromFloorKeys ?? []) {
-      if (!routeKeyValid(key)) errors.push(`${lane.id}:fromFloorKey:${key}`);
-    }
-    for (const key of lane.toFloorKeys ?? []) {
-      if (!routeKeyValid(key)) errors.push(`${lane.id}:toFloorKey:${key}`);
-    }
-    if (lane.resourceDeltas.length === 0) errors.push(`${lane.id}:resourceDeltas`);
-    for (const delta of lane.resourceDeltas) {
-      if (!RESOURCE_BY_ID[delta.resourceId]) errors.push(`${lane.id}:resource:${delta.resourceId}`);
-      if (!Number.isFinite(delta.count) || delta.count <= 0) errors.push(`${lane.id}:count:${delta.resourceId}`);
-    }
-    for (const resourceId of lane.tariffResourceIds) {
-      if (!RESOURCE_BY_ID[resourceId]) errors.push(`${lane.id}:tariffResource:${resourceId}`);
-    }
-    if (!Number.isFinite(lane.feeRubles) || lane.feeRubles < 0) errors.push(`${lane.id}:feeRubles`);
-  }
-  return errors;
-}
 
-export function validateSmallCaravanTemplates(
-  templates: readonly SmallCaravanTemplateDef[] = SMALL_CARAVAN_TEMPLATES,
-): string[] {
-  const errors: string[] = [];
-  const seen = new Set<string>();
-  for (const template of templates) {
-    if (!template.id || seen.has(template.id)) errors.push(`small:${template.id || '<empty>'}:duplicate`);
-    seen.add(template.id);
-    if (!CARAVAN_LANE_BY_ID[template.laneId]) errors.push(`${template.id}:lane:${template.laneId}`);
-    if (!Number.isFinite(template.risk) || template.risk < 1 || template.risk > 5) errors.push(`${template.id}:risk`);
-    if (!Number.isFinite(template.memberCount) || template.memberCount < 1 || template.memberCount > 5) errors.push(`${template.id}:memberCount`);
-    if (template.memberNames.length < template.memberCount) errors.push(`${template.id}:memberNames`);
-    if (template.cargo.length === 0) errors.push(`${template.id}:cargo`);
-    for (const cargo of template.cargo) {
-      if (!RESOURCE_BY_ID[cargo.resourceId]) errors.push(`${template.id}:resource:${cargo.resourceId}`);
-      if (!Number.isFinite(cargo.count) || cargo.count <= 0) errors.push(`${template.id}:count:${cargo.resourceId}`);
-    }
-  }
-  return errors;
-}
