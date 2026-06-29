@@ -1047,6 +1047,51 @@ test('Net Sphere aborts stalled client fetches and releases busy flags', async (
 });
 
 
+test('Net Sphere heartbeat handles 503 api errors and goes offline', async () => {
+  const browser = installNetSphereBrowser();
+  const realFetch = globalThis.fetch;
+  const requests: string[] = [];
+
+  globalThis.fetch = ((input: RequestInfo | URL) => {
+    requests.push(String(input));
+    return Promise.resolve(new Response(JSON.stringify({ error: 'service unavailable' }), { status: 503 }));
+  }) as typeof fetch;
+
+  try {
+    const net = await import('../src/systems/net_sphere');
+    net.closeNetSphere();
+    const unbind = net.bindNetSphereInput();
+
+    // Setup initial open state so tickNetSphere can proceed
+    net.openNetSphere();
+    browser.document.dispatch('keydown', new FakeKeyboardEvent('Enter', 'Enter'));
+    browser.document.dispatch('keydown', new FakeKeyboardEvent('Slash', '/'));
+    browser.document.dispatch('keydown', new FakeKeyboardEvent('KeyN', 'n'));
+    browser.document.dispatch('keydown', new FakeKeyboardEvent('KeyE', 'e'));
+    browser.document.dispatch('keydown', new FakeKeyboardEvent('KeyW', 'w'));
+    browser.document.dispatch('keydown', new FakeKeyboardEvent('Enter', 'Enter'));
+    net.openNetSphere();
+
+    net.tickNetSphere(minimalNetSphereState(), minimalNetSpherePlayer());
+
+    // Wait for microtasks
+    await new Promise<void>(resolve => setImmediate(resolve));
+    await new Promise<void>(resolve => setImmediate(resolve));
+
+    const snapshot = net.getNetSphereSnapshot();
+    assert.equal(snapshot.busy, false);
+    assert.equal(snapshot.status, 'offline');
+    assert.equal(snapshot.error, 'Cloudflare 503: база не привязана. Игра локальна.');
+    assert.equal(requests.some(url => url.endsWith('/hello')), true);
+
+    unbind();
+    net.closeNetSphere();
+  } finally {
+    globalThis.fetch = realFetch;
+    browser.restore();
+  }
+});
+
 test('Net Sphere heartbeat handles fetch errors and goes offline', async () => {
   const browser = installNetSphereBrowser();
   const realFetch = globalThis.fetch;
@@ -1083,6 +1128,117 @@ test('Net Sphere heartbeat handles fetch errors and goes offline', async () => {
     assert.equal(snapshot.status, 'offline');
     assert.equal(snapshot.error, 'Канал offline. Игра локальна.');
     assert.equal(requests.some(url => url.endsWith('/hello')), true);
+
+    unbind();
+    net.closeNetSphere();
+  } finally {
+    globalThis.fetch = realFetch;
+    browser.restore();
+  }
+});
+
+test('Net Sphere stats poll handles fetch errors and goes offline', async () => {
+  const browser = installNetSphereBrowser();
+  const realFetch = globalThis.fetch;
+  const requests: string[] = [];
+
+  globalThis.fetch = ((input: RequestInfo | URL) => {
+    requests.push(String(input));
+    if (String(input).includes('/stats')) {
+      return Promise.reject(new Error('Network failure mock'));
+    }
+    return Promise.resolve(new Response(JSON.stringify({ ok: true, _serverPayload: true }), { status: 200 }));
+  }) as typeof fetch;
+
+  try {
+    const net = await import('../src/systems/net_sphere');
+    net.closeNetSphere();
+    const unbind = net.bindNetSphereInput();
+
+    // Setup initial open state so tickNetSphere can proceed
+    net.openNetSphere();
+    browser.document.dispatch('keydown', new FakeKeyboardEvent('Enter', 'Enter'));
+    browser.document.dispatch('keydown', new FakeKeyboardEvent('Slash', '/'));
+    browser.document.dispatch('keydown', new FakeKeyboardEvent('KeyN', 'n'));
+    browser.document.dispatch('keydown', new FakeKeyboardEvent('KeyE', 'e'));
+    browser.document.dispatch('keydown', new FakeKeyboardEvent('KeyW', 'w'));
+    browser.document.dispatch('keydown', new FakeKeyboardEvent('Enter', 'Enter'));
+    net.openNetSphere();
+
+    net.tickNetSphere(minimalNetSphereState(), minimalNetSpherePlayer());
+
+    // Wait for microtasks
+    await new Promise<void>(resolve => setImmediate(resolve));
+    await new Promise<void>(resolve => setImmediate(resolve));
+    await new Promise<void>(resolve => setImmediate(resolve));
+
+    // Wait for second tick to ensure pollOpenStats fires after heartbeat completes
+    net.tickNetSphere(minimalNetSphereState(), minimalNetSpherePlayer());
+
+    await new Promise<void>(resolve => setImmediate(resolve));
+    await new Promise<void>(resolve => setImmediate(resolve));
+    await new Promise<void>(resolve => setImmediate(resolve));
+
+    const snapshot = net.getNetSphereSnapshot();
+    assert.equal(snapshot.busy, false);
+    assert.equal(snapshot.status, 'offline');
+    assert.equal(snapshot.error, 'Канал offline. Игра локальна.');
+    assert.equal(requests.some(url => url.includes('/stats')), true);
+
+    unbind();
+    net.closeNetSphere();
+  } finally {
+    globalThis.fetch = realFetch;
+    browser.restore();
+  }
+});
+
+test('Net Sphere market poll handles fetch errors and goes offline', async () => {
+  const browser = installNetSphereBrowser();
+  const realFetch = globalThis.fetch;
+  const requests: string[] = [];
+
+  globalThis.fetch = ((input: RequestInfo | URL) => {
+    requests.push(String(input));
+    if (String(input).includes('/market')) {
+      return Promise.reject(new Error('Market failure mock'));
+    }
+    return Promise.resolve(new Response(JSON.stringify({ ok: true, _serverPayload: true }), { status: 200 }));
+  }) as typeof fetch;
+
+  try {
+    const net = await import('../src/systems/net_sphere');
+    net.closeNetSphere();
+    const unbind = net.bindNetSphereInput();
+
+    // Setup initial open state
+    net.openNetSphere();
+    browser.document.dispatch('keydown', new FakeKeyboardEvent('Enter', 'Enter'));
+    browser.document.dispatch('keydown', new FakeKeyboardEvent('Slash', '/'));
+    browser.document.dispatch('keydown', new FakeKeyboardEvent('KeyN', 'n'));
+    browser.document.dispatch('keydown', new FakeKeyboardEvent('KeyE', 'e'));
+    browser.document.dispatch('keydown', new FakeKeyboardEvent('KeyW', 'w'));
+    browser.document.dispatch('keydown', new FakeKeyboardEvent('Enter', 'Enter'));
+    net.openNetSphere();
+
+    net.tickNetSphere(minimalNetSphereState(), minimalNetSpherePlayer());
+
+    // Wait for microtasks (for heartbeat to complete)
+    await new Promise<void>(resolve => setImmediate(resolve));
+    await new Promise<void>(resolve => setImmediate(resolve));
+    await new Promise<void>(resolve => setImmediate(resolve));
+
+    net.pollNetMarketSnapshot();
+
+    // Wait for microtasks (for market poll to fail)
+    await new Promise<void>(resolve => setImmediate(resolve));
+    await new Promise<void>(resolve => setImmediate(resolve));
+    await new Promise<void>(resolve => setImmediate(resolve));
+
+    const snapshot = net.getNetSphereSnapshot();
+    assert.equal(snapshot.status, 'offline');
+    assert.equal(snapshot.error, 'Маркет offline. Игра локальна.');
+    assert.equal(requests.some(url => url.includes('/market')), true);
 
     unbind();
     net.closeNetSphere();
