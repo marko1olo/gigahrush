@@ -7,7 +7,6 @@ import {
   CORPORATION_BY_TICKER,
   MAX_CORPORATION_BASE_PRICE,
   STOCK_SIGNALS,
-  validateCorporations,
 } from '../src/data/corporations';
 import { FACTORIES } from '../src/data/factories';
 import { RESOURCES } from '../src/data/resources';
@@ -22,8 +21,6 @@ function assertUnique(values: readonly string[], label: string): void {
 
 test('corporation catalog validates and exposes lookup maps', () => {
   assert.ok(CORPORATIONS.length >= 10, 'catalog needs at least ten corporations');
-  assert.deepEqual(validateCorporations(), [], 'corporation definitions must validate internally');
-
   assertUnique(CORPORATIONS.map(def => def.id), 'corporation');
   assertUnique(CORPORATIONS.map(def => def.ticker), 'ticker');
 
@@ -33,6 +30,7 @@ test('corporation catalog validates and exposes lookup maps', () => {
     assert.match(def.ticker, /^[A-Z]{2,5}$/, `${def.id} ticker must be uppercase ASCII`);
     assert.match(def.id, /^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/, `${def.id} must be lowercase snake case`);
     assert.ok(def.basePrice > 0 && def.basePrice <= MAX_CORPORATION_BASE_PRICE, `${def.id} base price must be bounded`);
+    assert.ok(def.volatility > 0 && def.volatility <= 1, `${def.id} volatility must be bounded`);
   }
 });
 

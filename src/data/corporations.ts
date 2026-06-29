@@ -1,6 +1,4 @@
 import { type Faction } from '../core/types';
-import { FACTORY_BY_ID } from './factories';
-import { RESOURCE_BY_ID } from './resources';
 
 export type CorporationId = string;
 
@@ -201,32 +199,3 @@ export const CORPORATION_BY_TICKER: Record<string, CorporationDef> = Object.from
   CORPORATIONS.map(corp => [corp.ticker, corp]),
 );
 
-export function validateCorporations(): string[] {
-  const problems: string[] = [];
-  const ids = new Set<string>();
-  const tickers = new Set<string>();
-
-  for (const corp of CORPORATIONS) {
-    if (!/^[a-z0-9]+(?:_[a-z0-9]+)*$/.test(corp.id)) problems.push(`${corp.id}:bad id`);
-    if (ids.has(corp.id)) problems.push(`${corp.id}:duplicate id`);
-    ids.add(corp.id);
-
-    if (!/^[A-Z0-9]{2,5}$/.test(corp.ticker)) problems.push(`${corp.id}:bad ticker`);
-    if (tickers.has(corp.ticker)) problems.push(`${corp.id}:duplicate ticker ${corp.ticker}`);
-    tickers.add(corp.ticker);
-
-    if (!Number.isFinite(corp.basePrice) || corp.basePrice <= 0 || corp.basePrice > MAX_CORPORATION_BASE_PRICE) problems.push(`${corp.id}:basePrice`);
-    if (!Number.isFinite(corp.volatility) || corp.volatility <= 0 || corp.volatility > 1) problems.push(`${corp.id}:volatility`);
-    if (corp.resourceIds.length === 0) problems.push(`${corp.id}:no resources`);
-    if (corp.factoryIds.length === 0) problems.push(`${corp.id}:no factories`);
-
-    for (const id of corp.resourceIds) {
-      if (!RESOURCE_BY_ID[id]) problems.push(`${corp.id}:missing resource ${id}`);
-    }
-    for (const id of corp.factoryIds) {
-      if (!FACTORY_BY_ID[id]) problems.push(`${corp.id}:missing factory ${id}`);
-    }
-  }
-
-  return problems;
-}

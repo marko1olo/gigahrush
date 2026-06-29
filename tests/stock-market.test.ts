@@ -2,7 +2,6 @@ import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
 import { FloorLevel, MonsterKind, type GameState } from '../src/core/types';
-import { validateCorporations } from '../src/data/corporations';
 import { createWorldEventState, getRecentEvents, publishEvent } from '../src/systems/events';
 import {
   buyShares,
@@ -21,10 +20,6 @@ type MarketTestState = GameState & {
   banking?: { accountRubles: number };
   stockMarket?: StockMarketState;
 };
-
-test('corporation catalog validates for stock market use', () => {
-  assert.deepEqual(validateCorporations(), []);
-});
 
 test('stock market state normalizes from empty save', () => {
   const normalized = normalizeStockMarketState(undefined);
