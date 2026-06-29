@@ -13,18 +13,21 @@ import {
   type Entity,
   type GameState,
   type Room,
-} from '../core/types';
-import { VISUAL_SLOTS_PER_CELL } from '../core/world';
-import type { World, WorldGridDirtyRect } from '../core/world';
-import type { FloorGeneration } from '../gen/floor_manifest';
-import { rebuildPathBlockersFromWorldObjects } from '../gen/path_blockers';
-import { freezeNavigationCacheForWorld, unfreezeNavigationCacheForWorld } from './ai/pathfinding';
-import { publishEvent } from './events';
-import { hideMapExplorationCells } from './map_exploration';
-import { pruneRouteCuesInCells } from './route_cues';
-import { isPlayerEntity } from './player_actor';
+} from "../core/types";
+import { VISUAL_SLOTS_PER_CELL } from "../core/world";
+import type { World, WorldGridDirtyRect } from "../core/world";
+import type { FloorGeneration } from "../gen/floor_manifest";
+import { rebuildPathBlockersFromWorldObjects } from "../gen/path_blockers";
+import {
+  freezeNavigationCacheForWorld,
+  unfreezeNavigationCacheForWorld,
+} from "./ai/pathfinding";
+import { publishEvent } from "./events";
+import { hideMapExplorationCells } from "./map_exploration";
+import { pruneRouteCuesInCells } from "./route_cues";
+import { isPlayerEntity } from "./player_actor";
 
-export type SamosborWaveScale = 'small' | 'medium' | 'full';
+export type SamosborWaveScale = "small" | "medium" | "full";
 
 export interface SamosborWaveScaleDef {
   scale: SamosborWaveScale;
@@ -33,10 +36,13 @@ export interface SamosborWaveScaleDef {
   budgetCellsPerTick: number;
 }
 
-export const SAMOSBOR_WAVE_SCALE_DEFS: Record<SamosborWaveScale, SamosborWaveScaleDef> = {
-  small: { scale: 'small', weight: 5, radius: 14, budgetCellsPerTick: 96 },
-  medium: { scale: 'medium', weight: 3, radius: 28, budgetCellsPerTick: 192 },
-  full: { scale: 'full', weight: 4, radius: 0, budgetCellsPerTick: 0 },
+export const SAMOSBOR_WAVE_SCALE_DEFS: Record<
+  SamosborWaveScale,
+  SamosborWaveScaleDef
+> = {
+  small: { scale: "small", weight: 5, radius: 14, budgetCellsPerTick: 96 },
+  medium: { scale: "medium", weight: 3, radius: 28, budgetCellsPerTick: 192 },
+  full: { scale: "full", weight: 4, radius: 0, budgetCellsPerTick: 0 },
 };
 
 export interface StartSamosborWaveOptions {
@@ -97,7 +103,7 @@ interface DirtyFlags {
 
 interface SamosborWave {
   active: boolean;
-  scale: 'small' | 'medium';
+  scale: "small" | "medium";
   seed: number;
   originIdx: number;
   radius: number;
@@ -136,11 +142,16 @@ interface SamosborWave {
   debug: boolean;
 }
 
-type WaveRole = 'floor' | 'wall' | 'abyss' | 'door' | 'residue';
+type WaveRole = "floor" | "wall" | "abyss" | "door" | "residue";
 
 const DIR_X = [1, -1, 0, 0] as const;
 const DIR_Y = [0, 0, 1, -1] as const;
-const EMPTY_WAVE_RESULT: SamosborWaveTickResult = { active: false, processed: 0, changed: 0, finished: false };
+const EMPTY_WAVE_RESULT: SamosborWaveTickResult = {
+  active: false,
+  processed: 0,
+  changed: 0,
+  finished: false,
+};
 const QUEUED_SAMPLE_CAP = 48;
 const WAVE_SNAPSHOT_MIN_TICKS = 15;
 const LOCAL_REBUILD_HALO = 2;
@@ -149,7 +160,9 @@ const LOCAL_STITCH_DEPTH = 5;
 let activeWave: SamosborWave | null = null;
 let lastWaveSnapshot: SamosborWaveDebugSnapshot | null = null;
 
-function circularSegmentsForCoords(coords: readonly number[]): { x: number; w: number }[] {
+function circularSegmentsForCoords(
+  coords: readonly number[],
+): { x: number; w: number }[] {
   if (coords.length === 0) return [];
   const unique = Array.from(new Set(coords)).sort((a, b) => a - b);
   if (unique.length >= W) return [{ x: 0, w: W }];
@@ -174,10 +187,12 @@ function circularSegmentsForCoords(coords: readonly number[]): { x: number; w: n
   return [
     { x: start, w: W - start },
     { x: 0, w: (start + len) % W },
-  ].filter(segment => segment.w > 0);
+  ].filter((segment) => segment.w > 0);
 }
 
-function dirtyRectsForIndices(indices: readonly number[]): WorldGridDirtyRect[] | undefined {
+function dirtyRectsForIndices(
+  indices: readonly number[],
+): WorldGridDirtyRect[] | undefined {
   if (indices.length === 0) return undefined;
   const xs: number[] = [];
   const ys: number[] = [];
@@ -214,46 +229,80 @@ function hash32(v: number): number {
   return x >>> 0;
 }
 
-function seedForWave(state: GameState, scale: 'small' | 'medium', originIdx: number): number {
-  const base = ((state.samosborCount + 1) * 1_000_003 + Math.floor(state.time * 60)) | 0;
-  return hash32(base ^ Math.imul(originIdx + 1, scale === 'small' ? 0x45d9f3b : 0x119de1f3));
+function seedForWave(
+  state: GameState,
+  scale: "small" | "medium",
+  originIdx: number,
+): number {
+  const base =
+    ((state.samosborCount + 1) * 1_000_003 + Math.floor(state.time * 60)) | 0;
+  return hash32(
+    base ^ Math.imul(originIdx + 1, scale === "small" ? 0x45d9f3b : 0x119de1f3),
+  );
 }
 
-function waveRole(seed: number, originIdx: number, idx: number, ring: number): WaveRole {
-  if (ring <= 1) return 'floor';
-  const roll = hash32(seed ^ Math.imul(idx + 17, 0x9e3779b1) ^ Math.imul(originIdx + ring + 31, 0x85ebca6b)) % 100;
-  if (roll < 42) return 'floor';
-  if (roll < 66) return 'residue';
-  if (roll < 84) return 'wall';
-  if (roll < 96) return 'abyss';
-  return 'door';
+function waveRole(
+  seed: number,
+  originIdx: number,
+  idx: number,
+  ring: number,
+): WaveRole {
+  if (ring <= 1) return "floor";
+  const roll =
+    hash32(
+      seed ^
+        Math.imul(idx + 17, 0x9e3779b1) ^
+        Math.imul(originIdx + ring + 31, 0x85ebca6b),
+    ) % 100;
+  if (roll < 42) return "floor";
+  if (roll < 66) return "residue";
+  if (roll < 84) return "wall";
+  if (roll < 96) return "abyss";
+  return "door";
 }
 
-function waveRoll(seed: number, originIdx: number, idx: number, ring: number): number {
-  return hash32(seed ^ Math.imul(idx + 17, 0x9e3779b1) ^ Math.imul(originIdx + ring + 31, 0x85ebca6b)) % 100;
+function waveRoll(
+  seed: number,
+  originIdx: number,
+  idx: number,
+  ring: number,
+): number {
+  return (
+    hash32(
+      seed ^
+        Math.imul(idx + 17, 0x9e3779b1) ^
+        Math.imul(originIdx + ring + 31, 0x85ebca6b),
+    ) % 100
+  );
 }
 
-function waveRoleForCell(world: World, wave: SamosborWave, idx: number, ring: number): WaveRole {
-  if (ring <= 1) return 'floor';
+function waveRoleForCell(
+  world: World,
+  wave: SamosborWave,
+  idx: number,
+  ring: number,
+): WaveRole {
+  if (ring <= 1) return "floor";
   const roll = waveRoll(wave.seed, wave.originIdx, idx, ring);
   const cell = world.cells[idx];
   if (walkableCell(cell)) {
     const neighbors = walkableNeighborCount(world, idx);
-    if (neighbors <= 1) return roll < 72 ? 'floor' : 'residue';
-    if (neighbors <= 2) return roll < 48 ? 'residue' : roll < 88 ? 'floor' : 'door';
-    if (roll < 46) return 'residue';
-    if (roll < 76) return 'floor';
-    if (roll < 92) return 'wall';
-    return 'door';
+    if (neighbors <= 1) return roll < 72 ? "floor" : "residue";
+    if (neighbors <= 2)
+      return roll < 48 ? "residue" : roll < 88 ? "floor" : "door";
+    if (roll < 46) return "residue";
+    if (roll < 76) return "floor";
+    if (roll < 92) return "wall";
+    return "door";
   }
   if (cell === Cell.WALL || cell === Cell.ABYSS) {
-    if (!hasFloorAnchor(world, idx)) return roll < 72 ? 'wall' : 'residue';
-    if (roll < 26) return 'floor';
-    if (roll < 40) return 'door';
-    if (roll < 88) return 'wall';
-    return 'abyss';
+    if (!hasFloorAnchor(world, idx)) return roll < 72 ? "wall" : "residue";
+    if (roll < 26) return "floor";
+    if (roll < 40) return "door";
+    if (roll < 88) return "wall";
+    return "abyss";
   }
-  return 'residue';
+  return "residue";
 }
 
 function textureRoll(seed: number, idx: number): number {
@@ -262,19 +311,27 @@ function textureRoll(seed: number, idx: number): number {
 
 function floorTexFor(seed: number, idx: number): Tex {
   switch (textureRoll(seed, idx)) {
-    case 0: return Tex.F_CONCRETE;
-    case 1: return Tex.F_LINO;
-    case 2: return Tex.F_TILE;
-    default: return Tex.F_WOOD;
+    case 0:
+      return Tex.F_CONCRETE;
+    case 1:
+      return Tex.F_LINO;
+    case 2:
+      return Tex.F_TILE;
+    default:
+      return Tex.F_WOOD;
   }
 }
 
 function wallTexFor(seed: number, idx: number): Tex {
   switch (textureRoll(seed, idx)) {
-    case 0: return Tex.CONCRETE;
-    case 1: return Tex.PANEL;
-    case 2: return Tex.BRICK;
-    default: return Tex.ROTTEN;
+    case 0:
+      return Tex.CONCRETE;
+    case 1:
+      return Tex.PANEL;
+    case 2:
+      return Tex.BRICK;
+    default:
+      return Tex.ROTTEN;
   }
 }
 
@@ -283,11 +340,14 @@ export function canRunSamosborWave(_state: GameState): boolean {
 }
 
 export function chooseSamosborScale(state: GameState): SamosborWaveScale {
-  if (!canRunSamosborWave(state)) return 'full';
+  if (!canRunSamosborWave(state)) return "full";
   // ~40% full (global fronts only), ~30% small, ~30% medium
   const roll = Math.random();
-  if (roll < 0.4) return 'full';
-  const defs = [SAMOSBOR_WAVE_SCALE_DEFS.small, SAMOSBOR_WAVE_SCALE_DEFS.medium];
+  if (roll < 0.4) return "full";
+  const defs = [
+    SAMOSBOR_WAVE_SCALE_DEFS.small,
+    SAMOSBOR_WAVE_SCALE_DEFS.medium,
+  ];
   let total = 0;
   for (const def of defs) total += def.weight;
   let localRoll = Math.random() * total;
@@ -295,14 +355,18 @@ export function chooseSamosborScale(state: GameState): SamosborWaveScale {
     localRoll -= def.weight;
     if (localRoll <= 0) return def.scale;
   }
-  return 'medium';
+  return "medium";
 }
 
 function waveOriginXY(wave: SamosborWave): { x: number; y: number } {
   return { x: wave.originIdx % W, y: (wave.originIdx / W) | 0 };
 }
 
-function toroidalRingDistance(world: World, originIdx: number, idx: number): number {
+function toroidalRingDistance(
+  world: World,
+  originIdx: number,
+  idx: number,
+): number {
   const ox = originIdx % W;
   const oy = (originIdx / W) | 0;
   const x = idx % W;
@@ -310,11 +374,18 @@ function toroidalRingDistance(world: World, originIdx: number, idx: number): num
   return Math.max(Math.abs(world.delta(ox, x)), Math.abs(world.delta(oy, y)));
 }
 
-function withinWaveRadius(world: World, wave: SamosborWave, idx: number): boolean {
+function withinWaveRadius(
+  world: World,
+  wave: SamosborWave,
+  idx: number,
+): boolean {
   const o = waveOriginXY(wave);
   const x = idx % W;
   const y = (idx / W) | 0;
-  return world.dist2(o.x + 0.5, o.y + 0.5, x + 0.5, y + 0.5) <= wave.radius * wave.radius;
+  return (
+    world.dist2(o.x + 0.5, o.y + 0.5, x + 0.5, y + 0.5) <=
+    wave.radius * wave.radius
+  );
 }
 
 function walkableCell(cell: number): boolean {
@@ -324,7 +395,9 @@ function walkableCell(cell: number): boolean {
 function hermeticDoorCell(world: World, idx: number): boolean {
   if (world.cells[idx] !== Cell.DOOR) return false;
   const state = world.doors.get(idx)?.state;
-  return state === DoorState.HERMETIC_CLOSED || state === DoorState.HERMETIC_OPEN;
+  return (
+    state === DoorState.HERMETIC_CLOSED || state === DoorState.HERMETIC_OPEN
+  );
 }
 
 function waveSpreadableCell(world: World, idx: number): boolean {
@@ -362,7 +435,11 @@ function passiveGeneratedFeature(feature: number): Feature {
   }
 }
 
-function doorTouchesProtectedRoom(world: World, idx: number, protectedRooms: Set<number>): boolean {
+function doorTouchesProtectedRoom(
+  world: World,
+  idx: number,
+  protectedRooms: Set<number>,
+): boolean {
   const door = world.doors.get(idx);
   if (!door) return false;
   return protectedRooms.has(door.roomA) || protectedRooms.has(door.roomB);
@@ -373,7 +450,12 @@ function adjacentLiftOrProtected(world: World, idx: number): boolean {
   const y = (idx / W) | 0;
   for (let i = 0; i < DIR_X.length; i++) {
     const ni = world.idx(x + DIR_X[i], y + DIR_Y[i]);
-    if (world.cells[ni] === Cell.LIFT || world.aptMask[ni] || world.hermoWall[ni]) return true;
+    if (
+      world.cells[ni] === Cell.LIFT ||
+      world.aptMask[ni] ||
+      world.hermoWall[ni]
+    )
+      return true;
   }
   return false;
 }
@@ -381,19 +463,35 @@ function adjacentLiftOrProtected(world: World, idx: number): boolean {
 function mutableCell(world: World, wave: SamosborWave, idx: number): boolean {
   if (world.aptMask[idx] || world.hermoWall[idx]) return false;
   if (hermeticDoorCell(world, idx)) return false;
-  if (world.cells[idx] === Cell.LIFT || world.features[idx] === Feature.LIFT_BUTTON) return false;
+  if (
+    world.cells[idx] === Cell.LIFT ||
+    world.features[idx] === Feature.LIFT_BUTTON
+  )
+    return false;
   const roomId = world.roomMap[idx];
   if (roomId >= 0 && wave.protectedRooms.has(roomId)) return false;
-  if (world.cells[idx] === Cell.DOOR && doorTouchesProtectedRoom(world, idx, wave.protectedRooms)) return false;
+  if (
+    world.cells[idx] === Cell.DOOR &&
+    doorTouchesProtectedRoom(world, idx, wave.protectedRooms)
+  )
+    return false;
   if (adjacentLiftOrProtected(world, idx)) return false;
   return true;
 }
 
 function anchorCell(world: World, wave: SamosborWave, idx: number): boolean {
-  return mutableCell(world, wave, idx) && (world.cells[idx] === Cell.FLOOR || world.cells[idx] === Cell.WATER);
+  return (
+    mutableCell(world, wave, idx) &&
+    (world.cells[idx] === Cell.FLOOR || world.cells[idx] === Cell.WATER)
+  );
 }
 
-function findWaveOrigin(world: World, wave: SamosborWave, originX: number, originY: number): number {
+function findWaveOrigin(
+  world: World,
+  wave: SamosborWave,
+  originX: number,
+  originY: number,
+): number {
   const start = world.idx(originX, originY);
   if (anchorCell(world, wave, start)) return start;
   const radius = Math.min(Math.max(8, wave.radius), 34);
@@ -414,7 +512,10 @@ function pushUnique(list: number[], value: number): void {
   list.push(value);
 }
 
-function makePatchRoom(world: World, wave: Pick<SamosborWave, 'scale' | 'radius' | 'originIdx'>): number {
+function makePatchRoom(
+  world: World,
+  wave: Pick<SamosborWave, "scale" | "radius" | "originIdx">,
+): number {
   const id = world.rooms.length;
   const ox = wave.originIdx % W;
   const oy = (wave.originIdx / W) | 0;
@@ -427,7 +528,10 @@ function makePatchRoom(world: World, wave: Pick<SamosborWave, 'scale' | 'radius'
     h: wave.radius * 2 + 1,
     doors: [],
     sealed: false,
-    name: wave.scale === 'small' ? 'Малая складка самосбора' : 'Средняя складка самосбора',
+    name:
+      wave.scale === "small"
+        ? "Малая складка самосбора"
+        : "Средняя складка самосбора",
     apartmentId: -1,
     wallTex: Tex.CONCRETE,
     floorTex: Tex.F_CONCRETE,
@@ -436,7 +540,10 @@ function makePatchRoom(world: World, wave: Pick<SamosborWave, 'scale' | 'radius'
   return id;
 }
 
-function buildLocalRebuildField(world: World, wave: SamosborWave): { mask: Uint8Array; indices: number[] } {
+function buildLocalRebuildField(
+  world: World,
+  wave: SamosborWave,
+): { mask: Uint8Array; indices: number[] } {
   const mask = new Uint8Array(W * W);
   const indices: number[] = [];
   const queue: number[] = [];
@@ -458,7 +565,8 @@ function buildLocalRebuildField(world: World, wave: SamosborWave): { mask: Uint8
     const idx = queue[head];
     const x = idx % W;
     const y = (idx / W) | 0;
-    for (let i = 0; i < DIR_X.length; i++) push(world.idx(x + DIR_X[i], y + DIR_Y[i]));
+    for (let i = 0; i < DIR_X.length; i++)
+      push(world.idx(x + DIR_X[i], y + DIR_Y[i]));
   }
   return { mask, indices };
 }
@@ -477,10 +585,15 @@ function enqueueNeighbors(world: World, wave: SamosborWave, idx: number): void {
   if (!wave.spreadable[idx]) return;
   const x = idx % W;
   const y = (idx / W) | 0;
-  for (let i = 0; i < DIR_X.length; i++) enqueueCell(world, wave, world.idx(x + DIR_X[i], y + DIR_Y[i]));
+  for (let i = 0; i < DIR_X.length; i++)
+    enqueueCell(world, wave, world.idx(x + DIR_X[i], y + DIR_Y[i]));
 }
 
-function markDirty(world: World, flags: DirtyFlags, rects?: readonly WorldGridDirtyRect[]): void {
+function markDirty(
+  world: World,
+  flags: DirtyFlags,
+  rects?: readonly WorldGridDirtyRect[],
+): void {
   if (flags.cells) world.markCellsDirty(rects);
   if (flags.wallTex) world.markWallTexDirty(rects);
   if (flags.floorTex) world.markFloorTexDirty(rects);
@@ -499,7 +612,11 @@ function removeDoor(world: World, idx: number): boolean {
   return world.removeDoorAt(idx);
 }
 
-function clearVisualSlotsBatched(world: World, idx: number, flags: DirtyFlags): boolean {
+function clearVisualSlotsBatched(
+  world: World,
+  idx: number,
+  flags: DirtyFlags,
+): boolean {
   const offset = idx * VISUAL_SLOTS_PER_CELL;
   let changed = false;
   for (let slot = 0; slot < VISUAL_SLOTS_PER_CELL; slot++) {
@@ -521,7 +638,8 @@ function walkableNeighborCount(world: World, idx: number): number {
   const y = (idx / W) | 0;
   let count = 0;
   for (let i = 0; i < DIR_X.length; i++) {
-    if (walkableCell(world.cells[world.idx(x + DIR_X[i], y + DIR_Y[i])])) count++;
+    if (walkableCell(world.cells[world.idx(x + DIR_X[i], y + DIR_Y[i])]))
+      count++;
   }
   return count;
 }
@@ -531,7 +649,12 @@ function hasFloorAnchor(world: World, idx: number): boolean {
   const y = (idx / W) | 0;
   for (let i = 0; i < DIR_X.length; i++) {
     const ni = world.idx(x + DIR_X[i], y + DIR_Y[i]);
-    if (world.cells[ni] === Cell.FLOOR || world.cells[ni] === Cell.WATER || world.cells[ni] === Cell.DOOR) return true;
+    if (
+      world.cells[ni] === Cell.FLOOR ||
+      world.cells[ni] === Cell.WATER ||
+      world.cells[ni] === Cell.DOOR
+    )
+      return true;
   }
   return false;
 }
@@ -545,11 +668,17 @@ function preserveExistingWalkable(world: World, idx: number): boolean {
   return false;
 }
 
-function cleanSolidCell(world: World, wave: SamosborWave, idx: number, flags: DirtyFlags): boolean {
+function cleanSolidCell(
+  world: World,
+  wave: SamosborWave,
+  idx: number,
+  flags: DirtyFlags,
+): boolean {
   let changed = false;
   const roomId = world.roomMap[idx];
   pushUnique(wave.dirtyRooms, roomId);
-  if (world.cells[idx] === Cell.DOOR) changed = removeDoor(world, idx) || changed;
+  if (world.cells[idx] === Cell.DOOR)
+    changed = removeDoor(world, idx) || changed;
   if (world.roomMap[idx] !== -1) {
     world.roomMap[idx] = -1;
     flags.cells = true;
@@ -575,11 +704,17 @@ function cleanSolidCell(world: World, wave: SamosborWave, idx: number, flags: Di
   return changed;
 }
 
-function applyFloor(world: World, wave: SamosborWave, idx: number, flags: DirtyFlags): boolean {
+function applyFloor(
+  world: World,
+  wave: SamosborWave,
+  idx: number,
+  flags: DirtyFlags,
+): boolean {
   if (!hasFloorAnchor(world, idx)) return applyResidue(world, wave, idx, flags);
   let changed = false;
   const oldRoom = world.roomMap[idx];
-  if (world.cells[idx] === Cell.DOOR) changed = removeDoor(world, idx) || changed;
+  if (world.cells[idx] === Cell.DOOR)
+    changed = removeDoor(world, idx) || changed;
   if (world.cells[idx] !== Cell.FLOOR) {
     world.cells[idx] = Cell.FLOOR;
     flags.cells = true;
@@ -615,7 +750,12 @@ function applyFloor(world: World, wave: SamosborWave, idx: number, flags: DirtyF
   return changed;
 }
 
-function applyResidue(world: World, wave: SamosborWave, idx: number, flags: DirtyFlags): boolean {
+function applyResidue(
+  world: World,
+  wave: SamosborWave,
+  idx: number,
+  flags: DirtyFlags,
+): boolean {
   let changed = false;
   if (walkableCell(world.cells[idx])) {
     const fog = 72 + (hash32(wave.seed ^ idx) % 76);
@@ -642,8 +782,14 @@ function applyResidue(world: World, wave: SamosborWave, idx: number, flags: Dirt
   return changed;
 }
 
-function applyWall(world: World, wave: SamosborWave, idx: number, flags: DirtyFlags): boolean {
-  if (preserveExistingWalkable(world, idx)) return applyResidue(world, wave, idx, flags);
+function applyWall(
+  world: World,
+  wave: SamosborWave,
+  idx: number,
+  flags: DirtyFlags,
+): boolean {
+  if (preserveExistingWalkable(world, idx))
+    return applyResidue(world, wave, idx, flags);
   let changed = false;
   if (world.cells[idx] !== Cell.WALL) {
     changed = cleanSolidCell(world, wave, idx, flags) || changed;
@@ -663,8 +809,14 @@ function applyWall(world: World, wave: SamosborWave, idx: number, flags: DirtyFl
   return changed;
 }
 
-function applyAbyss(world: World, wave: SamosborWave, idx: number, flags: DirtyFlags): boolean {
-  if (preserveExistingWalkable(world, idx)) return applyResidue(world, wave, idx, flags);
+function applyAbyss(
+  world: World,
+  wave: SamosborWave,
+  idx: number,
+  flags: DirtyFlags,
+): boolean {
+  if (preserveExistingWalkable(world, idx))
+    return applyResidue(world, wave, idx, flags);
   let changed = false;
   if (world.cells[idx] !== Cell.WALL) {
     changed = cleanSolidCell(world, wave, idx, flags) || changed;
@@ -688,34 +840,68 @@ function applyAbyss(world: World, wave: SamosborWave, idx: number, flags: DirtyF
   return changed;
 }
 
-function neighborRoom(world: World, idx: number, dx: number, dy: number): number {
+function neighborRoom(
+  world: World,
+  idx: number,
+  dx: number,
+  dy: number,
+): number {
   const x = idx % W;
   const y = (idx / W) | 0;
   return world.roomMap[world.idx(x + dx, y + dy)];
 }
 
-function tryPatchDoorAxis(world: World, wave: SamosborWave, idx: number, ax: number, ay: number): boolean {
+function tryPatchDoorAxis(
+  world: World,
+  wave: SamosborWave,
+  idx: number,
+  ax: number,
+  ay: number,
+): boolean {
   const x = idx % W;
   const y = (idx / W) | 0;
   const a = world.idx(x + ax, y + ay);
   const b = world.idx(x - ax, y - ay);
-  const aPatch = world.roomMap[a] === wave.patchRoomId && world.cells[a] === Cell.FLOOR;
-  const bPatch = world.roomMap[b] === wave.patchRoomId && world.cells[b] === Cell.FLOOR;
+  const aPatch =
+    world.roomMap[a] === wave.patchRoomId && world.cells[a] === Cell.FLOOR;
+  const bPatch =
+    world.roomMap[b] === wave.patchRoomId && world.cells[b] === Cell.FLOOR;
   if (aPatch === bPatch) return false;
   const other = aPatch ? b : a;
-  if (!walkableCell(world.cells[other]) || world.roomMap[other] === wave.patchRoomId) return false;
+  if (
+    !walkableCell(world.cells[other]) ||
+    world.roomMap[other] === wave.patchRoomId
+  )
+    return false;
   const roomA = wave.patchRoomId;
-  const roomB = aPatch ? neighborRoom(world, idx, -ax, -ay) : neighborRoom(world, idx, ax, ay);
+  const roomB = aPatch
+    ? neighborRoom(world, idx, -ax, -ay)
+    : neighborRoom(world, idx, ax, ay);
   if (roomB >= 0 && wave.protectedRooms.has(roomB)) return false;
-  world.doors.set(idx, { idx, state: DoorState.CLOSED, roomA, roomB, keyId: '', timer: 0 });
+  world.doors.set(idx, {
+    idx,
+    state: DoorState.CLOSED,
+    roomA,
+    roomB,
+    keyId: "",
+    timer: 0,
+  });
   addDoorToRoom(world, roomA, idx);
   addDoorToRoom(world, roomB, idx);
   return true;
 }
 
-function applyDoor(world: World, wave: SamosborWave, idx: number, flags: DirtyFlags): boolean {
-  if (world.cells[idx] !== Cell.WALL && world.cells[idx] !== Cell.ABYSS) return applyFloor(world, wave, idx, flags);
-  const madeDoor = tryPatchDoorAxis(world, wave, idx, 1, 0) || tryPatchDoorAxis(world, wave, idx, 0, 1);
+function applyDoor(
+  world: World,
+  wave: SamosborWave,
+  idx: number,
+  flags: DirtyFlags,
+): boolean {
+  if (world.cells[idx] !== Cell.WALL && world.cells[idx] !== Cell.ABYSS)
+    return applyFloor(world, wave, idx, flags);
+  const madeDoor =
+    tryPatchDoorAxis(world, wave, idx, 1, 0) ||
+    tryPatchDoorAxis(world, wave, idx, 0, 1);
   if (!madeDoor) return applyFloor(world, wave, idx, flags);
   cleanSolidCell(world, wave, idx, flags);
   world.cells[idx] = Cell.DOOR;
@@ -730,24 +916,34 @@ function applyDoor(world: World, wave: SamosborWave, idx: number, flags: DirtyFl
   return true;
 }
 
-function applyWaveCell(world: World, wave: SamosborWave, idx: number, flags: DirtyFlags): boolean {
+function applyWaveCell(
+  world: World,
+  wave: SamosborWave,
+  idx: number,
+  flags: DirtyFlags,
+): boolean {
   if (!mutableCell(world, wave, idx)) return false;
   const ring = toroidalRingDistance(world, wave.originIdx, idx);
   switch (waveRoleForCell(world, wave, idx, ring)) {
-    case 'floor':
+    case "floor":
       return applyFloor(world, wave, idx, flags);
-    case 'wall':
+    case "wall":
       return applyWall(world, wave, idx, flags);
-    case 'abyss':
+    case "abyss":
       return applyAbyss(world, wave, idx, flags);
-    case 'door':
+    case "door":
       return applyDoor(world, wave, idx, flags);
-    case 'residue':
+    case "residue":
       return applyResidue(world, wave, idx, flags);
   }
 }
 
-function nearestEntityFloor(world: World, x: number, y: number, maxRadius: number): { x: number; y: number } | null {
+function nearestEntityFloor(
+  world: World,
+  x: number,
+  y: number,
+  maxRadius: number,
+): { x: number; y: number } | null {
   const sx = world.wrap(Math.floor(x));
   const sy = world.wrap(Math.floor(y));
   const start = world.idx(sx, sy);
@@ -758,14 +954,19 @@ function nearestEntityFloor(world: World, x: number, y: number, maxRadius: numbe
         if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue;
         const tx = world.wrap(sx + dx);
         const ty = world.wrap(sy + dy);
-        if (entityWalkableCell(world, world.idx(tx, ty))) return { x: tx, y: ty };
+        if (entityWalkableCell(world, world.idx(tx, ty)))
+          return { x: tx, y: ty };
       }
     }
   }
   return null;
 }
 
-function relocateEntity(world: World, entity: Entity, maxRadius: number): boolean {
+function relocateEntity(
+  world: World,
+  entity: Entity,
+  maxRadius: number,
+): boolean {
   const pos = nearestEntityFloor(world, entity.x, entity.y, maxRadius);
   if (!pos) return false;
   entity.x = pos.x + 0.5;
@@ -773,9 +974,21 @@ function relocateEntity(world: World, entity: Entity, maxRadius: number): boolea
   return true;
 }
 
-function cleanupBatchEntities(world: World, wave: SamosborWave, _entities: Entity[], _touched: readonly number[]): void {
+function cleanupBatchEntities(
+  world: World,
+  wave: SamosborWave,
+  _entities: Entity[],
+  _touched: readonly number[],
+): void {
   const player = wave.player?.alive ? wave.player : undefined;
-  if (player && !entityWalkableCell(world, world.idx(Math.floor(player.x), Math.floor(player.y))) && relocateEntity(world, player, 30)) {
+  if (
+    player &&
+    !entityWalkableCell(
+      world,
+      world.idx(Math.floor(player.x), Math.floor(player.y)),
+    ) &&
+    relocateEntity(world, player, 30)
+  ) {
     wave.relocatedEntities++;
   }
 }
@@ -783,11 +996,22 @@ function cleanupBatchEntities(world: World, wave: SamosborWave, _entities: Entit
 function pruneScreenAndSlideCells(world: World, touchedSet: Set<number>): void {
   const oldScreens = world.screenCells.length;
   const oldSlides = world.slideCells.length;
-  if (oldScreens > 0) world.screenCells = world.screenCells.filter(idx => !touchedSet.has(idx) || world.features[idx] === Feature.SCREEN);
-  if (oldSlides > 0) world.slideCells = world.slideCells.filter(idx => !touchedSet.has(idx) || world.features[idx] === Feature.SLIDE);
+  if (oldScreens > 0)
+    world.screenCells = world.screenCells.filter(
+      (idx) => !touchedSet.has(idx) || world.features[idx] === Feature.SCREEN,
+    );
+  if (oldSlides > 0)
+    world.slideCells = world.slideCells.filter(
+      (idx) => !touchedSet.has(idx) || world.features[idx] === Feature.SLIDE,
+    );
 }
 
-function cleanupContainers(world: World, wave: SamosborWave, touchedSet: Set<number>, floor: FloorLevel): void {
+function cleanupContainers(
+  world: World,
+  wave: SamosborWave,
+  touchedSet: Set<number>,
+  floor: FloorLevel,
+): void {
   let changed = false;
   for (let i = world.containers.length - 1; i >= 0; i--) {
     const container = world.containers[i];
@@ -807,7 +1031,12 @@ function cleanupContainers(world: World, wave: SamosborWave, touchedSet: Set<num
   if (changed) world.rebuildContainerMap();
 }
 
-function cleanupFinalEntities(world: World, wave: SamosborWave, entities: Entity[], touchedSet: Set<number>): void {
+function cleanupFinalEntities(
+  world: World,
+  wave: SamosborWave,
+  entities: Entity[],
+  touchedSet: Set<number>,
+): void {
   for (let i = entities.length - 1; i >= 0; i--) {
     const entity = entities[i];
     if (!entity.alive) continue;
@@ -818,7 +1047,12 @@ function cleanupFinalEntities(world: World, wave: SamosborWave, entities: Entity
       wave.deletedProjectiles++;
       continue;
     }
-    if ((entity.type === EntityType.ITEM_DROP || entity.type === EntityType.BILLBOARD) && inTouched && !entityWalkableCell(world, idx)) {
+    if (
+      (entity.type === EntityType.ITEM_DROP ||
+        entity.type === EntityType.BILLBOARD) &&
+      inTouched &&
+      !entityWalkableCell(world, idx)
+    ) {
       if (relocateEntity(world, entity, 18)) wave.relocatedEntities++;
       else {
         entities.splice(i, 1);
@@ -826,7 +1060,12 @@ function cleanupFinalEntities(world: World, wave: SamosborWave, entities: Entity
       }
       continue;
     }
-    if ((isPlayerEntity(entity) || entity.type === EntityType.NPC || entity.type === EntityType.MONSTER) && !entityWalkableCell(world, idx)) {
+    if (
+      (isPlayerEntity(entity) ||
+        entity.type === EntityType.NPC ||
+        entity.type === EntityType.MONSTER) &&
+      !entityWalkableCell(world, idx)
+    ) {
       if (relocateEntity(world, entity, 30)) wave.relocatedEntities++;
     }
   }
@@ -834,18 +1073,28 @@ function cleanupFinalEntities(world: World, wave: SamosborWave, entities: Entity
 
 function removeDoorsInField(world: World, indices: readonly number[]): void {
   for (const idx of indices) {
-    if (world.cells[idx] === Cell.DOOR || world.doors.has(idx)) removeDoor(world, idx);
+    if (world.cells[idx] === Cell.DOOR || world.doors.has(idx))
+      removeDoor(world, idx);
   }
 }
 
-function copyGeneratedSurfaceCell(world: World, source: World, idx: number): void {
+function copyGeneratedSurfaceCell(
+  world: World,
+  source: World,
+  idx: number,
+): void {
   const surface = source.surfaceMap.get(idx);
   if (surface) world.surfaceMap.set(idx, new Uint8Array(surface));
   else world.surfaceMap.delete(idx);
   world.surfaceFlags[idx] = source.surfaceFlags[idx];
 }
 
-function copyGeneratedVisualSlotsCell(world: World, source: World, idx: number, flags: DirtyFlags): void {
+function copyGeneratedVisualSlotsCell(
+  world: World,
+  source: World,
+  idx: number,
+  flags: DirtyFlags,
+): void {
   const offset = idx * VISUAL_SLOTS_PER_CELL;
   let changed = false;
   for (let slot = 0; slot < VISUAL_SLOTS_PER_CELL; slot++) {
@@ -857,7 +1106,12 @@ function copyGeneratedVisualSlotsCell(world: World, source: World, idx: number, 
   if (changed) flags.visualSlots = true;
 }
 
-function retunePatchRoomFromGeneratedField(world: World, source: World, wave: SamosborWave, indices: readonly number[]): void {
+function retunePatchRoomFromGeneratedField(
+  world: World,
+  source: World,
+  wave: SamosborWave,
+  indices: readonly number[],
+): void {
   const room = world.rooms[wave.patchRoomId];
   if (!room) return;
   const counts = new Map<number, number>();
@@ -882,13 +1136,19 @@ function retunePatchRoomFromGeneratedField(world: World, source: World, wave: Sa
     room.floorTex = sourceRoom.floorTex;
   } else {
     room.type = RoomType.CORRIDOR;
-    room.name = 'Перестроенный коридор';
+    room.name = "Перестроенный коридор";
     room.wallTex = Tex.CONCRETE;
     room.floorTex = Tex.F_CONCRETE;
   }
 }
 
-function copyGeneratedFieldCells(world: World, source: World, wave: SamosborWave, indices: readonly number[], flags: DirtyFlags): number {
+function copyGeneratedFieldCells(
+  world: World,
+  source: World,
+  wave: SamosborWave,
+  indices: readonly number[],
+  flags: DirtyFlags,
+): number {
   let copied = 0;
   const patchRoomId = wave.patchRoomId;
   pushUnique(wave.dirtyRooms, patchRoomId);
@@ -898,9 +1158,17 @@ function copyGeneratedFieldCells(world: World, source: World, wave: SamosborWave
     const cell = localPatchCell(sourceCell);
     world.cells[idx] = cell;
     world.roomMap[idx] = walkableCell(cell) ? patchRoomId : -1;
-    world.wallTex[idx] = sourceCell === Cell.DOOR ? Tex.CONCRETE : cell === Cell.WALL && sourceCell === Cell.ABYSS ? Tex.DARK : source.wallTex[idx];
-    world.floorTex[idx] = sourceCell === Cell.ABYSS ? Tex.F_ABYSS : source.floorTex[idx];
-    world.features[idx] = walkableCell(cell) ? passiveGeneratedFeature(source.features[idx]) : Feature.NONE;
+    world.wallTex[idx] =
+      sourceCell === Cell.DOOR
+        ? Tex.CONCRETE
+        : cell === Cell.WALL && sourceCell === Cell.ABYSS
+          ? Tex.DARK
+          : source.wallTex[idx];
+    world.floorTex[idx] =
+      sourceCell === Cell.ABYSS ? Tex.F_ABYSS : source.floorTex[idx];
+    world.features[idx] = walkableCell(cell)
+      ? passiveGeneratedFeature(source.features[idx])
+      : Feature.NONE;
     world.light[idx] = source.light[idx];
     world.fog[idx] = walkableCell(cell) ? Math.max(oldFog, source.fog[idx]) : 0;
     world.liftDir[idx] = 0;
@@ -913,14 +1181,28 @@ function copyGeneratedFieldCells(world: World, source: World, wave: SamosborWave
   return copied;
 }
 
-function refreshPassiveFeatureLists(world: World, source: World, mask: Uint8Array): void {
-  world.screenCells = world.screenCells.filter(idx => !mask[idx]);
-  world.slideCells = world.slideCells.filter(idx => !mask[idx]);
+function refreshPassiveFeatureLists(
+  world: World,
+  source: World,
+  mask: Uint8Array,
+): void {
+  world.screenCells = world.screenCells.filter((idx) => !mask[idx]);
+  world.slideCells = world.slideCells.filter((idx) => !mask[idx]);
   for (const idx of source.screenCells) {
-    if (mask[idx] && world.features[idx] === Feature.SCREEN && !world.screenCells.includes(idx)) world.screenCells.push(idx);
+    if (
+      mask[idx] &&
+      world.features[idx] === Feature.SCREEN &&
+      !world.screenCells.includes(idx)
+    )
+      world.screenCells.push(idx);
   }
   for (const idx of source.slideCells) {
-    if (mask[idx] && world.features[idx] === Feature.SLIDE && !world.slideCells.includes(idx)) world.slideCells.push(idx);
+    if (
+      mask[idx] &&
+      world.features[idx] === Feature.SLIDE &&
+      !world.slideCells.includes(idx)
+    )
+      world.slideCells.push(idx);
   }
 }
 
@@ -928,25 +1210,36 @@ function clearFieldSideEffects(world: World, mask: Uint8Array): void {
   for (const idx of Array.from(world.anomalyTeleports.keys())) {
     if (mask[idx]) world.anomalyTeleports.delete(idx);
   }
-  if (world.anomalySmogSource >= 0 && mask[world.anomalySmogSource]) world.anomalySmogSource = -1;
-  if (world.anomalySmogCells.length > 0) world.anomalySmogCells = world.anomalySmogCells.filter(idx => !mask[idx]);
+  if (world.anomalySmogSource >= 0 && mask[world.anomalySmogSource])
+    world.anomalySmogSource = -1;
+  if (world.anomalySmogCells.length > 0)
+    world.anomalySmogCells = world.anomalySmogCells.filter((idx) => !mask[idx]);
   if (world.railTrainCells.size > 0) {
     for (const idx of Array.from(world.railTrainCells.keys())) {
       if (mask[idx]) world.railTrainCells.delete(idx);
     }
   }
   if (world.railTracks.length > 0) {
-    world.railTracks = world.railTracks.map(track => ({
-      ...track,
-      cells: track.cells.filter(idx => !mask[idx]),
-    })).filter(track => track.cells.length > 0);
+    world.railTracks = world.railTracks
+      .map((track) => ({
+        ...track,
+        cells: track.cells.filter((idx) => !mask[idx]),
+      }))
+      .filter((track) => track.cells.length > 0);
   }
 }
 
-function carvePatchFloor(world: World, wave: SamosborWave, idx: number, flags: DirtyFlags): boolean {
+function carvePatchFloor(
+  world: World,
+  wave: SamosborWave,
+  idx: number,
+  flags: DirtyFlags,
+): boolean {
   if (!mutableCell(world, wave, idx)) return false;
-  if (world.cells[idx] === Cell.DOOR || world.doors.has(idx)) removeDoor(world, idx);
-  const changed = world.cells[idx] !== Cell.FLOOR || world.roomMap[idx] !== wave.patchRoomId;
+  if (world.cells[idx] === Cell.DOOR || world.doors.has(idx))
+    removeDoor(world, idx);
+  const changed =
+    world.cells[idx] !== Cell.FLOOR || world.roomMap[idx] !== wave.patchRoomId;
   world.cells[idx] = Cell.FLOOR;
   world.roomMap[idx] = wave.patchRoomId;
   world.floorTex[idx] = Tex.F_CONCRETE;
@@ -960,7 +1253,15 @@ function carvePatchFloor(world: World, wave: SamosborWave, idx: number, flags: D
   return changed;
 }
 
-function stitchBoundaryCell(world: World, wave: SamosborWave, mask: Uint8Array, idx: number, fromDx: number, fromDy: number, flags: DirtyFlags): number {
+function stitchBoundaryCell(
+  world: World,
+  wave: SamosborWave,
+  mask: Uint8Array,
+  idx: number,
+  fromDx: number,
+  fromDy: number,
+  flags: DirtyFlags,
+): number {
   let stitched = 0;
   let cx = idx % W;
   let cy = (idx / W) | 0;
@@ -973,7 +1274,10 @@ function stitchBoundaryCell(world: World, wave: SamosborWave, mask: Uint8Array, 
     for (let i = 0; i < DIR_X.length; i++) {
       if (DIR_X[i] === -fromDx && DIR_Y[i] === -fromDy) continue;
       const ni = world.idx(cx + DIR_X[i], cy + DIR_Y[i]);
-      if (walkableCell(world.cells[ni]) && (!mask[ni] || world.roomMap[ni] === wave.patchRoomId)) {
+      if (
+        walkableCell(world.cells[ni]) &&
+        (!mask[ni] || world.roomMap[ni] === wave.patchRoomId)
+      ) {
         connected = true;
         break;
       }
@@ -985,7 +1289,13 @@ function stitchBoundaryCell(world: World, wave: SamosborWave, mask: Uint8Array, 
   return stitched;
 }
 
-function stitchLocalRebuildField(world: World, wave: SamosborWave, mask: Uint8Array, indices: readonly number[], flags: DirtyFlags): number {
+function stitchLocalRebuildField(
+  world: World,
+  wave: SamosborWave,
+  mask: Uint8Array,
+  indices: readonly number[],
+  flags: DirtyFlags,
+): number {
   let stitched = 0;
   for (const idx of indices) {
     const x = idx % W;
@@ -996,7 +1306,15 @@ function stitchLocalRebuildField(world: World, wave: SamosborWave, mask: Uint8Ar
       const ny = y + DIR_Y[i];
       const ni = world.idx(nx, ny);
       if (mask[ni] || !entityWalkableCell(world, ni)) continue;
-      stitched += stitchBoundaryCell(world, wave, mask, idx, -DIR_X[i], -DIR_Y[i], flags);
+      stitched += stitchBoundaryCell(
+        world,
+        wave,
+        mask,
+        idx,
+        -DIR_X[i],
+        -DIR_Y[i],
+        flags,
+      );
       break;
     }
   }
@@ -1016,12 +1334,32 @@ function applyGeneratedFieldPatch(
   if (field.indices.length === 0) return;
   const fieldRects = dirtyRectsForIndices(field.indices);
   const fieldSet = new Set(field.indices);
-  const visualFlags: DirtyFlags = { cells: false, wallTex: false, floorTex: false, light: false, fog: false, surface: false, visualSlots: false };
+  const visualFlags: DirtyFlags = {
+    cells: false,
+    wallTex: false,
+    floorTex: false,
+    light: false,
+    fog: false,
+    surface: false,
+    visualSlots: false,
+  };
   removeDoorsInField(world, field.indices);
-  wave.regeneratedCells += copyGeneratedFieldCells(world, source, wave, field.indices, visualFlags);
+  wave.regeneratedCells += copyGeneratedFieldCells(
+    world,
+    source,
+    wave,
+    field.indices,
+    visualFlags,
+  );
   retunePatchRoomFromGeneratedField(world, source, wave, field.indices);
   wave.fieldCells = field.indices.length;
-  wave.stitchedCells += stitchLocalRebuildField(world, wave, field.mask, field.indices, visualFlags);
+  wave.stitchedCells += stitchLocalRebuildField(
+    world,
+    wave,
+    field.mask,
+    field.indices,
+    visualFlags,
+  );
   refreshPassiveFeatureLists(world, source, field.mask);
   clearFieldSideEffects(world, field.mask);
   cleanupContainers(world, wave, fieldSet, state.currentFloor);
@@ -1039,14 +1377,20 @@ function applyGeneratedFieldPatch(
 
   const ox = wave.originIdx % W;
   const oy = (wave.originIdx / W) | 0;
-  state.msgs.push(msg(`Поле самосбора перестроило участок r${wave.fieldRadius}: ${field.indices.length} клеток.`, state.time, '#c8f'));
+  state.msgs.push(
+    msg(
+      `Поле самосбора перестроило участок r${wave.fieldRadius}: ${field.indices.length} клеток.`,
+      state.time,
+      "#c8f",
+    ),
+  );
   publishEvent(state, {
-    type: 'room_regrown',
+    type: "room_regrown",
     x: ox,
     y: oy,
-    severity: wave.scale === 'small' ? 4 : 5,
-    privacy: 'public',
-    tags: ['samosbor', 'wave', 'local_rebuild', wave.scale],
+    severity: wave.scale === "small" ? 4 : 5,
+    privacy: "public",
+    tags: ["samosbor", "wave", "local_rebuild", wave.scale],
     data: {
       scale: wave.scale,
       radius: wave.radius,
@@ -1058,7 +1402,10 @@ function applyGeneratedFieldPatch(
   });
 }
 
-function buildSnapshot(wave: SamosborWave, active: boolean): SamosborWaveDebugSnapshot {
+function buildSnapshot(
+  wave: SamosborWave,
+  active: boolean,
+): SamosborWaveDebugSnapshot {
   return {
     active,
     scale: wave.scale,
@@ -1146,7 +1493,15 @@ export function applyFrontFieldStitch(
 
   const fieldRects = dirtyRectsForIndices(allIndices);
   const fieldSet = new Set(allIndices);
-  const visualFlags: DirtyFlags = { cells: false, wallTex: false, floorTex: false, light: false, fog: false, surface: false, visualSlots: false };
+  const visualFlags: DirtyFlags = {
+    cells: false,
+    wallTex: false,
+    floorTex: false,
+    light: false,
+    fog: false,
+    surface: false,
+    visualSlots: false,
+  };
 
   // Remove existing doors in field
   for (const ci of allIndices) {
@@ -1162,10 +1517,13 @@ export function applyFrontFieldStitch(
   world.rooms.push({
     id: patchRoomId,
     type: RoomType.COMMON,
-    x: 0, y: 0, w: 1, h: 1,
+    x: 0,
+    y: 0,
+    w: 1,
+    h: 1,
     doors: [],
     sealed: false,
-    name: 'Перестроенный участок',
+    name: "Перестроенный участок",
     apartmentId: -1,
     wallTex: Tex.CONCRETE,
     floorTex: Tex.F_CONCRETE,
@@ -1176,10 +1534,22 @@ export function applyFrontFieldStitch(
     const sourceCell = source.cells[idx];
     const cell = localPatchCell(sourceCell);
     world.cells[idx] = cell;
-    world.roomMap[idx] = walkableCell(cell) ? (source.roomMap[idx] >= 0 ? patchRoomId : -1) : -1;
-    world.wallTex[idx] = sourceCell === Cell.DOOR ? Tex.CONCRETE : cell === Cell.WALL && sourceCell === Cell.ABYSS ? Tex.DARK : source.wallTex[idx];
-    world.floorTex[idx] = sourceCell === Cell.ABYSS ? Tex.F_ABYSS : source.floorTex[idx];
-    world.features[idx] = walkableCell(cell) ? passiveGeneratedFeature(source.features[idx]) : Feature.NONE;
+    world.roomMap[idx] = walkableCell(cell)
+      ? source.roomMap[idx] >= 0
+        ? patchRoomId
+        : -1
+      : -1;
+    world.wallTex[idx] =
+      sourceCell === Cell.DOOR
+        ? Tex.CONCRETE
+        : cell === Cell.WALL && sourceCell === Cell.ABYSS
+          ? Tex.DARK
+          : source.wallTex[idx];
+    world.floorTex[idx] =
+      sourceCell === Cell.ABYSS ? Tex.F_ABYSS : source.floorTex[idx];
+    world.features[idx] = walkableCell(cell)
+      ? passiveGeneratedFeature(source.features[idx])
+      : Feature.NONE;
     world.light[idx] = source.light[idx];
     world.fog[idx] = walkableCell(cell) ? Math.max(oldFog, source.fog[idx]) : 0;
     world.liftDir[idx] = 0;
@@ -1211,7 +1581,11 @@ export function applyFrontFieldStitch(
 
   refreshPassiveFeatureLists(world, source, mask);
   clearFieldSideEffects(world, mask);
-  rebuildPathBlockersFromWorldObjects(world, (Math.random() * 0xffffffff) | 0, allIndices);
+  rebuildPathBlockersFromWorldObjects(
+    world,
+    (Math.random() * 0xffffffff) | 0,
+    allIndices,
+  );
   pruneRouteCuesInCells(world, fieldSet);
 
   // Re-fog stitched areas so player must re-explore the changed geometry
@@ -1225,16 +1599,18 @@ export function applyFrontFieldStitch(
   world.markSurfaceDirty();
   if (visualFlags.visualSlots) world.markVisualSlotsDirty();
 
-  state.msgs.push(msg(`Самосбор перестроил ${copied} клеток.`, state.time, '#c8f'));
+  state.msgs.push(
+    msg(`Самосбор перестроил ${copied} клеток.`, state.time, "#c8f"),
+  );
   publishEvent(state, {
-    type: 'room_regrown',
+    type: "room_regrown",
     x: 0,
     y: 0,
     severity: 5,
-    privacy: 'public',
-    tags: ['samosbor', 'fronts', 'stitch', 'full'],
+    privacy: "public",
+    tags: ["samosbor", "fronts", "stitch", "full"],
     data: {
-      scale: 'full' as SamosborWaveScale,
+      scale: "full" as SamosborWaveScale,
       fieldCells: allIndices.length,
       regeneratedCells: copied,
     },
@@ -1245,8 +1621,12 @@ export function applyFrontFieldStitch(
 
 export function getSamosborWaveDebugLines(): string[] {
   const snapshot = getSamosborWaveDebugSnapshot();
-  if (!snapshot) return ['Волна самосбора: -'];
-  const status = snapshot.active ? 'active' : snapshot.finished ? 'done' : 'idle';
+  if (!snapshot) return ["Волна самосбора: -"];
+  const status = snapshot.active
+    ? "active"
+    : snapshot.finished
+      ? "done"
+      : "idle";
   const ox = snapshot.originIdx % W;
   const oy = (snapshot.originIdx / W) | 0;
   return [
@@ -1283,24 +1663,62 @@ export function startSamosborWave(
   originY: number,
   options: StartSamosborWaveOptions = {},
 ): boolean {
-  if (scale === 'full' || !canRunSamosborWave(state)) return false;
+  if (scale === "full" || !canRunSamosborWave(state)) return false;
   cancelSamosborWave();
+
+  const wave = createInitialSamosborWave(
+    world,
+    _entities,
+    state,
+    scale,
+    originX,
+    originY,
+    options,
+  );
+
+  const anchorIdx = findWaveOrigin(world, wave, originX, originY);
+  if (anchorIdx < 0) return false;
+
+  setupActiveSamosborWave(world, state, wave, anchorIdx, options);
+  notifySamosborWaveStart(state, wave, anchorIdx);
+
+  lastWaveSnapshot = buildSnapshot(wave, true);
+  return true;
+}
+
+function createInitialSamosborWave(
+  world: World,
+  _entities: readonly Entity[],
+  state: GameState,
+  scale: SamosborWaveScale,
+  originX: number,
+  originY: number,
+  options: StartSamosborWaveOptions,
+): SamosborWave {
   const def = SAMOSBOR_WAVE_SCALE_DEFS[scale];
   const radius = Math.max(3, options.radius ?? def.radius);
-  const budgetCellsPerTick = Math.max(1, options.budgetCellsPerTick ?? def.budgetCellsPerTick);
+  const budgetCellsPerTick = Math.max(
+    1,
+    options.budgetCellsPerTick ?? def.budgetCellsPerTick,
+  );
   const durationSec = Math.max(0, options.durationSec ?? 0);
-  const estimatedCells = Math.max(8, Math.ceil(Math.PI * radius * radius * 0.72));
-  const budgetCellsPerSecond = durationSec > 0
-    ? Math.max(1, Math.ceil(estimatedCells / Math.max(1, durationSec)))
-    : 0;
+  const estimatedCells = Math.max(
+    8,
+    Math.ceil(Math.PI * radius * radius * 0.72),
+  );
+  const budgetCellsPerSecond =
+    durationSec > 0
+      ? Math.max(1, Math.ceil(estimatedCells / Math.max(1, durationSec)))
+      : 0;
   const protectedRooms = new Set<number>();
-  for (const roomId of options.protectedRoomIds ?? []) if (roomId >= 0) protectedRooms.add(roomId);
+  for (const roomId of options.protectedRoomIds ?? [])
+    if (roomId >= 0) protectedRooms.add(roomId);
 
   const originIdx = world.idx(originX, originY);
-  const wave: SamosborWave = {
+  return {
     active: true,
-    scale,
-    seed: options.seed ?? seedForWave(state, scale, originIdx),
+    scale: scale as 'small' | 'medium',
+    seed: options.seed ?? seedForWave(state, scale as 'small' | 'medium', originIdx),
     originIdx,
     radius,
     budgetCellsPerTick,
@@ -1321,7 +1739,7 @@ export function startSamosborWave(
     regenerated: false,
     patchRoomId: -1,
     protectedRooms,
-    player: _entities.find(e => isPlayerEntity(e) && e.alive),
+    player: _entities.find((e) => isPlayerEntity(e) && e.alive),
     floor: state.currentFloor,
     startedAt: state.time,
     changedCells: 0,
@@ -1337,35 +1755,49 @@ export function startSamosborWave(
     debugSnapshotTick: -999999,
     debug: options.debug === true,
   };
+}
 
-  const anchorIdx = findWaveOrigin(world, wave, originX, originY);
-  if (anchorIdx < 0) return false;
+function setupActiveSamosborWave(
+  world: World,
+  state: GameState,
+  wave: SamosborWave,
+  anchorIdx: number,
+  options: StartSamosborWaveOptions,
+): void {
   freezeNavigationCacheForWorld(world);
   wave.originIdx = anchorIdx;
-  wave.seed = options.seed ?? seedForWave(state, scale, anchorIdx);
+  wave.seed = options.seed ?? seedForWave(state, wave.scale, anchorIdx);
   wave.patchRoomId = makePatchRoom(world, wave);
   activeWave = wave;
   enqueueCell(world, wave, anchorIdx);
   enqueueNeighbors(world, wave, anchorIdx);
+}
 
+function notifySamosborWaveStart(
+  state: GameState,
+  wave: SamosborWave,
+  anchorIdx: number,
+): void {
   const ax = anchorIdx % W;
   const ay = (anchorIdx / W) | 0;
-  state.msgs.push(msg(
-    scale === 'small'
-      ? `Малый самосбор пошёл волной от ${ax},${ay}.`
-      : `Средний самосбор пошёл волной от ${ax},${ay}.`,
-    state.time,
-    '#c8f',
-  ));
+  state.msgs.push(
+    msg(
+      wave.scale === "small"
+        ? `Малый самосбор пошёл волной от ${ax},${ay}.`
+        : `Средний самосбор пошёл волной от ${ax},${ay}.`,
+      state.time,
+      "#c8f",
+    ),
+  );
   publishEvent(state, {
-    type: 'room_regrown',
+    type: "room_regrown",
     x: ax,
     y: ay,
-    severity: scale === 'small' ? 3 : 4,
-    privacy: 'public',
-    tags: ['samosbor', 'wave', 'start', scale],
+    severity: wave.scale === "small" ? 3 : 4,
+    privacy: "public",
+    tags: ["samosbor", "wave", "start", wave.scale],
     data: {
-      scale,
+      scale: wave.scale,
       radius: wave.radius,
       fieldRadius: wave.fieldRadius,
       budgetCellsPerTick: wave.budgetCellsPerTick,
@@ -1374,11 +1806,13 @@ export function startSamosborWave(
       seed: wave.seed,
     },
   });
-  lastWaveSnapshot = buildSnapshot(wave, true);
-  return true;
 }
 
-export function tickSamosborWave(world: World, entities: Entity[], state: GameState): SamosborWaveTickResult {
+export function tickSamosborWave(
+  world: World,
+  entities: Entity[],
+  state: GameState,
+): SamosborWaveTickResult {
   const wave = activeWave;
   if (!wave?.active) return EMPTY_WAVE_RESULT;
   if (wave.floor !== state.currentFloor) {
@@ -1386,7 +1820,15 @@ export function tickSamosborWave(world: World, entities: Entity[], state: GameSt
     return { active: false, processed: 0, changed: 0, finished: true };
   }
 
-  const flags: DirtyFlags = { cells: false, wallTex: false, floorTex: false, light: false, fog: false, surface: false, visualSlots: false };
+  const flags: DirtyFlags = {
+    cells: false,
+    wallTex: false,
+    floorTex: false,
+    light: false,
+    fog: false,
+    surface: false,
+    visualSlots: false,
+  };
   const batchTouched: number[] = [];
   let budget = wave.budgetCellsPerTick;
   if (wave.durationSec > 0) {
@@ -1416,7 +1858,8 @@ export function tickSamosborWave(world: World, entities: Entity[], state: GameSt
   }
   markDirty(world, flags, dirtyRectsForIndices(batchTouched));
   cleanupBatchEntities(world, wave, entities, batchTouched);
-  if (batchTouched.length > 0) rebuildPathBlockersFromWorldObjects(world, wave.seed, batchTouched);
+  if (batchTouched.length > 0)
+    rebuildPathBlockersFromWorldObjects(world, wave.seed, batchTouched);
   wave.lastProcessed = processed;
   wave.lastChanged = changed;
   const tick = state.tick ?? 0;
@@ -1432,7 +1875,12 @@ export function tickSamosborWave(world: World, entities: Entity[], state: GameSt
   return { active: true, processed, changed, finished: false };
 }
 
-function completeWaveRuntime(world: World, entities: Entity[], state: GameState, wave: SamosborWave): void {
+function completeWaveRuntime(
+  world: World,
+  entities: Entity[],
+  state: GameState,
+  wave: SamosborWave,
+): void {
   if (wave.finished) return;
   const touchedSet = new Set(wave.touched);
   cleanupContainers(world, wave, touchedSet, state.currentFloor);
@@ -1447,12 +1895,12 @@ function completeWaveRuntime(world: World, entities: Entity[], state: GameState,
   const ox = wave.originIdx % W;
   const oy = (wave.originIdx / W) | 0;
   publishEvent(state, {
-    type: 'room_regrown',
+    type: "room_regrown",
     x: ox,
     y: oy,
-    severity: wave.scale === 'small' ? 3 : 4,
-    privacy: 'public',
-    tags: ['samosbor', 'wave', 'finish', wave.scale],
+    severity: wave.scale === "small" ? 3 : 4,
+    privacy: "public",
+    tags: ["samosbor", "wave", "finish", wave.scale],
     data: {
       scale: wave.scale,
       touchedCells: wave.touched.length,
@@ -1497,22 +1945,36 @@ export function debugStartSamosborWaveAtPlayer(
   player: Entity,
   entities: Entity[],
   state: GameState,
-  scale: 'small' | 'medium' = 'small',
+  scale: "small" | "medium" = "small",
 ): string[] {
-  const started = startSamosborWave(world, entities, state, scale, Math.floor(player.x), Math.floor(player.y), {
-    debug: true,
-    seed: 0x51a0b0,
-  });
-  if (!started) return ['wave start failed: mutable local floor anchor required'];
+  const started = startSamosborWave(
+    world,
+    entities,
+    state,
+    scale,
+    Math.floor(player.x),
+    Math.floor(player.y),
+    {
+      debug: true,
+      seed: 0x51a0b0,
+    },
+  );
+  if (!started)
+    return ["wave start failed: mutable local floor anchor required"];
   const tick = tickSamosborWave(world, entities, state);
   const snapshot = getSamosborWaveDebugSnapshot();
   return [
-    `wave ${scale} origin=${snapshot ? `${snapshot.originIdx % W},${(snapshot.originIdx / W) | 0}` : '-'}`,
+    `wave ${scale} origin=${snapshot ? `${snapshot.originIdx % W},${(snapshot.originIdx / W) | 0}` : "-"}`,
     `frontier=${snapshot?.head ?? 0}/${snapshot?.frontierLength ?? 0} touched=${snapshot?.touchedCount ?? 0}`,
     `budget=${snapshot?.budgetCellsPerTick ?? 0} processed=${tick.processed} changed=${tick.changed}`,
   ];
 }
 
-export function classifySamosborWaveCellForTests(seed: number, originIdx: number, idx: number, ring: number): WaveRole {
+export function classifySamosborWaveCellForTests(
+  seed: number,
+  originIdx: number,
+  idx: number,
+  ring: number,
+): WaveRole {
   return waveRole(seed, originIdx, idx, ring);
 }
