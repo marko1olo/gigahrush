@@ -2,7 +2,7 @@
 
 import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
-import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
+import { put, S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
 export const DEF: MonsterDef = {
   kind: MonsterKind.RZHAVNIK,
@@ -18,10 +18,6 @@ export const DEF: MonsterDef = {
   lootHint: 'ржавчина, обломок арматуры, черная масляная ветошь, редкий годный прут',
 };
 
-function put(t: Uint32Array, x: number, y: number, color: number): void {
-  if (x < 0 || x >= S || y < 0 || y >= S) return;
-  t[y * S + x] = color;
-}
 
 function rust(x: number, y: number, bright = 0): number {
   const n = noise(x * 2, y * 3, 7321) * 28 - 10;

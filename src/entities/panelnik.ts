@@ -2,7 +2,7 @@
 
 import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
-import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
+import { put, S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
 export const DEF: MonsterDef = {
   kind: MonsterKind.PANELNIK,
@@ -18,12 +18,6 @@ export const DEF: MonsterDef = {
   lootHint: 'бетонная пыль, ржавые царапины арматуры, редкий герметик из плитного шва',
 };
 
-function put(t: Uint32Array, x: number, y: number, color: number): void {
-  const px = Math.floor(x);
-  const py = Math.floor(y);
-  if (px < 0 || px >= S || py < 0 || py >= S) return;
-  t[py * S + px] = color;
-}
 
 function panelColor(x: number, y: number, seed: number, bright = 0): number {
   const n = noise(x * 2, y * 2, seed) * 30 - 10;

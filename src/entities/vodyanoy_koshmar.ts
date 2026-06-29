@@ -2,7 +2,7 @@
 
 import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
-import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
+import { put, S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
 export const DEF: MonsterDef = {
   kind: MonsterKind.VODYANOY_KOSHMAR,
@@ -18,9 +18,6 @@ export const DEF: MonsterDef = {
   lootHint: 'мокрый ПСИ-налет, вода с привкусом металла, редкая ПСИ-пыль из сливного лица',
 };
 
-function put(t: Uint32Array, x: number, y: number, c: number): void {
-  if (x >= 0 && x < S && y >= 0 && y < S) t[y * S + x] = c;
-}
 
 function ellipse(
   t: Uint32Array,

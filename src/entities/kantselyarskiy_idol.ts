@@ -2,7 +2,7 @@
 
 import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
-import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
+import { put, S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
 export const DEF: MonsterDef = {
   kind: MonsterKind.KANTSELYARSKIY_IDOL,
@@ -21,12 +21,6 @@ export const DEF: MonsterDef = {
   lootHint: 'желтая бумажная пыль, грязный латунный уголок, обломок красной печати',
 };
 
-function put(t: Uint32Array, x: number, y: number, color: number): void {
-  const px = Math.floor(x);
-  const py = Math.floor(y);
-  if (px < 0 || px >= S || py < 0 || py >= S) return;
-  t[py * S + px] = color;
-}
 
 function rect(t: Uint32Array, x0: number, y0: number, x1: number, y1: number, r: number, g: number, b: number, seed = 0): void {
   for (let y = Math.max(0, Math.floor(y0)); y <= Math.min(S - 1, Math.floor(y1)); y++) {

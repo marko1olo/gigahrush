@@ -2,7 +2,7 @@
 
 import { FloorLevel, MonsterKind, ProjType } from '../core/types';
 import type { MonsterDef } from './monster';
-import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
+import { putRGB, S, noise, clamp, CLEAR } from '../render/pixutil';
 
 export const PAUPSINA_WEB_COOLDOWN_SEC = 2.65;
 
@@ -23,10 +23,6 @@ export const DEF: MonsterDef = {
   lootHint: 'бледные нитки, обломки сбруи, липкий мешок, редкий моток проволоки',
 };
 
-function put(t: Uint32Array, x: number, y: number, r: number, g: number, b: number, a = 255): void {
-  if (x < 0 || x >= S || y < 0 || y >= S) return;
-  t[y * S + x] = rgba(r, g, b, a);
-}
 
 function ell(t: Uint32Array, cx: number, cy: number, rx: number, ry: number, r: number, g: number, b: number, seed: number, a = 255): void {
   const x0 = Math.max(0, Math.floor(cx - rx));
@@ -38,7 +34,7 @@ function ell(t: Uint32Array, cx: number, cy: number, rx: number, ry: number, r: 
     const dy = (y - cy) / ry;
     if (dx * dx + dy * dy > 1) continue;
     const n = noise(x, y, seed) * 20 - 8;
-    put(t, x, y, clamp(r + n), clamp(g + n), clamp(b + n * 0.7), a);
+    putRGB(t, x, y, clamp(r + n), clamp(g + n), clamp(b + n * 0.7), a);
   }
 }
 
@@ -46,7 +42,7 @@ function line(t: Uint32Array, x0: number, y0: number, x1: number, y1: number, r:
   const steps = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0), 1);
   for (let i = 0; i <= steps; i++) {
     const k = i / steps;
-    put(t, Math.round(x0 + (x1 - x0) * k), Math.round(y0 + (y1 - y0) * k), r, g, b, a);
+    putRGB(t, Math.round(x0 + (x1 - x0) * k), Math.round(y0 + (y1 - y0) * k), r, g, b, a);
   }
 }
 
@@ -72,15 +68,15 @@ export function generateSprite(): Uint32Array {
   ell(t, cx - 6, 26, 10, 4, 82, 52, 32, 17_033, 210);
 
   for (let i = 0; i < 4; i++) {
-    put(t, cx - 19 + i * 2, 27, 220, 38, 32);
-    put(t, cx - 19 + i * 2, 28, 140, 18, 20);
+    putRGB(t, cx - 19 + i * 2, 27, 220, 38, 32);
+    putRGB(t, cx - 19 + i * 2, 28, 140, 18, 20);
   }
 
   line(t, cx - 18, 35, cx - 23, 43, 116, 238, 82);
   line(t, cx - 12, 36, cx - 16, 44, 116, 238, 82);
   line(t, cx + 3, 24, cx + 12, 20, 112, 72, 46, 220);
   line(t, cx + 10, 20, cx + 16, 24, 98, 40, 34, 220);
-  put(t, cx + 18, 25, 210, 210, 186, 210);
+  putRGB(t, cx + 18, 25, 210, 210, 186, 210);
 
   return t;
 }

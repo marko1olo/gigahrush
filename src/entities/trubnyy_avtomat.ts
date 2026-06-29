@@ -2,7 +2,7 @@
 
 import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
-import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
+import { putRGB, S, noise, clamp, CLEAR } from '../render/pixutil';
 
 export const DEF: MonsterDef = {
   kind: MonsterKind.TRUBNYY_AVTOMAT,
@@ -21,17 +21,13 @@ export const DEF: MonsterDef = {
   lootHint: 'мокрая плата, синие трубные кольца, обожженный манометр, редкая энергоячейка',
 };
 
-function put(t: Uint32Array, x: number, y: number, r: number, g: number, b: number, a = 255): void {
-  if (x < 0 || x >= S || y < 0 || y >= S) return;
-  t[y * S + x] = rgba(r, g, b, a);
-}
 
 function rect(t: Uint32Array, x0: number, y0: number, w: number, h: number, r: number, g: number, b: number, seed = 0): void {
   for (let y = y0; y < y0 + h; y++) {
     for (let x = x0; x < x0 + w; x++) {
       if (x < 0 || x >= S || y < 0 || y >= S) continue;
       const n = seed === 0 ? 0 : noise(x, y, seed) * 18 - 8;
-      put(t, x, y, clamp(r + n), clamp(g + n), clamp(b + n));
+      putRGB(t, x, y, clamp(r + n), clamp(g + n), clamp(b + n));
     }
   }
 }
@@ -44,7 +40,7 @@ function ellipse(t: Uint32Array, cx: number, cy: number, rx: number, ry: number,
       const d = dx * dx + dy * dy;
       if (d > 1) continue;
       const n = noise(x, y, seed) * 18 - 7;
-      put(t, x, y, clamp(r + n), clamp(g + n), clamp(b + n));
+      putRGB(t, x, y, clamp(r + n), clamp(g + n), clamp(b + n));
     }
   }
 }
@@ -56,7 +52,7 @@ function ellipseBand(t: Uint32Array, cx: number, cy: number, rx: number, ry: num
       const dy = (y - cy) / ry;
       const d = Math.sqrt(dx * dx + dy * dy);
       if (d > 1 || d < 1 - thick) continue;
-      put(t, x, y, r, g, b);
+      putRGB(t, x, y, r, g, b);
     }
   }
 }
@@ -76,7 +72,7 @@ export function generateSprite(): Uint32Array {
 
   for (let y = 23; y < 43; y += 5) {
     for (let x = 17; x < 48; x++) {
-      if (noise(x, y, 7110) > 0.28) put(t, x, y, 26, 92, 126);
+      if (noise(x, y, 7110) > 0.28) putRGB(t, x, y, 26, 92, 126);
     }
   }
 
@@ -91,20 +87,20 @@ export function generateSprite(): Uint32Array {
   rect(t, 50, 30, 7, 5, 22, 24, 25, 7141);
   ellipse(t, 57, 32, 4, 4, 210, 236, 238, 7142);
   ellipse(t, 57, 32, 2, 2, 255, 246, 210, 7143);
-  put(t, 58, 32, 255, 255, 250);
+  putRGB(t, 58, 32, 255, 255, 250);
 
   for (let i = 0; i < 30; i++) {
     const x = 19 + Math.floor(noise(i, 5, 7150) * 27);
     const y = 18 + Math.floor(noise(i, 9, 7151) * 29);
     const rust = noise(x, y, 7152);
-    if (rust > 0.55) put(t, x, y, 126, 62, 35);
+    if (rust > 0.55) putRGB(t, x, y, 126, 62, 35);
   }
 
   for (let y = 15; y < 55; y += 8) {
-    put(t, 20, y, 120, 196, 220);
-    put(t, 21, y, 52, 128, 168);
-    put(t, 45, y + 2, 120, 196, 220);
-    put(t, 46, y + 2, 52, 128, 168);
+    putRGB(t, 20, y, 120, 196, 220);
+    putRGB(t, 21, y, 52, 128, 168);
+    putRGB(t, 45, y + 2, 120, 196, 220);
+    putRGB(t, 46, y + 2, 52, 128, 168);
   }
 
   return t;

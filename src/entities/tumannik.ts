@@ -2,7 +2,7 @@
 
 import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
-import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
+import { putRGB, S, noise, clamp, CLEAR } from '../render/pixutil';
 
 export const DEF: MonsterDef = {
   kind: MonsterKind.TUMANNIK,
@@ -18,10 +18,6 @@ export const DEF: MonsterDef = {
   lootHint: 'серый влажный след, холодная пыль, редкий фильтрующий слой',
 };
 
-function put(t: Uint32Array, x: number, y: number, r: number, g: number, b: number, a = 255): void {
-  if (x < 0 || x >= S || y < 0 || y >= S) return;
-  t[y * S + x] = rgba(r, g, b, a);
-}
 
 function fogEllipse(
   t: Uint32Array,
@@ -43,7 +39,7 @@ function fogEllipse(
       const edge = Math.max(0, d - 0.55) * 1.8;
       const n = noise(x, y, seed) * 26 - 8;
       const cold = blueEdge ? edge * 62 : 0;
-      put(
+      putRGB(
         t,
         x,
         y,
@@ -62,8 +58,8 @@ function line(t: Uint32Array, x0: number, y0: number, x1: number, y1: number, r:
     const u = i / steps;
     const x = Math.round(x0 + (x1 - x0) * u);
     const y = Math.round(y0 + (y1 - y0) * u);
-    put(t, x, y, r, g, b, a);
-    if ((i & 3) === 0) put(t, x + 1, y, 120, 142, 158, Math.max(30, a - 70));
+    putRGB(t, x, y, r, g, b, a);
+    if ((i & 3) === 0) putRGB(t, x + 1, y, 120, 142, 158, Math.max(30, a - 70));
   }
 }
 
@@ -89,7 +85,7 @@ export function generateSprite(): Uint32Array {
   for (let y = 22; y < 44; y += 5) {
     for (let x = cx - 12; x <= cx + 12; x++) {
       if (Math.abs(x - cx) < 5 || noise(x, y, 2120) > 0.56) t[y * S + x] = CLEAR;
-      else put(t, x, y, 126, 150, 165, 88);
+      else putRGB(t, x, y, 126, 150, 165, 88);
     }
   }
   for (let y = 25; y < 42; y++) {
@@ -106,9 +102,9 @@ export function generateSprite(): Uint32Array {
 
   // Dense real core: tiny black-red joints the decoy does not have.
   for (const [x, y] of [[cx - 2, 18], [cx + 3, 20], [cx - 6, 33], [cx + 7, 35], [cx - 3, 47], [cx + 4, 47]] as const) {
-    put(t, x, y, 18, 10, 12);
-    put(t, x + 1, y, 112, 18, 24);
-    put(t, x, y + 1, 42, 8, 12);
+    putRGB(t, x, y, 18, 10, 12);
+    putRGB(t, x + 1, y, 112, 18, 24);
+    putRGB(t, x, y + 1, 42, 8, 12);
   }
 
   return t;

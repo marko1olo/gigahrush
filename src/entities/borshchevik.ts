@@ -2,7 +2,7 @@
 
 import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
-import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
+import { putRGB, S, noise, clamp, CLEAR } from '../render/pixutil';
 
 export const DEF: MonsterDef = {
   kind: MonsterKind.BORSHCHEVIK,
@@ -18,16 +18,12 @@ export const DEF: MonsterDef = {
   lootHint: 'семена борщевика, желтый фототоксичный сок, редкий противогрибковый расходник',
 };
 
-function put(t: Uint32Array, x: number, y: number, r: number, g: number, b: number, a = 255): void {
-  if (x < 0 || x >= S || y < 0 || y >= S) return;
-  t[y * S + x] = rgba(r, g, b, a);
-}
 
 function line(t: Uint32Array, x0: number, y0: number, x1: number, y1: number, r: number, g: number, b: number, a = 255): void {
   const steps = Math.max(1, Math.abs(x1 - x0), Math.abs(y1 - y0));
   for (let i = 0; i <= steps; i++) {
     const k = i / steps;
-    put(t, Math.round(x0 + (x1 - x0) * k), Math.round(y0 + (y1 - y0) * k), r, g, b, a);
+    putRGB(t, Math.round(x0 + (x1 - x0) * k), Math.round(y0 + (y1 - y0) * k), r, g, b, a);
   }
 }
 
@@ -42,7 +38,7 @@ function ellipse(t: Uint32Array, cx: number, cy: number, rx: number, ry: number,
       const dy = (y - cy) / ry;
       if (dx * dx + dy * dy > 1) continue;
       const n = noise(x, y, seed) * 22 - 8;
-      put(t, x, y, clamp(r + n), clamp(g + n), clamp(b + n), a);
+      putRGB(t, x, y, clamp(r + n), clamp(g + n), clamp(b + n), a);
     }
   }
 }
@@ -67,7 +63,7 @@ export function generateSprite(): Uint32Array {
       const dx = Math.abs((x - cx - sway) / half);
       const shade = dx * 28;
       const n = noise(x, y, 601) * 24;
-      put(t, x, y, clamp(112 + n - shade), clamp(162 + n - shade), clamp(90 + n * 0.45 - shade));
+      putRGB(t, x, y, clamp(112 + n - shade), clamp(162 + n - shade), clamp(90 + n * 0.45 - shade));
     }
     if (y % 7 === 0) line(t, cx + sway - 3, y, cx + sway + 3, y + 1, 62, 92, 52, 225);
   }
@@ -76,7 +72,7 @@ export function generateSprite(): Uint32Array {
     const y = 22 + Math.floor(noise(i, 4, 619) * 25);
     const x = Math.floor(cx + Math.sin(y * 0.18) * 2 + (noise(i, 5, 620) - 0.5) * 8);
     ellipse(t, x, y, 2.2, 3.2, 58, 22, 58, 621 + i, 235);
-    put(t, x + 1, y, 220, 198, 52, 245);
+    putRGB(t, x + 1, y, 220, 198, 52, 245);
   }
 
   // Spreading umbrella leaves.
@@ -98,7 +94,7 @@ export function generateSprite(): Uint32Array {
     const ey = 12 + Math.sin(a) * r * 0.45;
     line(t, cx, 16, ex, ey, 112, 158, 96, 180);
     ellipse(t, ex, ey, 1.7, 1.7, 232, 232, 216, 660 + i, 245);
-    if (i % 3 === 0) put(t, Math.round(ex + 1), Math.round(ey), 244, 238, 176, 245);
+    if (i % 3 === 0) putRGB(t, Math.round(ex + 1), Math.round(ey), 244, 238, 176, 245);
   }
   ellipse(t, cx, 16, 3.2, 3.2, 224, 230, 204, 699, 255);
 
