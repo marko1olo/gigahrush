@@ -40,7 +40,7 @@ import {
   SCR_W, SCR_H, initWebGL, renderSceneGL, updateWorldData, updateDynamicData,
   disposeWebGL, setDynamicSkyTexture, getRenderSceneDebugStats, rebuildProceduralSpriteCache, type DynamicSkyTexture,
 } from './render/webgl';
-import { drawHUD, drawPointerCaptureGate, type HudPerfDebugSnapshot } from './render/hud';
+import { drawHUD, drawPointerCaptureGate } from './render/hud';
 import {
   spawnBloodHit, spawnDeathPool, updateBloodTrails, updateParticles, particles,
   spawnProjectileBodyImpact, spawnProjectileFloorImpact, spawnProjectileWallImpact, isEnergyProjectileImpact,
@@ -1885,7 +1885,7 @@ interface SmokeDebugSnapshot {
   floorMemoryCap: number;
   entityIndex: EntityIndexDebugStats;
   ai: AiStats;
-  perf: HudPerfDebugSnapshot;
+  perf: ReturnType<typeof hudPerfDebugSnapshot>;
   tick: number;
   inputFwd: boolean;
   inputInv: boolean;
@@ -7465,7 +7465,7 @@ function updateFpsMeter(now: number, frameMs: number): number {
   return displayedFps;
 }
 
-function hudPerfDebugSnapshot(fps: number): HudPerfDebugSnapshot {
+function hudPerfDebugSnapshot(fps: number) {
   const ai = getAiStats();
   const entityStats = getEntityIndex().getDebugStats();
   const renderStats = getRenderSceneDebugStats();
