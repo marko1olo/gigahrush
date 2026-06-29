@@ -508,3 +508,43 @@ test('npcPackageLookupHints provides expected arrays and merges context extras',
   assert.equal(hintsWithContext.visualIds.length, defaultHints.visualIds.length + 1);
   assert.equal(hintsWithContext.perkIds.length, defaultHints.perkIds.length + 1);
 });
+
+test('NPC package validator rejects invalid bio fields', () => {
+  const pack = minimalNpcPackage('bio_test_npc');
+
+  // Helper to test specific bio issues
+  const testBio = (bioPatch, expectedErrorFragment) => {
+    const result = validateNpcPackage({ ...pack, bio: bioPatch });
+    assert.ok(
+      result.errors.some(e => e.includes(expectedErrorFragment)),
+      `Expected error containing "${expectedErrorFragment}", got: ${result.errors.join(', ')}`
+    );
+  };
+
+  testBio({}, 'bio.publicLine must be a string');
+  testBio({ publicLine: 'x'.repeat(221) }, 'bio.publicLine exceeds 220 chars');
+
+  testBio({ publicLine: 'valid', short: 'x'.repeat(481) }, 'bio.short exceeds 480 chars');
+  testBio({ publicLine: 'valid', origin: 'x'.repeat(161) }, 'bio.origin exceeds 160 chars');
+  testBio({ publicLine: 'valid', work: 'x'.repeat(161) }, 'bio.work exceeds 160 chars');
+
+  testBio({ publicLine: 'valid', wants: 'not_an_array' }, 'bio.wants must be an array');
+  testBio({ publicLine: 'valid', wants: Array(9).fill('a') }, 'bio.wants must have at most 8 entries');
+  testBio({ publicLine: 'valid', wants: ['x'.repeat(121)] }, 'bio.wants[0] exceeds 120 chars');
+
+  testBio({ publicLine: 'valid', fears: 'not_an_array' }, 'bio.fears must be an array');
+  testBio({ publicLine: 'valid', fears: Array(9).fill('a') }, 'bio.fears must have at most 8 entries');
+  testBio({ publicLine: 'valid', fears: ['x'.repeat(121)] }, 'bio.fears[0] exceeds 120 chars');
+
+  testBio({ publicLine: 'valid', habits: 'not_an_array' }, 'bio.habits must be an array');
+  testBio({ publicLine: 'valid', habits: Array(9).fill('a') }, 'bio.habits must have at most 8 entries');
+  testBio({ publicLine: 'valid', habits: ['x'.repeat(121)] }, 'bio.habits[0] exceeds 120 chars');
+
+  testBio({ publicLine: 'valid', secrets: 'not_an_array' }, 'bio.secrets must be an array');
+  testBio({ publicLine: 'valid', secrets: Array(9).fill('a') }, 'bio.secrets must have at most 8 entries');
+  testBio({ publicLine: 'valid', secrets: ['x'.repeat(161)] }, 'bio.secrets[0] exceeds 160 chars');
+
+  testBio({ publicLine: 'valid', markovTags: 'not_an_array' }, 'bio.markovTags must be an array');
+  testBio({ publicLine: 'valid', markovTags: Array(17).fill('a.b') }, 'bio.markovTags must have at most 16 entries');
+  testBio({ publicLine: 'valid', markovTags: ['invalid tag'] }, 'bio.markovTags[0] has invalid id');
+});
