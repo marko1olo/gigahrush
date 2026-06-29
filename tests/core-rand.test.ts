@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { xorshift32 } from '../src/core/rand';
+import { xorshift32, pickFrom } from '../src/core/rand';
 
 test('xorshift32 produces deterministic sequence for a given seed', () => {
   const rng1 = xorshift32(12345);
@@ -57,4 +57,28 @@ test('xorshift32 produces the known exact sequence for seed 1', () => {
     const intVal = Math.round(val * 4294967296); // Reverse the division
     assert.equal(intVal, expectedInts[i]);
   }
+});
+
+test('pickFrom returns the first item when random source evaluates to 0', () => {
+  const items = ['a', 'b', 'c'];
+  const rand0 = () => 0;
+  assert.equal(pickFrom(rand0, items), 'a');
+});
+
+test('pickFrom returns the last item when random source evaluates to just under 1', () => {
+  const items = ['a', 'b', 'c'];
+  const randAlmost1 = () => 0.999999;
+  assert.equal(pickFrom(randAlmost1, items), 'c');
+});
+
+test('pickFrom returns the correct middle item', () => {
+  const items = ['a', 'b', 'c'];
+  const randHalf = () => 0.5; // Math.floor(0.5 * 3) = Math.floor(1.5) = 1 ('b')
+  assert.equal(pickFrom(randHalf, items), 'b');
+});
+
+test('pickFrom returns undefined when array is empty', () => {
+  const items: string[] = [];
+  const randHalf = () => 0.5;
+  assert.equal(pickFrom(randHalf, items), undefined);
 });
