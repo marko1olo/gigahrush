@@ -110,92 +110,120 @@ function makeButton(className: string, label: string, ariaLabel: string): HTMLBu
   return button;
 }
 
-export function createMobileControls(input: InputState, options: MobileControlsOptions): MobileControls {
-  const root = document.createElement('div');
-  root.className = 'mobile-controls';
-  root.setAttribute('aria-hidden', 'false');
 
-  const rotate = document.createElement('div');
-  rotate.className = 'mobile-rotate';
-  rotate.textContent = mobileText({ ru: 'Поверните телефон горизонтально', en: 'Rotate phone landscape' });
+class MobileControlsImpl implements MobileControls {
+  private readonly root = document.createElement('div');
+  private readonly rotate = document.createElement('div');
+  private readonly movePad = makeButton('mobile-pad mobile-pad--move', '', 'Джойстик движения');
+  private readonly moveThumb = document.createElement('span');
+  private readonly lookPad = makeButton('mobile-pad mobile-pad--look', '', 'Джойстик камеры');
+  private readonly lookThumb = document.createElement('span');
+  private readonly interact = makeButton('mobile-interact', mobileInteractLabel(), mobileText({ ru: 'Взаимодействие', en: 'Interact' }));
+  private readonly fire = makeButton('mobile-fire-zone', '', mobileText({ ru: 'Атака', en: 'Attack' }));
+  private readonly fullscreen = makeButton('mobile-fullscreen', 'FULL', mobileText({ ru: 'Полный экран', en: 'Fullscreen' }));
+  private readonly actionRail = document.createElement('div');
+  private readonly actionUp = makeButton('mobile-menu-btn', '▲', mobileText({ ru: 'Действие выше', en: 'Previous action' }));
+  private readonly actionSelect = makeButton('mobile-menu-btn mobile-menu-select', mobileText(MOBILE_ACTIONS[0].label), mobileText(MOBILE_ACTIONS[0].ariaLabel));
+  private readonly actionDown = makeButton('mobile-menu-btn', '▼', mobileText({ ru: 'Действие ниже', en: 'Next action' }));
 
-  const movePad = makeButton('mobile-pad mobile-pad--move', '', 'Джойстик движения');
-  const moveThumb = document.createElement('span');
-  moveThumb.className = 'mobile-pad-thumb';
-  movePad.append(moveThumb);
-
-  const lookPad = makeButton('mobile-pad mobile-pad--look', '', 'Джойстик камеры');
-  const lookThumb = document.createElement('span');
-  lookThumb.className = 'mobile-pad-thumb';
-  lookPad.append(lookThumb);
-
-  const interact = makeButton('mobile-interact', mobileInteractLabel(), mobileText({ ru: 'Взаимодействие', en: 'Interact' }));
-  const fire = makeButton('mobile-fire-zone', '', mobileText({ ru: 'Атака', en: 'Attack' }));
-  const fullscreen = makeButton('mobile-fullscreen', 'FULL', mobileText({ ru: 'Полный экран', en: 'Fullscreen' }));
-
-  const actionRail = document.createElement('div');
-  actionRail.className = 'mobile-menu-rail';
-  const actionUp = makeButton('mobile-menu-btn', '▲', mobileText({ ru: 'Действие выше', en: 'Previous action' }));
-  const actionSelect = makeButton('mobile-menu-btn mobile-menu-select', mobileText(MOBILE_ACTIONS[0].label), mobileText(MOBILE_ACTIONS[0].ariaLabel));
-  const actionDown = makeButton('mobile-menu-btn', '▼', mobileText({ ru: 'Действие ниже', en: 'Next action' }));
-  actionRail.append(actionUp, actionSelect, actionDown);
-
-  root.append(rotate, fire, fullscreen, movePad, lookPad, interact, actionRail);
-  document.body.append(root);
-
-  let enabled = false;
-  let selectedAction = 0;
-  let movePointer = -1;
-  let lookPointer = -1;
-  let firePointer = -1;
-  let actionPointer = -1;
-  let heldActionInput: BooleanInputKey | null = null;
-  let moveActive = false;
-  let lookActive = false;
-  let context: MobileControlsContext = {
+  private enabled = false;
+  private selectedAction = 0;
+  private movePointer = -1;
+  private lookPointer = -1;
+  private firePointer = -1;
+  private actionPointer = -1;
+  private heldActionInput: BooleanInputKey | null = null;
+  private moveActive = false;
+  private lookActive = false;
+  private context: MobileControlsContext = {
     started: false,
     menuOpen: false,
     canInteract: false,
     gameOver: false,
   };
-  const pulseTimers = new Map<BooleanInputKey, ReturnType<typeof setTimeout>>();
+  private readonly pulseTimers = new Map<BooleanInputKey, ReturnType<typeof setTimeout>>();
 
-  const setBool = (key: BooleanInputKey, value: boolean): void => {
-    (input as unknown as Record<BooleanInputKey, boolean>)[key] = value;
-  };
+  constructor(
+    private readonly input: InputState,
+    private readonly options: MobileControlsOptions
+  ) {
+    this.root.className = 'mobile-controls';
+    this.root.setAttribute('aria-hidden', 'false');
 
-  const setActionInput = (key: BooleanInputKey, value: boolean): void => {
+    this.rotate.className = 'mobile-rotate';
+    this.rotate.textContent = mobileText({ ru: 'Поверните телефон горизонтально', en: 'Rotate phone landscape' });
+
+    this.moveThumb.className = 'mobile-pad-thumb';
+    this.movePad.append(this.moveThumb);
+
+    this.lookThumb.className = 'mobile-pad-thumb';
+    this.lookPad.append(this.lookThumb);
+
+    this.actionRail.className = 'mobile-menu-rail';
+    this.actionRail.append(this.actionUp, this.actionSelect, this.actionDown);
+
+    this.root.append(
+      this.rotate,
+      this.fire,
+      this.fullscreen,
+      this.movePad,
+      this.lookPad,
+      this.interact,
+      this.actionRail
+    );
+    document.body.append(this.root);
+
+    this.bindPad(this.movePad, this.moveThumb, 'move');
+    this.bindPad(this.lookPad, this.lookThumb, 'look');
+    this.holdInteractButton(this.interact);
+    this.bindEvents();
+
+    this.onResize = this.onResize.bind(this);
+    window.addEventListener('resize', this.onResize);
+    window.visualViewport?.addEventListener('resize', this.onResize);
+    window.visualViewport?.addEventListener('scroll', this.onResize);
+    document.addEventListener('fullscreenchange', this.onResize);
+    document.addEventListener('webkitfullscreenchange', this.onResize);
+
+    this.refresh();
+  }
+
+  private setBool(key: BooleanInputKey, value: boolean): void {
+    (this.input as unknown as Record<BooleanInputKey, boolean>)[key] = value;
+  }
+
+  private setActionInput(key: BooleanInputKey, value: boolean): void {
     if (key === 'interact') {
-      input.interact = value ? !input.interactHeld : false;
-      input.interactHeld = value;
+      this.input.interact = value ? !this.input.interactHeld : false;
+      this.input.interactHeld = value;
       return;
     }
-    setBool(key, value);
-  };
+    this.setBool(key, value);
+  }
 
-  const pulse = (key: BooleanInputKey): void => {
-    setActionInput(key, true);
-    const old = pulseTimers.get(key);
+  private pulse(key: BooleanInputKey): void {
+    this.setActionInput(key, true);
+    const old = this.pulseTimers.get(key);
     if (old) clearTimeout(old);
-    pulseTimers.set(key, setTimeout(() => {
-      setActionInput(key, false);
-      pulseTimers.delete(key);
+    this.pulseTimers.set(key, setTimeout(() => {
+      this.setActionInput(key, false);
+      this.pulseTimers.delete(key);
     }, 90));
-  };
+  }
 
-  const releaseHeldAction = (): void => {
-    if (!heldActionInput) return;
-    setActionInput(heldActionInput, false);
-    heldActionInput = null;
-    actionPointer = -1;
-  };
+  private releaseHeldAction(): void {
+    if (!this.heldActionInput) return;
+    this.setActionInput(this.heldActionInput, false);
+    this.heldActionInput = null;
+    this.actionPointer = -1;
+  }
 
-  const updateTouchActive = (): void => {
-    input.touch.active = moveActive || lookActive;
-  };
+  private updateTouchActive(): void {
+    this.input.touch.active = this.moveActive || this.lookActive;
+  }
 
-  const syncHudSafeContext = (): void => {
-    const active = enabled && context.started;
+  private syncHudSafeContext(): void {
+    const active = this.enabled && this.context.started;
     const safe = computeMobileHudSafeInsets(active);
     setMobileHudSafeContext({
       enabled: active,
@@ -203,66 +231,66 @@ export function createMobileControls(input: InputState, options: MobileControlsO
       safeInsets: safe.safeInsets,
     });
     const cssInsets = safe.safeInsets ?? { top: 0, right: 0, bottom: 0, left: 0 };
-    root.style.setProperty('--mobile-safe-top-px', `${cssInsets.top}px`);
-    root.style.setProperty('--mobile-safe-right-px', `${cssInsets.right}px`);
-    root.style.setProperty('--mobile-safe-bottom-px', `${cssInsets.bottom}px`);
-    root.style.setProperty('--mobile-safe-left-px', `${cssInsets.left}px`);
-  };
+    this.root.style.setProperty('--mobile-safe-top-px', `${cssInsets.top}px`);
+    this.root.style.setProperty('--mobile-safe-right-px', `${cssInsets.right}px`);
+    this.root.style.setProperty('--mobile-safe-bottom-px', `${cssInsets.bottom}px`);
+    this.root.style.setProperty('--mobile-safe-left-px', `${cssInsets.left}px`);
+  }
 
-  const clearTouchInput = (): void => {
-    input.touch.moveX = 0;
-    input.touch.moveY = 0;
-    input.touch.lookX = 0;
-    input.touch.lookY = 0;
-    input.touch.active = false;
-    input.mouseAttack = false;
-    releaseHeldAction();
+  private clearTouchInput(): void {
+    this.input.touch.moveX = 0;
+    this.input.touch.moveY = 0;
+    this.input.touch.lookX = 0;
+    this.input.touch.lookY = 0;
+    this.input.touch.active = false;
+    this.input.mouseAttack = false;
+    this.releaseHeldAction();
     for (const action of MOBILE_ACTIONS) {
-      if (action.kind === 'input') setActionInput(action.input, false);
+      if (action.kind === 'input') this.setActionInput(action.input, false);
     }
-    moveActive = false;
-    lookActive = false;
-    movePointer = -1;
-    lookPointer = -1;
-    firePointer = -1;
-    moveThumb.style.transform = '';
-    lookThumb.style.transform = '';
-  };
+    this.moveActive = false;
+    this.lookActive = false;
+    this.movePointer = -1;
+    this.lookPointer = -1;
+    this.firePointer = -1;
+    this.moveThumb.style.transform = '';
+    this.lookThumb.style.transform = '';
+  }
 
-  const updateLocalizedText = (): void => {
-    rotate.textContent = mobileText({ ru: 'Поверните телефон горизонтально', en: 'Rotate phone landscape' });
-    movePad.setAttribute('aria-label', mobileText({ ru: 'Джойстик движения', en: 'Movement stick' }));
-    lookPad.setAttribute('aria-label', mobileText({ ru: 'Джойстик камеры', en: 'Camera stick' }));
-    interact.textContent = mobileInteractLabel();
-    interact.setAttribute('aria-label', mobileText({ ru: 'Взаимодействие', en: 'Interact' }));
-    fire.setAttribute('aria-label', mobileText({ ru: 'Атака', en: 'Attack' }));
-    actionUp.setAttribute('aria-label', mobileText(context.menuOpen ? { ru: 'Меню выше', en: 'Menu up' } : { ru: 'Действие выше', en: 'Previous action' }));
-    actionDown.setAttribute('aria-label', mobileText(context.menuOpen ? { ru: 'Меню ниже', en: 'Menu down' } : { ru: 'Действие ниже', en: 'Next action' }));
-  };
+  private updateLocalizedText(): void {
+    this.rotate.textContent = mobileText({ ru: 'Поверните телефон горизонтально', en: 'Rotate phone landscape' });
+    this.movePad.setAttribute('aria-label', mobileText({ ru: 'Джойстик движения', en: 'Movement stick' }));
+    this.lookPad.setAttribute('aria-label', mobileText({ ru: 'Джойстик камеры', en: 'Camera stick' }));
+    this.interact.textContent = mobileInteractLabel();
+    this.interact.setAttribute('aria-label', mobileText({ ru: 'Взаимодействие', en: 'Interact' }));
+    this.fire.setAttribute('aria-label', mobileText({ ru: 'Атака', en: 'Attack' }));
+    this.actionUp.setAttribute('aria-label', mobileText(this.context.menuOpen ? { ru: 'Меню выше', en: 'Menu up' } : { ru: 'Действие выше', en: 'Previous action' }));
+    this.actionDown.setAttribute('aria-label', mobileText(this.context.menuOpen ? { ru: 'Меню ниже', en: 'Menu down' } : { ru: 'Действие ниже', en: 'Next action' }));
+  }
 
-  const updateSelectedLabel = (): void => {
-    const action = MOBILE_ACTIONS[selectedAction];
-    actionSelect.textContent = context.menuOpen
-      ? (context.gameOver ? 'R' : mobileText({ ru: 'ЗАКР', en: 'CLOSE' }))
+  private updateSelectedLabel(): void {
+    const action = MOBILE_ACTIONS[this.selectedAction];
+    this.actionSelect.textContent = this.context.menuOpen
+      ? (this.context.gameOver ? 'R' : mobileText({ ru: 'ЗАКР', en: 'CLOSE' }))
       : mobileText(action.label);
-    actionSelect.setAttribute(
+    this.actionSelect.setAttribute(
       'aria-label',
-      context.menuOpen
-        ? (context.gameOver ? mobileText({ ru: 'Перезапуск', en: 'Restart' }) : mobileText({ ru: 'Закрыть меню', en: 'Close menu' }))
+      this.context.menuOpen
+        ? (this.context.gameOver ? mobileText({ ru: 'Перезапуск', en: 'Restart' }) : mobileText({ ru: 'Закрыть меню', en: 'Close menu' }))
         : mobileText(action.ariaLabel),
     );
-  };
+  }
 
-  const updateFullscreenUi = (): void => {
+  private updateFullscreenUi(): void {
     const standalone = isStandaloneDisplay();
     const embedded = isEmbeddedViewport();
     const nativeFullscreen = canUseMobileFullscreen();
     const active = isMobileFullscreenActive();
     const mode = standalone ? 'standalone' : embedded ? 'direct' : nativeFullscreen ? (active ? 'exit' : 'native') : 'hidden';
-    fullscreen.dataset.fullscreenMode = mode;
-    fullscreen.hidden = standalone || (!embedded && !nativeFullscreen);
-    fullscreen.textContent = embedded ? 'PAGE' : (active ? 'EXIT' : 'FULL');
-    fullscreen.setAttribute(
+    this.fullscreen.dataset.fullscreenMode = mode;
+    this.fullscreen.hidden = standalone || (!embedded && !nativeFullscreen);
+    this.fullscreen.textContent = embedded ? 'PAGE' : (active ? 'EXIT' : 'FULL');
+    this.fullscreen.setAttribute(
       'aria-label',
       embedded
         ? mobileText({ ru: 'Открыть игру отдельной страницей', en: 'Open game in a separate page' })
@@ -270,52 +298,52 @@ export function createMobileControls(input: InputState, options: MobileControlsO
           ? mobileText({ ru: 'Выйти из полного экрана', en: 'Exit fullscreen' })
           : mobileText({ ru: 'Полный экран', en: 'Fullscreen' })),
     );
-  };
+  }
 
-  const setEnabled = (next: boolean): void => {
-    enabled = next;
-    root.toggleAttribute('hidden', !enabled);
-    document.body.classList.toggle('mobile-controls-on', enabled);
-    if (!enabled) clearTouchInput();
-    updateSelectedLabel();
-    updateFullscreenUi();
-    syncHudSafeContext();
-  };
+  private setEnabled(next: boolean): void {
+    this.enabled = next;
+    this.root.toggleAttribute('hidden', !this.enabled);
+    document.body.classList.toggle('mobile-controls-on', this.enabled);
+    if (!this.enabled) this.clearTouchInput();
+    this.updateSelectedLabel();
+    this.updateFullscreenUi();
+    this.syncHudSafeContext();
+  }
 
-  const refreshClasses = (): void => {
+  private refreshClasses(): void {
     const portrait = window.innerHeight > window.innerWidth;
-    root.classList.toggle('is-started', context.started);
-    root.classList.toggle('is-menu-open', context.menuOpen);
-    root.classList.toggle('can-interact', context.canInteract);
-    root.classList.toggle('is-game-over', context.gameOver);
-    root.classList.toggle('is-portrait', portrait);
-    updateLocalizedText();
-    updateSelectedLabel();
-    updateFullscreenUi();
-    syncHudSafeContext();
-  };
+    this.root.classList.toggle('is-started', this.context.started);
+    this.root.classList.toggle('is-menu-open', this.context.menuOpen);
+    this.root.classList.toggle('can-interact', this.context.canInteract);
+    this.root.classList.toggle('is-game-over', this.context.gameOver);
+    this.root.classList.toggle('is-portrait', portrait);
+    this.updateLocalizedText();
+    this.updateSelectedLabel();
+    this.updateFullscreenUi();
+    this.syncHudSafeContext();
+  }
 
-  const refresh = (): void => {
-    setEnabled(shouldUseTouchControls());
-    refreshClasses();
-  };
+  public refresh(): void {
+    this.setEnabled(shouldUseTouchControls());
+    this.refreshClasses();
+  }
 
-  const resetPad = (kind: 'move' | 'look'): void => {
+  private resetPad(kind: 'move' | 'look'): void {
     if (kind === 'move') {
-      input.touch.moveX = 0;
-      input.touch.moveY = 0;
-      moveThumb.style.transform = '';
-      moveActive = false;
+      this.input.touch.moveX = 0;
+      this.input.touch.moveY = 0;
+      this.moveThumb.style.transform = '';
+      this.moveActive = false;
     } else {
-      input.touch.lookX = 0;
-      input.touch.lookY = 0;
-      lookThumb.style.transform = '';
-      lookActive = false;
+      this.input.touch.lookX = 0;
+      this.input.touch.lookY = 0;
+      this.lookThumb.style.transform = '';
+      this.lookActive = false;
     }
-    updateTouchActive();
-  };
+    this.updateTouchActive();
+  }
 
-  const updatePad = (el: HTMLElement, thumb: HTMLElement, kind: 'move' | 'look', e: PointerEvent): void => {
+  private updatePad(el: HTMLElement, thumb: HTMLElement, kind: 'move' | 'look', e: PointerEvent): void {
     const rect = el.getBoundingClientRect();
     const radius = Math.max(1, Math.min(rect.width, rect.height) * 0.42);
     const dx = e.clientX - (rect.left + rect.width * 0.5);
@@ -326,206 +354,208 @@ export function createMobileControls(input: InputState, options: MobileControlsO
     const ny = (dy * scale) / radius;
     thumb.style.transform = `translate(${nx * 34}%, ${ny * 34}%)`;
     if (kind === 'move') {
-      input.touch.moveX = nx;
-      input.touch.moveY = -ny;
-      moveActive = true;
+      this.input.touch.moveX = nx;
+      this.input.touch.moveY = -ny;
+      this.moveActive = true;
     } else {
-      input.touch.lookX = nx;
-      input.touch.lookY = ny;
-      lookActive = true;
+      this.input.touch.lookX = nx;
+      this.input.touch.lookY = ny;
+      this.lookActive = true;
     }
-    updateTouchActive();
-  };
+    this.updateTouchActive();
+  }
 
-  const bindPad = (el: HTMLButtonElement, thumb: HTMLElement, kind: 'move' | 'look'): void => {
+  private bindPad(el: HTMLButtonElement, thumb: HTMLElement, kind: 'move' | 'look'): void {
     const pointerDown = (e: PointerEvent): void => {
-      if (!enabled || !context.started || context.menuOpen || context.gameOver) return;
+      if (!this.enabled || !this.context.started || this.context.menuOpen || this.context.gameOver) return;
       e.preventDefault();
       e.stopPropagation();
-      options.onGesture();
-      if (kind === 'move') movePointer = e.pointerId; else lookPointer = e.pointerId;
+      this.options.onGesture();
+      if (kind === 'move') this.movePointer = e.pointerId; else this.lookPointer = e.pointerId;
       capturePointer(el, e.pointerId);
-      updatePad(el, thumb, kind, e);
+      this.updatePad(el, thumb, kind, e);
     };
     const pointerMove = (e: PointerEvent): void => {
-      const activePointer = kind === 'move' ? movePointer : lookPointer;
+      const activePointer = kind === 'move' ? this.movePointer : this.lookPointer;
       if (e.pointerId !== activePointer) return;
       e.preventDefault();
-      updatePad(el, thumb, kind, e);
+      this.updatePad(el, thumb, kind, e);
     };
     const pointerEnd = (e: PointerEvent): void => {
-      const activePointer = kind === 'move' ? movePointer : lookPointer;
+      const activePointer = kind === 'move' ? this.movePointer : this.lookPointer;
       if (e.pointerId !== activePointer) return;
       e.preventDefault();
       releasePointer(el, e.pointerId);
-      if (kind === 'move') movePointer = -1; else lookPointer = -1;
-      resetPad(kind);
+      if (kind === 'move') this.movePointer = -1; else this.lookPointer = -1;
+      this.resetPad(kind);
     };
     el.addEventListener('pointerdown', pointerDown);
     el.addEventListener('pointermove', pointerMove);
     el.addEventListener('pointerup', pointerEnd);
     el.addEventListener('pointercancel', pointerEnd);
     el.addEventListener('lostpointercapture', pointerEnd);
-  };
+  }
 
-  const holdInteractButton = (el: HTMLButtonElement): void => {
+  private holdInteractButton(el: HTMLButtonElement): void {
     let interactPointer = -1;
     el.addEventListener('pointerdown', e => {
-      if (!enabled || !context.started) return;
+      if (!this.enabled || !this.context.started) return;
       e.preventDefault();
       e.stopPropagation();
-      options.onGesture();
-      if (context.menuOpen) {
-        options.onConfirm();
+      this.options.onGesture();
+      if (this.context.menuOpen) {
+        this.options.onConfirm();
         return;
       }
       interactPointer = e.pointerId;
       capturePointer(el, e.pointerId);
-      input.interact = true;
-      input.interactHeld = true;
+      this.input.interact = true;
+      this.input.interactHeld = true;
     });
     const pointerEnd = (e: PointerEvent): void => {
       if (e.pointerId !== interactPointer) return;
       e.preventDefault();
       releasePointer(el, e.pointerId);
       interactPointer = -1;
-      input.interact = false;
-      input.interactHeld = false;
+      this.input.interact = false;
+      this.input.interactHeld = false;
     };
     el.addEventListener('pointerup', pointerEnd);
     el.addEventListener('pointercancel', pointerEnd);
     el.addEventListener('lostpointercapture', pointerEnd);
-  };
+  }
 
-  const actionNav = (dir: number): void => {
-    options.onGesture();
-    if (context.menuOpen) {
-      pulse(dir < 0 ? 'invUp' : 'invDn');
+  private actionNav(dir: number): void {
+    this.options.onGesture();
+    if (this.context.menuOpen) {
+      this.pulse(dir < 0 ? 'invUp' : 'invDn');
     } else {
-      selectedAction = (selectedAction + MOBILE_ACTIONS.length + dir) % MOBILE_ACTIONS.length;
-      updateSelectedLabel();
+      this.selectedAction = (this.selectedAction + MOBILE_ACTIONS.length + dir) % MOBILE_ACTIONS.length;
+      this.updateSelectedLabel();
     }
-  };
+  }
 
-  const actionConfirm = (e: PointerEvent): void => {
-    options.onGesture();
-    if (context.gameOver) {
-      pulse('use');
-    } else if (context.menuOpen) {
-      options.onClose();
+  private actionConfirm(e: PointerEvent): void {
+    this.options.onGesture();
+    if (this.context.gameOver) {
+      this.pulse('use');
+    } else if (this.context.menuOpen) {
+      this.options.onClose();
     } else {
-      const action = MOBILE_ACTIONS[selectedAction];
+      const action = MOBILE_ACTIONS[this.selectedAction];
       if (action.kind === 'menu') {
-        options.onMenu(action.id);
+        this.options.onMenu(action.id);
       } else if (action.hold) {
-        actionPointer = e.pointerId;
-        heldActionInput = action.input;
-        capturePointer(actionSelect, e.pointerId);
-        setActionInput(action.input, true);
+        this.actionPointer = e.pointerId;
+        this.heldActionInput = action.input;
+        capturePointer(this.actionSelect, e.pointerId);
+        this.setActionInput(action.input, true);
       } else {
-        pulse(action.input);
+        this.pulse(action.input);
       }
     }
-  };
+  }
 
-  bindPad(movePad, moveThumb, 'move');
-  bindPad(lookPad, lookThumb, 'look');
-  holdInteractButton(interact);
+  private bindEvents(): void {
+    this.fullscreen.addEventListener('pointerdown', e => {
+      if (!this.enabled || isStandaloneDisplay()) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (isEmbeddedViewport()) {
+        this.options.onGesture();
+        openStandalonePage();
+        return;
+      }
+      if (!canUseMobileFullscreen()) return;
+      if (isMobileFullscreenActive()) {
+        this.options.onGesture();
+        void exitMobileFullscreen().finally(() => this.updateFullscreenUi());
+      } else {
+        const pending = enterMobileFullscreen();
+        this.options.onGesture();
+        void pending.finally(() => this.updateFullscreenUi());
+      }
+    });
 
-  fullscreen.addEventListener('pointerdown', e => {
-    if (!enabled || isStandaloneDisplay()) return;
-    e.preventDefault();
-    e.stopPropagation();
-    if (isEmbeddedViewport()) {
-      options.onGesture();
-      openStandalonePage();
-      return;
-    }
-    if (!canUseMobileFullscreen()) return;
-    if (isMobileFullscreenActive()) {
-      options.onGesture();
-      void exitMobileFullscreen().finally(updateFullscreenUi);
-    } else {
-      const pending = enterMobileFullscreen();
-      options.onGesture();
-      void pending.finally(updateFullscreenUi);
-    }
-  });
+    this.fire.addEventListener('pointerdown', e => {
+      if (!this.enabled || !this.context.started || this.context.menuOpen || this.context.gameOver) return;
+      e.preventDefault();
+      e.stopPropagation();
+      this.options.onGesture();
+      this.firePointer = e.pointerId;
+      capturePointer(this.fire, e.pointerId);
+      this.input.mouseAttack = true;
+    });
+    const endFire = (e: PointerEvent): void => {
+      if (e.pointerId !== this.firePointer) return;
+      e.preventDefault();
+      releasePointer(this.fire, e.pointerId);
+      this.firePointer = -1;
+      this.input.mouseAttack = false;
+    };
+    this.fire.addEventListener('pointerup', endFire);
+    this.fire.addEventListener('pointercancel', endFire);
+    this.fire.addEventListener('lostpointercapture', endFire);
 
-  fire.addEventListener('pointerdown', e => {
-    if (!enabled || !context.started || context.menuOpen || context.gameOver) return;
-    e.preventDefault();
-    e.stopPropagation();
-    options.onGesture();
-    firePointer = e.pointerId;
-    capturePointer(fire, e.pointerId);
-    input.mouseAttack = true;
-  });
-  const endFire = (e: PointerEvent): void => {
-    if (e.pointerId !== firePointer) return;
-    e.preventDefault();
-    releasePointer(fire, e.pointerId);
-    firePointer = -1;
-    input.mouseAttack = false;
-  };
-  fire.addEventListener('pointerup', endFire);
-  fire.addEventListener('pointercancel', endFire);
-  fire.addEventListener('lostpointercapture', endFire);
+    this.actionUp.addEventListener('pointerdown', e => {
+      if (!this.enabled || !this.context.started) return;
+      e.preventDefault();
+      e.stopPropagation();
+      this.actionNav(-1);
+    });
+    this.actionDown.addEventListener('pointerdown', e => {
+      if (!this.enabled || !this.context.started) return;
+      e.preventDefault();
+      e.stopPropagation();
+      this.actionNav(1);
+    });
+    this.actionSelect.addEventListener('pointerdown', e => {
+      if (!this.enabled || !this.context.started) return;
+      e.preventDefault();
+      e.stopPropagation();
+      this.actionConfirm(e);
+    });
+    const actionEnd = (e: PointerEvent): void => {
+      if (e.pointerId !== this.actionPointer) return;
+      e.preventDefault();
+      releasePointer(this.actionSelect, e.pointerId);
+      this.releaseHeldAction();
+    };
+    this.actionSelect.addEventListener('pointerup', actionEnd);
+    this.actionSelect.addEventListener('pointercancel', actionEnd);
+    this.actionSelect.addEventListener('lostpointercapture', actionEnd);
+  }
 
-  actionUp.addEventListener('pointerdown', e => {
-    if (!enabled || !context.started) return;
-    e.preventDefault();
-    e.stopPropagation();
-    actionNav(-1);
-  });
-  actionDown.addEventListener('pointerdown', e => {
-    if (!enabled || !context.started) return;
-    e.preventDefault();
-    e.stopPropagation();
-    actionNav(1);
-  });
-  actionSelect.addEventListener('pointerdown', e => {
-    if (!enabled || !context.started) return;
-    e.preventDefault();
-    e.stopPropagation();
-    actionConfirm(e);
-  });
-  const actionEnd = (e: PointerEvent): void => {
-    if (e.pointerId !== actionPointer) return;
-    e.preventDefault();
-    releasePointer(actionSelect, e.pointerId);
-    releaseHeldAction();
-  };
-  actionSelect.addEventListener('pointerup', actionEnd);
-  actionSelect.addEventListener('pointercancel', actionEnd);
-  actionSelect.addEventListener('lostpointercapture', actionEnd);
+  private onResize(): void {
+    this.refresh();
+  }
 
-  const onResize = (): void => refresh();
-  window.addEventListener('resize', onResize);
-  window.visualViewport?.addEventListener('resize', onResize);
-  window.visualViewport?.addEventListener('scroll', onResize);
-  document.addEventListener('fullscreenchange', onResize);
-  document.addEventListener('webkitfullscreenchange', onResize);
-  refresh();
+  public isEnabled(): boolean {
+    return this.enabled;
+  }
 
-  return {
-    isEnabled: () => enabled,
-    refresh,
-    resetInput: clearTouchInput,
-    updateContext(next: MobileControlsContext): void {
-      context = next;
-      refreshClasses();
-    },
-    destroy(): void {
-      for (const timer of pulseTimers.values()) clearTimeout(timer);
-      window.removeEventListener('resize', onResize);
-      window.visualViewport?.removeEventListener('resize', onResize);
-      window.visualViewport?.removeEventListener('scroll', onResize);
-      document.removeEventListener('fullscreenchange', onResize);
-      document.removeEventListener('webkitfullscreenchange', onResize);
-      document.body.classList.remove('mobile-controls-on');
-      setMobileHudSafeContext({ enabled: false, portrait: false });
-      root.remove();
-    },
-  };
+  public resetInput(): void {
+    this.clearTouchInput();
+  }
+
+  public updateContext(next: MobileControlsContext): void {
+    this.context = next;
+    this.refreshClasses();
+  }
+
+  public destroy(): void {
+    for (const timer of this.pulseTimers.values()) clearTimeout(timer);
+    window.removeEventListener('resize', this.onResize);
+    window.visualViewport?.removeEventListener('resize', this.onResize);
+    window.visualViewport?.removeEventListener('scroll', this.onResize);
+    document.removeEventListener('fullscreenchange', this.onResize);
+    document.removeEventListener('webkitfullscreenchange', this.onResize);
+    document.body.classList.remove('mobile-controls-on');
+    setMobileHudSafeContext({ enabled: false, portrait: false });
+    this.root.remove();
+  }
+}
+
+export function createMobileControls(input: InputState, options: MobileControlsOptions): MobileControls {
+  return new MobileControlsImpl(input, options);
 }
