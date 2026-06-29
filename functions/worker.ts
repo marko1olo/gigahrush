@@ -15,8 +15,6 @@ interface WorkerEnv extends NetEnv {
   ASSETS: AssetBinding;
   NPC_DB?: unknown;
   NPC_SUBMISSIONS?: unknown;
-  TENEVIK_REVIEW_TOKEN?: string;
-  TURNSTILE_SECRET_KEY?: string;
 }
 
 type Handler = (context: PagesContext) => Promise<Response>;
