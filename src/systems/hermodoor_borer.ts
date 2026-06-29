@@ -13,6 +13,7 @@ import { equippedToolLightScore } from '../data/tool_lights';
 import { playBreak, playDoor, playSoundAt } from './audio';
 import { setDoorState } from './door_state';
 import { publishEvent } from './events';
+import { ensureEntityIndex } from './entity_index';
 import { addItem, hasItem, removeItem } from './inventory';
 import { randomRPG, scaleMonsterHp, scaleMonsterSpeed } from './rpg';
 import { isPlayerEntity } from './player_actor';
@@ -359,7 +360,7 @@ function startBorer(
 }
 
 function activeMonster(entities: readonly Entity[], runtime: BorerRuntime): Entity | undefined {
-  return entities.find(e => e.id === runtime.monsterId);
+  return ensureEntityIndex(entities).byId.get(runtime.monsterId);
 }
 
 function resolveActive(store: BorerStore, runtime: BorerRuntime, phase: BorerPhase): void {

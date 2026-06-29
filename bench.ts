@@ -1,37 +1,37 @@
+import { ensureEntityIndex } from './src/systems/entity_index';
+import { EntityType, Entity } from './src/core/types';
 import { performance } from 'perf_hooks';
 
-const quests = Array.from({ length: 1000 }, (_, i) => ({ done: i % 2 === 0 }));
+const NUM_ENTITIES = 10000;
+const ITERATIONS = 10000;
+const monsterId = 9999;
 
-function benchFilter() {
-  return quests.filter(q => !q.done).length;
-}
-
-function benchLoop() {
-  let count = 0;
-  for (let i = 0; i < quests.length; i++) {
-    if (!quests[i].done) count++;
-  }
-  return count;
-}
-
-function run(name: string, fn: () => number) {
-  const start = performance.now();
-  let res = 0;
-  for (let i = 0; i < 10000; i++) {
-    res += fn();
-  }
-  const end = performance.now();
-  return (end - start);
+const entities: Entity[] = [];
+for (let i = 0; i < NUM_ENTITIES; i++) {
+  entities.push({
+    id: i,
+    type: EntityType.NPC,
+    x: 0, y: 0, angle: 0, pitch: 0, alive: true, speed: 0, sprite: 0, name: 'NPC'
+  } as Entity);
 }
 
 // Warmup
-run('filter', benchFilter);
-run('loop', benchLoop);
+ensureEntityIndex(entities);
 
-// Measurement
-const filterTime = run('filter', benchFilter);
-const loopTime = run('loop', benchLoop);
+const start1 = performance.now();
+for (let i = 0; i < ITERATIONS; i++) {
+  entities.find(e => e.id === monsterId);
+}
+const end1 = performance.now();
+const findTime = end1 - start1;
 
-console.log(`Baseline (.filter().length): ${filterTime.toFixed(2)}ms`);
-console.log(`Optimized (for loop): ${loopTime.toFixed(2)}ms`);
-console.log(`Improvement: ${((filterTime - loopTime) / filterTime * 100).toFixed(2)}% faster (${(filterTime / loopTime).toFixed(1)}x faster)`);
+const start2 = performance.now();
+for (let i = 0; i < ITERATIONS; i++) {
+  ensureEntityIndex(entities).byId.get(monsterId);
+}
+const end2 = performance.now();
+const indexTime = end2 - start2;
+
+console.log(`Array.find(): ${findTime.toFixed(2)}ms`);
+console.log(`EntityIndex.byId.get(): ${indexTime.toFixed(2)}ms`);
+console.log(`Improvement: ${(findTime / indexTime).toFixed(2)}x faster`);
