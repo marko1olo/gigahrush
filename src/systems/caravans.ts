@@ -270,8 +270,11 @@ export function ensureCaravanState(state: GameState): CaravanState {
 
 function uniqueResourceIds(def: CaravanLaneDef): string[] {
   const ids: string[] = [];
-  for (const id of [...def.tariffResourceIds, ...def.resourceDeltas.map(delta => delta.resourceId)]) {
+  for (const id of def.tariffResourceIds) {
     if (!ids.includes(id)) ids.push(id);
+  }
+  for (const delta of def.resourceDeltas) {
+    if (!ids.includes(delta.resourceId)) ids.push(delta.resourceId);
   }
   return ids;
 }
