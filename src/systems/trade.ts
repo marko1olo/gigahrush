@@ -360,19 +360,17 @@ function tradeSummaryFromOffers(
   opts: TradeOptions,
 ): TradeCreditSummary {
   const creditValue = offerValue(state, npc, playerOffer, opts);
-  const creditCount = totalOfferCount(playerOffer);
   const fullPrice = askValue(state, npc, npcOffer, opts);
-  const npcOfferCount = totalOfferCount(npcOffer);
   const surplus = Math.max(0, creditValue - fullPrice);
   return {
     creditValue,
-    creditCount,
+    creditCount: totalOfferCount(playerOffer),
     fullPrice,
     cashDue: Math.max(0, fullPrice - creditValue),
     changeDue: Math.min(surplus, Math.max(0, npc.money ?? 0)),
     surplus,
     npcOfferValue: fullPrice,
-    npcOfferCount,
+    npcOfferCount: totalOfferCount(npcOffer),
   };
 }
 
