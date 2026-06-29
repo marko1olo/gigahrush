@@ -16,6 +16,7 @@ import {
   repayLoan,
   takeLoan,
   tickBankingInterest,
+  bankingSummary,
 } from '../src/systems/banking';
 import { createWorldEventState, getRecentEvents } from '../src/systems/events';
 import { makeGameState, makeTestPlayer } from './helpers';
@@ -113,4 +114,41 @@ test('bankingForSave returns bounded plain state', () => {
   assert.equal(saved.recentLedger[0].source, 'cash_4');
   saved.accountRubles = 0;
   assert.equal(ensureBankingState(state).accountRubles, BANKING_LEDGER_CAPACITY + 4);
+});
+
+test('bankingSummary provides aggregated data including debt and available credit', () => {
+  const state = makeGameState({ worldEvents: createWorldEventState() });
+  const banking = ensureBankingState(state);
+
+  banking.accountRubles = 150.5;
+  banking.depositPrincipal = 500;
+  banking.depositRate = 0.05;
+  banking.loanPrincipal = 200;
+  banking.loanAccrued = 15.25;
+  banking.loanRate = 0.1;
+  banking.creditLimit = 300;
+  banking.lastInterestAt = 120;
+  banking.ledgerVersion = 42;
+
+  const summary = bankingSummary(state);
+
+  assert.equal(summary.accountRubles, 150.5);
+  assert.equal(summary.depositPrincipal, 500);
+  assert.equal(summary.depositRate, 0.05);
+  assert.equal(summary.loanPrincipal, 200);
+  assert.equal(summary.loanAccrued, 15.25);
+  assert.equal(summary.loanRate, 0.1);
+  assert.equal(summary.creditLimit, 300);
+  assert.equal(summary.lastInterestAt, 120);
+  assert.equal(summary.ledgerVersion, 42);
+
+  // Computed values
+  assert.equal(summary.debtRubles, 215.25); // 200 + 15.25
+  assert.equal(summary.availableCredit, 84.75); // 300 - 215.25
+
+  // Edge case: debt exceeds credit limit
+  banking.loanAccrued = 150;
+  const summaryOverLimit = bankingSummary(state);
+  assert.equal(summaryOverLimit.debtRubles, 350); // 200 + 150
+  assert.equal(summaryOverLimit.availableCredit, 0); // Math.max(0, 300 - 350)
 });
