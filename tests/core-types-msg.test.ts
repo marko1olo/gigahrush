@@ -1,7 +1,64 @@
-import { test, describe } from 'node:test';
+import { test, describe, beforeEach, afterEach } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { msgAt, type MsgLocation } from '../src/core/types';
+import { msg, msgAt, setMsgClock, setMsgLocationProvider, type MsgLocation, type GameClock } from '../src/core/types';
+
+describe('msg functionality', () => {
+  beforeEach(() => {
+    // Reset global state before each test
+    setMsgClock({ totalMinutes: 0, hour: 8, minute: 0 });
+    setMsgLocationProvider(undefined);
+  });
+
+  afterEach(() => {
+    // Clean up
+    setMsgClock({ totalMinutes: 0, hour: 8, minute: 0 });
+    setMsgLocationProvider(undefined);
+  });
+
+  test('creates a basic message with default state', () => {
+    const m = msg('Hello world', 123, '#fff');
+    assert.equal(m.text, 'Hello world');
+    assert.equal(m.time, 123);
+    assert.equal(m.color, '#fff');
+    assert.equal(m.day, 0);
+    assert.equal(m.hour, 8);
+    assert.equal(m.minute, 0);
+    assert.equal(m.distanceMeters, undefined);
+  });
+
+  test('incorporates clock state from setMsgClock', () => {
+    const clock: GameClock = { totalMinutes: 1440 + 60 + 15, hour: 1, minute: 15 };
+    setMsgClock(clock);
+    const m = msg('Time test', 456, '#000');
+    assert.equal(m.day, 1);
+    assert.equal(m.hour, 1);
+    assert.equal(m.minute, 15);
+  });
+
+  test('incorporates location from setMsgLocationProvider', () => {
+    const provider = () => ({ x: 15, y: 25, floor: 'service' });
+    setMsgLocationProvider(provider);
+    const m = msg('Location test', 789, '#f00');
+    assert.equal(m.x, 15);
+    assert.equal(m.y, 25);
+    assert.equal(m.floor, 'service');
+  });
+
+  test('handles distance parameter correctly', () => {
+    const m1 = msg('Distance test', 1, '#fff', 5.6);
+    assert.equal(m1.distanceMeters, 6); // rounded
+
+    const m2 = msg('Distance test', 1, '#fff', -5);
+    assert.equal(m2.distanceMeters, 0); // max(0, rounded)
+
+    const m3 = msg('Distance test', 1, '#fff', Infinity);
+    assert.equal(m3.distanceMeters, undefined); // not finite
+
+    const m4 = msg('Distance test', 1, '#fff', NaN);
+    assert.equal(m4.distanceMeters, undefined); // not finite
+  });
+});
 
 describe('msgAt edge cases', () => {
   test('handles valid input properties correctly', () => {
