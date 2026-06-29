@@ -662,7 +662,17 @@ function freeCrowdCell(ctx: ProceduralAnomalyGenContext, room: Room, occupied: S
   return null;
 }
 
-function spawnCrowdNpc(ctx: ProceduralAnomalyGenContext, room: Room, occupied: Set<number>, bucketCounts: Int32Array, order: number, active: boolean): boolean {
+interface SpawnCrowdNpcConfig {
+  ctx: ProceduralAnomalyGenContext;
+  room: Room;
+  occupied: Set<number>;
+  bucketCounts: Int32Array;
+  order: number;
+  active: boolean;
+}
+
+function spawnCrowdNpc(cfg: SpawnCrowdNpcConfig): boolean {
+  const { ctx, room, occupied, bucketCounts, order, active } = cfg;
   const pos = freeCrowdCell(ctx, room, occupied, bucketCounts);
   if (!pos) return false;
   const ci = ctx.world.idx(pos.x, pos.y);
@@ -872,7 +882,7 @@ export function applyZombieApocalypse(ctx: ProceduralAnomalyGenContext): void {
   let spawned = 0;
   for (let i = 0; i < target * 12 && spawned < target; i++) {
     const room = Math.random() < 0.22 && outbreak ? outbreak : pick(distributionRooms);
-    if (spawnCrowdNpc(ctx, room, occupied, bucketCounts, spawned, true)) spawned++;
+    if (spawnCrowdNpc({ ctx, room, occupied, bucketCounts, order: spawned, active: true })) spawned++;
   }
 
   convertShadowSpawnsToZombies(ctx);
