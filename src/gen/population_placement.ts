@@ -1,6 +1,7 @@
 import { Cell, Feature, W, type RoomType, type ZoneFaction } from '../core/types';
 import type { World } from '../core/world';
 import { territoryOwnerAtIndex } from '../systems/territory';
+import { lerp } from '../core/math';
 
 export interface PlacementFieldAnchor {
   x: number;
@@ -381,10 +382,6 @@ function valueNoise(x: number, y: number, scale: number, seed: number): number {
 
 function smooth(t: number): number {
   return t * t * (3 - 2 * t);
-}
-
-function lerp(a: number, b: number, t: number): number {
-  return a + (b - a) * t;
 }
 
 function wrapGrid(v: number, period: number): number {

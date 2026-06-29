@@ -24,6 +24,7 @@ import {
   type VisualCellDef,
   type VisualCellZBand,
 } from '../../data/visual_cell_slots';
+import { lerp } from '../../core/math';
 import {
   visualCorridorCoveringById,
   type FloorScatterPackage,
@@ -1189,10 +1190,6 @@ function adjacentWallFaces(world: World, x: number, y: number, z: number): Resol
 function smoothStep(t: number): number {
   const x = Math.max(0, Math.min(1, t));
   return x * x * (3 - 2 * x);
-}
-
-function lerp(a: number, b: number, t: number): number {
-  return a + (b - a) * t;
 }
 
 function hashUnit(seed: number, x: number, y: number, roomId: number, salt: number): number {
