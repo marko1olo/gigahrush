@@ -115,6 +115,29 @@ function plotNpcPackage(input: MainPlotNpcPackageInput): NpcPackageDef {
 
 export const MAIN_PLOT_NPC_PACKAGES = [
   plotNpcPackage({
+    id: 'barney',
+    displayName: 'Барни',
+    publicLine: 'Охранник на входе, следящий за порядком и выдающий базовое снаряжение новичкам.',
+    sex: 'male',
+    age: 45,
+    faction: Faction.LIQUIDATOR,
+    occupation: Occupation.TURNER,
+    sprite: Occupation.TURNER,
+    homeFloorKey: floorKeyForStory(FloorLevel.LIVING),
+    hp: 500, maxHp: 500, level: 5, money: 20, speed: 1.1,
+    inventory: [
+      { defId: 'flashlight', count: 1 },
+    ],
+    talkLines: [
+      'Держи фонарь. Свет здесь — это жизнь. Теперь иди к Ольге.',
+    ],
+    talkLinesPost: [
+      'Свет здесь — это жизнь.',
+    ],
+    talkQuestResponse: 'Вижу, фонарик взял. Хорошо. Без него в лабиринте делать нечего. Ольга ждет тебя дальше по коридору.',
+  }),
+
+  plotNpcPackage({
     id: 'olga',
     displayName: 'Ольга Дмитриевна',
     publicLine: 'Врач жилой зоны, подписывающая новичкам допуск на вылазки и списывающая бинты.',
