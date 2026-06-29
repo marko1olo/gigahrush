@@ -18,6 +18,7 @@ import {
   occupationPreferredVisitRooms,
 } from '../data/occupation_profiles';
 
+import { buildContextSnapshot } from './context';
 import { addFactionRelMutual, getFactionRel } from '../data/relations';
 import { ENTITY_MASK_MONSTER, getEntityIndex } from './entity_index';
 import {
@@ -190,6 +191,7 @@ function proceduralQuestSpeechLine(
   q: Quest,
   phase: ProceduralQuestSpeechPhase,
   state: GameState,
+  npc?: Entity,
   fallback = q.desc,
   contractDef = q.contractId ? CONTRACTS.find(c => c.id === q.contractId) : undefined,
 ): string {
@@ -203,6 +205,7 @@ function proceduralQuestSpeechLine(
     repeatIndex: phase === 'offer' ? 0 : Math.floor(state.clock.totalMinutes),
     nowMinutes: state.clock.totalMinutes,
     routeSpeech: routeAdapterSpeech,
+    snapshot: npc ? buildContextSnapshot(npc, { time: state.clock.totalMinutes, state }) : undefined,
   }).text;
 }
 
@@ -519,7 +522,7 @@ export function offerQuest(
   if (!isPlotNpc(npc)) npc.canGiveQuest = false;
   const contractId = quest.contractId;
   const contractDef = contractId ? CONTRACTS.find(c => c.id === contractId) : undefined;
-  const offerText = proceduralQuestSpeechLine(quest, 'offer', state, quest.desc, contractDef);
+  const offerText = proceduralQuestSpeechLine(quest, 'offer', state, npc, quest.desc, contractDef);
   pushNpcQuestMessage(npc, player, world, state, msgs, `Новое поручение: ${offerText}${deadlineMessageSuffix(quest, state.clock.totalMinutes)}`, '#4af');
   const questEventData = {
     contractId,
@@ -960,7 +963,7 @@ function failQuest(
   if (giver?.questId === q.id) giver.questId = -1;
   const contractDef = q.contractId ? CONTRACTS.find(c => c.id === q.contractId) : undefined;
 
-  if (msgs) msgs.push(msg(`Поручение сорвано: ${proceduralQuestSpeechLine(q, 'failure', state, q.desc, contractDef)}`, state.time, '#f66'));
+  if (msgs) msgs.push(msg(`Поручение сорвано: ${proceduralQuestSpeechLine(q, 'failure', state, giver, q.desc, contractDef)}`, state.time, '#f66'));
   publishEvent(state, {
     type: q.contractId ? 'contract_failed' : 'quest_failed',
     actorId: q.giverId,
@@ -1170,7 +1173,7 @@ function completeQuest(
   }
 
   const contractDef = q.contractId ? CONTRACTS.find(c => c.id === q.contractId) : undefined;
-  msgs.push(msg(`Поручение закрыто: ${proceduralQuestSpeechLine(q, 'completion', state, q.desc, contractDef)}`, state.time, '#4f4'));
+  msgs.push(msg(`Поручение закрыто: ${proceduralQuestSpeechLine(q, 'completion', state, giver, q.desc, contractDef)}`, state.time, '#4f4'));
   publishEvent(state, {
     type: q.contractId ? 'contract_completed' : 'quest_completed',
     actorId: q.giverId,
@@ -1264,7 +1267,7 @@ function expireQuestIfNeeded(q: Quest, player: Entity, entities: Entity[], state
   const contractDef = q.contractId ? CONTRACTS.find(c => c.id === q.contractId) : undefined;
   if (isGovnyakCourierContractId(q.contractId)) removeItem(player, GOVNYAK_COURIER_PACKAGE_ITEM, 1);
 
-  msgs.push(msg(`Срок вышел: ${proceduralQuestSpeechLine(q, 'failure', state, q.desc, contractDef)}`, state.time, '#f66'));
+  msgs.push(msg(`Срок вышел: ${proceduralQuestSpeechLine(q, 'failure', state, giver, q.desc, contractDef)}`, state.time, '#f66'));
   publishEvent(state, {
     type: q.contractId ? 'contract_failed' : 'quest_failed',
     actorId: q.giverId,

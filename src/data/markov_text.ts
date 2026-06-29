@@ -1458,6 +1458,9 @@ export const MARKOV_TEMPLATES = [
   template('bark.needs', 'bark_ambient', ['needs'], ['need'], ['need'], NEED_PATHS, 'Хлеб спрячь. Очередь слышит.'),
   template('bark.danger', 'bark_ambient', ['danger'], ['danger'], ['event'], DANGER_PATHS, 'К герме. Без споров.'),
   template('quest.trade', 'procedural_quest', ['wealth'], ['quest'], ['item'], WEALTH_PATHS, 'Нужен предмет, адрес и плата по списку.'),
+  template('quest.danger', 'procedural_quest', ['danger'], ['quest', 'danger'], ['event'], DANGER_PATHS, 'Там опасно, но плата по списку. Иди тихо.'),
+  template('quest.faction', 'procedural_quest', ['factions'], ['quest', 'faction'], ['faction'], FACTION_PATHS, 'Иди к своим, передай дело.'),
+  template('quest.space', 'procedural_quest', ['space_move'], ['quest', 'room'], ['room'], SPACE_PATHS, 'Пройди по этажу, проверь точки.'),
   template('demos.event', 'demos_post', ['world_events'], ['event'], ['event'], EVENT_PATHS, 'В Инфосети пишут: событие подтвердили свидетели.'),
   template('demos.relation', 'demos_reaction', ['relationships'], ['relation'], ['relation'], RELATION_PATHS, 'Записал. Спрошу при встрече.'),
   {
@@ -1473,7 +1476,7 @@ export const MARKOV_TEMPLATES = [
 ] as const satisfies readonly MarkovTemplate[];
 
 export const MARKOV_DOMAINS = [
-  domain('space_move', ['room', 'route', 'door'], ['talk_ambient', 'talk_context', 'log_speech', 'bark_ambient'], SPACE_ATOMS, [
+  domain('space_move', ['room', 'route', 'door'], ['talk_ambient', 'talk_context', 'log_speech', 'bark_ambient', 'procedural_quest'], SPACE_ATOMS, [
     ...corpus('space_move', 'talk_context', 'dialogue.general', GENERAL_LINES, ['room'], ['room']),
     ...corpus('space_move', 'talk_context', 'context.safe', CONTEXT_SAFE_OWN_ZONE_LINES, ['room', 'safe'], ['room']),
     ...corpus('space_move', 'talk_context', 'context.lift', CONTEXT_LIFT_ANOMALY_LINES, ['lift', 'route', 'danger'], ['event', 'route']),
@@ -1486,7 +1489,7 @@ export const MARKOV_DOMAINS = [
     ...corpus('needs', 'bark_ambient', 'bark.thirst', CONTEXT_BARK_THIRST, ['need', 'water'], ['need']),
     ...corpus('needs', 'bark_ambient', 'bark.wounded', CONTEXT_BARK_WOUNDED, ['need', 'medical'], ['need']),
   ], 'Кушайте вовремя.'),
-  domain('danger', ['danger', 'samosbor', 'monster', 'door'], ['talk_context', 'log_speech', 'bark_ambient'], DANGER_ATOMS, [
+  domain('danger', ['danger', 'samosbor', 'monster', 'door'], ['talk_context', 'log_speech', 'bark_ambient', 'procedural_quest'], DANGER_ATOMS, [
     ...corpus('danger', 'talk_context', 'context.danger', CONTEXT_DANGEROUS_ZONE_LINES, ['danger'], ['event']),
     ...corpus('danger', 'talk_context', 'context.samosbor_warning', CONTEXT_SAMOSBOR_WARNING_LINES, ['danger', 'samosbor'], ['event']),
     ...corpus('danger', 'talk_context', 'context.monster', CONTEXT_MONSTER_KILL_LINES, ['danger', 'monster'], ['event']),
@@ -1516,7 +1519,7 @@ export const MARKOV_DOMAINS = [
     ...corpus('relationships', 'talk_context', 'room.help', ROOM_MEMORY_HELP_LINES, ['relation', 'help'], ['relation']),
     ...corpus('relationships', 'talk_context', 'room.theft', ROOM_MEMORY_THEFT_LINES, ['relation', 'theft'], ['relation']),
   ], 'Руки покажи, потом поговорим.'),
-  domain('factions', ['faction', 'sector', 'territory'], ['talk_ambient', 'talk_context', 'log_speech', 'bark_ambient', 'demos_post'], FACTION_ATOMS, [
+  domain('factions', ['faction', 'sector', 'territory'], ['talk_ambient', 'talk_context', 'log_speech', 'bark_ambient', 'demos_post', 'procedural_quest'], FACTION_ATOMS, [
     ...corpusRecord('factions', 'talk_ambient', 'faction', FACTION_LINES, ['faction'], ['faction']),
     ...corpusRecord('factions', 'bark_ambient', 'bark.faction.ambient', CONTEXT_BARK_FACTION_AMBIENT, ['faction'], ['faction']),
   ], 'В чужом секторе сначала спрашивают пароль.'),
