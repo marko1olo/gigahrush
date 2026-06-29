@@ -1,3 +1,4 @@
+import { getEntityIndex } from './entity_index';
 import { stampSurfaceSplat } from './surface_marks';
 import {
   AIGoal,
@@ -964,7 +965,7 @@ export function applyContractFloorHooks(
 export function handleContractQuestItemOutcome(
   q: Quest,
   player: Entity,
-  entities: Entity[],
+  _entities: Entity[],
   state: GameState,
   msgs: Msg[],
 ): boolean {
@@ -976,7 +977,7 @@ export function handleContractQuestItemOutcome(
   removeItem(player, ZHELEMISH_SAMPLE_CONTAMINATED, 1);
   q.done = true;
   q.failed = true;
-  const giver = entities.find(e => e.id === q.giverId);
+  const giver = getEntityIndex().byId.get(q.giverId);
   if (giver?.questId === q.id) giver.questId = -1;
   msgs.push(msg('НИИ вскрыл акт: образец желемыша загрязнён. Контракт закрыт провалом.', state.time, '#f66'));
   publishEvent(state, {
