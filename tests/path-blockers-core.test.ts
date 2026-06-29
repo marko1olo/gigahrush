@@ -6,6 +6,7 @@ import { World } from '../src/core/world';
 import {
   EMPTY_PATH_BLOCKER_ROW,
   PATH_BLOCKER_ROWS_PER_CELL,
+  clearAllPathBlockers,
   clearPathBlockersAtCell,
   getPathBlockerRow,
   pathBlockedAt,
@@ -36,6 +37,35 @@ test('path blocker row writes bump version only on actual changes', () => {
   assert.equal(world.pathBlockerDirtyVersion, world.pathBlockerVersion);
   assert.equal(setPathBlockerRow(world, cellIdx, 3, 0b1000), false);
   assert.equal(world.pathBlockerVersion, before + 1);
+});
+
+test('clearing all path blockers clears everything and bumps dirty version once', () => {
+  const world = new World();
+
+  // Initially, clearing all does nothing
+  assert.equal(clearAllPathBlockers(world), false);
+
+  // Set some blockers
+  const cellIdx1 = world.idx(2, 3);
+  const cellIdx2 = world.idx(15, 10);
+  setPathBlockerRow(world, cellIdx1, 1, 0x0f);
+  setPathBlockerRow(world, cellIdx2, 3, 0b1000);
+
+  const beforeClear = world.pathBlockerVersion;
+
+  // Clear all
+  assert.equal(clearAllPathBlockers(world), true);
+  assert.equal(world.pathBlockerVersion, beforeClear + 1);
+  assert.equal(world.pathBlockerDirtyVersion, world.pathBlockerVersion);
+
+  // Check that everything is empty
+  for (let i = 0; i < world.pathBlockers.length; i++) {
+    assert.equal(world.pathBlockers[i], EMPTY_PATH_BLOCKER_ROW);
+  }
+
+  // Clearing again does nothing
+  assert.equal(clearAllPathBlockers(world), false);
+  assert.equal(world.pathBlockerVersion, beforeClear + 1);
 });
 
 test('clearing path blockers at one cell clears all rows with one dirty bump', () => {
