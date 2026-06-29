@@ -130,78 +130,97 @@ function getButton(pad: Gamepad, idx: number): { pressed: boolean; value: number
   return { pressed: !!btn.pressed, value: typeof btn.value === 'number' ? btn.value : (btn.pressed ? 1 : 0) };
 }
 
-export function createGamepadAdapter(): GamepadAdapter {
-  const state: GamepadAdapterState = {
-    attached: false,
-    activeIndex: -1,
-    prevButtons: new Array(STANDARD_BUTTON_COUNT).fill(false),
-    hadAnyInput: false,
-    lastLabel: '',
-    lastConnected: false,
-    lastMappingStandard: false,
-  };
+class GamepadAdapterImpl implements GamepadAdapter {
+  private state: GamepadAdapterState;
 
-  const onConnected = (e: GamepadEvent) => {
-    if (state.activeIndex < 0 && e.gamepad && e.gamepad.connected) {
-      state.activeIndex = e.gamepad.index;
-      state.lastLabel = typeof e.gamepad.id === 'string' ? e.gamepad.id.slice(0, 64) : '';
-    }
-  };
-  const onDisconnected = (e: GamepadEvent) => {
-    if (e.gamepad && e.gamepad.index === state.activeIndex) {
-      state.activeIndex = -1;
-      state.prevButtons.fill(false);
-      state.lastConnected = false;
-    }
-  };
+  constructor() {
+    this.state = {
+      attached: false,
+      activeIndex: -1,
+      prevButtons: new Array(STANDARD_BUTTON_COUNT).fill(false),
+      hadAnyInput: false,
+      lastLabel: '',
+      lastConnected: false,
+      lastMappingStandard: false,
+    };
 
-  if (typeof window !== 'undefined') {
-    window.addEventListener('gamepadconnected', onConnected);
-    window.addEventListener('gamepaddisconnected', onDisconnected);
-    state.attached = true;
+    this.onConnected = this.onConnected.bind(this);
+    this.onDisconnected = this.onDisconnected.bind(this);
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('gamepadconnected', this.onConnected);
+      window.addEventListener('gamepaddisconnected', this.onDisconnected);
+      this.state.attached = true;
+    }
   }
 
-  function poll(frame: InputFrame): void {
+  private onConnected(e: GamepadEvent) {
+    if (this.state.activeIndex < 0 && e.gamepad && e.gamepad.connected) {
+      this.state.activeIndex = e.gamepad.index;
+      this.state.lastLabel = typeof e.gamepad.id === 'string' ? e.gamepad.id.slice(0, 64) : '';
+    }
+  }
+
+  private onDisconnected(e: GamepadEvent) {
+    if (e.gamepad && e.gamepad.index === this.state.activeIndex) {
+      this.state.activeIndex = -1;
+      this.state.prevButtons.fill(false);
+      this.state.lastConnected = false;
+    }
+  }
+
+  poll(frame: InputFrame): void {
     const settings = loadGamepadSettings();
     if (!settings.enabled) {
-      state.prevButtons.fill(false);
-      state.lastConnected = false;
+      this.state.prevButtons.fill(false);
+      this.state.lastConnected = false;
       return;
     }
-    const pad = pickActivePad(state);
+    const pad = pickActivePad(this.state);
     if (!pad) {
-      // Clear holds on disconnect: emit releases for any previously held button.
-      for (let i = 0; i < state.prevButtons.length; i++) {
-        if (!state.prevButtons[i]) continue;
-        const holdId = BUTTON_HOLD_ACTIONS[i];
-        if (holdId) releaseAction(frame, holdId);
-        const edgeId = BUTTON_EDGE_ACTIONS[i];
-        if (edgeId) releaseAction(frame, edgeId);
-        state.prevButtons[i] = false;
-      }
-      state.lastConnected = false;
-      state.lastMappingStandard = false;
-      frame.hardware.gamepadConnected = false;
-      frame.hardware.gamepadMappingStandard = false;
-      frame.hardware.gamepadLabel = state.lastLabel;
+      this.handleDisconnect(frame);
       return;
     }
 
-    state.lastConnected = true;
-    state.lastMappingStandard = pad.mapping === 'standard';
-    state.lastLabel = typeof pad.id === 'string' ? pad.id.slice(0, 64) : state.lastLabel;
+    this.state.lastConnected = true;
+    this.state.lastMappingStandard = pad.mapping === 'standard';
+    this.state.lastLabel = typeof pad.id === 'string' ? pad.id.slice(0, 64) : this.state.lastLabel;
     frame.hardware.gamepadConnected = true;
-    frame.hardware.gamepadMappingStandard = state.lastMappingStandard;
-    frame.hardware.gamepadLabel = state.lastLabel;
+    frame.hardware.gamepadMappingStandard = this.state.lastMappingStandard;
+    frame.hardware.gamepadLabel = this.state.lastLabel;
 
-    if (!state.lastMappingStandard) {
-      // Non-standard: leave prevButtons alone, do nothing this tick.
+    if (!this.state.lastMappingStandard) {
       return;
     }
 
     let anyInput = false;
+    anyInput = this.processSticks(frame, pad, settings) || anyInput;
+    anyInput = this.processButtons(frame, pad, settings) || anyInput;
 
-    // ── Sticks ──────────────────────────────────────────────
+    if (anyInput) {
+      this.state.hadAnyInput = true;
+      setActiveDevice(frame, 'gamepad');
+    }
+  }
+
+  private handleDisconnect(frame: InputFrame): void {
+    for (let i = 0; i < this.state.prevButtons.length; i++) {
+      if (!this.state.prevButtons[i]) continue;
+      const holdId = BUTTON_HOLD_ACTIONS[i];
+      if (holdId) releaseAction(frame, holdId);
+      const edgeId = BUTTON_EDGE_ACTIONS[i];
+      if (edgeId) releaseAction(frame, edgeId);
+      this.state.prevButtons[i] = false;
+    }
+    this.state.lastConnected = false;
+    this.state.lastMappingStandard = false;
+    frame.hardware.gamepadConnected = false;
+    frame.hardware.gamepadMappingStandard = false;
+    frame.hardware.gamepadLabel = this.state.lastLabel;
+  }
+
+  private processSticks(frame: InputFrame, pad: Gamepad, settings: GamepadSettings): boolean {
+    let anyInput = false;
     const axes = pad.axes;
     if (axes.length >= 2) {
       const move = applyStickDeadzone(axes[0] ?? 0, axes[1] ?? 0, settings.moveDeadzone, settings.moveCurve);
@@ -210,7 +229,7 @@ export function createGamepadAdapter(): GamepadAdapter {
         anyInput = true;
       }
       if (move.y !== 0) {
-        mergeAxis(frame, 'moveY', -move.y); // gameplay treats moveY positive = forward
+        mergeAxis(frame, 'moveY', -move.y);
         anyInput = true;
       }
     }
@@ -226,17 +245,19 @@ export function createGamepadAdapter(): GamepadAdapter {
         anyInput = true;
       }
     }
+    return anyInput;
+  }
 
-    // ── Triggers (LT/RT analog → held semantics) ────────────
+  private processButtons(frame: InputFrame, pad: Gamepad, settings: GamepadSettings): boolean {
+    let anyInput = false;
     const ltCurve = applyTriggerCurve(getButton(pad, 6).value, settings.triggerThreshold, Math.min(0.95, settings.triggerThreshold + 0.2));
     const rtCurve = applyTriggerCurve(getButton(pad, 7).value, settings.triggerThreshold, Math.min(0.95, settings.triggerThreshold + 0.2));
 
-    // ── Buttons & edges ─────────────────────────────────────
     for (let i = 0; i < STANDARD_BUTTON_COUNT; i++) {
       let pressedNow = getButton(pad, i).pressed;
       if (i === 6) pressedNow = ltCurve.held;
       if (i === 7) pressedNow = rtCurve.held;
-      const wasPressed = state.prevButtons[i];
+      const wasPressed = this.state.prevButtons[i];
 
       const holdId = BUTTON_HOLD_ACTIONS[i];
       if (holdId && pressedNow) setActionHeld(frame, holdId, true);
@@ -250,7 +271,6 @@ export function createGamepadAdapter(): GamepadAdapter {
         if (!pressedNow && wasPressed) releaseAction(frame, holdId);
       }
 
-      // D-pad → menu nav edges (12 up, 13 down, 14 left, 15 right)
       if (i >= 12 && i <= 15 && pressedNow && !wasPressed) {
         if (i === 12) setMenuNav(frame, 'up', true);
         if (i === 13) setMenuNav(frame, 'down', true);
@@ -259,29 +279,33 @@ export function createGamepadAdapter(): GamepadAdapter {
       }
 
       if (pressedNow !== wasPressed) anyInput = true;
-      state.prevButtons[i] = pressedNow;
+      this.state.prevButtons[i] = pressedNow;
     }
-
-    if (anyInput) {
-      state.hadAnyInput = true;
-      setActiveDevice(frame, 'gamepad');
-    }
+    return anyInput;
   }
 
-  function detach(): void {
-    if (!state.attached) return;
+  detach(): void {
+    if (!this.state.attached) return;
     if (typeof window !== 'undefined') {
-      window.removeEventListener('gamepadconnected', onConnected);
-      window.removeEventListener('gamepaddisconnected', onDisconnected);
+      window.removeEventListener('gamepadconnected', this.onConnected);
+      window.removeEventListener('gamepaddisconnected', this.onDisconnected);
     }
-    state.attached = false;
+    this.state.attached = false;
   }
 
-  return {
-    poll,
-    detach,
-    isConnected: () => state.lastConnected,
-    hadAnyInput: () => state.hadAnyInput,
-    settings: () => loadGamepadSettings(),
-  };
+  isConnected(): boolean {
+    return this.state.lastConnected;
+  }
+
+  hadAnyInput(): boolean {
+    return this.state.hadAnyInput;
+  }
+
+  settings(): GamepadSettings {
+    return loadGamepadSettings();
+  }
+}
+
+export function createGamepadAdapter(): GamepadAdapter {
+  return new GamepadAdapterImpl();
 }
