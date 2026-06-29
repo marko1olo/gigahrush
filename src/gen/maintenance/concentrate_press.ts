@@ -189,10 +189,20 @@ function contaminateWaste(ctx: MaintContentCtx, x: number, y: number): void {
   if (dirty) ctx.world.markFogDirty();
 }
 
-function nextContainerId(ctx: MaintContentCtx): number {
-  let id = ctx.world.containers.length + 1;
-  while (ctx.world.containerById.has(id) || ctx.world.containers.some(c => c.id === id)) id++;
-  return id;
+function nextContainerId(ctx: MaintContentCtx & { _nextContainerId?: number }): number {
+  if (ctx._nextContainerId === undefined) {
+    let maxId = 0;
+    for (const id of ctx.world.containerById.keys()) {
+      if (id > maxId) maxId = id;
+    }
+    for (const c of ctx.world.containers) {
+      if (c.id > maxId) maxId = c.id;
+    }
+    ctx._nextContainerId = maxId + 1;
+  } else {
+    ctx._nextContainerId++;
+  }
+  return ctx._nextContainerId;
 }
 
 function addPressContainer(
