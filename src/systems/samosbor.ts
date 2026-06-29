@@ -277,8 +277,8 @@ const FRONT_TYPE_WEIGHTS: Record<SamosborFrontType, number> = {
 let activeSamosborFronts: SamosborFront[] = [];
 let frontTouchedCells = new Set<number>(); // all cells mutated by fronts (for post-samosbor stitch)
 let samosborFrontTickAccum = 0;
-const SAMOSBOR_FRONT_TICK_INTERVAL = 0.05; // 20 Hz front processing
-const SAMOSBOR_FRONT_MAX_CATCHUP_TICKS = 2; // cap catch-up to prevent multi-tick bursts on FPS drops
+export const SAMOSBOR_FRONT_TICK_INTERVAL = 0.05; // 20 Hz front processing
+export const SAMOSBOR_FRONT_MAX_CATCHUP_TICKS = 2; // cap catch-up to prevent multi-tick bursts on FPS drops
 
 function pickFrontType(): SamosborFrontType {
   let total = 0;
@@ -588,7 +588,21 @@ function tickSamosborFront(
   return { processed, changed, batchFlags };
 }
 
+
 /** Shared per-tick dirty cell collector — reused across fronts to avoid allocs */
+
+export function getSamosborFrontTickAccumForTests(): number {
+  return samosborFrontTickAccum;
+}
+
+export function setSamosborFrontTickAccumForTests(val: number): void {
+  samosborFrontTickAccum = val;
+}
+
+export function setActiveSamosborFrontsForTests(fronts: any[]): void {
+  activeSamosborFronts = fronts as any;
+}
+
 const frontTickDirtyCells: number[] = [];
 
 function tickAllSamosborFronts(

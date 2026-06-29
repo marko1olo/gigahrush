@@ -79,3 +79,7 @@ export function getForcedSamosborVariant(): SamosborVariantId | null {
 export function getLastSamosborVariant(): SamosborVariantId | null {
   return lastVariant;
 }
+
+export function setActiveSamosborVariantForTests(variant: any): void {
+  activeVariant = variant;
+}
