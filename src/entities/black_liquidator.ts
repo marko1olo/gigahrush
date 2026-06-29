@@ -2,7 +2,7 @@
 
 import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
-import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
+import { S, rgba, noise, clamp, CLEAR, put, line } from '../render/pixutil';
 
 export const DEF: MonsterDef = {
   kind: MonsterKind.BLACK_LIQUIDATOR,
@@ -18,22 +18,9 @@ export const DEF: MonsterDef = {
   lootHint: 'обугленная бирка, мел с номером, черный крюк из инструментальной сумки',
 };
 
-function put(t: Uint32Array, x: number, y: number, c: number): void {
-  if (x >= 0 && x < S && y >= 0 && y < S) t[y * S + x] = c;
-}
-
 function rect(t: Uint32Array, x0: number, y0: number, w: number, h: number, c: number): void {
   for (let y = y0; y < y0 + h; y++) {
     for (let x = x0; x < x0 + w; x++) put(t, x, y, c);
-  }
-}
-
-function line(t: Uint32Array, x0: number, y0: number, x1: number, y1: number, c: number): void {
-  const steps = Math.max(1, Math.abs(x1 - x0), Math.abs(y1 - y0));
-  for (let i = 0; i <= steps; i++) {
-    const x = Math.round(x0 + (x1 - x0) * i / steps);
-    const y = Math.round(y0 + (y1 - y0) * i / steps);
-    put(t, x, y, c);
   }
 }
 
