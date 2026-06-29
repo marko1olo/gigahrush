@@ -136,6 +136,8 @@ export class EntityIndex {
   private readonly bucketVisits = new Uint32Array(BUCKET_COUNT);
   private bucketVisitId = 1;
   readonly byId = new Map<number, Entity>();
+  readonly byPlotNpcId = new Map<string, Entity>();
+  readonly anyMonsterByKind = new Map<number, Entity>();
   private readonly entityOrder = new Map<number, number>();
   readonly ai: Entity[] = [];
   readonly actors: Entity[] = [];
@@ -180,6 +182,8 @@ export class EntityIndex {
     this.dynamicEntities.length = 0;
     this.staticIndexedIds.clear();
     this.byId.clear();
+    this.byPlotNpcId.clear();
+    this.anyMonsterByKind.clear();
     this.entityOrder.clear();
     this.ai.length = 0;
     this.actors.length = 0;
@@ -198,6 +202,8 @@ export class EntityIndex {
       if (!e || !e.alive) continue;
       liveEntityCount++;
       this.byId.set(e.id, e);
+      if (e.plotNpcId) this.byPlotNpcId.set(e.plotNpcId, e);
+      if (e.monsterKind !== undefined) this.anyMonsterByKind.set(e.monsterKind, e);
       this.entityOrder.set(e.id, order);
       if (e.type === EntityType.NPC || e.type === EntityType.MONSTER) this.actors.push(e);
       if (e.type === EntityType.NPC) npcCount++;
@@ -254,6 +260,8 @@ export class EntityIndex {
     const startedAt = nowMs();
     this.clearDynamicBuckets();
     this.byId.clear();
+    this.byPlotNpcId.clear();
+    this.anyMonsterByKind.clear();
     this.entityOrder.clear();
     this.ai.length = 0;
     this.actors.length = 0;
@@ -275,12 +283,16 @@ export class EntityIndex {
       if (!e || !e.alive) {
         if (e) {
           this.byId.delete(e.id);
+          if (e.plotNpcId) this.byPlotNpcId.delete(e.plotNpcId);
+          if (e.monsterKind !== undefined && this.anyMonsterByKind.get(e.monsterKind)?.id === e.id) this.anyMonsterByKind.delete(e.monsterKind);
           this.entityOrder.delete(e.id);
         }
         continue;
       }
       liveDynamicEntityCount++;
       this.byId.set(e.id, e);
+      if (e.plotNpcId) this.byPlotNpcId.set(e.plotNpcId, e);
+      if (e.monsterKind !== undefined) this.anyMonsterByKind.set(e.monsterKind, e);
       this.entityOrder.set(e.id, dynamicOrder);
       if (e.type === EntityType.NPC || e.type === EntityType.MONSTER) this.actors.push(e);
       if (e.type === EntityType.NPC) npcCount++;

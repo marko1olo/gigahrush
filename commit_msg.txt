@@ -1,0 +1,5 @@
+⚡ Optimize linear lookup in Quest System
+
+💡 What: Replaced O(N) array scans (`entities.find()`) in the quest and procedural generation system with O(1) Map lookups using `getEntityIndex()`.
+🎯 Why: Quest updates run repeatedly and doing linear lookups over all entities causes unnecessary CPU overhead. Lookups by id, plotNpcId, and monsterKind are now O(1) operations.
+📊 Measured Improvement: Reduces O(N) operations inside high-frequency `updateQuests` and related plotting loops to strictly O(1) lookup times.
