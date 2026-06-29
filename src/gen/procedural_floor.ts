@@ -568,6 +568,46 @@ function decorateProceduralMacroHall(world: World, room: Room, spec: ProceduralF
   world.features[world.idx(center.x, center.y)] = room.type === RoomType.PRODUCTION ? Feature.APPARATUS : Feature.TABLE;
 }
 
+function tryPlaceMacroHall(
+  world: World,
+  rooms: Room[],
+  spec: ProceduralFloorSpec,
+  nextRoomId: { v: number },
+  profile: ProceduralMacroProfile,
+  halls: Room[],
+  usedSlots: Set<number>,
+  cols: number,
+  rows: number,
+  slotW: number,
+  slotH: number,
+  margin: number,
+  serial: number,
+): boolean {
+  for (let attempt = 0; attempt < 64; attempt++) {
+    const slotCount = cols * rows;
+    const slot = (serial * 5 + (spec.seed & 15) + attempt) % slotCount;
+    if (usedSlots.has(slot) && attempt < slotCount) continue;
+    const col = slot % cols;
+    const row = Math.floor(slot / cols);
+    const size = macroRoomSize(profile, serial + attempt);
+    const jitterX = irng(4, Math.max(5, slotW - size.w - 6));
+    const jitterY = irng(4, Math.max(5, slotH - size.h - 6));
+    const x = margin + col * slotW + jitterX;
+    const y = margin + row * slotH + jitterY;
+    if (!canPlaceRoom(world, x, y, size.w, size.h) && !canPlaceAtticSupportRoom(world, x, y, size.w, size.h)) continue;
+
+    const type = profile.hallTypes[(serial + attempt + spec.danger) % profile.hallTypes.length];
+    const room = stampRoom(world, nextRoomId.v++, type, x, y, size.w, size.h, -1);
+    room.name = `${profile.namePrefix} ${serial + 1}`;
+    decorateProceduralMacroHall(world, room, spec, profile, serial + 1);
+    rooms.push(room);
+    halls.push(room);
+    usedSlots.add(slot);
+    return true;
+  }
+  return false;
+}
+
 function buildProceduralMacroLayer(world: World, rooms: Room[], spec: ProceduralFloorSpec, nextRoomId: { v: number }, industrial: boolean): ProceduralMacroLayer | null {
   const profile = proceduralMacroProfile(spec, industrial);
   if (!profile) return null;
@@ -581,28 +621,10 @@ function buildProceduralMacroLayer(world: World, rooms: Room[], spec: Procedural
   const usedSlots = new Set<number>();
 
   for (let serial = 0; serial < profile.hallCount; serial++) {
-    for (let attempt = 0; attempt < 64; attempt++) {
-      const slotCount = cols * rows;
-      const slot = (serial * 5 + (spec.seed & 15) + attempt) % slotCount;
-      if (usedSlots.has(slot) && attempt < slotCount) continue;
-      const col = slot % cols;
-      const row = Math.floor(slot / cols);
-      const size = macroRoomSize(profile, serial + attempt);
-      const jitterX = irng(4, Math.max(5, slotW - size.w - 6));
-      const jitterY = irng(4, Math.max(5, slotH - size.h - 6));
-      const x = margin + col * slotW + jitterX;
-      const y = margin + row * slotH + jitterY;
-      if (!canPlaceRoom(world, x, y, size.w, size.h) && !canPlaceAtticSupportRoom(world, x, y, size.w, size.h)) continue;
-
-      const type = profile.hallTypes[(serial + attempt + spec.danger) % profile.hallTypes.length];
-      const room = stampRoom(world, nextRoomId.v++, type, x, y, size.w, size.h, -1);
-      room.name = `${profile.namePrefix} ${serial + 1}`;
-      decorateProceduralMacroHall(world, room, spec, profile, serial + 1);
-      rooms.push(room);
-      halls.push(room);
-      usedSlots.add(slot);
-      break;
-    }
+    tryPlaceMacroHall(
+      world, rooms, spec, nextRoomId, profile, halls, usedSlots,
+      cols, rows, slotW, slotH, margin, serial,
+    );
   }
 
   return halls.length > 0 ? { profile, halls } : null;
