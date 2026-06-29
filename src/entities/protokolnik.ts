@@ -2,7 +2,7 @@
 
 import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
-import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
+import { put, S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
 export const DEF: MonsterDef = {
   kind: MonsterKind.PROTOKOLNIK,
@@ -18,11 +18,6 @@ export const DEF: MonsterDef = {
   lootHint: 'испорченный протокол, сургучная крошка и бумага с пустым местом для вашей фамилии',
 };
 
-function put(t: Uint32Array, x: number, y: number, c: number): void {
-  const px = Math.floor(x);
-  const py = Math.floor(y);
-  if (px >= 0 && px < S && py >= 0 && py < S) t[py * S + px] = c;
-}
 
 function rect(t: Uint32Array, x0: number, y0: number, w: number, h: number, c: number): void {
   for (let y = y0; y < y0 + h; y++) {

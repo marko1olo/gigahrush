@@ -2,7 +2,7 @@
 
 import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
-import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
+import { putRGB, S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
 export const DEF: MonsterDef = {
   kind: MonsterKind.CHERNOSLIZ,
@@ -21,10 +21,6 @@ export const DEF: MonsterDef = {
   lootHint: 'проба черной слизи, стеклянная пыль, редкий мутный зрачок из коллектора',
 };
 
-function put(t: Uint32Array, x: number, y: number, r: number, g: number, b: number, a = 255): void {
-  if (x < 0 || x >= S || y < 0 || y >= S) return;
-  t[y * S + x] = rgba(r, g, b, a);
-}
 
 export function generateSprite(): Uint32Array {
   const t = new Uint32Array(S * S).fill(CLEAR);
@@ -64,30 +60,30 @@ export function generateSprite(): Uint32Array {
     const open = Math.max(1, 3 - Math.abs(y - 29) * 0.18);
     for (let x = Math.floor(cx - open); x <= Math.ceil(cx + open); x++) {
       const glow = Math.max(0, 1 - Math.abs(x - cx) / Math.max(1, open + 1));
-      put(t, x, y, clamp(50 + glow * 60), clamp(190 + glow * 55), clamp(60 + glow * 60));
+      putRGB(t, x, y, clamp(50 + glow * 60), clamp(190 + glow * 55), clamp(60 + glow * 60));
     }
-    put(t, cx, y, 4, 10, 5);
+    putRGB(t, cx, y, 4, 10, 5);
   }
 
   for (let x = 10; x < 54; x++) {
     const y = surfaceY + Math.round(Math.sin(x * 0.37) * 1.4);
-    put(t, x, y, 1, 2, 3, 250);
-    if (x % 3 === 0) put(t, x, y - 1, 75, 52, 98, 145);
+    putRGB(t, x, y, 1, 2, 3, 250);
+    if (x % 3 === 0) putRGB(t, x, y - 1, 75, 52, 98, 145);
   }
 
   for (let i = 0; i < 20; i++) {
     const bx = 11 + Math.floor(noise(i, 1, 7741) * 42);
     const by = surfaceY + 3 + Math.floor(noise(i, 2, 7742) * 19);
     const c = noise(i, 3, 7743);
-    put(t, bx, by, c > 0.55 ? 56 : 18, c > 0.55 ? 38 : 18, c > 0.55 ? 82 : 24, 170);
-    if (noise(i, 4, 7744) > 0.65) put(t, bx + 1, by, 90, 64, 118, 120);
+    putRGB(t, bx, by, c > 0.55 ? 56 : 18, c > 0.55 ? 38 : 18, c > 0.55 ? 82 : 24, 170);
+    if (noise(i, 4, 7744) > 0.65) putRGB(t, bx + 1, by, 90, 64, 118, 120);
   }
 
   for (let i = 0; i < 5; i++) {
     const y = surfaceY + 4 + i * 4;
     const span = 12 + i * 3;
     for (let x = cx - span; x <= cx + span; x += 2) {
-      if (noise(x, y, 7751) < 0.22) put(t, x, y, 38, 44, 54, 120);
+      if (noise(x, y, 7751) < 0.22) putRGB(t, x, y, 38, 44, 54, 120);
     }
   }
 

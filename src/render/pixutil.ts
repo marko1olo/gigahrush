@@ -21,3 +21,17 @@ export const clamp = (v: number) => v < 0 ? 0 : v > 255 ? 255 : v;
 
 /** Transparent pixel */
 export const CLEAR = rgba(0, 0, 0, 0);
+
+/** Safely put a color pixel (bounds checked) */
+export function put(t: Uint32Array, x: number, y: number, color: number): void {
+  const px = Math.floor(x);
+  const py = Math.floor(y);
+  if (px >= 0 && px < S && py >= 0 && py < S) t[py * S + px] = color;
+}
+
+/** Safely put an RGBA pixel (bounds checked) */
+export function putRGB(t: Uint32Array, x: number, y: number, r: number, g: number, b: number, a = 255): void {
+  const px = Math.floor(x);
+  const py = Math.floor(y);
+  if (px >= 0 && px < S && py >= 0 && py < S) t[py * S + px] = rgba(r, g, b, a);
+}

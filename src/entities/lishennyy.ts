@@ -2,7 +2,7 @@
 
 import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
-import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
+import { put, S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
 export const DEF: MonsterDef = {
   kind: MonsterKind.LISHENNYY,
@@ -18,9 +18,6 @@ export const DEF: MonsterDef = {
   lootHint: 'пепельная пыль, черный след, редкий странный сгусток',
 };
 
-function put(t: Uint32Array, x: number, y: number, c: number): void {
-  if (x >= 0 && x < S && y >= 0 && y < S) t[y * S + x] = c;
-}
 
 function line(t: Uint32Array, x0: number, y0: number, x1: number, y1: number, c: number): void {
   const steps = Math.max(1, Math.abs(x1 - x0), Math.abs(y1 - y0));

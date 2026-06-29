@@ -1,6 +1,6 @@
 /* Procedural non-explicit adult art-study sprites. */
 
-import { S, rgba, noise, clamp, CLEAR } from './pixutil';
+import { put, S, rgba, noise, clamp, CLEAR } from './pixutil';
 
 export const ART_NUDE_VARIANTS = 4;
 export const F69_FEMALE_NPC_VARIANTS = 8;
@@ -82,11 +82,6 @@ function jitterColor(c: [number, number, number], seed: number, salt: number, am
   ];
 }
 
-function put(t: Uint32Array, x: number, y: number, c: number): void {
-  x = Math.round(x);
-  y = Math.round(y);
-  if (x >= 0 && x < S && y >= 0 && y < S) t[y * S + x] = c;
-}
 
 function shade(p: Palette, x: number, y: number, seed: number, edge = 0): number {
   const key = seed * 97 + 31;

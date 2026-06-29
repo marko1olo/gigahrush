@@ -2,7 +2,7 @@
 
 import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
-import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
+import { put, S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
 export const DEF: MonsterDef = {
   kind: MonsterKind.SOBRANNYY,
@@ -18,9 +18,6 @@ export const DEF: MonsterDef = {
   lootHint: 'обугленная ткань, костяная пуговица, редкий отчет ликвидаторов о составном теле',
 };
 
-function put(t: Uint32Array, x: number, y: number, color: number): void {
-  if (x >= 0 && x < S && y >= 0 && y < S) t[y * S + x] = color;
-}
 
 function rect(t: Uint32Array, x0: number, y0: number, x1: number, y1: number, r: number, g: number, b: number, seed = 0): void {
   const lx = Math.max(0, Math.floor(x0));

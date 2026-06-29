@@ -2,7 +2,7 @@
 
 import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
-import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
+import { putRGB, S, noise, clamp, CLEAR } from '../render/pixutil';
 
 export const DEF: MonsterDef = {
   kind: MonsterKind.BLOOD_PLANT,
@@ -18,16 +18,12 @@ export const DEF: MonsterDef = {
   lootHint: 'красная плесень, влажная кора, редкий живой корень для НИИ или культа',
 };
 
-function put(t: Uint32Array, x: number, y: number, r: number, g: number, b: number, a = 255): void {
-  if (x < 0 || x >= S || y < 0 || y >= S) return;
-  t[y * S + x] = rgba(r, g, b, a);
-}
 
 function line(t: Uint32Array, x0: number, y0: number, x1: number, y1: number, r: number, g: number, b: number, a = 255): void {
   const steps = Math.max(1, Math.abs(x1 - x0), Math.abs(y1 - y0));
   for (let i = 0; i <= steps; i++) {
     const k = i / steps;
-    put(t, Math.round(x0 + (x1 - x0) * k), Math.round(y0 + (y1 - y0) * k), r, g, b, a);
+    putRGB(t, Math.round(x0 + (x1 - x0) * k), Math.round(y0 + (y1 - y0) * k), r, g, b, a);
   }
 }
 
@@ -42,7 +38,7 @@ function ellipse(t: Uint32Array, cx: number, cy: number, rx: number, ry: number,
       const dy = (y - cy) / ry;
       if (dx * dx + dy * dy > 1) continue;
       const n = noise(x, y, seed) * 26 - 10;
-      put(t, x, y, clamp(r + n), clamp(g + n * 0.45), clamp(b + n * 0.35), a);
+      putRGB(t, x, y, clamp(r + n), clamp(g + n * 0.45), clamp(b + n * 0.35), a);
     }
   }
 }
@@ -56,7 +52,7 @@ function redWalk(t: Uint32Array, sx: number, sy: number, seed: number): void {
     const nx = x + Math.cos(ang) * (1.6 + noise(i, seed, 1516) * 2.8);
     const ny = y + Math.sin(ang) * (1.2 + noise(seed, i, 1517) * 2.4);
     line(t, x, y, nx, ny, 146, 12, 24, 190);
-    if (i % 4 === 0) put(t, Math.round(nx), Math.round(ny), 232, 54, 64, 235);
+    if (i % 4 === 0) putRGB(t, Math.round(nx), Math.round(ny), 232, 54, 64, 235);
     x = nx;
     y = ny;
     if (x < 3 || x > 60 || y < 3 || y > 60) break;
@@ -86,7 +82,7 @@ export function generateSprite(): Uint32Array {
       const dx = Math.abs((x - cx) / Math.max(1, half));
       if (dx > 1) continue;
       const n = noise(x, y, 1513) * 32;
-      put(t, x, y, clamp(34 + n - dx * 24), clamp(9 + n * 0.22), clamp(13 + n * 0.28));
+      putRGB(t, x, y, clamp(34 + n - dx * 24), clamp(9 + n * 0.22), clamp(13 + n * 0.28));
     }
   }
 
@@ -101,8 +97,8 @@ export function generateSprite(): Uint32Array {
   }
 
   // Human-face suggestion in bark: two pale dots and a closed red mouth, not explicit gore.
-  put(t, cx - 3, 23, 226, 190, 168, 250);
-  put(t, cx + 4, 24, 226, 190, 168, 250);
+  putRGB(t, cx - 3, 23, 226, 190, 168, 250);
+  putRGB(t, cx + 4, 24, 226, 190, 168, 250);
   line(t, cx - 4, 31, cx + 5, 30, 162, 22, 32, 245);
   line(t, cx - 2, 34, cx + 3, 35, 86, 8, 18, 230);
 
@@ -114,7 +110,7 @@ export function generateSprite(): Uint32Array {
     const y = 12 + Math.sin(a) * r * 0.55;
     line(t, cx, 17, x, y, 92, 12, 18, 150);
     ellipse(t, x, y, 1.5, 1.5, 226, 18, 32, 1541 + i, 245);
-    if (i % 5 === 0) put(t, Math.round(x), Math.round(y - 1), 255, 116, 124, 250);
+    if (i % 5 === 0) putRGB(t, Math.round(x), Math.round(y - 1), 255, 116, 124, 250);
   }
   ellipse(t, cx, 17, 3.2, 3.2, 92, 12, 18, 1559, 245);
 

@@ -2,7 +2,7 @@
 
 import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
-import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
+import { put, S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
 export const DEF: MonsterDef = {
   kind: MonsterKind.TRESKOTNIK,
@@ -18,9 +18,6 @@ export const DEF: MonsterDef = {
   lootHint: 'бетонная крошка, красная пыль из трещин, редкий кусок хрупкой плиты',
 };
 
-function put(t: Uint32Array, x: number, y: number, color: number): void {
-  if (x >= 0 && x < S && y >= 0 && y < S) t[y * S + x] = color;
-}
 
 function drawCrack(t: Uint32Array, sx: number, sy: number, len: number, seed: number, dir: number): void {
   let x = sx;
