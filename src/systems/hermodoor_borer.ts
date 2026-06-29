@@ -15,7 +15,8 @@ import { setDoorState } from './door_state';
 import { publishEvent } from './events';
 import { addItem, hasItem, removeItem } from './inventory';
 import { randomRPG, scaleMonsterHp, scaleMonsterSpeed } from './rpg';
-import { isPlayerEntity } from './player_actor';
+import { isPlayerEntity, getCurrentPlayerId } from './player_actor';
+import { ensureEntityIndex } from './entity_index';
 
 type BorerSource = 'pre_samosbor' | 'post_samosbor' | 'debug';
 type BorerPhase = 'warning' | 'damaged' | 'compromised' | 'repaired' | 'resolved';
@@ -102,6 +103,11 @@ function storeFor(world: World): BorerStore {
 }
 
 function findPlayer(entities: readonly Entity[]): Entity | undefined {
+  const pid = getCurrentPlayerId();
+  if (pid !== undefined) {
+    const e = ensureEntityIndex(entities).byId.get(pid);
+    if (e?.alive) return e;
+  }
   return entities.find(e => isPlayerEntity(e) && e.alive);
 }
 
@@ -359,6 +365,8 @@ function startBorer(
 }
 
 function activeMonster(entities: readonly Entity[], runtime: BorerRuntime): Entity | undefined {
+  const e = ensureEntityIndex(entities).byId.get(runtime.monsterId);
+  if (e) return e;
   return entities.find(e => e.id === runtime.monsterId);
 }
 
