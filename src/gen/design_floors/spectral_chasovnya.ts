@@ -777,7 +777,14 @@ function carveSpectralMacroNetwork(world: World, rooms: SpectralRooms, halls: re
 
 function expandSpectralRouteGeometry(world: World, rooms: SpectralRooms): void {
   const hqRooms: Room[] = [];
-  for (const spec of SPECTRAL_HQ_SPECS) hqRooms.push(...stampSpectralHqCompound(world, spec).filter(room => room.type === RoomType.HQ));
+  for (const spec of SPECTRAL_HQ_SPECS) {
+    const compoundRooms = stampSpectralHqCompound(world, spec);
+    for (let i = 0; i < compoundRooms.length; i++) {
+      if (compoundRooms[i].type === RoomType.HQ) {
+        hqRooms.push(compoundRooms[i]);
+      }
+    }
+  }
   const courts = stampSpectralEchoCourts(world);
   const outer = stampSpectralOuterDistricts(world);
   const halls = stampSpectralRingStations(world);
