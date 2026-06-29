@@ -330,8 +330,9 @@ function expandIndustrialShell(
     [{ x: c.x - 70, y: 0 }, { x: c.x - 70, y: c.y - 180 }, { x: c.x + 96, y: c.y + 166 }, { x: c.x + 96, y: EDGE }],
     [{ x: 0, y: c.y + 186 }, { x: c.x - 220, y: c.y + 44 }, { x: c.x + 240, y: c.y + 220 }, { x: EDGE, y: c.y - 184 }],
   ];
-  for (const trunk of trunks) carvePolyline(world, mask, trunk.map(clampPoint), style, 0.4);
-  for (const trunk of trunks) carveIndustrialWater(world, mask, trunk.map(clampPoint), style);
+  const clampedTrunks = trunks.map(trunk => trunk.map(clampPoint));
+  for (const trunk of clampedTrunks) carvePolyline(world, mask, trunk, style, 0.4);
+  for (const trunk of clampedTrunks) carveIndustrialWater(world, mask, trunk, style);
 
   for (let i = 0; i < 18; i++) {
     const x = 92 + (i % 6) * 168 + jitter(rng, 22);
