@@ -4792,6 +4792,88 @@ function saveGame(): void {
   }
 }
 
+function parseAndValidateGameSave(raw: string): Record<string, unknown> | null {
+  const parsed = safeParseJson(raw);
+  const versionStatus = saveShapeVersionStatus(parsed);
+  if (versionStatus !== 'current') {
+    const text = versionStatus === 'newer'
+      ? 'Сохранение новее этой сборки: загрузка отменена'
+      : versionStatus === 'invalid'
+        ? 'Сохранение повреждено: загрузка отменена'
+        : 'Сохранение старой версии: начните новую игру';
+    state.msgs.push(msg(text, state.time, '#f44'));
+    return null;
+  }
+  return isRecord(parsed) ? parsed : {};
+}
+
+function resetLoadGameUi(): void {
+  state.showMenu = false;
+  state.showHelp = false;
+  state.showControls = false;
+  state.controlView = 'keys';
+  state.showUiSettings = false;
+  state.showDemos = false;
+  state.demosSearchActive = false;
+  state.demosTab = 'profile';
+  state.demosFeedScroll = 0;
+  state.demosPostCursor = 0;
+  cancelControlCapture();
+}
+
+function restoreGameStateSubsystems(
+  dataState: Record<string, unknown>,
+  floor: FloorLevel,
+  savedFloorRun: Parameters<typeof setFloorRunState>[1],
+  loadedFloorInstances: Parameters<typeof setFloorInstanceState>[1],
+  normalizedClock: ReturnType<typeof normalizeClock>,
+  normalizedQuests: ReturnType<typeof normalizeQuestList>,
+): void {
+  state.time = Math.max(0, finiteNumber(dataState.time, 0));
+  state.tick = clampInt(dataState.tick, 0, 0, 1_000_000_000);
+  state.clock = normalizedClock;
+  state.samosborCount = clampInt(dataState.samosborCount, 0, 0, 100_000);
+  netReportedSamosborCount = state.samosborCount;
+  netDeathReported = false;
+  const savedSamosborActive = dataState.samosborActive === true;
+  state.samosborTimer = clampNumber(dataState.samosborTimer, 120, 0, 24 * 60 * 60);
+  state.quests = normalizedQuests.quests;
+  state.nextQuestId = normalizedQuests.nextQuestId;
+  state.currentFloor = floor;
+  setFloorRunState(state, savedFloorRun, floor);
+  setFloorInstanceState(state, loadedFloorInstances, floor);
+  setLiftArachnaState(state, dataState.liftArachna as Parameters<typeof setLiftArachnaState>[1]);
+  setPseudoliftState(state, dataState.pseudolift as Parameters<typeof setPseudoliftState>[1]);
+  state.worldEvents = normalizeWorldEventState(dataState.worldEvents as Parameters<typeof normalizeWorldEventState>[0]);
+  setAlifeMobilityState(state, dataState.alifeMobility);
+  restoreComputersFromSave(dataState.computers);
+  restoreNetHackFromSave(dataState.netHack);
+  state.crafting = restoreCraftingState(dataState.crafting);
+  restoreDemosSocialFromSave(state, dataState.demosSocial);
+  normalizeGameEconomy(state, dataState.economy);
+  (state as GameState & { banking?: BankingState }).banking = normalizeBankingState(dataState.banking);
+  normalizeGameStockMarket(state, dataState.stockMarket);
+  setProductionState(state, dataState.production, floor);
+  state.samosborActive = false;
+  if (savedSamosborActive) {
+    state.samosborTimer = Math.max(state.samosborTimer, 45);
+    state.msgs.push(msg('Активный самосбор из сохранения сброшен: маршрут восстановлен, следующий цикл пересчитан.', state.time, '#fa4'));
+  }
+  state.uvBeamFx = 0;
+  state.uvBeamLen = 0;
+  floorTeleportCd = 0;
+  state.gameOver = false;
+  state.gameWon = false;
+  state.deathTimer = 0;
+  resetRuntimeCamera(runtimeCamera);
+  state.lastDamage = undefined;
+  resetLoadGameUi();
+  state.showContainerMenu = false;
+  state.containerMenuTarget = -1;
+  setVoidReturnPortalState(state, dataState.voidReturnPortal);
+  setVoidEntryFromFloor(state, dataState.voidEntryFromFloor);
+}
+
 function loadGame(): boolean {
   try {
     const raw = localStorage.getItem(SAVE_KEY);
@@ -4799,18 +4881,9 @@ function loadGame(): boolean {
       state.msgs.push(msg('Нет сохранения', state.time, '#f84'));
       return false;
     }
-    const parsed = safeParseJson(raw);
-    const versionStatus = saveShapeVersionStatus(parsed);
-    if (versionStatus !== 'current') {
-      const text = versionStatus === 'newer'
-        ? 'Сохранение новее этой сборки: загрузка отменена'
-        : versionStatus === 'invalid'
-          ? 'Сохранение повреждено: загрузка отменена'
-          : 'Сохранение старой версии: начните новую игру';
-      state.msgs.push(msg(text, state.time, '#f44'));
-      return false;
-    }
-    const data = isRecord(parsed) ? parsed : {};
+    const data = parseAndValidateGameSave(raw);
+    if (!data) return false;
+
     const dataPlayer = isRecord(data.player) ? data.player : {};
     const dataState = isRecord(data.state) ? data.state : {};
     const savedFloor = isFloorLevel(dataState.currentFloor) ? dataState.currentFloor : FloorLevel.LIVING;
@@ -4839,17 +4912,7 @@ function loadGame(): boolean {
     const floor = loadedFloorInstances.current?.baseFloor ?? loadedRunEntry.baseFloor ?? savedFloor;
     const generatedRunEntry = loadedFloorInstances.current ? null : loadedRunEntry;
 
-    state.showMenu = false;
-    state.showHelp = false;
-    state.showControls = false;
-    state.controlView = 'keys';
-    state.showUiSettings = false;
-    state.showDemos = false;
-    state.demosSearchActive = false;
-    state.demosTab = 'profile';
-    state.demosFeedScroll = 0;
-    state.demosPostCursor = 0;
-    cancelControlCapture();
+    resetLoadGameUi();
     closeNetTerminalGen();
     closeMapEditorAndRefreshWorld();
     restoreFloorMemoryFromSave(dataState.floorMemory, {
@@ -4910,59 +4973,8 @@ function loadGame(): boolean {
       initFactionControl(world);
       ensureProceduralSpriteSeeds(entities);
 
-      state.time = Math.max(0, finiteNumber(dataState.time, 0));
-      state.tick = clampInt(dataState.tick, 0, 0, 1_000_000_000);
-      state.clock = normalizedClock;
-      state.samosborCount = clampInt(dataState.samosborCount, 0, 0, 100_000);
-      netReportedSamosborCount = state.samosborCount;
-      netDeathReported = false;
-      const savedSamosborActive = dataState.samosborActive === true;
-      state.samosborTimer = clampNumber(dataState.samosborTimer, 120, 0, 24 * 60 * 60);
-      state.quests = normalizedQuests.quests;
-      state.nextQuestId = normalizedQuests.nextQuestId;
-      state.currentFloor = floor;
-      setFloorRunState(state, savedFloorRun, floor);
-      setFloorInstanceState(state, loadedFloorInstances, floor);
-      setLiftArachnaState(state, dataState.liftArachna as Parameters<typeof setLiftArachnaState>[1]);
-      setPseudoliftState(state, dataState.pseudolift as Parameters<typeof setPseudoliftState>[1]);
-      state.worldEvents = normalizeWorldEventState(dataState.worldEvents as Parameters<typeof normalizeWorldEventState>[0]);
-      setAlifeMobilityState(state, dataState.alifeMobility);
-      restoreComputersFromSave(dataState.computers);
-      restoreNetHackFromSave(dataState.netHack);
-      state.crafting = restoreCraftingState(dataState.crafting);
-      restoreDemosSocialFromSave(state, dataState.demosSocial);
-      normalizeGameEconomy(state, dataState.economy);
-      (state as GameState & { banking?: BankingState }).banking = normalizeBankingState(dataState.banking);
-      normalizeGameStockMarket(state, dataState.stockMarket);
-      setProductionState(state, dataState.production, floor);
-      state.samosborActive = false;
-      if (savedSamosborActive) {
-        state.samosborTimer = Math.max(state.samosborTimer, 45);
-        state.msgs.push(msg('Активный самосбор из сохранения сброшен: маршрут восстановлен, следующий цикл пересчитан.', state.time, '#fa4'));
-      }
-      state.uvBeamFx = 0;
-      state.uvBeamLen = 0;
-      floorTeleportCd = 0;
-      state.gameOver = false;
-      state.gameWon = false;
-      state.deathTimer = 0;
-      resetRuntimeCamera(runtimeCamera);
-      state.lastDamage = undefined;
-      state.showMenu = false;
-      state.showHelp = false;
-      state.showControls = false;
-      state.controlView = 'keys';
-      state.showUiSettings = false;
-      state.showDemos = false;
-      state.demosSearchActive = false;
-      state.demosTab = 'profile';
-      state.demosFeedScroll = 0;
-      state.demosPostCursor = 0;
-      cancelControlCapture();
-      state.showContainerMenu = false;
-      state.containerMenuTarget = -1;
-      setVoidReturnPortalState(state, dataState.voidReturnPortal);
-      setVoidEntryFromFloor(state, dataState.voidEntryFromFloor);
+      restoreGameStateSubsystems(dataState, floor, savedFloorRun, loadedFloorInstances, normalizedClock, normalizedQuests);
+
       if (!loaded.fromMemory) replayMapEditorForCurrentFloor();
       if (!loaded.fromMemory && Array.isArray(dataState.containers)) restoreValidContainers(world, state.currentFloor, dataState.containers);
       ensureRoomContainers(world, state.currentFloor);
