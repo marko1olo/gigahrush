@@ -577,21 +577,19 @@ function publishMyasomerOutcome(
   });
 }
 
-function myasomerWarningText(outcome: 'warned' | 'triggered' | 'quiet_clear' | 'loud_clear' | 'baited' | 'fire_seared', data: Record<string, unknown>): string {
-  switch (outcome) {
-    case 'quiet_clear':
-      return 'Мясомер не проснулся: тихий край дал награду без теней.';
-    case 'loud_clear':
-      return 'Мясомер сбит: шумовой коридор больше не держит угрозу.';
-    case 'baited':
-      return 'Мясомер отвлечен приманкой: следующий шум даст меньше давления.';
-    case 'fire_seared':
-      return 'Мясная жила выжжена: шум списан, потолок угрозы ниже.';
-    case 'warned':
-      return `Мясомер услышал шум ${Number(data.triggers) || 1}/3: уходи краем, брось приманку или жги жилу.`;
-    case 'triggered':
-      return `Мясомер сорвался на шум: угроз ${Number(data.spawned) || 0}/${Number(data.threatCap) || MAX_THREATS}, отход по краям.`;
-  }
+type OutcomeType = 'warned' | 'triggered' | 'quiet_clear' | 'loud_clear' | 'baited' | 'fire_seared';
+
+const WARNING_TEXT_STRATEGIES: Record<OutcomeType, (data: Record<string, unknown>) => string> = {
+  quiet_clear: () => 'Мясомер не проснулся: тихий край дал награду без теней.',
+  loud_clear: () => 'Мясомер сбит: шумовой коридор больше не держит угрозу.',
+  baited: () => 'Мясомер отвлечен приманкой: следующий шум даст меньше давления.',
+  fire_seared: () => 'Мясная жила выжжена: шум списан, потолок угрозы ниже.',
+  warned: (data) => `Мясомер услышал шум ${Number(data.triggers) || 1}/3: уходи краем, брось приманку или жги жилу.`,
+  triggered: (data) => `Мясомер сорвался на шум: угроз ${Number(data.spawned) || 0}/${Number(data.threatCap) || MAX_THREATS}, отход по краям.`,
+};
+
+function myasomerWarningText(outcome: OutcomeType, data: Record<string, unknown>): string {
+  return WARNING_TEXT_STRATEGIES[outcome](data);
 }
 
 function pushLine(state: GameState, text: string, color: string): void {
