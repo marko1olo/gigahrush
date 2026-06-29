@@ -155,7 +155,18 @@ export function allPlotNpcIds(): readonly string[] {
 /* {dir} in desc is auto-replaced with toroidal direction.        */
 
 export const PLOT_CHAIN: PlotStep[] = [
-  // Step 0: Olga → talk to Sergeant Barinov
+  // Step 0: Barney -> talk to Olga
+  {
+    giverNpcId: 'barney',
+    type: QuestType.TALK,
+    desc: 'Барни выдал тебе фонарик. Без света в коридорах делать нечего. Теперь найди Ольгу Дмитриевну — врача жилой зоны.',
+    offerObjective: 'Вводная Барни',
+    activeObjective: 'Найти Ольгу Дмитриевну.',
+    targetNpcId: 'olga',
+    rewardItem: 'flashlight', rewardCount: 1,
+    relationDelta: 10, xpReward: 5,
+  },
+  // Step 1: Olga → talk to Sergeant Barinov
   {
     giverNpcId: 'olga',
     type: QuestType.TALK,

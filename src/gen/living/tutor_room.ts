@@ -244,5 +244,8 @@ export function generateTutorRoom(
   const spawnX = hallX + Math.floor(hallW / 2) + 0.5;
   const spawnY = hallY + hallH - 2 + 0.5;
 
+  requireSpawnedPlotNpcFromPackage(entities, nextId, 'barney',
+    spawnX, spawnY - 1, { angle: -Math.PI / 2 });
+
   return { room, spawnX, spawnY, nextRoomId };
 }
