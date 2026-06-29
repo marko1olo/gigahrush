@@ -1,4 +1,4 @@
-import { W, EntityType, type Entity } from '../core/types';
+import { W, EntityType, type Entity, type MonsterKind } from '../core/types';
 
 export const ENTITY_MASK_NPC = 1 << EntityType.NPC;
 export const ENTITY_MASK_MONSTER = 1 << EntityType.MONSTER;
@@ -136,6 +136,8 @@ export class EntityIndex {
   private readonly bucketVisits = new Uint32Array(BUCKET_COUNT);
   private bucketVisitId = 1;
   readonly byId = new Map<number, Entity>();
+  readonly byPlotNpcId = new Map<string, Entity>();
+  readonly anyMonsterByKind = new Map<MonsterKind, Entity>();
   private readonly entityOrder = new Map<number, number>();
   readonly ai: Entity[] = [];
   readonly actors: Entity[] = [];
@@ -180,6 +182,8 @@ export class EntityIndex {
     this.dynamicEntities.length = 0;
     this.staticIndexedIds.clear();
     this.byId.clear();
+    this.byPlotNpcId.clear();
+    this.anyMonsterByKind.clear();
     this.entityOrder.clear();
     this.ai.length = 0;
     this.actors.length = 0;
@@ -198,6 +202,8 @@ export class EntityIndex {
       if (!e || !e.alive) continue;
       liveEntityCount++;
       this.byId.set(e.id, e);
+      if (e.plotNpcId) this.byPlotNpcId.set(e.plotNpcId, e);
+      if (e.type === EntityType.MONSTER && e.monsterKind) this.anyMonsterByKind.set(e.monsterKind as MonsterKind, e);
       this.entityOrder.set(e.id, order);
       if (e.type === EntityType.NPC || e.type === EntityType.MONSTER) this.actors.push(e);
       if (e.type === EntityType.NPC) npcCount++;
@@ -254,6 +260,8 @@ export class EntityIndex {
     const startedAt = nowMs();
     this.clearDynamicBuckets();
     this.byId.clear();
+    this.byPlotNpcId.clear();
+    this.anyMonsterByKind.clear();
     this.entityOrder.clear();
     this.ai.length = 0;
     this.actors.length = 0;
@@ -281,6 +289,8 @@ export class EntityIndex {
       }
       liveDynamicEntityCount++;
       this.byId.set(e.id, e);
+      if (e.plotNpcId) this.byPlotNpcId.set(e.plotNpcId, e);
+      if (e.type === EntityType.MONSTER && e.monsterKind) this.anyMonsterByKind.set(e.monsterKind as MonsterKind, e);
       this.entityOrder.set(e.id, dynamicOrder);
       if (e.type === EntityType.NPC || e.type === EntityType.MONSTER) this.actors.push(e);
       if (e.type === EntityType.NPC) npcCount++;
@@ -372,6 +382,8 @@ export class EntityIndex {
         bucket[write++] = e;
         this.staticIndexedIds.add(e.id);
         this.byId.set(e.id, e);
+      if (e.plotNpcId) this.byPlotNpcId.set(e.plotNpcId, e);
+      if (e.type === EntityType.MONSTER && e.monsterKind) this.anyMonsterByKind.set(e.monsterKind as MonsterKind, e);
         this.entityOrder.set(e.id, Number.MAX_SAFE_INTEGER - liveCount);
         liveCount++;
         if (e.type === EntityType.ITEM_DROP) itemCount++;
@@ -388,6 +400,8 @@ export class EntityIndex {
       const e = entities[order];
       if (!e || !e.alive) continue;
       this.byId.set(e.id, e);
+      if (e.plotNpcId) this.byPlotNpcId.set(e.plotNpcId, e);
+      if (e.type === EntityType.MONSTER && e.monsterKind) this.anyMonsterByKind.set(e.monsterKind as MonsterKind, e);
       this.entityOrder.set(e.id, order);
       if ((entityMask(e) & ENTITY_MASK_STATIC_VISIBLE) !== 0) {
         if (this.staticIndexedIds.has(e.id)) continue;
