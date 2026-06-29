@@ -14896,8 +14896,13 @@ function cleanFalseSafeRoom(world: World, room: Room): void {
   }
 }
 
-function nextContainerId(world: World): number {
-  return world.containers.reduce((mx, c) => Math.max(mx, c.id), 0) + 1;
+function nextContainerId(world: World & { _nextContainerId?: number }): number {
+  if (world._nextContainerId === undefined) {
+    world._nextContainerId = world.containers.reduce((mx, c) => Math.max(mx, c.id), 0) + 1;
+  }
+  const id = world._nextContainerId;
+  world._nextContainerId++;
+  return id;
 }
 
 function addFalseSafeContainer(
