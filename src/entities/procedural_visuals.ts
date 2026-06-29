@@ -209,7 +209,20 @@ function paintTorso(t: Uint32Array, cx: number, top: number, bot: number, c: RGB
   }
 }
 
-function addNpcHead(t: Uint32Array, cx: number, headTop: number, headBot: number, skin: RGB, hair: RGB, seed: number, covered: boolean, female: boolean): void {
+interface NpcHeadOptions {
+  t: Uint32Array;
+  cx: number;
+  headTop: number;
+  headBot: number;
+  skin: RGB;
+  hair: RGB;
+  seed: number;
+  covered: boolean;
+  female: boolean;
+}
+
+function addNpcHead(options: NpcHeadOptions): void {
+  const { t, cx, headTop, headBot, skin, hair, seed, covered, female } = options;
   const cy = Math.floor((headTop + headBot) / 2);
   const rx = Math.max(5, Math.floor((headBot - headTop) * (0.42 + rnd(seed, 230) * 0.08)));
   const ry = Math.max(6, Math.floor((headBot - headTop) * 0.52));
@@ -437,7 +450,17 @@ function generateDetailedNpcSprite(
       if (x >= 0 && x < S) t[y * S + x] = col(cult ? pal.top : skin, Math.floor((noise(x, y, seed + 30) - 0.5) * 14));
     }
   }
-  addNpcHead(t, cx, headTop, headBot, skin, hair, seed, cult || hunter, female);
+  addNpcHead({
+    t,
+    cx,
+    headTop,
+    headBot,
+    skin,
+    hair,
+    seed,
+    covered: cult || hunter,
+    female
+  });
   addNpcEquipment(t, occ, faction, cx, headTop, headBot, bodyTop, bodyBot, pal.accent, seed);
 
   for (let i = 0; i < 3 + Math.floor(rnd(seed, 300) * 5); i++) {
