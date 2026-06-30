@@ -1310,6 +1310,81 @@ function drawWorldSpeechBubbles(
   }
 }
 
+function drawGameOverOverlay(
+  ctx: CanvasRenderingContext2D,
+  state: GameState,
+  player: Entity,
+  world: World,
+  w: number,
+  h: number,
+  sy: number,
+  time: number
+): void {
+  if (state.gameOver && state.gameWon) {
+    // Victory end screen — black fade-in
+    const winAlpha = Math.min(1, state.deathTimer * 0.4);
+    ctx.fillStyle = `rgba(0,0,0,${winAlpha})`;
+    ctx.fillRect(0, 0, w, h);
+
+    if (state.deathTimer > 1) {
+      const textAlpha = Math.min(1, (state.deathTimer - 1) * 0.5);
+      const dj = textJitter(time * 0.5, 999);
+      ctx.save();
+      ctx.textAlign = 'center';
+      ctx.shadowColor = 'rgba(0,255,128,0.4)';
+      ctx.shadowBlur = 20;
+      ctx.fillStyle = `rgba(200,255,200,${textAlpha})`;
+      ctx.font = `bold ${28 * sy}px monospace`;
+      ctx.fillText('КОНЕЦ ИГРЫ', w / 2 + dj.dx, h / 2 - 20 * sy + dj.dy);
+      ctx.fillStyle = `rgba(0,200,100,${textAlpha * 0.15})`;
+      ctx.fillText('КОНЕЦ ИГРЫ', w / 2 + dj.dx + 3, h / 2 - 20 * sy + dj.dy + 1);
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = `rgba(136,170,136,${Math.min(1, (state.deathTimer - 2) * 0.4)})`;
+      ctx.font = `${10 * sy}px monospace`;
+      ctx.fillText(fitHudText(ctx, voidReturnVictoryLine(state), w * 0.82), w / 2, h / 2 + 10 * sy);
+      ctx.fillText('[R] — заново', w / 2, h / 2 + 30 * sy);
+      ctx.textAlign = 'left';
+      ctx.restore();
+    }
+  } else if (state.gameOver) {
+    const deathAlpha = Math.min(0.5, state.deathTimer * 0.15);
+    const grd = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.15, w / 2, h / 2, Math.min(w, h) * 0.7);
+    grd.addColorStop(0, `rgba(0,0,0,0)`);
+    grd.addColorStop(1, `rgba(0,0,0,${deathAlpha})`);
+    ctx.fillStyle = grd;
+    ctx.fillRect(0, 0, w, h);
+
+    // Intense static noise
+    drawStaticNoise(ctx, 0, 0, w, h, time, 0.06 * Math.min(1, state.deathTimer * 0.3));
+
+    const textAlpha = 0.6 + Math.sin(time * 3) * 0.3;
+    const dj = textJitter(time * 2, 777);
+    ctx.save();
+    ctx.shadowColor = 'rgba(255,0,0,0.5)';
+    ctx.shadowBlur = 15;
+    ctx.fillStyle = `rgba(200,0,0,${textAlpha})`;
+    ctx.font = `bold ${24 * sy}px monospace`;
+    ctx.textAlign = 'center';
+    ctx.fillText('ВЫ ПОГИБЛИ', w / 2 + dj.dx * 2, h / 2 - 20 * sy + dj.dy);
+    // RGB split ghost
+    ctx.fillStyle = `rgba(0,200,200,${textAlpha * 0.15})`;
+    ctx.fillText('ВЫ ПОГИБЛИ', w / 2 + dj.dx * 2 + 3, h / 2 - 20 * sy + dj.dy + 1);
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = `rgba(136,136,136,${Math.min(1, state.deathTimer * 0.5)})`;
+    const deathCause = inferDeathCause(state, player, world);
+    ctx.font = `${10 * sy}px monospace`;
+    ctx.fillText(deathCause.title, w / 2, h / 2 + 10 * sy);
+    ctx.font = `${8 * sy}px monospace`;
+    ctx.fillText(fitHudText(ctx, deathCause.detail, w * 0.82), w / 2, h / 2 + 24 * sy);
+    ctx.font = `${10 * sy}px monospace`;
+    ctx.fillText('[R] — заново', w / 2, h / 2 + 44 * sy);
+    ctx.fillText('[Enter] — продолжить путь', w / 2, h / 2 + 60 * sy);
+    ctx.fillText('за случайного человека', w / 2, h / 2 + 74 * sy);
+    ctx.textAlign = 'left';
+    ctx.restore();
+  }
+}
+
 /* ── The HUD is drawn on the 2D canvas overlaying the 3D view ── */
 export function drawHUD(
   ctx: CanvasRenderingContext2D,
@@ -1915,68 +1990,8 @@ export function drawHUD(
   }
 
   // ── Game over (neuro-interface death) ─────────────────────
-  if (state.gameOver && state.gameWon) {
-    // Victory end screen — black fade-in
-    const winAlpha = Math.min(1, state.deathTimer * 0.4);
-    ctx.fillStyle = `rgba(0,0,0,${winAlpha})`;
-    ctx.fillRect(0, 0, w, h);
-
-    if (state.deathTimer > 1) {
-      const textAlpha = Math.min(1, (state.deathTimer - 1) * 0.5);
-      const dj = textJitter(time * 0.5, 999);
-      ctx.save();
-      ctx.textAlign = 'center';
-      ctx.shadowColor = 'rgba(0,255,128,0.4)';
-      ctx.shadowBlur = 20;
-      ctx.fillStyle = `rgba(200,255,200,${textAlpha})`;
-      ctx.font = `bold ${28 * sy}px monospace`;
-      ctx.fillText('КОНЕЦ ИГРЫ', w / 2 + dj.dx, h / 2 - 20 * sy + dj.dy);
-      ctx.fillStyle = `rgba(0,200,100,${textAlpha * 0.15})`;
-      ctx.fillText('КОНЕЦ ИГРЫ', w / 2 + dj.dx + 3, h / 2 - 20 * sy + dj.dy + 1);
-      ctx.shadowBlur = 0;
-      ctx.fillStyle = `rgba(136,170,136,${Math.min(1, (state.deathTimer - 2) * 0.4)})`;
-      ctx.font = `${10 * sy}px monospace`;
-      ctx.fillText(fitHudText(ctx, voidReturnVictoryLine(state), w * 0.82), w / 2, h / 2 + 10 * sy);
-      ctx.fillText('[R] — заново', w / 2, h / 2 + 30 * sy);
-      ctx.textAlign = 'left';
-      ctx.restore();
-    }
-  } else if (state.gameOver) {
-    const deathAlpha = Math.min(0.5, state.deathTimer * 0.15);
-    const grd = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.15, w / 2, h / 2, Math.min(w, h) * 0.7);
-    grd.addColorStop(0, `rgba(0,0,0,0)`);
-    grd.addColorStop(1, `rgba(0,0,0,${deathAlpha})`);
-    ctx.fillStyle = grd;
-    ctx.fillRect(0, 0, w, h);
-
-    // Intense static noise
-    drawStaticNoise(ctx, 0, 0, w, h, time, 0.06 * Math.min(1, state.deathTimer * 0.3));
-
-    const textAlpha = 0.6 + Math.sin(time * 3) * 0.3;
-    const dj = textJitter(time * 2, 777);
-    ctx.save();
-    ctx.shadowColor = 'rgba(255,0,0,0.5)';
-    ctx.shadowBlur = 15;
-    ctx.fillStyle = `rgba(200,0,0,${textAlpha})`;
-    ctx.font = `bold ${24 * sy}px monospace`;
-    ctx.textAlign = 'center';
-    ctx.fillText('ВЫ ПОГИБЛИ', w / 2 + dj.dx * 2, h / 2 - 20 * sy + dj.dy);
-    // RGB split ghost
-    ctx.fillStyle = `rgba(0,200,200,${textAlpha * 0.15})`;
-    ctx.fillText('ВЫ ПОГИБЛИ', w / 2 + dj.dx * 2 + 3, h / 2 - 20 * sy + dj.dy + 1);
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = `rgba(136,136,136,${Math.min(1, state.deathTimer * 0.5)})`;
-    const deathCause = inferDeathCause(state, player, world);
-    ctx.font = `${10 * sy}px monospace`;
-    ctx.fillText(deathCause.title, w / 2, h / 2 + 10 * sy);
-    ctx.font = `${8 * sy}px monospace`;
-    ctx.fillText(fitHudText(ctx, deathCause.detail, w * 0.82), w / 2, h / 2 + 24 * sy);
-    ctx.font = `${10 * sy}px monospace`;
-    ctx.fillText('[R] — заново', w / 2, h / 2 + 44 * sy);
-    ctx.fillText('[Enter] — продолжить путь', w / 2, h / 2 + 60 * sy);
-    ctx.fillText('за случайного человека', w / 2, h / 2 + 74 * sy);
-    ctx.textAlign = 'left';
-    ctx.restore();
+  if (state.gameOver) {
+    drawGameOverOverlay(ctx, state, player, world, w, h, sy, time);
   }
 
   // ── Debug screen (~) ─────────────────────────────────────
