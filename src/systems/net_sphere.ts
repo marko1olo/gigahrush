@@ -210,6 +210,11 @@ function storageSet(storage: Storage, key: string, value: string): void {
   }
 }
 
+export const _test_storage = {
+  storageGet,
+  storageSet,
+};
+
 function randomId(prefix: string, groups: number): string {
   const alphabet = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
   const bytes = new Uint8Array(groups * 4);
