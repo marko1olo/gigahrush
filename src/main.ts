@@ -5217,7 +5217,16 @@ function updateEquippedTool(dt: number, actor = player): void {
   _prevToolUse = wantsToolUse;
   if (!toolId) return;
 
-  const hasTool = (player.inventory ?? []).some(s => s.defId === toolId);
+  let hasTool = false;
+  const inv = player.inventory;
+  if (inv) {
+    for (let i = 0, len = inv.length; i < len; i++) {
+      if (inv[i].defId === toolId) {
+        hasTool = true;
+        break;
+      }
+    }
+  }
   if (!hasTool) { player.tool = ''; return; }
 
   const psiToolStats = WEAPON_STATS[toolId]?.psiCost ? getWeaponStats(player, toolId) : undefined;
