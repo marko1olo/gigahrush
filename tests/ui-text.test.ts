@@ -126,6 +126,20 @@ test('UI number formatting keeps player-facing decimals compact', () => {
   assert.equal(formatUiNumber(100), '100');
   assert.equal(formatUiNumber(1.239, 2), '1.24');
   assert.equal(formatUiNumber(1.239, 9), '1.24');
+
+  assert.equal(formatUiNumber(undefined), '0');
+  assert.equal(formatUiNumber(NaN), '0');
+  assert.equal(formatUiNumber(Infinity), '0');
+  assert.equal(formatUiNumber(-Infinity), '0');
+  assert.equal(formatUiNumber(-0), '0');
+
+  assert.equal(formatUiNumber(1.99, -1), '2');
+  assert.equal(formatUiNumber(1.99, 0), '2');
+  assert.equal(formatUiNumber(1.111, 0.5), '1');
+
+  assert.equal(formatUiNumber(1.0001, 2), '1');
+  assert.equal(formatUiNumber(1.5001, 2), '1.5');
+  assert.equal(formatUiNumber(1.5001, 1), '1.5');
 });
 
 test('overwide Russian fitted text scrolls without ellipsis', () => {
