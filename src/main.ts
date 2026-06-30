@@ -1488,6 +1488,7 @@ interface VoidReturnPortalState {
 type VoidReturnPortalHost = GameState & {
   voidReturnPortal?: VoidReturnPortalState;
   voidEntryFromFloor?: FloorLevel;
+  creatorKillQuestSatisfiedCache?: boolean;
 };
 
 function finiteNumber(value: unknown, fallback: number): number {
@@ -1559,10 +1560,18 @@ function voidSpikeResolved(): boolean {
 }
 
 function creatorKillQuestSatisfied(): boolean {
-  return state.quests.some(q =>
-    q.type === QuestType.KILL &&
-    q.targetMonsterKind === MonsterKind.CREATOR &&
-    (q.done || (q.killCount ?? 0) >= (q.killNeeded ?? 1)));
+  const host = state as VoidReturnPortalHost;
+  if (host.creatorKillQuestSatisfiedCache === true) return true;
+  for (let i = 0; i < state.quests.length; i++) {
+    const q = state.quests[i];
+    if (q.type === QuestType.KILL && q.targetMonsterKind === MonsterKind.CREATOR) {
+      if (q.done || (q.killCount ?? 0) >= (q.killNeeded ?? 1)) {
+        host.creatorKillQuestSatisfiedCache = true;
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 function isVoidReturnPortalFloor(targetState: GameState = state): boolean {
