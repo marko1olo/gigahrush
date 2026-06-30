@@ -259,10 +259,36 @@ function roundedPrice(basePrice: number, multiplier: number): number {
 }
 
 function quoteReason(reasons: string[]): string {
-  if (reasons.includes('price_pressure_cap')) {
-    return ['price_pressure_cap', ...reasons.filter(reason => reason !== 'price_pressure_cap')].slice(0, 4).join('+');
+  const len = reasons.length;
+  if (len === 0) return 'base_price';
+
+  let hasCap = false;
+  for (let i = 0; i < len; i++) {
+    if (reasons[i] === 'price_pressure_cap') {
+      hasCap = true;
+      break;
+    }
   }
-  return reasons.slice(0, 4).join('+') || 'base_price';
+
+  if (hasCap) {
+    let res = 'price_pressure_cap';
+    let count = 1;
+    for (let i = 0; i < len; i++) {
+      if (count === 4) break;
+      if (reasons[i] !== 'price_pressure_cap') {
+        res += '+' + reasons[i];
+        count++;
+      }
+    }
+    return res;
+  }
+
+  let count = len < 4 ? len : 4;
+  let res = reasons[0];
+  for (let i = 1; i < count; i++) {
+    res += '+' + reasons[i];
+  }
+  return res;
 }
 
 function isEconomyState(value: unknown): value is EconomyState {
