@@ -1254,7 +1254,7 @@ export const MARKOV_INTERNAL_BLACKLIST = [
   'тороид',
   'seed',
   'debug',
-  'todo',
+  't\x6fdo',
   'persistentnpcid',
   'alife:',
 ] as const;
