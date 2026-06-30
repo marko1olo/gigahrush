@@ -15,6 +15,41 @@ const ctx = {
   },
 } as CanvasRenderingContext2D;
 
+test('fitText handles edge cases correctly', () => {
+  setUiTextTime(0);
+  assert.equal(fitText(ctx, '', 100), '', 'empty text returns empty string');
+  assert.equal(fitText(ctx, 'hello', 0), '', 'zero max width returns empty string');
+  assert.equal(fitText(ctx, 'hello', -10), '', 'negative max width returns empty string');
+  assert.equal(fitText(ctx, 'hello', 9), '', 'max width too small for single char returns empty string');
+  assert.equal(fitText(ctx, 'hello', 50), 'hello', 'text fitting max width returns full text');
+  assert.equal(fitText(ctx, 'hello', 100), 'hello', 'text shorter than max width returns full text');
+});
+
+test('fitText deterministically snakes back and forth over time', () => {
+  const text = '1234567890';
+
+  setUiTextTime(0);
+  assert.equal(fitText(ctx, text, 30), '123', 'starts at beginning');
+
+  setUiTextTime(0.64);
+  assert.equal(fitText(ctx, text, 30), '123', 'still holding at start edge');
+
+  setUiTextTime(0.65 + 3/9); // travel 3 chars -> maxStart is 7
+  assert.equal(fitText(ctx, text, 30), '456', 'moved 3 chars');
+
+  setUiTextTime(0.65 + 7/9); // reached maxStart
+  assert.equal(fitText(ctx, text, 30), '789', 'reached end');
+
+  setUiTextTime(0.65 + 7/9 + 0.64); // holding at end
+  assert.equal(fitText(ctx, text, 30), '890', 'holding at end edge');
+
+  setUiTextTime(0.65 + 7/9 + 0.65 + 3/9); // moved back 3 chars from end
+  assert.equal(fitText(ctx, text, 30), '567', 'moved back 3 chars from end');
+
+  setUiTextTime(0.65 + 7/9 + 0.65 + 7/9 + 0.1); // completed cycle, back at start hold
+  assert.equal(fitText(ctx, text, 30), '123', 'back at start');
+});
+
 test('overwide fitted text scrolls instead of gaining ellipsis', () => {
   const text = 'ABCDEFGHIJ';
   setUiTextTime(0);
