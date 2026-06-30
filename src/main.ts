@@ -7543,106 +7543,9 @@ function clearExternalPauseInputsOnce(): void {
   if (platformPause) clearPlatformPauseInputsOnce();
 }
 
-function gameLoop(now: number): void {
-  // Two-phase deferred loading:
-  // Phase 1: pendingLoad exists but not drawn yet → draw loading screen, yield to browser
-  // Phase 2: pendingLoad exists and was drawn → execute heavy generation
-  if (pendingLoad) {
-    if (!pendingLoadDrawn) {
-      // Phase 1: paint "ЗАГРУЗКА..." and yield so the browser can composite it
-      drawLoading();
-      pendingLoadDrawn = true;
-      requestAnimationFrame(gameLoop);
-      return;
-    }
-    if (pageHiddenPause || platformPause) {
-      clearExternalPauseInputsOnce();
-      if (typeof state !== 'undefined') {
-        state.sleeping = false;
-        syncPauseState();
-      }
-      lastTime = now;
-      requestAnimationFrame(gameLoop);
-      return;
-    }
-    // Phase 2: loading screen is visible, now do the heavy work
-    const fn = pendingLoad;
-    pendingLoad = null;
-    pendingLoadDrawn = false;
-    fn();
-    rebuildEntityIndex(entities, 'load');
-    lastTime = performance.now(); // reset dt so we don't get a huge spike
-    requestAnimationFrame(gameLoop);
-    return;
-  }
+const SLEEP_RESTORE_RATE = 100 / 300; // per simulated second
 
-  // ── Gamepad / universal input frame ───────────────────────
-  // Polled before the title-screen early return so the title menu and
-  // pause/inventory menus alike see fresh per-frame intent. Keyboard and
-  // mouse stay the default; the resolver only writes when the adapter
-  // reports actual input. `writeMenuEdgesFromActions` is gated on
-  // `started` so the title bridge owns its own accept/close mapping.
-  beginInputFrame(inputFrame);
-  gamepadAdapter.poll(inputFrame);
-  resolveInputFrameToInputState(inputFrame, input, {
-    writeMenuEdgesFromActions: started,
-  });
-
-  if (!started) {
-    handleTitleGamepadInput(inputFrame);
-  }
-
-  if (pageHiddenPause || platformPause) {
-    clearExternalPauseInputsOnce();
-    state.sleeping = false;
-    syncPauseState();
-    lastTime = now;
-    requestAnimationFrame(gameLoop);
-    return;
-  }
-
-  syncPointerCaptureRequirement();
-
-  const rawDt = (now - lastTime) / 1000;
-  lastTime = now;
-  const frameDt = Math.min(rawDt, 0.05); // cap delta
-  uiTime += frameDt;
-  let dt = frameDt;
-  tickNetSphere(state, player);
-
-  // ── Sleep: hold Z to sleep (time acceleration ×10) ───────
-  const SLEEP_TIME_MULT = 10;
-  // Restore rate: 100 sleep in 5 game-hours (300 game-min = 300 real-sec at 1x)
-  // → 100/300 ≈ 0.333 per real-sec at 1x, but with 10x accel → ~30 real-sec full restore
-  const SLEEP_RESTORE_RATE = 100 / 300; // per simulated second
-  const wantSleep = input.sleep && !state.paused && !state.gameOver
-    && player.alive && player.needs !== undefined;
-  state.sleeping = wantSleep && (player.needs?.sleep ?? 100) < 100;
-  if (state.sleeping) dt *= SLEEP_TIME_MULT;
-
-  // Menu input always processed (even when paused)
-  handleMenuInput();
-  // If menu triggered new game / load, bail out to show loading screen
-  if (pendingLoad) { requestAnimationFrame(gameLoop); return; }
-
-  if (!state.paused) {
-    entityIndexFrame = (entityIndexFrame + 1) & 0x3fffffff;
-  }
-
-  // ── Update ───────────────────────────────────────────────
-  // Decay damage flash
-  if (state.dmgFlash > 0) state.dmgFlash = Math.max(0, state.dmgFlash - dt * 1.2);
-  // Decay beam visual
-  if (state.beamFx > 0) state.beamFx = Math.max(0, state.beamFx - dt * 2.5);
-  if (state.uvBeamFx > 0) state.uvBeamFx = Math.max(0, state.uvBeamFx - dt);
-
-  // Runtime camera modes are visual-only; player death is the rolling-head mode.
-  if (state.gameOver && runtimeCamera.mode === 'death') {
-    state.deathTimer += dt;
-    updateRuntimeCamera(runtimeCamera, world, dt);
-  }
-
-  if (!state.paused && !state.gameOver) {
+function updateActiveSimulation(dt: number, frameDt: number): boolean {
     const simStart = performance.now();
     lastNeedsUpdateMs = 0;
     lastContentHookMs = 0;
@@ -7677,7 +7580,7 @@ function gameLoop(now: number): void {
     playerActions(dt);
     syncPlayerActorSwitchBaseline();
     // If switchFloor was triggered, pendingLoad is set — skip the rest of this frame
-    if (pendingLoad) { requestAnimationFrame(gameLoop); return; }
+    if (pendingLoad) { requestAnimationFrame(gameLoop); return true; }
     updateLiftArachnaEncounter(world, entities, player, state, dt, nextEntityId);
     updatePseudolifts(world, entities, player, state);
     updateEquippedTool(dt, player);
@@ -7767,9 +7670,9 @@ function gameLoop(now: number): void {
         finishLoadedFloorVisuals(replacement);
       });
       requestAnimationFrame(gameLoop);
-      return;
+      return true;
     }
-    if (pendingLoad) { requestAnimationFrame(gameLoop); return; }
+    if (pendingLoad) { requestAnimationFrame(gameLoop); return true; }
     syncMapExplorationAfterSamosborWave(world, state);
     // Faction cell capture
     const factionStart = performance.now();
@@ -7837,7 +7740,7 @@ function gameLoop(now: number): void {
       if (tryUseVoidReturnPortal(pci)) {
         syncMsgLog();
         requestAnimationFrame(gameLoop);
-        return;
+        return true;
       }
     }
 
@@ -7899,10 +7802,10 @@ function gameLoop(now: number): void {
     while (state.msgs.length > 50) state.msgs.shift();
     _prevMsgCount = state.msgs.length;
     lastSimUpdateMs = performance.now() - simStart;
-  }
+  return false;
+}
 
-  // ── World simulation continues after death (NPC, monsters, samosbor keep running) ──
-  if (!state.paused && state.gameOver) {
+function updateDeadSimulation(dt: number, frameDt: number): boolean {
     state.time += dt;
     state.tick++;
     state.clock.totalMinutes += dt;
@@ -7954,9 +7857,9 @@ function gameLoop(now: number): void {
         finishLoadedFloorVisuals(replacement);
       });
       requestAnimationFrame(gameLoop);
-      return;
+      return true;
     }
-    if (pendingLoad) { requestAnimationFrame(gameLoop); return; }
+    if (pendingLoad) { requestAnimationFrame(gameLoop); return true; }
     syncMapExplorationAfterSamosborWave(world, state);
     updateFactionCapture(world, entities, dt, state);
     updateFactionActivity(world, entities, player, state, nextEntityId, dt, currentFloorAllowsNpcPopulation());
@@ -7976,8 +7879,114 @@ function gameLoop(now: number): void {
     syncMsgLog();
     while (state.msgs.length > 50) state.msgs.shift();
     _prevMsgCount = state.msgs.length;
+  return false;
+}
+
+function gameLoop(now: number): void {
+  // Two-phase deferred loading:
+  // Phase 1: pendingLoad exists but not drawn yet → draw loading screen, yield to browser
+  // Phase 2: pendingLoad exists and was drawn → execute heavy generation
+  if (pendingLoad) {
+    if (!pendingLoadDrawn) {
+      // Phase 1: paint "ЗАГРУЗКА..." and yield so the browser can composite it
+      drawLoading();
+      pendingLoadDrawn = true;
+      requestAnimationFrame(gameLoop);
+      return;
+    }
+    if (pageHiddenPause || platformPause) {
+      clearExternalPauseInputsOnce();
+      if (typeof state !== 'undefined') {
+        state.sleeping = false;
+        syncPauseState();
+      }
+      lastTime = now;
+      requestAnimationFrame(gameLoop);
+      return;
+    }
+    // Phase 2: loading screen is visible, now do the heavy work
+    const fn = pendingLoad;
+    pendingLoad = null;
+    pendingLoadDrawn = false;
+    fn();
+    rebuildEntityIndex(entities, 'load');
+    lastTime = performance.now(); // reset dt so we don't get a huge spike
+    requestAnimationFrame(gameLoop);
+    return;
   }
 
+  // ── Gamepad / universal input frame ───────────────────────
+  // Polled before the title-screen early return so the title menu and
+  // pause/inventory menus alike see fresh per-frame intent. Keyboard and
+  // mouse stay the default; the resolver only writes when the adapter
+  // reports actual input. `writeMenuEdgesFromActions` is gated on
+  // `started` so the title bridge owns its own accept/close mapping.
+  beginInputFrame(inputFrame);
+  gamepadAdapter.poll(inputFrame);
+  resolveInputFrameToInputState(inputFrame, input, {
+    writeMenuEdgesFromActions: started,
+  });
+
+  if (!started) {
+    handleTitleGamepadInput(inputFrame);
+  }
+
+  if (pageHiddenPause || platformPause) {
+    clearExternalPauseInputsOnce();
+    state.sleeping = false;
+    syncPauseState();
+    lastTime = now;
+    requestAnimationFrame(gameLoop);
+    return;
+  }
+
+  syncPointerCaptureRequirement();
+
+  const rawDt = (now - lastTime) / 1000;
+  lastTime = now;
+  const frameDt = Math.min(rawDt, 0.05); // cap delta
+  uiTime += frameDt;
+  let dt = frameDt;
+  tickNetSphere(state, player);
+
+  // ── Sleep: hold Z to sleep (time acceleration ×10) ───────
+  const SLEEP_TIME_MULT = 10;
+  // Restore rate: 100 sleep in 5 game-hours (300 game-min = 300 real-sec at 1x)
+  // → 100/300 ≈ 0.333 per real-sec at 1x, but with 10x accel → ~30 real-sec full restore
+  const wantSleep = input.sleep && !state.paused && !state.gameOver
+    && player.alive && player.needs !== undefined;
+  state.sleeping = wantSleep && (player.needs?.sleep ?? 100) < 100;
+  if (state.sleeping) dt *= SLEEP_TIME_MULT;
+
+  // Menu input always processed (even when paused)
+  handleMenuInput();
+  // If menu triggered new game / load, bail out to show loading screen
+  if (pendingLoad) { requestAnimationFrame(gameLoop); return; }
+
+  if (!state.paused) {
+    entityIndexFrame = (entityIndexFrame + 1) & 0x3fffffff;
+  }
+
+  // ── Update ───────────────────────────────────────────────
+  // Decay damage flash
+  if (state.dmgFlash > 0) state.dmgFlash = Math.max(0, state.dmgFlash - dt * 1.2);
+  // Decay beam visual
+  if (state.beamFx > 0) state.beamFx = Math.max(0, state.beamFx - dt * 2.5);
+  if (state.uvBeamFx > 0) state.uvBeamFx = Math.max(0, state.uvBeamFx - dt);
+
+  // Runtime camera modes are visual-only; player death is the rolling-head mode.
+  if (state.gameOver && runtimeCamera.mode === 'death') {
+    state.deathTimer += dt;
+    updateRuntimeCamera(runtimeCamera, world, dt);
+  }
+
+  if (!state.paused && !state.gameOver) {
+    if (updateActiveSimulation(dt, frameDt)) return;
+  }
+  // ── World simulation continues after death (NPC, monsters, samosbor keep running) ──
+  if (!state.paused && state.gameOver) {
+    if (updateDeadSimulation(dt, frameDt)) return;
+  }
   if (pendingLoad) { requestAnimationFrame(gameLoop); return; }
 
   if (!state.gameOver) {
