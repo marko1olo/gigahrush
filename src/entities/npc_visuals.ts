@@ -321,9 +321,13 @@ export const NPC_VISUAL_FAMILIES: readonly NpcVisualFamily[] = [
   })),
 ] as const;
 
+const NPC_VISUAL_FAMILY_MAP = new Map<string, NpcVisualFamily>(
+  NPC_VISUAL_FAMILIES.map(family => [family.id, family])
+);
+
 export function npcVisualFamily(id: string | undefined): NpcVisualFamily | undefined {
   if (!id) return undefined;
-  return NPC_VISUAL_FAMILIES.find(family => family.id === id);
+  return NPC_VISUAL_FAMILY_MAP.get(id);
 }
 
 export function npcVisualUsesDynamicTexture(id: string | undefined): boolean {
