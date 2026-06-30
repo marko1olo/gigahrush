@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { xorshift32 } from '../src/core/rand';
+import { xorshift32, secureRandom } from '../src/core/rand';
 
 test('xorshift32 produces deterministic sequence for a given seed', () => {
   const rng1 = xorshift32(12345);
@@ -57,4 +57,19 @@ test('xorshift32 produces the known exact sequence for seed 1', () => {
     const intVal = Math.round(val * 4294967296); // Reverse the division
     assert.equal(intVal, expectedInts[i]);
   }
+});
+
+test('secureRandom throws error when crypto is undefined', () => {
+  const originalCrypto = globalThis.crypto;
+  try {
+    Object.defineProperty(globalThis, 'crypto', { value: undefined, configurable: true, writable: true });
+    assert.throws(() => secureRandom(), /Secure random number generation is not supported in this environment/);
+  } finally {
+    Object.defineProperty(globalThis, 'crypto', { value: originalCrypto, configurable: true, writable: true });
+  }
+});
+
+test('secureRandom generates number between 0 and 1 when crypto is available', () => {
+  const result = secureRandom();
+  assert.ok(result >= 0 && result < 1);
 });

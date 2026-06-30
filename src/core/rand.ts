@@ -128,6 +128,9 @@ export function withSeededRandom<T>(seed: number, fn: () => T): T {
  * Suitable for security-sensitive logic like quest assignment or secrets.
  */
 export function secureRandom(): number {
+  if (typeof crypto === 'undefined' || typeof crypto.getRandomValues !== 'function') {
+    throw new Error('Secure random number generation is not supported in this environment.');
+  }
   const array = new Uint32Array(1);
   crypto.getRandomValues(array);
   return array[0] / 4294967296;
