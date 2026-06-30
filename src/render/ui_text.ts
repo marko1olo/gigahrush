@@ -12,6 +12,10 @@ export function setUiTextTime(time: number): void {
   uiTextTime = Number.isFinite(time) ? time : 0;
 }
 
+export function getUiTextTimeForTesting(): number {
+  return uiTextTime;
+}
+
 export function formatUiNumber(value: number | undefined, maxFractionDigits = 1): string {
   if (value === undefined || !Number.isFinite(value)) return '0';
   const digits = Math.max(0, Math.min(2, Math.floor(maxFractionDigits)));
