@@ -31,6 +31,45 @@ test('banking state normalizes old saves to an empty account with no debt', () =
   assert.ok(normalized.creditLimit > 0);
 });
 
+test('banking state normalizes garbage input and bounds numbers', () => {
+  const garbage = {
+    accountRubles: 'not a number',
+    depositPrincipal: -1500.5,
+    depositOpenedAt: -20,
+    depositRate: 5.5,
+    loanPrincipal: null,
+    loanAccrued: '100.123',
+    loanRate: -0.5,
+    loanTakenAt: NaN,
+    creditLimit: 'garbage',
+    lastInterestAt: -100,
+    ledgerVersion: 0.5,
+    recentLedger: [
+      { type: 'cash_to_account', amount: -500.999 },
+      { type: 'invalid_type', amount: 100 },
+      'not an object',
+    ],
+  };
+
+  const normalized = normalizeBankingState(garbage);
+
+  assert.equal(normalized.accountRubles, 0);
+  assert.equal(normalized.depositPrincipal, 0);
+  assert.equal(normalized.depositOpenedAt, 0);
+  assert.equal(normalized.depositRate, 1);
+  assert.equal(normalized.loanPrincipal, 0);
+  assert.equal(normalized.loanAccrued, 100.12);
+  assert.equal(normalized.loanRate, 0);
+  assert.equal(normalized.loanTakenAt, 0);
+  assert.ok(normalized.creditLimit > 0);
+  assert.equal(normalized.lastInterestAt, 0);
+  assert.equal(normalized.ledgerVersion, 1);
+
+  assert.equal(normalized.recentLedger.length, 1);
+  assert.equal(normalized.recentLedger[0].type, 'cash_to_account');
+  assert.equal(normalized.recentLedger[0].amount, 0);
+});
+
 test('cash can move to account and back without overdrawing either side', () => {
   const state = makeGameState({ worldEvents: createWorldEventState() });
   const player = makeTestPlayer({ money: 100 });
