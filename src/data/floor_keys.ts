@@ -83,10 +83,14 @@ export function floorKeyForZ(z: number): string {
   return floorKeyForProcedural(proceduralFloorKey(z));
 }
 
+const PROCEDURAL_ROUTE_ID_TO_Z = new Map<string, number>(
+  PROCEDURAL_FLOOR_ZS.map(z => [proceduralFloorKey(z), z])
+);
+
 function proceduralZForRouteId(routeId: string, context?: FloorKeyResolveContext): number | undefined {
   const specZ = context?.proceduralSpecs?.[routeId]?.z;
   if (typeof specZ === 'number' && Number.isFinite(specZ)) return Math.trunc(specZ);
-  return PROCEDURAL_FLOOR_ZS.find(z => proceduralFloorKey(z) === routeId);
+  return PROCEDURAL_ROUTE_ID_TO_Z.get(routeId);
 }
 
 function extraKeyKnown(key: string, extraKnownKeys: FloorKeyResolveContext['extraKnownKeys']): boolean {
