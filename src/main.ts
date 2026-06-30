@@ -563,7 +563,7 @@ function hasValidSaveGame(): boolean {
   try {
     const raw = localStorage.getItem(SAVE_KEY);
     if (!raw) return false;
-    const parsed = JSON.parse(raw);
+    const parsed = safeParseJson(raw);
     return saveShapeVersionStatus(parsed) === 'current';
   } catch {
     return false;
