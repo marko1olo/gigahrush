@@ -119,25 +119,29 @@ for (const row of ART_SPRITE_MANIFEST) {
   }
 }
 
-const GENERATED_ART_FAMILIES: NpcVisualFamily[] = Object.entries(manifestFamilies)
-  .filter(([visualId]) => visualId !== NPC_VISUAL_WORKER69)
-  .map(([visualId, manifestIds]) => ({
-    id: visualId,
-    source: 'first_party_art',
-    usesDynamicTexture: true,
-    worldSpriteScale: FIRST_PARTY_NPC_ART_WORLD_SPRITE_SCALE,
-    procedural: false,
-    generate: ctx => {
-      const seed = mix32((ctx.seed || 1) ^ Math.imul((ctx.sprite ?? 0) + 1, 0x51ed270b));
-      const manifestId = manifestIds[seed % manifestIds.length];
-      return firstPartyNpcArt(manifestId) ?? new Uint32Array(0);
-    },
-    textureKey: ctx => {
-      const seed = mix32((ctx.seed || 1) ^ Math.imul((ctx.sprite ?? 0) + 1, 0x51ed270b));
-      const manifestId = manifestIds[seed % manifestIds.length];
-      return `first_party_art:${manifestId}`;
-    },
-  }));
+const GENERATED_ART_FAMILIES: NpcVisualFamily[] = Object.keys(manifestFamilies).reduce((acc: NpcVisualFamily[], visualId) => {
+  if (visualId !== NPC_VISUAL_WORKER69) {
+    const manifestIds = manifestFamilies[visualId];
+    acc.push({
+      id: visualId,
+      source: 'first_party_art',
+      usesDynamicTexture: true,
+      worldSpriteScale: FIRST_PARTY_NPC_ART_WORLD_SPRITE_SCALE,
+      procedural: false,
+      generate: ctx => {
+        const seed = mix32((ctx.seed || 1) ^ Math.imul((ctx.sprite ?? 0) + 1, 0x51ed270b));
+        const manifestId = manifestIds[seed % manifestIds.length];
+        return firstPartyNpcArt(manifestId) ?? new Uint32Array(0);
+      },
+      textureKey: ctx => {
+        const seed = mix32((ctx.seed || 1) ^ Math.imul((ctx.sprite ?? 0) + 1, 0x51ed270b));
+        const manifestId = manifestIds[seed % manifestIds.length];
+        return `first_party_art:${manifestId}`;
+      },
+    });
+  }
+  return acc;
+}, []);
 
 const worker69Family: NpcVisualFamily = {
   id: NPC_VISUAL_WORKER69,
