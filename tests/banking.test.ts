@@ -20,6 +20,24 @@ import {
 import { createWorldEventState, getRecentEvents } from '../src/systems/events';
 import { makeGameState, makeTestPlayer } from './helpers';
 
+test('ensureBankingState initializes missing banking state on host', () => {
+  const state = makeGameState({ worldEvents: createWorldEventState() });
+  // Ensure we start without banking state
+  delete (state as any).banking;
+
+  const banking = ensureBankingState(state);
+
+  assert.equal(banking.accountRubles, 0);
+  assert.equal(banking.depositPrincipal, 0);
+  assert.equal(banking.loanPrincipal, 0);
+  assert.equal(banking.loanAccrued, 0);
+  assert.equal(banking.recentLedger.length, 0);
+  assert.ok(banking.creditLimit > 0);
+
+  // Assert it was attached to the host
+  assert.equal((state as any).banking, banking);
+});
+
 test('banking state normalizes old saves to an empty account with no debt', () => {
   const normalized = normalizeBankingState(undefined);
 
