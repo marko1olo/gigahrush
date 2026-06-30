@@ -31,6 +31,45 @@ test('banking state normalizes old saves to an empty account with no debt', () =
   assert.ok(normalized.creditLimit > 0);
 });
 
+test('banking state normalizes partial or invalid objects with correct bounds', () => {
+  const partialNormalized = normalizeBankingState({
+    accountRubles: 50,
+    // other fields intentionally omitted to test partial fallback
+  });
+
+  assert.equal(partialNormalized.accountRubles, 50);
+  assert.equal(partialNormalized.depositPrincipal, 0);
+  assert.equal(partialNormalized.creditLimit, 500);
+
+  const normalized = normalizeBankingState({
+    accountRubles: 'invalid',
+    depositPrincipal: -100,
+    depositOpenedAt: 'invalid',
+    depositRate: 5,
+    loanPrincipal: 'invalid',
+    loanAccrued: 'invalid',
+    loanRate: -1,
+    loanTakenAt: 'invalid',
+    creditLimit: 'invalid',
+    lastInterestAt: -10,
+    ledgerVersion: -5,
+    recentLedger: 'not-an-array',
+  });
+
+  assert.equal(normalized.accountRubles, 0);
+  assert.equal(normalized.depositPrincipal, 0);
+  assert.equal(normalized.depositOpenedAt, 0);
+  assert.equal(normalized.depositRate, 1);
+  assert.equal(normalized.loanPrincipal, 0);
+  assert.equal(normalized.loanAccrued, 0);
+  assert.equal(normalized.loanRate, 0);
+  assert.equal(normalized.loanTakenAt, 0);
+  assert.equal(normalized.creditLimit, 500);
+  assert.equal(normalized.lastInterestAt, 0);
+  assert.equal(normalized.ledgerVersion, 1);
+  assert.equal(normalized.recentLedger.length, 0);
+});
+
 test('cash can move to account and back without overdrawing either side', () => {
   const state = makeGameState({ worldEvents: createWorldEventState() });
   const player = makeTestPlayer({ money: 100 });
