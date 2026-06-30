@@ -167,6 +167,8 @@ export class World {
   visualSlots: Uint8Array; // render-only visual slots
   pathBlockers: Uint8Array; // gameplay path blocker row masks, 4 bytes per cell
   rooms:     Room[]  = [];
+  roomsByName: Map<string, Room> | null = null;
+  private _cachedRoomsLength = -1;
   doors:     Map<number, Door> = new Map();
   apartmentRoomCount = 0;          // first N rooms are permanent apartments
   aptMask:   Uint8Array;           // 1 = protected apartment cell (interior + wall ring)
@@ -432,6 +434,18 @@ export class World {
   pendingSurfaceDirtyCells(): readonly number[] | null {
     if (this.surfaceDirtyFull) return null;
     return Array.from(this.surfaceDirtyCells);
+  }
+
+  getRoomByName(name: string): Room | undefined {
+    if (!this.roomsByName || this._cachedRoomsLength !== this.rooms.length) {
+      this.roomsByName = new Map();
+      this._cachedRoomsLength = this.rooms.length;
+      for (let i = 0; i < this.rooms.length; i++) {
+        const r = this.rooms[i];
+        if (r && r.name) this.roomsByName.set(r.name, r);
+      }
+    }
+    return this.roomsByName.get(name);
   }
 
   clearPendingSurfaceDirtyCells(): void {

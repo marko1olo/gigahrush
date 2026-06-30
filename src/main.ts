@@ -3594,7 +3594,7 @@ function checkRestart(): void {
 }
 
 function movePlayerToMetroRoom(roomName: string): boolean {
-  const room = world.rooms.find(r => r?.name === roomName);
+  const room = world.getRoomByName(roomName);
   if (!room) return false;
 
   for (let y = room.y + 1; y < room.y + room.h - 1; y++) {
