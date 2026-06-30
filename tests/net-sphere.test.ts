@@ -1047,6 +1047,59 @@ test('Net Sphere aborts stalled client fetches and releases busy flags', async (
 });
 
 
+test('Net Sphere pollOpenStats handles fetch errors and resets polling', async () => {
+  const browser = installNetSphereBrowser();
+  const realFetch = globalThis.fetch;
+  const requests: string[] = [];
+
+  globalThis.fetch = ((input: RequestInfo | URL) => {
+    requests.push(String(input));
+    return Promise.reject(new Error('Network failure mock'));
+  }) as typeof fetch;
+
+  try {
+    const net = await import('../src/systems/net_sphere');
+    net.closeNetSphere();
+    const unbind = net.bindNetSphereInput();
+
+    net.openNetSphere();
+
+    let nowValue = 0;
+    const realPerfNow = performance.now;
+    performance.now = () => nowValue;
+
+    // Tick 1: Trigger heartbeat first
+    nowValue = 10000;
+    net.tickNetSphere(minimalNetSphereState(), minimalNetSpherePlayer());
+
+    // Wait for heartbeat fetch microtasks to complete
+    await new Promise<void>(resolve => setImmediate(resolve));
+    await new Promise<void>(resolve => setImmediate(resolve));
+
+    // Tick 2: Trigger pollOpenStats
+    nowValue = 20000;
+    net.tickNetSphere(minimalNetSphereState(), minimalNetSpherePlayer());
+
+    // Wait for stats fetch microtasks to complete
+    await new Promise<void>(resolve => setImmediate(resolve));
+    await new Promise<void>(resolve => setImmediate(resolve));
+
+    const snapshot = net.getNetSphereSnapshot();
+    assert.equal(snapshot.busy, false);
+    assert.equal(snapshot.status, 'offline');
+    // Ensure stats was called and correctly hit the error path which yields the fallback text
+    assert.equal(snapshot.error, 'Канал offline. Игра локальна.');
+    assert.equal(requests.some(url => url.includes('/stats')), true);
+
+    unbind();
+    net.closeNetSphere();
+    performance.now = realPerfNow;
+  } finally {
+    globalThis.fetch = realFetch;
+    browser.restore();
+  }
+});
+
 test('Net Sphere heartbeat handles fetch errors and goes offline', async () => {
   const browser = installNetSphereBrowser();
   const realFetch = globalThis.fetch;
