@@ -52,7 +52,7 @@ import {
   type ResolvedVisualSurfaceProfile,
 } from '../data/visual_surface_profiles';
 import {
-  createMeshPass,
+  createMeshPass as _realCreateMeshPass,
   createMeshPassStats,
   type MeshPassContext,
   type MeshPassHandle,
@@ -2186,9 +2186,15 @@ function updateAndRenderMeshPass(
   if (stats.enabled) state.meshPass.render(state.gl, context);
 }
 
+export const _test_deps = { createMeshPass: _realCreateMeshPass };
+
+export const _test_createOptionalMeshPass = (gl: WebGL2RenderingContext) => {
+  return createOptionalMeshPass(gl);
+};
+
 function createOptionalMeshPass(gl: WebGL2RenderingContext): MeshPassHandle | undefined {
   try {
-    return createMeshPass(gl);
+    return _test_deps.createMeshPass(gl);
   } catch (error) {
     console.warn('Mesh pass disabled:', error);
     return undefined;
