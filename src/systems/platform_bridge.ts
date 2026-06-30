@@ -699,7 +699,12 @@ export async function loadPlatformRawGameSave(localRaw?: string | null): Promise
 
 export async function hydratePlatformSaveFromCloud(): Promise<PlatformLoadResult> {
   if (typeof localStorage === 'undefined' || !localStorage.getItem) return { status: 'no-sdk' };
-  const localRaw = localStorage.getItem(LOCAL_SAVE_KEY);
+  let localRaw: string | null = null;
+  try {
+    localRaw = localStorage.getItem(LOCAL_SAVE_KEY);
+  } catch {
+    // Local storage can be blocked in embedded portal contexts.
+  }
   const result = await loadPlatformRawGameSave(localRaw);
   if (result.status !== 'loaded' || !result.raw) return result;
   try {
