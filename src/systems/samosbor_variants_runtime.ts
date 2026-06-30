@@ -1,4 +1,5 @@
 import { FloorLevel } from '../core/types';
+import { secureRandom } from '../core/rand';
 import {
   SAMOSBOR_VARIANTS,
   buildActiveSamosborVariant,
@@ -10,15 +11,6 @@ import {
 let activeVariant: ActiveSamosborVariant | null = null;
 let forcedNextVariant: SamosborVariantId | null = null;
 let lastVariant: SamosborVariantId | null = null;
-
-function secureRandom(): number {
-  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
-    const arr = new Uint32Array(1);
-    crypto.getRandomValues(arr);
-    return arr[0] / 4294967296;
-  }
-  return Math.random();
-}
 
 export function chooseSamosborVariant(floor: FloorLevel): ActiveSamosborVariant {
   if (forcedNextVariant) {
