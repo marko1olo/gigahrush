@@ -99,6 +99,28 @@ test('deposits accrue bounded interest and close back into account', () => {
   assert.equal(banking.accountRubles, 1005);
 });
 
+test('closeDeposit correctly closes active deposits and handles empty deposits', () => {
+  const state = makeGameState({ worldEvents: createWorldEventState() });
+  const banking = ensureBankingState(state);
+
+  banking.accountRubles = 100;
+  banking.depositPrincipal = 500;
+  banking.depositOpenedAt = 10;
+
+  assert.equal(closeDeposit(state), 500);
+  assert.equal(banking.depositPrincipal, 0);
+  assert.equal(banking.depositOpenedAt, 0);
+  assert.equal(banking.accountRubles, 600);
+
+  assert.equal(closeDeposit(state), 0);
+  assert.equal(banking.depositPrincipal, 0);
+  assert.equal(banking.accountRubles, 600);
+
+  banking.depositPrincipal = -50;
+  assert.equal(closeDeposit(state), 0);
+  assert.equal(banking.accountRubles, 600);
+});
+
 test('bankingForSave returns bounded plain state', () => {
   const state = makeGameState({ worldEvents: createWorldEventState() });
   const player = makeTestPlayer({ money: 1000 });
