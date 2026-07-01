@@ -956,9 +956,18 @@ export function tickProduction(state: GameState, world: World, force = false, ob
 }
 
 export function summarizeProduction(state: GameState, limit = 6): string[] {
-  return productionList(state).filter(p => productionFloor(state, p) === state.currentFloor).slice(0, limit).map(p => {
-    const blocked = p.blockedReason ? ` ${p.blockedReason}` : '';
-    const jammed = p.jammed ? ' jammed' : '';
-    return `room ${p.roomId}: ${p.factoryId}/${p.recipeId} next ${Math.max(0, Math.round(p.nextTickAt - state.time))}s${blocked}${jammed}`;
-  });
+  const list = productionList(state);
+  const result: string[] = [];
+  for (let i = 0; i < list.length; i++) {
+    const p = list[i];
+    if (productionFloor(state, p) === state.currentFloor) {
+      const blocked = p.blockedReason ? ` ${p.blockedReason}` : '';
+      const jammed = p.jammed ? ' jammed' : '';
+      result.push(`room ${p.roomId}: ${p.factoryId}/${p.recipeId} next ${Math.max(0, Math.round(p.nextTickAt - state.time))}s${blocked}${jammed}`);
+      if (result.length >= limit) {
+        break;
+      }
+    }
+  }
+  return result;
 }
