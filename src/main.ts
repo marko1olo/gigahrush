@@ -1316,7 +1316,9 @@ function continueDeathAsAlifePopulationNpc(): boolean {
     nextEntityId.v = __maxId + 1;
     materializeCurrentAlifeFloor(snapshot.floorKey);
 
-    let host = entities.find(e => e.type === EntityType.NPC && e.alifeId === snapshot.id && e.alive);
+    let host = getEntityIndex().byAlifeId.get(snapshot.id);
+    if (host && (!host.alive || host.type !== EntityType.NPC)) host = undefined;
+    host ??= entities.find(e => e.type === EntityType.NPC && e.alifeId === snapshot.id && e.alive);
     if (!host) {
       const spawn = safeSpawnNear(snapshot.x ?? gen.spawnX, snapshot.y ?? gen.spawnY, gen.spawnX, gen.spawnY);
       host = materializeAlifeArrival(state, world, entities, nextEntityId, snapshot.id, {
