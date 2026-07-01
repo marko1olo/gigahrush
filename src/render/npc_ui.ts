@@ -1,6 +1,7 @@
 /* ── NPC interaction menu ─────────────────────────────────────── */
 
-import { type Entity, type GameState, Faction } from '../core/types';
+import { type Entity, type GameState, Faction } from "../core/types";
+import { getEntityIndex } from "../systems/entity_index";
 import { ITEMS } from '../data/catalog';
 import { FACTION_NAMES, OCCUPATION_NAMES } from '../data/relations';
 import { controlBindingLabel, controlHint, menuCloseHint } from '../systems/controls';
@@ -42,7 +43,7 @@ export function drawNpcMenu(
   sx: number, sy: number,
   uiTime = state.time,
 ): void {
-  const npc = entities.find(e => e.id === state.npcMenuTarget);
+  const npc = getEntityIndex().byId.get(state.npcMenuTarget);
   if (!npc) return;
 
   const w = ctx.canvas.width;
