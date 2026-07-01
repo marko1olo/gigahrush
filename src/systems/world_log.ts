@@ -7,6 +7,7 @@ import {
   type Msg,
   type MsgLocation,
   type WorldEvent,
+  type WorldEventType,
   MonsterKind,
   msgAt,
 } from '../core/types';
@@ -261,273 +262,383 @@ function shelterTallyText(e: WorldEvent): string {
   return `Ведомость укрытых обработана${target}. ${consequence}`;
 }
 
-function eventText(e: WorldEvent): string {
-  const pneumomail = pneumomailText(e);
-  if (pneumomail) return pneumomail;
-
-  switch (e.type) {
-    case 'samosbor_warning':
+const EVENT_TEXT_HANDLERS: Partial<Record<WorldEventType, (e: WorldEvent) => string>> = {
+  samosbor_warning: (e) => {
       return samosborWarningText(e);
-    case 'samosbor_started':
+  },
+  samosbor_started: (e) => {
       if (e.data?.variantId === 'maronary') return `Маронарий начался${e.zoneId !== undefined ? `: зона ${e.zoneId + 1}` : ''}. Сверяйте номер двери по карте; не идите на зелёное свечение.`;
       return `Самосбор начался${e.zoneId !== undefined ? `: зона ${e.zoneId + 1}` : ''}. Ищите гермодверь.`;
-    case 'samosbor_zone_captured':
+  },
+  samosbor_zone_captured: (e) => {
       return `Зона ${e.zoneId !== undefined ? e.zoneId + 1 : '?'} под самосбором. Карта устарела.`;
-    case 'samosbor_ended':
+  },
+  samosbor_ended: (_) => {
       return 'Отбой самосбора. Проверьте карту и двери.';
-    case 'shelter_tally_handled':
+  },
+  shelter_tally_handled: (e) => {
       return shelterTallyText(e);
-    case 'hermodoor_borer_detected':
+  },
+  hermodoor_borer_detected: (e) => {
       return `Гермоточильщик у двери: ${String(e.data?.roomName ?? 'укрытие')}. Есть время среагировать.`;
-    case 'hermodoor_borer_damage':
+  },
+  hermodoor_borer_damage: (e) => {
       return `Гермодверь повреждена: ${String(e.data?.roomName ?? 'укрытие')}.`;
-    case 'hermodoor_borer_repaired':
+  },
+  hermodoor_borer_repaired: (e) => {
       return `Гермодверь отремонтирована: ${String(e.data?.roomName ?? 'укрытие')}.`;
-    case 'hermodoor_borer_compromised':
+  },
+  hermodoor_borer_compromised: (e) => {
       return `Укрытие скомпрометировано: ${String(e.data?.roomName ?? 'укрытие')}.`;
-    case 'fog_boss_spawned':
+  },
+  fog_boss_spawned: (e) => {
       return `Босс тумана появился${e.zoneId !== undefined ? ` в зоне ${e.zoneId + 1}` : ''}.`;
-    case 'fog_boss_killed':
+  },
+  fog_boss_killed: (e) => {
       return `Босс тумана уничтожен${e.zoneId !== undefined ? ` в зоне ${e.zoneId + 1}` : ''}.`;
-    case 'smog_entered':
+  },
+  smog_entered: (e) => {
       return `Смог${e.zoneId !== undefined ? ` в зоне ${e.zoneId + 1}` : ''}. Нужен фильтр, ткань или обход.`;
-    case 'smog_source_found':
+  },
+  smog_source_found: (e) => {
       return `Источник смога найден${e.zoneId !== undefined ? ` в зоне ${e.zoneId + 1}` : ''}. Его можно перекрыть.`;
-    case 'smog_source_handled':
+  },
+  smog_source_handled: (e) => {
       return `Источник смога перекрыт${e.zoneId !== undefined ? ` в зоне ${e.zoneId + 1}` : ''}.`;
-    case 'monster_sighted':
+  },
+  monster_sighted: (e) => {
       return `${e.actorName ?? 'Косторез'} заметил цель. Замах будет виден.`;
-    case 'monster_windup_interrupted':
+  },
+  monster_windup_interrupted: (e) => {
       return `${e.actorName ?? 'Косторез'} сбит во время замаха.`;
-    case 'monster_armor_cut':
+  },
+  monster_armor_cut: (e) => {
       if (e.tags.includes('armor_strip')) return `${e.targetName ?? 'Броня монстра'} потерял бронеплиту.`;
       return e.tags.includes('armor_cut')
         ? `${e.actorName ?? 'Косторез'} срезал бронелист.`
         : `${e.actorName ?? 'Косторез'} провел режущий удар.`;
-    case 'monster_escaped':
+  },
+  monster_escaped: (e) => {
       return `${e.targetName ?? 'Цель'} ушла из-под замаха ${monsterName(e.monsterKind)}.`;
-    case 'false_liquidator_knock':
+  },
+  false_liquidator_knock: (_) => {
       return 'Черная зачистка стучит в дверь. Сверьте номер маски и не показывайте пробу.';
-    case 'false_liquidator_revealed':
+  },
+  false_liquidator_revealed: (e) => {
       return `Черный ликвидатор раскрыт: ${String(e.data?.reason ?? 'ложный обход')}.`;
-    case 'green_dog_howl':
+  },
+  green_dog_howl: (_) => {
       return 'Зеленая собака завыла у прохода. Стая делит цель: металл, банка или дробь разорвут заход.';
-    case 'green_dog_scared':
+  },
+  green_dog_scared: (_) => {
       return 'Зеленая собака сорвалась от громкого металла. Несколько секунд стая не держит цель.';
-    case 'fog_shark_pack_sighted':
+  },
+  fog_shark_pack_sighted: (_) => {
       return 'Туманные акулы взяли стаю. Выйдите из тумана, закройте дверь или держите угол.';
-    case 'fog_shark_ignited':
+  },
+  fog_shark_ignited: (e) => {
       return `Газовый пузырь туманной акулы взорвался: ${String(e.data?.hitCount ?? 0)} целей. Огонь держите на дистанции.`;
-    case 'head_slug_detached':
+  },
+  head_slug_detached: (_) => {
       return 'Головной слизень сорвался с носителя и ищет новое тело.';
-    case 'head_slug_rehosted':
+  },
+  head_slug_rehosted: (e) => {
       return `Головной слизень занял носителя: ${e.targetName ?? 'тело'}.`;
-    case 'head_slug_quarantined':
+  },
+  head_slug_quarantined: (_) => {
       return 'Головной слизень заперт в карантинном контуре.';
-    case 'gnilushka_spared':
+  },
+  gnilushka_spared: (e) => {
       return e.tags.includes('helped')
         ? 'Гнилушка получила помощь и не стала боем. Слух запомнит сдержанность.'
         : 'С Гнилушкой поговорили без выстрела. Она осталась опасной только в углу.';
-    case 'gnilushka_hurt':
+  },
+  gnilushka_hurt: (_) => {
       return 'Гнилушку ранили. Теперь она бежит от людей и режет только если её прижали.';
-    case 'gnilushka_delivered':
+  },
+  gnilushka_delivered: (_) => {
       return 'Гнилушка ушла по маршруту НИИ. На полу остался добровольный соскоб.';
-    case 'composite_woke':
+  },
+  composite_woke: (e) => {
       return `${e.actorName ?? 'Собранный человек'} проснулся: ${String(e.data?.reason ?? 'шум')}.`;
-    case 'composite_growth':
+  },
+  composite_growth: (e) => {
       return `${e.actorName ?? 'Собранный человек'} набрал массу: ${String(e.data?.stacks ?? '?')}.`;
-    case 'composite_isolated':
+  },
+  composite_isolated: (e) => {
       return `${e.actorName ?? 'Собранный человек'} изолирован: ${String(e.data?.reason ?? 'порог')}.`;
-    case 'obzhivalshchik_scratched':
+  },
+  obzhivalshchik_scratched: (e) => {
       return e.tags.includes('growth')
         ? `Комнатный обживальщик нарастил стену: ${String(e.data?.growthCount ?? '?')}/${String(e.data?.growthCap ?? '?')}.`
         : 'Комнатный обживальщик скребет квартиру. Шум и кража поднимут злость.';
-    case 'obzhivalshchik_calmed':
+  },
+  obzhivalshchik_calmed: (_) => {
       return 'Комнатный обживальщик стих после доклада или помощи соседям.';
-    case 'obzhivalshchik_breached':
+  },
+  obzhivalshchik_breached: (_) => {
       return 'Комнатный обживальщик вышел из комнаты: коридор стал частью квартиры.';
-    case 'net_terminal_hack_failed':
+  },
+  net_terminal_hack_failed: (e) => {
       return e.tags.includes('safeguard_spawned')
         ? 'НЕТ-терминал отклонил взлом. Сейфгард вышел на отказ.'
         : 'НЕТ-терминал отклонил взлом. Белый след уже отмечен.';
-    case 'chervie_signal':
+  },
+  chervie_signal: (e) => {
       return e.tags.includes('mind_pulse')
         ? 'Червие дало локальный НЕТ-импульс. Люди рядом слышат чужой приказ.'
         : 'Червие снова держится за экран или серверный аппарат.';
-    case 'chervie_server_cut':
+  },
+  chervie_server_cut: (_) => {
       return 'Источник Червие отключен. Аватар потерял зеленую защиту и скорость.';
-    case 'chervie_false_order':
+  },
+  chervie_false_order: (_) => {
       return 'Червие напечатало ложный приказ. Не выполняйте команду с экрана.';
-    case 'metro_route_taken':
+  },
+  metro_route_taken: (e) => {
       return `Метро: ${String(e.data?.routeLabel ?? 'маршрут')} -> ${String(e.data?.destinationLabel ?? 'остановка')}.`;
-    case 'metro_wrong_stop':
+  },
+  metro_wrong_stop: (e) => {
       return `Метро ошиблось: ${String(e.data?.routeLabel ?? 'маршрут')} -> ${String(e.data?.destinationLabel ?? 'чужая остановка')}.`;
-    case 'rail_train_boarded':
+  },
+  rail_train_boarded: (e) => {
       return `Поезд: посадка в ${String(e.data?.trainLabel ?? 'состав')}.`;
-    case 'rail_train_exited':
+  },
+  rail_train_exited: (e) => {
       return `Поезд: выход из ${String(e.data?.trainLabel ?? 'состава')}.`;
-    case 'rail_train_crush':
+  },
+  rail_train_crush: (e) => {
       return `Поезд задавил: ${e.actorName ?? 'цель'}.`;
-    case 'emergency_panel_used':
+  },
+  emergency_panel_used: (e) => {
       return `Аварийный щиток: ${String(e.data?.action ?? 'контур')} в зоне ${e.zoneId !== undefined ? e.zoneId + 1 : '?'}.`;
-    case 'rumor_observed':
+  },
+  rumor_observed: (e) => {
       if (e.tags.includes('false_safe_block')) return 'Тихий блок раскрыт: нет сирены, есть культовая метка.';
       return `${e.actorName ?? 'Кто-то'} заметил слух.`;
-    case 'player_pick_item':
+  },
+  player_pick_item: (e) => {
       return `Подобрано: ${e.itemName ?? e.itemId ?? 'предмет'}${e.itemCount && e.itemCount > 1 ? ` x${e.itemCount}` : ''}.`;
-    case 'player_drop_item':
+  },
+  player_drop_item: (e) => {
       return `Выброшено: ${e.itemName ?? e.itemId ?? 'предмет'}${e.itemCount && e.itemCount > 1 ? ` x${e.itemCount}` : ''}.`;
-    case 'player_use_item':
+  },
+  player_use_item: (e) => {
       if (e.tags.includes('false_safe_block') && e.tags.includes('marker_resolved')) return 'Черная ладонь снята. Тихий блок снова обычный.';
       return `Использовано: ${e.itemName ?? e.itemId ?? 'предмет'}.`;
-    case 'player_destroy_item':
+  },
+  player_destroy_item: (e) => {
       return `Уничтожено: ${e.itemName ?? e.itemId ?? 'предмет'}.`;
-    case 'player_sell_item':
+  },
+  player_sell_item: (e) => {
       if (e.tags.includes('govnyak')) return `Говняк продан${e.targetName ? ` -> ${e.targetName}` : ''}. Долг перенесён.`;
       return `Продано: ${e.itemName ?? e.itemId ?? 'предмет'}${e.targetName ? ` -> ${e.targetName}` : ''}.`;
-    case 'player_handoff_item':
+  },
+  player_handoff_item: (e) => {
       if (e.tags.includes('govnyak') && e.tags.includes('confiscation')) return `Говняк сдан ликвидатору${e.targetName ? ` -> ${e.targetName}` : ''}.`;
       if (e.tags.includes('govnyak')) return `Говняк куплен${e.targetName ? ` у ${e.targetName}` : ''}. Проверьте долг.`;
       return `Передано: ${e.itemName ?? e.itemId ?? 'предмет'}${e.targetName ? ` -> ${e.targetName}` : ''}.`;
-    case 'player_status_applied':
+  },
+  player_status_applied: (e) => {
       if (e.data?.statusId === 'zhelemish_skin') return 'Желемышная кожа включена: защита, расход воды и ПСИ.';
       if (String(e.data?.statusId ?? '').startsWith('govnyak_')) return 'Говняк подействовал. Долг растёт.';
       return 'Временное состояние получено.';
-    case 'player_status_bad_reaction':
+  },
+  player_status_bad_reaction: (e) => {
       if (e.data?.statusId === 'zhelemish_skin') return 'Желемыш дал плохую реакцию: вода и ПСИ просели.';
       if (String(e.data?.statusId ?? '').startsWith('govnyak_')) return 'Гремучий говняк сорвался: кашель, шум и долг.';
       return 'Плохая реакция на временное состояние.';
-    case 'player_status_cured':
+  },
+  player_status_cured: (e) => {
       if (e.data?.statusId === 'zhelemish_skin') return 'Желемышная кожа снята лекарством.';
       if (e.data?.statusId === 'govnyak_debt') return 'Говнячный долг снят. Прицел стабилен.';
       return 'Временное состояние снято.';
-    case 'player_status_expired':
+  },
+  player_status_expired: (e) => {
       if (e.data?.statusId === 'zhelemish_skin') return 'Желемышная кожа высохла и отвалилась.';
       if (String(e.data?.statusId ?? '').startsWith('govnyak_')) return 'Говнячный кашель отпустил.';
       return 'Временное состояние прошло.';
-    case 'tool_broke':
+  },
+  tool_broke: (e) => {
       return `Сломано: ${e.itemName ?? e.itemId ?? 'инструмент'}.`;
-    case 'player_kill_monster':
+  },
+  player_kill_monster: (e) => {
       if (e.monsterKind === MonsterKind.BETONOED) return 'Бетоноед добит. Слабая стена в безопасности.';
       if (e.monsterKind === MonsterKind.GNILUSHKA) return 'Гнилушка убита. Это был не обычный бой с тварью.';
       return `Убит ${e.targetName ?? monsterName(e.monsterKind)}.`;
-    case 'player_kill_npc':
+  },
+  player_kill_npc: (e) => {
       return `Убит жилец: ${e.targetName ?? 'без имени'}. Репутация снижена.`;
-    case 'npc_kill_monster':
+  },
+  npc_kill_monster: (e) => {
       return `${e.actorName ?? 'NPC'} убил ${e.targetName ?? monsterName(e.monsterKind)}.`;
-    case 'npc_kill_npc':
+  },
+  npc_kill_npc: (e) => {
       return `${e.actorName ?? 'NPC'} убил ${e.targetName ?? 'NPC'}.`;
-    case 'quest_created':
+  },
+  quest_created: (e) => {
       return `Принято задание: ${e.targetName ?? e.data?.desc ?? 'без описания'}.`;
-    case 'quest_completed':
+  },
+  quest_completed: (e) => {
       return `Задание выполнено: ${e.targetName ?? e.data?.desc ?? 'без описания'}.`;
-    case 'quest_failed':
+  },
+  quest_failed: (e) => {
       return `Задание провалено: ${e.targetName ?? e.data?.reason ?? 'срок вышел'}.`;
-    case 'contract_created':
+  },
+  contract_created: (e) => {
       return `Системное задание принято: ${e.targetName ?? e.data?.contractId ?? 'без номера'}.`;
-    case 'contract_completed':
+  },
+  contract_completed: (e) => {
       if (e.tags.includes('cleanup_completed')) return `Зачистка завершена: ${e.targetName ?? e.data?.contractId ?? 'без номера'}.`;
       return `Системное задание закрыто: ${e.targetName ?? e.data?.contractId ?? 'без номера'}.`;
-    case 'contract_failed':
+  },
+  contract_failed: (e) => {
       return `Системное задание сорвалось: ${e.data?.reason ?? 'отказ окна'}.`;
-    case 'ration_coupon_spent':
+  },
+  ration_coupon_spent: (e) => {
       return `Талон погашен: ${e.itemName ?? e.itemId ?? 'пайковый документ'}. Паёк выдан.`;
-    case 'ration_coupon_stolen':
+  },
+  ration_coupon_stolen: (e) => {
       return `Украдены талоны: ${e.itemName ?? e.itemId ?? 'пайковая бумага'}. Запущен пайковый аудит.`;
-    case 'ration_coupon_forged':
+  },
+  ration_coupon_forged: (e) => {
       return `Подделан пайковый документ: ${e.itemName ?? e.itemId ?? 'карточка'}. Риск ревизии.`;
-    case 'ration_coupon_reported':
+  },
+  ration_coupon_reported: (e) => {
       return `Пайковая махинация сдана: ${e.itemName ?? e.itemId ?? 'улика'}. Очередь пересчитает пайки.`;
-    case 'ration_audit_resolved':
+  },
+  ration_audit_resolved: (e) => {
       if (e.data?.outcome === 'black_market_sale') return 'Пайковая карточка продана на рынок.';
       return 'Пайковая ревизия закрыта. Министерство и очередь сверили списки.';
-    case 'container_opened':
+  },
+  container_opened: (e) => {
       if (e.tags.includes('false_safe_block')) return `Открыт запас тихого блока: ${containerName(e)}.`;
       if (e.tags.includes('quarantine')) return `Карантин открыт: ${containerName(e)}.`;
       return `Открыт контейнер: ${containerName(e)}.`;
-    case 'item_stolen':
+  },
+  item_stolen: (e) => {
       if (e.tags.includes('false_safe_block')) return `Чужой запас тихого блока взят: ${e.itemName ?? e.itemId ?? 'предмет'}. Метка активна.`;
       if (e.tags.includes('quarantine')) return `Карантин нарушен: ${e.itemName ?? e.itemId ?? 'предмет'} вынесли из ${containerName(e)}.`;
       if (e.tags.includes('witnessed')) return `Кражу заметили: ${e.itemName ?? e.itemId ?? 'предмет'} из ${containerName(e)}.`;
       if (e.tags.includes('audit') && e.data?.auditOnly) return `Ревизия выявила кражу: ${e.itemName ?? e.itemId ?? 'предмет'} из ${containerName(e)}.`;
       if (e.tags.includes('audit')) return `Кража попадёт в ревизию: ${e.itemName ?? e.itemId ?? 'предмет'} из ${containerName(e)}.`;
       return `Кража: ${e.itemName ?? e.itemId ?? 'предмет'}.`;
-    case 'item_deposited':
+  },
+  item_deposited: (e) => {
       if (e.tags.includes('resident_relief')) return `Запас возвращён жильцам: ${e.itemName ?? e.itemId ?? 'предмет'} в ${containerName(e)}.`;
       if (e.tags.includes('evidence')) return `Доказательство подброшено: ${e.itemName ?? e.itemId ?? 'предмет'} в ${containerName(e)}.`;
       if (e.tags.includes('sabotage')) return `Запас испорчен: ${e.itemName ?? e.itemId ?? 'предмет'} в ${containerName(e)}.`;
       return `Положено в контейнер: ${e.itemName ?? e.itemId ?? 'предмет'}.`;
-    case 'room_produced_items':
+  },
+  room_produced_items: (e) => {
       return `Цех выдал: ${e.itemName ?? e.itemId ?? 'партия'}${e.itemCount && e.itemCount > 1 ? ` x${e.itemCount}` : ''}.`;
-    case 'room_lacked_resources':
+  },
+  room_lacked_resources: (e) => {
       return `Цех встал: не хватает сырья${e.roomId !== undefined ? ` в комнате #${e.roomId}` : ''}.`;
-    case 'room_blocked_production':
+  },
+  room_blocked_production: (e) => {
       return `Цех заблокирован: ${String(e.data?.blockedReason ?? 'нет места')}.`;
-    case 'hazard_trapped':
+  },
+  hazard_trapped: (e) => {
       return `${e.actorName ?? 'Кто-то'} застрял в ${String(e.data?.hazardName ?? 'опасность')}.`;
-    case 'hazard_escaped':
+  },
+  hazard_escaped: (e) => {
       return `${e.actorName ?? 'Кто-то'} вышел из ${String(e.data?.hazardName ?? 'липкой зоны')}${e.data?.noisy ? ', шумно' : ''}.`;
-    case 'hazard_cleaned':
+  },
+  hazard_cleaned: (e) => {
       return `${String(e.data?.hazardName ?? 'Опасность')} очищена: ${String(e.data?.cleanedCells ?? '?')} клет.`;
-    case 'burn_cleanup':
+  },
+  burn_cleanup: (e) => {
       return `Огонь зачистил остаток: ${String(e.data?.cleanedHazardCells ?? '?')} клет.`;
-    case 'fuel_empty':
+  },
+  fuel_empty: (_) => {
       return 'Огнемёт сухой: бензин кончился.';
-    case 'collateral_damage':
+  },
+  collateral_damage: (e) => {
       return `Огонь испортил: ${e.itemName ?? e.itemId ?? 'предмет'}.`;
-    case 'rumor_spread':
+  },
+  rumor_spread: (e) => {
       return `${e.actorName ?? 'Кто-то'} передал слух.`;
-    case 'faction_event':
+  },
+  faction_event: (e) => {
       return factionRelationText(e);
-    case 'faction_patrol_clash':
+  },
+  faction_patrol_clash: (e) => {
       return `Патрули столкнулись${e.zoneId !== undefined ? ` в зоне ${e.zoneId + 1}` : ''}.`;
-    case 'faction_relation_changed':
+  },
+  faction_relation_changed: (e) => {
       return factionRelationText(e);
-    case 'floor_transition':
+  },
+  floor_transition: (e) => {
       if (e.tags.includes('false_safe_block')) return 'Переход: тихий блок. Сирены нет.';
       return `Переход: ${e.targetName ?? 'другой этаж'}.`;
-    case 'door_opened':
+  },
+  door_opened: (e) => {
       if (e.tags.includes('betonoed') && e.tags.includes('wall_breached')) return 'Бетоноед вскрыл слабую стену. Короткий ход открыт.';
       if (e.tags.includes('betonoed') && e.tags.includes('shortcut_used')) return 'Ход Бетоноеда использован как короткий маршрут.';
       if (e.tags.includes('wrong_door')) return wrongDoorText(e);
       return `Дверь открылась${e.zoneId !== undefined ? ` в зоне ${e.zoneId + 1}` : ''}.`;
-    case 'door_sealed':
+  },
+  door_sealed: (e) => {
       if (e.tags.includes('betonoed')) return 'Проход Бетоноеда запечатан.';
       return 'Проход запечатан.';
-    case 'death_seen':
+  },
+  death_seen: (e) => {
       if (e.tags.includes('betonoed') && e.tags.includes('driven_off')) return 'Бетоноед отогнан от слабой стены.';
       return `${e.targetName ?? 'Смерть'} замечена.`;
-    case 'paritel_valve_changed':
+  },
+  paritel_valve_changed: (e) => {
       return `Паровой мост: давление ${String(e.data?.pressure ?? '?')}/3.`;
-    case 'paritel_bridge_crossed':
+  },
+  paritel_bridge_crossed: (_) => {
       return 'Паровой мост пройден.';
-    case 'paritel_threat_neutralized':
+  },
+  paritel_threat_neutralized: (_) => {
       return 'Паритель нейтрализован.';
-    case 'paritel_steam_injury':
+  },
+  paritel_steam_injury: (_) => {
       return 'Паровой мост обжёг вас.';
-    case 'paritel_steam_avoided':
+  },
+  paritel_steam_avoided: (_) => {
       return 'Паровой мост обойден без прямого ожога.';
-    case 'lift_arachna_warned':
+  },
+  lift_arachna_warned: (_) => {
       return 'Лифт: над шахтой скребет лифтовая арахна. Смотрите вверх или отходите.';
-    case 'lift_arachna_sprung':
+  },
+  lift_arachna_sprung: (e) => {
       return e.tags.includes('baited_drop')
         ? 'Лифтовая арахна сорвалась на шум и промахнулась.'
         : 'Лифтовая арахна упала из шахты.';
-    case 'lift_arachna_avoided':
+  },
+  lift_arachna_avoided: (_) => {
       return 'Лифтовая арахна не упала. Шахта тиха.';
-    case 'lift_arachna_cleared':
+  },
+  lift_arachna_cleared: (_) => {
       return 'Лифтовая арахна очищена. У лифта стало тише.';
-    case 'pseudolift_suspected':
+  },
+  pseudolift_suspected: (e) => {
       return `Лифт не сходится: табло ${String(e.data?.fakeFloorLabel ?? '?')}, порог влажный.`;
-    case 'pseudolift_revealed':
+  },
+  pseudolift_revealed: (e) => {
       return e.tags.includes('cleared')
         ? 'Псевдолифт осел в шахту. Кабина снова проходима.'
         : 'Псевдолифт раскрыл кабину пастью.';
-    case 'pseudolift_fed':
+  },
+  pseudolift_fed: (e) => {
       return `Псевдолифт ушел на приманку: ${e.itemName ?? e.itemId ?? 'предмет'}.`;
-    default:
-      return `${e.type}${e.zoneId !== undefined ? ` (зона ${e.zoneId + 1})` : ''}.`;
+  },
+};
+
+function eventText(e: WorldEvent): string {
+  const pneumomail = pneumomailText(e);
+  if (pneumomail) return pneumomail;
+
+  const handler = EVENT_TEXT_HANDLERS[e.type];
+  if (handler) {
+    return handler(e);
   }
+
+  return `${e.type}${e.zoneId !== undefined ? ` (зона ${e.zoneId + 1})` : ''}.`;
 }
 
 function shouldLog(e: WorldEvent): boolean {
