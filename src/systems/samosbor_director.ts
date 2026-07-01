@@ -24,7 +24,7 @@ import { setDoorState } from './door_state';
 import { publishEvent, getRecentEvents } from './events';
 import { observeRumorEvent } from './rumor';
 import { canSpawnEntityType, entitySpawnSlots } from './entity_limits';
-import { isPlayerEntity } from './player_actor';
+import { getCurrentPlayerEntity } from './player_actor';
 import { assignPersistentAlifeNpcFromEntity, currentAlifeFloorKey } from './alife';
 
 const TRACE_CAP = 300;
@@ -145,10 +145,6 @@ function phaseForReason(reason: SamosborDirectorTickReason): SamosborBeatPhase {
   return 'warning';
 }
 
-function findPlayer(entities: Entity[]): Entity | null {
-  for (const e of entities) if (isPlayerEntity(e) && e.alive) return e;
-  return null;
-}
 
 function buildSnapshot(
   world: World,
@@ -157,7 +153,7 @@ function buildSnapshot(
   variant: ActiveSamosborVariant | null,
   reason: SamosborDirectorTickReason,
 ): SamosborDirectorSnapshot {
-  const player = findPlayer(entities);
+  const player = getCurrentPlayerEntity(entities);
   const px = player ? Math.floor(player.x) : (world.zones[0]?.cx ?? (W >> 1));
   const py = player ? Math.floor(player.y) : (world.zones[0]?.cy ?? (W >> 1));
   const zoneId = world.zoneMap[world.idx(px, py)] ?? 0;
