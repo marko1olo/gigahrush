@@ -100,9 +100,7 @@ function eventDataString(event: WorldEvent, key: string): string | undefined {
 }
 
 function pressTags(extra: readonly string[] = []): string[] {
-  const tags = [CONTENT_TAG, 'monster', 'press', 'timing', 'production'];
-  for (const tag of extra) if (!tags.includes(tag)) tags.push(tag);
-  return tags;
+  return Array.from(new Set([CONTENT_TAG, 'monster', 'press', 'timing', 'production', ...extra]));
 }
 
 function runtimeForEvent(event: WorldEvent): PressovikRuntime | null {
