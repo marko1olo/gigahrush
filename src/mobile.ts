@@ -110,15 +110,7 @@ function makeButton(className: string, label: string, ariaLabel: string): HTMLBu
   return button;
 }
 
-export function createMobileControls(input: InputState, options: MobileControlsOptions): MobileControls {
-  const root = document.createElement('div');
-  root.className = 'mobile-controls';
-  root.setAttribute('aria-hidden', 'false');
-
-  const rotate = document.createElement('div');
-  rotate.className = 'mobile-rotate';
-  rotate.textContent = mobileText({ ru: 'Поверните телефон горизонтально', en: 'Rotate phone landscape' });
-
+function createMobilePads() {
   const movePad = makeButton('mobile-pad mobile-pad--move', '', 'Джойстик движения');
   const moveThumb = document.createElement('span');
   moveThumb.className = 'mobile-pad-thumb';
@@ -129,16 +121,40 @@ export function createMobileControls(input: InputState, options: MobileControlsO
   lookThumb.className = 'mobile-pad-thumb';
   lookPad.append(lookThumb);
 
+  return { movePad, moveThumb, lookPad, lookThumb };
+}
+
+function createMobileActionButtons() {
   const interact = makeButton('mobile-interact', mobileInteractLabel(), mobileText({ ru: 'Взаимодействие', en: 'Interact' }));
   const fire = makeButton('mobile-fire-zone', '', mobileText({ ru: 'Атака', en: 'Attack' }));
   const fullscreen = makeButton('mobile-fullscreen', 'FULL', mobileText({ ru: 'Полный экран', en: 'Fullscreen' }));
 
+  return { interact, fire, fullscreen };
+}
+
+function createMobileActionMenu() {
   const actionRail = document.createElement('div');
   actionRail.className = 'mobile-menu-rail';
   const actionUp = makeButton('mobile-menu-btn', '▲', mobileText({ ru: 'Действие выше', en: 'Previous action' }));
   const actionSelect = makeButton('mobile-menu-btn mobile-menu-select', mobileText(MOBILE_ACTIONS[0].label), mobileText(MOBILE_ACTIONS[0].ariaLabel));
   const actionDown = makeButton('mobile-menu-btn', '▼', mobileText({ ru: 'Действие ниже', en: 'Next action' }));
   actionRail.append(actionUp, actionSelect, actionDown);
+
+  return { actionRail, actionUp, actionSelect, actionDown };
+}
+
+export function createMobileControls(input: InputState, options: MobileControlsOptions): MobileControls {
+  const root = document.createElement('div');
+  root.className = 'mobile-controls';
+  root.setAttribute('aria-hidden', 'false');
+
+  const rotate = document.createElement('div');
+  rotate.className = 'mobile-rotate';
+  rotate.textContent = mobileText({ ru: 'Поверните телефон горизонтально', en: 'Rotate phone landscape' });
+
+  const { movePad, moveThumb, lookPad, lookThumb } = createMobilePads();
+  const { interact, fire, fullscreen } = createMobileActionButtons();
+  const { actionRail, actionUp, actionSelect, actionDown } = createMobileActionMenu();
 
   root.append(rotate, fire, fullscreen, movePad, lookPad, interact, actionRail);
   document.body.append(root);
