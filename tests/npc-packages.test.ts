@@ -18,6 +18,7 @@ import {
   NPC_PACKAGE_SOCIAL_LINK_CAP,
   validateCommunityNpcPackageFolder,
   validateNpcPackage,
+  validateNpcSpriteRlePayload,
   npcPackageLookupHints,
   type NpcCommunityPackageFolder,
   type NpcSpriteRlePayload,
@@ -426,6 +427,14 @@ test('community sprite payload rejects oversized RLE data', () => {
   const validation = validateCommunityNpcPackageFolder(folder);
   assert.equal(validation.valid, false);
   assert.ok(validation.errors.some(error => error.includes('sprite.rle byte length')), validation.errors.join('; '));
+});
+
+test('validateNpcSpriteRlePayload rejects incorrect format', () => {
+  const payload = { format: 'invalid_format_string' };
+
+  const validation = validateNpcSpriteRlePayload(payload);
+  assert.equal(validation.valid, false);
+  assert.ok(validation.errors.some(error => error.includes('sprite.format must be')), validation.errors.join('; '));
 });
 
 test('community sprite payload rejects invalid palette and byte values', () => {
