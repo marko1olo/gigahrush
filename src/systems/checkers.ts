@@ -491,46 +491,48 @@ export function handleCheckersInput(ctx: { state: GameState; player: Entity; npc
   if (ctx.input.interactEdge) {
     if (g.selectedPieceId) {
       const piece = g.pieces.find(p => p.id === g.selectedPieceId);
-      if (piece) {
-        const moves = generateMovesForPiece(g.pieces, piece);
-        
-        let allPlayerMoves = getAllMovesForSide(g.pieces, 'player');
-        if (g.mustCaptureWithPieceId) {
-            allPlayerMoves = moves.filter(m => m.isCapture);
-        }
+      if (!piece) return { handled: true };
 
-        const hasAnyCaptures = allPlayerMoves.some(m => m.isCapture);
-        
-        const move = moves.find(m => m.endX === g.cursorX && m.endY === g.cursorY);
-        
-        if (move) {
-          if (hasAnyCaptures && !move.isCapture) {
-             appendLog(g, 'Бить обязательно!');
-          } else {
-            g.pieces = applyMove(g.pieces, move);
-            
-            if (move.isCapture) {
-              const pieceAfter = g.pieces.find(p => p.id === move.pieceId);
-              if (pieceAfter) {
-                const nextCaptures = generateMovesForPiece(g.pieces, pieceAfter).filter(m => m.isCapture);
-                if (nextCaptures.length > 0) {
-                  g.mustCaptureWithPieceId = move.pieceId;
-                  appendLog(g, 'Продолжайте бить!');
-                  return { handled: true };
-                }
-              }
-            }
-            
-            g.selectedPieceId = undefined;
-            g.mustCaptureWithPieceId = undefined;
-            g.phase = 'npc_turn';
-            checkWinCondition(g);
-            if (g.winner) settleCheckersGame(g, ctx.state, ctx.player, ctx.npc);
+      const moves = generateMovesForPiece(g.pieces, piece);
+
+      let allPlayerMoves = getAllMovesForSide(g.pieces, 'player');
+      if (g.mustCaptureWithPieceId) {
+          allPlayerMoves = moves.filter(m => m.isCapture);
+      }
+
+      const hasAnyCaptures = allPlayerMoves.some(m => m.isCapture);
+
+      const move = moves.find(m => m.endX === g.cursorX && m.endY === g.cursorY);
+
+      if (!move) {
+        if (!g.mustCaptureWithPieceId) g.selectedPieceId = undefined; // deselect if invalid move
+        return { handled: true };
+      }
+
+      if (hasAnyCaptures && !move.isCapture) {
+         appendLog(g, 'Бить обязательно!');
+         return { handled: true };
+      }
+
+      g.pieces = applyMove(g.pieces, move);
+
+      if (move.isCapture) {
+        const pieceAfter = g.pieces.find(p => p.id === move.pieceId);
+        if (pieceAfter) {
+          const nextCaptures = generateMovesForPiece(g.pieces, pieceAfter).filter(m => m.isCapture);
+          if (nextCaptures.length > 0) {
+            g.mustCaptureWithPieceId = move.pieceId;
+            appendLog(g, 'Продолжайте бить!');
+            return { handled: true };
           }
-        } else {
-          if (!g.mustCaptureWithPieceId) g.selectedPieceId = undefined; // deselect if invalid move
         }
       }
+
+      g.selectedPieceId = undefined;
+      g.mustCaptureWithPieceId = undefined;
+      g.phase = 'npc_turn';
+      checkWinCondition(g);
+      if (g.winner) settleCheckersGame(g, ctx.state, ctx.player, ctx.npc);
     } else {
       const piece = getPieceAt(g.pieces, g.cursorX, g.cursorY);
       if (piece && piece.side === 'player') {
