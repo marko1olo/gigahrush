@@ -120,9 +120,10 @@ import {
   uiSettingsRowAt,
   uiSettingsRowCount,
 } from './systems/ui_orchestrator';
-import { freshNeeds, ITEMS, WEAPON_STATS, type WeaponStats } from './data/catalog';
+import { freshNeeds, ITEMS, WEAPON_STATS } from './data/catalog';
 import { INVENTORY_GRID_COLS, INVENTORY_GRID_ROWS, MAX_INVENTORY_SLOTS } from './data/inventory_limits';
 import { getStack, itemEquipSlot } from './data/items';
+import type { WeaponStats } from './data/weapons';
 import { designFloorAmbientLight } from './data/design_floor_profiles';
 import {
   themeForDesignFloor,
@@ -2664,7 +2665,7 @@ function movePlayer(dt: number): void {
 }
 
 /* ── Weapon sound dispatch ─────────────────────────────────────── */
-function playWeaponSound(weaponId: string, ws: import('./data/weapons').WeaponStats): void {
+function playWeaponSound(weaponId: string, ws: WeaponStats): void {
   const sid = ws.soundId ?? weaponId;
   switch (sid) {
     case 'shotgun':    playShotgun(); break;
