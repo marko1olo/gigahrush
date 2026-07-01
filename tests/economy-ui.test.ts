@@ -9,12 +9,16 @@ import {
   readFinanceSnapshot,
   tradePriceDisplay,
   tradeCellPriceDisplay,
+  itemValueDisplay,
 } from '../src/render/economy_ui';
+import { getAdjustedItemPrice, getItemPriceMultiplier } from '../src/systems/economy';
+import { ITEMS } from '../src/data/catalog';
 
 function state(extra: Partial<GameState> & Record<string, unknown> = {}): GameState {
   return {
     time: 0,
     currentFloor: FloorLevel.LIVING,
+    quests: [],
     ...extra,
   } as GameState;
 }
@@ -83,6 +87,26 @@ test('trade price display includes fallback price reason and affordability statu
   assert.match(display.line, /^Цена: \d+₽ спрос x[\d.]+ дефицит x/);
   assert.equal(display.ok, false);
   assert.equal(display.status, 'не хватает денег');
+
+  const displaySell = tradePriceDisplay(state(), player, npc, 'water', 'sell');
+  assert.match(displaySell.line, /^Скупка: \d+₽/);
+});
+
+test('trade cell price display works for both buy and sell', () => {
+  const npc = entity({ id: 2, type: EntityType.NPC, money: 100, inventory: [{ defId: 'water', count: 1 }] });
+
+  const cellBuy = tradeCellPriceDisplay(state(), npc, 'water', 'buy');
+  assert.ok(typeof cellBuy.text === 'string');
+
+  const cellSell = tradeCellPriceDisplay(state(), npc, 'water', 'sell');
+  assert.ok(typeof cellSell.text === 'string');
+});
+
+test('itemValueDisplay returns formatted value and resource details', () => {
+  const display = itemValueDisplay(state(), 'water');
+  assert.equal(typeof display.priceText, 'string');
+  assert.ok(display.priceText.endsWith('₽'));
+  assert.ok(display.line.includes('Оценка:'));
 });
 
 test('inventory room check treats existing stacks as space', () => {
@@ -91,7 +115,7 @@ test('inventory room check treats existing stacks as space', () => {
 });
 
 test('trade UI gracefully falls back when economy quote system throws error', () => {
-  const s = state({ quests: [] });
+  const s = state();
   const player = entity();
   const badNpc = entity();
 
@@ -105,7 +129,43 @@ test('trade UI gracefully falls back when economy quote system throws error', ()
   assert.equal(typeof cellDisplay.text, 'string');
   assert.ok(cellDisplay.text.endsWith('₽'));
 
+  const cellDisplaySell = tradeCellPriceDisplay(s, badNpc, 'water', 'sell');
+  assert.equal(typeof cellDisplaySell.text, 'string');
+
   const tradeDisplay = tradePriceDisplay(s, player, badNpc, 'water', 'buy');
   assert.equal(typeof tradeDisplay.line, 'string');
   assert.ok(tradeDisplay.line.includes('Цена:'));
+
+  const tradeDisplaySell = tradePriceDisplay(s, player, badNpc, 'water', 'sell');
+  assert.equal(typeof tradeDisplaySell.line, 'string');
+  assert.ok(tradeDisplaySell.line.includes('Скупка:'));
+});
+
+test('itemValueDisplay gracefully falls back when economy quote system throws error', () => {
+  const s = state();
+
+  getAdjustedItemPrice(s, 'water');
+  getItemPriceMultiplier(s, 'water');
+
+  const originalDef = ITEMS['water'];
+  try {
+    Object.defineProperty(ITEMS, 'water', {
+      get() {
+        throw new Error('Simulated economy crash during quote');
+      },
+      configurable: true
+    });
+
+    const display = itemValueDisplay(s, 'water');
+    assert.equal(typeof display.priceText, 'string');
+    assert.ok(display.priceText.endsWith('₽'));
+    assert.ok(display.line.includes('Оценка:'));
+  } finally {
+    Object.defineProperty(ITEMS, 'water', {
+      value: originalDef,
+      writable: true,
+      enumerable: true,
+      configurable: true
+    });
+  }
 });
