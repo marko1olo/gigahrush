@@ -24,19 +24,24 @@ function matchesFilter<T extends string>(value: T, filter: T | readonly T[] | un
 }
 
 function hasAllTags(def: FloorCatalogDef, tags: readonly string[]): boolean {
-  for (const tag of tags) if (!def.tags.includes(tag)) return false;
+  for (const tag of tags) if (!def.tags.has(tag)) return false;
   return true;
 }
 
 function matchesSearch(def: FloorCatalogDef, search: string): boolean {
   const q = search.trim().toLowerCase();
   if (!q) return true;
-  return (
+  if (
     def.id.toLowerCase().includes(q) ||
     def.displayName.toLowerCase().includes(q) ||
-    def.unlockHint.toLowerCase().includes(q) ||
-    def.tags.some(tag => tag.toLowerCase().includes(q))
-  );
+    def.unlockHint.toLowerCase().includes(q)
+  ) {
+    return true;
+  }
+  for (const tag of def.tags) {
+    if (tag.toLowerCase().includes(q)) return true;
+  }
+  return false;
 }
 
 export function getFloorCatalogDef(id: string): FloorCatalogDef | undefined {

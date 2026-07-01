@@ -20,17 +20,17 @@ test('queryFloorCatalog filters by baseFloor', () => {
 test('queryFloorCatalog filters by tag', () => {
   const query = { tag: 'elevator' };
   const result = queryFloorCatalog(query);
-  const expected = FLOOR_CATALOG.filter(def => def.tags.includes('elevator'));
+  const expected = FLOOR_CATALOG.filter(def => def.tags.has('elevator'));
   assert.equal(result.length, expected.length);
-  assert.ok(result.every(def => def.tags.includes('elevator')));
+  assert.ok(result.every(def => def.tags.has('elevator')));
 });
 
 test('queryFloorCatalog filters by multiple tags (requires ALL tags)', () => {
   const query = { tags: ['numbered', 'map_lie'] };
   const result = queryFloorCatalog(query);
-  const expected = FLOOR_CATALOG.filter(def => def.tags.includes('numbered') && def.tags.includes('map_lie'));
+  const expected = FLOOR_CATALOG.filter(def => def.tags.has('numbered') && def.tags.has('map_lie'));
   assert.equal(result.length, expected.length);
-  assert.ok(result.every(def => def.tags.includes('numbered') && def.tags.includes('map_lie')));
+  assert.ok(result.every(def => def.tags.has('numbered') && def.tags.has('map_lie')));
 });
 
 test('queryFloorCatalog filters by rarity', () => {
@@ -89,8 +89,8 @@ test('queryFloorCatalog filters by search (matches ID, display name, hint, or ta
   assert.ok(resultName.some(def => def.id === firstItem.id));
 
   // Search by tag substring
-  if (firstItem.tags.length > 0) {
-    const searchTag = firstItem.tags[0].substring(1, 3).toLowerCase();
+  if (firstItem.tags.size > 0) {
+    const searchTag = Array.from(firstItem.tags)[0].substring(1, 3).toLowerCase();
     const resultTag = queryFloorCatalog({ search: searchTag });
     assert.ok(resultTag.length > 0);
     assert.ok(resultTag.some(def => def.id === firstItem.id));
@@ -136,19 +136,19 @@ test('queryFloorCatalog filters by multiple criteria', () => {
 });
 
 test('queryFloorCatalog combines tag and tags arrays', () => {
-  const target = FLOOR_CATALOG.find(c => c.tags.length >= 2);
+  const target = FLOOR_CATALOG.find(c => c.tags.size >= 2);
   if (!target) return; // Skip if no item with 2+ tags
 
   const query = {
-    tag: target.tags[0],
-    tags: [target.tags[1]]
+    tag: Array.from(target.tags)[0],
+    tags: [Array.from(target.tags)[1]]
   };
 
   const result = queryFloorCatalog(query);
   assert.ok(result.length > 0);
   assert.ok(result.some(def => def.id === target.id));
   assert.ok(result.every(def =>
-    def.tags.includes(target.tags[0]) &&
-    def.tags.includes(target.tags[1])
+    def.tags.has(Array.from(target.tags)[0]) &&
+    def.tags.has(Array.from(target.tags)[1])
   ));
 });
