@@ -321,6 +321,24 @@ test('NPC package validator rejects out-of-range relation and karma values', () 
   assert.ok(result.errors.some(error => error.includes('social.links[0].relation')));
 });
 
+test('NPC package validator rejects non-object root and sub-objects', () => {
+  const nonObjectResult = validateNpcPackage("not an object");
+  assert.equal(nonObjectResult.valid, false);
+  assert.ok(nonObjectResult.errors.includes('package must be an object'));
+
+  const pack = {
+    ...minimalNpcPackage('invalid_sub_objects'),
+    runtime: "not an object",
+    content: "not an object",
+    editor: "not an object",
+  };
+  const subObjectResult = validateNpcPackage(pack);
+  assert.equal(subObjectResult.valid, false);
+  assert.ok(subObjectResult.errors.includes('runtime must be an object'));
+  assert.ok(subObjectResult.errors.includes('content must be an object'));
+  assert.ok(subObjectResult.errors.includes('editor must be an object'));
+});
+
 test('NPC package validator rejects function fields and runtime-only live entity ids', () => {
   const pack = minimalNpcPackage('function_field_npc') as unknown as Record<string, unknown>;
   (pack.identity as Record<string, unknown>).computed = () => 'bad';
