@@ -416,6 +416,32 @@ test('community folder requires consent json', () => {
   assert.ok(validation.errors.some(error => error.includes('consent.json is required')), validation.errors.join('; '));
 });
 
+test('community folder missing files array is allowed but validates missing required files', () => {
+  const folder = communityFolder('community_missing_files_array');
+  folder.files = undefined;
+
+  const validation = validateCommunityNpcPackageFolder(folder);
+  assert.equal(validation.valid, true, validation.errors.join('; '));
+});
+
+test('community folder rejects missing files in files array', () => {
+  const folder = communityFolder('community_missing_file_in_array');
+  folder.files = ['npc.json', 'README.md', 'consent.json']; // missing sprite.rle.json
+
+  const validation = validateCommunityNpcPackageFolder(folder);
+  assert.equal(validation.valid, false);
+  assert.ok(validation.errors.some(error => error.includes('community folder missing sprite.rle.json')), validation.errors.join('; '));
+});
+
+test('community folder rejects extra unexpected files in files array', () => {
+  const folder = communityFolder('community_extra_file_in_array');
+  folder.files = ['npc.json', 'sprite.rle.json', 'README.md', 'consent.json', 'unknown.json'];
+
+  const validation = validateCommunityNpcPackageFolder(folder);
+  assert.equal(validation.valid, false);
+  assert.ok(validation.errors.some(error => error.includes('community file "unknown.json" is not part of the runtime contract')), validation.errors.join('; '));
+});
+
 test('community sprite payload rejects oversized RLE data', () => {
   const folder = communityFolder('community_oversized_sprite');
   folder.spriteRle = {
