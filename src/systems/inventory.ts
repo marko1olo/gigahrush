@@ -1297,11 +1297,30 @@ function documentRoomName(e: Entity, world: World | undefined): string | undefin
 }
 
 function documentActionTags(defId: string, extra: readonly string[]): string[] {
-  const out = ['player', 'inventory', 'document'];
-  for (const tag of extra) if (!out.includes(tag)) out.push(tag);
-  for (const tag of ITEM_TAGS[defId] ?? []) if (!out.includes(tag)) out.push(tag);
-  for (const tag of ITEMS[defId]?.tags ?? []) if (!out.includes(tag)) out.push(tag);
-  return out.slice(0, 8);
+  const out = new Set(['player', 'inventory', 'document']);
+  for (const tag of extra) {
+    out.add(tag);
+    if (out.size >= 8) break;
+  }
+  if (out.size < 8) {
+    const tags1 = ITEM_TAGS[defId];
+    if (tags1) {
+      for (const tag of tags1) {
+        out.add(tag);
+        if (out.size >= 8) break;
+      }
+    }
+  }
+  if (out.size < 8) {
+    const tags2 = ITEMS[defId]?.tags;
+    if (tags2) {
+      for (const tag of tags2) {
+        out.add(tag);
+        if (out.size >= 8) break;
+      }
+    }
+  }
+  return Array.from(out);
 }
 
 function publishDocumentActionEvent(
