@@ -103,10 +103,7 @@ function captureTextInput(input: InputState, e: KeyboardEvent): void {
   input.textInput = (input.textInput + text).slice(-64);
 }
 
-export function bindInput(input: InputState, canvas: HTMLCanvasElement, options: InputBindOptions = {}): () => void {
-  let pointerLockClickStarted = false;
-  let pointerLockAllowedAtMouseDown = false;
-
+function bindKeyboard(input: InputState, options: InputBindOptions): () => void {
   const onDown = (e: KeyboardEvent) => {
     if (getControlCaptureAction()) {
       consumeControlCaptureCode(e.code);
@@ -125,6 +122,19 @@ export function bindInput(input: InputState, canvas: HTMLCanvasElement, options:
   const onUp = (e: KeyboardEvent) => {
     applyControlCode(input, e.code, false);
   };
+
+  document.addEventListener('keydown', onDown);
+  document.addEventListener('keyup', onUp);
+
+  return () => {
+    document.removeEventListener('keydown', onDown);
+    document.removeEventListener('keyup', onUp);
+  };
+}
+
+function bindMouse(input: InputState, canvas: HTMLCanvasElement, options: InputBindOptions): () => void {
+  let pointerLockClickStarted = false;
+  let pointerLockAllowedAtMouseDown = false;
 
   const onMouse = (e: MouseEvent) => {
     if (document.pointerLockElement === canvas) {
@@ -217,6 +227,26 @@ export function bindInput(input: InputState, canvas: HTMLCanvasElement, options:
     e.stopImmediatePropagation();
   };
 
+  document.addEventListener('mousemove', onMouse);
+  document.addEventListener('mousedown', onMenuMouseDown, { capture: true });
+  canvas.addEventListener('click', onClick);
+  canvas.addEventListener('mousedown', onMouseDown);
+  document.addEventListener('mouseup', onMouseUp);
+  document.addEventListener('wheel', onWheel, { capture: true, passive: false });
+  canvas.addEventListener('contextmenu', onContextMenu);
+
+  return () => {
+    document.removeEventListener('mousemove', onMouse);
+    document.removeEventListener('mousedown', onMenuMouseDown, { capture: true });
+    canvas.removeEventListener('click', onClick);
+    canvas.removeEventListener('mousedown', onMouseDown);
+    document.removeEventListener('mouseup', onMouseUp);
+    document.removeEventListener('wheel', onWheel, { capture: true });
+    canvas.removeEventListener('contextmenu', onContextMenu);
+  };
+}
+
+function bindWindow(input: InputState, canvas: HTMLCanvasElement, options: InputBindOptions): () => void {
   const onLockChange = () => {
     input.mouse.locked = document.pointerLockElement === canvas;
     if (!input.mouse.locked) {
@@ -241,33 +271,27 @@ export function bindInput(input: InputState, canvas: HTMLCanvasElement, options:
     if (document.hidden) clearLostInputState(input, canvas);
   };
 
-  document.addEventListener('keydown', onDown);
-  document.addEventListener('keyup', onUp);
-  document.addEventListener('mousemove', onMouse);
-  document.addEventListener('mousedown', onMenuMouseDown, { capture: true });
-  canvas.addEventListener('click', onClick);
-  canvas.addEventListener('mousedown', onMouseDown);
-  document.addEventListener('mouseup', onMouseUp);
-  document.addEventListener('wheel', onWheel, { capture: true, passive: false });
-  canvas.addEventListener('contextmenu', onContextMenu);
   document.addEventListener('pointerlockchange', onLockChange);
   window.addEventListener('blur', onBlur);
   document.addEventListener('blur', onBlur, true);
   document.addEventListener('visibilitychange', onVisibilityChange);
 
   return () => {
-    document.removeEventListener('keydown', onDown);
-    document.removeEventListener('keyup', onUp);
-    document.removeEventListener('mousemove', onMouse);
-    document.removeEventListener('mousedown', onMenuMouseDown, { capture: true });
-    canvas.removeEventListener('click', onClick);
-    canvas.removeEventListener('mousedown', onMouseDown);
-    document.removeEventListener('mouseup', onMouseUp);
-    document.removeEventListener('wheel', onWheel, { capture: true });
-    canvas.removeEventListener('contextmenu', onContextMenu);
     document.removeEventListener('pointerlockchange', onLockChange);
     window.removeEventListener('blur', onBlur);
     document.removeEventListener('blur', onBlur, true);
     document.removeEventListener('visibilitychange', onVisibilityChange);
+  };
+}
+
+export function bindInput(input: InputState, canvas: HTMLCanvasElement, options: InputBindOptions = {}): () => void {
+  const unbindKeyboard = bindKeyboard(input, options);
+  const unbindMouse = bindMouse(input, canvas, options);
+  const unbindWindow = bindWindow(input, canvas, options);
+
+  return () => {
+    unbindKeyboard();
+    unbindMouse();
+    unbindWindow();
   };
 }
