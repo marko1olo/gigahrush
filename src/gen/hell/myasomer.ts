@@ -29,7 +29,7 @@ import { publishEvent, registerWorldEventObserver } from '../../systems/events';
 import { randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg';
 import { connectProtectedRoom, findClearArea, protectRoom, stampRoom } from '../shared';
 import { genLog } from '../log';
-import { isPlayerEntity } from '../../systems/player_actor';
+import { getCurrentPlayerEntity } from '../../systems/player_actor';
 
 const MYASOMER_ID = 'myasomer';
 const MYASOMER_NAME = 'Мясомер';
@@ -604,12 +604,6 @@ function nextEntityId(entities: readonly Entity[]): number {
   return id;
 }
 
-function findPlayer(entities: readonly Entity[]): Entity | null {
-  for (const entity of entities) {
-    if (isPlayerEntity(entity) && entity.alive) return entity;
-  }
-  return null;
-}
 
 function myasomerThreatCap(site: MyasomerSite): number {
   if (site.baited && site.fireSeared) return FULL_COUNTERPLAY_THREATS;
@@ -618,7 +612,7 @@ function myasomerThreatCap(site: MyasomerSite): number {
 }
 
 function spawnMyasomerPressure(world: World, entities: Entity[], site: MyasomerSite): number {
-  const player = findPlayer(entities);
+  const player = getCurrentPlayerEntity(entities);
   const spawnPlan: MonsterKind[] = site.fireSeared
     ? [MonsterKind.SBORKA, MonsterKind.SBORKA]
     : site.baited

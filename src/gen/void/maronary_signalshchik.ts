@@ -13,7 +13,7 @@ import { publishEvent, registerWorldEventObserver as observeWorldEvents } from '
 import { registerRouteCue } from '../../systems/route_cues';
 import { randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg';
 import { carveCorridor, findClearArea, placeDoorAt, stampRoom } from '../shared';
-import { isPlayerEntity } from '../../systems/player_actor';
+import { getCurrentPlayerEntity } from '../../systems/player_actor';
 
 const ENCOUNTER_ID = 'maronary_signalshchik';
 const ENCOUNTER_NAME = 'Маронарный Сигнальщик';
@@ -75,9 +75,6 @@ function findSignalshchikContext(event: WorldEvent): SignalshchikContext | undef
   return undefined;
 }
 
-function findPlayer(entities: Entity[]): Entity | undefined {
-  return entities.find(e => isPlayerEntity(e) && e.alive);
-}
 
 function pushHud(state: GameState, line: string, color = '#35ff66'): void {
   state.msgs.push(msg(line, state.time, color));
@@ -174,7 +171,7 @@ function handleHeard(ctx: SignalshchikContext, state: GameState): void {
   if (ctx.heard) return;
   ctx.heard = true;
   playMaronaryPing();
-  setMonsterHunt(ctx, findPlayer(ctx.entities));
+  setMonsterHunt(ctx, getCurrentPlayerEntity(ctx.entities));
   pushHud(state, 'Высокий писк записан. Пойдете по стрелке - получите ПСИ-сбой; источник можно разбить.');
   publishSignalEvent(state, ctx, 'heard', 'samosbor_warning', 3, [], { counterplay: 'leave_room_break_source_ignore_signal' });
 }
@@ -182,7 +179,7 @@ function handleHeard(ctx: SignalshchikContext, state: GameState): void {
 function handleFollowed(ctx: SignalshchikContext, state: GameState): void {
   if (ctx.followed) return;
   ctx.followed = true;
-  const player = findPlayer(ctx.entities);
+  const player = getCurrentPlayerEntity(ctx.entities);
   if (player) player.psiMadness = Math.max(player.psiMadness ?? 0, 5);
   setMonsterHunt(ctx, player);
   pushHud(state, 'Вы пошли за зеленой стрелкой. Шаг замедлился, ПСИ поплыло, монстр взял ваш след.');

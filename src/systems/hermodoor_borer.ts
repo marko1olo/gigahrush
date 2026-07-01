@@ -15,7 +15,7 @@ import { setDoorState } from './door_state';
 import { publishEvent } from './events';
 import { addItem, hasItem, removeItem } from './inventory';
 import { randomRPG, scaleMonsterHp, scaleMonsterSpeed } from './rpg';
-import { isPlayerEntity } from './player_actor';
+import { getCurrentPlayerEntity } from './player_actor';
 
 type BorerSource = 'pre_samosbor' | 'post_samosbor' | 'debug';
 type BorerPhase = 'warning' | 'damaged' | 'compromised' | 'repaired' | 'resolved';
@@ -99,10 +99,6 @@ function storeFor(world: World): BorerStore {
     stores.set(world, store);
   }
   return store;
-}
-
-function findPlayer(entities: readonly Entity[]): Entity | undefined {
-  return entities.find(e => isPlayerEntity(e) && e.alive);
 }
 
 function doorX(idx: number): number {
@@ -304,7 +300,7 @@ function startBorer(
   if (!borerFloorsAllowThreat(state.currentFloor)) return null;
   const store = storeFor(world);
   if (store.active && store.active.phase !== 'resolved' && store.active.phase !== 'repaired') return store.active;
-  const player = findPlayer(entities);
+  const player = getCurrentPlayerEntity(entities);
   if (!player) return null;
   const target = chooseTargetDoor(world, entities, player);
   if (!target) return null;
@@ -369,7 +365,7 @@ function resolveActive(store: BorerStore, runtime: BorerRuntime, phase: BorerPha
 
 function applyLightCounterplay(world: World, entities: readonly Entity[], state: GameState, runtime: BorerRuntime, rec: BorerDoorRecord): void {
   if (state.time < runtime.nextLightAt || runtime.lightDelayUsed >= BORER_MAX_LIGHT_DELAY) return;
-  const player = findPlayer(entities);
+  const player = getCurrentPlayerEntity(entities);
   if (!player || equippedToolLightScore(player.tool) <= 0) return;
   const monster = activeMonster(entities, runtime);
   const dx = doorX(runtime.targetDoorIdx) + 0.5;

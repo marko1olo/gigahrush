@@ -100,7 +100,7 @@ import {
   getForcedSamosborVariant,
   getLastSamosborVariant,
 } from './samosbor_variants_runtime';
-import { isPlayerEntity } from './player_actor';
+import { getCurrentPlayerEntity, isPlayerEntity } from './player_actor';
 import {
   paintTerritoryDisc,
   setTerritoryOwnerAtIndex,
@@ -856,7 +856,7 @@ function selectNearestSamosborRoomSirens(
 
 function tickSamosborRoomSirens(world: World, entities: Entity[], state: GameState, dt: number): void {
   if (!state.samosborActive) return;
-  const player = findPlayer(entities);
+  const player = getCurrentPlayerEntity(entities);
   if (!player) return;
   ensureSamosborRoomSirens(world, state);
   if (samosborRoomSirenSources.length === 0) return;
@@ -1057,7 +1057,7 @@ function resolvePlayerShelterAtSeal(
   state: GameState,
   variant: ActiveSamosborVariant,
 ): void {
-  const player = findPlayer(entities);
+  const player = getCurrentPlayerEntity(entities);
   if (!player) return;
 
   const px = world.wrap(Math.floor(player.x));
@@ -1809,7 +1809,7 @@ function tickMaronaryGlowDamage(
   maronaryGlowAccum = 0;
   const damage = Math.max(1, Math.round(MARONARY_GLOW_DAMAGE_PER_SECOND * elapsed));
   const damagedIds: number[] = [];
-  const player = findPlayer(entities);
+  const player = getCurrentPlayerEntity(entities);
   let playerDamage = 0;
   let hitCount = 0;
   let sourceX = 0;
@@ -2471,8 +2471,8 @@ export function updateSamosbor(
         variant: endedVariant,
         floor: state.currentFloor,
         zoneId: activeSamosborZoneId,
-        x: aftermathZone?.cx ?? Math.floor(findPlayer(entities)?.x ?? W / 2),
-        y: aftermathZone?.cy ?? Math.floor(findPlayer(entities)?.y ?? W / 2),
+        x: aftermathZone?.cx ?? Math.floor(getCurrentPlayerEntity(entities)?.x ?? W / 2),
+        y: aftermathZone?.cy ?? Math.floor(getCurrentPlayerEntity(entities)?.y ?? W / 2),
         samosborCount: state.samosborCount,
         endedAt: state.time,
         istotitDecision: endedIstotitDecision,
@@ -2723,14 +2723,11 @@ export function rebuildWorld(
 
 function refreshPathBlockersAfterSamosborRebuild(world: World, entities: readonly Entity[], seed: number): void {
   rebuildPathBlockersFromWorldObjects(world, seed);
-  const player = findPlayer(entities);
+  const player = getCurrentPlayerEntity(entities);
   if (!player) return;
   clearPathBlockerRegion(world, Math.floor(player.x) - 1, Math.floor(player.y) - 1, 3, 3);
 }
 
-function findPlayer(entities: readonly Entity[]): Entity | undefined {
-  return entities.find(e => isPlayerEntity(e) && e.alive);
-}
 
 function relocateEntityIfBlocked(world: World, e: Entity): void {
   if (!e.alive || e.type === EntityType.PROJECTILE) return;
@@ -2759,7 +2756,7 @@ function relocateBlockedEntities(world: World, entities: Entity[]): void {
 }
 
 function aftermathCenter(world: World, entities: Entity[], pending: PendingAftermath, preferPlayer: boolean): { x: number; y: number } {
-  const player = findPlayer(entities);
+  const player = getCurrentPlayerEntity(entities);
   if (preferPlayer && player) return { x: Math.floor(player.x), y: Math.floor(player.y) };
   const zone = pending.zoneId >= 0 ? world.zones[pending.zoneId] : undefined;
   if (zone) return { x: zone.cx, y: zone.cy };
@@ -4393,7 +4390,7 @@ function spawnSamosborPlayerPressureMonster(
   floor: FloorLevel,
 ): boolean {
   if (!state.samosborActive || !canSpawnEntityType(entities, EntityType.MONSTER)) return false;
-  const player = findPlayer(entities);
+  const player = getCurrentPlayerEntity(entities);
   if (!player || isPlayerInAcceptedSamosborShelter(world, state, player)) return false;
 
   const ci = pickSamosborPlayerPressureCell(world, entities, player);

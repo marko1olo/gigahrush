@@ -16,7 +16,7 @@ import { playRouteCueTone, playSoundAt } from '../../systems/audio';
 import { publishEvent, registerWorldEventObserver } from '../../systems/events';
 import { registerRouteCue } from '../../systems/route_cues';
 import { findClearArea, protectRoom, stampRoom } from '../shared';
-import { isPlayerEntity } from '../../systems/player_actor';
+import { getCurrentPlayerEntity } from '../../systems/player_actor';
 
 const ROOM_W = 23;
 const ROOM_H = 19;
@@ -662,7 +662,7 @@ function spawnArenaWave(
 ): void {
   if (site.phase >= wave) return;
   const room = siteRoom(site);
-  const player = findPlayer(entities);
+  const player = getCurrentPlayerEntity(entities);
   const nextId = { v: nextEntityId(entities) };
   const monsterSlots = Math.max(0, HELL_ALTAR_ARENA_MONSTER_CAP - site.monsterIds.length);
   const cultistSlots = Math.max(0, HELL_ALTAR_ARENA_CULTIST_CAP - site.cultistIds.length);
@@ -814,9 +814,3 @@ function nextEntityId(entities: readonly Entity[]): number {
   return id;
 }
 
-function findPlayer(entities: readonly Entity[]): Entity | null {
-  for (const entity of entities) {
-    if (isPlayerEntity(entity) && entity.alive) return entity;
-  }
-  return null;
-}
