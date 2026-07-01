@@ -6660,9 +6660,30 @@ function applyCommunalKnots(world: World, rooms: Room[], spec: ProceduralFloorSp
 
 function placeCommunalKnotLandmarks(world: World, rooms: Room[], spec: ProceduralFloorSpec, reachable: Uint8Array): void {
   if (spec.geometryId !== 'communal_knots') return;
-  const pantryRoom = rooms.find(room => room.name.startsWith('Кладовая общака')) ?? rooms.find(room => room.type === RoomType.STORAGE);
-  const noticeRoom = rooms.find(room => room.name.startsWith('Домен жалобы')) ?? rooms.find(room => room.type === RoomType.COMMON);
-  const throughRoom = rooms.find(room => room.name.includes('Сквозная коммуналка'));
+
+  let pantryRoom: Room | undefined;
+  let noticeRoom: Room | undefined;
+  let throughRoom: Room | undefined;
+  let fallbackPantry: Room | undefined;
+  let fallbackNotice: Room | undefined;
+
+  for (let i = 0; i < rooms.length; i++) {
+    const room = rooms[i];
+
+    if (!fallbackPantry && room.type === RoomType.STORAGE) fallbackPantry = room;
+    if (!fallbackNotice && room.type === RoomType.COMMON) fallbackNotice = room;
+
+    const name = room.name;
+    if (name.length >= 12) {
+      if (!pantryRoom && name.startsWith('Кладовая общака')) pantryRoom = room;
+      else if (!noticeRoom && name.startsWith('Домен жалобы')) noticeRoom = room;
+      else if (!throughRoom && name.length >= 19 && name.includes('Сквозная коммуналка')) throughRoom = room;
+    }
+
+    if (pantryRoom && noticeRoom && throughRoom) break;
+  }
+  pantryRoom ??= fallbackPantry;
+  noticeRoom ??= fallbackNotice;
 
   const pantry = pantryRoom ? findReachableContainerCell(world, rooms, reachable, spec.seed ^ 0x3701, pantryRoom) : null;
   if (pantry) {
