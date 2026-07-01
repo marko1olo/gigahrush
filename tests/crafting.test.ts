@@ -1,10 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
+import type { MutableCraftVector } from '../src/data/craft_materials';
 import {
   craftRecipeExists,
   craftRecipeDisplayName,
   sanitizeCraftingState,
+  craftEntryMissingLine,
+  type CraftMenuRecipeEntry,
 } from '../src/systems/crafting';
 import { ITEMS } from '../src/data/catalog';
 import { CRAFT_RECIPES } from '../src/data/craft_recipes';
@@ -69,4 +72,40 @@ test('sanitizeCraftingState handles bad inputs gracefully', () => {
   // "some_recipe": true should be kept, "another": "invalid" might be dropped or kept depending on sanitizeKnownRecipes implementation
   // Let's just check it doesn't throw and returns an object
   assert.ok(partialObjectState.knownRecipes);
+});
+
+test('craftEntryMissingLine returns ничего for empty missing materials', () => {
+  const missingVector: MutableCraftVector = [0, 0, 0, 0, 0, 0, 0, 0, 0];
+  const entry = {
+    missing: missingVector,
+  } as CraftMenuRecipeEntry;
+
+  assert.equal(craftEntryMissingLine(entry), 'ничего');
+});
+
+test('craftEntryMissingLine returns single material short name and count', () => {
+  const missingVector: MutableCraftVector = [5, 0, 0, 0, 0, 0, 0, 0, 0];
+  const entry = {
+    missing: missingVector,
+  } as CraftMenuRecipeEntry;
+
+  assert.equal(craftEntryMissingLine(entry), 'МЕХ 5');
+});
+
+test('craftEntryMissingLine returns multiple materials separated by double spaces', () => {
+  const missingVector: MutableCraftVector = [5, 0, 10, 0, 0, 2, 0, 0, 0];
+  const entry = {
+    missing: missingVector,
+  } as CraftMenuRecipeEntry;
+
+  assert.equal(craftEntryMissingLine(entry), 'МЕХ 5  РАС 10  МАТ 2');
+});
+
+test('craftEntryMissingLine ignores negative values and zero values', () => {
+  const missingVector: MutableCraftVector = [0, -5, 0, 0, 1, 0, 0, 0, 0];
+  const entry = {
+    missing: missingVector,
+  } as CraftMenuRecipeEntry;
+
+  assert.equal(craftEntryMissingLine(entry), 'ХИМ 1');
 });
