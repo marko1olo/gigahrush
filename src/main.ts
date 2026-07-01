@@ -52,7 +52,7 @@ import { stampMark, MarkType } from './systems/surface_marks';
 import { stampUrineTrace } from './systems/urination';
 import { containerMenuGridLayout, craftMenuLayout, fullscreenInventoryLayout, tradeMenuGridLayout } from './render/ui_layout';
 import { updateNeeds } from './systems/needs';
-import { updateAI, tryMonsterProjectileStagger, getAiStats, type AiStats } from './systems/ai';
+import { updateAI, tryMonsterProjectileStagger, getAiStats } from './systems/ai';
 import { resolveBreachChargeExplosion } from './systems/breach_charge';
 import { dropMonsterRareLoot } from './systems/monster_drops';
 import { generateNpcTradeItems } from './data/occupation_profiles';
@@ -1884,7 +1884,7 @@ interface SmokeDebugSnapshot {
   floorMemoryCount: number;
   floorMemoryCap: number;
   entityIndex: EntityIndexDebugStats;
-  ai: AiStats;
+  ai: ReturnType<typeof getAiStats>;
   perf: HudPerfDebugSnapshot;
   tick: number;
   inputFwd: boolean;
