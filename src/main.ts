@@ -2177,24 +2177,8 @@ function scheduleLoading(fn: () => void): void {
   pendingLoadDrawn = false;
 }
 
-function initGame(runSeedOverride?: number, initialFloor: FloorLevel = FloorLevel.LIVING): void {
-  resetRuntimeCamera(runtimeCamera);
-  clearFloorMemory();
-  resetNoiseRecords();
-  const initialRunSeed = normalizeFloorRunSeed(runSeedOverride);
-  const gen = generateFloor(initialFloor, initialRunSeed);
-  injectFastElevators(gen.world);
-  stampCeilingHeights(gen.world);
-  world = replaceWorldFromGeneration(null, gen);
-  entities = gen.entities;
-  let __maxId = 0;
-  for (let i = 0; i < entities.length; i++) {
-    const id = entities[i].id;
-    if (id > __maxId) __maxId = id;
-  }
-  nextEntityId.v = __maxId + 1;
-
-  player = {
+function createInitialPlayer(gen: FloorGeneration): Entity {
+  return {
     id: nextEntityId.v++,
     type: EntityType.NPC,
     x: gen.spawnX,
@@ -2215,16 +2199,10 @@ function initGame(runSeedOverride?: number, initialFloor: FloorLevel = FloorLeve
     faction: Faction.PLAYER,
     ...playerAlifeFields(),
   };
-  entities.push(player);
-  syncPlayerRuntimeBaselines();
+}
 
-  // Initialize faction relations and per-cell faction control
-  initFactionRelations();
-  initFactionControl(world);
-  resetGeneratedFloorPopulationState();
-  clearRoomMemory();
-
-  state = {
+function createInitialGameState(initialFloor: FloorLevel): GameState {
+  return {
     tick: 0,
     time: 0,
     clock: { hour: 8, minute: 0, totalMinutes: 0 },
@@ -2305,6 +2283,9 @@ function initGame(runSeedOverride?: number, initialFloor: FloorLevel = FloorLeve
     crafting: createCraftingState(),
     worldEvents: createWorldEventState(),
   };
+}
+
+function initGameSubsystems(initialRunSeed: number, initialFloor: FloorLevel, runSeedOverride?: number): void {
   clearVoidReturnPortalState(state);
   setVoidEntryFromFloor(state, undefined);
   netReportedSamosborCount = state.samosborCount;
@@ -2333,6 +2314,37 @@ function initGame(runSeedOverride?: number, initialFloor: FloorLevel = FloorLeve
   updateMapExploration(world, player, state);
   ensureProceduralSpriteSeeds(entities);
   resetPsiState();
+}
+
+function initGame(runSeedOverride?: number, initialFloor: FloorLevel = FloorLevel.LIVING): void {
+  resetRuntimeCamera(runtimeCamera);
+  clearFloorMemory();
+  resetNoiseRecords();
+  const initialRunSeed = normalizeFloorRunSeed(runSeedOverride);
+  const gen = generateFloor(initialFloor, initialRunSeed);
+  injectFastElevators(gen.world);
+  stampCeilingHeights(gen.world);
+  world = replaceWorldFromGeneration(null, gen);
+  entities = gen.entities;
+  let __maxId = 0;
+  for (let i = 0; i < entities.length; i++) {
+    const id = entities[i].id;
+    if (id > __maxId) __maxId = id;
+  }
+  nextEntityId.v = __maxId + 1;
+
+  player = createInitialPlayer(gen);
+  entities.push(player);
+  syncPlayerRuntimeBaselines();
+
+  // Initialize faction relations and per-cell faction control
+  initFactionRelations();
+  initFactionControl(world);
+  resetGeneratedFloorPopulationState();
+  clearRoomMemory();
+
+  state = createInitialGameState(initialFloor);
+  initGameSubsystems(initialRunSeed, initialFloor, runSeedOverride);
 
   // Initialize / reinitialize WebGL with current world data
   disposeWebGL();
