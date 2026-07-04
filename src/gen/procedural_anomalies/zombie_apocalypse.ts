@@ -705,7 +705,7 @@ function spawnCrowdNpc(cfg: SpawnCrowdNpcConfig): boolean {
     occupation,
     questId: -1,
     inventory: Math.random() < 0.16
-      ? generateContainerLoot(['food', 'trash'], 15, zoneLevel, [Math.random()])
+      ? generateContainerLoot(['food', 'trash'], 15, zoneLevel, [Math.random()], { floorLevel: ctx.spec.baseFloor, roomType: RoomType.COMMON, danger: zoneLevel, isLooted: false })
       : [],
   };
 
