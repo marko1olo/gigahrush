@@ -41,6 +41,7 @@ import {
   SCR_W, SCR_H, initWebGL, renderSceneGL, updateWorldData, updateDynamicData,
   disposeWebGL, setDynamicSkyTexture, getRenderSceneDebugStats, rebuildProceduralSpriteCache, type DynamicSkyTexture,
 } from './render/webgl';
+import { updateCritters } from './render/critters';
 import { drawHUD, drawPointerCaptureGate } from './render/hud';
 import { drawFeedbackMenu } from './render/feedback_ui';
 import {
@@ -8014,6 +8015,7 @@ function gameLoop(now: number): void {
   uiTime += frameDt;
   let dt = frameDt;
   tickNetSphere(state, player);
+  updateCritters(dt, displayedFps);
 
   // ── Sleep: hold Z to sleep (time acceleration ×10) ───────
   const SLEEP_TIME_MULT = 10;
