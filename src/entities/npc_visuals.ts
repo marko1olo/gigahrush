@@ -24,6 +24,8 @@ import { S, CLEAR, clamp, noise, rgba } from '../render/pixutil';
 import { Spr, authoredNpcSpriteGeneratorOffset } from '../render/sprite_index';
 
 export const NPC_VISUAL_FLOOR69_FEMALE = NPC_VISUAL_FLOOR69_FEMALE_ID;
+export const NPC_VISUAL_CINEMATIC_VILLAIN = 'cinematic_villain';
+export const NPC_VISUAL_CINEMATIC_HERO = 'cinematic_hero';
 export const NPC_VISUAL_LIQUIDATOR_MASKED = 'liquidator_masked';
 export const NPC_VISUAL_CULT_HOOD = 'cult_hood';
 export const NPC_VISUAL_SERVICE_WORKER = 'service_worker';
@@ -333,6 +335,38 @@ export const NPC_VISUAL_FAMILIES: readonly NpcVisualFamily[] = [
     generate: ctx => generateFloor69FemaleNpcSprite(floor69Variant(ctx)),
   },
   worker69Family,
+  {
+    id: NPC_VISUAL_CINEMATIC_VILLAIN,
+    source: 'procedural',
+    usesDynamicTexture: true,
+    procedural: true,
+    generate: ctx => generateRoleNpcVisual({
+      id: NPC_VISUAL_CULT_HOOD,
+      coat: [51, 0, 0],
+      pants: [17, 17, 17],
+      skin: [255, 204, 221],
+      accent: [255, 0, 0],
+      head: 'hood',
+      stance: 'bent',
+      detail: 'cord',
+    }, { ...ctx, seed: 12345 }),
+  },
+  {
+    id: NPC_VISUAL_CINEMATIC_HERO,
+    source: 'procedural',
+    usesDynamicTexture: true,
+    procedural: true,
+    generate: ctx => generateRoleNpcVisual({
+      id: NPC_VISUAL_LIQUIDATOR_MASKED,
+      coat: [34, 68, 34],
+      pants: [34, 51, 34],
+      skin: [221, 187, 153],
+      accent: [255, 170, 0],
+      head: 'mask',
+      stance: 'wide',
+      detail: 'filter',
+    }, { ...ctx, seed: 54321 }),
+  },
   ...GENERATED_ART_FAMILIES,
   ...ROLE_NPC_VISUALS.map(profile => ({
     id: profile.id,

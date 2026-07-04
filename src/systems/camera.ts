@@ -40,6 +40,19 @@ export interface TrailerCameraState {
   flySpeed: number;
 }
 
+export interface CinematicActorFocus {
+  plotNpcId: string;
+  targetCameraZoom: number;
+  durationMs: number;
+}
+
+// Заглушка (stub) для агентов Jules-82..85:
+export function focusCameraOnActor(_focus: CinematicActorFocus): void {
+  // TODO: Agent Jules-82 will implement the smooth transition logic here.
+  // На данный момент функция просто принимает параметры, чтобы код компилировался
+  // и другие модули могли ссылаться на этот API.
+}
+
 export interface CinematicCameraState {
   path: number[][];
   targetNodeIndex: number;

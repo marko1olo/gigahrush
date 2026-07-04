@@ -788,6 +788,12 @@ export function getPlotDef(e: Entity): PlotNpcDef | undefined {
 }
 
 /** Check if a plot NPC has an available quest to give (not yet offered) */
+import { type World } from '../core/world';
+
+export function triggerCinematicHeroAppearance(_world: World, _x: number, _y: number): void {
+  // TODO (Jules): реализовать эффекты и спавн
+}
+
 export function hasAvailableQuest(plotNpcId: string, quests: Quest[]): boolean {
   // Check PLOT_CHAIN
   for (let i = 0; i < PLOT_CHAIN.length; i++) {
