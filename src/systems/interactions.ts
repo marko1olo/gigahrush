@@ -488,7 +488,7 @@ function activateDoor(ctx: InteractionContext, idx: number): InteractionResult {
       setDoorState(ctx.world, door, DoorState.OPEN);
       ctx.state.msgs.push(msg(quietDoor ? 'Дверь отперта тихо' : 'Дверь отперта ключом', ctx.state.time, quietDoor ? '#8cf' : '#4a4'));
       publishDoorNoise(ctx.state, ctx.player, idx, false, quietDoor);
-      if (ctx.state.tutorialMode && keyId === 'tut_cafe_key') {
+      if (ctx.state.tutorialMode && keyId === 'tutorial_main_key') {
         completeTutorial(ctx.state);
       }
     } else {

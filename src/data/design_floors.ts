@@ -1,6 +1,7 @@
 import { FloorLevel } from '../core/types';
 
 export type DesignFloorId =
+  | 'tutorial'
   | 'roof'
   | 'chthonic_attic'
   | 'radon_exchange'
@@ -72,6 +73,7 @@ export interface DesignFloorRouteDef {
   color: string;
   role: string;
   danger: 1 | 2 | 3 | 4 | 5;
+  isTutorial?: boolean;
 }
 
 /**
@@ -83,6 +85,7 @@ export function designFloorThemeClass(route: DesignFloorRouteDef): FloorLevel {
 }
 
 export const DESIGN_FLOOR_ROUTES: readonly DesignFloorRouteDef[] = [
+  { id: 'tutorial', z: 0, displayName: 'Запертая Квартира', baseFloor: FloorLevel.LIVING, color: '#fff', role: 'туториал', danger: 1, isTutorial: true },
   { id: 'roof', z: 50, displayName: 'Крыша', baseFloor: FloorLevel.MINISTRY, color: '#9cf', role: 'воздух, антенны, видимость', danger: 2 },
   { id: 'chthonic_attic', z: 46, displayName: 'Чердак техслужб', baseFloor: FloorLevel.MINISTRY, color: '#c8f', role: 'техчердак, тайники, старые шахты', danger: 3 },
   { id: 'radon_exchange', z: 44, displayName: 'Радоновый обменник', baseFloor: FloorLevel.MINISTRY, color: '#bdf', role: 'скан-линии, заслонки, проекционный ключ', danger: 4 },

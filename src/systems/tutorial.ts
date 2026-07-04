@@ -20,14 +20,15 @@ export function logTutorialMsg(state: GameState, text: string, time: number): vo
 
 export function startTutorial(state: GameState, player: Entity): void {
   state.tutorialMode = true;
-  state.tutorialStep = TutorialStep.DRINK;
+  state.tutorialStep = TutorialStep.EAT;
   if (player.needs) {
+    player.needs.food = 30;
     player.needs.water = 20;
-    player.needs.pee = 50;
+    player.needs.pee = 15;
     player.needs.poo = 50;
   }
   logTutorialMsg(state, '-где я?', state.time + 15);
-  logTutorialMsg(state, '-я хочу пить', state.time + 15);
+  logTutorialMsg(state, '-я хочу есть и пить', state.time + 15);
 }
 
 

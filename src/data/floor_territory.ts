@@ -44,6 +44,7 @@ const STORY_TERRITORY: Readonly<Record<FloorLevel, readonly FloorTerritoryShare[
 };
 
 const DESIGN_TERRITORY: Readonly<Record<DesignFloorId, readonly FloorTerritoryShare[]>> = {
+  tutorial: [],
   roof: shares(28, 38, 8, 14, 12),
   chthonic_attic: shares(18, 24, 14, 10, 34),
   radon_exchange: shares(16, 36, 10, 26, 12),

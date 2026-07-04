@@ -474,6 +474,15 @@ export interface SideQuestStep extends PlotStep {
 /* ── Built-in side branches for story items; content modules append more below. */
 export const SIDE_QUESTS: SideQuestStep[] = [
   {
+    id: 'quest_tutorial_escape',
+    giverNpcId: 'tutorial',
+    type: QuestType.FETCH,
+    desc: 'Обучение: Покинуть стартовую квартиру.',
+    targetItem: 'tutorial_main_key', targetCount: 1,
+    relationDelta: 0,
+    xpReward: 0,
+  },
+  {
     id: 'idol_ministry_registration',
     giverNpcId: 'vera_propuskova',
     type: QuestType.FETCH,

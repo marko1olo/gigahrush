@@ -2023,6 +2023,12 @@ export function useItem(e: Entity, slotIdx: number, msgs: Msg[], time: number, s
     placeMonsterBait(state, world, e, e.x, e.y, def.id, 1, 'use');
     consumeInventorySlot(e, slotIdx);
     publishPlayerItemEvent(state, e, 'player_use_item', def.id, 1, 2, zoneId);
+
+    if (state && state.tutorialMode && state.tutorialStep === TutorialStep.EAT && (def.type === ItemType.FOOD || def.type === ItemType.DRINK)) {
+      state.tutorialStep = TutorialStep.TOILET;
+      logTutorialMsg(state, '-нужно в туалет', time + 15);
+    }
+
     return;
   }
 
@@ -2148,8 +2154,8 @@ function pickupDropItems(
       msgs.push(msg(`Подобрано: ${def?.name ?? item.defId}`, time, '#dd4'));
       publishPlayerItemEvent(state, player, 'player_pick_item', item.defId, moved, 2, zoneId);
 
-      if (state && state.tutorialMode && item.defId === 'tut_cafe_key' && state.tutorialStep === TutorialStep.TOILET) {
-        logTutorialMsg(state, '-должно быть это ключ от двери', time + 15);
+      if (state && state.tutorialMode && item.defId === 'tutorial_main_key' && state.tutorialStep === TutorialStep.ESCAPE) {
+        logTutorialMsg(state, '-ключ найден, можно открыть дверь', time + 15);
       }
 
       pickedItems.push({ defId: item.defId, count: moved, data: acid ? undefined : item.data });

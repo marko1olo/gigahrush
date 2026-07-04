@@ -199,6 +199,7 @@ function spawnDesignMonsters(generation: FloorGeneration, route: DesignFloorRout
 }
 
 export function applyDesignFloorPopulationField(generation: FloorGeneration, route: DesignFloorRouteDef): void {
+  if (route.isTutorial) return;
   let nextId = nextEntityId(generation.entities);
   nextId = spawnAmbientNpcTemplates(generation, route, nextId);
   spawnDesignMonsters(generation, route, nextId);
