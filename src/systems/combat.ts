@@ -2,6 +2,10 @@ import { Entity, DamageType } from '../core/types';
 import { ITEMS } from '../data/catalog';
 
 export function calculateDamage(baseDamage: number, damageType: DamageType | undefined, target: Entity): number {
+  if (target.flags && (target.flags.includes('IMMORTAL') || target.flags.includes('PLOT_CRITICAL'))) {
+    return 0;
+  }
+
   let resist = 0;
   if (target.armorDefId) {
     const armorDef = ITEMS[target.armorDefId];

@@ -651,6 +651,9 @@ export interface Entity {
   spriteScale?: number;       // sprite size multiplier (child = 0.6)
   spriteZ?: number;           // vertical offset: 0=ground, 0.5=eye level (projectiles)
   plotNpcId?: string;         // story NPC key (e.g. 'olga', 'barni', 'yakov') — see data/plot.ts
+  plotId?: string;            // generic template ID for plot spawns
+  role?: NpcRole;             // role for special mechanics like CINEMATIC_ACTOR
+  flags?: string[];           // custom flags like IMMORTAL, PLOT_CRITICAL
   plotDone?: boolean;         // story phase ended, NPC switches to post-plot dialogue
   _plotTalkIdx?: number;      // internal: sequential dialogue line counter
   // projectile fields
@@ -1368,4 +1371,8 @@ export interface InputState {
   controlClose: boolean;        // keyboard close/back command from current controls
   mouse: { dx: number; dy: number; locked: boolean; };
   touch: { moveX: number; moveY: number; lookX: number; lookY: number; active: boolean; };
+}
+
+export enum NpcRole {
+  CINEMATIC_ACTOR = 1,
 }
