@@ -47,6 +47,7 @@ const DEFAULT_KNOWN_RECIPE_IDS = new Set([
   'chalk',
   'note',
   'ammo_9mm',
+  'lockpick',
 ]);
 
 function tagsOf(def: ItemDef): readonly string[] {

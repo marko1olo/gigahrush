@@ -75,7 +75,6 @@ import {
   openNetHackTerminal,
   placeNetHackTerminal,
 } from './net_hack';
-import { completeTutorial } from './tutorial';
 import { consumeQuietDoorCharge, publishDoorNoise } from './noise';
 import {
   activateNetTerminalBank,
@@ -489,7 +488,11 @@ function activateDoor(ctx: InteractionContext, idx: number): InteractionResult {
       ctx.state.msgs.push(msg(quietDoor ? 'Дверь отперта тихо' : 'Дверь отперта ключом', ctx.state.time, quietDoor ? '#8cf' : '#4a4'));
       publishDoorNoise(ctx.state, ctx.player, idx, false, quietDoor);
       if (ctx.state.tutorialMode && keyId === 'tut_cafe_key') {
-        completeTutorial(ctx.state);
+        import('./tutorial').then(({ TutorialStep }) => {
+          if (ctx.state.tutorialStep === TutorialStep.TOILET) {
+            ctx.state.tutorialStep = TutorialStep.EAT;
+          }
+        });
       }
     } else {
       const broke = damageDoor(ctx.world, door, 5);

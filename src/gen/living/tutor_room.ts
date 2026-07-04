@@ -20,6 +20,7 @@ import { World } from '../../core/world';
 import { stampRoom, protectRoom } from '../shared';
 import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
 import { Spr } from '../../render/sprite_index';
+import { placeInteractiveAt } from '../interactive_placement';
 
 function protectTutorialWallsAsHermetic(world: World, x: number, y: number, w: number, h: number): void {
   for (let dy = -1; dy <= h; dy++) {
@@ -289,6 +290,22 @@ export function generateTutorRoom(world: World, nextRoomId: number, entities: En
   world.features[world.idx(armX + Math.floor(armW / 2), armY + armH - 3)] = Feature.LAMP;
   world.features[world.idx(armX + 1, armY + 7)] = Feature.LAMP;
   world.features[world.idx(armX + armW - 2, armY + 7)] = Feature.LAMP;
+
+  // ── Crafting Station (Tutorial Step) ──
+  // Placed in the armory
+  if (isTutorial) {
+    placeInteractiveAt(world, armX + 1, armY + 8, 'craft_lathe');
+    entities.push({
+      id: nextId.v++, type: EntityType.ITEM_DROP,
+      x: armX + 1 + 0.5, y: armY + 9 + 0.5,
+      angle: 0, pitch: 0, alive: true, speed: 0,
+      sprite: Spr.ITEM_DROP, spriteScale: 1.0,
+      inventory: [
+        { defId: 'junk_metal', count: 1 },
+        { defId: 'junk_metal', count: 1 },
+      ],
+    });
+  }
 
   // ── Item drops: ammo on counter ──
   entities.push({
