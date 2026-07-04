@@ -26,6 +26,7 @@ import {
 } from './content_hooks';
 import { logTutorialMsg, TutorialStep } from './tutorial';
 import { publishEvent } from './events';
+import { DoorState } from '../core/types';
 
 export interface InteractiveInstanceState {
   status?: string;
@@ -501,6 +502,22 @@ function runRelieve(ctx: ContentInteractionContext, resolved: ResolvedInteractiv
   pushMsg(ctx.state, action.message ?? 'Стало легче.', action.color);
   publishInteractiveEvent(ctx, resolved, action);
 
+  if (ctx.state.tutorialMode && ctx.state.tutorialStep === TutorialStep.TOILET) {
+    ctx.state.tutorialStep = TutorialStep.EAT;
+    logTutorialMsg(ctx.state, 'Чисто и культурно.', ctx.state.time + 15);
+    let cafeDoor;
+    for (const d of ctx.world.doors.values()) {
+      if (d.keyId === 'tut_cafe_key') {
+        cafeDoor = d;
+        break;
+      }
+    }
+    if (cafeDoor && cafeDoor.state === DoorState.LOCKED) {
+      cafeDoor.state = DoorState.CLOSED;
+      ctx.world.surfaceVersion++;
+    }
+  }
+
   return { handled: true };
 }
 
@@ -555,6 +572,10 @@ function runLearnRecipe(ctx: ContentInteractionContext, resolved: ResolvedIntera
   );
   publishInteractiveEvent(ctx, resolved, action);
   return { handled: true };
+}
+
+export function runAction_FOR_TESTING(ctx: ContentInteractionContext, resolved: ResolvedInteractive, action: InteractiveActionDef): ContentInteractionResult {
+  return runAction(ctx, resolved, action);
 }
 
 function runAction(ctx: ContentInteractionContext, resolved: ResolvedInteractive, action: InteractiveActionDef): ContentInteractionResult {

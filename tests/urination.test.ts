@@ -5,6 +5,8 @@ import { AIGoal, Cell, EntityType, Faction, Occupation, RoomType, Tex, type Enti
 import { World } from '../src/core/world';
 import { setNpcContext, updateNPC } from '../src/systems/ai/npc_fsm';
 import { resetUrinationTraceCadenceForTests, stampUrineTrace } from '../src/systems/urination';
+import { publishEvent } from '../src/systems/events';
+import { makeGameState } from './helpers';
 
 function openWorld(): World {
   const world = new World();
@@ -86,6 +88,32 @@ test('shared urine trace stamps compact yellow marks at the projected hit point'
   assert.ok(world.surfaceMap.size <= 3);
   assert.equal(world.surfaceMap.has(actorCell), false);
   assert.ok(countYellowPixels(world) >= 8);
+});
+
+test('public urination provokes NPC hostility and relation drop', () => {
+  resetUrinationTraceCadenceForTests();
+  const world = openWorld();
+
+  // Set up world with no bathroom room to trigger public urination penalty
+  const npcEntity = npc(11, Faction.CITIZEN, 10.5, 10.5);
+
+  const state = makeGameState();
+
+  publishEvent(state, {
+    type: 'player_urinated',
+    actorId: 1,
+    x: 10,
+    y: 10,
+    severity: 1,
+    privacy: 'witnessed',
+    tags: ['urination'],
+  });
+
+  setNpcContext([], 10);
+  updateNPC(world, [npcEntity], npcEntity, 1, 10, { hour: 12, minute: 0, totalMinutes: 720 }, false, 'default', state);
+
+  // Assert relation drop by 50
+  assert.equal(npcEntity.playerRelation, -50);
 });
 
 test('wild NPC urination is an explicit in-place routine instead of a bathroom path', () => {
