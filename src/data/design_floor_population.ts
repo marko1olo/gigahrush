@@ -350,6 +350,10 @@ const COMMUNAL_MONSTER_ANCHORS: readonly DesignPlacementFieldAnchor[] = [
 ];
 
 const DESIGN_FLOOR_POPULATION_OVERRIDES: Readonly<Record<DesignFloorId, DesignFloorPopulationOverride>> = {
+  tutorial: {
+    npcTarget: 0,
+    monsterTarget: 0,
+  },
   roof: {
     npcTarget: 0,
     monsterTarget: 'active_actor_cap',

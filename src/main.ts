@@ -2229,7 +2229,7 @@ function initGame(runSeedOverride?: number, initialFloor: FloorLevel = FloorLeve
   clearFloorMemory();
   resetNoiseRecords();
   const initialRunSeed = normalizeFloorRunSeed(runSeedOverride);
-  const gen = generateFloor(initialFloor, initialRunSeed, isTutorial);
+  const gen = isTutorial ? generateDesignFloor('tutorial', initialRunSeed) as FloorGeneration : generateFloor(initialFloor, initialRunSeed, isTutorial);
   injectFastElevators(gen.world);
   stampCeilingHeights(gen.world);
   world = replaceWorldFromGeneration(null, gen);

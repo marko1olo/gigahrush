@@ -481,7 +481,7 @@ function runDrinkWater(ctx: ContentInteractionContext, resolved: ResolvedInterac
   );
   publishInteractiveEvent(ctx, resolved, action);
 
-  if (ctx.state.tutorialMode && ctx.state.tutorialStep === TutorialStep.DRINK) {
+  if (ctx.state.tutorialMode && ctx.state.tutorialStep === TutorialStep.EAT) {
     ctx.state.tutorialStep = TutorialStep.TOILET;
     logTutorialMsg(ctx.state, '-нужно в туалет, соседняя комната похожа на сан узел', ctx.state.time + 15);
   }
@@ -500,6 +500,11 @@ function runRelieve(ctx: ContentInteractionContext, resolved: ResolvedInteractiv
   needs.poo = Math.max(0, needs.poo + Math.min(0, action.pooDelta ?? 0));
   pushMsg(ctx.state, action.message ?? 'Стало легче.', action.color);
   publishInteractiveEvent(ctx, resolved, action);
+
+  if (ctx.state.tutorialMode && ctx.state.tutorialStep === TutorialStep.TOILET) {
+    ctx.state.tutorialStep = TutorialStep.ESCAPE;
+    logTutorialMsg(ctx.state, '-дверь заперта. нужно найти ключ', ctx.state.time + 15);
+  }
 
   return { handled: true };
 }

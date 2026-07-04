@@ -819,6 +819,7 @@ export const ITEMS: Record<string, ItemDef> = {
 
   // ── Ключи ──
   tut_cafe_key:{ id:'tut_cafe_key', name:'Ключ от столовой', type:ItemType.KEY, desc:'Служебный ключ от стартовой зоны.', spawnRooms:[], spawnW:0, value:0 },
+  tutorial_main_key:{ id:'tutorial_main_key', name:'Ключ от квартиры', type:ItemType.KEY, desc:'Старый, но надежный ключ. Подходит к входной гермодвери.', spawnRooms:[], spawnW:0, value:0 },
   key:       { id:'key',       name:'Ключ',         type:ItemType.KEY,      desc:'Подходит к конкретной двери. Сверяйте дверь, прежде чем бежать к ней на сирене',       spawnRooms:[],                                 spawnW:0, value:50 },
 
   // ── Сюжетные предметы ──

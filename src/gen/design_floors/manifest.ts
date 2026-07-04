@@ -27,6 +27,7 @@ import { alignDarkMetroAmbientNpcTerritory, generateDarkMetroDesignFloor } from 
 import { generateDarknessDesignFloor } from './darkness';
 import { generateHorrorFloorDesignFloor } from './horrorfloor';
 import { generateFloor69DesignFloor } from './floor_69';
+import { generateTutorialApartment } from './tutorial_apartments';
 import { alignHarmonicBathhouseAmbientNpcTerritory, generateHarmonicBathhouseDesignFloor } from './harmonic_bathhouse';
 import { alignHilbertDepotAmbientNpcTerritory, generateHilbertDepotDesignFloor } from './hilbert_depot';
 import { alignHyperbolicSwitchyardAmbientNpcTerritory, generateHyperbolicSwitchyardDesignFloor } from './hyperbolic_switchyard';
@@ -62,6 +63,7 @@ import { alignVoronoiQuarantineAmbientNpcTerritory, generateVoronoiQuarantineDes
 import { expandDesignFloorGeneration, retuneDesignFloorAfterCellTerritory } from './full_floor';
 
 const DESIGN_FLOOR_GENERATORS: Record<DesignFloorId, () => FloorGeneration> = {
+  tutorial: generateTutorialApartment,
   liquidatorbase: generateLiquidatorBaseDesignFloor,
   roof: generateRoofDesignFloor,
   chthonic_attic: generateChthonicAtticDesignFloor,
