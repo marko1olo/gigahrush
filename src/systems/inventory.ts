@@ -2590,3 +2590,15 @@ export function unequipArmor(state: GameState, e: Entity): Msg | undefined {
   e.armorDefId = undefined;
   return msg(`Броня снята: ${name}`, state.time, '#9d9');
 }
+
+
+export function isWeapon(itemId: string): boolean {
+  return !!WEAPON_STATS[itemId];
+}
+
+export function getWeaponValue(itemId: string): number {
+  const ws = WEAPON_STATS[itemId];
+  if (!ws) return 0;
+  const speed = ws.speed > 0 ? ws.speed : 0.05;
+  return ws.dmg * (1 / speed);
+}
