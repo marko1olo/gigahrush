@@ -95,6 +95,7 @@ import {
   type SamosborSubsystemId,
   getSamosborAftermathBeats,
   getSamosborVariantName,
+  SAMOSBOR_VARIANTS,
   samosborVariantHasSubsystem,
 } from '../data/samosbor_variants';
 import {
@@ -5003,4 +5004,38 @@ function tickSamosborFogEffects(
     if (cell !== Cell.FLOOR && cell !== Cell.WATER) continue;
     if (applySamosborFogEffectAtCell(world, entities, state, nextId, samosborCount, variant, floor, ci)) return;
   }
+}
+
+
+export function getSamosborFogParameters(state: GameState, baseFog: number, smogFogBonus: number): { density: number, color: readonly [number, number, number] | null } {
+  const samosborVariant = state.samosborActive ? getActiveSamosborVariant() : null;
+  const samosborVisual = samosborVariant?.visual;
+  const warningSnapshot = getSamosborWarningSnapshot(state);
+
+  let density = baseFog + smogFogBonus;
+  let color: readonly [number, number, number] | null = null;
+
+
+  if (state.samosborActive) {
+    density = (baseFog + smogFogBonus + (samosborVisual?.fogDensityBonus ?? 0.02)) * 3.0;
+    color = samosborVariant?.fogColor ?? null;
+  } else if (warningSnapshot && warningSnapshot.secondsLeft >= 0 && warningSnapshot.secondsLeft <= 30) {
+    const p = 1.0 - (warningSnapshot.secondsLeft / 30);
+    const targetFog = 0.15;
+    const initialFog = baseFog + smogFogBonus + (samosborVisual?.fogDensityBonus ?? 0.02);
+    density = initialFog + (targetFog - initialFog) * p;
+
+    const upcomingVariantDef = SAMOSBOR_VARIANTS.find(v => v.id === warningSnapshot.variantId);
+    if (upcomingVariantDef && upcomingVariantDef.fogColor) {
+      const targetColor = upcomingVariantDef.fogColor;
+      const initialColor: readonly [number, number, number] = [25.5, 25.5, 25.5]; // Default dark grey (0.1 * 255)
+      color = [
+        initialColor[0] + (targetColor[0] - initialColor[0]) * p,
+        initialColor[1] + (targetColor[1] - initialColor[1]) * p,
+        initialColor[2] + (targetColor[2] - initialColor[2]) * p,
+      ] as const;
+    }
+  }
+
+  return { density, color };
 }

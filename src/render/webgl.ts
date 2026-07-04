@@ -3303,6 +3303,7 @@ export function renderSceneGL(
   visualSurfaceProfile: ResolvedVisualSurfaceProfile = EMPTY_RESOLVED_VISUAL_SURFACE_PROFILE,
   lightingQuality = 4,
   currentFps?: number,
+  fogRgbParam: readonly [number, number, number] | null = null,
 ): void {
   lastRenderSceneDebugStats.meshEnabled = visualGeometryProfile.enabled;
   lastRenderSceneDebugStats.meshInstances = 0;
@@ -3331,7 +3332,7 @@ export function renderSceneGL(
   const purpleFog = world.fog[pci] > 50 ? 1 : 0;
   const activeVariant = getActiveSamosborVariant();
   const defaultFogRgb: [number, number, number] = [80, 0, 120];
-  const fogRgb: readonly [number, number, number] = activeVariant?.fogColor ?? defaultFogRgb;
+  const fogRgb: readonly [number, number, number] = fogRgbParam ?? activeVariant?.fogColor ?? defaultFogRgb;
   const samosborStyle = samosborScreenFxCode(activeVariant?.visual.screenFx);
   const samosborPost = samosborActive ? activeVariant?.visual.postIntensity ?? 0 : 0;
 
