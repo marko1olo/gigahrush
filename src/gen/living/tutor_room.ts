@@ -169,6 +169,19 @@ export function generateTutorRoom(world: World, nextRoomId: number, entities: En
   
   if (isTutorial) {
     world.features[world.idx(cafeX + 1, cafeY + 1)] = Feature.SINK;
+    const tableX = cafeX + Math.floor(cafeW / 2);
+    const tableY = cafeY + Math.floor(cafeH / 2);
+    world.features[world.idx(tableX, tableY)] = Feature.TABLE;
+    entities.push({
+      id: nextId.v++,
+      type: EntityType.ITEM_DROP,
+      x: tableX + 0.5,
+      y: tableY + 0.5,
+      angle: 0, pitch: 0,
+      alive: true, speed: 0,
+      sprite: Spr.ITEM_DROP, spriteScale: 1.0,
+      inventory: [{ defId: 'bread', count: 1 }],
+    });
   }
 
   // Door to cafeteria starts locked. Move it to the side so it doesn't overlap the slide.
@@ -262,7 +275,7 @@ export function generateTutorRoom(world: World, nextRoomId: number, entities: En
     state: DoorState.LOCKED,
     roomA: room.id,
     roomB: armory.id,
-    keyId: 'tut_cafe_key',
+    keyId: 'tut_factory_key',
     timer: 0,
   });
   room.doors.push(hallArmoryDoor);
