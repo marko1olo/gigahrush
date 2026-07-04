@@ -501,6 +501,11 @@ function runRelieve(ctx: ContentInteractionContext, resolved: ResolvedInteractiv
   pushMsg(ctx.state, action.message ?? 'Стало легче.', action.color);
   publishInteractiveEvent(ctx, resolved, action);
 
+  if (ctx.state.tutorialMode && ctx.state.tutorialStep === TutorialStep.EAT) {
+    ctx.state.tutorialStep = TutorialStep.WORK;
+    logTutorialMsg(ctx.state, '-чувствую себя лучше, нужно найти верстак и сделать инструмент', ctx.state.time + 15);
+  }
+
   return { handled: true };
 }
 
@@ -519,6 +524,15 @@ function runOpenContainer(ctx: ContentInteractionContext, resolved: ResolvedInte
 
 function runOpenCraftMenu(ctx: ContentInteractionContext, resolved: ResolvedInteractive, action: InteractiveActionDef): ContentInteractionResult {
   if (!action.craftMode || !action.craftStation) return runMessage(ctx, resolved, action);
+
+  if (ctx.state.tutorialMode && ctx.state.tutorialStep === TutorialStep.WORK) {
+    if (!ctx.player.inventory?.some(i => i.defId === 'junk_metal' && i.count >= 2)) {
+      pushMsg(ctx.state, 'Не хватает материалов. Найдите металлолом рядом со станком.', '#ff0');
+      return { handled: true };
+    }
+    ctx.state.tutorialStep = TutorialStep.CRAFT;
+  }
+
   if (!ctx.openCraftMenu) {
     pushMsg(ctx.state, action.kind === 'open_disassembly_menu'
       ? 'Верстак найден, но меню разборки еще не подключено.'
