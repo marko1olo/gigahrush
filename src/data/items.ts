@@ -371,6 +371,16 @@ export const ITEM_TAGS: Record<string, readonly string[]> = {
 };
 
 export const ITEMS: Record<string, ItemDef> = {
+  outskirts_pass: {
+    id: 'outskirts_pass',
+    name: 'Пропуск Окраины',
+    desc: 'Пластиковая карта с потёртым магнитным слоем. Даёт доступ к лифтам в Коллекторы.',
+    type: ItemType.KEY,
+    value: 150,
+    spawnW: 0,
+    spawnRooms: [],
+    tags: ['quest_item', 'keycard']
+  },
 
   // ── Armor ────────────────────────────────────────────────────────
   armor_light: { id: 'armor_light', name: 'Лёгкая броня', type: ItemType.MISC, desc: 'Базовая защита от кинетического урона и дроби.', spawnRooms: [RoomType.COMMON, RoomType.PRODUCTION], spawnW: 50, value: 500, resistances: { [DamageType.KINETIC]: 20, [DamageType.BUCKSHOT]: 30, [DamageType.FIRE]: 5 } },

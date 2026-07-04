@@ -496,7 +496,7 @@ function activateDoor(ctx: InteractionContext, idx: number): InteractionResult {
       if (broke) {
         ctx.state.msgs.push(msg('Дверь выбита!', ctx.state.time, '#4a4'));
       } else {
-        ctx.state.msgs.push(msg('Заперто. Нужен ключ. (Удар -5)', ctx.state.time, '#f84'));
+        ctx.state.msgs.push(msg(`Заперто. Требуется ключ: ${keyId}. (Удар -5)`, ctx.state.time, '#f84'));
       }
     }
   }
