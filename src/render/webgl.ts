@@ -20,7 +20,7 @@ import {
 import type { TexData } from './textures';
 import type { SpriteData } from './sprites';
 import type { BloodParticle } from './blood';
-import { getCritterRenderEnabled } from './critters';
+import { getCritterRenderEnabled, CRITTERS_POOL } from './critters';
 import { containerSpr, featureSpr } from './sprite_index';
 import { generateItemSprite, itemDropDefId, itemSpriteKey } from './item_sprites';
 import {
@@ -3545,7 +3545,7 @@ export function renderSceneGL(
 
   // ── Render critters pass (stub for marx_74) ──
   if (getCritterRenderEnabled(currentFps)) {
-    // Critters will be rendered here
+    renderCrittersGL(px, py, pAngle, pPitch, camHeight, fogDensity, purpleFog, fogRgb, planeLen);
   }
 
   // ── Pass 1.5: Bloom (bright-pass prefilter + separable Gaussian blur) ──
@@ -4252,6 +4252,123 @@ function renderParticlesGL(
   gl.depthMask(true);
   gl.disable(gl.BLEND);
 }
+
+/* ── Render critters ────────────────────────────────────────── */
+function renderCrittersGL(
+  px: number, py: number, pAngle: number, pPitch: number,
+  _camHeight: number,
+  fogDensity: number,
+  purpleFog: number,
+  activeFogRgb: readonly [number, number, number],
+  planeLen: number,
+): void {
+  if (!glState) return;
+  const { gl } = glState;
+
+  const dirX = Math.cos(pAngle);
+  const dirY = Math.sin(pAngle);
+  const planeX = -dirY * planeLen;
+  const planeY = dirX * planeLen;
+  const horizonShift = Math.floor(pPitch * SCR_H);
+  const halfH = Math.floor(SCR_H / 2) + horizonShift;
+  const invDet = 1.0 / (planeX * dirY - dirX * planeY);
+  const skyFog = activeDynamicSky?.fogTint;
+  const fogR = purpleFog ? activeFogRgb[0] / 255 : skyFog ? skyFog.r / 255 : 5 / 255;
+  const fogG = purpleFog ? activeFogRgb[1] / 255 : skyFog ? skyFog.g / 255 : 5 / 255;
+  const fogB = purpleFog ? activeFogRgb[2] / 255 : skyFog ? skyFog.b / 255 : 8 / 255;
+
+  let visibleCount = 0;
+  const instanceData = glState.particleInstanceData;
+  const colorData = glState.particleColorData;
+
+  for (let i = 0; i < CRITTERS_POOL.length; i++) {
+    const c = CRITTERS_POOL[i];
+    if (!c.active) continue;
+    if (visibleCount >= PARTICLE_INSTANCE_CAP) break;
+
+    let dx = c.x - px;
+    let dy = c.y - py;
+    if (dx > W / 2) dx -= W;
+    if (dx < -W / 2) dx += W;
+    if (dy > W / 2) dy -= W;
+    if (dy < -W / 2) dy += W;
+
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist >= PARTICLE_CULL_DIST) continue;
+
+    const txf = invDet * (dirY * dx - dirX * dy);
+    const tyf = invDet * (-planeY * dx + planeX * dy);
+    if (tyf <= 0.1) continue;
+
+    const sx = Math.floor((SCR_W / 2) * (1 + txf / tyf));
+
+    // Set critter size based on type (2-4px)
+    let baseSize = 2;
+    let r = 100, g = 60, b = 20; // Roach (brown)
+    if (c.type === 'rat') {
+      baseSize = 4;
+      r = 50; g = 50; b = 50; // Rat (dark grey)
+    } else if (c.type === 'fly') {
+      baseSize = 2;
+      r = 10; g = 10; b = 10; // Fly (black)
+    }
+
+    const screenSize = Math.min(
+      PARTICLE_MAX_SCREEN_SIZE,
+      (SCR_H / tyf) * PARTICLE_WORLD_SCREEN_SCALE * Math.max(0.5, baseSize),
+    );
+    if (screenSize < PARTICLE_MIN_SCREEN_SIZE) continue;
+
+    const pad = Math.ceil(screenSize + 1);
+    if (sx < -pad || sx >= SCR_W + pad) continue;
+
+    const sy = Math.floor(halfH + SCR_H / (tyf * 2) - c.z * SCR_H / tyf);
+    if (sy < -pad || sy >= SCR_H + pad) continue;
+
+    const distFade = dist <= PARTICLE_FADE_START
+      ? 1
+      : Math.max(0, (PARTICLE_CULL_DIST - dist) / (PARTICLE_CULL_DIST - PARTICLE_FADE_START));
+    const fogF = distanceFogFactor(dist, fogDensity);
+    const alpha = distFade * (1 - fogF * 0.75);
+    if (alpha <= 0.03) continue;
+
+    const invFogF = 1 - fogF;
+    const normDepth = Math.max(0.0, Math.min(0.999, 1.0 - 0.1 / Math.max(0.1, tyf)));
+    const di = visibleCount << 2;
+    instanceData[di] = sx;
+    instanceData[di + 1] = sy;
+    instanceData[di + 2] = screenSize;
+    instanceData[di + 3] = normDepth;
+    colorData[di] = (r / 255) * invFogF + fogR * fogF;
+    colorData[di + 1] = (g / 255) * invFogF + fogG * fogF;
+    colorData[di + 2] = (b / 255) * invFogF + fogB * fogF;
+    colorData[di + 3] = alpha;
+    visibleCount++;
+  }
+
+  if (visibleCount === 0) return;
+
+  gl.useProgram(glState.particleProgram);
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+  gl.depthMask(false);
+
+  const pu = glState.particleUniforms;
+  gl.uniform2f(pu['uResolution']!, SCR_W, SCR_H);
+  gl.bindVertexArray(glState.particleVAO);
+
+  const uploadFloats = visibleCount * 4;
+  gl.bindBuffer(gl.ARRAY_BUFFER, glState.particleInstanceBuffer);
+  gl.bufferSubData(gl.ARRAY_BUFFER, 0, instanceData, 0, uploadFloats);
+  gl.bindBuffer(gl.ARRAY_BUFFER, glState.particleColorBuffer);
+  gl.bufferSubData(gl.ARRAY_BUFFER, 0, colorData, 0, uploadFloats);
+
+  gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, visibleCount);
+
+  gl.depthMask(true);
+  gl.disable(gl.BLEND);
+}
+
 
 /* ── Dispose all GL resources ─────────────────────────────────── */
 export function disposeWebGL(): void {
