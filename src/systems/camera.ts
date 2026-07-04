@@ -41,12 +41,11 @@ export interface TrailerCameraState {
 }
 
 export interface CinematicCameraState {
-  path: number[][];
-  targetNodeIndex: number;
+  splinePoints: Array<{ x: number; y: number; time: number }>;
+  splineProgress: number;
+  splineDuration: number;
+  lookAtTarget?: { x: number; y: number };
   active: boolean;
-  time: number;
-  angleTarget: number;
-  flySpeed: number;
 }
 
 export interface RuntimeCamera {
@@ -220,7 +219,9 @@ export function startCinematicCamera(
   camera: RuntimeCamera,
   px: number,
   py: number,
-  waypoints: number[][],
+  waypoints: { x: number; y: number }[],
+  lookAtTarget?: { x: number; y: number },
+  speed = 4.0,
 ): void {
   camera.mode = 'cinematic';
   resetCameraBob(camera.bob);
@@ -232,64 +233,127 @@ export function startCinematicCamera(
     height: CAMERA_STANDING_HEIGHT,
     fovRadians: camera.free.fovRadians,
   };
+
+  const points = [{ x: px, y: py, time: 0 }];
+  let totalDist = 0;
+
+  for (let i = 0; i < waypoints.length; i++) {
+    const prev = points[points.length - 1];
+    const wp = waypoints[i];
+    const dx = wp.x - prev.x; // Simplified distance, ignoring wrapCoord for waypoints to avoid jumps
+    const dy = wp.y - prev.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    totalDist += dist;
+    points.push({ x: wp.x, y: wp.y, time: totalDist });
+  }
+
+  const duration = totalDist / Math.max(0.1, speed);
+
+  // Normalize time array to 0..1
+  if (totalDist > 0) {
+    for (const p of points) {
+      p.time /= totalDist;
+    }
+  }
+
   camera.cinematic = {
-    path: waypoints,
-    targetNodeIndex: 0,
+    splinePoints: points,
+    splineProgress: 0,
+    splineDuration: duration,
+    lookAtTarget,
     active: true,
-    time: 0,
-    angleTarget: 0,
-    flySpeed: 2.5,
+  };
+}
+
+export function evaluateSpline(points: Array<{x: number, y: number, time: number}>, t: number): {x: number, y: number} {
+  if (points.length === 0) return { x: 0, y: 0 };
+  if (points.length === 1) return { x: points[0].x, y: points[0].y };
+
+  if (t <= points[0].time) return { x: points[0].x, y: points[0].y };
+  if (t >= points[points.length - 1].time) return { x: points[points.length - 1].x, y: points[points.length - 1].y };
+
+  let i = 0;
+  for (; i < points.length - 1; i++) {
+    if (t <= points[i + 1].time) {
+      break;
+    }
+  }
+
+  const p1 = points[Math.max(0, i - 1)];
+  const p2 = points[i];
+  const p3 = points[i + 1];
+  const p4 = points[Math.min(points.length - 1, i + 2)];
+
+  const t0 = p2.time;
+  const t1 = p3.time;
+  const duration = t1 - t0;
+  if (duration <= 0) return { x: p2.x, y: p2.y };
+
+  const lt = (t - t0) / duration;
+
+  const t2 = lt * lt;
+  const t3 = t2 * lt;
+
+  const f1 = 2 * t3 - 3 * t2 + 1;
+  const f2 = t3 - 2 * t2 + lt;
+  const f3 = -2 * t3 + 3 * t2;
+  const f4 = t3 - t2;
+
+  const m1x = 0.5 * (p3.x - p1.x);
+  const m1y = 0.5 * (p3.y - p1.y);
+
+  const m2x = 0.5 * (p4.x - p2.x);
+  const m2y = 0.5 * (p4.y - p2.y);
+
+  return {
+    x: f1 * p2.x + f2 * m1x + f3 * p3.x + f4 * m2x,
+    y: f1 * p2.y + f2 * m1y + f3 * p3.y + f4 * m2y
   };
 }
 
 export function updateCinematicCamera(camera: RuntimeCamera, world: World, dt: number): void {
   if (camera.mode !== 'cinematic' || !camera.cinematic) return;
   const ts = camera.cinematic;
-  ts.time += dt;
-  ts.flySpeed = 4.0;
 
-  if (ts.path.length === 0 || ts.targetNodeIndex >= ts.path.length) {
-    camera.mode = 'player';
+  if (ts.splineDuration <= 0 || !ts.splinePoints || ts.splinePoints.length === 0) {
+    followPlayerCamera(camera);
     return;
   }
 
-  while (ts.targetNodeIndex < ts.path.length) {
-    const waypoint = ts.path[ts.targetNodeIndex];
-    const tx = waypoint[0];
-    const ty = waypoint[1];
-    const dx = world.delta(camera.free.x, tx);
-    const dy = world.delta(camera.free.y, ty);
-    const dist2 = dx * dx + dy * dy;
+  ts.splineProgress += dt;
+  const t = Math.min(ts.splineProgress / ts.splineDuration, 1.0);
 
-    if (dist2 < 0.64) {
-      ts.targetNodeIndex++;
-    } else {
-      ts.angleTarget = Math.atan2(dy, dx);
-      break;
-    }
-  }
+  const pos = evaluateSpline(ts.splinePoints, t);
 
-  if (ts.targetNodeIndex >= ts.path.length) {
-    camera.mode = 'player';
-    return;
-  }
+  const nx = wrapCoord(pos.x);
+  const ny = wrapCoord(pos.y);
 
-  let vx = Math.cos(camera.free.angle) * ts.flySpeed * dt;
-  let vy = Math.sin(camera.free.angle) * ts.flySpeed * dt;
-
-  const nx = wrapCoord(camera.free.x + vx);
-  const ny = wrapCoord(camera.free.y + vy);
+  const dx = world.delta(camera.free.x, nx);
+  const dy = world.delta(camera.free.y, ny);
 
   camera.free.x = nx;
   camera.free.y = ny;
 
-  let diff = ts.angleTarget - camera.free.angle;
+  let angleTarget = camera.free.angle;
+  if (ts.lookAtTarget) {
+    const tgtDx = world.delta(camera.free.x, ts.lookAtTarget.x);
+    const tgtDy = world.delta(camera.free.y, ts.lookAtTarget.y);
+    angleTarget = Math.atan2(tgtDy, tgtDx);
+  } else if (dx * dx + dy * dy > 0.0001) {
+    angleTarget = Math.atan2(dy, dx);
+  }
+
+  let diff = angleTarget - camera.free.angle;
   while (diff > Math.PI) diff -= Math.PI * 2;
   while (diff < -Math.PI) diff += Math.PI * 2;
   camera.free.angle += diff * Math.min(1, dt * 6.0);
 
-  camera.free.height = CAMERA_STANDING_HEIGHT + Math.sin(ts.time * 0.7) * 0.15;
-  camera.free.pitch = Math.sin(ts.time * 1.1) * 0.1;
+  camera.free.height = CAMERA_STANDING_HEIGHT + Math.sin(ts.splineProgress * 0.7) * 0.15;
+  camera.free.pitch = Math.sin(ts.splineProgress * 1.1) * 0.1;
+
+  if (t >= 1.0) {
+    followPlayerCamera(camera);
+  }
 }
 
 export function startTrailerCamera(
