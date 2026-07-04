@@ -432,6 +432,7 @@ export interface MonsterBaitLineState {
 
 export interface AIState {
   goal: AIGoal;
+  psiCooldown?: number;
   tx: number; ty: number;     // target position
   path: number[];             // cell indices
   pi: number;                 // path index
@@ -923,6 +924,7 @@ export const WORLD_EVENT_TYPES = [
   'player_status_expired',
   'player_status_cured',
   'player_status_bad_reaction',
+  'npc_cast_psi',
   'tool_broke',
   'ammo_consumed',
   'gravity_beam_fired',

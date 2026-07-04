@@ -12,6 +12,8 @@ import {
 } from '../audio';
 import { applyDamageRelationPenalty, isHostile } from '../factions';
 import { calculateDamage, applyHitStaggerAndKnockback } from '../combat';
+import { castInstantSpell } from '../psi';
+import { publishEvent } from '../events';
 import { clearFogInZone } from '../samosbor';
 import { agiAttackSpeedMult, meleeDamage } from '../rpg';
 import { zhelemishIncomingMeleeDamage } from '../status';
@@ -213,7 +215,11 @@ function npcCombatItemScore(e: Entity, itemId: string | undefined): number {
   if (!id) return 0;
   const ws = getWeaponStats(e, id);
   if (!ws) return 0;
-  if (ws.psiCost && (!e.rpg || e.rpg.psi < ws.psiCost)) return 0;
+  if (ws.psiCost) {
+    if (e.ai && (e.ai.psiCooldown ?? 0) > 0) return 0;
+    if (!e.rpg || e.rpg.psi < ws.psiCost) return 0;
+    return ws.psiEffect === 'shield' ? 1000 : 1000;
+  }
   if (ws.isRanged && ws.ammoType && e.inventory?.some(slot => slot.defId === ws.ammoType && slot.count > 0) !== true) return 0;
   return ws.isRanged ? ws.dmg * (ws.pellets ?? 1) * 1.6 + (ws.aoeRadius ? 30 : 0) : ws.dmg;
 }
@@ -247,6 +253,7 @@ function livePlayerTarget(entities: readonly Entity[]): Entity | undefined {
 export function tryFactionCombat(
   world: World, entities: Entity[], e: Entity, dt: number, _time: number, msgs: Msg[], nextId: { v: number }, state?: GameState, player?: Entity | null, options?: FactionCombatOptions,
 ): boolean {
+  if (e.ai) e.ai.psiCooldown = Math.max(0, (e.ai.psiCooldown ?? 0) - dt);
   const weaponId = npcCombatItemId(e);
   const ws = getWeaponStats(e, weaponId);
   const rangedProfile = ws.isRanged ? npcRangedProfile(ws) : undefined;
@@ -305,6 +312,19 @@ export function tryFactionCombat(
 
   const bestDist = Math.sqrt(world.dist2(e.x, e.y, target.x, target.y));
   const atkSpeedMod = e.rpg ? agiAttackSpeedMult(e.rpg) : 1;
+
+  if (ws.psiCost && !ws.isRanged) {
+    e.attackCd = (e.attackCd ?? 0) - dt;
+    if (e.attackCd <= 0) {
+      if (e.rpg) e.rpg.psi -= ws.psiCost;
+      e.ai!.psiCooldown = 15;
+      e.attackCd = 1.0;
+      if (state) publishEvent(state, { type: 'npc_cast_psi', actorId: e.id, actorFaction: e.faction, itemId: weaponId, severity: 1, privacy: 'public', tags: ['combat', 'psi'] });
+      playSoundAt(playHostilePsiCast, e.x, e.y);
+      castInstantSpell(ws.psiEffect ?? '', e, entities, world, msgs, _time, () => {});
+    }
+    return true;
+  }
 
   // Reload logic for NPC
   if (e.reloading) {
@@ -561,6 +581,8 @@ function npcCommitRangedShot(
   if (ws.psiCost) {
     if (!e.rpg || e.rpg.psi < ws.psiCost) return false;
     e.rpg.psi -= ws.psiCost;
+    if (e.ai) e.ai.psiCooldown = 5;
+    if (state) publishEvent(state, { type: 'npc_cast_psi', actorId: e.id, actorFaction: e.faction, itemId: weaponId, severity: 1, privacy: 'public', tags: ['combat', 'psi'] });
     if (visualProjectiles) {
       npcFireProjectile(world, e, target, weaponId, ws, entities, nextId);
       playSoundAt(playHostilePsiCast, e.x, e.y);
