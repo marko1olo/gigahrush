@@ -1,5 +1,6 @@
 import { type CharacterSex, Faction, FloorLevel, Occupation, type Item } from '../core/types';
 import { NPC_VISUAL_OLGA_DMITRIEVNA } from './art_sprite_manifest';
+import { NPC_VISUAL_CINEMATIC_HERO, NPC_VISUAL_CINEMATIC_VILLAIN } from '../entities/npc_visuals';
 import { floorKeyForDesign, floorKeyForStory } from './floor_keys';
 import { getStack, ITEMS } from './items';
 import { NPC_PACKAGE_INVENTORY_CAP } from './npc_package_schema';
@@ -113,7 +114,45 @@ function plotNpcPackage(input: MainPlotNpcPackageInput): NpcPackageDef {
   };
 }
 
+/** @target Jules-82: Эта константа служит точкой входа для настройки боевого поведения Злодея в синематике. */
+export const VILLAIN_CINEMATIC_PACKAGE: NpcPackageDef = plotNpcPackage({
+  id: 'cinematic_villain_prime',
+  displayName: 'Неизвестный Культист',
+  publicLine: 'Таинственная фигура, излучающая угрозу.',
+  sex: 'male',
+  age: 40,
+  faction: Faction.CULTIST,
+  occupation: Occupation.CIVIL_DEFENSE,
+  sprite: Occupation.CIVIL_DEFENSE,
+  npcVisualId: NPC_VISUAL_CINEMATIC_VILLAIN,
+  homeFloorKey: floorKeyForStory(FloorLevel.MINISTRY),
+  hp: 5000, maxHp: 5000, money: 0, speed: 1.5,
+  inventory: [{ defId: 'psi_storm', count: 1 }],
+  talkLines: [],
+  talkLinesPost: [],
+});
+
+/** @target Jules-82: Эта константа служит точкой входа для настройки боевого поведения Героя в синематике. */
+export const HERO_CINEMATIC_PACKAGE: NpcPackageDef = plotNpcPackage({
+  id: 'cinematic_hero_prime',
+  displayName: 'Опытный Ликвидатор',
+  publicLine: 'Один из лучших в своем деле.',
+  sex: 'male',
+  age: 35,
+  faction: Faction.LIQUIDATOR,
+  occupation: Occupation.CIVIL_DEFENSE,
+  sprite: Occupation.CIVIL_DEFENSE,
+  npcVisualId: NPC_VISUAL_CINEMATIC_HERO,
+  homeFloorKey: floorKeyForStory(FloorLevel.MINISTRY),
+  hp: 3500, maxHp: 3500, money: 0, speed: 1.3,
+  inventory: [{ defId: 'ptrs_liquidator', count: 1 }],
+  talkLines: [],
+  talkLinesPost: [],
+});
+
 export const MAIN_PLOT_NPC_PACKAGES = [
+  VILLAIN_CINEMATIC_PACKAGE,
+  HERO_CINEMATIC_PACKAGE,
 
   plotNpcPackage({
     id: 'marko_lolo',
