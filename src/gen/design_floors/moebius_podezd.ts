@@ -143,7 +143,7 @@ const MICRO_GAP_X = 6;
 const MICRO_GAP_Y = 5;
 const MICRO_SPINE_H = 8;
 
-const MOEBIUS_HQ_SITES: readonly MoebiusHqSite[] = [
+export const MOEBIUS_HQ_SITES: readonly MoebiusHqSite[] = [
   { owner: ZoneFaction.CITIZEN, x: 74, y: 458, w: 42, h: 24, name: 'Герметичный штаб жильцов прямой стороны', linkX: 184, linkY: 512, wallTex: Tex.PANEL, floorTex: Tex.F_LINO },
   { owner: ZoneFaction.LIQUIDATOR, x: 760, y: 454, w: 40, h: 22, name: 'Герметичный штаб ликвидаторов обратного обхода', linkX: 842, linkY: 512, wallTex: Tex.METAL, floorTex: Tex.F_CONCRETE },
   { owner: ZoneFaction.CULTIST, x: 876, y: 686, w: 34, h: 20, name: 'Скрытый культовый штаб паритетного шва', linkX: 846, linkY: 619, wallTex: Tex.ROTTEN, floorTex: Tex.F_MEAT },
@@ -151,7 +151,7 @@ const MOEBIUS_HQ_SITES: readonly MoebiusHqSite[] = [
   { owner: ZoneFaction.WILD, x: 72, y: 688, w: 36, h: 20, name: 'Разорённый штаб диких у нижней петли', linkX: 178, linkY: 619, wallTex: Tex.ROTTEN, floorTex: Tex.F_WOOD },
 ] as const;
 
-const MOEBIUS_DISTRICTS: readonly MoebiusDistrictSpec[] = [
+export const MOEBIUS_DISTRICTS: readonly MoebiusDistrictSpec[] = [
   { x: 52, y: 74, cols: 11, rows: 5, linkX: 184, linkY: 405, name: 'Северо-западная зеркальная гряда', owner: ZoneFaction.CITIZEN, reverse: false, wallTex: Tex.PANEL, floorTex: Tex.F_CARPET },
   { x: 362, y: 78, cols: 12, rows: 5, linkX: 512, linkY: 398, name: 'Северная лабораторная гряда паритета', owner: ZoneFaction.SCIENTIST, reverse: true, wallTex: Tex.TILE_W, floorTex: Tex.F_TILE },
   { x: 696, y: 76, cols: 11, rows: 5, linkX: 846, linkY: 405, name: 'Северо-восточная гряда обратного обхода', owner: ZoneFaction.LIQUIDATOR, reverse: false, wallTex: Tex.METAL, floorTex: Tex.F_CONCRETE },
@@ -164,7 +164,7 @@ const MOEBIUS_DISTRICTS: readonly MoebiusDistrictSpec[] = [
   { x: 698, y: 852, cols: 11, rows: 5, linkX: 846, linkY: 619, name: 'Юго-восточная обратная лента печатей', owner: ZoneFaction.CULTIST, reverse: true, wallTex: Tex.ROTTEN, floorTex: Tex.F_WOOD },
 ] as const;
 
-const MOEBIUS_STATIONS: readonly MoebiusStationSpec[] = [
+export const MOEBIUS_STATIONS: readonly MoebiusStationSpec[] = [
   { x: 278, y: 292, w: 70, h: 34, type: RoomType.KITCHEN, name: 'Станция кипятка на прямой стороне Мёбиуса', owner: ZoneFaction.CITIZEN, linkX: 256, linkY: 405, wallTex: Tex.TILE_W, floorTex: Tex.F_TILE },
   { x: 636, y: 292, w: 72, h: 34, type: RoomType.OFFICE, name: 'Станция сверки обратной стороны Мёбиуса', owner: ZoneFaction.LIQUIDATOR, linkX: 768, linkY: 405, wallTex: Tex.METAL, floorTex: Tex.F_CONCRETE },
   { x: 318, y: 666, w: 76, h: 36, type: RoomType.STORAGE, name: 'Склад одинаковых дверей нижней стороны', owner: ZoneFaction.WILD, linkX: 256, linkY: 619, wallTex: Tex.BRICK, floorTex: Tex.F_CONCRETE },
@@ -230,26 +230,45 @@ export function expandMoebiusPodezdRouteGeometry(world: World, rng: () => number
   world.markFeaturesDirty(false);
 }
 
+const siteMap = new Map<string, MoebiusHqSite>();
+for (const site of MOEBIUS_HQ_SITES) siteMap.set(site.name, site);
+const stationMap = new Map<string, MoebiusStationSpec>();
+for (const station of MOEBIUS_STATIONS) stationMap.set(station.name, station);
+const districtMap = new Map<string, MoebiusDistrictSpec>();
+for (const district of MOEBIUS_DISTRICTS) districtMap.set(district.name, district);
+
 export function reinforceMoebiusPodezdAuthoredTerritory(world: World): void {
-  for (const site of MOEBIUS_HQ_SITES) {
-    const hq = world.rooms.find(room => room.name === site.name);
-    if (!hq) continue;
-    hq.type = RoomType.HQ;
-    hq.sealed = true;
-    hq.wallTex = Tex.HERMO_WALL;
-    markMoebiusHermeticRoom(world, hq);
-    paintRoomOwner(world, hq, site.owner);
-    for (const support of world.rooms) {
-      if (support.name.startsWith(`${site.name}:`)) paintRoomOwner(world, support, site.owner);
-    }
-  }
-  for (const station of MOEBIUS_STATIONS) {
-    const room = world.rooms.find(candidate => candidate.name === station.name);
-    if (room) paintRoomOwner(world, room, station.owner);
-  }
-  for (const district of MOEBIUS_DISTRICTS) {
-    for (const room of world.rooms) {
-      if (room.name.startsWith(`${district.name}:`)) paintRoomOwner(world, room, district.owner);
+  for (const room of world.rooms) {
+    const name = room.name;
+    const colonIdx = name.indexOf(':');
+
+    if (colonIdx === -1) {
+      const site = siteMap.get(name);
+      if (site !== undefined) {
+        room.type = RoomType.HQ;
+        room.sealed = true;
+        room.wallTex = Tex.HERMO_WALL;
+        markMoebiusHermeticRoom(world, room);
+        paintRoomOwner(world, room, site.owner);
+        continue;
+      }
+      const station = stationMap.get(name);
+      if (station !== undefined) {
+        paintRoomOwner(world, room, station.owner);
+        continue;
+      }
+    } else {
+      const prefix = name.substring(0, colonIdx);
+      const site = siteMap.get(prefix);
+      if (site !== undefined) {
+        paintRoomOwner(world, room, site.owner);
+        continue;
+      }
+      const district = districtMap.get(prefix);
+      if (district !== undefined) {
+        paintRoomOwner(world, room, district.owner);
+        continue;
+      }
     }
   }
   world.markWallTexDirty();
