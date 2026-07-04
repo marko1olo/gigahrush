@@ -1,32 +1,53 @@
-1. **Add `hp` and `maxHp` to `Door` interface in `src/core/types.ts`**:
-   - Add `hp?: number;` and `maxHp?: number;` to the `Door` interface (around line 173).
+1. **Define Data for Characters (src/data/plot_characters.ts):**
+   - Create `src/data/plot_characters.ts` exporting `CHAR_HERO` and `CHAR_VILLAIN` per the spec:
+     ```typescript
+     export interface NpcTemplate {
+       id: string;
+       name: string;
+       sprite: string;
+       health: number;
+       faction: string;
+       flags: string[];
+       dialogId?: string;
+     }
 
-2. **Handle saving/loading `hp` and `maxHp` in `src/systems/floor_memory.ts`**:
-   - Modify `sanitizeDoorEntries` to parse `hp` and `maxHp` from the `raw` object, validating they are finite numbers (or undefined). `hp` can be <= 0 if destroyed (though it should be open then, but just in case), and `maxHp` > 0.
+     export const CHAR_HERO: NpcTemplate = {
+       id: 'char_hero_artem',
+       name: 'Артем (Герой)',
+       sprite: 'hero_unique', // We may need to map this to a number or string depending on how it's used
+       health: 200,
+       faction: 'resistance',
+       flags: ['IMMORTAL', 'PLOT_CRITICAL'],
+       dialogId: 'hero_intro_dialog'
+     };
 
-3. **Implement `damageDoor` logic in a new export or existing file (e.g. `src/systems/door_state.ts`)**:
-   - Create a `damageDoor(world: World, door: Door, amount: number, msgs: any[], time: number, state: GameState)` function.
-   - If `door.maxHp` is undefined, initialize it based on the door type (HERMETIC=500, LOCKED/METAL=150, WOOD/others=50). Set `door.hp` = `door.maxHp`.
-   - Subtract `amount` from `door.hp`.
-   - If `door.hp <= 0`, set state to `DoorState.OPEN`, `world.cellVersion++` (to trigger nav tree rebuild), and call `world.markCellsDirty()`. Also push a message to `msgs` like `"Дверь выбита!"`.
+     export const CHAR_VILLAIN: NpcTemplate = {
+       id: 'char_villain_kombinat',
+       name: 'Глава Комбината',
+       sprite: 'villain_suit',
+       health: 500,
+       faction: 'kombinat',
+       flags: ['IMMORTAL', 'PLOT_CRITICAL', 'HOSTILE_LATER']
+     };
+     ```
 
-4. **Add melee hit detection for doors in `src/main.ts`**:
-   - In the melee attack logic (around line 2980), after checking for `meleeTarget`, if no entity is hit (`!hitSomething`), calculate the cell index the player is facing (using `ax, ay`).
-   - If that cell is `Cell.DOOR`, retrieve the door from `world.doors`.
-   - Call `damageDoor` with the melee damage (`normalDmg`). Play a hit sound (e.g., `playBreak` or generic hit). Set `hitSomething = true` so durability is consumed.
+2. **Spawn Logic (src/gen/plot_spawns.ts):**
+   - Create `src/gen/plot_spawns.ts`.
+   - Implement `spawnPlotCharacter` and a placeholder `NpcRole.CINEMATIC_ACTOR` enum or type, as `NpcRole` isn't in `src/core/types.ts`. I will define `NpcRole` enum in `src/core/types.ts` since the prompt explicitly uses `npc.role = NpcRole.CINEMATIC_ACTOR;`. Also, `npc.plotId` will be used to track the id, though `plotNpcId` is the actual field name in `Entity`. Wait, the prompt says `npc.plotId = template.id`, so I will add `plotId?: string` to `Entity` in `src/core/types.ts` as well as `role?: NpcRole`. I will also add `NpcRole` enum with `CINEMATIC_ACTOR`.
 
-5. **Add E action (interact) bash for locked/hermetic doors in `src/systems/interactions.ts`**:
-   - In `activateDoor`, when the door is `HERMETIC_CLOSED` and locked by Samosbor, or `LOCKED` and the player doesn't have the key, apply a small amount of damage (e.g. 5) by calling `damageDoor`.
-   - E.g., player kicks the door when interacting without a key.
+3. **Scene Script (src/data/scenes_manifest.ts):**
+   - Create `src/data/scenes_manifest.ts` defining `SCENE_CONFRONTATION_1` with the array of steps.
 
-6. **Visuals in `src/render/webgl.ts` (Cracks on low HP)**:
-   - "при door.hp < door.maxHp * 0.5 — рисовать текстуру с трещинами (модифицировать UV или overlay)".
-   - Update `rebuildDoorStates` to pack the "cracked" state into the highest bit of the 8-bit integer:
-     `const isCracked = door.hp !== undefined && door.maxHp !== undefined && door.hp < door.maxHp * 0.5;`
-     `out[ci] = door.state | (isCracked ? 128 : 0);`
-   - In the shader, unpack it in `sampleDoor` and `lightBoundary` using `& 127u`.
-   - In the rendering loop (DDA), read the top bit to determine `isCracked`. Pass this information along, or recalculate it. Actually, `uDoorStates` is read during DDA and `wallTexId` is assigned. We can also set a boolean `crackedDoor = (rawDoorState & 128u) != 0u;`.
-   - In the fragment coloring section, if `crackedDoor` is true, mix the texture color `c` with a darker color based on a procedural noise pattern (e.g. `noiseI` or `fract`) to simulate cracks.
+4. **Combat Invulnerability (src/systems/combat.ts):**
+   - Modify `applyHitStaggerAndKnockback` or `calculateDamage` in `src/systems/combat.ts` or both. Wait, `calculateDamage` doesn't have access to the NPC template flags. I'll need to fetch the template flags or store `flags?: string[]` on `Entity`. Actually, I can just store `flags: string[]` on `Entity` when spawning in `spawnPlotCharacter`.
+   - In `calculateDamage` (or before subtracting `hp`), if `target.flags?.includes('IMMORTAL') || target.flags?.includes('PLOT_CRITICAL')`, return 0 or do not subtract HP. Let's add `flags?: string[]` to `Entity` in `src/core/types.ts`.
+   - Modify `calculateDamage` to return 0 if these flags are present:
+     ```typescript
+     if (target.flags && (target.flags.includes('IMMORTAL') || target.flags.includes('PLOT_CRITICAL'))) {
+       return 0;
+     }
+     ```
 
-7. **Pre-commit step**:
-   - Complete pre-commit steps to ensure proper testing, verification, review, and reflection are done.
+5. **Completeness & pre-commit steps:**
+   - Execute `npm run typecheck` and `npm run test:unit`.
+   - Run `pre_commit_instructions` tool to make sure proper testing, verifications, reviews and reflections are done.
