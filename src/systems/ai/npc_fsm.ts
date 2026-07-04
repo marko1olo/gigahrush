@@ -337,7 +337,7 @@ export function updateNPC(
           if (dist2 <= 64 && e.faction !== Faction.WILD) {
             const isBathroom = event.roomId !== undefined && world.rooms[event.roomId]?.type === RoomType.BATHROOM;
             if (!isBathroom) {
-              e.playerRelation = (e.playerRelation ?? 0) - 15;
+              e.playerRelation = (e.playerRelation ?? 0) - 50;
             }
           }
         }
