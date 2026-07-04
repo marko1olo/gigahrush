@@ -1,5 +1,9 @@
 /* ── NPC utility selector core: deterministic live-intent scoring ─ */
 
+
+import { getEntityIndex, ENTITY_MASK_ITEM_DROP } from '../entity_index';
+import { getWeaponValue, isWeapon } from '../inventory';
+
 import {
   type Entity,
   Faction,
@@ -31,6 +35,7 @@ export const NPC_UTILITY_INTENTS = [
   "social",
   "patrol",
   "wander",
+  "loot_upgrade",
 ] as const;
 
 export type NpcUtilityIntentId = (typeof NPC_UTILITY_INTENTS)[number];
@@ -48,6 +53,7 @@ export const NPC_UTILITY_INTENT_INDEX = {
   social: 9,
   patrol: 10,
   wander: 11,
+  loot_upgrade: 12,
 } as const satisfies Record<NpcUtilityIntentId, number>;
 
 export const NPC_UTILITY_INTENT_COUNT = NPC_UTILITY_INTENTS.length;
@@ -298,6 +304,8 @@ export function npcUtilityRhythmBias(
       break;
     case "wander":
       phase = Math.max(minuteWindow01(shifted, 1050, 360), 0.35);
+      break;
+    case "loot_upgrade":
       break;
     case "safety":
     case "combat":
@@ -832,6 +840,8 @@ export function npcUtilityRoomTypeWeightForIntent(
     case "patrol":
     case "wander":
       return 0;
+    case "loot_upgrade":
+      return 0;
   }
 }
 
@@ -1196,4 +1206,42 @@ function mix32(value: number): number {
   x = Math.imul(x, 0x846ca68b) >>> 0;
   x ^= x >>> 16;
   return x >>> 0;
+}
+
+
+export function evaluateLootUpgrade(npc: Entity, time: number): number {
+  if (!npc.ai) return 0;
+  if (time - (npc.ai.lastLootScanTime ?? 0) < 30000) return 0;
+  if (npc.ai.combatTargetId !== undefined) return 0;
+
+  const queryOutArray: Entity[] = [];
+  getEntityIndex().queryRadiusCapped(npc.x, npc.y, 15, queryOutArray, ENTITY_MASK_ITEM_DROP, 32);
+
+  let bestItem: Entity | null = null;
+  let bestScore = 0;
+
+  const currentWeaponDmg = npc.weapon ? getWeaponValue(npc.weapon) : 0;
+
+  for (const itemDrop of queryOutArray) {
+    if (!itemDrop.inventory || itemDrop.inventory.length === 0) continue;
+    const firstItemDefId = itemDrop.inventory[0].defId;
+    if (isWeapon(firstItemDefId)) {
+      const newWeaponDmg = getWeaponValue(firstItemDefId);
+      if (newWeaponDmg > currentWeaponDmg) {
+        const score = (newWeaponDmg - currentWeaponDmg) * 10;
+        if (score > bestScore) {
+          bestScore = score;
+          bestItem = itemDrop;
+        }
+      }
+    }
+  }
+
+  if (bestItem) {
+    npc.ai.targetItemId = bestItem.id;
+    return bestScore;
+  }
+
+  npc.ai.lastLootScanTime = time;
+  return 0;
 }

@@ -41,6 +41,14 @@ import {
   occupationWorkRoomTypes,
 } from '../../data/occupation_profiles';
 import { territoryOwnerAtIndex, territoryRoomOwner } from '../territory';
+
+import { evaluateLootUpgrade } from './npc_utility';
+import { dropItem, pickupDrop, getWeaponValue, isWeapon } from '../inventory';
+import { getEntityIndex } from '../entity_index';
+import { publishEvent } from '../events';
+import { steerEntityTowardCell } from './pathfinding';
+import { GameState } from '../../core/types';
+
 import { cleanSurfaceArea } from '../surface_cleanup';
 import { findMeatChunkCell, removeVisualSlotCode } from '../../gen/visual_cell_slots';
 import {
@@ -240,6 +248,8 @@ function stateForIntent(intent: NpcUtilityIntentId, e: Entity, profile: NpcAiPro
       return usesTravelerRoutine(e) ? NpcState.TRAVELING : NpcState.FREE_TIME;
     case 'heal':
       return NpcState.FREE_TIME;
+    case 'loot_upgrade':
+      return NpcState.FREE_TIME;
   }
 }
 
@@ -258,6 +268,8 @@ function goalForIntent(intent: NpcUtilityIntentId): AIGoal {
     case 'patrol':
     case 'wander':
       return AIGoal.WANDER;
+    case 'loot_upgrade':
+      return AIGoal.GOTO;
   }
 }
 
@@ -316,6 +328,7 @@ export function updateNPC(
   samosborActive: boolean,
   profile: NpcAiProfile = 'default',
   state?: import('../../core/types').GameState,
+  nextId?: { v: number },
 ): void {
   const ai = e.ai!;
 
@@ -407,6 +420,9 @@ export function updateNPC(
       break;
     case 'wander':
       handleWander(world, e, dt);
+      break;
+    case 'loot_upgrade':
+      if (nextId) handleLootUpgrade(world, entities, e, dt, time, nextId, state);
       break;
   }
 
@@ -522,6 +538,9 @@ function buildLocalUtilityScores(
       addLocalScore(local, 'safety', 16);
     }
   }
+    const lootScore = evaluateLootUpgrade(e, _barkTime);
+  if (lootScore > 0) addLocalScore(local, 'loot_upgrade', lootScore);
+
   return local;
 }
 
@@ -1152,4 +1171,62 @@ export function forceHide(
 function clamp01(value: number): number {
   if (!Number.isFinite(value)) return 0;
   return Math.max(0, Math.min(1, value));
+}
+
+
+function handleLootUpgrade(world: World, entities: readonly Entity[], e: Entity, _dt: number, time: number, nextId: {v: number}, state?: GameState): void {
+  const ai = e.ai!;
+  const targetId = ai.targetItemId;
+  if (targetId === undefined) {
+    clearUtilityState(e);
+    return;
+  }
+
+  const item = getEntityIndex().byId.get(targetId);
+  if (!item || !item.alive || item.type !== EntityType.ITEM_DROP) {
+    clearUtilityState(e);
+    return;
+  }
+
+  steerEntityTowardCell(world, e, item.x, item.y);
+
+  const dist2 = world.dist2(e.x, e.y, item.x, item.y);
+  if (dist2 <= 2.25) { // 1.5 ^ 2
+    if (e.weapon && e.inventory) {
+      const weaponSlotIdx = e.inventory.findIndex(i => i.defId === e.weapon);
+      if (weaponSlotIdx !== -1) {
+        dropItem(e, weaponSlotIdx, entities as Entity[], _barkMsgs, time, nextId, state, world);
+      }
+    }
+
+    pickupDrop(world, item, e, _barkMsgs, time, state);
+
+    if (e.inventory && e.inventory.length > 0) {
+      let bestWeaponId = '';
+      let bestValue = -1;
+      for (const invItem of e.inventory) {
+        if (isWeapon(invItem.defId)) {
+           const val = getWeaponValue(invItem.defId);
+           if (val > bestValue) {
+             bestValue = val;
+             bestWeaponId = invItem.defId;
+           }
+        }
+      }
+      if (bestWeaponId) {
+        e.weapon = bestWeaponId;
+        if (state) {
+          publishEvent(state, {
+            type: 'npc_upgraded_weapon',
+            x: e.x, y: e.y,
+            actorId: e.id,
+            actorName: e.name || 'НПЦ',
+            zoneId: world.zoneMap[world.idx(Math.floor(e.x), Math.floor(e.y))]
+          } as any);
+        }
+      }
+    }
+
+    clearUtilityState(e);
+  }
 }

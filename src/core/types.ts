@@ -472,6 +472,8 @@ export interface AIState {
   lightCueAt?: number;
   parasiteRehostCd?: number;  // Head slug bounded corpse/stunned-host scan cooldown
   parasiteScanOffset?: number; // Head slug rotating corpse scan cursor; avoids full entity scans
+  lastLootScanTime?: number;
+  targetItemId?: number;
   parasiteQuarantineCd?: number; // Head slug sealed-room event throttle
   meatTargetId?: number;      // Olgoy cached corpse target id
   meatScanCd?: number;        // Olgoy bounded corpse scent scan cooldown
@@ -890,6 +892,7 @@ export const WORLD_EVENT_TYPES = [
   'npc_need_low',
   'npc_pick_item',
   'npc_drop_item',
+  'npc_upgraded_weapon',
   'npc_store_item',
   'npc_take_from_container',
   'container_looted',
