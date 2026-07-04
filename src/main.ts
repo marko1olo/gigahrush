@@ -37,6 +37,7 @@ import {
 import { generateTextures } from './render/textures';
 import { generateSprites } from './render/sprites';
 import { Spr, monsterSpr } from './render/sprite_index';
+import { updateFlies } from './render/critters';
 import {
   SCR_W, SCR_H, initWebGL, renderSceneGL, updateWorldData, updateDynamicData,
   disposeWebGL, setDynamicSkyTexture, getRenderSceneDebugStats, rebuildProceduralSpriteCache, type DynamicSkyTexture,
@@ -8463,6 +8464,14 @@ function gameLoop(now: number): void {
   // Update dynamic world data (fog, door states, wallTex for slides)
   updateGeneratedDynamicSky(dt);
   updateDynamicData(world, camX, camY);
+
+  updateFlies(dt, renderActor.x, renderActor.y, (vol) => {
+    if (vol > 0) {
+      publishEvent(state, { type: 'audio_loop', soundId: 'fly_buzz', volume: vol, privacy: 'private', severity: 0, tags: [] });
+    } else {
+      publishEvent(state, { type: 'audio_stop', privacy: 'private', severity: 0, tags: [] });
+    }
+  });
 
   // WebGL raycaster + sprites
   const floorRunEntry = currentFloorRunEntry(state);

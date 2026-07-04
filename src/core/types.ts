@@ -1069,6 +1069,8 @@ export const WORLD_EVENT_TYPES = [
   'swarm_source_sealed',
   'swarm_source_burned',
   'death_seen',
+  'audio_loop',
+  'audio_stop',
 ] as const;
 
 export type WorldEventType = typeof WORLD_EVENT_TYPES[number];
@@ -1102,6 +1104,8 @@ export interface WorldEvent {
   containerId?: number;
   containerOwnerId?: number;
   containerFaction?: Faction;
+  soundId?: string;
+  volume?: number;
   severity: WorldEventSeverity;
   privacy: WorldEventPrivacy;
   truth: 'fact';
