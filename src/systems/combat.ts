@@ -1,6 +1,16 @@
 import { Entity, DamageType } from '../core/types';
 import { ITEMS } from '../data/catalog';
 
+export function getPlayerResistances(player: Entity): Partial<Record<DamageType, number>> {
+  const baseResist = { [DamageType.FIRE]: 0, [DamageType.ENERGY]: 0, [DamageType.PSI]: 0, [DamageType.KINETIC]: 0, [DamageType.BUCKSHOT]: 0 };
+  if (!player.armorDefId) return baseResist;
+  const armorDef = ITEMS[player.armorDefId];
+  if (armorDef && armorDef.resistances) {
+    return { ...baseResist, ...armorDef.resistances };
+  }
+  return baseResist;
+}
+
 export function calculateDamage(baseDamage: number, damageType: DamageType | undefined, target: Entity): number {
   let resist = 0;
   if (target.armorDefId) {

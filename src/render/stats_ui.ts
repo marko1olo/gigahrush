@@ -18,6 +18,7 @@ import { fitText as fitStatText, formatUiNumber, wrapTextLines } from './ui_text
 import { drawInventoryFinanceBlock, readFinanceSnapshot } from './economy_ui';
 import { fullscreenInventoryLayout } from './ui_layout';
 import { drawItemGridIcon } from './item_sprites';
+import { getPlayerResistances } from '../systems/combat';
 
 export function drawInventory(
   ctx: CanvasRenderingContext2D,
@@ -79,6 +80,30 @@ export function drawInventory(
   if (player.armorDefId) {
     const armorDef = ITEMS[player.armorDefId];
     drawItemGridIcon(ctx, player.armorDefId, armorDef?.name ?? player.armorDefId, armorRect.x, armorRect.y, armorRect.w, sx * 2, sy * 2, armorSelected, armorSelected ? 1 : 0.86);
+  }
+
+  const resists = getPlayerResistances(player);
+  let rx = armorRect.x;
+  let ry = armorRect.y + armorRect.h + 8 * sy;
+  const resistColors = {
+    [DamageType.FIRE]: '#f64',
+    [DamageType.ENERGY]: '#4cf',
+    [DamageType.PSI]: '#c6f',
+    [DamageType.KINETIC]: '#aaa',
+    [DamageType.BUCKSHOT]: '#ec4',
+  };
+  for (const [typeStr, value] of Object.entries(resists)) {
+    const type = parseInt(typeStr, 10) as DamageType;
+    if (!isNaN(type) && value) {
+      ctx.fillStyle = resistColors[type as keyof typeof resistColors];
+      ctx.beginPath();
+      ctx.arc(rx + 4 * sy, ry + 4 * sy, 3 * sy, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.font = `${4.5 * sy}px monospace`;
+      ctx.fillText(`${value}%`, rx + 10 * sy, ry + 5.5 * sy);
+      ry += 6.5 * sy;
+    }
   }
 
   for (let row = 0; row < gridRows; row++) {
