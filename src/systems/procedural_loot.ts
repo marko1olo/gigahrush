@@ -96,10 +96,10 @@ export function generateNpcLoadout(faction: Faction, level: number, danger: numb
   const inventory: Item[] = [];
 
   // Explicitly give cultists a PSI clot, regardless of maxVal limits
-  // But we use rollWeapon directly to simulate the pick.
-  if (faction === Faction.CULTIST && rollWeapon > 0.02) {
-    const clotId = rollWeapon > 0.85 ? 'psi_storm' : 'psi_strike';
-    weaponDef = ITEMS[clotId];
+  if (faction === Faction.CULTIST) {
+    const clotId = (level > 1 && rollWeapon > 0.5) ? 'psi_strike' : 'psi_shield';
+    toolId = clotId;
+    inventory.push({ defId: clotId, count: 1 });
   }
 
   if (weaponDef) {
