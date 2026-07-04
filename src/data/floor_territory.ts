@@ -86,6 +86,7 @@ const DESIGN_TERRITORY: Readonly<Record<DesignFloorId, readonly FloorTerritorySh
   cantor_pustoty: shares(6, 8, 24, 8, 34, 20),
   darkness: shares(6, 8, 24, 8, 36, 18),
   liquidatorbase: [{ owner: ZoneFaction.LIQUIDATOR, share: 1.0 }],
+  outskirts: [{ owner: ZoneFaction.LIQUIDATOR, share: 0.4 }, { owner: ZoneFaction.WILD, share: 0.4 }, { owner: ZoneFaction.CITIZEN, share: 0.2 }],
   horrorfloor: shares(6, 8, 24, 8, 36, 18),
 };
 

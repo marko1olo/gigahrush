@@ -2046,6 +2046,7 @@ const DESIGN_FLOOR_POPULATION_OVERRIDES: Readonly<Record<DesignFloorId, DesignFl
       maxPerBucket: 5,
     },
   },
+  outskirts: { npcTarget: 40, monsterTarget: 10, monsterBiasKinds: [], monsterTags: [], monsterPlacementKind: 'roof' },
   liquidatorbase: { npcTarget: 5, monsterTarget: 2, monsterBiasKinds: [], monsterTags: [], monsterPlacementKind: 'roof' },
 };
 

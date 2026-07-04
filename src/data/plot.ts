@@ -812,6 +812,66 @@ export function hasAvailableQuest(plotNpcId: string, quests: Quest[]): boolean {
 }
 
 /* ── Arena Master ─────────────────────────────────────────────── */
+
+/* ── Outskirts Conflict ────────────────────────────────────────── */
+registerAuthoredNpc({
+  id: 'wild_brigadier',
+  homeFloorKey: 'design:outskirts',
+  tags: ['wild', 'conflict_leader'],
+  npc: {
+    name: 'Бригадир',
+    isFemale: false,
+    age: 38,
+    faction: Faction.WILD,
+    occupation: Occupation.HUNTER,
+    sprite: Occupation.HUNTER,
+    hp: 200, maxHp: 200, level: 8, money: 120, speed: 1.1,
+    inventory: [{ defId: 'ammo_shells', count: 12 }],
+    weapon: 'shotgun',
+    talkLines: ['Это наша территория. Хочешь пройти — докажи полезность.'],
+    talkLinesPost: ['Теперь порядок. Проходи.']
+  },
+  quests: [{
+    id: 'outskirts_wild_help',
+    giverNpcId: 'wild_brigadier',
+    type: QuestType.FETCH,
+    desc: 'Убей патруль Ликвидаторов в нейтральной зоне. Они слишком близко.',
+    targetItem: 'armor_liquidator', targetCount: 1,
+    rewardItem: 'outskirts_pass', rewardCount: 1,
+    relationDelta: 10, xpReward: 100, moneyReward: 50,
+  }]
+});
+
+registerAuthoredNpc({
+  id: 'liquidator_captain',
+  homeFloorKey: 'design:outskirts',
+  tags: ['liquidator', 'conflict_leader'],
+  npc: {
+    name: 'Капитан',
+    isFemale: false,
+    age: 45,
+    faction: Faction.LIQUIDATOR,
+    occupation: Occupation.HUNTER,
+    sprite: Occupation.HUNTER,
+    hp: 250, maxHp: 250, level: 10, money: 200, speed: 1.0,
+
+    inventory: [{ defId: 'ammo_9mm', count: 30 }],
+    weapon: 'eralashnikov_auto',
+    talkLines: ['Оставайся в освещенной зоне. Поможешь нам — получишь пропуск.'],
+    talkLinesPost: ['Отличная работа. Держи пропуск.']
+  },
+  quests: [{
+    id: 'outskirts_liq_help',
+    giverNpcId: 'liquidator_captain',
+    type: QuestType.KILL,
+    desc: 'Зачисти гнездо мутантов у западного КПП, чтобы обезопасить зону.',
+    targetMonsterKind: 0,
+    killNeeded: 3,
+    rewardItem: 'outskirts_pass', rewardCount: 1,
+    relationDelta: 10, xpReward: 100, moneyReward: 50,
+  }]
+});
+
 registerSideQuest('arena_master', {
   name: 'Мастер Арены',
   isFemale: false,
