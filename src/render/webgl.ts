@@ -3423,6 +3423,7 @@ export function renderSceneGL(
       if (lrad > 0) {
         const lx = cx + dx + 0.5;
         const ly = cy + dy + 0.5;
+        // Dynamic Z-position adjustment for lamps to prevent them from floating in high-ceiling rooms
         const lz = (feat === Feature.LAMP) ? (1.0 + Math.max(0, world.ceilHeight[idx]) * 0.5) - 0.1 : 0.4;
         lightCandidates.push({ lx, ly, lz, r: lr, g: lg, b: lb, radius: lrad, dist2 });
       }
@@ -3704,6 +3705,7 @@ function featureSpriteZ(feature: Feature, tier: number = 0): number {
     case Feature.LIFT_BUTTON:
     case Feature.SCREEN:
     case Feature.SLIDE: return 0.22;
+    // Feature.LAMP is strictly tied to room ceiling geometry (tier)
     case Feature.LAMP: return (1.0 + Math.max(0, tier) * 0.5) - 0.88;
     default: return 0;
   }
