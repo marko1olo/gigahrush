@@ -1,4 +1,8 @@
-import { type Entity, type GameState, msg } from '../core/types';
+import { type Entity, type GameState, msg, DoorState } from '../core/types';
+import { type World } from '../core/world';
+import { registerWorldEventObserver } from './events';
+import { registerContentRuntimeHook } from './content_hooks';
+import { setDoorState } from './door_state';
 
 export enum TutorialStep {
   DRINK = 0,
@@ -9,6 +13,47 @@ export enum TutorialStep {
   ESCAPE = 5,
   DONE = 6,
 }
+
+export const TUTORIAL_HINT_CANTEEN = 'Голод. Сходи в столовую.';
+export const TUTORIAL_HINT_FACTORY = 'Сытно! Теперь на работу.';
+
+export function unlockFactoryDoor(world: World): void {
+  for (const door of world.doors.values()) {
+    if (door.keyId === 'tut_factory_key') {
+      setDoorState(world, door, DoorState.OPEN);
+      return;
+    }
+  }
+}
+
+registerWorldEventObserver((state, event) => {
+  if (!state.tutorialMode) return;
+
+  if (event.type === 'player_pick_item' && (event.itemId === 'bread' || event.itemId === 'canned')) {
+    if (state.tutorialStep === TutorialStep.EAT) {
+      logTutorialMsg(state, 'Открой инвентарь и съешь это.', state.time + 15);
+    }
+  }
+
+  if (event.type === 'player_use_item' && (event.itemId === 'bread' || event.itemId === 'canned')) {
+    if (state.tutorialStep === TutorialStep.EAT) {
+      state.tutorialStep = TutorialStep.WORK;
+      logTutorialMsg(state, TUTORIAL_HINT_FACTORY, state.time + 15);
+      state.tutorialUnlockFactoryDoor = true;
+    }
+  }
+});
+
+registerContentRuntimeHook({
+  id: 'tutorial_unlock_factory_door',
+  phases: ['post_ai'],
+  update: ({ state, world }) => {
+    if (state.tutorialUnlockFactoryDoor) {
+      unlockFactoryDoor(world);
+      state.tutorialUnlockFactoryDoor = false;
+    }
+  },
+});
 
 export function logTutorialMsg(state: GameState, text: string, time: number): void {
   const m = msg(text, time, '#fff');

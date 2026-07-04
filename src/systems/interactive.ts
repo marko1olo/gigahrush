@@ -24,7 +24,7 @@ import {
   type ContentInteractionResult,
   type ContentInteractionTarget,
 } from './content_hooks';
-import { logTutorialMsg, TutorialStep } from './tutorial';
+import { logTutorialMsg, TutorialStep, TUTORIAL_HINT_CANTEEN } from './tutorial';
 import { publishEvent } from './events';
 
 export interface InteractiveInstanceState {
@@ -500,6 +500,12 @@ function runRelieve(ctx: ContentInteractionContext, resolved: ResolvedInteractiv
   needs.poo = Math.max(0, needs.poo + Math.min(0, action.pooDelta ?? 0));
   pushMsg(ctx.state, action.message ?? 'Стало легче.', action.color);
   publishInteractiveEvent(ctx, resolved, action);
+
+  if (ctx.state.tutorialMode && ctx.state.tutorialStep === TutorialStep.TOILET) {
+    ctx.state.tutorialStep = TutorialStep.EAT;
+    logTutorialMsg(ctx.state, TUTORIAL_HINT_CANTEEN, ctx.state.time + 15);
+    needs.food = 30; // set hunger level explicitly for the tutorial step
+  }
 
   return { handled: true };
 }
