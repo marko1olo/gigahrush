@@ -19,3 +19,5 @@ gatbage/
 !.env.*.example
 
 *.log
+dist/
+log.txt
