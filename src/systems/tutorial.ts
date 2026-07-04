@@ -33,8 +33,9 @@ export function startTutorial(state: GameState, player: Entity): void {
 
 
 export function completeTutorial(state: GameState): void {
-  if (!state.tutorialMode) return;
+  if (!state.tutorialMode || state.pendingTutorialExit) return;
   state.tutorialMode = false;
   state.tutorialStep = TutorialStep.DONE;
+  state.pendingTutorialExit = true;
   state.msgs.push(msg('Обучение завершено. Вы предоставлены сами себе.', state.time, '#8fc'));
 }
