@@ -134,6 +134,7 @@ export interface Room {
   wallTex: Tex;
   floorTex: Tex;
   ceilingTier?: number;     // optional custom ceiling tier
+  isLooted?: boolean;       // whether the room has been looted
 }
 
 // ── Cell features (one per cell) ─────────────────────────────────

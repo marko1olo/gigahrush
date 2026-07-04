@@ -23,7 +23,7 @@ import { changeResourceStock, getEconomyQuote, type EconomyQuote } from './econo
 import { controlHint } from './controls';
 import { publishEvent } from './events';
 import { CHALK_ITEM_ID, createChalkItemData } from './chalk';
-import { generateContainerLoot } from './procedural_loot';
+import { generateContainerLoot, type LootContext } from './procedural_loot';
 import { recordPermitAccess } from './permits';
 import { applyRoomMemoryRelationPenalty, applyTheftRelationPenalty } from './factions';
 import { addKarma } from './alife_rating';
@@ -123,7 +123,7 @@ function findContainerCell(world: World, room: Room, n: number): { x: number; y:
   return null;
 }
 
-function seedInventory(kind: ContainerKind, roomId: number, level = 0): Item[] {
+function seedInventory(world: World, kind: ContainerKind, roomId: number, floor: FloorLevel, level = 0): Item[] {
   const def = CONTAINER_DEFS[kind];
   const inv: Item[] = [];
   const rollItems: number[] = [];
@@ -144,7 +144,16 @@ function seedInventory(kind: ContainerKind, roomId: number, level = 0): Item[] {
     const seed = containerSeed(roomId, kind, n + i);
     rollItems.push((seed % 10_000) / 10_000);
   }
-  const proceduralItems = generateContainerLoot(def.tags, def.proceduralValueCap, level, rollItems);
+
+  const room = roomId >= 0 ? world.rooms.find(r => r && r.id === roomId) : undefined;
+  const context: LootContext = {
+    floorLevel: floor,
+    roomType: room ? room.type : RoomType.COMMON,
+    danger: level,
+    isLooted: room?.isLooted ?? false,
+  };
+
+  const proceduralItems = generateContainerLoot(def.tags, def.proceduralValueCap, level, rollItems, context);
   for (const item of proceduralItems) {
     const existing = inv.find(i => i.defId === item.defId && i.count < getStack(ITEMS[item.defId]));
     if (existing) {
@@ -220,7 +229,7 @@ export function makeFeatureLootContainer(
     zoneId: world.zoneMap[idx],
     kind,
     name: def.name,
-    inventory: seedInventory(kind, seed, level),
+    inventory: seedInventory(world, kind, -1, floor, level),
     capacitySlots: def.capacitySlots,
     access: 'public',
     discovered: true,
@@ -466,7 +475,7 @@ export function ensureRoomContainers(world: World, floor: FloorLevel, maxContain
         zoneId: world.zoneMap[world.idx(pos.x, pos.y)],
         kind,
         name: `${def.name}: ${room.name}`,
-        inventory: seedInventory(kind, room.id, floor),
+        inventory: seedInventory(world, kind, room.id, floor, floor), // passing floor as level
         capacitySlots: def.capacitySlots,
         faction: factionForRoom(world, room),
         access: accessForRoom(room, kind),

@@ -1,5 +1,12 @@
-import { Faction, type ItemDef, ItemType, type Item } from '../core/types';
+import { Faction, type ItemDef, ItemType, type Item, FloorLevel, RoomType } from '../core/types';
 import { ITEMS, itemEquipSlot, itemDefHasTag } from '../data/items';
+
+export interface LootContext {
+  floorLevel: FloorLevel;
+  roomType: RoomType;
+  danger: number; // 0..1
+  isLooted: boolean;
+}
 
 export interface LootProfile {
   weaponMult?: number;
@@ -30,10 +37,11 @@ export function calculateMaxLootValue(level: number, danger: number, faction: Fa
 
 const ITEMS_ARRAY = Object.freeze(Object.values(ITEMS));
 
-export function buildLootPool(profile: LootProfile, maxAllowedValue: number): { item: ItemDef, weight: number }[] {
+export function buildLootPool(profile: LootProfile, maxAllowedValue: number, context?: LootContext): { item: ItemDef, weight: number }[] {
   const pool: { item: ItemDef, weight: number }[] = [];
   for (const item of ITEMS_ARRAY) {
     if (item.value > maxAllowedValue) continue;
+    if (itemDefHasTag(item, 'plot_critical')) continue;
 
     let baseWeight = item.spawnW || 0;
     if (baseWeight <= 0) continue;
@@ -51,6 +59,17 @@ export function buildLootPool(profile: LootProfile, maxAllowedValue: number): { 
         if (itemDefHasTag(item, tag)) {
           baseWeight *= weight;
         }
+      }
+    }
+
+    if (context) {
+      if (context.roomType === RoomType.MEDICAL && itemDefHasTag(item, 'med')) baseWeight *= 5;
+      if (context.roomType === RoomType.KITCHEN && itemDefHasTag(item, 'food')) baseWeight *= 5;
+      if (context.roomType === RoomType.STORAGE && itemDefHasTag(item, 'resource')) baseWeight *= 3;
+
+      if (itemDefHasTag(item, 'weapon') || itemDefHasTag(item, 'ammo')) {
+        if (context.floorLevel === FloorLevel.LIVING) baseWeight *= 0.1;
+        if (context.floorLevel === FloorLevel.HELL) baseWeight *= 3.0;
       }
     }
 
@@ -128,7 +147,11 @@ export function generateNpcLoadout(faction: Faction, level: number, danger: numb
   return { weapon: weaponId, tool: toolId, inventory: inventory.length > 0 ? inventory : undefined };
 }
 
-export function generateContainerLoot(tags: readonly string[], proceduralValueCap: number | undefined, level: number, rollItems: number[]): Item[] {
+export function generateContainerLoot(tags: readonly string[], proceduralValueCap: number | undefined, level: number, rollItems: number[], context: LootContext): Item[] {
+  if (context.isLooted && (rollItems[0] ?? 0.5) < 0.8) {
+    return [];
+  }
+
   const profile: LootProfile = { tagWeights: {} };
   
   if (tags.includes('food')) { profile.foodMult = 3; profile.drinkMult = 2; }
@@ -144,7 +167,7 @@ export function generateContainerLoot(tags: readonly string[], proceduralValueCa
   }
 
   const maxVal = proceduralValueCap ?? (10 + level * 10);
-  const pool = buildLootPool(profile, maxVal);
+  const pool = buildLootPool(profile, maxVal, context);
   
   const inventory: Item[] = [];
   for (const r of rollItems) {
