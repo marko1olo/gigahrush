@@ -323,7 +323,7 @@ test('generic key does not open custom keyed locked door', () => {
 
   assert.equal(result.handled, true);
   assert.equal(world.doors.get(doorIdx)?.state, DoorState.LOCKED);
-  assert.equal(state.msgs.at(-1)?.text, 'Заперто. Нужен ключ. (Удар -5)');
+  assert.equal(state.msgs.at(-1)?.text, 'Заперто. Требуется ключ: borrowed_kitchen_key. (Удар -5)');
 });
 
 test('generic key opens empty-key generic locked door', () => {

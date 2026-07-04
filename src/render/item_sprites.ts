@@ -13123,6 +13123,16 @@ function drawRepairSprite(t: Uint32Array, seed: number, p: Palette, defId: strin
   line(t, 42, 18, 23, 47, 1.7, p.light, seed + 176);
 }
 
+
+function drawOutskirtsPassSprite(t: Uint32Array, seed: number) {
+  // Draw base plastic card
+  rect(t, 12, 20, 52, 44, [204, 204, 204], seed, 255);
+  // Draw magnetic strip at the bottom
+  rect(t, 12, 36, 52, 40, [34, 34, 34], seed + 1, 255);
+  // Draw faction logo placeholder (e.g. red star)
+  rect(t, 40, 24, 46, 30, [170, 34, 34], seed + 2, 255);
+}
+
 function drawKeySprite(t: Uint32Array, seed: number, p: Palette): void {
   const brass: [number, number, number] = [176, 130, 48];
   const brassLight: [number, number, number] = [232, 186, 84];
@@ -15267,8 +15277,12 @@ function drawMiscSprite(t: Uint32Array, seed: number, p: Palette, defId: string)
     case 'book':
       drawBookSprite(t, seed);
       return;
+
     case 'borrowed_kitchen_key':
       drawBorrowedKitchenKeySprite(t, seed);
+      return;
+    case 'outskirts_pass':
+      drawOutskirtsPassSprite(t, seed);
       return;
     case 'container_key_label':
       drawContainerKeyLabelSprite(t, seed);
