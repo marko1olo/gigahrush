@@ -1,3 +1,4 @@
+import { updateArenaSurvival } from './systems/arena_player_combat';
 import { countAmmo, removeItem, publishPlayerItemEvent } from './systems/inventory';
 /* ── ГИГАХРУЩ — main entry point ──────────────────────────────── */
 import './index.css';
@@ -8111,6 +8112,7 @@ function gameLoop(now: number): void {
       _urinePenaltyAccum = 0;
     }
     updateProjectiles(dt);
+    updateArenaSurvival(world, entities, player, state, dt, nextEntityId);
     updateDoors(dt);
     updateWrongDoorRemaps(world, state);
     updateHladonColdPocket(world, player, state, dt);
@@ -8317,6 +8319,7 @@ function gameLoop(now: number): void {
     state.clock.minute = totalMins % 60;
     tickRoomMemory(state.time, dt);
     updateProjectiles(dt);
+    updateArenaSurvival(world, entities, player, state, dt, nextEntityId);
     updateDoors(dt);
     updateWrongDoorRemaps(world, state);
     needsTickAccum += dt;
