@@ -798,6 +798,7 @@ export const ITEMS: Record<string, ItemDef> = {
   elevator_access_order:{ id:'elevator_access_order', name:'Ордер доступа к лифту', type:ItemType.MISC, desc:'Приказ на лифтовый доступ. На посту его сверяют с печатью и временем.', spawnRooms:[RoomType.OFFICE,RoomType.HQ,RoomType.CORRIDOR], spawnW:1, value:62 },
   void_archive_warrant:{ id:'void_archive_warrant', name:'Пустотный архивный ордер', type:ItemType.MISC, desc:'Архивный ордер на нижние дела. Без подписи подозрителен, но редок.', spawnRooms:[RoomType.OFFICE,RoomType.STORAGE], spawnW:1, value:120 },
   ...DOCUMENT_ACCESS_ITEMS,
+  outskirts_pass: { id:'outskirts_pass', name:'Пропуск на Окраину', type:ItemType.MISC, desc:'Разрешение на проход через блокпосты Окраины. Уважается обеими сторонами конфликта.', spawnRooms:[], spawnW:0, value:150, stack:1 },
   ...CHERNOBOG_DOCKET_ITEMS,
 
   // ── Инструменты и разное ──

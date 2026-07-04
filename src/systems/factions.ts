@@ -471,7 +471,28 @@ export function applyDamageRelationPenalty(
       reasonTag: 'damage',
     });
   }
+
+  // Outskirts: Faction Conflict Trigger
+  if (state && attackerFaction === Faction.PLAYER && (targetFaction === Faction.LIQUIDATOR || targetFaction === Faction.WILD)) {
+    publishEvent(state, {
+      type: 'faction_event',
+      severity: 3,
+      privacy: 'local',
+      tags: ['faction_event', 'faction_action_observed'],
+      data: {
+        action: 'attack_liquidator',
+        name: 'Нападение на патруль',
+        text: 'Игрок атаковал патруль в зоне.',
+      },
+      actorId: attacker?.id,
+      actorFaction: attackerFaction,
+      targetId: target?.id,
+      targetFaction: targetFaction
+    });
+  }
+
   // Only penalize factions if they are NOT hostile (hitting allies/neutrals)
+
   if (wasNonEnemy) {
     addFactionRelMutual(attackerFaction, targetFaction, penalty);
     if (attacker) addKarma(attacker, -Math.max(1, Math.min(4, Math.floor(damage / 20) || 1)));

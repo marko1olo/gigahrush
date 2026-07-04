@@ -60,8 +60,10 @@ import { alignUnderhellAmbientNpcTerritory, generateUnderhellDesignFloor } from 
 import { generateUpperBureauDesignFloor, reinforceUpperBureauAuthoredHqTerritory } from './upper_bureau';
 import { alignVoronoiQuarantineAmbientNpcTerritory, generateVoronoiQuarantineDesignFloor } from './voronoi_quarantine';
 import { expandDesignFloorGeneration, retuneDesignFloorAfterCellTerritory } from './full_floor';
+import { generateOutskirtsDesignFloor } from './outskirts';
 
 const DESIGN_FLOOR_GENERATORS: Record<DesignFloorId, () => FloorGeneration> = {
+  outskirts: generateOutskirtsDesignFloor,
   liquidatorbase: generateLiquidatorBaseDesignFloor,
   roof: generateRoofDesignFloor,
   chthonic_attic: generateChthonicAtticDesignFloor,
