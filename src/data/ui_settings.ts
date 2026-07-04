@@ -1,0 +1,10 @@
+export const UI_BREAKPOINTS = {
+  COMPACT: 375,
+  EMERGENCY: 320,
+  BASE_WIDTH: 800,
+  TALL_ASPECT: 0.5,
+};
+
+export const UI_FONT_SIZES = {
+  MIN_MOBILE_EFFECTIVE: 12,
+};

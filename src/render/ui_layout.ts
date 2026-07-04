@@ -1,4 +1,22 @@
-import { INVENTORY_GRID_COLS, INVENTORY_GRID_ROWS } from '../data/inventory_limits';
+import { INVENTORY_GRID_COLS, INVENTORY_GRID_ROWS, MAX_INVENTORY_SLOTS } from '../data/inventory_limits';
+
+import { UI_BREAKPOINTS } from '../data/ui_settings';
+
+export function calculateUIScale(canvasWidth: number): number {
+  if (canvasWidth <= UI_BREAKPOINTS.EMERGENCY) return 0.6;
+  if (canvasWidth <= UI_BREAKPOINTS.COMPACT) return 0.8;
+  return Math.min(1, canvasWidth / UI_BREAKPOINTS.BASE_WIDTH);
+}
+
+export function calculateInventoryGridCols(canvasWidth: number): number {
+  return canvasWidth <= UI_BREAKPOINTS.COMPACT ? 4 : INVENTORY_GRID_COLS;
+}
+
+export function calculateInventoryGridRows(canvasWidth: number, maxItems: number): number {
+  const cols = calculateInventoryGridCols(canvasWidth);
+  return Math.max(INVENTORY_GRID_ROWS, Math.ceil(maxItems / cols));
+}
+
 
 const GRID_COLS = INVENTORY_GRID_COLS;
 const GRID_ROWS = INVENTORY_GRID_ROWS;
@@ -270,10 +288,14 @@ export function inventoryPanelLayout(canvasW: number, canvasH: number): Inventor
   const scale = Math.max(0.2, Math.min(4.2, Math.min(canvasW / 392, canvasH / 236)));
   const originX = Math.max(0, (canvasW - 392 * scale) * 0.5);
   const originY = Math.max(0, (canvasH - 236 * scale) * 0.5);
-  const grid = scaledRect(originX, originY, scale, 8, 22, GRID_CELL_UNITS * GRID_COLS, GRID_CELL_UNITS * GRID_ROWS) as InventoryPanelLayout['grid'];
+
+  const cols = calculateInventoryGridCols(canvasW);
+  const rows = calculateInventoryGridRows(canvasW, MAX_INVENTORY_SLOTS);
+  const grid = scaledRect(originX, originY, scale, 8, 22, GRID_CELL_UNITS * cols, GRID_CELL_UNITS * rows) as InventoryPanelLayout['grid'];
+
   grid.cell = 22 * scale;
-  grid.cols = GRID_COLS;
-  grid.rows = GRID_ROWS;
+  grid.cols = cols;
+  grid.rows = rows;
   const rightX = 8 + GRID_CELL_UNITS * GRID_COLS + 14;
   const prep = scaledRect(originX, originY, scale, rightX, 22, 186, 40) as InventoryPanelLayout['prep'];
   prep.cols = 4;
@@ -298,22 +320,24 @@ export function inventoryPanelLayout(canvasW: number, canvasH: number): Inventor
 
 export function fullscreenInventoryLayout(canvasW: number, canvasH: number, sx: number, sy: number): FullscreenInventoryLayout {
   const base = Math.min(sx, sy);
-  const fitW = canvasW / (8 + GRID_CELL_UNITS * GRID_COLS + 132);
-  const fitH = canvasH / (14 + GRID_CELL_UNITS * GRID_ROWS + 8);
+  const cols = calculateInventoryGridCols(canvasW);
+  const rows = calculateInventoryGridRows(canvasW, MAX_INVENTORY_SLOTS);
+  const fitW = canvasW / (8 + GRID_CELL_UNITS * cols + 132);
+  const fitH = canvasH / (14 + GRID_CELL_UNITS * rows + 8);
   const scale = Math.max(0.72, Math.min(4.2, base, fitW, fitH));
   const textScale = scale <= 1.2 ? scale : Math.max(1.05, scale * 0.72);
   const cell = GRID_CELL_UNITS * scale;
   const gridX = 8 * scale;
   const gridY = 14 * scale;
-  const gridW = GRID_COLS * cell;
-  const gridH = GRID_ROWS * cell;
+  const gridW = cols * cell;
+  const gridH = rows * cell;
   const stX = gridX + gridW + 12 * scale;
   const rightW = Math.max(72 * scale, canvasW - stX - 8 * scale);
   const detailsY = Math.max(8 * scale, gridY - 4 * scale);
   const detailsH = 58 * textScale;
   const actionW = Math.min(82 * textScale, rightW);
   const actionY = detailsY + 37 * textScale;
-  const grid = { x: gridX, y: gridY, w: gridW, h: gridH, cell, cols: GRID_COLS, rows: GRID_ROWS };
+  const grid = { x: gridX, y: gridY, w: gridW, h: gridH, cell, cols, rows };
   const armorCell = cell * 2;
   const armorX = gridX + gridW - armorCell;
   const armorY = gridY + gridH + 8 * scale;
