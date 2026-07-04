@@ -3,7 +3,7 @@
 
 import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
-import { rgba, noise, clamp, CLEAR, outline } from '../render/pixutil';
+import { rgba, noise, clamp, CLEAR, outline, applyGradientShading } from '../render/pixutil';
 const S = 128;
 
 export const DEF: MonsterDef = {
@@ -80,9 +80,9 @@ export function generateSprite(): Uint32Array {
     }
   }
 
-  // Pupil — vertical slit (reptilian)
-  for (let y = Math.floor(cy - 5 * sc); y < Math.floor(cy + 5 * sc); y++) {
-    const slitW = Math.max(1, (2 - Math.abs(y - cy) * 0.3 / sc) * sc);
+  // Pupil — prominent vertical slit (reptilian)
+  for (let y = Math.floor(cy - 7 * sc); y < Math.floor(cy + 7 * sc); y++) {
+    const slitW = Math.max(1.5, (3 - Math.abs(y - cy) * 0.35 / sc) * sc);
     for (let x = Math.floor(cx - slitW); x <= Math.floor(cx + slitW); x++) {
       if (x >= 0 && x < S) t[y * S + x] = rgba(5, 5, 5);
     }
@@ -101,7 +101,8 @@ export function generateSprite(): Uint32Array {
     }
   }
 
-  outline(t, rgba(40, 10, 10));
+  applyGradientShading(t, -Math.PI / 4, 0.6);
+  outline(t, rgba(20, 5, 5), 0, 2);
   return t;
 }
 

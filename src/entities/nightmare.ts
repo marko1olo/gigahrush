@@ -5,7 +5,7 @@
 
 import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
-import { rgba, noise, clamp, CLEAR, outline } from '../render/pixutil';
+import { rgba, noise, clamp, CLEAR, outline, applyGradientShading } from '../render/pixutil';
 const S = 128;
 
 export const DEF: MonsterDef = {
@@ -141,28 +141,28 @@ export function generateNightmareSprite(seed: number): Uint32Array {
         t[py * S + x] = rgba(10, 3, 5); // deeper shade
       }
     }
-    // Teeth — top row
+    // Teeth — top row (sharper)
     for (let x = mx; x < mx + mw; x++) {
       const topY = Math.floor(my - 1 * sc);
       if (x < 0 || x >= S || topY < 0) continue;
       if (t[Math.floor(my) * S + x] === CLEAR) continue;
       if (noise(x, my, seed + 304) > 0.35) {
-        for (let dy = 0; dy < Math.max(1, Math.floor(1 * sc)); dy++) {
-          if (topY - dy >= 0) t[(topY - dy) * S + x] = rgba(210, 200, 170);
+        for (let dy = 0; dy < Math.max(1, Math.floor(2 * sc)); dy++) { // longer teeth
+          if (topY - dy >= 0) t[(topY - dy) * S + x] = rgba(230, 220, 190);
         }
         if (noise(x, my, seed + 306) > 0.6) {
-          const extraY = Math.floor(my - 2 * sc);
-          if (extraY >= 0) t[extraY * S + x] = rgba(200, 190, 160);
+          const extraY = Math.floor(my - 3 * sc);
+          if (extraY >= 0) t[extraY * S + x] = rgba(210, 200, 170);
         }
       }
     }
-    // Teeth — bottom row
+    // Teeth — bottom row (sharper)
     for (let x = mx; x < mx + mw; x++) {
       const py = Math.floor(my + mh);
       if (x < 0 || x >= S || py >= S) continue;
       if (noise(x, py, seed + 305) > 0.4) {
-        for (let dy = 0; dy < Math.max(1, Math.floor(1 * sc)); dy++) {
-          if (py + dy < S) t[(py + dy) * S + x] = rgba(210, 200, 170);
+        for (let dy = 0; dy < Math.max(1, Math.floor(2 * sc)); dy++) { // longer teeth
+          if (py + dy < S) t[(py + dy) * S + x] = rgba(230, 220, 190);
         }
       }
     }
@@ -188,6 +188,7 @@ export function generateNightmareSprite(seed: number): Uint32Array {
     }
   }
 
-  outline(t, rgba(15, 5, 5));
+  applyGradientShading(t, -Math.PI / 4, 0.6);
+  outline(t, rgba(10, 5, 5), 0, 2);
   return t;
 }

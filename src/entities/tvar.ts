@@ -2,7 +2,7 @@
 
 import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
-import { rgba, noise, clamp, CLEAR, outline } from '../render/pixutil';
+import { rgba, noise, clamp, CLEAR, outline, applyGradientShading } from '../render/pixutil';
 const S = 128;
 
 export const DEF: MonsterDef = {
@@ -24,12 +24,13 @@ export function generateSprite(): Uint32Array {
   const cx = S / 2;
   const sc = S / 64; // scale multiplier
 
-  // Hunched mass
+  // Hunched mass with asymmetry
   for (let y = Math.floor(8 * sc); y < Math.floor(55 * sc); y++) {
-    const rx = Math.floor(14 * sc);
+    const asymX = (noise(1, y, 556) - 0.5) * 4 * sc;
+    const rx = Math.floor(14 * sc) + Math.floor((noise(2, y, 557) - 0.5) * 3 * sc);
     for (let x = cx - rx; x <= cx + rx; x++) {
       if (x < 0 || x >= S) continue;
-      const dx = (x - cx) / rx, dy = (y - 32 * sc) / (24 * sc);
+      const dx = (x - (cx + asymX)) / rx, dy = (y - 32 * sc) / (24 * sc);
       if (dx * dx + dy * dy < 1) {
         const n = noise(x, y, 555) * 20;
         const depth = Math.abs(x - cx) * 2 / sc;
@@ -62,19 +63,32 @@ export function generateSprite(): Uint32Array {
     if (rx >= 0 && rx < S) t[y * S + rx] = rgba(clamp(86 + n), clamp(82 + n), clamp(78 + n));
   }
 
-  // Multiple eyes with bright cores
-  for (const [ex, ey] of [[-5,16],[-2,14],[2,14],[5,16],[0,18]]) {
+  // Multiple eyes with bright cores and green gradient pulsing
+  for (const [ex, ey] of [[-5,16],[-2,14],[2,14],[5,16],[0,18], [-7, 21], [7, 21]]) {
     const px = Math.floor(cx + ex * sc);
     const py = Math.floor(ey * sc);
     if (px >= 0 && px < S && py >= 0 && py < S) {
-      t[py * S + px] = rgba(255, 255, 255); // bright core
-      if (px - 1 >= 0) t[py * S + px - 1] = rgba(180, 255, 180);
-      if (px + 1 < S) t[py * S + px + 1] = rgba(180, 255, 180);
-      if (py - 1 >= 0) t[(py - 1) * S + px] = rgba(180, 255, 180);
-      if (py + 1 < S) t[(py + 1) * S + px] = rgba(80, 170, 90);
+      const eR = Math.max(1, Math.floor(1.5 * sc));
+      for(let dy = -eR; dy <= eR; dy++) {
+        for(let dx = -eR; dx <= eR; dx++) {
+          if(dx*dx + dy*dy <= eR*eR) {
+            const nx = px + dx, ny = py + dy;
+            if(nx >= 0 && nx < S && ny >= 0 && ny < S) {
+               if(dx === 0 && dy === 0) {
+                 t[ny * S + nx] = rgba(255, 255, 255); // bright core
+               } else {
+                 const dist = Math.sqrt(dx*dx + dy*dy);
+                 const gIntensity = clamp(255 - dist * 80);
+                 t[ny * S + nx] = rgba(clamp(gIntensity * 0.7), gIntensity, clamp(gIntensity * 0.4));
+               }
+            }
+          }
+        }
+      }
     }
   }
 
-  outline(t, rgba(15, 15, 18));
+  applyGradientShading(t, -Math.PI / 3, 0.55);
+  outline(t, rgba(15, 15, 18), 0, 2);
   return t;
 }

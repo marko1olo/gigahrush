@@ -2,7 +2,7 @@
 
 import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
-import { rgba, noise, clamp, CLEAR, outline } from '../render/pixutil';
+import { rgba, noise, clamp, CLEAR, outline, applyGradientShading } from '../render/pixutil';
 const S = 128;
 
 export const DEF: MonsterDef = {
@@ -62,18 +62,35 @@ export function generateSprite(): Uint32Array {
     }
   }
 
-  const ex1 = Math.floor(cx - 3 * sc);
-  const ex2 = Math.floor(cx + 3 * sc);
+  const ex1 = Math.floor(cx - 4 * sc);
+  const ex2 = Math.floor(cx + 4 * sc);
   const ey1 = Math.floor(18 * sc);
-  const ey2 = Math.floor(19 * sc);
+  // const ey2 = Math.floor(19 * sc); // removed
 
-  // Eyes with pupils
-  for (let dy = 0; dy < Math.max(1, Math.floor(2 * sc)); dy++) {
-    for (let dx = 0; dx < Math.max(1, Math.floor(2 * sc)); dx++) {
-      t[(ey1 + dy) * S + (ex1 + dx)] = rgba(255, 100, 100);
-      t[(ey1 + dy) * S + (ex2 + dx)] = rgba(255, 100, 100);
-      t[(ey2 + dy) * S + (ex1 + dx)] = rgba(255, 80, 80);
-      t[(ey2 + dy) * S + (ex2 + dx)] = rgba(255, 80, 80);
+  // Eyes with prominent white sclera and red pupils
+  for (let dy = -1; dy < Math.max(2, Math.floor(3 * sc)); dy++) {
+    for (let dx = -1; dx < Math.max(2, Math.floor(3 * sc)); dx++) {
+      const e1Idx = (ey1 + dy) * S + (ex1 + dx);
+      const e2Idx = (ey1 + dy) * S + (ex2 + dx);
+      if (dx === 0 && dy === 0) {
+         t[e1Idx] = rgba(255, 50, 50); // pupil
+         t[e2Idx] = rgba(255, 50, 50);
+      } else {
+         t[e1Idx] = rgba(240, 240, 220); // sclera
+         t[e2Idx] = rgba(240, 240, 220);
+      }
+    }
+  }
+
+  // Expressive teeth
+  const mouthY = Math.floor(25 * sc);
+  for(let mx = Math.floor(cx - 5 * sc); mx <= Math.floor(cx + 5 * sc); mx++) {
+    if(noise(mx, mouthY, 447) > 0.4) {
+      for(let my = mouthY; my < mouthY + Math.max(1, Math.floor(2 * sc)); my++) {
+         t[my * S + mx] = rgba(220, 210, 190);
+      }
+    } else {
+      t[mouthY * S + mx] = rgba(15, 5, 5); // dark gaps
     }
   }
 
@@ -85,6 +102,7 @@ export function generateSprite(): Uint32Array {
     if (rx < S) t[y * S + rx] = rgba(clamp(78 + n), clamp(45 + n), clamp(42 + n));
   }
 
-  outline(t, rgba(20, 10, 15));
+  applyGradientShading(t, -Math.PI / 4, 0.6);
+  outline(t, rgba(15, 5, 10), 0, 2);
   return t;
 }
