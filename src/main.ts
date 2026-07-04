@@ -1095,6 +1095,7 @@ let lastProjectileHitMsgTick = -999;
 let runtimeCamera = createRuntimeCamera();
 let pendingLoad: (() => void) | null = null; // deferred heavy generation callback
 let pendingLoadDrawn = false; // true = loading screen was painted, next frame runs the callback
+let pendingTutorialSave = false;
 let platformGameplayMarkedActive = false;
 let currentTip = randomTip();
 let activeSkyProvider: (DynamicSkyTexture & { update(deltaSeconds: number): boolean }) | null = null;
@@ -7975,6 +7976,10 @@ function gameLoop(now: number): void {
     pendingLoad = null;
     pendingLoadDrawn = false;
     fn();
+    if (pendingTutorialSave) {
+      pendingTutorialSave = false;
+      saveGame();
+    }
     rebuildEntityIndex(entities, 'load');
     lastTime = performance.now(); // reset dt so we don't get a huge spike
     requestAnimationFrame(gameLoop);
@@ -8082,6 +8087,20 @@ function gameLoop(now: number): void {
     rebuildEntityIndexForSimulation(entities, entityIndexFrame).beginTelemetryFrame();
     playerActions(dt);
     syncPlayerActorSwitchBaseline();
+
+    if (state.pendingTutorialExit) {
+      state.pendingTutorialExit = false;
+      state.tutorialMode = false;
+      pendingTutorialSave = true;
+      publishEvent(state, {
+        type: 'tutorial_completed',
+        severity: 5,
+        privacy: 'public',
+        tags: ['tutorial'],
+      });
+      switchFloor(LiftDirection.DOWN, 'Вы вышли в Жилую зону', '#8fc', false, 0);
+    }
+
     // If switchFloor was triggered, pendingLoad is set — skip the rest of this frame
     if (pendingLoad) { requestAnimationFrame(gameLoop); return; }
     updateLiftArachnaEncounter(world, entities, player, state, dt, nextEntityId);

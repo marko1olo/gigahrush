@@ -104,6 +104,7 @@ import {
   getForcedSamosborVariant,
   getLastSamosborVariant,
 } from './samosbor_variants_runtime';
+import { completeTutorial } from './tutorial';
 import { isPlayerEntity } from './player_actor';
 import {
   paintTerritoryDisc,
@@ -2484,6 +2485,9 @@ export function updateSamosbor(
     }
 
     // ── END samosbor: unseal, mark for rebuild ──
+    if (state.tutorialMode) {
+      completeTutorial(state);
+    }
     const endedVariant = getActiveSamosborVariant();
     const aftermathZone = activeSamosborZoneId >= 0 ? world.zones[activeSamosborZoneId] : undefined;
     const endedIstotitDecision = endedVariant?.def.id === 'istotit'

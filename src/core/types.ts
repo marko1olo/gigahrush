@@ -937,6 +937,7 @@ export const WORLD_EVENT_TYPES = [
   'samosbor_started',
   'samosbor_zone_captured',
   'samosbor_ended',
+  'tutorial_completed',
   'hermodoor_borer_detected',
   'hermodoor_borer_damage',
   'hermodoor_borer_repaired',
@@ -1189,6 +1190,7 @@ export interface GameState {
   trailerMode?: boolean;
   tutorialMode?: boolean;
   tutorialStep?: number;
+  pendingTutorialExit?: boolean;
   showInventory: boolean;
   mapMode: number;          // 0=closed, 2=full map overlay; minimap is a UI setting
   fullMapRadius?: number;   // transient full-map zoom radius in cells; not part of save shape
