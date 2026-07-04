@@ -505,7 +505,7 @@ import {
   savePlatformRawGameSave,
 } from './systems/platform_bridge';
 import { addFactionRel, addFactionRelMutual, initFactionRelations } from './data/relations';
-import { createRuntimeCamera, resetRuntimeCamera, runtimeCameraView, startDeathCamera, updateRuntimeCamera, startTrailerCamera, updateTrailerCamera, startCinematicCamera } from './systems/camera';
+import { createRuntimeCamera, resetRuntimeCamera, runtimeCameraView, startDeathCamera, updateRuntimeCamera, startTrailerCamera, updateTrailerCamera, startCinematicCamera, followPlayerCamera } from './systems/camera';
 import { onHeraldKilled, onCreatorKilled, onHellArrival, tryCreateVoiceQuest, onVoidEntry } from './data/plot_events';
 import { randomTip } from './data/tips';
 import {
@@ -4258,9 +4258,9 @@ function switchFloor(
       if (isCinematicFloor && !activeFloorInstance && !route.activeInstance) {
         // Preset waypoints (simple flight path from player's starting position)
         const waypoints = [
-          [player.x, player.y],
-          [player.x + Math.cos(player.angle) * 4, player.y + Math.sin(player.angle) * 4],
-          [player.x + Math.cos(player.angle + Math.PI / 4) * 8, player.y + Math.sin(player.angle + Math.PI / 4) * 8]
+          { x: player.x, y: player.y },
+          { x: player.x + Math.cos(player.angle) * 4, y: player.y + Math.sin(player.angle) * 4 },
+          { x: player.x + Math.cos(player.angle + Math.PI / 4) * 8, y: player.y + Math.sin(player.angle + Math.PI / 4) * 8 }
         ];
         startCinematicCamera(runtimeCamera, player.x, player.y, waypoints);
       }
@@ -7997,6 +7997,10 @@ function gameLoop(now: number): void {
     handleTitleGamepadInput(inputFrame);
   }
 
+  if (runtimeCamera.mode === 'cinematic' && inputFrame.pressedActions.size > 0) {
+    followPlayerCamera(runtimeCamera);
+  }
+
   if (pageHiddenPause || platformPause) {
     clearExternalPauseInputsOnce();
     state.sleeping = false;
@@ -8426,6 +8430,10 @@ function gameLoop(now: number): void {
     const targetFog = 0.15;
     const initialFog = baseFog + smogFogBonus + (samosborVisual?.fogDensityBonus ?? 0.02);
     fogDensity = initialFog + (targetFog - initialFog) * p;
+  }
+
+  if (runtimeCamera.mode === 'cinematic') {
+    fogDensity = Math.min(fogDensity, 0.01);
   }
   const interferenceMode = screenInterferenceMode();
   const neuroScreenFx = uiElementEnabled('screen_fx');

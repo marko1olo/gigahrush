@@ -1,32 +1,24 @@
-1. **Add `hp` and `maxHp` to `Door` interface in `src/core/types.ts`**:
-   - Add `hp?: number;` and `maxHp?: number;` to the `Door` interface (around line 173).
+1. **Update Camera Mode Definition (`src/systems/camera.ts`)**:
+   - Use `replace_with_git_merge_diff` to update `startCinematicCamera` to accept a waypoints array of `{x: number, y: number}`, a `lookAtTarget` optionally, and an optional `speed` parameter.
+   - Use `replace_with_git_merge_diff` to redefine `CinematicCameraState` to include `splinePoints: Array<{x: number, y: number, time: number}>`, `splineProgress`, `splineDuration`, and `lookAtTarget`. Calculate duration based on distance and provided speed.
 
-2. **Handle saving/loading `hp` and `maxHp` in `src/systems/floor_memory.ts`**:
-   - Modify `sanitizeDoorEntries` to parse `hp` and `maxHp` from the `raw` object, validating they are finite numbers (or undefined). `hp` can be <= 0 if destroyed (though it should be open then, but just in case), and `maxHp` > 0.
+2. **Implement Catmull-Rom Spline Interpolation (`src/systems/camera.ts`)**:
+   - Use `replace_with_git_merge_diff` to add the `evaluateSpline(points: Array<{x: number, y: number, time: number}>, t: number): {x: number, y: number}` function.
+   - Use `replace_with_git_merge_diff` to update `updateCinematicCamera` to use `evaluateSpline` over `t` from 0 to 1 based on progress. Calculate camera `angle` based on `lookAtTarget` if provided, otherwise compute velocity tangent.
+   - Use `replace_with_git_merge_diff` to change the camera mode back to `'player'` via `followPlayerCamera(camera)` when the flight reaches `t >= 1`.
 
-3. **Implement `damageDoor` logic in a new export or existing file (e.g. `src/systems/door_state.ts`)**:
-   - Create a `damageDoor(world: World, door: Door, amount: number, msgs: any[], time: number, state: GameState)` function.
-   - If `door.maxHp` is undefined, initialize it based on the door type (HERMETIC=500, LOCKED/METAL=150, WOOD/others=50). Set `door.hp` = `door.maxHp`.
-   - Subtract `amount` from `door.hp`.
-   - If `door.hp <= 0`, set state to `DoorState.OPEN`, `world.cellVersion++` (to trigger nav tree rebuild), and call `world.markCellsDirty()`. Also push a message to `msgs` like `"Дверь выбита!"`.
+3. **Fog Density & Skip Control (`src/main.ts`)**:
+   - Use `replace_with_git_merge_diff` to lower the `fogDensity` in `src/main.ts` where `fogDensity` is calculated, if `runtimeCamera.mode === 'cinematic'`.
+   - Use `replace_with_git_merge_diff` inside `src/main.ts` input processing loop (right after `handleTitleGamepadInput` and resolving inputs) to cancel cinematic flight by calling `followPlayerCamera(runtimeCamera)` if `runtimeCamera.mode === 'cinematic'` and any action in `inputFrame.pressedActions` is present.
 
-4. **Add melee hit detection for doors in `src/main.ts`**:
-   - In the melee attack logic (around line 2980), after checking for `meleeTarget`, if no entity is hit (`!hitSomething`), calculate the cell index the player is facing (using `ax, ay`).
-   - If that cell is `Cell.DOOR`, retrieve the door from `world.doors`.
-   - Call `damageDoor` with the melee damage (`normalDmg`). Play a hit sound (e.g., `playBreak` or generic hit). Set `hitSomething = true` so durability is consumed.
+4. **Verify Implementation Files**:
+   - Use `run_in_bash_session` to run `git diff` and verify the file edits to `src/systems/camera.ts` and `src/main.ts` were applied successfully and compile without syntax errors.
 
-5. **Add E action (interact) bash for locked/hermetic doors in `src/systems/interactions.ts`**:
-   - In `activateDoor`, when the door is `HERMETIC_CLOSED` and locked by Samosbor, or `LOCKED` and the player doesn't have the key, apply a small amount of damage (e.g. 5) by calling `damageDoor`.
-   - E.g., player kicks the door when interacting without a key.
+5. **Write Unit Tests**:
+   - Use `replace_with_git_merge_diff` to append a new `test(...)` block in `tests/camera.test.ts` that explicitly calls `evaluateSpline` with an array of predefined waypoints and asserts the interpolated `{x, y}` output at `t=0.5` and `t=1.0`. Add another test for `startCinematicCamera` and `updateCinematicCamera` completing properly.
 
-6. **Visuals in `src/render/webgl.ts` (Cracks on low HP)**:
-   - "при door.hp < door.maxHp * 0.5 — рисовать текстуру с трещинами (модифицировать UV или overlay)".
-   - Update `rebuildDoorStates` to pack the "cracked" state into the highest bit of the 8-bit integer:
-     `const isCracked = door.hp !== undefined && door.maxHp !== undefined && door.hp < door.maxHp * 0.5;`
-     `out[ci] = door.state | (isCracked ? 128 : 0);`
-   - In the shader, unpack it in `sampleDoor` and `lightBoundary` using `& 127u`.
-   - In the rendering loop (DDA), read the top bit to determine `isCracked`. Pass this information along, or recalculate it. Actually, `uDoorStates` is read during DDA and `wallTexId` is assigned. We can also set a boolean `crackedDoor = (rawDoorState & 128u) != 0u;`.
-   - In the fragment coloring section, if `crackedDoor` is true, mix the texture color `c` with a darker color based on a procedural noise pattern (e.g. `noiseI` or `fract`) to simulate cracks.
+6. **Verify Tests**:
+   - Use `run_in_bash_session` to run `npm run typecheck`, run the targeted test (`npx tsx --test tests/camera.test.ts`), and run the full test suite in the background (`npm run check:readonly > check_readonly_output.txt 2>&1 &`). Include commands to monitor the output (e.g. `sleep 10; tail -n 20 check_readonly_output.txt`) and remove the log file (`rm check_readonly_output.txt check_pid.txt`) before committing.
 
-7. **Pre-commit step**:
+7. **Pre-commit Steps**:
    - Complete pre-commit steps to ensure proper testing, verification, review, and reflection are done.

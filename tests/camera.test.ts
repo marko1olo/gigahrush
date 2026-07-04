@@ -166,3 +166,48 @@ test('camera module does not expose old death camera entry points', () => {
   assert.equal('getDeathCamAngle' in cameraApi, false);
   assert.equal('getDeathCamPitch' in cameraApi, false);
 });
+
+test('evaluateSpline interpolates between points smoothly', () => {
+  const points = [
+    { x: 0, y: 0, time: 0 },
+    { x: 10, y: 10, time: 1 }
+  ];
+
+  const mid = cameraApi.evaluateSpline(points, 0.5);
+  assert.ok(Math.abs(mid.x - 5) < 0.1);
+  assert.ok(Math.abs(mid.y - 5) < 0.1);
+
+  const end = cameraApi.evaluateSpline(points, 1.0);
+  assert.ok(Math.abs(end.x - 10) < 0.1);
+  assert.ok(Math.abs(end.y - 10) < 0.1);
+
+  const start = cameraApi.evaluateSpline(points, 0.0);
+  assert.ok(Math.abs(start.x - 0) < 0.1);
+  assert.ok(Math.abs(start.y - 0) < 0.1);
+});
+
+test('startCinematicCamera and updateCinematicCamera completes properly', () => {
+  const camera = createRuntimeCamera();
+  const world = openWorld();
+  const waypoints = [
+    { x: 0, y: 0 },
+    { x: 10, y: 0 },
+    { x: 10, y: 10 }
+  ];
+
+  cameraApi.startCinematicCamera(camera, 0, 0, waypoints, undefined, 10);
+  assert.equal(camera.mode, 'cinematic');
+
+  // Total distance is ~ 10 + 10 = 20. Speed is 10. Duration is ~2.
+  if (camera.cinematic) {
+    assert.equal(camera.cinematic.splinePoints.length, 4); // Starting point + 3 waypoints
+  }
+
+  // Update a bit
+  updateRuntimeCamera(camera, world, 1.0);
+  assert.equal(camera.mode, 'cinematic');
+
+  // Finish flight
+  updateRuntimeCamera(camera, world, 2.0);
+  assert.equal(camera.mode, 'player');
+});
