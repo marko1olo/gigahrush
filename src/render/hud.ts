@@ -27,6 +27,7 @@ import { drawFeedbackMenu } from './feedback_ui';
 import { drawControlsMenu } from './controls_ui';
 import { drawHelpMenu } from './help_ui';
 import { drawUiSettingsMenu } from './ui_settings_ui';
+import { UI_BREAKPOINTS } from '../data/ui_settings';
 import { drawNpcMenu } from './npc_ui';
 import { drawContainerMenu } from './container_ui';
 import { drawCraftMenu } from './craft_ui';
@@ -87,7 +88,7 @@ import {
   drawSeroburmalineNoLookFx,
 } from './hud_fx';
 import { fitTextStable as fitUiText, setUiTextTime } from './ui_text';
-import { allocateHudSlot, createHudSlots, getMobileHudSafeContext, type UiRect } from './ui_layout';
+import { allocateHudSlot, createHudSlots, getMobileHudSafeContext, calculateUIScale, type UiRect } from './ui_layout';
 import { autoPickupEnabled, cameraPlaneLen, hudMotionMode, screenInterferenceMode, uiElementEnabled } from '../systems/ui_orchestrator';
 import { titleLanguageDef } from '../data/languages';
 import { getLocalizationLanguage } from '../systems/localization';
@@ -1330,9 +1331,11 @@ export function drawHUD(
   // Scale to match low-res viewport
   const w = ctx.canvas.width;
   const h = ctx.canvas.height;
-  const sx = w / SCR_W;
-  const sy = h / SCR_H;
-  const menuScale = Math.max(0.72, Math.min(1.68, Math.min(sx, sy)));
+
+  const uiScale = calculateUIScale(w);
+  const sx = (w / SCR_W) * uiScale;
+  const sy = (h / SCR_H) * uiScale;
+  const menuScale = Math.max(0.72, Math.min(1.68, Math.min(sx, sy))) * uiScale;
   const msx = menuScale;
   const msy = menuScale;
 
@@ -1342,11 +1345,17 @@ export function drawHUD(
   const time = uiTime;
   const gameTime = Number.isFinite(state.time) ? state.time : time;
   setUiTextTime(time);
+
+  const aspect = w / h;
+  const splitHud = aspect < UI_BREAKPOINTS.TALL_ASPECT;
+  const emergencyHud = w <= UI_BREAKPOINTS.EMERGENCY;
+
   const mobileHud = getMobileHudSafeContext();
+  const bottomHeightMultiplier = splitHud ? 2.5 : 1;
   const slots = createHudSlots(w, h, sx, sy, {
     mobileControls: mobileHud.enabled,
     safeInsets: mobileHud.safeInsets,
-    bottomVitalsHeight: NEEDS_PANEL_H * sy,
+    bottomVitalsHeight: NEEDS_PANEL_H * sy * bottomHeightMultiplier,
     topRightWidth: 212 * sx,
   });
   if (typeof window !== 'undefined' && window.location.search.includes('smoke')) {
@@ -1358,19 +1367,19 @@ export function drawHUD(
       centerInteraction: { ...slots.centerInteraction },
     };
   }
-  const showBottomTabs = uiElementEnabled('bottom_tabs');
-  const showWeaponPanel = uiElementEnabled('weapon_panel');
-  const showCrosshair = uiElementEnabled('crosshair');
+const showBottomTabs = !emergencyHud && uiElementEnabled('bottom_tabs');
+  const showWeaponPanel = uiElementEnabled('weapon_panel'); // Keep ammo
+  const showCrosshair = !emergencyHud && uiElementEnabled('crosshair');
   const showInteractionPrompt = uiElementEnabled('interaction_prompt');
   const showDamageFeedback = uiElementEnabled('damage_feedback');
   const showHazardWarning = uiElementEnabled('hazard_warning');
-  const showMessages = uiElementEnabled('messages');
-  const showLocationPanel = uiElementEnabled('location_panel');
-  const showMinimap = uiElementEnabled('minimap');
-  const showRouteHints = uiElementEnabled('route_hints');
-  const showCaravanHints = uiElementEnabled('caravan_hints');
-  const showStatusHints = uiElementEnabled('status_hints');
-  const showAnomalyHints = uiElementEnabled('anomaly_hints');
+  const showMessages = !emergencyHud && uiElementEnabled('messages');
+  const showLocationPanel = !emergencyHud && uiElementEnabled('location_panel');
+  const showMinimap = uiElementEnabled('minimap'); // Keep minimap
+  const showRouteHints = !emergencyHud && uiElementEnabled('route_hints');
+  const showCaravanHints = !emergencyHud && uiElementEnabled('caravan_hints');
+  const showStatusHints = !emergencyHud && uiElementEnabled('status_hints');
+  const showAnomalyHints = !emergencyHud && uiElementEnabled('anomaly_hints');
   const showScreenFx = uiElementEnabled('screen_fx');
   const showSamosborText = uiElementEnabled('samosbor_text');
   const reducedHudMotion = hudMotionMode() === 'reduced';
