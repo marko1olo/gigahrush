@@ -112,6 +112,13 @@ export function spawnCount(def: ItemDef): number {
 }
 
 export const ITEM_TAGS: Record<string, readonly string[]> = {
+  concrete_rubble: ['resource', 'construction', 'rubble'],
+  brick_pieces: ['resource', 'construction', 'rubble'],
+  rebar_piece: ['resource', 'construction', 'metal'],
+  pipe_fragment: ['resource', 'construction', 'metal', 'pipe'],
+  metal_scrap: ['resource', 'construction', 'metal'],
+  raw_meat: ['resource', 'organic', 'meat'],
+  electronics: ['resource', 'electronics'],
   manometer: ['pressure', 'heatline', 'tool'],
   asbestos_cord: ['repair', 'steam', 'heatline', 'hermetic', 'seal_input', 'cold_counter'],
   sealant_tube: ['repair', 'sealant', 'cleanup', 'technical_cleanup', 'heatline'],
@@ -371,6 +378,13 @@ export const ITEM_TAGS: Record<string, readonly string[]> = {
 };
 
 export const ITEMS: Record<string, ItemDef> = {
+  concrete_rubble:{ id:'concrete_rubble', name:'Кусок бетона', type:ItemType.MISC, desc:'Кусок бетонной стены. Тяжелый и бесполезный, если только не кинуть в кого-нибудь.', spawnRooms:[], spawnW:0, value:1, tags:[...ITEM_TAGS.concrete_rubble] },
+  brick_pieces:{ id:'brick_pieces', name:'Обломки кирпича', type:ItemType.MISC, desc:'Красные куски битого кирпича.', spawnRooms:[], spawnW:0, value:1, tags:[...ITEM_TAGS.brick_pieces] },
+  rebar_piece:{ id:'rebar_piece', name:'Арматура', type:ItemType.MISC, desc:'Ржавый кусок арматуры.', spawnRooms:[], spawnW:0, value:2, tags:[...ITEM_TAGS.rebar_piece] },
+  pipe_fragment:{ id:'pipe_fragment', name:'Обломок трубы', type:ItemType.MISC, desc:'Кусок старой трубы. Можно использовать как грузило или сдать на металл.', spawnRooms:[], spawnW:0, value:3, tags:[...ITEM_TAGS.pipe_fragment] },
+  metal_scrap:{ id:'metal_scrap', name:'Металлолом', type:ItemType.MISC, desc:'Искореженный кусок металла.', spawnRooms:[], spawnW:0, value:4, tags:[...ITEM_TAGS.metal_scrap] },
+  raw_meat:{ id:'raw_meat', name:'Сырое мясо', type:ItemType.MISC, desc:'Подозрительный кусок сырой плоти.', spawnRooms:[], spawnW:0, value:5, tags:[...ITEM_TAGS.raw_meat] },
+  electronics:{ id:'electronics', name:'Электроника', type:ItemType.MISC, desc:'Раскуроченная плата и провода.', spawnRooms:[], spawnW:0, value:5, tags:[...ITEM_TAGS.electronics] },
 
   // ── Armor ────────────────────────────────────────────────────────
   armor_light: { id: 'armor_light', name: 'Лёгкая броня', type: ItemType.MISC, desc: 'Базовая защита от кинетического урона и дроби.', spawnRooms: [RoomType.COMMON, RoomType.PRODUCTION], spawnW: 50, value: 500, resistances: { [DamageType.KINETIC]: 20, [DamageType.BUCKSHOT]: 30, [DamageType.FIRE]: 5 } },
