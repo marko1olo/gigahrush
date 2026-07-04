@@ -3778,11 +3778,25 @@ function triggerExplosion(p: Entity, pt: ProjType): void {
 /* ── Restart check ────────────────────────────────────────────── */
 function checkRestart(): void {
   if (state.gameOver && input.escape) {
+    if (state.tutorialMode) {
+      returnToTitleScreen();
+      input.escape = false;
+      return;
+    }
     continueDeathAsRandomNpc();
     input.escape = false;
     return;
   }
   if (state.gameOver && input.use) {
+    if (state.tutorialMode) {
+      resetRuntimeCamera(runtimeCamera);
+      scheduleLoading(() => {
+        initGame(undefined, undefined, true);
+        startTutorial(state, player);
+      });
+      input.use = false;
+      return;
+    }
     resetRuntimeCamera(runtimeCamera);
     scheduleLoading(() => { initGame(); });
     input.use = false;
@@ -5018,6 +5032,10 @@ function normalizeQuestList(input: unknown, nextQuestIdInput: unknown, nowMinute
 }
 
 function saveGame(): void {
+  if (state.tutorialMode) {
+    console.debug("Auto-save skipped: player is in tutorial mode.");
+    return;
+  }
   try {
     makeCurrentPlayer(endPsiPossession(entities, player, state.msgs, state.time, 'cancelled'));
     captureCurrentAlifeFloor();
