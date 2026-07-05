@@ -24,13 +24,13 @@ function put(t: Uint32Array, x: number, y: number, c: number): void {
   if (px >= 0 && px < S && py >= 0 && py < S) t[py * S + px] = c;
 }
 
-function rect(t: Uint32Array, x0: number, y0: number, w: number, h: number, c: number): void {
+function rect(t: Uint32Array, { x: x0, y: y0, w, h }: { x: number; y: number; w: number; h: number }, c: number): void {
   for (let y = y0; y < y0 + h; y++) {
     for (let x = x0; x < x0 + w; x++) put(t, x, y, c);
   }
 }
 
-function stampCircle(t: Uint32Array, cx: number, cy: number, r: number, c: number): void {
+function stampCircle(t: Uint32Array, { cx, cy, r }: { cx: number; cy: number; r: number }, c: number): void {
   for (let y = Math.floor(cy - r); y <= Math.ceil(cy + r); y++) {
     for (let x = Math.floor(cx - r); x <= Math.ceil(cx + r); x++) {
       const dx = (x - cx) / r;
@@ -41,7 +41,7 @@ function stampCircle(t: Uint32Array, cx: number, cy: number, r: number, c: numbe
   }
 }
 
-function drawPage(t: Uint32Array, cx: number, cy: number, ang: number, scale: number, seed: number): void {
+function drawPage(t: Uint32Array, { cx, cy, ang, scale, seed }: { cx: number; cy: number; ang: number; scale: number; seed: number }): void {
   const cos = Math.cos(ang);
   const sin = Math.sin(ang);
   const w = 4 * scale;
@@ -108,25 +108,25 @@ export function generateProtokolnikSprite(seed = 3535, pressureTier = 0): Uint32
     const x = 17 + Math.floor(noise(i, 0, seed + 500) * 31);
     const y = 24 + Math.floor(noise(i, 1, seed + 501) * 28);
     if (i & 1) {
-      rect(t, x, y, 5, 4, red);
-      rect(t, x + 1, y + 1, 3, 2, rgba(196, 42, 38));
+      rect(t, { x, y, w: 5, h: 4 }, red);
+      rect(t, { x: x + 1, y: y + 1, w: 3, h: 2 }, rgba(196, 42, 38));
     } else {
-      stampCircle(t, x + 2, y + 2, 4, red);
+      stampCircle(t, { cx: x + 2, cy: y + 2, r: 4 }, red);
     }
   }
 
-  rect(t, 23, 8, 18, 11, rgba(214, 196, 136));
-  rect(t, 21, 10, 22, 7, rgba(28, 24, 22));
-  rect(t, 24, 11, 16, 5, rgba(214, 196, 136));
-  rect(t, 27, 5, 10, 5, rgba(30, 24, 20));
-  rect(t, 29, 2, 6, 4, rgba(84, 54, 32));
+  rect(t, { x: 23, y: 8, w: 18, h: 11 }, rgba(214, 196, 136));
+  rect(t, { x: 21, y: 10, w: 22, h: 7 }, rgba(28, 24, 22));
+  rect(t, { x: 24, y: 11, w: 16, h: 5 }, rgba(214, 196, 136));
+  rect(t, { x: 27, y: 5, w: 10, h: 5 }, rgba(30, 24, 20));
+  rect(t, { x: 29, y: 2, w: 6, h: 4 }, rgba(84, 54, 32));
 
   const orbitCount = 4 + pressure * 2;
   const spin = pressure * 0.72;
   for (let i = 0; i < orbitCount; i++) {
     const a = (Math.PI * 2 * i) / orbitCount + spin + noise(i, pressure, seed + 800) * 0.5;
     const r = 18 + pressure * 1.4 + noise(i, 1, seed + 801) * 3;
-    drawPage(t, cx + Math.cos(a) * r, 27 + Math.sin(a) * (r * 0.58), a + Math.PI * 0.35, 0.62, seed + 900 + i);
+    drawPage(t, { cx: cx + Math.cos(a) * r, cy: 27 + Math.sin(a) * (r * 0.58), ang: a + Math.PI * 0.35, scale: 0.62, seed: seed + 900 + i });
   }
 
   return t;
