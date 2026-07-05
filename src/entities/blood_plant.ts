@@ -31,7 +31,20 @@ function line(t: Uint32Array, x0: number, y0: number, x1: number, y1: number, r:
   }
 }
 
-function ellipse(t: Uint32Array, cx: number, cy: number, rx: number, ry: number, r: number, g: number, b: number, seed: number, a = 255): void {
+interface EllipseOpts {
+  cx: number;
+  cy: number;
+  rx: number;
+  ry: number;
+  r: number;
+  g: number;
+  b: number;
+  seed: number;
+  a?: number;
+}
+
+function ellipse(t: Uint32Array, opts: EllipseOpts): void {
+  const { cx, cy, rx, ry, r, g, b, seed, a = 255 } = opts;
   const x0 = Math.max(0, Math.floor(cx - rx));
   const x1 = Math.min(S - 1, Math.ceil(cx + rx));
   const y0 = Math.max(0, Math.floor(cy - ry));
@@ -77,9 +90,9 @@ export function generateSprite(): Uint32Array {
   }
 
   // Red-black trunk with a partial human posture.
-  ellipse(t, cx, 35, 10, 21, 42, 16, 20, 1510, 255);
-  ellipse(t, cx - 1, 23, 7, 10, 52, 18, 22, 1511, 250);
-  ellipse(t, cx + 1, 42, 12, 15, 35, 12, 16, 1512, 255);
+  ellipse(t, { cx, cy: 35, rx: 10, ry: 21, r: 42, g: 16, b: 20, seed: 1510, a: 255 });
+  ellipse(t, { cx: cx - 1, cy: 23, rx: 7, ry: 10, r: 52, g: 18, b: 22, seed: 1511, a: 250 });
+  ellipse(t, { cx: cx + 1, cy: 42, rx: 12, ry: 15, r: 35, g: 12, b: 16, seed: 1512, a: 255 });
   for (let y = 14; y < 55; y++) {
     const half = 4 + Math.sin(y * 0.22) * 2.4 + (y > 35 ? 2.2 : 0);
     for (let x = Math.floor(cx - half); x <= Math.ceil(cx + half); x++) {
@@ -113,10 +126,10 @@ export function generateSprite(): Uint32Array {
     const x = cx + Math.cos(a) * r;
     const y = 12 + Math.sin(a) * r * 0.55;
     line(t, cx, 17, x, y, 92, 12, 18, 150);
-    ellipse(t, x, y, 1.5, 1.5, 226, 18, 32, 1541 + i, 245);
+    ellipse(t, { cx: x, cy: y, rx: 1.5, ry: 1.5, r: 226, g: 18, b: 32, seed: 1541 + i, a: 245 });
     if (i % 5 === 0) put(t, Math.round(x), Math.round(y - 1), 255, 116, 124, 250);
   }
-  ellipse(t, cx, 17, 3.2, 3.2, 92, 12, 18, 1559, 245);
+  ellipse(t, { cx, cy: 17, rx: 3.2, ry: 3.2, r: 92, g: 12, b: 18, seed: 1559, a: 245 });
 
   return t;
 }
