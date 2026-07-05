@@ -52,7 +52,10 @@ export function ellipse(
   }
 }
 
-export function triangle(t: Uint32Array, ax: number, ay: number, bx: number, by: number, cx: number, cy: number, color: number): void {
+export function triangle(t: Uint32Array, a: [number, number], b: [number, number], c: [number, number], color: number): void {
+  const [ax, ay] = a;
+  const [bx, by] = b;
+  const [cx, cy] = c;
   const minX = Math.max(0, Math.floor(Math.min(ax, bx, cx)));
   const maxX = Math.min(S - 1, Math.ceil(Math.max(ax, bx, cx)));
   const minY = Math.max(0, Math.floor(Math.min(ay, by, cy)));
@@ -85,11 +88,11 @@ export function generateSprite(): Uint32Array {
   }
 
   // Crescent tail and ragged fins.
-  triangle(t, 12, 31, 2, 20, 5, 33, rgba(28, 34, 58, 230));
-  triangle(t, 12, 32, 3, 48, 7, 34, rgba(24, 28, 50, 220));
-  triangle(t, 27, 24, 35, 7, 39, 26, fin);
-  triangle(t, 31, 38, 42, 55, 37, 36, rgba(24, 30, 52, 220));
-  triangle(t, 18, 36, 12, 48, 27, 40, rgba(30, 36, 60, 205));
+  triangle(t, [12, 31], [2, 20], [5, 33], rgba(28, 34, 58, 230));
+  triangle(t, [12, 32], [3, 48], [7, 34], rgba(24, 28, 50, 220));
+  triangle(t, [27, 24], [35, 7], [39, 26], fin);
+  triangle(t, [31, 38], [42, 55], [37, 36], rgba(24, 30, 52, 220));
+  triangle(t, [18, 36], [12, 48], [27, 40], rgba(30, 36, 60, 205));
 
   // Main side-facing body, tilted up toward the teeth.
   ellipse(t, 32, 31, 23, 10, (x, y, d) => {
