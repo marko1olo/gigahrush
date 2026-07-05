@@ -38,7 +38,8 @@ function dusty(x: number, y: number): number {
   return rgba(clamp(156 + n), clamp(151 + n), clamp(138 + n), 210);
 }
 
-function line(t: Uint32Array, x0: number, y0: number, x1: number, y1: number, seed: number, w = 1): void {
+function line(t: Uint32Array, opts: { x0: number; y0: number; x1: number; y1: number; seed: number; w?: number }): void {
+  const { x0, y0, x1, y1, seed, w = 1 } = opts;
   const dx = x1 - x0;
   const dy = y1 - y0;
   const steps = Math.max(1, Math.ceil(Math.max(Math.abs(dx), Math.abs(dy))));
@@ -81,15 +82,15 @@ export function generateSprite(): Uint32Array {
     const y = 36 + i * 3;
     const x0 = cx - 22 + (i % 2);
     const x1 = cx + 22 - (i % 3);
-    line(t, x0, y, x1, y + (i === 3 ? 0 : (i % 2)), 7360 + i, i === 2 ? 1 : 0);
+    line(t, { x0, y0: y, x1, y1: y + (i === 3 ? 0 : (i % 2)), seed: 7360 + i, w: i === 2 ? 1 : 0 });
   }
 
   // Crooked walker shape unfolding out of the stack.
-  line(t, cx - 5, 38, cx - 18, 58, 7391, 1);
-  line(t, cx + 4, 38, cx + 19, 57, 7392, 1);
-  line(t, cx - 2, 40, cx + 13, 25, 7393, 0);
-  line(t, cx + 3, 41, cx - 13, 25, 7394, 0);
-  line(t, cx - 10, 47, cx + 12, 47, 7395, 1);
+  line(t, { x0: cx - 5, y0: 38, x1: cx - 18, y1: 58, seed: 7391, w: 1 });
+  line(t, { x0: cx + 4, y0: 38, x1: cx + 19, y1: 57, seed: 7392, w: 1 });
+  line(t, { x0: cx - 2, y0: 40, x1: cx + 13, y1: 25, seed: 7393, w: 0 });
+  line(t, { x0: cx + 3, y0: 41, x1: cx - 13, y1: 25, seed: 7394, w: 0 });
+  line(t, { x0: cx - 10, y0: 47, x1: cx + 12, y1: 47, seed: 7395, w: 1 });
 
   // Concrete dust and missing rod ends.
   for (let i = 0; i < 46; i++) {
