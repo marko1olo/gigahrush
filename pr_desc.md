@@ -1,8 +1,13 @@
-💡 **What:** The optimization implemented
-Replaced the `hqRooms.push(...stampSpectralHqCompound(world, spec).filter(room => room.type === RoomType.HQ))` pattern inside `expandSpectralRouteGeometry` with a standard `for` loop that iterates over the generated compound rooms and pushes matching ones directly.
+🧹 [code health improvement] Refactor `ellipse` function in `blood_plant.ts`
 
-🎯 **Why:** The performance problem it solves
-The previous pattern creates an unnecessary intermediate array allocation and uses spread syntax on it `push(...arr)` inside a loop over `SPECTRAL_HQ_SPECS`. This causes unnecessary garbage collection pressure and can be slow/problematic if the array is large (though in this specific case, spreading large arrays can also hit stack size limits).
+🎯 **What:** The `ellipse` function in `src/entities/blood_plant.ts` had 10 parameters, which made calls difficult to read and maintain. The function signature has been refactored to take an `EllipseOpts` configuration object containing all the parameters. All internal calls to this function have been updated to use the new object signature.
 
-📊 **Measured Improvement:**
-Using a local ad-hoc benchmark script scaling `SPECTRAL_HQ_SPECS` to 100 entries and running it 100,000 times, the execution time was improved from roughly **1277ms** to **689ms** (approximately an 85% speedup relative to the baseline time for that inner-loop operation).
+💡 **Why:** Reduces parameter count and improves readability. When passing 10 primitive parameters, it's easy to make mistakes with the order, and the intent of each parameter is hidden at the call site. Using an options object ensures the caller explicitly labels `cx`, `cy`, `rx`, `ry`, etc.
+
+✅ **Verification:**
+- Successfully passed `npm run typecheck`
+- Successfully passed `npm run content:audit`
+- Successfully passed full test suite via `npm run test:unit`
+- Directly passed isolated `tests/monster_blood_plant.test.ts` and `tests/monster_15_blood_plant.test.ts`
+
+✨ **Result:** The `ellipse` function in `blood_plant.ts` is now clean and easier to invoke without guessing the argument order. No functionality or game behavior was changed.
