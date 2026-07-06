@@ -99,6 +99,7 @@ import {
   cycleScreenInterferenceMode,
   cycleVisualGeometryMode,
   cycleLightingQualityMode,
+  toggleLightGraphicsEnabled,
   adjustMobileLookSensitivity,
   adjustMouseLookSensitivity,
   applyUiPreset,
@@ -6523,6 +6524,11 @@ function applyUiSettingsSelection(index: number): void {
   if (row.kind === 'lighting_quality') {
     const mode = cycleLightingQualityMode(1);
     state.msgs.push(msg(`Качество света: ${lightingQualityModeLabel(mode).toLowerCase()}`, state.time, mode === 'off' ? '#fc8' : '#8cf'));
+    return;
+  }
+  if (row.kind === 'light_graphics') {
+    const enabled = toggleLightGraphicsEnabled();
+    state.msgs.push(msg(`Лёгкая графика: ${enabled ? 'ВКЛ' : 'ВЫКЛ'}`, state.time, '#8cf'));
     return;
   }
   if (row.kind === 'map_contrast') {

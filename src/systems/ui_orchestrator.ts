@@ -75,6 +75,7 @@ export const VISUAL_GEOMETRY_MODE_LABELS: Readonly<Record<VisualGeometryMode, st
 export const LIGHTING_QUALITY_MODES = ['off', 'low', 'medium', 'high', 'experimental'] as const;
 export type LightingQualityMode = typeof LIGHTING_QUALITY_MODES[number];
 export const LIGHTING_QUALITY_DEFAULT_MODE: LightingQualityMode = 'experimental';
+export const LIGHT_GRAPHICS_ENABLED_DEFAULT = (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0) || (typeof window !== 'undefined' && window.innerWidth < 1024);
 export const CRITTERS_ENABLED_DEFAULT = true;
 export const LIGHTING_QUALITY_MODE_LABELS: Readonly<Record<LightingQualityMode, string>> = {
   off: 'Выкл',
@@ -120,6 +121,7 @@ type UiSettings = Record<UiElementId, boolean> & {
   hudMotionMode: HudMotionMode;
   visualGeometryMode: VisualGeometryMode;
   lightingQualityMode: LightingQualityMode;
+  lightGraphicsEnabled: boolean;
   crittersEnabled: boolean;
 } & Record<MapLegendToggleId, boolean>;
 
@@ -253,6 +255,7 @@ const GRAPHICS_SETTINGS_ROWS = [
   { kind: 'hud_motion', id: 'hud_motion', group: 'HUD', label: 'Движение HUD' },
   { kind: 'visual_geometry', id: 'visual_geometry', group: 'Графика', label: '3D детализация' },
   { kind: 'lighting_quality', id: 'lighting_quality', group: 'Графика', label: 'Качество света' },
+  { kind: 'light_graphics', id: 'light_graphics', group: 'Графика', label: 'Лёгкая графика' },
   { kind: 'camera_fov', id: 'camera_fov', group: 'Графика', label: 'FOV / угол обзора' },
   { kind: 'map_contrast', id: 'map_contrast', group: 'Карта', label: 'Контраст карты' },
   { kind: 'critters', id: 'critters', group: 'Графика', label: 'Живность (мухи)' },
@@ -304,6 +307,7 @@ function settingsFromEnabledIds(enabledIds: readonly UiElementId[]): UiSettings 
   out.hudMotionMode = HUD_MOTION_DEFAULT;
   out.visualGeometryMode = VISUAL_GEOMETRY_DEFAULT_MODE;
   out.lightingQualityMode = LIGHTING_QUALITY_DEFAULT_MODE;
+  out.lightGraphicsEnabled = LIGHT_GRAPHICS_ENABLED_DEFAULT;
   out.crittersEnabled = CRITTERS_ENABLED_DEFAULT;
   for (const def of MAP_LEGEND_TOGGLE_DEFS) out[def.id] = def.defaultEnabled;
   return out;
@@ -335,6 +339,7 @@ function normalizeUiSettings(raw: unknown): UiSettings {
   out.hudMotionMode = normalizeHudMotionMode(src.hudMotionMode);
   out.visualGeometryMode = normalizeVisualGeometryMode(src.visualGeometryMode);
   out.lightingQualityMode = normalizeLightingQualityMode(src.lightingQualityMode);
+  out.lightGraphicsEnabled = typeof src.lightGraphicsEnabled === 'boolean' ? src.lightGraphicsEnabled : LIGHT_GRAPHICS_ENABLED_DEFAULT;
   out.crittersEnabled = typeof src.crittersEnabled === 'boolean' ? src.crittersEnabled : CRITTERS_ENABLED_DEFAULT;
   for (const def of MAP_LEGEND_TOGGLE_DEFS) {
     const value = src[def.id];
@@ -479,6 +484,7 @@ export function applyUiPreset(id: UiPresetId): boolean {
   settings.hudMotionMode = hudMotion;
   settings.visualGeometryMode = geometryMode;
   settings.lightingQualityMode = lightingMode;
+  settings.lightGraphicsEnabled = LIGHT_GRAPHICS_ENABLED_DEFAULT;
   settings.crittersEnabled = critters;
   for (const [id, enabled] of mapToggles) settings[id] = enabled;
   saveUiSettings();
@@ -625,6 +631,7 @@ export function resetGraphicsSettings(): void {
   settings.hudMotionMode = HUD_MOTION_DEFAULT;
   settings.visualGeometryMode = VISUAL_GEOMETRY_DEFAULT_MODE;
   settings.lightingQualityMode = LIGHTING_QUALITY_DEFAULT_MODE;
+  settings.lightGraphicsEnabled = LIGHT_GRAPHICS_ENABLED_DEFAULT;
   saveUiSettings();
 }
 
@@ -759,4 +766,19 @@ export function uiSettingsRowAt(index: number, view: UiSettingsView = 'interface
   const gameplay = GAMEPLAY_SETTINGS_ROWS[localIndex - UI_PRESETS.length - UI_ELEMENT_DEFS.length];
   if (gameplay) return gameplay;
   return MOBILE_SETTINGS_ROWS[localIndex - UI_PRESETS.length - UI_ELEMENT_DEFS.length - GAMEPLAY_SETTINGS_ROWS.length];
+}
+
+export function lightGraphicsEnabled(): boolean {
+  if (typeof settings.lightGraphicsEnabled !== 'boolean') settings.lightGraphicsEnabled = LIGHT_GRAPHICS_ENABLED_DEFAULT;
+  return settings.lightGraphicsEnabled;
+}
+
+export function setLightGraphicsEnabled(enabled: boolean): boolean {
+  settings.lightGraphicsEnabled = enabled;
+  saveUiSettings();
+  return settings.lightGraphicsEnabled;
+}
+
+export function toggleLightGraphicsEnabled(): boolean {
+  return setLightGraphicsEnabled(!lightGraphicsEnabled());
 }
