@@ -14,7 +14,6 @@ import { carveCorridor } from '../shared';
 import {
   createSocialPoiRoom,
   placeDropNear,
-  registerKvSocialMapCue,
   setFeatureIfFloor,
   spawnAmbientNpc,
   spawnSocialNpc,
@@ -296,8 +295,8 @@ export function generateBarricade(
     if (y === repairY || y === bribeY || y === fightY || y === detourY) continue;
     setRoomWall(world, gateX, y);
   }
-  const repairDoor = setLockedGate(world, poi, gateX, repairY);
-  const bribeDoor = setLockedGate(world, poi, gateX, bribeY);
+  setLockedGate(world, poi, gateX, repairY);
+  setLockedGate(world, poi, gateX, bribeY);
   setRoomFloor(world, poi, gateX, fightY);
   setRoomFloor(world, poi, gateX, detourY);
 
@@ -330,52 +329,6 @@ export function generateBarricade(
 
   const targetX = eastExit.x;
   const targetY = eastExit.y;
-  registerKvSocialMapCue(world, {
-    id: 'kv_barricade_repair_gate',
-    kind: 'repair',
-    x: gateX + 0.5,
-    y: repairY + 0.5,
-    targetX,
-    targetY,
-    label: 'ремонтная створка',
-    shortLabel: 'РЕМ',
-    color: '#6cf',
-    doorIdx: repairDoor,
-  });
-  registerKvSocialMapCue(world, {
-    id: 'kv_barricade_bribe_gate',
-    kind: 'bribe',
-    x: gateX + 0.5,
-    y: bribeY + 0.5,
-    targetX,
-    targetY,
-    label: 'платная створка',
-    shortLabel: '₽',
-    color: '#fc6',
-    doorIdx: bribeDoor,
-  });
-  registerKvSocialMapCue(world, {
-    id: 'kv_barricade_fight_gap',
-    kind: 'fight',
-    x: gateX + 0.5,
-    y: fightY + 0.5,
-    targetX,
-    targetY,
-    label: 'боевая щель',
-    shortLabel: 'БОЙ',
-    color: '#f66',
-  });
-  registerKvSocialMapCue(world, {
-    id: 'kv_barricade_detour_gap',
-    kind: 'detour',
-    x: gateX + 0.5,
-    y: detourY + 0.5,
-    targetX,
-    targetY,
-    label: 'нижний обход',
-    shortLabel: 'ОБХ',
-    color: '#9cf',
-  });
 
   const markerCell = world.idx(Math.floor(westEntry.x), Math.floor(westEntry.y));
   registerRouteCue(world, {
