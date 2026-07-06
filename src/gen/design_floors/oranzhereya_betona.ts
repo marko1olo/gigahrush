@@ -519,14 +519,19 @@ export function expandOranzhereyaBetonaRouteGeometry(world: World, rng: () => nu
 }
 
 export function reinforceOranzhereyaBetonaAuthoredTerritory(world: World): void {
+  const roomsByName = new Map<string, Room>();
+  for (const room of world.rooms) {
+    if (room.name) roomsByName.set(room.name, room);
+  }
+
   for (const spec of ORANZHEREYA_HQ_SPECS) {
-    const hq = world.rooms.find(room => room.name === spec.name);
+    const hq = roomsByName.get(spec.name);
     if (hq) {
       hardenAuthoredHq(world, hq, spec.owner);
       paintRoomTerritory(world, hq, spec.owner);
     }
     for (const support of spec.supports) {
-      const room = world.rooms.find(candidate => candidate.name === hqSupportName(spec, support));
+      const room = roomsByName.get(hqSupportName(spec, support));
       if (room) paintRoomTerritory(world, room, spec.owner);
     }
   }
@@ -539,7 +544,7 @@ export function reinforceOranzhereyaBetonaAuthoredTerritory(world: World): void 
     [ORANZHEREYA_ROOM_NAMES.marketStall, ZoneFaction.WILD],
     [ORANZHEREYA_ROOM_NAMES.compost, ZoneFaction.CULTIST],
   ] as const) {
-    const room = world.rooms.find(candidate => candidate.name === name);
+    const room = roomsByName.get(name);
     if (!room) continue;
     if (
       name === ORANZHEREYA_ROOM_NAMES.guardPost ||
@@ -719,9 +724,20 @@ function carveMacroIrrigation(world: World, rng: () => number): void {
 }
 
 function connectExpansionRooms(world: World, rooms: readonly Room[]): void {
-  const gallery = world.rooms.find(room => room.name === ORANZHEREYA_ROOM_NAMES.gallery)
-    ?? world.rooms.find(room => room.type === RoomType.COMMON)
-    ?? world.rooms[0];
+  let gallery;
+  let firstCommon;
+  for (let i = 0; i < world.rooms.length; i++) {
+    const room = world.rooms[i];
+    if (room.name === ORANZHEREYA_ROOM_NAMES.gallery) {
+      gallery = room;
+      break;
+    }
+    if (!firstCommon && room.type === RoomType.COMMON) {
+      firstCommon = room;
+    }
+  }
+  gallery = gallery ?? firstCommon ?? world.rooms[0];
+
   if (!gallery) return;
   for (const room of rooms) connectRoomPair(world, gallery, room);
   for (let i = 1; i < rooms.length; i++) {
@@ -1683,7 +1699,14 @@ function placeDrops(world: World, entities: Entity[], nextId: NextId, rooms: Gre
   dropItems(entities, nextId, rooms.mushroomWard, ['infected_mushroom', 'spore_print', 'substrate_sack']);
   dropItems(entities, nextId, rooms.burnTrench, ['rock_salt', 'ammo_fuel']);
 
-  const cleansingPost = world.rooms.find(r => r.name === 'Огневой рубеж хим-зачистки');
+  let cleansingPost;
+  for (let i = 0; i < world.rooms.length; i++) {
+    if (world.rooms[i].name === 'Огневой рубеж хим-зачистки') {
+      cleansingPost = world.rooms[i];
+      break;
+    }
+  }
+
   if (cleansingPost) dropItems(entities, nextId, cleansingPost, ['body_bag_roll', 'corpse_number_tag', 'contaminated_gloves']);
 }
 
@@ -1713,16 +1736,18 @@ function spawnThreats(world: World, entities: Entity[], nextId: NextId, rooms: G
   spawnMonster(world, entities, nextId, MonsterKind.CHERNOSLIZ, rooms.waterBasin, 6, 3, 'Чернослиз питательного басейна');
   spawnMonster(world, entities, nextId, MonsterKind.POMOYNY_ROY, rooms.compost, 3, 2, 'Компостный рой');
 
-  const secretWard = world.rooms.find(r => r.name === 'Секретный бокс гидропоники НИИ');
+  let secretWard, smugglePoint, cultAltar, hydroNode;
+  for (let i = 0; i < world.rooms.length; i++) {
+    const name = world.rooms[i].name;
+    if (name === 'Секретный бокс гидропоники НИИ') secretWard = world.rooms[i];
+    else if (name === 'Перевалочный пункт агро-контрабанды') smugglePoint = world.rooms[i];
+    else if (name === 'Святилище Спор Чернобога') cultAltar = world.rooms[i];
+    else if (name === 'Узел гидро-распределения О-8') hydroNode = world.rooms[i];
+  }
+
   if (secretWard) spawnMonster(world, entities, nextId, MonsterKind.CHERNOSLIZ, secretWard, 5, 4, 'Лабораторный прото-чернослиз');
-
-  const smugglePoint = world.rooms.find(r => r.name === 'Перевалочный пункт агро-контрабанды');
   if (smugglePoint) spawnMonster(world, entities, nextId, MonsterKind.BORSHCHEVIK, smugglePoint, 5, 4, 'Перекормленный борщевик-охранник');
-
-  const cultAltar = world.rooms.find(r => r.name === 'Святилище Спор Чернобога');
   if (cultAltar) spawnMonster(world, entities, nextId, MonsterKind.POMOYNY_ROY, cultAltar, 5, 3, 'Благословенный рой культа');
-
-  const hydroNode = world.rooms.find(r => r.name === 'Узел гидро-распределения О-8');
   if (hydroNode) spawnMonster(world, entities, nextId, MonsterKind.SPORE_CARPET, hydroNode, 5, 3, 'Уплотненный споровый ковер');
 }
 
