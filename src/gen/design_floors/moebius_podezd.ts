@@ -172,6 +172,23 @@ const MOEBIUS_STATIONS: readonly MoebiusStationSpec[] = [
   { x: 466, y: 704, w: 58, h: 38, type: RoomType.MEDICAL, name: 'Пункт измерения тошноты от ориентации', owner: ZoneFaction.SCIENTIST, linkX: 512, linkY: 626, wallTex: Tex.TILE_W, floorTex: Tex.F_TILE },
 ] as const;
 
+
+const MOEBIUS_HQ_MAP = new Map<string, MoebiusHqSite>();
+const MOEBIUS_STATION_MAP = new Map<string, TerritoryOwner>();
+const MOEBIUS_HQ_PREFIX_MAP = new Map<string, TerritoryOwner>();
+const MOEBIUS_DISTRICT_PREFIX_MAP = new Map<string, TerritoryOwner>();
+
+for (const site of MOEBIUS_HQ_SITES) {
+  MOEBIUS_HQ_MAP.set(site.name, site as any);
+  MOEBIUS_HQ_PREFIX_MAP.set(`${site.name}:`, site.owner);
+}
+for (const station of MOEBIUS_STATIONS) {
+  MOEBIUS_STATION_MAP.set(station.name, station.owner);
+}
+for (const district of MOEBIUS_DISTRICTS) {
+  MOEBIUS_DISTRICT_PREFIX_MAP.set(`${district.name}:`, district.owner);
+}
+
 export interface MoebiusPodezdDecisionMetrics {
   mirroredFlatRooms: number;
   residentialStrips: number;
@@ -231,25 +248,47 @@ export function expandMoebiusPodezdRouteGeometry(world: World, rng: () => number
 }
 
 export function reinforceMoebiusPodezdAuthoredTerritory(world: World): void {
-  for (const site of MOEBIUS_HQ_SITES) {
-    const hq = world.rooms.find(room => room.name === site.name);
-    if (!hq) continue;
-    hq.type = RoomType.HQ;
-    hq.sealed = true;
-    hq.wallTex = Tex.HERMO_WALL;
-    markMoebiusHermeticRoom(world, hq);
-    paintRoomOwner(world, hq, site.owner);
-    for (const support of world.rooms) {
-      if (support.name.startsWith(`${site.name}:`)) paintRoomOwner(world, support, site.owner);
+  // Pass 1: find spawned HQs and mark them
+  const spawnedHqPrefixes = new Set<string>();
+  for (const room of world.rooms) {
+    const hqSite = MOEBIUS_HQ_MAP.get(room.name);
+    if (hqSite) {
+      room.type = RoomType.HQ;
+      room.sealed = true;
+      room.wallTex = Tex.HERMO_WALL;
+      markMoebiusHermeticRoom(world, room);
+      paintRoomOwner(world, room, hqSite.owner);
+      spawnedHqPrefixes.add(`${room.name}:`);
     }
   }
-  for (const station of MOEBIUS_STATIONS) {
-    const room = world.rooms.find(candidate => candidate.name === station.name);
-    if (room) paintRoomOwner(world, room, station.owner);
-  }
-  for (const district of MOEBIUS_DISTRICTS) {
-    for (const room of world.rooms) {
-      if (room.name.startsWith(`${district.name}:`)) paintRoomOwner(world, room, district.owner);
+
+  // Pass 2: paint stations, valid HQ support rooms, and district rooms
+  for (const room of world.rooms) {
+    // Avoid re-processing exact match HQs
+    if (MOEBIUS_HQ_MAP.has(room.name)) continue;
+
+    const stationOwner = MOEBIUS_STATION_MAP.get(room.name);
+    if (stationOwner) {
+      paintRoomOwner(world, room, stationOwner);
+      continue;
+    }
+
+    const colonIdx = room.name.indexOf(':');
+    if (colonIdx !== -1) {
+      const prefix = room.name.substring(0, colonIdx + 1);
+
+      const districtOwner = MOEBIUS_DISTRICT_PREFIX_MAP.get(prefix);
+      if (districtOwner) {
+        paintRoomOwner(world, room, districtOwner);
+        continue;
+      }
+
+      if (spawnedHqPrefixes.has(prefix)) {
+        const hqOwner = MOEBIUS_HQ_PREFIX_MAP.get(prefix);
+        if (hqOwner) {
+            paintRoomOwner(world, room, hqOwner);
+        }
+      }
     }
   }
   world.markWallTexDirty();
