@@ -1,5 +1,19 @@
 /* ── Procedural sound engine (Web Audio API) ─────────────────── */
 
+
+const activeNodes = new Set<{stop: (when?: number) => void}>();
+
+export function stopAllAudio(): void {
+  for (const node of activeNodes) {
+    try {
+      node.stop();
+    } catch {
+      // Ignored
+    }
+  }
+  activeNodes.clear();
+}
+
 let ctx: AudioContext | null = null;
 let mainGain: GainNode | null = null;
 let scopedGain: GainNode | null = null;
@@ -179,6 +193,30 @@ function ensureContext(): AudioContext {
     const Ctor = audioContextCtor();
     if (!Ctor) throw new Error('AudioContext is unavailable');
     ctx = new Ctor();
+    const origCreateBufferSource = ctx.createBufferSource.bind(ctx);
+    ctx.createBufferSource = function() {
+      const node = origCreateBufferSource();
+      activeNodes.add(node);
+      const origStop = node.stop.bind(node);
+      node.stop = function(when?: number) {
+        activeNodes.delete(node);
+        return when === undefined ? origStop() : origStop(when);
+      };
+      node.addEventListener('ended', () => { activeNodes.delete(node); });
+      return node;
+    };
+    const origCreateOscillator = ctx.createOscillator.bind(ctx);
+    ctx.createOscillator = function() {
+      const node = origCreateOscillator();
+      activeNodes.add(node);
+      const origStop = node.stop.bind(node);
+      node.stop = function(when?: number) {
+        activeNodes.delete(node);
+        return when === undefined ? origStop() : origStop(when);
+      };
+      node.addEventListener('ended', () => { activeNodes.delete(node); });
+      return node;
+    };
     mainGain = ctx.createGain();
     mainGain.gain.value = 0.3;
     mainGain.connect(ctx.destination);

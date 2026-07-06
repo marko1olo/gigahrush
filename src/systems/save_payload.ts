@@ -494,3 +494,23 @@ export function createPortalCompactSavePayload<T extends VersionedSavePayload>(p
     },
   } as T;
 }
+
+
+export const MAX_CACHED_FLOORS = 10;
+
+export function estimateLocalStorageSize(): number {
+  try {
+    return typeof localStorage === 'undefined' ? 0 : JSON.stringify(localStorage.getItem('gigahrush_save')).length;
+  } catch {
+    return 0;
+  }
+}
+
+export function pruneOldFloorsFromSave(saveData: any): any {
+  if (saveData && saveData.state && saveData.state.floorMemory && Array.isArray(saveData.state.floorMemory.entries)) {
+    if (saveData.state.floorMemory.entries.length > MAX_CACHED_FLOORS) {
+      saveData.state.floorMemory.entries = saveData.state.floorMemory.entries.slice(-MAX_CACHED_FLOORS);
+    }
+  }
+  return saveData;
+}
