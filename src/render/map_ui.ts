@@ -31,6 +31,8 @@ import {
 import { type UiRect } from './ui_layout';
 import { isPlayerEntity } from '../systems/player_actor';
 import { fitTextStable } from './ui_text';
+import { DEBUG_FLAGS } from '../systems/debug';
+import { getFactionColor, TERRITORY_OWNER_DEFS } from '../data/factions';
 
 const MAP_SIZE = 80;
 const FULL_MAP_RADIUS_DEFAULT = 200;
@@ -1062,6 +1064,56 @@ for (let i = 0; i < 64; i++) {
   ]);
 }
 
+function drawDebugMacroGoals(
+  ctx: CanvasRenderingContext2D,
+  world: World,
+  state: GameState,
+  pxI: number,
+  pyI: number,
+  mapX: number,
+  mapY: number,
+  radius: number,
+  cellW: number,
+  cellH: number,
+) {
+  if (!DEBUG_FLAGS.SHOW_MACRO_GOALS || !state.factionGoals) return;
+
+  for (const goal of state.factionGoals) {
+    if (goal.type !== 'attack' && goal.type !== 'defend') continue;
+
+    const zoneFaction = TERRITORY_OWNER_DEFS.find(def => def.faction === goal.factionId)?.owner;
+    const hqZone = world.zones.find(z => z.faction === zoneFaction && z.hqRoomId >= 0) ?? world.zones.find(z => z.faction === zoneFaction);
+    const targetZone = world.zones.find(z => z.id === goal.targetZone);
+
+    if (!hqZone || !targetZone) continue;
+
+    const startX = mapX + (hqZone.cx - pxI + radius) * cellW;
+    const startY = mapY + (hqZone.cy - pyI + radius) * cellH;
+    const endX = mapX + (targetZone.cx - pxI + radius) * cellW;
+    const endY = mapY + (targetZone.cy - pyI + radius) * cellH;
+
+    const color = getFactionColor(goal.factionId);
+
+    ctx.beginPath();
+    ctx.moveTo(startX, startY);
+    ctx.lineTo(endX, endY);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.setLineDash([5, 5]);
+    ctx.stroke();
+
+    const angle = Math.atan2(endY - startY, endX - startX);
+    ctx.beginPath();
+    ctx.moveTo(endX, endY);
+    ctx.lineTo(endX - 10 * Math.cos(angle - Math.PI / 6), endY - 10 * Math.sin(angle - Math.PI / 6));
+    ctx.lineTo(endX - 10 * Math.cos(angle + Math.PI / 6), endY - 10 * Math.sin(angle + Math.PI / 6));
+    ctx.lineTo(endX, endY);
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.setLineDash([]);
+  }
+}
+
 /* ── Shared map renderer (used by minimap + fullmap) ──────────── */
 function drawMap(
   ctx: CanvasRenderingContext2D,
@@ -1239,6 +1291,10 @@ function drawMap(
         drawKillTargetMarker(ctx, qsx, qsy, 5, 3);
       }
     }
+  }
+
+  if (state) {
+    drawDebugMacroGoals(ctx, world, state, pxI, pyI, mapX, mapY, radius, cellW, cellH);
   }
 
   // Player dot

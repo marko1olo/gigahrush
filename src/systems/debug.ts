@@ -23,6 +23,19 @@ import {
   summarizeSamosborDirector,
 } from './samosbor_director';
 import { ensureWorldEventState, getImportantEvents, publishEvent, summarizeImportantEventsByFloorZone } from './events';
+
+export const DEBUG_FLAGS = {
+  SHOW_MACRO_GOALS: false,
+};
+
+export function handleDebugCommand(cmd: string): boolean {
+  if (cmd === '/macro_goals') {
+    DEBUG_FLAGS.SHOW_MACRO_GOALS = !DEBUG_FLAGS.SHOW_MACRO_GOALS;
+    return true;
+  }
+  return false;
+}
+
 import { summarizeRoomMemoryForRoom } from './room_memory';
 import { describeContainer, ensureRoomContainers, firstNearbyContainer, nearbyContainers, takeFromContainer } from './containers';
 import { changeResourceStock, getAdjustedItemPrice, getResourceScarcity, summarizeEconomy } from './economy';

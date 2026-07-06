@@ -2,6 +2,7 @@ import { FloorLevel, type Entity, type GameState } from '../core/types';
 import { getControlCaptureAction, matchesControlAction } from './controls';
 import { portalAllowsOptionalNetwork } from './platform_bridge';
 import { currentFloorRunEntry, ensureFloorRunState, floorRunEntryRouteId } from './procedural_floors';
+import { handleDebugCommand } from './debug';
 
 type NetSphereStatus = 'idle' | 'syncing' | 'online' | 'offline';
 export type NetSphereEventType = 'samosbor' | 'death';
@@ -653,6 +654,10 @@ function submitDraft(): void {
   if (draft.startsWith('/')) {
     const [command, ...parts] = draft.split(/\s+/);
     const arg = parts.join(' ');
+    if (handleDebugCommand(command)) {
+      runtime.error = 'Дебаг флаг изменен';
+      return;
+    }
     if (command === '/netgen' || command === '/ген') {
       const next = cleanNetGen(arg);
       if (!next) {
