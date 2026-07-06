@@ -551,8 +551,14 @@ export function reinforceOranzhereyaBetonaAuthoredTerritory(world: World): void 
 
   for (const room of world.rooms) {
     if (!room?.name) continue;
-    const block = GREENHOUSE_BLOCKS.find(spec => room.name.startsWith(spec.name));
-    if (block) paintRoomTerritory(world, room, block.owner);
+    for (let i = 0; i < GREENHOUSE_BLOCKS.length; i++) {
+      const spec = GREENHOUSE_BLOCKS[i];
+      if (room.name.startsWith(spec.name)) {
+        paintRoomTerritory(world, room, spec.owner);
+        break;
+      }
+    }
+
   }
   world.markWallTexDirty();
   world.markFeaturesDirty(false);
