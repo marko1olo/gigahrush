@@ -557,27 +557,11 @@ function scoreWander(
   );
 }
 
-interface NpcUtilityScoreVariables {
-  minute: number;
-  duty: number;
-  sociability: number;
-  risk: number;
-  panic: number;
-  hpPressure: number;
-  threatPressure: number;
-  visibleHostilePressure: number;
-  closeThreatPressure: number;
-  strongerHostile: boolean;
-  armed: boolean;
-  toiletPressure: number;
-  drinkPressure: number;
-  eatPressure: number;
-  sleepPressure: number;
-  urgentNeed: number;
-  stickiness: number;
-}
-
-function computeNpcUtilityScoreVariables(context: NpcUtilityScoreContext): NpcUtilityScoreVariables {
+export function scoreNpcUtilities(
+  context: NpcUtilityScoreContext,
+  out: NpcUtilityScoreBuffer = createNpcUtilityScoreBuffer(),
+): NpcUtilityScoreBuffer {
+  const identity = context.identity;
   const minute = context.minuteOfDay ?? context.totalMinutes ?? 0;
   const needs = context.needs;
   const role = context.role;
@@ -620,47 +604,21 @@ function computeNpcUtilityScoreVariables(context: NpcUtilityScoreContext): NpcUt
   );
   const stickiness = context.currentIntentStickiness ?? 0;
 
-  return {
-    minute,
-    duty,
-    sociability,
-    risk,
-    panic,
-    hpPressure,
-    threatPressure,
-    visibleHostilePressure,
-    closeThreatPressure,
-    strongerHostile,
-    armed,
-    toiletPressure,
-    drinkPressure,
-    eatPressure,
-    sleepPressure,
-    urgentNeed,
-    stickiness,
-  };
-}
-
-function applyNpcUtilityScores(
-  context: NpcUtilityScoreContext,
-  vars: NpcUtilityScoreVariables,
-  out: NpcUtilityScoreBuffer
-): void {
-  setScore(out, "safety", scoreSafety(context, vars.threatPressure, vars.stickiness));
+  setScore(out, "safety", scoreSafety(context, threatPressure, stickiness));
   setScore(
     out,
     "combat",
     scoreCombat(
       context,
-      vars.visibleHostilePressure,
-      vars.closeThreatPressure,
-      vars.armed,
-      vars.risk,
-      vars.duty,
-      vars.hpPressure,
-      vars.panic,
-      vars.strongerHostile,
-      vars.stickiness,
+      visibleHostilePressure,
+      closeThreatPressure,
+      armed,
+      risk,
+      duty,
+      hpPressure,
+      panic,
+      strongerHostile,
+      stickiness,
     ),
   );
   setScore(
@@ -668,81 +626,72 @@ function applyNpcUtilityScores(
     "flee",
     scoreFlee(
       context,
-      vars.visibleHostilePressure,
-      vars.threatPressure,
-      vars.hpPressure,
-      vars.strongerHostile,
-      vars.risk,
-      vars.panic,
-      vars.armed,
-      vars.stickiness,
+      visibleHostilePressure,
+      threatPressure,
+      hpPressure,
+      strongerHostile,
+      risk,
+      panic,
+      armed,
+      stickiness,
     ),
   );
   setScore(
     out,
     "toilet",
-    scoreToilet(context, vars.toiletPressure, vars.minute, vars.threatPressure, vars.stickiness),
+    scoreToilet(context, toiletPressure, minute, threatPressure, stickiness),
   );
   setScore(
     out,
     "drink",
-    scoreDrink(context, vars.drinkPressure, vars.minute, vars.threatPressure, vars.stickiness),
+    scoreDrink(context, drinkPressure, minute, threatPressure, stickiness),
   );
   setScore(
     out,
     "eat",
-    scoreEat(context, vars.eatPressure, vars.minute, vars.threatPressure, vars.stickiness),
+    scoreEat(context, eatPressure, minute, threatPressure, stickiness),
   );
   setScore(
     out,
     "sleep",
-    scoreSleep(context, vars.sleepPressure, vars.minute, vars.threatPressure, vars.stickiness),
+    scoreSleep(context, sleepPressure, minute, threatPressure, stickiness),
   );
   setScore(
     out,
     "work",
-    scoreWork(context, vars.duty, vars.minute, vars.urgentNeed, vars.threatPressure, vars.stickiness),
+    scoreWork(context, duty, minute, urgentNeed, threatPressure, stickiness),
   );
   setScore(
     out,
     "heal",
-    scoreHeal(context, vars.hpPressure, vars.threatPressure, vars.stickiness),
+    scoreHeal(context, hpPressure, threatPressure, stickiness),
   );
   setScore(
     out,
     "social",
     scoreSocial(
       context,
-      vars.sociability,
-      vars.minute,
-      vars.urgentNeed,
-      vars.threatPressure,
-      vars.stickiness,
+      sociability,
+      minute,
+      urgentNeed,
+      threatPressure,
+      stickiness,
     ),
   );
   setScore(
     out,
     "patrol",
-    scorePatrol(context, vars.duty, vars.minute, vars.urgentNeed, vars.threatPressure, vars.stickiness),
+    scorePatrol(context, duty, minute, urgentNeed, threatPressure, stickiness),
   );
   setScore(
     out,
     "wander",
-    scoreWander(context, vars.minute, vars.urgentNeed, vars.threatPressure, vars.stickiness),
+    scoreWander(context, minute, urgentNeed, threatPressure, stickiness),
   );
-}
 
-export function scoreNpcUtilities(
-  context: NpcUtilityScoreContext,
-  out: NpcUtilityScoreBuffer = createNpcUtilityScoreBuffer(),
-): NpcUtilityScoreBuffer {
-  const vars = computeNpcUtilityScoreVariables(context);
-  applyNpcUtilityScores(context, vars, out);
-
-  addIdentityJitter(out, context.identity);
+  addIdentityJitter(out, identity);
   return out;
 }
-
 
 export function getNpcUtilityScore(
   scores: NpcUtilityScoreBuffer,
