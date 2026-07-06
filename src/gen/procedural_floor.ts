@@ -2565,6 +2565,67 @@ function buildCompositeRooms(world: World, spec: ProceduralFloorSpec): { rooms: 
   applyProceduralStructureLibrary(world, allRooms, spec, spawnX, spawnY);
   applyProceduralMacroNetwork(world, allRooms, spec, macroLayer, spawnX, spawnY);
   ensureConnectivity(world, spawnX, spawnY);
+
+  // Flood fill from spawn to find unreachable cells
+  const reachable = new Uint8Array(W * W);
+  const q: number[] = [world.idx(Math.floor(spawnX), Math.floor(spawnY))];
+  reachable[q[0]] = 1;
+  let head = 0;
+  const dirs = [[1,0], [-1,0], [0,1], [0,-1]];
+  while (head < q.length) {
+    const curr = q[head++];
+    const cx = curr % W;
+    const cy = (curr / W) | 0;
+    for (const [dx, dy] of dirs) {
+      const nx = world.wrap(cx + dx);
+      const ny = world.wrap(cy + dy);
+      const ni = world.idx(nx, ny);
+      if (reachable[ni] === 0 && (world.cells[ni] === Cell.FLOOR || world.cells[ni] === Cell.DOOR || world.cells[ni] === Cell.WATER)) {
+        reachable[ni] = 1;
+        q.push(ni);
+      }
+    }
+  }
+
+  // Remove completely unreachable rooms
+  for (let id = 0; id < world.rooms.length; id++) {
+    const room = world.rooms[id];
+    if (!room) continue;
+    let roomReachable = false;
+    for (let dy = 0; dy < room.h; dy++) {
+      for (let dx = 0; dx < room.w; dx++) {
+        if (reachable[world.idx(world.wrap(room.x + dx), world.wrap(room.y + dy))]) {
+          roomReachable = true;
+          break;
+        }
+      }
+      if (roomReachable) break;
+    }
+
+    if (!roomReachable) {
+      // erase room geometry
+      for (let dy = -1; dy <= room.h; dy++) {
+        for (let dx = -1; dx <= room.w; dx++) {
+          const i = world.idx(world.wrap(room.x + dx), world.wrap(room.y + dy));
+          if (world.roomMap[i] === id) {
+            world.roomMap[i] = -1;
+            world.cells[i] = Cell.WALL;
+            world.floorTex[i] = Tex.F_CONCRETE; // or default
+            world.features[i] = Feature.NONE;
+          }
+        }
+      }
+      // Remove doors connected to this room
+      for (const di of room.doors) {
+        if (world.doors.has(di)) {
+          world.removeDoorAt(di);
+          world.cells[di] = Cell.WALL;
+        }
+      }
+      delete world.rooms[id];
+    }
+  }
+
   sanitizeDoors(world);
   return { rooms: allRooms, spawnX, spawnY };
 }
