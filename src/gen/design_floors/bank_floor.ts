@@ -849,15 +849,34 @@ function decorateBankMicroRoom(world: World, room: Room, rng: () => number): voi
 }
 
 export function applyBankFloorTerritorySeeds(world: World): void {
+  const targetNames = new Set<string>();
   for (const cluster of BANK_HQ_CLUSTERS) {
-    const hq = world.rooms.find(room => room.name === cluster.hqName);
+    targetNames.add(cluster.hqName);
+    for (const support of cluster.support) {
+      if (support.name) {
+        targetNames.add(support.name);
+      }
+    }
+  }
+
+  const foundRooms = new Map<string, Room>();
+  for (let i = 0, len = world.rooms.length; i < len; i++) {
+    const room = world.rooms[i];
+    if (room.name && targetNames.has(room.name)) {
+      foundRooms.set(room.name, room);
+      if (foundRooms.size === targetNames.size) break;
+    }
+  }
+
+  for (const cluster of BANK_HQ_CLUSTERS) {
+    const hq = foundRooms.get(cluster.hqName);
     if (!hq) continue;
     hq.type = RoomType.HQ;
     hq.sealed = true;
     paintBankRoomTerritory(world, hq, cluster.owner);
     paintBankOwnerPatch(world, hq.x + (hq.w >> 1), hq.y + (hq.h >> 1), 44, cluster.owner);
     for (const support of cluster.support) {
-      const room = world.rooms.find(candidate => candidate.name === support.name);
+      const room = foundRooms.get(support.name);
       if (room) paintBankRoomTerritory(world, room, cluster.owner);
     }
   }
