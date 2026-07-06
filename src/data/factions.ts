@@ -54,3 +54,6 @@ export function factionToTerritoryOwner(faction: Faction): TerritoryOwner {
   }
 }
 
+export function getFactionColor(faction: Faction): string {
+  return TERRITORY_OWNER_DEFS.find(def => def.faction === faction)?.color ?? 'magenta';
+}
