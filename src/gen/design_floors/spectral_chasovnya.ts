@@ -1060,11 +1060,17 @@ function placeContent(world: World, entities: Entity[], nextId: NextId, rooms: S
 }
 
 export function reinforceSpectralChasovnyaAuthoredHqTerritory(world: World): void {
+  const roomsByName = new Map<string, Room>();
+  for (let i = 0; i < world.rooms.length; i++) {
+    const r = world.rooms[i];
+    if (r && r.name) roomsByName.set(r.name, r);
+  }
+
   for (const spec of SPECTRAL_HQ_SPECS) {
-    const hq = world.rooms.find(room => room?.name === spec.hq.name);
+    const hq = roomsByName.get(spec.hq.name);
     if (hq) hardenSpectralHqCore(world, hq, spec.owner);
     for (const support of spec.support) {
-      const room = world.rooms.find(candidate => candidate?.name === support.name);
+      const room = roomsByName.get(support.name);
       if (room) paintRoomOwner(world, room, spec.owner);
     }
     if (hq) {
