@@ -2,7 +2,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { Cell, DoorState, Feature, RoomType, Tex } from '../src/core/types';
-import { World } from '../src/core/world';
+import {
+  World,
+  reachabilityGateLabel,
+  REACH_UNREACHED,
+  REACH_GATE_NONE,
+  REACH_GATE_KEY,
+  REACH_GATE_HERMETIC,
+} from '../src/core/world';
 
 test('runtime feature writes bump feature version and rebake feature light', () => {
   const world = new World();
@@ -94,4 +101,12 @@ test('runtime door removal cleans stale door cells without a door record', () =>
   assert.equal(world.wallTex[idx], Tex.CONCRETE);
   assert.equal(world.doors.has(idx), false);
   assert.equal(world.solid(21, 20), false);
+});
+
+test('reachabilityGateLabel returns correct strings for bitmasks', () => {
+  assert.equal(reachabilityGateLabel(REACH_UNREACHED), 'unreachable');
+  assert.equal(reachabilityGateLabel(REACH_GATE_NONE), 'reachable');
+  assert.equal(reachabilityGateLabel(REACH_GATE_KEY), 'gated by key');
+  assert.equal(reachabilityGateLabel(REACH_GATE_HERMETIC), 'gated by hermetic door');
+  assert.equal(reachabilityGateLabel(REACH_GATE_KEY | REACH_GATE_HERMETIC), 'gated by key and hermetic door');
 });
