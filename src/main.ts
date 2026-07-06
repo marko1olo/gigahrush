@@ -52,7 +52,7 @@ import { resetComputerState, restoreComputersFromSave } from './systems/computer
 import { resetNetHackState, restoreNetHackFromSave } from './systems/net_hack';
 import { stampMark, MarkType } from './systems/surface_marks';
 import { stampUrineTrace } from './systems/urination';
-import { containerMenuGridLayout, craftMenuLayout, fullscreenInventoryLayout, tradeMenuGridLayout } from './render/ui_layout';
+import { containerMenuGridLayout, craftMenuLayout, fullscreenInventoryLayout, tradeMenuGridLayout, UiRect } from './render/ui_layout';
 import { updateNeeds } from './systems/needs';
 import { startTutorial } from './systems/tutorial';
 import { updateAI, tryMonsterProjectileStagger, getAiStats, type AiStats } from './systems/ai';
@@ -6560,8 +6560,8 @@ function applyMapLegendSelection(index: number): void {
   state.msgs.push(msg(`Карта: ${row.toggle.label} ${enabled ? 'вкл' : 'выкл'}`, state.time, enabled ? '#8cf' : '#fc8'));
 }
 
-function pointInRect(x: number, y: number, rx: number, ry: number, rw: number, rh: number): boolean {
-  return x >= rx && x <= rx + rw && y >= ry && y <= ry + rh;
+function pointInRect(x: number, y: number, rect: UiRect): boolean {
+  return x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h;
 }
 
 
@@ -6616,7 +6616,7 @@ function handleTapMenu(x: number, y: number, w: number, h: number, sx: number, s
   const menuTop = (h - menuPanelH) / 2;
   for (let i = 0; i < GAME_MENU_ITEMS.length; i++) {
     const yy = menuTop + 52 * sy + i * menuStep;
-    if (pointInRect(x, y, w / 2 - 90 * sx, yy - 6 * sy, 180 * sx, 16 * sy)) {
+    if (pointInRect(x, y, { x: w / 2 - 90 * sx, y: yy - 6 * sy, w: 180 * sx, h: 16 * sy })) {
       state.menuSel = i;
       runGameMenuSelection(i);
       return;
@@ -6630,7 +6630,7 @@ function handleTapInventory(x: number, y: number, w: number, h: number, baseSx: 
   const cellSz = layout.grid.cell;
   const gridX = layout.grid.x;
   const gridY = layout.grid.y;
-  if (pointInRect(x, y, layout.close.x, layout.close.y, layout.close.w, layout.close.h)) {
+  if (pointInRect(x, y, layout.close)) {
     state.showInventory = false;
     syncPauseState();
     return;
@@ -6639,21 +6639,21 @@ function handleTapInventory(x: number, y: number, w: number, h: number, baseSx: 
     for (let col = 0; col < GRID; col++) {
       const cx = gridX + col * cellSz;
       const cy = gridY + row * cellSz;
-      if (pointInRect(x, y, cx, cy, cellSz, cellSz)) {
+      if (pointInRect(x, y, { x: cx, y: cy, w: cellSz, h: cellSz })) {
         state.invSel = row * GRID + col;
         return;
       }
     }
   }
-  if (pointInRect(x, y, layout.use.x, layout.use.y, layout.use.w, layout.use.h)) {
+  if (pointInRect(x, y, layout.use)) {
     useInventorySelection();
     return;
   }
-  if (pointInRect(x, y, layout.drop.x, layout.drop.y, layout.drop.w, layout.drop.h)) {
+  if (pointInRect(x, y, layout.drop)) {
     dropInventorySelection();
     return;
   }
-  if (player.rpg && player.rpg.attrPoints > 0 && pointInRect(x, y, layout.attr.x, layout.attr.y, layout.attr.w, layout.attr.h)) {
+  if (player.rpg && player.rpg.attrPoints > 0 && pointInRect(x, y, layout.attr)) {
     const rel = (x - layout.attr.x) / Math.max(1, layout.attr.w);
     spendMobileAttr(rel < 0.34 ? 'str' : rel < 0.67 ? 'agi' : 'int');
     return;
@@ -6662,8 +6662,8 @@ function handleTapInventory(x: number, y: number, w: number, h: number, baseSx: 
 
 function handleTapCraftMenu(x: number, y: number, w: number, h: number): void {
   const layout = craftMenuLayout(w, h);
-  if (pointInRect(x, y, layout.close.x, layout.close.y, layout.close.w, layout.close.h)
-    || pointInRect(x, y, layout.bottom.x, layout.bottom.y, layout.bottom.w, layout.bottom.h)) {
+  if (pointInRect(x, y, layout.close)
+    || pointInRect(x, y, layout.bottom)) {
     closeCraftMenu();
     syncPauseState();
     updateMobileContext(true);
@@ -6685,14 +6685,14 @@ function handleTapCraftMenu(x: number, y: number, w: number, h: number): void {
     const index = first + row;
     if (index >= entries.length) break;
     const rowY = listTop + row * layout.rowH - 3 * layout.scale;
-    if (pointInRect(x, y, layout.list.x, rowY, layout.list.w, layout.rowH)) {
+    if (pointInRect(x, y, { x: layout.list.x, y: rowY, w: layout.list.w, h: layout.rowH })) {
       const wasSelected = state.craftCursor === index;
       state.craftCursor = index;
       if (wasSelected) activateCraftSelection();
       return;
     }
   }
-  if (entries.length > 0 && pointInRect(x, y, layout.detail.x, layout.detail.y, layout.detail.w, layout.detail.h)) {
+  if (entries.length > 0 && pointInRect(x, y, layout.detail)) {
     activateCraftSelection();
     return;
   }
@@ -6704,12 +6704,12 @@ function handleTapQuests(x: number, y: number, w: number, h: number, sx: number,
   const px = (w - pw) / 2;
   const py = (h - ph) / 2;
   const total = questLogEntries().length;
-  if (pointInRect(x, y, px, py + ph - 22 * sy, pw, 22 * sy)) {
+  if (pointInRect(x, y, { x: px, y: py + ph - 22 * sy, w: pw, h: 22 * sy })) {
     state.showQuests = false;
     syncPauseState();
     return;
   }
-  if (pointInRect(x, y, px, py + ph - 44 * sy, pw, 22 * sy)) {
+  if (pointInRect(x, y, { x: px, y: py + ph - 44 * sy, w: pw, h: 22 * sy })) {
     toggleSelectedQuestActive();
     return;
   }
@@ -6758,7 +6758,7 @@ function handleTapContainerMenu(x: number, y: number, w: number, h: number): voi
     const gx = side === 'player' ? startX : containerX;
     for (let row = 0; row < layout.rows; row++) {
       for (let col = 0; col < layout.cols; col++) {
-        if (pointInRect(x, y, gx + col * cellSz, startY + row * cellSz, cellSz, cellSz)) {
+        if (pointInRect(x, y, { x: gx + col * cellSz, y: startY + row * cellSz, w: cellSz, h: cellSz })) {
           state.containerSide = side;
           state.containerCursorX = col;
           state.containerCursorY = row;
@@ -6768,7 +6768,7 @@ function handleTapContainerMenu(x: number, y: number, w: number, h: number): voi
       }
     }
   }
-  if (pointInRect(x, y, layout.close.x, layout.close.y, layout.close.w, layout.close.h)) {
+  if (pointInRect(x, y, layout.close)) {
     closeContainerMenu();
     syncPauseState();
   }
@@ -6786,13 +6786,13 @@ function handleTapNpcMenu(x: number, y: number, w: number, h: number, sx: number
     clampNpcMenuSelection(state, options);
     for (let i = 0; i < options.length; i++) {
       const yy = py + 42 * sy + i * 17 * sy;
-      if (pointInRect(x, y, px + 8 * sx, yy - 6 * sy, 220 * sx, 16 * sy)) {
+      if (pointInRect(x, y, { x: px + 8 * sx, y: yy - 6 * sy, w: 220 * sx, h: 16 * sy })) {
         state.npcMenuSel = i;
         activateNpcMainSelection(npc);
         return;
       }
     }
-    if (pointInRect(x, y, px, py + ph - 22 * sy, pw, 22 * sy)) {
+    if (pointInRect(x, y, { x: px, y: py + ph - 22 * sy, w: pw, h: 22 * sy })) {
       state.showNpcMenu = false;
       syncPauseState();
     }
@@ -6807,7 +6807,7 @@ function handleTapNpcMenu(x: number, y: number, w: number, h: number, sx: number
     ] as const) {
       for (let row = 0; row < layout.rows; row++) {
         for (let col = 0; col < layout.cols; col++) {
-          if (pointInRect(x, y, panel.x + col * cellSz, layout.startY + row * cellSz, cellSz, cellSz)) {
+          if (pointInRect(x, y, { x: panel.x + col * cellSz, y: layout.startY + row * cellSz, w: cellSz, h: cellSz })) {
             state.tradeSide = panel.side;
             state.tradeCursorX = col;
             state.tradeCursorY = row;
@@ -6817,7 +6817,7 @@ function handleTapNpcMenu(x: number, y: number, w: number, h: number, sx: number
         }
       }
     }
-    if (pointInRect(x, y, layout.dealX, layout.dealY, layout.dealW, layout.dealH + 10 * layout.scale)) {
+    if (pointInRect(x, y, { x: layout.dealX, y: layout.dealY, w: layout.dealW, h: layout.dealH + 10 * layout.scale })) {
       state.tradeSide = 'deal';
       state.tradeCursorX = 0;
       state.tradeCursorY = 0;
@@ -6845,7 +6845,7 @@ function handleTapNpcMenu(x: number, y: number, w: number, h: number, sx: number
     const ph = Math.min(320 * sy, h - 24 * sy);
     const px = (w - pw) / 2;
     const py = (h - ph) / 2;
-    if (pointInRect(x, y, px, py + ph - 22 * sy, pw, 22 * sy)) {
+    if (pointInRect(x, y, { x: px, y: py + ph - 22 * sy, w: pw, h: 22 * sy })) {
       if (isDurakGameOpen()) {
         const result = handleDurakInput({ state, player, npc, input: { escEdge: true } });
         if (result.closeInterface) closeNpcInteractionInterface(state);

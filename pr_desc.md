@@ -1,8 +1,6 @@
-💡 **What:** The optimization implemented
-Replaced the `hqRooms.push(...stampSpectralHqCompound(world, spec).filter(room => room.type === RoomType.HQ))` pattern inside `expandSpectralRouteGeometry` with a standard `for` loop that iterates over the generated compound rooms and pushes matching ones directly.
+🧹 [code health improvement] Refactor pointInRect to take UiRect or {x, y, w, h} object
 
-🎯 **Why:** The performance problem it solves
-The previous pattern creates an unnecessary intermediate array allocation and uses spread syntax on it `push(...arr)` inside a loop over `SPECTRAL_HQ_SPECS`. This causes unnecessary garbage collection pressure and can be slow/problematic if the array is large (though in this specific case, spreading large arrays can also hit stack size limits).
-
-📊 **Measured Improvement:**
-Using a local ad-hoc benchmark script scaling `SPECTRAL_HQ_SPECS` to 100 entries and running it 100,000 times, the execution time was improved from roughly **1277ms** to **689ms** (approximately an 85% speedup relative to the baseline time for that inner-loop operation).
+🎯 **What:** Refactored `pointInRect` to accept an object parameter (matching the `UiRect` interface with `x`, `y`, `w`, and `h` properties) rather than a list of six individual positional arguments.
+💡 **Why:** Reduces parameter count from 6 to 3, making the function signature cleaner and reducing the chance of passing positional arguments in the wrong order. It also allows direct passing of `UiRect` objects (e.g., `layout.close`) which previously had to be spread out into individual arguments.
+✅ **Verification:** Ran `npm run typecheck` and `npm run test:unit`. All 1722 unit tests passed. Ensured no regressions in UI logic.
+✨ **Result:** Improved codebase maintainability by using clearer struct-style parameter passing instead of excessively long positional argument lists.
