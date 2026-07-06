@@ -356,10 +356,6 @@ export function npcVisualWorldSpriteScale(id: string | undefined): number | unde
   return npcVisualFamily(id)?.worldSpriteScale;
 }
 
-export function npcVisualUsesProceduralSprite(id: string | undefined): boolean {
-  return npcVisualUsesDynamicTexture(id);
-}
-
 export function generateNpcVisualSprite(id: string | undefined, ctx: NpcVisualContext): Uint32Array | undefined {
   const family = npcVisualFamily(id);
   const sprite = family?.generate(ctx);
