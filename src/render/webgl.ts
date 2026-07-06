@@ -21,6 +21,7 @@ import type { TexData } from './textures';
 import type { SpriteData } from './sprites';
 import type { BloodParticle } from './blood';
 import { getCritterRenderEnabled } from './critters';
+import { GRAPHICS_PROFILE } from '../systems/graphics_profile';
 import { containerSpr, featureSpr } from './sprite_index';
 import { generateItemSprite, itemDropDefId, itemSpriteKey } from './item_sprites';
 import {
@@ -173,6 +174,7 @@ uniform float uTime;
 uniform int   uLightQuality;     // 0=off,1=low,2=medium,3=high,4=experimental
 uniform int   uPurpleFog;        // 1 if player is in fogged area
 uniform vec3  uFogColor;         // active samosbor variant fog tint
+uniform int   uSimpleFog;
 
 /* ── Data textures ────────────────────────────────────────────── */
 uniform highp usampler2D uCells;      // W×W: cell type (uint8)
@@ -386,6 +388,7 @@ float distanceFog(float dist) {
   if (uFogDensity <= 0.0) return 0.0;
   float x = max(0.0, dist * uFogDensity);
   // Linear/exponential fog as specified
+  if (uSimpleFog == 1) return clamp(x, 0.0, 0.985);
   return clamp(1.0 - exp(-x), 0.0, 0.985);
 }
 
@@ -3348,6 +3351,7 @@ export function renderSceneGL(
   gl.uniform1f(ru['uAngle']!, pAngle);
   gl.uniform1f(ru['uPitch']!, pPitch);
   gl.uniform1f(ru['uFogDensity']!, fogDensity);
+  gl.uniform1i(ru['uSimpleFog']!, GRAPHICS_PROFILE.useComplexFog ? 0 : 1);
   gl.uniform1f(ru['uGlitch']!, glitch);
   gl.uniform1f(ru['uPlaneLen']!, planeLen);
   gl.uniform1f(ru['uCamHeight']!, camHeight);
@@ -3624,6 +3628,9 @@ function wrapWorldFloat(v: number): number {
 function distanceFogFactor(dist: number, fogDensity: number): number {
   if (fogDensity <= 0 || dist <= 0) return 0;
   const x = dist * fogDensity;
+  if (!GRAPHICS_PROFILE.useComplexFog) {
+    return Math.min(0.985, Math.max(0, x));
+  }
   // Linear/exponential fog as specified: visibility = exp(-fogDensity * distance)
   // Distance factor will use inverse: factor = 1.0 - visibility
   return Math.min(0.985, Math.max(0, 1.0 - Math.exp(-x)));

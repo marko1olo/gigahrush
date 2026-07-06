@@ -10,6 +10,7 @@
  * ────────────────────────────────────────────────────────────────── */
 
 import { W, Cell } from '../core/types';
+import { GRAPHICS_PROFILE } from './graphics_profile';
 import type { World } from '../core/world';
 
 /* ── Fast hash (same family as pixutil.noise) ─────────────────── */
@@ -73,7 +74,6 @@ export interface BlackHandMarkCell {
 }
 
 export const BLACK_HAND_TRAIL_MAX_MARKS = 12;
-const BLACK_HAND_MARK_CELL_CAP = 48;
 const EMPTY_BLACK_HAND_MARKS: readonly BlackHandMarkCell[] = [];
 const blackHandMarksByWorld = new WeakMap<World, BlackHandMarkCell[]>();
 
@@ -333,7 +333,7 @@ function recordBlackHandCell(world: World, x: number, y: number): boolean {
   const wx = world.wrap(x);
   const wy = world.wrap(y);
   if (hasBlackHandCell(cells, wx, wy)) return true;
-  if (cells.length >= BLACK_HAND_MARK_CELL_CAP) return false;
+  if (cells.length >= GRAPHICS_PROFILE.maxSurfaceMarks) return false;
   cells.push({ x: wx, y: wy, order: cells.length });
   return true;
 }

@@ -1,3 +1,4 @@
+import { GRAPHICS_PROFILE } from './graphics_profile';
 /* ── Blood + transient impact FX ──────────────────────────────── */
 
 import { W, Cell, ProjType, type Entity, EntityType } from '../core/types';
@@ -43,7 +44,7 @@ export interface Particle {
 
 export type BloodParticle = Particle;
 
-const MAX_PARTICLES = 256;
+
 export const particles: BloodParticle[] = [];
 
 // Incrementing counter ensures every splatter is unique
@@ -71,7 +72,7 @@ export function clearParticles(): void {
 }
 
 function emitParticle(p: BloodParticle): void {
-  if (particles.length >= MAX_PARTICLES) return;
+  if (particles.length >= GRAPHICS_PROFILE.maxParticles) return;
   particles.push(p);
 }
 
@@ -352,7 +353,7 @@ export function spawnBloodHit(world: World, ex: number, ey: number, fromAngle: n
   // Spray some blood in hit direction (away from attacker) + projectile momentum
   const count = Math.min(24, 4 + Math.floor(dmg * 0.3));
   const pMomentum = spd > 0.1 ? 0.15 : 0;
-  for (let i = 0; i < count && particles.length < MAX_PARTICLES; i++) {
+  for (let i = 0; i < count && particles.length < GRAPHICS_PROFILE.maxParticles; i++) {
     const spread = (Math.random() - 0.5) * 1.6;
     const ang = fromAngle + Math.PI + spread;
     const baseSpd = 1.5 + Math.random() * 3;
@@ -447,7 +448,7 @@ export function spawnDeathPool(world: World, ex: number, ey: number, gore = fals
   // Gore spray particles for messy deaths (shotgun / explosion) - transient, uses Math.random
   if (goreLevel >= 2) {
     const particleCount = Math.min(48, goreLevel * 12);
-    for (let i = 0; i < particleCount && particles.length < MAX_PARTICLES; i++) {
+    for (let i = 0; i < particleCount && particles.length < GRAPHICS_PROFILE.maxParticles; i++) {
       const ang = Math.random() * Math.PI * 2;
       const baseSpd = 3 + Math.random() * 6;
       const pM = spd > 0.1 ? 0.25 : 0;

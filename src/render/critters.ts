@@ -1,4 +1,5 @@
 import { crittersEnabled } from '../systems/ui_orchestrator';
+import { GRAPHICS_PROFILE } from '../systems/graphics_profile';
 
 /**
  * Returns whether critters (and small particles like flies/roaches) should be rendered.
@@ -6,7 +7,7 @@ import { crittersEnabled } from '../systems/ui_orchestrator';
  * A runtime FPS check can optionally be passed to disable them below 30 FPS.
  */
 export function getCritterRenderEnabled(fps?: number): boolean {
-  if (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0) {
+  if (GRAPHICS_PROFILE.maxParticles <= 100) {
     return false;
   }
   if (fps !== undefined && fps < 30) {
