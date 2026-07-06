@@ -137,7 +137,7 @@ describe('PWA Module', () => {
       assert.strictEqual(registerMock.mock.calls.length, 1);
     });
 
-    test('errors are logged to console.error', async () => {
+    test('errors are ignored silently', async () => {
       let loadListener: Function | undefined;
 
       Object.defineProperty(globalThis, 'window', {
@@ -173,8 +173,7 @@ describe('PWA Module', () => {
           await loadListener();
       }
 
-      assert.strictEqual(errorMock.mock.calls.length, 1);
-      assert.ok(errorMock.mock.calls[0].arguments[0].includes('ServiceWorker registration failed'));
+      assert.strictEqual(errorMock.mock.calls.length, 0);
     });
   });
 
