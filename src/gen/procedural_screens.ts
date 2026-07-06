@@ -14,9 +14,7 @@ import { World } from '../core/world';
 import {
   SCREEN_SIGNAL_DEFS,
   screenSignalEligible,
-  screenSignalForVariant,
   type ScreenSignalDef,
-  type ScreenSignalId,
 } from '../data/screen_signals';
 import {
   SCREEN_FRAMES,
@@ -445,29 +443,3 @@ export function updateProceduralScreens(world: World, time: number): boolean {
   return dirty;
 }
 
-export interface ProceduralScreenSummary {
-  total: number;
-  unknown: number;
-  bySignal: Partial<Record<ScreenSignalId, number>>;
-  lines: string[];
-}
-
-export function summarizeProceduralScreens(world: World): ProceduralScreenSummary {
-  const bySignal: Partial<Record<ScreenSignalId, number>> = {};
-  let unknown = 0;
-  for (const ci of world.screenCells) {
-    const tex = world.wallTex[ci];
-    if (!isProceduralScreenTex(tex)) { unknown++; continue; }
-    const variant = Math.floor((tex - Tex.SCREEN_BASE) / SCREEN_FRAMES);
-    const signal = screenSignalForVariant(variant);
-    if (signal) bySignal[signal.id] = (bySignal[signal.id] ?? 0) + 1;
-    else unknown++;
-  }
-  const lines = [`screens=${world.screenCells.length}`];
-  for (const def of SCREEN_SIGNAL_DEFS) {
-    const count = bySignal[def.id] ?? 0;
-    if (count > 0) lines.push(`${def.id}=${count}`);
-  }
-  if (unknown > 0) lines.push(`unknown=${unknown}`);
-  return { total: world.screenCells.length, unknown, bySignal, lines };
-}
