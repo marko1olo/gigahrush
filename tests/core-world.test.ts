@@ -11,6 +11,11 @@ import {
   classifyReachabilityCell,
   describeReachability,
   hasReachableAdjacentCell,
+  getVisualSlot,
+  setVisualSlot,
+  clearVisualSlots,
+  EMPTY_VISUAL_CELL_CODE,
+  VISUAL_SLOTS_PER_CELL,
 } from '../src/core/world';
 
 test('World wraps coordinates and measures toroidal distance', () => {
@@ -215,4 +220,40 @@ test('World bakeLights makes candles smaller and weaker than lamps', () => {
   assert.ok(candleWorld.light[candleWorld.idx(cx, cy)] < lampWorld.light[lampWorld.idx(cx, cy)]);
   assert.ok(candleWorld.light[candleWorld.idx(cx + 4, cy)] > 0);
   assert.equal(candleWorld.light[candleWorld.idx(cx + 6, cy)], 0);
+});
+
+test('World visual slots get/set/clear and bounds checking', () => {
+  const world = new World();
+  const cellIdx = world.idx(50, 50);
+  const slotIdx = 3;
+  const testCode = 42;
+
+  // Initial state should be EMPTY_VISUAL_CELL_CODE
+  assert.equal(getVisualSlot(world, cellIdx, slotIdx), EMPTY_VISUAL_CELL_CODE);
+
+  // setVisualSlot should return true on change
+  assert.equal(setVisualSlot(world, cellIdx, slotIdx, testCode), true);
+  assert.equal(getVisualSlot(world, cellIdx, slotIdx), testCode);
+
+  // setVisualSlot should return false if no change
+  assert.equal(setVisualSlot(world, cellIdx, slotIdx, testCode), false);
+
+  // Clear should return true if changes were made
+  assert.equal(clearVisualSlots(world, cellIdx), true);
+  assert.equal(getVisualSlot(world, cellIdx, slotIdx), EMPTY_VISUAL_CELL_CODE);
+
+  // Clear should return false if already empty
+  assert.equal(clearVisualSlots(world, cellIdx), false);
+
+  // Bounds checking: cellIdx
+  assert.throws(() => getVisualSlot(world, -1, slotIdx), RangeError);
+  assert.throws(() => getVisualSlot(world, W * W, slotIdx), RangeError);
+
+  // Bounds checking: slot
+  assert.throws(() => getVisualSlot(world, cellIdx, -1), RangeError);
+  assert.throws(() => getVisualSlot(world, cellIdx, VISUAL_SLOTS_PER_CELL), RangeError);
+
+  // Bounds checking: code
+  assert.throws(() => setVisualSlot(world, cellIdx, slotIdx, -1), RangeError);
+  assert.throws(() => setVisualSlot(world, cellIdx, slotIdx, 256), RangeError);
 });
