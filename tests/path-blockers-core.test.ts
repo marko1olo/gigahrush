@@ -9,9 +9,11 @@ import {
   clearAllPathBlockers,
   clearPathBlockersAtCell,
   getPathBlockerRow,
+  markPathBlockersDirty,
   pathBlockedAt,
   pathBlockerRowOffset,
   pathBlockerSubcell,
+  PathBlockerWorldLike,
   setPathBlockerRow,
 } from '../src/core/path_blockers';
 
@@ -96,4 +98,30 @@ test('pathBlockedAt maps centers, subcell edges and torus wrapping', () => {
   assert.equal(pathBlockedAt(world, -0.99, -0.99), true);
   assert.equal(pathBlockedAt(world, W - 0.01, W - 0.01), true);
   assert.equal(pathBlockedAt(world, W - 0.5, W - 0.5), false);
+});
+
+test('markPathBlockersDirty increments versions and handles 32-bit overflow', () => {
+  const world: PathBlockerWorldLike = {
+    pathBlockers: new Uint8Array(),
+    pathBlockerVersion: 0,
+    pathBlockerDirtyVersion: 0,
+    wrap: (v) => v,
+    idx: (x, y) => 0,
+  };
+
+  // Normal increment
+  markPathBlockersDirty(world);
+  assert.equal(world.pathBlockerVersion, 1);
+  assert.equal(world.pathBlockerDirtyVersion, 1);
+
+  // 32-bit integer overflow logic | 0
+  world.pathBlockerVersion = 0xffffffff;
+  markPathBlockersDirty(world);
+  assert.equal(world.pathBlockerVersion, 0); // 0xffffffff + 1 in 32-bit int logic results in 0 (since it overflows to 0x100000000 but the bitwise | 0 keeps only 32 bits, which is 0)
+  assert.equal(world.pathBlockerDirtyVersion, 0);
+
+  world.pathBlockerVersion = 0x7fffffff;
+  markPathBlockersDirty(world);
+  assert.equal(world.pathBlockerVersion, -2147483648); // 2147483647 + 1 -> -2147483648
+  assert.equal(world.pathBlockerDirtyVersion, -2147483648);
 });
