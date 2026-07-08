@@ -560,32 +560,8 @@ function decorateSite(ctx: MaintContentCtx, entry: Room, chamber: Room): number[
   return residueCells;
 }
 
-export function generateChernayaLichinka(ctx: MaintContentCtx): void {
-  const pos = findMaintArea(
-    ctx.world,
-    Math.floor(ctx.spawnX),
-    Math.floor(ctx.spawnY),
-    ENTRY_W + CHAMBER_W + 5,
-    CHAMBER_H + 2,
-    135,
-    260,
-  );
 
-  const entry = stampMaintRoom(
-    ctx.world, ctx.world.rooms.length, RoomType.CORRIDOR,
-    pos.x, pos.y + 4, ENTRY_W, ENTRY_H,
-    'Саншлюз Черной Личинки: УФ огонь пломба',
-    Tex.PIPE, Tex.F_CONCRETE,
-  );
-  const chamber = stampMaintRoom(
-    ctx.world, ctx.world.rooms.length, RoomType.STORAGE,
-    pos.x + ENTRY_W + 3, pos.y, CHAMBER_W, CHAMBER_H,
-    'Черная Личинка: мокрый щелчок в образце',
-    Tex.DARK, Tex.F_CONCRETE,
-  );
-  connectRooms(ctx, entry, chamber);
-  const residueCells = decorateSite(ctx, entry, chamber);
-
+function createContainers(ctx: MaintContentCtx, entry: Room, chamber: Room) {
   const kitContainerId = addLichinkaContainer(
     ctx,
     entry,
@@ -625,6 +601,10 @@ export function generateChernayaLichinka(ctx: MaintContentCtx): void {
     [TAG_SLIME, TAG_SAMPLE, TAG_HARVEST],
   );
 
+  return { kitContainerId, sealContainerId, sampleContainerId };
+}
+
+function spawnNpcAndItems(ctx: MaintContentCtx, entry: Room, chamber: Room) {
   const witnessId = ctx.nextId.v;
   spawnAmbientNpc(
     ctx,
@@ -641,6 +621,10 @@ export function generateChernayaLichinka(ctx: MaintContentCtx): void {
   dropAt(ctx, chamber.x + 3, chamber.y + 3, 'sealant_tube');
   dropAt(ctx, chamber.x + 4, chamber.y + 3, 'ammo_fuel');
 
+  return witnessId;
+}
+
+function registerHazard(ctx: MaintContentCtx, chamber: Room, residueCells: number[]) {
   const hazardId = `chernaya_lichinka_${chamber.id}`;
   registerCellHazardSite(ctx.world, {
     id: hazardId,
@@ -659,6 +643,39 @@ export function generateChernayaLichinka(ctx: MaintContentCtx): void {
     centerY: chamber.y + 7.5,
     warning: 'Мокро щелкает под ногами. Обойдите по краю, светите УФ, жгите огнем или пломбируйте пробу.',
   });
+
+  return hazardId;
+}
+
+export function generateChernayaLichinka(ctx: MaintContentCtx): void {
+  const pos = findMaintArea(
+    ctx.world,
+    Math.floor(ctx.spawnX),
+    Math.floor(ctx.spawnY),
+    ENTRY_W + CHAMBER_W + 5,
+    CHAMBER_H + 2,
+    135,
+    260,
+  );
+
+  const entry = stampMaintRoom(
+    ctx.world, ctx.world.rooms.length, RoomType.CORRIDOR,
+    pos.x, pos.y + 4, ENTRY_W, ENTRY_H,
+    'Саншлюз Черной Личинки: УФ огонь пломба',
+    Tex.PIPE, Tex.F_CONCRETE,
+  );
+  const chamber = stampMaintRoom(
+    ctx.world, ctx.world.rooms.length, RoomType.STORAGE,
+    pos.x + ENTRY_W + 3, pos.y, CHAMBER_W, CHAMBER_H,
+    'Черная Личинка: мокрый щелчок в образце',
+    Tex.DARK, Tex.F_CONCRETE,
+  );
+  connectRooms(ctx, entry, chamber);
+  const residueCells = decorateSite(ctx, entry, chamber);
+
+  const { kitContainerId, sealContainerId, sampleContainerId } = createContainers(ctx, entry, chamber);
+  const witnessId = spawnNpcAndItems(ctx, entry, chamber);
+  const hazardId = registerHazard(ctx, chamber, residueCells);
 
   registerLichinkaContext({
     world: ctx.world,
