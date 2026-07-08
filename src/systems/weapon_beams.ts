@@ -51,39 +51,8 @@ export function fireDeletionBeam(
     : ['weapon', 'deletion_beam', 'collateral', weaponId];
   const range = Math.max(4, Math.min(48, stats.beamRange ?? 28));
   const width = Math.max(0.25, Math.min(1.5, stats.beamWidth ?? 0.65));
-  const dirX = Math.cos(actor.angle);
-  const dirY = Math.sin(actor.angle);
-  const sideX = -dirY;
-  const sideY = dirX;
-  const touched = new Set<number>();
-  let beamLen = range;
-  let cellsDeleted = 0;
-  let doorsDeleted = 0;
-  let featuresCleared = 0;
 
-  for (let d = 0.75; d <= range; d += BEAM_SCAN_STEP) {
-    for (let lateral = -width; lateral <= width + 0.001; lateral += 0.48) {
-      const x = actor.x + dirX * d + sideX * lateral;
-      const y = actor.y + dirY * d + sideY * lateral;
-      const idx = world.idx(Math.floor(x), Math.floor(y));
-      if (touched.has(idx)) continue;
-      touched.add(idx);
-      const changed = deleteBeamCell(world, idx);
-      cellsDeleted += changed.cells;
-      doorsDeleted += changed.doors;
-      featuresCleared += changed.features;
-      if (changed.any) {
-        const fx = ((x % 1) + 1) % 1;
-        const fy = ((y % 1) + 1) % 1;
-        stampMark(world, idx % W, (idx / W) | 0, fx, fy, 0.55, MarkType.PSI, (idx ^ state.tick) >>> 0, 40, 210, 235, 220);
-      }
-      if (cellsDeleted >= MAX_DELETED_CELLS) {
-        beamLen = d;
-        d = range + 1;
-        break;
-      }
-    }
-  }
+  const { beamLen, cellsDeleted, doorsDeleted, featuresCleared, touched } = scanAndModifyTerrain(world, state, actor, range, width);
 
   const containerLoss = deleteTouchedContainers(world, touched);
   if (cellsDeleted > 0 || featuresCleared > 0 || containerLoss.containersDeleted > 0) {
@@ -97,34 +66,7 @@ export function fireDeletionBeam(
     world.markFogDirty();
   }
 
-  publishEvent(state, {
-    type: 'gravity_beam_fired',
-    x: actor.x,
-    y: actor.y,
-    actorId: actor.id,
-    actorName: actor.name ?? (isPlayerEntity(actor) ? 'Вы' : undefined),
-    actorFaction: actor.faction,
-    itemId: weaponId,
-    itemName,
-    itemCount: 1,
-    itemValue: itemDef?.value ?? 0,
-    severity: targetsKilled > 0 || cellsDeleted > 0 ? 5 : 3,
-    privacy: 'local',
-    tags: eventTags,
-    data: {
-      beamLen: Math.round(beamLen * 10) / 10,
-      cellsDeleted,
-      doorsDeleted,
-      featuresCleared,
-      containersDeleted: containerLoss.containersDeleted,
-      itemsLost: containerLoss.itemsLost,
-      targetsKilled,
-    },
-  });
-
-  const lost = containerLoss.itemsLost > 0 ? ` Лут потерян: ${containerLoss.itemsLost}.` : '';
-  state.msgs.push(msg(`${itemName}: удалено ${cellsDeleted} кл., целей ${targetsKilled}.${lost}`, state.time, '#63f6ff'));
-  return {
+  const result: DeletionBeamResult = {
     beamLen,
     cellsDeleted,
     doorsDeleted,
@@ -133,7 +75,12 @@ export function fireDeletionBeam(
     itemsLost: containerLoss.itemsLost,
     targetsKilled,
   };
+
+  logDeletionBeamEvent(state, actor, weaponId, itemName, itemDef?.value ?? 0, eventTags, result);
+
+  return result;
 }
+
 
 function deleteBeamCell(world: World, idx: number): { any: boolean; cells: number; doors: number; features: number } {
   if (world.hermoWall[idx] || world.aptMask[idx]) return { any: false, cells: 0, doors: 0, features: 0 };
@@ -213,4 +160,80 @@ function killBeamTargets(
     killed++;
   }
   return killed;
+}
+
+function scanAndModifyTerrain(world: World, state: GameState, actor: Entity, range: number, width: number): { beamLen: number, cellsDeleted: number, doorsDeleted: number, featuresCleared: number, touched: Set<number> } {
+  const dirX = Math.cos(actor.angle);
+  const dirY = Math.sin(actor.angle);
+  const sideX = -dirY;
+  const sideY = dirX;
+  const touched = new Set<number>();
+  let beamLen = range;
+  let cellsDeleted = 0;
+  let doorsDeleted = 0;
+  let featuresCleared = 0;
+
+  for (let d = 0.75; d <= range; d += BEAM_SCAN_STEP) {
+    for (let lateral = -width; lateral <= width + 0.001; lateral += 0.48) {
+      const x = actor.x + dirX * d + sideX * lateral;
+      const y = actor.y + dirY * d + sideY * lateral;
+      const idx = world.idx(Math.floor(x), Math.floor(y));
+      if (touched.has(idx)) continue;
+      touched.add(idx);
+      const changed = deleteBeamCell(world, idx);
+      cellsDeleted += changed.cells;
+      doorsDeleted += changed.doors;
+      featuresCleared += changed.features;
+      if (changed.any) {
+        const fx = ((x % 1) + 1) % 1;
+        const fy = ((y % 1) + 1) % 1;
+        stampMark(world, idx % W, (idx / W) | 0, fx, fy, 0.55, MarkType.PSI, (idx ^ state.tick) >>> 0, 40, 210, 235, 220);
+      }
+      if (cellsDeleted >= MAX_DELETED_CELLS) {
+        beamLen = d;
+        d = range + 1;
+        break;
+      }
+    }
+  }
+
+  return { beamLen, cellsDeleted, doorsDeleted, featuresCleared, touched };
+}
+
+function logDeletionBeamEvent(
+  state: GameState,
+  actor: Entity,
+  weaponId: string,
+  itemName: string,
+  itemValue: number,
+  eventTags: string[],
+  result: DeletionBeamResult
+) {
+  publishEvent(state, {
+    type: 'gravity_beam_fired',
+    x: actor.x,
+    y: actor.y,
+    actorId: actor.id,
+    actorName: actor.name ?? (isPlayerEntity(actor) ? 'Вы' : undefined),
+    actorFaction: actor.faction,
+    itemId: weaponId,
+    itemName,
+    itemCount: 1,
+    itemValue: itemValue,
+    severity: result.targetsKilled > 0 || result.cellsDeleted > 0 ? 5 : 3,
+    privacy: 'local',
+    tags: eventTags,
+    data: {
+      beamLen: Math.round(result.beamLen * 10) / 10,
+      cellsDeleted: result.cellsDeleted,
+      doorsDeleted: result.doorsDeleted,
+      featuresCleared: result.featuresCleared,
+      containersDeleted: result.containersDeleted,
+      itemsLost: result.itemsLost,
+      targetsKilled: result.targetsKilled,
+    },
+  });
+
+  const lost = result.itemsLost > 0 ? ` Лут потерян: ${result.itemsLost}.` : '';
+  state.msgs.push(msg(`${itemName}: удалено ${result.cellsDeleted} кл., целей ${result.targetsKilled}.${lost}`, state.time, '#63f6ff'));
 }
