@@ -917,41 +917,38 @@ function selectPathWaypoint(world: World, e: Entity, r: number): PathWaypoint {
 }
 
 /* ── Follow path ──────────────────────────────────────────────── */
-export function followPath(world: World, e: Entity, dt: number): void {
-  const ai = e.ai!;
-  if (ai.pi >= ai.path.length) {
-    if (ai.path.length > 0) {
-      const current = world.idx(Math.floor(e.x), Math.floor(e.y));
-      const destination = world.idx(Math.floor(ai.tx), Math.floor(ai.ty));
-      ai.path = []; ai.pi = 0; ai.stuck = 0;
-      if (_flowPathAssignments.has(e)) {
-        const status = continueBehaviorFlowPath(world, e);
-        if (status === 'assigned') return;
-      }
-      if (current !== destination) {
-        const status = tryAssignPathToCell(world, e, ai.tx, ai.ty);
-        if (status === 'assigned') return;
-      }
-      // Bark: arrived at destination (very rare)
-      if (e.type === EntityType.NPC && ai.goal === AIGoal.WORK) {
-        emitMarkovBark(e, _barkMsgs, _barkTime, 'ambient', 'Пришли.', BARK_CHANCE_ARRIVE, '#aac');
-      }
+
+function handlePathArrival(world: World, e: Entity, ai: NonNullable<Entity['ai']>, dt: number): void {
+  if (ai.path.length > 0) {
+    const current = world.idx(Math.floor(e.x), Math.floor(e.y));
+    const destination = world.idx(Math.floor(ai.tx), Math.floor(ai.ty));
+    ai.path = []; ai.pi = 0; ai.stuck = 0;
+    if (_flowPathAssignments.has(e)) {
+      const status = continueBehaviorFlowPath(world, e);
+      if (status === 'assigned') return;
     }
-    if (e.type === EntityType.NPC && ai.goal !== AIGoal.HIDE && ai.goal !== AIGoal.FLEE) {
-      ai.stuck += dt;
-      // Higher threshold reduces corridor ping-pong: NPCs linger longer before re-wandering
-      if (ai.stuck > 3 + Math.random() * 2) {
-        wanderInRoom(world, e);
-        // Fallback: if wanderInRoom found nothing (no room or tiny room), try wanderNearby
-        if (ai.path.length === 0) wanderNearby(world, e);
-        ai.stuck = 0;
-      }
+    if (current !== destination) {
+      const status = tryAssignPathToCell(world, e, ai.tx, ai.ty);
+      if (status === 'assigned') return;
     }
-    return;
+    // Bark: arrived at destination (very rare)
+    if (e.type === EntityType.NPC && ai.goal === AIGoal.WORK) {
+      emitMarkovBark(e, _barkMsgs, _barkTime, 'ambient', 'Пришли.', BARK_CHANCE_ARRIVE, '#aac');
+    }
   }
+  if (e.type === EntityType.NPC && ai.goal !== AIGoal.HIDE && ai.goal !== AIGoal.FLEE) {
+    ai.stuck += dt;
+    // Higher threshold reduces corridor ping-pong: NPCs linger longer before re-wandering
+    if (ai.stuck > 3 + Math.random() * 2) {
+      wanderInRoom(world, e);
+      // Fallback: if wanderInRoom found nothing (no room or tiny room), try wanderNearby
+      if (ai.path.length === 0) wanderNearby(world, e);
+      ai.stuck = 0;
+    }
+  }
+}
 
-  const r = actorOccupyRadius(e);
-
+function advancePathWaypoints(world: World, e: Entity, ai: NonNullable<Entity['ai']>): void {
   while (ai.pi < ai.path.length) {
     const cell = ai.path[ai.pi];
     const [cx, cy] = subcellToWorld(cell);
@@ -959,6 +956,59 @@ export function followPath(world: World, e: Entity, dt: number): void {
     ai.pi++;
     ai.stuck = 0;
   }
+}
+
+function performPathMovement(world: World, e: Entity, waypoint: PathWaypoint, r: number, dist: number, dx: number, dy: number, dt: number): boolean {
+  // Open doors in the way (never open hermetic doors — they protect apartments during samosbor)
+  openPathDoor(world, waypoint.cell);
+
+  // Move toward target
+  const speed = aiPathMoveSpeed(e) * getCellHazardMoveMultiplier(world, e) * dt;
+  const nx = e.x + (dx / dist) * speed;
+  const ny = e.y + (dy / dist) * speed;
+  let moved = false;
+
+  // Open door ahead of movement if the next position is on a door cell
+  openPathDoorAtWorld(world, nx, ny);
+
+  const ignoreFineBlockers = entityIgnoresFineBlockers(e);
+  if (canActorOccupy(world, nx, e.y, r, { ignoreFineBlockers })) {
+    e.x = ((nx % W) + W) % W;
+    moved = true;
+  }
+  if (canActorOccupy(world, e.x, ny, r, { ignoreFineBlockers })) {
+    e.y = ((ny % W) + W) % W;
+    moved = true;
+  }
+  return moved;
+}
+
+function updatePathStuckState(world: World, e: Entity, ai: NonNullable<Entity['ai']>, waypoint: PathWaypoint, beforeCell: number, distSq: number, dt: number, moved: boolean): void {
+  const afterDx = world.delta(e.x, waypoint.x);
+  const afterDy = world.delta(e.y, waypoint.y);
+  const afterDistSq = afterDx * afterDx + afterDy * afterDy;
+  const afterCell = world.idx(Math.floor(e.x), Math.floor(e.y));
+  const progressed = moved && (afterDistSq < distSq - 0.0001 || afterCell !== beforeCell);
+  ai.stuck = progressed ? Math.max(0, ai.stuck - dt * 2) : ai.stuck + dt;
+  if (ai.stuck > 3) {
+    ai.path = [];
+    ai.pi = 0;
+    ai.stuck = 0;
+    ai.goal = AIGoal.IDLE;
+    ai.timer = 2;
+  }
+}
+
+export function followPath(world: World, e: Entity, dt: number): void {
+  const ai = e.ai!;
+
+  if (ai.pi >= ai.path.length) {
+    handlePathArrival(world, e, ai, dt);
+    return;
+  }
+
+  const r = actorOccupyRadius(e);
+  advancePathWaypoints(world, e, ai);
 
   if (ai.pi >= ai.path.length) return;
 
@@ -978,44 +1028,11 @@ export function followPath(world: World, e: Entity, dt: number): void {
   }
   const dist = Math.sqrt(distSq);
 
-  // Open doors in the way (never open hermetic doors — they protect apartments during samosbor)
-  openPathDoor(world, waypoint.cell);
-
-  // Move toward target
-  const speed = aiPathMoveSpeed(e) * getCellHazardMoveMultiplier(world, e) * dt;
   const beforeCell = world.idx(Math.floor(e.x), Math.floor(e.y));
-  const nx = e.x + (dx / dist) * speed;
-  const ny = e.y + (dy / dist) * speed;
-  let moved = false;
-
-  // Open door ahead of movement if the next position is on a door cell
-  openPathDoorAtWorld(world, nx, ny);
-
-  const ignoreFineBlockers = entityIgnoresFineBlockers(e);
-  if (canActorOccupy(world, nx, e.y, r, { ignoreFineBlockers })) {
-    e.x = ((nx % W) + W) % W;
-    moved = true;
-  }
-  if (canActorOccupy(world, e.x, ny, r, { ignoreFineBlockers })) {
-    e.y = ((ny % W) + W) % W;
-    moved = true;
-  }
-
-  // Stuck detection
-  const afterDx = world.delta(e.x, waypoint.x);
-  const afterDy = world.delta(e.y, waypoint.y);
-  const afterDistSq = afterDx * afterDx + afterDy * afterDy;
-  const afterCell = world.idx(Math.floor(e.x), Math.floor(e.y));
-  const progressed = moved && (afterDistSq < distSq - 0.0001 || afterCell !== beforeCell);
-  ai.stuck = progressed ? Math.max(0, ai.stuck - dt * 2) : ai.stuck + dt;
-  if (ai.stuck > 3) {
-    ai.path = [];
-    ai.pi = 0;
-    ai.stuck = 0;
-    ai.goal = AIGoal.IDLE;
-    ai.timer = 2;
-  }
+  const moved = performPathMovement(world, e, waypoint, r, dist, dx, dy, dt);
+  updatePathStuckState(world, e, ai, waypoint, beforeCell, distSq, dt, moved);
 }
+
 
 /* ── Find nearest room of type ────────────────────────────────── */
 interface RoomTypeCache {
