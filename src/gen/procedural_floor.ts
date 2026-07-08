@@ -8747,6 +8747,7 @@ function applyAdminPockets(world: World, rooms: Room[], spec: ProceduralFloorSpe
       if (queueRooms.length >= Math.min(2, desiredQueueRooms)) break;
     }
   }
+  const queueRoomsSet = new Set(queueRooms);
   const officeRooms = adminRooms
     .filter(room => !queueRoomsSet.has(room))
     .filter(room => room.type === RoomType.OFFICE || room.type === RoomType.STORAGE)
