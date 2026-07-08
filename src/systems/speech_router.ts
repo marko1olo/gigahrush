@@ -6,6 +6,7 @@ import {
   generateMarkovText as generateCoreMarkovText,
   validateMarkovTextData as validateCoreMarkovTextData,
 } from './markov_text';
+import { showSpeechBubble } from '../render/hud';
 
 export type {
   MarkovDangerBand,
@@ -92,15 +93,22 @@ export function setSpeechRouterGenerator(generator: SpeechGenerator | undefined)
 }
 
 export function routeSpeech(request: SpeechRouterRequest): SpeechRouterResult {
+  let result: SpeechRouterResult;
   if (request.source === 'locked_author_text' || request.intent === 'locked_author_text') {
-    return lockedTextResult(request);
+    result = lockedTextResult(request);
+  } else if (hasText(request.exactFallback)) {
+    result = fallbackResult(request, 'curated_pool');
+  } else if (request.source === 'curated_pool') {
+    result = curatedPoolResult(request);
+  } else {
+    result = generateMarkovText(request);
   }
 
-  if (hasText(request.exactFallback)) return fallbackResult(request, 'curated_pool');
+  if (request.context.actorId !== undefined && hasText(result.text)) {
+    showSpeechBubble(request.context.actorId, result.text, 3.6);
+  }
 
-  if (request.source === 'curated_pool') return curatedPoolResult(request);
-
-  return generateMarkovText(request);
+  return result;
 }
 
 export function generateMarkovText(request: SpeechRouterRequest): SpeechRouterResult {
