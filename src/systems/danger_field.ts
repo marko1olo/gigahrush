@@ -19,15 +19,13 @@ let activeMaxX = W - 1;
 let activeMaxY = W - 1;
 let isFullScan = true;
 
-export function updateDangerField(world: World, dt: number): void {
-  // Update ~2 times a second to save CPU
-  tickCounter += dt;
-  if (tickCounter < 0.5) return;
-  tickCounter -= 0.5;
+let nextMinX = W;
+let nextMinY = W;
+let nextMaxX = -1;
+let nextMaxY = -1;
+let activeCells = 0;
 
-  const field = world.dangerField;
-  const wSq = W * W;
-  
+function prepareNextField(wSq: number): void {
   if (!nextField) {
     nextField = new Uint8Array(wSq);
   } else {
@@ -43,17 +41,29 @@ export function updateDangerField(world: World, dt: number): void {
       }
     }
   }
+}
 
-  let nextMinX = W;
-  let nextMinY = W;
-  let nextMaxX = -1;
-  let nextMaxY = -1;
-  let activeCells = 0;
+function updateCellBounds(x: number, y: number): void {
+  if (x < nextMinX) nextMinX = x;
+  if (x > nextMaxX) nextMaxX = x;
+  if (y < nextMinY) nextMinY = y;
+  if (y > nextMaxY) nextMaxY = y;
+}
+
+function processDangerCells(world: World, field: Uint8Array): void {
+  nextMinX = W;
+  nextMinY = W;
+  nextMaxX = -1;
+  nextMaxY = -1;
+  activeCells = 0;
 
   const startY = isFullScan ? 0 : activeMinY;
   const endY = isFullScan ? W - 1 : activeMaxY;
   const startX = isFullScan ? 0 : activeMinX;
   const endX = isFullScan ? W - 1 : activeMaxX;
+
+  // We are certain nextField is initialized
+  const outField = nextField!;
 
   for (let cy = startY; cy <= endY; cy++) {
     const rowBase = cy * W;
@@ -68,11 +78,7 @@ export function updateDangerField(world: World, dt: number): void {
       const decayed = Math.max(0, val - FADE_RATE);
       if (decayed === 0) continue;
       
-      // Update new bounding box
-      if (cx < nextMinX) nextMinX = cx;
-      if (cx > nextMaxX) nextMaxX = cx;
-      if (cy < nextMinY) nextMinY = cy;
-      if (cy > nextMaxY) nextMaxY = cy;
+      updateCellBounds(cx, cy);
       
       // Check if cell is permeable to fluid
       const cellId = world.cells[i];
@@ -85,31 +91,29 @@ export function updateDangerField(world: World, dt: number): void {
       
       // If solid or closed door, it just fades quickly without spreading
       if (isSolid || isClosedDoor) {
-        nextField[i] = Math.max(nextField[i], decayed);
+        outField[i] = Math.max(outField[i], decayed);
         continue;
       }
 
       const spreadAmount = Math.floor(decayed * DIFFUSION);
       const retainAmount = decayed - spreadAmount * 4;
 
-      nextField[i] = Math.min(255, nextField[i] + retainAmount);
+      outField[i] = Math.min(255, outField[i] + retainAmount);
 
       if (spreadAmount > 0) {
         for (const dir of DIRS) {
           const nx = world.wrap(cx + dir.dx);
           const ny = world.wrap(cy + dir.dy);
           const ni = ny * W + nx;
-          nextField[ni] = Math.min(255, nextField[ni] + spreadAmount);
-          // Expand new bounding box for spread
-          if (nx < nextMinX) nextMinX = nx;
-          if (nx > nextMaxX) nextMaxX = nx;
-          if (ny < nextMinY) nextMinY = ny;
-          if (ny > nextMaxY) nextMaxY = ny;
+          outField[ni] = Math.min(255, outField[ni] + spreadAmount);
+          updateCellBounds(nx, ny);
         }
       }
     }
   }
+}
 
+function finalizeBoundsAndSwapFields(field: Uint8Array): void {
   // Handle torus wrap expansion for bounding box
   if (nextMinX < 0) nextMinX = 0;
   if (nextMaxX >= W) nextMaxX = W - 1;
@@ -132,16 +136,31 @@ export function updateDangerField(world: World, dt: number): void {
   activeMaxY = nextMaxY;
   isFullScan = (activeCells > 0 && (activeMaxX - activeMinX >= W - 2 || activeMaxY - activeMinY >= W - 2));
 
+  const outField = nextField!;
   // Swap fields efficiently
   if (isFullScan) {
-    field.set(nextField);
+    field.set(outField);
   } else if (activeCells > 0) {
     // Only copy the active bounding box
     for (let cy = activeMinY; cy <= activeMaxY; cy++) {
       const row = cy * W;
       for (let cx = activeMinX; cx <= activeMaxX; cx++) {
-        field[row + cx] = nextField[row + cx];
+        field[row + cx] = outField[row + cx];
       }
     }
   }
+}
+
+export function updateDangerField(world: World, dt: number): void {
+  // Update ~2 times a second to save CPU
+  tickCounter += dt;
+  if (tickCounter < 0.5) return;
+  tickCounter -= 0.5;
+
+  const field = world.dangerField;
+  const wSq = W * W;
+
+  prepareNextField(wSq);
+  processDangerCells(world, field);
+  finalizeBoundsAndSwapFields(field);
 }
