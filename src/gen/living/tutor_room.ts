@@ -328,5 +328,8 @@ export function generateTutorRoom(world: World, nextRoomId: number, entities: En
   const spawnX = isTutorial ? cafeX + Math.floor(cafeW / 2) + 0.5 : hallX + Math.floor(hallW / 2) + 0.5;
   const spawnY = isTutorial ? cafeY + Math.floor(cafeH / 2) + 0.5 : hallY + hallH - 2 + 0.5;
 
+  requireSpawnedPlotNpcFromPackage(entities, nextId, 'barney',
+    spawnX, spawnY - 1, { angle: -Math.PI / 2 });
+
   return { room, spawnX, spawnY, nextRoomId };
 }
