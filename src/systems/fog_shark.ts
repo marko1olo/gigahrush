@@ -64,19 +64,77 @@ export function fogSharkProjectileDamage(target: Entity, projectile: Entity, bas
   return Math.max(baseDamage, maxHp + 1);
 }
 
-export function recordFogSharkIgnited(
+
+export interface FogSharkIgnitionStats {
+  hitCount: number;
+  killCount: number;
+  sharkHits: number;
+  hitIds: number[];
+}
+
+function applyFogSharkIgnitionToTarget(
   world: World,
   state: GameState,
   shark: Entity,
-  actor?: Entity,
+  target: Entity,
+  actor: Entity | undefined,
+  stats: FogSharkIgnitionStats,
+  radius: number,
+  radiusSq: number,
   onKill?: FogSharkCollateralKillHandler,
-): number {
-  const radius = FOG_SHARK_IGNITION_RADIUS;
+): void {
+  if (stats.hitCount >= FOG_SHARK_IGNITION_TARGET_CAP) return;
+  if (!target.alive || target.id === shark.id || target.hp === undefined) return;
+  if (!isPlayerEntity(target) && target.type !== EntityType.NPC && target.type !== EntityType.MONSTER) return;
+  const d2 = world.dist2(shark.x, shark.y, target.x, target.y);
+  if (d2 > radiusSq) return;
+
+  const dist = Math.sqrt(d2);
+  const falloff = 1 - (dist / radius) * 0.45;
+  const damage = Math.max(3, Math.round(FOG_SHARK_IGNITION_DAMAGE * falloff));
+
+  target.hp -= damage;
+  stats.hitCount++;
+  stats.hitIds.push(target.id);
+  if (target.monsterKind === MonsterKind.FOG_SHARK) stats.sharkHits++;
+
+  const dx = world.delta(shark.x, target.x);
+  const dy = world.delta(shark.y, target.y);
+  const len = Math.max(0.001, Math.sqrt(dx * dx + dy * dy));
+  const blastVx = (dx / len) * 7;
+  const blastVy = (dy / len) * 7;
+
+  if (isPlayerEntity(target)) {
+    state.dmgFlash = Math.max(state.dmgFlash, 0.28);
+    state.dmgSeed = (state.dmgSeed + 91) | 0;
+    recordPlayerDamage(state, shark, damage, `Газовый взрыв туманной акулы: -${damage}`, 'hazard');
+  } else if (target.type === EntityType.NPC && actor?.faction === Faction.PLAYER) {
+    applyDamageRelationPenalty(actor.faction, target.faction, damage, target, actor, state);
+  }
+
+  if (target.hp <= 0) {
+    target.hp = 0;
+    target.alive = false;
+    stats.killCount++;
+    onKill?.(target, blastVx, blastVy, target.type === EntityType.MONSTER ? 2 : 1);
+  }
+}
+
+function processIgnitionTargets(
+  world: World,
+  state: GameState,
+  shark: Entity,
+  actor: Entity | undefined,
+  radius: number,
+  onKill?: FogSharkCollateralKillHandler,
+): FogSharkIgnitionStats {
+  const stats: FogSharkIgnitionStats = {
+    hitCount: 0,
+    killCount: 0,
+    sharkHits: 0,
+    hitIds: [],
+  };
   const radiusSq = radius * radius;
-  let hitCount = 0;
-  let killCount = 0;
-  let sharkHits = 0;
-  const hitIds: number[] = [];
 
   getEntityIndex().queryRadiusCapped(
     shark.x,
@@ -87,51 +145,26 @@ export function recordFogSharkIgnited(
     FOG_SHARK_IGNITION_QUERY_CAP,
   );
 
-  const hitTarget = (target: Entity): void => {
-    if (hitCount >= FOG_SHARK_IGNITION_TARGET_CAP) return;
-    if (!target.alive || target.id === shark.id || target.hp === undefined) return;
-    if (!isPlayerEntity(target) && target.type !== EntityType.NPC && target.type !== EntityType.MONSTER) return;
-    const d2 = world.dist2(shark.x, shark.y, target.x, target.y);
-    if (d2 > radiusSq) return;
-    const dist = Math.sqrt(d2);
-    const falloff = 1 - (dist / radius) * 0.45;
-    const damage = Math.max(3, Math.round(FOG_SHARK_IGNITION_DAMAGE * falloff));
-    target.hp -= damage;
-    hitCount++;
-    hitIds.push(target.id);
-    if (target.monsterKind === MonsterKind.FOG_SHARK) sharkHits++;
-
-    const dx = world.delta(shark.x, target.x);
-    const dy = world.delta(shark.y, target.y);
-    const len = Math.max(0.001, Math.sqrt(dx * dx + dy * dy));
-    const blastVx = (dx / len) * 7;
-    const blastVy = (dy / len) * 7;
-
-    if (isPlayerEntity(target)) {
-      state.dmgFlash = Math.max(state.dmgFlash, 0.28);
-      state.dmgSeed = (state.dmgSeed + 91) | 0;
-      recordPlayerDamage(state, shark, damage, `Газовый взрыв туманной акулы: -${damage}`, 'hazard');
-    } else if (target.type === EntityType.NPC && actor?.faction === Faction.PLAYER) {
-      applyDamageRelationPenalty(actor.faction, target.faction, damage, target, actor, state);
-    }
-
-    if (target.hp <= 0) {
-      target.hp = 0;
-      target.alive = false;
-      killCount++;
-      onKill?.(target, blastVx, blastVy, target.type === EntityType.MONSTER ? 2 : 1);
-    }
-  };
-
   for (const target of fogSharkIgnitionQuery) {
     if (target.monsterKind === MonsterKind.FOG_SHARK) continue;
-    hitTarget(target);
+    applyFogSharkIgnitionToTarget(world, state, shark, target, actor, stats, radius, radiusSq, onKill);
   }
   for (const target of fogSharkIgnitionQuery) {
     if (target.monsterKind !== MonsterKind.FOG_SHARK) continue;
-    hitTarget(target);
+    applyFogSharkIgnitionToTarget(world, state, shark, target, actor, stats, radius, radiusSq, onKill);
   }
 
+  return stats;
+}
+
+function playFogSharkIgnitionEffects(
+  world: World,
+  state: GameState,
+  shark: Entity,
+  actor: Entity | undefined,
+  radius: number,
+  stats: FogSharkIgnitionStats,
+): void {
   const cx = Math.floor(shark.x);
   const cy = Math.floor(shark.y);
   const fx = ((shark.x % 1) + 1) % 1;
@@ -141,14 +174,24 @@ export function recordFogSharkIgnited(
 
   playSoundAt(playExplosion, shark.x, shark.y);
   publishExplosionNoise(state, actor, shark.x, shark.y, radius, 'fog_shark');
+
   state.msgs.push(msg(
-    hitCount > 0
-      ? `Газовый пузырь туманной акулы лопнул: задело ${hitCount}.`
+    stats.hitCount > 0
+      ? `Газовый пузырь туманной акулы лопнул: задело ${stats.hitCount}.`
       : 'Газовый пузырь туманной акулы лопнул в пустой туман.',
     state.time,
     '#fb8',
   ));
+}
 
+function publishFogSharkIgnitionEvent(
+  world: World,
+  state: GameState,
+  shark: Entity,
+  actor: Entity | undefined,
+  radius: number,
+  stats: FogSharkIgnitionStats,
+): void {
   publishEvent(state, {
     type: 'fog_shark_ignited',
     zoneId: cellZoneId(world, shark),
@@ -161,20 +204,34 @@ export function recordFogSharkIgnited(
     targetId: shark.id,
     targetName: actorName(shark),
     monsterKind: MonsterKind.FOG_SHARK,
-    severity: hitCount > 0 ? 4 : 3,
+    severity: stats.hitCount > 0 ? 4 : 3,
     privacy: isPlayerEntity(actor) ? 'local' : 'witnessed',
     tags: ['monster', 'fog_shark', 'fire', 'explosion', 'counterplay', 'fog'],
     data: {
       radius,
       damage: FOG_SHARK_IGNITION_DAMAGE,
       cap: FOG_SHARK_IGNITION_TARGET_CAP,
-      hitCount,
-      killCount,
-      sharkHits,
-      hitIds,
+      hitCount: stats.hitCount,
+      killCount: stats.killCount,
+      sharkHits: stats.sharkHits,
+      hitIds: stats.hitIds,
       rumorIds: [...FOG_SHARK_RUMOR_IDS],
     },
   });
+}
 
-  return hitCount;
+export function recordFogSharkIgnited(
+  world: World,
+  state: GameState,
+  shark: Entity,
+  actor?: Entity,
+  onKill?: FogSharkCollateralKillHandler,
+): number {
+  const radius = FOG_SHARK_IGNITION_RADIUS;
+
+  const stats = processIgnitionTargets(world, state, shark, actor, radius, onKill);
+  playFogSharkIgnitionEffects(world, state, shark, actor, radius, stats);
+  publishFogSharkIgnitionEvent(world, state, shark, actor, radius, stats);
+
+  return stats.hitCount;
 }
