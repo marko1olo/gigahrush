@@ -305,76 +305,41 @@ export function primeNpcAlifeState(
   }
 }
 
-/* ── NPC behavior: local utility selection with bounded execution ─ */
-export function updateNPC(
+function handleUrinationReaction(world: World, e: Entity, state?: import('../../core/types').GameState): void {
+  const ai = e.ai;
+  if (!state || !ai) return;
+
+  const sinceId = ai.lastSeenUrinationId ?? 0;
+  const events = getRecentEvents(state, { type: 'player_urinated', sinceId, limit: 1 });
+  if (events.length > 0) {
+    const event = events[0];
+    if (event.id > sinceId) {
+      ai.lastSeenUrinationId = event.id;
+      if (event.x !== undefined && event.y !== undefined) {
+        const dist2 = world.dist2(e.x, e.y, event.x, event.y);
+        if (dist2 <= 64 && e.faction !== Faction.WILD) {
+          const isBathroom = event.roomId !== undefined && world.rooms[event.roomId]?.type === RoomType.BATHROOM;
+          if (!isBathroom) {
+            e.playerRelation = (e.playerRelation ?? 0) - 15;
+          }
+        }
+      }
+    }
+  } else if (state.worldEvents) {
+    ai.lastSeenUrinationId = Math.max(sinceId, state.worldEvents.nextId - 1);
+  }
+}
+
+function executeUtilityIntent(
   world: World,
   entities: Entity[],
   e: Entity,
   dt: number,
   time: number,
   clock: GameClock,
-  samosborActive: boolean,
-  profile: NpcAiProfile = 'default',
-  state?: import('../../core/types').GameState,
+  intent: NpcUtilityIntentId,
+  profile: NpcAiProfile
 ): void {
-  const ai = e.ai!;
-
-  const special = tickNpcSpecialRoutine(e, clock);
-  if (special.clearUtility) {
-    ai.stateTimer = 0;
-    clearUtilityState(e);
-  }
-
-  if (state) {
-    const sinceId = ai.lastSeenUrinationId ?? 0;
-    const events = getRecentEvents(state, { type: 'player_urinated', sinceId, limit: 1 });
-    if (events.length > 0) {
-      const event = events[0];
-      if (event.id > sinceId) {
-        ai.lastSeenUrinationId = event.id;
-        if (event.x !== undefined && event.y !== undefined) {
-          const dist2 = world.dist2(e.x, e.y, event.x, event.y);
-          if (dist2 <= 64 && e.faction !== Faction.WILD) {
-            const isBathroom = event.roomId !== undefined && world.rooms[event.roomId]?.type === RoomType.BATHROOM;
-            if (!isBathroom) {
-              e.playerRelation = (e.playerRelation ?? 0) - 15;
-            }
-          }
-        }
-      }
-    } else if (state.worldEvents) {
-      ai.lastSeenUrinationId = Math.max(sinceId, state.worldEvents.nextId - 1);
-    }
-  }
-  if (special.held) {
-    return;
-  }
-
-  evaluateMicroStimuli(world, e, time, _barkMsgs);
-  if (tickMicroGoal(world, entities, e, dt, time, _barkMsgs)) {
-    return;
-  }
-
-  if (utilityIntentByNpc.get(e) === undefined || ai.npcState === undefined) {
-    enterUtilityIntent(e, initialIntentForNpc(e, samosborActive, profile), 0, profile);
-  }
-
-  const decision = selectAndEnterUtilityIntent(world, entities, e, clock, samosborActive, profile);
-  const intent = decision.intent;
-
-  ai.timer -= dt;
-  ai.stateTimer = (ai.stateTimer ?? 0) + dt;
-
-  if (!decision.rescored && canHoldRoutineFrame(e, intent)) {
-    if (intent === 'work') tryCleanerSurfaceWork(world, e);
-    tickNpcMemoryLowFrequency(e, time, clock.totalMinutes, samosborActive);
-    tickNpcRumorLowFrequency(e, time, clock.totalMinutes, samosborActive);
-    tryAmbientBark(e, dt, samosborActive);
-    return;
-  }
-
-  applyRoomRestoration(world, e, dt, time, profile);
-
   switch (intent) {
     case 'safety':
     case 'flee':
@@ -408,6 +373,55 @@ export function updateNPC(
     case 'wander':
       handleWander(world, e, dt);
       break;
+  }
+}
+
+/* ── NPC behavior: local utility selection with bounded execution ─ */
+export function updateNPC(
+  world: World,
+  entities: Entity[],
+  e: Entity,
+  dt: number,
+  time: number,
+  clock: GameClock,
+  samosborActive: boolean,
+  profile: NpcAiProfile = 'default',
+  state?: import('../../core/types').GameState,
+): void {
+  const ai = e.ai!;
+
+  const special = tickNpcSpecialRoutine(e, clock);
+  if (special.clearUtility) {
+    ai.stateTimer = 0;
+    clearUtilityState(e);
+  }
+
+  handleUrinationReaction(world, e, state);
+
+  if (special.held) {
+    return;
+  }
+
+  evaluateMicroStimuli(world, e, time, _barkMsgs);
+  if (tickMicroGoal(world, entities, e, dt, time, _barkMsgs)) {
+    return;
+  }
+
+  if (utilityIntentByNpc.get(e) === undefined || ai.npcState === undefined) {
+    enterUtilityIntent(e, initialIntentForNpc(e, samosborActive, profile), 0, profile);
+  }
+
+  const decision = selectAndEnterUtilityIntent(world, entities, e, clock, samosborActive, profile);
+  const intent = decision.intent;
+
+  ai.timer -= dt;
+  ai.stateTimer = (ai.stateTimer ?? 0) + dt;
+
+  if (!decision.rescored && canHoldRoutineFrame(e, intent)) {
+    if (intent === 'work') tryCleanerSurfaceWork(world, e);
+  } else {
+    applyRoomRestoration(world, e, dt, time, profile);
+    executeUtilityIntent(world, entities, e, dt, time, clock, intent, profile);
   }
 
   tickNpcMemoryLowFrequency(e, time, clock.totalMinutes, samosborActive);
