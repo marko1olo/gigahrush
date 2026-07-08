@@ -262,7 +262,7 @@ function drawVoidReturnPortalHint(
   ctx.shadowBlur = 7;
   drawGlitchText(ctx, 'ВЫХОД ДОМОЙ', x + panelW * 0.5, y + 4 * sy, time * 1.7, 989, '#0f8', 9 * sy);
   ctx.shadowBlur = 0;
-  drawGlitchText(ctx, fitHudText(ctx, `центр ${dist}м / ${consequence}`, panelW - 12 * sx), x + panelW * 0.5, y + 17 * sy, time, 990, '#cfe', 7 * sy);
+  drawGlitchText(ctx, fitUiText(ctx, `центр ${dist}м / ${consequence}`, panelW - 12 * sx), x + panelW * 0.5, y + 17 * sy, time, 990, '#cfe', 7 * sy);
   ctx.textAlign = 'left';
   ctx.restore();
 }
@@ -285,7 +285,7 @@ function drawSamosborActiveInstruction(
   ctx.textAlign = 'center';
   ctx.fillStyle = active.tint;
   ctx.font = `bold ${16 * sy}px monospace`;
-  const fittedTitle = fitHudText(ctx, title, w - 16 * sx);
+  const fittedTitle = fitUiText(ctx, title, w - 16 * sx);
   ctx.fillStyle = 'rgba(0,0,0,0.62)';
   ctx.fillText(fittedTitle, w * 0.5 + sj.dx * 3 + 1, y + 8 * sy + sj.dy * 2 + 1);
   ctx.fillStyle = active.tint;
@@ -315,14 +315,14 @@ function drawSamosborWarningInstruction(
   ctx.save();
   ctx.textAlign = 'center';
   ctx.font = `bold ${titleSize}px monospace`;
-  const fittedTitle = fitHudText(ctx, title, w - 16 * sx);
+  const fittedTitle = fitUiText(ctx, title, w - 16 * sx);
   ctx.fillStyle = 'rgba(0,0,0,0.72)';
   ctx.fillText(fittedTitle, w * 0.5 + sj.dx * 2.2 + 1, y + 8 * sy + sj.dy * 1.4 + 1);
   ctx.fillStyle = '#ff3030';
   ctx.fillText(fittedTitle, w * 0.5 + sj.dx * 2.2, y + 8 * sy + sj.dy * 1.4);
 
   ctx.font = `${detailSize}px monospace`;
-  const fittedDetail = fitHudText(ctx, detail, w - 18 * sx);
+  const fittedDetail = fitUiText(ctx, detail, w - 18 * sx);
   ctx.fillStyle = 'rgba(0,0,0,0.72)';
   ctx.fillText(fittedDetail, w * 0.5 + 1, y + 22 * sy + 1);
   ctx.fillStyle = '#ff6b6b';
@@ -367,7 +367,7 @@ function drawLiftArachnaWarning(
   ctx.shadowBlur = 8;
   drawGlitchText(ctx, title, w * 0.5, y + 5 * sy, time * 2.3, 812, tint, 10 * sy);
   ctx.shadowBlur = 0;
-  drawGlitchText(ctx, fitHudText(ctx, `${zone} / ${action}`, panelW - 12 * sx), w * 0.5, y + 20 * sy, time, 813, '#ddd', 7 * sy);
+  drawGlitchText(ctx, fitUiText(ctx, `${zone} / ${action}`, panelW - 12 * sx), w * 0.5, y + 20 * sy, time, 813, '#ddd', 7 * sy);
   ctx.textAlign = 'left';
   ctx.restore();
 }
@@ -400,10 +400,10 @@ function drawSmogIndicator(
   drawStaticNoise(ctx, x, y, panelW, panelH, time, status.handled ? 0.008 : 0.018);
   ctx.font = `${8 * sy}px monospace`;
   ctx.fillStyle = status.handled ? '#8cf' : '#d8b56a';
-  ctx.fillText(fitHudText(ctx, title, panelW - 12 * sx), x + 6 * sx, y + 5 * sy);
+  ctx.fillText(fitUiText(ctx, title, panelW - 12 * sx), x + 6 * sx, y + 5 * sy);
   ctx.font = `${7 * sy}px monospace`;
   ctx.fillStyle = '#d7d0bd';
-  ctx.fillText(fitHudText(ctx, action, panelW - 12 * sx), x + 6 * sx, y + 17 * sy);
+  ctx.fillText(fitUiText(ctx, action, panelW - 12 * sx), x + 6 * sx, y + 17 * sy);
   ctx.restore();
 }
 
@@ -438,12 +438,12 @@ function drawRouteCueHint(
   ctx.textAlign = 'left';
   ctx.font = `${7 * sy}px monospace`;
   ctx.fillStyle = cue.color;
-  ctx.fillText(fitHudText(ctx, cue.label, panelW - 12 * sx), x + 6 * sx, y + 12 * sy);
+  ctx.fillText(fitUiText(ctx, cue.label, panelW - 12 * sx), x + 6 * sx, y + 12 * sy);
   ctx.fillStyle = '#ddd';
-  ctx.fillText(fitHudText(ctx, `${arrow} ${cue.targetName} ${dist}м`, panelW - 12 * sx), x + 6 * sx, y + 21 * sy);
+  ctx.fillText(fitUiText(ctx, `${arrow} ${cue.targetName} ${dist}м`, panelW - 12 * sx), x + 6 * sx, y + 21 * sy);
   ctx.font = `${6 * sy}px monospace`;
   ctx.fillStyle = '#9a8';
-  ctx.fillText(fitHudText(ctx, cue.hint, panelW - 12 * sx), x + 6 * sx, y + 29 * sy);
+  ctx.fillText(fitUiText(ctx, cue.hint, panelW - 12 * sx), x + 6 * sx, y + 29 * sy);
   ctx.restore();
 }
 
@@ -465,15 +465,15 @@ function drawObjectiveRouteHint(
   ctx.textAlign = 'left';
   ctx.font = `${8 * sy}px monospace`;
   ctx.fillStyle = objective.color;
-  ctx.fillText(fitHudText(ctx, objective.title, panelW - 12 * sx), x + 6 * sx, y + 5 * sy);
+  ctx.fillText(fitUiText(ctx, objective.title, panelW - 12 * sx), x + 6 * sx, y + 5 * sy);
   ctx.font = `${7 * sy}px monospace`;
   ctx.fillStyle = '#ddd';
-  ctx.fillText(fitHudText(ctx, objective.target, panelW - 12 * sx), x + 6 * sx, y + 16 * sy);
+  ctx.fillText(fitUiText(ctx, objective.target, panelW - 12 * sx), x + 6 * sx, y + 16 * sy);
   ctx.fillStyle = '#9cf';
-  ctx.fillText(fitHudText(ctx, objective.lift, panelW - 12 * sx), x + 6 * sx, y + 27 * sy);
+  ctx.fillText(fitUiText(ctx, objective.lift, panelW - 12 * sx), x + 6 * sx, y + 27 * sy);
   ctx.font = `${6 * sy}px monospace`;
   ctx.fillStyle = '#9a8';
-  ctx.fillText(fitHudText(ctx, `${objective.risk} / ${objective.returnPath}`, panelW - 12 * sx), x + 6 * sx, y + 37 * sy);
+  ctx.fillText(fitUiText(ctx, `${objective.risk} / ${objective.returnPath}`, panelW - 12 * sx), x + 6 * sx, y + 37 * sy);
   ctx.restore();
 }
 
@@ -498,7 +498,7 @@ function drawCurrentObjectiveHint(
   ctx.fillText('ЦЕЛЬ', x + 6 * sx, y + 4 * sy);
   ctx.font = `${7 * sy}px monospace`;
   ctx.fillStyle = '#ddd';
-  ctx.fillText(fitHudText(ctx, objective.line, panelW - 12 * sx), x + 6 * sx, y + 14 * sy);
+  ctx.fillText(fitUiText(ctx, objective.line, panelW - 12 * sx), x + 6 * sx, y + 14 * sy);
   ctx.restore();
 }
 
@@ -519,18 +519,14 @@ function drawSmallCaravanHint(
   ctx.textAlign = 'left';
   ctx.font = `${8 * sy}px monospace`;
   ctx.fillStyle = caravan.color;
-  ctx.fillText(fitHudText(ctx, `КАРАВАН ${caravan.statusText}`, panelW - 12 * sx), x + 6 * sx, y + 5 * sy);
+  ctx.fillText(fitUiText(ctx, `КАРАВАН ${caravan.statusText}`, panelW - 12 * sx), x + 6 * sx, y + 5 * sy);
   ctx.font = `${7 * sy}px monospace`;
   ctx.fillStyle = '#ddd';
-  ctx.fillText(fitHudText(ctx, `${caravan.name} ${caravan.dist}м`, panelW - 12 * sx), x + 6 * sx, y + 15 * sy);
+  ctx.fillText(fitUiText(ctx, `${caravan.name} ${caravan.dist}м`, panelW - 12 * sx), x + 6 * sx, y + 15 * sy);
   ctx.font = `${6 * sy}px monospace`;
   ctx.fillStyle = '#9a8';
-  ctx.fillText(fitHudText(ctx, caravan.detail, panelW - 12 * sx), x + 6 * sx, y + 23 * sy);
+  ctx.fillText(fitUiText(ctx, caravan.detail, panelW - 12 * sx), x + 6 * sx, y + 23 * sy);
   ctx.restore();
-}
-
-function fitHudText(ctx: CanvasRenderingContext2D, text: string, maxW: number): string {
-  return fitUiText(ctx, text, maxW);
 }
 
 function compactFloorLabel(entry: FloorRunEntry): string {
@@ -562,9 +558,9 @@ function wrapHudText(ctx: CanvasRenderingContext2D, text: string, maxW: number, 
   if (lines.length === 0) lines.push(text);
   const overflow = words.join(' ') !== lines.join(' ');
   const last = lines.length - 1;
-  if (overflow && last >= 0) lines[last] = `${fitHudText(ctx, lines[last], Math.max(1, maxW - ctx.measureText('...').width))}...`;
-  else if (last >= 0) lines[last] = fitHudText(ctx, lines[last], maxW);
-  return lines.map(item => fitHudText(ctx, item, maxW));
+  if (overflow && last >= 0) lines[last] = `${fitUiText(ctx, lines[last], Math.max(1, maxW - ctx.measureText('...').width))}...`;
+  else if (last >= 0) lines[last] = fitUiText(ctx, lines[last], maxW);
+  return lines.map(item => fitUiText(ctx, item, maxW));
 }
 
 function compactNumber(value: number | undefined): string {
@@ -601,7 +597,7 @@ function drawFpsCounter(ctx: CanvasRenderingContext2D, perf: HudPerfDebugSnapsho
   ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, boxW - 1, boxH - 1);
   ctx.fillStyle = fps >= 50 ? '#8fffd0' : fps >= 30 ? '#ffd36a' : '#ff8a6a';
   for (let i = 0; i < lines.length; i++) {
-    ctx.fillText(fitHudText(ctx, lines[i], boxW - padX * 2), rect.x + padX, rect.y + padY + i * lineH);
+    ctx.fillText(fitUiText(ctx, lines[i], boxW - padX * 2), rect.x + padX, rect.y + padY + i * lineH);
   }
   ctx.restore();
 }
@@ -647,14 +643,14 @@ function drawItemPickupPanel(
   ctx.textBaseline = 'alphabetic';
   ctx.font = `${8 * sy}px monospace`;
   ctx.fillStyle = '#dff';
-  ctx.fillText(fitHudText(ctx, title, panelW - 12 * sx), x + 6 * sx, y + 10 * sy);
+  ctx.fillText(fitUiText(ctx, title, panelW - 12 * sx), x + 6 * sx, y + 10 * sy);
   ctx.font = `${6 * sy}px monospace`;
   ctx.fillStyle = '#9bb';
   for (let i = 0; i < descLines.length; i++) {
     ctx.fillText(descLines[i], x + 6 * sx, y + (20 + i * 8) * sy);
   }
   ctx.fillStyle = '#fd6';
-  ctx.fillText(fitHudText(ctx, `${interactionPromptHint()} поднять${value > 0 ? ` / ${value} руб.` : ''}`, panelW - 12 * sx), x + 6 * sx, y + panelH - 5 * s);
+  ctx.fillText(fitUiText(ctx, `${interactionPromptHint()} поднять${value > 0 ? ` / ${value} руб.` : ''}`, panelW - 12 * sx), x + 6 * sx, y + panelH - 5 * s);
   ctx.restore();
 }
 
@@ -1045,22 +1041,22 @@ export function drawPointerCaptureGate(ctx: CanvasRenderingContext2D, time = 0):
   ctx.shadowBlur = 10 * s;
   ctx.fillStyle = '#bff';
   ctx.font = `bold ${Math.round(17 * s)}px monospace`;
-  ctx.fillText(fitHudText(ctx, lang.pointerGateTitle, panelW - 18 * s), w * 0.5, y + 18 * s);
+  ctx.fillText(fitUiText(ctx, lang.pointerGateTitle, panelW - 18 * s), w * 0.5, y + 18 * s);
   ctx.font = `bold ${Math.round(12 * s)}px monospace`;
-  ctx.fillText(fitHudText(ctx, lang.pointerGateSubtitle, panelW - 18 * s), w * 0.5, y + 39 * s);
+  ctx.fillText(fitUiText(ctx, lang.pointerGateSubtitle, panelW - 18 * s), w * 0.5, y + 39 * s);
 
   ctx.shadowBlur = 0;
   ctx.fillStyle = '#c8d0d0';
   ctx.font = `${Math.round(9 * s)}px monospace`;
-  ctx.fillText(fitHudText(ctx, lang.pointerGateWarning1, panelW - 24 * s), w * 0.5, y + 61 * s);
-  ctx.fillText(fitHudText(ctx, lang.pointerGateWarning2, panelW - 24 * s), w * 0.5, y + 75 * s);
+  ctx.fillText(fitUiText(ctx, lang.pointerGateWarning1, panelW - 24 * s), w * 0.5, y + 61 * s);
+  ctx.fillText(fitUiText(ctx, lang.pointerGateWarning2, panelW - 24 * s), w * 0.5, y + 75 * s);
   ctx.fillStyle = '#9ab';
-  ctx.fillText(fitHudText(ctx, lang.pointerGateControls1, panelW - 24 * s), w * 0.5, y + 91 * s);
-  ctx.fillText(fitHudText(ctx, lang.pointerGateControls2, panelW - 24 * s), w * 0.5, y + 105 * s);
+  ctx.fillText(fitUiText(ctx, lang.pointerGateControls1, panelW - 24 * s), w * 0.5, y + 91 * s);
+  ctx.fillText(fitUiText(ctx, lang.pointerGateControls2, panelW - 24 * s), w * 0.5, y + 105 * s);
 
   ctx.fillStyle = '#708888';
   ctx.font = `${Math.round(7 * s)}px monospace`;
-  ctx.fillText(fitHudText(ctx, lang.pointerGateResume, panelW - 24 * s), w * 0.5, y + 120 * s);
+  ctx.fillText(fitUiText(ctx, lang.pointerGateResume, panelW - 24 * s), w * 0.5, y + 120 * s);
   ctx.textAlign = 'left';
   ctx.restore();
 }
@@ -1087,12 +1083,12 @@ function drawPointerLockPrompt(
   ctx.shadowBlur = 7;
   ctx.font = `${8 * sy}px monospace`;
   ctx.fillStyle = '#9df';
-  ctx.fillText(fitHudText(ctx, lang.pointerLockPrompt, panelW - 14 * sx), w * 0.5, y + 6 * sy);
+  ctx.fillText(fitUiText(ctx, lang.pointerLockPrompt, panelW - 14 * sx), w * 0.5, y + 6 * sy);
   ctx.shadowBlur = 0;
   ctx.font = `${7 * sy}px monospace`;
   ctx.fillStyle = '#9ab';
-  ctx.fillText(fitHudText(ctx, lang.pointerLockControls1(controlHint('gameMenu')), panelW - 14 * sx), w * 0.5, y + 20 * sy);
-  ctx.fillText(fitHudText(ctx, lang.pointerLockControls2(menuCloseHint(), controlHint('interact')), panelW - 14 * sx), w * 0.5, y + 32 * sy);
+  ctx.fillText(fitUiText(ctx, lang.pointerLockControls1(controlHint('gameMenu')), panelW - 14 * sx), w * 0.5, y + 20 * sy);
+  ctx.fillText(fitUiText(ctx, lang.pointerLockControls2(menuCloseHint(), controlHint('interact')), panelW - 14 * sx), w * 0.5, y + 32 * sy);
   ctx.textAlign = 'left';
   ctx.restore();
 }
@@ -1122,18 +1118,18 @@ function drawCombatWeaponPanel(
   ctx.textAlign = 'left';
   ctx.font = `${6.2 * s}px monospace`;
   ctx.fillStyle = '#dcefff';
-  ctx.fillText(fitHudText(ctx, lines.title, panelW - 9 * s), panelX + 4.5 * s, panelY + 2 * s);
+  ctx.fillText(fitUiText(ctx, lines.title, panelW - 9 * s), panelX + 4.5 * s, panelY + 2 * s);
 
   ctx.font = `${5.2 * s}px monospace`;
   ctx.fillStyle = '#8cf';
-  ctx.fillText(fitHudText(ctx, lines.fact, panelW - 9 * s), panelX + 4.5 * s, panelY + 9.5 * s);
+  ctx.fillText(fitUiText(ctx, lines.fact, panelW - 9 * s), panelX + 4.5 * s, panelY + 9.5 * s);
 
   ctx.font = `${6.4 * s}px monospace`;
   ctx.fillStyle = statusColor;
-  ctx.fillText(fitHudText(ctx, lines.state, 42 * s), panelX + 4.5 * s, panelY + 16 * s);
+  ctx.fillText(fitUiText(ctx, lines.state, 42 * s), panelX + 4.5 * s, panelY + 16 * s);
   ctx.textAlign = 'right';
   ctx.fillStyle = weapon.cannotFireReason ? '#f84' : weapon.lowResource ? '#fc4' : '#d7ffd7';
-  ctx.fillText(fitHudText(ctx, lines.resource, panelW - 51 * s), panelX + panelW - 4.5 * s, panelY + 16 * s);
+  ctx.fillText(fitUiText(ctx, lines.resource, panelW - 51 * s), panelX + panelW - 4.5 * s, panelY + 16 * s);
   ctx.textAlign = 'left';
 
   drawHoloBar(ctx, panelX + 4.5 * s, panelY + panelH - 3.2 * s, panelW - 9 * s, 1.8 * s, weapon.reloading ? weapon.reloadPct * 100 : (weapon.cannotFireReason ? 0 : weapon.readyPct * 100), statusColor, time, 193);
@@ -1220,7 +1216,7 @@ function drawCombatSightFeedback(
     }
     ctx.shadowColor = palette.glow;
     ctx.shadowBlur = 5;
-    ctx.fillText(fitHudText(ctx, label, textW), textX, ty + 3 * s);
+    ctx.fillText(fitUiText(ctx, label, textW), textX, ty + 3 * s);
     ctx.shadowBlur = 0;
     const hpTrackW = tw - 10 * s;
     const hpW = hpTrackW * Math.max(0, Math.min(1, target.hpPct / 100));
@@ -1457,7 +1453,7 @@ export function drawHUD(
     drawNeuroPanel(ctx, panelX, panelY, panelW, panelH, time, 185);
     ctx.font = `${7 * sy}px monospace`;
     ctx.fillStyle = '#9c6';
-    ctx.fillText(fitHudText(ctx, zhelemishLine, panelW - 10 * sx), panelX + 5 * sx, panelY + 4 * sy);
+    ctx.fillText(fitUiText(ctx, zhelemishLine, panelW - 10 * sx), panelX + 5 * sx, panelY + 4 * sy);
   }
 
   const routeCue = getActiveRouteCueHud(state.time, state.currentFloor);
@@ -1549,10 +1545,10 @@ export function drawHUD(
       ctx.font = `${6.2 * s}px monospace`;
       const titleY = rect.y + pad + 2.5 * s;
       ctx.fillStyle = 'rgba(130,235,230,0.88)';
-      ctx.fillText(fitHudText(ctx, 'СТЕНОСВОДКА', 78 * s), rect.x + pad, titleY);
+      ctx.fillText(fitUiText(ctx, 'СТЕНОСВОДКА', 78 * s), rect.x + pad, titleY);
       ctx.font = `${5.4 * s}px monospace`;
       ctx.fillStyle = 'rgba(82,110,126,0.84)';
-      ctx.fillText(fitHudText(ctx, 'последние сообщения', Math.max(16 * s, rect.w - 92 * s)), rect.x + pad + 82 * s, titleY + 0.4 * s);
+      ctx.fillText(fitUiText(ctx, 'последние сообщения', Math.max(16 * s, rect.w - 92 * s)), rect.x + pad + 82 * s, titleY + 0.4 * s);
       ctx.strokeStyle = 'rgba(70,220,255,0.25)';
       ctx.beginPath();
       ctx.moveTo(rect.x + pad, rect.y + pad + headerH);
@@ -1571,13 +1567,13 @@ export function drawHUD(
         ctx.globalAlpha = alpha * flicker(time, item.index + 300);
         ctx.font = `${5.3 * s}px monospace`;
         ctx.fillStyle = 'rgba(120,145,160,0.82)';
-        ctx.fillText(fitHudText(ctx, item.stamp, item.stampW - 4 * s), rect.x + pad + rowJitter.dx * 0.28, rowY);
+        ctx.fillText(fitUiText(ctx, item.stamp, item.stampW - 4 * s), rect.x + pad + rowJitter.dx * 0.28, rowY);
         ctx.fillStyle = m.color;
         ctx.font = `${5.8 * s}px monospace`;
         const textX = rect.x + pad + item.stampW;
         const textW = Math.max(32 * s, rect.x + rect.w - pad - textX);
         for (let line = 0; line < item.lines.length; line++) {
-          ctx.fillText(fitHudText(ctx, item.lines[line], textW), textX + rowJitter.dx * 0.28, rowY + line * rowH);
+          ctx.fillText(fitUiText(ctx, item.lines[line], textW), textX + rowJitter.dx * 0.28, rowY + line * rowH);
         }
         my += item.h;
       }
@@ -1624,7 +1620,7 @@ export function drawHUD(
       ctx.fillStyle = '#8cf';
       if (weaponPanel.y > 14 * sy) {
         const s = Math.max(1, Math.min(sx, sy));
-        ctx.fillText(fitHudText(ctx, toolLabel, weaponPanel.w), weaponPanel.x + weaponPanel.w - 2 * s, weaponPanel.y - 8 * s);
+        ctx.fillText(fitUiText(ctx, toolLabel, weaponPanel.w), weaponPanel.x + weaponPanel.w - 2 * s, weaponPanel.y - 8 * s);
       }
       ctx.fillStyle = '#ccc';
     }
@@ -1670,7 +1666,7 @@ export function drawHUD(
         // Subtle glow behind
         ctx.shadowColor = `rgba(${er},${eg},${eb},0.4)`;
         ctx.shadowBlur = 6;
-        const prompt = fitHudText(ctx, `${interactionPromptHint()}${interaction.prompt}`, slots.centerInteraction.w);
+        const prompt = fitUiText(ctx, `${interactionPromptHint()}${interaction.prompt}`, slots.centerInteraction.w);
         ctx.fillText(prompt, slots.centerInteraction.x + slots.centerInteraction.w * 0.5, slots.centerInteraction.y);
         ctx.shadowBlur = 0;
         ctx.textAlign = 'left';
@@ -1739,7 +1735,7 @@ export function drawHUD(
     const leftX = bottomVitals.x + 4 * sx;
     const leftInfoW = Math.max(70 * sx, Math.min(220 * sx, bottomVitals.w - 8 * sx));
     if (floorInstance) {
-      drawRoutineHudText(ctx, fitHudText(ctx, `Лифт ${floorInstance}`, leftInfoW), leftX, barY - 52 * sy, time, 404, '#f4a', 8 * sy, reducedHudMotion);
+      drawRoutineHudText(ctx, fitUiText(ctx, `Лифт ${floorInstance}`, leftInfoW), leftX, barY - 52 * sy, time, 404, '#f4a', 8 * sy, reducedHudMotion);
     }
     drawRoutineHudText(ctx, `День ${day}  ${hh}:${mm}`, leftX, barY - 42 * sy, time, 400, '#8ac', 9 * sy, reducedHudMotion);
     ctx.font = `${9 * sy}px monospace`;
@@ -1751,21 +1747,21 @@ export function drawHUD(
       const zj = routineJitter(reducedHudMotion, time, 410);
       ctx.fillStyle = `rgba(${zr},${zg},${zb},${flicker(time, 411)})`;
       ctx.font = `${8 * sy}px monospace`;
-      ctx.fillText(fitHudText(ctx, `■ Сектор ${zid + 1}  Ур.${zone.level ?? 1}`, leftInfoW), leftX + zj.dx, barY - 32 * sy + zj.dy);
+      ctx.fillText(fitUiText(ctx, `■ Сектор ${zid + 1}  Ур.${zone.level ?? 1}`, leftInfoW), leftX + zj.dx, barY - 32 * sy + zj.dy);
       const fColor = territoryOwner === ZoneFaction.SAMOSBOR ? '#c4f' : '#7aa';
-      drawRoutineHudText(ctx, fitHudText(ctx, `Терр. ${fLabel}`, leftInfoW), leftX, barY - 22 * sy, time, 412, fColor, 7 * sy, reducedHudMotion);
+      drawRoutineHudText(ctx, fitUiText(ctx, `Терр. ${fLabel}`, leftInfoW), leftX, barY - 22 * sy, time, 412, fColor, 7 * sy, reducedHudMotion);
       ctx.font = `${7 * sy}px monospace`;
     }
 
     // Room info
     const room = world.roomAt(player.x, player.y);
     if (room) {
-      drawRoutineHudText(ctx, fitHudText(ctx, room.name, leftInfoW), leftX, barY - 13 * sy, time, 420, '#688', 7 * sy, reducedHudMotion);
+      drawRoutineHudText(ctx, fitUiText(ctx, room.name, leftInfoW), leftX, barY - 13 * sy, time, 420, '#688', 7 * sy, reducedHudMotion);
       ctx.font = `${7 * sy}px monospace`;
     }
     drawRoutineHudText(
       ctx,
-      fitHudText(ctx, compactFloorLabel(floorEntry), leftInfoW),
+      fitUiText(ctx, compactFloorLabel(floorEntry), leftInfoW),
       leftX,
       barY - 5.5 * sy,
       time,
@@ -1888,7 +1884,7 @@ export function drawHUD(
     ctx.shadowBlur = 0;
     ctx.font = `${7 * sy}px monospace`;
     ctx.fillStyle = '#f0c8c8';
-    ctx.fillText(fitHudText(ctx, hazardWarning.detail, rect.w - 12 * sx), rect.x + rect.w * 0.5, rect.y + 17 * sy);
+    ctx.fillText(fitUiText(ctx, hazardWarning.detail, rect.w - 12 * sx), rect.x + rect.w * 0.5, rect.y + 17 * sy);
     ctx.textAlign = 'left';
   }
   if (showSamosborText && state.samosborActive) {
@@ -1945,7 +1941,7 @@ export function drawHUD(
       ctx.shadowBlur = 0;
       ctx.fillStyle = `rgba(136,170,136,${Math.min(1, (state.deathTimer - 2) * 0.4)})`;
       ctx.font = `${10 * sy}px monospace`;
-      ctx.fillText(fitHudText(ctx, voidReturnVictoryLine(state), w * 0.82), w / 2, h / 2 + 10 * sy);
+      ctx.fillText(fitUiText(ctx, voidReturnVictoryLine(state), w * 0.82), w / 2, h / 2 + 10 * sy);
       ctx.fillText('[R] — заново', w / 2, h / 2 + 30 * sy);
       ctx.textAlign = 'left';
       ctx.restore();
@@ -1979,7 +1975,7 @@ export function drawHUD(
     ctx.font = `${10 * sy}px monospace`;
     ctx.fillText(deathCause.title, w / 2, h / 2 + 10 * sy);
     ctx.font = `${8 * sy}px monospace`;
-    ctx.fillText(fitHudText(ctx, deathCause.detail, w * 0.82), w / 2, h / 2 + 24 * sy);
+    ctx.fillText(fitUiText(ctx, deathCause.detail, w * 0.82), w / 2, h / 2 + 24 * sy);
     ctx.font = `${10 * sy}px monospace`;
     ctx.fillText('[R] — заново', w / 2, h / 2 + 44 * sy);
     ctx.fillText('[Enter] — продолжить путь', w / 2, h / 2 + 60 * sy);
