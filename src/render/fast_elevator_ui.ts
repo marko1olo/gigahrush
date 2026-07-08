@@ -2,15 +2,7 @@ import { type FastElevatorOverlaySnapshot } from '../systems/fast_elevator';
 import { drawNeuroPanel, drawStaticNoise } from './hud_fx';
 import { controlHint, menuCloseHint } from '../systems/controls';
 import type { Entity } from '../core/types';
-
-function fitHudText(ctx: CanvasRenderingContext2D, text: string, maxW: number): string {
-  if (ctx.measureText(text).width <= maxW) return text;
-  let len = text.length;
-  while (len > 1 && ctx.measureText(text.substring(0, len) + '...').width > maxW) {
-    len--;
-  }
-  return text.substring(0, len) + '...';
-}
+import { fitTextStable } from './ui_text';
 
 export function drawFastElevatorOverlay(
   ctx: CanvasRenderingContext2D,
@@ -46,12 +38,12 @@ export function drawFastElevatorOverlay(
   ctx.fillStyle = '#bff';
   ctx.font = `bold ${Math.round(14 * s)}px monospace`;
   ctx.textAlign = 'center';
-  ctx.fillText(fitHudText(ctx, 'СКОРОСТНОЙ ЛИФТ', panelW - 16 * s), w * 0.5, y + 16 * s);
+  ctx.fillText(fitTextStable(ctx, 'СКОРОСТНОЙ ЛИФТ', panelW - 16 * s), w * 0.5, y + 16 * s);
 
   ctx.shadowBlur = 0;
   ctx.fillStyle = '#6a8';
   ctx.font = `${Math.round(8 * s)}px monospace`;
-  ctx.fillText(fitHudText(ctx, 'выбор уровня доступа', panelW - 16 * s), w * 0.5, y + 28 * s);
+  ctx.fillText(fitTextStable(ctx, 'выбор уровня доступа', panelW - 16 * s), w * 0.5, y + 28 * s);
 
   ctx.strokeStyle = 'rgba(80, 200, 255, 0.3)';
   ctx.beginPath();
@@ -91,12 +83,12 @@ export function drawFastElevatorOverlay(
     ctx.font = `${Math.round(10 * s)}px monospace`;
     if (!isUnlocked) {
       ctx.fillStyle = isSelected ? '#a44' : '#644';
-      ctx.fillText(fitHudText(ctx, `[НЕДОСТУПНО] Этаж ${floor > 0 ? '+' : ''}${floor}`, panelW - 32 * s), x + 20 * s, rowY);
+      ctx.fillText(fitTextStable(ctx, `[НЕДОСТУПНО] Этаж ${floor > 0 ? '+' : ''}${floor}`, panelW - 32 * s), x + 20 * s, rowY);
     } else {
       ctx.fillStyle = isSelected ? '#fff' : '#8ac';
       ctx.shadowColor = isSelected ? '#8cf' : 'transparent';
       ctx.shadowBlur = isSelected ? 4 * s : 0;
-      ctx.fillText(fitHudText(ctx, label, panelW - 32 * s), x + 20 * s, rowY);
+      ctx.fillText(fitTextStable(ctx, label, panelW - 32 * s), x + 20 * s, rowY);
       ctx.shadowBlur = 0;
     }
   }
@@ -106,14 +98,14 @@ export function drawFastElevatorOverlay(
     ctx.textAlign = 'center';
     ctx.fillStyle = snapshot.message.includes('НЕДОСТУПНО') || snapshot.message.includes('уже') ? '#f44' : '#4f8';
     ctx.font = `${Math.round(8 * s)}px monospace`;
-    ctx.fillText(fitHudText(ctx, snapshot.message, panelW - 24 * s), w * 0.5, y + panelH - 24 * s);
+    ctx.fillText(fitTextStable(ctx, snapshot.message, panelW - 24 * s), w * 0.5, y + panelH - 24 * s);
   }
 
   // Footer controls
   ctx.textAlign = 'center';
   ctx.fillStyle = '#577';
   ctx.font = `${Math.round(7 * s)}px monospace`;
-  ctx.fillText(fitHudText(ctx, `W/S выбор   ${controlHint('gameMenu')} ехать   ${menuCloseHint()} выйти`, panelW - 16 * s), w * 0.5, y + panelH - 8 * s);
+  ctx.fillText(fitTextStable(ctx, `W/S выбор   ${controlHint('gameMenu')} ехать   ${menuCloseHint()} выйти`, panelW - 16 * s), w * 0.5, y + panelH - 8 * s);
 
   ctx.restore();
 }
