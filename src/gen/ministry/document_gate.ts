@@ -505,10 +505,7 @@ function openDocumentGateDoor(target: DocumentGateTarget): boolean {
 }
 
 function itemTags(defId: string, def?: ItemDef): string[] {
-  const tags: string[] = [];
-  for (const tag of ITEM_TAGS[defId] ?? []) if (!tags.includes(tag)) tags.push(tag);
-  for (const tag of def?.tags ?? []) if (!tags.includes(tag)) tags.push(tag);
-  return tags;
+  return Array.from(new Set([...(ITEM_TAGS[defId] ?? []), ...(def?.tags ?? [])]));
 }
 
 function isRelevantRejectedDocument(defId: string, def: ItemDef): boolean {
