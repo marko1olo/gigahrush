@@ -13165,12 +13165,14 @@ function applyRailTransitYards(world: World, spec: ProceduralFloorSpec, tracks: 
   for (let trackIndex = 0; trackIndex < tracks.length; trackIndex++) {
     const track = tracks[trackIndex];
     const horizontal = railTrackIsHorizontal(track);
-    const offsets = railServiceOffsets(track, spec).filter((_, i) => i % 2 === 0);
-    for (let i = 0; i < offsets.length; i++) {
-      const point = cellPoint(track.cells[offsets[i]]);
+    const rawOffsets = railServiceOffsets(track, spec);
+    for (let j = 0; j < rawOffsets.length; j += 2) {
+      const i = j / 2;
+      const offset = rawOffsets[j];
+      const point = cellPoint(track.cells[offset]);
       if (!point) continue;
       carved += carveRailStationYard(world, spec, point.x, point.y, horizontal, trackIndex * 17 + i);
-      if (i < 4 || track.stationOffsets.includes(offsets[i])) stations.push({ x: point.x, y: point.y, trackIndex });
+      if (i < 4 || track.stationOffsets.includes(offset)) stations.push({ x: point.x, y: point.y, trackIndex });
     }
   }
 
