@@ -560,7 +560,7 @@ function decorateSite(ctx: MaintContentCtx, entry: Room, chamber: Room): number[
   return residueCells;
 }
 
-export function generateChernayaLichinka(ctx: MaintContentCtx): void {
+function createLichinkaRooms(ctx: MaintContentCtx): { entry: Room, chamber: Room, residueCells: number[] } {
   const pos = findMaintArea(
     ctx.world,
     Math.floor(ctx.spawnX),
@@ -585,7 +585,10 @@ export function generateChernayaLichinka(ctx: MaintContentCtx): void {
   );
   connectRooms(ctx, entry, chamber);
   const residueCells = decorateSite(ctx, entry, chamber);
+  return { entry, chamber, residueCells };
+}
 
+function setupLichinkaContainers(ctx: MaintContentCtx, entry: Room, chamber: Room) {
   const kitContainerId = addLichinkaContainer(
     ctx,
     entry,
@@ -624,7 +627,10 @@ export function generateChernayaLichinka(ctx: MaintContentCtx): void {
     [{ defId: SAMPLE_ITEM, count: 1 }],
     [TAG_SLIME, TAG_SAMPLE, TAG_HARVEST],
   );
+  return { kitContainerId, sealContainerId, sampleContainerId };
+}
 
+function setupLichinkaWitnessAndItems(ctx: MaintContentCtx, entry: Room, chamber: Room): number {
   const witnessId = ctx.nextId.v;
   spawnAmbientNpc(
     ctx,
@@ -640,7 +646,18 @@ export function generateChernayaLichinka(ctx: MaintContentCtx): void {
     'Памятка ликвидатора: Черная Личинка не обязана нападать. УФ сушит глазки, огонь оставляет ПСИ-пыль, пломба делает пробу безопасной. Если культовый свидетель поет рядом, сырая банка просыпается.');
   dropAt(ctx, chamber.x + 3, chamber.y + 3, 'sealant_tube');
   dropAt(ctx, chamber.x + 4, chamber.y + 3, 'ammo_fuel');
+  return witnessId;
+}
 
+function registerLichinkaHazardAndContext(
+  ctx: MaintContentCtx,
+  chamber: Room,
+  residueCells: number[],
+  kitContainerId: number,
+  sealContainerId: number,
+  sampleContainerId: number,
+  witnessId: number
+): void {
   const hazardId = `chernaya_lichinka_${chamber.id}`;
   registerCellHazardSite(ctx.world, {
     id: hazardId,
@@ -681,4 +698,20 @@ export function generateChernayaLichinka(ctx: MaintContentCtx): void {
     witnessRemoved: false,
     rewardDropped: false,
   });
+}
+
+export function generateChernayaLichinka(ctx: MaintContentCtx): void {
+  const { entry, chamber, residueCells } = createLichinkaRooms(ctx);
+  const { kitContainerId, sealContainerId, sampleContainerId } = setupLichinkaContainers(ctx, entry, chamber);
+  const witnessId = setupLichinkaWitnessAndItems(ctx, entry, chamber);
+
+  registerLichinkaHazardAndContext(
+    ctx,
+    chamber,
+    residueCells,
+    kitContainerId,
+    sealContainerId,
+    sampleContainerId,
+    witnessId
+  );
 }
