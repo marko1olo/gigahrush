@@ -212,14 +212,26 @@ function storageSet(storage: Storage, key: string, value: string): void {
 
 function randomId(prefix: string, groups: number): string {
   const alphabet = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
-  const bytes = new Uint8Array(groups * 4);
-  crypto.getRandomValues(bytes);
-  const parts: string[] = [];
-  for (let group = 0; group < groups; group++) {
-    let part = '';
-    for (let i = 0; i < 4; i++) part += alphabet[bytes[group * 4 + i] % alphabet.length];
-    parts.push(part);
+  const limit = 256 - (256 % alphabet.length);
+  const totalChars = groups * 4;
+  let resultChars = '';
+
+  const bytes = new Uint8Array(totalChars);
+  while (resultChars.length < totalChars) {
+    crypto.getRandomValues(bytes);
+    for (let i = 0; i < bytes.length; i++) {
+      if (bytes[i] < limit) {
+        resultChars += alphabet[bytes[i] % alphabet.length];
+        if (resultChars.length === totalChars) break;
+      }
+    }
   }
+
+  const parts: string[] = [];
+  for (let i = 0; i < groups; i++) {
+    parts.push(resultChars.slice(i * 4, i * 4 + 4));
+  }
+
   return `${prefix}-${parts.join('-')}`;
 }
 
