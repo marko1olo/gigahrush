@@ -82,35 +82,37 @@ export function applyFactionRelationDeltas(
 
 /** Check if entity considers another entity hostile */
 export function isHostile(attacker: Entity, target: Entity): boolean {
+  if (attacker.id === target.id) return false;
+
   // PSI control: controlled entities don't attack their controller (and vice-versa)
   if (isPsiAlly(attacker, target)) return false;
+
   // Monsters are one ecology faction. They can compete through movement/space, but not through combat hostility.
   if (attacker.type === EntityType.MONSTER && target.type === EntityType.MONSTER) return false;
+
   // PSI madness: mad entities attack everyone
-  if (isPsiMad(attacker)) return target.id !== attacker.id;
+  if (isPsiMad(attacker)) return true;
+
   if (isPassiveDefensiveNeutralMonster(attacker) || isPassiveDefensiveNeutralMonster(target)) return false;
-  if (isPlayerEntity(target) && attacker.id !== target.id) {
-    if (attacker.type === EntityType.MONSTER) return getFactionMonsterRelation(Faction.PLAYER) <= HOSTILE_RELATION_THRESHOLD;
-    if (attacker.type === EntityType.NPC && isNpcPlayerHostile(attacker)) return true;
-    return areFactionsHostile(attacker.faction ?? Faction.CITIZEN, Faction.PLAYER);
-  }
-  // Monsters: use faction-vs-monster table
-  if (attacker.type === EntityType.MONSTER) {
-    // Monsters are hostile to everyone except cultists
-    const tFaction = target.faction ?? Faction.CITIZEN;
-    return getFactionMonsterRelation(tFaction) <= HOSTILE_RELATION_THRESHOLD;
-  }
-  if (target.type === EntityType.MONSTER) {
-    const aFaction = attacker.faction ?? Faction.CITIZEN;
-    return getFactionMonsterRelation(aFaction) <= HOSTILE_RELATION_THRESHOLD;
-  }
+
+  const aFaction = isPlayerEntity(attacker) ? Faction.PLAYER : (attacker.faction ?? Faction.CITIZEN);
+  const tFaction = isPlayerEntity(target) ? Faction.PLAYER : (target.faction ?? Faction.CITIZEN);
+
+  // Personal grudge: NPC vs Player
   if (attacker.type === EntityType.NPC && isPlayerEntity(target) && isNpcPlayerHostile(attacker)) {
     return true;
   }
-  // NPC vs NPC / Player
-  const aFaction = attacker.faction ?? Faction.CITIZEN;
-  const bFaction = target.faction ?? Faction.CITIZEN;
-  return areFactionsHostile(aFaction, bFaction);
+
+  // Monsters: use faction-vs-monster table
+  if (attacker.type === EntityType.MONSTER) {
+    return getFactionMonsterRelation(tFaction) <= HOSTILE_RELATION_THRESHOLD;
+  }
+  if (target.type === EntityType.MONSTER) {
+    return getFactionMonsterRelation(aFaction) <= HOSTILE_RELATION_THRESHOLD;
+  }
+
+  // General faction vs faction
+  return areFactionsHostile(aFaction, tFaction);
 }
 
 /* ── Territory counting per owner ────────────────────────────── */
