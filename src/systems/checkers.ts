@@ -436,6 +436,92 @@ export function getCheckersSnapshot(): CheckersSnapshot {
   };
 }
 
+
+function handleCheckersNpcTurn(g: CheckersGame, state: GameState, player: Entity, npc: Entity): void {
+  const move = chooseNpcMove(g.pieces, g.mustCaptureWithPieceId);
+  if (move) {
+    g.pieces = applyMove(g.pieces, move);
+
+    if (move.isCapture) {
+      const nextMoves = generateMovesForPiece(g.pieces, g.pieces.find(p => p.id === move.pieceId)!).filter(m => m.isCapture);
+      if (nextMoves.length > 0) {
+        g.mustCaptureWithPieceId = move.pieceId;
+        appendLog(g, `${g.npcName} бьет дальше.`);
+        return;
+      }
+    }
+
+    appendLog(g, `${g.npcName} сделал ход.`);
+  } else {
+    appendLog(g, `${g.npcName} не может ходить. Вы выиграли.`);
+    g.winner = 'player';
+  }
+  g.phase = 'player_turn';
+  g.mustCaptureWithPieceId = undefined;
+  checkWinCondition(g);
+  if (g.winner) settleCheckersGame(g, state, player, npc);
+}
+
+function handleCheckersPlayerInteract(g: CheckersGame, state: GameState, player: Entity, npc: Entity): CheckersInputResult | undefined {
+  if (g.selectedPieceId) {
+    const piece = g.pieces.find(p => p.id === g.selectedPieceId);
+    if (piece) {
+      const moves = generateMovesForPiece(g.pieces, piece);
+
+      let allPlayerMoves = getAllMovesForSide(g.pieces, 'player');
+      if (g.mustCaptureWithPieceId) {
+          allPlayerMoves = moves.filter(m => m.isCapture);
+      }
+
+      const hasAnyCaptures = allPlayerMoves.some(m => m.isCapture);
+
+      const move = moves.find(m => m.endX === g.cursorX && m.endY === g.cursorY);
+
+      if (move) {
+        if (hasAnyCaptures && !move.isCapture) {
+           appendLog(g, 'Бить обязательно!');
+        } else {
+          g.pieces = applyMove(g.pieces, move);
+
+          if (move.isCapture) {
+            const pieceAfter = g.pieces.find(p => p.id === move.pieceId);
+            if (pieceAfter) {
+              const nextCaptures = generateMovesForPiece(g.pieces, pieceAfter).filter(m => m.isCapture);
+              if (nextCaptures.length > 0) {
+                g.mustCaptureWithPieceId = move.pieceId;
+                appendLog(g, 'Продолжайте бить!');
+                return { handled: true };
+              }
+            }
+          }
+
+          g.selectedPieceId = undefined;
+          g.mustCaptureWithPieceId = undefined;
+          g.phase = 'npc_turn';
+          checkWinCondition(g);
+          if (g.winner) settleCheckersGame(g, state, player, npc);
+        }
+      } else {
+        if (!g.mustCaptureWithPieceId) g.selectedPieceId = undefined; // deselect if invalid move
+      }
+    }
+  } else {
+    const piece = getPieceAt(g.pieces, g.cursorX, g.cursorY);
+    if (piece && piece.side === 'player') {
+      const allPlayerMoves = getAllMovesForSide(g.pieces, 'player');
+      const hasCaptures = allPlayerMoves.some(m => m.isCapture);
+      const pieceMoves = generateMovesForPiece(g.pieces, piece);
+
+      if (hasCaptures && !pieceMoves.some(m => m.isCapture)) {
+         appendLog(g, 'Вы должны выбрать шашку, которая может бить!');
+      } else if (pieceMoves.length > 0) {
+         g.selectedPieceId = piece.id;
+      }
+    }
+  }
+  return undefined;
+}
+
 export function handleCheckersInput(ctx: { state: GameState; player: Entity; npc: Entity; input: CheckersInput }): CheckersInputResult {
   const g = game;
   if (!g?.open || g.npcId !== ctx.npc.id) return { handled: false };
@@ -450,28 +536,7 @@ export function handleCheckersInput(ctx: { state: GameState; player: Entity; npc
   }
 
   if (g.phase === 'npc_turn') {
-    const move = chooseNpcMove(g.pieces, g.mustCaptureWithPieceId);
-    if (move) {
-      g.pieces = applyMove(g.pieces, move);
-      
-      if (move.isCapture) {
-        const nextMoves = generateMovesForPiece(g.pieces, g.pieces.find(p => p.id === move.pieceId)!).filter(m => m.isCapture);
-        if (nextMoves.length > 0) {
-          g.mustCaptureWithPieceId = move.pieceId;
-          appendLog(g, `${g.npcName} бьет дальше.`);
-          return { handled: true };
-        }
-      }
-      
-      appendLog(g, `${g.npcName} сделал ход.`);
-    } else {
-      appendLog(g, `${g.npcName} не может ходить. Вы выиграли.`);
-      g.winner = 'player';
-    }
-    g.phase = 'player_turn';
-    g.mustCaptureWithPieceId = undefined;
-    checkWinCondition(g);
-    if (g.winner) settleCheckersGame(g, ctx.state, ctx.player, ctx.npc);
+    handleCheckersNpcTurn(g, ctx.state, ctx.player, ctx.npc);
     return { handled: true };
   }
 
@@ -489,62 +554,8 @@ export function handleCheckersInput(ctx: { state: GameState; player: Entity; npc
   }
 
   if (ctx.input.interactEdge) {
-    if (g.selectedPieceId) {
-      const piece = g.pieces.find(p => p.id === g.selectedPieceId);
-      if (piece) {
-        const moves = generateMovesForPiece(g.pieces, piece);
-        
-        let allPlayerMoves = getAllMovesForSide(g.pieces, 'player');
-        if (g.mustCaptureWithPieceId) {
-            allPlayerMoves = moves.filter(m => m.isCapture);
-        }
-
-        const hasAnyCaptures = allPlayerMoves.some(m => m.isCapture);
-        
-        const move = moves.find(m => m.endX === g.cursorX && m.endY === g.cursorY);
-        
-        if (move) {
-          if (hasAnyCaptures && !move.isCapture) {
-             appendLog(g, 'Бить обязательно!');
-          } else {
-            g.pieces = applyMove(g.pieces, move);
-            
-            if (move.isCapture) {
-              const pieceAfter = g.pieces.find(p => p.id === move.pieceId);
-              if (pieceAfter) {
-                const nextCaptures = generateMovesForPiece(g.pieces, pieceAfter).filter(m => m.isCapture);
-                if (nextCaptures.length > 0) {
-                  g.mustCaptureWithPieceId = move.pieceId;
-                  appendLog(g, 'Продолжайте бить!');
-                  return { handled: true };
-                }
-              }
-            }
-            
-            g.selectedPieceId = undefined;
-            g.mustCaptureWithPieceId = undefined;
-            g.phase = 'npc_turn';
-            checkWinCondition(g);
-            if (g.winner) settleCheckersGame(g, ctx.state, ctx.player, ctx.npc);
-          }
-        } else {
-          if (!g.mustCaptureWithPieceId) g.selectedPieceId = undefined; // deselect if invalid move
-        }
-      }
-    } else {
-      const piece = getPieceAt(g.pieces, g.cursorX, g.cursorY);
-      if (piece && piece.side === 'player') {
-        const allPlayerMoves = getAllMovesForSide(g.pieces, 'player');
-        const hasCaptures = allPlayerMoves.some(m => m.isCapture);
-        const pieceMoves = generateMovesForPiece(g.pieces, piece);
-        
-        if (hasCaptures && !pieceMoves.some(m => m.isCapture)) {
-           appendLog(g, 'Вы должны выбрать шашку, которая может бить!');
-        } else if (pieceMoves.length > 0) {
-           g.selectedPieceId = piece.id;
-        }
-      }
-    }
+    const res = handleCheckersPlayerInteract(g, ctx.state, ctx.player, ctx.npc);
+    if (res) return res;
   }
 
   return { handled: true };
