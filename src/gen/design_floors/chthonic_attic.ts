@@ -2002,7 +2002,8 @@ function decorateAttic(
   world: World,
   rooms: Record<string, Room>,
 ): void {
-  for (const room of Object.values(rooms)) {
+  for (const key in rooms) {
+    const room = rooms[key];
     for (let dy = 1; dy < room.h - 1; dy += 3) {
       const left = world.idx(room.x + 1, room.y + dy);
       const right = world.idx(room.x + room.w - 2, room.y + dy);
