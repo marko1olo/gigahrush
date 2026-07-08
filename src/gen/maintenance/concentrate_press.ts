@@ -116,9 +116,7 @@ const THIEF_DEF: PlotNpcDef = {
 };
 
 function contentTags(extra: readonly string[] = []): string[] {
-  const tags = [CONTENT_TAG];
-  for (const tag of extra) if (!tags.includes(tag)) tags.push(tag);
-  return tags;
+  return Array.from(new Set([CONTENT_TAG, ...extra]));
 }
 
 registerSideQuest('ag18_press_master', MASTER_DEF, [{
