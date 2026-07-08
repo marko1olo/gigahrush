@@ -19,17 +19,9 @@ let activeMaxX = W - 1;
 let activeMaxY = W - 1;
 let isFullScan = true;
 
-export function updateDangerField(world: World, dt: number): void {
-  // Update ~2 times a second to save CPU
-  tickCounter += dt;
-  if (tickCounter < 0.5) return;
-  tickCounter -= 0.5;
-
-  const field = world.dangerField;
-  const wSq = W * W;
-  
+function prepareNextField(): void {
   if (!nextField) {
-    nextField = new Uint8Array(wSq);
+    nextField = new Uint8Array(W * W);
   } else {
     // Only clear the active bounding box from last frame
     if (isFullScan) {
@@ -43,7 +35,9 @@ export function updateDangerField(world: World, dt: number): void {
       }
     }
   }
+}
 
+function processCells(world: World, field: Uint8Array) {
   let nextMinX = W;
   let nextMinY = W;
   let nextMaxX = -1;
@@ -85,21 +79,21 @@ export function updateDangerField(world: World, dt: number): void {
       
       // If solid or closed door, it just fades quickly without spreading
       if (isSolid || isClosedDoor) {
-        nextField[i] = Math.max(nextField[i], decayed);
+        nextField![i] = Math.max(nextField![i], decayed);
         continue;
       }
 
       const spreadAmount = Math.floor(decayed * DIFFUSION);
       const retainAmount = decayed - spreadAmount * 4;
 
-      nextField[i] = Math.min(255, nextField[i] + retainAmount);
+      nextField![i] = Math.min(255, nextField![i] + retainAmount);
 
       if (spreadAmount > 0) {
         for (const dir of DIRS) {
           const nx = world.wrap(cx + dir.dx);
           const ny = world.wrap(cy + dir.dy);
           const ni = ny * W + nx;
-          nextField[ni] = Math.min(255, nextField[ni] + spreadAmount);
+          nextField![ni] = Math.min(255, nextField![ni] + spreadAmount);
           // Expand new bounding box for spread
           if (nx < nextMinX) nextMinX = nx;
           if (nx > nextMaxX) nextMaxX = nx;
@@ -110,6 +104,10 @@ export function updateDangerField(world: World, dt: number): void {
     }
   }
 
+  return { nextMinX, nextMinY, nextMaxX, nextMaxY, activeCells };
+}
+
+function updateActiveBounds(nextMinX: number, nextMinY: number, nextMaxX: number, nextMaxY: number, activeCells: number): void {
   // Handle torus wrap expansion for bounding box
   if (nextMinX < 0) nextMinX = 0;
   if (nextMaxX >= W) nextMaxX = W - 1;
@@ -131,17 +129,34 @@ export function updateDangerField(world: World, dt: number): void {
   activeMinY = nextMinY;
   activeMaxY = nextMaxY;
   isFullScan = (activeCells > 0 && (activeMaxX - activeMinX >= W - 2 || activeMaxY - activeMinY >= W - 2));
+}
 
+function commitNextField(field: Uint8Array, activeCells: number): void {
   // Swap fields efficiently
   if (isFullScan) {
-    field.set(nextField);
+    field.set(nextField!);
   } else if (activeCells > 0) {
     // Only copy the active bounding box
     for (let cy = activeMinY; cy <= activeMaxY; cy++) {
       const row = cy * W;
       for (let cx = activeMinX; cx <= activeMaxX; cx++) {
-        field[row + cx] = nextField[row + cx];
+        field[row + cx] = nextField![row + cx];
       }
     }
   }
+}
+
+export function updateDangerField(world: World, dt: number): void {
+  // Update ~2 times a second to save CPU
+  tickCounter += dt;
+  if (tickCounter < 0.5) return;
+  tickCounter -= 0.5;
+
+  prepareNextField();
+
+  const { nextMinX, nextMinY, nextMaxX, nextMaxY, activeCells } = processCells(world, world.dangerField);
+
+  updateActiveBounds(nextMinX, nextMinY, nextMaxX, nextMaxY, activeCells);
+
+  commitNextField(world.dangerField, activeCells);
 }
