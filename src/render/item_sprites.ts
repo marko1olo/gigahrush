@@ -8624,6 +8624,7 @@ function drawChemicalShellSprite(t: Uint32Array, seed: number, p: Palette): void
 function drawAmmoCouponSprite(t: Uint32Array, seed: number, defId: string): void {
   const shells = defId.includes('shell');
   const rifle = defId.includes('rifle') || defId.includes('762');
+  const is9mm = defId.includes('9mm');
   const paper: [number, number, number] = [166, 154, 112];
   const paperLight: [number, number, number] = [218, 202, 146];
   const paperDark: [number, number, number] = [48, 42, 32];
@@ -8634,7 +8635,7 @@ function drawAmmoCouponSprite(t: Uint32Array, seed: number, defId: string): void
   const red: [number, number, number] = [180, 44, 36];
   const green: [number, number, number] = [62, 146, 86];
   const orange: [number, number, number] = [214, 122, 42];
-  const code: [number, number, number] = defId.includes('9mm') ? green : shells ? red : rifle ? orange : green;
+  const code: [number, number, number] = is9mm ? green : shells ? red : rifle ? orange : green;
 
   rect(t, 14, 14, 50, 51, paper, seed + 63, 238);
   rect(t, 17, 17, 47, 22, paperLight, seed + 64, 220);
@@ -8652,9 +8653,9 @@ function drawAmmoCouponSprite(t: Uint32Array, seed: number, defId: string): void
   rect(t, 43, 28, 45, 35, paper, seed + 69, 225);
   rect(t, 43, 34, 48, 36, paper, seed + 70, 225);
 
-  const count = shells ? 3 : defId.includes('9mm') ? 5 : 4;
+  const count = shells ? 3 : is9mm ? 5 : 4;
   for (let i = 0; i < count; i++) {
-    const x = shells ? 24 + i * 8 : defId.includes('9mm') ? 20 + i * 5 : 20 + i * 7;
+    const x = shells ? 24 + i * 8 : is9mm ? 20 + i * 5 : 20 + i * 7;
     const top = shells ? 25 + (i & 1) * 2 : 18 + (i & 1) * 2;
     const bottom = shells ? 48 - (i === 1 ? 2 : 0) : 48 - (i === 2 ? 2 : 0);
     const w = shells ? 5 : 3;
