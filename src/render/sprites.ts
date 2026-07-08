@@ -400,9 +400,10 @@ function gen_bulletSprite(): SpriteData {
   const R = 7;
   for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
     const dx = (x - cx) * 1.65, dy = (y - cy) * 0.74;
-    const d = Math.sqrt(dx * dx + dy * dy);
+    const dSq = dx * dx + dy * dy;
     const tracer = Math.abs(y - cy) < 1.5 && x < cx && x > cx - 19;
-    if (d < R * 2.6 || tracer) {
+    if (dSq < (R * 2.6) * (R * 2.6) || tracer) {
+      const d = Math.sqrt(dSq);
       const f = tracer ? 1 - (cx - x) / 19 : 1 - d / (R * 2.6);
       const core = d < R ? 1 : 0;
       const r = clamp(Math.floor(255 * core + 245 * f * 0.82));
@@ -423,8 +424,9 @@ function gen_pelletSprite(): SpriteData {
   const R = 4;
   for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
     const dx = x - cx, dy = y - cy;
-    const d = Math.sqrt(dx * dx + dy * dy);
-    if (d < R * 2) {
+    const dSq = dx * dx + dy * dy;
+    if (dSq < (R * 2) * (R * 2)) {
+      const d = Math.sqrt(dSq);
       const f = 1 - d / (R * 2);
       const core = d < R ? 1 : 0;
       const r = clamp(Math.floor(255 * core + 220 * f * 0.8));
@@ -448,10 +450,13 @@ function gen_nailSprite(): SpriteData {
       const f = 1 - dy / 8;
       t[y * S + x] = rgba(clamp(200 + 55 * f), clamp(200 + 55 * f), clamp(220 + 35 * f));
     } else if (dx < 5 && dy < 10) {
-      const d = Math.sqrt(dx * dx + dy * dy);
-      const f = Math.max(0, 1 - d / 10);
-      const a = clamp(Math.floor(120 * f));
-      if (a > 10) t[y * S + x] = rgba(180, 160, 100, a);
+      const dSq = dx * dx + dy * dy;
+      if (dSq < 100) {
+        const d = Math.sqrt(dSq);
+        const f = 1 - d / 10;
+        const a = clamp(Math.floor(120 * f));
+        if (a > 10) t[y * S + x] = rgba(180, 160, 100, a);
+      }
     }
   }
   return t;
@@ -602,8 +607,9 @@ function gen_plasmaBoltSprite(): SpriteData {
   const R = 8;
   for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
     const dx = x - cx, dy = y - cy;
-    const d = Math.sqrt(dx * dx + dy * dy);
-    if (d < R * 2.5) {
+    const dSq = dx * dx + dy * dy;
+    if (dSq < (R * 2.5) * (R * 2.5)) {
+      const d = Math.sqrt(dSq);
       const f = 1 - d / (R * 2.5);
       const core = d < R ? 1 : 0;
       const n = noise(x * 3, y * 3, 42) * 0.4;
@@ -624,9 +630,10 @@ function gen_hostileBulletSprite(): SpriteData {
   const R = 7;
   for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
     const dx = (x - cx) * 1.35, dy = (y - cy) * 0.75;
-    const d = Math.sqrt(dx * dx + dy * dy);
-    const warningCross = (Math.abs(x - cx) < 1.2 || Math.abs(y - cy) < 1.2) && d < R * 2.7;
-    if (d < R * 2.4 || warningCross) {
+    const dSq = dx * dx + dy * dy;
+    const warningCross = (Math.abs(x - cx) < 1.2 || Math.abs(y - cy) < 1.2) && dSq < (R * 2.7) * (R * 2.7);
+    if (dSq < (R * 2.4) * (R * 2.4) || warningCross) {
+      const d = Math.sqrt(dSq);
       const f = warningCross ? 0.7 : 1 - d / (R * 2.4);
       const core = d < R ? 1 : 0;
       const a = clamp(Math.floor((warningCross ? 180 : 255) * f * f + 210 * core));
@@ -648,9 +655,10 @@ function gen_hostilePelletSprite(): SpriteData {
   const R = 4;
   for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
     const dx = x - cx, dy = y - cy;
-    const d = Math.sqrt(dx * dx + dy * dy);
+    const dSq = dx * dx + dy * dy;
     const cross = Math.abs(dx) < 1.3 || Math.abs(dy) < 1.3;
-    if (d < R * 2 || (cross && d < R * 2.8)) {
+    if (dSq < (R * 2) * (R * 2) || (cross && dSq < (R * 2.8) * (R * 2.8))) {
+      const d = Math.sqrt(dSq);
       const f = 1 - Math.min(1, d / (R * 2.8));
       const core = d < R ? 1 : 0;
       const a = clamp(Math.floor((cross ? 210 : 150) * f * f + 200 * core));
@@ -679,10 +687,13 @@ function gen_hostileNailSprite(): SpriteData {
         clamp(45 + 30 * f),
       );
     } else if (dx < 5 && dy < 12) {
-      const d = Math.sqrt(dx * dx + dy * dy);
-      const f = Math.max(0, 1 - d / 12);
-      const a = clamp(Math.floor(105 * f));
-      if (a > 8) t[y * S + x] = rgba(160, 55, 35, a);
+      const dSq = dx * dx + dy * dy;
+      if (dSq < 144) {
+        const d = Math.sqrt(dSq);
+        const f = 1 - d / 12;
+        const a = clamp(Math.floor(105 * f));
+        if (a > 8) t[y * S + x] = rgba(160, 55, 35, a);
+      }
     }
   }
   return t;
@@ -722,8 +733,9 @@ function gen_hostilePlasmaBoltSprite(): SpriteData {
   const R = 9;
   for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
     const dx = x - cx, dy = y - cy;
-    const d = Math.sqrt(dx * dx + dy * dy);
-    if (d < R * 2.5) {
+    const dSq = dx * dx + dy * dy;
+    if (dSq < (R * 2.5) * (R * 2.5)) {
+      const d = Math.sqrt(dSq);
       const f = 1 - d / (R * 2.5);
       const core = d < R ? 1 : 0;
       const n = noise(x * 4, y * 4, 4242) * 0.4;
@@ -747,8 +759,9 @@ function gen_hostileFlameBoltSprite(): SpriteData {
   const R = 9;
   for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
     const dx = x - cx, dy = y - cy;
-    const d = Math.sqrt(dx * dx + dy * dy);
-    if (d < R * 2.6) {
+    const dSq = dx * dx + dy * dy;
+    if (dSq < (R * 2.6) * (R * 2.6)) {
+      const d = Math.sqrt(dSq);
       const f = 1 - d / (R * 2.6);
       const core = d < R ? 1 : 0;
       const n = noise(x * 5, y * 5, 1555) * 0.5;
@@ -772,8 +785,9 @@ function gen_gaussBoltSprite(): SpriteData {
   const R = 5;
   for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
     const dx = x - cx, dy = y - cy;
-    const d = Math.sqrt(dx * dx + dy * dy);
-    if (d < R * 3) {
+    const dSq = dx * dx + dy * dy;
+    if (dSq < (R * 3) * (R * 3)) {
+      const d = Math.sqrt(dSq);
       const f = 1 - d / (R * 3);
       const core = d < R ? 1 : 0;
       const n = noise(x * 2 + 7, y * 2, 99) * 0.3;
@@ -797,8 +811,9 @@ function gen_bfgBoltSprite(): SpriteData {
   const R = 14;
   for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
     const dx = x - cx, dy = y - cy;
-    const d = Math.sqrt(dx * dx + dy * dy);
-    if (d < R * 2.2) {
+    const dSq = dx * dx + dy * dy;
+    if (dSq < (R * 2.2) * (R * 2.2)) {
+      const d = Math.sqrt(dSq);
       const f = 1 - d / (R * 2.2);
       const core = d < R ? 1 : 0;
       const n = noise(x * 2, y * 2, 666) * 0.3;
@@ -820,8 +835,9 @@ function gen_flameBoltSprite(): SpriteData {
   const R = 8;
   for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
     const dx = x - cx, dy = y - cy;
-    const d = Math.sqrt(dx * dx + dy * dy);
-    if (d < R * 2.5) {
+    const dSq = dx * dx + dy * dy;
+    if (dSq < (R * 2.5) * (R * 2.5)) {
+      const d = Math.sqrt(dSq);
       const f = 1 - d / (R * 2.5);
       const core = d < R ? 1 : 0;
       const n = noise(x * 5, y * 5, 55) * 0.5;
@@ -843,8 +859,9 @@ function gen_grenadeSprite(): SpriteData {
   const R = 7;
   for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
     const dx = x - cx, dy = y - cy;
-    const d = Math.sqrt(dx * dx + dy * dy);
-    if (d < R) {
+    const dSq = dx * dx + dy * dy;
+    if (dSq < R * R) {
+      const d = Math.sqrt(dSq);
       const n = noise(x, y, 123) * 10;
       const shade = 1 - d / R * 0.4;
       const hatch = ((x + y) % 4 < 1 || (x - y + 64) % 4 < 1) ? 0.85 : 1;
