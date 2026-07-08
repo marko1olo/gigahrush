@@ -1,28 +1,27 @@
 /* ── Message log (L key) — fullscreen STALKER-style PDA log ───── */
 
-import { type GameState } from '../core/types';
+import { type GameState, type LogEntry } from '../core/types';
 import { controlBindingLabel, controlHint, menuCloseHint } from '../systems/controls';
 import { drawNeuroPanel } from './hud_fx';
 import { fitTextStable, wrapTextLines } from './ui_text';
 
-export function drawLogMenu(
+function drawLogBackground(
   ctx: CanvasRenderingContext2D,
-  state: GameState,
+  w: number, h: number,
   sx: number, sy: number,
-  uiTime = state.time,
+  time: number
 ): void {
-  const w = ctx.canvas.width;
-  const h = ctx.canvas.height;
-  const time = uiTime;
-
-  ctx.save();
-  ctx.textBaseline = 'middle';
-
   // Fullscreen neuro-panel background
   ctx.fillStyle = '#00040a';
   ctx.fillRect(0, 0, w, h);
   drawNeuroPanel(ctx, 4 * sx, 4 * sy, w - 8 * sx, h - 8 * sy, time, 60);
+}
 
+function drawLogHeader(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  sx: number, sy: number
+): void {
   // Title
   ctx.fillStyle = '#6cf';
   ctx.font = `${10 * sy}px monospace`;
@@ -35,8 +34,15 @@ export function drawLogMenu(
   ctx.moveTo(8 * sx, 22 * sy);
   ctx.lineTo(w - 8 * sx, 22 * sy);
   ctx.stroke();
+}
 
-  const log = state.msgLog;
+function drawLogEntries(
+  ctx: CanvasRenderingContext2D,
+  log: LogEntry[],
+  logScroll: number,
+  w: number, h: number,
+  sx: number, sy: number
+): void {
   if (log.length === 0) {
     ctx.fillStyle = '#666';
     ctx.font = `${8 * sy}px monospace`;
@@ -74,7 +80,7 @@ export function drawLogMenu(
   const visibleLines = Math.floor((bottomY - topY) / lineH);
 
   // Scroll: 0 = show newest at bottom, higher = scroll up to older
-  const scroll = Math.min(state.logScroll, Math.max(0, vlines.length - visibleLines));
+  const scroll = Math.min(logScroll, Math.max(0, vlines.length - visibleLines));
 
   // Draw from bottom up: newest entries at the bottom of the panel
   const endIdx = vlines.length - scroll;           // exclusive upper bound
@@ -108,15 +114,42 @@ export function drawLogMenu(
     ctx.fillStyle = '#556';
     ctx.fillRect(barX, thumbY, 4 * sx, thumbH);
   }
+}
 
+function drawLogFooter(
+  ctx: CanvasRenderingContext2D,
+  logLength: number,
+  w: number, h: number,
+  sx: number, sy: number
+): void {
   // Bottom hint
   ctx.fillStyle = '#555';
   ctx.font = `${7 * sy}px monospace`;
   ctx.fillText(
-    fitTextStable(ctx, `${controlBindingLabel('menuUp')}/${controlBindingLabel('menuDown')} листать  |  ${log.length} зап.  |  ${menuCloseHint()} закрыть`, w - 24 * sx),
+    fitTextStable(ctx, `${controlBindingLabel('menuUp')}/${controlBindingLabel('menuDown')} листать  |  ${logLength} зап.  |  ${menuCloseHint()} закрыть`, w - 24 * sx),
     12 * sx,
     h - 8 * sy,
   );
+}
+
+export function drawLogMenu(
+  ctx: CanvasRenderingContext2D,
+  state: GameState,
+  sx: number, sy: number,
+  uiTime = state.time,
+): void {
+  const w = ctx.canvas.width;
+  const h = ctx.canvas.height;
+  const time = uiTime;
+
+  ctx.save();
+  ctx.textBaseline = 'middle';
+
+  drawLogBackground(ctx, w, h, sx, sy, time);
+  drawLogHeader(ctx, w, sx, sy);
+  drawLogEntries(ctx, state.msgLog, state.logScroll, w, h, sx, sy);
+
+  drawLogFooter(ctx, state.msgLog.length, w, h, sx, sy);
 
   ctx.restore();
 }
