@@ -767,11 +767,30 @@ export function summarizeSamosborDirector(state: GameState): string[] {
       return `${phase}:${used}/${phaseBudget(phase)}${gate > 0 ? ` wait=${Math.ceil(gate)}s` : ''}`;
     })
     .join(' ');
-  const activeCooldowns = Object.entries(director.cooldowns)
-    .filter(([, until]) => until > state.time)
-    .sort((a, b) => a[1] - b[1])
-    .slice(0, 4)
-    .map(([id, until]) => `${id}:${Math.ceil(until - state.time)}s`);
+  const topCooldowns: [string, number][] = [];
+  for (const id in director.cooldowns) {
+    const until = director.cooldowns[id];
+    if (until > state.time) {
+      if (topCooldowns.length < 4) {
+        topCooldowns.push([id, until]);
+        topCooldowns.sort((a, b) => a[1] - b[1]);
+      } else if (until < topCooldowns[3][1]) {
+        if (until < topCooldowns[0][1]) {
+          topCooldowns[3] = topCooldowns[2]; topCooldowns[2] = topCooldowns[1]; topCooldowns[1] = topCooldowns[0]; topCooldowns[0] = [id, until];
+        } else if (until < topCooldowns[1][1]) {
+          topCooldowns[3] = topCooldowns[2]; topCooldowns[2] = topCooldowns[1]; topCooldowns[1] = [id, until];
+        } else if (until < topCooldowns[2][1]) {
+          topCooldowns[3] = topCooldowns[2]; topCooldowns[2] = [id, until];
+        } else {
+          topCooldowns[3] = [id, until];
+        }
+      }
+    }
+  }
+  const activeCooldowns: string[] = [];
+  for (let i = 0; i < topCooldowns.length; i++) {
+    activeCooldowns.push(`${topCooldowns[i][0]}:${Math.ceil(topCooldowns[i][1] - state.time)}s`);
+  }
   const lines = [
     `cycle=${director.cycle} last=${director.lastBeatId || 'none'} trace=${director.traceCount}/${TRACE_CAP}`,
     `budget=${phases}`,
