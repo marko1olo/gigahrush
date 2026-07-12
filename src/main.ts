@@ -1,3 +1,5 @@
+import { stopAllAudio } from './systems/audio';
+import { estimateLocalStorageSize, pruneOldFloorsFromSave } from './systems/save_payload';
 import { countAmmo, removeItem, publishPlayerItemEvent } from './systems/inventory';
 /* ── ГИГАХРУЩ — main entry point ──────────────────────────────── */
 import './index.css';
@@ -1307,6 +1309,7 @@ function continueDeathAsAlifePopulationNpc(): boolean {
   endPsiPossession(entities, player, undefined, state.time, 'reset');
   captureCurrentAlifeFloor();
   captureCurrentFloorMemory();
+  stopAllAudio();
   clearPseudoliftActive(state, entities);
   const fromFloor = state.currentFloor;
   commitFloorRunEntry(state, targetEntry);
@@ -1324,6 +1327,7 @@ function continueDeathAsAlifePopulationNpc(): boolean {
     const gen = loaded.generation;
 
     world = replaceWorldFromGeneration(null, gen);
+    if (entities) entities.length = 0;
     entities = gen.entities;
     let __maxId = 0;
     for (let i = 0; i < entities.length; i++) {
@@ -1751,6 +1755,7 @@ function returnFromVoidPortalToLiving(portal: VoidReturnPortalState): void {
     const loaded = loadFloorForTarget(FloorLevel.LIVING, null);
     const gen = loaded.generation;
     world = replaceWorldFromGeneration(null, gen);
+    if (entities) entities.length = 0;
     entities = gen.entities;
     let __maxId = 0;
     for (let i = 0; i < entities.length; i++) {
@@ -2233,7 +2238,8 @@ function initGame(runSeedOverride?: number, initialFloor: FloorLevel = FloorLeve
   injectFastElevators(gen.world);
   stampCeilingHeights(gen.world);
   world = replaceWorldFromGeneration(null, gen);
-  entities = gen.entities;
+    if (entities) entities.length = 0;
+    entities = gen.entities;
   let __maxId = 0;
   for (let i = 0; i < entities.length; i++) {
     const id = entities[i].id;
@@ -4038,6 +4044,7 @@ function switchFloor(
     }
   }
   resolveLiftArachnaDeparture(world, player, state);
+  stopAllAudio();
   clearPseudoliftActive(state, entities);
   const liftZoneId = world.zoneMap[world.idx(Math.floor(player.x), Math.floor(player.y))];
   const route = (allowElevatorAnomaly && !fastTravel)
@@ -4088,6 +4095,7 @@ function switchFloor(
     const gen = loaded.generation;
 
     world = replaceWorldFromGeneration(null, gen);
+    if (entities) entities.length = 0;
     entities = gen.entities;
     let __maxId = 0;
     for (let i = 0; i < entities.length; i++) {
@@ -4325,6 +4333,7 @@ function debugTeleportTo(target: DebugTeleportTarget): void {
     const gen = loaded.generation;
 
     world = replaceWorldFromGeneration(null, gen);
+    if (entities) entities.length = 0;
     entities = gen.entities;
     let __maxId = 0;
     for (let i = 0; i < entities.length; i++) {
@@ -5027,6 +5036,7 @@ function saveGame(): void {
       voidEntryFromFloor: (state as VoidReturnPortalHost).voidEntryFromFloor,
       floorMemory: floorMemoryStateForSave(),
     });
+    if (estimateLocalStorageSize() > 4 * 1024 * 1024) pruneOldFloorsFromSave(data);
     const raw = JSON.stringify(data);
     const compactData = createPortalCompactSavePayload(data);
     const compactRaw = JSON.stringify(compactData);
@@ -5115,7 +5125,8 @@ function loadGame(): boolean {
       const gen = loaded.generation;
 
       world = replaceWorldFromGeneration(null, gen);
-      entities = gen.entities;
+    if (entities) entities.length = 0;
+    entities = gen.entities;
       let __maxId = 0;
       for (let i = 0; i < entities.length; i++) {
         const id = entities[i].id;
