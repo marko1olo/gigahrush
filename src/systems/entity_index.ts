@@ -136,6 +136,7 @@ export class EntityIndex {
   private readonly bucketVisits = new Uint32Array(BUCKET_COUNT);
   private bucketVisitId = 1;
   readonly byId = new Map<number, Entity>();
+  readonly anyMonsterByKind = new Map<number, Set<Entity>>();
   private readonly entityOrder = new Map<number, number>();
   readonly ai: Entity[] = [];
   readonly actors: Entity[] = [];
@@ -180,6 +181,7 @@ export class EntityIndex {
     this.dynamicEntities.length = 0;
     this.staticIndexedIds.clear();
     this.byId.clear();
+    this.anyMonsterByKind.clear();
     this.entityOrder.clear();
     this.ai.length = 0;
     this.actors.length = 0;
@@ -198,6 +200,14 @@ export class EntityIndex {
       if (!e || !e.alive) continue;
       liveEntityCount++;
       this.byId.set(e.id, e);
+      if (e.type === EntityType.MONSTER && e.monsterKind !== undefined) {
+        let set = this.anyMonsterByKind.get(e.monsterKind);
+        if (!set) {
+          set = new Set();
+          this.anyMonsterByKind.set(e.monsterKind, set);
+        }
+        set.add(e);
+      }
       this.entityOrder.set(e.id, order);
       if (e.type === EntityType.NPC || e.type === EntityType.MONSTER) this.actors.push(e);
       if (e.type === EntityType.NPC) npcCount++;
@@ -254,6 +264,7 @@ export class EntityIndex {
     const startedAt = nowMs();
     this.clearDynamicBuckets();
     this.byId.clear();
+    this.anyMonsterByKind.clear();
     this.entityOrder.clear();
     this.ai.length = 0;
     this.actors.length = 0;
@@ -275,12 +286,24 @@ export class EntityIndex {
       if (!e || !e.alive) {
         if (e) {
           this.byId.delete(e.id);
+          if (e.type === EntityType.MONSTER && e.monsterKind !== undefined) {
+            const set = this.anyMonsterByKind.get(e.monsterKind);
+            if (set) set.delete(e);
+          }
           this.entityOrder.delete(e.id);
         }
         continue;
       }
       liveDynamicEntityCount++;
       this.byId.set(e.id, e);
+      if (e.type === EntityType.MONSTER && e.monsterKind !== undefined) {
+        let set = this.anyMonsterByKind.get(e.monsterKind);
+        if (!set) {
+          set = new Set();
+          this.anyMonsterByKind.set(e.monsterKind, set);
+        }
+        set.add(e);
+      }
       this.entityOrder.set(e.id, dynamicOrder);
       if (e.type === EntityType.NPC || e.type === EntityType.MONSTER) this.actors.push(e);
       if (e.type === EntityType.NPC) npcCount++;
@@ -372,6 +395,14 @@ export class EntityIndex {
         bucket[write++] = e;
         this.staticIndexedIds.add(e.id);
         this.byId.set(e.id, e);
+      if (e.type === EntityType.MONSTER && e.monsterKind !== undefined) {
+        let set = this.anyMonsterByKind.get(e.monsterKind);
+        if (!set) {
+          set = new Set();
+          this.anyMonsterByKind.set(e.monsterKind, set);
+        }
+        set.add(e);
+      }
         this.entityOrder.set(e.id, Number.MAX_SAFE_INTEGER - liveCount);
         liveCount++;
         if (e.type === EntityType.ITEM_DROP) itemCount++;
@@ -388,6 +419,14 @@ export class EntityIndex {
       const e = entities[order];
       if (!e || !e.alive) continue;
       this.byId.set(e.id, e);
+      if (e.type === EntityType.MONSTER && e.monsterKind !== undefined) {
+        let set = this.anyMonsterByKind.get(e.monsterKind);
+        if (!set) {
+          set = new Set();
+          this.anyMonsterByKind.set(e.monsterKind, set);
+        }
+        set.add(e);
+      }
       this.entityOrder.set(e.id, order);
       if ((entityMask(e) & ENTITY_MASK_STATIC_VISIBLE) !== 0) {
         if (this.staticIndexedIds.has(e.id)) continue;
@@ -431,6 +470,14 @@ export class EntityIndex {
       const e = entities[order];
       if (!e || !e.alive) continue;
       this.byId.set(e.id, e);
+      if (e.type === EntityType.MONSTER && e.monsterKind !== undefined) {
+        let set = this.anyMonsterByKind.get(e.monsterKind);
+        if (!set) {
+          set = new Set();
+          this.anyMonsterByKind.set(e.monsterKind, set);
+        }
+        set.add(e);
+      }
       this.entityOrder.set(e.id, order);
       if (e.type === EntityType.NPC || e.type === EntityType.MONSTER) this.actors.push(e);
       if (e.type === EntityType.NPC) this.debugStats.npcCount++;
