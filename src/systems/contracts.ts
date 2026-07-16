@@ -65,6 +65,7 @@ import { canSpawnEntityType, entitySpawnSlots } from './entity_limits';
 import { intContractRewardMult } from './rpg';
 import { calculateQuestReward, type QuestRewardObjectiveKind } from './quest_rewards';
 import { getAlifeNpcTotalMoney } from './alife';
+import { formatFloorZ } from './procedural_floors';
 
 const CLEANUP_SURFACE_THRESHOLD = 480;
 const ZHELEMISH_NII_CONTRACT_ID = 'nii_zhelemish_pure_sample';
@@ -148,9 +149,6 @@ const GOVNYAK_COURIER_OUTCOMES: Record<string, {
   },
 };
 
-function formatFloorZ(z: number): string {
-  return z > 0 ? `+${z}` : `${z}`;
-}
 
 function routeZ(value: number | undefined): number | undefined {
   if (typeof value !== 'number' || !Number.isFinite(value)) return undefined;

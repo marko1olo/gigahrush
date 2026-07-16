@@ -18,6 +18,7 @@ import { canActorOccupy, unstuckActorFromBlockers } from './systems/movement_col
 import { selectMeleeTarget } from './systems/melee_targeting';
 import { updateProceduralScreens } from './gen/procedural_screens';
 import { generateProceduralFloor } from './gen/procedural_floor';
+import { formatFloorZ } from './systems/procedural_floors';
 import { generateDesignFloor, isDesignFloorId } from './gen/design_floors/manifest';
 import { injectFastElevators } from './gen/fast_elevators';
 import { stampCeilingHeights } from './gen/ceiling_heights';
@@ -4277,9 +4278,6 @@ interface DebugTeleportTarget {
   spec?: ProceduralFloorSpec;
 }
 
-function formatFloorZ(z: number): string {
-  return z > 0 ? `+${z}` : `${z}`;
-}
 
 function debugTeleportTo(target: DebugTeleportTarget): void {
   restorePlayerBeforeWorldBoundary();
