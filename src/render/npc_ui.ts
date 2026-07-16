@@ -1,3 +1,4 @@
+import { getEntityIndex } from '../systems/entity_index';
 /* ── NPC interaction menu ─────────────────────────────────────── */
 
 import { type Entity, type GameState, Faction } from '../core/types';
@@ -42,7 +43,7 @@ export function drawNpcMenu(
   sx: number, sy: number,
   uiTime = state.time,
 ): void {
-  const npc = entities.find(e => e.id === state.npcMenuTarget);
+  const npc = getEntityIndex().byId.get(state.npcMenuTarget);
   if (!npc) return;
 
   const w = ctx.canvas.width;
