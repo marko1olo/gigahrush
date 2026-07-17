@@ -586,3 +586,60 @@ test('platform bridge lifecycle markers safely interact with mocked Yandex and G
     else delete globals.gp;
   }
 });
+
+test('platform bridge sandbox fallback handles GamePush SDK throwing errors gracefully', () => {
+  resetPlatformBridgeForTests();
+
+  const globals = globalThis as typeof globalThis & {
+    document?: { addEventListener(event: string, handler: () => void): void };
+    gp?: any;
+  };
+  const originalDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
+  const originalGamePush = globals.gp;
+
+  let pointerDownHandler: (() => void) | undefined;
+
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: {
+      addEventListener(event: string, handler: () => void) {
+        if (event === 'pointerdown') pointerDownHandler = handler;
+      }
+    }
+  });
+
+  globals.gp = {
+    gameStart() {
+      throw new Error('Simulated gameStart error');
+    },
+    player: {
+      set() { throw new Error('Simulated player.set error'); },
+      sync() { throw new Error('Simulated player.sync error'); },
+    },
+    changeLanguage() { throw new Error('Simulated changeLanguage error'); },
+    sounds: {
+      get isMuted() { throw new Error('Simulated sounds.isMuted error'); },
+      mute() { throw new Error('Simulated sounds.mute error'); },
+      unmute() { throw new Error('Simulated sounds.unmute error'); },
+    },
+    language: 'ru',
+    on() {},
+  };
+
+  try {
+    initPlatformBridge();
+
+    assert.ok(pointerDownHandler, 'pointerdown handler should be bound');
+
+    assert.doesNotThrow(() => {
+      pointerDownHandler!();
+    });
+
+  } finally {
+    resetPlatformBridgeForTests();
+    if (originalDocument) Object.defineProperty(globalThis, 'document', originalDocument);
+    else delete globals.document;
+    if (originalGamePush) globals.gp = originalGamePush;
+    else delete globals.gp;
+  }
+});
