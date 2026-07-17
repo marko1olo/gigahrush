@@ -4,6 +4,8 @@ export const W = 1024;           // toroidal world size
 export const TEX = 64;           // texture size (px)
 export const MAX_DRAW = 40;      // max raycaster distance
 export const TICK_S = 1 / 60;    // seconds per logic tick
+export const NO_APARTMENT_ID = -1;
+export const NO_ROOM_ID = -1;
 
 // ── Cells ────────────────────────────────────────────────────────
 export const enum Cell {
@@ -130,7 +132,7 @@ export interface Room {
   doors: number[];          // door cell indices
   sealed: boolean;          // hermetically sealed during samosbor
   name: string;
-  apartmentId: number;      // -1 = not apartment
+  apartmentId: number;      // NO_APARTMENT_ID = not apartment
   wallTex: Tex;
   floorTex: Tex;
   ceilingTier?: number;     // optional custom ceiling tier
