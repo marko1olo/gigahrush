@@ -20,7 +20,6 @@ import {
 import type { TexData } from './textures';
 import type { SpriteData } from './sprites';
 import type { BloodParticle } from './blood';
-import { getCritterRenderEnabled } from './critters';
 import { containerSpr, featureSpr } from './sprite_index';
 import { generateItemSprite, itemDropDefId, itemSpriteKey } from './item_sprites';
 import {
@@ -3302,7 +3301,6 @@ export function renderSceneGL(
   visualGeometryProfile: ResolvedVisualGeometryProfile = EMPTY_RESOLVED_VISUAL_GEOMETRY_PROFILE,
   visualSurfaceProfile: ResolvedVisualSurfaceProfile = EMPTY_RESOLVED_VISUAL_SURFACE_PROFILE,
   lightingQuality = 4,
-  currentFps?: number,
 ): void {
   lastRenderSceneDebugStats.meshEnabled = visualGeometryProfile.enabled;
   lastRenderSceneDebugStats.meshInstances = 0;
@@ -3542,11 +3540,6 @@ export function renderSceneGL(
   }
 
   gl.disable(gl.DEPTH_TEST);
-
-  // ── Render critters pass (stub for marx_74) ──
-  if (getCritterRenderEnabled(currentFps)) {
-    // Critters will be rendered here
-  }
 
   // ── Pass 1.5: Bloom (bright-pass prefilter + separable Gaussian blur) ──
   // Render-only glow; gated to high/experimental lighting quality. Result lands in bloomTexA.
