@@ -186,7 +186,7 @@ import {
   resetNonStoryQuestsForNewPlayer,
   toggleActiveQuest,
   updateKillQuestPressure,
-} from './systems/quests';
+  isActiveKillQuestTarget} from './systems/quests';
 import { applyPickedStoryItemOutcomes, applyStoryItemOutcomes, spawnStoryDeathDrops } from './systems/story_outcomes';
 import { handleDiceInput, isDiceGameOpen } from './systems/dice';
 import { handleDominoInput, isDominoGameOpen } from './systems/domino';
@@ -2390,7 +2390,6 @@ function initGame(runSeedOverride?: number, initialFloor: FloorLevel = FloorLeve
   rebuildEntityIndex(entities, 'load');
 }
 
-
 /* ── Input ────────────────────────────────────────────────────── */
 const input = createInput();
 bindInput(input, canvas, {
@@ -3190,23 +3189,9 @@ function isBossKillTarget(e: Entity): boolean {
     e.monsterKind === MonsterKind.CREATOR;
 }
 
-function isActiveKillQuestTarget(e: Entity): boolean {
-  for (const q of state.quests) {
-    if (q.done || q.type !== QuestType.KILL) continue;
-    if (e.type === EntityType.MONSTER) {
-      if (q.targetMonsterKind === e.monsterKind) return true;
-      if (q.targetMonsterKind === undefined && q.targetNpcId === undefined && q.targetPlotNpcId === undefined) return true;
-    } else if (e.type === EntityType.NPC) {
-      if (q.targetNpcId === e.id) return true;
-      if (q.targetPlotNpcId && e.plotNpcId === q.targetPlotNpcId) return true;
-    }
-  }
-  return false;
-}
-
 function playerKillMessage(e: Entity): string {
   const name = entityDisplayName(e);
-  return (isBossKillTarget(e) || isActiveKillQuestTarget(e))
+  return (isBossKillTarget(e) || isActiveKillQuestTarget(e, state.quests))
     ? `${name} ${e.isFemale ? 'повержена' : 'повержен'}!`
     : `Убито: ${name}`;
 }
@@ -5313,7 +5298,6 @@ function cleanSurfaceArea(cx: number, cy: number, radiusCells: number): number {
   return cleanWorldSurfaceArea(world, cx, cy, radiusCells);
 }
 
-
 function handleUvSpotlightTool(player: Entity, wantsToolUse: boolean): void {
   if (!wantsToolUse || _toolActionCd > 0) return;
   const result = useUvSpotlight(world, entities, player, state);
@@ -6563,7 +6547,6 @@ function applyMapLegendSelection(index: number): void {
 function pointInRect(x: number, y: number, rx: number, ry: number, rw: number, rh: number): boolean {
   return x >= rx && x <= rx + rw && y >= ry && y <= ry + rh;
 }
-
 
 function handleTapControls(y: number, h: number, sy: number): void {
   const top = 34 * sy;
