@@ -79,9 +79,10 @@ export function recordPlayerDamage(
 }
 
 export function formatLastPlayerDamageCause(
-  state: GameState,
+  state: GameState | undefined,
   deathTime: number,
 ): string | undefined {
+  if (!state) return undefined;
   const last: PlayerDamageRecord | undefined = state.lastDamage;
   if (!last) return undefined;
   if (last.time < deathTime - DEATH_CAUSE_LOOKBACK_SEC || last.time > deathTime + DEATH_CAUSE_LOOKAHEAD_SEC) return undefined;
