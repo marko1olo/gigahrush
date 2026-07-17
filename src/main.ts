@@ -3302,7 +3302,7 @@ function isPlayerOwnedProjectile(p: Entity): boolean {
   return p.ownerId === player.id || isPlayerEntity(projectileActor(p));
 }
 
-const flameCollateralQuery: Entity[] = [];
+
 
 function applyFlameBackdraft(x: number, y: number, actor: Entity | undefined): void {
   state.dmgFlash = Math.max(state.dmgFlash, 0.12);
@@ -3318,13 +3318,19 @@ function applyFlameBackdraft(x: number, y: number, actor: Entity | undefined): v
 }
 
 function burnCollateralNearFlame(x: number, y: number, radius: number, actor: Entity | undefined): boolean {
-  const r2 = radius * radius;
-  getEntityIndex().queryRadius(x, y, radius, flameCollateralQuery, ENTITY_MASK_ITEM_DROP);
-  for (let i = 0; i < flameCollateralQuery.length; i++) {
-    const drop = flameCollateralQuery[i];
-    const inv = drop.inventory;
-    if (!drop.alive || drop.type !== EntityType.ITEM_DROP || !inv?.length) continue;
-    if (world.dist2(x, y, drop.x, drop.y) > r2) continue;
+
+  const drop = getEntityIndex().findFirstInRadius(x, y, radius, ENTITY_MASK_ITEM_DROP, (e) => {
+    if (e.type !== EntityType.ITEM_DROP || !e.inventory?.length) return false;
+    for (let j = 0; j < e.inventory.length; j++) {
+      if (FLAME_COLLATERAL_ITEMS.has(e.inventory[j].defId)) {
+        return true;
+      }
+    }
+    return false;
+  });
+
+  if (drop) {
+    const inv = drop.inventory!;
     let slot = undefined;
     for (let j = 0; j < inv.length; j++) {
       if (FLAME_COLLATERAL_ITEMS.has(inv[j].defId)) {
@@ -3332,7 +3338,7 @@ function burnCollateralNearFlame(x: number, y: number, radius: number, actor: En
         break;
       }
     }
-    if (!slot) continue;
+    if (!slot) return false;
     const def = ITEMS[slot.defId];
     slot.count--;
     if (slot.count <= 0) inv.splice(inv.indexOf(slot), 1);
