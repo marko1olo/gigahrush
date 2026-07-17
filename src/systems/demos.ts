@@ -30,6 +30,8 @@ import { getDemosQuestNoticesForProfile } from './demos_quest_notices';
 import type { DemosSocialSaveState } from './demos_save';
 import type { DemosQuestNoticeView } from '../data/demos_quest_notices';
 import { routeDemosSpeech } from './markov_router_adapters';
+import { isRecord } from '../core/utils';
+
 
 export const DEMOS_SEARCH_MAX = 48;
 
@@ -218,10 +220,6 @@ export function moveDemosCursor(state: GameState, cursor: number, direction: num
 
 function liveEntityForAlifeId(entities: readonly Entity[], alifeId: number): Entity | undefined {
   return entities.find(e => e.type === EntityType.NPC && e.alive && e.alifeId === alifeId);
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value);
 }
 
 function cleanLabel(value: unknown): string {

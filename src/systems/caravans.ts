@@ -26,6 +26,8 @@ import {
 import { changeResourceStock, invalidateEconomyPrices, registerEconomyTariffProvider } from './economy';
 import { publishEvent, registerWorldEventObserver } from './events';
 import { cleanFloorKey, floorKeyForStory } from './floor_keys';
+import { isRecord } from '../core/utils';
+
 
 export const CARAVAN_TICK_SECONDS = 30;
 export const MAX_CARAVAN_LANES_PER_TICK = 2;
@@ -134,10 +136,6 @@ function initialLaneState(def: CaravanLaneDef, now: number): CaravanLaneState {
 
 function saneNumber(value: unknown, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value);
 }
 
 function normalizeLaneState(def: CaravanLaneDef, raw: Partial<CaravanLaneState> | undefined, now: number): CaravanLaneState {

@@ -17,6 +17,8 @@ import { pseudoliftStateForSave } from './pseudolift';
 import { floorRunStateForSave } from './procedural_floors';
 import { buildSavePayload, type SavePayload } from './save_payload';
 import { stockMarketForSave } from './stock_market';
+import { isRecord } from '../core/utils';
+
 
 export const SAVE_SHAPE_VERSION = 22;
 export type SaveShapeVersionStatus = 'missing' | 'old' | 'current' | 'newer' | 'invalid';
@@ -28,10 +30,6 @@ export interface SaveRuntimeExtras {
 }
 
 export type GameSavePayload = SavePayload & { version: number };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value);
-}
 
 export function saveShapeVersionStatus(input: unknown): SaveShapeVersionStatus {
   if (!isRecord(input)) return 'invalid';

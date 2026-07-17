@@ -26,6 +26,8 @@ import { type FloorGeneration } from '../gen/floor_manifest';
 import { rebuildGeneratedFloorPathBlockers, rebuildPathBlockersFromWorldObjects } from '../gen/path_blockers';
 import { cleanFloorKey, floorKeyForStory, floorKeyKnown, type FloorKeyResolveContext } from './floor_keys';
 import { isNativePlayerBodyEntity } from './player_actor';
+import { isRecord } from '../core/utils';
+
 
 export interface FloorMemoryEntry {
   key: string;
@@ -463,10 +465,6 @@ function restoreNumberList(input: unknown, min = 0, max = W * W - 1): number[] {
     if (Number.isFinite(n) && n >= min && n <= max) out.push(n);
   }
   return out;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value);
 }
 
 function cloneJsonOr<T>(value: unknown, fallback: T): T {

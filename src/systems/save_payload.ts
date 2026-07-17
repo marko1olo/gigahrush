@@ -17,6 +17,8 @@ import {
 import { MAX_INVENTORY_SLOTS, MAX_ITEM_STACK } from '../data/inventory_limits';
 import { ITEMS, getStack } from '../data/items';
 import { clampCharacterAge, DEFAULT_PLAYER_AGE, DEFAULT_PLAYER_SEX, sanitizeCharacterSex } from '../data/demographics';
+import { isRecord } from '../core/utils';
+
 
 export const SAVE_PLAYER_INVENTORY_CAP = MAX_INVENTORY_SLOTS;
 export const SAVE_CONTAINER_CAP = 128;
@@ -405,10 +407,6 @@ export function summarizeSavePayload(
 }
 
 type VersionedSavePayload = SavePayload & { version?: number };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value);
-}
 
 function compactBooleanRecord(input: unknown, cap: number, keyCap = 96): Record<string, true> {
   const out: Record<string, true> = {};

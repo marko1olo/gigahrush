@@ -531,6 +531,8 @@ import {
   type TitleSetupRowView,
 } from './render/title_ui';
 import { installCanvasLocalization, setCanvasTextGlitchPressure, setLocalizationLanguage } from './systems/localization';
+import { isRecord } from './core/utils';
+
 import {
   ACTIVE_ACTOR_SOFT_LIMIT_STEP,
   MAX_ACTIVE_ACTOR_SOFT_LIMIT,
@@ -2389,7 +2391,6 @@ function initGame(runSeedOverride?: number, initialFloor: FloorLevel = FloorLeve
   finishLoadedFloorVisuals(gen);
   rebuildEntityIndex(entities, 'load');
 }
-
 
 /* ── Input ────────────────────────────────────────────────────── */
 const input = createInput();
@@ -4672,10 +4673,6 @@ const MAX_SAVE_MONEY = 999_999;
 const MAX_QUEST_TIME_LIMIT_MINUTES = 5 * 24 * 60;
 const EVENT_PRIVACIES: readonly WorldEventPrivacy[] = ['public', 'local', 'witnessed', 'private', 'secret'];
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value);
-}
-
 function finiteInt(value: unknown, fallback: number): number {
   return Math.trunc(finiteNumber(value, fallback));
 }
@@ -5312,7 +5309,6 @@ function addRuntimeDoorToRoom(roomId: number, doorIdx: number): void {
 function cleanSurfaceArea(cx: number, cy: number, radiusCells: number): number {
   return cleanWorldSurfaceArea(world, cx, cy, radiusCells);
 }
-
 
 function handleUvSpotlightTool(player: Entity, wantsToolUse: boolean): void {
   if (!wantsToolUse || _toolActionCd > 0) return;
@@ -6563,7 +6559,6 @@ function applyMapLegendSelection(index: number): void {
 function pointInRect(x: number, y: number, rx: number, ry: number, rw: number, rh: number): boolean {
   return x >= rx && x <= rx + rw && y >= ry && y <= ry + rh;
 }
-
 
 function handleTapControls(y: number, h: number, sy: number): void {
   const top = 34 * sy;

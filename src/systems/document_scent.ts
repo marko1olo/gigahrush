@@ -2,6 +2,8 @@
 
 import { ItemType, RoomType, type Entity, type Item, type ItemDef } from '../core/types';
 import { ITEMS, ITEM_TAGS } from '../data/items';
+import { isRecord } from '../core/utils';
+
 
 export const KONTORSHCHIK_NOISY_UNTIL_KEY = 'kontorshchikNoisyUntil';
 export const KONTORSHCHIK_NOISY_BY_KEY = 'kontorshchikNoisyBy';
@@ -42,10 +44,6 @@ const DOCUMENT_SCENT_ID_PARTS = [
   'docket',
   'file',
 ] as const;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value);
-}
 
 function hasScentTag(defId: string, def: ItemDef): boolean {
   const tags = [...(ITEM_TAGS[defId] ?? []), ...(def.tags ?? [])];

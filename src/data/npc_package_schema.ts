@@ -32,6 +32,7 @@ import { allNpcPerks, getNpcPerk } from './npc_perks';
 import { PROCEDURAL_FLOOR_ZS, proceduralFloorKey, zForStoryFloor } from './procedural_floors';
 import { RPG_ATTRIBUTE_CAP } from './rpg_progression';
 import { NPC_VISUAL_FAMILIES } from '../entities/npc_visuals';
+import { isRecord } from '../core/utils';
 import type {
   DemosSocialEdgeFlagId,
   NpcPackageDef,
@@ -110,9 +111,7 @@ type ProblemList = {
   warnings: string[];
 };
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
+
 
 function numericEnumValues(enumObj: Record<string, string | number>): Set<number> {
   return new Set(Object.values(enumObj).filter((value): value is number => typeof value === 'number'));

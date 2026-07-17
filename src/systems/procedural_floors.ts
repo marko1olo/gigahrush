@@ -42,6 +42,8 @@ import {
   routeGateDirectionIsClosed,
 } from './route_gates';
 import { portalBlocksDesignFloor } from './platform_bridge';
+import { isRecord } from '../core/utils';
+
 
 export interface FloorRunState {
   runSeed: number;
@@ -127,10 +129,6 @@ const VALID_ANOMALY_IDS = new Set<FloorAnomalyId>(FLOOR_ANOMALIES.map(def => def
 
 function randomRunSeed(): number {
   return Math.floor(Math.random() * 0x7fffffff);
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value);
 }
 
 function normalizeRunSeed(value: unknown): number {
