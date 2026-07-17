@@ -2,7 +2,7 @@
 
 import {
   type Entity, type GameState, type Quest, EntityType, Cell, Feature, RoomType, W, QuestType,
-  LiftDirection, MonsterKind, FloorLevel, DoorState,
+  LiftDirection, FloorLevel, DoorState,
 } from '../core/types';
 import { SURFACE_FLAG_CHALK_MAP, World } from '../core/world';
 import {
@@ -11,7 +11,7 @@ import {
   questTargetLiftDirection,
   resolveQuestTargetRoom,
 } from '../systems/contracts';
-import { getActiveQuest, npcQuestMarkerState } from '../systems/quests';
+import { getActiveQuest, npcQuestMarkerState , isActiveKillQuestTarget } from '../systems/quests';
 import { isHostile } from '../systems/factions';
 import { ENTITY_MASK_ITEM_DROP, ENTITY_MASK_VISIBLE, getEntityIndex } from '../systems/entity_index';
 import {
@@ -39,14 +39,10 @@ const FULL_MAP_RADIUS_MAX = W / 2;
 type QuestKind = 'plot' | 'side' | 'system';
 type MapMarkerStyle = { stroke: string; fill: string };
 
-const activeKillKinds = new Set<MonsterKind>();
-const activeKillNpcIds = new Set<number>();
-const activeKillPlotNpcIds = new Set<string>();
 const activeTargetRoomTypes = new Map<RoomType, QuestKind>();
 const activeTargetRooms = new Map<number, QuestKind>();
 const activeFetchItems = new Map<string, QuestKind>();
 const drawnTargetRooms = new Set<number>();
-let activeKillAnyMonster = false;
 const MAX_CONCRETE_QUEST_ROOM_MARKERS = 8;
 const mapEntityQuery: Entity[] = [];
 const activeQuestItemQuery: Entity[] = [];
@@ -161,7 +157,6 @@ function roomTypeRgb(type: RoomType | undefined, highContrast = false): [number,
   return (highContrast ? ROOM_TYPE_RGB_CONTRAST[type] : ROOM_TYPE_RGB[type]) ?? (highContrast ? [120, 132, 144] : [51, 51, 51]);
 }
 
-
 export function mapEntityDotBudget(mapW: number, mapH: number, radius: number): number {
   if (radius <= 48 || mapW <= 180 || mapH <= 180) return MAP_MINIMAP_ENTITY_DOT_BUDGET;
   const areaBudget = Math.floor((mapW * mapH) / 1800);
@@ -275,34 +270,9 @@ function setMarkerKind<K>(map: Map<K, QuestKind>, key: K, kind: QuestKind): void
 }
 
 function clearActiveQuestMarkers(): void {
-  activeKillKinds.clear();
-  activeKillNpcIds.clear();
-  activeKillPlotNpcIds.clear();
   activeTargetRoomTypes.clear();
   activeTargetRooms.clear();
   activeFetchItems.clear();
-  activeKillAnyMonster = false;
-}
-
-function registerActiveKillTarget(q: Quest): void {
-  if (q.targetMonsterKind !== undefined) activeKillKinds.add(q.targetMonsterKind);
-  else if (q.targetNpcId === undefined && q.targetPlotNpcId === undefined) activeKillAnyMonster = true;
-  if (q.targetNpcId !== undefined) activeKillNpcIds.add(q.targetNpcId);
-  if (q.targetPlotNpcId !== undefined) activeKillPlotNpcIds.add(q.targetPlotNpcId);
-}
-
-function hasActiveKillTargets(): boolean {
-  return activeKillAnyMonster || activeKillKinds.size > 0 || activeKillNpcIds.size > 0 || activeKillPlotNpcIds.size > 0;
-}
-
-function isActiveKillQuestTarget(e: Entity): boolean {
-  if (e.type === EntityType.MONSTER) {
-    return activeKillAnyMonster || (e.monsterKind !== undefined && activeKillKinds.has(e.monsterKind));
-  }
-  if (e.type === EntityType.NPC) {
-    return activeKillNpcIds.has(e.id) || (e.plotNpcId !== undefined && activeKillPlotNpcIds.has(e.plotNpcId));
-  }
-  return false;
 }
 
 function questTargetVisibleOnMap(q: Quest, currentFloor: FloorLevel | undefined, state: GameState | undefined): boolean {
@@ -1103,8 +1073,7 @@ function drawMap(
         (q.targetFloor === undefined || q.targetFloor === currentFloor)
       ) setMarkerKind(activeFetchItems, q.targetItem, kind);
       if (!questTargetVisibleOnMap(q, currentFloor, state)) continue;
-      if (q.type === QuestType.KILL) registerActiveKillTarget(q);
-      const hasRoomTarget = q.targetRoom !== undefined || q.targetRoomType !== undefined || q.targetZoneTag !== undefined;
+            const hasRoomTarget = q.targetRoom !== undefined || q.targetRoomType !== undefined || q.targetZoneTag !== undefined;
       if (hasRoomTarget && concreteRoomMarkers < MAX_CONCRETE_QUEST_ROOM_MARKERS) {
         const resolved = resolveQuestTargetRoom(world, q, player);
         if (resolved) {
@@ -1226,9 +1195,9 @@ function drawMap(
       drawQuestMarker(ctx, qsx, qsy, 6, 4, questKind(q));
     }
     // KILL quest markers — show target NPCs and monsters as red diamonds.
-    if (hasActiveKillTargets()) {
+    if (quests.some(q => !q.done && q.type === QuestType.KILL)) {
       for (const e of mapEntityQuery) {
-        if (!e.alive || !isActiveKillQuestTarget(e)) continue;
+        if (!e.alive || !isActiveKillQuestTarget(e, quests)) continue;
         const eCell = world.idx(Math.floor(e.x), Math.floor(e.y));
         if (!mapCellShowsLiveMarkers(world, eCell)) continue;
         const edx = world.delta(pxI, Math.floor(e.x));

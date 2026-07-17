@@ -978,6 +978,20 @@ export function hasStoryQuest(
   });
 }
 
+export function isActiveKillQuestTarget(e: Entity, quests: readonly Quest[]): boolean {
+  for (const q of quests) {
+    if (q.done || q.type !== QuestType.KILL) continue;
+    if (e.type === EntityType.MONSTER) {
+      if (q.targetMonsterKind === e.monsterKind) return true;
+      if (q.targetMonsterKind === undefined && q.targetNpcId === undefined && q.targetPlotNpcId === undefined) return true;
+    } else if (e.type === EntityType.NPC) {
+      if (q.targetNpcId === e.id) return true;
+      if (q.targetPlotNpcId && e.plotNpcId === q.targetPlotNpcId) return true;
+    }
+  }
+  return false;
+}
+
 export function applyStoryQuestOutcome(
   outcome: StoryQuestOutcomeDef,
   player: Entity,

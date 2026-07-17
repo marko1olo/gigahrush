@@ -1,32 +1,27 @@
-1. **Add `hp` and `maxHp` to `Door` interface in `src/core/types.ts`**:
-   - Add `hp?: number;` and `maxHp?: number;` to the `Door` interface (around line 173).
+1.  **Extract `isActiveKillQuestTarget` to `src/systems/quests.ts`:**
+    *   Currently, there are two variations of `isActiveKillQuestTarget`, one in `src/main.ts` (loops over current `state.quests`) and another in `src/render/map_ui.ts` (uses cached globals updated per frame like `activeKillNpcIds`).
+    *   To improve DRY and simplify logic, I will consolidate this into one function in `src/systems/quests.ts`.
+    *   The exported function will take the list of quests as a second parameter to keep it pure and avoid cyclic dependencies on global state: `export function isActiveKillQuestTarget(e: Entity, quests: readonly Quest[]): boolean`
 
-2. **Handle saving/loading `hp` and `maxHp` in `src/systems/floor_memory.ts`**:
-   - Modify `sanitizeDoorEntries` to parse `hp` and `maxHp` from the `raw` object, validating they are finite numbers (or undefined). `hp` can be <= 0 if destroyed (though it should be open then, but just in case), and `maxHp` > 0.
+2.  **Clean up `src/main.ts`:**
+    *   Remove the local `isActiveKillQuestTarget` definition.
+    *   Import `isActiveKillQuestTarget` from `src/systems/quests.ts`.
+    *   Update references to use the new signature: `isActiveKillQuestTarget(e, state.quests)`.
 
-3. **Implement `damageDoor` logic in a new export or existing file (e.g. `src/systems/door_state.ts`)**:
-   - Create a `damageDoor(world: World, door: Door, amount: number, msgs: any[], time: number, state: GameState)` function.
-   - If `door.maxHp` is undefined, initialize it based on the door type (HERMETIC=500, LOCKED/METAL=150, WOOD/others=50). Set `door.hp` = `door.maxHp`.
-   - Subtract `amount` from `door.hp`.
-   - If `door.hp <= 0`, set state to `DoorState.OPEN`, `world.cellVersion++` (to trigger nav tree rebuild), and call `world.markCellsDirty()`. Also push a message to `msgs` like `"Дверь выбита!"`.
+3.  **Clean up `src/render/map_ui.ts`:**
+    *   Remove the local `isActiveKillQuestTarget` definition.
+    *   Import the shared function from `src/systems/quests.ts`.
+    *   Update `isActiveKillQuestTarget(e)` to `isActiveKillQuestTarget(e, quests)` (since the map render loop has `quests` available from the gamestate).
+    *   Since `map_ui.ts` no longer needs its local caching just for this logic, I will also remove `registerActiveKillTarget`, `activeKillKinds`, `activeKillNpcIds`, `activeKillPlotNpcIds`, and `activeKillAnyMonster`.
+    *   Update `hasActiveKillTargets` (or remove it entirely) to just check `quests.some(q => !q.done && q.type === QuestType.KILL)`. This eliminates redundant state sync.
 
-4. **Add melee hit detection for doors in `src/main.ts`**:
-   - In the melee attack logic (around line 2980), after checking for `meleeTarget`, if no entity is hit (`!hitSomething`), calculate the cell index the player is facing (using `ax, ay`).
-   - If that cell is `Cell.DOOR`, retrieve the door from `world.doors`.
-   - Call `damageDoor` with the melee damage (`normalDmg`). Play a hit sound (e.g., `playBreak` or generic hit). Set `hitSomething = true` so durability is consumed.
+4.  **Complete pre-commit steps:**
+    *   Complete pre-commit steps to ensure proper testing, verification, review, and reflection are done.
 
-5. **Add E action (interact) bash for locked/hermetic doors in `src/systems/interactions.ts`**:
-   - In `activateDoor`, when the door is `HERMETIC_CLOSED` and locked by Samosbor, or `LOCKED` and the player doesn't have the key, apply a small amount of damage (e.g. 5) by calling `damageDoor`.
-   - E.g., player kicks the door when interacting without a key.
-
-6. **Visuals in `src/render/webgl.ts` (Cracks on low HP)**:
-   - "при door.hp < door.maxHp * 0.5 — рисовать текстуру с трещинами (модифицировать UV или overlay)".
-   - Update `rebuildDoorStates` to pack the "cracked" state into the highest bit of the 8-bit integer:
-     `const isCracked = door.hp !== undefined && door.maxHp !== undefined && door.hp < door.maxHp * 0.5;`
-     `out[ci] = door.state | (isCracked ? 128 : 0);`
-   - In the shader, unpack it in `sampleDoor` and `lightBoundary` using `& 127u`.
-   - In the rendering loop (DDA), read the top bit to determine `isCracked`. Pass this information along, or recalculate it. Actually, `uDoorStates` is read during DDA and `wallTexId` is assigned. We can also set a boolean `crackedDoor = (rawDoorState & 128u) != 0u;`.
-   - In the fragment coloring section, if `crackedDoor` is true, mix the texture color `c` with a darker color based on a procedural noise pattern (e.g. `noiseI` or `fract`) to simulate cracks.
-
-7. **Pre-commit step**:
-   - Complete pre-commit steps to ensure proper testing, verification, review, and reflection are done.
+5.  **Submit PR:**
+    *   Title: `🧹 Extract duplicated isActiveKillQuestTarget to quests system`
+    *   Description will include:
+        *   🎯 **What:** Moved duplicate `isActiveKillQuestTarget` logic from `src/main.ts` and `src/render/map_ui.ts` to `src/systems/quests.ts`.
+        *   💡 **Why:** Reduces duplicate code, removes redundant caching from the UI, and simplifies the codebase.
+        *   ✅ **Verification:** Typechecking and tests pass, no functional regressions.
+        *   ✨ **Result:** Better DRY compliance and maintainability.
