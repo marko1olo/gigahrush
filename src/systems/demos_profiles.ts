@@ -627,15 +627,27 @@ function capitalLabel(snapshot: AlifeNpcSnapshot, pack: NpcPackageDef | undefine
   return { rubles: total, label: parts.join(' / ') };
 }
 
-function buildInterests(snapshot: AlifeNpcSnapshot, traits: readonly DemosTraitView[]): readonly string[] {
-  const out: string[] = [];
-  for (const item of occupationProfile(snapshot.occupation)?.interests ?? []) pushUnique(out, item, 5);
-  for (const item of FACTION_INTERESTS[snapshot.faction] ?? []) pushUnique(out, item, 5);
+function evaluateOccupationInterests(out: string[], occupation: Occupation): void {
+  for (const item of occupationProfile(occupation)?.interests ?? []) pushUnique(out, item, 5);
+}
+
+function evaluateFactionInterests(out: string[], faction: Faction): void {
+  for (const item of FACTION_INTERESTS[faction] ?? []) pushUnique(out, item, 5);
+}
+
+function evaluateTraitInterests(out: string[], traits: readonly DemosTraitView[]): void {
   for (const trait of traits) {
     if (trait.kind === 'taste' || trait.kind === 'fear') {
       pushUnique(out, TRAIT_INTEREST_LABELS[trait.id] ?? trait.label, 5);
     }
   }
+}
+
+function buildInterests(snapshot: AlifeNpcSnapshot, traits: readonly DemosTraitView[]): readonly string[] {
+  const out: string[] = [];
+  evaluateOccupationInterests(out, snapshot.occupation);
+  evaluateFactionInterests(out, snapshot.faction);
+  evaluateTraitInterests(out, traits);
   return out;
 }
 
