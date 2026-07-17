@@ -13,6 +13,7 @@ import { findClearArea, protectRoom } from '../shared';
 import { genLog } from '../log';
 import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
 import { registerZoneContent } from './zone_content';
+import { NOT_APARTMENT } from "../../core/types";
 
 const CONTENT_TAG = 'ag95_veretar_window';
 const ZONE_HUD = 58;
@@ -196,7 +197,7 @@ function carveProtectedRooms(world: World, nextRoomId: number, rx: number, ry: n
     doors: [],
     sealed: false,
     name: ROOM_NAME,
-    apartmentId: -1,
+    apartmentId: NOT_APARTMENT,
     wallTex: Tex.PANEL,
     floorTex: Tex.F_LINO,
   };
@@ -210,7 +211,7 @@ function carveProtectedRooms(world: World, nextRoomId: number, rx: number, ry: n
     doors: [],
     sealed: false,
     name: SHORTCUT_NAME,
-    apartmentId: -1,
+    apartmentId: NOT_APARTMENT,
     wallTex: Tex.HERMO_WALL,
     floorTex: Tex.F_CONCRETE,
   };

@@ -11,6 +11,7 @@ import {
 } from '../../core/types';
 import { World } from '../../core/world';
 import type { DesignFloorRouteDef } from '../../data/design_floors';
+import { NOT_APARTMENT } from "../../core/types";
 
 interface Point {
   x: number;
@@ -626,7 +627,7 @@ function tryStampShellRoom(
     doors: [],
     sealed: false,
     name,
-    apartmentId: -1,
+    apartmentId: NOT_APARTMENT,
     wallTex: style.wallTex,
     floorTex: style.floorTex,
   };

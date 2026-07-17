@@ -14,6 +14,7 @@ import { connectProtectedRoom, protectRoom } from '../shared';
 import { genLog } from '../log';
 import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
 import { registerZoneContent } from './zone_content';
+import { NOT_APARTMENT } from "../../core/types";
 
 export const SAMOSBORNYY_OSTOV_ID = 'samosbornyy_ostov' as const;
 export const SAMOSBORNYY_OSTOV_ROOM_PREFIX = 'Самосборный Остов' as const;
@@ -152,7 +153,7 @@ function carveRoom(world: World, roomId: number, rx: number, ry: number): Room {
     doors: [],
     sealed: true,
     name: `${SAMOSBORNYY_OSTOV_ROOM_PREFIX}: послесамосборная койка`,
-    apartmentId: -1,
+    apartmentId: NOT_APARTMENT,
     wallTex: Tex.HERMO_WALL,
     floorTex: Tex.F_TILE,
   };

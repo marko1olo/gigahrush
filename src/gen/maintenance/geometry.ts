@@ -3,6 +3,7 @@
 import { Cell, Tex, RoomType, Feature, type Room } from '../../core/types';
 import { World } from '../../core/world';
 import { placeEmergencyPanel } from '../../systems/emergency_panels';
+import { NOT_APARTMENT } from "../../core/types";
 
 const PIPE_WALL = Tex.PIPE;
 const DRY_FLOOR = Tex.F_CONCRETE;
@@ -97,7 +98,7 @@ function stampMacroRoom(
     doors: [],
     sealed: false,
     name,
-    apartmentId: -1,
+    apartmentId: NOT_APARTMENT,
     wallTex: PIPE_WALL,
     floorTex: DRY_FLOOR,
   };

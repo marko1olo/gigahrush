@@ -15,6 +15,7 @@ import {
   type TerritoryOwner,
 } from '../../core/types';
 import { World } from '../../core/world';
+import { NOT_APARTMENT } from "../../core/types";
 
 export interface MinistryMacroGeometry {
   nextRoomId: number;
@@ -365,7 +366,7 @@ function makeClosedRoomWithDoor(
     doors: [],
     sealed: spec.hermetic === true,
     name: spec.name,
-    apartmentId: -1,
+    apartmentId: NOT_APARTMENT,
     wallTex,
     floorTex: spec.floorTex,
   };
@@ -434,7 +435,7 @@ function makeOpenLandmark(
     doors: [],
     sealed: false,
     name,
-    apartmentId: -1,
+    apartmentId: NOT_APARTMENT,
     wallTex: Tex.MARBLE,
     floorTex,
   };
@@ -468,7 +469,7 @@ function makeClosedLandmarkLeaf(
     doors: [],
     sealed: false,
     name: spec.name,
-    apartmentId: -1,
+    apartmentId: NOT_APARTMENT,
     wallTex: Tex.MARBLE,
     floorTex: spec.floorTex,
   };
@@ -912,7 +913,7 @@ function makeShelterRoom(world: World, id: number, x: number, y: number, w: numb
     doors: [],
     sealed: false,
     name: 'Дежурное укрытие комиссара',
-    apartmentId: -1,
+    apartmentId: NOT_APARTMENT,
     wallTex: Tex.HERMO_WALL,
     floorTex: Tex.F_MARBLE_TILE,
   };

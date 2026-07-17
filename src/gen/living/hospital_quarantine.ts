@@ -17,6 +17,7 @@ import { publishEvent, registerWorldEventObserver } from '../../systems/events';
 import { genLog } from '../log';
 import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
 import { registerZoneContent } from './zone_content';
+import { NOT_APARTMENT } from "../../core/types";
 
 const HOSPITAL_W = 19;
 const HOSPITAL_H = 15;
@@ -607,7 +608,7 @@ export function generateHospitalQuarantine(
     floorTex: Tex.F_TILE,
     doors: [],
     sealed: false,
-    apartmentId: -1,
+    apartmentId: NOT_APARTMENT,
   };
   world.rooms[roomId] = room;
 

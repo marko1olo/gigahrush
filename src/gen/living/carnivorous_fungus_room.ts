@@ -16,6 +16,7 @@ import { decorateCarnivorousFungusRoom } from '../carnivorous_fungus_room';
 import { connectProtectedRoom, protectRoom } from '../shared';
 import { genLog } from '../log';
 import { registerZoneContent } from './zone_content';
+import { NOT_APARTMENT } from "../../core/types";
 
 const FUNGUS_ZONE = 61;
 const ROOM_W = 17;
@@ -66,7 +67,7 @@ function carveFungusRoom(world: World, roomId: number, rx: number, ry: number): 
     doors: [],
     sealed: false,
     name: 'Плотоядная грибница: костяная сушилка',
-    apartmentId: -1,
+    apartmentId: NOT_APARTMENT,
     wallTex: Tex.ROTTEN,
     floorTex: Tex.F_TILE,
   };

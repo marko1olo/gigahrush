@@ -16,6 +16,7 @@ import { protectRoom } from '../shared';
 import { genLog } from '../log';
 import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
 import { registerZoneContent } from './zone_content';
+import { NOT_APARTMENT } from "../../core/types";
 
 export const GOLOS_CONTENT_TAG = 'golos_za_dveryu';
 export const GOLOS_ROOM_NAME = 'Порог знакомого голоса';
@@ -333,7 +334,7 @@ function carveRooms(world: World, nextRoomId: number, rx: number, ry: number): {
     doors: [],
     sealed: false,
     name: GOLOS_ROOM_NAME,
-    apartmentId: -1,
+    apartmentId: NOT_APARTMENT,
     wallTex: Tex.PANEL,
     floorTex: Tex.F_CONCRETE,
   };
@@ -347,7 +348,7 @@ function carveRooms(world: World, nextRoomId: number, rx: number, ry: number): {
     doors: [],
     sealed: true,
     name: GOLOS_BACK_ROOM_NAME,
-    apartmentId: -1,
+    apartmentId: NOT_APARTMENT,
     wallTex: Tex.PANEL,
     floorTex: Tex.F_LINO,
   };

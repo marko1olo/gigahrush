@@ -38,6 +38,7 @@ import {
   stampRoom,
 } from '../shared';
 import type { FloorGeneration } from '../floor_manifest';
+import { NOT_APARTMENT } from "../../core/types";
 
 const DESIGN_NPC_HOME_FLOOR_KEY = designNpcFloorKey('silicon_net_well');
 
@@ -680,7 +681,7 @@ function siliconMacroRoom(
     doors: [],
     sealed: false,
     name,
-    apartmentId: -1,
+    apartmentId: NOT_APARTMENT,
     wallTex,
     floorTex,
   };
@@ -722,7 +723,7 @@ function siliconMacroCorridor(
     doors: [],
     sealed: false,
     name,
-    apartmentId: -1,
+    apartmentId: NOT_APARTMENT,
     wallTex: Tex.METAL,
     floorTex,
   };

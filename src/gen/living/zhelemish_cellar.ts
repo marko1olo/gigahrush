@@ -12,6 +12,7 @@ import { connectProtectedRoom, protectRoom } from '../shared';
 import { genLog } from '../log';
 import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
 import { registerZoneContent } from './zone_content';
+import { NOT_APARTMENT } from "../../core/types";
 
 const CONTENT_TAG = 'ag102_zhelemish_cellar';
 const ZHELEMISH_ZONE = 33;
@@ -200,7 +201,7 @@ function carveCellar(world: World, roomId: number, rx: number, ry: number): Room
     doors: [],
     sealed: false,
     name: 'Желемышный погреб Мавры',
-    apartmentId: -1,
+    apartmentId: NOT_APARTMENT,
     wallTex: Tex.ROTTEN,
     floorTex: Tex.F_TILE,
   };

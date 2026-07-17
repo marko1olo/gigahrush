@@ -39,6 +39,7 @@ import type { FloorGeneration } from '../floor_manifest';
 import { buildVoronoiRoomCells, type VoronoiRoomSite } from '../voronoi_cells';
 import { registerContentInteractionHook, registerContentRuntimeHook, type ContentInteractionContext, type ContentRuntimeContext } from '../../systems/content_hooks';
 import { publishEvent } from '../../systems/events';
+import { NOT_APARTMENT } from "../../core/types";
 
 const DESIGN_NPC_HOME_FLOOR_KEY = designNpcFloorKey('voronoi_quarantine');
 
@@ -843,7 +844,7 @@ function buildRoomsFromOwners(world: World, sites: readonly Site[], owner: Int16
       doors: [],
       sealed: site.infected === true,
       name: site.name,
-      apartmentId: -1,
+      apartmentId: NOT_APARTMENT,
       wallTex: site.wallTex,
       floorTex: site.floorTex,
     };
@@ -924,7 +925,7 @@ function placeQuarantineMidMicroRooms(world: World, sites: readonly Site[], owne
       doors: [],
       sealed: false,
       name: site.data.name,
-      apartmentId: -1,
+      apartmentId: NOT_APARTMENT,
       wallTex: site.data.wallTex,
       floorTex: site.data.floorTex,
     }),
@@ -1128,7 +1129,7 @@ function tryStampQuarantineRoom(
     doors: [],
     sealed,
     name,
-    apartmentId: -1,
+    apartmentId: NOT_APARTMENT,
     wallTex,
     floorTex,
   };

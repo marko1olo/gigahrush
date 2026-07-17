@@ -29,6 +29,7 @@ import {
   decorateRoom,
   stampRoom,
 } from './shared';
+import { NOT_APARTMENT } from "../core/types";
 
 /* ── Recipe ids ──────────────────────────────────────────────── */
 
@@ -309,7 +310,7 @@ function recipeVoronoiPartition(ctx: RecipeContext): RecipeResult {
       doors: [],
       sealed: false,
       name: `Ячейка ${roomId}`,
-      apartmentId: -1,
+      apartmentId: NOT_APARTMENT,
       wallTex: tex.wallTex,
       floorTex: tex.floorTex,
     };

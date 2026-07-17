@@ -16,6 +16,7 @@ import { registerContentEntityDeathHook } from '../../systems/content_hooks';
 import { randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg';
 import { genLog } from '../log';
 import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
+import { NOT_APARTMENT } from "../../core/types";
 
 /* ── NPC definition ──────────────────────────────────────────── */
 const NPC_DEF: PlotNpcDef = {
@@ -139,7 +140,7 @@ function generateTemple(
     w: NAVE_W + 2 * ARM_W, h: NAVE_H,
     name: 'Православный храм',
     wallTex: Tex.PANEL, floorTex: Tex.F_TILE,
-    doors: [], sealed: false, apartmentId: -1,
+    doors: [], sealed: false, apartmentId: NOT_APARTMENT,
   };
   world.rooms[roomId] = room;
 

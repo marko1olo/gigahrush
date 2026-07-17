@@ -12,6 +12,7 @@ import { protectRoom } from '../shared';
 import { genLog } from '../log';
 import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
 import { registerZoneContent } from './zone_content';
+import { NOT_APARTMENT } from "../../core/types";
 
 const ZONE_HUD = 54;
 const RAID_ROOM_W = 17;
@@ -345,7 +346,7 @@ function carveRoom(
     floorTex: Tex.F_LINO,
     doors: [],
     sealed: false,
-    apartmentId: -1,
+    apartmentId: NOT_APARTMENT,
   };
   world.rooms[roomId] = room;
 

@@ -112,6 +112,7 @@ import {
   territoryOwnerAt,
   territoryOwnerAtIndex,
 } from './territory';
+import { NOT_APARTMENT } from "../core/types";
 
 const MONSTERS_PER_SAMOSBOR = 16;
 const RANDOM_MAP_MONSTERS_PER_SAMOSBOR = 22;
@@ -3063,7 +3064,7 @@ function findLocalDoor(world: World, x: number, y: number, radius: number): numb
 function doorTouchesApartment(world: World, door: { roomA: number; roomB: number }): boolean {
   const roomA = door.roomA >= 0 ? world.rooms[door.roomA] : undefined;
   const roomB = door.roomB >= 0 ? world.rooms[door.roomB] : undefined;
-  return (roomA?.apartmentId ?? -1) >= 0 || (roomB?.apartmentId ?? -1) >= 0;
+  return (roomA?.apartmentId ?? NOT_APARTMENT) >= 0 || (roomB?.apartmentId ?? NOT_APARTMENT) >= 0;
 }
 
 function findRouteScarDoor(world: World, x: number, y: number, radius: number): number {

@@ -12,6 +12,7 @@ import { connectProtectedRoom, protectRoom } from '../shared';
 import { genLog } from '../log';
 import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
 import { registerZoneContent } from './zone_content';
+import { NOT_APARTMENT } from "../../core/types";
 
 const CELLAR_W = 13;
 const CELLAR_H = 9;
@@ -211,7 +212,7 @@ function carveCellar(world: World, roomId: number, rx: number, ry: number): Room
     doors: [],
     sealed: false,
     name: 'Грибная прачечная первой смены',
-    apartmentId: -1,
+    apartmentId: NOT_APARTMENT,
     wallTex: Tex.ROTTEN,
     floorTex: Tex.F_TILE,
   };

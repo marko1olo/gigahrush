@@ -26,6 +26,7 @@ import { publishEvent } from "./events";
 import { hideMapExplorationCells } from "./map_exploration";
 import { pruneRouteCuesInCells } from "./route_cues";
 import { isPlayerEntity } from "./player_actor";
+import { NOT_APARTMENT } from "../core/types";
 
 export type SamosborWaveScale = "small" | "medium" | "full";
 
@@ -532,7 +533,7 @@ function makePatchRoom(
       wave.scale === "small"
         ? "Малая складка самосбора"
         : "Средняя складка самосбора",
-    apartmentId: -1,
+    apartmentId: NOT_APARTMENT,
     wallTex: Tex.CONCRETE,
     floorTex: Tex.F_CONCRETE,
   };
@@ -1524,7 +1525,7 @@ export function applyFrontFieldStitch(
     doors: [],
     sealed: false,
     name: "Перестроенный участок",
-    apartmentId: -1,
+    apartmentId: NOT_APARTMENT,
     wallTex: Tex.CONCRETE,
     floorTex: Tex.F_CONCRETE,
   });

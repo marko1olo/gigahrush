@@ -15,6 +15,7 @@ import { protectRoom } from '../shared';
 import { genLog } from '../log';
 import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
 import { registerZoneContent } from './zone_content';
+import { NOT_APARTMENT } from "../../core/types";
 
 type PoiKey = 'concierge' | 'radio' | 'lostFound' | 'repair' | 'kitchen';
 
@@ -397,7 +398,7 @@ function carveBox(world: World, roomId: number, type: RoomType, name: string, rx
     floorTex,
     doors: [],
     sealed: false,
-    apartmentId: -1,
+    apartmentId: NOT_APARTMENT,
   };
   world.rooms[roomId] = room;
 

@@ -17,6 +17,7 @@ import { protectRoom } from '../shared';
 import { genLog } from '../log';
 import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
 import { registerZoneContent } from './zone_content';
+import { NOT_APARTMENT } from "../../core/types";
 
 type PoiKey = 'laundry' | 'domkom';
 
@@ -292,7 +293,7 @@ function carveBox(
     floorTex,
     doors: [],
     sealed: false,
-    apartmentId: -1,
+    apartmentId: NOT_APARTMENT,
   };
   world.rooms[roomId] = room;
 

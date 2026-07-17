@@ -41,6 +41,7 @@ import {
 } from '../shared';
 import type { FloorGeneration } from '../floor_manifest';
 import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
+import { NOT_APARTMENT } from "../../core/types";
 
 const DESIGN_NPC_HOME_FLOOR_KEY = designNpcFloorKey('production_belt');
 
@@ -549,7 +550,7 @@ function macroRoom(
     doors: [],
     sealed: false,
     name,
-    apartmentId: -1,
+    apartmentId: NOT_APARTMENT,
     wallTex,
     floorTex,
   };
@@ -584,7 +585,7 @@ function macroCorridor(
     doors: [],
     sealed: false,
     name,
-    apartmentId: -1,
+    apartmentId: NOT_APARTMENT,
     wallTex: Tex.METAL,
     floorTex,
   };

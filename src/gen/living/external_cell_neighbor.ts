@@ -16,6 +16,7 @@ import { protectRoom } from '../shared';
 import { genLog } from '../log';
 import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
 import { registerZoneContent } from './zone_content';
+import { NOT_APARTMENT } from "../../core/types";
 
 const CONTENT_TAG = 'ag77_external_cell_neighbor';
 const OUTCOME_EVENT_TAG = 'ag77_external_cell_outcome';
@@ -464,7 +465,7 @@ function carveRoom(world: World, roomId: number, rx: number, ry: number): Room {
     doors: [],
     sealed: false,
     name: 'Квартира тихой соседки',
-    apartmentId: -1,
+    apartmentId: NOT_APARTMENT,
     wallTex: Tex.PANEL,
     floorTex: Tex.F_LINO,
   };
