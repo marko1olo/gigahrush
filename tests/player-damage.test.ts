@@ -220,3 +220,51 @@ test('toroidal edge projectile swept query finds player across wrap', () => {
 
   assert.deepEqual(out.map(e => e.id), [1]);
 });
+
+test('recordPlayerDamage edge cases', () => {
+  const state = makeGameState({ time: 42, tick: 123 });
+
+  // Test invalid amount (negative)
+  recordPlayerDamage(state, undefined, -10);
+  assert.equal(state.lastDamage, undefined);
+
+  // Test invalid amount (NaN)
+  recordPlayerDamage(state, undefined, NaN);
+  assert.equal(state.lastDamage, undefined);
+
+  // Test invalid amount (Infinity)
+  recordPlayerDamage(state, undefined, Infinity);
+  assert.equal(state.lastDamage, undefined);
+
+  // Test zero damage
+  recordPlayerDamage(state, undefined, 0);
+  assert.equal(state.lastDamage, undefined);
+
+  // Test missing state
+  recordPlayerDamage(undefined, undefined, 10);
+  // Should not throw, just returns
+
+  // Test explicit failure detail from boss
+  const boss = makeTestEntity({ type: EntityType.MONSTER, monsterKind: MonsterKind.CREATOR });
+  recordPlayerDamage(state, boss, 10);
+  assert.ok(state.lastDamage?.detail?.includes('Творец убил вас зеленым контуром без укрытия'));
+
+  // Test normalizing damage detail with formatting
+  const state2 = makeGameState({ time: 1, tick: 1 });
+  recordPlayerDamage(state2, undefined, 10.123, 'Got hit by something -10.123');
+  assert.equal(state2.lastDamage?.detail, 'Got hit by something -10.1');
+
+  // Test NPC source name
+  const npc = makeTestEntity({ type: EntityType.NPC, name: 'Странник' });
+  recordPlayerDamage(state2, npc, 5);
+  assert.equal(state2.lastDamage?.sourceName, 'Странник');
+
+  // Test NPC without name
+  const npcNoName = makeTestEntity({ type: EntityType.NPC, name: undefined });
+  recordPlayerDamage(state2, npcNoName, 5);
+  assert.equal(state2.lastDamage?.sourceName, 'Цель'); // entityDisplayName fallback
+
+  // Test Unknown source
+  recordPlayerDamage(state2, undefined, 5, undefined, 'unknown');
+  assert.equal(state2.lastDamage?.sourceName, 'неизвестный источник');
+});
