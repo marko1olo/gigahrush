@@ -1,4 +1,12 @@
-import { type GameState } from '../../core/types';
+import { Faction, type Entity, type GameState } from '../../core/types';
+import { getEntityIndex, ENTITY_MASK_NPC } from '../entity_index';
+import { getRecentEvents } from '../events';
+
+const MUGGING_MAX_DISTANCE_SQ = 25 * 25;
+const MUGGING_COOLDOWN_SEC = 300;
+const MUGGING_GROUP_RADIUS = 20;
+
+const _muggingGroupOut: Entity[] = [];
 
 /**
  * ЗАГЛУШКА ДЛЯ СОБЫТИЯ "ГОП-СТОП" (jules agent task)
@@ -14,9 +22,32 @@ import { type GameState } from '../../core/types';
  *
  * Если все условия соблюдены, возвращаем высокий score. Иначе 0.
  */
-export function scoreMuggingIntent(_npc: any, _state: GameState, _player: any): number {
-  // TODO: jules, реализуй логику оценки здесь
-  return 0;
+export function scoreMuggingIntent(npc: Entity, state: GameState, player: Entity): number {
+  if (npc.faction !== Faction.WILD) return 0;
+  if ((npc.playerRelation ?? 0) >= 0) return 0;
+
+  const dx = npc.x - player.x;
+  const dy = npc.y - player.y;
+  if (dx * dx + dy * dy > MUGGING_MAX_DISTANCE_SQ) return 0;
+
+  const recent = getRecentEvents(state, { type: 'mugging_start', limit: 1 });
+  if (recent.length > 0) {
+    if (state.time - recent[0].time < MUGGING_COOLDOWN_SEC) return 0;
+  }
+
+  getEntityIndex().queryRadiusCapped(npc.x, npc.y, MUGGING_GROUP_RADIUS, _muggingGroupOut, ENTITY_MASK_NPC, 16);
+
+  let armedCount = 0;
+  for (let i = 0; i < _muggingGroupOut.length; i++) {
+    const ally = _muggingGroupOut[i];
+    if (ally.faction === Faction.WILD && ally.alive && ally.weapon) {
+      armedCount++;
+    }
+  }
+
+  if (armedCount < 3) return 0;
+
+  return 100;
 }
 
 /**
