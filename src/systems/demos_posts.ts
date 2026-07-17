@@ -22,6 +22,8 @@ import {
 } from '../data/demos_posts';
 import { Faction, FloorLevel, type WorldEvent, type WorldEventType } from '../core/types';
 import type { AlifeNpcSnapshot } from './alife';
+import { isRecord } from '../core/utils';
+
 import {
   npcPackageSpeechContextTags,
   resolveNpcPackageForAlifeSnapshot,
@@ -200,10 +202,6 @@ const EVENT_DETAIL_LABELS: Partial<Record<WorldEventType, string>> = {
 function clampInt(value: unknown, fallback: number, min: number, max: number): number {
   if (typeof value !== 'number' || !Number.isFinite(value)) return fallback;
   return Math.max(min, Math.min(max, Math.trunc(value)));
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value);
 }
 
 function hash32(a: number, b: number, c = 0): number {

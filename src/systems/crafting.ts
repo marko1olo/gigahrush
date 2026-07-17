@@ -30,6 +30,8 @@ import {
 import { itemComposition } from '../data/item_composition';
 import { addItem, canAddItem } from './inventory';
 import { publishEvent } from './events';
+import { isRecord } from '../core/utils';
+
 
 export type { CraftingState, MutableCraftVector };
 export type { CraftMaterialId, CraftStationKind, CraftVector };
@@ -144,10 +146,6 @@ export interface CraftMenuSnapshot {
 
 export type CraftMenuRecipeSnapshot = Omit<CraftMenuRecipeEntry, 'kind'>;
 export type CraftMenuDisassemblySnapshot = Omit<CraftMenuDisassembleEntry, 'kind'>;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value);
-}
 
 function cleanMaterialCount(value: unknown): number {
   const n = Number(value);

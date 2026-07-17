@@ -20,6 +20,8 @@ import { getMonsterEcology, monsterEcologyEventData, monsterEcologyTags } from '
 import { recordWorldLogEvent } from './world_log';
 import { recordRumorEvent } from './rumor';
 import { recordRoomMemoryEvent } from './room_memory';
+import { isRecord } from '../core/utils';
+
 
 const MAX_EVENT_TAGS = 16;
 const MAX_EVENT_TAG_LEN = 32;
@@ -118,10 +120,6 @@ function dispatchEventObservers(state: GameState, event: WorldEvent): void {
 
 function createBuffer(capacity: number): WorldEventBuffer {
   return { capacity, start: 0, count: 0, items: new Array<WorldEvent | null>(capacity).fill(null) };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value);
 }
 
 function readSavedBuffer(input: unknown): unknown[] {
@@ -336,8 +334,6 @@ export function ensureWorldEventState(state: GameState): WorldEventState {
   if (!state.worldEvents) state.worldEvents = createWorldEventState();
   return state.worldEvents;
 }
-
-
 
 function enrichMonsterKillDraft(draft: WorldEventDraft): WorldEventDraft {
   if (draft.monsterKind === undefined) return draft;

@@ -29,6 +29,8 @@ import {
   floorRunEntryRouteId,
 } from './procedural_floors';
 import { randomRPG } from './rpg';
+import { isRecord } from '../core/utils';
+
 import {
   clearDeadBaitDrop,
   consumeMonsterBaitMarker,
@@ -97,10 +99,6 @@ const MAX_SAVED_PSEUDOLIFTS = 48;
 const BAIT_RADIUS_SQ = 3.35 * 3.35;
 const ESCAPE_RADIUS_SQ = 6.5 * 6.5;
 const MONSTER_ANCHOR_RADIUS_SQ = 4.25 * 4.25;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value);
-}
 
 function createPseudoliftState(): PseudoliftState {
   return {

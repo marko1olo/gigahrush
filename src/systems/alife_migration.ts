@@ -45,6 +45,8 @@ import { cleanFloorKey } from './floor_keys';
 import { currentFloorRunAllowsNpcs, ensureFloorRunState } from './procedural_floors';
 import { isNativePlayerBodyEntity, isPlayerEntity } from './player_actor';
 import { tryAssignPathToCell } from './ai/pathfinding';
+import { isRecord } from '../core/utils';
+
 
 export const MAX_ALIFE_JOURNEYS = 512;
 export const MAX_ALIFE_PENDING_ARRIVALS = 256;
@@ -172,10 +174,6 @@ const STORY_ROUTE_INFO: readonly RouteInfo[] = [
   storyRouteInfo(FloorLevel.HELL),
   storyRouteInfo(FloorLevel.VOID),
 ];
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value);
-}
 
 function clampInt(value: unknown, fallback: number, min: number, max: number): number {
   if (typeof value !== 'number' || !Number.isFinite(value)) return fallback;

@@ -27,6 +27,8 @@ import {
   type FloorRunEntrySnapshot,
 } from './procedural_floors';
 import { floorKeyForFloorInstance } from './floor_keys';
+import { isRecord } from '../core/utils';
+
 
 export interface ActiveFloorInstance {
   id: string;
@@ -74,10 +76,6 @@ const BASE_FLOORS = [
   FloorLevel.HELL,
   FloorLevel.VOID,
 ] as const;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value);
-}
 
 function readFloor(value: unknown): FloorLevel | undefined {
   return typeof value === 'number' && BASE_FLOORS.includes(value as FloorLevel)

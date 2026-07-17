@@ -84,6 +84,8 @@ import {
   type RankStats,
 } from './alife_rating';
 import { getEntityIndex, ENTITY_MASK_NPC } from './entity_index';
+import { isRecord } from '../core/utils';
+
 
 const ALIFE_VERSION = 2;
 const ALIFE_POPULATION = ALIFE_POPULATION_CAPACITY;
@@ -795,10 +797,6 @@ function clampFloat(value: unknown, fallback: number, min: number, max: number):
 
 export function defaultAlifePopulation(): number {
   return ALIFE_POPULATION_BASELINE;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value);
 }
 
 export function packageIdFromReservedIdentityId(reservedIdentityId: string | undefined): string | undefined {

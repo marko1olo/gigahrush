@@ -20,6 +20,8 @@ import {
 import { Spr } from '../render/sprite_index';
 import { canSpawnEntityType } from './entity_limits';
 import { publishEvent } from './events';
+import { isRecord } from '../core/utils';
+
 import {
   applyStoryQuestOutcome,
   hasStoryQuest,
@@ -51,10 +53,6 @@ interface StoryItemOutcomeContext {
   entities: Entity[];
   state: GameState;
   msgs: Msg[];
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value);
 }
 
 function stringArrayIncludes(values: unknown, value: string | undefined): boolean {

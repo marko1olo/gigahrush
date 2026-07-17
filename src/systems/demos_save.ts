@@ -11,6 +11,8 @@ import {
   type DemosReactionKind,
 } from '../data/demos_posts';
 import type { GameState } from '../core/types';
+import { isRecord } from '../core/utils';
+
 
 export const DEMOS_SOCIAL_SAVE_VERSION = 1;
 export const DEMOS_RELATION_EMPTY = -128;
@@ -81,10 +83,6 @@ const REACTION_KINDS = new Set<DemosReactionKind>([
 ]);
 
 type DemosSocialStateHost = GameState & { demosSocial?: DemosSocialSaveState };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value);
-}
 
 function intIn(value: unknown, fallback: number, min: number, max: number): number {
   if (typeof value !== 'number' || !Number.isFinite(value)) return fallback;
