@@ -781,9 +781,21 @@ function applyProceduralMacroNetwork(world: World, rooms: Room[], spec: Procedur
   const localRooms = rooms.filter(room => !hallIds.has(room.id) && room.w >= 4 && room.h >= 4);
   for (let i = 0; i < profile.branchCount && localRooms.length > 0; i++) {
     const hall = halls[i % halls.length];
-    const candidates = localRooms
-      .map((room, idx) => ({ room, d: macroRoomDistance(world, hall, room), idx }))
-      .sort((a, b) => a.d - b.d);
+    const candidates: {room: typeof localRooms[0], d: number, idx: number}[] = [];
+    for (let j = 0; j < localRooms.length; j++) {
+      const room = localRooms[j];
+      const d = macroRoomDistance(world, hall, room);
+      if (candidates.length < 6 || d < candidates[candidates.length - 1].d) {
+        let insertPos = candidates.length;
+        while (insertPos > 0 && candidates[insertPos - 1].d > d) {
+          insertPos--;
+        }
+        candidates.splice(insertPos, 0, { room, d, idx: j });
+        if (candidates.length > 6) {
+          candidates.pop();
+        }
+      }
+    }
     const picked = candidates[(spec.seed + i * 7) % Math.min(candidates.length, 6)];
     if (!picked) continue;
     localRooms.splice(picked.idx, 1);
