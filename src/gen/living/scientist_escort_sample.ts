@@ -14,6 +14,7 @@ import { protectRoom } from '../shared';
 import { genLog } from '../log';
 import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
 import { registerZoneContent } from './zone_content';
+import { NOT_APARTMENT } from "../../core/types";
 
 const CONTENT_TAG = 'ag72_scientist_escort_sample';
 const SAMPLE_ZONE = 55;
@@ -352,7 +353,7 @@ function carveRoom(
     doors: [],
     sealed: false,
     name,
-    apartmentId: -1,
+    apartmentId: NOT_APARTMENT,
     wallTex: Tex.PANEL,
     floorTex: Tex.F_LINO,
   };

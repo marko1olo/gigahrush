@@ -15,6 +15,7 @@ import { connectProtectedRoom, protectRoom } from '../shared';
 import { genLog } from '../log';
 import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
 import { registerZoneContent } from './zone_content';
+import { NOT_APARTMENT } from "../../core/types";
 
 const CONTENT_TAG = 'monster14_zhelemishnik';
 const ZONE_HUD_ID = 34;
@@ -295,7 +296,7 @@ function carveRoom(world: World, roomId: number, rx: number, ry: number): Room {
     doors: [],
     sealed: false,
     name: 'Погреб Желемышника',
-    apartmentId: -1,
+    apartmentId: NOT_APARTMENT,
     wallTex: Tex.ROTTEN,
     floorTex: Tex.F_TILE,
   };

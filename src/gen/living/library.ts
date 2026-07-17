@@ -13,6 +13,7 @@ import { genLog } from '../log';
 import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
 import { registerZoneContent } from './zone_content';
 import { Spr } from '../../render/sprite_index';
+import { NOT_APARTMENT } from "../../core/types";
 
 const NPC_DEF: PlotNpcDef = {
   name: 'Маргарита Павловна',
@@ -131,7 +132,7 @@ function generateLibrary(
     x: rx, y: ry, w: LIB_W, h: LIB_H,
     name: 'Информаторий',
     wallTex: Tex.PANEL, floorTex: Tex.F_PARQUET,
-    doors: [], sealed: false, apartmentId: -1,
+    doors: [], sealed: false, apartmentId: NOT_APARTMENT,
   };
   world.rooms[roomId] = room;
 

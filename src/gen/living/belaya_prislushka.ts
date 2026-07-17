@@ -14,6 +14,7 @@ import { protectRoom } from '../shared';
 import { genLog } from '../log';
 import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
 import { registerZoneContent } from './zone_content';
+import { NOT_APARTMENT } from "../../core/types";
 
 export const BELAYA_PRISLUSHKA_ID = 'belaya_prislushka';
 export const BELAYA_PRISLUSHKA_ZONE_HUD = 63;
@@ -353,7 +354,7 @@ function carveRoom(world: World, roomId: number, rx: number, ry: number, w: numb
     doors: [],
     sealed: false,
     name,
-    apartmentId: -1,
+    apartmentId: NOT_APARTMENT,
     wallTex: Tex.TILE_W,
     floorTex: Tex.F_TILE,
   };

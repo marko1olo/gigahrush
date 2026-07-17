@@ -12,6 +12,7 @@ import { genLog } from '../log';
 import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
 import { registerZoneContent } from './zone_content';
 import { Spr } from '../../render/sprite_index';
+import { NOT_APARTMENT } from "../../core/types";
 
 const NPC_DEF: PlotNpcDef = {
   name: 'Шурик Барыга',
@@ -116,7 +117,7 @@ function generateMarket(
     x: rx, y: ry, w: MKT_W, h: MKT_H,
     name: 'Толкучка',
     wallTex: Tex.METAL, floorTex: Tex.F_CONCRETE,
-    doors: [], sealed: false, apartmentId: -1,
+    doors: [], sealed: false, apartmentId: NOT_APARTMENT,
   };
   world.rooms[roomId] = room;
 

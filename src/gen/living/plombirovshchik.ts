@@ -16,6 +16,7 @@ import { findClearArea, protectRoom } from '../shared';
 import { genLog } from '../log';
 import { registerZoneContent } from './zone_content';
 import { isPlayerEntity } from '../../systems/player_actor';
+import { NOT_APARTMENT } from "../../core/types";
 
 const CONTENT_TAG = 'monster_02_plombirovshchik';
 const ZONE_HUD = 62;
@@ -181,7 +182,7 @@ function carveRooms(world: World, nextRoomId: number, rx: number, ry: number): {
     doors: [],
     sealed: false,
     name: ROOM_NAME,
-    apartmentId: -1,
+    apartmentId: NOT_APARTMENT,
     wallTex: Tex.HERMO_WALL,
     floorTex: Tex.F_CONCRETE,
   };
@@ -195,7 +196,7 @@ function carveRooms(world: World, nextRoomId: number, rx: number, ry: number): {
     doors: [],
     sealed: false,
     name: BYPASS_NAME,
-    apartmentId: -1,
+    apartmentId: NOT_APARTMENT,
     wallTex: Tex.HERMO_WALL,
     floorTex: Tex.F_CONCRETE,
   };

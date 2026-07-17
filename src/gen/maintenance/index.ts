@@ -22,6 +22,7 @@ import {
   relocateMaintenanceFactionNpcSquads,
   spawnMaintenanceFactionNpcSquads,
 } from './territory';
+import { NOT_APARTMENT } from "../../core/types";
 
 /* ── Coarse grid parameters ───────────────────────────────────── */
 const CELL = 6;                   // world-tiles per maze cell (walls between = 1-wide passage)
@@ -356,7 +357,7 @@ function carveRooms(world: World, mazeOpen: Uint8Array, nextRoomIdStart: number)
         x: rx, y: ry, w: rw, h: rh,
         doors: [], sealed: false,
         name: `${rt.name} #${nextRoomId}`,
-        apartmentId: -1,
+        apartmentId: NOT_APARTMENT,
         wallTex: Tex.PIPE,
         floorTex: Tex.F_CONCRETE,
       };

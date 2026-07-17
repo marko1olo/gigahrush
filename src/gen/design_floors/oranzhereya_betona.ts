@@ -45,6 +45,7 @@ import {
   stampRoom,
 } from '../shared';
 import type { FloorGeneration } from '../floor_manifest';
+import { NOT_APARTMENT } from "../../core/types";
 
 const DESIGN_NPC_HOME_FLOOR_KEY = designNpcFloorKey('oranzhereya_betona');
 
@@ -824,7 +825,7 @@ function carveCultivationField(
     doors: [],
     sealed: false,
     name: `Внешнее поле выращивания #${roomId}`,
-    apartmentId: -1,
+    apartmentId: NOT_APARTMENT,
     wallTex: Tex.PANEL,
     floorTex,
     ceilingTier: 3,
@@ -883,7 +884,7 @@ function carveWaterBasin(world: World, x: number, y: number, w: number, h: numbe
     doors: [],
     sealed: false,
     name: `Внешний питательный бассейн #${roomId}`,
-    apartmentId: -1,
+    apartmentId: NOT_APARTMENT,
     wallTex: Tex.TILE_W,
     floorTex: Tex.F_WATER,
     ceilingTier: 3,

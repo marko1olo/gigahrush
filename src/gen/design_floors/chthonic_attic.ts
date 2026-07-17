@@ -15,6 +15,7 @@ import { generateZones } from '../shared';
 import { genLog } from '../log';
 import { setTerritoryOwnerAtIndex, syncZoneMetadataFromTerritory } from '../../systems/territory';
 import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
+import { NOT_APARTMENT } from "../../core/types";
 
 const DESIGN_NPC_HOME_FLOOR_KEY = designNpcFloorKey('chthonic_attic');
 
@@ -1082,7 +1083,7 @@ function stampAtticBulbRoom(world: World, plan: AtticChamberPlan): Room {
     doors: [],
     sealed: false,
     name: plan.name,
-    apartmentId: -1,
+    apartmentId: NOT_APARTMENT,
     wallTex: plan.wallTex,
     floorTex: plan.floorTex,
   };
@@ -1317,7 +1318,7 @@ function stampAtticServiceRoom(
     doors: [],
     sealed: hermetic,
     name,
-    apartmentId: -1,
+    apartmentId: NOT_APARTMENT,
     wallTex,
     floorTex,
   };
@@ -1872,7 +1873,7 @@ function stampRoom(
     doors: [],
     sealed: false,
     name,
-    apartmentId: -1,
+    apartmentId: NOT_APARTMENT,
     wallTex,
     floorTex,
   };
@@ -2435,7 +2436,7 @@ function carveChthonicLabyrinth(world: World, protectedMask: Uint8Array, rng: ()
       x: cx, y: cy, w: 0, h: 0,
       doors: [], sealed: false,
       name: `Старая выработка #${i + 1}`,
-      apartmentId: -1,
+      apartmentId: NOT_APARTMENT,
       wallTex: Tex.CONCRETE,
       floorTex: Tex.F_CONCRETE,
     };

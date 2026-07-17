@@ -35,6 +35,7 @@ import {
   stampRoom,
 } from '../shared';
 import type { FloorGeneration } from '../floor_manifest';
+import { NOT_APARTMENT } from "../../core/types";
 
 export const DESIGN_FLOOR_ID = 'shahta_atrium' as const;
 export const SHAHTA_ATRIUM_ROUTE_Z = -24 as const;
@@ -231,7 +232,7 @@ function logicalRoom(
     doors: [],
     sealed: false,
     name,
-    apartmentId: -1,
+    apartmentId: NOT_APARTMENT,
     wallTex,
     floorTex,
   };

@@ -1369,3 +1369,5 @@ export interface InputState {
   mouse: { dx: number; dy: number; locked: boolean; };
   touch: { moveX: number; moveY: number; lookX: number; lookY: number; active: boolean; };
 }
+
+export const NOT_APARTMENT = -1;

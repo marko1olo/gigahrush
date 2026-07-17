@@ -23,6 +23,7 @@ import { RUNTIME_TOPOLOGY_LIMITS } from '../../data/runtime_topology';
 import { rebuildPathBlockersFromWorldObjects } from '../../gen/path_blockers';
 import { primeBadAppleProjectorAudio, updateBadAppleProjectorLoop } from '../audio';
 import { publishEvent } from '../events';
+import { NOT_APARTMENT } from "../../core/types";
 
 const BAD_APPLE_ROOM_PREFIX = 'Bad Apple!';
 const BAD_APPLE_TAG_RE = /\[bad_apple:(-?\d+),(-?\d+),(\d+),(\d+),(\d+),(0|1),(-?\d+)\]/;
@@ -330,7 +331,7 @@ export function stampBadAppleWorld(
     doors: [],
     sealed: false,
     name: writeBadAppleRoomTag(rx, ry, roomId, projectorIdx, 0, true),
-    apartmentId: -1,
+    apartmentId: NOT_APARTMENT,
     wallTex: Tex.DARK,
     floorTex: Tex.F_MARBLE_TILE,
   };

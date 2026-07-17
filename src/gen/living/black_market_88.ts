@@ -11,6 +11,7 @@ import { protectRoom } from '../shared';
 import { genLog } from '../log';
 import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
 import { registerZoneContent } from './zone_content';
+import { NOT_APARTMENT } from "../../core/types";
 
 const ROOM_W = 21;
 const ROOM_H = 13;
@@ -249,7 +250,7 @@ function carveRoom(world: World, roomId: number, rx: number, ry: number): Room {
     floorTex: Tex.F_CONCRETE,
     doors: [],
     sealed: false,
-    apartmentId: -1,
+    apartmentId: NOT_APARTMENT,
   };
   world.rooms[roomId] = room;
 

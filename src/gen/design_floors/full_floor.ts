@@ -57,6 +57,7 @@ import { reinforceIstinniyLabirintTerritorySeeds } from './istinniy_labirint';
 import { expandPodadRouteGeometry } from './podad';
 import { ensureRouteWideFootprint } from './route_shell';
 import { applyDesignFloorPopulationField } from './population';
+import { NOT_APARTMENT } from "../../core/types";
 
 interface FloorStyle {
   wallTex: Tex;
@@ -760,7 +761,7 @@ function addRoom(
     doors: [],
     sealed: false,
     name,
-    apartmentId: -1,
+    apartmentId: NOT_APARTMENT,
     wallTex,
     floorTex,
   };
@@ -1040,7 +1041,7 @@ function labelCommunalLogicalRoom(
     doors: [],
     sealed: false,
     name,
-    apartmentId: -1,
+    apartmentId: NOT_APARTMENT,
     wallTex,
     floorTex,
   };

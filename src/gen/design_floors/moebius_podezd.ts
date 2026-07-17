@@ -29,6 +29,7 @@ import { monsterSpr } from '../../render/sprite_index';
 import { randomRPG } from '../../systems/rpg';
 import { ensureConnectivity, generateZones, sanitizeDoors, stampRoom } from '../shared';
 import type { FloorGeneration } from '../floor_manifest';
+import { NOT_APARTMENT } from "../../core/types";
 
 export const MOEBIUS_PODEZD_ROUTE_ID = 'moebius_podezd' as const;
 export const MOEBIUS_PODEZD_Z = 2;
@@ -862,7 +863,7 @@ function addOpenRoom(world: World, spec: OpenRoomSpec): Room {
     doors: [],
     sealed: false,
     name: spec.name,
-    apartmentId: -1,
+    apartmentId: NOT_APARTMENT,
     wallTex: spec.wallTex,
     floorTex: spec.floorTex,
   };

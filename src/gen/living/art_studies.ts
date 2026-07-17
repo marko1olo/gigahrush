@@ -8,6 +8,7 @@ import { World } from '../../core/world';
 import { Spr } from '../../render/sprite_index';
 import { genLog } from '../log';
 import { registerZoneContent } from './zone_content';
+import { NOT_APARTMENT } from "../../core/types";
 
 const ROOM_W = 13;
 const ROOM_H = 9;
@@ -88,7 +89,7 @@ function generateArtStudies(
     x: rx, y: ry, w: ROOM_W, h: ROOM_H,
     doors: [], sealed: false,
     name: 'Зал учебных этюдов',
-    apartmentId: -1,
+    apartmentId: NOT_APARTMENT,
     wallTex: Tex.PANEL,
     floorTex: Tex.F_PARQUET,
   };

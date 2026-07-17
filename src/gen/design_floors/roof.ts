@@ -41,6 +41,7 @@ import {
 } from '../shared';
 import { genLog } from '../log';
 import type { FloorGeneration } from '../floor_manifest';
+import { NOT_APARTMENT } from "../../core/types";
 
 export const DESIGN_FLOOR_ID = 'roof' as const;
 export const ROOF_ROUTE_ID = DESIGN_FLOOR_ID;
@@ -1113,7 +1114,7 @@ function placeCrashedProbe(world: World, keep: Uint8Array, rng: () => number, ro
     doors: [],
     sealed: false,
     ceilingTier: 3,
-    apartmentId: -1,
+    apartmentId: NOT_APARTMENT,
     wallTex: Tex.METAL,
     floorTex: Tex.F_CONCRETE
   };
@@ -1174,7 +1175,7 @@ function addRoofIsland(
     doors: [],
     sealed: false,
     name,
-    apartmentId: -1,
+    apartmentId: NOT_APARTMENT,
     wallTex,
     floorTex,
   };

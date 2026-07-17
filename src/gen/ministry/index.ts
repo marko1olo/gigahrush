@@ -18,6 +18,7 @@ import { runMinistryContent } from './content_manifest';
 import { applyMinistryMacroGeometry } from './geometry';
 import { entitySpawnSlots } from '../../systems/entity_limits';
 import { activeActorCountAtDefaultSoftLimit } from '../../data/entity_limits';
+import { NOT_APARTMENT } from "../../core/types";
 
 const MINISTRY_MONSTER_TARGET_AT_DEFAULT_CAP = 30;
 
@@ -247,7 +248,7 @@ function growMinistryRooms(world: World, rooms: Room[], nextRoomId: number): num
       x: rx, y: ry, w: rw, h: rh,
       doors: [], sealed: false,
       name: `${rt.name} #${nextRoomId}`,
-      apartmentId: -1,
+      apartmentId: NOT_APARTMENT,
       wallTex: Tex.MARBLE,
       floorTex,
     };

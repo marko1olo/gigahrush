@@ -33,6 +33,7 @@ import {
   spawnKvartiryNamedNpcs,
   tryKvartiryContentUprising,
 } from './content_manifest';
+import { NOT_APARTMENT } from "../../core/types";
 
 /* ── Constants ────────────────────────────────────────────────── */
 const WALL_L = 4;  // grid spacing for wall sources
@@ -509,7 +510,7 @@ export function generateKvartiry(territorySeed = 0): { world: World; entities: E
       doors: [],
       sealed: false,
       name: rt.name,
-      apartmentId: -1,
+      apartmentId: NOT_APARTMENT,
       wallTex: tex.wall,
       floorTex: tex.floor,
     };

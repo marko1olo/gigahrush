@@ -12,6 +12,7 @@ import { randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg'
 import { connectProtectedRoom, protectRoom } from '../shared';
 import { genLog } from '../log';
 import { registerZoneContent } from './zone_content';
+import { NOT_APARTMENT } from "../../core/types";
 
 const ROOM_W = 15;
 const ROOM_H = 10;
@@ -63,7 +64,7 @@ function carveRoom(world: World, roomId: number, rx: number, ry: number, zoneId:
     doors: [],
     sealed: false,
     name: HERMOSEAM_STATION_ROOM_NAME,
-    apartmentId: -1,
+    apartmentId: NOT_APARTMENT,
     wallTex: Tex.HERMO_WALL,
     floorTex: Tex.F_CONCRETE,
   };

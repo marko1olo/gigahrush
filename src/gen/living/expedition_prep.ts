@@ -14,6 +14,7 @@ import { genLog } from '../log';
 import { placeLivingExpeditionCraftStations } from '../craft_stations';
 import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
 import { registerZoneContent } from './zone_content';
+import { NOT_APARTMENT } from "../../core/types";
 
 const CONTENT_TAG = 'floor11_living_expedition_prep';
 const PREP_ZONE = 52;
@@ -263,7 +264,7 @@ function carveRoom(world: World, roomId: number, rx: number, ry: number): Room {
     doors: [],
     sealed: false,
     name: 'Пункт сборов вылазки',
-    apartmentId: -1,
+    apartmentId: NOT_APARTMENT,
     wallTex: Tex.PANEL,
     floorTex: Tex.F_LINO,
   };
