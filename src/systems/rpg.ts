@@ -423,3 +423,40 @@ export function questXpReward(difficulty: number): number {
 export function questMoneyReward(difficulty: number): number {
   return Math.round(5 * difficulty);
 }
+
+
+// ── Save Data Normalization ──────────────────────────────────────
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function finiteNumber(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
+function clampNumber(value: unknown, fallback: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, finiteNumber(value, fallback)));
+}
+
+function clampInt(value: unknown, fallback: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, Math.trunc(finiteNumber(value, fallback))));
+}
+
+export function normalizeSaveRpg(input: unknown, allowUndefined: true): RPGStats | undefined;
+export function normalizeSaveRpg(input: unknown, allowUndefined?: false): RPGStats;
+export function normalizeSaveRpg(input: unknown, allowUndefined = false): RPGStats | undefined {
+  if (allowUndefined && !isRecord(input)) return undefined;
+  const src = isRecord(input) ? input : {};
+  const level = clampInt(src.level, 1, 1, RPG_LEVEL_CAP);
+  const rpg = freshRPG(level);
+  const xpCap = level >= RPG_LEVEL_CAP ? 0 : Math.max(0, xpForLevel(level + 1) - 1);
+  rpg.xp = clampInt(src.xp, 0, 0, xpCap);
+  rpg.attrPoints = clampInt(src.attrPoints, 0, 0, RPG_ATTRIBUTE_CAP);
+  rpg.str = clampInt(src.str, 0, 0, RPG_ATTRIBUTE_CAP);
+  rpg.agi = clampInt(src.agi, 0, 0, RPG_ATTRIBUTE_CAP);
+  rpg.int = clampInt(src.int, 0, 0, RPG_ATTRIBUTE_CAP);
+  rpg.maxPsi = getMaxPsi(rpg);
+  rpg.psi = clampNumber(src.psi, rpg.maxPsi, 0, rpg.maxPsi);
+  return rpg;
+}
