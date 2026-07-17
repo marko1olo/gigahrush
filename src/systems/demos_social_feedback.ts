@@ -41,6 +41,7 @@ import {
 } from './demos_social';
 import { getRecentEvents, publishEvent } from './events';
 import { isNativePlayerBodyEntity, isPlayerEntity } from './player_actor';
+import { safeClampInt } from "../core/math";
 
 export interface DemosSocialFeedbackSummary {
   processedEvents: number;
@@ -96,13 +97,8 @@ function ensureFeedbackState(state: GameState): DemosSocialFeedbackState {
   return host.demosSocialFeedback;
 }
 
-function clampInt(value: unknown, fallback: number, min: number, max: number): number {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return fallback;
-  return Math.max(min, Math.min(max, Math.trunc(value)));
-}
-
 function positiveId(value: unknown): number | undefined {
-  const id = clampInt(value, 0, 1, 0x7fffffff);
+  const id = safeClampInt(value, 0, 1, 0x7fffffff);
   return id > 0 ? id : undefined;
 }
 
@@ -284,9 +280,9 @@ export function processDemosSocialFeedbackEvents(
   opts: DemosSocialFeedbackOptions = {},
 ): DemosSocialFeedbackSummary {
   const feedback = ensureFeedbackState(state);
-  const maxEvents = clampInt(opts.maxEvents, DEFAULT_EVENT_LIMIT, 1, 64);
+  const maxEvents = safeClampInt(opts.maxEvents, DEFAULT_EVENT_LIMIT, 1, 64);
   const budget = {
-    remaining: clampInt(opts.maxOutcomes, DEFAULT_OUTCOME_LIMIT, 1, 32),
+    remaining: safeClampInt(opts.maxOutcomes, DEFAULT_OUTCOME_LIMIT, 1, 32),
     published: 0,
   };
   const events = (opts.events ?? getRecentEvents(state, { limit: maxEvents }))
@@ -300,8 +296,8 @@ export function processDemosSocialFeedbackEvents(
     if (!opts.ignoreCursor && event.id <= feedback.lastEventId) continue;
     processedEvents++;
     relationChanges += processEventFeedback(state, event, budget, {
-      maxOutcomesPerEvent: clampInt(opts.maxOutcomesPerEvent, DEFAULT_OUTCOME_PER_EVENT, 1, 16),
-      maxDeathEdges: clampInt(opts.maxDeathEdges, DEFAULT_DEATH_EDGE_LIMIT, 1, 16),
+      maxOutcomesPerEvent: safeClampInt(opts.maxOutcomesPerEvent, DEFAULT_OUTCOME_PER_EVENT, 1, 16),
+      maxDeathEdges: safeClampInt(opts.maxDeathEdges, DEFAULT_DEATH_EDGE_LIMIT, 1, 16),
     });
     if (event.id > lastEventId) lastEventId = event.id;
   }
@@ -360,7 +356,7 @@ function journeyAlreadyExists(state: GameState, alifeId: number): boolean {
 }
 
 function travelSecondsFor(record: AlifeNpcSnapshot, def: ReturnType<typeof demosSocialVisitIntent>, opts: DemosSocialJourneyOptions): number {
-  if (opts.travelSeconds !== undefined) return clampInt(opts.travelSeconds, def.minTravelSeconds, 1, 3600);
+  if (opts.travelSeconds !== undefined) return safeClampInt(opts.travelSeconds, def.minTravelSeconds, 1, 3600);
   const span = Math.max(0, def.maxTravelSeconds - def.minTravelSeconds);
   const jitter = span > 0 ? (record.id * 1103515245 >>> 0) % (span + 1) : 0;
   return def.minTravelSeconds + jitter;

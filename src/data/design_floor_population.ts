@@ -17,6 +17,7 @@ import {
   ENTITY_SOFT_LIMITS,
   fitActiveActorCounts,
 } from './entity_limits';
+import { clampInt } from "../core/math";
 
 export interface DesignPlacementFieldProfile {
   noiseScale: number;
@@ -2048,10 +2049,6 @@ const DESIGN_FLOOR_POPULATION_OVERRIDES: Readonly<Record<DesignFloorId, DesignFl
   },
   liquidatorbase: { npcTarget: 5, monsterTarget: 2, monsterBiasKinds: [], monsterTags: [], monsterPlacementKind: 'roof' },
 };
-
-function clampInt(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, Math.round(value)));
-}
 
 function resolveActorTarget(value: number | 'active_actor_cap' | undefined, fallback: number): number {
   if (value === 'active_actor_cap') return activeActorSoftLimit();

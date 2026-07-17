@@ -21,6 +21,7 @@ import {
   type VoxelFieldContext,
 } from './types';
 import { buildGreedyVoxelMesh } from './greedy_mesh';
+import { safeClampInt } from "../../../core/math";
 
 const NEIGHBOR_DIRS = [
   [1, 0],
@@ -28,11 +29,6 @@ const NEIGHBOR_DIRS = [
   [0, 1],
   [0, -1],
 ] as const;
-
-function clampInt(value: number | undefined, fallback: number, min: number, max: number): number {
-  const raw = Number.isFinite(value) ? Math.floor(value as number) : fallback;
-  return Math.max(min, Math.min(max, raw));
-}
 
 function hash4(a: number, b: number, c: number, d: number): number {
   let h = (a ^ 0x9e3779b9) >>> 0;
@@ -97,7 +93,7 @@ export function createVoxelField(ctx: VoxelFieldContext): VoxelField {
     };
   }
 
-  const chunkSize = clampInt(
+  const chunkSize = safeClampInt(
     profile.chunkSize,
     VOXEL_FIELD_DEFAULT_CHUNK_SIZE,
     1,
@@ -105,7 +101,7 @@ export function createVoxelField(ctx: VoxelFieldContext): VoxelField {
   );
   const width = chunkSize + VOXEL_FIELD_BORDER_CELLS * 2;
   const height = chunkSize + VOXEL_FIELD_BORDER_CELLS * 2;
-  const depth = clampInt(profile.fieldDepth, 8, 1, VOXEL_FIELD_MAX_DEPTH);
+  const depth = safeClampInt(profile.fieldDepth, 8, 1, VOXEL_FIELD_MAX_DEPTH);
   const originX = voxelWrap(ctx.chunkX * chunkSize - VOXEL_FIELD_BORDER_CELLS, worldSize);
   const originY = voxelWrap(ctx.chunkY * chunkSize - VOXEL_FIELD_BORDER_CELLS, worldSize);
   const field: VoxelField = {
@@ -122,7 +118,7 @@ export function createVoxelField(ctx: VoxelFieldContext): VoxelField {
   };
 
   const world = ctx.world;
-  const solidCap = clampInt(profile.solidVoxelCap, VOXEL_DEFAULT_SOLID_CAP, 0, width * height * depth);
+  const solidCap = safeClampInt(profile.solidVoxelCap, VOXEL_DEFAULT_SOLID_CAP, 0, width * height * depth);
   if (!world || solidCap <= 0) return field;
 
   for (let ly = 0; ly < height; ly++) {
@@ -148,13 +144,13 @@ export function collectVoxelChunks(ctx: VoxelCollectContext, outMeshes: VoxelChu
   const profile = ctx.profile;
   if (!profile.voxelEnabled) return { ...EMPTY_VOXEL_COLLECT_STATS };
 
-  const chunkSize = clampInt(
+  const chunkSize = safeClampInt(
     profile.chunkSize,
     VOXEL_FIELD_DEFAULT_CHUNK_SIZE,
     1,
     Math.min(VOXEL_FIELD_MAX_WIDTH, VOXEL_FIELD_MAX_HEIGHT) - VOXEL_FIELD_BORDER_CELLS * 2,
   );
-  const maxChunks = clampInt(profile.maxChunksPerFrame, 1, 1, 16);
+  const maxChunks = safeClampInt(profile.maxChunksPerFrame, 1, 1, 16);
   const radius = Math.max(0, profile.voxelRadius ?? chunkSize);
   const chunkRadius = Math.min(3, Math.ceil(radius / chunkSize) - 1);
   const centerChunkX = Math.floor(ctx.cameraX / chunkSize);

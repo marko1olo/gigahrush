@@ -43,6 +43,7 @@ import {
 } from './alife';
 import { createEmptyDemosSocialSaveState, type DemosRelationOverride, type DemosSocialSaveState } from './demos_save';
 import { getFactionPlayerRelation } from './npc_relations';
+import { safeClampInt } from "../core/math";
 
 export interface DemosSocialEdgeView {
   slot: number;
@@ -148,13 +149,8 @@ function hash32(a: number, b: number, c = 0): number {
   return x >>> 0;
 }
 
-function clampInt(value: unknown, fallback: number, min: number, max: number): number {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return fallback;
-  return Math.max(min, Math.min(max, Math.trunc(value)));
-}
-
 function clampRelation(value: number): number {
-  return clampInt(Math.round(value), 0, DEMOS_RELATION_MIN, DEMOS_RELATION_MAX);
+  return safeClampInt(Math.round(value), 0, DEMOS_RELATION_MIN, DEMOS_RELATION_MAX);
 }
 
 function edgeOffset(alifeId: number, slot: number): number {
@@ -1139,7 +1135,7 @@ export function resetDemosPlayerRelationSlotsForNewPlayer(state: GameState): voi
 }
 
 function propagationDelta(sourceDelta: number, circleRelation: number): number {
-  return clampInt(Math.round(sourceDelta * clampRelation(circleRelation) / DEMOS_RELATION_MAX), 0, -32, 32);
+  return safeClampInt(Math.round(sourceDelta * clampRelation(circleRelation) / DEMOS_RELATION_MAX), 0, -32, 32);
 }
 
 function applyNpcRelationDelta(
@@ -1247,11 +1243,11 @@ export function applyDemosRelationDelta(
 ): DemosRelationDeltaResult | undefined {
   const graph = ensureGraph(state);
   if (!validAlifeId(graph, fromAlifeId)) return undefined;
-  const delta = clampInt(deltaInput, 0, -32, 32);
+  const delta = safeClampInt(deltaInput, 0, -32, 32);
   if (delta === 0) return undefined;
   const result = target.targetKind === 'player'
     ? applyPlayerRelationDelta(state, graph, fromAlifeId, delta, opts)
-    : applyNpcRelationDelta(state, graph, fromAlifeId, clampInt(target.targetAlifeId, 0, 1, graph.total), delta, opts);
+    : applyNpcRelationDelta(state, graph, fromAlifeId, safeClampInt(target.targetAlifeId, 0, 1, graph.total), delta, opts);
   if (result?.changed) {
     persistRelationOverride(state, graph, result);
     if (opts.propagate !== false) propagateRelationDelta(state, graph, result);

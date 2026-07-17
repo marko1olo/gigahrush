@@ -22,6 +22,7 @@ import {
 } from '../shared';
 import { placeProceduralScreens, SCREEN_FRAMES } from '../procedural_screens';
 import type { FloorGeneration } from '../floor_manifest';
+import { clampInt } from "../../core/math";
 
 const DESIGN_NPC_HOME_FLOOR_KEY = designNpcFloorKey('antenna_court');
 
@@ -1625,10 +1626,6 @@ function placeAntennaGate(
   const b = world.rooms[roomB];
   if (a && !a.doors.includes(ci)) a.doors.push(ci);
   if (b && !b.doors.includes(ci)) b.doors.push(ci);
-}
-
-function clampInt(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value | 0));
 }
 
 function clampQuality(value: number): number {

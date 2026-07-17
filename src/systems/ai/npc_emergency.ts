@@ -16,6 +16,7 @@ import { occupationHasAnyProfileTag, occupationHasProfileTag } from '../../data/
 import { roomSupports } from '../../data/room_affordances';
 import { factionToTerritoryOwner } from '../../data/factions';
 import { territoryOwnerAt, territoryOwnerAtIndex } from '../territory';
+import { clampInt } from "../../core/math";
 
 export const NPC_EMERGENCY_DEFAULT_CANDIDATE_CAP = 12;
 export const NPC_EMERGENCY_MAX_CANDIDATE_CAP = 24;
@@ -435,11 +436,6 @@ function mixHash(h: number, value: number): number {
 function mixStringHash(h: number, value: string): number {
   for (let i = 0; i < value.length; i++) h = mixHash(h, value.charCodeAt(i));
   return h;
-}
-
-function clampInt(value: number, min: number, max: number): number {
-  if (!Number.isFinite(value)) return min;
-  return Math.max(min, Math.min(max, value | 0));
 }
 
 function validRoomId(roomId: number | undefined): boolean {
