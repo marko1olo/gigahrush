@@ -423,3 +423,27 @@ export function questXpReward(difficulty: number): number {
 export function questMoneyReward(difficulty: number): number {
   return Math.round(5 * difficulty);
 }
+
+// ── Normalize RPG Stats from Save Data ───────────────────────────
+export function normalizeRpg(input: unknown): RPGStats | undefined {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return undefined;
+  const src = input as Record<string, unknown>;
+  const level = Math.max(1, Math.min(RPG_LEVEL_CAP, typeof src.level === 'number' && Number.isFinite(src.level) ? Math.floor(src.level) : 1));
+  const attrPoints = Math.max(0, Math.min(RPG_ATTRIBUTE_CAP, typeof src.attrPoints === 'number' && Number.isFinite(src.attrPoints) ? Math.floor(src.attrPoints) : 0));
+  const str = Math.max(0, Math.min(RPG_ATTRIBUTE_CAP, typeof src.str === 'number' && Number.isFinite(src.str) ? Math.floor(src.str) : 0));
+  const agi = Math.max(0, Math.min(RPG_ATTRIBUTE_CAP, typeof src.agi === 'number' && Number.isFinite(src.agi) ? Math.floor(src.agi) : 0));
+  const int_ = Math.max(0, Math.min(RPG_ATTRIBUTE_CAP, typeof src.int === 'number' && Number.isFinite(src.int) ? Math.floor(src.int) : 0));
+
+  const xpCap = level >= RPG_LEVEL_CAP ? 0 : Math.max(0, xpForLevel(level + 1) - 1);
+  const xp = Math.max(0, Math.min(xpCap, typeof src.xp === 'number' && Number.isFinite(src.xp) ? Math.floor(src.xp) : 0));
+
+  const shell: RPGStats = { level, xp, attrPoints, str, agi, int: int_, psi: 0, maxPsi: 0 };
+  const maxPsi = getMaxPsi(shell);
+  const rawPsi = typeof src.psi === 'number' && Number.isFinite(src.psi) ? src.psi : maxPsi;
+  const psi = Math.max(0, Math.min(maxPsi, rawPsi));
+
+  shell.maxPsi = maxPsi;
+  shell.psi = psi;
+
+  return shell;
+}
