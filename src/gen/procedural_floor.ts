@@ -4362,17 +4362,25 @@ function nearbySmogRooms(world: World, rooms: Room[], source: Room, spec: Proced
   const serviceSpineBonus = spec.geometryId === 'service_spines' ? 4 : 0;
   const limit = Math.min(rooms.length, 5 + spec.danger * 2 + serviceSpineBonus);
   const radius = 74 + spec.danger * 18 + serviceSpineBonus * 6;
-  const weighted = rooms
-    .filter(room => room.id !== source.id && room.id !== 0)
-    .map(room => {
-      const c = roomCenter(room);
-      let priority = world.dist2(sourceCenter.x, sourceCenter.y, c.x, c.y);
-      if (room.type === RoomType.CORRIDOR || room.type === RoomType.SMOKING) priority *= 0.55;
-      if (room.type === RoomType.PRODUCTION || room.type === RoomType.STORAGE) priority *= 0.75;
-      return { room, priority };
-    })
-    .filter(item => item.priority <= radius * radius || item.room.type === RoomType.CORRIDOR)
-    .sort((a, b) => a.priority - b.priority);
+  const radiusSq = radius * radius;
+  const weighted: { room: Room; priority: number }[] = [];
+  for (let i = 0; i < rooms.length; i++) {
+    const room = rooms[i];
+    if (room.id === source.id || room.id === 0) continue;
+
+    const c = roomCenter(room);
+    let priority = world.dist2(sourceCenter.x, sourceCenter.y, c.x, c.y);
+    if (room.type === RoomType.CORRIDOR || room.type === RoomType.SMOKING) {
+      priority *= 0.55;
+    } else if (room.type === RoomType.PRODUCTION || room.type === RoomType.STORAGE) {
+      priority *= 0.75;
+    }
+
+    if (priority <= radiusSq || room.type === RoomType.CORRIDOR) {
+      weighted.push({ room, priority });
+    }
+  }
+  weighted.sort((a, b) => a.priority - b.priority);
   const out = [source];
   for (const item of weighted) {
     if (out.length >= limit) break;
