@@ -569,6 +569,63 @@ export class EntityIndex {
     return out.length;
   }
 
+
+  findFirstInRadius(
+    x: number,
+    y: number,
+    radius: number,
+    typeMask: number,
+    predicate: (e: Entity) => boolean,
+  ): Entity | undefined {
+    const bx = wrappedBucketCoord(x);
+    const by = wrappedBucketCoord(y);
+    const span = Math.ceil(radius / BUCKET_SIZE);
+    const r2 = radius * radius;
+    let bucketChecks = 0;
+    const includeStatic = (typeMask & ENTITY_MASK_STATIC_VISIBLE) !== 0;
+    const dynamicBuckets = this.dynamicBucketsForMask(typeMask);
+
+    for (let ring = 0; ring <= span; ring++) {
+      for (let oy = -ring; oy <= ring; oy++) {
+        for (let ox = -ring; ox <= ring; ox++) {
+          if (Math.abs(ox) !== ring && Math.abs(oy) !== ring) continue;
+          const yy = (by + oy + BUCKETS_PER_AXIS) & BUCKET_MASK;
+          const xx = (bx + ox + BUCKETS_PER_AXIS) & BUCKET_MASK;
+          const bucketIndex = yy * BUCKETS_PER_AXIS + xx;
+
+          const bucket = dynamicBuckets[bucketIndex];
+          bucketChecks++;
+          for (const e of bucket) {
+            if (!e.alive) continue;
+            if ((entityMask(e) & typeMask) === 0) continue;
+            const dx = wrappedDelta(x, e.x);
+            const dy = wrappedDelta(y, e.y);
+            if (dx * dx + dy * dy <= r2 && predicate(e)) {
+              this.recordQuery(typeMask, bucketChecks, 1, false);
+              return e;
+            }
+          }
+          if (!includeStatic) continue;
+          const staticBucket = this.staticBuckets[bucketIndex];
+          bucketChecks++;
+          for (const e of staticBucket) {
+            if (!e.alive) continue;
+            if ((entityMask(e) & typeMask) === 0) continue;
+            const dx = wrappedDelta(x, e.x);
+            const dy = wrappedDelta(y, e.y);
+            if (dx * dx + dy * dy <= r2 && predicate(e)) {
+              this.recordQuery(typeMask, bucketChecks, 1, false);
+              return e;
+            }
+          }
+        }
+      }
+    }
+
+    this.recordQuery(typeMask, bucketChecks, 0, false);
+    return undefined;
+  }
+
   queryRadiusCapped(
     x: number,
     y: number,
