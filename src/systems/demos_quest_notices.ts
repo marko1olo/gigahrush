@@ -41,6 +41,7 @@ import {
   type SpeechRouterResult,
 } from './speech_router';
 import { currentFloorRunEntry, floorRunEntryFloorKey } from './procedural_floors';
+import { safeClampInt } from "../core/math";
 
 export interface DemosQuestNoticeContext {
   nowMinutes?: number;
@@ -120,11 +121,6 @@ const FLOOR_LABELS: Record<FloorLevel, string> = {
   [FloorLevel.VOID]: 'Пустота',
 };
 
-function clampInt(value: unknown, min: number, max: number, fallback: number): number {
-  const n = typeof value === 'number' && Number.isFinite(value) ? Math.trunc(value) : fallback;
-  return Math.max(min, Math.min(max, n));
-}
-
 function cleanTag(raw: unknown): string {
   return String(raw ?? '')
     .replace(/[^a-zA-Z0-9_.:-]/g, '_')
@@ -156,7 +152,7 @@ function hashNoticeId(parts: readonly unknown[]): number {
 }
 
 function nowMinutes(state: GameState, context: DemosQuestNoticeContext): number {
-  return clampInt(context.nowMinutes, 0, 10_000_000, state.clock?.totalMinutes ?? 0);
+  return safeClampInt(context.nowMinutes, state.clock?.totalMinutes ?? 0, 0, 10_000_000);
 }
 
 type LooseQuestRouteTarget = QuestRouteTarget | NonNullable<Quest['targetRoute']>;
@@ -170,7 +166,7 @@ function cloneRouteTarget(route: LooseQuestRouteTarget | undefined): QuestRouteT
   if (route.proceduralTag) out.proceduralTag = route.proceduralTag;
   if (route.tags?.length) out.tags = [...route.tags];
   if (route.label) out.label = route.label;
-  if (route.risk !== undefined) out.risk = clampInt(route.risk, 1, 5, 1);
+  if (route.risk !== undefined) out.risk = safeClampInt(route.risk, 1, 1, 5);
   return Object.keys(out).length > 0 ? out : undefined;
 }
 
@@ -299,7 +295,7 @@ function noticeUrgency(def: ContractDef, context: DemosQuestNoticeContext): numb
   const routeRisk = def.target.route?.risk ?? (def.tags.includes('combat') ? 3 : undefined);
   const eventSeverity = context.sourceEvent?.severity;
   const raw = Math.max(def.rank, routeRisk ?? 1, eventSeverity ?? 1) + (context.urgencyBias ?? 0);
-  return clampInt(raw, 1, 5, 2);
+  return safeClampInt(raw, 2, 1, 5);
 }
 
 function noticeTags(snapshot: AlifeNpcSnapshot, def: ContractDef, context: DemosQuestNoticeContext): string[] {
@@ -389,7 +385,7 @@ export function refreshDemosQuestNoticesFromSnapshots(
 ): readonly DemosQuestNotice[] {
   const maxCreated = Math.min(
     DEMOS_QUEST_NOTICES_PER_SOCIAL_TICK,
-    clampInt(options.limit, 0, DEMOS_QUEST_NOTICES_PER_SOCIAL_TICK, DEMOS_QUEST_NOTICES_PER_SOCIAL_TICK),
+    safeClampInt(options.limit, DEMOS_QUEST_NOTICES_PER_SOCIAL_TICK, 0, DEMOS_QUEST_NOTICES_PER_SOCIAL_TICK),
   );
   const created: DemosQuestNotice[] = [];
   for (const snapshot of snapshots) {
@@ -447,7 +443,7 @@ export function getDemosQuestBoardView(
 ): DemosQuestBoardView {
   const now = nowMinutes(state, {});
   const acceptFloorKey = opts.floorKey ? cleanFloorKey(opts.floorKey) : currentRouteFloorKey(state);
-  const limit = clampInt(opts.limit, 1, DEMOS_QUEST_NOTICE_CAP, DEMOS_QUEST_NOTICES_PER_PROFILE);
+  const limit = safeClampInt(opts.limit, DEMOS_QUEST_NOTICES_PER_PROFILE, 1, DEMOS_QUEST_NOTICE_CAP);
   const notices = noticeStore(state)
     .filter(notice =>
       (opts.alifeId === undefined || notice.giverAlifeId === opts.alifeId) &&
@@ -485,7 +481,7 @@ export function activeDemosQuestNoticeForGiver(
 export function markDemosNoticeAccepted(state: GameState, noticeId: number, questId: number): void {
   const notice = findNotice(state, noticeId);
   if (!notice) return;
-  notice.acceptedQuestId = clampInt(questId, 1, 1_000_000_000, questId);
+  notice.acceptedQuestId = safeClampInt(questId, questId, 1, 1_000_000_000);
   notice.acceptedAtMinutes = nowMinutes(state, {});
   delete notice.failedReason;
   delete notice.failedAtMinutes;

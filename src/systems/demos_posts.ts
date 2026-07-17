@@ -26,6 +26,7 @@ import {
   npcPackageSpeechContextTags,
   resolveNpcPackageForAlifeSnapshot,
 } from './npc_package_speech';
+import { safeClampInt } from "../core/math";
 
 export type DemosMarkovIntent = 'demos_post' | 'demos_reaction';
 export type DemosMarkovSource = 'generated_markov' | 'curated_pool' | 'locked_author_text';
@@ -196,11 +197,6 @@ const EVENT_DETAIL_LABELS: Partial<Record<WorldEventType, string>> = {
   faction_patrol_clash: 'Патрули на взводе.',
   faction_relation_changed: 'Старые пропуска могут не сработать.',
 };
-
-function clampInt(value: unknown, fallback: number, min: number, max: number): number {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return fallback;
-  return Math.max(min, Math.min(max, Math.trunc(value)));
-}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value);
@@ -437,7 +433,7 @@ export function createDemosPostQueue(capacity = DEMOS_POST_RING_CAP): DemosPostQ
   return {
     nextId: 1,
     lastSourceEventId: 0,
-    capacity: clampInt(capacity, DEMOS_POST_RING_CAP, 1, DEMOS_POST_RING_CAP),
+    capacity: safeClampInt(capacity, DEMOS_POST_RING_CAP, 1, DEMOS_POST_RING_CAP),
     posts: [],
   };
 }
@@ -608,7 +604,7 @@ export function renderDemosMarkovPostText(
 }
 
 function relationBand(relation: number): DemosMarkovTextContext['relationBand'] {
-  const r = clampInt(relation, 0, -127, 127);
+  const r = safeClampInt(relation, 0, -127, 127);
   if (r <= -64) return 'hostile';
   if (r < 0) return 'cold';
   if (r < 32) return 'neutral';
@@ -618,7 +614,7 @@ function relationBand(relation: number): DemosMarkovTextContext['relationBand'] 
 
 export function chooseDemosReactionKind(post: DemosMarkovPost, edge: DemosOutgoingSocialEdge, seed: number): DemosReactionKind {
   const flags = edge.flags ?? 0;
-  const relation = clampInt(edge.relation, 0, -127, 127);
+  const relation = safeClampInt(edge.relation, 0, -127, 127);
   if (post.tags.includes('death') && (flags & (DEMOS_EDGE_FAMILY | DEMOS_EDGE_FRIEND)) !== 0) return 'grief';
   if ((flags & DEMOS_EDGE_ENEMY) !== 0 || relation <= -96) return seed & 1 ? 'threat' : 'anger';
   if (relation <= -64) return 'anger';
@@ -638,8 +634,8 @@ export function renderDemosReactionsForPost(
   outgoingEdges: readonly DemosOutgoingSocialEdge[],
   opts: DemosRenderReactionOptions = {},
 ): DemosRenderedReaction[] {
-  const maxReactions = clampInt(opts.maxReactions, DEMOS_REACTIONS_PER_POST_CAP, 0, DEMOS_REACTIONS_PER_POST_CAP);
-  const maxEdgesScanned = clampInt(opts.maxEdgesScanned, DEMOS_REACTIONS_PER_POST_CAP * 2, 0, DEMOS_REACTIONS_PER_POST_CAP * 2);
+  const maxReactions = safeClampInt(opts.maxReactions, DEMOS_REACTIONS_PER_POST_CAP, 0, DEMOS_REACTIONS_PER_POST_CAP);
+  const maxEdgesScanned = safeClampInt(opts.maxEdgesScanned, DEMOS_REACTIONS_PER_POST_CAP * 2, 0, DEMOS_REACTIONS_PER_POST_CAP * 2);
   if (maxReactions <= 0 || maxEdgesScanned <= 0) return [];
   const routeSpeech = opts.routeSpeech ?? defaultRouteSpeech;
   const out: DemosRenderedReaction[] = [];
@@ -677,7 +673,7 @@ export function renderDemosReactionsForPost(
       postId: post.id,
       reactorAlifeId,
       kind,
-      relation: clampInt(edge.relation, 0, -127, 127),
+      relation: safeClampInt(edge.relation, 0, -127, 127),
     });
   }
   return out;

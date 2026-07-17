@@ -1,6 +1,7 @@
 /* -- Coarse fair maze graphs for floor generation ---------------- */
 
 import type { RandomSource } from '../core/rand';
+import { clampInt } from "../core/math";
 
 export type MazeEdgeTag = 'backbone' | 'chord' | 'locked_optional' | 'reward_leaf';
 export type MazeSeamAxis = 'x' | 'y';
@@ -101,10 +102,6 @@ const DEFAULT_SELECTION_WEIGHTS: Required<MazeSelectionWeights> = {
   oldest: 0.18,
   random: 0.2,
 };
-
-function clampInt(value: number, lo: number, hi: number): number {
-  return Math.max(lo, Math.min(hi, Math.floor(value)));
-}
 
 function clamp01(value: number): number {
   if (!Number.isFinite(value)) return 0;

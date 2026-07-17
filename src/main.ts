@@ -546,6 +546,7 @@ import {
   DEFAULT_PLAYER_SEX,
   sanitizeCharacterSex,
 } from './data/demographics';
+import { safeClampInt } from "./core/math";
 
 /* ── Canvas setup ─────────────────────────────────────────────── */
 const canvas = document.getElementById('game') as HTMLCanvasElement;
@@ -918,10 +919,10 @@ function playerAlifeFields(source: Partial<Entity> = {}): PlayerAlife {
     sex,
     isFemale: sex === 'female',
     playerRelation: PLAYER_SELF_RELATION,
-    karma: clampInt(source.karma, PLAYER_START_KARMA, -128, 128),
-    kills: clampInt(source.kills, 0, 0, 1_000_000),
-    npcKills: clampInt(source.npcKills, 0, 0, 1_000_000),
-    monsterKills: clampInt(source.monsterKills, 0, 0, 1_000_000),
+    karma: safeClampInt(source.karma, PLAYER_START_KARMA, -128, 128),
+    kills: safeClampInt(source.kills, 0, 0, 1_000_000),
+    npcKills: safeClampInt(source.npcKills, 0, 0, 1_000_000),
+    monsterKills: safeClampInt(source.monsterKills, 0, 0, 1_000_000),
     height: generateHeight(age, sex === 'female'),
   };
 }
@@ -4676,16 +4677,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value);
 }
 
-function finiteInt(value: unknown, fallback: number): number {
-  return Math.trunc(finiteNumber(value, fallback));
-}
-
 function clampNumber(value: unknown, fallback: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, finiteNumber(value, fallback)));
-}
-
-function clampInt(value: unknown, fallback: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, finiteInt(value, fallback)));
 }
 
 function cleanSaveText(value: unknown, fallback = '', max = SAVE_TEXT_CAP): string {
@@ -4747,7 +4740,7 @@ function normalizeInventory(input: unknown): Item[] {
     const defId = cleanSaveText(raw.defId, '', 64);
     const def = ITEMS[defId];
     if (!def) continue;
-    let count = clampInt(raw.count, 1, 1, Math.max(1, getStack(def) * SAVE_INVENTORY_SLOT_CAP));
+    let count = safeClampInt(raw.count, 1, 1, Math.max(1, getStack(def) * SAVE_INVENTORY_SLOT_CAP));
     const data = compactSaveData(raw.data);
     while (count > 0 && out.length < SAVE_INVENTORY_SLOT_CAP) {
       const add = Math.min(count, getStack(def));
@@ -4773,14 +4766,14 @@ function normalizeEquippedItem(
 
 function normalizeRpg(input: unknown): RPGStats {
   const src = isRecord(input) ? input : {};
-  const level = clampInt(src.level, 1, 1, RPG_LEVEL_CAP);
+  const level = safeClampInt(src.level, 1, 1, RPG_LEVEL_CAP);
   const rpg = freshRPG(level);
   const xpCap = level >= RPG_LEVEL_CAP ? 0 : Math.max(0, xpForLevel(level + 1) - 1);
-  rpg.xp = clampInt(src.xp, 0, 0, xpCap);
-  rpg.attrPoints = clampInt(src.attrPoints, 0, 0, RPG_ATTRIBUTE_CAP);
-  rpg.str = clampInt(src.str, 0, 0, RPG_ATTRIBUTE_CAP);
-  rpg.agi = clampInt(src.agi, 0, 0, RPG_ATTRIBUTE_CAP);
-  rpg.int = clampInt(src.int, 0, 0, RPG_ATTRIBUTE_CAP);
+  rpg.xp = safeClampInt(src.xp, 0, 0, xpCap);
+  rpg.attrPoints = safeClampInt(src.attrPoints, 0, 0, RPG_ATTRIBUTE_CAP);
+  rpg.str = safeClampInt(src.str, 0, 0, RPG_ATTRIBUTE_CAP);
+  rpg.agi = safeClampInt(src.agi, 0, 0, RPG_ATTRIBUTE_CAP);
+  rpg.int = safeClampInt(src.int, 0, 0, RPG_ATTRIBUTE_CAP);
   rpg.maxPsi = getMaxPsi(rpg);
   rpg.psi = clampNumber(src.psi, rpg.maxPsi, 0, rpg.maxPsi);
   return rpg;
@@ -4788,10 +4781,10 @@ function normalizeRpg(input: unknown): RPGStats {
 
 function normalizeClock(input: unknown): GameClock {
   const src = isRecord(input) ? input : {};
-  const totalMinutes = clampInt(src.totalMinutes, 0, 0, 365 * 24 * 60);
+  const totalMinutes = safeClampInt(src.totalMinutes, 0, 0, 365 * 24 * 60);
   return {
-    hour: clampInt(src.hour, Math.floor(totalMinutes / 60) % 24, 0, 23),
-    minute: clampInt(src.minute, totalMinutes % 60, 0, 59),
+    hour: safeClampInt(src.hour, Math.floor(totalMinutes / 60) % 24, 0, 23),
+    minute: safeClampInt(src.minute, totalMinutes % 60, 0, 59),
     totalMinutes,
   };
 }
@@ -4847,7 +4840,7 @@ function normalizeRewardList(value: unknown): Quest['extraRewards'] | undefined 
     if (out.length >= 8 || !isRecord(raw)) break;
     const defId = cleanSaveText(raw.defId, '', 64);
     if (!ITEMS[defId]) continue;
-    out.push({ defId, count: clampInt(raw.count, 1, 1, 999) });
+    out.push({ defId, count: safeClampInt(raw.count, 1, 1, 999) });
   }
   return out.length > 0 ? out : undefined;
 }
@@ -4857,7 +4850,7 @@ function normalizeQuestTargetRoute(value: unknown): Quest['targetRoute'] | undef
   const out: NonNullable<Quest['targetRoute']> = {};
   const designFloorId = cleanSaveText(value.designFloorId, '', 64);
   if (designFloorId && DESIGN_FLOOR_ROUTES.some(route => route.id === designFloorId)) out.designFloorId = designFloorId;
-  if (typeof value.z === 'number' && Number.isFinite(value.z)) out.z = clampInt(value.z, 0, -50, 50);
+  if (typeof value.z === 'number' && Number.isFinite(value.z)) out.z = safeClampInt(value.z, 0, -50, 50);
   const anomalyId = cleanSaveText(value.anomalyId, '', 64);
   if (anomalyId) out.anomalyId = anomalyId;
   const proceduralTag = cleanSaveText(value.proceduralTag, '', 64);
@@ -4866,16 +4859,16 @@ function normalizeQuestTargetRoute(value: unknown): Quest['targetRoute'] | undef
   if (tags) out.tags = tags;
   const label = cleanSaveText(value.label, '', 96);
   if (label) out.label = label;
-  if (value.risk !== undefined) out.risk = clampInt(value.risk, 1, 1, 5);
+  if (value.risk !== undefined) out.risk = safeClampInt(value.risk, 1, 1, 5);
   return Object.keys(out).length > 0 ? out : undefined;
 }
 
 function normalizeQuestTargets(q: Quest, raw: Record<string, unknown>): void {
   const targetItem = cleanSaveText(raw.targetItem, '', 64);
   if (targetItem === 'money' || ITEMS[targetItem]) q.targetItem = targetItem;
-  if (raw.targetCount !== undefined) q.targetCount = clampInt(raw.targetCount, 1, 1, 999);
+  if (raw.targetCount !== undefined) q.targetCount = safeClampInt(raw.targetCount, 1, 1, 999);
   if (typeof raw.targetRoom === 'number' && Number.isFinite(raw.targetRoom)) {
-    q.targetRoom = clampInt(raw.targetRoom, -1, -1, 100_000);
+    q.targetRoom = safeClampInt(raw.targetRoom, -1, -1, 100_000);
   }
   if (isFloorLevel(raw.targetFloor)) q.targetFloor = raw.targetFloor;
   const targetRoomType = normalizeRoomType(raw.targetRoomType);
@@ -4889,10 +4882,10 @@ function normalizeQuestTargets(q: Quest, raw: Record<string, unknown>): void {
   if (targetHint) q.targetHint = targetHint;
   const targetMonsterKind = normalizeMonsterKind(raw.targetMonsterKind);
   if (targetMonsterKind !== undefined) q.targetMonsterKind = targetMonsterKind;
-  if (raw.killCount !== undefined) q.killCount = clampInt(raw.killCount, 0, 0, 999);
-  if (raw.killNeeded !== undefined) q.killNeeded = clampInt(raw.killNeeded, 1, 1, 999);
+  if (raw.killCount !== undefined) q.killCount = safeClampInt(raw.killCount, 0, 0, 999);
+  if (raw.killNeeded !== undefined) q.killNeeded = safeClampInt(raw.killNeeded, 1, 1, 999);
   if (typeof raw.targetNpcId === 'number' && Number.isFinite(raw.targetNpcId)) {
-    q.targetNpcId = clampInt(raw.targetNpcId, -1, -1, 1_000_000);
+    q.targetNpcId = safeClampInt(raw.targetNpcId, -1, -1, 1_000_000);
   }
   const targetNpcName = cleanSaveText(raw.targetNpcName, '', 96);
   if (targetNpcName) q.targetNpcName = targetNpcName;
@@ -4903,17 +4896,17 @@ function normalizeQuestTargets(q: Quest, raw: Record<string, unknown>): void {
 function normalizeQuestRewards(q: Quest, raw: Record<string, unknown>): void {
   const rewardItem = cleanSaveText(raw.rewardItem, '', 64);
   if (ITEMS[rewardItem]) q.rewardItem = rewardItem;
-  if (raw.rewardCount !== undefined) q.rewardCount = clampInt(raw.rewardCount, 1, 1, 999);
+  if (raw.rewardCount !== undefined) q.rewardCount = safeClampInt(raw.rewardCount, 1, 1, 999);
   q.extraRewards = normalizeRewardList(raw.extraRewards);
-  if (raw.relationDelta !== undefined) q.relationDelta = clampInt(raw.relationDelta, 0, -100, 100);
+  if (raw.relationDelta !== undefined) q.relationDelta = safeClampInt(raw.relationDelta, 0, -100, 100);
   if (raw.difficulty !== undefined) q.difficulty = clampNumber(raw.difficulty, 1, 0, 10);
-  if (raw.xpReward !== undefined) q.xpReward = clampInt(raw.xpReward, 0, 0, 100_000);
-  if (raw.moneyReward !== undefined) q.moneyReward = clampInt(raw.moneyReward, 0, 0, MAX_SAVE_MONEY);
+  if (raw.xpReward !== undefined) q.xpReward = safeClampInt(raw.xpReward, 0, 0, 100_000);
+  if (raw.moneyReward !== undefined) q.moneyReward = safeClampInt(raw.moneyReward, 0, 0, MAX_SAVE_MONEY);
 }
 
 function normalizeQuestMeta(q: Quest, raw: Record<string, unknown>): void {
   if (typeof raw.plotStepIndex === 'number' && Number.isFinite(raw.plotStepIndex)) {
-    q.plotStepIndex = clampInt(raw.plotStepIndex, 0, 0, 10_000);
+    q.plotStepIndex = safeClampInt(raw.plotStepIndex, 0, 0, 10_000);
   }
   const sideQuestId = cleanSaveText(raw.sideQuestId, '', 96);
   if (sideQuestId) q.sideQuestId = sideQuestId;
@@ -4921,18 +4914,18 @@ function normalizeQuestMeta(q: Quest, raw: Record<string, unknown>): void {
   if (contractId) q.contractId = contractId;
   const contractFaction = normalizeFaction(raw.contractFaction);
   if (contractFaction !== undefined) q.contractFaction = contractFaction;
-  if (raw.contractRank !== undefined) q.contractRank = clampInt(raw.contractRank, 0, 0, 10);
+  if (raw.contractRank !== undefined) q.contractRank = safeClampInt(raw.contractRank, 0, 0, 10);
   if (isFloorLevel(raw.visitFloor)) q.visitFloor = raw.visitFloor;
 }
 
 function normalizeQuestHold(q: Quest, raw: Record<string, unknown>): void {
-  if (raw.holdSeconds !== undefined) q.holdSeconds = clampInt(raw.holdSeconds, 0, 1, 3600);
+  if (raw.holdSeconds !== undefined) q.holdSeconds = safeClampInt(raw.holdSeconds, 0, 1, 3600);
   if (raw.holdProgressSeconds !== undefined) q.holdProgressSeconds = clampNumber(raw.holdProgressSeconds, 0, 0, 3600);
   if (raw.holdLastTime !== undefined) q.holdLastTime = clampNumber(raw.holdLastTime, 0, 0, 1_000_000_000);
   if (raw.holdResetOnExit !== undefined) q.holdResetOnExit = raw.holdResetOnExit === true;
-  if (raw.holdSpawnMonsters !== undefined) q.holdSpawnMonsters = clampInt(raw.holdSpawnMonsters, 0, 0, 32);
+  if (raw.holdSpawnMonsters !== undefined) q.holdSpawnMonsters = safeClampInt(raw.holdSpawnMonsters, 0, 0, 32);
   if (raw.holdSpawnIntervalSeconds !== undefined) q.holdSpawnIntervalSeconds = clampNumber(raw.holdSpawnIntervalSeconds, 1, 1, 600);
-  if (raw.holdSpawnMaxAlive !== undefined) q.holdSpawnMaxAlive = clampInt(raw.holdSpawnMaxAlive, 1, 1, 64);
+  if (raw.holdSpawnMaxAlive !== undefined) q.holdSpawnMaxAlive = safeClampInt(raw.holdSpawnMaxAlive, 1, 1, 64);
   if (raw.holdSpawnLastTime !== undefined) q.holdSpawnLastTime = clampNumber(raw.holdSpawnLastTime, 0, 0, 1_000_000_000);
 }
 
@@ -4952,10 +4945,10 @@ function normalizeQuestEvents(q: Quest, raw: Record<string, unknown>): void {
 function normalizeQuestTimeLimit(q: Quest, raw: Record<string, unknown>, nowMinutes: number): void {
   const timeLimit = raw.timeLimitMinutes === undefined
     ? undefined
-    : clampInt(raw.timeLimitMinutes, 0, 1, MAX_QUEST_TIME_LIMIT_MINUTES);
+    : safeClampInt(raw.timeLimitMinutes, 0, 1, MAX_QUEST_TIME_LIMIT_MINUTES);
   let expiresAt = raw.expiresAtMinutes === undefined
     ? undefined
-    : clampInt(raw.expiresAtMinutes, 0, 0, nowMinutes + MAX_QUEST_TIME_LIMIT_MINUTES);
+    : safeClampInt(raw.expiresAtMinutes, 0, 0, nowMinutes + MAX_QUEST_TIME_LIMIT_MINUTES);
   if (timeLimit !== undefined) {
     q.timeLimitMinutes = timeLimit;
     if (expiresAt === undefined && !q.done) expiresAt = Math.ceil(nowMinutes + timeLimit);
@@ -4980,12 +4973,12 @@ function normalizeQuest(raw: unknown, nowMinutes: number): Quest | null {
   if (type === undefined) return null;
   const desc = cleanSaveText(raw.desc);
   if (!desc) return null;
-  const id = clampInt(raw.id, 0, 1, 1_000_000);
+  const id = safeClampInt(raw.id, 0, 1, 1_000_000);
   const done = raw.done === true || raw.failed === true;
   const q: Quest = {
     id,
     type,
-    giverId: clampInt(raw.giverId, -1, -1, 1_000_000),
+    giverId: safeClampInt(raw.giverId, -1, -1, 1_000_000),
     giverName: cleanSaveText(raw.giverName, '???', 96),
     desc,
     done,
@@ -5012,7 +5005,7 @@ function normalizeQuestList(input: unknown, nextQuestIdInput: unknown, nowMinute
       if (quest) quests.push(quest);
     }
   }
-  let nextQuestId = clampInt(nextQuestIdInput, 1, 1, 1_000_001);
+  let nextQuestId = safeClampInt(nextQuestIdInput, 1, 1, 1_000_001);
   for (const quest of quests) nextQuestId = Math.max(nextQuestId, quest.id + 1);
   return { quests, nextQuestId };
 }
@@ -5146,7 +5139,7 @@ function loadGame(): boolean {
         inventory: normalizedInventory,
         weapon: normalizedWeapon,
         tool: normalizedTool,
-        money: clampInt(dataPlayer.money, 100, 0, MAX_SAVE_MONEY),
+        money: safeClampInt(dataPlayer.money, 100, 0, MAX_SAVE_MONEY),
         rpg: normalizedRpg,
         statuses: normalizePlayerStatuses(dataPlayer.statuses),
         name: playerDisplayName(),
@@ -5163,9 +5156,9 @@ function loadGame(): boolean {
       ensureProceduralSpriteSeeds(entities);
 
       state.time = Math.max(0, finiteNumber(dataState.time, 0));
-      state.tick = clampInt(dataState.tick, 0, 0, 1_000_000_000);
+      state.tick = safeClampInt(dataState.tick, 0, 0, 1_000_000_000);
       state.clock = normalizedClock;
-      state.samosborCount = clampInt(dataState.samosborCount, 0, 0, 100_000);
+      state.samosborCount = safeClampInt(dataState.samosborCount, 0, 0, 100_000);
       netReportedSamosborCount = state.samosborCount;
       netDeathReported = false;
       const savedSamosborActive = dataState.samosborActive === true;

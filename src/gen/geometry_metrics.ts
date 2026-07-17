@@ -3,6 +3,7 @@
 import { Cell, DoorState, LiftDirection, W } from '../core/types';
 import type { World } from '../core/world';
 import type { FloorGeometryId } from '../data/procedural_floors';
+import { clampInt } from "../core/math";
 
 export type GeometryMetricsId = FloorGeometryId | string;
 export type GeometryGenerationTimeBucket = 'unknown' | 'instant' | 'fast' | 'normal' | 'slow' | 'very_slow';
@@ -710,10 +711,6 @@ function assertProtectedSnapshot(snapshot: GeometryProtectedSnapshot): void {
     || snapshot.floorTex.length !== length
     || snapshot.features.length !== length
   ) throw new Error('protected snapshot arrays must have matching lengths');
-}
-
-function clampInt(value: number, lo: number, hi: number): number {
-  return Math.max(lo, Math.min(hi, Math.floor(value)));
 }
 
 function round3(value: number): number {

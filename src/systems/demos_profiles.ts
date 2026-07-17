@@ -49,6 +49,7 @@ import {
 } from '../data/npc_packages';
 import { demosRelationBand } from './demos';
 import { getDemosOutgoingSocialEdges, type DemosSocialEdgeView } from './demos_social';
+import { safeClampInt } from "../core/math";
 
 const DEMOS_PROFILE_RECENT_LIMIT = 48;
 const DEMOS_SOCIAL_FALLBACK_TRIES = 24;
@@ -189,11 +190,6 @@ const TRAIT_INTEREST_LABELS: Partial<Record<string, string>> = {
   taste_medicine: 'сухой бинт',
   taste_tools: 'исправный инструмент',
 };
-
-function clampInt(value: unknown, fallback: number, min: number, max: number): number {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return fallback;
-  return Math.max(min, Math.min(max, Math.trunc(value)));
-}
 
 function hash32(a: number, b: number, c = 0, d = 0): number {
   let x = (Math.imul(a ^ 0x9e3779b9, 0x85ebca6b)
@@ -412,7 +408,7 @@ function addLinkSeed(out: DemosSocialLinkSeed[], seen: Set<number>, seed: DemosS
     seen.add(0);
     return;
   }
-  const target = clampInt(seed.targetAlifeId, 0, 1, total);
+  const target = safeClampInt(seed.targetAlifeId, 0, 1, total);
   if (target <= 0 || target === sourceAlifeId || seen.has(target)) return;
   out.push({
     targetKind: 'alife',

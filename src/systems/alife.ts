@@ -84,6 +84,7 @@ import {
   type RankStats,
 } from './alife_rating';
 import { getEntityIndex, ENTITY_MASK_NPC } from './entity_index';
+import { safeClampInt } from "../core/math";
 
 const ALIFE_VERSION = 2;
 const ALIFE_POPULATION = ALIFE_POPULATION_CAPACITY;
@@ -486,12 +487,12 @@ function setRecordFloor(alife: AlifeState, record: AlifeNpcRecord, value: FloorL
 
 function recordDanger(alife: AlifeState, record: AlifeNpcRecord): 1 | 2 | 3 | 4 | 5 {
   const danger = alife.columns.danger[recordColumnIndex(record)];
-  return clampInt(danger, 1, 1, 5) as 1 | 2 | 3 | 4 | 5;
+  return safeClampInt(danger, 1, 1, 5) as 1 | 2 | 3 | 4 | 5;
 }
 
 function setRecordDanger(alife: AlifeState, record: AlifeNpcRecord, value: number): void {
   ensureAlifeColumnCapacity(alife, record.id);
-  alife.columns.danger[recordColumnIndex(record)] = clampInt(value, 1, 1, 5);
+  alife.columns.danger[recordColumnIndex(record)] = safeClampInt(value, 1, 1, 5);
 }
 
 function recordFaction(alife: AlifeState, record: AlifeNpcRecord): Faction {
@@ -500,7 +501,7 @@ function recordFaction(alife: AlifeState, record: AlifeNpcRecord): Faction {
 
 function setRecordFaction(alife: AlifeState, record: AlifeNpcRecord, value: Faction): void {
   ensureAlifeColumnCapacity(alife, record.id);
-  alife.columns.faction[recordColumnIndex(record)] = clampInt(value, Faction.CITIZEN, Faction.CITIZEN, Faction.PLAYER);
+  alife.columns.faction[recordColumnIndex(record)] = safeClampInt(value, Faction.CITIZEN, Faction.CITIZEN, Faction.PLAYER);
 }
 
 function recordOccupation(alife: AlifeState, record: AlifeNpcRecord): Occupation {
@@ -641,7 +642,7 @@ function recordMaxHp(alife: AlifeState, record: AlifeNpcRecord): number {
 
 function setRecordMaxHp(alife: AlifeState, record: AlifeNpcRecord, value: number): void {
   ensureAlifeColumnCapacity(alife, record.id);
-  alife.columns.maxHp[recordColumnIndex(record)] = clampInt(value, 1, 1, 65_535);
+  alife.columns.maxHp[recordColumnIndex(record)] = safeClampInt(value, 1, 1, 65_535);
 }
 
 function recordHp(alife: AlifeState, record: AlifeNpcRecord): number {
@@ -652,7 +653,7 @@ function recordHp(alife: AlifeState, record: AlifeNpcRecord): number {
 
 function setRecordHp(alife: AlifeState, record: AlifeNpcRecord, value: number): void {
   ensureAlifeColumnCapacity(alife, record.id);
-  alife.columns.hp[recordColumnIndex(record)] = clampInt(value, recordMaxHp(alife, record), 0, recordMaxHp(alife, record));
+  alife.columns.hp[recordColumnIndex(record)] = safeClampInt(value, recordMaxHp(alife, record), 0, recordMaxHp(alife, record));
 }
 
 function recordMoney(alife: AlifeState, record: AlifeNpcRecord): number {
@@ -677,7 +678,7 @@ function recordFamilyId(alife: AlifeState, record: AlifeNpcRecord): number {
 
 function setRecordFamilyId(alife: AlifeState, record: AlifeNpcRecord, value: number): void {
   ensureAlifeColumnCapacity(alife, record.id);
-  alife.columns.familyId[recordColumnIndex(record)] = clampInt(value, 0, 0, 1_000_000_000);
+  alife.columns.familyId[recordColumnIndex(record)] = safeClampInt(value, 0, 0, 1_000_000_000);
 }
 
 function recordSprite(alife: AlifeState, record: AlifeNpcRecord): number | undefined {
@@ -689,7 +690,7 @@ function setRecordSprite(alife: AlifeState, record: AlifeNpcRecord, value: numbe
   ensureAlifeColumnCapacity(alife, record.id);
   alife.columns.sprite[recordColumnIndex(record)] = value === undefined
     ? ALIFE_SPRITE_UNSET
-    : clampInt(value, 0, 0, ALIFE_SPRITE_MAX);
+    : safeClampInt(value, 0, 0, ALIFE_SPRITE_MAX);
 }
 
 function recordSpriteSeed(alife: AlifeState, record: AlifeNpcRecord): number | undefined {
@@ -700,7 +701,7 @@ function setRecordSpriteSeed(alife: AlifeState, record: AlifeNpcRecord, value: n
   ensureAlifeColumnCapacity(alife, record.id);
   alife.columns.spriteSeed[recordColumnIndex(record)] = value === undefined
     ? 0
-    : clampInt(value, 1, 1, 0xffffffff);
+    : safeClampInt(value, 1, 1, 0xffffffff);
 }
 
 function recordKills(alife: AlifeState, record: AlifeNpcRecord): number {
@@ -709,7 +710,7 @@ function recordKills(alife: AlifeState, record: AlifeNpcRecord): number {
 
 function setRecordKills(alife: AlifeState, record: AlifeNpcRecord, value: unknown): void {
   ensureAlifeColumnCapacity(alife, record.id);
-  alife.columns.kills[recordColumnIndex(record)] = clampInt(value, 0, 0, 1_000_000);
+  alife.columns.kills[recordColumnIndex(record)] = safeClampInt(value, 0, 0, 1_000_000);
 }
 
 function recordNpcKills(alife: AlifeState, record: AlifeNpcRecord): number {
@@ -718,7 +719,7 @@ function recordNpcKills(alife: AlifeState, record: AlifeNpcRecord): number {
 
 function setRecordNpcKills(alife: AlifeState, record: AlifeNpcRecord, value: unknown): void {
   ensureAlifeColumnCapacity(alife, record.id);
-  alife.columns.npcKills[recordColumnIndex(record)] = clampInt(value, 0, 0, 1_000_000);
+  alife.columns.npcKills[recordColumnIndex(record)] = safeClampInt(value, 0, 0, 1_000_000);
 }
 
 function recordMonsterKills(alife: AlifeState, record: AlifeNpcRecord): number {
@@ -727,7 +728,7 @@ function recordMonsterKills(alife: AlifeState, record: AlifeNpcRecord): number {
 
 function setRecordMonsterKills(alife: AlifeState, record: AlifeNpcRecord, value: unknown): void {
   ensureAlifeColumnCapacity(alife, record.id);
-  alife.columns.monsterKills[recordColumnIndex(record)] = clampInt(value, 0, 0, 1_000_000);
+  alife.columns.monsterKills[recordColumnIndex(record)] = safeClampInt(value, 0, 0, 1_000_000);
 }
 
 function setRecordRpg(alife: AlifeState, record: AlifeNpcRecord, rpg: RPGStats): void {
@@ -735,10 +736,10 @@ function setRecordRpg(alife: AlifeState, record: AlifeNpcRecord, rpg: RPGStats):
   const previousMaxHp = alife.columns.maxHp[recordColumnIndex(record)];
   const shell = {
     ...rpg,
-    level: clampInt(rpg.level, 1, 1, RPG_LEVEL_CAP),
-    str: clampInt(rpg.str, 0, 0, RPG_ATTRIBUTE_CAP),
-    agi: clampInt(rpg.agi, 0, 0, RPG_ATTRIBUTE_CAP),
-    int: clampInt(rpg.int, 0, 0, RPG_ATTRIBUTE_CAP),
+    level: safeClampInt(rpg.level, 1, 1, RPG_LEVEL_CAP),
+    str: safeClampInt(rpg.str, 0, 0, RPG_ATTRIBUTE_CAP),
+    agi: safeClampInt(rpg.agi, 0, 0, RPG_ATTRIBUTE_CAP),
+    int: safeClampInt(rpg.int, 0, 0, RPG_ATTRIBUTE_CAP),
   };
   const i = recordColumnIndex(record);
   alife.columns.level[i] = shell.level;
@@ -781,11 +782,6 @@ function pickWeighted<T>(items: readonly WeightedValue<T>[], seed: number, index
     if (roll <= 0) return item.value;
   }
   return items[items.length - 1].value;
-}
-
-function clampInt(value: unknown, fallback: number, min: number, max: number): number {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return fallback;
-  return Math.max(min, Math.min(max, Math.trunc(value)));
 }
 
 function clampFloat(value: unknown, fallback: number, min: number, max: number): number {
@@ -1103,8 +1099,8 @@ function cashForWealth(wealth: number, seed: number, index: number): number {
 }
 
 function splitClampedMoney(cash: unknown, accountRubles: unknown): { money: number; accountRubles: number } {
-  const money = clampInt(cash, 0, 0, ALIFE_MONEY_CAP);
-  const account = clampInt(accountRubles, 0, 0, ALIFE_MONEY_CAP);
+  const money = safeClampInt(cash, 0, 0, ALIFE_MONEY_CAP);
+  const account = safeClampInt(accountRubles, 0, 0, ALIFE_MONEY_CAP);
   const total = Math.min(ALIFE_MONEY_CAP, money + account);
   const pocket = Math.min(money, total);
   return { money: pocket, accountRubles: total - pocket };
@@ -1274,7 +1270,7 @@ function populationPlanCounts(plan: AlifePopulationPlan, total: number): number[
   const counts = buckets.map(bucket =>
     bucket.targetCount === undefined
       ? -1
-      : clampInt(bucket.targetCount, 0, 0, total)
+      : safeClampInt(bucket.targetCount, 0, 0, total)
   );
   const specified = counts.reduce((acc, count) => acc + Math.max(0, count), 0);
   if (specified > total) throw new RangeError('A-Life population plan over-allocates the fixed pool');
@@ -1322,7 +1318,7 @@ function applyReservedNpcToRecord(alife: AlifeState, record: AlifeNpcRecord, res
   } else if (reserved.occupation === Occupation.CHILD) {
     setRecordAge(alife, record, 7 + Math.floor(unit(alife.seed, record.id, 121) * 10), 12);
   }
-  if (reserved.sprite !== undefined) setRecordSprite(alife, record, clampInt(reserved.sprite, recordOccupation(alife, record), 0, 4096));
+  if (reserved.sprite !== undefined) setRecordSprite(alife, record, safeClampInt(reserved.sprite, recordOccupation(alife, record), 0, 4096));
   record.npcVisualId = sanitizeNpcVisualId(reserved.npcVisualId) ?? record.npcVisualId;
   if (reserved.familyId !== undefined) setRecordFamilyId(alife, record, reserved.familyId);
   if (typeof reserved.canGiveQuest === 'boolean') setRecordCanGiveQuest(alife, record, reserved.canGiveQuest);
@@ -1330,7 +1326,7 @@ function applyReservedNpcToRecord(alife: AlifeState, record: AlifeNpcRecord, res
     setRecordRpg(alife, record, reserved.rpg);
   } else if (reserved.level !== undefined) {
     setRecordRpg(alife, record, {
-      level: clampInt(reserved.level, recordLevel(alife, record), 1, RPG_LEVEL_CAP),
+      level: safeClampInt(reserved.level, recordLevel(alife, record), 1, RPG_LEVEL_CAP),
       xp: 0,
       attrPoints: 0,
       str: recordStr(alife, record),
@@ -1381,7 +1377,7 @@ export function buildAlifeStateFromPopulationPlan(
 ): AlifeState {
   void state;
   const plan = normalizePopulationPlan(inputPlan);
-  const boundedTotal = clampInt(total, ALIFE_POPULATION, 0, ALIFE_POPULATION);
+  const boundedTotal = safeClampInt(total, ALIFE_POPULATION, 0, ALIFE_POPULATION);
   const npcs: AlifeNpcRecord[] = [];
   const floorIndex: Record<string, number[]> = {};
   const alife: AlifeState = {
@@ -1840,13 +1836,13 @@ export function sampleAlifeFloorRecordIds(
   const bucket = alife.floorIndex[floorKey] ?? [];
   if (bucket.length === 0) return options ? [] : { ids: [], nextCursor: 0 };
   if (options) {
-    const cap = clampInt(cursorOrLimit, 0, 0, 8);
+    const cap = safeClampInt(cursorOrLimit, 0, 0, 8);
     if (cap <= 0) return [];
-    const salt = clampInt(limitOrSalt, 0, -1_000_000_000, 1_000_000_000);
+    const salt = safeClampInt(limitOrSalt, 0, -1_000_000_000, 1_000_000_000);
     const out: number[] = [];
     const maxAttempts = Math.min(
       bucket.length,
-      clampInt(options.maxAttempts, Math.max(16, cap * 32), cap, 256),
+      safeClampInt(options.maxAttempts, Math.max(16, cap * 32), cap, 256),
     );
     const start = hash32(alife.seed, bucket.length, salt) % bucket.length;
     const stepBase = bucket.length > 1 ? (hash32(alife.seed, salt, bucket.length) % (bucket.length - 1)) + 1 : 1;
@@ -1862,8 +1858,8 @@ export function sampleAlifeFloorRecordIds(
     return out;
   }
 
-  const boundedLimit = clampInt(limitOrSalt, 0, 0, 256);
-  let at = ((clampInt(cursorOrLimit, 0, -1_000_000_000, 1_000_000_000) % bucket.length) + bucket.length) % bucket.length;
+  const boundedLimit = safeClampInt(limitOrSalt, 0, 0, 256);
+  let at = ((safeClampInt(cursorOrLimit, 0, -1_000_000_000, 1_000_000_000) % bucket.length) + bucket.length) % bucket.length;
   const ids: number[] = [];
   for (let seen = 0; seen < bucket.length && ids.length < boundedLimit; seen++) {
     const record = alife.npcs[bucket[at]];
@@ -1887,10 +1883,10 @@ function arrivalRecordFromEntity(alife: AlifeState, id: number, state: GameState
   const faction = entity.faction ?? Faction.CITIZEN;
   const occupation = entity.occupation ?? Occupation.TRAVELER;
   const rpg = entity.rpg;
-  const level = clampInt(rpg?.level, 1, 1, RPG_LEVEL_CAP);
-  const str = clampInt(rpg?.str, 1, 0, RPG_ATTRIBUTE_CAP);
-  const agi = clampInt(rpg?.agi, 1, 0, RPG_ATTRIBUTE_CAP);
-  const int = clampInt(rpg?.int, 1, 0, RPG_ATTRIBUTE_CAP);
+  const level = safeClampInt(rpg?.level, 1, 1, RPG_LEVEL_CAP);
+  const str = safeClampInt(rpg?.str, 1, 0, RPG_ATTRIBUTE_CAP);
+  const agi = safeClampInt(rpg?.agi, 1, 0, RPG_ATTRIBUTE_CAP);
+  const int = safeClampInt(rpg?.int, 1, 0, RPG_ATTRIBUTE_CAP);
   const rpgShell = { level, xp: 0, attrPoints: 0, str, agi, int, psi: 0, maxPsi: 0 };
   const maxHp = Math.max(1, Math.floor(entity.maxHp ?? getMaxHp(rpgShell)));
   const record: AlifeNpcRecord = {
@@ -2342,7 +2338,7 @@ function normalizeInventory(input: unknown): Item[] | undefined {
     if (out.length >= 8 || !isRecord(raw) || typeof raw.defId !== 'string') continue;
     out.push({
       defId: raw.defId.slice(0, 64),
-      count: clampInt(raw.count, 1, 1, MAX_ITEM_STACK),
+      count: safeClampInt(raw.count, 1, 1, MAX_ITEM_STACK),
       ...(raw.data === undefined ? {} : { data: raw.data }),
     });
   }
@@ -2351,10 +2347,10 @@ function normalizeInventory(input: unknown): Item[] | undefined {
 
 function normalizeRpg(input: unknown): RPGStats | undefined {
   if (!isRecord(input)) return undefined;
-  const level = clampInt(input.level, 1, 1, RPG_LEVEL_CAP);
-  const str = clampInt(input.str, 0, 0, RPG_ATTRIBUTE_CAP);
-  const agi = clampInt(input.agi, 0, 0, RPG_ATTRIBUTE_CAP);
-  const int = clampInt(input.int, 0, 0, RPG_ATTRIBUTE_CAP);
+  const level = safeClampInt(input.level, 1, 1, RPG_LEVEL_CAP);
+  const str = safeClampInt(input.str, 0, 0, RPG_ATTRIBUTE_CAP);
+  const agi = safeClampInt(input.agi, 0, 0, RPG_ATTRIBUTE_CAP);
+  const int = safeClampInt(input.int, 0, 0, RPG_ATTRIBUTE_CAP);
   const shell = { level, xp: 0, attrPoints: 0, str, agi, int, psi: 0, maxPsi: 0 };
   const maxPsi = getMaxPsi(shell);
   return { ...shell, psi: maxPsi, maxPsi };
@@ -2362,7 +2358,7 @@ function normalizeRpg(input: unknown): RPGStats | undefined {
 
 function applyOverride(alife: AlifeState, input: unknown): void {
   if (!isRecord(input)) return;
-  const id = clampInt(input.id, 0, 1, alife.npcs.length);
+  const id = safeClampInt(input.id, 0, 1, alife.npcs.length);
   const record = alife.npcs[id - 1];
   if (!record) return;
   if (typeof input.floorKey === 'string' && input.floorKey.length > 0) {
@@ -2379,24 +2375,24 @@ function applyOverride(alife: AlifeState, input: unknown): void {
   setRecordSexFromInput(alife, record, input.sex, input.female);
   if (input.age !== undefined) setRecordAge(alife, record, input.age, recordAge(alife, record));
   if (typeof input.faction === 'number' && Number.isFinite(input.faction)) {
-    setRecordFaction(alife, record, clampInt(input.faction, recordFaction(alife, record), Faction.CITIZEN, Faction.PLAYER) as Faction);
+    setRecordFaction(alife, record, safeClampInt(input.faction, recordFaction(alife, record), Faction.CITIZEN, Faction.PLAYER) as Faction);
   }
   if (typeof input.occupation === 'number' && Number.isFinite(input.occupation)) {
     setRecordOccupation(alife, record, sanitizeOccupation(input.occupation, recordOccupation(alife, record)));
   }
-  setRecordFamilyId(alife, record, clampInt(input.familyId, recordFamilyId(alife, record), 0, 1_000_000_000));
+  setRecordFamilyId(alife, record, safeClampInt(input.familyId, recordFamilyId(alife, record), 0, 1_000_000_000));
   if (typeof input.canGiveQuest === 'boolean') setRecordCanGiveQuest(alife, record, input.canGiveQuest);
   if (typeof input.x === 'number' && Number.isFinite(input.x)) record.x = input.x;
   if (typeof input.y === 'number' && Number.isFinite(input.y)) record.y = input.y;
   if (typeof input.angle === 'number' && Number.isFinite(input.angle)) record.angle = input.angle;
   if (typeof input.sprite === 'number' && Number.isFinite(input.sprite)) {
-    setRecordSprite(alife, record, clampInt(input.sprite, recordSprite(alife, record) ?? recordOccupation(alife, record), 0, 4096));
+    setRecordSprite(alife, record, safeClampInt(input.sprite, recordSprite(alife, record) ?? recordOccupation(alife, record), 0, 4096));
   }
   record.npcVisualId = sanitizeNpcVisualId(input.npcVisualId) ?? record.npcVisualId;
   if (typeof input.spriteSeed === 'number' && Number.isFinite(input.spriteSeed)) {
-    setRecordSpriteSeed(alife, record, clampInt(input.spriteSeed, recordSpriteSeed(alife, record) ?? 1, 1, 0x7fffffff));
+    setRecordSpriteSeed(alife, record, safeClampInt(input.spriteSeed, recordSpriteSeed(alife, record) ?? 1, 1, 0x7fffffff));
   }
-  setRecordHp(alife, record, clampInt(input.hp, recordHp(alife, record), 0, recordMaxHp(alife, record)));
+  setRecordHp(alife, record, safeClampInt(input.hp, recordHp(alife, record), 0, recordMaxHp(alife, record)));
   setRecordMoney(
     alife,
     record,
@@ -2416,9 +2412,9 @@ function applyOverride(alife: AlifeState, input: unknown): void {
     record.inventory = inventory;
     setRecordCustomLoadout(alife, record);
   }
-  setRecordKills(alife, record, clampInt(input.kills, recordKills(alife, record), 0, 1_000_000));
-  setRecordNpcKills(alife, record, clampInt(input.npcKills, recordNpcKills(alife, record), 0, 1_000_000));
-  setRecordMonsterKills(alife, record, clampInt(input.monsterKills, recordMonsterKills(alife, record), 0, 1_000_000));
+  setRecordKills(alife, record, safeClampInt(input.kills, recordKills(alife, record), 0, 1_000_000));
+  setRecordNpcKills(alife, record, safeClampInt(input.npcKills, recordNpcKills(alife, record), 0, 1_000_000));
+  setRecordMonsterKills(alife, record, safeClampInt(input.monsterKills, recordMonsterKills(alife, record), 0, 1_000_000));
   if (typeof input.playerRelation === 'number' && Number.isFinite(input.playerRelation)) {
     setRecordPlayerRelation(alife, record, input.playerRelation);
   }
@@ -2442,7 +2438,7 @@ function sanitizeRelationTargetAlifeId(alife: AlifeState, input: unknown): numbe
 
 export function setAlifeState(state: GameState, input: unknown): AlifeState {
   const save = isRecord(input) ? input : {};
-  const seed = clampInt(save.seed, Math.floor(Math.random() * 0x7fffffff), 1, 0x7fffffff);
+  const seed = safeClampInt(save.seed, Math.floor(Math.random() * 0x7fffffff), 1, 0x7fffffff);
   const total = typeof save.total === 'number' && Number.isFinite(save.total) && save.total >= ALIFE_POPULATION_MIN_RANDOM
     ? clampAlifePopulationTotal(save.total, 0)
     : 0;
@@ -2453,7 +2449,7 @@ export function setAlifeState(state: GameState, input: unknown): AlifeState {
     const seenDeadIds = new Set<number>();
     for (const rawId of save.deadIds) {
       if (seenDeadIds.size >= ALIFE_SAVE_DEAD_IDS_CAP) break;
-      const id = clampInt(rawId, 0, 1, alife.npcs.length);
+      const id = safeClampInt(rawId, 0, 1, alife.npcs.length);
       if (seenDeadIds.has(id)) continue;
       const record = alife.npcs[id - 1];
       if (record) {

@@ -45,6 +45,7 @@ import { cleanFloorKey } from './floor_keys';
 import { currentFloorRunAllowsNpcs, ensureFloorRunState } from './procedural_floors';
 import { isNativePlayerBodyEntity, isPlayerEntity } from './player_actor';
 import { tryAssignPathToCell } from './ai/pathfinding';
+import { safeClampInt } from "../core/math";
 
 export const MAX_ALIFE_JOURNEYS = 512;
 export const MAX_ALIFE_PENDING_ARRIVALS = 256;
@@ -175,11 +176,6 @@ const STORY_ROUTE_INFO: readonly RouteInfo[] = [
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value);
-}
-
-function clampInt(value: unknown, fallback: number, min: number, max: number): number {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return fallback;
-  return Math.max(min, Math.min(max, Math.trunc(value)));
 }
 
 function hash32(a: number, b: number, c = 0): number {
@@ -313,12 +309,12 @@ function cleanReason(value: unknown): AlifeMigrationReason {
 }
 
 function cleanRisk(value: unknown): 1 | 2 | 3 | 4 | 5 {
-  return clampInt(value, 1, 1, 5) as 1 | 2 | 3 | 4 | 5;
+  return safeClampInt(value, 1, 1, 5) as 1 | 2 | 3 | 4 | 5;
 }
 
 function cleanJourney(raw: unknown): AlifeJourney | undefined {
   if (!isRecord(raw)) return undefined;
-  const alifeId = clampInt(raw.alifeId, 0, 1, ALIFE_POPULATION_CAPACITY);
+  const alifeId = safeClampInt(raw.alifeId, 0, 1, ALIFE_POPULATION_CAPACITY);
   if (alifeId <= 0) return undefined;
   const id = typeof raw.id === 'string' && raw.id ? raw.id.slice(0, 64) : `alife_journey_${alifeId}`;
   const fromFloorKey = cleanFloorKey(raw.fromFloorKey);
@@ -333,8 +329,8 @@ function cleanJourney(raw: unknown): AlifeJourney | undefined {
     reason: cleanReason(raw.reason),
     laneId: typeof raw.laneId === 'string' && raw.laneId ? raw.laneId.slice(0, 96) : `${fromFloorKey}->${toFloorKey}`,
     risk: cleanRisk(raw.risk),
-    startedAt: clampInt(raw.startedAt, 0, 0, 10_000_000),
-    etaAt: clampInt(raw.etaAt, 0, 0, 10_000_000),
+    startedAt: safeClampInt(raw.startedAt, 0, 0, 10_000_000),
+    etaAt: safeClampInt(raw.etaAt, 0, 0, 10_000_000),
     status: raw.status === 'lost' ? 'lost' : 'in_transit',
   };
 }
@@ -354,8 +350,8 @@ function cleanArrival(raw: unknown): AlifeArrival | undefined {
     reason: journey.reason,
     risk: journey.risk,
     etaAt: journey.etaAt,
-    queuedAt: clampInt(raw.queuedAt, journey.etaAt, 0, 10_000_000),
-    tries: clampInt(raw.tries, 0, 0, 12),
+    queuedAt: safeClampInt(raw.queuedAt, journey.etaAt, 0, 10_000_000),
+    tries: safeClampInt(raw.tries, 0, 0, 12),
     preferredX: typeof raw.preferredX === 'number' && Number.isFinite(raw.preferredX) ? raw.preferredX : undefined,
     preferredY: typeof raw.preferredY === 'number' && Number.isFinite(raw.preferredY) ? raw.preferredY : undefined,
   };
@@ -365,8 +361,8 @@ export function setAlifeMobilityState(state: GameState, input: unknown): AlifeMo
   const source = isRecord(input) ? input : {};
   const out = createMobilityState();
   out.tickAccum = Math.max(0, Math.min(ALIFE_MIGRATION_TICK_SECONDS, Number(source.tickAccum) || 0));
-  out.cursor = clampInt(source.cursor, 0, 0, ALIFE_POPULATION_CAPACITY);
-  out.nextJourneySeq = clampInt(source.nextJourneySeq, 1, 1, 1_000_000_000);
+  out.cursor = safeClampInt(source.cursor, 0, 0, ALIFE_POPULATION_CAPACITY);
+  out.nextJourneySeq = safeClampInt(source.nextJourneySeq, 1, 1, 1_000_000_000);
   if (isRecord(source.journeys)) {
     for (const raw of Object.values(source.journeys)) {
       if (Object.keys(out.journeys).length >= MAX_ALIFE_JOURNEYS) break;
