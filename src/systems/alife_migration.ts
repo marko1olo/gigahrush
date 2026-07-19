@@ -391,8 +391,11 @@ export function setAlifeMobilityState(state: GameState, input: unknown): AlifeMo
 export function alifeMobilityForSave(state: GameState): AlifeMobilitySaveState {
   const mobility = ensureAlifeMobilityState(state);
   const journeys: Record<string, AlifeJourney> = {};
-  for (const journey of Object.values(mobility.journeys).slice(0, MAX_ALIFE_JOURNEYS)) {
-    journeys[journey.id] = { ...journey };
+  let count = 0;
+  for (const id in mobility.journeys) {
+    if (count >= MAX_ALIFE_JOURNEYS) break;
+    journeys[id] = { ...mobility.journeys[id] };
+    count++;
   }
   return {
     version: 1,
@@ -1275,8 +1278,13 @@ export function summarizeAlifeMigration(state: GameState, limit = 8): string[] {
   if (summary) {
     out.push(`last processed=${summary.processed} started=${summary.journeysStarted} arrived=${summary.journeysArrived} events=${summary.eventsPublished}`);
   }
-  for (const journey of Object.values(mobility.journeys).slice(0, Math.max(0, Math.min(32, limit)))) {
+  const maxLimit = Math.max(0, Math.min(32, limit));
+  let count = 0;
+  for (const id in mobility.journeys) {
+    if (count >= maxLimit) break;
+    const journey = mobility.journeys[id];
     out.push(`${journey.id} alife:${journey.alifeId} ${journey.fromFloorKey}->${journey.toFloorKey} eta=${Math.round(journey.etaAt)} ${journey.intentId}`);
+    count++;
   }
   return out;
 }
