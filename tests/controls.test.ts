@@ -5,6 +5,7 @@ import {
   CONTROL_ACTIONS,
   applyControlCode,
   clearControlBinding,
+  clearControlInputs,
   controlActionLocked,
   controlBindings,
   consumeControlCaptureCode,
@@ -133,4 +134,40 @@ test('capture assigns Enter, Space, Backspace, Escape and modifier keys', () => 
   beginControlCapture('quests');
   assert.equal(consumeControlCaptureCode('ControlLeft'), true);
   assert.equal(matchesControlAction('quests', 'ControlLeft'), true);
+});
+
+test('clearControlInputs resets gameplay inputs and UI states', () => {
+  const input = createInput();
+
+  // Set gameplay keys
+  input.fwd = true;
+  input.back = true;
+  input.attack = true;
+  input.reload = true;
+  input.sprint = true;
+  input.interactHeld = true;
+
+  // Set UI/menu states
+  input.controlEdit = true;
+  input.controlReset = true;
+  input.controlClose = true;
+  input.menuAccept = true;
+  input.menuClose = true;
+  input.menuWheel = -5;
+
+  clearControlInputs(input);
+
+  assert.equal(input.fwd, false);
+  assert.equal(input.back, false);
+  assert.equal(input.attack, false);
+  assert.equal(input.reload, false);
+  assert.equal(input.sprint, false);
+  assert.equal(input.interactHeld, false);
+
+  assert.equal(input.controlEdit, false);
+  assert.equal(input.controlReset, false);
+  assert.equal(input.controlClose, false);
+  assert.equal(input.menuAccept, false);
+  assert.equal(input.menuClose, false);
+  assert.equal(input.menuWheel, 0);
 });
