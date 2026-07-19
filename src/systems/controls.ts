@@ -86,7 +86,7 @@ export function mouseButtonCode(button: number): string {
   if (button === 2) return 'MouseRight';
   if (button === 3) return 'MouseBack';
   if (button === 4) return 'MouseForward';
-  return `Mouse${Math.max(0, Math.floor(button))}`;
+  return 'MouseUnknown';
 }
 
 export function isMenuCloseCode(code: string): boolean {

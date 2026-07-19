@@ -15,6 +15,7 @@ import {
   matchesControlAction,
   resetAllControlBindings,
   setControlPrimaryBinding,
+  mouseButtonCode,
 } from '../src/systems/controls';
 import { createInput } from '../src/input';
 
@@ -133,4 +134,16 @@ test('capture assigns Enter, Space, Backspace, Escape and modifier keys', () => 
   beginControlCapture('quests');
   assert.equal(consumeControlCaptureCode('ControlLeft'), true);
   assert.equal(matchesControlAction('quests', 'ControlLeft'), true);
+});
+
+test('mouseButtonCode maps button index to known string identifiers', () => {
+  assert.equal(mouseButtonCode(0), 'MouseLeft');
+  assert.equal(mouseButtonCode(1), 'MouseMiddle');
+  assert.equal(mouseButtonCode(2), 'MouseRight');
+  assert.equal(mouseButtonCode(3), 'MouseBack');
+  assert.equal(mouseButtonCode(4), 'MouseForward');
+
+  assert.equal(mouseButtonCode(5), 'MouseUnknown');
+  assert.equal(mouseButtonCode(-1), 'MouseUnknown');
+  assert.equal(mouseButtonCode(10), 'MouseUnknown');
 });
