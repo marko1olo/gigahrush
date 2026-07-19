@@ -61,6 +61,29 @@ import {
 } from './mesh';
 import { COMMON_LIGHTING_SRC } from './shaders_common';
 
+export interface RenderState {
+  world: World;
+  textures: TexData[];
+  sprites: SpriteData[];
+  entities: Entity[];
+  camera: CameraView;
+  fogDensity: number;
+  glitch: number;
+  flashlight?: number;
+  time?: number;
+  bloodParticles?: BloodParticle[];
+  samosborActive?: boolean;
+  ambientLight?: number;
+  toolBeam?: number;
+  toolBeamRange?: number;
+  screenInterference?: number;
+  visualDetailProfile?: ResolvedVisualDetailProfile;
+  visualGeometryProfile?: ResolvedVisualGeometryProfile;
+  visualSurfaceProfile?: ResolvedVisualSurfaceProfile;
+  lightingQuality?: number;
+  currentFps?: number;
+}
+
 export interface DynamicSkyTexture {
   readonly width: number;
   readonly height: number;
@@ -3282,28 +3305,28 @@ export function updateDynamicData(world: World, camX = 0, camY = 0): void {
 }
 
 /* ── Render scene via WebGL ───────────────────────────────────── */
-export function renderSceneGL(
-  world: World,
-  textures: TexData[],
-  sprites: SpriteData[],
-  entities: Entity[],
-  camera: CameraView,
-  fogDensity: number,
-  glitch: number,
+export function renderSceneGL({
+  world,
+  textures,
+  sprites,
+  entities,
+  camera,
+  fogDensity,
+  glitch,
   flashlight = 0,
   time = 0,
-  bloodParticles: BloodParticle[] = [],
+  bloodParticles = [],
   samosborActive = false,
   ambientLight = 0.12,
   toolBeam = 0,
   toolBeamRange = 0,
   screenInterference = 0,
-  visualDetailProfile: ResolvedVisualDetailProfile = EMPTY_RESOLVED_VISUAL_DETAIL_PROFILE,
-  visualGeometryProfile: ResolvedVisualGeometryProfile = EMPTY_RESOLVED_VISUAL_GEOMETRY_PROFILE,
-  visualSurfaceProfile: ResolvedVisualSurfaceProfile = EMPTY_RESOLVED_VISUAL_SURFACE_PROFILE,
+  visualDetailProfile = EMPTY_RESOLVED_VISUAL_DETAIL_PROFILE,
+  visualGeometryProfile = EMPTY_RESOLVED_VISUAL_GEOMETRY_PROFILE,
+  visualSurfaceProfile = EMPTY_RESOLVED_VISUAL_SURFACE_PROFILE,
   lightingQuality = 4,
-  currentFps?: number,
-): void {
+  currentFps,
+}: RenderState): void {
   lastRenderSceneDebugStats.meshEnabled = visualGeometryProfile.enabled;
   lastRenderSceneDebugStats.meshInstances = 0;
   lastRenderSceneDebugStats.meshTriangles = 0;
