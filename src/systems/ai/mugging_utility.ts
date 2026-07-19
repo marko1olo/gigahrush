@@ -1,4 +1,4 @@
-import { type GameState } from '../../core/types';
+import { type Entity, type GameState } from '../../core/types';
 
 /**
  * ЗАГЛУШКА ДЛЯ СОБЫТИЯ "ГОП-СТОП" (jules agent task)
@@ -14,7 +14,7 @@ import { type GameState } from '../../core/types';
  *
  * Если все условия соблюдены, возвращаем высокий score. Иначе 0.
  */
-export function scoreMuggingIntent(_npc: any, _state: GameState, _player: any): number {
+export function scoreMuggingIntent(_npc: Entity, _state: GameState, _player: Entity): number {
   // TODO: jules, реализуй логику оценки здесь
   return 0;
 }
@@ -27,6 +27,6 @@ export function scoreMuggingIntent(_npc: any, _state: GameState, _player: any): 
  * 2. Остановка и поддержание полукольца (чтобы не блокировать друг друга).
  * 3. Ожидание реакции игрока (оплаты или отказа).
  */
-export function updateMuggingTactics(_npc: any, _state: GameState, _delta: number): void {
+export function updateMuggingTactics(_npc: Entity, _state: GameState, _delta: number): void {
   // TODO: jules, реализуй логику тактики (передвижения) здесь
 }
