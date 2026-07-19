@@ -18,7 +18,7 @@ import {
   type CraftVector,
 } from '../data/craft_materials';
 import {
-  CRAFT_RECIPES,
+  CRAFT_RECIPE_LIST,
   craftRecipeById,
   craftRecipeByItemId,
   type CraftRecipeDef,
@@ -186,7 +186,7 @@ let _cachedDefaultKnownRecipes: Record<string, true> | null = null;
 function defaultKnownRecipes(): Record<string, true> {
   if (!_cachedDefaultKnownRecipes) {
     _cachedDefaultKnownRecipes = {};
-    for (const recipe of Object.values(CRAFT_RECIPES)) {
+    for (const recipe of CRAFT_RECIPE_LIST) {
       if (recipe.knownByDefault) _cachedDefaultKnownRecipes[recipe.id] = true;
     }
   }
@@ -527,7 +527,7 @@ export function craftMenuSnapshot(ctx: CraftMenuSnapshotContext): CraftMenuSnaps
   const inventory: CraftMenuDisassembleEntry[] = [];
   const filter = ctx.filter;
 
-  for (const recipe of Object.values(CRAFT_RECIPES)) {
+  for (const recipe of CRAFT_RECIPE_LIST) {
     if (!crafting.knownRecipes[recipe.id]) continue;
     const itemDef = ITEMS[recipe.itemId];
     if (!itemDef) continue;
