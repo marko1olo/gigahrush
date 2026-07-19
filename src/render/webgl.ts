@@ -3285,7 +3285,7 @@ export function updateDynamicData(world: World, camX = 0, camY = 0): void {
 export function renderSceneGL(
   world: World,
   textures: TexData[],
-  sprites: SpriteData[],
+  _sprites: SpriteData[],
   entities: Entity[],
   camera: CameraView,
   fogDensity: number,
@@ -3511,10 +3511,8 @@ export function renderSceneGL(
   // ── Render sprites into FBO (with depth test against raycaster) ──
   gl.depthFunc(gl.LESS);
   updateAndRenderMeshPass(glState, world, camera, time, fogDensity, meshFogRgb, visualGeometryProfile, ambientLight, samosborActive);
-  renderSpritesGL(
+  renderSpritesGL({
     world,
-    sprites,
-    entities,
     px,
     py,
     pAngle,
@@ -3523,18 +3521,18 @@ export function renderSceneGL(
     purpleFog,
     camHeight,
     time,
-    fogRgb,
+    activeFogRgb: fogRgb,
     planeLen,
-    true,
-    visualGeometryProfile.enabled && visualGeometryProfile.includeEntities,
-    visualGeometryProfile.enabled,
+    renderStaticObjectSprites: true,
+    meshBackedBillboardSprites: visualGeometryProfile.enabled && visualGeometryProfile.includeEntities,
+    meshBackedFeatures: visualGeometryProfile.enabled,
     ambientLight,
     flashlight,
     toolBeam,
     toolBeamRange,
     samosborActive,
     lightingQuality,
-  );
+  });
 
   // ── Render transient particles into FBO ──
   if (bloodParticles.length > 0) {
@@ -3798,27 +3796,50 @@ function collectStaticObjectSprites(world: World, px: number, py: number, count:
   return count;
 }
 
+export interface RenderSpritesContext {
+  world: World;
+  px: number;
+  py: number;
+  pAngle: number;
+  pPitch: number;
+  fogDensity: number;
+  purpleFog: number;
+  camHeight: number;
+  time: number;
+  activeFogRgb: readonly [number, number, number];
+  planeLen: number;
+  renderStaticObjectSprites: boolean;
+  meshBackedBillboardSprites: boolean;
+  meshBackedFeatures?: boolean;
+  ambientLight?: number;
+  flashlight?: number;
+  toolBeam?: number;
+  toolBeamRange?: number;
+  samosborActive?: boolean;
+  lightingQuality?: number;
+}
+
 /* ── Sprite rendering (GL) ────────────────────────────────────── */
-function renderSpritesGL(
-  world: World,
-  _sprites: SpriteData[],
-  _entities: Entity[],
-  px: number, py: number, pAngle: number, pPitch: number,
-  fogDensity: number, purpleFog: number,
-  camHeight: number,
-  time: number,
-  activeFogRgb: readonly [number, number, number],
-  planeLen: number,
-  renderStaticObjectSprites: boolean,
-  meshBackedBillboardSprites: boolean,
-  meshBackedFeatures: boolean = false,
-  ambientLight: number = 0.12,
-  flashlight: number = 0,
-  toolBeam: number = 0,
-  toolBeamRange: number = 0,
-  samosborActive: boolean = false,
-  lightingQuality: number = 4,
-): void {
+function renderSpritesGL(ctx: RenderSpritesContext): void {
+  const {
+    world,
+    px, py, pAngle, pPitch,
+    fogDensity, purpleFog,
+    camHeight,
+    time,
+    activeFogRgb,
+    planeLen,
+    renderStaticObjectSprites,
+    meshBackedBillboardSprites,
+    meshBackedFeatures = false,
+    ambientLight = 0.12,
+    flashlight = 0,
+    toolBeam = 0,
+    toolBeamRange = 0,
+    samosborActive = false,
+    lightingQuality = 4,
+  } = ctx;
+
   if (!glState) return;
   const { gl } = glState;
 
