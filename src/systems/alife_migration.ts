@@ -1275,8 +1275,13 @@ export function summarizeAlifeMigration(state: GameState, limit = 8): string[] {
   if (summary) {
     out.push(`last processed=${summary.processed} started=${summary.journeysStarted} arrived=${summary.journeysArrived} events=${summary.eventsPublished}`);
   }
-  for (const journey of Object.values(mobility.journeys).slice(0, Math.max(0, Math.min(32, limit)))) {
+  const max = Math.max(0, Math.min(32, limit));
+  let count = 0;
+  for (const key in mobility.journeys) {
+    if (count >= max) break;
+    const journey = mobility.journeys[key];
     out.push(`${journey.id} alife:${journey.alifeId} ${journey.fromFloorKey}->${journey.toFloorKey} eta=${Math.round(journey.etaAt)} ${journey.intentId}`);
+    count++;
   }
   return out;
 }
