@@ -1128,9 +1128,9 @@ type PlayerBarAudioValues = Record<HudBarAudioId, number>;
 const playerBarAudio = {
   initialized: false,
   rpgLevel: 0,
-  values: Object.fromEntries(PLAYER_BAR_AUDIO_IDS.map(id => [id, 0])) as PlayerBarAudioValues,
-  accum: Object.fromEntries(PLAYER_BAR_AUDIO_IDS.map(id => [id, 0])) as PlayerBarAudioValues,
-  lastAt: Object.fromEntries(PLAYER_BAR_AUDIO_IDS.map(id => [id, -999])) as PlayerBarAudioValues,
+  values: { hp: 0, psi: 0, food: 0, water: 0, sleep: 0, toilet: 0, xp: 0 },
+  accum: { hp: 0, psi: 0, food: 0, water: 0, sleep: 0, toilet: 0, xp: 0 },
+  lastAt: { hp: -999, psi: -999, food: -999, water: -999, sleep: -999, toilet: -999, xp: -999 },
 };
 
 function playerBarAudioValues(actor = player): PlayerBarAudioValues {
