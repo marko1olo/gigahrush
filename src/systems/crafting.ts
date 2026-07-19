@@ -186,7 +186,9 @@ let _cachedDefaultKnownRecipes: Record<string, true> | null = null;
 function defaultKnownRecipes(): Record<string, true> {
   if (!_cachedDefaultKnownRecipes) {
     _cachedDefaultKnownRecipes = {};
-    for (const recipe of Object.values(CRAFT_RECIPES)) {
+    for (const id in CRAFT_RECIPES) {
+      const recipe = CRAFT_RECIPES[id as string];
+      if (typeof recipe === 'function') continue; // Skip Iterable methods like find/filter added to registry
       if (recipe.knownByDefault) _cachedDefaultKnownRecipes[recipe.id] = true;
     }
   }
@@ -527,7 +529,9 @@ export function craftMenuSnapshot(ctx: CraftMenuSnapshotContext): CraftMenuSnaps
   const inventory: CraftMenuDisassembleEntry[] = [];
   const filter = ctx.filter;
 
-  for (const recipe of Object.values(CRAFT_RECIPES)) {
+  for (const id in CRAFT_RECIPES) {
+    const recipe = CRAFT_RECIPES[id as string];
+    if (typeof recipe === 'function') continue; // Skip Iterable methods
     if (!crafting.knownRecipes[recipe.id]) continue;
     const itemDef = ITEMS[recipe.itemId];
     if (!itemDef) continue;
