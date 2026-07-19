@@ -8471,9 +8471,28 @@ function gameLoop(now: number): void {
   const visualGeometryProfile = currentVisualGeometryProfile(floorRunEntry);
   const visualSurfaceProfile = currentVisualSurfaceProfile(floorRunEntry);
   const renderSceneStart = performance.now();
-  renderSceneGL(world, textures, sprites, entities,
-    cameraView,
-    fogDensity, glitch, flashlight, uiTime, particles, state.samosborActive, ambientLight, toolBeam, state.uvBeamLen, screenInterference, visualDetailProfile, visualGeometryProfile, visualSurfaceProfile, lightingQualityIndex(), currentFps);
+  renderSceneGL({
+    world,
+    textures,
+    sprites,
+    entities,
+    camera: cameraView,
+    fogDensity,
+    glitch,
+    flashlight,
+    time: uiTime,
+    bloodParticles: particles,
+    samosborActive: state.samosborActive,
+    ambientLight,
+    toolBeam,
+    toolBeamRange: state.uvBeamLen,
+    screenInterference,
+    visualDetailProfile,
+    visualGeometryProfile,
+    visualSurfaceProfile,
+    lightingQuality: lightingQualityIndex(),
+    currentFps,
+  });
   lastRenderSceneMs = performance.now() - renderSceneStart;
 
   // Draw HUD on 2D overlay canvas
