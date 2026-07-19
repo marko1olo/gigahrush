@@ -391,8 +391,12 @@ export function setAlifeMobilityState(state: GameState, input: unknown): AlifeMo
 export function alifeMobilityForSave(state: GameState): AlifeMobilitySaveState {
   const mobility = ensureAlifeMobilityState(state);
   const journeys: Record<string, AlifeJourney> = {};
-  for (const journey of Object.values(mobility.journeys).slice(0, MAX_ALIFE_JOURNEYS)) {
+  let _c = 0;
+  for (const journeyId in mobility.journeys) {
+    if (_c >= MAX_ALIFE_JOURNEYS) break;
+    const journey = mobility.journeys[journeyId];
     journeys[journey.id] = { ...journey };
+    _c++;
   }
   return {
     version: 1,
@@ -406,7 +410,8 @@ export function alifeMobilityForSave(state: GameState): AlifeMobilitySaveState {
 
 function journeyAlifeIds(mobility: AlifeMobilityState): Set<number> {
   const ids = new Set<number>();
-  for (const journey of Object.values(mobility.journeys)) {
+  for (const journeyId in mobility.journeys) {
+    const journey = mobility.journeys[journeyId];
     if (journey.status === 'in_transit') ids.add(journey.alifeId);
   }
   return ids;
@@ -675,7 +680,8 @@ function processDueJourneys(
   let processed = 0;
   let arrived = 0;
   let blocked = 0;
-  for (const journey of Object.values(mobility.journeys)) {
+  for (const journeyId in mobility.journeys) {
+    const journey = mobility.journeys[journeyId];
     if (processed >= maxRecords) break;
     if (journey.status !== 'in_transit' || journey.etaAt > state.time) continue;
     const arrivalTargetsActiveFloor = journey.toFloorKey === activeFloorKey;
@@ -1275,8 +1281,13 @@ export function summarizeAlifeMigration(state: GameState, limit = 8): string[] {
   if (summary) {
     out.push(`last processed=${summary.processed} started=${summary.journeysStarted} arrived=${summary.journeysArrived} events=${summary.eventsPublished}`);
   }
-  for (const journey of Object.values(mobility.journeys).slice(0, Math.max(0, Math.min(32, limit)))) {
+  let _c = 0;
+  const _limit = Math.max(0, Math.min(32, limit));
+  for (const journeyId in mobility.journeys) {
+    if (_c >= _limit) break;
+    const journey = mobility.journeys[journeyId];
     out.push(`${journey.id} alife:${journey.alifeId} ${journey.fromFloorKey}->${journey.toFloorKey} eta=${Math.round(journey.etaAt)} ${journey.intentId}`);
+    _c++;
   }
   return out;
 }
