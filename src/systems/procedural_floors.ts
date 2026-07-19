@@ -236,7 +236,7 @@ function cloneSpec(spec: ProceduralFloorSpec): ProceduralFloorSpec {
   };
 }
 
-function validVisitedKeys(runSeed: number): Set<string> {
+function validVisitedKeys(): Set<string> {
   const keys = new Set<string>(Object.values(STORY_ROUTE_IDS));
   for (const route of DESIGN_FLOOR_ROUTES) {
     if (portalBlocksDesignFloor(route.id)) {
@@ -246,7 +246,6 @@ function validVisitedKeys(runSeed: number): Set<string> {
     keys.add(floorKeyForDesign(route.id));
   }
   for (const z of PROCEDURAL_FLOOR_ZS) keys.add(floorKeyForProcedural(proceduralFloorKey(z)));
-  for (const spec of Object.values(createSpecDeck(runSeed))) keys.add(floorKeyForProcedural(spec.key));
   return keys;
 }
 
@@ -361,7 +360,7 @@ export function normalizeFloorRunState(
     out.specs[key] = normalizeSpec(savedSpecs[key], runSeed, z);
   }
   const visited = input?.visited ?? {};
-  const validVisited = validVisitedKeys(runSeed);
+  const validVisited = validVisitedKeys();
   for (const [key, value] of Object.entries(visited)) {
     if (value && validVisited.has(key)) out.visited[key] = true;
   }
