@@ -203,7 +203,7 @@ import {
 } from './systems/npc_interaction_options';
 import { applyContractFloorHooks, notifyCleanupToolUse } from './systems/contracts';
 import { cleanupToolProfile } from './systems/liquidator_cleanup_items';
-import { cleanSurfaceArea as cleanWorldSurfaceArea } from './systems/surface_cleanup';
+import { cleanSurfaceArea } from './systems/surface_cleanup';
 import { updateScriptedArrivals } from './systems/scripted_arrivals';
 import { applyStoryRouteGates } from './systems/story_route_gates';
 import { setDoorState, damageDoor } from './systems/door_state';
@@ -3364,7 +3364,7 @@ function resolveFlameCleanup(p: Entity, x: number, y: number, radius: number): v
   const cleanedHazards = cleanCellHazardsNear(world, x, y, radius, state, actor, 'fire');
   if (cleanedHazards <= 0) return;
 
-  const cleanedSurface = cleanSurfaceArea(x, y, radius);
+  const cleanedSurface = cleanSurfaceArea(world, x, y, radius);
   if (actor?.id === player.id) notifyCleanupToolUse(player, world, state, x, y, cleanedSurface, cleanedHazards);
   burnCollateralNearFlame(x, y, radius + 0.35, actor);
   applyFlameBackdraft(x, y, actor);
@@ -5309,9 +5309,6 @@ function addRuntimeDoorToRoom(roomId: number, doorIdx: number): void {
   if (room && !room.doors.includes(doorIdx)) room.doors.push(doorIdx);
 }
 
-function cleanSurfaceArea(cx: number, cy: number, radiusCells: number): number {
-  return cleanWorldSurfaceArea(world, cx, cy, radiusCells);
-}
 
 
 function handleUvSpotlightTool(player: Entity, wantsToolUse: boolean): void {
@@ -5433,7 +5430,7 @@ function handleCleanupProfileTool(player: Entity, toolId: string, wantsToolUse: 
   const cleanupTool = cleanupToolProfile(toolId);
   if (cleanupTool) {
     if (!wantsToolUse || _toolActionCd > 0) return true;
-    const cleaned = cleanSurfaceArea(tx, ty, cleanupTool.surfaceRadius);
+    const cleaned = cleanSurfaceArea(world, tx, ty, cleanupTool.surfaceRadius);
     const cleanedHazards = cleanCellHazardsNear(world, tx, ty, cleanupTool.hazardRadius, state, player, cleanupTool.hazardReason);
     consumeToolDurability(player, cleanupTool.wear, state.msgs, state.time, state);
     if (cleaned > 0 || cleanedHazards > 0) {
