@@ -51,6 +51,92 @@ test('combat_stimulus: player attacks hostile MONSTER', () => {
   assert.equal(isRecentCombatThreat(victim, attacker, time + 10.0), false, 'Threat should expire');
 });
 
+test('combat_stimulus: getRecentCombatThreat', async (t) => {
+  await t.test('returns undefined when no memory exists', () => {
+    resetCombatStimulus();
+    const victim = makeTestEntity({ id: 100, type: EntityType.NPC, hp: 50, alive: true });
+
+    rebuildEntityIndex([victim]);
+    const threat = getRecentCombatThreat(victim, 100.0);
+    assert.equal(threat, undefined);
+  });
+
+  await t.test('returns valid threat when memory exists and attacker is alive', () => {
+    resetCombatStimulus();
+    const world = new World();
+    const state = makeGameState();
+
+    // Use WILD faction so it's intrinsically hostile to player (combat relevant threat -> 'fight' reaction instead of 'startled')
+    const victim = makeTestEntity({ id: 100, type: EntityType.MONSTER, faction: Faction.WILD, hp: 50, alive: true });
+    victim.ai = { goal: 0, path: [], pi: 0, timer: 0 };
+    const attacker = makeTestPlayer({ id: 200, faction: Faction.PLAYER, hp: 100, alive: true });
+
+    rebuildEntityIndex([victim, attacker]);
+
+    notifyActorDamaged(world, victim, attacker, 10, 'player_melee', 100.0, state);
+
+    const threat = getRecentCombatThreat(victim, 101.0);
+    assert.ok(threat);
+    assert.equal(threat.attackerId, attacker.id);
+  });
+
+  await t.test('returns undefined when memory has expired', () => {
+    resetCombatStimulus();
+    const world = new World();
+    const state = makeGameState();
+
+    const victim = makeTestEntity({ id: 100, type: EntityType.NPC, hp: 50, alive: true });
+    const attacker = makeTestPlayer({ id: 200, faction: Faction.PLAYER, hp: 100, alive: true });
+
+    rebuildEntityIndex([victim, attacker]);
+
+    // Default COMBAT_THREAT_TTL is 5.0
+    notifyActorDamaged(world, victim, attacker, 10, 'player_melee', 100.0, state);
+
+    const threat = getRecentCombatThreat(victim, 106.0);
+    assert.equal(threat, undefined);
+  });
+
+  await t.test('returns undefined when attacker is dead', () => {
+    resetCombatStimulus();
+    const world = new World();
+    const state = makeGameState();
+
+    const victim = makeTestEntity({ id: 100, type: EntityType.NPC, hp: 50, alive: true });
+    const attacker = makeTestPlayer({ id: 200, faction: Faction.PLAYER, hp: 100, alive: true });
+
+    rebuildEntityIndex([victim, attacker]);
+
+    notifyActorDamaged(world, victim, attacker, 10, 'player_melee', 100.0, state);
+
+    // Simulate attacker dying
+    attacker.alive = false;
+
+    const threat = getRecentCombatThreat(victim, 101.0);
+    assert.equal(threat, undefined);
+  });
+
+  await t.test('returns undefined when both victim and attacker are MONSTER', () => {
+    resetCombatStimulus();
+    const world = new World();
+    const state = makeGameState();
+
+    const victim = makeTestEntity({ id: 100, type: EntityType.NPC, hp: 50, alive: true });
+    const attacker = makeTestEntity({ id: 200, type: EntityType.MONSTER, hp: 100, alive: true });
+
+    rebuildEntityIndex([victim, attacker]);
+
+    // Damage from monster to NPC creates a threat
+    notifyActorDamaged(world, victim, attacker, 10, 'monster_melee', 100.0, state);
+
+    // Simulate victim somehow transforming into a MONSTER (bypasses creation check)
+    victim.type = EntityType.MONSTER;
+
+    const threat = getRecentCombatThreat(victim, 101.0);
+    assert.equal(threat, undefined);
+  });
+});
+
 test('combat_stimulus: monster attacks monster is ignored', () => {
   resetCombatStimulus();
   const world = new World();
