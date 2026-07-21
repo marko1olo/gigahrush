@@ -258,8 +258,8 @@ function adjustChatScroll(delta: number): void {
 
 function ensureIdentity(): void {
   if (!runtime.netGen) {
-    runtime.netGen = cleanNetGen(storageGet(localStorage, NET_GEN_KEY)) || randomId('NET', 3);
-    storageSet(localStorage, NET_GEN_KEY, runtime.netGen);
+    runtime.netGen = cleanNetGen(storageGet(sessionStorage, NET_GEN_KEY)) || randomId('NET', 3);
+    storageSet(sessionStorage, NET_GEN_KEY, runtime.netGen);
   }
   if (!runtime.sessionId) {
     runtime.sessionId = storageGet(sessionStorage, SESSION_KEY) || randomId('SES', 3);
@@ -665,7 +665,7 @@ function submitDraft(): void {
       runtime.events = [];
       runtime.chatScroll = 0;
       runtime.lastChatId = 0;
-      storageSet(localStorage, NET_GEN_KEY, runtime.netGen);
+      storageSet(sessionStorage, NET_GEN_KEY, runtime.netGen);
       runtime.nextHeartbeatAt = 0;
       runtime.nextPollAt = 0;
       return;
@@ -677,7 +677,7 @@ function submitDraft(): void {
       runtime.events = [];
       runtime.chatScroll = 0;
       runtime.lastChatId = 0;
-      storageSet(localStorage, NET_GEN_KEY, runtime.netGen);
+      storageSet(sessionStorage, NET_GEN_KEY, runtime.netGen);
       runtime.nextHeartbeatAt = 0;
       runtime.nextPollAt = 0;
       return;
