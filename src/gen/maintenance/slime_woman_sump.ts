@@ -47,7 +47,7 @@ const contexts: SlimeWomanSumpContext[] = [];
 
 function nextContainerId(world: MaintContentCtx['world']): number {
   let id = world.containers.length + 1;
-  while (world.containerById.has(id) || world.containers.some(container => container.id === id)) id++;
+  while (world.containerById.has(id) ) id++;
   return id;
 }
 

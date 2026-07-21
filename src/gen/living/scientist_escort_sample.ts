@@ -430,7 +430,7 @@ function decorate(world: World, lab: Room, sample: Room): void {
 
 function nextContainerId(world: World): number {
   let id = world.containers.length + 1;
-  while (world.containerById.has(id) || world.containers.some(c => c.id === id)) id++;
+  while (world.containerById.has(id) ) id++;
   return id;
 }
 
