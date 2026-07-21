@@ -73,20 +73,6 @@ const MATERIAL_TAGS: Readonly<Record<CraftMaterialId, readonly string[]>> = {
   metamatter: ['metamatter', 'void', 'chernobog', 'deletion_beam', 'gravity_aoe'],
 };
 
-function cv(
-  mechanics = 0,
-  electronics = 0,
-  consumables = 0,
-  bio = 0,
-  chemical = 0,
-  metal = 0,
-  cybernetics = 0,
-  psimatter = 0,
-  metamatter = 0,
-): CraftVector {
-  return [mechanics, electronics, consumables, bio, chemical, metal, cybernetics, psimatter, metamatter];
-}
-
 function tagsOf(def: ItemDef): readonly string[] {
   return def.tags ?? [];
 }
@@ -226,6 +212,11 @@ function baseWeights(def: ItemDef): MutableCraftVector {
     }
   }
 
+  if (weights.every(value => value === 0)) {
+    add(weights, 'consumables', 2);
+    if (def.value >= 20) add(weights, 'mechanics', 1);
+  }
+
   return weights;
 }
 
@@ -258,16 +249,9 @@ function applyMiscWeights(def: ItemDef, weights: MutableCraftVector): void {
     add(weights, 'bio', 2);
     add(weights, 'chemical', 2);
   }
-  if (weights.every(value => value === 0)) {
-    add(weights, 'consumables', 2);
-    if (def.value >= 20) add(weights, 'mechanics', 1);
-  }
 }
 
 function allocate(total: number, weights: MutableCraftVector): CraftVector {
-  const positive = weights.reduce((count, value) => count + (value > 0 ? 1 : 0), 0);
-  if (positive === 0) return cv(0, 0, Math.max(1, total), 0, 0, 0, 0, 0, 0);
-
   const weightTotal = weights.reduce((sum, value) => sum + value, 0);
   const out = emptyCraftVector();
   const remainders = weights.map((weight, index) => {

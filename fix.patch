@@ -1,74 +1,84 @@
---- src/gen/living/tutor_room.ts
-+++ src/gen/living/tutor_room.ts
-@@ -69,7 +69,7 @@
-   return container;
- }
+--- src/data/item_composition.ts
++++ src/data/item_composition.ts
+@@ -72,20 +72,6 @@
+   psimatter: ['psi', 'cult', 'istotit', 'siren', 'void'],
+   metamatter: ['metamatter', 'void', 'chernobog', 'deletion_beam', 'gravity_aoe'],
+ };
+-
+-function cv(
+-  mechanics = 0,
+-  electronics = 0,
+-  consumables = 0,
+-  bio = 0,
+-  chemical = 0,
+-  metal = 0,
+-  cybernetics = 0,
+-  psimatter = 0,
+-  metamatter = 0,
+-): CraftVector {
+-  return [mechanics, electronics, consumables, bio, chemical, metal, cybernetics, psimatter, metamatter];
+-}
  
--export function generateTutorRoom(world: World, nextRoomId: number, entities: Entity[], nextId: { v: number }): { room: Room, spawnX: number, spawnY: number, nextRoomId: number } {
-+export function generateTutorRoom(world: World, nextRoomId: number, entities: Entity[], nextId: { v: number }, isTutorial: boolean = false): { room: Room, spawnX: number, spawnY: number, nextRoomId: number } {
- 
-   /* ================================================================
-    *  A. Актовый зал (briefing hall) — existing tutorial room
-@@ -167,7 +167,9 @@
-   protectRoom(world, cafeX, cafeY, cafeW, cafeH, Tex.TILE_W, Tex.F_LINO);
-   protectTutorialWallsAsHermetic(world, cafeX, cafeY, cafeW, cafeH);
-   
--  world.features[world.idx(cafeX + 1, cafeY + 1)] = Feature.SINK;
-+  if (isTutorial) {
-+    world.features[world.idx(cafeX + 1, cafeY + 1)] = Feature.SINK;
-+  }
- 
-   // Door to cafeteria starts locked. Move it to the side so it doesn't overlap the slide.
-   const hallCafeDoor = world.idx(hallX + Math.floor(hallW / 2) - 2, hallY - 1);
-@@ -219,16 +221,18 @@
-   world.aptMask[world.idx(cafeX - 1, cafeY + Math.floor(bathH / 2) + 1)] = 1;
- 
-   world.features[world.idx(bathX + Math.floor(bathW / 2), bathY + bathH - 2)] = Feature.TOILET;
--  entities.push({
--    id: nextId.v++,
--    type: EntityType.ITEM_DROP,
--    x: bathX + Math.floor(bathW / 2) + 0.5,
--    y: bathY + Math.floor(bathH / 2) + 0.5,
--    angle: 0, pitch: 0,
--    alive: true, speed: 0,
--    sprite: Spr.ITEM_DROP, spriteScale: 1.0,
--    inventory: [{ defId: 'tut_cafe_key', count: 1 }],
--  });
-+  if (isTutorial) {
-+    entities.push({
-+      id: nextId.v++,
-+      type: EntityType.ITEM_DROP,
-+      x: bathX + Math.floor(bathW / 2) + 0.5,
-+      y: bathY + Math.floor(bathH / 2) + 0.5,
-+      angle: 0, pitch: 0,
-+      alive: true, speed: 0,
-+      sprite: Spr.ITEM_DROP, spriteScale: 1.0,
-+      inventory: [{ defId: 'tut_cafe_key', count: 1 }],
-+    });
-+  }
- 
-   /* ================================================================
-    *  B. Оружейная / Стрельбище (armory + shooting range)
-@@ -321,8 +325,8 @@
+ function tagsOf(def: ItemDef): readonly string[] {
+   return def.tags ?? [];
+@@ -225,6 +211,11 @@
+       weights[craftMaterialIndex(material)] = 0;
+     }
    }
++
++  if (weights.every(value => value === 0)) {
++    add(weights, 'consumables', 2);
++    if (def.value >= 20) add(weights, 'mechanics', 1);
++  }
  
-   // ── Player spawn ──
--  const spawnX = cafeX + Math.floor(cafeW / 2) + 0.5;
--  const spawnY = cafeY + Math.floor(cafeH / 2) + 0.5;
-+  const spawnX = isTutorial ? cafeX + Math.floor(cafeW / 2) + 0.5 : hallX + Math.floor(hallW / 2) + 0.5;
-+  const spawnY = isTutorial ? cafeY + Math.floor(cafeH / 2) + 0.5 : hallY + hallH - 2 + 0.5;
- 
-   return { room, spawnX, spawnY, nextRoomId };
+   return weights;
  }
---- src/gen/living/index.ts
-+++ src/gen/living/index.ts
-@@ -51,8 +51,8 @@
-   const apartments = generateApartments(world);
+@@ -258,16 +249,9 @@
+     add(weights, 'bio', 2);
+     add(weights, 'chemical', 2);
+   }
+-  if (weights.every(value => value === 0)) {
+-    add(weights, 'consumables', 2);
+-    if (def.value >= 20) add(weights, 'mechanics', 1);
+-  }
+ }
  
-   /* ── A1: Start room (briefing hall) ─────────────── */
-   const tutorRoomStartIndex = world.rooms.length;
--  const startRoom = generateTutorRoom(world, world.rooms.length, entities, { v: nextId });
-+  const startRoom = generateTutorRoom(world, world.rooms.length, entities, { v: nextId }, isTutorial);
-   nextId = entities.reduce((mx, e) => Math.max(mx, e.id), nextId) + 1;
+ function allocate(total: number, weights: MutableCraftVector): CraftVector {
+-  const positive = weights.reduce((count, value) => count + (value > 0 ? 1 : 0), 0);
+-  if (positive === 0) return cv(0, 0, Math.max(1, total), 0, 0, 0, 0, 0, 0);
+-
+   const weightTotal = weights.reduce((sum, value) => sum + value, 0);
+   const out = emptyCraftVector();
+   const remainders = weights.map((weight, index) => {
+--- tests/item-composition-def.test.ts
++++ tests/item-composition-def.test.ts
+@@ -58,18 +58,7 @@
+     assert.ok(comp[2] > 0, 'Should fallback to consumables');
+   });
+
+-  it('handles allocating 0 components when value is very small and weights are 0, returning cv base', () => {
+-    // A mock definition that does not get any weights, even in fallbacks
+-    // applyMiscWeights checks weights.every(val => val === 0), and adds 'consumables' (index 2).
+-    // The totalForItem for value=0 is 1.
+-    // If we hack the value and tags such that baseWeights somehow produces completely 0 weights.
+-    // Actually, applyMiscWeights ALWAYS adds consumables if weights are 0.
+-    // Wait, if it adds 'consumables', then weights are > 0.
+-    // Let's create an item definition where totalForItem is 0, wait, it says Math.max(1, total) in cv().
+-    // We can test 'cv' indirectly via the fallback case. If positive === 0, it returns cv(0, 0, Math.max(1, total)).
+-    // How to get positive === 0 from allocate?
+-    // baseWeights always calls applyMiscWeights for MISC, which adds to weights if all are 0.
+-    // What if type is not MISC, and not matched by any switch case? It will just run the loops.
++  it('prevents baseWeights from producing completely 0 weights for unknown item types via global fallback', () => {
+     const mockDef = {
+       id: 'completely_unknown_type',
+       name: 'Test Weird Type',
+@@ -80,8 +69,7 @@
  
-   /* ── A1b: Yakov's lab (at distance from spawn) ──── */
+     const comp = compositionForItemDef(mockDef);
+     assert.equal(comp.length, 9);
+-    // When weights are all 0, positive === 0, it calls `cv(0, 0, Math.max(1, total), 0, 0, 0, 0, 0, 0)`.
+-    // Index 2 is consumables. `total` for value 0 is 1. So it returns [0,0,1,0,0,0,0,0,0].
++    // Even though type is unknown, baseWeights fallback applies 'consumables' (index 2).
+     assert.equal(comp[2], 1);
+     const sum = comp.reduce((acc, val) => acc + val, 0);
+     assert.equal(sum, 1);
