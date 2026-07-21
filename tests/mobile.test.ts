@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { shouldUseTouchControls } from '../src/mobile';
+import { shouldUseTouchControls, clamp } from '../src/mobile';
 
 interface MobileEnvOptions {
   userAgent: string;
@@ -70,6 +70,24 @@ test('shouldUseTouchControls: Mobile user agent always returns true', () => {
   } finally {
     restore();
   }
+});
+
+test('clamp: returns value within range', () => {
+  assert.equal(clamp(5, 0, 10), 5);
+  assert.equal(clamp(0, -10, 10), 0);
+  assert.equal(clamp(10, 10, 20), 10);
+});
+
+test('clamp: clamps value below minimum', () => {
+  assert.equal(clamp(-5, 0, 10), 0);
+  assert.equal(clamp(9, 10, 20), 10);
+  assert.equal(clamp(-100, -50, 0), -50);
+});
+
+test('clamp: clamps value above maximum', () => {
+  assert.equal(clamp(15, 0, 10), 10);
+  assert.equal(clamp(25, 10, 20), 20);
+  assert.equal(clamp(5, -50, 0), 0);
 });
 
 test('shouldUseTouchControls: Android user agent returns true', () => {
