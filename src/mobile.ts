@@ -49,7 +49,7 @@ function mobileInteractLabel(): string {
   return mobileText({ ru: 'ДЕЙСТ', en: 'ACT' });
 }
 
-function clamp(v: number, lo: number, hi: number): number {
+export function clamp(v: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, v));
 }
 
