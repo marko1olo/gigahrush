@@ -40,6 +40,7 @@ import {
   makeGameState,
   makeTestNpc,
 } from './helpers';
+import { rebuildEntityIndex } from '../src/systems/entity_index';
 
 function makeDemosSocialState(overrides: Partial<GameState> = {}): GameState {
   const state = makeGameState({ currentFloor: FloorLevel.LIVING, ...overrides });
@@ -163,6 +164,7 @@ test('Demos social journey rejects dead, NPC-forbidden and player/native actors'
     y: 24,
     ai: { goal: AIGoal.IDLE, tx: 0, ty: 0, path: [], pi: 0, stuck: 0, timer: 0 },
   });
+  rebuildEntityIndex([playerLike]);
   assert.equal(requestDemosSocialJourney(activeState, 1, 'design:black_market_88', 'social_visit', {
     world,
     entities: [playerLike],
@@ -173,6 +175,7 @@ test('Demos social journey rejects dead, NPC-forbidden and player/native actors'
 test('Demos social journey blocks ordinary visits during active samosbor', () => {
   const state = makeDemosSocialState({ samosborActive: true });
   moveAlifeNpcRecord(state, 1, 'story:ministry');
+  rebuildEntityIndex([]); // Clear index for test
 
   assert.equal(requestDemosSocialJourney(state, 1, 'story:living', 'social_visit'), false);
   assert.equal(requestDemosSocialJourney(state, 1, 'story:living', 'shelter_rejoin'), true);
@@ -181,6 +184,7 @@ test('Demos social journey blocks ordinary visits during active samosbor', () =>
 test('Demos social journey delegates to migration state without direct floor mutation', () => {
   const state = makeDemosSocialState();
   moveAlifeNpcRecord(state, 1, 'story:ministry');
+  rebuildEntityIndex([]); // Clear index for test
 
   assert.equal(requestDemosSocialJourney(state, 1, 'story:living', 'family_visit', { travelSeconds: 30 }), true);
 
@@ -207,6 +211,7 @@ test('Demos active-floor social journey starts visible departure instead of tele
     questId: -1,
     ai: { goal: AIGoal.IDLE, tx: 0, ty: 0, path: [], pi: 0, stuck: 0, timer: 0 },
   });
+  rebuildEntityIndex([npc]);
 
   assert.equal(requestDemosSocialJourney(state, 1, 'design:black_market_88', 'social_visit', {
     world,
