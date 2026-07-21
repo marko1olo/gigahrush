@@ -47,15 +47,26 @@ function cleanupOldVolatileRooms(world: World): void {
   for (let i = 0; i < aptCount; i++) {
     const room = world.rooms[i];
     if (!room) continue;
+
+    const restoreWall = (idx: number) => {
+      world.cells[idx] = Cell.WALL;
+      world.wallTex[idx] = room.wallTex;
+      world.features[idx] = 0;
+      world.roomMap[idx] = -1;
+      world.floorTex[idx] = 0;
+      world.hermoWall[idx] = 0;
+      world.light[idx] = 0;
+      world.liftDir[idx] = 0;
+    };
+
     const keepDoors: number[] = [];
     const removeDoors: number[] = [];
     for (const di of aptOldDoors[i]) {
       const door = world.doors.get(di);
       if (!door) {
-        // Door data already removed (by volatile room cleanup) — fix cell
+        // Door data was already removed by volatile room cleanup; restore cell to plain wall
         if (world.cells[di] === Cell.DOOR || world.cells[di] === Cell.FLOOR) {
-          world.cells[di] = Cell.WALL;
-          world.wallTex[di] = room.wallTex;
+          restoreWall(di);
         }
         continue;
       }
@@ -64,8 +75,7 @@ function cleanupOldVolatileRooms(world: World): void {
         keepDoors.push(di);
         continue;
       }
-      world.cells[door.idx] = Cell.WALL;
-      world.wallTex[door.idx] = room.wallTex;
+      restoreWall(door.idx);
       removeDoors.push(di);
     }
     room.doors = keepDoors;
