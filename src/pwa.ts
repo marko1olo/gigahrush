@@ -20,8 +20,8 @@ export function registerPwaServiceWorker(): void {
 }
 
 export function isStandaloneDisplay(): boolean {
-  return window.matchMedia?.('(display-mode: fullscreen)').matches === true ||
-    window.matchMedia?.('(display-mode: standalone)').matches === true ||
-    window.matchMedia?.('(display-mode: minimal-ui)').matches === true ||
+  return window.matchMedia?.('(display-mode: fullscreen)')?.matches === true ||
+    window.matchMedia?.('(display-mode: standalone)')?.matches === true ||
+    window.matchMedia?.('(display-mode: minimal-ui)')?.matches === true ||
     (navigator as Navigator & { standalone?: boolean }).standalone === true;
 }
