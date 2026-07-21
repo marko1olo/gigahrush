@@ -145,6 +145,7 @@ class NetSphereApiError extends Error {
 const API_ROOT = '/api/net';
 const NET_GEN_KEY = 'gigahrush_net_gen';
 const SESSION_KEY = 'gigahrush_net_session';
+const SESSION_CIPHER_KEY = 'gigahrush_net_cipher_v1';
 const NET_GEN_NICK_RE = /^NET-[A-Z0-9-]{4,28}$/;
 const HEARTBEAT_MS = 30_000;
 const OPEN_POLL_MS = 5_000;
@@ -256,14 +257,40 @@ function adjustChatScroll(delta: number): void {
   setChatScroll(runtime.chatScroll + delta);
 }
 
+function obfuscateSession(str: string): string {
+  let result = '';
+  for (let i = 0; i < str.length; i++) {
+    result += String.fromCharCode(str.charCodeAt(i) ^ SESSION_CIPHER_KEY.charCodeAt(i % SESSION_CIPHER_KEY.length));
+  }
+  return btoa(result);
+}
+
+function deobfuscateSession(b64: string): string {
+  if (!b64) return '';
+  // Backwards compatibility for unencrypted sessions
+  if (b64.startsWith('SES-')) return b64;
+  try {
+    const str = atob(b64);
+    let result = '';
+    for (let i = 0; i < str.length; i++) {
+      result += String.fromCharCode(str.charCodeAt(i) ^ SESSION_CIPHER_KEY.charCodeAt(i % SESSION_CIPHER_KEY.length));
+    }
+    if (!result.startsWith('SES-')) return '';
+    return result;
+  } catch {
+    return '';
+  }
+}
+
 function ensureIdentity(): void {
   if (!runtime.netGen) {
     runtime.netGen = cleanNetGen(storageGet(sessionStorage, NET_GEN_KEY)) || randomId('NET', 3);
     storageSet(sessionStorage, NET_GEN_KEY, runtime.netGen);
   }
   if (!runtime.sessionId) {
-    runtime.sessionId = storageGet(sessionStorage, SESSION_KEY) || randomId('SES', 3);
-    storageSet(sessionStorage, SESSION_KEY, runtime.sessionId);
+    const stored = storageGet(sessionStorage, SESSION_KEY);
+    runtime.sessionId = deobfuscateSession(stored) || randomId('SES', 3);
+    storageSet(sessionStorage, SESSION_KEY, obfuscateSession(runtime.sessionId));
   }
 }
 
