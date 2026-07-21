@@ -586,3 +586,66 @@ test('platform bridge lifecycle markers safely interact with mocked Yandex and G
     else delete globals.gp;
   }
 });
+
+test('GamePush script load preserves host callback safety when previous callback throws', async () => {
+  resetPlatformBridgeForTests();
+  const globals = globalThis as typeof globalThis & {
+    document?: Document;
+    location?: Location;
+    onGPInit?: (gp: any) => void;
+  };
+  const originalDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
+  const originalLocation = Object.getOwnPropertyDescriptor(globalThis, 'location');
+  const originalOnGPInit = globals.onGPInit;
+
+  Object.defineProperty(globalThis, 'location', {
+    configurable: true,
+    value: { search: '?portal=gamepush&gpProjectId=123&gpPublicToken=pub' },
+  });
+
+  let callbackCalled = false;
+  globals.onGPInit = () => {
+    callbackCalled = true;
+    throw new Error('Test error from host callback');
+  };
+
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: {
+      querySelector() { return null; },
+      createElement() {
+        return { dataset: {} };
+      },
+      head: {
+        appendChild(script: { onload?: () => void }) {
+          // Simulate gamepush script invoking the global callback
+          queueMicrotask(() => {
+            if (globals.onGPInit) {
+              globals.onGPInit({
+                ready: Promise.resolve(),
+                player: {
+                  set() {},
+                  sync: async () => {},
+                }
+              });
+            }
+          });
+        },
+      },
+    },
+  });
+
+  try {
+    const status = await savePlatformRawGameSave('{}', 2);
+    assert.equal(callbackCalled, true);
+    assert.equal(status, 'queued');
+  } finally {
+    resetPlatformBridgeForTests();
+    if (originalDocument) Object.defineProperty(globalThis, 'document', originalDocument);
+    else delete globals.document;
+    if (originalLocation) Object.defineProperty(globalThis, 'location', originalLocation);
+    else delete globals.location;
+    if (originalOnGPInit) globals.onGPInit = originalOnGPInit;
+    else delete globals.onGPInit;
+  }
+});
