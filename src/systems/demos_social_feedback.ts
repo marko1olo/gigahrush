@@ -1,5 +1,4 @@
 import {
-  EntityType,
   type Entity,
   type FloorLevel,
   type GameState,
@@ -19,6 +18,7 @@ import {
   demosSocialVisitIntent,
   type DemosSocialVisitReason,
 } from '../data/demos_social_visits';
+import { getEntityIndex } from './entity_index';
 import {
   getAlifeNpcRecordSnapshot,
   type AlifeNpcSnapshot,
@@ -320,8 +320,9 @@ function proceduralSpecsContext(state: GameState): { proceduralSpecs?: Readonly<
   return { proceduralSpecs: specs as Readonly<Record<string, { z?: number; baseFloor?: FloorLevel }>> | undefined };
 }
 
-function activeEntityForAlifeId(entities: readonly Entity[] | undefined, alifeId: number): Entity | undefined {
-  return entities?.find(entity => entity.alive && entity.type === EntityType.NPC && entity.alifeId === alifeId);
+function activeEntityForAlifeId(alifeId: number): Entity | undefined {
+  const e = getEntityIndex().byAlifeId.get(alifeId);
+  return (e && e.alive) ? e : undefined;
 }
 
 function routeAllowsNpcDestination(state: GameState, floorKey: string): boolean {
@@ -430,7 +431,7 @@ export function requestDemosSocialJourney(
   if (journeyAlreadyExists(state, record.id)) return false;
 
   const activeFloorKey = cleanFloorKey(opts.activeFloorKey) || currentAlifeFloorKey(state);
-  const activeEntity = activeEntityForAlifeId(opts.entities, record.id);
+  const activeEntity = activeEntityForAlifeId(record.id);
   if (!activeEntityAllowed(state, activeEntity)) return false;
   let ok = false;
   if (record.floorKey === activeFloorKey) {
