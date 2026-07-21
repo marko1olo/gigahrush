@@ -7326,18 +7326,62 @@ function registerCitizenEscortCue(world: World, spec: ProceduralFloorSpec, marke
 
 function placeCitizenMajorityLandmarks(world: World, rooms: Room[], spec: ProceduralFloorSpec, reachable: Uint8Array): void {
   if (spec.majorityId !== 'citizens') return;
-  const kitchenRoom = rooms.find(room => room.name.startsWith('Общая кухня') || room.name.startsWith('Пайковая кухня'))
-    ?? rooms.find(room => room.type === RoomType.KITCHEN)
-    ?? rooms[0];
-  const shelterRoom = rooms.find(room => room.name.startsWith('Гражданское укрытие') || room.name.startsWith('Тихая ниша укрытия'))
-    ?? rooms.find(room => room.type === RoomType.COMMON)
-    ?? kitchenRoom;
-  const witnessRoom = rooms.find(room =>
-    room.id !== shelterRoom?.id &&
-    (room.name.startsWith('Свидетельский карман') || room.name.startsWith('Общий зал свидетелей')))
-    ?? rooms.find(room => room.id !== shelterRoom?.id && (room.type === RoomType.COMMON || room.type === RoomType.SMOKING))
-    ?? rooms.find(room => room.id !== shelterRoom?.id && room.id !== 0)
-    ?? kitchenRoom;
+
+  let kitchenBest: Room | undefined;
+  let kitchenGood: Room | undefined;
+
+  let shelterBest: Room | undefined;
+  let shelterGood: Room | undefined;
+
+  let witnessBest: Room | undefined;
+  let witnessBestAlt: Room | undefined;
+  let witnessGood: Room | undefined;
+  let witnessGoodAlt: Room | undefined;
+  let witnessAny: Room | undefined;
+  let witnessAnyAlt: Room | undefined;
+
+  for (let i = 0; i < rooms.length; i++) {
+    const room = rooms[i];
+
+    if (!kitchenBest && (room.name.startsWith('Общая кухня') || room.name.startsWith('Пайковая кухня'))) {
+      kitchenBest = room;
+    } else if (!kitchenGood && room.type === RoomType.KITCHEN) {
+      kitchenGood = room;
+    }
+
+    if (!shelterBest && (room.name.startsWith('Гражданское укрытие') || room.name.startsWith('Тихая ниша укрытия'))) {
+      shelterBest = room;
+    } else if (!shelterGood && room.type === RoomType.COMMON) {
+      shelterGood = room;
+    }
+
+    if (room.name.startsWith('Свидетельский карман') || room.name.startsWith('Общий зал свидетелей')) {
+      if (!witnessBest) witnessBest = room;
+      else if (!witnessBestAlt) witnessBestAlt = room;
+    } else if (room.type === RoomType.COMMON || room.type === RoomType.SMOKING) {
+      if (!witnessGood) witnessGood = room;
+      else if (!witnessGoodAlt) witnessGoodAlt = room;
+    }
+
+    if (room.id !== 0) {
+      if (!witnessAny) witnessAny = room;
+      else if (!witnessAnyAlt) witnessAnyAlt = room;
+    }
+
+    if (kitchenBest && shelterBest && witnessBest && witnessBestAlt && witnessGood && witnessGoodAlt && witnessAny && witnessAnyAlt) {
+        break;
+    }
+  }
+
+  const kitchenRoom = kitchenBest ?? kitchenGood ?? rooms[0];
+  const shelterRoom = shelterBest ?? shelterGood ?? kitchenRoom;
+  const sId = shelterRoom?.id;
+
+  const witnessRoom =
+    (witnessBest && witnessBest.id !== sId ? witnessBest : witnessBestAlt && witnessBestAlt.id !== sId ? witnessBestAlt : undefined) ??
+    (witnessGood && witnessGood.id !== sId ? witnessGood : witnessGoodAlt && witnessGoodAlt.id !== sId ? witnessGoodAlt : undefined) ??
+    (witnessAny && witnessAny.id !== sId ? witnessAny : witnessAnyAlt && witnessAnyAlt.id !== sId ? witnessAnyAlt : undefined) ??
+    kitchenRoom;
 
   const supply = shelterRoom ? findReachableContainerCell(world, rooms, reachable, spec.seed ^ 0xc171, shelterRoom) : null;
   if (supply) addCitizenMajorityContainer(
