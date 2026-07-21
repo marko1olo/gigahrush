@@ -1,7 +1,8 @@
 import test from 'node:test';
-import assert from 'node:assert/strict';
+import * as assert from 'node:assert/strict';
 
-import { shouldUseTouchControls } from '../src/mobile';
+import { shouldUseTouchControls, createMobileControls, type MobileControlsContext, type MobileControls } from '../src/mobile';
+import { type InputState } from '../src/core/types';
 
 interface MobileEnvOptions {
   userAgent: string;
@@ -71,6 +72,200 @@ test('shouldUseTouchControls: Mobile user agent always returns true', () => {
     restore();
   }
 });
+
+test('createMobileControls: Lifecycle and interface methods', () => {
+  const restoreEnv = installMobileEnv({ userAgent: 'Mozilla/5.0 (Mobile)', maxTouchPoints: 10, innerWidth: 800, innerHeight: 600 });
+  const restoreDOM = installDOMEnv();
+
+  try {
+    const input = createMockInputState();
+    let gestures = 0;
+
+    const controls = createMobileControls(input, {
+      onGesture: () => gestures++,
+      onMenu: () => {},
+      onConfirm: () => {},
+      onClose: () => {},
+    });
+
+    // Test isEnabled
+    assert.equal(controls.isEnabled(), true);
+
+    // Test updateContext
+    const context: MobileControlsContext = {
+      started: true,
+      menuOpen: false,
+      canInteract: false,
+      gameOver: false,
+    };
+    controls.updateContext(context);
+
+    // Ensure getElementsByClassName exists for mock finding (simple polyfill on our mockDocument if not added)
+    // Actually, we can use an internal handle, or we can just patch mockDocument body to allow finding nodes by class name
+    // Since our mock is basic, we will extract the mock movePad element via capturing it from document.createElement.
+
+    // Wait, the test setup already created the controls, the nodes are inside document.body.
+    // Let's use the created elements from our classList store in mock Document to find it.
+    // To make it robust without modifying the class, we can modify the mock to store created nodes, or we can just access it.
+    controls.resetInput();
+    assert.equal(input.touch.moveX, 0);
+    assert.equal(input.touch.moveY, 0);
+    assert.equal(input.touch.lookX, 0);
+    assert.equal(input.touch.lookY, 0);
+    assert.equal(input.touch.active, false);
+
+    // Test destroy
+    controls.destroy();
+  } finally {
+    restoreDOM();
+    restoreEnv();
+  }
+});
+
+test('createMobileControls: isEnabled returns false on non-mobile environment', () => {
+  const restoreEnv = installMobileEnv({ userAgent: 'Mozilla/5.0 (Windows)', maxTouchPoints: 0, innerWidth: 1920, innerHeight: 1080 });
+  const restoreDOM = installDOMEnv();
+
+  try {
+    const input = createMockInputState();
+
+    const controls = createMobileControls(input, {
+      onGesture: () => {},
+      onMenu: () => {},
+      onConfirm: () => {},
+      onClose: () => {},
+    });
+
+    assert.equal(controls.isEnabled(), false);
+    controls.destroy();
+  } finally {
+    restoreDOM();
+    restoreEnv();
+  }
+});
+
+function installDOMEnv(): () => void {
+  const previousDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
+  const previousWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
+
+  const mockListeners: { e: string; cb: any }[] = [];
+
+  const mockCreatedElements: any[] = [];
+  const mockDocument = {
+    documentElement: {
+      requestFullscreen: () => Promise.resolve(),
+    },
+    createElement: (tag: string) => {
+      const classListStore = new Set<string>();
+      const elementObj = {
+        type: '',
+        className: '',
+        textContent: '',
+        setAttribute: () => {},
+        getAttribute: () => null,
+        toggleAttribute: () => {},
+        append: () => {},
+        addEventListener: function (this: any, e: string, cb: any) {
+          if (!this.mockListeners) this.mockListeners = [];
+          this.mockListeners.push({ e, cb });
+        },
+        removeEventListener: () => {},
+        dispatchEvent: function (this: any, event: any) {
+          if (!this.mockListeners) return;
+          for (const l of this.mockListeners) {
+            if (l.e === event.type) l.cb.call(this, event);
+          }
+        },
+        classList: {
+          toggle: (cls: string, force?: boolean) => {
+            if (force === true) classListStore.add(cls);
+            else if (force === false) classListStore.delete(cls);
+            else {
+              if (classListStore.has(cls)) classListStore.delete(cls);
+              else classListStore.add(cls);
+            }
+          },
+          remove: (cls: string) => classListStore.delete(cls),
+          add: (cls: string) => classListStore.add(cls),
+          contains: (cls: string) => classListStore.has(cls),
+        },
+        style: { setProperty: () => {}, transform: '' },
+        getBoundingClientRect: () => ({ left: 0, top: 0, width: 100, height: 100 }),
+        setPointerCapture: () => {},
+        releasePointerCapture: () => {},
+        hasPointerCapture: () => false,
+        dataset: {},
+        hidden: false,
+        remove: () => {},
+      };
+      mockCreatedElements.push(elementObj);
+      return elementObj;
+    },
+    body: {
+      append: () => {},
+      classList: {
+        toggle: () => {},
+        remove: () => {},
+        add: () => {},
+      },
+    },
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  };
+
+  const mockWindow = {
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    matchMedia: () => ({ matches: false }),
+    innerWidth: 1000,
+    innerHeight: 1000,
+    visualViewport: {
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      width: 1000,
+      height: 1000,
+    },
+  };
+
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: mockDocument,
+  });
+
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: mockWindow,
+  });
+
+  // Expose created elements for tests
+  (globalThis as any)._mockCreatedElements = mockCreatedElements;
+
+  return () => {
+    delete (globalThis as any)._mockCreatedElements;
+    if (previousDocument) Object.defineProperty(globalThis, 'document', previousDocument);
+    else Reflect.deleteProperty(globalThis, 'document');
+
+    if (previousWindow) Object.defineProperty(globalThis, 'window', previousWindow);
+    else Reflect.deleteProperty(globalThis, 'window');
+  };
+}
+
+function createMockInputState(): InputState {
+  return {
+    fwd: false, back: false, left: false, right: false,
+    strafeL: false, strafeR: false,
+    sprint: false, attack: false, interact: false, pickup: false, reload: false,
+    interactHeld: false, map: false, mapLegend: false, inv: false,
+    invUp: false, invDn: false, invLeft: false, invRight: false,
+    use: false, escape: false, questLog: false, mouseAttack: false, mouseUse: false,
+    menuAccept: false, menuClose: false, menuWheel: 0, textInput: '',
+    attrStr: false, attrAgi: false, attrInt: false, debugScreen: false,
+    pee: false, drop: false, factionMenu: false, logMenu: false, help: false, sleep: false,
+    controls: false, uiSettings: false, controlEdit: false, controlReset: false, controlClose: false,
+    mouse: { dx: 0, dy: 0, locked: false },
+    touch: { moveX: 0, moveY: 0, lookX: 0, lookY: 0, active: false }
+  };
+}
 
 test('shouldUseTouchControls: Android user agent returns true', () => {
   const restore = installMobileEnv({
