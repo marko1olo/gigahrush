@@ -174,7 +174,7 @@ registerWorldEventObserver((state, event) => {
 
 function nextContainerId(ctx: MaintContentCtx): number {
   let id = ctx.world.containers.length + 1;
-  while (ctx.world.containerById.has(id) || ctx.world.containers.some(c => c.id === id)) id++;
+  while (ctx.world.containerById.has(id)) id++;
   return id;
 }
 
