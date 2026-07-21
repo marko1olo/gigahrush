@@ -244,5 +244,35 @@ describe('PWA Module', () => {
       });
       assert.strictEqual(isStandaloneDisplay(), false);
     });
+
+    test('returns true if window.matchMedia is undefined but navigator.standalone is true', () => {
+      Object.defineProperty(globalThis, 'window', {
+        value: {}, // no matchMedia
+        writable: true
+      });
+      Object.defineProperty(globalThis, 'navigator', {
+        value: { standalone: true },
+        writable: true
+      });
+      assert.strictEqual(isStandaloneDisplay(), true);
+    });
+
+    test('returns false if matchMedia returns null or object without matches', () => {
+      Object.defineProperty(globalThis, 'window', {
+        value: { matchMedia: () => null },
+        writable: true
+      });
+      Object.defineProperty(globalThis, 'navigator', {
+        value: {}, // no standalone
+        writable: true
+      });
+      assert.strictEqual(isStandaloneDisplay(), false);
+
+      Object.defineProperty(globalThis, 'window', {
+        value: { matchMedia: () => ({}) }, // no matches property
+        writable: true
+      });
+      assert.strictEqual(isStandaloneDisplay(), false);
+    });
   });
 });
