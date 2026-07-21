@@ -125,11 +125,21 @@ test('canvas click requests pointer lock only when gameplay capture is allowed',
   }
 });
 
-test('synchronous requestPointerLock exceptions are caught silently', () => {
+test('synchronous requestPointerLock exceptions log to console.error', () => {
   const env = installInputDom();
+  const originalConsoleError = console.error;
+  let loggedError: any = null;
+  let loggedMessage: string | null = null;
+
   try {
+    console.error = (msg: string, e: any) => {
+      loggedMessage = msg;
+      loggedError = e;
+    };
+
+    const syncError = new Error('sync error');
     env.canvas.requestPointerLock = () => {
-      throw new Error('sync error');
+      throw syncError;
     };
     const unbind = bindInput(createInput(), env.canvas as unknown as HTMLCanvasElement, {
       shouldRequestPointerLock: () => true,
@@ -139,8 +149,12 @@ test('synchronous requestPointerLock exceptions are caught silently', () => {
       env.canvas.dispatch('click');
     });
 
+    assert.equal(loggedMessage, 'Pointer lock failed:');
+    assert.equal(loggedError, syncError);
+
     unbind();
   } finally {
+    console.error = originalConsoleError;
     env.restore();
   }
 });
@@ -413,7 +427,11 @@ test('mouse buttons are ignored while gameplay pointer input is blocked', () => 
 
 test('pointer lock synchronous throw is handled gracefully', () => {
   const env = installInputDom();
+  const originalConsoleError = console.error;
+
   try {
+    console.error = () => {}; // suppress logging
+
     env.canvas.requestPointerLock = () => {
       throw new Error('Pointer lock blocked');
     };
@@ -427,6 +445,7 @@ test('pointer lock synchronous throw is handled gracefully', () => {
     });
     unbind();
   } finally {
+    console.error = originalConsoleError;
     env.restore();
   }
 });

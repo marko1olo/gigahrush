@@ -88,8 +88,8 @@ function requestPointerLockSafe(canvas: HTMLCanvasElement): void {
     result?.catch?.(() => {
       // Pointer lock may be denied outside a user-activation window.
     });
-  } catch {
-    // Some embedded browsers expose pointer lock but still throw synchronously.
+  } catch (e) {
+    console.error('Pointer lock failed:', e);
   }
 }
 
