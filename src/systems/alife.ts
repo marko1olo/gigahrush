@@ -70,7 +70,7 @@ import { generateNpcLoadout, generateMerchantStock } from './procedural_loot';
 import { ITEMS } from '../data/catalog';
 import { getStack } from '../data/items';
 import { getFactionRel } from '../data/relations';
-import { HUMANOID_BASE_MOVE_SPEED, getMaxHp, getMaxPsi } from './rpg';
+import { HUMANOID_BASE_MOVE_SPEED, getMaxHp, getMaxPsi, normalizeSaveRpg } from './rpg';
 import {
   NPC_PLAYER_RELATION_FLUCTUATION,
   clampRelation,
@@ -2349,16 +2349,6 @@ function normalizeInventory(input: unknown): Item[] | undefined {
   return out;
 }
 
-function normalizeRpg(input: unknown): RPGStats | undefined {
-  if (!isRecord(input)) return undefined;
-  const level = clampInt(input.level, 1, 1, RPG_LEVEL_CAP);
-  const str = clampInt(input.str, 0, 0, RPG_ATTRIBUTE_CAP);
-  const agi = clampInt(input.agi, 0, 0, RPG_ATTRIBUTE_CAP);
-  const int = clampInt(input.int, 0, 0, RPG_ATTRIBUTE_CAP);
-  const shell = { level, xp: 0, attrPoints: 0, str, agi, int, psi: 0, maxPsi: 0 };
-  const maxPsi = getMaxPsi(shell);
-  return { ...shell, psi: maxPsi, maxPsi };
-}
 
 function applyOverride(alife: AlifeState, input: unknown): void {
   if (!isRecord(input)) return;
@@ -2423,7 +2413,7 @@ function applyOverride(alife: AlifeState, input: unknown): void {
     setRecordPlayerRelation(alife, record, input.playerRelation);
   }
   if (typeof input.karma === 'number' && Number.isFinite(input.karma)) setRecordKarma(alife, record, input.karma);
-  const rpg = normalizeRpg(input.rpg);
+  const rpg = normalizeSaveRpg(input.rpg, true);
   if (rpg) setRecordRpg(alife, record, rpg);
   setRecordTouched(alife, record);
 }

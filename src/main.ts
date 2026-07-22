@@ -6,7 +6,7 @@ import { registerPwaServiceWorker } from './pwa';
 
 import {
   W, Cell, DoorState, FloorLevel, Tex, RoomType, LiftDirection,
-  type CharacterSex, type Entity, type GameClock, type GameState, type Item, type Needs, type Quest, type RPGStats, type WorldContainer,
+  type CharacterSex, type Entity, type GameClock, type GameState, type Item, type Needs, type Quest, type WorldContainer,
   type PlayerDamageSourceKind, type WorldEventPrivacy, type WorldEventSeverity, type PlayerAlife,
   EntityType, Faction, MonsterKind, Occupation, ProjType, QuestType, AIGoal,
   msg, setMsgClock,
@@ -210,12 +210,12 @@ import { setDoorState, damageDoor } from './systems/door_state';
 import {
   freshRPG, awardXP, xpForMonsterKill, xpForNpcKill,
   meleeDamage, actorMoveSpeed, agiAttackSpeedMult,
-  spendAttrPoint, getMaxHp, getMaxPsi, randomRPG, xpForLevel,
-  RPG_ATTRIBUTE_CAP, RPG_LEVEL_CAP,
+  spendAttrPoint, getMaxHp, randomRPG, xpForLevel,
   HUMANOID_BASE_MOVE_SPEED,
   normalizeHumanoidBaseMoveSpeed,
   normalizeHumanoidBaseMoveSpeeds,
   generateHeight,
+  normalizeSaveRpg,
 } from './systems/rpg';
 import {
   applyPaupsinaWeb,
@@ -4782,20 +4782,6 @@ function normalizeEquippedItem(
   return defId;
 }
 
-function normalizeRpg(input: unknown): RPGStats {
-  const src = isRecord(input) ? input : {};
-  const level = clampInt(src.level, 1, 1, RPG_LEVEL_CAP);
-  const rpg = freshRPG(level);
-  const xpCap = level >= RPG_LEVEL_CAP ? 0 : Math.max(0, xpForLevel(level + 1) - 1);
-  rpg.xp = clampInt(src.xp, 0, 0, xpCap);
-  rpg.attrPoints = clampInt(src.attrPoints, 0, 0, RPG_ATTRIBUTE_CAP);
-  rpg.str = clampInt(src.str, 0, 0, RPG_ATTRIBUTE_CAP);
-  rpg.agi = clampInt(src.agi, 0, 0, RPG_ATTRIBUTE_CAP);
-  rpg.int = clampInt(src.int, 0, 0, RPG_ATTRIBUTE_CAP);
-  rpg.maxPsi = getMaxPsi(rpg);
-  rpg.psi = clampNumber(src.psi, rpg.maxPsi, 0, rpg.maxPsi);
-  return rpg;
-}
 
 function normalizeClock(input: unknown): GameClock {
   const src = isRecord(input) ? input : {};
@@ -5082,7 +5068,7 @@ function loadGame(): boolean {
       : undefined;
     const normalizedNeeds = normalizeNeeds(dataPlayer.needs);
     const normalizedInventory = normalizeInventory(dataPlayer.inventory);
-    const normalizedRpg = normalizeRpg(dataPlayer.rpg);
+    const normalizedRpg = normalizeSaveRpg(dataPlayer.rpg);
     const normalizedMaxHp = getMaxHp(normalizedRpg);
     const normalizedClock = normalizeClock(dataState.clock);
     const normalizedQuests = normalizeQuestList(dataState.quests, dataState.nextQuestId, normalizedClock.totalMinutes);
