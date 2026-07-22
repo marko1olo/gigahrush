@@ -678,3 +678,17 @@ test('tryBase64ToBytes handles invalid base64 by returning null', () => {
     globalThis.Buffer = originalBuffer;
   }
 });
+
+test('estimateJsonBytes handles un-serializable objects without throwing', () => {
+  clearFloorMemory();
+  const world = new World();
+  const cyclicEntity = { type: EntityType.NPC };
+  cyclicEntity.self = cyclicEntity;
+
+  const result = captureFloorMemory('cyclic_test', world, [cyclicEntity], 0, 0, 0, 0);
+  assert.equal(result, true);
+
+  const stats = floorMemoryStats();
+  assert.equal(stats.fullCount, 1);
+  clearFloorMemory();
+});
