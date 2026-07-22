@@ -937,16 +937,21 @@ export function followPath(world: World, e: Entity, dt: number): void {
         emitMarkovBark(e, _barkMsgs, _barkTime, 'ambient', 'Пришли.', BARK_CHANCE_ARRIVE, '#aac');
       }
     }
-    if (e.type === EntityType.NPC && ai.goal !== AIGoal.HIDE && ai.goal !== AIGoal.FLEE) {
-      ai.stuck += dt;
-      // Higher threshold reduces corridor ping-pong: NPCs linger longer before re-wandering
-      if (ai.stuck > 3 + Math.random() * 2) {
-        wanderInRoom(world, e);
-        // Fallback: if wanderInRoom found nothing (no room or tiny room), try wanderNearby
-        if (ai.path.length === 0) wanderNearby(world, e);
-        ai.stuck = 0;
-      }
+    if (e.type !== EntityType.NPC || ai.goal === AIGoal.HIDE || ai.goal === AIGoal.FLEE) {
+      return;
     }
+
+    ai.stuck += dt;
+    // Higher threshold reduces corridor ping-pong: NPCs linger longer before re-wandering
+    if (ai.stuck <= 3 + Math.random() * 2) {
+      return;
+    }
+
+    wanderInRoom(world, e);
+    // Fallback: if wanderInRoom found nothing (no room or tiny room), try wanderNearby
+    if (ai.path.length === 0) wanderNearby(world, e);
+    ai.stuck = 0;
+
     return;
   }
 
