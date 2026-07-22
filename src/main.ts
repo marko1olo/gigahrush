@@ -3794,6 +3794,16 @@ function movePlayerToMetroRoom(roomName: string): boolean {
   const room = world.rooms.find(r => r?.name === roomName);
   if (!room) return false;
 
+  const cx = room.x + Math.floor(room.w / 2);
+  const cy = room.y + Math.floor(room.h / 2);
+  const ciCenter = world.idx(cx, cy);
+  if (world.cells[ciCenter] === Cell.FLOOR || world.cells[ciCenter] === Cell.WATER) {
+    player.x = world.wrap(cx) + 0.5;
+    player.y = world.wrap(cy) + 0.5;
+    player.angle += Math.PI;
+    return true;
+  }
+
   for (let y = room.y + 1; y < room.y + room.h - 1; y++) {
     for (let x = room.x + 1; x < room.x + room.w - 1; x++) {
       const ci = world.idx(x, y);
