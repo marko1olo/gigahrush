@@ -2,6 +2,8 @@
 
 import {
   W,
+  NO_APARTMENT_ID,
+  NO_ROOM_ID,
   Cell,
   DoorState,
   EntityType,
@@ -532,7 +534,7 @@ function makePatchRoom(
       wave.scale === "small"
         ? "Малая складка самосбора"
         : "Средняя складка самосбора",
-    apartmentId: -1,
+    apartmentId: NO_APARTMENT_ID,
     wallTex: Tex.CONCRETE,
     floorTex: Tex.F_CONCRETE,
   };
@@ -679,8 +681,8 @@ function cleanSolidCell(
   pushUnique(wave.dirtyRooms, roomId);
   if (world.cells[idx] === Cell.DOOR)
     changed = removeDoor(world, idx) || changed;
-  if (world.roomMap[idx] !== -1) {
-    world.roomMap[idx] = -1;
+  if (world.roomMap[idx] !== NO_ROOM_ID) {
+    world.roomMap[idx] = NO_ROOM_ID;
     flags.cells = true;
     changed = true;
   }
@@ -1120,7 +1122,7 @@ function retunePatchRoomFromGeneratedField(
     if (roomId < 0 || !source.rooms[roomId]) continue;
     counts.set(roomId, (counts.get(roomId) ?? 0) + 1);
   }
-  let bestRoomId = -1;
+  let bestRoomId = NO_ROOM_ID;
   let bestCount = 0;
   for (const [roomId, count] of counts) {
     if (count > bestCount) {
@@ -1157,7 +1159,7 @@ function copyGeneratedFieldCells(
     const sourceCell = source.cells[idx];
     const cell = localPatchCell(sourceCell);
     world.cells[idx] = cell;
-    world.roomMap[idx] = walkableCell(cell) ? patchRoomId : -1;
+    world.roomMap[idx] = walkableCell(cell) ? patchRoomId : NO_ROOM_ID;
     world.wallTex[idx] =
       sourceCell === Cell.DOOR
         ? Tex.CONCRETE
@@ -1524,7 +1526,7 @@ export function applyFrontFieldStitch(
     doors: [],
     sealed: false,
     name: "Перестроенный участок",
-    apartmentId: -1,
+    apartmentId: NO_APARTMENT_ID,
     wallTex: Tex.CONCRETE,
     floorTex: Tex.F_CONCRETE,
   });
@@ -1537,8 +1539,8 @@ export function applyFrontFieldStitch(
     world.roomMap[idx] = walkableCell(cell)
       ? source.roomMap[idx] >= 0
         ? patchRoomId
-        : -1
-      : -1;
+        : NO_ROOM_ID
+      : NO_ROOM_ID;
     world.wallTex[idx] =
       sourceCell === Cell.DOOR
         ? Tex.CONCRETE
@@ -1737,7 +1739,7 @@ function createInitialSamosborWave(
     dirtyRooms: [],
     finished: false,
     regenerated: false,
-    patchRoomId: -1,
+    patchRoomId: NO_ROOM_ID,
     protectedRooms,
     player: _entities.find((e) => isPlayerEntity(e) && e.alive),
     floor: state.currentFloor,
