@@ -15,6 +15,7 @@ import {
   BLOOD_PLANT_TENDRIL_MAX_CELLS,
   healBloodPlantFromRedMold,
   neutralizeRedMoldSourceNear,
+  recordBloodPlantRootCut,
   registerBloodPlantRootSite,
   traceBloodPlantTendrilCells,
 } from '../src/systems/blood_plant';
@@ -266,4 +267,59 @@ test('blood plant sprite visual characteristics describe a rooted mass with red 
   assert.ok(rootPillars > 100, 'sprite should have dark root foundation pixels');
   assert.ok(redTendrils > 30, 'sprite should have vivid red walks');
   assert.ok(brightDots > 5, 'sprite should contain bright flower/seed dots near the crown');
+});
+
+
+test('recordBloodPlantRootCut opens root sites and publishes correct events based on reason and actor', () => {
+  const world = openWorld();
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING, worldEvents: createWorldEventState() });
+
+  const plant1 = bloodPlant(10, 10.5, 10.5);
+  const plant2 = bloodPlant(11, 15.5, 15.5);
+  const player = makeTestPlayer({ id: 1, x: 9.5, y: 10.5, weapon: 'knife' });
+
+  const rootCell1 = world.idx(11, 10);
+  world.cells[rootCell1] = Cell.DOOR;
+  world.wallTex[rootCell1] = Tex.DOOR_WOOD;
+
+  const rootCell2 = world.idx(16, 15);
+  world.cells[rootCell2] = Cell.WALL;
+
+  registerBloodPlantRootSite(world, {
+    id: 'test_blood_roots_cut_salt',
+    plantIds: [plant1.id],
+    rootCells: [rootCell1],
+    roomId: 0,
+    zoneId: 0,
+  });
+
+  registerBloodPlantRootSite(world, {
+    id: 'test_blood_roots_cut_tool',
+    plantIds: [plant2.id],
+    rootCells: [rootCell2],
+    roomId: 0,
+    zoneId: 0,
+  });
+
+  // Test case 1: salt, no actor
+  const opened1 = recordBloodPlantRootCut(world, state, plant1, undefined, 'salt');
+  assert.equal(opened1, 1);
+  assert.equal(world.cells[rootCell1], Cell.FLOOR);
+
+  const event1 = getRecentEvents(state, { type: 'blood_plant_root_cut', tags: ['salt'], limit: 1 })[0];
+  assert.ok(event1);
+  assert.equal(event1.privacy, 'witnessed');
+  assert.equal(event1.data?.reason, 'salt');
+  assert.equal(event1.actorId, undefined);
+
+  // Test case 2: tool, player actor
+  const opened2 = recordBloodPlantRootCut(world, state, plant2, player, 'tool');
+  assert.equal(opened2, 1);
+  assert.equal(world.cells[rootCell2], Cell.FLOOR);
+
+  const event2 = getRecentEvents(state, { type: 'blood_plant_root_cut', tags: ['tool'], limit: 1 })[0];
+  assert.ok(event2);
+  assert.equal(event2.privacy, 'local');
+  assert.equal(event2.data?.reason, 'tool');
+  assert.equal(event2.actorId, player.id);
 });
