@@ -7,7 +7,16 @@ import {
   type GameState,
 } from '../core/types';
 import { World } from '../core/world';
-import { getNetHackTerminalDef, NET_HACK_TERMINALS, type NetHackTerminalDef, type NetHackTerminalDefId } from '../data/net_hack';
+import {
+  getNetHackTerminalDef,
+  NET_HACK_TERMINALS,
+  NET_HACK_SAVE_VERSION,
+  NET_HACK_SOLVED_KEY_CAP,
+  NET_HACK_LOCK_CAP,
+  NET_HACK_KEY_LEN_CAP,
+  type NetHackTerminalDef,
+  type NetHackTerminalDefId,
+} from '../data/net_hack';
 import { publishEvent } from './events';
 import { floorKeyForStory } from './floor_keys';
 import { currentFloorRunEntry, floorRunEntryFloorKey } from './procedural_floors';
@@ -48,10 +57,6 @@ export interface NetHackOverlaySnapshot {
 const netHackRegistry = new Map<number, NetHackTerminal>();
 const solvedKeys = new Set<string>();
 const lockedUntil = new Map<string, number>();
-const NET_HACK_SAVE_VERSION = 1;
-const NET_HACK_SOLVED_KEY_CAP = 512;
-const NET_HACK_LOCK_CAP = 256;
-const NET_HACK_KEY_LEN_CAP = 96;
 
 export interface NetHackSaveState {
   version: 1;
