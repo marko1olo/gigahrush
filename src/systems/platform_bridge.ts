@@ -103,16 +103,18 @@ interface PortalSaveRecord {
   raw: string;
 }
 
-let bridgeOptions: PlatformBridgeOptions = {};
-let yandexSdkPromise: Promise<YandexSdk | null> | null = null;
-let gamePushSdkPromise: Promise<GamePushSdk | null> | null = null;
-let yandexEventsBound = false;
-let yandexReadySent = false;
-let yandexGameplayActive = false;
-let gamePushEventsBound = false;
-let gamePushReadySent = false;
-let gamePushGameStartSent = false;
-let gamePushGameplayActive = false;
+const state = {
+  bridgeOptions: {} as PlatformBridgeOptions,
+  yandexSdkPromise: null as Promise<YandexSdk | null> | null,
+  gamePushSdkPromise: null as Promise<GamePushSdk | null> | null,
+  yandexEventsBound: false,
+  yandexReadySent: false,
+  yandexGameplayActive: false,
+  gamePushEventsBound: false,
+  gamePushReadySent: false,
+  gamePushGameStartSent: false,
+  gamePushGameplayActive: false,
+};
 
 function portalGlobal(): PortalGlobal {
   return globalThis as PortalGlobal;
@@ -280,16 +282,16 @@ function loadYandexSdkScript(): Promise<boolean> {
 }
 
 function bindYandexEvents(sdk: YandexSdk): void {
-  if (yandexEventsBound || typeof sdk.on !== 'function') return;
-  sdk.on('game_api_pause', () => bridgeOptions.onPauseChange?.(true));
-  sdk.on('game_api_resume', () => bridgeOptions.onPauseChange?.(false));
-  yandexEventsBound = true;
+  if (state.yandexEventsBound || typeof sdk.on !== 'function') return;
+  sdk.on('game_api_pause', () => state.bridgeOptions.onPauseChange?.(true));
+  sdk.on('game_api_resume', () => state.bridgeOptions.onPauseChange?.(false));
+  state.yandexEventsBound = true;
 }
 
 function yandexSdk(): Promise<YandexSdk | null> {
   if (!shouldInitYandex()) return Promise.resolve(null);
-  if (yandexSdkPromise) return yandexSdkPromise;
-  yandexSdkPromise = (async () => {
+  if (state.yandexSdkPromise) return state.yandexSdkPromise;
+  state.yandexSdkPromise = (async () => {
     if (!portalGlobal().YaGames && requestedPortal() === 'yandex') await loadYandexSdkScript();
     const factory = portalGlobal().YaGames;
     if (!factory || typeof factory.init !== 'function') return null;
@@ -297,7 +299,7 @@ function yandexSdk(): Promise<YandexSdk | null> {
     bindYandexEvents(sdk);
     return sdk;
   })().catch(() => null);
-  return yandexSdkPromise;
+  return state.yandexSdkPromise;
 }
 
 function gamePushSdk(): GamePushSdk | null {
@@ -315,7 +317,7 @@ function gamePushSdkScriptUrl(config: GamePushConfig): string {
 function loadGamePushSdkScript(config: GamePushConfig): Promise<GamePushSdk | null> {
   if (typeof document === 'undefined') return Promise.resolve(null);
   if (documentQuerySelector('script[data-gigahrush-gamepush-sdk="1"]')) {
-    return gamePushSdkPromise ?? Promise.resolve(gamePushSdk());
+    return state.gamePushSdkPromise ?? Promise.resolve(gamePushSdk());
   }
   if (typeof document.createElement !== 'function' || typeof document.head?.appendChild !== 'function') {
     return Promise.resolve(null);
@@ -353,28 +355,28 @@ function gamePushSdkAsync(): Promise<GamePushSdk | null> {
   const existing = gamePushSdk();
   if (existing) return Promise.resolve(existing);
   if (!shouldInitGamePush()) return Promise.resolve(null);
-  if (gamePushSdkPromise) return gamePushSdkPromise;
+  if (state.gamePushSdkPromise) return state.gamePushSdkPromise;
   const config = gamePushConfig();
   if (!config) return Promise.resolve(null);
-  gamePushSdkPromise = loadGamePushSdkScript(config).then(gp => {
+  state.gamePushSdkPromise = loadGamePushSdkScript(config).then(gp => {
     if (gp) bindGamePushEvents(gp);
     return gp;
   }).catch(() => null);
-  return gamePushSdkPromise;
+  return state.gamePushSdkPromise;
 }
 
 function bindGamePushEvents(gp = gamePushSdk()): void {
-  if (!gp || gamePushEventsBound || !gp.on) return;
-  gp.on('pause', () => bridgeOptions.onPauseChange?.(true));
-  gp.on('resume', () => bridgeOptions.onPauseChange?.(false));
+  if (!gp || state.gamePushEventsBound || !gp.on) return;
+  gp.on('pause', () => state.bridgeOptions.onPauseChange?.(true));
+  gp.on('resume', () => state.bridgeOptions.onPauseChange?.(false));
   if (gp.sounds && typeof gp.sounds.on === 'function') {
-    gp.sounds.on('mute', () => bridgeOptions.onAudioMuteChange?.(true));
-    gp.sounds.on('unmute', () => bridgeOptions.onAudioMuteChange?.(false));
+    gp.sounds.on('mute', () => state.bridgeOptions.onAudioMuteChange?.(true));
+    gp.sounds.on('unmute', () => state.bridgeOptions.onAudioMuteChange?.(false));
   }
   if (gp.language) {
-    bridgeOptions.onLanguageDetected?.(gp.language);
+    state.bridgeOptions.onLanguageDetected?.(gp.language);
   }
-  gamePushEventsBound = true;
+  state.gamePushEventsBound = true;
 
   // GamePush Sandbox STRICTLY checks the JavaScript call stack.
   // If methods like gameStart, sync, mute, changeLanguage are called from a setTimeout or async Promise,
@@ -383,15 +385,15 @@ function bindGamePushEvents(gp = gamePushSdk()): void {
   // gameStart dual-path strategy:
   //   1. markPlatformReady() tries synchronous gameStart when SDK is already on the global (sandbox preload).
   //   2. If SDK wasn't ready at markPlatformReady time, this user-gesture handler is the fallback.
-  // The gamePushGameStartSent flag ensures exactly one call.
+  // The state.gamePushGameStartSent flag ensures exactly one call.
   let sandboxTestsTriggered = false;
   const fulfillSandboxTests = () => {
     if (sandboxTestsTriggered) return;
     sandboxTestsTriggered = true;
 
     // 1. gameStart fallback (Test 2, 3) — only if not already sent from markPlatformReady
-    if (!gamePushGameStartSent) {
-      gamePushGameStartSent = true;
+    if (!state.gamePushGameStartSent) {
+      state.gamePushGameStartSent = true;
       try { if (typeof gp.gameStart === 'function') gp.gameStart(); } catch {}
     }
 
@@ -450,7 +452,7 @@ export function togglePlatformAudioMuted(): void {
     }
   } else {
     localAudioMutedFallback = !localAudioMutedFallback;
-    bridgeOptions.onAudioMuteChange?.(localAudioMutedFallback);
+    state.bridgeOptions.onAudioMuteChange?.(localAudioMutedFallback);
   }
 }
 
@@ -516,7 +518,7 @@ function rememberLocalPortalSaveTime(savedAt: number): void {
 }
 
 export function initPlatformBridge(options: PlatformBridgeOptions = {}): void {
-  bridgeOptions = options;
+  state.bridgeOptions = options;
   bindGamePushEvents();
   if (shouldInitYandex()) void yandexSdk();
   if (shouldInitGamePush()) void gamePushSdkAsync();
@@ -525,8 +527,8 @@ export function initPlatformBridge(options: PlatformBridgeOptions = {}): void {
 
 export function markPlatformReady(): void {
   void yandexSdk().then(sdk => {
-    if (!sdk || yandexReadySent) return;
-    yandexReadySent = true;
+    if (!sdk || state.yandexReadySent) return;
+    state.yandexReadySent = true;
     callOptional(sdk.features?.LoadingAPI, 'ready');
   });
 
@@ -538,12 +540,12 @@ export function markPlatformReady(): void {
   const gpImmediate = portalGlobal().gp ?? null;
   if (gpImmediate) {
     bindGamePushEvents(gpImmediate);
-    if (!gamePushReadySent) {
-      gamePushReadySent = true;
+    if (!state.gamePushReadySent) {
+      state.gamePushReadySent = true;
       try { if (typeof gpImmediate.gameReady === 'function') gpImmediate.gameReady(); } catch {}
     }
-    if (!gamePushGameStartSent) {
-      gamePushGameStartSent = true;
+    if (!state.gamePushGameStartSent) {
+      state.gamePushGameStartSent = true;
       try { if (typeof gpImmediate.gameStart === 'function') gpImmediate.gameStart(); } catch {}
     }
   }
@@ -554,8 +556,8 @@ export function markPlatformReady(): void {
     if (!gp) return;
     bindGamePushEvents(gp);
     
-    if (!gamePushReadySent) {
-      gamePushReadySent = true;
+    if (!state.gamePushReadySent) {
+      state.gamePushReadySent = true;
       try { if (typeof gp.gameReady === 'function') gp.gameReady(); } catch {}
     }
   });
@@ -563,32 +565,32 @@ export function markPlatformReady(): void {
 
 export function markPlatformGameplayStart(): void {
   void yandexSdk().then(sdk => {
-    if (!sdk || yandexGameplayActive) return;
-    yandexGameplayActive = true;
+    if (!sdk || state.yandexGameplayActive) return;
+    state.yandexGameplayActive = true;
     callOptional(sdk.features?.GameplayAPI, 'start');
   });
 
   void gamePushSdkAsync().then(async gp => {
     if (!gp) return;
     bindGamePushEvents(gp);
-    if (gamePushGameplayActive) return;
-    gamePushGameplayActive = true;
+    if (state.gamePushGameplayActive) return;
+    state.gamePushGameplayActive = true;
     callOptional(gp, 'gameplayStart');
   });
 }
 
 export function markPlatformGameplayStop(): void {
   void yandexSdk().then(sdk => {
-    if (!sdk || !yandexGameplayActive) return;
-    yandexGameplayActive = false;
+    if (!sdk || !state.yandexGameplayActive) return;
+    state.yandexGameplayActive = false;
     callOptional(sdk.features?.GameplayAPI, 'stop');
   });
 
   void gamePushSdkAsync().then(async gp => {
     if (!gp) return;
     bindGamePushEvents(gp);
-    if (!gamePushGameplayActive) return;
-    gamePushGameplayActive = false;
+    if (!state.gamePushGameplayActive) return;
+    state.gamePushGameplayActive = false;
     callOptional(gp, 'gameplayStop');
   });
 }
@@ -715,14 +717,14 @@ export async function hydratePlatformSaveFromCloud(): Promise<PlatformLoadResult
 }
 
 export function resetPlatformBridgeForTests(): void {
-  bridgeOptions = {};
-  yandexSdkPromise = null;
-  gamePushSdkPromise = null;
-  yandexEventsBound = false;
-  yandexReadySent = false;
-  yandexGameplayActive = false;
-  gamePushEventsBound = false;
-  gamePushReadySent = false;
-  gamePushGameStartSent = false;
-  gamePushGameplayActive = false;
+  state.bridgeOptions = {};
+  state.yandexSdkPromise = null;
+  state.gamePushSdkPromise = null;
+  state.yandexEventsBound = false;
+  state.yandexReadySent = false;
+  state.yandexGameplayActive = false;
+  state.gamePushEventsBound = false;
+  state.gamePushReadySent = false;
+  state.gamePushGameStartSent = false;
+  state.gamePushGameplayActive = false;
 }
