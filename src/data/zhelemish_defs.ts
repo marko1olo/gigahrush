@@ -88,7 +88,13 @@ export const ZHELEMISH_DEF_BY_ITEM_ID = Object.fromEntries(
 function duplicateStrings(values: readonly string[]): string[] {
   const counts = new Map<string, number>();
   for (const value of values) counts.set(value, (counts.get(value) ?? 0) + 1);
-  return [...counts.entries()].filter(([, count]) => count > 1).map(([value]) => value).sort();
+  const duplicates: string[] = [];
+  for (const [value, count] of counts) {
+    if (count > 1) {
+      duplicates.push(value);
+    }
+  }
+  return duplicates.sort();
 }
 
 export function getZhelemishDef(itemId: string): ZhelemishDef | undefined {
