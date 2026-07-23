@@ -2604,9 +2604,10 @@ function consumePlayerSprintWater(actor: Entity, dt: number, sprintMod: number):
 
 function applyKnockbackPhysics(dt: number): void {
   const r = 0.3; // generic body radius
-  for (const e of entities) {
-    if (!e.alive || (!e.vx && !e.vy)) continue;
-    if (e.type !== EntityType.NPC && e.type !== EntityType.MONSTER && e.id !== player.id) continue;
+  const actors = getEntityIndex().actors;
+
+  const processEntity = (e: Entity) => {
+    if (!e.alive || (!e.vx && !e.vy)) return;
     
     const canClip = isNoClipActive() && e.id === player.id;
     
@@ -2630,6 +2631,14 @@ function applyKnockbackPhysics(dt: number): void {
       }
       e.vy *= Math.pow(0.001, dt);
       if (Math.abs(e.vy) < 0.1) e.vy = 0;
+    }
+  };
+
+  processEntity(player);
+  for (let i = 0; i < actors.length; i++) {
+    const e = actors[i];
+    if (e.id !== player.id) {
+      processEntity(e);
     }
   }
 }
