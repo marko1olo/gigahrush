@@ -1,3 +1,4 @@
+import { log } from "../../core/log";
 /* ── Проверочный коридор документов — Ministry document gate ─── */
 
 import {
@@ -717,7 +718,7 @@ function createGateRoom(world: World, nextRoomId: number, spawnX: number, spawnY
   const pos = findClearArea(world, cx, cy, GATE_W, GATE_H, 35, 130)
     ?? findClearArea(world, cx, cy, GATE_W, GATE_H, 0, Math.floor(W / 4));
   if (!pos) {
-    console.warn(`[DOCUMENT_GATE] failed to place ${GATE_ROOM_NAME}`);
+    log.warn(`[DOCUMENT_GATE] failed to place ${GATE_ROOM_NAME}`);
     return null;
   }
 

@@ -1,3 +1,4 @@
+import { log } from "../../core/log";
 /* Non-explicit adult figure-study gallery: procedural sprite POI. */
 
 import {
@@ -65,7 +66,7 @@ function generateArtStudies(
 ): { nextRoomId: number } {
   const origin = findOrigin(world, zcx, zcy);
   if (!origin) {
-    console.warn('[ART_STUDIES] no clean place for gallery');
+    log.warn('[ART_STUDIES] no clean place for gallery');
     return { nextRoomId };
   }
   const { x: rx, y: ry } = origin;

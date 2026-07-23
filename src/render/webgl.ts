@@ -1,3 +1,4 @@
+import { log } from "../core/log";
 /* ── WebGL raycaster engine ────────────────────────────────────── *
  * GPU-accelerated DDA raycasting via fragment shader.             *
  * Replaces the software raycaster loop from engine.ts.             *
@@ -2346,7 +2347,7 @@ function createOptionalMeshPass(gl: WebGL2RenderingContext): MeshPassHandle | un
   try {
     return createMeshPass(gl);
   } catch (error) {
-    console.warn('Mesh pass disabled:', error);
+    log.warn('Mesh pass disabled:', error);
     return undefined;
   }
 }
@@ -2888,7 +2889,7 @@ export function initWebGL(
       preserveDrawingBuffer: false,
     }) as WebGL2RenderingContext | null;
   } catch (e) {
-    console.error('WebGL context creation failed', e);
+    log.error('WebGL context creation failed', e);
   }
   if (!gl) throw new Error('WebGL2 not supported');
 
@@ -2896,7 +2897,7 @@ export function initWebGL(
   const floatExt = gl.getExtension('EXT_color_buffer_float');
   if (!floatExt) {
     // Fallback: we can still work without it, will use RGBA8 readback
-    console.warn('EXT_color_buffer_float not available — depth readback via RGBA');
+    log.warn('EXT_color_buffer_float not available — depth readback via RGBA');
   }
 
   // ── Raycaster program ──

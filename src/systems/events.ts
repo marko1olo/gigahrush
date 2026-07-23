@@ -1,3 +1,4 @@
+import { log } from "../core/log";
 /* ── Structured world event store: fixed-size ring buffers ────── */
 
 import {
@@ -108,8 +109,8 @@ function dispatchEventObservers(state: GameState, event: WorldEvent): void {
     try {
       observer(state, event);
     } catch (error) {
-      if (errorLogs < MAX_OBSERVER_ERROR_LOGS && typeof console !== 'undefined' && typeof console.warn === 'function') {
-        console.warn('World event observer failed', error);
+      if (errorLogs < MAX_OBSERVER_ERROR_LOGS) {
+        log.warn('World event observer failed', error);
         errorLogs++;
       }
     }

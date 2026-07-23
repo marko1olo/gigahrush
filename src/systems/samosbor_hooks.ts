@@ -1,3 +1,4 @@
+import { log } from "../core/log";
 import { type Entity, type GameState } from '../core/types';
 import { type World } from '../core/world';
 import { type ActiveSamosborVariant } from '../data/samosbor_variants';
@@ -45,7 +46,7 @@ const localShelters: SamosborLocalShelterDef[] = [];
 
 export function registerSamosborLocalShelter(def: SamosborLocalShelterDef): void {
   if (localShelters.some(shelter => shelter.id === def.id)) {
-    console.warn(`[samosbor_hooks] duplicate local shelter id: ${def.id}`);
+    log.warn(`[samosbor_hooks] duplicate local shelter id: ${def.id}`);
     return;
   }
   localShelters.push(def);

@@ -1,3 +1,4 @@
+import { log } from "../core/log";
 import { FloorLevel, type WorldEventSeverity } from '../core/types';
 import { type SamosborVariantId } from './samosbor_variants';
 
@@ -64,7 +65,7 @@ const registeredIds = new Set<string>();
 
 export function registerSamosborBeat(def: SamosborBeatDef): void {
   if (registeredIds.has(def.id)) {
-    console.warn(`[samosbor_director] duplicate beat id: ${def.id}`);
+    log.warn(`[samosbor_director] duplicate beat id: ${def.id}`);
     return;
   }
   registeredIds.add(def.id);
