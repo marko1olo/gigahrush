@@ -261,6 +261,43 @@ export class World {
     }
   }
 
+  copyFrom(source: World): void {
+    this.cells.set(source.cells);
+    this.roomMap.set(source.roomMap);
+    this.wallTex.set(source.wallTex);
+    this.floorTex.set(source.floorTex);
+    this.features.set(source.features);
+    this.light.set(source.light);
+    this.visualSlots.set(source.visualSlots);
+    this.pathBlockers.set(source.pathBlockers);
+    this.aptMask.set(source.aptMask);
+    this.hermoWall.set(source.hermoWall);
+    this.zoneMap.set(source.zoneMap);
+    this.factionControl.set(source.factionControl);
+    this.fog.set(source.fog);
+    this.tissue.set(source.tissue);
+    this.dangerField.set(source.dangerField);
+    this.liftDir.set(source.liftDir);
+
+    this.rooms = source.rooms.slice();
+    this.doors = new Map(source.doors);
+    this.apartmentRoomCount = source.apartmentRoomCount;
+    this.zones = source.zones.slice();
+    this.slideCells = source.slideCells.slice();
+    this.screenCells = source.screenCells.slice();
+    this.surfaceMap = new Map(source.surfaceMap);
+    this.surfaceFlags.set(source.surfaceFlags);
+    this.anomalyTeleports = new Map(source.anomalyTeleports);
+    this.anomalySmogSource = source.anomalySmogSource;
+    this.anomalySmogCells = source.anomalySmogCells.slice();
+    this.anomalySmogHandled = source.anomalySmogHandled;
+    this.railTracks = source.railTracks.slice();
+    this.railTrains = source.railTrains.slice();
+    this.railTrainCells = new Map(source.railTrainCells);
+    this.containers = source.containers.slice();
+    this.rebuildContainerMap();
+  }
+
   containersAt(x: number, y: number): WorldContainer[] {
     const ids = this.containerMap.get(this.idx(x, y));
     if (!ids) return [];
@@ -779,40 +816,7 @@ export function replaceWorldFromGeneration(target: World | null | undefined, gen
     pathBlockerVersion: target.pathBlockerVersion,
   };
 
-  target.cells.set(source.cells);
-  target.roomMap.set(source.roomMap);
-  target.wallTex.set(source.wallTex);
-  target.floorTex.set(source.floorTex);
-  target.features.set(source.features);
-  target.light.set(source.light);
-  target.visualSlots.set(source.visualSlots);
-  target.pathBlockers.set(source.pathBlockers);
-  target.aptMask.set(source.aptMask);
-  target.hermoWall.set(source.hermoWall);
-  target.zoneMap.set(source.zoneMap);
-  target.factionControl.set(source.factionControl);
-  target.fog.set(source.fog);
-  target.tissue.set(source.tissue);
-  target.dangerField.set(source.dangerField);
-  target.liftDir.set(source.liftDir);
-
-  target.rooms = source.rooms.slice();
-  target.doors = new Map(source.doors);
-  target.apartmentRoomCount = source.apartmentRoomCount;
-  target.zones = source.zones.slice();
-  target.slideCells = source.slideCells.slice();
-  target.screenCells = source.screenCells.slice();
-  target.surfaceMap = new Map(source.surfaceMap);
-  target.surfaceFlags.set(source.surfaceFlags);
-  target.anomalyTeleports = new Map(source.anomalyTeleports);
-  target.anomalySmogSource = source.anomalySmogSource;
-  target.anomalySmogCells = source.anomalySmogCells.slice();
-  target.anomalySmogHandled = source.anomalySmogHandled;
-  target.railTracks = source.railTracks.slice();
-  target.railTrains = source.railTrains.slice();
-  target.railTrainCells = new Map(source.railTrainCells);
-  target.containers = source.containers.slice();
-  target.rebuildContainerMap();
+  target.copyFrom(source);
 
   markWorldReplaced(target, versions);
   return target;
