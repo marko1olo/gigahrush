@@ -571,9 +571,10 @@ export function publishPlayerItemEvent(
 ): void {
   if (!state || !isPlayerEntity(actor)) return;
   const def = ITEMS[defId];
-  const tags = ['player', 'inventory', def?.type !== undefined ? `item_type_${def.type}` : 'item'];
-  for (const tag of ITEM_TAGS[defId] ?? []) if (!tags.includes(tag)) tags.push(tag);
-  for (const tag of def?.tags ?? []) if (!tags.includes(tag)) tags.push(tag);
+  const tagsSet = new Set(['player', 'inventory', def?.type !== undefined ? `item_type_${def.type}` : 'item']);
+  for (const tag of ITEM_TAGS[defId] ?? []) tagsSet.add(tag);
+  for (const tag of def?.tags ?? []) tagsSet.add(tag);
+  const tags = Array.from(tagsSet);
   const eventSeverity = defId === 'maronary_shaving' && type === 'player_pick_item' && severity < 3 ? 3 : severity;
   publishEvent(state, {
     type,
@@ -1300,11 +1301,11 @@ function documentRoomName(e: Entity, world: World | undefined): string | undefin
 }
 
 function documentActionTags(defId: string, extra: readonly string[]): string[] {
-  const out = ['player', 'inventory', 'document'];
-  for (const tag of extra) if (!out.includes(tag)) out.push(tag);
-  for (const tag of ITEM_TAGS[defId] ?? []) if (!out.includes(tag)) out.push(tag);
-  for (const tag of ITEMS[defId]?.tags ?? []) if (!out.includes(tag)) out.push(tag);
-  return out.slice(0, 8);
+  const outSet = new Set(['player', 'inventory', 'document']);
+  for (const tag of extra) outSet.add(tag);
+  for (const tag of ITEM_TAGS[defId] ?? []) outSet.add(tag);
+  for (const tag of ITEMS[defId]?.tags ?? []) outSet.add(tag);
+  return Array.from(outSet).slice(0, 8);
 }
 
 function publishDocumentActionEvent(
