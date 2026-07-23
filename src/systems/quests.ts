@@ -1421,15 +1421,27 @@ function generatePlotQuest(
   npc: Entity, world: World, entities: Entity[], state: GameState,
 ): Quest | null {
   const plotId = npc.plotNpcId!;
+
+  // Pre-calculate quest state to avoid O(N^2) array search
+  const hasQuest = new Set<number>();
+  const isDone = new Set<number>();
+  for (let k = 0; k < state.quests.length; k++) {
+    const q = state.quests[k];
+    if (q.plotStepIndex !== undefined) {
+      hasQuest.add(q.plotStepIndex);
+      if (q.done) isDone.add(q.plotStepIndex);
+    }
+  }
+
   for (let i = 0; i < PLOT_CHAIN.length; i++) {
     const step = PLOT_CHAIN[i];
     if (step.giverNpcId !== plotId) continue;
     // Skip if this step already has a quest (active or done)
-    if (state.quests.some(q => q.plotStepIndex === i)) continue;
+    if (hasQuest.has(i)) continue;
     // All previous steps must be done
     let allPrevDone = true;
     for (let j = 0; j < i; j++) {
-      if (!state.quests.some(q => q.plotStepIndex === j && q.done)) { allPrevDone = false; break; }
+      if (!isDone.has(j)) { allPrevDone = false; break; }
     }
     if (!allPrevDone) continue;
 
