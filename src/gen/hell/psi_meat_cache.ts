@@ -15,7 +15,8 @@ import { monsterSpr, Spr } from '../../render/sprite_index';
 import { publishEvent, registerWorldEventObserver } from '../../systems/events';
 import { randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg';
 import { connectProtectedRoom, findClearArea, protectRoom, rng, stampRoom } from '../shared';
-import { isPlayerEntity } from '../../systems/player_actor';
+import { isPlayerEntity, getCurrentPlayerId } from '../../systems/player_actor';
+import { getEntityIndex } from '../../systems/entity_index';
 import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
 
 const ROOM_W = 15;
@@ -282,7 +283,14 @@ function drainPlayerForCache(
   psiLoss: number,
   hpPerMissingPsi: number,
 ): { psiLost: number; hpLost: number } {
-  const player = entities.find(entity => isPlayerEntity(entity) && entity.alive);
+    let player: Entity | undefined;
+  const playerId = getCurrentPlayerId();
+  if (playerId !== undefined) {
+    player = getEntityIndex().byId.get(playerId);
+  }
+  if (!player || !player.alive) {
+    player = entities.find(entity => isPlayerEntity(entity) && entity.alive);
+  }
   if (!player) return { psiLost: 0, hpLost: 0 };
 
   let psiLost = 0;
@@ -308,7 +316,14 @@ function spawnCacheBranchBacklash(
   kinds: readonly MonsterKind[],
 ): number {
   let spawned = 0;
-  const player = entities.find(entity => isPlayerEntity(entity) && entity.alive);
+    let player: Entity | undefined;
+  const playerId = getCurrentPlayerId();
+  if (playerId !== undefined) {
+    player = getEntityIndex().byId.get(playerId);
+  }
+  if (!player || !player.alive) {
+    player = entities.find(entity => isPlayerEntity(entity) && entity.alive);
+  }
   for (const kind of kinds) {
     if (site.backlashSpawned >= AG54_PSI_CACHE_BACKLASH_CAP) break;
     const pos = findCacheBranchSpawn(world, site, site.backlashSpawned + spawned);
