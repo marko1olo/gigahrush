@@ -45,6 +45,20 @@ test('platform bridge detects explicit portal query safely', () => {
   assert.equal(gamePushConfigFromSearch('?gpProjectId=123'), null);
 });
 
+
+test('requestedPortalFromSearch returns empty string when URLSearchParams throws', () => {
+  const originalURLSearchParams = globalThis.URLSearchParams;
+  try {
+    globalThis.URLSearchParams = function() {
+      throw new Error('mock error');
+    } as any;
+
+    assert.equal(requestedPortalFromSearch('?portal=yandex'), '');
+  } finally {
+    globalThis.URLSearchParams = originalURLSearchParams;
+  }
+});
+
 test('portal compact save keeps a current-shape resume profile without heavy floor memory', () => {
   const payload: SavePayload & { version: number } = {
     version: SAVE_SHAPE_VERSION,
