@@ -2072,7 +2072,10 @@ function countUngatedRectCells(gen: FloorGeneration, rects: readonly AuditRect[]
 }
 
 function roomReachableCellCount(gen: FloorGeneration, roomName: string, ungatedOnly = false): number {
-  const roomIds = new Set(gen.world.rooms.filter(room => room.name === roomName).map(room => room.id));
+  const roomIds = new Set<number>();
+  for (const room of gen.world.rooms) {
+    if (room.name === roomName) roomIds.add(room.id);
+  }
   if (roomIds.size === 0) return 0;
   const audit = auditReachability(gen.world, gen.world.idx(Math.floor(gen.spawnX), Math.floor(gen.spawnY)));
   let count = 0;
