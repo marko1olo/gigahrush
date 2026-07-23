@@ -3574,17 +3574,24 @@ export function getSamosborDebugLines(): string[] {
   const localShelterLines = getLocalSamosborShelterDebugLines();
 
   // Front summary
-  const aliveFronts = activeSamosborFronts.filter(f => !f.dead);
-  const totalProcessed = activeSamosborFronts.reduce((s, f) => s + f.processed, 0);
-  const totalChanged = activeSamosborFronts.reduce((s, f) => s + f.changed, 0);
-  const totalMonstersFromFronts = activeSamosborFronts.reduce((s, f) => s + f.monstersSpawned, 0);
+  let aliveFrontsCount = 0;
+  let totalProcessed = 0;
+  let totalChanged = 0;
+  let totalMonstersFromFronts = 0;
+  for (let i = 0; i < activeSamosborFronts.length; i++) {
+    const f = activeSamosborFronts[i];
+    if (!f.dead) aliveFrontsCount++;
+    totalProcessed += f.processed;
+    totalChanged += f.changed;
+    totalMonstersFromFronts += f.monstersSpawned;
+  }
 
   return [
     `Самосбор: ${active ? active.def.displayName : '-'} | scale=${activeSamosborScale} zone=${activeSamosborZoneId >= 0 ? activeSamosborZoneId + 1 : '-'} sealed=${samosborSealed ? 'Y' : 'N'}`,
     `Предупреждение: ${warning ? `${warning.variantName} ${warningZone} ${warning.secondsLeft}s` : '-'}`,
     `Прошлый: ${getSamosborVariantName(last)} | Следующий: ${getSamosborVariantName(forced)}`,
     istotitLine,
-    `Фронты: ${aliveFronts.length}/${activeSamosborFronts.length} alive | cells=${totalProcessed} changed=${totalChanged} mobs=${totalMonstersFromFronts}`,
+    `Фронты: ${aliveFrontsCount}/${activeSamosborFronts.length} alive | cells=${totalProcessed} changed=${totalChanged} mobs=${totalMonstersFromFronts}`,
     ...getSamosborWaveDebugLines(),
     ...getSamosborFrontDebugLines(),
     ...localShelterLines,
