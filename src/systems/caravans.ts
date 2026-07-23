@@ -269,25 +269,24 @@ export function ensureCaravanState(state: GameState): CaravanState {
 }
 
 function uniqueResourceIds(def: CaravanLaneDef): string[] {
-  const ids: string[] = [];
+  const ids = new Set<string>();
   for (const id of def.tariffResourceIds) {
-    if (!ids.includes(id)) ids.push(id);
+    ids.add(id);
   }
   for (const delta of def.resourceDeltas) {
-    if (!ids.includes(delta.resourceId)) ids.push(delta.resourceId);
+    ids.add(delta.resourceId);
   }
-  return ids;
+  return Array.from(ids);
 }
 
 function caravanTags(def: CaravanLaneDef, extra: readonly string[] = []): string[] {
-  const tags: string[] = ['caravan', 'tariff', 'supply_lane', def.id];
-  for (const resourceId of uniqueResourceIds(def)) if (!tags.includes(resourceId)) tags.push(resourceId);
+  const tags = new Set<string>(['caravan', 'tariff', 'supply_lane', def.id]);
+  for (const resourceId of uniqueResourceIds(def)) tags.add(resourceId);
   for (const corpId of def.corpIds ?? []) {
-    const tag = `corp_${corpId}`;
-    if (!tags.includes(tag)) tags.push(tag);
+    tags.add(`corp_${corpId}`);
   }
-  for (const tag of extra) if (tag && !tags.includes(tag)) tags.push(tag);
-  return tags;
+  for (const tag of extra) if (tag) tags.add(tag);
+  return Array.from(tags);
 }
 
 function deltaCountsFor(def: CaravanLaneDef, multiplier: number): number[] {
