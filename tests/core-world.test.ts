@@ -6,11 +6,13 @@ import {
   REACH_GATE_HERMETIC,
   REACH_GATE_KEY,
   REACH_GATE_NONE,
+  REACH_UNREACHED,
   World,
   auditReachability,
   classifyReachabilityCell,
   describeReachability,
   hasReachableAdjacentCell,
+  reachabilityGateLabel,
 } from '../src/core/world';
 
 test('World wraps coordinates and measures toroidal distance', () => {
@@ -215,4 +217,12 @@ test('World bakeLights makes candles smaller and weaker than lamps', () => {
   assert.ok(candleWorld.light[candleWorld.idx(cx, cy)] < lampWorld.light[lampWorld.idx(cx, cy)]);
   assert.ok(candleWorld.light[candleWorld.idx(cx + 4, cy)] > 0);
   assert.equal(candleWorld.light[candleWorld.idx(cx + 6, cy)], 0);
+});
+
+test('reachabilityGateLabel formats masks correctly', () => {
+  assert.equal(reachabilityGateLabel(REACH_UNREACHED), 'unreachable');
+  assert.equal(reachabilityGateLabel(REACH_GATE_NONE), 'reachable');
+  assert.equal(reachabilityGateLabel(REACH_GATE_KEY), 'gated by key');
+  assert.equal(reachabilityGateLabel(REACH_GATE_HERMETIC), 'gated by hermetic door');
+  assert.equal(reachabilityGateLabel(REACH_GATE_KEY | REACH_GATE_HERMETIC), 'gated by key and hermetic door');
 });
