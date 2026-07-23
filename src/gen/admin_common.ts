@@ -1,3 +1,4 @@
+import { log } from "../core/log";
 /* ── Ministry admin content helpers ───────────────────────────── */
 
 import {
@@ -79,7 +80,7 @@ export function createAdminRoom(
     ?? findClearArea(world, cx, cy, spec.w, spec.h, 0, Math.floor(world.dist(0, 0, 512, 512)))
     ?? findAdminFallbackArea(world, cx, cy, spec.w, spec.h, spec.minDist, spec.maxDist);
   if (!pos) {
-    console.warn(`[MINISTRY_ADMIN] failed to place ${spec.name}`);
+    log.warn(`[MINISTRY_ADMIN] failed to place ${spec.name}`);
     return null;
   }
 

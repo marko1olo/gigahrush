@@ -1,3 +1,4 @@
+import { log } from "./core/log";
 /* ── Input handler: keyboard + mouse (pointer lock) ──────────── */
 
 import type { InputState } from './core/types';
@@ -89,7 +90,7 @@ function requestPointerLockSafe(canvas: HTMLCanvasElement): void {
       // Pointer lock may be denied outside a user-activation window.
     });
   } catch (e) {
-    console.error('Pointer lock failed:', e);
+    log.error('Pointer lock failed:', e);
   }
 }
 
