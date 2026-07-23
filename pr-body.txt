@@ -1,12 +1,13 @@
-💡 What:
-- Added `entitiesMap` cache to `PlombContext` and initialized it on demand inside `nearestActiveContextToPlayer` and `handleKillEvent`.
-- Replaced the array `.find()` lookups with `O(1)` Map lookups for the monster.
-- Replaced the array `.find()` for `player` with a simple reverse `for`-loop since it executes significantly faster for dense arrays where finding the single active element earlier provides early breaks.
+🎯 **What:** The testing gap addressed
+Added comprehensive unit tests covering all functions and classes inside `src/core/rand.ts` (e.g. `xorshift32`, `SeedRng`, `irand`, `randSeed`, `hashSeed`, `secureRandom`).
 
-🎯 Why:
-- The previous implementation iterates through `entities` array iteratively with `find`, which invokes O(n) operation per-context multiple times inside another loop, drastically degrading performance on high entity counts.
+📊 **Coverage:** What scenarios are now tested
+- Determinism and correctness of the core xorshift32 PRNG and SeedRng class logic.
+- Methods for bounded outputs (e.g., bounds for `irand`, `irandFrom`).
+- Deterministic shuffling (`shuffleWith`) and picking (`pickFrom`).
+- Correct behaviour of global utilities bridging `Math.random` (`randSeed`, `irand`).
+- Cryptographically secure value generation scaling (`secureRandom`).
+- Correct collision resistant string hashing (`hashSeed`).
 
-📊 Measured Improvement:
-- Unoptimized runtime for nearestActiveContextToPlayer (10k entities, 10k iterations): ~1,000ms
-- Optimized runtime (10k entities, 10k iterations): ~4.8ms
-- Improvement is ~200x speedup for the function.
+✨ **Result:** The improvement in test coverage
+`src/core/rand.ts` is now fully covered by tests locally passing against edge conditions, ensuring procedural logic built on top of this remains sound and testable.
