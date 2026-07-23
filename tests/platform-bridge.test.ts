@@ -34,7 +34,6 @@ test('platform bridge detects explicit portal query safely', () => {
   assert.equal(requestedPortalFromSearch('?portal=yandex'), 'yandex');
   assert.equal(requestedPortalFromSearch('?x=1&portal=GamePush'), 'gamepush');
   assert.equal(requestedPortalFromSearch('?portal=pikabu-games'), 'pikabu');
-  assert.equal(normalizePortalTarget('gp'), 'gamepush');
   assert.equal(requestedPortalFromSearch('not a query'), '');
   assert.equal(portalTargetFromSearchOrMeta('', 'pikabu'), 'pikabu');
   assert.equal(portalTargetFromSearchOrMeta('?portal=gamepush', 'pikabu'), 'gamepush');
@@ -44,6 +43,33 @@ test('platform bridge detects explicit portal query safely', () => {
   });
   assert.equal(gamePushConfigFromSearch('?gpProjectId=123'), null);
 });
+
+test('normalizePortalTarget correctly handles all supported targets and edge cases', () => {
+  // Yandex
+  assert.equal(normalizePortalTarget('yandex'), 'yandex');
+  assert.equal(normalizePortalTarget('ya'), 'yandex');
+  assert.equal(normalizePortalTarget(' YANDEX '), 'yandex');
+  assert.equal(normalizePortalTarget(' Ya '), 'yandex');
+
+  // GamePush
+  assert.equal(normalizePortalTarget('gamepush'), 'gamepush');
+  assert.equal(normalizePortalTarget('gp'), 'gamepush');
+  assert.equal(normalizePortalTarget(' GAMEPUSH '), 'gamepush');
+  assert.equal(normalizePortalTarget(' Gp '), 'gamepush');
+
+  // Pikabu
+  assert.equal(normalizePortalTarget('pikabu'), 'pikabu');
+  assert.equal(normalizePortalTarget('pikabu-games'), 'pikabu');
+  assert.equal(normalizePortalTarget('pikabu_games'), 'pikabu');
+  assert.equal(normalizePortalTarget(' PiKaBu '), 'pikabu');
+  assert.equal(normalizePortalTarget(' PIKABU-GAMES '), 'pikabu');
+
+  // Fallback
+  assert.equal(normalizePortalTarget('unknown'), '');
+  assert.equal(normalizePortalTarget(''), '');
+  assert.equal(normalizePortalTarget('   '), '');
+});
+
 
 test('portal compact save keeps a current-shape resume profile without heavy floor memory', () => {
   const payload: SavePayload & { version: number } = {
