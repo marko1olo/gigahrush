@@ -97,3 +97,31 @@ test('pathBlockedAt maps centers, subcell edges and torus wrapping', () => {
   assert.equal(pathBlockedAt(world, W - 0.01, W - 0.01), true);
   assert.equal(pathBlockedAt(world, W - 0.5, W - 0.5), false);
 });
+
+test('setPathBlockerRow edge cases', () => {
+  const world = new World();
+  const validCellIdx = 0;
+  const validRow = 0;
+  const validMask = 0;
+
+  // Invalid cellIdx
+  assert.throws(() => setPathBlockerRow(world, -1, validRow, validMask), RangeError);
+  assert.throws(() => setPathBlockerRow(world, W * W, validRow, validMask), RangeError);
+  assert.throws(() => setPathBlockerRow(world, 1.5, validRow, validMask), RangeError);
+  assert.throws(() => setPathBlockerRow(world, NaN, validRow, validMask), RangeError);
+  assert.throws(() => setPathBlockerRow(world, Infinity, validRow, validMask), RangeError);
+
+  // Invalid row
+  assert.throws(() => setPathBlockerRow(world, validCellIdx, -1, validMask), RangeError);
+  assert.throws(() => setPathBlockerRow(world, validCellIdx, PATH_BLOCKER_ROWS_PER_CELL, validMask), RangeError);
+  assert.throws(() => setPathBlockerRow(world, validCellIdx, 1.5, validMask), RangeError);
+  assert.throws(() => setPathBlockerRow(world, validCellIdx, NaN, validMask), RangeError);
+  assert.throws(() => setPathBlockerRow(world, validCellIdx, Infinity, validMask), RangeError);
+
+  // Invalid mask
+  assert.throws(() => setPathBlockerRow(world, validCellIdx, validRow, -1), RangeError);
+  assert.throws(() => setPathBlockerRow(world, validCellIdx, validRow, 16), RangeError);
+  assert.throws(() => setPathBlockerRow(world, validCellIdx, validRow, 1.5), RangeError);
+  assert.throws(() => setPathBlockerRow(world, validCellIdx, validRow, NaN), RangeError);
+  assert.throws(() => setPathBlockerRow(world, validCellIdx, validRow, Infinity), RangeError);
+});
