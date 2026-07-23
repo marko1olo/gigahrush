@@ -72,6 +72,32 @@ export function drawNpcMenu(
   ctx.fillText(fitText(ctx, `${fName} · ${oName}`, pw - 16 * sx), px + 8 * sx + fj.dx, py + 22 * sy + fj.dy);
 
   if (state.npcMenuTab === 'main') {
+    drawNpcMenuMain(ctx, state, player, npc, entities, px, py, pw, ph, sx, sy, time);
+  } else if (state.npcMenuTab === 'talk') {
+    drawNpcMenuTalk(ctx, state, px, py, pw, ph, sx, sy);
+  } else if (state.npcMenuTab === 'quest') {
+    drawNpcMenuQuest(ctx, state, px, py, pw, ph, sx, sy);
+  } else if (state.npcMenuTab === NPC_MENU_INTERFACE_TAB) {
+    drawNpcMenuInterface(ctx, state, npc, px, py, pw, ph, sx, sy, time);
+  } else if (state.npcMenuTab === 'trade') {
+    drawNpcMenuTrade(ctx, state, player, npc, sx, sy);
+  }
+}
+
+function drawNpcMenuMain(
+  ctx: CanvasRenderingContext2D,
+  state: GameState,
+  player: Entity,
+  npc: Entity,
+  entities: Entity[],
+  px: number,
+  py: number,
+  pw: number,
+  ph: number,
+  sx: number,
+  sy: number,
+  time: number,
+): void {
     const items = getNpcMenuOptions({ state, player, npc, entities });
     ctx.font = `${8.6 * sy}px monospace`;
     for (let i = 0; i < items.length; i++) {
@@ -87,7 +113,18 @@ export function drawNpcMenu(
     ctx.font = `${6.8 * sy}px monospace`;
     ctx.fillText(fitText(ctx, `${controlBindingLabel('menuUp')}/${controlBindingLabel('menuDown')} выбор  |  ${controlHint('gameMenu')} выбрать  |  ${menuCloseHint()} закрыть`, pw - 16 * sx), px + 8 * sx, py + ph - 11 * sy);
 
-  } else if (state.npcMenuTab === 'talk') {
+}
+
+function drawNpcMenuTalk(
+  ctx: CanvasRenderingContext2D,
+  state: GameState,
+  px: number,
+  py: number,
+  pw: number,
+  ph: number,
+  sx: number,
+  sy: number,
+): void {
     // Talk: show procedural text
     ctx.fillStyle = '#ccc';
     ctx.font = `${7.8 * sy}px monospace`;
@@ -99,7 +136,18 @@ export function drawNpcMenu(
     ctx.font = `${6.8 * sy}px monospace`;
     ctx.fillText(`${controlHint('gameMenu')} назад  |  ${menuCloseHint()} закрыть`, px + 8 * sx, py + ph - 11 * sy);
 
-  } else if (state.npcMenuTab === 'quest') {
+}
+
+function drawNpcMenuQuest(
+  ctx: CanvasRenderingContext2D,
+  state: GameState,
+  px: number,
+  py: number,
+  pw: number,
+  ph: number,
+  sx: number,
+  sy: number,
+): void {
     // Quest tab: paginated, one quest per page with word wrap
     const active = state.quests.filter(q => !q.done);
     const total = active.length;
@@ -145,7 +193,20 @@ export function drawNpcMenu(
       : `${controlHint('gameMenu')} назад  |  ${menuCloseHint()} закрыть`;
     ctx.fillText(fitText(ctx, hint, pw - 16 * sx), px + 8 * sx, py + ph - 11 * sy);
 
-  } else if (state.npcMenuTab === NPC_MENU_INTERFACE_TAB) {
+}
+
+function drawNpcMenuInterface(
+  ctx: CanvasRenderingContext2D,
+  _state: GameState,
+  npc: Entity,
+  px: number,
+  py: number,
+  pw: number,
+  ph: number,
+  sx: number,
+  sy: number,
+  time: number,
+): void {
     const durak = getDurakSnapshot();
     if (durak.open && durak.npcId === npc.id) {
       drawDurakInterface(ctx, durak, px, py, pw, ph, sx, sy, time);
@@ -202,7 +263,16 @@ export function drawNpcMenu(
     ctx.font = `${6.8 * sy}px monospace`;
     ctx.fillText(`${controlHint('gameMenu')} назад  |  ${menuCloseHint()} закрыть`, px + 8 * sx, py + ph - 11 * sy);
 
-  } else if (state.npcMenuTab === 'trade') {
+}
+
+function drawNpcMenuTrade(
+  ctx: CanvasRenderingContext2D,
+  state: GameState,
+  player: Entity,
+  npc: Entity,
+  sx: number,
+  sy: number,
+): void {
     // ── Fullscreen trade: symmetric inventories and offer baskets ──
     const cw = ctx.canvas.width;
     const ch = ctx.canvas.height;
@@ -431,5 +501,4 @@ export function drawNpcMenu(
     ctx.fillText(fitText(ctx, `${menuCloseHint()} назад`, hintW), cw - 8 * sx, ch - 8 * sy);
     ctx.textAlign = 'left';
 
-  }
 }
