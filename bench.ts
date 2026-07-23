@@ -1,33 +1,31 @@
-import { World } from './src/core/world.js';
-import { Cell } from './src/core/types.js';
-
-function nextContainerIdOld(world: any): number {
-  let id = world.containers.length + 1;
-  while (world.containerById.has(id) || world.containers.some(c => c.id === id)) id++;
-  return id;
+const rooms = [];
+for (let i = 0; i < 10000; i++) {
+  rooms.push({ id: i, name: i % 10 === 0 ? "targetName" : "otherName" });
 }
 
-function nextContainerIdNew(world: any): number {
-  let id = world.containers.length + 1;
-  while (world.containerById.has(id)) id++;
-  return id;
+const roomName = "targetName";
+
+function approach1() {
+  const roomIds = new Set(rooms.filter(room => room.name === roomName).map(room => room.id));
+  return roomIds.size;
 }
 
-const mockWorld = {
-  containers: Array.from({ length: 10000 }).map((_, i) => ({ id: i + 1 })),
-  containerById: new Map(Array.from({ length: 10000 }).map((_, i) => [i + 1, { id: i + 1 }]))
-};
-
-const startOld = performance.now();
-for (let i = 0; i < 1000; i++) {
-  nextContainerIdOld(mockWorld);
+function approach2() {
+  const roomIds = new Set();
+  for (let i = 0; i < rooms.length; i++) {
+    if (rooms[i].name === roomName) {
+      roomIds.add(rooms[i].id);
+    }
+  }
+  return roomIds.size;
 }
-const endOld = performance.now();
-console.log(`Old nextContainerId time: ${endOld - startOld}ms`);
 
-const startNew = performance.now();
-for (let i = 0; i < 1000; i++) {
-  nextContainerIdNew(mockWorld);
-}
-const endNew = performance.now();
-console.log(`New nextContainerId time: ${endNew - startNew}ms`);
+const N = 1000;
+
+let start = performance.now();
+for (let i = 0; i < N; i++) approach1();
+console.log("baseline:", performance.now() - start, "ms");
+
+start = performance.now();
+for (let i = 0; i < N; i++) approach2();
+console.log("optimized:", performance.now() - start, "ms");
