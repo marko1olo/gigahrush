@@ -258,27 +258,20 @@ function seedNpcPopulation(
    World starts as FLOOR; walls grow from a regular grid of sources.
    Each source grows exactly 2 wall segments, creating small rooms.
    ══════════════════════════════════════════════════════════════════ */
-export function generateKvartiry(territorySeed = 0): { world: World; entities: Entity[]; spawnX: number; spawnY: number } {
-  const world = new World();
-  const entities: Entity[] = [];
-  let nextId = 1;
-  let nextRoomId = 0;
-  lastPickedIdx = -1; // reset room type picker
-  resetKvartiryContentState();
 
-  const DX = [1, 0, -1, 0];
-  const DY = [0, 1, 0, -1];
+// ── Helper functions for generation phases ────────────────────
+const DX = [1, 0, -1, 0];
+const DY = [0, 1, 0, -1];
 
-  // ── Phase 0: All cells start as FLOOR (empty space) ───────────
+function buildKvartiryWalls(world: World): void {
+  // Phase 0: All cells start as FLOOR (empty space)
   for (let i = 0; i < W * W; i++) {
     world.cells[i] = Cell.FLOOR;
     world.wallTex[i] = Tex.PANEL;
     world.floorTex[i] = Tex.F_LINO;
   }
 
-  // ── Phase 1: Place source grid points ─────────────────────────
-  // Sources are on a regular WALL_L grid. They are marked via isSource
-  // but kept as FLOOR so they don't interfere with wallSum checks.
+  // Phase 1: Place source grid points
   const sources: number[] = [];
   const isSource = new Uint8Array(W * W);
   for (let y = 0; y < W; y++) {
@@ -291,9 +284,7 @@ export function generateKvartiry(territorySeed = 0): { world: World; entities: E
     }
   }
 
-  // ── Phase 2: Build walls from sources ─────────────────────────
-  // Each source grows wall segments until it has 2+ WALL neighbors.
-  // Doors are placed at the midpoint of each segment.
+  // Phase 2: Build walls from sources
   const W_MASK = W - 1;
   let activeSources = [...sources];
   while (activeSources.length > 0) {
@@ -301,7 +292,6 @@ export function generateKvartiry(territorySeed = 0): { world: World; entities: E
     for (const idx of activeSources) {
       const sx = idx % W;
       const sy = (idx / W) | 0;
-      // Count WALL neighbors (sources don't count as WALL)
       let wallSum = 0;
       if (world.cells[((sy - 1) & W_MASK) * W + sx] === Cell.WALL) wallSum++;
       if (world.cells[sy * W + ((sx + 1) & W_MASK)] === Cell.WALL) wallSum++;
@@ -310,7 +300,6 @@ export function generateKvartiry(territorySeed = 0): { world: World; entities: E
 
       if (wallSum < 2) {
         let drop = rng(0, 3);
-        // If chosen direction already has a wall, rotate
         const nx = (sx + DX[drop]) & W_MASK;
         const ny = (sy + DY[drop]) & W_MASK;
         const nCheck = ny * W + nx;
@@ -321,7 +310,6 @@ export function generateKvartiry(territorySeed = 0): { world: World; entities: E
           cx = (cx + DX[drop]) & W_MASK;
           cy = (cy + DY[drop]) & W_MASK;
           const ni = cy * W + cx;
-          // Don't overwrite another source
           if (isSource[ni]) continue;
           if (j + 1 === Math.floor(WALL_L / 2) && Math.random() < KV_SEGMENT_DOOR_CANDIDATE_CHANCE) {
             world.cells[ni] = Cell.DOOR;
@@ -335,14 +323,13 @@ export function generateKvartiry(territorySeed = 0): { world: World; entities: E
     activeSources = nextSources;
   }
 
-  // Convert source positions to WALL
   for (const idx of sources) {
     world.cells[idx] = Cell.WALL;
   }
+}
 
-  // ── Phase 3: C++ door connectivity — flood-fill + open candidate doors ──
-  // Candidate midpoint doors are barriers here. Connectivity opens a sparse
-  // subset, then all unopened candidates collapse back into walls.
+function buildKvartiryDoors(world: World): void {
+  // Phase 3: C++ door connectivity
   let startCell = -1;
   for (let i = 0; i < W * W; i++) {
     if (world.cells[i] === Cell.FLOOR) { startCell = i; break; }
@@ -425,13 +412,12 @@ export function generateKvartiry(territorySeed = 0): { world: World; entities: E
       floodFloors();
     }
 
-    // C++ cleanup: convert remaining candidate DOORs to WALL.
     for (let i = 0; i < W * W; i++) {
       if (world.cells[i] === Cell.DOOR) world.cells[i] = Cell.WALL;
     }
   }
 
-  // ── Phase 4: Additional doors — FLOOR between opposite walls ──
+  // Phase 4: Additional doors
   for (let i = 0; i < W * W; i++) {
     if (world.cells[i] !== Cell.FLOOR) continue;
     const x = i % W, y = (i / W) | 0;
@@ -460,8 +446,10 @@ export function generateKvartiry(territorySeed = 0): { world: World; entities: E
       world.wallTex[i] = Tex.DOOR_WOOD;
     }
   }
+}
 
-  // ── Phase 5: Fill rooms (BFS flood-fill) ──────────────────────
+function fillKvartiryRooms(world: World, nextRoomId: number): number {
+  // Phase 5: Fill rooms (BFS flood-fill)
   const roomZones = new Int32Array(W * W).fill(-1);
   let roomN = 0;
 
@@ -486,7 +474,6 @@ export function generateKvartiry(territorySeed = 0): { world: World; entities: E
 
     if (roomCells.length < 1) { roomN++; continue; }
 
-    // Compute bounding box for room
     let minX = W, maxX = 0, minY = W, maxY = 0;
     for (const ci of roomCells) {
       const x = ci % W, y = (ci / W) | 0;
@@ -496,7 +483,6 @@ export function generateKvartiry(territorySeed = 0): { world: World; entities: E
       if (y > maxY) maxY = y;
     }
 
-    // Assign a room type
     const rt = pickKvRoomType();
     const tex = roomTextures(rt.type);
 
@@ -515,12 +501,11 @@ export function generateKvartiry(territorySeed = 0): { world: World; entities: E
     };
     world.rooms.push(room);
 
-    // Apply textures
     for (const ci of roomCells) {
       world.roomMap[ci] = room.id;
       world.floorTex[ci] = tex.floor;
     }
-    // Set wall textures around room cells
+
     for (const ci of roomCells) {
       const cx = ci % W, cy = (ci / W) | 0;
       for (let s = 0; s < 4; s++) {
@@ -529,7 +514,6 @@ export function generateKvartiry(territorySeed = 0): { world: World; entities: E
       }
     }
 
-    // Place features in rooms large enough
     if (roomCells.length >= 2) {
       placeRoomFeatures(world, room);
     }
@@ -537,20 +521,11 @@ export function generateKvartiry(territorySeed = 0): { world: World; entities: E
     roomN++;
   }
   linkKvartiryDoorsToRooms(world);
+  return nextRoomId;
+}
 
-  // ── Phase 6: Zones (64 macro-regions) ─────────────────────────
-  generateZones(world);
-  for (const z of world.zones) z.level = calcZoneLevel(z.cx, z.cy, FloorLevel.KVARTIRY);
-
-  // ── Phase 6b: Ensure connectivity ─────────────────────────────
-  const spawnCenterX = W / 2, spawnCenterY = W / 2;
-  ensureConnectivity(world, spawnCenterX, spawnCenterY);
-
-  // ── Phase 7: Lifts (BEFORE room assignment eats all floor cells) ──
-  // placeLifts requires roomMap[ci] < 0, so we place them early and
-  // clear roomMap around lifts to satisfy the check.
-  // Actually we must clear roomMap for cells we want lifts on:
-  // Reset roomMap to -1 for corridor-type rooms (to allow lift placement)
+function placeKvartiryLifts(world: World): void {
+  // Phase 7: Lifts
   for (let i = 0; i < W * W; i++) {
     const rid = world.roomMap[i];
     if (rid >= 0) {
@@ -560,12 +535,11 @@ export function generateKvartiry(territorySeed = 0): { world: World; entities: E
       }
     }
   }
-  placeLifts(world, 16, LiftDirection.UP);    // up to жилая
-  placeLifts(world, 16, LiftDirection.DOWN);  // down to министерство
-  // Restore roomMap for cells that didn't become lifts
+  placeLifts(world, 16, LiftDirection.UP);
+  placeLifts(world, 16, LiftDirection.DOWN);
+
   for (let i = 0; i < W * W; i++) {
     if (world.cells[i] === Cell.FLOOR && world.roomMap[i] < 0) {
-      // Re-find room by checking neighbors
       const ix = i % W, iy = (i / W) | 0;
       for (let s = 0; s < 4; s++) {
         const ni = world.idx(world.wrap(ix + DX[s]), world.wrap(iy + DY[s]));
@@ -576,6 +550,69 @@ export function generateKvartiry(territorySeed = 0): { world: World; entities: E
       }
     }
   }
+}
+
+function spawnKvartiryItems(world: World, entities: Entity[], nextId: number): number {
+  // Phase 10: Spawn items
+  for (let i = 0; i < 500; i++) {
+    for (let attempt = 0; attempt < 50; attempt++) {
+      const x = Math.floor(Math.random() * W);
+      const y = Math.floor(Math.random() * W);
+      const ci = world.idx(x, y);
+      if (world.cells[ci] !== Cell.FLOOR) continue;
+      entities.push({
+        id: nextId++, type: EntityType.ITEM_DROP,
+        x: x + 0.5, y: y + 0.5, angle: 0, pitch: 0,
+        alive: true, speed: 0, sprite: Spr.ITEM_DROP,
+        inventory: [{ defId: 'ballot', count: rng(1, 3) }],
+      });
+      break;
+    }
+  }
+  return nextId;
+}
+
+function findKvartirySpawn(world: World): { spawnX: number; spawnY: number } {
+  // Phase 12: Find spawn point
+  let spawnX = W / 2 + 0.5, spawnY = W / 2 + 0.5;
+  for (let r = 0; r < 50; r++) {
+    for (let dy = -r; dy <= r; dy++) {
+      for (let dx = -r; dx <= r; dx++) {
+        if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue;
+        const ci = world.idx(world.wrap(Math.floor(W / 2) + dx), world.wrap(Math.floor(W / 2) + dy));
+        if (world.cells[ci] === Cell.FLOOR) {
+          spawnX = world.wrap(Math.floor(W / 2) + dx) + 0.5;
+          spawnY = world.wrap(Math.floor(W / 2) + dy) + 0.5;
+          r = 999;
+          break;
+        }
+      }
+    }
+  }
+  return { spawnX, spawnY };
+}
+
+export function generateKvartiry(territorySeed = 0): { world: World; entities: Entity[]; spawnX: number; spawnY: number } {
+  const world = new World();
+  const entities: Entity[] = [];
+  let nextId = 1;
+  let nextRoomId = 0;
+  lastPickedIdx = -1; // reset room type picker
+  resetKvartiryContentState();
+
+  buildKvartiryWalls(world);
+  buildKvartiryDoors(world);
+  nextRoomId = fillKvartiryRooms(world, nextRoomId);
+
+  // ── Phase 6: Zones (64 macro-regions) ─────────────────────────
+  generateZones(world);
+  for (const z of world.zones) z.level = calcZoneLevel(z.cx, z.cy, FloorLevel.KVARTIRY);
+
+  // ── Phase 6b: Ensure connectivity ─────────────────────────────
+  const spawnCenterX = W / 2, spawnCenterY = W / 2;
+  ensureConnectivity(world, spawnCenterX, spawnCenterY);
+
+  placeKvartiryLifts(world);
 
   // ── Phase 8: Light map ────────────────────────────────────────
   world.bakeLights();
@@ -593,42 +630,14 @@ export function generateKvartiry(territorySeed = 0): { world: World; entities: E
   seedNpcPopulation(world, entities, nid, Faction.LIQUIDATOR, LIQUIDATOR_PROFILE, Occupation.HUNTER);
   nextId = nid.v;
 
-  // ── Phase 10: Spawn items (ballots scattered everywhere) ─────
-  for (let i = 0; i < 500; i++) {
-    for (let attempt = 0; attempt < 50; attempt++) {
-      const x = Math.floor(Math.random() * W);
-      const y = Math.floor(Math.random() * W);
-      const ci = world.idx(x, y);
-      if (world.cells[ci] !== Cell.FLOOR) continue;
-      entities.push({
-        id: nextId++, type: EntityType.ITEM_DROP,
-        x: x + 0.5, y: y + 0.5, angle: 0, pitch: 0,
-        alive: true, speed: 0, sprite: Spr.ITEM_DROP,
-        inventory: [{ defId: 'ballot', count: rng(1, 3) }],
-      });
-      break;
-    }
-  }
+  nextId = spawnKvartiryItems(world, entities, nextId);
 
   // ── Phase 11: Manifest-owned named NPCs ──────────────────────
   nextId = spawnKvartiryNamedNpcs(world, entities, nextId);
 
-  // ── Phase 12: Find spawn point ────────────────────────────────
-  let spawnX = W / 2 + 0.5, spawnY = W / 2 + 0.5;
-  for (let r = 0; r < 50; r++) {
-    for (let dy = -r; dy <= r; dy++) {
-      for (let dx = -r; dx <= r; dx++) {
-        if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue;
-        const ci = world.idx(world.wrap(Math.floor(W / 2) + dx), world.wrap(Math.floor(W / 2) + dy));
-        if (world.cells[ci] === Cell.FLOOR) {
-          spawnX = world.wrap(Math.floor(W / 2) + dx) + 0.5;
-          spawnY = world.wrap(Math.floor(W / 2) + dy) + 0.5;
-          r = 999;
-          break;
-        }
-      }
-    }
-  }
+  const spawn = findKvartirySpawn(world);
+  const spawnX = spawn.spawnX;
+  const spawnY = spawn.spawnY;
 
   // ── Phase 13: Manifest-owned permanent themed rooms ──────────
   nextId = runKvartiryPermanentContent(world, entities, nextId, spawnX, spawnY);
@@ -643,6 +652,7 @@ export function generateKvartiry(territorySeed = 0): { world: World; entities: E
 
   return { world, entities, spawnX, spawnY };
 }
+
 
 /* ══════════════════════════════════════════════════════════════════
    Population pressure update — called every frame from main.ts.
