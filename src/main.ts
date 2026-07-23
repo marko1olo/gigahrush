@@ -1,31 +1,64 @@
-import { countAmmo, removeItem, publishPlayerItemEvent } from './systems/inventory';
+import {
+  countAmmo,
+  removeItem,
+  publishPlayerItemEvent,
+} from "./systems/inventory";
 /* ── ГИГАХРУЩ — main entry point ──────────────────────────────── */
-import './index.css';
-import './systems/demos_runtime';
-import { registerPwaServiceWorker } from './pwa';
+import "./index.css";
+import "./systems/demos_runtime";
+import { registerPwaServiceWorker } from "./pwa";
 
 import {
-  W, Cell, DoorState, FloorLevel, Tex, RoomType, LiftDirection,
-  type CharacterSex, type Entity, type GameClock, type GameState, type Item, type Needs, type Quest, type WorldContainer,
-  type PlayerDamageSourceKind, type WorldEventPrivacy, type WorldEventSeverity, type PlayerAlife,
-  EntityType, Faction, MonsterKind, Occupation, ProjType, QuestType, AIGoal,
-  msg, setMsgClock,
-} from './core/types';
-import { World, replaceWorldFromGeneration } from './core/world';
-import { safeParseJson } from './core/json';
-import { hashSeed, randSeed } from './core/rand';
-import { canActorOccupy, unstuckActorFromBlockers } from './systems/movement_collision';
-import { selectMeleeTarget } from './systems/melee_targeting';
-import { updateProceduralScreens } from './gen/procedural_screens';
-import { generateProceduralFloor } from './gen/procedural_floor';
-import { generateDesignFloor, isDesignFloorId } from './gen/design_floors/manifest';
-import { injectFastElevators } from './gen/fast_elevators';
-import { stampCeilingHeights } from './gen/ceiling_heights';
+  W,
+  Cell,
+  DoorState,
+  FloorLevel,
+  Tex,
+  RoomType,
+  LiftDirection,
+  type CharacterSex,
+  type Entity,
+  type GameClock,
+  type GameState,
+  type Item,
+  type Needs,
+  type Quest,
+  type WorldContainer,
+  type PlayerDamageSourceKind,
+  type WorldEventPrivacy,
+  type WorldEventSeverity,
+  type PlayerAlife,
+  EntityType,
+  Faction,
+  MonsterKind,
+  Occupation,
+  ProjType,
+  QuestType,
+  AIGoal,
+  msg,
+  setMsgClock,
+} from "./core/types";
+import { World, replaceWorldFromGeneration } from "./core/world";
+import { safeParseJson } from "./core/json";
+import { hashSeed, randSeed } from "./core/rand";
+import {
+  canActorOccupy,
+  unstuckActorFromBlockers,
+} from "./systems/movement_collision";
+import { selectMeleeTarget } from "./systems/melee_targeting";
+import { updateProceduralScreens } from "./gen/procedural_screens";
+import { generateProceduralFloor } from "./gen/procedural_floor";
+import {
+  generateDesignFloor,
+  isDesignFloorId,
+} from "./gen/design_floors/manifest";
+import { injectFastElevators } from "./gen/fast_elevators";
+import { stampCeilingHeights } from "./gen/ceiling_heights";
 import {
   floorInstanceGenerationExtrasForKey,
   floorInstanceSamosborReplacementAllowed,
   generateFloorInstance,
-} from './gen/floor_instances/manifest';
+} from "./gen/floor_instances/manifest";
 import {
   FLOOR_MESSAGE_COLORS,
   FLOOR_NAMES,
@@ -33,55 +66,105 @@ import {
   isFloorLevel,
   resetGeneratedFloorPopulationState,
   type FloorGeneration,
-} from './gen/floor_manifest';
-import { generateTextures } from './render/textures';
-import { generateSprites } from './render/sprites';
-import { Spr, monsterSpr } from './render/sprite_index';
+} from "./gen/floor_manifest";
+import { generateTextures } from "./render/textures";
+import { generateSprites } from "./render/sprites";
+import { Spr, monsterSpr } from "./render/sprite_index";
 import {
-  SCR_W, SCR_H, initWebGL, renderSceneGL, updateWorldData, updateDynamicData,
-  disposeWebGL, setDynamicSkyTexture, getRenderSceneDebugStats, rebuildProceduralSpriteCache, type DynamicSkyTexture,
-} from './render/webgl';
-import { drawHUD, drawPointerCaptureGate } from './render/hud';
-import { drawFeedbackMenu } from './render/feedback_ui';
+  SCR_W,
+  SCR_H,
+  initWebGL,
+  renderSceneGL,
+  updateWorldData,
+  updateDynamicData,
+  disposeWebGL,
+  setDynamicSkyTexture,
+  getRenderSceneDebugStats,
+  rebuildProceduralSpriteCache,
+  type DynamicSkyTexture,
+} from "./render/webgl";
+import { drawHUD, drawPointerCaptureGate } from "./render/hud";
+import { drawFeedbackMenu } from "./render/feedback_ui";
 import {
-  spawnBloodHit, spawnDeathPool, updateBloodTrails, updateParticles, particles,
-  spawnProjectileBodyImpact, spawnProjectileFloorImpact, spawnProjectileWallImpact, isEnergyProjectileImpact,
+  spawnBloodHit,
+  spawnDeathPool,
+  updateBloodTrails,
+  updateParticles,
+  particles,
+  spawnProjectileBodyImpact,
+  spawnProjectileFloorImpact,
+  spawnProjectileWallImpact,
+  isEnergyProjectileImpact,
   spawnExplosionParticles,
-} from './render/blood';
-import { resetComputerState, restoreComputersFromSave } from './systems/computers';
-import { resetNetHackState, restoreNetHackFromSave } from './systems/net_hack';
-import { stampMark, MarkType } from './systems/surface_marks';
-import { stampUrineTrace } from './systems/urination';
-import { containerMenuGridLayout, craftMenuLayout, fullscreenInventoryLayout, tradeMenuGridLayout } from './render/ui_layout';
-import { updateNeeds } from './systems/needs';
-import { startTutorial } from './systems/tutorial';
-import { updateAI, tryMonsterProjectileStagger, getAiStats, type AiStats } from './systems/ai';
-import { resolveBreachChargeExplosion } from './systems/breach_charge';
-import { dropMonsterRareLoot } from './systems/monster_drops';
-import { generateNpcTradeItems } from './data/occupation_profiles';
-import { generateTalkText } from './systems/dialogue';
-import { updateSamosbor, rebuildWorld, clearFogInZone, updateIstotitBellCompulsion, getSamosborWarningSnapshot } from './systems/samosbor';
-import { getActiveSamosborVariant } from './systems/samosbor_variants_runtime';
-import { cleanCellHazardsNear, getCellHazardMoveMultiplier, tickCellHazards } from './systems/cell_hazards';
-import { adjustMonsterProjectileDamage, recordMonsterMeleeDeath, recordMonsterProjectileDeath } from './systems/monster_counterplay';
-import { applyMonsterArmorHit } from './systems/monster_armor';
-import { applyHitStaggerAndKnockback } from './systems/combat';
+} from "./render/blood";
 import {
-  pickupNearby, useItem, dropItem, getWeaponStats, equippedCombatItemId,
+  resetComputerState,
+  restoreComputersFromSave,
+} from "./systems/computers";
+import { resetNetHackState, restoreNetHackFromSave } from "./systems/net_hack";
+import { stampMark, MarkType } from "./systems/surface_marks";
+import { stampUrineTrace } from "./systems/urination";
+import {
+  containerMenuGridLayout,
+  craftMenuLayout,
+  fullscreenInventoryLayout,
+  tradeMenuGridLayout,
+} from "./render/ui_layout";
+import { updateNeeds } from "./systems/needs";
+import { startTutorial } from "./systems/tutorial";
+import {
+  updateAI,
+  tryMonsterProjectileStagger,
+  getAiStats,
+  type AiStats,
+} from "./systems/ai";
+import { resolveBreachChargeExplosion } from "./systems/breach_charge";
+import { dropMonsterRareLoot } from "./systems/monster_drops";
+import { generateNpcTradeItems } from "./data/occupation_profiles";
+import { generateTalkText } from "./systems/dialogue";
+import {
+  updateSamosbor,
+  rebuildWorld,
+  clearFogInZone,
+  updateIstotitBellCompulsion,
+  getSamosborWarningSnapshot,
+} from "./systems/samosbor";
+import { getActiveSamosborVariant } from "./systems/samosbor_variants_runtime";
+import {
+  cleanCellHazardsNear,
+  getCellHazardMoveMultiplier,
+  tickCellHazards,
+} from "./systems/cell_hazards";
+import {
+  adjustMonsterProjectileDamage,
+  recordMonsterMeleeDeath,
+  recordMonsterProjectileDeath,
+} from "./systems/monster_counterplay";
+import { applyMonsterArmorHit } from "./systems/monster_armor";
+import { applyHitStaggerAndKnockback } from "./systems/combat";
+import {
+  pickupNearby,
+  useItem,
+  dropItem,
+  getWeaponStats,
+  equippedCombatItemId,
   addItem,
-  consumeDurability, consumeAmmo, consumeToolDurability, getEquippedToolDurability,
+  consumeDurability,
+  consumeAmmo,
+  consumeToolDurability,
+  getEquippedToolDurability,
   updateInventoryConditions,
-} from './systems/inventory';
-import { createInput, bindInput } from './input';
-import { createMobileControls, type MobileControls } from './mobile';
-import { createGamepadAdapter, type GamepadAdapter } from './input_gamepad';
+} from "./systems/inventory";
+import { createInput, bindInput } from "./input";
+import { createMobileControls, type MobileControls } from "./mobile";
+import { createGamepadAdapter, type GamepadAdapter } from "./input_gamepad";
 import {
   createInputFrame,
   beginInputFrame,
   resolveInputFrameToInputState,
   type InputFrame,
-} from './systems/input_intent';
-import { isNativeFullscreenActive, toggleNativeFullscreen } from './fullscreen';
+} from "./systems/input_intent";
+import { isNativeFullscreenActive, toggleNativeFullscreen } from "./fullscreen";
 import {
   CONTROL_ACTIONS,
   beginControlCapture,
@@ -90,9 +173,12 @@ import {
   clearControlInputs,
   getControlCaptureAction,
   resetAllControlBindings,
-} from './systems/controls';
-import { GAME_MENU_ITEMS } from './systems/game_menu';
-import { MOBILE_BUTTON_CONTROL_ROWS, type MobileMenuId } from './systems/mobile_actions';
+} from "./systems/controls";
+import { GAME_MENU_ITEMS } from "./systems/game_menu";
+import {
+  MOBILE_BUTTON_CONTROL_ROWS,
+  type MobileMenuId,
+} from "./systems/mobile_actions";
 import {
   adjustCameraFov,
   cycleHudMotionMode,
@@ -125,33 +211,42 @@ import {
   mapLegendRowCount,
   uiSettingsRowAt,
   uiSettingsRowCount,
-} from './systems/ui_orchestrator';
-import { freshNeeds, ITEMS, WEAPON_STATS, type WeaponStats } from './data/catalog';
-import { INVENTORY_GRID_COLS, INVENTORY_GRID_ROWS, MAX_INVENTORY_SLOTS } from './data/inventory_limits';
-import { getStack, itemEquipSlot } from './data/items';
-import { designFloorAmbientLight } from './data/design_floor_profiles';
+} from "./systems/ui_orchestrator";
+import {
+  freshNeeds,
+  ITEMS,
+  WEAPON_STATS,
+  type WeaponStats,
+} from "./data/catalog";
+import {
+  INVENTORY_GRID_COLS,
+  INVENTORY_GRID_ROWS,
+  MAX_INVENTORY_SLOTS,
+} from "./data/inventory_limits";
+import { getStack, itemEquipSlot } from "./data/items";
+import { designFloorAmbientLight } from "./data/design_floor_profiles";
 import {
   themeForDesignFloor,
   themeForProceduralSpec,
   themeForStoryFloor,
   type FloorThemeProfile,
-} from './data/floor_theme_profiles';
+} from "./data/floor_theme_profiles";
 import {
   EMPTY_RESOLVED_VISUAL_DETAIL_PROFILE,
   resolveVisualDetailProfile,
   type ResolvedVisualDetailProfile,
-} from './data/visual_detail_profiles';
+} from "./data/visual_detail_profiles";
 import {
   EMPTY_RESOLVED_VISUAL_GEOMETRY_PROFILE,
   resolveVisualGeometryProfile,
   visualGeometryThemeTags,
   type ResolvedVisualGeometryProfile,
-} from './data/visual_geometry_profiles';
+} from "./data/visual_geometry_profiles";
 import {
   EMPTY_RESOLVED_VISUAL_SURFACE_PROFILE,
   resolveVisualSurfaceProfile,
   type ResolvedVisualSurfaceProfile,
-} from './data/visual_surface_profiles';
+} from "./data/visual_surface_profiles";
 import {
   activeToolLightDrainPerSecond,
   activeToolLightMoveMultiplier,
@@ -159,20 +254,39 @@ import {
   passiveToolLightDrainPerSecond,
   passiveToolLightMoveMultiplier,
   passiveToolLightRenderIntensity,
-} from './data/tool_lights';
-import { entityDisplayName } from './entities/monster';
-import { ensureProceduralSpriteSeeds } from './entities/procedural_visuals';
+} from "./data/tool_lights";
+import { entityDisplayName } from "./entities/monster";
+import { ensureProceduralSpriteSeeds } from "./entities/procedural_visuals";
 import {
-  playFootstep, playAttack, playDoor,
-  playGunshot, playShotgun, playNailgun, playBreak,
-  playFleshHit, playPsiCast,
-  playPPSh, playChainsaw, playMachinegun, playExplosion,
-  playGauss, playPlasma, playBFG, playFlame, playPsiBeam,
-  playProjectileImpact, playEnergyImpact, playProjectileBodyHit,
-  startAmbientDrone, setListenerPos, playSoundAt, playHudBarChange,
-  setAudioSuspendedForPage, setAudioSuspendedForPlatform,
+  playFootstep,
+  playAttack,
+  playDoor,
+  playGunshot,
+  playShotgun,
+  playNailgun,
+  playBreak,
+  playFleshHit,
+  playPsiCast,
+  playPPSh,
+  playChainsaw,
+  playMachinegun,
+  playExplosion,
+  playGauss,
+  playPlasma,
+  playBFG,
+  playFlame,
+  playPsiBeam,
+  playProjectileImpact,
+  playEnergyImpact,
+  playProjectileBodyHit,
+  startAmbientDrone,
+  setListenerPos,
+  playSoundAt,
+  playHudBarChange,
+  setAudioSuspendedForPage,
+  setAudioSuspendedForPlatform,
   type HudBarAudioId,
-} from './systems/audio';
+} from "./systems/audio";
 import {
   offerQuest,
   checkQuests,
@@ -186,12 +300,16 @@ import {
   resetNonStoryQuestsForNewPlayer,
   toggleActiveQuest,
   updateKillQuestPressure,
-} from './systems/quests';
-import { applyPickedStoryItemOutcomes, applyStoryItemOutcomes, spawnStoryDeathDrops } from './systems/story_outcomes';
-import { handleDiceInput, isDiceGameOpen } from './systems/dice';
-import { handleDominoInput, isDominoGameOpen } from './systems/domino';
-import { handleCheckersInput, isCheckersGameOpen } from './systems/checkers';
-import { handleDurakInput, isDurakGameOpen } from './systems/durak';
+} from "./systems/quests";
+import {
+  applyPickedStoryItemOutcomes,
+  applyStoryItemOutcomes,
+  spawnStoryDeathDrops,
+} from "./systems/story_outcomes";
+import { handleDiceInput, isDiceGameOpen } from "./systems/dice";
+import { handleDominoInput, isDominoGameOpen } from "./systems/domino";
+import { handleCheckersInput, isCheckersGameOpen } from "./systems/checkers";
+import { handleDurakInput, isDurakGameOpen } from "./systems/durak";
 import {
   activateNpcCustomMenuOption,
   clampNpcMenuSelection,
@@ -200,23 +318,34 @@ import {
   NPC_MENU_INTERFACE_TAB,
   npcMenuOptionAt,
   npcMenuSelectionFor,
-} from './systems/npc_interaction_options';
-import { applyContractFloorHooks, notifyCleanupToolUse } from './systems/contracts';
-import { cleanupToolProfile } from './systems/liquidator_cleanup_items';
-import { cleanSurfaceArea } from './systems/surface_cleanup';
-import { updateScriptedArrivals } from './systems/scripted_arrivals';
-import { applyStoryRouteGates } from './systems/story_route_gates';
-import { setDoorState, damageDoor } from './systems/door_state';
+} from "./systems/npc_interaction_options";
 import {
-  freshRPG, awardXP, xpForMonsterKill, xpForNpcKill,
-  meleeDamage, actorMoveSpeed, agiAttackSpeedMult,
-  spendAttrPoint, getMaxHp, randomRPG, xpForLevel,
+  applyContractFloorHooks,
+  notifyCleanupToolUse,
+} from "./systems/contracts";
+import { cleanupToolProfile } from "./systems/liquidator_cleanup_items";
+import { cleanSurfaceArea } from "./systems/surface_cleanup";
+import { updateScriptedArrivals } from "./systems/scripted_arrivals";
+import { applyStoryRouteGates } from "./systems/story_route_gates";
+import { setDoorState, damageDoor } from "./systems/door_state";
+import {
+  freshRPG,
+  awardXP,
+  xpForMonsterKill,
+  xpForNpcKill,
+  meleeDamage,
+  actorMoveSpeed,
+  agiAttackSpeedMult,
+  spendAttrPoint,
+  getMaxHp,
+  randomRPG,
+  xpForLevel,
   HUMANOID_BASE_MOVE_SPEED,
   normalizeHumanoidBaseMoveSpeed,
   normalizeHumanoidBaseMoveSpeeds,
   generateHeight,
   normalizeSaveRpg,
-} from './systems/rpg';
+} from "./systems/rpg";
 import {
   applyPaupsinaWeb,
   isPaupsinaWebCuttingWeapon,
@@ -224,17 +353,30 @@ import {
   reducePaupsinaWeb,
   updateZhelemishSkinStatus,
   zhelemishMoveMult,
-} from './systems/status';
+} from "./systems/status";
 import {
   DEBUG_COMMAND_COUNT,
   execDebugCommand,
   moveDebugInfoPage,
   resetDebugInfoPage,
   type DebugCommandAction,
-} from './systems/debug';
-import { debugOnePunchMeleeDamage, isDebugOnePunchManEnabled, keepDebugOnePunchManAlive } from './systems/debug_cheats';
-import { formatLastPlayerDamageCause, hasFreshPlayerDamageRecord, recordPlayerDamage, updateBlockCrushDamage } from './systems/damage';
-import { createWorldEventState, normalizeWorldEventState, publishEvent } from './systems/events';
+} from "./systems/debug";
+import {
+  debugOnePunchMeleeDamage,
+  isDebugOnePunchManEnabled,
+  keepDebugOnePunchManAlive,
+} from "./systems/debug_cheats";
+import {
+  formatLastPlayerDamageCause,
+  hasFreshPlayerDamageRecord,
+  recordPlayerDamage,
+  updateBlockCrushDamage,
+} from "./systems/damage";
+import {
+  createWorldEventState,
+  normalizeWorldEventState,
+  publishEvent,
+} from "./systems/events";
 import {
   craftKnownRecipe,
   craftRecipeLearnedMessage,
@@ -246,54 +388,70 @@ import {
   learnCraftRecipesFromSource,
   restoreCraftingState,
   type CraftingActionResult,
-} from './systems/crafting';
-import { getCraftRecipeSource } from './data/craft_recipe_sources';
+} from "./systems/crafting";
+import { getCraftRecipeSource } from "./data/craft_recipe_sources";
 import {
   setWorldLogSpatialContextProvider,
   worldLogDistanceForLocation,
   worldLogLocationIsAudible,
   worldLogMessageDistance,
-} from './systems/world_log';
-import { hearingRadiusMetersForActor } from './systems/hearing';
+} from "./systems/world_log";
+import { hearingRadiusMetersForActor } from "./systems/hearing";
 import {
   publishExplosionNoise,
   publishFootstepNoise,
   publishWeaponNoise,
   resetNoiseRecords,
-} from './systems/noise';
-import { notifyActorDamaged } from './systems/combat_stimulus';
-import { canSpawnEntityType, entitySoftLimit, entitySpawnSlots, remainingActiveActorSpawnSlots } from './systems/entity_limits';
-import { clearRoomMemory, tickRoomMemory } from './systems/room_memory';
-import { UV_SPOTLIGHT_FX_SECONDS, UV_SPOTLIGHT_ID, useUvSpotlight, uvSpotlightRenderIntensity } from './systems/uv_spotlight';
-import { CHALK_ITEM_ID, drawEquippedChalkPixel } from './systems/chalk';
-import { isRidingRailTrain, updateRailTrains } from './systems/rail_trains';
-import { updateCarnivorousFungus } from './systems/carnivorous_fungus';
-import { hladonColdMoveMultiplier, updateHladonColdPocket } from './systems/hladon';
-import { tryCoverSeroburmalineSource, updateSeroburmalineExposure } from './systems/seroburmaline';
-import { updateRouteCues } from './systems/route_cues';
-import { updateDangerField } from './systems/danger_field';
+} from "./systems/noise";
+import { notifyActorDamaged } from "./systems/combat_stimulus";
+import {
+  canSpawnEntityType,
+  entitySoftLimit,
+  entitySpawnSlots,
+  remainingActiveActorSpawnSlots,
+} from "./systems/entity_limits";
+import { clearRoomMemory, tickRoomMemory } from "./systems/room_memory";
+import {
+  UV_SPOTLIGHT_FX_SECONDS,
+  UV_SPOTLIGHT_ID,
+  useUvSpotlight,
+  uvSpotlightRenderIntensity,
+} from "./systems/uv_spotlight";
+import { CHALK_ITEM_ID, drawEquippedChalkPixel } from "./systems/chalk";
+import { isRidingRailTrain, updateRailTrains } from "./systems/rail_trains";
+import { updateCarnivorousFungus } from "./systems/carnivorous_fungus";
+import {
+  hladonColdMoveMultiplier,
+  updateHladonColdPocket,
+} from "./systems/hladon";
+import {
+  tryCoverSeroburmalineSource,
+  updateSeroburmalineExposure,
+} from "./systems/seroburmaline";
+import { updateRouteCues } from "./systems/route_cues";
+import { updateDangerField } from "./systems/danger_field";
 import {
   resetMapExploration,
   syncMapExplorationAfterSamosborWave,
   updateMapExploration,
-} from './systems/map_exploration';
+} from "./systems/map_exploration";
 import {
   runContentEntityDeathHooks,
   updateContentRuntimeHooks,
   type ContentCraftMenuRequest,
   type ContentRecipeLearnRequest,
-} from './systems/content_hooks';
+} from "./systems/content_hooks";
 import {
   closeEmergencyPanelMenu,
   handleEmergencyPanelMenuInput,
   isEmergencyPanelMenuOpen,
-} from './systems/emergency_panels';
+} from "./systems/emergency_panels";
 import {
   proceduralSmogFogDensityBonus,
   proceduralAnomalyEventData,
   proceduralAnomalyEventTags,
   updateProceduralAnomalies,
-} from './systems/procedural_anomalies';
+} from "./systems/procedural_anomalies";
 import {
   ensureFloorInstanceState,
   floorInstanceAllowsNpcs,
@@ -302,7 +460,7 @@ import {
   resolveElevatorRoute,
   setFloorInstanceState,
   spreadElevatorInstanceRumor,
-} from './systems/floor_instances';
+} from "./systems/floor_instances";
 import {
   captureFloorMemory,
   clearFloorMemory,
@@ -318,7 +476,7 @@ import {
   type FloorLiftAnchor,
   type FloorMemoryLoad,
   type FloorRouteLiftMirror,
-} from './systems/floor_memory';
+} from "./systems/floor_memory";
 import {
   commitFloorRunEntry,
   currentFloorRunEntry,
@@ -343,8 +501,8 @@ import {
   ROUTE_LIFTS_PER_DIRECTION,
   setFloorRunState,
   type FloorRunEntry,
-} from './systems/procedural_floors';
-import { openRouteGateIds } from './systems/route_gates';
+} from "./systems/procedural_floors";
+import { openRouteGateIds } from "./systems/route_gates";
 import {
   clearLiftArachnaActive,
   ensureLiftArachnaState,
@@ -353,14 +511,18 @@ import {
   setLiftArachnaState,
   tryStartLiftArachnaEncounter,
   updateLiftArachnaEncounter,
-} from './systems/lift_arachna';
+} from "./systems/lift_arachna";
 import {
   clearPseudoliftActive,
   preparePseudoliftForCurrentFloor,
   setPseudoliftState,
   updatePseudolifts,
-} from './systems/pseudolift';
-import { clearWrongDoorRemaps, tryUseWrongDoorRemap, updateWrongDoorRemaps } from './systems/wrong_door';
+} from "./systems/pseudolift";
+import {
+  clearWrongDoorRemaps,
+  tryUseWrongDoorRemap,
+  updateWrongDoorRemaps,
+} from "./systems/wrong_door";
 import {
   containerAccessInfo,
   ensureRoomContainers,
@@ -368,8 +530,8 @@ import {
   restoreValidContainers,
   takeFromContainer,
   tickContainerAudits,
-} from './systems/containers';
-import { normalizeGameEconomy, primeTradePriceCache } from './systems/economy';
+} from "./systems/containers";
+import { normalizeGameEconomy, primeTradePriceCache } from "./systems/economy";
 import {
   addTradeAskFromSlot,
   addTradeOfferFromSlot,
@@ -378,27 +540,40 @@ import {
   removeTradeAskSlot,
   removeTradeOfferSlot,
   type TradeResult,
-} from './systems/trade';
+} from "./systems/trade";
 import {
   ensureBankingState,
   normalizeBankingState,
   tickBankingInterest,
   type BankingState,
-} from './systems/banking';
+} from "./systems/banking";
 import {
   ensureStockMarketState,
   normalizeGameStockMarket,
   tickStockMarket,
-} from './systems/stock_market';
-import { ensureProductionRooms, setProductionState, tickProduction } from './systems/production';
+} from "./systems/stock_market";
 import {
-  castInstantSpell, updatePsiEffects, psiAoeExplosion,
-  isNoClipActive, resetPsiState, absorbPsiShieldDamage,
+  ensureProductionRooms,
+  setProductionState,
+  tickProduction,
+} from "./systems/production";
+import {
+  castInstantSpell,
+  updatePsiEffects,
+  psiAoeExplosion,
+  isNoClipActive,
+  resetPsiState,
+  absorbPsiShieldDamage,
   endPsiPossession,
-} from './systems/psi';
-import { getCurrentPlayerId, isNativePlayerBodyEntity, isPlayerEntity, setCurrentPlayerEntity } from './systems/player_actor';
-import { fireDeletionBeam } from './systems/weapon_beams';
-import { traceFirstSolidCell, wrapWorld } from './systems/local_space';
+} from "./systems/psi";
+import {
+  getCurrentPlayerId,
+  isNativePlayerBodyEntity,
+  isPlayerEntity,
+  setCurrentPlayerEntity,
+} from "./systems/player_actor";
+import { fireDeletionBeam } from "./systems/weapon_beams";
+import { traceFirstSolidCell, wrapWorld } from "./systems/local_space";
 import {
   ENTITY_MASK_ACTOR,
   ENTITY_MASK_ITEM_DROP,
@@ -407,13 +582,14 @@ import {
   rebuildEntityIndexForSimulation,
   getEntityIndex,
   type EntityIndexDebugStats,
-} from './systems/entity_index';
+} from "./systems/entity_index";
 import {
   applyDamageRelationPenalty,
-  updateFactionCapture, initFactionControl,
+  updateFactionCapture,
+  initFactionControl,
   updateFactionActivity,
-} from './systems/factions';
-import { territoryFactionAt } from './systems/territory';
+} from "./systems/factions";
+import { territoryFactionAt } from "./systems/territory";
 import {
   captureAlifeFloorState,
   currentAlifeFloorKey,
@@ -423,30 +599,30 @@ import {
   randomAliveAlifeNpcSnapshot,
   resetAlifePlayerRelationsForNewPlayer,
   setAlifeState,
-} from './systems/alife';
+} from "./systems/alife";
 import {
   applyDemosSearchText,
   cleanDemosSearchQuery,
   findDemosCursor,
   moveDemosCursor,
-} from './systems/demos';
-import { restoreDemosSocialFromSave } from './systems/demos_save';
+} from "./systems/demos";
+import { restoreDemosSocialFromSave } from "./systems/demos_save";
 import {
   existingDemosRelationToNewPlayer,
   resetDemosPlayerRelationSlotsForNewPlayer,
-} from './systems/demos_social';
+} from "./systems/demos_social";
 import {
   PLAYER_SELF_RELATION,
   PLAYER_START_KARMA,
   addKarma,
   recordEntityKill,
-} from './systems/alife_rating';
+} from "./systems/alife_rating";
 import {
   recordFactionClashPlayerHit,
   recordFactionEventLootTaken,
   tryReportLiquidatorCultClashAftermath,
   updateCultProcessionCompulsion,
-} from './systems/faction_events';
+} from "./systems/faction_events";
 import {
   bindNetSphereInput,
   closeNetSphere,
@@ -456,7 +632,7 @@ import {
   openNetSphere,
   reportNetSphereEvent,
   tickNetSphere,
-} from './systems/net_sphere';
+} from "./systems/net_sphere";
 import {
   claimNetTerminalGenFleshDrop,
   closeNetTerminalGen,
@@ -465,7 +641,7 @@ import {
   isNetTerminalGenOpen,
   placeNetTerminalGenTerminalsForCurrentFloor,
   setNetTerminalGenState,
-} from './systems/net_terminal_gen';
+} from "./systems/net_terminal_gen";
 import {
   activateInteraction,
   closeInteractableOverlay,
@@ -473,7 +649,7 @@ import {
   handleInteractableOverlayInput,
   isInteractableOverlayOpen,
   placeGeneratedInteractablesForCurrentFloor,
-} from './systems/interactions';
+} from "./systems/interactions";
 import {
   adjustMapEditorZoom,
   applyCurrentMapEditorBrush,
@@ -487,15 +663,18 @@ import {
   openMapEditor,
   replayMapEditorPatchForCurrentFloor,
   setMapEditorPatchState,
-} from './systems/map_editor';
-import { createGameSavePayload, saveShapeVersionStatus } from './systems/save_runtime';
-import { createPortalCompactSavePayload } from './systems/save_payload';
+} from "./systems/map_editor";
+import {
+  createGameSavePayload,
+  saveShapeVersionStatus,
+} from "./systems/save_runtime";
+import { createPortalCompactSavePayload } from "./systems/save_payload";
 import {
   processAlifePendingArrivals,
   setAlifeMobilityState,
   tickAlifeMigration,
   updateActiveAlifeDepartures,
-} from './systems/alife_migration';
+} from "./systems/alife_migration";
 import {
   initPlatformBridge,
   markPlatformGameplayStart,
@@ -503,24 +682,43 @@ import {
   markPlatformReady,
   togglePlatformAudioMuted,
   savePlatformRawGameSave,
-} from './systems/platform_bridge';
-import { addFactionRel, addFactionRelMutual, initFactionRelations } from './data/relations';
-import { createRuntimeCamera, resetRuntimeCamera, runtimeCameraView, startDeathCamera, updateRuntimeCamera, startTrailerCamera, updateTrailerCamera, startCinematicCamera } from './systems/camera';
-import { onHeraldKilled, onCreatorKilled, onHellArrival, tryCreateVoiceQuest, onVoidEntry } from './data/plot_events';
-import { randomTip } from './data/tips';
+} from "./systems/platform_bridge";
+import {
+  addFactionRel,
+  addFactionRelMutual,
+  initFactionRelations,
+} from "./data/relations";
+import {
+  createRuntimeCamera,
+  resetRuntimeCamera,
+  runtimeCameraView,
+  startDeathCamera,
+  updateRuntimeCamera,
+  startTrailerCamera,
+  updateTrailerCamera,
+  startCinematicCamera,
+} from "./systems/camera";
+import {
+  onHeraldKilled,
+  onCreatorKilled,
+  onHellArrival,
+  tryCreateVoiceQuest,
+  onVoidEntry,
+} from "./data/plot_events";
+import { randomTip } from "./data/tips";
 import {
   PROCEDURAL_FLOOR_ZS,
   proceduralFloorKey,
   type FloorAnomalyId,
   type ProceduralFloorSpec,
-} from './data/procedural_floors';
-import { DESIGN_FLOOR_ROUTES, type DesignFloorId } from './data/design_floors';
+} from "./data/procedural_floors";
+import { DESIGN_FLOOR_ROUTES, type DesignFloorId } from "./data/design_floors";
 import {
   nextTitleLanguageId,
   normalizeTitleLanguageId,
   titleLanguageDef,
   type TitleLanguageId,
-} from './data/languages';
+} from "./data/languages";
 import {
   drawTitleScreen,
   hitTitleField,
@@ -529,15 +727,19 @@ import {
   type TitleLanguageHit,
   type TitleScreenMode,
   type TitleSetupRowView,
-} from './render/title_ui';
-import { installCanvasLocalization, setCanvasTextGlitchPressure, setLocalizationLanguage } from './systems/localization';
+} from "./render/title_ui";
+import {
+  installCanvasLocalization,
+  setCanvasTextGlitchPressure,
+  setLocalizationLanguage,
+} from "./systems/localization";
 import {
   ACTIVE_ACTOR_SOFT_LIMIT_STEP,
   MAX_ACTIVE_ACTOR_SOFT_LIMIT,
   MIN_ACTIVE_ACTOR_SOFT_LIMIT,
   normalizeActiveActorSoftLimit,
   setActiveActorSoftLimit,
-} from './data/entity_limits';
+} from "./data/entity_limits";
 import {
   characterSexCode,
   characterSexFromCode,
@@ -545,34 +747,50 @@ import {
   DEFAULT_PLAYER_AGE,
   DEFAULT_PLAYER_SEX,
   sanitizeCharacterSex,
-} from './data/demographics';
+} from "./data/demographics";
 
 /* ── Canvas setup ─────────────────────────────────────────────── */
-const canvas = document.getElementById('game') as HTMLCanvasElement;
-const hudCanvas = document.getElementById('hud') as HTMLCanvasElement;
-const ctx = hudCanvas.getContext('2d')!;
+const canvas = document.getElementById("game") as HTMLCanvasElement;
+const hudCanvas = document.getElementById("hud") as HTMLCanvasElement;
+const ctx = hudCanvas.getContext("2d")!;
 registerPwaServiceWorker();
-const PLAYER_NAME_KEY = 'gigahrush_player_name';
-const PLAYER_AGE_KEY = 'gigahrush_player_age';
-const PLAYER_SEX_KEY = 'gigahrush_player_sex';
-const TITLE_LANGUAGE_KEY = 'gigahrush_title_language';
-const TITLE_ACTIVE_ACTOR_SOFT_LIMIT_KEY = 'gigahrush_active_actor_soft_limit';
-const SAVE_KEY = 'gigahrush_save';
+const PLAYER_NAME_KEY = "gigahrush_player_name";
+const PLAYER_AGE_KEY = "gigahrush_player_age";
+const PLAYER_SEX_KEY = "gigahrush_player_sex";
+const TITLE_LANGUAGE_KEY = "gigahrush_title_language";
+const TITLE_ACTIVE_ACTOR_SOFT_LIMIT_KEY = "gigahrush_active_actor_soft_limit";
+const SAVE_KEY = "gigahrush_save";
 const NET_GEN_NAME_RE = /^NET-[A-Z0-9-]{4,28}$/;
 const FULL_MAP_RADIUS_DEFAULT = 200;
 const FULL_MAP_RADIUS_MIN = 48;
 const FULL_MAP_RADIUS_MAX = W / 2;
 const FULL_MAP_ZOOM_STEP = 1.18;
-type TitleInputField = Extract<TitleHitField, 'language' | 'name' | 'age' | 'sex' | 'seed' | 'actorCap' | 'addNpc' | 'start' | 'continue' | 'trailer' | 'feedback'>;
-const NPC_INTAKE_ENABLED = Boolean((globalThis as { __GIGAHRUSH_NPC_INTAKE_ENABLED__?: boolean }).__GIGAHRUSH_NPC_INTAKE_ENABLED__);
-const smokeDebug = new URLSearchParams(window.location.search).has('smoke');
+type TitleInputField = Extract<
+  TitleHitField,
+  | "language"
+  | "name"
+  | "age"
+  | "sex"
+  | "seed"
+  | "actorCap"
+  | "addNpc"
+  | "start"
+  | "continue"
+  | "trailer"
+  | "feedback"
+>;
+const NPC_INTAKE_ENABLED = Boolean(
+  (globalThis as { __GIGAHRUSH_NPC_INTAKE_ENABLED__?: boolean })
+    .__GIGAHRUSH_NPC_INTAKE_ENABLED__,
+);
+const smokeDebug = new URLSearchParams(window.location.search).has("smoke");
 
 function hasValidSaveGame(): boolean {
   try {
     const raw = localStorage.getItem(SAVE_KEY);
     if (!raw) return false;
     const parsed = JSON.parse(raw);
-    return saveShapeVersionStatus(parsed) === 'current';
+    return saveShapeVersionStatus(parsed) === "current";
   } catch {
     return false;
   }
@@ -580,11 +798,11 @@ function hasValidSaveGame(): boolean {
 
 function getTitleSetupFields(): readonly TitleInputField[] {
   const fields: TitleInputField[] = [];
-  if (hasValidSaveGame()) fields.push('continue');
-  fields.push('start');
-  if (NPC_INTAKE_ENABLED) fields.push('addNpc');
-  fields.push('trailer');
-  fields.push('language', 'name', 'age', 'sex', 'seed', 'actorCap', 'feedback');
+  if (hasValidSaveGame()) fields.push("continue");
+  fields.push("start");
+  if (NPC_INTAKE_ENABLED) fields.push("addNpc");
+  fields.push("trailer");
+  fields.push("language", "name", "age", "sex", "seed", "actorCap", "feedback");
   return fields;
 }
 let started = false;
@@ -592,52 +810,63 @@ let playerNickname = loadPlayerNickname();
 let playerAge = loadPlayerAge();
 let playerSex = loadPlayerSex();
 let titlePlayerAgeText = String(playerAge);
-let titleRunSeedText = '';
+let titleRunSeedText = "";
 const TRAILER_FLOORS = [2, 1, 3, 4, 0, 5]; // LIVING, KVARTIRY, MAINTENANCE, HELL, MINISTRY, VOID
-const TRAILER_FLOOR_NAMES = ['LIVING', 'KVARTIRY', 'MAINTENANCE', 'HELL', 'MINISTRY', 'VOID'];
+const TRAILER_FLOOR_NAMES = [
+  "LIVING",
+  "KVARTIRY",
+  "MAINTENANCE",
+  "HELL",
+  "MINISTRY",
+  "VOID",
+];
 let titleTrailerFloorIdx = 0;
 let titleStartNeedsInit = true;
-let titleMode: TitleScreenMode = 'setup';
+let titleMode: TitleScreenMode = "setup";
 let titleSetupSel = 0;
 let titleInputField: TitleInputField = getTitleSetupFields()[titleSetupSel];
 let titleLanguageId = loadTitleLanguageId();
 let titleActiveActorSoftLimit = loadTitleActiveActorSoftLimit();
 let titleLanguageHits: TitleLanguageHit[] = [];
 let mobileControls: MobileControls | null = null;
-let mobileContextKey = '';
+let mobileContextKey = "";
 let mobileCanInteractCache = false;
 let mobileCanInteractProbeAt = Number.NEGATIVE_INFINITY;
-type PointerCaptureGateReason = 'released';
+type PointerCaptureGateReason = "released";
 let pointerCaptureGate = false;
-let pointerCaptureGateReason: PointerCaptureGateReason = 'released';
+let pointerCaptureGateReason: PointerCaptureGateReason = "released";
 installCanvasLocalization();
 setLocalizationLanguage(titleLanguageId);
 setActiveActorSoftLimit(titleActiveActorSoftLimit);
 
 function looksLikeNetGenName(value: string): boolean {
-  const clean = value.trim().toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 32);
+  const clean = value
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9-]/g, "")
+    .slice(0, 32);
   return NET_GEN_NAME_RE.test(clean);
 }
 
 function cleanPlayerNickname(value: string): string {
   const clean = value
-    .replace(/[\u0000-\u001f\u007f<>`\\]/g, '')
-    .replace(/\s+/g, ' ')
+    .replace(/[\u0000-\u001f\u007f<>`\\]/g, "")
+    .replace(/\s+/g, " ")
     .trim()
     .slice(0, 24);
-  return looksLikeNetGenName(clean) ? '' : clean;
+  return looksLikeNetGenName(clean) ? "" : clean;
 }
 
 function loadPlayerNickname(): string {
   try {
-    return cleanPlayerNickname(localStorage.getItem(PLAYER_NAME_KEY) ?? '');
+    return cleanPlayerNickname(localStorage.getItem(PLAYER_NAME_KEY) ?? "");
   } catch {
-    return '';
+    return "";
   }
 }
 
 function savePlayerNickname(value: string): string {
-  const next = cleanPlayerNickname(value) || 'Жилец';
+  const next = cleanPlayerNickname(value) || "Жилец";
   playerNickname = next;
   try {
     localStorage.setItem(PLAYER_NAME_KEY, next);
@@ -695,19 +924,19 @@ function savePlayerSex(value: unknown): CharacterSex {
 }
 
 function cyclePlayerSex(): void {
-  playerSex = playerSex === 'female' ? 'male' : 'female';
+  playerSex = playerSex === "female" ? "male" : "female";
   showTitle();
 }
 
 function playerDisplayName(): string {
-  return playerNickname || 'Жилец';
+  return playerNickname || "Жилец";
 }
 
 function cleanTitleRunSeedText(value: string): string {
   return value
     .trim()
     .toUpperCase()
-    .replace(/[^A-Z0-9_-]/g, '')
+    .replace(/[^A-Z0-9_-]/g, "")
     .slice(0, 24);
 }
 
@@ -729,7 +958,9 @@ function titleRunSeedOverride(): number | undefined {
 
 function loadTitleActiveActorSoftLimit(): number {
   try {
-    return normalizeActiveActorSoftLimit(localStorage.getItem(TITLE_ACTIVE_ACTOR_SOFT_LIMIT_KEY));
+    return normalizeActiveActorSoftLimit(
+      localStorage.getItem(TITLE_ACTIVE_ACTOR_SOFT_LIMIT_KEY),
+    );
   } catch {
     return normalizeActiveActorSoftLimit(undefined);
   }
@@ -740,7 +971,10 @@ function saveTitleActiveActorSoftLimit(value: number): void {
   titleActiveActorSoftLimit = setActiveActorSoftLimit(value);
   if (titleActiveActorSoftLimit !== previous) titleStartNeedsInit = true;
   try {
-    localStorage.setItem(TITLE_ACTIVE_ACTOR_SOFT_LIMIT_KEY, String(titleActiveActorSoftLimit));
+    localStorage.setItem(
+      TITLE_ACTIVE_ACTOR_SOFT_LIMIT_KEY,
+      String(titleActiveActorSoftLimit),
+    );
   } catch {
     // Local storage can be blocked; the selected cap still applies for this run.
   }
@@ -750,7 +984,7 @@ function loadTitleLanguageId(): TitleLanguageId {
   try {
     return normalizeTitleLanguageId(localStorage.getItem(TITLE_LANGUAGE_KEY));
   } catch {
-    return 'ru';
+    return "ru";
   }
 }
 
@@ -779,19 +1013,19 @@ function setTitleSelection(field: TitleInputField): void {
   const fields = getTitleSetupFields();
   const index = fields.indexOf(field);
   if (index >= 0) titleSetupSel = index;
-  titleInputField = fields[titleSetupSel] ?? 'start';
+  titleInputField = fields[titleSetupSel] ?? "start";
 }
 
 function moveTitleSelection(delta: number): void {
   const fields = getTitleSetupFields();
   titleSetupSel = (titleSetupSel + fields.length + delta) % fields.length;
-  titleInputField = fields[titleSetupSel] ?? 'start';
+  titleInputField = fields[titleSetupSel] ?? "start";
   showTitle();
 }
 
 function openTitleSetupMenu(): void {
-  titleMode = 'setup';
-  setTitleSelection(titleInputField === 'start' ? 'start' : titleInputField);
+  titleMode = "setup";
+  setTitleSelection(titleInputField === "start" ? "start" : titleInputField);
   showTitle();
 }
 
@@ -802,110 +1036,185 @@ function openNpcIntakePage(): void {
   } catch {
     // Pointer lock release can fail if the browser already released it.
   }
-  const target = new URL('./npc-intake/', window.location.href);
+  const target = new URL("./npc-intake/", window.location.href);
   // With noopener, browsers may return null even when the tab opens.
-  window.open(target.href, '_blank', 'noopener,noreferrer');
+  window.open(target.href, "_blank", "noopener,noreferrer");
 }
 
 function editTitleFieldFromPointer(field: TitleInputField): void {
-  if (field === 'feedback') {
-    titleMode = 'feedback';
+  if (field === "feedback") {
+    titleMode = "feedback";
     showTitle();
     return;
   }
-  if (field === 'start') {
+  if (field === "start") {
     startGameFromTitle();
     return;
   }
-  if (field === 'addNpc') {
+  if (field === "addNpc") {
     openNpcIntakePage();
     return;
   }
-  if (field === 'language') {
+  if (field === "language") {
     cycleTitleLanguage(1);
     return;
   }
-  if (field === 'actorCap') {
+  if (field === "actorCap") {
     const lang = titleLanguageDef(titleLanguageId);
-    const next = typeof window !== 'undefined' ? window.prompt(lang.setupActorCapLabel, String(titleActiveActorSoftLimit)) : null;
+    const next =
+      typeof window !== "undefined"
+        ? window.prompt(
+            lang.setupActorCapLabel,
+            String(titleActiveActorSoftLimit),
+          )
+        : null;
     if (next !== null) saveTitleActiveActorSoftLimit(Number(next));
     showTitle();
     return;
   }
-  if (field === 'age') {
+  if (field === "age") {
     const lang = titleLanguageDef(titleLanguageId);
-    const next = typeof window !== 'undefined' ? window.prompt(lang.ageLabel, titlePlayerAgeText || String(DEFAULT_PLAYER_AGE)) : null;
-    if (next !== null) titlePlayerAgeText = String(clampCharacterAge(Number(next), DEFAULT_PLAYER_AGE));
+    const next =
+      typeof window !== "undefined"
+        ? window.prompt(
+            lang.ageLabel,
+            titlePlayerAgeText || String(DEFAULT_PLAYER_AGE),
+          )
+        : null;
+    if (next !== null)
+      titlePlayerAgeText = String(
+        clampCharacterAge(Number(next), DEFAULT_PLAYER_AGE),
+      );
     showTitle();
     return;
   }
-  if (field === 'sex') {
+  if (field === "sex") {
     cyclePlayerSex();
     return;
   }
   titleInputField = field;
   const lang = titleLanguageDef(titleLanguageId);
-  const label = field === 'seed' ? lang.seedLabel : lang.nameLabel;
-  const current = field === 'seed' ? titleRunSeedText : playerNickname;
-  const next = typeof window !== 'undefined' ? window.prompt(label, current) : null;
+  const label = field === "seed" ? lang.seedLabel : lang.nameLabel;
+  const current = field === "seed" ? titleRunSeedText : playerNickname;
+  const next =
+    typeof window !== "undefined" ? window.prompt(label, current) : null;
   if (next !== null) {
-    if (field === 'seed') {
+    if (field === "seed") {
       titleRunSeedText = cleanTitleRunSeedText(next);
       titleStartNeedsInit = true;
-    }
-    else playerNickname = cleanPlayerNickname(next).slice(0, 24);
+    } else playerNickname = cleanPlayerNickname(next).slice(0, 24);
   }
   showTitle();
 }
 
 function titleSetupRows(cursorOn: boolean): TitleSetupRowView[] {
   const lang = titleLanguageDef(titleLanguageId);
-  const selected = (field: TitleInputField) => titleMode === 'setup' && titleInputField === field;
+  const selected = (field: TitleInputField) =>
+    titleMode === "setup" && titleInputField === field;
   const shownName = playerNickname || lang.namePlaceholder;
   const shownAge = titlePlayerAgeText || String(DEFAULT_PLAYER_AGE);
-  const shownSex = playerSex === 'female' ? lang.sexFemaleLabel : lang.sexMaleLabel;
+  const shownSex =
+    playerSex === "female" ? lang.sexFemaleLabel : lang.sexMaleLabel;
   const shownSeed = titleRunSeedText || lang.seedPlaceholder;
-  const nameCursor = cursorOn && selected('name') ? '_' : '';
-  const ageCursor = cursorOn && selected('age') ? '_' : '';
-  const seedCursor = cursorOn && selected('seed') ? '_' : '';
+  const nameCursor = cursorOn && selected("name") ? "_" : "";
+  const ageCursor = cursorOn && selected("age") ? "_" : "";
+  const seedCursor = cursorOn && selected("seed") ? "_" : "";
   const rows: TitleSetupRowView[] = [];
   if (hasValidSaveGame()) {
-    rows.push({ field: 'continue', label: lang.setupContinueLabel, value: lang.setupContinueValue, hint: lang.setupContinueHint, selected: selected('continue') });
+    rows.push({
+      field: "continue",
+      label: lang.setupContinueLabel,
+      value: lang.setupContinueValue,
+      hint: lang.setupContinueHint,
+      selected: selected("continue"),
+    });
   }
-  rows.push(
-    { field: 'start', label: lang.setupStartLabel, value: lang.setupStartValue, hint: lang.setupStartHint, selected: selected('start') }
-  );
+  rows.push({
+    field: "start",
+    label: lang.setupStartLabel,
+    value: lang.setupStartValue,
+    hint: lang.setupStartHint,
+    selected: selected("start"),
+  });
   if (NPC_INTAKE_ENABLED) {
     rows.push({
-      field: 'addNpc' as const,
+      field: "addNpc" as const,
       label: lang.setupAddNpcLabel,
       value: lang.setupAddNpcValue,
       hint: lang.setupAddNpcHint,
-      selected: selected('addNpc'),
+      selected: selected("addNpc"),
     });
   }
   rows.push(
-    { field: 'trailer', label: 'РЕЖИМ ТРЕЙЛЕРА', value: TRAILER_FLOOR_NAMES[titleTrailerFloorIdx], hint: 'Технический демо-режим. Enter: запуск, Влево/Вправо: карта', selected: selected('trailer') },
-    { field: 'language', label: lang.setupLanguageLabel, value: titleLanguageDef(titleLanguageId).name, hint: lang.setupLanguageHint, selected: selected('language') },
-    { field: 'name', label: lang.nameLabel, value: `${shownName}${nameCursor}`, hint: lang.setupNameHint, selected: selected('name') },
-    { field: 'age', label: lang.ageLabel, value: `${shownAge}${ageCursor}`, hint: lang.setupAgeHint, selected: selected('age') },
-    { field: 'sex', label: lang.sexLabel, value: shownSex, hint: lang.setupSexHint, selected: selected('sex') },
-    { field: 'seed', label: lang.seedLabel, value: `${shownSeed}${seedCursor}`, hint: lang.setupSeedHint, selected: selected('seed') },
     {
-      field: 'actorCap',
-      label: lang.setupActorCapLabel,
-      value: lang.actorCapValue(titleActiveActorSoftLimit, MIN_ACTIVE_ACTOR_SOFT_LIMIT, MAX_ACTIVE_ACTOR_SOFT_LIMIT),
-      hint: lang.setupActorCapHint,
-      selected: selected('actorCap'),
+      field: "trailer",
+      label: "РЕЖИМ ТРЕЙЛЕРА",
+      value: TRAILER_FLOOR_NAMES[titleTrailerFloorIdx],
+      hint: "Технический демо-режим. Enter: запуск, Влево/Вправо: карта",
+      selected: selected("trailer"),
     },
-    { field: 'feedback', label: 'ОБРАТНАЯ СВЯЗЬ', value: 'ТИТРЫ И ТГ', hint: 'Команда разработчиков и комьюнити', selected: selected('feedback') },
+    {
+      field: "language",
+      label: lang.setupLanguageLabel,
+      value: titleLanguageDef(titleLanguageId).name,
+      hint: lang.setupLanguageHint,
+      selected: selected("language"),
+    },
+    {
+      field: "name",
+      label: lang.nameLabel,
+      value: `${shownName}${nameCursor}`,
+      hint: lang.setupNameHint,
+      selected: selected("name"),
+    },
+    {
+      field: "age",
+      label: lang.ageLabel,
+      value: `${shownAge}${ageCursor}`,
+      hint: lang.setupAgeHint,
+      selected: selected("age"),
+    },
+    {
+      field: "sex",
+      label: lang.sexLabel,
+      value: shownSex,
+      hint: lang.setupSexHint,
+      selected: selected("sex"),
+    },
+    {
+      field: "seed",
+      label: lang.seedLabel,
+      value: `${shownSeed}${seedCursor}`,
+      hint: lang.setupSeedHint,
+      selected: selected("seed"),
+    },
+    {
+      field: "actorCap",
+      label: lang.setupActorCapLabel,
+      value: lang.actorCapValue(
+        titleActiveActorSoftLimit,
+        MIN_ACTIVE_ACTOR_SOFT_LIMIT,
+        MAX_ACTIVE_ACTOR_SOFT_LIMIT,
+      ),
+      hint: lang.setupActorCapHint,
+      selected: selected("actorCap"),
+    },
+    {
+      field: "feedback",
+      label: "ОБРАТНАЯ СВЯЗЬ",
+      value: "ТИТРЫ И ТГ",
+      hint: "Команда разработчиков и комьюнити",
+      selected: selected("feedback"),
+    },
   );
   return rows;
 }
 
 function playerDemographicSex(source: Partial<Entity>): CharacterSex {
-  if (source.sex === 'male' || source.sex === 'female') return sanitizeCharacterSex(source.sex, playerSex);
-  if (typeof source.isFemale === 'boolean') return source.isFemale ? 'female' : 'male';
+  if (source.sex === "male" || source.sex === "female")
+    return sanitizeCharacterSex(source.sex, playerSex);
+  if (typeof source.isFemale === "boolean")
+    return source.isFemale ? "female" : "male";
   return playerSex;
 }
 
@@ -913,20 +1222,24 @@ function playerAlifeFields(source: Partial<Entity> = {}): PlayerAlife {
   const age = clampCharacterAge(source.age, playerAge);
   const sex = playerDemographicSex(source);
   return {
-    persistentNpcId: 'player',
+    persistentNpcId: "player",
     age,
     sex,
-    isFemale: sex === 'female',
+    isFemale: sex === "female",
     playerRelation: PLAYER_SELF_RELATION,
     karma: clampInt(source.karma, PLAYER_START_KARMA, -128, 128),
     kills: clampInt(source.kills, 0, 0, 1_000_000),
     npcKills: clampInt(source.npcKills, 0, 0, 1_000_000),
     monsterKills: clampInt(source.monsterKills, 0, 0, 1_000_000),
-    height: generateHeight(age, sex === 'female'),
+    height: generateHeight(age, sex === "female"),
   };
 }
 
-let pageHiddenPause = smokeDebug ? false : typeof document !== 'undefined' ? document.hidden : false;
+let pageHiddenPause = smokeDebug
+  ? false
+  : typeof document !== "undefined"
+    ? document.hidden
+    : false;
 let pageHiddenInputCleared = false;
 let platformPause = false;
 let platformPauseInputCleared = false;
@@ -958,8 +1271,8 @@ function canvasHasPointerLock(): boolean {
 }
 
 function setPointerCaptureCursorClass(active: boolean): void {
-  document.documentElement.classList.toggle('pointer-capture-required', active);
-  document.body.classList.toggle('pointer-capture-required', active);
+  document.documentElement.classList.toggle("pointer-capture-required", active);
+  document.body.classList.toggle("pointer-capture-required", active);
 }
 
 function syncPointerCursorClasses(): void {
@@ -979,7 +1292,7 @@ function clearPointerCaptureGateState(): boolean {
 
 function clearPointerCaptureGate(): void {
   if (!clearPointerCaptureGateState()) return;
-  if (typeof state !== 'undefined') syncPauseState();
+  if (typeof state !== "undefined") syncPauseState();
 }
 
 function pointerCaptureGateVisible(): boolean {
@@ -992,20 +1305,23 @@ function drawPointerCaptureGateScreen(): void {
   updateMobileContext(true);
 }
 
-function requirePointerCaptureGate(reason: PointerCaptureGateReason, clearInputs = true): boolean {
+function requirePointerCaptureGate(
+  reason: PointerCaptureGateReason,
+  clearInputs = true,
+): boolean {
   if (!desktopPointerCaptureRequired()) return false;
   const wasOpen = pointerCaptureGate;
   pointerCaptureGate = true;
   pointerCaptureGateReason = reason;
   syncPointerCursorClasses();
-  if (clearInputs && typeof input !== 'undefined') {
+  if (clearInputs && typeof input !== "undefined") {
     clearControlInputs(input);
     input.mouseAttack = false;
     input.mouseUse = false;
     input.mouse.dx = 0;
     input.mouse.dy = 0;
   }
-  if (typeof state !== 'undefined') {
+  if (typeof state !== "undefined") {
     state.sleeping = false;
     syncPauseState();
   }
@@ -1027,8 +1343,22 @@ function syncPointerCaptureRequirement(): void {
 
 function resize() {
   const viewport = window.visualViewport;
-  const cssWidth = Math.max(1, Math.round(viewport?.width ?? window.innerWidth ?? document.documentElement.clientWidth));
-  const cssHeight = Math.max(1, Math.round(viewport?.height ?? window.innerHeight ?? document.documentElement.clientHeight));
+  const cssWidth = Math.max(
+    1,
+    Math.round(
+      viewport?.width ??
+        window.innerWidth ??
+        document.documentElement.clientWidth,
+    ),
+  );
+  const cssHeight = Math.max(
+    1,
+    Math.round(
+      viewport?.height ??
+        window.innerHeight ??
+        document.documentElement.clientHeight,
+    ),
+  );
   const cssLeft = Math.round(viewport?.offsetLeft ?? 0);
   const cssTop = Math.round(viewport?.offsetTop ?? 0);
   for (const el of [canvas, hudCanvas]) {
@@ -1037,8 +1367,14 @@ function resize() {
     el.style.left = `${cssLeft}px`;
     el.style.top = `${cssTop}px`;
   }
-  document.documentElement.style.setProperty('--app-viewport-width', `${cssWidth}px`);
-  document.documentElement.style.setProperty('--app-viewport-height', `${cssHeight}px`);
+  document.documentElement.style.setProperty(
+    "--app-viewport-width",
+    `${cssWidth}px`,
+  );
+  document.documentElement.style.setProperty(
+    "--app-viewport-height",
+    `${cssHeight}px`,
+  );
   const width = cssWidth;
   const height = cssHeight;
   if (canvas.width !== width) canvas.width = width;
@@ -1055,24 +1391,24 @@ function scheduleResize(): void {
   window.setTimeout(resize, 250);
 }
 
-window.addEventListener('resize', scheduleResize);
-window.addEventListener('orientationchange', scheduleResize);
-window.addEventListener('focus', scheduleResize);
-window.addEventListener('pageshow', () => {
+window.addEventListener("resize", scheduleResize);
+window.addEventListener("orientationchange", scheduleResize);
+window.addEventListener("focus", scheduleResize);
+window.addEventListener("pageshow", () => {
   setPageHiddenPause(document.hidden);
   scheduleResize();
 });
-window.addEventListener('pagehide', () => {
+window.addEventListener("pagehide", () => {
   setPageHiddenPause(true);
 });
-document.addEventListener('visibilitychange', () => {
+document.addEventListener("visibilitychange", () => {
   setPageHiddenPause(document.hidden);
 });
-window.visualViewport?.addEventListener('resize', scheduleResize);
-window.visualViewport?.addEventListener('scroll', scheduleResize);
-document.addEventListener('fullscreenchange', scheduleResize);
-document.addEventListener('webkitfullscreenchange', scheduleResize);
-if (typeof ResizeObserver === 'function') {
+window.visualViewport?.addEventListener("resize", scheduleResize);
+window.visualViewport?.addEventListener("scroll", scheduleResize);
+document.addEventListener("fullscreenchange", scheduleResize);
+document.addEventListener("webkitfullscreenchange", scheduleResize);
+if (typeof ResizeObserver === "function") {
   const viewportObserver = new ResizeObserver(scheduleResize);
   viewportObserver.observe(document.documentElement);
   viewportObserver.observe(document.body);
@@ -1081,7 +1417,7 @@ scheduleResize();
 
 /* ── Generate assets ──────────────────────────────────────────── */
 const textures = generateTextures();
-const sprites  = generateSprites();
+const sprites = generateSprites();
 
 /* ── Game initialization ──────────────────────────────────────── */
 let world: World;
@@ -1097,17 +1433,30 @@ let pendingLoad: (() => void) | null = null; // deferred heavy generation callba
 let pendingLoadDrawn = false; // true = loading screen was painted, next frame runs the callback
 let platformGameplayMarkedActive = false;
 let currentTip = randomTip();
-let activeSkyProvider: (DynamicSkyTexture & { update(deltaSeconds: number): boolean }) | null = null;
+let activeSkyProvider:
+  | (DynamicSkyTexture & { update(deltaSeconds: number): boolean })
+  | null = null;
 let lastVoidReturnPortalHintTick = -9999;
 let lastAttackFeedbackAt = -999;
-let visualDetailCacheKey = '';
-let visualDetailCacheProfile: ResolvedVisualDetailProfile = EMPTY_RESOLVED_VISUAL_DETAIL_PROFILE;
-let visualSurfaceCacheKey = '';
-let visualSurfaceCacheProfile: ResolvedVisualSurfaceProfile = EMPTY_RESOLVED_VISUAL_SURFACE_PROFILE;
-let visualGeometryCacheKey = '';
-let visualGeometryCacheProfile: ResolvedVisualGeometryProfile = EMPTY_RESOLVED_VISUAL_GEOMETRY_PROFILE;
+let visualDetailCacheKey = "";
+let visualDetailCacheProfile: ResolvedVisualDetailProfile =
+  EMPTY_RESOLVED_VISUAL_DETAIL_PROFILE;
+let visualSurfaceCacheKey = "";
+let visualSurfaceCacheProfile: ResolvedVisualSurfaceProfile =
+  EMPTY_RESOLVED_VISUAL_SURFACE_PROFILE;
+let visualGeometryCacheKey = "";
+let visualGeometryCacheProfile: ResolvedVisualGeometryProfile =
+  EMPTY_RESOLVED_VISUAL_GEOMETRY_PROFILE;
 
-const PLAYER_BAR_AUDIO_IDS = ['hp', 'psi', 'food', 'water', 'sleep', 'toilet', 'xp'] as const satisfies readonly HudBarAudioId[];
+const PLAYER_BAR_AUDIO_IDS = [
+  "hp",
+  "psi",
+  "food",
+  "water",
+  "sleep",
+  "toilet",
+  "xp",
+] as const satisfies readonly HudBarAudioId[];
 const PLAYER_BAR_AUDIO_THRESHOLD = 5;
 const PLAYER_BAR_AUDIO_COOLDOWN = 1.25;
 const PLAYER_BAR_AUDIO_SLEEP_COOLDOWN = 4.0;
@@ -1116,8 +1465,13 @@ initPlatformBridge({
   onPauseChange: setPlatformPause,
   onAudioMuteChange: setAudioSuspendedForPlatform,
   onLanguageDetected: (lang: string) => {
-    const isRu = lang === 'ru' || lang === 'be' || lang === 'kk' || lang === 'uk' || lang === 'uz';
-    const nextLang = isRu ? 'ru' : 'en';
+    const isRu =
+      lang === "ru" ||
+      lang === "be" ||
+      lang === "kk" ||
+      lang === "uk" ||
+      lang === "uz";
+    const nextLang = isRu ? "ru" : "en";
     if (titleLanguageId !== nextLang) {
       titleLanguageId = normalizeTitleLanguageId(nextLang);
       setLocalizationLanguage(titleLanguageId);
@@ -1128,22 +1482,59 @@ type PlayerBarAudioValues = Record<HudBarAudioId, number>;
 const playerBarAudio = {
   initialized: false,
   rpgLevel: 0,
-  values: { hp: 0, psi: 0, food: 0, water: 0, sleep: 0, toilet: 0, xp: 0 } as PlayerBarAudioValues,
-  accum: { hp: 0, psi: 0, food: 0, water: 0, sleep: 0, toilet: 0, xp: 0 } as PlayerBarAudioValues,
-  lastAt: { hp: -999, psi: -999, food: -999, water: -999, sleep: -999, toilet: -999, xp: -999 } as PlayerBarAudioValues,
+  values: {
+    hp: 0,
+    psi: 0,
+    food: 0,
+    water: 0,
+    sleep: 0,
+    toilet: 0,
+    xp: 0,
+  } as PlayerBarAudioValues,
+  accum: {
+    hp: 0,
+    psi: 0,
+    food: 0,
+    water: 0,
+    sleep: 0,
+    toilet: 0,
+    xp: 0,
+  } as PlayerBarAudioValues,
+  lastAt: {
+    hp: -999,
+    psi: -999,
+    food: -999,
+    water: -999,
+    sleep: -999,
+    toilet: -999,
+    xp: -999,
+  } as PlayerBarAudioValues,
 };
 
 function playerBarAudioValues(actor = player): PlayerBarAudioValues {
   const needs = actor.needs;
   const rpg = actor.rpg;
   return {
-    hp: Math.max(0, Math.min(100, ((actor.hp ?? 0) / Math.max(1, actor.maxHp ?? 100)) * 100)),
-    psi: rpg ? Math.max(0, Math.min(100, (rpg.psi / Math.max(1, rpg.maxPsi)) * 100)) : 0,
+    hp: Math.max(
+      0,
+      Math.min(100, ((actor.hp ?? 0) / Math.max(1, actor.maxHp ?? 100)) * 100),
+    ),
+    psi: rpg
+      ? Math.max(0, Math.min(100, (rpg.psi / Math.max(1, rpg.maxPsi)) * 100))
+      : 0,
     food: needs ? Math.max(0, Math.min(100, needs.food)) : 0,
     water: needs ? Math.max(0, Math.min(100, needs.water)) : 0,
     sleep: needs ? Math.max(0, Math.min(100, needs.sleep)) : 0,
     toilet: needs ? Math.max(0, Math.min(100, 100 - needs.pee)) : 0,
-    xp: rpg ? Math.max(0, Math.min(100, (rpg.xp / Math.max(1, xpForLevel(rpg.level + 1))) * 100)) : 0,
+    xp: rpg
+      ? Math.max(
+          0,
+          Math.min(
+            100,
+            (rpg.xp / Math.max(1, xpForLevel(rpg.level + 1))) * 100,
+          ),
+        )
+      : 0,
   };
 }
 
@@ -1153,39 +1544,50 @@ function floorThemeForRunEntry(entry: FloorRunEntry): FloorThemeProfile {
   return themeForStoryFloor(entry.storyFloor ?? entry.baseFloor);
 }
 
-function currentVisualDetailProfile(entry: FloorRunEntry): ResolvedVisualDetailProfile {
+function currentVisualDetailProfile(
+  entry: FloorRunEntry,
+): ResolvedVisualDetailProfile {
   const runSeed = ensureFloorRunState(state).runSeed;
   const seed = entry.spec?.seed ?? runSeed;
   const key = [
     entry.z,
     entry.baseFloor,
-    entry.storyFloor ?? '',
-    entry.designFloorId ?? '',
-    entry.spec?.key ?? '',
+    entry.storyFloor ?? "",
+    entry.designFloorId ?? "",
+    entry.spec?.key ?? "",
     seed,
-  ].join('|');
+  ].join("|");
   if (key !== visualDetailCacheKey) {
     visualDetailCacheKey = key;
-    visualDetailCacheProfile = resolveVisualDetailProfile(floorThemeForRunEntry(entry), { seed });
+    visualDetailCacheProfile = resolveVisualDetailProfile(
+      floorThemeForRunEntry(entry),
+      { seed },
+    );
   }
   return visualDetailCacheProfile;
 }
 
-function currentVisualGeometryProfile(entry: FloorRunEntry): ResolvedVisualGeometryProfile {
+function currentVisualGeometryProfile(
+  entry: FloorRunEntry,
+): ResolvedVisualGeometryProfile {
   const runSeed = ensureFloorRunState(state).runSeed;
   const seed = entry.spec?.seed ?? runSeed;
   const theme = floorThemeForRunEntry(entry);
   const mode = visualGeometryMode();
   const tags = visualGeometryThemeTags(theme);
-  const key = `${mode}|${theme.floorKey}|${seed}|${tags.join(',')}`;
+  const key = `${mode}|${theme.floorKey}|${seed}|${tags.join(",")}`;
   if (key !== visualGeometryCacheKey) {
     visualGeometryCacheKey = key;
-    visualGeometryCacheProfile = resolveVisualGeometryProfile(mode, theme, { seed });
+    visualGeometryCacheProfile = resolveVisualGeometryProfile(mode, theme, {
+      seed,
+    });
   }
   return visualGeometryCacheProfile;
 }
 
-function currentVisualSurfaceProfile(entry: FloorRunEntry): ResolvedVisualSurfaceProfile {
+function currentVisualSurfaceProfile(
+  entry: FloorRunEntry,
+): ResolvedVisualSurfaceProfile {
   const runSeed = ensureFloorRunState(state).runSeed;
   const seed = entry.spec?.seed ?? runSeed;
   const theme = floorThemeForRunEntry(entry);
@@ -1193,21 +1595,24 @@ function currentVisualSurfaceProfile(entry: FloorRunEntry): ResolvedVisualSurfac
   const key = [
     mode,
     theme.floorKey,
-    theme.routeZ ?? '',
+    theme.routeZ ?? "",
     theme.baseFloor,
-    entry.designFloorId ?? '',
-    entry.spec?.key ?? '',
+    entry.designFloorId ?? "",
+    entry.spec?.key ?? "",
     seed,
-  ].join('|');
+  ].join("|");
   if (key !== visualSurfaceCacheKey) {
     visualSurfaceCacheKey = key;
-    visualSurfaceCacheProfile = resolveVisualSurfaceProfile(theme, { seed, geometryMode: mode });
+    visualSurfaceCacheProfile = resolveVisualSurfaceProfile(theme, {
+      seed,
+      geometryMode: mode,
+    });
   }
   return visualSurfaceCacheProfile;
 }
 
 function syncPlayerBarAudioSnapshot(): void {
-  if (typeof player === 'undefined') return;
+  if (typeof player === "undefined") return;
   const values = playerBarAudioValues();
   for (const id of PLAYER_BAR_AUDIO_IDS) {
     playerBarAudio.values[id] = values[id];
@@ -1238,12 +1643,19 @@ function makeCurrentPlayer(actor: Entity | undefined): boolean {
   return true;
 }
 
-function randomDeathContinuationNpc(random: () => number = Math.random): Entity | undefined {
+function randomDeathContinuationNpc(
+  random: () => number = Math.random,
+): Entity | undefined {
   let selected: Entity | undefined;
   let seen = 0;
   for (const candidate of entities) {
     if (!candidate.alive || candidate.type !== EntityType.NPC) continue;
-    if (candidate.id === player.id || isNativePlayerBodyEntity(candidate) || isPlayerEntity(candidate)) continue;
+    if (
+      candidate.id === player.id ||
+      isNativePlayerBodyEntity(candidate) ||
+      isPlayerEntity(candidate)
+    )
+      continue;
     seen++;
     if (random() * seen < 1) selected = candidate;
   }
@@ -1252,17 +1664,27 @@ function randomDeathContinuationNpc(random: () => number = Math.random): Entity 
 
 function resetDeathContinuationWorldForHost(host: Entity): void {
   const removedQuests = resetNonStoryQuestsForNewPlayer(state, entities);
-  resetAlifePlayerRelationsForNewPlayer(state, entities, host, (fromAlifeId, targetAlifeId) =>
-    existingDemosRelationToNewPlayer(state, fromAlifeId, targetAlifeId)
+  resetAlifePlayerRelationsForNewPlayer(
+    state,
+    entities,
+    host,
+    (fromAlifeId, targetAlifeId) =>
+      existingDemosRelationToNewPlayer(state, fromAlifeId, targetAlifeId),
   );
   resetDemosPlayerRelationSlotsForNewPlayer(state);
   if (removedQuests > 0) {
-    state.msgs.push(msg(`Поручения прежнего тела сброшены: ${removedQuests}. Сюжетная нить сохранена.`, state.time, '#8cf'));
+    state.msgs.push(
+      msg(
+        `Поручения прежнего тела сброшены: ${removedQuests}. Сюжетная нить сохранена.`,
+        state.time,
+        "#8cf",
+      ),
+    );
   }
 }
 
 function finalizeDeathContinuationHost(host: Entity): void {
-  endPsiPossession(entities, player, undefined, state.time, 'reset');
+  endPsiPossession(entities, player, undefined, state.time, "reset");
   if (host.ai) {
     host.ai.combatTargetId = undefined;
     host.ai.goal = AIGoal.IDLE;
@@ -1280,7 +1702,9 @@ function finalizeDeathContinuationHost(host: Entity): void {
   state.dmgFlash = 0;
   state.sleeping = false;
   netDeathReported = false;
-  state.msgs.push(msg(`Продолжаете путь как ${entityDisplayName(host)}.`, state.time, '#8cf'));
+  state.msgs.push(
+    msg(`Продолжаете путь как ${entityDisplayName(host)}.`, state.time, "#8cf"),
+  );
 }
 
 function continueDeathAsFloorNpc(): boolean {
@@ -1295,23 +1719,36 @@ function continueDeathAsAlifePopulationNpc(): boolean {
   if (player.alifeId !== undefined) excluded.add(player.alifeId);
   const snapshot = randomAliveAlifeNpcSnapshot(state, Math.random, excluded);
   if (!snapshot) {
-    state.msgs.push(msg('В A-Life не осталось живого человека для продолжения пути.', state.time, '#f84'));
+    state.msgs.push(
+      msg(
+        "В A-Life не осталось живого человека для продолжения пути.",
+        state.time,
+        "#f84",
+      ),
+    );
     return false;
   }
   const targetEntry = floorRunEntryForFloorKey(state, snapshot.floorKey);
   if (!targetEntry) {
-    state.msgs.push(msg(`Запись A-Life недостижима: ${snapshot.floorKey}.`, state.time, '#f84'));
+    state.msgs.push(
+      msg(
+        `Запись A-Life недостижима: ${snapshot.floorKey}.`,
+        state.time,
+        "#f84",
+      ),
+    );
     return false;
   }
 
-  endPsiPossession(entities, player, undefined, state.time, 'reset');
+  endPsiPossession(entities, player, undefined, state.time, "reset");
   captureCurrentAlifeFloor();
   captureCurrentFloorMemory();
   clearPseudoliftActive(state, entities);
   const fromFloor = state.currentFloor;
   commitFloorRunEntry(state, targetEntry);
   state.currentFloor = targetEntry.baseFloor;
-  if (targetEntry.baseFloor === FloorLevel.VOID) setVoidEntryFromFloor(state, fromFloor);
+  if (targetEntry.baseFloor === FloorLevel.VOID)
+    setVoidEntryFromFloor(state, fromFloor);
   else setVoidEntryFromFloor(state, undefined);
   const floorInstances = ensureFloorInstanceState(state, targetEntry.baseFloor);
   floorInstances.current = null;
@@ -1336,15 +1773,35 @@ function continueDeathAsAlifePopulationNpc(): boolean {
     let host = getEntityIndex().byAlifeId.get(snapshot.id);
     if (host && !host.alive) host = undefined;
     if (!host) {
-      const spawn = safeSpawnNear(snapshot.x ?? gen.spawnX, snapshot.y ?? gen.spawnY, gen.spawnX, gen.spawnY);
-      host = materializeAlifeArrival(state, world, entities, nextEntityId, snapshot.id, {
-        x: spawn.x,
-        y: spawn.y,
-        angle: snapshot.angle ?? 0,
-      }, snapshot.floorKey) ?? undefined;
+      const spawn = safeSpawnNear(
+        snapshot.x ?? gen.spawnX,
+        snapshot.y ?? gen.spawnY,
+        gen.spawnX,
+        gen.spawnY,
+      );
+      host =
+        materializeAlifeArrival(
+          state,
+          world,
+          entities,
+          nextEntityId,
+          snapshot.id,
+          {
+            x: spawn.x,
+            y: spawn.y,
+            angle: snapshot.angle ?? 0,
+          },
+          snapshot.floorKey,
+        ) ?? undefined;
     }
     if (!host) {
-      state.msgs.push(msg(`Не удалось материализовать нового носителя: ${snapshot.name}.`, state.time, '#f84'));
+      state.msgs.push(
+        msg(
+          `Не удалось материализовать нового носителя: ${snapshot.name}.`,
+          state.time,
+          "#f84",
+        ),
+      );
       return;
     }
 
@@ -1366,16 +1823,22 @@ function continueDeathAsAlifePopulationNpc(): boolean {
     restoreVoidReturnPortalForCurrentWorld();
     applyStoryRouteGates(world, player, state);
     publishEvent(state, {
-      type: 'floor_transition',
-      zoneId: world.zoneMap[world.idx(Math.floor(player.x), Math.floor(player.y))],
+      type: "floor_transition",
+      zoneId:
+        world.zoneMap[world.idx(Math.floor(player.x), Math.floor(player.y))],
       x: player.x,
       y: player.y,
       actorId: player.id,
       actorName: player.name,
       actorFaction: player.faction,
       severity: 3,
-      privacy: 'local',
-      tags: ['floor', 'floor_transition', 'death_continuation', floorRunEntryFloorKey(targetEntry)],
+      privacy: "local",
+      tags: [
+        "floor",
+        "floor_transition",
+        "death_continuation",
+        floorRunEntryFloorKey(targetEntry),
+      ],
       data: {
         fromFloor,
         toFloor: targetEntry.baseFloor,
@@ -1396,14 +1859,16 @@ function continueDeathAsRandomNpc(): boolean {
 }
 
 function restorePlayerBeforeWorldBoundary(): void {
-  if (typeof entities === 'undefined' || typeof player === 'undefined') return;
-  makeCurrentPlayer(endPsiPossession(
-    entities,
-    player,
-    undefined,
-    typeof state === 'undefined' ? 0 : state.time,
-    'reset',
-  ));
+  if (typeof entities === "undefined" || typeof player === "undefined") return;
+  makeCurrentPlayer(
+    endPsiPossession(
+      entities,
+      player,
+      undefined,
+      typeof state === "undefined" ? 0 : state.time,
+      "reset",
+    ),
+  );
 }
 
 function syncPlayerActorSwitchBaseline(): Entity {
@@ -1437,26 +1902,33 @@ function updatePlayerBarAudioFeedback(): void {
     playerBarAudio.values[id] = current;
     const delta = current - prev;
     if (Math.abs(delta) < 0.01) continue;
-    if (id === 'hp' && delta < 0) {
+    if (id === "hp" && delta < 0) {
       playerBarAudio.accum[id] = 0;
       continue;
     }
-    if (id === 'xp' && leveledUp && delta < 0) {
+    if (id === "xp" && leveledUp && delta < 0) {
       playerBarAudio.accum[id] = 0;
-      if (uiTime - playerBarAudio.lastAt[id] >= PLAYER_BAR_AUDIO_COOLDOWN && played < 2) {
-        playHudBarChange(id, 'up', 1.0);
+      if (
+        uiTime - playerBarAudio.lastAt[id] >= PLAYER_BAR_AUDIO_COOLDOWN &&
+        played < 2
+      ) {
+        playHudBarChange(id, "up", 1.0);
         playerBarAudio.lastAt[id] = uiTime;
         played++;
       }
       continue;
     }
     playerBarAudio.accum[id] += delta;
-    const threshold = id === 'xp' || id === 'hp' ? 3 : PLAYER_BAR_AUDIO_THRESHOLD;
+    const threshold =
+      id === "xp" || id === "hp" ? 3 : PLAYER_BAR_AUDIO_THRESHOLD;
     if (Math.abs(playerBarAudio.accum[id]) < threshold) continue;
-    const cooldown = id === 'sleep' && state.sleeping ? PLAYER_BAR_AUDIO_SLEEP_COOLDOWN : PLAYER_BAR_AUDIO_COOLDOWN;
+    const cooldown =
+      id === "sleep" && state.sleeping
+        ? PLAYER_BAR_AUDIO_SLEEP_COOLDOWN
+        : PLAYER_BAR_AUDIO_COOLDOWN;
     if (uiTime - playerBarAudio.lastAt[id] < cooldown) continue;
     if (played >= 2) continue;
-    const direction = playerBarAudio.accum[id] > 0 ? 'up' : 'down';
+    const direction = playerBarAudio.accum[id] > 0 ? "up" : "down";
     playHudBarChange(id, direction, Math.abs(playerBarAudio.accum[id]) / 10);
     playerBarAudio.lastAt[id] = uiTime;
     playerBarAudio.accum[id] = 0;
@@ -1467,22 +1939,33 @@ const PLAYER_PITCH_LIMIT = 0.62;
 const ATTACK_FEEDBACK_MIN_INTERVAL = 0.18;
 
 setWorldLogSpatialContextProvider(() => {
-  if (!started || typeof state === 'undefined' || typeof world === 'undefined' || typeof player === 'undefined') return undefined;
+  if (
+    !started ||
+    typeof state === "undefined" ||
+    typeof world === "undefined" ||
+    typeof player === "undefined"
+  )
+    return undefined;
   return {
     floor: state.currentFloor,
     playerX: player.x,
     playerY: player.y,
-    audibleRadiusMeters: hearingRadiusMetersForActor(player, state.npcLogRadiusMeters),
+    audibleRadiusMeters: hearingRadiusMetersForActor(
+      player,
+      state.npcLogRadiusMeters,
+    ),
     dist2: (ax, ay, bx, by) => world.dist2(ax, ay, bx, by),
-    entityPosition: entityId => {
+    entityPosition: (entityId) => {
       const entity = getEntityIndex().byId.get(entityId);
       return entity ? { x: entity.x, y: entity.y } : undefined;
     },
-    roomCenter: roomId => {
+    roomCenter: (roomId) => {
       const room = world.rooms[roomId];
-      return room ? { x: room.x + room.w / 2, y: room.y + room.h / 2 } : undefined;
+      return room
+        ? { x: room.x + room.w / 2, y: room.y + room.h / 2 }
+        : undefined;
     },
-    zoneCenter: zoneId => {
+    zoneCenter: (zoneId) => {
       const zone = world.zones[zoneId];
       return zone ? { x: zone.cx + 0.5, y: zone.cy + 0.5 } : undefined;
     },
@@ -1509,15 +1992,19 @@ type VoidReturnPortalHost = GameState & {
 };
 
 function finiteNumber(value: unknown, fallback: number): number {
-  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
 }
 
-function normalizeVoidReturnPortalState(input: unknown): VoidReturnPortalState | undefined {
-  if (!input || typeof input !== 'object') return undefined;
+function normalizeVoidReturnPortalState(
+  input: unknown,
+): VoidReturnPortalState | undefined {
+  if (!input || typeof input !== "object") return undefined;
   const src = input as Partial<VoidReturnPortalState>;
   const cell = Math.floor(finiteNumber(src.cell, -1));
   if (cell < 0 || cell >= W * W) return undefined;
-  const enteredFromFloor = isFloorLevel(src.enteredFromFloor) ? src.enteredFromFloor : undefined;
+  const enteredFromFloor = isFloorLevel(src.enteredFromFloor)
+    ? src.enteredFromFloor
+    : undefined;
   return {
     active: src.active === true,
     used: src.used === true,
@@ -1527,13 +2014,18 @@ function normalizeVoidReturnPortalState(input: unknown): VoidReturnPortalState |
     creatorId: Math.floor(finiteNumber(src.creatorId, -1)),
     playerMustLeaveCell: src.playerMustLeaveCell === true,
     enteredFromFloor,
-    usedAt: typeof src.usedAt === 'number' && Number.isFinite(src.usedAt) ? src.usedAt : undefined,
+    usedAt:
+      typeof src.usedAt === "number" && Number.isFinite(src.usedAt)
+        ? src.usedAt
+        : undefined,
     voidSpikeCarried: src.voidSpikeCarried === true,
     voidSpikeResolved: src.voidSpikeResolved === true,
   };
 }
 
-function getVoidReturnPortalState(targetState: GameState = state): VoidReturnPortalState | undefined {
+function getVoidReturnPortalState(
+  targetState: GameState = state,
+): VoidReturnPortalState | undefined {
   const host = targetState as VoidReturnPortalHost;
   const normalized = normalizeVoidReturnPortalState(host.voidReturnPortal);
   if (normalized) host.voidReturnPortal = normalized;
@@ -1541,7 +2033,10 @@ function getVoidReturnPortalState(targetState: GameState = state): VoidReturnPor
   return normalized;
 }
 
-function setVoidReturnPortalState(targetState: GameState, input: unknown): void {
+function setVoidReturnPortalState(
+  targetState: GameState,
+  input: unknown,
+): void {
   const host = targetState as VoidReturnPortalHost;
   const normalized = normalizeVoidReturnPortalState(input);
   if (normalized) host.voidReturnPortal = normalized;
@@ -1559,34 +2054,47 @@ function setVoidEntryFromFloor(targetState: GameState, value: unknown): void {
   else delete host.voidEntryFromFloor;
 }
 
-function voidReturnPortalStateForSave(targetState: GameState): VoidReturnPortalState | undefined {
+function voidReturnPortalStateForSave(
+  targetState: GameState,
+): VoidReturnPortalState | undefined {
   const portal = getVoidReturnPortalState(targetState);
   return portal ? { ...portal } : undefined;
 }
 
 function hasVoidSpike(): boolean {
-  return (player.inventory ?? []).some(item => item.defId === 'void_spike' && item.count > 0);
+  return (player.inventory ?? []).some(
+    (item) => item.defId === "void_spike" && item.count > 0,
+  );
 }
 
 function voidSpikeResolved(): boolean {
-  return state.quests.some(q =>
-    q.type === QuestType.FETCH &&
-    q.targetItem === 'void_spike' &&
-    q.done &&
-    !q.failed);
+  return state.quests.some(
+    (q) =>
+      q.type === QuestType.FETCH &&
+      q.targetItem === "void_spike" &&
+      q.done &&
+      !q.failed,
+  );
 }
 
 function creatorKillQuestSatisfied(): boolean {
-  return state.quests.some(q =>
-    q.type === QuestType.KILL &&
-    q.targetMonsterKind === MonsterKind.CREATOR &&
-    (q.done || (q.killCount ?? 0) >= (q.killNeeded ?? 1)));
+  return state.quests.some(
+    (q) =>
+      q.type === QuestType.KILL &&
+      q.targetMonsterKind === MonsterKind.CREATOR &&
+      (q.done || (q.killCount ?? 0) >= (q.killNeeded ?? 1)),
+  );
 }
 
 function isVoidReturnPortalFloor(targetState: GameState = state): boolean {
   if (targetState.currentFloor !== FloorLevel.VOID) return false;
   const entry = currentFloorRunEntry(targetState);
-  return !entry || (entry.storyFloor === FloorLevel.VOID && !entry.designFloorId && !entry.spec);
+  return (
+    !entry ||
+    (entry.storyFloor === FloorLevel.VOID &&
+      !entry.designFloorId &&
+      !entry.spec)
+  );
 }
 
 function removeCreatorFromResolvedVoid(): void {
@@ -1595,7 +2103,10 @@ function removeCreatorFromResolvedVoid(): void {
   let writeIdx = 0;
   for (let i = 0; i < entities.length; i++) {
     const e = entities[i];
-    if (e.type === EntityType.MONSTER && e.monsterKind === MonsterKind.CREATOR) {
+    if (
+      e.type === EntityType.MONSTER &&
+      e.monsterKind === MonsterKind.CREATOR
+    ) {
       continue;
     }
     entities[writeIdx++] = e;
@@ -1606,7 +2117,10 @@ function removeCreatorFromResolvedVoid(): void {
 function restoreVoidReturnPortalForCurrentWorld(): boolean {
   let portal = getVoidReturnPortalState();
   if (!portal && isVoidReturnPortalFloor() && creatorKillQuestSatisfied()) {
-    const creator = entities.find(e => e.type === EntityType.MONSTER && e.monsterKind === MonsterKind.CREATOR);
+    const creator = entities.find(
+      (e) =>
+        e.type === EntityType.MONSTER && e.monsterKind === MonsterKind.CREATOR,
+    );
     if (creator) {
       portal = {
         active: true,
@@ -1619,7 +2133,8 @@ function restoreVoidReturnPortalForCurrentWorld(): boolean {
       (state as VoidReturnPortalHost).voidReturnPortal = portal;
     }
   }
-  if (!portal?.active || portal.used || !isVoidReturnPortalFloor()) return false;
+  if (!portal?.active || portal.used || !isVoidReturnPortalFloor())
+    return false;
   const ci = portal.cell;
   world.cells[ci] = Cell.FLOOR;
   world.floorTex[ci] = Tex.PORTAL;
@@ -1629,9 +2144,13 @@ function restoreVoidReturnPortalForCurrentWorld(): boolean {
   return true;
 }
 
-function openVoidReturnPortalFromCreator(creator: Entity, enteredFromFloor?: FloorLevel): void {
+function openVoidReturnPortalFromCreator(
+  creator: Entity,
+  enteredFromFloor?: FloorLevel,
+): void {
   const cell = world.idx(Math.floor(creator.x), Math.floor(creator.y));
-  const entryFloor = enteredFromFloor ?? (state as VoidReturnPortalHost).voidEntryFromFloor;
+  const entryFloor =
+    enteredFromFloor ?? (state as VoidReturnPortalHost).voidEntryFromFloor;
   const playerCell = world.idx(Math.floor(player.x), Math.floor(player.y));
   (state as VoidReturnPortalHost).voidReturnPortal = {
     active: true,
@@ -1647,10 +2166,22 @@ function openVoidReturnPortalFromCreator(creator: Entity, enteredFromFloor?: Flo
   const x = cell % W;
   const y = (cell / W) | 0;
   const zoneId = world.zoneMap[cell];
-  state.msgs.push(msg('Портал возврата закреплён: переход сработает только в его центре.', state.time, '#0ff'));
-  state.msgs.push(msg('Перед входом можно оставить Пустотный шип Жану, если он у вас.', state.time, '#8cf'));
+  state.msgs.push(
+    msg(
+      "Портал возврата закреплён: переход сработает только в его центре.",
+      state.time,
+      "#0ff",
+    ),
+  );
+  state.msgs.push(
+    msg(
+      "Перед входом можно оставить Пустотный шип Жану, если он у вас.",
+      state.time,
+      "#8cf",
+    ),
+  );
   publishEvent(state, {
-    type: 'floor_transition',
+    type: "floor_transition",
     floor: FloorLevel.VOID,
     zoneId,
     x: x + 0.5,
@@ -1659,11 +2190,11 @@ function openVoidReturnPortalFromCreator(creator: Entity, enteredFromFloor?: Flo
     actorName: player.name,
     actorFaction: player.faction,
     targetId: creator.id,
-    targetName: 'Портал возврата открыт',
+    targetName: "Портал возврата открыт",
     monsterKind: MonsterKind.CREATOR,
     severity: 5,
-    privacy: 'local',
-    tags: ['floor', 'floor_transition', 'void', 'return_portal', 'opened'],
+    privacy: "local",
+    tags: ["floor", "floor_transition", "void", "return_portal", "opened"],
     data: {
       portalCell: cell,
       portalX: x,
@@ -1684,16 +2215,24 @@ function maybeShowVoidReturnPortalHint(playerCell: number): void {
     if (d2 > 12 * 12) return;
     const dist = Math.max(0, Math.round(Math.sqrt(d2)));
     const consequence = hasVoidSpike()
-      ? 'Шип у вас: Жан может забрать его до входа.'
+      ? "Шип у вас: Жан может забрать его до входа."
       : voidSpikeResolved()
-        ? 'Последствие оставлено здесь.'
-        : 'Центр вернёт в жилую зону.';
-    state.msgs.push(msg(`Портал возврата: ${dist}м. ${consequence}`, state.time, '#0ff'));
+        ? "Последствие оставлено здесь."
+        : "Центр вернёт в жилую зону.";
+    state.msgs.push(
+      msg(`Портал возврата: ${dist}м. ${consequence}`, state.time, "#0ff"),
+    );
     lastVoidReturnPortalHintTick = state.tick;
     return;
   }
   if (world.floorTex[playerCell] === Tex.PORTAL) {
-    state.msgs.push(msg('Эта текстура портала не является закреплённым возвратом.', state.time, '#888'));
+    state.msgs.push(
+      msg(
+        "Эта текстура портала не является закреплённым возвратом.",
+        state.time,
+        "#888",
+      ),
+    );
     lastVoidReturnPortalHintTick = state.tick;
   }
 }
@@ -1711,8 +2250,8 @@ function returnFromVoidPortalToLiving(portal: VoidReturnPortalState): void {
   const savedNeeds = player.needs ? { ...player.needs } : freshNeeds();
   const savedHp = player.hp ?? 100;
   const savedMaxHp = player.maxHp ?? 100;
-  const savedWeapon = player.weapon ?? '';
-  const savedTool = player.tool ?? '';
+  const savedWeapon = player.weapon ?? "";
+  const savedTool = player.tool ?? "";
   const savedRpg = player.rpg ? { ...player.rpg } : freshRPG(1);
   const savedStatuses = player.statuses ? [...player.statuses] : undefined;
   const savedMoney = player.money ?? 100;
@@ -1724,7 +2263,11 @@ function returnFromVoidPortalToLiving(portal: VoidReturnPortalState): void {
   const enteredFromFloor = portal.enteredFromFloor;
   const voidSpikeWasCarried = portal.voidSpikeCarried;
   const voidSpikeWasResolved = portal.voidSpikeResolved;
-  const voidSpikeTag = voidSpikeWasResolved ? 'void_spike_left' : voidSpikeWasCarried ? 'void_spike_carried' : 'void_spike_absent';
+  const voidSpikeTag = voidSpikeWasResolved
+    ? "void_spike_left"
+    : voidSpikeWasCarried
+      ? "void_spike_carried"
+      : "void_spike_absent";
   captureCurrentFloorMemory();
 
   state.currentFloor = FloorLevel.LIVING;
@@ -1737,15 +2280,17 @@ function returnFromVoidPortalToLiving(portal: VoidReturnPortalState): void {
   const floorInstances = ensureFloorInstanceState(state, FloorLevel.LIVING);
   floorInstances.current = null;
   floorInstances.lastStableFloor = FloorLevel.LIVING;
-  state.msgs.push(msg(
-    voidSpikeWasResolved
-      ? 'Возврат принят. Последствие осталось в Пустоте. Жилая зона принимает вас обратно.'
-      : voidSpikeWasCarried
-        ? 'Возврат принят. Пустотный шип вернулся вместе с вами.'
-        : 'Возврат принят. Пустота закрыла за вами центр. Жилая зона снова под ногами.',
-    state.time,
-    '#0f8',
-  ));
+  state.msgs.push(
+    msg(
+      voidSpikeWasResolved
+        ? "Возврат принят. Последствие осталось в Пустоте. Жилая зона принимает вас обратно."
+        : voidSpikeWasCarried
+          ? "Возврат принят. Пустотный шип вернулся вместе с вами."
+          : "Возврат принят. Пустота закрыла за вами центр. Жилая зона снова под ногами.",
+      state.time,
+      "#0f8",
+    ),
+  );
 
   scheduleLoading(() => {
     resetGeneratedFloorPopulationState();
@@ -1799,18 +2344,27 @@ function returnFromVoidPortalToLiving(portal: VoidReturnPortalState): void {
     clearPseudoliftActive(state, entities);
 
     publishEvent(state, {
-      type: 'floor_transition',
+      type: "floor_transition",
       floor: FloorLevel.LIVING,
-      zoneId: world.zoneMap[world.idx(Math.floor(player.x), Math.floor(player.y))],
+      zoneId:
+        world.zoneMap[world.idx(Math.floor(player.x), Math.floor(player.y))],
       x: player.x,
       y: player.y,
       actorId: player.id,
       actorName: player.name,
       actorFaction: player.faction,
-      targetName: 'Возврат в жилую зону',
+      targetName: "Возврат в жилую зону",
       severity: 5,
-      privacy: 'local',
-      tags: ['floor', 'floor_transition', 'void', 'return_portal', 'used', 'freeplay', voidSpikeTag],
+      privacy: "local",
+      tags: [
+        "floor",
+        "floor_transition",
+        "void",
+        "return_portal",
+        "used",
+        "freeplay",
+        voidSpikeTag,
+      ],
       data: {
         fromFloor,
         toFloor: FloorLevel.LIVING,
@@ -1847,7 +2401,13 @@ function tryUseVoidReturnPortal(playerCell: number): boolean {
   }
   if (portal.playerMustLeaveCell) {
     if (state.tick - lastVoidReturnPortalHintTick >= 120) {
-      state.msgs.push(msg('Портал раскрылся под ногами. Отойдите и войдите снова, когда будете готовы.', state.time, '#0ff'));
+      state.msgs.push(
+        msg(
+          "Портал раскрылся под ногами. Отойдите и войдите снова, когда будете готовы.",
+          state.time,
+          "#0ff",
+        ),
+      );
       lastVoidReturnPortalHintTick = state.tick;
     }
     return false;
@@ -1881,7 +2441,7 @@ interface SmokeDebugSnapshot {
   pageHiddenPause: boolean;
   platformPause: boolean;
   npcMenuSel: number;
-  npcMenuTab: GameState['npcMenuTab'];
+  npcMenuTab: GameState["npcMenuTab"];
   mapMode: number;
   mobileControlsEnabled: boolean;
   currentFloor: FloorLevel;
@@ -1937,20 +2497,26 @@ declare global {
 
 function installSmokeDebugHook(): void {
   if (!smokeDebug) return;
-  if (typeof window === 'undefined') return;
+  if (typeof window === "undefined") return;
   window.__gigahrushSmokeState = () => {
-    if (!started || pendingLoad || typeof state === 'undefined') return null;
+    if (!started || pendingLoad || typeof state === "undefined") return null;
     return smokeSnapshot();
   };
   window.__gigahrushStressSpawn = (count: number) => {
-    if (!started || pendingLoad || typeof state === 'undefined') return null;
+    if (!started || pendingLoad || typeof state === "undefined") return null;
     spawnSmokeStressPopulation(count);
     return smokeSnapshot();
   };
 }
 
 function interactionTargetAhead(): ReturnType<typeof findInteractionTarget> {
-  if (!started || typeof state === 'undefined' || typeof world === 'undefined' || typeof player === 'undefined') return null;
+  if (
+    !started ||
+    typeof state === "undefined" ||
+    typeof world === "undefined" ||
+    typeof player === "undefined"
+  )
+    return null;
   if (state.gameOver || state.sleeping || isMobileMenuOpen()) return null;
   const lookX = player.x + Math.cos(player.angle) * 1.5;
   const lookY = player.y + Math.sin(player.angle) * 1.5;
@@ -1962,7 +2528,7 @@ function interactionTargetAhead(): ReturnType<typeof findInteractionTarget> {
     nextEntityId,
     lookX,
     lookY,
-    routeHintsVisible: uiElementEnabled('route_hints'),
+    routeHintsVisible: uiElementEnabled("route_hints"),
   });
 }
 
@@ -1972,7 +2538,11 @@ function smokeSnapshot(): SmokeDebugSnapshot {
   let npcCount = 0;
   let monsterCount = 0;
   for (const e of entities) {
-    if (!e.alive || (e.type !== EntityType.NPC && e.type !== EntityType.MONSTER)) continue;
+    if (
+      !e.alive ||
+      (e.type !== EntityType.NPC && e.type !== EntityType.MONSTER)
+    )
+      continue;
     liveActorCount++;
     if (e.ai) liveAiCount++;
     if (e.type === EntityType.NPC) npcCount++;
@@ -1983,74 +2553,76 @@ function smokeSnapshot(): SmokeDebugSnapshot {
   const objective = getCurrentObjective(state, entities);
   const interaction = interactionTargetAhead();
   return {
-      started,
-      showMenu: state.showMenu,
-      showDebug: state.showDebug,
-      debugSel: state.debugSel,
-      showQuests: state.showQuests,
-      showInventory: state.showInventory,
-      showLog: state.showLog,
-      showNpcMenu: state.showNpcMenu,
-      showContainerMenu: state.showContainerMenu,
-      showCraftMenu: state.showCraftMenu,
-      showFactions: state.showFactions,
-      showDemos: state.showDemos,
-      showHelp: state.showHelp,
-      showControls: state.showControls,
-      showUiSettings: state.showUiSettings,
-      showMapLegend: state.showMapLegend,
-      isNetTerminalGenOpen: isNetTerminalGenOpen(),
-      isInteractableOverlayOpen: isInteractableOverlayOpen(),
-      isEmergencyPanelMenuOpen: isEmergencyPanelMenuOpen(),
-      isMapEditorOpen: isMapEditorOpen(),
-      pageHiddenPause,
-      platformPause,
-      npcMenuSel: state.npcMenuSel,
-      npcMenuTab: state.npcMenuTab,
-      mapMode: state.mapMode,
-      mobileControlsEnabled: mobileControls?.isEnabled() === true,
-      currentFloor: state.currentFloor,
-      questCount: state.quests.length,
-      currentObjectiveLine: objective?.line ?? '',
-      currentObjectiveSource: objective?.source ?? '',
-      currentObjectiveTargetPlotNpcId: objective?.targetPlotNpcId ?? '',
-      canInteractAhead: interaction !== null,
-      interactionPrompt: interaction?.prompt.trim() ?? '',
-      interactionPromptEnabled: uiElementEnabled('interaction_prompt'),
-      routeHintsEnabled: uiElementEnabled('route_hints'),
-      playerWeapon: player.weapon ?? '',
-      gameOver: state.gameOver,
-      playerAlive: player.alive,
-      playerHp: player.hp ?? 0,
-      tick: state.tick,
-      inputFwd: input.fwd,
-      inputInv: input.inv,
-      inputInteract: input.interact,
-      currentPlayerId: getCurrentPlayerId() ?? -1,
-      playerId: player.id,
-      playerType: player.type,
-      paused: state.paused,
-      pointerCaptureGate: pointerCaptureGateVisible(),
-      pointerCaptureGateReason: pointerCaptureGateVisible() ? pointerCaptureGateReason : '',
-      playerX: player.x,
-      playerY: player.y,
-      samosborActive: state.samosborActive,
-      netSphereOpen: netSphere.open,
-      netSphereStatus: netSphere.status,
-      netSphereStatusText: netSphere.statusText,
-      netSphereError: netSphere.error,
-      netSphereBusy: netSphere.busy,
-      netSphereDraftLength: netSphere.draft.length,
-      entityCount: entities.length,
-      liveActorCount,
-      liveAiCount,
-      npcCount,
-      monsterCount,
-      floorMemoryCount: memory.count,
-      floorMemoryCap: memory.cap,
-      entityIndex: getEntityIndex().getDebugStats(),
-      ai: getAiStats(),
-      perf: hudPerfDebugSnapshot(displayedFps),
+    started,
+    showMenu: state.showMenu,
+    showDebug: state.showDebug,
+    debugSel: state.debugSel,
+    showQuests: state.showQuests,
+    showInventory: state.showInventory,
+    showLog: state.showLog,
+    showNpcMenu: state.showNpcMenu,
+    showContainerMenu: state.showContainerMenu,
+    showCraftMenu: state.showCraftMenu,
+    showFactions: state.showFactions,
+    showDemos: state.showDemos,
+    showHelp: state.showHelp,
+    showControls: state.showControls,
+    showUiSettings: state.showUiSettings,
+    showMapLegend: state.showMapLegend,
+    isNetTerminalGenOpen: isNetTerminalGenOpen(),
+    isInteractableOverlayOpen: isInteractableOverlayOpen(),
+    isEmergencyPanelMenuOpen: isEmergencyPanelMenuOpen(),
+    isMapEditorOpen: isMapEditorOpen(),
+    pageHiddenPause,
+    platformPause,
+    npcMenuSel: state.npcMenuSel,
+    npcMenuTab: state.npcMenuTab,
+    mapMode: state.mapMode,
+    mobileControlsEnabled: mobileControls?.isEnabled() === true,
+    currentFloor: state.currentFloor,
+    questCount: state.quests.length,
+    currentObjectiveLine: objective?.line ?? "",
+    currentObjectiveSource: objective?.source ?? "",
+    currentObjectiveTargetPlotNpcId: objective?.targetPlotNpcId ?? "",
+    canInteractAhead: interaction !== null,
+    interactionPrompt: interaction?.prompt.trim() ?? "",
+    interactionPromptEnabled: uiElementEnabled("interaction_prompt"),
+    routeHintsEnabled: uiElementEnabled("route_hints"),
+    playerWeapon: player.weapon ?? "",
+    gameOver: state.gameOver,
+    playerAlive: player.alive,
+    playerHp: player.hp ?? 0,
+    tick: state.tick,
+    inputFwd: input.fwd,
+    inputInv: input.inv,
+    inputInteract: input.interact,
+    currentPlayerId: getCurrentPlayerId() ?? -1,
+    playerId: player.id,
+    playerType: player.type,
+    paused: state.paused,
+    pointerCaptureGate: pointerCaptureGateVisible(),
+    pointerCaptureGateReason: pointerCaptureGateVisible()
+      ? pointerCaptureGateReason
+      : "",
+    playerX: player.x,
+    playerY: player.y,
+    samosborActive: state.samosborActive,
+    netSphereOpen: netSphere.open,
+    netSphereStatus: netSphere.status,
+    netSphereStatusText: netSphere.statusText,
+    netSphereError: netSphere.error,
+    netSphereBusy: netSphere.busy,
+    netSphereDraftLength: netSphere.draft.length,
+    entityCount: entities.length,
+    liveActorCount,
+    liveAiCount,
+    npcCount,
+    monsterCount,
+    floorMemoryCount: memory.count,
+    floorMemoryCap: memory.cap,
+    entityIndex: getEntityIndex().getDebugStats(),
+    ai: getAiStats(),
+    perf: hudPerfDebugSnapshot(displayedFps),
   };
 }
 
@@ -2060,26 +2632,46 @@ function spawnSmokeStressPopulation(count: number): void {
   const target = Math.min(requested, remainingActiveActorSpawnSlots(entities));
   if (target <= 0) return;
   const npcAvailable = entitySpawnSlots(entities, EntityType.NPC, target);
-  const monsterAvailable = entitySpawnSlots(entities, EntityType.MONSTER, target);
+  const monsterAvailable = entitySpawnSlots(
+    entities,
+    EntityType.MONSTER,
+    target,
+  );
   let npcBudget = Math.min(npcAvailable, Math.floor(target * 0.7));
   let monsterBudget = Math.min(monsterAvailable, target - npcBudget);
   if (npcBudget + monsterBudget < target) {
-    const extraNpc = Math.min(npcAvailable - npcBudget, target - npcBudget - monsterBudget);
+    const extraNpc = Math.min(
+      npcAvailable - npcBudget,
+      target - npcBudget - monsterBudget,
+    );
     npcBudget += extraNpc;
   }
   if (npcBudget + monsterBudget < target) {
-    const extraMonster = Math.min(monsterAvailable - monsterBudget, target - npcBudget - monsterBudget);
+    const extraMonster = Math.min(
+      monsterAvailable - monsterBudget,
+      target - npcBudget - monsterBudget,
+    );
     monsterBudget += extraMonster;
   }
   const spawnTarget = npcBudget + monsterBudget;
   if (spawnTarget <= 0) return;
-  const monsterKinds = [MonsterKind.ZOMBIE, MonsterKind.TVAR, MonsterKind.SBORKA, MonsterKind.SHADOW];
+  const monsterKinds = [
+    MonsterKind.ZOMBIE,
+    MonsterKind.TVAR,
+    MonsterKind.SBORKA,
+    MonsterKind.SHADOW,
+  ];
   let spawned = 0;
-  for (let attempt = 0; attempt < spawnTarget * 24 && spawned < spawnTarget; attempt++) {
+  for (
+    let attempt = 0;
+    attempt < spawnTarget * 24 && spawned < spawnTarget;
+    attempt++
+  ) {
     const x = Math.floor(Math.random() * W);
     const y = Math.floor(Math.random() * W);
     const ci = world.idx(x, y);
-    if (world.cells[ci] !== Cell.FLOOR && world.cells[ci] !== Cell.WATER) continue;
+    if (world.cells[ci] !== Cell.FLOOR && world.cells[ci] !== Cell.WATER)
+      continue;
     if (world.dist2(player.x, player.y, x + 0.5, y + 0.5) < 8 * 8) continue;
     if (npcBudget > 0 && (monsterBudget <= 0 || npcBudget >= monsterBudget)) {
       entities.push({
@@ -2102,7 +2694,16 @@ function spawnSmokeStressPopulation(count: number): void {
         occupation: Occupation.TRAVELER,
         questId: -1,
         isTraveler: true,
-        ai: { goal: AIGoal.WANDER, tx: x, ty: y, path: [], pi: 0, stuck: 0, timer: Math.random() * 4, combatScanCd: Math.random() * 1.5 },
+        ai: {
+          goal: AIGoal.WANDER,
+          tx: x,
+          ty: y,
+          path: [],
+          pi: 0,
+          stuck: 0,
+          timer: Math.random() * 4,
+          combatScanCd: Math.random() * 1.5,
+        },
         inventory: [],
         rpg: randomRPG(2),
       });
@@ -2119,12 +2720,21 @@ function spawnSmokeStressPopulation(count: number): void {
         alive: true,
         speed: 1.1,
         sprite: monsterSpr(kind),
-        spriteSeed: (state.tick ^ spawned * 1103515245) >>> 0,
+        spriteSeed: (state.tick ^ (spawned * 1103515245)) >>> 0,
         hp: 80,
         maxHp: 80,
         monsterKind: kind,
         attackCd: 0,
-        ai: { goal: AIGoal.WANDER, tx: x, ty: y, path: [], pi: 0, stuck: 0, timer: Math.random() * 4, combatScanCd: Math.random() * 1.5 },
+        ai: {
+          goal: AIGoal.WANDER,
+          tx: x,
+          ty: y,
+          path: [],
+          pi: 0,
+          stuck: 0,
+          timer: Math.random() * 4,
+          combatScanCd: Math.random() * 1.5,
+        },
         rpg: randomRPG(2),
       });
       monsterBudget--;
@@ -2133,11 +2743,20 @@ function spawnSmokeStressPopulation(count: number): void {
   }
   ensureProceduralSpriteSeeds(entities);
   rebuildProceduralSpriteCache(entities);
-  state.msgs.push(msg(`SMOKE stress AI: +${spawned}`, state.time, '#8ff'));
+  state.msgs.push(msg(`SMOKE stress AI: +${spawned}`, state.time, "#8ff"));
 }
 
 function setGeneratedDynamicSky(gen?: FloorGeneration): void {
-  const sky = (gen as (FloorGeneration & { skyProvider?: DynamicSkyTexture & { update(deltaSeconds: number): boolean } }) | undefined)?.skyProvider ?? null;
+  const sky =
+    (
+      gen as
+        | (FloorGeneration & {
+            skyProvider?: DynamicSkyTexture & {
+              update(deltaSeconds: number): boolean;
+            };
+          })
+        | undefined
+    )?.skyProvider ?? null;
   activeSkyProvider = sky;
   setDynamicSkyTexture(sky);
 }
@@ -2151,12 +2770,19 @@ function finishLoadedFloorVisuals(gen?: FloorGeneration): void {
 
 function updateGeneratedDynamicSky(dt: number): void {
   if (!activeSkyProvider) return;
-  if (activeSkyProvider.update(dt) || activeSkyProvider.dirty) setDynamicSkyTexture(activeSkyProvider);
+  if (activeSkyProvider.update(dt) || activeSkyProvider.dirty)
+    setDynamicSkyTexture(activeSkyProvider);
 }
 
 function replayMapEditorForCurrentFloor(): number {
   ensureMapEditorPatchState(state);
-  return replayMapEditorPatchForCurrentFloor(world, entities, player, state, nextEntityId);
+  return replayMapEditorPatchForCurrentFloor(
+    world,
+    entities,
+    player,
+    state,
+    nextEntityId,
+  );
 }
 
 function placeNetTerminalGenContentForCurrentFloor(): void {
@@ -2173,13 +2799,23 @@ function currentRouteLiftDirections(): LiftDirection[] {
 
 function ensureCurrentRouteLiftLayout(mirror?: FloorRouteLiftMirror): void {
   if (getActiveFloorInstance(state)) return;
-  ensureFloorRouteLiftLayout(world, player.x, player.y, currentRouteLiftDirections(), {
-    countPerDirection: ROUTE_LIFTS_PER_DIRECTION,
-    mirror,
-  });
+  ensureFloorRouteLiftLayout(
+    world,
+    player.x,
+    player.y,
+    currentRouteLiftDirections(),
+    {
+      countPerDirection: ROUTE_LIFTS_PER_DIRECTION,
+      mirror,
+    },
+  );
 }
 
-function prepareEditableFloor(mirror?: FloorRouteLiftMirror, normalizeRouteLifts = true, replayEditorPatch = true): void {
+function prepareEditableFloor(
+  mirror?: FloorRouteLiftMirror,
+  normalizeRouteLifts = true,
+  replayEditorPatch = true,
+): void {
   if (replayEditorPatch) replayMapEditorForCurrentFloor();
   placeNetTerminalGenContentForCurrentFloor();
   if (normalizeRouteLifts) ensureCurrentRouteLiftLayout(mirror);
@@ -2189,21 +2825,21 @@ function prepareEditableFloor(mirror?: FloorRouteLiftMirror, normalizeRouteLifts
 function drawLoading(): void {
   setCanvasTextGlitchPressure();
   currentTip = randomTip();
-  ctx.fillStyle = '#000';
+  ctx.fillStyle = "#000";
   ctx.fillRect(0, 0, hudCanvas.width, hudCanvas.height);
-  ctx.fillStyle = '#aaa';
+  ctx.fillStyle = "#aaa";
   ctx.font = `${Math.round(hudCanvas.height / 20)}px monospace`;
-  ctx.textAlign = 'center';
-  ctx.fillText('ЗАГРУЗКА...', hudCanvas.width / 2, hudCanvas.height / 2);
+  ctx.textAlign = "center";
+  ctx.fillText("ЗАГРУЗКА...", hudCanvas.width / 2, hudCanvas.height / 2);
   const tipSize = Math.max(14, Math.round(hudCanvas.height / 40));
   ctx.font = `${tipSize}px monospace`;
-  ctx.fillStyle = '#777';
+  ctx.fillStyle = "#777";
   const maxW = hudCanvas.width * 0.85;
-  const words = currentTip.split(' ');
+  const words = currentTip.split(" ");
   const lines: string[] = [];
   let line = words[0];
   for (let i = 1; i < words.length; i++) {
-    const test = line + ' ' + words[i];
+    const test = line + " " + words[i];
     if (ctx.measureText(test).width > maxW) {
       lines.push(line);
       line = words[i];
@@ -2217,7 +2853,7 @@ function drawLoading(): void {
   for (let i = 0; i < lines.length; i++) {
     ctx.fillText(lines[i], hudCanvas.width / 2, startY + i * lineH);
   }
-  ctx.textAlign = 'left';
+  ctx.textAlign = "left";
 }
 
 function scheduleLoading(fn: () => void): void {
@@ -2225,7 +2861,11 @@ function scheduleLoading(fn: () => void): void {
   pendingLoadDrawn = false;
 }
 
-function initGame(runSeedOverride?: number, initialFloor: FloorLevel = FloorLevel.LIVING, isTutorial: boolean = false): void {
+function initGame(
+  runSeedOverride?: number,
+  initialFloor: FloorLevel = FloorLevel.LIVING,
+  isTutorial: boolean = false,
+): void {
   resetRuntimeCamera(runtimeCamera);
   clearFloorMemory();
   resetNoiseRecords();
@@ -2253,11 +2893,12 @@ function initGame(runSeedOverride?: number, initialFloor: FloorLevel = FloorLeve
     speed: HUMANOID_BASE_MOVE_SPEED,
     sprite: 0,
     needs: freshNeeds(),
-    hp: 100, maxHp: 100,
+    hp: 100,
+    maxHp: 100,
     money: 100,
     inventory: [],
-    weapon: '',
-    tool: '',
+    weapon: "",
+    tool: "",
     name: playerDisplayName(),
     rpg: freshRPG(1),
     faction: Faction.PLAYER,
@@ -2286,7 +2927,7 @@ function initGame(runSeedOverride?: number, initialFloor: FloorLevel = FloorLeve
     fullMapRadius: FULL_MAP_RADIUS_DEFAULT,
     showQuests: false,
     invSel: 0,
-    msgs: [msg('Добро пожаловать в ГИГАХРУЩ. Закройте дверь.', 0, '#aaa', 0)],
+    msgs: [msg("Добро пожаловать в ГИГАХРУЩ. Закройте дверь.", 0, "#aaa", 0)],
     quests: [],
     activeQuestId: undefined,
     nextQuestId: 1,
@@ -2297,22 +2938,22 @@ function initGame(runSeedOverride?: number, initialFloor: FloorLevel = FloorLeve
     showNpcMenu: false,
     npcMenuSel: 0,
     npcMenuTarget: -1,
-    npcMenuTab: 'main',
-    npcTalkText: '',
+    npcMenuTab: "main",
+    npcTalkText: "",
     questPage: 0,
     tradeCursorX: 0,
     tradeCursorY: 0,
-    tradeSide: 'npc',
+    tradeSide: "npc",
     showContainerMenu: false,
     containerMenuTarget: -1,
     containerCursorX: 0,
     containerCursorY: 0,
-    containerSide: 'container',
+    containerSide: "container",
     showCraftMenu: false,
-    craftMode: 'craft',
+    craftMode: "craft",
     craftCursor: 0,
-    craftFilter: '',
-    craftStationKind: 'lathe',
+    craftFilter: "",
+    craftStationKind: "lathe",
     showDebug: false,
     debugSel: 0,
     showFactions: false,
@@ -2320,27 +2961,37 @@ function initGame(runSeedOverride?: number, initialFloor: FloorLevel = FloorLeve
     showDemos: false,
     showFeedback: false,
     demosCursor: 0,
-    demosSearch: '',
+    demosSearch: "",
     demosSearchActive: false,
-    demosTab: 'profile',
+    demosTab: "profile",
     demosFeedScroll: 0,
     demosPostCursor: 0,
     showLog: false,
     logScroll: 0,
     showHelp: false,
     showControls: false,
-    controlView: 'keys',
+    controlView: "keys",
     controlSel: 0,
     controlScroll: 0,
     showUiSettings: false,
-    uiSettingsView: 'interface',
+    uiSettingsView: "interface",
     uiSettingsSel: 0,
     uiSettingsScroll: 0,
     showMapLegend: false,
     mapLegendSel: 0,
     mapLegendScroll: 0,
     npcLogRadiusMeters: 100,
-    msgLog: [{ text: 'Добро пожаловать в ГИГАХРУЩ. Закройте дверь.', color: '#aaa', day: 0, hour: 8, minute: 0, floor: initialFloor, distanceMeters: 0 }],
+    msgLog: [
+      {
+        text: "Добро пожаловать в ГИГАХРУЩ. Закройте дверь.",
+        color: "#aaa",
+        day: 0,
+        hour: 8,
+        minute: 0,
+        floor: initialFloor,
+        distanceMeters: 0,
+      },
+    ],
     dmgFlash: 0,
     dmgSeed: 0,
     deathTimer: 0,
@@ -2388,19 +3039,28 @@ function initGame(runSeedOverride?: number, initialFloor: FloorLevel = FloorLeve
   disposeWebGL();
   initWebGL(canvas, textures, sprites, world);
   finishLoadedFloorVisuals(gen);
-  rebuildEntityIndex(entities, 'load');
+  rebuildEntityIndex(entities, "load");
 }
-
 
 /* ── Input ────────────────────────────────────────────────────── */
 const input = createInput();
 bindInput(input, canvas, {
   onFullscreenToggle: toggleGameFullscreen,
   shouldRequestPointerLock: () => started,
-  shouldHandleGameplayPointer: () => started && typeof state !== 'undefined' && !pendingLoad && !state.paused && !state.gameOver && !pointerCaptureGateVisible(),
+  shouldHandleGameplayPointer: () =>
+    started &&
+    typeof state !== "undefined" &&
+    !pendingLoad &&
+    !state.paused &&
+    !state.gameOver &&
+    !pointerCaptureGateVisible(),
   shouldHandleMenuPointer: shouldHandleMenuPointerInput,
   shouldHandleMenuWheel: shouldHandleMenuWheelInput,
-  shouldCaptureTextInput: () => started && typeof state !== 'undefined' && state.showDemos && state.demosSearchActive,
+  shouldCaptureTextInput: () =>
+    started &&
+    typeof state !== "undefined" &&
+    state.showDemos &&
+    state.demosSearchActive,
 });
 mobileControls = createMobileControls(input, {
   onGesture: mobileGestureUnlock,
@@ -2410,14 +3070,14 @@ mobileControls = createMobileControls(input, {
 });
 const gamepadAdapter: GamepadAdapter = createGamepadAdapter();
 const inputFrame: InputFrame = createInputFrame();
-document.addEventListener('pointerlockchange', () => {
+document.addEventListener("pointerlockchange", () => {
   input.mouse.locked = canvasHasPointerLock();
   if (input.mouse.locked) {
     clearPointerCaptureGate();
     return;
   }
-  if (started && typeof state !== 'undefined' && !state.gameOver) {
-    requirePointerCaptureGate('released');
+  if (started && typeof state !== "undefined" && !state.gameOver) {
+    requirePointerCaptureGate("released");
   } else {
     clearPointerCaptureGate();
   }
@@ -2425,7 +3085,8 @@ document.addEventListener('pointerlockchange', () => {
 installSmokeDebugHook();
 
 /* ── Toggles (edge-detect) ────────────────────────────────────── */
-let prevMap = false, prevDebug = false;
+let prevMap = false,
+  prevDebug = false;
 let stepAccum = 0; // footstep sound accumulator
 let floorTeleportCd = 0; // prevents anomaly teleport ping-pong
 let _prevMsgCount = 0; // for syncing msgs → msgLog
@@ -2446,18 +3107,30 @@ function bootInitialGameOrTitle(): void {
 
 bootInitialGameOrTitle();
 
-function sameOptionalNumber(a: number | undefined, b: number | undefined, scale = 1): boolean {
+function sameOptionalNumber(
+  a: number | undefined,
+  b: number | undefined,
+  scale = 1,
+): boolean {
   const aa = Number.isFinite(a) ? Math.round(a! * scale) : undefined;
   const bb = Number.isFinite(b) ? Math.round(b! * scale) : undefined;
   return aa === bb;
 }
 
-function msgAlreadyLogged(m: (typeof state.msgs)[number], distanceMeters: number): boolean {
+function msgAlreadyLogged(
+  m: (typeof state.msgs)[number],
+  distanceMeters: number,
+): boolean {
   const start = Math.max(0, state.msgLog.length - MSG_LOG_SYNC_DEDUPE_SCAN);
   for (let i = state.msgLog.length - 1; i >= start; i--) {
     const entry = state.msgLog[i];
     if (entry.text !== m.text || entry.color !== m.color) continue;
-    if (entry.day !== m.day || entry.hour !== m.hour || entry.minute !== m.minute) continue;
+    if (
+      entry.day !== m.day ||
+      entry.hour !== m.hour ||
+      entry.minute !== m.minute
+    )
+      continue;
     if (!sameOptionalNumber(entry.distanceMeters, distanceMeters)) continue;
     const messageFloor = m.floor ?? state.currentFloor;
     if (entry.floor !== undefined && entry.floor !== messageFloor) continue;
@@ -2465,7 +3138,11 @@ function msgAlreadyLogged(m: (typeof state.msgs)[number], distanceMeters: number
     if (!sameOptionalNumber(entry.targetId, m.targetId)) continue;
     if (!sameOptionalNumber(entry.roomId, m.roomId)) continue;
     if (!sameOptionalNumber(entry.zoneId, m.zoneId)) continue;
-    if (!sameOptionalNumber(entry.x, m.x, 10) || !sameOptionalNumber(entry.y, m.y, 10)) continue;
+    if (
+      !sameOptionalNumber(entry.x, m.x, 10) ||
+      !sameOptionalNumber(entry.y, m.y, 10)
+    )
+      continue;
     return true;
   }
   return false;
@@ -2487,9 +3164,12 @@ function syncMsgLog(): void {
         roomId: m.roomId,
         zoneId: m.zoneId,
       };
-      const resolvedDistance = m.distanceMeters ?? worldLogDistanceForLocation(location);
-      if (!m.hud && !worldLogLocationIsAudible(location, resolvedDistance)) continue;
-      const distanceMeters = resolvedDistance ?? worldLogMessageDistance(location);
+      const resolvedDistance =
+        m.distanceMeters ?? worldLogDistanceForLocation(location);
+      if (!m.hud && !worldLogLocationIsAudible(location, resolvedDistance))
+        continue;
+      const distanceMeters =
+        resolvedDistance ?? worldLogMessageDistance(location);
       m.distanceMeters = distanceMeters;
       msgs[writeIdx++] = m;
       if (msgAlreadyLogged(m, distanceMeters)) continue;
@@ -2510,20 +3190,30 @@ function syncMsgLog(): void {
       });
     }
     if (writeIdx < msgs.length) msgs.splice(writeIdx, msgs.length - writeIdx);
-    if (state.msgLog.length > 500) state.msgLog.splice(0, state.msgLog.length - 500);
+    if (state.msgLog.length > 500)
+      state.msgLog.splice(0, state.msgLog.length - 500);
   }
   _prevMsgCount = msgs.length;
 }
 
 function reportNetSphereProgressEvents(): void {
   if (state.samosborCount > netReportedSamosborCount) {
-    for (let count = netReportedSamosborCount + 1; count <= state.samosborCount; count++) {
-      reportNetSphereEvent('samosbor', `samosbor:${count}`, state, player);
+    for (
+      let count = netReportedSamosborCount + 1;
+      count <= state.samosborCount;
+      count++
+    ) {
+      reportNetSphereEvent("samosbor", `samosbor:${count}`, state, player);
     }
     netReportedSamosborCount = state.samosborCount;
   }
   if (state.gameOver && !netDeathReported) {
-    reportNetSphereEvent('death', `death:${state.tick}:${Math.floor(state.time * 1000)}`, state, player);
+    reportNetSphereEvent(
+      "death",
+      `death:${state.tick}:${Math.floor(state.time * 1000)}`,
+      state,
+      player,
+    );
     netDeathReported = true;
   } else if (!state.gameOver) {
     netDeathReported = false;
@@ -2534,16 +3224,27 @@ function roundPlayerDamage(amount: number): number {
   return Math.max(0, Math.round(amount * 10) / 10);
 }
 
-function unattributedPlayerDamageSource(): { kind: PlayerDamageSourceKind; label: string } {
-  if (state.currentFloor === FloorLevel.VOID) return { kind: 'void', label: 'Правило Пустоты' };
-  if (state.samosborActive) return { kind: 'samosbor', label: 'Самосбор' };
-  return { kind: 'hazard', label: 'Неопознанная опасность' };
+function unattributedPlayerDamageSource(): {
+  kind: PlayerDamageSourceKind;
+  label: string;
+} {
+  if (state.currentFloor === FloorLevel.VOID)
+    return { kind: "void", label: "Правило Пустоты" };
+  if (state.samosborActive) return { kind: "samosbor", label: "Самосбор" };
+  return { kind: "hazard", label: "Неопознанная опасность" };
 }
 
 function recordUnattributedPlayerDamage(amount: number): void {
-  if (amount <= 0 || hasFreshPlayerDamageRecord(state, state.tick, state.time)) return;
+  if (amount <= 0 || hasFreshPlayerDamageRecord(state, state.tick, state.time))
+    return;
   const source = unattributedPlayerDamageSource();
-  recordPlayerDamage(state, undefined, amount, `${source.label}: -${roundPlayerDamage(amount)}`, source.kind);
+  recordPlayerDamage(
+    state,
+    undefined,
+    amount,
+    `${source.label}: -${roundPlayerDamage(amount)}`,
+    source.kind,
+  );
 }
 
 function handlePlayerDeath(deadActor = player): void {
@@ -2556,7 +3257,15 @@ function handlePlayerDeath(deadActor = player): void {
   state.gameOver = true;
   state.deathTimer = 0;
   startDeathCamera(runtimeCamera, deadActor.x, deadActor.y, deadActor.angle);
-  state.msgs.push(msg(cause ? `Вы погибли: ${cause}` : 'Вы погибли: источник урона не распознан', state.time, '#f66'));
+  state.msgs.push(
+    msg(
+      cause
+        ? `Вы погибли: ${cause}`
+        : "Вы погибли: источник урона не распознан",
+      state.time,
+      "#f66",
+    ),
+  );
 }
 
 /* ── Door auto-close update ───────────────────────────────────── */
@@ -2564,8 +3273,18 @@ function updateDoors(dt: number): void {
   for (const [, door] of world.doors) {
     if (door.timer > 0) {
       door.timer -= dt;
-      if (door.timer <= 0 && (door.state === DoorState.OPEN || door.state === DoorState.HERMETIC_OPEN)) {
-        setDoorState(world, door, door.state === DoorState.HERMETIC_OPEN ? DoorState.HERMETIC_CLOSED : DoorState.CLOSED);
+      if (
+        door.timer <= 0 &&
+        (door.state === DoorState.OPEN ||
+          door.state === DoorState.HERMETIC_OPEN)
+      ) {
+        setDoorState(
+          world,
+          door,
+          door.state === DoorState.HERMETIC_OPEN
+            ? DoorState.HERMETIC_CLOSED
+            : DoorState.CLOSED,
+        );
       }
     }
   }
@@ -2580,13 +3299,20 @@ function needFraction(value: number): number {
   return Math.max(0, Math.min(1, value / 100));
 }
 
-function playerCanOccupy(x: number, y: number, r = PLAYER_COLLISION_R): boolean {
+function playerCanOccupy(
+  x: number,
+  y: number,
+  r = PLAYER_COLLISION_R,
+): boolean {
   return canActorOccupy(world, x, y, r);
 }
 
 function nudgeBlockedPlayerToFloor(actor = player): void {
   if (isNoClipActive()) return;
-  unstuckActorFromBlockers(world, actor, { radius: PLAYER_COLLISION_R, maxCellRadius: 5 });
+  unstuckActorFromBlockers(world, actor, {
+    radius: PLAYER_COLLISION_R,
+    maxCellRadius: 5,
+  });
 }
 
 function playerSprintMoveMultiplier(actor: Entity): number {
@@ -2595,21 +3321,34 @@ function playerSprintMoveMultiplier(actor: Entity): number {
   return 1 + (PLAYER_SPRINT_SPEED_MULT - 1) * needFraction(needs.water);
 }
 
-function consumePlayerSprintWater(actor: Entity, dt: number, sprintMod: number): void {
+function consumePlayerSprintWater(
+  actor: Entity,
+  dt: number,
+  sprintMod: number,
+): void {
   const needs = actor.needs;
   if (!needs) return;
-  const sprintLoad = Math.max(0, sprintMod - 1) / Math.max(1, PLAYER_SPRINT_SPEED_MULT - 1);
-  needs.water = Math.max(0, needs.water - PLAYER_SPRINT_WATER_RATE * sprintLoad * dt);
+  const sprintLoad =
+    Math.max(0, sprintMod - 1) / Math.max(1, PLAYER_SPRINT_SPEED_MULT - 1);
+  needs.water = Math.max(
+    0,
+    needs.water - PLAYER_SPRINT_WATER_RATE * sprintLoad * dt,
+  );
 }
 
 function applyKnockbackPhysics(dt: number): void {
   const r = 0.3; // generic body radius
   for (const e of entities) {
     if (!e.alive || (!e.vx && !e.vy)) continue;
-    if (e.type !== EntityType.NPC && e.type !== EntityType.MONSTER && e.id !== player.id) continue;
-    
+    if (
+      e.type !== EntityType.NPC &&
+      e.type !== EntityType.MONSTER &&
+      e.id !== player.id
+    )
+      continue;
+
     const canClip = isNoClipActive() && e.id === player.id;
-    
+
     if (e.vx) {
       const nx = e.x + e.vx * dt;
       if (canClip || canActorOccupy(world, nx, e.y, r)) {
@@ -2620,7 +3359,7 @@ function applyKnockbackPhysics(dt: number): void {
       e.vx *= Math.pow(0.001, dt); // sharp friction
       if (Math.abs(e.vx) < 0.1) e.vx = 0;
     }
-    
+
     if (e.vy) {
       const ny = e.y + e.vy * dt;
       if (canClip || canActorOccupy(world, e.x, ny, r)) {
@@ -2649,13 +3388,19 @@ function movePlayer(dt: number): void {
   if (input.mouse.locked) {
     const mouseSensitivity = mouseLookSensitivity();
     actor.angle += input.mouse.dx * 0.003 * mouseSensitivity;
-    actor.pitch = Math.max(-PLAYER_PITCH_LIMIT, Math.min(PLAYER_PITCH_LIMIT, actor.pitch - input.mouse.dy * 0.003 * mouseSensitivity));
+    actor.pitch = Math.max(
+      -PLAYER_PITCH_LIMIT,
+      Math.min(
+        PLAYER_PITCH_LIMIT,
+        actor.pitch - input.mouse.dy * 0.003 * mouseSensitivity,
+      ),
+    );
     input.mouse.dx = 0;
     input.mouse.dy = 0;
   }
 
   // Keyboard turn
-  if (input.left)  actor.angle -= 2.5 * dt;
+  if (input.left) actor.angle -= 2.5 * dt;
   if (input.right) actor.angle += 2.5 * dt;
   const padLookX = inputFrame.axes.lookX;
   const padLookY = inputFrame.axes.lookY;
@@ -2663,15 +3408,31 @@ function movePlayer(dt: number): void {
   const padLookActive = padLookX !== 0 || padLookY !== 0;
   const touchLookSensitivity = touchLookActive ? mobileLookSensitivity() : 0;
   const padLookSensitivity = padLookActive ? mobileLookSensitivity() : 0;
-  if (input.touch.lookX !== 0) actor.angle += input.touch.lookX * 3.0 * touchLookSensitivity * dt;
+  if (input.touch.lookX !== 0)
+    actor.angle += input.touch.lookX * 3.0 * touchLookSensitivity * dt;
   if (input.touch.lookY !== 0) {
-    actor.pitch = Math.max(-PLAYER_PITCH_LIMIT, Math.min(PLAYER_PITCH_LIMIT, actor.pitch - input.touch.lookY * 1.6 * touchLookSensitivity * dt));
+    actor.pitch = Math.max(
+      -PLAYER_PITCH_LIMIT,
+      Math.min(
+        PLAYER_PITCH_LIMIT,
+        actor.pitch - input.touch.lookY * 1.6 * touchLookSensitivity * dt,
+      ),
+    );
   }
   if (padLookX !== 0) actor.angle += padLookX * 3.0 * padLookSensitivity * dt;
   if (padLookY !== 0) {
-    actor.pitch = Math.max(-PLAYER_PITCH_LIMIT, Math.min(PLAYER_PITCH_LIMIT, actor.pitch - padLookY * 1.6 * padLookSensitivity * dt));
+    actor.pitch = Math.max(
+      -PLAYER_PITCH_LIMIT,
+      Math.min(
+        PLAYER_PITCH_LIMIT,
+        actor.pitch - padLookY * 1.6 * padLookSensitivity * dt,
+      ),
+    );
   }
-  actor.pitch = Math.max(-PLAYER_PITCH_LIMIT, Math.min(PLAYER_PITCH_LIMIT, actor.pitch));
+  actor.pitch = Math.max(
+    -PLAYER_PITCH_LIMIT,
+    Math.min(PLAYER_PITCH_LIMIT, actor.pitch),
+  );
   if (actor.id === player.id && isRidingRailTrain(world, player)) return;
   nudgeBlockedPlayerToFloor(actor);
 
@@ -2681,16 +3442,45 @@ function movePlayer(dt: number): void {
   if (!isStaggered) {
     const cos = Math.cos(actor.angle);
     const sin = Math.sin(actor.angle);
-    const fwdAxis = Math.max(-1, Math.min(1, (input.fwd ? 1 : 0) - (input.back ? 1 : 0) + input.touch.moveY + inputFrame.axes.moveY));
-    const strafeAxis = Math.max(-1, Math.min(1, (input.strafeR ? 1 : 0) - (input.strafeL ? 1 : 0) + input.touch.moveX + inputFrame.axes.moveX));
+    const fwdAxis = Math.max(
+      -1,
+      Math.min(
+        1,
+        (input.fwd ? 1 : 0) -
+          (input.back ? 1 : 0) +
+          input.touch.moveY +
+          inputFrame.axes.moveY,
+      ),
+    );
+    const strafeAxis = Math.max(
+      -1,
+      Math.min(
+        1,
+        (input.strafeR ? 1 : 0) -
+          (input.strafeL ? 1 : 0) +
+          input.touch.moveX +
+          inputFrame.axes.moveX,
+      ),
+    );
     mx = cos * fwdAxis - sin * strafeAxis;
     my = sin * fwdAxis + cos * strafeAxis;
-    const processionPull = actor.id === player.id ? updateCultProcessionCompulsion(state, world, player, input.interactHeld) : null;
+    const processionPull =
+      actor.id === player.id
+        ? updateCultProcessionCompulsion(
+            state,
+            world,
+            player,
+            input.interactHeld,
+          )
+        : null;
     if (processionPull) {
       mx += processionPull.x * processionPull.strength;
       my += processionPull.y * processionPull.strength;
     }
-    const bellPull = actor.id === player.id ? updateIstotitBellCompulsion(world, state, player, input.interactHeld) : null;
+    const bellPull =
+      actor.id === player.id
+        ? updateIstotitBellCompulsion(world, state, player, input.interactHeld)
+        : null;
     if (bellPull) {
       mx += bellPull.x * bellPull.strength;
       my += bellPull.y * bellPull.strength;
@@ -2706,12 +3496,16 @@ function movePlayer(dt: number): void {
     const hazardMod = getCellHazardMoveMultiplier(world, actor);
     const statusMod = zhelemishMoveMult(actor, state.time);
     const coldMod = hladonColdMoveMultiplier(world, actor);
-    const toolLightMod = passiveToolLightMoveMultiplier(actor.tool) *
-      ((input.use || input.mouseUse) ? activeToolLightMoveMultiplier(actor.tool) : 1);
+    const toolLightMod =
+      passiveToolLightMoveMultiplier(actor.tool) *
+      (input.use || input.mouseUse
+        ? activeToolLightMoveMultiplier(actor.tool)
+        : 1);
     const sprintMod = playerSprintMoveMultiplier(actor);
-    const moveMod = sleepMod * hazardMod * statusMod * coldMod * toolLightMod * sprintMod;
-    mx = mx / len * speed * moveMod;
-    my = my / len * speed * moveMod;
+    const moveMod =
+      sleepMod * hazardMod * statusMod * coldMod * toolLightMod * sprintMod;
+    mx = (mx / len) * speed * moveMod;
+    my = (my / len) * speed * moveMod;
 
     const r = PLAYER_COLLISION_R; // small enough to slide along tight concrete corners
     const canClip = isNoClipActive();
@@ -2727,9 +3521,14 @@ function movePlayer(dt: number): void {
       actor.y = ((ny % W) + W) % W;
     }
 
-    if (sprintMod > 1 && (actor.x !== beforeX || actor.y !== beforeY)) consumePlayerSprintWater(actor, dt, sprintMod);
+    if (sprintMod > 1 && (actor.x !== beforeX || actor.y !== beforeY))
+      consumePlayerSprintWater(actor, dt, sprintMod);
 
-    if (actor.id === player.id && floorTeleportCd <= 0 && world.anomalyTeleports.size > 0) {
+    if (
+      actor.id === player.id &&
+      floorTeleportCd <= 0 &&
+      world.anomalyTeleports.size > 0
+    ) {
       const from = world.idx(Math.floor(player.x), Math.floor(player.y));
       if (tryUseWrongDoorRemap(world, state, player)) {
         floorTeleportCd = 1.25;
@@ -2739,7 +3538,13 @@ function movePlayer(dt: number): void {
           player.x = (to % W) + 0.5;
           player.y = ((to / W) | 0) + 0.5;
           floorTeleportCd = 1.25;
-          state.msgs.push(msg('Клетка перескочила на другой участок этажа.', state.time, '#c8f'));
+          state.msgs.push(
+            msg(
+              "Клетка перескочила на другой участок этажа.",
+              state.time,
+              "#c8f",
+            ),
+          );
         }
       }
     }
@@ -2755,55 +3560,104 @@ function movePlayer(dt: number): void {
 }
 
 /* ── Weapon sound dispatch ─────────────────────────────────────── */
-function playWeaponSound(weaponId: string, ws: import('./data/weapons').WeaponStats): void {
+function playWeaponSound(
+  weaponId: string,
+  ws: import("./data/weapons").WeaponStats,
+): void {
   const sid = ws.soundId ?? weaponId;
   switch (sid) {
-    case 'shotgun':    playShotgun(); break;
-    case 'nailgun':    playNailgun(); break;
-    case 'ppsh':       playPPSh(); break;
-    case 'chainsaw':   playChainsaw(); break;
-    case 'machinegun': playMachinegun(); break;
-    case 'grenade':    playGunshot(); break; // throw sound; explosion plays on impact
-    case 'gauss':      playGauss(); break;
-    case 'plasma':     playPlasma(); break;
-    case 'bfg':        playBFG(); break;
-    case 'flame':      playFlame(); break;
-    default:           playGunshot(); break;
+    case "shotgun":
+      playShotgun();
+      break;
+    case "nailgun":
+      playNailgun();
+      break;
+    case "ppsh":
+      playPPSh();
+      break;
+    case "chainsaw":
+      playChainsaw();
+      break;
+    case "machinegun":
+      playMachinegun();
+      break;
+    case "grenade":
+      playGunshot();
+      break; // throw sound; explosion plays on impact
+    case "gauss":
+      playGauss();
+      break;
+    case "plasma":
+      playPlasma();
+      break;
+    case "bfg":
+      playBFG();
+      break;
+    case "flame":
+      playFlame();
+      break;
+    default:
+      playGunshot();
+      break;
   }
 }
 
 function projectileThreatLabel(p: Entity): string {
   const pt = p.projType ?? ProjType.NORMAL;
-  if (pt === ProjType.WEB) return 'Паутина';
-  if (pt === ProjType.FLAME || p.sprite === Spr.FLAME_BOLT || p.sprite === Spr.HOSTILE_FLAME_BOLT) return 'Ожог';
-  if (pt === ProjType.BFG || p.sprite === Spr.BFG_BOLT) return 'Энергия';
-  if (p.sprite === Spr.EYE_BOLT) return 'Глаз';
-  if (p.sprite === Spr.PARAGRAPH_BOLT) return 'Параграф';
-  if (p.sprite === Spr.PSI_BOLT || p.sprite === Spr.HOSTILE_PSI_BOLT) return 'ПСИ-удар';
-  if (p.sprite === Spr.PLASMA_BOLT || p.sprite === Spr.HOSTILE_PLASMA_BOLT || p.sprite === Spr.GAUSS_BOLT) return 'Разряд';
-  if (p.sprite === Spr.PELLET || p.sprite === Spr.HOSTILE_PELLET) return 'Дробь';
-  if (p.sprite === Spr.NAIL || p.sprite === Spr.HOSTILE_NAIL) return 'Гвоздь';
-  return 'Попадание';
+  if (pt === ProjType.WEB) return "Паутина";
+  if (
+    pt === ProjType.FLAME ||
+    p.sprite === Spr.FLAME_BOLT ||
+    p.sprite === Spr.HOSTILE_FLAME_BOLT
+  )
+    return "Ожог";
+  if (pt === ProjType.BFG || p.sprite === Spr.BFG_BOLT) return "Энергия";
+  if (p.sprite === Spr.EYE_BOLT) return "Глаз";
+  if (p.sprite === Spr.PARAGRAPH_BOLT) return "Параграф";
+  if (p.sprite === Spr.PSI_BOLT || p.sprite === Spr.HOSTILE_PSI_BOLT)
+    return "ПСИ-удар";
+  if (
+    p.sprite === Spr.PLASMA_BOLT ||
+    p.sprite === Spr.HOSTILE_PLASMA_BOLT ||
+    p.sprite === Spr.GAUSS_BOLT
+  )
+    return "Разряд";
+  if (p.sprite === Spr.PELLET || p.sprite === Spr.HOSTILE_PELLET)
+    return "Дробь";
+  if (p.sprite === Spr.NAIL || p.sprite === Spr.HOSTILE_NAIL) return "Гвоздь";
+  return "Попадание";
 }
 
 function reportPlayerProjectileHit(p: Entity, dmg: number): void {
   const actor = projectileActor(p);
   const threat = projectileThreatLabel(p);
-  const detail = actor && actor.id !== player.id
-    ? `${threat} от ${entityDisplayName(actor)}: -${dmg}`
-    : `${threat}: -${dmg}`;
-  recordPlayerDamage(state, p, dmg, detail, 'projectile');
+  const detail =
+    actor && actor.id !== player.id
+      ? `${threat} от ${entityDisplayName(actor)}: -${dmg}`
+      : `${threat}: -${dmg}`;
+  recordPlayerDamage(state, p, dmg, detail, "projectile");
   if (state.tick - lastProjectileHitMsgTick < 18) return;
-  state.msgs.push(msg(detail, state.time, '#f66'));
+  state.msgs.push(msg(detail, state.time, "#f66"));
   lastProjectileHitMsgTick = state.tick;
 }
 
 function playProjectileImpactCue(p: Entity, x: number, y: number): void {
   const pt = p.projType ?? ProjType.NORMAL;
-  playSoundAt(isEnergyProjectileImpact(p.sprite, pt) ? playEnergyImpact : playProjectileImpact, x, y);
+  playSoundAt(
+    isEnergyProjectileImpact(p.sprite, pt)
+      ? playEnergyImpact
+      : playProjectileImpact,
+    x,
+    y,
+  );
 }
 
-function playProjectileBodyHitCue(p: Entity, x: number, y: number, isPlayerTarget: boolean): void {
+function playProjectileBodyHitCue(
+  p: Entity,
+  x: number,
+  y: number,
+  isPlayerTarget: boolean,
+): void {
   if (isEnergyProjectileImpact(p.sprite, p.projType ?? ProjType.NORMAL)) {
     playSoundAt(playEnergyImpact, x, y);
   } else {
@@ -2813,21 +3667,25 @@ function playProjectileBodyHitCue(p: Entity, x: number, y: number, isPlayerTarge
 
 function publishFuelEmptyEvent(ammoType: string | undefined): void {
   publishEvent(state, {
-    type: 'fuel_empty',
+    type: "fuel_empty",
     actorId: player.id,
-    actorName: player.name ?? 'Вы',
+    actorName: player.name ?? "Вы",
     actorFaction: player.faction,
     itemId: ammoType,
-    itemName: ammoType ? (ITEMS[ammoType]?.name ?? ammoType) : 'Топливо',
+    itemName: ammoType ? (ITEMS[ammoType]?.name ?? ammoType) : "Топливо",
     itemCount: 0,
     severity: 2,
-    privacy: 'private',
-    tags: ['fire', 'fuel_empty', 'flamethrower', 'ammo'],
-    data: { weapon: player.weapon ?? '', ammoType },
+    privacy: "private",
+    tags: ["fire", "fuel_empty", "flamethrower", "ammo"],
+    data: { weapon: player.weapon ?? "", ammoType },
   });
 }
 
-function pushAttackFeedback(text: string, color = '#8cf', minInterval = ATTACK_FEEDBACK_MIN_INTERVAL): void {
+function pushAttackFeedback(
+  text: string,
+  color = "#8cf",
+  minInterval = ATTACK_FEEDBACK_MIN_INTERVAL,
+): void {
   if (state.time - lastAttackFeedbackAt < minInterval) return;
   const line = msg(text, state.time, color);
   line.hud = true;
@@ -2842,7 +3700,7 @@ function castPlayerPsi(psiId: string, ws: WeaponStats): boolean {
   const cost = ws.psiCost ?? 0;
   if (cost <= 0) return false;
   if (!player.rpg || player.rpg.psi < cost) {
-    pushAttackFeedback('Недостаточно ПСИ!', '#f84', 0.3);
+    pushAttackFeedback("Недостаточно ПСИ!", "#f84", 0.3);
     return false;
   }
 
@@ -2878,8 +3736,12 @@ function castPlayerPsi(psiId: string, ws: WeaponStats): boolean {
     entities.push(proj);
   } else {
     const psiResult = castInstantSpell(
-      ws.psiEffect ?? '', player, entities, world,
-      state.msgs, state.time,
+      ws.psiEffect ?? "",
+      player,
+      entities,
+      world,
+      state.msgs,
+      state.time,
       (e) => handleKill(e, true),
     );
     if (psiResult.beamLen) {
@@ -2890,8 +3752,9 @@ function castPlayerPsi(psiId: string, ws: WeaponStats): boolean {
     makeCurrentPlayer(psiResult.player);
   }
 
-  pushAttackFeedback(ws.isRanged ? 'Выстрел ПСИ.' : 'ПСИ-удар.');
-  if (ws.psiEffect === 'beam') playPsiBeam(); else playPsiCast();
+  pushAttackFeedback(ws.isRanged ? "Выстрел ПСИ." : "ПСИ-удар.");
+  if (ws.psiEffect === "beam") playPsiBeam();
+  else playPsiCast();
   publishWeaponNoise(state, player, psiId, ws);
   return true;
 }
@@ -2909,7 +3772,7 @@ function handlePlayerInteract(): boolean {
       nextEntityId,
       lookX,
       lookY,
-      routeHintsVisible: uiElementEnabled('route_hints'),
+      routeHintsVisible: uiElementEnabled("route_hints"),
       switchFloor,
       movePlayerToMetroRoom,
       openNpcMenu,
@@ -2922,7 +3785,13 @@ function handlePlayerInteract(): boolean {
       onPickedDrop: (drop: Entity, pickedItems: readonly Item[] = []) => {
         claimNetTerminalGenFleshDrop(state, drop, player, world);
         recordFactionEventLootTaken(state, world, player, drop);
-        applyPickedStoryItemOutcomes(pickedItems, player, entities, state, state.msgs);
+        applyPickedStoryItemOutcomes(
+          pickedItems,
+          player,
+          entities,
+          state,
+          state.msgs,
+        );
       },
     });
     if (result.worldChanged) updateWorldData(world);
@@ -2941,7 +3810,7 @@ function handlePlayerAttack(_dt: number): void {
   const ws = getWeaponStats(player, weaponId);
 
   // Calculate reload speed mod (agility)
-  const reloadSpeedMod = player.rpg ? (1 + (player.rpg.agi * 0.05)) : 1;
+  const reloadSpeedMod = player.rpg ? 1 + player.rpg.agi * 0.05 : 1;
 
   // Reload Logic
   if (player.reloading) {
@@ -2955,7 +3824,14 @@ function handlePlayerAttack(_dt: number): void {
           if (actual > 0) {
             removeItem(player, ws.ammoType, actual);
             player.currentMag = (player.currentMag ?? 0) + actual;
-            publishPlayerItemEvent(state, player, 'ammo_consumed', ws.ammoType, actual, 0);
+            publishPlayerItemEvent(
+              state,
+              player,
+              "ammo_consumed",
+              ws.ammoType,
+              actual,
+              0,
+            );
           }
         }
       } else if (ws.magazineSize === Infinity) {
@@ -2968,11 +3844,16 @@ function handlePlayerAttack(_dt: number): void {
   }
 
   // Manual Reload
-  if (input.reload && !player.reloading && ((player.currentMag ?? 0) < (ws.magazineSize ?? 1))) {
+  if (
+    input.reload &&
+    !player.reloading &&
+    (player.currentMag ?? 0) < (ws.magazineSize ?? 1)
+  ) {
     if (ws.magazineSize !== Infinity && countAmmo(player, weaponId) > 0) {
       player.reloading = true;
       player.reloadTimer = (ws.reloadTime ?? 1) / reloadSpeedMod;
-    } else if (ws.magazineSize === 1) { // melee weapons
+    } else if (ws.magazineSize === 1) {
+      // melee weapons
       player.reloading = true;
       player.reloadTimer = (ws.reloadTime ?? 1) / reloadSpeedMod;
     }
@@ -2980,7 +3861,11 @@ function handlePlayerAttack(_dt: number): void {
 
   // Auto Reload check
   if (wantsAttack && !player.reloading && player.attackCd! <= 0) {
-    if (!ws.psiCost && (player.currentMag ?? 0) <= 0 && ws.magazineSize !== Infinity) {
+    if (
+      !ws.psiCost &&
+      (player.currentMag ?? 0) <= 0 &&
+      ws.magazineSize !== Infinity
+    ) {
       if (countAmmo(player, weaponId) > 0 || ws.magazineSize === 1) {
         player.reloading = true;
         player.reloadTimer = (ws.reloadTime ?? 1) / reloadSpeedMod;
@@ -2991,19 +3876,42 @@ function handlePlayerAttack(_dt: number): void {
     }
   }
 
-  if (wantsAttack && player.attackCd! <= 0 && !player.reloading && (ws.psiCost || ws.magazineSize === Infinity || (player.currentMag ?? 0) > 0)) {
+  if (
+    wantsAttack &&
+    player.attackCd! <= 0 &&
+    !player.reloading &&
+    (ws.psiCost || ws.magazineSize === Infinity || (player.currentMag ?? 0) > 0)
+  ) {
     // AGI reduces attack cooldown
     const atkSpeedMod = player.rpg ? agiAttackSpeedMult(player.rpg) : 1;
 
     if (ws.psiCost) {
       // ── PSI spell: consume PSI instead of ammo ──────────
-      player.attackCd = castPlayerPsi(weaponId, ws) ? ws.speed * atkSpeedMod : 0.5;
+      player.attackCd = castPlayerPsi(weaponId, ws)
+        ? ws.speed * atkSpeedMod
+        : 0.5;
     } else if (ws.isRanged) {
       // ── Ranged attack: spawn projectile(s) ──────────────
       if (consumeAmmo(player, state, weaponId)) {
-        if (ws.projType === ProjType.FLAME) reducePaupsinaWeb(player, state.time, state.msgs, state, player, 'fire');
+        if (ws.projType === ProjType.FLAME)
+          reducePaupsinaWeb(
+            player,
+            state.time,
+            state.msgs,
+            state,
+            player,
+            "fire",
+          );
         if (ws.deletionBeam) {
-          const result = fireDeletionBeam(world, entities, player, state, weaponId, ws, handleKill);
+          const result = fireDeletionBeam(
+            world,
+            entities,
+            player,
+            state,
+            weaponId,
+            ws,
+            handleKill,
+          );
           state.beamFx = 0.45;
           state.beamAngle = player.angle;
           state.beamLen = result.beamLen;
@@ -3028,18 +3936,42 @@ function handlePlayerAttack(_dt: number): void {
               sprite: ws.projSprite ?? Spr.BULLET,
               vx: Math.cos(ang) * spd,
               vy: Math.sin(ang) * spd,
-              vz: player.pitch * spd * 0.5 + (pt === ProjType.FLAME ? (Math.random() - 0.5) * 0.8 : 0),
+              vz:
+                player.pitch * spd * 0.5 +
+                (pt === ProjType.FLAME ? (Math.random() - 0.5) * 0.8 : 0),
               projDmg: ws.dmg,
-              projLife: pt === ProjType.GRENADE ? 1.5 : pt === ProjType.FLAME ? 0.7 : 3.0,
+              projLife:
+                pt === ProjType.GRENADE
+                  ? 1.5
+                  : pt === ProjType.FLAME
+                    ? 0.7
+                    : 3.0,
               ownerId: player.id,
               weapon: weaponId,
-              spriteScale: pt === ProjType.BFG ? 0.6 : pt === ProjType.FLAME ? (0.55 + Math.random() * 0.25) : pt === ProjType.GRENADE ? 0.35 : 0.25,
+              spriteScale:
+                pt === ProjType.BFG
+                  ? 0.6
+                  : pt === ProjType.FLAME
+                    ? 0.55 + Math.random() * 0.25
+                    : pt === ProjType.GRENADE
+                      ? 0.35
+                      : 0.25,
               spriteZ: 0.5,
               projType: pt,
-              projGore: pt === ProjType.GRENADE || pt === ProjType.BFG ? 3
-                : (weaponId === 'shotgun' || weaponId === 'chainsaw') ? 3
-                : (weaponId === 'ak47' || weaponId === 'machinegun' || weaponId === 'nailgun' || weaponId === 'gauss' || weaponId === 'plasma') ? 2
-                : pt === ProjType.FLAME ? 1 : 1,
+              projGore:
+                pt === ProjType.GRENADE || pt === ProjType.BFG
+                  ? 3
+                  : weaponId === "shotgun" || weaponId === "chainsaw"
+                    ? 3
+                    : weaponId === "ak47" ||
+                        weaponId === "machinegun" ||
+                        weaponId === "nailgun" ||
+                        weaponId === "gauss" ||
+                        weaponId === "plasma"
+                      ? 2
+                      : pt === ProjType.FLAME
+                        ? 1
+                        : 1,
             };
             if (ws.aoeRadius) {
               proj.aoeRadius = ws.aoeRadius;
@@ -3049,17 +3981,17 @@ function handlePlayerAttack(_dt: number): void {
           }
         }
         // Play weapon-specific sound
-        pushAttackFeedback('Выстрел.');
+        pushAttackFeedback("Выстрел.");
         playWeaponSound(weaponId, ws);
         publishWeaponNoise(state, player, weaponId, ws);
         notifyLiftArachnaNoise(world, player, state, weaponId);
         player.attackCd = ws.speed * atkSpeedMod;
       } else {
-        if (weaponId === 'flamethrower') {
-          pushAttackFeedback('Бензин кончился!', '#f84', 0.3);
+        if (weaponId === "flamethrower") {
+          pushAttackFeedback("Бензин кончился!", "#f84", 0.3);
           publishFuelEmptyEvent(ws.ammoType);
         } else {
-          pushAttackFeedback('Нет патронов!', '#f84', 0.3);
+          pushAttackFeedback("Нет патронов!", "#f84", 0.3);
         }
         player.attackCd = 0.5;
       }
@@ -3071,11 +4003,24 @@ function handlePlayerAttack(_dt: number): void {
       const ay = player.y + Math.sin(player.angle) * range;
 
       let hitSomething = isPaupsinaWebCuttingWeapon(weaponId)
-        ? reducePaupsinaWeb(player, state.time, state.msgs, state, player, 'cut')
+        ? reducePaupsinaWeb(
+            player,
+            state.time,
+            state.msgs,
+            state,
+            player,
+            "cut",
+          )
         : false;
       const entityIndex = getEntityIndex();
       entityIndex.queryRadius(ax, ay, 1.2, meleeHitQuery, ENTITY_MASK_ACTOR);
-      const meleeTarget = selectMeleeTarget(world, player, meleeHitQuery, range, weaponId);
+      const meleeTarget = selectMeleeTarget(
+        world,
+        player,
+        meleeHitQuery,
+        range,
+        weaponId,
+      );
       if (meleeTarget) {
         const e = meleeTarget;
         if (e.hp !== undefined) {
@@ -3089,20 +4034,51 @@ function handlePlayerAttack(_dt: number): void {
           e.hp -= dmg;
           // Relation penalty for hitting non-hostile NPCs
           if (e.type === EntityType.NPC) {
-            applyDamageRelationPenalty(player.faction, e.faction, dmg, e, player, state);
+            applyDamageRelationPenalty(
+              player.faction,
+              e.faction,
+              dmg,
+              e,
+              player,
+              state,
+            );
             recordFactionClashPlayerHit(state, world, player, e, dmg);
           }
-          notifyActorDamaged(world, e, player, dmg, 'player_melee', state.time, state);
+          notifyActorDamaged(
+            world,
+            e,
+            player,
+            dmg,
+            "player_melee",
+            state.time,
+            state,
+          );
           // Blood splatter on hit — use player facing as velocity direction
           const meleeSpd = 6;
           const mVx = Math.cos(player.angle) * meleeSpd;
           const mVy = Math.sin(player.angle) * meleeSpd;
-          spawnBloodHit(world, e.x, e.y, player.angle, dmg, e.type === EntityType.MONSTER, mVx, mVy, 0.5);
-          state.msgs.push(msg(`Удар! ${entityDisplayName(e)} -${dmg}`, state.time, '#fc4'));
+          spawnBloodHit(
+            world,
+            e.x,
+            e.y,
+            player.angle,
+            dmg,
+            e.type === EntityType.MONSTER,
+            mVx,
+            mVy,
+            0.5,
+          );
+          state.msgs.push(
+            msg(`Удар! ${entityDisplayName(e)} -${dmg}`, state.time, "#fc4"),
+          );
           if (e.hp <= 0) {
             e.alive = false;
-            const meleeGore = (weaponId === 'chainsaw' || weaponId === 'axe') ? 3
-              : (weaponId === 'rebar' || weaponId === 'pipe') ? 2 : 1;
+            const meleeGore =
+              weaponId === "chainsaw" || weaponId === "axe"
+                ? 3
+                : weaponId === "rebar" || weaponId === "pipe"
+                  ? 2
+                  : 1;
             handleKill(e, true, mVx, mVy, meleeGore);
             recordMonsterMeleeDeath(
               world,
@@ -3120,20 +4096,36 @@ function handlePlayerAttack(_dt: number): void {
 
       if (!hitSomething) {
         const attackIdx = world.idx(Math.floor(ax), Math.floor(ay));
-        if (world.cells[attackIdx] === Cell.DOOR && world.doors.has(attackIdx)) {
+        if (
+          world.cells[attackIdx] === Cell.DOOR &&
+          world.doors.has(attackIdx)
+        ) {
           const door = world.doors.get(attackIdx)!;
           const broke = damageDoor(world, door, normalDmg);
-          state.msgs.push(msg(broke ? 'Дверь выбита!' : `Удар по двери! -${normalDmg}`, state.time, broke ? '#4a4' : '#aaa'));
+          state.msgs.push(
+            msg(
+              broke ? "Дверь выбита!" : `Удар по двери! -${normalDmg}`,
+              state.time,
+              broke ? "#4a4" : "#aaa",
+            ),
+          );
           hitSomething = true;
         }
       }
 
-      if (weaponId === 'chainsaw') playChainsaw(); else playAttack();
+      if (weaponId === "chainsaw") playChainsaw();
+      else playAttack();
       publishWeaponNoise(state, player, weaponId, ws);
       notifyLiftArachnaNoise(world, player, state, weaponId);
       // Consume durability on melee hit
       if (hitSomething) {
-        const broke = consumeDurability(player, state.msgs, state.time, state, weaponId);
+        const broke = consumeDurability(
+          player,
+          state.msgs,
+          state.time,
+          state,
+          weaponId,
+        );
         if (broke) playBreak();
       }
       if (ws.magazineSize === 1) {
@@ -3172,10 +4164,15 @@ function dropEntityInventory(e: Entity): void {
     if (!item || item.count <= 0) continue;
     if (!canSpawnEntityType(entities, EntityType.ITEM_DROP)) break;
     entities.push({
-      id: nextEntityId.v++, type: EntityType.ITEM_DROP,
+      id: nextEntityId.v++,
+      type: EntityType.ITEM_DROP,
       x: e.x + (Math.random() - 0.5) * 0.5,
       y: e.y + (Math.random() - 0.5) * 0.5,
-      angle: 0, pitch: 0, alive: true, speed: 0, sprite: Spr.ITEM_DROP,
+      angle: 0,
+      pitch: 0,
+      alive: true,
+      speed: 0,
+      sprite: Spr.ITEM_DROP,
       inventory: [{ defId: item.defId, count: item.count, data: item.data }],
     });
   }
@@ -3186,9 +4183,11 @@ function dropEntityInventory(e: Entity): void {
 function isBossKillTarget(e: Entity): boolean {
   if (e.type !== EntityType.MONSTER) return false;
   if (e.isFogBoss) return true;
-  return e.monsterKind === MonsterKind.MANCOBUS ||
+  return (
+    e.monsterKind === MonsterKind.MANCOBUS ||
     e.monsterKind === MonsterKind.HERALD ||
-    e.monsterKind === MonsterKind.CREATOR;
+    e.monsterKind === MonsterKind.CREATOR
+  );
 }
 
 function isActiveKillQuestTarget(e: Entity): boolean {
@@ -3196,7 +4195,12 @@ function isActiveKillQuestTarget(e: Entity): boolean {
     if (q.done || q.type !== QuestType.KILL) continue;
     if (e.type === EntityType.MONSTER) {
       if (q.targetMonsterKind === e.monsterKind) return true;
-      if (q.targetMonsterKind === undefined && q.targetNpcId === undefined && q.targetPlotNpcId === undefined) return true;
+      if (
+        q.targetMonsterKind === undefined &&
+        q.targetNpcId === undefined &&
+        q.targetPlotNpcId === undefined
+      )
+        return true;
     } else if (e.type === EntityType.NPC) {
       if (q.targetNpcId === e.id) return true;
       if (q.targetPlotNpcId && e.plotNpcId === q.targetPlotNpcId) return true;
@@ -3207,45 +4211,70 @@ function isActiveKillQuestTarget(e: Entity): boolean {
 
 function playerKillMessage(e: Entity): string {
   const name = entityDisplayName(e);
-  return (isBossKillTarget(e) || isActiveKillQuestTarget(e))
-    ? `${name} ${e.isFemale ? 'повержена' : 'повержен'}!`
+  return isBossKillTarget(e) || isActiveKillQuestTarget(e)
+    ? `${name} ${e.isFemale ? "повержена" : "повержен"}!`
     : `Убито: ${name}`;
 }
 
-function handleKill(e: Entity, killerIsPlayer: boolean, pvx = 0, pvy = 0, goreLevel = 1): void {
+function handleKill(
+  e: Entity,
+  killerIsPlayer: boolean,
+  pvx = 0,
+  pvy = 0,
+  goreLevel = 1,
+): void {
   if (isPlayerEntity(e)) {
-    const hpBefore = e.id === prevPlayerActorId ? prevPlayerActorHp : (e.maxHp ?? e.hp ?? 100);
+    const hpBefore =
+      e.id === prevPlayerActorId ? prevPlayerActorHp : (e.maxHp ?? e.hp ?? 100);
     if (absorbPsiShieldDamage(e, hpBefore, state.msgs, state.time) > 0) return;
   }
   // Death blood pool — directional + gore-scaled
-  spawnDeathPool(world, e.x, e.y, e.type === EntityType.MONSTER, goreLevel, pvx, pvy);
+  spawnDeathPool(
+    world,
+    e.x,
+    e.y,
+    e.type === EntityType.MONSTER,
+    goreLevel,
+    pvx,
+    pvy,
+  );
   if (killerIsPlayer) {
-    state.msgs.push(msg(playerKillMessage(e), state.time, '#4f4'));
+    state.msgs.push(msg(playerKillMessage(e), state.time, "#4f4"));
   }
-  if (killerIsPlayer && (e.type === EntityType.MONSTER || e.type === EntityType.NPC)) {
+  if (
+    killerIsPlayer &&
+    (e.type === EntityType.MONSTER || e.type === EntityType.NPC)
+  ) {
     recordEntityKill(player, e);
     const eventCell = world.idx(Math.floor(e.x), Math.floor(e.y));
     const zoneId = world.zoneMap[eventCell];
     const roomId = world.roomMap[eventCell];
     publishEvent(state, {
-      type: e.type === EntityType.MONSTER ? 'player_kill_monster' : 'player_kill_npc',
+      type:
+        e.type === EntityType.MONSTER
+          ? "player_kill_monster"
+          : "player_kill_npc",
       zoneId,
       roomId: roomId >= 0 ? roomId : undefined,
       x: e.x,
       y: e.y,
       actorId: player.id,
-      actorName: player.name ?? 'Вы',
+      actorName: player.name ?? "Вы",
       actorFaction: player.faction,
       targetId: e.id,
       targetName: entityDisplayName(e),
       targetFaction: e.faction,
       monsterKind: e.monsterKind,
       severity: e.isFogBoss || e.type === EntityType.NPC ? 4 : 3,
-      privacy: 'local',
-      tags: e.type === EntityType.MONSTER ? ['combat', 'kill', 'monster'] : ['combat', 'kill', 'npc'],
+      privacy: "local",
+      tags:
+        e.type === EntityType.MONSTER
+          ? ["combat", "kill", "monster"]
+          : ["combat", "kill", "npc"],
       data: undefined,
-	    });
-    if (e.type === EntityType.NPC) recordFactionClashPlayerHit(state, world, player, e, e.maxHp ?? 1);
+    });
+    if (e.type === EntityType.NPC)
+      recordFactionClashPlayerHit(state, world, player, e, e.maxHp ?? 1);
   }
   // Drop NPC inventory as loot
   if (e.type === EntityType.NPC) {
@@ -3257,24 +4286,52 @@ function handleKill(e: Entity, killerIsPlayer: boolean, pvx = 0, pvy = 0, goreLe
   }
   if (e.monsterKind !== undefined) {
     if (killerIsPlayer) notifyKill(e.monsterKind, state);
-    const rareLoot = killerIsPlayer ? dropMonsterRareLoot(e, entities, nextEntityId) : undefined;
+    const rareLoot = killerIsPlayer
+      ? dropMonsterRareLoot(e, entities, nextEntityId)
+      : undefined;
     if (rareLoot) {
       const def = ITEMS[rareLoot.itemId];
-      state.msgs.push(msg(`На месте боя осталось: ${def?.name ?? rareLoot.itemId}${rareLoot.count > 1 ? ' ×' + rareLoot.count : ''}.`, state.time, '#9cf'));
+      state.msgs.push(
+        msg(
+          `На месте боя осталось: ${def?.name ?? rareLoot.itemId}${rareLoot.count > 1 ? " ×" + rareLoot.count : ""}.`,
+          state.time,
+          "#9cf",
+        ),
+      );
     }
-    spawnStoryDeathDrops(e, killerIsPlayer, entities, nextEntityId, state, state.msgs);
+    spawnStoryDeathDrops(
+      e,
+      killerIsPlayer,
+      entities,
+      nextEntityId,
+      state,
+      state.msgs,
+    );
     if (killerIsPlayer) {
-      awardXP(player, xpForMonsterKill(e.monsterKind, e.rpg?.level ?? 1), state.msgs, state.time);
+      awardXP(
+        player,
+        xpForMonsterKill(e.monsterKind, e.rpg?.level ?? 1),
+        state.msgs,
+        state.time,
+      );
     }
     // Herald killed — check if the Podad lower route is now open.
-    if (e.monsterKind === MonsterKind.HERALD && killerIsPlayer && state.currentFloor === FloorLevel.HELL) {
+    if (
+      e.monsterKind === MonsterKind.HERALD &&
+      killerIsPlayer &&
+      state.currentFloor === FloorLevel.HELL
+    ) {
       if (onHeraldKilled(e, world, state)) {
         applyStoryRouteGates(world, player, state);
         updateWorldData(world);
       }
     }
     // Creator killed — spawn return portal
-    if (e.monsterKind === MonsterKind.CREATOR && killerIsPlayer && state.currentFloor === FloorLevel.VOID) {
+    if (
+      e.monsterKind === MonsterKind.CREATOR &&
+      killerIsPlayer &&
+      state.currentFloor === FloorLevel.VOID
+    ) {
       if (onCreatorKilled(e, world, state)) {
         checkQuests(player, world, entities, state, state.msgs);
         openVoidReturnPortalFromCreator(e);
@@ -3285,13 +4342,29 @@ function handleKill(e: Entity, killerIsPlayer: boolean, pvx = 0, pvy = 0, goreLe
     awardXP(player, xpForNpcKill(e.rpg?.level ?? 1), state.msgs, state.time);
     if (e.plotNpcId) notifyNpcKill(e.plotNpcId, state);
   }
-  const contentDeath = runContentEntityDeathHooks({ world, entities, player, state, nextEntityId, killed: e, killerIsPlayer });
+  const contentDeath = runContentEntityDeathHooks({
+    world,
+    entities,
+    player,
+    state,
+    nextEntityId,
+    killed: e,
+    killerIsPlayer,
+  });
   if (contentDeath.worldChanged) updateWorldData(world);
 }
 
 const FLAME_COLLATERAL_ITEMS = new Set([
-  'bread', 'canned', 'rawmeat', 'mushroom_mass', 'infected_mushroom',
-  'cloth_roll', 'note', 'book', 'water_coupon', 'filter_layer',
+  "bread",
+  "canned",
+  "rawmeat",
+  "mushroom_mass",
+  "infected_mushroom",
+  "cloth_roll",
+  "note",
+  "book",
+  "water_coupon",
+  "filter_layer",
 ]);
 
 function projectileActor(p: Entity): Entity | undefined {
@@ -3305,26 +4378,52 @@ function isPlayerOwnedProjectile(p: Entity): boolean {
 
 const flameCollateralQuery: Entity[] = [];
 
-function applyFlameBackdraft(x: number, y: number, actor: Entity | undefined): void {
+function applyFlameBackdraft(
+  x: number,
+  y: number,
+  actor: Entity | undefined,
+): void {
   state.dmgFlash = Math.max(state.dmgFlash, 0.12);
   state.dmgSeed = 3;
-  if (actor?.id !== player.id || world.dist2(player.x, player.y, x, y) > 1.6 * 1.6) return;
+  if (
+    actor?.id !== player.id ||
+    world.dist2(player.x, player.y, x, y) > 1.6 * 1.6
+  )
+    return;
   if (isDebugOnePunchManEnabled()) {
     keepDebugOnePunchManAlive(player);
     return;
   }
   player.hp = Math.max(1, (player.hp ?? 1) - 1);
-  recordPlayerDamage(state, undefined, 1, 'Обратная тяга: дым и жар в лицо', 'hazard');
-  state.msgs.push(msg('Обратная тяга: дым и жар в лицо', state.time, '#f84'));
+  recordPlayerDamage(
+    state,
+    undefined,
+    1,
+    "Обратная тяга: дым и жар в лицо",
+    "hazard",
+  );
+  state.msgs.push(msg("Обратная тяга: дым и жар в лицо", state.time, "#f84"));
 }
 
-function burnCollateralNearFlame(x: number, y: number, radius: number, actor: Entity | undefined): boolean {
+function burnCollateralNearFlame(
+  x: number,
+  y: number,
+  radius: number,
+  actor: Entity | undefined,
+): boolean {
   const r2 = radius * radius;
-  getEntityIndex().queryRadius(x, y, radius, flameCollateralQuery, ENTITY_MASK_ITEM_DROP);
+  getEntityIndex().queryRadius(
+    x,
+    y,
+    radius,
+    flameCollateralQuery,
+    ENTITY_MASK_ITEM_DROP,
+  );
   for (let i = 0; i < flameCollateralQuery.length; i++) {
     const drop = flameCollateralQuery[i];
     const inv = drop.inventory;
-    if (!drop.alive || drop.type !== EntityType.ITEM_DROP || !inv?.length) continue;
+    if (!drop.alive || drop.type !== EntityType.ITEM_DROP || !inv?.length)
+      continue;
     if (world.dist2(x, y, drop.x, drop.y) > r2) continue;
     let slot = undefined;
     for (let j = 0; j < inv.length; j++) {
@@ -3339,55 +4438,81 @@ function burnCollateralNearFlame(x: number, y: number, radius: number, actor: En
     if (slot.count <= 0) inv.splice(inv.indexOf(slot), 1);
     if (inv.length === 0) drop.alive = false;
     publishEvent(state, {
-      type: 'collateral_damage',
+      type: "collateral_damage",
       x: drop.x,
       y: drop.y,
       actorId: actor?.id,
-      actorName: actor?.name ?? (actor?.id === player.id ? 'Вы' : undefined),
+      actorName: actor?.name ?? (actor?.id === player.id ? "Вы" : undefined),
       actorFaction: actor?.faction,
       itemId: slot.defId,
       itemName: def?.name ?? slot.defId,
       itemCount: 1,
       itemValue: def?.value ?? 0,
       severity: 3,
-      privacy: 'local',
-      tags: ['fire', 'collateral', 'flamethrower', 'item_destroyed'],
-      data: { reason: 'flame_cleanup', radius },
+      privacy: "local",
+      tags: ["fire", "collateral", "flamethrower", "item_destroyed"],
+      data: { reason: "flame_cleanup", radius },
     });
-    state.msgs.push(msg(`Огонь испортил: ${def?.name ?? slot.defId}`, state.time, '#f84'));
+    state.msgs.push(
+      msg(`Огонь испортил: ${def?.name ?? slot.defId}`, state.time, "#f84"),
+    );
     return true;
   }
   return false;
 }
 
-function resolveFlameCleanup(p: Entity, x: number, y: number, radius: number): void {
+function resolveFlameCleanup(
+  p: Entity,
+  x: number,
+  y: number,
+  radius: number,
+): void {
   const actor = projectileActor(p);
-  const cleanedHazards = cleanCellHazardsNear(world, x, y, radius, state, actor, 'fire');
+  const cleanedHazards = cleanCellHazardsNear(
+    world,
+    x,
+    y,
+    radius,
+    state,
+    actor,
+    "fire",
+  );
   if (cleanedHazards <= 0) return;
 
   const cleanedSurface = cleanSurfaceArea(world, x, y, radius);
-  if (actor?.id === player.id) notifyCleanupToolUse(player, world, state, x, y, cleanedSurface, cleanedHazards);
+  if (actor?.id === player.id)
+    notifyCleanupToolUse(
+      player,
+      world,
+      state,
+      x,
+      y,
+      cleanedSurface,
+      cleanedHazards,
+    );
   burnCollateralNearFlame(x, y, radius + 0.35, actor);
   applyFlameBackdraft(x, y, actor);
   publishEvent(state, {
-    type: 'burn_cleanup',
+    type: "burn_cleanup",
     x,
     y,
     actorId: actor?.id,
-    actorName: actor?.name ?? (actor?.id === player.id ? 'Вы' : undefined),
+    actorName: actor?.name ?? (actor?.id === player.id ? "Вы" : undefined),
     actorFaction: actor?.faction,
-    itemId: 'ammo_fuel',
-    itemName: ITEMS.ammo_fuel?.name ?? 'Бензин',
+    itemId: "ammo_fuel",
+    itemName: ITEMS.ammo_fuel?.name ?? "Бензин",
     severity: 4,
-    privacy: 'local',
-    tags: ['fire', 'cleanup', 'slime', 'flamethrower', 'smoke', 'noise'],
+    privacy: "local",
+    tags: ["fire", "cleanup", "slime", "flamethrower", "smoke", "noise"],
     data: {
       cleanedHazardCells: cleanedHazards,
       cleanedSurface,
-      weapon: 'flamethrower',
+      weapon: "flamethrower",
     },
   });
-  state.msgs.push(msg(`Огонь выжег слизь: ${cleanedHazards} кл.`, state.time, '#fa4'));
+  state.msgs.push(
+    msg(`Огонь выжег слизь: ${cleanedHazards} кл.`, state.time, "#fa4"),
+  );
 }
 
 const projectileHitQuery: Entity[] = [];
@@ -3396,14 +4521,21 @@ const PROJECTILE_HIT_QUERY_CAP = 48;
 const FLAME_HIT_QUERY_CAP = 64;
 
 function projectilePathDelta(from: number, to: number): number {
-  return ((to - from + W / 2) % W + W) % W - W / 2;
+  return ((((to - from + W / 2) % W) + W) % W) - W / 2;
 }
 
 function projectilePathPoint(from: number, to: number, t: number): number {
-  return ((from + projectilePathDelta(from, to) * t) % W + W) % W;
+  return (((from + projectilePathDelta(from, to) * t) % W) + W) % W;
 }
 
-function projectilePathHitT(args: { x0: number; y0: number; x1: number; y1: number; e: Entity; radius: number }): number {
+function projectilePathHitT(args: {
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+  e: Entity;
+  radius: number;
+}): number {
   const { x0, y0, x1, y1, e, radius } = args;
   const dx = projectilePathDelta(x0, x1);
   const dy = projectilePathDelta(y0, y1);
@@ -3418,11 +4550,86 @@ function projectilePathHitT(args: { x0: number; y0: number; x1: number; y1: numb
   return px * px + py * py <= radius * radius ? t : Infinity;
 }
 
+function checkProjectileEntityCollisions(
+  p: Entity,
+  pt: ProjType,
+  prevX: number,
+  prevY: number,
+  wx: number,
+  wy: number,
+  hitRadius: number,
+  blockingT: number,
+  prevSpriteZ: number,
+  nextSpriteZ: number,
+  baseDmg: number,
+): void {
+  let nearestHit: Entity | undefined;
+  let nearestHitT = Infinity;
+  if (pt !== ProjType.FLAME) {
+    for (const e of projectileHitQuery) {
+      if (!e.alive) continue;
+      if (e.type !== EntityType.MONSTER && e.type !== EntityType.NPC) continue;
+      const hitT = projectilePathHitT({
+        x0: prevX,
+        y0: prevY,
+        x1: wx,
+        y1: wy,
+        e,
+        radius: hitRadius,
+      });
+      if (hitT <= blockingT + 0.000001 && hitT < nearestHitT) {
+        nearestHit = e;
+        nearestHitT = hitT;
+      }
+    }
+  }
+  for (const e of projectileHitQuery) {
+    if (!e.alive) continue;
+    if (e.type !== EntityType.MONSTER && e.type !== EntityType.NPC) continue;
+    if (pt !== ProjType.FLAME && e !== nearestHit) continue;
+    const hitT =
+      pt === ProjType.FLAME
+        ? projectilePathHitT({
+            x0: prevX,
+            y0: prevY,
+            x1: wx,
+            y1: wy,
+            e,
+            radius: hitRadius,
+          })
+        : nearestHitT;
+    if (hitT <= blockingT + 0.000001) {
+      if (
+        processProjectileEntityCollision(
+          p,
+          e,
+          pt,
+          hitT,
+          prevX,
+          wx,
+          prevY,
+          wy,
+          prevSpriteZ,
+          nextSpriteZ,
+          baseDmg,
+        )
+      ) {
+        break;
+      }
+    }
+  }
+}
 /* ── Projectile update: move, collide walls + entities ────────── */
 function updateProjectiles(dt: number): void {
-  const entityIndex = rebuildEntityIndexForSimulation(entities, entityIndexFrame);
+  const entityIndex = rebuildEntityIndexForSimulation(
+    entities,
+    entityIndexFrame,
+  );
   const projectileLimit = entitySoftLimit(EntityType.PROJECTILE);
-  if (projectileLimit !== undefined && entityIndex.projectiles.length > projectileLimit) {
+  if (
+    projectileLimit !== undefined &&
+    entityIndex.projectiles.length > projectileLimit
+  ) {
     let overflow = entityIndex.projectiles.length - projectileLimit;
     for (const p of entityIndex.projectiles) {
       if (overflow <= 0) break;
@@ -3449,13 +4656,23 @@ function updateProjectiles(dt: number): void {
     // ── 3D vertical physics: update vz → spriteZ ──
     const prevSpriteZ = p.spriteZ ?? 0.5;
     const vz = p.vz ?? 0;
-    const gravity = pt === ProjType.FLAME ? 1.8 : pt === ProjType.GRENADE ? 2.5 : pt === ProjType.BFG ? 0.3 : 1.2;
+    const gravity =
+      pt === ProjType.FLAME
+        ? 1.8
+        : pt === ProjType.GRENADE
+          ? 2.5
+          : pt === ProjType.BFG
+            ? 0.3
+            : 1.2;
     p.vz = vz - gravity * dt;
     let nextSpriteZ = prevSpriteZ + vz * dt;
     p.spriteZ = nextSpriteZ;
     let floorHitT = Number.POSITIVE_INFINITY;
     if (nextSpriteZ <= 0 && prevSpriteZ > nextSpriteZ) {
-      floorHitT = Math.max(0, Math.min(1, prevSpriteZ / (prevSpriteZ - nextSpriteZ)));
+      floorHitT = Math.max(
+        0,
+        Math.min(1, prevSpriteZ / (prevSpriteZ - nextSpriteZ)),
+      );
     }
     // Ceiling impact (spriteZ ≥ 1)
     if (nextSpriteZ >= 1.0) {
@@ -3474,11 +4691,24 @@ function updateProjectiles(dt: number): void {
 
     // Flame: leave charred burn marks on floor while flying low
     if (pt === ProjType.FLAME && (p.spriteZ ?? 0.5) < 0.2) {
-      const fx = Math.floor(p.x), fy = Math.floor(p.y);
+      const fx = Math.floor(p.x),
+        fy = Math.floor(p.y);
       if (!world.solid(fx, fy)) {
         resolveFlameCleanup(p, p.x, p.y, 0.9);
-        stampMark(world, fx, fy, (p.x % 1 + 1) % 1, (p.y % 1 + 1) % 1,
-          0.25, MarkType.BURN, randSeed(), 8, 5, 2, 160);
+        stampMark(
+          world,
+          fx,
+          fy,
+          ((p.x % 1) + 1) % 1,
+          ((p.y % 1) + 1) % 1,
+          0.25,
+          MarkType.BURN,
+          randSeed(),
+          8,
+          5,
+          2,
+          160,
+        );
       }
     }
 
@@ -3495,35 +4725,36 @@ function updateProjectiles(dt: number): void {
     // Entity collision — check monsters and NPCs
     const baseDmg = p.projDmg ?? 0;
     const hitRadius = pt === ProjType.FLAME ? 0.8 : 0.6;
-    entityIndex.queryPathRadius(prevX, prevY, wx, wy, hitRadius, projectileHitQuery, ENTITY_MASK_ACTOR, pt === ProjType.FLAME ? FLAME_HIT_QUERY_CAP : PROJECTILE_HIT_QUERY_CAP);
-    let nearestHit: Entity | undefined;
-    let nearestHitT = Infinity;
-    if (pt !== ProjType.FLAME) {
-      for (const e of projectileHitQuery) {
-        if (!e.alive) continue;
-        if (e.type !== EntityType.MONSTER && e.type !== EntityType.NPC) continue;
-        const hitT = projectilePathHitT({ x0: prevX, y0: prevY, x1: wx, y1: wy, e, radius: hitRadius });
-        if (hitT <= blockingT + 0.000001 && hitT < nearestHitT) {
-          nearestHit = e;
-          nearestHitT = hitT;
-        }
-      }
-    }
-    for (const e of projectileHitQuery) {
-      if (!e.alive) continue;
-      if (e.type !== EntityType.MONSTER && e.type !== EntityType.NPC) continue;
-      if (pt !== ProjType.FLAME && e !== nearestHit) continue;
-      const hitT = pt === ProjType.FLAME ? projectilePathHitT({ x0: prevX, y0: prevY, x1: wx, y1: wy, e, radius: hitRadius }) : nearestHitT;
-      if (hitT <= blockingT + 0.000001) {
-        if (processProjectileEntityCollision(p, e, pt, hitT, prevX, wx, prevY, wy, prevSpriteZ, nextSpriteZ, baseDmg)) {
-          break;
-        }
-      }
-    }
+    entityIndex.queryPathRadius(
+      prevX,
+      prevY,
+      wx,
+      wy,
+      hitRadius,
+      projectileHitQuery,
+      ENTITY_MASK_ACTOR,
+      pt === ProjType.FLAME ? FLAME_HIT_QUERY_CAP : PROJECTILE_HIT_QUERY_CAP,
+    );
+    checkProjectileEntityCollisions(
+      p,
+      pt,
+      prevX,
+      prevY,
+      wx,
+      wy,
+      hitRadius,
+      blockingT,
+      prevSpriteZ,
+      nextSpriteZ,
+      baseDmg,
+    );
     if (!p.alive) continue;
 
     if (wallHit && wallHit.t <= floorHitT + 0.000001) {
-      const impactZ = Math.max(0, Math.min(1, prevSpriteZ + (nextSpriteZ - prevSpriteZ) * wallHit.t));
+      const impactZ = Math.max(
+        0,
+        Math.min(1, prevSpriteZ + (nextSpriteZ - prevSpriteZ) * wallHit.t),
+      );
       const impactV = Math.max(0.001, Math.min(0.999, 1.0 - impactZ));
       p.x = wallHit.x;
       p.y = wallHit.y;
@@ -3531,19 +4762,36 @@ function updateProjectiles(dt: number): void {
       if (pt === ProjType.BFG) {
         triggerExplosion(p, pt);
       } else if (pt === ProjType.GRENADE) {
-        p.vx = wallHit.axis === 'x' ? -(p.vx ?? 0) * 0.5 : (p.vx ?? 0) * 0.8;
-        p.vy = wallHit.axis === 'y' ? -(p.vy ?? 0) * 0.5 : (p.vy ?? 0) * 0.8;
-        p.x = wrapWorld(wallHit.x + (wallHit.axis === 'x' ? -wallHit.stepX * 0.02 : 0));
-        p.y = wrapWorld(wallHit.y + (wallHit.axis === 'y' ? -wallHit.stepY * 0.02 : 0));
+        p.vx = wallHit.axis === "x" ? -(p.vx ?? 0) * 0.5 : (p.vx ?? 0) * 0.8;
+        p.vy = wallHit.axis === "y" ? -(p.vy ?? 0) * 0.5 : (p.vy ?? 0) * 0.8;
+        p.x = wrapWorld(
+          wallHit.x + (wallHit.axis === "x" ? -wallHit.stepX * 0.02 : 0),
+        );
+        p.y = wrapWorld(
+          wallHit.y + (wallHit.axis === "y" ? -wallHit.stepY * 0.02 : 0),
+        );
         playProjectileImpactCue(p, wallHit.x, wallHit.y);
         continue;
       } else {
-        if (pt === ProjType.FLAME) resolveFlameCleanup(p, wallHit.x, wallHit.y, 1.0);
-        spawnProjectileWallImpact(world, wallHit.cellX, wallHit.cellY, wallHit.u, impactV, p.sprite, pt, wallHit.x, wallHit.y);
+        if (pt === ProjType.FLAME)
+          resolveFlameCleanup(p, wallHit.x, wallHit.y, 1.0);
+        spawnProjectileWallImpact(
+          world,
+          wallHit.cellX,
+          wallHit.cellY,
+          wallHit.u,
+          impactV,
+          p.sprite,
+          pt,
+          wallHit.x,
+          wallHit.y,
+        );
         playProjectileImpactCue(p, wallHit.x, wallHit.y);
       }
       if (p.aoeRadius && pt !== ProjType.BFG)
-        psiAoeExplosion(p, entities, world, state.msgs, state.time, (e) => handleKill(e, isPlayerOwnedProjectile(p)));
+        psiAoeExplosion(p, entities, world, state.msgs, state.time, (e) =>
+          handleKill(e, isPlayerOwnedProjectile(p)),
+        );
       p.alive = false;
       continue;
     }
@@ -3569,7 +4817,9 @@ function updateProjectiles(dt: number): void {
         playProjectileImpactCue(p, floorX, floorY);
       }
       if (p.aoeRadius)
-        psiAoeExplosion(p, entities, world, state.msgs, state.time, (e) => handleKill(e, isPlayerOwnedProjectile(p)));
+        psiAoeExplosion(p, entities, world, state.msgs, state.time, (e) =>
+          handleKill(e, isPlayerOwnedProjectile(p)),
+        );
       p.alive = false;
       continue;
     }
@@ -3602,7 +4852,15 @@ function processProjectileEntityCollision(
     p.alive = false;
     return true; // break
   }
-  if (pt === ProjType.FLAME) reducePaupsinaWeb(e, state.time, state.msgs, state, projectileActor(p), 'fire');
+  if (pt === ProjType.FLAME)
+    reducePaupsinaWeb(
+      e,
+      state.time,
+      state.msgs,
+      state,
+      projectileActor(p),
+      "fire",
+    );
   if (e.hp !== undefined) {
     const counterplayDmg = adjustMonsterProjectileDamage(e, p, baseDmg);
     const armor = applyMonsterArmorHit(world, state, e, {
@@ -3612,7 +4870,8 @@ function processProjectileEntityCollision(
       projectileType: pt,
     });
     const dmg = armor.damage;
-    const debugImmortalPlayerHit = isPlayerEntity(e) && isDebugOnePunchManEnabled();
+    const debugImmortalPlayerHit =
+      isPlayerEntity(e) && isDebugOnePunchManEnabled();
     if (debugImmortalPlayerHit) {
       keepDebugOnePunchManAlive(e);
     } else {
@@ -3622,12 +4881,37 @@ function processProjectileEntityCollision(
       }
       tryMonsterProjectileStagger(world, state, e, p, player.id);
       if (e.type === EntityType.NPC && isPlayerOwnedProjectile(p)) {
-        applyDamageRelationPenalty(player.faction, e.faction, dmg, e, player, state);
+        applyDamageRelationPenalty(
+          player.faction,
+          e.faction,
+          dmg,
+          e,
+          player,
+          state,
+        );
         recordFactionClashPlayerHit(state, world, player, e, dmg);
       }
-      notifyActorDamaged(world, e, projectileActor(p), dmg, 'projectile', state.time, state);
+      notifyActorDamaged(
+        world,
+        e,
+        projectileActor(p),
+        dmg,
+        "projectile",
+        state.time,
+        state,
+      );
       const hitAngle = Math.atan2(p.vy ?? 0, p.vx ?? 0);
-      spawnBloodHit(world, hitX, hitY, hitAngle, dmg, e.type === EntityType.MONSTER, p.vx ?? 0, p.vy ?? 0, hitZ);
+      spawnBloodHit(
+        world,
+        hitX,
+        hitY,
+        hitAngle,
+        dmg,
+        e.type === EntityType.MONSTER,
+        p.vx ?? 0,
+        p.vy ?? 0,
+        hitZ,
+      );
       spawnProjectileBodyImpact(world, hitX, hitY, p.sprite, pt, hitZ);
     }
     const playerHit = isPlayerEntity(e);
@@ -3636,14 +4920,21 @@ function processProjectileEntityCollision(
     if (!debugImmortalPlayerHit && e.hp <= 0) {
       e.alive = false;
       e.hp = 0;
-      handleKill(e, isPlayerOwnedProjectile(p), p.vx ?? 0, p.vy ?? 0, p.projGore ?? 1);
+      handleKill(
+        e,
+        isPlayerOwnedProjectile(p),
+        p.vx ?? 0,
+        p.vy ?? 0,
+        p.projGore ?? 1,
+      );
       recordMonsterProjectileDeath(
         world,
         state,
         e,
         p,
         projectileActor(p),
-        (target, vx, vy, gore) => handleKill(target, isPlayerOwnedProjectile(p), vx, vy, gore),
+        (target, vx, vy, gore) =>
+          handleKill(target, isPlayerOwnedProjectile(p), vx, vy, gore),
         entities,
       );
     }
@@ -3661,7 +4952,9 @@ function processProjectileEntityCollision(
     p.x = hitX;
     p.y = hitY;
     p.spriteZ = hitZ;
-    psiAoeExplosion(p, entities, world, state.msgs, state.time, (e2) => handleKill(e2, isPlayerOwnedProjectile(p)));
+    psiAoeExplosion(p, entities, world, state.msgs, state.time, (e2) =>
+      handleKill(e2, isPlayerOwnedProjectile(p)),
+    );
   }
   // Flame projectiles pierce through (don't die on hit)
   if (pt !== ProjType.FLAME && pt !== ProjType.GRENADE) {
@@ -3683,12 +4976,18 @@ function triggerExplosion(p: Entity, pt: ProjType): void {
 
   // AoE damage to all entities in radius
   let hits = 0;
-  getEntityIndex().queryRadius(p.x, p.y, radius, explosionHitQuery, ENTITY_MASK_ACTOR);
+  getEntityIndex().queryRadius(
+    p.x,
+    p.y,
+    radius,
+    explosionHitQuery,
+    ENTITY_MASK_ACTOR,
+  );
   for (const e of explosionHitQuery) {
     if (!e.alive) continue;
     if (e.type !== EntityType.NPC && e.type !== EntityType.MONSTER) continue;
-    const dx = ((e.x - p.x + W / 2) % W + W) % W - W / 2;
-    const dy = ((e.y - p.y + W / 2) % W + W) % W - W / 2;
+    const dx = ((((e.x - p.x + W / 2) % W) + W) % W) - W / 2;
+    const dy = ((((e.y - p.y + W / 2) % W) + W) % W) - W / 2;
     const dist = Math.sqrt(dx * dx + dy * dy);
     if (dist > radius) continue;
     if (e.hp !== undefined) {
@@ -3710,20 +5009,46 @@ function triggerExplosion(p: Entity, pt: ProjType): void {
       e.hp -= finalDmg;
       applyHitStaggerAndKnockback(e, p.x, p.y, finalDmg);
       if (isPlayerEntity(e)) {
-        const detail = actor && !isPlayerEntity(actor)
-          ? `Взрыв от ${entityDisplayName(actor)}: -${finalDmg}`
-          : `Взрыв: -${finalDmg}`;
-        recordPlayerDamage(state, p, finalDmg, detail, 'projectile');
+        const detail =
+          actor && !isPlayerEntity(actor)
+            ? `Взрыв от ${entityDisplayName(actor)}: -${finalDmg}`
+            : `Взрыв: -${finalDmg}`;
+        recordPlayerDamage(state, p, finalDmg, detail, "projectile");
       }
       // Explosion blast pushes blood outward from epicenter
       const blastVx = dist > 0.1 ? (dx / dist) * 12 : 0;
       const blastVy = dist > 0.1 ? (dy / dist) * 12 : 0;
-      spawnBloodHit(world, e.x, e.y, Math.atan2(dy, dx), finalDmg, e.type === EntityType.MONSTER, blastVx, blastVy, 0.4);
+      spawnBloodHit(
+        world,
+        e.x,
+        e.y,
+        Math.atan2(dy, dx),
+        finalDmg,
+        e.type === EntityType.MONSTER,
+        blastVx,
+        blastVy,
+        0.4,
+      );
       if (e.type === EntityType.NPC && isPlayer) {
-        applyDamageRelationPenalty(player.faction, e.faction, finalDmg, e, player, state);
+        applyDamageRelationPenalty(
+          player.faction,
+          e.faction,
+          finalDmg,
+          e,
+          player,
+          state,
+        );
         recordFactionClashPlayerHit(state, world, player, e, finalDmg);
       }
-      notifyActorDamaged(world, e, actor, finalDmg, 'explosion', state.time, state);
+      notifyActorDamaged(
+        world,
+        e,
+        actor,
+        finalDmg,
+        "explosion",
+        state.time,
+        state,
+      );
       if (e.hp <= 0) {
         e.alive = false;
         handleKill(e, isPlayer, blastVx, blastVy, 3);
@@ -3733,10 +5058,25 @@ function triggerExplosion(p: Entity, pt: ProjType): void {
   }
 
   // Scorch: one large coherent mark centered at explosion
-  const cx = Math.floor(p.x), cy = Math.floor(p.y);
-  const fx = (p.x % 1 + 1) % 1, fy = (p.y % 1 + 1) % 1;
+  const cx = Math.floor(p.x),
+    cy = Math.floor(p.y);
+  const fx = ((p.x % 1) + 1) % 1,
+    fy = ((p.y % 1) + 1) % 1;
   const seed = randSeed();
-  stampMark(world, cx, cy, fx, fy, radius * 1.2, MarkType.SCORCH, seed, 15, 10, 5, 230);
+  stampMark(
+    world,
+    cx,
+    cy,
+    fx,
+    fy,
+    radius * 1.2,
+    MarkType.SCORCH,
+    seed,
+    15,
+    10,
+    5,
+    230,
+  );
 
   // Radial debris marks around explosion center
   const debrisCount = pt === ProjType.BFG ? 12 : 8;
@@ -3748,13 +5088,26 @@ function triggerExplosion(p: Entity, pt: ProjType): void {
     const dcx = Math.floor(((debX % W) + W) % W);
     const dcy = Math.floor(((debY % W) + W) % W);
     if (!world.solid(dcx, dcy)) {
-      const dfx = ((debX % 1) + 1) % 1, dfy = ((debY % 1) + 1) % 1;
+      const dfx = ((debX % 1) + 1) % 1,
+        dfy = ((debY % 1) + 1) % 1;
       const markType = pt === ProjType.BFG ? MarkType.PSI : MarkType.BURN;
       const debrisR = pt === ProjType.BFG ? 10 : 15;
       const debrisG = pt === ProjType.BFG ? 30 : 10;
       const debrisB = pt === ProjType.BFG ? 10 : 5;
-      stampMark(world, dcx, dcy, dfx, dfy, 0.12 + Math.random() * 0.15, markType,
-        seed + i + 100, debrisR, debrisG, debrisB, 150 + Math.floor(Math.random() * 60));
+      stampMark(
+        world,
+        dcx,
+        dcy,
+        dfx,
+        dfy,
+        0.12 + Math.random() * 0.15,
+        markType,
+        seed + i + 100,
+        debrisR,
+        debrisG,
+        debrisB,
+        150 + Math.floor(Math.random() * 60),
+      );
     }
   }
 
@@ -3762,17 +5115,24 @@ function triggerExplosion(p: Entity, pt: ProjType): void {
 
   // Sounds
   playExplosion();
-  publishExplosionNoise(state, actor, p.x, p.y, radius, pt === ProjType.BFG ? 'bfg' : 'grenade');
+  publishExplosionNoise(
+    state,
+    actor,
+    p.x,
+    p.y,
+    radius,
+    pt === ProjType.BFG ? "bfg" : "grenade",
+  );
 
   // Screen flash for ALL explosions
   if (pt === ProjType.BFG) {
     state.dmgFlash = 0.8;
     state.dmgSeed = 2; // green tint marker
-    state.msgs.push(msg(`БФГ! Уничтожено целей: ${hits}`, state.time, '#4f4'));
+    state.msgs.push(msg(`БФГ! Уничтожено целей: ${hits}`, state.time, "#4f4"));
   } else {
     state.dmgFlash = Math.max(state.dmgFlash, 0.4);
     state.dmgSeed = 3; // orange tint marker for explosions
-    state.msgs.push(msg(`Взрыв! Поражено: ${hits}`, state.time, '#fa0'));
+    state.msgs.push(msg(`Взрыв! Поражено: ${hits}`, state.time, "#fa0"));
   }
 }
 
@@ -3785,19 +5145,24 @@ function checkRestart(): void {
   }
   if (state.gameOver && input.use) {
     resetRuntimeCamera(runtimeCamera);
-    scheduleLoading(() => { initGame(); });
+    scheduleLoading(() => {
+      initGame();
+    });
     input.use = false;
   }
 }
 
 function movePlayerToMetroRoom(roomName: string): boolean {
-  const room = world.rooms.find(r => r?.name === roomName);
+  const room = world.rooms.find((r) => r?.name === roomName);
   if (!room) return false;
 
   const cx = room.x + Math.floor(room.w / 2);
   const cy = room.y + Math.floor(room.h / 2);
   const ciCenter = world.idx(cx, cy);
-  if (world.cells[ciCenter] === Cell.FLOOR || world.cells[ciCenter] === Cell.WATER) {
+  if (
+    world.cells[ciCenter] === Cell.FLOOR ||
+    world.cells[ciCenter] === Cell.WATER
+  ) {
     player.x = world.wrap(cx) + 0.5;
     player.y = world.wrap(cy) + 0.5;
     player.angle += Math.PI;
@@ -3807,7 +5172,8 @@ function movePlayerToMetroRoom(roomName: string): boolean {
   for (let y = room.y + 1; y < room.y + room.h - 1; y++) {
     for (let x = room.x + 1; x < room.x + room.w - 1; x++) {
       const ci = world.idx(x, y);
-      if (world.cells[ci] !== Cell.FLOOR && world.cells[ci] !== Cell.WATER) continue;
+      if (world.cells[ci] !== Cell.FLOOR && world.cells[ci] !== Cell.WATER)
+        continue;
       player.x = world.wrap(x) + 0.5;
       player.y = world.wrap(y) + 0.5;
       player.angle += Math.PI;
@@ -3828,7 +5194,12 @@ function passableSpawnCell(x: number, y: number): boolean {
   return (cell === Cell.FLOOR || cell === Cell.WATER) && playerCanOccupy(x, y);
 }
 
-function safeSpawnNear(savedX: unknown, savedY: unknown, fallbackX: number, fallbackY: number): { x: number; y: number } {
+function safeSpawnNear(
+  savedX: unknown,
+  savedY: unknown,
+  fallbackX: number,
+  fallbackY: number,
+): { x: number; y: number } {
   const sx = Number(savedX);
   const sy = Number(savedY);
   if (passableSpawnCell(sx, sy)) return { x: sx, y: sy };
@@ -3846,8 +5217,12 @@ function safeSpawnNear(savedX: unknown, savedY: unknown, fallbackX: number, fall
     }
   }
 
-  if (passableSpawnCell(fallbackX, fallbackY)) return { x: fallbackX, y: fallbackY };
-  return { x: world.wrap(Math.floor(fallbackX)) + 0.5, y: world.wrap(Math.floor(fallbackY)) + 0.5 };
+  if (passableSpawnCell(fallbackX, fallbackY))
+    return { x: fallbackX, y: fallbackY };
+  return {
+    x: world.wrap(Math.floor(fallbackX)) + 0.5,
+    y: world.wrap(Math.floor(fallbackY)) + 0.5,
+  };
 }
 
 function currentRouteRebuildGeneration(): FloorGeneration | undefined {
@@ -3855,21 +5230,31 @@ function currentRouteRebuildGeneration(): FloorGeneration | undefined {
   const activeInstance = getActiveFloorInstance(state);
   if (activeInstance) {
     return floorInstanceSamosborReplacementAllowed(activeInstance.id)
-      ? generateFloorInstance(activeInstance.id, ensureFloorRunState(state).runSeed, activeInstance.seed)
+      ? generateFloorInstance(
+          activeInstance.id,
+          ensureFloorRunState(state).runSeed,
+          activeInstance.seed,
+        )
       : undefined;
   }
   const entry = currentFloorRunEntry(state);
   if (entry.spec) return generateProceduralFloor(entry.spec);
   const runSeed = ensureFloorRunState(state).runSeed;
-  if (entry.designFloorId) return generateDesignFloor(entry.designFloorId, runSeed);
+  if (entry.designFloorId)
+    return generateDesignFloor(entry.designFloorId, runSeed);
   return undefined;
 }
 
 function currentSamosborPatchSeed(): number {
-  return hashSeed(`samosbor-patch:${currentFloorMemoryKey()}:${state.samosborCount}`, ensureFloorRunState(state).runSeed);
+  return hashSeed(
+    `samosbor-patch:${currentFloorMemoryKey()}:${state.samosborCount}`,
+    ensureFloorRunState(state).runSeed,
+  );
 }
 
-function currentRouteLocalSamosborPatchGeneration(patchSeed: number): FloorGeneration | undefined {
+function currentRouteLocalSamosborPatchGeneration(
+  patchSeed: number,
+): FloorGeneration | undefined {
   invalidateFloorMemory(currentFloorMemoryKey());
   const activeInstance = getActiveFloorInstance(state);
   if (activeInstance) {
@@ -3878,14 +5263,19 @@ function currentRouteLocalSamosborPatchGeneration(patchSeed: number): FloorGener
       : undefined;
   }
   const entry = currentFloorRunEntry(state);
-  if (entry.spec) return generateProceduralFloor({ ...entry.spec, seed: patchSeed });
-  if (entry.designFloorId) return generateDesignFloor(entry.designFloorId, patchSeed);
+  if (entry.spec)
+    return generateProceduralFloor({ ...entry.spec, seed: patchSeed });
+  if (entry.designFloorId)
+    return generateDesignFloor(entry.designFloorId, patchSeed);
   return undefined;
 }
 
 function currentLocalSamosborPatchGeneration(): FloorGeneration {
   const patchSeed = currentSamosborPatchSeed();
-  return currentRouteLocalSamosborPatchGeneration(patchSeed) ?? generateFloor(state.currentFloor, patchSeed, state.tutorialMode);
+  return (
+    currentRouteLocalSamosborPatchGeneration(patchSeed) ??
+    generateFloor(state.currentFloor, patchSeed, state.tutorialMode)
+  );
 }
 
 function scheduleLocalSamosborPatch(fn: () => void): void {
@@ -3896,22 +5286,38 @@ function scheduleLocalSamosborPatch(fn: () => void): void {
   });
 }
 
-function floorTargetAllowsNpcPopulation(entry: ReturnType<typeof currentFloorRunEntry> | null | undefined, floor: FloorLevel): boolean {
-  return floor !== FloorLevel.VOID && (!entry || floorRunEntryAllowsNpcs(entry));
+function floorTargetAllowsNpcPopulation(
+  entry: ReturnType<typeof currentFloorRunEntry> | null | undefined,
+  floor: FloorLevel,
+): boolean {
+  return (
+    floor !== FloorLevel.VOID && (!entry || floorRunEntryAllowsNpcs(entry))
+  );
 }
 
 function currentFloorAllowsNpcPopulation(): boolean {
   const activeInstance = getActiveFloorInstance(state);
   if (activeInstance) return floorInstanceAllowsNpcs(activeInstance.id);
-  return floorTargetAllowsNpcPopulation(currentFloorRunEntry(state), state.currentFloor);
+  return floorTargetAllowsNpcPopulation(
+    currentFloorRunEntry(state),
+    state.currentFloor,
+  );
 }
 
 function captureCurrentAlifeFloor(): void {
   captureAlifeFloorState(state, entities);
 }
 
-function materializeCurrentAlifeFloor(floorKey = currentAlifeFloorKey(state)): void {
-  materializeAlifeFloorPopulation(state, world, entities, nextEntityId, floorKey);
+function materializeCurrentAlifeFloor(
+  floorKey = currentAlifeFloorKey(state),
+): void {
+  materializeAlifeFloorPopulation(
+    state,
+    world,
+    entities,
+    nextEntityId,
+    floorKey,
+  );
   normalizeHumanoidBaseMoveSpeeds(entities);
 }
 
@@ -3921,10 +5327,16 @@ function currentFloorMemoryKey(): string {
   return floorRunEntryFloorKey(currentFloorRunEntry(state));
 }
 
-function floorMemoryKeyForTarget(floor: FloorLevel, entry: FloorRunEntry | null | undefined): string {
+function floorMemoryKeyForTarget(
+  floor: FloorLevel,
+  entry: FloorRunEntry | null | undefined,
+): string {
   const active = getActiveFloorInstance(state);
-  if (!entry && active?.worldKey && active.baseFloor === floor) return active.worldKey;
-  return entry ? floorRunEntryFloorKey(entry) : floorMemoryKeyForStoryFloor(floor);
+  if (!entry && active?.worldKey && active.baseFloor === floor)
+    return active.worldKey;
+  return entry
+    ? floorRunEntryFloorKey(entry)
+    : floorMemoryKeyForStoryFloor(floor);
 }
 
 function captureCurrentFloorMemory(): void {
@@ -3953,43 +5365,68 @@ function captureFloorMemoryByKey(key: string): void {
   );
 }
 
-function generateFloorForTarget(floor: FloorLevel, entry: FloorRunEntry | null | undefined): FloorGeneration {
+function generateFloorForTarget(
+  floor: FloorLevel,
+  entry: FloorRunEntry | null | undefined,
+): FloorGeneration {
   const gen = generateFloorForTargetInner(floor, entry);
   injectFastElevators(gen.world);
   stampCeilingHeights(gen.world);
   return gen;
 }
 
-function generateFloorForTargetInner(floor: FloorLevel, entry: FloorRunEntry | null | undefined): FloorGeneration {
+function generateFloorForTargetInner(
+  floor: FloorLevel,
+  entry: FloorRunEntry | null | undefined,
+): FloorGeneration {
   const activeInstance = getActiveFloorInstance(state);
   if (!entry && activeInstance?.baseFloor === floor) {
-    return generateFloorInstance(activeInstance.id, ensureFloorRunState(state).runSeed, activeInstance.seed);
+    return generateFloorInstance(
+      activeInstance.id,
+      ensureFloorRunState(state).runSeed,
+      activeInstance.seed,
+    );
   }
   if (entry?.spec) return generateProceduralFloor(entry.spec);
   const runSeed = ensureFloorRunState(state).runSeed;
-  if (entry?.designFloorId) return generateDesignFloor(entry.designFloorId, runSeed);
+  if (entry?.designFloorId)
+    return generateDesignFloor(entry.designFloorId, runSeed);
   return generateFloor(floor, runSeed, state.tutorialMode);
 }
 
-function floorMemoryGenerationExtrasForKey(key: string): Record<string, unknown> | undefined {
+function floorMemoryGenerationExtrasForKey(
+  key: string,
+): Record<string, unknown> | undefined {
   const instanceExtras = floorInstanceGenerationExtrasForKey(key);
   if (instanceExtras) return { ...instanceExtras };
-  const designPrefix = 'design:';
+  const designPrefix = "design:";
   if (!key.startsWith(designPrefix)) return undefined;
   const designId = key.slice(designPrefix.length);
   if (!isDesignFloorId(designId)) return undefined;
-  const gen = generateDesignFloor(designId, ensureFloorRunState(state).runSeed) as FloorGeneration & Record<string, unknown>;
+  const gen = generateDesignFloor(
+    designId,
+    ensureFloorRunState(state).runSeed,
+  ) as FloorGeneration & Record<string, unknown>;
   const extras: Record<string, unknown> = {};
   let hasExtras = false;
   for (const extraKey in gen) {
-    if (extraKey === 'world' || extraKey === 'entities' || extraKey === 'spawnX' || extraKey === 'spawnY') continue;
+    if (
+      extraKey === "world" ||
+      extraKey === "entities" ||
+      extraKey === "spawnX" ||
+      extraKey === "spawnY"
+    )
+      continue;
     extras[extraKey] = gen[extraKey];
     hasExtras = true;
   }
   return hasExtras ? extras : undefined;
 }
 
-function loadFloorForTarget(floor: FloorLevel, entry: FloorRunEntry | null | undefined): FloorMemoryLoad {
+function loadFloorForTarget(
+  floor: FloorLevel,
+  entry: FloorRunEntry | null | undefined,
+): FloorMemoryLoad {
   const memoryKey = floorMemoryKeyForTarget(floor, entry);
   const restored = takeFloorMemory(memoryKey);
   if (restored) {
@@ -4025,15 +5462,19 @@ function switchFloor(
   const departingMemoryKey = currentFloorMemoryKey();
   // Fast elevator: jump straight to an arbitrary route floor, bypassing the
   // single-step route resolution and elevator anomaly machinery.
-  const directTargetEntry = targetZ !== undefined ? floorRunEntryForZ(state, targetZ) : null;
+  const directTargetEntry =
+    targetZ !== undefined ? floorRunEntryForZ(state, targetZ) : null;
   if (targetZ !== undefined && !directTargetEntry) return;
   const fastTravel = directTargetEntry !== null;
   let nextFloor: FloorLevel;
-  const activeFloorInstance = (allowElevatorAnomaly && !fastTravel) ? getActiveFloorInstance(state) : null;
+  const activeFloorInstance =
+    allowElevatorAnomaly && !fastTravel ? getActiveFloorInstance(state) : null;
   let runEntry = fastTravel
     ? directTargetEntry
     : allowElevatorAnomaly
-      ? (activeFloorInstance ? currentFloorRunEntry(state) : resolveFloorRunRoute(state, direction))
+      ? activeFloorInstance
+        ? currentFloorRunEntry(state)
+        : resolveFloorRunRoute(state, direction)
       : null;
 
   if (runEntry) {
@@ -4050,24 +5491,45 @@ function switchFloor(
   }
   resolveLiftArachnaDeparture(world, player, state);
   clearPseudoliftActive(state, entities);
-  const liftZoneId = world.zoneMap[world.idx(Math.floor(player.x), Math.floor(player.y))];
-  const route = (allowElevatorAnomaly && !fastTravel)
-    ? resolveElevatorRoute(state, fromFloor, nextFloor, direction, liftZoneId)
-    : { targetFloor: nextFloor, activeInstance: null, anomaly: false, leavingInstance: false, exitedInstance: null };
+  const liftZoneId =
+    world.zoneMap[world.idx(Math.floor(player.x), Math.floor(player.y))];
+  const route =
+    allowElevatorAnomaly && !fastTravel
+      ? resolveElevatorRoute(state, fromFloor, nextFloor, direction, liftZoneId)
+      : {
+          targetFloor: nextFloor,
+          activeInstance: null,
+          anomaly: false,
+          leavingInstance: false,
+          exitedInstance: null,
+        };
   nextFloor = route.targetFloor;
   if (runEntry && (allowElevatorAnomaly || fastTravel)) {
     commitFloorRunEntry(state, runEntry);
   }
   const generatedRunEntry = route.activeInstance ? null : runEntry;
-  const intendedRunEntry = route.activeInstance ? currentFloorRunEntry(state) : generatedRunEntry;
-  const returnDirection = direction === LiftDirection.DOWN ? LiftDirection.UP : LiftDirection.DOWN;
+  const intendedRunEntry = route.activeInstance
+    ? currentFloorRunEntry(state)
+    : generatedRunEntry;
+  const returnDirection =
+    direction === LiftDirection.DOWN ? LiftDirection.UP : LiftDirection.DOWN;
   if (route.activeInstance) {
-    spreadElevatorInstanceRumor(world, entities, player, state, route.activeInstance);
+    spreadElevatorInstanceRumor(
+      world,
+      entities,
+      player,
+      state,
+      route.activeInstance,
+    );
   }
   let departureLiftAnchors: FloorLiftAnchor[] = [];
   if (allowElevatorAnomaly && !activeFloorInstance && runEntry) {
     ensureCurrentRouteLiftLayout();
-    departureLiftAnchors = collectFloorLiftAnchors(world, direction, ROUTE_LIFTS_PER_DIRECTION);
+    departureLiftAnchors = collectFloorLiftAnchors(
+      world,
+      direction,
+      ROUTE_LIFTS_PER_DIRECTION,
+    );
   }
 
   // Save player position for same-xy spawn
@@ -4080,8 +5542,8 @@ function switchFloor(
   const savedNeeds = player.needs ? { ...player.needs } : freshNeeds();
   const savedHp = player.hp ?? 100;
   const savedMaxHp = player.maxHp ?? 100;
-  const savedWeapon = player.weapon ?? '';
-  const savedTool = player.tool ?? '';
+  const savedWeapon = player.weapon ?? "";
+  const savedTool = player.tool ?? "";
   const savedRpg = player.rpg ? { ...player.rpg } : freshRPG(1);
   const savedStatuses = player.statuses ? [...player.statuses] : undefined;
   const savedMoney = player.money ?? 100;
@@ -4108,14 +5570,24 @@ function switchFloor(
     nextEntityId.v = __maxId + 1;
     materializeCurrentAlifeFloor(currentFloorMemoryKey());
 
-    const routeLiftMirror = !activeFloorInstance && !route.activeInstance && generatedRunEntry && departureLiftAnchors.length > 0
-      ? { direction: returnDirection, anchors: departureLiftAnchors }
-      : undefined;
+    const routeLiftMirror =
+      !activeFloorInstance &&
+      !route.activeInstance &&
+      generatedRunEntry &&
+      departureLiftAnchors.length > 0
+        ? { direction: returnDirection, anchors: departureLiftAnchors }
+        : undefined;
     if (!route.activeInstance && allowElevatorAnomaly) {
-      ensureFloorRouteLiftLayout(world, savedX, savedY, currentRouteLiftDirections(), {
-        countPerDirection: ROUTE_LIFTS_PER_DIRECTION,
-        mirror: routeLiftMirror,
-      });
+      ensureFloorRouteLiftLayout(
+        world,
+        savedX,
+        savedY,
+        currentRouteLiftDirections(),
+        {
+          countPerDirection: ROUTE_LIFTS_PER_DIRECTION,
+          mirror: routeLiftMirror,
+        },
+      );
     }
     const spawn = safeSpawnNear(savedX, savedY, gen.spawnX, gen.spawnY);
     player = {
@@ -4154,27 +5626,49 @@ function switchFloor(
 
     resetPsiState();
 
-    const arrivalText = overrideArrivalText ?? (route.activeInstance
-      ? `Лифт ошибся: ${floorInstanceLabel(route.activeInstance)}`
-      : route.exitedInstance
-        ? `Петля разомкнулась: ${generatedRunEntry?.label ?? FLOOR_NAMES[nextFloor]}`
-        : generatedRunEntry?.procedural || generatedRunEntry?.designFloorId
-          ? `Лифт прибыл: ${generatedRunEntry.label}`
-          : `Лифт прибыл: ${FLOOR_NAMES[nextFloor]}`);
-    state.msgs.push(msg(
-      arrivalText,
-      state.time,
-      overrideArrivalColor ?? (route.activeInstance ? '#f4a' : route.exitedInstance ? '#8cf' : generatedRunEntry?.color ?? FLOOR_MESSAGE_COLORS[nextFloor]),
-    ));
+    const arrivalText =
+      overrideArrivalText ??
+      (route.activeInstance
+        ? `Лифт ошибся: ${floorInstanceLabel(route.activeInstance)}`
+        : route.exitedInstance
+          ? `Петля разомкнулась: ${generatedRunEntry?.label ?? FLOOR_NAMES[nextFloor]}`
+          : generatedRunEntry?.procedural || generatedRunEntry?.designFloorId
+            ? `Лифт прибыл: ${generatedRunEntry.label}`
+            : `Лифт прибыл: ${FLOOR_NAMES[nextFloor]}`);
+    state.msgs.push(
+      msg(
+        arrivalText,
+        state.time,
+        overrideArrivalColor ??
+          (route.activeInstance
+            ? "#f4a"
+            : route.exitedInstance
+              ? "#8cf"
+              : (generatedRunEntry?.color ?? FLOOR_MESSAGE_COLORS[nextFloor])),
+      ),
+    );
     const arrivalLead = route.activeInstance
-      ? `Маршрут прерван: номерной лифт ${floorInstanceLabel(route.activeInstance)}. Возврат: следующий лифт ведет к ${intendedRunEntry ? floorRunEntryLiftLabel(intendedRunEntry) : 'плановому маршруту'}.`
+      ? `Маршрут прерван: номерной лифт ${floorInstanceLabel(route.activeInstance)}. Возврат: следующий лифт ведет к ${intendedRunEntry ? floorRunEntryLiftLabel(intendedRunEntry) : "плановому маршруту"}.`
       : generatedRunEntry
         ? floorRunArrivalLead(generatedRunEntry, returnDirection)
         : undefined;
-    if (arrivalLead) state.msgs.push(msg(arrivalLead, state.time, route.activeInstance ? '#f4a' : generatedRunEntry?.color ?? '#8cf'));
-    const transitionTags = ['floor', 'floor_transition', 'lift', route.activeInstance ? 'elevator_anomaly' : 'normal'];
-    if (generatedRunEntry?.designFloorId) transitionTags.push('design_floor', generatedRunEntry.designFloorId);
-    if (generatedRunEntry?.spec) transitionTags.push('procedural');
+    if (arrivalLead)
+      state.msgs.push(
+        msg(
+          arrivalLead,
+          state.time,
+          route.activeInstance ? "#f4a" : (generatedRunEntry?.color ?? "#8cf"),
+        ),
+      );
+    const transitionTags = [
+      "floor",
+      "floor_transition",
+      "lift",
+      route.activeInstance ? "elevator_anomaly" : "normal",
+    ];
+    if (generatedRunEntry?.designFloorId)
+      transitionTags.push("design_floor", generatedRunEntry.designFloorId);
+    if (generatedRunEntry?.spec) transitionTags.push("procedural");
     const tagsToAdd = proceduralAnomalyEventTags(generatedRunEntry?.spec);
     if (tagsToAdd.length > 0) {
       const tagSet = new Set(transitionTags);
@@ -4187,20 +5681,21 @@ function switchFloor(
     }
     const anomalyData = proceduralAnomalyEventData(generatedRunEntry?.spec);
     publishEvent(state, {
-      type: 'floor_transition',
-      zoneId: world.zoneMap[world.idx(Math.floor(player.x), Math.floor(player.y))],
+      type: "floor_transition",
+      zoneId:
+        world.zoneMap[world.idx(Math.floor(player.x), Math.floor(player.y))],
       x: player.x,
       y: player.y,
       actorId: player.id,
       actorName: player.name,
       actorFaction: player.faction,
       severity: route.activeInstance || route.exitedInstance ? 4 : 3,
-      privacy: 'local',
+      privacy: "local",
       tags: transitionTags,
       data: {
         fromFloor,
         toFloor: nextFloor,
-        direction: direction === LiftDirection.DOWN ? 'down' : 'up',
+        direction: direction === LiftDirection.DOWN ? "down" : "up",
         sourceZoneId: liftZoneId,
         elevatorAnomaly: route.activeInstance !== null,
         exitedLoop: route.exitedInstance !== null,
@@ -4209,11 +5704,19 @@ function switchFloor(
         proceduralFloor: generatedRunEntry?.spec?.key,
         proceduralSeed: generatedRunEntry?.spec?.seed,
         proceduralDanger: generatedRunEntry?.spec?.danger,
-        routeKind: intendedRunEntry ? floorRunEntryKindLabel(intendedRunEntry) : undefined,
-        routeId: intendedRunEntry ? floorRunEntryRouteId(intendedRunEntry) : undefined,
-        routeDanger: intendedRunEntry ? floorRunEntryDanger(intendedRunEntry) : undefined,
-        routeRole: intendedRunEntry ? floorRunEntryRole(intendedRunEntry) : undefined,
-        returnDirection: returnDirection === LiftDirection.DOWN ? 'down' : 'up',
+        routeKind: intendedRunEntry
+          ? floorRunEntryKindLabel(intendedRunEntry)
+          : undefined,
+        routeId: intendedRunEntry
+          ? floorRunEntryRouteId(intendedRunEntry)
+          : undefined,
+        routeDanger: intendedRunEntry
+          ? floorRunEntryDanger(intendedRunEntry)
+          : undefined,
+        routeRole: intendedRunEntry
+          ? floorRunEntryRole(intendedRunEntry)
+          : undefined,
+        returnDirection: returnDirection === LiftDirection.DOWN ? "down" : "up",
         ...anomalyData,
       },
     });
@@ -4257,21 +5760,26 @@ function switchFloor(
         nextFloor === FloorLevel.LIVING ||
         nextFloor === FloorLevel.HELL ||
         nextFloor === FloorLevel.VOID ||
-        (generatedRunEntry?.designFloorId as string) === 'liquidatorbase' ||
-        (generatedRunEntry?.designFloorId as string) === 'horrorfloor' ||
-        (generatedRunEntry?.designFloorId as string) === 'cave_floor' ||
-        (generatedRunEntry?.spec?.key && (
-          generatedRunEntry.spec.key.includes('liquidatorbase') ||
-          generatedRunEntry.spec.key.includes('horrorfloor') ||
-          generatedRunEntry.spec.key.includes('cave_floor')
-        ));
+        (generatedRunEntry?.designFloorId as string) === "liquidatorbase" ||
+        (generatedRunEntry?.designFloorId as string) === "horrorfloor" ||
+        (generatedRunEntry?.designFloorId as string) === "cave_floor" ||
+        (generatedRunEntry?.spec?.key &&
+          (generatedRunEntry.spec.key.includes("liquidatorbase") ||
+            generatedRunEntry.spec.key.includes("horrorfloor") ||
+            generatedRunEntry.spec.key.includes("cave_floor")));
 
       if (isCinematicFloor && !activeFloorInstance && !route.activeInstance) {
         // Preset waypoints (simple flight path from player's starting position)
         const waypoints = [
           [player.x, player.y],
-          [player.x + Math.cos(player.angle) * 4, player.y + Math.sin(player.angle) * 4],
-          [player.x + Math.cos(player.angle + Math.PI / 4) * 8, player.y + Math.sin(player.angle + Math.PI / 4) * 8]
+          [
+            player.x + Math.cos(player.angle) * 4,
+            player.y + Math.sin(player.angle) * 4,
+          ],
+          [
+            player.x + Math.cos(player.angle + Math.PI / 4) * 8,
+            player.y + Math.sin(player.angle + Math.PI / 4) * 8,
+          ],
         ];
         startCinematicCamera(runtimeCamera, player.x, player.y, waypoints);
       }
@@ -4300,8 +5808,8 @@ function debugTeleportTo(target: DebugTeleportTarget): void {
   const savedNeeds = player.needs ? { ...player.needs } : freshNeeds();
   const savedHp = player.hp ?? 100;
   const savedMaxHp = player.maxHp ?? 100;
-  const savedWeapon = player.weapon ?? '';
-  const savedTool = player.tool ?? '';
+  const savedWeapon = player.weapon ?? "";
+  const savedTool = player.tool ?? "";
   const savedRpg = player.rpg ? { ...player.rpg } : freshRPG(1);
   const savedStatuses = player.statuses ? [...player.statuses] : undefined;
   const savedMoney = player.money ?? 100;
@@ -4329,9 +5837,8 @@ function debugTeleportTo(target: DebugTeleportTarget): void {
 
   scheduleLoading(() => {
     resetGeneratedFloorPopulationState();
-    const targetEntry = target.spec || target.designFloorId
-      ? currentFloorRunEntry(state)
-      : null;
+    const targetEntry =
+      target.spec || target.designFloorId ? currentFloorRunEntry(state) : null;
     const loaded = loadFloorForTarget(target.floor, targetEntry);
     const gen = loaded.generation;
 
@@ -4381,8 +5888,19 @@ function debugTeleportTo(target: DebugTeleportTarget): void {
     resetPsiState();
     clearLiftArachnaActive(state);
 
-    state.msgs.push(msg(`[DEBUG] Телепорт: ${target.label}`, state.time, target.color));
-    const transitionTags = ['floor', 'floor_transition', 'debug', target.spec ? 'procedural' : target.designFloorId ? 'design_floor' : 'story'];
+    state.msgs.push(
+      msg(`[DEBUG] Телепорт: ${target.label}`, state.time, target.color),
+    );
+    const transitionTags = [
+      "floor",
+      "floor_transition",
+      "debug",
+      target.spec
+        ? "procedural"
+        : target.designFloorId
+          ? "design_floor"
+          : "story",
+    ];
     const tagsToAdd = proceduralAnomalyEventTags(target.spec);
     if (tagsToAdd.length > 0) {
       const tagSet = new Set(transitionTags);
@@ -4395,15 +5913,16 @@ function debugTeleportTo(target: DebugTeleportTarget): void {
     }
     const anomalyData = proceduralAnomalyEventData(target.spec);
     publishEvent(state, {
-      type: 'floor_transition',
-      zoneId: world.zoneMap[world.idx(Math.floor(player.x), Math.floor(player.y))],
+      type: "floor_transition",
+      zoneId:
+        world.zoneMap[world.idx(Math.floor(player.x), Math.floor(player.y))],
       x: player.x,
       y: player.y,
       actorId: player.id,
       actorName: player.name,
       actorFaction: player.faction,
       severity: 3,
-      privacy: 'local',
+      privacy: "local",
       tags: transitionTags,
       data: {
         fromFloor,
@@ -4418,11 +5937,20 @@ function debugTeleportTo(target: DebugTeleportTarget): void {
       },
     });
 
-    if (!target.spec && !target.designFloorId && target.floor === FloorLevel.HELL) {
+    if (
+      !target.spec &&
+      !target.designFloorId &&
+      target.floor === FloorLevel.HELL
+    ) {
       onHellArrival(player, state);
       tryCreateVoiceQuest(world, entities, state);
     }
-    if (!target.spec && !target.designFloorId && target.floor === FloorLevel.VOID) onVoidEntry(state);
+    if (
+      !target.spec &&
+      !target.designFloorId &&
+      target.floor === FloorLevel.VOID
+    )
+      onVoidEntry(state);
 
     ensureRoomContainers(world, state.currentFloor);
     ensureProductionRooms(state, world);
@@ -4438,12 +5966,13 @@ function debugTeleportTo(target: DebugTeleportTarget): void {
 
 function debugTeleportToRandomProceduralFloor(): void {
   const run = ensureFloorRunState(state);
-  const z = PROCEDURAL_FLOOR_ZS[Math.floor(Math.random() * PROCEDURAL_FLOOR_ZS.length)];
+  const z =
+    PROCEDURAL_FLOOR_ZS[Math.floor(Math.random() * PROCEDURAL_FLOOR_ZS.length)];
   const spec = run.specs[proceduralFloorKey(z)];
   debugTeleportTo({
     floor: spec.baseFloor,
     label: `Этаж ${formatFloorZ(z)}: ${spec.title}`,
-    color: spec.anomalyId === 'none' ? '#8cf' : '#c8f',
+    color: spec.anomalyId === "none" ? "#8cf" : "#c8f",
     spec,
   });
 }
@@ -4451,33 +5980,39 @@ function debugTeleportToRandomProceduralFloor(): void {
 function debugTeleportToProceduralAnomaly(anomalyId: FloorAnomalyId): void {
   const spec = forceProceduralFloorAnomaly(state, anomalyId);
   if (!spec) {
-    state.msgs.push(msg(`[DEBUG] Нет процедурного этажа для аномалии ${anomalyId}`, state.time, '#f84'));
+    state.msgs.push(
+      msg(
+        `[DEBUG] Нет процедурного этажа для аномалии ${anomalyId}`,
+        state.time,
+        "#f84",
+      ),
+    );
     return;
   }
   debugTeleportTo({
     floor: spec.baseFloor,
     label: `Этаж ${formatFloorZ(spec.z)}: ${spec.title}`,
-    color: '#c8f',
+    color: "#c8f",
     spec,
   });
 }
 
 function handleDebugCommandAction(action: DebugCommandAction): void {
   switch (action.type) {
-    case 'teleport_story_floor':
+    case "teleport_story_floor":
       debugTeleportTo({
         floor: action.floor,
         label: FLOOR_NAMES[action.floor],
         color: FLOOR_MESSAGE_COLORS[action.floor],
       });
       break;
-    case 'teleport_random_procedural_floor':
+    case "teleport_random_procedural_floor":
       debugTeleportToRandomProceduralFloor();
       break;
-    case 'teleport_procedural_anomaly':
+    case "teleport_procedural_anomaly":
       debugTeleportToProceduralAnomaly(action.anomalyId);
       break;
-    case 'teleport_design_floor':
+    case "teleport_design_floor":
       debugTeleportTo({
         floor: action.floor,
         label: `Этаж ${formatFloorZ(action.z)}: ${action.label}`,
@@ -4486,7 +6021,7 @@ function handleDebugCommandAction(action: DebugCommandAction): void {
         designFloorId: action.id,
       });
       break;
-    case 'refresh_world_data':
+    case "refresh_world_data":
       updateWorldData(world);
       break;
   }
@@ -4498,22 +6033,27 @@ function openNpcMenu(npc: Entity): void {
   clearTradeOffers(state);
   state.showNpcMenu = true;
   state.npcMenuTarget = npc.id;
-  state.npcMenuTab = 'main';
-  state.npcTalkText = '';
+  state.npcMenuTab = "main";
+  state.npcTalkText = "";
   state.tradeCursorX = 0;
   state.tradeCursorY = 0;
-  state.tradeSide = 'npc';
+  state.tradeSide = "npc";
   // Generate NPC trade inventory if empty
   if (!npc.inventory || npc.inventory.length === 0) {
     npc.inventory = generateNpcTradeItems(npc);
   }
   state.npcMenuSel = npcMenuSelectionFor(
     { state, player, npc, entities },
-    npcHasImportantQuestAction(npc, state) ? 'quest' : 'talk',
+    npcHasImportantQuestAction(npc, state) ? "quest" : "talk",
   );
   primeTradePriceCache(state, [npc.inventory, player.inventory]);
-  const report = tryReportLiquidatorCultClashAftermath(state, world, player, npc);
-  if (report) state.msgs.push(msg(report, state.time, '#8cf'));
+  const report = tryReportLiquidatorCultClashAftermath(
+    state,
+    world,
+    player,
+    npc,
+  );
+  if (report) state.msgs.push(msg(report, state.time, "#8cf"));
 }
 
 function openContainerMenu(container: WorldContainer): void {
@@ -4521,12 +6061,14 @@ function openContainerMenu(container: WorldContainer): void {
   state.containerMenuTarget = container.id;
   state.containerCursorX = 0;
   state.containerCursorY = 0;
-  state.containerSide = 'container';
+  state.containerSide = "container";
   const access = containerAccessInfo(container, player, state);
   if (!access.canTake && !access.canPut) {
-    state.msgs.push(msg(access.detail, state.time, '#f84'));
+    state.msgs.push(msg(access.detail, state.time, "#f84"));
   } else if (access.theft) {
-    state.msgs.push(msg('Чужой контейнер: взятие будет кражей.', state.time, '#f84'));
+    state.msgs.push(
+      msg("Чужой контейнер: взятие будет кражей.", state.time, "#f84"),
+    );
   }
 }
 
@@ -4535,15 +6077,15 @@ function closeContainerMenu(): void {
   state.containerMenuTarget = -1;
   state.containerCursorX = 0;
   state.containerCursorY = 0;
-  state.containerSide = 'container';
+  state.containerSide = "container";
 }
 
 function closeCraftMenu(): void {
   state.showCraftMenu = false;
-  state.craftMode = 'craft';
+  state.craftMode = "craft";
   state.craftCursor = 0;
-  state.craftFilter = '';
-  state.craftStationKind = 'lathe';
+  state.craftFilter = "";
+  state.craftStationKind = "lathe";
 }
 
 function closeInterfacesForCraftMenu(): void {
@@ -4578,19 +6120,23 @@ function openCraftMenu(request: ContentCraftMenuRequest): void {
   state.craftMode = request.mode;
   state.craftStationKind = request.station;
   state.craftCursor = 0;
-  state.craftFilter = '';
+  state.craftFilter = "";
   resetMenuRepeats();
   syncPauseState();
   updateMobileContext(true);
 }
 
-function learnCraftRecipeFromInteraction(request: ContentRecipeLearnRequest): boolean {
+function learnCraftRecipeFromInteraction(
+  request: ContentRecipeLearnRequest,
+): boolean {
   if (request.recipeSourceId) {
     const source = getCraftRecipeSource(request.recipeSourceId);
     if (!source) return false;
     const result = learnCraftRecipesFromSource(state, source);
     for (const recipeId of result.learned) {
-      state.msgs.push(msg(craftRecipeLearnedMessage(recipeId), state.time, '#8cf'));
+      state.msgs.push(
+        msg(craftRecipeLearnedMessage(recipeId), state.time, "#8cf"),
+      );
     }
     return result.learned.length > 0;
   }
@@ -4601,7 +6147,7 @@ function learnCraftRecipeFromInteraction(request: ContentRecipeLearnRequest): bo
 function pushCraftActionResult(result: CraftingActionResult): void {
   const last = state.msgs.at(-1);
   if (last?.text === result.message) return;
-  state.msgs.push(msg(result.message, state.time, result.ok ? '#8cf' : '#f84'));
+  state.msgs.push(msg(result.message, state.time, result.ok ? "#8cf" : "#f84"));
 }
 
 function clampCraftMenuCursor(): void {
@@ -4613,9 +6159,13 @@ function clampCraftMenuCursor(): void {
     filter: state.craftFilter,
   });
   const entries = craftMenuEntries(snapshot);
-  state.craftCursor = entries.length === 0
-    ? 0
-    : Math.max(0, Math.min(entries.length - 1, Math.floor(state.craftCursor)));
+  state.craftCursor =
+    entries.length === 0
+      ? 0
+      : Math.max(
+          0,
+          Math.min(entries.length - 1, Math.floor(state.craftCursor)),
+        );
 }
 
 function activateCraftSelection(): void {
@@ -4628,15 +6178,37 @@ function activateCraftSelection(): void {
   });
   const entries = craftMenuEntries(snapshot);
   if (entries.length === 0) {
-    state.msgs.push(msg(state.craftMode === 'craft' ? 'Известных рецептов нет.' : 'Инвентарь пуст.', state.time, '#888'));
+    state.msgs.push(
+      msg(
+        state.craftMode === "craft"
+          ? "Известных рецептов нет."
+          : "Инвентарь пуст.",
+        state.time,
+        "#888",
+      ),
+    );
     state.craftCursor = 0;
     return;
   }
-  state.craftCursor = Math.max(0, Math.min(entries.length - 1, Math.floor(state.craftCursor)));
+  state.craftCursor = Math.max(
+    0,
+    Math.min(entries.length - 1, Math.floor(state.craftCursor)),
+  );
   const entry = entries[state.craftCursor];
-  const result = entry.kind === 'recipe'
-    ? craftKnownRecipe({ actor: player, state, stationKind: state.craftStationKind, recipeId: entry.id })
-    : disassembleInventorySlot({ actor: player, state, stationKind: state.craftStationKind, slotIndex: entry.slotIndex });
+  const result =
+    entry.kind === "recipe"
+      ? craftKnownRecipe({
+          actor: player,
+          state,
+          stationKind: state.craftStationKind,
+          recipeId: entry.id,
+        })
+      : disassembleInventorySlot({
+          actor: player,
+          state,
+          stationKind: state.craftStationKind,
+          slotIndex: entry.slotIndex,
+        });
   pushCraftActionResult(result);
   clampCraftMenuCursor();
 }
@@ -4668,9 +6240,9 @@ function toggleSelectedQuestActive(): void {
   const wasActive = state.activeQuestId === quest.id;
   const selected = toggleActiveQuest(state, quest.id);
   if (wasActive) {
-    state.msgs.push(msg('Активная цель снята.', state.time, '#888'));
+    state.msgs.push(msg("Активная цель снята.", state.time, "#888"));
   } else if (selected) {
-    state.msgs.push(msg(`Активная цель: ${selected.desc}`, state.time, '#fc4'));
+    state.msgs.push(msg(`Активная цель: ${selected.desc}`, state.time, "#fc4"));
   }
 }
 
@@ -4681,34 +6253,55 @@ const SAVE_QUEST_CAP = 512;
 const SAVE_TEXT_CAP = 192;
 const MAX_SAVE_MONEY = 999_999;
 const MAX_QUEST_TIME_LIMIT_MINUTES = 5 * 24 * 60;
-const EVENT_PRIVACIES: readonly WorldEventPrivacy[] = ['public', 'local', 'witnessed', 'private', 'secret'];
+const EVENT_PRIVACIES: readonly WorldEventPrivacy[] = [
+  "public",
+  "local",
+  "witnessed",
+  "private",
+  "secret",
+];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value);
+  return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
 function finiteInt(value: unknown, fallback: number): number {
   return Math.trunc(finiteNumber(value, fallback));
 }
 
-function clampNumber(value: unknown, fallback: number, min: number, max: number): number {
+function clampNumber(
+  value: unknown,
+  fallback: number,
+  min: number,
+  max: number,
+): number {
   return Math.max(min, Math.min(max, finiteNumber(value, fallback)));
 }
 
-function clampInt(value: unknown, fallback: number, min: number, max: number): number {
+function clampInt(
+  value: unknown,
+  fallback: number,
+  min: number,
+  max: number,
+): number {
   return Math.max(min, Math.min(max, finiteInt(value, fallback)));
 }
 
-function cleanSaveText(value: unknown, fallback = '', max = SAVE_TEXT_CAP): string {
-  return typeof value === 'string' ? value.slice(0, max) : fallback;
+function cleanSaveText(
+  value: unknown,
+  fallback = "",
+  max = SAVE_TEXT_CAP,
+): string {
+  return typeof value === "string" ? value.slice(0, max) : fallback;
 }
 
 function compactSaveData(value: unknown, depth = 0): unknown {
   if (value === undefined) return undefined;
   if (value === null) return null;
-  if (typeof value === 'string') return value.slice(0, 512);
-  if (typeof value === 'number') return Number.isFinite(value) ? value : undefined;
-  if (typeof value === 'boolean') return value;
+  if (typeof value === "string") return value.slice(0, 512);
+  if (typeof value === "number")
+    return Number.isFinite(value) ? value : undefined;
+  if (typeof value === "boolean") return value;
   if (Array.isArray(value)) {
     if (depth >= 2) return undefined;
     const out: unknown[] = [];
@@ -4745,8 +6338,14 @@ function normalizeNeeds(input: unknown): Needs {
     sleep: clampNumber(src.sleep, base.sleep, 0, 100),
     pee: clampNumber(src.pee, base.pee, 0, 100),
     poo: clampNumber(src.poo, base.poo, 0, 100),
-    pendingPee: src.pendingPee === undefined ? undefined : clampNumber(src.pendingPee, 0, 0, 100),
-    pendingPoo: src.pendingPoo === undefined ? undefined : clampNumber(src.pendingPoo, 0, 0, 100),
+    pendingPee:
+      src.pendingPee === undefined
+        ? undefined
+        : clampNumber(src.pendingPee, 0, 0, 100),
+    pendingPoo:
+      src.pendingPoo === undefined
+        ? undefined
+        : clampNumber(src.pendingPoo, 0, 0, 100),
   };
 }
 
@@ -4755,14 +6354,23 @@ function normalizeInventory(input: unknown): Item[] {
   const out: Item[] = [];
   for (const raw of input) {
     if (out.length >= SAVE_INVENTORY_SLOT_CAP || !isRecord(raw)) break;
-    const defId = cleanSaveText(raw.defId, '', 64);
+    const defId = cleanSaveText(raw.defId, "", 64);
     const def = ITEMS[defId];
     if (!def) continue;
-    let count = clampInt(raw.count, 1, 1, Math.max(1, getStack(def) * SAVE_INVENTORY_SLOT_CAP));
+    let count = clampInt(
+      raw.count,
+      1,
+      1,
+      Math.max(1, getStack(def) * SAVE_INVENTORY_SLOT_CAP),
+    );
     const data = compactSaveData(raw.data);
     while (count > 0 && out.length < SAVE_INVENTORY_SLOT_CAP) {
       const add = Math.min(count, getStack(def));
-      out.push(data === undefined ? { defId, count: add } : { defId, count: add, data });
+      out.push(
+        data === undefined
+          ? { defId, count: add }
+          : { defId, count: add, data },
+      );
       count -= add;
     }
   }
@@ -4772,16 +6380,15 @@ function normalizeInventory(input: unknown): Item[] {
 function normalizeEquippedItem(
   value: unknown,
   inventory: readonly Item[],
-  equipSlot: 'weapon' | 'tool',
+  equipSlot: "weapon" | "tool",
 ): string {
-  const defId = cleanSaveText(value, '', 64);
-  if (!defId || !inventory.some(slot => slot.defId === defId)) return '';
+  const defId = cleanSaveText(value, "", 64);
+  if (!defId || !inventory.some((slot) => slot.defId === defId)) return "";
   const def = ITEMS[defId];
-  if (!def || itemEquipSlot(def) !== equipSlot) return '';
-  if (equipSlot === 'weapon' && !WEAPON_STATS[defId]) return '';
+  if (!def || itemEquipSlot(def) !== equipSlot) return "";
+  if (equipSlot === "weapon" && !WEAPON_STATS[defId]) return "";
   return defId;
 }
-
 
 function normalizeClock(input: unknown): GameClock {
   const src = isRecord(input) ? input : {};
@@ -4794,40 +6401,55 @@ function normalizeClock(input: unknown): GameClock {
 }
 
 function normalizeQuestType(value: unknown): QuestType | undefined {
-  return typeof value === 'number' && QuestType[value] !== undefined ? value as QuestType : undefined;
+  return typeof value === "number" && QuestType[value] !== undefined
+    ? (value as QuestType)
+    : undefined;
 }
 
 function normalizeRoomType(value: unknown): RoomType | undefined {
-  return typeof value === 'number' && RoomType[value] !== undefined ? value as RoomType : undefined;
+  return typeof value === "number" && RoomType[value] !== undefined
+    ? (value as RoomType)
+    : undefined;
 }
 
 function normalizeMonsterKind(value: unknown): MonsterKind | undefined {
-  return typeof value === 'number' && MonsterKind[value] !== undefined ? value as MonsterKind : undefined;
+  return typeof value === "number" && MonsterKind[value] !== undefined
+    ? (value as MonsterKind)
+    : undefined;
 }
 
 function normalizeFaction(value: unknown): Faction | undefined {
-  return typeof value === 'number' && Faction[value] !== undefined ? value as Faction : undefined;
+  return typeof value === "number" && Faction[value] !== undefined
+    ? (value as Faction)
+    : undefined;
 }
 
 function normalizeEventPrivacy(value: unknown): WorldEventPrivacy | undefined {
-  return typeof value === 'string' && EVENT_PRIVACIES.includes(value as WorldEventPrivacy)
-    ? value as WorldEventPrivacy
+  return typeof value === "string" &&
+    EVENT_PRIVACIES.includes(value as WorldEventPrivacy)
+    ? (value as WorldEventPrivacy)
     : undefined;
 }
 
-function normalizeEventSeverity(value: unknown): WorldEventSeverity | undefined {
-  return typeof value === 'number' && Number.isFinite(value)
-    ? Math.max(0, Math.min(5, Math.round(value))) as WorldEventSeverity
+function normalizeEventSeverity(
+  value: unknown,
+): WorldEventSeverity | undefined {
+  return typeof value === "number" && Number.isFinite(value)
+    ? (Math.max(0, Math.min(5, Math.round(value))) as WorldEventSeverity)
     : undefined;
 }
 
-function normalizeStringArray(value: unknown, maxItems = 8, maxLen = 48): string[] | undefined {
+function normalizeStringArray(
+  value: unknown,
+  maxItems = 8,
+  maxLen = 48,
+): string[] | undefined {
   if (!Array.isArray(value)) return undefined;
   const out: string[] = [];
   const seen = new Set<string>();
   for (const raw of value) {
     if (out.length >= maxItems) break;
-    if (typeof raw !== 'string') continue;
+    if (typeof raw !== "string") continue;
     const clean = raw.slice(0, maxLen);
     if (clean && !seen.has(clean)) {
       seen.add(clean);
@@ -4837,100 +6459,139 @@ function normalizeStringArray(value: unknown, maxItems = 8, maxLen = 48): string
   return out.length > 0 ? out : undefined;
 }
 
-function normalizeRewardList(value: unknown): Quest['extraRewards'] | undefined {
+function normalizeRewardList(
+  value: unknown,
+): Quest["extraRewards"] | undefined {
   if (!Array.isArray(value)) return undefined;
   const out: { defId: string; count: number }[] = [];
   for (const raw of value) {
     if (out.length >= 8 || !isRecord(raw)) break;
-    const defId = cleanSaveText(raw.defId, '', 64);
+    const defId = cleanSaveText(raw.defId, "", 64);
     if (!ITEMS[defId]) continue;
     out.push({ defId, count: clampInt(raw.count, 1, 1, 999) });
   }
   return out.length > 0 ? out : undefined;
 }
 
-function normalizeQuestTargetRoute(value: unknown): Quest['targetRoute'] | undefined {
+function normalizeQuestTargetRoute(
+  value: unknown,
+): Quest["targetRoute"] | undefined {
   if (!isRecord(value)) return undefined;
-  const out: NonNullable<Quest['targetRoute']> = {};
-  const designFloorId = cleanSaveText(value.designFloorId, '', 64);
-  if (designFloorId && DESIGN_FLOOR_ROUTES.some(route => route.id === designFloorId)) out.designFloorId = designFloorId;
-  if (typeof value.z === 'number' && Number.isFinite(value.z)) out.z = clampInt(value.z, 0, -50, 50);
-  const anomalyId = cleanSaveText(value.anomalyId, '', 64);
+  const out: NonNullable<Quest["targetRoute"]> = {};
+  const designFloorId = cleanSaveText(value.designFloorId, "", 64);
+  if (
+    designFloorId &&
+    DESIGN_FLOOR_ROUTES.some((route) => route.id === designFloorId)
+  )
+    out.designFloorId = designFloorId;
+  if (typeof value.z === "number" && Number.isFinite(value.z))
+    out.z = clampInt(value.z, 0, -50, 50);
+  const anomalyId = cleanSaveText(value.anomalyId, "", 64);
   if (anomalyId) out.anomalyId = anomalyId;
-  const proceduralTag = cleanSaveText(value.proceduralTag, '', 64);
+  const proceduralTag = cleanSaveText(value.proceduralTag, "", 64);
   if (proceduralTag) out.proceduralTag = proceduralTag;
   const tags = normalizeStringArray(value.tags, 8, 48);
   if (tags) out.tags = tags;
-  const label = cleanSaveText(value.label, '', 96);
+  const label = cleanSaveText(value.label, "", 96);
   if (label) out.label = label;
   if (value.risk !== undefined) out.risk = clampInt(value.risk, 1, 1, 5);
   return Object.keys(out).length > 0 ? out : undefined;
 }
 
 function normalizeQuestTargets(q: Quest, raw: Record<string, unknown>): void {
-  const targetItem = cleanSaveText(raw.targetItem, '', 64);
-  if (targetItem === 'money' || ITEMS[targetItem]) q.targetItem = targetItem;
-  if (raw.targetCount !== undefined) q.targetCount = clampInt(raw.targetCount, 1, 1, 999);
-  if (typeof raw.targetRoom === 'number' && Number.isFinite(raw.targetRoom)) {
+  const targetItem = cleanSaveText(raw.targetItem, "", 64);
+  if (targetItem === "money" || ITEMS[targetItem]) q.targetItem = targetItem;
+  if (raw.targetCount !== undefined)
+    q.targetCount = clampInt(raw.targetCount, 1, 1, 999);
+  if (typeof raw.targetRoom === "number" && Number.isFinite(raw.targetRoom)) {
     q.targetRoom = clampInt(raw.targetRoom, -1, -1, 100_000);
   }
   if (isFloorLevel(raw.targetFloor)) q.targetFloor = raw.targetFloor;
   const targetRoomType = normalizeRoomType(raw.targetRoomType);
   if (targetRoomType !== undefined) q.targetRoomType = targetRoomType;
-  const targetRoomName = cleanSaveText(raw.targetRoomName, '', 96);
+  const targetRoomName = cleanSaveText(raw.targetRoomName, "", 96);
   if (targetRoomName) q.targetRoomName = targetRoomName;
-  const targetZoneTag = cleanSaveText(raw.targetZoneTag, '', 48);
+  const targetZoneTag = cleanSaveText(raw.targetZoneTag, "", 48);
   if (targetZoneTag) q.targetZoneTag = targetZoneTag;
   q.targetRoute = normalizeQuestTargetRoute(raw.targetRoute);
   const targetHint = cleanSaveText(raw.targetHint);
   if (targetHint) q.targetHint = targetHint;
   const targetMonsterKind = normalizeMonsterKind(raw.targetMonsterKind);
   if (targetMonsterKind !== undefined) q.targetMonsterKind = targetMonsterKind;
-  if (raw.killCount !== undefined) q.killCount = clampInt(raw.killCount, 0, 0, 999);
-  if (raw.killNeeded !== undefined) q.killNeeded = clampInt(raw.killNeeded, 1, 1, 999);
-  if (typeof raw.targetNpcId === 'number' && Number.isFinite(raw.targetNpcId)) {
+  if (raw.killCount !== undefined)
+    q.killCount = clampInt(raw.killCount, 0, 0, 999);
+  if (raw.killNeeded !== undefined)
+    q.killNeeded = clampInt(raw.killNeeded, 1, 1, 999);
+  if (typeof raw.targetNpcId === "number" && Number.isFinite(raw.targetNpcId)) {
     q.targetNpcId = clampInt(raw.targetNpcId, -1, -1, 1_000_000);
   }
-  const targetNpcName = cleanSaveText(raw.targetNpcName, '', 96);
+  const targetNpcName = cleanSaveText(raw.targetNpcName, "", 96);
   if (targetNpcName) q.targetNpcName = targetNpcName;
-  const targetPlotNpcId = cleanSaveText(raw.targetPlotNpcId, '', 64);
+  const targetPlotNpcId = cleanSaveText(raw.targetPlotNpcId, "", 64);
   if (targetPlotNpcId) q.targetPlotNpcId = targetPlotNpcId;
 }
 
 function normalizeQuestRewards(q: Quest, raw: Record<string, unknown>): void {
-  const rewardItem = cleanSaveText(raw.rewardItem, '', 64);
+  const rewardItem = cleanSaveText(raw.rewardItem, "", 64);
   if (ITEMS[rewardItem]) q.rewardItem = rewardItem;
-  if (raw.rewardCount !== undefined) q.rewardCount = clampInt(raw.rewardCount, 1, 1, 999);
+  if (raw.rewardCount !== undefined)
+    q.rewardCount = clampInt(raw.rewardCount, 1, 1, 999);
   q.extraRewards = normalizeRewardList(raw.extraRewards);
-  if (raw.relationDelta !== undefined) q.relationDelta = clampInt(raw.relationDelta, 0, -100, 100);
-  if (raw.difficulty !== undefined) q.difficulty = clampNumber(raw.difficulty, 1, 0, 10);
-  if (raw.xpReward !== undefined) q.xpReward = clampInt(raw.xpReward, 0, 0, 100_000);
-  if (raw.moneyReward !== undefined) q.moneyReward = clampInt(raw.moneyReward, 0, 0, MAX_SAVE_MONEY);
+  if (raw.relationDelta !== undefined)
+    q.relationDelta = clampInt(raw.relationDelta, 0, -100, 100);
+  if (raw.difficulty !== undefined)
+    q.difficulty = clampNumber(raw.difficulty, 1, 0, 10);
+  if (raw.xpReward !== undefined)
+    q.xpReward = clampInt(raw.xpReward, 0, 0, 100_000);
+  if (raw.moneyReward !== undefined)
+    q.moneyReward = clampInt(raw.moneyReward, 0, 0, MAX_SAVE_MONEY);
 }
 
 function normalizeQuestMeta(q: Quest, raw: Record<string, unknown>): void {
-  if (typeof raw.plotStepIndex === 'number' && Number.isFinite(raw.plotStepIndex)) {
+  if (
+    typeof raw.plotStepIndex === "number" &&
+    Number.isFinite(raw.plotStepIndex)
+  ) {
     q.plotStepIndex = clampInt(raw.plotStepIndex, 0, 0, 10_000);
   }
-  const sideQuestId = cleanSaveText(raw.sideQuestId, '', 96);
+  const sideQuestId = cleanSaveText(raw.sideQuestId, "", 96);
   if (sideQuestId) q.sideQuestId = sideQuestId;
-  const contractId = cleanSaveText(raw.contractId, '', 96);
+  const contractId = cleanSaveText(raw.contractId, "", 96);
   if (contractId) q.contractId = contractId;
   const contractFaction = normalizeFaction(raw.contractFaction);
   if (contractFaction !== undefined) q.contractFaction = contractFaction;
-  if (raw.contractRank !== undefined) q.contractRank = clampInt(raw.contractRank, 0, 0, 10);
+  if (raw.contractRank !== undefined)
+    q.contractRank = clampInt(raw.contractRank, 0, 0, 10);
   if (isFloorLevel(raw.visitFloor)) q.visitFloor = raw.visitFloor;
 }
 
 function normalizeQuestHold(q: Quest, raw: Record<string, unknown>): void {
-  if (raw.holdSeconds !== undefined) q.holdSeconds = clampInt(raw.holdSeconds, 0, 1, 3600);
-  if (raw.holdProgressSeconds !== undefined) q.holdProgressSeconds = clampNumber(raw.holdProgressSeconds, 0, 0, 3600);
-  if (raw.holdLastTime !== undefined) q.holdLastTime = clampNumber(raw.holdLastTime, 0, 0, 1_000_000_000);
-  if (raw.holdResetOnExit !== undefined) q.holdResetOnExit = raw.holdResetOnExit === true;
-  if (raw.holdSpawnMonsters !== undefined) q.holdSpawnMonsters = clampInt(raw.holdSpawnMonsters, 0, 0, 32);
-  if (raw.holdSpawnIntervalSeconds !== undefined) q.holdSpawnIntervalSeconds = clampNumber(raw.holdSpawnIntervalSeconds, 1, 1, 600);
-  if (raw.holdSpawnMaxAlive !== undefined) q.holdSpawnMaxAlive = clampInt(raw.holdSpawnMaxAlive, 1, 1, 64);
-  if (raw.holdSpawnLastTime !== undefined) q.holdSpawnLastTime = clampNumber(raw.holdSpawnLastTime, 0, 0, 1_000_000_000);
+  if (raw.holdSeconds !== undefined)
+    q.holdSeconds = clampInt(raw.holdSeconds, 0, 1, 3600);
+  if (raw.holdProgressSeconds !== undefined)
+    q.holdProgressSeconds = clampNumber(raw.holdProgressSeconds, 0, 0, 3600);
+  if (raw.holdLastTime !== undefined)
+    q.holdLastTime = clampNumber(raw.holdLastTime, 0, 0, 1_000_000_000);
+  if (raw.holdResetOnExit !== undefined)
+    q.holdResetOnExit = raw.holdResetOnExit === true;
+  if (raw.holdSpawnMonsters !== undefined)
+    q.holdSpawnMonsters = clampInt(raw.holdSpawnMonsters, 0, 0, 32);
+  if (raw.holdSpawnIntervalSeconds !== undefined)
+    q.holdSpawnIntervalSeconds = clampNumber(
+      raw.holdSpawnIntervalSeconds,
+      1,
+      1,
+      600,
+    );
+  if (raw.holdSpawnMaxAlive !== undefined)
+    q.holdSpawnMaxAlive = clampInt(raw.holdSpawnMaxAlive, 1, 1, 64);
+  if (raw.holdSpawnLastTime !== undefined)
+    q.holdSpawnLastTime = clampNumber(
+      raw.holdSpawnLastTime,
+      0,
+      0,
+      1_000_000_000,
+    );
 }
 
 function normalizeQuestEvents(q: Quest, raw: Record<string, unknown>): void {
@@ -4941,21 +6602,37 @@ function normalizeQuestEvents(q: Quest, raw: Record<string, unknown>): void {
   q.eventSeverity = normalizeEventSeverity(raw.eventSeverity);
   const eventTargetName = cleanSaveText(raw.eventTargetName);
   if (eventTargetName) q.eventTargetName = eventTargetName;
-  const failOnNpcDeathPlotId = cleanSaveText(raw.failOnNpcDeathPlotId, '', 64);
+  const failOnNpcDeathPlotId = cleanSaveText(raw.failOnNpcDeathPlotId, "", 64);
   if (failOnNpcDeathPlotId) q.failOnNpcDeathPlotId = failOnNpcDeathPlotId;
-  q.abandonsSideQuestIds = normalizeStringArray(raw.abandonsSideQuestIds, 12, 96);
+  q.abandonsSideQuestIds = normalizeStringArray(
+    raw.abandonsSideQuestIds,
+    12,
+    96,
+  );
 }
 
-function normalizeQuestTimeLimit(q: Quest, raw: Record<string, unknown>, nowMinutes: number): void {
-  const timeLimit = raw.timeLimitMinutes === undefined
-    ? undefined
-    : clampInt(raw.timeLimitMinutes, 0, 1, MAX_QUEST_TIME_LIMIT_MINUTES);
-  let expiresAt = raw.expiresAtMinutes === undefined
-    ? undefined
-    : clampInt(raw.expiresAtMinutes, 0, 0, nowMinutes + MAX_QUEST_TIME_LIMIT_MINUTES);
+function normalizeQuestTimeLimit(
+  q: Quest,
+  raw: Record<string, unknown>,
+  nowMinutes: number,
+): void {
+  const timeLimit =
+    raw.timeLimitMinutes === undefined
+      ? undefined
+      : clampInt(raw.timeLimitMinutes, 0, 1, MAX_QUEST_TIME_LIMIT_MINUTES);
+  let expiresAt =
+    raw.expiresAtMinutes === undefined
+      ? undefined
+      : clampInt(
+          raw.expiresAtMinutes,
+          0,
+          0,
+          nowMinutes + MAX_QUEST_TIME_LIMIT_MINUTES,
+        );
   if (timeLimit !== undefined) {
     q.timeLimitMinutes = timeLimit;
-    if (expiresAt === undefined && !q.done) expiresAt = Math.ceil(nowMinutes + timeLimit);
+    if (expiresAt === undefined && !q.done)
+      expiresAt = Math.ceil(nowMinutes + timeLimit);
   }
   if (expiresAt !== undefined) q.expiresAtMinutes = expiresAt;
   if (raw.failed === true) q.failed = true;
@@ -4964,9 +6641,27 @@ function normalizeQuestTimeLimit(q: Quest, raw: Record<string, unknown>, nowMinu
 function isQuestValid(q: Quest): boolean {
   if (!q.done) {
     if (q.type === QuestType.FETCH && !q.targetItem) return false;
-    if (q.type === QuestType.VISIT && q.targetRoom === undefined && q.targetRoomName === undefined && q.targetRoute === undefined && q.visitFloor === undefined) return false;
-    if (q.type === QuestType.KILL && q.targetMonsterKind === undefined && !q.targetPlotNpcId && q.killNeeded === undefined) return false;
-    if (q.type === QuestType.TALK && q.targetNpcId === undefined && !q.targetPlotNpcId) return false;
+    if (
+      q.type === QuestType.VISIT &&
+      q.targetRoom === undefined &&
+      q.targetRoomName === undefined &&
+      q.targetRoute === undefined &&
+      q.visitFloor === undefined
+    )
+      return false;
+    if (
+      q.type === QuestType.KILL &&
+      q.targetMonsterKind === undefined &&
+      !q.targetPlotNpcId &&
+      q.killNeeded === undefined
+    )
+      return false;
+    if (
+      q.type === QuestType.TALK &&
+      q.targetNpcId === undefined &&
+      !q.targetPlotNpcId
+    )
+      return false;
   }
   return true;
 }
@@ -4983,7 +6678,7 @@ function normalizeQuest(raw: unknown, nowMinutes: number): Quest | null {
     id,
     type,
     giverId: clampInt(raw.giverId, -1, -1, 1_000_000),
-    giverName: cleanSaveText(raw.giverName, '???', 96),
+    giverName: cleanSaveText(raw.giverName, "???", 96),
     desc,
     done,
   };
@@ -5000,7 +6695,11 @@ function normalizeQuest(raw: unknown, nowMinutes: number): Quest | null {
   return q;
 }
 
-function normalizeQuestList(input: unknown, nextQuestIdInput: unknown, nowMinutes: number): { quests: Quest[]; nextQuestId: number } {
+function normalizeQuestList(
+  input: unknown,
+  nextQuestIdInput: unknown,
+  nowMinutes: number,
+): { quests: Quest[]; nextQuestId: number } {
   const quests: Quest[] = [];
   if (Array.isArray(input)) {
     for (const raw of input) {
@@ -5016,7 +6715,9 @@ function normalizeQuestList(input: unknown, nextQuestIdInput: unknown, nowMinute
 
 function saveGame(): void {
   try {
-    makeCurrentPlayer(endPsiPossession(entities, player, state.msgs, state.time, 'cancelled'));
+    makeCurrentPlayer(
+      endPsiPossession(entities, player, state.msgs, state.time, "cancelled"),
+    );
     captureCurrentAlifeFloor();
     captureCurrentFloorMemory();
     const data = createGameSavePayload(player, state, world.containers, {
@@ -5033,11 +6734,11 @@ function saveGame(): void {
     void savePlatformRawGameSave(raw, rawBytes, {
       raw: compactRaw,
       bytes: compactBytes,
-      mode: 'compact',
+      mode: "compact",
     });
-    state.msgs.push(msg('Игра сохранена', state.time, '#4f4'));
+    state.msgs.push(msg("Игра сохранена", state.time, "#4f4"));
   } catch {
-    state.msgs.push(msg('Ошибка сохранения!', state.time, '#f44'));
+    state.msgs.push(msg("Ошибка сохранения!", state.time, "#f44"));
   }
 }
 
@@ -5045,57 +6746,95 @@ function loadGame(): boolean {
   try {
     const raw = localStorage.getItem(SAVE_KEY);
     if (!raw) {
-      state.msgs.push(msg('Нет сохранения', state.time, '#f84'));
+      state.msgs.push(msg("Нет сохранения", state.time, "#f84"));
       return false;
     }
     const parsed = safeParseJson(raw);
     const versionStatus = saveShapeVersionStatus(parsed);
-    if (versionStatus !== 'current') {
-      const text = versionStatus === 'newer'
-        ? 'Сохранение новее этой сборки: загрузка отменена'
-        : versionStatus === 'invalid'
-          ? 'Сохранение повреждено: загрузка отменена'
-          : 'Сохранение старой версии: начните новую игру';
-      state.msgs.push(msg(text, state.time, '#f44'));
+    if (versionStatus !== "current") {
+      const text =
+        versionStatus === "newer"
+          ? "Сохранение новее этой сборки: загрузка отменена"
+          : versionStatus === "invalid"
+            ? "Сохранение повреждено: загрузка отменена"
+            : "Сохранение старой версии: начните новую игру";
+      state.msgs.push(msg(text, state.time, "#f44"));
       return false;
     }
     const data = isRecord(parsed) ? parsed : {};
     const dataPlayer = isRecord(data.player) ? data.player : {};
     const dataState = isRecord(data.state) ? data.state : {};
-    const savedFloor = isFloorLevel(dataState.currentFloor) ? dataState.currentFloor : FloorLevel.LIVING;
+    const savedFloor = isFloorLevel(dataState.currentFloor)
+      ? dataState.currentFloor
+      : FloorLevel.LIVING;
     const savedFloorRun = floorRunSaveHasRestorableRoute(dataState.floorRun)
-      ? dataState.floorRun as Parameters<typeof setFloorRunState>[1]
+      ? (dataState.floorRun as Parameters<typeof setFloorRunState>[1])
       : undefined;
     const normalizedNeeds = normalizeNeeds(dataPlayer.needs);
     const normalizedInventory = normalizeInventory(dataPlayer.inventory);
     const normalizedRpg = normalizeSaveRpg(dataPlayer.rpg);
     const normalizedMaxHp = getMaxHp(normalizedRpg);
     const normalizedClock = normalizeClock(dataState.clock);
-    const normalizedQuests = normalizeQuestList(dataState.quests, dataState.nextQuestId, normalizedClock.totalMinutes);
-    const normalizedWeapon = normalizeEquippedItem(dataPlayer.weapon, normalizedInventory, 'weapon');
-    const normalizedTool = normalizeEquippedItem(dataPlayer.tool, normalizedInventory, 'tool');
+    const normalizedQuests = normalizeQuestList(
+      dataState.quests,
+      dataState.nextQuestId,
+      normalizedClock.totalMinutes,
+    );
+    const normalizedWeapon = normalizeEquippedItem(
+      dataPlayer.weapon,
+      normalizedInventory,
+      "weapon",
+    );
+    const normalizedTool = normalizeEquippedItem(
+      dataPlayer.tool,
+      normalizedInventory,
+      "tool",
+    );
 
     setFloorRunState(state, savedFloorRun, savedFloor);
-    const loadedFloorInstances = setFloorInstanceState(state, dataState.floorInstances as Parameters<typeof setFloorInstanceState>[1], savedFloor);
-    setLiftArachnaState(state, dataState.liftArachna as Parameters<typeof setLiftArachnaState>[1]);
-    setPseudoliftState(state, dataState.pseudolift as Parameters<typeof setPseudoliftState>[1]);
-    setNetTerminalGenState(state, dataState.netTerminalGen as Parameters<typeof setNetTerminalGenState>[1]);
-    setMapEditorPatchState(state, dataState.mapEditorPatches as Parameters<typeof setMapEditorPatchState>[1]);
+    const loadedFloorInstances = setFloorInstanceState(
+      state,
+      dataState.floorInstances as Parameters<typeof setFloorInstanceState>[1],
+      savedFloor,
+    );
+    setLiftArachnaState(
+      state,
+      dataState.liftArachna as Parameters<typeof setLiftArachnaState>[1],
+    );
+    setPseudoliftState(
+      state,
+      dataState.pseudolift as Parameters<typeof setPseudoliftState>[1],
+    );
+    setNetTerminalGenState(
+      state,
+      dataState.netTerminalGen as Parameters<typeof setNetTerminalGenState>[1],
+    );
+    setMapEditorPatchState(
+      state,
+      dataState.mapEditorPatches as Parameters<
+        typeof setMapEditorPatchState
+      >[1],
+    );
     setAlifeState(state, dataState.alife);
     setAlifeMobilityState(state, dataState.alifeMobility);
     restoreDemosSocialFromSave(state, dataState.demosSocial);
     const loadedRunEntry = currentFloorRunEntry(state);
-    const floor = loadedFloorInstances.current?.baseFloor ?? loadedRunEntry.baseFloor ?? savedFloor;
-    const generatedRunEntry = loadedFloorInstances.current ? null : loadedRunEntry;
+    const floor =
+      loadedFloorInstances.current?.baseFloor ??
+      loadedRunEntry.baseFloor ??
+      savedFloor;
+    const generatedRunEntry = loadedFloorInstances.current
+      ? null
+      : loadedRunEntry;
 
     state.showMenu = false;
     state.showHelp = false;
     state.showControls = false;
-    state.controlView = 'keys';
+    state.controlView = "keys";
     state.showUiSettings = false;
     state.showDemos = false;
     state.demosSearchActive = false;
-    state.demosTab = 'profile';
+    state.demosTab = "profile";
     state.demosFeedScroll = 0;
     state.demosPostCursor = 0;
     cancelControlCapture();
@@ -5119,7 +6858,11 @@ function loadGame(): boolean {
         if (id > __maxId) __maxId = id;
       }
       nextEntityId.v = __maxId + 1;
-      materializeCurrentAlifeFloor(generatedRunEntry ? floorRunEntryFloorKey(generatedRunEntry) : currentFloorMemoryKey());
+      materializeCurrentAlifeFloor(
+        generatedRunEntry
+          ? floorRunEntryFloorKey(generatedRunEntry)
+          : currentFloorMemoryKey(),
+      );
       const spawn = safeSpawnNear(
         finiteNumber(dataPlayer.x, gen.spawnX),
         finiteNumber(dataPlayer.y, gen.spawnY),
@@ -5166,30 +6909,53 @@ function loadGame(): boolean {
       netReportedSamosborCount = state.samosborCount;
       netDeathReported = false;
       const savedSamosborActive = dataState.samosborActive === true;
-      state.samosborTimer = clampNumber(dataState.samosborTimer, 120, 0, 24 * 60 * 60);
+      state.samosborTimer = clampNumber(
+        dataState.samosborTimer,
+        120,
+        0,
+        24 * 60 * 60,
+      );
       state.quests = normalizedQuests.quests;
       state.nextQuestId = normalizedQuests.nextQuestId;
       state.tutorialMode = dataState.tutorialMode === true;
-      state.tutorialStep = typeof dataState.tutorialStep === 'number' ? dataState.tutorialStep : undefined;
+      state.tutorialStep =
+        typeof dataState.tutorialStep === "number"
+          ? dataState.tutorialStep
+          : undefined;
       state.currentFloor = floor;
       setFloorRunState(state, savedFloorRun, floor);
       setFloorInstanceState(state, loadedFloorInstances, floor);
-      setLiftArachnaState(state, dataState.liftArachna as Parameters<typeof setLiftArachnaState>[1]);
-      setPseudoliftState(state, dataState.pseudolift as Parameters<typeof setPseudoliftState>[1]);
-      state.worldEvents = normalizeWorldEventState(dataState.worldEvents as Parameters<typeof normalizeWorldEventState>[0]);
+      setLiftArachnaState(
+        state,
+        dataState.liftArachna as Parameters<typeof setLiftArachnaState>[1],
+      );
+      setPseudoliftState(
+        state,
+        dataState.pseudolift as Parameters<typeof setPseudoliftState>[1],
+      );
+      state.worldEvents = normalizeWorldEventState(
+        dataState.worldEvents as Parameters<typeof normalizeWorldEventState>[0],
+      );
       setAlifeMobilityState(state, dataState.alifeMobility);
       restoreComputersFromSave(dataState.computers);
       restoreNetHackFromSave(dataState.netHack);
       state.crafting = restoreCraftingState(dataState.crafting);
       restoreDemosSocialFromSave(state, dataState.demosSocial);
       normalizeGameEconomy(state, dataState.economy);
-      (state as GameState & { banking?: BankingState }).banking = normalizeBankingState(dataState.banking);
+      (state as GameState & { banking?: BankingState }).banking =
+        normalizeBankingState(dataState.banking);
       normalizeGameStockMarket(state, dataState.stockMarket);
       setProductionState(state, dataState.production, floor);
       state.samosborActive = false;
       if (savedSamosborActive) {
         state.samosborTimer = Math.max(state.samosborTimer, 45);
-        state.msgs.push(msg('Активный самосбор из сохранения сброшен: маршрут восстановлен, следующий цикл пересчитан.', state.time, '#fa4'));
+        state.msgs.push(
+          msg(
+            "Активный самосбор из сохранения сброшен: маршрут восстановлен, следующий цикл пересчитан.",
+            state.time,
+            "#fa4",
+          ),
+        );
       }
       state.uvBeamFx = 0;
       state.uvBeamLen = 0;
@@ -5202,11 +6968,11 @@ function loadGame(): boolean {
       state.showMenu = false;
       state.showHelp = false;
       state.showControls = false;
-      state.controlView = 'keys';
+      state.controlView = "keys";
       state.showUiSettings = false;
       state.showDemos = false;
       state.demosSearchActive = false;
-      state.demosTab = 'profile';
+      state.demosTab = "profile";
       state.demosFeedScroll = 0;
       state.demosPostCursor = 0;
       cancelControlCapture();
@@ -5215,7 +6981,8 @@ function loadGame(): boolean {
       setVoidReturnPortalState(state, dataState.voidReturnPortal);
       setVoidEntryFromFloor(state, dataState.voidEntryFromFloor);
       if (!loaded.fromMemory) replayMapEditorForCurrentFloor();
-      if (!loaded.fromMemory && Array.isArray(dataState.containers)) restoreValidContainers(world, state.currentFloor, dataState.containers);
+      if (!loaded.fromMemory && Array.isArray(dataState.containers))
+        restoreValidContainers(world, state.currentFloor, dataState.containers);
       ensureRoomContainers(world, state.currentFloor);
       ensureProductionRooms(state, world);
       placeNetTerminalGenContentForCurrentFloor();
@@ -5225,14 +6992,14 @@ function loadGame(): boolean {
       restoreVoidReturnPortalForCurrentWorld();
       applyStoryRouteGates(world, player, state);
 
-      state.msgs.push(msg('Игра загружена', state.time, '#4af'));
+      state.msgs.push(msg("Игра загружена", state.time, "#4af"));
 
       // Update WebGL world data after load
       finishLoadedFloorVisuals(gen);
     });
     return true;
   } catch {
-    state.msgs.push(msg('Ошибка загрузки!', state.time, '#f44'));
+    state.msgs.push(msg("Ошибка загрузки!", state.time, "#f44"));
     return false;
   }
 }
@@ -5251,14 +7018,14 @@ function applyUrinationPenalty(dt: number): void {
   if (!_urinePenaltyStarted) {
     _urinePenaltyStarted = true;
     publishEvent(state, {
-      type: 'player_urinated',
+      type: "player_urinated",
       actorId: player.id,
       x: player.x,
       y: player.y,
       roomId: room?.id,
       severity: 1,
-      privacy: 'witnessed',
-      tags: ['urination'],
+      privacy: "witnessed",
+      tags: ["urination"],
     });
 
     if (!room || room.type !== RoomType.BATHROOM) {
@@ -5267,7 +7034,7 @@ function applyUrinationPenalty(dt: number): void {
         addFactionRel(ownerFaction, Faction.PLAYER, -1);
         addFactionRel(Faction.PLAYER, ownerFaction, -1);
         addKarma(player, -2);
-        state.msgs.push(msg('Местные недовольны...', state.time, '#f84'));
+        state.msgs.push(msg("Местные недовольны...", state.time, "#f84"));
       } else {
         addKarma(player, -1);
       }
@@ -5306,8 +7073,6 @@ function addRuntimeDoorToRoom(roomId: number, doorIdx: number): void {
   if (room && !room.doors.includes(doorIdx)) room.doors.push(doorIdx);
 }
 
-
-
 function handleUvSpotlightTool(player: Entity, wantsToolUse: boolean): void {
   if (!wantsToolUse || _toolActionCd > 0) return;
   const result = useUvSpotlight(world, entities, player, state);
@@ -5332,8 +7097,18 @@ function handleChalkTool(player: Entity, wantsToolUse: boolean): void {
   }
 }
 
-function handleCoverSeroburmaline(player: Entity, toolId: string, tx: number, ty: number, useEdge: boolean): boolean {
-  if ((toolId === 'cleaning_kit' || toolId === 'vacuum') && useEdge && _toolActionCd <= 0) {
+function handleCoverSeroburmaline(
+  player: Entity,
+  toolId: string,
+  tx: number,
+  ty: number,
+  useEdge: boolean,
+): boolean {
+  if (
+    (toolId === "cleaning_kit" || toolId === "vacuum") &&
+    useEdge &&
+    _toolActionCd <= 0
+  ) {
     if (tryCoverSeroburmalineSource(world, player, state, tx, ty, toolId)) {
       updateWorldData(world);
       _toolActionCd = 0.2;
@@ -5343,73 +7118,112 @@ function handleCoverSeroburmaline(player: Entity, toolId: string, tx: number, ty
   return false;
 }
 
-function handleJackhammerTool(player: Entity, wantsToolUse: boolean, cx: number, cy: number, ci: number): void {
+function handleJackhammerTool(
+  player: Entity,
+  wantsToolUse: boolean,
+  cx: number,
+  cy: number,
+  ci: number,
+): void {
   if (!wantsToolUse || _toolActionCd > 0) return;
   if (world.hermoWall[ci] || world.aptMask[ci]) {
-    state.msgs.push(msg('Гермостена неразрушима', state.time, '#f44'));
+    state.msgs.push(msg("Гермостена неразрушима", state.time, "#f44"));
     _toolActionCd = 0.2;
     return;
   }
   if (world.cells[ci] !== Cell.WALL) {
-    state.msgs.push(msg('Отбойнику нужна стена перед вами', state.time, '#f84'));
+    state.msgs.push(
+      msg("Отбойнику нужна стена перед вами", state.time, "#f84"),
+    );
     _toolActionCd = 0.25;
     return;
   }
   setCellToFloor(cx, cy);
   updateWorldData(world);
   consumeToolDurability(player, 1, state.msgs, state.time, state);
-  state.msgs.push(msg('Стена разрушена', state.time, '#fc4'));
+  state.msgs.push(msg("Стена разрушена", state.time, "#fc4"));
   playBreak();
-  notifyLiftArachnaNoise(world, player, state, 'jackhammer');
+  notifyLiftArachnaNoise(world, player, state, "jackhammer");
   _toolActionCd = 0.2;
 }
 
-function handleDoorKitTool(player: Entity, useEdge: boolean, cx: number, cy: number, ci: number): void {
+function handleDoorKitTool(
+  player: Entity,
+  useEdge: boolean,
+  cx: number,
+  cy: number,
+  ci: number,
+): void {
   if (!useEdge) return;
   if (world.aptMask[ci]) {
-    state.msgs.push(msg('В защищенных укрытиях строительство запрещено', state.time, '#f44'));
+    state.msgs.push(
+      msg("В защищенных укрытиях строительство запрещено", state.time, "#f44"),
+    );
     return;
   }
   if (world.cells[ci] !== Cell.FLOOR) {
-    state.msgs.push(msg('Дверь ставится на проход (пол)', state.time, '#f84'));
+    state.msgs.push(msg("Дверь ставится на проход (пол)", state.time, "#f84"));
     return;
   }
   const l = world.cells[world.idx(cx - 1, cy)];
   const r = world.cells[world.idx(cx + 1, cy)];
   const u = world.cells[world.idx(cx, cy - 1)];
   const d = world.cells[world.idx(cx, cy + 1)];
-  const horizontal = (l === Cell.WALL && r === Cell.WALL && u !== Cell.WALL && d !== Cell.WALL);
-  const vertical = (u === Cell.WALL && d === Cell.WALL && l !== Cell.WALL && r !== Cell.WALL);
+  const horizontal =
+    l === Cell.WALL && r === Cell.WALL && u !== Cell.WALL && d !== Cell.WALL;
+  const vertical =
+    u === Cell.WALL && d === Cell.WALL && l !== Cell.WALL && r !== Cell.WALL;
   if (!horizontal && !vertical) {
-    state.msgs.push(msg('Нужен проход между двумя стенами', state.time, '#f84'));
+    state.msgs.push(
+      msg("Нужен проход между двумя стенами", state.time, "#f84"),
+    );
     return;
   }
-  const roomA = world.roomMap[world.idx(cx - 1, cy)] >= 0 ? world.roomMap[world.idx(cx - 1, cy)] : world.roomMap[world.idx(cx, cy - 1)];
-  const roomB = world.roomMap[world.idx(cx + 1, cy)] >= 0 ? world.roomMap[world.idx(cx + 1, cy)] : world.roomMap[world.idx(cx, cy + 1)];
+  const roomA =
+    world.roomMap[world.idx(cx - 1, cy)] >= 0
+      ? world.roomMap[world.idx(cx - 1, cy)]
+      : world.roomMap[world.idx(cx, cy - 1)];
+  const roomB =
+    world.roomMap[world.idx(cx + 1, cy)] >= 0
+      ? world.roomMap[world.idx(cx + 1, cy)]
+      : world.roomMap[world.idx(cx, cy + 1)];
   world.cells[ci] = Cell.DOOR;
   world.markCellsDirty();
-  world.doors.set(ci, { idx: ci, state: DoorState.CLOSED, roomA, roomB, keyId: '', timer: 0 });
+  world.doors.set(ci, {
+    idx: ci,
+    state: DoorState.CLOSED,
+    roomA,
+    roomB,
+    keyId: "",
+    timer: 0,
+  });
   addRuntimeDoorToRoom(roomA, ci);
   addRuntimeDoorToRoom(roomB, ci);
   updateWorldData(world);
   consumeToolDurability(player, 1, state.msgs, state.time, state);
-  state.msgs.push(msg('Дверь установлена', state.time, '#6cf'));
+  state.msgs.push(msg("Дверь установлена", state.time, "#6cf"));
   playDoor();
 }
 
-function handleBlockKitTool(player: Entity, useEdge: boolean, ci: number): void {
+function handleBlockKitTool(
+  player: Entity,
+  useEdge: boolean,
+  ci: number,
+): void {
   if (!useEdge) return;
   const pci = world.idx(Math.floor(player.x), Math.floor(player.y));
   if (ci === pci) {
-    state.msgs.push(msg('Нельзя замуровать себя', state.time, '#f84'));
+    state.msgs.push(msg("Нельзя замуровать себя", state.time, "#f84"));
     return;
   }
   if (world.cells[ci] !== Cell.FLOOR && world.cells[ci] !== Cell.DOOR) {
-    state.msgs.push(msg('Блок ставится на пол/дверь', state.time, '#f84'));
+    state.msgs.push(msg("Блок ставится на пол/дверь", state.time, "#f84"));
     return;
   }
   if (world.aptMask[ci] || world.hermoWall[ci]) {
-    state.msgs.push(msg('В защищенных укрытиях строительство запрещено', state.time, '#f44'));
+    state.msgs.push(
+      msg("В защищенных укрытиях строительство запрещено", state.time, "#f44"),
+    );
     return;
   }
   if (world.cells[ci] === Cell.DOOR) world.removeDoorAt(ci);
@@ -5420,25 +7234,58 @@ function handleBlockKitTool(player: Entity, useEdge: boolean, ci: number): void 
   world.markWallTexDirty();
   updateWorldData(world);
   consumeToolDurability(player, 1, state.msgs, state.time, state);
-  state.msgs.push(msg('Блок стены установлен', state.time, '#6cf'));
+  state.msgs.push(msg("Блок стены установлен", state.time, "#6cf"));
 }
 
-function handleCleanupProfileTool(player: Entity, toolId: string, wantsToolUse: boolean, tx: number, ty: number): boolean {
+function handleCleanupProfileTool(
+  player: Entity,
+  toolId: string,
+  wantsToolUse: boolean,
+  tx: number,
+  ty: number,
+): boolean {
   const cleanupTool = cleanupToolProfile(toolId);
   if (cleanupTool) {
     if (!wantsToolUse || _toolActionCd > 0) return true;
     const cleaned = cleanSurfaceArea(world, tx, ty, cleanupTool.surfaceRadius);
-    const cleanedHazards = cleanCellHazardsNear(world, tx, ty, cleanupTool.hazardRadius, state, player, cleanupTool.hazardReason);
-    consumeToolDurability(player, cleanupTool.wear, state.msgs, state.time, state);
+    const cleanedHazards = cleanCellHazardsNear(
+      world,
+      tx,
+      ty,
+      cleanupTool.hazardRadius,
+      state,
+      player,
+      cleanupTool.hazardReason,
+    );
+    consumeToolDurability(
+      player,
+      cleanupTool.wear,
+      state.msgs,
+      state.time,
+      state,
+    );
     if (cleaned > 0 || cleanedHazards > 0) {
-      notifyCleanupToolUse(player, world, state, tx, ty, cleaned, cleanedHazards);
+      notifyCleanupToolUse(
+        player,
+        world,
+        state,
+        tx,
+        ty,
+        cleaned,
+        cleanedHazards,
+      );
       if (cleanupTool.relationEvery > 0) _cleanRelAccum += 1;
-      if (cleanupTool.relationEvery > 0 && _cleanRelAccum >= cleanupTool.relationEvery) {
+      if (
+        cleanupTool.relationEvery > 0 &&
+        _cleanRelAccum >= cleanupTool.relationEvery
+      ) {
         _cleanRelAccum = 0;
         const owner = territoryFactionAt(world, player.x, player.y);
         if (owner !== null) {
           addFactionRelMutual(Faction.PLAYER, owner, 1);
-          state.msgs.push(msg('Местные ценят вашу уборку (+отношения)', state.time, '#8f8'));
+          state.msgs.push(
+            msg("Местные ценят вашу уборку (+отношения)", state.time, "#8f8"),
+          );
         }
       }
     }
@@ -5464,39 +7311,72 @@ function handleVacuumTool(player: Entity, wantsToolUse: boolean): void {
   if (clearedFog > 0) {
     world.markFogDirty();
     consumeToolDurability(player, 1, state.msgs, state.time, state);
-    state.msgs.push(msg(`Пылесос втянул туман рядом: ${clearedFog} кл.`, state.time, '#c8f'));
+    state.msgs.push(
+      msg(`Пылесос втянул туман рядом: ${clearedFog} кл.`, state.time, "#c8f"),
+    );
   } else {
-    state.msgs.push(msg('Рядом нет тумана', state.time, '#888'));
+    state.msgs.push(msg("Рядом нет тумана", state.time, "#888"));
   }
   _toolActionCd = 0.15;
 }
 
-function handlePsiTool(player: Entity, toolId: string, wantsToolUse: boolean): boolean {
-  const psiToolStats = WEAPON_STATS[toolId]?.psiCost ? getWeaponStats(player, toolId) : undefined;
+function handlePsiTool(
+  player: Entity,
+  toolId: string,
+  wantsToolUse: boolean,
+): boolean {
+  const psiToolStats = WEAPON_STATS[toolId]?.psiCost
+    ? getWeaponStats(player, toolId)
+    : undefined;
   if (psiToolStats) {
     if (!wantsToolUse || _toolActionCd > 0) return true;
     const atkSpeedMod = player.rpg ? agiAttackSpeedMult(player.rpg) : 1;
-    _toolActionCd = castPlayerPsi(toolId, psiToolStats) ? psiToolStats.speed * atkSpeedMod : 0.5;
+    _toolActionCd = castPlayerPsi(toolId, psiToolStats)
+      ? psiToolStats.speed * atkSpeedMod
+      : 0.5;
     return true;
   }
   return false;
 }
 
-function handleLightDrain(player: Entity, toolId: string, wantsToolUse: boolean, dt: number): boolean {
+function handleLightDrain(
+  player: Entity,
+  toolId: string,
+  wantsToolUse: boolean,
+  dt: number,
+): boolean {
   const passiveLightDrain = passiveToolLightDrainPerSecond(toolId);
   if (passiveLightDrain > 0) {
-    consumeToolDurability(player, dt * passiveLightDrain, state.msgs, state.time, state);
+    consumeToolDurability(
+      player,
+      dt * passiveLightDrain,
+      state.msgs,
+      state.time,
+      state,
+    );
     return true;
   }
   const activeLightDrain = activeToolLightDrainPerSecond(toolId);
   if (activeLightDrain > 0) {
-    if (wantsToolUse) consumeToolDurability(player, dt * activeLightDrain, state.msgs, state.time, state);
+    if (wantsToolUse)
+      consumeToolDurability(
+        player,
+        dt * activeLightDrain,
+        state.msgs,
+        state.time,
+        state,
+      );
     return true;
   }
   return false;
 }
 
-function handleTargetedTool(player: Entity, toolId: string, wantsToolUse: boolean, useEdge: boolean): void {
+function handleTargetedTool(
+  player: Entity,
+  toolId: string,
+  wantsToolUse: boolean,
+  useEdge: boolean,
+): void {
   const lookRange = 1.4;
   const tx = player.x + Math.cos(player.angle) * lookRange;
   const ty = player.y + Math.sin(player.angle) * lookRange;
@@ -5505,9 +7385,11 @@ function handleTargetedTool(player: Entity, toolId: string, wantsToolUse: boolea
   const ci = world.idx(cx, cy);
 
   if (handleCoverSeroburmaline(player, toolId, tx, ty, useEdge)) return;
-  if (toolId === 'jackhammer') return handleJackhammerTool(player, wantsToolUse, cx, cy, ci);
-  if (toolId === 'door_kit') return handleDoorKitTool(player, useEdge, cx, cy, ci);
-  if (toolId === 'block_kit') return handleBlockKitTool(player, useEdge, ci);
+  if (toolId === "jackhammer")
+    return handleJackhammerTool(player, wantsToolUse, cx, cy, ci);
+  if (toolId === "door_kit")
+    return handleDoorKitTool(player, useEdge, cx, cy, ci);
+  if (toolId === "block_kit") return handleBlockKitTool(player, useEdge, ci);
   if (handleCleanupProfileTool(player, toolId, wantsToolUse, tx, ty)) return;
 }
 
@@ -5518,28 +7400,37 @@ function updateEquippedTool(dt: number, actor = player): void {
   }
   const player = actor;
   if (_toolActionCd > 0) _toolActionCd = Math.max(0, _toolActionCd - dt);
-  const toolId = player.tool ?? '';
+  const toolId = player.tool ?? "";
   const wantsToolUse = input.use || input.mouseUse;
   const useEdge = wantsToolUse && !_prevToolUse;
   _prevToolUse = wantsToolUse;
   if (!toolId) return;
 
-  const hasTool = (player.inventory ?? []).some(s => s.defId === toolId);
-  if (!hasTool) { player.tool = ''; return; }
+  const hasTool = (player.inventory ?? []).some((s) => s.defId === toolId);
+  if (!hasTool) {
+    player.tool = "";
+    return;
+  }
 
   if (handlePsiTool(player, toolId, wantsToolUse)) return;
   if (handleLightDrain(player, toolId, wantsToolUse, dt)) return;
 
-  if (toolId === UV_SPOTLIGHT_ID) return handleUvSpotlightTool(player, wantsToolUse);
+  if (toolId === UV_SPOTLIGHT_ID)
+    return handleUvSpotlightTool(player, wantsToolUse);
   if (toolId === CHALK_ITEM_ID) return handleChalkTool(player, wantsToolUse);
-  if (toolId === 'vacuum') return handleVacuumTool(player, wantsToolUse);
+  if (toolId === "vacuum") return handleVacuumTool(player, wantsToolUse);
 
   handleTargetedTool(player, toolId, wantsToolUse, useEdge);
 }
 
 /* ── Menu input handling (runs regardless of pause state) ─────── */
-let prevEsc = false, prevInvMenu = false, prevQuestMenu = false;
-let prevMenuUp = false, prevMenuDn = false, prevMenuLeft = false, prevMenuRight = false;
+let prevEsc = false,
+  prevInvMenu = false,
+  prevQuestMenu = false;
+let prevMenuUp = false,
+  prevMenuDn = false,
+  prevMenuLeft = false,
+  prevMenuRight = false;
 let prevDrop = false;
 let prevFactionMenu = false;
 let prevLogMenu = false;
@@ -5549,10 +7440,15 @@ let prevUiSettingsMenu = false;
 let prevMapLegendMenu = false;
 let prevControlReset = false;
 let prevControlClose = false;
-type MenuRepeatKey = 'up' | 'down' | 'left' | 'right';
-const MENU_REPEAT_DELAY = 0.30;
+type MenuRepeatKey = "up" | "down" | "left" | "right";
+const MENU_REPEAT_DELAY = 0.3;
 const MENU_REPEAT_INTERVAL = 0.085;
-const menuRepeatNext: Record<MenuRepeatKey, number> = { up: 0, down: 0, left: 0, right: 0 };
+const menuRepeatNext: Record<MenuRepeatKey, number> = {
+  up: 0,
+  down: 0,
+  left: 0,
+  right: 0,
+};
 
 function resetMenuRepeats(): void {
   menuRepeatNext.up = 0;
@@ -5561,7 +7457,11 @@ function resetMenuRepeats(): void {
   menuRepeatNext.right = 0;
 }
 
-function menuRepeatStep(key: MenuRepeatKey, held: boolean, edge: boolean): boolean {
+function menuRepeatStep(
+  key: MenuRepeatKey,
+  held: boolean,
+  edge: boolean,
+): boolean {
   if (!held) {
     menuRepeatNext[key] = 0;
     return false;
@@ -5607,9 +7507,13 @@ function syncMenuInputBaselines(): void {
 }
 
 function tryLockLandscape(): void {
-  const orientation = screen.orientation as (ScreenOrientation & { lock?: (orientation: 'landscape') => Promise<void> }) | undefined;
+  const orientation = screen.orientation as
+    | (ScreenOrientation & {
+        lock?: (orientation: "landscape") => Promise<void>;
+      })
+    | undefined;
   if (!orientation?.lock) return;
-  void orientation.lock('landscape').catch(() => {});
+  void orientation.lock("landscape").catch(() => {});
 }
 
 function requestPointerLockIfDesktop(): void {
@@ -5626,11 +7530,19 @@ function toggleGameFullscreen(): void {
   const entering = !isNativeFullscreenActive();
   const pending = toggleNativeFullscreen(document.documentElement);
   if (entering && started) requestPointerLockIfDesktop();
-  void pending.then(ok => {
-    if (!ok && started && typeof state !== 'undefined') {
-      state.msgs.push(msg('Полный экран недоступен в этом браузере или контейнере.', state.time, '#fa8'));
-    }
-  }).finally(scheduleResize);
+  void pending
+    .then((ok) => {
+      if (!ok && started && typeof state !== "undefined") {
+        state.msgs.push(
+          msg(
+            "Полный экран недоступен в этом браузере или контейнере.",
+            state.time,
+            "#fa8",
+          ),
+        );
+      }
+    })
+    .finally(scheduleResize);
 }
 
 function mobileGestureUnlock(): void {
@@ -5652,10 +7564,36 @@ function clearPausedPointerGameplayInputs(): void {
 }
 
 function shouldHandleMenuPointerInput(): boolean {
-  if (!started || pendingLoad || typeof state === 'undefined' || state.gameOver || pointerCaptureGateVisible()) return false;
-  return state.showMenu || state.showInventory || state.showNpcMenu || state.showContainerMenu || state.showCraftMenu ||
-    state.showQuests || state.showDebug || state.showFactions || state.showDemos || state.showLog || state.showHelp || state.showControls || state.showUiSettings || state.showMapLegend ||
-    state.mapMode === 2 || isNetSphereOpen() || isNetTerminalGenOpen() || isInteractableOverlayOpen() || isEmergencyPanelMenuOpen() || isMapEditorOpen();
+  if (
+    !started ||
+    pendingLoad ||
+    typeof state === "undefined" ||
+    state.gameOver ||
+    pointerCaptureGateVisible()
+  )
+    return false;
+  return (
+    state.showMenu ||
+    state.showInventory ||
+    state.showNpcMenu ||
+    state.showContainerMenu ||
+    state.showCraftMenu ||
+    state.showQuests ||
+    state.showDebug ||
+    state.showFactions ||
+    state.showDemos ||
+    state.showLog ||
+    state.showHelp ||
+    state.showControls ||
+    state.showUiSettings ||
+    state.showMapLegend ||
+    state.mapMode === 2 ||
+    isNetSphereOpen() ||
+    isNetTerminalGenOpen() ||
+    isInteractableOverlayOpen() ||
+    isEmergencyPanelMenuOpen() ||
+    isMapEditorOpen()
+  );
 }
 
 function shouldHandleMenuWheelInput(): boolean {
@@ -5663,11 +7601,31 @@ function shouldHandleMenuWheelInput(): boolean {
 }
 
 function syncPauseState(): void {
-  if (typeof state === 'undefined') return;
+  if (typeof state === "undefined") return;
   const wasPaused = state.paused;
-  const nextPaused = pointerCaptureGateVisible() || pageHiddenPause || platformPause || state.showMenu || state.showInventory || state.showNpcMenu || state.showContainerMenu || state.showCraftMenu ||
-    state.showQuests || state.showDebug || state.showFactions || state.showDemos || state.showLog || state.showHelp || state.showControls || state.showUiSettings || state.showMapLegend ||
-    isNetSphereOpen() || isNetTerminalGenOpen() || isInteractableOverlayOpen() || isEmergencyPanelMenuOpen() || isMapEditorOpen();
+  const nextPaused =
+    pointerCaptureGateVisible() ||
+    pageHiddenPause ||
+    platformPause ||
+    state.showMenu ||
+    state.showInventory ||
+    state.showNpcMenu ||
+    state.showContainerMenu ||
+    state.showCraftMenu ||
+    state.showQuests ||
+    state.showDebug ||
+    state.showFactions ||
+    state.showDemos ||
+    state.showLog ||
+    state.showHelp ||
+    state.showControls ||
+    state.showUiSettings ||
+    state.showMapLegend ||
+    isNetSphereOpen() ||
+    isNetTerminalGenOpen() ||
+    isInteractableOverlayOpen() ||
+    isEmergencyPanelMenuOpen() ||
+    isMapEditorOpen();
   state.paused = nextPaused;
   if (wasPaused || nextPaused) clearPausedPointerGameplayInputs();
   syncPointerCursorClasses();
@@ -5680,7 +7638,7 @@ function closeMapEditorAndRefreshWorld(): void {
 }
 
 function syncPlatformGameplayState(): void {
-  if (typeof state === 'undefined') return;
+  if (typeof state === "undefined") return;
   const active = started && !pendingLoad && !state.paused && !state.gameOver;
   if (active === platformGameplayMarkedActive) return;
   platformGameplayMarkedActive = active;
@@ -5689,25 +7647,55 @@ function syncPlatformGameplayState(): void {
 }
 
 function isMobileMenuOpen(): boolean {
-  if (typeof state === 'undefined') return false;
-  return state.showMenu || state.showInventory || state.showNpcMenu || state.showContainerMenu || state.showCraftMenu ||
-    state.showQuests || state.showDebug || state.showFactions || state.showDemos || state.showLog || state.showHelp || state.showControls || state.showUiSettings || state.showMapLegend ||
-    state.mapMode === 2 || isNetSphereOpen() || isNetTerminalGenOpen() || isInteractableOverlayOpen() || isEmergencyPanelMenuOpen() || isMapEditorOpen();
+  if (typeof state === "undefined") return false;
+  return (
+    state.showMenu ||
+    state.showInventory ||
+    state.showNpcMenu ||
+    state.showContainerMenu ||
+    state.showCraftMenu ||
+    state.showQuests ||
+    state.showDebug ||
+    state.showFactions ||
+    state.showDemos ||
+    state.showLog ||
+    state.showHelp ||
+    state.showControls ||
+    state.showUiSettings ||
+    state.showMapLegend ||
+    state.mapMode === 2 ||
+    isNetSphereOpen() ||
+    isNetTerminalGenOpen() ||
+    isInteractableOverlayOpen() ||
+    isEmergencyPanelMenuOpen() ||
+    isMapEditorOpen()
+  );
 }
 
 function canOpenMenuFromGameplay(): boolean {
-  if (!started || pendingLoad || typeof state === 'undefined' || state.gameOver) return false;
-  if (pointerCaptureGateVisible() || pageHiddenPause || platformPause || state.paused) return false;
+  if (!started || pendingLoad || typeof state === "undefined" || state.gameOver)
+    return false;
+  if (
+    pointerCaptureGateVisible() ||
+    pageHiddenPause ||
+    platformPause ||
+    state.paused
+  )
+    return false;
   return !isMobileMenuOpen();
 }
 
 function menuShortcutInputActive(): boolean {
-  if (typeof state === 'undefined') return false;
-  return getControlCaptureAction() !== null || (state.showDemos && state.demosSearchActive) || isNetSphereChatInputActive();
+  if (typeof state === "undefined") return false;
+  return (
+    getControlCaptureAction() !== null ||
+    (state.showDemos && state.demosSearchActive) ||
+    isNetSphereChatInputActive()
+  );
 }
 
 function closeMobilePanels(includeMap = true): void {
-  if (typeof state === 'undefined') return;
+  if (typeof state === "undefined") return;
   clearTradeOffers(state);
   state.showMenu = false;
   state.showInventory = false;
@@ -5762,8 +7750,14 @@ function closeInterfacesForFullMap(): void {
 }
 
 function clampFullMapRadius(value: unknown): number {
-  const numeric = typeof value === 'number' && Number.isFinite(value) ? value : FULL_MAP_RADIUS_DEFAULT;
-  return Math.max(FULL_MAP_RADIUS_MIN, Math.min(FULL_MAP_RADIUS_MAX, Math.round(numeric)));
+  const numeric =
+    typeof value === "number" && Number.isFinite(value)
+      ? value
+      : FULL_MAP_RADIUS_DEFAULT;
+  return Math.max(
+    FULL_MAP_RADIUS_MIN,
+    Math.min(FULL_MAP_RADIUS_MAX, Math.round(numeric)),
+  );
 }
 
 function currentFullMapRadius(): number {
@@ -5775,11 +7769,13 @@ function adjustFullMapZoom(steps: number): void {
   const boundedSteps = Math.max(-4, Math.min(4, Math.trunc(steps)));
   if (boundedSteps === 0) return;
   const current = currentFullMapRadius();
-  state.fullMapRadius = clampFullMapRadius(current / Math.pow(FULL_MAP_ZOOM_STEP, boundedSteps));
+  state.fullMapRadius = clampFullMapRadius(
+    current / Math.pow(FULL_MAP_ZOOM_STEP, boundedSteps),
+  );
 }
 
 function openFullMapMenu(): void {
-  if (typeof state === 'undefined') return;
+  if (typeof state === "undefined") return;
   closeInterfacesForFullMap();
   state.mapMode = 2;
   currentFullMapRadius();
@@ -5789,7 +7785,7 @@ function openFullMapMenu(): void {
 }
 
 function closeFullMapMenu(): void {
-  if (typeof state === 'undefined') return;
+  if (typeof state === "undefined") return;
   state.mapMode = 0;
   syncPauseState();
   updateMobileContext(true);
@@ -5801,11 +7797,14 @@ function toggleFullMapMenu(): void {
 }
 
 function openMapLegendMenu(): void {
-  if (typeof state === 'undefined') return;
+  if (typeof state === "undefined") return;
   closeInterfacesForFullMap();
   state.mapMode = 0;
   state.showMapLegend = true;
-  state.mapLegendSel = Math.max(0, Math.min(mapLegendRowCount() - 1, state.mapLegendSel));
+  state.mapLegendSel = Math.max(
+    0,
+    Math.min(mapLegendRowCount() - 1, state.mapLegendSel),
+  );
   keepMapLegendSelectionVisible();
   resetMenuRepeats();
   syncPauseState();
@@ -5813,7 +7812,7 @@ function openMapLegendMenu(): void {
 }
 
 function closeMapLegendMenu(): void {
-  if (typeof state === 'undefined') return;
+  if (typeof state === "undefined") return;
   state.showMapLegend = false;
   syncPauseState();
   updateMobileContext(true);
@@ -5825,37 +7824,37 @@ function closeActiveMobileMenu(): void {
 
 function openMobileMenu(menu: MobileMenuId): void {
   if (!canOpenMenuFromGameplay()) return;
-  if (menu !== 'map') closeMobilePanels(true);
+  if (menu !== "map") closeMobilePanels(true);
   switch (menu) {
-    case 'inventory':
+    case "inventory":
       state.showInventory = true;
       state.invSel = 0;
       break;
-    case 'map':
+    case "map":
       toggleFullMapMenu();
       break;
-    case 'quests':
+    case "quests":
       state.showQuests = true;
       break;
-    case 'log':
+    case "log":
       state.showLog = true;
       state.logScroll = 0;
       break;
-    case 'factions':
+    case "factions":
       state.showFactions = true;
       state.factionRankScroll = 0;
       break;
-    case 'net':
+    case "net":
       openNetSphere();
       break;
-    case 'menu':
+    case "menu":
       state.showMenu = true;
       state.menuSel = 0;
       break;
-    case 'ui':
+    case "ui":
       openUiSettingsMenu();
       break;
-    case 'debug':
+    case "debug":
       state.showDebug = true;
       state.debugSel = 0;
       resetDebugInfoPage();
@@ -5866,7 +7865,16 @@ function openMobileMenu(menu: MobileMenuId): void {
 }
 
 function confirmActiveMobileSelection(): void {
-  if (!started || typeof state === 'undefined' || state.gameOver || isNetSphereOpen() || isNetTerminalGenOpen() || isInteractableOverlayOpen() || isMapEditorOpen()) return;
+  if (
+    !started ||
+    typeof state === "undefined" ||
+    state.gameOver ||
+    isNetSphereOpen() ||
+    isNetTerminalGenOpen() ||
+    isInteractableOverlayOpen() ||
+    isMapEditorOpen()
+  )
+    return;
   if (state.showMenu) {
     runGameMenuSelection(state.menuSel);
   } else if (state.showInventory) {
@@ -5878,32 +7886,61 @@ function confirmActiveMobileSelection(): void {
   } else if (state.showCraftMenu) {
     activateCraftSelection();
   } else if (state.showNpcMenu) {
-    const npc = getEntityIndex().byId.get(state.npcMenuTarget) ?? entities.find(e => e.id === state.npcMenuTarget);
-    if (state.npcMenuTab === 'main') {
+    const npc =
+      getEntityIndex().byId.get(state.npcMenuTarget) ??
+      entities.find((e) => e.id === state.npcMenuTarget);
+    if (state.npcMenuTab === "main") {
       activateNpcMainSelection(npc);
-    } else if (state.npcMenuTab === 'talk' || state.npcMenuTab === 'quest') {
-      state.npcMenuTab = 'main';
+    } else if (state.npcMenuTab === "talk" || state.npcMenuTab === "quest") {
+      state.npcMenuTab = "main";
     } else if (state.npcMenuTab === NPC_MENU_INTERFACE_TAB) {
       if (npc && isDurakGameOpen()) {
-        const result = handleDurakInput({ state, player, npc, input: { interactEdge: true } });
+        const result = handleDurakInput({
+          state,
+          player,
+          npc,
+          input: { interactEdge: true },
+        });
         if (result.closeInterface) closeNpcInteractionInterface(state);
       } else if (npc && isDiceGameOpen()) {
-        const result = handleDiceInput({ state, player, npc, input: { interactEdge: true } });
+        const result = handleDiceInput({
+          state,
+          player,
+          npc,
+          input: { interactEdge: true },
+        });
         if (result.closeInterface) closeNpcInteractionInterface(state);
       } else if (npc && isDominoGameOpen()) {
-        const result = handleDominoInput({ state, player, npc, input: { interactEdge: true } });
+        const result = handleDominoInput({
+          state,
+          player,
+          npc,
+          input: { interactEdge: true },
+        });
         if (result.closeInterface) closeNpcInteractionInterface(state);
       } else if (npc && isCheckersGameOpen()) {
-        const result = handleCheckersInput({ state, player, npc, input: { interactEdge: true } });
+        const result = handleCheckersInput({
+          state,
+          player,
+          npc,
+          input: { interactEdge: true },
+        });
         if (result.closeInterface) closeNpcInteractionInterface(state);
       } else {
         closeNpcInteractionInterface(state);
       }
-    } else if (state.npcMenuTab === 'trade' && npc) {
+    } else if (state.npcMenuTab === "trade" && npc) {
       activateTradeSelection(npc);
     }
   } else if (state.showDebug) {
-    const action = execDebugCommand(state.debugSel, world, player, entities, state, nextEntityId);
+    const action = execDebugCommand(
+      state.debugSel,
+      world,
+      player,
+      entities,
+      state,
+      nextEntityId,
+    );
     if (action) handleDebugCommandAction(action);
   }
   syncPauseState();
@@ -5919,10 +7956,11 @@ function updateMobileContext(force = false): void {
   if (!controls) return;
   const mobileEnabled = controls.isEnabled();
   const menuOpen = isMobileMenuOpen();
-  const gameOver = typeof state !== 'undefined' && state.gameOver;
+  const gameOver = typeof state !== "undefined" && state.gameOver;
   let canInteract = false;
   if (mobileEnabled && started && !menuOpen && !gameOver) {
-    const now = typeof state !== 'undefined' ? state.time : performance.now() / 1000;
+    const now =
+      typeof state !== "undefined" ? state.time : performance.now() / 1000;
     if (force || now - mobileCanInteractProbeAt >= 0.08) {
       mobileCanInteractCache = canInteractAhead();
       mobileCanInteractProbeAt = now;
@@ -5946,38 +7984,38 @@ function updateMobileContext(force = false): void {
 function runGameMenuSelection(sel: number): void {
   const item = GAME_MENU_ITEMS[sel];
   switch (item?.id) {
-    case 'continue':
+    case "continue":
       state.showMenu = false;
       break;
-    case 'new_game':
+    case "new_game":
       returnToTitleScreen();
       return;
-    case 'save':
+    case "save":
       saveGame();
       state.showMenu = false;
       break;
-    case 'load':
+    case "load":
       loadGame();
       break;
-    case 'sound':
+    case "sound":
       togglePlatformAudioMuted();
       break;
-    case 'help':
+    case "help":
       openHelpMenu();
       return;
-    case 'demos':
+    case "demos":
       openDemosMenu();
       return;
-    case 'keys':
-      openControlsMenu('keys');
+    case "keys":
+      openControlsMenu("keys");
       break;
-    case 'interface':
-      openUiSettingsMenu('interface');
+    case "interface":
+      openUiSettingsMenu("interface");
       break;
-    case 'graphics':
-      openUiSettingsMenu('graphics', 'camera_fov');
+    case "graphics":
+      openUiSettingsMenu("graphics", "camera_fov");
       break;
-    case 'feedback':
+    case "feedback":
       openFeedbackMenu();
       return;
   }
@@ -6029,51 +8067,81 @@ function openDemosMenu(): void {
   state.showMapLegend = false;
   state.mapMode = 0;
   state.showDemos = true;
-  state.demosCursor = findDemosCursor(state, state.demosSearch, state.demosCursor, 1);
+  state.demosCursor = findDemosCursor(
+    state,
+    state.demosSearch,
+    state.demosCursor,
+    1,
+  );
   state.demosSearchActive = false;
-  input.textInput = '';
+  input.textInput = "";
   cancelControlCapture();
   resetMenuRepeats();
   syncPauseState();
 }
 
-const DEMOS_TABS: GameState['demosTab'][] = ['profile', 'links', 'feed', 'post', 'quests'];
+const DEMOS_TABS: GameState["demosTab"][] = [
+  "profile",
+  "links",
+  "feed",
+  "post",
+  "quests",
+];
 
 function shiftDemosTab(delta: number): void {
   const current = DEMOS_TABS.indexOf(state.demosTab);
   const at = current >= 0 ? current : 0;
-  state.demosTab = DEMOS_TABS[(at + delta + DEMOS_TABS.length) % DEMOS_TABS.length];
+  state.demosTab =
+    DEMOS_TABS[(at + delta + DEMOS_TABS.length) % DEMOS_TABS.length];
   state.demosSearchActive = false;
 }
 
 function demosSavedPostCount(): number {
-  const posts = (state as GameState & { demosSocial?: { posts?: unknown[] } }).demosSocial?.posts;
+  const posts = (state as GameState & { demosSocial?: { posts?: unknown[] } })
+    .demosSocial?.posts;
   return Array.isArray(posts) ? posts.length : 0;
 }
 
 function clampDemosPanelState(): void {
-  state.demosFeedScroll = Math.max(0, Math.min(Math.max(0, demosSavedPostCount() - 1), Math.floor(state.demosFeedScroll || 0)));
-  state.demosPostCursor = Math.max(0, Math.min(Math.max(0, demosSavedPostCount() - 1), Math.floor(state.demosPostCursor || 0)));
+  state.demosFeedScroll = Math.max(
+    0,
+    Math.min(
+      Math.max(0, demosSavedPostCount() - 1),
+      Math.floor(state.demosFeedScroll || 0),
+    ),
+  );
+  state.demosPostCursor = Math.max(
+    0,
+    Math.min(
+      Math.max(0, demosSavedPostCount() - 1),
+      Math.floor(state.demosPostCursor || 0),
+    ),
+  );
 }
 
 function moveDemosPanelCursor(delta: number): void {
-  if (state.demosTab === 'feed') {
+  if (state.demosTab === "feed") {
     state.demosFeedScroll += delta;
     clampDemosPanelState();
     return;
   }
-  if (state.demosTab === 'post') {
+  if (state.demosTab === "post") {
     state.demosPostCursor += delta;
     clampDemosPanelState();
     return;
   }
-  state.demosCursor = moveDemosCursor(state, state.demosCursor, delta, state.demosSearch);
+  state.demosCursor = moveDemosCursor(
+    state,
+    state.demosCursor,
+    delta,
+    state.demosSearch,
+  );
 }
 
 function closeDemosMenu(): void {
   state.showDemos = false;
   state.demosSearchActive = false;
-  input.textInput = '';
+  input.textInput = "";
   syncPauseState();
 }
 
@@ -6110,28 +8178,41 @@ function closeHelpMenu(): void {
 }
 
 function useInventorySelection(): void {
-  const zoneId = world.zoneMap[world.idx(Math.floor(player.x), Math.floor(player.y))];
+  const zoneId =
+    world.zoneMap[world.idx(Math.floor(player.x), Math.floor(player.y))];
   if (state.invSel === MAX_INVENTORY_SLOTS) {
     if (player.armorDefId) {
       const defId = player.armorDefId;
       if (addItem(player, defId, 1)) {
-        state.msgs.push(msg(`Снята броня: ${ITEMS[defId]?.name ?? defId}`, state.time, '#8cf'));
+        state.msgs.push(
+          msg(
+            `Снята броня: ${ITEMS[defId]?.name ?? defId}`,
+            state.time,
+            "#8cf",
+          ),
+        );
         player.armorDefId = undefined;
       } else {
-        state.msgs.push(msg('Нет места в инвентаре для брони.', state.time, '#f84'));
+        state.msgs.push(
+          msg("Нет места в инвентаре для брони.", state.time, "#f84"),
+        );
       }
     }
     return;
   }
   const slot = player.inventory?.[state.invSel];
-  if (slot && applyStoryItemOutcomes({
-    trigger: 'use',
-    item: { ...slot },
-    player,
-    entities,
-    state,
-    msgs: state.msgs,
-  }) > 0) return;
+  if (
+    slot &&
+    applyStoryItemOutcomes({
+      trigger: "use",
+      item: { ...slot },
+      player,
+      entities,
+      state,
+      msgs: state.msgs,
+    }) > 0
+  )
+    return;
   useItem(player, state.invSel, state.msgs, state.time, state, zoneId, world);
 }
 
@@ -6145,36 +8226,64 @@ function dropInventorySelection(): void {
       player.inventory = player.inventory || [];
       player.inventory.push(slot); // Temporarily put it in to drop it
       const tempIdx = player.inventory.length - 1;
-      dropItem(player, tempIdx, entities, state.msgs, state.time, nextEntityId, state, world);
+      dropItem(
+        player,
+        tempIdx,
+        entities,
+        state.msgs,
+        state.time,
+        nextEntityId,
+        state,
+        world,
+      );
       player.armorDefId = undefined;
       // dropItem removes the slot from inventory.
       // Wait, let's just make it simpler
     }
     return;
   }
-  dropItem(player, state.invSel, entities, state.msgs, state.time, nextEntityId, state, world);
+  dropItem(
+    player,
+    state.invSel,
+    entities,
+    state.msgs,
+    state.time,
+    nextEntityId,
+    state,
+    world,
+  );
 }
 
-function spendMobileAttr(attr: 'str' | 'agi' | 'int'): void {
+function spendMobileAttr(attr: "str" | "agi" | "int"): void {
   if (!player.rpg || player.rpg.attrPoints <= 0) return;
   if (!spendAttrPoint(player, attr)) return;
-  if (attr === 'str') state.msgs.push(msg(`Сила +1 (${player.rpg.str})`, state.time, '#f84'));
-  else if (attr === 'agi') state.msgs.push(msg(`Ловкость +1 (${player.rpg.agi})`, state.time, '#4af'));
-  else state.msgs.push(msg(`Интеллект +1 (${player.rpg.int})`, state.time, '#a4f'));
+  if (attr === "str")
+    state.msgs.push(msg(`Сила +1 (${player.rpg.str})`, state.time, "#f84"));
+  else if (attr === "agi")
+    state.msgs.push(msg(`Ловкость +1 (${player.rpg.agi})`, state.time, "#4af"));
+  else
+    state.msgs.push(
+      msg(`Интеллект +1 (${player.rpg.int})`, state.time, "#a4f"),
+    );
 }
 
 function activateNpcTalk(npc: Entity | undefined): void {
-  state.npcMenuTab = 'talk';
+  state.npcMenuTab = "talk";
   if (!npc) {
-    state.npcTalkText = '...';
+    state.npcTalkText = "...";
     return;
   }
 
   checkTalkQuest(npc, player, world, entities, state, state.msgs);
 
-  const baseText = generateTalkText(npc, { world, state, player, time: state.time });
+  const baseText = generateTalkText(npc, {
+    world,
+    state,
+    player,
+    time: state.time,
+  });
   const questHint = npcQuestActionHint(npc, state);
-  state.npcTalkText = questHint ? `${baseText}\n\n${questHint}` : baseText;
+  state.npcTalkText = questHint ? `${baseText}\n${questHint}` : baseText;
 }
 
 function activateNpcQuest(npc: Entity | undefined): void {
@@ -6196,60 +8305,93 @@ function activateNpcQuest(npc: Entity | undefined): void {
   }
 
   if (npcQIdx >= 0) {
-    state.npcMenuTab = 'quest';
+    state.npcMenuTab = "quest";
     state.questPage = npcQIdx;
   }
 }
 
 function activateContainerSelection(container: WorldContainer): void {
-  const idx = state.containerCursorY * INVENTORY_GRID_COLS + state.containerCursorX;
-    const access = containerAccessInfo(container, player, state);
-  if (state.containerSide === 'container') {
+  const idx =
+    state.containerCursorY * INVENTORY_GRID_COLS + state.containerCursorX;
+  const access = containerAccessInfo(container, player, state);
+  if (state.containerSide === "container") {
     const slot = container.inventory[idx];
-    const itemName = slot ? ITEMS[slot.defId]?.name ?? slot.defId : '';
+    const itemName = slot ? (ITEMS[slot.defId]?.name ?? slot.defId) : "";
     if (!access.canTake) {
-      state.msgs.push(msg(access.label === 'ЗАПЕРТО' ? 'Заперто.' : 'Нет доступа.', state.time, '#f84'));
-    } else if (slot && takeFromContainer(container, player, idx, 1, { state, world, entities })) {
-      state.msgs.push(msg(`${access.theft ? 'Украдено' : 'Взято'}: ${itemName}`, state.time, access.theft ? '#f84' : '#8f8'));
+      state.msgs.push(
+        msg(
+          access.label === "ЗАПЕРТО" ? "Заперто." : "Нет доступа.",
+          state.time,
+          "#f84",
+        ),
+      );
+    } else if (
+      slot &&
+      takeFromContainer(container, player, idx, 1, { state, world, entities })
+    ) {
+      state.msgs.push(
+        msg(
+          `${access.theft ? "Украдено" : "Взято"}: ${itemName}`,
+          state.time,
+          access.theft ? "#f84" : "#8f8",
+        ),
+      );
     } else {
-      state.msgs.push(msg(slot ? 'Нет места.' : 'Пустой слот.', state.time, '#888'));
+      state.msgs.push(
+        msg(slot ? "Нет места." : "Пустой слот.", state.time, "#888"),
+      );
     }
   } else {
     const slot = player.inventory?.[idx];
     if (!access.canPut) {
-      state.msgs.push(msg('Нет доступа.', state.time, '#f84'));
-    } else if (slot && putIntoContainer(container, player, idx, 1, { state, world, entities })) {
-      state.msgs.push(msg(`Положено: ${ITEMS[slot.defId]?.name ?? slot.defId}`, state.time, '#8cf'));
+      state.msgs.push(msg("Нет доступа.", state.time, "#f84"));
+    } else if (
+      slot &&
+      putIntoContainer(container, player, idx, 1, { state, world, entities })
+    ) {
+      state.msgs.push(
+        msg(
+          `Положено: ${ITEMS[slot.defId]?.name ?? slot.defId}`,
+          state.time,
+          "#8cf",
+        ),
+      );
     } else {
-      state.msgs.push(msg(slot ? 'Контейнер полон.' : 'Пустой слот.', state.time, '#888'));
+      state.msgs.push(
+        msg(slot ? "Контейнер полон." : "Пустой слот.", state.time, "#888"),
+      );
     }
   }
 }
 
 function activateNpcMainSelection(npc: Entity | undefined): void {
   if (!npc) return;
-  const option = npcMenuOptionAt({ state, player, npc, entities }, state.npcMenuSel);
+  const option = npcMenuOptionAt(
+    { state, player, npc, entities },
+    state.npcMenuSel,
+  );
   if (!option) return;
   if (option.disabled) {
-    if (option.disabledReason) state.msgs.push(msg(option.disabledReason, state.time, '#f84'));
+    if (option.disabledReason)
+      state.msgs.push(msg(option.disabledReason, state.time, "#f84"));
     return;
   }
   switch (option.id) {
-    case 'talk':
+    case "talk":
       activateNpcTalk(npc);
       break;
-    case 'quest':
+    case "quest":
       activateNpcQuest(npc);
       break;
-    case 'trade':
+    case "trade":
       clearTradeOffers(state);
-      state.npcMenuTab = 'trade';
+      state.npcMenuTab = "trade";
       state.tradeCursorX = 0;
       state.tradeCursorY = 0;
-      state.tradeSide = 'npc';
+      state.tradeSide = "npc";
       if (npc) primeTradePriceCache(state, [npc.inventory, player.inventory]);
       break;
-    case 'leave':
+    case "leave":
       clearTradeOffers(state);
       closeNpcInteractionInterface(state);
       state.showNpcMenu = false;
@@ -6268,61 +8410,113 @@ function currentPlayerZoneId(): number {
 function reportTradeResult(npc: Entity, result: TradeResult): void {
   if (result.ok) {
     primeTradePriceCache(state, [npc.inventory, player.inventory]);
-    if (result.code === 'bought' && result.defId && result.price !== undefined) {
+    if (
+      result.code === "bought" &&
+      result.defId &&
+      result.price !== undefined
+    ) {
       const def = ITEMS[result.defId];
       const credit = result.credit?.creditValue ?? 0;
-      const text = credit > 0
-        ? `Куплено: ${def?.name ?? result.defId} (−${result.price}₽, предметами ${credit}₽)`
-        : `Куплено: ${def?.name ?? result.defId} (−${result.price}₽)`;
-      state.msgs.push(msg(text, state.time, '#4f4'));
-    } else if (result.code === 'deal_done' && result.price !== undefined) {
+      const text =
+        credit > 0
+          ? `Куплено: ${def?.name ?? result.defId} (−${result.price}₽, предметами ${credit}₽)`
+          : `Куплено: ${def?.name ?? result.defId} (−${result.price}₽)`;
+      state.msgs.push(msg(text, state.time, "#4f4"));
+    } else if (result.code === "deal_done" && result.price !== undefined) {
       const ask = result.credit?.npcOfferCount ?? 0;
       const offer = result.credit?.creditCount ?? 0;
       const credit = result.credit?.creditValue ?? 0;
-      const paid = result.price > 0 ? `, доплата ${result.price}₽` : '';
-      const change = (result.credit?.changeDue ?? 0) > 0 ? `, сдача ${result.credit?.changeDue}₽` : '';
-      const unpaidSurplus = Math.max(0, (result.credit?.surplus ?? 0) - (result.credit?.changeDue ?? 0));
-      const surplus = unpaidSurplus > 0 ? `, без сдачи ${unpaidSurplus}₽` : '';
-      state.msgs.push(msg(`Сделка: получено ${ask}, отдано ${offer}${paid}${change}${credit > 0 ? `, предметами ${credit}₽` : ''}${surplus}`, state.time, '#4f4'));
-    } else if (result.code === 'sold' && result.defId && result.price !== undefined) {
+      const paid = result.price > 0 ? `, доплата ${result.price}₽` : "";
+      const change =
+        (result.credit?.changeDue ?? 0) > 0
+          ? `, сдача ${result.credit?.changeDue}₽`
+          : "";
+      const unpaidSurplus = Math.max(
+        0,
+        (result.credit?.surplus ?? 0) - (result.credit?.changeDue ?? 0),
+      );
+      const surplus = unpaidSurplus > 0 ? `, без сдачи ${unpaidSurplus}₽` : "";
+      state.msgs.push(
+        msg(
+          `Сделка: получено ${ask}, отдано ${offer}${paid}${change}${credit > 0 ? `, предметами ${credit}₽` : ""}${surplus}`,
+          state.time,
+          "#4f4",
+        ),
+      );
+    } else if (
+      result.code === "sold" &&
+      result.defId &&
+      result.price !== undefined
+    ) {
       const def = ITEMS[result.defId];
-      state.msgs.push(msg(`Продано: ${def?.name ?? result.defId} (+${result.price}₽)`, state.time, '#4f4'));
-    } else if (result.code === 'offer_added' && result.defId) {
+      state.msgs.push(
+        msg(
+          `Продано: ${def?.name ?? result.defId} (+${result.price}₽)`,
+          state.time,
+          "#4f4",
+        ),
+      );
+    } else if (result.code === "offer_added" && result.defId) {
       const def = ITEMS[result.defId];
-      state.msgs.push(msg(`Вы отдаете: ${def?.name ?? result.defId}`, state.time, '#8cf'));
-    } else if (result.code === 'offer_removed' && result.defId) {
+      state.msgs.push(
+        msg(`Вы отдаете: ${def?.name ?? result.defId}`, state.time, "#8cf"),
+      );
+    } else if (result.code === "offer_removed" && result.defId) {
       const def = ITEMS[result.defId];
-      state.msgs.push(msg(`Убрано из отдачи: ${def?.name ?? result.defId}`, state.time, '#888'));
-    } else if (result.code === 'ask_added' && result.defId) {
+      state.msgs.push(
+        msg(
+          `Убрано из отдачи: ${def?.name ?? result.defId}`,
+          state.time,
+          "#888",
+        ),
+      );
+    } else if (result.code === "ask_added" && result.defId) {
       const def = ITEMS[result.defId];
-      state.msgs.push(msg(`Вы просите: ${def?.name ?? result.defId}`, state.time, '#8cf'));
-    } else if (result.code === 'ask_removed' && result.defId) {
+      state.msgs.push(
+        msg(`Вы просите: ${def?.name ?? result.defId}`, state.time, "#8cf"),
+      );
+    } else if (result.code === "ask_removed" && result.defId) {
       const def = ITEMS[result.defId];
-      state.msgs.push(msg(`Убрано из запроса: ${def?.name ?? result.defId}`, state.time, '#888'));
+      state.msgs.push(
+        msg(
+          `Убрано из запроса: ${def?.name ?? result.defId}`,
+          state.time,
+          "#888",
+        ),
+      );
     }
     return;
   }
 
-  if (result.code === 'player_no_money') state.msgs.push(msg('Не хватает денег', state.time, '#f84'));
-  else if (result.code === 'player_no_space') state.msgs.push(msg('Нет места в инвентаре', state.time, '#f84'));
-  else if (result.code === 'npc_no_money') state.msgs.push(msg('У торговца нет денег', state.time, '#f84'));
-  else if (result.code === 'npc_no_space') state.msgs.push(msg('У торговца нет места', state.time, '#f84'));
-  else if (result.code === 'offer_full' || result.code === 'ask_full') state.msgs.push(msg('Корзина сделки заполнена', state.time, '#f84'));
-  else if (result.code === 'no_item') state.msgs.push(msg('Пустой слот или предмет уже выбран', state.time, '#888'));
+  if (result.code === "player_no_money")
+    state.msgs.push(msg("Не хватает денег", state.time, "#f84"));
+  else if (result.code === "player_no_space")
+    state.msgs.push(msg("Нет места в инвентаре", state.time, "#f84"));
+  else if (result.code === "npc_no_money")
+    state.msgs.push(msg("У торговца нет денег", state.time, "#f84"));
+  else if (result.code === "npc_no_space")
+    state.msgs.push(msg("У торговца нет места", state.time, "#f84"));
+  else if (result.code === "offer_full" || result.code === "ask_full")
+    state.msgs.push(msg("Корзина сделки заполнена", state.time, "#f84"));
+  else if (result.code === "no_item")
+    state.msgs.push(
+      msg("Пустой слот или предмет уже выбран", state.time, "#888"),
+    );
 }
 
 function activateTradeSelection(npc: Entity): void {
   const idx = state.tradeCursorY * INVENTORY_GRID_COLS + state.tradeCursorX;
   const zoneId = currentPlayerZoneId();
-  const result = state.tradeSide === 'deal'
-    ? executeTradeDeal(state, player, npc, { zoneId })
-    : state.tradeSide === 'npc'
-      ? addTradeAskFromSlot(state, npc, idx, { zoneId })
-      : state.tradeSide === 'npc_offer'
-        ? removeTradeAskSlot(state, npc, idx, { zoneId })
-        : state.tradeSide === 'player_offer'
-          ? removeTradeOfferSlot(state, npc, idx, { zoneId })
-          : addTradeOfferFromSlot(state, player, npc, idx, { zoneId });
+  const result =
+    state.tradeSide === "deal"
+      ? executeTradeDeal(state, player, npc, { zoneId })
+      : state.tradeSide === "npc"
+        ? addTradeAskFromSlot(state, npc, idx, { zoneId })
+        : state.tradeSide === "npc_offer"
+          ? removeTradeAskSlot(state, npc, idx, { zoneId })
+          : state.tradeSide === "player_offer"
+            ? removeTradeOfferSlot(state, npc, idx, { zoneId })
+            : addTradeOfferFromSlot(state, player, npc, idx, { zoneId });
   reportTradeResult(npc, result);
 }
 
@@ -6335,25 +8529,35 @@ function menuScale(): { sx: number; sy: number } {
 
 function controlsVisibleRows(): number {
   const { sy } = menuScale();
-  return Math.max(4, Math.floor((hudCanvas.height - 58 * sy) / Math.max(1, 12 * sy)));
+  return Math.max(
+    4,
+    Math.floor((hudCanvas.height - 58 * sy) / Math.max(1, 12 * sy)),
+  );
 }
 
 function controlMenuItemCount(): number {
-  return state.controlView === 'buttons' ? MOBILE_BUTTON_CONTROL_ROWS.length : CONTROL_ACTIONS.length + 2;
+  return state.controlView === "buttons"
+    ? MOBILE_BUTTON_CONTROL_ROWS.length
+    : CONTROL_ACTIONS.length + 2;
 }
 
 function controlResetSelected(): boolean {
-  return state.controlView === 'keys' && state.controlSel === 0;
+  return state.controlView === "keys" && state.controlSel === 0;
 }
 
-function selectedControlAction(): typeof CONTROL_ACTIONS[number] | undefined {
-  return state.controlView === 'keys' && state.controlSel > 0 && state.controlSel <= CONTROL_ACTIONS.length
+function selectedControlAction(): (typeof CONTROL_ACTIONS)[number] | undefined {
+  return state.controlView === "keys" &&
+    state.controlSel > 0 &&
+    state.controlSel <= CONTROL_ACTIONS.length
     ? CONTROL_ACTIONS[state.controlSel - 1]
     : undefined;
 }
 
 function controlMouseSensitivitySelected(): boolean {
-  return state.controlView === 'keys' && state.controlSel === CONTROL_ACTIONS.length + 1;
+  return (
+    state.controlView === "keys" &&
+    state.controlSel === CONTROL_ACTIONS.length + 1
+  );
 }
 
 function keepControlSelectionVisible(): void {
@@ -6362,14 +8566,19 @@ function keepControlSelectionVisible(): void {
   state.controlSel = Math.max(0, Math.min(maxSel, state.controlSel));
   const visible = controlsVisibleRows();
   const maxScroll = Math.max(0, count - visible);
-  if (state.controlSel < state.controlScroll) state.controlScroll = state.controlSel;
-  if (state.controlSel >= state.controlScroll + visible) state.controlScroll = state.controlSel - visible + 1;
+  if (state.controlSel < state.controlScroll)
+    state.controlScroll = state.controlSel;
+  if (state.controlSel >= state.controlScroll + visible)
+    state.controlScroll = state.controlSel - visible + 1;
   state.controlScroll = Math.max(0, Math.min(maxScroll, state.controlScroll));
 }
 
 function uiSettingsVisibleRows(): number {
   const { sy } = menuScale();
-  return Math.max(4, Math.floor((hudCanvas.height - 58 * sy) / Math.max(1, 12 * sy)));
+  return Math.max(
+    4,
+    Math.floor((hudCanvas.height - 58 * sy) / Math.max(1, 12 * sy)),
+  );
 }
 
 function keepUiSettingsSelectionVisible(): void {
@@ -6378,14 +8587,22 @@ function keepUiSettingsSelectionVisible(): void {
   state.uiSettingsSel = Math.max(0, Math.min(maxSel, state.uiSettingsSel));
   const visible = uiSettingsVisibleRows();
   const maxScroll = Math.max(0, count - visible);
-  if (state.uiSettingsSel < state.uiSettingsScroll) state.uiSettingsScroll = state.uiSettingsSel;
-  if (state.uiSettingsSel >= state.uiSettingsScroll + visible) state.uiSettingsScroll = state.uiSettingsSel - visible + 1;
-  state.uiSettingsScroll = Math.max(0, Math.min(maxScroll, state.uiSettingsScroll));
+  if (state.uiSettingsSel < state.uiSettingsScroll)
+    state.uiSettingsScroll = state.uiSettingsSel;
+  if (state.uiSettingsSel >= state.uiSettingsScroll + visible)
+    state.uiSettingsScroll = state.uiSettingsSel - visible + 1;
+  state.uiSettingsScroll = Math.max(
+    0,
+    Math.min(maxScroll, state.uiSettingsScroll),
+  );
 }
 
 function mapLegendVisibleRows(): number {
   const { sy } = menuScale();
-  return Math.max(4, Math.floor((hudCanvas.height - 92 * sy) / Math.max(1, 13 * sy)));
+  return Math.max(
+    4,
+    Math.floor((hudCanvas.height - 92 * sy) / Math.max(1, 13 * sy)),
+  );
 }
 
 function keepMapLegendSelectionVisible(): void {
@@ -6394,12 +8611,17 @@ function keepMapLegendSelectionVisible(): void {
   state.mapLegendSel = Math.max(0, Math.min(maxSel, state.mapLegendSel));
   const visible = mapLegendVisibleRows();
   const maxScroll = Math.max(0, count - visible);
-  if (state.mapLegendSel < state.mapLegendScroll) state.mapLegendScroll = state.mapLegendSel;
-  if (state.mapLegendSel >= state.mapLegendScroll + visible) state.mapLegendScroll = state.mapLegendSel - visible + 1;
-  state.mapLegendScroll = Math.max(0, Math.min(maxScroll, state.mapLegendScroll));
+  if (state.mapLegendSel < state.mapLegendScroll)
+    state.mapLegendScroll = state.mapLegendSel;
+  if (state.mapLegendSel >= state.mapLegendScroll + visible)
+    state.mapLegendScroll = state.mapLegendSel - visible + 1;
+  state.mapLegendScroll = Math.max(
+    0,
+    Math.min(maxScroll, state.mapLegendScroll),
+  );
 }
 
-function openControlsMenu(view: GameState['controlView'] = 'keys'): void {
+function openControlsMenu(view: GameState["controlView"] = "keys"): void {
   state.showMenu = false;
   state.showInventory = false;
   state.showQuests = false;
@@ -6435,7 +8657,10 @@ function findUiSettingsRowByKind(kind: string, view: UiSettingsView): number {
   return -1;
 }
 
-function openUiSettingsMenu(view: UiSettingsView = 'interface', focusKind?: string): void {
+function openUiSettingsMenu(
+  view: UiSettingsView = "interface",
+  focusKind?: string,
+): void {
   state.showMenu = false;
   state.showInventory = false;
   state.showQuests = false;
@@ -6472,92 +8697,167 @@ function closeUiSettingsMenu(): void {
 function applyUiSettingsSelection(index: number): void {
   const row = uiSettingsRowAt(index, state.uiSettingsView);
   if (!row) return;
-  if (row.kind === 'reset_interface') {
+  if (row.kind === "reset_interface") {
     resetUiSettings();
-    state.msgs.push(msg('UI сброшен: Новичок', state.time, '#8cf'));
+    state.msgs.push(msg("UI сброшен: Новичок", state.time, "#8cf"));
     return;
   }
-  if (row.kind === 'reset_graphics') {
+  if (row.kind === "reset_graphics") {
     resetGraphicsSettings();
-    state.msgs.push(msg('Графика сброшена: FOV 90°, помехи критично, HUD меньше движения, 3D высокая', state.time, '#8cf'));
+    state.msgs.push(
+      msg(
+        "Графика сброшена: FOV 90°, помехи критично, HUD меньше движения, 3D высокая",
+        state.time,
+        "#8cf",
+      ),
+    );
     return;
   }
-  if (row.kind === 'preset') {
+  if (row.kind === "preset") {
     if (applyUiPreset(row.preset.id)) {
-      state.msgs.push(msg(`UI пресет: ${row.preset.label}`, state.time, '#8cf'));
+      state.msgs.push(
+        msg(`UI пресет: ${row.preset.label}`, state.time, "#8cf"),
+      );
     }
     return;
   }
-  if (row.kind === 'mobile_sensitivity') {
+  if (row.kind === "mobile_sensitivity") {
     const sensitivity = adjustMobileLookSensitivity(1);
-    state.msgs.push(msg(`Мобильный обзор: ${Math.round(sensitivity * 100)}%`, state.time, '#8cf'));
+    state.msgs.push(
+      msg(
+        `Мобильный обзор: ${Math.round(sensitivity * 100)}%`,
+        state.time,
+        "#8cf",
+      ),
+    );
     return;
   }
-  if (row.kind === 'camera_fov') {
+  if (row.kind === "camera_fov") {
     const fov = adjustCameraFov(1);
-    state.msgs.push(msg(`FOV: ${fov}°`, state.time, '#8cf'));
+    state.msgs.push(msg(`FOV: ${fov}°`, state.time, "#8cf"));
     return;
   }
-  if (row.kind === 'screen_interference') {
+  if (row.kind === "screen_interference") {
     const mode = cycleScreenInterferenceMode(1);
-    const label = mode === 'off' ? 'выкл' : mode === 'full' ? 'полные' : 'слабые';
-    state.msgs.push(msg(`Помехи экрана: ${label}`, state.time, mode === 'off' ? '#fc8' : '#8cf'));
+    const label =
+      mode === "off" ? "выкл" : mode === "full" ? "полные" : "слабые";
+    state.msgs.push(
+      msg(
+        `Помехи экрана: ${label}`,
+        state.time,
+        mode === "off" ? "#fc8" : "#8cf",
+      ),
+    );
     return;
   }
-  if (row.kind === 'hud_motion') {
+  if (row.kind === "hud_motion") {
     const mode = cycleHudMotionMode();
-    state.msgs.push(msg(`Движение HUD: ${mode === 'reduced' ? 'меньше' : 'норма'}`, state.time, '#8cf'));
+    state.msgs.push(
+      msg(
+        `Движение HUD: ${mode === "reduced" ? "меньше" : "норма"}`,
+        state.time,
+        "#8cf",
+      ),
+    );
     return;
   }
-  if (row.kind === 'visual_geometry') {
+  if (row.kind === "visual_geometry") {
     const mode = cycleVisualGeometryMode(1);
-    state.msgs.push(msg(`3D детализация: ${visualGeometryModeLabel(mode).toLowerCase()}`, state.time, mode === 'off' ? '#fc8' : '#8cf'));
+    state.msgs.push(
+      msg(
+        `3D детализация: ${visualGeometryModeLabel(mode).toLowerCase()}`,
+        state.time,
+        mode === "off" ? "#fc8" : "#8cf",
+      ),
+    );
     return;
   }
-  if (row.kind === 'lighting_quality') {
+  if (row.kind === "lighting_quality") {
     const mode = cycleLightingQualityMode(1);
-    state.msgs.push(msg(`Качество света: ${lightingQualityModeLabel(mode).toLowerCase()}`, state.time, mode === 'off' ? '#fc8' : '#8cf'));
+    state.msgs.push(
+      msg(
+        `Качество света: ${lightingQualityModeLabel(mode).toLowerCase()}`,
+        state.time,
+        mode === "off" ? "#fc8" : "#8cf",
+      ),
+    );
     return;
   }
-  if (row.kind === 'map_contrast') {
+  if (row.kind === "map_contrast") {
     const enabled = toggleMapHighContrast();
-    state.msgs.push(msg(`Карта: контраст ${enabled ? 'вкл' : 'выкл'}`, state.time, enabled ? '#8cf' : '#fc8'));
+    state.msgs.push(
+      msg(
+        `Карта: контраст ${enabled ? "вкл" : "выкл"}`,
+        state.time,
+        enabled ? "#8cf" : "#fc8",
+      ),
+    );
     return;
   }
-  if (row.kind === 'auto_pickup') {
+  if (row.kind === "auto_pickup") {
     const enabled = toggleAutoPickup();
-    state.msgs.push(msg(`Автоподбор предметов: ${enabled ? 'вкл' : 'выкл'}`, state.time, enabled ? '#8cf' : '#fc8'));
+    state.msgs.push(
+      msg(
+        `Автоподбор предметов: ${enabled ? "вкл" : "выкл"}`,
+        state.time,
+        enabled ? "#8cf" : "#fc8",
+      ),
+    );
     return;
   }
-  if (row.kind === 'critters') {
+  if (row.kind === "critters") {
     const enabled = toggleCrittersEnabled();
-    state.msgs.push(msg(`Живность: ${enabled ? 'вкл' : 'выкл'}`, state.time, enabled ? '#8cf' : '#fc8'));
+    state.msgs.push(
+      msg(
+        `Живность: ${enabled ? "вкл" : "выкл"}`,
+        state.time,
+        enabled ? "#8cf" : "#fc8",
+      ),
+    );
     return;
   }
-  if (row.kind === 'element') toggleUiElement(row.element.id);
+  if (row.kind === "element") toggleUiElement(row.element.id);
 }
 
 function applyMapLegendSelection(index: number): void {
   const row = mapLegendRowAt(index);
   if (!row) return;
-  if (row.kind === 'reset_map_legend') {
+  if (row.kind === "reset_map_legend") {
     resetMapLegendSettings();
-    state.msgs.push(msg('Легенда карты сброшена', state.time, '#8cf'));
+    state.msgs.push(msg("Легенда карты сброшена", state.time, "#8cf"));
     return;
   }
-  if (row.kind === 'map_contrast') {
+  if (row.kind === "map_contrast") {
     const enabled = toggleMapHighContrast();
-    state.msgs.push(msg(`Карта: контраст ${enabled ? 'вкл' : 'выкл'}`, state.time, enabled ? '#8cf' : '#fc8'));
+    state.msgs.push(
+      msg(
+        `Карта: контраст ${enabled ? "вкл" : "выкл"}`,
+        state.time,
+        enabled ? "#8cf" : "#fc8",
+      ),
+    );
     return;
   }
   const enabled = toggleMapLegendToggle(row.toggle.id);
-  state.msgs.push(msg(`Карта: ${row.toggle.label} ${enabled ? 'вкл' : 'выкл'}`, state.time, enabled ? '#8cf' : '#fc8'));
+  state.msgs.push(
+    msg(
+      `Карта: ${row.toggle.label} ${enabled ? "вкл" : "выкл"}`,
+      state.time,
+      enabled ? "#8cf" : "#fc8",
+    ),
+  );
 }
 
-function pointInRect(x: number, y: number, rx: number, ry: number, rw: number, rh: number): boolean {
+function pointInRect(
+  x: number,
+  y: number,
+  rx: number,
+  ry: number,
+  rw: number,
+  rh: number,
+): boolean {
   return x >= rx && x <= rx + rw && y >= ry && y <= ry + rh;
 }
-
 
 function handleTapControls(y: number, h: number, sy: number): void {
   const top = 34 * sy;
@@ -6576,10 +8876,18 @@ function handleTapControls(y: number, h: number, sy: number): void {
       keepControlSelectionVisible();
       if (wasSelected && controlResetSelected()) {
         resetAllControlBindings();
-        state.msgs.push(msg('Клавиши сброшены по умолчанию', state.time, '#8cf'));
+        state.msgs.push(
+          msg("Клавиши сброшены по умолчанию", state.time, "#8cf"),
+        );
       } else if (wasSelected && controlMouseSensitivitySelected()) {
         const sensitivity = adjustMouseLookSensitivity(1);
-        state.msgs.push(msg(`Чувствительность мыши: ${Math.round(sensitivity * 100)}%`, state.time, '#8cf'));
+        state.msgs.push(
+          msg(
+            `Чувствительность мыши: ${Math.round(sensitivity * 100)}%`,
+            state.time,
+            "#8cf",
+          ),
+        );
       }
     }
   }
@@ -6604,9 +8912,19 @@ function handleTapUiSettings(y: number, h: number, sy: number): void {
   }
 }
 
-function handleTapMenu(x: number, y: number, w: number, h: number, sx: number, sy: number): void {
+function handleTapMenu(
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  sx: number,
+  sy: number,
+): void {
   const menuStep = 16 * sy;
-  const menuPanelH = Math.min(h - 16 * sy, Math.max(160 * sy, 80 * sy + GAME_MENU_ITEMS.length * menuStep));
+  const menuPanelH = Math.min(
+    h - 16 * sy,
+    Math.max(160 * sy, 80 * sy + GAME_MENU_ITEMS.length * menuStep),
+  );
   const menuTop = (h - menuPanelH) / 2;
   for (let i = 0; i < GAME_MENU_ITEMS.length; i++) {
     const yy = menuTop + 52 * sy + i * menuStep;
@@ -6618,13 +8936,29 @@ function handleTapMenu(x: number, y: number, w: number, h: number, sx: number, s
   }
 }
 
-function handleTapInventory(x: number, y: number, w: number, h: number, baseSx: number, baseSy: number): void {
+function handleTapInventory(
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  baseSx: number,
+  baseSy: number,
+): void {
   const layout = fullscreenInventoryLayout(w, h, baseSx, baseSy);
   const GRID = layout.grid.cols;
   const cellSz = layout.grid.cell;
   const gridX = layout.grid.x;
   const gridY = layout.grid.y;
-  if (pointInRect(x, y, layout.close.x, layout.close.y, layout.close.w, layout.close.h)) {
+  if (
+    pointInRect(
+      x,
+      y,
+      layout.close.x,
+      layout.close.y,
+      layout.close.w,
+      layout.close.h,
+    )
+  ) {
     state.showInventory = false;
     syncPauseState();
     return;
@@ -6639,25 +8973,63 @@ function handleTapInventory(x: number, y: number, w: number, h: number, baseSx: 
       }
     }
   }
-  if (pointInRect(x, y, layout.use.x, layout.use.y, layout.use.w, layout.use.h)) {
+  if (
+    pointInRect(x, y, layout.use.x, layout.use.y, layout.use.w, layout.use.h)
+  ) {
     useInventorySelection();
     return;
   }
-  if (pointInRect(x, y, layout.drop.x, layout.drop.y, layout.drop.w, layout.drop.h)) {
+  if (
+    pointInRect(
+      x,
+      y,
+      layout.drop.x,
+      layout.drop.y,
+      layout.drop.w,
+      layout.drop.h,
+    )
+  ) {
     dropInventorySelection();
     return;
   }
-  if (player.rpg && player.rpg.attrPoints > 0 && pointInRect(x, y, layout.attr.x, layout.attr.y, layout.attr.w, layout.attr.h)) {
+  if (
+    player.rpg &&
+    player.rpg.attrPoints > 0 &&
+    pointInRect(
+      x,
+      y,
+      layout.attr.x,
+      layout.attr.y,
+      layout.attr.w,
+      layout.attr.h,
+    )
+  ) {
     const rel = (x - layout.attr.x) / Math.max(1, layout.attr.w);
-    spendMobileAttr(rel < 0.34 ? 'str' : rel < 0.67 ? 'agi' : 'int');
+    spendMobileAttr(rel < 0.34 ? "str" : rel < 0.67 ? "agi" : "int");
     return;
   }
 }
 
 function handleTapCraftMenu(x: number, y: number, w: number, h: number): void {
   const layout = craftMenuLayout(w, h);
-  if (pointInRect(x, y, layout.close.x, layout.close.y, layout.close.w, layout.close.h)
-    || pointInRect(x, y, layout.bottom.x, layout.bottom.y, layout.bottom.w, layout.bottom.h)) {
+  if (
+    pointInRect(
+      x,
+      y,
+      layout.close.x,
+      layout.close.y,
+      layout.close.w,
+      layout.close.h,
+    ) ||
+    pointInRect(
+      x,
+      y,
+      layout.bottom.x,
+      layout.bottom.y,
+      layout.bottom.w,
+      layout.bottom.h,
+    )
+  ) {
     closeCraftMenu();
     syncPauseState();
     updateMobileContext(true);
@@ -6671,9 +9043,21 @@ function handleTapCraftMenu(x: number, y: number, w: number, h: number): void {
     filter: state.craftFilter,
   });
   const entries = craftMenuEntries(snapshot);
-  const visibleRows = Math.max(1, Math.floor((layout.list.h - 20 * layout.scale) / layout.rowH));
-  const cursor = entries.length === 0 ? 0 : Math.max(0, Math.min(entries.length - 1, state.craftCursor));
-  const first = Math.max(0, Math.min(Math.max(0, entries.length - visibleRows), cursor - Math.floor(visibleRows * 0.5)));
+  const visibleRows = Math.max(
+    1,
+    Math.floor((layout.list.h - 20 * layout.scale) / layout.rowH),
+  );
+  const cursor =
+    entries.length === 0
+      ? 0
+      : Math.max(0, Math.min(entries.length - 1, state.craftCursor));
+  const first = Math.max(
+    0,
+    Math.min(
+      Math.max(0, entries.length - visibleRows),
+      cursor - Math.floor(visibleRows * 0.5),
+    ),
+  );
   const listTop = layout.list.y + 16 * layout.scale;
   for (let row = 0; row < visibleRows; row++) {
     const index = first + row;
@@ -6686,13 +9070,30 @@ function handleTapCraftMenu(x: number, y: number, w: number, h: number): void {
       return;
     }
   }
-  if (entries.length > 0 && pointInRect(x, y, layout.detail.x, layout.detail.y, layout.detail.w, layout.detail.h)) {
+  if (
+    entries.length > 0 &&
+    pointInRect(
+      x,
+      y,
+      layout.detail.x,
+      layout.detail.y,
+      layout.detail.w,
+      layout.detail.h,
+    )
+  ) {
     activateCraftSelection();
     return;
   }
 }
 
-function handleTapQuests(x: number, y: number, w: number, h: number, sx: number, sy: number): void {
+function handleTapQuests(
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  sx: number,
+  sy: number,
+): void {
   const pw = Math.min(400 * sx, w - 24 * sx);
   const ph = Math.min(320 * sy, h - 24 * sy);
   const px = (w - pw) / 2;
@@ -6708,9 +9109,10 @@ function handleTapQuests(x: number, y: number, w: number, h: number, sx: number,
     return;
   }
   if (total > 1) {
-    state.questPage = x < w / 2
-      ? Math.max(0, state.questPage - 1)
-      : Math.min(total - 1, state.questPage + 1);
+    state.questPage =
+      x < w / 2
+        ? Math.max(0, state.questPage - 1)
+        : Math.min(total - 1, state.questPage + 1);
   }
 }
 
@@ -6721,12 +9123,19 @@ function handleTapLog(y: number, h: number, sy: number): void {
     return;
   }
   const maxScroll = Math.max(0, state.msgLog.length * 3);
-  state.logScroll = y < h / 2
-    ? Math.min(maxScroll, state.logScroll + 3)
-    : Math.max(0, state.logScroll - 3);
+  state.logScroll =
+    y < h / 2
+      ? Math.min(maxScroll, state.logScroll + 3)
+      : Math.max(0, state.logScroll - 3);
 }
 
-function handleTapDemos(x: number, y: number, w: number, h: number, sy: number): void {
+function handleTapDemos(
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  sy: number,
+): void {
   if (y > h - 28 * sy) {
     closeDemosMenu();
     updateMobileContext(true);
@@ -6737,7 +9146,12 @@ function handleTapDemos(x: number, y: number, w: number, h: number, sy: number):
   clampDemosPanelState();
 }
 
-function handleTapContainerMenu(x: number, y: number, w: number, h: number): void {
+function handleTapContainerMenu(
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+): void {
   const container = world.containerById.get(state.containerMenuTarget);
   if (!container) {
     closeContainerMenu();
@@ -6748,11 +9162,20 @@ function handleTapContainerMenu(x: number, y: number, w: number, h: number): voi
   const startX = layout.startX;
   const startY = layout.startY;
   const containerX = layout.containerX;
-  for (const side of ['player', 'container'] as const) {
-    const gx = side === 'player' ? startX : containerX;
+  for (const side of ["player", "container"] as const) {
+    const gx = side === "player" ? startX : containerX;
     for (let row = 0; row < layout.rows; row++) {
       for (let col = 0; col < layout.cols; col++) {
-        if (pointInRect(x, y, gx + col * cellSz, startY + row * cellSz, cellSz, cellSz)) {
+        if (
+          pointInRect(
+            x,
+            y,
+            gx + col * cellSz,
+            startY + row * cellSz,
+            cellSz,
+            cellSz,
+          )
+        ) {
           state.containerSide = side;
           state.containerCursorX = col;
           state.containerCursorY = row;
@@ -6762,16 +9185,34 @@ function handleTapContainerMenu(x: number, y: number, w: number, h: number): voi
       }
     }
   }
-  if (pointInRect(x, y, layout.close.x, layout.close.y, layout.close.w, layout.close.h)) {
+  if (
+    pointInRect(
+      x,
+      y,
+      layout.close.x,
+      layout.close.y,
+      layout.close.w,
+      layout.close.h,
+    )
+  ) {
     closeContainerMenu();
     syncPauseState();
   }
 }
 
-function handleTapNpcMenu(x: number, y: number, w: number, h: number, sx: number, sy: number): void {
-  const npc = getEntityIndex().byId.get(state.npcMenuTarget) ?? entities.find(e => e.id === state.npcMenuTarget);
+function handleTapNpcMenu(
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  sx: number,
+  sy: number,
+): void {
+  const npc =
+    getEntityIndex().byId.get(state.npcMenuTarget) ??
+    entities.find((e) => e.id === state.npcMenuTarget);
   if (!npc) return;
-  if (state.npcMenuTab === 'main') {
+  if (state.npcMenuTab === "main") {
     const pw = Math.min(440 * sx, w - 24 * sx);
     const ph = Math.min(320 * sy, h - 24 * sy);
     const px = (w - pw) / 2;
@@ -6790,18 +9231,27 @@ function handleTapNpcMenu(x: number, y: number, w: number, h: number, sx: number
       state.showNpcMenu = false;
       syncPauseState();
     }
-  } else if (state.npcMenuTab === 'trade') {
+  } else if (state.npcMenuTab === "trade") {
     const layout = tradeMenuGridLayout(w, h);
     const cellSz = layout.cell;
     for (const panel of [
-      { side: 'player', x: layout.startX },
-      { side: 'player_offer', x: layout.playerOfferX },
-      { side: 'npc_offer', x: layout.npcOfferX },
-      { side: 'npc', x: layout.npcX },
+      { side: "player", x: layout.startX },
+      { side: "player_offer", x: layout.playerOfferX },
+      { side: "npc_offer", x: layout.npcOfferX },
+      { side: "npc", x: layout.npcX },
     ] as const) {
       for (let row = 0; row < layout.rows; row++) {
         for (let col = 0; col < layout.cols; col++) {
-          if (pointInRect(x, y, panel.x + col * cellSz, layout.startY + row * cellSz, cellSz, cellSz)) {
+          if (
+            pointInRect(
+              x,
+              y,
+              panel.x + col * cellSz,
+              layout.startY + row * cellSz,
+              cellSz,
+              cellSz,
+            )
+          ) {
             state.tradeSide = panel.side;
             state.tradeCursorX = col;
             state.tradeCursorY = row;
@@ -6811,8 +9261,17 @@ function handleTapNpcMenu(x: number, y: number, w: number, h: number, sx: number
         }
       }
     }
-    if (pointInRect(x, y, layout.dealX, layout.dealY, layout.dealW, layout.dealH + 10 * layout.scale)) {
-      state.tradeSide = 'deal';
+    if (
+      pointInRect(
+        x,
+        y,
+        layout.dealX,
+        layout.dealY,
+        layout.dealW,
+        layout.dealH + 10 * layout.scale,
+      )
+    ) {
+      state.tradeSide = "deal";
       state.tradeCursorX = 0;
       state.tradeCursorY = 0;
       activateTradeSelection(npc);
@@ -6820,19 +9279,20 @@ function handleTapNpcMenu(x: number, y: number, w: number, h: number, sx: number
     }
     if (y > h - 32 * sy) {
       clearTradeOffers(state);
-      state.npcMenuTab = 'main';
+      state.npcMenuTab = "main";
     }
-  } else if (state.npcMenuTab === 'quest') {
+  } else if (state.npcMenuTab === "quest") {
     let total = 0;
     for (let i = 0; i < state.quests.length; i++) {
       if (!state.quests[i].done) total++;
     }
     if (y > h - 40 * sy) {
-      state.npcMenuTab = 'main';
+      state.npcMenuTab = "main";
     } else if (total > 1) {
-      state.questPage = x < w / 2
-        ? Math.max(0, state.questPage - 1)
-        : Math.min(total - 1, state.questPage + 1);
+      state.questPage =
+        x < w / 2
+          ? Math.max(0, state.questPage - 1)
+          : Math.min(total - 1, state.questPage + 1);
     }
   } else if (state.npcMenuTab === NPC_MENU_INTERFACE_TAB) {
     const pw = Math.min(440 * sx, w - 24 * sx);
@@ -6841,40 +9301,88 @@ function handleTapNpcMenu(x: number, y: number, w: number, h: number, sx: number
     const py = (h - ph) / 2;
     if (pointInRect(x, y, px, py + ph - 22 * sy, pw, 22 * sy)) {
       if (isDurakGameOpen()) {
-        const result = handleDurakInput({ state, player, npc, input: { escEdge: true } });
+        const result = handleDurakInput({
+          state,
+          player,
+          npc,
+          input: { escEdge: true },
+        });
         if (result.closeInterface) closeNpcInteractionInterface(state);
       } else if (isDiceGameOpen()) {
-        const result = handleDiceInput({ state, player, npc, input: { escEdge: true } });
+        const result = handleDiceInput({
+          state,
+          player,
+          npc,
+          input: { escEdge: true },
+        });
         if (result.closeInterface) closeNpcInteractionInterface(state);
       } else if (isDominoGameOpen()) {
-        const result = handleDominoInput({ state, player, npc, input: { escEdge: true } });
+        const result = handleDominoInput({
+          state,
+          player,
+          npc,
+          input: { escEdge: true },
+        });
         if (result.closeInterface) closeNpcInteractionInterface(state);
       } else if (isCheckersGameOpen()) {
-        const result = handleCheckersInput({ state, player, npc, input: { escEdge: true } });
+        const result = handleCheckersInput({
+          state,
+          player,
+          npc,
+          input: { escEdge: true },
+        });
         if (result.closeInterface) closeNpcInteractionInterface(state);
       } else {
         closeNpcInteractionInterface(state);
       }
     }
   } else {
-    state.npcMenuTab = 'main';
+    state.npcMenuTab = "main";
   }
 }
 
 function handleMobileHudTap(x: number, y: number): void {
-  if (typeof state === 'undefined' || typeof player === 'undefined') return;
+  if (typeof state === "undefined" || typeof player === "undefined") return;
   const w = hudCanvas.width;
   const h = hudCanvas.height;
   const baseSx = w / SCR_W;
   const baseSy = h / SCR_H;
   const { sx, sy } = menuScale();
 
-  if (state.mapMode === 2 && !state.showInventory && !state.showQuests && !state.showLog && !state.showFactions && !state.showDemos && !state.showMenu && !state.showHelp && !state.showControls && !state.showUiSettings && !state.showNpcMenu && !state.showContainerMenu && !state.showCraftMenu) {
+  if (
+    state.mapMode === 2 &&
+    !state.showInventory &&
+    !state.showQuests &&
+    !state.showLog &&
+    !state.showFactions &&
+    !state.showDemos &&
+    !state.showMenu &&
+    !state.showHelp &&
+    !state.showControls &&
+    !state.showUiSettings &&
+    !state.showNpcMenu &&
+    !state.showContainerMenu &&
+    !state.showCraftMenu
+  ) {
     state.mapMode = 0;
     return;
   }
 
-  if (state.showMapLegend && !state.showInventory && !state.showQuests && !state.showLog && !state.showFactions && !state.showDemos && !state.showMenu && !state.showHelp && !state.showControls && !state.showUiSettings && !state.showNpcMenu && !state.showContainerMenu && !state.showCraftMenu) {
+  if (
+    state.showMapLegend &&
+    !state.showInventory &&
+    !state.showQuests &&
+    !state.showLog &&
+    !state.showFactions &&
+    !state.showDemos &&
+    !state.showMenu &&
+    !state.showHelp &&
+    !state.showControls &&
+    !state.showUiSettings &&
+    !state.showNpcMenu &&
+    !state.showContainerMenu &&
+    !state.showCraftMenu
+  ) {
     state.showMapLegend = false;
     return;
   }
@@ -6922,8 +9430,10 @@ function handleHudPointerUp(e: PointerEvent): void {
   mobileGestureUnlock();
   if (!started) {
     const rect = hudCanvas.getBoundingClientRect();
-    const x = (e.clientX - rect.left) * (hudCanvas.width / Math.max(1, rect.width));
-    const y = (e.clientY - rect.top) * (hudCanvas.height / Math.max(1, rect.height));
+    const x =
+      (e.clientX - rect.left) * (hudCanvas.width / Math.max(1, rect.width));
+    const y =
+      (e.clientY - rect.top) * (hudCanvas.height / Math.max(1, rect.height));
     const language = hitTitleLanguage(titleLanguageHits, x, y);
     if (language) {
       saveTitleLanguageId(language);
@@ -6931,8 +9441,8 @@ function handleHudPointerUp(e: PointerEvent): void {
       return;
     }
     const titleField = hitTitleField(titleLanguageHits, x, y);
-    if (titleMode === 'language') {
-      if (titleField === 'start' || !titleField) openTitleSetupMenu();
+    if (titleMode === "language") {
+      if (titleField === "start" || !titleField) openTitleSetupMenu();
       return;
     }
     if (titleField) {
@@ -6943,21 +9453,23 @@ function handleHudPointerUp(e: PointerEvent): void {
   }
   if (pendingLoad) return;
   const rect = hudCanvas.getBoundingClientRect();
-  const x = (e.clientX - rect.left) * (hudCanvas.width / Math.max(1, rect.width));
-  const y = (e.clientY - rect.top) * (hudCanvas.height / Math.max(1, rect.height));
+  const x =
+    (e.clientX - rect.left) * (hudCanvas.width / Math.max(1, rect.width));
+  const y =
+    (e.clientY - rect.top) * (hudCanvas.height / Math.max(1, rect.height));
   handleMobileHudTap(x, y);
 }
 
-hudCanvas.addEventListener('pointerup', handleHudPointerUp);
+hudCanvas.addEventListener("pointerup", handleHudPointerUp);
 
 let suppressNextTitleClick = false;
 
 function handleTitleCanvasPointerUp(e: PointerEvent): void {
   if (started || mobileControls?.isEnabled()) return;
   if (pointerCaptureGateVisible()) return;
-  if (titleMode === 'feedback') {
-    window.open('https://t.me/gigah_rush', '_blank');
-    titleMode = 'setup';
+  if (titleMode === "feedback") {
+    window.open("https://t.me/gigah_rush", "_blank");
+    titleMode = "setup";
     showTitle();
     suppressNextTitleClick = true;
     e.preventDefault();
@@ -6965,35 +9477,40 @@ function handleTitleCanvasPointerUp(e: PointerEvent): void {
     return;
   }
   const rect = canvas.getBoundingClientRect();
-  const x = (e.clientX - rect.left) * (hudCanvas.width / Math.max(1, rect.width));
-  const y = (e.clientY - rect.top) * (hudCanvas.height / Math.max(1, rect.height));
+  const x =
+    (e.clientX - rect.left) * (hudCanvas.width / Math.max(1, rect.width));
+  const y =
+    (e.clientY - rect.top) * (hudCanvas.height / Math.max(1, rect.height));
   const language = hitTitleLanguage(titleLanguageHits, x, y);
   if (language) {
     saveTitleLanguageId(language);
     showTitle();
   } else {
     const titleField = hitTitleField(titleLanguageHits, x, y);
-    if (titleMode === 'language') {
-      if (titleField === 'start' || !titleField) openTitleSetupMenu();
+    if (titleMode === "language") {
+      if (titleField === "start" || !titleField) openTitleSetupMenu();
       else return;
     } else if (titleField) {
       setTitleSelection(titleField);
       editTitleFieldFromPointer(titleField);
-    }
-    else return;
+    } else return;
   }
   suppressNextTitleClick = true;
   e.preventDefault();
   e.stopPropagation();
 }
 
-canvas.addEventListener('pointerup', handleTitleCanvasPointerUp);
-canvas.addEventListener('click', e => {
-  if (!suppressNextTitleClick) return;
-  suppressNextTitleClick = false;
-  e.preventDefault();
-  e.stopImmediatePropagation();
-}, true);
+canvas.addEventListener("pointerup", handleTitleCanvasPointerUp);
+canvas.addEventListener(
+  "click",
+  (e) => {
+    if (!suppressNextTitleClick) return;
+    suppressNextTitleClick = false;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+  },
+  true,
+);
 
 function handleMenuInput(): void {
   // ── On death: lock out all menus / inventory / interactions ──
@@ -7026,7 +9543,7 @@ function handleMenuInput(): void {
     input.menuAccept = false;
     input.menuClose = false;
     input.menuWheel = 0;
-    input.textInput = '';
+    input.textInput = "";
     return;
   }
 
@@ -7034,7 +9551,7 @@ function handleMenuInput(): void {
     input.menuAccept = false;
     input.menuClose = false;
     input.menuWheel = 0;
-    input.textInput = '';
+    input.textInput = "";
     resetMenuRepeats();
     syncMenuInputBaselines();
     syncPauseState();
@@ -7050,7 +9567,8 @@ function handleMenuInput(): void {
   const wheelUpEdge = pointerWheel < 0;
   const wheelDnEdge = pointerWheel > 0;
   const acceptEdge = (input.escape && !prevEsc) || pointerAcceptEdge;
-  const closeEdge = (input.controlClose && !prevControlClose) || pointerCloseEdge;
+  const closeEdge =
+    (input.controlClose && !prevControlClose) || pointerCloseEdge;
   const resetEdge = input.controlReset && !prevControlReset;
   const upEdge = input.invUp && !prevMenuUp;
   const dnEdge = input.invDn && !prevMenuDn;
@@ -7065,13 +9583,18 @@ function handleMenuInput(): void {
   const controlsEdge = input.controls && !prevControlsMenu;
   const uiSettingsEdge = input.uiSettings && !prevUiSettingsMenu;
   const dbgEdge = input.debugScreen && !prevDebug;
-  const menuUpNav = () => menuRepeatStep('up', input.invUp, upEdge) || wheelUpEdge;
-  const menuDownNav = () => menuRepeatStep('down', input.invDn, dnEdge) || wheelDnEdge;
+  const menuUpNav = () =>
+    menuRepeatStep("up", input.invUp, upEdge) || wheelUpEdge;
+  const menuDownNav = () =>
+    menuRepeatStep("down", input.invDn, dnEdge) || wheelDnEdge;
 
   if (state.showDemos) {
     if (input.textInput) {
-      const nextSearch = applyDemosSearchText(state.demosSearch, input.textInput);
-      input.textInput = '';
+      const nextSearch = applyDemosSearchText(
+        state.demosSearch,
+        input.textInput,
+      );
+      input.textInput = "";
       if (nextSearch !== state.demosSearch) {
         state.demosSearch = nextSearch;
       }
@@ -7081,17 +9604,26 @@ function handleMenuInput(): void {
     } else if (acceptEdge) {
       state.demosSearch = cleanDemosSearchQuery(state.demosSearch);
       if (state.demosSearchActive) {
-        state.demosCursor = findDemosCursor(state, state.demosSearch, state.demosCursor, 1);
+        state.demosCursor = findDemosCursor(
+          state,
+          state.demosSearch,
+          state.demosCursor,
+          1,
+        );
         state.demosSearchActive = false;
       } else {
         state.demosSearchActive = true;
       }
-      input.textInput = '';
+      input.textInput = "";
     } else if (!state.demosSearchActive) {
       const upNav = menuUpNav();
       const dnNav = menuDownNav();
-      const leftNav = menuRepeatStep('left', input.invLeft, leftEdge);
-      const rightNav = menuRepeatStep('right', input.invRight || input.drop, rightEdge || dropEdge);
+      const leftNav = menuRepeatStep("left", input.invLeft, leftEdge);
+      const rightNav = menuRepeatStep(
+        "right",
+        input.invRight || input.drop,
+        rightEdge || dropEdge,
+      );
       if (leftNav) {
         shiftDemosTab(-1);
         clampDemosPanelState();
@@ -7158,13 +9690,22 @@ function handleMenuInput(): void {
     state.paused = true;
 
     const leftEdge = input.invLeft && !prevMenuLeft;
-    const rightEdge = (input.invRight && !prevMenuRight) || (input.drop && !prevDrop);
+    const rightEdge =
+      (input.invRight && !prevMenuRight) || (input.drop && !prevDrop);
     const mapMode = isMapEditorMapMode();
     const wheelZoom = mapMode ? Math.max(-4, Math.min(4, -pointerWheel)) : 0;
-    const upNav = mapMode ? menuRepeatStep('up', input.invUp, upEdge) : menuUpNav();
-    const dnNav = mapMode ? menuRepeatStep('down', input.invDn, dnEdge) : menuDownNav();
-    const leftNav = menuRepeatStep('left', input.invLeft, leftEdge);
-    const rightNav = menuRepeatStep('right', input.invRight || input.drop, rightEdge);
+    const upNav = mapMode
+      ? menuRepeatStep("up", input.invUp, upEdge)
+      : menuUpNav();
+    const dnNav = mapMode
+      ? menuRepeatStep("down", input.invDn, dnEdge)
+      : menuDownNav();
+    const leftNav = menuRepeatStep("left", input.invLeft, leftEdge);
+    const rightNav = menuRepeatStep(
+      "right",
+      input.invRight || input.drop,
+      rightEdge,
+    );
 
     const closeEditor = () => {
       closeMapEditorAndRefreshWorld();
@@ -7174,7 +9715,7 @@ function handleMenuInput(): void {
 
     if (closeEdge) {
       const action = backMapEditorMode();
-      if (action === 'close') closeEditor();
+      if (action === "close") closeEditor();
     } else {
       if (upNav) moveMapEditorMode(world, 0, -1);
       if (dnNav) moveMapEditorMode(world, 0, 1);
@@ -7183,9 +9724,15 @@ function handleMenuInput(): void {
       if (wheelZoom !== 0) adjustMapEditorZoom(wheelZoom);
       if (acceptEdge) {
         const action = activateMapEditorMode();
-        if (action === 'apply') {
-          applyCurrentMapEditorBrush(world, entities, player, state, nextEntityId);
-        } else if (action === 'close') {
+        if (action === "apply") {
+          applyCurrentMapEditorBrush(
+            world,
+            entities,
+            player,
+            state,
+            nextEntityId,
+          );
+        } else if (action === "close") {
           closeEditor();
         }
       }
@@ -7215,19 +9762,27 @@ function handleMenuInput(): void {
     state.paused = true;
 
     const leftEdge = input.invLeft && !prevMenuLeft;
-    const rightEdge = (input.invRight && !prevMenuRight) || (input.drop && !prevDrop);
+    const rightEdge =
+      (input.invRight && !prevMenuRight) || (input.drop && !prevDrop);
     const upNav = menuUpNav();
     const dnNav = menuDownNav();
-    const leftNav = menuRepeatStep('left', input.invLeft, leftEdge);
-    const rightNav = menuRepeatStep('right', input.invRight || input.drop, rightEdge);
-    const result = handleInteractableOverlayInput({
-      escEdge: closeEdge,
-      interactEdge: acceptEdge,
-      upNav,
-      dnNav,
-      leftNav,
-      rightNav,
-    }, { world, state, player, switchFloor });
+    const leftNav = menuRepeatStep("left", input.invLeft, leftEdge);
+    const rightNav = menuRepeatStep(
+      "right",
+      input.invRight || input.drop,
+      rightEdge,
+    );
+    const result = handleInteractableOverlayInput(
+      {
+        escEdge: closeEdge,
+        interactEdge: acceptEdge,
+        upNav,
+        dnNav,
+        leftNav,
+        rightNav,
+      },
+      { world, state, player, switchFloor },
+    );
     if (result.worldChanged) updateWorldData(world);
     if (!isInteractableOverlayOpen()) syncPauseState();
 
@@ -7256,12 +9811,19 @@ function handleMenuInput(): void {
 
     const upNav = menuUpNav();
     const dnNav = menuDownNav();
-    const result = handleEmergencyPanelMenuInput({
-      up: upNav,
-      down: dnNav,
-      confirm: acceptEdge,
-      close: closeEdge,
-    }, world, player, entities, state, nextEntityId);
+    const result = handleEmergencyPanelMenuInput(
+      {
+        up: upNav,
+        down: dnNav,
+        confirm: acceptEdge,
+        close: closeEdge,
+      },
+      world,
+      player,
+      entities,
+      state,
+      nextEntityId,
+    );
     if (result.worldChanged) updateWorldData(world);
     if (!isEmergencyPanelMenuOpen()) syncPauseState();
 
@@ -7296,13 +9858,31 @@ function handleMenuInput(): void {
     return;
   }
 
-  const anyRepeatMenuOpen = state.showMenu || state.showInventory || state.showQuests ||
-    state.showContainerMenu || state.showCraftMenu || state.showNpcMenu || state.showDebug || state.showFactions || state.showDemos || state.showLog || state.showHelp || state.showControls || state.showUiSettings || state.showMapLegend;
+  const anyRepeatMenuOpen =
+    state.showMenu ||
+    state.showInventory ||
+    state.showQuests ||
+    state.showContainerMenu ||
+    state.showCraftMenu ||
+    state.showNpcMenu ||
+    state.showDebug ||
+    state.showFactions ||
+    state.showDemos ||
+    state.showLog ||
+    state.showHelp ||
+    state.showControls ||
+    state.showUiSettings ||
+    state.showMapLegend;
   if (!anyRepeatMenuOpen) resetMenuRepeats();
 
   const helpOpenedThisFrame = helpEdge && canOpenShortcutMenu;
-  const controlsOpenedThisFrame = controlsEdge && canOpenShortcutMenu && !helpOpenedThisFrame;
-  const uiSettingsOpenedThisFrame = uiSettingsEdge && canOpenShortcutMenu && !helpOpenedThisFrame && !controlsOpenedThisFrame;
+  const controlsOpenedThisFrame =
+    controlsEdge && canOpenShortcutMenu && !helpOpenedThisFrame;
+  const uiSettingsOpenedThisFrame =
+    uiSettingsEdge &&
+    canOpenShortcutMenu &&
+    !helpOpenedThisFrame &&
+    !controlsOpenedThisFrame;
   if (helpOpenedThisFrame) openHelpMenu();
   if (controlsOpenedThisFrame) openControlsMenu();
   if (uiSettingsOpenedThisFrame) openUiSettingsMenu();
@@ -7368,7 +9948,7 @@ function handleMenuInput(): void {
   // ── Feedback Menu ────────────────────────────────────────
   if (state.showFeedback) {
     if (acceptEdge) {
-      window.open('https://t.me/gigah_rush', '_blank');
+      window.open("https://t.me/gigah_rush", "_blank");
     }
     if (acceptEdge || closeEdge) closeFeedbackMenu();
     syncMenuInputBaselines();
@@ -7380,27 +9960,51 @@ function handleMenuInput(): void {
   if (state.showControls) {
     if (!getControlCaptureAction()) {
       const effectiveAcceptEdge = !controlsOpenedThisFrame && acceptEdge;
-      const fixedControlsCommand = effectiveAcceptEdge || closeEdge || resetEdge;
+      const fixedControlsCommand =
+        effectiveAcceptEdge || closeEdge || resetEdge;
       const upNav = !fixedControlsCommand && menuUpNav();
       const dnNav = !fixedControlsCommand && menuDownNav();
       if (upNav) state.controlSel = Math.max(0, state.controlSel - 1);
-      if (dnNav) state.controlSel = Math.min(controlMenuItemCount() - 1, state.controlSel + 1);
+      if (dnNav)
+        state.controlSel = Math.min(
+          controlMenuItemCount() - 1,
+          state.controlSel + 1,
+        );
       keepControlSelectionVisible();
       const mouseSensitivitySelected = controlMouseSensitivitySelected();
-      const leftNav = !fixedControlsCommand && mouseSensitivitySelected ? menuRepeatStep('left', input.invLeft, leftEdge) : false;
-      const rightNav = !fixedControlsCommand && mouseSensitivitySelected ? menuRepeatStep('right', input.invRight, rightEdge) : false;
-      if (resetEdge && state.controlView === 'keys') {
+      const leftNav =
+        !fixedControlsCommand && mouseSensitivitySelected
+          ? menuRepeatStep("left", input.invLeft, leftEdge)
+          : false;
+      const rightNav =
+        !fixedControlsCommand && mouseSensitivitySelected
+          ? menuRepeatStep("right", input.invRight, rightEdge)
+          : false;
+      if (resetEdge && state.controlView === "keys") {
         const action = selectedControlAction();
         if (action && clearControlBinding(action.id)) {
-          state.msgs.push(msg(`Клавиши очищены: ${action.label}`, state.time, '#8cf'));
+          state.msgs.push(
+            msg(`Клавиши очищены: ${action.label}`, state.time, "#8cf"),
+          );
         }
-      } else if (mouseSensitivitySelected && (leftNav || rightNav || effectiveAcceptEdge)) {
+      } else if (
+        mouseSensitivitySelected &&
+        (leftNav || rightNav || effectiveAcceptEdge)
+      ) {
         const sensitivity = adjustMouseLookSensitivity(leftNav ? -1 : 1);
-        state.msgs.push(msg(`Чувствительность мыши: ${Math.round(sensitivity * 100)}%`, state.time, '#8cf'));
+        state.msgs.push(
+          msg(
+            `Чувствительность мыши: ${Math.round(sensitivity * 100)}%`,
+            state.time,
+            "#8cf",
+          ),
+        );
       } else if (effectiveAcceptEdge && controlResetSelected()) {
         resetAllControlBindings();
-        state.msgs.push(msg('Клавиши сброшены по умолчанию', state.time, '#8cf'));
-      } else if (effectiveAcceptEdge && state.controlView === 'keys') {
+        state.msgs.push(
+          msg("Клавиши сброшены по умолчанию", state.time, "#8cf"),
+        );
+      } else if (effectiveAcceptEdge && state.controlView === "keys") {
         const action = selectedControlAction();
         if (action) {
           beginControlCapture(action.id);
@@ -7420,7 +10024,11 @@ function handleMenuInput(): void {
     const upNav = !fixedLegendCommand && menuUpNav();
     const dnNav = !fixedLegendCommand && menuDownNav();
     if (upNav) state.mapLegendSel = Math.max(0, state.mapLegendSel - 1);
-    if (dnNav) state.mapLegendSel = Math.min(mapLegendRowCount() - 1, state.mapLegendSel + 1);
+    if (dnNav)
+      state.mapLegendSel = Math.min(
+        mapLegendRowCount() - 1,
+        state.mapLegendSel + 1,
+      );
     keepMapLegendSelectionVisible();
     if (acceptEdge) applyMapLegendSelection(state.mapLegendSel);
     if (closeEdge) closeMapLegendMenu();
@@ -7436,7 +10044,11 @@ function handleMenuInput(): void {
     const upNav = !fixedUiCommand && menuUpNav();
     const dnNav = !fixedUiCommand && menuDownNav();
     if (upNav) state.uiSettingsSel = Math.max(0, state.uiSettingsSel - 1);
-    if (dnNav) state.uiSettingsSel = Math.min(uiSettingsRowCount(state.uiSettingsView) - 1, state.uiSettingsSel + 1);
+    if (dnNav)
+      state.uiSettingsSel = Math.min(
+        uiSettingsRowCount(state.uiSettingsView) - 1,
+        state.uiSettingsSel + 1,
+      );
     keepUiSettingsSelectionVisible();
     if (acceptEdge) {
       applyUiSettingsSelection(state.uiSettingsSel);
@@ -7452,27 +10064,47 @@ function handleMenuInput(): void {
   let gameMenuOpenedThisFrame = false;
   if (closeEdge) {
     if (state.showNpcMenu) {
-      const npc = getEntityIndex().byId.get(state.npcMenuTarget) ?? entities.find(e => e.id === state.npcMenuTarget);
-      if (npc && isDurakGameOpen()) handleDurakInput({ state, player, npc, input: { escEdge: true } });
-      else if (npc && isDiceGameOpen()) handleDiceInput({ state, player, npc, input: { escEdge: true } });
-      else if (npc && isDominoGameOpen()) handleDominoInput({ state, player, npc, input: { escEdge: true } });
-      else if (npc && isCheckersGameOpen()) handleCheckersInput({ state, player, npc, input: { escEdge: true } });
+      const npc =
+        getEntityIndex().byId.get(state.npcMenuTarget) ??
+        entities.find((e) => e.id === state.npcMenuTarget);
+      if (npc && isDurakGameOpen())
+        handleDurakInput({ state, player, npc, input: { escEdge: true } });
+      else if (npc && isDiceGameOpen())
+        handleDiceInput({ state, player, npc, input: { escEdge: true } });
+      else if (npc && isDominoGameOpen())
+        handleDominoInput({ state, player, npc, input: { escEdge: true } });
+      else if (npc && isCheckersGameOpen())
+        handleCheckersInput({ state, player, npc, input: { escEdge: true } });
       clearTradeOffers(state);
       closeNpcInteractionInterface();
       state.showNpcMenu = false;
+    } else if (state.showContainerMenu) {
+      closeContainerMenu();
+    } else if (state.showCraftMenu) {
+      closeCraftMenu();
+      syncPauseState();
+      updateMobileContext(true);
+    } else if (state.showInventory) {
+      state.showInventory = false;
+    } else if (state.showQuests) {
+      state.showQuests = false;
+    } else if (state.showDebug) {
+      state.showDebug = false;
+    } else if (state.showFactions) {
+      state.showFactions = false;
+    } else if (state.showDemos) {
+      closeDemosMenu();
+    } else if (state.showLog) {
+      state.showLog = false;
+    } else if (state.showHelp) {
+      closeHelpMenu();
+    } else if (state.showUiSettings) {
+      state.showUiSettings = false;
+    } else if (state.mapMode === 2) {
+      closeFullMapMenu();
+    } else if (state.showMenu) {
+      state.showMenu = false;
     }
-    else if (state.showContainerMenu) { closeContainerMenu(); }
-    else if (state.showCraftMenu) { closeCraftMenu(); syncPauseState(); updateMobileContext(true); }
-    else if (state.showInventory) { state.showInventory = false; }
-    else if (state.showQuests) { state.showQuests = false; }
-    else if (state.showDebug) { state.showDebug = false; }
-    else if (state.showFactions) { state.showFactions = false; }
-    else if (state.showDemos) { closeDemosMenu(); }
-    else if (state.showLog) { state.showLog = false; }
-    else if (state.showHelp) { closeHelpMenu(); }
-    else if (state.showUiSettings) { state.showUiSettings = false; }
-    else if (state.mapMode === 2) { closeFullMapMenu(); }
-    else if (state.showMenu) { state.showMenu = false; }
   } else if (acceptEdge && canOpenShortcutMenu) {
     state.showMenu = true;
     state.menuSel = 0;
@@ -7484,7 +10116,8 @@ function handleMenuInput(): void {
     const upNav = menuUpNav();
     const dnNav = menuDownNav();
     if (upNav) state.menuSel = Math.max(0, state.menuSel - 1);
-    if (dnNav) state.menuSel = Math.min(GAME_MENU_ITEMS.length - 1, state.menuSel + 1);
+    if (dnNav)
+      state.menuSel = Math.min(GAME_MENU_ITEMS.length - 1, state.menuSel + 1);
     if (acceptEdge && !gameMenuOpenedThisFrame) {
       runGameMenuSelection(state.menuSel);
     }
@@ -7493,40 +10126,55 @@ function handleMenuInput(): void {
   else if (state.showInventory) {
     const upNav = menuUpNav();
     const dnNav = menuDownNav();
-    const leftNav = menuRepeatStep('left', input.invLeft, leftEdge);
-    const rightNav = menuRepeatStep('right', input.invRight, rightEdge);
-        if (upNav) {
+    const leftNav = menuRepeatStep("left", input.invLeft, leftEdge);
+    const rightNav = menuRepeatStep("right", input.invRight, rightEdge);
+    if (upNav) {
       if (state.invSel === MAX_INVENTORY_SLOTS) {
         state.invSel = MAX_INVENTORY_SLOTS - 1;
       } else {
-        state.invSel = wrapMenuIndex(state.invSel - INVENTORY_GRID_COLS, MAX_INVENTORY_SLOTS);
+        state.invSel = wrapMenuIndex(
+          state.invSel - INVENTORY_GRID_COLS,
+          MAX_INVENTORY_SLOTS,
+        );
       }
     }
     if (dnNav) {
-      if (state.invSel >= MAX_INVENTORY_SLOTS - INVENTORY_GRID_COLS && state.invSel < MAX_INVENTORY_SLOTS) {
+      if (
+        state.invSel >= MAX_INVENTORY_SLOTS - INVENTORY_GRID_COLS &&
+        state.invSel < MAX_INVENTORY_SLOTS
+      ) {
         state.invSel = MAX_INVENTORY_SLOTS;
       } else if (state.invSel !== MAX_INVENTORY_SLOTS) {
-        state.invSel = wrapMenuIndex(state.invSel + INVENTORY_GRID_COLS, MAX_INVENTORY_SLOTS);
+        state.invSel = wrapMenuIndex(
+          state.invSel + INVENTORY_GRID_COLS,
+          MAX_INVENTORY_SLOTS,
+        );
       }
     }
-    if (leftNav && state.invSel !== MAX_INVENTORY_SLOTS) state.invSel = wrapMenuIndex(state.invSel - 1, MAX_INVENTORY_SLOTS);
-    if (rightNav && state.invSel !== MAX_INVENTORY_SLOTS) state.invSel = wrapMenuIndex(state.invSel + 1, MAX_INVENTORY_SLOTS);
+    if (leftNav && state.invSel !== MAX_INVENTORY_SLOTS)
+      state.invSel = wrapMenuIndex(state.invSel - 1, MAX_INVENTORY_SLOTS);
+    if (rightNav && state.invSel !== MAX_INVENTORY_SLOTS)
+      state.invSel = wrapMenuIndex(state.invSel + 1, MAX_INVENTORY_SLOTS);
     if (acceptEdge) useInventorySelection();
     if (dropEdge) dropInventorySelection();
     // Attribute spending (1=STR, 2=AGI, 3=INT)
     if (input.attrStr && player.rpg && player.rpg.attrPoints > 0) {
-      if (spendAttrPoint(player, 'str'))
-        state.msgs.push(msg(`Сила +1 (${player.rpg.str})`, state.time, '#f84'));
+      if (spendAttrPoint(player, "str"))
+        state.msgs.push(msg(`Сила +1 (${player.rpg.str})`, state.time, "#f84"));
       input.attrStr = false;
     }
     if (input.attrAgi && player.rpg && player.rpg.attrPoints > 0) {
-      if (spendAttrPoint(player, 'agi'))
-        state.msgs.push(msg(`Ловкость +1 (${player.rpg.agi})`, state.time, '#4af'));
+      if (spendAttrPoint(player, "agi"))
+        state.msgs.push(
+          msg(`Ловкость +1 (${player.rpg.agi})`, state.time, "#4af"),
+        );
       input.attrAgi = false;
     }
     if (input.attrInt && player.rpg && player.rpg.attrPoints > 0) {
-      if (spendAttrPoint(player, 'int'))
-        state.msgs.push(msg(`Интеллект +1 (${player.rpg.int})`, state.time, '#a4f'));
+      if (spendAttrPoint(player, "int"))
+        state.msgs.push(
+          msg(`Интеллект +1 (${player.rpg.int})`, state.time, "#a4f"),
+        );
       input.attrInt = false;
     }
   }
@@ -7548,7 +10196,11 @@ function handleMenuInput(): void {
       });
       const count = craftMenuEntries(snapshot).length;
       if (upNav) state.craftCursor = Math.max(0, state.craftCursor - 1);
-      if (dnNav) state.craftCursor = Math.min(Math.max(0, count - 1), state.craftCursor + 1);
+      if (dnNav)
+        state.craftCursor = Math.min(
+          Math.max(0, count - 1),
+          state.craftCursor + 1,
+        );
       if (count === 0) state.craftCursor = 0;
       if (acceptEdge) {
         activateCraftSelection();
@@ -7561,7 +10213,8 @@ function handleMenuInput(): void {
     const upNav = menuUpNav();
     const dnNav = menuDownNav();
     if (upNav) state.questPage = Math.max(0, state.questPage - 1);
-    if (dnNav) state.questPage = Math.min(Math.max(0, totalQ - 1), state.questPage + 1);
+    if (dnNav)
+      state.questPage = Math.min(Math.max(0, totalQ - 1), state.questPage + 1);
     if (acceptEdge) {
       toggleSelectedQuestActive();
     }
@@ -7574,47 +10227,97 @@ function handleMenuInput(): void {
     } else {
       const upNav = menuUpNav();
       const dnNav = menuDownNav();
-      const leftNav = menuRepeatStep('left', input.invLeft, leftEdge);
-      const rightNav = menuRepeatStep('right', input.invRight || input.drop, rightEdge || dropEdge);
-      if (upNav) state.containerCursorY = Math.max(0, state.containerCursorY - 1);
-      if (dnNav) state.containerCursorY = Math.min(INVENTORY_GRID_ROWS - 1, state.containerCursorY + 1);
+      const leftNav = menuRepeatStep("left", input.invLeft, leftEdge);
+      const rightNav = menuRepeatStep(
+        "right",
+        input.invRight || input.drop,
+        rightEdge || dropEdge,
+      );
+      if (upNav)
+        state.containerCursorY = Math.max(0, state.containerCursorY - 1);
+      if (dnNav)
+        state.containerCursorY = Math.min(
+          INVENTORY_GRID_ROWS - 1,
+          state.containerCursorY + 1,
+        );
       if (leftNav) {
         if (state.containerCursorX > 0) {
           state.containerCursorX--;
-        } else if (state.containerSide === 'container') {
-          state.containerSide = 'player';
+        } else if (state.containerSide === "container") {
+          state.containerSide = "player";
           state.containerCursorX = INVENTORY_GRID_COLS - 1;
         }
       }
       if (rightNav) {
         if (state.containerCursorX < INVENTORY_GRID_COLS - 1) {
           state.containerCursorX++;
-        } else if (state.containerSide === 'player') {
-          state.containerSide = 'container';
+        } else if (state.containerSide === "player") {
+          state.containerSide = "container";
           state.containerCursorX = 0;
         }
       }
       if (acceptEdge) {
-        const idx = state.containerCursorY * INVENTORY_GRID_COLS + state.containerCursorX;
+        const idx =
+          state.containerCursorY * INVENTORY_GRID_COLS + state.containerCursorX;
         const access = containerAccessInfo(container, player, state);
-        if (state.containerSide === 'container') {
+        if (state.containerSide === "container") {
           const slot = container.inventory[idx];
-          const itemName = slot ? ITEMS[slot.defId]?.name ?? slot.defId : '';
+          const itemName = slot ? (ITEMS[slot.defId]?.name ?? slot.defId) : "";
           if (!access.canTake) {
-            state.msgs.push(msg(access.label === 'ЗАПЕРТО' ? 'Заперто.' : 'Нет доступа.', state.time, '#f84'));
-          } else if (slot && takeFromContainer(container, player, idx, 1, { state, world, entities })) {
-            state.msgs.push(msg(`${access.theft ? 'Украдено' : 'Взято'}: ${itemName}`, state.time, access.theft ? '#f84' : '#8f8'));
+            state.msgs.push(
+              msg(
+                access.label === "ЗАПЕРТО" ? "Заперто." : "Нет доступа.",
+                state.time,
+                "#f84",
+              ),
+            );
+          } else if (
+            slot &&
+            takeFromContainer(container, player, idx, 1, {
+              state,
+              world,
+              entities,
+            })
+          ) {
+            state.msgs.push(
+              msg(
+                `${access.theft ? "Украдено" : "Взято"}: ${itemName}`,
+                state.time,
+                access.theft ? "#f84" : "#8f8",
+              ),
+            );
           } else {
-            state.msgs.push(msg(slot ? 'Нет места.' : 'Пустой слот.', state.time, '#888'));
+            state.msgs.push(
+              msg(slot ? "Нет места." : "Пустой слот.", state.time, "#888"),
+            );
           }
         } else {
           const slot = player.inventory?.[idx];
           if (!access.canPut) {
-            state.msgs.push(msg('Нет доступа.', state.time, '#f84'));
-          } else if (slot && putIntoContainer(container, player, idx, 1, { state, world, entities })) {
-            state.msgs.push(msg(`Положено: ${ITEMS[slot.defId]?.name ?? slot.defId}`, state.time, '#8cf'));
+            state.msgs.push(msg("Нет доступа.", state.time, "#f84"));
+          } else if (
+            slot &&
+            putIntoContainer(container, player, idx, 1, {
+              state,
+              world,
+              entities,
+            })
+          ) {
+            state.msgs.push(
+              msg(
+                `Положено: ${ITEMS[slot.defId]?.name ?? slot.defId}`,
+                state.time,
+                "#8cf",
+              ),
+            );
           } else {
-            state.msgs.push(msg(slot ? 'Контейнер полон.' : 'Пустой слот.', state.time, '#888'));
+            state.msgs.push(
+              msg(
+                slot ? "Контейнер полон." : "Пустой слот.",
+                state.time,
+                "#888",
+              ),
+            );
           }
         }
       }
@@ -7622,60 +10325,88 @@ function handleMenuInput(): void {
   }
   // ── NPC menu navigation ──────────────────────────────────
   else if (state.showNpcMenu) {
-    const npc = getEntityIndex().byId.get(state.npcMenuTarget) ?? entities.find(e => e.id === state.npcMenuTarget);
-    if (state.npcMenuTab === 'main') {
+    const npc =
+      getEntityIndex().byId.get(state.npcMenuTarget) ??
+      entities.find((e) => e.id === state.npcMenuTarget);
+    if (state.npcMenuTab === "main") {
       const upNav = menuUpNav();
       const dnNav = menuDownNav();
-      const options = npc ? getNpcMenuOptions({ state, player, npc, entities }) : [];
+      const options = npc
+        ? getNpcMenuOptions({ state, player, npc, entities })
+        : [];
       clampNpcMenuSelection(state, options);
       if (upNav) state.npcMenuSel = Math.max(0, state.npcMenuSel - 1);
-      if (dnNav) state.npcMenuSel = Math.min(Math.max(0, options.length - 1), state.npcMenuSel + 1);
+      if (dnNav)
+        state.npcMenuSel = Math.min(
+          Math.max(0, options.length - 1),
+          state.npcMenuSel + 1,
+        );
       if (acceptEdge) activateNpcMainSelection(npc);
-    } else if (state.npcMenuTab === 'talk') {
-      if (acceptEdge || closeEdge) state.npcMenuTab = 'main';
-    } else if (state.npcMenuTab === 'quest') {
+    } else if (state.npcMenuTab === "talk") {
+      if (acceptEdge || closeEdge) state.npcMenuTab = "main";
+    } else if (state.npcMenuTab === "quest") {
       let totalQ = 0;
       for (let i = 0; i < state.quests.length; i++) {
         if (!state.quests[i].done) totalQ++;
       }
       const upNav = menuUpNav();
       const dnNav = menuDownNav();
-      const leftNav = menuRepeatStep('left', input.invLeft, leftEdge);
-      const rightNav = menuRepeatStep('right', input.invRight || input.drop, rightEdge || dropEdge);
+      const leftNav = menuRepeatStep("left", input.invLeft, leftEdge);
+      const rightNav = menuRepeatStep(
+        "right",
+        input.invRight || input.drop,
+        rightEdge || dropEdge,
+      );
       if (upNav || leftNav) state.questPage = Math.max(0, state.questPage - 1);
-      if (dnNav || rightNav) state.questPage = Math.min(Math.max(0, totalQ - 1), state.questPage + 1);
-      if (acceptEdge || closeEdge) state.npcMenuTab = 'main';
-    } else if (state.npcMenuTab === 'trade') {
+      if (dnNav || rightNav)
+        state.questPage = Math.min(
+          Math.max(0, totalQ - 1),
+          state.questPage + 1,
+        );
+      if (acceptEdge || closeEdge) state.npcMenuTab = "main";
+    } else if (state.npcMenuTab === "trade") {
       if (npc) {
         const upNav = menuUpNav();
         const dnNav = menuDownNav();
-        const leftNav = menuRepeatStep('left', input.invLeft, leftEdge);
-        const rightNav = menuRepeatStep('right', input.invRight || input.drop, rightEdge || dropEdge);
-        const panels = ['player', 'player_offer', 'npc_offer', 'npc'] as const;
-        if (state.tradeSide === 'deal') {
+        const leftNav = menuRepeatStep("left", input.invLeft, leftEdge);
+        const rightNav = menuRepeatStep(
+          "right",
+          input.invRight || input.drop,
+          rightEdge || dropEdge,
+        );
+        const panels = ["player", "player_offer", "npc_offer", "npc"] as const;
+        if (state.tradeSide === "deal") {
           if (upNav) {
-            state.tradeSide = 'player_offer';
+            state.tradeSide = "player_offer";
             state.tradeCursorX = INVENTORY_GRID_COLS - 1;
             state.tradeCursorY = INVENTORY_GRID_ROWS - 1;
           }
-          if (leftNav) state.tradeSide = 'player_offer';
-          if (rightNav) state.tradeSide = 'npc_offer';
-          state.tradeCursorX = Math.max(0, Math.min(INVENTORY_GRID_COLS - 1, state.tradeCursorX));
-          state.tradeCursorY = Math.max(0, Math.min(INVENTORY_GRID_ROWS - 1, state.tradeCursorY));
+          if (leftNav) state.tradeSide = "player_offer";
+          if (rightNav) state.tradeSide = "npc_offer";
+          state.tradeCursorX = Math.max(
+            0,
+            Math.min(INVENTORY_GRID_COLS - 1, state.tradeCursorX),
+          );
+          state.tradeCursorY = Math.max(
+            0,
+            Math.min(INVENTORY_GRID_ROWS - 1, state.tradeCursorY),
+          );
         } else {
-          let panelIndex = panels.indexOf(state.tradeSide as typeof panels[number]);
+          let panelIndex = panels.indexOf(
+            state.tradeSide as (typeof panels)[number],
+          );
           if (panelIndex < 0) panelIndex = 3;
           if (upNav) state.tradeCursorY = Math.max(0, state.tradeCursorY - 1);
           if (dnNav) {
             if (state.tradeCursorY >= INVENTORY_GRID_ROWS - 1) {
-              state.tradeSide = 'deal';
+              state.tradeSide = "deal";
               state.tradeCursorX = 0;
               state.tradeCursorY = 0;
             } else {
               state.tradeCursorY++;
             }
           }
-          if (state.tradeSide !== 'deal' && leftNav) {
+          if (state.tradeSide !== "deal" && leftNav) {
             if (state.tradeCursorX > 0) {
               state.tradeCursorX--;
             } else if (panelIndex > 0) {
@@ -7683,7 +10414,7 @@ function handleMenuInput(): void {
               state.tradeCursorX = INVENTORY_GRID_COLS - 1;
             }
           }
-          if (state.tradeSide !== 'deal' && rightNav) {
+          if (state.tradeSide !== "deal" && rightNav) {
             if (state.tradeCursorX < INVENTORY_GRID_COLS - 1) {
               state.tradeCursorX++;
             } else if (panelIndex < panels.length - 1) {
@@ -7691,9 +10422,15 @@ function handleMenuInput(): void {
               state.tradeCursorX = 0;
             }
           }
-          if (state.tradeSide !== 'deal') {
-            state.tradeCursorX = Math.max(0, Math.min(INVENTORY_GRID_COLS - 1, state.tradeCursorX));
-            state.tradeCursorY = Math.max(0, Math.min(INVENTORY_GRID_ROWS - 1, state.tradeCursorY));
+          if (state.tradeSide !== "deal") {
+            state.tradeCursorX = Math.max(
+              0,
+              Math.min(INVENTORY_GRID_COLS - 1, state.tradeCursorX),
+            );
+            state.tradeCursorY = Math.max(
+              0,
+              Math.min(INVENTORY_GRID_ROWS - 1, state.tradeCursorY),
+            );
           }
         }
         // Enter stages inventory items, removes basket items, or commits the centered deal.
@@ -7703,12 +10440,12 @@ function handleMenuInput(): void {
       }
       if (closeEdge) {
         clearTradeOffers(state);
-        state.npcMenuTab = 'main';
+        state.npcMenuTab = "main";
       }
     } else if (state.npcMenuTab === NPC_MENU_INTERFACE_TAB) {
       if (npc && isDurakGameOpen()) {
-        const leftNav = menuRepeatStep('left', input.invLeft, leftEdge);
-        const rightNav = menuRepeatStep('right', input.invRight, rightEdge);
+        const leftNav = menuRepeatStep("left", input.invLeft, leftEdge);
+        const rightNav = menuRepeatStep("right", input.invRight, rightEdge);
         const result = handleDurakInput({
           state,
           player,
@@ -7717,8 +10454,8 @@ function handleMenuInput(): void {
         });
         if (result.closeInterface) closeNpcInteractionInterface(state);
       } else if (npc && isDiceGameOpen()) {
-        const leftNav = menuRepeatStep('left', input.invLeft, leftEdge);
-        const rightNav = menuRepeatStep('right', input.invRight, rightEdge);
+        const leftNav = menuRepeatStep("left", input.invLeft, leftEdge);
+        const rightNav = menuRepeatStep("right", input.invRight, rightEdge);
         const result = handleDiceInput({
           state,
           player,
@@ -7727,8 +10464,8 @@ function handleMenuInput(): void {
         });
         if (result.closeInterface) closeNpcInteractionInterface(state);
       } else if (npc && isDominoGameOpen()) {
-        const leftNav = menuRepeatStep('left', input.invLeft, leftEdge);
-        const rightNav = menuRepeatStep('right', input.invRight, rightEdge);
+        const leftNav = menuRepeatStep("left", input.invLeft, leftEdge);
+        const rightNav = menuRepeatStep("right", input.invRight, rightEdge);
         const result = handleDominoInput({
           state,
           player,
@@ -7737,15 +10474,22 @@ function handleMenuInput(): void {
         });
         if (result.closeInterface) closeNpcInteractionInterface(state);
       } else if (npc && isCheckersGameOpen()) {
-        const leftNav = menuRepeatStep('left', input.invLeft, leftEdge);
-        const rightNav = menuRepeatStep('right', input.invRight, rightEdge);
+        const leftNav = menuRepeatStep("left", input.invLeft, leftEdge);
+        const rightNav = menuRepeatStep("right", input.invRight, rightEdge);
         const upNav = menuUpNav();
         const downNav = menuDownNav();
         const result = handleCheckersInput({
           state,
           player,
           npc,
-          input: { leftNav, rightNav, upNav, downNav, interactEdge: acceptEdge, dropEdge },
+          input: {
+            leftNav,
+            rightNav,
+            upNav,
+            downNav,
+            interactEdge: acceptEdge,
+            dropEdge,
+          },
         });
         if (result.closeInterface) closeNpcInteractionInterface(state);
       } else if (acceptEdge || closeEdge) {
@@ -7755,18 +10499,27 @@ function handleMenuInput(): void {
   }
   // ── Debug menu navigation ────────────────────────────────
   else if (state.showDebug) {
-    if (closeEdge) { state.showDebug = false; }
-    else {
+    if (closeEdge) {
+      state.showDebug = false;
+    } else {
       const upNav = menuUpNav();
       const dnNav = menuDownNav();
-      const leftNav = menuRepeatStep('left', input.invLeft, leftEdge);
-      const rightNav = menuRepeatStep('right', input.invRight, rightEdge);
+      const leftNav = menuRepeatStep("left", input.invLeft, leftEdge);
+      const rightNav = menuRepeatStep("right", input.invRight, rightEdge);
       if (upNav) state.debugSel = Math.max(0, state.debugSel - 1);
-      if (dnNav) state.debugSel = Math.min(DEBUG_COMMAND_COUNT - 1, state.debugSel + 1);
+      if (dnNav)
+        state.debugSel = Math.min(DEBUG_COMMAND_COUNT - 1, state.debugSel + 1);
       if (leftNav) moveDebugInfoPage(-1);
       if (rightNav) moveDebugInfoPage(1);
       if (acceptEdge) {
-        const action = execDebugCommand(state.debugSel, world, player, entities, state, nextEntityId);
+        const action = execDebugCommand(
+          state.debugSel,
+          world,
+          player,
+          entities,
+          state,
+          nextEntityId,
+        );
         if (action) handleDebugCommandAction(action);
       }
     }
@@ -7775,8 +10528,10 @@ function handleMenuInput(): void {
   else if (state.showFactions) {
     const upNav = menuUpNav();
     const dnNav = menuDownNav();
-    if (upNav) state.factionRankScroll = Math.max(0, state.factionRankScroll - 3);
-    if (dnNav) state.factionRankScroll = Math.min(99, state.factionRankScroll + 3);
+    if (upNav)
+      state.factionRankScroll = Math.max(0, state.factionRankScroll - 3);
+    if (dnNav)
+      state.factionRankScroll = Math.min(99, state.factionRankScroll + 3);
   }
   // ── Message log menu ─────────────────────────────────────
   else if (state.showLog) {
@@ -7795,12 +10550,29 @@ function handleMenuInput(): void {
   // ── Normal gameplay toggles ──────────────────────────────
   else {
     if (canOpenShortcutMenu) {
-      if (dbgEdge) { state.showDebug = true; state.debugSel = 0; resetDebugInfoPage(); }
-      if (invEdge) { state.showInventory = true; state.invSel = 0; }
-      if (questEdge) { state.showQuests = true; }
-      if (factionEdge) { state.showFactions = true; state.factionRankScroll = 0; }
-      if (logEdge) { state.showLog = true; state.logScroll = 0; }
-      if (helpEdge) { openHelpMenu(); }
+      if (dbgEdge) {
+        state.showDebug = true;
+        state.debugSel = 0;
+        resetDebugInfoPage();
+      }
+      if (invEdge) {
+        state.showInventory = true;
+        state.invSel = 0;
+      }
+      if (questEdge) {
+        state.showQuests = true;
+      }
+      if (factionEdge) {
+        state.showFactions = true;
+        state.factionRankScroll = 0;
+      }
+      if (logEdge) {
+        state.showLog = true;
+        state.logScroll = 0;
+      }
+      if (helpEdge) {
+        openHelpMenu();
+      }
     }
   }
 
@@ -7853,7 +10625,7 @@ function updateFpsMeter(now: number, frameMs: number): number {
   frameMsWindowSum += frameMs;
   frameMsWindowMax = Math.max(frameMsWindowMax, frameMs);
   if (elapsed >= 500) {
-    displayedFps = Math.max(0, Math.round(fpsFrameCount * 1000 / elapsed));
+    displayedFps = Math.max(0, Math.round((fpsFrameCount * 1000) / elapsed));
     displayedFrameMsAvg = frameMsWindowSum / Math.max(1, fpsFrameCount);
     displayedFrameMsMax = frameMsWindowMax;
     fpsWindowStart = now;
@@ -7956,7 +10728,7 @@ function gameLoop(now: number): void {
     }
     if (pageHiddenPause || platformPause) {
       clearExternalPauseInputsOnce();
-      if (typeof state !== 'undefined') {
+      if (typeof state !== "undefined") {
         state.sleeping = false;
         syncPauseState();
       }
@@ -7969,7 +10741,7 @@ function gameLoop(now: number): void {
     pendingLoad = null;
     pendingLoadDrawn = false;
     fn();
-    rebuildEntityIndex(entities, 'load');
+    rebuildEntityIndex(entities, "load");
     lastTime = performance.now(); // reset dt so we don't get a huge spike
     requestAnimationFrame(gameLoop);
     return;
@@ -8014,15 +10786,22 @@ function gameLoop(now: number): void {
   // Restore rate: 100 sleep in 5 game-hours (300 game-min = 300 real-sec at 1x)
   // → 100/300 ≈ 0.333 per real-sec at 1x, but with 10x accel → ~30 real-sec full restore
   const SLEEP_RESTORE_RATE = 100 / 300; // per simulated second
-  const wantSleep = input.sleep && !state.paused && !state.gameOver
-    && player.alive && player.needs !== undefined;
+  const wantSleep =
+    input.sleep &&
+    !state.paused &&
+    !state.gameOver &&
+    player.alive &&
+    player.needs !== undefined;
   state.sleeping = wantSleep && (player.needs?.sleep ?? 100) < 100;
   if (state.sleeping) dt *= SLEEP_TIME_MULT;
 
   // Menu input always processed (even when paused)
   handleMenuInput();
   // If menu triggered new game / load, bail out to show loading screen
-  if (pendingLoad) { requestAnimationFrame(gameLoop); return; }
+  if (pendingLoad) {
+    requestAnimationFrame(gameLoop);
+    return;
+  }
 
   if (!state.paused) {
     entityIndexFrame = (entityIndexFrame + 1) & 0x3fffffff;
@@ -8030,13 +10809,14 @@ function gameLoop(now: number): void {
 
   // ── Update ───────────────────────────────────────────────
   // Decay damage flash
-  if (state.dmgFlash > 0) state.dmgFlash = Math.max(0, state.dmgFlash - dt * 1.2);
+  if (state.dmgFlash > 0)
+    state.dmgFlash = Math.max(0, state.dmgFlash - dt * 1.2);
   // Decay beam visual
   if (state.beamFx > 0) state.beamFx = Math.max(0, state.beamFx - dt * 2.5);
   if (state.uvBeamFx > 0) state.uvBeamFx = Math.max(0, state.uvBeamFx - dt);
 
   // Runtime camera modes are visual-only; player death is the rolling-head mode.
-  if (state.gameOver && runtimeCamera.mode === 'death') {
+  if (state.gameOver && runtimeCamera.mode === "death") {
     state.deathTimer += dt;
     updateRuntimeCamera(runtimeCamera, world, dt);
   }
@@ -8056,7 +10836,7 @@ function gameLoop(now: number): void {
     // Update game clock (1 real second = 1 game minute)
     state.clock.totalMinutes += dt;
     const totalMins = Math.floor(state.clock.totalMinutes);
-    state.clock.hour = (8 + Math.floor(totalMins / 60)) % 24;  // start at 8:00
+    state.clock.hour = (8 + Math.floor(totalMins / 60)) % 24; // start at 8:00
     state.clock.minute = totalMins % 60;
     setMsgClock(state.clock);
     tickRoomMemory(state.time, dt);
@@ -8065,20 +10845,36 @@ function gameLoop(now: number): void {
 
     // ── Sleep restoration while holding Z ──
     if (state.sleeping && player.needs) {
-      player.needs.sleep = Math.min(100, player.needs.sleep + SLEEP_RESTORE_RATE * dt);
+      player.needs.sleep = Math.min(
+        100,
+        player.needs.sleep + SLEEP_RESTORE_RATE * dt,
+      );
       if (player.needs.sleep >= 100) {
-        state.msgs.push(msg('Вы выспались.', state.time, '#a8f'));
+        state.msgs.push(msg("Вы выспались.", state.time, "#a8f"));
       }
     }
 
     applyKnockbackPhysics(dt);
     movePlayer(dt);
-    rebuildEntityIndexForSimulation(entities, entityIndexFrame).beginTelemetryFrame();
+    rebuildEntityIndexForSimulation(
+      entities,
+      entityIndexFrame,
+    ).beginTelemetryFrame();
     playerActions(dt);
     syncPlayerActorSwitchBaseline();
     // If switchFloor was triggered, pendingLoad is set — skip the rest of this frame
-    if (pendingLoad) { requestAnimationFrame(gameLoop); return; }
-    updateLiftArachnaEncounter(world, entities, player, state, dt, nextEntityId);
+    if (pendingLoad) {
+      requestAnimationFrame(gameLoop);
+      return;
+    }
+    updateLiftArachnaEncounter(
+      world,
+      entities,
+      player,
+      state,
+      dt,
+      nextEntityId,
+    );
     updatePseudolifts(world, entities, player, state);
     updateEquippedTool(dt, player);
     // Player urination (P key)
@@ -8096,7 +10892,7 @@ function gameLoop(now: number): void {
         applyUrinationPenalty(dt);
         player.needs.pee = Math.max(0, player.needs.pee - 12 * dt);
         if (player.needs.pee <= 5) {
-          state.msgs.push(msg('Полегчало.', state.time, '#da4'));
+          state.msgs.push(msg("Полегчало.", state.time, "#da4"));
         }
       }
     } else {
@@ -8116,31 +10912,97 @@ function gameLoop(now: number): void {
       needsTickAccum = 0;
       needsRealTickAccum = 0;
       const needsStart = performance.now();
-      updateNeeds(entities, needsDt, state.time, state.msgs, player.id, nextEntityId, state, world, needsDt > 0 ? needsRealDt / needsDt : 1);
+      updateNeeds(
+        entities,
+        needsDt,
+        state.time,
+        state.msgs,
+        player.id,
+        nextEntityId,
+        state,
+        world,
+        needsDt > 0 ? needsRealDt / needsDt : 1,
+      );
       lastNeedsUpdateMs += performance.now() - needsStart;
     }
     let contentStart = performance.now();
-    if (updateContentRuntimeHooks({ world, entities, player, state, nextEntityId, dt, phase: 'pre_ai', gameOver: false })) updateWorldData(world);
+    if (
+      updateContentRuntimeHooks({
+        world,
+        entities,
+        player,
+        state,
+        nextEntityId,
+        dt,
+        phase: "pre_ai",
+        gameOver: false,
+      })
+    )
+      updateWorldData(world);
     lastContentHookMs += performance.now() - contentStart;
     const listener = player;
     setListenerPos(listener.x, listener.y, world);
     updateRouteCues(world, listener, state);
     updateMapExploration(world, listener, state);
     const aiStart = performance.now();
-    updateAI(world, entities, dt, state.time, state.msgs, listener.id, state.clock, state.samosborActive, nextEntityId, state.currentFloor, state);
+    updateAI(
+      world,
+      entities,
+      dt,
+      state.time,
+      state.msgs,
+      listener.id,
+      state.clock,
+      state.samosborActive,
+      nextEntityId,
+      state.currentFloor,
+      state,
+    );
     lastAiUpdateMs = performance.now() - aiStart;
     updateRailTrains(world, entities, player, state, dt);
     contentStart = performance.now();
-    if (updateContentRuntimeHooks({ world, entities, player, state, nextEntityId, dt, phase: 'post_ai', gameOver: false })) updateWorldData(world);
+    if (
+      updateContentRuntimeHooks({
+        world,
+        entities,
+        player,
+        state,
+        nextEntityId,
+        dt,
+        phase: "post_ai",
+        gameOver: false,
+      })
+    )
+      updateWorldData(world);
     lastContentHookMs += performance.now() - contentStart;
     updateCarnivorousFungus(world, entities, player, state, dt, nextEntityId);
     const hazardStart = performance.now();
-    tickCellHazards(world, entities, state, dt, player, input.fwd || input.back || input.strafeL || input.strafeR || input.touch.moveX !== 0 || input.touch.moveY !== 0);
+    tickCellHazards(
+      world,
+      entities,
+      state,
+      dt,
+      player,
+      input.fwd ||
+        input.back ||
+        input.strafeL ||
+        input.strafeR ||
+        input.touch.moveX !== 0 ||
+        input.touch.moveY !== 0,
+    );
     lastHazardUpdateMs = performance.now() - hazardStart;
     updateBlockCrushDamage(world, entities, state, dt);
     updateProceduralAnomalies(world, player, state, dt);
     const samosborStart = performance.now();
-    const samosborRebuild = updateSamosbor(world, entities, state, dt, nextEntityId, currentLocalSamosborPatchGeneration, scheduleLocalSamosborPatch);
+    const samosborRebuild = updateSamosbor(
+      world,
+      entities,
+      state,
+      dt,
+      nextEntityId,
+      currentLocalSamosborPatchGeneration,
+      scheduleLocalSamosborPatch,
+    );
     lastSamosborUpdateMs = performance.now() - samosborStart;
     if (samosborRebuild) {
       closeCraftMenu();
@@ -8148,10 +11010,18 @@ function gameLoop(now: number): void {
       scheduleLoading(() => {
         restorePlayerBeforeWorldBoundary();
         captureCurrentAlifeFloor();
-        clearWrongDoorRemaps(world, state, 'world_rebuild');
+        clearWrongDoorRemaps(world, state, "world_rebuild");
         clearPseudoliftActive(state, entities);
         const replacement = currentRouteRebuildGeneration();
-        rebuildWorld(world, entities, nextEntityId, state.samosborCount, state.currentFloor, replacement, state.tutorialMode);
+        rebuildWorld(
+          world,
+          entities,
+          nextEntityId,
+          state.samosborCount,
+          state.currentFloor,
+          replacement,
+          state.tutorialMode,
+        );
         initFactionControl(world);
         materializeCurrentAlifeFloor();
         ensureProceduralSpriteSeeds(entities);
@@ -8169,29 +11039,67 @@ function gameLoop(now: number): void {
       requestAnimationFrame(gameLoop);
       return;
     }
-    if (pendingLoad) { requestAnimationFrame(gameLoop); return; }
+    if (pendingLoad) {
+      requestAnimationFrame(gameLoop);
+      return;
+    }
     syncMapExplorationAfterSamosborWave(world, state);
     // Faction cell capture
     const factionStart = performance.now();
     updateFactionCapture(world, entities, dt, state);
-    updateFactionActivity(world, entities, player, state, nextEntityId, dt, currentFloorAllowsNpcPopulation());
+    updateFactionActivity(
+      world,
+      entities,
+      player,
+      state,
+      nextEntityId,
+      dt,
+      currentFloorAllowsNpcPopulation(),
+    );
     lastFactionUpdateMs = performance.now() - factionStart;
     contentStart = performance.now();
-    if (updateContentRuntimeHooks({ world, entities, player, state, nextEntityId, dt, phase: 'floor_activity', gameOver: false })) updateWorldData(world);
+    if (
+      updateContentRuntimeHooks({
+        world,
+        entities,
+        player,
+        state,
+        nextEntityId,
+        dt,
+        phase: "floor_activity",
+        gameOver: false,
+      })
+    )
+      updateWorldData(world);
     lastContentHookMs += performance.now() - contentStart;
     const activeAlifeFloorKey = currentFloorMemoryKey();
     tickAlifeMigration(state, dt, { activeFloorKey: activeAlifeFloorKey });
-    const alifeArrivals = processAlifePendingArrivals(state, world, entities, nextEntityId, { activeFloorKey: activeAlifeFloorKey });
-    const alifeDepartures = updateActiveAlifeDepartures(state, world, entities, dt);
+    const alifeArrivals = processAlifePendingArrivals(
+      state,
+      world,
+      entities,
+      nextEntityId,
+      { activeFloorKey: activeAlifeFloorKey },
+    );
+    const alifeDepartures = updateActiveAlifeDepartures(
+      state,
+      world,
+      entities,
+      dt,
+    );
     if (alifeArrivals > 0 || alifeDepartures > 0) {
       rebuildEntityIndexAfterSpawnCleanup(entities);
     }
-    if (updateKillQuestPressure(world, entities, state, state.msgs, nextEntityId)) {
+    if (
+      updateKillQuestPressure(world, entities, state, state.msgs, nextEntityId)
+    ) {
       rebuildEntityIndexAfterSpawnCleanup(entities);
     }
     // PSI does NOT auto-regenerate — only restored via items (pills, antidepressant)
     // Update ongoing PSI spell effects (phase shift, madness, control)
-    makeCurrentPlayer(updatePsiEffects(entities, dt, player, state.msgs, state.time).player);
+    makeCurrentPlayer(
+      updatePsiEffects(entities, dt, player, state.msgs, state.time).player,
+    );
     updateSeroburmalineExposure(world, player, state, dt);
 
     // Blood trails from wounded entities + particle physics
@@ -8211,8 +11119,12 @@ function gameLoop(now: number): void {
       const pair = Math.floor(state.time / 5) % 4;
       const slideA = world.slideCells[0];
       const slideB = world.slideCells[1];
-      if (pair !== lastSlidePair || slideA !== lastSlideCellA || slideB !== lastSlideCellB) {
-        world.wallTex[slideA] = Tex.SLIDE_1 + pair * 2;     // left
+      if (
+        pair !== lastSlidePair ||
+        slideA !== lastSlideCellA ||
+        slideB !== lastSlideCellB
+      ) {
+        world.wallTex[slideA] = Tex.SLIDE_1 + pair * 2; // left
         world.wallTex[slideB] = Tex.SLIDE_1 + pair * 2 + 1; // right
         world.markWallTexDirty();
         lastSlidePair = pair;
@@ -8226,7 +11138,9 @@ function gameLoop(now: number): void {
     // Check quest completion
     if (state.tick % 30 === 0) {
       checkQuests(player, world, entities, state, state.msgs, nextEntityId);
-      if (updateScriptedArrivals(world, entities, player, state, nextEntityId)) {
+      if (
+        updateScriptedArrivals(world, entities, player, state, nextEntityId)
+      ) {
         rebuildEntityIndexAfterSpawnCleanup(entities);
       }
     }
@@ -8243,11 +11157,25 @@ function gameLoop(now: number): void {
 
     // Auto-pickup when walking
     if (autoPickupEnabled() && state.tick % 15 === 0) {
-      pickupNearby(world, entities, player, state.msgs, state.time, state, (drop: Entity, pickedItems: readonly Item[] = []) => {
-        claimNetTerminalGenFleshDrop(state, drop, player, world);
-        recordFactionEventLootTaken(state, world, player, drop);
-        applyPickedStoryItemOutcomes(pickedItems, player, entities, state, state.msgs);
-      });
+      pickupNearby(
+        world,
+        entities,
+        player,
+        state.msgs,
+        state.time,
+        state,
+        (drop: Entity, pickedItems: readonly Item[] = []) => {
+          claimNetTerminalGenFleshDrop(state, drop, player, world);
+          recordFactionEventLootTaken(state, world, player, drop);
+          applyPickedStoryItemOutcomes(
+            pickedItems,
+            player,
+            entities,
+            state,
+            state.msgs,
+          );
+        },
+      );
     }
     if (state.tick % 60 === 0) {
       tickContainerAudits(state, world, player, entities);
@@ -8262,7 +11190,12 @@ function gameLoop(now: number): void {
     const damageActor = syncPlayerActorSwitchBaseline();
     let curHp = damageActor.hp ?? 100;
     if (curHp < prevPlayerActorHp) {
-      absorbPsiShieldDamage(damageActor, prevPlayerActorHp, state.msgs, state.time);
+      absorbPsiShieldDamage(
+        damageActor,
+        prevPlayerActorHp,
+        state.msgs,
+        state.time,
+      );
       curHp = damageActor.hp ?? curHp;
     }
     if (curHp < prevPlayerActorHp) {
@@ -8320,27 +11253,79 @@ function gameLoop(now: number): void {
       const needsRealDt = needsRealTickAccum;
       needsTickAccum = 0;
       needsRealTickAccum = 0;
-      updateNeeds(entities, needsDt, state.time, state.msgs, player.id, nextEntityId, state, world, needsDt > 0 ? needsRealDt / needsDt : 1);
+      updateNeeds(
+        entities,
+        needsDt,
+        state.time,
+        state.msgs,
+        player.id,
+        nextEntityId,
+        state,
+        world,
+        needsDt > 0 ? needsRealDt / needsDt : 1,
+      );
     }
-    if (updateContentRuntimeHooks({ world, entities, player, state, nextEntityId, dt, phase: 'pre_ai', gameOver: true })) updateWorldData(world);
+    if (
+      updateContentRuntimeHooks({
+        world,
+        entities,
+        player,
+        state,
+        nextEntityId,
+        dt,
+        phase: "pre_ai",
+        gameOver: true,
+      })
+    )
+      updateWorldData(world);
     const listener = player;
     setListenerPos(listener.x, listener.y, world);
     updateMapExploration(world, listener, state);
     updatePseudolifts(world, entities, player, state);
     const aiStart = performance.now();
-    updateAI(world, entities, dt, state.time, state.msgs, listener.id, state.clock, state.samosborActive, nextEntityId, state.currentFloor, state);
+    updateAI(
+      world,
+      entities,
+      dt,
+      state.time,
+      state.msgs,
+      listener.id,
+      state.clock,
+      state.samosborActive,
+      nextEntityId,
+      state.currentFloor,
+      state,
+    );
     lastAiUpdateMs = performance.now() - aiStart;
     tickCellHazards(world, entities, state, dt, player, false);
-    if (updateSamosbor(world, entities, state, dt, nextEntityId, currentLocalSamosborPatchGeneration, scheduleLocalSamosborPatch)) {
+    if (
+      updateSamosbor(
+        world,
+        entities,
+        state,
+        dt,
+        nextEntityId,
+        currentLocalSamosborPatchGeneration,
+        scheduleLocalSamosborPatch,
+      )
+    ) {
       closeCraftMenu();
       reportNetSphereProgressEvents();
       scheduleLoading(() => {
         restorePlayerBeforeWorldBoundary();
         captureCurrentAlifeFloor();
-        clearWrongDoorRemaps(world, state, 'world_rebuild');
+        clearWrongDoorRemaps(world, state, "world_rebuild");
         clearPseudoliftActive(state, entities);
         const replacement = currentRouteRebuildGeneration();
-        rebuildWorld(world, entities, nextEntityId, state.samosborCount, state.currentFloor, replacement, state.tutorialMode);
+        rebuildWorld(
+          world,
+          entities,
+          nextEntityId,
+          state.samosborCount,
+          state.currentFloor,
+          replacement,
+          state.tutorialMode,
+        );
         initFactionControl(world);
         materializeCurrentAlifeFloor();
         ensureProceduralSpriteSeeds(entities);
@@ -8356,11 +11341,34 @@ function gameLoop(now: number): void {
       requestAnimationFrame(gameLoop);
       return;
     }
-    if (pendingLoad) { requestAnimationFrame(gameLoop); return; }
+    if (pendingLoad) {
+      requestAnimationFrame(gameLoop);
+      return;
+    }
     syncMapExplorationAfterSamosborWave(world, state);
     updateFactionCapture(world, entities, dt, state);
-    updateFactionActivity(world, entities, player, state, nextEntityId, dt, currentFloorAllowsNpcPopulation());
-    if (updateContentRuntimeHooks({ world, entities, player, state, nextEntityId, dt, phase: 'floor_activity', gameOver: true })) updateWorldData(world);
+    updateFactionActivity(
+      world,
+      entities,
+      player,
+      state,
+      nextEntityId,
+      dt,
+      currentFloorAllowsNpcPopulation(),
+    );
+    if (
+      updateContentRuntimeHooks({
+        world,
+        entities,
+        player,
+        state,
+        nextEntityId,
+        dt,
+        phase: "floor_activity",
+        gameOver: true,
+      })
+    )
+      updateWorldData(world);
     bloodTrailAccum += dt;
     if (bloodTrailAccum >= 0.3) {
       const bloodDt = bloodTrailAccum;
@@ -8378,11 +11386,14 @@ function gameLoop(now: number): void {
     _prevMsgCount = state.msgs.length;
   }
 
-  if (pendingLoad) { requestAnimationFrame(gameLoop); return; }
+  if (pendingLoad) {
+    requestAnimationFrame(gameLoop);
+    return;
+  }
 
   if (!state.gameOver) {
     if (state.trailerMode) {
-      if (runtimeCamera.mode !== 'trailer') {
+      if (runtimeCamera.mode !== "trailer") {
         startTrailerCamera(runtimeCamera, player.x, player.y);
       }
       updateTrailerCamera(runtimeCamera, world, dt);
@@ -8391,9 +11402,18 @@ function gameLoop(now: number): void {
     }
 
     // Skip cinematic mode if any key is pressed
-    if (runtimeCamera.mode === 'cinematic') {
-      if (input.fwd || input.back || input.left || input.right || input.attack || input.use || input.interact || input.escape) {
-        runtimeCamera.mode = 'player';
+    if (runtimeCamera.mode === "cinematic") {
+      if (
+        input.fwd ||
+        input.back ||
+        input.left ||
+        input.right ||
+        input.attack ||
+        input.use ||
+        input.interact ||
+        input.escape
+      ) {
+        runtimeCamera.mode = "player";
       }
     }
   }
@@ -8406,53 +11426,79 @@ function gameLoop(now: number): void {
   let baseFog = 0.065;
   if (state.currentFloor === FloorLevel.MAINTENANCE) baseFog = 0.08;
   if (state.currentFloor === FloorLevel.HELL) baseFog = 0.05; // less fog, more horror visibility
-  const smogFogBonus = !state.gameOver ? proceduralSmogFogDensityBonus(world, player, state) : 0;
-  const samosborVariant = state.samosborActive ? getActiveSamosborVariant() : null;
+  const smogFogBonus = !state.gameOver
+    ? proceduralSmogFogDensityBonus(world, player, state)
+    : 0;
+  const samosborVariant = state.samosborActive
+    ? getActiveSamosborVariant()
+    : null;
   const samosborVisual = samosborVariant?.visual;
-  const samosborGlitchPulse = 0.85 + ((Math.sin(uiTime * 5) + 1) * 0.5) * 0.15;
+  const samosborGlitchPulse = 0.85 + (Math.sin(uiTime * 5) + 1) * 0.5 * 0.15;
   const warningSnapshot = getSamosborWarningSnapshot(state);
   let fogDensity = baseFog + smogFogBonus;
   if (state.samosborActive) {
-    fogDensity = (baseFog + smogFogBonus + (samosborVisual?.fogDensityBonus ?? 0.02)) * 3.0;
-  } else if (warningSnapshot && warningSnapshot.secondsLeft >= 0 && warningSnapshot.secondsLeft <= 30) {
-    const p = 1.0 - (warningSnapshot.secondsLeft / 30);
+    fogDensity =
+      (baseFog + smogFogBonus + (samosborVisual?.fogDensityBonus ?? 0.02)) *
+      3.0;
+  } else if (
+    warningSnapshot &&
+    warningSnapshot.secondsLeft >= 0 &&
+    warningSnapshot.secondsLeft <= 30
+  ) {
+    const p = 1.0 - warningSnapshot.secondsLeft / 30;
     // Smoothly transition base density + bonus to 0.15
     const targetFog = 0.15;
-    const initialFog = baseFog + smogFogBonus + (samosborVisual?.fogDensityBonus ?? 0.02);
+    const initialFog =
+      baseFog + smogFogBonus + (samosborVisual?.fogDensityBonus ?? 0.02);
     fogDensity = initialFog + (targetFog - initialFog) * p;
   }
   const interferenceMode = screenInterferenceMode();
-  const neuroScreenFx = uiElementEnabled('screen_fx');
+  const neuroScreenFx = uiElementEnabled("screen_fx");
   const criticalInterference = state.samosborActive || state.gameOver;
-  const screenInterference = interferenceMode === 'off' || !neuroScreenFx
-    ? 0
-    : interferenceMode === 'full'
-      ? 1
-      : criticalInterference
-        ? 0.65
-        : 0.32;
-  const glitch = screenInterference <= 0
-    ? 0
-    : state.samosborActive
-      ? (samosborVisual?.glitchIntensity ?? 0.06) * samosborGlitchPulse
-      : interferenceMode === 'full'
-        ? Math.min(0.18, smogFogBonus * 4)
-        : 0;
+  const screenInterference =
+    interferenceMode === "off" || !neuroScreenFx
+      ? 0
+      : interferenceMode === "full"
+        ? 1
+        : criticalInterference
+          ? 0.65
+          : 0.32;
+  const glitch =
+    screenInterference <= 0
+      ? 0
+      : state.samosborActive
+        ? (samosborVisual?.glitchIntensity ?? 0.06) * samosborGlitchPulse
+        : interferenceMode === "full"
+          ? Math.min(0.18, smogFogBonus * 4)
+          : 0;
 
   const renderActor = player;
-  const cameraView = runtimeCameraView(runtimeCamera, renderActor, cameraFovRadians());
+  const cameraView = runtimeCameraView(
+    runtimeCamera,
+    renderActor,
+    cameraFovRadians(),
+  );
   const camX = cameraView.x;
   const camY = cameraView.y;
   const passiveFlashlight = state.gameOver
     ? 0
-    : passiveToolLightRenderIntensity(renderActor.tool, getEquippedToolDurability(renderActor));
-  const activeToolLight = state.gameOver || !(input.use || input.mouseUse)
-    ? 0
-    : activeToolLightRenderIntensity(renderActor.tool, getEquippedToolDurability(renderActor));
+    : passiveToolLightRenderIntensity(
+        renderActor.tool,
+        getEquippedToolDurability(renderActor),
+      );
+  const activeToolLight =
+    state.gameOver || !(input.use || input.mouseUse)
+      ? 0
+      : activeToolLightRenderIntensity(
+          renderActor.tool,
+          getEquippedToolDurability(renderActor),
+        );
   const flashlight = state.gameOver
     ? 0
     : Math.max(passiveFlashlight, activeToolLight);
-  const toolBeam = state.gameOver ? 0 : uvSpotlightRenderIntensity(state.uvBeamFx);
+  const toolBeam = state.gameOver
+    ? 0
+    : uvSpotlightRenderIntensity(state.uvBeamFx);
 
   // Update dynamic world data (fog, door states, wallTex for slides)
   updateGeneratedDynamicSky(dt);
@@ -8460,19 +11506,45 @@ function gameLoop(now: number): void {
 
   // WebGL raycaster + sprites
   const floorRunEntry = currentFloorRunEntry(state);
-  const ambientLight = designFloorAmbientLight(floorRunEntry.designFloorId, 0.12);
+  const ambientLight = designFloorAmbientLight(
+    floorRunEntry.designFloorId,
+    0.12,
+  );
   const visualDetailProfile = currentVisualDetailProfile(floorRunEntry);
   const visualGeometryProfile = currentVisualGeometryProfile(floorRunEntry);
   const visualSurfaceProfile = currentVisualSurfaceProfile(floorRunEntry);
   const renderSceneStart = performance.now();
-  renderSceneGL(world, textures, sprites, entities,
+  renderSceneGL(
+    world,
+    textures,
+    sprites,
+    entities,
     cameraView,
-    fogDensity, glitch, flashlight, uiTime, particles, state.samosborActive, ambientLight, toolBeam, state.uvBeamLen, screenInterference, visualDetailProfile, visualGeometryProfile, visualSurfaceProfile, lightingQualityIndex(), currentFps);
+    fogDensity,
+    glitch,
+    flashlight,
+    uiTime,
+    particles,
+    state.samosborActive,
+    ambientLight,
+    toolBeam,
+    state.uvBeamLen,
+    screenInterference,
+    visualDetailProfile,
+    visualGeometryProfile,
+    visualSurfaceProfile,
+    lightingQualityIndex(),
+    currentFps,
+  );
   lastRenderSceneMs = performance.now() - renderSceneStart;
 
   // Draw HUD on 2D overlay canvas
-  const textGlitchHp = typeof renderActor.hp === 'number' ? renderActor.hp : 100;
-  const textGlitchMaxHp = typeof renderActor.maxHp === 'number' && renderActor.maxHp > 0 ? renderActor.maxHp : 100;
+  const textGlitchHp =
+    typeof renderActor.hp === "number" ? renderActor.hp : 100;
+  const textGlitchMaxHp =
+    typeof renderActor.maxHp === "number" && renderActor.maxHp > 0
+      ? renderActor.maxHp
+      : 100;
   setCanvasTextGlitchPressure({
     healthRatio: textGlitchHp / textGlitchMaxHp,
     samosborActive: state.samosborActive,
@@ -8480,12 +11552,27 @@ function gameLoop(now: number): void {
   ctx.clearRect(0, 0, hudCanvas.width, hudCanvas.height);
   const hudDrawStart = performance.now();
   if (!state.trailerMode) {
-    drawHUD(ctx, hudCanvas.width / SCR_W, hudCanvas.height / SCR_H, renderActor, state, world, entities, uiTime, {
-      fps: currentFps,
-      perf: uiElementEnabled('fps_counter') ? hudPerfDebugSnapshot(currentFps) : undefined,
-      pointerLockHint: !mobileControls?.isEnabled() && !input.mouse.locked && !pointerCaptureGateVisible(),
-      pointerCaptureGate: pointerCaptureGateVisible(),
-    });
+    drawHUD(
+      ctx,
+      hudCanvas.width / SCR_W,
+      hudCanvas.height / SCR_H,
+      renderActor,
+      state,
+      world,
+      entities,
+      uiTime,
+      {
+        fps: currentFps,
+        perf: uiElementEnabled("fps_counter")
+          ? hudPerfDebugSnapshot(currentFps)
+          : undefined,
+        pointerLockHint:
+          !mobileControls?.isEnabled() &&
+          !input.mouse.locked &&
+          !pointerCaptureGateVisible(),
+        pointerCaptureGate: pointerCaptureGateVisible(),
+      },
+    );
   }
   if (!started) {
     showTitle();
@@ -8509,7 +11596,7 @@ function showTitle(): void {
     mobile: mobileControls?.isEnabled() === true,
   });
 
-  if (titleMode === 'feedback') {
+  if (titleMode === "feedback") {
     const scale = Math.min(ctx.canvas.width / 720, ctx.canvas.height / 520);
     const s = Math.max(0.42, Math.min(1.35, scale));
     drawFeedbackMenu(ctx, null as any, s, s, performance.now());
@@ -8524,9 +11611,9 @@ function returnToTitleScreen(): void {
   started = false;
   syncPlatformGameplayState();
   clearPointerCaptureGate();
-  titleRunSeedText = '';
-  titleMode = 'language';
-  setTitleSelection('start');
+  titleRunSeedText = "";
+  titleMode = "language";
+  setTitleSelection("start");
   titleStartNeedsInit = true;
   closeMobilePanels(true);
   input.escape = false;
@@ -8543,7 +11630,7 @@ function returnToTitleScreen(): void {
   input.controlReset = false;
   input.controlClose = false;
   resetMenuRepeats();
-  document.addEventListener('keydown', startHandler);
+  document.addEventListener("keydown", startHandler);
   showTitle();
 }
 
@@ -8551,13 +11638,13 @@ function finishStartGameFromTitle(): void {
   player.name = playerDisplayName();
   player.age = playerAge;
   player.sex = playerSex;
-  player.isFemale = playerSex === 'female';
+  player.isFemale = playerSex === "female";
   started = true;
   input.escape = false;
   input.controlEdit = false;
   input.controlReset = false;
   input.controlClose = false;
-  document.removeEventListener('keydown', startHandler);
+  document.removeEventListener("keydown", startHandler);
   bindNetSphereInput({ canOpen: canOpenMenuFromGameplay });
   requestPointerLockIfDesktop();
   startAmbientDrone();
@@ -8573,10 +11660,15 @@ function startGameFromTitle(): void {
   savePlayerAge(Number(titlePlayerAgeText));
   savePlayerSex(playerSex);
   const seedOverride = titleRunSeedOverride();
-  const trailerSelected = titleInputField === 'trailer';
-  const isNewGame = titleInputField === 'start';
-  
-  if (seedOverride !== undefined || titleStartNeedsInit || trailerSelected || isNewGame) {
+  const trailerSelected = titleInputField === "trailer";
+  const isNewGame = titleInputField === "start";
+
+  if (
+    seedOverride !== undefined ||
+    titleStartNeedsInit ||
+    trailerSelected ||
+    isNewGame
+  ) {
     scheduleLoading(() => {
       initGame(seedOverride, undefined, isNewGame);
       titleStartNeedsInit = false;
@@ -8612,26 +11704,26 @@ function startHandler(e: KeyboardEvent): void {
     return;
   }
 
-  if (titleMode === 'feedback') {
-    if (e.code === 'Escape' || e.code === 'Backspace') {
-      titleMode = 'setup';
+  if (titleMode === "feedback") {
+    if (e.code === "Escape" || e.code === "Backspace") {
+      titleMode = "setup";
       showTitle();
-    } else if (e.code === 'Enter') {
-      window.open('https://t.me/gigah_rush', '_blank');
-      titleMode = 'setup';
+    } else if (e.code === "Enter") {
+      window.open("https://t.me/gigah_rush", "_blank");
+      titleMode = "setup";
       showTitle();
     }
     e.preventDefault();
     return;
   }
 
-  if (titleMode === 'language') {
-    if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
-      cycleTitleLanguage(e.code === 'ArrowRight' ? 1 : -1);
+  if (titleMode === "language") {
+    if (e.code === "ArrowLeft" || e.code === "ArrowRight") {
+      cycleTitleLanguage(e.code === "ArrowRight" ? 1 : -1);
       e.preventDefault();
       return;
     }
-    if (e.code === 'Enter' || e.code === 'Space') {
+    if (e.code === "Enter" || e.code === "Space") {
       openTitleSetupMenu();
       e.preventDefault();
       return;
@@ -8640,21 +11732,25 @@ function startHandler(e: KeyboardEvent): void {
     return;
   }
 
-  if (e.code === 'Tab' || e.code === 'ArrowDown') {
+  if (e.code === "Tab" || e.code === "ArrowDown") {
     moveTitleSelection(1);
     e.preventDefault();
     return;
   }
-  if (e.code === 'ArrowUp') {
+  if (e.code === "ArrowUp") {
     moveTitleSelection(-1);
     e.preventDefault();
     return;
   }
-  if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
-    if (titleInputField === 'language') cycleTitleLanguage(e.code === 'ArrowRight' ? 1 : -1);
-    else if (titleInputField === 'trailer') {
-      titleTrailerFloorIdx = (titleTrailerFloorIdx + (e.code === 'ArrowRight' ? 1 : TRAILER_FLOORS.length - 1)) % TRAILER_FLOORS.length;
-      if (!started && typeof state !== 'undefined') {
+  if (e.code === "ArrowLeft" || e.code === "ArrowRight") {
+    if (titleInputField === "language")
+      cycleTitleLanguage(e.code === "ArrowRight" ? 1 : -1);
+    else if (titleInputField === "trailer") {
+      titleTrailerFloorIdx =
+        (titleTrailerFloorIdx +
+          (e.code === "ArrowRight" ? 1 : TRAILER_FLOORS.length - 1)) %
+        TRAILER_FLOORS.length;
+      if (!started && typeof state !== "undefined") {
         scheduleLoading(() => {
           const floor = TRAILER_FLOORS[titleTrailerFloorIdx] as FloorLevel;
           initGame(undefined, floor);
@@ -8664,40 +11760,45 @@ function startHandler(e: KeyboardEvent): void {
       } else {
         showTitle();
       }
-    }
-    else if (titleInputField === 'actorCap') adjustTitleActiveActorSoftLimit(e.code === 'ArrowRight' ? 1 : -1);
-    else if (titleInputField === 'age') {
-      titlePlayerAgeText = String(clampCharacterAge(Number(titlePlayerAgeText || DEFAULT_PLAYER_AGE) + (e.code === 'ArrowRight' ? 1 : -1), DEFAULT_PLAYER_AGE));
+    } else if (titleInputField === "actorCap")
+      adjustTitleActiveActorSoftLimit(e.code === "ArrowRight" ? 1 : -1);
+    else if (titleInputField === "age") {
+      titlePlayerAgeText = String(
+        clampCharacterAge(
+          Number(titlePlayerAgeText || DEFAULT_PLAYER_AGE) +
+            (e.code === "ArrowRight" ? 1 : -1),
+          DEFAULT_PLAYER_AGE,
+        ),
+      );
       showTitle();
-    }
-    else if (titleInputField === 'sex') cyclePlayerSex();
+    } else if (titleInputField === "sex") cyclePlayerSex();
     else showTitle();
     e.preventDefault();
     return;
   }
-  if (e.code === 'Enter') {
+  if (e.code === "Enter") {
     e.preventDefault();
-    if (titleInputField === 'continue') continueGameFromTitle();
-    else if (titleInputField === 'start' || titleInputField === 'trailer') startGameFromTitle();
-    else if (titleInputField === 'feedback') {
-      titleMode = 'feedback';
+    if (titleInputField === "continue") continueGameFromTitle();
+    else if (titleInputField === "start" || titleInputField === "trailer")
+      startGameFromTitle();
+    else if (titleInputField === "feedback") {
+      titleMode = "feedback";
       showTitle();
-    }
-    else if (titleInputField === 'addNpc') openNpcIntakePage();
-    else if (titleInputField === 'language') cycleTitleLanguage(1);
-    else if (titleInputField === 'actorCap') adjustTitleActiveActorSoftLimit(1);
-    else if (titleInputField === 'age') moveTitleSelection(1);
-    else if (titleInputField === 'sex') cyclePlayerSex();
+    } else if (titleInputField === "addNpc") openNpcIntakePage();
+    else if (titleInputField === "language") cycleTitleLanguage(1);
+    else if (titleInputField === "actorCap") adjustTitleActiveActorSoftLimit(1);
+    else if (titleInputField === "age") moveTitleSelection(1);
+    else if (titleInputField === "sex") cyclePlayerSex();
     else moveTitleSelection(1);
     return;
   }
-  if (e.code === 'Backspace') {
-    if (titleInputField === 'seed') {
+  if (e.code === "Backspace") {
+    if (titleInputField === "seed") {
       titleRunSeedText = titleRunSeedText.slice(0, -1);
       titleStartNeedsInit = true;
-    } else if (titleInputField === 'name') {
+    } else if (titleInputField === "name") {
       playerNickname = playerNickname.slice(0, -1);
-    } else if (titleInputField === 'age') {
+    } else if (titleInputField === "age") {
       titlePlayerAgeText = titlePlayerAgeText.slice(0, -1);
     }
     showTitle();
@@ -8705,29 +11806,33 @@ function startHandler(e: KeyboardEvent): void {
     return;
   }
   if (e.key.length === 1) {
-    if (titleInputField === 'seed') {
+    if (titleInputField === "seed") {
       const next = cleanTitleRunSeedText(titleRunSeedText + e.key);
       if (next !== titleRunSeedText) {
         titleRunSeedText = next;
         titleStartNeedsInit = true;
         showTitle();
       }
-    } else if (titleInputField === 'name' && playerNickname.length < 24) {
+    } else if (titleInputField === "name" && playerNickname.length < 24) {
       const next = cleanPlayerNickname(playerNickname + e.key);
       if (next !== playerNickname) {
         playerNickname = next;
         showTitle();
       }
-    } else if (titleInputField === 'age' && /[0-9]/.test(e.key) && titlePlayerAgeText.length < 3) {
+    } else if (
+      titleInputField === "age" &&
+      /[0-9]/.test(e.key) &&
+      titlePlayerAgeText.length < 3
+    ) {
       const next = titlePlayerAgeText + e.key;
-      titlePlayerAgeText = next === '0' ? '' : next;
+      titlePlayerAgeText = next === "0" ? "" : next;
       showTitle();
     }
     e.preventDefault();
   }
 }
 
-document.addEventListener('keydown', startHandler);
+document.addEventListener("keydown", startHandler);
 
 /* ── Title screen: physical gamepad bridge ─────────────────────
  *
@@ -8748,32 +11853,51 @@ function handleTitleGamepadInput(frame: InputFrame): void {
   const navDown = frame.menuNav.down;
   const navLeft = frame.menuNav.left;
   const navRight = frame.menuNav.right;
-  const acceptEdge = frame.pressedActions.has('interact') || frame.pressedActions.has('gameMenu');
-  const closeEdge = frame.pressedActions.has('menuClose');
+  const acceptEdge =
+    frame.pressedActions.has("interact") ||
+    frame.pressedActions.has("gameMenu");
+  const closeEdge = frame.pressedActions.has("menuClose");
 
-  if (titleMode === 'language') {
-    if (navLeft) { cycleTitleLanguage(-1); return; }
-    if (navRight) { cycleTitleLanguage(1); return; }
-    if (acceptEdge || navDown) { openTitleSetupMenu(); return; }
+  if (titleMode === "language") {
+    if (navLeft) {
+      cycleTitleLanguage(-1);
+      return;
+    }
+    if (navRight) {
+      cycleTitleLanguage(1);
+      return;
+    }
+    if (acceptEdge || navDown) {
+      openTitleSetupMenu();
+      return;
+    }
     return;
   }
 
   if (closeEdge) {
-    titleMode = 'language';
-    setTitleSelection('start');
+    titleMode = "language";
+    setTitleSelection("start");
     showTitle();
     return;
   }
 
-  if (navUp) { moveTitleSelection(-1); return; }
-  if (navDown) { moveTitleSelection(1); return; }
+  if (navUp) {
+    moveTitleSelection(-1);
+    return;
+  }
+  if (navDown) {
+    moveTitleSelection(1);
+    return;
+  }
 
   if (navLeft || navRight) {
     const dir = navRight ? 1 : -1;
-    if (titleInputField === 'language') cycleTitleLanguage(dir);
-    else if (titleInputField === 'trailer') {
-      titleTrailerFloorIdx = (titleTrailerFloorIdx + (dir > 0 ? 1 : TRAILER_FLOORS.length - 1)) % TRAILER_FLOORS.length;
-      if (!started && typeof state !== 'undefined') {
+    if (titleInputField === "language") cycleTitleLanguage(dir);
+    else if (titleInputField === "trailer") {
+      titleTrailerFloorIdx =
+        (titleTrailerFloorIdx + (dir > 0 ? 1 : TRAILER_FLOORS.length - 1)) %
+        TRAILER_FLOORS.length;
+      if (!started && typeof state !== "undefined") {
         scheduleLoading(() => {
           const floor = TRAILER_FLOORS[titleTrailerFloorIdx] as FloorLevel;
           initGame(undefined, floor);
@@ -8783,24 +11907,28 @@ function handleTitleGamepadInput(frame: InputFrame): void {
       } else {
         showTitle();
       }
-    }
-    else if (titleInputField === 'actorCap') adjustTitleActiveActorSoftLimit(dir);
-    else if (titleInputField === 'age') {
-      titlePlayerAgeText = String(clampCharacterAge(Number(titlePlayerAgeText || DEFAULT_PLAYER_AGE) + dir, DEFAULT_PLAYER_AGE));
+    } else if (titleInputField === "actorCap")
+      adjustTitleActiveActorSoftLimit(dir);
+    else if (titleInputField === "age") {
+      titlePlayerAgeText = String(
+        clampCharacterAge(
+          Number(titlePlayerAgeText || DEFAULT_PLAYER_AGE) + dir,
+          DEFAULT_PLAYER_AGE,
+        ),
+      );
       showTitle();
-    }
-    else if (titleInputField === 'sex') cyclePlayerSex();
+    } else if (titleInputField === "sex") cyclePlayerSex();
     else showTitle();
     return;
   }
 
   if (acceptEdge) {
-    if (titleInputField === 'continue') continueGameFromTitle();
-    else if (titleInputField === 'start') startGameFromTitle();
-    else if (titleInputField === 'addNpc') openNpcIntakePage();
-    else if (titleInputField === 'language') cycleTitleLanguage(1);
-    else if (titleInputField === 'actorCap') adjustTitleActiveActorSoftLimit(1);
-    else if (titleInputField === 'sex') cyclePlayerSex();
+    if (titleInputField === "continue") continueGameFromTitle();
+    else if (titleInputField === "start") startGameFromTitle();
+    else if (titleInputField === "addNpc") openNpcIntakePage();
+    else if (titleInputField === "language") cycleTitleLanguage(1);
+    else if (titleInputField === "actorCap") adjustTitleActiveActorSoftLimit(1);
+    else if (titleInputField === "sex") cyclePlayerSex();
     else moveTitleSelection(1);
   }
 }
