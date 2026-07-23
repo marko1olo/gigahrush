@@ -70,7 +70,7 @@ function tickOneAlifeFrame(gen: { world: World; entities: Entity[]; spawnX: numb
     clock: { hour: 9, minute: 0, totalMinutes: 9 * 60 },
   });
   rebuildEntityIndexForSimulation(gen.entities, 1);
-  updateAI(gen.world, gen.entities, 1 / 60, 0, state.msgs, player.id, state.clock, false, { v: 1_000_000 }, floor, state);
+  updateAI({ world: gen.world, entities: gen.entities, dt: 1 / 60, time: 0, msgs: state.msgs, playerId: player.id, clock: state.clock, samosborActive: false, nextId: { v: 1_000_000 }, currentFloor: floor, state });
 }
 
 function tasklessNpcCount(entities: readonly Entity[]): number {

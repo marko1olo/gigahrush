@@ -8127,7 +8127,7 @@ function gameLoop(now: number): void {
     updateRouteCues(world, listener, state);
     updateMapExploration(world, listener, state);
     const aiStart = performance.now();
-    updateAI(world, entities, dt, state.time, state.msgs, listener.id, state.clock, state.samosborActive, nextEntityId, state.currentFloor, state);
+    updateAI({ world, entities, dt, time: state.time, msgs: state.msgs, playerId: listener.id, clock: state.clock, samosborActive: state.samosborActive, nextId: nextEntityId, currentFloor: state.currentFloor, state });
     lastAiUpdateMs = performance.now() - aiStart;
     updateRailTrains(world, entities, player, state, dt);
     contentStart = performance.now();
@@ -8328,7 +8328,7 @@ function gameLoop(now: number): void {
     updateMapExploration(world, listener, state);
     updatePseudolifts(world, entities, player, state);
     const aiStart = performance.now();
-    updateAI(world, entities, dt, state.time, state.msgs, listener.id, state.clock, state.samosborActive, nextEntityId, state.currentFloor, state);
+    updateAI({ world, entities, dt, time: state.time, msgs: state.msgs, playerId: listener.id, clock: state.clock, samosborActive: state.samosborActive, nextId: nextEntityId, currentFloor: state.currentFloor, state });
     lastAiUpdateMs = performance.now() - aiStart;
     tickCellHazards(world, entities, state, dt, player, false);
     if (updateSamosbor(world, entities, state, dt, nextEntityId, currentLocalSamosborPatchGeneration, scheduleLocalSamosborPatch)) {

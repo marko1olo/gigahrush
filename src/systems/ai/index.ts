@@ -104,7 +104,23 @@ function fillProjectileOwners(entities: readonly Entity[]): void {
   }
 }
 
-export function updateAI(world: World, entities: Entity[], dt: number, time: number, msgs: Msg[], playerId: number, clock: GameClock, samosborActive: boolean, nextId: { v: number }, currentFloor?: FloorLevel, state?: GameState): void {
+export interface UpdateContext {
+  world: World;
+  entities: Entity[];
+  dt: number;
+  time: number;
+  msgs: Msg[];
+  playerId: number;
+  clock: GameClock;
+  samosborActive: boolean;
+  nextId: { v: number };
+  currentFloor?: FloorLevel;
+  state?: GameState;
+}
+
+export function updateAI(ctx: UpdateContext): void {
+  const { world, entities, dt, time, msgs, playerId, clock, samosborActive, nextId, currentFloor, state } = ctx;
+
   // Push per-frame refs into sub-modules
   setPathContext(msgs, time, samosborActive);
   setCombatContext(msgs, time);
