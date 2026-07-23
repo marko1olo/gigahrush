@@ -87,11 +87,11 @@ export function renderDemosPreview(container, { pack, portraitUrl, validation })
   const visualId = pack.visual?.npcVisualId;
   const links = pack.social?.links ?? [];
   const socialRows = [
-    `<li><strong>player</strong> - ${pack.social?.playerRelation ?? 0} / ${relation.label}</li>`,
+    `<li><strong>player</strong> - ${escapeHtml(pack.social?.playerRelation ?? 0)} / ${escapeHtml(relation.label)}</li>`,
     ...links.map(link => `<li><strong>${escapeHtml(link.targetNpcId)}</strong> - ${escapeHtml(link.relation)} / ${escapeHtml(link.role)}</li>`),
   ].join('');
   const errorLine = validation.errors.length
-    ? `<p class="error">${validation.errors.length} error(s), export blocked</p>`
+    ? `<p class="error">${escapeHtml(validation.errors.length)} error(s), export blocked</p>`
     : '<p class="ok">package validates</p>';
   const portrait = portraitUrl
     ? `<img class="portrait" src="${escapeHtml(portraitUrl)}" alt="">`
@@ -111,7 +111,7 @@ export function renderDemosPreview(container, { pack, portraitUrl, validation })
       <div class="stat">floor<strong>${escapeHtml(pack.placement?.homeFloorKey)}</strong></div>
       <div class="stat">capital<strong>${escapeHtml(capitalLabel(pack))}</strong></div>
       <div class="stat">karma<strong>${escapeHtml(pack.social?.karma ?? 0)}</strong></div>
-      <div class="stat">relation<strong style="color:${relation.color}">${escapeHtml(relation.label)}</strong></div>
+      <div class="stat">relation<strong style="color:${escapeHtml(relation.color)}">${escapeHtml(relation.label)}</strong></div>
     </div>
     ${visualId ? `<div class="demos-post"><strong>visual</strong><br>${escapeHtml(visualId)}</div>` : ''}
     <div class="social-list"><strong>10-link panel</strong><ul>${socialRows}</ul></div>
