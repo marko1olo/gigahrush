@@ -16,6 +16,7 @@ import { protectRoom } from '../shared';
 import { genLog } from '../log';
 import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
 import { registerZoneContent } from './zone_content';
+import { getEntityIndex } from '../../systems/entity_index';
 
 const CONTENT_TAG = 'ag77_external_cell_neighbor';
 const OUTCOME_EVENT_TAG = 'ag77_external_cell_outcome';
@@ -610,7 +611,8 @@ function addContainer(
 }
 
 function spawnRecruiter(world: World, entities: Entity[], nextId: { v: number }, room: Room): Entity {
-  const existing = entities.find(e => e.alive && e.plotNpcId === RECRUITER_ID);
+  const index = getEntityIndex();
+  const existing = index.byPlotNpcId.get(RECRUITER_ID);
   if (existing) return existing;
   const x = world.wrap(room.x + 6);
   const y = world.wrap(room.y + 4);
@@ -619,11 +621,13 @@ function spawnRecruiter(world: World, entities: Entity[], nextId: { v: number },
     canGiveQuest: true,
     aiTarget: { x: x + 0.5, y: y + 0.5 },
   });
+  index.byPlotNpcId.set(RECRUITER_ID, npc);
   return npc;
 }
 
 function spawnWitness(world: World, entities: Entity[], nextId: { v: number }, room: Room): Entity {
-  const existing = entities.find(e => e.alive && e.plotNpcId === WITNESS_ID);
+  const index = getEntityIndex();
+  const existing = index.byPlotNpcId.get(WITNESS_ID);
   if (existing) return existing;
   const x = world.wrap(room.x + 8);
   const y = world.wrap(room.y + 6);
@@ -632,6 +636,7 @@ function spawnWitness(world: World, entities: Entity[], nextId: { v: number }, r
     canGiveQuest: true,
     aiTarget: { x: x + 0.5, y: y + 0.5 },
   });
+  index.byPlotNpcId.set(WITNESS_ID, npc);
   return npc;
 }
 
