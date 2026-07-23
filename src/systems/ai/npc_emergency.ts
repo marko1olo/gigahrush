@@ -596,7 +596,8 @@ function sourceBias(sources: readonly NpcEmergencyShelterSource[]): number {
 
 function primaryCandidateSource(sources: readonly NpcEmergencyShelterSource[]): NpcEmergencyShelterSource {
   const priority: readonly NpcEmergencyShelterSource[] = ['local_shelter', 'samosbor_shelter', 'current_room', 'assigned_room', 'home_room', 'nearby_room'];
-  for (const source of priority) if (sources.includes(source)) return source;
+  const sourcesSet = new Set(sources);
+  for (const source of priority) if (sourcesSet.has(source)) return source;
   return sources[0] ?? 'nearby_room';
 }
 
