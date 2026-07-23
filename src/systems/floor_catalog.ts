@@ -23,8 +23,15 @@ function matchesFilter<T extends string>(value: T, filter: T | readonly T[] | un
   return Array.isArray(filter) ? filter.includes(value) : value === filter;
 }
 
+const defTagsCache = new WeakMap<FloorCatalogDef, Set<string>>();
+
 function hasAllTags(def: FloorCatalogDef, tags: readonly string[]): boolean {
-  for (const tag of tags) if (!def.tags.includes(tag)) return false;
+  let set = defTagsCache.get(def);
+  if (set === undefined) {
+    set = new Set(def.tags);
+    defTagsCache.set(def, set);
+  }
+  for (const tag of tags) if (!set.has(tag)) return false;
   return true;
 }
 
