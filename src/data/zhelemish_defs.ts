@@ -95,11 +95,11 @@ export function getZhelemishDef(itemId: string): ZhelemishDef | undefined {
   return ZHELEMISH_DEF_BY_ITEM_ID[itemId as ZhelemishItemId];
 }
 
-export function validateZhelemishDefs(): string[] {
+export function validateZhelemishDefs(defs: readonly ZhelemishDef[] = ZHELEMISH_DEFS, itemIds: readonly string[] = ZHELEMISH_ITEM_IDS): string[] {
   const problems: string[] = [];
-  for (const id of duplicateStrings(ZHELEMISH_ITEM_IDS)) problems.push(`duplicate zhelemish item:${id}`);
+  for (const id of duplicateStrings(itemIds)) problems.push(`duplicate zhelemish item:${id}`);
 
-  for (const def of ZHELEMISH_DEFS) {
+  for (const def of defs) {
     if (!def.tags.includes('zhelemish')) problems.push(`${def.itemId}:missing zhelemish tag`);
     if (!def.tags.includes(def.form)) problems.push(`${def.itemId}:missing form tag`);
     if (!Number.isInteger(def.baseValue) || def.baseValue < 1) problems.push(`${def.itemId}:baseValue:${def.baseValue}`);
