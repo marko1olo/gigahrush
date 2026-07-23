@@ -3508,15 +3508,18 @@ function updateProjectiles(dt: number): void {
           nearestHitT = hitT;
         }
       }
-    }
-    for (const e of projectileHitQuery) {
-      if (!e.alive) continue;
-      if (e.type !== EntityType.MONSTER && e.type !== EntityType.NPC) continue;
-      if (pt !== ProjType.FLAME && e !== nearestHit) continue;
-      const hitT = pt === ProjType.FLAME ? projectilePathHitT({ x0: prevX, y0: prevY, x1: wx, y1: wy, e, radius: hitRadius }) : nearestHitT;
-      if (hitT <= blockingT + 0.000001) {
-        if (processProjectileEntityCollision(p, e, pt, hitT, prevX, wx, prevY, wy, prevSpriteZ, nextSpriteZ, baseDmg)) {
-          break;
+      if (nearestHit) {
+        processProjectileEntityCollision(p, nearestHit, pt, nearestHitT, prevX, wx, prevY, wy, prevSpriteZ, nextSpriteZ, baseDmg);
+      }
+    } else {
+      for (const e of projectileHitQuery) {
+        if (!e.alive) continue;
+        if (e.type !== EntityType.MONSTER && e.type !== EntityType.NPC) continue;
+        const hitT = projectilePathHitT({ x0: prevX, y0: prevY, x1: wx, y1: wy, e, radius: hitRadius });
+        if (hitT <= blockingT + 0.000001) {
+          if (processProjectileEntityCollision(p, e, pt, hitT, prevX, wx, prevY, wy, prevSpriteZ, nextSpriteZ, baseDmg)) {
+            break;
+          }
         }
       }
     }
