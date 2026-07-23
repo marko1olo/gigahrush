@@ -793,7 +793,14 @@ function spawnPatientZero(ctx: ProceduralAnomalyGenContext, room: Room): void {
     ctx.entities.push(patient);
     return;
   }
-  const existingZombie = ctx.entities.find(entity => entity.alive && entity.type === EntityType.MONSTER && entity.monsterKind === MonsterKind.ZOMBIE);
+  let existingZombie;
+  for (let i = ctx.entities.length - 1; i >= 0; i--) {
+    const entity = ctx.entities[i];
+    if (entity.alive && entity.type === EntityType.MONSTER && entity.monsterKind === MonsterKind.ZOMBIE) {
+      existingZombie = entity;
+      break;
+    }
+  }
   if (existingZombie) tunePatientZero(ctx, existingZombie, room);
 }
 
