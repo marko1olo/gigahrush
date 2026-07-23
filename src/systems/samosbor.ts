@@ -2752,10 +2752,16 @@ export function rebuildWorld(
     const zid = world.zoneMap[ci];
     const zoneLevel = (zid >= 0 && world.zones[zid]) ? (world.zones[zid].level ?? 1) : 1;
     const valueThreshold = zoneLevel * 15 + 10;
-    const adjusted = Object.values(ITEMS)
-      .filter(it => it.spawnRooms.includes(room.type))
-      .map(it => ({ ...it, spawnW: (1000 / (it.value + 10)) * Math.min(1, (valueThreshold + 5) / Math.max(1, it.value)) }))
-      .filter(it => it.spawnW >= 0.01);
+    const adjusted: any[] = [];
+    for (const key in ITEMS) {
+      const it = ITEMS[key as keyof typeof ITEMS];
+      if (it.spawnRooms.includes(room.type)) {
+        const spawnW = (1000 / (it.value + 10)) * Math.min(1, (valueThreshold + 5) / Math.max(1, it.value));
+        if (spawnW >= 0.01) {
+          adjusted.push({ ...it, spawnW });
+        }
+      }
+    }
     const numItems = rng(0, 1);
     for (let n = 0; n < numItems; n++) {
       if (itemSlots <= 0) break;
