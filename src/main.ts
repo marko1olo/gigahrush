@@ -3674,14 +3674,14 @@ function processProjectileEntityCollision(
 }
 
 /* ── Explosion (grenade / BFG) — AoE damage + scorch decals ──── */
-function triggerExplosion(p: Entity, pt: ProjType): void {
-  const radius = p.aoeRadius ?? 4;
-  const dmg = p.aoeDmg ?? p.projDmg ?? 80;
-  const isPlayer = isPlayerOwnedProjectile(p);
-  const actor = projectileActor(p);
-  spawnExplosionParticles(world, p.x, p.y, radius, pt);
-
-  // AoE damage to all entities in radius
+function applyExplosionDamage(
+  p: Entity,
+  pt: ProjType,
+  radius: number,
+  dmg: number,
+  isPlayer: boolean,
+  actor: Entity | undefined
+): number {
   let hits = 0;
   getEntityIndex().queryRadius(p.x, p.y, radius, explosionHitQuery, ENTITY_MASK_ACTOR);
   for (const e of explosionHitQuery) {
@@ -3731,6 +3731,18 @@ function triggerExplosion(p: Entity, pt: ProjType): void {
       hits++;
     }
   }
+  return hits;
+}
+
+function triggerExplosion(p: Entity, pt: ProjType): void {
+  const radius = p.aoeRadius ?? 4;
+  const dmg = p.aoeDmg ?? p.projDmg ?? 80;
+  const isPlayer = isPlayerOwnedProjectile(p);
+  const actor = projectileActor(p);
+  spawnExplosionParticles(world, p.x, p.y, radius, pt);
+
+  // AoE damage to all entities in radius
+  const hits = applyExplosionDamage(p, pt, radius, dmg, isPlayer, actor);
 
   // Scorch: one large coherent mark centered at explosion
   const cx = Math.floor(p.x), cy = Math.floor(p.y);
