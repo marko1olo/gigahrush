@@ -1,3 +1,8 @@
+export const NET_HACK_SAVE_VERSION = 1;
+export const NET_HACK_SOLVED_KEY_CAP = 512;
+export const NET_HACK_LOCK_CAP = 256;
+export const NET_HACK_KEY_LEN_CAP = 96;
+
 export type NetHackTerminalDefId = 'service_gate' | 'archive_gate';
 
 export interface NetHackTerminalDef {
