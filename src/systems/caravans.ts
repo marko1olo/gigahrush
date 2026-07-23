@@ -280,14 +280,13 @@ function uniqueResourceIds(def: CaravanLaneDef): string[] {
 }
 
 function caravanTags(def: CaravanLaneDef, extra: readonly string[] = []): string[] {
-  const tags: string[] = ['caravan', 'tariff', 'supply_lane', def.id];
-  for (const resourceId of uniqueResourceIds(def)) if (!tags.includes(resourceId)) tags.push(resourceId);
+  const tags = new Set<string>(['caravan', 'tariff', 'supply_lane', def.id]);
+  for (const resourceId of uniqueResourceIds(def)) tags.add(resourceId);
   for (const corpId of def.corpIds ?? []) {
-    const tag = `corp_${corpId}`;
-    if (!tags.includes(tag)) tags.push(tag);
+    tags.add(`corp_${corpId}`);
   }
-  for (const tag of extra) if (tag && !tags.includes(tag)) tags.push(tag);
-  return tags;
+  for (const tag of extra) if (tag) tags.add(tag);
+  return Array.from(tags);
 }
 
 function deltaCountsFor(def: CaravanLaneDef, multiplier: number): number[] {
