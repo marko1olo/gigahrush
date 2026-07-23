@@ -1998,12 +1998,12 @@ function generateQuest(
   });
 }
 
-function pushUnique(pool: string[], items: readonly string[]): void {
-  for (const item of items) if (ITEMS[item] && !pool.includes(item)) pool.push(item);
+function pushUnique(pool: Set<string>, items: readonly string[]): void {
+  for (const item of items) if (ITEMS[item]) pool.add(item);
 }
 
 function pickFetchItem(occ: Occupation | undefined, npc: Entity, ctx: QuestContext): string | null {
-  const pool: string[] = [];
+  const pool = new Set<string>();
   if (ctx.samosborDanger) pushUnique(pool, ['bandage', 'water', 'ammo_9mm', 'bread']);
   if (ctx.roomType === RoomType.KITCHEN) pushUnique(pool, ['water', 'bread', 'canned', 'kasha']);
   if (ctx.roomType === RoomType.MEDICAL) pushUnique(pool, ['bandage', 'pills', 'antidep', 'water']);
@@ -2017,7 +2017,7 @@ function pickFetchItem(occ: Occupation | undefined, npc: Entity, ctx: QuestConte
   if (npc.faction === Faction.LIQUIDATOR || occupationHasProfileTag(occ, 'combat')) pushUnique(pool, ['ammo_9mm', 'bandage', 'canned']);
   pushUnique(pool, occupationQuestFetchItems(occ));
   pushUnique(pool, ['bread', 'water', 'bandage', 'cigs']);
-  const available = pool.filter(item => !PROCEDURAL_FETCH_ITEM_BLOCKLIST.has(item));
+  const available = Array.from(pool).filter(item => !PROCEDURAL_FETCH_ITEM_BLOCKLIST.has(item));
   return available.length > 0 ? available[Math.floor(Math.random() * available.length)] : null;
 }
 
@@ -2030,13 +2030,14 @@ function targetCountForItem(item: string, ctx: QuestContext): number {
 }
 
 function pickRewardItem(occ?: Occupation, ctx?: QuestContext): string {
-  const pool: string[] = [];
+  const pool = new Set<string>();
   if (ctx?.samosborDanger) pushUnique(pool, ['bandage', 'ammo_9mm', 'water']);
   if (ctx?.roomType === RoomType.OFFICE) pushUnique(pool, ['note', 'book', 'tea']);
   if (ctx?.roomType === RoomType.PRODUCTION) pushUnique(pool, ['wrench', 'pipe', 'flashlight']);
   pushUnique(pool, occupationQuestRewardItems(occ));
   pushUnique(pool, ['bread', 'water', 'bandage']);
-  return pool[Math.floor(Math.random() * pool.length)];
+  const poolArray = Array.from(pool);
+  return poolArray[Math.floor(Math.random() * poolArray.length)];
 }
 
 function preferredVisitRooms(npc: Entity, ctx: QuestContext): RoomType[] {
