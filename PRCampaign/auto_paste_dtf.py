@@ -4,7 +4,11 @@ import subprocess
 
 def paste_text(text_file):
     # Copy text to clipboard
-    subprocess.run(f"env LANG=en_US.UTF-8 pbcopy < {text_file}", shell=True)
+    # Securely set environment and pass file contents to pbcopy
+    my_env = os.environ.copy()
+    my_env["LANG"] = "en_US.UTF-8"
+    with open(text_file, 'rb') as f:
+        subprocess.run(["pbcopy"], stdin=f, env=my_env)
     # Trigger Cmd+V
     script = '''
     tell application "System Events"
@@ -14,9 +18,11 @@ def paste_text(text_file):
     subprocess.run(["osascript", "-e", script])
 
 def paste_image(image_path):
-    # Copy image to clipboard
-    script_copy = f'set the clipboard to (read (POSIX file "{image_path}") as JPEG picture)'
-    subprocess.run(["osascript", "-e", script_copy])
+    # Copy image to clipboard securely using arguments
+    script_copy = '''on run argv
+    set the clipboard to (read (POSIX file (item 1 of argv)) as JPEG picture)
+end run'''
+    subprocess.run(["osascript", "-e", script_copy, "--", image_path])
     # Trigger Cmd+V
     script_paste = '''
     tell application "System Events"
