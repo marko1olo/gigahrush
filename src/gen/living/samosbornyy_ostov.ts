@@ -7,6 +7,7 @@ import {
   type Entity, type Room, type WorldContainer,
 } from '../../core/types';
 import { World } from '../../core/world';
+import { getEntityIndex } from '../../systems/entity_index';
 import { type PlotNpcDef, registerSideQuest } from '../../data/plot';
 import { MONSTERS } from '../../entities/monster';
 import { monsterSpr, Spr } from '../../render/sprite_index';
@@ -297,7 +298,17 @@ function spawnLiquidator(
   x: number,
   y: number,
 ): number {
-  const existing = entities.find(e => e.alive && e.plotNpcId === SAMOSBORNYY_OSTOV_LIQUIDATOR_ID);
+  let existing = getEntityIndex().byPlotNpcId.get(SAMOSBORNYY_OSTOV_LIQUIDATOR_ID);
+  if (existing && !existing.alive) existing = undefined;
+  if (!existing) {
+    for (let i = entities.length - 1; i >= 0; i--) {
+      const e = entities[i];
+      if (e.plotNpcId === SAMOSBORNYY_OSTOV_LIQUIDATOR_ID && e.alive) {
+        existing = e;
+        break;
+      }
+    }
+  }
   if (existing) return existing.id;
   const npc = requireSpawnedPlotNpcFromPackage(entities, nextId, SAMOSBORNYY_OSTOV_LIQUIDATOR_ID, x + 0.5, y + 0.5, {
     angle: 0,
