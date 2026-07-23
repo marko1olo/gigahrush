@@ -32,10 +32,9 @@ describe('safeParseJson', () => {
         assert.equal(result.normal, 'value');
     });
 
-    test('throws on invalid JSON', () => {
+    test('returns null on invalid JSON', () => {
         const invalidJson = '{name: "John"}';
-        assert.throws(() => {
-            safeParseJson(invalidJson);
-        }, SyntaxError);
+        const result = safeParseJson(invalidJson);
+        assert.equal(result, null);
     });
 });
