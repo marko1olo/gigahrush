@@ -54,6 +54,10 @@ const KV_DOOR_LINK_DY = [0, 0, 1, -1] as const;
 
 let kvUprisingAccum = 0;
 
+const DX = [1, 0, -1, 0];
+const DY = [0, 1, 0, -1];
+
+
 /* ── Room type definitions for kvartiry floor ─────────────────── */
 const KV_ROOM_TYPES: { type: RoomType; name: string; weight: number }[] = [
   { type: RoomType.LIVING,     name: 'Комната с матрасом', weight: 30 },
@@ -258,17 +262,13 @@ function seedNpcPopulation(
    World starts as FLOOR; walls grow from a regular grid of sources.
    Each source grows exactly 2 wall segments, creating small rooms.
    ══════════════════════════════════════════════════════════════════ */
-export function generateKvartiry(territorySeed = 0): { world: World; entities: Entity[]; spawnX: number; spawnY: number } {
-  const world = new World();
-  const entities: Entity[] = [];
-  let nextId = 1;
-  let nextRoomId = 0;
-  lastPickedIdx = -1; // reset room type picker
-  resetKvartiryContentState();
 
-  const DX = [1, 0, -1, 0];
-  const DY = [0, 1, 0, -1];
 
+// ──────────────────────────────────────────────────────────────────────────
+// Generator Passes
+// ──────────────────────────────────────────────────────────────────────────
+
+function buildKvartiryWalls(world: World): void {
   // ── Phase 0: All cells start as FLOOR (empty space) ───────────
   for (let i = 0; i < W * W; i++) {
     world.cells[i] = Cell.FLOOR;
@@ -339,7 +339,9 @@ export function generateKvartiry(territorySeed = 0): { world: World; entities: E
   for (const idx of sources) {
     world.cells[idx] = Cell.WALL;
   }
+}
 
+function solveDoorConnectivity(world: World): void {
   // ── Phase 3: C++ door connectivity — flood-fill + open candidate doors ──
   // Candidate midpoint doors are barriers here. Connectivity opens a sparse
   // subset, then all unopened candidates collapse back into walls.
@@ -460,7 +462,9 @@ export function generateKvartiry(territorySeed = 0): { world: World; entities: E
       world.wallTex[i] = Tex.DOOR_WOOD;
     }
   }
+}
 
+function floodFillKvartiryRooms(world: World, nextRoomIdObj: { v: number }): void {
   // ── Phase 5: Fill rooms (BFS flood-fill) ──────────────────────
   const roomZones = new Int32Array(W * W).fill(-1);
   let roomN = 0;
@@ -501,7 +505,7 @@ export function generateKvartiry(territorySeed = 0): { world: World; entities: E
     const tex = roomTextures(rt.type);
 
     const room: Room = {
-      id: nextRoomId++,
+      id: nextRoomIdObj.v++,
       type: rt.type,
       x: minX, y: minY,
       w: maxX - minX + 1,
@@ -536,16 +540,9 @@ export function generateKvartiry(territorySeed = 0): { world: World; entities: E
 
     roomN++;
   }
-  linkKvartiryDoorsToRooms(world);
+}
 
-  // ── Phase 6: Zones (64 macro-regions) ─────────────────────────
-  generateZones(world);
-  for (const z of world.zones) z.level = calcZoneLevel(z.cx, z.cy, FloorLevel.KVARTIRY);
-
-  // ── Phase 6b: Ensure connectivity ─────────────────────────────
-  const spawnCenterX = W / 2, spawnCenterY = W / 2;
-  ensureConnectivity(world, spawnCenterX, spawnCenterY);
-
+function placeKvartiryLifts(world: World): void {
   // ── Phase 7: Lifts (BEFORE room assignment eats all floor cells) ──
   // placeLifts requires roomMap[ci] < 0, so we place them early and
   // clear roomMap around lifts to satisfy the check.
@@ -576,23 +573,9 @@ export function generateKvartiry(territorySeed = 0): { world: World; entities: E
       }
     }
   }
+}
 
-  // ── Phase 8: Light map ────────────────────────────────────────
-  world.bakeLights();
-
-  // ── Phase 8b: Cell territory before population placement ─────
-  initializeCellTerritory(world, {
-    seed: territorySeed,
-    targetShares: territorySharesForStoryFloor(FloorLevel.KVARTIRY),
-  });
-
-  // ── Phase 9: Spawn NPCs (whole-floor natural baseline)
-  const nid = { v: nextId };
-  seedNpcPopulation(world, entities, nid, Faction.CITIZEN, CITIZEN_PROFILE);
-  seedNpcPopulation(world, entities, nid, Faction.WILD, WILD_PROFILE);
-  seedNpcPopulation(world, entities, nid, Faction.LIQUIDATOR, LIQUIDATOR_PROFILE, Occupation.HUNTER);
-  nextId = nid.v;
-
+function scatterKvartiryItems(world: World, entities: Entity[], nextIdObj: { v: number }): void {
   // ── Phase 10: Spawn items (ballots scattered everywhere) ─────
   for (let i = 0; i < 500; i++) {
     for (let attempt = 0; attempt < 50; attempt++) {
@@ -601,7 +584,7 @@ export function generateKvartiry(territorySeed = 0): { world: World; entities: E
       const ci = world.idx(x, y);
       if (world.cells[ci] !== Cell.FLOOR) continue;
       entities.push({
-        id: nextId++, type: EntityType.ITEM_DROP,
+        id: nextIdObj.v++, type: EntityType.ITEM_DROP,
         x: x + 0.5, y: y + 0.5, angle: 0, pitch: 0,
         alive: true, speed: 0, sprite: Spr.ITEM_DROP,
         inventory: [{ defId: 'ballot', count: rng(1, 3) }],
@@ -609,11 +592,58 @@ export function generateKvartiry(territorySeed = 0): { world: World; entities: E
       break;
     }
   }
+}
 
-  // ── Phase 11: Manifest-owned named NPCs ──────────────────────
-  nextId = spawnKvartiryNamedNpcs(world, entities, nextId);
+export function generateKvartiry(territorySeed = 0): { world: World; entities: Entity[]; spawnX: number; spawnY: number } {
+  const world = new World();
+  const entities: Entity[] = [];
+  let nextIdObj = { v: 1 };
+  let nextRoomIdObj = { v: 0 };
+  lastPickedIdx = -1; // reset room type picker
+  resetKvartiryContentState();
 
-  // ── Phase 12: Find spawn point ────────────────────────────────
+  // ── Phase 0-2: Walls and Sources
+  buildKvartiryWalls(world);
+
+  // ── Phase 3-4: Connectivity and Doors
+  solveDoorConnectivity(world);
+
+  // ── Phase 5: Fill rooms (BFS flood-fill)
+  floodFillKvartiryRooms(world, nextRoomIdObj);
+  linkKvartiryDoorsToRooms(world);
+
+  // ── Phase 6: Zones (64 macro-regions)
+  generateZones(world);
+  for (const z of world.zones) z.level = calcZoneLevel(z.cx, z.cy, FloorLevel.KVARTIRY);
+
+  // ── Phase 6b: Ensure connectivity
+  const spawnCenterX = W / 2, spawnCenterY = W / 2;
+  ensureConnectivity(world, spawnCenterX, spawnCenterY);
+
+  // ── Phase 7: Lifts
+  placeKvartiryLifts(world);
+
+  // ── Phase 8: Light map
+  world.bakeLights();
+
+  // ── Phase 8b: Cell territory before population placement
+  initializeCellTerritory(world, {
+    seed: territorySeed,
+    targetShares: territorySharesForStoryFloor(FloorLevel.KVARTIRY),
+  });
+
+  // ── Phase 9: Spawn NPCs
+  seedNpcPopulation(world, entities, nextIdObj, Faction.CITIZEN, CITIZEN_PROFILE);
+  seedNpcPopulation(world, entities, nextIdObj, Faction.WILD, WILD_PROFILE);
+  seedNpcPopulation(world, entities, nextIdObj, Faction.LIQUIDATOR, LIQUIDATOR_PROFILE, Occupation.HUNTER);
+
+  // ── Phase 10: Spawn items
+  scatterKvartiryItems(world, entities, nextIdObj);
+
+  // ── Phase 11: Manifest-owned named NPCs
+  nextIdObj.v = spawnKvartiryNamedNpcs(world, entities, nextIdObj.v);
+
+  // ── Phase 12: Find spawn point
   let spawnX = W / 2 + 0.5, spawnY = W / 2 + 0.5;
   for (let r = 0; r < 50; r++) {
     for (let dy = -r; dy <= r; dy++) {
@@ -630,8 +660,8 @@ export function generateKvartiry(territorySeed = 0): { world: World; entities: E
     }
   }
 
-  // ── Phase 13: Manifest-owned permanent themed rooms ──────────
-  nextId = runKvartiryPermanentContent(world, entities, nextId, spawnX, spawnY);
+  // ── Phase 13: Manifest-owned permanent themed rooms
+  nextIdObj.v = runKvartiryPermanentContent(world, entities, nextIdObj.v, spawnX, spawnY);
   ensureConnectivity(world, spawnX, spawnY);
   linkKvartiryDoorsToRooms(world);
 
