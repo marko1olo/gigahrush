@@ -36,16 +36,6 @@ const OCCUPATION_NUMERIC_LABELS = [
   'охотник', 'батюшка',
 ];
 
-function escapeHtml(value) {
-  return String(value ?? '').replace(/[&<>"']/g, ch => ({
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#39;',
-  })[ch]);
-}
-
 export function relationBand(score) {
   if (score <= -64) return { label: 'враг', color: '#ff715c' };
   if (score < -16) return { label: 'холодно', color: '#d8a05f' };
@@ -86,39 +76,124 @@ export function renderDemosPreview(container, { pack, portraitUrl, validation })
   const occupation = pack.affiliation?.occupation;
   const visualId = pack.visual?.npcVisualId;
   const links = pack.social?.links ?? [];
-  const socialRows = [
-    `<li><strong>player</strong> - ${pack.social?.playerRelation ?? 0} / ${relation.label}</li>`,
-    ...links.map(link => `<li><strong>${escapeHtml(link.targetNpcId)}</strong> - ${escapeHtml(link.relation)} / ${escapeHtml(link.role)}</li>`),
-  ].join('');
-  const errorLine = validation.errors.length
-    ? `<p class="error">${validation.errors.length} error(s), export blocked</p>`
-    : '<p class="ok">package validates</p>';
-  const portrait = portraitUrl
-    ? `<img class="portrait" src="${escapeHtml(portraitUrl)}" alt="">`
-    : visualId
-      ? `<div class="portrait preset-portrait"><span>game visual</span><strong>${escapeHtml(visualId)}</strong></div>`
-      : '<div class="portrait"></div>';
-  container.innerHTML = `
-    <div class="demos-head">
-      ${portrait}
-      <div>
-        <div class="demos-name">${escapeHtml(displayNpcName(pack.identity))}</div>
-        <div class="demos-meta">${escapeHtml(pack.demographics?.age)} / ${sex} / ${escapeHtml(FACTION_LABELS[faction] ?? FACTION_NUMERIC_LABELS[faction] ?? faction)} / ${escapeHtml(OCCUPATION_LABELS[occupation] ?? OCCUPATION_NUMERIC_LABELS[occupation] ?? occupation)}</div>
-        <div class="demos-line">${escapeHtml(pack.bio?.publicLine || 'Публичная строка не заполнена.')}</div>
-      </div>
-    </div>
-    <div class="demos-stats">
-      <div class="stat">floor<strong>${escapeHtml(pack.placement?.homeFloorKey)}</strong></div>
-      <div class="stat">capital<strong>${escapeHtml(capitalLabel(pack))}</strong></div>
-      <div class="stat">karma<strong>${escapeHtml(pack.social?.karma ?? 0)}</strong></div>
-      <div class="stat">relation<strong style="color:${relation.color}">${escapeHtml(relation.label)}</strong></div>
-    </div>
-    ${visualId ? `<div class="demos-post"><strong>visual</strong><br>${escapeHtml(visualId)}</div>` : ''}
-    <div class="social-list"><strong>10-link panel</strong><ul>${socialRows}</ul></div>
-    <div class="demos-post"><strong>post</strong><br>${escapeHtml(deterministicDemosPost(pack))}</div>
-    <div class="demos-post"><strong>talk</strong><br>${escapeHtml(ambientTalkLine(pack))}</div>
-    ${errorLine}
-  `;
+
+  container.replaceChildren();
+
+  const head = document.createElement('div');
+  head.className = 'demos-head';
+
+  if (portraitUrl) {
+    const img = document.createElement('img');
+    img.className = 'portrait';
+    img.src = portraitUrl;
+    img.alt = '';
+    head.append(img);
+  } else if (visualId) {
+    const div = document.createElement('div');
+    div.className = 'portrait preset-portrait';
+    const span = document.createElement('span');
+    span.textContent = 'game visual';
+    const strong = document.createElement('strong');
+    strong.textContent = visualId;
+    div.append(span, strong);
+    head.append(div);
+  } else {
+    const div = document.createElement('div');
+    div.className = 'portrait';
+    head.append(div);
+  }
+
+  const headInfo = document.createElement('div');
+  const nameDiv = document.createElement('div');
+  nameDiv.className = 'demos-name';
+  nameDiv.textContent = displayNpcName(pack.identity);
+
+  const metaDiv = document.createElement('div');
+  metaDiv.className = 'demos-meta';
+  const factionLabel = FACTION_LABELS[faction] ?? FACTION_NUMERIC_LABELS[faction] ?? faction;
+  const occLabel = OCCUPATION_LABELS[occupation] ?? OCCUPATION_NUMERIC_LABELS[occupation] ?? occupation;
+  metaDiv.textContent = `${pack.demographics?.age} / ${sex} / ${factionLabel} / ${occLabel}`;
+
+  const lineDiv = document.createElement('div');
+  lineDiv.className = 'demos-line';
+  lineDiv.textContent = pack.bio?.publicLine || 'Публичная строка не заполнена.';
+
+  headInfo.append(nameDiv, metaDiv, lineDiv);
+  head.append(headInfo);
+
+  const stats = document.createElement('div');
+  stats.className = 'demos-stats';
+
+  const addStat = (label, value, color) => {
+    const div = document.createElement('div');
+    div.className = 'stat';
+    div.append(label);
+    const strong = document.createElement('strong');
+    if (color) strong.style.color = color;
+    strong.textContent = value;
+    div.append(strong);
+    stats.append(div);
+  };
+
+  addStat('floor', pack.placement?.homeFloorKey);
+  addStat('capital', capitalLabel(pack));
+  addStat('karma', pack.social?.karma ?? 0);
+  addStat('relation', relation.label, relation.color);
+
+  container.append(head, stats);
+
+  if (visualId) {
+    const visDiv = document.createElement('div');
+    visDiv.className = 'demos-post';
+    const strong = document.createElement('strong');
+    strong.textContent = 'visual';
+    visDiv.append(strong, document.createElement('br'), visualId);
+    container.append(visDiv);
+  }
+
+  const socialList = document.createElement('div');
+  socialList.className = 'social-list';
+  const socialTitle = document.createElement('strong');
+  socialTitle.textContent = '10-link panel';
+  const ul = document.createElement('ul');
+
+  const addLink = (target, rest) => {
+    const li = document.createElement('li');
+    const strong = document.createElement('strong');
+    strong.textContent = target;
+    li.append(strong, rest);
+    ul.append(li);
+  };
+
+  addLink('player', ` - ${pack.social?.playerRelation ?? 0} / ${relation.label}`);
+  for (const link of links) {
+    addLink(link.targetNpcId, ` - ${link.relation} / ${link.role}`);
+  }
+
+  socialList.append(socialTitle, ul);
+  container.append(socialList);
+
+  const addPost = (title, text) => {
+    const div = document.createElement('div');
+    div.className = 'demos-post';
+    const strong = document.createElement('strong');
+    strong.textContent = title;
+    div.append(strong, document.createElement('br'), text);
+    container.append(div);
+  };
+
+  addPost('post', deterministicDemosPost(pack));
+  addPost('talk', ambientTalkLine(pack));
+
+  const errP = document.createElement('p');
+  if (validation.errors.length) {
+    errP.className = 'error';
+    errP.textContent = `${validation.errors.length} error(s), export blocked`;
+  } else {
+    errP.className = 'ok';
+    errP.textContent = 'package validates';
+  }
+  container.append(errP);
 }
 
 export async function renderPreviewPng(pack, portraitBlob) {
