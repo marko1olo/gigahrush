@@ -1300,11 +1300,11 @@ function documentRoomName(e: Entity, world: World | undefined): string | undefin
 }
 
 function documentActionTags(defId: string, extra: readonly string[]): string[] {
-  const out = ['player', 'inventory', 'document'];
-  for (const tag of extra) if (!out.includes(tag)) out.push(tag);
-  for (const tag of ITEM_TAGS[defId] ?? []) if (!out.includes(tag)) out.push(tag);
-  for (const tag of ITEMS[defId]?.tags ?? []) if (!out.includes(tag)) out.push(tag);
-  return out.slice(0, 8);
+  const out = new Set(['player', 'inventory', 'document']);
+  for (const tag of extra) out.add(tag);
+  for (const tag of ITEM_TAGS[defId] ?? []) out.add(tag);
+  for (const tag of ITEMS[defId]?.tags ?? []) out.add(tag);
+  return Array.from(out).slice(0, 8);
 }
 
 function publishDocumentActionEvent(
