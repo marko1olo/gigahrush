@@ -1606,7 +1606,14 @@ function removeCreatorFromResolvedVoid(): void {
 function restoreVoidReturnPortalForCurrentWorld(): boolean {
   let portal = getVoidReturnPortalState();
   if (!portal && isVoidReturnPortalFloor() && creatorKillQuestSatisfied()) {
-    const creator = entities.find(e => e.type === EntityType.MONSTER && e.monsterKind === MonsterKind.CREATOR);
+    let creator: Entity | undefined = undefined;
+    for (const e of getEntityIndex().actors) {
+      if (e.type === EntityType.MONSTER && e.monsterKind === MonsterKind.CREATOR) {
+        creator = e;
+        break;
+      }
+    }
+
     if (creator) {
       portal = {
         active: true,
