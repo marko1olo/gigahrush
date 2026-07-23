@@ -16,8 +16,9 @@ import { zhelemishStatsLine } from '../systems/status';
 import { drawNeuroPanel, drawGlitchText, textJitter, flicker } from './hud_fx';
 import { fitText as fitStatText, formatUiNumber, wrapTextLines } from './ui_text';
 import { drawInventoryFinanceBlock, readFinanceSnapshot } from './economy_ui';
-import { fullscreenInventoryLayout } from './ui_layout';
+import { fullscreenInventoryLayout, type FullscreenInventoryLayout } from './ui_layout';
 import { drawItemGridIcon } from './item_sprites';
+
 
 export function drawInventory(
   ctx: CanvasRenderingContext2D,
@@ -33,9 +34,18 @@ export function drawInventory(
   sx = layout.scale;
   sy = layout.scale;
   const ts = layout.textScale;
-  const gridCols = layout.grid.cols;
-  const gridRows = layout.grid.rows;
 
+  drawInventoryHeader(ctx, player, state, cw, ch, sx, ts, time);
+  drawInventoryGrid(ctx, player, state, inv, layout, sx, sy);
+  drawInventoryItemDetails(ctx, player, state, inv, layout, ts);
+  drawInventoryStatsColumn(ctx, player, state, layout, sx, ts, ch, time);
+}
+
+function drawInventoryHeader(
+  ctx: CanvasRenderingContext2D,
+  player: Entity, state: GameState,
+  cw: number, ch: number, sx: number, ts: number, time: number
+): void {
   // Fullscreen neuro-panel background
   ctx.fillStyle = '#00040a';
   ctx.fillRect(0, 0, cw, ch);
@@ -56,11 +66,19 @@ export function drawInventory(
   ctx.textAlign = 'right';
   ctx.fillText(`${menuCloseHint()} закрыть`, cw - 8 * ts, 9 * ts);
   ctx.textAlign = 'left';
+}
 
-  // ── LEFT COLUMN: grid + item desc + weapon + money ───────
+function drawInventoryGrid(
+  ctx: CanvasRenderingContext2D,
+  player: Entity, state: GameState,
+  inv: any[], layout: FullscreenInventoryLayout,
+  sx: number, sy: number
+): void {
   const cellSz = layout.grid.cell;
   const gridX = layout.grid.x;
   const gridY = layout.grid.y;
+  const gridCols = layout.grid.cols;
+  const gridRows = layout.grid.rows;
 
   // Armor slot
   const armorRect = layout.armor;
@@ -107,19 +125,24 @@ export function drawInventory(
       }
     }
   }
+}
 
-  const damageTypeLabel = (dt: DamageType | undefined) => {
-    switch (dt) {
-      case DamageType.FIRE: return { text: '🔴 огонь', color: '#f64' };
-      case DamageType.ENERGY: return { text: '🔵 энерго', color: '#4cf' };
-      case DamageType.PSI: return { text: '🟣 пси', color: '#c6f' };
-      case DamageType.BUCKSHOT: return { text: '🟡 дробь', color: '#ec4' };
-      case DamageType.KINETIC:
-      default: return { text: '⚫ кинетика', color: '#aaa' };
-    }
-  };
+function damageTypeLabel(dt: DamageType | undefined) {
+  switch (dt) {
+    case DamageType.FIRE: return { text: '🔴 огонь', color: '#f64' };
+    case DamageType.ENERGY: return { text: '🔵 энерго', color: '#4cf' };
+    case DamageType.PSI: return { text: '🟣 пси', color: '#c6f' };
+    case DamageType.BUCKSHOT: return { text: '🟡 дробь', color: '#ec4' };
+    case DamageType.KINETIC:
+    default: return { text: '⚫ кинетика', color: '#aaa' };
+  }
+}
 
-  // Selected item details live in the right column so the 8x8 grid keeps the left side.
+function drawInventoryItemDetails(
+  ctx: CanvasRenderingContext2D,
+  player: Entity, state: GameState,
+  inv: any[], layout: FullscreenInventoryLayout, ts: number
+): void {
   const details = layout.details;
   ctx.textAlign = 'left';
 
@@ -186,8 +209,15 @@ export function drawInventory(
     ctx.font = `${5.2 * ts}px monospace`;
     ctx.fillText('Пустой слот', details.x, details.y + 6.5 * ts);
   }
+}
 
-  // ── RIGHT COLUMN: stats ──────────────────────────────────
+function drawInventoryStatsColumn(
+  ctx: CanvasRenderingContext2D,
+  player: Entity, state: GameState,
+  layout: FullscreenInventoryLayout,
+  sx: number, ts: number, ch: number, time: number
+): void {
+  const details = layout.details;
   const stX = details.x;
   const barW = Math.max(24 * sx, details.w);
   let stY = details.y + details.h + 5 * ts;
