@@ -183,20 +183,37 @@ let FORBIDDEN_MONSTER_NAMES: string[] | undefined;
 function observedForbiddenFact(text: string, allowed: Set<string>): string | undefined {
   const lower = text.toLowerCase();
 
-  if (!FORBIDDEN_ITEM_NAMES) FORBIDDEN_ITEM_NAMES = Object.values(ITEMS).map(item => item.name.toLowerCase());
+  if (!FORBIDDEN_ITEM_NAMES) {
+    const keys = Object.keys(ITEMS);
+    FORBIDDEN_ITEM_NAMES = new Array(keys.length);
+    for (let i = 0; i < keys.length; i++) {
+      FORBIDDEN_ITEM_NAMES[i] = ITEMS[keys[i]].name.toLowerCase();
+    }
+  }
   for (const name of FORBIDDEN_ITEM_NAMES) {
     if (name.length >= 4 && lower.includes(name) && !allowed.has(name)) return name;
   }
 
-  if (!FORBIDDEN_FLOOR_NAMES) FORBIDDEN_FLOOR_NAMES = Object.values(FLOOR_NAMES).map(value => value.toLowerCase());
+  if (!FORBIDDEN_FLOOR_NAMES) {
+    const keys = Object.keys(FLOOR_NAMES);
+    FORBIDDEN_FLOOR_NAMES = new Array(keys.length);
+    for (let i = 0; i < keys.length; i++) {
+      FORBIDDEN_FLOOR_NAMES[i] = FLOOR_NAMES[keys[i] as unknown as FloorLevel].toLowerCase();
+    }
+  }
   for (const name of FORBIDDEN_FLOOR_NAMES) {
     if (lower.includes(name) && !allowed.has(name)) return name;
   }
 
   if (!FORBIDDEN_MONSTER_NAMES) {
-    FORBIDDEN_MONSTER_NAMES = Object.values(MonsterKind)
-      .filter((value): value is MonsterKind => typeof value === 'number')
-      .map(kind => monsterTypeName(kind).toLowerCase());
+    const keys = Object.keys(MonsterKind);
+    FORBIDDEN_MONSTER_NAMES = [];
+    for (let i = 0; i < keys.length; i++) {
+      const val = MonsterKind[keys[i] as keyof typeof MonsterKind];
+      if (typeof val === 'number') {
+        FORBIDDEN_MONSTER_NAMES.push(monsterTypeName(val).toLowerCase());
+      }
+    }
   }
   for (const name of FORBIDDEN_MONSTER_NAMES) {
     if (name.length >= 4 && lower.includes(name) && !allowed.has(name)) return name;
