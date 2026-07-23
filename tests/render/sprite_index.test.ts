@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import * as assert from 'node:assert';
-import { authoredNpcSpriteGeneratorOffset, isAuthoredNpcSpr, Spr } from '../../src/render/sprite_index';
+import { authoredNpcSpriteGeneratorOffset, isAuthoredNpcSpr, authoredNpcSpr, Spr } from '../../src/render/sprite_index';
 
 describe('Sprite Index Utilities', () => {
   describe('authoredNpcSpriteGeneratorOffset', () => {
@@ -78,6 +78,18 @@ describe('Sprite Index Utilities', () => {
       assert.strictEqual(isAuthoredNpcSpr(Spr.AUTHORED_NPC_BASE + 0.5), true);
       assert.strictEqual(isAuthoredNpcSpr(Spr.AUTHORED_NPC_BASE - 0.5), false);
       assert.strictEqual(isAuthoredNpcSpr(Spr.AUTHORED_NPC_BASE + Spr.AUTHORED_NPC_COUNT + 0.5), false);
+    });
+  });
+
+  describe('authoredNpcSpr', () => {
+    it('throws an error for unknown authored NPC sprites', () => {
+      assert.throws(
+        () => authoredNpcSpr('unknown_id'),
+        {
+          name: 'Error',
+          message: '[SPRITE] unknown authored NPC sprite "unknown_id"'
+        }
+      );
     });
   });
 });
