@@ -9,6 +9,31 @@ test('generateTextures generates the correct number of textures', () => {
   assert.equal(textures.length, Tex.COUNT, 'Should generate one texture for each Tex enum value');
 });
 
+test('texture generation is deterministic', () => {
+  const textures1 = generateTextures();
+  const textures2 = generateTextures();
+
+  assert.equal(textures1.length, textures2.length, 'Should generate the same number of textures');
+
+  for (let i = 0; i < textures1.length; i++) {
+    const tex1 = textures1[i];
+    const tex2 = textures2[i];
+
+    assert.equal(tex1.length, tex2.length, `Texture length mismatch at index ${i}`);
+
+    // Test the first 100 pixels to avoid massive output if there's a difference,
+    // and a spot check for overall equality to be efficient.
+    let isIdentical = true;
+    for (let j = 0; j < tex1.length; j++) {
+      if (tex1[j] !== tex2[j]) {
+        isIdentical = false;
+        break;
+      }
+    }
+    assert.ok(isIdentical, `Texture mismatch at index ${i}`);
+  }
+});
+
 test('each generated texture has the correct dimensions', () => {
   const textures = generateTextures();
   const expectedLength = S * S;
