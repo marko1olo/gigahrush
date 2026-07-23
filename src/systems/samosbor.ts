@@ -3516,21 +3516,53 @@ function applyContainerTheft(
 ): boolean {
   ensureRoomContainers(world, pending.floor);
   const c = aftermathCenter(world, entities, pending, true);
-  let best = world.containers.find(container =>
-    container.access !== 'public' &&
-    container.floor === pending.floor && world.dist2(c.x + 0.5, c.y + 0.5, container.x + 0.5, container.y + 0.5) <= def.radius * def.radius);
-  best ??= world.containers.find(container =>
-    container.floor === pending.floor && world.dist2(c.x + 0.5, c.y + 0.5, container.x + 0.5, container.y + 0.5) <= def.radius * def.radius);
-  if (!best) {
-    const zc = aftermathCenter(world, entities, pending, false);
-    best = world.containers.find(container =>
-      container.access !== 'public' &&
-      container.floor === pending.floor && container.zoneId === pending.zoneId &&
-      world.dist2(zc.x + 0.5, zc.y + 0.5, container.x + 0.5, container.y + 0.5) <= def.radius * def.radius);
-    best ??= world.containers.find(container =>
-      container.floor === pending.floor && container.zoneId === pending.zoneId &&
-      world.dist2(zc.x + 0.5, zc.y + 0.5, container.x + 0.5, container.y + 0.5) <= def.radius * def.radius);
+
+  let best1: WorldContainer | undefined;
+  let best2: WorldContainer | undefined;
+  let best3: WorldContainer | undefined;
+  let best4: WorldContainer | undefined;
+
+  const radius2 = def.radius * def.radius;
+  const cx = c.x + 0.5;
+  const cy = c.y + 0.5;
+  let zc: { x: number; y: number } | undefined;
+  let zcx = 0, zcy = 0;
+
+  for (let i = 0; i < world.containers.length; i++) {
+    const container = world.containers[i];
+    if (container.floor !== pending.floor) continue;
+
+    const cxOffset = container.x + 0.5;
+    const cyOffset = container.y + 0.5;
+
+    if (!best1 || !best2) {
+      const dx1 = cx - cxOffset;
+      const dy1 = cy - cyOffset;
+      if (dx1 * dx1 + dy1 * dy1 <= radius2) {
+        if (!best2) best2 = container;
+        if (!best1 && container.access !== 'public') {
+          best1 = container;
+          break; // Found the best possible match, can stop searching
+        }
+      }
+    }
+
+    if ((!best3 || !best4) && container.zoneId === pending.zoneId) {
+      if (!zc) {
+        zc = aftermathCenter(world, entities, pending, false);
+        zcx = zc.x + 0.5;
+        zcy = zc.y + 0.5;
+      }
+      const dx2 = zcx - cxOffset;
+      const dy2 = zcy - cyOffset;
+      if (dx2 * dx2 + dy2 * dy2 <= radius2) {
+        if (!best4) best4 = container;
+        if (!best3 && container.access !== 'public') best3 = container;
+      }
+    }
   }
+
+  const best = best1 ?? best2 ?? best3 ?? best4;
   if (!best) return false;
   const oldAccess = best.access;
   best.discovered = true;
