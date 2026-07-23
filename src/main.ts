@@ -2933,6 +2933,159 @@ function handlePlayerInteract(): boolean {
   return false;
 }
 
+
+function handleRangedAttack(weaponId: string, ws: import('./data/weapons').WeaponStats, atkSpeedMod: number): void {
+  // ── Ranged attack: spawn projectile(s) ──────────────
+  if (consumeAmmo(player, state, weaponId)) {
+    if (ws.projType === ProjType.FLAME) reducePaupsinaWeb(player, state.time, state.msgs, state, player, 'fire');
+    if (ws.deletionBeam) {
+      const result = fireDeletionBeam(world, entities, player, state, weaponId, ws, handleKill);
+      state.beamFx = 0.45;
+      state.beamAngle = player.angle;
+      state.beamLen = result.beamLen;
+    } else {
+      const cos = Math.cos(player.angle);
+      const sin = Math.sin(player.angle);
+      const pellets = ws.pellets ?? 1;
+      const spread = ws.spread ?? 0;
+      const pt = ws.projType ?? ProjType.NORMAL;
+      for (let p = 0; p < pellets; p++) {
+        const ang = player.angle + (Math.random() - 0.5) * spread;
+        const spd = ws.projSpeed ?? 15;
+        const proj: Entity = {
+          id: nextEntityId.v++,
+          type: EntityType.PROJECTILE,
+          x: player.x + cos * 0.85,
+          y: player.y + sin * 0.85,
+          angle: ang,
+          pitch: 0,
+          alive: true,
+          speed: 0,
+          sprite: ws.projSprite ?? Spr.BULLET,
+          vx: Math.cos(ang) * spd,
+          vy: Math.sin(ang) * spd,
+          vz: player.pitch * spd * 0.5 + (pt === ProjType.FLAME ? (Math.random() - 0.5) * 0.8 : 0),
+          projDmg: ws.dmg,
+          projLife: pt === ProjType.GRENADE ? 1.5 : pt === ProjType.FLAME ? 0.7 : 3.0,
+          ownerId: player.id,
+          weapon: weaponId,
+          spriteScale: pt === ProjType.BFG ? 0.6 : pt === ProjType.FLAME ? (0.55 + Math.random() * 0.25) : pt === ProjType.GRENADE ? 0.35 : 0.25,
+          spriteZ: 0.5,
+          projType: pt,
+          projGore: pt === ProjType.GRENADE || pt === ProjType.BFG ? 3
+            : (weaponId === 'shotgun' || weaponId === 'chainsaw') ? 3
+            : (weaponId === 'ak47' || weaponId === 'machinegun' || weaponId === 'nailgun' || weaponId === 'gauss' || weaponId === 'plasma') ? 2
+            : pt === ProjType.FLAME ? 1 : 1,
+        };
+        if (ws.aoeRadius) {
+          proj.aoeRadius = ws.aoeRadius;
+          proj.aoeDmg = ws.dmg;
+        }
+        entities.push(proj);
+      }
+    }
+    // Play weapon-specific sound
+    pushAttackFeedback('Выстрел.');
+    playWeaponSound(weaponId, ws);
+    publishWeaponNoise(state, player, weaponId, ws);
+    notifyLiftArachnaNoise(world, player, state, weaponId);
+    player.attackCd = ws.speed * atkSpeedMod;
+  } else {
+    if (weaponId === 'flamethrower') {
+      pushAttackFeedback('Бензин кончился!', '#f84', 0.3);
+      publishFuelEmptyEvent(ws.ammoType);
+    } else {
+      pushAttackFeedback('Нет патронов!', '#f84', 0.3);
+    }
+    player.attackCd = 0.5;
+  }
+}
+
+function handleMeleeAttack(weaponId: string, ws: import('./data/weapons').WeaponStats, atkSpeedMod: number, reloadSpeedMod: number): void {
+  // ── Melee attack: range check + durability ──────────
+  const normalDmg = meleeDamage(player.rpg, weaponId, ws.dmg);
+  const range = ws.range;
+  const ax = player.x + Math.cos(player.angle) * range;
+  const ay = player.y + Math.sin(player.angle) * range;
+
+  let hitSomething = isPaupsinaWebCuttingWeapon(weaponId)
+    ? reducePaupsinaWeb(player, state.time, state.msgs, state, player, 'cut')
+    : false;
+  const entityIndex = getEntityIndex();
+  entityIndex.queryRadius(ax, ay, 1.2, meleeHitQuery, ENTITY_MASK_ACTOR);
+  const meleeTarget = selectMeleeTarget(world, player, meleeHitQuery, range, weaponId);
+  if (meleeTarget) {
+    const e = meleeTarget;
+    if (e.hp !== undefined) {
+      const rawDmg = debugOnePunchMeleeDamage(e, normalDmg);
+      const armor = applyMonsterArmorHit(world, state, e, {
+        damage: rawDmg,
+        attacker: player,
+        weaponId,
+      });
+      const dmg = armor.damage;
+      e.hp -= dmg;
+      // Relation penalty for hitting non-hostile NPCs
+      if (e.type === EntityType.NPC) {
+        applyDamageRelationPenalty(player.faction, e.faction, dmg, e, player, state);
+        recordFactionClashPlayerHit(state, world, player, e, dmg);
+      }
+      notifyActorDamaged(world, e, player, dmg, 'player_melee', state.time, state);
+      // Blood splatter on hit — use player facing as velocity direction
+      const meleeSpd = 6;
+      const mVx = Math.cos(player.angle) * meleeSpd;
+      const mVy = Math.sin(player.angle) * meleeSpd;
+      spawnBloodHit(world, e.x, e.y, player.angle, dmg, e.type === EntityType.MONSTER, mVx, mVy, 0.5);
+      state.msgs.push(msg(`Удар! ${entityDisplayName(e)} -${dmg}`, state.time, '#fc4'));
+      if (e.hp <= 0) {
+        e.alive = false;
+        const meleeGore = (weaponId === 'chainsaw' || weaponId === 'axe') ? 3
+          : (weaponId === 'rebar' || weaponId === 'pipe') ? 2 : 1;
+        handleKill(e, true, mVx, mVy, meleeGore);
+        recordMonsterMeleeDeath(
+          world,
+          state,
+          e,
+          weaponId,
+          player,
+          (target, vx, vy, gore) => handleKill(target, true, vx, vy, gore),
+          entities,
+        );
+      }
+    }
+    hitSomething = true;
+  }
+
+  if (!hitSomething) {
+    const attackIdx = world.idx(Math.floor(ax), Math.floor(ay));
+    if (world.cells[attackIdx] === Cell.DOOR && world.doors.has(attackIdx)) {
+      const door = world.doors.get(attackIdx)!;
+      const broke = damageDoor(world, door, normalDmg);
+      state.msgs.push(msg(broke ? 'Дверь выбита!' : `Удар по двери! -${normalDmg}`, state.time, broke ? '#4a4' : '#aaa'));
+      hitSomething = true;
+    }
+  }
+
+  if (weaponId === 'chainsaw') playChainsaw(); else playAttack();
+  publishWeaponNoise(state, player, weaponId, ws);
+  notifyLiftArachnaNoise(world, player, state, weaponId);
+  // Consume durability on melee hit
+  if (hitSomething) {
+    const broke = consumeDurability(player, state.msgs, state.time, state, weaponId);
+    if (broke) playBreak();
+  }
+  if (ws.magazineSize === 1) {
+    player.currentMag = 0;
+    player.reloading = true;
+    player.reloadTimer = (ws.reloadTime ?? ws.speed) / reloadSpeedMod;
+    player.attackCd = 0;
+  } else if (ws.magazineSize !== Infinity) {
+    player.currentMag = Math.max(0, (player.currentMag ?? 1) - 1);
+    player.attackCd = ws.speed * atkSpeedMod;
+  } else {
+    player.attackCd = ws.speed * atkSpeedMod;
+  }
+}
 function handlePlayerAttack(_dt: number): void {
   const wantsAttack = input.attack || input.mouseAttack;
   player.attackCd = Math.max(0, (player.attackCd ?? 0) - _dt);
@@ -2999,154 +3152,9 @@ function handlePlayerAttack(_dt: number): void {
       // ── PSI spell: consume PSI instead of ammo ──────────
       player.attackCd = castPlayerPsi(weaponId, ws) ? ws.speed * atkSpeedMod : 0.5;
     } else if (ws.isRanged) {
-      // ── Ranged attack: spawn projectile(s) ──────────────
-      if (consumeAmmo(player, state, weaponId)) {
-        if (ws.projType === ProjType.FLAME) reducePaupsinaWeb(player, state.time, state.msgs, state, player, 'fire');
-        if (ws.deletionBeam) {
-          const result = fireDeletionBeam(world, entities, player, state, weaponId, ws, handleKill);
-          state.beamFx = 0.45;
-          state.beamAngle = player.angle;
-          state.beamLen = result.beamLen;
-        } else {
-          const cos = Math.cos(player.angle);
-          const sin = Math.sin(player.angle);
-          const pellets = ws.pellets ?? 1;
-          const spread = ws.spread ?? 0;
-          const pt = ws.projType ?? ProjType.NORMAL;
-          for (let p = 0; p < pellets; p++) {
-            const ang = player.angle + (Math.random() - 0.5) * spread;
-            const spd = ws.projSpeed ?? 15;
-            const proj: Entity = {
-              id: nextEntityId.v++,
-              type: EntityType.PROJECTILE,
-              x: player.x + cos * 0.85,
-              y: player.y + sin * 0.85,
-              angle: ang,
-              pitch: 0,
-              alive: true,
-              speed: 0,
-              sprite: ws.projSprite ?? Spr.BULLET,
-              vx: Math.cos(ang) * spd,
-              vy: Math.sin(ang) * spd,
-              vz: player.pitch * spd * 0.5 + (pt === ProjType.FLAME ? (Math.random() - 0.5) * 0.8 : 0),
-              projDmg: ws.dmg,
-              projLife: pt === ProjType.GRENADE ? 1.5 : pt === ProjType.FLAME ? 0.7 : 3.0,
-              ownerId: player.id,
-              weapon: weaponId,
-              spriteScale: pt === ProjType.BFG ? 0.6 : pt === ProjType.FLAME ? (0.55 + Math.random() * 0.25) : pt === ProjType.GRENADE ? 0.35 : 0.25,
-              spriteZ: 0.5,
-              projType: pt,
-              projGore: pt === ProjType.GRENADE || pt === ProjType.BFG ? 3
-                : (weaponId === 'shotgun' || weaponId === 'chainsaw') ? 3
-                : (weaponId === 'ak47' || weaponId === 'machinegun' || weaponId === 'nailgun' || weaponId === 'gauss' || weaponId === 'plasma') ? 2
-                : pt === ProjType.FLAME ? 1 : 1,
-            };
-            if (ws.aoeRadius) {
-              proj.aoeRadius = ws.aoeRadius;
-              proj.aoeDmg = ws.dmg;
-            }
-            entities.push(proj);
-          }
-        }
-        // Play weapon-specific sound
-        pushAttackFeedback('Выстрел.');
-        playWeaponSound(weaponId, ws);
-        publishWeaponNoise(state, player, weaponId, ws);
-        notifyLiftArachnaNoise(world, player, state, weaponId);
-        player.attackCd = ws.speed * atkSpeedMod;
-      } else {
-        if (weaponId === 'flamethrower') {
-          pushAttackFeedback('Бензин кончился!', '#f84', 0.3);
-          publishFuelEmptyEvent(ws.ammoType);
-        } else {
-          pushAttackFeedback('Нет патронов!', '#f84', 0.3);
-        }
-        player.attackCd = 0.5;
-      }
+      handleRangedAttack(weaponId, ws, atkSpeedMod);
     } else {
-      // ── Melee attack: range check + durability ──────────
-      const normalDmg = meleeDamage(player.rpg, weaponId, ws.dmg);
-      const range = ws.range;
-      const ax = player.x + Math.cos(player.angle) * range;
-      const ay = player.y + Math.sin(player.angle) * range;
-
-      let hitSomething = isPaupsinaWebCuttingWeapon(weaponId)
-        ? reducePaupsinaWeb(player, state.time, state.msgs, state, player, 'cut')
-        : false;
-      const entityIndex = getEntityIndex();
-      entityIndex.queryRadius(ax, ay, 1.2, meleeHitQuery, ENTITY_MASK_ACTOR);
-      const meleeTarget = selectMeleeTarget(world, player, meleeHitQuery, range, weaponId);
-      if (meleeTarget) {
-        const e = meleeTarget;
-        if (e.hp !== undefined) {
-          const rawDmg = debugOnePunchMeleeDamage(e, normalDmg);
-          const armor = applyMonsterArmorHit(world, state, e, {
-            damage: rawDmg,
-            attacker: player,
-            weaponId,
-          });
-          const dmg = armor.damage;
-          e.hp -= dmg;
-          // Relation penalty for hitting non-hostile NPCs
-          if (e.type === EntityType.NPC) {
-            applyDamageRelationPenalty(player.faction, e.faction, dmg, e, player, state);
-            recordFactionClashPlayerHit(state, world, player, e, dmg);
-          }
-          notifyActorDamaged(world, e, player, dmg, 'player_melee', state.time, state);
-          // Blood splatter on hit — use player facing as velocity direction
-          const meleeSpd = 6;
-          const mVx = Math.cos(player.angle) * meleeSpd;
-          const mVy = Math.sin(player.angle) * meleeSpd;
-          spawnBloodHit(world, e.x, e.y, player.angle, dmg, e.type === EntityType.MONSTER, mVx, mVy, 0.5);
-          state.msgs.push(msg(`Удар! ${entityDisplayName(e)} -${dmg}`, state.time, '#fc4'));
-          if (e.hp <= 0) {
-            e.alive = false;
-            const meleeGore = (weaponId === 'chainsaw' || weaponId === 'axe') ? 3
-              : (weaponId === 'rebar' || weaponId === 'pipe') ? 2 : 1;
-            handleKill(e, true, mVx, mVy, meleeGore);
-            recordMonsterMeleeDeath(
-              world,
-              state,
-              e,
-              weaponId,
-              player,
-              (target, vx, vy, gore) => handleKill(target, true, vx, vy, gore),
-              entities,
-            );
-          }
-        }
-        hitSomething = true;
-      }
-
-      if (!hitSomething) {
-        const attackIdx = world.idx(Math.floor(ax), Math.floor(ay));
-        if (world.cells[attackIdx] === Cell.DOOR && world.doors.has(attackIdx)) {
-          const door = world.doors.get(attackIdx)!;
-          const broke = damageDoor(world, door, normalDmg);
-          state.msgs.push(msg(broke ? 'Дверь выбита!' : `Удар по двери! -${normalDmg}`, state.time, broke ? '#4a4' : '#aaa'));
-          hitSomething = true;
-        }
-      }
-
-      if (weaponId === 'chainsaw') playChainsaw(); else playAttack();
-      publishWeaponNoise(state, player, weaponId, ws);
-      notifyLiftArachnaNoise(world, player, state, weaponId);
-      // Consume durability on melee hit
-      if (hitSomething) {
-        const broke = consumeDurability(player, state.msgs, state.time, state, weaponId);
-        if (broke) playBreak();
-      }
-      if (ws.magazineSize === 1) {
-        player.currentMag = 0;
-        player.reloading = true;
-        player.reloadTimer = (ws.reloadTime ?? ws.speed) / reloadSpeedMod;
-        player.attackCd = 0;
-      } else if (ws.magazineSize !== Infinity) {
-        player.currentMag = Math.max(0, (player.currentMag ?? 1) - 1);
-        player.attackCd = ws.speed * atkSpeedMod;
-      } else {
-        player.attackCd = ws.speed * atkSpeedMod;
-      }
+      handleMeleeAttack(weaponId, ws, atkSpeedMod, reloadSpeedMod);
     }
   }
 }
