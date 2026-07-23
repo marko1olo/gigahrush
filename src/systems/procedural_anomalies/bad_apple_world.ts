@@ -42,6 +42,7 @@ export function stampBadAppleWorld(world: World, x: number, y: number, _connectF
 }
 
 export function updateBadAppleWorldAnomaly(_world: World, _player: Entity, _state: GameState, _dt: number): void {
+  // Intentional no-op for disabled experiment
 }
 
 export function badAppleWorldInteractionTargetId(_world: World, _lookX: number, _lookY: number): number | null {
@@ -57,6 +58,7 @@ export function debugSpawnBadAppleWorld(_world: World, _player: Entity, _state: 
 }
 
 export function relightBadAppleWorld(_world: World): void {
+  // Intentional no-op for disabled experiment
 }
 
 export function summarizeBadAppleWorld(_world: World): string[] {
