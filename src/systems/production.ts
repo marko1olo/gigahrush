@@ -408,8 +408,20 @@ function isOtherFactoryOutput(container: WorldContainer, factory: FactoryDef): b
 }
 
 function tagOverlap(container: WorldContainer, tags: readonly string[]): number {
+  if (tags.length === 0 || container.tags.length === 0) return 0;
+
   let score = 0;
-  for (const tag of tags) if (container.tags.includes(tag)) score++;
+  if (container.tags.length * tags.length < 500) {
+    for (const tag of tags) {
+      if (container.tags.includes(tag)) score++;
+    }
+    return score;
+  }
+
+  const tagSet = new Set(container.tags);
+  for (const tag of tags) {
+    if (tagSet.has(tag)) score++;
+  }
   return score;
 }
 
