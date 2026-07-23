@@ -38,7 +38,6 @@ import {
   RPG_ATTRIBUTE_CAP,
   RPG_LEVEL_CAP,
   rpgStatEffects,
-  regenPsi,
   scaleMonsterDmg,
   scaleMonsterHp,
   spendAttrPoint,
@@ -518,11 +517,6 @@ test('PSI weapon descriptions match executable cost and damage numbers', () => {
 });
 
 test('PSI recovery is explicit, tagged, and bounded by item values', () => {
-  const player = makePlayer();
-  player.rpg!.psi = 2;
-  regenPsi(player, 999);
-  assert.equal(player.rpg?.psi, 2);
-
   const restorers: [string, number][] = [
     ['pills', 3],
     ['antidep', 12],

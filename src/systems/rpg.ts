@@ -401,10 +401,6 @@ export function gaussianLevel(center: number, sigma = 2): number {
   return clampRpgLevel(Math.round(randomGaussian(center, sigma)));
 }
 
-// ── PSI recovery is explicit: items, rewards, drains and level-ups only ──
-export function regenPsi(_e: Entity, _dt: number): void {
-}
-
 // ── Quest difficulty based on item value and distance ────────────
 export function questDifficulty(
   itemValue: number, distance: number, questTypeBase: number,
