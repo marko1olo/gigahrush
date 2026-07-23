@@ -315,9 +315,9 @@ function subjectName(e: Entity): string {
 }
 
 function hazardTags(site: CellHazardSite): string[] {
-  const tags = ['hazard', site.kind];
-  for (const tag of site.tags) if (!tags.includes(tag)) tags.push(tag);
-  return tags;
+  const tagSet = new Set<string>(['hazard', site.kind]);
+  for (const tag of site.tags) tagSet.add(tag);
+  return Array.from(tagSet);
 }
 
 function publishHazardEvent(
