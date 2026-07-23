@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import * as assert from 'node:assert';
-import { authoredNpcSpriteGeneratorOffset, isAuthoredNpcSpr, Spr } from '../../src/render/sprite_index';
+import { authoredNpcSpriteGeneratorOffset, isAuthoredNpcSpr, authoredNpcSpr, Spr } from '../../src/render/sprite_index';
 
 describe('Sprite Index Utilities', () => {
   describe('authoredNpcSpriteGeneratorOffset', () => {
@@ -78,6 +78,24 @@ describe('Sprite Index Utilities', () => {
       assert.strictEqual(isAuthoredNpcSpr(Spr.AUTHORED_NPC_BASE + 0.5), true);
       assert.strictEqual(isAuthoredNpcSpr(Spr.AUTHORED_NPC_BASE - 0.5), false);
       assert.strictEqual(isAuthoredNpcSpr(Spr.AUTHORED_NPC_BASE + Spr.AUTHORED_NPC_COUNT + 0.5), false);
+    });
+  });
+
+  describe('authoredNpcSpr', () => {
+    it('returns the correct sprite for a known authored NPC id', () => {
+      // Assuming 'veteran_stepanych' is the first generator (index 0)
+      const expectedSprite = Spr.AUTHORED_NPC_BASE + 0;
+      assert.strictEqual(authoredNpcSpr('veteran_stepanych'), expectedSprite);
+    });
+
+    it('throws an error for an unknown authored NPC id', () => {
+      assert.throws(
+        () => authoredNpcSpr('unknown_sprite_id'),
+        (err) => {
+          assert.strictEqual(err.message, '[SPRITE] unknown authored NPC sprite "unknown_sprite_id"');
+          return true;
+        }
+      );
     });
   });
 });
