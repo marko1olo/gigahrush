@@ -145,12 +145,25 @@ function seedInventory(kind: ContainerKind, roomId: number, level = 0): Item[] {
     rollItems.push((seed % 10_000) / 10_000);
   }
   const proceduralItems = generateContainerLoot(def.tags, def.proceduralValueCap, level, rollItems);
+  const nonFullStacks = new Map<string, Item>();
+  for (const item of inv) {
+    if (item.count < getStack(ITEMS[item.defId])) {
+      nonFullStacks.set(item.defId, item);
+    }
+  }
   for (const item of proceduralItems) {
-    const existing = inv.find(i => i.defId === item.defId && i.count < getStack(ITEMS[item.defId]));
+    const maxStack = getStack(ITEMS[item.defId]);
+    const existing = nonFullStacks.get(item.defId);
     if (existing) {
       existing.count++;
+      if (existing.count >= maxStack) {
+        nonFullStacks.delete(item.defId);
+      }
     } else if (inv.length < MAX_INVENTORY_SLOTS) {
       inv.push(item);
+      if (item.count < maxStack) {
+        nonFullStacks.set(item.defId, item);
+      }
     }
   }
   return inv;
