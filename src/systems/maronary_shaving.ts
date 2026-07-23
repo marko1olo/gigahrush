@@ -24,10 +24,10 @@ function shavingDef() {
 }
 
 function eventTags(...extra: string[]): string[] {
-  const tags = [...BASE_TAGS, ...extra];
+  const tagsSet = new Set([...BASE_TAGS, ...extra]);
   const def = shavingDef();
-  for (const tag of def?.tags ?? []) if (!tags.includes(tag)) tags.push(tag);
-  return tags;
+  for (const tag of def?.tags ?? []) tagsSet.add(tag);
+  return Array.from(tagsSet);
 }
 
 function removeOneFromSlot(inv: Item[], slotIdx: number): boolean {
