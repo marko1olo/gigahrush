@@ -1068,12 +1068,14 @@ export function checkTalkQuest(
 function contractCompletionTags(contractDef: ContractDef | undefined): string[] {
   if (!contractDef) return ['quest', 'completed'];
   if (!contractDef.tags.includes('cleanup')) return ['quest', 'contract', 'completed', ...contractDef.tags];
-  const tags = ['quest', 'contract', 'completed', 'cleanup_completed'];
+  const tags = new Set(['quest', 'contract', 'completed', 'cleanup_completed']);
   for (const tag of ['slime', 'brown_slime', 'cleanup']) {
-    if (contractDef.tags.includes(tag)) tags.push(tag);
+    if (contractDef.tags.includes(tag)) tags.add(tag);
   }
-  for (const tag of contractDef.tags) if (!tags.includes(tag)) tags.push(tag);
-  return tags;
+  for (const tag of contractDef.tags) {
+    tags.add(tag);
+  }
+  return Array.from(tags);
 }
 
 function questRewardStacks(q: Quest): { defId: string; count: number }[] {
