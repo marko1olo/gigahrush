@@ -165,11 +165,23 @@ function tickLivingRoutine(
   msgs: Msg[],
 ): void {
   rebuildEntityIndexForSimulation(entities, Math.floor(time * 1000));
-  updateAI(world, entities, dt, time, msgs, 1, clock, false, { v: 50_000 }, FloorLevel.LIVING, makeGameState({
-    currentFloor: FloorLevel.LIVING,
+  updateAI({
+    world,
+    entities,
+    dt,
     time,
+    msgs,
+    playerId: 1,
     clock,
-  }));
+    samosborActive: false,
+    nextId: { v: 50_000 },
+    currentFloor: FloorLevel.LIVING,
+    state: makeGameState({
+      currentFloor: FloorLevel.LIVING,
+      time,
+      clock,
+    })
+  });
 }
 
 test('living routine residents do not collapse into corridor attractors', () => {
