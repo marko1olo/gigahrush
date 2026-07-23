@@ -18,9 +18,11 @@ import { randomRPG, scaleMonsterHp, scaleMonsterSpeed } from './rpg';
 import { canSpawnEntityType } from './entity_limits';
 import { isPlayerEntity } from './player_actor';
 
-const HACK_FLOOR_COOLDOWN_S = 480;
-const HACK_TERMINAL_COOLDOWN_S = 900;
-const ACTIVE_SAFEGUARD_RADIUS_SQ = 36 * 36;
+export const SAFEGUARD_CONFIG = {
+  HACK_FLOOR_COOLDOWN_S: 480,
+  HACK_TERMINAL_COOLDOWN_S: 900,
+  ACTIVE_SAFEGUARD_RADIUS_SQ: 36 * 36,
+};
 const SPAWN_MIN_RADIUS = 2;
 const SPAWN_MAX_RADIUS = 12;
 
@@ -49,9 +51,9 @@ function terminalCooldownActive(state: GameState, terminalIdx: number | undefine
   for (const event of events) {
     const age = state.time - event.time;
     if (age < 0) continue;
-    if (floorKey && event.data?.floorKey === floorKey && age < HACK_FLOOR_COOLDOWN_S) return true;
-    if (terminalIdx !== undefined && event.data?.terminalIdx === terminalIdx && age < HACK_TERMINAL_COOLDOWN_S) return true;
-    if (!floorKey && event.floor === state.currentFloor && age < HACK_FLOOR_COOLDOWN_S) return true;
+    if (floorKey && event.data?.floorKey === floorKey && age < SAFEGUARD_CONFIG.HACK_FLOOR_COOLDOWN_S) return true;
+    if (terminalIdx !== undefined && event.data?.terminalIdx === terminalIdx && age < SAFEGUARD_CONFIG.HACK_TERMINAL_COOLDOWN_S) return true;
+    if (!floorKey && event.floor === state.currentFloor && age < SAFEGUARD_CONFIG.HACK_FLOOR_COOLDOWN_S) return true;
   }
   return false;
 }
@@ -59,7 +61,7 @@ function terminalCooldownActive(state: GameState, terminalIdx: number | undefine
 function activeSafeguardNear(world: World, entities: readonly Entity[], x: number, y: number): boolean {
   for (const entity of entities) {
     if (!entity.alive || entity.type !== EntityType.MONSTER || entity.monsterKind !== MonsterKind.SAFEGUARD) continue;
-    if (world.dist2(entity.x, entity.y, x, y) <= ACTIVE_SAFEGUARD_RADIUS_SQ) return true;
+    if (world.dist2(entity.x, entity.y, x, y) <= SAFEGUARD_CONFIG.ACTIVE_SAFEGUARD_RADIUS_SQ) return true;
   }
   return false;
 }
