@@ -2933,72 +2933,7 @@ function handlePlayerInteract(): boolean {
   return false;
 }
 
-function handlePlayerAttack(_dt: number): void {
-  const wantsAttack = input.attack || input.mouseAttack;
-  player.attackCd = Math.max(0, (player.attackCd ?? 0) - _dt);
-
-  const weaponId = equippedCombatItemId(player);
-  const ws = getWeaponStats(player, weaponId);
-
-  // Calculate reload speed mod (agility)
-  const reloadSpeedMod = player.rpg ? (1 + (player.rpg.agi * 0.05)) : 1;
-
-  // Reload Logic
-  if (player.reloading) {
-    player.reloadTimer = Math.max(0, (player.reloadTimer ?? 0) - _dt);
-    if (player.reloadTimer <= 0) {
-      if (ws.magazineSize !== Infinity && ws.ammoType) {
-        const needed = (ws.magazineSize ?? 1) - (player.currentMag ?? 0);
-        if (needed > 0) {
-          const available = countAmmo(player, weaponId);
-          const actual = Math.min(needed, available);
-          if (actual > 0) {
-            removeItem(player, ws.ammoType, actual);
-            player.currentMag = (player.currentMag ?? 0) + actual;
-            publishPlayerItemEvent(state, player, 'ammo_consumed', ws.ammoType, actual, 0);
-          }
-        }
-      } else if (ws.magazineSize === Infinity) {
-        player.currentMag = Infinity;
-      } else {
-        player.currentMag = ws.magazineSize ?? 1; // Melee/Tools
-      }
-      player.reloading = false;
-    }
-  }
-
-  // Manual Reload
-  if (input.reload && !player.reloading && ((player.currentMag ?? 0) < (ws.magazineSize ?? 1))) {
-    if (ws.magazineSize !== Infinity && countAmmo(player, weaponId) > 0) {
-      player.reloading = true;
-      player.reloadTimer = (ws.reloadTime ?? 1) / reloadSpeedMod;
-    } else if (ws.magazineSize === 1) { // melee weapons
-      player.reloading = true;
-      player.reloadTimer = (ws.reloadTime ?? 1) / reloadSpeedMod;
-    }
-  }
-
-  // Auto Reload check
-  if (wantsAttack && !player.reloading && player.attackCd! <= 0) {
-    if (!ws.psiCost && (player.currentMag ?? 0) <= 0 && ws.magazineSize !== Infinity) {
-      if (countAmmo(player, weaponId) > 0 || ws.magazineSize === 1) {
-        player.reloading = true;
-        player.reloadTimer = (ws.reloadTime ?? 1) / reloadSpeedMod;
-      } else {
-        // can't reload, no ammo
-        player.attackCd = 0.5; // stop spam
-      }
-    }
-  }
-
-  if (wantsAttack && player.attackCd! <= 0 && !player.reloading && (ws.psiCost || ws.magazineSize === Infinity || (player.currentMag ?? 0) > 0)) {
-    // AGI reduces attack cooldown
-    const atkSpeedMod = player.rpg ? agiAttackSpeedMult(player.rpg) : 1;
-
-    if (ws.psiCost) {
-      // ── PSI spell: consume PSI instead of ammo ──────────
-      player.attackCd = castPlayerPsi(weaponId, ws) ? ws.speed * atkSpeedMod : 0.5;
-    } else if (ws.isRanged) {
+function handleRangedAttack(weaponId: string, ws: WeaponStats, atkSpeedMod: number): void {
       // ── Ranged attack: spawn projectile(s) ──────────────
       if (consumeAmmo(player, state, weaponId)) {
         if (ws.projType === ProjType.FLAME) reducePaupsinaWeb(player, state.time, state.msgs, state, player, 'fire');
@@ -3063,7 +2998,9 @@ function handlePlayerAttack(_dt: number): void {
         }
         player.attackCd = 0.5;
       }
-    } else {
+}
+
+function handleMeleeAttack(weaponId: string, ws: WeaponStats, atkSpeedMod: number, reloadSpeedMod: number): void {
       // ── Melee attack: range check + durability ──────────
       const normalDmg = meleeDamage(player.rpg, weaponId, ws.dmg);
       const range = ws.range;
@@ -3147,6 +3084,77 @@ function handlePlayerAttack(_dt: number): void {
       } else {
         player.attackCd = ws.speed * atkSpeedMod;
       }
+}
+
+function handlePlayerAttack(_dt: number): void {
+  const wantsAttack = input.attack || input.mouseAttack;
+  player.attackCd = Math.max(0, (player.attackCd ?? 0) - _dt);
+
+  const weaponId = equippedCombatItemId(player);
+  const ws = getWeaponStats(player, weaponId);
+
+  // Calculate reload speed mod (agility)
+  const reloadSpeedMod = player.rpg ? (1 + (player.rpg.agi * 0.05)) : 1;
+
+  // Reload Logic
+  if (player.reloading) {
+    player.reloadTimer = Math.max(0, (player.reloadTimer ?? 0) - _dt);
+    if (player.reloadTimer <= 0) {
+      if (ws.magazineSize !== Infinity && ws.ammoType) {
+        const needed = (ws.magazineSize ?? 1) - (player.currentMag ?? 0);
+        if (needed > 0) {
+          const available = countAmmo(player, weaponId);
+          const actual = Math.min(needed, available);
+          if (actual > 0) {
+            removeItem(player, ws.ammoType, actual);
+            player.currentMag = (player.currentMag ?? 0) + actual;
+            publishPlayerItemEvent(state, player, 'ammo_consumed', ws.ammoType, actual, 0);
+          }
+        }
+      } else if (ws.magazineSize === Infinity) {
+        player.currentMag = Infinity;
+      } else {
+        player.currentMag = ws.magazineSize ?? 1; // Melee/Tools
+      }
+      player.reloading = false;
+    }
+  }
+
+  // Manual Reload
+  if (input.reload && !player.reloading && ((player.currentMag ?? 0) < (ws.magazineSize ?? 1))) {
+    if (ws.magazineSize !== Infinity && countAmmo(player, weaponId) > 0) {
+      player.reloading = true;
+      player.reloadTimer = (ws.reloadTime ?? 1) / reloadSpeedMod;
+    } else if (ws.magazineSize === 1) { // melee weapons
+      player.reloading = true;
+      player.reloadTimer = (ws.reloadTime ?? 1) / reloadSpeedMod;
+    }
+  }
+
+  // Auto Reload check
+  if (wantsAttack && !player.reloading && player.attackCd! <= 0) {
+    if (!ws.psiCost && (player.currentMag ?? 0) <= 0 && ws.magazineSize !== Infinity) {
+      if (countAmmo(player, weaponId) > 0 || ws.magazineSize === 1) {
+        player.reloading = true;
+        player.reloadTimer = (ws.reloadTime ?? 1) / reloadSpeedMod;
+      } else {
+        // can't reload, no ammo
+        player.attackCd = 0.5; // stop spam
+      }
+    }
+  }
+
+  if (wantsAttack && player.attackCd! <= 0 && !player.reloading && (ws.psiCost || ws.magazineSize === Infinity || (player.currentMag ?? 0) > 0)) {
+    // AGI reduces attack cooldown
+    const atkSpeedMod = player.rpg ? agiAttackSpeedMult(player.rpg) : 1;
+
+    if (ws.psiCost) {
+      // ── PSI spell: consume PSI instead of ammo ──────────
+      player.attackCd = castPlayerPsi(weaponId, ws) ? ws.speed * atkSpeedMod : 0.5;
+    } else if (ws.isRanged) {
+      handleRangedAttack(weaponId, ws, atkSpeedMod);
+    } else {
+      handleMeleeAttack(weaponId, ws, atkSpeedMod, reloadSpeedMod);
     }
   }
 }
