@@ -2115,7 +2115,13 @@ function countNpcsNear(generation: FloorGeneration, x: number, y: number, radius
 }
 
 function countMonstersInRoom(generation: FloorGeneration, roomName: string): number {
-  const roomIds = new Set(generation.world.rooms.filter(room => room.name === roomName).map(room => room.id));
+  const roomIds = new Set<number>();
+  for (let i = 0; i < generation.world.rooms.length; i++) {
+    const room = generation.world.rooms[i];
+    if (room.name === roomName) {
+      roomIds.add(room.id);
+    }
+  }
   let count = 0;
   for (const entity of generation.entities) {
     if (!entity.alive || entity.type !== EntityType.MONSTER) continue;
