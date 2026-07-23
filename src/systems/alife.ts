@@ -1049,13 +1049,35 @@ function defaultLoadoutForRecord(alife: AlifeState, record: AlifeNpcRecord): { w
     }
     const stock = generateMerchantStock(faction, level, danger, rollStock);
     if (!loadout.inventory) loadout.inventory = [];
+    const stackCache = new Map<string, Item>();
+    for (const i of loadout.inventory) {
+      if (ITEMS[i.defId] && !stackCache.has(i.defId) && i.count < getStack(ITEMS[i.defId])) {
+        stackCache.set(i.defId, i);
+      }
+    }
+
     for (const item of stock) {
       if (!ITEMS[item.defId]) continue;
-      const existing = loadout.inventory.find(i => i.defId === item.defId && i.count < getStack(ITEMS[item.defId]));
+
+      const maxStack = getStack(ITEMS[item.defId]);
+      let existing = stackCache.get(item.defId);
+
+      if (existing && existing.count >= maxStack) {
+        existing = undefined;
+      }
+
+      if (!existing) {
+        existing = loadout.inventory.find(i => i.defId === item.defId && i.count < maxStack);
+        if (existing) {
+          stackCache.set(item.defId, existing);
+        }
+      }
+
       if (existing) {
         existing.count += item.count;
       } else {
         loadout.inventory.push(item);
+        stackCache.set(item.defId, item);
       }
     }
   }
