@@ -1194,9 +1194,9 @@ function activeIstotitDecision(state: GameState): string | undefined {
 }
 
 function mergeRoomIds(ids: readonly number[], more: readonly number[]): number[] {
-  const out = [...ids];
-  for (const id of more) if (!out.includes(id)) out.push(id);
-  return out;
+  const set = new Set(ids);
+  for (const id of more) set.add(id);
+  return Array.from(set);
 }
 
 function prepareLocalSamosborShelters(
