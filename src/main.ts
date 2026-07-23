@@ -4011,22 +4011,16 @@ function resetMapForLoadedFloor(loaded: FloorMemoryLoad): void {
   if (!loaded.fromMemory) resetMapExploration(world);
 }
 
-function switchFloor(
+function prepareFloorTransitionRoute(
   direction: LiftDirection,
-  overrideArrivalText?: string,
-  overrideArrivalColor?: string,
-  allowElevatorAnomaly = true,
+  allowElevatorAnomaly: boolean,
   targetZ?: number,
-): void {
-  closeCraftMenu();
-  restorePlayerBeforeWorldBoundary();
+) {
   const fromFloor = state.currentFloor;
-  captureCurrentAlifeFloor();
-  const departingMemoryKey = currentFloorMemoryKey();
   // Fast elevator: jump straight to an arbitrary route floor, bypassing the
   // single-step route resolution and elevator anomaly machinery.
   const directTargetEntry = targetZ !== undefined ? floorRunEntryForZ(state, targetZ) : null;
-  if (targetZ !== undefined && !directTargetEntry) return;
+  if (targetZ !== undefined && !directTargetEntry) return null;
   const fastTravel = directTargetEntry !== null;
   let nextFloor: FloorLevel;
   const activeFloorInstance = (allowElevatorAnomaly && !fastTravel) ? getActiveFloorInstance(state) : null;
@@ -4041,10 +4035,10 @@ function switchFloor(
   } else {
     // Non-lift routes such as metro keep the old authored-floor behavior.
     if (direction === LiftDirection.DOWN) {
-      if (state.currentFloor >= FloorLevel.HELL) return;
+      if (state.currentFloor >= FloorLevel.HELL) return null;
       nextFloor = (state.currentFloor + 1) as FloorLevel;
     } else {
-      if (state.currentFloor <= FloorLevel.MINISTRY) return;
+      if (state.currentFloor <= FloorLevel.MINISTRY) return null;
       nextFloor = (state.currentFloor - 1) as FloorLevel;
     }
   }
@@ -4069,6 +4063,142 @@ function switchFloor(
     ensureCurrentRouteLiftLayout();
     departureLiftAnchors = collectFloorLiftAnchors(world, direction, ROUTE_LIFTS_PER_DIRECTION);
   }
+
+  return {
+    nextFloor,
+    fastTravel,
+    runEntry,
+    activeFloorInstance,
+    generatedRunEntry,
+    intendedRunEntry,
+    route,
+    returnDirection,
+    departureLiftAnchors,
+    liftZoneId,
+  };
+}
+
+function publishFloorArrivalMessagesAndEvents(
+  ctx: ReturnType<typeof prepareFloorTransitionRoute> & {},
+  fromFloor: FloorLevel,
+  direction: LiftDirection,
+  overrideArrivalText?: string,
+  overrideArrivalColor?: string,
+) {
+  if (!ctx) return;
+  const { route, generatedRunEntry, nextFloor, returnDirection, intendedRunEntry, liftZoneId } = ctx;
+  const arrivalText = overrideArrivalText ?? (route.activeInstance
+    ? `Лифт ошибся: ${floorInstanceLabel(route.activeInstance)}`
+    : route.exitedInstance
+      ? `Петля разомкнулась: ${generatedRunEntry?.label ?? FLOOR_NAMES[nextFloor]}`
+      : generatedRunEntry?.procedural || generatedRunEntry?.designFloorId
+        ? `Лифт прибыл: ${generatedRunEntry.label}`
+        : `Лифт прибыл: ${FLOOR_NAMES[nextFloor]}`);
+  state.msgs.push(msg(
+    arrivalText,
+    state.time,
+    overrideArrivalColor ?? (route.activeInstance ? '#f4a' : route.exitedInstance ? '#8cf' : generatedRunEntry?.color ?? FLOOR_MESSAGE_COLORS[nextFloor]),
+  ));
+  const arrivalLead = route.activeInstance
+    ? `Маршрут прерван: номерной лифт ${floorInstanceLabel(route.activeInstance)}. Возврат: следующий лифт ведет к ${intendedRunEntry ? floorRunEntryLiftLabel(intendedRunEntry) : 'плановому маршруту'}.`
+    : generatedRunEntry
+      ? floorRunArrivalLead(generatedRunEntry, returnDirection)
+      : undefined;
+  if (arrivalLead) state.msgs.push(msg(arrivalLead, state.time, route.activeInstance ? '#f4a' : generatedRunEntry?.color ?? '#8cf'));
+
+  const transitionTags = ['floor', 'floor_transition', 'lift', route.activeInstance ? 'elevator_anomaly' : 'normal'];
+  if (generatedRunEntry?.designFloorId) transitionTags.push('design_floor', generatedRunEntry.designFloorId);
+  if (generatedRunEntry?.spec) transitionTags.push('procedural');
+  const tagsToAdd = proceduralAnomalyEventTags(generatedRunEntry?.spec);
+  if (tagsToAdd.length > 0) {
+    const tagSet = new Set(transitionTags);
+    for (const tag of tagsToAdd) {
+      if (!tagSet.has(tag)) {
+        tagSet.add(tag);
+        transitionTags.push(tag);
+      }
+    }
+  }
+  const anomalyData = proceduralAnomalyEventData(generatedRunEntry?.spec);
+  publishEvent(state, {
+    type: 'floor_transition',
+    zoneId: world.zoneMap[world.idx(Math.floor(player.x), Math.floor(player.y))],
+    x: player.x,
+    y: player.y,
+    actorId: player.id,
+    actorName: player.name,
+    actorFaction: player.faction,
+    severity: route.activeInstance || route.exitedInstance ? 4 : 3,
+    privacy: 'local',
+    tags: transitionTags,
+    data: {
+      fromFloor,
+      toFloor: nextFloor,
+      direction: direction === LiftDirection.DOWN ? 'down' : 'up',
+      sourceZoneId: liftZoneId,
+      elevatorAnomaly: route.activeInstance !== null,
+      exitedLoop: route.exitedInstance !== null,
+      floorZ: generatedRunEntry?.z,
+      designFloor: generatedRunEntry?.designFloorId,
+      proceduralFloor: generatedRunEntry?.spec?.key,
+      proceduralSeed: generatedRunEntry?.spec?.seed,
+      proceduralDanger: generatedRunEntry?.spec?.danger,
+      routeKind: intendedRunEntry ? floorRunEntryKindLabel(intendedRunEntry) : undefined,
+      routeId: intendedRunEntry ? floorRunEntryRouteId(intendedRunEntry) : undefined,
+      routeDanger: intendedRunEntry ? floorRunEntryDanger(intendedRunEntry) : undefined,
+      routeRole: intendedRunEntry ? floorRunEntryRole(intendedRunEntry) : undefined,
+      returnDirection: returnDirection === LiftDirection.DOWN ? 'down' : 'up',
+      ...anomalyData,
+    },
+  });
+}
+
+function triggerCinematicCameraIfNeeded(ctx: ReturnType<typeof prepareFloorTransitionRoute> & {}) {
+  if (!ctx) return;
+  const { nextFloor, generatedRunEntry, activeFloorInstance, route } = ctx;
+  if (!hasFloorMemory(currentFloorMemoryKey())) {
+    const isCinematicFloor =
+      nextFloor === FloorLevel.LIVING ||
+      nextFloor === FloorLevel.HELL ||
+      nextFloor === FloorLevel.VOID ||
+      (generatedRunEntry?.designFloorId as string) === 'liquidatorbase' ||
+      (generatedRunEntry?.designFloorId as string) === 'horrorfloor' ||
+      (generatedRunEntry?.designFloorId as string) === 'cave_floor' ||
+      (generatedRunEntry?.spec?.key && (
+        generatedRunEntry.spec.key.includes('liquidatorbase') ||
+        generatedRunEntry.spec.key.includes('horrorfloor') ||
+        generatedRunEntry.spec.key.includes('cave_floor')
+      ));
+
+    if (isCinematicFloor && !activeFloorInstance && !route.activeInstance) {
+      // Preset waypoints (simple flight path from player's starting position)
+      const waypoints = [
+        [player.x, player.y],
+        [player.x + Math.cos(player.angle) * 4, player.y + Math.sin(player.angle) * 4],
+        [player.x + Math.cos(player.angle + Math.PI / 4) * 8, player.y + Math.sin(player.angle + Math.PI / 4) * 8]
+      ] as [number, number][];
+      startCinematicCamera(runtimeCamera, player.x, player.y, waypoints);
+    }
+  }
+}
+
+function switchFloor(
+  direction: LiftDirection,
+  overrideArrivalText?: string,
+  overrideArrivalColor?: string,
+  allowElevatorAnomaly = true,
+  targetZ?: number,
+): void {
+  closeCraftMenu();
+  restorePlayerBeforeWorldBoundary();
+  const fromFloor = state.currentFloor;
+  captureCurrentAlifeFloor();
+  const departingMemoryKey = currentFloorMemoryKey();
+
+  const ctx = prepareFloorTransitionRoute(direction, allowElevatorAnomaly, targetZ);
+  if (!ctx) return;
+
+  const { nextFloor, route, generatedRunEntry, returnDirection, departureLiftAnchors, activeFloorInstance, fastTravel, runEntry, intendedRunEntry, liftZoneId } = ctx;
 
   // Save player position for same-xy spawn
   const savedX = player.x;
@@ -4154,69 +4284,7 @@ function switchFloor(
 
     resetPsiState();
 
-    const arrivalText = overrideArrivalText ?? (route.activeInstance
-      ? `Лифт ошибся: ${floorInstanceLabel(route.activeInstance)}`
-      : route.exitedInstance
-        ? `Петля разомкнулась: ${generatedRunEntry?.label ?? FLOOR_NAMES[nextFloor]}`
-        : generatedRunEntry?.procedural || generatedRunEntry?.designFloorId
-          ? `Лифт прибыл: ${generatedRunEntry.label}`
-          : `Лифт прибыл: ${FLOOR_NAMES[nextFloor]}`);
-    state.msgs.push(msg(
-      arrivalText,
-      state.time,
-      overrideArrivalColor ?? (route.activeInstance ? '#f4a' : route.exitedInstance ? '#8cf' : generatedRunEntry?.color ?? FLOOR_MESSAGE_COLORS[nextFloor]),
-    ));
-    const arrivalLead = route.activeInstance
-      ? `Маршрут прерван: номерной лифт ${floorInstanceLabel(route.activeInstance)}. Возврат: следующий лифт ведет к ${intendedRunEntry ? floorRunEntryLiftLabel(intendedRunEntry) : 'плановому маршруту'}.`
-      : generatedRunEntry
-        ? floorRunArrivalLead(generatedRunEntry, returnDirection)
-        : undefined;
-    if (arrivalLead) state.msgs.push(msg(arrivalLead, state.time, route.activeInstance ? '#f4a' : generatedRunEntry?.color ?? '#8cf'));
-    const transitionTags = ['floor', 'floor_transition', 'lift', route.activeInstance ? 'elevator_anomaly' : 'normal'];
-    if (generatedRunEntry?.designFloorId) transitionTags.push('design_floor', generatedRunEntry.designFloorId);
-    if (generatedRunEntry?.spec) transitionTags.push('procedural');
-    const tagsToAdd = proceduralAnomalyEventTags(generatedRunEntry?.spec);
-    if (tagsToAdd.length > 0) {
-      const tagSet = new Set(transitionTags);
-      for (const tag of tagsToAdd) {
-        if (!tagSet.has(tag)) {
-          tagSet.add(tag);
-          transitionTags.push(tag);
-        }
-      }
-    }
-    const anomalyData = proceduralAnomalyEventData(generatedRunEntry?.spec);
-    publishEvent(state, {
-      type: 'floor_transition',
-      zoneId: world.zoneMap[world.idx(Math.floor(player.x), Math.floor(player.y))],
-      x: player.x,
-      y: player.y,
-      actorId: player.id,
-      actorName: player.name,
-      actorFaction: player.faction,
-      severity: route.activeInstance || route.exitedInstance ? 4 : 3,
-      privacy: 'local',
-      tags: transitionTags,
-      data: {
-        fromFloor,
-        toFloor: nextFloor,
-        direction: direction === LiftDirection.DOWN ? 'down' : 'up',
-        sourceZoneId: liftZoneId,
-        elevatorAnomaly: route.activeInstance !== null,
-        exitedLoop: route.exitedInstance !== null,
-        floorZ: generatedRunEntry?.z,
-        designFloor: generatedRunEntry?.designFloorId,
-        proceduralFloor: generatedRunEntry?.spec?.key,
-        proceduralSeed: generatedRunEntry?.spec?.seed,
-        proceduralDanger: generatedRunEntry?.spec?.danger,
-        routeKind: intendedRunEntry ? floorRunEntryKindLabel(intendedRunEntry) : undefined,
-        routeId: intendedRunEntry ? floorRunEntryRouteId(intendedRunEntry) : undefined,
-        routeDanger: intendedRunEntry ? floorRunEntryDanger(intendedRunEntry) : undefined,
-        routeRole: intendedRunEntry ? floorRunEntryRole(intendedRunEntry) : undefined,
-        returnDirection: returnDirection === LiftDirection.DOWN ? 'down' : 'up',
-        ...anomalyData,
-      },
-    });
+    publishFloorArrivalMessagesAndEvents(ctx, fromFloor, direction, overrideArrivalText, overrideArrivalColor);
 
     // Auto-trigger voice quest when entering Hell with step 9 (kill Mancobus) done
     const enteredStoryHell = generatedRunEntry
@@ -4252,33 +4320,9 @@ function switchFloor(
     finishLoadedFloorVisuals(gen);
 
     // Auto-trigger cinematic scenes on specific key floors
-    if (!hasFloorMemory(currentFloorMemoryKey())) {
-      const isCinematicFloor =
-        nextFloor === FloorLevel.LIVING ||
-        nextFloor === FloorLevel.HELL ||
-        nextFloor === FloorLevel.VOID ||
-        (generatedRunEntry?.designFloorId as string) === 'liquidatorbase' ||
-        (generatedRunEntry?.designFloorId as string) === 'horrorfloor' ||
-        (generatedRunEntry?.designFloorId as string) === 'cave_floor' ||
-        (generatedRunEntry?.spec?.key && (
-          generatedRunEntry.spec.key.includes('liquidatorbase') ||
-          generatedRunEntry.spec.key.includes('horrorfloor') ||
-          generatedRunEntry.spec.key.includes('cave_floor')
-        ));
-
-      if (isCinematicFloor && !activeFloorInstance && !route.activeInstance) {
-        // Preset waypoints (simple flight path from player's starting position)
-        const waypoints = [
-          [player.x, player.y],
-          [player.x + Math.cos(player.angle) * 4, player.y + Math.sin(player.angle) * 4],
-          [player.x + Math.cos(player.angle + Math.PI / 4) * 8, player.y + Math.sin(player.angle + Math.PI / 4) * 8]
-        ];
-        startCinematicCamera(runtimeCamera, player.x, player.y, waypoints);
-      }
-    }
+    triggerCinematicCameraIfNeeded(ctx);
   });
 }
-
 interface DebugTeleportTarget {
   floor: FloorLevel;
   label: string;
