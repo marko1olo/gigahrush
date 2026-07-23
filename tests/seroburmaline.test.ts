@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { FloorLevel, RoomType, Cell } from '../src/core/types';
+import { FloorLevel, RoomType, Cell, Room, W } from '../src/core/types';
 import { World } from '../src/core/world';
 import { makeGameState, makeTestPlayer } from './helpers';
 import { createWorldEventState } from '../src/systems/events';
@@ -9,6 +9,7 @@ import {
   updateSeroburmalineExposure,
   SEROBURMALINE_ROOM_PREFIX,
   SEROBURMALINE_ACTIVE_FEATURE,
+  forSeroburmalineSourceCells,
 } from '../src/systems/seroburmaline';
 
 function setupWorld() {
@@ -124,4 +125,69 @@ test('seroburmaline is avoided when near but facing away', () => {
 
   assert.equal(player.rpg!.psi, 10, 'PSI should not drop when facing away');
   assert.equal(state.msgs.some(m => m.text.includes('Серобурмалин сбоку.')), true, 'Avoid warning should be generated');
+});
+
+
+test('seroburmaline source cells iteration', async (t) => {
+  await t.test('Standard room behavior', () => {
+    const world = new World();
+    const room: Room = {
+      id: 1, type: RoomType.SEROBURMALINE, x: 10, y: 10, w: 10, h: 10,
+      doors: [], sealed: false, name: 'Room1', apartmentId: -1,
+      wallTex: 0, floorTex: 0
+    };
+
+    const cells: {x: number, y: number}[] = [];
+    forSeroburmalineSourceCells(world, room, (x, y) => cells.push({x, y}));
+
+    assert.equal(cells.length, 2, 'Should iterate exactly 2 cells');
+    assert.deepEqual(cells[0], { x: 14, y: 12 }, 'First cell is correct');
+    assert.deepEqual(cells[1], { x: 14, y: 17 }, 'Second cell is correct');
+  });
+
+  await t.test('Small room behavior (h=3)', () => {
+    const world = new World();
+    const room: Room = {
+      id: 2, type: RoomType.SEROBURMALINE, x: 10, y: 10, w: 10, h: 3,
+      doors: [], sealed: false, name: 'Room2', apartmentId: -1,
+      wallTex: 0, floorTex: 0
+    };
+
+    const cells: {x: number, y: number}[] = [];
+    forSeroburmalineSourceCells(world, room, (x, y) => cells.push({x, y}));
+
+    assert.equal(cells.length, 1, 'Should iterate exactly 1 cell for small room');
+    assert.deepEqual(cells[0], { x: 14, y: 12 }, 'First cell is correct');
+  });
+
+  await t.test('Small room behavior (h=4)', () => {
+    const world = new World();
+    const room: Room = {
+      id: 3, type: RoomType.SEROBURMALINE, x: 10, y: 10, w: 10, h: 4,
+      doors: [], sealed: false, name: 'Room3', apartmentId: -1,
+      wallTex: 0, floorTex: 0
+    };
+
+    const cells: {x: number, y: number}[] = [];
+    forSeroburmalineSourceCells(world, room, (x, y) => cells.push({x, y}));
+
+    assert.equal(cells.length, 1, 'Should iterate exactly 1 cell for small room');
+    assert.deepEqual(cells[0], { x: 14, y: 12 }, 'First cell is correct');
+  });
+
+  await t.test('Wrapping behavior', () => {
+    const world = new World();
+    const room: Room = {
+      id: 4, type: RoomType.SEROBURMALINE, x: W - 2, y: W - 3, w: 10, h: 10,
+      doors: [], sealed: false, name: 'Room4', apartmentId: -1,
+      wallTex: 0, floorTex: 0
+    };
+
+    const cells: {x: number, y: number}[] = [];
+    forSeroburmalineSourceCells(world, room, (x, y) => cells.push({x, y}));
+
+    assert.equal(cells.length, 2, 'Should iterate exactly 2 cells');
+    assert.deepEqual(cells[0], { x: 2, y: W - 1 }, 'First wrapped cell is correct');
+    assert.deepEqual(cells[1], { x: 2, y: 4 }, 'Second wrapped cell is correct');
+  });
 });
