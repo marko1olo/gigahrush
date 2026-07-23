@@ -162,7 +162,15 @@ test('synchronous requestPointerLock exceptions log to console.error', () => {
 test('asynchronous requestPointerLock rejections are caught silently', async () => {
   const env = installInputDom();
   try {
-    env.canvas.requestPointerLock = () => Promise.reject(new Error('async error')) as any;
+    let catchCalled = false;
+    env.canvas.requestPointerLock = () => {
+      return {
+        catch: (fn: any) => {
+          catchCalled = true;
+          fn(new Error('async error'));
+        }
+      } as any;
+    };
 
     const unbind = bindInput(createInput(), env.canvas as unknown as HTMLCanvasElement, {
       shouldRequestPointerLock: () => true,
@@ -172,8 +180,7 @@ test('asynchronous requestPointerLock rejections are caught silently', async () 
       env.canvas.dispatch('click');
     });
 
-    // Wait a tick to ensure the unhandled rejection hook would fire if uncaught
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(catchCalled, true);
 
     unbind();
   } finally {
