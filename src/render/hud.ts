@@ -1479,140 +1479,9 @@ export function drawHUD(
     }
   }
 
-  // ── Stenographic summary: top-left event band ─────────
-  if (showCompactPanels && showMessages && !state.samosborActive) {
-    const s = Math.max(1, Math.min(sx, sy));
-    const pad = 4 * s;
-    const headerH = 8 * s;
-    const rowH = 7.2 * s;
-    const rowGap = 1.8 * s;
-    const minimapReserve = showMinimap ? HUD_MINIMAP_UNITS * s + 6 * s : 0;
-    const summaryRight = showMinimap
-      ? Math.max(slots.safe.left, w - slots.safe.right - minimapReserve)
-      : w - slots.safe.right;
-    const summaryW = Math.max(0, summaryRight - slots.safe.left);
-    const summarySlot = { ...slots.topLeftEvent, w: summaryW };
-    const availableH = Math.max(0, summarySlot.y + summarySlot.h - summarySlot.cursorY);
-    const maxPanelH = Math.min(availableH, Math.max(40 * s, h * 0.33));
-    const plannedMsgs: Array<{
-      msg: GameState['msgs'][number];
-      index: number;
-      stamp: string;
-      stampW: number;
-      lines: string[];
-      h: number;
-    }> = [];
-    const scanStart = Math.max(0, state.msgs.length - MSG_SCAN_MAX);
-    ctx.save();
-    ctx.font = `${5.8 * s}px monospace`;
-    const bodyW = Math.max(1, summaryW - pad * 2);
-    let usedH = 0;
-    for (let i = state.msgs.length - 1; i >= scanStart && plannedMsgs.length < MSG_MAX; i--) {
-      const m = state.msgs[i];
-      if (!hudMessageVisible(m.time, gameTime)) continue;
-      if (m.hud === false) continue;
-      const day = m.day;
-      const hour = String(m.hour).padStart(2, '0');
-      const minute = String(m.minute).padStart(2, '0');
-      const dist = m.distanceMeters !== undefined ? ` ${Math.max(0, Math.round(m.distanceMeters))}м` : '';
-      const stamp = `Д${day} ${hour}:${minute}${dist}`;
-      const stampW = Math.min(58 * s, Math.max(34 * s, ctx.measureText(stamp).width + 5 * s));
-      const textW = Math.max(42 * s, bodyW - stampW);
-      const remainingH = maxPanelH - pad * 2 - headerH - usedH;
-      const remainingLines = Math.max(1, Math.floor((remainingH - rowGap) / rowH));
-      const maxLines = Math.min(HUD_SUMMARY_MAX_LINES_PER_MSG, remainingLines);
-      const lines = wrapHudText(ctx, m.text, textW, maxLines);
-      const itemH = Math.max(rowH, lines.length * rowH) + rowGap;
-      if (pad * 2 + headerH + usedH + itemH > maxPanelH) {
-        if (plannedMsgs.length === 0 && remainingLines > 0) {
-          const clipped = wrapHudText(ctx, m.text, textW, remainingLines);
-          plannedMsgs.push({ msg: m, index: i, stamp, stampW, lines: clipped, h: clipped.length * rowH });
-        }
-        break;
-      }
-      plannedMsgs.push({ msg: m, index: i, stamp, stampW, lines, h: itemH });
-      usedH += itemH;
-    }
-    ctx.restore();
-    if (plannedMsgs.length > 0 && summaryW >= 128 * s) {
-      const panelH = Math.min(maxPanelH, pad * 2 + headerH + plannedMsgs.reduce((sum, item) => sum + item.h, 0));
-      const rect = allocateHudSlot(summarySlot, panelH, summaryW, 'left');
-      slots.topLeftEvent.cursorY = summarySlot.cursorY;
-      const reserveY = rect.y + rect.h + summarySlot.gap;
-      slots.topCenterCritical.cursorY = Math.max(slots.topCenterCritical.cursorY, reserveY);
-      drawNeuroPanel(ctx, rect.x, rect.y, rect.w, rect.h, time, 306);
-      drawStaticNoise(ctx, rect.x, rect.y, rect.w, rect.h, time, 0.006);
+  drawStenographicSummaryAndHints(ctx, w, h, sx, sy, time, gameTime, state, world, player, entities, slots, showCompactPanels, showMessages, showMinimap, objectiveRoute, currentObjective, routeCueVisible, routeCue, smallCaravan, smogIndicatorVisible, smogStatus, reducedHudMotion);
 
-      ctx.save();
-      ctx.textAlign = 'left';
-      ctx.shadowBlur = 0;
-      ctx.font = `${6.2 * s}px monospace`;
-      const titleY = rect.y + pad + 2.5 * s;
-      ctx.fillStyle = 'rgba(130,235,230,0.88)';
-      ctx.fillText(fitHudText(ctx, 'СТЕНОСВОДКА', 78 * s), rect.x + pad, titleY);
-      ctx.font = `${5.4 * s}px monospace`;
-      ctx.fillStyle = 'rgba(82,110,126,0.84)';
-      ctx.fillText(fitHudText(ctx, 'последние сообщения', Math.max(16 * s, rect.w - 92 * s)), rect.x + pad + 82 * s, titleY + 0.4 * s);
-      ctx.strokeStyle = 'rgba(70,220,255,0.25)';
-      ctx.beginPath();
-      ctx.moveTo(rect.x + pad, rect.y + pad + headerH);
-      ctx.lineTo(rect.x + rect.w - pad, rect.y + pad + headerH);
-      ctx.stroke();
-
-      let my = rect.y + pad + headerH + 4 * s;
-      for (const item of plannedMsgs) {
-        const m = item.msg;
-        const age = hudMessageAgeSeconds(m.time, gameTime);
-        const alpha = age > HUD_MESSAGE_FADE_START_SECONDS
-          ? 1 - (age - HUD_MESSAGE_FADE_START_SECONDS) / (HUD_MESSAGE_TTL_SECONDS - HUD_MESSAGE_FADE_START_SECONDS)
-          : 1;
-        const rowJitter = routineJitter(reducedHudMotion, time, item.index * 17 + 300);
-        const rowY = my + rowJitter.dy * 0.28;
-        ctx.globalAlpha = alpha * flicker(time, item.index + 300);
-        ctx.font = `${5.3 * s}px monospace`;
-        ctx.fillStyle = 'rgba(120,145,160,0.82)';
-        ctx.fillText(fitHudText(ctx, item.stamp, item.stampW - 4 * s), rect.x + pad + rowJitter.dx * 0.28, rowY);
-        ctx.fillStyle = m.color;
-        ctx.font = `${5.8 * s}px monospace`;
-        const textX = rect.x + pad + item.stampW;
-        const textW = Math.max(32 * s, rect.x + rect.w - pad - textX);
-        for (let line = 0; line < item.lines.length; line++) {
-          ctx.fillText(fitHudText(ctx, item.lines[line], textW), textX + rowJitter.dx * 0.28, rowY + line * rowH);
-        }
-        my += item.h;
-      }
-      ctx.restore();
-      ctx.globalAlpha = 1;
-    }
-  }
-
-  if (showCompactPanels && showMinimap) {
-    const s = Math.max(1, Math.min(sx, sy));
-    const mapSize = Math.max(48 * s, Math.min(HUD_MINIMAP_UNITS * s, slots.topRightNavigation.w, slots.topRightNavigation.h));
-    const mapRect = allocateHudSlot(slots.topRightNavigation, mapSize, mapSize, 'right');
-    drawMinimap(ctx, world, entities, player, sx, sy, state.quests, currentFloorInstanceLabel(state), state.currentFloor, state, time, mapRect);
-  }
-  if (objectiveRoute) {
-    const rect = allocateHudSlot(slots.topRightNavigation, 46 * sy, 188 * sx, 'right');
-    drawObjectiveRouteHint(ctx, rect, sx, sy, time, objectiveRoute);
-  }
-  if (currentObjective && !objectiveRoute) {
-    const rect = allocateHudSlot(slots.topRightNavigation, 28 * sy, 188 * sx, 'right');
-    drawCurrentObjectiveHint(ctx, rect, sx, sy, time, currentObjective);
-  }
-  if (routeCueVisible) {
-    const rect = allocateHudSlot(slots.topRightNavigation, 35 * sy, 176 * sx, 'right');
-    drawRouteCueHint(ctx, rect, sx, sy, time, gameTime, player, world, routeCue);
-  }
-  if (smallCaravan) {
-    const rect = allocateHudSlot(slots.topRightNavigation, 29 * sy, 176 * sx, 'right');
-    drawSmallCaravanHint(ctx, rect, sx, sy, time, smallCaravan);
-  }
-  if (smogIndicatorVisible) {
-    const rect = allocateHudSlot(slots.topRightNavigation, 30 * sy, 154 * sx, 'right');
-    drawSmogIndicator(ctx, rect, sx, sy, time, smogStatus);
-  }
-  // Weapon state — compact bottom-right panel, hidden under fullscreen overlays.
+    // Weapon state — compact bottom-right panel, hidden under fullscreen overlays.
   if (showCompactPanels && showWeaponPanel && combatWeapon) {
     const weaponPanel = drawCombatWeaponPanel(ctx, combatWeapon, bottomVitals, sx, sy, time);
 
@@ -1688,42 +1557,9 @@ export function drawHUD(
   const seroburmalineFx = showCompactPanels && showStatusHints ? getSeroburmalineHudFx(state) : null;
   if (seroburmalineFx) drawSeroburmalineNoLookFx(ctx, w, h, time, seroburmalineFx);
 
-  // ── Crosshair (neuro-style) ──────────────────────────────
-  if (showCompactPanels && showCrosshair) {
-    const cj = routineJitter(reducedHudMotion, time, 999);
-    const cAlpha = 0.4 + Math.sin(time * 2) * 0.08;
-    const crossRgb = combatWeapon?.cannotFireReason ? '255,95,55'
-      : combatTarget ? '255,210,80'
-      : combatWeapon && combatWeapon.cooldown > 0.05 ? '90,180,255'
-      : '0,220,200';
-    ctx.strokeStyle = `rgba(${crossRgb},${cAlpha})`;
-    ctx.lineWidth = 1;
-    const cx = w / 2 + cj.dx * 0.3, cy = h / 2 + cj.dy * 0.3;
-    ctx.beginPath();
-    ctx.moveTo(cx - 6 * sx, cy); ctx.lineTo(cx - 2 * sx, cy);
-    ctx.moveTo(cx + 2 * sx, cy); ctx.lineTo(cx + 6 * sx, cy);
-    ctx.moveTo(cx, cy - 6 * sy); ctx.lineTo(cx, cy - 2 * sy);
-    ctx.moveTo(cx, cy + 2 * sy); ctx.lineTo(cx, cy + 6 * sy);
-    ctx.stroke();
-    // Small dot center
-    ctx.fillStyle = `rgba(${crossRgb},${cAlpha * 0.6})`;
-    ctx.fillRect(cx - 0.5, cy - 0.5, 1, 1);
-    if (combatWeapon && combatWeapon.cooldownPct > 0.02) {
-      const r = 10 * Math.min(sx, sy);
-      ctx.strokeStyle = `rgba(${crossRgb},0.48)`;
-      ctx.lineWidth = Math.max(1, Math.min(sx, sy));
-      ctx.beginPath();
-      ctx.arc(cx, cy, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * combatWeapon.readyPct);
-      ctx.stroke();
-    }
-    drawCombatSightFeedback(ctx, combatTarget, sx, sy);
-  }
+  drawNeuroCrosshair(ctx, w, h, sx, sy, time, player, state, world, entities, combatTarget, combatWeapon, showCompactPanels, showCrosshair, reducedHudMotion, quietHud);
 
-  if (!quietHud && uiElementEnabled('npc_barks')) {
-    drawWorldSpeechBubbles(ctx, world, player, entities, sx, sy, time);
-  }
-
-  // ── Zone info + time + room (neuro-interface left panel) ──
+    // ── Zone info + time + room (neuro-interface left panel) ──
   if (showCompactPanels && showLocationPanel) {
     const pci = world.idx(Math.floor(player.x), Math.floor(player.y));
     const zid = world.zoneMap[pci];
@@ -2307,4 +2143,180 @@ function drawBeamFx(
   ctx.fillRect(cx - dotR, cy - dotR + wobble, dotR * 2, dotR * 2);
 
   ctx.restore();
+}
+
+function drawStenographicSummaryAndHints(ctx: CanvasRenderingContext2D, w: number, h: number, sx: number, sy: number, time: number, gameTime: number, state: GameState, world: World, player: Entity, entities: Entity[], slots: ReturnType<typeof createHudSlots>, showCompactPanels: boolean, showMessages: boolean, showMinimap: boolean, objectiveRoute: any, currentObjective: any, routeCueVisible: boolean, routeCue: any, smallCaravan: any, smogIndicatorVisible: boolean, smogStatus: any, reducedHudMotion: boolean) {
+  // ── Stenographic summary: top-left event band ─────────
+  if (showCompactPanels && showMessages && !state.samosborActive) {
+    const s = Math.max(1, Math.min(sx, sy));
+    const pad = 4 * s;
+    const headerH = 8 * s;
+    const rowH = 7.2 * s;
+    const rowGap = 1.8 * s;
+    const minimapReserve = showMinimap ? HUD_MINIMAP_UNITS * s + 6 * s : 0;
+    const summaryRight = showMinimap
+      ? Math.max(slots.safe.left, w - slots.safe.right - minimapReserve)
+      : w - slots.safe.right;
+    const summaryW = Math.max(0, summaryRight - slots.safe.left);
+    const summarySlot = { ...slots.topLeftEvent, w: summaryW };
+    const availableH = Math.max(0, summarySlot.y + summarySlot.h - summarySlot.cursorY);
+    const maxPanelH = Math.min(availableH, Math.max(40 * s, h * 0.33));
+    const plannedMsgs: Array<{
+      msg: GameState['msgs'][number];
+      index: number;
+      stamp: string;
+      stampW: number;
+      lines: string[];
+      h: number;
+    }> = [];
+    const scanStart = Math.max(0, state.msgs.length - MSG_SCAN_MAX);
+    ctx.save();
+    ctx.font = `${5.8 * s}px monospace`;
+    const bodyW = Math.max(1, summaryW - pad * 2);
+    let usedH = 0;
+    for (let i = state.msgs.length - 1; i >= scanStart && plannedMsgs.length < MSG_MAX; i--) {
+      const m = state.msgs[i];
+      if (!hudMessageVisible(m.time, gameTime)) continue;
+      if (m.hud === false) continue;
+      const day = m.day;
+      const hour = String(m.hour).padStart(2, '0');
+      const minute = String(m.minute).padStart(2, '0');
+      const dist = m.distanceMeters !== undefined ? ` ${Math.max(0, Math.round(m.distanceMeters))}м` : '';
+      const stamp = `Д${day} ${hour}:${minute}${dist}`;
+      const stampW = Math.min(58 * s, Math.max(34 * s, ctx.measureText(stamp).width + 5 * s));
+      const textW = Math.max(42 * s, bodyW - stampW);
+      const remainingH = maxPanelH - pad * 2 - headerH - usedH;
+      const remainingLines = Math.max(1, Math.floor((remainingH - rowGap) / rowH));
+      const maxLines = Math.min(HUD_SUMMARY_MAX_LINES_PER_MSG, remainingLines);
+      const lines = wrapHudText(ctx, m.text, textW, maxLines);
+      const itemH = Math.max(rowH, lines.length * rowH) + rowGap;
+      if (pad * 2 + headerH + usedH + itemH > maxPanelH) {
+        if (plannedMsgs.length === 0 && remainingLines > 0) {
+          const clipped = wrapHudText(ctx, m.text, textW, remainingLines);
+          plannedMsgs.push({ msg: m, index: i, stamp, stampW, lines: clipped, h: clipped.length * rowH });
+        }
+        break;
+      }
+      plannedMsgs.push({ msg: m, index: i, stamp, stampW, lines, h: itemH });
+      usedH += itemH;
+    }
+    ctx.restore();
+    if (plannedMsgs.length > 0 && summaryW >= 128 * s) {
+      const panelH = Math.min(maxPanelH, pad * 2 + headerH + plannedMsgs.reduce((sum, item) => sum + item.h, 0));
+      const rect = allocateHudSlot(summarySlot, panelH, summaryW, 'left');
+      slots.topLeftEvent.cursorY = summarySlot.cursorY;
+      const reserveY = rect.y + rect.h + summarySlot.gap;
+      slots.topCenterCritical.cursorY = Math.max(slots.topCenterCritical.cursorY, reserveY);
+      drawNeuroPanel(ctx, rect.x, rect.y, rect.w, rect.h, time, 306);
+      drawStaticNoise(ctx, rect.x, rect.y, rect.w, rect.h, time, 0.006);
+
+      ctx.save();
+      ctx.textAlign = 'left';
+      ctx.shadowBlur = 0;
+      ctx.font = `${6.2 * s}px monospace`;
+      const titleY = rect.y + pad + 2.5 * s;
+      ctx.fillStyle = 'rgba(130,235,230,0.88)';
+      ctx.fillText(fitHudText(ctx, 'СТЕНОСВОДКА', 78 * s), rect.x + pad, titleY);
+      ctx.font = `${5.4 * s}px monospace`;
+      ctx.fillStyle = 'rgba(82,110,126,0.84)';
+      ctx.fillText(fitHudText(ctx, 'последние сообщения', Math.max(16 * s, rect.w - 92 * s)), rect.x + pad + 82 * s, titleY + 0.4 * s);
+      ctx.strokeStyle = 'rgba(70,220,255,0.25)';
+      ctx.beginPath();
+      ctx.moveTo(rect.x + pad, rect.y + pad + headerH);
+      ctx.lineTo(rect.x + rect.w - pad, rect.y + pad + headerH);
+      ctx.stroke();
+
+      let my = rect.y + pad + headerH + 4 * s;
+      for (const item of plannedMsgs) {
+        const m = item.msg;
+        const age = hudMessageAgeSeconds(m.time, gameTime);
+        const alpha = age > HUD_MESSAGE_FADE_START_SECONDS
+          ? 1 - (age - HUD_MESSAGE_FADE_START_SECONDS) / (HUD_MESSAGE_TTL_SECONDS - HUD_MESSAGE_FADE_START_SECONDS)
+          : 1;
+        const rowJitter = routineJitter(reducedHudMotion, time, item.index * 17 + 300);
+        const rowY = my + rowJitter.dy * 0.28;
+        ctx.globalAlpha = alpha * flicker(time, item.index + 300);
+        ctx.font = `${5.3 * s}px monospace`;
+        ctx.fillStyle = 'rgba(120,145,160,0.82)';
+        ctx.fillText(fitHudText(ctx, item.stamp, item.stampW - 4 * s), rect.x + pad + rowJitter.dx * 0.28, rowY);
+        ctx.fillStyle = m.color;
+        ctx.font = `${5.8 * s}px monospace`;
+        const textX = rect.x + pad + item.stampW;
+        const textW = Math.max(32 * s, rect.x + rect.w - pad - textX);
+        for (let line = 0; line < item.lines.length; line++) {
+          ctx.fillText(fitHudText(ctx, item.lines[line], textW), textX + rowJitter.dx * 0.28, rowY + line * rowH);
+        }
+        my += item.h;
+      }
+      ctx.restore();
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  if (showCompactPanels && showMinimap) {
+    const s = Math.max(1, Math.min(sx, sy));
+    const mapSize = Math.max(48 * s, Math.min(HUD_MINIMAP_UNITS * s, slots.topRightNavigation.w, slots.topRightNavigation.h));
+    const mapRect = allocateHudSlot(slots.topRightNavigation, mapSize, mapSize, 'right');
+    drawMinimap(ctx, world, entities, player, sx, sy, state.quests, currentFloorInstanceLabel(state), state.currentFloor, state, time, mapRect);
+  }
+  if (objectiveRoute) {
+    const rect = allocateHudSlot(slots.topRightNavigation, 46 * sy, 188 * sx, 'right');
+    drawObjectiveRouteHint(ctx, rect, sx, sy, time, objectiveRoute);
+  }
+  if (currentObjective && !objectiveRoute) {
+    const rect = allocateHudSlot(slots.topRightNavigation, 28 * sy, 188 * sx, 'right');
+    drawCurrentObjectiveHint(ctx, rect, sx, sy, time, currentObjective);
+  }
+  if (routeCueVisible) {
+    const rect = allocateHudSlot(slots.topRightNavigation, 35 * sy, 176 * sx, 'right');
+    drawRouteCueHint(ctx, rect, sx, sy, time, gameTime, player, world, routeCue);
+  }
+  if (smallCaravan) {
+    const rect = allocateHudSlot(slots.topRightNavigation, 29 * sy, 176 * sx, 'right');
+    drawSmallCaravanHint(ctx, rect, sx, sy, time, smallCaravan);
+  }
+  if (smogIndicatorVisible) {
+    const rect = allocateHudSlot(slots.topRightNavigation, 30 * sy, 154 * sx, 'right');
+    drawSmogIndicator(ctx, rect, sx, sy, time, smogStatus);
+  }
+
+}
+
+function drawNeuroCrosshair(ctx: CanvasRenderingContext2D, w: number, h: number, sx: number, sy: number, time: number, player: Entity, _state: GameState, world: World, entities: Entity[], combatTarget: any, combatWeapon: any, showCompactPanels: boolean, showCrosshair: boolean, reducedHudMotion: boolean, quietHud: boolean) {
+  // ── Crosshair (neuro-style) ──────────────────────────────
+  if (showCompactPanels && showCrosshair) {
+    const cj = routineJitter(reducedHudMotion, time, 999);
+    const cAlpha = 0.4 + Math.sin(time * 2) * 0.08;
+    const crossRgb = combatWeapon?.cannotFireReason ? '255,95,55'
+      : combatTarget ? '255,210,80'
+      : combatWeapon && combatWeapon.cooldown > 0.05 ? '90,180,255'
+      : '0,220,200';
+    ctx.strokeStyle = `rgba(${crossRgb},${cAlpha})`;
+    ctx.lineWidth = 1;
+    const cx = w / 2 + cj.dx * 0.3, cy = h / 2 + cj.dy * 0.3;
+    ctx.beginPath();
+    ctx.moveTo(cx - 6 * sx, cy); ctx.lineTo(cx - 2 * sx, cy);
+    ctx.moveTo(cx + 2 * sx, cy); ctx.lineTo(cx + 6 * sx, cy);
+    ctx.moveTo(cx, cy - 6 * sy); ctx.lineTo(cx, cy - 2 * sy);
+    ctx.moveTo(cx, cy + 2 * sy); ctx.lineTo(cx, cy + 6 * sy);
+    ctx.stroke();
+    // Small dot center
+    ctx.fillStyle = `rgba(${crossRgb},${cAlpha * 0.6})`;
+    ctx.fillRect(cx - 0.5, cy - 0.5, 1, 1);
+    if (combatWeapon && combatWeapon.cooldownPct > 0.02) {
+      const r = 10 * Math.min(sx, sy);
+      ctx.strokeStyle = `rgba(${crossRgb},0.48)`;
+      ctx.lineWidth = Math.max(1, Math.min(sx, sy));
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * combatWeapon.readyPct);
+      ctx.stroke();
+    }
+    drawCombatSightFeedback(ctx, combatTarget, sx, sy);
+  }
+
+  if (!quietHud && uiElementEnabled('npc_barks')) {
+    drawWorldSpeechBubbles(ctx, world, player, entities, sx, sy, time);
+  }
+
+
 }
