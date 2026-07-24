@@ -18,7 +18,7 @@ import {
   connectProtectedRoom, connectToNetwork, findClearArea, protectRoom, rng, stampRoom,
 } from '../shared';
 import { genLog } from '../log';
-import { isPlayerEntity } from '../../systems/player_actor';
+import { getCurrentPlayerEntity } from '../../systems/player_actor';
 import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
 
 const ROOM_W = 31;
@@ -445,7 +445,7 @@ function drainPlayerForChoir(
   psiLoss: number,
   hpPerMissingPsi: number,
 ): { psiLost: number; hpLost: number } {
-  const player = entities.find(entity => isPlayerEntity(entity) && entity.alive);
+  const player = getCurrentPlayerEntity(entities);
   if (!player) return { psiLost: 0, hpLost: 0 };
 
   let psiLost = 0;
@@ -471,7 +471,7 @@ function spawnChoirBranchBacklash(
   kinds: readonly MonsterKind[],
 ): number {
   let spawned = 0;
-  const player = entities.find(entity => isPlayerEntity(entity) && entity.alive);
+  const player = getCurrentPlayerEntity(entities);
   for (const kind of kinds) {
     if (site.backlashSpawned >= HELL18_CHOIR_BACKLASH_CAP) break;
     const pos = findChoirBranchSpawn(world, site, site.backlashSpawned + spawned);

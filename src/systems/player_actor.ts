@@ -1,4 +1,5 @@
 import { EntityType, type Entity } from '../core/types';
+import { getEntityIndex } from './entity_index';
 
 let currentPlayerId: number | undefined;
 
@@ -22,6 +23,9 @@ export function isPlayerEntity(entity: Entity | null | undefined): boolean {
 
 export function getCurrentPlayerEntity(entities: readonly Entity[], fallback?: Entity): Entity | undefined {
   if (currentPlayerId !== undefined) {
+    const indexEntity = getEntityIndex().byId.get(currentPlayerId);
+    if (indexEntity && indexEntity.alive) return indexEntity;
+
     const current = entities.find(entity => entity.id === currentPlayerId && entity.alive);
     if (current) return current;
   }
