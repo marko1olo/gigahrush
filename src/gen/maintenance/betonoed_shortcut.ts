@@ -10,6 +10,7 @@ import {
 import { World } from '../../core/world';
 import { MONSTERS } from '../../entities/monster';
 import { monsterSpr } from '../../render/sprite_index';
+import { getEntityIndex } from '../../systems/entity_index';
 import { registerContentInteractionHook, registerContentRuntimeHook } from '../../systems/content_hooks';
 import { publishEvent } from '../../systems/events';
 import { hasItem, removeItem } from '../../systems/inventory';
@@ -82,7 +83,8 @@ function pointInRoom(world: World, room: Room, x: number, y: number): boolean {
 }
 
 function findBetonoed(entities: Entity[], encounter: BetonoedState): Entity | null {
-  return entities.find(e => e.id === encounter.monsterId && e.type === EntityType.MONSTER) ?? null;
+  const e = getEntityIndex().byId.get(encounter.monsterId) ?? entities.find(e => e.id === encounter.monsterId);
+  return e?.type === EntityType.MONSTER ? e : null;
 }
 
 function weakRoomZone(world: World, encounter: BetonoedState): number {
