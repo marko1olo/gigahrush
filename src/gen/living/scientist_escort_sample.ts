@@ -10,6 +10,7 @@ import { World } from '../../core/world';
 import { type PlotNpcDef, registerSideQuest } from '../../data/plot';
 import { MONSTERS } from '../../entities/monster';
 import { randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg';
+import { getEntityIndex } from '../../systems/entity_index';
 import { protectRoom } from '../shared';
 import { genLog } from '../log';
 import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
@@ -482,8 +483,8 @@ function spawnNpc(
   angle: number,
   weapon?: string,
 ): Entity {
-  const existing = entities.find(e => e.alive && e.plotNpcId === plotNpcId);
-  if (existing) return existing;
+  const existing = getEntityIndex().byPlotNpcId.get(plotNpcId) ?? entities.find(e => e.alive && e.plotNpcId === plotNpcId);
+  if (existing?.alive) return existing;
   const x = world.wrap(room.x + dx);
   const y = world.wrap(room.y + dy);
   return requireSpawnedPlotNpcFromPackage(entities, nextId, plotNpcId, x + 0.5, y + 0.5, {
