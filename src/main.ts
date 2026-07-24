@@ -6995,6 +6995,537 @@ canvas.addEventListener('click', e => {
   e.stopImmediatePropagation();
 }, true);
 
+export interface MenuInputContext {
+  acceptEdge: boolean;
+  closeEdge: boolean;
+  resetEdge: boolean;
+  upEdge: boolean;
+  dnEdge: boolean;
+  leftEdge: boolean;
+  rightEdge: boolean;
+  dropEdge: boolean;
+  invEdge: boolean;
+  questEdge: boolean;
+  factionEdge: boolean;
+  logEdge: boolean;
+  helpEdge: boolean;
+  controlsEdge: boolean;
+  uiSettingsEdge: boolean;
+  dbgEdge: boolean;
+  wheelUpEdge: boolean;
+  wheelDnEdge: boolean;
+  menuUpNav: () => boolean;
+  menuDownNav: () => boolean;
+  canOpenShortcutMenu: boolean;
+  shortcutInputActive: boolean;
+  globalMapEdge: boolean;
+  globalMapLegendEdge: boolean;
+  anyRepeatMenuOpen: boolean;
+  helpOpenedThisFrame: boolean;
+  controlsOpenedThisFrame: boolean;
+  uiSettingsOpenedThisFrame: boolean;
+  gameMenuOpenedThisFrame: boolean;
+  pointerWheel: number;
+}
+
+const finishSameShortcutClose = (): void => {
+    resetMenuRepeats();
+    syncMenuInputBaselines();
+    syncPauseState();
+    updateMobileContext(true);
+  };
+function handleShortcutInputActive(ctx: MenuInputContext): boolean {
+  if (state.showHelp && ctx.helpEdge && !ctx.helpOpenedThisFrame) {
+        closeHelpMenu();
+        finishSameShortcutClose();
+        return true;
+      }
+      if (state.showControls && ctx.controlsEdge && !ctx.controlsOpenedThisFrame) {
+        closeControlsMenu();
+        finishSameShortcutClose();
+        return true;
+      }
+      if (state.showUiSettings && ctx.uiSettingsEdge && !ctx.uiSettingsOpenedThisFrame) {
+        closeUiSettingsMenu();
+        finishSameShortcutClose();
+        return true;
+      }
+      if (state.showInventory && ctx.invEdge) {
+        state.showInventory = false;
+        finishSameShortcutClose();
+        return true;
+      }
+      if (state.showQuests && ctx.questEdge) {
+        state.showQuests = false;
+        finishSameShortcutClose();
+        return true;
+      }
+      if (state.showDebug && ctx.dbgEdge) {
+        state.showDebug = false;
+        finishSameShortcutClose();
+        return true;
+      }
+      if (state.showFactions && ctx.factionEdge) {
+        state.showFactions = false;
+        finishSameShortcutClose();
+        return true;
+      }
+      if (state.showLog && ctx.logEdge) {
+        state.showLog = false;
+        finishSameShortcutClose();
+        return true;
+      }
+  return false;
+}
+
+function handleHelpMenuInput(ctx: MenuInputContext): boolean {
+  if ((ctx.acceptEdge && !ctx.helpOpenedThisFrame) || ctx.closeEdge) closeHelpMenu();
+      syncMenuInputBaselines();
+      syncPauseState();
+      return true;
+  return false;
+}
+
+function handleFeedbackMenuInput(ctx: MenuInputContext): boolean {
+  if (ctx.acceptEdge) {
+        window.open('https://t.me/gigah_rush', '_blank');
+      }
+      if (ctx.acceptEdge || ctx.closeEdge) closeFeedbackMenu();
+      syncMenuInputBaselines();
+      syncPauseState();
+      return true;
+  return false;
+}
+
+function handleControlsMenuInput(ctx: MenuInputContext): boolean {
+  if (!getControlCaptureAction()) {
+        const effectiveAcceptEdge = !ctx.controlsOpenedThisFrame && ctx.acceptEdge;
+        const fixedControlsCommand = effectiveAcceptEdge || ctx.closeEdge || ctx.resetEdge;
+        const upNav = !fixedControlsCommand && ctx.menuUpNav();
+        const dnNav = !fixedControlsCommand && ctx.menuDownNav();
+        if (upNav) state.controlSel = Math.max(0, state.controlSel - 1);
+        if (dnNav) state.controlSel = Math.min(controlMenuItemCount() - 1, state.controlSel + 1);
+        keepControlSelectionVisible();
+        const mouseSensitivitySelected = controlMouseSensitivitySelected();
+        const leftNav = !fixedControlsCommand && mouseSensitivitySelected ? menuRepeatStep('left', input.invLeft, ctx.leftEdge) : false;
+        const rightNav = !fixedControlsCommand && mouseSensitivitySelected ? menuRepeatStep('right', input.invRight, ctx.rightEdge) : false;
+        if (ctx.resetEdge && state.controlView === 'keys') {
+          const action = selectedControlAction();
+          if (action && clearControlBinding(action.id)) {
+            state.msgs.push(msg(`Клавиши очищены: ${action.label}`, state.time, '#8cf'));
+          }
+        } else if (mouseSensitivitySelected && (leftNav || rightNav || effectiveAcceptEdge)) {
+          const sensitivity = adjustMouseLookSensitivity(leftNav ? -1 : 1);
+          state.msgs.push(msg(`Чувствительность мыши: ${Math.round(sensitivity * 100)}%`, state.time, '#8cf'));
+        } else if (effectiveAcceptEdge && controlResetSelected()) {
+          resetAllControlBindings();
+          state.msgs.push(msg('Клавиши сброшены по умолчанию', state.time, '#8cf'));
+        } else if (effectiveAcceptEdge && state.controlView === 'keys') {
+          const action = selectedControlAction();
+          if (action) {
+            beginControlCapture(action.id);
+          }
+        }
+      }
+      if (ctx.closeEdge && !ctx.controlsOpenedThisFrame) closeControlsMenu();
+
+      syncMenuInputBaselines();
+      syncPauseState();
+      return true;
+  return false;
+}
+
+function handleMapLegendMenuInput(ctx: MenuInputContext): boolean {
+  const fixedLegendCommand = ctx.acceptEdge || ctx.closeEdge;
+      const upNav = !fixedLegendCommand && ctx.menuUpNav();
+      const dnNav = !fixedLegendCommand && ctx.menuDownNav();
+      if (upNav) state.mapLegendSel = Math.max(0, state.mapLegendSel - 1);
+      if (dnNav) state.mapLegendSel = Math.min(mapLegendRowCount() - 1, state.mapLegendSel + 1);
+      keepMapLegendSelectionVisible();
+      if (ctx.acceptEdge) applyMapLegendSelection(state.mapLegendSel);
+      if (ctx.closeEdge) closeMapLegendMenu();
+
+      syncMenuInputBaselines();
+      syncPauseState();
+      return true;
+  return false;
+}
+
+function handleUiSettingsMenuInput(ctx: MenuInputContext): boolean {
+  const fixedUiCommand = ctx.acceptEdge || ctx.closeEdge;
+      const upNav = !fixedUiCommand && ctx.menuUpNav();
+      const dnNav = !fixedUiCommand && ctx.menuDownNav();
+      if (upNav) state.uiSettingsSel = Math.max(0, state.uiSettingsSel - 1);
+      if (dnNav) state.uiSettingsSel = Math.min(uiSettingsRowCount(state.uiSettingsView) - 1, state.uiSettingsSel + 1);
+      keepUiSettingsSelectionVisible();
+      if (ctx.acceptEdge) {
+        applyUiSettingsSelection(state.uiSettingsSel);
+      }
+      if (ctx.closeEdge) closeUiSettingsMenu();
+
+      syncMenuInputBaselines();
+      syncPauseState();
+      return true;
+  return false;
+}
+
+function handleCloseMenuInput(_ctx: MenuInputContext): void {
+  if (state.showNpcMenu) {
+        const npc = getEntityIndex().byId.get(state.npcMenuTarget) ?? entities.find(e => e.id === state.npcMenuTarget);
+        if (npc && isDurakGameOpen()) handleDurakInput({ state, player, npc, input: { escEdge: true } });
+        else if (npc && isDiceGameOpen()) handleDiceInput({ state, player, npc, input: { escEdge: true } });
+        else if (npc && isDominoGameOpen()) handleDominoInput({ state, player, npc, input: { escEdge: true } });
+        else if (npc && isCheckersGameOpen()) handleCheckersInput({ state, player, npc, input: { escEdge: true } });
+        clearTradeOffers(state);
+        closeNpcInteractionInterface();
+        state.showNpcMenu = false;
+      }
+      else if (state.showContainerMenu) { closeContainerMenu(); }
+      else if (state.showCraftMenu) { closeCraftMenu(); syncPauseState(); updateMobileContext(true); }
+      else if (state.showInventory) { state.showInventory = false; }
+      else if (state.showQuests) { state.showQuests = false; }
+      else if (state.showDebug) { state.showDebug = false; }
+      else if (state.showFactions) { state.showFactions = false; }
+      else if (state.showDemos) { closeDemosMenu(); }
+      else if (state.showLog) { state.showLog = false; }
+      else if (state.showHelp) { closeHelpMenu(); }
+      else if (state.showUiSettings) { state.showUiSettings = false; }
+      else if (state.mapMode === 2) { closeFullMapMenu(); }
+      else if (state.showMenu) { state.showMenu = false; }
+}
+
+function handleOpenGameMenuInput(_ctx: MenuInputContext): boolean {
+  state.showMenu = true;
+      state.menuSel = 0;
+      return true;
+  return false;
+}
+
+function handleGameMenuInput(ctx: MenuInputContext): void {
+  const upNav = ctx.menuUpNav();
+      const dnNav = ctx.menuDownNav();
+      if (upNav) state.menuSel = Math.max(0, state.menuSel - 1);
+      if (dnNav) state.menuSel = Math.min(GAME_MENU_ITEMS.length - 1, state.menuSel + 1);
+      if (ctx.acceptEdge && !ctx.gameMenuOpenedThisFrame) {
+        runGameMenuSelection(state.menuSel);
+      }
+}
+
+function handleInventoryMenuInput(ctx: MenuInputContext): void {
+  const upNav = ctx.menuUpNav();
+      const dnNav = ctx.menuDownNav();
+      const leftNav = menuRepeatStep('left', input.invLeft, ctx.leftEdge);
+      const rightNav = menuRepeatStep('right', input.invRight, ctx.rightEdge);
+          if (upNav) {
+        if (state.invSel === MAX_INVENTORY_SLOTS) {
+          state.invSel = MAX_INVENTORY_SLOTS - 1;
+        } else {
+          state.invSel = wrapMenuIndex(state.invSel - INVENTORY_GRID_COLS, MAX_INVENTORY_SLOTS);
+        }
+      }
+      if (dnNav) {
+        if (state.invSel >= MAX_INVENTORY_SLOTS - INVENTORY_GRID_COLS && state.invSel < MAX_INVENTORY_SLOTS) {
+          state.invSel = MAX_INVENTORY_SLOTS;
+        } else if (state.invSel !== MAX_INVENTORY_SLOTS) {
+          state.invSel = wrapMenuIndex(state.invSel + INVENTORY_GRID_COLS, MAX_INVENTORY_SLOTS);
+        }
+      }
+      if (leftNav && state.invSel !== MAX_INVENTORY_SLOTS) state.invSel = wrapMenuIndex(state.invSel - 1, MAX_INVENTORY_SLOTS);
+      if (rightNav && state.invSel !== MAX_INVENTORY_SLOTS) state.invSel = wrapMenuIndex(state.invSel + 1, MAX_INVENTORY_SLOTS);
+      if (ctx.acceptEdge) useInventorySelection();
+      if (ctx.dropEdge) dropInventorySelection();
+      // Attribute spending (1=STR, 2=AGI, 3=INT)
+      if (input.attrStr && player.rpg && player.rpg.attrPoints > 0) {
+        if (spendAttrPoint(player, 'str'))
+          state.msgs.push(msg(`Сила +1 (${player.rpg.str})`, state.time, '#f84'));
+        input.attrStr = false;
+      }
+      if (input.attrAgi && player.rpg && player.rpg.attrPoints > 0) {
+        if (spendAttrPoint(player, 'agi'))
+          state.msgs.push(msg(`Ловкость +1 (${player.rpg.agi})`, state.time, '#4af'));
+        input.attrAgi = false;
+      }
+      if (input.attrInt && player.rpg && player.rpg.attrPoints > 0) {
+        if (spendAttrPoint(player, 'int'))
+          state.msgs.push(msg(`Интеллект +1 (${player.rpg.int})`, state.time, '#a4f'));
+        input.attrInt = false;
+      }
+}
+
+function handleCraftMenuInput(ctx: MenuInputContext): void {
+  if (ctx.closeEdge) {
+        closeCraftMenu();
+        syncPauseState();
+        updateMobileContext(true);
+      } else {
+        const upNav = ctx.menuUpNav();
+        const dnNav = ctx.menuDownNav();
+        const snapshot = craftMenuSnapshot({
+          actor: player,
+          state,
+          mode: state.craftMode,
+          stationKind: state.craftStationKind,
+          filter: state.craftFilter,
+        });
+        const count = craftMenuEntries(snapshot).length;
+        if (upNav) state.craftCursor = Math.max(0, state.craftCursor - 1);
+        if (dnNav) state.craftCursor = Math.min(Math.max(0, count - 1), state.craftCursor + 1);
+        if (count === 0) state.craftCursor = 0;
+        if (ctx.acceptEdge) {
+          activateCraftSelection();
+        }
+      }
+}
+
+function handleQuestsMenuInput(ctx: MenuInputContext): void {
+  const totalQ = questLogEntries().length;
+      const upNav = ctx.menuUpNav();
+      const dnNav = ctx.menuDownNav();
+      if (upNav) state.questPage = Math.max(0, state.questPage - 1);
+      if (dnNav) state.questPage = Math.min(Math.max(0, totalQ - 1), state.questPage + 1);
+      if (ctx.acceptEdge) {
+        toggleSelectedQuestActive();
+      }
+}
+
+function handleContainerMenuInput(ctx: MenuInputContext): void {
+  const container = world.containerById.get(state.containerMenuTarget);
+      if (!container) {
+        closeContainerMenu();
+      } else {
+        const upNav = ctx.menuUpNav();
+        const dnNav = ctx.menuDownNav();
+        const leftNav = menuRepeatStep('left', input.invLeft, ctx.leftEdge);
+        const rightNav = menuRepeatStep('right', input.invRight || input.drop, ctx.rightEdge || ctx.dropEdge);
+        if (upNav) state.containerCursorY = Math.max(0, state.containerCursorY - 1);
+        if (dnNav) state.containerCursorY = Math.min(INVENTORY_GRID_ROWS - 1, state.containerCursorY + 1);
+        if (leftNav) {
+          if (state.containerCursorX > 0) {
+            state.containerCursorX--;
+          } else if (state.containerSide === 'container') {
+            state.containerSide = 'player';
+            state.containerCursorX = INVENTORY_GRID_COLS - 1;
+          }
+        }
+        if (rightNav) {
+          if (state.containerCursorX < INVENTORY_GRID_COLS - 1) {
+            state.containerCursorX++;
+          } else if (state.containerSide === 'player') {
+            state.containerSide = 'container';
+            state.containerCursorX = 0;
+          }
+        }
+        if (ctx.acceptEdge) {
+          const idx = state.containerCursorY * INVENTORY_GRID_COLS + state.containerCursorX;
+          const access = containerAccessInfo(container, player, state);
+          if (state.containerSide === 'container') {
+            const slot = container.inventory[idx];
+            const itemName = slot ? ITEMS[slot.defId]?.name ?? slot.defId : '';
+            if (!access.canTake) {
+              state.msgs.push(msg(access.label === 'ЗАПЕРТО' ? 'Заперто.' : 'Нет доступа.', state.time, '#f84'));
+            } else if (slot && takeFromContainer(container, player, idx, 1, { state, world, entities })) {
+              state.msgs.push(msg(`${access.theft ? 'Украдено' : 'Взято'}: ${itemName}`, state.time, access.theft ? '#f84' : '#8f8'));
+            } else {
+              state.msgs.push(msg(slot ? 'Нет места.' : 'Пустой слот.', state.time, '#888'));
+            }
+          } else {
+            const slot = player.inventory?.[idx];
+            if (!access.canPut) {
+              state.msgs.push(msg('Нет доступа.', state.time, '#f84'));
+            } else if (slot && putIntoContainer(container, player, idx, 1, { state, world, entities })) {
+              state.msgs.push(msg(`Положено: ${ITEMS[slot.defId]?.name ?? slot.defId}`, state.time, '#8cf'));
+            } else {
+              state.msgs.push(msg(slot ? 'Контейнер полон.' : 'Пустой слот.', state.time, '#888'));
+            }
+          }
+        }
+      }
+}
+
+function handleNpcMenuInput(ctx: MenuInputContext): void {
+  const npc = getEntityIndex().byId.get(state.npcMenuTarget) ?? entities.find(e => e.id === state.npcMenuTarget);
+      if (state.npcMenuTab === 'main') {
+        const upNav = ctx.menuUpNav();
+        const dnNav = ctx.menuDownNav();
+        const options = npc ? getNpcMenuOptions({ state, player, npc, entities }) : [];
+        clampNpcMenuSelection(state, options);
+        if (upNav) state.npcMenuSel = Math.max(0, state.npcMenuSel - 1);
+        if (dnNav) state.npcMenuSel = Math.min(Math.max(0, options.length - 1), state.npcMenuSel + 1);
+        if (ctx.acceptEdge) activateNpcMainSelection(npc);
+      } else if (state.npcMenuTab === 'talk') {
+        if (ctx.acceptEdge || ctx.closeEdge) state.npcMenuTab = 'main';
+      } else if (state.npcMenuTab === 'quest') {
+        let totalQ = 0;
+        for (let i = 0; i < state.quests.length; i++) {
+          if (!state.quests[i].done) totalQ++;
+        }
+        const upNav = ctx.menuUpNav();
+        const dnNav = ctx.menuDownNav();
+        const leftNav = menuRepeatStep('left', input.invLeft, ctx.leftEdge);
+        const rightNav = menuRepeatStep('right', input.invRight || input.drop, ctx.rightEdge || ctx.dropEdge);
+        if (upNav || leftNav) state.questPage = Math.max(0, state.questPage - 1);
+        if (dnNav || rightNav) state.questPage = Math.min(Math.max(0, totalQ - 1), state.questPage + 1);
+        if (ctx.acceptEdge || ctx.closeEdge) state.npcMenuTab = 'main';
+      } else if (state.npcMenuTab === 'trade') {
+        if (npc) {
+          const upNav = ctx.menuUpNav();
+          const dnNav = ctx.menuDownNav();
+          const leftNav = menuRepeatStep('left', input.invLeft, ctx.leftEdge);
+          const rightNav = menuRepeatStep('right', input.invRight || input.drop, ctx.rightEdge || ctx.dropEdge);
+          const panels = ['player', 'player_offer', 'npc_offer', 'npc'] as const;
+          if (state.tradeSide === 'deal') {
+            if (upNav) {
+              state.tradeSide = 'player_offer';
+              state.tradeCursorX = INVENTORY_GRID_COLS - 1;
+              state.tradeCursorY = INVENTORY_GRID_ROWS - 1;
+            }
+            if (leftNav) state.tradeSide = 'player_offer';
+            if (rightNav) state.tradeSide = 'npc_offer';
+            state.tradeCursorX = Math.max(0, Math.min(INVENTORY_GRID_COLS - 1, state.tradeCursorX));
+            state.tradeCursorY = Math.max(0, Math.min(INVENTORY_GRID_ROWS - 1, state.tradeCursorY));
+          } else {
+            let panelIndex = panels.indexOf(state.tradeSide as typeof panels[number]);
+            if (panelIndex < 0) panelIndex = 3;
+            if (upNav) state.tradeCursorY = Math.max(0, state.tradeCursorY - 1);
+            if (dnNav) {
+              if (state.tradeCursorY >= INVENTORY_GRID_ROWS - 1) {
+                state.tradeSide = 'deal';
+                state.tradeCursorX = 0;
+                state.tradeCursorY = 0;
+              } else {
+                state.tradeCursorY++;
+              }
+            }
+            if (state.tradeSide !== 'deal' && leftNav) {
+              if (state.tradeCursorX > 0) {
+                state.tradeCursorX--;
+              } else if (panelIndex > 0) {
+                state.tradeSide = panels[panelIndex - 1];
+                state.tradeCursorX = INVENTORY_GRID_COLS - 1;
+              }
+            }
+            if (state.tradeSide !== 'deal' && rightNav) {
+              if (state.tradeCursorX < INVENTORY_GRID_COLS - 1) {
+                state.tradeCursorX++;
+              } else if (panelIndex < panels.length - 1) {
+                state.tradeSide = panels[panelIndex + 1];
+                state.tradeCursorX = 0;
+              }
+            }
+            if (state.tradeSide !== 'deal') {
+              state.tradeCursorX = Math.max(0, Math.min(INVENTORY_GRID_COLS - 1, state.tradeCursorX));
+              state.tradeCursorY = Math.max(0, Math.min(INVENTORY_GRID_ROWS - 1, state.tradeCursorY));
+            }
+          }
+          // Enter stages inventory items, removes basket items, or commits the centered deal.
+          if (ctx.acceptEdge) {
+            activateTradeSelection(npc);
+          }
+        }
+        if (ctx.closeEdge) {
+          clearTradeOffers(state);
+          state.npcMenuTab = 'main';
+        }
+      } else if (state.npcMenuTab === NPC_MENU_INTERFACE_TAB) {
+        if (npc && isDurakGameOpen()) {
+          const leftNav = menuRepeatStep('left', input.invLeft, ctx.leftEdge);
+          const rightNav = menuRepeatStep('right', input.invRight, ctx.rightEdge);
+          const result = handleDurakInput({
+            state,
+            player,
+            npc,
+            input: { leftNav, rightNav, interactEdge: ctx.acceptEdge, dropEdge: ctx.dropEdge },
+          });
+          if (result.closeInterface) closeNpcInteractionInterface(state);
+        } else if (npc && isDiceGameOpen()) {
+          const leftNav = menuRepeatStep('left', input.invLeft, ctx.leftEdge);
+          const rightNav = menuRepeatStep('right', input.invRight, ctx.rightEdge);
+          const result = handleDiceInput({
+            state,
+            player,
+            npc,
+            input: { leftNav, rightNav, interactEdge: ctx.acceptEdge, dropEdge: ctx.dropEdge },
+          });
+          if (result.closeInterface) closeNpcInteractionInterface(state);
+        } else if (npc && isDominoGameOpen()) {
+          const leftNav = menuRepeatStep('left', input.invLeft, ctx.leftEdge);
+          const rightNav = menuRepeatStep('right', input.invRight, ctx.rightEdge);
+          const result = handleDominoInput({
+            state,
+            player,
+            npc,
+            input: { leftNav, rightNav, interactEdge: ctx.acceptEdge, dropEdge: ctx.dropEdge },
+          });
+          if (result.closeInterface) closeNpcInteractionInterface(state);
+        } else if (npc && isCheckersGameOpen()) {
+          const leftNav = menuRepeatStep('left', input.invLeft, ctx.leftEdge);
+          const rightNav = menuRepeatStep('right', input.invRight, ctx.rightEdge);
+          const upNav = ctx.menuUpNav();
+          const downNav = ctx.menuDownNav();
+          const result = handleCheckersInput({
+            state,
+            player,
+            npc,
+            input: { leftNav, rightNav, upNav, downNav, interactEdge: ctx.acceptEdge, dropEdge: ctx.dropEdge },
+          });
+          if (result.closeInterface) closeNpcInteractionInterface(state);
+        } else if (ctx.acceptEdge || ctx.closeEdge) {
+          closeNpcInteractionInterface(state);
+        }
+      }
+}
+
+function handleDebugMenuInput(ctx: MenuInputContext): void {
+  if (ctx.closeEdge) { state.showDebug = false; }
+      else {
+        const upNav = ctx.menuUpNav();
+        const dnNav = ctx.menuDownNav();
+        const leftNav = menuRepeatStep('left', input.invLeft, ctx.leftEdge);
+        const rightNav = menuRepeatStep('right', input.invRight, ctx.rightEdge);
+        if (upNav) state.debugSel = Math.max(0, state.debugSel - 1);
+        if (dnNav) state.debugSel = Math.min(DEBUG_COMMAND_COUNT - 1, state.debugSel + 1);
+        if (leftNav) moveDebugInfoPage(-1);
+        if (rightNav) moveDebugInfoPage(1);
+        if (ctx.acceptEdge) {
+          const action = execDebugCommand(state.debugSel, world, player, entities, state, nextEntityId);
+          if (action) handleDebugCommandAction(action);
+        }
+      }
+}
+
+function handleFactionsMenuInput(ctx: MenuInputContext): void {
+  const upNav = ctx.menuUpNav();
+      const dnNav = ctx.menuDownNav();
+      if (upNav) state.factionRankScroll = Math.max(0, state.factionRankScroll - 3);
+      if (dnNav) state.factionRankScroll = Math.min(99, state.factionRankScroll + 3);
+}
+
+function handleLogMenuInput(ctx: MenuInputContext): void {
+  const maxScroll = Math.max(0, state.msgLog.length * 3); // generous; draw clamps
+      const upNav = ctx.menuUpNav();
+      const dnNav = ctx.menuDownNav();
+      if (upNav) state.logScroll = Math.min(maxScroll, state.logScroll + 3);
+      if (dnNav) state.logScroll = Math.max(0, state.logScroll - 3);
+}
+
+function handleFullMapMenuInput(ctx: MenuInputContext): void {
+  const wheelZoom = Math.max(-4, Math.min(4, -ctx.pointerWheel));
+      if (wheelZoom !== 0) adjustFullMapZoom(wheelZoom);
+      // Backspace/Delete closes the full map; other menu hotkeys wait for the map to close.
+}
+
+function handleGameplayTogglesInput(ctx: MenuInputContext): void {
+  if (ctx.canOpenShortcutMenu) {
+        if (ctx.dbgEdge) { state.showDebug = true; state.debugSel = 0; resetDebugInfoPage(); }
+        if (ctx.invEdge) { state.showInventory = true; state.invSel = 0; }
+        if (ctx.questEdge) { state.showQuests = true; }
+        if (ctx.factionEdge) { state.showFactions = true; state.factionRankScroll = 0; }
+        if (ctx.logEdge) { state.showLog = true; state.logScroll = 0; }
+        if (ctx.helpEdge) { openHelpMenu(); }
+      }
+}
+
+
 function handleMenuInput(): void {
   // ── On death: lock out all menus / inventory / interactions ──
   // Only the restart prompt (checkRestart) responds to input.
@@ -7302,508 +7833,85 @@ function handleMenuInput(): void {
 
   const helpOpenedThisFrame = helpEdge && canOpenShortcutMenu;
   const controlsOpenedThisFrame = controlsEdge && canOpenShortcutMenu && !helpOpenedThisFrame;
+    let gameMenuOpenedThisFrame = false;
   const uiSettingsOpenedThisFrame = uiSettingsEdge && canOpenShortcutMenu && !helpOpenedThisFrame && !controlsOpenedThisFrame;
   if (helpOpenedThisFrame) openHelpMenu();
+
+      const ctx: MenuInputContext = {
+        acceptEdge, closeEdge, resetEdge, upEdge, dnEdge, leftEdge, rightEdge, dropEdge,
+        invEdge, questEdge, factionEdge, logEdge, helpEdge, controlsEdge, uiSettingsEdge, dbgEdge,
+        wheelUpEdge, wheelDnEdge, menuUpNav, menuDownNav, canOpenShortcutMenu, shortcutInputActive,
+        globalMapEdge, globalMapLegendEdge, anyRepeatMenuOpen, helpOpenedThisFrame, controlsOpenedThisFrame,
+        uiSettingsOpenedThisFrame, gameMenuOpenedThisFrame, pointerWheel
+      };
+
+    if (!shortcutInputActive) {
+      if (handleShortcutInputActive(ctx)) return;
+    }
+    if (state.showHelp) {
+      if (handleHelpMenuInput(ctx)) return;
+    }
+    if (state.showFeedback) {
+      if (handleFeedbackMenuInput(ctx)) return;
+    }
+    if (state.showControls) {
+      if (handleControlsMenuInput(ctx)) return;
+    }
+    if (state.showMapLegend) {
+      if (handleMapLegendMenuInput(ctx)) return;
+    }
+    if (state.showUiSettings) {
+      if (handleUiSettingsMenuInput(ctx)) return;
+    }
+    if (closeEdge) {
+      handleCloseMenuInput(ctx);
+    }
+    else if (acceptEdge && canOpenShortcutMenu) {
+      if (handleOpenGameMenuInput(ctx)) gameMenuOpenedThisFrame = true;
+    }
+
+    if (state.showMenu) {
+      handleGameMenuInput(ctx);
+    }
+    else if (state.showInventory) {
+      handleInventoryMenuInput(ctx);
+    }
+    else if (state.showCraftMenu) {
+      handleCraftMenuInput(ctx);
+    }
+    else if (state.showQuests) {
+      handleQuestsMenuInput(ctx);
+    }
+    else if (state.showContainerMenu) {
+      handleContainerMenuInput(ctx);
+    }
+    else if (state.showNpcMenu) {
+      handleNpcMenuInput(ctx);
+    }
+    else if (state.showDebug) {
+      handleDebugMenuInput(ctx);
+    }
+    else if (state.showFactions) {
+      handleFactionsMenuInput(ctx);
+    }
+    else if (state.showLog) {
+      handleLogMenuInput(ctx);
+    }
+    else if (state.mapMode === 2) {
+      handleFullMapMenuInput(ctx);
+    }
+    else {
+      handleGameplayTogglesInput(ctx);
+    }
   if (controlsOpenedThisFrame) openControlsMenu();
   if (uiSettingsOpenedThisFrame) openUiSettingsMenu();
-
-  const finishSameShortcutClose = (): void => {
-    resetMenuRepeats();
-    syncMenuInputBaselines();
-    syncPauseState();
-    updateMobileContext(true);
-  };
-
-  if (!shortcutInputActive) {
-    if (state.showHelp && helpEdge && !helpOpenedThisFrame) {
-      closeHelpMenu();
-      finishSameShortcutClose();
-      return;
-    }
-    if (state.showControls && controlsEdge && !controlsOpenedThisFrame) {
-      closeControlsMenu();
-      finishSameShortcutClose();
-      return;
-    }
-    if (state.showUiSettings && uiSettingsEdge && !uiSettingsOpenedThisFrame) {
-      closeUiSettingsMenu();
-      finishSameShortcutClose();
-      return;
-    }
-    if (state.showInventory && invEdge) {
-      state.showInventory = false;
-      finishSameShortcutClose();
-      return;
-    }
-    if (state.showQuests && questEdge) {
-      state.showQuests = false;
-      finishSameShortcutClose();
-      return;
-    }
-    if (state.showDebug && dbgEdge) {
-      state.showDebug = false;
-      finishSameShortcutClose();
-      return;
-    }
-    if (state.showFactions && factionEdge) {
-      state.showFactions = false;
-      finishSameShortcutClose();
-      return;
-    }
-    if (state.showLog && logEdge) {
-      state.showLog = false;
-      finishSameShortcutClose();
-      return;
-    }
-  }
-
   // ── One-page HELP poster ─────────────────────────────────
-  if (state.showHelp) {
-    if ((acceptEdge && !helpOpenedThisFrame) || closeEdge) closeHelpMenu();
-    syncMenuInputBaselines();
-    syncPauseState();
-    return;
-  }
-
   // ── Feedback Menu ────────────────────────────────────────
-  if (state.showFeedback) {
-    if (acceptEdge) {
-      window.open('https://t.me/gigah_rush', '_blank');
-    }
-    if (acceptEdge || closeEdge) closeFeedbackMenu();
-    syncMenuInputBaselines();
-    syncPauseState();
-    return;
-  }
-
   // ── Hotkey / rebind screen ───────────────────────────────
-  if (state.showControls) {
-    if (!getControlCaptureAction()) {
-      const effectiveAcceptEdge = !controlsOpenedThisFrame && acceptEdge;
-      const fixedControlsCommand = effectiveAcceptEdge || closeEdge || resetEdge;
-      const upNav = !fixedControlsCommand && menuUpNav();
-      const dnNav = !fixedControlsCommand && menuDownNav();
-      if (upNav) state.controlSel = Math.max(0, state.controlSel - 1);
-      if (dnNav) state.controlSel = Math.min(controlMenuItemCount() - 1, state.controlSel + 1);
-      keepControlSelectionVisible();
-      const mouseSensitivitySelected = controlMouseSensitivitySelected();
-      const leftNav = !fixedControlsCommand && mouseSensitivitySelected ? menuRepeatStep('left', input.invLeft, leftEdge) : false;
-      const rightNav = !fixedControlsCommand && mouseSensitivitySelected ? menuRepeatStep('right', input.invRight, rightEdge) : false;
-      if (resetEdge && state.controlView === 'keys') {
-        const action = selectedControlAction();
-        if (action && clearControlBinding(action.id)) {
-          state.msgs.push(msg(`Клавиши очищены: ${action.label}`, state.time, '#8cf'));
-        }
-      } else if (mouseSensitivitySelected && (leftNav || rightNav || effectiveAcceptEdge)) {
-        const sensitivity = adjustMouseLookSensitivity(leftNav ? -1 : 1);
-        state.msgs.push(msg(`Чувствительность мыши: ${Math.round(sensitivity * 100)}%`, state.time, '#8cf'));
-      } else if (effectiveAcceptEdge && controlResetSelected()) {
-        resetAllControlBindings();
-        state.msgs.push(msg('Клавиши сброшены по умолчанию', state.time, '#8cf'));
-      } else if (effectiveAcceptEdge && state.controlView === 'keys') {
-        const action = selectedControlAction();
-        if (action) {
-          beginControlCapture(action.id);
-        }
-      }
-    }
-    if (closeEdge && !controlsOpenedThisFrame) closeControlsMenu();
-
-    syncMenuInputBaselines();
-    syncPauseState();
-    return;
-  }
-
   // ── Full-map legend/settings screen ─────────────────────
-  if (state.showMapLegend) {
-    const fixedLegendCommand = acceptEdge || closeEdge;
-    const upNav = !fixedLegendCommand && menuUpNav();
-    const dnNav = !fixedLegendCommand && menuDownNav();
-    if (upNav) state.mapLegendSel = Math.max(0, state.mapLegendSel - 1);
-    if (dnNav) state.mapLegendSel = Math.min(mapLegendRowCount() - 1, state.mapLegendSel + 1);
-    keepMapLegendSelectionVisible();
-    if (acceptEdge) applyMapLegendSelection(state.mapLegendSel);
-    if (closeEdge) closeMapLegendMenu();
-
-    syncMenuInputBaselines();
-    syncPauseState();
-    return;
-  }
-
   // ── Configurable HUD element screen ─────────────────────
-  if (state.showUiSettings) {
-    const fixedUiCommand = acceptEdge || closeEdge;
-    const upNav = !fixedUiCommand && menuUpNav();
-    const dnNav = !fixedUiCommand && menuDownNav();
-    if (upNav) state.uiSettingsSel = Math.max(0, state.uiSettingsSel - 1);
-    if (dnNav) state.uiSettingsSel = Math.min(uiSettingsRowCount(state.uiSettingsView) - 1, state.uiSettingsSel + 1);
-    keepUiSettingsSelectionVisible();
-    if (acceptEdge) {
-      applyUiSettingsSelection(state.uiSettingsSel);
-    }
-    if (closeEdge) closeUiSettingsMenu();
-
-    syncMenuInputBaselines();
-    syncPauseState();
-    return;
-  }
-
   // ── Enter accepts menu rows; Backspace/Delete closes them ─────
-  let gameMenuOpenedThisFrame = false;
-  if (closeEdge) {
-    if (state.showNpcMenu) {
-      const npc = getEntityIndex().byId.get(state.npcMenuTarget) ?? entities.find(e => e.id === state.npcMenuTarget);
-      if (npc && isDurakGameOpen()) handleDurakInput({ state, player, npc, input: { escEdge: true } });
-      else if (npc && isDiceGameOpen()) handleDiceInput({ state, player, npc, input: { escEdge: true } });
-      else if (npc && isDominoGameOpen()) handleDominoInput({ state, player, npc, input: { escEdge: true } });
-      else if (npc && isCheckersGameOpen()) handleCheckersInput({ state, player, npc, input: { escEdge: true } });
-      clearTradeOffers(state);
-      closeNpcInteractionInterface();
-      state.showNpcMenu = false;
-    }
-    else if (state.showContainerMenu) { closeContainerMenu(); }
-    else if (state.showCraftMenu) { closeCraftMenu(); syncPauseState(); updateMobileContext(true); }
-    else if (state.showInventory) { state.showInventory = false; }
-    else if (state.showQuests) { state.showQuests = false; }
-    else if (state.showDebug) { state.showDebug = false; }
-    else if (state.showFactions) { state.showFactions = false; }
-    else if (state.showDemos) { closeDemosMenu(); }
-    else if (state.showLog) { state.showLog = false; }
-    else if (state.showHelp) { closeHelpMenu(); }
-    else if (state.showUiSettings) { state.showUiSettings = false; }
-    else if (state.mapMode === 2) { closeFullMapMenu(); }
-    else if (state.showMenu) { state.showMenu = false; }
-  } else if (acceptEdge && canOpenShortcutMenu) {
-    state.showMenu = true;
-    state.menuSel = 0;
-    gameMenuOpenedThisFrame = true;
-  }
-
   // ── Game menu navigation ─────────────────────────────────
-  if (state.showMenu) {
-    const upNav = menuUpNav();
-    const dnNav = menuDownNav();
-    if (upNav) state.menuSel = Math.max(0, state.menuSel - 1);
-    if (dnNav) state.menuSel = Math.min(GAME_MENU_ITEMS.length - 1, state.menuSel + 1);
-    if (acceptEdge && !gameMenuOpenedThisFrame) {
-      runGameMenuSelection(state.menuSel);
-    }
-  }
-  // ── Inventory toggle + navigation ────────────────────────
-  else if (state.showInventory) {
-    const upNav = menuUpNav();
-    const dnNav = menuDownNav();
-    const leftNav = menuRepeatStep('left', input.invLeft, leftEdge);
-    const rightNav = menuRepeatStep('right', input.invRight, rightEdge);
-        if (upNav) {
-      if (state.invSel === MAX_INVENTORY_SLOTS) {
-        state.invSel = MAX_INVENTORY_SLOTS - 1;
-      } else {
-        state.invSel = wrapMenuIndex(state.invSel - INVENTORY_GRID_COLS, MAX_INVENTORY_SLOTS);
-      }
-    }
-    if (dnNav) {
-      if (state.invSel >= MAX_INVENTORY_SLOTS - INVENTORY_GRID_COLS && state.invSel < MAX_INVENTORY_SLOTS) {
-        state.invSel = MAX_INVENTORY_SLOTS;
-      } else if (state.invSel !== MAX_INVENTORY_SLOTS) {
-        state.invSel = wrapMenuIndex(state.invSel + INVENTORY_GRID_COLS, MAX_INVENTORY_SLOTS);
-      }
-    }
-    if (leftNav && state.invSel !== MAX_INVENTORY_SLOTS) state.invSel = wrapMenuIndex(state.invSel - 1, MAX_INVENTORY_SLOTS);
-    if (rightNav && state.invSel !== MAX_INVENTORY_SLOTS) state.invSel = wrapMenuIndex(state.invSel + 1, MAX_INVENTORY_SLOTS);
-    if (acceptEdge) useInventorySelection();
-    if (dropEdge) dropInventorySelection();
-    // Attribute spending (1=STR, 2=AGI, 3=INT)
-    if (input.attrStr && player.rpg && player.rpg.attrPoints > 0) {
-      if (spendAttrPoint(player, 'str'))
-        state.msgs.push(msg(`Сила +1 (${player.rpg.str})`, state.time, '#f84'));
-      input.attrStr = false;
-    }
-    if (input.attrAgi && player.rpg && player.rpg.attrPoints > 0) {
-      if (spendAttrPoint(player, 'agi'))
-        state.msgs.push(msg(`Ловкость +1 (${player.rpg.agi})`, state.time, '#4af'));
-      input.attrAgi = false;
-    }
-    if (input.attrInt && player.rpg && player.rpg.attrPoints > 0) {
-      if (spendAttrPoint(player, 'int'))
-        state.msgs.push(msg(`Интеллект +1 (${player.rpg.int})`, state.time, '#a4f'));
-      input.attrInt = false;
-    }
-  }
-  // ── Craft / disassembly menu navigation ──────────────────
-  else if (state.showCraftMenu) {
-    if (closeEdge) {
-      closeCraftMenu();
-      syncPauseState();
-      updateMobileContext(true);
-    } else {
-      const upNav = menuUpNav();
-      const dnNav = menuDownNav();
-      const snapshot = craftMenuSnapshot({
-        actor: player,
-        state,
-        mode: state.craftMode,
-        stationKind: state.craftStationKind,
-        filter: state.craftFilter,
-      });
-      const count = craftMenuEntries(snapshot).length;
-      if (upNav) state.craftCursor = Math.max(0, state.craftCursor - 1);
-      if (dnNav) state.craftCursor = Math.min(Math.max(0, count - 1), state.craftCursor + 1);
-      if (count === 0) state.craftCursor = 0;
-      if (acceptEdge) {
-        activateCraftSelection();
-      }
-    }
-  }
-  // ── Quest log toggle ─────────────────────────────────────
-  else if (state.showQuests) {
-    const totalQ = questLogEntries().length;
-    const upNav = menuUpNav();
-    const dnNav = menuDownNav();
-    if (upNav) state.questPage = Math.max(0, state.questPage - 1);
-    if (dnNav) state.questPage = Math.min(Math.max(0, totalQ - 1), state.questPage + 1);
-    if (acceptEdge) {
-      toggleSelectedQuestActive();
-    }
-  }
-  // ── Container menu navigation ────────────────────────────
-  else if (state.showContainerMenu) {
-    const container = world.containerById.get(state.containerMenuTarget);
-    if (!container) {
-      closeContainerMenu();
-    } else {
-      const upNav = menuUpNav();
-      const dnNav = menuDownNav();
-      const leftNav = menuRepeatStep('left', input.invLeft, leftEdge);
-      const rightNav = menuRepeatStep('right', input.invRight || input.drop, rightEdge || dropEdge);
-      if (upNav) state.containerCursorY = Math.max(0, state.containerCursorY - 1);
-      if (dnNav) state.containerCursorY = Math.min(INVENTORY_GRID_ROWS - 1, state.containerCursorY + 1);
-      if (leftNav) {
-        if (state.containerCursorX > 0) {
-          state.containerCursorX--;
-        } else if (state.containerSide === 'container') {
-          state.containerSide = 'player';
-          state.containerCursorX = INVENTORY_GRID_COLS - 1;
-        }
-      }
-      if (rightNav) {
-        if (state.containerCursorX < INVENTORY_GRID_COLS - 1) {
-          state.containerCursorX++;
-        } else if (state.containerSide === 'player') {
-          state.containerSide = 'container';
-          state.containerCursorX = 0;
-        }
-      }
-      if (acceptEdge) {
-        const idx = state.containerCursorY * INVENTORY_GRID_COLS + state.containerCursorX;
-        const access = containerAccessInfo(container, player, state);
-        if (state.containerSide === 'container') {
-          const slot = container.inventory[idx];
-          const itemName = slot ? ITEMS[slot.defId]?.name ?? slot.defId : '';
-          if (!access.canTake) {
-            state.msgs.push(msg(access.label === 'ЗАПЕРТО' ? 'Заперто.' : 'Нет доступа.', state.time, '#f84'));
-          } else if (slot && takeFromContainer(container, player, idx, 1, { state, world, entities })) {
-            state.msgs.push(msg(`${access.theft ? 'Украдено' : 'Взято'}: ${itemName}`, state.time, access.theft ? '#f84' : '#8f8'));
-          } else {
-            state.msgs.push(msg(slot ? 'Нет места.' : 'Пустой слот.', state.time, '#888'));
-          }
-        } else {
-          const slot = player.inventory?.[idx];
-          if (!access.canPut) {
-            state.msgs.push(msg('Нет доступа.', state.time, '#f84'));
-          } else if (slot && putIntoContainer(container, player, idx, 1, { state, world, entities })) {
-            state.msgs.push(msg(`Положено: ${ITEMS[slot.defId]?.name ?? slot.defId}`, state.time, '#8cf'));
-          } else {
-            state.msgs.push(msg(slot ? 'Контейнер полон.' : 'Пустой слот.', state.time, '#888'));
-          }
-        }
-      }
-    }
-  }
-  // ── NPC menu navigation ──────────────────────────────────
-  else if (state.showNpcMenu) {
-    const npc = getEntityIndex().byId.get(state.npcMenuTarget) ?? entities.find(e => e.id === state.npcMenuTarget);
-    if (state.npcMenuTab === 'main') {
-      const upNav = menuUpNav();
-      const dnNav = menuDownNav();
-      const options = npc ? getNpcMenuOptions({ state, player, npc, entities }) : [];
-      clampNpcMenuSelection(state, options);
-      if (upNav) state.npcMenuSel = Math.max(0, state.npcMenuSel - 1);
-      if (dnNav) state.npcMenuSel = Math.min(Math.max(0, options.length - 1), state.npcMenuSel + 1);
-      if (acceptEdge) activateNpcMainSelection(npc);
-    } else if (state.npcMenuTab === 'talk') {
-      if (acceptEdge || closeEdge) state.npcMenuTab = 'main';
-    } else if (state.npcMenuTab === 'quest') {
-      let totalQ = 0;
-      for (let i = 0; i < state.quests.length; i++) {
-        if (!state.quests[i].done) totalQ++;
-      }
-      const upNav = menuUpNav();
-      const dnNav = menuDownNav();
-      const leftNav = menuRepeatStep('left', input.invLeft, leftEdge);
-      const rightNav = menuRepeatStep('right', input.invRight || input.drop, rightEdge || dropEdge);
-      if (upNav || leftNav) state.questPage = Math.max(0, state.questPage - 1);
-      if (dnNav || rightNav) state.questPage = Math.min(Math.max(0, totalQ - 1), state.questPage + 1);
-      if (acceptEdge || closeEdge) state.npcMenuTab = 'main';
-    } else if (state.npcMenuTab === 'trade') {
-      if (npc) {
-        const upNav = menuUpNav();
-        const dnNav = menuDownNav();
-        const leftNav = menuRepeatStep('left', input.invLeft, leftEdge);
-        const rightNav = menuRepeatStep('right', input.invRight || input.drop, rightEdge || dropEdge);
-        const panels = ['player', 'player_offer', 'npc_offer', 'npc'] as const;
-        if (state.tradeSide === 'deal') {
-          if (upNav) {
-            state.tradeSide = 'player_offer';
-            state.tradeCursorX = INVENTORY_GRID_COLS - 1;
-            state.tradeCursorY = INVENTORY_GRID_ROWS - 1;
-          }
-          if (leftNav) state.tradeSide = 'player_offer';
-          if (rightNav) state.tradeSide = 'npc_offer';
-          state.tradeCursorX = Math.max(0, Math.min(INVENTORY_GRID_COLS - 1, state.tradeCursorX));
-          state.tradeCursorY = Math.max(0, Math.min(INVENTORY_GRID_ROWS - 1, state.tradeCursorY));
-        } else {
-          let panelIndex = panels.indexOf(state.tradeSide as typeof panels[number]);
-          if (panelIndex < 0) panelIndex = 3;
-          if (upNav) state.tradeCursorY = Math.max(0, state.tradeCursorY - 1);
-          if (dnNav) {
-            if (state.tradeCursorY >= INVENTORY_GRID_ROWS - 1) {
-              state.tradeSide = 'deal';
-              state.tradeCursorX = 0;
-              state.tradeCursorY = 0;
-            } else {
-              state.tradeCursorY++;
-            }
-          }
-          if (state.tradeSide !== 'deal' && leftNav) {
-            if (state.tradeCursorX > 0) {
-              state.tradeCursorX--;
-            } else if (panelIndex > 0) {
-              state.tradeSide = panels[panelIndex - 1];
-              state.tradeCursorX = INVENTORY_GRID_COLS - 1;
-            }
-          }
-          if (state.tradeSide !== 'deal' && rightNav) {
-            if (state.tradeCursorX < INVENTORY_GRID_COLS - 1) {
-              state.tradeCursorX++;
-            } else if (panelIndex < panels.length - 1) {
-              state.tradeSide = panels[panelIndex + 1];
-              state.tradeCursorX = 0;
-            }
-          }
-          if (state.tradeSide !== 'deal') {
-            state.tradeCursorX = Math.max(0, Math.min(INVENTORY_GRID_COLS - 1, state.tradeCursorX));
-            state.tradeCursorY = Math.max(0, Math.min(INVENTORY_GRID_ROWS - 1, state.tradeCursorY));
-          }
-        }
-        // Enter stages inventory items, removes basket items, or commits the centered deal.
-        if (acceptEdge) {
-          activateTradeSelection(npc);
-        }
-      }
-      if (closeEdge) {
-        clearTradeOffers(state);
-        state.npcMenuTab = 'main';
-      }
-    } else if (state.npcMenuTab === NPC_MENU_INTERFACE_TAB) {
-      if (npc && isDurakGameOpen()) {
-        const leftNav = menuRepeatStep('left', input.invLeft, leftEdge);
-        const rightNav = menuRepeatStep('right', input.invRight, rightEdge);
-        const result = handleDurakInput({
-          state,
-          player,
-          npc,
-          input: { leftNav, rightNav, interactEdge: acceptEdge, dropEdge },
-        });
-        if (result.closeInterface) closeNpcInteractionInterface(state);
-      } else if (npc && isDiceGameOpen()) {
-        const leftNav = menuRepeatStep('left', input.invLeft, leftEdge);
-        const rightNav = menuRepeatStep('right', input.invRight, rightEdge);
-        const result = handleDiceInput({
-          state,
-          player,
-          npc,
-          input: { leftNav, rightNav, interactEdge: acceptEdge, dropEdge },
-        });
-        if (result.closeInterface) closeNpcInteractionInterface(state);
-      } else if (npc && isDominoGameOpen()) {
-        const leftNav = menuRepeatStep('left', input.invLeft, leftEdge);
-        const rightNav = menuRepeatStep('right', input.invRight, rightEdge);
-        const result = handleDominoInput({
-          state,
-          player,
-          npc,
-          input: { leftNav, rightNav, interactEdge: acceptEdge, dropEdge },
-        });
-        if (result.closeInterface) closeNpcInteractionInterface(state);
-      } else if (npc && isCheckersGameOpen()) {
-        const leftNav = menuRepeatStep('left', input.invLeft, leftEdge);
-        const rightNav = menuRepeatStep('right', input.invRight, rightEdge);
-        const upNav = menuUpNav();
-        const downNav = menuDownNav();
-        const result = handleCheckersInput({
-          state,
-          player,
-          npc,
-          input: { leftNav, rightNav, upNav, downNav, interactEdge: acceptEdge, dropEdge },
-        });
-        if (result.closeInterface) closeNpcInteractionInterface(state);
-      } else if (acceptEdge || closeEdge) {
-        closeNpcInteractionInterface(state);
-      }
-    }
-  }
-  // ── Debug menu navigation ────────────────────────────────
-  else if (state.showDebug) {
-    if (closeEdge) { state.showDebug = false; }
-    else {
-      const upNav = menuUpNav();
-      const dnNav = menuDownNav();
-      const leftNav = menuRepeatStep('left', input.invLeft, leftEdge);
-      const rightNav = menuRepeatStep('right', input.invRight, rightEdge);
-      if (upNav) state.debugSel = Math.max(0, state.debugSel - 1);
-      if (dnNav) state.debugSel = Math.min(DEBUG_COMMAND_COUNT - 1, state.debugSel + 1);
-      if (leftNav) moveDebugInfoPage(-1);
-      if (rightNav) moveDebugInfoPage(1);
-      if (acceptEdge) {
-        const action = execDebugCommand(state.debugSel, world, player, entities, state, nextEntityId);
-        if (action) handleDebugCommandAction(action);
-      }
-    }
-  }
-  // ── Faction relations menu ───────────────────────────────
-  else if (state.showFactions) {
-    const upNav = menuUpNav();
-    const dnNav = menuDownNav();
-    if (upNav) state.factionRankScroll = Math.max(0, state.factionRankScroll - 3);
-    if (dnNav) state.factionRankScroll = Math.min(99, state.factionRankScroll + 3);
-  }
-  // ── Message log menu ─────────────────────────────────────
-  else if (state.showLog) {
-    const maxScroll = Math.max(0, state.msgLog.length * 3); // generous; draw clamps
-    const upNav = menuUpNav();
-    const dnNav = menuDownNav();
-    if (upNav) state.logScroll = Math.min(maxScroll, state.logScroll + 3);
-    if (dnNav) state.logScroll = Math.max(0, state.logScroll - 3);
-  }
-  // ── Full map menu ───────────────────────────────────────
-  else if (state.mapMode === 2) {
-    const wheelZoom = Math.max(-4, Math.min(4, -pointerWheel));
-    if (wheelZoom !== 0) adjustFullMapZoom(wheelZoom);
-    // Backspace/Delete closes the full map; other menu hotkeys wait for the map to close.
-  }
-  // ── Normal gameplay toggles ──────────────────────────────
-  else {
-    if (canOpenShortcutMenu) {
-      if (dbgEdge) { state.showDebug = true; state.debugSel = 0; resetDebugInfoPage(); }
-      if (invEdge) { state.showInventory = true; state.invSel = 0; }
-      if (questEdge) { state.showQuests = true; }
-      if (factionEdge) { state.showFactions = true; state.factionRankScroll = 0; }
-      if (logEdge) { state.showLog = true; state.logScroll = 0; }
-      if (helpEdge) { openHelpMenu(); }
-    }
-  }
-
   syncMenuInputBaselines();
 
   // Auto-pause when any menu is open
