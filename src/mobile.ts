@@ -119,7 +119,7 @@ function makeButton(className: string, label: string, ariaLabel: string): HTMLBu
   const button = document.createElement('button');
   button.type = 'button';
   button.className = className;
-  button.textContent = label;
+  if (label) { button.appendChild(document.createTextNode(label)); }
   button.setAttribute('aria-label', ariaLabel);
   return button;
 }
