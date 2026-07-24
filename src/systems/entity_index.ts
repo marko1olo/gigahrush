@@ -137,6 +137,7 @@ export class EntityIndex {
   private bucketVisitId = 1;
   readonly byId = new Map<number, Entity>();
   readonly byAlifeId = new Map<number, Entity>();
+  readonly byPlotNpcId = new Map<string, Entity>();
   private readonly entityOrder = new Map<number, number>();
   readonly ai: Entity[] = [];
   readonly actors: Entity[] = [];
@@ -182,6 +183,7 @@ export class EntityIndex {
     this.staticIndexedIds.clear();
     this.byId.clear();
     this.byAlifeId.clear();
+    this.byPlotNpcId.clear();
     this.entityOrder.clear();
     this.ai.length = 0;
     this.actors.length = 0;
@@ -201,6 +203,7 @@ export class EntityIndex {
       liveEntityCount++;
       this.byId.set(e.id, e);
       if (e.type === EntityType.NPC && e.alifeId !== undefined) this.byAlifeId.set(e.alifeId, e);
+      if (e.type === EntityType.NPC && e.plotNpcId !== undefined) this.byPlotNpcId.set(e.plotNpcId, e);
       this.entityOrder.set(e.id, order);
       if (e.type === EntityType.NPC || e.type === EntityType.MONSTER) this.actors.push(e);
       if (e.type === EntityType.NPC) npcCount++;
@@ -258,6 +261,7 @@ export class EntityIndex {
     this.clearDynamicBuckets();
     this.byId.clear();
     this.byAlifeId.clear();
+    this.byPlotNpcId.clear();
     this.entityOrder.clear();
     this.ai.length = 0;
     this.actors.length = 0;
@@ -280,6 +284,7 @@ export class EntityIndex {
         if (e) {
           this.byId.delete(e.id);
           if (e.alifeId !== undefined) this.byAlifeId.delete(e.alifeId);
+          if (e.plotNpcId !== undefined) this.byPlotNpcId.delete(e.plotNpcId);
           this.entityOrder.delete(e.id);
         }
         continue;
@@ -287,6 +292,7 @@ export class EntityIndex {
       liveDynamicEntityCount++;
       this.byId.set(e.id, e);
       if (e.type === EntityType.NPC && e.alifeId !== undefined) this.byAlifeId.set(e.alifeId, e);
+      if (e.type === EntityType.NPC && e.plotNpcId !== undefined) this.byPlotNpcId.set(e.plotNpcId, e);
       this.entityOrder.set(e.id, dynamicOrder);
       if (e.type === EntityType.NPC || e.type === EntityType.MONSTER) this.actors.push(e);
       if (e.type === EntityType.NPC) npcCount++;
@@ -379,6 +385,7 @@ export class EntityIndex {
         this.staticIndexedIds.add(e.id);
         this.byId.set(e.id, e);
         if (e.type === EntityType.NPC && e.alifeId !== undefined) this.byAlifeId.set(e.alifeId, e);
+      if (e.type === EntityType.NPC && e.plotNpcId !== undefined) this.byPlotNpcId.set(e.plotNpcId, e);
         this.entityOrder.set(e.id, Number.MAX_SAFE_INTEGER - liveCount);
         liveCount++;
         if (e.type === EntityType.ITEM_DROP) itemCount++;
@@ -396,6 +403,7 @@ export class EntityIndex {
       if (!e || !e.alive) continue;
       this.byId.set(e.id, e);
       if (e.type === EntityType.NPC && e.alifeId !== undefined) this.byAlifeId.set(e.alifeId, e);
+      if (e.type === EntityType.NPC && e.plotNpcId !== undefined) this.byPlotNpcId.set(e.plotNpcId, e);
       this.entityOrder.set(e.id, order);
       if ((entityMask(e) & ENTITY_MASK_STATIC_VISIBLE) !== 0) {
         if (this.staticIndexedIds.has(e.id)) continue;
@@ -440,6 +448,7 @@ export class EntityIndex {
       if (!e || !e.alive) continue;
       this.byId.set(e.id, e);
       if (e.type === EntityType.NPC && e.alifeId !== undefined) this.byAlifeId.set(e.alifeId, e);
+      if (e.type === EntityType.NPC && e.plotNpcId !== undefined) this.byPlotNpcId.set(e.plotNpcId, e);
       this.entityOrder.set(e.id, order);
       if (e.type === EntityType.NPC || e.type === EntityType.MONSTER) this.actors.push(e);
       if (e.type === EntityType.NPC) this.debugStats.npcCount++;

@@ -7,6 +7,7 @@ import {
 } from '../../core/types';
 import { World } from '../../core/world';
 import { type PlotNpcDef, registerSideQuest } from '../../data/plot';
+import { getEntityIndex } from '../../systems/entity_index';
 import { MarkType, stampMark } from '../../systems/surface_marks';
 import { Spr } from '../../render/sprite_index';
 import { findClearArea, protectRoom } from '../shared';
@@ -315,7 +316,7 @@ function decorate(world: World, main: Room, shortcut: Room): void {
 }
 
 function spawnWitness(world: World, entities: Entity[], nextId: { v: number }, room: Room): number {
-  const existing = entities.find(e => e.alive && e.plotNpcId === WITNESS_ID);
+  const existing = getEntityIndex().byPlotNpcId.get(WITNESS_ID) ?? entities.find(e => e.alive && e.plotNpcId === WITNESS_ID);
   if (existing) return existing.id;
   const x = world.wrap(room.x + Math.floor(room.w / 2));
   const y = world.wrap(room.y + 2);
