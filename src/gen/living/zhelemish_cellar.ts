@@ -11,6 +11,7 @@ import { type PlotNpcDef, registerSideQuest } from '../../data/plot';
 import { connectProtectedRoom, protectRoom } from '../shared';
 import { genLog } from '../log';
 import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
+import { getEntityIndex } from '../../systems/entity_index';
 import { registerZoneContent } from './zone_content';
 
 const CONTENT_TAG = 'ag102_zhelemish_cellar';
@@ -286,14 +287,24 @@ function spawnNpc(
   angle: number,
   weapon?: string,
 ): number {
-  const existing = entities.find(e => e.alive && e.plotNpcId === plotNpcId);
-  if (existing) return existing.id;
+  let existing = getEntityIndex().byPlotNpcId.get(plotNpcId);
+  if (existing && !existing.alive) existing = undefined;
+  if (!existing) {
+    existing = entities.find(e => e.alive && e.plotNpcId === plotNpcId);
+  }
+  if (existing) {
+    if (!getEntityIndex().byPlotNpcId.has(plotNpcId)) {
+      getEntityIndex().byPlotNpcId.set(plotNpcId, existing);
+    }
+    return existing.id;
+  }
   const npc = requireSpawnedPlotNpcFromPackage(entities, nextId, plotNpcId, x + 0.5, y + 0.5, {
     angle,
     weapon,
     canGiveQuest: true,
     aiTarget: { x: x + 0.5, y: y + 0.5 },
   });
+  getEntityIndex().byPlotNpcId.set(plotNpcId, npc);
   return npc.id;
 }
 
