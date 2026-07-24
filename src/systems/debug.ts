@@ -1241,6 +1241,513 @@ function spawnDebugItemDropsAroundPlayer(
   return `${label}: разложено ${slots}/${items.length}, лимит предметов`;
 }
 
+type DebugCommandHandler = (
+  world: World,
+  player: Entity,
+  entities: Entity[],
+  state: GameState,
+  nextEntityId: { v: number },
+) => DebugCommandAction | void | null;
+
+const DEBUG_COMMAND_HANDLERS: Record<number, DebugCommandHandler> = {
+  0: (world, player, entities, state, nextEntityId) => {
+state.msgs.push(msg(`[DEBUG] ${spawnDebugItemDropsAroundPlayer(world, player, entities, nextEntityId, debugWeaponAndAmmoDrops(), 'оружие+патроны')}`, state.time, '#ff0'));
+  },
+  1: (world, player, entities, state, nextEntityId) => {
+const kinds = Object.values(MonsterKind).filter((v): v is MonsterKind => typeof v === 'number');
+const slots = entitySpawnSlots(entities, EntityType.MONSTER, kinds.length);
+for (let i = 0; i < slots; i++) {
+        const k = kinds[i];
+        const def = MONSTERS[k];
+        const ang = (i / kinds.length) * Math.PI * 2;
+        const monster: Entity = {
+          id: nextEntityId.v++, type: EntityType.MONSTER,
+          x: player.x + Math.cos(ang) * 4,
+          y: player.y + Math.sin(ang) * 4,
+          angle: ang + Math.PI, pitch: 0, alive: true,
+          speed: def.speed, sprite: def.sprite,
+          hp: def.hp, maxHp: def.hp,
+          monsterKind: k, attackCd: 0,
+          ai: { goal: AIGoal.IDLE, tx: 0, ty: 0, path: [], pi: 0, stuck: 0, timer: 0 },
+          rpg: randomRPG(player.rpg?.level ?? 1),
+          phasing: k === MonsterKind.SPIRIT,
+        };
+        entities.push(monster);
+        seedDebugFogSharkPatch(world, k, monster.x, monster.y);
+      }
+state.msgs.push(msg('Все монстры заспавнены', state.time, '#ff0'));
+  },
+  2: (_world, player, entities, state, nextEntityId) => {
+if (!canSpawnEntityType(entities, EntityType.NPC)) {
+        state.msgs.push(msg('Лимит NPC достигнут', state.time, '#f88'));
+        return;
+      }
+const nm = randomName();
+const rpg = randomRPG(player.rpg?.level ?? 1);
+const maxHp = getMaxHp(rpg);
+const factions = [Faction.CITIZEN, Faction.LIQUIDATOR, Faction.CULTIST, Faction.WILD];
+const faction = factions[Math.floor(Math.random() * factions.length)];
+entities.push({
+        id: nextEntityId.v++, type: EntityType.NPC,
+        x: player.x + Math.cos(player.angle) * 2,
+        y: player.y + Math.sin(player.angle) * 2,
+        angle: player.angle + Math.PI, pitch: 0, alive: true,
+        speed: 1.2, sprite: Occupation.TRAVELER,
+        name: nm.name, firstName: nm.firstName, lastName: nm.lastName, isFemale: nm.female,
+        needs: freshNeeds(), hp: maxHp, maxHp,
+        ai: { goal: AIGoal.IDLE, tx: 0, ty: 0, path: [], pi: 0, stuck: 0, timer: 0 },
+        inventory: [], faction, occupation: Occupation.TRAVELER, isTraveler: true,
+        rpg, money: 20 + Math.floor(Math.random() * 80),
+      });
+state.msgs.push(msg(`NPC ${nm.name} заспавнен`, state.time, '#ff0'));
+  },
+  3: (world, player, entities, state, nextEntityId) => {
+state.msgs.push(msg(`[DEBUG] ${spawnDebugItemDropsAroundPlayer(world, player, entities, nextEntityId, debugOtherItemDrops(), 'остальные предметы')}`, state.time, '#ff0'));
+  },
+  4: (_world, player, _entities, state, _nextEntityId) => {
+awardXP(player, 1_000_000, state.msgs, state.time);
+state.msgs.push(msg('+1 000 000 XP', state.time, '#ff0'));
+  },
+  5: (_world, _player, _entities, state, _nextEntityId) => {
+const variantId = cycleForcedSamosborVariant();
+state.samosborTimer = 0;
+state.msgs.push(msg(`[DEBUG] Следующий самосбор: ${variantId} (глобальный)`, state.time, '#ff0'));
+  },
+  6: (_world, _player, _entities, state, _nextEntityId) => {
+const enabled = toggleDebugNoClip();
+state.msgs.push(msg(
+        `[DEBUG] Noclip ${enabled ? 'включён' : 'выключен'}`,
+        state.time,
+        '#ff0',
+      ));
+  },
+  7: (_world, _player, _entities, state, _nextEntityId) => {
+const store = ensureWorldEventState(state);
+state.msgs.push(msg(
+        `[EVENTS] recent=${store.recentEvents.count}/${store.recentEvents.capacity} important=${store.importantEvents.count}/${store.importantEvents.capacity}`,
+        state.time,
+        '#ff0',
+      ));
+const important = getImportantEvents(state, 10);
+if (important.length === 0) {
+        state.msgs.push(msg('[EVENTS] important: none', state.time, '#888'));
+        return;
+      }
+for (let i = important.length - 1; i >= 0; i--) {
+        const e = important[i];
+        const zone = e.zoneId !== undefined ? ` z${e.zoneId + 1}` : '';
+        state.msgs.push(msg(`[EVENTS] #${e.id} ${e.type}${zone} sev${e.severity}`, state.time, '#ccf'));
+      }
+for (const row of summarizeImportantEventsByFloorZone(state, 8)) {
+        const zone = row.zoneId >= 0 ? `z${row.zoneId + 1}` : 'z?';
+        state.msgs.push(msg(
+          `[EVENTS] floor ${row.floor} ${zone}: ${row.count} imp, max${row.maxSeverity}, last ${row.lastType}#${row.lastId}`,
+          state.time,
+          '#9cf',
+        ));
+      }
+  },
+  8: (_world, _player, _entities, state, _nextEntityId) => {
+for (const line of summarizeEconomy(state, 10)) state.msgs.push(msg(`[PRICE] ${line}`, state.time, '#ccf'));
+for (const id of ['water', 'bread', 'bandage', 'ammo_9mm', 'pipe', 'note']) {
+        state.msgs.push(msg(`[PRICE] ${ITEMS[id]?.name ?? id}: ${getAdjustedItemPrice(state, id)}₽`, state.time, '#ccf'));
+      }
+  },
+  9: (world, player, _entities, state, _nextEntityId) => {
+const made = ensureRoomContainers(world, state.currentFloor);
+if (made > 0) state.msgs.push(msg(`[CONT] создано: ${made}`, state.time, '#ff0'));
+const list = nearbyContainers(world, player, 3);
+if (list.length === 0) {
+        state.msgs.push(msg(`[CONT] рядом нет. всего=${world.containers.length}`, state.time, '#888'));
+        return;
+      }
+for (const c of list.slice(0, 5)) state.msgs.push(msg(`[CONT] ${describeContainer(c)}`, state.time, '#ccf'));
+  },
+  10: (world, player, entities, state, _nextEntityId) => {
+ensureRoomContainers(world, state.currentFloor);
+const c = firstNearbyContainer(world, player);
+if (!c) {
+        state.msgs.push(msg('[CONT] рядом нет контейнера', state.time, '#888'));
+        return;
+      }
+const ok = takeFromContainer(c, player, 0, 1, { state, world, entities });
+state.msgs.push(msg(ok ? `[CONT] взято из #${c.id}` : `[CONT] #${c.id} пуст/недоступен`, state.time, ok ? '#4f4' : '#f84'));
+  },
+  11: (world, _player, _entities, state, _nextEntityId) => {
+const made = tickProduction(state, world, true);
+for (const line of summarizeProduction(state, 5)) state.msgs.push(msg(`[PROD] ${line}`, state.time, made > 0 ? '#4f4' : '#888'));
+  },
+  12: (_world, _player, _entities, state, _nextEntityId) => {
+spawnContract(state);
+for (const line of summarizeContracts(state, 6)) state.msgs.push(msg(`[QUEST] ${line}`, state.time, '#6cf'));
+  },
+  13: (world, player, entities, state, _nextEntityId) => {
+for (const line of populationItemSummary(world, entities, state)) state.msgs.push(msg(`[BAL] ${line}`, state.time, '#ccf'));
+const search = CATALOG_DEBUG_SEARCHES[catalogDebugSearchIndex++ % CATALOG_DEBUG_SEARCHES.length];
+const query = search
+        ? { search, limit: 6 }
+        : { baseFloor: state.currentFloor, limit: 6 };
+for (const line of floorCatalogDebugLines(query)) state.msgs.push(msg(`[CAT] ${line}`, state.time, '#ccf'));
+for (const line of summarizeHeatline(world)) state.msgs.push(msg(line, state.time, '#f84'));
+for (const line of summarizeCarnivorousFungus(world)) state.msgs.push(msg(line, state.time, '#bf8'));
+for (const line of summarizeHladonColdPockets(world, player)) state.msgs.push(msg(line, state.time, '#8cf'));
+  },
+  14: (_world, _player, _entities, state, _nextEntityId) => {
+for (const line of summarizeFloorRun(state)) state.msgs.push(msg(`[FLOOR] ${line}`, state.time, '#8cf'));
+for (const line of summarizeFloorInstances(state)) state.msgs.push(msg(`[LIFT] ${line}`, state.time, '#f4a'));
+  },
+  15: (world, player, entities, state, nextEntityId) => {
+for (const line of debugForceVoidProtocol(world, player, entities, state, nextEntityId)) {
+        state.msgs.push(msg(`[VOID] ${line}`, state.time, '#8ff'));
+      }
+  },
+  16: (world, player, entities, state, _nextEntityId) => {
+for (const line of summarizeFactionEvents(state, world, player, entities)) {
+        state.msgs.push(msg(`[FACT] ${line}`, state.time, '#ccf'));
+      }
+  },
+  17: (world, player, entities, state, nextEntityId) => {
+state.msgs.push(msg(forceFactionEvent(state, world, player, entities, nextEntityId), state.time, '#ff0'));
+  },
+  18: (world, player, entities, state, nextEntityId) => {
+state.msgs.push(msg(forceFactionEvent(state, world, player, entities, nextEntityId, 'cult_procession'), state.time, '#ff0'));
+  },
+  19: (_world, _player, _entities, state, _nextEntityId) => {
+for (const line of summarizeSamosborDirector(state)) state.msgs.push(msg(`[DIR] ${line}`, state.time, '#ccf'));
+  },
+  20: (world, _player, entities, state, nextEntityId) => {
+const result = forceNextSamosborDirectorBeat(world, entities, state, nextEntityId, getActiveSamosborVariant());
+state.msgs.push(msg(
+        result.fired ? `[DIR] forced ${result.beatId}` : `[DIR] ${result.reasonCode}`,
+        state.time,
+        result.fired ? '#4f4' : '#f84',
+      ));
+  },
+  21: (_world, _player, _entities, state, _nextEntityId) => {
+clearSamosborDirectorCooldowns(state);
+state.msgs.push(msg('[DIR] cooldowns cleared', state.time, '#ff0'));
+  },
+  22: (_world, _player, _entities, _state, _nextEntityId) => {
+return { type: 'teleport_story_floor', floor: FloorLevel.MINISTRY };
+  },
+  23: (_world, _player, _entities, _state, _nextEntityId) => {
+return { type: 'teleport_story_floor', floor: FloorLevel.KVARTIRY };
+  },
+  24: (_world, _player, _entities, _state, _nextEntityId) => {
+return { type: 'teleport_story_floor', floor: FloorLevel.LIVING };
+  },
+  25: (_world, _player, _entities, _state, _nextEntityId) => {
+return { type: 'teleport_story_floor', floor: FloorLevel.MAINTENANCE };
+  },
+  26: (_world, _player, _entities, _state, _nextEntityId) => {
+return { type: 'teleport_story_floor', floor: FloorLevel.HELL };
+  },
+  27: (_world, _player, _entities, _state, _nextEntityId) => {
+return { type: 'teleport_story_floor', floor: FloorLevel.VOID };
+  },
+  28: (_world, _player, _entities, _state, _nextEntityId) => {
+return { type: 'teleport_random_procedural_floor' };
+  },
+  29: (world, player, entities, state, nextEntityId) => {
+addItem(player, 'makarov', 1);
+addItem(player, 'ammo_9mm', 30);
+player.weapon = 'makarov';
+const moved = movePlayerToSmokeLift(world, player, entities);
+const target = spawnSmokeTarget(world, player, entities, nextEntityId);
+const contract = spawnContract(state);
+state.msgs.push(msg(
+        `[SMOKE] kit=${player.weapon} lift=${moved ? 'ready' : 'missing'} target=${target ? 'spawned' : 'skipped'} contract=${contract ? 'created' : 'skipped'}`,
+        state.time,
+        moved && contract ? '#4f4' : '#f84',
+      ));
+  },
+  30: (world, player, entities, state, _nextEntityId) => {
+forceNextSamosborVariant('veretar');
+if (!state.samosborActive) state.samosborTimer = 0;
+if (isSmokeDebugRun()) stabilizeSmokeRecovery(world, player, entities);
+state.msgs.push(msg(
+        state.samosborActive
+          ? '[DEBUG] Следующий самосбор: Веретар (глобальный) после текущего'
+          : '[DEBUG] Следующий самосбор: Веретар (глобальный)',
+        state.time,
+        '#f4f1df',
+      ));
+  },
+  31: (_world, _player, _entities, state, _nextEntityId) => {
+forceNextSamosborVariant('maronary');
+state.samosborTimer = 0;
+state.msgs.push(msg('[DEBUG] Следующий самосбор: Маронарий (глобальный)', state.time, '#35ff66'));
+  },
+  32: (world, player, _entities, state, _nextEntityId) => {
+const count = routeCueCount(world);
+state.msgs.push(msg(`[CUE] registered=${count}`, state.time, count > 0 ? '#9f7' : '#fa4'));
+for (const line of debugTriggerRouteCue(world, player, state)) {
+        state.msgs.push(msg(`[CUE] ${line}`, state.time, '#9f7'));
+      }
+  },
+  33: (world, player, _entities, state, _nextEntityId) => {
+const ok = debugCreateWrongDoorRemap(world, player, state);
+state.msgs.push(msg(
+        ok ? '[MAR] неправильная дверь создана' : '[MAR] рядом нет подходящей пары дверей',
+        state.time,
+        ok ? '#35ff66' : '#f84',
+      ));
+  },
+  34: (_world, player, _entities, state, _nextEntityId) => {
+const ok = addItem(player, 'maronary_shaving', 1);
+if (ok) publishMaronaryShavingAcquired(player, state, 'debug_grant');
+state.msgs.push(msg(ok ? '[MAR] зелёная стружка выдана' : '[MAR] нет места для стружки', state.time, ok ? '#fc4' : '#f84'));
+  },
+  35: (_world, _player, _entities, state, _nextEntityId) => {
+forceNextSamosborVariant('istotit');
+state.samosborTimer = 0;
+state.msgs.push(msg('[DEBUG] Следующий самосбор: Истотит (глобальный)', state.time, '#d6a64b'));
+  },
+  36: (_world, _player, _entities, _state, _nextEntityId) => {
+return { type: 'teleport_procedural_anomaly', anomalyId: 'smog' };
+  },
+  37: (_world, _player, _entities, _state, _nextEntityId) => {
+return { type: 'teleport_procedural_anomaly', anomalyId: 'false_safe_block' };
+  },
+  38: (_world, _player, _entities, _state, _nextEntityId) => {
+return { type: 'teleport_procedural_anomaly', anomalyId: 'hladon' };
+  },
+  39: (_world, player, _entities, state, _nextEntityId) => {
+const created = spawnGovnyakCourierContract(state, player);
+for (const line of summarizeContracts(state, 6)) state.msgs.push(msg(`[QUEST] ${line}`, state.time, created ? '#6cf' : '#888'));
+  },
+  40: (world, player, _entities, state, _nextEntityId) => {
+for (const line of debugForcePneumomailCapsule(world, player, state)) {
+        state.msgs.push(msg(`[PMAIL] ${line}`, state.time, '#8cf'));
+      }
+  },
+  41: (world, player, entities, state, nextEntityId) => {
+for (const line of debugForceHermodoorBorer(world, player, entities, state, nextEntityId)) {
+        state.msgs.push(msg(`[BORER] ${line}`, state.time, '#fb6'));
+      }
+  },
+  42: (world, player, entities, state, nextEntityId) => {
+state.msgs.push(msg(forceFactionEvent(state, world, player, entities, nextEntityId, 'cult_liquidator_clash'), state.time, '#ff0'));
+  },
+  43: (_world, player, _entities, state, _nextEntityId) => {
+const enabled = toggleDebugOnePunchMan();
+if (enabled) keepDebugOnePunchManAlive(player);
+state.msgs.push(msg(
+        `[DEBUG] ONEPUNCHMAN ${enabled ? 'включён' : 'выключен'}`,
+        state.time,
+        enabled ? '#ff0' : '#888',
+      ));
+  },
+  44: (_world, _player, _entities, state, _nextEntityId) => {
+grantNetTerminalGenAccess(state);
+state.msgs.push(msg('[НЕТ-ГЕН] доступ выдан', state.time, '#63f6ff'));
+  },
+  45: (world, _player, _entities, state, _nextEntityId) => {
+const count = placeNetTerminalGenTerminalsForCurrentFloor(world, state, { debug: true, max: 4, clearExisting: true, source: 'debug' });
+state.msgs.push(msg(`[НЕТ-ГЕН] терминалов: ${count}`, state.time, count > 0 ? '#63f6ff' : '#f84'));
+return { type: 'refresh_world_data' };
+  },
+  46: (world, player, _entities, state, _nextEntityId) => {
+const x = Math.floor(player.x + Math.cos(player.angle) * 1.5);
+const y = Math.floor(player.y + Math.sin(player.angle) * 1.5);
+const terminal = placeNetTerminalGenTerminal(world, x, y, undefined, 'debug');
+state.msgs.push(msg(terminal ? `[НЕТ-ГЕН] терминал ${terminal.x},${terminal.y}` : '[НЕТ-ГЕН] нет подходящей клетки', state.time, terminal ? '#63f6ff' : '#f84'));
+return { type: 'refresh_world_data' };
+  },
+  47: (world, player, _entities, state, _nextEntityId) => {
+state.showDebug = false;
+openMapEditor(world, player, state);
+  },
+  48: (_world, player, _entities, state, _nextEntityId) => {
+for (const line of summarizeNetTerminalGen(state, player)) state.msgs.push(msg(`[НЕТ-ГЕН] ${line}`, state.time, '#63f6ff'));
+for (const line of summarizeMapEditor(state)) state.msgs.push(msg(`[MAPEDIT] ${line}`, state.time, '#9fdbc6'));
+  },
+  49: (world, player, entities, state, nextEntityId) => {
+const applied = replayMapEditorPatchForCurrentFloor(world, entities, player, state, nextEntityId);
+state.msgs.push(msg(`[MAPEDIT] replay ${applied}`, state.time, applied > 0 ? '#9fdbc6' : '#888'));
+return { type: 'refresh_world_data' };
+  },
+  50: (_world, _player, _entities, state, _nextEntityId) => {
+const cleared = clearCurrentMapEditorPatch(state);
+state.msgs.push(msg(cleared ? '[MAPEDIT] patch cleared' : '[MAPEDIT] patch empty', state.time, cleared ? '#9fdbc6' : '#888'));
+  },
+  51: (_world, _player, _entities, _state, _nextEntityId) => {
+return { type: 'teleport_procedural_anomaly', anomalyId: 'fractal_floor' };
+  },
+  52: (_world, _player, _entities, _state, _nextEntityId) => {
+return { type: 'teleport_procedural_anomaly', anomalyId: 'mirror_run' };
+  },
+  53: (_world, _player, _entities, _state, _nextEntityId) => {
+return { type: 'teleport_procedural_anomaly', anomalyId: 'radio_chess' };
+  },
+  54: (_world, _player, _entities, _state, _nextEntityId) => {
+return { type: 'teleport_procedural_anomaly', anomalyId: 'cement_memory' };
+  },
+  55: (_world, _player, _entities, _state, _nextEntityId) => {
+return { type: 'teleport_procedural_anomaly', anomalyId: 'conveyor_sorter' };
+  },
+  56: (_world, _player, _entities, _state, _nextEntityId) => {
+return { type: 'teleport_procedural_anomaly', anomalyId: 'wall_snake' };
+  },
+  57: (_world, _player, _entities, _state, _nextEntityId) => {
+return { type: 'teleport_procedural_anomaly', anomalyId: 'section_shift' };
+  },
+  58: (_world, _player, _entities, _state, _nextEntityId) => {
+return { type: 'teleport_procedural_anomaly', anomalyId: 'conway_life' };
+  },
+  59: (_world, _player, _entities, _state, _nextEntityId) => {
+return { type: 'teleport_procedural_anomaly', anomalyId: 'rail_trains' };
+  },
+  60: (world, player, _entities, state, _nextEntityId) => {
+for (const line of debugSpawnBadAppleWorld(world, player, state)) state.msgs.push(msg(`[BADAPPLE] ${line}`, state.time, '#fff'));
+return { type: 'refresh_world_data' };
+  },
+  61: (_world, _player, _entities, state, _nextEntityId) => {
+for (const line of spawnDebugVerificationContract(state)) state.msgs.push(msg(`[CONTRACT-DEBUG] ${line}`, state.time, '#6cf'));
+  },
+  62: (world, player, _entities, state, _nextEntityId) => {
+state.msgs.push(msg(`[EVENTS-DEBUG] ${publishDebugVerificationEvent(world, player, state)}`, state.time, '#ff0'));
+  },
+  63: (world, player, entities, state, _nextEntityId) => {
+for (const line of debugRouteFloorSummaryLines(world, player, entities, state)) state.msgs.push(msg(`[ROUTE] ${line}`, state.time, '#8cf'));
+  },
+  64: (world, player, _entities, state, _nextEntityId) => {
+for (const line of armLocalFloorInstance(world, player, state)) state.msgs.push(msg(`[LIFT-DEBUG] ${line}`, state.time, '#f4a'));
+  },
+  65: (_world, _player, _entities, state, _nextEntityId) => {
+state.msgs.push(msg(`[SAMOSBOR-DEBUG] ${setSamosborWarningWindow(state)}`, state.time, '#fa4'));
+  },
+  66: (world, player, _entities, state, _nextEntityId) => {
+for (const line of applyDebugEconomyPulse(world, player, state)) state.msgs.push(msg(`[ECON-DEBUG] ${line}`, state.time, '#ccf'));
+  },
+  67: (world, player, entities, state, nextEntityId) => {
+for (const line of spawnDebugMonsterPack(world, player, entities, state, nextEntityId)) {
+        state.msgs.push(msg(`[MON-DEBUG] ${line}`, state.time, '#f88'));
+      }
+  },
+  68: (world, player, _entities, state, _nextEntityId) => {
+for (const line of routePlayerToNearestContainer(world, player, state)) state.msgs.push(msg(`[CONT-DEBUG] ${line}`, state.time, '#ccf'));
+  },
+  69: (_world, _player, _entities, _state, _nextEntityId) => {
+return { type: 'teleport_procedural_anomaly', anomalyId: 'zombie_apocalypse' };
+  },
+  70: (_world, player, _entities, state, _nextEntityId) => {
+addItem(player, 'makarov', 1);
+addItem(player, 'ammo_9mm', 40);
+addItem(player, 'water', 2);
+addItem(player, 'bread', 2);
+addItem(player, 'bandage', 2);
+player.weapon = 'makarov';
+const created = spawnContractById(state, EXPEDITION_PROOF_CONTRACT_ID, ['debug_route', 'expedition_proof']);
+state.msgs.push(msg(`[EXPEDITION] prep kit=${player.weapon} contract=${created ? 'created' : 'existing'}`, state.time, '#6cf'));
+  },
+  71: (world, player, entities, state, _nextEntityId) => {
+const moved = movePlayerToSmokeLift(world, player, entities);
+state.msgs.push(msg(`[EXPEDITION] lift=${moved ? 'ready' : 'missing'}`, state.time, moved ? '#4f4' : '#f84'));
+  },
+  72: (_world, _player, _entities, _state, _nextEntityId) => {
+return { type: 'teleport_story_floor', floor: FloorLevel.MAINTENANCE };
+  },
+  73: (world, player, entities, state, nextEntityId) => {
+state.msgs.push(msg(forceFactionEvent(state, world, player, entities, nextEntityId), state.time, '#ff0'));
+  },
+  74: (world, player, _entities, state, _nextEntityId) => {
+for (const line of routePlayerToNearestContainer(world, player, state)) state.msgs.push(msg(`[EXPEDITION] ${line}`, state.time, '#ccf'));
+  },
+  75: (_world, _player, _entities, state, _nextEntityId) => {
+state.msgs.push(msg(`[EXPEDITION] ${setSamosborWarningWindow(state)}`, state.time, '#fa4'));
+  },
+  76: (_world, _player, _entities, _state, _nextEntityId) => {
+return { type: 'teleport_story_floor', floor: FloorLevel.LIVING };
+  },
+  77: (world, player, entities, state, _nextEntityId) => {
+for (const line of debugStartSamosborWaveAtPlayer(world, player, entities, state, 'small')) {
+        state.msgs.push(msg(`[SAMOSBOR-WAVE] ${line}`, state.time, '#c8f'));
+      }
+return { type: 'refresh_world_data' };
+  },
+  78: (_world, player, _entities, state, _nextEntityId) => {
+for (const line of grantDebugPermitPack(player)) state.msgs.push(msg(`[PERMIT] ${line}`, state.time, '#fc6'));
+  },
+  79: (world, player, _entities, state, _nextEntityId) => {
+for (const line of checkDebugPermitAccess(world, player, state)) state.msgs.push(msg(`[PERMIT] ${line}`, state.time, '#fc6'));
+  },
+  80: (world, player, _entities, state, _nextEntityId) => {
+for (const line of spoilDebugPermit(world, player, state)) state.msgs.push(msg(`[PERMIT] ${line}`, state.time, '#f84'));
+  },
+  81: (world, player, _entities, state, _nextEntityId) => {
+for (const line of debugForcePseudoliftNearPlayer(world, player, state)) {
+        state.msgs.push(msg(`[PSEUDOLIFT] ${line}`, state.time, '#fc4'));
+      }
+return { type: 'refresh_world_data' };
+  },
+  82: (world, player, entities, state, nextEntityId) => {
+for (const line of spawnDebugFalseCleanupPatrol(world, player, entities, state, nextEntityId)) {
+        state.msgs.push(msg(`[FALSE-CLEANUP] ${line}`, state.time, '#f84'));
+      }
+return { type: 'refresh_world_data' };
+  },
+  83: (world, player, entities, state, nextEntityId) => {
+for (const line of spawnDebugMukhozhukHost(world, player, entities, state, nextEntityId)) {
+        state.msgs.push(msg(`[MUKHOZHUK] ${line}`, state.time, '#ce8'));
+      }
+return { type: 'refresh_world_data' };
+  },
+  84: (world, player, entities, state, nextEntityId) => {
+for (const line of spawnDebugChervieSite(world, player, entities, state, nextEntityId)) {
+        state.msgs.push(msg(`[CHERVIE] ${line}`, state.time, '#6f8'));
+      }
+return { type: 'refresh_world_data' };
+  },
+  85: (world, _player, _entities, state, _nextEntityId) => {
+const cells = revealWholeMap(world);
+state.msgs.push(msg(`[DEBUG] revealmap: открыто клеток ${cells}`, state.time, '#ff0'));
+  },
+  86: (_world, player, entities, state, nextEntityId) => {
+if (!canSpawnEntityType(entities, EntityType.ITEM_DROP)) {
+        state.msgs.push(msg('[DEBUG] лимит предметов: мелок не заспавнен', state.time, '#f84'));
+        return;
+      }
+entities.push({
+        id: nextEntityId.v++,
+        type: EntityType.ITEM_DROP,
+        x: player.x + Math.cos(player.angle) * 1.4,
+        y: player.y + Math.sin(player.angle) * 1.4,
+        angle: 0,
+        pitch: 0,
+        alive: true,
+        speed: 0,
+        sprite: Spr.ITEM_DROP,
+        inventory: [{ defId: CHALK_ITEM_ID, count: 1 }],
+      });
+state.msgs.push(msg('[DEBUG] мелок заспавнен перед игроком', state.time, '#ff0'));
+  },
+  87: (world, player, entities, state, nextEntityId) => {
+state.msgs.push(msg(`[DEBUG] ${spawnDebugItemDropsAroundPlayer(world, player, entities, nextEntityId, debugPsiClotDrops(), 'ПСИ-сгустки')}`, state.time, '#ff0'));
+  },
+  88: (world, player, entities, state, nextEntityId) => {
+state.msgs.push(msg(`[DEBUG] ${spawnDebugItemDropsAroundPlayer(world, player, entities, nextEntityId, debugToolDrops(), 'инструменты')}`, state.time, '#ff0'));
+  },
+  89: (_world, player, entities, state, nextEntityId) => {
+const def = MONSTERS[MonsterKind.SCULPTURE];
+const ang = player.angle;
+entities.push({
+        id: nextEntityId.v++, type: EntityType.MONSTER,
+        x: player.x + Math.cos(ang) * 4,
+        y: player.y + Math.sin(ang) * 4,
+        angle: ang + Math.PI, pitch: 0, alive: true,
+        speed: def.speed, sprite: def.sprite,
+        hp: def.hp, maxHp: def.hp,
+        monsterKind: MonsterKind.SCULPTURE, attackCd: 0,
+        ai: { goal: AIGoal.IDLE, tx: 0, ty: 0, path: [], pi: 0, stuck: 0, timer: 0 },
+        rpg: randomRPG(player.rpg?.level ?? 1),
+        phasing: false,
+      });
+state.msgs.push(msg('[DEBUG] Скульптура заспавнена перед игроком', state.time, '#ff0'));
+  },
+
+};
+
 export function execDebugCommand(
   idx: number,
   world: World,
@@ -1265,518 +1772,10 @@ export function execDebugCommand(
     }
   }
 
-  switch (execIdx) {
-    case 0: { // All physical weapons + ammo — spawn as drops around player
-      state.msgs.push(msg(`[DEBUG] ${spawnDebugItemDropsAroundPlayer(world, player, entities, nextEntityId, debugWeaponAndAmmoDrops(), 'оружие+патроны')}`, state.time, '#ff0'));
-      break;
-    }
-    case 1: { // Spawn one of each monster nearby
-      const kinds = Object.values(MonsterKind).filter((v): v is MonsterKind => typeof v === 'number');
-      const slots = entitySpawnSlots(entities, EntityType.MONSTER, kinds.length);
-      for (let i = 0; i < slots; i++) {
-        const k = kinds[i];
-        const def = MONSTERS[k];
-        const ang = (i / kinds.length) * Math.PI * 2;
-        const monster: Entity = {
-          id: nextEntityId.v++, type: EntityType.MONSTER,
-          x: player.x + Math.cos(ang) * 4,
-          y: player.y + Math.sin(ang) * 4,
-          angle: ang + Math.PI, pitch: 0, alive: true,
-          speed: def.speed, sprite: def.sprite,
-          hp: def.hp, maxHp: def.hp,
-          monsterKind: k, attackCd: 0,
-          ai: { goal: AIGoal.IDLE, tx: 0, ty: 0, path: [], pi: 0, stuck: 0, timer: 0 },
-          rpg: randomRPG(player.rpg?.level ?? 1),
-          phasing: k === MonsterKind.SPIRIT,
-        };
-        entities.push(monster);
-        seedDebugFogSharkPatch(world, k, monster.x, monster.y);
+    const handler = DEBUG_COMMAND_HANDLERS[execIdx];
+      if (handler) {
+        return handler(world, player, entities, state, nextEntityId) || null;
       }
-      state.msgs.push(msg('Все монстры заспавнены', state.time, '#ff0'));
-      break;
-    }
-    case 2: { // Spawn random NPC nearby
-      if (!canSpawnEntityType(entities, EntityType.NPC)) {
-        state.msgs.push(msg('Лимит NPC достигнут', state.time, '#f88'));
-        break;
-      }
-      const nm = randomName();
-      const rpg = randomRPG(player.rpg?.level ?? 1);
-      const maxHp = getMaxHp(rpg);
-      const factions = [Faction.CITIZEN, Faction.LIQUIDATOR, Faction.CULTIST, Faction.WILD];
-      const faction = factions[Math.floor(Math.random() * factions.length)];
-      entities.push({
-        id: nextEntityId.v++, type: EntityType.NPC,
-        x: player.x + Math.cos(player.angle) * 2,
-        y: player.y + Math.sin(player.angle) * 2,
-        angle: player.angle + Math.PI, pitch: 0, alive: true,
-        speed: 1.2, sprite: Occupation.TRAVELER,
-        name: nm.name, firstName: nm.firstName, lastName: nm.lastName, isFemale: nm.female,
-        needs: freshNeeds(), hp: maxHp, maxHp,
-        ai: { goal: AIGoal.IDLE, tx: 0, ty: 0, path: [], pi: 0, stuck: 0, timer: 0 },
-        inventory: [], faction, occupation: Occupation.TRAVELER, isTraveler: true,
-        rpg, money: 20 + Math.floor(Math.random() * 80),
-      });
-      state.msgs.push(msg(`NPC ${nm.name} заспавнен`, state.time, '#ff0'));
-      break;
-    }
-    case 3: { // Spawn all non-weapon/non-ammo/non-tool items nearby
-      state.msgs.push(msg(`[DEBUG] ${spawnDebugItemDropsAroundPlayer(world, player, entities, nextEntityId, debugOtherItemDrops(), 'остальные предметы')}`, state.time, '#ff0'));
-      break;
-    }
-    case 4: { // Give 1M XP
-      awardXP(player, 1_000_000, state.msgs, state.time);
-      state.msgs.push(msg('+1 000 000 XP', state.time, '#ff0'));
-      break;
-    }
-    case 5: { // Cycle forced samosbor variant + start (full scale = global fronts)
-      const variantId = cycleForcedSamosborVariant();
-      state.samosborTimer = 0;
-      state.msgs.push(msg(`[DEBUG] Следующий самосбор: ${variantId} (глобальный)`, state.time, '#ff0'));
-      break;
-    }
-    case 6: { // Toggle noclip
-      const enabled = toggleDebugNoClip();
-      state.msgs.push(msg(
-        `[DEBUG] Noclip ${enabled ? 'включён' : 'выключен'}`,
-        state.time,
-        '#ff0',
-      ));
-      break;
-    }
-    case 7: { // Recent important world events
-      const store = ensureWorldEventState(state);
-      state.msgs.push(msg(
-        `[EVENTS] recent=${store.recentEvents.count}/${store.recentEvents.capacity} important=${store.importantEvents.count}/${store.importantEvents.capacity}`,
-        state.time,
-        '#ff0',
-      ));
-      const important = getImportantEvents(state, 10);
-      if (important.length === 0) {
-        state.msgs.push(msg('[EVENTS] important: none', state.time, '#888'));
-        break;
-      }
-      for (let i = important.length - 1; i >= 0; i--) {
-        const e = important[i];
-        const zone = e.zoneId !== undefined ? ` z${e.zoneId + 1}` : '';
-        state.msgs.push(msg(`[EVENTS] #${e.id} ${e.type}${zone} sev${e.severity}`, state.time, '#ccf'));
-      }
-      for (const row of summarizeImportantEventsByFloorZone(state, 8)) {
-        const zone = row.zoneId >= 0 ? `z${row.zoneId + 1}` : 'z?';
-        state.msgs.push(msg(
-          `[EVENTS] floor ${row.floor} ${zone}: ${row.count} imp, max${row.maxSeverity}, last ${row.lastType}#${row.lastId}`,
-          state.time,
-          '#9cf',
-        ));
-      }
-      break;
-    }
-    case 8: { // Economy prices
-      for (const line of summarizeEconomy(state, 10)) state.msgs.push(msg(`[PRICE] ${line}`, state.time, '#ccf'));
-      for (const id of ['water', 'bread', 'bandage', 'ammo_9mm', 'pipe', 'note']) {
-        state.msgs.push(msg(`[PRICE] ${ITEMS[id]?.name ?? id}: ${getAdjustedItemPrice(state, id)}₽`, state.time, '#ccf'));
-      }
-      break;
-    }
-    case 9: { // Containers near player
-      const made = ensureRoomContainers(world, state.currentFloor);
-      if (made > 0) state.msgs.push(msg(`[CONT] создано: ${made}`, state.time, '#ff0'));
-      const list = nearbyContainers(world, player, 3);
-      if (list.length === 0) {
-        state.msgs.push(msg(`[CONT] рядом нет. всего=${world.containers.length}`, state.time, '#888'));
-        break;
-      }
-      for (const c of list.slice(0, 5)) state.msgs.push(msg(`[CONT] ${describeContainer(c)}`, state.time, '#ccf'));
-      break;
-    }
-    case 10: { // Take first item from nearest container
-      ensureRoomContainers(world, state.currentFloor);
-      const c = firstNearbyContainer(world, player);
-      if (!c) {
-        state.msgs.push(msg('[CONT] рядом нет контейнера', state.time, '#888'));
-        break;
-      }
-      const ok = takeFromContainer(c, player, 0, 1, { state, world, entities });
-      state.msgs.push(msg(ok ? `[CONT] взято из #${c.id}` : `[CONT] #${c.id} пуст/недоступен`, state.time, ok ? '#4f4' : '#f84'));
-      break;
-    }
-    case 11: { // Force production tick
-      const made = tickProduction(state, world, true);
-      for (const line of summarizeProduction(state, 5)) state.msgs.push(msg(`[PROD] ${line}`, state.time, made > 0 ? '#4f4' : '#888'));
-      break;
-    }
-    case 12: { // Spawn/list system quest
-      spawnContract(state);
-      for (const line of summarizeContracts(state, 6)) state.msgs.push(msg(`[QUEST] ${line}`, state.time, '#6cf'));
-      break;
-    }
-    case 13: { // Population, item count, and floor pocket catalog
-      for (const line of populationItemSummary(world, entities, state)) state.msgs.push(msg(`[BAL] ${line}`, state.time, '#ccf'));
-      const search = CATALOG_DEBUG_SEARCHES[catalogDebugSearchIndex++ % CATALOG_DEBUG_SEARCHES.length];
-      const query = search
-        ? { search, limit: 6 }
-        : { baseFloor: state.currentFloor, limit: 6 };
-      for (const line of floorCatalogDebugLines(query)) state.msgs.push(msg(`[CAT] ${line}`, state.time, '#ccf'));
-      for (const line of summarizeHeatline(world)) state.msgs.push(msg(line, state.time, '#f84'));
-      for (const line of summarizeCarnivorousFungus(world)) state.msgs.push(msg(line, state.time, '#bf8'));
-      for (const line of summarizeHladonColdPockets(world, player)) state.msgs.push(msg(line, state.time, '#8cf'));
-      break;
-    }
-    case 14: { // Elevator floor instance state
-      for (const line of summarizeFloorRun(state)) state.msgs.push(msg(`[FLOOR] ${line}`, state.time, '#8cf'));
-      for (const line of summarizeFloorInstances(state)) state.msgs.push(msg(`[LIFT] ${line}`, state.time, '#f4a'));
-      break;
-    }
-    case 15: { // VOID protocols: grant/apply/list bounded state
-      for (const line of debugForceVoidProtocol(world, player, entities, state, nextEntityId)) {
-        state.msgs.push(msg(`[VOID] ${line}`, state.time, '#8ff'));
-      }
-      break;
-    }
-    case 16: { // Faction event scheduler
-      for (const line of summarizeFactionEvents(state, world, player, entities)) {
-        state.msgs.push(msg(`[FACT] ${line}`, state.time, '#ccf'));
-      }
-      break;
-    }
-    case 17: { // Force faction event in current zone
-      state.msgs.push(msg(forceFactionEvent(state, world, player, entities, nextEntityId), state.time, '#ff0'));
-      break;
-    }
-    case 18: { // Force cult procession in current zone
-      state.msgs.push(msg(forceFactionEvent(state, world, player, entities, nextEntityId, 'cult_procession'), state.time, '#ff0'));
-      break;
-    }
-    case 19: { // Samosbor director state
-      for (const line of summarizeSamosborDirector(state)) state.msgs.push(msg(`[DIR] ${line}`, state.time, '#ccf'));
-      break;
-    }
-    case 20: { // Force next samosbor director beat
-      const result = forceNextSamosborDirectorBeat(world, entities, state, nextEntityId, getActiveSamosborVariant());
-      state.msgs.push(msg(
-        result.fired ? `[DIR] forced ${result.beatId}` : `[DIR] ${result.reasonCode}`,
-        state.time,
-        result.fired ? '#4f4' : '#f84',
-      ));
-      break;
-    }
-    case 21: { // Clear samosbor director cooldowns
-      clearSamosborDirectorCooldowns(state);
-      state.msgs.push(msg('[DIR] cooldowns cleared', state.time, '#ff0'));
-      break;
-    }
-    case 22: return { type: 'teleport_story_floor', floor: FloorLevel.MINISTRY };
-    case 23: return { type: 'teleport_story_floor', floor: FloorLevel.KVARTIRY };
-    case 24: return { type: 'teleport_story_floor', floor: FloorLevel.LIVING };
-    case 25: return { type: 'teleport_story_floor', floor: FloorLevel.MAINTENANCE };
-    case 26: return { type: 'teleport_story_floor', floor: FloorLevel.HELL };
-    case 27: return { type: 'teleport_story_floor', floor: FloorLevel.VOID };
-    case 28: return { type: 'teleport_random_procedural_floor' };
-    case 29: { // Smoke expedition setup
-      addItem(player, 'makarov', 1);
-      addItem(player, 'ammo_9mm', 30);
-      player.weapon = 'makarov';
-      const moved = movePlayerToSmokeLift(world, player, entities);
-      const target = spawnSmokeTarget(world, player, entities, nextEntityId);
-      const contract = spawnContract(state);
-      state.msgs.push(msg(
-        `[SMOKE] kit=${player.weapon} lift=${moved ? 'ready' : 'missing'} target=${target ? 'spawned' : 'skipped'} contract=${contract ? 'created' : 'skipped'}`,
-        state.time,
-        moved && contract ? '#4f4' : '#f84',
-      ));
-      break;
-    }
-    case 30: { // Force Veretar variant + start (full scale)
-      forceNextSamosborVariant('veretar');
-      if (!state.samosborActive) state.samosborTimer = 0;
-      if (isSmokeDebugRun()) stabilizeSmokeRecovery(world, player, entities);
-      state.msgs.push(msg(
-        state.samosborActive
-          ? '[DEBUG] Следующий самосбор: Веретар (глобальный) после текущего'
-          : '[DEBUG] Следующий самосбор: Веретар (глобальный)',
-        state.time,
-        '#f4f1df',
-      ));
-      break;
-    }
-    case 31: { // Force Maronary variant + start (full scale)
-      forceNextSamosborVariant('maronary');
-      state.samosborTimer = 0;
-      state.msgs.push(msg('[DEBUG] Следующий самосбор: Маронарий (глобальный)', state.time, '#35ff66'));
-      break;
-    }
-    case 32: { // Route cue audio/HUD smoke
-      const count = routeCueCount(world);
-      state.msgs.push(msg(`[CUE] registered=${count}`, state.time, count > 0 ? '#9f7' : '#fa4'));
-      for (const line of debugTriggerRouteCue(world, player, state)) {
-        state.msgs.push(msg(`[CUE] ${line}`, state.time, '#9f7'));
-      }
-      break;
-    }
-    case 33: { // Force Maronary wrong-door remap
-      const ok = debugCreateWrongDoorRemap(world, player, state);
-      state.msgs.push(msg(
-        ok ? '[MAR] неправильная дверь создана' : '[MAR] рядом нет подходящей пары дверей',
-        state.time,
-        ok ? '#35ff66' : '#f84',
-      ));
-      break;
-    }
-    case 34: { // Grant Maronary shaving
-      const ok = addItem(player, 'maronary_shaving', 1);
-      if (ok) publishMaronaryShavingAcquired(player, state, 'debug_grant');
-      state.msgs.push(msg(ok ? '[MAR] зелёная стружка выдана' : '[MAR] нет места для стружки', state.time, ok ? '#fc4' : '#f84'));
-      break;
-    }
-    case 35: { // Force Istotit variant + start (full scale)
-      forceNextSamosborVariant('istotit');
-      state.samosborTimer = 0;
-      state.msgs.push(msg('[DEBUG] Следующий самосбор: Истотит (глобальный)', state.time, '#d6a64b'));
-      break;
-    }
-    case 36: return { type: 'teleport_procedural_anomaly', anomalyId: 'smog' };
-    case 37: return { type: 'teleport_procedural_anomaly', anomalyId: 'false_safe_block' };
-    case 38: return { type: 'teleport_procedural_anomaly', anomalyId: 'hladon' };
-    case 39: { // Govnyak courier route choice
-      const created = spawnGovnyakCourierContract(state, player);
-      for (const line of summarizeContracts(state, 6)) state.msgs.push(msg(`[QUEST] ${line}`, state.time, created ? '#6cf' : '#888'));
-      break;
-    }
-    case 40: { // Force pneumomail capsule
-      for (const line of debugForcePneumomailCapsule(world, player, state)) {
-        state.msgs.push(msg(`[PMAIL] ${line}`, state.time, '#8cf'));
-      }
-      break;
-    }
-    case 41: { // Force hermodoor borer QA route
-      for (const line of debugForceHermodoorBorer(world, player, entities, state, nextEntityId)) {
-        state.msgs.push(msg(`[BORER] ${line}`, state.time, '#fb6'));
-      }
-      break;
-    }
-    case 42: { // Force liquidator-cult clash
-      state.msgs.push(msg(forceFactionEvent(state, world, player, entities, nextEntityId, 'cult_liquidator_clash'), state.time, '#ff0'));
-      break;
-    }
-    case 43: { // Toggle Onepunchman cheat
-      const enabled = toggleDebugOnePunchMan();
-      if (enabled) keepDebugOnePunchManAlive(player);
-      state.msgs.push(msg(
-        `[DEBUG] ONEPUNCHMAN ${enabled ? 'включён' : 'выключен'}`,
-        state.time,
-        enabled ? '#ff0' : '#888',
-      ));
-      break;
-    }
-    case 44: { // Grant Net Terminal Gen access
-      grantNetTerminalGenAccess(state);
-      state.msgs.push(msg('[НЕТ-ГЕН] доступ выдан', state.time, '#63f6ff'));
-      break;
-    }
-    case 45: { // Place generated terminals on current floor
-      const count = placeNetTerminalGenTerminalsForCurrentFloor(world, state, { debug: true, max: 4, clearExisting: true, source: 'debug' });
-      state.msgs.push(msg(`[НЕТ-ГЕН] терминалов: ${count}`, state.time, count > 0 ? '#63f6ff' : '#f84'));
-      return { type: 'refresh_world_data' };
-    }
-    case 46: { // Place terminal in front of player
-      const x = Math.floor(player.x + Math.cos(player.angle) * 1.5);
-      const y = Math.floor(player.y + Math.sin(player.angle) * 1.5);
-      const terminal = placeNetTerminalGenTerminal(world, x, y, undefined, 'debug');
-      state.msgs.push(msg(terminal ? `[НЕТ-ГЕН] терминал ${terminal.x},${terminal.y}` : '[НЕТ-ГЕН] нет подходящей клетки', state.time, terminal ? '#63f6ff' : '#f84'));
-      return { type: 'refresh_world_data' };
-    }
-    case 47: { // Open map editor
-      state.showDebug = false;
-      openMapEditor(world, player, state);
-      break;
-    }
-    case 48: { // Net Terminal Gen and map editor status
-      for (const line of summarizeNetTerminalGen(state, player)) state.msgs.push(msg(`[НЕТ-ГЕН] ${line}`, state.time, '#63f6ff'));
-      for (const line of summarizeMapEditor(state)) state.msgs.push(msg(`[MAPEDIT] ${line}`, state.time, '#9fdbc6'));
-      break;
-    }
-    case 49: { // Replay current map patch
-      const applied = replayMapEditorPatchForCurrentFloor(world, entities, player, state, nextEntityId);
-      state.msgs.push(msg(`[MAPEDIT] replay ${applied}`, state.time, applied > 0 ? '#9fdbc6' : '#888'));
-      return { type: 'refresh_world_data' };
-    }
-    case 50: { // Clear current map patch
-      const cleared = clearCurrentMapEditorPatch(state);
-      state.msgs.push(msg(cleared ? '[MAPEDIT] patch cleared' : '[MAPEDIT] patch empty', state.time, cleared ? '#9fdbc6' : '#888'));
-      break;
-    }
-    case 51: return { type: 'teleport_procedural_anomaly', anomalyId: 'fractal_floor' };
-    case 52: return { type: 'teleport_procedural_anomaly', anomalyId: 'mirror_run' };
-    case 53: return { type: 'teleport_procedural_anomaly', anomalyId: 'radio_chess' };
-    case 54: return { type: 'teleport_procedural_anomaly', anomalyId: 'cement_memory' };
-    case 55: return { type: 'teleport_procedural_anomaly', anomalyId: 'conveyor_sorter' };
-    case 56: return { type: 'teleport_procedural_anomaly', anomalyId: 'wall_snake' };
-    case 57: return { type: 'teleport_procedural_anomaly', anomalyId: 'section_shift' };
-    case 58: return { type: 'teleport_procedural_anomaly', anomalyId: 'conway_life' };
-    case 59: return { type: 'teleport_procedural_anomaly', anomalyId: 'rail_trains' };
-    case 60: {
-      for (const line of debugSpawnBadAppleWorld(world, player, state)) state.msgs.push(msg(`[BADAPPLE] ${line}`, state.time, '#fff'));
-      return { type: 'refresh_world_data' };
-    }
-    case 61: { // Verification contract route
-      for (const line of spawnDebugVerificationContract(state)) state.msgs.push(msg(`[CONTRACT-DEBUG] ${line}`, state.time, '#6cf'));
-      break;
-    }
-    case 62: { // Publish verification event
-      state.msgs.push(msg(`[EVENTS-DEBUG] ${publishDebugVerificationEvent(world, player, state)}`, state.time, '#ff0'));
-      break;
-    }
-    case 63: { // Route floor summary
-      for (const line of debugRouteFloorSummaryLines(world, player, entities, state)) state.msgs.push(msg(`[ROUTE] ${line}`, state.time, '#8cf'));
-      break;
-    }
-    case 64: { // Arm current-floor numbered lift anomaly
-      for (const line of armLocalFloorInstance(world, player, state)) state.msgs.push(msg(`[LIFT-DEBUG] ${line}`, state.time, '#f4a'));
-      break;
-    }
-    case 65: { // Samosbor warning window
-      state.msgs.push(msg(`[SAMOSBOR-DEBUG] ${setSamosborWarningWindow(state)}`, state.time, '#fa4'));
-      break;
-    }
-    case 66: { // Economy scarcity pulse
-      for (const line of applyDebugEconomyPulse(world, player, state)) state.msgs.push(msg(`[ECON-DEBUG] ${line}`, state.time, '#ccf'));
-      break;
-    }
-    case 67: { // Floor-specific monster counterplay pack
-      for (const line of spawnDebugMonsterPack(world, player, entities, state, nextEntityId)) {
-        state.msgs.push(msg(`[MON-DEBUG] ${line}`, state.time, '#f88'));
-      }
-      break;
-    }
-    case 68: { // Route to nearest useful container
-      for (const line of routePlayerToNearestContainer(world, player, state)) state.msgs.push(msg(`[CONT-DEBUG] ${line}`, state.time, '#ccf'));
-      break;
-    }
-    case 69: return { type: 'teleport_procedural_anomaly', anomalyId: 'zombie_apocalypse' };
-    case 70: { // Expedition proof prep
-      addItem(player, 'makarov', 1);
-      addItem(player, 'ammo_9mm', 40);
-      addItem(player, 'water', 2);
-      addItem(player, 'bread', 2);
-      addItem(player, 'bandage', 2);
-      player.weapon = 'makarov';
-      const created = spawnContractById(state, EXPEDITION_PROOF_CONTRACT_ID, ['debug_route', 'expedition_proof']);
-      state.msgs.push(msg(`[EXPEDITION] prep kit=${player.weapon} contract=${created ? 'created' : 'existing'}`, state.time, '#6cf'));
-      break;
-    }
-    case 71: { // Expedition proof lift ready
-      const moved = movePlayerToSmokeLift(world, player, entities);
-      state.msgs.push(msg(`[EXPEDITION] lift=${moved ? 'ready' : 'missing'}`, state.time, moved ? '#4f4' : '#f84'));
-      break;
-    }
-    case 72: return { type: 'teleport_story_floor', floor: FloorLevel.MAINTENANCE };
-    case 73: {
-      state.msgs.push(msg(forceFactionEvent(state, world, player, entities, nextEntityId), state.time, '#ff0'));
-      break;
-    }
-    case 74: {
-      for (const line of routePlayerToNearestContainer(world, player, state)) state.msgs.push(msg(`[EXPEDITION] ${line}`, state.time, '#ccf'));
-      break;
-    }
-    case 75: {
-      state.msgs.push(msg(`[EXPEDITION] ${setSamosborWarningWindow(state)}`, state.time, '#fa4'));
-      break;
-    }
-    case 76: return { type: 'teleport_story_floor', floor: FloorLevel.LIVING };
-    case 77: {
-      for (const line of debugStartSamosborWaveAtPlayer(world, player, entities, state, 'small')) {
-        state.msgs.push(msg(`[SAMOSBOR-WAVE] ${line}`, state.time, '#c8f'));
-      }
-      return { type: 'refresh_world_data' };
-    }
-    case 78: {
-      for (const line of grantDebugPermitPack(player)) state.msgs.push(msg(`[PERMIT] ${line}`, state.time, '#fc6'));
-      break;
-    }
-    case 79: {
-      for (const line of checkDebugPermitAccess(world, player, state)) state.msgs.push(msg(`[PERMIT] ${line}`, state.time, '#fc6'));
-      break;
-    }
-    case 80: {
-      for (const line of spoilDebugPermit(world, player, state)) state.msgs.push(msg(`[PERMIT] ${line}`, state.time, '#f84'));
-      break;
-    }
-    case 81: {
-      for (const line of debugForcePseudoliftNearPlayer(world, player, state)) {
-        state.msgs.push(msg(`[PSEUDOLIFT] ${line}`, state.time, '#fc4'));
-      }
-      return { type: 'refresh_world_data' };
-    }
-    case 82: {
-      for (const line of spawnDebugFalseCleanupPatrol(world, player, entities, state, nextEntityId)) {
-        state.msgs.push(msg(`[FALSE-CLEANUP] ${line}`, state.time, '#f84'));
-      }
-      return { type: 'refresh_world_data' };
-    }
-    case 83: {
-      for (const line of spawnDebugMukhozhukHost(world, player, entities, state, nextEntityId)) {
-        state.msgs.push(msg(`[MUKHOZHUK] ${line}`, state.time, '#ce8'));
-      }
-      return { type: 'refresh_world_data' };
-    }
-    case 84: {
-      for (const line of spawnDebugChervieSite(world, player, entities, state, nextEntityId)) {
-        state.msgs.push(msg(`[CHERVIE] ${line}`, state.time, '#6f8'));
-      }
-      return { type: 'refresh_world_data' };
-    }
-    case 85: {
-      const cells = revealWholeMap(world);
-      state.msgs.push(msg(`[DEBUG] revealmap: открыто клеток ${cells}`, state.time, '#ff0'));
-      break;
-    }
-    case 86: {
-      if (!canSpawnEntityType(entities, EntityType.ITEM_DROP)) {
-        state.msgs.push(msg('[DEBUG] лимит предметов: мелок не заспавнен', state.time, '#f84'));
-        break;
-      }
-      entities.push({
-        id: nextEntityId.v++,
-        type: EntityType.ITEM_DROP,
-        x: player.x + Math.cos(player.angle) * 1.4,
-        y: player.y + Math.sin(player.angle) * 1.4,
-        angle: 0,
-        pitch: 0,
-        alive: true,
-        speed: 0,
-        sprite: Spr.ITEM_DROP,
-        inventory: [{ defId: CHALK_ITEM_ID, count: 1 }],
-      });
-      state.msgs.push(msg('[DEBUG] мелок заспавнен перед игроком', state.time, '#ff0'));
-      break;
-    }
-    case 87: {
-      state.msgs.push(msg(`[DEBUG] ${spawnDebugItemDropsAroundPlayer(world, player, entities, nextEntityId, debugPsiClotDrops(), 'ПСИ-сгустки')}`, state.time, '#ff0'));
-      break;
-    }
-    case 88: {
-      state.msgs.push(msg(`[DEBUG] ${spawnDebugItemDropsAroundPlayer(world, player, entities, nextEntityId, debugToolDrops(), 'инструменты')}`, state.time, '#ff0'));
-      break;
-    }
-    case 89: {
-      const def = MONSTERS[MonsterKind.SCULPTURE];
-      const ang = player.angle;
-      entities.push({
-        id: nextEntityId.v++, type: EntityType.MONSTER,
-        x: player.x + Math.cos(ang) * 4,
-        y: player.y + Math.sin(ang) * 4,
-        angle: ang + Math.PI, pitch: 0, alive: true,
-        speed: def.speed, sprite: def.sprite,
-        hp: def.hp, maxHp: def.hp,
-        monsterKind: MonsterKind.SCULPTURE, attackCd: 0,
-        ai: { goal: AIGoal.IDLE, tx: 0, ty: 0, path: [], pi: 0, stuck: 0, timer: 0 },
-        rpg: randomRPG(player.rpg?.level ?? 1),
-        phasing: false,
-      });
-      state.msgs.push(msg('[DEBUG] Скульптура заспавнена перед игроком', state.time, '#ff0'));
-      break;
-    }
-  }
   return null;
 }
 
