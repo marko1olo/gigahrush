@@ -1,4 +1,16 @@
-# GIGAH|RUSH / ГИГАХРУЩ
+<div align="center">
+
+# GIGAH|RUSH · ГИГАХРУЩ
+
+**Игровой проект — единая факт-карта и дизайн-документация проекта.**
+
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)
+![Game Design](https://img.shields.io/badge/Game_Design-design_bible-8a2be2?style=for-the-badge)
+![Docs](https://img.shields.io/badge/Single_Source_of_Truth-1a7f5a?style=for-the-badge)
+
+</div>
+
+---
 
 > Центральный документ проекта.
 >
