@@ -15,6 +15,7 @@ import {
   type MaintContentCtx, dropItems, findMaintArea, setFeature, stampMaintRoom,
 } from './content_helpers';
 import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
+import { getEntityIndex } from '../../systems/entity_index';
 
 const MODULE_TAG = 'monster_08_filtronos';
 const EVENT_TAG = 'filtronos_event';
@@ -101,7 +102,7 @@ function addContainerTag(container: WorldContainer, tag: string): void {
 }
 
 function threatAlive(ctx: FiltronosContext): boolean {
-  const monster = ctx.entities.find(e => e.id === ctx.monsterId);
+  const monster = getEntityIndex().byId.get(ctx.monsterId) ?? ctx.entities.find(e => e.id === ctx.monsterId);
   return !!monster?.alive && (monster.hp ?? 1) > 0;
 }
 
