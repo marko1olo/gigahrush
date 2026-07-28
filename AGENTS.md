@@ -1,5 +1,23 @@
 # Agent Instructions
 
+> ## ⚠ СТАТУС: READ-ONLY РЕФЕРЕНС (с 2026-07-28)
+>
+> Живой проект — **`C:\hades\gigahrush2`**: нативный C++23 / Vulkan / SDL3 переписанный
+> движок этой игры. Этот репозиторий — TypeScript-оригинал, из которого он переписывается,
+> и он остаётся **референсом только для чтения**, если задача явно не нацелена на него.
+>
+> Прежде чем что-то здесь реализовывать, проверь у владельца, что цель именно этот репозиторий.
+> Новая геймплейная работа по умолчанию идёт в `gigahrush2` — его авторитет:
+> `C:\hades\gigahrush2\AGENTS.md`, затем `master_prompt.md`. Правила ниже остаются в силе для
+> любой правки, которая всё-таки делается здесь; ни один из двух проектов не берёт правила
+> HECTON-8.
+>
+> Проверено 2026-07-28: жёсткое правило про `Math.random()` здесь соблюдено полностью — вне
+> `src/core/rand.ts` осталось ровно два вызова, оба в объявленных исключениях
+> (`src/systems/online_client.ts`, `src/systems/net_sphere.ts`) и оба с требуемым комментарием
+> о причине. Механической проверки у правила нет: `scripts/content-audit.mjs` его не покрывает,
+> так что соблюдение держится на дисциплине.
+
 > Центральный документ агентского поведения.
 >
 > Роль: обязательная инструкция для всех агентов, работающих с кодом, документами, PR, релизами и системными контрактами ГИГАХРУЩА. Этот файл не заменяет `README.md` и root system docs; он говорит, как безопасно читать, менять, проверять и не ломать проект.
@@ -473,6 +491,17 @@ Do not use README to promise unfinished work. Do not bury implementation facts o
 - Preserve Russian strings and existing encoding.
 - Do not revert unrelated dirty files.
 - Do not churn `.DS_Store`, generated builds, lockfiles or docs unless the task requires it.
+
+## Delegation And Subagents
+
+Subagents are a normal work tool here, parallel fans included. Use them when they materially improve coverage, evidence gathering, bounded audits, adversarial review, or work on a disjoint scope. There is no per-task cap; cost is the lead's judgement call.
+
+- Every subagent assignment states: role; why it is delegated; which files and docs it must read itself; owned read/edit scope; forbidden scope; expected output format; evidence standard; whether file edits are allowed. Hand it the file list and let it read, instead of pasting doc bodies into the prompt.
+- Subagent output is evidence input, not authority. The lead picks the scope, merges only evidence-backed findings, and re-verifies every claim it repeats to the user.
+- One gate owner at a time. `npm run check`, `check:browser`, `check:full`, `check:release` and `build` all write `dist/` (and `itch/`); two agents running them at once corrupt each other's artifacts and each other's results. Read-only work — `typecheck`, `rg`, source review — parallelizes freely.
+- Concurrent file edits go through separate worktrees, or through disjoint file lists checked against `git status --short` first. The dirty tree here often holds uncommitted work from the user or another agent, so the NUKING and git-reset warnings below bind every subagent, not only the lead.
+- A subagent editing `src/core/types.ts`, `src/core/world.ts`, `src/main.ts`, `src/gen/shared.ts` or `src/render/webgl.ts` gets no quick-fix bypass: it reads the file in full and obeys `File Ownership` above.
+- Do not use a subagent to skip reading a doc the task actually touches, to outsource the decision itself, or to generate another report once a blocker is already known.
 
 ## Patch Checklist
 

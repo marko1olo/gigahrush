@@ -1,5 +1,12 @@
 # Agent Instructions
 
+> ## ⚠ СТАТУС: READ-ONLY РЕФЕРЕНС (с 2026-07-28)
+>
+> Живой проект — **`C:\hades\gigahrush2`** (нативный C++23 / Vulkan / SDL3 переписанный движок).
+> Этот репозиторий — TypeScript-оригинал и референс только для чтения, если задача явно не
+> нацелена на него. Полная версия баннера и проверенное состояние правила `Math.random()`:
+> `AGENTS.md`, который здесь канонический.
+
 > Центральный документ агентского поведения.
 >
 > Роль: обязательная инструкция для всех агентов, работающих с кодом, документами, PR, релизами и системными контрактами ГИГАХРУЩА. Этот файл не заменяет `README.md` и root system docs; он говорит, как безопасно читать, менять, проверять и не ломать проект.
@@ -11,6 +18,11 @@
 > exploring once you can act. When a check is cheaper for the human to run
 > (a build, a launch, a visual glance), hand it to them instead of burning
 > tokens simulating it. Prefer the smallest surgical edit that solves the task.
+>
+> This is a ban on churn, not on rigor. It does not cap reading a doc the task
+> actually touches, and it is not a reason to skip subagents or a second
+> opinion — see `Delegation And Subagents`. Under-reading a rule and then
+> guessing costs more than the tokens it saved.
 
 This repository rewards precise integration work, not speculative architecture. Use extra reasoning budget to read the actual code, map ownership, and check side effects before editing. Keep patches small, shipped, and verifiable.
 
@@ -475,6 +487,10 @@ Do not use README to promise unfinished work. Do not bury implementation facts o
 - Preserve Russian strings and existing encoding.
 - Do not revert unrelated dirty files.
 - Do not churn `.DS_Store`, generated builds, lockfiles or docs unless the task requires it.
+
+## Delegation And Subagents
+
+Canonical text: `AGENTS.md` `Delegation And Subagents`. Not duplicated here. Short form: subagents are a normal tool with no per-task cap; every assignment states role, reason, files to read itself, owned scope, forbidden scope, output format, evidence standard, and whether edits are allowed; subagent output is evidence, never authority; only one agent at a time may run `npm run check` / `check:browser` / `check:full` / `check:release` / `build`, because they all write `dist/`; concurrent edits go through separate worktrees or verified-disjoint file lists.
 
 ## Patch Checklist
 
