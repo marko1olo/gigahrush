@@ -86,7 +86,7 @@ import { resolveBreachChargeExplosion } from './systems/breach_charge';
 import { dropMonsterRareLoot, dropMonsterLoot } from './systems/monster_drops';
 import { generateNpcTradeItems } from './data/occupation_profiles';
 import { generateTalkText } from './systems/dialogue';
-import { updateSamosbor, rebuildWorld, clearFogInZone, updateIstotitBellCompulsion, getSamosborWarningSnapshot } from './systems/samosbor';
+import { updateSamosbor, rebuildWorld, clearFogInZone, updateIstotitBellCompulsion, getSamosborFogParameters } from './systems/samosbor';
 import { getActiveSamosborVariant } from './systems/samosbor_variants_runtime';
 import { cleanCellHazardsNear, getCellHazardMoveMultiplier, tickCellHazards } from './systems/cell_hazards';
 import { musicSystem } from './systems/music';
@@ -9986,20 +9986,20 @@ function gameLoop(now: number): void {
   if (currentFloorRunEntry(state).themeTags.includes('maintenance')) baseFog = 0.08;
   if (currentFloorRunEntry(state).themeTags.includes('hell')) baseFog = 0.05; // less fog, more horror visibility
   const smogFogBonus = !state.gameOver ? proceduralSmogFogDensityBonus(world, player, state) : 0;
+
+  const fogParams = getSamosborFogParameters(state, baseFog, smogFogBonus);
+  let fogDensity = fogParams.density;
+  let fogRgbParam = fogParams.color;
+
+  const renderActor = player;
+
+  if (renderActor.tool === 'ip4_gasmask') {
+    fogDensity *= 0.5;
+  }
+
   const samosborVariant = state.samosborActive ? getActiveSamosborVariant() : null;
   const samosborVisual = samosborVariant?.visual;
   const samosborGlitchPulse = 0.85 + ((Math.sin(uiTime * 5) + 1) * 0.5) * 0.15;
-  const warningSnapshot = getSamosborWarningSnapshot(state);
-  let fogDensity = baseFog + smogFogBonus;
-  if (state.samosborActive) {
-    fogDensity = (baseFog + smogFogBonus + (samosborVisual?.fogDensityBonus ?? 0.02)) * 3.0;
-  } else if (warningSnapshot && warningSnapshot.secondsLeft >= 0 && warningSnapshot.secondsLeft <= 30) {
-    const p = 1.0 - (warningSnapshot.secondsLeft / 30);
-    // Smoothly transition base density + bonus to 0.15
-    const targetFog = 0.15;
-    const initialFog = baseFog + smogFogBonus + (samosborVisual?.fogDensityBonus ?? 0.02);
-    fogDensity = initialFog + (targetFog - initialFog) * p;
-  }
   const interferenceMode = screenInterferenceMode();
   const neuroScreenFx = uiElementEnabled('screen_fx');
   const criticalInterference = state.samosborActive || state.gameOver;
@@ -10018,7 +10018,6 @@ function gameLoop(now: number): void {
         ? Math.min(0.18, smogFogBonus * 4)
         : 0;
 
-  const renderActor = player;
   const cameraView = runtimeCameraView(runtimeCamera, renderActor, cameraFovRadians());
   const camX = cameraView.x;
   const camY = cameraView.y;
@@ -10065,7 +10064,7 @@ function gameLoop(now: number): void {
   const renderSceneStart = performance.now();
   renderSceneGL(world, textures, sprites, entities,
     cameraView,
-    fogDensity, glitch, flashlight, uiTime, particles, state.samosborActive, ambientLight, toolBeam, state.uvBeamLen, screenInterference, visualDetailProfile, visualGeometryProfile, visualSurfaceProfile, lightingQualityIndex(), currentFps);
+    fogDensity, glitch, flashlight, uiTime, particles, state.samosborActive, ambientLight, toolBeam, state.uvBeamLen, screenInterference, visualDetailProfile, visualGeometryProfile, visualSurfaceProfile, lightingQualityIndex(), currentFps, fogRgbParam);
   lastRenderSceneMs = performance.now() - renderSceneStart;
 
   // Draw HUD on 2D overlay canvas
