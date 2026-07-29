@@ -3,7 +3,7 @@
 
 import { MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
-import { rgba, noise, clamp, CLEAR, outline } from '../render/pixutil';
+import { rgba, noise, clamp, CLEAR, outline, applyGradientShading } from '../render/pixutil';
 const S = 128;
 
 export const DEF: MonsterDef = {
@@ -116,6 +116,7 @@ export function generateSprite(): Uint32Array {
     }
   }
 
-  outline(t, rgba(20, 5, 35, 255), 180);
+  applyGradientShading(t, Math.PI / 4, 0.4);
+  outline(t, rgba(20, 5, 35, 255), 180, 2);
   return t;
 }

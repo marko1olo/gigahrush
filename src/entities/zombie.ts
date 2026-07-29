@@ -2,7 +2,7 @@
 
 import { MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
-import { rgba, noise, clamp, CLEAR, outline } from '../render/pixutil';
+import { rgba, noise, clamp, CLEAR, outline, applyGradientShading } from '../render/pixutil';
 const S = 128;
 
 export const DEF: MonsterDef = {
@@ -22,11 +22,12 @@ export function generateSprite(): Uint32Array {
   const cx = S / 2;
   const sc = S / 64; // scale multiplier
 
-  // Head — sickly green-grey
+  // Head — sickly green-grey with jagged contour
   for (let y = Math.floor(4 * sc); y < Math.floor(18 * sc); y++) {
-    for (let x = Math.floor(cx - 5 * sc); x < Math.floor(cx + 5 * sc); x++) {
+    const jaggedX = (noise(1, y, 911) - 0.5) * 1.5 * sc;
+    for (let x = Math.floor(cx - 5 * sc + jaggedX); x < Math.floor(cx + 5 * sc + jaggedX); x++) {
       if (x < 0 || x >= S) continue;
-      const dx = (x - cx) / (5 * sc), dy = (y - 11 * sc) / (7 * sc);
+      const dx = (x - (cx + jaggedX)) / (5 * sc), dy = (y - 11 * sc) / (7 * sc);
       if (dx * dx + dy * dy < 1) {
         const n = noise(x, y, 901) * 20;
         t[y * S + x] = rgba(clamp(80 + n), clamp(95 + n), clamp(70 + n));
@@ -124,19 +125,28 @@ export function generateSprite(): Uint32Array {
     t[Math.floor(60 * sc) * S + Math.floor(cx + 2 * sc) + dx] = rgba(38, 38, 42);
   }
 
-  // Blood splatters
-  for (let i = 0; i < 12 * sc; i++) {
-    const bx = Math.floor(cx - 6 * sc + noise(i, 0, 908) * 12 * sc);
-    const by = Math.floor(20 * sc + noise(0, i, 909) * 30 * sc);
-    for (let dy = 0; dy < Math.max(1, Math.floor(2 * sc)); dy++) {
-      for (let dx = 0; dx < Math.max(1, Math.floor(2 * sc)); dx++) {
-        if (bx + dx >= 0 && bx + dx < S && by + dy < S && t[(by + dy) * S + bx + dx] !== CLEAR) {
-          t[(by + dy) * S + bx + dx] = rgba(clamp(100 + noise(bx + dx, by + dy, 910) * 30), 20, 15);
+  // Visible Wounds / Blood splatters with dark edges
+  for (let i = 0; i < 15 * sc; i++) {
+    const bx = Math.floor(cx - 7 * sc + noise(i, 0, 908) * 14 * sc);
+    const by = Math.floor(18 * sc + noise(0, i, 909) * 32 * sc);
+    const wR = Math.max(1, Math.floor(noise(i, i, 912) * 3 * sc));
+    for (let dy = -wR; dy <= wR; dy++) {
+      for (let dx = -wR; dx <= wR; dx++) {
+        if (dx * dx + dy * dy <= wR * wR) {
+          const px = bx + dx, py = by + dy;
+          if (px >= 0 && px < S && py >= 0 && py < S && t[py * S + px] !== CLEAR) {
+            if (dx * dx + dy * dy > (wR - 1) * (wR - 1) * sc) {
+               t[py * S + px] = rgba(30, 5, 5); // dark wound border
+            } else {
+               t[py * S + px] = rgba(clamp(120 + noise(px, py, 910) * 30), 10, 15); // raw flesh/blood
+            }
+          }
         }
       }
     }
   }
 
-  outline(t, rgba(10, 15, 10));
+  applyGradientShading(t, Math.PI / 4, 0.5);
+  outline(t, rgba(10, 15, 10), 0, 2);
   return t;
 }
