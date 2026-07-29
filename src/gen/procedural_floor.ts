@@ -10749,22 +10749,28 @@ function chooseServiceSpineTargets(world: World, rooms: Room[], sx: number, sy: 
     .sort((a, b) => b.d2 - a.d2);
   const window = candidates.slice(0, Math.min(candidates.length, 18));
   const targetCount = Math.min(window.length, 6 + spec.danger);
-  const picked: Room[] = [];
+  const picked = new Set<Room>();
 
-  for (let attempt = 0; attempt < targetCount * 10 && picked.length < targetCount; attempt++) {
+  for (let attempt = 0; attempt < targetCount * 10 && picked.size < targetCount; attempt++) {
     const candidate = pick(window).room;
-    if (picked.includes(candidate)) continue;
+    if (picked.has(candidate)) continue;
     const c = roomCenter(candidate);
-    const tooClose = picked.some(room => world.dist2(c.x, c.y, roomCenter(room).x, roomCenter(room).y) < 80 * 80);
+    let tooClose = false;
+    for (const room of picked) {
+      if (world.dist2(c.x, c.y, roomCenter(room).x, roomCenter(room).y) < 80 * 80) {
+        tooClose = true;
+        break;
+      }
+    }
     if (tooClose && attempt < targetCount * 6) continue;
-    picked.push(candidate);
+    picked.add(candidate);
   }
 
   for (const item of window) {
-    if (picked.length >= targetCount) break;
-    if (!picked.includes(item.room)) picked.push(item.room);
+    if (picked.size >= targetCount) break;
+    picked.add(item.room);
   }
-  return picked;
+  return Array.from(picked);
 }
 
 function serviceLaneDistance(a: number, b: number): number {
