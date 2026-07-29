@@ -1013,20 +1013,30 @@ function cleanupContainers(
   z: number,
 ): void {
   let changed = false;
-  for (let i = world.containers.length - 1; i >= 0; i--) {
+  let keepCount = 0;
+  for (let i = 0; i < world.containers.length; i++) {
     const container = world.containers[i];
-    if (container.z !== z) continue;
-    const idx = world.idx(container.x, container.y);
-    if (!touchedSet.has(idx)) continue;
-    if (!walkableCell(world.cells[idx])) {
-      world.containers.splice(i, 1);
-      wave.deletedContainers++;
-      changed = true;
-      continue;
+    let keep = true;
+    if (container.z === z) {
+      const idx = world.idx(container.x, container.y);
+      if (touchedSet.has(idx)) {
+        if (!walkableCell(world.cells[idx])) {
+          wave.deletedContainers++;
+          changed = true;
+          keep = false;
+        } else {
+          container.roomId = world.roomMap[idx];
+          container.zoneId = world.zoneMap[idx];
+          changed = true;
+        }
+      }
     }
-    container.roomId = world.roomMap[idx];
-    container.zoneId = world.zoneMap[idx];
-    changed = true;
+    if (keep) {
+      world.containers[keepCount++] = container;
+    }
+  }
+  if (world.containers.length !== keepCount) {
+    world.containers.length = keepCount;
   }
   if (changed) world.rebuildContainerMap();
 }
@@ -1037,37 +1047,42 @@ function cleanupFinalEntities(
   entities: Entity[],
   touchedSet: Set<number>,
 ): void {
-  for (let i = entities.length - 1; i >= 0; i--) {
+  let keepCount = 0;
+  for (let i = 0; i < entities.length; i++) {
     const entity = entities[i];
-    if (!entity.alive) continue;
-    const idx = world.idx(Math.floor(entity.x), Math.floor(entity.y));
-    const inTouched = touchedSet.has(idx);
-    if (entity.type === EntityType.PROJECTILE && inTouched) {
-      entities.splice(i, 1);
-      wave.deletedProjectiles++;
-      continue;
-    }
-    if (
-      (entity.type === EntityType.ITEM_DROP ||
-        entity.type === EntityType.BILLBOARD) &&
-      inTouched &&
-      !entityWalkableCell(world, idx)
-    ) {
-      if (relocateEntity(world, entity, 18)) wave.relocatedEntities++;
-      else {
-        entities.splice(i, 1);
-        if (entity.type === EntityType.ITEM_DROP) wave.deletedItems++;
+    let keep = true;
+    if (entity.alive) {
+      const idx = world.idx(Math.floor(entity.x), Math.floor(entity.y));
+      const inTouched = touchedSet.has(idx);
+      if (entity.type === EntityType.PROJECTILE && inTouched) {
+        wave.deletedProjectiles++;
+        keep = false;
+      } else if (
+        (entity.type === EntityType.ITEM_DROP ||
+          entity.type === EntityType.BILLBOARD) &&
+        inTouched &&
+        !entityWalkableCell(world, idx)
+      ) {
+        if (relocateEntity(world, entity, 18)) wave.relocatedEntities++;
+        else {
+          if (entity.type === EntityType.ITEM_DROP) wave.deletedItems++;
+          keep = false;
+        }
+      } else if (
+        (isPlayerEntity(entity) ||
+          entity.type === EntityType.NPC ||
+          entity.type === EntityType.MONSTER) &&
+        !entityWalkableCell(world, idx)
+      ) {
+        if (relocateEntity(world, entity, 30)) wave.relocatedEntities++;
       }
-      continue;
     }
-    if (
-      (isPlayerEntity(entity) ||
-        entity.type === EntityType.NPC ||
-        entity.type === EntityType.MONSTER) &&
-      !entityWalkableCell(world, idx)
-    ) {
-      if (relocateEntity(world, entity, 30)) wave.relocatedEntities++;
+    if (keep) {
+      entities[keepCount++] = entity;
     }
+  }
+  if (entities.length !== keepCount) {
+    entities.length = keepCount;
   }
 }
 
