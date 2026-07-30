@@ -1,4 +1,51 @@
+<div align="center">
+
+![GIGAH|RUSH Banner](assets/banner.png)
+
 # GIGAH|RUSH / ГИГАХРУЩ
+
+[![TypeScript](https://img.shields.io/badge/Language-TypeScript%205.9-blue?style=for-the-badge&logo=typescript)](https://www.typescriptlang.org/)
+[![Vite](https://img.shields.io/badge/Bundler-Vite%207.3-purple?style=for-the-badge&logo=vite)](https://vitejs.dev)
+[![React](https://img.shields.io/badge/UI-React-61dafb?style=for-the-badge&logo=react)](https://react.dev)
+[![WebGL Raycaster](https://img.shields.io/badge/Graphics-WebGL%20Raycaster-green?style=for-the-badge&logo=opengl)](src/render/webgl.ts)
+[![Python Simulation](https://img.shields.io/badge/Sim-Python%20Samosbor-yellow?style=for-the-badge&logo=python)](python/)
+[![Zero Runtime Deps](https://img.shields.io/badge/Dependencies-Zero%20Runtime-brightgreen?style=for-the-badge)]()
+[![GitHub Pages](https://img.shields.io/badge/GitHub%20Pages-Live%20Demo-brightgreen?style=for-the-badge&logo=github)](https://hades.github.io/gigahrush/)
+[![CI Build](https://img.shields.io/github/actions/workflow/status/hades/gigahrush/deploy-gh-pages.yml?branch=main&label=CI%20Build&style=for-the-badge&logo=githubactions)](https://github.com/hades/gigahrush/actions/workflows/deploy-gh-pages.yml)
+
+> **Zero-runtime-dependency TypeScript / Vite browser game — procedural survival-horror life-sim / ARPG shooter inside a 1024x1024 toroidal concrete megastructure.**
+
+</div>
+
+---
+
+## Architectural Overview
+
+```mermaid
+graph TD
+    A[main.ts Game Loop] --> B[Core Layer: 1024x1024 Toroidal World]
+    B --> C[Data Layer: Items, Weapons, Plot, Contracts]
+    B --> D[Generation Layer: 50 Design Floors & Procedural Floors]
+    B --> E[Systems Layer: AI, A-Life 100k, Samosbor, Quests, Save]
+    E --> F[Render Layer: WebGL Raycaster, Sprites & Canvas HUD]
+    E --> G[Net Sphere Cloudflare Optional Online Sync]
+```
+
+## Component Matrix
+
+| Layer / Directory | Key Modules | Primary Responsibilities |
+| --- | --- | --- |
+| `src/core/` | `types.ts`, `world.ts`, `rand.ts` | Primitive types, toroidal 1024x1024 typed-array world, xorshift32 PRNG |
+| `src/data/` | `items.ts`, `weapons.ts`, `plot.ts`, `factories.ts` | Static registers, items, crafting recipes, plot chains, economic factories |
+| `src/gen/` | `floor_manifest.ts`, `design_floors/`, `living/` | Floor layout generators, 50 design floors, POI and fixture placement |
+| `src/systems/` | `ai/`, `alife.ts`, `samosbor.ts`, `save_payload.ts` | 100k NPC macro A-Life pool, Samosbor siren/fog director, delta-save system |
+| `src/render/` | `webgl.ts`, `hud.ts`, `sprites.ts`, `textures.ts` | Custom WebGL raycasting pipeline, procedural sprite atlas & canvas HUD |
+
+---
+
+## Original Developer Documentation
+
+### GIGAH|RUSH / ГИГАХРУЩ (Original Documentation)
 
 > Центральный документ проекта (Factual Implementation Map).
 >
@@ -717,3 +764,25 @@ export const MY_ITEM: ItemDef = {
    - Как он реагирует на Самосбор?
    - Обновлены ли документы только для shipped-фактов?
    - Какие проверки прошлти (`npm run check:readonly` / `npm run check`)?
+
+---
+
+<details>
+<summary><b>🇷🇺 Краткое описание на русском</b></summary>
+
+### GIGAH|RUSH — Браузерная процедурная симуляция Самосбора
+
+**GIGAH|RUSH (ГИГАХРУЩ)** — это масштабная симуляция процедурного хоррора и A-Life в тороидальном бетонном мегакомплексе 1024x1024. Проект написан на TypeScript (Vite + React + WebGL) без сторонних рантайм-зависимостей.
+
+#### Ключевые Системы:
+1. **5-слойная Архитектура**: `core` (типы, typed-array мир), `data` (реестры 446 предметов и 88 видов оружия), `gen` (50 авторских дизайн-этажей), `systems` (макро-пул A-Life на 100 000 NPC, Самосбор, экономика, сохранение дельты), `render` (WebGL-рейкастер).
+2. **Симуляция и AI**: Двухуровневая навигация Region-Portal HPA*, социальная сеть «Инфосеть Демос», 69 видов монстров и детерминированный PRNG (xorshift32).
+3. **Вертикальный Мир**: 101 этаж (от Z=-50 до Z=+50), 50 дизайн-модулей, лифты и аномалии.
+
+#### Быстрый Запуск:
+```bash
+npm run typecheck
+npm run test:unit
+npm run build
+```
+</details>
