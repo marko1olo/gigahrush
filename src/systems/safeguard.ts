@@ -51,7 +51,7 @@ function terminalCooldownActive(state: GameState, terminalIdx: number | undefine
     if (age < 0) continue;
     if (floorKey && event.data?.floorKey === floorKey && age < HACK_FLOOR_COOLDOWN_S) return true;
     if (terminalIdx !== undefined && event.data?.terminalIdx === terminalIdx && age < HACK_TERMINAL_COOLDOWN_S) return true;
-    if (!floorKey && event.z === state.currentZ && age < HACK_FLOOR_COOLDOWN_S) return true;
+    if (!floorKey && event.floor === state.currentFloor && age < HACK_FLOOR_COOLDOWN_S) return true;
   }
   return false;
 }

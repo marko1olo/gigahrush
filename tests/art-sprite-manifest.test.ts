@@ -17,8 +17,7 @@ import {
   NPC_VISUAL_SCIENTIST_MALE,
   NPC_VISUAL_WILD_MALE,
 } from '../src/data/art_sprite_manifest';
-import { getNpcPackage, getPlotNpcCount } from '../src/data/npc_packages';
-import '../src/data/npc_plot_packages';
+import { MAIN_PLOT_NPC_PACKAGES } from '../src/data/npc_plot_packages';
 import {
   generateNpcProfileSprite,
   entityWorldSpriteScale,
@@ -105,17 +104,14 @@ function makeNpc(id: number, visualId: string, spriteSeed: number): Entity {
 test('first-party art sprite manifest validates source files and generated pixels', () => {
   const ids = new Set<string>();
   const generatedIds = new Set(GENERATED_ART_SPRITE_IDS);
-  // Floor, not exact count: new first-party art must not break the shipped gate.
-  // Per-row invariants below (id shape, uniqueness, anchor bounds, generated pixels,
-  // source SHA/dimensions, non-blank, bottom-trim) validate every entry regardless of length.
-  assert.ok(ART_SPRITE_MANIFEST.length >= 30, `art sprite manifest floor: got ${ART_SPRITE_MANIFEST.length}`);
+  assert.equal(ART_SPRITE_MANIFEST.length, 30);
 
   for (const row of ART_SPRITE_MANIFEST) {
     assert.match(row.id, /^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/);
     assert.equal(ids.has(row.id), false, `duplicate art sprite id ${row.id}`);
     ids.add(row.id);
-    assert.equal(row.anchorFeet.x >= 0 && row.anchorFeet.x < 128, true, `${row.id} feet x in bounds`);
-    assert.equal(row.anchorFeet.y >= 0 && row.anchorFeet.y < 128, true, `${row.id} feet y in bounds`);
+    assert.equal(row.anchorFeet.x >= 0 && row.anchorFeet.x < 64, true, `${row.id} feet x in bounds`);
+    assert.equal(row.anchorFeet.y >= 0 && row.anchorFeet.y < 64, true, `${row.id} feet y in bounds`);
     assert.equal(generatedIds.has(row.id), true, `${row.id} must have generated pixels`);
 
     const file = readFileSync(resolveSourcePath(row.sourcePath));
@@ -152,7 +148,7 @@ test('first-party NPC art resolves through visual ids while unknown ids fall bac
   }
   assert.equal(npcVisualFamily('ulyana'), undefined, 'ambiguous Ulyana art stays manifest-only until bound');
 
-  const olgaPackage = getNpcPackage('olga');
+  const olgaPackage = MAIN_PLOT_NPC_PACKAGES.find(pack => pack.id === 'olga');
   assert.equal(olgaPackage?.visual.npcVisualId, NPC_VISUAL_OLGA_DMITRIEVNA);
   assert.equal(olgaPackage?.visual.spriteScale, undefined);
 
@@ -180,9 +176,8 @@ test('first-party NPC art resolves through visual ids while unknown ids fall bac
 });
 
 test('fixed art visual families reuse texture keys by visual id and variant', () => {
-  let dummyId = getPlotNpcCount() + 1000;
-  const olgaA = makeNpc(dummyId++, NPC_VISUAL_OLGA_DMITRIEVNA, 101);
-  const olgaB = makeNpc(dummyId++, NPC_VISUAL_OLGA_DMITRIEVNA, 202);
+  const olgaA = makeNpc(1, NPC_VISUAL_OLGA_DMITRIEVNA, 101);
+  const olgaB = makeNpc(2, NPC_VISUAL_OLGA_DMITRIEVNA, 202);
   assert.equal(proceduralEntitySpriteKey(olgaA), proceduralEntitySpriteKey(olgaB));
   assert.equal(spriteHash(generateProceduralEntitySprite(olgaA)!), spriteHash(getGeneratedArtSprite('olga_dmitrievna')!));
 
@@ -199,7 +194,7 @@ test('fixed art visual families reuse texture keys by visual id and variant', ()
     'first_party_art:liquidator_m_6',
   ]);
 
-  const liquidator = makeNpc(dummyId++, NPC_VISUAL_LIQUIDATOR_MALE, 303);
+  const liquidator = makeNpc(3, NPC_VISUAL_LIQUIDATOR_MALE, 303);
   liquidator.faction = Faction.LIQUIDATOR;
   const liquidatorSprite = generateProceduralEntitySprite(liquidator);
   assert.ok(liquidatorSprite);
@@ -216,8 +211,7 @@ test('fixed art visual families reuse texture keys by visual id and variant', ()
 });
 
 test('ordinary NPC art auto-selects occupation before faction and preserves sexed scientist art', () => {
-  let dummyId = getPlotNpcCount() + 2000;
-  const citizen = makeNpc(dummyId++, '', 404);
+  const citizen = makeNpc(4, '', 404);
   citizen.npcVisualId = undefined;
   citizen.faction = Faction.CITIZEN;
   citizen.occupation = Occupation.TURNER;
@@ -228,7 +222,7 @@ test('ordinary NPC art auto-selects occupation before faction and preserves sexe
   citizen.spriteScale = 1;
   assert.equal(entityWorldSpriteScale(citizen), FIRST_PARTY_NPC_ART_WORLD_SPRITE_SCALE);
 
-  const scientist = makeNpc(dummyId++, '', 505);
+  const scientist = makeNpc(5, '', 505);
   scientist.npcVisualId = undefined;
   scientist.faction = Faction.SCIENTIST;
   scientist.occupation = Occupation.SCIENTIST;

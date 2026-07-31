@@ -3,14 +3,14 @@ import assert from 'node:assert/strict';
 import { Cell, EntityType, ProjType, type Entity } from '../src/core/types';
 import { World } from '../src/core/world';
 import { spawnProjectileFloorImpact, spawnProjectileWallImpact, updateBloodTrails } from '../src/render/blood';
-import { _overrideRng, _restoreRng } from '../src/core/rand';
 
 function withRandom<T>(value: number, fn: () => T): T {
-  _overrideRng(() => value);
+  const saved = Math.random;
+  Math.random = () => value;
   try {
     return fn();
   } finally {
-    _restoreRng();
+    Math.random = saved;
   }
 }
 

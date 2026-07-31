@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { AIGoal, Cell, EntityType, Faction, MonsterKind, type Entity, type Msg } from '../src/core/types';
+import { AIGoal, Cell, EntityType, Faction, FloorLevel, MonsterKind, type Entity, type Msg } from '../src/core/types';
 import { World } from '../src/core/world';
 import { getMonsterEcology } from '../src/data/monster_ecology';
 import { DEF } from '../src/entities/nelyud';
@@ -57,7 +57,7 @@ test('Nelyud stays unrevealed outside close mimic threshold', () => {
   const threat = nelyud(10.5, 10.5);
   const neighbor = makeTestNpc({ id: 3, x: 17.2, y: 10.5, faction: Faction.CITIZEN });
   const entities = [player, threat, neighbor];
-  const state = makeGameState({ currentZ: 14, worldEvents: createWorldEventState() });
+  const state = makeGameState({ currentFloor: FloorLevel.KVARTIRY, worldEvents: createWorldEventState() });
   const msgs: Msg[] = [];
 
   prime(entities);
@@ -74,7 +74,7 @@ test('Nelyud close reveal publishes cue and can target a non-player NPC', () => 
   const threat = nelyud(10.5, 10.5);
   const neighbor = makeTestNpc({ id: 3, x: 15.6, y: 10.5, faction: Faction.CITIZEN });
   const entities = [player, threat, neighbor];
-  const state = makeGameState({ currentZ: 14, worldEvents: createWorldEventState() });
+  const state = makeGameState({ currentFloor: FloorLevel.KVARTIRY, worldEvents: createWorldEventState() });
 
   assert.equal(getMonsterEcology(MonsterKind.NELYUD)?.counterplay.includes('дистанц'), true);
 

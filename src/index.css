@@ -56,12 +56,6 @@ canvas {
   z-index: 1;
 }
 
-#loadingCanvas {
-  display: none;
-  z-index: 100;
-  pointer-events: none;
-}
-
 body.mobile-controls-on #hud {
   pointer-events: auto;
 }
@@ -106,7 +100,7 @@ canvas {
 .mobile-fullscreen {
   border: 1px solid rgba(80, 220, 190, 0.45);
   color: #9ef;
-  background: rgba(3, 12, 14, 0.65);
+  background: rgba(3, 12, 14, 0.42);
   box-shadow: 0 0 14px rgba(0, 255, 200, 0.1), inset 0 0 16px rgba(0, 255, 200, 0.08);
   font: 700 14px 'Courier New', monospace;
   text-align: center;
@@ -131,8 +125,8 @@ canvas {
 
 .mobile-pad {
   position: absolute;
-  width: clamp(100px, 30dvh, 160px);
-  height: clamp(100px, 30dvh, 160px);
+  width: clamp(92px, 26dvh, 148px);
+  height: clamp(92px, 26dvh, 148px);
   border-radius: 50%;
 }
 
@@ -179,8 +173,8 @@ canvas {
   position: absolute;
   right: max(86px, calc(env(safe-area-inset-right) + 86px));
   top: 50%;
-  width: 94px;
-  height: 68px;
+  width: 70px;
+  height: 46px;
   border-radius: 10px;
   font-size: clamp(10px, 2.8dvh, 12px);
   opacity: 0;

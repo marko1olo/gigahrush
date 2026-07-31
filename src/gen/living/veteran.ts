@@ -1,4 +1,3 @@
-import { getPlotNpcNumericId } from '../../data/npc_packages';
 /* ── Ветеран Степаныч — side quest content module ─────────────── */
 /* Wandering hunter who lost his squad. Wants the player to clean   */
 /* zombies. Self-contained: NPC + KILL quest + spawn.               */
@@ -6,12 +5,12 @@ import { getPlotNpcNumericId } from '../../data/npc_packages';
 import {
   W, Cell,
   type Entity, Faction, Occupation, QuestType, MonsterKind,
-  } from '../../core/types';
+  FloorLevel,
+} from '../../core/types';
 import { World } from '../../core/world';
 import { type PlotNpcDef, registerAuthoredNpc, storyNpcFloorKey } from '../../data/plot';
 import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
 import { authoredNpcSpr } from '../../render/sprite_index';
-import { rng } from '../../core/rand';
 
 const NPC_ID = 'veteran_stepanych';
 
@@ -43,12 +42,12 @@ const NPC_DEF: PlotNpcDef = {
 registerAuthoredNpc({
   id: NPC_ID,
   npc: NPC_DEF,
-  homeFloorKey: storyNpcFloorKey(100),
+  homeFloorKey: storyNpcFloorKey(FloorLevel.LIVING),
   tags: ['living', 'liquidator'],
   quests: [
     {
       id: 'stepanych_zombies',
-      giverId: getPlotNpcNumericId(NPC_ID)!,
+      giverNpcId: NPC_ID,
       type: QuestType.KILL,
       desc: 'Степаныч: «Прибей пятерых мертвяков. За мой взвод. Для счёта.»',
       targetMonsterKind: MonsterKind.ZOMBIE,
@@ -64,11 +63,11 @@ export function spawnVeteran(
   world: World, entities: Entity[], nextId: { v: number },
 ): void {
   for (let i = 0; i < 2000; i++) {
-    const x = Math.floor(rng() * W);
-    const y = Math.floor(rng() * W);
+    const x = Math.floor(Math.random() * W);
+    const y = Math.floor(Math.random() * W);
     if (world.cells[world.idx(x, y)] !== Cell.FLOOR) continue;
     requireSpawnedPlotNpcFromPackage(entities, nextId, NPC_ID, x + 0.5, y + 0.5, {
-      angle: rng() * Math.PI * 2,
+      angle: Math.random() * Math.PI * 2,
       weapon: 'pipe',
       canGiveQuest: true,
       isTraveler: true,

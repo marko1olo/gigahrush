@@ -5,6 +5,7 @@ import {
   Cell,
   EntityType,
   Faction,
+  FloorLevel,
   MonsterKind,
   Occupation,
   RoomType,
@@ -20,7 +21,7 @@ import { designFloorPopulationProfile } from '../src/data/design_floor_populatio
 import { HUMAN_TERRITORY_OWNERS, factionToTerritoryOwner, territoryOwnerName } from '../src/data/factions';
 import { territorySharesForDesignFloor } from '../src/data/floor_territory';
 import { generateDesignFloor } from '../src/gen/design_floors/manifest';
-import type { HarmonicBathhouseGeneration } from '../src/gen/harmonic_bathhouse';
+import type { HarmonicBathhouseGeneration } from '../src/gen/design_floors/harmonic_bathhouse';
 import { getCellHazardMoveMultiplier } from '../src/systems/cell_hazards';
 import { getEmergencyPanels } from '../src/systems/emergency_panels';
 import { getRouteCueMarkers } from '../src/systems/route_cues';
@@ -85,7 +86,7 @@ function isAmbientBathhouseNpc(entity: Entity): boolean {
   return entity.type === EntityType.NPC &&
     entity.alive &&
     entity.name?.startsWith('Гармоническая баня:') === true &&
-    (entity as any).npcPackageId === undefined &&
+    entity.plotNpcId === undefined &&
     entity.persistentNpcId === undefined &&
     entity.alifeId === undefined &&
     entity.questId === -1 &&
@@ -97,7 +98,7 @@ test('harmonic bathhouse route data and population profile match the pressure ba
   const route = designFloorById('harmonic_bathhouse');
   assert.ok(route);
   assert.equal(route.z, -28);
-  assert.equal(route.themeTags?.includes('maintenance'), true);
+  assert.equal(route.baseFloor, FloorLevel.MAINTENANCE);
   assert.equal(route.danger, 4);
 
   const profile = designFloorPopulationProfile(route);

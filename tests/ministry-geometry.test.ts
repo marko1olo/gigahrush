@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { Cell, DoorState, RoomType, W, ZoneFaction, type Room } from '../src/core/types';
+import { Cell, DoorState, FloorLevel, RoomType, W, ZoneFaction, type Room } from '../src/core/types';
 import { HUMAN_TERRITORY_OWNERS } from '../src/data/factions';
 import { generateFloor, type FloorGeneration } from '../src/gen/floor_manifest';
 import { World } from '../src/core/world';
@@ -96,7 +96,7 @@ function nearbySupportRooms(world: World, hq: Room): number {
 }
 
 test('ministry macro landmarks are navigable without authority keys', () => {
-  const gen = generateFloor(30, 20_260_530);
+  const gen = generateFloor(FloorLevel.MINISTRY, 20_260_530);
   const world = gen.world;
   const reachable = unlockedReachability(world, gen.spawnX, gen.spawnY);
   const crossBooths = world.rooms.filter(room => room.name.startsWith('Окно центрального креста'));

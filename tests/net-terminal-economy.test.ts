@@ -1,10 +1,10 @@
 import { test } from 'node:test';
-import { getPlotNpcCount } from '../src/data/npc_packages';
 import * as assert from 'node:assert/strict';
 
 import {
   Cell,
   EntityType,
+  FloorLevel,
   MonsterKind,
   RoomType,
 } from '../src/core/types';
@@ -29,14 +29,13 @@ import {
   tryUseNetTerminalGen,
 } from '../src/systems/net_terminal_gen';
 import { addTestRoom, makeGameState, makeTestPlayer } from './helpers';
-import { _overrideRng, _restoreRng } from '../src/core/rand';
 
 const DIRS: readonly [number, number][] = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 
 test('normal net terminal placement puts at least sixteen usable terminals on a roomy floor', () => {
   clearNetTerminalGenTerminals();
   const world = makeTerminalWorld();
-  const state = makeGameState({ currentZ: 0 });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING });
 
   const placed = placeNetTerminalGenTerminalsForCurrentFloor(world, state, { seed: 1234 });
   const terminals = getNetTerminalGenTerminals();
@@ -138,29 +137,30 @@ test('net terminal overlays never release pointer lock', () => {
 test('missing GEN terminal access spawns one cooldowned Safeguard backlash when live entities are provided', () => {
   clearNetTerminalGenTerminals();
   const world = makeTerminalWorld();
-  const state = makeGameState({ currentZ: -26, worldEvents: createWorldEventState() });
+  const state = makeGameState({ currentFloor: FloorLevel.MAINTENANCE, worldEvents: createWorldEventState() });
   const player = makeTestPlayer({ id: 1, x: 100, y: 100, money: 100 });
   const entities = [player];
-  const startNextId = getPlotNpcCount() + 2;
-  const nextId = { v: startNextId };
+  const nextId = { v: 2 };
   const terminal = placeNetTerminalGenTerminal(world, 96, 100, SILICON_NET_WELL_TERMINAL_DEF);
   assert.ok(terminal);
+
+  const originalRandom = Math.random;
   let result: ReturnType<typeof tryUseNetTerminalGen>;
   try {
-    _overrideRng(() => 0.99);
+    Math.random = () => 0.99;
     result = tryUseNetTerminalGen(world, player, state, terminal.x, terminal.y, entities, nextId);
   } finally {
-    _restoreRng();
+    Math.random = originalRandom;
   }
 
   assert.equal(result.handled, true);
   assert.equal(result.mode, 'closed');
   assert.equal(entities.filter(entity => entity.type === EntityType.MONSTER && entity.monsterKind === MonsterKind.SAFEGUARD).length, 1);
-  assert.equal(nextId.v, startNextId + 1);
+  assert.equal(nextId.v, 3);
 
   tryUseNetTerminalGen(world, player, state, terminal.x, terminal.y, entities, nextId);
   assert.equal(entities.filter(entity => entity.type === EntityType.MONSTER && entity.monsterKind === MonsterKind.SAFEGUARD).length, 1);
-  assert.equal(nextId.v, startNextId + 1);
+  assert.equal(nextId.v, 3);
 
   const events = getRecentEvents(state, { type: 'net_terminal_hack_failed', tags: ['safeguard'], limit: 2 });
   assert.equal(events.length, 1);

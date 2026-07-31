@@ -1,6 +1,6 @@
 /* ── Markov dialogue adapter: ordinary NPC talk only ──────────── */
 
-import { type Entity, RoomType, Faction, Occupation, QuestType } from '../core/types';
+import { type Entity, FloorLevel, RoomType, Faction, Occupation, QuestType } from '../core/types';
 import { type ContextSnapshot } from './context';
 import { type NpcMemory } from './npc_memory';
 import {
@@ -22,12 +22,11 @@ export type MarkovAdapterSource = 'generated_markov' | 'curated_pool' | 'locked_
 export interface MarkovAdapterTextContext {
   actorId?: number;
   actorAlifeId?: number;
-  actorName?: string;
   targetId?: number;
   targetAlifeId?: number;
-  z?: number;
+  floor?: FloorLevel;
   roomType?: RoomType;
-  roomDefId?: string;
+  roomName?: string;
   zoneId?: number;
   faction?: Faction;
   occupation?: Occupation;
@@ -41,8 +40,6 @@ export interface MarkovAdapterTextContext {
   questId?: number;
   questType?: QuestType;
   contractId?: string;
-  requiredAnchors?: readonly string[];
-  args?: Readonly<Record<string, string | number | undefined>>;
   tags: readonly string[];
 }
 
@@ -78,7 +75,6 @@ export interface MarkovDialogueOptions {
   time?: number;
   maxChars?: number;
   routeSpeech?: MarkovRouteSpeech;
-  extraTags?: readonly string[];
 }
 
 const DEFAULT_MAX_TALK_CHARS = 140;
@@ -107,7 +103,7 @@ export function renderMarkovDialogueTalk(
   const pack = resolveNpcPackageForEntity(npc);
   const packageFallback = pack ? selectNpcCuratedFallback(pack, intent, seed) : undefined;
   const exactFallback = cleanLine(options.exactFallback) ?? packageFallback;
-  const context = dialogueContext(npc, snapshot, memory, pack, options.extraTags);
+  const context = dialogueContext(npc, snapshot, memory, pack);
   const maxChars = options.maxChars ?? DEFAULT_MAX_TALK_CHARS;
   const router = options.routeSpeech ?? routeAdapterSpeech;
   
@@ -122,7 +118,7 @@ export function renderMarkovDialogueTalk(
   };
 
   const routed = router?.(request);
-  if (routed && validDialogueText(routed.text, context)) {
+  if (routed && validDialogueText(routed.text, context, maxChars)) {
     return { ...routed, intent, tags: routed.tags.length ? routed.tags : context.tags, fallbackUsed: routed.fallbackUsed };
   }
 
@@ -141,13 +137,10 @@ function dialogueContext(
   snapshot: ContextSnapshot,
   memory: NpcMemory,
   pack: NpcSpeechPackageView | undefined,
-  extraTags?: readonly string[],
 ): MarkovAdapterTextContext {
   const tags: string[] = ['dialogue', 'ordinary_npc'];
-  if (npc.ai?.npcState !== undefined) tags.push(`state.${npc.ai.npcState}`);
-  if (extraTags) for (const t of extraTags) if (t && !tags.includes(t)) tags.push(t);
   if (pack) tags.push(...npcPackageSpeechContextTags(pack, npc, 'dialogue'));
-  if (snapshot.roomDefId) tags.push('room');
+  if (snapshot.roomName) tags.push('room');
   if (snapshot.isHungry) tags.push('need.food');
   if (snapshot.isThirsty) tags.push('need.water');
   if (snapshot.isWounded || snapshot.isCritical) tags.push('need.medical');
@@ -159,36 +152,24 @@ function dialogueContext(
   if (memory.trustPlayer > 35) tags.push('relation.warm');
   if (memory.trustPlayer < -20 || memory.fear > 45) tags.push('relation.cold');
 
-  const requiredAnchors: string[] = [];
-  if (snapshot.isHungry || snapshot.isThirsty || snapshot.isWounded || snapshot.isCritical) {
-    requiredAnchors.push('need');
-  } else if (snapshot.samosborActive || snapshot.hasRecentSamosborWarning || snapshot.isDangerousZone) {
-    requiredAnchors.push('event');
-  } else if (snapshot.roomDefId || snapshot.roomType || snapshot.zoneId !== undefined) {
-    requiredAnchors.push('room');
-  } else if (snapshot.nearbyContainer || snapshot.nearbyProduction) {
-    requiredAnchors.push('item');
-  }
-
   return {
     actorId: npc.id,
     actorAlifeId: npc.alifeId,
-    actorName: npc.name,
-    z: snapshot.z,
+    floor: snapshot.floor,
     roomType: snapshot.roomType,
-    roomDefId: snapshot.roomDefId,
+    roomName: snapshot.roomName,
     zoneId: snapshot.zoneId,
     faction: snapshot.npcFaction ?? npc.faction,
     occupation: snapshot.npcOccupation as Occupation | undefined,
     needBand: snapshot.isCritical || snapshot.isHungry || snapshot.isThirsty ? 'urgent' : snapshot.isWounded ? 'low' : 'ok',
     dangerBand: snapshot.samosborActive ? 'panic' : snapshot.isDangerousZone ? 'threat' : snapshot.hasRecentSamosborWarning ? 'uneasy' : 'quiet',
-    requiredAnchors: requiredAnchors.length > 0 ? requiredAnchors : undefined,
     tags,
   };
 }
 
-function validDialogueText(text: string, context: MarkovAdapterTextContext): boolean {
-  if (context.roomDefId && text.includes('__ANCHOR__')) return false;
+function validDialogueText(text: string, context: MarkovAdapterTextContext, maxChars: number): boolean {
+  if (text.length > maxChars) return false;
+  if (context.roomName && text.includes('__ANCHOR__')) return false;
   return true;
 }
 
@@ -199,7 +180,7 @@ export function cleanLine(text: string | undefined): string | undefined {
 }
 
 export function hasContextAnchor(snapshot: ContextSnapshot): boolean {
-  return snapshot.roomDefId !== undefined || snapshot.zoneId !== undefined || snapshot.isDangerousZone || snapshot.samosborActive || snapshot.nearbyContainer || snapshot.nearbyProduction;
+  return snapshot.roomName !== undefined || snapshot.zoneId !== undefined || snapshot.floor !== undefined;
 }
 
 export function minimalMemory(npc: Entity, now: number): NpcMemory {

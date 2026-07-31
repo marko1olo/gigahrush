@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { EntityType, MonsterKind, type Entity } from '../src/core/types';
+import { EntityType, FloorLevel, MonsterKind, type Entity } from '../src/core/types';
 import { DEF, generateSprite } from '../src/entities/blood_plant';
 import { getMonsterEcology } from '../src/data/monster_ecology';
 import { S } from '../src/render/pixutil';
@@ -22,6 +22,7 @@ test('blood plant definition, ecology, and sprite read as a red mold rooted hive
 
   assert.equal(DEF.kind, MonsterKind.BLOOD_PLANT);
   assert.deepEqual(DEF.aiFlags, ['rootHive']);
+  assert.deepEqual(DEF.floors, [FloorLevel.LIVING, FloorLevel.MAINTENANCE, FloorLevel.HELL]);
   assert.equal(ecology?.rare, true);
   assert.match(DEF.counterplay ?? '', /соли|огня|режущего/i);
   assert.equal(sprite.length, S * S);

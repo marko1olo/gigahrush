@@ -55,19 +55,18 @@ export function floorInstanceGenerationSeed(
   );
 }
 
-function designPocketFloorInstance(
+function storyPocketFloorInstance(
   def: FloorInstanceDef,
   runSeed: number,
   instanceSeed: number,
 ): FloorGeneration {
   const generationSeed = floorInstanceGenerationSeed(def, runSeed, instanceSeed);
-  // @ts-ignore
-  const generation = generateFloor(def.themeTags, generationSeed);
+  const generation = generateFloor(def.baseFloor, generationSeed);
   return floorInstanceAllowsNpcs(def) ? generation : withoutNpcEntities(generation);
 }
 
 const FLOOR_INSTANCE_GENERATORS: Record<FloorInstanceGeneratorId, FloorInstanceGenerator> = {
-  design_pocket: designPocketFloorInstance,
+  story_pocket: storyPocketFloorInstance,
 };
 
 export function floorInstanceGeneratorIds(): readonly FloorInstanceGeneratorId[] {

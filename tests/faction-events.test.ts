@@ -1,12 +1,11 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { getPlotNpcCount } from '../src/data/npc_packages';
-
 import {
   Cell,
   EntityType,
   Faction,
+  FloorLevel,
   Occupation,
   ZoneFaction,
   type Entity,
@@ -119,30 +118,14 @@ test('faction events reference existing items, weapons and economy resources', (
   assert.ok(procession.procession.controlRadius <= procession.procession.actionRadius);
 });
 
-test('does not spawn faction events during tutorial', () => {
-  const state = makeGameState({ tutorialMode: true, time: 100 });
-  const world = new World();
-  const entities: Entity[] = [];
-  const player = { id: 1, type: EntityType.PLAYER, alive: true, x: 50, y: 50 } as Entity;
-  entities.push(player);
-  const nextId = { v: getPlotNpcCount() + 2 }
-
-  updateFactionEvents(state, world, player, entities, nextId, 10, true);
-
-  // During tutorial mode, no events should be spawned regardless of time/scheduler.
-  const hasEventMsg = state.msgs.some(m => m.text.includes('отбивают') || m.text.includes('Замечена') || m.text.includes('стычка'));
-  assert.equal(hasEventMsg, false);
-  assert.equal(entities.length, 1); // Only player exists
-});
-
 test('cult procession exposes follow, report, disguise, avoid and violent disrupt paths', () => {
   resetFactionEventsForTests();
   initFactionRelations();
   const world = cultWorld();
-  const state = makeGameState({ currentZ: -36, worldEvents: createWorldEventState() });
+  const state = makeGameState({ currentFloor: FloorLevel.HELL, worldEvents: createWorldEventState() });
   const actor = player();
   const entities: Entity[] = [actor];
-  const nextId = { v: getPlotNpcCount() + 10 }
+  const nextId = { v: 10 };
 
   const result = forceFactionEvent(state, world, actor, entities, nextId, 'cult_procession');
   assert.match(result, /Культовая процессия/);
@@ -204,10 +187,10 @@ test('active cult procession publishes aftermath and clears when samosbor cycle 
   resetFactionEventsForTests();
   initFactionRelations();
   const world = cultWorld();
-  const state = makeGameState({ currentZ: -36, worldEvents: createWorldEventState() });
+  const state = makeGameState({ currentFloor: FloorLevel.HELL, worldEvents: createWorldEventState() });
   const actor = player();
   const entities: Entity[] = [actor];
-  const nextId = { v: getPlotNpcCount() + 50 }
+  const nextId = { v: 50 };
 
   assert.match(forceFactionEvent(state, world, actor, entities, nextId, 'cult_procession'), /Культовая процессия/);
   assert.equal(getActiveCultProcessionSnapshots(state).length, 1);

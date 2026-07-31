@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { AIGoal, Cell, DoorState, EntityType, Faction, Feature, MonsterKind, RoomType, type Entity, type Msg } from '../src/core/types';
+import { AIGoal, Cell, DoorState, EntityType, Faction, Feature, FloorLevel, MonsterKind, RoomType, type Entity, type Msg } from '../src/core/types';
 import { World } from '../src/core/world';
 import { DEF, HEAD_SLUG_DETACHED_STAGE, HEAD_SLUG_HOSTED_STAGE, generateSlugSprite, generateSprite } from '../src/entities/head_slug';
 import { MONSTERS } from '../src/entities/monster';

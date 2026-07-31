@@ -1,8 +1,7 @@
 import { test } from 'node:test';
-import { getPlotNpcCount } from '../src/data/npc_packages';
 import * as assert from 'node:assert/strict';
 
-import { AIGoal, Cell, EntityType, Faction, MonsterKind, ZoneFaction, type Entity, type Msg } from '../src/core/types';
+import { AIGoal, Cell, EntityType, Faction, FloorLevel, MonsterKind, ZoneFaction, type Entity, type Msg } from '../src/core/types';
 import { World } from '../src/core/world';
 import { MONSTERS } from '../src/entities/monster';
 import { setEntityMap, updateMonster } from '../src/systems/ai/monster';
@@ -81,8 +80,8 @@ test('Matka source owns a capped child budget instead of nearby refill pressure'
   const player = makeTestPlayer({ id: 1, x: 240, y: 240 });
   const source = matka(2, 12.5, 12.5);
   const entities = [player, source];
-  const state = makeGameState({ currentZ: -26, worldEvents: createWorldEventState(), time: 1 });
-  const nextId = { v: getPlotNpcCount() + 10 }
+  const state = makeGameState({ currentFloor: FloorLevel.HELL, worldEvents: createWorldEventState(), time: 1 });
+  const nextId = { v: 10 };
 
   for (let i = 0; i < MATKA_CHILD_CAP + 5; i++) {
     forceMatkaSpawn(world, entities, source, state, nextId, 1 + i * 0.1);
@@ -104,8 +103,8 @@ test('killing Matka source leaves owned children alive but stops later source ti
   const player = makeTestPlayer({ id: 1, x: 13.5, y: 12.5 });
   const source = matka(2, 12.5, 12.5);
   const entities = [player, source];
-  const state = makeGameState({ currentZ: -26, worldEvents: createWorldEventState(), time: 2 });
-  const nextId = { v: getPlotNpcCount() + 10 }
+  const state = makeGameState({ currentFloor: FloorLevel.HELL, worldEvents: createWorldEventState(), time: 2 });
+  const nextId = { v: 10 };
 
   for (let i = 0; i < 3; i++) {
     forceMatkaSpawn(world, entities, source, state, nextId, 2 + i * 0.1);
@@ -134,8 +133,8 @@ test('Matka source sanitizes malformed saved child ids before accounting', () =>
     ...Array.from({ length: MATKA_CHILD_CAP + 8 }, (_, i) => 10 + i),
   ] as unknown as number[];
   const entities = [player, source];
-  const state = makeGameState({ currentZ: -26, worldEvents: createWorldEventState(), time: 4 });
-  const nextId = { v: getPlotNpcCount() + 100 }
+  const state = makeGameState({ currentFloor: FloorLevel.HELL, worldEvents: createWorldEventState(), time: 4 });
+  const nextId = { v: 100 };
 
   forceMatkaSpawn(world, entities, source, state, nextId, 4);
 

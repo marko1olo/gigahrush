@@ -8,7 +8,6 @@ import { ITEM_TAGS, ITEMS, getStack } from '../src/data/items';
 import { RESOURCES, resourceForItem } from '../src/data/resources';
 import { addItem, getInventorySlotActionInfo, inventoryItemCategory } from '../src/systems/inventory';
 import { makeTestNpc, makeTestPlayer } from './helpers';
-import { _overrideRng, _restoreRng } from '../src/core/rand';
 
 const ITEM_ID = 'toiletpaper';
 
@@ -49,21 +48,22 @@ test('toilet paper remains stealable public loot and sellable trade goods', () =
 });
 
 test('storekeeper trade can expose toilet paper as vending barter', () => {
+  const savedRandom = Math.random;
   try {
     let exposed = false;
     for (let target = 0; target < 64 && !exposed; target++) {
       let calls = 0;
-      _overrideRng(() => {
+      Math.random = () => {
         calls++;
         if (calls === 1) return 0;
         if (calls === 2) return target / 64;
         return 0;
-      });
+      };
       const offers = generateNpcTradeItems(makeTestNpc({ occupation: Occupation.STOREKEEPER }));
       exposed = offers.some(offer => offer.defId === ITEM_ID);
     }
     assert.ok(exposed, 'storekeepers should sell toilet paper');
   } finally {
-    _restoreRng();
+    Math.random = savedRandom;
   }
 });

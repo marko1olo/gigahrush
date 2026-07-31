@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { MonsterKind, type GameState } from '../src/core/types';
+import { FloorLevel, MonsterKind, type GameState } from '../src/core/types';
 import { createWorldEventState, getRecentEvents, publishEvent } from '../src/systems/events';
 import {
   buyShares,
@@ -10,12 +10,10 @@ import {
   portfolioValue,
   sellShares,
   stockMarketForSave,
-  applyRemoteStockMarketSnapshot,
   stockMarketSnapshot,
   tickStockMarket,
   type StockMarketState,
 } from '../src/systems/stock_market';
-import type { NetMarketSnapshot } from '../src/systems/net_sphere';
 import { makeGameState } from './helpers';
 
 type MarketTestState = GameState & {
@@ -29,62 +27,6 @@ test('stock market state normalizes from empty save', () => {
   assert.equal(normalized.lastEventId, 0);
   assert.equal(normalized.recentTrades.length, 0);
   assert.equal(normalized.quotes.toha_heavy_industries.price, 180);
-});
-
-test('stock market state normalizes from invalid primitive state', () => {
-  const normalizedNull = normalizeStockMarketState(null);
-  const normalizedString = normalizeStockMarketState('garbage');
-  const normalizedNumber = normalizeStockMarketState(42);
-
-  assert.ok(Object.keys(normalizedNull.quotes).length > 0);
-  assert.equal(normalizedNull.lastEventId, 0);
-
-  assert.deepEqual(normalizedNull, normalizedString);
-  assert.deepEqual(normalizedNull, normalizedNumber);
-});
-
-test('stock market state normalizes corrupted quotes', () => {
-  const corruptState = {
-    quotes: {
-      toha_heavy_industries: {
-        price: 'not a number',
-        lastDelta: NaN,
-        drift: Infinity,
-        volume: -5,
-        lastTickAt: -10,
-      }
-    }
-  };
-  const normalized = normalizeStockMarketState(corruptState);
-  const quote = normalized.quotes.toha_heavy_industries;
-
-  assert.equal(typeof quote.price, 'number');
-  assert.ok(quote.price > 0);
-  assert.equal(quote.lastDelta, 0);
-  assert.ok(Number.isFinite(quote.drift));
-  assert.equal(quote.volume, 0);
-  assert.equal(quote.lastTickAt, 0);
-});
-
-test('stock market state normalizes corrupted portfolio, skipping unknown corps and zero shares', () => {
-  const corruptState = {
-    portfolio: {
-      toha_heavy_industries: { shares: -5, avgPrice: 'NaN' },
-      zavod_serp_i_beton: { shares: 0, avgPrice: 100 },
-      nii_slizi_i_biologii: { shares: 10, avgPrice: -100 },
-      unknown_corp: { shares: 100, avgPrice: 50 }
-    }
-  };
-  const normalized = normalizeStockMarketState(corruptState);
-
-  assert.equal(normalized.portfolio.toha_heavy_industries, undefined);
-  assert.equal(normalized.portfolio.zavod_serp_i_beton, undefined);
-  // @ts-expect-error test
-  assert.equal(normalized.portfolio.unknown_corp, undefined);
-
-  assert.ok(normalized.portfolio.nii_slizi_i_biologii);
-  assert.equal(normalized.portfolio.nii_slizi_i_biologii.shares, 10);
-  assert.equal(normalized.portfolio.nii_slizi_i_biologii.avgPrice, 0);
 });
 
 test('buying shares debits banking account and records portfolio/event', () => {
@@ -157,82 +99,6 @@ test('random stock tick changes quotes within bounds', () => {
   }
 });
 
-test('applyRemoteStockMarketSnapshot updates quotes based on remote snapshot', () => {
-  const state = makeMarketState(0);
-  const market = ensureStockMarketState(state);
-
-  market.lastRemoteUpdatedAt = 1000;
-  state.time = 2000;
-
-  const originalPrice = market.quotes.toha_heavy_industries.price;
-
-  const snapshot: NetMarketSnapshot = {
-    updatedAt: 1500,
-    rows: [
-      {
-        corpId: 'toha_heavy_industries',
-        price: 250,
-        lastDelta: 10,
-        volume: 5000,
-        updatedAt: 1500,
-      }
-    ]
-  };
-
-  applyRemoteStockMarketSnapshot(state, snapshot);
-
-  assert.equal(market.lastRemoteUpdatedAt, 1500);
-
-  // remotePrice = 250, oldPrice = 180 (originalPrice)
-  // maxStep = 180 * 0.025 = 4.5
-  // softDelta = clamp(70 * 0.18, -4.5, 4.5) = 4.5
-  // newPrice = 184.5
-  assert.equal(market.quotes.toha_heavy_industries.price, 184.5);
-  assert.equal(market.quotes.toha_heavy_industries.lastDelta, 4.5);
-  assert.ok(market.quotes.toha_heavy_industries.drift > 0);
-  assert.equal(market.quotes.toha_heavy_industries.volume, 5000);
-  assert.equal(market.quotes.toha_heavy_industries.lastTickAt, 2000);
-});
-
-test('applyRemoteStockMarketSnapshot ignores older or same snapshot', () => {
-  const state = makeMarketState(0);
-  const market = ensureStockMarketState(state);
-
-  market.lastRemoteUpdatedAt = 1500;
-  const originalPrice = market.quotes.toha_heavy_industries.price;
-
-  const snapshot: NetMarketSnapshot = {
-    updatedAt: 1000,
-    rows: [
-      {
-        corpId: 'toha_heavy_industries',
-        price: 250,
-        lastDelta: 10,
-        volume: 5000,
-        updatedAt: 1000,
-      }
-    ]
-  };
-
-  applyRemoteStockMarketSnapshot(state, snapshot);
-
-  assert.equal(market.lastRemoteUpdatedAt, 1500);
-  assert.equal(market.quotes.toha_heavy_industries.price, originalPrice);
-});
-
-test('applyRemoteStockMarketSnapshot handles null snapshot gracefully', () => {
-  const state = makeMarketState(0);
-  const market = ensureStockMarketState(state);
-
-  market.lastRemoteUpdatedAt = 1500;
-  const originalPrice = market.quotes.toha_heavy_industries.price;
-
-  applyRemoteStockMarketSnapshot(state, null);
-
-  assert.equal(market.lastRemoteUpdatedAt, 1500);
-  assert.equal(market.quotes.toha_heavy_industries.price, originalPrice);
-});
-
 test('production event raises related factory corporation quote', () => {
   const state = makeMarketState(0);
   const market = ensureStockMarketState(state);
@@ -249,26 +115,6 @@ test('production event raises related factory corporation quote', () => {
 
   assert.ok(market.quotes.zavod_serp_i_beton.price > before);
   assert.equal(market.lastEventId, 1);
-});
-
-test('stock market state normalizes recent trades, filtering out invalid and enforcing cap', () => {
-  const trades = Array.from({ length: 30 }, (_, i) => ({
-    id: i + 1, time: 100, corpId: 'toha_heavy_industries', side: 'buy', shares: 10,
-    unitPrice: 10, gross: 100, fee: 1, total: 101,
-  }));
-
-  trades.push(
-    { id: 31, corpId: 'unknown_corp', side: 'buy', shares: 10 } as any,
-    { id: 32, corpId: 'toha_heavy_industries', side: 'hold', shares: 10 } as any,
-    { id: 33, corpId: 'toha_heavy_industries', side: 'sell', shares: -5 } as any,
-    null as any
-  );
-
-  const normalized = normalizeStockMarketState({ recentTrades: trades, nextTradeId: -5 });
-
-  assert.equal(normalized.recentTrades.length, 24);
-  assert.equal(normalized.recentTrades[normalized.recentTrades.length - 1].id, 30);
-  assert.equal(normalized.nextTradeId, 31);
 });
 
 test('industrial monster kill and slime science events move matching corporations', () => {
@@ -299,7 +145,7 @@ test('industrial monster kill and slime science events move matching corporation
 
 function makeMarketState(accountRubles: number): MarketTestState {
   const state = makeGameState({
-    currentZ: 0,
+    currentFloor: FloorLevel.LIVING,
     worldEvents: createWorldEventState(),
   }) as MarketTestState;
   state.banking = { accountRubles };

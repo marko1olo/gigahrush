@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { AIGoal, Cell, EntityType, Faction, MonsterKind, type Entity, type GameClock } from '../src/core/types';
+import { AIGoal, Cell, EntityType, FloorLevel, Faction, MonsterKind, type Entity, type GameClock } from '../src/core/types';
 import { World } from '../src/core/world';
 import { updateAI } from '../src/systems/ai';
 import { getCellHazardMoveMultiplier } from '../src/systems/cell_hazards';
@@ -42,9 +42,9 @@ function slimeWoman(overrides: Partial<Entity> = {}): Entity {
 }
 
 function tick(world: World, entities: Entity[], player: Entity, time: number, clock: GameClock): void {
-  const state = makeGameState({ time, clock, currentZ: -26 });
+  const state = makeGameState({ time, clock, currentFloor: FloorLevel.MAINTENANCE });
   rebuildEntityIndexForSimulation(entities, Math.floor(time * 1000));
-  updateAI(world, entities, 0.12, time, state.msgs, player.id, clock, false, { v: 10_000 }, state.currentZ, state);
+  updateAI(world, entities, 0.12, time, state.msgs, player.id, clock, false, { v: 10_000 }, FloorLevel.MAINTENANCE, state);
 }
 
 test('actor tactic profile lets slime woman drop bounded residue after combat stimulus', () => {
@@ -54,11 +54,11 @@ test('actor tactic profile lets slime woman drop bounded residue after combat st
   const player = makeTestPlayer({ id: 1, x: 19.5, y: 20.5, hp: 100, maxHp: 100 });
   const slime = slimeWoman();
   const entities = [player, slime];
-  const state = makeGameState({ time: 4, clock, currentZ: -26 });
+  const state = makeGameState({ time: 4, clock, currentFloor: FloorLevel.MAINTENANCE });
 
   notifyActorDamaged(world, slime, player, 8, 'player_melee', 4, state);
   rebuildEntityIndexForSimulation(entities, 4_000);
-  updateAI(world, entities, 0.12, 4, state.msgs, player.id, clock, false, { v: 10_000 }, state.currentZ, state);
+  updateAI(world, entities, 0.12, 4, state.msgs, player.id, clock, false, { v: 10_000 }, FloorLevel.MAINTENANCE, state);
 
   const probe = makeTestPlayer({ id: 99, x: 20.5, y: 20.5 });
   assert.equal(getCellHazardMoveMultiplier(world, probe) < 1, true);

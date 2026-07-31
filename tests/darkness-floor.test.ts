@@ -4,7 +4,7 @@ import * as assert from 'node:assert/strict';
 import { Cell, EntityType, Feature, RoomType, W, ZoneFaction } from '../src/core/types';
 import { HUMAN_TERRITORY_OWNERS } from '../src/data/factions';
 import { generateDesignFloor } from '../src/gen/design_floors/manifest';
-import { generateDarknessDesignFloor, darknessStateByWorld } from '../src/gen/darkness';
+import { generateDarknessDesignFloor, getDarknessState } from '../src/gen/design_floors/darkness';
 import { countTerritoryCells, territoryHqAnchors } from '../src/systems/territory';
 
 function countReachableCells(gen: ReturnType<typeof generateDesignFloor>): number {
@@ -38,7 +38,7 @@ function countReachableCells(gen: ReturnType<typeof generateDesignFloor>): numbe
 
 test('darkness floor exposes light, reveal, sound and radon topology state', () => {
   const gen = generateDarknessDesignFloor();
-  const state = darknessStateByWorld.get(gen.world);
+  const state = getDarknessState(gen.world);
 
   assert.equal(state, gen.darknessState);
   assert.equal(gen.darknessState.lightBudget, 8);

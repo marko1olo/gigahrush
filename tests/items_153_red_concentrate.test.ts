@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { ItemType, RoomType } from '../src/core/types';
+import { FloorLevel, ItemType, RoomType } from '../src/core/types';
 import { ITEM_TAGS, ITEMS } from '../src/data/items';
 import { RESOURCES, resourceForItem } from '../src/data/resources';
 import { getRecentEvents } from '../src/systems/events';
@@ -38,7 +38,7 @@ test('using red concentrate spends the bribe ration as food', () => {
     inventory: [{ defId: ITEM_ID, count: 1 }],
     needs: { food: 30, water: 60, sleep: 70, pee: 0, poo: 0 },
   });
-  const state = makeGameState({ currentZ: 34, time: 153 });
+  const state = makeGameState({ currentFloor: FloorLevel.MINISTRY, time: 153 });
 
   assert.equal(getInventorySlotActionInfo(player, 0)?.useLabel, 'Enter применить');
 

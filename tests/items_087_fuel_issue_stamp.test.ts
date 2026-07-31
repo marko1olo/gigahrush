@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { ItemType, RoomType } from '../src/core/types';
+import { FloorLevel, ItemType, RoomType } from '../src/core/types';
 import { ITEM_TAGS, ITEMS } from '../src/data/items';
 import { RESOURCES, resourceForItem } from '../src/data/resources';
 import { getRecentEvents } from '../src/systems/events';
@@ -29,7 +29,7 @@ test('fuel issue stamp is official liquidator fuel paperwork', () => {
 
 test('fuel issue stamp redeems into one fuel canister', () => {
   const player = makeTestPlayer({ inventory: [{ defId: 'fuel_issue_stamp', count: 1 }] });
-  const state = makeGameState({ currentZ: 34, time: 87 });
+  const state = makeGameState({ currentFloor: FloorLevel.MINISTRY, time: 87 });
 
   assert.equal(getInventorySlotActionInfo(player, 0)?.useLabel, 'Enter погасить');
 

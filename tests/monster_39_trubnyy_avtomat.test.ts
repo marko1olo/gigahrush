@@ -1,8 +1,7 @@
 import { test } from 'node:test';
-import { getPlotNpcCount } from '../src/data/npc_packages';
 import * as assert from 'node:assert/strict';
 
-import { Cell, EntityType, MonsterKind, AIGoal, type Entity, type Msg } from '../src/core/types';
+import { Cell, EntityType, FloorLevel, MonsterKind, AIGoal, type Entity, type Msg } from '../src/core/types';
 import { World } from '../src/core/world';
 import { getMonsterEcology } from '../src/data/monster_ecology';
 import { DEF, generateSprite } from '../src/entities/trubnyy_avtomat';
@@ -68,12 +67,14 @@ test('trubnyy avtomat is a standalone maintenance wet-line monster', () => {
   assert.equal(DEF.kind, MonsterKind.TRUBNYY_AVTOMAT);
   assert.equal(DEF.isRanged, true);
   assert.deepEqual(DEF.aiFlags, ['wetLineShot']);
+  assert.deepEqual(DEF.floors, [FloorLevel.MAINTENANCE]);
   assert.equal(DEF.hp >= 140, true, 'machine should be armored by durability');
   assert.equal(DEF.speed < 1, true, 'machine should be slow enough to flank');
   assert.equal(DEF.attackRate >= TRUBNYY_WET_LINE_RECOVERY_SEC, true, 'definition should expose a long recovery window');
 
   const ecology = getMonsterEcology(MonsterKind.TRUBNYY_AVTOMAT);
   assert.ok(ecology, 'ecology entry is required for direct spawn weighting');
+  assert.deepEqual(ecology?.floors, [FloorLevel.MAINTENANCE]);
   assert.match(ecology?.counterplay ?? '', /мокр|остыв|фланг|сух/);
 
   const opaque = [...generateSprite()].filter(px => (px >>> 24) !== 0).length;
@@ -101,7 +102,7 @@ test('trubnyy wet-line shot charges visibly and locks out during recovery', () =
   const target = player(20.5, 20.5);
   const entities = [m, target];
   const msgs: Msg[] = [];
-  const nextId = { v: getPlotNpcCount() + 3 }
+  const nextId = { v: 3 };
 
   assert.equal(updateTrubnyyWetLineShot(world, entities, m, target, DEF, 0.1, 1, msgs, target.id, nextId), true);
   assert.ok((m.ai?.windupTimer ?? 0) > 0, 'first valid line starts a charge');

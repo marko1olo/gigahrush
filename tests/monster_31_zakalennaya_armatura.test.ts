@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { AIGoal, EntityType, MonsterKind, RoomType, type Entity } from '../src/core/types';
+import { AIGoal, EntityType, FloorLevel, MonsterKind, RoomType, type Entity } from '../src/core/types';
 import { World } from '../src/core/world';
 import { MONSTER_ECOLOGY } from '../src/data/monster_ecology';
 import { DEF, generateSprite } from '../src/entities/zakalennaya_armatura';
@@ -61,6 +61,8 @@ test('zakalennaya armatura is standalone maintenance and hell armor content', ()
 
   assert.ok(ecology, 'ecology must exist');
   assert.equal(DEF.kind, MonsterKind.ZAKALENNAYA_ARMATURA);
+  assert.deepEqual(DEF.floors, [FloorLevel.MAINTENANCE, FloorLevel.HELL]);
+  assert.deepEqual(ecology?.floors, [FloorLevel.MAINTENANCE, FloorLevel.HELL]);
   assert.equal(ecology?.rare, true);
   assert.equal(ecology?.rooms.includes(RoomType.PRODUCTION), true);
   assert.ok(DEF.hp > 240);
@@ -70,7 +72,7 @@ test('zakalennaya armatura is standalone maintenance and hell armor content', ()
 
 test('armor state resists weak hits and strips on heavy hits', () => {
   const world = new World();
-  const state = makeGameState({ currentZ: -14 });
+  const state = makeGameState({ currentFloor: FloorLevel.MAINTENANCE });
   const target = monster();
   const actor = player();
 

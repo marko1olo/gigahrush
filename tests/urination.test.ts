@@ -3,10 +3,8 @@ import assert from 'node:assert/strict';
 
 import { AIGoal, Cell, EntityType, Faction, Occupation, RoomType, Tex, type Entity } from '../src/core/types';
 import { World } from '../src/core/world';
-import { setNpcContext, updateNPC, processUrinationEvents } from '../src/systems/ai/npc_fsm';
+import { setNpcContext, updateNPC } from '../src/systems/ai/npc_fsm';
 import { resetUrinationTraceCadenceForTests, stampUrineTrace } from '../src/systems/urination';
-import { makeGameState } from './helpers';
-import { publishEvent } from '../src/systems/events';
 
 function openWorld(): World {
   const world = new World();
@@ -88,86 +86,6 @@ test('shared urine trace stamps compact yellow marks at the projected hit point'
   assert.ok(world.surfaceMap.size <= 3);
   assert.equal(world.surfaceMap.has(actorCell), false);
   assert.ok(countYellowPixels(world) >= 8);
-});
-
-test('public urination penalizes relation and makes NPC hostile if threshold is met', () => {
-  const world = openWorld();
-  const state = makeGameState();
-  const observer = npc(30, Faction.CITIZEN, 10, 10);
-  observer.playerRelation = -15; // Set so one penalty (-15) pushes it to -30
-
-  const event = publishEvent(state, {
-    type: 'player_urinated',
-    actorId: 999,
-    x: 12,
-    y: 12,
-    roomId: undefined,
-    severity: 1,
-    privacy: 'witnessed',
-    tags: ['urination'],
-  });
-
-  observer.ai!.lastSeenUrinationId = event.id - 1;
-
-  processUrinationEvents(world, observer, observer.ai!, state, [], 10);
-
-  // -15 initial - 15 penalty = -30
-  assert.equal(observer.playerRelation, -30);
-  assert.equal(observer.ai?.goal, AIGoal.HUNT);
-  assert.equal(observer.ai?.combatTargetId, 999);
-});
-
-test('public urination does not penalize relation if in a bathroom', () => {
-  const world = openWorld();
-  const state = makeGameState();
-  // We need to add a dummy room 0 first to ensure the bathroom is index 1 to match the ID
-  addBathroom(world, 0, 0, 0, 1, 1);
-  addBathroom(world, 1, 10, 10, 5, 5);
-  const observer = npc(40, Faction.CITIZEN, 12, 12);
-  observer.playerRelation = 0;
-
-  const event = publishEvent(state, {
-    type: 'player_urinated',
-    actorId: 999,
-    x: 12,
-    y: 12,
-    roomId: 1,
-    severity: 1,
-    privacy: 'witnessed',
-    tags: ['urination'],
-  });
-
-  observer.ai!.lastSeenUrinationId = event.id - 1;
-
-  processUrinationEvents(world, observer, observer.ai!, state, [], 10);
-
-  // Still 0 since it was in a bathroom
-  assert.equal(observer.playerRelation, 0);
-  assert.notEqual(observer.ai?.goal, AIGoal.HUNT);
-});
-
-test('public urination does not penalize relation if too far away', () => {
-  const world = openWorld();
-  const state = makeGameState();
-  const observer = npc(50, Faction.CITIZEN, 10, 10);
-  observer.playerRelation = 0;
-
-  const event = publishEvent(state, {
-    type: 'player_urinated',
-    actorId: 999,
-    x: 30, // Way outside 8 cells (64 dist2)
-    y: 30,
-    roomId: undefined,
-    severity: 1,
-    privacy: 'witnessed',
-    tags: ['urination'],
-  });
-
-  observer.ai!.lastSeenUrinationId = event.id - 1;
-
-  processUrinationEvents(world, observer, observer.ai!, state, [], 10);
-
-  assert.equal(observer.playerRelation, 0);
 });
 
 test('wild NPC urination is an explicit in-place routine instead of a bathroom path', () => {

@@ -1,6 +1,6 @@
 /* ── Paupsina: fast web-spitting service spider ──────────────── */
 
-import { MonsterKind, ProjType } from '../core/types';
+import { FloorLevel, MonsterKind, ProjType } from '../core/types';
 import type { MonsterDef } from './monster';
 import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
@@ -18,6 +18,7 @@ export const DEF: MonsterDef = {
   projSpeed: 9.5,
   projType: ProjType.WEB,
   aiFlags: ['webSpitter'],
+  floors: [FloorLevel.KVARTIRY, FloorLevel.LIVING, FloorLevel.MAINTENANCE],
   counterplay: 'Сеть летит по прямой и держит недолго: ломайте линию дверью или стеллажом, режьте ножом/пилой, жгите огнем или наказывайте дробью вблизи.',
   lootHint: 'бледные нитки, обломки сбруи, липкий мешок, редкий моток проволоки',
 };

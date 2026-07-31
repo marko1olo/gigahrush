@@ -5,16 +5,6 @@ import { S, rgba, noise, clamp, CLEAR } from './pixutil';
 export const ART_NUDE_VARIANTS = 4;
 export const F69_FEMALE_NPC_VARIANTS = 8;
 
-function upscaleTo128(t: Uint32Array): Uint32Array {
-  const out = new Uint32Array(128 * 128);
-  for (let y = 0; y < 128; y++) {
-    for (let x = 0; x < 128; x++) {
-      out[y * 128 + x] = t[(y >> 1) * S + (x >> 1)];
-    }
-  }
-  return out;
-}
-
 interface Palette {
   r: number;
   g: number;
@@ -567,7 +557,7 @@ export function generateArtNudeSprite(variant: number): Uint32Array {
   drawFigure(t, v, p, seed);
   drawPedestal(t, seed);
   drawContour(t, seed);
-  return upscaleTo128(t);
+  return t;
 }
 
 export function generateFloor69FemaleNpcSprite(variant: number): Uint32Array {
@@ -638,5 +628,5 @@ export function generateFloor69FemaleNpcSprite(variant: number): Uint32Array {
   drawAnimeFace(t, cx, lean, sr, sg, sb);
 
   drawContour(t, seed);
-  return upscaleTo128(t);
+  return t;
 }

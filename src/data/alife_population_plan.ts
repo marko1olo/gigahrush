@@ -1,5 +1,4 @@
-import { themeForDesignFloor } from './floor_theme_profiles';
-import { type CharacterSex, Faction, Occupation, type Item, type RPGStats } from '../core/types';
+import { type CharacterSex, Faction, FloorLevel, Occupation, type Item, type RPGStats } from '../core/types';
 import type { WeightedValue } from './alife_generation';
 import { DESIGN_FLOOR_ROUTES, type DesignFloorRouteDef } from './design_floors';
 import { designFloorPopulationProfile } from './design_floor_population';
@@ -18,22 +17,23 @@ import {
 } from './population_profiles';
 import {
   allNpcPackages,
-  getPlotNpcNumericId,
   npcPackageDisplayName,
   npcPackageRuntimeEligible,
+  plotNpcIdFromPackage,
   type NpcPackageDef,
   type NpcPackagePresence,
 } from './npc_packages';
+import { MAIN_PLOT_NPC_PACKAGES } from './npc_plot_packages';
 import {
   themeForDesignRoute,
   themeForProceduralSpec,
-  // @ts-ignore
-  } from './floor_theme_profiles';
-import { floorKeyAllowsNpcs, floorKeyForDesign, floorKeyForProcedural, floorKeyKnown  } from './floor_keys';
+  themeForStoryFloor,
+} from './floor_theme_profiles';
+import { floorKeyAllowsNpcs, floorKeyForDesign, floorKeyForProcedural, floorKeyForStory, floorKeyKnown } from './floor_keys';
 
 export interface AlifePopulationBucketDef {
   floorKey: string;
-  themeTags: readonly string[];
+  baseFloor: FloorLevel;
   targetCount: number;
   populationProfileId: string;
   factionWeights?: readonly WeightedValue<Faction>[];
@@ -43,12 +43,11 @@ export interface AlifePopulationBucketDef {
 }
 
 export interface AlifeReservedIdentityDef {
-  plotNpcId?: number;
   id: string;
   kind: 'plot' | 'authored' | 'event_reserved';
   presence?: 'population' | 'event_only';
   floorKey: string;
-  npcPackageId?: string;
+  plotNpcId?: string;
   name?: string;
   female?: boolean;
   age?: number;
@@ -93,24 +92,24 @@ export const ALIFE_POPULATION_CAPACITY = 131_072 as const;
 export const ALIFE_POPULATION_BASELINE = 100_000 as const;
 export const ALIFE_POPULATION_JITTER = 8_192 as const;
 export const ALIFE_POPULATION_MIN_RANDOM = ALIFE_POPULATION_BASELINE - ALIFE_POPULATION_JITTER;
+const SNAKE_ID_RE = /^[a-z0-9_]+$/;
 
-
-const STORY_POPULATION_WEIGHT: Readonly<Record<string, number>> = {
-  'ministry': 4_500,
-  'kvartiry': 10_000,
-  'living': 7_000,
-  'maintenance': 3_500,
-  'hell': 1_100,
-  'void': 0,
+const STORY_POPULATION_WEIGHT: Readonly<Record<FloorLevel, number>> = {
+  [FloorLevel.MINISTRY]: 4_500,
+  [FloorLevel.KVARTIRY]: 10_000,
+  [FloorLevel.LIVING]: 7_000,
+  [FloorLevel.MAINTENANCE]: 3_500,
+  [FloorLevel.HELL]: 1_100,
+  [FloorLevel.VOID]: 0,
 };
 
-const STORY_POPULATION_PROFILE: Readonly<Record<string, string>> = {
-  'ministry': 'design:ministry_admin',
-  'kvartiry': 'design:kvartiry_lively',
-  'living': 'design:living_hub',
-  'maintenance': 'design:maintenance_service',
-  'hell': 'design:hell_lively',
-  'void': 'design:void_lively',
+const STORY_POPULATION_PROFILE: Readonly<Record<FloorLevel, string>> = {
+  [FloorLevel.MINISTRY]: 'story:ministry_admin',
+  [FloorLevel.KVARTIRY]: 'story:kvartiry_lively',
+  [FloorLevel.LIVING]: 'story:living_hub',
+  [FloorLevel.MAINTENANCE]: 'story:maintenance_service',
+  [FloorLevel.HELL]: 'story:hell_lively',
+  [FloorLevel.VOID]: 'story:void_lively',
 };
 
 function uniqueTags(tags: readonly string[], cap = 16): readonly string[] {
@@ -124,14 +123,13 @@ function uniqueTags(tags: readonly string[], cap = 16): readonly string[] {
   return out;
 }
 
-function storyBucket(z: string): WeightedBucket {
-  const theme = themeForDesignFloor(String(z) as any);
+function storyBucket(floor: FloorLevel): WeightedBucket {
+  const theme = themeForStoryFloor(floor);
   return {
-    floorKey: floorKeyForDesign(String(z)),
-    // @ts-ignore
-    baseFloor: 'base_floor', // removed
-    weight: floorRunZAllowsNpcs(theme.routeZ ?? 0) ? STORY_POPULATION_WEIGHT[z] : 0,
-    populationProfileId: theme.populationProfileId ?? STORY_POPULATION_PROFILE[z],
+    floorKey: floorKeyForStory(floor),
+    baseFloor: floor,
+    weight: floorRunZAllowsNpcs(theme.routeZ ?? 0) ? STORY_POPULATION_WEIGHT[floor] : 0,
+    populationProfileId: theme.populationProfileId ?? STORY_POPULATION_PROFILE[floor],
     tags: uniqueTags([
       'story',
       ...theme.specialContentTags,
@@ -148,8 +146,7 @@ function designBucket(route: DesignFloorRouteDef): WeightedBucket {
   const population = designFloorPopulationProfile(route);
   return {
     floorKey: floorKeyForDesign(route.id),
-    themeTags: route.themeTags ?? [],
-
+    baseFloor: route.baseFloor,
     weight: theme.npcAllowed ? population.npcTarget : 0,
     populationProfileId: theme.populationProfileId ?? `design:${route.id}`,
     factionWeights: population.npcFactions,
@@ -190,8 +187,7 @@ function proceduralBucket(spec: ProceduralFloorSpec): WeightedBucket {
   });
   return {
     floorKey: floorKeyForProcedural(spec.key),
-    themeTags: spec.themeTags ?? [],
-
+    baseFloor: spec.baseFloor,
     weight: theme.npcAllowed ? budget.npcs : 0,
     populationProfileId: `procedural:${budget.profileId}`,
     factionWeights: [{ value: majority.npcFaction, weight: 4 }],
@@ -259,14 +255,14 @@ function packageCanReserveOnFloor(pack: NpcPackageDef): boolean {
 export function alifeReservedIdentityFromNpcPackage(pack: NpcPackageDef): AlifeReservedIdentityDef | null {
   if (!packageCanReserveOnFloor(pack)) return null;
   const kind = reservedKindForPackage(pack);
+  const plotNpcId = plotNpcIdFromPackage(pack);
   const maxHp = pack.runtime?.maxHp ?? pack.runtime?.hp;
   return {
     id: `npc:${pack.id}`,
     kind,
     presence: reservedPresenceForPackage(pack.placement.presence),
     floorKey: pack.placement.homeFloorKey,
-    npcPackageId: pack.id,
-    plotNpcId: pack.content?.plotNpcId ? getPlotNpcNumericId(pack.content.plotNpcId) : undefined,
+    plotNpcId,
     name: npcPackageDisplayName(pack),
     female: pack.demographics.sex === 'female',
     age: pack.demographics.age,
@@ -296,7 +292,7 @@ export function alifeReservedIdentityFromNpcPackage(pack: NpcPackageDef): AlifeR
 function defaultReservedPackageSource(): readonly NpcPackageDef[] {
   const out: NpcPackageDef[] = [];
   const seen = new Set<string>();
-  for (const pack of allNpcPackages()) {
+  for (const pack of [...MAIN_PLOT_NPC_PACKAGES, ...allNpcPackages()]) {
     if (seen.has(pack.id)) continue;
     seen.add(pack.id);
     out.push(pack);
@@ -308,14 +304,14 @@ function buildReservedIdentities(packages?: readonly NpcPackageDef[]): AlifeRese
   const sourcePackages = packages ?? defaultReservedPackageSource();
   const out: AlifeReservedIdentityDef[] = [];
   const reservedIds = new Set<string>();
-  const npcPackageIds = new Set<string>();
+  const plotNpcIds = new Set<string>();
   for (const pack of sourcePackages) {
     const identity = alifeReservedIdentityFromNpcPackage(pack);
     if (!identity) continue;
     if (reservedIds.has(identity.id)) continue;
-    if (identity.npcPackageId !== undefined && npcPackageIds.has(identity.npcPackageId)) continue;
+    if (identity.plotNpcId && plotNpcIds.has(identity.plotNpcId)) continue;
     reservedIds.add(identity.id);
-    if (identity.npcPackageId !== undefined) npcPackageIds.add(identity.npcPackageId);
+    if (identity.plotNpcId) plotNpcIds.add(identity.plotNpcId);
     out.push(identity);
   }
   return out;
@@ -382,28 +378,17 @@ export function buildAlifePopulationPlan(input: {
 }): AlifePopulationPlanDef {
   const allowed = input.routeKeys.length > 0 ? new Set(input.routeKeys) : undefined;
   const weighted: WeightedBucket[] = [];
-  const seenKeys = new Set<string>();
-  
-  for (const floor of ['ministry', 'kvartiry', 'living', 'maintenance', 'hell', 'void']) {
+  for (const floor of [FloorLevel.MINISTRY, FloorLevel.KVARTIRY, FloorLevel.LIVING, FloorLevel.MAINTENANCE, FloorLevel.HELL, FloorLevel.VOID]) {
     const bucket = storyBucket(floor);
-    if (!seenKeys.has(bucket.floorKey) && routeAllowed(bucket.floorKey, allowed)) {
-      seenKeys.add(bucket.floorKey);
-      weighted.push(bucket);
-    }
+    if (routeAllowed(bucket.floorKey, allowed)) weighted.push(bucket);
   }
   for (const route of DESIGN_FLOOR_ROUTES) {
     const bucket = designBucket(route);
-    if (!seenKeys.has(bucket.floorKey) && routeAllowed(bucket.floorKey, allowed)) {
-      seenKeys.add(bucket.floorKey);
-      weighted.push(bucket);
-    }
+    if (routeAllowed(bucket.floorKey, allowed)) weighted.push(bucket);
   }
   for (const spec of buildProceduralSpecs(input.runSeed, input.proceduralSpecs)) {
     const bucket = proceduralBucket(spec);
-    if (!seenKeys.has(bucket.floorKey) && routeAllowed(bucket.floorKey, allowed)) {
-      seenKeys.add(bucket.floorKey);
-      weighted.push(bucket);
-    }
+    if (routeAllowed(bucket.floorKey, allowed)) weighted.push(bucket);
   }
 
   const reserved = buildReservedIdentities(input.npcPackages).filter(identity => routeAllowed(identity.floorKey, allowed));
@@ -413,6 +398,7 @@ export function buildAlifePopulationPlan(input: {
   const counts = allocateCounts(weighted, ordinaryTotal);
   const buckets = weighted.map((bucket, index) => ({
     floorKey: bucket.floorKey,
+    baseFloor: bucket.baseFloor,
     targetCount: counts[index],
     populationProfileId: bucket.populationProfileId,
     factionWeights: bucket.factionWeights,
@@ -420,7 +406,6 @@ export function buildAlifePopulationPlan(input: {
     tags: bucket.tags,
     npcAllowed: bucket.npcAllowed,
   }));
-  // @ts-ignore
   return { version: 1, total, buckets, reserved };
 }
 
@@ -463,15 +448,16 @@ export function validateAlifePopulationPlan(plan?: AlifePopulationPlanDef): stri
   }
 
   const reservedIds = new Set<string>();
-  const npcPackageIds = new Set<string>();
+  const plotIds = new Set<string>();
   for (const reserved of checked.reserved) {
     if (reservedIds.has(reserved.id)) errors.push(`duplicate reserved identity ${reserved.id}`);
     reservedIds.add(reserved.id);
-    if (reserved.kind === 'plot' && reserved.npcPackageId === undefined) errors.push(`plot reserved identity ${reserved.id} must carry npcPackageId`);
+    if (reserved.kind === 'plot' && !reserved.plotNpcId) errors.push(`plot reserved identity ${reserved.id} must carry plotNpcId`);
     if (!floorKeyKnown(reserved.floorKey, knownContext)) errors.push(`unknown reserved floor key ${reserved.floorKey}`);
-    if (reserved.npcPackageId !== undefined) {
-      if (npcPackageIds.has(reserved.npcPackageId)) errors.push(`duplicate reserved plot NPC ${reserved.npcPackageId}`);
-      npcPackageIds.add(reserved.npcPackageId);
+    if (reserved.plotNpcId) {
+      if (plotIds.has(reserved.plotNpcId)) errors.push(`duplicate reserved plot NPC ${reserved.plotNpcId}`);
+      plotIds.add(reserved.plotNpcId);
+      if (!SNAKE_ID_RE.test(reserved.plotNpcId)) errors.push(`reserved plot NPC id is not snake_case: ${reserved.plotNpcId}`);
     }
     if (!tagsValid(reserved.tags)) errors.push(`invalid reserved tags for ${reserved.id}`);
   }

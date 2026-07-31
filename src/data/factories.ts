@@ -38,7 +38,7 @@ export interface FactoryDef {
   id: string;
   name: string;
   roomTypes: RoomType[];
-  roomDefIdHints: string[];
+  roomNameHints: string[];
   workerOccupations: Occupation[];
   ownerFaction?: Faction;
   outputTags: string[];
@@ -144,7 +144,7 @@ export const FACTORIES: FactoryDef[] = [
     id: 'communal_kitchen',
     name: 'Кухонная раздача',
     roomTypes: [RoomType.KITCHEN],
-    roomDefIdHints: ['кух', 'буфет', 'столов'],
+    roomNameHints: ['кух', 'буфет', 'столов'],
     workerOccupations: [Occupation.COOK, Occupation.HOUSEWIFE],
     outputTags: ['food', 'public'],
     recipes: [
@@ -156,7 +156,7 @@ export const FACTORIES: FactoryDef[] = [
     id: 'medical_post',
     name: 'Медпункт',
     roomTypes: [RoomType.MEDICAL],
-    roomDefIdHints: ['мед', 'лаборат'],
+    roomNameHints: ['мед', 'лаборат'],
     workerOccupations: [Occupation.DOCTOR, Occupation.SCIENTIST],
     outputTags: ['medical', 'locked'],
     recipes: [
@@ -168,7 +168,7 @@ export const FACTORIES: FactoryDef[] = [
     id: 'concentrate_press',
     name: 'Линия концентрата',
     roomTypes: [RoomType.PRODUCTION],
-    roomDefIdHints: ['концентрат', 'брикет'],
+    roomNameHints: ['концентрат', 'брикет'],
     workerOccupations: [Occupation.MECHANIC, Occupation.COOK, Occupation.STOREKEEPER],
     ownerFaction: Faction.CITIZEN,
     outputTags: ['tools', 'food', 'public'],
@@ -198,7 +198,7 @@ export const FACTORIES: FactoryDef[] = [
     id: 'slime_deactivation_furnace',
     name: 'Печь деактивации слизи',
     roomTypes: [RoomType.PRODUCTION],
-    roomDefIdHints: ['деактивац', 'гашен', 'слиз', 'печь'],
+    roomNameHints: ['деактивац', 'гашен', 'слиз', 'печь'],
     workerOccupations: [Occupation.MECHANIC, Occupation.SCIENTIST, Occupation.HUNTER],
     ownerFaction: Faction.LIQUIDATOR,
     outputTags: ['cleanup', 'slime', 'tools'],
@@ -231,7 +231,7 @@ export const FACTORIES: FactoryDef[] = [
     id: 'illegal_ammo_smelter',
     name: 'Гильзоплавка',
     roomTypes: [RoomType.PRODUCTION],
-    roomDefIdHints: ['гильз', 'плавиль', 'патрон'],
+    roomNameHints: ['гильз', 'плавиль', 'патрон'],
     workerOccupations: [Occupation.TURNER, Occupation.LOCKSMITH, Occupation.MECHANIC],
     ownerFaction: Faction.WILD,
     outputTags: ['ammo', 'weapon', 'illegal'],
@@ -253,7 +253,7 @@ export const FACTORIES: FactoryDef[] = [
     id: 'metal_shop',
     name: 'Цех металла',
     roomTypes: [RoomType.PRODUCTION],
-    roomDefIdHints: ['цех', 'мастер', 'насосн', 'стан'],
+    roomNameHints: ['цех', 'мастер', 'насосн', 'стан'],
     workerOccupations: [Occupation.LOCKSMITH, Occupation.TURNER, Occupation.MECHANIC],
     outputTags: ['tools', 'faction'],
     recipes: [
@@ -265,7 +265,7 @@ export const FACTORIES: FactoryDef[] = [
     id: 'armory_bench',
     name: 'Оружейная мастерская',
     roomTypes: [RoomType.STORAGE, RoomType.HQ, RoomType.PRODUCTION],
-    roomDefIdHints: ['оруж', 'штаб', 'арсенал'],
+    roomNameHints: ['оруж', 'штаб', 'арсенал'],
     workerOccupations: [Occupation.HUNTER, Occupation.MECHANIC],
     ownerFaction: Faction.LIQUIDATOR,
     outputTags: ['weapon', 'locked'],
@@ -285,7 +285,7 @@ export const FACTORIES: FactoryDef[] = [
     id: 'office_press',
     name: 'Бумажное производство',
     roomTypes: [RoomType.OFFICE, RoomType.STORAGE],
-    roomDefIdHints: ['архив', 'кабинет', 'типограф', 'картотек'],
+    roomNameHints: ['архив', 'кабинет', 'типограф', 'картотек'],
     workerOccupations: [Occupation.SECRETARY, Occupation.DIRECTOR, Occupation.STOREKEEPER],
     outputTags: ['paper', 'bureaucracy'],
     recipes: [
@@ -297,7 +297,7 @@ export const FACTORIES: FactoryDef[] = [
     id: 'mushroom_cellar',
     name: 'Грибная смена',
     roomTypes: [RoomType.PRODUCTION, RoomType.STORAGE, RoomType.KITCHEN],
-    roomDefIdHints: ['гриб', 'плесен', 'прачеч'],
+    roomNameHints: ['гриб', 'плесен', 'прачеч'],
     workerOccupations: [Occupation.STOREKEEPER, Occupation.COOK, Occupation.MECHANIC],
     ownerFaction: Faction.CITIZEN,
     outputTags: ['food', 'fungal'],
@@ -309,7 +309,7 @@ export const FACTORIES: FactoryDef[] = [
     id: 'charge_cage_089',
     name: 'Зарядная клеть 089',
     roomTypes: [RoomType.PRODUCTION],
-    roomDefIdHints: ['зарядк', 'ящик 089'],
+    roomNameHints: ['зарядк', 'ящик 089'],
     workerOccupations: [Occupation.STOREKEEPER, Occupation.ELECTRICIAN],
     ownerFaction: Faction.LIQUIDATOR,
     outputTags: ['charge_cage_089', 'ag41_charge_cage', 'energy', 'utility'],
@@ -331,7 +331,7 @@ export const FACTORIES: FactoryDef[] = [
     id: 'automation_cage',
     name: 'Клеть автоматики',
     roomTypes: [RoomType.PRODUCTION],
-    roomDefIdHints: ['автоматик', 'плазмен'],
+    roomNameHints: ['автоматик', 'плазмен'],
     workerOccupations: [Occupation.ELECTRICIAN, Occupation.MECHANIC],
     ownerFaction: Faction.LIQUIDATOR,
     outputTags: ['automation_cage', 'plasma_post', 'energy', 'repair_input'],
@@ -354,7 +354,7 @@ export const FACTORIES: FactoryDef[] = [
     id: 'utility_room',
     name: 'Техническая кладовая',
     roomTypes: [RoomType.STORAGE, RoomType.PRODUCTION],
-    roomDefIdHints: ['клад', 'склад', 'диспетчер'],
+    roomNameHints: ['клад', 'склад', 'диспетчер'],
     workerOccupations: [Occupation.STOREKEEPER, Occupation.ELECTRICIAN],
     outputTags: ['utility', 'room'],
     recipes: [
@@ -366,25 +366,11 @@ export const FACTORIES: FactoryDef[] = [
 ];
 
 function appendFactoryRecipes(packs: Record<string, readonly FactoryRecipeDef[]>): void {
-  const factoryMap = new Map<string, FactoryDef>();
-  for (let i = 0; i < FACTORIES.length; i++) {
-    factoryMap.set(FACTORIES[i].id, FACTORIES[i]);
-  }
-
   for (const [factoryId, recipes] of Object.entries(packs)) {
-    const factory = factoryMap.get(factoryId);
+    const factory = FACTORIES.find(f => f.id === factoryId);
     if (!factory) continue;
-
-    const existingRecipeIds = new Set<string>();
-    for (let i = 0; i < factory.recipes.length; i++) {
-      existingRecipeIds.add(factory.recipes[i].id);
-    }
-
     for (const recipe of recipes) {
-      if (!existingRecipeIds.has(recipe.id)) {
-        factory.recipes.push(recipe);
-        existingRecipeIds.add(recipe.id);
-      }
+      if (!factory.recipes.some(existing => existing.id === recipe.id)) factory.recipes.push(recipe);
     }
   }
 }
@@ -580,8 +566,8 @@ appendFactoryRecipes(HOMEMADE_AMMO_FACTORY_RECIPES);
 
 export const FACTORY_BY_ID: Record<string, FactoryDef> = Object.fromEntries(FACTORIES.map(f => [f.id, f]));
 
-export function factoryForRoom(roomType: RoomType, roomDefId: string): FactoryDef | undefined {
-  const name = roomDefId.toLowerCase();
-  return FACTORIES.find(f => f.roomTypes.includes(roomType) && (f.roomDefIdHints.length === 0 || f.roomDefIdHints.some(h => name.includes(h))))
+export function factoryForRoom(roomType: RoomType, roomName: string): FactoryDef | undefined {
+  const name = roomName.toLowerCase();
+  return FACTORIES.find(f => f.roomTypes.includes(roomType) && (f.roomNameHints.length === 0 || f.roomNameHints.some(h => name.includes(h))))
     ?? FACTORIES.find(f => f.roomTypes.includes(roomType));
 }

@@ -25,8 +25,7 @@ export type InteractiveActionKind =
   | 'open_container'
   | 'open_craft_menu'
   | 'open_disassembly_menu'
-  | 'learn_recipe'
-  | 'search_feature';
+  | 'learn_recipe';
 
 export type InteractiveVisualDef =
   | { kind: 'feature'; feature: Feature }
@@ -315,24 +314,6 @@ export const INTERACTIVE_DEFS = [
         id: 'open',
         label: 'Открыть',
         kind: 'open_container',
-        eventType: 'interactive_used',
-        eventSeverity: 1,
-      },
-    ],
-  },
-  {
-    id: 'bare_loot_feature',
-    layer: 'feature',
-    label: 'Обыскать',
-    prompt: ' обыскать',
-    tags: ['container', 'inventory', 'search'],
-    visual: { kind: 'feature', feature: Feature.SHELF }, // placeholder feature, since this is dynamic
-    target: { range: 2.25, priority: 62 },
-    actions: [
-      {
-        id: 'search',
-        label: 'Обыскать',
-        kind: 'search_feature',
         eventType: 'interactive_used',
         eventSeverity: 1,
       },

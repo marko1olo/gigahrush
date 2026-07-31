@@ -1,26 +1,11 @@
 /* ── Баррикадированный лестничный пролёт — four-route POI ───── */
 
-import { getPlotNpcNumericId } from '../../data/npc_packages';
 import {
-  AIGoal, Cell, DoorState, EntityType, Feature, Faction, MonsterKind, Occupation, QuestType, RoomType, Tex,
+  AIGoal, Cell, DoorState, EntityType, Feature, FloorLevel, Faction, MonsterKind, Occupation, QuestType, RoomType, Tex,
 } from '../../core/types';
 import { World } from '../../core/world';
 import { type Entity } from '../../core/types';
-import { type PlotNpcDef, registerSideQuest , registerAuthoredNpc } from '../../data/plot';
-
-const AMBIENT_NPC_0: PlotNpcDef = {
-  name: 'Пацан на стрёме',
-  isFemale: false,
-  faction: Faction.WILD,
-  occupation: Occupation.TRAVELER,
-  sprite: Occupation.TRAVELER,
-  hp: 50, maxHp: 50, money: 5, speed: 0.9,
-  inventory: [{ defId: 'pipe', count: 1 }],
-talkLines: ['Проходи своей дорогой.', 'Мне не до разговоров.'],
-talkLinesPost: ['...'],
-};
-registerAuthoredNpc({ id: 'kv_ambient_0_es06t', npc: AMBIENT_NPC_0 });
-
+import { type PlotNpcDef, registerSideQuest } from '../../data/plot';
 import { MONSTERS } from '../../entities/monster';
 import { monsterSpr } from '../../render/sprite_index';
 import { registerRouteCue } from '../../systems/route_cues';
@@ -29,11 +14,12 @@ import { carveCorridor } from '../shared';
 import {
   createSocialPoiRoom,
   placeDropNear,
+  registerKvSocialMapCue,
   setFeatureIfFloor,
+  spawnAmbientNpc,
   spawnSocialNpc,
   type SocialPoiRoom,
 } from './social_helpers';
-import { rng } from '../../core/rand';
 
 const ROOM_NAME = 'Баррикадированный пролёт';
 const REPAIR_QUEST_ID = 'kv_barricade_tools';
@@ -106,14 +92,14 @@ const LYUBA: PlotNpcDef = {
 
 registerSideQuest('kv_karpov_barricade', KARPOV, [{
   id: REPAIR_QUEST_ID,
-  giverId: getPlotNpcNumericId('kv_karpov_barricade')!,
+  giverNpcId: 'kv_karpov_barricade',
   type: QuestType.FETCH,
   desc: 'Карпов Баррикадный: «Три трубы на распорки. Починим среднюю створку, и пролёт перестанет быть горлом.»',
   targetItem: 'pipe', targetCount: 3,
   rewardItem: 'door_kit', rewardCount: 1,
   extraRewards: [{ defId: GATE_KEY_ID, count: 1 }, { defId: 'wrench', count: 1 }, { defId: 'bandage', count: 2 }],
   relationDelta: 16, xpReward: 50, moneyReward: 30,
-  targetFloorZ: 60,
+  targetFloor: FloorLevel.KVARTIRY,
   targetRoomType: RoomType.CORRIDOR,
   targetHint: 'трубы лежат прямо в баррикадированном пролёте; ключ открывает короткую ремонтную створку',
   eventSeverity: 4,
@@ -125,14 +111,14 @@ registerSideQuest('kv_karpov_barricade', KARPOV, [{
 
 registerSideQuest(RAYA_ID, RAYA, [{
   id: BRIBE_QUEST_ID,
-  giverId: getPlotNpcNumericId(RAYA_ID)!,
+  giverNpcId: RAYA_ID,
   type: QuestType.FETCH,
   desc: 'Рая Проходная: «Тридцать пять рублей — и платная створка сделает вид, что вы свой.»',
   targetItem: 'money', targetCount: 35,
   rewardItem: GATE_KEY_ID, rewardCount: 1,
   extraRewards: [{ defId: 'cigs', count: 1 }],
   relationDelta: 4, xpReward: 25, moneyReward: 0,
-  targetFloorZ: 60,
+  targetFloor: FloorLevel.KVARTIRY,
   targetRoomType: RoomType.CORRIDOR,
   targetHint: 'платная створка отмечена на карте рядом с Раей; взятка дешевле драки, но это услышат соседи',
   eventSeverity: 4,
@@ -144,7 +130,7 @@ registerSideQuest(RAYA_ID, RAYA, [{
 
 registerSideQuest(LYUBA_ID, LYUBA, [{
   id: FIGHT_QUEST_ID,
-  giverId: getPlotNpcNumericId(LYUBA_ID)!,
+  giverNpcId: LYUBA_ID,
   type: QuestType.KILL,
   desc: 'Люба с табуретом: «В нижней щели две арматуры шевелятся. Разбейте их или идите в обход по одному.»',
   targetMonsterKind: MonsterKind.REBAR,
@@ -152,7 +138,7 @@ registerSideQuest(LYUBA_ID, LYUBA, [{
   rewardItem: 'ammo_9mm', rewardCount: 8,
   extraRewards: [{ defId: 'bandage', count: 1 }, { defId: 'bread', count: 1 }],
   relationDelta: 8, xpReward: 55, moneyReward: 12,
-  targetFloorZ: 60,
+  targetFloor: FloorLevel.KVARTIRY,
   targetRoomType: RoomType.CORRIDOR,
   targetHint: 'две арматуры стоят у боевой щели баррикады; их видно красными ромбами активного KILL задания',
   eventSeverity: 4,
@@ -276,7 +262,7 @@ function spawnBarricadeMonster(
     type: EntityType.MONSTER,
     x: x + 0.5,
     y: y + 0.5,
-    angle: rng() * Math.PI * 2,
+    angle: Math.random() * Math.PI * 2,
     pitch: 0,
     alive: true,
     speed: scaleMonsterSpeed(def.speed, level) * 0.85,
@@ -310,8 +296,8 @@ export function generateBarricade(
     if (y === repairY || y === bribeY || y === fightY || y === detourY) continue;
     setRoomWall(world, gateX, y);
   }
-  setLockedGate(world, poi, gateX, repairY);
-  setLockedGate(world, poi, gateX, bribeY);
+  const repairDoor = setLockedGate(world, poi, gateX, repairY);
+  const bribeDoor = setLockedGate(world, poi, gateX, bribeY);
   setRoomFloor(world, poi, gateX, fightY);
   setRoomFloor(world, poi, gateX, detourY);
 
@@ -333,7 +319,7 @@ export function generateBarricade(
   spawnSocialNpc(entities, nextId, KARPOV, 'kv_karpov_barricade', poi.x + 3, poi.y + 2, { weapon: 'wrench' });
   spawnSocialNpc(entities, nextId, RAYA, RAYA_ID, gateX - 4, bribeY, { weapon: 'knife' });
   spawnSocialNpc(entities, nextId, LYUBA, LYUBA_ID, poi.x + 5, detourY - 1, { weapon: 'knife' });
-  spawnSocialNpc(entities, nextId, AMBIENT_NPC_0, 'kv_ambient_0_es06t', gateX + 5, fightY, { weapon: 'pipe' });
+  spawnAmbientNpc(entities, nextId, 'Пацан на стрёме', Faction.WILD, Occupation.TRAVELER, gateX + 5, fightY, [{ defId: 'pipe', count: 1 }], 'pipe');
   spawnBarricadeMonster(world, entities, nextId, MonsterKind.REBAR, gateX + 2, fightY, 'Арматура баррикады');
   spawnBarricadeMonster(world, entities, nextId, MonsterKind.REBAR, gateX + 4, fightY + 1, 'Арматура нижней щели');
   spawnBarricadeMonster(world, entities, nextId, MonsterKind.SBORKA, gateX + 3, detourY - 2, 'Сборка у нижнего обхода');
@@ -342,18 +328,63 @@ export function generateBarricade(
     placeDropNear(world, entities, nextId, poi, defId, 1);
   }
 
-
-  const markerCell = world.idx(Math.floor(westEntry.x), Math.floor(westEntry.y));
   const targetX = eastExit.x;
   const targetY = eastExit.y;
+  registerKvSocialMapCue(world, {
+    id: 'kv_barricade_repair_gate',
+    kind: 'repair',
+    x: gateX + 0.5,
+    y: repairY + 0.5,
+    targetX,
+    targetY,
+    label: 'ремонтная створка',
+    shortLabel: 'РЕМ',
+    color: '#6cf',
+    doorIdx: repairDoor,
+  });
+  registerKvSocialMapCue(world, {
+    id: 'kv_barricade_bribe_gate',
+    kind: 'bribe',
+    x: gateX + 0.5,
+    y: bribeY + 0.5,
+    targetX,
+    targetY,
+    label: 'платная створка',
+    shortLabel: '₽',
+    color: '#fc6',
+    doorIdx: bribeDoor,
+  });
+  registerKvSocialMapCue(world, {
+    id: 'kv_barricade_fight_gap',
+    kind: 'fight',
+    x: gateX + 0.5,
+    y: fightY + 0.5,
+    targetX,
+    targetY,
+    label: 'боевая щель',
+    shortLabel: 'БОЙ',
+    color: '#f66',
+  });
+  registerKvSocialMapCue(world, {
+    id: 'kv_barricade_detour_gap',
+    kind: 'detour',
+    x: gateX + 0.5,
+    y: detourY + 0.5,
+    targetX,
+    targetY,
+    label: 'нижний обход',
+    shortLabel: 'ОБХ',
+    color: '#9cf',
+  });
 
+  const markerCell = world.idx(Math.floor(westEntry.x), Math.floor(westEntry.y));
   registerRouteCue(world, {
     id: ROUTE_CUE_ID,
     x: westEntry.x,
     y: westEntry.y,
     targetX,
     targetY,
-    z: 60,
+    floor: FloorLevel.KVARTIRY,
     roomId: poi.room.id,
     targetRoomId: poi.room.id,
     zoneId: world.zoneMap[markerCell],

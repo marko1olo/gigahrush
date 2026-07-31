@@ -3,6 +3,7 @@ import {
   ContainerKind,
   EntityType,
   Faction,
+  FloorLevel,
   type GameState,
   type Entity,
   type Item,
@@ -16,11 +17,10 @@ import {
 } from '../src/core/types';
 import type { World } from '../src/core/world';
 import { createCraftingState } from '../src/systems/crafting';
-import { setFloorRunState } from '../src/systems/procedural_floors';
 
 export function makeGameState(overrides: Partial<GameState> = {}): GameState {
   const clock = overrides.clock ?? { hour: 8, minute: 0, totalMinutes: 0 };
-  const state: GameState = {
+  return {
     tick: 0,
     time: 0,
     clock,
@@ -38,7 +38,7 @@ export function makeGameState(overrides: Partial<GameState> = {}): GameState {
     quests: [],
     activeQuestId: undefined,
     nextQuestId: 1,
-    currentZ: 0,
+    currentFloor: FloorLevel.LIVING,
     fogSpreadTimer: 0,
     showMenu: false,
     menuSel: 0,
@@ -98,43 +98,6 @@ export function makeGameState(overrides: Partial<GameState> = {}): GameState {
     crafting: createCraftingState(),
     ...overrides,
   };
-  
-  // Backfill floorRunState if not provided, ensuring test state is consistent
-  if (!overrides.floorRunState) {
-    const fallbackZ = state.currentZ;
-    const geometryIds: Record<number, string> = {
-      0: 'living_blocks',
-      40: 'admin_pockets',
-      [-2]: 'apartment_pressure',
-      [-26]: 'collectors',
-      [-50]: 'meat_halls', // HELL fallback if any
-      [-60]: 'void_expanse', // VOID fallback if any
-    };
-    const geometryId = geometryIds[fallbackZ] ?? 'living_blocks';
-
-    setFloorRunState(state, { 
-      runSeed: 1234, 
-      currentZ: fallbackZ, 
-      specs: {
-        [`z${fallbackZ}`]: {
-          key: `z${fallbackZ}`,
-          z: fallbackZ,
-          ordinal: 1,
-          seed: 1,
-          depth: 1,
-          danger: 1,
-          geometryId,
-          majorityId: 'citizens',
-          anomalyId: 'none',
-          title: 'test',
-          baseFloor: fallbackZ,
-        }
-      }, 
-      visited: {} 
-    }, fallbackZ);
-  }
-
-  return state;
 }
 
 export function makeTestEntity(overrides: Partial<Entity> = {}): Entity {
@@ -178,7 +141,6 @@ export function makeTestNpc(overrides: Partial<Entity> = {}): Entity {
     name: overrides.name ?? 'Тестовый NPC',
     faction: overrides.faction ?? Faction.CITIZEN,
     inventory: overrides.inventory ?? [],
-    alifeId: 'alifeId' in overrides ? overrides.alifeId : (overrides.id !== undefined && overrides.id > 0 ? overrides.id : undefined),
     money: overrides.money ?? 100,
     persistentNpcId: overrides.persistentNpcId,
   });
@@ -197,7 +159,7 @@ export function makeTestContainer(overrides: Partial<WorldContainer> = {}): Worl
     id: 1,
     x: 0,
     y: 0,
-    z: -6,
+    floor: FloorLevel.LIVING,
     roomId: 1,
     zoneId: 1,
     kind: ContainerKind.EMERGENCY_BOX,

@@ -1,6 +1,6 @@
 /* ── Kontorshchik: document-scent undead clerk ───────────────── */
 
-import { MonsterKind } from '../core/types';
+import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
 import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
@@ -13,6 +13,7 @@ export const DEF: MonsterDef = {
   attackRate: 1.65,
   sprite: 0,
   aiFlags: ['documentScent'],
+  floors: [FloorLevel.MINISTRY, FloorLevel.LIVING],
   counterplay: 'Конторщик медленный без бумажного следа: сложите бланки, пропуска и печати в ящик или бросьте дешевую форму как приманку. У шкафов и столов рвите хват, пока бумага перестает шуметь.',
   lootHint: 'желтая папка, красная печать на рукаве, редкий пустой бланк',
 };

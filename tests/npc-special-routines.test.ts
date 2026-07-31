@@ -2,24 +2,23 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { AIGoal, NpcState } from '../src/core/types';
-import { getPlotNpcNumericId, getNpcPackageByPlotNpcId, npcPackageDisplayName } from '../src/data/npc_packages';
+import { getNpcPackageByPlotNpcId, npcPackageDisplayName } from '../src/data/npc_packages';
 import { tickNpcSpecialRoutine } from '../src/systems/npc_special_routines';
 import { getNpcSpecialRoutine } from '../src/data/npc_special_routines';
 import { makeTestNpc } from './helpers';
-import '../src/data/npc_plot_packages';
 
 function plotNpcName(plotNpcId: string): string {
-  const pack = getNpcPackageByPlotNpcId(getPlotNpcNumericId(plotNpcId)!);
+  const pack = getNpcPackageByPlotNpcId(plotNpcId);
   assert.ok(pack, `missing NPC package for plot NPC ${plotNpcId}`);
   return npcPackageDisplayName(pack);
 }
 
 test('Olga tutorial lock is selected from package data and expires to ordinary AI', () => {
-  const pack = getNpcPackageByPlotNpcId(getPlotNpcNumericId('olga')!);
+  const pack = getNpcPackageByPlotNpcId('olga');
   assert.equal(pack?.runtime?.specialRoutineId, 'tutorial_lock_one_hour');
 
   const olga = makeTestNpc({
-    id: getPlotNpcNumericId('olga'),
+    plotNpcId: 'olga',
     name: plotNpcName('olga'),
     ai: { goal: AIGoal.WANDER, tx: 0, ty: 0, path: [1, 2], pi: 1, stuck: 0, timer: 0 },
     plotDone: false,
@@ -67,12 +66,12 @@ test('getNpcSpecialRoutine returns the correct routine or undefined', () => {
 
 test('Barinov uses the starter range lock from package data', () => {
   const barni = makeTestNpc({
-    id: getPlotNpcNumericId('barni'),
+    plotNpcId: 'barni',
     name: plotNpcName('barni'),
     ai: { goal: AIGoal.WANDER, tx: 0, ty: 0, path: [4, 5], pi: 1, stuck: 0, timer: 0 },
   });
 
-  assert.equal(getNpcPackageByPlotNpcId(getPlotNpcNumericId('barni')!)?.runtime?.specialRoutineId, 'tutorial_lock_one_hour');
+  assert.equal(getNpcPackageByPlotNpcId('barni')?.runtime?.specialRoutineId, 'tutorial_lock_one_hour');
   assert.deepEqual(tickNpcSpecialRoutine(barni, { hour: 8, minute: 0, totalMinutes: 0 }), {
     routineId: 'tutorial_lock_one_hour',
     held: true,
@@ -86,7 +85,7 @@ test('Barinov uses the starter range lock from package data', () => {
 
 test('NPCs without package special routine fall through to occupation AI', () => {
   const yakov = makeTestNpc({
-    id: getPlotNpcNumericId('yakov'),
+    plotNpcId: 'yakov',
     name: plotNpcName('yakov'),
     ai: { goal: AIGoal.WANDER, tx: 0, ty: 0, path: [], pi: 0, stuck: 0, timer: 0 },
   });

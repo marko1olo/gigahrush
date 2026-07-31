@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { Cell, LiftDirection, type World } from '../src/core/types';
+import { Cell, FloorLevel, LiftDirection, type World } from '../src/core/types';
 import {
   anomalyById,
   makeProceduralFloorSpec,
@@ -24,7 +24,7 @@ function forcedNoneSpec(): ProceduralFloorSpec {
     ...base,
     danger: 1,
     geometryId: 'living_blocks',
-    baseFloor: 'living',
+    baseFloor: FloorLevel.LIVING,
     majorityId: 'citizens',
     anomalyId: 'none',
     title: 'тестовый этаж без аномалии',

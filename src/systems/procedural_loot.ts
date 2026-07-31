@@ -1,8 +1,5 @@
-import { Faction, type ItemDef, ItemType, type Item, MonsterKind } from '../core/types';
-import { getMonsterEcology } from '../data/monster_ecology';
+import { Faction, type ItemDef, ItemType, type Item } from '../core/types';
 import { ITEMS, itemEquipSlot, itemDefHasTag } from '../data/items';
-import { WEAPON_STATS } from '../data/catalog';
-import { shuffleWith } from '../core/rand';
 
 export interface LootProfile {
   weaponMult?: number;
@@ -25,30 +22,21 @@ export const FACTION_LOOT_PROFILES: Record<Faction, LootProfile> = {
 };
 
 export function calculateMaxLootValue(level: number, danger: number, faction: Faction): number {
-  // Smooth exponential: knives at d1→shotguns d3→automatics d5/high level
-  // Floor of 500 ensures basic firearms (makarov=420) are always in the pool;
-  // weighted random keeps them rare at low tiers without hard-gating.
-  // Energy/BFG stay legendary (value 60000+) — unreachable even at max.
-  let base = Math.max(1000, 15 + Math.pow(danger * 2 + level * 0.6, 2.1) * 0.45);
-  if (faction === Faction.LIQUIDATOR) base *= 1.8;
-  if (faction === Faction.SCIENTIST) base *= 1.4;
-  return Math.floor(base);
+  let base = 10 + (level * 3) + (danger * 10);
+  if (faction === Faction.LIQUIDATOR) base += 20;
+  if (faction === Faction.SCIENTIST) base += 15;
+  return base;
 }
 
 const ITEMS_ARRAY = Object.freeze(Object.values(ITEMS));
 
 export function buildLootPool(profile: LootProfile, maxAllowedValue: number): { item: ItemDef, weight: number }[] {
   const pool: { item: ItemDef, weight: number }[] = [];
-  const tagEntries = profile.tagWeights ? Object.entries(profile.tagWeights) : undefined;
-
   for (const item of ITEMS_ARRAY) {
+    if (item.value > maxAllowedValue) continue;
+
     let baseWeight = item.spawnW || 0;
     if (baseWeight <= 0) continue;
-
-    // Soft exponential decay for items above tier — no hard gates
-    if (item.value > maxAllowedValue) {
-      baseWeight *= Math.exp(-(item.value / maxAllowedValue - 1) * 3);
-    }
 
     if (profile.weaponMult && item.type === ItemType.WEAPON) baseWeight *= profile.weaponMult;
     if (profile.ammoMult && item.type === ItemType.AMMO) baseWeight *= profile.ammoMult;
@@ -58,8 +46,8 @@ export function buildLootPool(profile: LootProfile, maxAllowedValue: number): { 
     if (profile.drinkMult && item.type === ItemType.DRINK) baseWeight *= profile.drinkMult;
     if (profile.miscMult && item.type === ItemType.MISC) baseWeight *= profile.miscMult;
 
-    if (tagEntries) {
-      for (const [tag, weight] of tagEntries) {
+    if (profile.tagWeights) {
+      for (const [tag, weight] of Object.entries(profile.tagWeights)) {
         if (itemDefHasTag(item, tag)) {
           baseWeight *= weight;
         }
@@ -120,15 +108,9 @@ export function generateNpcLoadout(faction: Faction, level: number, danger: numb
     
     inventory.push({ defId: weaponDef.id, count: 1 });
     
-    // Give starting ammo based on the weapon's actual ammoType
-    const wStats = WEAPON_STATS[weaponDef.id];
-    if (wStats?.ammoType && wStats.ammoType !== weaponDef.id) {
-      const magSize = wStats.magazineSize ?? 1;
-      const ammoCount = magSize === Infinity ? 0
-        : (wStats.pellets ?? 1) > 1 ? 4 + Math.floor(rollWeapon * 8)   // shotgun-like
-        : Math.max(10, magSize) + Math.floor(rollWeapon * 20);           // normal
-      if (ammoCount > 0) inventory.push({ defId: wStats.ammoType, count: ammoCount });
-    }
+    if (itemDefHasTag(weaponDef, 'ammo_9mm')) inventory.push({ defId: 'ammo_9mm', count: 10 + Math.floor(rollWeapon * 20) });
+    else if (itemDefHasTag(weaponDef, 'ammo_762')) inventory.push({ defId: 'ammo_762', count: 10 + Math.floor(rollWeapon * 20) });
+    else if (itemDefHasTag(weaponDef, 'ammo_shells')) inventory.push({ defId: 'ammo_shells', count: 4 + Math.floor(rollWeapon * 8) });
   }
 
   // 2. Pick pockets
@@ -189,31 +171,4 @@ export function generateMerchantStock(faction: Faction | undefined, level: numbe
     }
   }
   return inventory;
-}
-
-
-export interface GeneratedLoot {
-    itemDefId: string;
-    amount: number;
-}
-
-export function generateMonsterLoot(kind: MonsterKind, rand: () => number): GeneratedLoot[] {
-    const ecology = getMonsterEcology(kind);
-    if (!ecology || !ecology.lootTable) return [];
-
-    const results = [];
-    for (const entry of ecology.lootTable) {
-        if (rand() <= entry.chance) {
-            const min = entry.minCount ?? 1;
-            const max = entry.maxCount ?? 1;
-            const amount = Math.floor(rand() * (max - min + 1)) + min;
-            if (amount > 0) {
-                results.push({ itemDefId: entry.itemDefId, amount });
-            }
-        }
-    }
-
-    // Hard cap at 3 items to avoid clutter
-    shuffleWith(rand, results);
-    return results.slice(0, 3);
 }

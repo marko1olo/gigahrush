@@ -1,9 +1,8 @@
-import { getPlotNpcNumericId } from '../../data/npc_packages';
 /* ── Белое окно Веретара: witness rescue POI ─────────────────── */
 
 import {
   Cell, ContainerKind, DoorState, EntityType, Faction, Feature,
-  Occupation, QuestType, RoomType, Tex, W,
+  FloorLevel, Occupation, QuestType, RoomType, Tex, W,
   type Entity, type Room, type WorldContainer,
 } from '../../core/types';
 import { World } from '../../core/world';
@@ -61,10 +60,10 @@ const WITNESS: PlotNpcDef = {
 registerSideQuest(WITNESS_ID, WITNESS, [
   {
     id: 'ag95_pull_witness_from_window',
-    giverId: getPlotNpcNumericId(WITNESS_ID)!,
+    giverNpcId: WITNESS_ID,
     type: QuestType.TALK,
     desc: 'Лида Белооконная: «Оттащи меня от белого окна. Если я скажу, что там двор, веди к двери и не спорь.»',
-    targetNpcId: getPlotNpcNumericId(WITNESS_ID)!,
+    targetNpcId: WITNESS_ID,
     rewardItem: 'water_coupon',
     rewardCount: 2,
     relationDelta: 12,
@@ -82,15 +81,15 @@ registerSideQuest(WITNESS_ID, WITNESS, [
   },
   {
     id: 'ag95_mark_white_shortcut',
-    giverId: getPlotNpcNumericId(WITNESS_ID)!,
+    giverNpcId: WITNESS_ID,
     type: QuestType.VISIT,
     desc: 'Лида Белооконная: «Белый обход справа от окна короче обычного коридора. Если выберешь его, фото заберёшь, а свидетель замолчит.»',
-    targetRoomDefId: SHORTCUT_NAME,
+    targetRoomName: SHORTCUT_NAME,
     rewardItem: 'overexposed_photo',
     rewardCount: 1,
     relationDelta: -6,
     xpReward: 40,
-    targetFloorZ: 100,
+    targetFloor: FloorLevel.LIVING,
     targetHint: 'Жилая зона: белый проход рядом с комнатой окна; песок лежит полосой у рамы, засвеченный кадр ждёт на пороге.',
     eventTargetName: 'Игрок выбрал белый обход Веретара: путь стал короче, свидетель после окна замолчал.',
     eventSeverity: 4,
@@ -129,7 +128,7 @@ function addContainer(
     id: nextContainerId(world),
     x: wx,
     y: wy,
-    z: 100,
+    floor: FloorLevel.LIVING,
     roomId: room.id,
     zoneId: world.zoneMap[ci],
     kind: ContainerKind.SECRET_STASH,
@@ -316,7 +315,7 @@ function decorate(world: World, main: Room, shortcut: Room): void {
 }
 
 function spawnWitness(world: World, entities: Entity[], nextId: { v: number }, room: Room): number {
-  const existing = entities.find(e => e.alive && e.id === getPlotNpcNumericId(WITNESS_ID)!);
+  const existing = entities.find(e => e.alive && e.plotNpcId === WITNESS_ID);
   if (existing) return existing.id;
   const x = world.wrap(room.x + Math.floor(room.w / 2));
   const y = world.wrap(room.y + 2);

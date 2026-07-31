@@ -168,8 +168,8 @@ function hasAnyToken(text: string, tokens: readonly string[]): boolean {
   return tokens.some(token => text.includes(token));
 }
 
-export function slimeDefForRoomName(roomDefId: string): SlimeDef {
-  const name = roomDefId.toLowerCase();
+export function slimeDefForRoomName(roomName: string): SlimeDef {
+  const name = roomName.toLowerCase();
   let best: SlimeDef | undefined;
   let bestScore = 0;
   for (const def of SLIME_DEFS) {
@@ -186,12 +186,12 @@ export function slimeDefForRoomName(roomDefId: string): SlimeDef {
   return best ?? SLIME_DEF_BY_ID.slime_brown;
 }
 
-export function slimeSampleIdForRoomName(roomDefId: string): string {
-  return slimeDefForRoomName(roomDefId).sampleId;
+export function slimeSampleIdForRoomName(roomName: string): string {
+  return slimeDefForRoomName(roomName).sampleId;
 }
 
-export function slimeRoomAttractionWeight(roomDefId: string, roomType: RoomType): number {
-  const name = roomDefId.toLowerCase();
+export function slimeRoomAttractionWeight(roomName: string, roomType: RoomType): number {
+  const name = roomName.toLowerCase();
   let weight = 0;
   if (hasAnyToken(name, SLIME_ROOM_CORE_TOKENS)) weight += 8;
   if (hasAnyToken(name, SLIME_ROOM_FEED_TOKENS)) weight += 4;

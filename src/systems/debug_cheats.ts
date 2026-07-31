@@ -1,9 +1,9 @@
-import { EntityType, type Entity, type GameState } from '../core/types';
+import { EntityType, type Entity } from '../core/types';
 
 let debugOnePunchMan = false;
 
-export function isDebugOnePunchManEnabled(state?: Pick<GameState, 'trailerMode'>): boolean {
-  return debugOnePunchMan || (state?.trailerMode ?? false);
+export function isDebugOnePunchManEnabled(): boolean {
+  return debugOnePunchMan;
 }
 
 export function toggleDebugOnePunchMan(): boolean {
@@ -17,8 +17,8 @@ export function debugOnePunchMeleeDamage(target: Entity, normalDamage: number): 
   return Math.max(normalDamage, Math.ceil(target.hp ?? target.maxHp ?? 1));
 }
 
-export function keepDebugOnePunchManAlive(player: Entity, state?: Pick<GameState, 'trailerMode'>): void {
-  if (!isDebugOnePunchManEnabled(state)) return;
+export function keepDebugOnePunchManAlive(player: Entity): void {
+  if (!debugOnePunchMan) return;
   player.alive = true;
   player.maxHp = Math.max(1, player.maxHp ?? 100);
   player.hp = player.maxHp;

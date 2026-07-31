@@ -7,7 +7,6 @@ import { ITEM_TAGS, ITEMS } from '../src/data/items';
 import { RESOURCES, resourceForItem } from '../src/data/resources';
 import { hearingRadiusMetersForActor } from '../src/systems/hearing';
 import { makeTestNpc, makeTestPlayer } from './helpers';
-import { _overrideRng, _restoreRng } from '../src/core/rand';
 
 test('liquidator radio headset is reachable radio-class tool gear', () => {
   const def = ITEMS.radio_headset_liquidator;
@@ -32,12 +31,13 @@ test('equipped liquidator headset expands localized hearing radius', () => {
 });
 
 test('hunter trade can expose the liquidator headset', () => {
-  _overrideRng(() => 0.999);
+  const savedRandom = Math.random;
+  Math.random = () => 0.999;
   try {
     const npc = makeTestNpc({ occupation: Occupation.HUNTER });
     const trade = generateNpcTradeItems(npc);
     assert.ok(trade.some(item => item.defId === 'radio_headset_liquidator'));
   } finally {
-    _restoreRng();
+    Math.random = savedRandom;
   }
 });

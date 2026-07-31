@@ -1,6 +1,5 @@
 /* ── Досье ЧБ — Ministry Chernobog archive decisions ─────────── */
 
-import { getPlotNpcNumericId } from '../../data/npc_packages';
 import { Faction, Occupation, QuestType, type Entity, type Room } from '../../core/types';
 import { chernobogDocketQuestEventTags, chernobogDocketQuestRumorIds } from '../../data/chernobog_docket';
 import { type PlotNpcDef, registerSideQuest, registerSideQuestSteps } from '../../data/plot';
@@ -161,7 +160,7 @@ const CULT_CONTACT_DEF: PlotNpcDef = {
 registerSideQuest('chernobog_docket_registrar', REGISTRAR_DEF, [
   {
     id: 'chernobog_submit_cell_map',
-    giverId: getPlotNpcNumericId('chernobog_docket_registrar')!,
+    giverNpcId: 'chernobog_docket_registrar',
     type: QuestType.FETCH,
     desc: 'Валентина Входящая: «Сдайте схему ячеек ЧБ-0 официально. Архив любит карту сильнее свидетеля.»',
     targetItem: 'chernobog_cell_map', targetCount: 1,
@@ -181,7 +180,7 @@ registerSideQuest('chernobog_docket_registrar', REGISTRAR_DEF, [
 registerSideQuest('chernobog_docket_copyist', COPYIST_DEF, [
   {
     id: 'chernobog_forge_witness_correction',
-    giverId: getPlotNpcNumericId('chernobog_docket_copyist')!,
+    giverNpcId: 'chernobog_docket_copyist',
     type: QuestType.FETCH,
     desc: 'Павел Копирочный: «Дайте правку показаний ЧБ. Сделаю копию, где свидетель боится по форме.»',
     targetItem: 'chernobog_witness_correction', targetCount: 1,
@@ -201,7 +200,7 @@ registerSideQuest('chernobog_docket_copyist', COPYIST_DEF, [
 registerSideQuest('chernobog_docket_buyer', BUYER_DEF, [
   {
     id: 'chernobog_sell_confiscation_act',
-    giverId: getPlotNpcNumericId('chernobog_docket_buyer')!,
+    giverNpcId: 'chernobog_docket_buyer',
     type: QuestType.FETCH,
     desc: 'Семен Макулатурный: «Продайте акт изъятия черной ладони. Бумага уйдет на рынок, адреса - следом.»',
     targetItem: 'chernobog_confiscation_act', targetCount: 1,
@@ -220,7 +219,7 @@ registerSideQuest('chernobog_docket_buyer', BUYER_DEF, [
 registerSideQuest('chernobog_docket_keeper', KEEPER_DEF, [
   {
     id: 'chernobog_hide_external_index',
-    giverId: getPlotNpcNumericId('chernobog_docket_keeper')!,
+    giverNpcId: 'chernobog_docket_keeper',
     type: QuestType.FETCH,
     desc: 'Лидия Несвидетель: «Спрячьте индекс внешней ячейки у меня. Пусть фамилии поживут без графы.»',
     targetItem: 'chernobog_external_cell_index', targetCount: 1,
@@ -240,7 +239,7 @@ registerSideQuest('chernobog_docket_keeper', KEEPER_DEF, [
 registerSideQuest('chernobog_docket_liquidator', LIQUIDATOR_DEF, [
   {
     id: 'chernobog_show_liquidator_memo',
-    giverId: getPlotNpcNumericId('chernobog_docket_liquidator')!,
+    giverNpcId: 'chernobog_docket_liquidator',
     type: QuestType.FETCH,
     desc: 'Ротмистр Чистопис: «Покажите памятку ликвидатора ЧБ. Адреса должны стать приказом, а не слухом.»',
     targetItem: 'chernobog_liquidator_memo', targetCount: 1,
@@ -259,7 +258,7 @@ registerSideQuest('chernobog_docket_liquidator', LIQUIDATOR_DEF, [
 registerSideQuest('chernobog_docket_cult_contact', CULT_CONTACT_DEF, [
   {
     id: 'chernobog_show_cult_contact',
-    giverId: getPlotNpcNumericId('chernobog_docket_cult_contact')!,
+    giverNpcId: 'chernobog_docket_cult_contact',
     type: QuestType.FETCH,
     desc: 'Тихон Подстрочный: «Покажите центральную записку. Не доказательство - направление взгляда.»',
     targetItem: 'chernobog_redacted_central_note', targetCount: 1,
@@ -279,7 +278,7 @@ registerSideQuest('chernobog_docket_cult_contact', CULT_CONTACT_DEF, [
 registerSideQuestSteps([
   {
     id: 'chernobog_show_yakov_redaction',
-    giverId: getPlotNpcNumericId('yakov')!,
+    giverNpcId: 'yakov',
     type: QuestType.FETCH,
     desc: 'Яков Давидович: «Покажите красную центральную записку ЧБ. Меня интересует не бог, а почему форма повторяет страх.»',
     targetItem: 'chernobog_redacted_central_note', targetCount: 1,

@@ -58,13 +58,3 @@ export function applyHitStaggerAndKnockback(target: Entity, sourceX: number, sou
   }
 }
 
-
-
-export function calculateReloadTime(baseReload: number, agility: number): number {
-  const MIN_RELOAD_RATIO = 0.25; // 25% is the maximum possible speedup
-  const k = 0.05; // Scaling factor
-
-  // Asymptotic formula
-  const multiplier = MIN_RELOAD_RATIO + (1 - MIN_RELOAD_RATIO) * Math.exp(-k * agility);
-  return baseReload * multiplier;
-}

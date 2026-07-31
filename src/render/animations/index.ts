@@ -1,8 +1,8 @@
 export * from './registry';
 export * from './procedural';
-export * from './defs/auto';
+export * from './defs/olga';
 
 import { registerRenderAnimationClips } from './registry';
-import { AUTO_RENDER_ANIMATION_CLIPS } from './defs/auto';
+import { OLGA_RENDER_ANIMATION_CLIPS } from './defs/olga';
 
-registerRenderAnimationClips(AUTO_RENDER_ANIMATION_CLIPS);
+registerRenderAnimationClips(OLGA_RENDER_ANIMATION_CLIPS);

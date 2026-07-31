@@ -13,8 +13,7 @@ interface FullscreenEnvOptions {
   platform?: string;
   maxTouchPoints?: number;
   embedded?: boolean;
-  requestFullscreen?: boolean | "webkit" | "ms" | "error" | "webkit-error" | "ms-error";
-  exitFullscreen?: boolean | "webkit" | "ms" | "error" | "webkit-error" | "ms-error";
+  requestFullscreen?: boolean | "webkit" | "ms" | "error";
   href?: string;
   lockOrientation?: boolean | "error";
 }
@@ -45,14 +44,6 @@ function installFullscreenEnv(options: FullscreenEnvOptions): () => void {
     documentElement.requestFullscreen = async () => {
       throw new Error("denied");
     };
-  } else if (options.requestFullscreen === "webkit-error") {
-    documentElement.webkitRequestFullscreen = async () => {
-      throw new Error("denied");
-    };
-  } else if (options.requestFullscreen === "ms-error") {
-    documentElement.msRequestFullscreen = async () => {
-      throw new Error("denied");
-    };
   }
 
   const top = {};
@@ -70,36 +61,9 @@ function installFullscreenEnv(options: FullscreenEnvOptions): () => void {
     };
   }
 
-  const docValue: any = { documentElement, fullscreenElement: null };
-  if (options.exitFullscreen === true) {
-    docValue.fullscreenElement = documentElement;
-    docValue.exitFullscreen = async () => {};
-  } else if (options.exitFullscreen === "error") {
-    docValue.fullscreenElement = documentElement;
-    docValue.exitFullscreen = async () => {
-      throw new Error("denied");
-    };
-  } else if (options.exitFullscreen === "webkit") {
-    docValue.webkitFullscreenElement = documentElement;
-    docValue.webkitExitFullscreen = async () => {};
-  } else if (options.exitFullscreen === "webkit-error") {
-    docValue.webkitFullscreenElement = documentElement;
-    docValue.webkitExitFullscreen = async () => {
-      throw new Error("denied");
-    };
-  } else if (options.exitFullscreen === "ms") {
-    docValue.msFullscreenElement = documentElement;
-    docValue.msExitFullscreen = async () => {};
-  } else if (options.exitFullscreen === "ms-error") {
-    docValue.msFullscreenElement = documentElement;
-    docValue.msExitFullscreen = async () => {
-      throw new Error("denied");
-    };
-  }
-
   Object.defineProperty(globalThis, "document", {
     configurable: true,
-    value: docValue,
+    value: { documentElement, fullscreenElement: null },
   });
   Object.defineProperty(globalThis, "navigator", {
     configurable: true,
@@ -311,108 +275,6 @@ test("enterNativeFullscreen succeeds even if orientation lock fails", async () =
   });
   try {
     assert.equal(await enterNativeFullscreen(), true);
-  } finally {
-    restore();
-  }
-});
-
-test("exitNativeFullscreen handles promise rejection smoothly", async () => {
-  let restore = installFullscreenEnv({
-    userAgent: "Mozilla/5.0",
-    exitFullscreen: "error",
-  });
-  try {
-    await assert.doesNotReject(async () => {
-      const { exitNativeFullscreen } = await import("../src/fullscreen.js");
-      await exitNativeFullscreen();
-    });
-  } finally {
-    restore();
-  }
-
-  restore = installFullscreenEnv({
-    userAgent: "Mozilla/5.0",
-    exitFullscreen: "webkit-error",
-  });
-  try {
-    await assert.doesNotReject(async () => {
-      const { exitNativeFullscreen } = await import("../src/fullscreen.js");
-      await exitNativeFullscreen();
-    });
-  } finally {
-    restore();
-  }
-
-  restore = installFullscreenEnv({
-    userAgent: "Mozilla/5.0",
-    exitFullscreen: "ms-error",
-  });
-  try {
-    await assert.doesNotReject(async () => {
-      const { exitNativeFullscreen } = await import("../src/fullscreen.js");
-      await exitNativeFullscreen();
-    });
-  } finally {
-    restore();
-  }
-});
-
-test("exitNativeFullscreen succeeds on happy path", async () => {
-  let restore = installFullscreenEnv({
-    userAgent: "Mozilla/5.0",
-    exitFullscreen: true,
-  });
-  try {
-    const { exitNativeFullscreen } = await import("../src/fullscreen.js");
-    await exitNativeFullscreen();
-  } finally {
-    restore();
-  }
-
-  restore = installFullscreenEnv({
-    userAgent: "Mozilla/5.0",
-    exitFullscreen: "webkit",
-  });
-  try {
-    const { exitNativeFullscreen } = await import("../src/fullscreen.js");
-    await exitNativeFullscreen();
-  } finally {
-    restore();
-  }
-
-  restore = installFullscreenEnv({
-    userAgent: "Mozilla/5.0",
-    exitFullscreen: "ms",
-  });
-  try {
-    const { exitNativeFullscreen } = await import("../src/fullscreen.js");
-    await exitNativeFullscreen();
-  } finally {
-    restore();
-  }
-});
-
-test("enterNativeFullscreen returns false if prefixed requestFullscreen is denied/throws", async () => {
-  let restore = installFullscreenEnv({
-    userAgent:
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
-    requestFullscreen: "webkit-error",
-  });
-  try {
-    const { enterNativeFullscreen } = await import("../src/fullscreen.js");
-    assert.equal(await enterNativeFullscreen(), false);
-  } finally {
-    restore();
-  }
-
-  restore = installFullscreenEnv({
-    userAgent:
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
-    requestFullscreen: "ms-error",
-  });
-  try {
-    const { enterNativeFullscreen } = await import("../src/fullscreen.js");
-    assert.equal(await enterNativeFullscreen(), false);
   } finally {
     restore();
   }

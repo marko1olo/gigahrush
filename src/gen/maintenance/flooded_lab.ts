@@ -1,10 +1,9 @@
-import { getPlotNpcNumericId } from '../../data/npc_packages';
 /* ── Затопленная лаборатория — permanent room (maintenance) ───── */
 /* Hand-crafted scientific lab built into the maintenance maze.    */
 /* NPC: Профессор Тесла — gives FETCH quest for energy cells.      */
 
 import {
-  Cell, Tex, Feature, RoomType,
+  Cell, Tex, Feature, FloorLevel, RoomType,
   type Room, type Entity,
   EntityType, Faction, Occupation, QuestType,
 } from '../../core/types';
@@ -14,7 +13,6 @@ import { stampRoom, protectRoom, connectProtectedRoom, findClearArea } from '../
 import { Spr } from '../../render/sprite_index';
 import { genLog } from '../log';
 import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
-import { rng } from '../../core/rand';
 
 const PROFESSOR_ID = 'prof_tesla';
 const ASSISTANT_KLIM_ID = 'flooded_lab_assistant_klim';
@@ -50,7 +48,7 @@ const NPC_DEF: PlotNpcDef = {
 registerSideQuest(PROFESSOR_ID, NPC_DEF, [
   {
     id: 'tesla_energy',
-    giverId: getPlotNpcNumericId(PROFESSOR_ID)!,
+    giverNpcId: PROFESSOR_ID,
     type: QuestType.FETCH,
     desc: 'Тесла: «Пять энергоячеек. Без них ПСИ-излучатель останется мокрой кучей проводов.»',
     targetItem: 'ammo_energy', targetCount: 5,
@@ -101,7 +99,7 @@ for (const assistant of ASSISTANT_DEFS) {
   registerAuthoredNpc({
     id: assistant.id,
     npc: assistant.npc,
-    homeFloorKey: storyNpcFloorKey(140),
+    homeFloorKey: storyNpcFloorKey(FloorLevel.MAINTENANCE),
     tags: ['maintenance', 'flooded_lab', 'assistant'],
   });
 }
@@ -172,8 +170,8 @@ export function generateFloodedLab(
   const lootPool = ['note', 'note', 'antidep', 'pills', 'bandage', 'ammo_energy', 'psi_strike', 'tea'];
   for (const defId of lootPool) {
     for (let attempt = 0; attempt < 30; attempt++) {
-      const lx = labX + 1 + Math.floor(rng() * (LAB_W - 2));
-      const ly = labY + 1 + Math.floor(rng() * (LAB_H - 2));
+      const lx = labX + 1 + Math.floor(Math.random() * (LAB_W - 2));
+      const ly = labY + 1 + Math.floor(Math.random() * (LAB_H - 2));
       const ci = world.idx(lx, ly);
       if (world.cells[ci] !== Cell.FLOOR) continue;
       if (world.features[ci]) continue;

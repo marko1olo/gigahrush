@@ -1,6 +1,5 @@
 /* ── Monster behavior: hunt player + hostile NPCs ─────────────── */
 
-
 import {
   W,
   type Entity, type GameState, type MonsterBaitLineState, type Msg, type Room, type WorldContainer,
@@ -13,10 +12,8 @@ import { calculateDamage, applyHitStaggerAndKnockback } from '../combat';
 import { DamageType } from '../../core/types';
 import { MONSTERS, entityDisplayName, type MonsterAIFlag, type MonsterDef } from '../../entities/monster';
 import { ITEMS, ITEM_TAGS, getStack } from '../../data/items';
-import { MAX_INVENTORY_SLOTS } from '../../data/inventory_limits';
 import { occupationHasProfileTag } from '../../data/occupation_profiles';
 import { droppedToolLightScore, equippedToolLightScore } from '../../data/tool_lights';
-import { isPlotNpc } from '../../data/plot';
 import {
   playGrowl,
   playFogSharkBite,
@@ -33,9 +30,8 @@ import { scaleMonsterDmg, strMeleeDmgMult } from '../rpg';
 import { applySporeHaze, hasSporeHazeProtection, zhelemishIncomingMeleeDamage } from '../status';
 import { spawnBloodHit, spawnDeathPool } from '../blood_fx';
 import { MarkType, stampMark } from '../surface_marks';
-import { followPath, tryAssignPathToCell, wanderFar, wanderNearby } from './pathfinding';
+import { followPath, tryAssignPathToCell, wanderNearby } from './pathfinding';
 import { evaluateMicroStimuli, tickMicroGoal } from './micro_goals';
-import { emitMarkovBark } from './barks';
 import { Spr } from '../../render/sprite_index';
 import { getRecentEvents, publishEvent } from '../events';
 import { recordPlayerDamage } from '../damage';
@@ -91,9 +87,7 @@ import {
 import { shareLocalTarget } from './monster_pack';
 import { selectMeleeTarget } from '../melee_targeting';
 import { findMeatChunkCell, removeVisualSlotCode } from '../../gen/visual_cell_slots';
-import { isCarnivoreMonster, monsterPackMode } from '../../data/monster_ecology';
-import { rng } from '../../core/rand';
-import { tryCombatOrbitStep } from './combat_orbit';
+import { isCarnivoreMonster } from '../../data/monster_ecology';
 
 /* ── Shared combat target finder ──────────────────────────────── */
 const MONSTER_DETECT = 20;
@@ -1260,7 +1254,7 @@ function ensureMukhozhukExposed(
 function mukhozhukCommandableNpc(npc: Entity, target: Entity): boolean {
   if (!npc.alive || npc.type !== EntityType.NPC || !npc.ai || npc.id === target.id) return false;
   if ((npc.maxHp ?? npc.hp ?? 60) > 130 || (npc.rpg?.level ?? 1) > 6) return false;
-  if (isPlotNpc(npc)) return false;
+  if (npc.plotNpcId !== undefined) return false;
   const guard = npc.faction === Faction.LIQUIDATOR ||
     npc.faction === Faction.WILD ||
     occupationHasProfileTag(npc.occupation, 'combat');
@@ -1347,7 +1341,7 @@ function addSpoiledRation(container: WorldContainer): void {
   const existing = container.inventory.find(item => item.defId === 'sand_spoiled_ration' && item.data === undefined && item.count < stackMax);
   if (existing) {
     existing.count++;
-  } else if (container.inventory.length < MAX_INVENTORY_SLOTS) {
+  } else if (container.inventory.length < container.capacitySlots) {
     container.inventory.push({ defId: 'sand_spoiled_ration', count: 1 });
   }
   if (!container.tags.includes('mukhozhuk_spoiled')) container.tags.push('mukhozhuk_spoiled');
@@ -1373,7 +1367,7 @@ function validMukhozhukFoodContainer(
   state?: GameState,
 ): container is WorldContainer {
   if (!container) return false;
-  if (state && container.z !== state.currentZ) return false;
+  if (state && container.floor !== state.currentFloor) return false;
   if (!containerHasMukhozhukFood(container)) return false;
   return world.dist2(e.x, e.y, container.x + 0.5, container.y + 0.5) <= MUKHOZHUK_FOOD_SCAN_RADIUS * MUKHOZHUK_FOOD_SCAN_RADIUS;
 }
@@ -1398,7 +1392,7 @@ function findMukhozhukFoodContainer(world: World, e: Entity, dt: number, state?:
   let bestD2 = MUKHOZHUK_FOOD_SCAN_RADIUS * MUKHOZHUK_FOOD_SCAN_RADIUS;
   for (let i = 0; i < limit; i++) {
     const container = world.containers[(start + i) % total];
-    if (state && container.z !== state.currentZ) continue;
+    if (state && container.floor !== state.currentFloor) continue;
     if (!containerHasMukhozhukFood(container)) continue;
     const d2 = world.dist2(e.x, e.y, container.x + 0.5, container.y + 0.5);
     if (d2 >= bestD2) continue;
@@ -1828,7 +1822,7 @@ function processObzhivalshchikRoomMemory(
   state: GameState | undefined,
 ): void {
   const ai = e.ai!;
-  const memory = getRoomMemory(state?.currentZ, ai.homeRoomId);
+  const memory = getRoomMemory(state?.currentFloor, ai.homeRoomId);
   if (!memory || memory.lastEventId === ai.lastRoomMemoryEventId) return;
   ai.lastRoomMemoryEventId = memory.lastEventId;
 
@@ -2196,8 +2190,6 @@ function updateNightmarePressure(
   const closeTarget = !!target?.alive &&
     world.dist2(e.x, e.y, target.x, target.y) <= NIGHTMARE_PRESSURE_RANGE * NIGHTMARE_PRESSURE_RANGE &&
     nightmareSamePressureSpace(world, e, target);
-
-
 
   const before = runtime.pressure;
   if (closeTarget) {
@@ -2808,9 +2800,7 @@ export function findCombatTarget(
     if (!target) ai.combatTargetId = undefined;
   }
 
-  ai.immediateScanCd = (ai.immediateScanCd ?? 0) - dt;
-  if (!target && ai.combatScanCd! > 0 && ai.immediateScanCd <= 0) {
-    ai.immediateScanCd = 0.1; // Check for immediate threats 10 times a second, not every frame
+  if (!target && ai.combatScanCd! > 0) {
     target = findImmediateCombatTarget(world, e, Math.min(rangeSq, IMMEDIATE_THREAT_RADIUS_SQ), typeFilter);
     if (target) {
       ai.combatTargetId = target.id;
@@ -2833,7 +2823,6 @@ export function findCombatTarget(
       const d2 = world.dist2(e.x, e.y, other.x, other.y);
       if (d2 >= newBest) continue;
       if (!isHostile(e, other)) continue;
-      if (!hasAIFlag(e, 'falsePhase') && !hasAIFlag(e, 'noclip') && !e.phasing && !hasClearLine(world, e, other, Math.sqrt(rangeSq))) continue;
       newBest = d2;
       newTarget = other;
     }
@@ -2865,7 +2854,6 @@ function findImmediateCombatTarget(
     if (!isHostile(e, other)) continue;
     const d2 = world.dist2(e.x, e.y, other.x, other.y);
     if (d2 >= best) continue;
-    if (!hasAIFlag(e, 'falsePhase') && !hasAIFlag(e, 'noclip') && !e.phasing && !hasClearLine(world, e, other, Math.sqrt(rangeSq))) continue;
     best = d2;
     target = other;
   }
@@ -5523,7 +5511,6 @@ function tryFollowNoise(
   e: Entity,
   dt: number,
   time: number,
-  msgs: Msg[],
   state?: GameState,
 ): boolean {
   if (hasAIFlag(e, 'deadEcho') && e.ai?.deadEchoRevealed !== true) return false;
@@ -5531,14 +5518,6 @@ function tryFollowNoise(
   if (!noise) return false;
 
   const ai = e.ai!;
-  if (noise.id !== ai.lastSeenNoiseId) {
-    ai.lastSeenNoiseId = noise.id;
-    if (noise.actorId !== undefined) {
-      ai.lastSeenTargetId = noise.actorId;
-    }
-    if (e.type === EntityType.NPC) emitMarkovBark(e, msgs, time, 'alert', 'Что там?', 1.0, '#aac');
-  }
-
   ai.goal = AIGoal.HUNT;
   ai.combatTargetId = undefined;
   const tx = Math.floor(noise.x);
@@ -6699,12 +6678,6 @@ function fireMonsterProjectile(
   const cos = Math.cos(ang);
   const sin = Math.sin(ang);
   const sprite = def.projSprite || Spr.EYE_BOLT;
-  // Compensate gravity so projectile arrives at target height instead of hitting the floor
-  const pt = def.projType;
-  const gravity = pt === ProjType.FLAME ? 1.8 : pt === ProjType.GRENADE ? 2.5 : pt === ProjType.BFG ? 0.3 : 1.2;
-  const dist = Math.sqrt(dx * dx + dy * dy);
-  const flightTime = dist / Math.max(1, spd);
-  const vz = 0.5 * gravity * flightTime;
   entities.push({
     id: nextId.v++,
     type: EntityType.PROJECTILE,
@@ -6717,14 +6690,13 @@ function fireMonsterProjectile(
     sprite,
     vx: cos * spd,
     vy: sin * spd,
-    vz,
     projDmg: dmg,
-    projLife: pt === ProjType.WEB ? 1.45 : 3.0,
+    projLife: def.projType === ProjType.WEB ? 1.45 : 3.0,
     ownerId: e.id,
     spriteScale: monsterProjectileScale(e.monsterKind, sprite),
     spriteZ: 0.5,
-    projType: pt,
-    projGore: pt === ProjType.WEB || sprite === Spr.PARAGRAPH_BOLT ? 1 : 2,
+    projType: def.projType,
+    projGore: def.projType === ProjType.WEB || sprite === Spr.PARAGRAPH_BOLT ? 1 : 2,
   });
   playSoundAt(monsterProjectileSound(e.monsterKind, sprite), e.x, e.y);
   e.attackCd = def.attackRate ?? 2;
@@ -7400,10 +7372,6 @@ function updateReadableMonsterRanged(
     }
   } else if (tryPaupsinaRangeStep(world, e, target, bestDist, dt)) {
     return true;
-  } else if ((def?.speed ?? 0) > 0) {
-    // Generic ranged monsters strafe between shots
-    const idealR = (shotRange + minRange) * 0.5;
-    tryCombatOrbitStep(world, e, target, idealR, (shotRange - minRange) * 0.35, dt);
   }
   return true;
 }
@@ -8756,8 +8724,8 @@ export function dropNpcInventory(e: Entity, entities: Entity[], nextId: { v: num
     if (!item || item.count <= 0) continue;
     entities.push({
       id: nextId.v++, type: EntityType.ITEM_DROP,
-      x: e.x + (rng() - 0.5) * 0.5,
-      y: e.y + (rng() - 0.5) * 0.5,
+      x: e.x + (Math.random() - 0.5) * 0.5,
+      y: e.y + (Math.random() - 0.5) * 0.5,
       angle: 0, pitch: 0, alive: true, speed: 0, sprite: Spr.ITEM_DROP,
       inventory: [{ defId: item.defId, count: item.count, data: item.data }],
     });
@@ -8777,8 +8745,6 @@ function isWeepingAngelFrozen(world: World, e: Entity): boolean {
   for (let i = 0; i < out.length; i++) {
     const actor = out[i];
     if (actor.id === e.id || !actor.alive) continue;
-    // Only players and NPCs count as observers — other monsters can't freeze sculptures
-    if (actor.type === EntityType.MONSTER) continue;
     if (!hasClearLine(world, actor, e, radius)) continue;
 
     const dx = e.x - actor.x;
@@ -8811,6 +8777,19 @@ export function tryPerformMonsterMeleeAttack(
   bestDist: number,
   state?: GameState
 ): boolean {
+  if (e.reloading) {
+    e.reloadTimer = Math.max(0, (e.reloadTimer ?? 0) - dt);
+    if (e.reloadTimer <= 0) {
+      e.currentMag = 1; // Melee attacks are treated as mag=1
+      e.reloading = false;
+    }
+    return true; // Block attack while reloading
+  }
+  if ((e.currentMag ?? 0) <= 0) {
+    e.reloading = true;
+    e.reloadTimer = (def?.attackRate ?? 1) / (e.rpg ? (1 + e.rpg.agi * 0.05) : 1); // fallback if reloadTime not available directly here
+    return true;
+  }
   const mRange = monsterMeleeRange(world, e);
   if (bestDist < mRange) {
     e.attackCd = (e.attackCd ?? 0) - dt;
@@ -8819,7 +8798,9 @@ export function tryPerformMonsterMeleeAttack(
       const dy = world.delta(e.y, target.y);
       e.angle = Math.atan2(dy, dx);
 
-      getEntityIndex().queryRadius(e.x, e.y, mRange + 0.5, monsterMeleeHitQuery, ENTITY_MASK_ACTOR);
+      const ax = e.x + Math.cos(e.angle) * mRange;
+      const ay = e.y + Math.sin(e.angle) * mRange;
+      getEntityIndex().queryRadius(ax, ay, 1.2, monsterMeleeHitQuery, ENTITY_MASK_ACTOR);
       const hitTarget = selectMeleeTarget(world, e, monsterMeleeHitQuery, mRange);
 
       if (hitTarget) {
@@ -8833,7 +8814,8 @@ export function tryPerformMonsterMeleeAttack(
           const hitAng = Math.atan2(hitTarget.y - e.y, hitTarget.x - e.x);
           spawnBloodHit(world, hitTarget.x, hitTarget.y, hitAng, Math.max(2, Math.round(dmg * 0.35)), false);
           playSoundAt(e.monsterKind === MonsterKind.FOG_SHARK ? playFogSharkBite : playGrowl, e.x, e.y);
-          e.attackCd = (def?.attackRate ?? 1) * 1.5;
+          e.currentMag = 0;
+          e.attackCd = def?.attackRate ?? 1;
           return true;
         }
         if (hitTarget.hp !== undefined) {
@@ -8871,10 +8853,6 @@ export function tryPerformMonsterMeleeAttack(
         tryOlgoyDragTarget(world, e, hitTarget, time, msgs, state);
         e.attackCd = def?.attackRate ?? 1;
       }
-    }
-    // Orbit around target while in melee range (circle-strafe between attacks)
-    if (!e.phasing && (def?.speed ?? 0) > 0) {
-      tryCombatOrbitStep(world, e, target, mRange * 0.5, 0.3, dt);
     }
     return true;
   }
@@ -8988,20 +8966,6 @@ export function updateMonster(world: World, entities: Entity[], e: Entity, dt: n
   if (lishennyyLightTarget && followLishennyyLightTarget(world, e, lishennyyLightTarget, dt)) return;
   target = updateSobrannyyTarget(world, e, target, time, msgs, state);
   target = updateObzhivalshchikTarget(world, e, target, dt, time, msgs, state);
-
-  // Unify Sound and Vision: Global hearing translates to HUNT vision
-  if (!target && (!ai.combatTargetId || ai.goal !== AIGoal.HUNT) && e.monsterKind !== MonsterKind.KHOROVAYA_MATKA && e.monsterKind !== MonsterKind.MATKA && e.monsterKind !== MonsterKind.ZOMBIE && e.monsterKind !== MonsterKind.CHERNOSLIZ && e.monsterKind !== MonsterKind.GREEN_DOG) {
-    const noise = findNoiseInvestigationTarget(world, state, e, time);
-    if (noise && noise.id !== ai.lastSeenNoiseId) {
-      ai.lastSeenNoiseId = noise.id;
-      if (noise.actorId !== undefined) {
-        ai.lastSeenTargetId = noise.actorId;
-      }
-      ai.tx = noise.x;
-      ai.ty = noise.y;
-      ai.goal = AIGoal.HUNT;
-    }
-  }
   updateNightmarePressure(world, e, target, dt, time, msgs, playerId, state);
   updateMukhozhukLeader(world, e, target, dt, time, msgs, state);
   if (updateBloodPlantRootHive(world, e, target, dt, time, msgs, playerId, state)) return;
@@ -9033,8 +8997,8 @@ export function updateMonster(world: World, entities: Entity[], e: Entity, dt: n
     if (e.monsterKind === MonsterKind.CHERNOSLIZ && isChernoSlizHidden(world, e, player)) {
       const revealedByNoise = tryRevealChernoSlizByNoise(world, e, time, msgs, state);
       if (revealedByNoise) {
-        if (tryFollowNoise(world, e, dt, time, msgs, state)) return;
-      } else if (tryFollowNoise(world, e, dt, time, msgs, state)) {
+        if (tryFollowNoise(world, e, dt, time, state)) return;
+      } else if (tryFollowNoise(world, e, dt, time, state)) {
         return;
       }
       if (isChernoSlizHidden(world, e, player)) {
@@ -9042,7 +9006,7 @@ export function updateMonster(world: World, entities: Entity[], e: Entity, dt: n
         return;
       }
     }
-    if (tryFollowNoise(world, e, dt, time, msgs, state)) return;
+    if (tryFollowNoise(world, e, dt, time, state)) return;
     const tuning = bladeEliteTuning(e.monsterKind);
     if (tuning && ai.lastSeenTargetId === playerId) {
       publishBladeEliteEscape(tuning, world, e, player, playerId, state, 'lost_target');
@@ -9051,36 +9015,23 @@ export function updateMonster(world: World, entities: Entity[], e: Entity, dt: n
     if (def?.speed === 0) return;
     ai.goal = AIGoal.WANDER;
     ai.combatTargetId = undefined;
-    if (e.phasing) {
-      ai.timer -= dt;
-      if (ai.timer <= 0) {
-        ai.timer = 2 + rng() * 3;
-        ai.wanderAngle = rng() * Math.PI * 2;
+    ai.timer -= dt;
+    if (ai.path.length === 0 || ai.pi >= ai.path.length || ai.timer <= 0) {
+      // Phasing monsters: random direction wander
+      if (e.phasing) {
+        ai.timer = 2 + Math.random() * 3;
+        ai.wanderAngle = Math.random() * Math.PI * 2;
+      } else {
+        wanderNearby(world, e);
       }
+      ai.timer = 1.5 + Math.random() * 2.5;
+    }
+    if (e.phasing) {
       const a = ai.wanderAngle ?? 0;
       const spd = e.speed * 0.4 * dt;
       e.x = ((e.x + Math.cos(a) * spd) % W + W) % W;
       e.y = ((e.y + Math.sin(a) * spd) % W + W) % W;
     } else {
-      if (ai.path.length === 0 || ai.pi >= ai.path.length) {
-        // Pack-mode wander (mode from monster ecology): roamers patrol wide, territorial
-        // packs leash back to their home room (~16-cell tether), everyone else wanders
-        // locally. Iron-Law safe — only assigns paths on the baked nav, never re-bakes.
-        const packMode = monsterPackMode(e.monsterKind);
-        if (packMode === 'roamer') {
-          wanderFar(world, e);
-        } else if (packMode === 'territorial' && ai.homeRoomId !== undefined) {
-          const home = world.rooms[ai.homeRoomId];
-          const hx = home ? home.x + (home.w >> 1) : e.x;
-          const hy = home ? home.y + (home.h >> 1) : e.y;
-          // Beyond the leash and a path home exists → walk home; otherwise wander in place.
-          const leashed = home !== undefined && world.dist2(e.x, e.y, hx, hy) > 256 &&
-            tryAssignPathToCell(world, e, hx, hy) !== 'not_found';
-          if (!leashed) wanderNearby(world, e);
-        } else {
-          wanderNearby(world, e);
-        }
-      }
       followMonsterPath(world, e, dt);
     }
     return;
@@ -9144,8 +9095,6 @@ export function updateMonster(world: World, entities: Entity[], e: Entity, dt: n
   if (tryPerformMonsterMeleeAttack(world, entities, e, target, def, dt, time, msgs, playerId, nextId, bestDist, state)) {
     return;
   }
-
-
 
   // Hunt: pathfind to target
   ai.timer -= dt;

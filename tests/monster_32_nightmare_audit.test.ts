@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { MonsterKind } from '../src/core/types';
+import { FloorLevel, MonsterKind } from '../src/core/types';
 import { getMonsterEcology } from '../src/data/monster_ecology';
 import { DEF, generateNightmareSprite, generateSprite } from '../src/entities/nightmare';
 import { generateSprite as generateShadowSprite } from '../src/entities/shadow';
@@ -34,7 +34,14 @@ test('nightmare is a rare elite pressure enemy, not a boss sponge', () => {
   assert.equal(DEF.speed >= 1.2 && DEF.speed <= 1.7, true, 'NIGHTMARE should pressure without outrunning flee counterplay');
   assert.equal(DEF.dmg >= 30, true, 'NIGHTMARE should punish hesitation quickly');
   assert.equal(DEF.attackRate <= 1.5, true, 'NIGHTMARE pressure should come from burst contact, not attrition');
-
+  assert.deepEqual(DEF.floors, [
+    FloorLevel.MINISTRY,
+    FloorLevel.LIVING,
+    FloorLevel.MAINTENANCE,
+    FloorLevel.HELL,
+    FloorLevel.VOID,
+  ]);
+  for (const floor of DEF.floors ?? []) assert.equal(ecology?.floors.includes(floor), true);
   assert.ok(DEF.counterplay?.includes('урон'));
   assert.ok(DEF.counterplay?.includes('уходите'));
   assert.ok(DEF.lootHint?.includes('ПСИ'));

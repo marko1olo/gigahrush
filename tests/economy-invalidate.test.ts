@@ -1,18 +1,18 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { type GameState } from '../src/core/types';
+import { FloorLevel, type GameState } from '../src/core/types';
 import { createEconomyFloorState } from '../src/data/economy';
 import { ensureEconomyState, getAdjustedItemPrice, invalidateEconomyPrices } from '../src/systems/economy';
 import { makeGameState } from './helpers.js';
 
-function resetFloor(state: GameState, floor: number): void {
+function resetFloor(state: GameState, floor: FloorLevel): void {
   const economy = ensureEconomyState(state);
   economy.floors[floor] = createEconomyFloorState(floor);
 }
 
 test('invalidateEconomyPrices increments priceVersion', () => {
-  const state = makeGameState({ currentZ: 0 });
-  resetFloor(state, 0);
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING });
+  resetFloor(state, FloorLevel.LIVING);
   const econ = ensureEconomyState(state);
 
   const prevVersion = econ.priceVersion;
@@ -22,12 +22,12 @@ test('invalidateEconomyPrices increments priceVersion', () => {
 });
 
 test('invalidateEconomyPrices forces getAdjustedItemPrice to recalculate', () => {
-  const state = makeGameState({ currentZ: 0 });
-  resetFloor(state, 0);
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING });
+  resetFloor(state, FloorLevel.LIVING);
   const econ = ensureEconomyState(state);
 
   // Set initial stock
-  const floorState = econ.floors[0]!;
+  const floorState = econ.floors[FloorLevel.LIVING]!;
   floorState.resources['drink_water'] = { stock: 10, target: 10, lastDelta: 0 };
 
   // Cache the price

@@ -1,7 +1,6 @@
 import { TITLE_LANGUAGES, type TitleLanguageId, type TitleFlagKind, titleLanguageDef } from '../data/languages';
 import { controlBindingLabel } from '../systems/controls';
 import { fitText } from './ui_text';
-import { GAME_BUILD_VERSION } from '../core/version';
 
 export type TitleScreenMode = 'language' | 'setup' | 'feedback';
 export type TitleHitField = 'language' | 'name' | 'age' | 'sex' | 'seed' | 'actorCap' | 'addNpc' | 'trailer' | 'start' | 'continue' | 'feedback';
@@ -112,16 +111,11 @@ export function drawTitleScreen(ctx: CanvasRenderingContext2D, options: DrawTitl
   if (options.mode !== 'setup') ctx.fillText(fitText(ctx, lang.languageHint, w * 0.9), cx, h - 12 * s);
 
   ctx.textAlign = 'left';
-  ctx.fillStyle = '#557766';
-  ctx.font = `${Math.round(11 * s)}px monospace`;
-  ctx.fillText(GAME_BUILD_VERSION, 12 * s, h - 12 * s);
-
   if (typeof window !== 'undefined') {
     (window as any).__gigahrushTitleHits = hits;
   }
   return hits;
 }
-
 
 function drawLanguageMenu(
   ctx: CanvasRenderingContext2D,

@@ -1,6 +1,6 @@
 /* -- Mukhozhuk: exposed parasite authority host ---------------- */
 
-import { MonsterKind } from '../core/types';
+import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
 import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
@@ -13,6 +13,7 @@ export const DEF: MonsterDef = {
   attackRate: 1.28,
   sprite: 0,
   aiFlags: ['parasiteLeader', 'foodBait'],
+  floors: [FloorLevel.MINISTRY, FloorLevel.MAINTENANCE],
   counterplay: 'Не давайте носителю добежать до охраны: вскрывайте болезнь при свидетелях, карантиньте, бейте до командного крика или уводите его от складов еды.',
   lootHint: 'жирный хитин, испорченный приказ, редкая карантинная карточка из воротника',
 };
@@ -21,8 +22,7 @@ function put(t: Uint32Array, x: number, y: number, color: number): void {
   if (x >= 0 && x < S && y >= 0 && y < S) t[y * S + x] = color;
 }
 
-function line(opts: { t: Uint32Array; x0: number; y0: number; x1: number; y1: number; color: number }): void {
-  const { t, x0, y0, x1, y1, color } = opts;
+function line(t: Uint32Array, x0: number, y0: number, x1: number, y1: number, color: number): void {
   const steps = Math.max(1, Math.ceil(Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0))));
   for (let i = 0; i <= steps; i++) {
     const k = i / steps;
@@ -30,17 +30,16 @@ function line(opts: { t: Uint32Array; x0: number; y0: number; x1: number; y1: nu
   }
 }
 
-function ellipse(opts: {
-  t: Uint32Array;
-  cx: number;
-  cy: number;
-  rx: number;
-  ry: number;
-  color: number;
-  seed: number;
-  alpha?: number;
-}): void {
-  const { t, cx, cy, rx, ry, color, seed, alpha = 255 } = opts;
+function ellipse(
+  t: Uint32Array,
+  cx: number,
+  cy: number,
+  rx: number,
+  ry: number,
+  color: number,
+  seed: number,
+  alpha = 255,
+): void {
   for (let y = Math.floor(cy - ry); y <= Math.ceil(cy + ry); y++) {
     for (let x = Math.floor(cx - rx); x <= Math.ceil(cx + rx); x++) {
       const dx = (x - cx) / Math.max(1, rx);
@@ -55,8 +54,7 @@ function ellipse(opts: {
   }
 }
 
-function jaggedPlate(opts: { t: Uint32Array; cx: number; cy: number; rx: number; ry: number; seed: number }): void {
-  const { t, cx, cy, rx, ry, seed } = opts;
+function jaggedPlate(t: Uint32Array, cx: number, cy: number, rx: number, ry: number, seed: number): void {
   const shell = rgba(46, 31, 22, 245);
   const shellHi = rgba(83, 58, 35, 238);
   for (let y = Math.floor(cy - ry); y <= Math.ceil(cy + ry); y++) {
@@ -67,15 +65,14 @@ function jaggedPlate(opts: { t: Uint32Array; cx: number; cy: number; rx: number;
       put(t, x, y, (x + y + seed) % 5 === 0 ? shellHi : shell);
     }
   }
-  line({ t, x0: cx, y0: cy - ry + 2, x1: cx, y1: cy + ry - 2, color: rgba(17, 12, 9, 240) });
+  line(t, cx, cy - ry + 2, cx, cy + ry - 2, rgba(17, 12, 9, 240));
 }
 
-function insectLeg(opts: { t: Uint32Array; x: number; y: number; side: -1 | 1; bend: number }): void {
-  const { t, x, y, side, bend } = opts;
+function insectLeg(t: Uint32Array, x: number, y: number, side: -1 | 1, bend: number): void {
   const dark = rgba(27, 19, 14, 245);
   const green = rgba(77, 111, 61, 210);
-  line({ t, x0: x, y0: y, x1: x + side * 7, y1: y + bend, color: dark });
-  line({ t, x0: x + side * 7, y0: y + bend, x1: x + side * 12, y1: y + bend + 6, color: dark });
+  line(t, x, y, x + side * 7, y + bend, dark);
+  line(t, x + side * 7, y + bend, x + side * 12, y + bend + 6, dark);
   put(t, x + side * 5, y + bend - 1, green);
   put(t, x + side * 9, y + bend + 3, green);
 }
@@ -101,15 +98,15 @@ export function generateSprite(): Uint32Array {
     }
   }
 
-  ellipse({ t, cx: cx - 1, cy: 16, rx: 7.5, ry: 8.5, color: skin, seed: 14931, alpha: 248 });
-  ellipse({ t, cx: cx + 1, cy: 12, rx: 9.5, ry: 6.5, color: skin, seed: 14932, alpha: 235 });
-  jaggedPlate({ t, cx: cx + 2, cy: 12, rx: 8, ry: 5, seed: 14933 });
-  jaggedPlate({ t, cx: cx + 1, cy: 27, rx: 11, ry: 8, seed: 14934 });
+  ellipse(t, cx - 1, 16, 7.5, 8.5, skin, 14931, 248);
+  ellipse(t, cx + 1, 12, 9.5, 6.5, skin, 14932, 235);
+  jaggedPlate(t, cx + 2, 12, 8, 5, 14933);
+  jaggedPlate(t, cx + 1, 27, 11, 8, 14934);
 
   for (let i = 0; i < 3; i++) {
     const y = 25 + i * 5;
-    insectLeg({ t, x: cx - 8, y, side: -1, bend: i - 2 });
-    insectLeg({ t, x: cx + 8, y: y + 1, side: 1, bend: 2 - i });
+    insectLeg(t, cx - 8, y, -1, i - 2);
+    insectLeg(t, cx + 8, y + 1, 1, 2 - i);
   }
 
   for (let y = 35; y < 52; y++) {
@@ -132,8 +129,8 @@ export function generateSprite(): Uint32Array {
   put(t, cx + 4, 16, rgba(205, 231, 137, 250));
   put(t, cx - 2, 16, rgba(25, 18, 14, 255));
   put(t, cx + 5, 17, rgba(25, 18, 14, 255));
-  line({ t, x0: cx - 5, y0: 8, x1: cx - 9, y1: 3, color: rgba(35, 25, 17, 240) });
-  line({ t, x0: cx + 5, y0: 8, x1: cx + 10, y1: 4, color: rgba(35, 25, 17, 240) });
+  line(t, cx - 5, 8, cx - 9, 3, rgba(35, 25, 17, 240));
+  line(t, cx + 5, 8, cx + 10, 4, rgba(35, 25, 17, 240));
 
   return t;
 }

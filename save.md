@@ -10,7 +10,7 @@ The browser save lives in `localStorage` under `gigahrush_save`.
 
 Current authoritative shape:
 
-- `SAVE_SHAPE_VERSION = 25`;
+- `SAVE_SHAPE_VERSION = 21`;
 - old or unversioned saves are rejected;
 - newer saves are rejected;
 - cross-version migration code is not required by default.
@@ -51,8 +51,7 @@ Current runtime save sections include:
 - `netHack`;
 - `liftArachna`;
 - `pseudolift`;
-- `floorMemory` (снапшот только текущего активного этажа);
-- `playedCinematics` (какие синематики ключевых этажей уже проиграны в этом ране, capped);
+- `floorMemory`;
 - `netTerminalGen`;
 - `mapEditorPatches`;
 - `worldEvents`;
@@ -61,8 +60,7 @@ Current runtime save sections include:
 - `economy`;
 - `banking`;
 - `stockMarket`;
-- `production`;
-- `factionRelations` (плоский снимок динамической матрицы отношений фракций, FACTION_COUNT² Int8; сохраняется, т.к. отношения теперь персистентны между этажами и загрузками).
+- `production`.
 
 If a system stores persistent state, it needs a current-shape serializer/sanitizer, a cap or compact representation, and a rejection/test path when shape compatibility changes.
 
@@ -84,30 +82,17 @@ Sanitization is not legacy migration. It keeps the accepted current shape from c
 
 ## Floor Memory
 
-Only the **current active floor** is ever retained or persisted. A floor is a pure function of `(runSeed, z)` and regenerates deterministically on every transition (`src/gen` has zero `Math.random`; the whole chain runs under `withSeededRandom(floorSeed, …)`), so departing floors are **not** kept: leaving a floor folds its NPCs back into A-Life and discards the `World`. This bounds live RAM to a single `World` (the iOS-OOM fix) and keeps the save to one floor.
+Visited route stops are keyed by stable floor identity. Hot entries can keep live `World` objects and parked non-player/non-projectile entities; older entries are packed into byte-aware snapshots.
 
-`floorMemory` is therefore a single-entry save↔load handoff, not a cross-floor cache:
+Browser saves persist the packed floor-memory section when it fits the budget. Restored floor memory is loaded before selecting the active floor.
 
-- on **save**, `captureCurrentFloorMemory()` packs the live active floor via `worldForSave(world, base)` as a **delta against the regenerated pristine base** (see below), then `clearFloorMemory()` drops the transient so nothing floor-sized lingers or re-archives during play;
-- on **load**, the one packed entry is restored and consumed by `loadFloorForTarget`/`takeFloorMemory` with `fromMemory=true` (skipping map-editor replay, container restore and exploration reset), so player mutations on the active floor — dropped loot, looted containers, corpses, broken doors — survive save→load;
-- a lift **revisit** finds an empty map → regenerates the floor fresh with deterministically identical geometry, by design.
+Samosbor updates the active floor key, not a separate alternate floor:
 
-### Delta encoding (`baseDelta`)
+- active local rebuild mutates/stitches the current world;
+- stale parked copy for the same key is dropped;
+- the rebuilt active world is captured when the player leaves.
 
-A full-geometry snapshot of a dense floor exceeds `localStorage`'s ~5 MB ceiling (>90 % of it is deterministically regenerable geometry stored redundantly). Because the floor is a pure function of `(runSeed, z)`, the snapshot stores only what runtime *changed* and regenerates the rest:
-
-- **base** = `generateFloorForTarget(z, entry).world` (post-gen stamps included), resolved **symmetrically** on both sides (`currentFloorTarget()` at save mirrors `loadGame`'s `(floor, generatedRunEntry)` at load). Lazy thunk: no base is generated on ordinary transitions, only at serialize time and on a delta-load hit.
-- **geometry is delta'd:** the 12 world arrays are stored **XOR vs base** (`encodeRleArrayXor`/`applyRleArrayXor`; unchanged cells collapse to `0`-runs), rooms as sparse `roomPatches` + `roomsAppended`, doors as `doorsRemoved` + `doorsUpsert`. `defId`/`tags` are generation-deterministic and recovered from the base slot on a patched room.
-- **absolute in both modes** (runtime-mutated or trivially small): `zones`, `containers`, `surfaceMap`, `anomaly*`/`rail*` runtime, ceiling scalars. **Entities** stay the absolute snapshot (A-Life re-skins NPCs regardless).
-- **drift guard:** a `baseHash` (FNV-1a over `cells`+`roomMap`+room/door counts) fingerprints the base. If the base regenerated at load differs from the one at save (any `src/gen`/`injectFastElevators`/`stampCeilingHeights` change, or a `(z,entry)` asymmetry), the hash mismatches → `worldFromSave` returns `null` → the loader falls back to a **fresh regenerate**, not silent grid corruption. This is automatic and needs no manual bump.
-- **save-time base regen** runs under `withPreservedGenerationRuntime` (`src/systems/generation_runtime_guard.ts`) so a throwaway regen cannot clobber live module singletons a generator resets as a side effect (e.g. kvartiry uprising state). Load-time regen is **not** guarded — a real floor load wants fresh module state.
-- **network path** (`floor_serialization.ts`) calls `worldForSave(world)` / `worldFromSave(...)` with **no base** → full absolute snapshot automatically; the new fields are optional, so `PackedWorld` is unchanged.
-
-`MAX_FLOOR_MEMORY_ENTRIES` and `MAX_FLOOR_MEMORY_SAVE_ENTRIES` are both `1`; the older byte-budget / `deviceMemory` machinery is left inert (not removed).
-
-Samosbor mutates/stitches the current active world in place — it does not spawn a separate alternate floor; the active world stays authoritative for the current key.
-
-If the floor snapshot format or required route identity changes incompatibly, bump `SAVE_SHAPE_VERSION`.
+If floor snapshot format or required route identity changes incompatibly, bump `SAVE_SHAPE_VERSION`.
 
 ## A-Life
 

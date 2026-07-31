@@ -1,12 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { RoomType, Tex } from '../src/core/types';
+import { FloorLevel, RoomType, Tex } from '../src/core/types';
 import { DESIGN_FLOOR_ROUTES } from '../src/data/design_floors';
 import {
   themeForDesignRoute,
   themeForProceduralSpec,
-  themeForDesignFloor,
+  themeForStoryFloor,
 } from '../src/data/floor_theme_profiles';
 import {
   FLOOR_ANOMALIES,
@@ -29,12 +29,12 @@ import {
 
 const ID_RE = /^[a-z][a-z0-9_]*$/;
 const VALID_ROOM_TYPES = new Set(Object.values(RoomType).filter((value): value is number => typeof value === 'number'));
-const VALID_FLOORS = new Set(DESIGN_FLOOR_ROUTES.map(r => r.z));
+const VALID_FLOORS = new Set(Object.values(FloorLevel).filter((value): value is number => typeof value === 'number'));
 const VALID_ROUTE_IDS = new Set(DESIGN_FLOOR_ROUTES.map(route => route.id));
 const VALID_RULE_IDS = new Set(VISUAL_DETAIL_RULES.map(rule => rule.id));
 const VALID_SURFACES = new Set(['floor', 'wall', 'ceiling', 'light_volume']);
 const KNOWN_TAGS = new Set<string>([
-  ...DESIGN_FLOOR_ROUTES.map(r => r.id),
+  ...Object.values(FloorLevel).filter((value): value is string => typeof value === 'string').map(value => value.toLowerCase()),
   ...DESIGN_FLOOR_ROUTES.map(route => route.id),
   ...FLOOR_GEOMETRIES.flatMap(def => def.tags),
   ...FLOOR_MAJORITY_FACTIONS.flatMap(def => def.tags),
@@ -123,7 +123,7 @@ test('visual detail profile rows reference current route and detail data', () =>
     assert.match(row.id, ID_RE, `row id ${row.id} must stay snake_case`);
     assert.equal(VALID_RULE_IDS.has(row.detailId), true, `${row.id} references missing detail ${row.detailId}`);
     assert.ok(row.density >= 0 && row.density <= 255, `${row.id} density must fit one byte`);
-    for (const floor of row.baseFloors ?? []) assert.equal(VALID_FLOORS.has(floor), true, `${row.id} has invalid number ${floor}`);
+    for (const floor of row.baseFloors ?? []) assert.equal(VALID_FLOORS.has(floor), true, `${row.id} has invalid FloorLevel ${floor}`);
     for (const routeId of row.routeIds ?? []) assert.equal(VALID_ROUTE_IDS.has(routeId), true, `${row.id} references missing route ${routeId}`);
     for (const tag of [...(row.requiredTags ?? []), ...(row.blockedTags ?? [])]) {
       assert.ok(KNOWN_TAGS.has(tag), `${row.id} uses unknown tag ${tag}`);
@@ -136,8 +136,8 @@ test('visual detail profile rows reference current route and detail data', () =>
 });
 
 test('all story design and procedural themes resolve bounded visual detail profiles', () => {
-  for (const route of DESIGN_FLOOR_ROUTES) {
-    assertProfileCaps(resolveVisualDetailProfile(themeForDesignFloor(route.id), { seed: 1001 }), `story:${route.id}`);
+  for (const floor of VALID_FLOORS) {
+    assertProfileCaps(resolveVisualDetailProfile(themeForStoryFloor(floor), { seed: 1001 }), `story:${FloorLevel[floor]}`);
   }
   for (const route of DESIGN_FLOOR_ROUTES) {
     assertProfileCaps(resolveVisualDetailProfile(themeForDesignRoute(route), { seed: 1002 }), `design:${route.id}`);
@@ -158,26 +158,26 @@ test('visual detail profile resolution is deterministic by floor theme and seed'
 });
 
 test('story floor taste defaults stay sparse and distinct', () => {
-  const living = activeIds(resolveVisualDetailProfile(themeForDesignFloor('living'), { seed: 1 }));
+  const living = activeIds(resolveVisualDetailProfile(themeForStoryFloor(FloorLevel.LIVING), { seed: 1 }));
   assert.equal(living.has('paper_scraps'), true, 'Living should get paper scraps');
   assert.equal(living.has('crumbs'), true, 'Living should get crumbs');
   assert.equal(living.has('floor_dust'), true, 'Living should get household dust');
 
-  const ministry = activeIds(resolveVisualDetailProfile(themeForDesignFloor('ministry'), { seed: 2 }));
+  const ministry = activeIds(resolveVisualDetailProfile(themeForStoryFloor(FloorLevel.MINISTRY), { seed: 2 }));
   assert.equal(ministry.has('paper_scraps'), true, 'Ministry should get paper scraps');
   assert.equal(ministry.has('wall_cracks'), true, 'Ministry should get cracks');
 
-  const maintenance = activeIds(resolveVisualDetailProfile(themeForDesignFloor('maintenance'), { seed: 3 }));
+  const maintenance = activeIds(resolveVisualDetailProfile(themeForStoryFloor(FloorLevel.MAINTENANCE), { seed: 3 }));
   assert.equal(maintenance.has('rust_grit'), true, 'Maintenance should get rust grit');
   assert.equal(maintenance.has('wet_dirt'), true, 'Maintenance should get wet dirt');
 
-  const hell = resolveVisualDetailProfile(themeForDesignFloor('hell'), { seed: 4 });
+  const hell = resolveVisualDetailProfile(themeForStoryFloor(FloorLevel.HELL), { seed: 4 });
   const hellIds = activeIds(hell);
   assert.equal(hellIds.has('bone_crumbs'), true, 'Hell should get bone crumbs');
   assert.equal(hellIds.has('gut_threads'), true, 'Hell should get gut threads');
   assert.ok((hell.activeFamilies.find(row => row.id === 'gut_threads')?.density ?? 0) < 48, 'Hell gut threads must not become red wallpaper');
 
-  const voidProfile = resolveVisualDetailProfile(themeForDesignFloor('void'), { seed: 5 });
+  const voidProfile = resolveVisualDetailProfile(themeForStoryFloor(FloorLevel.VOID), { seed: 5 });
   const voidIds = activeIds(voidProfile);
   assert.equal(voidIds.has('proof_specks'), true, 'Void should get proof specks');
   assert.equal(voidIds.has('bone_crumbs'), false, 'Void should not drift into gore detail');

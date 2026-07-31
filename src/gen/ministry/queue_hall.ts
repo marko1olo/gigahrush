@@ -1,6 +1,5 @@
 /* ── Зал невозможной очереди — Ministry admin POI ─────────────── */
 
-import { getPlotNpcNumericId } from '../../data/npc_packages';
 import {
   Tex,
   Feature,
@@ -9,6 +8,7 @@ import {
   Occupation,
   QuestType,
   ContainerKind,
+  FloorLevel,
   type Entity,
   type WorldContainer,
 } from '../../core/types';
@@ -19,7 +19,7 @@ import {
 } from '../admin_common';
 import { genLog } from '../log';
 
-const HOME_FLOOR_KEY = storyNpcFloorKey(30);
+const HOME_FLOOR_KEY = storyNpcFloorKey(FloorLevel.MINISTRY);
 const PERMIT_CHOICE_IDS = [
   'permit_wait_queue',
   'permit_pay_accelerator',
@@ -130,7 +130,7 @@ const KLAVDIYA_DEF: PlotNpcDef = {
 registerSideQuest('osip_kartochny', OSIP_DEF, [
   {
     id: 'archive_card_books',
-    giverId: getPlotNpcNumericId('osip_kartochny')!,
+    giverNpcId: 'osip_kartochny',
     type: QuestType.FETCH,
     desc: 'Осип Карточный: «Четыре книги для картотеки. Обложки держат архивный укус.»',
     targetItem: 'book', targetCount: 4,
@@ -140,7 +140,7 @@ registerSideQuest('osip_kartochny', OSIP_DEF, [
   },
   {
     id: 'min_coupon_forgery_report',
-    giverId: getPlotNpcNumericId('osip_kartochny')!,
+    giverNpcId: 'osip_kartochny',
     type: QuestType.FETCH,
     desc: 'Осип Карточный: «Принесите поддельную пайковую карточку. Не продавайте её: чужой ужин потом ищет свидетеля.»',
     targetItem: 'forged_ration_card', targetCount: 1,
@@ -153,7 +153,7 @@ registerSideQuest('osip_kartochny', OSIP_DEF, [
 registerSideQuest('klavdiya_ocherednaya', KLAVDIYA_DEF, [
   {
     id: 'queue_water',
-    giverId: getPlotNpcNumericId('klavdiya_ocherednaya')!,
+    giverNpcId: 'klavdiya_ocherednaya',
     type: QuestType.FETCH,
     desc: 'Клавдия Очередная: «Две бутылки воды. Я уступлю место у пропускного окна, пока очередь не заметила милосердие.»',
     targetItem: 'water', targetCount: 2,
@@ -201,7 +201,7 @@ function addQueueAuditCabinet(
     id: nextContainerId(world),
     x,
     y,
-    z: 30,
+    floor: FloorLevel.MINISTRY,
     roomId,
     zoneId: world.zoneMap[world.idx(x, y)],
     kind: ContainerKind.FILING_CABINET,

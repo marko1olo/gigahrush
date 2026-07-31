@@ -1,6 +1,6 @@
 /* ── Lampovy: light-fed monster, stronger near lamps ─────────── */
 
-import { MonsterKind } from '../core/types';
+import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
 import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
@@ -13,6 +13,7 @@ export const DEF: MonsterDef = {
   attackRate: 1.0,
   sprite: 0,
   aiFlags: ['lampPowered'],
+  floors: [FloorLevel.LIVING, FloorLevel.KVARTIRY, FloorLevel.MINISTRY, FloorLevel.MAINTENANCE],
   counterplay: 'Не деритесь под лампой: уводите на три клетки от света или за угол, а доступный выключатель используйте до сближения.',
   lootHint: 'перегоревшая нить, стекло, запах озона, редкий предохранитель',
 };

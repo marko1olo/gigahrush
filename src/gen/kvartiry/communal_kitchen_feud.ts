@@ -1,4 +1,3 @@
-import { getPlotNpcNumericId } from '../../data/npc_packages';
 /* ── Коммунальная кухня: фракционная бытовая драка ───────────── */
 
 import {
@@ -6,6 +5,7 @@ import {
   ContainerKind,
   Tex,
   Feature,
+  FloorLevel,
   RoomType,
   Faction,
   Occupation,
@@ -14,39 +14,13 @@ import {
   type WorldContainer,
 } from '../../core/types';
 import { World } from '../../core/world';
-import { type PlotNpcDef, registerSideQuest , registerAuthoredNpc } from '../../data/plot';
-
-const AMBIENT_NPC_0: PlotNpcDef = {
-  name: 'Соседка с солью',
-  isFemale: false,
-  faction: Faction.CITIZEN,
-  occupation: Occupation.HOUSEWIFE,
-  sprite: Occupation.HOUSEWIFE,
-  hp: 50, maxHp: 50, money: 5, speed: 0.9,
-  inventory: [{ defId: 'rock_salt', count: 1 }],
-talkLines: ['Проходи своей дорогой.', 'Мне не до разговоров.'],
-talkLinesPost: ['...'],
-};
-registerAuthoredNpc({ id: 'kv_ambient_0_y7u0r', npc: AMBIENT_NPC_0 });
-
-const AMBIENT_NPC_1: PlotNpcDef = {
-  name: 'Пустой бидонщик',
-  isFemale: false,
-  faction: Faction.WILD,
-  occupation: Occupation.TRAVELER,
-  sprite: Occupation.TRAVELER,
-  hp: 50, maxHp: 50, money: 5, speed: 0.9,
-  inventory: [{ defId: 'water', count: 1 }],
-talkLines: ['Проходи своей дорогой.', 'Мне не до разговоров.'],
-talkLinesPost: ['...'],
-};
-registerAuthoredNpc({ id: 'kv_ambient_1_53ikx', npc: AMBIENT_NPC_1 });
-
+import { type PlotNpcDef, registerSideQuest } from '../../data/plot';
 import {
   createSocialPoiRoom,
   placeDropNear,
   roomCell,
   setFeatureIfFloor,
+  spawnAmbientNpc,
   spawnSocialNpc,
   type SocialPoiRoom,
 } from './social_helpers';
@@ -178,14 +152,14 @@ const LIQUIDATOR: PlotNpcDef = {
 
 registerSideQuest(RAYA_ID, RAYA, [{
   id: COMMUNAL_KITCHEN_FEUD_QUEST_IDS.mediateFood,
-  giverId: getPlotNpcNumericId(RAYA_ID)!,
+  giverNpcId: RAYA_ID,
   type: QuestType.FETCH,
   desc: 'Рая Сковородкина: «Пять пачек каши на общий стол. Пока люди жуют, они хуже делят власть.»',
   targetItem: 'kasha', targetCount: 5,
   rewardItem: 'kompot', rewardCount: 3,
   extraRewards: [{ defId: 'bread', count: 3 }, { defId: 'tea', count: 2 }],
   relationDelta: 14, xpReward: 45, moneyReward: 20,
-  targetFloorZ: 60,
+  targetFloor: FloorLevel.KVARTIRY,
   targetRoomType: RoomType.KITCHEN,
   targetZoneTag: 'kitchen_feud',
   targetHint: 'Квартиры: Коммунальная кухня раздора, пять порций каши для мирного стола',
@@ -202,14 +176,14 @@ registerSideQuest(RAYA_ID, RAYA, [{
 
 registerSideQuest(SANEK_ID, SANEK, [{
   id: COMMUNAL_KITCHEN_FEUD_QUEST_IDS.sideSanek,
-  giverId: getPlotNpcNumericId(SANEK_ID)!,
+  giverNpcId: SANEK_ID,
   type: QuestType.FETCH,
   desc: 'Санёк Конфорка: «Восемь пачек сигарет, и я держу газ против Райиной кастрюльной власти.»',
   targetItem: 'cigs', targetCount: 8,
   rewardItem: 'pipe', rewardCount: 1,
   extraRewards: [{ defId: 'water', count: 2 }],
   relationDelta: 8, xpReward: 35, moneyReward: 15,
-  targetFloorZ: 60,
+  targetFloor: FloorLevel.KVARTIRY,
   targetRoomType: RoomType.KITCHEN,
   targetZoneTag: 'kitchen_feud',
   targetHint: 'Квартиры: Коммунальная кухня раздора, сигареты для стороны Санька',
@@ -226,14 +200,14 @@ registerSideQuest(SANEK_ID, SANEK, [{
 
 registerSideQuest(FEOFAN_ID, FEOFAN, [{
   id: COMMUNAL_KITCHEN_FEUD_QUEST_IDS.stealKey,
-  giverId: getPlotNpcNumericId(FEOFAN_ID)!,
+  giverNpcId: FEOFAN_ID,
   type: QuestType.FETCH,
     desc: 'Феофан у кастрюли: «Укради заёмный кухонный ключ из Райиной тумбы. Без ключа Рая держит кухню на крике.»',
   targetItem: 'borrowed_kitchen_key', targetCount: 1,
   rewardItem: 'holy_water', rewardCount: 1,
   extraRewards: [{ defId: 'kasha', count: 2 }],
   relationDelta: 10, xpReward: 55, moneyReward: 12,
-  targetFloorZ: 60,
+  targetFloor: FloorLevel.KVARTIRY,
   targetRoomType: RoomType.KITCHEN,
   targetZoneTag: 'kitchen_feud',
   targetHint: 'Квартиры: ключ в Райиной тумбе на Коммунальной кухне, кражу могут увидеть',
@@ -250,14 +224,14 @@ registerSideQuest(FEOFAN_ID, FEOFAN, [{
 
 registerSideQuest(WITNESS_ID, WITNESS, [{
   id: COMMUNAL_KITCHEN_FEUD_QUEST_IDS.exposeCard,
-  giverId: getPlotNpcNumericId(WITNESS_ID)!,
+  giverNpcId: WITNESS_ID,
   type: QuestType.FETCH,
   desc: 'Лида Ситечко: «Достаньте поддельную пайковую карточку из газового ящика. С предметом я свидетель, без него - шум.»',
   targetItem: 'forged_ration_card', targetCount: 1,
   rewardItem: 'inspection_mirror', rewardCount: 1,
   extraRewards: [{ defId: 'filtered_water', count: 1 }],
   relationDelta: 12, xpReward: 60, moneyReward: 22,
-  targetFloorZ: 60,
+  targetFloor: FloorLevel.KVARTIRY,
   targetRoomType: RoomType.KITCHEN,
   targetZoneTag: 'kitchen_feud',
   targetHint: 'Квартиры: газовый ящик Санька на Коммунальной кухне, нужна поддельная карточка',
@@ -274,14 +248,14 @@ registerSideQuest(WITNESS_ID, WITNESS, [{
 
 registerSideQuest(LIQUIDATOR_ID, LIQUIDATOR, [{
   id: COMMUNAL_KITCHEN_FEUD_QUEST_IDS.callLiquidators,
-  giverId: getPlotNpcNumericId(LIQUIDATOR_ID)!,
+  giverNpcId: LIQUIDATOR_ID,
   type: QuestType.FETCH,
   desc: 'Кипятков из обхода: «Принеси жалобу под сургучом. Вызову наряд и опечатаю плиту до первой крови.»',
   targetItem: 'sealed_complaint', targetCount: 1,
   rewardItem: 'liquidator_ration', rewardCount: 1,
   extraRewards: [{ defId: 'ammo_9mm', count: 6 }],
   relationDelta: 12, xpReward: 55, moneyReward: 35,
-  targetFloorZ: 60,
+  targetFloor: FloorLevel.KVARTIRY,
   targetRoomType: RoomType.KITCHEN,
   targetZoneTag: 'kitchen_feud',
   targetHint: 'Квартиры: жалоба под сургучом на столе свидетелей Коммунальной кухни',
@@ -337,7 +311,7 @@ function addKitchenContainer(
     id: nextContainerId(world),
     x: pos.x,
     y: pos.y,
-    z: 60,
+    floor: FloorLevel.KVARTIRY,
     roomId: room.room.id,
     zoneId: world.zoneMap[world.idx(pos.x, pos.y)],
     kind: spec.kind,
@@ -375,8 +349,8 @@ export function generateCommunalKitchenFeud(
   spawnSocialNpc(entities, nextId, FEOFAN, FEOFAN_ID, poi.x + 7, poi.y + 3);
   spawnSocialNpc(entities, nextId, WITNESS, WITNESS_ID, poi.x + 4, poi.y + 7);
   spawnSocialNpc(entities, nextId, LIQUIDATOR, LIQUIDATOR_ID, poi.x + 10, poi.y + 7, { weapon: 'makarov' });
-  spawnSocialNpc(entities, nextId, AMBIENT_NPC_0, 'kv_ambient_0_y7u0r', poi.x + 6, poi.y + 5);
-  spawnSocialNpc(entities, nextId, AMBIENT_NPC_1, 'kv_ambient_1_53ikx', poi.x + 11, poi.y + 5);
+  spawnAmbientNpc(entities, nextId, 'Соседка с солью', Faction.CITIZEN, Occupation.HOUSEWIFE, poi.x + 6, poi.y + 5, [{ defId: 'rock_salt', count: 1 }]);
+  spawnAmbientNpc(entities, nextId, 'Пустой бидонщик', Faction.WILD, Occupation.TRAVELER, poi.x + 11, poi.y + 5, [{ defId: 'water', count: 1 }]);
 
   addKitchenContainer(world, poi, 2, 1, {
     kind: ContainerKind.FRIDGE,

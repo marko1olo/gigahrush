@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { ContainerKind, ItemType, RoomType } from '../src/core/types';
+import { ContainerKind, FloorLevel, ItemType, RoomType } from '../src/core/types';
 import { CONTAINER_DEFS } from '../src/data/container_defs';
 import { ITEM_TAGS, ITEMS } from '../src/data/items';
 import { RESOURCES, resourceForItem } from '../src/data/resources';
@@ -35,7 +35,7 @@ test('scrubbed weapon tag is reachable through black-market stash pools', () => 
 
 test('scrubbed weapon tag can be sold as audit-risk contraband in the living block', () => {
   const player = makeTestPlayer();
-  const state = makeGameState({ currentZ: 0, time: 84 });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING, time: 84 });
 
   assert.equal(addItem(player, 'scrubbed_weapon_tag', 1), true);
   assert.equal(getInventorySlotActionInfo(player, 0)?.useLabel, 'Enter проверить');

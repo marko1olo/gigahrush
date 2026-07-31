@@ -1,7 +1,6 @@
-import { currentFloorRunEntry } from './procedural_floors';
 /* ── Metro Error Line interaction-time routing ───────────────── */
 
-import { W, Feature, type Entity, type GameState } from '../core/types';
+import { W, Feature, FloorLevel, type Entity, type GameState } from '../core/types';
 import { type World } from '../core/world';
 import {
   metroRouteForPanel,
@@ -10,7 +9,6 @@ import {
 } from '../data/metro';
 import { hasItem, removeItem } from './inventory';
 import { publishEvent } from './events';
-import { rng } from '../core/rand';
 
 export interface MetroUseResult {
   route: MetroRouteDef;
@@ -21,14 +19,6 @@ export interface MetroUseResult {
 }
 
 let nextMetroUseAt = 0;
-
-/** Reset the metro turnstile cooldown on new run / load. `nextMetroUseAt` is an
- *  absolute state.time value, module-scoped and never saved; without this an
- *  in-session New-Game (state.time→0) leaves a stale future value that makes the
- *  turnstile refuse ("остывает после прошлой ошибки") until game-time catches up. */
-export function resetMetroCooldown(): void {
-  nextMetroUseAt = 0;
-}
 
 function isRoutePanel(feature: Feature): boolean {
   return feature === Feature.SCREEN || feature === Feature.APPARATUS;
@@ -58,7 +48,7 @@ function routeAtLookCell(world: World, lookX: number, lookY: number): MetroRoute
 }
 
 function pickWrongStop(route: MetroRouteDef): MetroDestination {
-  return route.wrongStops[Math.floor(rng() * route.wrongStops.length)] ?? route.destination;
+  return route.wrongStops[Math.floor(Math.random() * route.wrongStops.length)] ?? route.destination;
 }
 
 function adjustedWrongChance(route: MetroRouteDef, player: Entity, state: GameState): number {
@@ -72,8 +62,8 @@ function adjustedWrongChance(route: MetroRouteDef, player: Entity, state: GameSt
 
 function destinationData(destination: MetroDestination): Record<string, unknown> {
   const data = destination.kind === 'floor'
-    ? { destinationKind: 'floor', destinationFloor: destination.z, destinationLabel: destination.label }
-    : { destinationKind: 'local', destinationRoomName: destination.roomDefId, destinationLabel: destination.label };
+    ? { destinationKind: 'floor', destinationFloor: destination.floor, destinationLabel: destination.label }
+    : { destinationKind: 'local', destinationRoomName: destination.roomName, destinationLabel: destination.label };
   return {
     ...data,
     returnRouteId: destination.returnRouteId,
@@ -147,7 +137,7 @@ export function tryUseMetroRoute(
   const route = routeAtLookCell(world, lookX, lookY);
   if (!route) return null;
 
-  if (currentFloorRunEntry(state)!.themeTags.includes('maintenance') && !route.safeReturn) {
+  if (state.currentFloor !== FloorLevel.MAINTENANCE) {
     return {
       route,
       wrongStop: false,
@@ -177,7 +167,7 @@ export function tryUseMetroRoute(
   if (route.requiredItem) removeItem(player, route.requiredItem, 1);
 
   const wrongChance = adjustedWrongChance(route, player, state);
-  const wrongStop = route.wrongStops.length > 0 && rng() < wrongChance;
+  const wrongStop = route.wrongStops.length > 0 && Math.random() < wrongChance;
   const destination = wrongStop ? pickWrongStop(route) : route.destination;
   const transferHold = wrongStop && destination.kind === 'local' ? 8 : wrongStop ? 24 : 0;
   nextMetroUseAt = state.time + route.cooldownSec + transferHold;

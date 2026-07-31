@@ -9,7 +9,7 @@ import type { Entity } from '../src/core/types';
 test('Nasosnaya Matka room keeps dry perimeter, local water lanes, and capped adds', () => {
   const world = new World();
   const entities: Entity[] = [];
-  const nextId = { v: getPlotNpcCount() + 1 }
+  const nextId = { v: 1 };
 
   generateNasosnayaMatka({ world, entities, nextId, spawnX: 512, spawnY: 512 });
 

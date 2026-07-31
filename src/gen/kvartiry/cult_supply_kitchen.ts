@@ -1,11 +1,11 @@
 /* ── Кухня снабжения ячейки: бытовая культовая логистика ─────── */
 
-import { getPlotNpcNumericId } from '../../data/npc_packages';
 import {
   Cell,
   ContainerKind,
   Faction,
   Feature,
+  FloorLevel,
   Occupation,
   QuestType,
   RoomType,
@@ -15,52 +15,13 @@ import {
   type WorldContainer,
 } from '../../core/types';
 import { World } from '../../core/world';
-import { type PlotNpcDef, registerSideQuest , registerAuthoredNpc } from '../../data/plot';
-
-const AMBIENT_NPC_0: PlotNpcDef = {
-  name: 'Паломник с авоськой',
-  isFemale: true,
-  faction: Faction.CULTIST,
-  occupation: Occupation.PILGRIM,
-  sprite: Occupation.PILGRIM,
-  hp: 50, maxHp: 50, money: 5, speed: 0.9,
-  inventory: [{ defId: 'bread', count: 1 }],
-talkLines: ['Проходи своей дорогой.', 'Мне не до разговоров.'],
-talkLinesPost: ['...'],
-};
-registerAuthoredNpc({ id: 'kv_ambient_0_cw63m', npc: AMBIENT_NPC_0 });
-
-const AMBIENT_NPC_1: PlotNpcDef = {
-  name: 'Мальчик у порога',
-  isFemale: false,
-  faction: Faction.CITIZEN,
-  occupation: Occupation.CHILD,
-  sprite: Occupation.CHILD,
-  hp: 50, maxHp: 50, money: 5, speed: 0.9,
-  inventory: [{ defId: 'water_coupon', count: 1 }],
-talkLines: ['Проходи своей дорогой.', 'Мне не до разговоров.'],
-talkLinesPost: ['...'],
-};
-registerAuthoredNpc({ id: 'kv_ambient_1_rdrii', npc: AMBIENT_NPC_1 });
-
-const AMBIENT_NPC_2: PlotNpcDef = {
-  name: 'Ликвидатор без протокола',
-  isFemale: true,
-  faction: Faction.LIQUIDATOR,
-  occupation: Occupation.HUNTER,
-  sprite: Occupation.HUNTER,
-  hp: 50, maxHp: 50, money: 5, speed: 0.9,
-  inventory: [{ defId: 'denunciation', count: 1 }],
-talkLines: ['Проходи своей дорогой.', 'Мне не до разговоров.'],
-talkLinesPost: ['...'],
-};
-registerAuthoredNpc({ id: 'kv_ambient_2_0cpa3', npc: AMBIENT_NPC_2 });
-
+import { type PlotNpcDef, registerSideQuest } from '../../data/plot';
 import {
   createSocialPoiRoom,
   placeDropNear,
   roomCell,
   setFeatureIfFloor,
+  spawnAmbientNpc,
   spawnSocialNpc,
   type SocialPoiRoom,
 } from './social_helpers';
@@ -115,7 +76,7 @@ const NYURA: PlotNpcDef = {
 
 registerSideQuest('kv_zina_kladovaya', ZINA, [{
   id: 'kv_cult_supply_negotiate',
-  giverId: getPlotNpcNumericId('kv_zina_kladovaya')!,
+  giverNpcId: 'kv_zina_kladovaya',
   type: QuestType.FETCH,
   desc: 'Зина Кладовая: «Липовую пайковую карточку, и я внесу тебя в кухонную ведомость без драки.»',
   targetItem: 'forged_ration_card', targetCount: 1,
@@ -126,7 +87,7 @@ registerSideQuest('kv_zina_kladovaya', ZINA, [{
 
 registerSideQuest('kv_nyura_vdveryah', NYURA, [{
   id: 'kv_cult_supply_expose',
-  giverId: getPlotNpcNumericId('kv_nyura_vdveryah')!,
+  giverNpcId: 'kv_nyura_vdveryah',
   type: QuestType.FETCH,
   desc: 'Нюра Вдверях: «Кухонный список ячейки на стол. Пусть хлеб считают при людях.»',
   targetItem: 'cult_supply_list', targetCount: 1,
@@ -173,7 +134,7 @@ function addKitchenContainer(
     id: nextContainerId(world),
     x: pos.x,
     y: pos.y,
-    z: 60,
+    floor: FloorLevel.KVARTIRY,
     roomId: poi.room.id,
     zoneId: world.zoneMap[world.idx(pos.x, pos.y)],
     kind,
@@ -242,9 +203,9 @@ export function generateCultSupplyKitchen(
   const zinaId = nextId.v;
   spawnSocialNpc(entities, nextId, ZINA, 'kv_zina_kladovaya', poi.x + poi.w - 4, poi.y + 3, { weapon: 'knife' });
   spawnSocialNpc(entities, nextId, NYURA, 'kv_nyura_vdveryah', poi.x + 2, poi.y + poi.h - 3);
-  spawnSocialNpc(entities, nextId, AMBIENT_NPC_0, 'kv_ambient_0_cw63m', poi.x + 7, poi.y + 3);
-  spawnSocialNpc(entities, nextId, AMBIENT_NPC_1, 'kv_ambient_1_rdrii', poi.x + 4, poi.y + poi.h - 3);
-  spawnSocialNpc(entities, nextId, AMBIENT_NPC_2, 'kv_ambient_2_0cpa3', poi.x + poi.w - 5, poi.y + 6, { weapon: 'makarov' });
+  spawnAmbientNpc(entities, nextId, 'Паломник с авоськой', Faction.CULTIST, Occupation.PILGRIM, poi.x + 7, poi.y + 3, [{ defId: 'bread', count: 1 }]);
+  spawnAmbientNpc(entities, nextId, 'Мальчик у порога', Faction.CITIZEN, Occupation.CHILD, poi.x + 4, poi.y + poi.h - 3, [{ defId: 'water_coupon', count: 1 }]);
+  spawnAmbientNpc(entities, nextId, 'Ликвидатор без протокола', Faction.LIQUIDATOR, Occupation.HUNTER, poi.x + poi.w - 5, poi.y + 6, [{ defId: 'denunciation', count: 1 }], 'makarov');
 
   seedKitchenContainers(world, poi, zinaId);
 

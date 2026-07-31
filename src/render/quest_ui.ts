@@ -1,7 +1,7 @@
-import { zForBaseFloor } from '../data/design_floors';
 /* ── Quest log panel — paginated, one quest per page ──────────── */
 
 import {
+  FloorLevel,
   LiftDirection,
   RoomType,
   type GameState,
@@ -9,6 +9,7 @@ import {
   QuestType,
 } from '../core/types';
 import { ITEMS } from '../data/catalog';
+import { zForStoryFloor } from '../data/procedural_floors';
 import { isQuestTargetOnCurrentFloor, questRouteFloor, questRouteTargetLabel, questTargetLiftDirection } from '../systems/contracts';
 import { controlBindingLabel, controlHint, menuCloseHint } from '../systems/controls';
 import { getRecentEvents } from '../systems/events';
@@ -19,22 +20,22 @@ import { getActiveQuest, isQuestSelectableAsActive, type CurrentObjective } from
 import { drawNeuroPanel, drawGlitchText } from './hud_fx';
 import { drawWrappedText, fitText } from './ui_text';
 
-const FLOOR_NAMES: Record<number, string> = {
-  [30]: 'Министерство',
-  [60]: 'Квартиры',
-  [100]: 'Жилая зона',
-  [140]: 'Коллекторы',
-  [180]: 'Мясной низ',
-  [200]: 'Пустота',
+const FLOOR_NAMES: Record<FloorLevel, string> = {
+  [FloorLevel.MINISTRY]: 'Министерство',
+  [FloorLevel.KVARTIRY]: 'Квартиры',
+  [FloorLevel.LIVING]: 'Жилая зона',
+  [FloorLevel.MAINTENANCE]: 'Коллекторы',
+  [FloorLevel.HELL]: 'Мясной низ',
+  [FloorLevel.VOID]: 'Пустота',
 };
 
-const FLOOR_SHORT_NAMES: Record<number, string> = {
-  [30]: 'МИН',
-  [60]: 'КВ',
-  [100]: 'ЖИЛ',
-  [140]: 'КОЛ',
-  [180]: 'АД',
-  [200]: 'ПУСТ',
+const FLOOR_SHORT_NAMES: Record<FloorLevel, string> = {
+  [FloorLevel.MINISTRY]: 'МИН',
+  [FloorLevel.KVARTIRY]: 'КВ',
+  [FloorLevel.LIVING]: 'ЖИЛ',
+  [FloorLevel.MAINTENANCE]: 'КОЛ',
+  [FloorLevel.HELL]: 'АД',
+  [FloorLevel.VOID]: 'ПУСТ',
 };
 
 const ROOM_TYPE_NAMES: Record<RoomType, string> = {
@@ -67,7 +68,7 @@ const QUEST_KIND_META: Record<QuestKind, { label: string; stroke: string; fill: 
   system: { label: 'СИСТ', stroke: '#76631a', fill: '#2a2309', text: '#ffd35f' },
 };
 
-function routeFloor(q: Quest): number | undefined {
+function routeFloor(q: Quest): FloorLevel | undefined {
   return questRouteFloor(q);
 }
 
@@ -77,11 +78,11 @@ function questKind(q: Quest): QuestKind {
   return 'system';
 }
 
-function displayFloor(q: Quest, state: GameState): number | undefined {
+function displayFloor(q: Quest, state: GameState): FloorLevel | undefined {
   const floor = routeFloor(q);
   if (floor !== undefined) return floor;
-  if (q.targetRoom !== undefined || q.targetNpcId !== undefined || q.targetMonsterKind !== undefined) return state.currentZ;
-  if (q.plotStepIndex === undefined && q.sideQuestId === undefined) return state.currentZ;
+  if (q.targetRoom !== undefined || q.targetNpcId !== undefined || q.targetMonsterKind !== undefined) return state.currentFloor;
+  if (q.plotStepIndex === undefined && q.sideQuestId === undefined) return state.currentFloor;
   return undefined;
 }
 
@@ -202,13 +203,13 @@ function questRouteHint(q: Quest, state: GameState): string {
     const dir = questTargetLiftDirection(q, state) === LiftDirection.DOWN ? '↓' : '↑';
     const currentZ = currentFloorRunEntry(state).z;
     const routeLabel = questRouteTargetLabel(q, state);
-    const targetZ = zForBaseFloor(floor);
+    const targetZ = zForStoryFloor(floor);
     const target = routeLabel || `${FLOOR_NAMES[floor]} Z${formatFloorZ(targetZ)}`;
     return detail
       ? `Цель: ${target}. Лифт ${dir} от Z${formatFloorZ(currentZ)}. ${detail}`
       : `Цель: ${target}. Лифт ${dir} от Z${formatFloorZ(currentZ)}.`;
   }
-  if (q.type === QuestType.TALK && q.targetNpcId && q.targetNpcId === undefined) {
+  if (q.type === QuestType.TALK && q.targetPlotNpcId && q.targetNpcId === undefined) {
     return 'Собеседник на другом уровне. Нужен лифт.';
   }
   if (q.type === QuestType.VISIT && q.targetRoom === undefined) {

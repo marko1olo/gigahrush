@@ -1,16 +1,16 @@
-import { currentFloorRunEntry } from './procedural_floors';
-import { rng, xorshift32, irand, mathRng } from '../core/rand';
+import { xorshift32 } from '../core/rand';
 /* ── САМОСБОР — the maze restructures itself ─────────────────── */
 /*   Every floor runs a local wave from a random mutable map point. */
 /*   Protected rooms, hermowalls and lifts are preserved.           */
 
 import {
-  W, Cell, DoorState, ZoneFaction, RoomType, Tex, Feature, ContainerKind, Faction,
+  W, Cell, DoorState, ZoneFaction, FloorLevel, RoomType, Tex, Feature, ContainerKind, Faction,
   type Entity, type GameState, type Msg, type Room, type WorldContainer, type WorldEventType,
   EntityType, AIGoal, MonsterKind, Occupation,
   msg,
 } from '../core/types';
 import { World, replaceWorldFromGeneration, type WorldGridDirtyRect } from '../core/world';
+import { secureRandom } from "../core/rand";
 import { ITEMS, NOTES, freshNeeds, randomName } from '../data/catalog';
 import { MAX_INVENTORY_SLOTS } from '../data/inventory_limits';
 import { addFactionRelMutual } from '../data/relations';
@@ -38,7 +38,7 @@ import { regrowMaze } from '../gen/living';
 import { floorLevelDisplayName, generateFloor, type FloorGeneration } from '../gen/floor_manifest';
 import { clearPathBlockerRegion, rebuildPathBlockersFromWorldObjects } from '../gen/path_blockers';
 import { flashSamosborWarningScreens } from '../gen/procedural_screens';
-import { pick, weightedPick } from '../gen/shared';
+import { rng, pick, weightedPick } from '../gen/shared';
 import { getMaxHp, scaleMonsterHp, scaleMonsterSpeed, randomRPG } from './rpg';
 import { publishEvent } from './events';
 import { generateNpcLoadout } from './procedural_loot';
@@ -48,7 +48,6 @@ import {
   ensureFloorRunState,
   nextFloorRunSamosborCooldown,
   nextFloorRunSamosborDuration,
-  floorRunSamosborDepth01,
   SAMOSBOR_DURATION_MAX_SEC,
   SAMOSBOR_DURATION_MIN_SEC,
 } from './procedural_floors';
@@ -233,7 +232,7 @@ let activeSamosborScale: 'full' = 'full';
 
 let istotitShelterRoomIds: number[] = [];
 let istotitShelterCycle = -1;
-let istotitShelterFloor = 100;
+let istotitShelterFloor = FloorLevel.LIVING;
 let istotitSupplyContainerIds: number[] = [];
 let istotitDecisionCycle = -1;
 let istotitDecision = '';
@@ -259,7 +258,6 @@ interface SamosborFront {
   processed: number;        // total cells processed
   changed: number;          // total cells mutated
   monstersSpawned: number;
-  monsterCap: number;
   dead: boolean;
   visited: Set<number>;     // persistent BFS visited set — avoids O(N) rebuild per tick
 }
@@ -289,7 +287,7 @@ export const SAMOSBOR_FRONT_MAX_CATCHUP_TICKS = 2; // cap catch-up to prevent mu
 function pickFrontType(): SamosborFrontType {
   let total = 0;
   for (const t of FRONT_TYPES) total += FRONT_TYPE_WEIGHTS[t];
-  let roll = rng() * total;
+  let roll = Math.random() * total;
   for (const t of FRONT_TYPES) {
     roll -= FRONT_TYPE_WEIGHTS[t];
     if (roll <= 0) return t;
@@ -334,7 +332,7 @@ function frontExpandNeighbors(
   const x = ci % W;
   const y = (ci / W) | 0;
   // Random start index for organic feel — zero allocs vs array+shuffle
-  const start = (rng() * 4) | 0;
+  const start = (Math.random() * 4) | 0;
 
   const maxExpand = type === 'crack' ? 2 : type === 'tendril' ? 2 : type === 'flash' ? 4 : 4;
   let added = 0;
@@ -352,19 +350,19 @@ function frontExpandNeighbors(
 
     // Walls are accepted into frontier with reduced probability to keep organic spread
     if (cell === Cell.WALL) {
-      if (type === 'crack' && rng() > 0.6) continue;
-      if (type === 'tendril' && rng() > 0.45) continue;
-      if (type === 'wave' && rng() > 0.5) continue;
-      if (type === 'flash' && rng() > 0.7) continue;
+      if (type === 'crack' && Math.random() > 0.6) continue;
+      if (type === 'tendril' && Math.random() > 0.45) continue;
+      if (type === 'wave' && Math.random() > 0.5) continue;
+      if (type === 'flash' && Math.random() > 0.7) continue;
     }
 
     // Crack: prefer corridors (no room), random branch 20%
     if (type === 'crack' && cell !== Cell.WALL) {
-      if (world.roomMap[ni] >= 0 && rng() > 0.2) continue;
+      if (world.roomMap[ni] >= 0 && Math.random() > 0.2) continue;
     }
     // Tendril: follow corridors, occasional room entry
     if (type === 'tendril' && cell !== Cell.WALL) {
-      if (world.roomMap[ni] >= 0 && rng() > 0.35) continue;
+      if (world.roomMap[ni] >= 0 && Math.random() > 0.35) continue;
     }
     visited.add(ni);
     frontier.push(ni);
@@ -415,32 +413,32 @@ function mutateFrontCell(
   if (cell === Cell.WALL) {
     if (frontAdjacentLiftOrProtected(world, ci)) return FRONT_DIRTY_NONE;
     if (frontWalkableNeighborCount(world, ci) < 1) return FRONT_DIRTY_NONE;
-    if (rng() < 0.60) {
+    if (Math.random() < 0.60) {
       if (world.cells[ci] === Cell.DOOR) world.removeDoorAt(ci);
       world.cells[ci] = Cell.FLOOR;
-      world.floorTex[ci] = RANDOM_FLOOR_TEX[(rng() * RANDOM_FLOOR_TEX.length) | 0];
-      world.wallTex[ci] = RANDOM_WALL_TEX[(rng() * RANDOM_WALL_TEX.length) | 0];
+      world.floorTex[ci] = RANDOM_FLOOR_TEX[(Math.random() * RANDOM_FLOOR_TEX.length) | 0];
+      world.wallTex[ci] = RANDOM_WALL_TEX[(Math.random() * RANDOM_WALL_TEX.length) | 0];
       if (world.roomMap[ci] >= 0) world.roomMap[ci] = -1;
       if (world.features[ci] !== Feature.NONE) world.features[ci] = Feature.NONE;
-      world.fog[ci] = Math.min(255, 180 + ((rng() * 75) | 0));
-      world.tissue[ci] = Math.min(255, 160 + ((rng() * 95) | 0));
+      world.fog[ci] = Math.min(255, 180 + ((Math.random() * 75) | 0));
+      world.tissue[ci] = Math.min(255, 160 + ((Math.random() * 95) | 0));
       frontTouchedCells.add(ci);
       return FRONT_DIRTY_CELLS | FRONT_DIRTY_FLOOR_TX | FRONT_DIRTY_WALL_TX | FRONT_DIRTY_SURFACE | FRONT_DIRTY_FOG;
     }
     // Even if not carved, mutate the wall texture
-    world.wallTex[ci] = RANDOM_WALL_TEX[(rng() * RANDOM_WALL_TEX.length) | 0];
+    world.wallTex[ci] = RANDOM_WALL_TEX[(Math.random() * RANDOM_WALL_TEX.length) | 0];
     return FRONT_DIRTY_WALL_TX | FRONT_DIRTY_SURFACE;
   }
 
   // ── Floor/Water/Door cells ──
 
   // Floor → Wall: grow wall (~22% — block passages, create chaos)
-  if (cell === Cell.FLOOR && rng() < 0.22) {
+  if (cell === Cell.FLOOR && Math.random() < 0.22) {
     if (!frontAdjacentLiftOrProtected(world, ci) && frontWalkableNeighborCount(world, ci) >= 3) {
       if (world.cells[ci] === Cell.DOOR) world.removeDoorAt(ci);
       if (world.features[ci] !== Feature.NONE) world.features[ci] = Feature.NONE;
       world.cells[ci] = Cell.WALL;
-      world.wallTex[ci] = RANDOM_WALL_TEX[(rng() * RANDOM_WALL_TEX.length) | 0];
+      world.wallTex[ci] = RANDOM_WALL_TEX[(Math.random() * RANDOM_WALL_TEX.length) | 0];
       if (world.roomMap[ci] >= 0) world.roomMap[ci] = -1;
       world.fog[ci] = 0;
       world.tissue[ci] = 0;
@@ -452,31 +450,31 @@ function mutateFrontCell(
   // ── Standard floor/water/door mutations (fog, tissue, textures, features) ──
   // Set fog
   if (world.fog[ci] < 200) {
-    world.fog[ci] = Math.min(255, 200 + ((rng() * 55) | 0));
+    world.fog[ci] = Math.min(255, 200 + ((Math.random() * 55) | 0));
     flags |= FRONT_DIRTY_FOG;
   }
 
   // Set tissue overlay
   const tissueBase = Math.max(150, Math.round(180 * (1 + variant.visual.fogDensityBonus * 10)));
   if (world.tissue[ci] < tissueBase) {
-    world.tissue[ci] = Math.min(255, tissueBase + ((rng() * (255 - tissueBase)) | 0));
+    world.tissue[ci] = Math.min(255, tissueBase + ((Math.random() * (255 - tissueBase)) | 0));
     flags |= FRONT_DIRTY_FOG;
   }
 
   // Floor texture mutation (~55%)
-  if (cell === Cell.FLOOR && rng() < 0.55) {
-    world.floorTex[ci] = RANDOM_FLOOR_TEX[(rng() * RANDOM_FLOOR_TEX.length) | 0];
+  if (cell === Cell.FLOOR && Math.random() < 0.55) {
+    world.floorTex[ci] = RANDOM_FLOOR_TEX[(Math.random() * RANDOM_FLOOR_TEX.length) | 0];
     flags |= FRONT_DIRTY_FLOOR_TX | FRONT_DIRTY_SURFACE;
   }
 
   // Wall texture on adjacent walls (~35%)
-  if (rng() < 0.35) {
+  if (Math.random() < 0.35) {
     const x = ci % W;
     const y = (ci / W) | 0;
     for (let d = 0; d < 4; d++) {
       const ni = world.idx(world.wrap(x + FOG_DIRS_X[d]), world.wrap(y + FOG_DIRS_Y[d]));
       if (world.cells[ni] === Cell.WALL && !world.aptMask[ni] && !world.hermoWall[ni]) {
-        world.wallTex[ni] = RANDOM_WALL_TEX[(rng() * RANDOM_WALL_TEX.length) | 0];
+        world.wallTex[ni] = RANDOM_WALL_TEX[(Math.random() * RANDOM_WALL_TEX.length) | 0];
         flags |= FRONT_DIRTY_WALL_TX | FRONT_DIRTY_SURFACE;
         break;
       }
@@ -484,8 +482,8 @@ function mutateFrontCell(
   }
 
   // Feature mutation (~22%)
-  if (rng() < 0.22 && cell === Cell.FLOOR) {
-    world.features[ci] = RANDOM_FEATURES[(rng() * RANDOM_FEATURES.length) | 0];
+  if (Math.random() < 0.22 && cell === Cell.FLOOR) {
+    world.features[ci] = RANDOM_FEATURES[(Math.random() * RANDOM_FEATURES.length) | 0];
     flags |= FRONT_DIRTY_SURFACE;
   }
 
@@ -493,7 +491,7 @@ function mutateFrontCell(
   return flags;
 }
 
-function createFrontAtCell(world: World, ci: number, shelterSet: ReadonlySet<number>, variant: ActiveSamosborVariant, depth01: number): SamosborFront | null {
+function createFrontAtCell(world: World, ci: number, shelterSet: ReadonlySet<number>): SamosborFront | null {
   if (!canFrontMutateCell(world, ci, shelterSet)) return null;
   const cell = world.cells[ci];
   if (cell !== Cell.FLOOR && cell !== Cell.WATER) return null;
@@ -504,13 +502,12 @@ function createFrontAtCell(world: World, ci: number, shelterSet: ReadonlySet<num
     frontier: [ci],
     head: 0,
     budget: frontBudget(type),
-    speed: 0.8 + rng() * 0.5,
+    speed: 0.8 + Math.random() * 0.5,
     age: 0,
     maxAge: frontMaxAge(type),
     processed: 0,
     changed: 0,
     monstersSpawned: 0,
-    monsterCap: Math.max(1, Math.round((type === 'flash' ? 1 : type === 'crack' ? 2 : type === 'tendril' ? 3 : 5) * variant.spawnMult * (3 + depth01 * 32))),
     dead: false,
     visited: new Set([ci]),
   };
@@ -521,23 +518,22 @@ function spawnSamosborFronts(
   _entities: Entity[],
   _variant: ActiveSamosborVariant,
   shelterRoomIds: readonly number[],
-  depth01: number,
 ): SamosborFront[] {
-  const count = FRONT_MIN_COUNT + ((rng() * (FRONT_MAX_COUNT - FRONT_MIN_COUNT + 1)) | 0);
+  const count = FRONT_MIN_COUNT + ((Math.random() * (FRONT_MAX_COUNT - FRONT_MIN_COUNT + 1)) | 0);
   const fronts: SamosborFront[] = [];
   const usedZones = new Set<number>();
   const shelterSet = new Set(shelterRoomIds);
 
   for (let attempt = 0; attempt < 2000 && fronts.length < count; attempt++) {
-    const ci = (rng() * W * W) | 0;
+    const ci = (Math.random() * W * W) | 0;
     if (!canFrontMutateCell(world, ci, shelterSet)) continue;
     const cell = world.cells[ci];
     if (cell !== Cell.FLOOR && cell !== Cell.WATER) continue;
     // Avoid clustering: different zones preferred
     const zid = world.zoneMap[ci];
-    if (zid >= 0 && usedZones.has(zid) && rng() > 0.3) continue;
+    if (zid >= 0 && usedZones.has(zid) && Math.random() > 0.3) continue;
     if (zid >= 0) usedZones.add(zid);
-    const front = createFrontAtCell(world, ci, shelterSet, _variant, depth01);
+    const front = createFrontAtCell(world, ci, shelterSet);
     if (front) fronts.push(front);
   }
   return fronts;
@@ -549,7 +545,7 @@ function tickSamosborFront(
   nextId: { v: number },
   front: SamosborFront,
   variant: ActiveSamosborVariant,
-  z: number,
+  floor: FloorLevel,
   samosborCount: number,
   shelterSet: ReadonlySet<number>,
 ): { processed: number; changed: number; batchFlags: number } {
@@ -569,10 +565,10 @@ function tickSamosborFront(
   for (let i = 0; i < budgetThisTick && front.frontier.length > 0; i++) {
     let pickIdx: number;
     if (front.type === 'wave' || front.type === 'flash') {
-      pickIdx = (rng() * front.frontier.length) | 0;
+      pickIdx = (Math.random() * front.frontier.length) | 0;
     } else {
       const lookback = Math.min(front.frontier.length, front.type === 'crack' ? 12 : 36);
-      pickIdx = front.frontier.length - 1 - ((rng() * lookback) | 0);
+      pickIdx = front.frontier.length - 1 - ((Math.random() * lookback) | 0);
     }
     const ci = front.frontier[pickIdx];
     const last = front.frontier.pop()!;
@@ -591,11 +587,11 @@ function tickSamosborFront(
       }
       front.changed++;
 
-      // Spawn monster every N processed cells, up to the front's cap
-      if (front.processed % FRONT_MONSTER_CELL_INTERVAL === 0 && front.monstersSpawned < front.monsterCap) {
+      // Spawn monster every N processed cells
+      if (front.processed % FRONT_MONSTER_CELL_INTERVAL === 0) {
         if (world.cells[ci] === Cell.FLOOR && !world.aptMask[ci] && canSpawnEntityType(entities, EntityType.MONSTER)) {
-          const kind = pickMonsterKindForWave(z, samosborCount);
-          entities.push(createMonster(world, nextId, kind, (ci % W) + 0.5, ((ci / W) | 0) + 0.5, z));
+          const kind = pickMonsterKindForWave(floor, samosborCount);
+          entities.push(createMonster(world, nextId, kind, (ci % W) + 0.5, ((ci / W) | 0) + 0.5, floor));
           front.monstersSpawned++;
         }
       }
@@ -607,6 +603,7 @@ function tickSamosborFront(
 
   return { processed, changed, batchFlags };
 }
+
 
 /** Shared per-tick dirty cell collector — reused across fronts to avoid allocs */
 
@@ -629,14 +626,14 @@ function tickAllSamosborFronts(
   entities: Entity[],
   nextId: { v: number },
   variant: ActiveSamosborVariant,
-  z: number,
+  floor: FloorLevel,
   samosborCount: number,
   shelterSet: ReadonlySet<number>,
 ): void {
   let allFlags = FRONT_DIRTY_NONE;
   frontTickDirtyCells.length = 0;
   for (const front of activeSamosborFronts) {
-    const result = tickSamosborFront(world, entities, nextId, front, variant, z, samosborCount, shelterSet);
+    const result = tickSamosborFront(world, entities, nextId, front, variant, floor, samosborCount, shelterSet);
     allFlags |= result.batchFlags;
   }
   // Prune dead fronts
@@ -684,7 +681,7 @@ export interface SamosborRoomSirenSource {
 interface PendingAftermath {
   state: GameState;
   variant: ActiveSamosborVariant;
-  z: number;
+  floor: FloorLevel;
   zoneId: number;
   x: number;
   y: number;
@@ -702,21 +699,20 @@ const aftermathRuntime = new Map<string, AftermathRuntime>();
 let pendingAftermath: PendingAftermath | null = null;
 let lastAftermathAt = -Infinity;
 let lastAftermathBeatIds: string[] = [];
-// @ts-ignore
-let lastAftermathFloor: number | undefined = undefined;
+let lastAftermathFloor = FloorLevel.LIVING;
 let lastVeretarAreaLeaks = 0;
 let lastVeretarAreaLeakAt = -Infinity;
 let lastSamosborFogEffectNoticeAt = -Infinity;
 let istotitBellFollowNoticeAt = -Infinity;
 let istotitBellResistNoticeAt = -Infinity;
 let samosborRoomSirenWorld: World | null = null;
-let samosborRoomSirenFloor = 100;
+let samosborRoomSirenFloor = FloorLevel.LIVING;
 let samosborRoomSirenCycle = -1;
 let samosborRoomSirenAccum = 0;
 let samosborRoomSirenSources: SamosborRoomSirenSource[] = [];
 
 export interface SamosborWarningSnapshot {
-  z: number;
+  floor: FloorLevel;
   floorName: string;
   zoneId: number;
   zoneX: number;
@@ -769,7 +765,7 @@ export interface SamosborActiveInstructionSnapshot {
 
 interface SamosborWarningRuntime {
   cycle: number;
-  z: number;
+  floor: FloorLevel;
   zoneId: number;
   zoneX: number;
   zoneY: number;
@@ -844,13 +840,13 @@ export function getSamosborRoomSirenSourcesForTests(world: World): readonly Samo
 function ensureSamosborRoomSirens(world: World, state: GameState): void {
   if (
     samosborRoomSirenWorld === world &&
-    samosborRoomSirenFloor === state.currentZ &&
+    samosborRoomSirenFloor === state.currentFloor &&
     samosborRoomSirenCycle === state.samosborCount
   ) {
     return;
   }
   samosborRoomSirenWorld = world;
-  samosborRoomSirenFloor = state.currentZ;
+  samosborRoomSirenFloor = state.currentFloor;
   samosborRoomSirenCycle = state.samosborCount;
   samosborRoomSirenAccum = SAMOSBOR_ROOM_SIREN_INTERVAL;
   samosborRoomSirenSources = buildSamosborRoomSirenSources(world);
@@ -904,7 +900,7 @@ function tickSamosborRoomSirens(world: World, entities: Entity[], state: GameSta
     publishNoise(state, {
       x: source.x,
       y: source.y,
-      z: state.currentZ,
+      floor: state.currentFloor,
       radius: SAMOSBOR_ROOM_SIREN_RADIUS,
       ttl: SAMOSBOR_ROOM_SIREN_INTERVAL * 1.45,
       source: 'siren',
@@ -930,8 +926,7 @@ export function resetSamosborRuntimeForTests(): void {
   pendingAftermath = null;
   lastAftermathAt = -Infinity;
   lastAftermathBeatIds = [];
-  // @ts-ignore
-  lastAftermathFloor = ["living"];
+  lastAftermathFloor = FloorLevel.LIVING;
   lastVeretarAreaLeaks = 0;
   lastVeretarAreaLeakAt = -Infinity;
   lastSamosborFogEffectNoticeAt = -Infinity;
@@ -1122,7 +1117,7 @@ function resolvePlayerShelterAtSeal(
       tags: ['samosbor', 'shelter', 'success', 'prepared', `samosbor_${variant.def.id}`],
       data: {
         outcome: 'prepared_shelter',
-        roomDefId: room.name,
+        roomName: room.name,
         roomId: room.id,
         doorCount: Math.min(room.doors.length, PLAYER_SHELTER_DOOR_CAP),
         samosborCount: state.samosborCount,
@@ -1150,7 +1145,7 @@ function resolvePlayerShelterAtSeal(
     data: {
       outcome: 'unprepared_shelter',
       warning: 'Укрытие сорвано: игрок остался вне рабочей гермы.',
-      roomDefId: room?.name,
+      roomName: room?.name,
       roomId: room?.id,
       nearestDoorIdx: nearestDoorIdx >= 0 ? nearestDoorIdx : undefined,
       nearestDoorState: nearestDoorIdx >= 0 ? world.doors.get(nearestDoorIdx)?.state : undefined,
@@ -1189,7 +1184,7 @@ function samosborEventTags(
 function istotitSheltersMatch(state?: GameState): boolean {
   if (istotitShelterRoomIds.length === 0) return false;
   if (!state) return true;
-  if (state.currentZ !== istotitShelterFloor) return false;
+  if (state.currentFloor !== istotitShelterFloor) return false;
   if (state.samosborActive) return state.samosborCount === istotitShelterCycle;
   return state.samosborCount === istotitShelterCycle || state.samosborCount + 1 === istotitShelterCycle;
 }
@@ -1267,7 +1262,7 @@ export function getSamosborWarningSnapshot(state?: GameState): SamosborWarningSn
   if (!samosborWarning) return null;
   if (state) {
     if (state.samosborActive) return null;
-    if (state.currentZ !== samosborWarning.z) return null;
+    if (state.currentFloor !== samosborWarning.floor) return null;
     if (state.samosborCount !== samosborWarning.cycle) return null;
     if (state.samosborTimer > SAMOSBOR_WARNING_WINDOW + 0.5) return null;
   }
@@ -1275,8 +1270,8 @@ export function getSamosborWarningSnapshot(state?: GameState): SamosborWarningSn
     ? Math.max(0, Math.ceil(state.samosborTimer))
     : Math.max(0, Math.ceil(SAMOSBOR_WARNING_WINDOW - (knownSamosborTime - samosborWarning.startedAt)));
   return {
-    z: samosborWarning.z,
-    floorName: floorLevelDisplayName(["living"]),
+    floor: samosborWarning.floor,
+    floorName: floorLevelDisplayName(samosborWarning.floor),
     zoneId: samosborWarning.zoneId,
     zoneX: samosborWarning.zoneX,
     zoneY: samosborWarning.zoneY,
@@ -1335,7 +1330,7 @@ function chooseIstotitShelterRooms(world: World, cx: number, cy: number, count: 
   const pool = candidates.slice(0, ISTOTIT_SHELTER_CANDIDATE_CAP);
   const ids: number[] = [];
   while (ids.length < count && pool.length > 0) {
-    const i = Math.floor(rng() * pool.length);
+    const i = Math.floor(Math.random() * pool.length);
     ids.push(pool[i].id);
     pool[i] = pool[pool.length - 1];
     pool.pop();
@@ -1372,7 +1367,7 @@ function findRoomFloorCell(world: World, roomId: number): { x: number; y: number
 }
 
 function addIstotitSupplyContainer(world: World, state: GameState, roomId: number): number {
-  if (world.containers.some(c => c.roomId === roomId && c.z === state.currentZ && c.tags.includes(ISTOTIT_SUPPLY_TAG))) {
+  if (world.containers.some(c => c.roomId === roomId && c.floor === state.currentFloor && c.tags.includes(ISTOTIT_SUPPLY_TAG))) {
     return 0;
   }
   const pos = findRoomFloorCell(world, roomId);
@@ -1387,7 +1382,7 @@ function addIstotitSupplyContainer(world: World, state: GameState, roomId: numbe
     id: nextContainerId(world),
     x: pos.x,
     y: pos.y,
-    z: state.currentZ,
+    floor: state.currentFloor,
     roomId,
     zoneId: world.zoneMap[world.idx(pos.x, pos.y)],
     kind: ContainerKind.EMERGENCY_BOX,
@@ -1408,11 +1403,11 @@ function addIstotitSupplyContainer(world: World, state: GameState, roomId: numbe
 function stampIstotitGoldDust(world: World, x: number, y: number, count: number, seedBase: number): number {
   let stamped = 0;
   for (let i = 0; i < count; i++) {
-    const px = world.wrap(x + irand(-2, 2));
-    const py = world.wrap(y + irand(-2, 2));
+    const px = world.wrap(x + rng(-2, 2));
+    const py = world.wrap(y + rng(-2, 2));
     const ci = world.idx(px, py);
     if (world.cells[ci] !== Cell.FLOOR && world.cells[ci] !== Cell.DOOR) continue;
-    stampMark(world, px, py, mathRng(), mathRng(), 0.22 + mathRng() * 0.18, MarkType.PSI, seedBase + i * 977, 214, 166, 75, 125);
+    stampMark(world, px, py, Math.random(), Math.random(), 0.22 + Math.random() * 0.18, MarkType.PSI, seedBase + i * 977, 214, 166, 75, 125);
     stamped++;
   }
   return stamped;
@@ -1423,10 +1418,10 @@ function prepareIstotitShelters(world: World, state: GameState, variant: ActiveS
     clearIstotitShelters();
     return [];
   }
-  const count = Math.max(1, Math.min(3, variant.shelterRoomCount + (rng() < 0.35 ? 1 : 0)));
+  const count = Math.max(1, Math.min(3, variant.shelterRoomCount + (Math.random() < 0.35 ? 1 : 0)));
   istotitShelterRoomIds = chooseIstotitShelterRooms(world, cx, cy, count);
   istotitShelterCycle = state.samosborCount + 1;
-  istotitShelterFloor = state.currentZ;
+  istotitShelterFloor = state.currentFloor;
   istotitDecisionCycle = -1;
   istotitDecision = '';
   for (const roomId of istotitShelterRoomIds) {
@@ -1580,10 +1575,10 @@ function istotitFollowBell(
     if (hpDamage > 0) recordPlayerDamage(state, undefined, hpDamage, `Истотит: пошли на колокол -${hpDamage}`, 'samosbor');
   }
   if (player.rpg) player.rpg.psi = Math.max(0, player.rpg.psi - 8);
-  const pos = rng() < 0.45 ? findWalkableNear(world, x, y, 4, 9) : null;
+  const pos = Math.random() < 0.45 ? findWalkableNear(world, x, y, 4, 9) : null;
   let spawned = 0;
   if (pos && canSpawnEntityType(entities, EntityType.MONSTER)) {
-    entities.push(createMonster(world, nextId, MonsterKind.EYE, pos.x + 0.5, pos.y + 0.5, state.currentZ, true));
+    entities.push(createMonster(world, nextId, MonsterKind.EYE, pos.x + 0.5, pos.y + 0.5, state.currentFloor, true));
     spawned = 1;
   }
   state.msgs.push(msg(
@@ -1615,7 +1610,7 @@ function istotitDisruptRite(
   const pos = findWalkableNear(world, x, y, 3, 7);
   let spawned = 0;
   if (pos && canSpawnEntityType(entities, EntityType.MONSTER)) {
-    entities.push(createMonster(world, nextId, MonsterKind.SBORKA, pos.x + 0.5, pos.y + 0.5, state.currentZ, true));
+    entities.push(createMonster(world, nextId, MonsterKind.SBORKA, pos.x + 0.5, pos.y + 0.5, state.currentFloor, true));
     spawned = 1;
   }
   addFactionRelMutual(Faction.CITIZEN, Faction.PLAYER, -2);
@@ -1917,8 +1912,8 @@ function canSeedRandomSamosborOrigin(world: World, idx: number): boolean {
 
 function chooseWarningZone(world: World, _entities: Entity[]): { id: number; cx: number; cy: number } {
   for (let attempt = 0; attempt < 768; attempt++) {
-    const x = Math.floor(rng() * W);
-    const y = Math.floor(rng() * W);
+    const x = Math.floor(Math.random() * W);
+    const y = Math.floor(Math.random() * W);
     const idx = world.idx(x, y);
     if (!canSeedRandomSamosborOrigin(world, idx)) continue;
     const zone = world.zones[world.zoneMap[idx]];
@@ -1927,10 +1922,10 @@ function chooseWarningZone(world: World, _entities: Entity[]): { id: number; cx:
 
   const candidates = world.zones.filter(zone => zone && territoryOwnerAt(world, zone.cx, zone.cy) !== ZoneFaction.SAMOSBOR);
   if (candidates.length > 0) {
-    const zone = candidates[Math.floor(rng() * candidates.length)];
+    const zone = candidates[Math.floor(Math.random() * candidates.length)];
     return { id: zone.id, cx: zone.cx, cy: zone.cy };
   }
-  return { id: -1, cx: Math.floor(rng() * W), cy: Math.floor(rng() * W) };
+  return { id: -1, cx: Math.floor(Math.random() * W), cy: Math.floor(Math.random() * W) };
 }
 
 function samosborShortActionLine(variant: ActiveSamosborVariant, shelterCount: number): string {
@@ -2148,7 +2143,7 @@ function pushWarningBarks(
     observeRumorEvent(e, {
       type: 'samosbor_warning',
       severity: 4,
-      z: state.currentZ,
+      floor: state.currentFloor,
       zoneId: world.zoneMap[world.idx(Math.floor(e.x), Math.floor(e.y))],
       tags: ['samosbor', 'warning', 'bark', `samosbor_${variant.def.id}`],
     }, state.time);
@@ -2165,14 +2160,14 @@ function ensureSamosborWarning(
 ): SamosborWarningRuntime {
   if (
     samosborWarning &&
-    samosborWarning.z === state.currentZ &&
+    samosborWarning.floor === state.currentFloor &&
     samosborWarning.cycle === state.samosborCount
   ) {
     return samosborWarning;
   }
   if (samosborWarning) clearSamosborWarning(true);
 
-  const variant = getActiveSamosborVariant() ?? chooseSamosborVariant(currentFloorRunEntry(state).themeTags, state.currentZ);
+  const variant = getActiveSamosborVariant() ?? chooseSamosborVariant(state.currentFloor);
   const zone = chooseWarningZone(world, entities);
   const seconds = Math.max(0, Math.ceil(state.samosborTimer));
   const istotitShelterRoomIds = prepareIstotitShelters(world, state, variant, zone.cx, zone.cy);
@@ -2202,7 +2197,7 @@ function ensureSamosborWarning(
   );
   const signalMsg = msg(signals.logLine, state.time, variant.def.tint);
   const signalListener = entities.find(e => e.alive && isPlayerEntity(e));
-  signalMsg.z = state.currentZ;
+  signalMsg.floor = state.currentFloor;
   signalMsg.zoneId = zone.id >= 0 ? zone.id : undefined;
   signalMsg.x = zone.cx;
   signalMsg.y = zone.cy;
@@ -2218,7 +2213,7 @@ function ensureSamosborWarning(
     day: signalMsg.day,
     hour: signalMsg.hour,
     minute: signalMsg.minute,
-    z: signalMsg.z,
+    floor: signalMsg.floor,
     zoneId: signalMsg.zoneId,
     x: signalMsg.x,
     y: signalMsg.y,
@@ -2228,7 +2223,7 @@ function ensureSamosborWarning(
 
   samosborWarning = {
     cycle: state.samosborCount,
-    z: state.currentZ,
+    floor: state.currentFloor,
     zoneId: zone.id,
     zoneX: zone.cx,
     zoneY: zone.cy,
@@ -2287,7 +2282,6 @@ export function updateSamosbor(
   scheduleLocalPatch?: (runPatch: () => void) => void,
 ): boolean {
   if (state.gameOver) return false;
-  if (state.tutorialMode) return false;
 
   knownSamosborTime = state.time;
   state.samosborTimer -= dt;
@@ -2358,7 +2352,7 @@ export function updateSamosbor(
     for (const npc of entities) {
       if (npc.type !== EntityType.NPC || !npc.alive) continue;
       const armed = !!npc.weapon || npc.faction === Faction.LIQUIDATOR;
-      if (armed && rng() < 0.3) {
+      if (armed && Math.random() < 0.3) {
         if (npc.originalOccupation === undefined) {
            npc.originalOccupation = npc.occupation;
         }
@@ -2387,14 +2381,14 @@ export function updateSamosbor(
 
     // Spawn the first pressure pulse. These monsters are born from samosbor,
     // but are not leashed to the captured fog/light seed.
-    spawnMonsters(world, entities, nextId, state.samosborCount, variant, state.currentZ);
+    spawnMonsters(world, entities, nextId, state.samosborCount, variant, state.currentFloor);
 
     // Spawn extra map pressure; ongoing escalation is handled by active fog samples.
-    spawnRandomMapMonsters(world, entities, nextId, state.samosborCount, variant, state.currentZ);
+    spawnRandomMapMonsters(world, entities, nextId, state.samosborCount, variant, state.currentFloor);
 
     // Launch multi-front chaotic waves across the entire floor
     clearSamosborFronts();
-    activeSamosborFronts = spawnSamosborFronts(world, entities, variant, getSamosborShelterRoomIds(state), floorRunSamosborDepth01(state));
+    activeSamosborFronts = spawnSamosborFronts(world, entities, variant, getSamosborShelterRoomIds(state));
   }
 
   // ── Seal apartments 10 seconds before samosbor ends ──
@@ -2432,7 +2426,7 @@ export function updateSamosbor(
     while (samosborFrontTickAccum >= SAMOSBOR_FRONT_TICK_INTERVAL && catchup < SAMOSBOR_FRONT_MAX_CATCHUP_TICKS) {
       samosborFrontTickAccum -= SAMOSBOR_FRONT_TICK_INTERVAL;
       catchup++;
-      tickAllSamosborFronts(world, entities, nextId, activeVariant, state.currentZ, state.samosborCount, shelterSet);
+      tickAllSamosborFronts(world, entities, nextId, activeVariant, state.currentFloor, state.samosborCount, shelterSet);
     }
     // Drain excess accumulated time beyond cap
     if (samosborFrontTickAccum > SAMOSBOR_FRONT_TICK_INTERVAL * SAMOSBOR_FRONT_MAX_CATCHUP_TICKS) {
@@ -2471,12 +2465,12 @@ export function updateSamosbor(
     const fogSpawnInterval = Math.max(0.25, FOG_SPAWN_INTERVAL * (activeVariant?.fogSpawnIntervalMult ?? 1));
     if (fogSpawnAccum >= fogSpawnInterval) {
       fogSpawnAccum -= fogSpawnInterval;
-      if (activeVariant) tickSamosborFogEffects(world, entities, state, nextId, state.samosborCount, activeVariant, state.currentZ);
+      if (activeVariant) tickSamosborFogEffects(world, entities, state, nextId, state.samosborCount, activeVariant, state.currentFloor);
     }
     playerPressureSpawnAccum += dt;
     for (let i = 0; playerPressureSpawnAccum >= SAMOSBOR_PLAYER_PRESSURE_INTERVAL && i < 4; i++) {
       playerPressureSpawnAccum -= SAMOSBOR_PLAYER_PRESSURE_INTERVAL;
-      if (activeVariant) spawnSamosborPlayerPressureMonster(world, entities, state, nextId, activeVariant, state.currentZ);
+      if (activeVariant) spawnSamosborPlayerPressureMonster(world, entities, state, nextId, activeVariant, state.currentFloor);
     }
   }
 
@@ -2527,7 +2521,7 @@ export function updateSamosbor(
       pendingAftermath = {
         state,
         variant: endedVariant,
-        z: state.currentZ,
+        floor: state.currentFloor,
         zoneId: activeSamosborZoneId,
         x: aftermathZone?.cx ?? Math.floor(findPlayer(entities)?.x ?? W / 2),
         y: aftermathZone?.cy ?? Math.floor(findPlayer(entities)?.y ?? W / 2),
@@ -2565,7 +2559,7 @@ export function updateSamosbor(
 
     // Full-scale fronts already mutated geometry in real-time.
     // Now stitch: generate a fresh floor and sew it into the world at touched cells.
-    const stitchFloor = state.currentZ;
+    const stitchFloor = state.currentFloor;
     const touched = new Set(frontTouchedCells);
     frontTouchedCells.clear();
     const doStitch = (): void => {
@@ -2578,7 +2572,8 @@ export function updateSamosbor(
     } else {
       doStitch();
     }
-
+    
+    
     return false;
   }
 
@@ -2684,12 +2679,12 @@ function preserveSamosborFogAfterRebuild(world: World, previousFog: Uint8Array):
 
 export function rebuildWorld(
   world: World, entities: Entity[], nextId: { v: number }, _samosborCount: number,
-  z: number = 0,
+  floor: FloorLevel = FloorLevel.LIVING,
   replacement?: FloorGeneration,
   isTutorial?: boolean,
 ): void {
   clearHermodoorBorerForRebuild(world);
-  if (replacement || z !== 0) {
+  if (replacement || floor !== FloorLevel.LIVING) {
     // Non-living floors fully regenerate; generated NPCs/monsters are replaced, player survives.
     const kept: Entity[] = [];
     for (const e of entities) {
@@ -2699,7 +2694,7 @@ export function rebuildWorld(
       }
     }
     entities.length = 0;
-    const gen = replacement ?? generateFloor(z, undefined, isTutorial);
+    const gen = replacement ?? generateFloor(floor, undefined, isTutorial);
     const previousFog = world.fog.slice();
     // Full-floor rebuilds use the fresh generator-owned masks exactly:
     // authored shelters may keep aptMask/hermoWall, while unmarked volatile cells lose stale protection.
@@ -2715,13 +2710,13 @@ export function rebuildWorld(
       entities.push(e);
     }
     relocateBlockedEntities(world, entities);
-    ensureRoomContainers(world, z);
-    applyPendingSamosborAftermath(world, entities, nextId, z);
+    ensureRoomContainers(world, floor);
+    applyPendingSamosborAftermath(world, entities, nextId, floor);
     refreshPathBlockersAfterSamosborRebuild(world, entities, _samosborCount);
     return;
   }
 
-  // Living z: only rebuild volatile maze, keep apartments
+  // Living floor: only rebuild volatile maze, keep apartments
   const aptCount = world.apartmentRoomCount;
 
   // Kill projectiles and remove loose visible props outside apartments
@@ -2761,23 +2756,23 @@ export function rebuildWorld(
       .filter(it => it.spawnRooms.includes(room.type))
       .map(it => ({ ...it, spawnW: (1000 / (it.value + 10)) * Math.min(1, (valueThreshold + 5) / Math.max(1, it.value)) }))
       .filter(it => it.spawnW >= 0.01);
-    const numItems = irand(0, 1);
+    const numItems = rng(0, 1);
     for (let n = 0; n < numItems; n++) {
       if (itemSlots <= 0) break;
       const def = weightedPick(adjusted);
       if (!def) continue;
-      const ix = room.x + irand(1, Math.max(1, room.w - 2));
-      const iy = room.y + irand(1, Math.max(1, room.h - 2));
+      const ix = room.x + rng(1, Math.max(1, room.w - 2));
+      const iy = room.y + rng(1, Math.max(1, room.h - 2));
       entities.push({
         id: nextId.v++, type: EntityType.ITEM_DROP,
         x: ix + 0.5, y: iy + 0.5, angle: 0, pitch: 0, alive: true, speed: 0, sprite: Spr.ITEM_DROP,
-        inventory: [{ defId: def.id, count: irand(1, spawnCount(def)), data: def.id === 'note' ? pick(NOTES) : undefined }],
+        inventory: [{ defId: def.id, count: rng(1, spawnCount(def)), data: def.id === 'note' ? pick(NOTES) : undefined }],
       });
       itemSlots--;
     }
   }
-  ensureRoomContainers(world, z);
-  applyPendingSamosborAftermath(world, entities, nextId, z);
+  ensureRoomContainers(world, floor);
+  applyPendingSamosborAftermath(world, entities, nextId, floor);
   refreshPathBlockersAfterSamosborRebuild(world, entities, _samosborCount);
 }
 
@@ -2847,7 +2842,7 @@ function pickAftermathBeat(
     total += def.weight;
   }
   if (total <= 0) return null;
-  let roll = rng() * total;
+  let roll = Math.random() * total;
   for (const def of defs) {
     if (used.has(def.id) || !beatReady(def, now)) continue;
     if (samosborCount < (def.minSamosborCount ?? 0)) continue;
@@ -2861,37 +2856,13 @@ function applyPendingSamosborAftermath(
   world: World,
   entities: Entity[],
   nextId: { v: number },
-  z: number,
+  floor: FloorLevel,
 ): void {
   const pending = pendingAftermath;
-  if (!pending || pending.z !== z) return;
+  if (!pending || pending.floor !== floor) return;
   pendingAftermath = null;
 
   const state = pending.state;
-
-  if (state.tutorialMode) {
-    const rng = new SeedRng(state.time + pending.samosborCount * 1337);
-    const count = 2 + Math.floor(rng.nextU32() / 4294967296 * 3); // 2 to 4
-    const slots = entitySpawnSlots(entities, EntityType.MONSTER, count);
-
-    const corridorCells: number[] = [];
-    for (let ci = 0; ci < world.cells.length; ci++) {
-      if (world.cells[ci] === Cell.FLOOR && !world.aptMask[ci]) {
-        corridorCells.push(ci);
-      }
-    }
-
-    for (let i = 0; i < slots && corridorCells.length > 0; i++) {
-      const idx = Math.floor(rng.nextU32() / 4294967296 * corridorCells.length);
-      const ci = corridorCells[idx];
-      corridorCells[idx] = corridorCells[corridorCells.length - 1];
-      corridorCells.pop();
-
-      const x = (ci % W) + 0.5;
-      const y = ((ci / W) | 0) + 0.5;
-      entities.push(createMonster(world, nextId, MonsterKind.SBORKA, x, y, z));
-    }
-  }
 
   if (pending.variant.def.id === 'meat') {
     const rng = new SeedRng(state.time + pending.samosborCount * 1337);
@@ -2914,11 +2885,11 @@ function applyPendingSamosborAftermath(
 
       const x = (ci % W) + 0.5;
       const y = ((ci / W) | 0) + 0.5;
-      entities.push(createMonster(world, nextId, MonsterKind.NIGHTMARE, x, y, z));
+      entities.push(createMonster(world, nextId, MonsterKind.NIGHTMARE, x, y, floor));
     }
   }
   knownSamosborTime = state.time;
-  const defs = getSamosborAftermathBeats(pending.variant.def.id, currentFloorRunEntry(state).themeTags);
+  const defs = getSamosborAftermathBeats(pending.variant.def.id, floor);
   const target = 1;
   const used = new Set<string>();
   const applied: string[] = [];
@@ -2938,8 +2909,7 @@ function applyPendingSamosborAftermath(
   if (applied.length > 0) {
     lastAftermathAt = state.time;
     lastAftermathBeatIds = applied;
-    // @ts-ignore
-    lastAftermathFloor = ["living"];
+    lastAftermathFloor = floor;
   }
   tickSamosborDirector(world, entities, state, nextId, pending.variant, 'post_samosbor');
 }
@@ -2948,9 +2918,9 @@ export function applyPendingSamosborAftermathAfterWave(
   world: World,
   entities: Entity[],
   nextId: { v: number },
-  z: number,
+  floor: FloorLevel,
 ): void {
-  applyPendingSamosborAftermath(world, entities, nextId, z);
+  applyPendingSamosborAftermath(world, entities, nextId, floor);
 }
 
 function eventTypeForAftermath(def: SamosborAftermathBeatDef): WorldEventType {
@@ -3207,8 +3177,8 @@ function applyRouteBlock(
 
 function findWalkableNear(world: World, x: number, y: number, minRadius: number, maxRadius: number): { x: number; y: number } | null {
   for (let attempt = 0; attempt < 80; attempt++) {
-    const a = rng() * Math.PI * 2;
-    const r = minRadius + rng() * Math.max(1, maxRadius - minRadius);
+    const a = Math.random() * Math.PI * 2;
+    const r = minRadius + Math.random() * Math.max(1, maxRadius - minRadius);
     const tx = world.wrap(Math.round(x + Math.cos(a) * r));
     const ty = world.wrap(Math.round(y + Math.sin(a) * r));
     const i = world.idx(tx, ty);
@@ -3245,7 +3215,7 @@ function applyMonsterAftershock(
   for (let i = 0; i < slots; i++) {
     const pos = findWalkableNear(world, c.x, c.y, 5 + i, Math.max(7 + i, def.radius + i * 2));
     if (!pos) continue;
-    const monster = createMonster(world, nextId, kind, pos.x + 0.5, pos.y + 0.5, pending.z, true);
+    const monster = createMonster(world, nextId, kind, pos.x + 0.5, pos.y + 0.5, pending.floor, true);
     entities.push(monster);
     spawnedIds.push(monster.id);
     if (!firstPos) firstPos = pos;
@@ -3327,7 +3297,7 @@ function applyRumorSeed(
     observeRumorEvent(npc, {
       type: 'samosbor_warning',
       severity: def.severity,
-      z: pending.z,
+      floor: pending.floor,
       zoneId: pending.zoneId >= 0 ? pending.zoneId : undefined,
       tags: ['samosbor', 'aftermath', ...def.tags],
       itemId: def.itemId,
@@ -3346,7 +3316,7 @@ function applyProductionShortage(
 ): boolean {
   const resourceId = def.resourceId ?? 'labor';
   const delta = -Math.max(4, 6 + pending.samosborCount * 2);
-  if (!changeResourceStock(pending.state, resourceId, delta, pending.z)) return false;
+  if (!changeResourceStock(pending.state, resourceId, delta, pending.floor)) return false;
   const c = aftermathCenter(world, entities, pending, false);
   const room = world.roomAt(c.x, c.y);
   publishAftermath(def, pending, c.x, c.y, { resourceId, delta, roomId: room?.id });
@@ -3491,7 +3461,7 @@ function findLootReceiver(
   let best: WorldContainer | null = null;
   let bestScore = Infinity;
   for (const container of world.containers) {
-    if (container.id === source.id || container.z !== pending.z) continue;
+    if (container.id === source.id || container.floor !== pending.floor) continue;
     if (!canReceiveContainerItem(container, itemId)) continue;
     const d2 = world.dist2(source.x + 0.5, source.y + 0.5, container.x + 0.5, container.y + 0.5);
     if (d2 > r2 && container.zoneId !== source.zoneId && container.zoneId !== pending.zoneId) continue;
@@ -3544,21 +3514,21 @@ function applyContainerTheft(
   world: World,
   entities: Entity[],
 ): boolean {
-  ensureRoomContainers(world, pending.z);
+  ensureRoomContainers(world, pending.floor);
   const c = aftermathCenter(world, entities, pending, true);
   let best = world.containers.find(container =>
     container.access !== 'public' &&
-    container.z === pending.z && world.dist2(c.x + 0.5, c.y + 0.5, container.x + 0.5, container.y + 0.5) <= def.radius * def.radius);
+    container.floor === pending.floor && world.dist2(c.x + 0.5, c.y + 0.5, container.x + 0.5, container.y + 0.5) <= def.radius * def.radius);
   best ??= world.containers.find(container =>
-    container.z === pending.z && world.dist2(c.x + 0.5, c.y + 0.5, container.x + 0.5, container.y + 0.5) <= def.radius * def.radius);
+    container.floor === pending.floor && world.dist2(c.x + 0.5, c.y + 0.5, container.x + 0.5, container.y + 0.5) <= def.radius * def.radius);
   if (!best) {
     const zc = aftermathCenter(world, entities, pending, false);
     best = world.containers.find(container =>
       container.access !== 'public' &&
-      container.z === pending.z && container.zoneId === pending.zoneId &&
+      container.floor === pending.floor && container.zoneId === pending.zoneId &&
       world.dist2(zc.x + 0.5, zc.y + 0.5, container.x + 0.5, container.y + 0.5) <= def.radius * def.radius);
     best ??= world.containers.find(container =>
-      container.z === pending.z && container.zoneId === pending.zoneId &&
+      container.floor === pending.floor && container.zoneId === pending.zoneId &&
       world.dist2(zc.x + 0.5, zc.y + 0.5, container.x + 0.5, container.y + 0.5) <= def.radius * def.radius);
   }
   if (!best) return false;
@@ -3588,7 +3558,7 @@ export function getSamosborDebugLines(): string[] {
   const warning = getSamosborWarningSnapshot();
   let cooldown = 0;
   let hasCooldown = false;
-  for (const def of getSamosborAftermathBeats(last ?? 'classic', ["living"])) {
+  for (const def of getSamosborAftermathBeats(last ?? 'classic', lastAftermathFloor)) {
     const rt = aftermathRuntime.get(def.id);
     if (!rt || rt.runs >= def.maxRuns) continue;
     const remaining = Math.max(0, Math.ceil(rt.lastAt + def.cooldownSec - knownSamosborTime));
@@ -3625,16 +3595,16 @@ export function getSamosborDebugLines(): string[] {
 }
 
 /* ── Shared helpers for monster creation ───────────────────────── */
-function pickMonsterKindForWave(z: number, samosborCount: number): MonsterKind {
+function pickMonsterKindForWave(floor: FloorLevel, samosborCount: number): MonsterKind {
   return chooseFloorMonsterKind({
-    z,
+    floor,
     floorTags: ['samosbor', 'fog'],
     samosborCount,
-    allowRare: samosborCount >= 4 && rng() < 0.08,
+    allowRare: samosborCount >= 4 && Math.random() < 0.08,
   });
 }
 
-function createMonster(world: World, nextId: { v: number }, kind: MonsterKind, x: number, y: number, _z: number, _forceVariant = false): Entity {
+function createMonster(world: World, nextId: { v: number }, kind: MonsterKind, x: number, y: number, _floor: FloorLevel, _forceVariant = false): Entity {
   const def = MONSTERS[kind];
   const ci = world.idx(Math.floor(x), Math.floor(y));
   const zid = world.zoneMap[ci];
@@ -3647,7 +3617,7 @@ function createMonster(world: World, nextId: { v: number }, kind: MonsterKind, x
     id: nextId.v++,
     type: EntityType.MONSTER,
     x, y,
-    angle: rng() * Math.PI * 2,
+    angle: Math.random() * Math.PI * 2,
     pitch: 0,
     alive: true,
     speed: scaleMonsterSpeed(def.speed, zoneLevel),
@@ -3679,15 +3649,15 @@ function raiseMonsterToAtLeastLevel(monster: Entity, kind: MonsterKind, minLevel
 }
 
 function randomEnumValue<T extends number>(values: readonly T[]): T {
-  return values[Math.floor(rng() * values.length)];
+  return values[Math.floor(Math.random() * values.length)];
 }
 
-function randomMonsterKindWeighted(z: number, samosborCount: number): MonsterKind {
+function randomMonsterKindWeighted(floor: FloorLevel, samosborCount: number): MonsterKind {
   return chooseFloorMonsterKind({
-    z,
+    floor,
     floorTags: ['samosbor', 'fog', 'rewrite'],
     samosborCount,
-    allowRare: samosborCount >= 4 && rng() < 0.08,
+    allowRare: samosborCount >= 4 && Math.random() < 0.08,
     floorAffinity: 'weighted',
   });
 }
@@ -3696,7 +3666,7 @@ function randomItemIdDifferent(current?: string): string {
   const ids = Object.keys(ITEMS);
   if (ids.length === 0) return current ?? 'bread';
   for (let attempt = 0; attempt < 12; attempt++) {
-    const id = ids[Math.floor(rng() * ids.length)];
+    const id = ids[Math.floor(Math.random() * ids.length)];
     if (id !== current) return id;
   }
   return ids.find(id => id !== current) ?? ids[0];
@@ -3710,13 +3680,13 @@ function randomItemStack(defId: string): { defId: string; count: number; data?: 
 }
 
 function randomNpcLevel(): number {
-  return Math.max(1, Math.min(100, 1 + Math.floor(Math.pow(rng(), 1.55) * 100)));
+  return Math.max(1, Math.min(100, 1 + Math.floor(Math.pow(Math.random(), 1.55) * 100)));
 }
 
 function randomNpcInventory(faction: Faction, level: number): { inventory: { defId: string; count: number; data?: unknown }[]; weapon?: string; tool?: string } {
-  const rollWeapon = rng();
-  const numPockets = 1 + Math.floor(rng() * 4);
-  const rollPockets = Array.from({ length: numPockets }, () => rng());
+  const rollWeapon = Math.random();
+  const numPockets = 1 + Math.floor(Math.random() * 4);
+  const rollPockets = Array.from({ length: numPockets }, () => Math.random());
   
   const loadout = generateNpcLoadout(faction, level, 3, rollWeapon, rollPockets);
   
@@ -3735,9 +3705,9 @@ function rewriteActorAsRandomNpc(state: GameState, entity: Entity, variant: Acti
   const maxHp = getMaxHp(rpg);
   const loadout = randomNpcInventory(faction, rpg.level);
   const wasPlayer = isPlayerEntity(entity);
-  if (entity.type === EntityType.NPC && entity.id && entity.alifeId === undefined) {
+  if (entity.type === EntityType.NPC && entity.plotNpcId && entity.alifeId === undefined) {
     recordAlifeNpcDeath(state, entity);
-    delete (entity as Partial<Entity>).id;
+    delete entity.plotNpcId;
   }
   entity.name = wasPlayer ? `${named.name} (вы)` : named.name;
   entity.firstName = named.firstName;
@@ -3746,20 +3716,20 @@ function rewriteActorAsRandomNpc(state: GameState, entity: Entity, variant: Acti
   entity.faction = wasPlayer ? Faction.PLAYER : faction;
   entity.occupation = occupation;
   entity.sprite = occupation;
-  entity.spriteSeed = Math.floor(rng() * 0x7fffffff) + 1;
+  entity.spriteSeed = Math.floor(Math.random() * 0x7fffffff) + 1;
   entity.speed = 1.2;
   entity.needs = freshNeeds();
   entity.rpg = rpg;
   entity.maxHp = maxHp;
   entity.hp = maxHp;
-  entity.money = Math.floor(rng() * (40 + rpg.level * 8));
+  entity.money = Math.floor(Math.random() * (40 + rpg.level * 8));
   entity.inventory = loadout.inventory;
   entity.weapon = loadout.weapon;
   entity.tool = loadout.tool;
   entity.ai = wasPlayer ? entity.ai : { goal: AIGoal.WANDER, tx: 0, ty: 0, path: [], pi: 0, stuck: 0, timer: 0 };
   entity.questId = -1;
-  entity.canGiveQuest = !wasPlayer && rng() < 0.10;
-  entity.familyId = Math.floor(rng() * 1_000_000_000);
+  entity.canGiveQuest = !wasPlayer && Math.random() < 0.10;
+  entity.familyId = Math.floor(secureRandom() * 1_000_000_000);
   if (entity.type === EntityType.NPC && entity.alifeId !== undefined) rewriteAlifeNpcIdentityFromEntity(state, entity);
   if (wasPlayer) {
     state.dmgFlash = Math.max(state.dmgFlash, 0.25);
@@ -3788,8 +3758,8 @@ function rewriteActorAsRandomNpc(state: GameState, entity: Entity, variant: Acti
   });
 }
 
-function rewriteMonsterAsRandom(world: World, entity: Entity, z: number, samosborCount: number): void {
-  const kind = randomMonsterKindWeighted(z, samosborCount);
+function rewriteMonsterAsRandom(world: World, entity: Entity, floor: FloorLevel, samosborCount: number): void {
+  const kind = randomMonsterKindWeighted(floor, samosborCount);
   const def = MONSTERS[kind];
   const level = randomNpcLevel();
   const rpg = randomRPG(level);
@@ -3808,7 +3778,7 @@ function rewriteMonsterAsRandom(world: World, entity: Entity, z: number, samosbo
   entity.isFogBoss = false;
   entity.fogBossZone = undefined;
   const ci = world.idx(Math.floor(entity.x), Math.floor(entity.y));
-  entity.angle = rng() * Math.PI * 2;
+  entity.angle = Math.random() * Math.PI * 2;
   entity.pitch = 0;
   entity.x = (ci % W) + 0.5;
   entity.y = ((ci / W) | 0) + 0.5;
@@ -3851,13 +3821,13 @@ function findAdjacentWall(world: World, ci: number): number {
 function mutateWorldCellByMaronary(world: World, ci: number): string {
   if (world.aptMask[ci] || world.hermoWall[ci] || world.cells[ci] === Cell.LIFT) return '';
   const adjacentWall = findAdjacentWall(world, ci);
-  if (adjacentWall >= 0 && rng() < 0.45) {
+  if (adjacentWall >= 0 && Math.random() < 0.45) {
     world.wallTex[adjacentWall] = randomEnumValue(RANDOM_WALL_TEX);
     world.markWallTexDirty(cellDirtyRect(adjacentWall));
     stampMaronarySourceMark(world, adjacentWall, 94_000 + adjacentWall, 0.38);
     return 'wall_texture';
   }
-  if (world.features[ci] !== Feature.NONE || rng() < 0.45) {
+  if (world.features[ci] !== Feature.NONE || Math.random() < 0.45) {
     const old = world.features[ci];
     let next = randomEnumValue(RANDOM_FEATURES);
     if (RANDOM_FEATURES.length > 1) {
@@ -3910,7 +3880,7 @@ function applyMaronaryFogEffectAtCell(
   entities: Entity[],
   state: GameState,
   variant: ActiveSamosborVariant,
-  z: number,
+  floor: FloorLevel,
   samosborCount: number,
   ci: number,
 ): boolean {
@@ -3926,7 +3896,7 @@ function applyMaronaryFogEffectAtCell(
       effect = isPlayerEntity(target) ? 'player_rewritten' : 'npc_rewritten';
       targetName = target.name;
     } else if (target.type === EntityType.MONSTER) {
-      rewriteMonsterAsRandom(world, target, z, samosborCount);
+      rewriteMonsterAsRandom(world, target, floor, samosborCount);
       effect = 'monster_rewritten';
       targetName = MONSTERS[target.monsterKind ?? MonsterKind.SBORKA]?.name;
     } else if (target.type === EntityType.ITEM_DROP) {
@@ -4027,7 +3997,7 @@ function applyVeretarFogEffectAtCell(
   }
   if (!effect) {
     const wallCi = findAdjacentWall(world, ci);
-    effect = wallCi >= 0 && rng() < 0.55 ? whitenDeletedCell(world, wallCi) : whitenDeletedCell(world, ci);
+    effect = wallCi >= 0 && Math.random() < 0.55 ? whitenDeletedCell(world, wallCi) : whitenDeletedCell(world, ci);
   }
   if (!effect) return false;
   const x = ci % W;
@@ -4068,14 +4038,14 @@ function createIstotitThingAtCell(
   entities: Entity[],
   state: GameState,
   nextId: { v: number },
-  z: number,
+  floor: FloorLevel,
   samosborCount: number,
   ci: number,
 ): string {
   if (world.cells[ci] !== Cell.FLOOR || world.aptMask[ci]) return '';
   const x = ci % W;
   const y = (ci / W) | 0;
-  const roll = rng();
+  const roll = Math.random();
   if (roll < 0.32 && canSpawnEntityType(entities, EntityType.ITEM_DROP)) {
     const itemId = randomItemIdDifferent();
     entities.push({
@@ -4093,8 +4063,8 @@ function createIstotitThingAtCell(
     return 'item_created';
   }
   if (roll < 0.58 && canSpawnEntityType(entities, EntityType.MONSTER)) {
-    const kind = randomMonsterKindWeighted(z, samosborCount);
-    entities.push(createMonster(world, nextId, kind, x + 0.5, y + 0.5, z, true));
+    const kind = randomMonsterKindWeighted(floor, samosborCount);
+    entities.push(createMonster(world, nextId, kind, x + 0.5, y + 0.5, floor, true));
     return 'monster_created';
   }
   if (roll < 0.76 && canSpawnEntityType(entities, EntityType.NPC)) {
@@ -4109,12 +4079,12 @@ function createIstotitThingAtCell(
       type: EntityType.NPC,
       x: x + 0.5,
       y: y + 0.5,
-      angle: rng() * Math.PI * 2,
+      angle: Math.random() * Math.PI * 2,
       pitch: 0,
       alive: true,
       speed: 1.2,
       sprite: occupation,
-      spriteSeed: Math.floor(rng() * 0x7fffffff) + 1,
+      spriteSeed: Math.floor(Math.random() * 0x7fffffff) + 1,
       name: named.name,
       firstName: named.firstName,
       lastName: named.lastName,
@@ -4130,9 +4100,9 @@ function createIstotitThingAtCell(
       tool: loadout.tool,
       rpg,
       questId: -1,
-      canGiveQuest: rng() < 0.10,
-      familyId: Math.floor(rng() * 1_000_000_000),
-      money: Math.floor(rng() * (40 + rpg.level * 8)),
+      canGiveQuest: Math.random() < 0.10,
+      familyId: Math.floor(secureRandom() * 1_000_000_000),
+      money: Math.floor(Math.random() * (40 + rpg.level * 8)),
     };
     // Истотит is the diegetic non-natural human creation path; the new body
     // must still receive a persistent A-Life identity before it can remain.
@@ -4154,7 +4124,7 @@ function applyIstotitFogEffectAtCell(
   state: GameState,
   nextId: { v: number },
   variant: ActiveSamosborVariant,
-  z: number,
+  floor: FloorLevel,
   samosborCount: number,
   ci: number,
 ): boolean {
@@ -4168,7 +4138,7 @@ function applyIstotitFogEffectAtCell(
     targetId = target.id;
     targetName = target.name ?? (target.monsterKind !== undefined ? MONSTERS[target.monsterKind]?.name : undefined);
   } else {
-    effect = createIstotitThingAtCell(world, entities, state, nextId, z, samosborCount, ci);
+    effect = createIstotitThingAtCell(world, entities, state, nextId, floor, samosborCount, ci);
   }
   if (!effect) return false;
   const x = ci % W;
@@ -4199,15 +4169,15 @@ function spawnOneFogMonsterAtCell(
   nextId: { v: number },
   samosborCount: number,
   variant: ActiveSamosborVariant,
-  z: number,
+  floor: FloorLevel,
   ci: number,
 ): boolean {
   if (!canSpawnEntityType(entities, EntityType.MONSTER)) return false;
   if (world.cells[ci] !== Cell.FLOOR || world.aptMask[ci]) return false;
-  const kind = variant.extraEyes > 0 && rng() < 0.25
+  const kind = variant.extraEyes > 0 && Math.random() < 0.25
     ? MonsterKind.EYE
-    : pickMonsterKindForWave(z, samosborCount);
-  entities.push(createMonster(world, nextId, kind, (ci % W) + 0.5, ((ci / W) | 0) + 0.5, z));
+    : pickMonsterKindForWave(floor, samosborCount);
+  entities.push(createMonster(world, nextId, kind, (ci % W) + 0.5, ((ci / W) | 0) + 0.5, floor));
   return true;
 }
 
@@ -4217,7 +4187,7 @@ function applyWetFogEffectAtCell(
   nextId: { v: number },
   samosborCount: number,
   variant: ActiveSamosborVariant,
-  z: number,
+  floor: FloorLevel,
   ci: number,
 ): boolean {
   if (world.aptMask[ci]) return false;
@@ -4245,10 +4215,10 @@ function applyWetFogEffectAtCell(
   } else if (variant.extraEyes > 0 && rand() < 0.25) {
     kind = MonsterKind.EYE;
   } else {
-    kind = pickMonsterKindForWave(z, samosborCount);
+    kind = pickMonsterKindForWave(floor, samosborCount);
   }
 
-  entities.push(createMonster(world, nextId, kind, (ci % W) + 0.5, ((ci / W) | 0) + 0.5, z));
+  entities.push(createMonster(world, nextId, kind, (ci % W) + 0.5, ((ci / W) | 0) + 0.5, floor));
   return true;
 }
 
@@ -4259,15 +4229,15 @@ function applySamosborFogEffectAtCell(
   nextId: { v: number },
   samosborCount: number,
   variant: ActiveSamosborVariant,
-  z: number,
+  floor: FloorLevel,
   ci: number,
 ): boolean {
   if (world.fog[ci] <= 100) return false;
-  if (hasSamosborSubsystem(variant, 'fog_rewrite')) return applyMaronaryFogEffectAtCell(world, entities, state, variant, z, samosborCount, ci);
+  if (hasSamosborSubsystem(variant, 'fog_rewrite')) return applyMaronaryFogEffectAtCell(world, entities, state, variant, floor, samosborCount, ci);
   if (hasSamosborSubsystem(variant, 'fog_delete')) return applyVeretarFogEffectAtCell(world, entities, state, variant, ci);
-  if (hasSamosborSubsystem(variant, 'fog_create')) return applyIstotitFogEffectAtCell(world, entities, state, nextId, variant, z, samosborCount, ci);
-  if (hasSamosborSubsystem(variant, 'wet_spawn_shark')) return applyWetFogEffectAtCell(world, entities, nextId, samosborCount, variant, z, ci);
-  return spawnOneFogMonsterAtCell(world, entities, nextId, samosborCount, variant, z, ci);
+  if (hasSamosborSubsystem(variant, 'fog_create')) return applyIstotitFogEffectAtCell(world, entities, state, nextId, variant, floor, samosborCount, ci);
+  if (hasSamosborSubsystem(variant, 'wet_spawn_shark')) return applyWetFogEffectAtCell(world, entities, nextId, samosborCount, variant, floor, ci);
+  return spawnOneFogMonsterAtCell(world, entities, nextId, samosborCount, variant, floor, ci);
 }
 
 export function applySamosborFogEffectAtCellForTests(
@@ -4277,10 +4247,10 @@ export function applySamosborFogEffectAtCellForTests(
   nextId: { v: number },
   samosborCount: number,
   variant: ActiveSamosborVariant,
-  z: number,
+  floor: FloorLevel,
   ci: number,
 ): boolean {
-  return applySamosborFogEffectAtCell(world, entities, state, nextId, samosborCount, variant, z, ci);
+  return applySamosborFogEffectAtCell(world, entities, state, nextId, samosborCount, variant, floor, ci);
 }
 
 function pushVeretarLeakCandidate(
@@ -4372,11 +4342,11 @@ function spawnMonsters(
   nextId: { v: number },
   samosborCount: number,
   variant: ActiveSamosborVariant,
-  z: number,
+  floor: FloorLevel,
 ): void {
   const corridorCells: number[] = [];
   for (let i = 0; i < 5000; i++) {
-    const ci = Math.floor(rng() * W * W);
+    const ci = Math.floor(Math.random() * W * W);
     if (world.cells[ci] === Cell.FLOOR && world.roomMap[ci] < 0) {
       corridorCells.push(ci);
     }
@@ -4385,9 +4355,9 @@ function spawnMonsters(
   const count = Math.max(1, Math.round((MONSTERS_PER_SAMOSBOR + Math.floor(samosborCount * 1.5)) * variant.spawnMult));
   const slots = entitySpawnSlots(entities, EntityType.MONSTER, count);
   for (let i = 0; i < slots && corridorCells.length > 0; i++) {
-    const ci = corridorCells.splice(Math.floor(rng() * corridorCells.length), 1)[0];
-    const kind = pickMonsterKindForWave(z, samosborCount);
-    entities.push(createMonster(world, nextId, kind, (ci % W) + 0.5, Math.floor(ci / W) + 0.5, z));
+    const ci = corridorCells.splice(Math.floor(Math.random() * corridorCells.length), 1)[0];
+    const kind = pickMonsterKindForWave(floor, samosborCount);
+    entities.push(createMonster(world, nextId, kind, (ci % W) + 0.5, Math.floor(ci / W) + 0.5, floor));
   }
 }
 
@@ -4398,7 +4368,7 @@ function spawnRandomMapMonsters(
   nextId: { v: number },
   samosborCount: number,
   variant: ActiveSamosborVariant,
-  z: number,
+  floor: FloorLevel,
 ): void {
   const target = Math.max(1, Math.round(RANDOM_MAP_MONSTERS_PER_SAMOSBOR * variant.spawnMult));
   const slots = entitySpawnSlots(entities, EntityType.MONSTER, target);
@@ -4406,7 +4376,7 @@ function spawnRandomMapMonsters(
   let spawned = 0;
 
   for (let attempt = 0; attempt < 5000 && spawned < slots; attempt++) {
-    const ci = Math.floor(rng() * W * W);
+    const ci = Math.floor(Math.random() * W * W);
     if (world.cells[ci] !== Cell.FLOOR) continue;
     const x = ci % W;
     const y = (ci / W) | 0;
@@ -4414,8 +4384,8 @@ function spawnRandomMapMonsters(
     const rid = world.roomMap[ci];
     if (rid >= 0 && rid < world.apartmentRoomCount) continue;
 
-    const kind = pickMonsterKindForWave(z, samosborCount);
-    entities.push(createMonster(world, nextId, kind, x + 0.5, y + 0.5, z));
+    const kind = pickMonsterKindForWave(floor, samosborCount);
+    entities.push(createMonster(world, nextId, kind, x + 0.5, y + 0.5, floor));
     spawned++;
   }
 }
@@ -4509,7 +4479,7 @@ function samosborPressureCellOccupied(entities: Entity[], ci: number): boolean {
 function pickSamosborPlayerPressureCell(world: World, entities: Entity[], player: Entity): number {
   const pool = collectSamosborPlayerPressureCells(world, player);
   for (let attempt = 0; attempt < SAMOSBOR_PLAYER_PRESSURE_PICK_ATTEMPTS && pool.length > 0; attempt++) {
-    const poolIdx = Math.floor(rng() * pool.length);
+    const poolIdx = Math.floor(Math.random() * pool.length);
     const ci = pool[poolIdx];
     if (samosborPressureCellOccupied(entities, ci)) {
       pool[poolIdx] = pool[pool.length - 1];
@@ -4542,7 +4512,7 @@ function spawnSamosborPlayerPressureMonster(
   state: GameState,
   nextId: { v: number },
   variant: ActiveSamosborVariant,
-  z: number,
+  floor: FloorLevel,
 ): boolean {
   if (!state.samosborActive || !canSpawnEntityType(entities, EntityType.MONSTER)) return false;
   const player = findPlayer(entities);
@@ -4551,12 +4521,12 @@ function spawnSamosborPlayerPressureMonster(
   const ci = pickSamosborPlayerPressureCell(world, entities, player);
   if (ci < 0) return false;
 
-  const kind = variant.extraEyes > 0 && rng() < 0.25
+  const kind = variant.extraEyes > 0 && Math.random() < 0.25
     ? MonsterKind.EYE
-    : pickMonsterKindForWave(z, state.samosborCount);
+    : pickMonsterKindForWave(floor, state.samosborCount);
   const x = (ci % W) + 0.5;
   const y = ((ci / W) | 0) + 0.5;
-  const monster = createMonster(world, nextId, kind, x, y, z);
+  const monster = createMonster(world, nextId, kind, x, y, floor);
   const playerLevel = Math.max(1, Math.floor(player.rpg?.level ?? 1));
   const minMonsterLevel = playerLevel + 1;
   const raised = raiseMonsterToAtLeastLevel(monster, kind, minMonsterLevel);
@@ -4596,22 +4566,22 @@ export function spawnSamosborPlayerPressureMonsterForTests(
   state: GameState,
   nextId: { v: number },
   variant: ActiveSamosborVariant,
-  z: number,
+  floor: FloorLevel,
 ): boolean {
-  return spawnSamosborPlayerPressureMonster(world, entities, state, nextId, variant, z);
+  return spawnSamosborPlayerPressureMonster(world, entities, state, nextId, variant, floor);
 }
 
 function stampVeretarAreaLeak(world: World, cx: number, cy: number, radius: number): number {
   let placed = 0;
   let fogDirty = false;
   const fogRects: WorldGridDirtyRect[] = [];
-  const target = 1 + (rng() < 0.55 ? 1 : 0) + (rng() < 0.18 ? 1 : 0);
+  const target = 1 + (Math.random() < 0.55 ? 1 : 0) + (Math.random() < 0.18 ? 1 : 0);
   const maxRadius = Math.max(4, radius + 4);
   const candidates = collectVeretarLeakCandidates(world, cx, cy, maxRadius);
   for (let attempt = 0; attempt < 96 && placed < target; attempt++) {
     let ci: number;
     if (candidates.length > 0) {
-      const idx = Math.floor(rng() * candidates.length);
+      const idx = Math.floor(Math.random() * candidates.length);
       ci = candidates[idx];
       const last = candidates.length - 1;
       if (idx !== last) {
@@ -4619,14 +4589,14 @@ function stampVeretarAreaLeak(world: World, cx: number, cy: number, radius: numb
       }
       candidates.pop();
     } else {
-      ci = world.idx(world.wrap(cx + irand(-maxRadius, maxRadius)), world.wrap(cy + irand(-maxRadius, maxRadius)));
+      ci = world.idx(world.wrap(cx + rng(-maxRadius, maxRadius)), world.wrap(cy + rng(-maxRadius, maxRadius)));
     }
     const x = ci % W;
     const y = (ci / W) | 0;
     if (world.aptMask[ci]) continue;
     if (world.cells[ci] !== Cell.FLOOR && world.cells[ci] !== Cell.DOOR) continue;
     const seed = 91_000 + ci + placed * 977;
-    stampMark(world, x, y, mathRng(), mathRng(), 0.44 + mathRng() * 0.24, MarkType.SPLAT, seed, 244, 241, 223, 150);
+    stampMark(world, x, y, Math.random(), Math.random(), 0.44 + Math.random() * 0.24, MarkType.SPLAT, seed, 244, 241, 223, 150);
     const door = world.doors.get(ci);
     if (door) {
       if (door.state === DoorState.CLOSED) setDoorState(world, door, DoorState.OPEN);
@@ -4692,7 +4662,7 @@ function captureZone(
 
   const zone = preferredZone && territoryOwnerAt(world, preferredZone.cx, preferredZone.cy) !== ZoneFaction.SAMOSBOR
     ? preferredZone
-    : candidates[Math.floor(rng() * candidates.length)];
+    : candidates[Math.floor(Math.random() * candidates.length)];
   const sourceX = Number.isFinite(preferredX) ? world.wrap(Math.floor(preferredX as number)) : zone.cx;
   const sourceY = Number.isFinite(preferredY) ? world.wrap(Math.floor(preferredY as number)) : zone.cy;
   const previousFaction = territoryOwnerAt(world, sourceX, sourceY);
@@ -4719,7 +4689,7 @@ function captureZone(
   const fogSeedRects = squareDirtyRects(sourceX, sourceY, fogRadius);
   const fogRadiusSq = fogRadius * fogRadius;
   const fogStrength = Math.max(90, Math.min(230, Math.round(200 * variant.fogSeedMult)));
-  const markHellMeat = currentFloorRunEntry(state).themeTags.includes('hell') &&
+  const markHellMeat = state.currentFloor === FloorLevel.HELL &&
     (hasSamosborSubsystem(variant, 'hell_meat_walls') || variant.modifiers.some(m => m.meatWallsOnHell));
   let veretarAreaLeaks = 0;
   for (let dy = -fogRadius; dy <= fogRadius; dy++) {
@@ -4753,9 +4723,9 @@ function captureZone(
   if (floorDirty) world.markFloorTexDirty(fogSeedRects);
 
   // Spawn fog boss at the source point (10% chance Матка, otherwise random boss)
-  const isMatka = rng() < 0.1;
+  const isMatka = Math.random() < 0.1;
   const bossKind = istotit ? MonsterKind.EYE : isMatka ? MonsterKind.MATKA :
-    [MonsterKind.BETONNIK, MonsterKind.REBAR, MonsterKind.NIGHTMARE][Math.floor(rng() * 3)];
+    [MonsterKind.BETONNIK, MonsterKind.REBAR, MonsterKind.NIGHTMARE][Math.floor(Math.random() * 3)];
   const bossDef = MONSTERS[bossKind];
   const zoneLevel = zone.level ?? 1;
   const rpg = randomRPG(zoneLevel + 3); // boss is stronger
@@ -4778,7 +4748,7 @@ function captureZone(
     id: bossId,
     type: EntityType.MONSTER,
     x: bx + 0.5, y: by + 0.5,
-    angle: rng() * Math.PI * 2,
+    angle: Math.random() * Math.PI * 2,
     pitch: 0,
     alive: true,
     speed: scaleMonsterSpeed(bossDef.speed, zoneLevel),
@@ -4799,11 +4769,11 @@ function captureZone(
   const extraEyeSlots = entitySpawnSlots(entities, EntityType.MONSTER, variant.extraEyes);
   for (let i = 0; i < extraEyeSlots; i++) {
     for (let attempt = 0; attempt < 20; attempt++) {
-      const ex = world.wrap(sourceX + irand(-8, 8));
-      const ey = world.wrap(sourceY + irand(-8, 8));
+      const ex = world.wrap(sourceX + rng(-8, 8));
+      const ey = world.wrap(sourceY + rng(-8, 8));
       const ei = world.idx(ex, ey);
       if (world.cells[ei] !== Cell.FLOOR) continue;
-      entities.push(createMonster(world, nextId, MonsterKind.EYE, ex + 0.5, ey + 0.5, state.currentZ, true));
+      entities.push(createMonster(world, nextId, MonsterKind.EYE, ex + 0.5, ey + 0.5, state.currentFloor, true));
       break;
     }
   }
@@ -4877,7 +4847,7 @@ function trySpreadFogFromCell(world: World, ci: number, dirtyRects: WorldGridDir
     pushCellDirtyRect(dirtyRects, ci);
   }
 
-  const dir = (rng() * 4) | 0;
+  const dir = (Math.random() * 4) | 0;
   const dx = FOG_DIRS_X[dir];
   const dy = FOG_DIRS_Y[dir];
   const x = ci % W;
@@ -4889,7 +4859,7 @@ function trySpreadFogFromCell(world: World, ci: number, dirtyRects: WorldGridDir
   if (world.cells[ni] === Cell.DOOR) return fogDirty;
   if (world.cells[ni] !== Cell.FLOOR && world.cells[ni] !== Cell.WATER) return fogDirty;
 
-  world.fog[ni] = 128 + ((rng() * 127) | 0);
+  world.fog[ni] = 128 + ((Math.random() * 127) | 0);
   pushCellDirtyRect(dirtyRects, ni);
   return true;
 }
@@ -4901,7 +4871,7 @@ function spreadFog(world: World): void {
   const dirtyRects: WorldGridDirtyRect[] = [];
 
   for (let s = 0; s < FOG_SAMPLES_PER_TICK; s++) {
-    fogDirty = trySpreadFogFromCell(world, (rng() * total) | 0, dirtyRects) || fogDirty;
+    fogDirty = trySpreadFogFromCell(world, (Math.random() * total) | 0, dirtyRects) || fogDirty;
   }
   if (fogDirty) world.markFogDirty(dirtyRects);
 }
@@ -4909,10 +4879,10 @@ function spreadFog(world: World): void {
 function randomTransferEntity(entities: Entity[]): Entity | null {
   if (entities.length === 0) return null;
   for (let attempt = 0; attempt < SAMOSBOR_RANDOM_ENTITY_TRANSFER_ENTITY_ATTEMPTS; attempt++) {
-    const entity = entities[Math.floor(rng() * entities.length)];
+    const entity = entities[Math.floor(Math.random() * entities.length)];
     if (entity?.alive && entity.type !== EntityType.PROJECTILE && entity.type !== EntityType.BILLBOARD) return entity;
   }
-  const start = Math.floor(rng() * entities.length);
+  const start = Math.floor(Math.random() * entities.length);
   const limit = Math.min(entities.length, 512);
   for (let i = 0; i < limit; i++) {
     const entity = entities[(start + i) % entities.length];
@@ -4923,7 +4893,7 @@ function randomTransferEntity(entities: Entity[]): Entity | null {
 
 function randomTransferCell(world: World): number {
   for (let attempt = 0; attempt < SAMOSBOR_RANDOM_ENTITY_TRANSFER_CELL_ATTEMPTS; attempt++) {
-    const ci = Math.floor(rng() * W * W);
+    const ci = Math.floor(Math.random() * W * W);
     if (world.aptMask[ci] || world.hermoWall[ci]) continue;
     const cell = world.cells[ci];
     if (cell === Cell.FLOOR || cell === Cell.WATER) return ci;
@@ -4934,7 +4904,7 @@ function randomTransferCell(world: World): number {
 function moveEntityToCell(entity: Entity, ci: number): void {
   entity.x = (ci % W) + 0.5;
   entity.y = ((ci / W) | 0) + 0.5;
-  entity.angle = rng() * Math.PI * 2;
+  entity.angle = Math.random() * Math.PI * 2;
   if (entity.ai) {
     entity.ai.path = [];
     entity.ai.pi = 0;
@@ -5024,13 +4994,13 @@ function tickSamosborFogEffects(
   nextId: { v: number },
   samosborCount: number,
   variant: ActiveSamosborVariant,
-  z: number,
+  floor: FloorLevel,
 ): void {
   for (let attempt = 0; attempt < SAMOSBOR_FOG_EFFECT_SEARCH_ATTEMPTS; attempt++) {
-    const ci = Math.floor(rng() * W * W);
+    const ci = Math.floor(Math.random() * W * W);
     if (world.fog[ci] <= 100) continue;
     const cell = world.cells[ci];
     if (cell !== Cell.FLOOR && cell !== Cell.WATER) continue;
-    if (applySamosborFogEffectAtCell(world, entities, state, nextId, samosborCount, variant, z, ci)) return;
+    if (applySamosborFogEffectAtCell(world, entities, state, nextId, samosborCount, variant, floor, ci)) return;
   }
 }

@@ -1,21 +1,6 @@
 /* ── Safe Slimevik den: barterable slime scavenger POI ───────── */
 
 import { stampSurfaceSplat } from '../../systems/surface_marks';
-import { type PlotNpcDef, registerAuthoredNpc } from '../../data/plot';
-import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
-
-const AMBIENT_NPC_0: PlotNpcDef = {
-  name: 'Лида Кормовая',
-  isFemale: true,
-  faction: Faction.SCIENTIST,
-  occupation: Occupation.SCIENTIST,
-  sprite: Occupation.SCIENTIST,
-  hp: 50, maxHp: 50, money: 5, speed: 0.9,
-  inventory: [{ defId: 'filter_layer', count: 1 }, { defId: 'bread', count: 1 }],
-  talkLines: ['...'],
-  talkLinesPost: ['...']
-};
-registerAuthoredNpc({ id: 'maintenance_ambient_0_eix7g', npc: AMBIENT_NPC_0 });
 import {
   AIGoal,
   Cell,
@@ -37,6 +22,7 @@ import {
   findMaintArea,
   setFeature,
   setWater,
+  spawnAmbientNpc,
   stampMaintRoom,
   type MaintContentCtx,
 } from './content_helpers';
@@ -158,5 +144,13 @@ export function generateSafeSlimevikDen(ctx: MaintContentCtx): void {
   dropAt(ctx, room.x + 12, room.y + 5, 'slime_sample_brown', 'Отмеченная кормовая проба: безопаснее после бартера со слизневиком.');
 
   spawnSafeSlimevik(ctx, room.x + 14, room.y + 6);
-  requireSpawnedPlotNpcFromPackage(ctx.entities, ctx.nextId, 'maintenance_ambient_0_eix7g', room.x + 3 + 0.5, room.y + room.h - 3 + 0.5, { angle: 0});
+  spawnAmbientNpc(
+    ctx,
+    'Лида Кормовая',
+    Faction.SCIENTIST,
+    Occupation.SCIENTIST,
+    room.x + 3,
+    room.y + room.h - 3,
+    [{ defId: 'filter_layer', count: 1 }, { defId: 'bread', count: 1 }],
+  );
 }

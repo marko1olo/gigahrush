@@ -1,13 +1,12 @@
-import { MONSTERS, MONSTER_SPRITES } from '../src/entities/monster';
 import { test } from 'node:test';
-import { getPlotNpcCount } from '../src/data/npc_packages';
 import * as assert from 'node:assert/strict';
 
-import { AIGoal, Cell, EntityType, Feature, MonsterKind, RoomType, type Entity, type Msg } from '../src/core/types';
+import { AIGoal, Cell, EntityType, Feature, FloorLevel, MonsterKind, RoomType, type Entity, type Msg } from '../src/core/types';
 import { World } from '../src/core/world';
 import { getMonsterEcology } from '../src/data/monster_ecology';
 import { RUMORS } from '../src/data/rumors';
 import { DEF, generateSprite } from '../src/entities/kantselyarskiy_idol';
+import { MONSTERS, NEW_MONSTERS_BY_FLOOR } from '../src/entities/monster';
 import { S } from '../src/render/pixutil';
 import { setListenerPos } from '../src/systems/audio';
 import { rebuildEntityIndex } from '../src/systems/entity_index';
@@ -96,9 +95,11 @@ test('Kantselyarskiy Idol is standalone office-field monster content', () => {
   assert.equal(DEF.kind, MonsterKind.KANTSELYARSKIY_IDOL);
   assert.equal(MONSTERS[MonsterKind.KANTSELYARSKIY_IDOL], DEF);
   assert.deepEqual(DEF.aiFlags, ['officeField']);
+  assert.deepEqual(DEF.floors, [FloorLevel.MINISTRY]);
   assert.equal(DEF.speed <= 0.05, true, 'Idol should be stationary or effectively stationary');
   assert.equal(DEF.isRanged, true);
   assert.equal(DEF.attackRate >= 2.8, true, 'office-field shots need a recovery window');
+  assert.equal(NEW_MONSTERS_BY_FLOOR[FloorLevel.MINISTRY]?.includes(MonsterKind.KANTSELYARSKIY_IDOL), true);
   assert.deepEqual(ecology?.rumorIds, ['monster_kantselyarskiy_idol_line', 'ecology_kantselyarskiy_idol_office_field']);
   assert.equal(RUMORS.some(r => r.id === 'ecology_kantselyarskiy_idol_office_field'), true);
   assert.equal(sprite.length, S * S);
@@ -115,7 +116,7 @@ test('office field extends the shot through desks and carried papers, then cover
   const threat = idol(10.5, 10.5);
   const entities = [target, threat];
   const msgs: Msg[] = [];
-  const state = makeGameState({ currentZ: 34, worldEvents: createWorldEventState() });
+  const state = makeGameState({ currentFloor: FloorLevel.MINISTRY, worldEvents: createWorldEventState() });
 
   prepare(entities);
   updateMonster(world, entities, threat, 0.1, 1, msgs, target.id, { v: 3 }, state);
@@ -144,7 +145,7 @@ test('Kantselyarskiy Idol fires only after windup and then enters recovery', () 
   const threat = idol(10.5, 10.5);
   const entities = [target, threat];
   const msgs: Msg[] = [];
-  const nextId = { v: getPlotNpcCount() + 3 }
+  const nextId = { v: 3 };
 
   prepare(entities);
   updateMonster(world, entities, threat, 0.1, 5, msgs, target.id, nextId);

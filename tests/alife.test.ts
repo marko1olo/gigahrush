@@ -2,12 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { World } from '../src/core/world';
-import { getPlotNpcCount } from '../src/data/npc_packages';
 import {
   AIGoal,
   Cell,
   EntityType,
   Faction,
+  FloorLevel,
   Occupation,
   type Entity,
   type GameState,
@@ -41,8 +41,8 @@ import { freshRPG, RPG_LEVEL_CAP } from '../src/systems/rpg';
 import { NPC_VISUAL_FLOOR69_FEMALE, NPC_VISUAL_LIQUIDATOR_MALE } from '../src/entities/npc_visuals';
 
 function minimalState(): GameState {
-  const state = { currentZ: 0 } as GameState;
-  setFloorRunState(state, { runSeed: 1 }.LIVING);
+  const state = { currentFloor: FloorLevel.LIVING } as GameState;
+  setFloorRunState(state, { runSeed: 1 }, FloorLevel.LIVING);
   return state;
 }
 
@@ -53,7 +53,7 @@ function restoreGlobalProperty(name: 'navigator' | 'performance' | 'window', des
 
 function ambientTemplate(id: number, x: number, y: number): Entity {
   return {
-    id: -1,
+    id,
     type: EntityType.NPC,
     x,
     y,
@@ -82,8 +82,8 @@ test('A-Life population plan pre-fills records, reserved identities and empty bu
   const plan: AlifePopulationPlan = {
     buckets: [
       {
-        floorKey: 'design:living',
-        z: -6,
+        floorKey: 'story:living',
+        floor: FloorLevel.LIVING,
         targetCount: 3,
         reserved: [{
           name: 'Резервная Ольга',
@@ -100,8 +100,8 @@ test('A-Life population plan pre-fills records, reserved identities and empty bu
           accountRubles: 1_000_000,
         }],
       },
-      { floorKey: 'design:black_market_88', z: -6, targetCount: 2 },
-      { floorKey: 'design:void', z: -50, targetCount: 0 },
+      { floorKey: 'design:black_market_88', floor: FloorLevel.LIVING, targetCount: 2 },
+      { floorKey: 'story:void', floor: FloorLevel.VOID, targetCount: 0 },
     ],
   };
 
@@ -113,9 +113,9 @@ test('A-Life population plan pre-fills records, reserved identities and empty bu
 
   assert.equal(alife.total, 5);
   assert.equal(alife.npcs.length, 5);
-  assert.deepEqual(currentAlifeFloorRecordIds(state, 'design:living'), [1, 2, 3]);
+  assert.deepEqual(currentAlifeFloorRecordIds(state, 'story:living'), [1, 2, 3]);
   assert.deepEqual(currentAlifeFloorRecordIds(state, 'design:black_market_88'), [4, 5]);
-  assert.deepEqual(currentAlifeFloorRecordIds(state, 'design:void'), []);
+  assert.deepEqual(currentAlifeFloorRecordIds(state, 'story:void'), []);
   const reserved = getAlifeNpcRecordSnapshot(state, 1);
   assert.equal(reserved?.name, 'Резервная Ольга');
   assert.equal(reserved?.faction, Faction.SCIENTIST);
@@ -137,52 +137,53 @@ test('A-Life movement updates floor buckets once, clears stale coordinates and s
   const state = minimalState();
   createPrefilledAlifeState(state, 12345, 3, {
     buckets: [
-      { floorKey: 'design:living', z: -6, targetCount: 2 },
-      { floorKey: 'design:black_market_88', z: -6, targetCount: 1 },
+      { floorKey: 'story:living', floor: FloorLevel.LIVING, targetCount: 2 },
+      { floorKey: 'design:black_market_88', floor: FloorLevel.LIVING, targetCount: 1 },
     ],
   });
 
   assert.equal(moveAlifeNpcRecord(state, 1, 'design:black_market_88', { x: 5.25, y: 6.75, angle: -0.5 }), true);
   assert.equal(moveAlifeNpcRecord(state, 1, 'design:black_market_88', { preservePosition: true }), true);
 
-  assert.deepEqual(currentAlifeFloorRecordIds(state, 'design:living'), [2]);
+  assert.deepEqual(currentAlifeFloorRecordIds(state, 'story:living'), [2]);
   assert.deepEqual(currentAlifeFloorRecordIds(state, 'design:black_market_88'), [3, 1]);
   const snapshot = getAlifeNpcRecordSnapshot(state, 1);
   assert.ok(snapshot);
   assert.equal(snapshot.floorKey, 'design:black_market_88');
+  assert.equal(snapshot.floor, FloorLevel.LIVING);
   assert.equal(snapshot.x, 5.25);
   assert.equal(snapshot.y, 6.75);
-  assert.equal(snapshot.angle !== undefined, true);
+  assert.equal(snapshot.angle !== undefined && snapshot.angle > 0, true);
   assert.equal(alifeForSave(state).overrides.some(item => item.id === 1 && item.floorKey === 'design:black_market_88'), true);
 
   const dead = ambientTemplate(99, 5.25, 6.75);
   dead.alifeId = 1;
   dead.persistentNpcId = 'alife:1';
   recordAlifeNpcDeath(state, dead);
-  assert.equal(moveAlifeNpcRecord(state, 1, 'design:living'), false);
+  assert.equal(moveAlifeNpcRecord(state, 1, 'story:living'), false);
   assert.deepEqual(currentAlifeFloorRecordIds(state, 'design:black_market_88'), [3, 1]);
 });
 
 test('A-Life floor sampling is cursor based, bounded and skips dead records', () => {
   const state = minimalState();
   createPrefilledAlifeState(state, 12345, 4, {
-    buckets: [{ floorKey: 'design:living', z: -6, targetCount: 4 }],
+    buckets: [{ floorKey: 'story:living', floor: FloorLevel.LIVING, targetCount: 4 }],
   });
   const dead = ambientTemplate(100, 10.5, 10.5);
   dead.alifeId = 2;
   dead.persistentNpcId = 'alife:2';
   recordAlifeNpcDeath(state, dead);
 
-  assert.deepEqual(sampleAlifeFloorRecordIds(state, 'design:living', 0, 10), { ids: [1, 3, 4], nextCursor: 0 });
-  assert.deepEqual(sampleAlifeFloorRecordIds(state, 'design:living', 2, 2), { ids: [3, 4], nextCursor: 0 });
+  assert.deepEqual(sampleAlifeFloorRecordIds(state, 'story:living', 0, 10), { ids: [1, 3, 4], nextCursor: 0 });
+  assert.deepEqual(sampleAlifeFloorRecordIds(state, 'story:living', 2, 2), { ids: [3, 4], nextCursor: 0 });
 });
 
 test('A-Life snapshots are copies, not mutable record access', () => {
   const state = minimalState();
   createPrefilledAlifeState(state, 12345, 1, {
     buckets: [{
-      floorKey: 'design:living',
-      z: -6,
+      floorKey: 'story:living',
+      floor: FloorLevel.LIVING,
       targetCount: 1,
       reserved: [{ name: 'Копия без доступа' }],
     }],
@@ -200,7 +201,7 @@ test('A-Life arrival materializes one persistent record through the shared NPC c
   createPrefilledAlifeState(state, 12345, 1, {
     buckets: [{
       floorKey: 'design:black_market_88',
-      z: -6,
+      floor: FloorLevel.LIVING,
       targetCount: 1,
       reserved: [{ money: 77, accountRubles: 1234, karma: 12 }],
     }],
@@ -208,7 +209,7 @@ test('A-Life arrival materializes one persistent record through the shared NPC c
   const world = new World();
   world.cells[world.idx(15, 15)] = Cell.FLOOR;
   const entities: Entity[] = [];
-  const nextId = { v: getPlotNpcCount() + 10 }
+  const nextId = { v: 10 };
 
   const entity = materializeAlifeArrival(state, world, entities, nextId, 1, {
     x: 15.5,
@@ -230,7 +231,7 @@ test('A-Life arrival materializes one persistent record through the shared NPC c
   assert.equal(entity.ai?.goal, AIGoal.GOTO);
   assert.equal(entities.length, 1);
   assert.equal(materializeAlifeArrival(state, world, entities, nextId, 1, { x: 15.5, y: 15.5 }), null);
-  assert.equal(getAlifeNpcRecordSnapshot(state, 1)?.floorKey, 'design:living');
+  assert.equal(getAlifeNpcRecordSnapshot(state, 1)?.floorKey, 'story:living');
 });
 
 test('A-Life mobile runtime keeps the same baseline despite large memory hints', () => {
@@ -266,14 +267,14 @@ test('A-Life mobile runtime keeps the same baseline despite large memory hints',
 test('A-Life materializes ambient slots and leaves killed slots empty', () => {
   initFactionRelations();
   const state = minimalState();
-  setAlifeState(state, { seed: 12345, total: 100_000 }, { populationPlan: 'empty_packages' });
+  setAlifeState(state, { seed: 12345, total: 100_000 });
   const world = new World();
   world.cells[world.idx(10, 10)] = Cell.FLOOR;
   world.cells[world.idx(11, 10)] = Cell.FLOOR;
   const entities = [ambientTemplate(1, 10.5, 10.5), ambientTemplate(2, 11.5, 10.5)];
-  const nextId = { v: getPlotNpcCount() + 3 }
+  const nextId = { v: 3 };
 
-  materializeAlifeFloorPopulation(state, world, entities, nextId, 'design:living');
+  materializeAlifeFloorPopulation(state, world, entities, nextId, 'story:living');
 
   assert.equal(entities.length, 2);
   assert.equal(entities.every(entity => entity.alifeId !== undefined), true);
@@ -288,7 +289,7 @@ test('A-Life materializes ambient slots and leaves killed slots empty', () => {
   recordAlifeNpcDeath(state, entities[0]);
 
   const regenerated = [ambientTemplate(10, 10.5, 10.5), ambientTemplate(11, 11.5, 10.5)];
-  materializeAlifeFloorPopulation(state, world, regenerated, { v: 20 }, 'design:living');
+  materializeAlifeFloorPopulation(state, world, regenerated, { v: 20 }, 'story:living');
 
   assert.equal(regenerated.length, 1);
   assert.notEqual(regenerated[0].alifeId, killedAlifeId);
@@ -300,8 +301,8 @@ test('A-Life materialization preserves local template anchors separately from so
   const state = minimalState();
   createPrefilledAlifeState(state, 12345, 1, {
     buckets: [{
-      floorKey: 'design:living',
-      z: -6,
+      floorKey: 'story:living',
+      floor: FloorLevel.LIVING,
       targetCount: 1,
       reserved: [{
         name: 'Обычный жилец',
@@ -321,7 +322,7 @@ test('A-Life materialization preserves local template anchors separately from so
   delete template.isTraveler;
   const entities = [template];
 
-  materializeAlifeFloorPopulation(state, world, entities, { v: 10 }, 'design:living');
+  materializeAlifeFloorPopulation(state, world, entities, { v: 10 }, 'story:living');
 
   assert.equal(entities.length, 1);
   assert.equal(entities[0].occupation, Occupation.HUNTER);
@@ -335,8 +336,8 @@ test('A-Life ordinary materialization assigns faction art visual ids without ove
   const state = minimalState();
   createPrefilledAlifeState(state, 12345, 1, {
     buckets: [{
-      floorKey: 'design:living',
-      z: -6,
+      floorKey: 'story:living',
+      floor: FloorLevel.LIVING,
       targetCount: 1,
       reserved: [{
         name: 'Ликвидатор без портрета',
@@ -355,7 +356,7 @@ test('A-Life ordinary materialization assigns faction art visual ids without ove
   template.isFemale = false;
   const entities = [template];
 
-  materializeAlifeFloorPopulation(state, world, entities, { v: 20 }, 'design:living');
+  materializeAlifeFloorPopulation(state, world, entities, { v: 20 }, 'story:living');
 
   assert.equal(entities.length, 1);
   assert.equal(entities[0].npcVisualId, NPC_VISUAL_LIQUIDATOR_MALE);
@@ -366,8 +367,8 @@ test('A-Life population package reservations materialize with exact runtime defa
   const state = minimalState();
   createPrefilledAlifeState(state, 12345, 2, {
     buckets: [{
-      floorKey: 'design:living',
-      z: -6,
+      floorKey: 'story:living',
+      floor: FloorLevel.LIVING,
       targetCount: 2,
       reserved: [{
         id: 'npc:quiet_mechanic',
@@ -406,7 +407,7 @@ test('A-Life population package reservations materialize with exact runtime defa
   world.cells[world.idx(21, 20)] = Cell.FLOOR;
   const entities = [ambientTemplate(1, 20.5, 20.5), ambientTemplate(2, 21.5, 20.5)];
 
-  materializeAlifeFloorPopulation(state, world, entities, { v: 10 }, 'design:living');
+  materializeAlifeFloorPopulation(state, world, entities, { v: 10 }, 'story:living');
 
   assert.equal(entities.length, 2);
   const packaged = entities.find(entity => entity.alifeId === 1);
@@ -437,15 +438,15 @@ test('A-Life population package reservations materialize with exact runtime defa
   const snapshot = getAlifeNpcRecordSnapshot(state, 1);
   assert.equal(packageIdFromReservedIdentityId(snapshot?.reservedIdentityId), 'quiet_mechanic');
   assert.equal(snapshot?.reservedPresence, 'population');
-  assert.deepEqual(sampleAlifeFloorRecordIds(state, 'design:living', 0, 3), { ids: [1, 2], nextCursor: 0 });
+  assert.deepEqual(sampleAlifeFloorRecordIds(state, 'story:living', 0, 3), { ids: [1, 2], nextCursor: 0 });
 });
 
 test('A-Life killed population package reservation does not rematerialize on floor revisit', () => {
   const state = minimalState();
   createPrefilledAlifeState(state, 12345, 1, {
     buckets: [{
-      floorKey: 'design:living',
-      z: -6,
+      floorKey: 'story:living',
+      floor: FloorLevel.LIVING,
       targetCount: 1,
       reserved: [{
         id: 'npc:doomed_resident',
@@ -459,13 +460,13 @@ test('A-Life killed population package reservation does not rematerialize on flo
   world.cells[world.idx(22, 20)] = Cell.FLOOR;
   const entities = [ambientTemplate(1, 22.5, 20.5)];
 
-  materializeAlifeFloorPopulation(state, world, entities, { v: 10 }, 'design:living');
+  materializeAlifeFloorPopulation(state, world, entities, { v: 10 }, 'story:living');
   assert.equal(entities.length, 1);
   assert.equal(entities[0].alifeId, 1);
 
   recordAlifeNpcDeath(state, entities[0]);
   const revisited = [ambientTemplate(2, 22.5, 20.5)];
-  materializeAlifeFloorPopulation(state, world, revisited, { v: 20 }, 'design:living');
+  materializeAlifeFloorPopulation(state, world, revisited, { v: 20 }, 'story:living');
 
   assert.equal(revisited.length, 0);
   assert.equal(alifeForSave(state).deadIds.includes(1), true);
@@ -475,8 +476,8 @@ test('A-Life event-only package reservation stays out of ordinary materializatio
   const state = minimalState();
   createPrefilledAlifeState(state, 12345, 2, {
     buckets: [{
-      floorKey: 'design:living',
-      z: -6,
+      floorKey: 'story:living',
+      floor: FloorLevel.LIVING,
       targetCount: 2,
       reserved: [{
         id: 'npc:alarm_only',
@@ -491,11 +492,11 @@ test('A-Life event-only package reservation stays out of ordinary materializatio
   world.cells[world.idx(24, 20)] = Cell.FLOOR;
   const entities = [ambientTemplate(1, 23.5, 20.5), ambientTemplate(2, 24.5, 20.5)];
 
-  materializeAlifeFloorPopulation(state, world, entities, { v: 10 }, 'design:living');
+  materializeAlifeFloorPopulation(state, world, entities, { v: 10 }, 'story:living');
 
   assert.equal(packageIdFromReservedIdentityId(getAlifeNpcRecordSnapshot(state, 1)?.reservedIdentityId), 'alarm_only');
   assert.equal(getAlifeNpcRecordSnapshot(state, 1)?.reservedPresence, 'event_only');
-  assert.deepEqual(sampleAlifeFloorRecordIds(state, 'design:living', 0, 3), { ids: [2], nextCursor: 0 });
+  assert.deepEqual(sampleAlifeFloorRecordIds(state, 'story:living', 0, 3), { ids: [2], nextCursor: 0 });
   assert.equal(entities.length, 1);
   assert.equal(entities[0].alifeId, 2);
   assert.notEqual(entities[0].name, 'Только событие');
@@ -505,8 +506,8 @@ test('A-Life population package foldback stores changed sparse state without liv
   const state = minimalState();
   createPrefilledAlifeState(state, 12345, 1, {
     buckets: [{
-      floorKey: 'design:living',
-      z: -6,
+      floorKey: 'story:living',
+      floor: FloorLevel.LIVING,
       targetCount: 1,
       reserved: [{
         id: 'npc:foldback_resident',
@@ -527,7 +528,7 @@ test('A-Life population package foldback stores changed sparse state without liv
   world.cells[world.idx(25, 20)] = Cell.FLOOR;
   const entities = [ambientTemplate(1, 25.5, 20.5)];
 
-  materializeAlifeFloorPopulation(state, world, entities, { v: 10 }, 'design:living');
+  materializeAlifeFloorPopulation(state, world, entities, { v: 10 }, 'story:living');
   const npc = entities[0];
   npc.money = 777;
   npc.accountRubles = 888;
@@ -563,7 +564,7 @@ test('A-Life population package foldback stores changed sparse state without liv
 
 test('event-created ordinary NPC receives persistent A-Life identity', () => {
   const state = minimalState();
-  setAlifeState(state, { seed: 12345, total: 100_000 }, { populationPlan: 'empty_packages' });
+  setAlifeState(state, { seed: 12345, total: 100_000 });
   const npc = ambientTemplate(50, 16.5, 16.5);
   npc.name = 'Новый жилец';
   npc.faction = Faction.SCIENTIST;
@@ -595,13 +596,13 @@ test('event-created ordinary NPC does not inherit an existing A-Life identity or
     total: 1_000,
     overrides: [{
       id: 1,
-      floorKey: 'design:living',
+      floorKey: 'story:living',
       playerRelation: -88,
       karma: -123,
       kills: 17,
       npcKills: 9,
     }],
-  }, { populationPlan: 'empty_packages' }) as {
+  }) as {
     npcs: Array<{
       id: number;
       floorKey: string;
@@ -612,7 +613,7 @@ test('event-created ordinary NPC does not inherit an existing A-Life identity or
     floorIndex: Record<string, number[]>;
   };
   const reserved = alife.npcs[0];
-  alife.floorIndex['design:living'] = [0];
+  alife.floorIndex['story:living'] = [0];
 
   const npc = ambientTemplate(60, 18.5, 18.5);
   npc.name = 'Прибытие без прошлого';
@@ -649,11 +650,11 @@ test('A-Life player relations are regenerated for a new death-continuation host'
     seed: 12345,
     total: 1_000,
     overrides: [
-      { id: 1, floorKey: 'design:living', faction: Faction.LIQUIDATOR, playerRelation: 80 },
-      { id: 2, floorKey: 'design:living', faction: Faction.CULTIST, playerRelation: -80 },
-      { id: 3, floorKey: 'design:living', faction: Faction.CITIZEN, playerRelation: 80 },
+      { id: 1, floorKey: 'story:living', faction: Faction.LIQUIDATOR, playerRelation: 80 },
+      { id: 2, floorKey: 'story:living', faction: Faction.CULTIST, playerRelation: -80 },
+      { id: 3, floorKey: 'story:living', faction: Faction.CITIZEN, playerRelation: 80 },
     ],
-  }, { populationPlan: 'empty_packages' });
+  });
   const guard = ambientTemplate(1, 10, 10);
   guard.alifeId = 1;
   guard.playerRelation = 80;
@@ -678,7 +679,7 @@ test('A-Life player relations are regenerated for a new death-continuation host'
 test('A-Life death-continuation relation reset stays a compact current-player baseline', () => {
   const state = minimalState();
   initFactionRelations();
-  setAlifeState(state, { seed: 12345, total: 20_000 }, { populationPlan: 'empty_packages' });
+  setAlifeState(state, { seed: 12345, total: 20_000 });
   const host = ambientTemplate(2, 11, 10);
   host.alifeId = 2;
   host.faction = Faction.CULTIST;
@@ -696,7 +697,7 @@ test('A-Life death-continuation relation reset stays a compact current-player ba
 test('A-Life caps sanitized and saved dead ids', () => {
   const state = minimalState();
   const deadIds = Array.from({ length: 70_000 }, (_, index) => index + 1);
-  setAlifeState(state, { seed: 12345, total: 100_000, deadIds }, { populationPlan: 'empty_packages' });
+  setAlifeState(state, { seed: 12345, total: 100_000, deadIds });
   const save = alifeForSave(state);
   assert.equal(save.deadIds.length, 65_536);
   assert.equal(save.deadIds[0], 1);
@@ -705,7 +706,7 @@ test('A-Life caps sanitized and saved dead ids', () => {
 
 test('A-Life quest candidates are bounded instead of every persistent NPC offering work', () => {
   const state = minimalState();
-  setAlifeState(state, { seed: 12345, total: 100_000 }, { populationPlan: 'empty_packages' });
+  setAlifeState(state, { seed: 12345, total: 100_000 });
   let candidates = 0;
   forEachAlifeNpcRecordSlice(state, 0, defaultAlifePopulation(), snapshot => {
     if (snapshot.canGiveQuest) candidates++;
@@ -717,7 +718,7 @@ test('A-Life quest candidates are bounded instead of every persistent NPC offeri
 
 test('A-Life design-floor records use Floor 69 social population mix', () => {
   const state = minimalState();
-  setAlifeState(state, { seed: 12345, total: 100_000 }, { populationPlan: 'empty_packages' });
+  setAlifeState(state, { seed: 12345, total: 100_000 });
   const floor69: NonNullable<ReturnType<typeof getAlifeNpcRecordSnapshot>>[] = [];
   forEachAlifeNpcRecordSlice(state, 0, defaultAlifePopulation(), snapshot => {
     if (snapshot.floorKey === 'design:floor_69') floor69.push(snapshot);
@@ -746,7 +747,7 @@ test('A-Life current route plan replaces blocked Floor 69 in strict portal mode'
 
   try {
     const state = minimalState();
-    setAlifeState(state, { seed: 12345, total: 100_000 }, { populationPlan: 'empty_packages' });
+    setAlifeState(state, { seed: 12345, total: 100_000 });
     let blockedDesignRecords = 0;
     let replacementRecords = 0;
     forEachAlifeNpcRecordSlice(state, 0, defaultAlifePopulation(), snapshot => {
@@ -764,7 +765,7 @@ test('A-Life current route plan replaces blocked Floor 69 in strict portal mode'
 
 test('A-Life generation keeps broad level tail and splits wealth mostly into account balance', () => {
   const state = minimalState();
-  setAlifeState(state, { seed: 12345, total: 100_000 }, { populationPlan: 'empty_packages' });
+  setAlifeState(state, { seed: 12345, total: 100_000 });
   let lowLevel = 0;
   let maxLevel = 0;
   let millionaires = 0;
@@ -783,7 +784,7 @@ test('A-Life generation keeps broad level tail and splits wealth mostly into acc
 
   assert.ok(lowLevel > 50_000, 'most generated NPCs should stay in levels 1-10');
   assert.equal(maxLevel, 100);
-  assert.ok(millionaires >= 0 && millionaires < 20, 'procedural millionaires should stay rare');
+  assert.ok(millionaires > 0 && millionaires < 10, 'procedural millionaires should exist but stay rare');
   assert.ok(totalCash / totalWealth > 0.08, 'generated NPCs should keep some capital as cash');
   assert.ok(totalCash / totalWealth < 0.14, 'generated NPCs should keep most capital on account');
   assert.ok(maxCash > 2_000, 'generated NPC cash has no artificial pocket cap');
@@ -793,7 +794,7 @@ test('A-Life materialization preserves template sprite identity for special floo
   const state = minimalState();
   createPrefilledAlifeState(state, 12345, 1_000, {
     version: 1, total: 1_000,
-    buckets: [{ floorKey: 'design:living', baseFloor: 'living', targetCount: 1_000, factionWeights: [], occupationWeights: [] }],
+    buckets: [{ floorKey: 'story:living', baseFloor: FloorLevel.LIVING, targetCount: 1_000, factionWeights: [], occupationWeights: [] }],
     reserved: []
   });
   const world = new World();
@@ -810,7 +811,7 @@ test('A-Life materialization preserves template sprite identity for special floo
   template.ai = { goal: AIGoal.WANDER, tx: 12, ty: 10, path: [{ x: 12, y: 10 }], pi: 0, stuck: 2, timer: 3 };
   const entities = [template];
 
-  materializeAlifeFloorPopulation(state, world, entities, { v: 2 }, 'design:living');
+  materializeAlifeFloorPopulation(state, world, entities, { v: 2 }, 'story:living');
 
   assert.equal(entities.length, 1);
   assert.equal(entities[0].sprite, 777);
@@ -829,15 +830,15 @@ test('A-Life materialization preserves template sprite identity for special floo
 
 test('A-Life materializes cash and account wealth as separate NPC fields', () => {
   const state = minimalState();
-  const alife = setAlifeState(state, { seed: 12345, total: 100_000, overrides: [{ id: 1, money: 640, accountRubles: 999_360 }] }, { populationPlan: 'empty_packages' }) as {
+  const alife = setAlifeState(state, { seed: 12345, total: 100_000, overrides: [{ id: 1, money: 640, accountRubles: 999_360 }] }) as {
     floorIndex: Record<string, number[]>;
   };
-  alife.floorIndex['design:living'] = [0];
+  alife.floorIndex['story:living'] = [0];
   const world = new World();
   world.cells[world.idx(12, 10)] = Cell.FLOOR;
   const entities = [ambientTemplate(1, 12.5, 10.5)];
 
-  materializeAlifeFloorPopulation(state, world, entities, { v: 2 }, 'design:living');
+  materializeAlifeFloorPopulation(state, world, entities, { v: 2 }, 'story:living');
 
   assert.equal(entities.length, 1);
   assert.equal(entities[0].money, 640);
@@ -852,10 +853,10 @@ test('A-Life materializes cash and account wealth as separate NPC fields', () =>
 
 test('A-Life restored floor entities preserve account wealth on capture', () => {
   const state = minimalState();
-  const alife = setAlifeState(state, { seed: 12345, total: 100_000, overrides: [{ id: 1, money: 640, accountRubles: 999_360 }] }, { populationPlan: 'empty_packages' }) as {
+  const alife = setAlifeState(state, { seed: 12345, total: 100_000, overrides: [{ id: 1, money: 640, accountRubles: 999_360 }] }) as {
     floorIndex: Record<string, number[]>;
   };
-  alife.floorIndex['design:living'] = [0];
+  alife.floorIndex['story:living'] = [0];
   const world = new World();
   world.cells[world.idx(12, 10)] = Cell.FLOOR;
   const restored = ambientTemplate(1, 12.5, 10.5);
@@ -864,7 +865,7 @@ test('A-Life restored floor entities preserve account wealth on capture', () => 
   restored.money = 640;
   const entities = [restored];
 
-  materializeAlifeFloorPopulation(state, world, entities, { v: 2 }, 'design:living');
+  materializeAlifeFloorPopulation(state, world, entities, { v: 2 }, 'story:living');
   captureAlifeFloorState(state, entities);
 
   assert.equal(alifeForSave(state).overrides.some(item =>
@@ -876,7 +877,7 @@ test('A-Life restored floor entities preserve account wealth on capture', () => 
 
 test('A-Life leaderboard includes the player as a ranked actor', () => {
   const state = minimalState();
-  setAlifeState(state, { seed: 12345, total: 1_000 }, { populationPlan: 'empty_packages' });
+  setAlifeState(state, { seed: 12345, total: 1_000 });
   const player: Entity = {
     id: 0,
     type: EntityType.NPC, persistentNpcId: 'player',
@@ -907,7 +908,7 @@ test('A-Life leaderboard includes the player as a ranked actor', () => {
 
 test('A-Life leaderboard cache respects requested limits', () => {
   const state = minimalState();
-  setAlifeState(state, { seed: 12345, total: 1_000 }, { populationPlan: 'empty_packages' });
+  setAlifeState(state, { seed: 12345, total: 1_000 });
   const player: Entity = {
     id: 0,
     type: EntityType.NPC, persistentNpcId: 'player',

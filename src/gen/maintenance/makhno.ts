@@ -2,10 +2,11 @@
 /*   Spawns on the maintenance floor. Target for Kantselev quest.  */
 
 import {
-  W, Cell, type Entity, EntityType, AIGoal, Faction, Occupation,
+  W, Cell, FloorLevel,
+  type Entity, EntityType, AIGoal, Faction, Occupation,
 } from '../../core/types';
 import { World } from '../../core/world';
-import { rng, irand } from '../../core/rand';
+import { irand } from '../../core/rand';
 import { freshNeeds } from '../../data/catalog';
 import { type PlotNpcDef, registerAuthoredNpc, storyNpcFloorKey } from '../../data/plot';
 import { randomRPG, getMaxHp } from '../../systems/rpg';
@@ -43,7 +44,7 @@ const NPC_DEF: PlotNpcDef = {
 registerAuthoredNpc({
   id: NPC_ID,
   npc: NPC_DEF,
-  homeFloorKey: storyNpcFloorKey(140),
+  homeFloorKey: storyNpcFloorKey(FloorLevel.MAINTENANCE),
   tags: ['maintenance', 'wild', 'leader'],
 });
 
@@ -52,12 +53,12 @@ export function spawnMakhno(
   world: World, entities: Entity[], nextId: { v: number },
 ): void {
   for (let i = 0; i < 3000; i++) {
-    const x = Math.floor(rng() * W);
-    const y = Math.floor(rng() * W);
+    const x = Math.floor(Math.random() * W);
+    const y = Math.floor(Math.random() * W);
     if (world.cells[world.idx(x, y)] !== Cell.FLOOR) continue;
     const rpg = randomRPG(12);
     requireSpawnedPlotNpcFromPackage(entities, nextId, NPC_ID, x + 0.5, y + 0.5, {
-      angle: rng() * Math.PI * 2,
+      angle: Math.random() * Math.PI * 2,
       weapon: 'axe',
       canGiveQuest: false,
       isTraveler: true,
@@ -67,11 +68,11 @@ export function spawnMakhno(
       },
     });
     // Also spawn 4-6 wild bodyguards nearby
-    const guardCount = 4 + Math.floor(rng() * 3);
+    const guardCount = 4 + Math.floor(Math.random() * 3);
     for (let g = 0; g < guardCount; g++) {
       for (let a = 0; a < 50; a++) {
-        const gx = x + Math.floor(rng() * 8) - 4;
-        const gy = y + Math.floor(rng() * 8) - 4;
+        const gx = x + Math.floor(Math.random() * 8) - 4;
+        const gy = y + Math.floor(Math.random() * 8) - 4;
         const wi = world.wrap(gx), wiy = world.wrap(gy);
         if (world.cells[world.idx(wi, wiy)] !== Cell.FLOOR) continue;
         const gRpg = randomRPG(10);
@@ -79,8 +80,8 @@ export function spawnMakhno(
         entities.push({
           id: nextId.v++, type: EntityType.NPC,
           x: wi + 0.5, y: wiy + 0.5,
-          angle: rng() * Math.PI * 2, pitch: 0,
-          alive: true, speed: 1.6 + rng() * 0.3, sprite: Occupation.TRAVELER,
+          angle: Math.random() * Math.PI * 2, pitch: 0,
+          alive: true, speed: 1.6 + Math.random() * 0.3, sprite: Occupation.TRAVELER,
           name: 'Дикий боец', isFemale: false,
           needs: freshNeeds(), hp: gMaxHp, maxHp: gMaxHp, money: irand(5, 30),
           ai: { goal: AIGoal.WANDER, tx: 0, ty: 0, path: [], pi: 0, stuck: 0, timer: 0 },

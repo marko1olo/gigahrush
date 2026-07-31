@@ -1,9 +1,8 @@
-import { getPlotNpcNumericId } from '../../data/npc_packages';
 /* ── Caravan exchange: tariffs, route handoff, and cargo theft ── */
 
 import {
   Cell, ContainerKind, DoorState, Faction, Feature,
-  Occupation, QuestType, RoomType, Tex,
+  FloorLevel, Occupation, QuestType, RoomType, Tex,
   type ContainerAccess, type Entity, type Item, type Room, type WorldContainer,
 } from '../../core/types';
 import { World } from '../../core/world';
@@ -84,7 +83,7 @@ const POTAP: PlotNpcDef = {
 
 registerSideQuest(DISPATCHER_ID, NINA, [{
   id: 'ag108_pay_queue_tariff',
-  giverId: getPlotNpcNumericId(DISPATCHER_ID)!,
+  giverNpcId: DISPATCHER_ID,
   type: QuestType.FETCH,
   desc: 'Нина Тарифная: «Оплати 18 рублей за квартальную водно-хлебную линию. Очередь станет стабильнее, цена - тише.»',
   targetItem: 'money', targetCount: 18,
@@ -99,7 +98,7 @@ registerSideQuest(DISPATCHER_ID, NINA, [{
 
 registerSideQuest(BROKER_ID, IRA, [{
   id: 'ag108_open_net_lane',
-  giverId: getPlotNpcNumericId(BROKER_ID)!,
+  giverNpcId: BROKER_ID,
   type: QuestType.FETCH,
   desc: 'Ира НЕТ-маршрут: «Отдай маршрут каравана. Откроем линию обменных данных между терминалом и жилой очередью.»',
   targetItem: 'caravan_route', targetCount: 1,
@@ -115,7 +114,7 @@ registerSideQuest(BROKER_ID, IRA, [{
 
 registerSideQuest(INSPECTOR_ID, POTAP, [{
   id: 'ag108_close_market_lane',
-  giverId: getPlotNpcNumericId(INSPECTOR_ID)!,
+  giverNpcId: INSPECTOR_ID,
   type: QuestType.FETCH,
   desc: 'Потап Ревизор: «Сдай маршрут каравана на рынок 88. Линию закроем, контрабандный тариф перестанет кормить рынок.»',
   targetItem: 'caravan_route', targetCount: 1,
@@ -278,7 +277,7 @@ function addExchangeContainer(
     id: nextContainerId(world),
     x,
     y,
-    z: 100,
+    floor: FloorLevel.LIVING,
     roomId: room.id,
     zoneId: world.zoneMap[world.idx(x, y)],
     kind,

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { AIGoal, Cell, EntityType, Faction, MonsterKind, RoomType, type Entity, type Msg } from '../src/core/types';
+import { AIGoal, Cell, EntityType, Faction, FloorLevel, MonsterKind, RoomType, type Entity, type Msg } from '../src/core/types';
 import { World } from '../src/core/world';
 import { MONSTERS } from '../src/entities/monster';
 import { DEF as TONKAYA_TEN_DEF, generateSprite } from '../src/entities/tonkaya_ten';
@@ -81,6 +81,7 @@ function syncEntities(entities: Entity[]): void {
 test('tonkaya ten is standalone data, not a shadow variant', () => {
   assert.equal(TONKAYA_TEN_DEF.kind, MonsterKind.TONKAYA_TEN);
   assert.deepEqual(TONKAYA_TEN_DEF.aiFlags, ['baitLine']);
+  assert.deepEqual(TONKAYA_TEN_DEF.floors, [FloorLevel.MINISTRY, FloorLevel.LIVING, FloorLevel.VOID]);
   assert.equal(TONKAYA_TEN_DEF.hp < MONSTERS[MonsterKind.SHADOW].hp, true);
   assert.match(TONKAYA_TEN_DEF.counterplay ?? '', /свет|шум|гонитесь/);
 

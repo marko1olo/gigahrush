@@ -15,15 +15,8 @@ Role: track public media presence for GIGAH|RUSH across published pages, communi
 
 Как только A-Life, процедурные этажи и система событий (Samosbor hooks) начнут регулярно генерировать вот такие непредсказуемые ситуации, игроки сами начнут писать об этом посты на Reddit, снимать видео на YouTube и делать мемы. Именно это закрепляет проект в массовой культуре. Наш PR должен подсвечивать эти механики и стимулировать игроков делиться своими историями выживания.
 
-### Количественные цели кампании (Quantitative KPI Targets)
-*   **Суммарный охват ниши (Lifetime Unique Players):** порядка **100 000** уникальных игроков за все время (достигается после полноценного запуска в каталоге Pikabu Games, продвижения на ключевых инди-ресурсах и вирального эффекта).
-*   **Регулярная активная аудитория (Active Core):** порядка **1 000** регулярных игроков (ядро сообщества, проходящее новые версии, общающееся в Нет-Сфере и генерирующее истории/отзывы).
-*   **Текущая база отсчета (Baseline):** порядка **1 000** уникальных игроков за все время, накопленных на этапе мягкого запуска (Soft Launch / Sandbox) до публикации игры в публичных каталогах.
-
 **HOST BROWSER AUTOMATION RULE:** 
 The agent has the proven ability to interact with the owner's host Google Chrome / Chromium browser via AppleScript (`osascript`) and JavaScript injection. When the owner asks to "post it automatically", "do it yourself", or "действуй через хромиум апи", the agent MUST NOT refuse due to sandbox limitations. 
-- **CRITICAL:** DO NOT launch new Chrome/browser processes. The agent is strictly forbidden from starting new standalone browser instances or headless browser tasks that spawn new browser windows. The owner already has Google Chrome running with the required pages and accounts logged in.
-- For reading stats, checking pages, or automation, inspect the existing running Chrome tabs/windows via AppleScript (`osascript`) or ask the user directly, rather than launching a new process.
 - For sites with simple inputs (StopGame, PlayGround), the agent MUST write and execute an `osascript` to open the URL, inject JS to focus fields, and use `pbcopy` / `Cmd+V`.
 - For complex modern SPAs like Reddit with deep Shadow DOMs (`shreddit-app`), JavaScript focus/click injections will fail. The agent MUST use direct URL parameter pre-filling: construct a URL like `https://www.reddit.com/r/indiegames/submit?title=ENCODED_TITLE&text=ENCODED_BODY` and execute `open -a "Google Chrome" "URL"`. This relies on the site's native URL parsing and is 100% reliable.
 
@@ -43,7 +36,7 @@ Latest Reddit Liminal Space PR preparation: `PRCampaign/PR_94_reddit_liminal_pos
 Latest VK/TG broad suggestion queue generation: `PRCampaign/PR_88_broad_suggestions_queue_2026-06-09.md` on 2026-06-09. Owner indicated that Telegram is open and requested aggressive continuation into suggestion boxes (предложки) for VK, Telegram, and sites, celebrating the recent successful post in GameDev по-русски (`https://vk.com/wall-194760187_44623`). Drafts and target queues for `@KwagaGames_robot`, `RPG Horror Games`, `Инди Спейс`, StopGame Blogs and XGM were prepared. Pending browser subagent execution or manual owner posting (owner offered to login if needed).
 
 | Date       | Source                   | Action/Event                                                                 | Outcome/Reach / Notes                                                                                                     |
-| 2026-07-27 | Fandom Wiki / itch.io    | Published game "ТЕАТР" & added to Fandom Wiki "The Theater" (Rev 24262)       | Live Wiki: https://secret-files.fandom.com/ru/wiki/The_Theater, Game: https://tenevik.itch.io/theatre                     |
+|------------|--------------------------|------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------|
 | 2026-06-15 | GamePush Moderation      | Human moderator manually accepted the game for distribution                  | Sandbox tests passed. Owner completed transition to Self-Employed (СМЗ). Awaiting final contract.                           |
 | 2026-06-12 | Reddit 100 Karma Wave    | Executed URL parameter script opening Reddit submission tabs for owner        | Tabs opened for `r/playmygame`, `r/indiegames`, `r/HorrorGaming`, `r/IndieGaming`. Waiting for manual submit.               |
 | 2026-06-12 | TG Mass Outreach Wave 3  | Automated pitch sent to 5 fresh TG contacts                                  | Pitches sent to new targets: `@nightingle1`, `@vhailor`, `@Crunchnp`, `@tproger_sales_bot`, `@Mahooney1`. Waiting for replies. |

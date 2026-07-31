@@ -5,6 +5,7 @@ import {
   EntityType,
   Faction,
   Feature,
+  FloorLevel,
   LiftDirection,
   MonsterKind,
   RoomType,
@@ -34,7 +35,7 @@ import { ITEMS } from '../data/catalog';
 import { addFactionRelMutual } from '../data/relations';
 import { MONSTERS } from '../entities/monster';
 import { monsterSpr, Spr } from '../render/sprite_index';
-import { rng, hashSeed } from '../core/rand';
+import { hashSeed } from '../core/rand';
 import { getResourceContractPressure } from './economy';
 import { publishEvent } from './events';
 import { addItem, removeItem } from './inventory';
@@ -54,9 +55,11 @@ import {
   FLOOR_RUN_MIN_Z,
   isProceduralFloorZ,
   proceduralFloorKey,
+  storyFloorAtZ,
+  zForStoryFloor,
   type ProceduralFloorSpec,
 } from '../data/procedural_floors';
-import { designFloorAtZ, designFloorById, zForBaseFloor } from '../data/design_floors';
+import { designFloorAtZ, designFloorById } from '../data/design_floors';
 import { assignProceduralQuestDeadline } from './quest_deadlines';
 import { canSpawnEntityType, entitySpawnSlots } from './entity_limits';
 import { intContractRewardMult } from './rpg';
@@ -80,9 +83,9 @@ const GOVNYAK_COURIER_DEFS: readonly ContractDef[] = GOVNYAK_COURIER_CONTRACT_ID
 interface ZhelemishNiiTarget {
   kind: 'procedural_mushroom' | 'living_cellar';
   targetKey: string;
-  themeTags: readonly string[];
+  floor: FloorLevel;
   roomType: RoomType;
-  roomDefId?: string;
+  roomName?: string;
   z?: number;
   danger: number;
 }
@@ -104,13 +107,13 @@ export interface QuestTargetRoomResolution {
   source: 'quest_room' | 'tagged_container' | 'room_type';
 }
 
-const CONTRACT_FLOOR_NAMES: Record<number, string> = {
-  [30]: 'Министерство',
-  [60]: 'Квартиры',
-  [100]: 'Жилая зона',
-  [140]: 'Коллекторы',
-  [180]: 'Мясной низ',
-  [200]: 'Пустота',
+const CONTRACT_FLOOR_NAMES: Record<FloorLevel, string> = {
+  [FloorLevel.MINISTRY]: 'Министерство',
+  [FloorLevel.KVARTIRY]: 'Квартиры',
+  [FloorLevel.LIVING]: 'Жилая зона',
+  [FloorLevel.MAINTENANCE]: 'Коллекторы',
+  [FloorLevel.HELL]: 'Мясной низ',
+  [FloorLevel.VOID]: 'Пустота',
 };
 
 const GOVNYAK_COURIER_OUTCOMES: Record<string, {
@@ -173,8 +176,8 @@ function proceduralSpecRouteTags(spec: ProceduralFloorSpec): Set<string> {
   return tags;
 }
 
-function proceduralSpecMatchesRoute(spec: ProceduralFloorSpec, route: QuestRouteTarget, baseFloor?: number): boolean {
-  if (baseFloor !== undefined && false) return false;
+function proceduralSpecMatchesRoute(spec: ProceduralFloorSpec, route: QuestRouteTarget, baseFloor?: FloorLevel): boolean {
+  if (baseFloor !== undefined && spec.baseFloor !== baseFloor) return false;
   if (route.z !== undefined && spec.z !== route.z) return false;
   if (route.anomalyId !== undefined && spec.anomalyId !== route.anomalyId) return false;
   if (route.tags?.length) {
@@ -187,7 +190,7 @@ function proceduralSpecMatchesRoute(spec: ProceduralFloorSpec, route: QuestRoute
 function resolveProceduralRouteTarget(
   state: GameState,
   route: QuestRouteTarget,
-  baseFloor?: number,
+  baseFloor?: FloorLevel,
 ): ProceduralFloorSpec | undefined {
   const run = ensureFloorRunState(state);
   if (route.z !== undefined && isProceduralFloorZ(route.z)) {
@@ -209,13 +212,15 @@ function resolveProceduralRouteTarget(
   return best;
 }
 
-function routeBaseFloor(state: GameState, route: QuestRouteTarget, fallback?: number): number | undefined {
+function routeBaseFloor(state: GameState, route: QuestRouteTarget, fallback?: FloorLevel): FloorLevel | undefined {
   const z = routeZ(route.z) ?? (route.designFloorId ? designFloorById(route.designFloorId)?.z : undefined);
   if (z !== undefined) {
+    const storyFloor = storyFloorAtZ(z);
+    if (storyFloor !== undefined) return storyFloor;
     const designFloor = designFloorAtZ(z);
-    if (designFloor) return 100;
+    if (designFloor) return designFloor.baseFloor;
     const spec = ensureFloorRunState(state).specs[proceduralFloorKey(z)];
-    if (spec) return 100;
+    if (spec) return spec.baseFloor;
   }
   return fallback;
 }
@@ -247,20 +252,18 @@ function normalizeQuestRouteTarget(q: Quest, state: GameState): QuestRouteTarget
       if (spec) normalized = routeTargetFromSpec(normalized, spec);
       else normalized.label = route.label ?? `Z${formatFloorZ(z)}`;
     } else {
-      const designFloor = designFloorAtZ(z);
-      // @ts-ignore
-      const storyFloor = designFloor?.themeTags ? designFloor.themeTags[0] : "living";
-      normalized.label = route.label ?? `Z${formatFloorZ(z)}`;
+      const storyFloor = storyFloorAtZ(z);
+      normalized.label = route.label ?? (storyFloor !== undefined ? `Z${formatFloorZ(z)} ${CONTRACT_FLOOR_NAMES[storyFloor]}` : `Z${formatFloorZ(z)}`);
     }
   } else {
-    const spec = resolveProceduralRouteTarget(state, route, q.targetFloorZ);
+    const spec = resolveProceduralRouteTarget(state, route, q.targetFloor);
     if (spec) normalized = routeTargetFromSpec(normalized, spec);
   }
 
-  const baseFloor = routeBaseFloor(state, normalized, q.targetFloorZ);
+  const baseFloor = routeBaseFloor(state, normalized, q.targetFloor);
   if (baseFloor !== undefined) {
-    q.targetFloorZ = baseFloor;
-    if (q.type === QuestType.VISIT) q.visitFloorZ = baseFloor;
+    q.targetFloor = baseFloor;
+    if (q.type === QuestType.VISIT) q.visitFloor = baseFloor;
   }
   setQuestTargetRoute(q, normalized);
   return normalized;
@@ -326,7 +329,7 @@ function entryMatchesRouteTarget(entry: FloorRunEntry, route: QuestRouteTarget, 
   }
   if (normalizedZ === undefined && route.designFloorId === undefined && route.anomalyId === undefined && !route.tags?.length) {
     const baseFloor = routeBaseFloor(state, route);
-    return baseFloor === undefined || entry.themeTags.includes(baseFloor as any);
+    return baseFloor === undefined || entry.baseFloor === baseFloor;
   }
   return true;
 }
@@ -357,7 +360,7 @@ function validStoredZhelemishTarget(state: GameState, target: ZhelemishNiiTarget
   if (target.kind === 'living_cellar') return target;
   const spec = ensureFloorRunState(state).specs[target.targetKey];
   if (!spec || spec.anomalyId !== 'mushroom_mycelium') return undefined;
-  return { ...target, z: spec.z, danger: spec.danger };
+  return { ...target, floor: spec.baseFloor, z: spec.z, danger: spec.danger };
 }
 
 function ensureZhelemishTarget(state: GameState): ZhelemishNiiTarget {
@@ -381,7 +384,7 @@ function ensureZhelemishTarget(state: GameState): ZhelemishNiiTarget {
     host.zhelemishNiiTarget = {
       kind: 'procedural_mushroom',
       targetKey: best.key,
-      themeTags: best.themeTags,
+      floor: best.baseFloor,
       roomType: RoomType.PRODUCTION,
       z: best.z,
       danger: best.danger,
@@ -390,12 +393,11 @@ function ensureZhelemishTarget(state: GameState): ZhelemishNiiTarget {
   }
 
   host.zhelemishNiiTarget = {
-    kind: "living_cellar",
-    targetKey: "living_mushroom_cellar",
-    themeTags: ["living"],
-    z: 100,
+    kind: 'living_cellar',
+    targetKey: 'living_mushroom_cellar',
+    floor: FloorLevel.LIVING,
     roomType: RoomType.PRODUCTION,
-    roomDefId: 'Грибная прачечная первой смены',
+    roomName: 'Грибная прачечная первой смены',
     danger: 2,
   };
   return host.zhelemishNiiTarget;
@@ -403,7 +405,7 @@ function ensureZhelemishTarget(state: GameState): ZhelemishNiiTarget {
 
 function zhelemishTargetHint(target: ZhelemishNiiTarget): string {
   if (target.kind === 'procedural_mushroom') {
-    return `НИИ: Z${formatFloorZ(target.z ?? 0)}, процедурная грибница (${CONTRACT_FLOOR_NAMES[target.z ?? 100]}-основа). Ищите аппаратуру/стеллажи с желемышем; сдавайте только запечатанную пробу.`;
+    return `НИИ: Z${formatFloorZ(target.z ?? 0)}, процедурная грибница (${CONTRACT_FLOOR_NAMES[target.floor]}-основа). Ищите аппаратуру/стеллажи с желемышем; сдавайте только запечатанную пробу.`;
   }
   return 'Жилая зона: грибная прачечная первой смены. Ищите аппаратный стол с пломбой НИИ; открытый комок будет загрязнён.';
 }
@@ -415,7 +417,7 @@ export function prepareAcceptedContract(q: Quest, state: GameState): void {
   const target = ensureZhelemishTarget(state);
   q.targetItem = ZHELEMISH_SAMPLE_SEALED;
   q.targetCount = 1;
-  q.targetFloorZ = target.z;
+  q.targetFloor = target.floor;
   q.targetRoomType = target.roomType;
   q.targetZoneTag = ZHELEMISH_SAMPLE_ZONE_TAG;
   q.targetHint = zhelemishTargetHint(target);
@@ -468,8 +470,8 @@ function questObjectiveKindForContract(def: ContractDef): QuestRewardObjectiveKi
 function contractTargetZ(def: ContractDef, q: Quest): number {
   const route = questTargetRoute(q);
   if (route?.z !== undefined) return route.z;
-  if (route?.designFloorId) return designFloorById(route.designFloorId)?.z ?? zForBaseFloor(def.target.z);
-  return zForBaseFloor(def.target.z);
+  if (route?.designFloorId) return designFloorById(route.designFloorId)?.z ?? zForStoryFloor(def.target.floor);
+  return zForStoryFloor(def.target.floor);
 }
 
 function contractTargetDanger(state: GameState, def: ContractDef, q: Quest): 1 | 2 | 3 | 4 | 5 {
@@ -500,7 +502,7 @@ export function applyContractRewardAtAcceptance(
   const targetZ = contractTargetZ(def, q);
   const danger = contractTargetDanger(state, def, q);
   const scarcityMult = def.rewardResourceId
-    ? getResourceContractPressure(state, def.rewardResourceId, def.target.z, def.rewardScarcityMax ?? 3)
+    ? getResourceContractPressure(state, def.rewardResourceId, def.target.floor, def.rewardScarcityMax ?? 3)
     : 1;
   const playerRewardMult = player?.rpg ? intContractRewardMult(player.rpg) : 1;
   const reward = calculateQuestReward({
@@ -527,8 +529,8 @@ export function applyContractRewardAtAcceptance(
   q.xpReward = reward.xpReward;
 }
 
-export function questRouteFloor(q: Quest): number | undefined {
-  return q.targetFloorZ ?? q.visitFloorZ;
+export function questRouteFloor(q: Quest): FloorLevel | undefined {
+  return q.targetFloor ?? q.visitFloor;
 }
 
 export function isQuestTargetOnCurrentFloor(q: Quest, state: GameState): boolean {
@@ -550,7 +552,7 @@ export function questTargetLiftDirection(q: Quest, state: GameState): LiftDirect
   const positionalRoute = routeHasPositionalTarget(route) ? route : undefined;
   if ((floor === undefined && !positionalRoute) || isQuestTargetOnCurrentFloor(q, state)) return undefined;
   const currentZ = currentFloorRunEntry(state).z;
-  const targetZ = routeZ(positionalRoute?.z) ?? (positionalRoute?.designFloorId ? designFloorById(positionalRoute.designFloorId)?.z : undefined) ?? (floor !== undefined ? zForBaseFloor(floor) : undefined);
+  const targetZ = routeZ(positionalRoute?.z) ?? (positionalRoute?.designFloorId ? designFloorById(positionalRoute.designFloorId)?.z : undefined) ?? (floor !== undefined ? zForStoryFloor(floor) : undefined);
   if (targetZ === undefined) return undefined;
   if (currentZ === targetZ) return undefined;
   return targetZ < currentZ ? LiftDirection.DOWN : LiftDirection.UP;
@@ -573,7 +575,7 @@ function worldHasTaggedContainer(world: World, tag: string): boolean {
 }
 
 function roomStillMatchesQuest(world: World, q: Quest, room: Room): boolean {
-  if (q.targetRoomDefId !== undefined && room.defId !== q.targetRoomDefId && (room.defId || room.name !== q.targetRoomDefId)) return false;
+  if (q.targetRoomName !== undefined && room.name !== q.targetRoomName) return false;
   if (!roomMatchesQuestType(q, room)) return false;
   return !q.targetZoneTag
     || !worldHasTaggedContainer(world, q.targetZoneTag)
@@ -634,11 +636,11 @@ function resolveByRoomName(
   q: Quest,
   origin?: Pick<Entity, 'x' | 'y'>,
 ): QuestTargetRoomResolution | undefined {
-  if (!q.targetRoomDefId) return undefined;
+  if (!q.targetRoomName) return undefined;
   let best: Room | undefined;
   let bestScore = -Infinity;
   for (const room of world.rooms) {
-    if (!room || (room.defId !== q.targetRoomDefId && (room.defId || room.name !== q.targetRoomDefId)) || !roomMatchesQuestType(q, room)) continue;
+    if (!room || room.name !== q.targetRoomName || !roomMatchesQuestType(q, room)) continue;
     const score = roomDistanceScore(world, room, origin);
     if (score > bestScore) {
       best = room;
@@ -688,7 +690,7 @@ function publishContractCreated(
       rank: def.rank,
       targetItem: quest.targetItem,
       targetMonsterKind: quest.targetMonsterKind,
-      targetNpcId: quest.targetNpcId,
+      targetPlotNpcId: quest.targetPlotNpcId,
       rewardResourceId: def.rewardResourceId,
       rumorIds,
       ...questTargetEventData(quest),
@@ -701,10 +703,10 @@ function inventoryCount(player: Entity, defId: string): number {
 }
 
 function isCleanupTargetRoom(world: World, state: GameState, def: ContractDef, x: number, y: number): boolean {
-  if (!def.tags.includes('cleanup') || def.target.z !== state.currentZ) return false;
+  if (!def.tags.includes('cleanup') || def.target.floor !== state.currentFloor) return false;
   const room = world.roomAt(x, y);
   if (!room) return false;
-  if (def.target.roomDefId && room.name !== def.target.roomDefId) return false;
+  if (def.target.roomName && room.name !== def.target.roomName) return false;
   if (def.target.roomType !== undefined && room.type !== def.target.roomType) return false;
   return true;
 }
@@ -759,7 +761,7 @@ function findContaminatedContractSample(player: Entity, contractId: string): Ite
 function currentFloorMatchesZhelemishTarget(state: GameState, target: ZhelemishNiiTarget): boolean {
   const entry = currentFloorRunEntry(state);
   if (target.kind === 'procedural_mushroom') return entry.spec?.key === target.targetKey;
-  return entry.themeTags.includes('living') && currentFloorRunEntry(state).themeTags.includes('living');
+  return entry.storyFloor === FloorLevel.LIVING && state.currentFloor === FloorLevel.LIVING;
 }
 
 function currentFloorIsWrongZhelemishMycelium(state: GameState, target: ZhelemishNiiTarget): boolean {
@@ -784,7 +786,7 @@ function chooseZhelemishRoom(world: World, player: Entity, target: ZhelemishNiiT
 
   for (const room of world.rooms) {
     if (!room || room.w < 4 || room.h < 4) continue;
-    if (target.roomDefId && room.name !== target.roomDefId && target.kind === 'living_cellar') continue;
+    if (target.roomName && room.name !== target.roomName && target.kind === 'living_cellar') continue;
     const biologicalRoom = room.type === RoomType.PRODUCTION
       || room.type === RoomType.STORAGE
       || room.type === RoomType.BATHROOM
@@ -796,8 +798,7 @@ function chooseZhelemishRoom(world: World, player: Entity, target: ZhelemishNiiT
     const cy = room.y + room.h / 2;
     const distScore = Math.min(90000, world.dist2(player.x, player.y, cx, cy));
     const typeScore = room.type === target.roomType ? 30000 : room.type === RoomType.STORAGE ? 12000 : 0;
-    const isNameMatch = target.roomDefId && (room.defId === target.roomDefId || (!room.defId && room.name === target.roomDefId));
-    const nameScore = isNameMatch ? 100000 : 0;
+    const nameScore = target.roomName && room.name === target.roomName ? 100000 : 0;
     const score = nameScore + typeScore + distScore + room.w * room.h;
     if (score > bestScore) {
       best = room;
@@ -884,7 +885,7 @@ function spawnZhelemishGuards(world: World, room: Room, entities: Entity[], next
       type: EntityType.MONSTER,
       x: pos.x + 0.5,
       y: pos.y + 0.5,
-      angle: rng() * Math.PI * 2,
+      angle: Math.random() * Math.PI * 2,
       pitch: 0,
       alive: true,
       speed: def.speed * (0.95 + target.danger * 0.03),
@@ -1036,13 +1037,13 @@ export function canCompleteGovnyakCourierEndpoint(
   if (!q.contractId || q.type !== QuestType.VISIT) return undefined;
   const def = contractById(q.contractId);
   if (!def || def.type !== QuestType.VISIT) return undefined;
-  if (q.targetRoomType === undefined && !def.target.roomDefId) return undefined;
+  if (q.targetRoomType === undefined && !def.target.roomName) return undefined;
   if (!isQuestTargetOnCurrentFloor(q, state)) return false;
 
   const room = world.roomAt(player.x, player.y);
   if (!room) return false;
   if (q.targetRoomType !== undefined && room.type !== q.targetRoomType) return false;
-  if (def.target.roomDefId && room.name !== def.target.roomDefId) return false;
+  if (def.target.roomName && room.name !== def.target.roomName) return false;
   return true;
 }
 
@@ -1125,7 +1126,7 @@ export function spawnGovnyakCourierContract(
   for (const def of defs) {
     const quest = createContractQuest(def, state, giver, player);
     assignProceduralQuestDeadline(quest, state.clock.totalMinutes, {
-      crossFloor: quest.targetFloorZ !== undefined && quest.targetFloorZ !== state.currentZ,
+      crossFloor: quest.targetFloor !== undefined && quest.targetFloor !== state.currentFloor,
     });
     state.quests.push(quest);
     publishContractCreated(state, def, quest);
@@ -1167,20 +1168,20 @@ export function listAvailableContracts(state: GameState, limit = 6) {
   const sliceLimit = Number.isFinite(limit) ? Math.trunc(limit) : Number.POSITIVE_INFINITY;
   if (sliceLimit === 0) return [];
 
-  const currentZ: ContractDef[] = [];
+  const currentFloor: ContractDef[] = [];
   const otherFloors: ContractDef[] = [];
   for (const def of CONTRACTS) {
     if (isContractHiddenForAssignment(def) || assignedIds.has(def.id)) continue;
-    if (def.target.z === state.currentZ) {
-      currentZ.push(def);
+    if (def.target.floor === state.currentFloor) {
+      currentFloor.push(def);
     } else {
       otherFloors.push(def);
     }
   }
 
   const floorRunSeed = (state as { floorRun?: { runSeed?: number } }).floorRun?.runSeed ?? 0;
-  const assignmentSeed = hashSeed(`contracts:${state.currentZ}:${assignedIds.size}`, floorRunSeed);
-  const ordered = orderedContractsForAssignment(currentZ, assignmentSeed)
+  const assignmentSeed = hashSeed(`contracts:${state.currentFloor}:${assignedIds.size}`, floorRunSeed);
+  const ordered = orderedContractsForAssignment(currentFloor, assignmentSeed)
     .concat(orderedContractsForAssignment(otherFloors, assignmentSeed ^ 0x9e3779b9));
   return sliceLimit > 0 ? ordered.slice(0, sliceLimit) : ordered;
 }
@@ -1203,7 +1204,7 @@ export function spawnContract(state: GameState): boolean {
   }
   const quest = createContractQuest(def, state);
   assignProceduralQuestDeadline(quest, state.clock.totalMinutes, {
-    crossFloor: quest.targetFloorZ !== undefined && quest.targetFloorZ !== state.currentZ,
+    crossFloor: quest.targetFloor !== undefined && quest.targetFloor !== state.currentFloor,
   });
   state.quests.push(quest);
   state.msgs.push(msg(`[QUEST] ${def.title}`, state.time, '#6cf'));
@@ -1230,7 +1231,7 @@ export function spawnContractById(
   }
   const quest = createContractQuest(def, state);
   assignProceduralQuestDeadline(quest, state.clock.totalMinutes, {
-    crossFloor: quest.targetFloorZ !== undefined && quest.targetFloorZ !== state.currentZ,
+    crossFloor: quest.targetFloor !== undefined && quest.targetFloor !== state.currentFloor,
   });
   state.quests.push(quest);
   state.msgs.push(msg(`[QUEST] ${def.title}`, state.time, '#6cf'));
@@ -1242,7 +1243,7 @@ export function summarizeContracts(state: GameState, limit = 8): string[] {
   const active = activeContracts(state);
   const available = listAvailableContracts(state, Math.max(0, limit - active.length));
   const rows: string[] = [];
-  for (const q of active.slice(0, limit)) rows.push(`ACTIVE #${q.id}: ${q.contractId} -> ${q.targetHint ?? q.targetZoneTag ?? q.targetFloorZ ?? '?'}`);
+  for (const q of active.slice(0, limit)) rows.push(`ACTIVE #${q.id}: ${q.contractId} -> ${q.targetHint ?? q.targetZoneTag ?? q.targetFloor ?? '?'}`);
   for (const c of available) rows.push(`OPEN r${c.rank}: ${questTypeName(c.type)} ${c.id} -> ${c.target.hint}`);
   return rows.length > 0 ? rows : ['Системных заданий нет'];
 }

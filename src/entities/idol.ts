@@ -3,7 +3,7 @@
 /*   but attacks with devastating PSI bolts. Each idol is unique */
 /*   — procedural shape from entity name hash.                   */
 
-import { MonsterKind } from '../core/types';
+import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
 import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
@@ -18,6 +18,7 @@ export const DEF: MonsterDef = {
   isRanged: true,
   projSpeed: 12,
   projSprite: 0,       // auto-assigned to Spr.PSI_BOLT
+  floors: [FloorLevel.MINISTRY, FloorLevel.LIVING, FloorLevel.HELL, FloorLevel.VOID],
   counterplay: 'Идол не двигается: сбейте угол стеной или дверью и входите в упор между ПСИ-выстрелами.',
   lootHint: 'ПСИ-пыль, холодный культовый камень, редкий идол Чернобога или меточный сгусток',
 };

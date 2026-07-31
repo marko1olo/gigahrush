@@ -52,16 +52,16 @@ export function applyCollectorMacroGeometry(
 }
 
 export function placeCollectorMacroPanels(world: World, _centerX: number, _centerY: number): number {
-  const placements: readonly { roomDefId: string; dx: number; dy: number; panelId: PanelId; seed: number }[] = [
-    { roomDefId: PANEL_POWER_ROOM, dx: 3, dy: 3, panelId: 'panel_power', seed: 0x4d01 },
-    { roomDefId: PANEL_WATER_ROOM, dx: 8, dy: 3, panelId: 'panel_water', seed: 0x4d02 },
-    { roomDefId: PANEL_DOORS_ROOM, dx: 7, dy: 3, panelId: 'panel_doors', seed: 0x4d03 },
-    { roomDefId: PANEL_VENT_ROOM, dx: 4, dy: 3, panelId: 'panel_vent', seed: 0x4d04 },
+  const placements: readonly { roomName: string; dx: number; dy: number; panelId: PanelId; seed: number }[] = [
+    { roomName: PANEL_POWER_ROOM, dx: 3, dy: 3, panelId: 'panel_power', seed: 0x4d01 },
+    { roomName: PANEL_WATER_ROOM, dx: 8, dy: 3, panelId: 'panel_water', seed: 0x4d02 },
+    { roomName: PANEL_DOORS_ROOM, dx: 7, dy: 3, panelId: 'panel_doors', seed: 0x4d03 },
+    { roomName: PANEL_VENT_ROOM, dx: 4, dy: 3, panelId: 'panel_vent', seed: 0x4d04 },
   ];
 
   let placed = 0;
   for (const item of placements) {
-    const room = roomsByName(world, item.roomDefId);
+    const room = roomsByName(world, item.roomName);
     if (!room) continue;
     const x = world.wrap(room.x + Math.max(1, Math.min(room.w - 2, item.dx)));
     const y = world.wrap(room.y + Math.max(1, Math.min(room.h - 2, item.dy)));

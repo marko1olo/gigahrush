@@ -3,7 +3,6 @@
 import { Tex } from '../../core/types';
 import { drawTextCentered, CELL_H } from '../../render/text';
 import { S, rgba, noise, clamp } from '../../render/pixutil';
-import { rng } from '../../core/rand';
 
 function tpx(t: Uint32Array, x: number, y: number, c: number): void {
   if (x >= 0 && x < S && y >= 0 && y < S) t[y * S + x] = c;
@@ -13,7 +12,7 @@ const COL_FG     = rgba(255, 240, 200);
 const COL_BORDER = rgba(180, 150, 50);
 const COL_ACCENT = rgba(220, 180, 80);
 const COL_DIM    = rgba(140, 110, 40);
-const BLOCK_NUM  = String(Math.floor(rng() * 900 + 100));
+const BLOCK_NUM  = String(Math.floor(Math.random() * 900 + 100));
 
 const SLIDES: string[][] = [
   ['ТОВАРИЩИ', 'ЖИЛЬЦЫ!'],

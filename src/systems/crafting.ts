@@ -30,7 +30,6 @@ import {
 import { itemComposition } from '../data/item_composition';
 import { addItem, canAddItem } from './inventory';
 import { publishEvent } from './events';
-import { rng } from '../core/rand';
 
 export type { CraftingState, MutableCraftVector };
 export type { CraftMaterialId, CraftStationKind, CraftVector };
@@ -221,7 +220,7 @@ function stateTime(state: GameState): number {
 }
 
 function touchCrafting(state: GameState, crafting = ensureCraftingState(state)): void {
-  crafting.learnedCount = countKnownRecipes(crafting.knownRecipes);
+  crafting.learnedCount = Object.keys(crafting.knownRecipes).length;
   crafting.lastChangedAt = stateTime(state);
 }
 
@@ -241,8 +240,8 @@ function stationMatches(recipe: CraftRecipeDef, station: CraftStationKind): bool
   return recipe.station === 'any' || recipe.station === station;
 }
 
-function randomUnit(rand?: () => number): number {
-  const n = rand ? Number(rand()) : rng();
+function randomUnit(rng?: () => number): number {
+  const n = rng ? Number(rng()) : Math.random();
   if (!Number.isFinite(n)) return 0;
   return Math.max(0, Math.min(0.999999, n));
 }
@@ -256,11 +255,11 @@ function removeInventorySlotItem(actor: Entity, slotIndex: number, defId: string
   return true;
 }
 
-function weightedMaterial(components: CraftVector, rand?: () => number): CraftMaterialId | undefined {
+function weightedMaterial(components: CraftVector, rng?: () => number): CraftMaterialId | undefined {
   let total = 0;
   for (const count of components) total += cleanMaterialCount(count);
   if (total <= 0) return undefined;
-  let roll = randomUnit(rand) * total;
+  let roll = randomUnit(rng) * total;
   for (let i = 0; i < CRAFT_MATERIAL_COUNT; i++) {
     roll -= cleanMaterialCount(components[i]);
     if (roll < 0) return CRAFT_MATERIAL_IDS[i];
@@ -307,7 +306,7 @@ export function createCraftingState(): CraftingState {
   return {
     materials: emptyCraftVector(),
     knownRecipes,
-    learnedCount: countKnownRecipes(knownRecipes),
+    learnedCount: Object.keys(knownRecipes).length,
     lastChangedAt: 0,
   };
 }
@@ -318,17 +317,9 @@ export function sanitizeCraftingState(input: unknown): CraftingState {
   return {
     materials: sanitizeMaterialVector(input.materials),
     knownRecipes,
-    learnedCount: countKnownRecipes(knownRecipes),
+    learnedCount: Object.keys(knownRecipes).length,
     lastChangedAt: cleanTime(input.lastChangedAt),
   };
-}
-
-function countKnownRecipes(knownRecipes: Record<string, true>): number {
-  let count = 0;
-  for (const _ in knownRecipes) {
-    count++;
-  }
-  return count;
 }
 
 export function ensureCraftingState(state: GameState): CraftingState {

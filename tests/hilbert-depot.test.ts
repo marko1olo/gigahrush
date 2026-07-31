@@ -6,6 +6,7 @@ import {
   DoorState,
   EntityType,
   Faction,
+  FloorLevel,
   LiftDirection,
   MonsterKind,
   Occupation,
@@ -28,7 +29,7 @@ import {
   HILBERT_DEPOT_ROUTE_Z,
   generateHilbertDepotDesignFloor,
   type HilbertDepotGeneration,
-} from '../src/gen/hilbert_depot';
+} from '../src/gen/design_floors/hilbert_depot';
 import { getRouteCueMarkers, routeCueCount } from '../src/systems/route_cues';
 import { countTerritoryCells, territoryHqAnchors, territoryOwnerAt, territoryRoomOwner } from '../src/systems/territory';
 import { assertFullFootprint, assertReachableRouteLifts, reachableCells } from './generator_helpers';
@@ -88,7 +89,7 @@ function isAmbientHilbertNpc(entity: Entity): boolean {
   return entity.type === EntityType.NPC &&
     entity.alive &&
     entity.name?.startsWith('Склад Гильберта:') === true &&
-    (entity as any).npcPackageId === undefined &&
+    entity.plotNpcId === undefined &&
     entity.persistentNpcId === undefined &&
     entity.alifeId === undefined &&
     entity.questId === -1 &&
@@ -100,8 +101,8 @@ test('hilbert_depot is a maintenance authored route floor with indexed industria
   const route = designFloorById(DESIGN_FLOOR_ID);
   assert.ok(route);
   assert.equal(route.z, HILBERT_DEPOT_ROUTE_Z);
-  //  (removed exact baseFloor check)
-  assert.equal(route.themeTags?.includes('maintenance'), true);
+  assert.equal(route.baseFloor, HILBERT_DEPOT_BASE_FLOOR);
+  assert.equal(route.baseFloor, FloorLevel.MAINTENANCE);
   assert.equal(route.displayName, 'Склад Гильберта');
   assert.equal(route.danger, 4);
   assert.equal(designFloorAtZ(HILBERT_DEPOT_ROUTE_Z)?.id, DESIGN_FLOOR_ID);

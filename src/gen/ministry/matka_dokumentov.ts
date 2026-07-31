@@ -1,9 +1,9 @@
-import { getPlotNpcNumericId } from '../../data/npc_packages';
 /* -- Матка Документов: capped Ministry paper-boss room puzzle --- */
 
 import { stampSurfaceSplat } from '../../systems/surface_marks';
 import {
-  AIGoal, Cell, ContainerKind, EntityType, Faction, Feature, MonsterKind, Occupation, QuestType, RoomType, Tex, msg,
+  AIGoal, Cell, ContainerKind, EntityType, Faction, Feature, FloorLevel,
+  MonsterKind, Occupation, QuestType, RoomType, Tex, msg,
   type Entity, type GameState, type Room, type WorldContainer, type WorldEvent,
   type WorldEventType,
 } from '../../core/types';
@@ -18,7 +18,6 @@ import {
   type NextId, addItemDrop, createAdminRoom, setFeature, spawnAdminNpc,
 } from '../admin_common';
 import { genLog } from '../log';
-import { rng } from '../../core/rand';
 
 export const MATKA_DOKUMENTOV_ID = 'matka_dokumentov';
 export const MATKA_DOKUMENTOV_ROOM = 'Матка Документов: стол размножения';
@@ -64,12 +63,12 @@ const CLERK_DEF: PlotNpcDef = {
 registerSideQuest(CLERK_ID, CLERK_DEF, [
   {
     id: QUEST_FIND_ROOM,
-    giverId: getPlotNpcNumericId(CLERK_ID)!,
+    giverNpcId: CLERK_ID,
     type: QuestType.VISIT,
     desc: 'Нина Отменная: «Найдите стол Матки Документов {dir}. Бумагу там надо гасить формой, а не очередью.»',
-    targetRoomDefId: MATKA_DOKUMENTOV_ROOM,
+    targetRoomName: MATKA_DOKUMENTOV_ROOM,
     targetRoomType: RoomType.OFFICE,
-    targetFloorZ: 30,
+    targetFloor: FloorLevel.MINISTRY,
     targetZoneTag: 'documents',
     targetHint: 'Министерство: архивный кабинет со шкафами, бланками и центральным столом.',
     rewardItem: 'blank_form', rewardCount: 1,
@@ -79,7 +78,7 @@ registerSideQuest(CLERK_ID, CLERK_DEF, [
   },
   {
     id: QUEST_BRING_ORDER,
-    giverId: getPlotNpcNumericId(CLERK_ID)!,
+    giverNpcId: CLERK_ID,
     type: QuestType.FETCH,
     desc: 'Нина Отменная: «Принесите приказ без подписи из маточного стола. Если сможете, сначала погасите форму отмены.»',
     targetItem: 'unsigned_order', targetCount: 1,
@@ -155,7 +154,7 @@ function addMatkaContainer(
     id,
     x: wx,
     y: wy,
-    z: 30,
+    floor: FloorLevel.MINISTRY,
     roomId: room.id,
     zoneId: world.zoneMap[ci],
     kind,
@@ -230,7 +229,7 @@ function publishMatkaEvent(
   const room = ctx.world.rooms[ctx.roomId];
   publishEvent(state, {
     type: `matka_dokumentov_${phase}` as WorldEventType,
-    z: 30,
+    floor: FloorLevel.MINISTRY,
     zoneId: source.zoneId,
     roomId: ctx.roomId,
     x: source.x ?? (room ? room.x + room.w / 2 : undefined),
@@ -248,7 +247,7 @@ function publishMatkaEvent(
     tags: [...BASE_TAGS, phase, ...source.tags].slice(0, 8),
     data: {
       sourceEventId: source.id,
-      roomDefId: room?.name,
+      roomName: room?.name,
       activeThreats: getActiveThreats(ctx).length,
       totalSpawned: ctx.totalSpawned,
       cap: MATKA_DOKUMENTOV_THREAT_CAP,
@@ -306,7 +305,7 @@ function spawnPaperThreats(ctx: MatkaDokumentovContext, desired: number): number
       type: EntityType.MONSTER,
       x: pos.x + 0.5,
       y: pos.y + 0.5,
-      angle: rng() * Math.PI * 2,
+      angle: Math.random() * Math.PI * 2,
       pitch: 0,
       alive: true,
       speed: scaleMonsterSpeed(def.speed, zoneLevel) * 0.9,
@@ -371,7 +370,7 @@ function neutralizeOneThreat(ctx: MatkaDokumentovContext): number {
 function publishDocumentDelay(state: GameState, ctx: MatkaDokumentovContext, event: WorldEvent): void {
   if (ctx.delayPublished) return;
   ctx.delayPublished = true;
-  const changed = changeResourceStock(state, 'documents', -2, 30);
+  const changed = changeResourceStock(state, 'documents', -2, FloorLevel.MINISTRY);
   publishMatkaEvent(
     state,
     ctx,

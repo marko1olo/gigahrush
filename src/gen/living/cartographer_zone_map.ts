@@ -1,9 +1,8 @@
-import { getPlotNpcNumericId } from '../../data/npc_packages';
 /* -- Living cartographer: route clues without full-map omniscience ---- */
 
 import { stampSurfaceSplat } from '../../systems/surface_marks';
 import {
-  Cell, ContainerKind, DoorState, EntityType, Faction, Feature, Occupation, QuestType,
+  Cell, ContainerKind, DoorState, EntityType, Faction, Feature, FloorLevel, Occupation, QuestType,
   RoomType, Tex,
   type ContainerAccess, type Entity, type Room, type WorldContainer,
 } from '../../core/types';
@@ -48,10 +47,10 @@ const NPC_DEF: PlotNpcDef = {
 registerSideQuest(CARTOGRAPHER_ID, NPC_DEF, [
   {
     id: 'ag43_cartographer_maintenance_lead',
-    giverId: getPlotNpcNumericId(CARTOGRAPHER_ID)!,
+    giverNpcId: CARTOGRAPHER_ID,
     type: QuestType.VISIT,
     desc: 'Сева Картограф: «Спустись в Коллекторы и вернись с отметкой нижней зацепки. Если слышишь воду - держи фильтр или фонарь под рукой.»',
-    visitFloorZ: 140,
+    visitFloor: FloorLevel.MAINTENANCE,
     rewardItem: 'caravan_route',
     rewardCount: 1,
     extraRewards: [{ defId: 'water', count: 1 }],
@@ -61,7 +60,7 @@ registerSideQuest(CARTOGRAPHER_ID, NPC_DEF, [
   },
   {
     id: 'ag43_cartographer_crosscheck_notes',
-    giverId: getPlotNpcNumericId(CARTOGRAPHER_ID)!,
+    giverNpcId: CARTOGRAPHER_ID,
     type: QuestType.FETCH,
     desc: 'Сева Картограф: «Принеси две чужие записки. Я сверю их с картой и отдам рабочую схему лифтов, без обещаний безопасного маршрута.»',
     targetItem: 'note',
@@ -206,7 +205,7 @@ function dropItem(entities: Entity[], nextId: { v: number }, x: number, y: numbe
 }
 
 function spawnCartographer(world: World, entities: Entity[], nextId: { v: number }, room: Room): Entity {
-  const existing = entities.find(e => e.alive && e.id === getPlotNpcNumericId(CARTOGRAPHER_ID)!);
+  const existing = entities.find(e => e.alive && e.plotNpcId === CARTOGRAPHER_ID);
   if (existing) return existing;
   const x = world.wrap(room.x + Math.floor(ROOM_W / 2));
   const y = world.wrap(room.y + 3);
@@ -240,7 +239,7 @@ function addContainer(
     id: nextContainerId(world),
     x,
     y,
-    z: 100,
+    floor: FloorLevel.LIVING,
     roomId: room.id,
     zoneId: world.zoneMap[world.idx(x, y)],
     kind: ContainerKind.FILING_CABINET,
@@ -286,7 +285,7 @@ function registerPaidRouteAdviceCue(world: World, room: Room): void {
     y: tableY,
     targetX: tableX,
     targetY: tableY,
-    z: 100,
+    floor: FloorLevel.LIVING,
     roomId: room.id,
     targetRoomId: room.id,
     zoneId: world.zoneMap[markerCell],

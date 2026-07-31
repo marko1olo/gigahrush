@@ -1,5 +1,4 @@
 import { test } from 'node:test';
-import { getPlotNpcCount } from '../src/data/npc_packages';
 import * as assert from 'node:assert/strict';
 
 import { EntityType, QuestType, type Entity, type Item, type Quest } from '../src/core/types';
@@ -8,7 +7,7 @@ import { ITEMS } from '../src/data/catalog';
 import { MAX_INVENTORY_SLOTS } from '../src/data/inventory_limits';
 import { getRecentEvents } from '../src/systems/events';
 import { addItem, dropItem, pickupDrop, pickupNearby } from '../src/systems/inventory';
-import { checkQuests, checkTalkQuest, generateLootPool, pickItemFromPool } from '../src/systems/quests';
+import { checkQuests } from '../src/systems/quests';
 import { countInventoryItem, makeGameState, makeTestNpc, makeTestPlayer } from './helpers';
 
 function pipeSlots(count: number): Item[] {
@@ -95,7 +94,7 @@ test('tool drops preserve durability data through pickup', () => {
     inventory: [{ defId: 'flashlight', count: 1, data: { dur: 123 } }],
   });
   const entities: Entity[] = [player];
-  const nextId = { v: getPlotNpcCount() + 2 }
+  const nextId = { v: 2 };
 
   dropItem(player, 0, entities, state.msgs, state.time, nextId, state, world);
 
@@ -168,7 +167,7 @@ test('full inventory blocks item quest rewards without marking the quest done', 
   };
   const state = makeGameState({ quests: [quest], time: 3 });
 
-  checkTalkQuest(giver, player, world, [player, giver], state, state.msgs);
+  checkQuests(player, world, [player, giver], state, state.msgs);
 
   assert.equal(quest.done, false);
   assert.equal(countInventoryItem(player, 'bread'), 0);

@@ -28,7 +28,7 @@ test('createInput returns an initial InputState with correct default values', ()
     controlEdit: false,
     controlReset: false,
     controlClose: false,
-    mouse: { dx: 0, dy: 0, menuDx: 0, menuDy: 0, locked: false },
+    mouse: { dx: 0, dy: 0, locked: false },
     touch: { moveX: 0, moveY: 0, lookX: 0, lookY: 0, active: false },
   });
 });

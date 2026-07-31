@@ -9,7 +9,7 @@ const SOURCE_DIR = path.join(ROOT, 'anims');
 const CYRILLIC_SOURCE_DIR = path.join(ROOT, '\u0430nims');
 const OUT_PATH = path.join(ROOT, 'src/render/animations/generated_frames.ts');
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
-const SIZE = 128;
+const SIZE = 64;
 const CLEAR = 0x00000000;
 
 function rel(filePath) {

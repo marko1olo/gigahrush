@@ -48,11 +48,12 @@ export {
   type CraftRecipeTier,
   type CraftStationKind,
 } from './craft_recipes';
-export { randomName, adjustLastNameForGender, type NameResult, freshNeeds } from './names';
+export { randomName, type NameResult, freshNeeds } from './names';
 export { NOTES } from './notes';
 export {
   PLOT_CHAIN,
   designNpcFloorKey,
+  getPlotDef,
   isPlotNpc,
   plotNpcHomeFloorKey,
   registerAuthoredNpc,

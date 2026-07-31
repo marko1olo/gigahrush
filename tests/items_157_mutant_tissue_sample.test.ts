@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { EntityType, Faction, ItemType, MonsterKind, QuestType, RoomType, type Entity } from '../src/core/types';
+import { EntityType, Faction, FloorLevel, ItemType, MonsterKind, QuestType, RoomType, type Entity } from '../src/core/types';
 import { CONTRACTS } from '../src/data/contracts';
 import { ITEM_TAGS, ITEMS, getStack } from '../src/data/items';
 import { MONSTER_ECOLOGY } from '../src/data/monster_ecology';
@@ -60,7 +60,7 @@ test('mutant tissue sample is reachable through monster ecology drops', () => {
   }
 
   const entities: Entity[] = [];
-  const nextId = { v: getPlotNpcCount() + 100 }
+  const nextId = { v: 100 };
   const rolls = [0.99, 0.0, 0.5, 0.5];
   const dropped = dropMonsterRareLoot(testMonster(MonsterKind.KRYSNOZHKA), entities, nextId, () => rolls.shift() ?? 0.5);
 
@@ -78,7 +78,7 @@ test('mutant tissue sample has an NII handoff contract decision', () => {
   assert.ok(contract);
   assert.equal(contract.type, QuestType.FETCH);
   assert.equal(contract.faction, Faction.SCIENTIST);
-  assert.equal(contract.target.z, 2);
+  assert.equal(contract.target.floor, FloorLevel.LIVING);
   assert.equal(contract.target.roomType, RoomType.CORRIDOR);
   assert.equal(contract.targetMonsterKind, MonsterKind.KRYSNOZHKA);
   assert.equal(contract.targetItem, ITEM_ID);

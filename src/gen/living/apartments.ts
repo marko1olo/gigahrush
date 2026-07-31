@@ -12,9 +12,10 @@ import {
   type Room,
 } from '../../core/types';
 import { World } from '../../core/world';
-import { shuffle, stampRoom, placeDoor } from '../shared';
+import {
+  rng, shuffle, stampRoom, placeDoor,
+} from '../shared';
 import { maybePlaceBrokenFixture } from '../interactive_fixtures';
-import { rng, irand } from '../../core/rand';
 
 export interface AptPlan { rooms: Room[]; living: Room; }
 
@@ -35,13 +36,13 @@ function generateApartmentLayout(world: World, bx: number, by: number, a: number
 
   if (roll < 0.35) {
     /* ── Classic: жилая + кухня + санузел ────────── */
-    const lw = irand(5, 8), lh = irand(5, 7);
+    const lw = rng(5, 8), lh = rng(5, 7);
     primary = stampRoom(world, nextRoomId++, RoomType.LIVING, bx, by, lw, lh, a);
     allRooms.push(primary);
-    const kw = irand(4, 6), kh = irand(4, 5);
+    const kw = rng(4, 6), kh = rng(4, 5);
     const kr = stampRoom(world, nextRoomId++, RoomType.KITCHEN, bx + lw + 1, by, kw, kh, a);
     allRooms.push(kr);
-    const bww = irand(3, 4), bhh = irand(3, 4);
+    const bww = rng(3, 4), bhh = rng(3, 4);
     const br = stampRoom(world, nextRoomId++, RoomType.BATHROOM, bx, by + lh + 1, bww, bhh, a);
     allRooms.push(br);
     placeDoor(world, primary, kr, '', true);
@@ -49,10 +50,10 @@ function generateApartmentLayout(world: World, bx: number, by: number, a: number
 
   } else if (roll < 0.55) {
     /* ── Communal: 2-4 жилых в ряд + общий санузел ── */
-    const count = irand(2, 4);
+    const count = rng(2, 4);
     let cx = bx;
     for (let c = 0; c < count; c++) {
-      const lw = irand(4, 6), lh = irand(4, 6);
+      const lw = rng(4, 6), lh = rng(4, 6);
       const lr = stampRoom(world, nextRoomId++, RoomType.LIVING, cx, by, lw, lh, a);
       allRooms.push(lr);
       if (c === 0) primary = lr;
@@ -60,29 +61,29 @@ function generateApartmentLayout(world: World, bx: number, by: number, a: number
       cx += lw + 1;
     }
     primary = allRooms[0];
-    const bww = irand(3, 5), bhh = irand(3, 4);
+    const bww = rng(3, 5), bhh = rng(3, 4);
     const br = stampRoom(world, nextRoomId++, RoomType.BATHROOM, bx, by + allRooms[0].h + 1, bww, bhh, a);
     allRooms.push(br);
     placeDoor(world, allRooms[0], br, '', true);
 
   } else if (roll < 0.70) {
     /* ── Studio: одна жилая ──────────────────────── */
-    const lw = irand(5, 9), lh = irand(5, 8);
+    const lw = rng(5, 9), lh = rng(5, 8);
     primary = stampRoom(world, nextRoomId++, RoomType.LIVING, bx, by, lw, lh, a);
     allRooms.push(primary);
 
   } else if (roll < 0.85) {
     /* ── Extended: жилая + кухня + санузел + жилая ── */
-    const lw = irand(5, 7), lh = irand(5, 7);
+    const lw = rng(5, 7), lh = rng(5, 7);
     primary = stampRoom(world, nextRoomId++, RoomType.LIVING, bx, by, lw, lh, a);
     allRooms.push(primary);
-    const kw = irand(4, 6), kh = irand(4, 5);
+    const kw = rng(4, 6), kh = rng(4, 5);
     const kr = stampRoom(world, nextRoomId++, RoomType.KITCHEN, bx + lw + 1, by, kw, kh, a);
     allRooms.push(kr);
-    const bww = irand(3, 4), bhh = irand(3, 4);
+    const bww = rng(3, 4), bhh = rng(3, 4);
     const br = stampRoom(world, nextRoomId++, RoomType.BATHROOM, bx, by + lh + 1, bww, bhh, a);
     allRooms.push(br);
-    const lw2 = irand(4, 6), lh2 = irand(4, 6);
+    const lw2 = rng(4, 6), lh2 = rng(4, 6);
     const lr2 = stampRoom(world, nextRoomId++, RoomType.LIVING, bx + lw + 1, by + kh + 1, lw2, lh2, a);
     allRooms.push(lr2);
     placeDoor(world, primary, kr, '', true);
@@ -91,17 +92,17 @@ function generateApartmentLayout(world: World, bx: number, by: number, a: number
 
   } else {
     /* ── Barrack: 3-5 маленьких жилых + санузел ──── */
-    const count = irand(3, 5);
+    const count = rng(3, 5);
     let cy = by;
     for (let c = 0; c < count; c++) {
-      const lw = irand(4, 5), lh = irand(3, 5);
+      const lw = rng(4, 5), lh = rng(3, 5);
       const lr = stampRoom(world, nextRoomId++, RoomType.LIVING, bx, cy, lw, lh, a);
       allRooms.push(lr);
       if (c > 0) placeDoor(world, allRooms[c - 1], lr, '', true);
       cy += lh + 1;
     }
     primary = allRooms[0];
-    const bww = irand(3, 5), bhh = irand(3, 4);
+    const bww = rng(3, 5), bhh = rng(3, 4);
     const br = stampRoom(world, nextRoomId++, RoomType.BATHROOM, bx + allRooms[0].w + 1, by, bww, bhh, a);
     allRooms.push(br);
     placeDoor(world, allRooms[0], br, '', true);
@@ -150,8 +151,8 @@ function placeApartmentFeatures(world: World, apartments: AptPlan[]): void {
       for (const feat of feats) {
         if (feat === Feature.LAMP) continue;
         for (let tries = 0; tries < 10; tries++) {
-          const fx = room.x + irand(1, Math.max(1, room.w - 2));
-          const fy = room.y + irand(1, Math.max(1, room.h - 2));
+          const fx = room.x + rng(1, Math.max(1, room.w - 2));
+          const fy = room.y + rng(1, Math.max(1, room.h - 2));
           const fi = world.idx(fx, fy);
           if (world.features[fi] === Feature.NONE && world.cells[fi] === Cell.FLOOR) {
             world.features[fi] = feat;
@@ -181,9 +182,9 @@ export function generateApartments(world: World): AptPlan[] {
 
   for (let a = 0; a < 128 && a < superCells.length; a++) {
     const [sx, sy] = superCells[a];
-    const bx = sx * SCELL + irand(4, SCELL - 24);
-    const by = sy * SCELL + irand(4, SCELL - 20);
-    const roll = rng();
+    const bx = sx * SCELL + rng(4, SCELL - 24);
+    const by = sy * SCELL + rng(4, SCELL - 20);
+    const roll = Math.random();
 
     const result = generateApartmentLayout(world, bx, by, a, nextRoomId, roll);
     nextRoomId = result.nextRoomId;

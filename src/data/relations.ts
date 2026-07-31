@@ -2,7 +2,6 @@
 
 import { Faction, Occupation } from '../core/types';
 import { OCCUPATION_PROFILES } from './occupation_profiles';
-import { rng } from '../core/rand';
 
 /* ── Constants ────────────────────────────────────────────────── */
 export const FACTION_COUNT = 6; // CITIZEN, LIQUIDATOR, CULTIST, SCIENTIST, WILD, PLAYER
@@ -51,36 +50,6 @@ export function initFactionRelations(): void {
   }
 }
 
-/* ── Reset only the PLAYER row/column to base (death-continuation) ─ */
-// On death-rebirth the player continues as a different body. Faction↔faction
-// politics stay as persistent world state, but the player's personal standing
-// resets: the reborn actor is not recognized as "the player". Only PLAYER's
-// row (how the player feels) and column (how others feel about the player) revert.
-export function resetPlayerFactionRelations(): void {
-  const p = Faction.PLAYER;
-  for (let f = 0; f < FACTION_COUNT; f++) {
-    setFactionRel(p, f, BASE_FACTION_MATRIX[p][f]);
-    setFactionRel(f, p, BASE_FACTION_MATRIX[f][p]);
-  }
-}
-
-/* ── Snapshot / restore the dynamic matrix for save persistence ─── */
-// The matrix is persistent world state that must survive save/load. Snapshot is
-// a flat FACTION_COUNT² array of Int8 relation values; restore overlays a saved
-// snapshot onto the current (base-initialized) matrix and ignores malformed input.
-export function snapshotFactionRelations(): number[] {
-  return Array.from(factionRels);
-}
-
-export function restoreFactionRelations(input: unknown): void {
-  if (!Array.isArray(input) || input.length !== FACTION_COUNT * FACTION_COUNT) return;
-  for (let i = 0; i < input.length; i++) {
-    const v = input[i];
-    if (typeof v !== 'number' || !Number.isFinite(v)) continue;
-    factionRels[i] = Math.max(-128, Math.min(127, v | 0));
-  }
-}
-
 
 
 /* ── Faction names ────────────────────────────────────────────── */
@@ -100,7 +69,7 @@ export const OCCUPATION_NAMES: Record<Occupation, string> = {
 
 /* ── Weighted faction/occupation assignment ────────────────────── */
 export function randomFaction(): Faction {
-  const r = rng();
+  const r = Math.random();
   if (r < 0.40) return Faction.CITIZEN;
   if (r < 0.60) return Faction.LIQUIDATOR;
   if (r < 0.75) return Faction.CULTIST;
@@ -118,7 +87,7 @@ const OCC_WEIGHTS: [Occupation, number][] = Object.values(OCCUPATION_PROFILES)
 const OCC_TOTAL = OCC_WEIGHTS.reduce((s, [, w]) => s + w, 0);
 
 export function randomOccupation(_faction: Faction): Occupation {
-  let r = rng() * OCC_TOTAL;
+  let r = Math.random() * OCC_TOTAL;
   for (const [occ, w] of OCC_WEIGHTS) {
     r -= w;
     if (r <= 0) return occ;

@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { Cell } from '../src/core/types';
+import { Cell, FloorLevel } from '../src/core/types';
 import { World } from '../src/core/world';
 import { setPathBlockerRow } from '../src/core/path_blockers';
 import {
@@ -45,7 +45,7 @@ test('top-level save payload does not acquire path blocker storage', () => {
 
   const payload = buildSavePayload({
     player: makeTestPlayer({ x: 12.5, y: 13.5, angle: 0 }),
-    state: makeGameState({ currentZ: 0 }),
+    state: makeGameState({ currentFloor: FloorLevel.LIVING }),
     containers: [],
     sections: {
       floorRun: undefined,

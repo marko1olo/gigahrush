@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { ItemType, RoomType } from '../src/core/types';
+import { FloorLevel, ItemType, RoomType } from '../src/core/types';
 import { ITEM_TAGS, ITEMS } from '../src/data/items';
 import { RESOURCES, resourceForItem } from '../src/data/resources';
 import { getRecentEvents } from '../src/systems/events';
@@ -31,7 +31,7 @@ test('shelter seat forgery is a reachable forged shelter document', () => {
 
 test('shelter seat forgery can be presented at living-block shelter queues', () => {
   const player = makeTestPlayer();
-  const state = makeGameState({ currentZ: 0, time: 114 });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING, time: 114 });
 
   assert.equal(addItem(player, ITEM_ID, 1), true);
   assert.equal(getInventorySlotActionInfo(player, 0)?.useLabel, 'Enter предъявить');

@@ -8,11 +8,10 @@ import {
 import { World } from '../../core/world';
 import { freshNeeds } from '../../data/catalog';
 import { type PlotNpcDef } from '../../data/plot';
-import { findClearArea, protectRoom, stampRoom, connectProtectedRoom } from '../shared';
+import { findClearArea, protectRoom, stampRoom, connectProtectedRoom, rng } from '../shared';
 import { Spr } from '../../render/sprite_index';
 import { registerKvSocialPressurePoi } from './social_pressure';
 import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
-import { rng, irand } from '../../core/rand';
 
 export interface SocialPoiRoom {
   room: Room;
@@ -20,6 +19,35 @@ export interface SocialPoiRoom {
   y: number;
   w: number;
   h: number;
+}
+
+export type KvSocialMapCueKind = 'repair' | 'bribe' | 'fight' | 'detour';
+
+export interface KvSocialMapCue {
+  id: string;
+  kind: KvSocialMapCueKind;
+  x: number;
+  y: number;
+  targetX: number;
+  targetY: number;
+  label: string;
+  shortLabel: string;
+  color: string;
+  doorIdx?: number;
+}
+
+const socialMapCues = new WeakMap<World, KvSocialMapCue[]>();
+
+export function registerKvSocialMapCue(world: World, cue: KvSocialMapCue): void {
+  const cues = socialMapCues.get(world) ?? [];
+  const existing = cues.findIndex(c => c.id === cue.id);
+  if (existing >= 0) cues[existing] = cue;
+  else cues.push(cue);
+  socialMapCues.set(world, cues);
+}
+
+export function getKvSocialMapCues(world: World): readonly KvSocialMapCue[] {
+  return socialMapCues.get(world) ?? [];
 }
 
 function socialPoiAreaScore(world: World, x: number, y: number, w: number, h: number): number {
@@ -200,8 +228,8 @@ export function placeDropNear(
   count = 1,
 ): void {
   for (let attempt = 0; attempt < 40; attempt++) {
-    const x = room.x + irand(1, Math.max(1, room.w - 2));
-    const y = room.y + irand(1, Math.max(1, room.h - 2));
+    const x = room.x + rng(1, Math.max(1, room.w - 2));
+    const y = room.y + rng(1, Math.max(1, room.h - 2));
     const ci = world.idx(x, y);
     if (world.cells[ci] !== Cell.FLOOR) continue;
     entities.push({
@@ -226,7 +254,7 @@ export function spawnSocialNpc(
   const px = x + 0.5;
   const py = y + 0.5;
   requireSpawnedPlotNpcFromPackage(entities, nextId, plotNpcId, px, py, {
-    angle: rng() * Math.PI * 2,
+    angle: Math.random() * Math.PI * 2,
     weapon: opts.weapon,
     isTraveler: opts.traveler,
     aiTarget: { x: px, y: py },
@@ -239,7 +267,7 @@ export function spawnSocialNpc(
 
 export function spawnAmbientNpc(
   entities: Entity[],
-  _nextId: { v: number },
+  nextId: { v: number },
   name: string,
   faction: Faction,
   occupation: Occupation,
@@ -249,15 +277,15 @@ export function spawnAmbientNpc(
   weapon?: string,
 ): void {
   entities.push({
-    id: -1, type: EntityType.NPC,
+    id: nextId.v++, type: EntityType.NPC,
     x: x + 0.5, y: y + 0.5,
-    angle: rng() * Math.PI * 2, pitch: 0,
+    angle: Math.random() * Math.PI * 2, pitch: 0,
     alive: true, speed: occupation === Occupation.CHILD ? 0.8 : 1.0,
     sprite: occupation,
     spriteScale: occupation === Occupation.CHILD ? 0.6 : undefined,
     name,
     needs: freshNeeds(), hp: occupation === Occupation.CHILD ? 35 : 85, maxHp: occupation === Occupation.CHILD ? 35 : 85,
-    money: irand(0, 20),
+    money: rng(0, 20),
     ai: { goal: AIGoal.IDLE, tx: x + 0.5, ty: y + 0.5, path: [], pi: 0, stuck: 0, timer: 0 },
     inventory: inventory.map(i => ({ ...i })),
     weapon,

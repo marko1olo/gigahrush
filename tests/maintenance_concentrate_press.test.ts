@@ -4,6 +4,7 @@ import * as assert from 'node:assert/strict';
 import {
   ContainerKind,
   Faction,
+  FloorLevel,
   RoomType,
   Tex,
   type Entity,
@@ -42,7 +43,7 @@ test('Maintenance concentrate press places owned output and quarantine container
 
 test('Concentrate press bad batch jams production until a gear repair is supplied', () => {
   const state = makeGameState({
-    currentZ: -26,
+    currentFloor: FloorLevel.MAINTENANCE,
     time: 1000,
     worldEvents: createWorldEventState(),
   });
@@ -61,7 +62,7 @@ test('Concentrate press bad batch jams production until a gear repair is supplie
     id: 1,
     x: 12,
     y: 12,
-    z: -14,
+    floor: FloorLevel.MAINTENANCE,
     roomId: room.id,
     zoneId: 0,
     kind: ContainerKind.METAL_CABINET,

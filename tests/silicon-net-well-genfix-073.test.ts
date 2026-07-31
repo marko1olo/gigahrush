@@ -57,7 +57,7 @@ function nearbySupportRooms(world: ReturnType<typeof generateDesignFloor>['world
 function isAmbientNpcTemplate(entity: Entity): boolean {
   return entity.type === EntityType.NPC &&
     entity.alive &&
-    (entity as any).npcPackageId === undefined &&
+    entity.plotNpcId === undefined &&
     entity.persistentNpcId === undefined &&
     entity.alifeId === undefined &&
     entity.questId === -1 &&

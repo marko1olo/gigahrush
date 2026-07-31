@@ -5,7 +5,7 @@ import { ContainerKind, ItemType, RoomType } from '../src/core/types';
 import { CONTAINER_DEFS } from '../src/data/container_defs';
 import { ITEMS, ITEM_TAGS } from '../src/data/items';
 import { RESOURCE_BY_ID, resourceForItem } from '../src/data/resources';
-import { BLACK_MARKET_88_STOCK } from '../src/gen/black_market_88';
+import { BLACK_MARKET_88_STOCK } from '../src/gen/design_floors/black_market_88';
 
 const ITEM_ID = 'moonshine_still_part';
 

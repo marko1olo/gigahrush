@@ -1,6 +1,7 @@
 import {
   EntityType,
   type Entity,
+  type FloorLevel,
   type GameState,
   type WorldEvent,
 } from '../core/types';
@@ -23,7 +24,6 @@ import {
   type AlifeNpcSnapshot,
   currentAlifeFloorKey,
 } from './alife';
-import { isPlotNpc } from '../data/plot';
 import {
   ensureAlifeMobilityState,
   startActiveAlifeDeparture,
@@ -77,7 +77,7 @@ interface DemosSocialFeedbackState {
 
 type DemosSocialFeedbackHost = GameState & {
   demosSocialFeedback?: DemosSocialFeedbackState;
-  floorRun?: { specs?: Record<string, { z?: number; baseFloor?: number }> };
+  floorRun?: { specs?: Record<string, { z?: number; baseFloor?: FloorLevel }> };
 };
 
 const DEFAULT_EVENT_LIMIT = 24;
@@ -315,9 +315,9 @@ export function processDemosSocialFeedbackEvents(
   return feedback.lastSummary;
 }
 
-function proceduralSpecsContext(state: GameState): { proceduralSpecs?: Readonly<Record<string, { z?: number; baseFloor?: number }>> } {
+function proceduralSpecsContext(state: GameState): { proceduralSpecs?: Readonly<Record<string, { z?: number; baseFloor?: FloorLevel }>> } {
   const specs = (state as DemosSocialFeedbackHost).floorRun?.specs;
-  return { proceduralSpecs: specs as Readonly<Record<string, { z?: number; baseFloor?: number }>> | undefined };
+  return { proceduralSpecs: specs as Readonly<Record<string, { z?: number; baseFloor?: FloorLevel }>> | undefined };
 }
 
 function activeEntityForAlifeId(entities: readonly Entity[] | undefined, alifeId: number): Entity | undefined {
@@ -332,14 +332,14 @@ function routeAllowsNpcDestination(state: GameState, floorKey: string): boolean 
 
 function ordinaryRecordAllowed(record: AlifeNpcSnapshot, allowPlotOrReserved: boolean): boolean {
   if (record.dead) return false;
-  if (!allowPlotOrReserved && (record.plotNpcId !== undefined || record.reservedKind || record.reservedIdentityId === 'player')) return false;
+  if (!allowPlotOrReserved && (record.plotNpcId || record.reservedKind || record.reservedIdentityId === 'player')) return false;
   return true;
 }
 
 function activeEntityAllowed(state: GameState, entity: Entity | undefined): boolean {
   if (!entity) return true;
   if (isPlayerEntity(entity) || isNativePlayerBodyEntity(entity) || entity.persistentNpcId === 'player') return false;
-  if (isPlotNpc(entity)) return false;
+  if (entity.plotNpcId) return false;
   if (entity.questId !== undefined && entity.questId !== -1) return false;
   if (entity.canGiveQuest === true) return false;
   if (state.showNpcMenu && state.npcMenuTarget === entity.id) return false;

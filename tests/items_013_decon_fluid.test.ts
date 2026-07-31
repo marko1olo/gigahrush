@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { EntityType, ItemType, RoomType, type Entity } from '../src/core/types';
+import { EntityType, FloorLevel, ItemType, RoomType, type Entity } from '../src/core/types';
 import { World } from '../src/core/world';
 import { ITEM_TAGS, ITEMS } from '../src/data/items';
 import { resourceForItem } from '../src/data/resources';
@@ -66,7 +66,7 @@ test('using decon fluid cleans nearby slime or fungus hazards and publishes clea
   });
 
   const player = makeTestPlayer({ id: 77, x: 12.5, y: 12.5 });
-  const state = makeGameState({ currentZ: -26, time: 12 });
+  const state = makeGameState({ currentFloor: FloorLevel.MAINTENANCE, time: 12 });
   assert.equal(addItem(player, 'decon_fluid', 1), true);
   assert.equal(getInventorySlotActionInfo(player, 0)?.useLabel, 'Enter зачистить');
   assert.ok(getCellHazardMoveMultiplier(world, player) < 1, 'test hazard should slow before cleanup');
@@ -90,7 +90,7 @@ test('decon fluid is not consumed when no cleanable hazard is nearby', () => {
   const world = new World();
   addTestRoom(world, { id: 1, type: RoomType.PRODUCTION, x: 10, y: 10, w: 8, h: 8 });
   const player = makeTestPlayer({ x: 12.5, y: 12.5, inventory: [{ defId: 'decon_fluid', count: 1 }] });
-  const state = makeGameState({ currentZ: -26, time: 16 });
+  const state = makeGameState({ currentFloor: FloorLevel.MAINTENANCE, time: 16 });
 
   useItem(player, 0, state.msgs, 16, state, 0, world);
 
@@ -111,7 +111,7 @@ test('decon fluid neutralizes carnivorous fungus as a reagent counterplay', () =
   });
   const player = makeTestPlayer({ id: 91, x: 12.5, y: 12.5, inventory: [{ defId: 'decon_fluid', count: 1 }] });
   const entities: Entity[] = [];
-  const state = makeGameState({ currentZ: 0, time: 20 });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING, time: 20 });
 
   assert.equal(tryUseCarnivorousFungus(world, entities, { v: 1 }, player, state), true);
 

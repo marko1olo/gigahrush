@@ -1,7 +1,7 @@
-import { Faction, Occupation } from '../core/types';
+import { Faction, FloorLevel, Occupation } from '../core/types';
 import type { SamosborVariantId } from './samosbor_variants';
 
-export type EconomyFloorRef = number | string;
+export type EconomyFloorRef = FloorLevel | string;
 
 export type EconomyRouteDecisionId = 'sell_sample' | 'pay_debt' | 'steal' | 'risky_job' | 'report';
 
@@ -75,17 +75,17 @@ export const BLACK_MARKET_88_ROUTE_RESOURCE_IDS = [
 ] as const;
 
 export const ECONOMY_DEMAND_RULES: readonly EconomyDemandRule[] = [
-  { floor: 30, resourceId: 'documents', multiplier: 1.36, reason: 'ministry_document_demand', tags: ['ministry', 'documents'] },
-  { floor: 30, resourceId: 'paper', multiplier: 1.28, reason: 'ministry_paper_queue', tags: ['ministry', 'paper'] },
-  { floor: 30, resourceId: 'medicine', multiplier: 1.12, reason: 'ministry_clinic_queue', tags: ['ministry', 'medicine'] },
-  { floor: 30, resourceId: 'food', multiplier: 1.10, reason: 'ministry_canteen_queue', tags: ['ministry', 'food'] },
+  { floor: FloorLevel.MINISTRY, resourceId: 'documents', multiplier: 1.36, reason: 'ministry_document_demand', tags: ['ministry', 'documents'] },
+  { floor: FloorLevel.MINISTRY, resourceId: 'paper', multiplier: 1.28, reason: 'ministry_paper_queue', tags: ['ministry', 'paper'] },
+  { floor: FloorLevel.MINISTRY, resourceId: 'medicine', multiplier: 1.12, reason: 'ministry_clinic_queue', tags: ['ministry', 'medicine'] },
+  { floor: FloorLevel.MINISTRY, resourceId: 'food', multiplier: 1.10, reason: 'ministry_canteen_queue', tags: ['ministry', 'food'] },
 
-  { floor: 14, resourceId: 'drink_water', multiplier: 1.34, reason: 'kvartiry_water_queue', tags: ['kvartiry', 'water'] },
-  { floor: 14, resourceId: 'food', multiplier: 1.24, reason: 'kvartiry_food_queue', tags: ['kvartiry', 'food'] },
-  { floor: 14, resourceId: 'medicine', multiplier: 1.18, reason: 'kvartiry_medicine_queue', tags: ['kvartiry', 'medicine'] },
+  { floor: FloorLevel.KVARTIRY, resourceId: 'drink_water', multiplier: 1.34, reason: 'kvartiry_water_queue', tags: ['kvartiry', 'water'] },
+  { floor: FloorLevel.KVARTIRY, resourceId: 'food', multiplier: 1.24, reason: 'kvartiry_food_queue', tags: ['kvartiry', 'food'] },
+  { floor: FloorLevel.KVARTIRY, resourceId: 'medicine', multiplier: 1.18, reason: 'kvartiry_medicine_queue', tags: ['kvartiry', 'medicine'] },
 
-  { floor: 0, resourceId: 'food', multiplier: 1.08, reason: 'living_food_baseline', tags: ['living', 'food'] },
-  { floor: 0, resourceId: 'contraband', multiplier: 1.12, reason: 'living_contraband_appetite', tags: ['living', 'contraband'] },
+  { floor: FloorLevel.LIVING, resourceId: 'food', multiplier: 1.08, reason: 'living_food_baseline', tags: ['living', 'food'] },
+  { floor: FloorLevel.LIVING, resourceId: 'contraband', multiplier: 1.12, reason: 'living_contraband_appetite', tags: ['living', 'contraband'] },
 
   { floor: ECONOMY_ROUTE_BLACK_MARKET_88, resourceId: 'slime_samples', multiplier: 1.42, reason: 'market88_sample_buyer', tags: ['market88', 'sample', 'black_market'] },
   { floor: ECONOMY_ROUTE_BLACK_MARKET_88, resourceId: 'contraband', multiplier: 1.34, reason: 'market88_contraband_layer', tags: ['market88', 'contraband', 'govnyak'] },
@@ -98,18 +98,18 @@ export const ECONOMY_DEMAND_RULES: readonly EconomyDemandRule[] = [
   { floor: ECONOMY_ROUTE_BLACK_MARKET_88, resourceId: 'electronics', multiplier: 1.10, reason: 'market88_floor69_parts', tags: ['market88', 'production', 'floor_69'] },
   { floor: ECONOMY_ROUTE_BLACK_MARKET_88, resourceId: 'industrial_slurry', multiplier: 1.08, reason: 'market88_production_scrap', tags: ['market88', 'production'] },
 
-  { floor: -26, resourceId: 'metal', multiplier: 1.12, reason: 'maintenance_repair_demand', tags: ['maintenance', 'metal'] },
-  { floor: -26, resourceId: 'tools', multiplier: 1.10, reason: 'maintenance_tool_demand', tags: ['maintenance', 'tools'] },
-  { floor: -26, resourceId: 'fuel', multiplier: 1.22, reason: 'maintenance_fuel_demand', tags: ['maintenance', 'fuel'] },
-  { floor: -26, resourceId: 'electronics', multiplier: 1.18, reason: 'maintenance_electronics_demand', tags: ['maintenance', 'electronics'] },
+  { floor: FloorLevel.MAINTENANCE, resourceId: 'metal', multiplier: 1.12, reason: 'maintenance_repair_demand', tags: ['maintenance', 'metal'] },
+  { floor: FloorLevel.MAINTENANCE, resourceId: 'tools', multiplier: 1.10, reason: 'maintenance_tool_demand', tags: ['maintenance', 'tools'] },
+  { floor: FloorLevel.MAINTENANCE, resourceId: 'fuel', multiplier: 1.22, reason: 'maintenance_fuel_demand', tags: ['maintenance', 'fuel'] },
+  { floor: FloorLevel.MAINTENANCE, resourceId: 'electronics', multiplier: 1.18, reason: 'maintenance_electronics_demand', tags: ['maintenance', 'electronics'] },
 
-  { floor: -36, resourceId: 'medicine', multiplier: 1.34, reason: 'hell_trauma_demand', tags: ['hell', 'medicine'] },
-  { floor: -36, resourceId: 'psi', multiplier: 1.30, reason: 'hell_psi_demand', tags: ['hell', 'psi'] },
-  { floor: -36, resourceId: 'fuel', multiplier: 1.18, reason: 'hell_burn_demand', tags: ['hell', 'fuel'] },
+  { floor: FloorLevel.HELL, resourceId: 'medicine', multiplier: 1.34, reason: 'hell_trauma_demand', tags: ['hell', 'medicine'] },
+  { floor: FloorLevel.HELL, resourceId: 'psi', multiplier: 1.30, reason: 'hell_psi_demand', tags: ['hell', 'psi'] },
+  { floor: FloorLevel.HELL, resourceId: 'fuel', multiplier: 1.18, reason: 'hell_burn_demand', tags: ['hell', 'fuel'] },
 
-  { floor: -50, resourceId: 'psi', multiplier: 1.42, reason: 'void_psi_demand', tags: ['void', 'psi'] },
-  { floor: -50, resourceId: 'electronics', multiplier: 1.22, reason: 'void_signal_demand', tags: ['void', 'electronics'] },
-  { floor: -50, resourceId: 'documents', multiplier: 1.18, reason: 'void_record_demand', tags: ['void', 'documents'] },
+  { floor: FloorLevel.VOID, resourceId: 'psi', multiplier: 1.42, reason: 'void_psi_demand', tags: ['void', 'psi'] },
+  { floor: FloorLevel.VOID, resourceId: 'electronics', multiplier: 1.22, reason: 'void_signal_demand', tags: ['void', 'electronics'] },
+  { floor: FloorLevel.VOID, resourceId: 'documents', multiplier: 1.18, reason: 'void_record_demand', tags: ['void', 'documents'] },
 ];
 
 export const ECONOMY_ROUTE_DECISION_RULES: readonly EconomyRouteDecisionRule[] = [
@@ -220,14 +220,14 @@ export const ECONOMY_ROUTE_SAMOSBOR_DEMAND_RULES: readonly EconomyRouteSamosborD
 ];
 
 export const ECONOMY_TARIFF_RULES: readonly EconomyTariffRule[] = [
-  { floor: 30, resourceId: 'documents', multiplier: 1.08, reason: 'ministry_stamp_tariff', tags: ['tariff', 'stamp'] },
-  { floor: 30, resourceId: 'paper', multiplier: 1.05, reason: 'ministry_form_tariff', tags: ['tariff', 'forms'] },
-  { floor: 14, resourceId: 'drink_water', multiplier: 1.05, reason: 'kvartiry_queue_tariff', tags: ['tariff', 'ration'] },
-  { floor: 14, resourceId: 'food', multiplier: 1.03, reason: 'kvartiry_ration_tariff', tags: ['tariff', 'ration'] },
-  { floor: -26, resourceId: 'metal', multiplier: 0.84, reason: 'maintenance_local_scrap', tags: ['tariff', 'local_supply'] },
-  { floor: -26, resourceId: 'tools', multiplier: 0.88, reason: 'maintenance_tool_exchange', tags: ['tariff', 'local_supply'] },
-  { floor: -36, multiplier: 1.08, reason: 'hell_hazard_tariff', tags: ['tariff', 'hazard'] },
-  { floor: -50, multiplier: 1.10, reason: 'void_anomaly_tariff', tags: ['tariff', 'anomaly'] },
+  { floor: FloorLevel.MINISTRY, resourceId: 'documents', multiplier: 1.08, reason: 'ministry_stamp_tariff', tags: ['tariff', 'stamp'] },
+  { floor: FloorLevel.MINISTRY, resourceId: 'paper', multiplier: 1.05, reason: 'ministry_form_tariff', tags: ['tariff', 'forms'] },
+  { floor: FloorLevel.KVARTIRY, resourceId: 'drink_water', multiplier: 1.05, reason: 'kvartiry_queue_tariff', tags: ['tariff', 'ration'] },
+  { floor: FloorLevel.KVARTIRY, resourceId: 'food', multiplier: 1.03, reason: 'kvartiry_ration_tariff', tags: ['tariff', 'ration'] },
+  { floor: FloorLevel.MAINTENANCE, resourceId: 'metal', multiplier: 0.84, reason: 'maintenance_local_scrap', tags: ['tariff', 'local_supply'] },
+  { floor: FloorLevel.MAINTENANCE, resourceId: 'tools', multiplier: 0.88, reason: 'maintenance_tool_exchange', tags: ['tariff', 'local_supply'] },
+  { floor: FloorLevel.HELL, multiplier: 1.08, reason: 'hell_hazard_tariff', tags: ['tariff', 'hazard'] },
+  { floor: FloorLevel.VOID, multiplier: 1.10, reason: 'void_anomaly_tariff', tags: ['tariff', 'anomaly'] },
 ];
 
 export const DEFAULT_TRADE_SPREAD: EconomyTradeSpreadRule = {

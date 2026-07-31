@@ -1,10 +1,9 @@
-import { getPlotNpcNumericId } from '../../data/npc_packages';
 /* -- AG65 white compulsion room: quiet NPC decision POI --------- */
 
 import { stampSurfaceSplat } from '../../systems/surface_marks';
 import {
   AIGoal, Cell, ContainerKind, DoorState, EntityType, Faction, Feature,
-  NpcState, Occupation, QuestType, RoomType, Tex,
+  FloorLevel, NpcState, Occupation, QuestType, RoomType, Tex,
   type Entity, type GameState, type Room, type WorldContainer, type WorldEvent,
 } from '../../core/types';
 import { World } from '../../core/world';
@@ -137,10 +136,10 @@ registerSideQuest(VICTIM_ID, NPC_DEFS[VICTIM_ID], []);
 registerSideQuest(NEIGHBOR_ID, NPC_DEFS[NEIGHBOR_ID], [
   {
     id: RESCUE_QUEST,
-    giverId: getPlotNpcNumericId(NEIGHBOR_ID)!,
+    giverNpcId: NEIGHBOR_ID,
     type: QuestType.TALK,
     desc: 'Даша У Порога: «Подойди к Тоне и выведи её от белого остатка. Говори по имени, смотри на неё, не на стену.»',
-    targetNpcId: getPlotNpcNumericId(VICTIM_ID)!,
+    targetNpcId: VICTIM_ID,
     rewardItem: 'water',
     rewardCount: 2,
     extraRewards: [{ defId: 'bread', count: 1 }],
@@ -153,7 +152,7 @@ registerSideQuest(NEIGHBOR_ID, NPC_DEFS[NEIGHBOR_ID], [
 registerSideQuest(LIQUIDATOR_ID, NPC_DEFS[LIQUIDATOR_ID], [
   {
     id: SEAL_QUEST,
-    giverId: getPlotNpcNumericId(LIQUIDATOR_ID)!,
+    giverNpcId: LIQUIDATOR_ID,
     type: QuestType.FETCH,
     desc: 'Клим Пломба: «Один тюбик герметика - и я закрою белую комнату по шву. Без герметика это просто створка на честном слове.»',
     targetItem: 'sealant_tube',
@@ -170,7 +169,7 @@ registerSideQuest(LIQUIDATOR_ID, NPC_DEFS[LIQUIDATOR_ID], [
 registerSideQuest(SCIENTIST_ID, NPC_DEFS[SCIENTIST_ID], [
   {
     id: SAMPLE_QUEST,
-    giverId: getPlotNpcNumericId(SCIENTIST_ID)!,
+    giverNpcId: SCIENTIST_ID,
     type: QuestType.FETCH,
     desc: 'Марк Пробник: «Возьми из лотка белый соскоб и сразу принеси мне. Не клади к еде, документам и своим оправданиям.»',
     targetItem: 'psi_dust',
@@ -187,7 +186,7 @@ registerSideQuest(SCIENTIST_ID, NPC_DEFS[SCIENTIST_ID], [
 registerSideQuest(WATCHER_ID, NPC_DEFS[WATCHER_ID], [
   {
     id: LOST_QUEST,
-    giverId: getPlotNpcNumericId(WATCHER_ID)!,
+    giverNpcId: WATCHER_ID,
     type: QuestType.FETCH,
     desc: 'Ефим Актовый: «Принеси расписку со стола. Если подпись есть, комната считается оставленной. Иногда это тоже выбор.»',
     targetItem: 'voluntary_receipt',
@@ -249,7 +248,7 @@ function handleWhiteCompulsionOutcome(state: GameState, event: WorldEvent): void
 
   publishEvent(state, {
     type: 'quest_completed',
-    z: 100,
+    floor: FloorLevel.LIVING,
     zoneId: event.zoneId,
     roomId: event.roomId,
     x: event.x,
@@ -394,7 +393,7 @@ function addSampleTray(world: World, room: Room): void {
     id: nextContainerId(world),
     x,
     y,
-    z: 100,
+    floor: FloorLevel.LIVING,
     roomId: room.id,
     zoneId: world.zoneMap[world.idx(x, y)],
     kind: ContainerKind.MEDICAL_CABINET,

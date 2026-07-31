@@ -4,7 +4,7 @@ import * as assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { QuestType, RoomType } from '../src/core/types';
+import { FloorLevel, QuestType, RoomType } from '../src/core/types';
 import { CONTRACTS, contractToQuest, questTargetEventData, questTargetRoute } from '../src/data/contracts';
 import {
   SMOKE_DEBUG_COMMAND_IDS,
@@ -76,7 +76,7 @@ test('expedition proof contract carries risk, container objective, reward, and r
   assert.ok(def, 'expedition proof contract definition must exist');
   assert.equal(def.title, 'Манометр для перепада');
   assert.equal(def.type, QuestType.FETCH);
-  assert.equal(def.target.z, -14);
+  assert.equal(def.target.floor, FloorLevel.MAINTENANCE);
   assert.equal(def.target.roomType, RoomType.PRODUCTION);
   assert.equal(def.target.zoneTag, 'pressure_station');
   assert.equal(def.targetItem, 'manometer');
@@ -94,11 +94,11 @@ test('expedition proof contract carries risk, container objective, reward, and r
 
   const quest = contractToQuest(def, 42);
   assert.equal(quest.contractId, EXPEDITION_PROOF_CONTRACT_ID);
-  assert.equal(quest.targetFloorZ, -14);
+  assert.equal(quest.targetFloor, FloorLevel.MAINTENANCE);
   assert.equal(quest.targetRoomType, RoomType.PRODUCTION);
   assert.equal(quest.targetZoneTag, 'pressure_station');
   assert.equal(quest.targetHint, def.target.hint);
-  assert.equal(quest.targetMarker?.z, -14);
+  assert.equal(quest.targetMarker?.floor, FloorLevel.MAINTENANCE);
   assert.equal(quest.targetMarker?.roomType, RoomType.PRODUCTION);
   assert.equal(quest.targetMarker?.zoneTag, 'pressure_station');
   assert.equal(quest.targetMarker?.risk, 2);

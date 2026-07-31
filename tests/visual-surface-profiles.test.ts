@@ -1,12 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { RoomType, Tex } from '../src/core/types';
+import { FloorLevel, RoomType, Tex } from '../src/core/types';
 import { DESIGN_FLOOR_ROUTES } from '../src/data/design_floors';
 import {
   themeForDesignRoute,
   themeForProceduralSpec,
-  themeForDesignFloor,
+  themeForStoryFloor,
 } from '../src/data/floor_theme_profiles';
 import {
   PROCEDURAL_FLOOR_ZS,
@@ -26,12 +26,12 @@ import {
 } from '../src/data/visual_surface_profiles';
 
 const ID_RE = /^[a-z][a-z0-9_]*$/;
-const VALID_FLOORS = new Set(DESIGN_FLOOR_ROUTES.map(r => r.z));
+const VALID_FLOORS = new Set(Object.values(FloorLevel).filter((value): value is FloorLevel => typeof value === 'number'));
 const VALID_ROOMS = new Set(Object.values(RoomType).filter((value): value is RoomType => typeof value === 'number'));
 const VALID_ROUTE_IDS = new Set(DESIGN_FLOOR_ROUTES.map(route => route.id));
 const VALID_PROFILE_IDS = new Set(VISUAL_SURFACE_PROFILES.map(profile => profile.id));
 const KNOWN_TAGS = new Set<string>([
-  ...DESIGN_FLOOR_ROUTES.map(r => r.id),
+  ...Object.values(FloorLevel).filter((value): value is string => typeof value === 'string').map(value => value.toLowerCase()),
   ...DESIGN_FLOOR_ROUTES.map(route => route.id),
   'admin',
   'archive',
@@ -104,7 +104,7 @@ test('visual surface profiles are unique bounded data rows', () => {
 });
 
 test('visual surface resolver is deterministic and mode bounded', () => {
-  const theme = themeForDesignFloor('living');
+  const theme = themeForStoryFloor(FloorLevel.LIVING);
   const a = resolveVisualSurfaceProfile(theme, { seed: 111, roomId: 9, roomType: RoomType.BATHROOM });
   const b = resolveVisualSurfaceProfile(theme, { seed: 111, roomId: 9, roomType: RoomType.BATHROOM });
   const c = resolveVisualSurfaceProfile(theme, { seed: 112, roomId: 9, roomType: RoomType.BATHROOM });
@@ -123,8 +123,8 @@ test('visual surface resolver is deterministic and mode bounded', () => {
 });
 
 test('current floor themes resolve finite visual surface profiles', () => {
-  for (const route of DESIGN_FLOOR_ROUTES) {
-    assertResolved(resolveVisualSurfaceProfile(themeForDesignFloor(route.id), { seed: 1001 }), `story:${route.id}`);
+  for (const floor of VALID_FLOORS) {
+    assertResolved(resolveVisualSurfaceProfile(themeForStoryFloor(floor), { seed: 1001 }), `story:${FloorLevel[floor]}`);
   }
   for (const route of DESIGN_FLOOR_ROUTES) {
     assertResolved(resolveVisualSurfaceProfile(themeForDesignRoute(route), { seed: 1002 }), `design:${route.id}`);
@@ -136,7 +136,7 @@ test('current floor themes resolve finite visual surface profiles', () => {
 });
 
 test('texture and room context select authored surface families without room names', () => {
-  const theme = themeForDesignFloor('kvartiry');
+  const theme = themeForStoryFloor(FloorLevel.KVARTIRY);
   assert.equal(resolveVisualSurfaceProfile(theme, { floorTex: Tex.F_TILE }).id, 'residential_tile');
   assert.equal(resolveVisualSurfaceProfile(theme, { wallTex: Tex.PIPE }).id, 'maintenance_service');
   assert.equal(resolveVisualSurfaceProfile(theme, { roomType: RoomType.PRODUCTION }).id, 'maintenance_service');

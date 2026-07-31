@@ -6,7 +6,7 @@ import { CONTAINER_DEFS } from '../src/data/container_defs';
 import { FACTORY_BY_ID, productionOutputResourceIds, productionRouteGoals } from '../src/data/factories';
 import { ITEMS, ITEM_TAGS } from '../src/data/items';
 import { RESOURCE_BY_ID, resourceForItem } from '../src/data/resources';
-import { BLACK_MARKET_88_STOCK } from '../src/gen/black_market_88';
+import { BLACK_MARKET_88_STOCK } from '../src/gen/design_floors/black_market_88';
 
 test('contraband shocker parts are reachable black-market electronics', () => {
   const def = ITEMS.contraband_shocker_parts;

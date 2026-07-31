@@ -2,7 +2,8 @@
 
 import { stampSurfaceSplat } from '../../systems/surface_marks';
 import {
-  Cell, ContainerKind, DoorState, EntityType, AIGoal, Faction, Feature, MonsterKind, Occupation, RoomType, Tex, msg,
+  Cell, ContainerKind, DoorState, EntityType, AIGoal, Faction, Feature, FloorLevel,
+  MonsterKind, Occupation, RoomType, Tex, msg,
   type Entity, type GameState, type Item, type WorldContainer, type WorldEvent, type WorldEventType,
 } from '../../core/types';
 import { World } from '../../core/world';
@@ -15,7 +16,6 @@ import { randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg'
 import { carveCorridor, findClearArea, placeDoorAt, stampRoom } from '../shared';
 import { isPlayerEntity } from '../../systems/player_actor';
 import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
-import { rng } from '../../core/rand';
 
 const CLERK_ID = 'floor20_void_protocol_clerk';
 const NEIGHBOR_ID = 'floor20_void_borrowed_neighbor';
@@ -204,7 +204,7 @@ function spawnTraceThreat(ctx: TraceSealContext, kind: MonsterKind, name: string
     type: EntityType.MONSTER,
     x: sx + 0.5,
     y: sy + 0.5,
-    angle: rng() * Math.PI * 2,
+    angle: Math.random() * Math.PI * 2,
     pitch: 0,
     alive: true,
     speed: scaleMonsterSpeed(def.speed, level),
@@ -396,7 +396,7 @@ function addTraceContainer(
     id,
     x: world.wrap(x),
     y: world.wrap(y),
-    z: 200,
+    floor: FloorLevel.VOID,
     roomId,
     zoneId: world.zoneMap[world.idx(x, y)],
     kind: ContainerKind.SECRET_STASH,

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { ItemType, RoomType } from '../src/core/types';
+import { FloorLevel, ItemType, RoomType } from '../src/core/types';
 import { CONTRACTS } from '../src/data/contracts';
 import { ITEM_TAGS, ITEMS } from '../src/data/items';
 import { RESOURCES, resourceForItem } from '../src/data/resources';
@@ -40,7 +40,7 @@ test('passport stub has reachable steal, reward, archive and black-market decisi
   assert.ok(CONTRACTS.some(contract => contract.rewardItem === ITEM_ID));
 
   const player = makeTestPlayer();
-  const state = makeGameState({ currentZ: 0, time: 99 });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING, time: 99 });
 
   assert.equal(addItem(player, ITEM_ID, 1), true);
   useItem(player, 0, state.msgs, state.time, state);

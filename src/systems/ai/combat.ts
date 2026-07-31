@@ -11,12 +11,12 @@ import {
   playHostilePsiCast, playHostileShotgun, playSoundAt,
 } from '../audio';
 import { applyDamageRelationPenalty, isHostile } from '../factions';
-import { calculateDamage, applyHitStaggerAndKnockback, calculateReloadTime } from '../combat';
+import { calculateDamage, applyHitStaggerAndKnockback } from '../combat';
 import { clearFogInZone } from '../samosbor';
 import { agiAttackSpeedMult, meleeDamage } from '../rpg';
 import { zhelemishIncomingMeleeDamage } from '../status';
 import { spawnBloodHit, spawnDeathPool } from '../blood_fx';
-import { consumeDurability, getWeaponStats, removeItem, addItem, pickupDrop } from '../inventory';
+import { consumeDurability, getWeaponStats, removeItem, addItem } from '../inventory';
 import { ITEMS } from '../../data/items';
 import { isDebugOnePunchManEnabled, keepDebugOnePunchManAlive } from '../debug_cheats';
 import { entityDisplayName } from '../../entities/monster';
@@ -25,7 +25,7 @@ import { Spr, hostileProjectileSprite } from '../../render/sprite_index';
 import { findCombatTarget, dropNpcInventory, deterministicScanCd, hasClearLineOfFire } from './monster';
 import { recordEntityKill } from '../alife_rating';
 import { recordPlayerDamage } from '../damage';
-import { ENTITY_MASK_MONSTER, ENTITY_MASK_ACTOR, ENTITY_MASK_ITEM_DROP, getEntityIndex } from '../entity_index';
+import { ENTITY_MASK_MONSTER, ENTITY_MASK_ACTOR, getEntityIndex } from '../entity_index';
 import { applyMonsterIncomingDamage } from '../monster_traits';
 import { publishWeaponNoise } from '../noise';
 import { getCurrentPlayerEntity, isPlayerEntity } from '../player_actor';
@@ -40,9 +40,6 @@ import {
   pushNpcLogMessage,
 } from './barks';
 import { selectMeleeTarget } from '../melee_targeting';
-import { publishEvent } from '../events';
-import { rng } from '../../core/rand';
-import { tryCombatOrbitStep } from './combat_orbit';
 
 /* ── Module-level bark refs (set each frame) ─────────────────── */
 let _barkMsgs: Msg[] = [];
@@ -58,35 +55,9 @@ const NPC_FLEE_SCAN_CD = 1.5;
 const NPC_FLEE_MONSTER_SCAN_CAP = 32;
 const fleeMonsterQuery: Entity[] = [];
 const npcMeleeHitQuery: Entity[] = [];
-const combatLootQuery: Entity[] = [];
-
-/* ── Combat loot grab: NPCs pick up nearby drops mid-fight ────── */
-const COMBAT_LOOT_SCAN_CD = 1.0;
-const COMBAT_LOOT_RANGE = 1.8;
-const COMBAT_LOOT_RANGE_SQ = COMBAT_LOOT_RANGE * COMBAT_LOOT_RANGE;
-
-function tryCombatLootGrab(world: World, e: Entity, dt: number): void {
-  const ai = e.ai!;
-  ai.combatLootCd = (ai.combatLootCd ?? 0) - dt;
-  if (ai.combatLootCd > 0) return;
-  ai.combatLootCd = COMBAT_LOOT_SCAN_CD;
-
-  const index = getEntityIndex();
-  const count = index.queryRadiusCapped(e.x, e.y, COMBAT_LOOT_RANGE, combatLootQuery, ENTITY_MASK_ITEM_DROP, 8);
-  let grabbed = false;
-  for (let i = 0; i < count; i++) {
-    const drop = combatLootQuery[i];
-    if (!drop.alive || drop.type !== EntityType.ITEM_DROP) continue;
-    const d2 = (drop.x - e.x) ** 2 + (drop.y - e.y) ** 2;
-    if (d2 > COMBAT_LOOT_RANGE_SQ) continue;
-    pickupDrop(world, drop, e, _barkMsgs, _barkTime);
-    grabbed = true;
-  }
-  if (grabbed) npcAutoEquipBestWeapon(e);
-}
 
 export function trySimulateNpcAmmoRestock(e: Entity, dt: number): void {
-  if (rng() > 0.1 * dt) return;
+  if (Math.random() > 0.02 * dt) return;
 
   const weaponId = e.weapon;
   if (!weaponId) return;
@@ -111,7 +82,7 @@ export function tryFleeFromMonster(
   const isCombatant = npcIsBrave(e);
   if (isCombatant) return false;
 
-  const ws = npcCombatItemId(e).ws;
+  const ws = getWeaponStats(e, npcCombatItemId(e));
   if (ws && (ws.dmg > 3 || ws.isRanged)) return false;
 
   const ai = e.ai!;
@@ -158,7 +129,8 @@ const NPC_COMBAT_RANGE = 8;
 const NPC_CHASE_RANGE = 18;
 const NPC_ATTACK_RANGE = 1.3;
 const NPC_COMBAT_CD = 1.2;
-const NPC_RANGED_MAX = 13.0;
+const NPC_RANGED_MAX = 12;
+const NPC_RANGED_MIN = 1.5;
 const NPC_RANGED_LOS_BREAK_CD = 0.45;
 const MELEE_KNOCKBACK_CAP = 0.65;
 const MELEE_STAGGER_CAP = 0.35;
@@ -199,7 +171,7 @@ function startFleeFromThreat(world: World, e: Entity, threat: Entity, dt: number
   if (len > 0.1) {
     nx = dx / len; ny = dy / len;
   } else {
-    const a = rng() * Math.PI * 2;
+    const a = Math.random() * Math.PI * 2;
     nx = Math.cos(a); ny = Math.sin(a);
   }
   const baseAngle = Math.atan2(ny, nx);
@@ -236,40 +208,36 @@ function npcIsBrave(e: Entity): boolean {
   return npcCombatProfile(e).brave;
 }
 
-function npcCombatItemScore(e: Entity, itemId: string | undefined, precomputedWs?: import('../../data/catalog').WeaponStats): number {
+function npcCombatItemScore(e: Entity, itemId: string | undefined): number {
   const id = itemId ?? '';
   if (!id) return 0;
-  const ws = precomputedWs ?? getWeaponStats(e, id);
+  const ws = getWeaponStats(e, id);
   if (!ws) return 0;
   if (ws.psiCost && (!e.rpg || e.rpg.psi < ws.psiCost)) return 0;
-  // NPC infinite ammo — don't gate combat score on inventory ammo
+  if (ws.isRanged && ws.ammoType && e.inventory?.some(slot => slot.defId === ws.ammoType && slot.count > 0) !== true) return 0;
   return ws.isRanged ? ws.dmg * (ws.pellets ?? 1) * 1.6 + (ws.aoeRadius ? 30 : 0) : ws.dmg;
 }
 
-function npcCombatItemId(e: Entity): { id: string; ws: import('../../data/catalog').WeaponStats } {
+function npcCombatItemId(e: Entity): string {
   const weaponId = e.weapon ?? '';
   const toolId = e.tool ?? '';
-  
-  const toolWs = toolId ? getWeaponStats(e, toolId) : WEAPON_STATS[''];
-  const toolScore = toolWs?.psiCost ? npcCombatItemScore(e, toolId, toolWs) : 0;
-  
-  const weaponWs = weaponId ? getWeaponStats(e, weaponId) : WEAPON_STATS[''];
-  const weaponScore = npcCombatItemScore(e, weaponId, weaponWs);
-  
-  return toolScore > weaponScore ? { id: toolId, ws: toolWs } : { id: weaponId, ws: weaponWs };
+  const toolWs = getWeaponStats(e, toolId);
+  const toolScore = toolWs?.psiCost ? npcCombatItemScore(e, toolId) : 0;
+  const weaponScore = npcCombatItemScore(e, weaponId);
+  return toolScore > weaponScore ? toolId : weaponId;
 }
 
-function npcThreatScore(e: Entity, precomputedWs?: import('../../data/catalog').WeaponStats): number {
-  const ws = precomputedWs ?? npcCombatItemId(e).ws;
+function npcThreatScore(e: Entity): number {
+  const ws = getWeaponStats(e, npcCombatItemId(e));
   const weapon = ws.isRanged ? ws.dmg * (ws.pellets ?? 1) * 1.6 : ws.dmg;
   const hp = Math.max(0, e.hp ?? 20) * 0.22;
   const level = Math.max(1, e.rpg?.level ?? 1) * 3;
   return hp + weapon + level;
 }
 
-function npcShouldFleeTarget(e: Entity, target: Entity, eWs?: import('../../data/catalog').WeaponStats): boolean {
+function npcShouldFleeTarget(e: Entity, target: Entity): boolean {
   if (npcIsBrave(e)) return false;
-  return npcThreatScore(e, eWs) < npcThreatScore(target) * NPC_FLEE_THREAT_RATIO;
+  return npcThreatScore(e) < npcThreatScore(target) * NPC_FLEE_THREAT_RATIO;
 }
 
 function livePlayerTarget(entities: readonly Entity[]): Entity | undefined {
@@ -279,10 +247,8 @@ function livePlayerTarget(entities: readonly Entity[]): Entity | undefined {
 export function tryFactionCombat(
   world: World, entities: Entity[], e: Entity, dt: number, _time: number, msgs: Msg[], nextId: { v: number }, state?: GameState, player?: Entity | null, options?: FactionCombatOptions,
 ): boolean {
-  tryCombatLootGrab(world, e, dt);
-  const combatItem = npcCombatItemId(e);
-  const weaponId = combatItem.id;
-  const ws = combatItem.ws;
+  const weaponId = npcCombatItemId(e);
+  const ws = getWeaponStats(e, weaponId);
   const rangedProfile = ws.isRanged ? npcRangedProfile(ws) : undefined;
   const isArmed = ws.dmg > 3 || ws.isRanged;
   const visualProjectiles = options?.visualProjectiles ?? true;
@@ -327,7 +293,7 @@ export function tryFactionCombat(
     }
     return false;
   }
-  if (damageThreat?.reaction === 'flee' || (damageThreat?.reaction !== 'fight' && npcShouldFleeTarget(e, target, ws))) {
+  if (damageThreat?.reaction === 'flee' || (damageThreat?.reaction !== 'fight' && npcShouldFleeTarget(e, target))) {
     ai.combatTargetId = target.id;
     return startFleeFromThreat(world, e, target, dt);
   }
@@ -340,7 +306,7 @@ export function tryFactionCombat(
   const bestDist = Math.sqrt(world.dist2(e.x, e.y, target.x, target.y));
   const atkSpeedMod = e.rpg ? agiAttackSpeedMult(e.rpg) : 1;
 
-  // Reload logic for NPC — universal attack cadence (melee: swing cooldown, ranged: magazine reload)
+  // Reload logic for NPC
   if (e.reloading) {
     e.reloadTimer = Math.max(0, (e.reloadTimer ?? 0) - dt);
     if (e.reloadTimer <= 0) {
@@ -351,7 +317,7 @@ export function tryFactionCombat(
   }
   if (!ws.psiCost && (e.currentMag ?? 0) <= 0 && ws.magazineSize !== Infinity) {
     e.reloading = true;
-    e.reloadTimer = calculateReloadTime(ws.reloadTime ?? 1, e.rpg?.agi ?? 0);
+    e.reloadTimer = (ws.reloadTime ?? 1) / (e.rpg ? (1 + e.rpg.agi * 0.05) : 1);
     return true;
   }
   if (
@@ -421,9 +387,6 @@ export function tryFactionCombat(
         }
         npcAutoEquipBestWeapon(e);
       } else {
-        // Ranged NPC: orbit while waiting for attack cooldown
-        const idealR = (rangedProfile!.maxRange + rangedProfile!.minRange) * 0.5;
-        tryCombatOrbitStep(world, e, target, idealR, (rangedProfile!.maxRange - rangedProfile!.minRange) * 0.3, dt);
         return true;
       }
     }
@@ -433,7 +396,7 @@ export function tryFactionCombat(
   const meleeWs = ws;
   const meleeRange = meleeWs.range || NPC_ATTACK_RANGE;
   const effectiveReach = meleeRange + (meleeWs.hitRadius ?? 0.6);
-  if (bestDist > effectiveReach || !hasClearLineOfFire(world, e, target, effectiveReach + 0.5)) {
+  if (bestDist > effectiveReach) {
     if (ai.path.length === 0 || ai.timer <= 0) {
       tryAssignPathToCell(world, e, target.x, target.y);
       ai.timer = 2;
@@ -449,11 +412,11 @@ export function tryFactionCombat(
     const dy = world.delta(e.y, target.y);
     e.angle = Math.atan2(dy, dx); // ensure we face target before swinging
     
-    getEntityIndex().queryRadius(e.x, e.y, effectiveReach + 0.5, npcMeleeHitQuery, ENTITY_MASK_ACTOR);
+    getEntityIndex().queryRadius(e.x, e.y, effectiveReach, npcMeleeHitQuery, ENTITY_MASK_ACTOR);
     const hitTarget = selectMeleeTarget(world, e, npcMeleeHitQuery, meleeRange, weaponId);
     
     if (hitTarget) {
-      const baseDmg = meleeWs.dmg > 0 ? meleeWs.dmg : (5 + Math.floor(rng() * 8));
+      const baseDmg = meleeWs.dmg > 0 ? meleeWs.dmg : (5 + Math.floor(Math.random() * 8));
       const rawDmg = meleeDamage(e.rpg, weaponId, baseDmg);
       let dmg = zhelemishIncomingMeleeDamage(hitTarget, _time, rawDmg);
       if (hitTarget.type === EntityType.MONSTER) dmg = applyMonsterIncomingDamage(world, hitTarget, dmg);
@@ -497,8 +460,6 @@ export function tryFactionCombat(
     publishWeaponNoise(state, e, weaponId, meleeWs);
     e.attackCd = (meleeWs.speed || NPC_COMBAT_CD) * atkSpeedMod;
   }
-  // Orbit around target while in melee range (circle-strafe between attacks)
-  tryCombatOrbitStep(world, e, target, effectiveReach * 0.85, 0.4, dt);
   return true;
 }
 
@@ -537,8 +498,9 @@ function npcRangedProfile(ws: WeaponStats): NpcRangedProfile {
       : isShotgunLike || isFlame ? 9
         : NPC_RANGED_MAX;
   const minRange = isHeavy ? 4.2
-    : isFlame ? 2.0
-      : 0;
+    : isFlame ? 2.7
+      : isShotgunLike ? 2.3
+        : NPC_RANGED_MIN;
   return {
     minRange,
     maxRange,
@@ -579,7 +541,8 @@ function npcRangedCueColor(ws: WeaponStats): string {
 
 function npcCanStartRangedWindup(e: Entity, ws: WeaponStats): boolean {
   if (ws.psiCost) return !!e.rpg && e.rpg.psi >= ws.psiCost;
-  return true;
+  if (!ws.ammoType) return true;
+  return e.inventory?.some(slot => slot.defId === ws.ammoType && slot.count > 0) === true;
 }
 
 function npcCommitRangedShot(
@@ -595,17 +558,6 @@ function npcCommitRangedShot(
   time: number,
   state?: GameState,
 ): boolean {
-  if (state) {
-    publishEvent(state, {
-      type: 'faction_event',
-      x: e.x, y: e.y,
-      severity: 3,
-      privacy: 'public',
-      tags: ['gunfire'],
-      data: { volume: 40 }
-    });
-  }
-
   if (ws.psiCost) {
     if (!e.rpg || e.rpg.psi < ws.psiCost) return false;
     e.rpg.psi -= ws.psiCost;
@@ -622,7 +574,7 @@ function npcCommitRangedShot(
     return true;
   }
   if (ws.ammoType) {
-    removeItem(e, ws.ammoType, 1); // Consume if they have it, but don't fail if they don't
+    if (!removeItem(e, ws.ammoType, 1)) return false;
   }
   if (ws.magazineSize !== Infinity) {
     e.currentMag = Math.max(0, (e.currentMag ?? 0) - 1);
@@ -699,14 +651,8 @@ function npcFireProjectile(
   const pellets = ws.pellets ?? 1;
   const spread = ws.spread ?? 0;
   const spd = ws.projSpeed ?? 15;
-  // Compensate gravity so projectile arrives at target height instead of hitting the floor
-  const pt = ws.projType ?? ProjType.NORMAL;
-  const gravity = pt === ProjType.FLAME ? 1.8 : pt === ProjType.GRENADE ? 2.5 : pt === ProjType.BFG ? 0.3 : 1.2;
-  const dist = Math.sqrt(dx * dx + dy * dy);
-  const flightTime = dist / Math.max(1, spd);
-  const aimVz = 0.5 * gravity * flightTime;
   for (let p = 0; p < pellets; p++) {
-    const a = ang + (rng() - 0.5) * spread;
+    const a = ang + (Math.random() - 0.5) * spread;
     const cos = Math.cos(a);
     const sin = Math.sin(a);
     const proj: Entity = {
@@ -721,12 +667,11 @@ function npcFireProjectile(
       sprite: hostileProjectileSprite(ws.projSprite ?? Spr.BULLET),
       vx: cos * spd,
       vy: sin * spd,
-      vz: aimVz,
       projDmg: ws.dmg,
-      projLife: pt === ProjType.FLAME ? 0.7 : 3.0,
+      projLife: ws.projType === ProjType.FLAME ? 0.7 : 3.0,
       ownerId: e.id,
       weapon: weaponId,
-      spriteScale: pt === ProjType.FLAME ? 0.55 : 0.25,
+      spriteScale: ws.projType === ProjType.FLAME ? 0.55 : 0.25,
       spriteZ: 0.5,
       projType: ws.projType,
     };
@@ -739,7 +684,7 @@ function npcFireProjectile(
 }
 
 /* ── NPC: auto-equip best weapon from inventory ───────────────── */
-export function npcAutoEquipBestWeapon(e: Entity): void {
+function npcAutoEquipBestWeapon(e: Entity): void {
   if (!e.inventory) {
     e.weapon = '';
     if (getWeaponStats(e, e.tool ?? '')?.psiCost) e.tool = '';
@@ -752,6 +697,10 @@ export function npcAutoEquipBestWeapon(e: Entity): void {
   for (const slot of e.inventory) {
     const w = getWeaponStats(e, slot.defId);
     if (!w) continue;
+    if (w.isRanged && w.ammoType) {
+      const hasAmmo = e.inventory.some(s => s.defId === w.ammoType && s.count > 0);
+      if (!hasAmmo) continue;
+    }
     if (w.psiCost && (!e.rpg || e.rpg.psi < w.psiCost)) continue;
     const effectiveDmg = w.isRanged ? w.dmg * (w.pellets ?? 1) * 2 : w.dmg;
     if (w.psiCost) {
@@ -764,16 +713,7 @@ export function npcAutoEquipBestWeapon(e: Entity): void {
       bestWeaponId = slot.defId;
     }
   }
-  const prevWeapon = e.weapon;
   e.weapon = bestWeaponId;
   if (bestPsiId) e.tool = bestPsiId;
   else if (getWeaponStats(e, e.tool ?? '')?.psiCost) e.tool = '';
-  // Initialize magazine when equipping a new ranged weapon so NPC fires immediately
-  if (bestWeaponId && bestWeaponId !== prevWeapon) {
-    const newWs = getWeaponStats(e, bestWeaponId);
-    if (newWs?.isRanged && newWs.magazineSize !== Infinity) {
-      e.currentMag = newWs.magazineSize ?? 1;
-      e.reloading = false;
-    }
-  }
 }

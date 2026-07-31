@@ -4,24 +4,9 @@ import { stampSurfaceSplat } from '../../systems/surface_marks';
 import { Cell, EntityType, Faction, Feature, Occupation, RoomType, Tex } from '../../core/types';
 import { Spr } from '../../render/sprite_index';
 import { registerCellHazardSite } from '../../systems/cell_hazards';
-const SLIME_SCRAPER_ITEM = 'slime_scraper';import { type PlotNpcDef, registerAuthoredNpc } from '../../data/plot';
-import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
-
-const AMBIENT_NPC_0: PlotNpcDef = {
-  name: 'Трофим Санобход',
-  isFemale: false,
-  faction: Faction.CITIZEN,
-  occupation: Occupation.LOCKSMITH,
-  sprite: Occupation.LOCKSMITH,
-  hp: 50, maxHp: 50, money: 5, speed: 0.9,
-  inventory: [{ defId: SLIME_SCRAPER_ITEM, count: 1 }, { defId: 'cleaning_kit', count: 1 }, { defId: 'ammo_fuel', count: 1 }, { defId: 'water_coupon', count: 1 }],
-  talkLines: ['...'],
-  talkLinesPost: ['...']
-};
-registerAuthoredNpc({ id: 'maintenance_ambient_0_wo1ov', npc: AMBIENT_NPC_0 });
 import {
   type MaintContentCtx, dropItems, findMaintArea, setFeature, setWater,
-  stampMaintRoom,
+  spawnAmbientNpc, stampMaintRoom,
 } from './content_helpers';
 
 const ROOM_NAME = 'Сухой обход: коричневая слизь';
@@ -29,6 +14,7 @@ const BROWN_SAMPLE_ITEM = 'slime_sample_brown';
 const BROWN_LABEL_ITEM = 'slime_age_label_brown';
 const CLEANUP_ACT_ITEM = 'brown_slime_cleanup_act';
 const ALKALI_POWDER_ITEM = 'alkali_powder';
+const SLIME_SCRAPER_ITEM = 'slime_scraper';
 
 function addResidueCell(ctx: MaintContentCtx, cells: number[], roomId: number, x: number, y: number): void {
   const ci = ctx.world.idx(x, y);
@@ -112,5 +98,9 @@ export function generateBrownSlimeCleanup(ctx: MaintContentCtx): void {
   dropAt(ctx, room.x + 8, room.y + 5, 'cloth_roll');
   dropAt(ctx, room.x + 10, room.y + 3, 'note', 1,
     'Памятка санпоста: коричневую слизь считать токсичной до акта и после акта руками не трогать. Скребок годится для края пятна; комплект быстрее, огонь быстрее комплекта, но бензин не выдаётся повторно. Жидкость и фильтры списывать по факту дыхания. Пробу в пломбе можно сдать Боковой, прожечь в печи с щёлочной присыпкой или продать без журнала.');
-  requireSpawnedPlotNpcFromPackage(ctx.entities, ctx.nextId, 'maintenance_ambient_0_wo1ov', room.x + 2 + 0.5, room.y + room.h - 2 + 0.5, { angle: 0});
+  spawnAmbientNpc(
+    ctx, 'Трофим Санобход', Faction.CITIZEN, Occupation.LOCKSMITH,
+    room.x + 2, room.y + room.h - 2,
+    [{ defId: SLIME_SCRAPER_ITEM, count: 1 }, { defId: 'cleaning_kit', count: 1 }, { defId: 'ammo_fuel', count: 1 }, { defId: 'water_coupon', count: 1 }],
+  );
 }

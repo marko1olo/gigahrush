@@ -17,7 +17,6 @@ import { isDebugOnePunchManEnabled, keepDebugOnePunchManAlive } from './debug_ch
 import { ENTITY_MASK_NPC, ensureEntityIndex } from './entity_index';
 import { entitySpawnSlots } from './entity_limits';
 import { stampUrineTraceCadenced } from './urination';
-import { mathRng } from '../core/rand';
 
 // Rates per second
 const FOOD_RATE  = 0.08;
@@ -214,10 +213,10 @@ function applyNeedTick(
 
   // Player warnings
   if (e.id === playerId && (!state || !state.tutorialMode)) {
-    if (n.food  < 15 && mathRng() < 0.005) addMsg(msgs, 'Вы голодны...', time, '#da4');
-    if (n.water < 15 && mathRng() < 0.005) addMsg(msgs, 'Хочется пить...', time, '#48c');
-    if (n.sleep < 10 && mathRng() < 0.005) addMsg(msgs, 'Глаза закрываются...', time, '#a8f');
-    if (n.pee   > 85 && mathRng() < 0.005) addMsg(msgs, 'Нужен туалет...', time, '#da4');
+    if (n.food  < 15 && Math.random() < 0.005) addMsg(msgs, 'Вы голодны...', time, '#da4');
+    if (n.water < 15 && Math.random() < 0.005) addMsg(msgs, 'Хочется пить...', time, '#48c');
+    if (n.sleep < 10 && Math.random() < 0.005) addMsg(msgs, 'Глаза закрываются...', time, '#a8f');
+    if (n.pee   > 85 && Math.random() < 0.005) addMsg(msgs, 'Нужен туалет...', time, '#da4');
   }
 
   if (e.hp > 0) return { died: false, droppedItems: 0 };
@@ -250,8 +249,8 @@ function dropNpcInventory(entities: Entity[], e: Entity, nextId: { v: number } |
     dropped++;
     entities.push({
       id: nextId.v++, type: EntityType.ITEM_DROP,
-      x: e.x + (mathRng() - 0.5) * 0.5,
-      y: e.y + (mathRng() - 0.5) * 0.5,
+      x: e.x + (Math.random() - 0.5) * 0.5,
+      y: e.y + (Math.random() - 0.5) * 0.5,
       angle: 0, pitch: 0, alive: true, speed: 0, sprite: Spr.ITEM_DROP,
       inventory: [{ defId: item.defId, count: item.count, data: item.data }],
     });

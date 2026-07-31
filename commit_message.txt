@@ -1,6 +1,5 @@
-feat(marx_74): improve mobile touch controllers and UI
+🧪 Add missing edge case test for dist2
 
-- Increased virtual joystick dead zone and max radius by adding configuration in `JOYSTICK_CONFIG`.
-- Reduced touch move threshold to make the joystick more responsive.
-- Integrated haptic feedback (`navigator.vibrate`) for action and interact buttons via `triggerHapticFeedback`.
-- Increased visual size of the interaction button `[E]` and enhanced HUD background opacity in CSS to make mobile elements more distinguishable.
+🎯 **What:** The testing gap addressed is the lack of an edge case test for the wrapping logic in the `dist2` function in `src/core/world.ts`.
+📊 **Coverage:** The scenario where distances wrap around the edge of the toroidal world (e.g. from coordinates (1,1) to (1023,1023)) is now tested.
+✨ **Result:** The test coverage has improved by including this edge case, increasing the reliability of distance calculations in the codebase.

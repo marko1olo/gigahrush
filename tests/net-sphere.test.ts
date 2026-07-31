@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 
-import { type Entity, type GameState } from '../src/core/types';
+import { FloorLevel, type Entity, type GameState } from '../src/core/types';
 import worker from '../functions/worker';
 import { onRequestPost as postChat } from '../functions/api/net/chat';
 import {
@@ -19,7 +19,6 @@ import { onRequestGet as getStats } from '../functions/api/net/stats';
 const D1_SQL_FILES = [
   'cloudflare/d1/net_sphere.sql',
   'cloudflare/d1/net_sphere_names.sql',
-  'cloudflare/d1/net_sphere_v2.sql',
   'cloudflare/d1/net_sphere_market.sql',
 ];
 const SETUP_SQL_FILES = [
@@ -30,9 +29,9 @@ const SETUP_SQL_FILES = [
 const EXPECTED_D1_TABLE_COLUMNS: Record<string, string[]> = {
   net_players: [
     'net_gen', 'nickname', 'created_at', 'last_seen_at', 'runs', 'total_samosbors',
-    'deaths', 'best_level', 'best_samosbor_count', 'last_floor', 'total_sessions', 'progress_json',
+    'deaths', 'best_level', 'best_samosbor_count', 'last_floor', 'progress_json',
   ],
-  net_sessions: ['session_id', 'net_gen', 'last_seen_at', 'hosting_room'],
+  net_sessions: ['session_id', 'net_gen', 'last_seen_at'],
   net_events: ['event_key', 'net_gen', 'nickname', 'type', 'summary', 'created_at', 'payload_json'],
   net_chat: ['id', 'net_gen', 'body', 'created_at'],
   net_market_impulses: ['id', 'net_gen', 'corp_id', 'kind', 'magnitude', 'created_at', 'event_key'],
@@ -54,7 +53,6 @@ interface PlayerRow {
   best_level: number;
   best_samosbor_count: number;
   last_floor: string;
-  total_sessions: number;
   progress_json: string;
 }
 
@@ -62,7 +60,6 @@ interface SessionRow {
   session_id: string;
   net_gen: string;
   last_seen_at: number;
-  hosting_room: string;
 }
 
 interface ChatRow {
@@ -118,16 +115,8 @@ class FakeD1 implements D1Database {
       const cutoff = Number(values[0]);
       return { value: [...this.sessions.values()].filter(row => row.last_seen_at >= cutoff).length };
     }
-    if (query.includes('FROM net_players') && query.includes('COUNT(*) AS value')) {
-      return { 
-        value: this.players.size,
-        total_sessions: [...this.players.values()].reduce((sum, row) => sum + (row.total_sessions || 0), 0)
-      };
-    }
-    if (query.includes('ORDER BY RANDOM() LIMIT 1') && query.includes('FROM net_sessions')) {
-      const cutoff = Number(values[0]);
-      const validHosts = [...this.sessions.values()].filter(row => row.hosting_room && row.last_seen_at >= cutoff);
-      return validHosts[0] ? { hosting_room: validHosts[0].hosting_room } : null;
+    if (query.includes('COUNT(*) AS value FROM net_players')) {
+      return { value: this.players.size };
     }
     if (query.includes('SUM(total_samosbors)')) {
       return { value: [...this.players.values()].reduce((sum, row) => sum + row.total_samosbors, 0) };
@@ -187,16 +176,14 @@ class FakeD1 implements D1Database {
         best_level: Number(values[4]),
         best_samosbor_count: Number(values[5]),
         last_floor: String(values[6]),
-        total_sessions: Number(values[7] || 0),
-        progress_json: String(values[8]),
+        progress_json: String(values[7]),
       };
       row.nickname = nickname || row.nickname;
       row.last_seen_at = Number(values[3]);
       row.best_level = Math.max(row.best_level, Number(values[4]));
       row.best_samosbor_count = Math.max(row.best_samosbor_count, Number(values[5]));
       row.last_floor = String(values[6]) || row.last_floor;
-      row.total_sessions = Math.max(row.total_sessions, Number(values[7] || 0));
-      row.progress_json = String(values[8]);
+      row.progress_json = String(values[7]);
       this.players.set(netGen, row);
       return { meta: { changes: 1 } };
     }
@@ -205,7 +192,6 @@ class FakeD1 implements D1Database {
         session_id: String(values[0]),
         net_gen: String(values[1]),
         last_seen_at: Number(values[2]),
-        hosting_room: String(values[3] || ''),
       });
       return { meta: { changes: 1 } };
     }
@@ -443,32 +429,23 @@ function installNetSphereBrowser(): { document: FakeBrowserDocument; restore: ()
   const previousDocument = globalThis.document;
   const previousLocalStorage = globalThis.localStorage;
   const previousSessionStorage = globalThis.sessionStorage;
-  const netFlagHost = globalThis as { __GIGAHRUSH_NET_BACKEND__?: boolean };
-  const previousNetBackend = netFlagHost.__GIGAHRUSH_NET_BACKEND__;
   const document = new FakeBrowserDocument();
   globalThis.document = document as unknown as Document;
   globalThis.localStorage = new FakeBrowserStorage();
   globalThis.sessionStorage = new FakeBrowserStorage();
-  // Client tests simulate a net-enabled (Cloudflare/GitHub) build. The Net
-  // Sphere client only activates when a backend is deemed available
-  // (portalAllowsOptionalNetwork → netSphereBackendAvailable); without this flag
-  // the whole client is gated off exactly as on itch/pikabu, so heartbeat,
-  // offline transitions and chat UI never run.
-  netFlagHost.__GIGAHRUSH_NET_BACKEND__ = true;
   return {
     document,
     restore: () => {
       globalThis.document = previousDocument;
       globalThis.localStorage = previousLocalStorage;
       globalThis.sessionStorage = previousSessionStorage;
-      netFlagHost.__GIGAHRUSH_NET_BACKEND__ = previousNetBackend;
     },
   };
 }
 
 function minimalNetSphereState(): GameState {
   return {
-    currentZ: 0,
+    currentFloor: FloorLevel.LIVING,
     clock: { totalMinutes: 8 * 60, hour: 8, minute: 0 },
     samosborCount: 0,
     time: 0,
@@ -1344,7 +1321,7 @@ test('Net Sphere chat stores sanitized body and rate-limits same NET-GEN', async
     assert.equal(first.status, 200);
     assert.equal(chat.at(-1)?.body, 'привет script');
     assert.equal(chat.at(-1)?.nickname, 'Жилец');
-    assert.equal(chat.at(-1)?.netGen, '1ppz7g8846ylu'); // hash of NET-ABCD-1234
+    assert.equal(chat.at(-1)?.netGen, undefined);
 
     Date.now = () => 11_000;
     const second = await postChat({

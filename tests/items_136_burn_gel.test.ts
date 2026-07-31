@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { ItemType, RoomType } from '../src/core/types';
+import { FloorLevel, ItemType, RoomType } from '../src/core/types';
 import { ITEM_TAGS, ITEMS } from '../src/data/items';
 import { RESOURCES, resourceForItem } from '../src/data/resources';
 import { addItem, getInventorySlotActionInfo, inventoryItemCategory, useItem } from '../src/systems/inventory';
@@ -31,7 +31,7 @@ test('burn gel is reachable burn medicine in medical and HQ stock', () => {
 
 test('burn gel is a small consumable treatment decision', () => {
   const player = makeTestPlayer({ id: 136, hp: 40, maxHp: 80 });
-  const state = makeGameState({ currentZ: 0, time: 136 });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING, time: 136 });
 
   assert.equal(addItem(player, ITEM_ID, 1), true);
   assert.equal(getInventorySlotActionInfo(player, 0)?.useLabel, 'Enter применить');

@@ -1,4 +1,4 @@
-import { Entity, GameState, Item } from '../core/types';
+import { type Entity, type FloorLevel, type GameState, type Item } from '../core/types';
 import { ITEMS } from '../data/catalog';
 import { type EconomyFloorRef } from '../data/economy_rules';
 import { MAX_INVENTORY_SLOTS } from '../data/inventory_limits';
@@ -67,7 +67,7 @@ export interface CompletedTradeContext extends TradeHookContext {
 
 export interface TradeOptions {
   floor?: EconomyFloorRef;
-  stockFloor?: number;
+  stockFloor?: FloorLevel;
   zoneId?: number;
   tariffMultiplier?: number;
   tags?: readonly string[];
@@ -128,9 +128,9 @@ function quoteOptions(npc: Entity, opts: TradeOptions): EconomyQuoteOptions {
   };
 }
 
-function stockFloorForTrade(state: GameState, opts: TradeOptions): number {
+function stockFloorForTrade(state: GameState, opts: TradeOptions): FloorLevel {
   if (opts.stockFloor !== undefined) return opts.stockFloor;
-  return typeof opts.floor === 'number' ? opts.floor : state.currentZ;
+  return typeof opts.floor === 'number' ? opts.floor : state.currentFloor;
 }
 
 function decrementSlot(inv: Entity['inventory'], slotIndex: number): void {

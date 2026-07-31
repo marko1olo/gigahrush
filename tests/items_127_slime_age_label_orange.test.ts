@@ -1,11 +1,11 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { ItemType, RoomType } from '../src/core/types';
+import { FloorLevel, ItemType, RoomType } from '../src/core/types';
 import { ITEMS } from '../src/data/catalog';
 import { ITEM_TAGS, getStack } from '../src/data/items';
 import { RESOURCES, resourceForItem } from '../src/data/resources';
-import { generateSlimeNiiDesignFloor } from '../src/gen/slime_nii';
+import { generateSlimeNiiDesignFloor } from '../src/gen/design_floors/slime_nii';
 import { getRecentEvents } from '../src/systems/events';
 import { addItem, getInventorySlotActionInfo, inventoryItemCategory, useItem } from '../src/systems/inventory';
 import { countInventoryItem, makeGameState, makeTestPlayer } from './helpers';
@@ -48,7 +48,7 @@ test('orange slime age label is stealable from a locked slime NII camera', () =>
 
 test('orange slime age label can be sold instead of saved as evidence', () => {
   const player = makeTestPlayer();
-  const state = makeGameState({ currentZ: 0, time: 127 });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING, time: 127 });
 
   assert.equal(addItem(player, LABEL_ID, 1), true);
   assert.equal(getInventorySlotActionInfo(player, 0)?.useLabel, 'Enter проверить');

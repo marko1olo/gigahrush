@@ -1,9 +1,9 @@
-import { getPlotNpcNumericId } from '../../data/npc_packages';
 /* ── Monster_10: Насосная Матка — local water-pressure boss room ─ */
 
 import { stampSurfaceSplat } from '../../systems/surface_marks';
 import {
-  AIGoal, Cell, ContainerKind, EntityType, Faction, Feature, MonsterKind, Occupation, QuestType, RoomType, Tex, msg,
+  AIGoal, Cell, ContainerKind, EntityType, Faction, Feature, FloorLevel,
+  MonsterKind, Occupation, QuestType, RoomType, Tex, msg,
   type Entity, type GameState, type Room, type WorldContainer,
   type WorldEvent, type WorldEventSeverity,
 } from '../../core/types';
@@ -16,7 +16,6 @@ import {
   type MaintContentCtx, findMaintArea, openTile, setFeature, setWater,
   spawnPlotNpc, stampMaintRoom,
 } from './content_helpers';
-import { rng } from '../../core/rand';
 
 export const NASOSNAYA_MATKA_ID = 'nasosnaya_matka';
 
@@ -59,7 +58,7 @@ const KIRA_DEF: PlotNpcDef = {
 registerSideQuest(WATCHER_ID, KIRA_DEF, [
   {
     id: VALVE_QUEST_ID,
-    giverId: getPlotNpcNumericId(WATCHER_ID)!,
+    giverNpcId: WATCHER_ID,
     type: QuestType.FETCH,
     desc: 'Кира Манометр: «Сними три бирки с вентилей по сухому периметру. Давление уйдет в лотки, а не в тебя.»',
     targetItem: 'valve_tag',
@@ -76,7 +75,7 @@ registerSideQuest(WATCHER_ID, KIRA_DEF, [
   },
   {
     id: CORE_QUEST_ID,
-    giverId: getPlotNpcNumericId(WATCHER_ID)!,
+    giverNpcId: WATCHER_ID,
     type: QuestType.KILL,
     desc: 'Кира Манометр: «После трех вентилей добей Насосную Матку. До этого она только учит воду кусаться.»',
     targetMonsterKind: MonsterKind.MATKA,
@@ -122,8 +121,7 @@ function addContainer(
     id: nextContainerId(ctx),
     x: wx,
     y: wy,
-    // @ts-ignore
-    z: 140,
+    floor: FloorLevel.MAINTENANCE,
     roomId: room.id,
     zoneId: ctx.world.zoneMap[ci],
     ...container,
@@ -241,7 +239,6 @@ function addValveControl(
   setFeature(ctx.world, x, y, Feature.APPARATUS);
   setFeature(ctx.world, x + (lx < ROOM_W / 2 ? 1 : -1), y, Feature.MACHINE);
   stampSurfaceSplat(ctx.world, x, y, 0.5, 0.5, 0.42, 150, room.id * 1200 + valveNo, 125, 170, 120, true);
-  // @ts-ignore
   addContainer(ctx, room, x, y, {
     kind: ContainerKind.EMERGENCY_BOX,
     name: `Вентиль ${valveNo}: ${label}`,
@@ -260,7 +257,6 @@ function addRewardLocker(ctx: MaintContentCtx, room: Room): void {
   const x = room.x + 23;
   const y = room.y + 12;
   setFeature(ctx.world, x, y, Feature.SHELF);
-  // @ts-ignore
   addContainer(ctx, room, x, y, {
     kind: ContainerKind.TOOL_LOCKER,
     name: 'Сухой шкаф Насосной Матки',
@@ -304,7 +300,7 @@ function spawnNasosnayaMonster(
     type: EntityType.MONSTER,
     x: x + 0.5,
     y: y + 0.5,
-    angle: rng() * Math.PI * 2,
+    angle: Math.random() * Math.PI * 2,
     pitch: 0,
     alive: true,
     speed: scaleMonsterSpeed(def.speed, level) * (options.speedMult ?? 1),
@@ -347,7 +343,7 @@ function publishValveChange(
   const pressure = Math.max(0, 3 - closed);
   publishEvent(state, {
     type: 'player_use_item',
-    z: event.z,
+    floor: event.floor,
     zoneId: event.zoneId,
     roomId: event.roomId,
     x: event.x,
@@ -376,11 +372,11 @@ function publishCoreOutcome(state: GameState, event: WorldEvent): void {
   const closed = valvesClosed(state);
   const drained = closed >= 3;
   if (drained) {
-    const stockChanged = changeResourceStock(state, 'drink_water', 6, event.z);
+    const stockChanged = changeResourceStock(state, 'drink_water', 6, event.floor);
     state.msgs.push(msg('Насосная Матка захлебнулась. Шкаф на сухом острове можно разобрать спокойно.', state.time, '#6cf'));
     publishEvent(state, {
       type: 'room_produced_items',
-      z: event.z,
+      floor: event.floor,
       zoneId: event.zoneId,
       roomId: event.roomId,
       x: event.x,
@@ -412,7 +408,7 @@ function publishCoreOutcome(state: GameState, event: WorldEvent): void {
   state.msgs.push(msg('Матка умерла, но давление не сброшено: вода в лотках осталась злой.', state.time, '#f84'));
   publishEvent(state, {
     type: 'room_lacked_resources',
-    z: event.z,
+    floor: event.floor,
     zoneId: event.zoneId,
     roomId: event.roomId,
     x: event.x,

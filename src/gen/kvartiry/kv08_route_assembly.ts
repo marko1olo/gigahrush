@@ -1,11 +1,11 @@
 /* ── Маршрутный сход: три спорных выхода с этажа Квартир ─────── */
 
-import { getPlotNpcNumericId } from '../../data/npc_packages';
 import {
   Cell,
   ContainerKind,
   Faction,
   Feature,
+  FloorLevel,
   Occupation,
   QuestType,
   RoomType,
@@ -15,53 +15,14 @@ import {
   type WorldContainer,
 } from '../../core/types';
 import { World } from '../../core/world';
-import { type PlotNpcDef, registerSideQuest , registerAuthoredNpc } from '../../data/plot';
-
-const AMBIENT_NPC_0: PlotNpcDef = {
-  name: 'Ликвидатор с мелом',
-  isFemale: false,
-  faction: Faction.LIQUIDATOR,
-  occupation: Occupation.HUNTER,
-  sprite: Occupation.HUNTER,
-  hp: 50, maxHp: 50, money: 5, speed: 0.9,
-  inventory: [{ defId: 'ammo_9mm', count: 5 }],
-talkLines: ['Проходи своей дорогой.', 'Мне не до разговоров.'],
-talkLinesPost: ['...'],
-};
-registerAuthoredNpc({ id: 'kv_ambient_0_ofpl6', npc: AMBIENT_NPC_0 });
-
-const AMBIENT_NPC_1: PlotNpcDef = {
-  name: 'Соседка у цепочки',
-  isFemale: true,
-  faction: Faction.CITIZEN,
-  occupation: Occupation.HOUSEWIFE,
-  sprite: Occupation.HOUSEWIFE,
-  hp: 50, maxHp: 50, money: 5, speed: 0.9,
-  inventory: [{ defId: 'bread', count: 1 }],
-talkLines: ['Проходи своей дорогой.', 'Мне не до разговоров.'],
-talkLinesPost: ['...'],
-};
-registerAuthoredNpc({ id: 'kv_ambient_1_mdg3i', npc: AMBIENT_NPC_1 });
-
-const AMBIENT_NPC_2: PlotNpcDef = {
-  name: 'Бегунок восемьдесят восемь',
-  isFemale: true,
-  faction: Faction.WILD,
-  occupation: Occupation.TRAVELER,
-  sprite: Occupation.TRAVELER,
-  hp: 50, maxHp: 50, money: 5, speed: 0.9,
-  inventory: [{ defId: 'cigs', count: 2 }],
-talkLines: ['Проходи своей дорогой.', 'Мне не до разговоров.'],
-talkLinesPost: ['...'],
-};
-registerAuthoredNpc({ id: 'kv_ambient_2_797dt', npc: AMBIENT_NPC_2 });
-
+import { type PlotNpcDef, registerSideQuest } from '../../data/plot';
 import { publishEvent, registerWorldEventObserver } from '../../systems/events';
 import {
   createSocialPoiRoom,
   placeDropNear,
   roomCell,
   setFeatureIfFloor,
+  spawnAmbientNpc,
   spawnSocialNpc,
   type SocialPoiRoom,
 } from './social_helpers';
@@ -101,7 +62,7 @@ registerWorldEventObserver((state, event) => {
   if (!outcome) return;
   publishEvent(state, {
     type: 'faction_relation_changed',
-    z: 60,
+    floor: FloorLevel.KVARTIRY,
     zoneId: event.zoneId,
     roomId: event.roomId,
     actorId: event.actorId,
@@ -185,7 +146,7 @@ const SONYA: PlotNpcDef = {
 
 registerSideQuest('kv08_borya_prorez', BORYA, [{
   id: 'kv08_open_manhattan_crossroads',
-  giverId: getPlotNpcNumericId('kv08_borya_prorez')!,
+  giverNpcId: 'kv08_borya_prorez',
   type: QuestType.FETCH,
   desc: 'Исход: открыть шумный прорез к Манхэттенским перекрёсткам. Боря Прорез просит три трубы на распорки.',
   targetItem: 'pipe', targetCount: 3,
@@ -196,7 +157,7 @@ registerSideQuest('kv08_borya_prorez', BORYA, [{
 
 registerSideQuest('kv08_marina_ring', MARINA, [{
   id: 'kv08_hold_communal_ring',
-  giverId: getPlotNpcNumericId('kv08_marina_ring')!,
+  giverNpcId: 'kv08_marina_ring',
   type: QuestType.FETCH,
   desc: 'Исход: удержать тихую цепочку к Коммунальному кольцу. Марина Кольцевая просит четыре буханки для соседей у дверей.',
   targetItem: 'bread', targetCount: 4,
@@ -207,7 +168,7 @@ registerSideQuest('kv08_marina_ring', MARINA, [{
 
 registerSideQuest('kv08_sonya_88', SONYA, [{
   id: 'kv08_sell_market_88_lane',
-  giverId: getPlotNpcNumericId('kv08_sonya_88')!,
+  giverNpcId: 'kv08_sonya_88',
   type: QuestType.FETCH,
   desc: 'Исход: продать обход рынку 88. Соня Восьмая просит двенадцать бюллетеней для караванной очереди.',
   targetItem: 'ballot', targetCount: 12,
@@ -253,7 +214,7 @@ function addRouteContainer(
     id: nextContainerId(world),
     x: pos.x,
     y: pos.y,
-    z: 60,
+    floor: FloorLevel.KVARTIRY,
     roomId: poi.room.id,
     zoneId: world.zoneMap[world.idx(pos.x, pos.y)],
     kind,
@@ -308,9 +269,9 @@ export function generateKv08RouteAssembly(
   spawnSocialNpc(entities, nextId, MARINA, 'kv08_marina_ring', poi.x + 10, poi.y + 3);
   const sonyaId = nextId.v;
   spawnSocialNpc(entities, nextId, SONYA, 'kv08_sonya_88', poi.x + 17, poi.y + 3, { weapon: 'knife' });
-  spawnSocialNpc(entities, nextId, AMBIENT_NPC_0, 'kv_ambient_0_ofpl6', poi.x + 5, poi.y + 8, { weapon: 'makarov' });
-  spawnSocialNpc(entities, nextId, AMBIENT_NPC_1, 'kv_ambient_1_mdg3i', poi.x + 10, poi.y + 8);
-  spawnSocialNpc(entities, nextId, AMBIENT_NPC_2, 'kv_ambient_2_797dt', poi.x + 15, poi.y + 8, { weapon: 'pipe' });
+  spawnAmbientNpc(entities, nextId, 'Ликвидатор с мелом', Faction.LIQUIDATOR, Occupation.HUNTER, poi.x + 5, poi.y + 8, [{ defId: 'ammo_9mm', count: 5 }], 'makarov');
+  spawnAmbientNpc(entities, nextId, 'Соседка у цепочки', Faction.CITIZEN, Occupation.HOUSEWIFE, poi.x + 10, poi.y + 8, [{ defId: 'bread', count: 1 }]);
+  spawnAmbientNpc(entities, nextId, 'Бегунок восемьдесят восемь', Faction.WILD, Occupation.TRAVELER, poi.x + 15, poi.y + 8, [{ defId: 'cigs', count: 2 }], 'pipe');
 
   addRouteContainer(world, poi, 3, 2, 'Папка прореза к Перекрёсткам', ContainerKind.FILING_CABINET, [
     { defId: 'elevator_access_order', count: 1 },

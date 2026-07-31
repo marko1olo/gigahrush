@@ -1,7 +1,7 @@
 /* ── Creator (Творец) — late VOID green contour encounter ───── */
 /*   Local accounting error with ranged AoE splash attacks.       */
 
-import { MonsterKind } from '../core/types';
+import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
 import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
@@ -16,6 +16,7 @@ export const DEF: MonsterDef = {
   isRanged: true,
   projSpeed: 7.5,
   projSprite: 0,
+  floors: [FloorLevel.VOID],
   counterplay: 'Входите с полным запасом: держите укрытие между залпами, уходите из зелёного света и не тратьте рывок без выхода.',
   lootHint: 'пустотные шипы и квитанция контура без владельца',
   boss: {

@@ -105,13 +105,8 @@ function emptyDebugStats(): EntityIndexDebugStats {
   };
 }
 
-const HALF_W = W / 2;
-
 function wrappedDelta(from: number, to: number): number {
-  let d = to - from;
-  while (d > HALF_W) d -= W;
-  while (d < -HALF_W) d += W;
-  return d;
+  return ((to - from + W / 2) % W + W) % W - W / 2;
 }
 
 function wrappedBucketCoord(v: number): number {
@@ -141,7 +136,6 @@ export class EntityIndex {
   private readonly bucketVisits = new Uint32Array(BUCKET_COUNT);
   private bucketVisitId = 1;
   readonly byId = new Map<number, Entity>();
-  readonly byAlifeId = new Map<number, Entity>();
   private readonly entityOrder = new Map<number, number>();
   readonly ai: Entity[] = [];
   readonly actors: Entity[] = [];
@@ -186,7 +180,6 @@ export class EntityIndex {
     this.dynamicEntities.length = 0;
     this.staticIndexedIds.clear();
     this.byId.clear();
-    this.byAlifeId.clear();
     this.entityOrder.clear();
     this.ai.length = 0;
     this.actors.length = 0;
@@ -205,7 +198,6 @@ export class EntityIndex {
       if (!e || !e.alive) continue;
       liveEntityCount++;
       this.byId.set(e.id, e);
-      if (e.alifeId !== undefined) this.byAlifeId.set(e.alifeId, e);
       this.entityOrder.set(e.id, order);
       if (e.type === EntityType.NPC || e.type === EntityType.MONSTER) this.actors.push(e);
       if (e.type === EntityType.NPC) npcCount++;
@@ -262,7 +254,6 @@ export class EntityIndex {
     const startedAt = nowMs();
     this.clearDynamicBuckets();
     this.byId.clear();
-    this.byAlifeId.clear();
     this.entityOrder.clear();
     this.ai.length = 0;
     this.actors.length = 0;
@@ -284,14 +275,12 @@ export class EntityIndex {
       if (!e || !e.alive) {
         if (e) {
           this.byId.delete(e.id);
-          if (e.alifeId !== undefined) this.byAlifeId.delete(e.alifeId);
           this.entityOrder.delete(e.id);
         }
         continue;
       }
       liveDynamicEntityCount++;
       this.byId.set(e.id, e);
-      if (e.alifeId !== undefined) this.byAlifeId.set(e.alifeId, e);
       this.entityOrder.set(e.id, dynamicOrder);
       if (e.type === EntityType.NPC || e.type === EntityType.MONSTER) this.actors.push(e);
       if (e.type === EntityType.NPC) npcCount++;
@@ -383,7 +372,6 @@ export class EntityIndex {
         bucket[write++] = e;
         this.staticIndexedIds.add(e.id);
         this.byId.set(e.id, e);
-        if (e.alifeId !== undefined) this.byAlifeId.set(e.alifeId, e);
         this.entityOrder.set(e.id, Number.MAX_SAFE_INTEGER - liveCount);
         liveCount++;
         if (e.type === EntityType.ITEM_DROP) itemCount++;
@@ -400,7 +388,6 @@ export class EntityIndex {
       const e = entities[order];
       if (!e || !e.alive) continue;
       this.byId.set(e.id, e);
-      if (e.alifeId !== undefined) this.byAlifeId.set(e.alifeId, e);
       this.entityOrder.set(e.id, order);
       if ((entityMask(e) & ENTITY_MASK_STATIC_VISIBLE) !== 0) {
         if (this.staticIndexedIds.has(e.id)) continue;
@@ -603,30 +590,32 @@ export class EntityIndex {
         return;
       }
       if (out.length >= cap) {
-        const lastIdx = cap - 1;
+        const lastIdx = out.length - 1;
         if (d2 > distances[lastIdx] || (d2 === distances[lastIdx] && e.id >= ids[lastIdx])) return;
       }
-
-      let pos = out.length;
-      if (pos >= cap) {
-        pos = cap - 1;
-      } else {
-        out.push(e);
-        distances.push(d2);
-        ids.push(e.id);
-      }
-
+      out.push(e);
+      distances.push(d2);
+      ids.push(e.id);
+      let pos = out.length - 1;
       while (pos > 0) {
         const pd2 = distances[pos - 1];
         if (pd2 < d2 || (pd2 === d2 && ids[pos - 1] <= e.id)) break;
-        out[pos] = out[pos - 1];
-        ids[pos] = ids[pos - 1];
-        distances[pos] = distances[pos - 1];
+        const swapE = out[pos - 1];
+        const swapId = ids[pos - 1];
+        const swapD2 = distances[pos - 1];
+        out[pos - 1] = out[pos];
+        ids[pos - 1] = ids[pos];
+        distances[pos - 1] = distances[pos];
+        out[pos] = swapE;
+        ids[pos] = swapId;
+        distances[pos] = swapD2;
         pos--;
       }
-      out[pos] = e;
-      ids[pos] = e.id;
-      distances[pos] = d2;
+      if (out.length > cap) {
+        out.length = cap;
+        distances.length = cap;
+        ids.length = cap;
+      }
     };
     const bx = wrappedBucketCoord(x);
     const by = wrappedBucketCoord(y);
@@ -733,29 +722,32 @@ export class EntityIndex {
       if (out.length >= cap) {
         const worst = cap - 1;
         if (!candidateBetterThan(hitT, lateralD2, e.id, hitTs[worst], lateralDistances[worst], ids[worst])) return;
-      }
-
-      let pos = out.length;
-      if (pos >= cap) {
-        pos = cap - 1;
+        hitTs[worst] = hitT;
+        lateralDistances[worst] = lateralD2;
+        ids[worst] = e.id;
+        out[worst] = e;
       } else {
         hitTs.push(hitT);
         lateralDistances.push(lateralD2);
         ids.push(e.id);
         out.push(e);
       }
-
-      while (pos > 0 && candidateBetterThan(hitT, lateralD2, e.id, hitTs[pos - 1], lateralDistances[pos - 1], ids[pos - 1])) {
-        hitTs[pos] = hitTs[pos - 1];
-        lateralDistances[pos] = lateralDistances[pos - 1];
-        ids[pos] = ids[pos - 1];
-        out[pos] = out[pos - 1];
+      let pos = out.length - 1;
+      while (pos > 0 && candidateBetterThan(hitTs[pos], lateralDistances[pos], ids[pos], hitTs[pos - 1], lateralDistances[pos - 1], ids[pos - 1])) {
+        const swapHitT = hitTs[pos - 1];
+        const swapLateral = lateralDistances[pos - 1];
+        const swapId = ids[pos - 1];
+        const swapEntity = out[pos - 1];
+        hitTs[pos - 1] = hitTs[pos];
+        lateralDistances[pos - 1] = lateralDistances[pos];
+        ids[pos - 1] = ids[pos];
+        out[pos - 1] = out[pos];
+        hitTs[pos] = swapHitT;
+        lateralDistances[pos] = swapLateral;
+        ids[pos] = swapId;
+        out[pos] = swapEntity;
         pos--;
       }
-      hitTs[pos] = hitT;
-      lateralDistances[pos] = lateralD2;
-      ids[pos] = e.id;
-      out[pos] = e;
     };
 
     for (let i = 0; i <= steps; i++) {

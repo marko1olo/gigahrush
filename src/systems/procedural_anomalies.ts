@@ -150,7 +150,7 @@ export function proceduralAnomalyEventData(spec: ProceduralFloorSpec | undefined
 
 function smogRuntimeKey(state: GameState): string {
   const spec = currentProceduralFloorSpec(state);
-  if (!spec) return `z: ${state.currentZ}`;
+  if (!spec) return `floor:${state.currentFloor}`;
   return `${spec.key}:${spec.z}:${spec.seed}:${spec.anomalyId}`;
 }
 
@@ -652,7 +652,7 @@ function publishFalseSafeRumor(
     data: {
       anomalyId: 'false_safe_block',
       outcome,
-      roomDefId: room.name,
+      roomName: room.name,
       rumorIds: FALSE_SAFE_RUMOR_IDS,
       ...extra,
     },
@@ -714,7 +714,7 @@ function resolveFalseSafeMarker(
     tags: ['player', 'procedural', 'anomaly', FALSE_SAFE_BLOCK_TAG, 'cult', 'marker_resolved'],
     data: {
       anomalyId: 'false_safe_block',
-      roomDefId: room.name,
+      roomName: room.name,
       timerCost: 18 + spec.danger * 6,
       rumorIds: FALSE_SAFE_RUMOR_IDS,
     },

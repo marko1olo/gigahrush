@@ -23,19 +23,5 @@
       "database_name": "gigahrush-npc-intake",
       "database_id": "f4a9d06f-66f2-4335-8a9f-b2008c7f9c8c"
     }
-  ],
-  "durable_objects": {
-    "bindings": [
-      {
-        "name": "ONLINE_FLOORS",
-        "class_name": "FloorRoomDO"
-      }
-    ]
-  },
-  "migrations": [
-    {
-      "tag": "v1",
-      "new_sqlite_classes": ["FloorRoomDO"]
-    }
   ]
 }

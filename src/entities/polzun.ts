@@ -1,6 +1,6 @@
 /* ── Polzun — low crawling horror ─────────────────────────────── */
 
-import { MonsterKind } from '../core/types';
+import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
 import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
@@ -13,6 +13,7 @@ export const DEF: MonsterDef = {
   attackRate: 2.25,
   sprite: 0,   // auto-assigned by generateSprites()
   aiFlags: ['foodBait'],
+  floors: [FloorLevel.LIVING, FloorLevel.MAINTENANCE, FloorLevel.HELL],
   counterplay: 'Медленный, но в двери, ванной или воде уже рядом: отходите по прямой, не спиной к сантехнике, и уводите приманкой в сторону.',
   lootHint: 'мокрая ветошь, ванная грязь, редкий фильтрующий слой',
 };

@@ -7,7 +7,6 @@ import { makeTestNpc } from '../helpers';
 import * as memorySys from '../../src/systems/npc_memory';
 
 import { registerNpcSpeechPackage, clearNpcSpeechPackages } from '../../src/systems/npc_package_speech';
-import { _overrideRng, _restoreRng } from '../../src/core/rand';
 
 test.afterEach(() => {
   clearNpcSpeechPackages();
@@ -22,17 +21,18 @@ test('generateTalkText fallback lines', () => {
   memory.knownRumorIds.push('dummy');
 
   let randomCount = 0;
-  _overrideRng(() => {
+  const originalRandom = Math.random;
+  Math.random = () => {
     randomCount++;
     if (randomCount === 1) return 0.1; // return < 0.4 for state text
     return 0; // index 0
-  });
+  };
 
   try {
     const talkText = generateTalkText(npc, { time: 0 });
     assert.equal(talkText, 'Сплю, если тут вообще можно спать.');
   } finally {
-    _restoreRng();
+    Math.random = originalRandom;
   }
 });
 
@@ -44,10 +44,11 @@ test('generateTalkText rumor fallback', () => {
   memory.knownRumorIds.push('dummy');
 
   let randomCount = 0;
-  _overrideRng(() => {
+  const originalRandom = Math.random;
+  Math.random = () => {
     randomCount++;
     return 0.99; // bypass state text (< 0.4)
-  });
+  };
 
   try {
     const talkText = generateTalkText(npc, { time: 0 });
@@ -55,7 +56,7 @@ test('generateTalkText rumor fallback', () => {
     assert.equal(typeof talkText, 'string');
     assert.ok(talkText.length > 0);
   } finally {
-    _restoreRng();
+    Math.random = originalRandom;
   }
 });
 
@@ -127,13 +128,15 @@ test('generateTalkText with package but without locked lines', () => {
   const npc = makeTestNpc({ id: 10107 });
   // @ts-ignore
   npc.npcPackageId = 'test_unlocked_speech';
-  _overrideRng(() => 0.99); // bypass ai text
+
+  const originalRandom = Math.random;
+  Math.random = () => 0.99; // bypass ai text
   try {
     // Need to provide an empty state object to avoid undefined quest checks
     const talkText = generateTalkText(npc, { time: 0, state: { quests: [] } as any });
     assert.ok(talkText !== undefined);
   } finally {
-    _restoreRng();
+    Math.random = originalRandom;
   }
 });
 

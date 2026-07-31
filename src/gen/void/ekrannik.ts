@@ -8,6 +8,7 @@ import {
   DoorState,
   EntityType,
   Feature,
+  FloorLevel,
   MonsterKind,
   RoomType,
   Tex,
@@ -30,7 +31,6 @@ import { registerRouteCue } from '../../systems/route_cues';
 import { randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg';
 import { carveCorridor, findClearArea, placeDoorAt, stampRoom } from '../shared';
 import { SCREEN_FRAMES } from '../procedural_screens';
-import { rng } from '../../core/rand';
 
 export const EKRANNIK_ID = 'ekrannik';
 export const EKRANNIK_EVENT_READ = 'ekrannik_false_signal_read';
@@ -119,7 +119,7 @@ function findContextForContainer(event: WorldEvent): EkrannikContext | undefined
 }
 
 function findContextForMonster(event: WorldEvent): EkrannikContext | undefined {
-  if (event.targetId === undefined || event.z !== 200) return undefined;
+  if (event.targetId === undefined || event.floor !== FloorLevel.VOID) return undefined;
   for (let i = contexts.length - 1; i >= 0; i--) {
     const ctx = contexts[i];
     if (ctx.pressureMonsterIds.includes(event.targetId)) return ctx;
@@ -332,7 +332,7 @@ function addEkrannikContainer(
     id,
     x: world.wrap(x),
     y: world.wrap(y),
-    z: 200,
+    floor: FloorLevel.VOID,
     roomId: room.id,
     zoneId: world.zoneMap[ci],
     kind: ContainerKind.SECRET_STASH,
@@ -367,7 +367,7 @@ function spawnMonster(
     type: EntityType.MONSTER,
     x: world.wrap(x) + 0.5,
     y: world.wrap(y) + 0.5,
-    angle: rng() * Math.PI * 2,
+    angle: Math.random() * Math.PI * 2,
     pitch: 0,
     alive: true,
     speed: scaleMonsterSpeed(def.speed, level),
@@ -517,7 +517,7 @@ export function generateEkrannik(
     y: room.y + 5.5,
     targetX: room.x + room.w - 3.5,
     targetY: room.y + 5.5,
-    z: 200,
+    floor: FloorLevel.VOID,
     roomId: room.id,
     targetRoomId: room.id,
     zoneId: world.zoneMap[world.idx(room.x + 5, room.y + 5)],

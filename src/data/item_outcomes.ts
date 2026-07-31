@@ -1,5 +1,6 @@
 import {
   Faction,
+  FloorLevel,
   Occupation,
   type WorldEventPrivacy,
   type WorldEventSeverity,
@@ -13,7 +14,7 @@ export interface ItemOutcomeRuleMatch {
   buyerFactions?: readonly Faction[];
   buyerOccupations?: readonly Occupation[];
   buyerRoleTags?: readonly string[];
-  floorLevels?: readonly number[];
+  floorLevels?: readonly FloorLevel[];
   routeTags?: readonly string[];
   questTags?: readonly string[];
 }
@@ -107,7 +108,7 @@ export const ITEM_OUTCOME_RULES: readonly ItemOutcomeRule[] = [
     outcome: 'ministry',
     kind: 'handoff',
     match: {
-      floorLevels: [34],
+      floorLevels: [FloorLevel.MINISTRY],
       buyerPlotNpcIds: ['rotenbergov', 'kantselev'],
       buyerOccupations: [Occupation.DIRECTOR, Occupation.SECRETARY],
       buyerFactions: [Faction.CITIZEN],

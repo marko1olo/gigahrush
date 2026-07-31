@@ -64,7 +64,7 @@ function unpackStolenFilterPack(e: Entity) { addStackedUseOutput(e, 'gasmask_fil
 function unpackHomemade9mm(e: Entity) { addStackedUseOutput(e, 'ammo_9mm', 6); return 'Кустарные 9мм перебраны: шесть пригодных патронов переложены в обычный подсумок. Остальное лучше не показывать посту'; }
 function unpackChemicalShell(e: Entity) { addStackedUseOutput(e, 'decon_fluid', 1); return 'Химический патрон вскрыт: реагент перелит в флакон обеззараживания. Из обычного подсумка такой выстрел не собрать'; }
 
-export type ItemEquipSlot = 'weapon' | 'tool' | 'armor';
+export type ItemEquipSlot = 'weapon' | 'tool';
 
 export function itemDefHasTag(def: ItemDef, tag: string): boolean {
   return (ITEM_TAGS[def.id]?.includes(tag) ?? false) || (def.tags?.includes(tag) ?? false);
@@ -73,7 +73,6 @@ export function itemDefHasTag(def: ItemDef, tag: string): boolean {
 export function itemEquipSlot(def: ItemDef): ItemEquipSlot | null {
   if (def.type === ItemType.WEAPON) return itemDefHasTag(def, 'psi') ? 'tool' : 'weapon';
   if (def.type === ItemType.TOOL) return 'tool';
-  if (def.resistances) return 'armor';
   return null;
 }
 
@@ -152,8 +151,6 @@ export const ITEM_TAGS: Record<string, readonly string[]> = {
   electrode_pack: ['metal', 'repair', 'repair_input', 'factory_input', 'production', 'welding', 'trade'],
   noise_can: ['noise', 'decoy', 'counterplay'],
   radio_jammer: ['noise', 'jammer', 'counterplay'],
-  camera: ['electronics', 'contraband', 'trade'],
-  brass_knuckles: ['weapon', 'melee', 'contraband'],
   felt_door_pad: ['noise', 'quiet_door', 'counterplay'],
   rubber_door_wedge: ['repair', 'seal', 'hermodoor', 'counterplay'],
   wire_coil: ['repair', 'repair_input', 'electronics', 'wire', 'tool', 'production', 'source_old_boxes', 'source_cabinets', 'trade', 'emergency_panel', 'pneumomail'],
@@ -184,7 +181,7 @@ export const ITEM_TAGS: Record<string, readonly string[]> = {
   rubber_club: ['weapon', 'liquidator', 'control', 'melee_control', 'nonlethalish', 'tool'],
   slyoznev_pps41: ['weapon', 'liquidator', 'smg', 'ammo_9mm', 'ammo_burn', 'recruit_stash'],
   eralashnikov_auto: ['weapon', 'liquidator', 'rifle', 'ammo_762', 'ammo_burn', 'permit', 'issue_stash'],
-  ak47: ['weapon', 'old_world', 'rifle', 'ammo_burn', 'plot_reward'],
+  ak47: ['weapon', 'old_world', 'rifle', 'ammo_burn', 'story_reward'],
   flamethrower: ['weapon', 'industrial', 'flame', 'cleanup', 'slime_counterplay', 'fungus_counterplay', 'fuel_clear'],
   agnia_a130: ['weapon', 'liquidator', 'flame', 'cleanup', 'sanitary', 'slime_counterplay', 'technical_cleanup', 'fuel_clear'],
   nosin_rifle: ['weapon', 'militia', 'civilian_stash', 'rifle', 'ammo_762', 'trade'],
@@ -374,17 +371,6 @@ export const ITEM_TAGS: Record<string, readonly string[]> = {
 };
 
 export const ITEMS: Record<string, ItemDef> = {
-  'arena_gold_trophy': {
-    id: 'arena_gold_trophy',
-    type: 7, // ItemType.MISC
-    name: 'Золотой Кубок Арены',
-    desc: 'Тяжелый кубок из переплавленного металла мутантов. Доказательство абсолютного доминирования на Арене. Ликвидаторы смотрят на него с уважением.',
-    value: 1500,
-    stack: 1,
-    spawnRooms: [],
-    spawnW: 0,
-    tags: ['arena_reward', 'trophy'],
-  },
 
   // ── Armor ────────────────────────────────────────────────────────
   armor_light: { id: 'armor_light', name: 'Лёгкая броня', type: ItemType.MISC, desc: 'Базовая защита от кинетического урона и дроби.', spawnRooms: [RoomType.COMMON, RoomType.PRODUCTION], spawnW: 50, value: 500, resistances: { [DamageType.KINETIC]: 20, [DamageType.BUCKSHOT]: 30, [DamageType.FIRE]: 5 } },
@@ -478,7 +464,7 @@ export const ITEMS: Record<string, ItemDef> = {
   ppsh:      { id:'ppsh',      name:'ППШ',          type:ItemType.WEAPON,    desc:'Пистолет-пулемёт. Урон 8. Давит темпом и быстро съедает 9мм', spawnRooms:[RoomType.STORAGE], spawnW:1, value:1200 },
   shotgun:   { id:'shotgun',   name:'Обрез',        type:ItemType.WEAPON,    desc:'Обрез. Урон 12×7. Широкий близкий стоппер для коридора. Дробь',               spawnRooms:[RoomType.STORAGE],                  spawnW:1, value:950 },
   nailgun:   { id:'nailgun',   name:'Гвоздомёт',    type:ItemType.WEAPON,    desc:'Промышленный гвоздомёт. Урон 14. Точный рабочий выстрел, гвозди дефицитны',      spawnRooms:[RoomType.PRODUCTION],                  spawnW:1, value:360 },
-  ak47:      { id:'ak47',      name:'Калашников',    type:ItemType.WEAPON,    desc:'Старый АК-47 из довоенной оружейки. Урон 26. Точнее уставного автомата, но каждая очередь жжёт редкие 7.62.', spawnRooms:[], spawnW:0, value:5500, tags:['weapon','old_world','rifle','ammo_burn','plot_reward'] },
+  ak47:      { id:'ak47',      name:'Калашников',    type:ItemType.WEAPON,    desc:'Старый АК-47 из довоенной оружейки. Урон 26. Точнее уставного автомата, но каждая очередь жжёт редкие 7.62.', spawnRooms:[], spawnW:0, value:5500, tags:['weapon','old_world','rifle','ammo_burn','story_reward'] },
   machinegun:{ id:'machinegun', name:'Пулемёт',     type:ItemType.WEAPON,    desc:'ПКМ. Урон 13. Самый злой расход, широкий разброс. Ленточное питание', spawnRooms:[], spawnW:0, value:9000 },
   grenade:   { id:'grenade',   name:'Граната',      type:ItemType.WEAPON,   desc:'РГД-5. Урон 90 по площади. Кидай и прячься', spawnRooms:[RoomType.STORAGE], spawnW:1, value:160, stack:MAX_ITEM_STACK },
   gauss:     { id:'gauss',     name:'Гаусс-винтовка', type:ItemType.WEAPON,  desc:'Рельсотрон. Урон 180. Медленный точный выстрел за энергоячейку', spawnRooms:[], spawnW:0, value:60000 },
@@ -623,8 +609,6 @@ export const ITEMS: Record<string, ItemDef> = {
   junior_tech_case:{ id:'junior_tech_case', name:'Корпус «Юный техник»', type:ItemType.MISC, desc:'Пластиковый корпус набора радиолюбителя. В него помещается прибор, долг и маленькое жужжание.', spawnRooms:[RoomType.LIVING,RoomType.STORAGE,RoomType.OFFICE], spawnW:0.7, value:24, tags:[...ITEM_TAGS.junior_tech_case], stack:6 },
   sound_emitter:{ id:'sound_emitter', name:'Звукоизлучатель', type:ItemType.MISC, desc:'Пищалка из старого стенда. Не приманка: для неё есть банка. Эту деталь берегут для датчика, продают электрику или сдают в цех.', spawnRooms:[RoomType.OFFICE,RoomType.PRODUCTION,RoomType.STORAGE], spawnW:0.35, value:58, tags:[...ITEM_TAGS.sound_emitter], stack:4 },
   keyboard_unit:{ id:'keyboard_unit', name:'Клавиатура', type:ItemType.MISC, desc:'Блок клавиш от терминала. Половина букв стерта, зато E ещё нажимается.', spawnRooms:[RoomType.OFFICE,RoomType.STORAGE,RoomType.PRODUCTION], spawnW:0.6, value:32, tags:['electronics','terminal','repair'], stack:4 },
-  camera:{ id:'camera', name:'Фотоаппарат', type:ItemType.MISC, desc:'Старая мыльница со вспышкой. Снимает плохо, но для компромата или доказательств хватает.', spawnRooms:[RoomType.LIVING,RoomType.OFFICE], spawnW:0.2, value:140, tags:[...ITEM_TAGS.camera], stack:1 },
-  brass_knuckles: { id:'brass_knuckles', name:'Кастет', type:ItemType.WEAPON, desc:'Самодельный свинцовый кастет. Весит карман, бьёт кость. Прочность 80', spawnRooms:[RoomType.LIVING,RoomType.STORAGE], spawnW:0.1, value:90, tags:[...ITEM_TAGS.brass_knuckles] },
   screen_unit:{ id:'screen_unit', name:'Экран', type:ItemType.MISC, desc:'Малый экран с зелёным послесвечением. Терминал без него только слушает.', spawnRooms:[RoomType.OFFICE,RoomType.LIVING,RoomType.STORAGE,RoomType.PRODUCTION], spawnW:0.45, value:44, tags:['electronics','screen','terminal','repair'], stack:3 },
   krona_battery:{ id:'krona_battery', name:'Батарейка «Крона»', type:ItemType.MISC, desc:'Плоская батарейка для приборов, фонарей и тихих сделок с электриком. Сберечь для инструмента или продать как дефицит питания.', spawnRooms:[RoomType.LIVING,RoomType.OFFICE,RoomType.STORAGE], spawnW:0.8, value:18, tags:[...ITEM_TAGS.krona_battery], stack:8 },
   heating_element:{ id:'heating_element', name:'Нагревательный элемент', type:ItemType.MISC, desc:'Спираль из чайника, сушилки или подпольного аппарата. Сберегите для отогрева проб, варки браги или продажи электрику.', spawnRooms:[RoomType.KITCHEN,RoomType.PRODUCTION,RoomType.STORAGE], spawnW:0.55, value:38, tags:[...ITEM_TAGS.heating_element], stack:4 },
@@ -818,7 +802,6 @@ export const ITEMS: Record<string, ItemDef> = {
 
   // ── Инструменты и разное ──
   flashlight:{ id:'flashlight', name:'Фонарик',     type:ItemType.TOOL,      desc:'Узкий круг света для тёмных коридоров. Батарея: 10 игровых часов (5 минут)', spawnRooms:[RoomType.STORAGE,RoomType.LIVING,RoomType.PRODUCTION],  spawnW:1, value:150, durability:300 },
-  lighter:{ id:'lighter', name:'Зажигалка', type:ItemType.TOOL, desc:'Слабый огонек. Помогает осмотреться в полной темноте. Расходует бензин.', spawnRooms:[RoomType.STORAGE,RoomType.LIVING,RoomType.SMOKING,RoomType.BATHROOM], spawnW:1.5, value:40, durability:100 },
   liquidator_flashlamp:{ id:'liquidator_flashlamp', name:'Переносной прожектор', type:ItemType.TOOL, desc:'Тяжёлый ликвидаторский свет для тёмных залов. Светит шире фонарика, но замедляет шаг и быстрее ест батарею.', spawnRooms:[RoomType.HQ,RoomType.PRODUCTION], spawnW:0.28, value:620, durability:240 },
   uv_spotlight:{ id:'uv_spotlight', name:'УФ-прожектор ликвидатора', type:ItemType.TOOL, desc:'Штатный прожектор из шкафов зачистки. Слот инструмента, R: короткий направленный УФ-импульс по взгляду против глаз, духов и чёрных следов. Батарея: 36 импульсов', spawnRooms:[RoomType.HQ,RoomType.STORAGE], spawnW:0.12, value:950, durability:36 },
   jackhammer:{ id:'jackhammer', name:'Отбойный молоток', type:ItemType.TOOL, desc:'Сносит стены. Сильный износ: хватает на 10 блоков, выбирайте место заранее', spawnRooms:[RoomType.PRODUCTION,RoomType.STORAGE], spawnW:1, value:1500, durability:10 },
@@ -835,7 +818,6 @@ export const ITEMS: Record<string, ItemDef> = {
   note:      { id:'note',      name:'Записка',      type:ItemType.NOTE,     desc:'Чья-то записка: тайник, жалоба, адрес или предупреждение',         spawnRooms:[RoomType.LIVING,RoomType.COMMON,RoomType.STORAGE,RoomType.OFFICE], spawnW:1, value:1 },
 
   // ── Ключи ──
-  key_tutorial_apartment: { id: 'key_tutorial_apartment', name: 'Тяжелый ржавый ключ', type: ItemType.KEY, desc: 'Ключ от входной двери. Единственный способ выйти из блока в коридоры Гигахруща.', spawnRooms: [], spawnW: 0, value: 0, tags: ['quest', 'persistent', 'cannot_drop'] },
   tut_cafe_key:{ id:'tut_cafe_key', name:'Ключ от столовой', type:ItemType.KEY, desc:'Служебный ключ от стартовой зоны.', spawnRooms:[], spawnW:0, value:0 },
   key:       { id:'key',       name:'Ключ',         type:ItemType.KEY,      desc:'Подходит к конкретной двери. Сверяйте дверь, прежде чем бежать к ней на сирене',       spawnRooms:[],                                 spawnW:0, value:50 },
 

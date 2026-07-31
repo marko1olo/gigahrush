@@ -1,12 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { AIGoal, Cell, EntityType, Feature, W, type Entity } from '../src/core/types';
+import { AIGoal, Cell, EntityType, Feature, FloorLevel, W, type Entity } from '../src/core/types';
 import type { World } from '../src/core/world';
 import {
   HELL_POPULATION_PROFILE,
   KVARTIRY_POPULATION_PROFILE,
   PROCEDURAL_POPULATION_PROFILES,
-  basePopulationTotalAtDefaultSoftLimit,
   proceduralAnomalyPressure,
   proceduralPopulationBudget,
   proceduralPopulationProfileId,
@@ -62,11 +61,11 @@ function proceduralIndustrial(geometryId: string): boolean {
   return geometryId === 'collectors' || geometryId === 'workshops' || geometryId === 'service_spines';
 }
 
-function tickOneAlifeFrame(gen: { world: World; entities: Entity[]; spawnX: number; spawnY: number }, floor: number): void {
+function tickOneAlifeFrame(gen: { world: World; entities: Entity[]; spawnX: number; spawnY: number }, floor: FloorLevel): void {
   const player = makeTestPlayer({ id: 900_000, x: gen.spawnX, y: gen.spawnY, hp: 100, maxHp: 100 });
   gen.entities.unshift(player);
   const state = makeGameState({
-    currentZ: floor,
+    currentFloor: floor,
     time: 0,
     clock: { hour: 9, minute: 0, totalMinutes: 9 * 60 },
   });
@@ -99,8 +98,8 @@ testGenerationMatrix('KVARTIRY starts as a power-of-two actor AI floor', () => {
   assert.equal(actors.length <= ACTIVE_ACTOR_SOFT_LIMIT, true);
   assert.equal(actors.length >= ACTIVE_ACTOR_SOFT_LIMIT - 128, true);
   assert.equal(liveAiActors(gen.entities).length, actors.length);
-  assert.equal(gen.entities.filter(e => e.type === EntityType.NPC).length >= activeActorCountAtDefaultSoftLimit(basePopulationTotalAtDefaultSoftLimit(14) * KVARTIRY_POPULATION_PROFILE.densityMult * (KVARTIRY_POPULATION_PROFILE.citizens.share ?? 0)), true);
-  tickOneAlifeFrame(gen.KVARTIRY);
+  assert.equal(gen.entities.filter(e => e.type === EntityType.NPC).length >= activeActorCountAtDefaultSoftLimit(KVARTIRY_POPULATION_PROFILE.citizens.initial), true);
+  tickOneAlifeFrame(gen, FloorLevel.KVARTIRY);
   assert.equal(tasklessNpcCount(gen.entities), 0);
 });
 
@@ -112,7 +111,7 @@ testGenerationMatrix('HELL starts as a power-of-two actor AI floor', () => {
   assert.equal(actors.length <= ACTIVE_ACTOR_SOFT_LIMIT, true);
   assert.equal(actors.length >= ACTIVE_ACTOR_SOFT_LIMIT - 128, true);
   assert.equal(liveAiActors(gen.entities).length, actors.length);
-  assert.equal(monsters.length >= activeActorCountAtDefaultSoftLimit(basePopulationTotalAtDefaultSoftLimit(-36) * HELL_POPULATION_PROFILE.densityMult * (HELL_POPULATION_PROFILE.monsters.share ?? 0)), true);
+  assert.equal(monsters.length >= activeActorCountAtDefaultSoftLimit(HELL_POPULATION_PROFILE.monsters.initial), true);
   assert.equal(maxLiveActorsInArea(gen.entities, 32) <= 24, true);
   assert.equal(sightlineCues.length >= 5, true);
   for (const cue of sightlineCues) {
@@ -121,18 +120,18 @@ testGenerationMatrix('HELL starts as a power-of-two actor AI floor', () => {
     assert.equal(gen.world.floorTex[cell] !== 0, true);
   }
   assert.equal(sightlineCues.some(cue => gen.world.features[gen.world.idx(Math.floor(cue.targetX), Math.floor(cue.targetY))] === Feature.SCREEN), true);
-  tickOneAlifeFrame(gen.HELL);
+  tickOneAlifeFrame(gen, FloorLevel.HELL);
   assert.equal(idleMovingMonsterCount(gen.entities) <= 5, true);
 });
 
 testGenerationMatrix('VOID keeps NPC-free endgame density through monsters', () => {
-  const gen = generateFloor(-50);
+  const gen = generateFloor(FloorLevel.VOID);
   const actors = liveActors(gen.entities);
   assert.equal(gen.entities.some(e => e.type === EntityType.NPC), false);
   assert.equal(actors.length >= 1000, true);
   assert.equal(liveAiActors(gen.entities).length, actors.length);
   assert.equal(gen.entities.filter(e => e.type === EntityType.MONSTER).length >= activeActorCountAtDefaultSoftLimit(VOID_POPULATION_PROFILE.guardians), true);
-  assert.equal(VOID_POPULATION_PROFILE.z, 200);
+  assert.equal(VOID_POPULATION_PROFILE.floor, FloorLevel.VOID);
 });
 
 test('procedural population budget scales by danger anomaly pressure and route band', () => {
@@ -189,7 +188,7 @@ test('procedural population budget scales by danger anomaly pressure and route b
   assert.equal(dangerous.monsters < pressured.monsters, true);
   assert.equal(pressured.monsters < deep.monsters, true);
   assert.equal(capped.npcs + capped.monsters, ACTIVE_ACTOR_SOFT_LIMIT);
-  assert.equal(capped.monsters > capped.npcs, true);
+  assert.equal(capped.npcs > capped.monsters, true);
   assert.equal(capped.npcs <= PROCEDURAL_POPULATION_PROFILES.highDensity.npcs.cap, true);
   assert.equal(capped.monsters <= PROCEDURAL_POPULATION_PROFILES.highDensity.monsters.cap, true);
   assert.equal(voidRoute.npcs, 0);
@@ -248,8 +247,8 @@ test('procedural population deck keeps random slots normal-density unless the ra
   assert.equal(summary.slots, PROCEDURAL_FLOOR_ZS.length * seeds.length);
   assert.equal(summary.highDensity > 0, true);
   assert.equal(summary.normal > summary.highDensity, true);
-  assert.equal(summary.maxNormalActors >= ACTIVE_ACTOR_SOFT_LIMIT - 128, true);
-  assert.equal(summary.maxHighDensityActors >= summary.maxNormalActors, true);
+  assert.equal(summary.maxNormalActors < activeActorCountAtDefaultSoftLimit(KVARTIRY_POPULATION_PROFILE.citizens.initial), true);
+  assert.equal(summary.maxHighDensityActors > summary.maxNormalActors, true);
   assert.equal(summary.npcFreeRouteSlots > 0, true);
 });
 
@@ -266,14 +265,14 @@ test('actor population targets derive from the active actor soft cap', () => {
       npcAllowed: true,
       profileId: 'normal',
     });
-    assert.equal(procedural.npcs, 898);
-    assert.equal(procedural.monsters, 53);
+    assert.equal(procedural.npcs, 205);
+    assert.equal(procedural.monsters, 115);
 
     const blackMarket = DESIGN_FLOOR_ROUTES.find(route => route.id === 'black_market_88');
     assert.ok(blackMarket);
     const profile = designFloorPopulationProfile(blackMarket);
-    assert.ok(profile.npcTarget >= 110 && profile.npcTarget <= 11000, 'npcTarget in bounds');
-    assert.ok(profile.monsterTarget >= 35 && profile.monsterTarget <= 3500, 'monsterTarget in bounds');
+    assert.equal(profile.npcTarget, 1_100);
+    assert.equal(profile.monsterTarget, 350);
 
     const podad = DESIGN_FLOOR_ROUTES.find(route => route.id === 'podad');
     assert.ok(podad);

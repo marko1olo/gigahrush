@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { ItemType, RoomType } from '../src/core/types';
+import { FloorLevel, ItemType, RoomType } from '../src/core/types';
 import { ITEM_TAGS, ITEMS } from '../src/data/items';
 import { RESOURCES, resourceForItem } from '../src/data/resources';
 import { getRecentEvents } from '../src/systems/events';
@@ -32,7 +32,7 @@ test('samosbor alarm schedule is reachable office and HQ alarm paperwork', () =>
 
 test('samosbor alarm schedule can be traded as false-alarm evidence', () => {
   const player = makeTestPlayer();
-  const state = makeGameState({ currentZ: 0, time: 112 });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING, time: 112 });
 
   assert.equal(addItem(player, ITEM_ID, 1), true);
   assert.equal(getInventorySlotActionInfo(player, 0)?.useLabel, 'Enter проверить');

@@ -1,8 +1,7 @@
 import { test } from 'node:test';
-import { getPlotNpcCount } from '../src/data/npc_packages';
 import * as assert from 'node:assert/strict';
 
-import { AIGoal, Cell, EntityType, Faction, Feature, MonsterKind, type Entity, type Msg } from '../src/core/types';
+import { AIGoal, Cell, EntityType, Faction, Feature, FloorLevel, MonsterKind, type Entity, type Msg } from '../src/core/types';
 import { World } from '../src/core/world';
 import { MONSTERS } from '../src/entities/monster';
 import { setListenerPos } from '../src/systems/audio';
@@ -107,7 +106,7 @@ test('common line shooters wind up on hostile NPCs and lose shots to cover', () 
     const monster = threat(kind);
     const entities = [target, monster];
     const msgs: Msg[] = [];
-    const nextId = { v: getPlotNpcCount() + 10 }
+    const nextId = { v: 10 };
 
     prepare(entities);
     updateMonster(world, entities, monster, 0.1, 1, msgs, 999, nextId);
@@ -130,7 +129,7 @@ test('robot plasma has only local wet-risk amplification', () => {
     const target = player(14.5, 10.5);
     const monster = threat(MonsterKind.ROBOT);
     const entities = [target, monster];
-    const nextId = { v: getPlotNpcCount() + 10 }
+    const nextId = { v: 10 };
     prepare(entities);
 
     updateMonster(world, entities, monster, 0.1, 1, [], target.id, nextId);
@@ -154,7 +153,7 @@ test('lampovy publishes one local powered cue when combat starts under a lamp', 
   const monster = threat(MonsterKind.LAMPOVY, 6.5, 10.5);
   const entities = [target, monster];
   const msgs: Msg[] = [];
-  const state = makeGameState({ currentZ: 0, worldEvents: createWorldEventState() });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING, worldEvents: createWorldEventState() });
 
   world.features[world.idx(6, 10)] = Feature.LAMP;
   prepare(entities);

@@ -2,16 +2,15 @@
 /*   Directors, officials in suits, scientists, liquidators.        */
 /*   Special NPCs: Chairman Kantselev, Minister Rotenbergov.       */
 
-import { getPlotNpcNumericId } from '../../data/npc_packages';
 import {
   W, Cell,
-  type Entity, EntityType, AIGoal, Faction, Occupation, QuestType, RoomType,
+  type Entity, EntityType, AIGoal, Faction, FloorLevel, Occupation, QuestType, RoomType,
 } from '../../core/types';
 import { World } from '../../core/world';
 import { freshNeeds, randomName } from '../../data/catalog';
 import { characterSexFromFemale } from '../../data/demographics';
 import { activeActorCountAtDefaultSoftLimit } from '../../data/entity_limits';
-
+import { rng } from '../shared';
 import { gaussianLevel, randomRPG, getMaxHp } from '../../systems/rpg';
 import { generateNpcLoadout } from '../../systems/procedural_loot';
 import { canSpawnEntityType, entitySpawnSlots } from '../../systems/entity_limits';
@@ -20,16 +19,15 @@ import { spawnArkhivariusKafkin } from './arkhivarius';
 import { spawnPolkovnikStreltsov } from './streltsov';
 import { spawnBufetchitsaGlafira } from './glafira';
 import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
-import { rng, irand } from '../../core/rand';
 
 const MINISTRY_NPC_TARGET_AT_DEFAULT_CAP = 1000;
 
 /* ── Weapon loadout for ministry NPCs ─────────────────────────── */
 function ministryWeaponLoadout(faction: Faction, occupation: Occupation, level: number): { weapon?: string; inv: { defId: string; count: number }[] } {
   // Use procedural loot generator. We pass random rolls to let it build the loadout.
-  const loadout = generateNpcLoadout(faction, level, 1, rng(), [rng(), rng()]);
+  const loadout = generateNpcLoadout(faction, level, 1, Math.random(), [Math.random(), Math.random()]);
   
-  if (occupation === Occupation.DIRECTOR && rng() > 0.3) {
+  if (occupation === Occupation.DIRECTOR && Math.random() > 0.3) {
     // Directors have 70% chance to be unarmed despite faction
     return { weapon: undefined, inv: [] };
   }
@@ -94,15 +92,15 @@ const ROTENBERGOV_DEF: PlotNpcDef = {
 registerAuthoredNpc({
   id: 'kantselev',
   npc: KANTSELEV_DEF,
-  homeFloorKey: storyNpcFloorKey(30),
+  homeFloorKey: storyNpcFloorKey(FloorLevel.MINISTRY),
   tags: ['ministry', 'leader'],
   quests: [
     {
       id: 'kantselev_kill_makhno',
-      giverId: getPlotNpcNumericId('kantselev')!,
+      giverNpcId: 'kantselev',
       type: QuestType.KILL,
       desc: 'Председатель Канцелев: «Махно режет кабель и срывает пломбы в коллекторах. Убери атамана, пока ремонтники не ходят туда только с охраной.»',
-      targetNpcId: getPlotNpcNumericId('makhno')!,
+      targetPlotNpcId: 'makhno',
       killNeeded: 1,
       rewardItem: 'psi_brainburn', rewardCount: 1,
       extraRewards: [{ defId: 'bandage', count: 5 }, { defId: 'ammo_9mm', count: 20 }],
@@ -114,12 +112,12 @@ registerAuthoredNpc({
 registerAuthoredNpc({
   id: 'rotenbergov',
   npc: ROTENBERGOV_DEF,
-  homeFloorKey: storyNpcFloorKey(30),
+  homeFloorKey: storyNpcFloorKey(FloorLevel.MINISTRY),
   tags: ['ministry', 'economy'],
   quests: [
     {
       id: 'rotenbergov_taxes',
-      giverId: getPlotNpcNumericId('rotenbergov')!,
+      giverNpcId: 'rotenbergov',
       type: QuestType.FETCH,
       desc: 'Министр Ротенбергов: «Налог чрезвычайный. Принеси 1 000 000 рублей: нужны пломбы, вода и тишина в архиве.»',
       targetItem: 'money', targetCount: 1000000,
@@ -151,7 +149,7 @@ export function spawnMinistryNpcs(
   function pickNpcType(): { faction: Faction; occupation: Occupation } {
     let total = 0;
     for (const t of npcTypes) total += t.weight;
-    let roll = rng() * total;
+    let roll = Math.random() * total;
     for (const t of npcTypes) {
       roll -= t.weight;
       if (roll <= 0) return t;
@@ -163,13 +161,13 @@ export function spawnMinistryNpcs(
     const prevCount = npcCount;
     for (const zone of world.zones) {
       if (npcCount >= npcTarget) break;
-      const squadSize = irand(1, 3);
+      const squadSize = rng(1, 3);
       const fDef = pickNpcType();
       for (let s = 0; s < squadSize && npcCount < npcTarget; s++) {
         let sx = -1, sy = -1;
         for (let r = 0; r < 30; r++) {
-          const tx = world.wrap(zone.cx + irand(-r * 3, r * 3));
-          const ty = world.wrap(zone.cy + irand(-r * 3, r * 3));
+          const tx = world.wrap(zone.cx + rng(-r * 3, r * 3));
+          const ty = world.wrap(zone.cy + rng(-r * 3, r * 3));
           const tci = world.idx(tx, ty);
           if (world.cells[tci] === Cell.FLOOR) {
             sx = tx; sy = ty;
@@ -187,9 +185,9 @@ export function spawnMinistryNpcs(
         entities.push({
           id: nextId.v++, type: EntityType.NPC,
           x: sx + 0.5, y: sy + 0.5,
-          angle: rng() * Math.PI * 2, pitch: 0,
+          angle: Math.random() * Math.PI * 2, pitch: 0,
           alive: true,
-          speed: 1.2 + rng() * 0.3,
+          speed: 1.2 + Math.random() * 0.3,
           sprite: fDef.occupation,
           name: nm.name,
           firstName: nm.firstName,
@@ -198,7 +196,7 @@ export function spawnMinistryNpcs(
           sex,
           needs: freshNeeds(),
           hp: maxHp, maxHp,
-          money: irand(50, 500),
+          money: rng(50, 500),
           ai: { goal: AIGoal.IDLE, tx: 0, ty: 0, path: [], pi: 0, stuck: 0, timer: 0 },
           inventory: loadout.inv.map(i => ({ ...i })),
           weapon: loadout.weapon || undefined,
@@ -237,13 +235,13 @@ function spawnPlotNpc(
 ): void {
   if (!canSpawnEntityType(entities, EntityType.NPC)) return;
   for (let i = 0; i < 2000; i++) {
-    const x = Math.floor(rng() * W);
-    const y = Math.floor(rng() * W);
+    const x = Math.floor(Math.random() * W);
+    const y = Math.floor(Math.random() * W);
     if (world.cells[world.idx(x, y)] !== Cell.FLOOR) continue;
     // Prefer rooms for important NPCs
     if (world.roomMap[world.idx(x, y)] < 0 && i < 1500) continue;
     requireSpawnedPlotNpcFromPackage(entities, nextId, plotNpcId, x + 0.5, y + 0.5, {
-      angle: rng() * Math.PI * 2,
+      angle: Math.random() * Math.PI * 2,
       isTraveler: false,
     });
     return;

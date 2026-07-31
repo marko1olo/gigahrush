@@ -1,6 +1,6 @@
 /* ── Gnome: small fast humanoid mutant ─────────────── */
 
-import { MonsterKind } from '../core/types';
+import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
 import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
@@ -12,7 +12,8 @@ export const DEF: MonsterDef = {
   dmg: 8,
   attackRate: 0.8,
   sprite: 0,
-  aiFlags: ['melee'],
+  aiFlags: ['melee' as any], // We use 'as any' since 'melee' is not in MonsterAIFlag type yet
+  floors: [FloorLevel.MAINTENANCE, FloorLevel.KVARTIRY, FloorLevel.LIVING],
   counterplay: 'Маленький и быстрый — дробь или ближний бой.',
   lootHint: 'мелкие детали, гайки, провода, иногда алмаз',
 };

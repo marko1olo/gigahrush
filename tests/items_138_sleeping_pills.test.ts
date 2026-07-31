@@ -4,7 +4,7 @@ import * as assert from 'node:assert/strict';
 import { ItemType, RoomType } from '../src/core/types';
 import { ITEM_TAGS, ITEMS } from '../src/data/items';
 import { RESOURCES, resourceForItem } from '../src/data/resources';
-import { BLACK_MARKET_88_STOCK } from '../src/gen/black_market_88';
+import { BLACK_MARKET_88_STOCK } from '../src/gen/design_floors/black_market_88';
 import { getRecentEvents } from '../src/systems/events';
 import { getInventorySlotActionInfo, inventoryItemCategory, useItem } from '../src/systems/inventory';
 import { countInventoryItem, makeGameState, makeTestPlayer } from './helpers';

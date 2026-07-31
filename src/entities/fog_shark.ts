@@ -1,6 +1,6 @@
 /* ── Fog Shark: air-swimming fog pack predator ───────────────── */
 
-import { MonsterKind } from '../core/types';
+import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
 import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
@@ -13,6 +13,7 @@ export const DEF: MonsterDef = {
   attackRate: 0.78,
   sprite: 0,
   aiFlags: ['fogSwimmer'],
+  floors: [FloorLevel.LIVING, FloorLevel.MAINTENANCE, FloorLevel.HELL],
   counterplay: 'В тумане стая быстрая и кусает рывком: выходите на сухой воздух, закрывайте двери и углы, а огонь убивает надежно, но взрывает газовое брюхо рядом.',
   lootHint: 'серебряный зуб, сине-черная чешуя, газовый пузырь, редкая акулья чешуя',
 };

@@ -1,4 +1,3 @@
-import { getPlotNpcNumericId } from '../src/data/npc_packages';
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
@@ -11,6 +10,7 @@ import { destroyMaronaryShaving, tryHandleMaronaryShavingHandoff } from '../src/
 import {
   ContainerKind,
   Faction,
+  FloorLevel,
   Occupation,
   WRONG_DOOR_MAX_DIST2,
   WRONG_DOOR_MIN_DIST2,
@@ -23,7 +23,6 @@ import {
   type WrongDoorRouteOption,
 } from '../src/systems/wrong_door';
 import { addTestRoom, makeGameState, makeTestContainer, makeTestNpc, makeTestPlayer } from './helpers';
-import '../src/data/npc_plot_packages';
 
 function option(overrides: Partial<WrongDoorRouteOption>): WrongDoorRouteOption {
   return {
@@ -117,7 +116,7 @@ test('maronary wrong-door remap ignores protected hermetic source doors', () => 
   const world = makeWrongDoorWorld();
   const protectedSource = addDoor(world, 10, 10, 1, true);
   addDoor(world, 55, 10, 2);
-  const state = makeGameState({ currentZ: 0 });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING });
 
   const cue = createWrongDoorRemap(world, state, 10.5, 10.5, 'test_protected_source', false, protectedSource);
 
@@ -129,7 +128,7 @@ test('maronary wrong-door remap can still use ordinary route doors', () => {
   const world = makeWrongDoorWorld();
   const source = addDoor(world, 10, 10, 1);
   addDoor(world, 55, 10, 2);
-  const state = makeGameState({ currentZ: 0 });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING });
 
   const cue = createWrongDoorRemap(world, state, 10.5, 10.5, 'test_open_source', false, source);
 
@@ -141,7 +140,7 @@ test('maronary wrong-door remap can still use ordinary route doors', () => {
 test('maronary shaving can be sold to science or hidden as contraband evidence', () => {
   initFactionRelations();
   const state = makeGameState({
-    currentZ: 0,
+    currentFloor: FloorLevel.LIVING,
     worldEvents: createWorldEventState(),
   });
   const player = makeTestPlayer({
@@ -154,7 +153,7 @@ test('maronary shaving can be sold to science or hidden as contraband evidence',
     name: 'Яков Давидович',
     faction: Faction.SCIENTIST,
     occupation: Occupation.SCIENTIST,
-    plotNpcId: getPlotNpcNumericId('yakov'),
+    plotNpcId: 'yakov',
     inventory: [],
   });
 
@@ -196,7 +195,7 @@ test('maronary shaving can be sold to science or hidden as contraband evidence',
 test('maronary shaving handoff uses ordered item outcome rules', () => {
   initFactionRelations();
   const state = makeGameState({
-    currentZ: 34,
+    currentFloor: FloorLevel.MINISTRY,
     worldEvents: createWorldEventState(),
   });
   const player = makeTestPlayer({
@@ -205,10 +204,11 @@ test('maronary shaving handoff uses ordered item outcome rules', () => {
     money: 0,
   });
   const ministryBuyer = makeTestNpc({
-    id: getPlotNpcNumericId('rotenbergov') ?? 2,
+    id: 2,
     name: 'Ротенбергов',
     faction: Faction.WILD,
     occupation: Occupation.HUNTER,
+    plotNpcId: 'rotenbergov',
     inventory: [],
   });
 
@@ -216,7 +216,7 @@ test('maronary shaving handoff uses ordered item outcome rules', () => {
   assert.equal(player.money, 240);
   const ministry = getRecentEvents(state, { type: 'player_handoff_item', tags: ['maronary', 'ministry'], limit: 1 })[0];
   assert.equal(ministry.data?.outcome, 'ministry');
-  assert.equal(ministry.data?.buyerPlotNpcId, getPlotNpcNumericId('rotenbergov'));
+  assert.equal(ministry.data?.buyerPlotNpcId, 'rotenbergov');
 
   player.inventory = [{ defId: 'maronary_shaving', count: 1 }];
   const cultBuyer = makeTestNpc({
@@ -234,7 +234,7 @@ test('maronary shaving handoff uses ordered item outcome rules', () => {
   assert.equal(cult.data?.reward, 320);
 
   const saleState = makeGameState({
-    currentZ: 0,
+    currentFloor: FloorLevel.LIVING,
     worldEvents: createWorldEventState(),
   });
   const salePlayer = makeTestPlayer({

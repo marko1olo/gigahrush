@@ -1,7 +1,6 @@
 /* ── Markov rumor adapter: flavor around selected rumor facts ─── */
 
-import { Faction, RoomType, type ZoneFaction } from '../core/types';
-import { DESIGN_FLOOR_ROUTES } from '../data/design_floors';
+import { Faction, FloorLevel, MonsterKind, RoomType, type ZoneFaction } from '../core/types';
 import { ITEMS } from '../data/items';
 import { RUMORS, type RumorDef, type RumorLead, type RumorReveal } from '../data/rumors';
 import { monsterTypeName } from '../entities/monster';
@@ -74,24 +73,10 @@ export function renderMarkovRumorFlavor(options: MarkovRumorFlavorOptions): Mark
   const leadText = formatLeadLine(rumor.lead, options.event);
   const revealText = formatRevealLine(rumor.reveals);
   const leadItemId = rumor.lead?.itemId ?? options.event?.itemId;
-  const leadMonsterKind = rumor.lead?.monsterKind;
-  const requiredAnchors: string[] = [];
-  if (options.event?.type) requiredAnchors.push('event');
-  else if (rumor.topic === 'room' || rumor.topic === 'floor' || options.snapshot.roomDefId) requiredAnchors.push('room');
-  else if (rumor.topic === 'monster' || rumor.topic === 'samosbor') requiredAnchors.push('danger');
-  else if (rumor.topic === 'economy' || rumor.topic === 'rare_item' || rumor.topic === 'contract') requiredAnchors.push('item');
-  else if (rumor.topic === 'faction') requiredAnchors.push('faction');
-
-  const tags = ['rumor', `rumor.${rumor.topic}`, rumor.id];
-  if (options.snapshot.roomDefId) tags.push('room');
-  if (leadItemId) tags.push('item');
-  if (leadMonsterKind || rumor.topic === 'monster' || rumor.topic === 'samosbor') tags.push('danger');
-  if (rumor.topic === 'faction' || options.snapshot.npcFaction) tags.push('faction');
-  if (options.event?.type) tags.push('event');
-
+  const leadMonsterKind = rumor.lead?.monsterKind ?? options.event?.monsterKind;
   const context = {
-    z: options.snapshot.z,
-    roomDefId: options.snapshot.roomDefId,
+    floor: options.snapshot.floor,
+    roomName: options.snapshot.roomName,
     roomType: options.snapshot.roomType,
     zoneId: options.snapshot.zoneId,
     itemId: leadItemId,
@@ -99,8 +84,7 @@ export function renderMarkovRumorFlavor(options: MarkovRumorFlavorOptions): Mark
     monsterKind: leadMonsterKind,
     eventType: options.event?.type,
     eventId: options.event?.id,
-    requiredAnchors: requiredAnchors.length > 0 ? requiredAnchors : undefined,
-    tags,
+    tags: ['rumor', `rumor.${rumor.topic}`, rumor.id],
   };
   const request: MarkovAdapterSpeechRequest = {
     intent: 'rumor_flavor',
@@ -113,12 +97,12 @@ export function renderMarkovRumorFlavor(options: MarkovRumorFlavorOptions): Mark
   };
 
   const routed = options.routeSpeech?.(request);
-  if (routed && validRumorGeneratedText(routed.text, maxChars)) {
+  if (routed && validRumorGeneratedText(routed.text, rumor, options, maxChars)) {
     return {
       ...routed,
       intent: 'rumor_flavor',
       tags: routed.tags.length ? routed.tags : context.tags,
-      fallbackUsed: routed.fallbackUsed,
+      fallbackUsed: false,
       rumorId: rumor.id,
       topic: rumor.topic,
       leadText,
@@ -151,19 +135,111 @@ function renderRumorFallback(rumor: RumorDef, options: MarkovRumorFlavorOptions)
     : hashSpeechSeed(options.seed ?? rumor.id, options.repeatIndex ?? 0, 'rumor-text');
   const text = fillSlots(rumor.text[idxSeed % rumor.text.length] ?? rumor.text[0] ?? '', options.snapshot);
   const lead = formatLeadLine(rumor.lead, options.event);
-  if (lead) return `${text} (${lead}).`;
+  if (lead) return `${text} Зацепка: ${lead}.`;
   const reveal = formatRevealLine(rumor.reveals);
   return reveal ? `${text} ${reveal}` : text;
 }
 
 function validRumorGeneratedText(
   text: string,
+  rumor: RumorDef,
+  options: MarkovRumorFlavorOptions,
   maxChars: number,
 ): boolean {
   const clean = cleanLine(text);
   if (!clean || clean.length > maxChars) return false;
   if (clean.includes('{')) return false;
-  return true;
+  const required = requiredRumorFactTexts(rumor, options);
+  if (required.size > 0 && !mentionsAnyFact(clean, required)) return false;
+  const allowed = allowedRumorFactTexts(rumor, options);
+  const forbidden = observedForbiddenFact(clean, allowed);
+  return forbidden === undefined;
+}
+
+function requiredRumorFactTexts(rumor: RumorDef, options: MarkovRumorFlavorOptions): Set<string> {
+  const required = new Set<string>();
+  addRumorLeadFacts(required, rumor.lead);
+  addEventFacts(required, options.event);
+  const reveals = rumor.reveals ? Array.isArray(rumor.reveals) ? rumor.reveals : [rumor.reveals] : [];
+  for (const reveal of reveals) addRevealFacts(required, reveal);
+  return required;
+}
+
+function allowedRumorFactTexts(rumor: RumorDef, options: MarkovRumorFlavorOptions): Set<string> {
+  const allowed = new Set<string>();
+  addRumorLeadFacts(allowed, rumor.lead);
+  addEventFacts(allowed, options.event);
+  const reveals = rumor.reveals ? Array.isArray(rumor.reveals) ? rumor.reveals : [rumor.reveals] : [];
+  for (const reveal of reveals) addRevealFacts(allowed, reveal);
+  if (options.snapshot.roomName) allowed.add(options.snapshot.roomName.toLowerCase());
+  if (options.snapshot.floor !== undefined) allowed.add(floorName(options.snapshot.floor).toLowerCase());
+  return allowed;
+}
+
+let FORBIDDEN_ITEM_NAMES: string[] | undefined;
+let FORBIDDEN_FLOOR_NAMES: string[] | undefined;
+let FORBIDDEN_MONSTER_NAMES: string[] | undefined;
+
+function observedForbiddenFact(text: string, allowed: Set<string>): string | undefined {
+  const lower = text.toLowerCase();
+
+  if (!FORBIDDEN_ITEM_NAMES) FORBIDDEN_ITEM_NAMES = Object.values(ITEMS).map(item => item.name.toLowerCase());
+  for (const name of FORBIDDEN_ITEM_NAMES) {
+    if (name.length >= 4 && lower.includes(name) && !allowed.has(name)) return name;
+  }
+
+  if (!FORBIDDEN_FLOOR_NAMES) FORBIDDEN_FLOOR_NAMES = Object.values(FLOOR_NAMES).map(value => value.toLowerCase());
+  for (const name of FORBIDDEN_FLOOR_NAMES) {
+    if (lower.includes(name) && !allowed.has(name)) return name;
+  }
+
+  if (!FORBIDDEN_MONSTER_NAMES) {
+    FORBIDDEN_MONSTER_NAMES = Object.values(MonsterKind)
+      .filter((value): value is MonsterKind => typeof value === 'number')
+      .map(kind => monsterTypeName(kind).toLowerCase());
+  }
+  for (const name of FORBIDDEN_MONSTER_NAMES) {
+    if (name.length >= 4 && lower.includes(name) && !allowed.has(name)) return name;
+  }
+
+  return undefined;
+}
+
+function mentionsAnyFact(text: string, facts: Set<string>): boolean {
+  const lower = text.toLowerCase();
+  for (const fact of facts) {
+    const normalized = fact.toLowerCase().trim();
+    if (normalized.length >= 2 && lower.includes(normalized)) return true;
+  }
+  return false;
+}
+
+function addRumorLeadFacts(out: Set<string>, lead: RumorLead | undefined): void {
+  if (!lead) return;
+  if (lead.floor !== undefined) out.add(floorName(lead.floor).toLowerCase());
+  if (lead.roomName) out.add(lead.roomName.toLowerCase());
+  if (lead.roomType !== undefined) out.add(roomTypeName(lead.roomType).toLowerCase());
+  if (lead.itemId) {
+    const itemName = ITEMS[lead.itemId]?.name.toLowerCase();
+    if (itemName) out.add(itemName);
+  }
+  if (lead.monsterKind !== undefined) out.add(monsterTypeName(lead.monsterKind).toLowerCase());
+}
+
+function addRevealFacts(out: Set<string>, reveal: RumorReveal): void {
+  const formatted = formatReveal(reveal);
+  if (formatted) out.add(formatted.toLowerCase());
+}
+
+function addEventFacts(out: Set<string>, event: RumorEventLike | undefined): void {
+  if (!event) return;
+  if (event.floor !== undefined) out.add(floorName(event.floor).toLowerCase());
+  if (event.roomName) out.add(event.roomName.toLowerCase());
+  if (event.itemId) {
+    const itemName = ITEMS[event.itemId]?.name.toLowerCase();
+    if (itemName) out.add(itemName);
+  }
+  if (event.monsterKind !== undefined) out.add(monsterTypeName(event.monsterKind).toLowerCase());
 }
 
 function formatLeadLine(lead: RumorLead | undefined, event?: RumorEventLike): string {
@@ -173,9 +249,9 @@ function formatLeadLine(lead: RumorLead | undefined, event?: RumorEventLike): st
 
 function formatStaticLead(lead: RumorLead): string {
   const parts: string[] = [];
-  if (lead.z !== undefined) parts.push(floorName(lead.z));
+  if (lead.floor !== undefined) parts.push(floorName(lead.floor));
   if (lead.zoneHint) parts.push(lead.zoneHint);
-  if (lead.roomDefId) parts.push(lead.roomDefId);
+  if (lead.roomName) parts.push(lead.roomName);
   else if (lead.roomType !== undefined) parts.push(roomTypeName(lead.roomType));
   if (lead.itemId) {
     const itemName = ITEMS[lead.itemId]?.name.toLowerCase();
@@ -188,10 +264,10 @@ function formatStaticLead(lead: RumorLead): string {
 
 function formatEventLead(event: RumorEventLike): string {
   const parts: string[] = [];
-  if (event.z !== undefined) parts.push(floorName(event.z));
+  if (event.floor !== undefined) parts.push(floorName(event.floor));
   if (event.zoneName) parts.push(event.zoneName);
   else if (event.zoneId !== undefined) parts.push(`зона ${event.zoneId + 1}`);
-  if (event.roomDefId) parts.push(event.roomDefId);
+  if (event.roomName) parts.push(event.roomName);
   else if (event.roomType !== undefined) parts.push(roomTypeName(event.roomType));
   if (event.itemId) {
     const itemName = ITEMS[event.itemId]?.name.toLowerCase();
@@ -220,7 +296,7 @@ function formatRevealLine(input: RumorDef['reveals']): string {
     const part = formatReveal(reveal);
     if (part && !parts.includes(part)) parts.push(part);
   }
-  return parts.length > 0 ? `${parts.join(', ')}.` : '';
+  return parts.length > 0 ? `Зацепка: ${parts.join(', ')}.` : '';
 }
 
 function revealIsActionable(reveal: RumorReveal): boolean {
@@ -232,13 +308,13 @@ function revealIsActionable(reveal: RumorReveal): boolean {
 function formatReveal(reveal: RumorReveal): string {
   switch (reveal.kind) {
     case 'floor':
-      return floorName(reveal.z);
+      return floorName(reveal.floor);
     case 'zone':
       if (reveal.zoneId !== undefined) return `зона ${reveal.zoneId + 1}`;
       if (reveal.faction !== undefined) return `зона: ${zoneFactionName(reveal.faction)}`;
       return '';
     case 'room':
-      return reveal.roomDefId ?? (reveal.roomType !== undefined ? roomTypeName(reveal.roomType) : '');
+      return reveal.roomName ?? (reveal.roomType !== undefined ? roomTypeName(reveal.roomType) : '');
     case 'danger':
       return 'опасность';
     case 'monster':
@@ -257,7 +333,7 @@ function formatReveal(reveal: RumorReveal): string {
 function fillSlots(text: string, snapshot: ContextSnapshot): string {
   let out = text;
   if (out.includes('{zone}')) out = out.split('{zone}').join(snapshot.zoneId === undefined ? 'этой зоне' : `зоне ${snapshot.zoneId + 1}`);
-  if (out.includes('{room}')) out = out.split('{room}').join(snapshot.roomDefId ?? 'этой комнате');
+  if (out.includes('{room}')) out = out.split('{room}').join(snapshot.roomName ?? 'этой комнате');
   return out;
 }
 
@@ -265,9 +341,17 @@ function findRumor(id: string): RumorDef | undefined {
   return RUMORS.find(rumor => rumor.id === id);
 }
 
-function floorName(z: number): string {
-  const route = DESIGN_FLOOR_ROUTES.find(r => r.z === z);
-  return route ? route.displayName : `Этаж ${z}`;
+const FLOOR_NAMES: Record<FloorLevel, string> = {
+  [FloorLevel.MINISTRY]: 'Министерство',
+  [FloorLevel.KVARTIRY]: 'Квартиры',
+  [FloorLevel.LIVING]: 'Жилая зона',
+  [FloorLevel.MAINTENANCE]: 'Коллекторы',
+  [FloorLevel.HELL]: 'Ад',
+  [FloorLevel.VOID]: 'Пустота',
+};
+
+function floorName(floor: FloorLevel): string {
+  return FLOOR_NAMES[floor];
 }
 
 function roomTypeName(roomType: RoomType): string {

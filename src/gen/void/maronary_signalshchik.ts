@@ -1,7 +1,7 @@
 /* ── Maronary Signalshchik — local green source aftermath ─────── */
 
 import {
-  AIGoal, Cell, ContainerKind, DoorState, EntityType, Feature, MonsterKind, RoomType, Tex, W, msg,
+  AIGoal, Cell, ContainerKind, DoorState, EntityType, Feature, FloorLevel, MonsterKind, RoomType, Tex, W, msg,
   type Entity, type GameState, type Item, type WorldContainer, type WorldEvent, type WorldEventType,
 } from '../../core/types';
 import { World } from '../../core/world';
@@ -14,7 +14,6 @@ import { registerRouteCue } from '../../systems/route_cues';
 import { randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg';
 import { carveCorridor, findClearArea, placeDoorAt, stampRoom } from '../shared';
 import { isPlayerEntity } from '../../systems/player_actor';
-import { rng } from '../../core/rand';
 
 const ENCOUNTER_ID = 'maronary_signalshchik';
 const ENCOUNTER_NAME = 'Маронарный Сигнальщик';
@@ -244,7 +243,7 @@ function addSignalContainer(
     id,
     x: wx,
     y: wy,
-    z: 200,
+    floor: FloorLevel.VOID,
     roomId,
     zoneId: world.zoneMap[world.idx(wx, wy)],
     kind: ContainerKind.SECRET_STASH,
@@ -330,7 +329,7 @@ function spawnSignalshchik(world: World, entities: Entity[], nextId: { v: number
     type: EntityType.MONSTER,
     x: x + 0.5,
     y: y + 0.5,
-    angle: rng() * Math.PI * 2,
+    angle: Math.random() * Math.PI * 2,
     pitch: 0,
     alive: true,
     speed: scaleMonsterSpeed(def.speed, level),
@@ -453,7 +452,7 @@ export function generateMaronarySignalshchik(
     y: room.y + 3.5,
     targetX: avoidRoom.x + (avoidRoom.w >> 1) + 0.5,
     targetY: avoidRoom.y + (avoidRoom.h >> 1) + 0.5,
-    z: 200,
+    floor: FloorLevel.VOID,
     roomId: room.id,
     targetRoomId: avoidRoom.id,
     zoneId: world.zoneMap[world.idx(room.x + 3, room.y + 3)],

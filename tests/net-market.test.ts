@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-import { type GameState } from '../src/core/types';
+import { FloorLevel, type GameState } from '../src/core/types';
 import {
   applyRemoteStockMarketSnapshot,
   normalizeStockMarketState,
@@ -468,7 +468,7 @@ test('Net market POST rejects oversized payloads', async () => {
 });
 
 test('Net market remote snapshot softly nudges local stock quotes only once', () => {
-  const state = makeGameState({ currentZ: 0 }) as MarketStateHost;
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING }) as MarketStateHost;
   state.stockMarket = normalizeStockMarketState(undefined);
   state.stockMarket.portfolio.toha_heavy_industries = { shares: 2, avgPrice: 180 };
   const before = state.stockMarket.quotes.toha_heavy_industries.price;

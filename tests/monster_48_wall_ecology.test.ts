@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
 import {
-  AIGoal, Cell, EntityType, Feature, MonsterKind, RoomType, type Entity, type Msg,
+  AIGoal, Cell, EntityType, Feature, FloorLevel, MonsterKind, RoomType, type Entity, type Msg,
 } from '../src/core/types';
 import { World } from '../src/core/world';
 import { MONSTERS } from '../src/entities/monster';
@@ -70,7 +70,7 @@ function runWallHit(kind: MonsterKind, setup?: (world: World) => void): { hp: nu
   const target = player(11.1, 10.5);
   const threat = monster(kind, 10.5, 10.5);
   const entities = [target, threat];
-  const state = makeGameState({ currentZ: 0 });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING });
   state.time = 10;
   sync(entities);
 

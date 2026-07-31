@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { ItemType, RoomType, type GameState } from '../src/core/types';
+import { FloorLevel, ItemType, RoomType, type GameState } from '../src/core/types';
 import { ITEM_TAGS, ITEMS } from '../src/data/items';
 import { RESOURCES, resourceForItem } from '../src/data/resources';
 import { ensureEconomyState } from '../src/systems/economy';
@@ -11,7 +11,7 @@ import { countInventoryItem, makeGameState, makeTestPlayer } from './helpers';
 
 const ITEM_ID = 'water_reservoir_quota';
 
-function resourceStock(state: GameState, floor: number, resourceId: string): number {
+function resourceStock(state: GameState, floor: FloorLevel, resourceId: string): number {
   const economy = ensureEconomyState(state);
   return economy.floors[floor]?.resources[resourceId]?.stock ?? 0;
 }
@@ -36,8 +36,8 @@ test('water reservoir quota is reachable water ration paperwork', () => {
 
 test('water reservoir quota redeems into water and pressures water stock', () => {
   const player = makeTestPlayer({ inventory: [{ defId: ITEM_ID, count: 1 }] });
-  const state = makeGameState({ currentZ: 0, time: 115 });
-  const beforeStock = resourceStock(0, 'drink_water');
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING, time: 115 });
+  const beforeStock = resourceStock(state, FloorLevel.LIVING, 'drink_water');
 
   assert.equal(getInventorySlotActionInfo(player, 0)?.useLabel, 'Enter погасить');
 
@@ -45,7 +45,7 @@ test('water reservoir quota redeems into water and pressures water stock', () =>
 
   assert.equal(countInventoryItem(player, ITEM_ID), 0);
   assert.equal(countInventoryItem(player, 'water'), 3);
-  assert.equal(resourceStock(0, 'drink_water'), beforeStock - 3);
+  assert.equal(resourceStock(state, FloorLevel.LIVING, 'drink_water'), beforeStock - 3);
   assert.ok(state.msgs.some(line => line.text.includes('Квота воды погашена')));
 
   const event = getRecentEvents(state, { type: 'player_use_item', tags: ['water'], limit: 1 })[0];

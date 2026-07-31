@@ -12,7 +12,7 @@ GamePush Sandbox СТРОГО проверяет call stack. Вызов `gameSta
 
 1. **Синхронный путь (primary)**: В `markPlatformReady()` проверяем, доступен ли SDK на глобале **синхронно** (`portalGlobal().gp`). Если да — вызываем `gameStart` прямо здесь, без Promise chain. Это работает в sandbox, где SDK-скрипт уже preloaded.
 
-2. **User-gesture fallback**: Если SDK ещё не загрузился к моменту `markPlatformReady()`, вызов `gameStart` произойдёт из `fallbackGamePushStart` по первому `pointerdown`/`keydown` — как было раньше.
+2. **User-gesture fallback**: Если SDK ещё не загрузился к моменту `markPlatformReady()`, вызов `gameStart` произойдёт из `fulfillSandboxTests` по первому `pointerdown`/`keydown` — как было раньше.
 
 3. **Флаг `gamePushGameStartSent`** гарантирует однократный вызов — какой путь сработает первым, тот и сделает вызов.
 

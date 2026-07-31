@@ -5,6 +5,7 @@ import {
   EntityType,
   Faction,
   Feature,
+  FloorLevel,
   type Entity,
 } from '../src/core/types';
 import { World } from '../src/core/world';
@@ -40,13 +41,13 @@ function player(): Entity {
 test('ekrannik misinformation stays local and publishes reversible encounter events', () => {
   const world = new World();
   const entities: Entity[] = [];
-  const nextId = { v: getPlotNpcCount() + 1 }
+  const nextId = { v: 1 };
   generateEkrannik(world, entities, nextId, 512, 512);
 
   const actor = player();
   entities.push(actor);
   const state = makeGameState({
-    currentZ: -36,
+    currentFloor: FloorLevel.VOID,
     worldEvents: createWorldEventState(),
   });
 

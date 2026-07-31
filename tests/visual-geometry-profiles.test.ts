@@ -1,11 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
+import { FloorLevel } from '../src/core/types';
 import { DESIGN_FLOOR_ROUTES } from '../src/data/design_floors';
 import {
   themeForDesignRoute,
   themeForProceduralSpec,
-  themeForDesignFloor,
+  themeForStoryFloor,
 } from '../src/data/floor_theme_profiles';
 import {
   PROCEDURAL_FLOOR_ZS,
@@ -29,7 +30,7 @@ import {
 } from '../src/data/visual_corridor_coverings';
 
 const ID_RE = /^[a-z][a-z0-9_]*$/;
-const VALID_FLOORS = DESIGN_FLOOR_ROUTES.map(r => r.z);
+const VALID_FLOORS = Object.values(FloorLevel).filter((value): value is FloorLevel => typeof value === 'number');
 const EXPECTED_RADII: Record<Exclude<VisualGeometryMode, 'off'>, number> = { low: 4, medium: 8, high: 16 };
 const EXPECTED_INSTANCE_CAPS: Record<Exclude<VisualGeometryMode, 'off'>, number> = { low: 128, medium: 256, high: 512 };
 const EXPECTED_FIELD_RADII: Record<Exclude<VisualGeometryMode, 'off'>, number> = { low: 2, medium: 4, high: 8 };
@@ -119,9 +120,9 @@ test('visual geometry base modes resolve with safe caps', () => {
   assert.equal(normalizeVisualGeometryMode('bad'), 'high');
   assert.equal(normalizeVisualGeometryMode(undefined), 'high');
 
-  assertOffCaps(resolveVisualGeometryProfile('off', 'design:living', ['living', 'residential']));
+  assertOffCaps(resolveVisualGeometryProfile('off', 'story:living', ['living', 'residential']));
   for (const mode of ['low', 'medium', 'high'] as const satisfies readonly VisualGeometryMode[]) {
-    const profile = resolveVisualGeometryProfile(mode, 'design:living', ['living', 'residential']);
+    const profile = resolveVisualGeometryProfile(mode, 'story:living', ['living', 'residential']);
     assertEnabledCaps(profile, mode);
     assert.equal(profile.instanceCap, EXPECTED_INSTANCE_CAPS[mode], `${mode} instance cap`);
     assert.equal(profile.proceduralFieldRadius, EXPECTED_FIELD_RADII[mode], `${mode} procedural field radius`);
@@ -182,8 +183,8 @@ test('visual geometry theme modulation is data-only and deterministic', () => {
     for (const tag of [...(row.requiredTags ?? []), ...(row.blockedTags ?? [])]) assert.match(tag, ID_RE, `${row.id} tag ${tag} must stay snake_case`);
   }
 
-  const a = resolveVisualGeometryProfile('medium', 'design:maintenance', ['maintenance', 'industrial', 'collectors']);
-  const b = resolveVisualGeometryProfile('medium', 'design:maintenance', ['collectors', 'industrial', 'maintenance']);
+  const a = resolveVisualGeometryProfile('medium', 'story:maintenance', ['maintenance', 'industrial', 'collectors']);
+  const b = resolveVisualGeometryProfile('medium', 'story:maintenance', ['collectors', 'industrial', 'maintenance']);
   assert.deepEqual(a, b, 'same tags in different order must resolve identically');
   assert.equal(a.modulationIds.includes('maintenance_pipes_cables'), true);
   assert.equal(a.modulationIds.includes('industrial_hard_detail'), true);
@@ -191,7 +192,7 @@ test('visual geometry theme modulation is data-only and deterministic', () => {
   assert.equal(a.corridorCoveringId, 'collector');
   assert.equal(a.corridorVolumeDetail > resolveVisualGeometryProfile('medium', 'plain', []).corridorVolumeDetail, true);
 
-  const hell = resolveVisualGeometryProfile('medium', 'design:hell', ['hell', 'meat', 'cult']);
+  const hell = resolveVisualGeometryProfile('medium', 'story:hell', ['hell', 'meat', 'cult']);
   assert.equal(hell.corridorVolumeStyle, 'organic');
   assert.equal(hell.corridorCoveringId, 'meat');
   assert.equal(hell.organicVolumeDetail > a.organicVolumeDetail, true);
@@ -216,13 +217,13 @@ test('visual geometry resolves generator corridor coverings from floor tags', ()
 });
 
 test('all current floor themes provide finite visual geometry profiles', () => {
-  for (const route of DESIGN_FLOOR_ROUTES) {
-    const theme = themeForDesignFloor(route.id);
+  for (const floor of VALID_FLOORS) {
+    const theme = themeForStoryFloor(floor);
     const profile = resolveVisualGeometryProfile('low', theme.floorKey, visualGeometryThemeTags(theme));
-    assertEnabledCaps(profile, `story:${route.id}`);
-    assert.equal(profile.instanceCap, EXPECTED_INSTANCE_CAPS.low, `story:${route.id} low instance cap`);
-    assert.equal(profile.proceduralFieldRadius, EXPECTED_FIELD_RADII.low, `story:${route.id} low field radius`);
-    assert.equal(profile.proceduralFieldInstanceCap, EXPECTED_FIELD_CAPS.low, `story:${route.id} low field cap`);
+    assertEnabledCaps(profile, `story:${FloorLevel[floor]}`);
+    assert.equal(profile.instanceCap, EXPECTED_INSTANCE_CAPS.low, `story:${FloorLevel[floor]} low instance cap`);
+    assert.equal(profile.proceduralFieldRadius, EXPECTED_FIELD_RADII.low, `story:${FloorLevel[floor]} low field radius`);
+    assert.equal(profile.proceduralFieldInstanceCap, EXPECTED_FIELD_CAPS.low, `story:${FloorLevel[floor]} low field cap`);
   }
   for (const route of DESIGN_FLOOR_ROUTES) {
     const theme = themeForDesignRoute(route);

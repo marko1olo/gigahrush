@@ -1,9 +1,9 @@
-import { getPlotNpcNumericId } from '../../data/npc_packages';
 /* ── Тонкая стена — Hell phasing encounter ───────────────────── */
 
 import { stampSurfaceSplat } from '../../systems/surface_marks';
 import {
-  AIGoal, Cell, ContainerKind, EntityType, Faction, Feature, MonsterKind, Occupation, QuestType, RoomType, Tex, W,
+  AIGoal, Cell, ContainerKind, EntityType, Faction, Feature, FloorLevel,
+  MonsterKind, Occupation, QuestType, RoomType, Tex, W,
   type Entity, type GameState, type Room, type WorldContainer, type WorldEvent,
 } from '../../core/types';
 import { World } from '../../core/world';
@@ -16,7 +16,6 @@ import { randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg'
 import { connectProtectedRoom, findClearArea, protectRoom, stampRoom } from '../shared';
 import { genLog } from '../log';
 import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
-import { rng } from '../../core/rand';
 
 const CHAPEL_NAME = 'Пост тонкой стены';
 const BLACK_HAND_SCOUT_ID = 'ag78_black_hand_scout';
@@ -54,10 +53,10 @@ const SCOUT_DEF: PlotNpcDef = {
 registerSideQuest(BLACK_HAND_SCOUT_ID, SCOUT_DEF, [
   {
     id: BLACK_HAND_REPORT_QUEST_ID,
-    giverId: getPlotNpcNumericId(BLACK_HAND_SCOUT_ID)!,
+    giverNpcId: BLACK_HAND_SCOUT_ID,
     type: QuestType.VISIT,
     desc: 'Коптев: «Черная ладонь ведет к тонкой стене {dir}. Дойди до конца следа, отметь место и реши сам: обходить, чистить или брать тайник.»',
-    targetRoomDefId: CHAPEL_NAME,
+    targetRoomName: CHAPEL_NAME,
     rewardItem: 'cleaning_kit',
     rewardCount: 1,
     extraRewards: [{ defId: 'holy_water', count: 1 }],
@@ -74,7 +73,7 @@ function handleBlackHandReport(state: GameState, event: WorldEvent): void {
   if (event.data?.sideQuestId !== BLACK_HAND_REPORT_QUEST_ID) return;
   publishEvent(state, {
     type: 'quest_completed',
-    z: event.z,
+    floor: event.floor,
     zoneId: event.zoneId,
     roomId: event.roomId,
     x: event.x,
@@ -112,7 +111,7 @@ function spawnSpirit(world: World, entities: Entity[], nextId: { v: number }, x:
   const spirit: Entity = {
     id: nextId.v++, type: EntityType.MONSTER,
     x: x + 0.5, y: y + 0.5,
-    angle: rng() * Math.PI * 2, pitch: 0,
+    angle: Math.random() * Math.PI * 2, pitch: 0,
     alive: true,
     speed: scaleMonsterSpeed(def.speed, zoneLevel),
     sprite: monsterSpr(MonsterKind.SPIRIT),
@@ -213,7 +212,7 @@ function addBlackHandCache(world: World, room: Room): void {
     id: nextContainerId(world),
     x: world.wrap(x),
     y: world.wrap(y),
-    z: 180,
+    floor: FloorLevel.HELL,
     roomId: room.id,
     zoneId: world.zoneMap[ci],
     kind: ContainerKind.SECRET_STASH,

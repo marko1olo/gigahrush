@@ -121,7 +121,7 @@ export interface InteractionContext {
   lookY: number;
   readOnly?: boolean;
   switchFloor?: (direction: LiftDirection, message?: string, color?: string, allowElevatorAnomaly?: boolean, targetZ?: number) => void;
-  movePlayerToMetroRoom?: (roomDefId: string) => boolean;
+  movePlayerToMetroRoom?: (roomName: string) => boolean;
   openNpcMenu?: (npc: Entity) => void;
   openContainerMenu?: (container: WorldContainer) => void;
   openCraftMenu?: (request: ContentCraftMenuRequest) => void;
@@ -488,32 +488,20 @@ function activateDoor(ctx: InteractionContext, idx: number): InteractionResult {
       setDoorState(ctx.world, door, DoorState.OPEN);
       ctx.state.msgs.push(msg(quietDoor ? 'Дверь отперта тихо' : 'Дверь отперта ключом', ctx.state.time, quietDoor ? '#8cf' : '#4a4'));
       publishDoorNoise(ctx.state, ctx.player, idx, false, quietDoor);
-      if (ctx.state.tutorialMode && door.isTutorialExit) {
-        import('./tutorial').then(({ advanceTutorial, TutorialStep }) => {
-          advanceTutorial(ctx.state, TutorialStep.EXIT_APARTMENT);
-          completeTutorial(ctx.state);
-        });
-        ctx.state.msgs.push(msg('Дверь со скрипом поддалась. Путь свободен.', ctx.state.time, '#4a4'));
-      } else if (ctx.state.tutorialMode && keyId === 'tut_cafe_key') {
+      if (ctx.state.tutorialMode && keyId === 'tut_cafe_key') {
         completeTutorial(ctx.state);
       }
     } else {
-      if (door.isTutorialExit) {
-        ctx.state.msgs.push(msg('Заперто намертво. Нужно найти ключ.', ctx.state.time, '#f84'));
+      const broke = damageDoor(ctx.world, door, 5);
+      if (broke) {
+        ctx.state.msgs.push(msg('Дверь выбита!', ctx.state.time, '#4a4'));
       } else {
-        const broke = damageDoor(ctx.world, door, 5);
-        if (broke) {
-          ctx.state.msgs.push(msg('Дверь выбита!', ctx.state.time, '#4a4'));
-        } else {
-          ctx.state.msgs.push(msg('Заперто. Нужен ключ. (Удар -5)', ctx.state.time, '#f84'));
-        }
+        ctx.state.msgs.push(msg('Заперто. Нужен ключ. (Удар -5)', ctx.state.time, '#f84'));
       }
     }
   }
   return { handled: true };
 }
-
-export const activateDoor_FOR_TESTING = activateDoor;
 
 function activateMetro(ctx: InteractionContext): InteractionResult {
   const metro = tryUseMetroRoute(ctx.world, ctx.player, ctx.state, ctx.lookX, ctx.lookY);
@@ -521,13 +509,13 @@ function activateMetro(ctx: InteractionContext): InteractionResult {
   if (!metro.destination) {
     ctx.state.msgs.push(msg(metro.message, ctx.state.time, metro.color));
   } else if (metro.destination.kind === 'local') {
-    if (ctx.movePlayerToMetroRoom?.(metro.destination.roomDefId)) {
+    if (ctx.movePlayerToMetroRoom?.(metro.destination.roomName)) {
       ctx.state.msgs.push(msg(metro.message, ctx.state.time, metro.color));
     } else {
       ctx.state.msgs.push(msg('Метро дернулось, но карман не найден.', ctx.state.time, '#f84'));
     }
   } else {
-    const delta = metro.destination.z - ctx.state.currentZ;
+    const delta = metro.destination.floor - ctx.state.currentFloor;
     if (delta === 1) ctx.switchFloor?.(LiftDirection.DOWN, metro.message, metro.color, false);
     else if (delta === -1) ctx.switchFloor?.(LiftDirection.UP, metro.message, metro.color, false);
     else ctx.state.msgs.push(msg('Эта линия пока берет только соседние этажи.', ctx.state.time, '#888'));
@@ -607,7 +595,7 @@ function activateNormalPriorityInteractionForLook(ctx: InteractionContext): Inte
     if (door.handled) return door;
   }
 
-  ensureRoomContainers(ctx.world, ctx.state.currentZ);
+  ensureRoomContainers(ctx.world, ctx.state.currentFloor);
   const container = findContainer(ctx, true);
   if (container) {
     ctx.openContainerMenu?.(container);
@@ -769,7 +757,7 @@ export function placeGeneratedInteractablesForCurrentFloor(world: World, state: 
   clearGamblingMachines();
   clearNetHackTerminals();
 
-  const seed = hashSeed(`interactables:${state.currentZ}:${world.rooms.length}`, state.currentZ * 4099 + world.rooms.length + 1777);
+  const seed = hashSeed(`interactables:${state.currentFloor}:${world.rooms.length}`, state.currentFloor * 4099 + world.rooms.length + 1777);
   const rng = seededRandom(seed);
   const used = new Set<number>();
   let placed = 0;

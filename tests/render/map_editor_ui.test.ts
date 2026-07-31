@@ -1,11 +1,12 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 import { World } from '../../src/core/world';
+import { FloorLevel } from '../../src/core/types';
 import { invalidateMapEditorThumbnail, markMapEditorThumbnailDirty } from '../../src/render/map_editor_ui';
 
 test('Map Editor Thumbnail Cache Management', async (t) => {
   await t.test('markMapEditorThumbnailDirty gracefully handles edge cases', () => {
-    const world = new World(1.L1);
+    const world = new World(1, FloorLevel.L1);
 
     // empty list
     assert.doesNotThrow(() => markMapEditorThumbnailDirty(world, []));
@@ -26,7 +27,7 @@ test('Map Editor Thumbnail Cache Management', async (t) => {
   await t.test('invalidateMapEditorThumbnail gracefully handles missing cache', () => {
     assert.doesNotThrow(() => invalidateMapEditorThumbnail());
 
-    const world = new World(1.L1);
+    const world = new World(1, FloorLevel.L1);
     assert.doesNotThrow(() => invalidateMapEditorThumbnail(world));
   });
 });

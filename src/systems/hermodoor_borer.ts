@@ -1,7 +1,7 @@
 /* ── Hermodoor borer: bounded shelter-risk encounter ─────────── */
 
 import {
-  W, Cell, DoorState, EntityType, AIGoal, MonsterKind, RoomType,
+  W, Cell, DoorState, EntityType, AIGoal, MonsterKind, FloorLevel, RoomType,
   type Entity, type GameState, type Room,
   msg,
 } from '../core/types';
@@ -17,7 +17,6 @@ import { addItem, hasItem, removeItem } from './inventory';
 import { randomRPG, scaleMonsterHp, scaleMonsterSpeed } from './rpg';
 import { isPlayerEntity, getCurrentPlayerId } from './player_actor';
 import { ensureEntityIndex } from './entity_index';
-import { rng } from '../core/rand';
 
 type BorerSource = 'pre_samosbor' | 'post_samosbor' | 'debug';
 type BorerPhase = 'warning' | 'damaged' | 'compromised' | 'repaired' | 'resolved';
@@ -26,7 +25,7 @@ type DoorDamagePhase = 'warning' | 'damaged' | 'compromised';
 interface BorerTarget {
   doorIdx: number;
   roomId: number;
-  roomDefId: string;
+  roomName: string;
   zoneId: number;
   d2: number;
 }
@@ -34,9 +33,9 @@ interface BorerTarget {
 interface BorerDoorRecord {
   doorIdx: number;
   roomId: number;
-  roomDefId: string;
+  roomName: string;
   zoneId: number;
-  z: number;
+  floor: FloorLevel;
   cycle: number;
   phase: DoorDamagePhase;
   detectedAt: number;
@@ -46,12 +45,12 @@ interface BorerDoorRecord {
 
 interface BorerRuntime {
   id: number;
-  z: number;
+  floor: FloorLevel;
   cycle: number;
   source: BorerSource;
   targetDoorIdx: number;
   targetRoomId: number;
-  targetRoomDefId: string;
+  targetRoomName: string;
   zoneId: number;
   monsterId: number;
   spawnedAt: number;
@@ -120,8 +119,8 @@ function doorY(idx: number): number {
   return (idx / W) | 0;
 }
 
-function borerFloorsAllowThreat(z: number): boolean {
-  return z !== 180 && z !== 200;
+function borerFloorsAllowThreat(floor: FloorLevel): boolean {
+  return floor !== FloorLevel.HELL && floor !== FloorLevel.VOID;
 }
 
 function occupiedApartmentIds(entities: readonly Entity[]): Set<number> {
@@ -165,7 +164,7 @@ function considerTarget(
   return {
     doorIdx,
     roomId: room.id,
-    roomDefId: room.name || 'укрытие',
+    roomName: room.name || 'укрытие',
     zoneId: world.zoneMap[doorIdx],
     d2,
   };
@@ -293,7 +292,7 @@ function publishBorerEvent(
     tags: ['hermodoor', 'borer', 'shelter_risk', ...tags].slice(0, 8),
     data: {
       doorIdx: rec.doorIdx,
-      roomDefId: rec.roomDefId,
+      roomName: rec.roomName,
       samosborCount: rec.cycle,
       damageAt: rec.damageAt,
       ...data,
@@ -308,7 +307,7 @@ function startBorer(
   nextEntityId: { v: number },
   source: BorerSource,
 ): BorerRuntime | null {
-  if (!borerFloorsAllowThreat(state.currentZ)) return null;
+  if (!borerFloorsAllowThreat(state.currentFloor)) return null;
   const store = storeFor(world);
   if (store.active && store.active.phase !== 'resolved' && store.active.phase !== 'repaired') return store.active;
   const player = findPlayer(entities);
@@ -320,12 +319,12 @@ function startBorer(
   const monsterId = spawnBorerMonster(world, entities, nextEntityId, target);
   const runtime: BorerRuntime = {
     id: store.nextId++,
-    z: state.currentZ,
+    floor: state.currentFloor,
     cycle: state.samosborCount,
     source,
     targetDoorIdx: target.doorIdx,
     targetRoomId: target.roomId,
-    targetRoomDefId: target.roomDefId,
+    targetRoomName: target.roomName,
     zoneId: target.zoneId,
     monsterId,
     spawnedAt: state.time,
@@ -339,9 +338,9 @@ function startBorer(
   const rec: BorerDoorRecord = {
     doorIdx: target.doorIdx,
     roomId: target.roomId,
-    roomDefId: target.roomDefId,
+    roomName: target.roomName,
     zoneId: target.zoneId,
-    z: state.currentZ,
+    floor: state.currentFloor,
     cycle: state.samosborCount,
     phase: 'warning',
     detectedAt: state.time,
@@ -353,7 +352,7 @@ function startBorer(
   markBorerDoor(world, target.doorIdx, runtime.id * 1031, false);
   playSoundAt(playBreak, doorX(target.doorIdx) + 0.5, doorY(target.doorIdx) + 0.5);
   state.msgs.push(msg(
-    `Гермоточильщик скребёт ${target.roomDefId}: дверь ещё держит ${Math.ceil(delay)}с.`,
+    `Гермоточильщик скребёт ${target.roomName}: дверь ещё держит ${Math.ceil(delay)}с.`,
     state.time,
     '#fb6',
   ));
@@ -430,7 +429,7 @@ function damageDoor(world: World, state: GameState, runtime: BorerRuntime, rec: 
   door.timer = 0;
   markBorerDoor(world, runtime.targetDoorIdx, runtime.id * 2053, true);
   playSoundAt(playBreak, doorX(runtime.targetDoorIdx) + 0.5, doorY(runtime.targetDoorIdx) + 0.5);
-  state.msgs.push(msg(`Гермоточильщик испортил ${runtime.targetRoomDefId}. До закрытия ещё можно чинить.`, state.time, '#f86'));
+  state.msgs.push(msg(`Гермоточильщик испортил ${runtime.targetRoomName}. До закрытия ещё можно чинить.`, state.time, '#f86'));
   publishBorerEvent(state, rec, 'hermodoor_borer_damage', 4, 'local', [runtime.source, 'damaged'], {
     monsterId: runtime.monsterId,
   });
@@ -449,12 +448,12 @@ function pulseWarning(world: World, state: GameState, runtime: BorerRuntime): vo
 function clearStaleRecords(world: World, state: GameState): void {
   const store = storeFor(world);
   for (const [idx, rec] of store.doorRecords) {
-    if (rec.z !== state.currentZ || !world.doors.has(idx) || world.cells[idx] !== Cell.DOOR) {
+    if (rec.floor !== state.currentFloor || !world.doors.has(idx) || world.cells[idx] !== Cell.DOOR) {
       store.doorRecords.delete(idx);
     }
   }
   const runtime = store.active;
-  if (runtime && (runtime.z !== state.currentZ || !world.doors.has(runtime.targetDoorIdx))) {
+  if (runtime && (runtime.floor !== state.currentFloor || !world.doors.has(runtime.targetDoorIdx))) {
     resolveActive(store, runtime, 'resolved');
   }
 }
@@ -464,7 +463,7 @@ function maybeStartPreSamosbor(world: World, entities: Entity[], state: GameStat
   const store = storeFor(world);
   if (store.lastPreCycle === state.samosborCount) return;
   store.lastPreCycle = state.samosborCount;
-  if (rng() > PRE_SAMOSBOR_CHANCE) return;
+  if (Math.random() > PRE_SAMOSBOR_CHANCE) return;
   startBorer(world, entities, state, nextEntityId, 'pre_samosbor');
 }
 
@@ -475,7 +474,7 @@ function maybeStartPostSamosbor(world: World, entities: Entity[], state: GameSta
   if (state.samosborCount !== store.queuedPostCycle) return;
   store.lastPostCycle = store.queuedPostCycle;
   store.queuedPostCycle = -1;
-  if (rng() > POST_SAMOSBOR_CHANCE) return;
+  if (Math.random() > POST_SAMOSBOR_CHANCE) return;
   startBorer(world, entities, state, nextEntityId, 'post_samosbor');
 }
 
@@ -517,7 +516,7 @@ export function updateHermodoorBorer(
 }
 
 export function queuePostSamosborHermodoorBorer(world: World, state: GameState): void {
-  if (!borerFloorsAllowThreat(state.currentZ)) return;
+  if (!borerFloorsAllowThreat(state.currentFloor)) return;
   const store = storeFor(world);
   store.queuedPostCycle = state.samosborCount;
 }
@@ -550,7 +549,7 @@ function seedCompromiseLeak(world: World, rec: BorerDoorRecord): void {
 export function blocksHermodoorBorerSeal(world: World, state: GameState, doorIdx: number, roomId: number): boolean {
   const store = storeFor(world);
   const rec = store.doorRecords.get(doorIdx);
-  if (!rec || rec.z !== state.currentZ || rec.roomId !== roomId) return false;
+  if (!rec || rec.floor !== state.currentFloor || rec.roomId !== roomId) return false;
   if (rec.phase === 'warning') return false;
   const door = world.doors.get(doorIdx);
   if (!door) return false;
@@ -562,7 +561,7 @@ export function blocksHermodoorBorerSeal(world: World, state: GameState, doorIdx
     const active = store.active;
     if (active?.targetDoorIdx === doorIdx) active.phase = 'compromised';
     seedCompromiseLeak(world, rec);
-    state.msgs.push(msg(`Укрытие скомпрометировано: ${rec.roomDefId}. Ищите другой вход или чините сейчас.`, state.time, '#f44'));
+    state.msgs.push(msg(`Укрытие скомпрометировано: ${rec.roomName}. Ищите другой вход или чините сейчас.`, state.time, '#f44'));
     publishBorerEvent(state, rec, 'hermodoor_borer_compromised', 5, 'public', ['compromised', 'samosbor_seal'], {
       compromisedAt: state.time,
     });
@@ -605,7 +604,7 @@ export function tryRepairHermodoorBorerDamage(
   const doorIdx = world.idx(Math.floor(lookX), Math.floor(lookY));
   const store = storeFor(world);
   const rec = store.doorRecords.get(doorIdx);
-  if (!rec || rec.z !== state.currentZ) return false;
+  if (!rec || rec.floor !== state.currentFloor) return false;
   const supply = repairSupply(player);
   if (!supply) {
     if (rec.phase === 'warning') return false;
@@ -680,7 +679,7 @@ export function debugForceHermodoorBorer(
   state.samosborTimer = Math.min(state.samosborTimer, 12);
   const moved = movePlayerToDoor(world, player, runtime);
   return [
-    `target=${runtime.targetRoomDefId} door=(${doorX(runtime.targetDoorIdx)},${doorY(runtime.targetDoorIdx)}) moved=${moved ? 1 : 0}`,
+    `target=${runtime.targetRoomName} door=(${doorX(runtime.targetDoorIdx)},${doorY(runtime.targetDoorIdx)}) moved=${moved ? 1 : 0}`,
     'kit=flashlight, uv_spotlight, sealant_tube, hermo_gasket, rubber_door_wedge, wrench; E repairs, closed door traps, killing prevents damage',
   ];
 }

@@ -1,4 +1,4 @@
-import { } from '../core/types';
+import { FloorLevel } from '../core/types';
 import {
   FLOOR_CATALOG,
   type FloorCatalogDef,
@@ -8,7 +8,7 @@ import {
 import { floorLevelDisplayName } from '../gen/floor_manifest';
 
 export interface FloorCatalogQuery {
-  readonly themeTags?: readonly string[];
+  readonly baseFloor?: FloorLevel;
   readonly tag?: string;
   readonly tags?: readonly string[];
   readonly rarity?: FloorCatalogRarity | readonly FloorCatalogRarity[];
@@ -24,24 +24,19 @@ function matchesFilter<T extends string>(value: T, filter: T | readonly T[] | un
 }
 
 function hasAllTags(def: FloorCatalogDef, tags: readonly string[]): boolean {
-  for (const tag of tags) if (!def.tags.has(tag)) return false;
+  for (const tag of tags) if (!def.tags.includes(tag)) return false;
   return true;
 }
 
 function matchesSearch(def: FloorCatalogDef, search: string): boolean {
   const q = search.trim().toLowerCase();
   if (!q) return true;
-  if (
+  return (
     def.id.toLowerCase().includes(q) ||
     def.displayName.toLowerCase().includes(q) ||
-    def.unlockHint.toLowerCase().includes(q)
-  ) {
-    return true;
-  }
-  for (const tag of def.tags) {
-    if (tag.toLowerCase().includes(q)) return true;
-  }
-  return false;
+    def.unlockHint.toLowerCase().includes(q) ||
+    def.tags.some(tag => tag.toLowerCase().includes(q))
+  );
 }
 
 export function getFloorCatalogDef(id: string): FloorCatalogDef | undefined {
@@ -56,7 +51,7 @@ export function queryFloorCatalog(query: FloorCatalogQuery = {}): FloorCatalogDe
   if (limit === 0) return out;
 
   for (const def of FLOOR_CATALOG) {
-    if (query.themeTags !== undefined && !query.themeTags.every(t => def.themeTags.includes(t))) continue;
+    if (query.baseFloor !== undefined && def.baseFloor !== query.baseFloor) continue;
     if (query.minDepth !== undefined && def.minDepth > query.minDepth) continue;
     if (!matchesFilter(def.rarity, query.rarity)) continue;
     if (!matchesFilter(def.contentStatus, query.contentStatus)) continue;
@@ -70,20 +65,20 @@ export function queryFloorCatalog(query: FloorCatalogQuery = {}): FloorCatalogDe
 }
 
 export function eligibleFloorPockets(
-  themeTags: readonly string[],
+  baseFloor: FloorLevel,
   depth: number,
-  query: Omit<FloorCatalogQuery, 'themeTags' | 'minDepth'> = {},
+  query: Omit<FloorCatalogQuery, 'baseFloor' | 'minDepth'> = {},
 ): FloorCatalogDef[] {
-  return queryFloorCatalog({ ...query, themeTags, minDepth: depth });
+  return queryFloorCatalog({ ...query, baseFloor, minDepth: depth });
 }
 
 export function eligibleFloorPocketsByTag(
-  themeTags: readonly string[],
+  baseFloor: FloorLevel,
   tag: string,
   depth: number,
   rarity?: FloorCatalogRarity | readonly FloorCatalogRarity[],
 ): FloorCatalogDef[] {
-  return eligibleFloorPockets(themeTags, depth, { tag, rarity });
+  return eligibleFloorPockets(baseFloor, depth, { tag, rarity });
 }
 
 export function searchFloorCatalog(search: string, query: Omit<FloorCatalogQuery, 'search'> = {}): FloorCatalogDef[] {
@@ -91,15 +86,15 @@ export function searchFloorCatalog(search: string, query: Omit<FloorCatalogQuery
 }
 
 export function formatFloorCatalogLine(def: FloorCatalogDef): string {
-  return `${def.id} | ${def.displayName} | ${floorLevelDisplayName(def.themeTags)} | ${def.rarity} d${def.minDepth} | ${def.contentStatus}`;
+  return `${def.id} | ${def.displayName} | ${floorLevelDisplayName(def.baseFloor)} | ${def.rarity} d${def.minDepth} | ${def.contentStatus}`;
 }
 
 export function floorCatalogDebugLines(query: FloorCatalogQuery = {}): string[] {
   const rows = queryFloorCatalog(query);
   const scope = query.search?.trim()
     ? `search="${query.search.trim()}"`
-    : query.themeTags !== undefined
-      ? floorLevelDisplayName(query.themeTags)
+    : query.baseFloor !== undefined
+      ? floorLevelDisplayName(query.baseFloor)
       : 'all';
   const lines = [`catalog ${scope}: ${rows.length}/${FLOOR_CATALOG.length}`];
   for (const def of rows) lines.push(formatFloorCatalogLine(def));

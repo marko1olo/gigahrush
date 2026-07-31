@@ -2,7 +2,8 @@
 
 import { stampSurfaceSplat } from '../../systems/surface_marks';
 import {
-  AIGoal, Cell, ContainerKind, EntityType, Feature, MonsterKind, RoomType, Tex, msg,
+  AIGoal, Cell, ContainerKind, EntityType, Feature, FloorLevel,
+  MonsterKind, RoomType, Tex, msg,
   type Entity, type GameState, type Room, type WorldContainer, type WorldEvent,
   type WorldEventType,
 } from '../../core/types';
@@ -14,7 +15,6 @@ import { randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg'
 import {
   type MaintContentCtx, findMaintArea, openTile, setFeature, setWater, stampMaintRoom,
 } from './content_helpers';
-import { rng } from '../../core/rand';
 
 const TAG_SITE = 'ag67_black_slime';
 const TAG_SLIME = 'black_slime';
@@ -84,7 +84,7 @@ function addBlackSlimeContainer(
     id,
     x: wx,
     y: wy,
-    z: 140,
+    floor: FloorLevel.MAINTENANCE,
     roomId: room.id,
     zoneId: ctx.world.zoneMap[ctx.world.idx(wx, wy)],
     kind,
@@ -140,7 +140,7 @@ function publishBlackSlimeEvent(
   const room = ctx.world.rooms[ctx.roomId];
   publishEvent(state, {
     type: `black_slime_${phase}` as WorldEventType,
-    z: 140,
+    floor: FloorLevel.MAINTENANCE,
     zoneId: source.zoneId,
     roomId: ctx.roomId,
     x: source.x,
@@ -158,7 +158,7 @@ function publishBlackSlimeEvent(
     tags: [TAG_SITE, TAG_SLIME, 'slime', phase, 'maintenance', ...source.tags].slice(0, 8),
     data: {
       sourceEventId: source.id,
-      roomDefId: room?.name,
+      roomName: room?.name,
       spawnedEyes: ctx.eyeIds.length,
       sealed: ctx.sealed,
       sampleRecovered: ctx.sampleRecovered,
@@ -223,7 +223,7 @@ function spawnBlackSlimeEyes(ctx: BlackSlimeContext, source: WorldEvent): number
       type: EntityType.MONSTER,
       x: pos.x + 0.5,
       y: pos.y + 0.5,
-      angle: rng() * Math.PI * 2,
+      angle: Math.random() * Math.PI * 2,
       pitch: 0,
       alive: true,
       speed: scaleMonsterSpeed(def.speed, zoneLevel),

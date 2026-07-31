@@ -9,7 +9,7 @@ import {
   BLACK_MARKET_88_STOCK,
   createBlackMarket88DesignState,
   quoteBlackMarket88Purchase,
-} from '../src/gen/black_market_88';
+} from '../src/gen/design_floors/black_market_88';
 import { inventoryItemCategory } from '../src/systems/inventory';
 
 const ITEM_ID = 'braga_bucket';

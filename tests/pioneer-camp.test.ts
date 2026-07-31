@@ -62,8 +62,8 @@ test('pioneer camp ships macro courts, micro rooms and cell-first faction contro
     return d >= 180 && d <= 470 ? count + 1 : count;
   }, 0);
 
-  assert.ok(profile.npcTarget >= 110 && profile.npcTarget <= 11000, 'npcTarget in bounds');
-  assert.ok(profile.monsterTarget >= 90 && profile.monsterTarget <= 9000, 'monsterTarget in bounds');
+  assert.equal(profile.npcTarget, 1100);
+  assert.equal(profile.monsterTarget, 900);
   assert.equal(gen.world.rooms.length >= 110, true, `rooms ${gen.world.rooms.length}`);
   assert.equal(gen.world.doors.size >= 80, true, `doors ${gen.world.doors.size}`);
   assert.equal(countReachableCells(reachable) >= 130_000, true, `reachable ${countReachableCells(reachable)}`);

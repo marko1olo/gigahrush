@@ -3,6 +3,7 @@ import type { World } from '../../core/world';
 import {
   capMeshInstances,
   collectMeshChunk,
+  collectStaticEntityMeshes,
   resolveMeshSceneProfile,
   visualSlotVersionForWorld,
   type MeshInstance,
@@ -192,6 +193,7 @@ export class MeshChunkCache {
       }
       if (entry) raw.push(...entry.instances);
     }
+    collectStaticEntityMeshes({ ...context, profile }, raw);
     capMeshInstances({ ...context, profile }, raw, out, profile);
     return {
       enabled: true,

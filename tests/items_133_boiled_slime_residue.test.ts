@@ -5,7 +5,7 @@ import { ItemType, type Entity } from '../src/core/types';
 import { World } from '../src/core/world';
 import { ITEM_TAGS, ITEMS, getStack } from '../src/data/items';
 import { resourceForItem } from '../src/data/resources';
-import { generateSlimeNiiDesignFloor } from '../src/gen/slime_nii';
+import { generateSlimeNiiDesignFloor } from '../src/gen/design_floors/slime_nii';
 import { generateSlimeDeactivationFurnace } from '../src/gen/maintenance/slime_deactivation_furnace';
 import { inventoryItemCategory } from '../src/systems/inventory';
 

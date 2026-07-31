@@ -1,12 +1,11 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { AIGoal, Cell, EntityType, Feature, MonsterKind, Tex, type Entity, type Msg } from '../src/core/types';
+import { AIGoal, Cell, EntityType, Feature, FloorLevel, MonsterKind, Tex, type Entity, type Msg } from '../src/core/types';
 import { World } from '../src/core/world';
 import { MONSTERS } from '../src/entities/monster';
 import { setEntityMap, updateMonster } from '../src/systems/ai/monster';
 import { setListenerPos } from '../src/systems/audio';
-import { bakeNavigationTree } from '../src/systems/ai/pathfinding';
 import { createWorldEventState, getRecentEvents } from '../src/systems/events';
 import { rebuildEntityIndex } from '../src/systems/entity_index';
 import { applyMonsterIncomingDamage, lotochnikDrainArmorActive } from '../src/systems/monster_traits';
@@ -16,12 +15,7 @@ import { makeGameState, makeTestPlayer } from './helpers';
 
 function openWorld(): World {
   const world = new World();
-  world.cells.fill(Cell.WALL);
-  for (let y = 1; y < 60; y++) {
-    for (let x = 1; x < 60; x++) {
-      world.cells[world.idx(x, y)] = Cell.FLOOR;
-    }
-  }
+  world.cells.fill(Cell.FLOOR);
   return world;
 }
 
@@ -46,10 +40,9 @@ function monster(kind: MonsterKind, x: number, y: number, hp?: number): Entity {
   };
 }
 
-function prepare(world: World, entities: Entity[]): void {
+function prepare(entities: Entity[]): void {
   rebuildEntityIndex(entities);
   setEntityMap(new Map(entities.map(e => [e.id, e])));
-  bakeNavigationTree(world);
 }
 
 function runMonsterHit(kind: MonsterKind, setup?: (world: World) => void): number {
@@ -59,7 +52,7 @@ function runMonsterHit(kind: MonsterKind, setup?: (world: World) => void): numbe
   const target = makeTestPlayer({ id: 1, x: 11.1, y: 10.5, hp: 100, maxHp: 100 });
   const threat = monster(kind, 10.5, 10.5);
   const entities = [target, threat];
-  prepare(world, entities);
+  prepare(entities);
 
   updateMonster(world, entities, threat, 0.2, 10, [], target.id, { v: 100 });
   return target.hp ?? 0;
@@ -108,7 +101,7 @@ test('lotochnik drain armor and regeneration use local wet terrain only', () => 
   world.features[world.idx(10, 10)] = Feature.SINK;
   assert.equal(lotochnikDrainArmorActive(world, threat), true);
   assert.equal(applyMonsterIncomingDamage(world, threat, 100) < 100, true);
-  prepare(world, entities);
+  prepare(entities);
   updateMonster(world, entities, threat, 2, 1, msgs, player.id, { v: 100 });
   assert.equal((threat.hp ?? 0) > 40, true, 'wet drain should regenerate Lotochnik up to its max HP');
 
@@ -123,17 +116,17 @@ test('lotochnik drain armor and regeneration use local wet terrain only', () => 
 test('noise probe reveals Chernosliz without a full water scan', () => {
   resetNoiseRecords();
   const world = openWorld();
-  const target = makeTestPlayer({ id: 1, x: 12.5, y: 2.5, hp: 100, maxHp: 100 });
-  const threat = monster(MonsterKind.CHERNOSLIZ, 2.5, 2.5);
+  const target = makeTestPlayer({ id: 1, x: 20.5, y: 10.5, hp: 100, maxHp: 100 });
+  const threat = monster(MonsterKind.CHERNOSLIZ, 10.5, 10.5);
   const entities = [target, threat];
-  const state = makeGameState({ currentZ: -14, worldEvents: createWorldEventState(), time: 1 });
+  const state = makeGameState({ currentFloor: FloorLevel.MAINTENANCE, worldEvents: createWorldEventState(), time: 1 });
   const msgs: Msg[] = [];
 
-  world.cells[world.idx(2, 2)] = Cell.WATER;
-  prepare(world, entities);
+  world.cells[world.idx(10, 10)] = Cell.WATER;
+  prepare(entities);
   publishNoise(state, {
-    x: 3.5,
-    y: 2.5,
+    x: 11.5,
+    y: 10.5,
     radius: 12,
     ttl: 3,
     source: 'decoy',

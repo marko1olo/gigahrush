@@ -1,42 +1,15 @@
-import { getPlotNpcNumericId } from '../../data/npc_packages';
 /* ── Чернобожий Свод: cult false-shelter room anchor ─────────── */
 
 import { stampSurfaceSplat } from '../../systems/surface_marks';
 import {
-  AIGoal, Cell, ContainerKind, EntityType, Faction, Feature, MonsterKind, Occupation, QuestType, RoomType, Tex, ZoneFaction, msg,
+  AIGoal, Cell, ContainerKind, EntityType, Faction, Feature, FloorLevel,
+  MonsterKind, Occupation, QuestType, RoomType, Tex, ZoneFaction, msg,
   type Entity, type GameState, type Item, type WorldContainer, type WorldEvent,
   type WorldEventPrivacy, type WorldEventType,
 } from '../../core/types';
 import { World } from '../../core/world';
 import { FALSE_SAFE_BLOCK_ROOM_PREFIX, FALSE_SAFE_BLOCK_TAG } from '../../data/procedural_floors';
-import { type PlotNpcDef, registerSideQuest , registerAuthoredNpc } from '../../data/plot';
-
-const AMBIENT_NPC_0: PlotNpcDef = {
-  name: 'Черноременный у койки',
-  isFemale: true,
-  faction: Faction.CULTIST,
-  occupation: Occupation.PILGRIM,
-  sprite: Occupation.PILGRIM,
-  hp: 50, maxHp: 50, money: 5, speed: 0.9,
-  inventory: [{ defId: 'bread', count: 1 }],
-talkLines: ['Проходи своей дорогой.', 'Мне не до разговоров.'],
-talkLinesPost: ['...'],
-};
-registerAuthoredNpc({ id: 'kv_ambient_0_6c1ht', npc: AMBIENT_NPC_0 });
-
-const AMBIENT_NPC_1: PlotNpcDef = {
-  name: 'Сосед без места',
-  isFemale: true,
-  faction: Faction.CITIZEN,
-  occupation: Occupation.LOCKSMITH,
-  sprite: Occupation.LOCKSMITH,
-  hp: 50, maxHp: 50, money: 5, speed: 0.9,
-  inventory: [{ defId: 'siren_instruction', count: 1 }],
-talkLines: ['Проходи своей дорогой.', 'Мне не до разговоров.'],
-talkLinesPost: ['...'],
-};
-registerAuthoredNpc({ id: 'kv_ambient_1_ie4ia', npc: AMBIENT_NPC_1 });
-
+import { type PlotNpcDef, registerSideQuest } from '../../data/plot';
 import { addFactionRelMutual } from '../../data/relations';
 import { MONSTERS } from '../../entities/monster';
 import { monsterSpr } from '../../render/sprite_index';
@@ -47,15 +20,15 @@ import {
   placeDropNear,
   roomCell,
   setFeatureIfFloor,
+  spawnAmbientNpc,
   spawnSocialNpc,
   type SocialPoiRoom,
 } from './social_helpers';
-import { rng } from '../../core/rand';
 
 export const CHERNOBOZHIY_SVOD_TAG = 'chernobozhiy_svod';
 
 const OUTCOME_TAG = 'chernobozhiy_svod_outcome';
-const ROOM_DEF_ID = `${FALSE_SAFE_BLOCK_ROOM_PREFIX}: Чернобожий Свод`;
+const ROOM_NAME = `${FALSE_SAFE_BLOCK_ROOM_PREFIX}: Чернобожий Свод`;
 const LIQUIDATOR_ID = 'svod_liquidator_belik';
 const WITNESS_ID = 'svod_witness_anya';
 const CUSTODIAN_ID = 'svod_custodian_efrem';
@@ -218,7 +191,7 @@ const CUSTODIAN: PlotNpcDef = {
 registerSideQuest(LIQUIDATOR_ID, LIQUIDATOR, [
   {
     id: EXPOSE_QUEST,
-    giverId: getPlotNpcNumericId(LIQUIDATOR_ID)!,
+    giverNpcId: LIQUIDATOR_ID,
     type: QuestType.FETCH,
     desc: 'Белик Сухой Акт: «Принеси акт черной ладони из Свода. Комната должна стать адресом, а не чудом.»',
     targetItem: 'chernobog_confiscation_act',
@@ -229,7 +202,7 @@ registerSideQuest(LIQUIDATOR_ID, LIQUIDATOR, [
     relationDelta: 12,
     xpReward: 80,
     moneyReward: 45,
-    targetFloorZ: 60,
+    targetFloor: FloorLevel.KVARTIRY,
     targetRoomType: RoomType.COMMON,
     targetHint: 'Квартиры: тихий культовый блок с черными ладонями и аварийным экраном.',
     eventTags: [...CORE_TAGS, 'exposed'],
@@ -238,7 +211,7 @@ registerSideQuest(LIQUIDATOR_ID, LIQUIDATOR, [
   },
   {
     id: SEAL_QUEST,
-    giverId: getPlotNpcNumericId(LIQUIDATOR_ID)!,
+    giverNpcId: LIQUIDATOR_ID,
     type: QuestType.FETCH,
     desc: 'Белик Сухой Акт: «Дай чистящий комплект. Ладонь надо замазать так, чтобы укрытие снова слышало сирену.»',
     targetItem: 'cleaning_kit',
@@ -249,7 +222,7 @@ registerSideQuest(LIQUIDATOR_ID, LIQUIDATOR, [
     relationDelta: 10,
     xpReward: 70,
     moneyReward: 40,
-    targetFloorZ: 60,
+    targetFloor: FloorLevel.KVARTIRY,
     targetRoomType: RoomType.COMMON,
     targetHint: 'Квартиры: отметь и сотри черную ладонь в тихом блоке.',
     eventTags: [...CORE_TAGS, 'sealed'],
@@ -258,7 +231,7 @@ registerSideQuest(LIQUIDATOR_ID, LIQUIDATOR, [
   },
   {
     id: DESTROY_QUEST,
-    giverId: getPlotNpcNumericId(LIQUIDATOR_ID)!,
+    giverNpcId: LIQUIDATOR_ID,
     type: QuestType.KILL,
     desc: 'Белик Сухой Акт: «Когда поймешь, где ладонь держит комнату, разбей идол Свода. Не раньше.»',
     targetMonsterKind: MonsterKind.IDOL,
@@ -269,7 +242,7 @@ registerSideQuest(LIQUIDATOR_ID, LIQUIDATOR, [
     relationDelta: 14,
     xpReward: 110,
     moneyReward: 70,
-    targetFloorZ: 60,
+    targetFloor: FloorLevel.KVARTIRY,
     targetRoomType: RoomType.COMMON,
     targetHint: 'Квартиры: идол стоит внутри отмеченного тихого блока.',
     eventTags: [...CORE_TAGS, 'destroyed'],
@@ -280,7 +253,7 @@ registerSideQuest(LIQUIDATOR_ID, LIQUIDATOR, [
 
 registerSideQuest(WITNESS_ID, WITNESS, [{
   id: SABOTAGE_QUEST,
-  giverId: getPlotNpcNumericId(WITNESS_ID)!,
+  giverNpcId: WITNESS_ID,
   type: QuestType.FETCH,
   desc: 'Аня Из Списка: «Укради кухонный список Свода. Хлеб надо вернуть в соседей, а не в ладонь.»',
   targetItem: 'cult_supply_list',
@@ -291,7 +264,7 @@ registerSideQuest(WITNESS_ID, WITNESS, [{
   relationDelta: 14,
   xpReward: 65,
   moneyReward: 22,
-  targetFloorZ: 60,
+  targetFloor: FloorLevel.KVARTIRY,
   targetRoomType: RoomType.COMMON,
   targetHint: 'Квартиры: организованный культовый запас рядом с черными ладонями.',
   eventTags: [...CORE_TAGS, 'sabotaged'],
@@ -315,7 +288,7 @@ function handleSvodEvents(state: GameState, event: WorldEvent): void {
   addFactionRelMutual(Faction.PLAYER, Faction.CULTIST, -6);
   publishEvent(state, {
     type: 'faction_relation_changed',
-    z: event.z,
+    floor: event.floor,
     zoneId: event.zoneId,
     roomId: event.roomId,
     x: event.x,
@@ -336,7 +309,7 @@ function handleSvodEvents(state: GameState, event: WorldEvent): void {
     data: {
       sourceEventId: event.id,
       outcome: 'robbed',
-      roomDefId: ROOM_DEF_ID,
+      roomName: ROOM_NAME,
       containerName: event.data?.containerName,
       witnessCount: event.data?.witnessCount,
       rumorIds: RUMOR_IDS,
@@ -354,7 +327,7 @@ function publishQuestOutcome(
   for (const [faction, delta] of outcome.relationDeltas) addFactionRelMutual(Faction.PLAYER, faction, delta);
   publishEvent(state, {
     type: outcome.type,
-    z: 60,
+    floor: FloorLevel.KVARTIRY,
     zoneId: event.zoneId,
     roomId: event.roomId,
     actorId: event.actorId,
@@ -371,7 +344,7 @@ function publishQuestOutcome(
       sourceEventId: event.id,
       sideQuestId,
       outcome: outcome.kind,
-      roomDefId: ROOM_DEF_ID,
+      roomName: ROOM_NAME,
       outcomeTags: outcome.tags,
       rumorIds: RUMOR_IDS,
     },
@@ -416,7 +389,7 @@ function addSvodContainer(
     id: nextContainerId(world),
     x: pos.x,
     y: pos.y,
-    z: 60,
+    floor: FloorLevel.KVARTIRY,
     roomId: poi.room.id,
     zoneId: world.zoneMap[world.idx(pos.x, pos.y)],
     kind,
@@ -541,7 +514,7 @@ function spawnSvodMonster(
     type: EntityType.MONSTER,
     x: pos.x + 0.5,
     y: pos.y + 0.5,
-    angle: rng() * Math.PI * 2,
+    angle: Math.random() * Math.PI * 2,
     pitch: 0,
     alive: true,
     speed: scaleMonsterSpeed(def.speed, level),
@@ -623,7 +596,7 @@ export function generateChernobozhiySvod(
     nextRoomId,
     spawnX,
     spawnY,
-    ROOM_DEF_ID,
+    ROOM_NAME,
     RoomType.COMMON,
     17,
     11,
@@ -642,8 +615,8 @@ export function generateChernobozhiySvod(
   spawnSocialNpc(entities, nextId, WITNESS, WITNESS_ID, poi.x + 5, poi.y + poi.h - 3);
   const custodianId = nextId.v;
   spawnSocialNpc(entities, nextId, CUSTODIAN, CUSTODIAN_ID, poi.x + poi.w - 4, poi.y + 4, { weapon: 'knife' });
-  spawnSocialNpc(entities, nextId, AMBIENT_NPC_0, 'kv_ambient_0_6c1ht', poi.x + 3, poi.y + 7, { weapon: 'pipe' });
-  spawnSocialNpc(entities, nextId, AMBIENT_NPC_1, 'kv_ambient_1_ie4ia', poi.x + 6, poi.y + 2);
+  spawnAmbientNpc(entities, nextId, 'Черноременный у койки', Faction.CULTIST, Occupation.PILGRIM, poi.x + 3, poi.y + 7, [{ defId: 'bread', count: 1 }], 'pipe');
+  spawnAmbientNpc(entities, nextId, 'Сосед без места', Faction.CITIZEN, Occupation.LOCKSMITH, poi.x + 6, poi.y + 2, [{ defId: 'siren_instruction', count: 1 }]);
 
   seedSvodContainers(world, poi, custodianId);
   spawnSvodMonster(world, entities, nextId, poi, MonsterKind.IDOL, Math.floor(poi.w / 2), Math.floor(poi.h / 2) + 1, 1, 'Идол-якорь Свода');

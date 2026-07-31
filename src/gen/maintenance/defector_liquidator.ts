@@ -1,4 +1,3 @@
-import { getPlotNpcNumericId } from '../../data/npc_packages';
 /* -- AG81 compromised liquidator: proof route and faction choice -- */
 
 import { stampSurfaceSplat } from '../../systems/surface_marks';
@@ -6,6 +5,7 @@ import {
   ContainerKind,
   Faction,
   Feature,
+  FloorLevel,
   MonsterKind,
   Occupation,
   QuestType,
@@ -154,14 +154,14 @@ function branchBlockers(id: string): string[] {
 registerSideQuest(DEFECTOR_ID, DEFECTOR_DEF, [
   {
     id: ROUTE_QUEST,
-    giverId: getPlotNpcNumericId(DEFECTOR_ID)!,
+    giverNpcId: DEFECTOR_ID,
     type: QuestType.VISIT,
     desc: 'Митька: «Проверь мой срывной тайник {dir}. Там приказ, пайка и знак ладони. Если не вернешься до смены караула, меня заберут без тебя.»',
-    targetRoomDefId: HIDDEN_ROOM,
+    targetRoomName: HIDDEN_ROOM,
     rewardItem: 'note', rewardCount: 1,
     extraRewards: [{ defId: 'liquidator_ration', count: 1 }],
     relationDelta: 2, xpReward: 35, moneyReward: 20,
-    failOnNpcDeathId: getPlotNpcNumericId(DEFECTOR_ID)!,
+    failOnNpcDeathPlotId: DEFECTOR_ID,
     timeLimitMinutes: DEADLINE_HOURS,
     eventTargetName: 'Найден срывной тайник ликвидатора с черной ладонью и сорванным приказом.',
     eventSeverity: 4,
@@ -170,7 +170,7 @@ registerSideQuest(DEFECTOR_ID, DEFECTOR_DEF, [
   },
   {
     id: PROTECT_QUEST,
-    giverId: getPlotNpcNumericId(DEFECTOR_ID)!,
+    giverNpcId: DEFECTOR_ID,
     type: QuestType.FETCH,
     desc: 'Митька: «Верни мне жетон из тайника. Я спрячу царапину и выйду в караул сам, пока Рогожа не прочитал приказ.»',
     targetItem: 'liquidator_token', targetCount: 1,
@@ -180,7 +180,7 @@ registerSideQuest(DEFECTOR_ID, DEFECTOR_DEF, [
     requiresSideQuestDone: ROUTE_QUEST,
     blockedBySideQuestIds: BRANCH_QUEST_IDS,
     abandonsSideQuestIds: branchBlockers(PROTECT_QUEST),
-    failOnNpcDeathId: getPlotNpcNumericId(DEFECTOR_ID)!,
+    failOnNpcDeathPlotId: DEFECTOR_ID,
     timeLimitMinutes: BRANCH_HOURS,
     eventTargetName: 'Компрометирующий жетон возвращен Митьке; сомнение скрыто от караула.',
     eventSeverity: 4,
@@ -191,7 +191,7 @@ registerSideQuest(DEFECTOR_ID, DEFECTOR_DEF, [
 
 registerSideQuest(DUTY_ID, DUTY_DEF, [{
   id: REPORT_QUEST,
-  giverId: getPlotNpcNumericId(DUTY_ID)!,
+  giverNpcId: DUTY_ID,
   type: QuestType.FETCH,
   desc: 'Рогожа: «Неси жетон с царапиной. Вернем Митьку в строй под надзором, а культовый след - в отдельный ящик.»',
   targetItem: 'liquidator_token', targetCount: 1,
@@ -201,7 +201,7 @@ registerSideQuest(DUTY_ID, DUTY_DEF, [{
   requiresSideQuestDone: ROUTE_QUEST,
   blockedBySideQuestIds: BRANCH_QUEST_IDS,
   abandonsSideQuestIds: branchBlockers(REPORT_QUEST),
-  failOnNpcDeathId: getPlotNpcNumericId(DEFECTOR_ID)!,
+  failOnNpcDeathPlotId: DEFECTOR_ID,
   timeLimitMinutes: BRANCH_HOURS,
   eventTargetName: 'Митьку Сорванного вернули в строй под ликвидаторский надзор.',
   eventSeverity: 4,
@@ -212,7 +212,7 @@ registerSideQuest(DUTY_ID, DUTY_DEF, [{
 
 registerSideQuest(RADIO_ID, RADIO_DEF, [{
   id: INFORMANT_QUEST,
-  giverId: getPlotNpcNumericId(RADIO_ID)!,
+  giverNpcId: RADIO_ID,
   type: QuestType.FETCH,
   desc: 'Лида: «Отдай жетон мне. Я заведу Митьку как живой провод: пусть культ думает, что он уже их человек.»',
   targetItem: 'liquidator_token', targetCount: 1,
@@ -222,7 +222,7 @@ registerSideQuest(RADIO_ID, RADIO_DEF, [{
   requiresSideQuestDone: ROUTE_QUEST,
   blockedBySideQuestIds: BRANCH_QUEST_IDS,
   abandonsSideQuestIds: branchBlockers(INFORMANT_QUEST),
-  failOnNpcDeathId: getPlotNpcNumericId(DEFECTOR_ID)!,
+  failOnNpcDeathPlotId: DEFECTOR_ID,
   timeLimitMinutes: BRANCH_HOURS,
   eventTargetName: 'Митька завербован как живой информатор против чернобожников.',
   eventSeverity: 4,
@@ -232,7 +232,7 @@ registerSideQuest(RADIO_ID, RADIO_DEF, [{
 
 registerSideQuest(CULT_ID, CULT_DEF, [{
   id: CULT_QUEST,
-  giverId: getPlotNpcNumericId(CULT_ID)!,
+  giverNpcId: CULT_ID,
   type: QuestType.FETCH,
   desc: 'Сеня: «Жетон сдай мне. Митька сам решит, как уходить, но дорогу к нему больше не найдет караул.»',
   targetItem: 'liquidator_token', targetCount: 1,
@@ -242,7 +242,7 @@ registerSideQuest(CULT_ID, CULT_DEF, [{
   requiresSideQuestDone: ROUTE_QUEST,
   blockedBySideQuestIds: BRANCH_QUEST_IDS,
   abandonsSideQuestIds: branchBlockers(CULT_QUEST),
-  failOnNpcDeathId: getPlotNpcNumericId(DEFECTOR_ID)!,
+  failOnNpcDeathPlotId: DEFECTOR_ID,
   timeLimitMinutes: BRANCH_HOURS,
   eventTargetName: 'Жетон Митьки передан внешней ячейке чернобожников.',
   eventSeverity: 4,
@@ -253,10 +253,10 @@ registerSideQuest(CULT_ID, CULT_DEF, [{
 
 registerSideQuest(HARDLINER_ID, HARDLINER_DEF, [{
   id: KILL_QUEST,
-  giverId: getPlotNpcNumericId(HARDLINER_ID)!,
+  giverNpcId: HARDLINER_ID,
   type: QuestType.KILL,
   desc: 'Терех: «Убей Митьку и забери, что выпадет. Если человек уже слушает ладонь, рапорт только пачкает стол.»',
-  targetNpcId: getPlotNpcNumericId(DEFECTOR_ID)!,
+  targetPlotNpcId: DEFECTOR_ID,
   killNeeded: 1,
   rewardItem: 'ammo_762tt', rewardCount: 12,
   extraRewards: [{ defId: 'bandage', count: 1 }],
@@ -434,8 +434,7 @@ function addContainer(
     id: nextContainerId(ctx),
     x: wx,
     y: wy,
-    // @ts-ignore
-    z: 140,
+    floor: FloorLevel.MAINTENANCE,
     roomId: room.id,
     zoneId: ctx.world.zoneMap[ci],
     ...container,
@@ -512,7 +511,6 @@ export function generateDefectorLiquidator(ctx: MaintContentCtx): void {
   spawnPlotNpc(ctx, RADIO_ID, RADIO_DEF, wire.x + 4, wire.y + 3, Math.PI / 2);
   spawnPlotNpc(ctx, CULT_ID, CULT_DEF, alcove.x + 5, alcove.y + 3, Math.PI);
 
-  // @ts-ignore
   addContainer(ctx, stash, stash.x + 5, stash.y + 3, {
     kind: ContainerKind.SECRET_STASH,
     name: 'Срывной мешок Митьки',

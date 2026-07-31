@@ -1,6 +1,6 @@
 /* ── Head slug: visible host parasite with detachable body ───── */
 
-import { MonsterKind } from '../core/types';
+import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
 import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
@@ -16,6 +16,7 @@ export const DEF: MonsterDef = {
   attackRate: 1.15,
   sprite: 0,
   aiFlags: ['hostParasite'],
+  floors: [FloorLevel.MINISTRY, FloorLevel.KVARTIRY, FloorLevel.LIVING, FloorLevel.MAINTENANCE],
   counterplay: 'Убейте носителя на дистанции и добейте слизня до переползания; огонь, УФ и закрытая гермодверь покупают время.',
   lootHint: 'мокрая нервная слизь, карантинная карта, редкий антибиотик из сорванного носителя',
 };

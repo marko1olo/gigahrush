@@ -1,5 +1,4 @@
 import { Occupation, RoomType, Faction, type Entity } from '../core/types';
-import { rng } from '../core/rand';
 
 export interface OccupationProfile {
   id: string;
@@ -122,7 +121,7 @@ export const OCCUPATION_PROFILES: Readonly<Record<Occupation, OccupationProfile>
     sleepScoreBonus: 0,
     healIdleScoreBonus: 0,
     interests: ['ключи', 'гермы', 'инструмент'],
-    tradeItems: ['wrench', 'pipe', 'flashlight', 'lighter', 'door_kit', 'block_kit', 'electrode_pack', 'water_filter_regulator'],
+    tradeItems: ['wrench', 'pipe', 'flashlight', 'door_kit', 'block_kit', 'electrode_pack', 'water_filter_regulator'],
     tradeTags: ['tools', 'repair'],
     craftTags: ['mechanic_lesson'],
     routineTags: ['technical', 'maintenance', 'repair'],
@@ -173,7 +172,7 @@ export const OCCUPATION_PROFILES: Readonly<Record<Occupation, OccupationProfile>
     sleepScoreBonus: 0,
     healIdleScoreBonus: 0,
     interests: ['щиток', 'кабель', 'сухие перчатки'],
-    tradeItems: ['wrench', 'flashlight', 'lighter', 'ammo_nails', 'keyboard_unit', 'screen_unit', 'krona_battery', 'rail_signal_lamp'],
+    tradeItems: ['wrench', 'flashlight', 'ammo_nails', 'keyboard_unit', 'screen_unit', 'krona_battery', 'rail_signal_lamp'],
     tradeTags: ['tools', 'electronics', 'repair'],
     craftTags: ['mechanic_lesson'],
     routineTags: ['technical', 'maintenance', 'repair'],
@@ -224,7 +223,7 @@ export const OCCUPATION_PROFILES: Readonly<Record<Occupation, OccupationProfile>
     sleepScoreBonus: 0,
     healIdleScoreBonus: 6,
     interests: ['бинты', 'йод', 'медкарта'],
-    tradeItems: ['bandage', 'sterile_bandage', 'pills', 'antidep', 'anti_spore_inhaler', 'burn_gel', 'sleeping_pills', 'permanganate_vial', 'lice_shampoo', 'zhelemish_boiled', 'post_samosbor_probe_kit'],
+    tradeItems: ['bandage', 'sterile_bandage', 'pills', 'antidep', 'anti_spore_inhaler', 'burn_gel', 'sleeping_pills', 'permanganate_vial', 'lice_shampoo', 'zhelemish_boiled'],
     tradeTags: ['medicine', 'medical'],
     craftTags: ['lab_lesson'],
     routineTags: ['medical', 'science'],
@@ -272,7 +271,7 @@ export const OCCUPATION_PROFILES: Readonly<Record<Occupation, OccupationProfile>
     sleepScoreBonus: 0,
     healIdleScoreBonus: 0,
     interests: ['насос', 'болты', 'привод'],
-    tradeItems: ['wrench', 'pipe', 'flashlight', 'lighter', 'jackhammer', 'ammo_nails', 'pump_impeller', 'vent_damper_plate', 'heating_element'],
+    tradeItems: ['wrench', 'pipe', 'flashlight', 'jackhammer', 'ammo_nails', 'pump_impeller', 'vent_damper_plate', 'heating_element'],
     tradeTags: ['tools', 'repair'],
     craftTags: ['mechanic_lesson'],
     routineTags: ['technical', 'maintenance', 'repair'],
@@ -345,7 +344,7 @@ export const OCCUPATION_PROFILES: Readonly<Record<Occupation, OccupationProfile>
     sleepScoreBonus: 0,
     healIdleScoreBonus: 0,
     interests: ['образец', 'колба', 'протокол'],
-    tradeItems: ['flashlight', 'lighter', 'book', 'note', 'ammo_9mm', 'zhelemish_raw', 'govnyak_sample', 'empty_sample_jar', 'sterile_swab', 'sample_chain_form', 'nii_sample_label', 'glass_ampoule_empty', 'blueprint_t2_folder', 'sound_emitter', 'syringe_empty'],
+    tradeItems: ['flashlight', 'book', 'note', 'ammo_9mm', 'zhelemish_raw', 'govnyak_sample', 'empty_sample_jar', 'sterile_swab', 'sample_chain_form', 'nii_sample_label', 'glass_ampoule_empty', 'blueprint_t2_folder', 'sound_emitter', 'syringe_empty'],
     tradeTags: ['science', 'sample', 'documents'],
     craftTags: ['lab_lesson'],
     routineTags: ['science', 'paperwork'],
@@ -493,7 +492,7 @@ export const OCCUPATION_PROFILES: Readonly<Record<Occupation, OccupationProfile>
     sleepScoreBonus: 0,
     healIdleScoreBonus: 0,
     interests: ['патроны', 'следы', 'дверной клин'],
-    tradeItems: ['knife', 'canned', 'rawmeat', 'ammo_9mm', 'ammo_shells', 'gasmask_filter', 'ip4_gasmask', 'filtered_water', 'radio_headset_liquidator', 'chizh3_shotgun', 'rb91_auto_shotgun', 'makarov', 'ptrs_liquidator', 'breach_charge'],
+    tradeItems: ['knife', 'canned', 'rawmeat', 'ammo_9mm', 'ammo_shells', 'gasmask_filter', 'ip4_gasmask', 'filtered_water', 'radio_headset_liquidator', 'chizh3_shotgun', 'rb91_auto_shotgun', 'makarov'],
     tradeTags: ['weapon', 'patrol'],
     craftTags: [],
     routineTags: ['traveler', 'combat', 'patrol'],
@@ -627,7 +626,7 @@ export const OCCUPATION_PROFILES: Readonly<Record<Occupation, OccupationProfile>
     sleepScoreBonus: 0,
     healIdleScoreBonus: 0,
     interests: ['схемы', 'фильтры', 'защита'],
-    tradeItems: ['ip4_gasmask', 'gasmask_filter', 'armor_liquidator', 'armor_medium', 'fog_detector', 'armor_heavy', 'brt2_foam_projector'],
+    tradeItems: ['ip4_gasmask', 'gasmask_filter', 'armor_liquidator', 'armor_medium', 'fog_detector'],
     tradeTags: ['armor', 'tools', 'repair'],
     craftTags: ['mechanic_lesson'],
     routineTags: ['technical', 'maintenance'],
@@ -756,12 +755,6 @@ const FACTION_TRADE_OFFERS: readonly FactionTradeOffer[] = [
   { faction: Faction.LIQUIDATOR, occupation: Occupation.ENGINEER, minRank: 3, defId: 'armor_medium', count: 1 },
   { faction: Faction.LIQUIDATOR, occupation: Occupation.ENGINEER, minRank: 4, defId: 'fog_detector', count: 1 },
   { faction: Faction.LIQUIDATOR, occupation: Occupation.ENGINEER, minRank: 4, defId: 'breach_charge', count: 2 },
-
-  { faction: Faction.LIQUIDATOR, occupation: Occupation.HUNTER, minRank: 2, defId: 'ptrs_liquidator', count: 1 },
-  { faction: Faction.LIQUIDATOR, occupation: Occupation.HUNTER, minRank: 2, defId: 'breach_charge', count: 2 },
-  { faction: Faction.LIQUIDATOR, occupation: Occupation.DOCTOR, minRank: 2, defId: 'post_samosbor_probe_kit', count: 1 },
-  { faction: Faction.LIQUIDATOR, occupation: Occupation.ENGINEER, minRank: 3, defId: 'armor_heavy', count: 1 },
-  { faction: Faction.LIQUIDATOR, occupation: Occupation.ENGINEER, minRank: 3, defId: 'brt2_foam_projector', count: 1 },
 ];
 
 function tradeRankForNpc(npc: Entity): number {
@@ -785,10 +778,10 @@ function appendFactionTradeOffers(npc: Entity, items: { defId: string; count: nu
 export function generateNpcTradeItems(npc: Entity): { defId: string; count: number }[] {
   const items: { defId: string; count: number }[] = [];
   const pool = occupationTradeItems(npc.occupation);
-  const count = 2 + Math.floor(rng() * 3);
+  const count = 2 + Math.floor(Math.random() * 3);
   for (let i = 0; i < count; i++) {
-    const defId = pool[Math.floor(rng() * pool.length)];
-    items.push({ defId, count: 1 + Math.floor(rng() * 3) });
+    const defId = pool[Math.floor(Math.random() * pool.length)];
+    items.push({ defId, count: 1 + Math.floor(Math.random() * 3) });
   }
   if (npc.occupation === Occupation.STOREKEEPER) {
     items.push({ defId: 'soap_72', count: 1 }, { defId: 'lice_shampoo', count: 1 });

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { ItemType, RoomType } from '../src/core/types';
+import { FloorLevel, ItemType, RoomType } from '../src/core/types';
 import { ITEM_TAGS, ITEMS } from '../src/data/items';
 import { RESOURCES, resourceForItem } from '../src/data/resources';
 import { getRecentEvents } from '../src/systems/events';
@@ -28,7 +28,7 @@ test('gusl index fragment is reachable office paperwork for odd weapon classific
 
 test('gusl index fragment can be sold as a black-market weapon hint', () => {
   const player = makeTestPlayer();
-  const state = makeGameState({ currentZ: 0, time: 89 });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING, time: 89 });
 
   assert.equal(addItem(player, 'gusl_index_fragment', 1), true);
   assert.equal(getInventorySlotActionInfo(player, 0)?.useLabel, 'Enter проверить');

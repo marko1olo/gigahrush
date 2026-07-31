@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { AIGoal, Cell, EntityType, MonsterKind, type Entity } from '../src/core/types';
+import { AIGoal, Cell, EntityType, FloorLevel, MonsterKind, type Entity } from '../src/core/types';
 import { World } from '../src/core/world';
 import { isBaitAttractedMonster } from '../src/data/monster_ecology';
 import {
@@ -76,7 +76,7 @@ test('food drops and govnyak use are explicit bait inputs', () => {
 test('dropped documents are bounded bait for document predators', () => {
   resetMonsterBaits();
   const world = openWorld();
-  const state = makeGameState({ time: 8, currentZ: 34 });
+  const state = makeGameState({ time: 8, currentFloor: FloorLevel.MINISTRY });
 
   assert.equal(isMonsterBaitItem('blank_form'), true);
   assert.equal(placeMonsterBait(state, world, actor(), 12, 10, 'blank_form', 1, 'drop', 301), true);
@@ -97,7 +97,7 @@ test('dropped documents are bounded bait for document predators', () => {
 test('bait profile uses item tags, item cost caps, and risky event tags', () => {
   resetMonsterBaits();
   const world = openWorld();
-  const state = makeGameState({ time: 8, currentZ: 0 });
+  const state = makeGameState({ time: 8, currentFloor: FloorLevel.LIVING });
 
   assert.equal(placeMonsterBait(state, world, actor(), 11, 10, 'rawmeat', 1, 'drop', 77), true);
   const marker = getActiveMonsterBaits()[0];
@@ -116,7 +116,7 @@ test('bait profile uses item tags, item cost caps, and risky event tags', () => 
 test('govnyak use bait exposes marker clarity and bounded attraction caps', () => {
   resetMonsterBaits();
   const world = openWorld();
-  const state = makeGameState({ time: 8, currentZ: 0 });
+  const state = makeGameState({ time: 8, currentFloor: FloorLevel.LIVING });
   const preview = monsterBaitPreviewForItem('govnyak_bad_batch', 'use', 1);
 
   assert.equal(preview?.kind, 'govnyak');
@@ -139,7 +139,7 @@ test('govnyak use bait exposes marker clarity and bounded attraction caps', () =
 test('bait attraction prefers ecology-tagged food over a closer generic lure', () => {
   resetMonsterBaits();
   const world = openWorld();
-  const state = makeGameState({ time: 9, currentZ: 0 });
+  const state = makeGameState({ time: 9, currentFloor: FloorLevel.LIVING });
   const player = actor();
 
   assert.equal(placeMonsterBait(state, world, player, 13, 10, 'bread', 1, 'drop', 88), true);
@@ -158,7 +158,7 @@ test('bait attraction prefers ecology-tagged food over a closer generic lure', (
 test('small monsters claim nearby bait through a capped marker scan', () => {
   resetMonsterBaits();
   const world = openWorld();
-  const state = makeGameState({ time: 10, currentZ: 0 });
+  const state = makeGameState({ time: 10, currentFloor: FloorLevel.LIVING });
 
   assert.equal(placeMonsterBait(state, world, actor(), 10, 10, 'bread', 1, 'drop', 99), true);
   const sborka = monster(MonsterKind.SBORKA, 13, 10);
@@ -171,14 +171,14 @@ test('small monsters claim nearby bait through a capped marker scan', () => {
   assert.equal(findMonsterBaitTarget(world, eye, 0.2, state.time, state), null);
 });
 
-test('bait markers are scoped to the current route floor key, not only number', () => {
+test('bait markers are scoped to the current route floor key, not only FloorLevel', () => {
   resetMonsterBaits();
   const world = openWorld();
-  const state = makeGameState({ time: 10, currentZ: 2 });
-  setFloorRunState(state, { runSeed: 17, currentZ: 2 });
+  const state = makeGameState({ time: 10, currentFloor: FloorLevel.KVARTIRY });
+  setFloorRunState(state, { runSeed: 17, currentZ: 12 }, FloorLevel.KVARTIRY);
 
   assert.equal(placeMonsterBait(state, world, actor(), 10, 10, 'bread', 1, 'drop', 99), true);
-  setFloorRunState(state, { runSeed: 17, currentZ: -6 });
+  setFloorRunState(state, { runSeed: 17, currentZ: 8 }, FloorLevel.KVARTIRY);
 
   const sborka = monster(MonsterKind.SBORKA, 13, 10);
   assert.equal(findMonsterBaitTarget(world, sborka, 0.2, state.time, state), null);
@@ -189,7 +189,7 @@ test('bait markers are scoped to the current route floor key, not only number', 
 test('bait markers expire and stay under the active cap', () => {
   resetMonsterBaits();
   const world = openWorld();
-  const state = makeGameState({ time: 20, currentZ: 0 });
+  const state = makeGameState({ time: 20, currentFloor: FloorLevel.LIVING });
   const player = actor();
 
   for (let i = 0; i < MONSTER_BAIT_MAX_ACTIVE + 3; i++) {

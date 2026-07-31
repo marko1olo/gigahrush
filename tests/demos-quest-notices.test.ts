@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { Faction, Occupation, QuestType, RoomType, type WorldEvent } from '../src/core/types';
+import { Faction, FloorLevel, Occupation, QuestType, RoomType, type WorldEvent } from '../src/core/types';
 import type { ContractDef } from '../src/data/contracts';
 import { contractToQuest } from '../src/data/contracts';
 import { DEMOS_QUEST_NOTICE_CAP } from '../src/data/demos_quest_notices';
@@ -18,11 +18,11 @@ import {
 } from '../src/systems/demos_quest_notices';
 import { createPrefilledAlifeState, type AlifeNpcSnapshot } from '../src/systems/alife';
 import { createWorldEventState, getRecentEvents } from '../src/systems/events';
-import { floorKeyForFloorInstance, floorKeyForDesign } from '../src/systems/floor_keys';
+import { floorKeyForFloorInstance, floorKeyForStory } from '../src/systems/floor_keys';
 import { findDemosCursor, getDemosSnapshot } from '../src/systems/demos';
 import { makeGameState } from './helpers';
 
-const livingKey = floorKeyForDesign('living');
+const livingKey = floorKeyForStory(FloorLevel.LIVING);
 
 const supplyContract: ContractDef = {
   id: 'test_demos_supply_water',
@@ -35,7 +35,7 @@ const supplyContract: ContractDef = {
   targetItem: 'water',
   targetCount: 2,
   target: {
-    z: -6,
+    floor: FloorLevel.LIVING,
     roomType: RoomType.KITCHEN,
     zoneTag: 'ration_queue',
     hint: 'Жилая зона: кухня у общего списка.',
@@ -55,7 +55,7 @@ const repairContract: ContractDef = {
   type: QuestType.VISIT,
   desc: 'Нужно проверить трубу у гермы до обхода.',
   target: {
-    z: -14,
+    floor: FloorLevel.MAINTENANCE,
     route: { z: -12, label: 'служебный стояк', risk: 3, tags: ['maintenance'] },
     roomType: RoomType.PRODUCTION,
     zoneTag: 'pipe',
@@ -71,7 +71,7 @@ function snapshot(overrides: Partial<AlifeNpcSnapshot> = {}): AlifeNpcSnapshot {
   return {
     id: 1,
     floorKey: livingKey,
-    z: -6,
+    floor: FloorLevel.LIVING,
     faction: Faction.CITIZEN,
     occupation: Occupation.COOK,
     name: 'Анна Заявкина',
@@ -97,7 +97,7 @@ function event(overrides: Partial<WorldEvent> = {}): WorldEvent {
     day: 0,
     hour: 8,
     minute: 10,
-    z: -6,
+    floor: FloorLevel.LIVING,
     severity: 3,
     privacy: 'local',
     truth: 'fact',
@@ -217,17 +217,17 @@ test('notice profile view requires a face-to-face visit and does not accept from
   const views = getDemosQuestNoticesForProfile(state, 1);
   assert.equal(views.length, 1);
   assert.equal(views[0].requiresVisit, true);
-  assert.equal(views[0].canAcceptHere, false);
+  assert.equal(views[0].canAcceptHere, true);
   assert.match(views[0].detail, /поговорить/);
   assert.equal(state.quests.length, 0);
 });
 
 test('Demos profile exposes a quest notice section view model', () => {
-  const state = makeGameState({ currentZ: 0 });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING });
   createPrefilledAlifeState(state, 12345, 1, {
     buckets: [{
       floorKey: livingKey,
-      z: -6,
+      floor: FloorLevel.LIVING,
       targetCount: 1,
       reserved: [{
         name: 'Анна Демосова',

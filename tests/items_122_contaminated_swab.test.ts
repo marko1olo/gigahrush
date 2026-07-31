@@ -1,10 +1,10 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { ItemType, RoomType } from '../src/core/types';
+import { FloorLevel, ItemType, RoomType } from '../src/core/types';
 import { ITEM_TAGS, ITEMS, getStack } from '../src/data/items';
 import { resourceForItem } from '../src/data/resources';
-import { generateSlimeNiiDesignFloor } from '../src/gen/slime_nii';
+import { generateSlimeNiiDesignFloor } from '../src/gen/design_floors/slime_nii';
 import { getRecentEvents } from '../src/systems/events';
 import { addItem, getInventorySlotActionInfo, inventoryItemCategory, useItem } from '../src/systems/inventory';
 import { countInventoryItem, makeGameState, makeTestPlayer } from './helpers';
@@ -46,7 +46,7 @@ test('contaminated swab is reachable beside failed handling in slime NII', () =>
 
 test('contaminated swab can be reported or sold from inventory', () => {
   const reporter = makeTestPlayer();
-  const ministry = makeGameState({ currentZ: 34, time: 122 });
+  const ministry = makeGameState({ currentFloor: FloorLevel.MINISTRY, time: 122 });
 
   assert.equal(addItem(reporter, SWAB_ID, 1), true);
   assert.equal(getInventorySlotActionInfo(reporter, 0)?.useLabel, 'Enter сдать/сбыть');
@@ -60,7 +60,7 @@ test('contaminated swab can be reported or sold from inventory', () => {
   assert.equal(report?.data?.outcome, 'contaminated_swab_reported');
 
   const seller = makeTestPlayer();
-  const living = makeGameState({ currentZ: 0, time: 123 });
+  const living = makeGameState({ currentFloor: FloorLevel.LIVING, time: 123 });
 
   assert.equal(addItem(seller, SWAB_ID, 1), true);
   useItem(seller, 0, living.msgs, living.time, living);

@@ -1,9 +1,9 @@
 /* ── Бюро оружейных разрешений — Ministry permit/ammo POI ─────── */
 
-import { getPlotNpcNumericId } from '../../data/npc_packages';
 import {
   ContainerKind,
   Feature,
+  FloorLevel,
   Faction,
   Occupation,
   QuestType,
@@ -20,7 +20,7 @@ import {
 import { genLog } from '../log';
 
 const CONTENT_TAG = 'weapon_permit_bureau';
-const HOME_FLOOR_KEY = storyNpcFloorKey(30);
+const HOME_FLOOR_KEY = storyNpcFloorKey(FloorLevel.MINISTRY);
 const WITNESS_LIDIYA_ID = 'weapon_permit_witness_lidiya';
 
 const GALINA_DEF: PlotNpcDef = {
@@ -122,7 +122,7 @@ const WITNESS_LIDIYA_DEF: PlotNpcDef = {
 registerSideQuest('galina_korotkostvolnaya', GALINA_DEF, [
   {
     id: 'weapon_permit_legal_forms',
-    giverId: getPlotNpcNumericId('galina_korotkostvolnaya')!,
+    giverNpcId: 'galina_korotkostvolnaya',
     type: QuestType.FETCH,
     desc: 'Галина Короткоствольная: «Два пустых бланка, и оформим разрешение на короткоствол без ночного шкафа.»',
     targetItem: 'blank_form', targetCount: 2,
@@ -140,7 +140,7 @@ registerSideQuest('galina_korotkostvolnaya', GALINA_DEF, [
 registerSideQuest('boris_podchistkin', BORIS_DEF, [
   {
     id: 'weapon_permit_forged_stamp',
-    giverId: getPlotNpcNumericId('boris_podchistkin')!,
+    giverNpcId: 'boris_podchistkin',
     type: QuestType.FETCH,
     desc: 'Борис Подчисткин: «Принесите лист с поддельной печатью. Сделаю разрешение, которое лучше не греть в ладони.»',
     targetItem: 'forged_stamp_sheet', targetCount: 1,
@@ -158,7 +158,7 @@ registerSideQuest('boris_podchistkin', BORIS_DEF, [
 registerSideQuest('stepan_patronov', STEPAN_DEF, [
   {
     id: 'weapon_permit_sidearm_issue',
-    giverId: getPlotNpcNumericId('stepan_patronov')!,
+    giverNpcId: 'stepan_patronov',
     type: QuestType.FETCH,
     desc: 'Степан Патронов: «Разрешение уже в журнале. Семьдесят рублей за служебный Каркаров; патроны только по отдельному ордеру.»',
     targetItem: 'money', targetCount: 70,
@@ -173,7 +173,7 @@ registerSideQuest('stepan_patronov', STEPAN_DEF, [
   },
   {
     id: 'weapon_permit_ammo_order',
-    giverId: getPlotNpcNumericId('stepan_patronov')!,
+    giverNpcId: 'stepan_patronov',
     type: QuestType.FETCH,
     desc: 'Степан Патронов: «Патронный ордер принимаю один раз. Дам десяток девятки, остальное ищите живыми.»',
     targetItem: 'ammo_issue_order', targetCount: 1,
@@ -187,7 +187,7 @@ registerSideQuest('stepan_patronov', STEPAN_DEF, [
   },
   {
     id: 'weapon_permit_forged_confiscation',
-    giverId: getPlotNpcNumericId('stepan_patronov')!,
+    giverNpcId: 'stepan_patronov',
     type: QuestType.FETCH,
     desc: 'Степан Патронов: «Липовое оружейное разрешение сюда. Конфискую без патронов, но с отметкой, что вы пришли сами.»',
     targetItem: 'weapon_permit_forged', targetCount: 1,
@@ -232,7 +232,7 @@ function addPermitContainer(
     id: nextContainerId(world),
     x,
     y,
-    z: 30,
+    floor: FloorLevel.MINISTRY,
     roomId,
     zoneId: world.zoneMap[world.idx(x, y)],
     kind: ContainerKind.WEAPON_CRATE,

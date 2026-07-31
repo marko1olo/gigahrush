@@ -1,6 +1,6 @@
 /* ── Paragraph: hostile paper clause, ranged psi bolt ────────── */
 
-import { MonsterKind } from '../core/types';
+import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
 import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
@@ -16,6 +16,7 @@ export const DEF: MonsterDef = {
   projSpeed: 6.5,
   projSprite: 0,
   aiFlags: ['rangedClause'],
+  floors: [FloorLevel.MINISTRY, FloorLevel.VOID],
   counterplay: 'Параграф уточняет по прямой на 15 клеток: ломайте линию видимости шкафом или углом, врывайтесь сразу после выстрела. В упоре он теряет дистанцию и не успевает дописать пункт.',
   lootHint: 'порванный приказ, сургучная пыль и формулировки, которые еще шевелятся',
 };

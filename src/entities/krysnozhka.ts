@@ -1,6 +1,6 @@
 /* ── Krysnozhka: small food-garbage swarm threat ─────────────── */
 
-import { MonsterKind } from '../core/types';
+import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
 import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
@@ -13,6 +13,7 @@ export const DEF: MonsterDef = {
   attackRate: 0.65,
   sprite: 0,
   aiFlags: ['foodBait'],
+  floors: [FloorLevel.KVARTIRY, FloorLevel.LIVING, FloorLevel.MAINTENANCE],
   counterplay: 'Сбивайте первый рывок дробью, бросайте помеченную приманку дальше себя и держите запас еды в закрытом контейнере.',
   lootHint: 'мелкие лапки, грязный жир, мусор гнезда, редкое сырое мясо',
 };

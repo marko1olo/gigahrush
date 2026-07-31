@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { ItemType, RoomType } from '../src/core/types';
+import { FloorLevel, ItemType, RoomType } from '../src/core/types';
 import { ITEMS } from '../src/data/catalog';
 import { ITEM_TAGS } from '../src/data/items';
 import { RESOURCES, resourceForItem } from '../src/data/resources';
@@ -31,7 +31,7 @@ test('terminal order receipt is reachable office terminal paperwork', () => {
 
 test('terminal order receipt can be sold instead of saved for delivery proof', () => {
   const player = makeTestPlayer();
-  const state = makeGameState({ currentZ: 0, time: 103 });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING, time: 103 });
 
   assert.equal(addItem(player, ITEM_ID, 1), true);
   assert.equal(getInventorySlotActionInfo(player, 0)?.useLabel, 'Enter проверить');

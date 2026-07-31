@@ -1,6 +1,6 @@
 /* ── Obzhivalshchik: room-bound resident aberration ─────────── */
 
-import { MonsterKind } from '../core/types';
+import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
 import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
@@ -13,6 +13,7 @@ export const DEF: MonsterDef = {
   attackRate: 1.55,
   sprite: 0,
   aiFlags: ['roomBoundAberration'],
+  floors: [FloorLevel.KVARTIRY, FloorLevel.LIVING],
   counterplay: 'Не шумите у двери и не тащите бой в квартиру: обживальщик держится своей комнаты, злится от кражи и шума, а спокойный доклад сбивает рост.',
   lootHint: 'домовой мусор, куски мебели, слизь со стены, редкая жалоба соседа',
 };

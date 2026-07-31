@@ -14,7 +14,6 @@ import type { World } from '../core/world';
 import type { WeaponStats } from '../data/weapons';
 import { ITEMS } from '../data/items';
 import { rebuildPathBlockersFromWorldObjects } from '../gen/path_blockers';
-import { markNavigationCellsDirty } from './ai/pathfinding';
 import { stampMark, MarkType } from './surface_marks';
 import { ENTITY_MASK_ACTOR, ensureEntityIndex } from './entity_index';
 import { publishEvent } from './events';
@@ -89,7 +88,6 @@ export function fireDeletionBeam(
   const containerLoss = deleteTouchedContainers(world, touched);
   if (cellsDeleted > 0 || featuresCleared > 0 || containerLoss.containersDeleted > 0) {
     rebuildPathBlockersFromWorldObjects(world, state.tick, Array.from(touched));
-    markNavigationCellsDirty(touched);
   }
   const targetsKilled = killBeamTargets(world, entities, actor, beamLen, width, handleKill);
   if (cellsDeleted > 0 || doorsDeleted > 0 || featuresCleared > 0) {

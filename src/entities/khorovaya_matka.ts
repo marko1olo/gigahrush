@@ -1,6 +1,6 @@
 /* ── Хоровая Матка — wet choir countdown spawner ─────────────── */
 
-import { MonsterKind } from '../core/types';
+import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
 import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
@@ -12,6 +12,7 @@ export const DEF: MonsterDef = {
   dmg: 10,
   attackRate: 3.8,
   sprite: 0,
+  floors: [FloorLevel.HELL],
   counterplay: 'Слушайте мокрый хор: либо давите источник до приплода, либо чистите детей и бейте матку в короткое открытое окно.',
   lootHint: 'хоровой маточный узел, серая мембрана, редкая мясная руна после сорванного припева',
 };

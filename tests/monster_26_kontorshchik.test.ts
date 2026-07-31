@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { EntityType, MonsterKind, type Entity, type Item } from '../src/core/types';
+import { EntityType, FloorLevel, MonsterKind, type Entity, type Item } from '../src/core/types';
 import {
   BAIT_ATTRACTED_MONSTER_KINDS,
   getMonsterEcology,
@@ -18,7 +18,7 @@ import { baitKindForItem, monsterBaitPreviewForItem } from '../src/systems/monst
 import { mapEditorEntityBrushes } from '../src/systems/map_editor_catalog';
 import { S } from '../src/render/pixutil';
 
-function sortedFloors(floors: readonly number[] | undefined): number[] {
+function sortedFloors(floors: readonly FloorLevel[] | undefined): FloorLevel[] {
   return [...(floors ?? [])].sort((a, b) => a - b);
 }
 
@@ -44,6 +44,8 @@ test('kontorshchik is a standalone document-scent monster', () => {
   assert.equal(DEF.kind, MonsterKind.KONTORSHCHIK);
   assert.equal(MONSTERS[MonsterKind.KONTORSHCHIK], DEF);
   assert.deepEqual(DEF.aiFlags, ['documentScent']);
+  assert.deepEqual(sortedFloors(DEF.floors), [FloorLevel.MINISTRY, FloorLevel.LIVING]);
+  assert.deepEqual(sortedFloors(ecology.floors), sortedFloors(DEF.floors));
   assert.equal(ecology.rumorIds.includes('ecology_kontorshchik_forms'), true);
   assert.match(DEF.counterplay ?? '', /бланк|бумаг|печат/);
   assert.match(ecology.counterplay, /контейнер|бланк|шкаф|стол/);

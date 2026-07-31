@@ -1,9 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { getPlotNpcNumericId } from '../src/data/npc_packages';
-
-import { Cell, EntityType, Faction, MonsterKind, QuestType, RoomType, Tex, ZoneFaction, type Entity } from '../src/core/types';
+import { Cell, EntityType, Faction, FloorLevel, MonsterKind, QuestType, RoomType, Tex, ZoneFaction, type Entity } from '../src/core/types';
 import { World } from '../src/core/world';
 import { createWorldEventState } from '../src/systems/events';
 import {
@@ -24,10 +22,9 @@ import { getNpcPackageByPlotNpcId, npcPackageDisplayName } from '../src/data/npc
 import { offerQuest } from '../src/systems/quests';
 import { cancelSamosborWave, finishSamosborWave, startSamosborWave } from '../src/systems/samosbor_wave';
 import { makeGameState } from './helpers';
-import '../src/data/npc_plot_packages';
 
 function plotNpcName(plotNpcId: string): string {
-  const pack = getNpcPackageByPlotNpcId(getPlotNpcNumericId(plotNpcId)!);
+  const pack = getNpcPackageByPlotNpcId(plotNpcId);
   assert.ok(pack, `missing NPC package for plot NPC ${plotNpcId}`);
   return npcPackageDisplayName(pack);
 }
@@ -149,7 +146,7 @@ test('player movement reveals only local cell trail, not the whole entered room'
   resetMapExploration(world);
   const player = makeMapPlayer(12, 12);
   const state = makeGameState({
-    currentZ: 0,
+    currentFloor: FloorLevel.LIVING,
     worldEvents: createWorldEventState(),
   });
 
@@ -178,7 +175,7 @@ test('explored map cells age into fog of war until revisited', () => {
   resetMapExploration(world);
   const player = makeMapPlayer(12, 12);
   const state = makeGameState({
-    currentZ: 0,
+    currentFloor: FloorLevel.LIVING,
     worldEvents: createWorldEventState(),
   });
 
@@ -221,7 +218,7 @@ test('active talk quest reveals the target NPC room on the map', () => {
     faction: Faction.CITIZEN,
   };
   const state = makeGameState({
-    currentZ: 0,
+    currentFloor: FloorLevel.LIVING,
     worldEvents: createWorldEventState(),
     quests: [{
       id: 1,
@@ -249,7 +246,7 @@ test('active visit quest reveals the resolved target room on the map', () => {
   resetMapExploration(world);
   const player = makeMapPlayer(12, 12);
   const state = makeGameState({
-    currentZ: 0,
+    currentFloor: FloorLevel.LIVING,
     worldEvents: createWorldEventState(),
     quests: [{
       id: 2,
@@ -290,7 +287,7 @@ test('active kill quest reveals a radius around the nearest target monster marke
     monsterKind: MonsterKind.TVAR,
   };
   const state = makeGameState({
-    currentZ: 0,
+    currentFloor: FloorLevel.LIVING,
     worldEvents: createWorldEventState(),
     quests: [{
       id: 3,
@@ -319,8 +316,7 @@ test('accepting a quest from an NPC reveals the target room once', () => {
   resetMapExploration(world);
   const player = makeMapPlayer(12, 12);
   const olga: Entity = {
-    id: getPlotNpcNumericId('olga')!,
-    alifeId: getPlotNpcNumericId('olga')!,
+    id: 10,
     type: EntityType.NPC,
     x: 12.5,
     y: 13.5,
@@ -331,11 +327,11 @@ test('accepting a quest from an NPC reveals the target room once', () => {
     sprite: 0,
     name: plotNpcName('olga'),
     faction: Faction.CITIZEN,
+    plotNpcId: 'olga',
     canGiveQuest: true,
   };
   const barni: Entity = {
-    id: getPlotNpcNumericId('barni')!,
-    alifeId: getPlotNpcNumericId('barni')!,
+    id: 11,
     type: EntityType.NPC,
     x: 80.5,
     y: 80.5,
@@ -346,10 +342,11 @@ test('accepting a quest from an NPC reveals the target room once', () => {
     sprite: 0,
     name: plotNpcName('barni'),
     faction: Faction.CITIZEN,
+    plotNpcId: 'barni',
     canGiveQuest: true,
   };
   const state = makeGameState({
-    currentZ: 0,
+    currentFloor: FloorLevel.LIVING,
     worldEvents: createWorldEventState(),
   });
 
@@ -368,7 +365,7 @@ test('debug revealWholeMap marks every cell explored', () => {
   resetMapExploration(world);
   const player = makeMapPlayer(12, 12);
   const state = makeGameState({
-    currentZ: 0,
+    currentFloor: FloorLevel.LIVING,
     worldEvents: createWorldEventState(),
   });
   const distantWallIdx = world.idx(90, 90);
@@ -390,7 +387,7 @@ test('local samosbor map fog does not reveal the whole rebuilt patch room on re-
   resetMapExploration(world);
   const player = makeMapPlayer(cx, cy);
   const state = makeGameState({
-    currentZ: 0,
+    currentFloor: FloorLevel.LIVING,
     samosborActive: true,
     samosborCount: 1,
     worldEvents: createWorldEventState(),

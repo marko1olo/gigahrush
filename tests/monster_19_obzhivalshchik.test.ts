@@ -1,12 +1,12 @@
-import { MONSTERS, MONSTER_SPRITES } from '../src/entities/monster';
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { AIGoal, Cell, DoorState, EntityType, Faction, MonsterKind, RoomType, type Entity, type Msg } from '../src/core/types';
+import { AIGoal, Cell, DoorState, EntityType, Faction, FloorLevel, MonsterKind, RoomType, type Entity, type Msg } from '../src/core/types';
 import { World } from '../src/core/world';
 import { getMonsterEcology } from '../src/data/monster_ecology';
 import { RUMORS } from '../src/data/rumors';
 import { DEF, generateSprite } from '../src/entities/obzhivalshchik';
+import { MONSTERS, MONSTER_SPRITES, NEW_MONSTERS_BY_FLOOR } from '../src/entities/monster';
 import { S } from '../src/render/pixutil';
 import { setEntityMap, updateMonster } from '../src/systems/ai/monster';
 import { setListenerPos } from '../src/systems/audio';
@@ -113,6 +113,9 @@ test('Obzhivalshchik is registered as standalone room-bound monster content', ()
   assert.equal(MONSTERS[MonsterKind.OBZHIVALSHCHIK], DEF);
   assert.equal(MONSTER_SPRITES[MonsterKind.OBZHIVALSHCHIK], generateSprite);
   assert.deepEqual(DEF.aiFlags, ['roomBoundAberration']);
+  assert.deepEqual(DEF.floors, [FloorLevel.KVARTIRY, FloorLevel.LIVING]);
+  assert.equal(NEW_MONSTERS_BY_FLOOR[FloorLevel.KVARTIRY].includes(MonsterKind.OBZHIVALSHCHIK), true);
+  assert.equal(NEW_MONSTERS_BY_FLOOR[FloorLevel.LIVING].includes(MonsterKind.OBZHIVALSHCHIK), true);
   assert.equal(ecology?.rooms.includes(RoomType.LIVING), true);
   assert.equal(ecology?.rumorIds.includes('monster_obzhivalshchik_room'), true);
   assert.equal(RUMORS.some(rumor => rumor.id === 'ecology_obzhivalshchik_growth'), true);
@@ -131,7 +134,7 @@ test('Obzhivalshchik keeps its room leash until anger breaches it', () => {
   const entities = [target, threat];
   const msgs: Msg[] = [];
   const state = makeGameState({
-    currentZ: 14,
+    currentFloor: FloorLevel.KVARTIRY,
     worldEvents: createWorldEventState(),
     clock: { hour: 8, minute: 0, totalMinutes: 480 },
   });
@@ -160,7 +163,7 @@ test('Obzhivalshchik wall growth is capped and report memory calms anger', () =>
   const entities = [target, threat];
   const msgs: Msg[] = [];
   const state = makeGameState({
-    currentZ: 0,
+    currentFloor: FloorLevel.LIVING,
     worldEvents: createWorldEventState(),
     clock: { hour: 23, minute: 0, totalMinutes: 1380 },
   });

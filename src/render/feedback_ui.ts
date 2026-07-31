@@ -34,8 +34,7 @@ const QR_CODE = [
 const CREDITS = [
   "Николай Романов",
   "Семён Семёныч Персиков",
-  "Klaus Schwab",
-  "kodoku3d"
+  "Klaus Schwab"
 ];
 
 export function drawFeedbackMenu(

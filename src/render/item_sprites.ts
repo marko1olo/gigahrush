@@ -8492,7 +8492,6 @@ function drawTanevSvt40Sprite(t: Uint32Array, seed: number): void {
 
 type WeaponSpriteHandler = (t: Uint32Array, seed: number, p: Palette, defId: string) => void;
 const WEAPON_SPRITE_HANDLERS: Record<string, WeaponSpriteHandler> = {
-  brass_knuckles: drawBrassKnucklesSprite,
   'tanev_svt40': drawTanevSvt40Sprite,
   'weapon_blueprint_t2': drawWeaponBlueprintT2Sprite,
   'weapon_checkout_tag': drawWeaponCheckoutTagSprite,
@@ -9479,23 +9478,6 @@ function drawFlashlightSprite(t: Uint32Array, seed: number): void {
   drawNoiseDust(t, seed + 817, rust, 8);
 }
 
-function drawLighterSprite(t: Uint32Array, seed: number): void {
-  const metal: [number, number, number] = [90, 96, 100];
-  const metalLight: [number, number, number] = [170, 180, 190];
-  const plastic: [number, number, number] = [220, 50, 40];
-  const fireInner: [number, number, number] = [255, 240, 150];
-  const fireOuter: [number, number, number] = [255, 120, 20];
-
-  ellipse(t, 33, 52, 14, 4, [8, 10, 10], seed, 82);
-  rect(t, 24, 32, 40, 48, plastic, seed + 1, 250);
-  rect(t, 25, 26, 39, 32, metal, seed + 2, 240);
-  rect(t, 28, 28, 36, 31, metalLight, seed + 3, 200);
-  rect(t, 36, 25, 41, 30, metal, seed + 4, 250);
-  ellipse(t, 32, 22, 6, 8, fireOuter, seed + 5, 200);
-  ellipse(t, 32, 23, 3, 5, fireInner, seed + 6, 230);
-  drawNoiseDust(t, seed + 7, [50, 30, 20], 6);
-}
-
 function drawFogDetectorSprite(t: Uint32Array, seed: number): void {
   const caseDark: [number, number, number] = [14, 20, 22];
   const caseBody: [number, number, number] = [52, 68, 68];
@@ -10185,10 +10167,6 @@ function drawToolSprite(t: Uint32Array, seed: number, p: Palette, defId: string)
     drawFlashlightSprite(t, seed);
     return;
   }
-  if (defId === 'lighter') {
-    drawLighterSprite(t, seed);
-    return;
-  }
   if (defId === 'fog_detector') {
     drawFogDetectorSprite(t, seed);
     return;
@@ -10581,10 +10559,6 @@ function drawElectronicsSprite(t: Uint32Array, seed: number, p: Palette, defId: 
     drawRailSignalLampSprite(t, seed);
     return;
   }
-  if (defId === 'camera') {
-    drawCameraSprite(t, seed);
-    return;
-  }
   if (defId === 'screen_unit') {
     drawScreenUnitSprite(t, seed);
     return;
@@ -10626,36 +10600,6 @@ function drawElectronicsSprite(t: Uint32Array, seed: number, p: Palette, defId: 
     for (let i = 0; i < 4; i++) line(t, 22, 27 + i * 5, 42, 25 + i * 3, 0.8, p.glow, seed + 124 + i, 185);
   }
   ellipse(t, 32, 33, 4, 4, p.glow, seed + 130, 225);
-}
-
-function drawBrassKnucklesSprite(t: Uint32Array, seed: number): void {
-  const metal: [number, number, number] = [120, 120, 130];
-  const dark: [number, number, number] = [50, 50, 60];
-  const highlight: [number, number, number] = [180, 180, 190];
-  
-  rect(t, 22, 28, 42, 36, metal, seed + 10, 255);
-  for(let i=0; i<4; i++) {
-    ellipse(t, 24 + i * 5, 32, 2.5, 2.5, [0, 0, 0], seed + 11 + i, 200);
-    ellipse(t, 24 + i * 5, 27, 2, 2, highlight, seed + 15 + i, 255);
-  }
-  rect(t, 25, 36, 39, 40, dark, seed + 20, 255);
-}
-
-function drawCameraSprite(t: Uint32Array, seed: number): void {
-  const body: [number, number, number] = [40, 40, 45];
-  const lens: [number, number, number] = [20, 20, 25];
-  const flash: [number, number, number] = [220, 230, 240];
-  const highlight: [number, number, number] = [80, 80, 90];
-
-  rect(t, 18, 22, 46, 42, body, seed + 1, 255);
-  rect(t, 20, 24, 44, 26, highlight, seed + 2, 255);
-  
-  ellipse(t, 32, 32, 9, 9, lens, seed + 3, 255);
-  ellipse(t, 32, 32, 6, 6, [10, 10, 15], seed + 4, 255);
-  ellipse(t, 34, 30, 2, 2, highlight, seed + 5, 200);
-  
-  rect(t, 38, 24, 44, 28, flash, seed + 6, 255);
-  rect(t, 20, 20, 26, 22, highlight, seed + 7, 255);
 }
 
 function drawBlueGlowSealedSampleSprite(t: Uint32Array, seed: number): void {
@@ -15536,9 +15480,8 @@ export function drawItemGridIcon(
   const iconTop = y + (options.iconTopUnits ?? 6.4) * sy;
   const bottomReserve = (options.bottomReserveUnits ?? 5.2) * sy;
   const maxIcon = Math.max(8 * sx, cellSize - (iconTop - y) - bottomReserve);
-  const iconSize = Math.max(8 * sx, Math.min(maxIcon * 2.2, (options.maxIconUnits ?? 120) * sx));
+  const iconSize = Math.max(8 * sx, Math.min(maxIcon, (options.maxIconUnits ?? 13) * sx));
   const iconX = x + (cellSize - iconSize) / 2;
-  const canvasTop = iconTop - (iconSize - maxIcon) / 2;
 
   ctx.save();
   ctx.beginPath();
@@ -15551,7 +15494,7 @@ export function drawItemGridIcon(
   ctx.fillText(fitTextStable(ctx, name, cellSize - 6 * sx, 'ellipsis'), x + cellSize / 2 - sx, nameY);
   ctx.restore();
 
-  drawItemIcon(ctx, defId, iconX, canvasTop, iconSize, iconSize, alpha);
+  drawItemIcon(ctx, defId, iconX, iconTop, iconSize, iconSize, alpha);
 }
 
 export function clearItemIconCanvasCache(): void {

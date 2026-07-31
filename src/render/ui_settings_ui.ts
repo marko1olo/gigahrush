@@ -14,9 +14,6 @@ import {
   visualGeometryMode,
   lightingQualityMode,
   crittersEnabled,
-  masterAudioEnabled,
-  musicVolume,
-  sfxVolume,
 } from '../systems/ui_orchestrator';
 import { drawNeuroPanel, flicker } from './hud_fx';
 import { fitTextStable } from './ui_text';
@@ -42,11 +39,7 @@ export function drawUiSettingsMenu(
   const selected = Math.max(0, Math.min(rowCount - 1, state.uiSettingsSel));
   const activePreset = activeUiPresetId();
   const prevTextBaseline = ctx.textBaseline;
-  const settingValue = (kind: string): string => {
-    if (kind === 'mobile_sensitivity') return `${Math.round(mobileLookSensitivity() * 100)}%`;
-    if (kind === 'master_audio') return masterAudioEnabled() ? 'ВКЛ' : 'ВЫКЛ';
-    if (kind === 'music_volume') return `${Math.round(musicVolume() * 100)}%`;
-    if (kind === 'sfx_volume') return `${Math.round(sfxVolume() * 100)}%`;
+  const graphicsValue = (kind: string): string => {
     if (kind === 'screen_interference') {
       const mode = screenInterferenceMode();
       if (!uiElementEnabled('screen_fx')) return 'ОТКЛ';
@@ -78,7 +71,7 @@ export function drawUiSettingsMenu(
   ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = '#6cf';
   ctx.font = `${11 * sy}px monospace`;
-  ctx.fillText(view === 'graphics' ? 'НАСТРОЙКИ ГРАФИКИ' : view === 'audio' ? 'НАСТРОЙКИ АУДИО' : 'НАСТРОЙКИ ИНТЕРФЕЙСА', 12 * sx, 12 * sy);
+  ctx.fillText(view === 'graphics' ? 'НАСТРОЙКИ ГРАФИКИ' : 'НАСТРОЙКИ ИНТЕРФЕЙСА', 12 * sx, 12 * sy);
   ctx.font = `${7 * sy}px monospace`;
   ctx.fillStyle = '#577';
   ctx.fillText(
@@ -95,8 +88,8 @@ export function drawUiSettingsMenu(
   ctx.font = `${7 * sy}px monospace`;
   ctx.fillStyle = '#5a7080';
   ctx.fillText('РАЗДЕЛ', x + 14 * sx, top - 7 * sy);
-  ctx.fillText(view === 'interface' ? 'ПРЕСЕТ / ЭЛЕМЕНТ' : 'НАСТРОЙКА', x + groupW + 18 * sx, top - 7 * sy);
-  ctx.fillText(view === 'interface' ? 'СТАТУС' : 'ЗНАЧЕНИЕ', x + groupW + labelW + 20 * sx, top - 7 * sy);
+  ctx.fillText(view === 'graphics' ? 'НАСТРОЙКА' : 'ПРЕСЕТ / ЭЛЕМЕНТ', x + groupW + 18 * sx, top - 7 * sy);
+  ctx.fillText(view === 'graphics' ? 'ЗНАЧЕНИЕ' : 'СТАТУС', x + groupW + labelW + 20 * sx, top - 7 * sy);
 
   ctx.textBaseline = 'middle';
   for (let row = 0; row < visible; row++) {
@@ -107,7 +100,7 @@ export function drawUiSettingsMenu(
     const textY = rowY + rowH * 0.5;
     const isSel = i === selected;
     const isPreset = item.kind === 'preset';
-    const isReset = item.kind === 'reset_interface' || item.kind === 'reset_graphics' || item.kind === 'reset_audio';
+    const isReset = item.kind === 'reset_interface' || item.kind === 'reset_graphics';
     const enabled = item.kind === 'element'
       ? uiElementEnabled(item.element.id)
       : isPreset
@@ -119,7 +112,7 @@ export function drawUiSettingsMenu(
     if (isSel) {
       ctx.fillStyle = `rgba(0,90,78,${0.46 + 0.12 * flicker(time, 1245 + i)})`;
       ctx.fillRect(x - 2 * sx, rowY, w - x * 2 + 4 * sx, rowH);
-      ctx.strokeStyle = isReset || isPreset || item.kind === 'mobile_sensitivity' || item.kind === 'camera_fov' || item.kind === 'visual_geometry' || item.kind === 'lighting_quality' || item.kind === 'music_volume' || item.kind === 'sfx_volume' || item.kind === 'master_audio' || (item.kind === 'element' && item.element.locked) ? '#fd6' : 'rgba(0,255,190,0.46)';
+      ctx.strokeStyle = isReset || isPreset || item.kind === 'mobile_sensitivity' || item.kind === 'camera_fov' || item.kind === 'visual_geometry' || item.kind === 'lighting_quality' || (item.kind === 'element' && item.element.locked) ? '#fd6' : 'rgba(0,255,190,0.46)';
       ctx.strokeRect(x - 2 * sx + 0.5, rowY + 0.5, w - x * 2 + 4 * sx - 1, rowH - 1);
     }
 
@@ -161,7 +154,7 @@ export function drawUiSettingsMenu(
       ctx.fillText(fitTextStable(ctx, item.label, labelW - 8 * sx), x + groupW + 18 * sx, textY);
       ctx.fillStyle = '#fd6';
       ctx.fillText(
-        settingValue(item.kind),
+        view === 'graphics' ? graphicsValue(item.kind) : `${Math.round(mobileLookSensitivity() * 100)}%`,
         x + groupW + labelW + 20 * sx,
         textY,
       );
@@ -185,10 +178,8 @@ export function drawUiSettingsMenu(
   ctx.textBaseline = 'alphabetic';
   ctx.fillText(
     fitTextStable(ctx, view === 'graphics'
-      ? 'ВЛЕВО/ВПРАВО меняет значение; верхняя строка сбрасывает настройки. Контраст карты дублирует легенду.'
-      : view === 'audio'
-        ? 'ВЛЕВО/ВПРАВО для настройки звука; верхняя строка сбрасывает значения по умолчанию.'
-        : 'Новичок используется по умолчанию. ENTER переключает UI; ВЛЕВО/ВПРАВО для обзора.',
+      ? 'ENTER меняет строку; графический сброс не трогает UI-пресет. Контраст карты дублирует легенду.'
+      : 'Новичок используется по умолчанию. ENTER переключает UI, автоподбор и мобильный обзор; верхняя строка сбрасывает.',
     w - 24 * sx),
     12 * sx,
     h - 10 * sy,

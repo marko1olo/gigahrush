@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { ItemType, RoomType, type Entity } from '../src/core/types';
+import { FloorLevel, ItemType, RoomType, type Entity } from '../src/core/types';
 import { World } from '../src/core/world';
 import { ITEMS } from '../src/data/catalog';
 import { ITEM_TAGS, getStack } from '../src/data/items';
@@ -73,7 +73,7 @@ test('brown slime age label is reachable through cleanup and NII post storage', 
 
 test('brown slime age label can be sold instead of saved as evidence', () => {
   const player = makeTestPlayer();
-  const state = makeGameState({ currentZ: 0, time: 128 });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING, time: 128 });
 
   assert.equal(addItem(player, LABEL_ID, 1), true);
   assert.equal(getInventorySlotActionInfo(player, 0)?.useLabel, 'Enter проверить');

@@ -13,25 +13,13 @@ import {
   type Zone,
 } from '../core/types';
 import { World } from '../core/world';
-import { rng, pickFrom, shuffleWith, type RandomSource, irand } from '../core/rand';
+import { irandFrom, pickFrom, shuffleWith, type RandomSource } from '../core/rand';
 import { ROOM_DEFS } from '../data/catalog';
 
-
-export function findRandomFloorCell(world: World, rand: RandomSource = rng, maxTries: number = 2000): { x: number; y: number } | undefined {
-  for (let i = 0; i < maxTries; i++) {
-    const x = Math.floor(rand() * W);
-    const y = Math.floor(rand() * W);
-    if (world.cells[world.idx(x, y)] === Cell.FLOOR) return { x, y };
-  }
-  return undefined;
-}
-
-export function pickRandomRoom(world: World, rand: RandomSource = rng): Room | undefined {
-  if (!world.rooms || world.rooms.length === 0) return undefined;
-  return pickFrom(rand, world.rooms);
-}
-export const pick = <T>(a: readonly T[], rand: RandomSource = rng): T => pickFrom(rand, a);
-export const shuffle = <T>(a: T[], rand: RandomSource = rng): T[] => shuffleWith(rand, a);
+/* ── RNG helpers ─────────────────────────────────────────────── */
+export const rng = (lo: number, hi: number, rand: RandomSource = Math.random): number => irandFrom(rand, lo, hi);
+export const pick = <T>(a: readonly T[], rand: RandomSource = Math.random): T => pickFrom(rand, a);
+export const shuffle = <T>(a: T[], rand: RandomSource = Math.random): T[] => shuffleWith(rand, a);
 
 export type ArrivalSpawnReason =
   | 'matched_lift'
@@ -87,6 +75,10 @@ interface AnchorSearch {
 
 export function oppositeLiftDirection(direction: LiftDirection): LiftDirection {
   return direction === LiftDirection.DOWN ? LiftDirection.UP : LiftDirection.DOWN;
+}
+
+export function routeArrivalLiftDirection(travelDirection: LiftDirection, canContinueRoute: boolean): LiftDirection {
+  return canContinueRoute ? travelDirection : oppositeLiftDirection(travelDirection);
 }
 
 function liftDirectionName(direction: LiftDirection | undefined): string {
@@ -554,7 +546,7 @@ export function pickWalkablePlacement(
   let bestScore = Infinity;
 
   for (let a = 0; a < attempts; a++) {
-    const ci = source[irand(0, source.length - 1)];
+    const ci = source[rng(0, source.length - 1)];
     if (!isValidWalkablePlacementCell(world, placement, ci, opts)) continue;
     if (bias === 'any') return { x: ci % W, y: (ci / W) | 0 };
     const score = placementScore(world, placement, ci, opts);
@@ -610,7 +602,7 @@ export function connectProtectedRoom(world: World, rx: number, ry: number, w: nu
     }
   }
   if (openings.length > 0) {
-    const bi = openings[irand(0, openings.length - 1)];
+    const bi = openings[rng(0, openings.length - 1)];
     world.cells[bi] = Cell.FLOOR;
     world.aptMask[bi] = 0;
     return;
@@ -646,10 +638,10 @@ export function findClearArea(
   minDist: number, maxDist: number,
 ): { x: number; y: number } | null {
   for (let attempt = 0; attempt < 400; attempt++) {
-    const angle = (irand(0, 10000) / 10000) * Math.PI * 2;
+    const angle = (rng(0, 10000) / 10000) * Math.PI * 2;
     const lo = attempt < 200 ? minDist : 0;
     const hi = attempt < 200 ? maxDist : W / 4;
-    const dist = lo + (irand(0, 10000) / 10000) * (hi - lo);
+    const dist = lo + (rng(0, 10000) / 10000) * (hi - lo);
     const tx = (cx + Math.round(Math.cos(angle) * dist) + W) % W;
     const ty = (cy + Math.round(Math.sin(angle) * dist) + W) % W;
     let ok = true;
@@ -679,7 +671,7 @@ export function carveOrganicCorridor(world: World, ax: number, ay: number, bx: n
     if (!force && world.aptMask[i]) return;
     if (world.cells[i] === Cell.FLOOR || world.cells[i] === Cell.DOOR) return;
     
-    // When forcing through hermetic walls or apartments, we probably want doors
+    // If forcing through hermetic walls or apartments, we probably want doors
     if (force && (world.hermoWall[i] || world.aptMask[i])) {
       world.aptMask[i] = 0;
       world.cells[i] = Cell.DOOR;
@@ -824,7 +816,7 @@ export function carveCorridor(world: World, ax: number, ay: number, bx: number, 
   const ddy = world.delta(ay, by);
   const stepX = ddx > 0 ? 1 : -1;
   const stepY = ddy > 0 ? 1 : -1;
-  const horizFirst = irand(0, 1000) < 500;
+  const horizFirst = rng(0, 1000) < 500;
   let cx = ax, cy = ay;
 
   // dirX/dirY: current movement direction of the corridor leg.
@@ -943,7 +935,7 @@ export function roomExit(world: World, room: Room, tx: number, ty: number):
   const dy = world.delta(cy, ty);
 
   if (Math.abs(dx) >= Math.abs(dy)) {
-    const ey = world.wrap(room.y + irand(0, room.h - 1));
+    const ey = world.wrap(room.y + rng(0, room.h - 1));
     if (dx >= 0) {
       const wx = world.wrap(room.x + room.w);
       return { wx, wy: ey, ox: world.wrap(wx + 1), oy: ey };
@@ -952,7 +944,7 @@ export function roomExit(world: World, room: Room, tx: number, ty: number):
       return { wx, wy: ey, ox: world.wrap(wx - 1), oy: ey };
     }
   } else {
-    const ex = world.wrap(room.x + irand(0, room.w - 1));
+    const ex = world.wrap(room.x + rng(0, room.w - 1));
     if (dy >= 0) {
       const wy = world.wrap(room.y + room.h);
       return { wx: ex, wy, ox: ex, oy: world.wrap(wy + 1) };
@@ -1035,7 +1027,7 @@ export function connectRoomsMST(world: World, rooms: Room[]): void {
 
   const extra = Math.floor(n * 0.25);
   for (let k = 0; k < extra; k++) {
-    const ai = irand(0, n - 1), bi = irand(0, n - 1);
+    const ai = rng(0, n - 1), bi = rng(0, n - 1);
     if (ai !== bi) {
       const a = rooms[ai], b = rooms[bi];
       const exitA = roomExit(world, a, b.x + Math.floor(b.w / 2), b.y + Math.floor(b.h / 2));
@@ -1127,7 +1119,7 @@ export function decorateRoom(world: World, room: Room): void {
   }
 
   if (type === RoomType.COMMON) {
-    const decor = irand(0, 4);
+    const decor = rng(0, 4);
     if (decor === 0 && w >= 8 && h >= 8) {
       const ox = Math.floor(w / 4), oy = Math.floor(h / 4);
       placeWall(ox, oy); placeWall(w - 1 - ox, oy);
@@ -1136,7 +1128,7 @@ export function decorateRoom(world: World, room: Room): void {
       const c1 = Math.floor(w / 3), c2 = w - 1 - c1;
       for (let dy = 2; dy < h - 1; dy += 2) { placeWall(c1, dy); placeWall(c2, dy); }
     } else if (decor === 2 && w >= 10 && h >= 10) {
-      if (irand(0, 1000) < 500) {
+      if (rng(0, 1000) < 500) {
         const wy = Math.floor(h / 2), gap = Math.floor(w / 2);
         for (let dx = 2; dx < w - 2; dx++) { if (Math.abs(dx - gap) > 1) placeWall(dx, wy); }
       } else {
@@ -1146,8 +1138,8 @@ export function decorateRoom(world: World, room: Room): void {
     } else if (decor === 3 && w >= 6 && h >= 6) {
       placeColumns(world, room);
     } else {
-      const np = irand(2, Math.min(6, Math.floor(w * h / 20)));
-      for (let i = 0; i < np; i++) placeWall(irand(2, Math.max(2, w - 3)), irand(2, Math.max(2, h - 3)));
+      const np = rng(2, Math.min(6, Math.floor(w * h / 20)));
+      for (let i = 0; i < np; i++) placeWall(rng(2, Math.max(2, w - 3)), rng(2, Math.max(2, h - 3)));
     }
   } else if (type === RoomType.CORRIDOR && Math.max(w, h) >= 8) {
     if (w > h) {
@@ -1164,7 +1156,7 @@ export function decorateRoom(world: World, room: Room): void {
 }
 
 export function placeColumns(world: World, room: Room): void {
-  const spacing = irand(3, 4);
+  const spacing = rng(3, 4);
   for (let dy = spacing; dy < room.h - 1; dy += spacing) {
     for (let dx = spacing; dx < room.w - 1; dx += spacing) {
       const ci = world.idx(world.wrap(room.x + dx), world.wrap(room.y + dy));
@@ -1197,7 +1189,7 @@ export function shapeRoom(world: World, room: Room): void {
   const { w, h } = room;
   if (w < 4 || h < 4) return; // too small to reshape
 
-  const shape = irand(0, NUM_SHAPES - 1);
+  const shape = rng(0, NUM_SHAPES - 1);
   if (shape === 0) return; // rectangle — keep as is
 
   const rx = (w - 1) / 2;
@@ -1270,8 +1262,8 @@ export function shapeRoom(world: World, room: Room): void {
 
 export function placeAbyssPits(world: World): void {
   for (let i = 0; i < 200; i++) {
-    const px = irand(0, W - 1), py = irand(0, W - 1);
-    const pw = irand(2, 6), ph = irand(2, 6);
+    const px = rng(0, W - 1), py = rng(0, W - 1);
+    const pw = rng(2, 6), ph = rng(2, 6);
     let ok = true;
     for (let dy = -1; dy <= ph && ok; dy++)
       for (let dx = -1; dx <= pw && ok; dx++) {
@@ -1313,17 +1305,17 @@ export function connectToNetwork(world: World, room: Room): void {
   for (const side of sides) {
     let sx: number, sy: number, sdx: number, sdy: number;
     if (side === 0) {
-      sx = world.wrap(room.x + irand(0, room.w - 1));
+      sx = world.wrap(room.x + rng(0, room.w - 1));
       sy = world.wrap(room.y - 1); sdx = 0; sdy = -1;
     } else if (side === 1) {
-      sx = world.wrap(room.x + irand(0, room.w - 1));
+      sx = world.wrap(room.x + rng(0, room.w - 1));
       sy = world.wrap(room.y + room.h); sdx = 0; sdy = 1;
     } else if (side === 2) {
       sx = world.wrap(room.x - 1);
-      sy = world.wrap(room.y + irand(0, room.h - 1)); sdx = -1; sdy = 0;
+      sy = world.wrap(room.y + rng(0, room.h - 1)); sdx = -1; sdy = 0;
     } else {
       sx = world.wrap(room.x + room.w);
-      sy = world.wrap(room.y + irand(0, room.h - 1)); sdx = 1; sdy = 0;
+      sy = world.wrap(room.y + rng(0, room.h - 1)); sdx = 1; sdy = 0;
     }
     let ex = world.wrap(sx + sdx), ey = world.wrap(sy + sdy);
     const carved: number[] = [];
@@ -1612,7 +1604,7 @@ export function repairRoomWalls(world: World): void {
         const wx = world.wrap(room.x + dx);
         const wy = world.wrap(room.y + dy);
         const ci = world.idx(wx, wy);
-        // When a perimeter cell became FLOOR, restore it to WALL
+        // If a perimeter cell became FLOOR, restore it to WALL
         // Skip cells intentionally assigned to a room (hand-crafted passages)
         if (world.cells[ci] === Cell.FLOOR && world.roomMap[ci] < 0) {
           world.cells[ci] = Cell.WALL;
@@ -1622,6 +1614,8 @@ export function repairRoomWalls(world: World): void {
     }
   }
 }
+
+
 
 /* ── Sanitize doors: validate APARTMENT doors only ───────────── */
 export function sanitizeDoors(world: World): void {
@@ -1659,6 +1653,8 @@ export function sanitizeDoors(world: World): void {
     }
   }
 }
+
+
 
 /* ── Remove 1-cell dead-end floor pockets ────────────────────── */
 export function pruneDeadEnds(world: World): void {
@@ -1710,7 +1706,7 @@ export function openVolatileDoors(world: World): void {
 export function weightedPick<T extends { spawnW: number }>(defs: T[]): T | null {
   const total = defs.reduce((s, d) => s + d.spawnW, 0);
   if (total <= 0) return null;
-  let r = (irand(0, 10000) / 10000) * total;
+  let r = (rng(0, 10000) / 10000) * total;
   for (const d of defs) { r -= d.spawnW; if (r <= 0) return d; }
   return defs[defs.length - 1];
 }
@@ -2043,8 +2039,8 @@ export function placeLifts(
   const blockedIdx = origin ? world.idx(Math.floor(origin.x), Math.floor(origin.y)) : -1;
   for (let attempt = 0; attempt < 4000 && placed < count; attempt++) {
     const ci = reachable.count > 0
-      ? reachable.cells[irand(0, reachable.count - 1)]
-      : world.idx(irand(20, W - 20), irand(20, W - 20));
+      ? reachable.cells[rng(0, reachable.count - 1)]
+      : world.idx(rng(20, W - 20), rng(20, W - 20));
     if (ci === blockedIdx) continue;
     const access = canPlaceReachableLift(world, ci, reachable);
     if (access < 0) continue;
@@ -2066,11 +2062,11 @@ export function generateZones(world: World): void {
   for (let zy = 0; zy < ZONE_GRID; zy++) {
     for (let zx = 0; zx < ZONE_GRID; zx++) {
       const id = zy * ZONE_GRID + zx;
-      const cx = world.wrap(zx * ZONE_CELL + Math.floor(ZONE_CELL / 2) + irand(-20, 20));
-      const cy = world.wrap(zy * ZONE_CELL + Math.floor(ZONE_CELL / 2) + irand(-20, 20));
+      const cx = world.wrap(zx * ZONE_CELL + Math.floor(ZONE_CELL / 2) + rng(-20, 20));
+      const cy = world.wrap(zy * ZONE_CELL + Math.floor(ZONE_CELL / 2) + rng(-20, 20));
 
       // Faction distribution: 30% citizen, 20% liquidator, 20% cultist, 15% wild, 15% samosbor-free
-      const roll = irand(0, 10000) / 10000;
+      const roll = rng(0, 10000) / 10000;
       let faction: ZoneFaction;
       if (roll < 0.30) faction = ZoneFaction.CITIZEN;
       else if (roll < 0.50) faction = ZoneFaction.LIQUIDATOR;
@@ -2082,7 +2078,7 @@ export function generateZones(world: World): void {
       zones.push({
         id, cx, cy,
         faction,
-        hasLift: irand(0, 100) < 10,
+        hasLift: rng(0, 100) < 10,
         fogged: false,
         level: 1, // computed later per floor via assignZoneLevels
         hqRoomId: -1,
@@ -2144,7 +2140,7 @@ export function placeAirlocks(world: World): void {
 
         // Zone boundary OR 1% chance in any corridor (rare inter-room airlocks)
         const crossesZone = world.zoneMap[pi] !== world.zoneMap[ni];
-        if (!crossesZone && irand(0, 100) > 1) continue;
+        if (!crossesZone && rng(0, 100) > 1) continue;
 
         // Corridor check: perpendicular walls on all 3 cells
         let corridor = true;
@@ -2220,7 +2216,7 @@ export function punchThinWalls(world: World, chance: number = 0.12): void {
         }
         if (nearby) continue;
 
-        if ((irand(0, 10000) / 10000) < chance) {
+        if ((rng(0, 10000) / 10000) < chance) {
           world.cells[mi] = Cell.FLOOR;
           punched.add(mi);
         }
@@ -2247,8 +2243,8 @@ export function stampHQRooms(world: World): void {
     // Find a valid spot near zone center for a 7×7 room
     let placed = false;
     for (let attempt = 0; attempt < 20 && !placed; attempt++) {
-      const rx = world.wrap(zone.cx + irand(-15, 15));
-      const ry = world.wrap(zone.cy + irand(-15, 15));
+      const rx = world.wrap(zone.cx + rng(-15, 15));
+      const ry = world.wrap(zone.cy + rng(-15, 15));
 
       // Check area is all walls (not yet carved)
       let ok = true;
@@ -2295,162 +2291,4 @@ export function stampHQRooms(world: World): void {
       placed = true;
     }
   }
-}
-
-// Room sanity check post-generation
-export function validateFloorGeometry(world: World): void {
-  for (const room of world.rooms) {
-    if (!room) continue;
-    if (room.ceilingTier !== undefined && room.ceilingTier > 2) {
-      console.warn(`[Sanity] Room ${room.id} has invalid ceilingTier ${room.ceilingTier}. Capping to 2.`);
-      room.ceilingTier = 2;
-    }
-    if (room.ceilingTier !== undefined && room.ceilingTier < 0) {
-      room.ceilingTier = 0;
-    }
-  }
-}
-
-export function scatterAmbientLights(world: World, rng: () => number, count: number): void {
-  for (let attempt = 0, placed = 0; attempt < count * 20 && placed < count; attempt++) {
-    const x = Math.floor(rng() * 1024);
-    const y = Math.floor(rng() * 1024);
-    const ci = world.idx(x, y);
-    if (world.cells[ci] !== 1 /* Cell.FLOOR */ || world.features[ci] !== 0 /* Feature.NONE */) continue;
-    if (rng() < 0.7) world.features[ci] = 1 /* Feature.LAMP */;
-    else world.features[ci] = 5 /* Feature.CANDLE */;
-    placed++;
-  }
-}
-export function restoreAuthoredRoomShell(world: World, name: string, type: RoomType, wallTex: Tex, floorTex: Tex): Room | undefined {
-  const room = world.rooms.find(candidate => candidate.name === name);
-  if (!room) return undefined;
-  room.type = type;
-  room.sealed = false;
-  room.wallTex = wallTex;
-  room.floorTex = floorTex;
-  for (let dy = -1; dy <= room.h; dy++) {
-    for (let dx = -1; dx <= room.w; dx++) {
-      const idx = world.idx(room.x + dx, room.y + dy);
-      const interior = dx >= 0 && dx < room.w && dy >= 0 && dy < room.h;
-      if (interior) {
-        if (world.roomMap[idx] === room.id) world.floorTex[idx] = floorTex;
-        continue;
-      }
-      if (world.cells[idx] !== Cell.WALL) continue;
-      world.hermoWall[idx] = 0;
-      world.wallTex[idx] = wallTex;
-    }
-  }
-  world.markWallTexDirty();
-  world.markFloorTexDirty();
-  return room;
-}
-
-export function finalizeExpandedFloor(generation: any, _route: any, _rng: () => number): void {
-  generateZones(generation.world);
-  sanitizeDoors(generation.world);
-  generation.world.rebuildContainerMap();
-  generation.world.bakeLights();
-}
-
-export interface FloorStyle {
-  floorTex: Tex;
-  wallTex: Tex;
-  radius?: number;
-  fog?: number;
-  featureA?: Feature;
-  featureB?: Feature;
-  roomPrefix?: string;
-}
-
-export function setFeature(world: World, x: number, y: number, feature: Feature): void {
-  const ci = world.idx(x, y);
-  if (world.cells[ci] === Cell.FLOOR) world.features[ci] = feature;
-}
-
-export function addRoom(
-  world: World,
-  type: RoomType,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  name: string,
-  wallTex: Tex,
-  floorTex: Tex,
-): Room {
-  const room: Room = {
-    id: world.rooms.length,
-    type,
-    x,
-    y,
-    w,
-    h,
-    name,
-    wallTex,
-    floorTex,
-    doors: [],
-    sealed: false,
-    apartmentId: -1,
-  };
-  world.rooms.push(room);
-  for (let ry = y; ry < y + h; ry++) {
-    for (let rx = x; rx < x + w; rx++) {
-      const idx = world.idx(rx, ry);
-      world.cells[idx] = Cell.FLOOR;
-      world.roomMap[idx] = room.id;
-      world.wallTex[idx] = wallTex;
-      world.floorTex[idx] = floorTex;
-    }
-  }
-  return room;
-}
-
-export function carveLine(world: World, x1: number, y1: number, x2: number, y2: number, width: number, tex: Tex): void {
-  const dx = Math.abs(x2 - x1);
-  const dy = Math.abs(y2 - y1);
-  const sx = x1 < x2 ? 1 : -1;
-  const sy = y1 < y2 ? 1 : -1;
-  let err = (dx > dy ? dx : -dy) / 2;
-  let currX = x1;
-  let currY = y1;
-
-  while (true) {
-    for (let wy = currY - width; wy <= currY + width; wy++) {
-      for (let wx = currX - width; wx <= currX + width; wx++) {
-        const i = world.idx(wx, wy);
-        if (!world.aptMask[i] && !world.hermoWall[i]) {
-          world.cells[i] = Cell.FLOOR;
-          world.floorTex[i] = tex;
-        }
-      }
-    }
-    if (currX === x2 && currY === y2) break;
-    const e2 = err;
-    if (e2 > -dx) {
-      err -= dy;
-      currX += sx;
-    }
-    if (e2 < dy) {
-      err += dx;
-      currY += sy;
-    }
-  }
-}
-
-export function protectedMask(world: World): Uint8Array {
-  const mask = new Uint8Array(W * W);
-  for (const room of world.rooms) {
-    if (!room) continue;
-    for (let y = room.y - 1; y <= room.y + room.h; y++) {
-      for (let x = room.x - 1; x <= room.x + room.w; x++) mask[world.idx(x, y)] = 1;
-    }
-  }
-  for (const idx of world.doors.keys()) mask[idx] = 1;
-  for (const container of world.containers) mask[world.idx(container.x, container.y)] = 1;
-  for (let i = 0; i < W * W; i++) {
-    if (world.cells[i] === Cell.LIFT || world.features[i] === Feature.LIFT_BUTTON) mask[i] = 1;
-  }
-  return mask;
 }

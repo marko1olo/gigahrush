@@ -1,6 +1,5 @@
-import { RoomType, Tex } from '../core/types';
+import { FloorLevel, RoomType, Tex } from '../core/types';
 import { hashSeed } from '../core/rand';
-import { DESIGN_FLOOR_ROUTES } from './design_floors';
 import type { FloorThemeProfile } from './floor_theme_profiles';
 
 export type VisualSurfaceFloorPattern = 'plain' | 'checker' | 'smallTile' | 'lino' | 'wetConcrete' | 'metalGrid';
@@ -26,6 +25,7 @@ export interface VisualSurfaceProfileRow {
   profileId: string;
   priority: number;
   kinds?: readonly FloorThemeProfile['kind'][];
+  baseFloors?: readonly FloorLevel[];
   routeIds?: readonly string[];
   roomTypes?: readonly RoomType[];
   wallTex?: readonly Tex[];
@@ -175,12 +175,12 @@ export const VISUAL_SURFACE_PROFILES: readonly VisualSurfaceProfile[] = [
 
 export const VISUAL_SURFACE_PROFILE_ROWS: readonly VisualSurfaceProfileRow[] = [
   { id: 'global_plain_concrete', profileId: 'plain_concrete', priority: 0 },
-  { id: 'design_living_residential', profileId: 'residential_lino', priority: 20 },
-  { id: 'design_kvartiry_residential', profileId: 'residential_lino', priority: 20 },
-  { id: 'design_ministry_checker', profileId: 'ministry_checker', priority: 22 },
-  { id: 'design_maintenance_service', profileId: 'maintenance_service', priority: 22 },
-  { id: 'design_hell_organic', profileId: 'hell_organic_surface', priority: 24 },
-  { id: 'design_void_proof', profileId: 'void_proof_surface', priority: 24 },
+  { id: 'story_living_residential', profileId: 'residential_lino', priority: 20, baseFloors: [FloorLevel.LIVING] },
+  { id: 'story_kvartiry_residential', profileId: 'residential_lino', priority: 20, baseFloors: [FloorLevel.KVARTIRY] },
+  { id: 'story_ministry_checker', profileId: 'ministry_checker', priority: 22, baseFloors: [FloorLevel.MINISTRY] },
+  { id: 'story_maintenance_service', profileId: 'maintenance_service', priority: 22, baseFloors: [FloorLevel.MAINTENANCE] },
+  { id: 'story_hell_organic', profileId: 'hell_organic_surface', priority: 24, baseFloors: [FloorLevel.HELL] },
+  { id: 'story_void_proof', profileId: 'void_proof_surface', priority: 24, baseFloors: [FloorLevel.VOID] },
 
   { id: 'room_bathroom_tile', profileId: 'residential_tile', priority: 40, roomTypes: [RoomType.BATHROOM], blockedTags: ['meat', 'void'] },
   { id: 'room_kitchen_tile', profileId: 'residential_tile', priority: 38, roomTypes: [RoomType.KITCHEN], blockedTags: ['meat', 'void'] },
@@ -221,18 +221,15 @@ function clamp01(value: number): number {
   return Math.max(0, Math.min(1, value));
 }
 
-function floorTag(z: number): string {
-  const floor = DESIGN_FLOOR_ROUTES.find(r => r.z === z);
-  return (floor ? floor.id : 'floor').toLowerCase();
+function floorTag(floor: FloorLevel): string {
+  return (FloorLevel[floor] ?? 'floor').toLowerCase();
 }
 
 function themeTags(theme: FloorThemeProfile): Set<string> {
   const tags = new Set<string>();
   tags.add(theme.kind);
   tags.add(`kind_${theme.kind}`);
-  // @ts-ignore
   tags.add(floorTag(theme.themeClass));
-  // @ts-ignore
   tags.add(`floor_${floorTag(theme.themeClass)}`);
   tags.add(`danger_${theme.danger}`);
   if (theme.routeId) tags.add(String(theme.routeId));
@@ -246,10 +243,10 @@ function themeTags(theme: FloorThemeProfile): Set<string> {
   for (const tag of theme.monsterPressureTags) tags.add(tag);
   for (const tag of theme.economyTags) tags.add(tag);
   for (const tag of theme.specialContentTags) tags.add(tag);
-  if (theme.themeTags.includes('hell')) tags.add('meat');
-  if (theme.themeTags.includes('ministry')) tags.add('documents');
-  if (theme.themeTags.includes('void')) tags.add('void');
-  if (theme.themeTags.includes('maintenance')) {
+  if (theme.themeClass === FloorLevel.HELL) tags.add('meat');
+  if (theme.themeClass === FloorLevel.MINISTRY) tags.add('documents');
+  if (theme.themeClass === FloorLevel.VOID) tags.add('void');
+  if (theme.themeClass === FloorLevel.MAINTENANCE) {
     tags.add('industrial');
     tags.add('water');
   }
@@ -284,8 +281,7 @@ function rowMatches(
   options: ResolveVisualSurfaceProfileOptions,
 ): boolean {
   if (row.kinds && !row.kinds.includes(theme.kind)) return false;
-  // @ts-ignore
-  if (row.themeTagss && !row.themeTagss.includes(theme.themeClass)) return false;
+  if (row.baseFloors && !row.baseFloors.includes(theme.themeClass)) return false;
   if (row.routeIds && (!theme.routeId || !row.routeIds.includes(String(theme.routeId)))) return false;
   if (row.roomTypes && (options.roomType === undefined || !row.roomTypes.includes(options.roomType))) return false;
   if (!texMatches(row.wallTex, options.wallTex)) return false;

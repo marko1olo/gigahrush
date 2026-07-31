@@ -10,7 +10,7 @@ import {
   generateUnderhellDesignFloor,
   scoreUnderhellThresholdChain,
   snapshotUnderhellFlags,
-} from '../src/gen/underhell';
+} from '../src/gen/design_floors/underhell';
 import {
   countTerritoryCells,
   territoryHqAnchors,
@@ -107,7 +107,7 @@ test('underhell ambient NPC templates align to their own cell territory', () => 
   const ambient = gen.entities.filter(entity => (
     entity.type === EntityType.NPC &&
     entity.alive &&
-    (entity as any).npcPackageId === undefined &&
+    entity.plotNpcId === undefined &&
     entity.persistentNpcId === undefined &&
     entity.alifeId === undefined &&
     entity.questId === -1 &&

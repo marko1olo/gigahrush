@@ -1,8 +1,6 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
-
-import { getPlotNpcCount } from '../src/data/npc_packages';
-import { SeedRng, _overrideRng, _restoreRng } from '../src/core/rand';
+import { SeedRng } from '../src/core/rand';
 
 import {
   Cell,
@@ -10,6 +8,7 @@ import {
   DoorState,
   EntityType,
   Faction,
+  FloorLevel,
   Occupation,
   QuestType,
   RoomType,
@@ -61,7 +60,7 @@ import '../src/systems/caravans';
 import { getNpcMemory } from '../src/systems/npc_memory';
 import { ensureProductionRooms, tickProduction, type ProductionState } from '../src/systems/production';
 import { questRemainingMinutes } from '../src/systems/quest_deadlines';
-import { checkQuests, checkTalkQuest, offerQuest } from '../src/systems/quests';
+import { checkQuests, offerQuest } from '../src/systems/quests';
 import { getSamosborDirectorTrace, tickSamosborDirector } from '../src/systems/samosbor_director';
 import { addTestRoom, makeGameState, makeTestContainer, makeTestEntity } from './helpers';
 
@@ -82,7 +81,7 @@ test('world event buffers cap, order newest first, and filter by zone/severity',
     publishEvent(state, {
       type: 'npc_enter_zone',
       zoneId: i % 2 === 0 ? 7 : 8,
-      severity: i % 2 !== 0 ? 4 : 1,
+      severity: i % 4 === 0 ? 4 : 1,
       privacy: 'local',
       tags: ['test', i % 2 === 0 ? 'even' : 'odd'],
     });
@@ -330,7 +329,7 @@ test('AG82 idol branch completion returns the idol and publishes branch context'
   assert.ok(branch);
 
   const state = makeGameState({
-    currentZ: 34,
+    currentFloor: FloorLevel.MINISTRY,
     worldEvents: createWorldEventState(),
   });
   const player = makeTestEntity({ inventory: [{ defId: 'idol_chernobog', count: 1 }] });
@@ -364,7 +363,7 @@ test('AG82 idol branch completion returns the idol and publishes branch context'
     done: false,
   });
 
-  checkTalkQuest(giver, player, new World(), [player, giver], state, state.msgs);
+  checkQuests(player, new World(), [player, giver], state, state.msgs);
 
   assert.equal(state.quests[0].done, true);
   assert.equal(player.inventory?.find(i => i.defId === 'idol_chernobog')?.count, 1);
@@ -379,8 +378,8 @@ test('economy state normalizes invalid resources and preserves valid saved value
   const normalized = normalizeEconomyState({
     priceVersion: 3,
     floors: {
-      '-6': {
-        z: -6,
+      [FloorLevel.LIVING]: {
+        floor: FloorLevel.LIVING,
         resources: {
           drink_water: { stock: Number.NaN, target: 50, lastDelta: Number.POSITIVE_INFINITY },
         },
@@ -389,7 +388,7 @@ test('economy state normalizes invalid resources and preserves valid saved value
     },
   });
 
-  const floor = normalized.floors['-6']!;
+  const floor = normalized.floors[FloorLevel.LIVING]!;
   const base = RESOURCES.find(r => r.id === 'drink_water')!.baseStock;
   const target = 50;
   assert.equal(normalized.priceVersion, 3);
@@ -402,9 +401,9 @@ test('economy state normalizes invalid resources and preserves valid saved value
 test('economy state restore drops invalid floor keys and caps route maps', () => {
   const normalized = normalizeEconomyState({
     floors: {
-      '-6': { z: -6, resources: {}, lastTickAt: 12 },
-      99999: { floor: 99999, resources: {}, lastTickAt: 99 },
-      bad: { z: -36, resources: {}, lastTickAt: 77 },
+      [FloorLevel.LIVING]: { floor: FloorLevel.LIVING, resources: {}, lastTickAt: 12 },
+      99: { floor: 99, resources: {}, lastTickAt: 99 },
+      bad: { floor: FloorLevel.HELL, resources: {}, lastTickAt: 77 },
     },
     routes: Object.fromEntries(Array.from({ length: ECONOMY_ROUTE_STATE_CAP + 5 }, (_, i) => [
       `route_${i}`,
@@ -412,8 +411,8 @@ test('economy state restore drops invalid floor keys and caps route maps', () =>
     ])),
   });
 
-  assert.equal(normalized.floors['-6']?.lastTickAt, 12);
-  assert.equal((normalized.floors as Record<string, unknown>)['99999'], undefined);
+  assert.equal(normalized.floors[FloorLevel.LIVING]?.lastTickAt, 12);
+  assert.equal((normalized.floors as Record<string, unknown>)['99'], undefined);
   assert.equal((normalized.floors as Record<string, unknown>).bad, undefined);
   assert.equal(Object.keys(normalized.routes).length, ECONOMY_ROUTE_STATE_CAP);
   assert.equal(normalized.routes.route_0.routeId, 'route_0');
@@ -423,13 +422,13 @@ test('economy state restore drops invalid floor keys and caps route maps', () =>
 });
 
 test('economy save normalization fills missing floors and drops unknown resources', () => {
-  const state = makeGameState({ currentZ: 2 });
+  const state = makeGameState({ currentFloor: FloorLevel.KVARTIRY });
 
   normalizeGameEconomy(state, {
     priceVersion: 9,
     floors: {
-      ['-6']: {
-        z: -6,
+      [FloorLevel.LIVING]: {
+        floor: FloorLevel.LIVING,
         resources: {
           unknown_resource: { stock: 999, target: 999, lastDelta: 0 },
           food: { stock: 20, target: 140, lastDelta: -4 },
@@ -440,33 +439,33 @@ test('economy save normalization fills missing floors and drops unknown resource
   });
 
   const saved = economyForSave(state);
-  const living = saved.floors[-6]!;
-  const current = saved.floors[2]!;
+  const living = saved.floors[FloorLevel.LIVING]!;
+  const current = saved.floors[FloorLevel.KVARTIRY]!;
   assert.equal(saved.priceVersion, 9);
   assert.ok(living, 'saved living economy should exist');
   assert.ok(current, 'current floor economy should be created lazily');
   assert.equal('unknown_resource' in living.resources, false);
   assert.equal(living.resources.food.stock, 20);
-  assert.equal(current.z, 2);
+  assert.equal(current.floor, FloorLevel.KVARTIRY);
 });
 
 test('economy resource spending clamps stock and affects item prices', () => {
-  const state = makeGameState({ time: 100, currentZ: -6 });
+  const state = makeGameState({ time: 100, currentFloor: FloorLevel.LIVING });
   const economy = ensureEconomyState(state);
-  economy.floors['-6'] = createEconomyFloorState(-6);
+  economy.floors[FloorLevel.LIVING] = createEconomyFloorState(FloorLevel.LIVING);
 
   assert.equal(changeResourceStock(state, 'drink_water', -119), true);
   assert.equal(getResourceScarcity(state, 'drink_water'), 2.7);
-  assert.equal(getAdjustedItemPrice(state, 'water'), 5);
+  assert.equal(getAdjustedItemPrice(state, 'water'), 6);
   assert.equal(spendResources(state, [{ id: 'drink_water', count: 2 }]), false);
   assert.equal(spendResources(state, [{ id: 'drink_water', count: 1 }]), true);
   assert.equal(getResourceScarcity(state, 'drink_water'), 2.7);
 });
 
 test('critical survival scarcity caps price pressure and contract rewards', () => {
-  const state = makeGameState({ time: 300, currentZ: 2 });
+  const state = makeGameState({ time: 300, currentFloor: FloorLevel.KVARTIRY });
   const economy = ensureEconomyState(state);
-  economy.floors['2'] = createEconomyFloorState(2);
+  economy.floors[FloorLevel.KVARTIRY] = createEconomyFloorState(FloorLevel.KVARTIRY);
 
   assert.equal(changeResourceStock(state, 'drink_water', -119), true);
   const quote = getEconomyQuote(state, 'water', { tariffMultiplier: 6, reason: 'test_tariff_spike' });
@@ -479,16 +478,16 @@ test('critical survival scarcity caps price pressure and contract rewards', () =
     state,
     'drink_water',
     100,
-    2,
+    FloorLevel.KVARTIRY,
     3,
     { level: 1, xp: 0, attrPoints: 0, str: 0, agi: 0, int: 99, psi: 0, maxPsi: 0 },
   ), 280);
 });
 
 test('economy price cache invalidates when stock changes and debug summary stays bounded', () => {
-  const state = makeGameState({ time: 200, currentZ: -6 });
+  const state = makeGameState({ time: 200, currentFloor: FloorLevel.LIVING });
   const economy = ensureEconomyState(state);
-  economy.floors['-6'] = createEconomyFloorState(-6);
+  economy.floors[FloorLevel.LIVING] = createEconomyFloorState(FloorLevel.LIVING);
 
   const baseWaterPrice = getAdjustedItemPrice(state, 'water');
   assert.equal(changeResourceStock(state, 'drink_water', -60), true);
@@ -521,7 +520,7 @@ test('samosbor director registry ignores duplicate beat ids', () => {
 test('samosbor director cadence, beat cooldowns, and events stay bounded', () => {
   const state = makeGameState({
     time: 100,
-    currentZ: -6,
+    currentFloor: FloorLevel.LIVING,
     samosborActive: true,
     samosborCount: 2,
     worldEvents: createWorldEventState(),
@@ -529,7 +528,7 @@ test('samosbor director cadence, beat cooldowns, and events stay bounded', () =>
   const world = testDirectorWorld();
   const player = makeTestEntity({ id: 0, x: 10.5, y: 10.5 });
   const entities = [player];
-  const nextId = { v: getPlotNpcCount() + 100 }
+  const nextId = { v: 100 };
   const variant = testClassicSamosborVariant();
   const originalRandom = SeedRng.prototype.random;
 
@@ -569,7 +568,7 @@ test('samosbor director cadence, beat cooldowns, and events stay bounded', () =>
 test('active maronary door malfunction ignores protected hermetic doors', () => {
   const state = makeGameState({
     time: 100,
-    currentZ: -6,
+    currentFloor: FloorLevel.LIVING,
     samosborActive: true,
     samosborCount: 3,
     worldEvents: createWorldEventState(),
@@ -581,10 +580,11 @@ test('active maronary door malfunction ignores protected hermetic doors', () => 
   world.hermoWall[doorIdx] = 1;
   world.doors.set(doorIdx, { idx: doorIdx, state: DoorState.HERMETIC_OPEN, roomA: 0, roomB: -1, keyId: '', timer: 0 });
   const player = makeTestEntity({ id: 0, x: 10.5, y: 10.5 });
-  const nextId = { v: getPlotNpcCount() + 100 }
+  const nextId = { v: 100 };
+  const originalRandom = Math.random;
 
   try {
-    _overrideRng(() => 0);
+    Math.random = () => 0;
     const result = tickSamosborDirector(world, [player], state, nextId, testMaronarySamosborVariant(), 'active_cadence');
 
     assert.equal(result.fired, true);
@@ -594,7 +594,7 @@ test('active maronary door malfunction ignores protected hermetic doors', () => 
     assert.ok(event);
     assert.equal(event.data?.doors, 0);
   } finally {
-    _restoreRng();
+    Math.random = originalRandom;
   }
 });
 
@@ -630,7 +630,7 @@ test('witnessed container theft marks audit, memory, event context, and faction 
   initFactionRelations();
   const state = makeGameState({
     time: 345,
-    currentZ: -6,
+    currentFloor: FloorLevel.LIVING,
     worldEvents: createWorldEventState(),
   });
   const world = new World();
@@ -683,7 +683,7 @@ test('unseen container theft stays private until a nearby owner faction audit', 
   initFactionRelations();
   const state = makeGameState({
     time: 10,
-    currentZ: -6,
+    currentFloor: FloorLevel.LIVING,
     worldEvents: createWorldEventState(),
   });
   const world = new World();
@@ -754,7 +754,7 @@ test('container audit tick surfaces unseen owner theft without reopening the box
   initFactionRelations();
   const state = makeGameState({
     time: 20,
-    currentZ: -6,
+    currentFloor: FloorLevel.LIVING,
     worldEvents: createWorldEventState(),
   });
   const world = new World();
@@ -817,17 +817,18 @@ test('saved containers outside regenerated topology are dropped on restore', () 
     name: 'Тестовый склад',
   });
 
-  const restored = restoreValidContainers(world, -6, [
+  const restored = restoreValidContainers(world, FloorLevel.LIVING, [
     {
-      ...makeTestContainer({ id: 11, x: 11, y: 11, roomId: 0, zoneId: 0, inventory: [{ defId: 'water', count: 2 }] }),
+      ...makeTestContainer({ id: 11, x: 11, y: 11, roomId: 0, zoneId: 0, capacitySlots: 0, inventory: [{ defId: 'water', count: 2 }] }),
       access: 'invalid',
     },
-    makeTestContainer({ id: 12, x: 50, y: 50, roomId: 0, zoneId: 0, inventory: [{ defId: 'bread', count: 1 }] }),
+    makeTestContainer({ id: 12, x: 50, y: 50, roomId: 0, zoneId: 0, capacitySlots: 4, inventory: [{ defId: 'bread', count: 1 }] }),
   ]);
 
   assert.equal(restored, 1);
   assert.equal(world.containers.length, 1);
   assert.equal(world.containers[0].id, 11);
+  assert.equal(world.containers[0].capacitySlots, 8);
   assert.equal(world.containers[0].access, 'public');
   assert.equal(world.containerById.has(11), true);
   assert.equal(world.containerById.has(12), false);
@@ -835,12 +836,12 @@ test('saved containers outside regenerated topology are dropped on restore', () 
 
 test('production state cannot write output into another floor container id', () => {
   const state = makeGameState({
-    currentZ: -6,
+    currentFloor: FloorLevel.KVARTIRY,
     time: 1000,
     worldEvents: createWorldEventState(),
   });
   (state as typeof state & { production: ProductionState[] }).production = [{
-    z: -6,
+    floor: FloorLevel.LIVING,
     roomId: 7,
     factoryId: 'metal_shop',
     recipeId: 'cut_pipe',
@@ -858,7 +859,7 @@ test('production state cannot write output into another floor container id', () 
   });
   const box = makeTestContainer({
     id: 1,
-    z: 2,
+    floor: FloorLevel.KVARTIRY,
     roomId: 7,
     zoneId: 0,
     inventory: [],
@@ -873,12 +874,12 @@ test('production state cannot write output into another floor container id', () 
 
 test('production room registration replaces stale current-floor output containers', () => {
   const state = makeGameState({
-    currentZ: -6,
+    currentFloor: FloorLevel.LIVING,
     time: 1000,
     worldEvents: createWorldEventState(),
   });
   (state as typeof state & { production: ProductionState[] }).production = [{
-    z: -6,
+    floor: FloorLevel.LIVING,
     roomId: 0,
     factoryId: 'metal_shop',
     recipeId: 'cut_pipe',
@@ -906,7 +907,7 @@ test('production room registration replaces stale current-floor output container
 
 test('nearby production output marks container and reaches world log', () => {
   const state = makeGameState({
-    currentZ: -6,
+    currentFloor: FloorLevel.LIVING,
     time: 1000,
     worldEvents: createWorldEventState(),
   });
@@ -930,7 +931,7 @@ test('nearby production output marks container and reaches world log', () => {
 
 test('slime furnace consumes a sample and alkali before producing cleanup output', () => {
   const state = makeGameState({
-    currentZ: -14,
+    currentFloor: FloorLevel.MAINTENANCE,
     time: 1000,
     worldEvents: createWorldEventState(),
   });
@@ -946,7 +947,7 @@ test('slime furnace consumes a sample and alkali before producing cleanup output
     id: 1,
     x: 12,
     y: 12,
-    z: -14,
+    floor: FloorLevel.MAINTENANCE,
     roomId: 0,
     zoneId: 0,
     inventory: [{ defId: 'slime_sample_brown', count: 1 }, { defId: 'alkali_powder', count: 1 }],
@@ -972,7 +973,7 @@ test('slime furnace consumes a sample and alkali before producing cleanup output
 
 test('illegal ammo smelter consumes contested metal input before producing 9mm', () => {
   const state = makeGameState({
-    currentZ: 2,
+    currentFloor: FloorLevel.KVARTIRY,
     time: 1000,
     worldEvents: createWorldEventState(),
   });
@@ -988,7 +989,7 @@ test('illegal ammo smelter consumes contested metal input before producing 9mm',
     id: 1,
     x: 12,
     y: 12,
-    z: 2,
+    floor: FloorLevel.KVARTIRY,
     roomId: 0,
     zoneId: 0,
     kind: ContainerKind.WEAPON_CRATE,
@@ -1044,7 +1045,7 @@ test('NPC assignment offer can use contract templates as timed contract quests',
     name: 'Тестовая контора',
   });
   const npc = makeTestEntity({
-    id: 1000042,
+    id: 42,
     type: EntityType.NPC,
     x: 10,
     y: 10,
@@ -1054,12 +1055,13 @@ test('NPC assignment offer can use contract templates as timed contract quests',
     canGiveQuest: true,
   });
   const player = makeTestEntity({ id: 0, x: 11, y: 10 });
+  const originalRandom = Math.random;
 
   try {
-    _overrideRng(() => 0);
+    Math.random = () => 0;
     offerQuest(npc, player, world, [player, npc], state, state.msgs);
   } finally {
-    _restoreRng();
+    Math.random = originalRandom;
   }
 
   assert.equal(state.quests.length, 1);
@@ -1089,7 +1091,7 @@ test('procedural quest offers have no global active quest cap', () => {
     name: 'Тестовая контора',
   });
   const npc = makeTestEntity({
-    id: 1000042,
+    id: 42,
     type: EntityType.NPC,
     x: 10,
     y: 10,
@@ -1099,12 +1101,13 @@ test('procedural quest offers have no global active quest cap', () => {
     canGiveQuest: true,
   });
   const player = makeTestEntity({ id: 0, x: 11, y: 10 });
+  const originalRandom = Math.random;
 
   try {
-    _overrideRng(() => 0);
+    Math.random = () => 0;
     offerQuest(npc, player, world, [player, npc], state, state.msgs);
   } finally {
-    _restoreRng();
+    Math.random = originalRandom;
   }
 
   assert.equal(state.quests.length, 13);
@@ -1115,7 +1118,7 @@ test('procedural fetch quests do not target story-critical main plot items', () 
   const state = makeGameState({ worldEvents: createWorldEventState() });
   const world = new World();
   const npc = makeTestEntity({
-    id: 1000042,
+    id: 42,
     type: EntityType.NPC,
     x: 10,
     y: 10,
@@ -1125,12 +1128,13 @@ test('procedural fetch quests do not target story-critical main plot items', () 
   });
   const player = makeTestEntity({ id: 0, x: 11, y: 10 });
   const randoms = [0.99, 0, 0];
+  const originalRandom = Math.random;
 
   try {
-    _overrideRng(() => randoms.shift() ?? 0);
+    Math.random = () => randoms.shift() ?? 0;
     offerQuest(npc, player, world, [player, npc], state, state.msgs);
   } finally {
-    _restoreRng();
+    Math.random = originalRandom;
   }
 
   assert.equal(state.quests.length, 1);

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { DoorState, ItemType, RoomType, type Entity } from '../src/core/types';
+import { DoorState, FloorLevel, ItemType, RoomType, type Entity } from '../src/core/types';
 import { World } from '../src/core/world';
 import { ITEM_TAGS, ITEMS } from '../src/data/items';
 import { RESOURCES, resourceForItem } from '../src/data/resources';
@@ -43,7 +43,7 @@ test('part ticket opens the Ministry N3 document gate without consuming the pape
     x: room.x + 8.5,
     y: room.y + Math.floor(room.h / 2) + 0.5,
   });
-  const state = makeGameState({ currentZ: 34, time: 100 });
+  const state = makeGameState({ currentFloor: FloorLevel.MINISTRY, time: 100 });
 
   assert.equal(addItem(player, ITEM_ID, 1), true);
   assert.equal(getInventorySlotActionInfo(player, 0)?.useLabel, 'Enter предъявить');
@@ -62,7 +62,7 @@ test('part ticket opens the Ministry N3 document gate without consuming the pape
 
 test('part ticket can be sold instead of saved for Ministry access', () => {
   const player = makeTestPlayer();
-  const state = makeGameState({ currentZ: 0, time: 101 });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING, time: 101 });
 
   assert.equal(addItem(player, ITEM_ID, 1), true);
   useItem(player, 0, state.msgs, state.time, state);

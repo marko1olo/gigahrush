@@ -53,8 +53,8 @@ const KEY = {
 };
 
 const SMOKE_HOOK_ID = {
-  teleportLiving: 'teleport_design_z: living',
-  teleportMaintenance: 'teleport_design_z: maintenance',
+  teleportLiving: 'teleport_living',
+  teleportMaintenance: 'teleport_maintenance',
   forceFactionEvent: 'force_faction_event',
   rareSamosbor: 'rare_samosbor',
   expeditionSetup: 'smoke_expedition_setup',
@@ -1118,7 +1118,7 @@ function requireStartupGuidance(debug, label, failures) {
   if (!hasObjective && debug.interactionPromptEnabled === false) {
     failures.push(`${label}: startup UI has no objective data and interaction prompt is disabled`);
   }
-  if (debug.currentObjectiveSource === 'plot_offer' && debug.currentObjectiveTargetPlotNpcId !== 'olga' && debug.currentObjectiveTargetPlotNpcId !== 5 && debug.currentObjectiveTargetPlotNpcId !== '5') {
+  if (debug.currentObjectiveSource === 'plot_offer' && debug.currentObjectiveTargetPlotNpcId !== 'olga') {
     failures.push(`${label}: first plot-offer objective targets "${debug.currentObjectiveTargetPlotNpcId}", expected Olga`);
   }
 }

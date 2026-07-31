@@ -1,8 +1,7 @@
 import { test } from 'node:test';
-import { getPlotNpcCount } from '../src/data/npc_packages';
 import * as assert from 'node:assert/strict';
 
-import { AIGoal, Cell, EntityType, MonsterKind, type Entity, type Msg } from '../src/core/types';
+import { AIGoal, Cell, EntityType, FloorLevel, MonsterKind, type Entity, type Msg } from '../src/core/types';
 import { World } from '../src/core/world';
 import { getMonsterEcology } from '../src/data/monster_ecology';
 import { MONSTERS } from '../src/entities/monster';
@@ -75,6 +74,7 @@ test('Khorovaya Matka is a standalone monster, not the old choir variant', () =>
 
   const ecology = getMonsterEcology(MonsterKind.KHOROVAYA_MATKA);
   assert.ok(ecology);
+  assert.deepEqual(ecology.floors, [FloorLevel.HELL]);
   assert.match(ecology.counterplay, /припев|детей|окна/);
 });
 
@@ -84,7 +84,7 @@ test('Khorovaya Matka choir countdown spawns capped children', () => {
   const source = khorovayaMatka();
   const entities = [player(), source];
   const msgs: Msg[] = [];
-  const nextId = { v: getPlotNpcCount() + 10 }
+  const nextId = { v: 10 };
 
   for (let i = 0; i < 5; i++) {
     source.ai!.choirCountdown = 0.01;
@@ -102,7 +102,7 @@ test('clearing Khorovaya Matka children opens a vulnerability window and changes
   setListenerPos(20, 18, world.dist2.bind(world));
   const source = khorovayaMatka();
   const entities = [player(), source];
-  const nextId = { v: getPlotNpcCount() + 10 }
+  const nextId = { v: 10 };
 
   source.ai!.choirCountdown = 0.01;
   prepare(entities);

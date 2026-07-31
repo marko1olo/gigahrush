@@ -1,9 +1,8 @@
-import { getPlotNpcNumericId } from '../../data/npc_packages';
 /* -- Домкомовский патронный шкаф: low-count Living ammo loop ---- */
 
 import {
   Cell, ContainerKind, DoorState, Faction, Feature,
-  Occupation, QuestType, RoomType, Tex,
+  FloorLevel, Occupation, QuestType, RoomType, Tex,
   type Entity, type Room, type WorldContainer,
 } from '../../core/types';
 import { World } from '../../core/world';
@@ -79,7 +78,7 @@ const NPC_DEFS: Record<string, PlotNpcDef> = {
 registerSideQuest(KEEPER_ID, NPC_DEFS[KEEPER_ID], [
   {
     id: 'ag42_zoya_magazine_part',
-    giverId: getPlotNpcNumericId(KEEPER_ID)!,
+    giverNpcId: KEEPER_ID,
     type: QuestType.FETCH,
     desc: 'Зоя Патронная: «Принеси пустой магазин. За учетную мелочь отдам немного 9мм и одну дробь.»',
     targetItem: 'magazine_part',
@@ -224,7 +223,7 @@ function addAmmoContainer(
     id: nextContainerId(world),
     x,
     y,
-    z: 100,
+    floor: FloorLevel.LIVING,
     roomId: room.id,
     zoneId: world.zoneMap[ci],
     kind,
@@ -252,7 +251,7 @@ function spawnNpc(
   canGiveQuest: boolean,
   weapon?: string,
 ): number {
-  const existing = entities.find(e => e.alive && e.id === getPlotNpcNumericId(plotNpcId)!);
+  const existing = entities.find(e => e.alive && e.plotNpcId === plotNpcId);
   if (existing) return existing.id;
   const x = world.wrap(room.x + dx);
   const y = world.wrap(room.y + dy);

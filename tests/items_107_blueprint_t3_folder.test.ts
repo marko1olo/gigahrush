@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { ContainerKind, ItemType } from '../src/core/types';
+import { ContainerKind, FloorLevel, ItemType } from '../src/core/types';
 import { DOCUMENT_ACCESS_MARKET_VALUES } from '../src/data/documents_access';
 import { ITEMS, ITEM_TAGS } from '../src/data/items';
 import { makeProceduralFloorSpec } from '../src/data/procedural_floors';
@@ -51,7 +51,7 @@ test('blueprint t3 folder is reachable from a deep Hladon frozen cache', () => {
 
 test('blueprint t3 folder can be spent as a black-market document choice', () => {
   const player = makeTestPlayer({ inventory: [{ defId: 'blueprint_t3_folder', count: 1 }], money: 0 });
-  const state = makeGameState({ currentZ: 0, time: 60 });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING, time: 60 });
 
   useItem(player, 0, state.msgs, state.time, state);
 

@@ -7,6 +7,7 @@ import {
   DoorState,
   EntityType,
   Faction,
+  FloorLevel,
   LiftDirection,
   MonsterKind,
   Occupation,
@@ -28,7 +29,7 @@ import {
   SPETSPRIEMNIK_ROOM_NAMES,
   SPETSPRIEMNIK_ROUTE_ID,
   SPETSPRIEMNIK_Z,
-} from '../src/gen/spetspriemnik';
+} from '../src/gen/design_floors/spetspriemnik';
 import { countTerritoryCells, territoryHqAnchors } from '../src/systems/territory';
 
 let cachedGeneration: ReturnType<typeof generateDesignFloor> | undefined;
@@ -50,7 +51,8 @@ function hasReachableLift(gen: ReturnType<typeof generateDesignFloor>, direction
 test('spetspriemnik is registered as a Ministry detention route at z+40', () => {
   const route = designFloorById(SPETSPRIEMNIK_ROUTE_ID);
   assert.equal(route?.z, SPETSPRIEMNIK_Z);
-    assert.equal(route?.themeTags?.includes('ministry'), true);
+  assert.equal(route?.baseFloor, SPETSPRIEMNIK_BASE_FLOOR);
+  assert.equal(route?.baseFloor, FloorLevel.MINISTRY);
   assert.equal(route?.displayName, 'Спецприёмник');
   assert.equal(designFloorAtZ(SPETSPRIEMNIK_Z)?.id, SPETSPRIEMNIK_ROUTE_ID);
   assert.equal(PROCEDURAL_FLOOR_ZS.includes(SPETSPRIEMNIK_Z), false);
@@ -61,8 +63,8 @@ test('spetspriemnik profile favors liquidator control, prisoners and protocol mo
   assert.ok(route);
   const profile = designFloorPopulationProfile(route);
 
-  assert.ok(profile.npcTarget >= 92 && profile.npcTarget <= 9200, 'npcTarget in bounds');
-  assert.ok(profile.monsterTarget >= 76 && profile.monsterTarget <= 7600, 'monsterTarget in bounds');
+  assert.equal(profile.npcTarget, 920);
+  assert.equal(profile.monsterTarget, 760);
   assert.equal(profile.npcNoun, 'конвоир');
   assert.equal(profile.npcFactions.some(entry => entry.value === Faction.LIQUIDATOR && entry.weight >= 50), true);
   assert.equal(profile.npcFactions.some(entry => entry.value === Faction.CITIZEN && entry.weight >= 25), true);
@@ -169,7 +171,7 @@ test('spetspriemnik exposes release, names, bribe, riot and shelter decisions', 
     'spetspriemnik_informant_tolya',
     'spetspriemnik_clerk_alla',
   ]) {
-    assert.equal(npcs.some(entity => (entity as any).npcPackageId === plotNpcId), true, plotNpcId);
+    assert.equal(npcs.some(entity => entity.plotNpcId === plotNpcId), true, plotNpcId);
   }
 
   assert.equal(gen.world.containers.some(container => container.tags.includes('release_prisoners') && container.tags.includes('key_gate')), true);

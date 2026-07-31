@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { AIGoal, Cell, EntityType, Faction, MonsterKind, Occupation, RoomType, type Entity, type Msg } from '../src/core/types';
+import { AIGoal, Cell, EntityType, Faction, FloorLevel, MonsterKind, Occupation, RoomType, type Entity, type Msg } from '../src/core/types';
 import { World } from '../src/core/world';
 import { getMonsterEcology } from '../src/data/monster_ecology';
 import { RUMORS } from '../src/data/rumors';
@@ -49,7 +49,6 @@ function mukhozhuk(overrides: Partial<Entity> = {}): Entity {
     hp: DEF.hp,
     maxHp: DEF.hp,
     monsterKind: MonsterKind.MUKHOZHUK_HOST,
-    aiFlags: DEF.aiFlags ? [...DEF.aiFlags] : undefined,
     attackCd: 0,
     currentMag: 1,
     ai: { goal: AIGoal.WANDER, tx: 12, ty: 12, path: [], pi: 0, stuck: 0, timer: 0 },
@@ -82,6 +81,7 @@ test('mukhozhuk host keeps standalone parasite registry, ecology, rumors and spr
   assert.equal(DEF.kind, MonsterKind.MUKHOZHUK_HOST);
   assert.equal(MONSTERS[MonsterKind.MUKHOZHUK_HOST], DEF);
   assert.deepEqual(DEF.aiFlags, ['parasiteLeader', 'foodBait']);
+  assert.deepEqual(DEF.floors, [FloorLevel.MINISTRY, FloorLevel.MAINTENANCE]);
   assert.match(DEF.counterplay ?? '', /свидетел|карантин|крика/i);
   assert.match(DEF.lootHint ?? '', /хитин|приказ|карточка/i);
   assert.equal(ecology?.rare, true);
@@ -99,14 +99,14 @@ test('mukhozhuk command pulse is local, capped and does not draft ordinary civil
   const player = makeTestPlayer({ id: 1, x: 13, y: 12, hp: 100, maxHp: 100 });
   const host = mukhozhuk();
   const civilian = makeTestNpc({
-    id: 1000003,
+    id: 3,
     x: 12.5,
     y: 12.2,
     faction: Faction.CITIZEN,
     ai: { goal: AIGoal.IDLE, tx: 0, ty: 0, path: [], pi: 0, stuck: 0, timer: 0 },
   });
   const strongGuard = makeTestNpc({
-    id: 1000004,
+    id: 4,
     x: 12.8,
     y: 11.8,
     faction: Faction.LIQUIDATOR,
@@ -116,7 +116,7 @@ test('mukhozhuk command pulse is local, capped and does not draft ordinary civil
     ai: { goal: AIGoal.IDLE, tx: 0, ty: 0, path: [], pi: 0, stuck: 0, timer: 0 },
   });
   const guards = Array.from({ length: 24 }, (_, i) => makeTestNpc({
-    id: 1000010 + i,
+    id: 10 + i,
     x: 11.2 + (i % 6) * 0.45,
     y: 11.2 + Math.floor(i / 6) * 0.45,
     faction: i % 5 === 0 ? Faction.CULTIST : Faction.LIQUIDATOR,
@@ -126,7 +126,7 @@ test('mukhozhuk command pulse is local, capped and does not draft ordinary civil
     ai: { goal: AIGoal.IDLE, tx: 0, ty: 0, path: [], pi: 0, stuck: 0, timer: 0 },
   }));
   const entities = [player, host, civilian, strongGuard, ...guards];
-  const state = makeGameState({ currentZ: 34, worldEvents: createWorldEventState() });
+  const state = makeGameState({ currentFloor: FloorLevel.MINISTRY, worldEvents: createWorldEventState() });
   const msgs: Msg[] = [];
 
   prime(entities);
@@ -151,7 +151,7 @@ test('idle mukhozhuk spoils nearby food containers through local appetite', () =
     id: 44,
     x: 12,
     y: 12,
-    z: 34,
+    floor: FloorLevel.MINISTRY,
     roomId: 0,
     zoneId: 0,
     name: 'Запас ревизии',
@@ -161,7 +161,7 @@ test('idle mukhozhuk spoils nearby food containers through local appetite', () =
   });
   world.addContainer(container);
   const entities = [player, host];
-  const state = makeGameState({ currentZ: 34, worldEvents: createWorldEventState() });
+  const state = makeGameState({ currentFloor: FloorLevel.MINISTRY, worldEvents: createWorldEventState() });
   const msgs: Msg[] = [];
 
   prime(entities);

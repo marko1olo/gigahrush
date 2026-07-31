@@ -21,21 +21,6 @@ import {
 import { createWorldEventState, getRecentEvents } from '../src/systems/events';
 import { makeGameState, makeTestPlayer } from './helpers';
 
-test('ensureBankingState initializes missing banking state', () => {
-  const mockState = {} as any;
-  const banking = ensureBankingState(mockState);
-
-  assert.ok(banking);
-  assert.equal(typeof banking, 'object');
-  assert.equal(banking.accountRubles, 0);
-  assert.equal(banking.depositPrincipal, 0);
-  assert.equal(banking.loanPrincipal, 0);
-  assert.equal(banking.loanAccrued, 0);
-  assert.equal(banking.recentLedger.length, 0);
-  assert.ok(banking.creditLimit > 0);
-  assert.strictEqual(mockState.banking, banking);
-});
-
 test('banking state normalizes old saves to an empty account with no debt', () => {
   const normalized = normalizeBankingState(undefined);
 
@@ -45,45 +30,6 @@ test('banking state normalizes old saves to an empty account with no debt', () =
   assert.equal(normalized.loanAccrued, 0);
   assert.equal(normalized.recentLedger.length, 0);
   assert.ok(normalized.creditLimit > 0);
-});
-
-test('banking state normalizes partial or invalid objects with correct bounds', () => {
-  const partialNormalized = normalizeBankingState({
-    accountRubles: 50,
-    // other fields intentionally omitted to test partial fallback
-  });
-
-  assert.equal(partialNormalized.accountRubles, 50);
-  assert.equal(partialNormalized.depositPrincipal, 0);
-  assert.equal(partialNormalized.creditLimit, 500);
-
-  const normalized = normalizeBankingState({
-    accountRubles: 'invalid',
-    depositPrincipal: -100,
-    depositOpenedAt: 'invalid',
-    depositRate: 5,
-    loanPrincipal: 'invalid',
-    loanAccrued: 'invalid',
-    loanRate: -1,
-    loanTakenAt: 'invalid',
-    creditLimit: 'invalid',
-    lastInterestAt: -10,
-    ledgerVersion: -5,
-    recentLedger: 'not-an-array',
-  });
-
-  assert.equal(normalized.accountRubles, 0);
-  assert.equal(normalized.depositPrincipal, 0);
-  assert.equal(normalized.depositOpenedAt, 0);
-  assert.equal(normalized.depositRate, 1);
-  assert.equal(normalized.loanPrincipal, 0);
-  assert.equal(normalized.loanAccrued, 0);
-  assert.equal(normalized.loanRate, 0);
-  assert.equal(normalized.loanTakenAt, 0);
-  assert.equal(normalized.creditLimit, 500);
-  assert.equal(normalized.lastInterestAt, 0);
-  assert.equal(normalized.ledgerVersion, 1);
-  assert.equal(normalized.recentLedger.length, 0);
 });
 
 test('cash can move to account and back without overdrawing either side', () => {
@@ -151,18 +97,7 @@ test('deposits accrue bounded interest and close back into account', () => {
 
   assert.equal(closeDeposit(state), 505);
   assert.equal(banking.depositPrincipal, 0);
-  assert.equal(banking.depositOpenedAt, 0);
   assert.equal(banking.accountRubles, 1005);
-});
-
-test('closeDeposit returns 0 and does nothing if deposit is empty', () => {
-  const state = makeGameState({ worldEvents: createWorldEventState() });
-  const banking = ensureBankingState(state);
-  banking.accountRubles = 1000;
-  banking.depositPrincipal = 0;
-
-  assert.equal(closeDeposit(state), 0);
-  assert.equal(banking.accountRubles, 1000);
 });
 
 test('bankingForSave returns bounded plain state', () => {

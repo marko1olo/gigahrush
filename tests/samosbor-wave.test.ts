@@ -1,11 +1,11 @@
 import { beforeEach, test } from 'node:test';
 import * as assert from 'node:assert/strict';
-import { _overrideRng, _restoreRng } from '../src/core/rand';
 
 import {
   Cell,
   DoorState,
   EntityType,
+  FloorLevel,
   RoomType,
   Tex,
   ZoneFaction,
@@ -48,7 +48,7 @@ function makeOpenWaveWorld(cx = 24, cy = 24, half = 8): { world: World; state: R
   }
   const player = makeTestPlayer({ x: cx + 0.5, y: cy + 0.5, speed: 1 });
   const state = makeGameState({
-    currentZ: 0,
+    currentFloor: FloorLevel.LIVING,
     samosborActive: true,
     samosborCount: 2,
     worldEvents: createWorldEventState(),
@@ -170,45 +170,56 @@ test('samosbor wave cleanup keeps player standing in an open door cell', () => {
 });
 
 test('samosbor scale can be local or full depending on roll', () => {
+  const originalRandom = Math.random;
   // High roll (> 0.4) → local wave (small or medium)
-  _overrideRng(() => 0.999999);
+  Math.random = () => 0.999999;
   try {
     for (const floor of [
-      'ministry', 'kvartiry', 'living', 'maintenance', 'hell', 'void',
+      FloorLevel.MINISTRY,
+      FloorLevel.KVARTIRY,
+      FloorLevel.LIVING,
+      FloorLevel.MAINTENANCE,
+      FloorLevel.HELL,
+      FloorLevel.VOID,
     ]) {
-      const state = makeGameState({ currentZ: floor });
+      const state = makeGameState({ currentFloor: floor });
       assert.equal(canRunSamosborWave(state), true);
       assert.notEqual(chooseSamosborScale(state), 'full');
     }
   } finally {
-    _restoreRng();
+    Math.random = originalRandom;
   }
   // Low roll (< 0.4) → full (global fronts only)
-  _overrideRng(() => 0.1);
+  Math.random = () => 0.1;
   try {
-    const state = makeGameState({ currentZ: 0 });
+    const state = makeGameState({ currentFloor: FloorLevel.LIVING });
     assert.equal(chooseSamosborScale(state), 'full');
   } finally {
-    _restoreRng();
+    Math.random = originalRandom;
   }
 });
 
 test('samosbor duration grows and cooldown shrinks by absolute route z', () => {
-  _overrideRng(() => 0.5);
+  const originalRandom = Math.random;
+  Math.random = () => 0.5;
   try {
-    const living = makeGameState({ currentZ: 0 });
-    const voidFloor = makeGameState({ currentZ: -50 });
+    const living = makeGameState({ currentFloor: FloorLevel.LIVING });
+    const voidFloor = makeGameState({ currentFloor: FloorLevel.VOID });
+    // LIVING (depth=0): duration min=20, maxForDepth=20, result=20
+    // VOID (depth=1): duration min=20, maxForDepth=300, result=20 + 0.5*(300-20) = 160
     const dLiving = nextFloorRunSamosborDuration(living);
     const dVoid = nextFloorRunSamosborDuration(voidFloor);
     assert.ok(dLiving >= 20, `living duration ${dLiving} >= 20`);
     assert.ok(dVoid > dLiving, `void duration ${dVoid} > living ${dLiving}`);
+    // LIVING (depth=0): cooldown maxForDepth=1500, mid-band: 45 + 0.5*(1500-45) ≈ 772
+    // VOID (depth=1): cooldown maxForDepth=45, mid-band: 45 + 0.5*(45-45) = 45
     const cLiving = nextFloorRunSamosborCooldown(living);
     const cVoid = nextFloorRunSamosborCooldown(voidFloor);
     assert.ok(cLiving > cVoid, `living cooldown ${cLiving} > void ${cVoid}`);
     assert.ok(cLiving >= 45, `living cooldown ${cLiving} >= min 45`);
     assert.ok(cVoid >= 45, `void cooldown ${cVoid} >= min 45`);
   } finally {
-    _restoreRng();
+    Math.random = originalRandom;
   }
 });
 
@@ -220,7 +231,7 @@ test('samosbor wave leaves doors, containers, route cues, and entity cells consi
   world.doors.set(doorIdx, { idx: doorIdx, state: DoorState.CLOSED, roomA: -1, roomB: -1, keyId: '', timer: 0 });
   world.containers = [];
   world.rebuildContainerMap();
-  world.addContainer(makeTestContainer({ id: 42, x: 24, y: 24, z: -6, roomId: -1, zoneId: 0, capacitySlots: 2 }));
+  world.addContainer(makeTestContainer({ id: 42, x: 24, y: 24, floor: FloorLevel.LIVING, roomId: -1, zoneId: 0, capacitySlots: 2 }));
   entities.push({
     id: 99,
     type: EntityType.PROJECTILE,
@@ -240,7 +251,7 @@ test('samosbor wave leaves doors, containers, route cues, and entity cells consi
     y: 24,
     targetX: 24,
     targetY: 24,
-    z: -6,
+    floor: FloorLevel.LIVING,
     label: 'test',
     hint: 'test',
     targetName: 'test',

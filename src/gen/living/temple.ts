@@ -2,11 +2,10 @@
 /* Self-contained: NPC definition + quest + spawn + death curse.   */
 /* Registered automatically via registerSideQuest() at import.     */
 
-import { getPlotNpcNumericId } from '../../data/npc_packages';
 import {
   W, Cell, Tex, Feature, RoomType, DoorState,
   type Room, type Entity, EntityType, AIGoal, Faction, Occupation, QuestType, MonsterKind,
-  msg,
+  FloorLevel, msg,
 } from '../../core/types';
 import { World } from '../../core/world';
 import { type PlotNpcDef, registerAuthoredNpc, storyNpcFloorKey } from '../../data/plot';
@@ -17,7 +16,6 @@ import { registerContentEntityDeathHook } from '../../systems/content_hooks';
 import { randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg';
 import { genLog } from '../log';
 import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
-import { rng } from '../../core/rand';
 
 /* ── NPC definition ──────────────────────────────────────────── */
 const NPC_DEF: PlotNpcDef = {
@@ -51,12 +49,12 @@ const NPC_DEF: PlotNpcDef = {
 registerAuthoredNpc({
   id: 'batushka',
   npc: NPC_DEF,
-  homeFloorKey: storyNpcFloorKey(60),
+  homeFloorKey: storyNpcFloorKey(FloorLevel.KVARTIRY),
   tags: ['kvartiry', 'temple'],
   quests: [
     {
       id: 'batushka_eggs',
-      giverId: getPlotNpcNumericId('batushka')!,
+      giverNpcId: 'batushka',
       type: QuestType.FETCH,
       desc: 'Батюшка: «Принеси три пасхальных яйца, чадо. Одним похристосуемся, второе отдадим детям, третье оставим дежурному у гермы.»',
       targetItem: 'easter_egg', targetCount: 3,
@@ -116,8 +114,8 @@ function generateTemple(
   zcx: number, zcy: number,
 ): { nextRoomId: number } {
   // rx,ry = top-left of nave interior
-  const rx = world.wrap(zcx + Math.floor(rng() * 20) - 10);
-  const ry = world.wrap(zcy + Math.floor(rng() * 20) - 10);
+  const rx = world.wrap(zcx + Math.floor(Math.random() * 20) - 10);
+  const ry = world.wrap(zcy + Math.floor(Math.random() * 20) - 10);
 
   // Phase 1: Bulldoze bounding box — overwrite non-apartment cells with WALL
   for (let dy = -2; dy < NAVE_H + 2; dy++) {
@@ -283,8 +281,8 @@ export function priestDeathCurse(
   for (const [x1, y1, x2, y2] of lines) {
     for (let j = 0; j < monstersPerLine && spawned < CURSE_COUNT; j++) {
       const t = j / monstersPerLine;
-      const mx = x1 + (x2 - x1) * t + (rng() - 0.5) * 2;
-      const my = y1 + (y2 - y1) * t + (rng() - 0.5) * 2;
+      const mx = x1 + (x2 - x1) * t + (Math.random() - 0.5) * 2;
+      const my = y1 + (y2 - y1) * t + (Math.random() - 0.5) * 2;
       const wx = ((Math.floor(mx) % W) + W) % W;
       const wy = ((Math.floor(my) % W) + W) % W;
       const ci = wy * W + wx;
@@ -306,7 +304,7 @@ export function priestDeathCurse(
         id: nextId.v++,
         type: EntityType.MONSTER,
         x: wx + 0.5, y: wy + 0.5,
-        angle: rng() * Math.PI * 2,
+        angle: Math.random() * Math.PI * 2,
         pitch: 0,
         alive: true,
         speed: scaleMonsterSpeed(def.speed, level),
@@ -326,7 +324,7 @@ export function priestDeathCurse(
 registerContentEntityDeathHook({
   id: 'living_temple_priest_death_curse',
   onDeath(ctx) {
-    if (!ctx.killerIsPlayer || ctx.killed.id !== getPlotNpcNumericId('batushka')) return;
+    if (!ctx.killerIsPlayer || ctx.killed.plotNpcId !== 'batushka') return;
     priestDeathCurse(ctx.world, ctx.entities, ctx.nextEntityId, ctx.killed.x, ctx.killed.y);
     ctx.state.msgs.push(msg('☠ ПРОКЛЯТИЕ БАТЮШКИ! 666 тварей вырвались из ада!', ctx.state.time, '#f00'));
     ctx.state.msgs.push(msg('На миникарте проступает пентаграмма...', ctx.state.time, '#a00'));

@@ -1,4 +1,3 @@
-import { getPlotNpcCount } from '../src/data/npc_packages';
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
@@ -44,7 +43,7 @@ function makeRailWorld(): { world: World; track: RailTrainTrack } {
 test('rail train can board at a platform and keeps the passenger on route', () => {
   const { world, track } = makeRailWorld();
   const entities: Entity[] = [];
-  const nextId = { v: getPlotNpcCount() + 1 }
+  const nextId = { v: 1 };
   const train = addRailTrainRoute(world, entities, nextId, track, {
     id: 'test_train',
     label: 'Тестовый состав',
@@ -87,7 +86,7 @@ test('rail train can board at a platform and keeps the passenger on route', () =
 test('rail train rebuild install clears stale train cells and exits interrupted passenger to platform', () => {
   const before = makeRailWorld();
   const entities: Entity[] = [];
-  const nextId = { v: getPlotNpcCount() + 1 }
+  const nextId = { v: 1 };
   const train = addRailTrainRoute(before.world, entities, nextId, before.track, {
     id: 'test_train',
     label: 'Тестовый состав',

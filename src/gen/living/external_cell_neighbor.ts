@@ -1,9 +1,8 @@
 /* ── External Chernobog cell neighbor: domestic recruitment POI ── */
 
-import { getPlotNpcNumericId } from '../../data/npc_packages';
 import { stampSurfaceSplat } from '../../systems/surface_marks';
 import {
-  Cell, ContainerKind, DoorState, EntityType, Faction, Feature, Occupation,
+  Cell, ContainerKind, DoorState, EntityType, Faction, Feature, FloorLevel, Occupation,
   QuestType, RoomType, Tex,
   type ContainerAccess, type Entity, type GameState, type Room, type WorldContainer, type WorldEvent,
   type WorldEventPrivacy, type WorldEventSeverity,
@@ -197,7 +196,7 @@ function branchBlockers(id: string): string[] {
 registerSideQuest(RECRUITER_ID, NPC_DEF, [
   {
     id: LEAD_QUEST,
-    giverId: getPlotNpcNumericId(RECRUITER_ID)!,
+    giverNpcId: RECRUITER_ID,
     type: QuestType.FETCH,
     desc: 'Нина Павловна: "Хлеб на стол, сосед. Тогда скажу, почему метка за календарем ведет не к вам, а к запасной двери."',
     targetItem: 'bread',
@@ -220,7 +219,7 @@ registerSideQuest(RECRUITER_ID, NPC_DEF, [
   },
   {
     id: TRUST_QUEST,
-    giverId: getPlotNpcNumericId(RECRUITER_ID)!,
+    giverNpcId: RECRUITER_ID,
     type: QuestType.FETCH,
     desc: 'Нина Павловна: "Две пачки Примы на общий стол. Кто приносит дым без вопросов, тому показывают дверь без очереди."',
     targetItem: 'cigs',
@@ -249,10 +248,10 @@ registerSideQuest(RECRUITER_ID, NPC_DEF, [
 registerSideQuest(WITNESS_ID, WITNESS_DEF, [
   {
     id: SILENCE_QUEST,
-    giverId: getPlotNpcNumericId(WITNESS_ID)!,
+    giverNpcId: WITNESS_ID,
     type: QuestType.TALK,
     desc: 'Тамара Сухая: "Если маршрут оставляете себе, скажите Нине одной фразой. Без сержанта Баринова, без Ваньки, без общей кухни."',
-    targetNpcId: getPlotNpcNumericId(RECRUITER_ID)!,
+    targetNpcId: RECRUITER_ID,
     rewardItem: 'bread',
     rewardCount: 1,
     extraRewards: [{ defId: 'note', count: 1 }],
@@ -277,7 +276,7 @@ registerSideQuest(WITNESS_ID, WITNESS_DEF, [
 registerSideQuestSteps([
   {
     id: EXPOSE_QUEST,
-    giverId: getPlotNpcNumericId('barni')!,
+    giverNpcId: 'barni',
     type: QuestType.FETCH,
     desc: 'Сержант Баринов: "Если соседка торгует тихими дверями, неси маршрутную квитанцию из ее тумбы. Слова потом допишем сами."',
     targetItem: 'caravan_route',
@@ -303,9 +302,9 @@ registerSideQuestSteps([
   },
   {
     id: TRADE_QUEST,
-    giverId: getPlotNpcNumericId('yakov')!,
+    giverNpcId: 'yakov',
     type: QuestType.VISIT,
-    visitFloorZ: 140,
+    visitFloor: FloorLevel.MAINTENANCE,
     desc: 'Яков Давидович: "По модели Нины маршрут неполный. Спуститесь в Коллекторы и вернитесь с отметкой, что он вообще выводит вниз."',
     rewardItem: 'caravan_route',
     rewardCount: 1,
@@ -328,7 +327,7 @@ registerSideQuestSteps([
   },
   {
     id: BETRAY_QUEST,
-    giverId: getPlotNpcNumericId('vanka')!,
+    giverNpcId: 'vanka',
     type: QuestType.FETCH,
     desc: 'Ванька: "Тихая тетка метку прячет? Принеси бирку из коробки за календарем. Только быстро: если метка культовая, я хочу обменять адрес до ночи, а не сидеть рядом и ждать."',
     targetItem: 'container_key_label',
@@ -361,7 +360,7 @@ function handleAg77Outcome(state: GameState, event: WorldEvent): void {
     addFactionRelMutual(Faction.PLAYER, Faction.CULTIST, -3);
     publishEvent(state, {
       type: 'faction_relation_changed',
-      z: event.z,
+      floor: event.floor,
       zoneId: event.zoneId,
       roomId: event.roomId,
       actorId: event.actorId,
@@ -396,7 +395,7 @@ function handleAg77Outcome(state: GameState, event: WorldEvent): void {
 
   publishEvent(state, {
     type: 'faction_relation_changed',
-    z: event.z,
+    floor: event.floor,
     zoneId: event.zoneId,
     roomId: event.roomId,
     actorId: event.actorId,
@@ -584,7 +583,7 @@ function addContainer(
     id: nextContainerId(world),
     x,
     y,
-    z: 100,
+    floor: FloorLevel.LIVING,
     roomId: room.id,
     zoneId: world.zoneMap[ci],
     kind,
@@ -611,7 +610,7 @@ function addContainer(
 }
 
 function spawnRecruiter(world: World, entities: Entity[], nextId: { v: number }, room: Room): Entity {
-  const existing = entities.find(e => e.alive && e.id === getPlotNpcNumericId(RECRUITER_ID)!);
+  const existing = entities.find(e => e.alive && e.plotNpcId === RECRUITER_ID);
   if (existing) return existing;
   const x = world.wrap(room.x + 6);
   const y = world.wrap(room.y + 4);
@@ -624,7 +623,7 @@ function spawnRecruiter(world: World, entities: Entity[], nextId: { v: number },
 }
 
 function spawnWitness(world: World, entities: Entity[], nextId: { v: number }, room: Room): Entity {
-  const existing = entities.find(e => e.alive && e.id === getPlotNpcNumericId(WITNESS_ID)!);
+  const existing = entities.find(e => e.alive && e.plotNpcId === WITNESS_ID);
   if (existing) return existing;
   const x = world.wrap(room.x + 8);
   const y = world.wrap(room.y + 6);

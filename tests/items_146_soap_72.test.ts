@@ -6,7 +6,6 @@ import { ITEM_TAGS, ITEMS } from '../src/data/items';
 import { RESOURCES, resourceForItem } from '../src/data/resources';
 import { generateNpcTradeItems } from '../src/data/occupation_profiles';
 import { inventoryItemCategory } from '../src/systems/inventory';
-import { _overrideRng, _restoreRng } from '../src/core/rand';
 
 const ID = 'soap_72';
 
@@ -45,12 +44,13 @@ test('soap 72 can appear in storekeeper trade', () => {
     sprite: 0,
     occupation: Occupation.STOREKEEPER,
   };
+  const oldRandom = Math.random;
   const rolls = [0, 0.4, 0.4];
-  _overrideRng(() => rolls.shift() ?? 0.4);
+  Math.random = () => rolls.shift() ?? 0.4;
   try {
     const offers = generateNpcTradeItems(storekeeper);
     assert.ok(offers.some(offer => offer.defId === ID), 'storekeeper trade pool must expose soap');
   } finally {
-    _restoreRng();
+    Math.random = oldRandom;
   }
 });

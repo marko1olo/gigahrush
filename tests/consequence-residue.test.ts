@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { Faction, RoomType } from '../src/core/types';
+import { Faction, FloorLevel, RoomType } from '../src/core/types';
 import { World } from '../src/core/world';
 import { buildContextSnapshot } from '../src/systems/context';
 import {
@@ -22,7 +22,7 @@ import { addTestRoom, makeGameState, makeTestNpc, makeTestPlayer } from './helpe
 test('player consequence events leave room memory residue bits', () => {
   clearRoomMemory();
   const state = makeGameState({
-    currentZ: 0,
+    currentFloor: FloorLevel.LIVING,
     worldEvents: createWorldEventState(),
   });
 
@@ -63,17 +63,17 @@ test('player consequence events leave room memory residue bits', () => {
     tags: ['shelter_choice', 'samosbor'],
   });
 
-  assert.equal(roomMemoryHas(getRoomMemory(0, 11), ROOM_MEMORY_BITS.HELP), true);
-  assert.equal(roomMemoryHas(getRoomMemory(0, 12), ROOM_MEMORY_BITS.INFORM), true);
-  assert.equal(roomMemoryHas(getRoomMemory(0, 13), ROOM_MEMORY_BITS.REPAIR), true);
-  assert.equal(roomMemoryHas(getRoomMemory(0, 14), ROOM_MEMORY_BITS.SAMOSBOR), true);
+  assert.equal(roomMemoryHas(getRoomMemory(FloorLevel.LIVING, 11), ROOM_MEMORY_BITS.HELP), true);
+  assert.equal(roomMemoryHas(getRoomMemory(FloorLevel.LIVING, 12), ROOM_MEMORY_BITS.INFORM), true);
+  assert.equal(roomMemoryHas(getRoomMemory(FloorLevel.LIVING, 13), ROOM_MEMORY_BITS.REPAIR), true);
+  assert.equal(roomMemoryHas(getRoomMemory(FloorLevel.LIVING, 14), ROOM_MEMORY_BITS.SAMOSBOR), true);
 });
 
 test('witnessed theft becomes context fact, room memory, and rumor lead', () => {
   clearRoomMemory();
   const now = 4_000;
   const state = makeGameState({
-    currentZ: 0,
+    currentFloor: FloorLevel.LIVING,
     time: now,
     worldEvents: createWorldEventState(),
   });
@@ -108,7 +108,7 @@ test('witnessed theft becomes context fact, room memory, and rumor lead', () => 
     data: { containerName: 'Общий ящик' },
   });
 
-  const memory = getRoomMemory(0, 7);
+  const memory = getRoomMemory(FloorLevel.LIVING, 7);
   assert.ok(memory);
   assert.equal(roomMemoryHas(memory, ROOM_MEMORY_BITS.THEFT), true);
 
@@ -124,14 +124,14 @@ test('witnessed theft becomes context fact, room memory, and rumor lead', () => 
   assert.equal(observeRecentRumorEventsForNpc(npc, snapshot, now), 1);
 
   const line = selectRumorForNpc(npc, snapshot, now);
-  assert.ok(line && typeof line === 'string' && line.length > 0);
-  assert.ok(getRecentRumorLead(now) !== undefined || snapshot.hasRoomMemoryTheft);
+  assert.ok(line);
+  assert.match(line, /Жилая зона|Склад пайков|вода/i);
 });
 
 test('rare trade event becomes a concrete rumor lead', () => {
   const now = 6_000;
   const state = makeGameState({
-    currentZ: 14,
+    currentFloor: FloorLevel.KVARTIRY,
     time: now,
     worldEvents: createWorldEventState(),
   });
@@ -157,6 +157,7 @@ test('rare trade event becomes a concrete rumor lead', () => {
 
   assert.equal(observeRecentRumorEventsForNpc(npc, snapshot, now), 1);
   const line = selectRumorForNpc(npc, snapshot, now);
-  assert.ok(line && typeof line === 'string' && line.length > 0);
+  assert.ok(line);
+  assert.match(line, /прозрач|слиз/i);
   assert.equal(getRecentRumorLead(now)?.itemId, 'slime_sample_silver');
 });

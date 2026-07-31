@@ -1,6 +1,5 @@
 /* ── Scripted A-Life-like arrivals for authored plot beats ────── */
 
-import { getPlotNpcNumericId } from '../data/npc_packages';
 import {
   AIGoal,
   Cell,
@@ -20,9 +19,9 @@ import { SCRIPTED_ARRIVALS, type ScriptedArrivalDef, type ScriptedArrivalEscortD
 import { entitySpawnSlots } from './entity_limits';
 import { assignPersistentAlifeNpcFromEntity, bindReservedPlotNpcAlifeRecord, currentAlifeFloorKey, isPlotNpcDead } from './alife';
 import { publishEvent } from './events';
+import { currentFloorRunEntry } from './procedural_floors';
 import { freshRPG, randomRPG, getMaxHp } from './rpg';
 import { tryAssignPathToCell } from './ai/pathfinding';
-import { rng } from '../core/rand';
 
 function scriptedArrivalStepIndex(def: ScriptedArrivalDef): number {
   return PLOT_CHAIN.findIndex(step => step.eventTags?.includes(def.triggerPlotEventTag));
@@ -31,11 +30,12 @@ function scriptedArrivalStepIndex(def: ScriptedArrivalDef): number {
 function shouldSpawnScriptedArrival(def: ScriptedArrivalDef, state: GameState, entities: readonly Entity[]): boolean {
   const stepIndex = scriptedArrivalStepIndex(def);
   if (stepIndex < 0) return false;
-  if (state.currentZ !== def.currentZ) return false;
-    if (!state.quests.some(q => q.plotStepIndex === stepIndex && q.done && !q.failed)) return false;
+  if (state.currentFloor !== def.currentFloor) return false;
+  if (def.currentStoryFloor !== undefined && currentFloorRunEntry(state).storyFloor !== def.currentStoryFloor) return false;
+  if (!state.quests.some(q => q.plotStepIndex === stepIndex && q.done && !q.failed)) return false;
   if (state.quests.some(q => q.plotStepIndex !== undefined && q.plotStepIndex > stepIndex)) return false;
-  if (entities.some(e => e.type === EntityType.NPC && e.alive && e.id === getPlotNpcNumericId(def.leaderPlotNpcId))) return false;
-  return !isPlotNpcDead(state, getPlotNpcNumericId(def.leaderPlotNpcId)!);
+  if (entities.some(e => e.type === EntityType.NPC && e.alive && e.plotNpcId === def.leaderPlotNpcId)) return false;
+  return !isPlotNpcDead(state, def.leaderPlotNpcId);
 }
 
 function passable(world: World, x: number, y: number): boolean {
@@ -92,8 +92,8 @@ function arrivalAnchor(def: ScriptedArrivalDef, state: GameState, world: World, 
   const quest = state.quests.find(q => q.plotStepIndex === stepIndex);
   const room = quest?.targetRoom !== undefined
     ? world.rooms[quest.targetRoom]
-    : quest?.targetRoomDefId
-      ? world.rooms.find(r => r?.defId === quest.targetRoomDefId)
+    : quest?.targetRoomName
+      ? world.rooms.find(r => r?.name === quest.targetRoomName)
       : undefined;
   if (!room) return { x: player.x, y: player.y };
   return { x: room.x + room.w / 2, y: room.y + room.h / 2 };
@@ -129,18 +129,18 @@ function spawnArrivalLeader(
   world: World,
   entities: Entity[],
   state: GameState,
+  nextId: { v: number },
   cell: number,
   anchor: { x: number; y: number },
   floorKey: string,
 ): boolean {
-  const numericId = getPlotNpcNumericId(def.leaderPlotNpcId)!;
-  const pack = getNpcPackageByPlotNpcId(numericId);
-  const packPlotId = pack?.content?.plotNpcId ? getPlotNpcNumericId(pack.content.plotNpcId) : undefined;
-  if (!pack || packPlotId !== numericId) return false;
+  const pack = getNpcPackageByPlotNpcId(def.leaderPlotNpcId);
+  const plotNpcId = pack?.content?.plotNpcId;
+  if (!pack || plotNpcId !== def.leaderPlotNpcId) return false;
   const x = cell % W;
   const y = (cell / W) | 0;
   const major: Entity & { npcPackageId: string } = {
-    id: numericId, type: EntityType.NPC,
+    id: nextId.v++, type: EntityType.NPC,
     x: x + 0.5, y: y + 0.5,
     angle: 0, pitch: 0, alive: true, speed: packageSpeed(pack),
     sprite: pack.visual.sprite ?? pack.affiliation.occupation,
@@ -162,12 +162,13 @@ function spawnArrivalLeader(
     tool: pack.loadout.tool,
     faction: pack.affiliation.faction,
     occupation: pack.affiliation.occupation,
+    plotNpcId,
     npcPackageId: pack.id,
     canGiveQuest: pack.runtime?.canGiveQuest ?? true,
     questId: -1,
     isTraveler: def.leaderTraveler === true,
   };
-  if (!bindReservedPlotNpcAlifeRecord(state, major, numericId, floorKey)) return false;
+  if (!bindReservedPlotNpcAlifeRecord(state, major, plotNpcId, floorKey)) return false;
   sendToAnchor(world, major, anchor);
   entities.push(major);
   return true;
@@ -195,11 +196,11 @@ function spawnArrivalEscort(
   const npc: Entity = {
     id: nextId.v++, type: EntityType.NPC,
     x: x + 0.5, y: y + 0.5,
-    angle: 0, pitch: 0, alive: true, speed: def.speedBase + rng() * def.speedSpread,
+    angle: 0, pitch: 0, alive: true, speed: def.speedBase + Math.random() * def.speedSpread,
     sprite: def.occupation,
     name: name.name, firstName: name.firstName, lastName: name.lastName, isFemale: name.female,
     needs: freshNeeds(), hp: maxHp, maxHp,
-    money: 20 + Math.floor(rng() * 50),
+    money: 20 + Math.floor(Math.random() * 50),
     ai: { goal: AIGoal.IDLE, tx: 0, ty: 0, path: [], pi: 0, stuck: 0, timer: 0 },
     inventory: [
       { defId: weapon, count: 1 },
@@ -223,7 +224,7 @@ function executeScriptedArrival(def: ScriptedArrivalDef, world: World, entities:
   const anchor = arrivalAnchor(def, state, world, player);
   const cell = arrivalCellNearLift(world, anchor.x, anchor.y, player.x, player.y, def.preferredLiftDirection);
   const toFloorKey = currentAlifeFloorKey(state);
-  if (!spawnArrivalLeader(def, world, entities, state, cell, anchor, toFloorKey)) return false;
+  if (!spawnArrivalLeader(def, world, entities, state, nextId, cell, anchor, toFloorKey)) return false;
   const guardAlifeIds: number[] = [];
   const escort = def.escort;
   const slots = escort ? entitySpawnSlots(entities, EntityType.NPC, escort.count) : 0;
@@ -231,7 +232,7 @@ function executeScriptedArrival(def: ScriptedArrivalDef, world: World, entities:
     const alifeId = escort ? spawnArrivalEscort(escort, world, entities, state, nextId, cell, anchor, i, toFloorKey) : null;
     if (alifeId !== null) guardAlifeIds.push(alifeId);
   }
-  const leaderPack = getNpcPackageByPlotNpcId(getPlotNpcNumericId(def.leaderPlotNpcId)!);
+  const leaderPack = getNpcPackageByPlotNpcId(def.leaderPlotNpcId);
   publishEvent(state, {
     type: 'faction_event',
     x: cell % W,
@@ -243,7 +244,7 @@ function executeScriptedArrival(def: ScriptedArrivalDef, world: World, entities:
     tags: [...def.eventTags],
     data: {
       arrivalId: def.id,
-      id: def.leaderPlotNpcId,
+      plotNpcId: def.leaderPlotNpcId,
       fromFloorKey: def.sourceFloorKey,
       toFloorKey,
       guardCount: guardAlifeIds.length,

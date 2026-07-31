@@ -65,7 +65,7 @@ function generateArtStudies(
 ): { nextRoomId: number } {
   const origin = findOrigin(world, zcx, zcy);
   if (!origin) {
-    genLog('[ART_STUDIES] no clean place for gallery');
+    console.warn('[ART_STUDIES] no clean place for gallery');
     return { nextRoomId };
   }
   const { x: rx, y: ry } = origin;

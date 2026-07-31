@@ -10,7 +10,6 @@ import { World } from '../core/world';
 import { GAMBLING_MACHINES, getGamblingMachineDef, type GamblingDefId, type GamblingMachineDef } from '../data/gambling';
 import { ITEMS, ITEM_TAGS } from '../data/items';
 import { publishEvent } from './events';
-import { mathRng as rng } from '../core/rand';
 
 export interface GamblingMachine {
   idx: number;
@@ -181,7 +180,7 @@ export function activateGamblingBet(
   world: World,
   state: GameState,
   player: Entity,
-  roll = rng(),
+  roll = Math.random(),
 ): GamblingBetOutcome | null {
   const machine = gamblingRegistry.get(runtime.machineIdx);
   const def = machine ? getGamblingMachineDef(machine.defId) : undefined;

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { ItemType } from '../src/core/types';
+import { FloorLevel, ItemType } from '../src/core/types';
 import { ITEM_TAGS, ITEMS } from '../src/data/items';
 import { resourceForItem } from '../src/data/resources';
 import { SAMOSBOR_AFTERMATH_BEATS, getSamosborAftermathBeats } from '../src/data/samosbor_variants';
@@ -28,6 +28,7 @@ test('slime sense node is reachable through rare Maintenance slime aftermath', (
   assert.ok(beat);
   assert.equal(beat.itemId, 'slime_sense_node');
   assert.equal(beat.effect, 'item_residue');
+  assert.equal(beat.floors.includes(FloorLevel.MAINTENANCE), true);
   assert.equal(beat.variants.includes('wet'), true);
   assert.equal(beat.variants.includes('classic'), true);
   assert.equal(beat.maxRuns, 2);
@@ -37,7 +38,7 @@ test('slime sense node is reachable through rare Maintenance slime aftermath', (
   }
 
   assert.equal(
-    getSamosborAftermathBeats(-26).some(def => def.id === 'aftermath_slime_sense_node'),
+    getSamosborAftermathBeats('wet', FloorLevel.MAINTENANCE).some(def => def.id === 'aftermath_slime_sense_node'),
     true,
   );
 });

@@ -4,6 +4,7 @@ import {
   EntityType,
   ItemType,
   type Entity,
+  type FloorLevel,
   type GameState,
   type ItemDef,
 } from '../core/types';
@@ -22,7 +23,7 @@ export interface MonsterBaitMarker {
   id: number;
   x: number;
   y: number;
-  z: number;
+  floor: FloorLevel;
   floorKey?: string;
   itemId: string;
   itemName: string;
@@ -258,6 +259,7 @@ function publishBaitEnd(
   publishEvent(state, {
     type,
     time,
+    floor: marker.floor,
     zoneId: marker.zoneId,
     roomId: marker.roomId,
     x: marker.x,
@@ -297,13 +299,13 @@ function removeBaitAt(index: number, state: GameState | undefined, time: number,
 }
 
 export function expireMonsterBaits(state: GameState | undefined, time: number): void {
-  const floor = state?.currentZ;
+  const floor = state?.currentFloor;
   const floorKey = monsterBaitFloorKey(state);
   for (let i = activeBaits.length - 1; i >= 0; i--) {
     const marker = activeBaits[i];
     if (marker.expiresAt <= time) {
       removeBaitAt(i, state, time, 'timeout');
-    } else if (floor !== undefined && (marker.z !== floor || (floorKey !== undefined && marker.floorKey !== floorKey))) {
+    } else if (floor !== undefined && (marker.floor !== floor || (floorKey !== undefined && marker.floorKey !== floorKey))) {
       removeBaitAt(i, state, time, 'floor_changed');
     }
   }
@@ -338,7 +340,7 @@ export function placeMonsterBait(
     id: nextBaitId++,
     x: bx,
     y: by,
-    z: state.currentZ,
+    floor: state.currentFloor,
     floorKey: monsterBaitFloorKey(state),
     itemId: defId,
     itemName: def.name,
@@ -393,13 +395,13 @@ export function placeMonsterBait(
   return true;
 }
 
-function baitMatchesFloor(marker: MonsterBaitMarker, z: number, floorKey: string | undefined): boolean {
-  return marker.z === z && (floorKey === undefined || marker.floorKey === floorKey);
+function baitMatchesFloor(marker: MonsterBaitMarker, floor: FloorLevel, floorKey: string | undefined): boolean {
+  return marker.floor === floor && (floorKey === undefined || marker.floorKey === floorKey);
 }
 
-function activeBaitById(id: number, z: number, floorKey: string | undefined, time: number): MonsterBaitMarker | null {
+function activeBaitById(id: number, floor: FloorLevel, floorKey: string | undefined, time: number): MonsterBaitMarker | null {
   for (const marker of activeBaits) {
-    if (marker.id === id && baitMatchesFloor(marker, z, floorKey) && marker.expiresAt > time) return marker;
+    if (marker.id === id && baitMatchesFloor(marker, floor, floorKey) && marker.expiresAt > time) return marker;
   }
   return null;
 }
@@ -434,11 +436,11 @@ export function findMonsterBaitTarget(
   dt: number,
   time: number,
   state?: GameState,
-  currentZ?: number,
+  currentFloor?: FloorLevel,
   candidateOk?: (marker: MonsterBaitMarker) => boolean,
 ): MonsterBaitMarker | null {
   const ai = monster.ai;
-  const floor = currentZ ?? state?.currentZ;
+  const floor = currentFloor ?? state?.currentFloor;
   const floorKey = monsterBaitFloorKey(state);
   if (!ai || floor === undefined || !isBaitAttractedMonster(monster.monsterKind)) return null;
 
@@ -484,6 +486,7 @@ export function findMonsterBaitTarget(
     publishEvent(state, {
       type: 'monster_bait_attracted',
       time,
+      floor,
       zoneId: best.zoneId,
       roomId: best.roomId,
       x: best.x,

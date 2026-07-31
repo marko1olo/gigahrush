@@ -25,7 +25,6 @@ import { isDebugOnePunchManEnabled, keepDebugOnePunchManAlive } from './debug_ch
 import { scaleMonsterDmg, strMeleeDmgMult } from './rpg';
 import { followPath, tryAssignPathToCell, wanderNearby } from './ai/pathfinding';
 import { isPlayerEntity } from './player_actor';
-import { rng } from '../core/rand';
 
 const INTERACTION_RANGE = 2.15;
 const INTERACTION_FORWARD = 0.2;
@@ -355,7 +354,7 @@ export function updateGnilushkaMonster(
   e.ai.timer -= dt;
   if (e.ai.path.length === 0 || e.ai.pi >= e.ai.path.length || e.ai.timer <= 0) {
     wanderNearby(world, e);
-    e.ai.timer = 2 + rng() * 2.5;
+    e.ai.timer = 2 + Math.random() * 2.5;
   }
   followPath(world, e, dt);
   return true;

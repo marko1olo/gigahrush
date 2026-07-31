@@ -5,6 +5,7 @@ import {
   ContainerKind,
   EntityType,
   Faction,
+  FloorLevel,
   ItemType,
   MonsterKind,
   RoomType,
@@ -68,7 +69,7 @@ test('hermetic tape seals a nearby swarm source through the shared inventory use
   const player = makeTestPlayer({ id: 1, x: 10, y: 10 });
   const source = swarmSource(2, 10.6, 10.3);
   const entities = [player, source];
-  const state = makeGameState({ currentZ: -26, time: 5 });
+  const state = makeGameState({ currentFloor: FloorLevel.MAINTENANCE, time: 5 });
   const msgs: Msg[] = [];
 
   assert.equal(addItem(player, 'hermetic_tape', 1), true);

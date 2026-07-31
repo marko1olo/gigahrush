@@ -1,7 +1,6 @@
 /* ── Горланов — side quest (kvartiry floor) ───────────────────── */
 /* Шумный провокатор с обрезом. Контрбаланс Листовому.             */
 
-import { getPlotNpcNumericId } from '../../data/npc_packages';
 import {
   W, Cell,
   type Entity, Faction, Occupation, QuestType, MonsterKind,
@@ -9,7 +8,6 @@ import {
 import { World } from '../../core/world';
 import { type PlotNpcDef, registerSideQuest } from '../../data/plot';
 import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
-import { rng } from '../../core/rand';
 
 const NPC_DEF: PlotNpcDef = {
   name: 'Горланов',
@@ -44,7 +42,7 @@ const NPC_DEF: PlotNpcDef = {
 registerSideQuest('gorlanov', NPC_DEF, [
   {
     id: 'gorlanov_shadows',
-    giverId: getPlotNpcNumericId('gorlanov')!,
+    giverNpcId: 'gorlanov',
     type: QuestType.KILL,
     desc: 'Горланов: «ОДНОЗНАЧНО! Пять теневиков списать. Без чистого прохода очередь до кухни не доживёт.»',
     targetMonsterKind: MonsterKind.SHADOW,
@@ -63,11 +61,11 @@ export function spawnGorlanov(
   world: World, entities: Entity[], nextId: { v: number },
 ): void {
   for (let i = 0; i < 3000; i++) {
-    const x = Math.floor(rng() * W);
-    const y = Math.floor(rng() * W);
+    const x = Math.floor(Math.random() * W);
+    const y = Math.floor(Math.random() * W);
     if (world.cells[world.idx(x, y)] !== Cell.FLOOR) continue;
     requireSpawnedPlotNpcFromPackage(entities, nextId, 'gorlanov', x + 0.5, y + 0.5, {
-      angle: rng() * Math.PI * 2,
+      angle: Math.random() * Math.PI * 2,
       weapon: 'shotgun',
       isTraveler: true,
       canGiveQuest: true,

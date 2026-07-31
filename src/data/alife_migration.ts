@@ -1,4 +1,4 @@
-import { Faction, Occupation } from '../core/types';
+import { Faction, FloorLevel, Occupation } from '../core/types';
 import type { WeightedValue } from './alife_generation';
 import {
   floorKeyAllowsNpcs,
@@ -21,7 +21,7 @@ export type AlifeMigrationReason =
 export interface AlifeDestinationSelector {
   floorKeys?: readonly string[];
   routeTags?: readonly string[];
-  themeTags?: readonly string[];
+  baseFloors?: readonly FloorLevel[];
   minAbsZ?: number;
   maxAbsZ?: number;
   allowsNpcOnly?: boolean;
@@ -48,7 +48,7 @@ export const ALIFE_MIGRATION_INTENTS: readonly AlifeMigrationIntentDef[] = [
     weight: 9,
     destination: {
       floorKeys: [
-        'design:ministry',
+        'story:ministry',
         'design:upper_bureau',
         'design:cayley_byuro',
         'design:number_registry',
@@ -109,7 +109,7 @@ export const ALIFE_MIGRATION_INTENTS: readonly AlifeMigrationIntentDef[] = [
         'design:black_market_88',
         'design:floor_69',
         'design:communal_ring',
-        'design:living',
+        'story:living',
       ],
       routeTags: ['market', 'trade', 'social', 'hub'],
     },
@@ -135,8 +135,8 @@ export const ALIFE_MIGRATION_INTENTS: readonly AlifeMigrationIntentDef[] = [
     weight: 8,
     destination: {
       floorKeys: [
-        'design:living',
-        'design:kvartiry',
+        'story:living',
+        'story:kvartiry',
         'design:obschezhitie_smeny',
         'design:communal_ring',
         'design:moebius_podezd',
@@ -149,7 +149,7 @@ export const ALIFE_MIGRATION_INTENTS: readonly AlifeMigrationIntentDef[] = [
     ],
     occupationBias: [
       { value: Occupation.HOUSEWIFE, weight: 6 },
-
+      { value: Occupation.CHILD, weight: 4 },
       { value: Occupation.TRAVELER, weight: 2 },
     ],
     maxRisk: 3,
@@ -163,7 +163,7 @@ export const ALIFE_MIGRATION_INTENTS: readonly AlifeMigrationIntentDef[] = [
     weight: 8,
     destination: {
       floorKeys: [
-        'design:maintenance',
+        'story:maintenance',
         'design:production_belt',
         'design:service_floor',
         'design:hyperbolic_switchyard',
@@ -219,7 +219,7 @@ export const ALIFE_MIGRATION_INTENTS: readonly AlifeMigrationIntentDef[] = [
     reason: 'routine',
     weight: 3,
     destination: {
-      floorKeys: ['design:maintenance', 'design:hell'],
+      baseFloors: [FloorLevel.MAINTENANCE, FloorLevel.HELL],
       routeTags: ['route_pressure', 'industrial', 'cult', 'samosbor'],
       minAbsZ: 24,
       maxAbsZ: 47,
@@ -248,7 +248,7 @@ export const ALIFE_MIGRATION_INTENTS: readonly AlifeMigrationIntentDef[] = [
     weight: 4,
     destination: {
       floorKeys: [
-        'design:living',
+        'story:living',
         'design:black_market_88',
         'design:service_floor',
         'design:production_belt',
@@ -277,8 +277,8 @@ export const ALIFE_MIGRATION_INTENTS: readonly AlifeMigrationIntentDef[] = [
     weight: 5,
     destination: {
       floorKeys: [
-        'design:living',
-        'design:kvartiry',
+        'story:living',
+        'story:kvartiry',
         'design:obschezhitie_smeny',
         'design:communal_ring',
         'design:pioneer_camp',
@@ -292,7 +292,7 @@ export const ALIFE_MIGRATION_INTENTS: readonly AlifeMigrationIntentDef[] = [
     ],
     occupationBias: [
       { value: Occupation.HOUSEWIFE, weight: 5 },
-
+      { value: Occupation.CHILD, weight: 4 },
       { value: Occupation.TRAVELER, weight: 3 },
       { value: Occupation.DOCTOR, weight: 1 },
     ],
@@ -307,8 +307,8 @@ export const ALIFE_MIGRATION_INTENTS: readonly AlifeMigrationIntentDef[] = [
     weight: 10,
     destination: {
       floorKeys: [
-        'design:living',
-        'design:kvartiry',
+        'story:living',
+        'story:kvartiry',
         'design:communal_ring',
         'design:moebius_podezd',
         'design:obschezhitie_smeny',
@@ -322,7 +322,7 @@ export const ALIFE_MIGRATION_INTENTS: readonly AlifeMigrationIntentDef[] = [
     ],
     occupationBias: [
       { value: Occupation.HOUSEWIFE, weight: 6 },
-
+      { value: Occupation.CHILD, weight: 5 },
       { value: Occupation.COOK, weight: 2 },
       { value: Occupation.TRAVELER, weight: 2 },
     ],
@@ -338,7 +338,7 @@ const INTENT_ID_RE = /^[a-z][a-z0-9_]*$/;
 function selectorEmpty(selector: AlifeDestinationSelector): boolean {
   return !selector.floorKeys?.length &&
     !selector.routeTags?.length &&
-    !selector.themeTags?.length &&
+    !selector.baseFloors?.length &&
     selector.minAbsZ === undefined &&
     selector.maxAbsZ === undefined;
 }
@@ -350,10 +350,10 @@ function validateWeighted<T>(errors: string[], label: string, weights: readonly 
   }
 }
 
-export function validateAlifeMigrationProfiles(intents: readonly AlifeMigrationIntentDef[] = ALIFE_MIGRATION_INTENTS): string[] {
+export function validateAlifeMigrationProfiles(): string[] {
   const errors: string[] = [];
   const seen = new Set<string>();
-  for (const intent of intents) {
+  for (const intent of ALIFE_MIGRATION_INTENTS) {
     if (!INTENT_ID_RE.test(intent.id)) errors.push(`invalid migration intent id ${intent.id}`);
     if (seen.has(intent.id)) errors.push(`duplicate migration intent ${intent.id}`);
     seen.add(intent.id);
@@ -371,11 +371,11 @@ export function validateAlifeMigrationProfiles(intents: readonly AlifeMigrationI
       if (intent.destination.allowsNpcOnly !== false && allowsNpc === false) {
         errors.push(`migration intent ${intent.id} targets NPC-forbidden destination ${key}`);
       }
-      if (floorKeyBaseFloor(key)?.includes('void')) {
+      if (floorKeyBaseFloor(key) === FloorLevel.VOID) {
         errors.push(`migration intent ${intent.id} targets VOID ordinary destination ${key}`);
       }
     }
-    if (intent.destination.themeTags?.includes('void')) {
+    if (intent.destination.baseFloors?.includes(FloorLevel.VOID)) {
       errors.push(`migration intent ${intent.id} targets VOID base floor`);
     }
   }

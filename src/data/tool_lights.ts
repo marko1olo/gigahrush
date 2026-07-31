@@ -21,16 +21,6 @@ export const TOOL_LIGHT_DEFS: readonly ToolLightDef[] = [
     dropLightScore: 0.74,
   },
   {
-    id: 'lighter',
-    passive: false,
-    drainPerSecond: 1, // small drain
-    renderIntensity: 0.6, // weaker than flashlight (1)
-    minChargeRatio: 0.25,
-    moveMultiplier: 1,
-    actorLightScore: 0.45,
-    dropLightScore: 0.45,
-  },
-  {
     id: 'liquidator_flashlamp',
     passive: false,
     drainPerSecond: 1.15,

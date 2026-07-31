@@ -1,7 +1,6 @@
 /* ── Тётя Клава — side quest (kvartiry floor) ─────────────────── */
 /* Хозяйка-самогонщица. Скупает сахар, варит самогон.              */
 
-import { getPlotNpcNumericId } from '../../data/npc_packages';
 import {
   W, Cell,
   type Entity, Faction, Occupation, QuestType,
@@ -9,7 +8,6 @@ import {
 import { World } from '../../core/world';
 import { type PlotNpcDef, registerSideQuest } from '../../data/plot';
 import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
-import { rng } from '../../core/rand';
 
 const NPC_DEF: PlotNpcDef = {
   name: 'Тётя Клава',
@@ -44,7 +42,7 @@ const NPC_DEF: PlotNpcDef = {
 registerSideQuest('tyotya_klava', NPC_DEF, [
   {
     id: 'klava_bread',
-    giverId: getPlotNpcNumericId('tyotya_klava')!,
+    giverNpcId: 'tyotya_klava',
     type: QuestType.FETCH,
     desc: 'Тётя Клава: «Восемь буханок хлеба в бочку. За это налью компота и не спрошу, откуда хлеб.»',
     targetItem: 'bread', targetCount: 8,
@@ -61,11 +59,11 @@ export function spawnTyotyaKlava(
   world: World, entities: Entity[], nextId: { v: number },
 ): void {
   for (let i = 0; i < 3000; i++) {
-    const x = Math.floor(rng() * W);
-    const y = Math.floor(rng() * W);
+    const x = Math.floor(Math.random() * W);
+    const y = Math.floor(Math.random() * W);
     if (world.cells[world.idx(x, y)] !== Cell.FLOOR) continue;
     requireSpawnedPlotNpcFromPackage(entities, nextId, 'tyotya_klava', x + 0.5, y + 0.5, {
-      angle: rng() * Math.PI * 2,
+      angle: Math.random() * Math.PI * 2,
       canGiveQuest: true,
       isTraveler: true,
     });

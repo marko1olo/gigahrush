@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { EntityType, W, type Entity } from '../src/core/types';
+import { EntityType, FloorLevel, W, type Entity } from '../src/core/types';
 import { World } from '../src/core/world';
 import { SIDE_QUESTS } from '../src/data/plot';
 import { generatePressovik } from '../src/gen/maintenance/pressovik';
@@ -41,7 +41,7 @@ test('Pressovik generation places readable lanes, rewards, monsters, and a stopp
   const line = world.rooms.find(room => room.name.includes('Прессовик: брикетная линия'));
   assert.ok(line, 'missing pressovik line room');
   assert.ok(world.rooms.some(room => room.name.includes('сервисный обход')), 'missing service bypass');
-  assert.ok(entities.some(e => e.type === EntityType.NPC && (e as any).npcPackageId === 'pressovik_stop_master'), 'missing stop NPC');
+  assert.ok(entities.some(e => e.type === EntityType.NPC && e.plotNpcId === 'pressovik_stop_master'), 'missing stop NPC');
   assert.ok(entities.some(e => e.type === EntityType.MONSTER), 'missing pressure monsters');
 
   const stop = world.containers.find(c => c.tags.includes('pressovik_stop'));
@@ -66,7 +66,7 @@ test('Pressovik generation places readable lanes, rewards, monsters, and a stopp
   const hy = (hazardCell / W) | 0;
   assert.ok(getCellHazardMoveMultiplier(world, playerAt(hx, hy)) < 1, 'hazard should slow before stop');
 
-  const state = makeGameState({ currentZ: -14, time: 30 });
+  const state = makeGameState({ currentFloor: FloorLevel.MAINTENANCE, time: 30 });
   publishEvent(state, {
     type: 'item_deposited',
     zoneId: stop.zoneId,

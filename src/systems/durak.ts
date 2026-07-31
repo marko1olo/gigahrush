@@ -1,6 +1,5 @@
 import { msg, type Entity, type GameState } from '../core/types';
 import { publishEvent } from './events';
-import { mathRng as rng } from '../core/rand';
 
 export type DurakSuit = 'clubs' | 'diamonds' | 'hearts' | 'spades';
 export type DurakRank = 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14;
@@ -341,10 +340,10 @@ export function createDurakDeck(): DurakCard[] {
   return deck;
 }
 
-export function shuffleDurakDeck(deck: readonly DurakCard[], rand = rng): DurakCard[] {
+export function shuffleDurakDeck(deck: readonly DurakCard[], rng = Math.random): DurakCard[] {
   const out = deck.map(card => ({ ...card }));
   for (let i = out.length - 1; i > 0; i--) {
-    const j = Math.max(0, Math.min(i, Math.floor(rand() * (i + 1))));
+    const j = Math.max(0, Math.min(i, Math.floor(rng() * (i + 1))));
     const tmp = out[i];
     out[i] = out[j];
     out[j] = tmp;
@@ -383,7 +382,7 @@ export function isDurakAttackLegal(g: Pick<DurakGame, 'attacker' | 'defenderStar
   return ranks.has(card.rank);
 }
 
-export function chooseDurakFirstAttacker(playerHand: readonly DurakCard[], npcHand: readonly DurakCard[], trumpSuit: DurakSuit, rand = rng): DurakSide {
+export function chooseDurakFirstAttacker(playerHand: readonly DurakCard[], npcHand: readonly DurakCard[], trumpSuit: DurakSuit, rng = Math.random): DurakSide {
   const lowestTrump = (hand: readonly DurakCard[]) => hand
     .filter(card => card.suit === trumpSuit)
     .sort((a, b) => rankIndex(a.rank) - rankIndex(b.rank))[0];
@@ -399,7 +398,7 @@ export function chooseDurakFirstAttacker(playerHand: readonly DurakCard[], npcHa
   const playerLow = lowest(playerHand);
   const npcLow = lowest(npcHand);
   if (playerLow && npcLow && playerLow.rank !== npcLow.rank) return playerLow.rank < npcLow.rank ? 'player' : 'npc';
-  return rand() < 0.5 ? 'player' : 'npc';
+  return rng() < 0.5 ? 'player' : 'npc';
 }
 
 export function chooseNpcDefenseCard(hand: readonly DurakCard[], attack: DurakCard, trumpSuit: DurakSuit): DurakCard | null {

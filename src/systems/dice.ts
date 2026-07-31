@@ -1,6 +1,5 @@
 import { msg, type Entity, type GameState } from '../core/types';
 import { publishEvent } from './events';
-import { mathRng as rng } from '../core/rand';
 
 export type DiceWinner = 'player' | 'npc' | 'draw' | '';
 export type DicePhase = 'player_turn' | 'npc_turn' | 'finished';
@@ -116,9 +115,9 @@ export function diceStakeFromNpc(npc: Entity): number {
   return money > 0 ? Math.max(1, Math.floor(money * 0.1)) : 0;
 }
 
-export function rollDicePair(rand = rng): DiceRoll {
-  const dieA = rollDie(rand);
-  const dieB = rollDie(rand);
+export function rollDicePair(rng = Math.random): DiceRoll {
+  const dieA = rollDie(rng);
+  const dieB = rollDie(rng);
   return { dieA, dieB, total: dieA + dieB };
 }
 
@@ -280,9 +279,9 @@ export function handleDiceInput(ctx: { state: GameState; player: Entity; npc: En
     return { handled: true, closeInterface: true };
   }
   if (g.phase !== 'player_turn') return { handled: true };
-  const rand = ctx.rng ?? rng;
+  const rng = ctx.rng ?? Math.random;
   if (ctx.input.interactEdge) {
-    addRoll(g, 'player', rollDicePair(rand));
+    addRoll(g, 'player', rollDicePair(rng));
     if (g.playerScore > MAX_SCORE) {
       appendLog(g, 'Перебор. Бетон забирает лишний счет.');
       g.winner = 'npc';
@@ -295,7 +294,7 @@ export function handleDiceInput(ctx: { state: GameState; player: Entity; npc: En
       appendLog(g, 'Сначала бросьте хотя бы раз.');
       return { handled: true };
     }
-    playNpcTurn(g, ctx.state, ctx.player, ctx.npc, rand);
+    playNpcTurn(g, ctx.state, ctx.player, ctx.npc, rng);
     return { handled: true };
   }
   return { handled: true };

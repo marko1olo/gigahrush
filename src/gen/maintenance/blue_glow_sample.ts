@@ -1,10 +1,10 @@
 /* ── AG68 blue glow sample — sealed science trade with risk ───── */
 
-import { getPlotNpcNumericId } from '../../data/npc_packages';
 import {
   ContainerKind,
   Faction,
   Feature,
+  FloorLevel,
   Occupation,
   QuestType,
   RoomType,
@@ -77,7 +77,7 @@ const CLEANER_DEF: PlotNpcDef = {
 
 registerSideQuest('ag68_blue_sample_buyer', BUYER_DEF, [{
   id: SELL_QUEST_ID,
-  giverId: getPlotNpcNumericId('ag68_blue_sample_buyer')!,
+  giverNpcId: 'ag68_blue_sample_buyer',
   type: QuestType.FETCH,
   desc: 'Люминова: «Запечатанный синий образец нужен НИИ. Не вскрывайте: целая герма стоит дороже любого рассказа.»',
   targetItem: BLUE_GLOW_SAMPLE_SEALED, targetCount: 1,
@@ -88,7 +88,7 @@ registerSideQuest('ag68_blue_sample_buyer', BUYER_DEF, [{
 
 registerSideQuest('ag68_blue_sample_cleaner', CLEANER_DEF, [{
   id: DESTROY_QUEST_ID,
-  giverId: getPlotNpcNumericId('ag68_blue_sample_cleaner')!,
+  giverNpcId: 'ag68_blue_sample_cleaner',
   type: QuestType.FETCH,
   desc: 'Глушитель: «Принеси синий образец в герме. Уничтожим по акту, без светящихся карманов и лишних свидетелей.»',
   targetItem: BLUE_GLOW_SAMPLE_SEALED, targetCount: 1,
@@ -120,7 +120,7 @@ registerWorldEventObserver((state, event) => {
       tags: [CONTENT_TAG, 'sample', 'blue_glow', 'opened'],
       data: { action: 'sample_opened', sourceItem: BLUE_GLOW_SAMPLE_SEALED },
     });
-    const stockChanged = changeResourceStock(state, 'medicine', -2, event.z);
+    const stockChanged = changeResourceStock(state, 'medicine', -2, event.floor);
     publishEvent(state, {
       type: 'player_use_item',
       actorId: event.actorId,
@@ -141,7 +141,7 @@ registerWorldEventObserver((state, event) => {
   if (event.type !== 'quest_completed') return;
   const sideQuestId = eventDataString(event, 'sideQuestId');
   if (sideQuestId === SELL_QUEST_ID) {
-    changeResourceStock(state, 'psi', 4, event.z);
+    changeResourceStock(state, 'psi', 4, event.floor);
     publishEvent(state, {
       type: 'quest_completed',
       actorId: event.actorId,
@@ -184,7 +184,7 @@ function addSampleContainer(ctx: MaintContentCtx, room: Room, x: number, y: numb
     id: nextContainerId(ctx),
     x,
     y,
-    z: 140,
+    floor: FloorLevel.MAINTENANCE,
     roomId: room.id,
     zoneId: ctx.world.zoneMap[ci],
     kind: ContainerKind.MEDICAL_CABINET,

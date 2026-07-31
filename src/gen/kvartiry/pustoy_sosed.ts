@@ -1,9 +1,8 @@
 /* ── Пустой Сосед: verifiable false-neighbor encounter ───────── */
 
-import { getPlotNpcNumericId } from '../../data/npc_packages';
 import { stampSurfaceSplat } from '../../systems/surface_marks';
 import {
-  AIGoal, Cell, EntityType, Faction, Feature, MonsterKind, Occupation, QuestType,
+  AIGoal, Cell, EntityType, Faction, Feature, FloorLevel, MonsterKind, Occupation, QuestType,
   RoomType, Tex, type Entity, type GameState, type WorldEvent,
 } from '../../core/types';
 import { World } from '../../core/world';
@@ -179,7 +178,7 @@ const LIQUIDATOR: PlotNpcDef = {
 registerSideQuest(WITNESS_ID, WITNESS, [
   {
     id: PUSTOY_SOSED_QUEST_IDS.checkPapers,
-    giverId: getPlotNpcNumericId(WITNESS_ID)!,
+    giverNpcId: WITNESS_ID,
     type: QuestType.FETCH,
     desc: 'Пустой Сосед: Лиза просит сверить пропуск на столе у входа, не подходя к молчаливому жильцу в дальнем углу.',
     targetItem: 'fake_pass',
@@ -192,9 +191,9 @@ registerSideQuest(WITNESS_ID, WITNESS, [
     moneyReward: 18,
     blockedBySideQuestIds: EXPOSE_BLOCKERS,
     abandonsSideQuestIds: EXPOSE_BLOCKERS,
-    targetFloorZ: 60,
+    targetFloor: FloorLevel.KVARTIRY,
     targetRoomType: RoomType.LIVING,
-    targetRoomDefId: PUSTOY_SOSED_ROOM_NAME,
+    targetRoomName: PUSTOY_SOSED_ROOM_NAME,
     targetHint: 'заберите фальшивый пропуск с ближнего стола и держите дистанцию от дальнего жильца',
     eventSeverity: 4,
     eventPrivacy: 'witnessed',
@@ -210,10 +209,10 @@ registerSideQuest(WITNESS_ID, WITNESS, [
   },
   {
     id: PUSTOY_SOSED_QUEST_IDS.reportLiquidator,
-    giverId: getPlotNpcNumericId(WITNESS_ID)!,
+    giverNpcId: WITNESS_ID,
     type: QuestType.TALK,
     desc: 'Пустой Сосед: Лиза готова быть свидетелем. Сообщите сержанту Баринову про пропуск, номер квартиры и пустое отражение.',
-    targetNpcId: getPlotNpcNumericId('barni')!,
+    targetPlotNpcId: 'barni',
     rewardItem: 'unpeople_detector',
     rewardCount: 1,
     extraRewards: [{ defId: 'ammo_9mm', count: 8 }],
@@ -239,7 +238,7 @@ registerSideQuest(WITNESS_ID, WITNESS, [
 
 registerSideQuest(COMPLAINANT_ID, COMPLAINANT, [{
   id: PUSTOY_SOSED_QUEST_IDS.keepDistance,
-  giverId: getPlotNpcNumericId(COMPLAINANT_ID)!,
+  giverNpcId: COMPLAINANT_ID,
   type: QuestType.FETCH,
   desc: 'Пустой Сосед: Костя просит забрать жалобу у порога и не проверять дальнего жильца лицом.',
   targetItem: 'neighbor_complaint',
@@ -252,9 +251,9 @@ registerSideQuest(COMPLAINANT_ID, COMPLAINANT, [{
   moneyReward: 10,
   blockedBySideQuestIds: FLEE_BLOCKERS,
   abandonsSideQuestIds: FLEE_BLOCKERS,
-  targetFloorZ: 60,
+  targetFloor: FloorLevel.KVARTIRY,
   targetRoomType: RoomType.LIVING,
-  targetRoomDefId: PUSTOY_SOSED_ROOM_NAME,
+  targetRoomName: PUSTOY_SOSED_ROOM_NAME,
   targetHint: 'возьмите жалобу у входа и уходите, если не готовы к близкому раскрытию',
   eventSeverity: 2,
   eventPrivacy: 'local',
@@ -271,7 +270,7 @@ registerSideQuest(COMPLAINANT_ID, COMPLAINANT, [{
 
 registerSideQuest(LIQUIDATOR_ID, LIQUIDATOR, [{
   id: PUSTOY_SOSED_QUEST_IDS.closeReveal,
-  giverId: getPlotNpcNumericId(LIQUIDATOR_ID)!,
+  giverNpcId: LIQUIDATOR_ID,
   type: QuestType.KILL,
   desc: 'Пустой Сосед: Мерцаев предупреждает - если полезете близко, он раскроется. Ведите нелюдь к свету и убейте.',
   targetMonsterKind: MonsterKind.NELYUD,
@@ -309,7 +308,7 @@ function handlePustoySosedOutcome(state: GameState, event: WorldEvent): void {
 
   publishEvent(state, {
     type: 'faction_relation_changed',
-    z: 60,
+    floor: FloorLevel.KVARTIRY,
     zoneId: event.zoneId,
     roomId: event.roomId,
     actorId: event.actorId,

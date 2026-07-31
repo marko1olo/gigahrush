@@ -27,7 +27,7 @@ test('protective apron is reachable at the NII sample post through trade or thef
 
   generateSlimeSamplePost({ world, entities, nextId: { v: 1 }, spawnX: 512, spawnY: 512 });
 
-  const bokova = entities.find(entity => entity.type === EntityType.NPC && (entity as any).npcPackageId === 'ag62_nii_bokova');
+  const bokova = entities.find(entity => entity.type === EntityType.NPC && entity.plotNpcId === 'ag62_nii_bokova');
   assert.ok(bokova, 'Bokova should spawn at the NII sample post');
   assert.ok(bokova.inventory?.some(item => item.defId === 'protective_apron'), 'Bokova should offer the apron through NPC trade');
 

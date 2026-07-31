@@ -1,12 +1,12 @@
-import { MONSTERS, MONSTER_SPRITES } from '../src/entities/monster';
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { AIGoal, Cell, EntityType, Faction, MonsterKind, RoomType, type Entity, type Msg } from '../src/core/types';
+import { AIGoal, Cell, EntityType, Faction, FloorLevel, MonsterKind, RoomType, type Entity, type Msg } from '../src/core/types';
 import { World } from '../src/core/world';
 import { getMonsterEcology } from '../src/data/monster_ecology';
 import { RUMORS } from '../src/data/rumors';
 import { DEF, generateSprite } from '../src/entities/tumannik';
+import { MONSTERS, MONSTER_SPRITES, NEW_MONSTERS_BY_FLOOR } from '../src/entities/monster';
 import { S } from '../src/render/pixutil';
 import { setEntityMap, updateMonster } from '../src/systems/ai/monster';
 import { setListenerPos } from '../src/systems/audio';
@@ -89,11 +89,15 @@ test('Tumannik is standalone fog-offset monster content', () => {
   assert.equal(MONSTERS[MonsterKind.TUMANNIK], DEF);
   assert.equal(MONSTER_SPRITES[MonsterKind.TUMANNIK], generateSprite);
   assert.deepEqual(DEF.aiFlags, ['fogOffset']);
+  assert.deepEqual(DEF.floors, [FloorLevel.LIVING, FloorLevel.HELL]);
   assert.equal(DEF.hp >= 50 && DEF.hp <= 80, true);
   assert.equal(DEF.dmg <= 10, true);
   assert.match(DEF.counterplay ?? '', /силуэт|свет|огонь|fog/);
+  assert.equal(NEW_MONSTERS_BY_FLOOR[FloorLevel.LIVING].includes(MonsterKind.TUMANNIK), true);
+  assert.equal(NEW_MONSTERS_BY_FLOOR[FloorLevel.HELL].includes(MonsterKind.TUMANNIK), true);
 
   assert.ok(ecology);
+  assert.deepEqual(ecology?.floors, [FloorLevel.LIVING, FloorLevel.HELL]);
   assert.equal(ecology?.rooms.includes(RoomType.CORRIDOR), true);
   assert.equal(ecology?.rumorIds.includes('monster_tumannik_side_sound'), true);
   assert.equal(ecology?.rumorIds.includes('ecology_tumannik_light_commit'), true);
@@ -139,7 +143,7 @@ test('Tumannik arms a local fog offset and light collapses it', () => {
   const threat = tumannik(10.5, 10.5);
   const entities = [target, threat];
   const msgs: Msg[] = [];
-  const state = makeGameState({ currentZ: 0, worldEvents: createWorldEventState() });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING, worldEvents: createWorldEventState() });
 
   sync(entities);
   updateMonster(world, entities, threat, 0.1, 1, msgs, target.id, { v: 100 }, state);
@@ -164,7 +168,7 @@ test('Tumannik can hit from the displaced fog origin before its real body reache
   const threat = tumannik(10.5, 10.5);
   const entities = [target, threat];
   const msgs: Msg[] = [];
-  const state = makeGameState({ currentZ: 0, worldEvents: createWorldEventState() });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING, worldEvents: createWorldEventState() });
 
   sync(entities);
   updateMonster(world, entities, threat, 0.1, 2, msgs, target.id, { v: 100 }, state);
@@ -182,7 +186,7 @@ test('Tumannik fog offset collapses for a lit NPC target too', () => {
   const target = npcTarget(16.5, 10.5);
   const threat = tumannik(10.5, 10.5);
   const entities = [target, threat];
-  const state = makeGameState({ currentZ: -26, worldEvents: createWorldEventState() });
+  const state = makeGameState({ currentFloor: FloorLevel.HELL, worldEvents: createWorldEventState() });
 
   sync(entities);
   updateMonster(world, entities, threat, 0.1, 5, [], 1, { v: 100 }, state);

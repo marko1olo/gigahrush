@@ -12,7 +12,7 @@ import {
 test('chernobozhiy svod generates a bounded marked room with noncombat outcomes', () => {
   const world = new World();
   const entities: Entity[] = [];
-  const nextId = { v: getPlotNpcCount() + 1 }
+  const nextId = { v: 1 };
 
   const nextRoomId = generateChernobozhiySvod(world, 0, entities, nextId, 512, 512);
 

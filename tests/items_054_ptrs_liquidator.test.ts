@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { EntityType, ItemType, MonsterKind } from '../src/core/types';
+import { EntityType, FloorLevel, ItemType, MonsterKind } from '../src/core/types';
 import { World } from '../src/core/world';
 import { ITEMS, WEAPON_ROLE_TIERS, WEAPON_STATS } from '../src/data/catalog';
 import { ITEM_TAGS } from '../src/data/items';
@@ -53,7 +53,7 @@ test('darkness long-route stash carries ptrs liquidator with scarce harpoons', (
 
 test('ptrs liquidator strips hardened armor through the generic armor hook', () => {
   const world = new World();
-  const state = makeGameState({ currentZ: -26, time: 1 });
+  const state = makeGameState({ currentFloor: FloorLevel.MAINTENANCE, time: 1 });
   const target = makeTestEntity({
     type: EntityType.MONSTER,
     monsterKind: MonsterKind.ZAKALENNAYA_ARMATURA,

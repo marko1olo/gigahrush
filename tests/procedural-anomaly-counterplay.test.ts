@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { Cell, Feature, LiftDirection, W, type World } from '../src/core/types';
+import { Cell, Feature, FloorLevel, LiftDirection, W, type World } from '../src/core/types';
 import {
   makeProceduralFloorSpec,
   type FloorAnomalyId,
@@ -63,7 +63,7 @@ function forcedConveyorSpec(): ProceduralFloorSpec {
   return {
     ...base,
     geometryId: 'workshops',
-    baseFloor: 'maintenance',
+    baseFloor: FloorLevel.MAINTENANCE,
     anomalyId: 'conveyor_sorter',
     danger: 4,
     title: `сортировочный конвейер: ${base.title}`,

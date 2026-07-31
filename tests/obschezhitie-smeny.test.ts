@@ -6,6 +6,7 @@ import {
   DoorState,
   EntityType,
   Feature,
+  FloorLevel,
   LiftDirection,
   NpcState,
   RoomType,
@@ -24,7 +25,7 @@ import { generateDesignFloor } from '../src/gen/design_floors/manifest';
 import {
   OBSCHEZHITIE_SMENY_DESIGN_FLOOR_ID,
   OBSCHEZHITIE_SMENY_ROUTE_Z,
-} from '../src/gen/obschezhitie_smeny';
+} from '../src/gen/design_floors/obschezhitie_smeny';
 import { countTerritoryCells, territoryHqAnchors } from '../src/systems/territory';
 
 let cachedGeneration: ReturnType<typeof generateDesignFloor> | undefined;
@@ -37,7 +38,8 @@ function generatedObschezhitieSmeny(): ReturnType<typeof generateDesignFloor> {
 test('obschezhitie_smeny is the authored shift dormitory route floor', () => {
   const route = designFloorById(OBSCHEZHITIE_SMENY_DESIGN_FLOOR_ID);
   assert.equal(route?.z, OBSCHEZHITIE_SMENY_ROUTE_Z);
-    assert.equal(route?.displayName, 'Общежитие смены');
+  assert.equal(route?.baseFloor, FloorLevel.LIVING);
+  assert.equal(route?.displayName, 'Общежитие смены');
   assert.equal(designFloorAtZ(OBSCHEZHITIE_SMENY_ROUTE_Z)?.id, OBSCHEZHITIE_SMENY_DESIGN_FLOOR_ID);
 });
 
@@ -58,9 +60,9 @@ test('obschezhitie_smeny generator creates bunks, witnesses, patrol and shelter 
   assert.equal(shelter?.sealed, true);
   assert.equal(shelter?.doors.some(idx => gen.world.doors.get(idx)?.state === DoorState.HERMETIC_OPEN), true);
   assert.equal(sleepingTemplates.length >= 24, true);
-  assert.equal(gen.entities.some(entity => (entity as any).npcPackageId === 'obschezhitie_rita_starshaya'), true);
-  assert.equal(gen.entities.some(entity => (entity as any).npcPackageId === 'obschezhitie_gleb_obhod'), true);
-  assert.equal(gen.entities.some(entity => (entity as any).npcPackageId === 'obschezhitie_senya_tikhiy'), true);
+  assert.equal(gen.entities.some(entity => entity.plotNpcId === 'obschezhitie_rita_starshaya'), true);
+  assert.equal(gen.entities.some(entity => entity.plotNpcId === 'obschezhitie_gleb_obhod'), true);
+  assert.equal(gen.entities.some(entity => entity.plotNpcId === 'obschezhitie_senya_tikhiy'), true);
   assert.equal(gen.world.containers.some(container => container.tags.includes('quiet_loot') && container.tags.includes('theft')), true);
   assert.equal(gen.world.containers.some(container => container.tags.includes('resident_relief') && container.tags.includes('shelter')), true);
   assert.equal(gen.world.containers.some(container => container.tags.includes('patrol') && container.tags.includes('witness')), true);
@@ -117,8 +119,8 @@ test('obschezhitie_smeny uses a bounded A-Life-compatible dorm population profil
   const npcs = gen.entities.filter(entity => entity.type === EntityType.NPC);
   const monsters = gen.entities.filter(entity => entity.type === EntityType.MONSTER);
 
-  assert.ok(profile.npcTarget >= 210 && profile.npcTarget <= 21000, 'npcTarget in bounds');
-  assert.ok(profile.monsterTarget >= 36 && profile.monsterTarget <= 3600, 'monsterTarget in bounds');
+  assert.equal(profile.npcTarget, 2100);
+  assert.equal(profile.monsterTarget, 360);
   assert.equal(profile.npcTarget + profile.monsterTarget <= ACTIVE_ACTOR_SOFT_LIMIT, true);
   assert.equal((profile.npcPlacement.anchors?.length ?? 0) >= 4, true);
   assert.equal((profile.monsterPlacement.anchors?.length ?? 0) >= 3, true);

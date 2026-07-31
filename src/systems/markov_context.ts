@@ -2,6 +2,7 @@
 
 import {
   Faction,
+  FloorLevel,
   QuestType,
   RoomType,
   ZoneFaction,
@@ -25,16 +26,14 @@ export type MarkovTimeBand = 'night' | 'morning' | 'work' | 'evening' | 'late';
 export interface MarkovTextContext {
   actorId?: number;
   actorAlifeId?: number;
-  actorName?: string;
   targetId?: number;
   targetAlifeId?: number;
-  targetName?: string;
   floorKey?: string;
-  z?: number;
+  floor?: FloorLevel;
   routeZBand?: MarkovRouteZBand;
   roomId?: number;
   roomType?: RoomType;
-  roomDefId?: string;
+  roomName?: string;
   zoneId?: number;
   zoneFaction?: ZoneFaction;
   faction?: Faction;
@@ -53,27 +52,17 @@ export interface MarkovTextContext {
   questId?: number;
   questType?: QuestType;
   contractId?: string;
-  requiredAnchors?: readonly string[];
-  args?: Readonly<Record<string, string | number | undefined>>;
   tags: readonly string[];
   contextHash: string;
-  dangerLevel?: number;
-  thirst?: number;
-  hunger?: number;
-  foundItemValue?: number;
-  recentTrauma?: boolean;
-  isSamosborActive?: boolean;
 }
 
 export interface MarkovContextLoweringOptions {
   actorId?: number;
   actorAlifeId?: number;
-  actorName?: string;
   targetId?: number;
   targetAlifeId?: number;
-  targetName?: string;
   floorKey?: string;
-  z?: number;
+  floor?: FloorLevel;
   routeZ?: number;
   routeZBand?: MarkovRouteZBand;
   roomId?: number;
@@ -85,12 +74,6 @@ export interface MarkovContextLoweringOptions {
   timeMinutes?: number;
   timeBand?: MarkovTimeBand;
   extraTags?: readonly string[];
-  dangerLevel?: number;
-  thirst?: number;
-  hunger?: number;
-  foundItemValue?: number;
-  recentTrauma?: boolean;
-  isSamosborActive?: boolean;
 }
 
 export interface MarkovDemosCandidate extends MarkovContextLoweringOptions {
@@ -212,16 +195,14 @@ export function lowerContextSnapshot(
   return finalizeMarkovContext({
     actorId: options.actorId,
     actorAlifeId: options.actorAlifeId,
-    actorName: options.actorName,
     targetId: options.targetId,
     targetAlifeId: options.targetAlifeId,
-    targetName: options.targetName,
     floorKey: options.floorKey,
-    z: snapshot.z ?? options.z,
+    floor: snapshot.floor ?? options.floor,
     routeZBand: options.routeZBand ?? routeZBandForZ(options.routeZ),
     roomId: options.roomId,
     roomType: snapshot.roomType,
-    roomDefId: snapshot.roomDefId,
+    roomName: snapshot.roomName,
     zoneId: snapshot.zoneId,
     zoneFaction: snapshot.zoneFaction,
     faction,
@@ -232,12 +213,6 @@ export function lowerContextSnapshot(
     dangerBand,
     wealthBand: options.wealthBand ?? wealthBandForValue(options.wealth),
     timeBand: options.timeBand ?? timeBandForMinutes(options.timeMinutes),
-    dangerLevel: options.dangerLevel ?? (snapshot.isDangerousZone ? 0.7 : snapshot.roomMemorySeverity > 0 ? Math.min(1.0, snapshot.roomMemorySeverity / 3) : 0),
-    thirst: options.thirst ?? (snapshot.npcNeeds ? Math.max(0, Math.min(1.0, (100 - snapshot.npcNeeds.water) / 100)) : 0),
-    hunger: options.hunger ?? (snapshot.npcNeeds ? Math.max(0, Math.min(1.0, (100 - snapshot.npcNeeds.food) / 100)) : 0),
-    foundItemValue: options.foundItemValue,
-    recentTrauma: options.recentTrauma ?? (snapshot.hasRecentMonsterKill || snapshot.hasRoomMemoryCombat),
-    isSamosborActive: options.isSamosborActive ?? snapshot.samosborActive,
     tags: tags.values(),
   });
 }
@@ -262,12 +237,10 @@ export function lowerWorldEventContext(
   return finalizeMarkovContext({
     actorId: options.actorId ?? event.actorId,
     actorAlifeId: options.actorAlifeId,
-    actorName: options.actorName ?? event.actorName,
     targetId: options.targetId ?? event.targetId,
     targetAlifeId: options.targetAlifeId,
-    targetName: options.targetName ?? event.targetName,
     floorKey: options.floorKey,
-    z: event.z ?? options.z,
+    floor: event.floor ?? options.floor,
     routeZBand: options.routeZBand ?? routeZBandForZ(options.routeZ),
     roomId: event.roomId ?? options.roomId,
     zoneId: event.zoneId,
@@ -277,12 +250,6 @@ export function lowerWorldEventContext(
     dangerBand: dangerBandFromEvent(event),
     wealthBand: options.wealthBand ?? wealthBandForValue(options.wealth),
     timeBand: options.timeBand ?? timeBandForMinutes(options.timeMinutes),
-    dangerLevel: options.dangerLevel,
-    thirst: options.thirst,
-    hunger: options.hunger,
-    foundItemValue: options.foundItemValue,
-    recentTrauma: options.recentTrauma,
-    isSamosborActive: options.isSamosborActive,
     itemId: event.itemId,
     itemName: event.itemName,
     monsterKind: event.monsterKind,
@@ -316,16 +283,14 @@ export function lowerQuestContext(
   return finalizeMarkovContext({
     actorId: options.actorId ?? quest.giverId,
     actorAlifeId: options.actorAlifeId,
-    actorName: options.actorName,
     targetId: options.targetId ?? quest.targetNpcId,
     targetAlifeId: options.targetAlifeId,
-    targetName: options.targetName,
     floorKey: options.floorKey,
-    z: quest.targetFloorZ ?? quest.targetMarker?.z ?? quest.visitFloorZ ?? options.z,
+    floor: quest.targetFloor ?? quest.targetMarker?.floor ?? quest.visitFloor ?? options.floor,
     routeZBand: options.routeZBand ?? routeZBandForZ(routeZ),
     roomId: options.roomId ?? quest.targetRoom,
     roomType: quest.targetRoomType ?? quest.targetMarker?.roomType,
-    roomDefId: quest.targetRoomDefId ?? quest.targetMarker?.roomDefId,
+    roomName: quest.targetRoomName ?? quest.targetMarker?.roomName,
     zoneId: undefined,
     faction: quest.contractFaction,
     relationBand,
@@ -333,12 +298,6 @@ export function lowerQuestContext(
     dangerBand: dangerBandForRisk(risk),
     wealthBand: options.wealthBand ?? wealthBandForValue(options.wealth ?? quest.moneyReward),
     timeBand: options.timeBand ?? timeBandForMinutes(options.timeMinutes),
-    dangerLevel: options.dangerLevel,
-    thirst: options.thirst,
-    hunger: options.hunger,
-    foundItemValue: options.foundItemValue,
-    recentTrauma: options.recentTrauma,
-    isSamosborActive: options.isSamosborActive,
     itemId: quest.targetItem,
     monsterKind: quest.targetMonsterKind,
     questId: quest.id,
@@ -367,27 +326,19 @@ export function lowerContractContext(
   return finalizeMarkovContext({
     actorId: options.actorId,
     actorAlifeId: options.actorAlifeId,
-    actorName: options.actorName,
     targetId: options.targetId,
     targetAlifeId: options.targetAlifeId,
-    targetName: options.targetName,
     floorKey: options.floorKey,
-    z: contract.target.z ?? options.z,
+    floor: contract.target.floor ?? options.floor,
     routeZBand: options.routeZBand ?? routeZBandForZ(contract.target.route?.z ?? options.routeZ),
     roomType: contract.target.roomType,
-    roomDefId: contract.target.roomDefId,
+    roomName: contract.target.roomName,
     faction: contract.faction,
     relationBand,
     socialEdgeFlags: options.socialEdgeFlags,
     dangerBand: dangerBandForRisk(contract.target.route?.risk ?? contract.rank),
     wealthBand: options.wealthBand ?? wealthBandForValue(options.wealth ?? contract.moneyReward),
     timeBand: options.timeBand ?? timeBandForMinutes(options.timeMinutes),
-    dangerLevel: options.dangerLevel,
-    thirst: options.thirst,
-    hunger: options.hunger,
-    foundItemValue: options.foundItemValue,
-    recentTrauma: options.recentTrauma,
-    isSamosborActive: options.isSamosborActive,
     itemId: contract.targetItem,
     monsterKind: contract.targetMonsterKind,
     questType: contract.type,
@@ -413,12 +364,10 @@ export function lowerDemosCandidateContext(candidate: MarkovDemosCandidate): Mar
     ...base,
     actorId: candidate.actorId ?? base?.actorId,
     actorAlifeId: candidate.actorAlifeId ?? base?.actorAlifeId,
-    actorName: candidate.actorName ?? base?.actorName,
     targetId: candidate.targetId ?? base?.targetId,
     targetAlifeId: candidate.targetAlifeId ?? base?.targetAlifeId,
-    targetName: candidate.targetName ?? base?.targetName,
     floorKey: candidate.floorKey ?? base?.floorKey,
-    z: candidate.z ?? base?.z,
+    floor: candidate.floor ?? base?.floor,
     routeZBand: candidate.routeZBand ?? routeZBandForZ(candidate.routeZ) ?? base?.routeZBand,
     zoneId: candidate.zoneId ?? base?.zoneId,
     zoneFaction: candidate.zoneFaction ?? base?.zoneFaction,
@@ -427,12 +376,6 @@ export function lowerDemosCandidateContext(candidate: MarkovDemosCandidate): Mar
     socialEdgeFlags: candidate.socialEdgeFlags ?? base?.socialEdgeFlags,
     wealthBand: candidate.wealthBand ?? wealthBandForValue(candidate.wealth) ?? base?.wealthBand,
     timeBand: candidate.timeBand ?? timeBandForMinutes(candidate.timeMinutes) ?? base?.timeBand,
-    dangerLevel: candidate.dangerLevel ?? base?.dangerLevel,
-    thirst: candidate.thirst ?? base?.thirst,
-    hunger: candidate.hunger ?? base?.hunger,
-    foundItemValue: candidate.foundItemValue ?? base?.foundItemValue,
-    recentTrauma: candidate.recentTrauma ?? base?.recentTrauma,
-    isSamosborActive: candidate.isSamosborActive ?? base?.isSamosborActive,
     itemId: candidate.itemId ?? base?.itemId,
     itemName: candidate.itemName ?? base?.itemName,
     monsterKind: candidate.monsterKind ?? base?.monsterKind,
@@ -447,16 +390,14 @@ export function finalizeMarkovContext(input: Partial<MarkovTextContext> & { tags
   const context: Omit<MarkovTextContext, 'contextHash'> = {
     actorId: finiteInt(input.actorId),
     actorAlifeId: finiteInt(input.actorAlifeId),
-    actorName: cleanText(input.actorName, 96),
     targetId: finiteInt(input.targetId),
     targetAlifeId: finiteInt(input.targetAlifeId),
-    targetName: cleanText(input.targetName, 96),
     floorKey: cleanId(input.floorKey),
-    z: input.z,
+    floor: input.floor,
     routeZBand: input.routeZBand,
     roomId: finiteInt(input.roomId),
     roomType: input.roomType,
-    roomDefId: cleanText(input.roomDefId, 96),
+    roomName: cleanText(input.roomName, 96),
     zoneId: finiteInt(input.zoneId),
     zoneFaction: input.zoneFaction,
     faction: input.faction,
@@ -475,14 +416,6 @@ export function finalizeMarkovContext(input: Partial<MarkovTextContext> & { tags
     questId: finiteInt(input.questId),
     questType: input.questType,
     contractId: cleanId(input.contractId),
-    dangerLevel: input.dangerLevel,
-    thirst: input.thirst,
-    hunger: input.hunger,
-    foundItemValue: input.foundItemValue,
-    recentTrauma: input.recentTrauma,
-    isSamosborActive: input.isSamosborActive,
-    requiredAnchors: input.requiredAnchors ? [...input.requiredAnchors] : undefined,
-    args: input.args ? { ...input.args } : undefined,
     tags,
   };
   return {
@@ -495,12 +428,10 @@ export function buildMarkovContextHash(context: Omit<MarkovTextContext, 'context
   const parts: string[] = [];
   addHashPart(parts, 'actorId', context.actorId);
   addHashPart(parts, 'actorAlifeId', context.actorAlifeId);
-  addHashPart(parts, 'actorName', context.actorName);
   addHashPart(parts, 'targetId', context.targetId);
   addHashPart(parts, 'targetAlifeId', context.targetAlifeId);
-  addHashPart(parts, 'targetName', context.targetName);
   addHashPart(parts, 'floorKey', context.floorKey);
-  addHashPart(parts, 'floor', context.z);
+  addHashPart(parts, 'floor', context.floor);
   addHashPart(parts, 'routeZBand', context.routeZBand);
   addHashPart(parts, 'roomId', context.roomId);
   addHashPart(parts, 'roomType', context.roomType);

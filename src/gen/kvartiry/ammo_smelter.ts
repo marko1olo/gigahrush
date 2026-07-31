@@ -1,11 +1,11 @@
 /* -- Podpolnaya ammo smelter: contested Kvartiry ammo route ------- */
 
-import { getPlotNpcNumericId } from '../../data/npc_packages';
 import {
   Cell,
   ContainerKind,
   Faction,
   Feature,
+  FloorLevel,
   Occupation,
   QuestType,
   RoomType,
@@ -14,51 +14,12 @@ import {
   type WorldContainer,
 } from '../../core/types';
 import { World } from '../../core/world';
-import { type PlotNpcDef, registerSideQuest , registerAuthoredNpc } from '../../data/plot';
-
-const AMBIENT_NPC_0: PlotNpcDef = {
-  name: 'Тимур на стрёме',
-  isFemale: false,
-  faction: Faction.WILD,
-  occupation: Occupation.TRAVELER,
-  sprite: Occupation.TRAVELER,
-  hp: 50, maxHp: 50, money: 5, speed: 0.9,
-  inventory: [{ defId: 'pipe', count: 1 }],
-talkLines: ['Проходи своей дорогой.', 'Мне не до разговоров.'],
-talkLinesPost: ['...'],
-};
-registerAuthoredNpc({ id: 'kv_ambient_0_vw6ed', npc: AMBIENT_NPC_0 });
-
-const AMBIENT_NPC_1: PlotNpcDef = {
-  name: 'Соседка с мокрым платком',
-  isFemale: false,
-  faction: Faction.CITIZEN,
-  occupation: Occupation.HOUSEWIFE,
-  sprite: Occupation.HOUSEWIFE,
-  hp: 50, maxHp: 50, money: 5, speed: 0.9,
-  inventory: [{ defId: 'note', count: 1 }],
-talkLines: ['Проходи своей дорогой.', 'Мне не до разговоров.'],
-talkLinesPost: ['...'],
-};
-registerAuthoredNpc({ id: 'kv_ambient_1_zi20t', npc: AMBIENT_NPC_1 });
-
-const AMBIENT_NPC_2: PlotNpcDef = {
-  name: 'Ученик у тигля',
-  isFemale: true,
-  faction: Faction.WILD,
-  occupation: Occupation.LOCKSMITH,
-  sprite: Occupation.LOCKSMITH,
-  hp: 50, maxHp: 50, money: 5, speed: 0.9,
-  inventory: [{ defId: 'spring', count: 1 }],
-talkLines: ['Проходи своей дорогой.', 'Мне не до разговоров.'],
-talkLinesPost: ['...'],
-};
-registerAuthoredNpc({ id: 'kv_ambient_2_eh76y', npc: AMBIENT_NPC_2 });
-
+import { type PlotNpcDef, registerSideQuest } from '../../data/plot';
 import {
   createSocialPoiRoom,
   placeDropNear,
   setFeatureIfFloor,
+  spawnAmbientNpc,
   spawnSocialNpc,
   type SocialPoiRoom,
 } from './social_helpers';
@@ -109,7 +70,7 @@ const POLINA: PlotNpcDef = {
 
 registerSideQuest('kv_gesha_gilza', GESHA, [{
   id: 'kv_smelter_metal_help',
-  giverId: getPlotNpcNumericId('kv_gesha_gilza')!,
+  giverNpcId: 'kv_gesha_gilza',
   type: QuestType.FETCH,
   desc: 'Геша Гильза: «Лист металла в горячий ящик. Патроны будут, но тихо.»',
   targetItem: 'metal_sheet', targetCount: 1,
@@ -120,7 +81,7 @@ registerSideQuest('kv_gesha_gilza', GESHA, [{
 
 registerSideQuest('kv_polina_obhodnaya', POLINA, [{
   id: 'kv_smelter_report',
-  giverId: getPlotNpcNumericId('kv_polina_obhodnaya')!,
+  giverNpcId: 'kv_polina_obhodnaya',
   type: QuestType.FETCH,
   desc: 'Полина Обходная: «Нужен донос на гильзоплавку. Без бумаги я слышу только ремонт.»',
   targetItem: 'denunciation', targetCount: 1,
@@ -156,7 +117,7 @@ function addSmelterContainer(
     id: nextContainerId(world),
     x,
     y,
-    z: 60,
+    floor: FloorLevel.KVARTIRY,
     roomId: poi.room.id,
     zoneId: world.zoneMap[ci],
     kind,
@@ -230,9 +191,9 @@ export function generateAmmoSmelter(
   const geshaId = nextId.v;
   spawnSocialNpc(entities, nextId, GESHA, 'kv_gesha_gilza', poi.x + 3, poi.y + 3, { weapon: 'homemade_pistol' });
   spawnSocialNpc(entities, nextId, POLINA, 'kv_polina_obhodnaya', poi.x + poi.w - 4, poi.y + 5, { weapon: 'makarov' });
-  spawnSocialNpc(entities, nextId, AMBIENT_NPC_0, 'kv_ambient_0_vw6ed', poi.x + 2, poi.y + 5, { weapon: 'pipe' });
-  spawnSocialNpc(entities, nextId, AMBIENT_NPC_1, 'kv_ambient_1_zi20t', poi.x + 7, poi.y + 5);
-  spawnSocialNpc(entities, nextId, AMBIENT_NPC_2, 'kv_ambient_2_eh76y', poi.x + 8, poi.y + 3, { weapon: 'wrench' });
+  spawnAmbientNpc(entities, nextId, 'Тимур на стрёме', Faction.WILD, Occupation.TRAVELER, poi.x + 2, poi.y + 5, [{ defId: 'pipe', count: 1 }], 'pipe');
+  spawnAmbientNpc(entities, nextId, 'Соседка с мокрым платком', Faction.CITIZEN, Occupation.HOUSEWIFE, poi.x + 7, poi.y + 5, [{ defId: 'note', count: 1 }]);
+  spawnAmbientNpc(entities, nextId, 'Ученик у тигля', Faction.WILD, Occupation.LOCKSMITH, poi.x + 8, poi.y + 3, [{ defId: 'spring', count: 1 }], 'wrench');
 
   seedSmelterContainers(world, poi, geshaId);
 

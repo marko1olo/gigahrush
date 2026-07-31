@@ -6,6 +6,7 @@ import {
   DoorState,
   EntityType,
   Faction,
+  FloorLevel,
   LiftDirection,
   MonsterKind,
   Occupation,
@@ -37,7 +38,7 @@ import {
   PENROSE_LAUNDRY_ROUTE_ID,
   PENROSE_LAUNDRY_Z,
   getPenroseLaundryState,
-} from '../src/gen/penrose_laundry';
+} from '../src/gen/design_floors/penrose_laundry';
 import { makeGameState } from './helpers';
 
 type PenroseGeneration = ReturnType<typeof generateDesignFloor>;
@@ -95,15 +96,16 @@ function hermeticShellCells(world: PenroseGeneration['world'], room: Room): numb
 test('penrose_laundry is registered as a routed Living-band design floor', () => {
   const route = designFloorById(PENROSE_LAUNDRY_ROUTE_ID);
   assert.equal(route?.z, PENROSE_LAUNDRY_Z);
-    assert.equal(route?.displayName, 'Прачечная Пенроуза');
+  assert.equal(route?.baseFloor, PENROSE_LAUNDRY_BASE_FLOOR);
+  assert.equal(route?.displayName, 'Прачечная Пенроуза');
   assert.equal(designFloorAtZ(PENROSE_LAUNDRY_Z)?.id, PENROSE_LAUNDRY_ROUTE_ID);
   assert.equal(PROCEDURAL_FLOOR_ZS.includes(PENROSE_LAUNDRY_Z), false);
   assert.equal(DESIGN_FLOOR_ROUTES.some(def => def.id === PENROSE_LAUNDRY_ROUTE_ID), true);
 });
 
 test('normal lift route reaches penrose_laundry before black_market_88', () => {
-  const state = makeGameState({ currentZ: -26 });
-  setFloorRunState(state, { runSeed: 81081, currentZ: -7, specs: {}, visited: {} }.MAINTENANCE);
+  const state = makeGameState({ currentFloor: FloorLevel.MAINTENANCE });
+  setFloorRunState(state, { runSeed: 81081, currentZ: -7, specs: {}, visited: {} }, FloorLevel.MAINTENANCE);
 
   const laundry = resolveFloorRunRoute(state, LiftDirection.DOWN);
   assert.equal(laundry?.z, PENROSE_LAUNDRY_Z);
@@ -160,10 +162,10 @@ test('penrose_laundry generator builds a connected finite symbol patch with deci
   assert.equal(hiddenCache.tags.includes('hidden_washroom_cache'), true);
   assert.equal(hiddenCache.inventory.some(item => item.defId === 'pressure_logbook'), true);
   assert.equal(cue?.tags.includes('symbol_chain'), true);
-  assert.equal(npcs.some(entity => (entity as any).npcPackageId === 'penrose_laundry_marfa_symbols'), true);
-  assert.equal(npcs.some(entity => (entity as any).npcPackageId === 'penrose_laundry_igor_lock'), true);
-  assert.equal(npcs.some(entity => (entity as any).npcPackageId === 'penrose_laundry_lidia_steam'), true);
-  assert.equal(npcs.some(entity => (entity as any).npcPackageId === 'penrose_laundry_tonya_cache'), true);
+  assert.equal(npcs.some(entity => entity.plotNpcId === 'penrose_laundry_marfa_symbols'), true);
+  assert.equal(npcs.some(entity => entity.plotNpcId === 'penrose_laundry_igor_lock'), true);
+  assert.equal(npcs.some(entity => entity.plotNpcId === 'penrose_laundry_lidia_steam'), true);
+  assert.equal(npcs.some(entity => entity.plotNpcId === 'penrose_laundry_tonya_cache'), true);
 });
 
 test('penrose_laundry full route has Penrose macro, stations, micro rooms and no generic shell', () => {
@@ -233,8 +235,8 @@ test('penrose_laundry population profile favors laundry crowds, steam repair and
   assert.ok(route);
   const profile = designFloorPopulationProfile(route);
 
-  assert.ok(profile.npcTarget >= 145 && profile.npcTarget <= 14500, 'npcTarget in bounds');
-  assert.ok(profile.monsterTarget >= 76 && profile.monsterTarget <= 7600, 'monsterTarget in bounds');
+  assert.equal(profile.npcTarget, 1450);
+  assert.equal(profile.monsterTarget, 760);
   assert.equal(profile.npcFactions.some(value => value.value === Faction.CITIZEN && value.weight >= 70), true);
   assert.equal(profile.npcOccupations.some(value => value.value === Occupation.HOUSEWIFE && value.weight >= 20), true);
   assert.equal(profile.npcOccupations.some(value => value.value === Occupation.MECHANIC && value.weight >= 10), true);

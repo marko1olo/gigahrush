@@ -1,6 +1,6 @@
 /* ── Pechateed: document eater, smells notes and keys ────────── */
 
-import { MonsterKind } from '../core/types';
+import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
 import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
@@ -13,6 +13,7 @@ export const DEF: MonsterDef = {
   attackRate: 1.45,
   sprite: 0,
   aiFlags: ['documentHunter'],
+  floors: [FloorLevel.MINISTRY, FloorLevel.KVARTIRY, FloorLevel.LIVING],
   counterplay: 'Чует документы как кровь: Сбросьте лишние бумаги, бланки и корешки в ящик до боя. Без бумажного запаха хуже ищет цель; держите дистанцию и теряйте его через углы.',
   lootHint: 'обглоданные бланки, кислые чернила и пустой формуляр без подписи',
 };

@@ -1,6 +1,6 @@
 /* ── Shovnik: seam hunter, stronger near walls ───────────────── */
 
-import { MonsterKind } from '../core/types';
+import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
 import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
@@ -13,6 +13,7 @@ export const DEF: MonsterDef = {
   attackRate: 1.1,
   sprite: 0,
   aiFlags: ['wallBias'],
+  floors: [FloorLevel.LIVING, FloorLevel.KVARTIRY, FloorLevel.MINISTRY],
   counterplay: 'Тяните в центр комнаты: у стены и шва шовник ускоряется и бьет больнее, без кромки теряет ход.',
   lootHint: 'резиновая крошка, герметичный мусор, редкий уплотнитель',
 };

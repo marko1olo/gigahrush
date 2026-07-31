@@ -1,6 +1,6 @@
 /* ── Zombie — humanoid undead (мертвяк) ───────────────────────── */
 
-import { MonsterKind } from '../core/types';
+import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
 import { rgba, noise, clamp, CLEAR, outline } from '../render/pixutil';
 const S = 128;
@@ -13,6 +13,7 @@ export const DEF: MonsterDef = {
   dmg: 8,
   attackRate: 1.5,
   sprite: 0,   // auto-assigned by generateSprites()
+  floors: [FloorLevel.MINISTRY, FloorLevel.KVARTIRY, FloorLevel.LIVING, FloorLevel.MAINTENANCE, FloorLevel.HELL],
   counterplay: 'Опасен толпой и дверью: вытяните из кухни, очереди или палаты в пустой проход и добейте до первого хвата.',
   lootHint: 'карманный бытовой хлам, чужая записка, редкие сигареты',
 };

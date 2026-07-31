@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { AIGoal, Cell, EntityType, Faction, type Entity, type GameClock, type Msg } from '../src/core/types';
+import { AIGoal, Cell, EntityType, Faction, FloorLevel, type Entity, type GameClock, type Msg } from '../src/core/types';
 import { withSeededRandom } from '../src/core/rand';
 import { generateFloor } from '../src/gen/floor_manifest';
 import { updateAI } from '../src/systems/ai';
@@ -165,8 +165,8 @@ function tickLivingRoutine(
   msgs: Msg[],
 ): void {
   rebuildEntityIndexForSimulation(entities, Math.floor(time * 1000));
-  updateAI(world, entities, dt, time, msgs, 1, clock, false, { v: 50_000 }, undefined, makeGameState({
-    currentZ: 0,
+  updateAI(world, entities, dt, time, msgs, 1, clock, false, { v: 50_000 }, FloorLevel.LIVING, makeGameState({
+    currentFloor: FloorLevel.LIVING,
     time,
     clock,
   }));
@@ -174,7 +174,7 @@ function tickLivingRoutine(
 
 test('living routine residents do not collapse into corridor attractors', () => {
   initFactionRelations();
-  const gen = generateFloor(0, LIVING_ATTRACTOR_SEED);
+  const gen = generateFloor(FloorLevel.LIVING, LIVING_ATTRACTOR_SEED);
   const player = makePlayer(49_999, gen.spawnX + 0.5, gen.spawnY + 0.5);
   const entities = [player, ...gen.entities];
   normalizeNonCombatRoutine(entities);
@@ -199,11 +199,11 @@ test('living routine residents do not collapse into corridor attractors', () => 
   const after = livingCorridorMetrics(entities, gen.world, reversalHistory);
 
   assert.ok(initial.residents > 900, `expected generated Living residents, got ${initial.residents}`);
-  assert.ok(initial.residentCorridorRatio < 0.35, `unexpected initial corridor load ${initial.residentCorridor}/${initial.residents}`);
-  assert.ok(after.residentCorridorRatio < 0.40, `resident corridor attractor load ${after.residentCorridor}/${after.residents}`);
+  assert.ok(initial.residentCorridorRatio < 0.08, `unexpected initial corridor load ${initial.residentCorridor}/${initial.residents}`);
+  assert.ok(after.residentCorridorRatio < 0.30, `resident corridor attractor load ${after.residentCorridor}/${after.residents}`);
   assert.ok(after.residentCorridorCellMax <= 6, `resident corridor cell pile-up max ${after.residentCorridorCellMax}`);
   assert.ok(after.residentActiveStuck < 110, `too many active stuck residents: ${after.residentActiveStuck}/${after.residents}`);
   assert.ok(after.residentLongChunked < 30, `too many residents stuck on 1024-cell routine chunks: ${after.residentLongChunked}`);
   assert.ok(after.residentCorridorReversalMax < 800, `resident corridor A-B-A reversal trap max ${after.residentCorridorReversalMax}`);
-  assert.ok(after.residentCorridorReversers < 800, `too many residents reversed in corridor traps: ${after.residentCorridorReversers}`);
+  assert.ok(after.residentCorridorReversers < 500, `too many residents reversed in corridor traps: ${after.residentCorridorReversers}`);
 });

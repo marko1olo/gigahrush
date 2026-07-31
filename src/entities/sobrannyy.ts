@@ -1,6 +1,6 @@
 /* ── Sobrannyy chelovek: composite post-samosbor brute ───────── */
 
-import { MonsterKind } from '../core/types';
+import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
 import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
@@ -13,6 +13,7 @@ export const DEF: MonsterDef = {
   attackRate: 3.1,
   sprite: 0,
   aiFlags: ['meatGrowth'],
+  floors: [FloorLevel.LIVING, FloorLevel.MAINTENANCE, FloorLevel.HELL],
   counterplay: 'Не будите его без выхода: ранний огонь, токсичная слизь и герметичный порог срывают погоню, а частая стрельба раздувает мясо только до ограниченного предела.',
   lootHint: 'обугленная ткань, костяная пуговица, редкий отчет ликвидаторов о составном теле',
 };

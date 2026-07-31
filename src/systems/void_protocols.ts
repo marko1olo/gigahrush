@@ -21,7 +21,6 @@ import { randomRPG, scaleMonsterHp, scaleMonsterSpeed } from './rpg';
 import { publishEvent, registerWorldEventObserver as observeWorldEvents } from './events';
 import { canSpawnEntityType, entitySpawnSlots } from './entity_limits';
 import { isPlayerEntity } from './player_actor';
-import { mathRng, rng } from '../core/rand';
 
 type ProtocolPhase = 'obtained' | 'started' | 'ended' | 'backlash' | 'rejected';
 
@@ -184,7 +183,7 @@ function publishProtocolEvent(
   extraTags: string[] = [],
   extraData: Record<string, unknown> = {},
 ): void {
-  const targetKey = mark?.targetKey ?? `${state.currentZ}:protocol:${def.id}`;
+  const targetKey = mark?.targetKey ?? `${state.currentFloor}:protocol:${def.id}`;
   pushTrace(state, def.id, phase, line, targetKey);
   publishEvent(state, {
     type: protocolEventType(phase),
@@ -254,7 +253,7 @@ function currentTarget(world: World, player: Entity, state: GameState, def: Void
   const room = world.roomAt(player.x, player.y);
   const roomId = room?.id ?? -1;
   const zoneId = world.zoneMap[ci] ?? -1;
-  const targetKey = `${state.currentZ}:${def.scope}:${roomId}:${x}:${y}`;
+  const targetKey = `${state.currentFloor}:${def.scope}:${roomId}:${x}:${y}`;
   return {
     id: nextMarkId++,
     protocolId: def.id,
@@ -382,7 +381,7 @@ function markFromEvent(ctx: { world: World; roomId: number }, state: GameState, 
   const y = ctx.world.wrap(Math.floor(event.y ?? (room ? room.y + (room.h >> 1) : 0)));
   const roomId = room?.id ?? event.roomId ?? ctx.roomId;
   const zoneId = event.zoneId ?? ctx.world.zoneMap[ctx.world.idx(x, y)] ?? -1;
-  const targetKey = `${state.currentZ}:void_rule:${def.id}:${roomId}:${event.containerId ?? 0}`;
+  const targetKey = `${state.currentFloor}:void_rule:${def.id}:${roomId}:${event.containerId ?? 0}`;
   return {
     id: nextMarkId++,
     protocolId: def.id,
@@ -421,7 +420,7 @@ function spawnProtocolMonster(
     type: EntityType.MONSTER,
     x: x + 0.5,
     y: y + 0.5,
-    angle: mathRng() * Math.PI * 2,
+    angle: Math.random() * Math.PI * 2,
     pitch: 0,
     alive: true,
     speed: scaleMonsterSpeed(def.speed, level),
@@ -655,7 +654,7 @@ function resolveBacklash(
       break;
     case 'silence':
       forLocalCells(world, mark, (_x, _y, ci) => {
-        if (world.fog[ci] < 20 && rng() < 0.04) world.fog[ci] = 20;
+        if (world.fog[ci] < 20 && Math.random() < 0.04) world.fog[ci] = 20;
       });
       world.markFogDirty();
       break;
@@ -706,7 +705,7 @@ export function grantVoidProtocol(state: GameState, protocolId: string, source =
   const line = obtainedProtocolLine(def);
   publishProtocolEvent(state, def, 'obtained', line, null, 3, [], { source });
   pushHud(state, line, '#8ff');
-  pushTrace(state, def.id, 'obtained', source, `${state.currentZ}:grant:${source}`);
+  pushTrace(state, def.id, 'obtained', source, `${state.currentFloor}:grant:${source}`);
   return true;
 }
 

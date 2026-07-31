@@ -1,10 +1,9 @@
-import { getPlotNpcNumericId } from '../../data/npc_packages';
 /* -- Пункт сборов вылазки: Living route prep without menu UI ----- */
 
 import { stampSurfaceSplat } from '../../systems/surface_marks';
 import {
   Cell, ContainerKind, DoorState, EntityType, Faction, Feature,
-  Occupation, QuestType, RoomType, Tex,
+  FloorLevel, Occupation, QuestType, RoomType, Tex,
   type ContainerAccess, type Entity, type Room, type WorldContainer,
 } from '../../core/types';
 import { World } from '../../core/world';
@@ -152,7 +151,7 @@ const NPC_DEFS: Record<string, PlotNpcDef> = {
 registerSideQuest(ROUTE_KEEPER_ID, NPC_DEFS[ROUTE_KEEPER_ID], [
   {
     id: 'floor11_prepare_expedition_supplies',
-    giverId: getPlotNpcNumericId(ROUTE_KEEPER_ID)!,
+    giverNpcId: ROUTE_KEEPER_ID,
     type: QuestType.FETCH,
     desc: 'Лида Маршрутная: «Принеси две бутылки воды перед лифтом. Выдам фильтр, маршрут и шесть патронов: вниз не ходят с пустым горлом.»',
     targetItem: 'water',
@@ -169,7 +168,7 @@ registerSideQuest(ROUTE_KEEPER_ID, NPC_DEFS[ROUTE_KEEPER_ID], [
 registerSideQuest(REPAIR_ID, NPC_DEFS[REPAIR_ID], [
   {
     id: 'floor11_hermodoor_repair',
-    giverId: getPlotNpcNumericId(REPAIR_ID)!,
+    giverNpcId: REPAIR_ID,
     type: QuestType.FETCH,
     desc: 'Аня Герма: «Нужен гермоуплотнитель для ближайшего укрытия. Принесешь - отдам комплект двери и тюбик герметика.»',
     targetItem: 'hermo_gasket',
@@ -186,7 +185,7 @@ registerSideQuest(REPAIR_ID, NPC_DEFS[REPAIR_ID], [
 registerSideQuest(LOST_ID, NPC_DEFS[LOST_ID], [
   {
     id: 'floor11_lost_property',
-    giverId: getPlotNpcNumericId(LOST_ID)!,
+    giverNpcId: LOST_ID,
     type: QuestType.FETCH,
     desc: 'Миша Потеряшка: «Принеси бирку от ключа из чужого шкафа. Я верну детскую карту и талон на воду, а вещь перестанет искать хозяина.»',
     targetItem: 'container_key_label',
@@ -203,7 +202,7 @@ registerSideQuest(LOST_ID, NPC_DEFS[LOST_ID], [
 registerSideQuest(WITNESS_ID, NPC_DEFS[WITNESS_ID], [
   {
     id: 'floor11_return_evidence',
-    giverId: getPlotNpcNumericId(WITNESS_ID)!,
+    giverNpcId: WITNESS_ID,
     type: QuestType.FETCH,
     desc: 'Вера Возвратная: «Принеси журнал давления с нижней вылазки. Я повешу его на доску возвратов: фильтр до лифта, вода не из канала.»',
     targetItem: 'pressure_logbook',
@@ -397,7 +396,7 @@ function addPrepContainer(
     id: nextContainerId(world),
     x,
     y,
-    z: 100,
+    floor: FloorLevel.LIVING,
     roomId: room.id,
     zoneId: world.zoneMap[ci],
     kind,
@@ -425,7 +424,7 @@ function spawnNpc(
   angle: number,
   weapon?: string,
 ): Entity {
-  const existing = entities.find(e => e.alive && e.id === getPlotNpcNumericId(plotNpcId)!);
+  const existing = entities.find(e => e.alive && e.plotNpcId === plotNpcId);
   if (existing) return existing;
   const x = world.wrap(room.x + dx);
   const y = world.wrap(room.y + dy);

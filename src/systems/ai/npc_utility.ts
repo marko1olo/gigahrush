@@ -1,4 +1,3 @@
-import { getPlotNpcStringId } from '../../data/npc_packages';
 /* ── NPC utility selector core: deterministic live-intent scoring ─ */
 
 import {
@@ -8,7 +7,6 @@ import {
   Occupation,
   type Room,
   RoomType,
-  type FactionMacroGoal,
 } from "../../core/types";
 import {
   occupationHasProfileTag,
@@ -32,7 +30,6 @@ export const NPC_UTILITY_INTENTS = [
   "heal",
   "social",
   "patrol",
-  "faction_assault",
   "wander",
 ] as const;
 
@@ -50,8 +47,7 @@ export const NPC_UTILITY_INTENT_INDEX = {
   heal: 8,
   social: 9,
   patrol: 10,
-  faction_assault: 11,
-  wander: 12,
+  wander: 11,
 } as const satisfies Record<NpcUtilityIntentId, number>;
 
 export const NPC_UTILITY_INTENT_COUNT = NPC_UTILITY_INTENTS.length;
@@ -118,7 +114,6 @@ export interface NpcUtilityScoreContext {
   role?: NpcUtilityRoleSnapshot;
   local?: Partial<Record<NpcUtilityIntentId, number>>;
   target?: Partial<Record<NpcUtilityIntentId, NpcUtilityTargetPressure>>;
-  factionGoals?: FactionMacroGoal[];
 }
 
 export interface NpcUtilitySelectionOptions {
@@ -183,13 +178,13 @@ export function createNpcUtilityScoreBuffer(): Float32Array {
 }
 
 export function npcUtilityIdentityFromEntity(
-  entity: Pick<Entity, "id" | "alifeId" | "persistentNpcId">,
+  entity: Pick<Entity, "id" | "alifeId" | "persistentNpcId" | "plotNpcId">,
 ): NpcUtilityIdentity {
   return {
     entityId: entity.id,
     alifeId: entity.alifeId,
     persistentNpcId: entity.persistentNpcId,
-    plotNpcId: getPlotNpcStringId(entity.id),
+    plotNpcId: entity.plotNpcId,
   };
 }
 
@@ -542,17 +537,6 @@ function scorePatrol(
   );
 }
 
-function scoreFactionAssault(context: NpcUtilityScoreContext): number {
-  if (!context.factionGoals || !context.identity?.entityId) return 0;
-
-  for (const goal of context.factionGoals) {
-    if (goal.type === 'attack' && goal.members.includes(context.identity.entityId)) {
-      return 50; // High priority, above normal patrol/wander
-    }
-  }
-  return 0;
-}
-
 function scoreWander(
   context: NpcUtilityScoreContext,
   minute: number,
@@ -704,7 +688,6 @@ export function scoreNpcUtilities(
     "wander",
     scoreWander(context, minute, urgentNeed, threatPressure, stickiness),
   );
-  setScore(out, "faction_assault", scoreFactionAssault(context));
 
   addIdentityJitter(out, identity);
   return out;
@@ -848,7 +831,6 @@ export function npcUtilityRoomTypeWeightForIntent(
     case "social":
     case "patrol":
     case "wander":
-    case "faction_assault":
       return 0;
   }
 }

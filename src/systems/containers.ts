@@ -1,5 +1,5 @@
 import {
-  Cell, ContainerKind, EntityType, Faction, Feature, ItemType, RoomType,
+  Cell, ContainerKind, EntityType, Faction, Feature, FloorLevel, ItemType, RoomType,
   type ContainerAccess, type Entity, type GameState, type Item, type Room, type WorldContainer,
 } from '../core/types';
 import { World } from '../core/world';
@@ -22,7 +22,7 @@ import { addFactionRelMutual } from '../data/relations';
 import { changeResourceStock, getEconomyQuote, type EconomyQuote } from './economy';
 import { controlHint } from './controls';
 import { publishEvent } from './events';
-
+import { CHALK_ITEM_ID, createChalkItemData } from './chalk';
 import { generateContainerLoot } from './procedural_loot';
 import { recordPermitAccess } from './permits';
 import { applyRoomMemoryRelationPenalty, applyTheftRelationPenalty } from './factions';
@@ -49,7 +49,6 @@ import {
 } from './shelter_tally';
 import { isPlayerEntity } from './player_actor';
 import { ENTITY_MASK_NPC, ensureEntityIndex } from './entity_index';
-import { itemAddCapacity, addItemMovedCount, consumeInventorySlot } from './inventory';
 
 const THEFT_WITNESS_RADIUS = 7;
 const THEFT_WITNESS_SCAN_CAP = 160;
@@ -200,7 +199,7 @@ export function makeFeatureLootContainer(
   world: World,
   x: number,
   y: number,
-  z: number,
+  floor: FloorLevel,
   feature: Feature,
   level: number,
   seed: number,
@@ -213,7 +212,7 @@ export function makeFeatureLootContainer(
     id,
     x,
     y,
-    z,
+    floor,
     // roomId -1: a transient feature-loot layer that never matches a real room,
     // so it cannot suppress a room's normal container seeding and is pruned on
     // floor transition/samosbor (then lazily recreated). Never saved.
@@ -225,37 +224,37 @@ export function makeFeatureLootContainer(
     capacitySlots: def.capacitySlots,
     access: 'public',
     discovered: true,
-    tags: [...def.tags, FEATURE_LOOT_TAG, 'mesh_hidden'],
+    tags: [...def.tags, FEATURE_LOOT_TAG],
   };
 }
 
-function tallyFloorAllowsStaticSeed(z: number): boolean {
-  return z === 100 || z === 60 || z === 30;
+function tallyFloorAllowsStaticSeed(floor: FloorLevel): boolean {
+  return floor === FloorLevel.LIVING || floor === FloorLevel.KVARTIRY || floor === FloorLevel.MINISTRY;
 }
 
-function hasShelterTallyStaticPath(world: World, z: number): boolean {
+function hasShelterTallyStaticPath(world: World, floor: FloorLevel): boolean {
   for (const container of world.containers) {
-    if (container.z !== z) continue;
+    if (container.floor !== floor) continue;
     if (!container.tags.includes('istotit_tally_source')) continue;
     if (container.inventory.some(item => isShelterTallyItem(item.defId))) return true;
   }
   return false;
 }
 
-function ensureShelterTallyStaticPath(world: World, z: number): void {
-  if (!tallyFloorAllowsStaticSeed(z) || !ITEMS[SHELTER_TALLY_ID]) return;
-  if (hasShelterTallyStaticPath(world, z)) return;
-  const target = world.containers.find(c => c.z === z
-    && c.inventory.length < MAX_INVENTORY_SLOTS
+function ensureShelterTallyStaticPath(world: World, floor: FloorLevel): void {
+  if (!tallyFloorAllowsStaticSeed(floor) || !ITEMS[SHELTER_TALLY_ID]) return;
+  if (hasShelterTallyStaticPath(world, floor)) return;
+  const target = world.containers.find(c => c.floor === floor
+    && c.inventory.length < c.capacitySlots
     && (c.tags.includes('samosbor') || c.tags.includes('paper'))
     && c.access !== 'locked')
-    ?? world.containers.find(c => c.z === z && c.inventory.length < MAX_INVENTORY_SLOTS && c.access !== 'locked');
+    ?? world.containers.find(c => c.floor === floor && c.inventory.length < c.capacitySlots && c.access !== 'locked');
   if (!target) return;
   if (!target.inventory.some(item => isShelterTallyItem(item.defId))) target.inventory.push({ defId: SHELTER_TALLY_ID, count: 1 });
   if (!target.tags.includes('istotit_tally_source')) target.tags.push('istotit_tally_source');
 }
 
-function normalizeContainerInventory(input: unknown): Item[] {
+function normalizeContainerInventory(input: unknown, capacitySlots: number): Item[] {
   if (!Array.isArray(input)) return [];
   const inv: Item[] = [];
   for (const raw of input) {
@@ -271,7 +270,7 @@ function normalizeContainerInventory(input: unknown): Item[] {
       count: Math.min(count, getStack(def)),
       data: item.data,
     });
-    if (inv.length >= MAX_INVENTORY_SLOTS) break;
+    if (inv.length >= capacitySlots) break;
   }
   return inv;
 }
@@ -291,8 +290,8 @@ function validProductionBlockedReason(input: unknown): WorldContainer['productio
     : undefined;
 }
 
-function containerCellValid(world: World, z: number, container: WorldContainer): boolean {
-  if (container.z !== z) return false;
+function containerCellValid(world: World, floor: FloorLevel, container: WorldContainer): boolean {
+  if (container.floor !== floor) return false;
   if (!Number.isFinite(container.x) || !Number.isFinite(container.y)) return false;
   const x = world.wrap(Math.floor(container.x));
   const y = world.wrap(Math.floor(container.y));
@@ -306,7 +305,7 @@ function containerCellValid(world: World, z: number, container: WorldContainer):
 
 function normalizeSavedContainer(
   world: World,
-  z: number,
+  floor: FloorLevel,
   raw: unknown,
   usedIds: Set<number>,
 ): WorldContainer | null {
@@ -323,17 +322,21 @@ function normalizeSavedContainer(
   if (!Number.isFinite(roomId) || !def) return null;
   const x = world.wrap(rawX);
   const y = world.wrap(rawY);
+  const savedCapacity = Math.floor(Number(src.capacitySlots));
+  const capacitySlots = Number.isFinite(savedCapacity) && savedCapacity > 0
+    ? Math.max(1, Math.min(MAX_INVENTORY_SLOTS, savedCapacity))
+    : def.capacitySlots;
   const container: WorldContainer = {
     id,
     x,
     y,
-    z,
+    floor,
     roomId,
     zoneId: world.zoneMap[world.idx(x, y)],
     kind: kind as ContainerKind,
     name: typeof src.name === 'string' ? src.name.slice(0, 96) : def.name,
-    capacitySlots: typeof src.capacitySlots === 'number' ? src.capacitySlots : def.capacitySlots ?? 9,
-    inventory: normalizeContainerInventory(src.inventory),
+    inventory: normalizeContainerInventory(src.inventory, capacitySlots),
+    capacitySlots,
     ownerNpcId: typeof src.ownerNpcId === 'number' ? src.ownerNpcId : undefined,
     ownerName: typeof src.ownerName === 'string' ? src.ownerName.slice(0, 64) : undefined,
     faction: typeof src.faction === 'number' ? src.faction : undefined,
@@ -355,17 +358,17 @@ function normalizeSavedContainer(
       ? src.tags.filter((tag): tag is string => typeof tag === 'string').slice(0, 12)
       : [...def.tags],
   };
-  if (!containerCellValid(world, z, container)) return null;
+  if (!containerCellValid(world, floor, container)) return null;
   usedIds.add(id);
   return container;
 }
 
-export function pruneContainersForWorld(world: World, z: number): number {
+export function pruneContainersForWorld(world: World, floor: FloorLevel): number {
   const usedIds = new Set<number>();
   const kept: WorldContainer[] = [];
   const changedCells: number[] = [];
   for (const container of world.containers) {
-    if (!containerCellValid(world, z, container) || usedIds.has(container.id)) {
+    if (!containerCellValid(world, floor, container) || usedIds.has(container.id)) {
       if (Number.isFinite(container.x) && Number.isFinite(container.y)) {
         changedCells.push(world.idx(container.x, container.y));
       }
@@ -384,11 +387,11 @@ export function pruneContainersForWorld(world: World, z: number): number {
   return removed;
 }
 
-export function pruneVolatileContainersForRebuild(world: World, z: number): number {
+export function pruneVolatileContainersForRebuild(world: World, floor: FloorLevel): number {
   const kept: WorldContainer[] = [];
   const changedCells: number[] = [];
   for (const container of world.containers) {
-    if (container.z === z && Number.isFinite(container.x) && Number.isFinite(container.y)) {
+    if (container.floor === floor && Number.isFinite(container.x) && Number.isFinite(container.y)) {
       const x = world.wrap(Math.floor(container.x));
       const y = world.wrap(Math.floor(container.y));
       const idx = world.idx(x, y);
@@ -408,14 +411,14 @@ export function pruneVolatileContainersForRebuild(world: World, z: number): numb
   return removed;
 }
 
-export function restoreValidContainers(world: World, z: number, saved: unknown, maxContainers = 128): number {
+export function restoreValidContainers(world: World, floor: FloorLevel, saved: unknown, maxContainers = 128): number {
   world.containers = [];
   world.rebuildContainerMap();
   if (!Array.isArray(saved)) return 0;
   const usedIds = new Set<number>();
   for (const raw of saved) {
     if (world.containers.length >= maxContainers) break;
-    const container = normalizeSavedContainer(world, z, raw, usedIds);
+    const container = normalizeSavedContainer(world, floor, raw, usedIds);
     if (!container) continue;
     world.addContainer(container);
   }
@@ -434,10 +437,10 @@ function factionForRoom(world: World, room: Room): Faction | undefined {
   return territoryOwnerToFaction(territoryRoomOwner(world, room.id)) ?? undefined;
 }
 
-export function ensureRoomContainers(world: World, z: number, maxContainers = 128): number {
-  pruneContainersForWorld(world, z);
+export function ensureRoomContainers(world: World, floor: FloorLevel, maxContainers = 128): number {
+  pruneContainersForWorld(world, floor);
   if (world.containers.length >= maxContainers) {
-    ensureShelterTallyStaticPath(world, z);
+    ensureShelterTallyStaticPath(world, floor);
     return 0;
   }
   let created = 0;
@@ -445,7 +448,7 @@ export function ensureRoomContainers(world: World, z: number, maxContainers = 12
   for (const room of world.rooms) {
     if (world.containers.length >= maxContainers) break;
     if (!room || room.type === RoomType.CORRIDOR || room.w < 3 || room.h < 3) continue;
-    if (world.containers.some(c => c.z === z && c.roomId === room.id)) continue;
+    if (world.containers.some(c => c.floor === floor && c.roomId === room.id)) continue;
     const kinds = containerKindsForRoom(room.type);
     const count = room.type === RoomType.STORAGE ? Math.min(3, kinds.length) : room.type === RoomType.PRODUCTION ? 2 : 1;
     for (let n = 0; n < count; n++) {
@@ -458,12 +461,12 @@ export function ensureRoomContainers(world: World, z: number, maxContainers = 12
         id: world.containers.reduce((mx, c) => Math.max(mx, c.id), 0) + 1,
         x: pos.x,
         y: pos.y,
-        z,
+        floor,
         roomId: room.id,
         zoneId: world.zoneMap[world.idx(pos.x, pos.y)],
         kind,
         name: `${def.name}: ${room.name}`,
-        inventory: seedInventory(kind, room.id, z),
+        inventory: seedInventory(kind, room.id, floor),
         capacitySlots: def.capacitySlots,
         faction: factionForRoom(world, room),
         access: accessForRoom(room, kind),
@@ -476,13 +479,13 @@ export function ensureRoomContainers(world: World, z: number, maxContainers = 12
       created++;
     }
   }
-  ensureShelterTallyStaticPath(world, z);
+  ensureShelterTallyStaticPath(world, floor);
   if (changedCells.length > 0) rebuildPathBlockersFromWorldObjects(world, undefined, changedCells);
   return created;
 }
 
 function containerMemory(container: WorldContainer, state?: GameState): RoomMemoryRecord | undefined {
-  if (state && container.z !== state.currentZ) return undefined;
+  if (state && container.floor !== state.currentFloor) return undefined;
   return getRoomMemoryForContainer(container);
 }
 
@@ -642,6 +645,48 @@ export function containerTheftStatus(container: WorldContainer): ContainerTheftS
     detail: `Не хватает ${stolenCount} вид(а) предметов; владелец может заметить.`,
     color: '#f84',
   };
+}
+
+function inventoryFitCount(inv: Item[], defId: string, _capacitySlots: number): number {
+  const def = ITEMS[defId];
+  if (!def) return 0;
+  const maxStack = getStack(def);
+  let free = 0;
+  for (const slot of inv) {
+    if (slot.defId === defId && slot.count < maxStack) free += maxStack - slot.count;
+  }
+  free += Math.max(0, MAX_INVENTORY_SLOTS - inv.length) * maxStack;
+  return free;
+}
+
+function addToInventory(inv: Item[], item: Item, count: number, _capacitySlots: number): number {
+  const def = ITEMS[item.defId];
+  if (!def || count <= 0) return 0;
+  const maxStack = getStack(def);
+  let left = Math.min(count, inventoryFitCount(inv, item.defId, MAX_INVENTORY_SLOTS));
+  const moved = left;
+  for (const slot of inv) {
+    if (left <= 0) break;
+    if (slot.defId !== item.defId || slot.count >= maxStack) continue;
+    const add = Math.min(left, maxStack - slot.count);
+    slot.count += add;
+    left -= add;
+  }
+  while (left > 0 && inv.length < MAX_INVENTORY_SLOTS) {
+    const add = Math.min(left, maxStack);
+    const data = item.data ?? (item.defId === CHALK_ITEM_ID ? createChalkItemData(def.durability ?? 0) : undefined);
+    inv.push({ defId: item.defId, count: add, data });
+    left -= add;
+  }
+  return moved - left;
+}
+
+function removeFromInventorySlot(inv: Item[], slotIdx: number, count: number): boolean {
+  const slot = inv[slotIdx];
+  if (!slot || count <= 0 || slot.count < count) return false;
+  slot.count -= count;
+  if (slot.count <= 0) inv.splice(slotIdx, 1);
+  return true;
 }
 
 function markStolen(container: WorldContainer, item: Item): boolean {
@@ -1005,7 +1050,7 @@ export function tickContainerAudits(
   for (let scanned = 0; scanned < scanCount; scanned++) {
     const container = world.containers[theftAuditCursor];
     theftAuditCursor = (theftAuditCursor + 1) % total;
-    if (!container || container.z !== state.currentZ) continue;
+    if (!container || container.floor !== state.currentFloor) continue;
     if (publishTheftAuditIfDue(container, actor, { state, world, entities })) published++;
   }
   return published;
@@ -1108,7 +1153,7 @@ export function takeFromContainer(
   const access = containerAccessInfo(container, actor, state);
   if (!access.canTake) return false;
   if (!actor.inventory) actor.inventory = [];
-  const take = Math.min(count, slot.count, itemAddCapacity(actor, slot.defId, count, slot.data));
+  const take = Math.min(count, slot.count, inventoryFitCount(actor.inventory, slot.defId, MAX_INVENTORY_SLOTS));
   if (take <= 0) return false;
   const purchase = access.purchase === true;
   const purchaseQuote = purchase ? containerPurchaseQuote(state, container, slot.defId, take) : undefined;
@@ -1116,25 +1161,18 @@ export function takeFromContainer(
   publishTheftAuditIfDue(container, actor, context);
   const defId = slot.defId;
   const itemName = def.name;
-  if (take > slot.count) return false;
-  const originalData = slot.data;
-  consumeInventorySlot(container, slotIdx, take);
-  const moved = addItemMovedCount(actor, defId, take, originalData);
-  if (moved > 0) {
-    if (container.tags.includes(FEATURE_LOOT_TAG)) {
-      container.tags = container.tags.filter(t => t !== FEATURE_LOOT_TAG);
-      container.roomId = context.world ? (context.world.roomMap[context.world.idx(container.x, container.y)] ?? -1) : -1;
-    }
-  }
+  const item: Item = { defId, count: take, data: take === slot.count ? slot.data : undefined };
+  if (!removeFromInventorySlot(container.inventory, slotIdx, take)) return false;
+  const moved = addToInventory(actor.inventory, item, take, MAX_INVENTORY_SLOTS);
   if (moved !== take) {
-    addItemMovedCount(container, defId, take - moved, originalData);
+    addToInventory(container.inventory, item, take - moved, container.capacitySlots);
     return false;
   }
   const unlock = access.unlock ? unlockContainerForActor(container, actor, state) : null;
   if (purchaseQuote) {
     actor.money = (actor.money ?? 0) - purchaseQuote.totalPrice;
     if (state && purchaseQuote.quote?.resourceId) {
-      changeResourceStock(state, purchaseQuote.quote.resourceId, -moved, state.currentZ);
+      changeResourceStock(state, purchaseQuote.quote.resourceId, -moved, state.currentFloor);
     }
   }
   const stolen = access.theft;
@@ -1250,25 +1288,21 @@ export function putIntoContainer(
   if (!access.canPut) return false;
   const defId = source.defId;
   const itemName = def.name;
-  const moved = Math.min(count, source.count, itemAddCapacity(container, source.defId, count, source.data));
+  const moved = Math.min(count, source.count, inventoryFitCount(container.inventory, source.defId, container.capacitySlots));
   if (moved <= 0) return false;
   publishTheftAuditIfDue(container, actor, context);
-  const originalData = source.data;
-  consumeInventorySlot(actor, slotIdx, moved);
-  if (container.tags.includes(FEATURE_LOOT_TAG)) {
-    container.tags = container.tags.filter(t => t !== FEATURE_LOOT_TAG);
-    container.roomId = context.world ? (context.world.roomMap[context.world.idx(container.x, container.y)] ?? -1) : -1;
-  }
-  const added = addItemMovedCount(container, defId, moved, originalData);
+  const item: Item = { defId, count: moved, data: moved === source.count ? source.data : undefined };
+  if (!removeFromInventorySlot(inv, slotIdx, moved)) return false;
+  const added = addToInventory(container.inventory, item, moved, container.capacitySlots);
   if (added !== moved) {
-    addItemMovedCount(actor, defId, moved - added, originalData);
+    addToInventory(inv, item, moved - added, MAX_INVENTORY_SLOTS);
     return false;
   }
   const unlock = access.unlock ? unlockContainerForActor(container, actor, state) : null;
   container.lastOpenedBy = actor.id;
   container.lastOpenedAt = state?.time;
   if (state) {
-    const outcome = containerDepositOutcome(container, { defId, count: moved, data: originalData });
+    const outcome = containerDepositOutcome(container, { defId, count: moved, data: item.data });
     const witnesses = findTheftWitnesses(context.world, context.entities, actor, container);
     const firstWitness = witnesses.witnesses[0];
     const primaryTags = ['cult', 'supply', 'witness', 'kvartiry'].filter(tag => container.tags.includes(tag));
@@ -1330,7 +1364,7 @@ export function putIntoContainer(
 
 export function describeContainer(container: WorldContainer): string {
   const access = container.access === 'public' ? 'общий' : container.access === 'locked' ? 'заперт' : container.access === 'secret' ? 'тайник' : container.access;
-  return `#${container.id} ${container.name} ${container.inventory.length}/${MAX_INVENTORY_SLOTS} ${access}`;
+  return `#${container.id} ${container.name} ${container.inventory.length}/${container.capacitySlots} ${access}`;
 }
 
 export function countContainerItems(world: World): number {

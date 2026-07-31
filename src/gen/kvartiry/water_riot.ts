@@ -1,4 +1,3 @@
-import { getPlotNpcNumericId } from '../../data/npc_packages';
 /* ── Водяной бунт у стояка — Kvartiry scarcity POI ───────────── */
 
 import {
@@ -6,6 +5,7 @@ import {
   ContainerKind,
   Faction,
   Feature,
+  FloorLevel,
   Occupation,
   QuestType,
   RoomType,
@@ -20,47 +20,7 @@ import {
   type WorldEventSeverity,
 } from '../../core/types';
 import { World } from '../../core/world';
-import { type PlotNpcDef, registerSideQuest , registerAuthoredNpc } from '../../data/plot';
-
-const AMBIENT_NPC_0: PlotNpcDef = {
-  name: 'Мать с пустой канистрой',
-  isFemale: true,
-  faction: Faction.CITIZEN,
-  occupation: Occupation.HOUSEWIFE,
-  sprite: Occupation.HOUSEWIFE,
-  hp: 50, maxHp: 50, money: 5, speed: 0.9,
-  inventory: [{ defId: 'water_coupon', count: 1 }],
-talkLines: ['Проходи своей дорогой.', 'Мне не до разговоров.'],
-talkLinesPost: ['...'],
-};
-registerAuthoredNpc({ id: 'kv_ambient_0_arz5m', npc: AMBIENT_NPC_0 });
-
-const AMBIENT_NPC_1: PlotNpcDef = {
-  name: 'Слесарь у сухого вентиля',
-  isFemale: true,
-  faction: Faction.CITIZEN,
-  occupation: Occupation.LOCKSMITH,
-  sprite: Occupation.LOCKSMITH,
-  hp: 50, maxHp: 50, money: 5, speed: 0.9,
-  inventory: [{ defId: 'wrench', count: 1 }],
-talkLines: ['Проходи своей дорогой.', 'Мне не до разговоров.'],
-talkLinesPost: ['...'],
-};
-registerAuthoredNpc({ id: 'kv_ambient_1_q7zog', npc: AMBIENT_NPC_1 });
-
-const AMBIENT_NPC_2: PlotNpcDef = {
-  name: 'Очередник без талона',
-  isFemale: true,
-  faction: Faction.CITIZEN,
-  occupation: Occupation.TRAVELER,
-  sprite: Occupation.TRAVELER,
-  hp: 50, maxHp: 50, money: 5, speed: 0.9,
-  inventory: [{ defId: 'note', count: 1 }],
-talkLines: ['Проходи своей дорогой.', 'Мне не до разговоров.'],
-talkLinesPost: ['...'],
-};
-registerAuthoredNpc({ id: 'kv_ambient_2_c64hj', npc: AMBIENT_NPC_2 });
-
+import { type PlotNpcDef, registerSideQuest } from '../../data/plot';
 import { changeResourceStock } from '../../systems/economy';
 import { getRecentEvents, publishEvent, registerWorldEventObserver } from '../../systems/events';
 import { applyFactionRelationDeltas, type FactionRelationDelta } from '../../systems/factions';
@@ -69,6 +29,7 @@ import {
   placeDropNear,
   roomCell,
   setFeatureIfFloor,
+  spawnAmbientNpc,
   spawnSocialNpc,
   type SocialPoiRoom,
 } from './social_helpers';
@@ -238,14 +199,14 @@ const KOSTYL: PlotNpcDef = {
 
 registerSideQuest('kv_zoya_stoyak', ZOYA, [{
   id: WATER_RIOT_QUEST_IDS.residents,
-  giverId: getPlotNpcNumericId(ZOYA_ID)!,
+  giverNpcId: ZOYA_ID,
   type: QuestType.FETCH,
   desc: 'Зоя у стояка: «Четыре бутылки воды в очередь, пока люди не пошли на ящик ликвидаторов.»',
   targetItem: 'water', targetCount: 4,
   rewardItem: 'water_coupon', rewardCount: 3,
   extraRewards: [{ defId: 'bread', count: 2 }, { defId: 'tea', count: 1 }],
   relationDelta: 8, xpReward: 45, moneyReward: 18,
-  targetFloorZ: 60,
+  targetFloor: FloorLevel.KVARTIRY,
   targetRoomType: RoomType.BATHROOM,
   targetZoneTag: WATER_RIOT_TAG,
   targetHint: 'Квартиры: водораздача у стояка, общая бочка и ведомственный ящик.',
@@ -260,14 +221,14 @@ registerSideQuest('kv_zoya_stoyak', ZOYA, [{
 
 registerSideQuest('kv_sergin_vodouchet', SERGIN, [{
   id: WATER_RIOT_QUEST_IDS.liquidators,
-  giverId: getPlotNpcNumericId(SERGIN_ID)!,
+  giverNpcId: SERGIN_ID,
   type: QuestType.FETCH,
   desc: 'Серыгин Водоучёт: «Шесть водных талонов обратно в ведомость. Без учёта стояк станет фронтом.»',
   targetItem: 'water_coupon', targetCount: 6,
   rewardItem: 'ammo_9mm', rewardCount: 12,
   extraRewards: [{ defId: 'liquidator_token', count: 1 }],
   relationDelta: 8, xpReward: 50, moneyReward: 45,
-  targetFloorZ: 60,
+  targetFloor: FloorLevel.KVARTIRY,
   targetRoomType: RoomType.BATHROOM,
   targetZoneTag: WATER_RIOT_TAG,
   targetHint: 'Квартиры: ведомственный ящик воды и учет Серыгина у стояка.',
@@ -282,14 +243,14 @@ registerSideQuest('kv_sergin_vodouchet', SERGIN, [{
 
 registerSideQuest('kv_kostyl_kanistrovy', KOSTYL, [{
   id: WATER_RIOT_QUEST_IDS.wild,
-  giverId: getPlotNpcNumericId(KOSTYL_ID)!,
+  giverNpcId: KOSTYL_ID,
   type: QuestType.FETCH,
   desc: 'Костыль Канистровый: «Четыре водных талона — и я не разнесу стояк ради одной канистры.»',
   targetItem: 'water_coupon', targetCount: 4,
   rewardItem: 'crowbar', rewardCount: 1,
   extraRewards: [{ defId: 'cigs', count: 3 }, { defId: 'metal_water', count: 2 }],
   relationDelta: 8, xpReward: 45, moneyReward: 12,
-  targetFloorZ: 60,
+  targetFloor: FloorLevel.KVARTIRY,
   targetRoomType: RoomType.BATHROOM,
   targetZoneTag: WATER_RIOT_TAG,
   targetHint: 'Квартиры: мокрая очередь и талоны, которые можно унести диким.',
@@ -324,14 +285,14 @@ const SURVIVALIST: PlotNpcDef = {
 
 registerSideQuest(SURVIVAL_ID, SURVIVALIST, [{
   id: WATER_RIOT_QUEST_IDS.survival,
-  giverId: getPlotNpcNumericId(SURVIVAL_ID)!,
+  giverNpcId: SURVIVAL_ID,
   type: QuestType.FETCH,
   desc: 'Сухой Карман: «Два водных талона в личный запас. Очередь, ликвидатор и дикие пусть ищут виноватых друг у друга.»',
   targetItem: 'water_coupon', targetCount: 2,
   rewardItem: 'filtered_water', rewardCount: 2,
   extraRewards: [{ defId: 'borrowed_kitchen_key', count: 1 }, { defId: 'bandage', count: 1 }],
   relationDelta: 0, xpReward: 35, moneyReward: 0,
-  targetFloorZ: 60,
+  targetFloor: FloorLevel.KVARTIRY,
   targetRoomType: RoomType.BATHROOM,
   targetZoneTag: WATER_RIOT_TAG,
   targetHint: 'Квартиры: сухой перекупщик стоит у водяного бунта и продает личный выход.',
@@ -372,14 +333,14 @@ function publishWaterRiotOutcome(
   outcome: WaterRiotOutcome,
 ): void {
   const resourceChanges: Record<string, number> = {};
-  if (changeResourceStock(state, 'drink_water', outcome.waterDelta, 60)) {
+  if (changeResourceStock(state, 'drink_water', outcome.waterDelta, FloorLevel.KVARTIRY)) {
     resourceChanges.drink_water = outcome.waterDelta;
   }
   const relationDeltas = applyFactionRelationDeltas(outcome.relationDeltas);
 
   publishEvent(state, {
     type: 'faction_relation_changed',
-    z: 60,
+    floor: FloorLevel.KVARTIRY,
     zoneId: event.zoneId,
     roomId: event.roomId,
     actorId: event.actorId,
@@ -447,7 +408,7 @@ function addSupplyContainer(
     id: nextContainerId(world),
     x: pos.x,
     y: pos.y,
-    z: 60,
+    floor: FloorLevel.KVARTIRY,
     roomId: poi.room.id,
     zoneId: world.zoneMap[world.idx(pos.x, pos.y)],
     kind,
@@ -492,9 +453,9 @@ export function generateWaterRiot(
   spawnSocialNpc(entities, nextId, SERGIN, SERGIN_ID, poi.x + poi.w - 4, poi.y + 3, { weapon: 'makarov' });
   spawnSocialNpc(entities, nextId, KOSTYL, KOSTYL_ID, poi.x + 10, poi.y + 6, { weapon: 'crowbar' });
   spawnSocialNpc(entities, nextId, SURVIVALIST, SURVIVAL_ID, poi.x + 12, poi.y + 6);
-  spawnSocialNpc(entities, nextId, AMBIENT_NPC_0, 'kv_ambient_0_arz5m', poi.x + 5, poi.y + 6);
-  spawnSocialNpc(entities, nextId, AMBIENT_NPC_1, 'kv_ambient_1_q7zog', poi.x + 3, poi.y + 3, { weapon: 'wrench' });
-  spawnSocialNpc(entities, nextId, AMBIENT_NPC_2, 'kv_ambient_2_c64hj', poi.x + 7, poi.y + 5);
+  spawnAmbientNpc(entities, nextId, 'Мать с пустой канистрой', Faction.CITIZEN, Occupation.HOUSEWIFE, poi.x + 5, poi.y + 6, [{ defId: 'water_coupon', count: 1 }]);
+  spawnAmbientNpc(entities, nextId, 'Слесарь у сухого вентиля', Faction.CITIZEN, Occupation.LOCKSMITH, poi.x + 3, poi.y + 3, [{ defId: 'wrench', count: 1 }], 'wrench');
+  spawnAmbientNpc(entities, nextId, 'Очередник без талона', Faction.CITIZEN, Occupation.TRAVELER, poi.x + 7, poi.y + 5, [{ defId: 'note', count: 1 }]);
 
   addSupplyContainer(world, poi, poi.w - 3, 2, 'Ведомственный ящик воды', ContainerKind.CASHBOX, 'owner', [
     { defId: 'water', count: 5 },

@@ -1,13 +1,13 @@
-import { MONSTERS, MONSTER_SPRITES } from '../src/entities/monster';
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { AIGoal, Cell, DoorState, EntityType, MonsterKind, ZoneFaction, type Entity, type Msg } from '../src/core/types';
+import { AIGoal, Cell, DoorState, EntityType, FloorLevel, MonsterKind, ZoneFaction, type Entity, type Msg } from '../src/core/types';
 import { World } from '../src/core/world';
 import { getMonsterEcology } from '../src/data/monster_ecology';
 import { RUMORS } from '../src/data/rumors';
 import { SAMOSBOR_AFTERMATH_BEATS } from '../src/data/samosbor_variants';
 import { DEF, generateBlackLiquidatorSprite } from '../src/entities/black_liquidator';
+import { MONSTERS, NEW_MONSTERS_BY_FLOOR } from '../src/entities/monster';
 import { S } from '../src/render/pixutil';
 import { setListenerPos } from '../src/systems/audio';
 import { setEntityMap, updateMonster } from '../src/systems/ai/monster';
@@ -107,6 +107,8 @@ test('black liquidator is standalone aftermath monster content with capped patro
   assert.equal(DEF.kind, MonsterKind.BLACK_LIQUIDATOR);
   assert.equal(MONSTERS[MonsterKind.BLACK_LIQUIDATOR], DEF);
   assert.deepEqual(DEF.aiFlags, ['falsePatrol']);
+  assert.deepEqual(DEF.floors, [FloorLevel.MINISTRY, FloorLevel.KVARTIRY, FloorLevel.LIVING]);
+  assert.equal(NEW_MONSTERS_BY_FLOOR[FloorLevel.LIVING].includes(MonsterKind.BLACK_LIQUIDATOR), true);
   assert.equal((ecology?.spawnWeight ?? 0) > 0 && (ecology?.spawnWeight ?? 1) < 0.2, true);
   assert.equal(ecology?.minSamosborCount, 3);
   assert.equal(ecology?.rare, true);
@@ -131,7 +133,7 @@ test('black liquidator knocks while neutral and reveals on forbidden samples', (
   const threat = blackLiquidator(10.5, 10.5);
   threat.ai!.falsePatrolDoorIdx = doorIdx;
   const entities = [target, threat];
-  const state = makeGameState({ currentZ: 0, worldEvents: createWorldEventState() });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING, worldEvents: createWorldEventState() });
   const msgs: Msg[] = [];
 
   prime(entities);

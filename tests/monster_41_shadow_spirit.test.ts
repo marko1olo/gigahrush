@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { AIGoal, Cell, EntityType, Faction, MonsterKind, type Entity, type Msg } from '../src/core/types';
+import { AIGoal, Cell, EntityType, Faction, FloorLevel, MonsterKind, type Entity, type Msg } from '../src/core/types';
 import { World } from '../src/core/world';
 import { DEF as SHADOW_DEF } from '../src/entities/shadow';
 import { DEF as SPIRIT_DEF } from '../src/entities/spirit';
@@ -60,7 +60,7 @@ test('Shadow dark windup can hit an NPC target and light cancels the strike stat
   const threat = monster(MonsterKind.SHADOW, 8, 10.5, 10.5);
   const entities = [target, threat];
   const msgs: Msg[] = [];
-  const state = makeGameState({ currentZ: 0, worldEvents: createWorldEventState() });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING, worldEvents: createWorldEventState() });
 
   sync(world, entities);
   updateMonster(world, entities, threat, 0.1, 1, msgs, 1, { v: 20 }, state);
@@ -90,7 +90,7 @@ test('Spirit target scan and wall phase movement do not require the player targe
   const target = makeTestNpc({ id: 21, x: 14.5, y: 10.5, hp: 100, maxHp: 100, faction: Faction.CITIZEN });
   const threat = monster(MonsterKind.SPIRIT, 22, 8.5, 10.5);
   const entities = [target, threat];
-  const state = makeGameState({ currentZ: -36, worldEvents: createWorldEventState() });
+  const state = makeGameState({ currentFloor: FloorLevel.VOID, worldEvents: createWorldEventState() });
 
   sync(world, entities);
   updateMonster(world, entities, threat, 0.7, 5, [], 1, { v: 30 }, state);

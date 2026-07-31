@@ -1,8 +1,7 @@
-import { currentFloorRunEntry } from './procedural_floors';
-import { designFloorAtZ } from '../data/design_floors';
 /* ── Bounded short-lived noise records for AI / HUD ───────────── */
 
 import {
+  FloorLevel,
   RoomType,
   W,
   type Entity,
@@ -18,7 +17,6 @@ import { ITEMS } from '../data/catalog';
 import { registerInventoryUseHandler, removeItem, type InventoryUseHandlerContext } from './inventory';
 import { publishEvent, registerWorldEventObserver } from './events';
 import { isPlayerEntity } from './player_actor';
-import { getAcousticDistance } from './ai/pathfinding';
 
 export type NoiseSource =
   | 'weapon_fire'
@@ -34,7 +32,7 @@ export interface NoiseRecord {
   id: number;
   time: number;
   expiresAt: number;
-  z: number;
+  floor: FloorLevel;
   x: number;
   y: number;
   radius: number;
@@ -53,7 +51,7 @@ export interface NoiseRecord {
 export interface NoiseDraft {
   x: number;
   y: number;
-  z?: number;
+  floor?: FloorLevel;
   radius: number;
   ttl: number;
   source: NoiseSource;
@@ -67,7 +65,7 @@ export interface NoiseDraft {
 }
 
 export interface NoiseQuery {
-  z?: number;
+  floor?: FloorLevel;
   minSeverity?: number;
   source?: NoiseSource;
   limit?: number;
@@ -214,7 +212,7 @@ export function publishNoise(state: GameState, draft: NoiseDraft): NoiseRecord |
     id: nextNoiseId++,
     time,
     expiresAt: time + draft.ttl,
-    z: draft.z ?? state.currentZ,
+    floor: draft.floor ?? state.currentFloor,
     x: draft.x,
     y: draft.y,
     radius,
@@ -237,13 +235,13 @@ export function publishNoise(state: GameState, draft: NoiseDraft): NoiseRecord |
 export function getRecentNoiseRecords(state: GameState, query: NoiseQuery = {}, now = state.time): NoiseRecord[] {
   maybeResetForTime(now);
   pruneNoiseRecords(now);
-  const floor = query.z ?? state.currentZ;
+  const floor = query.floor ?? state.currentFloor;
   const minSeverity = query.minSeverity ?? 0;
   const limit = query.limit ?? noiseRecords.length;
   const out: NoiseRecord[] = [];
   for (let i = noiseRecords.length - 1; i >= 0; i--) {
     const record = noiseRecords[i];
-    if (record.z !== floor) continue;
+    if (record.floor !== floor) continue;
     if (record.severity < minSeverity) continue;
     if (query.source !== undefined && record.source !== query.source) continue;
     if (query.sinceId !== undefined && record.id <= query.sinceId) continue;
@@ -375,7 +373,7 @@ function activeMemoryRecord(memory: ActorNoiseMemory, state: GameState, time: nu
   if (memory.hotUntil <= time) return undefined;
   pruneNoiseRecords(time);
   const record = noiseRecords.find(r => r.id === memory.recordId);
-  if (!record || record.expiresAt <= time || record.z !== state.currentZ) return undefined;
+  if (!record || record.expiresAt <= time || record.floor !== state.currentFloor) return undefined;
   return record;
 }
 
@@ -406,14 +404,14 @@ export function findNoiseForActor(
   for (let i = noiseRecords.length - 1; i >= 0 && checked < NOISE_SCAN_LIMIT; i--) {
     const record = noiseRecords[i];
     checked++;
-    if (record.z !== state.currentZ) continue;
+    if (record.floor !== state.currentFloor) continue;
     if (record.severity < minSeverity) continue;
     if (record.actorId === actor.id) continue;
     const effectiveRadius = record.radius * hearingMult;
-    const d = getAcousticDistance(world, actor.x, actor.y, record.x, record.y);
-    if (d > effectiveRadius) continue;
+    const d2 = world.dist2(actor.x, actor.y, record.x, record.y);
+    if (d2 > effectiveRadius * effectiveRadius) continue;
     const age = Math.max(0, time - record.time);
-    const nearness = 1 - d / Math.max(0.1, effectiveRadius);
+    const nearness = 1 - d2 / Math.max(1, effectiveRadius * effectiveRadius);
     const score = record.severity * 10 + nearness * 8 - age * 0.5;
     if (score > bestScore) {
       bestScore = score;
@@ -461,10 +459,10 @@ export function getNoiseHudCue(world: World, state: GameState, player: Entity, t
   let bestScore = -Infinity;
   for (let i = noiseRecords.length - 1; i >= 0; i--) {
     const record = noiseRecords[i];
-    if (record.z !== state.currentZ || record.severity < 2) continue;
+    if (record.floor !== state.currentFloor || record.severity < 2) continue;
     const own = record.actorId === player.id;
-    const d = getAcousticDistance(world, player.x, player.y, record.x, record.y);
-    if (!own && d > record.radius) continue;
+    const d2 = world.dist2(player.x, player.y, record.x, record.y);
+    if (!own && d2 > record.radiusSq) continue;
     const age = Math.max(0, time - record.time);
     if (age > 2.2 && !own) continue;
     const score = record.severity * 12 + (own ? 8 : 0) - age * 3;
@@ -519,8 +517,7 @@ function smokeCandleDraftResult(
   actor: Entity,
 ): { result: string; text: string; severity: WorldEventSeverity } {
   const room = world?.roomAt(actor.x, actor.y);
-  const designFloor = state?.currentZ !== undefined ? designFloorAtZ(state.currentZ) : undefined;
-  const maintenance = designFloor?.themeTags ? designFloor.themeTags.includes("maintenance") : false;
+  const maintenance = state?.currentFloor === FloorLevel.MAINTENANCE;
   if (maintenance && (room?.type === RoomType.CORRIDOR || room?.type === RoomType.PRODUCTION)) {
     return {
       result: 'pulling_draft',
@@ -557,7 +554,7 @@ function publishSmokeCandleCheckEvent(
   const room = world?.roomAt(x, y);
   publishEvent(state, {
     type: 'player_use_item',
-    z: state.currentZ,
+    floor: state.currentFloor,
     zoneId: ctx.zoneId ?? (ci !== undefined ? world?.zoneMap[ci] : undefined),
     roomId: room?.id,
     x,
@@ -576,7 +573,7 @@ function publishSmokeCandleCheckEvent(
       'inventory',
       'smoke',
       'vent_check',
-      currentFloorRunEntry(state).themeTags.includes("maintenance") ? "maintenance" : "off_floor",
+      state.currentFloor === FloorLevel.MAINTENANCE ? 'maintenance' : 'off_floor',
       'counterplay',
     ],
     data: {
@@ -651,7 +648,7 @@ function handleNoiseSourceEvent(state: GameState, event: WorldEvent): void {
     publishNoise(state, {
       x: event.x ?? 0,
       y: event.y ?? 0,
-      z: event.z,
+      floor: event.floor,
       radius: eventType === 'samosbor_started' ? 42 : 30,
       ttl: eventType === 'samosbor_started' ? 6 : 5,
       source: 'siren',
@@ -666,7 +663,7 @@ function handleNoiseSourceEvent(state: GameState, event: WorldEvent): void {
     publishNoise(state, {
       x: event.x ?? 0,
       y: event.y ?? 0,
-      z: event.z,
+      floor: event.floor,
       radius: event.severity >= 4 || event.tags.includes('hermetic') ? 13 : 8,
       ttl: 3,
       source: 'door',
@@ -683,7 +680,7 @@ function handleNoiseSourceEvent(state: GameState, event: WorldEvent): void {
     publishNoise(state, {
       x: event.x ?? 0,
       y: event.y ?? 0,
-      z: event.z,
+      floor: event.floor,
       radius: 14,
       ttl: 4.5,
       source: 'decoy',
@@ -700,7 +697,7 @@ function handleNoiseSourceEvent(state: GameState, event: WorldEvent): void {
     publishNoise(state, {
       x: event.x ?? 0,
       y: event.y ?? 0,
-      z: event.z,
+      floor: event.floor,
       radius: 14,
       ttl: 4,
       source: 'hack_fail',

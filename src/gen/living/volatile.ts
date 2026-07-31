@@ -12,11 +12,17 @@ import {
 import { World } from '../../core/world';
 import { ROOM_DEFS } from '../../data/catalog';
 import { pickPosterTex } from './posters';
-import { pick, shuffle, connectRoomsMST, canPlaceRoom, stampRoom, decorateRoom, placeAbyssPits, connectToNetwork, ensureConnectivity, sanitizeDoors, pruneDeadEnds, placeLifts, repairRoomWalls, shapeRoom, openVolatileDoors, placeAirlocks, ensurePermanentRoomAccess, punchThinWalls } from '../shared';
+import {
+  rng, pick, shuffle,
+  connectRoomsMST, canPlaceRoom, stampRoom,
+  decorateRoom, placeAbyssPits, connectToNetwork,
+  ensureConnectivity, sanitizeDoors, pruneDeadEnds, placeLifts,
+  repairRoomWalls, shapeRoom, openVolatileDoors,
+  placeAirlocks, ensurePermanentRoomAccess, punchThinWalls,
+} from '../shared';
 import { connectApartmentsToMaze } from './apartments';
 import { seedLivingMacroRouteIntent } from './geometry';
 import { maybePlaceBrokenFixture } from '../interactive_fixtures';
-import { rng, irand } from '../../core/rand';
 
 /* ── Generate the volatile gigastructure ─────────────────────── */
 function cleanupOldVolatileRooms(world: World): void {
@@ -81,22 +87,22 @@ function placeArchitecturalRooms(world: World, placed: Room[], connectable: Room
   const archTypes = [RoomType.CORRIDOR, RoomType.CORRIDOR, RoomType.COMMON, RoomType.COMMON, RoomType.COMMON];
   const funcTypes = [RoomType.STORAGE, RoomType.MEDICAL, RoomType.PRODUCTION, RoomType.SMOKING, RoomType.OFFICE];
   for (const [sx, sy] of superCells) {
-    if (rng() > 0.85) continue;
+    if (Math.random() > 0.85) continue;
 
-    const rt = rng() < 0.70 ? pick(archTypes) : pick(funcTypes);
+    const rt = Math.random() < 0.70 ? pick(archTypes) : pick(funcTypes);
     let rw: number, rh: number;
     if (rt === RoomType.COMMON) {
-      rw = irand(8, 16); rh = irand(8, 14);
+      rw = rng(8, 16); rh = rng(8, 14);
     } else if (rt === RoomType.CORRIDOR) {
-      if (rng() < 0.5) { rw = irand(2, 3); rh = irand(10, 24); }
-      else { rw = irand(10, 24); rh = irand(2, 3); }
+      if (Math.random() < 0.5) { rw = rng(2, 3); rh = rng(10, 24); }
+      else { rw = rng(10, 24); rh = rng(2, 3); }
     } else {
       const def = ROOM_DEFS[rt];
-      rw = irand(def.minW, def.maxW);
-      rh = irand(def.minH, def.maxH);
+      rw = rng(def.minW, def.maxW);
+      rh = rng(def.minH, def.maxH);
     }
-    const bx = sx * SCELL + irand(2, Math.max(2, SCELL - rw - 4));
-    const by = sy * SCELL + irand(2, Math.max(2, SCELL - rh - 4));
+    const bx = sx * SCELL + rng(2, Math.max(2, SCELL - rw - 4));
+    const by = sy * SCELL + rng(2, Math.max(2, SCELL - rh - 4));
     if (!canPlaceRoom(world, bx, by, rw, rh)) continue;
     const room = stampRoom(world, nextRoomId++, rt, bx, by, rw, rh, -1);
     placed.push(room);
@@ -114,8 +120,8 @@ function placeDenseFillRooms(world: World, placed: Room[], fillRooms: Room[], ne
   ];
 
   function randFillRoom(): [number, number, RoomType] {
-    const area = Math.exp(2.0 + rng() * 2.8);
-    const logAspect = (rng() - 0.5) * 3.0;
+    const area = Math.exp(2.0 + Math.random() * 2.8);
+    const logAspect = (Math.random() - 0.5) * 3.0;
     const aspect = Math.exp(logAspect);
     let w = Math.round(Math.sqrt(area * aspect));
     let h = Math.round(Math.sqrt(area / aspect));
@@ -132,7 +138,7 @@ function placeDenseFillRooms(world: World, placed: Room[], fillRooms: Room[], ne
     for (let gx = 0; gx < W; gx += 7) {
       for (let attempt = 0; attempt < 3; attempt++) {
         const [rw, rh, rt] = randFillRoom();
-        const ox = gx + irand(0, 4), oy = gy + irand(0, 4);
+        const ox = gx + rng(0, 4), oy = gy + rng(0, 4);
         if (canPlaceRoom(world, ox, oy, rw, rh)) {
           const room = stampRoom(world, nextRoomId++, rt, ox, oy, rw, rh, -1);
           placed.push(room);
@@ -203,8 +209,8 @@ function applyVolatileRoomFeatures(world: World, placed: Room[]): void {
     for (const feat of feats) {
       if (feat === Feature.LAMP) continue;
       for (let tries = 0; tries < 10; tries++) {
-        const fx = room.x + irand(1, Math.max(1, room.w - 2));
-        const fy = room.y + irand(1, Math.max(1, room.h - 2));
+        const fx = room.x + rng(1, Math.max(1, room.w - 2));
+        const fy = room.y + rng(1, Math.max(1, room.h - 2));
         const fi = world.idx(fx, fy);
         if (world.features[fi] === Feature.NONE && world.cells[fi] === Cell.FLOOR) {
           world.features[fi] = feat;
@@ -248,7 +254,7 @@ function applyGlobalTexturesAndCorridors(world: World): void {
   /* ── Corridor lamps ────────────────────────────────── */
   for (let i = 0; i < W * W; i++) {
     if (world.cells[i] === Cell.FLOOR && world.roomMap[i] < 0 && world.features[i] === Feature.NONE) {
-      if (rng() < 0.04) world.features[i] = Feature.LAMP;
+      if (Math.random() < 0.04) world.features[i] = Feature.LAMP;
     }
   }
 
@@ -263,7 +269,7 @@ function applyGlobalTexturesAndCorridors(world: World): void {
       const ni = world.idx(x + dx, y + dy);
       if (world.cells[ni] === Cell.FLOOR && world.roomMap[ni] < 0) { adjCorridor = true; break; }
     }
-    if (adjCorridor && rng() < 0.02) {
+    if (adjCorridor && Math.random() < 0.02) {
       world.wallTex[i] = pickPosterTex(x, y);
     }
   }

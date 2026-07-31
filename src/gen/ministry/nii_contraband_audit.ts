@@ -1,12 +1,12 @@
 /* ── Ревизия НИИ: пробы уходят на рынок ─────────────────────── */
 
-import { getPlotNpcNumericId } from '../../data/npc_packages';
 import {
   Cell,
   ContainerKind,
   DoorState,
   Faction,
   Feature,
+  FloorLevel,
   Occupation,
   QuestType,
   RoomType,
@@ -33,7 +33,7 @@ const QUEST_EXPOSE = 'nii_audit_expose_chain';
 const QUEST_SELL = 'nii_audit_sell_sample';
 const QUEST_CONCEAL = 'nii_audit_conceal_forgery';
 const CONTENT_TAGS = ['nii', 'sample', 'contraband', 'ministry'] as const;
-const HOME_FLOOR_KEY = storyNpcFloorKey(30);
+const HOME_FLOOR_KEY = storyNpcFloorKey(FloorLevel.MINISTRY);
 const INTERN_ID = 'nii_audit_intern_without_clearance';
 
 const RUNNER_DEF: PlotNpcDef = {
@@ -151,10 +151,10 @@ const INTERN_DEF: PlotNpcDef = {
 registerSideQuest('nii_audit_runner', RUNNER_DEF, [
   {
     id: QUEST_FIND_ROOM,
-    giverId: getPlotNpcNumericId('nii_audit_runner')!,
+    giverNpcId: 'nii_audit_runner',
     type: QuestType.VISIT,
     desc: 'Курьер с нулевой накладной: «Найдите ревизионную НИИ {dir}. Там пробирки исчезают только на бумаге.»',
-    targetRoomDefId: ROOM_NAME,
+    targetRoomName: ROOM_NAME,
     rewardItem: 'nii_sample_container', rewardCount: 1,
     relationDelta: 4, xpReward: 30, moneyReward: 20,
   },
@@ -163,7 +163,7 @@ registerSideQuest('nii_audit_runner', RUNNER_DEF, [
 registerSideQuest('nii_auditor_irina', IRINA_DEF, [
   {
     id: QUEST_CONCEAL,
-    giverId: getPlotNpcNumericId('nii_auditor_irina')!,
+    giverNpcId: 'nii_auditor_irina',
     type: QuestType.FETCH,
     desc: 'Ирина Нулевая: «Принесите подложный акт НИИ. Утечка станет ошибкой учёта, а не преступлением.»',
     targetItem: 'nii_forged_audit', targetCount: 1,
@@ -176,7 +176,7 @@ registerSideQuest('nii_auditor_irina', IRINA_DEF, [
 registerSideQuest('nii_liquidator_maxim', MAXIM_DEF, [
   {
     id: QUEST_EXPOSE,
-    giverId: getPlotNpcNumericId('nii_liquidator_maxim')!,
+    giverNpcId: 'nii_liquidator_maxim',
     type: QuestType.FETCH,
     desc: 'Максим Опечаткин: «Ведомость утечки НИИ. С ней я закрою цепочку проб от шкафа до рынка.»',
     targetItem: 'nii_contraband_manifest', targetCount: 1,
@@ -189,7 +189,7 @@ registerSideQuest('nii_liquidator_maxim', MAXIM_DEF, [
 registerSideQuest('nii_market_senya', SENYA_DEF, [
   {
     id: QUEST_SELL,
-    giverId: getPlotNpcNumericId('nii_market_senya')!,
+    giverNpcId: 'nii_market_senya',
     type: QuestType.FETCH,
     desc: 'Сеня Безнакладной: «Серебристую пробу НИИ - мне. Остальное пусть спорит в протоколах.»',
     targetItem: 'slime_sample_silver', targetCount: 1,
@@ -345,7 +345,7 @@ function addAuditContainer(
     id: nextContainerId(world),
     x: wx,
     y: wy,
-    z: 30,
+    floor: FloorLevel.MINISTRY,
     roomId: room.id,
     zoneId: world.zoneMap[ci],
     kind,

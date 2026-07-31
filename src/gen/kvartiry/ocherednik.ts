@@ -1,78 +1,12 @@
 /* ── Очередник: мутировавшая очередь как социальный монстр ───── */
 
-import { getPlotNpcNumericId } from '../../data/npc_packages';
 import {
-  AIGoal, Cell, ContainerKind, EntityType, Faction, Feature, MonsterKind, Occupation, QuestType, RoomType, Tex,
+  AIGoal, Cell, ContainerKind, EntityType, Faction, Feature, FloorLevel,
+  MonsterKind, Occupation, QuestType, RoomType, Tex,
   type Entity, type Item, type WorldContainer,
 } from '../../core/types';
 import { World } from '../../core/world';
-import { type PlotNpcDef, registerSideQuest , registerAuthoredNpc } from '../../data/plot';
-
-const AMBIENT_NPC_0: PlotNpcDef = {
-  name: 'Номер сорок первый',
-  isFemale: true,
-  faction: Faction.CITIZEN,
-  occupation: Occupation.HOUSEWIFE,
-  sprite: Occupation.HOUSEWIFE,
-  hp: 50, maxHp: 50, money: 5, speed: 0.9,
-  inventory: [{ defId: 'bread', count: 1 }],
-talkLines: ['Проходи своей дорогой.', 'Мне не до разговоров.'],
-talkLinesPost: ['...'],
-};
-registerAuthoredNpc({ id: 'kv_ambient_0_8qmll', npc: AMBIENT_NPC_0 });
-
-const AMBIENT_NPC_1: PlotNpcDef = {
-  name: 'Мальчик с пустым бидоном',
-  isFemale: false,
-  faction: Faction.CITIZEN,
-  occupation: Occupation.CHILD,
-  sprite: Occupation.CHILD,
-  hp: 50, maxHp: 50, money: 5, speed: 0.9,
-  inventory: [{ defId: 'water_coupon', count: 1 }],
-talkLines: ['Проходи своей дорогой.', 'Мне не до разговоров.'],
-talkLinesPost: ['...'],
-};
-registerAuthoredNpc({ id: 'kv_ambient_1_glc5f', npc: AMBIENT_NPC_1 });
-
-const AMBIENT_NPC_2: PlotNpcDef = {
-  name: 'Свидетель в ватнике',
-  isFemale: false,
-  faction: Faction.CITIZEN,
-  occupation: Occupation.LOCKSMITH,
-  sprite: Occupation.LOCKSMITH,
-  hp: 50, maxHp: 50, money: 5, speed: 0.9,
-  inventory: [{ defId: 'neighbor_complaint', count: 1 }],
-talkLines: ['Проходи своей дорогой.', 'Мне не до разговоров.'],
-talkLinesPost: ['...'],
-};
-registerAuthoredNpc({ id: 'kv_ambient_2_sdgjz', npc: AMBIENT_NPC_2 });
-
-const AMBIENT_NPC_3: PlotNpcDef = {
-  name: 'Ликвидатор у стены',
-  isFemale: false,
-  faction: Faction.LIQUIDATOR,
-  occupation: Occupation.HUNTER,
-  sprite: Occupation.HUNTER,
-  hp: 50, maxHp: 50, money: 5, speed: 0.9,
-  inventory: [{ defId: 'ammo_9mm', count: 6 }],
-talkLines: ['Проходи своей дорогой.', 'Мне не до разговоров.'],
-talkLinesPost: ['...'],
-};
-registerAuthoredNpc({ id: 'kv_ambient_3_u4qt3', npc: AMBIENT_NPC_3 });
-
-const AMBIENT_NPC_4: PlotNpcDef = {
-  name: 'Бабка без талона',
-  isFemale: true,
-  faction: Faction.CITIZEN,
-  occupation: Occupation.HOUSEWIFE,
-  sprite: Occupation.HOUSEWIFE,
-  hp: 50, maxHp: 50, money: 5, speed: 0.9,
-  inventory: [{ defId: 'tea', count: 1 }],
-talkLines: ['Проходи своей дорогой.', 'Мне не до разговоров.'],
-talkLinesPost: ['...'],
-};
-registerAuthoredNpc({ id: 'kv_ambient_4_hmsud', npc: AMBIENT_NPC_4 });
-
+import { type PlotNpcDef, registerSideQuest } from '../../data/plot';
 import { MONSTERS } from '../../entities/monster';
 import { monsterSpr, Spr } from '../../render/sprite_index';
 import { randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg';
@@ -80,6 +14,7 @@ import {
   createSocialPoiRoom,
   roomCell,
   setFeatureIfFloor,
+  spawnAmbientNpc,
   spawnSocialNpc,
   type SocialPoiRoom,
 } from './social_helpers';
@@ -145,7 +80,7 @@ const YASHA: PlotNpcDef = {
 
 registerSideQuest('kv_ocherednik_lyuba', LYUBA, [{
   id: 'kv_ocherednik_show_coupon',
-  giverId: getPlotNpcNumericId('kv_ocherednik_lyuba')!,
+  giverNpcId: 'kv_ocherednik_lyuba',
   type: QuestType.FETCH,
   desc: 'Люба Номерная: «Покажите талон на воду, и я проведу вас через боковой проход без драки.»',
   targetItem: 'water_coupon', targetCount: 1,
@@ -160,7 +95,7 @@ registerSideQuest('kv_ocherednik_lyuba', LYUBA, [{
 
 registerSideQuest('kv_ocherednik_efim', EFIM, [{
   id: 'kv_ocherednik_expose_leader',
-  giverId: getPlotNpcNumericId('kv_ocherednik_efim')!,
+  giverNpcId: 'kv_ocherednik_efim',
   type: QuestType.FETCH,
   desc: 'Ефим Сверщик: «Найдите поддельную пайковую карточку первого номера. Бумагой его из очереди вынесет сама толпа.»',
   targetItem: 'forged_ration_card', targetCount: 1,
@@ -175,7 +110,7 @@ registerSideQuest('kv_ocherednik_efim', EFIM, [{
 
 registerSideQuest('kv_ocherednik_yasha', YASHA, [{
   id: 'kv_ocherednik_fight_through',
-  giverId: getPlotNpcNumericId('kv_ocherednik_yasha')!,
+  giverNpcId: 'kv_ocherednik_yasha',
   type: QuestType.KILL,
   desc: 'Яша Пролом: «Сбейте первого номера и проход откроется. Только очередь увидит, как именно.»',
   targetMonsterKind: MonsterKind.NELYUD,
@@ -227,7 +162,7 @@ function addQueueContainer(
     id: nextContainerId(world),
     x: pos.x,
     y: pos.y,
-    z: 60,
+    floor: FloorLevel.KVARTIRY,
     roomId: poi.room.id,
     zoneId: world.zoneMap[world.idx(pos.x, pos.y)],
     kind,
@@ -400,11 +335,11 @@ export function generateOcherednik(
   spawnSocialNpc(entities, nextId, EFIM, 'kv_ocherednik_efim', poi.x + 6, poi.y + 2, { weapon: 'wrench' });
   spawnSocialNpc(entities, nextId, YASHA, 'kv_ocherednik_yasha', poi.x + 4, poi.y + poi.h - 3, { weapon: 'pipe' });
 
-  spawnSocialNpc(entities, nextId, AMBIENT_NPC_0, 'kv_ambient_0_8qmll', poi.x + 8, poi.y + 2);
-  spawnSocialNpc(entities, nextId, AMBIENT_NPC_1, 'kv_ambient_1_glc5f', poi.x + 10, poi.y + 2);
-  spawnSocialNpc(entities, nextId, AMBIENT_NPC_2, 'kv_ambient_2_sdgjz', poi.x + 12, poi.y + 2);
-  spawnSocialNpc(entities, nextId, AMBIENT_NPC_3, 'kv_ambient_3_u4qt3', poi.x + 5, poi.y + poi.h - 3, { weapon: 'makarov' });
-  spawnSocialNpc(entities, nextId, AMBIENT_NPC_4, 'kv_ambient_4_hmsud', poi.x + 11, poi.y + poi.h - 3);
+  spawnAmbientNpc(entities, nextId, 'Номер сорок первый', Faction.CITIZEN, Occupation.HOUSEWIFE, poi.x + 8, poi.y + 2, [{ defId: 'bread', count: 1 }]);
+  spawnAmbientNpc(entities, nextId, 'Мальчик с пустым бидоном', Faction.CITIZEN, Occupation.CHILD, poi.x + 10, poi.y + 2, [{ defId: 'water_coupon', count: 1 }]);
+  spawnAmbientNpc(entities, nextId, 'Свидетель в ватнике', Faction.CITIZEN, Occupation.LOCKSMITH, poi.x + 12, poi.y + 2, [{ defId: 'neighbor_complaint', count: 1 }]);
+  spawnAmbientNpc(entities, nextId, 'Ликвидатор у стены', Faction.LIQUIDATOR, Occupation.HUNTER, poi.x + 5, poi.y + poi.h - 3, [{ defId: 'ammo_9mm', count: 6 }], 'makarov');
+  spawnAmbientNpc(entities, nextId, 'Бабка без талона', Faction.CITIZEN, Occupation.HOUSEWIFE, poi.x + 11, poi.y + poi.h - 3, [{ defId: 'tea', count: 1 }]);
 
   seedQueueContainers(world, poi, lyubaId, leaderId);
   seedRationTrail(world, poi, entities, nextId);

@@ -6,6 +6,7 @@ import {
   DoorState,
   EntityType,
   Faction,
+  FloorLevel,
   LiftDirection,
   Occupation,
   RoomType,
@@ -22,7 +23,7 @@ import {
   DESIGN_FLOOR_Z,
   FLOOR_69_RAID_SHUTTER_GATES,
   FLOOR_69_RAID_SHUTTER_KEY,
-} from '../src/gen/floor_69';
+} from '../src/gen/design_floors/floor_69';
 import {
   countTerritoryCells,
   territoryHqAnchors,
@@ -97,7 +98,7 @@ function floorCellCount(gen: Floor69Generation): number {
 test('floor_69 is registered as an authored Maintenance-band route', () => {
   const route = designFloorById(DESIGN_FLOOR_ID);
   assert.equal(route?.z, DESIGN_FLOOR_Z);
-  assert.equal(route?.themeTags?.includes('maintenance'), true);
+  assert.equal(route?.baseFloor, FloorLevel.MAINTENANCE);
   assert.equal(route?.displayName, 'Этаж 69');
   assert.equal(designFloorAtZ(DESIGN_FLOOR_Z)?.id, DESIGN_FLOOR_ID);
 });
@@ -107,8 +108,8 @@ test('floor_69 population profile keeps adult social density bounded', () => {
   assert.ok(route);
   const profile = designFloorPopulationProfile(route);
 
-  assert.ok(profile.npcTarget >= 220 && profile.npcTarget <= 22000, 'npcTarget in bounds');
-  assert.ok(profile.monsterTarget >= 38 && profile.monsterTarget <= 3800, 'monsterTarget in bounds');
+  assert.equal(profile.npcTarget, 2200);
+  assert.equal(profile.monsterTarget, 380);
   assert.equal(profile.npcNoun, 'посетитель');
   assert.equal(profile.npcOccupations.some(item => item.value === Occupation.CHILD), false);
   assert.equal(profile.npcFactions.some(item => item.value === Faction.LIQUIDATOR && item.weight >= 10), true);
@@ -158,9 +159,10 @@ test('floor_69 exposes public, backstage, debt and refuge loops with decision ac
     'f69_doctor_sima',
     'f69_accountant_nil',
   ]) {
-    assert.equal(npcs.some(entity => (entity as any).npcPackageId === npcId), true, npcId);
+    assert.equal(npcs.some(entity => entity.plotNpcId === npcId), true, npcId);
   }
 
+  assert.equal(npcs.some(entity => entity.occupation === Occupation.CHILD), false);
   assert.equal(gen.world.containers.some(container => container.tags.includes('blackmail')), true);
   assert.equal(gen.world.containers.some(container => container.tags.includes('debt') && container.tags.includes('ledger')), true);
   assert.equal(gen.world.containers.some(container => container.tags.includes('raid') && container.tags.includes('choice')), true);

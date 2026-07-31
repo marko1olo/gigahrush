@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { Cell, DoorState, EntityType, MonsterKind, type Entity } from '../src/core/types';
+import { Cell, DoorState, EntityType, FloorLevel, MonsterKind, type Entity } from '../src/core/types';
 import { World } from '../src/core/world';
 import {
   GOLOS_BACK_ROOM_NAME,
@@ -46,7 +46,7 @@ test('Golos Za Dveryu generates one marked sealed threshold with one bounded Nel
 
 test('Golos Za Dveryu quest outcomes publish door-lure rumor events', () => {
   const state = makeGameState({
-    currentZ: 0,
+    currentFloor: FloorLevel.LIVING,
     worldEvents: createWorldEventState(),
   });
 

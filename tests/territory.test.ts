@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
-import { Cell, EntityType, Faction, Occupation, RoomType, Tex, ZoneFaction, type Entity, type Room } from '../src/core/types';
+import { Cell, EntityType, Faction, FloorLevel, Occupation, RoomType, Tex, ZoneFaction, type Entity, type Room } from '../src/core/types';
 import { World } from '../src/core/world';
 import { factionToTerritoryOwner } from '../src/data/factions';
 import { createWorldEventState, getRecentEvents } from '../src/systems/events';
@@ -118,8 +118,7 @@ test('territory helpers paint cells while preserving protected ownership', () =>
 
   const changed = paintRoomTerritory(world, room.id, ZoneFaction.WILD);
 
-  // Derived, not hardcoded: every room cell repainted except the single protected aptMask cell.
-  assert.equal(changed, room.w * room.h - 1, `expected all but the one protected cell painted (room ${room.w}x${room.h})`);
+  assert.equal(changed, 15);
   assert.equal(territoryOwnerAt(world, 20, 20), ZoneFaction.WILD);
   assert.equal(territoryOwnerAt(world, 21, 21), ZoneFaction.CITIZEN);
 
@@ -160,7 +159,7 @@ test('territory capture needs local faction pressure, not one idle traveler', ()
   const world = singleZoneWorld(ZoneFaction.CULTIST);
   world.factionControl.fill(ZoneFaction.CULTIST);
   const state = makeGameState({
-    currentZ: 14,
+    currentFloor: FloorLevel.KVARTIRY,
     time: 10,
     worldEvents: createWorldEventState(),
   });
@@ -186,7 +185,7 @@ test('territory capture does not overwrite samosbor-owned cells', () => {
   world.factionControl.fill(ZoneFaction.CULTIST);
   setTerritoryOwnerAt(world, 64, 64, ZoneFaction.SAMOSBOR);
   const state = makeGameState({
-    currentZ: 14,
+    currentFloor: FloorLevel.KVARTIRY,
     time: 20,
     worldEvents: createWorldEventState(),
   });

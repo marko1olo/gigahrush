@@ -1,6 +1,6 @@
 /* ── Жижевая женщина: rare humanoid toxic slime predator ─────── */
 
-import { MonsterKind } from '../core/types';
+import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
 import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
@@ -13,6 +13,7 @@ export const DEF: MonsterDef = {
   attackRate: 1.55,
   sprite: 0,
   aiFlags: ['slimeStrider'],
+  floors: [FloorLevel.MAINTENANCE, FloorLevel.LIVING],
   counterplay: 'Не деритесь в воде: сухой освещенный бетон, УФ, огонь, чистящий комплект и сухая кромка режут темп жижевой женщины.',
   lootHint: 'редкая проба жижевого тела только в тару НИИ; без тары остается токсичный след',
 };

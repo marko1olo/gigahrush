@@ -7,7 +7,7 @@ import { HUMAN_TERRITORY_OWNERS, factionToTerritoryOwner } from '../src/data/fac
 import { designFloorById } from '../src/data/design_floors';
 import { designFloorPopulationProfile } from '../src/data/design_floor_population';
 import { generateDesignFloor } from '../src/gen/design_floors/manifest';
-import type { ProductionBeltGeneration } from '../src/gen/production_belt';
+import type { ProductionBeltGeneration } from '../src/gen/design_floors/production_belt';
 import { craftStationCells } from '../src/gen/craft_stations';
 import { getCellHazardMoveMultiplier } from '../src/systems/cell_hazards';
 import { getRouteCueMarkers } from '../src/systems/route_cues';

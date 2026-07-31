@@ -4,7 +4,7 @@ import * as assert from 'node:assert/strict';
 import { ItemType } from '../src/core/types';
 import { ITEM_TAGS, ITEMS } from '../src/data/items';
 import { RESOURCE_BY_ID, resourceForItem } from '../src/data/resources';
-import { generateSlimeNiiDesignFloor } from '../src/gen/slime_nii';
+import { generateSlimeNiiDesignFloor } from '../src/gen/design_floors/slime_nii';
 
 const SAMPLEWARE_ID = 'nii_sample_container';
 

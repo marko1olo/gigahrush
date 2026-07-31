@@ -1,11 +1,9 @@
 /* ── Procedural sound engine (Web Audio API) ─────────────────── */
-import { masterAudioEnabled, sfxVolume } from './ui_orchestrator.js';
-import { mathRng } from '../core/rand.js';
 
 let ctx: AudioContext | null = null;
 let mainGain: GainNode | null = null;
 let scopedGain: GainNode | null = null;
-type AudioSuspendReason = 'page' | 'platform' | 'platformMute' | 'title';
+type AudioSuspendReason = 'page' | 'platform';
 const audioSuspendReasons = new Set<AudioSuspendReason>();
 
 export type AudioCueBudgetId =
@@ -28,7 +26,7 @@ export type AudioCueBudgetId =
   | 'break'
   | 'psi_cast'
   | 'flame'
-  | 'hud_bar_change' | 'roach_crunch';
+  | 'hud_bar_change';
 
 export type HudBarAudioId = 'hp' | 'psi' | 'food' | 'water' | 'sleep' | 'toilet' | 'xp';
 
@@ -62,7 +60,7 @@ const AUDIO_BUDGETS: Record<AudioCueBudgetId, AudioBudgetDef> = {
   hostile_ranged: { cooldownSec: 0.055, windowSec: 0.5, maxPerWindow: 8 },
   projectile_impact: { cooldownSec: 0.035, windowSec: 0.35, maxPerWindow: 9 },
   energy_impact: { cooldownSec: 0.045, windowSec: 0.45, maxPerWindow: 7 },
-  flesh_hit: { cooldownSec: 0.05, windowSec: 0.4, maxPerWindow: 6 }, roach_crunch: { cooldownSec: 0.05, windowSec: 0.4, maxPerWindow: 6 },
+  flesh_hit: { cooldownSec: 0.05, windowSec: 0.4, maxPerWindow: 6 },
   break: { cooldownSec: 0.16, windowSec: 1.0, maxPerWindow: 4 },
   psi_cast: { cooldownSec: 0.07, windowSec: 0.5, maxPerWindow: 6 },
   flame: { cooldownSec: 0.04, windowSec: 0.35, maxPerWindow: 8 },
@@ -182,22 +180,16 @@ function ensureContext(): AudioContext {
     if (!Ctor) throw new Error('AudioContext is unavailable');
     ctx = new Ctor();
     mainGain = ctx.createGain();
-    mainGain.gain.value = masterAudioEnabled() ? 0.3 * sfxVolume() : 0;
+    mainGain.gain.value = 0.3;
     mainGain.connect(ctx.destination);
   }
   if (!audioSuspended() && ctx.state === 'suspended') void ctx.resume();
   return ctx;
 }
 
-export function syncAudioSettings(): void {
-  if (mainGain) {
-    mainGain.gain.value = masterAudioEnabled() ? 0.3 * sfxVolume() : 0;
-  }
-}
-
 function gain(): GainNode { return scopedGain ?? mainGain!; }
 
-export function audioSuspended(): boolean {
+function audioSuspended(): boolean {
   return audioSuspendReasons.size > 0;
 }
 
@@ -222,14 +214,6 @@ export function setAudioSuspendedForPlatform(paused: boolean): void {
   setAudioSuspended('platform', paused);
 }
 
-export function setAudioSuspendedForPlatformMute(muted: boolean): void {
-  setAudioSuspended('platformMute', muted);
-}
-
-export function setAudioSuspendedForTitle(title: boolean): void {
-  setAudioSuspended('title', title);
-}
-
 export function resetAudioSuspensionForTests(): void {
   audioSuspendReasons.clear();
   if (!ctx) return;
@@ -249,7 +233,7 @@ export function playFootstep(): void {
   const osc = ac.createOscillator();
   const g = ac.createGain();
   osc.type = 'sine';
-  osc.frequency.value = 60 + mathRng() * 30;
+  osc.frequency.value = 60 + Math.random() * 30;
   g.gain.setValueAtTime(0.15, ac.currentTime);
   g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.12);
   osc.connect(g).connect(gain());
@@ -265,7 +249,7 @@ export function playAttack(): void {
   const d = buf.getChannelData(0);
   for (let i = 0; i < d.length; i++) {
     const t = i / d.length;
-    d[i] = (mathRng() * 2 - 1) * (1 - t) * 0.5;
+    d[i] = (Math.random() * 2 - 1) * (1 - t) * 0.5;
   }
   const src = ac.createBufferSource();
   src.buffer = buf;
@@ -301,7 +285,7 @@ export function playGrowl(): void {
     const t = i / ac.sampleRate;
     const freq = 80 + Math.sin(t * 15) * 30;
     d[i] = Math.sin(t * freq * Math.PI * 2) * 0.4 * (1 - t / len)
-         + (mathRng() * 2 - 1) * 0.1 * (1 - t / len);
+         + (Math.random() * 2 - 1) * 0.1 * (1 - t / len);
   }
   const src = ac.createBufferSource();
   src.buffer = buf;
@@ -560,7 +544,7 @@ export function playRouteCueTone(seed = 0, intensity = 1): void {
   for (let i = 0; i < d.length; i++) {
     const t = i / d.length;
     const gate = Math.sin(t * Math.PI);
-    d[i] = (mathRng() * 2 - 1) * gate * (0.12 + 0.08 * Math.sin(i * 0.021 + seed));
+    d[i] = (Math.random() * 2 - 1) * gate * (0.12 + 0.08 * Math.sin(i * 0.021 + seed));
   }
   const src = ac.createBufferSource();
   src.buffer = buf;
@@ -641,7 +625,7 @@ export function playGunshot(): void {
   for (let i = 0; i < d.length; i++) {
     const t = i / d.length;
     const env = Math.exp(-t * 20);
-    d[i] = ((mathRng() * 2 - 1) * 0.8 + Math.sin(i * 0.05) * 0.3) * env;
+    d[i] = ((Math.random() * 2 - 1) * 0.8 + Math.sin(i * 0.05) * 0.3) * env;
     d[i] = Math.max(-1, Math.min(1, d[i] * 1.5));
   }
   const src = ac.createBufferSource();
@@ -665,7 +649,7 @@ export function playHostileGunshot(): void {
   for (let i = 0; i < d.length; i++) {
     const t = i / d.length;
     const env = Math.exp(-t * 28);
-    d[i] = ((mathRng() * 2 - 1) * 0.7 + Math.sin(i * 0.11) * 0.45) * env;
+    d[i] = ((Math.random() * 2 - 1) * 0.7 + Math.sin(i * 0.11) * 0.45) * env;
     d[i] = Math.max(-1, Math.min(1, d[i] * 1.7));
   }
   const src = ac.createBufferSource();
@@ -690,7 +674,7 @@ export function playShotgun(): void {
   for (let i = 0; i < d.length; i++) {
     const t = i / d.length;
     const env = Math.exp(-t * 12);
-    d[i] = (mathRng() * 2 - 1) * env;
+    d[i] = (Math.random() * 2 - 1) * env;
     d[i] += Math.sin(i * 0.015) * 0.4 * env;
     d[i] = Math.max(-1, Math.min(1, d[i] * 2));
   }
@@ -716,7 +700,7 @@ export function playHostileShotgun(): void {
     const t = i / d.length;
     const env = Math.exp(-t * 15);
     const slap = Math.sin(i * 0.06) * 0.35 + Math.sin(i * 0.023) * 0.28;
-    d[i] = ((mathRng() * 2 - 1) * 0.75 + slap) * env;
+    d[i] = ((Math.random() * 2 - 1) * 0.75 + slap) * env;
     d[i] = Math.max(-1, Math.min(1, d[i] * 1.8));
   }
   const src = ac.createBufferSource();
@@ -738,7 +722,7 @@ export function playNailgun(): void {
   const osc = ac.createOscillator();
   const g = ac.createGain();
   osc.type = 'square';
-  osc.frequency.setValueAtTime(800 + mathRng() * 200, ac.currentTime);
+  osc.frequency.setValueAtTime(800 + Math.random() * 200, ac.currentTime);
   osc.frequency.exponentialRampToValueAtTime(200, ac.currentTime + 0.04);
   g.gain.setValueAtTime(0.15, ac.currentTime);
   g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.06);
@@ -754,7 +738,7 @@ export function playHostileNailgun(): void {
   const osc = ac.createOscillator();
   const g = ac.createGain();
   osc.type = 'square';
-  osc.frequency.setValueAtTime(1150 + mathRng() * 240, now);
+  osc.frequency.setValueAtTime(1150 + Math.random() * 240, now);
   osc.frequency.exponentialRampToValueAtTime(260, now + 0.055);
   g.gain.setValueAtTime(0.13, now);
   g.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
@@ -777,7 +761,7 @@ export function playProjectileImpact(): void {
     const t = i / d.length;
     const env = Math.exp(-t * 42);
     const ping = Math.sin(i * 0.33 + Math.sin(i * 0.017) * 0.9) * 0.38;
-    d[i] = ((mathRng() * 2 - 1) * 0.52 + ping) * env;
+    d[i] = ((Math.random() * 2 - 1) * 0.52 + ping) * env;
   }
   const src = ac.createBufferSource();
   src.buffer = buf;
@@ -804,7 +788,7 @@ export function playEnergyImpact(): void {
     const warp = Math.sin(i * 0.018) * 2.7;
     d[i] = Math.sin(i * 0.16 + warp) * 0.34 * env;
     d[i] += Math.sin(i * 0.047 + warp * 0.4) * 0.18 * env;
-    d[i] += (mathRng() * 2 - 1) * 0.24 * env;
+    d[i] += (Math.random() * 2 - 1) * 0.24 * env;
   }
   const src = ac.createBufferSource();
   src.buffer = buf;
@@ -822,7 +806,7 @@ export function playEnergyImpact(): void {
   const ring = ac.createOscillator();
   const rg = ac.createGain();
   ring.type = 'triangle';
-  ring.frequency.setValueAtTime(620 + mathRng() * 90, now);
+  ring.frequency.setValueAtTime(620 + Math.random() * 90, now);
   ring.frequency.exponentialRampToValueAtTime(180, now + 0.22);
   rg.gain.setValueAtTime(0.06, now + 0.02);
   rg.gain.exponentialRampToValueAtTime(0.001, now + 0.24);
@@ -840,7 +824,7 @@ export function playBreak(): void {
   const d = buf.getChannelData(0);
   for (let i = 0; i < d.length; i++) {
     const t = i / d.length;
-    d[i] = (mathRng() * 2 - 1) * (1 - t) * 0.4;
+    d[i] = (Math.random() * 2 - 1) * (1 - t) * 0.4;
     d[i] += Math.sin(i * 0.02 + Math.sin(i * 0.005) * 3) * 0.3 * (1 - t);
   }
   const src = ac.createBufferSource();
@@ -852,30 +836,6 @@ export function playBreak(): void {
 }
 
 /* ── Fleshy damage hit: wet organic impact ───────────────────── */
-
-export function playRoachCrunch(): void {
-  const ac = beginCue('roach_crunch');
-  if (!ac) return;
-  const len = 0.2;
-  const buf = ac.createBuffer(1, ac.sampleRate * len, ac.sampleRate);
-  const d = buf.getChannelData(0);
-  for (let i = 0; i < d.length; i++) {
-    const t = i / d.length;
-    const env = Math.exp(-t * 15);
-    // high-pitched crackle
-    d[i] = (mathRng() * 2 - 1) * env;
-  }
-  const src = ac.createBufferSource();
-  src.buffer = buf;
-  const g = ac.createGain();
-  g.gain.value = 0.5;
-  const lp = ac.createBiquadFilter();
-  lp.type = 'highpass';
-  lp.frequency.value = 2500;
-  src.connect(lp).connect(g).connect(gain());
-  src.start();
-}
-
 export function playFleshHit(): void {
   const ac = beginCue('flesh_hit');
   if (!ac) return;
@@ -887,7 +847,7 @@ export function playFleshHit(): void {
     const env = Math.exp(-t * 8);
     // Low wet thump + squelchy noise
     d[i] = Math.sin(i * 0.008 + Math.sin(i * 0.003) * 4) * 0.5 * env;
-    d[i] += (mathRng() * 2 - 1) * 0.3 * env * (1 - t);
+    d[i] += (Math.random() * 2 - 1) * 0.3 * env * (1 - t);
     d[i] += Math.sin(i * 0.025) * 0.2 * env; // sub bass
     d[i] = Math.max(-0.8, Math.min(0.8, d[i] * 1.5));
   }
@@ -913,7 +873,7 @@ export function playProjectileBodyHit(): void {
     const t = i / d.length;
     const env = Math.exp(-t * 18);
     d[i] = Math.sin(i * 0.018 + Math.sin(i * 0.004) * 2.4) * 0.28 * env;
-    d[i] += (mathRng() * 2 - 1) * 0.38 * env;
+    d[i] += (Math.random() * 2 - 1) * 0.38 * env;
   }
   const src = ac.createBufferSource();
   src.buffer = buf;
@@ -941,7 +901,7 @@ export function playPsiCast(): void {
     const phase = i * 0.006 * (1 + t * 2);
     d[i] = Math.sin(phase + Math.sin(i * 0.002) * 3) * 0.4 * env;
     d[i] += Math.sin(i * 0.015 + Math.sin(i * 0.008) * 2) * 0.2 * env;
-    d[i] += (mathRng() * 2 - 1) * 0.1 * env * (1 - t);
+    d[i] += (Math.random() * 2 - 1) * 0.1 * env * (1 - t);
     d[i] = Math.max(-0.7, Math.min(0.7, d[i]));
   }
   const src = ac.createBufferSource();
@@ -969,7 +929,7 @@ export function playHostilePsiCast(): void {
     const env = Math.sin(t * Math.PI) * Math.exp(-t * 2.7);
     const sweep = 0.012 + t * 0.012;
     d[i] = Math.sin(i * sweep + Math.sin(i * 0.004) * 3.2) * 0.42 * env;
-    d[i] += (mathRng() * 2 - 1) * 0.16 * env;
+    d[i] += (Math.random() * 2 - 1) * 0.16 * env;
     d[i] = Math.max(-0.8, Math.min(0.8, d[i]));
   }
   const src = ac.createBufferSource();
@@ -997,7 +957,7 @@ export function playHostileEyeShot(): void {
 
   const chirp = ac.createOscillator();
   chirp.type = 'triangle';
-  chirp.frequency.setValueAtTime(980 + mathRng() * 90, now);
+  chirp.frequency.setValueAtTime(980 + Math.random() * 90, now);
   chirp.frequency.exponentialRampToValueAtTime(360, now + 0.18);
   chirp.connect(bus);
   chirp.start(now);
@@ -1016,7 +976,7 @@ export function playHostileParagraphShot(): void {
     const t = i / d.length;
     const env = Math.exp(-t * 12);
     const crackle = Math.sin(i * 0.071) * 0.25 + Math.sin(i * 0.019) * 0.22;
-    d[i] = ((mathRng() * 2 - 1) * 0.34 + crackle) * env;
+    d[i] = ((Math.random() * 2 - 1) * 0.34 + crackle) * env;
   }
   const src = ac.createBufferSource();
   src.buffer = buf;
@@ -1038,7 +998,7 @@ export function playHostileEnergyShot(): void {
   const osc = ac.createOscillator();
   const g = ac.createGain();
   osc.type = 'sawtooth';
-  osc.frequency.setValueAtTime(1850 + mathRng() * 420, now);
+  osc.frequency.setValueAtTime(1850 + Math.random() * 420, now);
   osc.frequency.exponentialRampToValueAtTime(420, now + 0.11);
   g.gain.setValueAtTime(0.12, now);
   g.gain.exponentialRampToValueAtTime(0.001, now + 0.13);
@@ -1115,7 +1075,7 @@ export function playPPSh(): void {
   for (let i = 0; i < d.length; i++) {
     const t = i / d.length;
     const env = Math.exp(-t * 30);
-    d[i] = ((mathRng() * 2 - 1) * 0.6 + Math.sin(i * 0.08) * 0.4) * env;
+    d[i] = ((Math.random() * 2 - 1) * 0.6 + Math.sin(i * 0.08) * 0.4) * env;
   }
   const src = ac.createBufferSource();
   src.buffer = buf;
@@ -1135,7 +1095,7 @@ export function playChainsaw(): void {
   const osc = ac.createOscillator();
   const g = ac.createGain();
   osc.type = 'sawtooth';
-  osc.frequency.setValueAtTime(120 + mathRng() * 40, ac.currentTime);
+  osc.frequency.setValueAtTime(120 + Math.random() * 40, ac.currentTime);
   osc.frequency.linearRampToValueAtTime(80, ac.currentTime + 0.15);
   g.gain.setValueAtTime(0.2, ac.currentTime);
   g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.2);
@@ -1156,7 +1116,7 @@ export function playMachinegun(): void {
   for (let i = 0; i < d.length; i++) {
     const t = i / d.length;
     const env = Math.exp(-t * 25);
-    d[i] = (mathRng() * 2 - 1) * env;
+    d[i] = (Math.random() * 2 - 1) * env;
     d[i] += Math.sin(i * 0.03) * 0.5 * env;
     d[i] = Math.max(-1, Math.min(1, d[i] * 1.8));
   }
@@ -1181,7 +1141,7 @@ export function playExplosion(): void {
   for (let i = 0; i < d.length; i++) {
     const t = i / d.length;
     const env = t < 0.05 ? t / 0.05 : Math.exp(-(t - 0.05) * 5);
-    d[i] = (mathRng() * 2 - 1) * env;
+    d[i] = (Math.random() * 2 - 1) * env;
     d[i] += Math.sin(i * 0.008) * 0.6 * env;
     d[i] += Math.sin(i * 0.003 + Math.sin(i * 0.001) * 3) * 0.4 * env;
     d[i] = Math.max(-1, Math.min(1, d[i] * 2.5));
@@ -1208,7 +1168,7 @@ export function playGauss(): void {
     const t = i / d.length;
     const env = t < 0.02 ? 1 : Math.exp(-(t - 0.02) * 15);
     d[i] = Math.sin(i * 0.1 * (1 + t * 3)) * 0.6 * env;
-    d[i] += (mathRng() * 2 - 1) * 0.3 * env;
+    d[i] += (Math.random() * 2 - 1) * 0.3 * env;
     d[i] = Math.max(-1, Math.min(1, d[i] * 2));
   }
   const src = ac.createBufferSource();
@@ -1229,7 +1189,7 @@ export function playPlasma(): void {
   const osc = ac.createOscillator();
   const g = ac.createGain();
   osc.type = 'sawtooth';
-  osc.frequency.setValueAtTime(2000 + mathRng() * 500, ac.currentTime);
+  osc.frequency.setValueAtTime(2000 + Math.random() * 500, ac.currentTime);
   osc.frequency.exponentialRampToValueAtTime(300, ac.currentTime + 0.1);
   g.gain.setValueAtTime(0.15, ac.currentTime);
   g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.12);
@@ -1249,7 +1209,7 @@ export function playBFG(): void {
     const env = Math.sin(t * Math.PI) * (t < 0.3 ? t / 0.3 : 1);
     d[i] = Math.sin(i * 0.006 + Math.sin(i * 0.002) * 5) * 0.5 * env;
     d[i] += Math.sin(i * 0.015) * 0.3 * env;
-    d[i] += (mathRng() * 2 - 1) * 0.2 * env;
+    d[i] += (Math.random() * 2 - 1) * 0.2 * env;
     d[i] = Math.max(-0.9, Math.min(0.9, d[i] * 1.5));
   }
   const src = ac.createBufferSource();
@@ -1274,8 +1234,8 @@ export function playFlame(): void {
   for (let i = 0; i < d.length; i++) {
     const t = i / d.length;
     const env = 1 - t * 0.5;
-    d[i] = (mathRng() * 2 - 1) * env * 0.4;
-    d[i] += Math.sin(i * 0.02 + mathRng() * 0.5) * 0.3 * env;
+    d[i] = (Math.random() * 2 - 1) * env * 0.4;
+    d[i] += Math.sin(i * 0.02 + Math.random() * 0.5) * 0.3 * env;
   }
   const src = ac.createBufferSource();
   src.buffer = buf;
@@ -1299,8 +1259,8 @@ export function playHostileFlame(): void {
   for (let i = 0; i < d.length; i++) {
     const t = i / d.length;
     const env = Math.exp(-t * 7);
-    d[i] = (mathRng() * 2 - 1) * env * 0.45;
-    d[i] += Math.sin(i * 0.014 + mathRng() * 0.7) * 0.34 * env;
+    d[i] = (Math.random() * 2 - 1) * env * 0.45;
+    d[i] += Math.sin(i * 0.014 + Math.random() * 0.7) * 0.34 * env;
   }
   const src = ac.createBufferSource();
   src.buffer = buf;
@@ -1323,7 +1283,7 @@ export function playFogSharkHiss(): void {
   for (let i = 0; i < d.length; i++) {
     const t = i / d.length;
     const env = Math.sin(t * Math.PI) * (1 - t * 0.25);
-    d[i] = (mathRng() * 2 - 1) * env * 0.32 + Math.sin(i * 0.029) * env * 0.12;
+    d[i] = (Math.random() * 2 - 1) * env * 0.32 + Math.sin(i * 0.029) * env * 0.12;
   }
   const src = ac.createBufferSource();
   src.buffer = buf;
@@ -1345,7 +1305,7 @@ export function playFogSharkBite(): void {
   for (let i = 0; i < d.length; i++) {
     const t = i / d.length;
     const env = Math.exp(-t * 13);
-    d[i] = (mathRng() * 2 - 1) * env * 0.42 + Math.sin(i * 0.18) * env * 0.24;
+    d[i] = (Math.random() * 2 - 1) * env * 0.42 + Math.sin(i * 0.18) * env * 0.24;
   }
   const src = ac.createBufferSource();
   src.buffer = buf;
@@ -1371,7 +1331,7 @@ export function playPsiBeam(): void {
     const env = Math.sin(t * Math.PI);
     d[i] = Math.sin(i * 0.01 + Math.sin(i * 0.004) * 4) * 0.5 * env;
     d[i] += Math.sin(i * 0.025) * 0.2 * env;
-    d[i] += (mathRng() * 2 - 1) * 0.15 * env;
+    d[i] += (Math.random() * 2 - 1) * 0.15 * env;
   }
   const src = ac.createBufferSource();
   src.buffer = buf;

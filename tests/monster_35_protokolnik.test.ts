@@ -1,12 +1,12 @@
-import { MONSTERS, MONSTER_SPRITES } from '../src/entities/monster';
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { AIGoal, Cell, EntityType, MonsterKind, RoomType, type Entity, type Msg } from '../src/core/types';
+import { AIGoal, Cell, EntityType, FloorLevel, MonsterKind, RoomType, type Entity, type Msg } from '../src/core/types';
 import { World } from '../src/core/world';
 import { getMonsterEcology } from '../src/data/monster_ecology';
 import { RUMORS } from '../src/data/rumors';
 import { DEF, generateProtokolnikSprite, generateSprite } from '../src/entities/protokolnik';
+import { MONSTERS, NEW_MONSTERS_BY_FLOOR } from '../src/entities/monster';
 import { createWorldEventState, getRecentEvents } from '../src/systems/events';
 import { setEntityMap } from '../src/systems/ai/monster';
 import {
@@ -73,10 +73,13 @@ test('protokolnik is a standalone ministry monster with normal rumor reachabilit
   assert.equal(DEF.kind, MonsterKind.PROTOKOLNIK);
   assert.equal(DEF.name, 'Протокольник');
   assert.deepEqual(DEF.aiFlags, ['protocolPressure']);
+  assert.deepEqual(DEF.floors, [FloorLevel.MINISTRY]);
+  assert.equal(NEW_MONSTERS_BY_FLOOR[FloorLevel.MINISTRY].includes(MonsterKind.PROTOKOLNIK), true);
 
   const ecology = getMonsterEcology(MonsterKind.PROTOKOLNIK);
   assert.ok(ecology);
   assert.equal(ecology?.rare, true);
+  assert.deepEqual(ecology?.floors, [FloorLevel.MINISTRY]);
   assert.equal(ecology?.rooms.includes(RoomType.STORAGE), true, 'archive/storage POIs should fit the monster');
   assert.equal(ecology?.rumorIds.includes('ecology_protokolnik_protocol'), true);
   assert.equal(RUMORS.some(rumor => rumor.id === 'ecology_protokolnik_protocol'), true);
@@ -139,7 +142,7 @@ test('protocol pressure grows from carried documents, caps, and eases after pape
   const target = player(22.5, 10.5, true);
   const threat = protokolnik(10.5, 10.5);
   const msgs: Msg[] = [];
-  const state = makeGameState({ currentZ: 34, worldEvents: createWorldEventState() });
+  const state = makeGameState({ currentFloor: FloorLevel.MINISTRY, worldEvents: createWorldEventState() });
   syncEntities([target, threat]);
 
   const documentPressure = protokolnikDocumentPressure(target);
@@ -165,7 +168,7 @@ test('breaking protocol line publishes a protokolnik escape event', () => {
   const target = player(20.5, 10.5, true);
   const threat = protokolnik(10.5, 10.5);
   const msgs: Msg[] = [];
-  const state = makeGameState({ currentZ: 34, worldEvents: createWorldEventState() });
+  const state = makeGameState({ currentFloor: FloorLevel.MINISTRY, worldEvents: createWorldEventState() });
   syncEntities([target, threat]);
 
   updateProtokolnikProtocolPressure(world, threat, target, 5, 5, msgs, target.id, state);

@@ -6,6 +6,7 @@ import {
   Cell,
   EntityType,
   Faction,
+  FloorLevel,
   MonsterKind,
   ProjType,
   type Entity,
@@ -95,6 +96,7 @@ test('swarm is standalone source-swarm data with noisy mass sprite', () => {
   assert.equal(DEF.kind, MonsterKind.SWARM);
   assert.equal(DEF.name, 'Рой');
   assert.deepEqual(DEF.aiFlags, ['sourceSwarm', 'foodBait']);
+  assert.deepEqual(DEF.floors, [FloorLevel.MAINTENANCE, FloorLevel.HELL]);
   assert.equal(MONSTERS[MonsterKind.SWARM], DEF);
   assert.match(ecology?.rule ?? '', /источник|cooldown|тел/);
   assert.equal(sprite.length, S * S);
@@ -108,8 +110,8 @@ test('swarm source respects cooldown, source cap, and body ttl cleanup', () => {
   const target = player(12, 10);
   const queen = source(2, 10.5, 10.5);
   const entities = [target, queen];
-  const state = makeGameState({ currentZ: -14, worldEvents: createWorldEventState(), time: 1 });
-  const nextId = { v: getPlotNpcCount() + 3 }
+  const state = makeGameState({ currentFloor: FloorLevel.MAINTENANCE, worldEvents: createWorldEventState(), time: 1 });
+  const nextId = { v: 3 };
 
   registerSwarmNestSource(world, {
     id: 'test_swarm_cap',
@@ -150,9 +152,9 @@ test('duct tape or sealant resolves the source without killing every body', () =
   const target = player(10, 10, [{ defId: 'duct_tape', count: 1 }]);
   const queen = source(2, 10.8, 10.5);
   const entities = [target, queen];
-  const state = makeGameState({ currentZ: -14, worldEvents: createWorldEventState(), time: 2 });
+  const state = makeGameState({ currentFloor: FloorLevel.MAINTENANCE, worldEvents: createWorldEventState(), time: 2 });
   const msgs: Msg[] = [];
-  const nextId = { v: getPlotNpcCount() + 3 }
+  const nextId = { v: 3 };
 
   registerSwarmNestSource(world, {
     id: 'test_swarm_seal',
@@ -185,7 +187,7 @@ test('fire kills bodies outright and burns source records', () => {
   const actor = player(9, 10);
   const queen = source(2, 10.5, 10.5);
   const entities = [actor, queen];
-  const state = makeGameState({ currentZ: -14, worldEvents: createWorldEventState(), time: 3 });
+  const state = makeGameState({ currentFloor: FloorLevel.MAINTENANCE, worldEvents: createWorldEventState(), time: 3 });
   const flame: Entity = {
     id: 99,
     type: EntityType.PROJECTILE,
@@ -222,7 +224,7 @@ test('fire kills bodies outright and burns source records', () => {
 test('maintenance swarm nest generator registers a reachable source marker', () => {
   const world = openWorld();
   const entities: Entity[] = [];
-  const nextId = { v: getPlotNpcCount() + 1 }
+  const nextId = { v: 1 };
 
   generateSwarmNest({ world, entities, nextId, spawnX: 16, spawnY: 16 });
 

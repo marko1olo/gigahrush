@@ -1,13 +1,12 @@
-import { getPlotNpcNumericId } from '../../data/npc_packages';
 /* ── AG83 cult-held workshop: repair, bargain, clear, sabotage ── */
 
 import { stampSurfaceSplat } from '../../systems/surface_marks';
-import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
 import {
   Cell,
   ContainerKind,
   Faction,
   Feature,
+  FloorLevel,
   MonsterKind,
   Occupation,
   QuestType,
@@ -20,40 +19,13 @@ import {
   type WorldContainer,
   type WorldEvent,
 } from '../../core/types';
-import { type PlotNpcDef, registerSideQuest , registerAuthoredNpc } from '../../data/plot';
-
-const AMBIENT_NPC_0: PlotNpcDef = {
-  name: 'Черноременный у ремня',
-  isFemale: true,
-  faction: Faction.CULTIST,
-  occupation: Occupation.PILGRIM,
-  sprite: Occupation.PILGRIM,
-  hp: 50, maxHp: 50, money: 5, speed: 0.9,
-  inventory: [{ defId: 'pipe', count: 1 }, { defId: 'grey_briquette', count: 1 }],
-  talkLines: ['...'],
-  talkLinesPost: ['...']
-};
-registerAuthoredNpc({ id: 'maintenance_ambient_0_2eabf', npc: AMBIENT_NPC_0 });
-
-const AMBIENT_NPC_1: PlotNpcDef = {
-  name: 'Сторож готовой партии',
-  isFemale: true,
-  faction: Faction.CULTIST,
-  occupation: Occupation.HUNTER,
-  sprite: Occupation.HUNTER,
-  hp: 50, maxHp: 50, money: 5, speed: 0.9,
-  inventory: [{ defId: 'wrench', count: 1 }, { defId: 'green_briquette', count: 1 }],
-  talkLines: ['...'],
-  talkLinesPost: ['...']
-};
-registerAuthoredNpc({ id: 'maintenance_ambient_1_inaj0', npc: AMBIENT_NPC_1 });
-
+import { type PlotNpcDef, registerSideQuest } from '../../data/plot';
 import { changeResourceStock } from '../../systems/economy';
 import { publishEvent, registerWorldEventObserver } from '../../systems/events';
 import { placeDoor } from '../shared';
 import {
   type MaintContentCtx, dropItems, findMaintArea, setFeature, setWater,
-  spawnMonstersNear, spawnPlotNpc, stampMaintRoom,
+  spawnAmbientNpc, spawnMonstersNear, spawnPlotNpc, stampMaintRoom,
 } from './content_helpers';
 
 const AG83_TAG = 'ag83_cult_workshop';
@@ -148,7 +120,7 @@ const SABOTEUR_DEF: PlotNpcDef = {
 registerSideQuest(MECHANIC_ID, MECHANIC_DEF, [
   {
     id: REPAIR_QUEST,
-    giverId: getPlotNpcNumericId(MECHANIC_ID)!,
+    giverNpcId: MECHANIC_ID,
     type: QuestType.FETCH,
     desc: 'Клава Реверс: «Две шестерни в подачу. Запустим станок как цех, а не как кормушку черноременных.»',
     targetItem: 'gear',
@@ -162,10 +134,10 @@ registerSideQuest(MECHANIC_ID, MECHANIC_DEF, [
   },
   {
     id: CAPTURE_QUEST,
-    giverId: getPlotNpcNumericId(MECHANIC_ID)!,
+    giverNpcId: MECHANIC_ID,
     type: QuestType.KILL,
     desc: 'Клава Реверс: «Омилян держит выходной ящик и людей. Убери его - смена заберет станок обратно.»',
-    targetNpcId: getPlotNpcNumericId(FOREMAN_ID)!,
+    targetPlotNpcId: FOREMAN_ID,
     killNeeded: 1,
     rewardItem: 'pump_passport',
     rewardCount: 1,
@@ -179,7 +151,7 @@ registerSideQuest(MECHANIC_ID, MECHANIC_DEF, [
 registerSideQuest(FOREMAN_ID, FOREMAN_DEF, [
   {
     id: TRIBUTE_QUEST,
-    giverId: getPlotNpcNumericId(FOREMAN_ID)!,
+    giverNpcId: FOREMAN_ID,
     type: QuestType.FETCH,
     desc: 'Омилян Черноремень: «Три серых брикета как сбор за станок. Получишь дверной комплект и проход без очереди к ремню.»',
     targetItem: 'grey_briquette',
@@ -196,7 +168,7 @@ registerSideQuest(FOREMAN_ID, FOREMAN_DEF, [
 registerSideQuest(SABOTEUR_ID, SABOTEUR_DEF, [
   {
     id: SABOTAGE_QUEST,
-    giverId: getPlotNpcNumericId(SABOTEUR_ID)!,
+    giverNpcId: SABOTEUR_ID,
     type: QuestType.FETCH,
     desc: 'Петя Нулевая Фаза: «Два предохранителя в обратную цепь. Станок встанет, охрана останется у пустого ремня.»',
     targetItem: 'fuse',
@@ -323,7 +295,7 @@ function handleCultWorkshopEvents(state: GameState, event: WorldEvent): void {
   if (event.type !== 'item_stolen' || !event.tags.includes(AG83_TAG)) return;
   publishEvent(state, {
     type: 'container_looted',
-    z: event.z,
+    floor: event.floor,
     zoneId: event.zoneId,
     roomId: event.roomId,
     x: event.x,
@@ -359,12 +331,12 @@ function publishQuestOutcome(
 ): void {
   const resourceChanges: Record<string, number> = {};
   for (const [resourceId, delta] of outcome.resourceDeltas) {
-    if (changeResourceStock(state, resourceId, delta, 140)) resourceChanges[resourceId] = delta;
+    if (changeResourceStock(state, resourceId, delta, FloorLevel.MAINTENANCE)) resourceChanges[resourceId] = delta;
   }
 
   publishEvent(state, {
     type: outcome.type,
-    z: 140,
+    floor: FloorLevel.MAINTENANCE,
     actorId: event.actorId,
     actorName: event.actorName,
     actorFaction: event.actorFaction,
@@ -379,7 +351,7 @@ function publishQuestOutcome(
     data: {
       sideQuestId,
       sourceEventId: event.id,
-      roomDefId: WORKSHOP_ROOM,
+      roomName: WORKSHOP_ROOM,
       factoryId: 'metal_shop',
       blockedReason: outcome.kind === 'sabotaged' ? 'sabotage' : undefined,
       resourceChanges,
@@ -462,13 +434,28 @@ function spawnWorkshopNpcs(ctx: MaintContentCtx, post: Room, shop: Room, output:
   spawnPlotNpc(ctx, SABOTEUR_ID, SABOTEUR_DEF, shop.x + shop.w - 4, shop.y + shop.h - 3, Math.PI, { weapon: 'wrench' });
   const foremanId = ctx.nextId.v;
   spawnPlotNpc(ctx, FOREMAN_ID, FOREMAN_DEF, post.x + 4, post.y + 4, Math.PI / 2, { weapon: 'knife' });
-  requireSpawnedPlotNpcFromPackage(ctx.entities, ctx.nextId, 'maintenance_ambient_0_2eabf', shop.x + 11 + 0.5, shop.y + 5 + 0.5, { angle: 0});
-  requireSpawnedPlotNpcFromPackage(ctx.entities, ctx.nextId, 'maintenance_ambient_1_inaj0', output.x + 4 + 0.5, output.y + 4 + 0.5, { angle: 0});
+  spawnAmbientNpc(
+    ctx,
+    'Черноременный у ремня',
+    Faction.CULTIST,
+    Occupation.PILGRIM,
+    shop.x + 11,
+    shop.y + 5,
+    [{ defId: 'pipe', count: 1 }, { defId: 'grey_briquette', count: 1 }],
+  );
+  spawnAmbientNpc(
+    ctx,
+    'Сторож готовой партии',
+    Faction.CULTIST,
+    Occupation.HUNTER,
+    output.x + 4,
+    output.y + 4,
+    [{ defId: 'wrench', count: 1 }, { defId: 'green_briquette', count: 1 }],
+  );
   return foremanId;
 }
 
 function addWorkshopContainers(ctx: MaintContentCtx, shop: Room, output: Room, ownerNpcId: number): void {
-  // @ts-ignore
   addContainer(ctx, shop, shop.x + 7, shop.y + shop.h - 3, {
     kind: ContainerKind.TOOL_LOCKER,
     name: 'Выходной бункер станка под надзором',
@@ -488,7 +475,6 @@ function addWorkshopContainers(ctx: MaintContentCtx, shop: Room, output: Room, o
     factoryId: 'metal_shop',
     tags: ['tools', 'faction', 'production_output', 'metal_shop', AG83_TAG, 'cult_access'],
   });
-  // @ts-ignore
   addContainer(ctx, output, output.x + output.w - 3, output.y + 2, {
     kind: ContainerKind.TOOL_LOCKER,
     name: 'Культовый выходной ящик станка',
@@ -530,8 +516,7 @@ function addContainer(
     id: nextContainerId(ctx),
     x: wx,
     y: wy,
-    // @ts-ignore
-    z: 140,
+    floor: FloorLevel.MAINTENANCE,
     roomId: room.id,
     zoneId: ctx.world.zoneMap[ci],
     ...container,

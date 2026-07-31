@@ -1,13 +1,13 @@
-import { MONSTERS, MONSTER_SPRITES } from '../src/entities/monster';
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 
-import { AIGoal, Cell, DoorState, EntityType, MonsterKind, RoomType, type Entity, type Msg } from '../src/core/types';
+import { AIGoal, Cell, DoorState, EntityType, FloorLevel, MonsterKind, RoomType, type Entity, type Msg } from '../src/core/types';
 import { World } from '../src/core/world';
 import { getMonsterEcology } from '../src/data/monster_ecology';
 import { RUMORS } from '../src/data/rumors';
 import { DEF, generateSprite } from '../src/entities/bezekhiy';
+import { MONSTERS, NEW_MONSTERS_BY_FLOOR } from '../src/entities/monster';
 import { S } from '../src/render/pixutil';
 import { setListenerPos } from '../src/systems/audio';
 import { rebuildEntityIndex } from '../src/systems/entity_index';
@@ -88,9 +88,13 @@ test('Bezekhiy is standalone door-threshold content, not silent_polzun', () => {
   assert.equal(DEF.kind, MonsterKind.BEZEKHIY);
   assert.equal(MONSTERS[MonsterKind.BEZEKHIY], DEF);
   assert.deepEqual(DEF.aiFlags, ['deadEcho']);
+  assert.deepEqual(DEF.floors, [FloorLevel.LIVING, FloorLevel.KVARTIRY, FloorLevel.MINISTRY]);
   assert.equal(DEF.hp < MONSTERS[MonsterKind.POLZUN].hp, true);
   assert.equal(DEF.dmg <= MONSTERS[MonsterKind.POLZUN].dmg, true);
   assert.match(DEF.counterplay ?? '', /косяк|двер|порог|спин/);
+  assert.equal(NEW_MONSTERS_BY_FLOOR[FloorLevel.LIVING]?.includes(MonsterKind.BEZEKHIY), true);
+  assert.equal(NEW_MONSTERS_BY_FLOOR[FloorLevel.KVARTIRY]?.includes(MonsterKind.BEZEKHIY), true);
+  assert.equal(NEW_MONSTERS_BY_FLOOR[FloorLevel.MINISTRY]?.includes(MonsterKind.BEZEKHIY), true);
   assert.equal(ecology?.rooms.includes(RoomType.CORRIDOR), true);
   assert.equal(ecology?.rumorIds.includes('monster_bezekhiy_dead_echo'), true);
   assert.equal(RUMORS.some(rumor => rumor.id === ['variant', 'silent', 'polzun'].join('_')), false);

@@ -1,14 +1,13 @@
-import { MONSTERS, MONSTER_SPRITES } from '../src/entities/monster';
 import { test } from 'node:test';
-import { getPlotNpcCount } from '../src/data/npc_packages';
 import * as assert from 'node:assert/strict';
 
-import { AIGoal, Cell, EntityType, Faction, MonsterKind, RoomType, type Entity, type Msg } from '../src/core/types';
+import { AIGoal, Cell, EntityType, Faction, FloorLevel, MonsterKind, RoomType, type Entity, type Msg } from '../src/core/types';
 import { World } from '../src/core/world';
 import { CONTRACTS } from '../src/data/contracts';
 import { getMonsterEcology } from '../src/data/monster_ecology';
 import { RUMORS } from '../src/data/rumors';
 import { DEF, generateSprite } from '../src/entities/slimevik';
+import { MONSTERS, NEW_MONSTERS_BY_FLOOR } from '../src/entities/monster';
 import { S } from '../src/render/pixutil';
 import { rebuildEntityIndex } from '../src/systems/entity_index';
 import { getRecentEvents, publishEvent } from '../src/systems/events';
@@ -60,6 +59,8 @@ test('Slimevik is standalone neutral scavenger content with route leads', () => 
   assert.equal(DEF.kind, MonsterKind.SLIMEVIK);
   assert.equal(MONSTERS[MonsterKind.SLIMEVIK], DEF);
   assert.deepEqual(DEF.aiFlags, ['slimeScavenger']);
+  assert.deepEqual(DEF.floors, [FloorLevel.LIVING, FloorLevel.MAINTENANCE]);
+  assert.equal(NEW_MONSTERS_BY_FLOOR[FloorLevel.MAINTENANCE]?.includes(MonsterKind.SLIMEVIK), true);
   assert.deepEqual(ecology?.rumorIds, ['monster_slimevik_bargain', 'lead_maintenance_safe_slimevik']);
   assert.equal(RUMORS.some(r => r.id === 'lead_maintenance_safe_slimevik'), true);
   assert.equal(CONTRACTS.some(c => c.id === 'exp_maint_safe_slimevik_bargain'), true);
@@ -69,7 +70,7 @@ test('Slimevik is standalone neutral scavenger content with route leads', () => 
 
 test('Slimevik stays neutral but close contact drains bounded water and PSI', () => {
   const world = openSlimeRoom();
-  const state = makeGameState({ time: 12, currentZ: -14 });
+  const state = makeGameState({ time: 12, currentFloor: FloorLevel.MAINTENANCE });
   const player = makeTestPlayer({
     id: 1,
     x: 10.8,
@@ -95,7 +96,7 @@ test('Slimevik stays neutral but close contact drains bounded water and PSI', ()
 
 test('Slimevik barter consumes food or medicine and marks a sample', () => {
   const world = openSlimeRoom();
-  const state = makeGameState({ time: 18, currentZ: -14 });
+  const state = makeGameState({ time: 18, currentFloor: FloorLevel.MAINTENANCE });
   const player = makeTestPlayer({
     id: 1,
     x: 10.5,
@@ -105,7 +106,7 @@ test('Slimevik barter consumes food or medicine and marks a sample', () => {
   });
   const target = slimevik();
   const entities = [player, target];
-  const nextId = { v: getPlotNpcCount() + 3 }
+  const nextId = { v: 3 };
 
   rebuildEntityIndex(entities);
   assert.equal(tryUseSlimevikInteraction(world, player, state, entities, nextId), true);
@@ -119,7 +120,7 @@ test('Slimevik barter consumes food or medicine and marks a sample', () => {
 
 test('Hurt Slimevik flees from nearby actors through bounded broadphase', () => {
   const world = openSlimeRoom();
-  const state = makeGameState({ time: 21, currentZ: -14 });
+  const state = makeGameState({ time: 21, currentFloor: FloorLevel.MAINTENANCE });
   const player = makeTestPlayer({ id: 1, x: 80, y: 80 });
   const neighbor = makeTestNpc({ id: 3, x: 12.8, y: 10.5, faction: Faction.CITIZEN });
   const threat = slimevik({ id: 2, hp: DEF.hp - 4 });
@@ -135,7 +136,7 @@ test('Hurt Slimevik flees from nearby actors through bounded broadphase', () => 
 });
 
 test('Slimevik kill events publish the standalone slimevik_killed fact', () => {
-  const state = makeGameState({ time: 24, currentZ: -14 });
+  const state = makeGameState({ time: 24, currentFloor: FloorLevel.MAINTENANCE });
 
   publishEvent(state, {
     type: 'player_kill_monster',

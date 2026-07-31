@@ -1,4 +1,3 @@
-import { JOYSTICK_CONFIG, triggerHapticFeedback } from './input';
 import { type InputState } from './core/types';
 import {
   type BooleanInputKey,
@@ -364,39 +363,17 @@ class MobileControlsImpl implements MobileControls {
     const dx = e.clientX - (rect.left + rect.width * 0.5);
     const dy = e.clientY - (rect.top + rect.height * 0.5);
     const len = Math.hypot(dx, dy);
-
-    // Apply Deadzone
-    const deadZone = JOYSTICK_CONFIG.deadZoneRadius;
-    if (len < deadZone) {
-      thumb.style.transform = `translate(0%, 0%)`;
-      if (kind === 'move') {
-        this.input.touch.moveX = 0;
-        this.input.touch.moveY = 0;
-        this.moveActive = false;
-      } else {
-        this.input.touch.lookX = 0;
-        this.input.touch.lookY = 0;
-        this.lookActive = false;
-      }
-      this.updateTouchActive();
-      return;
-    }
-
     const scale = len > radius ? radius / len : 1;
     const nx = (dx * scale) / radius;
     const ny = (dy * scale) / radius;
     thumb.style.transform = `translate(${nx * 34}%, ${ny * 34}%)`;
-
-    // Apply Touch Move Threshold (Sensitivity scaling could be applied here but keeping it simple based on threshold logic)
-    const activeThreshold = JOYSTICK_CONFIG.touchMoveThreshold / radius; // normalized
-
     if (kind === 'move') {
-      this.input.touch.moveX = Math.abs(nx) > activeThreshold ? nx : 0;
-      this.input.touch.moveY = Math.abs(ny) > activeThreshold ? -ny : 0;
+      this.input.touch.moveX = nx;
+      this.input.touch.moveY = -ny;
       this.moveActive = true;
     } else {
-      this.input.touch.lookX = Math.abs(nx) > activeThreshold ? nx : 0;
-      this.input.touch.lookY = Math.abs(ny) > activeThreshold ? ny : 0;
+      this.input.touch.lookX = nx;
+      this.input.touch.lookY = ny;
       this.lookActive = true;
     }
     this.updateTouchActive();
@@ -446,7 +423,6 @@ class MobileControlsImpl implements MobileControls {
       }
       interactPointer = e.pointerId;
       capturePointer(el, e.pointerId);
-      triggerHapticFeedback();
       this.input.interact = true;
       this.input.interactHeld = true;
     });
@@ -466,7 +442,6 @@ class MobileControlsImpl implements MobileControls {
   private actionNav(dir: number): void {
     this.options.onGesture();
     if (this.context.menuOpen) {
-      triggerHapticFeedback();
       this.pulse(dir < 0 ? 'invUp' : 'invDn');
     } else {
       this.selectedAction = (this.selectedAction + MOBILE_ACTIONS.length + dir) % MOBILE_ACTIONS.length;
@@ -477,23 +452,19 @@ class MobileControlsImpl implements MobileControls {
   private actionConfirm(e: PointerEvent): void {
     this.options.onGesture();
     if (this.context.gameOver) {
-      triggerHapticFeedback();
       this.pulse('use');
     } else if (this.context.menuOpen) {
       this.options.onClose();
     } else {
       const action = MOBILE_ACTIONS[this.selectedAction];
       if (action.kind === 'menu') {
-        triggerHapticFeedback();
         this.options.onMenu(action.id);
       } else if (action.hold) {
         this.actionPointer = e.pointerId;
         this.heldActionInput = action.input;
         capturePointer(this.actionSelect, e.pointerId);
-        triggerHapticFeedback();
         this.setActionInput(action.input, true);
       } else {
-        triggerHapticFeedback();
         this.pulse(action.input);
       }
     }

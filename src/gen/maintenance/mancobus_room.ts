@@ -13,7 +13,6 @@ import { stampRoom, protectRoom, connectProtectedRoom, findClearArea } from '../
 import { randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg';
 import { MONSTERS } from '../../entities/monster';
 import { monsterSpr } from '../../render/sprite_index';
-import { rng } from '../../core/rand';
 
 const ROOM_W = 11;
 const ROOM_H = 11;
@@ -75,8 +74,8 @@ export function generateMancobusRoom(
   for (let g = 0; g < 10; g++) {
     let gx = -1, gy = -1;
     for (let attempt = 0; attempt < 30; attempt++) {
-      const tx = roomX + 1 + Math.floor(rng() * (ROOM_W - 2));
-      const ty = roomY + 1 + Math.floor(rng() * (ROOM_H - 2));
+      const tx = roomX + 1 + Math.floor(Math.random() * (ROOM_W - 2));
+      const ty = roomY + 1 + Math.floor(Math.random() * (ROOM_H - 2));
       // Avoid center where boss is
       if (Math.abs(tx - rcx) <= 1 && Math.abs(ty - rcy) <= 1) continue;
       const ci = world.idx(tx, ty);
@@ -84,7 +83,7 @@ export function generateMancobusRoom(
       gx = tx; gy = ty; break;
     }
     if (gx < 0) continue;
-    const gKind = guardPool[Math.floor(rng() * guardPool.length)];
+    const gKind = guardPool[Math.floor(Math.random() * guardPool.length)];
     const gdef = MONSTERS[gKind];
     if (!gdef) continue;
     const gRpg = randomRPG(zoneLevel + 3);
@@ -92,7 +91,7 @@ export function generateMancobusRoom(
     entities.push({
       id: nextId.v++, type: EntityType.MONSTER,
       x: gx + 0.5, y: gy + 0.5,
-      angle: rng() * Math.PI * 2, pitch: 0, alive: true,
+      angle: Math.random() * Math.PI * 2, pitch: 0, alive: true,
       speed: scaleMonsterSpeed(gdef.speed, zoneLevel + 2),
       sprite: monsterSpr(gKind),
       hp: gHp, maxHp: gHp,

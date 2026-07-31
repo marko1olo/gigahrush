@@ -1,6 +1,5 @@
 /* ── Очередь за пайком — Kvartiry social pressure POI ────────── */
 
-import { getPlotNpcNumericId } from '../../data/npc_packages';
 import {
   Tex,
   Feature,
@@ -9,69 +8,18 @@ import {
   Occupation,
   QuestType,
   ContainerKind,
-  } from '../../core/types';
+  FloorLevel,
+} from '../../core/types';
 import { World } from '../../core/world';
 import { type Entity, type WorldContainer } from '../../core/types';
-import { type PlotNpcDef, registerSideQuest , registerAuthoredNpc } from '../../data/plot';
-
-const AMBIENT_NPC_0: PlotNpcDef = {
-  name: 'Витя Нормировщик',
-  isFemale: false,
-  faction: Faction.LIQUIDATOR,
-  occupation: Occupation.HUNTER,
-  sprite: Occupation.HUNTER,
-  hp: 50, maxHp: 50, money: 5, speed: 0.9,
-  inventory: [{ defId: 'ammo_9mm', count: 6 }],
-talkLines: ['Проходи своей дорогой.', 'Мне не до разговоров.'],
-talkLinesPost: ['...'],
-};
-registerAuthoredNpc({ id: 'kv_ambient_0_qzhf4', npc: AMBIENT_NPC_0 });
-
-const AMBIENT_NPC_1: PlotNpcDef = {
-  name: 'Молчун с бидоном',
-  isFemale: false,
-  faction: Faction.CITIZEN,
-  occupation: Occupation.LOCKSMITH,
-  sprite: Occupation.LOCKSMITH,
-  hp: 50, maxHp: 50, money: 5, speed: 0.9,
-  inventory: [{ defId: 'water', count: 1 }],
-talkLines: ['Проходи своей дорогой.', 'Мне не до разговоров.'],
-talkLinesPost: ['...'],
-};
-registerAuthoredNpc({ id: 'kv_ambient_1_pcmfd', npc: AMBIENT_NPC_1 });
-
-const AMBIENT_NPC_2: PlotNpcDef = {
-  name: 'Бабка без номера',
-  isFemale: true,
-  faction: Faction.CITIZEN,
-  occupation: Occupation.HOUSEWIFE,
-  sprite: Occupation.HOUSEWIFE,
-  hp: 50, maxHp: 50, money: 5, speed: 0.9,
-  inventory: [{ defId: 'bread', count: 1 }],
-talkLines: ['Проходи своей дорогой.', 'Мне не до разговоров.'],
-talkLinesPost: ['...'],
-};
-registerAuthoredNpc({ id: 'kv_ambient_2_ix63s', npc: AMBIENT_NPC_2 });
-
-const AMBIENT_NPC_3: PlotNpcDef = {
-  name: 'Очередник с арматурой',
-  isFemale: true,
-  faction: Faction.WILD,
-  occupation: Occupation.TRAVELER,
-  sprite: Occupation.TRAVELER,
-  hp: 50, maxHp: 50, money: 5, speed: 0.9,
-  inventory: [{ defId: 'rebar', count: 1 }],
-talkLines: ['Проходи своей дорогой.', 'Мне не до разговоров.'],
-talkLinesPost: ['...'],
-};
-registerAuthoredNpc({ id: 'kv_ambient_3_qprnk', npc: AMBIENT_NPC_3 });
-
+import { type PlotNpcDef, registerSideQuest } from '../../data/plot';
 import {
   type SocialPoiRoom,
   createSocialPoiRoom,
   placeDropNear,
   roomCell,
   setFeatureIfFloor,
+  spawnAmbientNpc,
   spawnSocialNpc,
 } from './social_helpers';
 
@@ -111,14 +59,14 @@ const GALINA: PlotNpcDef = {
 
 registerSideQuest('kv_galina_talonnitsa', GALINA, [{
   id: RATION_QUEUE_QUEST_IDS.water,
-  giverId: getPlotNpcNumericId('kv_galina_talonnitsa')!,
+  giverNpcId: 'kv_galina_talonnitsa',
   type: QuestType.FETCH,
   desc: 'Галина Талонница: «Принесите пять бутылок воды, пока очередь не стала бунтом.»',
   targetItem: 'water', targetCount: 5,
   rewardItem: 'bread', rewardCount: 4,
   extraRewards: [{ defId: 'canned', count: 1 }, { defId: 'ballot', count: 6 }],
   relationDelta: 12, xpReward: 35, moneyReward: 25,
-  targetFloorZ: 60,
+  targetFloor: FloorLevel.KVARTIRY,
   targetRoomType: RoomType.OFFICE,
   targetZoneTag: RATION_QUEUE_TAG,
   targetHint: 'Квартиры: Пункт выдачи талонов, очередь Галины и касса пайкового реестра.',
@@ -133,14 +81,14 @@ registerSideQuest('kv_galina_talonnitsa', GALINA, [{
   },
 }, {
   id: RATION_QUEUE_QUEST_IDS.audit,
-  giverId: getPlotNpcNumericId('kv_galina_talonnitsa')!,
+  giverNpcId: 'kv_galina_talonnitsa',
   type: QuestType.FETCH,
   desc: 'Галина Талонница: «Принесите выписку из пайкового реестра. Если список врёт, очередь начнёт есть друг друга.»',
   targetItem: 'ration_registry_extract', targetCount: 1,
   rewardItem: 'concentrate_coupon', rewardCount: 2,
   extraRewards: [{ defId: 'water_coupon', count: 2 }, { defId: 'bread', count: 2 }],
   relationDelta: 14, xpReward: 55, moneyReward: 35,
-  targetFloorZ: 60,
+  targetFloor: FloorLevel.KVARTIRY,
   targetRoomType: RoomType.OFFICE,
   targetZoneTag: 'ration_coupon_audit',
   targetHint: 'Квартиры: касса Галины у пайковой очереди хранит выписку, талоны и поддельную карточку.',
@@ -179,7 +127,7 @@ function addRationLedgerBox(
     id: nextContainerId(world),
     x: pos.x,
     y: pos.y,
-    z: 60,
+    floor: FloorLevel.KVARTIRY,
     roomId: poi.room.id,
     zoneId: world.zoneMap[world.idx(pos.x, pos.y)],
     kind: ContainerKind.CASHBOX,
@@ -207,10 +155,10 @@ export function generateRationQueue(
 
   const galinaId = nextId.v;
   spawnSocialNpc(entities, nextId, GALINA, 'kv_galina_talonnitsa', poi.x + 2, poi.y + 2);
-  spawnSocialNpc(entities, nextId, AMBIENT_NPC_0, 'kv_ambient_0_qzhf4', poi.x + poi.w - 3, poi.y + 2, { weapon: 'makarov' });
-  spawnSocialNpc(entities, nextId, AMBIENT_NPC_1, 'kv_ambient_1_pcmfd', poi.x + 5, poi.y + 4);
-  spawnSocialNpc(entities, nextId, AMBIENT_NPC_2, 'kv_ambient_2_ix63s', poi.x + 7, poi.y + 4);
-  spawnSocialNpc(entities, nextId, AMBIENT_NPC_3, 'kv_ambient_3_qprnk', poi.x + 9, poi.y + 4, { weapon: 'rebar' });
+  spawnAmbientNpc(entities, nextId, 'Витя Нормировщик', Faction.LIQUIDATOR, Occupation.HUNTER, poi.x + poi.w - 3, poi.y + 2, [{ defId: 'ammo_9mm', count: 6 }], 'makarov');
+  spawnAmbientNpc(entities, nextId, 'Молчун с бидоном', Faction.CITIZEN, Occupation.LOCKSMITH, poi.x + 5, poi.y + 4, [{ defId: 'water', count: 1 }]);
+  spawnAmbientNpc(entities, nextId, 'Бабка без номера', Faction.CITIZEN, Occupation.HOUSEWIFE, poi.x + 7, poi.y + 4, [{ defId: 'bread', count: 1 }]);
+  spawnAmbientNpc(entities, nextId, 'Очередник с арматурой', Faction.WILD, Occupation.TRAVELER, poi.x + 9, poi.y + 4, [{ defId: 'rebar', count: 1 }], 'rebar');
   addRationLedgerBox(world, poi, poi.w - 2, 1, galinaId);
 
   for (const defId of ['bread', 'bread', 'bread', 'water', 'water', 'canned', 'water_coupon', 'concentrate_coupon', 'ballot', 'note']) {

@@ -9,6 +9,7 @@ import {
   ZoneFaction,
   EntityType,
   AIGoal,
+  FloorLevel,
   type Entity,
   type Room,
   type TerritoryOwner,
@@ -17,12 +18,11 @@ import { World } from '../../core/world';
 import { randomName, freshNeeds } from '../../data/catalog';
 import { activeActorCountAtDefaultSoftLimit } from '../../data/entity_limits';
 import { factionToTerritoryOwner } from '../../data/factions';
-import { territorySharesForDesignFloor } from '../../data/floor_territory';
+import { territorySharesForStoryFloor } from '../../data/floor_territory';
 import { entitySpawnSlots } from '../../systems/entity_limits';
 import { gaussianLevel, getMaxHp, randomRPG } from '../../systems/rpg';
 import { initializeCellTerritory, territoryHqAnchors, territoryOwnerAtIndex } from '../../systems/territory';
-import { pick } from '../shared';
-import { rng, irand } from '../../core/rand';
+import { pick, rng } from '../shared';
 
 const MAINTENANCE_NPC_TARGET_AT_DEFAULT_CAP = 500;
 export const MAINTENANCE_TERRITORY_SEED = 0x4d770077;
@@ -50,16 +50,16 @@ const MAINTENANCE_FACTION_SQUADS: readonly MaintenanceFactionDef[] = [
   { faction: Faction.SCIENTIST, owner: factionToTerritoryOwner(Faction.SCIENTIST), occupation: Occupation.SCIENTIST },
 ];
 
-const MAINTENANCE_HQ_SEEDS: readonly { owner: TerritoryOwner; roomDefId: string; fallbackX: number; fallbackY: number }[] = [
-  { owner: ZoneFaction.LIQUIDATOR, roomDefId: 'Пост обходчиков: устье коллекторов', fallbackX: 346, fallbackY: 392 },
-  { owner: ZoneFaction.CITIZEN, roomDefId: 'Водомерный пост: давление спорное', fallbackX: 510, fallbackY: 644 },
-  { owner: ZoneFaction.CULTIST, roomDefId: 'Пост Черной ладони у мастерской', fallbackX: 278, fallbackY: 470 },
-  { owner: ZoneFaction.SCIENTIST, roomDefId: 'НИИ Слизи: зелёная кислотная проба', fallbackX: 717, fallbackY: 488 },
-  { owner: ZoneFaction.WILD, roomDefId: 'Логово Манкобуса', fallbackX: 588, fallbackY: 588 },
+const MAINTENANCE_HQ_SEEDS: readonly { owner: TerritoryOwner; roomName: string; fallbackX: number; fallbackY: number }[] = [
+  { owner: ZoneFaction.LIQUIDATOR, roomName: 'Пост обходчиков: устье коллекторов', fallbackX: 346, fallbackY: 392 },
+  { owner: ZoneFaction.CITIZEN, roomName: 'Водомерный пост: давление спорное', fallbackX: 510, fallbackY: 644 },
+  { owner: ZoneFaction.CULTIST, roomName: 'Пост Черной ладони у мастерской', fallbackX: 278, fallbackY: 470 },
+  { owner: ZoneFaction.SCIENTIST, roomName: 'НИИ Слизи: зелёная кислотная проба', fallbackX: 717, fallbackY: 488 },
+  { owner: ZoneFaction.WILD, roomName: 'Логово Манкобуса', fallbackX: 588, fallbackY: 588 },
 ];
 
 function pickPsi(): string {
-  return PSI_IDS[Math.floor(rng() * PSI_IDS.length)];
+  return PSI_IDS[Math.floor(Math.random() * PSI_IDS.length)];
 }
 
 function mappedRoomCells(world: World, room: Room): number[] {
@@ -136,7 +136,7 @@ const SECONDARY_HQ_NAMES = [
 ];
 
 const HQ_TARGET_NAMES = [
-  ...MAINTENANCE_HQ_SEEDS.map(s => s.roomDefId),
+  ...MAINTENANCE_HQ_SEEDS.map(s => s.roomName),
   ...SECONDARY_HQ_NAMES,
 ];
 
@@ -152,7 +152,7 @@ function seedMaintenanceHqTerritory(world: World): void {
   }
 
   for (const seed of MAINTENANCE_HQ_SEEDS) {
-    const room = roomsByName.get(seed.roomDefId);
+    const room = roomsByName.get(seed.roomName);
     const picked = room && mappedRoomCells(world, room).length > 0
       ? room
       : chooseMaintenanceHqFallbackRoom(world, seed.fallbackX, seed.fallbackY, usedRooms);
@@ -172,7 +172,7 @@ export function initializeMaintenanceTerritory(world: World, generationSeed: num
   seedMaintenanceHqTerritory(world);
   initializeCellTerritory(world, {
     seed: generationSeed,
-    targetShares: territorySharesForDesignFloor('maintenance'),
+    targetShares: territorySharesForStoryFloor(FloorLevel.MAINTENANCE),
   });
 }
 
@@ -205,7 +205,7 @@ function collectMaintenanceSpawnBuckets(world: World): MaintenanceSpawnBuckets {
 
 function randomFloorCell(world: World): number {
   for (let attempt = 0; attempt < 2000; attempt++) {
-    const idx = irand(0, W * W - 1);
+    const idx = rng(0, W * W - 1);
     if (world.cells[idx] === Cell.FLOOR && !world.aptMask[idx]) return idx;
   }
   return world.idx(W >> 1, W >> 1);
@@ -213,7 +213,7 @@ function randomFloorCell(world: World): number {
 
 function pickMaintenanceSpawnCell(world: World, buckets: MaintenanceSpawnBuckets, owner: TerritoryOwner): number {
   const hqCells = buckets.hq.get(owner) ?? [];
-  if (hqCells.length > 0 && rng() < 0.62) return pick(hqCells);
+  if (hqCells.length > 0 && Math.random() < 0.62) return pick(hqCells);
   const ownedCells = buckets.owned.get(owner) ?? [];
   if (ownedCells.length > 0) return pick(ownedCells);
   return randomFloorCell(world);
@@ -226,13 +226,13 @@ export function spawnMaintenanceFactionNpcSquads(world: World, entities: Entity[
     const prevCount = npcCount;
     for (const zone of world.zones) {
       if (npcCount >= npcTarget) break;
-      const squadSize = irand(1, 4);
+      const squadSize = rng(1, 4);
       const fDef = pick(MAINTENANCE_FACTION_SQUADS);
       for (let s = 0; s < squadSize && npcCount < npcTarget; s++) {
         let sx = -1, sy = -1;
         for (let r = 0; r < 30; r++) {
-          const tx = world.wrap(zone.cx + irand(-r * 3, r * 3));
-          const ty = world.wrap(zone.cy + irand(-r * 3, r * 3));
+          const tx = world.wrap(zone.cx + rng(-r * 3, r * 3));
+          const ty = world.wrap(zone.cy + rng(-r * 3, r * 3));
           const tci = world.idx(tx, ty);
           if (world.cells[tci] === Cell.FLOOR) {
             sx = tx; sy = ty;
@@ -245,7 +245,7 @@ export function spawnMaintenanceFactionNpcSquads(world: World, entities: Entity[
         const rpg = randomRPG(npcLevel);
         const maxHp = Math.round(getMaxHp(rpg) * 1.5);
         const nm = randomName(fDef.faction);
-        const hasPsi = fDef.faction === Faction.CULTIST && rng() < 0.4;
+        const hasPsi = fDef.faction === Faction.CULTIST && Math.random() < 0.4;
         const psiWeapon = hasPsi ? pickPsi() : undefined;
         const weapon = psiWeapon ? 'knife' : undefined;
         const tool = psiWeapon;
@@ -253,9 +253,9 @@ export function spawnMaintenanceFactionNpcSquads(world: World, entities: Entity[
         entities.push({
           id: nextId++, type: EntityType.NPC,
           x: sx + 0.5, y: sy + 0.5,
-          angle: rng() * Math.PI * 2, pitch: 0,
+          angle: Math.random() * Math.PI * 2, pitch: 0,
           alive: true,
-          speed: 1.4 + rng() * 0.4,
+          speed: 1.4 + Math.random() * 0.4,
           sprite: fDef.occupation,
           name: nm.name,
           firstName: nm.firstName,
@@ -263,7 +263,7 @@ export function spawnMaintenanceFactionNpcSquads(world: World, entities: Entity[
           isFemale: nm.female,
           needs: freshNeeds(),
           hp: maxHp, maxHp,
-          money: irand(10, 80),
+          money: rng(10, 80),
           ai: { goal: AIGoal.IDLE, tx: 0, ty: 0, path: [], pi: 0, stuck: 0, timer: 0 },
           inventory,
           weapon,

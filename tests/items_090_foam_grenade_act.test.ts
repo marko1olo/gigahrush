@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { ItemType, RoomType } from '../src/core/types';
+import { FloorLevel, ItemType, RoomType } from '../src/core/types';
 import { ITEMS } from '../src/data/catalog';
 import { ITEM_TAGS } from '../src/data/items';
 import { RESOURCES, resourceForItem } from '../src/data/resources';
@@ -29,7 +29,7 @@ test('foam grenade act is official HQ paperwork for legal foam issue', () => {
 
 test('foam grenade act redeems into one legal 6p10 foam grenade', () => {
   const player = makeTestPlayer({ inventory: [{ defId: 'foam_grenade_act', count: 1 }] });
-  const state = makeGameState({ currentZ: 34, time: 90 });
+  const state = makeGameState({ currentFloor: FloorLevel.MINISTRY, time: 90 });
 
   assert.equal(getInventorySlotActionInfo(player, 0)?.useLabel, 'Enter погасить');
 

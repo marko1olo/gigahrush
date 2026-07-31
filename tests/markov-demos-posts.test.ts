@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { Faction, Occupation, type WorldEvent } from '../src/core/types';
+import { Faction, FloorLevel, Occupation, type WorldEvent } from '../src/core/types';
 import { DEMOS_AUTHOR_FALLBACK_CAP } from '../src/data/demos_posts';
 import {
   buildDemosFeedView,
@@ -31,7 +31,7 @@ function worldEvent(overrides: Partial<WorldEvent> = {}): WorldEvent {
     day: 0,
     hour: 8,
     minute: 10,
-    z: -6,
+    floor: FloorLevel.LIVING,
     severity: 3,
     privacy: 'public',
     truth: 'fact',
@@ -43,8 +43,8 @@ function worldEvent(overrides: Partial<WorldEvent> = {}): WorldEvent {
 function snapshot(id: number, name = `Житель ${id}`, dead = false): AlifeNpcSnapshot {
   return {
     id,
-    floorKey: 'design:living',
-    z: -6,
+    floorKey: 'story:living',
+    floor: FloorLevel.LIVING,
     faction: Faction.CITIZEN,
     occupation: Occupation.SECRETARY,
     name,
@@ -285,5 +285,5 @@ test('Demos feed view stores rendered rows outside the transient queue only', ()
 });
 
 test('Demos persistent social batch owns the current save shape', () => {
-  assert.equal(currentSaveShapeVersion(), 25);
+  assert.equal(currentSaveShapeVersion(), 22);
 });

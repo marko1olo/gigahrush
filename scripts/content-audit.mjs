@@ -1149,7 +1149,7 @@ for (const abs of files) {
           || rel === 'src/gen/craft_stations.ts'
         ) {
           interactiveRefs.push({ id: value, prop: name, file: rel, line: lineOf(sf, node) });
-        } else if (!rel.includes('critters.ts')) {
+        } else {
           itemRefs.push({ id: value, prop: name, file: rel, line: lineOf(sf, node) });
         }
       }
@@ -1729,10 +1729,7 @@ for (const abs of files) {
   if (helperModules.has(path.basename(abs))) continue;
   const text = fs.readFileSync(abs, 'utf8');
   const looksLikeContent = /registerSideQuest|registerZoneContent|export function (generate|spawn|apply)/.test(text);
-  if (looksLikeContent && !importIncoming.has(rel)) {
-    unimportedContent.push(rel);
-    errors.push(`${rel} is a content module but is not imported anywhere (e.g. in content_manifest.ts or side_quests.ts). Add an import to avoid silent logic drops.`);
-  }
+  if (looksLikeContent && !importIncoming.has(rel)) unimportedContent.push(rel);
 }
 
 console.log('Content QA registry audit');

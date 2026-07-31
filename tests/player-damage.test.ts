@@ -6,6 +6,7 @@ import {
   DoorState,
   EntityType,
   Faction,
+  FloorLevel,
   MonsterKind,
   RoomType,
   Tex,
@@ -187,7 +188,7 @@ function makeUnpreparedSamosborShelter(): { world: World; entities: Entity[]; pl
 test('samosbor shelter failure records samosbor damage cause', () => {
   resetSamosborRuntimeForTests();
   const ctx = makeUnpreparedSamosborShelter();
-  const state = makeGameState({ time: 33, tick: 101, currentZ: 0, samosborActive: true, samosborCount: 1 });
+  const state = makeGameState({ time: 33, tick: 101, currentFloor: FloorLevel.LIVING, samosborActive: true, samosborCount: 1 });
 
   resolvePlayerShelterAtSealForTests(ctx.world, ctx.entities, state, CLASSIC_TEST_VARIANT);
 

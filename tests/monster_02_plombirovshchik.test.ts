@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
 import {
-  DoorState, EntityType, MonsterKind,
+  DoorState, EntityType, FloorLevel, MonsterKind,
   type Entity,
 } from '../src/core/types';
 import { World } from '../src/core/world';
@@ -24,7 +24,7 @@ test('Plombirovshchik uses Shovnik body and opens local seal when killed away fr
     sprite: 0,
     name: 'Вы',
   }];
-  const nextId = { v: getPlotNpcCount() + 1 }
+  const nextId = { v: 1 };
 
   generatePlombirovshchik(world, 0, entities, nextId, 100, 100);
 
@@ -38,12 +38,12 @@ test('Plombirovshchik uses Shovnik body and opens local seal when killed away fr
 
   const mainRoom = world.rooms[0];
   const state = makeGameState({
-    currentZ: 0,
+    currentFloor: FloorLevel.LIVING,
     worldEvents: createWorldEventState(),
   });
   publishEvent(state, {
     type: 'player_kill_monster',
-    z: -6,
+    floor: FloorLevel.LIVING,
     x: mainRoom.x + 4.5,
     y: mainRoom.y + 5.5,
     actorId: 0,

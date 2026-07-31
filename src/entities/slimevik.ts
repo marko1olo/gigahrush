@@ -1,6 +1,6 @@
 /* ── Slimevik — neutral slime scavenger/symbiote ─────────────── */
 
-import { MonsterKind } from '../core/types';
+import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
 import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
@@ -13,6 +13,7 @@ export const DEF: MonsterDef = {
   attackRate: 1.8,
   sprite: 0,
   aiFlags: ['slimeScavenger'],
+  floors: [FloorLevel.LIVING, FloorLevel.MAINTENANCE],
   counterplay: 'Не давите вплотную без фильтра и тары: слизневик не охотится первым, но долгий контакт сушит ПСИ, а раненый бьет слабой кислотной плетью.',
   lootHint: 'слизистый соскоб, грязная проба, редкий фильтрующий слой',
 };

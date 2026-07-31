@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { Faction, ItemType, RoomType } from '../src/core/types';
+import { Faction, FloorLevel, ItemType, RoomType } from '../src/core/types';
 import { World } from '../src/core/world';
 import { ITEM_TAGS, ITEMS } from '../src/data/items';
 import { RESOURCES, resourceForItem } from '../src/data/resources';
@@ -49,7 +49,7 @@ test('confiscation tag is reachable in the Ministry liquidator archive', () => {
 
 test('confiscation tag can be sold as black-market audit evidence', () => {
   const player = makeTestPlayer();
-  const state = makeGameState({ currentZ: 0, time: 91 });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING, time: 91 });
 
   assert.equal(addItem(player, ITEM_ID, 1), true);
   assert.equal(getInventorySlotActionInfo(player, 0)?.useLabel, 'Enter проверить');

@@ -1,44 +1,8 @@
-/* ── Unified xorshift32 RNG ──────────────────────────────────── */
-/*   Single global game RNG. All randomness flows through rng().  */
-/*   Use seededRandom/SeedRng for local deterministic sequences.  */
+/* ── Tiny shared randomness utilities ─────────────────────────── */
+/*   Use explicit seeded RNG for generation-time choices.          */
+/*   Math.random helpers below are only for fresh runtime entropy. */
 
 export type RandomSource = () => number;
-
-/* ── Global xorshift32 state ────────────────────────────────── */
-
-let _s = (Date.now() | 0) || 1;
-let _rngOverride: (() => number) | null = null;
-
-/** Global game RNG — the single source of randomness. Returns [0, 1). */
-export function rng(): number {
-  if (_rngOverride) return _rngOverride();
-  _s ^= _s << 13;
-  _s ^= _s >>> 17;
-  _s ^= _s << 5;
-  return (_s >>> 0) / 4294967296;
-}
-
-/** Re-seed the global game RNG. */
-export function seedGlobalRng(seed: number): void {
-  _s = (seed | 0) || 1;
-}
-
-/** Local game RNG — based on Math.random(). Returns [0, 1).
- *  Use for visual, audio, and UI to avoid breaking deterministic seeds. */
-export function mathRng(): number {
-  return Math.random();
-}
-
-/** Inclusive integer in [a, b] using Math.random(). */
-export function mathIrand(a: number, b: number): number {
-  return a + Math.floor(Math.random() * (b - a + 1));
-}
-
-/** Test-only: override rng() to return values from the given function. */
-export function _overrideRng(fn: () => number): void { _rngOverride = fn; }
-
-/** Test-only: restore rng() to use the internal xorshift state. */
-export function _restoreRng(): void { _rngOverride = null; }
 
 /** Fast xorshift32 PRNG, bit-compatible with the timaert generator. */
 export function xorshift32(seed: number): RandomSource {
@@ -101,12 +65,12 @@ export class SeedRng {
 /** Random non-negative integer seed in [0, 99999), suitable for
  *  decals, mark stamping and other procedural variation. */
 export function randSeed(): number {
-  return Math.floor(rng() * 99999);
+  return Math.floor(Math.random() * 99999);
 }
 
 /** Inclusive integer in [a, b]. */
 export function irand(a: number, b: number): number {
-  return a + Math.floor(rng() * (b - a + 1));
+  return a + Math.floor(Math.random() * (b - a + 1));
 }
 
 /** Inclusive integer in [a, b] from an explicit RNG. */
@@ -148,15 +112,14 @@ export function seededRandom(seed: number): () => number {
   };
 }
 
-/** Run rng()-based generators under a local deterministic seed.
- *  Swaps the global xorshift state, restores on return. */
+/** Run Math.random-based generators under a local deterministic seed. */
 export function withSeededRandom<T>(seed: number, fn: () => T): T {
-  const prev = _s;
-  _s = (seed | 0) || 1;
+  const oldRandom = Math.random;
+  Math.random = xorshift32(seed);
   try {
     return fn();
   } finally {
-    _s = prev;
+    Math.random = oldRandom;
   }
 }
 

@@ -8,6 +8,7 @@ import {
   EntityType,
   Faction,
   Feature,
+  FloorLevel,
   LiftDirection,
   MonsterKind,
   Tex,
@@ -18,16 +19,12 @@ import {
 } from '../core/types';
 import { type World } from '../core/world';
 import { ITEMS, freshNeeds, randomName } from '../data/catalog';
-import { getStack } from '../data/items';
 import { CONTAINER_DEFS } from '../data/container_defs';
 import { randomOccupation } from '../data/relations';
 import { MONSTERS } from '../entities/monster';
 import { Spr } from '../render/sprite_index';
 import { markEntityIndexDirty } from './entity_index';
-import { npcAutoEquipBestWeapon } from './ai/combat';
-import { irand } from '../core/rand';
-import { getMaxHp, randomRPG, calcZoneLevel, gaussianLevel } from './rpg';
-import { resolveNpcArtVisualId } from '../data/npc_art_visuals';
+import { getMaxHp, randomRPG } from './rpg';
 import { currentFloorRunEntry, floorRunEntryFloorKey } from './procedural_floors';
 import { activeFloorInstanceWorldKey, floorInstanceLabel, getActiveFloorInstance } from './floor_instances';
 import { controlBindingLabel, controlHint, menuCloseHint } from './controls';
@@ -36,7 +33,7 @@ import { canSpawnEntityType } from './entity_limits';
 import { isPlayerEntity } from './player_actor';
 
 export type MapEditorToolId = 'cell' | 'door' | 'texture' | 'feature' | 'entity' | 'container' | 'inspect';
-export type MapEditorMode = 'map' | 'menu' | 'brush' | 'details' | 'objects' | 'npc_inv' | 'npc_inv_select';
+export type MapEditorMode = 'map' | 'menu' | 'brush' | 'details' | 'objects';
 export type MapEditorAction = 'apply' | 'close';
 
 export interface MapEditorMenuEntry {
@@ -75,7 +72,7 @@ export type MapEditorOp =
 
 export interface MapEditorPatch {
   floorKey: string;
-  themeTags: readonly string[];
+  baseFloor: FloorLevel;
   z?: number;
   createdAt: number;
   opCount: number;
@@ -172,8 +169,6 @@ interface MapEditorRuntime {
   activeTerminalY?: number;
   world?: World;
   transaction: MapEditorTransactionState;
-  npcInventory: { itemId: string; count: number }[];
-  npcInvSlot: number;
 }
 
 type MapEditorHost = GameState & { mapEditorPatches?: Partial<MapEditorPatchState> };
@@ -193,7 +188,6 @@ const MAIN_MENU: readonly MapEditorMenuEntry[] = [
   { id: 'brush', label: 'КИСТЬ', color: '#9fdbc6' },
   { id: 'details', label: 'ДЕТАЛИ КАРТЫ', color: '#9df' },
   { id: 'objects', label: 'ОБЪЕКТЫ', color: '#db6' },
-  { id: 'npc_inv', label: 'ИНВЕНТАРЬ NPC', color: '#59d46b' },
   { id: 'close', label: 'ВЫЙТИ ИЗ ТЕРМИНАЛА', color: '#ff5868' },
 ];
 const CELL_BRUSHES = [Cell.FLOOR, Cell.WALL, Cell.DOOR, Cell.WATER, Cell.LIFT, Cell.ABYSS] as const;
@@ -244,8 +238,6 @@ const runtime: MapEditorRuntime = {
   revision: 0,
   dirtyCells: [],
   transaction: emptyTransaction(),
-  npcInventory: [],
-  npcInvSlot: 0,
 };
 
 function resetTransaction(): void {
@@ -372,19 +364,15 @@ function normalizePatchState(input: Partial<MapEditorPatchState> | null | undefi
   const patches: Record<string, MapEditorPatch> = {};
   const srcPatches = input?.patches;
   if (srcPatches && typeof srcPatches === 'object') {
-    const keys = Object.keys(srcPatches);
-    const start = Math.max(0, keys.length - PATCH_FLOOR_CAP);
-    for (let i = start; i < keys.length; i++) {
-      const key = keys[i];
-      const raw = (srcPatches as any)[key];
+    for (const [key, raw] of Object.entries(srcPatches).slice(-PATCH_FLOOR_CAP)) {
       if (!raw || typeof raw !== 'object') continue;
       const src = raw as Partial<MapEditorPatch>;
       if (typeof src.floorKey !== 'string' || src.floorKey !== key || !Array.isArray(src.ops)) continue;
       const ops = src.ops.slice(0, PATCH_OP_CAP).map(normalizeMapEditorOp).filter((op): op is MapEditorOp => !!op);
       patches[key] = {
         floorKey: key,
-        themeTags: Array.isArray(src.themeTags) ? src.themeTags : ['living'],
-        z: typeof src.z === "number" ? src.z : undefined,
+        baseFloor: typeof src.baseFloor === 'number' ? src.baseFloor : FloorLevel.LIVING,
+        z: typeof src.z === 'number' ? src.z : undefined,
         createdAt: typeof src.createdAt === 'number' ? src.createdAt : 0,
         opCount: ops.length,
         ops,
@@ -491,18 +479,6 @@ export function backMapEditorMode(): MapEditorAction | null {
     runtime.status = 'terminal menu';
     return null;
   }
-  if (runtime.mode === 'npc_inv') {
-    runtime.mode = 'menu';
-    runtime.menuIndex = 4;
-    runtime.status = 'terminal menu';
-    return null;
-  }
-  if (runtime.mode === 'npc_inv_select') {
-    runtime.mode = 'npc_inv';
-    runtime.menuIndex = runtime.npcInvSlot;
-    runtime.status = 'npc_inv';
-    return null;
-  }
   if (runtime.mode === 'menu') {
     runtime.mode = 'map';
     runtime.status = 'map';
@@ -522,16 +498,6 @@ export function moveMapEditorMode(world: World, dx: number, dy: number): void {
 
   if (runtime.mode === 'menu') {
     if (dy !== 0) runtime.menuIndex = cycleIndex(runtime.menuIndex, dy, MAIN_MENU.length);
-    return;
-  }
-
-  if (runtime.mode === 'npc_inv') {
-    if (dy !== 0) runtime.menuIndex = cycleIndex(runtime.menuIndex, dy, 65);
-    return;
-  }
-
-  if (runtime.mode === 'npc_inv_select') {
-    if (dy !== 0) runtime.menuIndex = cycleIndex(runtime.menuIndex, dy, Object.keys(ITEMS).length + 1);
     return;
   }
 
@@ -572,42 +538,11 @@ export function activateMapEditorMode(): MapEditorAction | null {
       runtime.mode = 'objects';
       ensureObjectTool();
       runtime.status = 'objects';
-    } else if (id === 'npc_inv') {
-      runtime.mode = 'npc_inv';
-      runtime.status = 'npc_inv';
     } else if (id === 'close') {
       return 'close';
     }
     return null;
   }
-
-  if (runtime.mode === 'npc_inv') {
-    if (runtime.menuIndex === 64) {
-      runtime.mode = 'menu';
-      runtime.menuIndex = 4;
-    } else {
-      runtime.npcInvSlot = runtime.menuIndex;
-      runtime.mode = 'npc_inv_select';
-      runtime.menuIndex = 0;
-    }
-    return null;
-  }
-
-  if (runtime.mode === 'npc_inv_select') {
-    if (runtime.menuIndex === 0) {
-      delete runtime.npcInventory[runtime.npcInvSlot];
-    } else {
-      const sorted = Object.values(ITEMS).sort((a, b) => a.name.localeCompare(b.name, 'ru'));
-      const item = sorted[runtime.menuIndex - 1];
-      if (item) {
-        runtime.npcInventory[runtime.npcInvSlot] = { itemId: item.id, count: getStack(item) };
-      }
-    }
-    runtime.mode = 'npc_inv';
-    runtime.menuIndex = runtime.npcInvSlot;
-    return null;
-  }
-
   if (runtime.mode === 'brush' || runtime.mode === 'objects') {
     runtime.status = `${runtime.mode === 'brush' ? 'brush' : 'object'} selected: ${brushLabel()}`;
     runtime.mode = 'map';
@@ -868,7 +803,7 @@ function recordOp(state: GameState, op: MapEditorOp): boolean {
     if (keys.length >= PATCH_FLOOR_CAP) delete patches.patches[keys[0]];
     patch = {
       floorKey: key,
-      themeTags: currentFloorRunEntry(state).themeTags,
+      baseFloor: state.currentFloor,
       z: currentFloorZ(state),
       createdAt: state.time,
       opCount: 0,
@@ -927,7 +862,7 @@ function applyCellOp(world: World, entities: Entity[], player: Entity, op: { x: 
   return { ok: true, reason: 'ok', dirtyCells: [idx] };
 }
 
-function spawnEditorEntity(world: World, entities: Entity[], state: GameState, nextEntityId: { v: number }, op: Extract<MapEditorOp, { kind: 'spawn_entity' }>): MapEditorApplyResult {
+function spawnEditorEntity(world: World, entities: Entity[], nextEntityId: { v: number }, op: Extract<MapEditorOp, { kind: 'spawn_entity' }>): MapEditorApplyResult {
   const x = world.wrap(Math.floor(op.x));
   const y = world.wrap(Math.floor(op.y));
   const idx = world.idx(x, y);
@@ -981,26 +916,8 @@ function spawnEditorEntity(world: World, entities: Entity[], state: GameState, n
     const faction = def.faction ?? Faction.CITIZEN;
     const occupation = randomOccupation(faction);
     const name = randomName(faction);
-    const centerLevel = calcZoneLevel(op.x, op.y, state.currentZ);
-    const level = gaussianLevel(centerLevel, 2);
-    const rpg = randomRPG(level);
+    const rpg = randomRPG(1);
     const maxHp = getMaxHp(rpg);
-    
-    const inventory = [];
-    for (let i = 0; i < 64; i++) {
-      const slot = runtime.npcInventory[i];
-      if (slot) inventory.push({ defId: slot.itemId, count: slot.count });
-    }
-
-    const age = irand(18, 60);
-    const npcVisualId = resolveNpcArtVisualId({
-      faction,
-      occupation,
-      isFemale: name.female,
-      age,
-    });
-    const spriteSeed = irand(1, 0x7fffffff);
-
     entities.push({
       id: nextEntityId.v++,
       type: EntityType.NPC,
@@ -1015,14 +932,11 @@ function spawnEditorEntity(world: World, entities: Entity[], state: GameState, n
       firstName: name.firstName,
       lastName: name.lastName,
       isFemale: name.female,
-      age,
-      npcVisualId,
-      spriteSeed,
       needs: freshNeeds(),
       hp: maxHp,
       maxHp,
       ai: { goal: AIGoal.IDLE, tx: 0, ty: 0, path: [], pi: 0, stuck: 0, timer: 0 },
-      inventory,
+      inventory: [],
       faction,
       occupation,
       isTraveler: true,
@@ -1030,8 +944,6 @@ function spawnEditorEntity(world: World, entities: Entity[], state: GameState, n
       money: 20,
       rpg,
     });
-    const npc = entities[entities.length - 1];
-    if (npc && npc.type === EntityType.NPC) npcAutoEquipBestWeapon(npc);
     trackMapEditorChange({ entities: true }, [idx]);
   }
   pushDirty(idx);
@@ -1053,7 +965,7 @@ function spawnEditorContainer(world: World, state: GameState, op: Extract<MapEdi
     id: nextContainerId(world),
     x,
     y,
-    z: state.currentZ,
+    floor: state.currentFloor,
     roomId,
     zoneId: world.zoneMap[idx],
     kind,
@@ -1131,7 +1043,7 @@ export function applyMapEditorOp(
     pushDirty(idx);
     result = { ok: true, reason: 'ok', dirtyCells: [idx] };
   } else if (safeOp.kind === 'spawn_entity') {
-    result = spawnEditorEntity(world, entities, state, nextEntityId, safeOp);
+    result = spawnEditorEntity(world, entities, nextEntityId, safeOp);
   } else if (safeOp.kind === 'delete_entity') {
     const entity = entities.find(e => e.id === safeOp.entityId && !isPlayerEntity(e));
     if (!entity) return setError('Нет entity');
@@ -1193,7 +1105,7 @@ export function createCurrentMapEditorOp(world: World, entities: Entity[]): MapE
       const entityId = nearestEntityId(world, entities, x, y);
       return entityId === null ? null : { kind: 'delete_entity', entityId };
     }
-    if (brush.kind === 'item') return { kind: 'spawn_entity', x, y, entityDef: { kind: 'item', itemId: brush.itemId, count: ITEMS[brush.itemId] ? getStack(ITEMS[brush.itemId]) : 1 } };
+    if (brush.kind === 'item') return { kind: 'spawn_entity', x, y, entityDef: { kind: 'item', itemId: brush.itemId, count: 1 } };
     if (brush.kind === 'monster') return { kind: 'spawn_entity', x, y, entityDef: { kind: 'monster', monsterKind: brush.monsterKind } };
     return { kind: 'spawn_entity', x, y, entityDef: { kind: 'npc', faction: brush.faction } };
   }
@@ -1205,7 +1117,7 @@ export function createCurrentMapEditorOp(world: World, entities: Entity[]): MapE
       return containerId === null ? null : { kind: 'delete_container', containerId };
     }
     const seedItem = 'water';
-    return { kind: 'spawn_container', x, y, def: { kind: brush.kind, itemId: seedItem, count: seedItem && ITEMS[seedItem] ? getStack(ITEMS[seedItem]) : 1 } };
+    return { kind: 'spawn_container', x, y, def: { kind: brush.kind, itemId: seedItem, count: 1 } };
   }
   return null;
 }
@@ -1350,8 +1262,6 @@ function menuTitle(): string {
   if (runtime.mode === 'brush') return `КИСТЬ: ${runtime.tool.toUpperCase()}`;
   if (runtime.mode === 'details') return 'ДЕТАЛИ КАРТЫ';
   if (runtime.mode === 'objects') return `ОБЪЕКТЫ: ${runtime.tool.toUpperCase()}`;
-  if (runtime.mode === 'npc_inv') return 'НАСТРОЙКА ИНВЕНТАРЯ NPC';
-  if (runtime.mode === 'npc_inv_select') return 'ВЫБОР ПРЕДМЕТА';
   return 'КАРТА';
 }
 
@@ -1367,37 +1277,6 @@ function menuEntries(): readonly MapEditorMenuEntry[] {
       active: entry.active,
     }));
   }
-  if (runtime.mode === 'npc_inv') {
-    const entries: MapEditorMenuEntry[] = [];
-    for (let i = 0; i < 64; i++) {
-      const slot = runtime.npcInventory[i];
-      const name = slot ? ITEMS[slot.itemId]?.name ?? slot.itemId : 'ПУСТОЙ СЛОТ';
-      const count = slot ? ` x${slot.count}` : '';
-      entries.push({
-        id: i,
-        label: `СЛОТ ${i + 1}: ${name}${count}`,
-        color: slot ? '#dd4' : '#668090',
-        active: i === runtime.menuIndex,
-      });
-    }
-    entries.push({ id: 'back', label: 'НАЗАД В МЕНЮ', color: '#ff5868', active: runtime.menuIndex === 64 });
-    return entries;
-  }
-  if (runtime.mode === 'npc_inv_select') {
-    const sorted = Object.values(ITEMS).sort((a, b) => a.name.localeCompare(b.name, 'ru'));
-    const entries: MapEditorMenuEntry[] = [
-      { id: 'clear', label: 'ОЧИСТИТЬ СЛОТ', color: '#ff5868', active: runtime.menuIndex === 0 }
-    ];
-    for (let i = 0; i < sorted.length; i++) {
-      entries.push({
-        id: sorted[i].id,
-        label: sorted[i].name,
-        color: '#dd4',
-        active: runtime.menuIndex === i + 1,
-      });
-    }
-    return entries;
-  }
   if (runtime.mode === 'objects') {
     return palette().map(entry => ({
       id: entry.id ?? entry.label,
@@ -1412,7 +1291,6 @@ function menuEntries(): readonly MapEditorMenuEntry[] {
 function modeHints(): readonly string[] {
   if (runtime.mode === 'map') return [`${controlBindingLabel('menuUp')}/${controlBindingLabel('menuDown')} курсор`, 'wheel масштаб', `${controlHint('gameMenu')} поставить`, `${menuCloseHint()} назад`];
   if (runtime.mode === 'menu') return [`${controlBindingLabel('menuUp')}/${controlBindingLabel('menuDown')} пункт`, `${controlHint('gameMenu')} выбрать`, `${menuCloseHint()} карта`];
-  if (runtime.mode === 'npc_inv' || runtime.mode === 'npc_inv_select') return [`${controlBindingLabel('menuUp')}/${controlBindingLabel('menuDown')} пункт`, `${controlHint('gameMenu')} выбрать`, `${menuCloseHint()} назад`];
   if (runtime.mode === 'brush') return [`${controlBindingLabel('menuLeft')}/${controlBindingLabel('menuRight')} тип кисти`, `${controlBindingLabel('menuUp')}/${controlBindingLabel('menuDown')} значение`, `${controlHint('gameMenu')} выбрать`, `${menuCloseHint()} назад`];
   if (runtime.mode === 'objects') return [`${controlBindingLabel('menuLeft')}/${controlBindingLabel('menuRight')} группа`, `${controlBindingLabel('menuUp')}/${controlBindingLabel('menuDown')} объект`, `${controlHint('gameMenu')} выбрать`, `${menuCloseHint()} назад`];
   return [`${controlBindingLabel('menuUp')}/${controlBindingLabel('menuDown')} инспектор`, `${controlHint('gameMenu')} карта`, `${menuCloseHint()} назад`];

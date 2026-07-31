@@ -88,8 +88,17 @@ export const enum Tex {
   // wall-snake larva body block
   LARVA_BODY      = 229,
   DOOR_HERMETIC   = 230,
-  F_GRASS         = 231,
-  COUNT           = 232,
+  COUNT           = 231,
+}
+
+// ── Floor levels (Z-axis) ────────────────────────────────────────
+export enum FloorLevel {
+  MINISTRY     = 0,   // министерство (-2) — сталинский ампир, чиновники, ковры
+  KVARTIRY     = 1,   // квартиры (-1) — плотная жилая зона, 5к гражданских, протесты
+  LIVING       = 2,   // жилая зона (0) — квартиры, цеха, залы
+  MAINTENANCE  = 3,   // коллекторы — трубы, туннели, каналы с водой
+  HELL         = 4,   // ад — мясо, постоянный самосбор, культисты
+  VOID         = 5,   // пустота — абстрактный фрактальный уровень, финальный босс
 }
 
 // ── Lift direction ───────────────────────────────────────────────
@@ -121,8 +130,6 @@ export interface Room {
   doors: number[];          // door cell indices
   sealed: boolean;          // hermetically sealed during samosbor
   name: string;
-  defId?: string;           // persistent quest/event target id
-  tags?: string[];          // optional semantic tags (e.g. 'tutorial')
   apartmentId: number;      // -1 = not apartment
   wallTex: Tex;
   floorTex: Tex;
@@ -147,7 +154,6 @@ export const enum Feature {
   SLIDE        = 13,
   CANDLE       = 14,
   SCREEN       = 15,
-  TREE         = 16,
 }
 
 // ── Doors ────────────────────────────────────────────────────────
@@ -168,7 +174,6 @@ export interface Door {
   timer: number;           // auto-close timer
   hp?: number;
   maxHp?: number;
-  isTutorialExit?: boolean;
 }
 
 // ── Entities ─────────────────────────────────────────────────────
@@ -436,15 +441,12 @@ export interface AIState {
   stateTimer?: number;        // elapsed time in current sub-activity
   combatTargetId?: number;    // cached hostile target entity id
   combatScanCd?: number;      // cooldown until next full hostile scan
-  immediateScanCd?: number;   // cooldown until next immediate threat scan
-  combatLootCd?: number;      // cooldown until next combat loot grab scan
   windupTimer?: number;       // generic readable attack windup countdown
   windupTargetId?: number;    // target locked by current windup
   windupStartHp?: number;     // HP snapshot for interruptible windups
   staggerTimer?: number;      // temporary interrupt / stagger lockout
   lastSeenTargetId?: number;  // event throttle for first sight / escape beats
   lastSeenUrinationId?: number;
-  lastSeenNoiseId?: number;   // ID of the last noise record investigated
   microScanCd?: number;       // cooldown until next micro stimulus scan
   sprintTimer?: number;       // straight-line special burst countdown
   sprintDx?: number;          // normalized burst direction X
@@ -587,35 +589,25 @@ export interface AIState {
   microTimer?: number;             // remaining seconds; when ≤ 0, micro-goal is cleared
   microSourceId?: number;          // optional: entity id that triggered the micro-goal
   microCooldowns?: Record<string, number>; // remaining seconds before a micro-goal type can trigger again
-  // ── Combat orbit (transient, not saved) ────────────────────────
-  orbitDir?: number;             // current orbital strafe direction: +1 CW, -1 CCW
-  orbitPulseCd?: number;         // cooldown for random radius-delta variation
 }
 
-export interface InventoryHolder {
-  inventory?: Item[];
-}
-
-export interface Entity extends InventoryHolder {
+export interface Entity {
   id: number;
   type: EntityType;
   x: number; y: number;
   angle: number;
   pitch: number;              // vertical look: -1..1 (y-shearing)
   alive: boolean;
-  peerSlot?: number;          // optional: online player slot
-  netGen?: string;            // online Net Sphere identity
   speed: number;
   sprite: number;             // sprite sheet index
   spriteSeed?: number;        // deterministic per-entity procedural visual seed
   npcVisualId?: string;        // optional special NPC visual generator family
-  role?: NpcRole;
-  cinematicState?: CinematicState;
   // optional components
   needs?: Needs;
   hp?: number;
   maxHp?: number;
   ai?: AIState;
+  inventory?: Item[];
   name?: string;
   firstName?: string;
   lastName?: string;
@@ -658,6 +650,7 @@ export interface Entity extends InventoryHolder {
   radius?: number;            // physical collision boundary radius override
   spriteScale?: number;       // sprite size multiplier (child = 0.6)
   spriteZ?: number;           // vertical offset: 0=ground, 0.5=eye level (projectiles)
+  plotNpcId?: string;         // story NPC key (e.g. 'olga', 'barni', 'yakov') — see data/plot.ts
   plotDone?: boolean;         // story phase ended, NPC switches to post-plot dialogue
   _plotTalkIdx?: number;      // internal: sequential dialogue line counter
   // projectile fields
@@ -673,7 +666,6 @@ export interface Entity extends InventoryHolder {
   burnTimer?: number;         // fire: remaining burn time on floor cell
   rpg?: RPGStats;             // RPG stats (level, XP, attributes)
   statuses?: PlayerStatus[];  // bounded timed player/NPC conditions
-  statusEffects?: { istotit?: number; veretar?: number }; // Specific plot-item/Samosbor states
   isFemale?: boolean;          // gender for kill message grammar
   isFogBoss?: boolean;         // fog boss — killing stops fog in zone
   fogBossZone?: number;        // zone id this boss guards
@@ -682,7 +674,7 @@ export interface Entity extends InventoryHolder {
   psiControlledBy?: number;    // entity id of PSI controller (ally override)
   phasing?: boolean;           // can move through walls (spirit)
   protocolPressureTier?: number; // quantized sprite cue for Протокольник pressure
-  activeBark?: { text: string; until: number; color: string; skipTranslate?: boolean; }; // UI: active world speech bubble
+  activeBark?: { text: string; until: number; color: string; }; // UI: active world speech bubble
 }
 
 export type PlayerAlife = Pick<Entity, 'persistentNpcId' | 'age' | 'sex' | 'isFemale' | 'playerRelation' | 'karma' | 'kills' | 'npcKills' | 'monsterKills' | 'height'>;
@@ -743,18 +735,17 @@ export enum ContainerKind {
 
 export type ContainerAccess = 'public' | 'room' | 'faction' | 'owner' | 'locked' | 'secret';
 
-export interface WorldContainer extends InventoryHolder {
+export interface WorldContainer {
   id: number;
   x: number;
   y: number;
-  z: number;
+  floor: FloorLevel;
   roomId: number;
   zoneId: number;
   kind: ContainerKind;
   name: string;
   inventory: Item[];
-  /** @deprecated unified inventory uses MAX_INVENTORY_SLOTS (8x8) */
-  capacitySlots?: number;
+  capacitySlots: number;
   ownerNpcId?: number;
   ownerName?: string;
   faction?: Faction;
@@ -806,9 +797,9 @@ export interface RailTrain {
 export enum QuestType { FETCH, VISIT, KILL, TALK }
 
 export interface QuestTargetMarker {
-  z?: number;
+  floor?: FloorLevel;
   roomType?: RoomType;
-  roomDefId?: string;
+  roomName?: string;
   zoneTag?: string;
   designFloorId?: string;
   proceduralTag?: string;
@@ -827,10 +818,10 @@ export interface Quest {
   targetCount?: number;
   // VISIT: targetRoom
   targetRoom?: number;        // room id
-  // Generic route target metadata; unlike visitFloorZ, targetFloorZ is only a hint.
-  targetFloorZ?: number;
+  // Generic route target metadata; unlike visitFloor, targetFloor is only a hint.
+  targetFloor?: FloorLevel;
   targetRoomType?: RoomType;
-  targetRoomDefId?: string;
+  targetRoomName?: string;
   targetZoneTag?: string;
   targetMarker?: QuestTargetMarker;
   targetRoute?: {
@@ -850,6 +841,7 @@ export interface Quest {
   // TALK: targetNpcId
   targetNpcId?: number;
   targetNpcName?: string;
+  targetPlotNpcId?: string;  // plot NPC key for cross-floor TALK quests
   // reward
   rewardItem?: string;
   rewardCount?: number;
@@ -863,7 +855,7 @@ export interface Quest {
   contractId?: string;        // AG10 contract wrapper id
   contractFaction?: Faction;  // issuer faction for generated contracts
   contractRank?: number;      // license/difficulty tier
-  visitFloorZ?: number;    // auto-complete VISIT quest when entering this z
+  visitFloor?: FloorLevel;    // auto-complete VISIT quest when entering this floor
   holdSeconds?: number;       // VISIT: remain at target this many real seconds
   holdProgressSeconds?: number;
   holdLastTime?: number;
@@ -877,22 +869,21 @@ export interface Quest {
   eventPrivacy?: WorldEventPrivacy; // privacy override for authored quest events
   eventSeverity?: WorldEventSeverity; // severity override for authored quest events
   eventTargetName?: string;   // completed event summary override
+  failOnNpcDeathPlotId?: string; // fail when this plot NPC dies
   abandonsSideQuestIds?: string[]; // completing this quest fails these active side quests
   timeLimitMinutes?: number;  // procedural quests, or authored quests that explicitly opt into a deadline
   expiresAtMinutes?: number;  // absolute GameClock.totalMinutes deadline
-  failOnNpcDeathId?: number;
   failed?: boolean;           // true when a timed procedural quest expired
   done: boolean;
 }
 
 // ── World events / context facts ────────────────────────────────
-export const WORLD_EVENT_RECENT_CAPACITY = 1024;
-export const WORLD_EVENT_IMPORTANT_CAPACITY = 512;
-export const WORLD_EVENT_ZONE_CAPACITY = 128;
+export const WORLD_EVENT_RECENT_CAPACITY = 512;
+export const WORLD_EVENT_IMPORTANT_CAPACITY = 128;
+export const WORLD_EVENT_ZONE_CAPACITY = 32;
 export const WORLD_EVENT_ZONE_COUNT = 64;
 
 export const WORLD_EVENT_TYPES = [
-  'arena_champion_crowned',
   'npc_enter_zone',
   'npc_leave_zone',
   'npc_enter_room',
@@ -918,10 +909,6 @@ export const WORLD_EVENT_TYPES = [
   'player_pick_item',
   'player_drop_item',
   'player_use_item',
-  'arena_bet_placed',
-  'arena_duel_ended',
-  'arena_bet_won',
-  'arena_bet_lost',
   'player_disassemble_item',
   'player_craft_item',
   'craft_recipe_learned',
@@ -1096,7 +1083,7 @@ export interface WorldEvent {
   day: number;
   hour: number;
   minute: number;
-  z: number;
+  floor: FloorLevel;
   zoneId?: number;
   roomId?: number;
   x?: number;
@@ -1122,12 +1109,12 @@ export interface WorldEvent {
   data?: Record<string, unknown>;
 }
 
-export type WorldEventDraft = Omit<WorldEvent, 'id' | 'time' | 'day' | 'hour' | 'minute' | 'z' | 'truth'> & {
+export type WorldEventDraft = Omit<WorldEvent, 'id' | 'time' | 'day' | 'hour' | 'minute' | 'floor' | 'truth'> & {
   time?: number;
   day?: number;
   hour?: number;
   minute?: number;
-  z?: number;
+  floor?: FloorLevel;
   truth?: 'fact';
 };
 
@@ -1149,7 +1136,7 @@ export interface ContextFact {
 export interface EventFilter {
   type?: WorldEventType;
   zoneId?: number;
-  z?: number;
+  floor?: FloorLevel;
   minSeverity?: WorldEventSeverity;
   privacy?: WorldEventPrivacy;
   actorId?: number;
@@ -1202,7 +1189,6 @@ export interface GameState {
   trailerMode?: boolean;
   tutorialMode?: boolean;
   tutorialStep?: number;
-  tutorialExitTimer?: number;
   showInventory: boolean;
   mapMode: number;          // 0=closed, 2=full map overlay; minimap is a UI setting
   fullMapRadius?: number;   // transient full-map zoom radius in cells; not part of save shape
@@ -1212,7 +1198,7 @@ export interface GameState {
   quests: Quest[];
   activeQuestId?: number;    // one player-selected quest for map guidance/current objective
   nextQuestId: number;
-  currentZ: number;
+  currentFloor: FloorLevel;
   fogSpreadTimer: number;     // ticks between fog spread steps
   // ── Game menu (Enter) ──
   showMenu: boolean;
@@ -1258,7 +1244,7 @@ export interface GameState {
   controlSel: number;
   controlScroll: number;
   showUiSettings: boolean;      // configurable HUD element screen
-  uiSettingsView: 'interface' | 'graphics' | 'audio';
+  uiSettingsView: 'interface' | 'graphics';
   uiSettingsSel: number;
   uiSettingsScroll: number;
   showMapLegend: boolean;       // separate full-map legend/settings screen
@@ -1284,26 +1270,13 @@ export interface GameState {
 }
 
 export interface MsgLocation {
-  z?: number;
+  floor?: FloorLevel;
   x?: number;
   y?: number;
   actorId?: number;
   targetId?: number;
   roomId?: number;
   zoneId?: number;
-}
-
-export enum NpcRole {
-  WANDERER = 'WANDERER',
-  TRADER = 'TRADER',
-  CINEMATIC_ACTOR = 'CINEMATIC_ACTOR'
-}
-
-export interface CinematicState {
-  originalRole: NpcRole;
-  originalX: number;
-  originalY: number;
-  sceneId: string;
 }
 
 export interface Msg extends MsgLocation {
@@ -1352,7 +1325,7 @@ export function msgAt(text: string, time: number, color: string, location: MsgLo
   const zoneId = Number.isFinite(location.zoneId) ? Math.floor(location.zoneId!) : undefined;
   return {
     ...base,
-    z: location.z,
+    floor: location.floor,
     x,
     y,
     actorId,
@@ -1393,6 +1366,6 @@ export interface InputState {
   controlEdit: boolean;         // reserved command slot for hotkey screens
   controlReset: boolean;        // selected-bind clear command from current controls
   controlClose: boolean;        // keyboard close/back command from current controls
-  mouse: { dx: number; dy: number; menuDx: number; menuDy: number; locked: boolean; };
+  mouse: { dx: number; dy: number; locked: boolean; };
   touch: { moveX: number; moveY: number; lookX: number; lookY: number; active: boolean; };
 }

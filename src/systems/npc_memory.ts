@@ -1,6 +1,6 @@
 /* ── Bounded module-level NPC memory store ────────────────────── */
 
-import { Faction, MonsterKind, type Entity } from '../core/types';
+import { Faction, MonsterKind, type Entity, type FloorLevel } from '../core/types';
 
 export type NpcObservedFactKind =
   | 'theft'
@@ -25,7 +25,7 @@ export type NpcWitnessResidue = 'mark' | 'moved_loot' | 'scared_npc' | 'price' |
 export interface NpcObservedFact {
   eventId: number;
   kind: NpcObservedFactKind;
-  z?: number;
+  floor?: FloorLevel;
   zoneId?: number;
   roomId?: number;
   actorId?: number;
@@ -49,7 +49,7 @@ export interface NpcMemoryEventLike {
   id?: number;
   type?: string;
   time?: number;
-  z?: number;
+  floor?: FloorLevel;
   zoneId?: number;
   roomId?: number;
   severity?: number;
@@ -94,8 +94,7 @@ export interface RecentRumorLead {
   text: string;
   heardAt: number;
   expiresAt: number;
-  z?: number;
-  roomDefId?: string;
+  floor?: FloorLevel;
   roomName?: string;
   itemId?: string;
   monsterKind?: MonsterKind;
@@ -111,17 +110,6 @@ const WITNESS_FACT_LINE_COOLDOWN_S = 90;
 
 const memories = new Map<number, NpcMemory>();
 let recentRumorLead: RecentRumorLead | undefined;
-
-/** Reset per-run NPC social memory. Called from initGame (new run) and the load
- *  path alongside clearRoomMemory(): the Map is keyed by entity id and never
- *  saved, so without this a New-Game-without-reload (which sets state.time→0)
- *  would leak run-1 fear/trust/rumor state and future-dated cooldown timestamps
- *  into run 2 via deterministic entity-id collision. Deliberately NOT called on
- *  lift transitions — within-run memory persists across floors by design. */
-export function resetNpcMemoryStore(): void {
-  memories.clear();
-  recentRumorLead = undefined;
-}
 
 export function rememberRecentRumorLead(input: Omit<RecentRumorLead, 'expiresAt'>): void {
   recentRumorLead = {
@@ -208,7 +196,7 @@ export function noteObservedEventFact(npc: Entity, event: NpcMemoryEventLike, no
   memory.observedFacts.push({
     eventId,
     kind,
-    z: event.z,
+    floor: event.floor,
     zoneId: event.zoneId,
     roomId: event.roomId,
     actorId: event.actorId,
@@ -246,8 +234,8 @@ export function formatRecentWitnessFactLine(memory: NpcMemory, now: number): str
   const place = witnessPlace(fact);
   const residue = witnessResidueText(fact.residue);
   return residue
-    ? `Я видел: ${witnessActionText(fact)}. Место: ${place}; след: ${residue}.`
-    : `Я видел: ${witnessActionText(fact)}. Место: ${place}.`;
+    ? `Я видел: ${witnessActionText(fact)}. Зацепка: ${place}; след: ${residue}.`
+    : `Я видел: ${witnessActionText(fact)}. Зацепка: ${place}.`;
 }
 
 export function rememberRumor(npc: Entity, rumorId: string, now: number): boolean {
@@ -504,7 +492,7 @@ const FLOOR_NAMES: Record<number, string> = {
 
 function witnessPlace(fact: NpcObservedFact): string {
   const parts: string[] = [];
-  if (fact.z !== undefined) parts.push(FLOOR_NAMES[fact.z] ?? `этаж ${fact.z}`);
+  if (fact.floor !== undefined) parts.push(FLOOR_NAMES[fact.floor] ?? `этаж ${fact.floor}`);
   if (fact.zoneId !== undefined) parts.push(`зона ${fact.zoneId + 1}`);
   if (fact.roomId !== undefined) parts.push(`комната ${fact.roomId}`);
   return parts.length > 0 ? parts.join(' / ') : 'место рядом';

@@ -5,6 +5,7 @@ import {
   Cell,
   DoorState,
   EntityType,
+  FloorLevel,
   RoomType,
   W,
   ZoneFaction,
@@ -16,7 +17,7 @@ import {
   DARK_METRO_FUTURE_Z,
   DARK_METRO_HQ_ROOM_NAMES,
   DESIGN_FLOOR_ID,
-} from '../src/gen/dark_metro';
+} from '../src/gen/design_floors/dark_metro';
 import {
   countTerritoryCells,
   territoryHqAnchors,
@@ -78,7 +79,7 @@ function reachableCount(reachable: Uint8Array): number {
 test('dark_metro is registered as the z-32 Maintenance route shortcut', () => {
   const route = designFloorById(DESIGN_FLOOR_ID);
   assert.equal(route?.z, DARK_METRO_FUTURE_Z);
-  assert.equal(route?.themeTags?.includes('maintenance'), true);
+  assert.equal(route?.baseFloor, FloorLevel.MAINTENANCE);
   assert.equal(route?.displayName, 'Темная пересадка');
   assert.equal(designFloorAtZ(DARK_METRO_FUTURE_Z)?.id, DESIGN_FLOOR_ID);
 });
@@ -152,7 +153,7 @@ test('dark_metro ambient veterans prefer their own cell territory after territor
   const gen = darkMetro();
   const ambientNpcs = gen.entities.filter(entity =>
     entity.type === EntityType.NPC &&
-    !(entity as any).npcPackageId &&
+    !entity.plotNpcId &&
     !entity.persistentNpcId &&
     entity.alifeId === undefined &&
     entity.questId === -1 &&

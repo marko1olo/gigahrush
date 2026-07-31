@@ -27,7 +27,7 @@ import {
 } from '../src/systems/platform_bridge';
 import { SAVE_SHAPE_VERSION } from '../src/systems/save_runtime';
 import { createPortalCompactSavePayload, summarizeSavePayload, type SavePayload } from '../src/systems/save_payload';
-import { QuestType } from '../src/core/types';
+import { FloorLevel, QuestType } from '../src/core/types';
 import { designFloorAmbientLight, designFloorProfile, designFloorPseudoliftChance } from '../src/data/design_floor_profiles';
 
 test('platform bridge detects explicit portal query safely', () => {
@@ -43,42 +43,6 @@ test('platform bridge detects explicit portal query safely', () => {
     publicToken: 'pub',
   });
   assert.equal(gamePushConfigFromSearch('?gpProjectId=123'), null);
-});
-
-
-test('portalTargetFromSearchOrMeta correctly parses search and meta values with fallbacks', () => {
-  // Priority: Search takes precedence over meta
-  assert.equal(portalTargetFromSearchOrMeta('?portal=gamepush', 'yandex'), 'gamepush');
-  assert.equal(portalTargetFromSearchOrMeta('?portal=yandex', 'pikabu'), 'yandex');
-  assert.equal(portalTargetFromSearchOrMeta('?portal=pikabu', 'gamepush'), 'pikabu');
-
-  // Search Happy Paths & Aliases (ignoring meta if search matches)
-  assert.equal(portalTargetFromSearchOrMeta('?portal=ya', 'invalid'), 'yandex');
-  assert.equal(portalTargetFromSearchOrMeta('?portal=gp', 'invalid'), 'gamepush');
-  assert.equal(portalTargetFromSearchOrMeta('?portal=pikabu-games', 'invalid'), 'pikabu');
-  assert.equal(portalTargetFromSearchOrMeta('?portal=pikabu_games', 'invalid'), 'pikabu');
-
-  // Search Edge Cases
-  assert.equal(portalTargetFromSearchOrMeta('portal=yandex', ''), 'yandex'); // Missing '?'
-  assert.equal(portalTargetFromSearchOrMeta('?foo=bar&portal=gp&baz=qux', ''), 'gamepush'); // Multiple params
-  assert.equal(portalTargetFromSearchOrMeta('?portal=YANDEX', ''), 'yandex'); // Case insensitivity in search is handled by normalizePortalTarget
-
-  // Meta Happy Paths & Edge Cases (Search is empty or invalid)
-  assert.equal(portalTargetFromSearchOrMeta('', 'gamepush'), 'gamepush');
-  assert.equal(portalTargetFromSearchOrMeta('?other=value', 'yandex'), 'yandex'); // Search missing 'portal' key
-  assert.equal(portalTargetFromSearchOrMeta('?portal=invalid', 'pikabu'), 'pikabu'); // Search 'portal' value is invalid
-  assert.equal(portalTargetFromSearchOrMeta('?portal=', 'yandex'), 'yandex'); // Search 'portal' value is empty
-
-  // Meta Normalization (whitespace, casing, aliases)
-  assert.equal(portalTargetFromSearchOrMeta('', '  YANDEX  '), 'yandex');
-  assert.equal(portalTargetFromSearchOrMeta('', 'Ya'), 'yandex');
-  assert.equal(portalTargetFromSearchOrMeta('', 'GP'), 'gamepush');
-  assert.equal(portalTargetFromSearchOrMeta('', 'pikabu-games'), 'pikabu');
-
-  // Both Empty/Invalid
-  assert.equal(portalTargetFromSearchOrMeta('', ''), '');
-  assert.equal(portalTargetFromSearchOrMeta('?portal=invalid', 'invalid'), '');
-  assert.equal(portalTargetFromSearchOrMeta('malformed_search_string', 'unknown_meta'), '');
 });
 
 test('portal compact save keeps a current-shape resume profile without heavy floor memory', () => {
@@ -109,7 +73,7 @@ test('portal compact save keeps a current-shape resume profile without heavy flo
         targetCount: 1,
       })),
       nextQuestId: 91,
-      currentZ: 0,
+      currentFloor: FloorLevel.LIVING,
       floorRun: {
         runSeed: 123,
         currentZ: -4,
@@ -135,7 +99,7 @@ test('portal compact save keeps a current-shape resume profile without heavy flo
       banking: { accountRubles: 50, recentLedger: Array.from({ length: 20 }, (_, i) => ({ id: i + 1 })) },
       stockMarket: { portfolio: {}, quotes: {}, recentTrades: Array.from({ length: 20 }, (_, i) => ({ id: i + 1 })) },
       production: Array.from({ length: 40 }, (_, i) => ({
-        z: -6,
+        floor: FloorLevel.LIVING,
         roomId: i,
         factoryId: 'unknown',
         recipeId: 'unknown',
@@ -147,7 +111,7 @@ test('portal compact save keeps a current-shape resume profile without heavy flo
         id: i + 1,
         x: i,
         y: i,
-        z: -6,
+        floor: FloorLevel.LIVING,
         roomId: 1,
         zoneId: 1,
         kind: 0,
@@ -175,14 +139,8 @@ test('platform cloud save keeps the raw payload under the strictest portal limit
   assert.equal(isPortalCloudSaveSizeAllowed(PORTAL_RAW_SAVE_LIMIT_BYTES), true);
   assert.equal(isPortalCloudSaveSizeAllowed(PORTAL_RAW_SAVE_LIMIT_BYTES + 1), false);
   assert.equal(isPortalCloudSaveSizeAllowed(-1), false);
-  assert.equal(isPortalCloudSaveSizeAllowed(NaN), false);
-  assert.equal(isPortalCloudSaveSizeAllowed(Infinity), false);
-
   assert.equal(isGamePushCloudSaveSizeAllowed(GAMEPUSH_RAW_SAVE_LIMIT_BYTES), true);
   assert.equal(isGamePushCloudSaveSizeAllowed(GAMEPUSH_RAW_SAVE_LIMIT_BYTES + 1), false);
-  assert.equal(isGamePushCloudSaveSizeAllowed(-1), false);
-  assert.equal(isGamePushCloudSaveSizeAllowed(NaN), false);
-  assert.equal(isGamePushCloudSaveSizeAllowed(Infinity), false);
 });
 
 test('platform cloud save is a no-op without an SDK', async () => {

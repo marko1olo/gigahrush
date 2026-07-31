@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { Cell, EntityType, MonsterKind, W, type Entity } from '../src/core/types';
+import { Cell, EntityType, FloorLevel, MonsterKind, W, type Entity } from '../src/core/types';
 import { World } from '../src/core/world';
 import { generateOverflowSluice } from '../src/gen/maintenance/overflow_sluice';
 import {
@@ -56,7 +56,7 @@ test('overflow sluice ties eel water, warnings, bait, and harpoon counters toget
   assert.match(warning.detail, /гарпун|приман/);
   assert.equal(warning.trapped, false, 'water should slow and warn without acting like adhesive slime');
 
-  const state = makeGameState({ currentZ: -14, time: 15 });
+  const state = makeGameState({ currentFloor: FloorLevel.MAINTENANCE, time: 15 });
   assert.equal(cleanCellHazardsNear(world, player.x, player.y, 2, state, player, 'fire'), 0, 'water risk should not be burned away like residue');
   assert.ok(getCellHazardMoveMultiplier(world, player) < 1, 'non-cleanable water risk should remain active');
 

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { DoorState, ItemType, RoomType, type Entity } from '../src/core/types';
+import { DoorState, FloorLevel, ItemType, RoomType, type Entity } from '../src/core/types';
 import { World } from '../src/core/world';
 import { ITEM_TAGS, ITEMS } from '../src/data/items';
 import { RESOURCES, resourceForItem } from '../src/data/resources';
@@ -32,7 +32,7 @@ test('ovb search warrant is rare official HQ access paperwork', () => {
 
 test('ovb search warrant can be sold as high-risk document leverage', () => {
   const player = makeTestPlayer();
-  const state = makeGameState({ currentZ: 0, time: 117 });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING, time: 117 });
 
   assert.equal(addItem(player, ITEM_ID, 1), true);
   assert.equal(getInventorySlotActionInfo(player, 0)?.useLabel, 'Enter предъявить');
@@ -61,7 +61,7 @@ test('ovb search warrant exposes legal force at Ministry N3', () => {
     x: room.x + 8.5,
     y: room.y + Math.floor(room.h / 2) + 0.5,
   });
-  const state = makeGameState({ currentZ: 34, time: 117 });
+  const state = makeGameState({ currentFloor: FloorLevel.MINISTRY, time: 117 });
 
   assert.equal(addItem(player, ITEM_ID, 1), true);
   useItem(player, 0, state.msgs, state.time, state, undefined, world);

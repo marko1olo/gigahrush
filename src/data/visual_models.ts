@@ -13,7 +13,6 @@ export type MeshMaterialId =
   | 'bone';
 
 export type VisualModelId =
-  | 'organic_tree'
   | 'pipe_wall_small'
   | 'pipe_wall_large'
   | 'button_panel'
@@ -97,9 +96,6 @@ export interface VisualModelBoxPart extends VisualModelPartBase {
   kind: 'box';
   position: MeshVec3;
   size: MeshVec3;
-  yaw?: number;
-  pitch?: number;
-  roll?: number;
   bevel?: number;
 }
 
@@ -158,8 +154,7 @@ export interface VisualModelDef {
   tags: readonly string[];
   bounds: { x: number; y: number; z: number };
   anchor: VisualModelAnchor;
-  parts: readonly VisualModelPart[] | ((seed: number) => readonly VisualModelPart[]);
-  variantCount?: number;
+  parts: readonly VisualModelPart[];
   variantSalt?: number;
   spriteFallback?: string;
 }
@@ -920,58 +915,12 @@ export const VISUAL_MODELS: readonly VisualModelDef[] = [
   {
     id: 'organic_meat_lump',
     tags: ['organic', 'meat', 'floor', 'clutter'],
-    bounds: { x: 0.3, y: 0.3, z: 0.15 },
+    bounds: { x: 0.2, y: 0.2, z: 0.15 },
     anchor: 'floor',
     variantSalt: 311,
-    variantCount: 128,
-    parts: (seed: number) => {
-      // Procedural generation of a cluster of 3-5 random meat cubes
-      // Seed is already deterministically binned to variantCount by model_cache.ts
-      const s = seed * 1.6180339887;
-      const h1 = Math.sin(s) * 10000;
-      const h2 = Math.cos(s) * 10000;
-      const count = 3 + Math.floor((h1 - Math.floor(h1)) * 3);
-      const parts: VisualModelPart[] = [];
-      const colors = [
-        [112, 32, 36],
-        [100, 24, 28],
-        [120, 36, 40],
-        [90, 20, 24],
-        [110, 30, 36],
-        [95, 20, 22],
-        [115, 33, 38],
-        [105, 26, 32],
-      ];
-      
-      for (let i = 0; i < count; i++) {
-        const phi = (i / count) * Math.PI * 2 + (h2 - Math.floor(h2)) * Math.PI;
-        const rad = 0.02 + ((h1 * (i + 1)) - Math.floor(h1 * (i + 1))) * 0.04;
-        const x = Math.cos(phi) * rad;
-        const y = Math.sin(phi) * rad;
-        const z = 0.03 + ((h2 * (i + 1)) - Math.floor(h2 * (i + 1))) * 0.05;
-        
-        const w = 0.08 + ((h1 * (i + 2)) - Math.floor(h1 * (i + 2))) * 0.08;
-        const d = 0.08 + ((h2 * (i + 2)) - Math.floor(h2 * (i + 2))) * 0.08;
-        const h = 0.05 + ((h1 * (i + 3)) - Math.floor(h1 * (i + 3))) * 0.06;
-        
-        const yaw = ((h2 * (i + 3)) - Math.floor(h2 * (i + 3))) * Math.PI * 2;
-        const pitch = (((h1 * (i + 4)) - Math.floor(h1 * (i + 4))) - 0.5) * 1.5;
-        const roll = (((h2 * (i + 4)) - Math.floor(h2 * (i + 4))) - 0.5) * 1.5;
-        
-        const colorIdx = Math.floor(((h1 * (i + 5)) - Math.floor(h1 * (i + 5))) * colors.length);
-        parts.push({ 
-          kind: 'box', 
-          position: [x, y, z], 
-          size: [w, d, h], 
-          yaw, 
-          pitch, 
-          roll, 
-          material: 'cloth', 
-          color: colors[colorIdx] as [number, number, number] 
-        });
-      }
-      return parts;
-    },
+    parts: [
+      { kind: 'box', position: [0, 0, 0.04], size: [0.16, 0.12, 0.08], material: 'cloth', color: [112, 32, 36] },
+    ],
   },
   {
     id: 'organic_bone_shard',
@@ -1047,20 +996,6 @@ export const VISUAL_MODELS: readonly VisualModelDef[] = [
       { kind: 'cylinder', position: [0, 0, 0.9], radius: 0.24, height: 0.2, axis: 'z', segments: 8, material: 'meat' },
       { kind: 'box', position: [0.12, 0.12, 0.5], size: [0.08, 0.08, 0.8], material: 'meat' },
       { kind: 'box', position: [-0.12, -0.12, 0.5], size: [0.08, 0.08, 0.8], material: 'meat' },
-    ],
-  },
-  {
-    id: 'organic_tree',
-    tags: ['tree', 'organic', 'nature', 'floor'],
-    bounds: { x: 0.8, y: 0.8, z: 2.0 },
-    anchor: 'floor',
-    variantSalt: 777,
-    parts: [
-      // Trunk
-      { kind: 'cylinder', position: [0, 0, 0.5], radius: 0.15, height: 1.0, axis: 'z', segments: 6, material: 'wood' },
-      // Leaves/Canopy
-      { kind: 'crossPlane', position: [0, 0, 1.2], size: [1.2, 1.0], material: 'cloth' },
-      { kind: 'crossPlane', position: [0, 0, 1.6], size: [0.8, 0.8], material: 'cloth' },
     ],
   },
 ] as const;

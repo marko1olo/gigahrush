@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { AIGoal, Cell, EntityType, Faction, MonsterKind, type Entity } from '../src/core/types';
+import { AIGoal, Cell, EntityType, Faction, FloorLevel, MonsterKind, type Entity } from '../src/core/types';
 import { World } from '../src/core/world';
 import { MONSTER_ECOLOGY } from '../src/data/monster_ecology';
 import { DEF, generateSprite } from '../src/entities/pechateed';
@@ -10,7 +10,7 @@ import { setEntityMap, updateMonster } from '../src/systems/ai/monster';
 import { rebuildEntityIndex } from '../src/systems/entity_index';
 import { makeGameState, makeTestNpc, makeTestPlayer } from './helpers';
 
-function sortedFloors(floors: readonly number[] | undefined): number[] {
+function sortedFloors(floors: readonly FloorLevel[] | undefined): FloorLevel[] {
   return [...(floors ?? [])].sort((a, b) => a - b);
 }
 
@@ -49,6 +49,7 @@ test('pechateed local definition stays a kiteable document hunter', () => {
   assert.ok(ecology, 'PECHATEED ecology must exist');
   assert.equal(DEF.kind, MonsterKind.PECHATEED);
   assert.deepEqual(DEF.aiFlags, ['documentHunter']);
+  assert.deepEqual(sortedFloors(DEF.floors), sortedFloors(ecology.floors));
   assert.ok(DEF.speed < 1.8, 'PECHATEED should remain kiteable');
   assert.ok(DEF.dmg >= 10, 'PECHATEED should punish a caught paper carrier');
   assert.match(DEF.counterplay ?? '', /Сбросьте.*бумаг/);
@@ -92,7 +93,7 @@ test('pechateed document scent targets NPC carriers, not only the player', () =>
   const entities = [player, threat, courier];
 
   prime(entities);
-  updateMonster(world, entities, threat, 0.2, 6, [], player.id, { v: 100 }, makeGameState({ currentZ: 34 }));
+  updateMonster(world, entities, threat, 0.2, 6, [], player.id, { v: 100 }, makeGameState({ currentFloor: FloorLevel.MINISTRY }));
 
   assert.equal(threat.ai?.combatTargetId, courier.id);
 });

@@ -5,7 +5,7 @@ import { auditReachability } from '../src/core/world';
 import { Cell, EntityType, RoomType, W, ZoneFaction } from '../src/core/types';
 import { HUMAN_TERRITORY_OWNERS } from '../src/data/factions';
 import { generateDesignFloor } from '../src/gen/design_floors/manifest';
-import { DESIGN_FLOOR_ID } from '../src/gen/chthonic_attic';
+import { DESIGN_FLOOR_ID } from '../src/gen/design_floors/chthonic_attic';
 import {
   countTerritoryCells,
   territoryHqAnchors,
@@ -45,7 +45,7 @@ test('chthonic_attic expands the root macro into service islands and micro rooms
   const gen = generatedChthonicAttic();
   const reachable = assertReachableRouteLifts(gen, DESIGN_FLOOR_ID);
   const npcs = gen.entities.filter(entity => entity.type === EntityType.NPC);
-  const ambientNpcs = npcs.filter(entity => !(entity as any).npcPackageId && !entity.persistentNpcId && entity.alifeId === undefined);
+  const ambientNpcs = npcs.filter(entity => !entity.plotNpcId && !entity.persistentNpcId && entity.alifeId === undefined);
   const monsters = gen.entities.filter(entity => entity.type === EntityType.MONSTER);
   const microRooms = gen.world.rooms.filter(room => room.name.startsWith('Чердак:'));
   const hqRooms = gen.world.rooms.filter(room => room.type === RoomType.HQ);

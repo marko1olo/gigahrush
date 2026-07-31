@@ -45,7 +45,7 @@ const PROCEDURAL_ANOMALY_GENERATION_REGISTRY: Record<FloorAnomalyId, ProceduralA
 
 export function applyProceduralAnomalyProfile(ctx: ProceduralAnomalyGenContext): void {
   const registration = PROCEDURAL_ANOMALY_GENERATION_REGISTRY[ctx.spec.anomalyId];
-  if (registration?.apply) registration.apply(ctx);
+  if (registration.apply) registration.apply(ctx);
 }
 
 export function validateProceduralAnomalyGenerationRegistry(): void {

@@ -11,7 +11,7 @@
 /*   call it from the living/index.ts orchestrator.                */
 
 import {
-  W, Cell, ContainerKind, DoorState, Tex, RoomType, Feature,
+  W, Cell, ContainerKind, DoorState, FloorLevel, Tex, RoomType, Feature,
   type Room, type Entity,
   type Item, type WorldContainer,
   EntityType,
@@ -20,7 +20,6 @@ import { World } from '../../core/world';
 import { stampRoom, protectRoom } from '../shared';
 import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
 import { Spr } from '../../render/sprite_index';
-import { spawnTutorialKey } from './tutorial_apartments';
 
 function protectTutorialWallsAsHermetic(world: World, x: number, y: number, w: number, h: number): void {
   for (let dy = -1; dy <= h; dy++) {
@@ -55,7 +54,7 @@ function addStarterLocker(world: World, room: Room, x: number, y: number): World
     id: nextContainerId(world),
     x,
     y,
-    z: 100,
+    floor: FloorLevel.LIVING,
     roomId: room.id,
     zoneId: world.zoneMap[idx],
     kind: ContainerKind.EMERGENCY_BOX,
@@ -106,7 +105,6 @@ export function generateTutorRoom(world: World, nextRoomId: number, entities: En
 
   const room = stampRoom(world, nextRoomId++, RoomType.COMMON, hallX, hallY, hallW, hallH, -1);
   room.name = 'Актовый зал';
-  room.tags = ['tutorial'];
   room.wallTex = Tex.TILE_W;
   room.floorTex = Tex.F_TILE;
   room.sealed = false; // Must be false so ensureConnectivity punches an exit to the maze!
@@ -163,7 +161,6 @@ export function generateTutorRoom(world: World, nextRoomId: number, entities: En
   const cafeY = hallY - cafeH - 1;
   const cafeteria = stampRoom(world, nextRoomId++, RoomType.COMMON, cafeX, cafeY, cafeW, cafeH, -1);
   cafeteria.name = 'Столовая';
-  cafeteria.tags = ['tutorial'];
   cafeteria.wallTex = Tex.TILE_W;
   cafeteria.floorTex = Tex.F_LINO;
   cafeteria.sealed = true;
@@ -172,16 +169,6 @@ export function generateTutorRoom(world: World, nextRoomId: number, entities: En
   
   if (isTutorial) {
     world.features[world.idx(cafeX + 1, cafeY + 1)] = Feature.SINK;
-    entities.push({
-      id: nextId.v++,
-      type: EntityType.ITEM_DROP,
-      x: cafeX + 1.5,
-      y: cafeY + 1.5,
-      angle: 0, pitch: 0,
-      alive: true, speed: 0,
-      sprite: Spr.ITEM_DROP, spriteScale: 1.0,
-      inventory: [{ defId: 'lighter', count: 1 }],
-    });
   }
 
   // Door to cafeteria starts locked. Move it to the side so it doesn't overlap the slide.
@@ -208,7 +195,6 @@ export function generateTutorRoom(world: World, nextRoomId: number, entities: En
   const bathY = cafeY;
   const bathroom = stampRoom(world, nextRoomId++, RoomType.BATHROOM, bathX, bathY, bathW, bathH, -1);
   bathroom.name = 'Уборная';
-  bathroom.tags = ['tutorial'];
   bathroom.wallTex = Tex.TILE_W;
   bathroom.floorTex = Tex.F_TILE;
   bathroom.sealed = true;
@@ -234,7 +220,6 @@ export function generateTutorRoom(world: World, nextRoomId: number, entities: En
   world.aptMask[world.idx(cafeX - 1, cafeY + Math.floor(bathH / 2) - 1)] = 1;
   world.aptMask[world.idx(cafeX - 1, cafeY + Math.floor(bathH / 2) + 1)] = 1;
 
-  world.features[world.idx(bathX + Math.floor(bathW / 2), bathY + 1)] = Feature.LAMP;
   world.features[world.idx(bathX + Math.floor(bathW / 2), bathY + bathH - 2)] = Feature.TOILET;
   if (isTutorial) {
     entities.push({
@@ -257,7 +242,6 @@ export function generateTutorRoom(world: World, nextRoomId: number, entities: En
 
   const armory = stampRoom(world, nextRoomId++, RoomType.PRODUCTION, armX, armY, armW, armH, -1);
   armory.name = 'Оружейная';
-  armory.tags = ['tutorial'];
   armory.wallTex = Tex.METAL;
   armory.floorTex = Tex.F_CONCRETE;
   armory.sealed = true;
@@ -343,10 +327,6 @@ export function generateTutorRoom(world: World, nextRoomId: number, entities: En
   // ── Player spawn ──
   const spawnX = isTutorial ? cafeX + Math.floor(cafeW / 2) + 0.5 : hallX + Math.floor(hallW / 2) + 0.5;
   const spawnY = isTutorial ? cafeY + Math.floor(cafeH / 2) + 0.5 : hallY + hallH - 2 + 0.5;
-
-  if (isTutorial) {
-    spawnTutorialKey(world, nextId, hallX + 2, hallY + 2);
-  }
 
   return { room, spawnX, spawnY, nextRoomId };
 }

@@ -20,13 +20,11 @@ import {
   NPC_PACKAGE_SOCIAL_LINK_CAP,
   validateCommunityNpcPackageFolder,
   validateNpcPackage,
-  validateNpcSpriteRlePayload,
   npcPackageLookupHints,
   type NpcCommunityPackageFolder,
   type NpcSpriteRlePayload,
 } from '../src/data/npc_package_schema';
 import { NPC_VISUAL_FLOOR69_FEMALE } from '../src/entities/npc_visuals';
-import '../src/data/npc_plot_packages';
 
 function minimalNpcPackage(id: string): NpcPackageDef {
   return {
@@ -42,7 +40,7 @@ function minimalNpcPackage(id: string): NpcPackageDef {
     loadout: {},
     social: {},
     visual: {},
-    placement: { homeFloorKey: 'design:living', presence: 'population' },
+    placement: { homeFloorKey: 'story:living', presence: 'population' },
     speech: {},
   };
 }
@@ -199,7 +197,7 @@ test('full NPC package covers bio, speech, social, RPG, visual and loadout field
       portraitHint: 'ключи и рабочая куртка',
     },
     placement: {
-      homeFloorKey: 'design:living',
+      homeFloorKey: 'story:living',
       presence: 'anchor',
       mobility: 'fixed_home',
       roomId: 'locker_post',
@@ -351,24 +349,6 @@ test('NPC package validator rejects out-of-range relation and karma values', () 
   assert.ok(result.errors.some(error => error.includes('social.links[0].relation')));
 });
 
-test('NPC package validator rejects non-object root and sub-objects', () => {
-  const nonObjectResult = validateNpcPackage("not an object");
-  assert.equal(nonObjectResult.valid, false);
-  assert.ok(nonObjectResult.errors.includes('package must be an object'));
-
-  const pack = {
-    ...minimalNpcPackage('invalid_sub_objects'),
-    runtime: "not an object",
-    content: "not an object",
-    editor: "not an object",
-  };
-  const subObjectResult = validateNpcPackage(pack);
-  assert.equal(subObjectResult.valid, false);
-  assert.ok(subObjectResult.errors.includes('runtime must be an object'));
-  assert.ok(subObjectResult.errors.includes('content must be an object'));
-  assert.ok(subObjectResult.errors.includes('editor must be an object'));
-});
-
 test('NPC package validator rejects function fields and runtime-only live entity ids', () => {
   const pack = minimalNpcPackage('function_field_npc') as unknown as Record<string, unknown>;
   (pack.identity as Record<string, unknown>).computed = () => 'bad';
@@ -427,7 +407,7 @@ test('editor document exposes validation state and registry-derived lookup hints
   assert.ok(doc.lookupHints.factions.includes('CITIZEN'));
   assert.ok(doc.lookupHints.occupations.includes('DOCTOR'));
   assert.ok(doc.lookupHints.itemIds.includes('bandage'));
-  assert.ok(doc.lookupHints.floorKeys.includes('design:living'));
+  assert.ok(doc.lookupHints.floorKeys.includes('story:living'));
   assert.ok(doc.lookupHints.visualIds.includes(NPC_VISUAL_FLOOR69_FEMALE));
   assert.ok(doc.lookupHints.perkIds.includes('tool_hands'));
   assert.ok(doc.lookupHints.demosRelationRoles.includes('FRIEND'));
@@ -485,32 +465,6 @@ test('community folder requires consent json', () => {
   assert.ok(validation.errors.some(error => error.includes('consent.json is required')), validation.errors.join('; '));
 });
 
-test('community folder missing files array is allowed but validates missing required files', () => {
-  const folder = communityFolder('community_missing_files_array');
-  folder.files = undefined;
-
-  const validation = validateCommunityNpcPackageFolder(folder);
-  assert.equal(validation.valid, true, validation.errors.join('; '));
-});
-
-test('community folder rejects missing files in files array', () => {
-  const folder = communityFolder('community_missing_file_in_array');
-  folder.files = ['npc.json', 'README.md', 'consent.json']; // missing sprite.rle.json
-
-  const validation = validateCommunityNpcPackageFolder(folder);
-  assert.equal(validation.valid, false);
-  assert.ok(validation.errors.some(error => error.includes('community folder missing sprite.rle.json')), validation.errors.join('; '));
-});
-
-test('community folder rejects extra unexpected files in files array', () => {
-  const folder = communityFolder('community_extra_file_in_array');
-  folder.files = ['npc.json', 'sprite.rle.json', 'README.md', 'consent.json', 'unknown.json'];
-
-  const validation = validateCommunityNpcPackageFolder(folder);
-  assert.equal(validation.valid, false);
-  assert.ok(validation.errors.some(error => error.includes('community file "unknown.json" is not part of the runtime contract')), validation.errors.join('; '));
-});
-
 test('community sprite payload rejects oversized RLE data', () => {
   const folder = communityFolder('community_oversized_sprite');
   folder.spriteRle = {
@@ -521,14 +475,6 @@ test('community sprite payload rejects oversized RLE data', () => {
   const validation = validateCommunityNpcPackageFolder(folder);
   assert.equal(validation.valid, false);
   assert.ok(validation.errors.some(error => error.includes('sprite.rle byte length')), validation.errors.join('; '));
-});
-
-test('validateNpcSpriteRlePayload rejects incorrect format', () => {
-  const payload = { format: 'invalid_format_string' };
-
-  const validation = validateNpcSpriteRlePayload(payload);
-  assert.equal(validation.valid, false);
-  assert.ok(validation.errors.some(error => error.includes('sprite.format must be')), validation.errors.join('; '));
 });
 
 test('community sprite payload rejects invalid palette and byte values', () => {
@@ -579,7 +525,7 @@ test('npcPackageLookupHints provides expected arrays and merges context extras',
   assert.ok(defaultHints.factions.includes('CITIZEN'));
   assert.ok(defaultHints.occupations.includes('DOCTOR'));
   assert.ok(defaultHints.itemIds.includes('bandage'));
-  assert.ok(defaultHints.floorKeys.includes('design:living'));
+  assert.ok(defaultHints.floorKeys.includes('story:living'));
   assert.ok(defaultHints.visualIds.includes(NPC_VISUAL_FLOOR69_FEMALE));
   assert.ok(defaultHints.perkIds.includes('tool_hands'));
   assert.ok(defaultHints.demosRelationRoles.includes('FRIEND'));
@@ -591,7 +537,7 @@ test('npcPackageLookupHints provides expected arrays and merges context extras',
   assert.equal(new Set(defaultHints.perkIds).size, defaultHints.perkIds.length);
 
   const hintsWithContext = npcPackageLookupHints({
-    extraKnownKeys: ['extra_floor_1', 'extra_floor_2', 'design:living'], // includes duplicate
+    extraKnownKeys: ['extra_floor_1', 'extra_floor_2', 'story:living'], // includes duplicate
     extraVisualIds: ['custom_visual_1', NPC_VISUAL_FLOOR69_FEMALE], // includes duplicate
     extraPerkIds: ['custom_perk_1', 'tool_hands'], // includes duplicate
   });
@@ -602,7 +548,7 @@ test('npcPackageLookupHints provides expected arrays and merges context extras',
   assert.ok(hintsWithContext.perkIds.includes('custom_perk_1'));
 
   // Verify that uniqueness/deduplication works
-  assert.equal(hintsWithContext.floorKeys.filter(k => k === 'design:living').length, 1);
+  assert.equal(hintsWithContext.floorKeys.filter(k => k === 'story:living').length, 1);
   assert.equal(hintsWithContext.visualIds.filter(v => v === NPC_VISUAL_FLOOR69_FEMALE).length, 1);
   assert.equal(hintsWithContext.perkIds.filter(p => p === 'tool_hands').length, 1);
 

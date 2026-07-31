@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { Cell, Feature, W } from '../src/core/types';
+import { Cell, Feature, FloorLevel, W } from '../src/core/types';
 import { World } from '../src/core/world';
 import {
   PATH_BLOCKER_ROWS_PER_CELL,
@@ -15,7 +15,7 @@ import { rebuildPathBlockersFromWorldObjects } from '../src/gen/path_blockers';
 let cachedMaintenance: FloorGeneration | undefined;
 
 function maintenanceGeneration(): FloorGeneration {
-  cachedMaintenance ??= generateFloor(-26, 0x51002);
+  cachedMaintenance ??= generateFloor(FloorLevel.MAINTENANCE, 0x51002);
   return cachedMaintenance;
 }
 

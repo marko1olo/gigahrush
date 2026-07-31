@@ -8,7 +8,6 @@ import {
   resolveNpcPackageForEntity,
   selectNpcCuratedFallback,
 } from '../npc_package_speech';
-import { mathRng as rng } from '../../core/rand';
 
 /* ── Probabilities ────────────────────────────────────────────── */
 
@@ -27,18 +26,6 @@ const MAX_BARK_COOLDOWNS = 1536;
 export const DEFAULT_NPC_BARK_LOG_RADIUS_METERS = 100;
 const MAX_NPC_BARK_LOG_RADIUS_METERS = 1024;
 const lastBarkByEntity = new Map<number, { time: number; text: string }>();
-const lastFloorBarkTimeBySignal = new Map<string, number>();
-let lastFloorAnyBarkTime = -100;
-
-/** Reset per-run ambient-bark cooldown state. Called from initGame (new run) and
- *  the load path: these are keyed by state.time / entity id and never saved, so a
- *  New-Game-without-reload (state.time→0) would otherwise leave lastFloorAnyBarkTime
- *  at a large run-1 value and suppress all floor barks until game-time caught up. */
-export function resetBarkState(): void {
-  lastBarkByEntity.clear();
-  lastFloorBarkTimeBySignal.clear();
-  lastFloorAnyBarkTime = -100;
-}
 export type NpcBarkSignal = 'alert' | 'witness' | 'lead' | 'ambient';
 
 export interface NpcBarkLogContext {
@@ -55,37 +42,39 @@ let npcBarkLogContext: NpcBarkLogContext = {
 };
 
 export function resolveNpcBarkLogRadiusMeters(radiusMeters?: number): number {
-  if (radiusMeters !== undefined && Number.isFinite(radiusMeters)) {
-    return Math.max(0, Math.min(MAX_NPC_BARK_LOG_RADIUS_METERS, radiusMeters));
-  }
-  return npcBarkLogContext.radiusMeters ?? DEFAULT_NPC_BARK_LOG_RADIUS_METERS;
+  if (!Number.isFinite(radiusMeters)) return DEFAULT_NPC_BARK_LOG_RADIUS_METERS;
+  return Math.max(0, Math.min(MAX_NPC_BARK_LOG_RADIUS_METERS, Math.round(radiusMeters!)));
 }
 
-export function setNpcBarkLogContext(context?: NpcBarkLogContext): void {
-  npcBarkLogContext = resolveNpcBarkContext(context);
-}
-
-export function resolveNpcBarkContext(context?: NpcBarkLogContext): NpcBarkLogContext {
-  return {
-    listener: context?.listener ?? npcBarkLogContext.listener,
-    radiusMeters: resolveNpcBarkLogRadiusMeters(context?.radiusMeters),
-    dist2: context?.dist2 ?? npcBarkLogContext.dist2,
-    signal: context?.signal ?? npcBarkLogContext.signal,
-    hud: context?.hud ?? npcBarkLogContext.hud,
-    hudPriority: context?.hudPriority ?? npcBarkLogContext.hudPriority,
+export function setNpcBarkLogContext(context: NpcBarkLogContext = {}): void {
+  npcBarkLogContext = {
+    listener: context.listener,
+    radiusMeters: resolveNpcBarkLogRadiusMeters(context.radiusMeters),
+    dist2: context.dist2,
   };
 }
 
-export function npcBarkDistanceForLog(e: Entity, context?: NpcBarkLogContext): number | null {
-  const resolved = resolveNpcBarkContext(context);
-  const listener = resolved.listener;
-  if (!listener) return 0;
-  const d2 = resolved.dist2
-    ? resolved.dist2(listener.x, listener.y, e.x, e.y)
+function resolveNpcBarkContext(context?: NpcBarkLogContext): NpcBarkLogContext {
+  if (!context) return npcBarkLogContext;
+  return {
+    listener: context.listener ?? npcBarkLogContext.listener,
+    radiusMeters: context.radiusMeters ?? npcBarkLogContext.radiusMeters,
+    dist2: context.dist2 ?? npcBarkLogContext.dist2,
+    signal: context.signal,
+    hud: context.hud,
+    hudPriority: context.hudPriority,
+  };
+}
+
+function npcBarkDistanceForLog(e: Entity, context: NpcBarkLogContext = npcBarkLogContext): number | null | undefined {
+  const listener = context.listener;
+  if (!listener) return undefined;
+  const d2 = context.dist2
+    ? context.dist2(listener.x, listener.y, e.x, e.y)
     : (listener.x - e.x) * (listener.x - e.x) + (listener.y - e.y) * (listener.y - e.y);
-  if (!Number.isFinite(d2)) return null;
+  if (!Number.isFinite(d2)) return undefined;
   const distance = Math.sqrt(Math.max(0, d2));
-  if (distance > resolveNpcBarkLogRadiusMeters(context?.radiusMeters)) return null;
+  if (distance > resolveNpcBarkLogRadiusMeters(context.radiusMeters)) return null;
   return Math.max(0, Math.round(distance));
 }
 
@@ -126,19 +115,10 @@ export function pushNpcBarkMessage(
 }
 
 export function emitMarkovBark(e: Entity, msgs: Msg[], time: number, signal: string, fallback: string, chance: number = 1.0, color = '#cca'): void {
-  if (rng() > chance) return;
+  if (Math.random() > chance) return;
   if (!e.name) return;
   const last = lastBarkByEntity.get(e.id);
   if (last && time - last.time < BARK_ENTITY_COOLDOWN_S && last.text === fallback) return;
-
-  const isUrgentSignal = signal === 'alert' || signal === 'combat' || signal === 'witness' || signal === 'lead' || signal === 'wounded' || signal === 'flee';
-  const anyBarkGap = time - lastFloorAnyBarkTime;
-  const minAnyGap = isUrgentSignal ? 0.6 : 4.5;
-  if (anyBarkGap < minAnyGap && lastFloorAnyBarkTime > -10) return;
-
-  const lastSignalTime = lastFloorBarkTimeBySignal.get(signal) ?? -100;
-  const minSignalGap = isUrgentSignal ? 2.2 : 6.0;
-  if (time - lastSignalTime < minSignalGap && lastSignalTime > -10) return;
 
   const pack = resolveNpcPackageForEntity(e);
   const seed = e.alifeId ?? e.id;
@@ -168,8 +148,6 @@ export function emitMarkovBark(e: Entity, msgs: Msg[], time: number, signal: str
     e.activeBark = { text, until: time + duration, color };
   }
   if (!heard) return;
-  lastFloorAnyBarkTime = time;
-  lastFloorBarkTimeBySignal.set(signal, time);
   lastBarkByEntity.set(e.id, { time, text: fallback });
   if (lastBarkByEntity.size > MAX_BARK_COOLDOWNS) pruneBarkCooldowns();
 }
@@ -197,5 +175,4 @@ function pruneBarkCooldowns(): void {
     }
   }
   if (oldestId >= 0) lastBarkByEntity.delete(oldestId);
-  if (lastFloorBarkTimeBySignal.size > 64) lastFloorBarkTimeBySignal.clear();
 }

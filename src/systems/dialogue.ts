@@ -1,6 +1,7 @@
 /* ── Runtime NPC dialogue dispatch ───────────────────────────── */
 
 import { type Entity } from '../core/types';
+import { getNpcStateText } from './ai';
 import { buildContextSnapshot, type ContextBuildOptions } from './context';
 import { renderMarkovDialogueTalk } from './markov_dialogue';
 import { routeAdapterSpeech } from './markov_router_adapters';
@@ -10,10 +11,8 @@ import {
   selectNpcLockedTalkLine,
 } from './npc_package_speech';
 import { markNpcSpokenTo } from './npc_memory';
-import { observeRecentRumorEventsForNpc } from './rumor';
+import { observeRecentRumorEventsForNpc, selectRumorForNpc } from './rumor';
 import { routeSpeech } from './speech_router';
-
-let _dialogueInteractionCounter = 0;
 
 /* ── Talk text (called from NPC menu "Talk" tab) ─────────────── */
 export function generateTalkText(npc: Entity, options: ContextBuildOptions = {}): string {
@@ -33,12 +32,17 @@ export function generateTalkText(npc: Entity, options: ContextBuildOptions = {})
   const memory = markNpcSpokenTo(npc, now);
   observeRecentRumorEventsForNpc(npc, snapshot, now);
 
-  _dialogueInteractionCounter++;
+  const rumorLine = selectRumorForNpc(npc, snapshot, now);
+  if (rumorLine) return rumorLine;
+
+  if (npc.ai?.npcState !== undefined && Math.random() < 0.4) {
+    return getNpcStateText(npc.ai.npcState);
+  }
 
   return renderMarkovDialogueTalk(npc, snapshot, {
     memory,
     time: now,
-    repeatIndex: Math.max(0, Math.floor(now)) + _dialogueInteractionCounter,
+    repeatIndex: Math.max(0, Math.floor(now)),
     routeSpeech: routeAdapterSpeech,
   }).text;
 }

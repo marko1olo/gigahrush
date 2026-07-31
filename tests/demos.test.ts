@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Faction, Occupation } from '../src/core/types';
+import { Faction, FloorLevel, Occupation } from '../src/core/types';
 import { createPrefilledAlifeState } from '../src/systems/alife';
 import { Spr } from '../src/render/sprite_index';
 import {
@@ -10,16 +10,16 @@ import {
   getDemosSnapshot,
   moveDemosCursor,
 } from '../src/systems/demos';
-import { floorKeyForDesign } from '../src/systems/floor_keys';
+import { floorKeyForStory } from '../src/systems/floor_keys';
 import { makeGameState } from './helpers';
 import '../src/gen/maintenance/gordon';
 
 function makeDemosState() {
-  const state = makeGameState({ currentZ: 0 });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING });
   createPrefilledAlifeState(state, 12345, 3, {
     buckets: [{
-      floorKey: floorKeyForDesign('living'),
-      z: -6,
+      floorKey: floorKeyForStory(FloorLevel.LIVING),
+      floor: FloorLevel.LIVING,
       targetCount: 3,
       reserved: [
         {
@@ -99,11 +99,11 @@ test('Demos snapshot does not run full search until the cursor is confirmed', ()
 });
 
 test('Demos resolves authored plot sprite and route floor number for reserved profiles', () => {
-  const state = makeGameState({ currentZ: 0 });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING });
   createPrefilledAlifeState(state, 12345, 1, {
     buckets: [{
-      floorKey: floorKeyForDesign('maintenance'),
-      z: -14,
+      floorKey: floorKeyForStory(FloorLevel.MAINTENANCE),
+      floor: FloorLevel.MAINTENANCE,
       targetCount: 1,
       reserved: [{
         kind: 'plot',
@@ -125,11 +125,11 @@ test('Demos resolves authored plot sprite and route floor number for reserved pr
 });
 
 test('Demos account line shows bank account rather than total pocket wealth', () => {
-  const state = makeGameState({ currentZ: 0 });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING });
   createPrefilledAlifeState(state, 12345, 1, {
     buckets: [{
-      floorKey: floorKeyForDesign('living'),
-      z: -6,
+      floorKey: floorKeyForStory(FloorLevel.LIVING),
+      floor: FloorLevel.LIVING,
       targetCount: 1,
       reserved: [{
         name: 'Богатый Счетов',

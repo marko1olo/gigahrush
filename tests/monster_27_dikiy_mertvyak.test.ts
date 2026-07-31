@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { AIGoal, Cell, EntityType, Faction, MonsterKind, type Entity, type Msg } from '../src/core/types';
+import { AIGoal, Cell, EntityType, Faction, FloorLevel, MonsterKind, type Entity, type Msg } from '../src/core/types';
 import { World } from '../src/core/world';
 import { DEF, generateSprite } from '../src/entities/dikiy_mertvyak';
 import { MONSTERS } from '../src/entities/monster';
@@ -83,6 +83,9 @@ test('dikiy mertvyak is a standalone fragile crowd-runner, not the old zombie va
   assert.equal(DEF.hp < MONSTERS[MonsterKind.ZOMBIE].hp, true);
   assert.equal(DEF.speed > MONSTERS[MonsterKind.ZOMBIE].speed, true);
   assert.deepEqual(DEF.aiFlags, ['crowdShove']);
+  assert.deepEqual(DEF.floors, [FloorLevel.KVARTIRY, FloorLevel.LIVING]);
+  assert.equal(ecology?.floors.includes(FloorLevel.KVARTIRY), true);
+  assert.equal(ecology?.floors.includes(FloorLevel.LIVING), true);
   assert.match(ecology?.counterplay ?? '', /разгона|открытый/);
   assert.equal(opaque > 450, true, 'sprite should be readable as a full sprinting body');
   assert.equal(translucent > 3, true, 'sprite should include leg motion blur');

@@ -4,6 +4,7 @@ import * as assert from 'node:assert/strict';
 import {
   EntityType,
   Faction,
+  FloorLevel,
   MonsterKind,
   Occupation,
   type Entity,
@@ -45,13 +46,13 @@ test('screen signal rumor pools point to gameplay surfaces', () => {
 test('runtime event rumors keep floor zone and room context in leads', () => {
   const now = 9_500;
   const npc = { ...makeNpc(), id: 9301 };
-  const state = makeGameState({ currentZ: -14, time: now });
+  const state = makeGameState({ currentFloor: FloorLevel.MAINTENANCE, time: now });
   const snapshot = buildContextSnapshot(npc, { state, player: makePlayer(), time: now });
   assert.equal(recordRumorEvent({
     id: 9_100_001,
     type: 'room_produced_items',
     time: now - 5,
-    z: -14,
+    floor: FloorLevel.MAINTENANCE,
     zoneId: 12,
     roomId: 44,
     severity: 4,
@@ -65,10 +66,14 @@ test('runtime event rumors keep floor zone and room context in leads', () => {
 
   assert.equal(observeRecentRumorEventsForNpc(npc, snapshot, now), 1);
   const line = selectRumorForNpc(npc, snapshot, now);
-  assert.ok(line && typeof line === 'string' && line.length > 0);
+  assert.ok(line);
+  assert.match(line, /Коллекторы/);
+  assert.match(line, /зона 13/);
+  assert.match(line, /Брикетный цех: линия концентрата/);
+  assert.match(line, /концентрат/i);
 
   const lead = getRecentRumorLead(now);
-  assert.equal(lead?.z, -14);
+  assert.equal(lead?.floor, FloorLevel.MAINTENANCE);
   assert.equal(lead?.roomName, 'Брикетный цех: линия концентрата');
 });
 
@@ -94,7 +99,7 @@ function revealHasGameplaySurface(reveal: RumorReveal): boolean {
 function snapshotFor(type: WorldEvent['type'], overrides: Partial<WorldEvent> = {}) {
   const state = makeGameState({
     time: 120,
-    currentZ: 0,
+    currentFloor: FloorLevel.LIVING,
     worldEvents: createWorldEventState(),
   });
   const buffer = state.worldEvents?.recentEvents;
@@ -106,7 +111,7 @@ function snapshotFor(type: WorldEvent['type'], overrides: Partial<WorldEvent> = 
     day: 0,
     hour: 8,
     minute: 0,
-    z: -6,
+    floor: FloorLevel.LIVING,
     actorId: undefined,
     actorFaction: undefined,
     monsterKind: undefined,

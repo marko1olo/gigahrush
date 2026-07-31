@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { MonsterKind } from '../src/core/types';
+import { FloorLevel, MonsterKind } from '../src/core/types';
 import { DEF, generateSprite } from '../src/entities/matka';
 import { getMonsterEcology } from '../src/data/monster_ecology';
 import { S } from '../src/render/pixutil';
@@ -25,6 +25,7 @@ test('matka definition, ecology, and sprite read as a warm-wall crawler spawner'
   }
 
   assert.equal(DEF.kind, MonsterKind.MATKA);
+  assert.deepEqual(DEF.floors, [FloorLevel.MAINTENANCE, FloorLevel.HELL, FloorLevel.VOID]);
 
   assert.equal(ecology?.rare, true);
   assert.match(DEF.counterplay ?? '', /убить матку/i);

@@ -1,6 +1,5 @@
 import { msg, type Entity, type GameState } from '../core/types';
 import { publishEvent } from './events';
-import { mathRng as rng } from '../core/rand';
 
 export type DominoSide = 'player' | 'npc';
 export type DominoWinner = DominoSide | 'draw' | '';
@@ -370,10 +369,10 @@ export function createDominoSet(): DominoTile[] {
   return set;
 }
 
-export function shuffleDominoSet(set: readonly DominoTile[], rand = rng): DominoTile[] {
+export function shuffleDominoSet(set: readonly DominoTile[], rng = Math.random): DominoTile[] {
   const out = set.map(tile => ({ ...tile }));
   for (let i = out.length - 1; i > 0; i--) {
-    const j = Math.max(0, Math.min(i, Math.floor(rand() * (i + 1))));
+    const j = Math.max(0, Math.min(i, Math.floor(rng() * (i + 1))));
     const tmp = out[i];
     out[i] = out[j];
     out[j] = tmp;

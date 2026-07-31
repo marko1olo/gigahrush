@@ -21,7 +21,7 @@ export interface RouteGateLiftMutationDef {
 
 export interface RouteGateDef {
   id: string;
-  targetRouteKind: 'design' | 'procedural' | 'floor_instance';
+  targetRouteKind: 'design' | 'story' | 'procedural' | 'floor_instance';
   targetRouteId: string;
   targetFloorKey: string;
   blockedDirection: LiftDirection;

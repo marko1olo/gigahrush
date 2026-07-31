@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { MonsterKind } from '../src/core/types';
+import { FloorLevel, MonsterKind } from '../src/core/types';
 import { DEF, generateSprite } from '../src/entities/mukhozhuk';
 import { getMonsterEcology } from '../src/data/monster_ecology';
 import { S } from '../src/render/pixutil';
@@ -11,6 +11,7 @@ test('mukhozhuk definition and ecology read correctly', () => {
 
   assert.equal(DEF.kind, MonsterKind.MUKHOZHUK_HOST);
   assert.deepEqual(DEF.aiFlags, ['parasiteLeader', 'foodBait']);
+  assert.deepEqual(DEF.floors, [FloorLevel.MINISTRY, FloorLevel.MAINTENANCE]);
   assert.equal(ecology?.rare, true);
   assert.match(DEF.counterplay ?? '', /свидетелях|карантиньте/i);
 });

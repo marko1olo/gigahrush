@@ -1,4 +1,3 @@
-import { getPlotNpcNumericId } from '../../data/npc_packages';
 /* ── Оставшийся Ликвидатор: armed post-cleanup non-kill encounter ── */
 
 import { stampSurfaceSplat } from '../../systems/surface_marks';
@@ -7,6 +6,7 @@ import {
   ContainerKind,
   Faction,
   Feature,
+  FloorLevel,
   Occupation,
   QuestType,
   RoomType,
@@ -110,19 +110,19 @@ function branchBlockers(id: string): string[] {
 
 registerSideQuest(LOST_ID, LOST_DEF, [{
   id: AID_QUEST,
-  giverId: getPlotNpcNumericId(LOST_ID)!,
+  giverNpcId: LOST_ID,
   type: QuestType.FETCH,
   desc: 'Оставшийся Ликвидатор: «Бинт. Не к рукам - к маске. Подойдёшь медленно, я отведу ствол и отдам запасной фильтр.»',
   targetItem: 'bandage', targetCount: 1,
   rewardItem: 'gasmask_filter', rewardCount: 1,
   extraRewards: [{ defId: 'liquidator_ration', count: 1 }],
   relationDelta: 4, xpReward: 55, moneyReward: 20,
-  targetFloorZ: 140,
-  targetRoomDefId: CHECKPOINT_ROOM,
+  targetFloor: FloorLevel.MAINTENANCE,
+  targetRoomName: CHECKPOINT_ROOM,
   targetHint: 'Коллекторы: сломанный пост зачистки с неверным кодом и дробовиком за бетонной стойкой.',
   blockedBySideQuestIds: BRANCH_QUEST_IDS,
   abandonsSideQuestIds: branchBlockers(AID_QUEST),
-  failOnNpcDeathId: getPlotNpcNumericId(LOST_ID)!,
+  failOnNpcDeathPlotId: LOST_ID,
   timeLimitMinutes: 12 * 60,
   eventTargetName: 'Оставшемуся Ликвидатору помогли бинтом и фильтром после проваленной зачистки.',
   eventSeverity: 4,
@@ -136,19 +136,19 @@ registerSideQuest(LOST_ID, LOST_DEF, [{
 
 registerSideQuest(REPORTER_ID, REPORTER_DEF, [{
   id: REPORT_QUEST,
-  giverId: getPlotNpcNumericId(REPORTER_ID)!,
+  giverNpcId: REPORTER_ID,
   type: QuestType.FETCH,
   desc: 'Вьюга: «На столе должна быть ведомость самосборов. Принесёшь её - я сниму с него маршрут и запишу не как тварь, а как срыв поста.»',
   targetItem: 'samosbor_tally', targetCount: 1,
   rewardItem: 'ammo_9mm', rewardCount: 12,
   extraRewards: [{ defId: 'liquidator_ration', count: 1 }],
   relationDelta: 8, xpReward: 65, moneyReward: 70,
-  targetFloorZ: 140,
-  targetRoomDefId: CHECKPOINT_ROOM,
+  targetFloor: FloorLevel.MAINTENANCE,
+  targetRoomName: CHECKPOINT_ROOM,
   targetHint: 'Коллекторы: ведомость лежит у проваленного поста зачистки рядом с экраном неверного кода.',
   blockedBySideQuestIds: BRANCH_QUEST_IDS,
   abandonsSideQuestIds: branchBlockers(REPORT_QUEST),
-  failOnNpcDeathId: getPlotNpcNumericId(LOST_ID)!,
+  failOnNpcDeathPlotId: LOST_ID,
   timeLimitMinutes: 12 * 60,
   eventTargetName: 'Неверный код зачистки доложен Вьюге; пост снят без расстрела.',
   eventSeverity: 4,
@@ -162,19 +162,19 @@ registerSideQuest(REPORTER_ID, REPORTER_DEF, [{
 
 registerSideQuest(MECHANIC_ID, MECHANIC_DEF, [{
   id: DISARM_QUEST,
-  giverId: getPlotNpcNumericId(MECHANIC_ID)!,
+  giverNpcId: MECHANIC_ID,
   type: QuestType.FETCH,
   desc: 'Титов: «Принеси жетон смены из ящика. Не украсть - показать. Когда он назовёт свой номер, дробовик станет тяжелее приказа.»',
   targetItem: 'liquidator_token', targetCount: 1,
   rewardItem: 'liquidator_token', rewardCount: 1,
   extraRewards: [{ defId: 'ammo_shells', count: 2 }],
   relationDelta: 6, xpReward: 60, moneyReward: 25,
-  targetFloorZ: 140,
-  targetRoomDefId: CHECKPOINT_ROOM,
+  targetFloor: FloorLevel.MAINTENANCE,
+  targetRoomName: CHECKPOINT_ROOM,
   targetHint: 'Коллекторы: жетон смены спрятан в ящике проваленного поста; бетонные стойки дают паузу после выстрела.',
   blockedBySideQuestIds: BRANCH_QUEST_IDS,
   abandonsSideQuestIds: branchBlockers(DISARM_QUEST),
-  failOnNpcDeathId: getPlotNpcNumericId(LOST_ID)!,
+  failOnNpcDeathPlotId: LOST_ID,
   timeLimitMinutes: 12 * 60,
   eventTargetName: 'Оставшегося Ликвидатора разоружили через жетон смены и свидетеля.',
   eventSeverity: 4,
@@ -322,8 +322,7 @@ function addContainer(
     id: nextContainerId(ctx),
     x: wx,
     y: wy,
-    // @ts-ignore
-    z: 140,
+    floor: FloorLevel.MAINTENANCE,
     roomId: room.id,
     zoneId: ctx.world.zoneMap[ci],
     ...container,
@@ -420,7 +419,6 @@ export function generateOstavshiysyaLikvidator(ctx: MaintContentCtx): void {
   });
   spawnPlotNpc(ctx, MECHANIC_ID, MECHANIC_DEF, witness.x + 4, witness.y + 3, 0);
 
-  // @ts-ignore
   addContainer(ctx, stash, stash.x + 5, stash.y + 3, {
     kind: ContainerKind.WEAPON_CRATE,
     name: 'Ящик смены оставшегося ликвидатора',

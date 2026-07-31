@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { Cell, DoorState, EntityType, Faction, RoomType, W, ZoneFaction, type TerritoryOwner } from '../src/core/types';
+import { Cell, DoorState, EntityType, Faction, FloorLevel, RoomType, W, ZoneFaction, type TerritoryOwner } from '../src/core/types';
 import { factionToTerritoryOwner } from '../src/data/factions';
 import { generateFloor } from '../src/gen/floor_manifest';
 import {
@@ -19,7 +19,7 @@ import { auditReachability, hasReachableAdjacentCell } from '../src/core/world';
 let generated: ReturnType<typeof generateFloor> | null = null;
 
 function kvartiry(): ReturnType<typeof generateFloor> {
-  generated ??= generateFloor(14, 20_260_530);
+  generated ??= generateFloor(FloorLevel.KVARTIRY, 20_260_530);
   return generated;
 }
 

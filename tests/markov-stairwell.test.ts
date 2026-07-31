@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { Cell, DoorState, EntityType, Faction, LiftDirection, RoomType, W, ZoneFaction, type Room } from '../src/core/types';
+import { Cell, DoorState, EntityType, Faction, FloorLevel, LiftDirection, RoomType, W, ZoneFaction, type Room } from '../src/core/types';
 import { auditReachability } from '../src/core/world';
 import { designFloorAtZ, designFloorById } from '../src/data/design_floors';
 import { designFloorPopulationProfile } from '../src/data/design_floor_population';
@@ -13,7 +13,7 @@ import {
   MARKOV_STAIRWELL_ROUTE_ID,
   MARKOV_STAIRWELL_Z,
   measureMarkovStairwellMetrics,
-} from '../src/gen/markov_stairwell';
+} from '../src/gen/design_floors/markov_stairwell';
 
 type MarkovGeneration = ReturnType<typeof generateDesignFloor>;
 
@@ -52,15 +52,15 @@ function hermeticShellCells(world: MarkovGeneration['world'], room: Room): numbe
 test('markov_stairwell is registered as a Ministry route floor', () => {
   const route = designFloorById(MARKOV_STAIRWELL_ROUTE_ID);
   assert.equal(route?.z, MARKOV_STAIRWELL_Z);
-  assert.equal(route?.themeTags?.includes('ministry'), true);
+  assert.equal(route?.baseFloor, FloorLevel.MINISTRY);
   assert.equal(route?.displayName, 'Марковская лестница');
   assert.equal(route?.danger, 3);
   assert.equal(designFloorAtZ(MARKOV_STAIRWELL_Z)?.id, MARKOV_STAIRWELL_ROUTE_ID);
 
   assert.ok(route);
   const profile = designFloorPopulationProfile(route);
-  assert.ok(profile.npcTarget >= 82 && profile.npcTarget <= 8200, 'npcTarget in bounds');
-  assert.ok(profile.monsterTarget >= 98 && profile.monsterTarget <= 9800, 'monsterTarget in bounds');
+  assert.equal(profile.npcTarget, 820);
+  assert.equal(profile.monsterTarget, 980);
   assert.equal(profile.npcNoun, 'счётчик маршей');
   assert.equal(profile.npcFactions.some(row => row.value === Faction.CULTIST && row.weight >= 10), true);
   assert.equal((profile.npcPlacement.anchors?.length ?? 0) >= 5, true);
@@ -98,7 +98,7 @@ test('markov_stairwell exposes pattern-stash and rare-state decisions', () => {
 
   assert.equal(metrics.patternStashes, 1);
   assert.equal(metrics.rareStateStashes, 1);
-  assert.equal(gen.entities.some(entity => entity.type === EntityType.NPC && (entity as any).npcPackageId === 'markov_stairwell_watcher'), true);
+  assert.equal(gen.entities.some(entity => entity.type === EntityType.NPC && entity.plotNpcId === 'markov_stairwell_watcher'), true);
   assert.equal(quests.has('markov_stairwell_pattern_stash'), true);
   assert.equal(gen.world.containers.some(container =>
     container.tags.includes('pattern_stash') &&

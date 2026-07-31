@@ -1,13 +1,13 @@
 /* ── Maronary wrong-door one-shot remap ───────────────────────── */
 
 import { stampSurfaceSplat } from './surface_marks';
-import { W, Cell, DoorState, Entity, GameState } from '../core/types';
+import { W, Cell, DoorState, type Entity, type GameState } from '../core/types';
 import { World } from '../core/world';
 import { publishEvent } from './events';
 import { getCurrentPlayerEntity } from './player_actor';
 import { territoryOwnerAtIndex } from './territory';
 
-export { ContainerKind, Faction, Occupation } from '../core/types';
+export { ContainerKind, Faction, FloorLevel, Occupation } from '../core/types';
 
 export const WRONG_DOOR_MIN_DIST2 = 18 * 18;
 export const WRONG_DOOR_MAX_DIST2 = 96 * 96;

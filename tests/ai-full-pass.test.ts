@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { AIGoal, Cell, EntityType, Faction, MonsterKind, Occupation, ZoneFaction, type Entity, type GameClock, type Msg } from '../src/core/types';
+import { AIGoal, Cell, EntityType, FloorLevel, Faction, MonsterKind, Occupation, ZoneFaction, type Entity, type GameClock, type Msg } from '../src/core/types';
 import { World } from '../src/core/world';
 import { PATH_BLOCKER_ROWS_PER_CELL, setPathBlockerRow } from '../src/core/path_blockers';
 import { updateAI, getAiStats } from '../src/systems/ai';
@@ -16,7 +16,6 @@ import {
 } from '../src/systems/combat_stimulus';
 import { createWorldEventState, getRecentEvents } from '../src/systems/events';
 import { setCurrentPlayerEntity } from '../src/systems/player_actor';
-import { getPlotNpcCount } from '../src/data/npc_packages';
 
 function makeOpenWorld(): World {
   const world = new World();
@@ -106,7 +105,7 @@ function blockCellFully(world: World, x: number, y: number): void {
 
 function tick(world: World, entities: Entity[], dt: number, time: number, clock: GameClock, msgs: Msg[] = []): void {
   rebuildEntityIndexForSimulation(entities, Math.floor(time * 1000));
-  updateAI(world, entities, dt, time, msgs, 1, clock, false, { v: 1000 }, undefined, makeGameState({ time, clock }));
+  updateAI(world, entities, dt, time, msgs, 1, clock, false, { v: 1000 }, FloorLevel.LIVING, makeGameState({ time, clock }));
 }
 
 test('active AI updates every non-player actor in one isotropic pass', () => {
@@ -306,12 +305,12 @@ test('live AI pass reaches monster ecology source updates', () => {
   source.speed = 0.4;
   source.matkaTimer = 0.01;
   const entities = [p, source];
-  const state = makeGameState({ currentZ: -36, worldEvents: createWorldEventState(), time: 1, clock });
-  const nextId = { v: getPlotNpcCount() + 20 }
+  const state = makeGameState({ currentFloor: FloorLevel.HELL, worldEvents: createWorldEventState(), time: 1, clock });
+  const nextId = { v: 20 };
   const msgs: Msg[] = state.msgs;
 
   rebuildEntityIndexForSimulation(entities, 1000);
-  updateAI(world, entities, 0.02, 1, msgs, p.id, clock, false, nextId, state.currentZ, state);
+  updateAI(world, entities, 0.02, 1, msgs, p.id, clock, false, nextId, FloorLevel.HELL, state);
 
   const children = entities.filter(e => e.type === EntityType.MONSTER && e.ai?.sourceEntityId === source.id);
   assert.equal(children.length, 1);

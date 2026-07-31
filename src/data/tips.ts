@@ -1,4 +1,3 @@
-import { mathRng as rng } from '../core/rand';
 /* ── Советы (показываются на экране загрузки) ────────────────── */
 
 const TARGET_TIP_COUNT = 1000;
@@ -603,6 +602,6 @@ export const TIP_COUNT = TIPS.length;
 
 /** Случайный совет с номером: «Совет 7: ...» */
 export function randomTip(): string {
-  const i = Math.floor(rng() * TIPS.length);
+  const i = Math.floor(Math.random() * TIPS.length);
   return `Совет ${i + 1}: ${TIPS[i]}`;
 }

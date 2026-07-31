@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { Cell, Feature, LiftDirection, W } from '../src/core/types';
+import { Cell, Feature, FloorLevel, LiftDirection, W } from '../src/core/types';
 import { World } from '../src/core/world';
 import { injectFastElevators, isFastElevatorCell } from '../src/gen/fast_elevators';
 import { ensureFloorRouteLiftLayout } from '../src/systems/floor_memory';
@@ -101,10 +101,10 @@ test('route lift normalization never demotes fast-elevator cabins', () => {
 });
 
 test('floor unlock bits start with the start floor and grow on visit', () => {
-  const run = createFloorRunState('living');
+  const run = createFloorRunState(FloorLevel.LIVING);
   assert.deepEqual(run.unlockedZs, [0]);
 
-  const state = { currentZ: 0, floorRun: run } as never;
+  const state = { currentFloor: FloorLevel.LIVING, floorRun: run } as never;
   assert.equal(isFloorZUnlocked(state, 0), true);
   assert.equal(isFloorZUnlocked(state, 30), false);
 

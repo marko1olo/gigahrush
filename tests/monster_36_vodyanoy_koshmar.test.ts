@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { AIGoal, Cell, EntityType, MonsterKind, type Entity } from '../src/core/types';
+import { AIGoal, Cell, EntityType, FloorLevel, MonsterKind, type Entity } from '../src/core/types';
 import { World } from '../src/core/world';
 import { getMonsterEcology } from '../src/data/monster_ecology';
 import { DEF, generateSprite } from '../src/entities/vodyanoy_koshmar';
@@ -72,6 +72,7 @@ test('vodyanoy koshmar is standalone maintenance water-line pressure content', (
 
   assert.equal(DEF.kind, MonsterKind.VODYANOY_KOSHMAR);
   assert.deepEqual(DEF.aiFlags, ['waterPressureLine']);
+  assert.deepEqual(DEF.floors, [FloorLevel.MAINTENANCE]);
   assert.match(DEF.counterplay ?? '', /Сух|мокр|burst/);
   assert.equal(ecology?.rare, false);
   assert.match(ecology?.counterplay ?? '', /мокр|сух|давлен/);
@@ -99,7 +100,7 @@ test('vodyanoy pressure ramps, drains PSI, and publishes dry-break cue', () => {
   const threat = monster();
   const target = player(18.5, 20.5);
   const msgs = [];
-  const state = makeGameState({ currentZ: -14, worldEvents: createWorldEventState() });
+  const state = makeGameState({ currentFloor: FloorLevel.MAINTENANCE, worldEvents: createWorldEventState() });
 
   updateVodyanoyWaterPressureLine(world, threat, target, 0.4, 1, msgs, target.id, state);
   assert.ok((threat.ai?.waterPressure ?? 0) > 0, 'connected wet line should ramp pressure');
@@ -117,7 +118,7 @@ test('vodyanoy pressure ramps, drains PSI, and publishes dry-break cue', () => {
 test('vodyanoy pump room spawns reachable connected and disconnected wet paths', () => {
   const world = new World();
   const entities: Entity[] = [];
-  const nextId = { v: getPlotNpcCount() + 1 }
+  const nextId = { v: 1 };
 
   generateVodyanoyKoshmarLine({ world, entities, nextId, spawnX: 512, spawnY: 512 });
 

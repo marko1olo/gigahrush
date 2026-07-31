@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { Cell, Feature, LiftDirection, RoomType } from '../src/core/types';
+import { Cell, Feature, FloorLevel, LiftDirection, RoomType } from '../src/core/types';
 import { World as WorldImpl, auditReachability, hasReachableAdjacentCell, type ReachabilityAudit, type World } from '../src/core/world';
 import {
   makeProceduralFloorSpec,
@@ -21,7 +21,7 @@ function forcedCementMemorySpec(): ProceduralFloorSpec {
     anomalyId: 'cement_memory',
     danger: 4,
     geometryId: 'communal_knots',
-    baseFloor: 'kvartiry',
+    baseFloor: FloorLevel.KVARTIRY,
     majorityId: 'citizens',
     title: 'тестовая цементная память',
   };

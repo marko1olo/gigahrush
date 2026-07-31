@@ -4,6 +4,7 @@ import {
   AIGoal,
   Cell,
   EntityType,
+  FloorLevel,
   LiftDirection,
   MonsterKind,
   Tex,
@@ -41,7 +42,7 @@ export interface PseudoliftSite {
   key: string;
   routeKey: string;
   routeKind: string;
-  z: number;
+  floor: FloorLevel;
   liftIdx: number;
   liftX: number;
   liftY: number;
@@ -128,14 +129,14 @@ function normalizeSite(input: unknown): PseudoliftSite | null {
     key: input.key.slice(0, 96),
     routeKey: input.routeKey.slice(0, 96),
     routeKind: typeof input.routeKind === 'string' ? input.routeKind.slice(0, 24) : 'route',
-    z: typeof input.z === 'number' && Number.isInteger(input.z) ? input.z : 100,
+    floor: typeof input.floor === 'number' && FloorLevel[input.floor] !== undefined ? input.floor as FloorLevel : FloorLevel.LIVING,
     liftIdx,
     liftX: Math.max(0, Math.min(W - 1, Math.floor(Number(input.liftX) || liftIdx % W))),
     liftY: Math.max(0, Math.min(W - 1, Math.floor(Number(input.liftY) || ((liftIdx / W) | 0)))),
     accessX: Math.max(0, Math.min(W - 1, Math.floor(Number(input.accessX) || 0))),
     accessY: Math.max(0, Math.min(W - 1, Math.floor(Number(input.accessY) || 0))),
     direction,
-    zoneId: Math.max(-1, Math.min(63, Number.isFinite(Number(input.zoneId)) ? Math.floor(Number(input.zoneId)) : -1)),
+    zoneId: Math.max(-1, Math.min(63, Math.floor(Number(input.zoneId) || -1))),
     roomId: typeof input.roomId === 'number' && Number.isFinite(input.roomId) ? Math.floor(input.roomId) : undefined,
     fakeFloorLabel: typeof input.fakeFloorLabel === 'string' ? input.fakeFloorLabel.slice(0, 12) : '0',
     status: cleanStatus(input.status),
@@ -290,7 +291,7 @@ function makeSite(state: GameState, route: PseudoliftRouteCtx, candidate: Pseudo
     key,
     routeKey: route.routeKey,
     routeKind: route.routeKind,
-    z: state.currentZ,
+    floor: state.currentFloor,
     liftIdx: candidate.liftIdx,
     liftX: candidate.liftX,
     liftY: candidate.liftY,
@@ -351,7 +352,7 @@ export function preparePseudoliftForCurrentFloor(world: World, state: GameState)
 
 function targetSite(world: World, state: GameState, lookX: number, lookY: number): PseudoliftSite | null {
   const site = currentSite(state);
-  if (!site || site.z !== state.currentZ) return null;
+  if (!site || site.floor !== state.currentFloor) return null;
   if (site.status !== 'dormant' && site.status !== 'suspected' && site.status !== 'revealed') return null;
   const x = Math.floor(lookX);
   const y = Math.floor(lookY);
@@ -510,7 +511,7 @@ function feedPseudolift(world: World, entities: Entity[], state: GameState, site
 function consumeNearbyBait(world: World, entities: Entity[], state: GameState, site: PseudoliftSite): boolean {
   if (site.status !== 'dormant' && site.status !== 'suspected') return false;
   for (const marker of getActiveMonsterBaits()) {
-    if (marker.z !== state.currentZ || marker.expiresAt <= state.time) continue;
+    if (marker.floor !== state.currentFloor || marker.expiresAt <= state.time) continue;
     if (world.dist2(marker.x, marker.y, site.liftX + 0.5, site.liftY + 0.5) > BAIT_RADIUS_SQ) continue;
     feedPseudolift(world, entities, state, site, marker);
     return true;
@@ -554,7 +555,7 @@ export function clearPseudoliftActive(state: GameState, entities?: Entity[]): vo
 
 export function updatePseudolifts(world: World, entities: Entity[], player: Entity, state: GameState): void {
   const site = currentSite(state);
-  if (!site || site.z !== state.currentZ) return;
+  if (!site || site.floor !== state.currentFloor) return;
   if (consumeNearbyBait(world, entities, state, site)) return;
   if (site.status !== 'revealed') return;
 

@@ -1,5 +1,6 @@
 import {
   Faction,
+  FloorLevel,
   ItemType,
   RoomType,
   type Entity,
@@ -361,7 +362,7 @@ export type DocumentAccessEventType = 'player_use_item' | 'player_handoff_item' 
 export interface DocumentAccessResourceDelta {
   resourceId: string;
   delta: number;
-  z?: number;
+  floor?: FloorLevel;
 }
 
 export interface DocumentAccessRelationDelta {
@@ -371,7 +372,7 @@ export interface DocumentAccessRelationDelta {
 
 export interface DocumentAccessAction {
   itemId: string;
-  floors?: readonly number[];
+  floors?: readonly FloorLevel[];
   consume?: boolean;
   outputItemId?: string;
   outputCount?: number;
@@ -474,7 +475,7 @@ export const DOCUMENT_ACCESS_ACTIONS: Record<string, DocumentAccessAction> = {
   },
   shelter_seat_card: {
     itemId: 'shelter_seat_card',
-    floors: [100, 60],
+    floors: [FloorLevel.LIVING, FloorLevel.KVARTIRY],
     eventType: 'player_handoff_item',
     severity: 4,
     privacy: 'witnessed',
@@ -486,7 +487,7 @@ export const DOCUMENT_ACCESS_ACTIONS: Record<string, DocumentAccessAction> = {
   },
   shelter_seat_forgery: {
     itemId: 'shelter_seat_forgery',
-    floors: [100, 60],
+    floors: [FloorLevel.LIVING, FloorLevel.KVARTIRY],
     eventType: 'player_handoff_item',
     severity: 5,
     privacy: 'public',

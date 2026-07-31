@@ -27,7 +27,6 @@ import { isDebugOnePunchManEnabled, keepDebugOnePunchManAlive } from './debug_ch
 import { scaleMonsterDmg, strMeleeDmgMult } from './rpg';
 import { followPath, tryAssignPathToCell, wanderNearby } from './ai/pathfinding';
 import { isPlayerEntity } from './player_actor';
-import { rng } from '../core/rand';
 
 const INTERACTION_RANGE = 2.0;
 const INTERACTION_FORWARD = 0.2;
@@ -314,7 +313,7 @@ export function updateSlimevikMonster(
     }
   } else if (ai.path.length === 0 || ai.pi >= ai.path.length || ai.timer <= 0) {
     wanderNearby(world, e);
-    ai.timer = 2.5 + rng() * 2;
+    ai.timer = 2.5 + Math.random() * 2;
   }
   followPath(world, e, dt);
   return true;

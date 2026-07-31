@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { EntityType, ItemType, RoomType, type Entity } from '../src/core/types';
+import { EntityType, FloorLevel, ItemType, RoomType, type Entity } from '../src/core/types';
 import { World } from '../src/core/world';
 import { ITEM_TAGS, ITEMS } from '../src/data/items';
 import { resourceForItem } from '../src/data/resources';
@@ -43,7 +43,7 @@ test('using smoke candle consumes one item and publishes a bounded vent check ev
     y: 23.5,
     inventory: [{ defId: 'smoke_candle_check', count: 1 }],
   });
-  const state = makeGameState({ currentZ: -26, time: 42 });
+  const state = makeGameState({ currentFloor: FloorLevel.MAINTENANCE, time: 42 });
 
   useItem(player, 0, state.msgs, state.time, state, 4, world);
 
@@ -74,7 +74,7 @@ test('maintenance slime-singing vent stash exposes smoke candle checks', () => {
   const stash = world.containers.find(container => container.inventory.some(item => item.defId === 'smoke_candle_check'));
   assert.ok(stash, 'slime-singing vent sample stash should expose smoke candles');
   assert.equal(stash.inventory.find(item => item.defId === 'smoke_candle_check')?.count, 2);
-  assert.equal(stash.z, 140);
+  assert.equal(stash.floor, FloorLevel.MAINTENANCE);
   assert.equal(stash.tags.includes('route_cue'), true);
   assert.equal(entities.some(entity => entity.type === EntityType.MONSTER), true);
 });

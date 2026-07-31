@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { Faction } from '../src/core/types';
+import { Faction, FloorLevel } from '../src/core/types';
 import { createWorldEventState, publishEvent } from '../src/systems/events';
 import {
   ROOM_MEMORY_BITS,
@@ -23,7 +23,7 @@ import { makeGameState } from './helpers';
 test('room memory records public and local player deeds but ignores private events', () => {
   clearRoomMemory();
   const state = makeGameState({
-    currentZ: 0,
+    currentFloor: FloorLevel.LIVING,
     worldEvents: createWorldEventState(),
   });
 
@@ -49,17 +49,17 @@ test('room memory records public and local player deeds but ignores private even
     tags: ['container', 'theft'],
   });
 
-  const memory = getRoomMemory(0, 7);
+  const memory = getRoomMemory(FloorLevel.LIVING, 7);
   assert.ok(memory);
   assert.equal(roomMemoryHas(memory, ROOM_MEMORY_BITS.THEFT), true);
   assert.equal(memory.severity, 4);
-  assert.equal(getRoomMemory(0, 8), undefined);
+  assert.equal(getRoomMemory(FloorLevel.LIVING, 8), undefined);
 });
 
 test('room memory decays on slow ticks and expires without a save shape', () => {
   clearRoomMemory();
   const state = makeGameState({
-    currentZ: 0,
+    currentFloor: FloorLevel.LIVING,
     worldEvents: createWorldEventState(),
   });
   publishEvent(state, {
@@ -73,24 +73,24 @@ test('room memory decays on slow ticks and expires without a save shape', () => 
     tags: ['container', 'resident_relief', 'relief'],
   });
 
-  const before = getRoomMemory(0, 3);
+  const before = getRoomMemory(FloorLevel.LIVING, 3);
   assert.ok(before);
   const ttl = before.ttl;
   const severity = before.severity;
   tickRoomMemory(state.time, 181);
-  const decayed = getRoomMemory(0, 3);
+  const decayed = getRoomMemory(FloorLevel.LIVING, 3);
   assert.ok(decayed);
   assert.ok(decayed.ttl < ttl);
   assert.ok(decayed.severity < severity || decayed.ttl <= ttl - 181);
 
   tickRoomMemory(state.time + ttl + 10, ttl + 10);
-  assert.equal(getRoomMemory(0, 3), undefined);
+  assert.equal(getRoomMemory(FloorLevel.LIVING, 3), undefined);
 });
 
 test('room memory keeps only the bounded newest/highest records', () => {
   clearRoomMemory();
   const state = makeGameState({
-    currentZ: 0,
+    currentFloor: FloorLevel.LIVING,
     worldEvents: createWorldEventState(),
   });
 
@@ -109,14 +109,14 @@ test('room memory keeps only the bounded newest/highest records', () => {
   }
 
   assert.equal(getRoomMemoryCount(), ROOM_MEMORY_CAP);
-  assert.equal(getRoomMemory(0, 0), undefined);
-  assert.ok(getRoomMemory(0, ROOM_MEMORY_CAP + 7));
+  assert.equal(getRoomMemory(FloorLevel.LIVING, 0), undefined);
+  assert.ok(getRoomMemory(FloorLevel.LIVING, ROOM_MEMORY_CAP + 7));
 });
 
 test('room memory accumulates bits, max severity and max ttl across multiple events', () => {
   clearRoomMemory();
   const state = makeGameState({
-    currentZ: 0,
+    currentFloor: FloorLevel.LIVING,
     worldEvents: createWorldEventState(),
   });
 
@@ -133,7 +133,7 @@ test('room memory accumulates bits, max severity and max ttl across multiple eve
     tags: ['theft'],
   });
 
-  const memory1 = getRoomMemory(0, 10);
+  const memory1 = getRoomMemory(FloorLevel.LIVING, 10);
   assert.ok(memory1);
   assert.equal(memory1.bits, ROOM_MEMORY_BITS.THEFT);
   assert.equal(memory1.severity, 2);
@@ -152,7 +152,7 @@ test('room memory accumulates bits, max severity and max ttl across multiple eve
     tags: ['combat'],
   });
 
-  const memory2 = getRoomMemory(0, 10);
+  const memory2 = getRoomMemory(FloorLevel.LIVING, 10);
   assert.ok(memory2);
   assert.equal(memory2.bits, ROOM_MEMORY_BITS.THEFT | ROOM_MEMORY_BITS.COMBAT);
   assert.equal(memory2.severity, 4);

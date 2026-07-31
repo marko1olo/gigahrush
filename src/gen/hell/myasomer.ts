@@ -7,6 +7,7 @@ import {
   EntityType,
   Faction,
   Feature,
+  FloorLevel,
   MonsterKind,
   RoomType,
   Tex,
@@ -29,7 +30,6 @@ import { randomRPG, scaleMonsterHp, scaleMonsterSpeed } from '../../systems/rpg'
 import { connectProtectedRoom, findClearArea, protectRoom, stampRoom } from '../shared';
 import { genLog } from '../log';
 import { isPlayerEntity } from '../../systems/player_actor';
-import { rng } from '../../core/rand';
 
 const MYASOMER_ID = 'myasomer';
 const MYASOMER_NAME = 'Мясомер';
@@ -44,7 +44,7 @@ const COUNTERPLAY_THREATS = 2;
 const FULL_COUNTERPLAY_THREATS = 1;
 
 interface MyasomerSite {
-  z: number;
+  floor: FloorLevel;
   roomId: number;
   zoneId: number;
   x: number;
@@ -104,7 +104,7 @@ export function generateMyasomer(world: World, entities: Entity[], nextId: { v: 
   const cy = world.wrap(room.y + (room.h >> 1));
   const ci = world.idx(cx, cy);
   activeSite = {
-    z: 180,
+    floor: FloorLevel.HELL,
     roomId: room.id,
     zoneId: world.zoneMap[ci],
     x: cx + 0.5,
@@ -144,8 +144,8 @@ function findMyasomerOrigin(world: World): { x: number; y: number } | null {
   if (direct && canReserve(world, direct.x, direct.y)) return direct;
 
   for (let attempt = 0; attempt < 1800; attempt++) {
-    const angle = rng() * Math.PI * 2;
-    const dist = 100 + rng() * 360;
+    const angle = Math.random() * Math.PI * 2;
+    const dist = 100 + Math.random() * 360;
     const x = world.wrap((W >> 1) + Math.round(Math.cos(angle) * dist) - (ROOM_W >> 1));
     const y = world.wrap((W >> 1) + Math.round(Math.sin(angle) * dist) - (ROOM_H >> 1));
     if (canReserve(world, x, y)) return { x, y };
@@ -341,7 +341,7 @@ function addQuietCache(world: World, room: Room): number {
     id: nextContainerId(world),
     x,
     y,
-    z: 180,
+    floor: FloorLevel.HELL,
     roomId: room.id,
     zoneId: world.zoneMap[ci],
     kind: ContainerKind.TRASH_BIN,
@@ -369,7 +369,7 @@ function addShardCache(world: World, room: Room): number {
     id: nextContainerId(world),
     x,
     y,
-    z: 180,
+    floor: FloorLevel.HELL,
     roomId: room.id,
     zoneId: world.zoneMap[ci],
     kind: ContainerKind.SECRET_STASH,
@@ -413,7 +413,7 @@ function handleMyasomerEvent(state: GameState, event: WorldEvent): void {
   const site = activeSite;
   const world = activeWorld;
   const entities = activeEntities;
-  if (!site || !world || !entities || state.currentZ !== site.z || event.z !== site.z) return;
+  if (!site || !world || !entities || state.currentFloor !== site.floor || event.floor !== site.floor) return;
 
   if (event.type === 'monster_bait_placed' && eventInsideSite(world, site, event)) {
     markBaited(state, site, event);

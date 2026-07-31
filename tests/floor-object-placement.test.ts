@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { Feature, RoomType, Tex, W } from '../src/core/types';
+import { Feature, FloorLevel, RoomType, Tex, W } from '../src/core/types';
 import { World, auditReachability } from '../src/core/world';
 import { designFloorById } from '../src/data/design_floors';
 import {
@@ -257,7 +257,7 @@ test('floor object profile duplicate rule ids are reported across rule families'
 });
 
 test('maintenance object profile wraps craft stations and collector machinery rules', () => {
-  const profile = floorObjectProfileForStoryFloor('maintenance');
+  const profile = floorObjectProfileForStoryFloor(FloorLevel.MAINTENANCE);
   assert.ok(profile, 'maintenance object profile should exist');
   assert.ok(profile.craftStations, 'maintenance object profile should include craft station subprofile');
   assert.equal(profile.featureRules?.some(rule => rule.id.includes('pump')), true);
@@ -266,7 +266,7 @@ test('maintenance object profile wraps craft stations and collector machinery ru
 });
 
 testGenerationMatrix('maintenance object profile places reachable craft stations', () => {
-  const gen = generateFloor(-26, 0x51002);
+  const gen = generateFloor(FloorLevel.MAINTENANCE, 0x51002);
   const audit = auditReachability(gen.world, gen.world.idx(Math.floor(gen.spawnX), Math.floor(gen.spawnY)));
   const stations = [...craftStationCells(gen.world, 'craft_lathe'), ...craftStationCells(gen.world, 'disassembly_workbench')];
 
@@ -294,7 +294,7 @@ test('procedural object profile composes base, geometry, majority, anomaly and d
     depth: 42,
     danger: 4,
     geometryId: 'living_blocks',
-    baseFloor: 'living',
+    baseFloor: FloorLevel.LIVING,
     majorityId: 'scientists',
     anomalyId: 'zombie_apocalypse',
     title: 'test',

@@ -1,10 +1,9 @@
-import { getPlotNpcNumericId } from '../../data/npc_packages';
 /* ── Тайная курилка — permanent room (ministry) ───────────────── */
 /* Hidden smoking room used by dissident clerks. Журналистка Аврора */
 /* gives FETCH quest for compromising notes about samosbor cover-up. */
 
 import {
-  Cell, Tex, Feature, RoomType,
+  Cell, Tex, Feature, FloorLevel, RoomType,
   type Room, type Entity,
   EntityType, Faction, Occupation, QuestType,
 } from '../../core/types';
@@ -14,7 +13,6 @@ import { stampRoom, protectRoom, connectProtectedRoom, findClearArea } from '../
 import { Spr } from '../../render/sprite_index';
 import { genLog } from '../log';
 import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
-import { rng } from '../../core/rand';
 
 const AVRORA_ID = 'zhurnalistka_avrora';
 const CLERK_SEMYON_ID = 'secret_smoking_clerk_semyon';
@@ -52,7 +50,7 @@ const NPC_DEF: PlotNpcDef = {
 registerSideQuest(AVRORA_ID, NPC_DEF, [
   {
     id: 'avrora_compromat',
-    giverId: getPlotNpcNumericId(AVRORA_ID)!,
+    giverNpcId: AVRORA_ID,
     type: QuestType.FETCH,
     desc: 'Аврора: «Восемь записок. Любых. Я найду в них коды и сошлю в самиздат.»',
     targetItem: 'note', targetCount: 8,
@@ -103,7 +101,7 @@ for (const friend of FRIEND_DEFS) {
   registerAuthoredNpc({
     id: friend.id,
     npc: friend.npc,
-    homeFloorKey: storyNpcFloorKey(30),
+    homeFloorKey: storyNpcFloorKey(FloorLevel.MINISTRY),
     tags: ['ministry', 'secret_smoking', 'witness'],
   });
 }
@@ -170,8 +168,8 @@ export function generateSecretSmokingRoom(
   const lootPool = ['cigs', 'cigs', 'note', 'note', 'antidep', 'tea', 'book', 'ammo_9mm'];
   for (const defId of lootPool) {
     for (let attempt = 0; attempt < 30; attempt++) {
-      const lx = rx + 1 + Math.floor(rng() * (ROOM_W - 2));
-      const ly = ry + 1 + Math.floor(rng() * (ROOM_H - 2));
+      const lx = rx + 1 + Math.floor(Math.random() * (ROOM_W - 2));
+      const ly = ry + 1 + Math.floor(Math.random() * (ROOM_H - 2));
       const ci = world.idx(lx, ly);
       if (world.cells[ci] !== Cell.FLOOR) continue;
       if (world.features[ci]) continue;
@@ -202,7 +200,7 @@ export function generateSecretSmokingRoom(
     const ci = world.idx(f.x, f.y);
     if (world.cells[ci] !== Cell.FLOOR) continue;
     requireSpawnedPlotNpcFromPackage(entities, nextId, f.id, f.x + 0.5, f.y + 0.5, {
-      angle: rng() * Math.PI * 2,
+      angle: Math.random() * Math.PI * 2,
       canGiveQuest: false,
     });
   }

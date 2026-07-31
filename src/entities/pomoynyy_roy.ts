@@ -1,6 +1,6 @@
 /* ── Pomoynyy Roy: food-attracted garbage swarm ──────────────── */
 
-import { MonsterKind } from '../core/types';
+import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
 import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
 
@@ -13,6 +13,7 @@ export const DEF: MonsterDef = {
   attackRate: 0.38,
   sprite: 0,
   aiFlags: ['foodBait', 'garbageSurround'],
+  floors: [FloorLevel.KVARTIRY, FloorLevel.LIVING, FloorLevel.MAINTENANCE],
   counterplay: 'Держите еду в контейнере, бросайте приманку в сторону от выхода и выжигайте или простреливайте узкий проход, пока рой расползается по флангам.',
   lootHint: 'пластиковый мусор, грязный жир, желтые крошки еды, редкое сырое мясо',
 };

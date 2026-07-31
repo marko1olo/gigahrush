@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { Cell, DoorState, RoomType, W } from '../src/core/types';
+import { Cell, DoorState, FloorLevel, RoomType, W } from '../src/core/types';
 import { World } from '../src/core/world';
 import { createWorldEventState, getRecentEvents } from '../src/systems/events';
 import { debugForceHermodoorBorer, updateHermodoorBorer } from '../src/systems/hermodoor_borer';
@@ -31,7 +31,7 @@ function setupBorerWorld() {
   room.doors.push(doorIdx);
 
   const state = makeGameState({
-    currentZ: 0,
+    currentFloor: FloorLevel.LIVING,
     worldEvents: createWorldEventState(),
     time: 1,
     samosborTimer: 20,
@@ -75,7 +75,7 @@ test('damages door when time passes damage threshold', () => {
 test('clears stale records on floor change', () => {
   const { world, state, entities, nextEntityId } = setupBorerWorld();
 
-  state.currentZ = 'hell';
+  state.currentFloor = FloorLevel.HELL;
   state.time = 20;
 
   updateHermodoorBorer(world, entities, state, 1, nextEntityId);

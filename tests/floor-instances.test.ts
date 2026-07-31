@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { Cell, EntityType, LiftDirection, type Entity } from '../src/core/types';
+import { Cell, EntityType, FloorLevel, LiftDirection, type Entity } from '../src/core/types';
 import { World } from '../src/core/world';
 import { FLOOR_INSTANCES, floorInstanceAllowsNpcs } from '../src/data/floor_instances';
 import {
@@ -45,7 +45,7 @@ function memoryEntity(id: number): Entity {
 
 test('floor instance registry has package generators without ordinary route z collision', () => {
   validateFloorInstanceGenerators(FLOOR_INSTANCES);
-  assert.deepEqual(floorInstanceGeneratorIds(), ['design_pocket']);
+  assert.deepEqual(floorInstanceGeneratorIds(), ['story_pocket']);
   assert.equal(floorKeyKnown('floor_instance:not_registered'), false);
 
   for (const def of FLOOR_INSTANCES) {
@@ -67,7 +67,7 @@ test('floor instance generator builds an id-keyed hidden world package', () => {
 
   assert.equal(first.floorInstanceId, 'loop_404');
   assert.equal(first.floorInstanceKey, floorInstanceWorldKey('loop_404'));
-  assert.equal(first.floorInstanceGeneratorId, 'design_pocket');
+  assert.equal(first.floorInstanceGeneratorId, 'story_pocket');
   assert.equal(first.floorInstanceNpcPolicy, 'none');
   assert.equal(first.floorInstanceExitRule, 'next_lift_returns');
   assert.equal(first.world.cells[spawnIdx], Cell.FLOOR);
@@ -106,21 +106,21 @@ test('floor memory saves and restores floor instance worlds by instance key', ()
 });
 
 test('active floor instance state round-trips a floor instance world key', () => {
-  const state = makeGameState({ currentZ: 0, time: 12 });
+  const state = makeGameState({ currentFloor: FloorLevel.LIVING, time: 12 });
   setFloorInstanceState(state, {
     current: {
       id: 'loop_404',
-      fromFloor: 'living',
-      intendedFloor: 'maintenance',
-      returnFloor: 'maintenance',
+      fromFloor: FloorLevel.LIVING,
+      intendedFloor: FloorLevel.MAINTENANCE,
+      returnFloor: FloorLevel.MAINTENANCE,
       direction: LiftDirection.DOWN,
     },
-  }.LIVING);
+  }, FloorLevel.LIVING);
 
   const saved = floorInstanceStateForSave(state);
   assert.equal(saved.current?.worldKey, floorInstanceWorldKey('loop_404'));
 
-  const loaded = makeGameState({ currentZ: 0 });
-  setFloorInstanceState(loaded, saved.LIVING);
+  const loaded = makeGameState({ currentFloor: FloorLevel.LIVING });
+  setFloorInstanceState(loaded, saved, FloorLevel.LIVING);
   assert.equal(floorInstanceStateForSave(loaded).current?.worldKey, floorInstanceWorldKey('loop_404'));
 });

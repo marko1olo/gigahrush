@@ -18,7 +18,6 @@ import { stampRoom, protectRoom, findClearArea } from '../shared';
 import { requireSpawnedPlotNpcFromPackage } from '../plot_npc_spawn';
 import { Spr } from '../../render/sprite_index';
 import { placeCraftStationAt, type CraftStationDefId } from '../craft_stations';
-import { rng } from '../../core/rand';
 
 const LAB_MIN_DIST = 10;
 const LAB_MAX_DIST = 50;
@@ -84,7 +83,7 @@ export function generateYakovLab(
   });
 
   if (candidates.length > 0) {
-    room = candidates[Math.floor(rng() * candidates.length)];
+    room = candidates[Math.floor(Math.random() * candidates.length)];
     room.name = 'Лаборатория';
     room.wallTex = Tex.TILE_W;
     room.floorTex = Tex.F_TILE;
@@ -121,8 +120,8 @@ export function generateYakovLab(
   const IDOL_SEARCH_R = 50;
   let idolPlaced = false;
   for (let attempt = 0; attempt < 3000 && !idolPlaced; attempt++) {
-    const ox = labCx + Math.floor(rng() * IDOL_SEARCH_R * 2) - IDOL_SEARCH_R;
-    const oy = labCy + Math.floor(rng() * IDOL_SEARCH_R * 2) - IDOL_SEARCH_R;
+    const ox = labCx + Math.floor(Math.random() * IDOL_SEARCH_R * 2) - IDOL_SEARCH_R;
+    const oy = labCy + Math.floor(Math.random() * IDOL_SEARCH_R * 2) - IDOL_SEARCH_R;
     const wx = ((ox % W) + W) % W;
     const wy = ((oy % W) + W) % W;
     if (world.cells[world.idx(wx, wy)] !== Cell.FLOOR) continue;

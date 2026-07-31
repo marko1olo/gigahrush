@@ -1,6 +1,5 @@
 import { msg, type Entity, type GameState } from '../core/types';
 import { publishEvent } from './events';
-import { mathRng as rng } from '../core/rand';
 
 export type CheckersSide = 'player' | 'npc';
 export type CheckersWinner = CheckersSide | 'draw' | '';
@@ -291,7 +290,7 @@ function chooseNpcMove(pieces: readonly CheckersPiece[], mustCaptureWithPieceId?
     if (ev > maxEval) {
       maxEval = ev;
       bestMove = move;
-    } else if (ev === maxEval && rng() < 0.3) {
+    } else if (ev === maxEval && Math.random() < 0.3) {
       bestMove = move;
     }
   }
@@ -492,48 +491,46 @@ export function handleCheckersInput(ctx: { state: GameState; player: Entity; npc
   if (ctx.input.interactEdge) {
     if (g.selectedPieceId) {
       const piece = g.pieces.find(p => p.id === g.selectedPieceId);
-      if (!piece) return { handled: true };
+      if (piece) {
+        const moves = generateMovesForPiece(g.pieces, piece);
+        
+        let allPlayerMoves = getAllMovesForSide(g.pieces, 'player');
+        if (g.mustCaptureWithPieceId) {
+            allPlayerMoves = moves.filter(m => m.isCapture);
+        }
 
-      const moves = generateMovesForPiece(g.pieces, piece);
-
-      let allPlayerMoves = getAllMovesForSide(g.pieces, 'player');
-      if (g.mustCaptureWithPieceId) {
-          allPlayerMoves = moves.filter(m => m.isCapture);
-      }
-
-      const hasAnyCaptures = allPlayerMoves.some(m => m.isCapture);
-
-      const move = moves.find(m => m.endX === g.cursorX && m.endY === g.cursorY);
-
-      if (!move) {
-        if (!g.mustCaptureWithPieceId) g.selectedPieceId = undefined; // deselect if invalid move
-        return { handled: true };
-      }
-
-      if (hasAnyCaptures && !move.isCapture) {
-         appendLog(g, 'Бить обязательно!');
-         return { handled: true };
-      }
-
-      g.pieces = applyMove(g.pieces, move);
-
-      if (move.isCapture) {
-        const pieceAfter = g.pieces.find(p => p.id === move.pieceId);
-        if (pieceAfter) {
-          const nextCaptures = generateMovesForPiece(g.pieces, pieceAfter).filter(m => m.isCapture);
-          if (nextCaptures.length > 0) {
-            g.mustCaptureWithPieceId = move.pieceId;
-            appendLog(g, 'Продолжайте бить!');
-            return { handled: true };
+        const hasAnyCaptures = allPlayerMoves.some(m => m.isCapture);
+        
+        const move = moves.find(m => m.endX === g.cursorX && m.endY === g.cursorY);
+        
+        if (move) {
+          if (hasAnyCaptures && !move.isCapture) {
+             appendLog(g, 'Бить обязательно!');
+          } else {
+            g.pieces = applyMove(g.pieces, move);
+            
+            if (move.isCapture) {
+              const pieceAfter = g.pieces.find(p => p.id === move.pieceId);
+              if (pieceAfter) {
+                const nextCaptures = generateMovesForPiece(g.pieces, pieceAfter).filter(m => m.isCapture);
+                if (nextCaptures.length > 0) {
+                  g.mustCaptureWithPieceId = move.pieceId;
+                  appendLog(g, 'Продолжайте бить!');
+                  return { handled: true };
+                }
+              }
+            }
+            
+            g.selectedPieceId = undefined;
+            g.mustCaptureWithPieceId = undefined;
+            g.phase = 'npc_turn';
+            checkWinCondition(g);
+            if (g.winner) settleCheckersGame(g, ctx.state, ctx.player, ctx.npc);
           }
+        } else {
+          if (!g.mustCaptureWithPieceId) g.selectedPieceId = undefined; // deselect if invalid move
         }
       }
-
-      g.selectedPieceId = undefined;
-      g.mustCaptureWithPieceId = undefined;
-      g.phase = 'npc_turn';
-      checkWinCondition(g);
-      if (g.winner) settleCheckersGame(g, ctx.state, ctx.player, ctx.npc);
     } else {
       const piece = getPieceAt(g.pieces, g.cursorX, g.cursorY);
       if (piece && piece.side === 'player') {

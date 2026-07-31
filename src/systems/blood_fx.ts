@@ -5,8 +5,8 @@ import { World } from '../core/world';
 import { stampLocalMark, stampMark, MarkType } from './surface_marks';
 import { Spr } from '../render/sprite_index';
 import { ensureEntityIndex } from './entity_index';
-import { addVisualSlotByPriority, removeVisualSlotCode } from '../gen/visual_cell_slots.js';
-import { mathRng as rng, SeedRng } from '../core/rand';
+import { addVisualSlotByPriority, removeVisualSlotCode } from '../gen/visual_cell_slots';
+import { SeedRng } from '../core/rand';
 
 /* ── Transient world-space particles ──────────────────────────── */
 export type ParticleKind =
@@ -97,8 +97,8 @@ function emitRadialParticle(
   gravity: number,
   landMark?: ParticleLandingMark,
 ): void {
-  const ang = rng() * Math.PI * 2;
-  const spd = baseSpeed * (0.45 + rng() * 0.85);
+  const ang = Math.random() * Math.PI * 2;
+  const spd = baseSpeed * (0.45 + Math.random() * 0.85);
   const h = (++_splatterSeed * 17) & 31;
   emitParticle({
     kind,
@@ -203,31 +203,31 @@ function spawnProjectileImpactParticles(
 
   if (flame) {
     for (let i = 0; i < 4; i++) {
-      emitRadialParticle('spark', x, y, z, 1.7, 0.5 + rng() * 0.9, 0.22, 0.85, [r, g, b], 0.9, 0.9, 5.5);
+      emitRadialParticle('spark', x, y, z, 1.7, 0.5 + Math.random() * 0.9, 0.22, 0.85, [r, g, b], 0.9, 0.9, 5.5);
     }
     for (let i = 0; i < 3; i++) {
-      emitRadialParticle('smoke', x, y, z, 0.55, 0.16 + rng() * 0.22, 0.75, 1.8, SMOKE, 0.28, 0.92, -0.18);
+      emitRadialParticle('smoke', x, y, z, 0.55, 0.16 + Math.random() * 0.22, 0.75, 1.8, SMOKE, 0.28, 0.92, -0.18);
     }
     return;
   }
 
   if (energy) {
     for (let i = 0; i < 7; i++) {
-      emitRadialParticle('spark', x, y, z, 2.35, 0.45 + rng() * 1.15, 0.28, 0.9 + (i & 1) * 0.35, [r, g, b], 0.9, 0.9, 5.8);
+      emitRadialParticle('spark', x, y, z, 2.35, 0.45 + Math.random() * 1.15, 0.28, 0.9 + (i & 1) * 0.35, [r, g, b], 0.9, 0.9, 5.8);
     }
     for (let i = 0; i < 2; i++) {
-      emitRadialParticle('smoke', x, y, z, 0.45, 0.1 + rng() * 0.22, 0.55, 1.5, SMOKE, 0.2, 0.92, -0.12);
+      emitRadialParticle('smoke', x, y, z, 0.45, 0.1 + Math.random() * 0.22, 0.55, 1.5, SMOKE, 0.2, 0.92, -0.12);
     }
-    emitRadialParticle('dust', x, y, z, 0.75, 0.08 + rng() * 0.18, 0.36, 1.2, CONCRETE_DUST, 0.26, 0.9, 0.8);
+    emitRadialParticle('dust', x, y, z, 0.75, 0.08 + Math.random() * 0.18, 0.36, 1.2, CONCRETE_DUST, 0.26, 0.9, 0.8);
     return;
   }
 
-  emitRadialParticle('spark', x, y, z, 1.15, 0.35 + rng() * 0.75, 0.18, 0.75, [r, g, b], 0.75, 0.9, 5.4);
+  emitRadialParticle('spark', x, y, z, 1.15, 0.35 + Math.random() * 0.75, 0.18, 0.75, [r, g, b], 0.75, 0.9, 5.4);
   for (let i = 0; i < 2; i++) {
-    emitRadialParticle('debris', x, y, z, 1.15, 0.25 + rng() * 0.6, 0.5, 0.8, [82, 76, 62], 0.75, 0.92, 5.0);
+    emitRadialParticle('debris', x, y, z, 1.15, 0.25 + Math.random() * 0.6, 0.5, 0.8, [82, 76, 62], 0.75, 0.92, 5.0);
   }
   for (let i = 0; i < 2; i++) {
-    emitRadialParticle('dust', x, y, z, 0.7, 0.05 + rng() * 0.18, 0.42, 1.35, CONCRETE_DUST, 0.28, 0.9, 0.9);
+    emitRadialParticle('dust', x, y, z, 0.7, 0.05 + Math.random() * 0.18, 0.42, 1.35, CONCRETE_DUST, 0.28, 0.9, 0.9);
   }
 }
 
@@ -323,8 +323,8 @@ function splatAdjacentWalls(
       if (dot < -0.1) continue;
     }
     // Wall face V at impact height: spriteZ 0=floor→faceV 1.0, spriteZ 0.5=mid→faceV 0.5
-    const faceV = Math.max(0.05, Math.min(0.95, 1.0 - hitZ + (rng() - 0.5) * 0.12));
-    const u = Math.max(0, Math.min(0.999, faceU + (rng() - 0.5) * 0.15));
+    const faceV = Math.max(0.05, Math.min(0.95, 1.0 - hitZ + (Math.random() - 0.5) * 0.12));
+    const u = Math.max(0, Math.min(0.999, faceU + (Math.random() - 0.5) * 0.15));
     stampMark(world, wx, wy, u, faceV, radius, MarkType.SPLAT, seed + dx * 7 + dy * 13, cr, cg, cb, intensity, true);
   }
 }
@@ -353,9 +353,9 @@ export function spawnBloodHit(world: World, ex: number, ey: number, fromAngle: n
   const count = Math.min(24, 4 + Math.floor(dmg * 0.3));
   const pMomentum = spd > 0.1 ? 0.15 : 0;
   for (let i = 0; i < count && particles.length < MAX_PARTICLES; i++) {
-    const spread = (rng() - 0.5) * 1.6;
+    const spread = (Math.random() - 0.5) * 1.6;
     const ang = fromAngle + Math.PI + spread;
-    const baseSpd = 1.5 + rng() * 3;
+    const baseSpd = 1.5 + Math.random() * 3;
     // Unique color per particle — dark red / crimson / maroon
     const h = (seed * 7 + i * 31) & 0xFF;
     const size = 1 + (h & 1);
@@ -365,7 +365,7 @@ export function spawnBloodHit(world: World, ex: number, ey: number, fromAngle: n
       z: hitZ,
       vx: Math.cos(ang) * baseSpd + pvx * pMomentum,
       vy: Math.sin(ang) * baseSpd + pvy * pMomentum,
-      vz: (rng() - 0.3) * 1.5,  // slight upward bias then fall
+      vz: (Math.random() - 0.3) * 1.5,  // slight upward bias then fall
       life: 1.5,  // generous life — gravity landing will kill them
       size,
       r: gore ? 20 + (h & 31) : 120 + (h & 63),
@@ -396,10 +396,10 @@ export function spawnDeathPool(world: World, ex: number, ey: number, gore = fals
   stampMark(world, cx, cy, fx, fy, poolRadius, MarkType.POOL, seed, sr, sg, sb, 255);
   
   // Danger/Blood vector field impulse
-  const fieldIdx = world.idx(cx, cy);
+  const fieldIdx = cy * 1024 + cx;
   world.dangerField[fieldIdx] = Math.min(255, world.dangerField[fieldIdx] + 50);
 
-  const sRng = new SeedRng(seed);
+  const rng = new SeedRng(seed);
 
   // Directional wall splatter at mid-body height
   splatAdjacentWalls(world, ex, ey, 0.25 + goreLevel * 0.05, 200, seed, sr, sg, sb, pvx, pvy, 0.5);
@@ -407,9 +407,9 @@ export function spawnDeathPool(world: World, ex: number, ey: number, gore = fals
   // Large gore splatters spraying outward across multiple cells
   const splatCount = 3 + goreLevel * 3;
   for (let i = 0; i < splatCount; i++) {
-    const ang = (i / splatCount) * Math.PI * 2 + (sRng.random() - 0.5) * 1.2;
+    const ang = (i / splatCount) * Math.PI * 2 + (rng.random() - 0.5) * 1.2;
     // Spray distance: 0.5 to 2.5 cells from center, further with higher gore
-    const dist = 0.3 + sRng.random() * (0.6 + goreLevel * 0.5);
+    const dist = 0.3 + rng.random() * (0.6 + goreLevel * 0.5);
     // Bias toward projectile direction
     const biasX = dirX * 0.4, biasY = dirY * 0.4;
     const sx = ex + Math.cos(ang) * dist + biasX;
@@ -417,39 +417,49 @@ export function spawnDeathPool(world: World, ex: number, ey: number, gore = fals
     const scx = Math.floor(((sx % 1024) + 1024) % 1024);
     const scy = Math.floor(((sy % 1024) + 1024) % 1024);
     if (world.solid(scx, scy)) continue;
-    const splatRadius = 0.12 + goreLevel * 0.06 + sRng.random() * 0.08;
-    const splatIntensity = 160 + sRng.int(0, 60);
+    const splatRadius = 0.12 + goreLevel * 0.06 + rng.random() * 0.08;
+    const splatIntensity = 160 + rng.int(0, 60);
     stampMark(world, scx, scy, ((sx % 1) + 1) % 1, ((sy % 1) + 1) % 1, splatRadius, MarkType.SPLAT, seed + i + 1, sr, sg, sb, splatIntensity);
     // Wall splats at spray endpoints
-    if (goreLevel >= 2 && sRng.chance(0.5)) {
-      splatAdjacentWalls(world, sx, sy, splatRadius * 0.5, splatIntensity - 40, seed + i + 50, sr, sg, sb, Math.cos(ang), Math.sin(ang), 0.3 + sRng.random() * 0.5);
+    if (goreLevel >= 2 && rng.chance(0.5)) {
+      splatAdjacentWalls(world, sx, sy, splatRadius * 0.5, splatIntensity - 40, seed + i + 50, sr, sg, sb, Math.cos(ang), Math.sin(ang), 0.3 + rng.random() * 0.5);
     }
   }
 
   // Central procedural mesh chunk
   if (goreLevel >= 1) {
-    const chunkCount = 2 + Math.floor(sRng.random() * 2); // 2 to 3 chunks in center
+    const chunkCount = 2 + Math.floor(rng.random() * 2); // 2 to 3 chunks in center
     for (let i = 0; i < chunkCount; i++) {
-      addVisualSlotByPriority(world, world.idx(cx, cy), 34, seed + i);
+      addVisualSlotByPriority(world, cy * 1024 + cx, 34, seed + i);
+    }
+    
+    // Add scattered chunks at random adjacent open cells
+    const scx = Math.floor(((cx + Math.round(rng.random() * 2 - 1)) % 1024 + 1024) % 1024);
+    const scy = Math.floor(((cy + Math.round(rng.random() * 2 - 1)) % 1024 + 1024) % 1024);
+    if (!world.solid(scx, scy) && (scx !== cx || scy !== cy)) {
+      const outerCount = 1 + Math.floor(rng.random() * 2); // 1 to 2 chunks adjacent
+      for (let i = 0; i < outerCount; i++) {
+        addVisualSlotByPriority(world, scy * 1024 + scx, 34, seed + 10 + i);
+      }
     }
   }
 
-  // Gore spray particles for messy deaths (shotgun / explosion) - transient, uses rng
+  // Gore spray particles for messy deaths (shotgun / explosion) - transient, uses Math.random
   if (goreLevel >= 2) {
     const particleCount = Math.min(48, goreLevel * 12);
     for (let i = 0; i < particleCount && particles.length < MAX_PARTICLES; i++) {
-      const ang = rng() * Math.PI * 2;
-      const baseSpd = 3 + rng() * 6;
+      const ang = Math.random() * Math.PI * 2;
+      const baseSpd = 3 + Math.random() * 6;
       const pM = spd > 0.1 ? 0.25 : 0;
       const h = (seed * 7 + i * 31) & 0xFF;
       const size = 1 + (h & 1);
       emitParticle({
         kind: gore ? 'gore' : 'blood',
         x: ex, y: ey,
-        z: 0.3 + rng() * 0.4,  // mid-body height
+        z: 0.3 + Math.random() * 0.4,  // mid-body height
         vx: Math.cos(ang) * baseSpd + pvx * pM,
         vy: Math.sin(ang) * baseSpd + pvy * pM,
-        vz: (rng() - 0.2) * 2.0,  // mostly upward spray
+        vz: (Math.random() - 0.2) * 2.0,  // mostly upward spray
         life: 1.5,
         size,
         r: gore ? 20 + (h & 31) : 100 + (h & 63),
@@ -482,19 +492,19 @@ export function updateBloodTrails(world: World, entities: Entity[], dt: number):
     if (ratio >= 0.5) continue;  // only bleed when under 50% HP
     // Drip probability scales with damage
     const drip = (0.5 - ratio) * 2;  // 0..1
-    if (rng() > drip * dt * 3) continue;
+    if (Math.random() > drip * dt * 3) continue;
     const cx = Math.floor(e.x), cy = Math.floor(e.y);
-    const fx = e.x - cx + (rng() - 0.5) * 0.3;
-    const fy = e.y - cy + (rng() - 0.5) * 0.3;
+    const fx = e.x - cx + (Math.random() - 0.5) * 0.3;
+    const fy = e.y - cy + (Math.random() - 0.5) * 0.3;
     const isGore = e.type === EntityType.MONSTER;
     const [sr, sg, sb] = isGore ? GORE : BLOOD;
     stampMark(world, cx, cy,
       Math.max(0, Math.min(0.999, fx)),
       Math.max(0, Math.min(0.999, fy)),
-      0.06 + rng() * 0.04,
+      0.06 + Math.random() * 0.04,
       MarkType.DRIP,
       ++_splatterSeed, sr, sg, sb,
-      60 + Math.floor(rng() * 40));
+      60 + Math.floor(Math.random() * 40));
   }
 }
 
@@ -509,7 +519,7 @@ export function spawnDustBurst(
   bindParticleWorld(world);
   const capped = Math.max(0, Math.min(48, count | 0));
   for (let i = 0; i < capped; i++) {
-    emitRadialParticle('dust', x, y, z, 0.7 + rng() * 0.35, 0.03 + rng() * 0.22, 0.42 + rng() * 0.25, 1.2 + rng() * 0.8, color, 0.24, 0.88, 0.8);
+    emitRadialParticle('dust', x, y, z, 0.7 + Math.random() * 0.35, 0.03 + Math.random() * 0.22, 0.42 + Math.random() * 0.25, 1.2 + Math.random() * 0.8, color, 0.24, 0.88, 0.8);
   }
 }
 
@@ -521,7 +531,7 @@ export function spawnBreachDust(world: World, x: number, y: number, radius: numb
   spawnDustBurst(world, x, y, 0.18, dustCount, color);
   const smokeCount = Math.min(10, Math.max(2, Math.floor(radius * 2)), Math.max(0, 48 - dustCount));
   for (let i = 0; i < smokeCount; i++) {
-    emitRadialParticle('smoke', x, y, 0.18, 0.45 + rng() * 0.25, 0.12 + rng() * 0.28, 0.85 + rng() * 0.35, 1.8 + rng(), biomass ? MEAT_DUST : SMOKE, 0.2, 0.92, -0.16);
+    emitRadialParticle('smoke', x, y, 0.18, 0.45 + Math.random() * 0.25, 0.12 + Math.random() * 0.28, 0.85 + Math.random() * 0.35, 1.8 + Math.random(), biomass ? MEAT_DUST : SMOKE, 0.2, 0.92, -0.16);
   }
 }
 
@@ -535,18 +545,18 @@ export function spawnExplosionParticles(world: World, x: number, y: number, radi
   const debrisCount = Math.min(12, 6 + Math.floor(radius * 1.5), Math.max(0, 48 - dustCount - smokeCount - sparkCount));
 
   for (let i = 0; i < dustCount; i++) {
-    emitRadialParticle('dust', x, y, 0.15 + rng() * 0.15, 1.0 + radius * 0.12, 0.1 + rng() * 0.35, 0.45 + rng() * 0.22, 1.3 + rng() * 0.8, CONCRETE_DUST, 0.3, 0.9, 0.7);
+    emitRadialParticle('dust', x, y, 0.15 + Math.random() * 0.15, 1.0 + radius * 0.12, 0.1 + Math.random() * 0.35, 0.45 + Math.random() * 0.22, 1.3 + Math.random() * 0.8, CONCRETE_DUST, 0.3, 0.9, 0.7);
   }
   for (let i = 0; i < smokeCount; i++) {
-    emitRadialParticle('smoke', x, y, 0.2 + rng() * 0.18, 0.65 + radius * 0.08, 0.16 + rng() * 0.34, 0.85 + rng() * 0.35, 2.0 + rng() * 1.2, SMOKE, 0.24, 0.93, -0.16);
+    emitRadialParticle('smoke', x, y, 0.2 + Math.random() * 0.18, 0.65 + radius * 0.08, 0.16 + Math.random() * 0.34, 0.85 + Math.random() * 0.35, 2.0 + Math.random() * 1.2, SMOKE, 0.24, 0.93, -0.16);
   }
   for (let i = 0; i < sparkCount; i++) {
     const mark = i < 2 ? particleLandMark('spark', 0.035, bfg ? 135 : 120, 0.22) : undefined;
-    emitRadialParticle('spark', x, y, 0.22 + rng() * 0.22, 2.1 + radius * 0.18, 0.45 + rng() * 1.2, 0.22 + rng() * 0.18, 0.8 + (i & 1) * 0.25, sparkColor, 0.9, 0.9, 5.8, mark);
+    emitRadialParticle('spark', x, y, 0.22 + Math.random() * 0.22, 2.1 + radius * 0.18, 0.45 + Math.random() * 1.2, 0.22 + Math.random() * 0.18, 0.8 + (i & 1) * 0.25, sparkColor, 0.9, 0.9, 5.8, mark);
   }
   for (let i = 0; i < debrisCount; i++) {
     const mark = i < 4 ? particleLandMark('debris', 0.045, 95, 0.3) : undefined;
-    emitRadialParticle('debris', x, y, 0.18 + rng() * 0.18, 1.45 + radius * 0.15, 0.25 + rng() * 0.75, 0.55 + rng() * 0.28, 0.75 + (i & 1) * 0.2, [82, 72, 56], 0.75, 0.92, 5.2, mark);
+    emitRadialParticle('debris', x, y, 0.18 + Math.random() * 0.18, 1.45 + radius * 0.15, 0.25 + Math.random() * 0.75, 0.55 + Math.random() * 0.28, 0.75 + (i & 1) * 0.2, [82, 72, 56], 0.75, 0.92, 5.2, mark);
   }
 }
 
@@ -571,11 +581,11 @@ export function updateParticles(world: World, dt: number): void {
     // 3D gravity: pull particles down
     p.vz -= (p.gravity ?? 3.5) * dt;
     p.z += p.vz * dt;
-    // Hit z: only particles with explicit landing metadata can leave persistent marks.
+    // Hit floor: only particles with explicit landing metadata can leave persistent marks.
     if (p.z <= 0) {
       p.z = 0;
       const mark = p.landMark;
-      if (mark && rng() <= mark.probability) {
+      if (mark && Math.random() <= mark.probability) {
         const cx = world.wrap(Math.floor(p.x));
         const cy = world.wrap(Math.floor(p.y));
         if (!world.solid(cx, cy) || mark.wallOk) {

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { ItemType, RoomType } from '../src/core/types';
+import { FloorLevel, ItemType, RoomType } from '../src/core/types';
 import { ITEM_TAGS, ITEMS } from '../src/data/items';
 import { RESOURCES, resourceForItem } from '../src/data/resources';
 import { getRecentEvents } from '../src/systems/events';
@@ -27,7 +27,7 @@ test('ammo coupon shells is reachable official shotgun ammo paperwork', () => {
 
 test('ammo coupon shells redeems into legal shotgun shells', () => {
   const player = makeTestPlayer({ inventory: [{ defId: 'ammo_coupon_shells', count: 1 }] });
-  const state = makeGameState({ currentZ: 34, time: 86 });
+  const state = makeGameState({ currentFloor: FloorLevel.MINISTRY, time: 86 });
 
   assert.equal(getInventorySlotActionInfo(player, 0)?.useLabel, 'Enter погасить');
 

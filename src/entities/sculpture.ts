@@ -1,9 +1,8 @@
 /* ── SCULPTURE — weeping angel mechanic ───────────────────────────── */
 
-import { MonsterKind } from '../core/types';
+import { FloorLevel, MonsterKind } from '../core/types';
 import type { MonsterDef } from './monster';
 import { S, rgba, noise, clamp, CLEAR } from '../render/pixutil';
-import { mathRng as rng } from '../core/rand';
 
 export const DEF: MonsterDef = {
   kind: MonsterKind.SCULPTURE,
@@ -13,7 +12,8 @@ export const DEF: MonsterDef = {
   dmg: 1000,
   attackRate: 0.25,
   sprite: 0,   // auto-assigned by generateSprites()
-  aiFlags: ['weepingAngel'],
+  aiFlags: ['weepingAngel' as any], // We will add 'weepingAngel' to MonsterAIFlag in monster.ts
+  floors: [FloorLevel.MAINTENANCE, FloorLevel.HELL, FloorLevel.VOID],
   counterplay: 'Двигается только когда на неё никто не смотрит. Смертельно быстрая.',
   lootHint: 'редкая арматура, изолента, странные бетонные фрагменты',
 };
@@ -109,7 +109,7 @@ function drawFacialMarkings(t: Uint32Array, cx: number): void {
     if (y === 23 || y === 24) width = 2; // mouth area
 
     for (let dx = -width; dx <= width; dx++) {
-      if (rng() > 0.1) {
+      if (Math.random() > 0.1) {
          t[y * S + cx + dx] = rgba(140, 20, 20); // rust red
       }
     }
@@ -135,8 +135,8 @@ function drawFacialMarkings(t: Uint32Array, cx: number): void {
 
   // 4) Dark cracks / blemishes
   for (let i = 0; i < 60; i++) {
-    const px = cx + Math.floor((rng() - 0.5) * 26);
-    const py = 6 + Math.floor(rng() * 56);
+    const px = cx + Math.floor((Math.random() - 0.5) * 26);
+    const py = 6 + Math.floor(Math.random() * 56);
     const idx = py * S + px;
     if (idx >= 0 && idx < t.length && t[idx] !== CLEAR) {
       t[idx] = rgba(50, 50, 40);
